@@ -176,14 +176,20 @@ function HomeBalanceCard({
   );
 }
 
-function HomeActions({ onDeposit }: { onDeposit: () => void }) {
+function HomeActions({
+  onDeposit,
+  onSend,
+}: {
+  onDeposit: () => void;
+  onSend: () => void;
+}) {
   return (
     <div className="mt-3.5 flex gap-[11px] px-5">
       <PrimaryButton className="flex-1" onClick={onDeposit}>
         <ArrowDown size={17} strokeWidth={2.2} aria-hidden="true" />
         Deposit
       </PrimaryButton>
-      <PrimaryButton variant="secondary" className="flex-1">
+      <PrimaryButton variant="secondary" className="flex-1" onClick={onSend}>
         <ArrowUp size={17} strokeWidth={2.2} aria-hidden="true" />
         Send
       </PrimaryButton>
@@ -201,9 +207,11 @@ function HomeActions({ onDeposit }: { onDeposit: () => void }) {
 
 function HomeAssetsSection({
   home,
+  onSendAsset,
   walletAssets,
 }: {
   home: HomeSlice;
+  onSendAsset: (symbol: string) => void;
   walletAssets: HomeWalletAssets;
 }) {
   return (
@@ -232,9 +240,13 @@ function HomeAssetsSection({
           home.assets.map((asset, index) => {
             const isLast = index === home.assets.length - 1;
             return (
-              <div
+              <button
                 key={asset.symbol}
-                className="zp-tap flex items-center gap-[13px] px-1 py-[11px]"
+                type="button"
+                aria-label={`Send ${asset.symbol}`}
+                data-testid={`home-asset-${asset.symbol}`}
+                onClick={() => onSendAsset(asset.symbol)}
+                className="zp-tap flex w-full items-center gap-[13px] px-1 py-[11px] text-left"
                 style={
                   isLast
                     ? undefined
@@ -268,7 +280,7 @@ function HomeAssetsSection({
                     {asset.amountLabel}
                   </div>
                 </div>
-              </div>
+              </button>
             );
           })
         )}
@@ -298,6 +310,9 @@ export function HomeScreen() {
   // never flash a stale number as if it were live.
   const isPending = isLoading || isError;
   const handleDeposit = () => navigate('/invest/amount');
+  const handleSend = () => navigate('/send');
+  const handleSendAsset = (symbol: string) =>
+    navigate(`/send?token=${encodeURIComponent(symbol)}`);
 
   return (
     <div className="pb-6" data-screen="home">
@@ -311,10 +326,14 @@ export function HomeScreen() {
         onRangeChange={setRange}
       />
 
-      <HomeActions onDeposit={handleDeposit} />
+      <HomeActions onDeposit={handleDeposit} onSend={handleSend} />
 
       {/* Assets */}
-      <HomeAssetsSection home={home} walletAssets={walletAssets} />
+      <HomeAssetsSection
+        home={home}
+        onSendAsset={handleSendAsset}
+        walletAssets={walletAssets}
+      />
 
       {/* Strategy card */}
       <div className="mt-[22px] px-5">

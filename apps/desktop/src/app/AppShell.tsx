@@ -13,7 +13,10 @@ import { useAccount } from '@/integration/useAccount';
 export function AppShell() {
   const { pathname } = useLocation();
   const { isConnected } = useAccount();
-  const hideTabBar = pathname.startsWith('/invest') || !isConnected;
+  const hideTabBar =
+    pathname.startsWith('/invest') ||
+    pathname.startsWith('/send') ||
+    !isConnected;
 
   return (
     <PhoneFrame>

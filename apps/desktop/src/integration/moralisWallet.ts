@@ -3,6 +3,7 @@ import {
   getMoralisWalletHistory,
   getMoralisWalletTokenBalances,
   getSupportedMoralisWalletSymbol,
+  getSupportedWalletTokenDefinition,
   type MoralisChainHistory,
   type MoralisSupportedWalletSymbol,
   type MoralisWalletChain,
@@ -38,15 +39,21 @@ interface ChainConfig {
   moralis: MoralisChainKey;
   desktop: DesktopChainKey;
   label: string;
+  chainId: number;
 }
 
 const WALLET_HISTORY_LIMIT = 10;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export const MORALIS_WALLET_CHAINS = [
-  { moralis: 'eth', desktop: 'ethereum', label: 'Ethereum' },
-  { moralis: 'base', desktop: 'base', label: 'Base' },
-  { moralis: 'arbitrum', desktop: 'arbitrum', label: 'Arbitrum' },
+  { moralis: 'eth', desktop: 'ethereum', label: 'Ethereum', chainId: 1 },
+  { moralis: 'base', desktop: 'base', label: 'Base', chainId: 8453 },
+  {
+    moralis: 'arbitrum',
+    desktop: 'arbitrum',
+    label: 'Arbitrum',
+    chainId: 42161,
+  },
 ] as const satisfies readonly ChainConfig[];
 
 const TOKEN_META: Record<
@@ -72,6 +79,16 @@ export interface DesktopWalletAsset extends DemoAsset {
   symbol: SupportedWalletSymbol;
   rawAmount: number;
   usdPrice: number | null;
+  holdings: DesktopWalletAssetHolding[];
+}
+
+export interface DesktopWalletAssetHolding {
+  chain: DesktopChainKey;
+  chainId: number;
+  tokenAddress: `0x${string}` | null;
+  decimals: number;
+  rawAmount: number;
+  usdValue: number | null;
 }
 
 export interface InvestableBalanceRow {
@@ -260,6 +277,7 @@ function aggregateChainBalance(
       amount: number;
       usdValue: number;
       chains: Set<DesktopChainKey>;
+      holdings: Map<DesktopChainKey, DesktopWalletAssetHolding>;
       name: string;
     }
   >,
@@ -278,16 +296,36 @@ function aggregateChainBalance(
   }
 
   const meta = TOKEN_META[symbol];
+  const definition = getSupportedWalletTokenDefinition(symbol);
+  const tokenAddress =
+    typeof balance.token_address === 'string' && balance.token_address.trim()
+      ? (balance.token_address.trim().toLowerCase() as `0x${string}`)
+      : null;
   const existing = grouped.get(symbol);
+  const existingHolding = existing?.holdings.get(chainConfig.desktop);
+  const holdingUsdValue =
+    usdValue > 0
+      ? (existingHolding?.usdValue ?? 0) + usdValue
+      : (existingHolding?.usdValue ?? null);
+  const nextHolding: DesktopWalletAssetHolding = {
+    chain: chainConfig.desktop,
+    chainId: chainConfig.chainId,
+    tokenAddress,
+    decimals: definition.decimals,
+    rawAmount: (existingHolding?.rawAmount ?? 0) + amount,
+    usdValue: holdingUsdValue,
+  };
   if (existing) {
     existing.amount += amount;
     existing.usdValue += usdValue;
     existing.chains.add(chainConfig.desktop);
+    existing.holdings.set(chainConfig.desktop, nextHolding);
   } else {
     grouped.set(symbol, {
       amount,
       usdValue,
       chains: new Set([chainConfig.desktop]),
+      holdings: new Map([[chainConfig.desktop, nextHolding]]),
       name:
         typeof balance.name === 'string' && balance.name.trim()
           ? balance.name.trim()
@@ -305,6 +343,7 @@ export function buildDesktopWalletAssets(
       amount: number;
       usdValue: number;
       chains: Set<DesktopChainKey>;
+      holdings: Map<DesktopChainKey, DesktopWalletAssetHolding>;
       name: string;
     }
   >();
@@ -333,6 +372,12 @@ export function buildDesktopWalletAssets(
         usdValue,
         amountLabel: formatAmount(entry.amount, symbol),
         chains: sortChains(Array.from(entry.chains)),
+        holdings: sortChains(Array.from(entry.holdings.keys()))
+          .map((chain) => entry.holdings.get(chain))
+          .filter(
+            (holding): holding is DesktopWalletAssetHolding =>
+              holding !== undefined,
+          ),
         iconBg: meta.iconBg,
         glyph: meta.glyph,
         rawAmount: entry.amount,
