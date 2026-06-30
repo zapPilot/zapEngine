@@ -301,7 +301,10 @@ describe('desktop screen live-data states', () => {
     expect(markup).toContain('+2.3%');
     expect(markup).toContain('+$345.67 today');
     expect(markup).toContain('Portfolio allocation');
-    expect(markup).toContain('Stables');
+    expect(markup).toContain('Five portfolio buckets, shown even when empty.');
+    expect(markup).toContain('Stables Group');
+    expect(markup).toContain('S&amp;P 500 Group');
+    expect(markup).toContain('Other Group');
     expect(markup).toContain('100.0%');
     expect(markup).toContain('$1,234.56');
     expect(markup).not.toContain('animate-pulse');
@@ -367,11 +370,25 @@ describe('desktop screen live-data states', () => {
     ];
 
     expect(markup).toContain('Portfolio allocation');
-    expect(markup).toContain('ETH');
-    expect(markup).toContain('BTC');
-    expect(markup).toContain('Stables');
-    expect(markup).toContain('S&amp;P 500');
-    expect(markup).toContain('Other');
+    expect(markup).toContain('ETH Group');
+    expect(markup).toContain('BTC Group');
+    expect(markup).toContain('Stables Group');
+    expect(markup).toContain('S&amp;P 500 Group');
+    expect(markup).toContain('Other Group');
+    expect(markup).not.toContain('Native, wrapped, and liquid-staked ETH');
+    expect(markup).not.toContain('Bitcoin exposure across wrapped assets');
+    expect(markup).not.toContain('Dollar-denominated liquidity');
+    expect(markup).not.toContain('Tokenized US equity index exposure');
+    expect(markup).not.toContain('Assets outside the core allocation buckets');
+    expect(markup).toContain('#8b5cf6');
+    expect(markup).toContain('/tokens/weth.png');
+    expect(markup).toContain('aria-label="ETH Group grouped token icons"');
+    expect(markup).toContain('aria-label="BTC Group grouped token icons"');
+    expect(markup).toContain('aria-label="Stables Group grouped token icons"');
+    expect(markup).toContain(
+      'aria-label="S&amp;P 500 Group grouped token icons"',
+    );
+    expect(markup).toContain('aria-label="Other Group grouped token icons"');
     expect(markup).toContain('40.0%');
     expect(markup).toContain('30.0%');
     expect(markup).toContain('20.0%');
@@ -387,6 +404,29 @@ describe('desktop screen live-data states', () => {
     expect(markup).not.toContain('Wrapped Ether');
     expect(markup).not.toContain('data-testid="home-asset-USDC"');
     expect(markup).not.toContain('USD Coin');
+  });
+
+  it('keeps all five Home portfolio buckets visible when holdings are empty', () => {
+    setLiveHomeData([]);
+
+    const markup = renderScreen(HomeScreen);
+    const exposureIds = [
+      'home-exposure-eth',
+      'home-exposure-btc',
+      'home-exposure-stables',
+      'home-exposure-sp500',
+      'home-exposure-other',
+    ];
+
+    for (const id of exposureIds) {
+      expect(markup).toContain(`data-testid="${id}"`);
+    }
+    expect(
+      markup.match(/aria-label="[^"]+ Group grouped token icons"/g)?.length,
+    ).toBe(5);
+    expect(markup.match(/0 tokens/g)?.length).toBe(5);
+    expect(markup.match(/0.0%/g)?.length).toBe(5);
+    expect(markup.match(/\$0\.00/g)?.length).toBe(5);
   });
 
   it('renders Portfolio live position, metrics, chart, and allocation without skeletons', () => {

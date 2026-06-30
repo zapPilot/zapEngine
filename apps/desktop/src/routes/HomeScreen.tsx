@@ -12,6 +12,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { RangeTabs } from '@/components/ui/RangeTabs';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
+import { tokenIconSrcForSymbol } from '@/data/assetIcons';
 import { CHAINS, DEMO } from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
 import {
@@ -74,11 +75,18 @@ type HomeWalletAssets = ReturnType<typeof useHomeData>['walletAssets'];
 
 type PortfolioExposureId = 'eth' | 'btc' | 'stables' | 'sp500' | 'other';
 
+interface ExposureIconSeed {
+  bg: string;
+  glyph: string;
+  symbol: string;
+}
+
 interface PortfolioExposureMeta {
   label: string;
-  description: string;
   iconBg: string;
+  barColor: string;
   glyph: string;
+  fallbackIcons: readonly ExposureIconSeed[];
 }
 
 interface PortfolioExposure extends PortfolioExposureMeta {
@@ -101,34 +109,54 @@ const PORTFOLIO_EXPOSURE_META: Record<
   PortfolioExposureMeta
 > = {
   eth: {
-    label: 'ETH',
-    description: 'Native, wrapped, and liquid-staked ETH',
+    label: 'ETH Group',
     iconBg: '#2a2a30',
+    barColor: '#8b5cf6',
     glyph: 'Ξ',
+    fallbackIcons: [
+      { bg: '#2a2a30', glyph: 'Ξ', symbol: 'ETH' },
+      { bg: '#627eea', glyph: 'Ξ', symbol: 'WETH' },
+    ],
   },
   btc: {
-    label: 'BTC',
-    description: 'Bitcoin exposure across wrapped assets',
+    label: 'BTC Group',
     iconBg: '#f7931a',
+    barColor: '#f7931a',
     glyph: '₿',
+    fallbackIcons: [
+      { bg: '#f7931a', glyph: '₿', symbol: 'BTC' },
+      { bg: '#0052ff', glyph: '₿', symbol: 'CBBTC' },
+    ],
   },
   stables: {
-    label: 'Stables',
-    description: 'Dollar-denominated liquidity',
+    label: 'Stables Group',
     iconBg: '#2775ca',
+    barColor: '#2775ca',
     glyph: '$',
+    fallbackIcons: [
+      { bg: '#2775ca', glyph: '$', symbol: 'USDC' },
+      { bg: '#26a17b', glyph: '$', symbol: 'USDT' },
+    ],
   },
   sp500: {
-    label: 'S&P 500',
-    description: 'Tokenized US equity index exposure',
+    label: 'S&P 500 Group',
     iconBg: '#4b5563',
+    barColor: '#d4c5a3',
     glyph: 'S',
+    fallbackIcons: [
+      { bg: '#4b5563', glyph: 'S', symbol: 'SPY' },
+      { bg: '#d4c5a3', glyph: 'S', symbol: 'SP500_FALLBACK' },
+    ],
   },
   other: {
-    label: 'Other',
-    description: 'Assets outside the core allocation buckets',
+    label: 'Other Group',
     iconBg: '#6f6a5f',
+    barColor: '#6f6a5f',
     glyph: '•',
+    fallbackIcons: [
+      { bg: '#6f6a5f', glyph: '•', symbol: 'OTHER_PRIMARY' },
+      { bg: '#343029', glyph: '+', symbol: 'OTHER_PLUS' },
+    ],
   },
 };
 
@@ -211,29 +239,33 @@ function buildPortfolioExposures(
     }
   }
 
-  return PORTFOLIO_EXPOSURE_ORDER.flatMap((id) => {
+  return PORTFOLIO_EXPOSURE_ORDER.map((id) => {
     const exposureAssets = grouped.get(id) ?? [];
-    if (exposureAssets.length === 0) {
-      return [];
-    }
 
     const usdValue = exposureAssets.reduce((sum, asset) => {
       const value = numericUsdValue(asset);
       return value === null ? sum : sum + value;
     }, 0);
+    const hasKnownUsdValue =
+      exposureAssets.length === 0 ||
+      exposureAssets.some((asset) => numericUsdValue(asset) !== null);
     const sortedAssets = [...exposureAssets].sort(
       (a, b) => (numericUsdValue(b) ?? 0) - (numericUsdValue(a) ?? 0),
     );
+    const percentage =
+      totalUsdValue > 0
+        ? (usdValue / totalUsdValue) * 100
+        : hasKnownUsdValue
+          ? 0
+          : null;
 
-    return [
-      {
-        id,
-        ...PORTFOLIO_EXPOSURE_META[id],
-        usdValue: usdValue > 0 ? usdValue : null,
-        percentage: totalUsdValue > 0 ? (usdValue / totalUsdValue) * 100 : null,
-        assets: sortedAssets,
-      },
-    ];
+    return {
+      id,
+      ...PORTFOLIO_EXPOSURE_META[id],
+      usdValue: hasKnownUsdValue ? usdValue : null,
+      percentage,
+      assets: sortedAssets,
+    };
   });
 }
 
@@ -243,6 +275,99 @@ function formatAllocationPct(value: number | null): string {
 
 function formatTokenCount(count: number): string {
   return `${count} token${count === 1 ? '' : 's'}`;
+}
+
+interface ExposureIconToken {
+  bg: string;
+  glyph: string;
+  src?: string;
+  symbol: string;
+}
+
+function exposureIconTokenForSymbol({
+  bg,
+  glyph,
+  symbol,
+}: ExposureIconSeed): ExposureIconToken {
+  const src = tokenIconSrcForSymbol(symbol);
+  return src ? { bg, glyph, src, symbol } : { bg, glyph, symbol };
+}
+
+function tokenIconsForExposure(
+  exposure: PortfolioExposure,
+): ExposureIconToken[] {
+  const seen = new Set<string>();
+  const fallbackIcons = exposure.fallbackIcons.map(exposureIconTokenForSymbol);
+  const assetIcons = exposure.assets
+    .flatMap((asset) => {
+      const symbol = normalizeExposureSymbol(asset.symbol);
+      if (seen.has(symbol)) return [];
+      seen.add(symbol);
+
+      return [
+        exposureIconTokenForSymbol({
+          bg: asset.iconBg,
+          glyph: asset.glyph,
+          symbol: asset.symbol,
+        }),
+      ];
+    })
+    .slice(0, 3);
+
+  if (assetIcons.length >= 2) {
+    return assetIcons;
+  }
+
+  const onlyAssetIcon = assetIcons[0];
+  if (onlyAssetIcon) {
+    const assetSymbol = normalizeExposureSymbol(onlyAssetIcon.symbol);
+    const fallbackIcon =
+      fallbackIcons.find(
+        (icon) => normalizeExposureSymbol(icon.symbol) !== assetSymbol,
+      ) ?? fallbackIcons[0];
+
+    return fallbackIcon ? [onlyAssetIcon, fallbackIcon] : [onlyAssetIcon];
+  }
+
+  return fallbackIcons.slice(0, 2);
+}
+
+function PortfolioExposureIconStack({
+  exposure,
+}: {
+  exposure: PortfolioExposure;
+}) {
+  const icons = tokenIconsForExposure(exposure);
+  const iconSize = 30;
+  const iconOffset = 10;
+  const width = iconSize + iconOffset * (icons.length - 1);
+
+  return (
+    <span
+      aria-label={`${exposure.label} grouped token icons`}
+      className="relative shrink-0"
+      style={{ width, height: 38 }}
+    >
+      {icons.map((icon, index) => (
+        <span
+          key={icon.symbol}
+          className="absolute top-1 rounded-full ring-2 ring-[#050506]"
+          style={{
+            left: index * iconOffset,
+            zIndex: icons.length - index,
+          }}
+        >
+          <TokenIcon
+            alt={icon.symbol}
+            glyph={icon.glyph}
+            bg={icon.bg}
+            size={iconSize}
+            {...(icon.src ? { src: icon.src } : {})}
+          />
+        </span>
+      ))}
+    </span>
+  );
 }
 
 function HomeBalanceCard({
@@ -413,7 +538,7 @@ function HomeAssetsSection({
             Portfolio allocation
           </div>
           <div className="mt-0.5 text-[11.5px] text-ink-faint">
-            Exposure first. Tokens and transfers live inside each group.
+            Five portfolio buckets, shown even when empty.
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -430,17 +555,13 @@ function HomeAssetsSection({
           <div className="px-1 py-[11px] text-[12px] text-ink-faint">
             Wallet tokens unavailable.
           </div>
-        ) : exposures.length === 0 ? (
-          <div className="px-1 py-[11px] text-[12px] text-ink-faint">
-            No supported portfolio holdings yet.
-          </div>
         ) : (
           exposures.map((exposure, index) => {
             const isExpanded = expandedGroups.has(exposure.id);
             const isLast = index === exposures.length - 1;
             const allocationWidth =
               typeof exposure.percentage === 'number'
-                ? `${Math.max(exposure.percentage, 2)}%`
+                ? `${exposure.percentage > 0 ? Math.max(exposure.percentage, 2) : 0}%`
                 : '0%';
 
             return (
@@ -460,11 +581,7 @@ function HomeAssetsSection({
                   onClick={() => toggleGroup(exposure.id)}
                   className="zp-tap flex w-full items-center gap-[13px] px-1 py-[11px] text-left"
                 >
-                  <TokenIcon
-                    glyph={exposure.glyph}
-                    bg={exposure.iconBg}
-                    size={38}
-                  />
+                  <PortfolioExposureIconStack exposure={exposure} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-[7px]">
                       <span className="text-[15.5px] font-semibold text-ink">
@@ -477,9 +594,6 @@ function HomeAssetsSection({
                         {formatTokenCount(exposure.assets.length)}
                       </span>
                     </div>
-                    <div className="mt-[5px] text-[11.5px] text-ink-faint">
-                      {exposure.description}
-                    </div>
                     <div
                       className="mt-2 h-1.5 overflow-hidden rounded-full"
                       style={{ background: 'rgba(255,255,255,.06)' }}
@@ -488,7 +602,7 @@ function HomeAssetsSection({
                         className="h-full rounded-full"
                         style={{
                           width: allocationWidth,
-                          background: exposure.iconBg,
+                          background: exposure.barColor,
                         }}
                       />
                     </div>
@@ -518,71 +632,80 @@ function HomeAssetsSection({
                     className="mb-1 ml-[51px] rounded-[16px] border border-line"
                     style={{ background: 'rgba(255,255,255,.025)' }}
                   >
-                    {exposure.assets.map((asset, assetIndex) => {
-                      const isLastAsset =
-                        assetIndex === exposure.assets.length - 1;
-                      return (
-                        <button
-                          key={asset.symbol}
-                          type="button"
-                          aria-label={`Send ${asset.symbol}`}
-                          data-testid={`home-asset-${asset.symbol}`}
-                          onClick={() => onSendAsset(asset.symbol)}
-                          className="zp-tap flex w-full items-center gap-2.5 px-3 py-2.5 text-left"
-                          style={
-                            isLastAsset
-                              ? undefined
-                              : {
-                                  borderBottom:
-                                    '1px solid rgba(255,255,255,.045)',
-                                }
-                          }
-                        >
-                          <TokenIcon
-                            glyph={asset.glyph}
-                            bg={asset.iconBg}
-                            size={30}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-baseline gap-[7px]">
-                              <span className="text-[13.5px] font-semibold text-ink">
-                                {asset.symbol}
-                              </span>
-                              <span
-                                className="truncate text-[11.5px]"
-                                style={{ color: '#6f6a5f' }}
-                              >
-                                {asset.name}
-                              </span>
-                            </div>
-                            <div className="mt-[5px] flex items-center gap-1.5">
-                              <ChainIconStack chains={asset.chains} size={12} />
-                              <span className="truncate font-mono text-[10px] text-ink-faint">
-                                {asset.chains
-                                  .map((chain) => CHAINS[chain].label)
-                                  .join(' · ')}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-[13.5px] font-semibold tabular-nums text-ink">
-                              {typeof asset.usdValue === 'number'
-                                ? formatUsd(asset.usdValue)
-                                : '—'}
-                            </div>
-                            <div className="mt-[5px] font-mono text-[10px] text-ink-faint">
-                              {asset.amountLabel}
-                            </div>
-                          </div>
-                          <span
-                            className="rounded-full px-2 py-1 text-[10px] font-semibold text-ink-dim"
-                            style={{ background: 'rgba(255,255,255,.055)' }}
+                    {exposure.assets.length === 0 ? (
+                      <div className="px-3 py-2.5 text-[11.5px] text-ink-faint">
+                        No tokens in this bucket yet.
+                      </div>
+                    ) : (
+                      exposure.assets.map((asset, assetIndex) => {
+                        const isLastAsset =
+                          assetIndex === exposure.assets.length - 1;
+                        return (
+                          <button
+                            key={asset.symbol}
+                            type="button"
+                            aria-label={`Send ${asset.symbol}`}
+                            data-testid={`home-asset-${asset.symbol}`}
+                            onClick={() => onSendAsset(asset.symbol)}
+                            className="zp-tap flex w-full items-center gap-2.5 px-3 py-2.5 text-left"
+                            style={
+                              isLastAsset
+                                ? undefined
+                                : {
+                                    borderBottom:
+                                      '1px solid rgba(255,255,255,.045)',
+                                  }
+                            }
                           >
-                            Send
-                          </span>
-                        </button>
-                      );
-                    })}
+                            <TokenIcon
+                              glyph={asset.glyph}
+                              bg={asset.iconBg}
+                              size={30}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-baseline gap-[7px]">
+                                <span className="text-[13.5px] font-semibold text-ink">
+                                  {asset.symbol}
+                                </span>
+                                <span
+                                  className="truncate text-[11.5px]"
+                                  style={{ color: '#6f6a5f' }}
+                                >
+                                  {asset.name}
+                                </span>
+                              </div>
+                              <div className="mt-[5px] flex items-center gap-1.5">
+                                <ChainIconStack
+                                  chains={asset.chains}
+                                  size={12}
+                                />
+                                <span className="truncate font-mono text-[10px] text-ink-faint">
+                                  {asset.chains
+                                    .map((chain) => CHAINS[chain].label)
+                                    .join(' · ')}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-[13.5px] font-semibold tabular-nums text-ink">
+                                {typeof asset.usdValue === 'number'
+                                  ? formatUsd(asset.usdValue)
+                                  : '—'}
+                              </div>
+                              <div className="mt-[5px] font-mono text-[10px] text-ink-faint">
+                                {asset.amountLabel}
+                              </div>
+                            </div>
+                            <span
+                              className="rounded-full px-2 py-1 text-[10px] font-semibold text-ink-dim"
+                              style={{ background: 'rgba(255,255,255,.055)' }}
+                            >
+                              Send
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
                 ) : null}
               </div>

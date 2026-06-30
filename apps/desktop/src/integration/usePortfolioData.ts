@@ -233,8 +233,6 @@ export function usePortfolioData(
     maxDrawdownMetric,
     volatilityMetric,
     sharpeMetric,
-    unavailableMetric('Fees paid'),
-    unavailableMetric('Gas saved', 'positive'),
   ];
 
   const allocation: PortfolioViewData['allocation'] =
