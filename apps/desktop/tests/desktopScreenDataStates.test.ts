@@ -288,6 +288,25 @@ describe('desktop screen skeleton states', () => {
   });
 });
 
+describe('desktop screen error states', () => {
+  it('renders Portfolio unavailable values instead of stale demo data after upstream errors', () => {
+    mocked.landingQuery = { data: null, isError: true, isLoading: false };
+    mocked.dashboard = { dashboard: null, isError: true, isLoading: false };
+    mocked.yieldQuery = { data: null, isError: true, isLoading: false };
+
+    const markup = renderScreen(PortfolioScreen);
+
+    expect(markup).toContain('Strategy position value');
+    expect(markup).toContain('Current allocation');
+    expect(markup).toContain('all time · today');
+    expect(markup).toContain('Auto-managed by Zap Strategy');
+    expect(markup).not.toContain('animate-pulse');
+    expect(markup).not.toContain('$9,876');
+    expect(markup).not.toContain('8.5%');
+    expect(mocked.calculateAllocation).not.toHaveBeenCalled();
+  });
+});
+
 describe('desktop screen live-data states', () => {
   it('renders Home live balance, change, sparkline, and wallet assets without skeletons', () => {
     setLiveHomeData();
