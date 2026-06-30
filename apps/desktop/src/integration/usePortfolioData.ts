@@ -134,8 +134,11 @@ export function usePortfolioData(
 
   const landing = landingQuery.data;
   const dailyValues = dashboard?.trends?.daily_values ?? [];
-  const firstDay = dailyValues[0];
-  const lastDay = dailyValues[dailyValues.length - 1];
+  const chronologicalDailyValues = [...dailyValues].sort((a, b) =>
+    (a.date ?? '').localeCompare(b.date ?? ''),
+  );
+  const firstDay = chronologicalDailyValues[0];
+  const lastDay = chronologicalDailyValues.at(-1);
 
   // Position value = authoritative landing BFF balance.
   const positionValue =
@@ -145,7 +148,7 @@ export function usePortfolioData(
         ? landing.total_net_usd
         : null;
 
-  // All-time change: first vs last total_value_usd.
+  // All-time change: earliest vs latest total_value_usd.
   const firstValue = firstDay?.total_value_usd;
   const lastValue = lastDay?.total_value_usd;
   const trend =
@@ -209,8 +212,8 @@ export function usePortfolioData(
         }
       : unavailableMetric('Sharpe', 'accent');
 
-  const return7d = calculateWindowReturn(dailyValues, 7);
-  const return30d = calculateWindowReturn(dailyValues, 30);
+  const return7d = calculateWindowReturn(chronologicalDailyValues, 7);
+  const return30d = calculateWindowReturn(chronologicalDailyValues, 30);
   const realizedYield = sumYieldReturns(yieldQuery.data?.daily_returns);
   const realizedYieldMetric: Metric =
     typeof realizedYield === 'number'
@@ -256,7 +259,7 @@ export function usePortfolioData(
     changePct,
     changeUsdAllTime,
     changePctToday,
-    chartData: mapDailyValuesToSparkline(dailyValues),
+    chartData: mapDailyValuesToSparkline(chronologicalDailyValues),
     metrics,
     allocation,
     lastRebalancedLabel: 'Auto-managed by Zap Strategy',

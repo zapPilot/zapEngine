@@ -290,6 +290,25 @@ describe('desktop screen skeleton states', () => {
   });
 });
 
+describe('desktop screen error states', () => {
+  it('renders Portfolio unavailable values instead of stale demo data after upstream errors', () => {
+    mocked.landingQuery = { data: null, isError: true, isLoading: false };
+    mocked.dashboard = { dashboard: null, isError: true, isLoading: false };
+    mocked.yieldQuery = { data: null, isError: true, isLoading: false };
+
+    const markup = renderScreen(PortfolioScreen);
+
+    expect(markup).toContain('Strategy position value');
+    expect(markup).toContain('Current allocation');
+    expect(markup).toContain('all time · today');
+    expect(markup).toContain('Auto-managed by Zap Strategy');
+    expect(markup).not.toContain('animate-pulse');
+    expect(markup).not.toContain('$9,876');
+    expect(markup).not.toContain('8.5%');
+    expect(mocked.calculateAllocation).not.toHaveBeenCalled();
+  });
+});
+
 describe('desktop screen live-data states', () => {
   it('renders Home live balance, change, sparkline, and portfolio allocation without skeletons', () => {
     setLiveHomeData();
@@ -443,5 +462,43 @@ describe('desktop screen live-data states', () => {
     expect(markup).toContain('Stablecoins');
     expect(markup).not.toContain('animate-pulse');
     expect(markup).not.toContain('Loading metrics');
+  });
+
+  it('keeps Portfolio live values but hides the chart when only one trend point is available', () => {
+    setLivePortfolioData();
+    mocked.dashboard = {
+      dashboard: {
+        drawdown_analysis: {
+          enhanced: { summary: { max_drawdown_pct: -4.2 } },
+        },
+        rolling_analytics: {
+          sharpe: {
+            rolling_sharpe_data: [{ rolling_sharpe_ratio: 1.23 }],
+          },
+          volatility: {
+            rolling_volatility_data: [{ annualized_volatility_pct: 12.5 }],
+          },
+        },
+        trends: {
+          daily_values: [
+            {
+              change_percentage: 1.7,
+              date: '2026-06-29T00:00:00Z',
+              total_value_usd: 9_900,
+            },
+          ],
+        },
+      },
+      isError: false,
+      isLoading: false,
+    };
+
+    const markup = renderScreen(PortfolioScreen);
+
+    expect(markup).toContain('$9,876');
+    expect(markup).toContain('8.5%');
+    expect(markup).toContain('BTC');
+    expect(markup).not.toContain('portfolioValueSpark');
+    expect(markup).not.toContain('animate-pulse');
   });
 });
