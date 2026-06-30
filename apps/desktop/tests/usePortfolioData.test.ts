@@ -7,9 +7,14 @@ const useLandingPageDataMock = vi.hoisted(() => vi.fn());
 const usePortfolioDashboardMock = vi.hoisted(() => vi.fn());
 const useQueryMock = vi.hoisted(() => vi.fn());
 
-vi.mock('@tanstack/react-query', () => ({
-  useQuery: useQueryMock,
-}));
+vi.mock('@tanstack/react-query', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tanstack/react-query')>();
+
+  return {
+    ...actual,
+    useQuery: useQueryMock,
+  };
+});
 
 vi.mock('@zapengine/app-core/hooks/analytics', () => ({
   usePortfolioDashboard: usePortfolioDashboardMock,
@@ -124,9 +129,21 @@ describe('usePortfolioData', () => {
       dashboard: {
         trends: {
           daily_values: [
-            { total_value_usd: 1000, change_percentage: 1.2 },
-            { total_value_usd: 1100, change_percentage: -0.5 },
-            { total_value_usd: 1250, change_percentage: 2.5 },
+            {
+              date: '2026-05-30',
+              total_value_usd: 1000,
+              change_percentage: 1.2,
+            },
+            {
+              date: '2026-06-22',
+              total_value_usd: 1100,
+              change_percentage: -0.5,
+            },
+            {
+              date: '2026-06-29',
+              total_value_usd: 1250,
+              change_percentage: 2.5,
+            },
           ],
         },
         drawdown_analysis: {
@@ -134,9 +151,7 @@ describe('usePortfolioData', () => {
         },
         rolling_analytics: {
           volatility: {
-            rolling_volatility_data: [
-              { annualized_volatility_pct: 13.456 },
-            ],
+            rolling_volatility_data: [{ annualized_volatility_pct: 13.456 }],
           },
           sharpe: {
             rolling_sharpe_data: [{ rolling_sharpe_ratio: 1.234 }],
@@ -148,7 +163,7 @@ describe('usePortfolioData', () => {
     });
     useQueryMock.mockReturnValue({
       data: {
-        daily_returns: [{ return_usd: 1.5 }, { return_usd: -0.25 }],
+        daily_returns: [{ yield_return_usd: 1.5 }, { yield_return_usd: -0.25 }],
       },
       isLoading: false,
       isError: true,
@@ -167,10 +182,10 @@ describe('usePortfolioData', () => {
     expect(result.data?.metrics).toEqual([
       { label: 'Total return', value: '+25.0%', tone: 'positive' },
       { label: 'Current APY', value: '12.3%', tone: 'accent' },
-      { label: '7D return', value: '+25.0%', tone: 'positive' },
+      { label: '7D return', value: '+13.6%', tone: 'positive' },
       { label: '30D return', value: '+25.0%', tone: 'positive' },
       { label: 'Realized yield', value: '$1.25', tone: 'neutral' },
-      { label: 'Max drawdown', value: '-8.3%', tone: 'negative' },
+      { label: 'Max drawdown', value: '−8.3%', tone: 'negative' },
       { label: 'Volatility', value: '13.5%', tone: 'neutral' },
       { label: 'Sharpe', value: '1.23', tone: 'accent' },
       { label: 'Fees paid', value: '—', tone: 'neutral' },
