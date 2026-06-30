@@ -66,6 +66,17 @@ function numberMetric(value: number | undefined | null): string {
   return typeof value === 'number' ? value.toFixed(2) : '—';
 }
 
+function usdMetric(value: number | undefined | null): string {
+  return typeof value === 'number' ? formatUsd(value) : '—';
+}
+
+function roiTone(value: number | undefined | null): MetricTone {
+  if (typeof value !== 'number') {
+    return 'neutral';
+  }
+  return value >= 0 ? 'positive' : 'negative';
+}
+
 function getPreferredPresetForStrategyId(
   presets: StrategyPreset[],
   strategyId: string,
@@ -145,7 +156,7 @@ function metricsFromSummary(
     {
       label: 'ROI',
       value: signedPct(summary.roi_percent),
-      tone: summary.roi_percent >= 0 ? 'positive' : 'negative',
+      tone: roiTone(summary.roi_percent),
     },
     {
       label: 'Max drawdown',
@@ -179,8 +190,8 @@ function metricsFromSummary(
     },
     {
       label: 'Final value',
-      value: formatUsd(summary.final_value),
-      tone: 'positive',
+      value: usdMetric(summary.final_value),
+      tone: typeof summary.final_value === 'number' ? 'positive' : 'neutral',
     },
   ];
 }
