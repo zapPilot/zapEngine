@@ -136,6 +136,37 @@ describe('default strategy backtest mapping', () => {
     ]);
   });
 
+  it('keeps unavailable ROI visually neutral instead of negative', () => {
+    const view = viewFromResponse(
+      backtestResponse({
+        strategies: {
+          dca_classic: {},
+          dma_fgi_portfolio_rules_default: {
+            display_name: 'Zap Strategy',
+            max_drawdown_percent: null,
+            trade_count: 0,
+          },
+        },
+      }),
+    );
+
+    expect(view).toMatchObject({
+      returnLabel: '—',
+      vsBtcLabel: '0 trades',
+      vsEthLabel: 'Max DD —',
+    });
+    expect(view?.metrics[0]).toEqual({
+      label: 'ROI',
+      value: '—',
+      tone: 'neutral',
+    });
+    expect(view?.metrics.at(-1)).toEqual({
+      label: 'Final value',
+      value: '—',
+      tone: 'neutral',
+    });
+  });
+
   it('returns null when the response only contains the DCA baseline', () => {
     expect(
       viewFromResponse(backtestResponse({ strategies: { dca_classic: {} } })),
