@@ -147,6 +147,53 @@ describe('usePortfolioData', () => {
     );
   });
 
+  it('calculates returns and latest daily change from chronological trend order', () => {
+    usePortfolioDashboardMock.mockReturnValue({
+      dashboard: {
+        trends: {
+          daily_values: [
+            {
+              date: '2026-06-29',
+              total_value_usd: 1250,
+              change_percentage: 2.5,
+            },
+            {
+              date: '2026-05-30',
+              total_value_usd: 1000,
+              change_percentage: 1.2,
+            },
+            {
+              date: '2026-06-22',
+              total_value_usd: 1100,
+              change_percentage: -0.5,
+            },
+          ],
+        },
+      },
+      isLoading: false,
+      isError: false,
+    });
+
+    const result = usePortfolioData('user-123', '1Y');
+
+    expect(result.data).toMatchObject({
+      changePct: 25,
+      changeUsdAllTime: 250,
+      changePctToday: 2.5,
+      chartData: [1000, 1100, 1250],
+    });
+    expect(result.data?.metrics[0]).toEqual({
+      label: 'Total return',
+      value: '+25.0%',
+      tone: 'positive',
+    });
+    expect(result.data?.metrics[2]).toEqual({
+      label: '7D return',
+      value: '+13.6%',
+      tone: 'positive',
+    });
+  });
+
   it('maps partial live portfolio analytics and reports upstream errors', () => {
     useLandingPageDataMock.mockReturnValue({
       data: {
