@@ -3,16 +3,29 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AllocationBar } from '@/components/charts/AllocationBar';
+import { Sparkline } from '@/components/charts/Sparkline';
 import { MetricsGrid } from '@/components/metrics/MetricsGrid';
+import { MetricsGridSkeleton } from '@/components/metrics/MetricsGridSkeleton';
 import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { RangeTabs } from '@/components/ui/RangeTabs';
+import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { DEMO } from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
 import { useStrategyData } from '@/integration/useStrategyData';
 
 const RANGE_OPTIONS = ['3M', '6M', '1Y', 'ALL'] as const;
+export type StrategyRange = (typeof RANGE_OPTIONS)[number];
+
+export function strategyBacktestDaysForRange(
+  range: StrategyRange,
+): number | undefined {
+  if (range === '3M') return 90;
+  if (range === '6M') return 180;
+  if (range === '1Y') return 365;
+  return undefined;
+}
 
 const CHART_LEGEND = [
   { label: 'Zap', color: '#d4c5a3', textClass: 'text-[#cfcabb]' },
@@ -21,12 +34,37 @@ const CHART_LEGEND = [
   { label: 'Stables', color: '#2775ca', textClass: 'text-[#8a857a]' },
 ] as const;
 
+function StrategyBacktestSkeleton() {
+  return (
+    <div className="mt-2 h-[180px] rounded-2xl p-3">
+      <SkeletonBlock className="h-full w-full rounded-2xl" />
+    </div>
+  );
+}
+
+function StrategyAllocationSkeleton() {
+  return (
+    <>
+      <SkeletonBlock className="mt-3 h-[9px] w-full rounded-full" />
+      <div className="mt-2 flex justify-between">
+        {[0, 1, 2].map((item) => (
+          <SkeletonBlock key={item} className="h-3 w-16" />
+        ))}
+      </div>
+    </>
+  );
+}
+
 /** Strategy — backtest chart, metrics grid, fear/greed adaptation. */
 export function StrategyScreen() {
   const navigate = useNavigate();
-  const [range, setRange] = useState('1Y');
+  const [range, setRange] = useState<StrategyRange>('1Y');
   const { isConnected, userId } = useAccount();
-  const { data, isLoading, isError } = useStrategyData(userId, isConnected);
+  const { data, isLoading, isError } = useStrategyData(
+    userId,
+    isConnected || Boolean(userId),
+    strategyBacktestDaysForRange(range),
+  );
 
   // The container hook always returns a fully-shaped strategy slice (real where
   // available, demo elsewhere). While identity/data resolve we keep the exact
@@ -36,9 +74,11 @@ export function StrategyScreen() {
   const pending = isLoading || isError || data === null;
   const returnLabel = pending ? '—' : backtest.returnLabel;
   const isDemo = !isConnected;
+  const showLiveSkeleton = !isDemo && isLoading;
   const sentimentMarker =
     typeof backtest.sentiment === 'number' ? backtest.sentiment : 50;
   const hasTargetAllocation = data?.hasTargetAllocation ?? isDemo;
+  const liveChartData = data?.backtest.chartData ?? [];
 
   return (
     <div className="font-sans text-ink" data-screen="strategy">
@@ -63,7 +103,11 @@ export function StrategyScreen() {
       {/* Backtest + range tabs */}
       <div className="mx-5 mt-5 flex items-center justify-between">
         <span className="text-[14px] font-semibold">Backtest</span>
-        <RangeTabs options={RANGE_OPTIONS} value={range} onChange={setRange} />
+        <RangeTabs
+          options={RANGE_OPTIONS}
+          value={range}
+          onChange={(value) => setRange(value as StrategyRange)}
+        />
       </div>
 
       {/* Chart card */}
@@ -74,13 +118,26 @@ export function StrategyScreen() {
               {isDemo ? 'ZAP STRATEGY · 1Y RETURN' : 'DEFAULT BACKTEST · ROI'}
             </div>
             <div className="mt-0.5 font-serif text-[30px] leading-[1.05] text-success">
-              {returnLabel}
+              {showLiveSkeleton ? (
+                <SkeletonBlock className="h-8 w-24 rounded-lg" />
+              ) : (
+                returnLabel
+              )}
             </div>
           </div>
           <div className="text-right font-mono text-[9px] leading-[1.6] text-[#6f6a5f]">
-            {backtest.vsBtcLabel}
-            <br />
-            {backtest.vsEthLabel}
+            {showLiveSkeleton ? (
+              <div className="flex flex-col items-end gap-1">
+                <SkeletonBlock className="h-3 w-16" />
+                <SkeletonBlock className="h-3 w-14" />
+              </div>
+            ) : (
+              <>
+                {backtest.vsBtcLabel}
+                <br />
+                {backtest.vsEthLabel}
+              </>
+            )}
           </div>
         </div>
 
@@ -103,8 +160,9 @@ export function StrategyScreen() {
           </div>
         ) : null}
 
-        {/* Multi-line backtest chart (copied verbatim from design) */}
-        {isDemo ? (
+        {showLiveSkeleton && liveChartData.length < 2 ? (
+          <StrategyBacktestSkeleton />
+        ) : isDemo ? (
           <svg
             width="100%"
             height="180"
@@ -278,6 +336,18 @@ export function StrategyScreen() {
               Jun
             </text>
           </svg>
+        ) : liveChartData.length >= 2 ? (
+          <div
+            className="mt-2 h-[180px]"
+            role="img"
+            aria-label="Default strategy backtest value over the selected range"
+          >
+            <Sparkline
+              data={liveChartData}
+              height={176}
+              gradientId="strategyBacktestSpark"
+            />
+          </div>
         ) : (
           <div className="grid h-[180px] place-items-center">
             <div className="text-center">
@@ -291,7 +361,11 @@ export function StrategyScreen() {
       </Card>
 
       {/* Metrics grid */}
-      <MetricsGrid className="mx-5 mt-[18px]" metrics={backtest.metrics} />
+      {showLiveSkeleton ? (
+        <MetricsGridSkeleton className="mx-5 mt-[18px]" count={8} />
+      ) : (
+        <MetricsGrid className="mx-5 mt-[18px]" metrics={backtest.metrics} />
+      )}
 
       {/* How it adapts */}
       <div className="mx-5 mt-6">
@@ -343,21 +417,27 @@ export function StrategyScreen() {
               {backtest.currentModeLabel}
             </Pill>
           </div>
-          <AllocationBar
-            className="mt-3"
-            height={9}
-            segments={backtest.allocation.map((a) => ({
-              color: a.color,
-              value: a.pct,
-            }))}
-          />
-          <div className="mt-2 flex justify-between font-mono text-[9px] text-[#6f6a5f]">
-            {backtest.allocation.map((a) => (
-              <span key={a.label}>
-                {a.label} {hasTargetAllocation ? `${a.pct}%` : '—'}
-              </span>
-            ))}
-          </div>
+          {showLiveSkeleton && backtest.allocation.length === 0 ? (
+            <StrategyAllocationSkeleton />
+          ) : (
+            <>
+              <AllocationBar
+                className="mt-3"
+                height={9}
+                segments={backtest.allocation.map((a) => ({
+                  color: a.color,
+                  value: a.pct,
+                }))}
+              />
+              <div className="mt-2 flex justify-between font-mono text-[9px] text-[#6f6a5f]">
+                {backtest.allocation.map((a) => (
+                  <span key={a.label}>
+                    {a.label} {hasTargetAllocation ? `${a.pct}%` : '—'}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
         </Card>
       </div>
 
@@ -375,7 +455,7 @@ export function StrategyScreen() {
         <p className="text-[11px] leading-[1.55] text-[#7d7868]">
           {isDemo
             ? "Backtested on historical data. Past performance doesn't guarantee future results — only invest what you're comfortable holding."
-            : 'Backtest metrics are not run automatically. Target allocation uses the latest strategy suggestion when available.'}
+            : 'Default backtest metrics come from analytics when available. Target allocation uses the latest strategy suggestion.'}
         </p>
       </Card>
 

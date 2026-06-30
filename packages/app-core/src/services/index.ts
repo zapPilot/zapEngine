@@ -112,6 +112,51 @@ export {
   getWithdrawPlan,
 } from './planOrchestrationService';
 
+// Moralis wallet POC (desktop/web clients; proxy before production)
+export {
+  getMoralisWalletHistory,
+  getMoralisWalletTokenBalances,
+  getSupportedMoralisWalletSymbol,
+  MORALIS_SUPPORTED_TOKEN_ADDRESSES_BY_CHAIN,
+  MORALIS_WALLET_CHAINS,
+  type MoralisChainBalances,
+  type MoralisChainHistory,
+  type MoralisSupportedWalletSymbol,
+  type MoralisWalletChain,
+  type MoralisWalletHistoryEvent,
+  type MoralisWalletHistoryResponse,
+  type MoralisWalletTokenBalance,
+  type MoralisWalletTokenBalancesResponse,
+  type MoralisWalletTransfer,
+} from './moralisWalletService';
+
+// Alchemy wallet token balances (desktop/web clients; proxy before production)
+export {
+  ALCHEMY_WALLET_CHAINS,
+  type AlchemyChainBalances,
+  type AlchemySupportedWalletSymbol,
+  type AlchemyWalletChain,
+  type AlchemyWalletTokenBalance,
+  type AlchemyWalletTokenBalancesResponse,
+  getAlchemyWalletTokenBalances,
+} from './alchemyWalletService';
+
+// Provider-neutral supported wallet token catalog
+export {
+  getSupportedWalletTokenDefinition,
+  getSupportedWalletTokenSymbol,
+  normalizeSupportedWalletTokenSymbol,
+  SUPPORTED_WALLET_TOKEN_ADDRESSES_BY_CHAIN,
+  SUPPORTED_WALLET_TOKEN_DEFINITIONS,
+  type SupportedWalletErc20Symbol,
+  supportedWalletTokenAddresses,
+  type SupportedWalletTokenSymbol,
+  supportedWalletTokenSymbolForAddress,
+  WALLET_TOKEN_CHAINS,
+  type WalletTokenChain,
+  type WalletTokenDefinition,
+} from './walletTokenCatalog';
+
 // On-chain token balances (real wallet balance + LI.FI USD valuation)
 export {
   getOnChainTokenBalance,

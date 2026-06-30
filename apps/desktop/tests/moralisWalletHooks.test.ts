@@ -7,9 +7,13 @@ import {
 
 const useQueryMock = vi.hoisted(() => vi.fn());
 
-vi.mock('@tanstack/react-query', () => ({
-  useQuery: useQueryMock,
-}));
+vi.mock('@tanstack/react-query', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tanstack/react-query')>();
+  return {
+    ...actual,
+    useQuery: useQueryMock,
+  };
+});
 
 beforeEach(() => {
   useQueryMock.mockReset();
@@ -36,7 +40,7 @@ describe('Moralis wallet query wrappers', () => {
     expect(useQueryMock).toHaveBeenCalledWith(
       expect.objectContaining({
         enabled: false,
-        queryKey: ['desktop', 'moralis', 'wallet-assets', null],
+        queryKey: ['desktop', 'moralis', 'wallet-assets', []],
       }),
     );
   });
@@ -78,7 +82,7 @@ describe('Moralis wallet query wrappers', () => {
     expect(useQueryMock).toHaveBeenCalledWith(
       expect.objectContaining({
         enabled: true,
-        queryKey: ['desktop', 'moralis', 'wallet-history', 'wallet-address'],
+        queryKey: ['desktop', 'moralis', 'wallet-history', ['wallet-address']],
       }),
     );
   });

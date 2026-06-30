@@ -1,16 +1,23 @@
 import { AllocationBar } from '@/components/charts/AllocationBar';
-import { MetricsGrid } from '@/components/metrics/MetricsGrid';
+import { type Metric, MetricsGrid } from '@/components/metrics/MetricsGrid';
 import { ArrowGlyph } from '@/components/ui/ArrowGlyph';
 import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ZapLogo } from '@/components/ui/ZapLogo';
-import { type HomeData } from '@/integration/useHomeData';
 
-type StrategySlice = HomeData['strategy'];
+export interface ZapStrategyCardData {
+  estApyLabel: string;
+  quote: string;
+  marketModeLabel: string;
+  pillars: { label: string; weight: number; color: string }[];
+  backtest: {
+    metrics: Metric[];
+  };
+}
 
 interface ZapStrategyCardProps {
-  strategy: StrategySlice;
+  strategy: ZapStrategyCardData;
   onStart: () => void;
 }
 
@@ -32,7 +39,7 @@ function CheckGlyph() {
   );
 }
 
-function keyBacktestMetrics(strategy: StrategySlice) {
+function keyBacktestMetrics(strategy: ZapStrategyCardData) {
   const preferred = strategy.backtest.metrics.filter((metric) =>
     ['ROI', 'Max drawdown'].includes(metric.label),
   );

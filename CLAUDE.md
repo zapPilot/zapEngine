@@ -172,3 +172,5 @@ Requires Python 3.11+ and `uv`. Do not use `pip` — use `uv add` for new depend
 `pnpm test` / `test:ci` runs an in-process analytics-engine snapshot gate that needs `DATABASE_READ_ONLY_URL` pointed at the Supabase read-only replica — a local pg container will not satisfy it (no production `alpha_raw.*` series). DB-URL split + CI-secret requirement: see [apps/analytics-engine/CLAUDE.md](apps/analytics-engine/CLAUDE.md). Fixture refresh procedure: see [apps/analytics-engine/src/services/backtesting/CLAUDE.md](apps/analytics-engine/src/services/backtesting/CLAUDE.md).
 
 Do not create git worktrees unless explicitly requested by the user. Work directly in the current checkout by default.
+
+DO NOT send optional commentary

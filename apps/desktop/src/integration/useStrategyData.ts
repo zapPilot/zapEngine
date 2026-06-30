@@ -22,6 +22,10 @@ import {
  * connected unavailable fields are explicit dashes.
  */
 export type StrategyData = (typeof DEMO)['strategy'] & {
+  backtest: (typeof DEMO)['strategy']['backtest'] & {
+    chartData: number[];
+    displayName: string | null;
+  };
   hasTargetAllocation: boolean;
 };
 
@@ -48,8 +52,8 @@ function unavailableBacktestMetrics(): StrategyData['backtest']['metrics'] {
  * Container hook for the Strategy screen.
  *
  * Wires the cleanly-available live signals — Fear & Greed sentiment value +
- * quote, current market regime, and target allocation. Backtest performance
- * metrics stay unavailable until a lazy run flow exists.
+ * quote, current market regime, target allocation, and default backtest
+ * metrics/chart data when analytics is available.
  *
  * @param userId Resolved account-engine user id, or null while connecting.
  *   Sentiment/regime are market-wide (not user-scoped), so the hooks run as soon
@@ -58,12 +62,13 @@ function unavailableBacktestMetrics(): StrategyData['backtest']['metrics'] {
 export function useStrategyData(
   userId: string | null,
   isConnected: boolean,
+  backtestDays?: number,
 ): UseStrategyDataResult {
   // Market-wide signals — no userId needed; run unconditionally (React rules).
   const sentiment = useSentimentData();
   const regime = useRegimeHistory();
   const suggestion = useStrategySuggestion(userId);
-  const defaultBacktest = useDefaultStrategyBacktest();
+  const defaultBacktest = useDefaultStrategyBacktest(backtestDays);
 
   const demoStrategy = DEMO.strategy;
   const demoBacktest = demoStrategy.backtest;
@@ -142,6 +147,8 @@ export function useStrategyData(
       currentModeLabel,
       allocation,
       sentiment: sentimentValue,
+      chartData: defaultBacktest.data?.chartData ?? [],
+      displayName: defaultBacktest.data?.displayName ?? null,
     },
     hasTargetAllocation,
   };

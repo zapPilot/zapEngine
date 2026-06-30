@@ -81,7 +81,7 @@ export type ActivityKind =
   | 'withdraw'
   | 'strategy-update';
 
-export type ActivityStatus = 'Completed' | 'Settled' | 'Applied';
+export type ActivityStatus = 'Completed' | 'Settled' | 'Applied' | 'Failed';
 
 export interface ActivityStep {
   label: string;
@@ -213,6 +213,7 @@ export const DEMO: DemoData = {
 export const ACTIVITY_FILTERS = [
   'All',
   'Deposits',
+  'Withdrawals',
   'Rebalances',
   'Yield',
 ] as const;

@@ -1,4 +1,5 @@
 import { CheckCircle2, ChevronDown, CreditCard } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { StepHeader } from '@/components/invest/StepHeader';
@@ -6,6 +7,7 @@ import { StepProgress } from '@/components/invest/StepProgress';
 import { ArrowGlyph } from '@/components/ui/ArrowGlyph';
 import { InfoRow } from '@/components/ui/InfoRow';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { ZapLogo } from '@/components/ui/ZapLogo';
 import {
   chainDisplay,
@@ -59,6 +61,47 @@ function SourceChip({ dotColor, label }: SourceChipProps) {
       {label}
     </span>
   );
+}
+
+function RouteRowSkeleton() {
+  return (
+    <div className="flex items-center gap-2">
+      <SkeletonBlock className="h-2 w-2 rounded-full" />
+      <SkeletonBlock className="h-4 flex-1" />
+      <SkeletonBlock className="h-3 w-16" />
+    </div>
+  );
+}
+
+function RouteRowsSkeleton() {
+  return (
+    <div
+      aria-label="Loading routing steps"
+      className="flex flex-col gap-2"
+      role="status"
+    >
+      {[0, 1, 2].map((item) => (
+        <RouteRowSkeleton key={item} />
+      ))}
+      <span className="sr-only">Loading routing steps…</span>
+    </div>
+  );
+}
+
+function LoadingValue({
+  children,
+  className,
+  isLoading,
+}: {
+  children: ReactNode;
+  className: string;
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return <SkeletonBlock className={className} />;
+  }
+
+  return <>{children}</>;
 }
 
 /** Invest step 2/3 — route flow diagram, fees/time, simulation, steps. */
@@ -122,7 +165,9 @@ export function InvestRouteScreen() {
               className="text-[14px] font-semibold"
               style={{ fontVariantNumeric: 'tabular-nums' }}
             >
-              {fromAmountLabel}
+              <LoadingValue isLoading={isLoading} className="h-4 w-16">
+                {fromAmountLabel}
+              </LoadingValue>
             </span>
           </div>
           <div className="mt-[11px] flex gap-1.5">
@@ -144,7 +189,9 @@ export function InvestRouteScreen() {
               border: '1px solid rgba(212,197,163,.22)',
             }}
           >
-            {stepsLabel}
+            <LoadingValue isLoading={isLoading} className="h-3 w-20">
+              {stepsLabel}
+            </LoadingValue>
           </span>
           <div style={{ ...dashedConnectorStyle, height: 13 }} />
         </div>
@@ -195,7 +242,13 @@ export function InvestRouteScreen() {
           <div className="flex-1">
             <div className="text-[14px] font-semibold">Zap routing</div>
             <div className="mt-0.5 text-[11px]" style={{ color: '#9a8f78' }}>
-              {plan ? 'Route ready from DepositPlan' : planStatus}
+              {isLoading ? (
+                <SkeletonBlock className="h-3 w-32" />
+              ) : plan ? (
+                'Route ready from DepositPlan'
+              ) : (
+                planStatus
+              )}
             </div>
           </div>
           <CheckCircle2 size={20} strokeWidth={2} className="text-accent" />
@@ -233,7 +286,9 @@ export function InvestRouteScreen() {
               className="text-[15px] font-semibold text-accent"
               style={{ fontVariantNumeric: 'tabular-nums' }}
             >
-              {plan ? 'Route prepared' : '—'}
+              <LoadingValue isLoading={isLoading} className="h-5 w-24">
+                {plan ? 'Route prepared' : '—'}
+              </LoadingValue>
             </div>
             <div className="mt-0.5 text-[10.5px] text-ink-faint">
               fees estimated below
@@ -247,12 +302,20 @@ export function InvestRouteScreen() {
         <InfoRow
           divider={true}
           label="Estimated network fee"
-          value={formatPlanGas(plan?.totalGasUsd)}
+          value={
+            <LoadingValue isLoading={isLoading} className="h-4 w-14">
+              {formatPlanGas(plan?.totalGasUsd)}
+            </LoadingValue>
+          }
         />
         <InfoRow
           divider={true}
           label="Estimated time"
-          value={formatPlanDuration(plan?.legs)}
+          value={
+            <LoadingValue isLoading={isLoading} className="h-4 w-16">
+              {formatPlanDuration(plan?.legs)}
+            </LoadingValue>
+          }
         />
         <InfoRow
           label="Plan status"
@@ -273,9 +336,11 @@ export function InvestRouteScreen() {
             {planStatus}
           </div>
           <div className="mt-0.5 text-[11px]" style={{ color: '#8a8a82' }}>
-            {plan
-              ? 'Review the generated plan before signing.'
-              : 'No simulation result is available in route preview.'}
+            {isLoading
+              ? 'Preparing route preview…'
+              : plan
+                ? 'Review the generated plan before signing.'
+                : 'No simulation result is available in route preview.'}
           </div>
         </div>
       </div>
@@ -291,7 +356,9 @@ export function InvestRouteScreen() {
           <ChevronDown size={16} strokeWidth={2} className="text-ink-faint" />
         </div>
         <div className="mt-3 flex flex-col gap-2">
-          {routeRows.length > 0 ? (
+          {isLoading ? (
+            <RouteRowsSkeleton />
+          ) : routeRows.length > 0 ? (
             routeRows.map((row) => (
               <div key={row.id} className="flex items-center gap-2">
                 <span

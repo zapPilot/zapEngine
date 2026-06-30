@@ -2,8 +2,10 @@ import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics/usePo
 import { usePortfolioDataProgressive } from '@zapengine/app-core/hooks/queries/analytics/usePortfolioDataProgressive';
 
 import { DEMO } from '@/data/demo';
-import { useMoralisWalletAssets } from '@/integration/moralisWallet';
-import { mapDailyValuesToSparkline } from '@/integration/portfolioMetrics';
+import {
+  type DailyValuePoint,
+  mapDailyValuesToSparkline,
+} from '@/integration/portfolioMetrics';
 import {
   liveNumberOrDemo,
   liveTextOrDemo,
@@ -15,10 +17,13 @@ import {
   toCompositionTargetFromSuggestion,
   useStrategySuggestion,
 } from '@/integration/useStrategySuggestion';
+import { useWalletAssets } from '@/integration/walletTokens';
 
 type HomeSlice = (typeof DEMO)['home'];
 type StrategySlice = (typeof DEMO)['strategy'];
 export type HomeRange = '1D' | '1W' | '1M' | '1Y' | 'ALL';
+export const DEFAULT_HOME_RANGE: HomeRange = '1Y';
+const HOME_DASHBOARD_WINDOW_DAYS = 365;
 
 /**
  * Shape consumed by HomeScreen. Disconnected/demo mode can still use DEMO;
@@ -33,6 +38,11 @@ export interface UseHomeDataResult {
   data: HomeData | null;
   isLoading: boolean;
   isError: boolean;
+  walletAssets: {
+    isConnected: boolean;
+    isLoading: boolean;
+    isError: boolean;
+  };
 }
 
 /**
@@ -46,19 +56,70 @@ export interface UseHomeDataResult {
  * - the contrarian quote + market-mode label from the progressive strategy
  *   section (Fear & Greed quote + current regime).
  *
- * Wallet holdings come from Moralis Asset Holdings for the connected EOA.
- * Target pillars come from app-core/account-engine sources. Default strategy
- * ROI/drawdown metrics come from the backtesting compare endpoint.
+ * Wallet holdings come from the configured token-balance provider for the
+ * connected EOA. Target pillars come from app-core/account-engine sources.
+ * Default strategy ROI/drawdown metrics come from the backtesting compare
+ * endpoint.
  *
  * @param userId Resolved account-engine user id, or null while connecting.
- *   The portfolio hooks are user-scoped, so they only fetch once userId exists;
- *   while it is null the screen renders the layout in a calm loading state.
+ *   Analytics endpoints accept the account-engine id or a connected wallet
+ *   address, so Home can still request `/landing` and `/dashboard` while the
+ *   backend user record is settling.
  */
-function trendDaysForRange(range: HomeRange): number {
-  if (range === '1D') return 2;
+export function getHomeDashboardWindowParams() {
+  return {
+    trend_days: HOME_DASHBOARD_WINDOW_DAYS,
+    drawdown_days: HOME_DASHBOARD_WINDOW_DAYS,
+    rolling_days: HOME_DASHBOARD_WINDOW_DAYS,
+  };
+}
+
+function rangeWindowDays(range: HomeRange): number | null {
+  if (range === '1D') return 1;
   if (range === '1W') return 7;
   if (range === '1M') return 30;
-  return 365;
+  return null;
+}
+
+export function sliceHomeDailyValuesForRange(
+  dailyValues: readonly DailyValuePoint[],
+  range: HomeRange,
+): DailyValuePoint[] {
+  const sorted = [...dailyValues].sort((a, b) =>
+    (a.date ?? '').localeCompare(b.date ?? ''),
+  );
+  const days = rangeWindowDays(range);
+  const latest = sorted.at(-1);
+  if (days === null || !latest?.date) {
+    return sorted;
+  }
+
+  const latestTs = Date.parse(latest.date);
+  if (Number.isNaN(latestTs)) {
+    return sorted.slice(-Math.max(2, days));
+  }
+
+  const cutoff = latestTs - days * 24 * 60 * 60 * 1000;
+  const sliced = sorted.filter((point) => {
+    if (!point.date) return false;
+    const ts = Date.parse(point.date);
+    return !Number.isNaN(ts) && ts >= cutoff;
+  });
+
+  return sliced.length >= 2 ? sliced : sorted.slice(-2);
+}
+
+export function resolveHomeAnalyticsSubjectId(
+  userId: string | null,
+  address: string | null,
+): string | null {
+  const resolvedUserId = userId?.trim();
+  if (resolvedUserId) {
+    return resolvedUserId;
+  }
+
+  const resolvedAddress = address?.trim();
+  return resolvedAddress || null;
 }
 
 function sparklineOrFallback(
@@ -91,16 +152,19 @@ export function useHomeData(
   userId: string | null,
   address: string | null,
   range: HomeRange,
+  walletAddresses: readonly string[] = [],
 ): UseHomeDataResult {
-  // Hooks run unconditionally (React rules); they no-op until userId resolves.
-  const progressive = usePortfolioDataProgressive(userId);
-  const trendDays = trendDaysForRange(range);
-  const dashboard = usePortfolioDashboard(userId ?? undefined, {
-    trend_days: trendDays,
-    drawdown_days: trendDays,
-    rolling_days: trendDays,
-  });
-  const walletAssets = useMoralisWalletAssets(address);
+  // Hooks run unconditionally (React rules); analytics no-ops until we have
+  // either an account-engine user id or a connected wallet address.
+  const analyticsSubjectId = resolveHomeAnalyticsSubjectId(userId, address);
+  const progressive = usePortfolioDataProgressive(analyticsSubjectId);
+  const dashboard = usePortfolioDashboard(
+    analyticsSubjectId ?? undefined,
+    getHomeDashboardWindowParams(),
+  );
+  const walletAssets = useWalletAssets(
+    walletAddresses.length > 0 ? walletAddresses : address,
+  );
   const defaultBacktest = useDefaultStrategyBacktest();
   const suggestion = useStrategySuggestion(userId);
 
@@ -111,20 +175,17 @@ export function useHomeData(
   const strategySection = progressive.sections?.strategy;
 
   const isLoading =
-    userId === null ||
     Boolean(balanceSection?.isLoading) ||
     Boolean(strategySection?.isLoading) ||
     dashboard.isLoading ||
-    (walletAssets.isConnected && walletAssets.isLoading) ||
     suggestion.isLoading;
   const isError =
     Boolean(balanceSection?.error) ||
     Boolean(strategySection?.error) ||
     dashboard.isError ||
-    walletAssets.isError ||
     suggestion.isError;
 
-  const isDemo = address === null;
+  const isDemo = analyticsSubjectId === null;
 
   // --- Live: total balance from the landing balance section ---
   const totalBalance = isDemo
@@ -136,7 +197,9 @@ export function useHomeData(
   // Use array.at(-1) for the latest day — never index with [-1].
   const latestDay = dailyValues.at(-1);
 
-  const sparkline = mapDailyValuesToSparkline(dailyValues);
+  const sparkline = mapDailyValuesToSparkline(
+    sliceHomeDailyValuesForRange(dailyValues, range),
+  );
   const homeSparkline = sparklineOrFallback(
     sparkline,
     demoHome.sparkline,
@@ -198,5 +261,14 @@ export function useHomeData(
         : unavailableBacktest(),
   };
 
-  return { data: { home, strategy }, isLoading, isError };
+  return {
+    data: { home, strategy },
+    isLoading,
+    isError,
+    walletAssets: {
+      isConnected: walletAssets.isConnected,
+      isLoading: walletAssets.isLoading,
+      isError: walletAssets.isError,
+    },
+  };
 }
