@@ -342,9 +342,18 @@ describe('desktop screen live-data states', () => {
   it('keeps Portfolio live values but hides the chart when only one trend point is available', () => {
     setLivePortfolioData();
     mocked.dashboard = {
-      ...mocked.dashboard,
       dashboard: {
-        ...mocked.dashboard.dashboard,
+        drawdown_analysis: {
+          enhanced: { summary: { max_drawdown_pct: -4.2 } },
+        },
+        rolling_analytics: {
+          sharpe: {
+            rolling_sharpe_data: [{ rolling_sharpe_ratio: 1.23 }],
+          },
+          volatility: {
+            rolling_volatility_data: [{ annualized_volatility_pct: 12.5 }],
+          },
+        },
         trends: {
           daily_values: [
             {
@@ -355,6 +364,8 @@ describe('desktop screen live-data states', () => {
           ],
         },
       },
+      isError: false,
+      isLoading: false,
     };
 
     const markup = renderScreen(PortfolioScreen);
