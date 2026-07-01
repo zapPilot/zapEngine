@@ -285,12 +285,12 @@ async function translateText(
 
     if (response.ok) {
       const data = (await response.json()) as {
-        data: {
-          translations: { translatedText: string }[];
+        data?: {
+          translations?: { translatedText?: unknown }[];
         };
       };
 
-      const translatedText = data.data.translations[0]?.translatedText;
+      const translatedText = data.data?.translations?.[0]?.translatedText;
       if (
         typeof translatedText !== 'string' ||
         translatedText.trim().length === 0
