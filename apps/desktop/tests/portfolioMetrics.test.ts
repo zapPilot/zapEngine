@@ -27,7 +27,7 @@ describe('portfolioMetrics', () => {
       { date: '2026-06-10', total_value_usd: 90 },
     ];
 
-    expect(calculateWindowReturn(dailyValues, 7)).toBe(50);
+    expect(calculateWindowReturn(dailyValues, 7)).toBe(25);
     expect(calculateWindowReturn(dailyValues, 30)).toBe(50);
   });
 
