@@ -15,6 +15,7 @@ export * from './queries';
 
 // Feature hooks
 export * from './analytics';
+export * from './bundle';
 export * from './wallet';
 
 // UI interaction hooks

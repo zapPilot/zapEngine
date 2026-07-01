@@ -50,6 +50,10 @@
       "types": "./dist/hooks/analytics/index.d.ts",
       "import": "./dist/hooks/analytics/index.js"
     },
+    "./hooks/bundle": {
+      "types": "./dist/hooks/bundle/index.d.ts",
+      "import": "./dist/hooks/bundle/index.js"
+    },
     "./hooks/wallet": {
       "types": "./dist/hooks/wallet/index.d.ts",
       "import": "./dist/hooks/wallet/index.js"

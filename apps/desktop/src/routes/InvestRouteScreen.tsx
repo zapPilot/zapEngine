@@ -10,6 +10,12 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { ZapLogo } from '@/components/ui/ZapLogo';
 import {
+  depositPathChainLabel,
+  depositPathInputLabel,
+  depositPathProtocolLabel,
+  isGmxDepositPath,
+} from '@/integration/depositPaths';
+import {
   chainDisplay,
   formatPlanDuration,
   formatPlanGas,
@@ -107,8 +113,14 @@ function LoadingValue({
 /** Invest step 2/3 — route flow diagram, fees/time, simulation, steps. */
 export function InvestRouteScreen() {
   const navigate = useNavigate();
-  const { amountUsd, selectedToken, fromToken, fromAmount, sourceChainId } =
-    useInvest();
+  const {
+    amountUsd,
+    selectedToken,
+    selectedDepositPath,
+    fromToken,
+    fromAmount,
+    sourceChainId,
+  } = useInvest();
   const { address } = useAccount();
   const { plan, isLoading, isError } = useDepositPlanPreview({
     address,
@@ -116,6 +128,7 @@ export function InvestRouteScreen() {
     fromAmount,
     sourceChainId,
     amountUsd,
+    depositPath: selectedDepositPath,
   });
 
   // Drive what the plan can supply; keep calm placeholders while it loads and
@@ -124,6 +137,9 @@ export function InvestRouteScreen() {
   const stepsLabel = routeStepsLabel(plan?.legs);
   const sourceChain = chainDisplay(sourceChainId);
   const routeRows = planLegsToRouteRows(plan?.legs);
+  const sourceLabel = isGmxDepositPath(selectedDepositPath)
+    ? depositPathInputLabel(selectedDepositPath)
+    : selectedToken.symbol;
   const planStatus = isLoading
     ? 'Generating plan'
     : isError
@@ -157,7 +173,8 @@ export function InvestRouteScreen() {
                   From your portfolio
                 </div>
                 <div className="mt-0.5 text-[11px] text-ink-faint">
-                  {sourceChain.label} source · {selectedToken.symbol}
+                  {depositPathChainLabel(selectedDepositPath)} source ·{' '}
+                  {sourceLabel}
                 </div>
               </div>
             </div>
@@ -173,7 +190,9 @@ export function InvestRouteScreen() {
           <div className="mt-[11px] flex gap-1.5">
             <SourceChip
               dotColor={sourceChain.color}
-              label={`${selectedToken.symbol} · ${sourceChain.label}`}
+              label={`${sourceLabel} · ${depositPathProtocolLabel(
+                selectedDepositPath,
+              )}`}
             />
           </div>
         </div>

@@ -7,6 +7,11 @@ import {
 } from 'react';
 
 import {
+  DEFAULT_DEPOSIT_PATH,
+  type DesktopDepositPath,
+  isGmxDepositPath,
+} from '@/integration/depositPaths';
+import {
   DEFAULT_DEPOSIT_TOKEN,
   type DesktopDepositToken,
 } from '@/integration/depositTokens';
@@ -43,6 +48,8 @@ export interface InvestContextValue {
   setAmountUsd: (value: number) => void;
   selectedToken: DesktopDepositToken;
   setSelectedToken: (value: DesktopDepositToken) => void;
+  selectedDepositPath: DesktopDepositPath;
+  setSelectedDepositPath: (value: DesktopDepositPath) => void;
   selectedTokenUsdPrice: number | null;
   setSelectedTokenUsdPrice: (value: number | null) => void;
   /** Source token for the deposit plan. */
@@ -64,6 +71,8 @@ export function InvestProvider({ children }: { children: ReactNode }) {
   const [selectedToken, setSelectedToken] = useState<DesktopDepositToken>(
     DEFAULT_DEPOSIT_TOKEN,
   );
+  const [selectedDepositPath, setSelectedDepositPath] =
+    useState<DesktopDepositPath>(DEFAULT_DEPOSIT_PATH);
   const [selectedTokenUsdPrice, setSelectedTokenUsdPrice] = useState<
     number | null
   >(1);
@@ -74,13 +83,17 @@ export function InvestProvider({ children }: { children: ReactNode }) {
       setAmountUsd,
       selectedToken,
       setSelectedToken,
+      selectedDepositPath,
+      setSelectedDepositPath,
       selectedTokenUsdPrice,
       setSelectedTokenUsdPrice,
       fromToken: selectedToken.depositAddress,
-      sourceChainId: selectedToken.chainId,
-      fromAmount: toFromAmount(amountUsd, selectedToken, selectedTokenUsdPrice),
+      sourceChainId: selectedDepositPath.chainId,
+      fromAmount: isGmxDepositPath(selectedDepositPath)
+        ? toBaseUnits(amountUsd, DEFAULT_DEPOSIT_TOKEN.decimals)
+        : toFromAmount(amountUsd, selectedToken, selectedTokenUsdPrice),
     }),
-    [amountUsd, selectedToken, selectedTokenUsdPrice],
+    [amountUsd, selectedDepositPath, selectedToken, selectedTokenUsdPrice],
   );
 
   return (

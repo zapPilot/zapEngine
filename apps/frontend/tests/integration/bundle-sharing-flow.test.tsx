@@ -224,9 +224,9 @@ vi.mock('@/components/WalletManager', () => ({
   ),
 }));
 
-// Mock useBundlePage hook
-vi.mock('@/hooks/bundle/useBundlePage', () => ({
-  useBundlePage: (userId: string) => {
+// Mock shared useBundlePage hook
+vi.mock('@zapengine/app-core/hooks/bundle', () => ({
+  useBundlePage: ({ userId }: { userId: string }) => {
     const isOwnBundle = mockIsConnected && mockUserInfo?.userId === userId;
     // Banner always shows when viewing different user's bundle (no dismissal)
     const showSwitchPrompt = mockIsConnected && !isOwnBundle && userId !== '';

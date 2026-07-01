@@ -12,7 +12,18 @@ import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { CHAINS } from '@/data/demo';
-import { BASE_DEPOSIT_TOKENS } from '@/integration/depositTokens';
+import {
+  DEPOSIT_PATHS,
+  depositPathChainLabel,
+  depositPathInputLabel,
+  depositPathProtocolLabel,
+  type DesktopDepositPath,
+  isGmxDepositPath,
+} from '@/integration/depositPaths';
+import {
+  BASE_DEPOSIT_TOKENS,
+  type DesktopDepositToken,
+} from '@/integration/depositTokens';
 import { useAccount } from '@/integration/useAccount';
 import { useInvest } from '@/integration/useInvest';
 import { useInvestableBalances } from '@/integration/useInvestableBalances';
@@ -63,6 +74,8 @@ const cardStyle = {
   border: '1px solid rgba(255,255,255,.08)',
 } as const;
 
+type InvestableBalancesState = ReturnType<typeof useInvestableBalances>;
+
 function HoldingRowSkeleton() {
   return (
     <div className="flex items-center gap-2.5 rounded-xl px-1 py-1">
@@ -88,6 +101,227 @@ function HoldingListSkeleton() {
   );
 }
 
+function HoldingMessage({ children }: { children: string }) {
+  return (
+    <div className="px-1 py-[11px] text-[12px] text-ink-faint">{children}</div>
+  );
+}
+
+function HoldingRowButton({
+  row,
+  active,
+  disabled,
+  onSelect,
+}: {
+  row: InvestableBalancesState['rows'][number];
+  active: boolean;
+  disabled: boolean;
+  onSelect: (token: DesktopDepositToken, usdPrice: number | null) => void;
+}) {
+  return (
+    <button
+      key={row.token.symbol}
+      type="button"
+      onClick={() => {
+        if (!row.depositToken) {
+          return;
+        }
+        onSelect(row.depositToken, row.usdPrice);
+      }}
+      disabled={disabled}
+      aria-disabled={disabled}
+      className="zp-tap flex items-center gap-2.5 rounded-xl px-1 py-1 text-left"
+      style={
+        active
+          ? { background: 'rgba(212,197,163,.09)' }
+          : disabled
+            ? { opacity: 0.55 }
+            : undefined
+      }
+    >
+      <TokenIcon glyph={row.token.glyph} bg={row.token.iconBg} size={26} />
+      <div className="flex-1">
+        <span className="text-[13.5px] font-semibold">{row.token.symbol}</span>
+        <div className="mt-[2px] font-mono text-[9px] text-ink-faint">
+          {row.chains.map((chain) => CHAINS[chain].label).join(' · ')}
+          {disabled ? ' · view only' : ''}
+        </div>
+      </div>
+      <span className="mr-2">
+        <ChainIconStack chains={row.chains} size={13} />
+      </span>
+      <span
+        className="text-[13px] font-semibold text-ink-dim"
+        style={{ fontVariantNumeric: 'tabular-nums' }}
+      >
+        {typeof row.usdValue === 'number' ? formatUsd(row.usdValue) : '—'}
+      </span>
+    </button>
+  );
+}
+
+function HoldingRows({
+  balances,
+  isGmxPath,
+  selectedTokenSymbol,
+  onSelect,
+}: {
+  balances: InvestableBalancesState;
+  isGmxPath: boolean;
+  selectedTokenSymbol: string;
+  onSelect: (token: DesktopDepositToken, usdPrice: number | null) => void;
+}) {
+  if (!balances.isConnected) {
+    return (
+      <HoldingMessage>
+        Connect wallet to load supported holdings.
+      </HoldingMessage>
+    );
+  }
+  if (balances.isLoading) {
+    return <HoldingListSkeleton />;
+  }
+  if (balances.isError) {
+    return <HoldingMessage>Wallet tokens unavailable.</HoldingMessage>;
+  }
+  if (balances.rows.length === 0) {
+    return <HoldingMessage>No supported token holdings yet.</HoldingMessage>;
+  }
+
+  return (
+    <>
+      {balances.rows.map((row) => {
+        const active =
+          !isGmxPath && row.depositToken?.symbol === selectedTokenSymbol;
+        const disabled =
+          isGmxPath || !row.isDepositSupported || !row.depositToken;
+        return (
+          <HoldingRowButton
+            key={row.token.symbol}
+            row={row}
+            active={active}
+            disabled={disabled}
+            onSelect={onSelect}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+function HoldingsCard({
+  balances,
+  isGmxPath,
+  selectedTokenSymbol,
+  onSelectToken,
+}: {
+  balances: InvestableBalancesState;
+  isGmxPath: boolean;
+  selectedTokenSymbol: string;
+  onSelectToken: (token: DesktopDepositToken, usdPrice: number | null) => void;
+}) {
+  const showBalancesSkeleton = balances.isConnected && balances.isLoading;
+
+  return (
+    <Card className="mx-5 mt-[22px] rounded-[18px]" style={cardStyle}>
+      <div className="px-4 py-[15px]">
+        <div className="flex items-center justify-between">
+          <span className="text-[12.5px] text-ink-dim">
+            Available across Ethereum · Base · Arbitrum
+          </span>
+          <span
+            className="text-[13.5px] font-semibold"
+            style={{ fontVariantNumeric: 'tabular-nums' }}
+          >
+            {showBalancesSkeleton ? (
+              <SkeletonBlock className="h-4 w-16" />
+            ) : typeof balances.totalUsdValue === 'number' ? (
+              formatUsd(balances.totalUsdValue)
+            ) : (
+              '—'
+            )}
+          </span>
+        </div>
+        <div className="mt-2 flex items-center gap-1.5">
+          <Check size={12} strokeWidth={3} className="text-success" />
+          <span className="font-mono text-[10px] tracking-[.02em] text-success">
+            {depositSupportLabel()}
+            {isGmxPath ? ' · GMX uses Arbitrum USDC' : ''}
+          </span>
+        </div>
+        <div className="mt-[13px] flex flex-col gap-[11px]">
+          <HoldingRows
+            balances={balances}
+            isGmxPath={isGmxPath}
+            selectedTokenSymbol={selectedTokenSymbol}
+            onSelect={onSelectToken}
+          />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function DepositPathSelector({
+  selectedDepositPath,
+  onSelect,
+}: {
+  selectedDepositPath: DesktopDepositPath;
+  onSelect: (path: DesktopDepositPath) => void;
+}) {
+  return (
+    <Card className="mx-5 mt-[18px] rounded-[18px]" style={cardStyle}>
+      <div className="px-4 py-[15px]">
+        <div className="flex items-center justify-between">
+          <span className="text-[12.5px] text-ink-dim">Deposit path</span>
+          <span className="font-mono text-[9.5px] uppercase tracking-[.08em] text-accent">
+            Test selector
+          </span>
+        </div>
+        <div className="mt-3 grid gap-2">
+          {DEPOSIT_PATHS.map((path) => {
+            const active = path.id === selectedDepositPath.id;
+            return (
+              <button
+                key={path.id}
+                type="button"
+                onClick={() => onSelect(path)}
+                className="zp-tap rounded-[14px] px-3 py-2.5 text-left"
+                style={
+                  active
+                    ? {
+                        background: 'rgba(212,197,163,.12)',
+                        border: '1px solid rgba(212,197,163,.32)',
+                      }
+                    : {
+                        background: 'rgba(255,255,255,.025)',
+                        border: '1px solid rgba(255,255,255,.07)',
+                      }
+                }
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[13px] font-semibold text-ink">
+                    {depositPathProtocolLabel(path)}
+                  </span>
+                  <span className="rounded-full px-2 py-1 font-mono text-[9px] uppercase tracking-[.08em] text-ink-dim">
+                    {depositPathChainLabel(path)}
+                  </span>
+                </div>
+                <div className="mt-1 text-[10.5px] text-ink-faint">
+                  Input: {depositPathInputLabel(path)}
+                  {isGmxDepositPath(path)
+                    ? ' · GMX keeper settlement path'
+                    : ' · current Morpho deposit route'}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 /** Re-applies en-US thousands grouping while preserving a trailing `.` / decimals. */
 function groupAmount(raw: string): string {
   if (raw === '') {
@@ -101,12 +335,26 @@ function groupAmount(raw: string): string {
   return `${groupedWhole}.${fraction}`;
 }
 
+function nextGroupedAmount(current: string, key: string): string {
+  const raw = current.replace(/,/g, '');
+  if (key === 'back') {
+    return groupAmount(raw.slice(0, -1));
+  }
+  if (key === '.') {
+    return raw.includes('.') ? current : groupAmount(`${raw}.`);
+  }
+  const next = raw === '0' ? key : `${raw}${key}`;
+  return groupAmount(next);
+}
+
 /** Invest step 1/3 — amount input, USD/Token toggle, source tokens, keypad. */
 export function InvestAmountScreen() {
   const navigate = useNavigate();
   const {
     selectedToken,
+    selectedDepositPath,
     setAmountUsd,
+    setSelectedDepositPath,
     setSelectedToken,
     setSelectedTokenUsdPrice,
   } = useInvest();
@@ -116,41 +364,34 @@ export function InvestAmountScreen() {
   );
   const [amount, setAmount] = useState('1,000');
   const [unit, setUnit] = useState<AmountUnit>('USD');
+  const isGmxPath = isGmxDepositPath(selectedDepositPath);
   const selectedRow =
-    balances.rows.find(
-      (row) => row.depositToken?.symbol === selectedToken.symbol,
+    balances.rows.find((row) =>
+      isGmxPath
+        ? row.token.symbol === 'USDC' && row.chains.includes('arbitrum')
+        : row.depositToken?.symbol === selectedToken.symbol,
     ) ?? null;
-  const showBalancesSkeleton = balances.isConnected && balances.isLoading;
   const amountUsd = amountUsdFromInput(
     amount,
     unit,
-    selectedRow?.usdPrice ?? null,
+    isGmxPath ? 1 : (selectedRow?.usdPrice ?? null),
   );
-  const canReview = amountUsd !== null && selectedRow !== null;
+  const hasSelectedSource = isGmxPath || selectedRow !== null;
+  const canReview = amountUsd !== null && hasSelectedSource;
+  const inputSymbol = isGmxPath ? 'USDC' : selectedToken.symbol;
 
   const handleReview = () => {
-    if (!selectedRow || amountUsd === null) {
+    const reviewAmountUsd = amountUsd;
+    if (reviewAmountUsd === null || !hasSelectedSource) {
       return;
     }
-    setAmountUsd(amountUsd);
-    setSelectedTokenUsdPrice(selectedRow?.usdPrice ?? null);
+    setAmountUsd(reviewAmountUsd);
+    setSelectedTokenUsdPrice(isGmxPath ? 1 : (selectedRow?.usdPrice ?? null));
     void navigate('/invest/route');
   };
 
   const handleKey = (key: string) => {
-    setAmount((current) => {
-      // Work on a raw (ungrouped) string so editing is digit-accurate.
-      const raw = current.replace(/,/g, '');
-      if (key === 'back') {
-        return groupAmount(raw.slice(0, -1));
-      }
-      if (key === '.') {
-        return raw.includes('.') ? current : groupAmount(`${raw}.`);
-      }
-      // Drop a leading placeholder zero when typing the first real digit.
-      const next = raw === '0' ? key : `${raw}${key}`;
-      return groupAmount(next);
-    });
+    setAmount((current) => nextGroupedAmount(current, key));
   };
 
   return (
@@ -166,9 +407,7 @@ export function InvestAmountScreen() {
           {unit === 'USD' ? '$' : null}
           {amount}
           {unit === 'Token' ? (
-            <span className="ml-2 text-[30px] text-ink-dim">
-              {selectedToken.symbol}
-            </span>
+            <span className="ml-2 text-[30px] text-ink-dim">{inputSymbol}</span>
           ) : null}
           <span
             className="text-accent"
@@ -178,7 +417,8 @@ export function InvestAmountScreen() {
           </span>
         </div>
         <div className="mt-3 font-mono text-[11.5px] text-ink-dim">
-          Ethereum · Base · Arbitrum holdings · {selectedToken.symbol}
+          {depositPathChainLabel(selectedDepositPath)} ·{' '}
+          {depositPathInputLabel(selectedDepositPath)} · {inputSymbol}
         </div>
         <div
           className="mt-4 inline-flex rounded-full p-[3px]"
@@ -212,107 +452,20 @@ export function InvestAmountScreen() {
         </div>
       </div>
 
-      <Card className="mx-5 mt-[22px] rounded-[18px]" style={cardStyle}>
-        <div className="px-4 py-[15px]">
-          <div className="flex items-center justify-between">
-            <span className="text-[12.5px] text-ink-dim">
-              Available across Ethereum · Base · Arbitrum
-            </span>
-            <span
-              className="text-[13.5px] font-semibold"
-              style={{ fontVariantNumeric: 'tabular-nums' }}
-            >
-              {showBalancesSkeleton ? (
-                <SkeletonBlock className="h-4 w-16" />
-              ) : typeof balances.totalUsdValue === 'number' ? (
-                formatUsd(balances.totalUsdValue)
-              ) : (
-                '—'
-              )}
-            </span>
-          </div>
-          <div className="mt-2 flex items-center gap-1.5">
-            <Check size={12} strokeWidth={3} className="text-success" />
-            <span className="font-mono text-[10px] tracking-[.02em] text-success">
-              {depositSupportLabel()}
-            </span>
-          </div>
-          <div className="mt-[13px] flex flex-col gap-[11px]">
-            {!balances.isConnected ? (
-              <div className="px-1 py-[11px] text-[12px] text-ink-faint">
-                Connect wallet to load supported holdings.
-              </div>
-            ) : balances.isLoading ? (
-              <HoldingListSkeleton />
-            ) : balances.isError ? (
-              <div className="px-1 py-[11px] text-[12px] text-ink-faint">
-                Wallet tokens unavailable.
-              </div>
-            ) : balances.rows.length === 0 ? (
-              <div className="px-1 py-[11px] text-[12px] text-ink-faint">
-                No supported token holdings yet.
-              </div>
-            ) : (
-              balances.rows.map((row) => {
-                const active =
-                  row.depositToken?.symbol === selectedToken.symbol;
-                const disabled = !row.isDepositSupported || !row.depositToken;
-                return (
-                  <button
-                    key={row.token.symbol}
-                    type="button"
-                    onClick={() => {
-                      if (!row.depositToken) {
-                        return;
-                      }
-                      setSelectedToken(row.depositToken);
-                      setSelectedTokenUsdPrice(row.usdPrice);
-                    }}
-                    disabled={disabled}
-                    aria-disabled={disabled}
-                    className="zp-tap flex items-center gap-2.5 rounded-xl px-1 py-1 text-left"
-                    style={
-                      active
-                        ? { background: 'rgba(212,197,163,.09)' }
-                        : disabled
-                          ? { opacity: 0.55 }
-                          : undefined
-                    }
-                  >
-                    <TokenIcon
-                      glyph={row.token.glyph}
-                      bg={row.token.iconBg}
-                      size={26}
-                    />
-                    <div className="flex-1">
-                      <span className="text-[13.5px] font-semibold">
-                        {row.token.symbol}
-                      </span>
-                      <div className="mt-[2px] font-mono text-[9px] text-ink-faint">
-                        {row.chains
-                          .map((chain) => CHAINS[chain].label)
-                          .join(' · ')}
-                        {disabled ? ' · view only' : ''}
-                      </div>
-                    </div>
-                    <span className="mr-2">
-                      <ChainIconStack chains={row.chains} size={13} />
-                    </span>
-                    <span
-                      className="text-[13px] font-semibold text-ink-dim"
-                      style={{ fontVariantNumeric: 'tabular-nums' }}
-                    >
-                      {typeof row.usdValue === 'number'
-                        ? formatUsd(row.usdValue)
-                        : '—'}
-                    </span>
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </Card>
+      <DepositPathSelector
+        selectedDepositPath={selectedDepositPath}
+        onSelect={setSelectedDepositPath}
+      />
+
+      <HoldingsCard
+        balances={balances}
+        isGmxPath={isGmxPath}
+        selectedTokenSymbol={selectedToken.symbol}
+        onSelectToken={(token, usdPrice) => {
+          setSelectedToken(token);
+          setSelectedTokenUsdPrice(usdPrice);
+        }}
+      />
 
       <NumericKeypad onKey={handleKey} />
 

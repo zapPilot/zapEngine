@@ -18,6 +18,7 @@ function renderPanel(overrides: Partial<DesktopWalletMenuPanelProps>) {
     onConnect: vi.fn(),
     onCopyAddress: vi.fn(),
     onDisconnect: vi.fn(),
+    onOpenBundles: vi.fn(),
     onOpenSettings: vi.fn(),
     ...overrides,
   } as DesktopWalletMenuPanelProps;
@@ -34,7 +35,7 @@ describe('DesktopWalletMenuPanel', () => {
     expect(markup).toContain('aria-label="Create Zap Wallet"');
   });
 
-  it('shows connected wallet actions without enabling bundles', () => {
+  it('shows connected wallet actions with bundled wallets enabled', () => {
     const markup = renderPanel({
       address: ADDRESS,
       isConnected: true,
@@ -44,9 +45,10 @@ describe('DesktopWalletMenuPanel', () => {
     expect(markup).toContain('0x1234…7890');
     expect(markup).toContain('aria-label="Copy wallet address"');
     expect(markup).toContain('View Bundles');
-    expect(markup).toContain('Soon');
-    expect(markup).toContain('aria-disabled="true"');
-    expect(markup).toContain('disabled=""');
+    expect(markup).toContain('aria-label="View bundled wallets"');
+    expect(markup).not.toContain('Soon');
+    expect(markup).not.toContain('aria-disabled="true"');
+    expect(markup).not.toContain('disabled=""');
     expect(markup).toContain('Settings');
     expect(markup).toContain('Disconnect');
   });

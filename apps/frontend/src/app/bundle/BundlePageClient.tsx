@@ -1,3 +1,4 @@
+import { useBundlePage } from '@zapengine/app-core/hooks/bundle';
 import { useUser } from '@zapengine/app-core/hooks/queries/wallet/useUser';
 import { useEffect } from 'react';
 
@@ -5,7 +6,6 @@ import { QuickSwitchFAB } from '@/components/bundle';
 import { EmailReminderBanner } from '@/components/layout/banners/EmailReminderBanner';
 import { SwitchPromptBanner } from '@/components/layout/banners/SwitchPromptBanner';
 import { DashboardShell } from '@/components/wallet/portfolio/DashboardShell';
-import { useBundlePage } from '@/hooks/bundle/useBundlePage';
 import { lazyImport } from '@/lib/lazy/lazyImport';
 import {
   useAppPathname,
@@ -35,7 +35,12 @@ export function BundlePageClient({
   const pathname = useAppPathname();
   const searchParams = useAppSearchParams();
   const { userInfo, isConnected, loading } = useUser();
-  const vm = useBundlePage(userId, walletId);
+  const vm = useBundlePage({
+    userId,
+    ...(walletId ? { walletId } : {}),
+    router,
+    search: window.location.search,
+  });
 
   useEffect(() => {
     if (loading) {

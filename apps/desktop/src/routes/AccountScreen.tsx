@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
+import { DesktopWalletManagerModal } from '@/components/account/DesktopWalletManagerModal';
 import { DesktopWalletMenuPanel } from '@/components/account/DesktopWalletMenuPanel';
 import { Card } from '@/components/ui/Card';
 import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
@@ -74,9 +75,17 @@ function SettingsRow({
 
 /** Account — wallet, non-custodial reassurance, settings, disconnect. */
 export function AccountScreen() {
-  const { address, email, isConnected, isConnecting, connect, disconnect } =
-    useAccount();
+  const {
+    address,
+    email,
+    isConnected,
+    isConnecting,
+    userId,
+    connect,
+    disconnect,
+  } = useAccount();
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+  const [isWalletManagerOpen, setIsWalletManagerOpen] = useState(false);
 
   const label = email ?? 'Main Wallet';
   const avatarLetter = (email?.[0] ?? 'Z').toUpperCase();
@@ -195,6 +204,7 @@ export function AccountScreen() {
             window.setTimeout(() => setCopiedAddress(null), 2000);
           }}
           onDisconnect={() => void disconnect()}
+          onOpenBundles={() => setIsWalletManagerOpen(true)}
           onOpenSettings={handleOpenSettings}
         />
       </div>
@@ -225,6 +235,11 @@ export function AccountScreen() {
       >
         ZAP PILOT v1.0 · POC
       </div>
+      <DesktopWalletManagerModal
+        isOpen={isWalletManagerOpen}
+        onClose={() => setIsWalletManagerOpen(false)}
+        {...(userId ? { urlUserId: userId } : {})}
+      />
     </div>
   );
 }
