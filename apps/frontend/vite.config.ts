@@ -194,6 +194,30 @@ export default defineConfig(({ mode }) => ({
         replacement: `${APP_CORE_SRC}/$1`,
       },
       { find: /^@core\/(.*)$/, replacement: `${APP_CORE_SRC}/$1` },
+      {
+        find: /^@zapengine\/types\/(.*)$/,
+        replacement: `${REPO_ROOT}/packages/types/src/$1`,
+      },
+      {
+        find: /^@zapengine\/types$/,
+        replacement: `${REPO_ROOT}/packages/types/src/index.ts`,
+      },
+      {
+        find: /^@zapengine\/intent-engine\/gmx-v2$/,
+        replacement: `${REPO_ROOT}/packages/intent-engine/src/protocols/gmx-v2/index.ts`,
+      },
+      {
+        find: /^@zapengine\/intent-engine\/morpho$/,
+        replacement: `${REPO_ROOT}/packages/intent-engine/src/protocols/morpho/index.ts`,
+      },
+      {
+        find: /^@zapengine\/intent-engine\/types$/,
+        replacement: `${REPO_ROOT}/packages/intent-engine/src/types/index.ts`,
+      },
+      {
+        find: /^@zapengine\/intent-engine$/,
+        replacement: `${REPO_ROOT}/packages/intent-engine/src/index.ts`,
+      },
     ],
     // Must stay "forks": under Vitest 4 the vmThreads pool freezes jsdom's
     // window.location into a non-configurable property, which breaks every

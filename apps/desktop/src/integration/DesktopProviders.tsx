@@ -5,6 +5,7 @@ import { WalletProvider } from '@zapengine/app-core/providers/WalletProvider';
 import type { ReactNode } from 'react';
 
 import { SimulationPreviewModal } from '@/components/SimulationPreviewModal';
+import { DesktopToastProvider } from '@/integration/DesktopToastProvider';
 
 /**
  * App-wide data providers for the desktop shell, sharing @zapengine/app-core's
@@ -31,7 +32,7 @@ export function DesktopProviders({ children }: { children: ReactNode }) {
             <SimulationPreviewModal {...props} />
           )}
         >
-          {children}
+          <DesktopToastProvider>{children}</DesktopToastProvider>
         </WalletProvider>
       </PrivyAuthProvider>
     </QueryProvider>

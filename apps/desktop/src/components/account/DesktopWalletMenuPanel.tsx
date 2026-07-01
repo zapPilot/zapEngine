@@ -12,6 +12,7 @@ export interface DesktopWalletMenuPanelProps {
   onConnect: () => void;
   onCopyAddress: (address: string) => void;
   onDisconnect: () => void;
+  onOpenBundles: () => void;
   onOpenSettings: () => void;
 }
 
@@ -23,6 +24,7 @@ export function DesktopWalletMenuPanel({
   onConnect,
   onCopyAddress,
   onDisconnect,
+  onOpenBundles,
   onOpenSettings,
 }: DesktopWalletMenuPanelProps) {
   if (!isConnected) {
@@ -95,15 +97,12 @@ export function DesktopWalletMenuPanel({
       </div>
       <button
         type="button"
-        disabled
-        aria-disabled="true"
-        className="flex w-full items-center gap-3 px-4 py-[12px] text-left text-[13px] text-ink-faint"
+        aria-label="View bundled wallets"
+        className="zp-tap flex w-full items-center gap-3 px-4 py-[12px] text-left text-[13px] text-ink"
+        onClick={onOpenBundles}
       >
         <Wallet size={17} className="text-accent" aria-hidden="true" />
         <span className="flex-1">View Bundles</span>
-        <span className="font-mono text-[9px] uppercase tracking-[.08em]">
-          Soon
-        </span>
       </button>
       <button
         type="button"

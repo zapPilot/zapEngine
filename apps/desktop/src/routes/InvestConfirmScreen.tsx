@@ -1,3 +1,4 @@
+import { useGmxDeposit } from '@zapengine/app-core/hooks/useGmxDeposit';
 import { useInvestStrategy } from '@zapengine/app-core/hooks/useInvestStrategy';
 import { Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +11,10 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { ZapLogo } from '@/components/ui/ZapLogo';
+import {
+  depositPathProtocolLabel,
+  isGmxDepositPath,
+} from '@/integration/depositPaths';
 import {
   formatPlanDuration,
   formatPlanGas,
@@ -28,7 +33,13 @@ const STEPS = [
 /** Invest step 3/3 — summary, what-happens-next, non-custodial, confirm. */
 export function InvestConfirmScreen() {
   const navigate = useNavigate();
-  const { amountUsd, fromToken, fromAmount, sourceChainId } = useInvest();
+  const {
+    amountUsd,
+    selectedDepositPath,
+    fromToken,
+    fromAmount,
+    sourceChainId,
+  } = useInvest();
   const { address } = useAccount();
   const { plan, isLoading: planLoading } = useDepositPlanPreview({
     address,
@@ -36,12 +47,25 @@ export function InvestConfirmScreen() {
     fromAmount,
     sourceChainId,
     amountUsd,
+    depositPath: selectedDepositPath,
   });
-  const { run, pending, lastError, getErrorMessage } = useInvestStrategy();
+  const invest = useInvestStrategy();
+  const gmx = useGmxDeposit();
+  const isGmxPath = isGmxDepositPath(selectedDepositPath);
+  const pending = isGmxPath ? gmx.pending : invest.pending;
+  const lastError = isGmxPath ? gmx.lastError : invest.lastError;
+  const getErrorMessage = isGmxPath
+    ? gmx.getErrorMessage
+    : invest.getErrorMessage;
 
   const handleConfirm = async () => {
     try {
-      await run({ fromToken, fromAmount, sourceChainId });
+      await (isGmxPath
+        ? gmx.run({
+            marketKey: selectedDepositPath.marketKey,
+            amount: fromAmount,
+          })
+        : invest.run({ fromToken, fromAmount, sourceChainId }));
       void navigate('/activity');
     } catch {
       // The hook records the failure in `lastError`; surfaced below the CTA.
@@ -101,7 +125,9 @@ export function InvestConfirmScreen() {
             >
               <ZapLogo size={13} />
             </span>
-            <span className="text-[14px] font-semibold">Zap Strategy</span>
+            <span className="text-[14px] font-semibold">
+              {depositPathProtocolLabel(selectedDepositPath)}
+            </span>
           </div>
           <div
             className="mt-4 flex pt-[14px]"

@@ -76,13 +76,26 @@ const mockWalletOperationsBase = {
 
 const mockUseWalletOperations = vi.fn(() => ({ ...mockWalletOperationsBase }));
 
-vi.mock('@/components/WalletManager/hooks/useWalletOperations', () => ({
+vi.mock('@zapengine/app-core/hooks/bundle', () => ({
+  getWalletDescription: (isConnected: boolean, isOwner: boolean) => {
+    if (!isConnected) return 'No wallet connected';
+    return isOwner ? 'Manage your wallet bundle' : 'Viewing wallet bundle';
+  },
+  getWalletManagerIdentity: (
+    urlUserId: string | undefined,
+    connectedUserId: string | undefined,
+  ) => {
+    const realUserId = connectedUserId ?? '';
+    const viewingUserId = urlUserId ?? realUserId;
+    return {
+      realUserId,
+      viewingUserId,
+      isOwnerView: viewingUserId === realUserId,
+    };
+  },
   get useWalletOperations() {
     return mockUseWalletOperations;
   },
-}));
-
-vi.mock('@/components/WalletManager/hooks/useEmailSubscription', () => ({
   useEmailSubscription: () => ({
     email: 'test@example.com',
     subscribedEmail: 'test@example.com',

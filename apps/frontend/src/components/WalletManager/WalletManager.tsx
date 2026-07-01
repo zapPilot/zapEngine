@@ -1,4 +1,10 @@
 import { GRADIENTS } from '@zapengine/app-core/constants/designSystem';
+import {
+  getWalletDescription,
+  getWalletManagerIdentity,
+  useEmailSubscription,
+  useWalletOperations,
+} from '@zapengine/app-core/hooks/bundle';
 import { useUser } from '@zapengine/app-core/hooks/queries/wallet/useUser';
 import { useAsyncRetryButton } from '@zapengine/app-core/hooks/ui/useAsyncRetryButton';
 import type { WalletManagerProps } from '@zapengine/app-core/types';
@@ -17,12 +23,6 @@ import { EmailSubscription } from './components/EmailSubscription';
 import { WalletList } from './components/WalletList';
 import { WalletListProvider } from './contexts/WalletListContext';
 import { useDropdownMenu } from './hooks/useDropdownMenu';
-import { useEmailSubscription } from './hooks/useEmailSubscription';
-import { useWalletOperations } from './hooks/useWalletOperations';
-import {
-  getWalletDescription,
-  getWalletManagerIdentity,
-} from './walletManagerUtils';
 
 type WalletOperationsState = ReturnType<typeof useWalletOperations>;
 type EmailSubscriptionState = ReturnType<typeof useEmailSubscription>;
