@@ -17,14 +17,3 @@ export const TOKEN_ICON_SRC_BY_SYMBOL = {
   SPY: '/tokens/spyon.png',
   STABLE: '/tokens/stable.svg',
 } as const;
-
-export type TokenIconSymbol = keyof typeof TOKEN_ICON_SRC_BY_SYMBOL;
-
-export function tokenIconSrcForSymbol(
-  symbol: string | null | undefined,
-): string | undefined {
-  const normalized = symbol?.trim().toUpperCase() as
-    | TokenIconSymbol
-    | undefined;
-  return normalized ? TOKEN_ICON_SRC_BY_SYMBOL[normalized] : undefined;
-}

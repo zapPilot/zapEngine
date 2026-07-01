@@ -272,6 +272,16 @@ function usdPriceFor(amount: number, usdValue: number | null): number | null {
   return usdValue / amount;
 }
 
+interface WalletAggregationEntry {
+  amount: number;
+  usdValue: number;
+  chains: Set<DesktopChainKey>;
+  holdings: Map<DesktopChainKey, DesktopWalletAssetHolding>;
+  name: string;
+}
+
+type WalletAggregationMap = Map<SupportedWalletSymbol, WalletAggregationEntry>;
+
 function sortChains(chains: DesktopChainKey[]): DesktopChainKey[] {
   return [...chains].sort(
     (a, b) => (CHAIN_ORDER.get(a) ?? 99) - (CHAIN_ORDER.get(b) ?? 99),
@@ -279,16 +289,7 @@ function sortChains(chains: DesktopChainKey[]): DesktopChainKey[] {
 }
 
 function aggregateChainBalance(
-  grouped: Map<
-    SupportedWalletSymbol,
-    {
-      amount: number;
-      usdValue: number;
-      chains: Set<DesktopChainKey>;
-      holdings: Map<DesktopChainKey, DesktopWalletAssetHolding>;
-      name: string;
-    }
-  >,
+  grouped: WalletAggregationMap,
   chainConfig: (typeof MORALIS_WALLET_CHAINS)[number],
   balance: WalletTokenBalanceLike,
 ): void {
@@ -345,16 +346,7 @@ function aggregateChainBalance(
 export function buildDesktopWalletAssets(
   chainBalances: readonly WalletChainBalancesLike[],
 ): DesktopWalletAsset[] {
-  const grouped = new Map<
-    SupportedWalletSymbol,
-    {
-      amount: number;
-      usdValue: number;
-      chains: Set<DesktopChainKey>;
-      holdings: Map<DesktopChainKey, DesktopWalletAssetHolding>;
-      name: string;
-    }
-  >();
+  const grouped: WalletAggregationMap = new Map();
 
   for (const { chain, response } of chainBalances) {
     const chainConfig = CHAIN_BY_MORALIS.get(chain);
