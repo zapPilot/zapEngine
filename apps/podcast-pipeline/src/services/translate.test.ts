@@ -410,6 +410,34 @@ describe('translateCanonicalScript', () => {
       ],
     });
   });
+
+  it('preserves an empty script while translating a non-empty title through Google fallback', async () => {
+    mocks.createOpenRouterChatCompletion.mockRejectedValueOnce(
+      new Error('OpenRouter timeout'),
+    );
+    mockGoogleTranslation('Google title');
+
+    const result = await translateCanonicalScript({
+      title: '標題',
+      script: '',
+      targetLanguageCode: 'ja',
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      title: 'Google title',
+      script: '',
+      cost: [
+        {
+          category: 'translate',
+          label: 'Translation ja',
+          provider: 'google',
+          model: 'translate-api',
+          costUsd: 0.00002,
+        },
+      ],
+    });
+  });
 });
 
 function mockOpenRouterConfig(model = 'openrouter/free'): void {
