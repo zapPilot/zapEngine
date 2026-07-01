@@ -2,7 +2,6 @@ import { Check } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { NumericKeypad } from '@/components/invest/NumericKeypad';
 import { StepHeader } from '@/components/invest/StepHeader';
 import { StepProgress } from '@/components/invest/StepProgress';
 import { ChainIconStack } from '@/components/token/ChainIconStack';
@@ -42,6 +41,35 @@ function joinWithAnd(items: string[]): string {
     return items[0] ?? '';
   }
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+function groupWholeDigits(digits: string): string {
+  const normalized = digits.replace(/^0+(?=\d)/, '') || '0';
+  const groups: string[] = [];
+
+  for (let end = normalized.length; end > 0; end -= 3) {
+    groups.unshift(normalized.slice(Math.max(0, end - 3), end));
+  }
+
+  return groups.join(',');
+}
+
+/** Normalizes direct keyboard input into a grouped amount string. */
+export function normalizeAmountInput(input: string): string {
+  const cleaned = input.replace(/,/g, '').replace(/[^\d.]/g, '');
+  if (cleaned === '') {
+    return '';
+  }
+
+  const [whole = '', ...fractionParts] = cleaned.split('.');
+  const hasDecimal = cleaned.includes('.');
+  const groupedWhole = groupWholeDigits(whole);
+
+  if (!hasDecimal) {
+    return groupedWhole;
+  }
+
+  return `${groupedWhole}.${fractionParts.join('')}`;
 }
 
 export function depositSupportLabel(
@@ -210,21 +238,35 @@ function HoldingRows({
 }
 
 function HoldingsCard({
+  amount,
   balances,
+  displayToken,
+  inputSymbol,
   isGmxPath,
+  onAmountChange,
+  onUnitChange,
   selectedTokenSymbol,
   onSelectToken,
+  selectedDepositPath,
+  unit,
 }: {
+  amount: string;
   balances: InvestableBalancesState;
+  displayToken: DesktopDepositToken;
+  inputSymbol: string;
   isGmxPath: boolean;
+  onAmountChange: (amount: string) => void;
+  onUnitChange: (unit: AmountUnit) => void;
   selectedTokenSymbol: string;
   onSelectToken: (token: DesktopDepositToken, usdPrice: number | null) => void;
+  selectedDepositPath: DesktopDepositPath;
+  unit: AmountUnit;
 }) {
   const showBalancesSkeleton = balances.isConnected && balances.isLoading;
 
   return (
-    <Card className="mx-5 mt-[22px] rounded-[18px]" style={cardStyle}>
-      <div className="px-4 py-[15px]">
+    <Card className="mx-5 mt-[30px] rounded-[22px]" style={cardStyle}>
+      <div className="px-4 py-4">
         <div className="flex items-center justify-between">
           <span className="text-[12.5px] text-ink-dim">
             Available across Ethereum · Base · Arbitrum
@@ -242,6 +284,107 @@ function HoldingsCard({
             )}
           </span>
         </div>
+
+        <div
+          className="mt-3 rounded-[18px] p-3"
+          style={{
+            background: 'rgba(255,255,255,.035)',
+            border: '1px solid rgba(255,255,255,.08)',
+          }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <label
+                htmlFor="invest-amount"
+                className="font-mono text-[9.5px] uppercase tracking-[.09em] text-ink-faint"
+              >
+                Amount
+              </label>
+              <div className="mt-1 flex items-baseline">
+                {unit === 'USD' ? (
+                  <span className="mr-1 font-serif text-[30px] leading-none text-ink">
+                    $
+                  </span>
+                ) : null}
+                <input
+                  id="invest-amount"
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  aria-label="Investment amount"
+                  value={amount}
+                  onChange={(event) =>
+                    onAmountChange(
+                      normalizeAmountInput(event.currentTarget.value),
+                    )
+                  }
+                  placeholder="0"
+                  className="min-w-0 flex-1 bg-transparent font-serif text-[46px] leading-none text-ink outline-none placeholder:text-ink-faint"
+                  style={{ letterSpacing: '-.02em' }}
+                />
+                {unit === 'Token' ? (
+                  <span className="ml-1 text-[18px] font-semibold text-ink-dim">
+                    {inputSymbol}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <div
+              className="shrink-0 rounded-2xl px-3 py-2"
+              style={{
+                background: 'rgba(10,10,10,.42)',
+                border: '1px solid rgba(212,197,163,.18)',
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <TokenIcon
+                  glyph={displayToken.glyph}
+                  bg={displayToken.iconBg}
+                  size={24}
+                />
+                <span className="text-[13px] font-semibold text-ink">
+                  {inputSymbol}
+                </span>
+              </div>
+              <div className="mt-[5px] font-mono text-[9px] uppercase tracking-[.08em] text-ink-faint">
+                {depositPathChainLabel(selectedDepositPath)}
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="mt-3 inline-flex rounded-full p-[3px]"
+            style={{
+              background: 'rgba(255,255,255,.05)',
+              border: '1px solid rgba(255,255,255,.07)',
+            }}
+          >
+            {(['USD', 'Token'] as const).map((option) => {
+              const active = unit === option;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => onUnitChange(option)}
+                  className="zp-tap rounded-full px-[15px] py-1.5 text-[12px]"
+                  style={
+                    active
+                      ? {
+                          background: 'var(--accent)',
+                          color: '#0a0a0a',
+                          fontWeight: 600,
+                        }
+                      : { color: '#a1a1aa', fontWeight: 500 }
+                  }
+                >
+                  {option}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="mt-2 flex items-center gap-1.5">
           <Check size={12} strokeWidth={3} className="text-success" />
           <span className="font-mono text-[10px] tracking-[.02em] text-success">
@@ -322,32 +465,7 @@ function DepositPathSelector({
   );
 }
 
-/** Re-applies en-US thousands grouping while preserving a trailing `.` / decimals. */
-function groupAmount(raw: string): string {
-  if (raw === '') {
-    return '0';
-  }
-  const [whole = '', fraction] = raw.split('.');
-  const groupedWhole = (Number(whole) || 0).toLocaleString('en-US');
-  if (fraction === undefined) {
-    return raw.includes('.') ? `${groupedWhole}.` : groupedWhole;
-  }
-  return `${groupedWhole}.${fraction}`;
-}
-
-function nextGroupedAmount(current: string, key: string): string {
-  const raw = current.replace(/,/g, '');
-  if (key === 'back') {
-    return groupAmount(raw.slice(0, -1));
-  }
-  if (key === '.') {
-    return raw.includes('.') ? current : groupAmount(`${raw}.`);
-  }
-  const next = raw === '0' ? key : `${raw}${key}`;
-  return groupAmount(next);
-}
-
-/** Invest step 1/3 — amount input, USD/Token toggle, source tokens, keypad. */
+/** Invest step 1/3 — amount input, USD/Token toggle, source tokens, route. */
 export function InvestAmountScreen() {
   const navigate = useNavigate();
   const {
@@ -379,6 +497,7 @@ export function InvestAmountScreen() {
   const hasSelectedSource = isGmxPath || selectedRow !== null;
   const canReview = amountUsd !== null && hasSelectedSource;
   const inputSymbol = isGmxPath ? 'USDC' : selectedToken.symbol;
+  const displayToken = isGmxPath ? BASE_DEPOSIT_TOKENS[0] : selectedToken;
 
   const handleReview = () => {
     const reviewAmountUsd = amountUsd;
@@ -390,86 +509,34 @@ export function InvestAmountScreen() {
     void navigate('/invest/route');
   };
 
-  const handleKey = (key: string) => {
-    setAmount((current) => nextGroupedAmount(current, key));
-  };
-
   return (
     <div className="font-sans text-ink">
       <StepHeader title="Start investing" step="STEP 1 OF 3 · AMOUNT" />
       <StepProgress current={1} />
 
-      <div className="px-5 pt-[30px] text-center">
-        <div
-          className="font-serif leading-none"
-          style={{ fontSize: 66, letterSpacing: '-.01em' }}
-        >
-          {unit === 'USD' ? '$' : null}
-          {amount}
-          {unit === 'Token' ? (
-            <span className="ml-2 text-[30px] text-ink-dim">{inputSymbol}</span>
-          ) : null}
-          <span
-            className="text-accent"
-            style={{ fontWeight: 300, animation: 'zpPulse 1.1s infinite' }}
-          >
-            |
-          </span>
-        </div>
-        <div className="mt-3 font-mono text-[11.5px] text-ink-dim">
-          {depositPathChainLabel(selectedDepositPath)} ·{' '}
-          {depositPathInputLabel(selectedDepositPath)} · {inputSymbol}
-        </div>
-        <div
-          className="mt-4 inline-flex rounded-full p-[3px]"
-          style={{
-            background: 'rgba(255,255,255,.05)',
-            border: '1px solid rgba(255,255,255,.07)',
-          }}
-        >
-          {(['USD', 'Token'] as const).map((option) => {
-            const active = unit === option;
-            return (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setUnit(option)}
-                className="zp-tap rounded-full px-[17px] py-1.5 text-[12.5px]"
-                style={
-                  active
-                    ? {
-                        background: 'var(--accent)',
-                        color: '#0a0a0a',
-                        fontWeight: 600,
-                      }
-                    : { color: '#a1a1aa', fontWeight: 500 }
-                }
-              >
-                {option}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <HoldingsCard
+        amount={amount}
+        balances={balances}
+        displayToken={displayToken}
+        inputSymbol={inputSymbol}
+        isGmxPath={isGmxPath}
+        onAmountChange={setAmount}
+        onUnitChange={setUnit}
+        selectedTokenSymbol={selectedToken.symbol}
+        selectedDepositPath={selectedDepositPath}
+        onSelectToken={(token, usdPrice) => {
+          setSelectedToken(token);
+          setSelectedTokenUsdPrice(usdPrice);
+        }}
+        unit={unit}
+      />
 
       <DepositPathSelector
         selectedDepositPath={selectedDepositPath}
         onSelect={setSelectedDepositPath}
       />
 
-      <HoldingsCard
-        balances={balances}
-        isGmxPath={isGmxPath}
-        selectedTokenSymbol={selectedToken.symbol}
-        onSelectToken={(token, usdPrice) => {
-          setSelectedToken(token);
-          setSelectedTokenUsdPrice(usdPrice);
-        }}
-      />
-
-      <NumericKeypad onKey={handleKey} />
-
-      <div className="px-5 pt-1.5">
+      <div className="px-5 pt-[18px]">
         <PrimaryButton onClick={handleReview} disabled={!canReview}>
           Review route
           <ArrowGlyph />

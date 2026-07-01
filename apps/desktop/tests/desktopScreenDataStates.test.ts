@@ -10,6 +10,7 @@ const mocked = vi.hoisted(() => ({
     email: null,
     isConnected: true,
     isConnecting: false,
+    loadingUser: false,
     userId: 'user-live' as string | null,
     walletAddresses: ['0x1234567890123456789012345678901234567890'],
   },
@@ -236,6 +237,7 @@ beforeEach(() => {
     email: null,
     isConnected: true,
     isConnecting: false,
+    loadingUser: false,
     userId: 'user-live',
     walletAddresses: ['0x1234567890123456789012345678901234567890'],
   };
@@ -280,13 +282,25 @@ describe('desktop screen skeleton states', () => {
   });
 
   it('renders Portfolio skeletons while portfolio data is unresolved', () => {
-    mocked.account = { ...mocked.account, userId: null };
+    mocked.dashboard = { dashboard: null, isError: false, isLoading: true };
 
     const markup = renderScreen(PortfolioScreen);
 
     expect(markup).toContain('Strategy position value');
     expect(markup).toContain('Current allocation');
     expect(markup.match(/animate-pulse/g)?.length ?? 0).toBeGreaterThan(4);
+  });
+
+  it('renders Portfolio unavailable values instead of a permanent skeleton without a user id', () => {
+    mocked.account = { ...mocked.account, loadingUser: false, userId: null };
+
+    const markup = renderScreen(PortfolioScreen);
+
+    expect(markup).toContain('Strategy position value');
+    expect(markup).toContain('Current allocation');
+    expect(markup).toContain('all time · today');
+    expect(markup).toContain('Auto-managed by Zap Strategy');
+    expect(markup).not.toContain('animate-pulse');
   });
 });
 

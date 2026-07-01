@@ -38,6 +38,10 @@ export interface UsePortfolioDataResult {
 
 export type PortfolioRange = '1W' | '1M' | '3M' | '1Y' | 'ALL';
 
+export interface UsePortfolioDataOptions {
+  isResolvingUser?: boolean;
+}
+
 const DEMO_PORTFOLIO = DEMO.portfolio;
 
 export function portfolioDaysForRange(range: PortfolioRange): number {
@@ -104,6 +108,28 @@ function positivePctMetric(label: string, pct: number | null): Metric {
   };
 }
 
+function unavailablePortfolioData(): PortfolioViewData {
+  return {
+    positionValue: null,
+    changePct: null,
+    changeUsdAllTime: null,
+    changePctToday: null,
+    chartData: [],
+    metrics: [
+      unavailableMetric('Total return'),
+      unavailableMetric('Current APY', 'accent'),
+      unavailableMetric('7D return'),
+      unavailableMetric('30D return'),
+      unavailableMetric('Realized yield'),
+      unavailableMetric('Max drawdown', 'negative'),
+      unavailableMetric('Volatility'),
+      unavailableMetric('Sharpe', 'accent'),
+    ],
+    allocation: [],
+    lastRebalancedLabel: 'Auto-managed by Zap Strategy',
+  };
+}
+
 /**
  * Container hook for the Portfolio screen. Calls the real app-core
  * `usePortfolioDashboard` and maps its (deeply optional) response into the
@@ -113,6 +139,7 @@ function positivePctMetric(label: string, pct: number | null): Metric {
 export function usePortfolioData(
   userId: string | null,
   range: PortfolioRange,
+  options: UsePortfolioDataOptions = {},
 ): UsePortfolioDataResult {
   const days = portfolioDaysForRange(range);
   const landingQuery = useLandingPageData(userId, false, true);
@@ -128,7 +155,19 @@ export function usePortfolioData(
   });
 
   // userId still resolving, or the query hasn't produced a dashboard yet.
-  if (!userId || (isLoading && !dashboard)) {
+  if (!userId && options.isResolvingUser) {
+    return { data: null, isLoading: true, isError: false };
+  }
+
+  if (!userId) {
+    return {
+      data: unavailablePortfolioData(),
+      isLoading: false,
+      isError: false,
+    };
+  }
+
+  if (isLoading && !dashboard) {
     return { data: null, isLoading: true, isError: false };
   }
 

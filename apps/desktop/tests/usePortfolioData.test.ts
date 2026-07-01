@@ -67,8 +67,8 @@ describe('Portfolio data range mapping', () => {
 });
 
 describe('usePortfolioData', () => {
-  it('keeps the portfolio empty while the user id is unavailable', () => {
-    const result = usePortfolioData(null, '1Y');
+  it('keeps the portfolio empty while the user id is still resolving', () => {
+    const result = usePortfolioData(null, '1Y', { isResolvingUser: true });
 
     expect(result).toEqual({ data: null, isLoading: true, isError: false });
     expect(useLandingPageDataMock).toHaveBeenCalledWith(null, false, true);
@@ -80,6 +80,31 @@ describe('usePortfolioData', () => {
     expect(useQuery).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: false }),
     );
+  });
+
+  it('settles to unavailable portfolio values when no user id is available', () => {
+    const result = usePortfolioData(null, '1Y');
+
+    expect(result).toMatchObject({ isLoading: false, isError: false });
+    expect(result.data).toMatchObject({
+      positionValue: null,
+      changePct: null,
+      changeUsdAllTime: null,
+      changePctToday: null,
+      chartData: [],
+      allocation: [],
+      lastRebalancedLabel: 'Auto-managed by Zap Strategy',
+    });
+    expect(result.data?.metrics.map((metric) => metric.value)).toEqual([
+      '—',
+      '—',
+      '—',
+      '—',
+      '—',
+      '—',
+      '—',
+      '—',
+    ]);
   });
 
   it('passes the selected range window to dashboard and yield queries', () => {

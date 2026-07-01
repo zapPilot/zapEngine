@@ -309,9 +309,9 @@ export function PortfolioScreen() {
   const loading = isLoading || isError || portfolio === null;
   const hasPositionValue = typeof portfolio?.positionValue === 'number';
   const showPositionSkeleton = isLoading && !hasPositionValue;
-  const showChartSkeleton = isLoading && !portfolio?.chartData.length;
-  const showMetricsSkeleton = isLoading && !portfolio?.metrics.length;
-  const showAllocationSkeleton = isLoading && !portfolio?.allocation.length;
+  const showChartSkeleton = isLoading && !portfolio?.chartData?.length;
+  const showMetricsSkeleton = isLoading && !portfolio?.metrics?.length;
+  const showAllocationSkeleton = isLoading && !portfolio?.allocation?.length;
 
   return (
     <div data-screen="portfolio">

@@ -1,5 +1,5 @@
 import { AllocationBar } from '@/components/charts/AllocationBar';
-import { type Metric, MetricsGrid } from '@/components/metrics/MetricsGrid';
+import type { Metric } from '@/components/metrics/MetricsGrid';
 import { ArrowGlyph } from '@/components/ui/ArrowGlyph';
 import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
@@ -21,39 +21,13 @@ interface ZapStrategyCardProps {
   onStart: () => void;
 }
 
-function CheckGlyph() {
-  return (
-    <svg
-      width="11"
-      height="11"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="#d4c5a3"
-      strokeWidth="3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
-  );
-}
-
-function keyBacktestMetrics(strategy: ZapStrategyCardData) {
-  const preferred = strategy.backtest.metrics.filter((metric) =>
-    ['ROI', 'Max drawdown'].includes(metric.label),
-  );
-  return preferred.length >= 2
-    ? preferred.slice(0, 2)
-    : strategy.backtest.metrics.slice(0, 2);
-}
-
 export function ZapStrategyCard({ strategy, onStart }: ZapStrategyCardProps) {
-  const metrics = keyBacktestMetrics(strategy);
+  const quote = strategy.quote.trim();
+  const hasQuote = quote.length > 0 && quote !== '—';
 
   return (
     <Card
-      className="p-5"
+      className="p-4"
       style={{
         background:
           'linear-gradient(158deg,rgba(212,197,163,.12),rgba(20,20,22,.55))',
@@ -116,14 +90,16 @@ export function ZapStrategyCard({ strategy, onStart }: ZapStrategyCardProps) {
           </Pill>
         </div>
 
-        <div
-          className="mt-[15px] font-serif text-[17px] italic"
-          style={{ color: '#d4cdbc' }}
-        >
-          &ldquo;{strategy.quote}&rdquo;
-        </div>
+        {hasQuote ? (
+          <div
+            className="mt-[13px] font-serif text-[16px] italic"
+            style={{ color: '#d4cdbc' }}
+          >
+            &ldquo;{quote}&rdquo;
+          </div>
+        ) : null}
 
-        <div className="mt-[15px] flex items-end gap-4">
+        <div className="mt-[14px] flex items-end gap-4">
           <div className="shrink-0">
             <div className="font-serif text-[30px] leading-none text-accent">
               {strategy.estApyLabel}
@@ -155,32 +131,7 @@ export function ZapStrategyCard({ strategy, onStart }: ZapStrategyCardProps) {
           </div>
         </div>
 
-        {metrics.length > 0 ? (
-          <MetricsGrid className="mt-[15px]" metrics={metrics} />
-        ) : null}
-
-        <div className="mt-[15px] flex flex-wrap gap-1.5">
-          {[
-            'Managed automatically',
-            'Non-custodial',
-            'Base deposits in v1',
-          ].map((tag) => (
-            <Pill
-              key={tag}
-              className="gap-[5px] px-2.5 py-1.5 text-[11.5px]"
-              style={{
-                color: '#cfc7b6',
-                background: 'rgba(255,255,255,.04)',
-                border: '1px solid rgba(255,255,255,.08)',
-              }}
-            >
-              <CheckGlyph />
-              {tag}
-            </Pill>
-          ))}
-        </div>
-
-        <PrimaryButton className="mt-[17px]" onClick={onStart}>
+        <PrimaryButton className="mt-[16px]" onClick={onStart}>
           Start with Zap Strategy
           <ArrowGlyph />
         </PrimaryButton>

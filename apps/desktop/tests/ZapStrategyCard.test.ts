@@ -14,7 +14,7 @@ function renderCard(strategy: StrategySlice): string {
 }
 
 describe('ZapStrategyCard', () => {
-  it('renders strategy headline, allocation, preferred metrics, and CTA', () => {
+  it('renders a compact strategy summary and CTA', () => {
     const markup = renderCard(DEMO.strategy);
 
     expect(markup).toContain('Zap Strategy');
@@ -22,32 +22,22 @@ describe('ZapStrategyCard', () => {
     expect(markup).toContain('Buy in fear. Defend in greed.');
     expect(markup).toContain('6–12%');
     expect(markup).toContain('Default backtest ROI');
-    expect(markup).toContain('Max drawdown');
-    expect(markup).toContain('Managed automatically');
-    expect(markup).toContain('Non-custodial');
-    expect(markup).toContain('Base deposits in v1');
     expect(markup).toContain('Start with Zap Strategy');
+    expect(markup).not.toContain('Max drawdown');
+    expect(markup).not.toContain('Managed automatically');
+    expect(markup).not.toContain('Non-custodial');
+    expect(markup).not.toContain('Base deposits in v1');
   });
 
-  it('falls back to the first two backtest metrics when ROI is unavailable', () => {
+  it('omits placeholder quote text instead of rendering a decorative dash', () => {
     const strategy: StrategySlice = {
       ...DEMO.strategy,
-      estApyLabel: '—',
-      backtest: {
-        ...DEMO.strategy.backtest,
-        metrics: [
-          { label: 'Sharpe', value: '1.23', tone: 'accent' },
-          { label: 'Trades', value: '42', tone: 'neutral' },
-          { label: 'Final value', value: '$12,345.68', tone: 'positive' },
-        ],
-      },
+      quote: '—',
     };
 
     const markup = renderCard(strategy);
 
-    expect(markup).toContain('Backtest ROI unavailable');
-    expect(markup).toContain('Sharpe');
-    expect(markup).toContain('Trades');
-    expect(markup).not.toContain('Final value');
+    expect(markup).toContain('Zap Strategy');
+    expect(markup).not.toContain('&ldquo;—&rdquo;');
   });
 });
