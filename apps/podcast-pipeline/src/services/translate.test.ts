@@ -126,6 +126,17 @@ describe('translateChineseText', () => {
     expect(result.cost[0]?.provider).toBe('google');
   });
 
+  it('falls back to Google Translate when OpenRouter omits the translated text field', async () => {
+    mockOpenRouterCompletion(JSON.stringify({ title: 'Wrong field' }));
+    mockGoogleTranslation('Google translated text');
+
+    const result = await translateChineseText('滑鼠和腳踏車市場', 'en');
+
+    expect(result.text).toBe('Google translated text');
+    expect(result.cost[0]?.provider).toBe('google');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('preserves empty text without calling any API', async () => {
     const result = await translateChineseText('', 'ja');
 
@@ -307,6 +318,33 @@ describe('translateCanonicalScript', () => {
 
     expect(result.script).toBe('Google script');
     expect(result.cost[0]?.provider).toBe('google');
+  });
+
+  it('falls back to Google Translate when OpenRouter omits part of the translated script', async () => {
+    mockOpenRouterCompletion(JSON.stringify({ title: '翻訳タイトル' }));
+    mockGoogleTranslation('Google title');
+    mockGoogleTranslation('Google script');
+
+    const result = await translateCanonicalScript({
+      title: '標題',
+      script: '第一句。\n第二句。',
+      targetLanguageCode: 'ja',
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({
+      title: 'Google title',
+      script: 'Google script',
+      cost: [
+        {
+          category: 'translate',
+          label: 'Translation ja',
+          provider: 'google',
+          model: 'translate-api',
+          costUsd: 0.00022,
+        },
+      ],
+    });
   });
 });
 
