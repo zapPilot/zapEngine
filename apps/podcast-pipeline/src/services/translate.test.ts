@@ -438,6 +438,31 @@ describe('translateCanonicalScript', () => {
       ],
     });
   });
+
+  it('preserves an empty canonical script without calling any API', async () => {
+    const result = await translateCanonicalScript({
+      title: '',
+      script: '',
+      targetLanguageCode: 'ja',
+    });
+
+    expect(mocks.getOpenRouterConfig).not.toHaveBeenCalled();
+    expect(mocks.createOpenRouterChatCompletion).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      title: '',
+      script: '',
+      cost: [
+        {
+          category: 'translate',
+          label: 'Translation ja',
+          provider: 'google',
+          model: 'translate-api',
+          costUsd: 0,
+        },
+      ],
+    });
+  });
 });
 
 function mockOpenRouterConfig(model = 'openrouter/free'): void {
