@@ -433,7 +433,7 @@ describe('translateCanonicalScript', () => {
           label: 'Translation ja',
           provider: 'google',
           model: 'translate-api',
-          costUsd: 0.00002,
+          costUsd: 0.00004,
         },
       ],
     });
