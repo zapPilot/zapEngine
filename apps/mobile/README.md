@@ -46,6 +46,80 @@ xcrun simctl install booted build/ios/iphonesimulator/Runner.app
 xcrun simctl launch booted com.example.fromFedToChainApp
 ```
 
+## Android Emulator APK Smoke Test
+
+Use this path when you want to boot an Android emulator, install the built APK,
+and verify the app that would run on an Android device. For quick iteration,
+`flutter run -d <device-id>` is still faster, but installing the APK verifies
+the packaged artifact.
+
+If Android Studio installed the SDK but `emulator` or `adb` is not on `PATH`,
+add the default macOS SDK tools first:
+
+```bash
+export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}"
+export PATH="$ANDROID_SDK_ROOT/emulator:$ANDROID_SDK_ROOT/platform-tools:$PATH"
+```
+
+Start an emulator:
+
+```bash
+cd apps/mobile
+emulator -list-avds
+emulator -avd <avd-name>
+```
+
+In another terminal, wait for the emulator and confirm Flutter sees it:
+
+```bash
+adb wait-for-device
+adb devices
+flutter devices
+```
+
+Build and install a debug APK:
+
+```bash
+cd apps/mobile
+flutter build apk --debug
+adb install -r build/app/outputs/flutter-apk/app-debug.apk
+adb shell monkey -p com.fromfedtochain.app \
+  -c android.intent.category.LAUNCHER 1
+```
+
+To smoke-test against the configured Supabase project instead of the
+unconfigured auth state, pass the same compile-time values used by release
+builds:
+
+```bash
+cd apps/mobile
+
+set -a
+. ../../.env
+set +a
+
+flutter build apk --debug \
+  --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+  --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+  --dart-define=SUPABASE_DB_SCHEMA="${SUPABASE_DB_SCHEMA:-from_fed_to_chain}"
+
+adb install -r build/app/outputs/flutter-apk/app-debug.apk
+adb shell monkey -p com.fromfedtochain.app \
+  -c android.intent.category.LAUNCHER 1
+```
+
+Useful follow-up checks:
+
+```bash
+adb logcat -c
+adb logcat | grep -i flutter
+```
+
+An `.aab` is the Play Console upload artifact and is not directly installed on
+an emulator. If you specifically need to install an AAB-derived APK locally,
+use `bundletool`; otherwise prefer the debug APK flow above for emulator
+smoke tests.
+
 ## Xcode
 
 Use the workspace, not the project file:
@@ -142,10 +216,29 @@ The upload artifact is:
 build/app/outputs/bundle/release/app-release.aab
 ```
 
+From the repo root, the full artifact path is:
+
+```bash
+apps/mobile/build/app/outputs/bundle/release/app-release.aab
+```
+
 Upload that `.aab` in Play Console to the target testing or production track.
 If Play Console reports that the upload certificate does not match, do not
 create a new app or change `applicationId`; request an upload-key reset for the
 same Play Console app instead.
+
+Optional local AAB smoke test with `bundletool`:
+
+```bash
+brew install bundletool
+bundletool build-apks \
+  --bundle=apps/mobile/build/app/outputs/bundle/release/app-release.aab \
+  --output=/private/tmp/from-fed-to-chain.apks \
+  --mode=universal
+bundletool install-apks --apks=/private/tmp/from-fed-to-chain.apks
+adb shell monkey -p com.fromfedtochain.app \
+  -c android.intent.category.LAUNCHER 1
+```
 
 ## iOS App Store Release
 

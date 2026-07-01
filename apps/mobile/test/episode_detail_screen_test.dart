@@ -145,7 +145,7 @@ void main() {
     await handler.dispose();
   });
 
-  testWidgets('Episode detail next skip updates displayed episode content', (
+  testWidgets('Episode detail skip buttons update displayed episode content', (
     tester,
   ) async {
     final handler = FakePodcastAudioHandler();
@@ -182,6 +182,15 @@ void main() {
     expect(find.text('Next liquidity regime'), findsWidgets);
     expect(find.text('Next transcript body.'), findsOneWidget);
     expect(find.text('Original transcript body.'), findsNothing);
+
+    await tester.tap(find.byTooltip('Previous episode'));
+    await tester.pumpAndSettle();
+
+    expect(provider.currentEpisode?.id, 'episode-1');
+    expect(handler.loadedEpisodeIds, ['episode-1', 'episode-2', 'episode-1']);
+    expect(find.text('Original macro cycle'), findsWidgets);
+    expect(find.text('Original transcript body.'), findsOneWidget);
+    expect(find.text('Next transcript body.'), findsNothing);
 
     provider.dispose();
     await handler.dispose();
