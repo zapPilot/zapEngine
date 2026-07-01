@@ -186,6 +186,25 @@ describe('translateChineseText', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
+  it('throws when Google fallback returns no translated text for non-empty input', async () => {
+    mocks.getOpenRouterConfig.mockImplementationOnce(() => {
+      throw new Error('OPENROUTER_API_KEY not set');
+    });
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          translations: [{}],
+        },
+      }),
+    });
+
+    await expect(
+      translateChineseText('滑鼠和腳踏車市場', 'en'),
+    ).rejects.toThrow('Google Translate API returned empty translation');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('retries Google fallback on 429 then succeeds', async () => {
     vi.useFakeTimers();
     mocks.getOpenRouterConfig.mockImplementationOnce(() => {

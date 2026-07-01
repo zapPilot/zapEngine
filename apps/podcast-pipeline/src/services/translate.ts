@@ -290,8 +290,16 @@ async function translateText(
         };
       };
 
+      const translatedText = data.data.translations[0]?.translatedText;
+      if (
+        typeof translatedText !== 'string' ||
+        translatedText.trim().length === 0
+      ) {
+        throw new Error('Google Translate API returned empty translation');
+      }
+
       return {
-        text: data.data.translations[0]?.translatedText ?? '',
+        text: translatedText,
         charCount: text.length,
       };
     }
