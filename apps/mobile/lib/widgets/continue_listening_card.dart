@@ -18,6 +18,7 @@ class ContinueListeningCard extends StatelessWidget {
     required this.isPlaying,
     required this.isLoading,
     required this.onPlay,
+    this.queueEpisodes,
   });
 
   final Episode episode;
@@ -25,6 +26,7 @@ class ContinueListeningCard extends StatelessWidget {
   final bool isPlaying;
   final bool isLoading;
   final VoidCallback onPlay;
+  final List<Episode>? queueEpisodes;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +43,10 @@ class ContinueListeningCard extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => EpisodeDetailScreen(episode: episode),
+            builder: (_) => EpisodeDetailScreen(
+              episode: episode,
+              queueEpisodes: queueEpisodes,
+            ),
           ),
         );
       },

@@ -434,6 +434,61 @@ void main() {
     await handler.dispose();
   });
 
+  test('playFromQueue starts the selected episode and exposes neighbors',
+      () async {
+    final handler = FakePodcastAudioHandler();
+    final provider = PlaybackProvider(handler);
+    final first = _episode('episode-1');
+    final second = _episode('episode-2');
+    final third = _episode('episode-3');
+
+    await provider.playFromQueue(
+      episodes: [first, second, third],
+      episode: second,
+    );
+
+    expect(handler.loadedEpisodeIds, ['episode-2']);
+    expect(handler.playCount, 1);
+    expect(provider.currentEpisode, second);
+    expect(provider.hasPreviousEpisode, isTrue);
+    expect(provider.hasNextEpisode, isTrue);
+
+    final nextEpisode = await provider.skipToNextEpisode();
+
+    expect(nextEpisode, third);
+    expect(provider.currentEpisode, third);
+    expect(provider.hasPreviousEpisode, isTrue);
+    expect(provider.hasNextEpisode, isFalse);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  test('seekRelative clamps within the known duration', () async {
+    final handler = FakePodcastAudioHandler();
+    final provider = PlaybackProvider(handler);
+
+    await provider.toggle(_episode('episode-1'));
+    handler.emitDuration(const Duration(seconds: 100));
+    handler.emitPosition(const Duration(seconds: 20));
+
+    await provider.seekRelative(const Duration(seconds: -15));
+    expect(provider.position, const Duration(seconds: 5));
+    expect(handler.seekPositions.last, const Duration(seconds: 5));
+
+    await provider.seekRelative(const Duration(seconds: -30));
+    expect(provider.position, Duration.zero);
+    expect(handler.seekPositions.last, Duration.zero);
+
+    handler.emitPosition(const Duration(seconds: 90));
+    await provider.seekRelative(const Duration(seconds: 30));
+    expect(provider.position, const Duration(seconds: 100));
+    expect(handler.seekPositions.last, const Duration(seconds: 100));
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
   test('playSmart starts the oldest in-progress episode', () async {
     final handler = FakePodcastAudioHandler();
     final provider = PlaybackProvider(

@@ -14,11 +14,13 @@ class EpisodeDetailPlaybackControls extends StatefulWidget {
   const EpisodeDetailPlaybackControls({
     super.key,
     required this.episode,
+    this.queueEpisodes,
     required this.onLanguageSelected,
     required this.onEpisodeChanged,
   });
 
   final Episode episode;
+  final List<Episode>? queueEpisodes;
   final ValueChanged<String> onLanguageSelected;
   final ValueChanged<Episode> onEpisodeChanged;
 
@@ -47,7 +49,22 @@ class _EpisodeDetailPlaybackControlsState
       setState(() => _pressed = false);
     }
     if (!mounted) return;
-    await context.read<PlaybackProvider>().toggle(widget.episode);
+    final playback = context.read<PlaybackProvider>();
+    final queueEpisodes = widget.queueEpisodes;
+    if (queueEpisodes == null || queueEpisodes.isEmpty) {
+      await playback.toggle(widget.episode);
+    } else {
+      await playback.playFromQueue(
+        episodes: queueEpisodes,
+        episode: widget.episode,
+      );
+    }
+  }
+
+  Future<void> _seekRelative(Duration delta) async {
+    await context.read<PlaybackProvider>().seekRelative(delta);
+    if (!mounted) return;
+    setState(() => _scrubValue = null);
   }
 
   Future<void> _skipToPreviousEpisode() async {
@@ -97,101 +114,108 @@ class _EpisodeDetailPlaybackControlsState
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            height: 56,
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: AppColors.accent,
+              inactiveTrackColor: AppColors.divider,
+              thumbColor: AppColors.accent,
+              overlayColor: AppColors.accent.withValues(alpha: 0.16),
+              trackHeight: 4,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+            ),
+            child: Slider(
+              value: sliderValue,
+              min: 0,
+              max: maxValue,
+              onChangeStart: durationMs > 0 && isCurrent
+                  ? (value) => setState(() => _scrubValue = value)
+                  : null,
+              onChanged: durationMs > 0 && isCurrent
+                  ? (value) => setState(() => _scrubValue = value)
+                  : null,
+              onChangeEnd: durationMs > 0 && isCurrent
+                  ? (value) async {
+                      setState(() => _scrubValue = null);
+                      await context.read<PlaybackProvider>().seek(
+                            Duration(milliseconds: value.round()),
+                          );
+                    }
+                  : null,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                IconButton(
-                  tooltip: 'Previous episode',
-                  icon: const Icon(Icons.skip_previous_rounded),
-                  iconSize: 30,
-                  color: AppColors.textPrimary,
-                  disabledColor: AppColors.textFaint,
-                  onPressed: canSkipPrevious ? _skipToPreviousEpisode : null,
+                Text(
+                  formatDuration(displayedPosition),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
-                const SizedBox(width: 12),
-                AnimatedScale(
-                  scale: _pressed ? 0.96 : 1,
-                  duration: const Duration(milliseconds: 90),
-                  curve: Curves.easeOutCubic,
-                  child: PlayPauseButton(
-                    isPlaying: isPlaying,
-                    isLoading: isLoading,
-                    onPressed: _togglePlayback,
-                    fixedSize: const Size.square(52),
-                    iconSize: 28,
-                    spinnerSize: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                IconButton(
-                  tooltip: 'Next episode',
-                  icon: const Icon(Icons.skip_next_rounded),
-                  iconSize: 30,
-                  color: AppColors.textPrimary,
-                  disabledColor: AppColors.textFaint,
-                  onPressed: canSkipNext ? _skipToNextEpisode : null,
+                const Spacer(),
+                Text(
+                  formatDuration(duration),
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 14),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                formatDuration(displayedPosition),
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: AppColors.textPrimary),
+              _SeekControlButton(
+                tooltip: 'Rewind 15 seconds',
+                seconds: 15,
+                icon: Icons.replay_rounded,
+                onPressed: isCurrent
+                    ? () => _seekRelative(const Duration(seconds: -15))
+                    : null,
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: AppColors.accent,
-                    inactiveTrackColor: AppColors.divider,
-                    thumbColor: AppColors.accent,
-                    overlayColor: AppColors.accent.withValues(alpha: 0.16),
-                    trackHeight: 4,
-                    thumbShape: const RoundSliderThumbShape(
-                      enabledThumbRadius: 6,
-                    ),
-                  ),
-                  child: Slider(
-                    value: sliderValue,
-                    min: 0,
-                    max: maxValue,
-                    onChangeStart: durationMs > 0 && isCurrent
-                        ? (value) => setState(() => _scrubValue = value)
-                        : null,
-                    onChanged: durationMs > 0 && isCurrent
-                        ? (value) => setState(() => _scrubValue = value)
-                        : null,
-                    onChangeEnd: durationMs > 0 && isCurrent
-                        ? (value) async {
-                            setState(() => _scrubValue = null);
-                            await context.read<PlaybackProvider>().seek(
-                                  Duration(milliseconds: value.round()),
-                                );
-                          }
-                        : null,
-                  ),
+              _TransportIconButton(
+                tooltip: 'Previous episode',
+                icon: Icons.skip_previous_rounded,
+                onPressed: canSkipPrevious ? _skipToPreviousEpisode : null,
+              ),
+              AnimatedScale(
+                scale: _pressed ? 0.96 : 1,
+                duration: const Duration(milliseconds: 90),
+                curve: Curves.easeOutCubic,
+                child: PlayPauseButton(
+                  isPlaying: isPlaying,
+                  isLoading: isLoading,
+                  onPressed: _togglePlayback,
+                  fixedSize: const Size.square(72),
+                  iconSize: 40,
+                  spinnerSize: 24,
                 ),
               ),
-              const SizedBox(width: 8),
-              Text(
-                formatDuration(duration),
-                style: Theme.of(context).textTheme.bodySmall,
+              _TransportIconButton(
+                tooltip: 'Next episode',
+                icon: Icons.skip_next_rounded,
+                onPressed: canSkipNext ? _skipToNextEpisode : null,
+              ),
+              _SeekControlButton(
+                tooltip: 'Forward 30 seconds',
+                seconds: 30,
+                icon: Icons.forward_rounded,
+                onPressed: isCurrent
+                    ? () => _seekRelative(const Duration(seconds: 30))
+                    : null,
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: PlaybackSpeedMenu(
-              speed: playback.currentSectionSpeed,
-              onSelected: playback.setSpeedForCurrentSection,
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 48,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: PlaybackSpeedMenu(
+                speed: playback.currentSectionSpeed,
+                onSelected: playback.setSpeedForCurrentSection,
+              ),
             ),
           ),
           if (audioTracks.length > 1) ...[
@@ -209,6 +233,84 @@ class _EpisodeDetailPlaybackControlsState
               onSelected: widget.onLanguageSelected,
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TransportIconButton extends StatelessWidget {
+  const _TransportIconButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon),
+      iconSize: 34,
+      color: AppColors.textPrimary,
+      disabledColor: AppColors.textFaint,
+      style: IconButton.styleFrom(
+        fixedSize: const Size.square(52),
+        minimumSize: const Size.square(52),
+        padding: EdgeInsets.zero,
+      ),
+    );
+  }
+}
+
+class _SeekControlButton extends StatelessWidget {
+  const _SeekControlButton({
+    required this.tooltip,
+    required this.seconds,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final int seconds;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    final color = enabled ? AppColors.textPrimary : AppColors.textFaint;
+
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      color: color,
+      disabledColor: AppColors.textFaint,
+      style: IconButton.styleFrom(
+        fixedSize: const Size.square(52),
+        minimumSize: const Size.square(52),
+        padding: EdgeInsets.zero,
+      ),
+      icon: Stack(
+        alignment: Alignment.center,
+        children: [
+          Icon(icon, size: 34),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              '$seconds',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 10,
+                  ),
+            ),
+          ),
         ],
       ),
     );

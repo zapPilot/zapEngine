@@ -93,6 +93,45 @@ void main() {
     await handler.dispose();
   });
 
+  testWidgets('Episode detail player shows transport controls and seeks', (
+    tester,
+  ) async {
+    final handler = FakePodcastAudioHandler();
+    final provider = PlaybackProvider(handler);
+    final episode = _episode();
+
+    await provider.toggle(episode);
+    handler.emitDuration(const Duration(minutes: 2));
+    handler.emitPosition(const Duration(seconds: 45));
+
+    await _pumpHarness(
+      tester,
+      EpisodeDetailScreen(episode: episode),
+      playbackProvider: provider,
+    );
+
+    expect(find.byTooltip('Rewind 15 seconds'), findsOneWidget);
+    expect(find.byTooltip('Previous episode'), findsOneWidget);
+    expect(find.byTooltip('Pause'), findsOneWidget);
+    expect(find.byTooltip('Next episode'), findsOneWidget);
+    expect(find.byTooltip('Forward 30 seconds'), findsOneWidget);
+
+    _pressButtonWithTooltip(tester, 'Rewind 15 seconds');
+    await tester.pumpAndSettle();
+
+    expect(provider.position, const Duration(seconds: 30));
+    expect(handler.seekPositions.last, const Duration(seconds: 30));
+
+    _pressButtonWithTooltip(tester, 'Forward 30 seconds');
+    await tester.pumpAndSettle();
+
+    expect(provider.position, const Duration(minutes: 1));
+    expect(handler.seekPositions.last, const Duration(minutes: 1));
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
   testWidgets('Episode detail shows language pill and switches tracks', (
     tester,
   ) async {
@@ -117,6 +156,48 @@ void main() {
 
     expect(provider.currentAudioTrack, episode.audioTracks[1]);
     expect(handler.currentAudioTrack, episode.audioTracks[1]);
+
+    provider.dispose();
+    await handler.dispose();
+  });
+
+  testWidgets('Episode detail play seeds queue context before next skip', (
+    tester,
+  ) async {
+    final handler = FakePodcastAudioHandler();
+    final provider = PlaybackProvider(handler);
+    final first = _episode(
+      title: 'Original macro cycle',
+      script: 'Original transcript body.',
+    ).copyWith(createdAt: DateTime(2026, 5));
+    final next = _episode(
+      title: 'Next liquidity regime',
+      script: 'Next transcript body.',
+    ).copyWith(
+      id: 'episode-2',
+      hlsUrl: 'https://cdn.example.com/episode-2.m3u8',
+      createdAt: DateTime(2026, 5, 2),
+    );
+
+    await _pumpHarness(
+      tester,
+      EpisodeDetailScreen(episode: first, queueEpisodes: [first, next]),
+      playbackProvider: provider,
+    );
+
+    await tester.tap(find.byTooltip('Play'));
+    await tester.pumpAndSettle();
+
+    expect(provider.currentEpisode, first);
+    expect(provider.hasPreviousEpisode, isFalse);
+    expect(provider.hasNextEpisode, isTrue);
+
+    await tester.tap(find.byTooltip('Next episode'));
+    await tester.pumpAndSettle();
+
+    expect(provider.currentEpisode, next);
+    expect(find.text('Next liquidity regime'), findsWidgets);
+    expect(find.text('Next transcript body.'), findsOneWidget);
 
     provider.dispose();
     await handler.dispose();
@@ -409,6 +490,19 @@ Future<void> _pumpHarness(
     ),
   );
   await tester.pump();
+}
+
+Finder _buttonWithTooltip(String tooltip) {
+  return find.ancestor(
+    of: find.byTooltip(tooltip),
+    matching: find.byType(IconButton),
+  );
+}
+
+void _pressButtonWithTooltip(WidgetTester tester, String tooltip) {
+  final button = tester.widget<IconButton>(_buttonWithTooltip(tooltip));
+  expect(button.onPressed, isNotNull);
+  button.onPressed!();
 }
 
 class _DetailEpisodeService extends EpisodeService {

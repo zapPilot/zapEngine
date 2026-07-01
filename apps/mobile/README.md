@@ -46,6 +46,74 @@ xcrun simctl install booted build/ios/iphonesimulator/Runner.app
 xcrun simctl launch booted com.example.fromFedToChainApp
 ```
 
+## Android Studio
+
+Open `apps/mobile` as the Android Studio project. Opening the repo root works
+for code browsing, but the Flutter plugin behaves most predictably when the app
+directory is the project root.
+
+The Android Studio project should show:
+
+- Run configuration: `main.dart`
+- Dart entrypoint: `lib/main.dart`
+- Device selector: an Android emulator or physical device, not `macOS`
+
+To run on an Android emulator from Android Studio:
+
+1. Open the right-side `Device Manager` tool window.
+2. Start an existing virtual device, such as `Pixel_8_API_36`.
+3. Wait until the virtual device shows as running.
+4. In the top toolbar, choose the Android emulator from the device selector.
+5. Keep the run configuration set to `main.dart`.
+6. Press `Run`.
+
+If the emulator does not appear in the top toolbar, confirm it is visible to
+Flutter from the Android Studio terminal:
+
+```bash
+flutter devices
+```
+
+For configured Supabase runs, add compile-time Dart defines to the run
+configuration:
+
+1. Open `Run > Edit Configurations...`.
+2. Select the Flutter `main.dart` configuration.
+3. Set `Additional run args`:
+
+```bash
+--dart-define=SUPABASE_URL=<project-url> --dart-define=SUPABASE_ANON_KEY=<anon-or-publishable-key> --dart-define=SUPABASE_DB_SCHEMA=from_fed_to_chain
+```
+
+Do not commit `.idea` files with personal run args or secrets; `.idea/` is
+ignored for this project. If you only need to confirm the app launches, the
+unconfigured auth state is enough and no Dart defines are required.
+
+Android Studio can also build release artifacts, but for this repo the
+recommended release path is the Android Studio terminal. It reuses the same
+IDE project, while also reading the repo-root `.env` and local signing config:
+
+```bash
+cd /Users/chouyasushi/htdocs/zapEngine
+pnpm --filter @zapengine/mobile android:appbundle
+```
+
+The upload artifact is:
+
+```bash
+apps/mobile/build/app/outputs/bundle/release/app-release.aab
+```
+
+Android Studio's `Build > Generate Signed Bundle / APK...` wizard is useful for
+inspecting signing setup, but it does not automatically read this repo's
+`.env`-driven Dart defines. Prefer the terminal command above for builds you
+intend to upload.
+
+Android Studio does not publish this Flutter app directly to Google Play in the
+current repo setup. Upload the generated `.aab` in Play Console. If you want
+one-command publishing later, add and configure a dedicated Gradle Play
+Publisher flow first.
+
 ## Android Emulator APK Smoke Test
 
 Use this path when you want to boot an Android emulator, install the built APK,
@@ -83,8 +151,7 @@ Build and install a debug APK:
 cd apps/mobile
 flutter build apk --debug
 adb install -r build/app/outputs/flutter-apk/app-debug.apk
-adb shell monkey -p com.fromfedtochain.app \
-  -c android.intent.category.LAUNCHER 1
+adb shell am start -n com.fromfedtochain.app/.MainActivity
 ```
 
 To smoke-test against the configured Supabase project instead of the
@@ -104,8 +171,7 @@ flutter build apk --debug \
   --dart-define=SUPABASE_DB_SCHEMA="${SUPABASE_DB_SCHEMA:-from_fed_to_chain}"
 
 adb install -r build/app/outputs/flutter-apk/app-debug.apk
-adb shell monkey -p com.fromfedtochain.app \
-  -c android.intent.category.LAUNCHER 1
+adb shell am start -n com.fromfedtochain.app/.MainActivity
 ```
 
 Useful follow-up checks:
@@ -236,8 +302,7 @@ bundletool build-apks \
   --output=/private/tmp/from-fed-to-chain.apks \
   --mode=universal
 bundletool install-apks --apks=/private/tmp/from-fed-to-chain.apks
-adb shell monkey -p com.fromfedtochain.app \
-  -c android.intent.category.LAUNCHER 1
+adb shell am start -n com.fromfedtochain.app/.MainActivity
 ```
 
 ## iOS App Store Release

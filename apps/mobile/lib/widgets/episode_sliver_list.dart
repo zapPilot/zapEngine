@@ -39,6 +39,7 @@ class EpisodeSliverList extends StatelessWidget {
           onPlay: () => onPlay(episode),
           onDelete: onDelete == null ? null : () => onDelete!(episode),
           deleteLabel: deleteLabel,
+          queueEpisodes: episodes,
         );
 
         return wrapper?.call(context, episode, card) ?? card;

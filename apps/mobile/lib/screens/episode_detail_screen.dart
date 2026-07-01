@@ -17,10 +17,12 @@ class EpisodeDetailScreen extends StatefulWidget {
   const EpisodeDetailScreen({
     super.key,
     required this.episode,
+    this.queueEpisodes,
     EpisodeService? episodeService,
   }) : _episodeService = episodeService;
 
   final Episode episode;
+  final List<Episode>? queueEpisodes;
   final EpisodeService? _episodeService;
 
   @override
@@ -125,6 +127,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
                   EpisodeDetailMetadataSection(episode: _episode),
                   EpisodeDetailPlaybackControls(
                     episode: _episode,
+                    queueEpisodes: widget.queueEpisodes,
                     onLanguageSelected: _selectLanguage,
                     onEpisodeChanged: _displayEpisode,
                   ),

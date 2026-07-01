@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -39,6 +41,7 @@ class FeedScreenContent extends StatelessWidget {
     final playback = context.watch<PlaybackProvider>();
     final groups = groupFeedEpisodesByStatus(controller.episodes);
     final heroEpisode = heroEpisodeForFeed(controller.episodes, groups);
+    final heroQueueEpisodes = queueEpisodesForFeed(groups);
 
     return RefreshIndicator(
       color: AppColors.accent,
@@ -74,6 +77,7 @@ class FeedScreenContent extends StatelessWidget {
                 SliverToBoxAdapter(
                   child: ContinueListeningCard(
                     episode: heroEpisode,
+                    queueEpisodes: heroQueueEpisodes,
                     allCompleted:
                         groups.inProgress.isEmpty && groups.unplayed.isEmpty,
                     isPlaying: playback.isEpisodePlaying(heroEpisode.id),
@@ -107,7 +111,12 @@ class FeedScreenContent extends StatelessWidget {
                   EpisodeSliverList(
                     episodes: groups.completed,
                     playback: playback,
-                    onPlay: (episode) => playback.toggle(episode),
+                    onPlay: (episode) => unawaited(
+                      playback.playFromQueue(
+                        episodes: groups.completed,
+                        episode: episode,
+                      ),
+                    ),
                   ),
               ],
               SliverToBoxAdapter(
@@ -124,6 +133,16 @@ class FeedScreenContent extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static List<Episode> queueEpisodesForFeed(FeedEpisodeGroups groups) {
+    if (groups.inProgress.isNotEmpty || groups.unplayed.isNotEmpty) {
+      return [
+        ...groups.inProgress,
+        ...groups.unplayed,
+      ];
+    }
+    return groups.completed.reversed.toList(growable: false);
   }
 
   static String _avatarLabel(String? email) {

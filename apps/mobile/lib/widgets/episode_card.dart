@@ -21,6 +21,7 @@ class EpisodeCard extends StatelessWidget {
     this.onDelete,
     this.deleteLabel = 'Delete',
     this.supportingContent,
+    this.queueEpisodes,
   });
 
   final Episode episode;
@@ -30,6 +31,7 @@ class EpisodeCard extends StatelessWidget {
   final Widget? supportingContent;
   final bool isPlaying;
   final bool isLoading;
+  final List<Episode>? queueEpisodes;
 
   @override
   Widget build(BuildContext context) {
@@ -113,7 +115,12 @@ class EpisodeCard extends StatelessWidget {
   void _openDetail(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => EpisodeDetailScreen(episode: episode)),
+      MaterialPageRoute(
+        builder: (_) => EpisodeDetailScreen(
+          episode: episode,
+          queueEpisodes: queueEpisodes,
+        ),
+      ),
     );
   }
 

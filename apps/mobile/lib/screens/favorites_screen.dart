@@ -150,7 +150,9 @@ class _FavoritesScreenState extends State<FavoritesScreen>
               EpisodeSliverList(
                 episodes: favorites,
                 playback: playback,
-                onPlay: (episode) => playback.toggle(episode),
+                onPlay: (episode) => unawaited(
+                  playback.playFromQueue(episodes: favorites, episode: episode),
+                ),
                 onDelete: _removeFavorite,
                 deleteLabel: '從收藏移除',
                 wrapper: _wrapFavoriteCard,

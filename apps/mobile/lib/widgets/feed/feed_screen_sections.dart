@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../models/episode.dart';
@@ -69,7 +71,9 @@ List<Widget> buildFeedSection({
     EpisodeSliverList(
       episodes: episodes,
       playback: playback,
-      onPlay: (episode) => playback.toggle(episode),
+      onPlay: (episode) => unawaited(
+        playback.playFromQueue(episodes: episodes, episode: episode),
+      ),
     ),
   ];
 }

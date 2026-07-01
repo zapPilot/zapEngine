@@ -126,6 +126,40 @@ class PlaybackProvider extends ChangeNotifier {
     await _handler.play();
   }
 
+  Future<void> playFromQueue({
+    required List<Episode> episodes,
+    required Episode episode,
+  }) async {
+    final queue = List<Episode>.of(episodes, growable: false);
+    final targetIndex = queue.indexWhere(episode.isSameLocalizationAs);
+
+    if (queue.isEmpty || targetIndex < 0) {
+      await toggle(episode);
+      return;
+    }
+
+    await _persistPosition(flush: true);
+    _queue
+      ..clear()
+      ..addAll(queue);
+    _queueIndex = targetIndex;
+    notifyListeners();
+
+    final currentEpisode = _currentEpisode;
+    if (currentEpisode != null &&
+        currentEpisode.isSameLocalizationAs(episode)) {
+      if (_isPlaying) {
+        await pause();
+      } else {
+        await _handler.play();
+      }
+      return;
+    }
+
+    await _setEpisode(episode, startAt: _resumePositionFor(episode));
+    await _handler.play();
+  }
+
   Future<void> playSmart(List<Episode> feed) async {
     final inProgressOldestFirst = feed
         .where((episode) => episode.status == EpisodeStatus.inProgress)
@@ -190,6 +224,18 @@ class PlaybackProvider extends ChangeNotifier {
     _lastNotifiedSecond = position.inSeconds;
     notifyListeners();
     _maybeFinalizeNearEnd();
+  }
+
+  Future<void> seekRelative(Duration delta) {
+    var targetMs = _position.inMilliseconds + delta.inMilliseconds;
+    if (targetMs < 0) {
+      targetMs = 0;
+    }
+    if (_duration > Duration.zero && targetMs > _duration.inMilliseconds) {
+      targetMs = _duration.inMilliseconds;
+    }
+    final clamped = Duration(milliseconds: targetMs);
+    return seek(clamped);
   }
 
   Future<void> flushPosition() {

@@ -219,6 +219,10 @@ class _SearchScreenContent extends StatelessWidget {
       ];
     }
 
+    final queueEpisodes = controller.results
+        .map((result) => result.episode)
+        .toList(growable: false);
+
     return [
       SliverList.builder(
         itemCount: controller.results.length,
@@ -229,8 +233,11 @@ class _SearchScreenContent extends StatelessWidget {
             episode: episode,
             isPlaying: playback.isEpisodePlaying(episode.id),
             isLoading: playback.loadingEpisodeId == episode.id,
-            onPlay: () => unawaited(playback.toggle(episode)),
+            onPlay: () => unawaited(
+              playback.playFromQueue(episodes: queueEpisodes, episode: episode),
+            ),
             supportingContent: _SearchMatchSummary(result: result),
+            queueEpisodes: queueEpisodes,
           );
         },
       ),
