@@ -1,6 +1,6 @@
 # Podcast Pipeline
 
-Hono API service for From Fed to Chain. Turns article URLs into multilingual podcast episodes: scrape, OpenRouter LLM script generation, Google Cloud Translation API, hybrid Text-to-Speech, FFmpeg HLS, Cloudflare R2 upload, and Supabase metadata.
+Hono API service for From Fed to Chain. Turns article URLs into multilingual podcast episodes: scrape, OpenRouter LLM script generation, OpenRouter-first translation with Google Cloud Translation fallback, hybrid Text-to-Speech, FFmpeg HLS, Cloudflare R2 upload, and Supabase metadata.
 
 ## Stack
 
@@ -18,7 +18,7 @@ Routes include `/health`, `/ingest`, `/telegram/webhook`, `/episodes`, and `/epi
 
 ## Environment
 
-All env vars live in the monorepo root `.env` (see `.env.example` at repo root). Required for full ingest: `OPENROUTER_API_KEY`, `GOOGLE_TRANSLATE_API_KEY`, Google TTS credentials, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, and `INGEST_ADMIN_TOKEN`. Google credentials are only used by TTS. Script generation and language-classroom generation use `LLM_MODEL` (via OpenRouter); title/script translation uses `GOOGLE_TRANSLATE_API_KEY` (Google Cloud Translation API v2). `FISH_AUDIO_API_KEY` is only needed if the Fish Audio provider is re-enabled.
+All env vars live in the monorepo root `.env` (see `.env.example` at repo root). Required for full ingest: `OPENROUTER_API_KEY`, `GOOGLE_TRANSLATE_API_KEY`, Google TTS credentials, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, and `INGEST_ADMIN_TOKEN`. Google credentials are only used by TTS. Script generation and language-classroom generation use `LLM_MODEL` (via OpenRouter). Title/script translation uses OpenRouter first via `TRANSLATION_LLM_MODEL=openrouter/free`; Google Cloud Translation API v2 remains the fallback through `GOOGLE_TRANSLATE_API_KEY`. `FISH_AUDIO_API_KEY` is only needed if the Fish Audio provider is re-enabled.
 
 TTS provider selection is per classroom language and code-owned in `src/services/tts/tts-config.ts`. All languages (`zh-Hant`, `ja`, `en`) currently route to Google for both main and classroom audio; the Fish Audio provider remains wired but unused. Changing providers, models, engines, or voices requires a code change and deploy.
 
