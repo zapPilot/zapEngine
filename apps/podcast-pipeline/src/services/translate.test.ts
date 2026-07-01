@@ -365,6 +365,51 @@ describe('translateCanonicalScript', () => {
       ],
     });
   });
+
+  it('throws when Google fallback returns an empty translated script', async () => {
+    mocks.createOpenRouterChatCompletion.mockRejectedValueOnce(
+      new Error('OpenRouter timeout'),
+    );
+    mockGoogleTranslation('Google title');
+    mockGoogleTranslation('   ');
+
+    await expect(
+      translateCanonicalScript({
+        title: '標題',
+        script: '第一句。\n第二句。',
+        targetLanguageCode: 'ja',
+      }),
+    ).rejects.toThrow('Google Translate API returned empty translation');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves an empty title while translating a non-empty script through Google fallback', async () => {
+    mocks.createOpenRouterChatCompletion.mockRejectedValueOnce(
+      new Error('OpenRouter timeout'),
+    );
+    mockGoogleTranslation('Google script');
+
+    const result = await translateCanonicalScript({
+      title: '',
+      script: '第一句。\n第二句。',
+      targetLanguageCode: 'ja',
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      title: '',
+      script: 'Google script',
+      cost: [
+        {
+          category: 'translate',
+          label: 'Translation ja',
+          provider: 'google',
+          model: 'translate-api',
+          costUsd: 0.00018,
+        },
+      ],
+    });
+  });
 });
 
 function mockOpenRouterConfig(model = 'openrouter/free'): void {
