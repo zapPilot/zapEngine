@@ -200,7 +200,8 @@ class _EpisodeDetailPlaybackControlsState
               _SeekControlButton(
                 tooltip: 'Forward 30 seconds',
                 seconds: 30,
-                icon: Icons.forward_rounded,
+                icon: Icons.forward_30_rounded,
+                showSecondsLabel: false,
                 onPressed: isCurrent
                     ? () => _seekRelative(const Duration(seconds: 30))
                     : null,
@@ -273,12 +274,14 @@ class _SeekControlButton extends StatelessWidget {
     required this.tooltip,
     required this.seconds,
     required this.icon,
+    this.showSecondsLabel = true,
     required this.onPressed,
   });
 
   final String tooltip;
   final int seconds;
   final IconData icon;
+  final bool showSecondsLabel;
   final VoidCallback? onPressed;
 
   @override
@@ -300,17 +303,18 @@ class _SeekControlButton extends StatelessWidget {
         alignment: Alignment.center,
         children: [
           Icon(icon, size: 34),
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              '$seconds',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 10,
-                  ),
+          if (showSecondsLabel)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '$seconds',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 10,
+                    ),
+              ),
             ),
-          ),
         ],
       ),
     );
