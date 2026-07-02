@@ -83,7 +83,7 @@ Expected: no `vendor-privy` output.
 
 ## Vite dev server health
 
-Port 3005 is the desktop Vite web server. If the browser reports a
+Port 3005 is the shared frontend Vite server when launched for desktop. If the browser reports a
 `/node_modules/.vite/deps/... 504 (Outdated Optimize Dep)` error, treat it as a
 stale Vite optimized-dependency cache/browser-module-graph issue. Restart
 `pnpm --filter @zapengine/desktop dev:web -- --force`, then verify with:

@@ -34,6 +34,7 @@ interface TauriConfig {
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const desktopRoot = path.resolve(testDir, '..');
+const repoRoot = path.resolve(desktopRoot, '../..');
 
 async function readJson<T>(relativePath: string): Promise<T> {
   const json = await readFile(path.join(desktopRoot, relativePath), 'utf8');
@@ -41,27 +42,32 @@ async function readJson<T>(relativePath: string): Promise<T> {
 }
 
 describe('desktop Tauri shell configuration', () => {
-  it('exposes Tauri dev and packaging scripts plus the Vite app scripts', async () => {
+  it('exposes Tauri dev and packaging scripts plus frontend shell scripts', async () => {
     const packageJson = await readJson<PackageJson>('package.json');
 
     expect(packageJson.scripts['dev']).toBe('tauri dev');
     expect(packageJson.scripts['build']).toBe('tauri build');
     expect(packageJson.scripts['package']).toBe('tauri build --bundles dmg');
-    expect(packageJson.scripts['dev:web']).toBe('vite');
-    expect(packageJson.scripts['build:web']).toBe('vite build');
+    expect(packageJson.scripts['dev:web']).toContain('@zapengine/frontend');
+    expect(packageJson.scripts['dev:web']).toContain(
+      'VITE_APP_RUNTIME=desktop',
+    );
+    expect(packageJson.scripts['dev:web']).toContain('--port 3005');
+    expect(packageJson.scripts['build:web']).toContain('@zapengine/frontend');
+    expect(packageJson.scripts['build:web']).toContain(
+      'VITE_APP_RUNTIME=desktop',
+    );
   });
 
-  it('points Tauri at the desktop Vite app dev server and production dist', async () => {
+  it('points Tauri at the shared frontend dev server and production dist', async () => {
     const config = await readJson<TauriConfig>('src-tauri/tauri.conf.json');
 
     expect(config.productName).toBe('Zap Pilot');
     expect(config.identifier).toBe('com.zapengine.zappilot');
     expect(config.build.devUrl).toBe('http://localhost:3005');
-    expect(config.build.frontendDist).toBe('../dist');
-    expect(config.build.beforeDevCommand).toContain('VITE_APP_RUNTIME=desktop');
+    expect(config.build.frontendDist).toBe('../../frontend/dist');
     expect(config.build.beforeDevCommand).toContain('@zapengine/desktop');
     expect(config.build.beforeDevCommand).toContain('dev:web');
-    expect(config.build.beforeDevCommand).toContain('--port 3005');
     expect(config.build.beforeBuildCommand).toContain(
       'VITE_APP_RUNTIME=desktop',
     );
@@ -69,7 +75,7 @@ describe('desktop Tauri shell configuration', () => {
       'corepack pnpm turbo run',
     );
     expect(config.build.beforeBuildCommand).toContain(
-      'build:web --filter=@zapengine/desktop',
+      'build --filter=@zapengine/frontend',
     );
   });
 
@@ -101,17 +107,18 @@ describe('desktop Tauri shell configuration', () => {
     );
   });
 
-  it('uses hash routing so packaged Tauri reloads stay on index.html', async () => {
+  it('uses hash routing for the shared frontend when packaged as desktop', async () => {
     const mainSource = await readFile(
-      path.join(desktopRoot, 'src/main.tsx'),
+      path.join(repoRoot, 'apps/frontend/src/main.tsx'),
       'utf8',
     );
 
+    expect(mainSource).toContain('isDesktopRuntime');
     expect(mainSource).toContain(
-      "import { HashRouter } from 'react-router-dom'",
+      "import { BrowserRouter, HashRouter } from 'react-router-dom'",
     );
-    expect(mainSource).toContain('<HashRouter>');
-    expect(mainSource).toContain('</HashRouter>');
-    expect(mainSource).not.toContain('BrowserRouter');
+    expect(mainSource).toContain('const Router = isDesktopRuntime()');
+    expect(mainSource).toContain('<Router>');
+    expect(mainSource).toContain('</Router>');
   });
 });
