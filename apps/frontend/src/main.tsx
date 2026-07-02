@@ -1,8 +1,9 @@
 import './app/globals.css';
 
+import { isDesktopRuntime } from '@zapengine/app-core/lib/env/runtimeEnv';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, HashRouter } from 'react-router-dom';
 
 import { App } from '@/app/App';
 
@@ -12,10 +13,12 @@ if (!container) {
   throw new Error('Root container #root was not found.');
 }
 
+const Router = isDesktopRuntime() ? HashRouter : BrowserRouter;
+
 createRoot(container).render(
   <StrictMode>
-    <BrowserRouter>
+    <Router>
       <App />
-    </BrowserRouter>
+    </Router>
   </StrictMode>,
 );

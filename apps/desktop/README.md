@@ -41,7 +41,7 @@ cd apps/desktop
 pnpm dev
 ```
 
-`pnpm dev` starts the frontend with `VITE_APP_RUNTIME=desktop` on port 3000, then opens the Tauri shell around it.
+`pnpm dev` starts `@zapengine/frontend` with `VITE_APP_RUNTIME=desktop` on port 3005, then opens the Tauri shell around it.
 
 DevTools are enabled in dev builds via `src-tauri/tauri.conf.json`.
 

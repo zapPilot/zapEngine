@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, type Page, type Route, test } from '@playwright/test';
 
 /**
  * E2E Tests for Bundle Wallet Switching
@@ -12,8 +12,69 @@ import { expect, test } from '@playwright/test';
 
 test.describe('Bundle Wallet Switching - E2E', () => {
   const BUNDLE_USER_ID = '0x1234567890123456789012345678901234567890';
+  const ROUTE_PATTERNS = {
+    landing: '**/api/v2/portfolio/*/landing',
+  } as const;
+
+  const LANDING_RESPONSE = {
+    total_net_usd: 0,
+    net_portfolio_value: 0,
+    positions: 0,
+    protocols: 0,
+    chains: 0,
+    portfolio_allocation: {
+      btc: {
+        total_value: 0,
+        percentage_of_portfolio: 0,
+        wallet_tokens_value: 0,
+        other_sources_value: 0,
+      },
+      eth: {
+        total_value: 0,
+        percentage_of_portfolio: 0,
+        wallet_tokens_value: 0,
+        other_sources_value: 0,
+      },
+      stablecoins: {
+        total_value: 0,
+        percentage_of_portfolio: 0,
+        wallet_tokens_value: 0,
+        other_sources_value: 0,
+      },
+      others: {
+        total_value: 0,
+        percentage_of_portfolio: 0,
+        wallet_tokens_value: 0,
+        other_sources_value: 0,
+      },
+    },
+  } as const;
+
+  function getJsonResponseOptions(body: unknown): {
+    status: number;
+    contentType: string;
+    body: string;
+  } {
+    return {
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    };
+  }
+
+  async function fulfillJson(route: Route, body: unknown): Promise<void> {
+    await route.fulfill(getJsonResponseOptions(body));
+  }
+
+  async function registerBundleRoutes(page: Page): Promise<void> {
+    await page.route(ROUTE_PATTERNS.landing, async (route) => {
+      await fulfillJson(route, LANDING_RESPONSE);
+    });
+  }
 
   test.beforeEach(async ({ page }) => {
+    await registerBundleRoutes(page);
+
     // Enable console logging for debugging
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
@@ -46,27 +107,23 @@ test.describe('Bundle Wallet Switching - E2E', () => {
   });
 
   test('should show wallet connection option', async ({ page }) => {
-    await page.route(`**/users/${BUNDLE_USER_ID}`, (route) => {
-      void route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          user: {
-            id: BUNDLE_USER_ID,
-            email: null,
-            is_subscribed_to_reports: false,
+    await page.route(`**/users/${BUNDLE_USER_ID}`, async (route) => {
+      await fulfillJson(route, {
+        user: {
+          id: BUNDLE_USER_ID,
+          email: null,
+          is_subscribed_to_reports: false,
+          created_at: new Date().toISOString(),
+        },
+        wallets: [
+          {
+            id: '1',
+            user_id: BUNDLE_USER_ID,
+            wallet: BUNDLE_USER_ID,
+            label: null,
             created_at: new Date().toISOString(),
           },
-          wallets: [
-            {
-              id: '1',
-              user_id: BUNDLE_USER_ID,
-              wallet: BUNDLE_USER_ID,
-              label: null,
-              created_at: new Date().toISOString(),
-            },
-          ],
-        }),
+        ],
       });
     });
     await page.goto(`/bundle?userId=${BUNDLE_USER_ID}`);
