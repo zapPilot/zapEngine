@@ -6,10 +6,10 @@
   "type": "module",
   "scripts": {
     "dev": "tauri dev",
-    "dev:web": "VITE_APP_RUNTIME=desktop corepack pnpm --filter @zapengine/frontend run dev -- --host 127.0.0.1 --port 3005",
+    "dev:web": "vite",
     "dev:health": "pnpm --filter @zapengine/frontend run dev:health -- http://127.0.0.1:3005/",
     "build": "tauri build",
-    "build:web": "VITE_APP_RUNTIME=desktop corepack pnpm turbo run build --filter=@zapengine/frontend",
+    "build:web": "vite build",
     "preview": "vite preview --port 3006",
     "package": "tauri build --bundles dmg",
     "lint": "eslint src tests --max-warnings 0",
