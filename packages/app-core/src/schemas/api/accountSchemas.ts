@@ -128,6 +128,20 @@ export const etlJobStatusResponseSchema = z
   // eslint-disable-next-line sonarjs/deprecation
   .passthrough(); // Allow additional fields without failing validation
 
+/**
+ * Schema for the wallet fetch trigger endpoint.
+ *
+ * Unlike job status responses, the trigger endpoint may return a null job_id
+ * when account-engine rate limits a fetch request, but consumers still need a
+ * stable status/message boundary before treating the trigger as successful.
+ */
+export const etlJobTriggerResponseSchema = z.object({
+  job_id: z.string().nullable(),
+  status: z.string(),
+  message: z.string(),
+  rate_limited: z.boolean().optional(),
+});
+
 export const connectWalletResponseSchema = z.object({
   user_id: z.string(),
   is_new_user: z.boolean(),
@@ -205,6 +219,9 @@ export const userProfileResponseSchema = z.object({
     };
   };
 }
+/** @public */ export type EtlJobTriggerResponse = z.infer<
+  typeof etlJobTriggerResponseSchema
+>;
 /** @public */ export type AddWalletResponse = z.infer<
   typeof addWalletResponseSchema
 >;
@@ -234,6 +251,9 @@ export type { EtlJobStatus };
 
 export const validateConnectWalletResponse = createValidator(
   connectWalletResponseSchema,
+);
+export const validateEtlJobTriggerResponse = createValidator(
+  etlJobTriggerResponseSchema,
 );
 export const validateAddWalletResponse = createValidator(
   addWalletResponseSchema,
