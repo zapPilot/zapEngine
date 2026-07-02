@@ -4,11 +4,11 @@ import { createServiceCaller } from '@core/lib/http/createServiceCaller';
 import { createServiceError } from '@core/lib/http/serviceErrorUtils';
 import {
   type AddWalletResponse,
-  connectWalletResponseSchema,
   type ConnectWalletResponse,
+  connectWalletResponseSchema,
   etlJobStatusResponseSchema,
-  etlJobTriggerResponseSchema,
   type EtlJobTriggerResponse,
+  etlJobTriggerResponseSchema,
   type UpdateEmailResponse,
   type UserCryptoWallet,
   type UserProfileResponse,
