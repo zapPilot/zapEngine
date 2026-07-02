@@ -61,7 +61,7 @@ export function validateEmail(email: string): ValidationResult {
   }
 
   const emailRegex = /^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  if (!emailRegex.test(email)) {
+  if (!emailRegex.test(trimmedEmail)) {
     return {
       isValid: false,
       error: 'Please enter a valid email address',
