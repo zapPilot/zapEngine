@@ -7,10 +7,12 @@ import {
   type ConnectWalletResponse,
   connectWalletResponseSchema,
   etlJobStatusResponseSchema,
+  type EtlJobTriggerResponse,
   type UpdateEmailResponse,
   type UserCryptoWallet,
   type UserProfileResponse,
   validateAddWalletResponse,
+  validateEtlJobTriggerResponse,
   validateMessageResponse,
   validateUpdateEmailResponse,
   validateUserProfileResponse,
@@ -21,17 +23,7 @@ import type { EtlJobStatus } from '@zapengine/types/etl';
 
 export { AccountServiceError };
 
-/**
- * ETL job response from trigger endpoint.
- */
-export interface EtlJobResponse {
-  job_id: string | null;
-  status: string;
-  message: string;
-  rate_limited?: boolean;
-}
-
-export type { EtlJobStatus } from '@zapengine/types/etl';
+export type EtlJobResponse = EtlJobTriggerResponse;
 
 const ACCOUNT_SERVICE_ERROR_MESSAGE = 'Account service error';
 
@@ -274,8 +266,12 @@ export async function triggerWalletDataFetch(
   userId: string,
   walletAddress: string,
 ): Promise<EtlJobResponse> {
-  return postAccountResource<EtlJobResponse>(
-    `/users/${userId}/wallets/${walletAddress}/fetch-data`,
+  return requestAndValidate(
+    () =>
+      postAccountResource<EtlJobResponse>(
+        `/users/${userId}/wallets/${walletAddress}/fetch-data`,
+      ),
+    validateEtlJobTriggerResponse,
   );
 }
 
