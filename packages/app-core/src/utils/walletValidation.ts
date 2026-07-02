@@ -14,7 +14,7 @@ function validateAddress(address: string): ValidationResult {
     };
   }
 
-  if (!validateWalletAddress(address)) {
+  if (!validateWalletAddress(trimmedAddress)) {
     return {
       isValid: false,
       error:

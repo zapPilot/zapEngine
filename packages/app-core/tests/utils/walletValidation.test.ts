@@ -35,6 +35,15 @@ describe('walletValidation', () => {
       ).toEqual({ isValid: true });
     });
 
+    it('accepts valid wallet addresses pasted with leading or trailing whitespace', () => {
+      expect(
+        validateNewWallet({
+          label: 'Main wallet',
+          address: ` ${VALID_WALLET}\n`,
+        }),
+      ).toEqual({ isValid: true });
+    });
+
     it.each([
       ['', 'Wallet label is required'],
       [' ', 'Wallet label is required'],

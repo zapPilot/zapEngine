@@ -342,16 +342,13 @@ describe('WalletManager Validation Utils', () => {
         expect(result.isValid).toBe(true);
       });
 
-      it('should trim address but still validate format', () => {
-        // Address trimming happens, but format must still be valid after trim
+      it('should trim address before validating format', () => {
         const wallet: NewWallet = {
           label: 'My Wallet',
           address: `  ${validAddress}`,
         };
         const result = validateNewWallet(wallet);
-        // Will fail because the mock validator checks exact length
-        expect(result.isValid).toBe(false);
-        expect(result.error).toContain('Invalid wallet address format');
+        expect(result.isValid).toBe(true);
       });
 
       it('should accept wallet with mixed case address', () => {
