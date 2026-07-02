@@ -22,9 +22,8 @@ vi.mock('../../src/utils/logger', () => ({
   },
 }));
 
-const { AccountServiceError, triggerWalletDataFetch } = await import(
-  '../../src/services/accountService'
-);
+const { AccountServiceError, addWalletToBundle, triggerWalletDataFetch } =
+  await import('../../src/services/accountService');
 
 describe('accountService wallet fetch trigger', () => {
   beforeEach(() => {
@@ -61,5 +60,38 @@ describe('accountService wallet fetch trigger', () => {
         '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
       ),
     ).rejects.toBeInstanceOf(AccountServiceError);
+  });
+});
+
+describe('accountService wallet bundle errors', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('preserves unauthorized wallet bundle failures as AccountServiceError details', async () => {
+    accountApi.post.mockRejectedValue({
+      code: 'UNAUTHORIZED',
+      response: {
+        data: { message: 'Unauthorized wallet bundle access.' },
+        status: 401,
+      },
+    });
+
+    await expect(
+      addWalletToBundle(
+        'user-1',
+        '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+        'Primary wallet',
+      ),
+    ).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+      message: 'Unauthorized wallet bundle access.',
+      status: 401,
+    });
+
+    expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
+      label: 'Primary wallet',
+      wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+    });
   });
 });
