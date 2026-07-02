@@ -104,7 +104,7 @@ describe('accountService wallet bundle errors', () => {
         '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
         'Primary wallet',
       ),
-    ).rejects.toBeInstanceOf(AccountServiceError);
+    ).rejects.toThrow(/wallet_id/);
 
     expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
       label: 'Primary wallet',
