@@ -7,12 +7,12 @@ import {
   type ConnectWalletResponse,
   connectWalletResponseSchema,
   etlJobStatusResponseSchema,
+  etlJobTriggerResponseSchema,
   type EtlJobTriggerResponse,
   type UpdateEmailResponse,
   type UserCryptoWallet,
   type UserProfileResponse,
   validateAddWalletResponse,
-  validateEtlJobTriggerResponse,
   validateMessageResponse,
   validateUpdateEmailResponse,
   validateUserProfileResponse,
@@ -88,6 +88,23 @@ function validateConnectWalletResponse(
   }
 
   return validationResult.data as ConnectWalletResponse;
+}
+
+function validateTriggerWalletDataFetchResponse(
+  response: unknown,
+): EtlJobTriggerResponse {
+  const validationResult = etlJobTriggerResponseSchema.safeParse(response);
+  if (!validationResult.success) {
+    logger.error('❌ Validation failed:', validationResult.error.issues);
+    throw new AccountServiceError(
+      'ETL job trigger response validation failed',
+      500,
+      'VALIDATION_ERROR',
+      { issues: validationResult.error.issues },
+    );
+  }
+
+  return validationResult.data;
 }
 
 const accountApiClient = httpUtils.accountApi;
@@ -271,7 +288,7 @@ export async function triggerWalletDataFetch(
       postAccountResource<EtlJobResponse>(
         `/users/${userId}/wallets/${walletAddress}/fetch-data`,
       ),
-    validateEtlJobTriggerResponse,
+    validateTriggerWalletDataFetchResponse,
   );
 }
 
