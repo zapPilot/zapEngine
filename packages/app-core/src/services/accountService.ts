@@ -22,6 +22,7 @@ import { logger } from '@core/utils/logger';
 import type { EtlJobStatus } from '@zapengine/types/etl';
 
 export { AccountServiceError };
+export type { EtlJobStatus };
 
 export type EtlJobResponse = EtlJobTriggerResponse;
 
