@@ -127,12 +127,10 @@ describe('WalletManager Validation Utils', () => {
     });
 
     describe('edge cases', () => {
-      it('should check if email is empty after trim', () => {
-        // The validation trims for empty check but validates the original
+      it('should accept valid email after trim', () => {
         const result = validateEmail('  user@example.com  ');
-        // Will fail because spaces make it invalid format
-        expect(result.isValid).toBe(false);
-        expect(result.error).toBe('Please enter a valid email address');
+        expect(result.isValid).toBe(true);
+        expect(result.error).toBeUndefined();
       });
 
       it('should handle mixed case', () => {
