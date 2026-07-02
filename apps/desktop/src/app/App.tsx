@@ -8,6 +8,7 @@ import { HomeScreen } from '@/routes/HomeScreen';
 import { InvestAmountScreen } from '@/routes/InvestAmountScreen';
 import { InvestConfirmScreen } from '@/routes/InvestConfirmScreen';
 import { InvestRouteScreen } from '@/routes/InvestRouteScreen';
+import { PodcastScreen } from '@/routes/PodcastScreen';
 import { PortfolioScreen } from '@/routes/PortfolioScreen';
 import { SendScreen } from '@/routes/SendScreen';
 import { StrategyScreen } from '@/routes/StrategyScreen';
@@ -24,6 +25,7 @@ export function App() {
         <Route path="/portfolio" element={<PortfolioScreen />} />
         <Route path="/send" element={<SendScreen />} />
         <Route path="/strategy" element={<StrategyScreen />} />
+        <Route path="/podcast" element={<PodcastScreen />} />
         <Route path="/activity" element={<ActivityScreen />} />
         <Route path="/account" element={<AccountScreen />} />
         <Route
