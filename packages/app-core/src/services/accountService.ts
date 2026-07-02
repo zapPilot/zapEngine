@@ -7,6 +7,8 @@ import {
   type ConnectWalletResponse,
   connectWalletResponseSchema,
   etlJobStatusResponseSchema,
+  type EtlJobTriggerResponse,
+  etlJobTriggerResponseSchema,
   type UpdateEmailResponse,
   type UserCryptoWallet,
   type UserProfileResponse,
@@ -20,18 +22,9 @@ import { logger } from '@core/utils/logger';
 import type { EtlJobStatus } from '@zapengine/types/etl';
 
 export { AccountServiceError };
+export type { EtlJobStatus };
 
-/**
- * ETL job response from trigger endpoint.
- */
-export interface EtlJobResponse {
-  job_id: string | null;
-  status: string;
-  message: string;
-  rate_limited?: boolean;
-}
-
-export type { EtlJobStatus } from '@zapengine/types/etl';
+export type EtlJobResponse = EtlJobTriggerResponse;
 
 const ACCOUNT_SERVICE_ERROR_MESSAGE = 'Account service error';
 
@@ -96,6 +89,23 @@ function validateConnectWalletResponse(
   }
 
   return validationResult.data as ConnectWalletResponse;
+}
+
+function validateTriggerWalletDataFetchResponse(
+  response: unknown,
+): EtlJobTriggerResponse {
+  const validationResult = etlJobTriggerResponseSchema.safeParse(response);
+  if (!validationResult.success) {
+    logger.error('❌ Validation failed:', validationResult.error.issues);
+    throw new AccountServiceError(
+      'ETL job trigger response validation failed',
+      500,
+      'VALIDATION_ERROR',
+      { issues: validationResult.error.issues },
+    );
+  }
+
+  return validationResult.data;
 }
 
 const accountApiClient = httpUtils.accountApi;
@@ -274,8 +284,12 @@ export async function triggerWalletDataFetch(
   userId: string,
   walletAddress: string,
 ): Promise<EtlJobResponse> {
-  return postAccountResource<EtlJobResponse>(
-    `/users/${userId}/wallets/${walletAddress}/fetch-data`,
+  return requestAndValidate(
+    () =>
+      postAccountResource<EtlJobResponse>(
+        `/users/${userId}/wallets/${walletAddress}/fetch-data`,
+      ),
+    validateTriggerWalletDataFetchResponse,
   );
 }
 
