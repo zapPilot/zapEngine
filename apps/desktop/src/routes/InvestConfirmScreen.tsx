@@ -19,9 +19,7 @@ import {
   formatPlanDuration,
   formatPlanGas,
 } from '@/integration/planPreviewFormatters';
-import { useAccount } from '@/integration/useAccount';
-import { useDepositPlanPreview } from '@/integration/useDepositPlanPreview';
-import { useInvest } from '@/integration/useInvest';
+import { useInvestDepositPlanPreview } from '@/integration/useInvest';
 import { formatUsd } from '@/lib/format';
 
 const STEPS = [
@@ -34,21 +32,14 @@ const STEPS = [
 export function InvestConfirmScreen() {
   const navigate = useNavigate();
   const {
+    plan,
+    isLoading: planLoading,
     amountUsd,
     selectedDepositPath,
     fromToken,
     fromAmount,
     sourceChainId,
-  } = useInvest();
-  const { address } = useAccount();
-  const { plan, isLoading: planLoading } = useDepositPlanPreview({
-    address,
-    fromToken,
-    fromAmount,
-    sourceChainId,
-    amountUsd,
-    depositPath: selectedDepositPath,
-  });
+  } = useInvestDepositPlanPreview();
   const invest = useInvestStrategy();
   const gmx = useGmxDeposit();
   const isGmxPath = isGmxDepositPath(selectedDepositPath);

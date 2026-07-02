@@ -22,9 +22,10 @@ import {
   planLegsToRouteRows,
   routeStepsLabel,
 } from '@/integration/planPreviewFormatters';
-import { useAccount } from '@/integration/useAccount';
-import { useDepositPlanPreview } from '@/integration/useDepositPlanPreview';
-import { useInvest } from '@/integration/useInvest';
+import {
+  useInvest,
+  useInvestDepositPlanPreview,
+} from '@/integration/useInvest';
 import { formatUsd } from '@/lib/format';
 
 const plainCardStyle = {
@@ -114,22 +115,14 @@ function LoadingValue({
 export function InvestRouteScreen() {
   const navigate = useNavigate();
   const {
+    plan,
+    isLoading,
+    isError,
     amountUsd,
-    selectedToken,
+    sourceChainId,
     selectedDepositPath,
-    fromToken,
-    fromAmount,
-    sourceChainId,
-  } = useInvest();
-  const { address } = useAccount();
-  const { plan, isLoading, isError } = useDepositPlanPreview({
-    address,
-    fromToken,
-    fromAmount,
-    sourceChainId,
-    amountUsd,
-    depositPath: selectedDepositPath,
-  });
+  } = useInvestDepositPlanPreview();
+  const { selectedToken } = useInvest();
 
   // Drive what the plan can supply; keep calm placeholders while it loads and
   // never crash on an error (the design's static copy stays).

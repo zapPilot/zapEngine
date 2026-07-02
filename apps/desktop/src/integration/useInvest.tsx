@@ -15,6 +15,11 @@ import {
   DEFAULT_DEPOSIT_TOKEN,
   type DesktopDepositToken,
 } from '@/integration/depositTokens';
+import { useAccount } from '@/integration/useAccount';
+import {
+  type DepositPlanPreview,
+  useDepositPlanPreview,
+} from '@/integration/useDepositPlanPreview';
 
 /** Convert a decimal token amount to a base-unit integer string. */
 function toBaseUnits(value: number, decimals: number): string {
@@ -107,4 +112,41 @@ export function useInvest(): InvestContextValue {
     throw new Error('useInvest must be used within an InvestProvider');
   }
   return context;
+}
+
+/**
+ * Combines useAccount + useInvest + useDepositPlanPreview into one call.
+ * Eliminates the duplicate useDepositPlanPreview call in InvestConfirmScreen and InvestRouteScreen.
+ */
+export function useInvestDepositPlanPreview(): DepositPlanPreview & {
+  amountUsd: number;
+  fromToken: `0x${string}`;
+  fromAmount: string;
+  sourceChainId: number;
+  selectedDepositPath: DesktopDepositPath;
+} {
+  const { address } = useAccount();
+  const {
+    amountUsd,
+    fromToken,
+    fromAmount,
+    sourceChainId,
+    selectedDepositPath,
+  } = useInvest();
+  const result = useDepositPlanPreview({
+    address,
+    amountUsd,
+    fromToken,
+    fromAmount,
+    sourceChainId,
+    depositPath: selectedDepositPath,
+  });
+  return {
+    ...result,
+    amountUsd,
+    fromToken,
+    fromAmount,
+    sourceChainId,
+    selectedDepositPath,
+  };
 }

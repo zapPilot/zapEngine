@@ -19,7 +19,7 @@ interface DepositPlanPreviewInput {
   depositPath: DesktopDepositPath;
 }
 
-interface DepositPlanPreview {
+export interface DepositPlanPreview {
   plan: DepositPlan | undefined;
   isLoading: boolean;
   isError: boolean;
