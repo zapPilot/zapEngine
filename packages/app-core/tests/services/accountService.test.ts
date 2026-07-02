@@ -94,4 +94,21 @@ describe('accountService wallet bundle errors', () => {
       wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
     });
   });
+
+  it('rejects malformed wallet bundle success responses', async () => {
+    accountApi.post.mockResolvedValue({ message: 'Wallet added.' });
+
+    await expect(
+      addWalletToBundle(
+        'user-1',
+        '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+        'Primary wallet',
+      ),
+    ).rejects.toThrow(/wallet_id/);
+
+    expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
+      label: 'Primary wallet',
+      wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+    });
+  });
 });
