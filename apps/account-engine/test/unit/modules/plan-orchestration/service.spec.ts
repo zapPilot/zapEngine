@@ -109,6 +109,36 @@ function makeService(allowance: bigint) {
   };
 }
 
+function makeInvestService({
+  defaultSplit,
+}: {
+  defaultSplit?: Partial<Record<number, number>>;
+} = {}) {
+  const composeDeposit = vi.fn().mockResolvedValue({
+    legs: [],
+    approvals: [],
+    calls: [],
+    totalGasUsd: '0',
+    sourceChainId: 8453,
+  } satisfies DepositPlan);
+  const service = createPlanOrchestrationService({
+    intentEngine: {
+      buildGmxV2Supply: vi.fn(),
+      buildGmxV2Withdraw: vi.fn(),
+      buildWithdrawSwap: vi.fn(),
+    },
+    adapter: { getQuote: vi.fn(), getContractCallQuote: vi.fn() } as never,
+    publicClients: {
+      8453: { readContract: vi.fn() },
+      42161: { readContract: vi.fn() },
+    } as never,
+    composeDeposit,
+    ...(defaultSplit ? { defaultSplit } : {}),
+  });
+
+  return { composeDeposit, service };
+}
+
 describe('plan-orchestration service', () => {
   it('delegates Invest deposits to composeDeposit and validates the returned DepositPlan', async () => {
     const composeDeposit = vi.fn().mockResolvedValue({
@@ -171,6 +201,61 @@ describe('plan-orchestration service', () => {
     );
     expect(plan.sourceChainId).toBe(8453);
     expect(plan.legs[0]?.protocol).toBe('morpho');
+  });
+
+  it('forwards a request split to composeDeposit with numeric chain keys', async () => {
+    const { composeDeposit, service } = makeInvestService();
+
+    await service.buildDeposit({
+      kind: 'invest',
+      userAddress: USER,
+      fromToken: BASE_USDC,
+      fromAmount: '1000',
+      sourceChainId: 8453,
+      split: { '8453': 0.7, '1337': 0.3 },
+    });
+
+    expect(composeDeposit).toHaveBeenCalledWith(
+      expect.objectContaining({ split: { 8453: 0.7, 1337: 0.3 } }),
+      expect.anything(),
+    );
+  });
+
+  it('falls back to the configured default split for Base-source requests', async () => {
+    const { composeDeposit, service } = makeInvestService({
+      defaultSplit: { 8453: 0.9, 1337: 0.1 },
+    });
+
+    await service.buildDeposit({
+      kind: 'invest',
+      userAddress: USER,
+      fromToken: BASE_USDC,
+      fromAmount: '1000',
+      sourceChainId: 8453,
+    });
+
+    expect(composeDeposit).toHaveBeenCalledWith(
+      expect.objectContaining({ split: { 8453: 0.9, 1337: 0.1 } }),
+      expect.anything(),
+    );
+  });
+
+  it('does not apply the default split to non-Base source re-quotes', async () => {
+    const { composeDeposit, service } = makeInvestService({
+      defaultSplit: { 8453: 0.9, 1337: 0.1 },
+    });
+
+    await service.buildDeposit({
+      kind: 'invest',
+      userAddress: USER,
+      fromToken: USDC,
+      fromAmount: '1000',
+      sourceChainId: 42161,
+    });
+
+    const [input] = composeDeposit.mock.calls[0]!;
+    expect(input).not.toHaveProperty('split');
+    expect(input.sourceChainId).toBe(42161);
   });
 
   it('skips GMX approval when Arbitrum allowance covers the exact collateral amount', async () => {

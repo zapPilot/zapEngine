@@ -1,7 +1,12 @@
 import { defineKnipConfig } from '@zapengine/knip-config/base';
 
 export default defineKnipConfig({
-  entry: ['examples/basic-usage.ts', 'examples/gmx-v2-btc-btc-verify.ts'],
+  entry: [
+    'examples/basic-usage.ts',
+    'examples/gmx-v2-btc-btc-verify.ts',
+    'examples/hyperliquid-hlp-verify.ts',
+    'src/protocols/hyperliquid/index.ts',
+  ],
   project: ['src/**/*.ts', 'test/**/*.ts', 'examples/**/*.ts'],
   ignoreDependencies: ['@zapengine/types'],
   vitest: {

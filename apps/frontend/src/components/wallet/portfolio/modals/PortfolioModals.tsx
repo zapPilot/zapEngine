@@ -8,6 +8,8 @@ import {
   WithdrawModal,
 } from '@/components/wallet/portfolio/modals';
 
+import { DepositWizardModal } from './depositWizard/DepositWizardModal';
+import { isDepositWizardEnabled } from './depositWizard/featureFlag';
 import { SettingsModal } from './SettingsModal';
 
 interface PortfolioModalsProps {
@@ -37,13 +39,22 @@ export function PortfolioModals({
     setIsSettingsOpen(false);
   }
 
+  const depositWizardEnabled = isDepositWizardEnabled();
+
   return (
     <>
-      <DepositModal
-        isOpen={activeModal === 'deposit'}
-        onClose={onClose}
-        defaultChainId={1}
-      />
+      {depositWizardEnabled ? (
+        <DepositWizardModal
+          isOpen={activeModal === 'deposit'}
+          onClose={onClose}
+        />
+      ) : (
+        <DepositModal
+          isOpen={activeModal === 'deposit'}
+          onClose={onClose}
+          defaultChainId={1}
+        />
+      )}
       <WithdrawModal isOpen={activeModal === 'withdraw'} onClose={onClose} />
       <RebalanceModal
         isOpen={activeModal === 'rebalance'}

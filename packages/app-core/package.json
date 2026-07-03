@@ -137,6 +137,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@nktkas/hyperliquid": "catalog:",
     "@zapengine/design-tokens": "workspace:*",
     "@zapengine/intent-engine": "workspace:*",
     "@zapengine/types": "workspace:*",

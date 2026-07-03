@@ -1,5 +1,6 @@
 export {
   createPlanOrchestrationModule,
+  parseDepositDefaultSplit,
   type PlanOrchestrationModuleConfig,
 } from './module';
 export {

@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => {
     executeAtomicBatch: vi.fn(),
     getWalletClient: vi.fn(),
     switchChain: vi.fn(),
-    getBridgeStatus: vi.fn(),
+    waitForBridgeCompletion: vi.fn(),
     walletClient,
   };
 });
@@ -35,11 +35,11 @@ vi.mock('@zapengine/app-core/services/planOrchestrationService', () => ({
 }));
 
 vi.mock('@zapengine/app-core/lib/wallet/executeDepositPlan', () => ({
-  executeDepositPlan: mocks.executeDepositPlan,
+  executeDepositPlanWithWallet: mocks.executeDepositPlan,
 }));
 
 vi.mock('@zapengine/app-core/services/intentClient', () => ({
-  getBridgeStatus: mocks.getBridgeStatus,
+  waitForBridgeCompletion: mocks.waitForBridgeCompletion,
 }));
 
 vi.mock('@zapengine/app-core/utils/logger', () => ({
@@ -148,7 +148,10 @@ describe('useInvestStrategy', () => {
         };
       },
     );
-    mocks.getBridgeStatus.mockResolvedValue({ status: 'DONE' });
+    mocks.waitForBridgeCompletion.mockResolvedValue({
+      status: 'DONE',
+      receiving: { txHash: '0xdesthash' },
+    });
   });
 
   it('executes backend-provided approvals and three leg calls as one EIP-7702 bundle', async () => {
@@ -165,12 +168,11 @@ describe('useInvestStrategy', () => {
       fromAmount: '10000',
       sourceChainId: 8453,
     });
-    expect(mocks.getWalletClient).toHaveBeenCalledWith(8453);
     expect(mocks.executeDepositPlan).toHaveBeenCalledWith(
       expect.objectContaining({
         plan,
-        walletClient: mocks.walletClient,
         chainId: 8453,
+        getWalletClient: mocks.getWalletClient,
       }),
     );
     expect(result.current.tier).toBe('eip7702');
@@ -182,7 +184,7 @@ describe('useInvestStrategy', () => {
     ]);
   });
 
-  it('does not create a chain RPC wallet client for the Privy atomic path', async () => {
+  it('forwards the Privy atomic batcher to the execution wrapper', async () => {
     mocks.useWalletProvider.mockReturnValue({
       account: { address: USER },
       chain: { id: 8453 },
@@ -196,6 +198,8 @@ describe('useInvestStrategy', () => {
       await result.current.run({ fromToken: BASE_USDC, fromAmount: '10000' });
     });
 
+    // The wrapper owns the walletClient-vs-atomic decision (covered by its
+    // own unit test); the hook only forwards the batcher.
     expect(mocks.getWalletClient).not.toHaveBeenCalled();
     expect(mocks.executeDepositPlan).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -203,9 +207,6 @@ describe('useInvestStrategy', () => {
         chainId: 8453,
         executeAtomicBatch: mocks.executeAtomicBatch,
       }),
-    );
-    expect(mocks.executeDepositPlan.mock.calls[0]?.[0]).not.toHaveProperty(
-      'walletClient',
     );
   });
 
@@ -244,6 +245,43 @@ describe('useInvestStrategy', () => {
       '0xethbridgehash',
       '0xarbbridgehash',
     ]);
+    // Bridge legs resolve through the polling loop into destinationConfirmed.
+    expect(mocks.waitForBridgeCompletion).toHaveBeenCalledTimes(2);
+    expect(mocks.waitForBridgeCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        txHash: '0xethbridgehash',
+        fromChain: 8453,
+        toChain: 1,
+        signal: expect.any(AbortSignal),
+      }),
+    );
+    expect(result.current.legs.map((leg) => leg.status)).toEqual([
+      'sourceConfirmed',
+      'destinationConfirmed',
+      'destinationConfirmed',
+    ]);
+    expect(result.current.legs[1]?.destinationTxHash).toBe('0xdesthash');
+  });
+
+  it('marks a bridge leg failed when polling reports a terminal failure', async () => {
+    mocks.waitForBridgeCompletion.mockRejectedValue(
+      new Error('Bridge transfer FAILED'),
+    );
+    mocks.executeDepositPlan.mockImplementation(
+      async ({ onCallSubmitted, onCallConfirmed }) => {
+        onCallSubmitted?.(1, ethereumBridgeTx);
+        onCallConfirmed?.(1, ethereumBridgeTx, '0xethbridgehash');
+        return { kind: 'sequential', hashes: ['0xethbridgehash'] };
+      },
+    );
+
+    const { result } = renderHook(() => useInvestStrategy());
+
+    await act(async () => {
+      await result.current.run({ fromToken: BASE_USDC, fromAmount: '10000' });
+    });
+
+    expect(result.current.legs[1]?.status).toBe('failed');
   });
 
   it('switches to Base before fetching the plan when the connected wallet is on another chain', async () => {

@@ -1,5 +1,6 @@
 import {
   DepositPlanSchema,
+  type DepositFollowUp,
   type DepositLeg,
   type DepositPlan,
   type PreparedTransaction,
@@ -15,6 +16,13 @@ import {
 import { buildBridgeTx } from '../builders/bridge.builder.js';
 import { buildSupplyTx } from '../builders/supply.builder.js';
 import {
+  buildHlpDepositFollowUp,
+  HLP_MIN_DEPOSIT_USD,
+  HYPERCORE_CHAIN_ID,
+  HYPERCORE_PERPS_USDC,
+  type HyperliquidNetwork,
+} from '../protocols/hyperliquid/index.js';
+import {
   NATIVE_TOKEN,
   SUPPORTED_CHAINS,
   USDC_ADDRESS,
@@ -22,9 +30,9 @@ import {
 import { getVaultForBucket } from '../registry/vaults.js';
 import type { TransactionQuote } from '../types/transaction.types.js';
 
-// TODO(lifi): restore the 60/20/20 split once LI.FI bridge quotes are reliable.
-// For now we deposit 100% on the source chain so the EIP-7702 and sequential
-// paths can be tested against a known-working Morpho ERC4626 deposit.
+// Built-in fallback only — the production split is injected by
+// plan-orchestration (DEPOSIT_DEFAULT_SPLIT env), which is the no-deploy
+// rollback lever while cross-chain routes are being proven out.
 const DEFAULT_SPLIT: ChainSplit = {
   [SUPPORTED_CHAINS.BASE]: 1.0,
 };
@@ -32,6 +40,7 @@ const DEFAULT_CHAIN_ORDER = [
   SUPPORTED_CHAINS.BASE,
   SUPPORTED_CHAINS.ETHEREUM,
   SUPPORTED_CHAINS.ARBITRUM,
+  HYPERCORE_CHAIN_ID,
 ] as const;
 const SPLIT_SCALE = 1_000_000;
 
@@ -48,6 +57,7 @@ export interface ComposeDepositInput {
 export interface ComposeDepositDeps {
   adapter: LiFiAdapter;
   publicClients: Record<number, PublicClient>;
+  hyperliquidNetwork?: HyperliquidNetwork;
 }
 
 function isNativeToken(chainId: number, token: Address): boolean {
@@ -103,6 +113,12 @@ function splitAmounts(
   amount: string;
 }> {
   const total = BigInt(totalAmount);
+  const knownChainIds = new Set<number>(DEFAULT_CHAIN_ORDER);
+  for (const key of Object.keys(split)) {
+    if (!knownChainIds.has(Number(key))) {
+      throw new Error(`Unsupported deposit split chain ${key}`);
+    }
+  }
   const entries = DEFAULT_CHAIN_ORDER.map((chainId) => ({
     chainId,
     weight: split[chainId] ?? 0,
@@ -149,6 +165,27 @@ function bridgeName(route: unknown): string | undefined {
   return undefined;
 }
 
+function bridgeLegFromQuote(params: {
+  chainId: number;
+  toToken: Address;
+  fromAmount: string;
+  quote: TransactionQuote;
+  protocol?: string;
+}): DepositLeg {
+  const bridge = bridgeName(params.quote.route);
+  return {
+    chainId: params.chainId,
+    kind: 'bridge',
+    ...(params.protocol ? { protocol: params.protocol } : {}),
+    toToken: params.toToken,
+    fromAmount: params.fromAmount,
+    toAmountMin: params.quote.estimate.toAmountMin,
+    ...(bridge ? { bridge } : {}),
+    gasUsd: params.quote.estimate.gasCostUsd,
+    durationSec: params.quote.estimate.executionDuration,
+  };
+}
+
 function totalGasUsd(quotes: TransactionQuote[]): string {
   return quotes
     .reduce(
@@ -169,24 +206,48 @@ function sourcePublicClient(
   return publicClient;
 }
 
+function resolveSplit(input: ComposeDepositInput): ChainSplit {
+  const isBaseSource = input.sourceChainId === SUPPORTED_CHAINS.BASE;
+  const split =
+    input.split ??
+    (isBaseSource ? DEFAULT_SPLIT : { [input.sourceChainId]: 1 });
+
+  if (!isBaseSource) {
+    // Non-Base sources exist only for destination re-quotes (bridge landed →
+    // re-plan with the received amount); re-bridging from them is not allowed.
+    const foreignLeg = Object.entries(split).find(
+      ([chainId, weight]) =>
+        (weight ?? 0) > 0 && Number(chainId) !== input.sourceChainId,
+    );
+    if (foreignLeg) {
+      throw new Error(
+        'Non-Base source chains support a single-chain split only',
+      );
+    }
+  }
+
+  return split;
+}
+
 export async function composeDeposit(
   input: ComposeDepositInput,
   deps: ComposeDepositDeps,
 ): Promise<DepositPlan> {
-  if (input.sourceChainId !== SUPPORTED_CHAINS.BASE) {
-    throw new Error('Deposit v1 supports Base as the source chain');
+  const supportedSources: readonly number[] = Object.values(SUPPORTED_CHAINS);
+  if (!supportedSources.includes(input.sourceChainId)) {
+    throw new Error(
+      `Unsupported source chain ${input.sourceChainId} — expected one of ${supportedSources.join(', ')}`,
+    );
   }
 
   const sourceClient = sourcePublicClient(
     deps.publicClients,
     input.sourceChainId,
   );
-  const allocations = splitAmounts(
-    input.fromAmount,
-    input.split ?? DEFAULT_SPLIT,
-  );
+  const allocations = splitAmounts(input.fromAmount, resolveSplit(input));
   const legs: DepositLeg[] = [];
   const calls: PreparedTransaction[] = [];
+  const followUps: DepositFollowUp[] = [];
   const quotes: TransactionQuote[] = [];
   const approvalRequirements = new Map<string, ApprovalRequirement>();
 
@@ -245,6 +306,51 @@ export async function composeDeposit(
       continue;
     }
 
+    if (allocation.chainId === HYPERCORE_CHAIN_ID) {
+      const quote = await buildBridgeTx(
+        {
+          fromChainId: input.sourceChainId,
+          toChainId: HYPERCORE_CHAIN_ID,
+          fromToken: input.fromToken,
+          toToken: HYPERCORE_PERPS_USDC,
+          fromAmount: allocation.amount,
+          userAddress: input.userAddress,
+        },
+        deps.adapter,
+      );
+
+      // Checked against the quoted output (6-decimal perp USDC) rather than
+      // the allocation, which may be denominated in a different source token.
+      if (BigInt(quote.estimate.toAmountMin) < BigInt(HLP_MIN_DEPOSIT_USD)) {
+        throw new Error(
+          `HLP allocation is below the vault minimum of ${HLP_MIN_DEPOSIT_USD} perp USDC base units (quoted ${quote.estimate.toAmountMin})`,
+        );
+      }
+
+      quotes.push(quote);
+      calls.push(quote.transaction);
+      addApprovalRequirement(approvalRequirements, quote.approval);
+      legs.push(
+        bridgeLegFromQuote({
+          chainId: HYPERCORE_CHAIN_ID,
+          toToken: HYPERCORE_PERPS_USDC,
+          fromAmount: allocation.amount,
+          quote,
+          protocol: 'hyperliquid',
+        }),
+      );
+      followUps.push(
+        buildHlpDepositFollowUp({
+          afterLegIndex: legs.length - 1,
+          expectedUsd: quote.estimate.toAmountMin,
+          ...(deps.hyperliquidNetwork
+            ? { network: deps.hyperliquidNetwork }
+            : {}),
+        }),
+      );
+      continue;
+    }
+
     const toToken = USDC_ADDRESS[allocation.chainId];
     if (!toToken) {
       throw new Error(
@@ -267,16 +373,14 @@ export async function composeDeposit(
     quotes.push(quote);
     calls.push(quote.transaction);
     addApprovalRequirement(approvalRequirements, quote.approval);
-    legs.push({
-      chainId: allocation.chainId,
-      kind: 'bridge',
-      toToken,
-      fromAmount: allocation.amount,
-      toAmountMin: quote.estimate.toAmountMin,
-      ...(bridgeName(quote.route) ? { bridge: bridgeName(quote.route) } : {}),
-      gasUsd: quote.estimate.gasCostUsd,
-      durationSec: quote.estimate.executionDuration,
-    });
+    legs.push(
+      bridgeLegFromQuote({
+        chainId: allocation.chainId,
+        toToken,
+        fromAmount: allocation.amount,
+        quote,
+      }),
+    );
   }
 
   const approvals: PreparedTransaction[] = [];
@@ -303,6 +407,7 @@ export async function composeDeposit(
     legs,
     approvals,
     calls,
+    ...(followUps.length > 0 ? { followUps } : {}),
     totalGasUsd: totalGasUsd(quotes),
     sourceChainId: input.sourceChainId,
   });

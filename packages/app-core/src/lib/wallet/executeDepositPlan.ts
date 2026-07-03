@@ -106,6 +106,28 @@ function isAtomicUnsupportedError(error: string | undefined): boolean {
   );
 }
 
+/**
+ * Resolve the execution transport then run the plan: Privy's atomic batcher
+ * when available, otherwise a chain RPC wallet client for the generic
+ * EIP-7702 path. Shared by the invest/wizard hooks so neither re-implements
+ * the transport choice.
+ */
+export async function executeDepositPlanWithWallet({
+  getWalletClient,
+  ...input
+}: Omit<ExecuteDepositPlanInput, 'walletClient'> & {
+  getWalletClient: (chainId: number) => Promise<WalletClient>;
+}): Promise<DepositPlanExecutionResult> {
+  const walletClient = input.executeAtomicBatch
+    ? undefined
+    : await getWalletClient(input.chainId);
+
+  return executeDepositPlan({
+    ...input,
+    ...(walletClient ? { walletClient } : {}),
+  });
+}
+
 export async function executeDepositPlan({
   plan,
   walletClient,

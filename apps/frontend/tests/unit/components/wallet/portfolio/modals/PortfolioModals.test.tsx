@@ -38,6 +38,25 @@ vi.mock('@/components/wallet/portfolio/modals/SettingsModal', () => ({
     ) : null,
 }));
 
+const featureFlags = vi.hoisted(() => ({ depositWizardEnabled: false }));
+
+vi.mock(
+  '@/components/wallet/portfolio/modals/depositWizard/DepositWizardModal',
+  () => ({
+    DepositWizardModal: ({ isOpen }: any) =>
+      isOpen ? (
+        <div data-testid="deposit-wizard-modal">Deposit Wizard</div>
+      ) : null,
+  }),
+);
+
+vi.mock(
+  '@/components/wallet/portfolio/modals/depositWizard/featureFlag',
+  () => ({
+    isDepositWizardEnabled: () => featureFlags.depositWizardEnabled,
+  }),
+);
+
 describe('PortfolioModals', () => {
   const defaultProps = {
     activeModal: null,
@@ -220,6 +239,19 @@ describe('PortfolioModals', () => {
 
       expect(screen.queryByTestId('deposit-modal')).not.toBeInTheDocument();
       expect(screen.getByTestId('withdraw-modal')).toBeInTheDocument();
+    });
+  });
+
+  describe('deposit wizard feature flag', () => {
+    it('renders the wizard instead of DepositModal when enabled', () => {
+      featureFlags.depositWizardEnabled = true;
+      try {
+        render(<PortfolioModals {...defaultProps} activeModal="deposit" />);
+        expect(screen.getByTestId('deposit-wizard-modal')).toBeInTheDocument();
+        expect(screen.queryByTestId('deposit-modal')).not.toBeInTheDocument();
+      } finally {
+        featureFlags.depositWizardEnabled = false;
+      }
     });
   });
 });

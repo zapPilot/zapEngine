@@ -15,6 +15,7 @@ allowBuilds:
 catalog:
   '@hono/node-server': ^1.19.6
   '@lifi/sdk': ^3.4.0
+  '@nktkas/hyperliquid': 0.33.1
   '@supabase/supabase-js': ^2.84.0
   '@tailwindcss/postcss': ^4
   '@testing-library/jest-dom': ^6.9.1
