@@ -30,6 +30,7 @@ export default defineKnipConfig({
     '@zapengine/types',
     'expo-apple-authentication',
     'expo-application',
+    'expo-clipboard',
     'expo-crypto',
     'expo-dev-client',
     'expo-linking',
@@ -38,6 +39,7 @@ export default defineKnipConfig({
     'expo-updates',
     'expo-web-browser',
     'react-native-passkeys',
+    'react-native-qrcode-styled',
     'react-native-webview',
     // T6 native wallet backend dependency; installed before the provider import
     // to keep the dev-client graph stable across the screen migration.
