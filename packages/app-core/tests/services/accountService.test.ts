@@ -120,6 +120,58 @@ describe('accountService wallet bundle errors', () => {
     });
   });
 
+  it('preserves wallet bundle rate-limit failures for retry-aware UI handling', async () => {
+    accountApi.post.mockRejectedValue({
+      code: 'RATE_LIMITED',
+      response: {
+        data: { message: 'Too many wallet bundle updates. Try again later.' },
+        status: 429,
+      },
+    });
+
+    await expect(
+      addWalletToBundle(
+        'user-1',
+        '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+        'Primary wallet',
+      ),
+    ).rejects.toMatchObject({
+      code: 'RATE_LIMITED',
+      message: 'Too many wallet bundle updates. Try again later.',
+      status: 429,
+    });
+
+    expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
+      label: 'Primary wallet',
+      wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+    });
+  });
+
+  it('preserves wallet bundle server errors instead of remapping them to validation copy', async () => {
+    accountApi.post.mockRejectedValue({
+      response: {
+        data: { message: 'Wallet bundle service is temporarily unavailable.' },
+        status: 503,
+      },
+    });
+
+    await expect(
+      addWalletToBundle(
+        'user-1',
+        '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+        'Primary wallet',
+      ),
+    ).rejects.toMatchObject({
+      message: 'Wallet bundle service is temporarily unavailable.',
+      status: 503,
+    });
+
+    expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
+      label: 'Primary wallet',
+      wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+    });
+  });
+
   it('rejects malformed wallet bundle success responses', async () => {
     accountApi.post.mockResolvedValue({ message: 'Wallet added.' });
 
