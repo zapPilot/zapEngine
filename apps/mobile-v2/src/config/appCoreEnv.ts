@@ -15,6 +15,7 @@ export function buildAppCoreEnvSource(): Record<string, string | undefined> {
     VITE_ACCOUNT_API_URL: process.env.EXPO_PUBLIC_ACCOUNT_API_URL,
     VITE_ANALYTICS_ENGINE_URL: process.env.EXPO_PUBLIC_ANALYTICS_ENGINE_URL,
     VITE_PRIVY_APP_ID: process.env.EXPO_PUBLIC_PRIVY_APP_ID,
+    VITE_PRIVY_CLIENT_ID: process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID,
     VITE_APP_RUNTIME: 'native',
     MODE: isDevBuild() ? 'development' : 'production',
   };
