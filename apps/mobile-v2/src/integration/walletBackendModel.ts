@@ -2,7 +2,11 @@ import type { Chain, Hex } from 'viem';
 import { toHex } from 'viem';
 import { arbitrum, base, optimism } from 'viem/chains';
 
-export const MOBILE_PRIVY_CHAINS = [arbitrum, base, optimism] as const satisfies readonly Chain[];
+export const MOBILE_PRIVY_CHAINS = [
+  arbitrum,
+  base,
+  optimism,
+] as const satisfies readonly Chain[];
 export const DEFAULT_MOBILE_PRIVY_CHAIN = arbitrum;
 
 const MOBILE_PRIVY_CHAIN_BY_ID = new Map<number, Chain>(
