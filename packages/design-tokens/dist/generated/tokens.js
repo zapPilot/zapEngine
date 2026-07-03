@@ -1,0 +1,38 @@
+export const tokens = {
+  color: {
+    bg: '#0a0a0a',
+    'bg-2': '#0e0e10',
+    surface: '#0e0e10',
+    'surface-elevated': '#18181b',
+    ink: '#f4f4f5',
+    'ink-dim': '#a1a1aa',
+    'ink-faint': '#52525b',
+    line: 'rgba(255, 255, 255, 0.08)',
+    'line-hi': 'rgba(255, 255, 255, 0.16)',
+    accent: '#d4c5a3',
+    'accent-soft': 'rgba(212, 197, 163, 0.16)',
+    'accent-muted': '#6a5e44',
+    error: '#ff6f61',
+    success: '#7ad88f',
+    pillar: {
+      spy: '#d7dde7',
+      btc: '#f7931a',
+      usd: '#2775ca',
+    },
+  },
+  font: {
+    serif: 'Instrument Serif',
+    mono: 'JetBrains Mono',
+    sans: 'Geist Sans',
+  },
+  radius: {
+    pill: 999,
+    subtle: 4,
+    control: 12,
+    card: 8,
+  },
+  easing: {
+    primary: 'cubic-bezier(0.2, 0.65, 0.3, 0.99)',
+  },
+};
+//# sourceMappingURL=tokens.js.map

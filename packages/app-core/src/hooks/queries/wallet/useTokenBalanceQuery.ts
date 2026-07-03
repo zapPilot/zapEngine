@@ -1,4 +1,4 @@
-import { useWalletProvider } from '@core/providers/WalletProvider';
+import { useWalletProvider } from '@core/providers/walletContext';
 import { transactionServiceMock } from '@core/services';
 import { useQuery } from '@tanstack/react-query';
 

@@ -4,7 +4,7 @@ import {
   useDepositExecutionState,
 } from '@core/hooks/useDepositExecutionState';
 import { executeDepositPlan } from '@core/lib/wallet/executeDepositPlan';
-import { useWalletProvider } from '@core/providers/WalletProvider';
+import { useWalletProvider } from '@core/providers/walletContext';
 import { getWithdrawPlan } from '@core/services/planOrchestrationService';
 import { logger } from '@core/utils/logger';
 import type { GmxV2MarketKey } from '@zapengine/intent-engine';

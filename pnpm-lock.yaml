@@ -339,6 +339,9 @@ importers:
       '@zapengine/types':
         specifier: workspace:*
         version: link:../../packages/types
+      hls.js:
+        specifier: ^1.6.5
+        version: 1.6.16
       lucide-react:
         specifier: 'catalog:'
         version: 0.523.0(react@19.2.7)
@@ -669,6 +672,18 @@ importers:
       '@privy-io/expo-native-extensions':
         specifier: ^0.0.11
         version: 0.0.11(expo@57.0.1)(react-native@0.86.0(@babel/core@7.29.7)(@types/react@19.2.17)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@5.0.10))(react@19.2.3)
+      '@tanstack/react-query':
+        specifier: ^5.85.3
+        version: 5.101.0(react@19.2.3)
+      '@zapengine/app-core':
+        specifier: workspace:*
+        version: link:../../packages/app-core
+      '@zapengine/design-tokens':
+        specifier: workspace:*
+        version: link:../../packages/design-tokens
+      '@zapengine/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       expo:
         specifier: ~57.0.1
         version: 57.0.1(@babel/core@7.29.7)(@expo/dom-webview@57.0.0)(bufferutil@4.1.0)(react-dom@19.2.3(react@19.2.3))(react-native-webview@14.0.1(react-native@0.86.0(@babel/core@7.29.7)(@types/react@19.2.17)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@5.0.10))(react@19.2.3))(react-native@0.86.0(@babel/core@7.29.7)(@types/react@19.2.17)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@5.0.10))(react@19.2.3)(typescript@6.0.3)(utf-8-validate@5.0.10)
@@ -860,9 +875,6 @@ importers:
       framer-motion:
         specifier: ^12.19.1
         version: 12.40.0(@emotion/is-prop-valid@1.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      lucide-react:
-        specifier: 'catalog:'
-        version: 0.523.0(react@19.2.7)
       react:
         specifier: 'catalog:'
         version: 19.2.7
@@ -7720,6 +7732,9 @@ packages:
 
   hermes-parser@0.36.1:
     resolution: {integrity: sha512-GApNk4zLHi2UWoWZZkx7LNCOSzLSc5lB55pZ/PhK7ycFeg7u5LcF88p/WbpIi1XUDtE0MpHE3uRR3u3KB7TjSQ==}
+
+  hls.js@1.6.16:
+    resolution: {integrity: sha512-VSIRpLfRwlAAdGL4wiTucx2ScRipo0ed1FBatWkyt832jC4CReKstga6yIhYVwGu9LOBjuX9wzmRMeQdBJtzEA==}
 
   hono@4.12.25:
     resolution: {integrity: sha512-2NFaIyNVgJmBs/ecmtGzlmluTFs5cHEWGTdu0t1HBwYzoGXOL5nUQBRMXsXWla5i4KkG//QMzVP88m1+I3fdAQ==}
@@ -16811,6 +16826,11 @@ snapshots:
       '@tanstack/react-query': 5.101.0(react@19.2.7)
       react: 19.2.7
 
+  '@tanstack/react-query@5.101.0(react@19.2.3)':
+    dependencies:
+      '@tanstack/query-core': 5.101.0
+      react: 19.2.3
+
   '@tanstack/react-query@5.101.0(react@19.2.7)':
     dependencies:
       '@tanstack/query-core': 5.101.0
@@ -21418,6 +21438,8 @@ snapshots:
   hermes-parser@0.36.1:
     dependencies:
       hermes-estree: 0.36.1
+
+  hls.js@1.6.16: {}
 
   hono@4.12.25: {}
 

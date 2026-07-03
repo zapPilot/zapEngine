@@ -1,3 +1,4 @@
+import './app-core-env';
 import './polyfills';
 import './react-testing';
 import './lazy-import-mocks';

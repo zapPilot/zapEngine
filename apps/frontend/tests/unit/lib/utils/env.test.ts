@@ -25,8 +25,15 @@ describe('env', () => {
       expect(isDesktopRuntime()).toBe(true);
     });
 
-    it('falls back to web for unknown VITE_APP_RUNTIME values', () => {
+    it('returns native when VITE_APP_RUNTIME is native', () => {
       process.env['VITE_APP_RUNTIME'] = 'native';
+
+      expect(getAppRuntime()).toBe('native');
+      expect(isDesktopRuntime()).toBe(false);
+    });
+
+    it('falls back to web for unknown VITE_APP_RUNTIME values', () => {
+      process.env['VITE_APP_RUNTIME'] = 'embedded';
 
       expect(getAppRuntime()).toBe('web');
       expect(isDesktopRuntime()).toBe(false);

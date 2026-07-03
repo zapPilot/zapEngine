@@ -1,15 +1,16 @@
 # Zap Pilot Desktop
 
-Zap Pilot Desktop is the macOS shell for Zap Pilot. It is a Tauri v2 app that loads the existing `@zapengine/frontend` Vite build in a native window and switches frontend behavior with `VITE_APP_RUNTIME=desktop`.
+Zap Pilot Desktop is the macOS shell for Zap Pilot. It is a Tauri v2 app around the desktop's own phone-frame Vite app (`src/`): a non-custodial wallet portfolio UI plus the From Fed to Chain podcast tab, built on the shared `@zapengine/app-core` services and hooks.
 
 ## What this app owns
 
+- The phone-frame product UI under `src/` (Home / Portfolio / Strategy / Podcast / Activity / Account and the invest flow)
 - Native macOS window configuration and app metadata
 - Tauri v2 backend shell under `src-tauri/`
 - Local app bundle / DMG packaging
 - Desktop-only runtime affordances such as production DevTools opt-in
 
-It does **not** fork the dashboard UI. The web and desktop products share `apps/frontend`.
+Business logic is **not** forked: services, query hooks, and wire types come from `@zapengine/app-core` / `@zapengine/types`. The podcast tab reads the From Fed to Chain episodes API (`VITE_PODCAST_API_URL`, defaults to the production host).
 
 ## Prerequisites
 
@@ -41,7 +42,7 @@ cd apps/desktop
 pnpm dev
 ```
 
-`pnpm dev` starts `@zapengine/frontend` with `VITE_APP_RUNTIME=desktop` on port 3005, then opens the Tauri shell around it.
+`pnpm dev` starts the desktop Vite app with `VITE_APP_RUNTIME=desktop` on port 3005, then opens the Tauri shell around it.
 
 DevTools are enabled in dev builds via `src-tauri/tauri.conf.json`.
 

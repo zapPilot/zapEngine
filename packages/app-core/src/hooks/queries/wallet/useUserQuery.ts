@@ -1,5 +1,5 @@
 import { queryKeys } from '@core/lib/state/queryClient';
-import { useWalletProvider } from '@core/providers/WalletProvider';
+import { useWalletProvider } from '@core/providers/walletContext';
 import type { UserProfileResponse } from '@core/schemas/api/accountSchemas';
 import { connectWallet, getUserProfile } from '@core/services';
 import { useQuery } from '@tanstack/react-query';

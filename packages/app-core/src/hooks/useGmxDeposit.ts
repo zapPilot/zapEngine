@@ -4,7 +4,7 @@ import {
   useDepositExecutionState,
 } from '@core/hooks/useDepositExecutionState';
 import { executeDepositPlan } from '@core/lib/wallet/executeDepositPlan';
-import { useWalletProvider } from '@core/providers/WalletProvider';
+import { useWalletProvider } from '@core/providers/walletContext';
 import { getPublicClient } from '@core/services/intentClient';
 import { getGmxDepositPlan } from '@core/services/planOrchestrationService';
 import type { ConnectedWalletClient } from '@core/types';

@@ -10,11 +10,14 @@ interface QueryProviderProps {
   children: ReactNode;
 }
 
-const enableDevtools =
-  isRuntimeMode('development') &&
-  getRuntimeEnv('VITE_ENABLE_RQ_DEVTOOLS') === '1';
-
 function QueryDevtoolsLoader() {
+  // Resolved on mount rather than at module scope so the env injected at app
+  // bootstrap (configureAppCoreEnv) is honored.
+  const [enableDevtools] = useState(
+    () =>
+      isRuntimeMode('development') &&
+      getRuntimeEnv('VITE_ENABLE_RQ_DEVTOOLS') === '1',
+  );
   const [Devtools, setDevtools] = useState<ReactQueryDevtoolsComponent | null>(
     null,
   );
@@ -38,7 +41,7 @@ function QueryDevtoolsLoader() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [enableDevtools]);
 
   if (!enableDevtools || !Devtools) {
     return null;

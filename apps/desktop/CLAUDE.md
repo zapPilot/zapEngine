@@ -4,11 +4,11 @@ Read [README.md](./README.md) first for setup, dev, packaging, and troubleshooti
 
 ## Role
 
-`apps/desktop` is a Tauri v2 macOS shell around `@zapengine/frontend`. Keep the product UI in `apps/frontend`; only put native window, bundle, capability, and desktop runtime glue here.
+`apps/desktop` is a Tauri v2 macOS app that owns its **own** phone-frame product UI under `src/` (wallet portfolio + From Fed to Chain podcast tab). Business logic comes from `@zapengine/app-core` / `@zapengine/types`; do not fork services or query hooks here, and do not point the shell back at `apps/frontend`.
 
 ## Runtime contract
 
-- Desktop loads the same frontend as web with `VITE_APP_RUNTIME=desktop`.
+- `dev:web` / `build:web` run the desktop's own Vite app (port 3005) with `VITE_APP_RUNTIME=desktop`; `tauri.conf.json` `frontendDist` is `../dist`.
 - `src-tauri/tauri.conf.json` owns the native window, bundle targets, icons, and macOS metadata.
 - DMG packaging is local/manual for now: `pnpm package` from `apps/desktop` maps to `tauri build --bundles dmg`.
 - The Tauri CLI is the workspace devDependency `@tauri-apps/cli`; do not require a global `tauri` install in scripts or docs.
@@ -83,7 +83,7 @@ Expected: no `vendor-privy` output.
 
 ## Vite dev server health
 
-Port 3005 is the shared frontend Vite server when launched for desktop. If the browser reports a
+Port 3005 is the desktop Vite web server. If the browser reports a
 `/node_modules/.vite/deps/... 504 (Outdated Optimize Dep)` error, treat it as a
 stale Vite optimized-dependency cache/browser-module-graph issue. Restart
 `pnpm --filter @zapengine/desktop dev:web -- --force`, then verify with:

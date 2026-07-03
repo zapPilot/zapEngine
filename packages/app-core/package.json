@@ -114,6 +114,10 @@
       "types": "./dist/lib/ui/index.d.ts",
       "import": "./dist/lib/ui/index.js"
     },
+    "./providers/walletContext": {
+      "types": "./dist/providers/walletContext.d.ts",
+      "import": "./dist/providers/walletContext.js"
+    },
     "./*": {
       "types": "./dist/*.d.ts",
       "import": "./dist/*.js"
@@ -142,7 +146,6 @@
     "@zapengine/types": "workspace:*",
     "dayjs": "^1.11.19",
     "framer-motion": "^12.19.1",
-    "lucide-react": "catalog:",
     "viem": "catalog:",
     "zod": "catalog:"
   },
@@ -152,6 +155,14 @@
     "@tanstack/react-query-devtools": "^5.85.3",
     "react": "catalog:",
     "react-dom": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@privy-io/react-auth": {
+      "optional": true
+    },
+    "@tanstack/react-query-devtools": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "catalog:",

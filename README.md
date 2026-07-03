@@ -24,7 +24,7 @@ zapEngine/
 │   ├── account-engine      # Hono API — user accounts, wallets, Telegram (port 3004)
 │   ├── alpha-etl           # Express ETL — DeFi APR data ingestion (port 3003)
 │   ├── analytics-engine    # FastAPI — portfolio analytics & risk metrics (port 8001)
-│   ├── desktop             # Tauri v2 — macOS shell around frontend
+│   ├── desktop             # Tauri v2 — phone-frame wallet + podcast app (macOS)
 │   ├── frontend            # React 19 + Vite — dashboard SPA
 │   ├── landing-page        # Next.js 15 — marketing & docs site (port 3000)
 │   ├── mobile              # Flutter — From Fed to Chain podcast app

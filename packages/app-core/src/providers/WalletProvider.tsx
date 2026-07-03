@@ -1,12 +1,8 @@
 import { usePrivyWalletBackend } from '@core/hooks/wallet/usePrivyWalletBackend';
-import type { WalletProviderInterface } from '@core/types';
-import {
-  createContext,
-  type ReactElement,
-  type ReactNode,
-  useContext,
-  useMemo,
-} from 'react';
+import { WalletProviderBase } from '@core/providers/walletContext';
+import type { ReactElement, ReactNode } from 'react';
+
+export { useWalletProvider } from '@core/providers/walletContext';
 
 type WalletBackend = ReturnType<typeof usePrivyWalletBackend>;
 
@@ -28,10 +24,6 @@ export interface SimulationPreviewRenderProps {
   isRetryingSimulation: WalletBackend['isRetryingSimulation'];
   retryError: WalletBackend['retryError'];
 }
-
-type WalletContextValue = WalletProviderInterface;
-
-const WalletContext = createContext<WalletContextValue | null>(null);
 
 interface WalletProviderProps {
   children: ReactNode;
@@ -64,10 +56,8 @@ export function WalletProvider({
     retryError,
   } = usePrivyWalletBackend();
 
-  const value = useMemo<WalletContextValue>(() => backend, [backend]);
-
   return (
-    <WalletContext.Provider value={value}>
+    <WalletProviderBase value={backend}>
       {children}
       {simulationPreview &&
         renderSimulationPreview?.({
@@ -82,14 +72,6 @@ export function WalletProvider({
           isRetryingSimulation,
           retryError,
         })}
-    </WalletContext.Provider>
+    </WalletProviderBase>
   );
-}
-
-export function useWalletProvider(): WalletProviderInterface {
-  const context = useContext(WalletContext);
-  if (!context) {
-    throw new Error('useWalletProvider must be used within a WalletProvider');
-  }
-  return context;
 }

@@ -14,6 +14,10 @@
       "types": "./dist/tailwind-preset.d.ts",
       "import": "./dist/tailwind-preset.js"
     },
+    "./tokens": {
+      "types": "./dist/generated/tokens.d.ts",
+      "import": "./dist/generated/tokens.js"
+    },
     "./css/variables.css": "./dist/css/variables.css"
   },
   "files": [
@@ -23,9 +27,10 @@
   ],
   "scripts": {
     "build": "pnpm codegen && tsc",
-    "codegen": "pnpm codegen:css && pnpm codegen:flutter",
+    "codegen": "pnpm codegen:css && pnpm codegen:flutter && pnpm codegen:ts",
     "codegen:css": "tsx src/css-variables.ts",
     "codegen:flutter": "tsx src/flutter-codegen.ts",
+    "codegen:ts": "tsx src/ts-codegen.ts",
     "dev": "tsc --watch",
     "clean": "rm -rf dist lib/design_tokens.dart",
     "format": "prettier --write \"src/**/*.ts\" \"tokens.json\" \"pubspec.yaml\"",

@@ -39,7 +39,7 @@ First-time Python setup: `pnpm --filter @zapengine/analytics-engine run build` (
 
 ## Desktop (Tauri/macOS)
 
-The desktop app is a native Tauri wrapper around `@zapengine/frontend`. Keep desktop-specific setup in [apps/desktop/README.md](apps/desktop/README.md) and AI guardrails in [apps/desktop/CLAUDE.md](apps/desktop/CLAUDE.md).
+The desktop app is a Tauri v2 shell around its **own** phone-frame Vite app (`apps/desktop/src`: wallet portfolio + podcast tab), built on `@zapengine/app-core` — it does not wrap `@zapengine/frontend`. Keep desktop-specific setup in [apps/desktop/README.md](apps/desktop/README.md) and AI guardrails in [apps/desktop/CLAUDE.md](apps/desktop/CLAUDE.md).
 
 - Use the workspace `@tauri-apps/cli` binary; do not require a global `tauri` install.
 - Native package/build validation requires Rust/Cargo and Xcode Command Line Tools.

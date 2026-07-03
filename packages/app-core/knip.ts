@@ -20,4 +20,10 @@ export default defineKnipConfig({
     '@zapengine/intent-engine',
     '@zapengine/types',
   ],
+  // Privy and the react-query devtools are peers marked optional on purpose:
+  // they are referenced only behind web-specific entry points (WalletProvider,
+  // QueryProvider's dynamic import) so non-web hosts (React Native) can consume
+  // app-core without installing them. knip's "referenced optional
+  // peerDependencies" report exists to question exactly this shape, so mute it.
+  exclude: ['optionalPeerDependencies'],
 });

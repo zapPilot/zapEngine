@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "identifier": "com.zapengine.zappilot",
   "build": {
-    "beforeDevCommand": "corepack pnpm --filter @zapengine/desktop dev:web",
-    "beforeBuildCommand": "VITE_APP_RUNTIME=desktop corepack pnpm turbo run build --filter=@zapengine/frontend",
+    "beforeDevCommand": "VITE_APP_RUNTIME=desktop pnpm --filter @zapengine/desktop dev:web -- --host 127.0.0.1 --port 3005",
+    "beforeBuildCommand": "VITE_APP_RUNTIME=desktop corepack pnpm turbo run build:web --filter=@zapengine/desktop",
     "devUrl": "http://localhost:3005",
-    "frontendDist": "../../frontend/dist"
+    "frontendDist": "../dist"
   },
   "app": {
     "windows": [

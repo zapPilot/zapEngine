@@ -55,7 +55,6 @@ describe('regimeData Validation', () => {
       expect(regime.visual).toBeDefined();
       expect(regime.visual.badge).toBeDefined();
       expect(regime.visual.gradient).toBeDefined();
-      expect(regime.visual.icon).toBeDefined();
     }
   });
 });
@@ -141,7 +140,6 @@ describe('getRegimeAllocation', () => {
       visual: {
         badge: 'test',
         gradient: 'test',
-        icon: regimes[0].visual.icon,
       },
       strategies: {
         default: {
@@ -167,7 +165,6 @@ describe('getRegimeAllocation', () => {
       visual: {
         badge: 'test',
         gradient: 'test',
-        icon: regimes[0].visual.icon,
       },
       strategies: {
         fromLeft: {

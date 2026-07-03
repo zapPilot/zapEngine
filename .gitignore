@@ -11,6 +11,9 @@ build/
 !packages/design-tokens/dist/
 !packages/design-tokens/dist/**
 
+# Expo (mobile-v2)
+.expo/
+
 # Turbo
 .turbo/
 
