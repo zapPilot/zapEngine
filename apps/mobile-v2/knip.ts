@@ -19,6 +19,7 @@ export default defineKnipConfig({
   ],
   ignoreDependencies: [
     '@expo/metro-config',
+    '@privy-io/expo',
     '@privy-io/expo-native-extensions',
     // Workspace packages imported only via subpath exports (dist); knip cannot
     // map those back to the dependency, so it false-positives them as unused.
@@ -38,6 +39,9 @@ export default defineKnipConfig({
     'expo-web-browser',
     'react-native-passkeys',
     'react-native-webview',
+    // T6 native wallet backend dependency; installed before the provider import
+    // to keep the dev-client graph stable across the screen migration.
+    'viem',
     // expo-router runtime requirements, never imported directly.
     'react-native-safe-area-context',
     'react-native-screens',

@@ -41,6 +41,7 @@
     "expo-crypto": "~57.0.0",
     "expo-dev-client": "57.0.3",
     "expo-font": "~57.0.0",
+    "expo-linear-gradient": "~57.0.0",
     "expo-linking": "~57.0.1",
     "expo-router": "~57.0.2",
     "expo-secure-store": "~57.0.0",
@@ -48,6 +49,7 @@
     "expo-status-bar": "~57.0.0",
     "expo-web-browser": "~57.0.0",
     "fast-text-encoding": "^1.0.6",
+    "lucide-react-native": "^0.523.0",
     "nativewind": "^4.2.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -58,7 +60,8 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",
     "react-native-svg": "15.15.4",
-    "react-native-webview": "14.0.1"
+    "react-native-webview": "14.0.1",
+    "viem": "catalog:"
   },
   "devDependencies": {
     "@expo/metro-config": "~57.0.2",
