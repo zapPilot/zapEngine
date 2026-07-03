@@ -11,7 +11,13 @@ import type {
 } from '@zapengine/app-core/types';
 import { useEmbeddedEthereumWallet, usePrivy } from '@privy-io/expo';
 import { useLogin } from '@privy-io/expo/ui';
-import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react';
+import {
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useMemo,
+  useState,
+} from 'react';
 import { createWalletClient, custom, type Hex } from 'viem';
 
 import {
@@ -34,7 +40,7 @@ interface WalletProviderProps {
   children: ReactNode;
 }
 
-const WALLET_NOT_CONNECTED_ERROR = 'No Privy embedded wallet connected.';
+const WALLET_NOT_CONNECTED_ERROR = 'Privy wallet is not connected.';
 
 function isEmbeddedEthereumWallet(
   wallet: unknown,
@@ -227,14 +233,19 @@ export function usePrivyExpoWalletBackend(): WalletProviderInterface {
     [embeddedWallet?.address],
   );
 
-  const switchActiveWallet = useCallback(async (address: string): Promise<void> => {
-    void address;
-  }, []);
+  const switchActiveWallet = useCallback(
+    async (address: string): Promise<void> => {
+      void address;
+    },
+    [],
+  );
 
   return useMemo<WalletProviderInterface>(
     () => ({
       account: buildWalletAccount(embeddedWallet?.address),
-      chain: buildWalletChain(isConnected ? getMobilePrivyChain(currentChainId) : null),
+      chain: buildWalletChain(
+        isConnected ? getMobilePrivyChain(currentChainId) : null,
+      ),
       connect,
       disconnect,
       switchChain,
