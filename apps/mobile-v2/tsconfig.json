@@ -4,6 +4,9 @@
     "strict": true,
     "moduleResolution": "Bundler",
     "noEmit": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "types": ["node", "vitest/globals"],
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
@@ -13,6 +16,7 @@
   },
   "include": [
     "app.config.ts",
+    "nativewind-env.d.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "tests/**/*.ts",

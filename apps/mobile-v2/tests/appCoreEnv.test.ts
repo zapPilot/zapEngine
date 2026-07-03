@@ -12,11 +12,19 @@ describe('buildAppCoreEnvSource', () => {
     vi.stubEnv('EXPO_PUBLIC_ACCOUNT_API_URL', 'https://account.example');
     vi.stubEnv('EXPO_PUBLIC_ANALYTICS_ENGINE_URL', 'https://analytics.example');
     vi.stubEnv('EXPO_PUBLIC_PRIVY_APP_ID', 'privy-app');
+    vi.stubEnv('EXPO_PUBLIC_ALCHEMY_API_KEY', 'alchemy-key');
+    vi.stubEnv('EXPO_PUBLIC_MORALIS_API_KEY', 'moralis-key');
+    vi.stubEnv('EXPO_PUBLIC_PODCAST_API_URL', 'https://podcast.example');
+    vi.stubEnv('EXPO_PUBLIC_WALLET_TOKEN_PROVIDER', 'alchemy');
 
     expect(buildAppCoreEnvSource()).toMatchObject({
       VITE_ACCOUNT_API_URL: 'https://account.example',
       VITE_ANALYTICS_ENGINE_URL: 'https://analytics.example',
       VITE_PRIVY_APP_ID: 'privy-app',
+      VITE_ALCHEMY_API_KEY: 'alchemy-key',
+      VITE_MORALIS_API_KEY: 'moralis-key',
+      VITE_PODCAST_API_URL: 'https://podcast.example',
+      VITE_DESKTOP_WALLET_PROVIDER: 'alchemy',
     });
   });
 

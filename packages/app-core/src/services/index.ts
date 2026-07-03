@@ -89,9 +89,6 @@ export {
   type MarketSentimentData,
 } from './sentimentService';
 
-// Analytics Export
-export { exportAnalyticsToCSV } from './analyticsExportService';
-
 // Backtesting
 export { getBacktestingStrategiesV3, runBacktest } from './backtestingService';
 

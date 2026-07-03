@@ -2,8 +2,11 @@ import 'fast-text-encoding';
 import 'react-native-get-random-values';
 import '@ethersproject/shims';
 
-import { registerRootComponent } from 'expo';
+// Env must be injected before any app-core module evaluates (expo-router/entry
+// pulls in the whole route tree).
+import './src/config/appCoreEnv';
 
-import App from './src/App';
+// NativeWind style registry — Metro intercepts this import.
+import './global.css';
 
-registerRootComponent(App);
+import 'expo-router/entry';

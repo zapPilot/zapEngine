@@ -14,10 +14,16 @@ export default defineConfig([
       'no-restricted-imports': [
         'error',
         {
+          paths: [
+            {
+              name: '@zapengine/app-core/hooks',
+              message:
+                'Do not import the broad hooks barrel on React Native. Import RN-safe hooks from @zapengine/app-core/hooks/analytics or @zapengine/app-core/hooks/queries instead.',
+            },
+          ],
           patterns: [
             {
               group: [
-                '@zapengine/app-core/hooks',
                 '@zapengine/app-core/hooks/ui',
                 '@zapengine/app-core/hooks/ui/**',
                 '@zapengine/app-core/hooks/bundle',

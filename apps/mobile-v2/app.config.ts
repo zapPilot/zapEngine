@@ -16,7 +16,12 @@ const config: ExpoConfig = {
   android: {
     package: 'com.zapengine.zappilot.dev',
   },
-  plugins: ['expo-dev-client', 'expo-secure-store', 'expo-web-browser'],
+  plugins: [
+    'expo-dev-client',
+    'expo-router',
+    'expo-secure-store',
+    'expo-web-browser',
+  ],
   extra: {
     appRuntime: 'mobile-v2',
     privyAppId: process.env.EXPO_PUBLIC_PRIVY_APP_ID ?? '',

@@ -18,7 +18,8 @@
       "types": "./dist/generated/tokens.d.ts",
       "import": "./dist/generated/tokens.js"
     },
-    "./css/variables.css": "./dist/css/variables.css"
+    "./css/variables.css": "./dist/css/variables.css",
+    "./tokens.json": "./tokens.json"
   },
   "files": [
     "dist",

@@ -22,7 +22,6 @@ const WEB_ONLY_FILES = [
   'src/providers/WalletProvider.tsx',
   'src/providers/QueryProvider.tsx',
   'src/lib/csvGenerator.ts',
-  'src/services/index.ts',
   'src/services/analyticsExportService.ts',
   'src/utils/index.ts',
   'src/utils/clipboard.ts',

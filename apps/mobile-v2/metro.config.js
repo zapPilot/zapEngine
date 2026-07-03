@@ -1,4 +1,5 @@
 const { getDefaultConfig } = require('expo/metro-config');
+const { withNativeWind } = require('nativewind/metro');
 
 const config = getDefaultConfig(__dirname);
 
@@ -32,4 +33,6 @@ function resolveRequestWithPackageExports(context, moduleName, platform) {
 
 config.resolver.resolveRequest = resolveRequestWithPackageExports;
 
-module.exports = config;
+// Must wrap last: withNativeWind composes with (not replaces) the resolver
+// assigned above — react-native-css-interop calls the original resolveRequest.
+module.exports = withNativeWind(config, { input: './global.css' });

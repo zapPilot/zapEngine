@@ -15,6 +15,12 @@ export function buildAppCoreEnvSource(): Record<string, string | undefined> {
     VITE_ACCOUNT_API_URL: process.env.EXPO_PUBLIC_ACCOUNT_API_URL,
     VITE_ANALYTICS_ENGINE_URL: process.env.EXPO_PUBLIC_ANALYTICS_ENGINE_URL,
     VITE_PRIVY_APP_ID: process.env.EXPO_PUBLIC_PRIVY_APP_ID,
+    VITE_ALCHEMY_API_KEY: process.env.EXPO_PUBLIC_ALCHEMY_API_KEY,
+    VITE_MORALIS_API_KEY: process.env.EXPO_PUBLIC_MORALIS_API_KEY,
+    VITE_PODCAST_API_URL: process.env.EXPO_PUBLIC_PODCAST_API_URL,
+    // Key name kept: app-core's wallet-token provider switch reads it on
+    // desktop and native alike.
+    VITE_DESKTOP_WALLET_PROVIDER: process.env.EXPO_PUBLIC_WALLET_TOKEN_PROVIDER,
     VITE_PRIVY_CLIENT_ID: process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID,
     VITE_APP_RUNTIME: 'native',
     MODE: isDevBuild() ? 'development' : 'production',

@@ -7,7 +7,7 @@
 
 import { useAnalyticsData } from '@zapengine/app-core/hooks/queries/analytics/useAnalyticsData';
 import { useUserById } from '@zapengine/app-core/hooks/queries/wallet/useUserQuery';
-import { exportAnalyticsToCSV } from '@zapengine/app-core/services';
+import { exportAnalyticsToCSV } from '@zapengine/app-core/services/analyticsExportService';
 import type {
   AnalyticsData,
   AnalyticsTimePeriod,
