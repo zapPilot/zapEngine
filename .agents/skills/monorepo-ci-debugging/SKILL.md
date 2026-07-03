@@ -93,6 +93,32 @@ If a PR only meant to touch desktop adds a root env var, expect coverage and
 other workspace gates to rerun. Read the failed workspace; do not assume the
 workspace you changed is the workspace that failed.
 
+## Expo env bridge gotcha
+
+`apps/mobile-v2` bridges native Expo env keys into `@zapengine/app-core` Vite-style
+keys in `apps/mobile-v2/src/config/appCoreEnv.ts`. Keep those `process.env.EXPO_PUBLIC_*`
+reads literal so `babel-preset-expo` can inline them, and keep every referenced
+`EXPO_PUBLIC_*` key declared in `.env.example` when it is a real runtime input.
+
+The 2026-07-03 Privy native-wallet work exposed this failure mode:
+
+1. `apps/mobile-v2/README.md` documented `EXPO_PUBLIC_PRIVY_APP_ID` and
+   `EXPO_PUBLIC_PRIVY_CLIENT_ID`.
+2. `appCoreEnv.ts` referenced both keys to feed `VITE_PRIVY_APP_ID` /
+   `VITE_PRIVY_CLIENT_ID` into app-core.
+3. `check-dead-env` blocked unrelated Test QA PRs until the env declaration state
+   matched the actual mobile-v2 references.
+
+When CI reports `check-dead-env` for mobile-v2, run:
+
+```bash
+pnpm lint dead-env
+```
+
+Then fix the source of truth, not the gate: add missing real `EXPO_PUBLIC_*` keys
+to `.env.example`, delete stale keys that are no longer referenced, and fix any
+accidental bare `EXPO_PUBLIC_` reference in the mobile-v2 source.
+
 ## Desktop POC cascade pattern
 
 The 2026-06-29 desktop real-data POC showed this sequence:
