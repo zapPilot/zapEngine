@@ -7,7 +7,7 @@ function isDevBuild(): boolean {
 
 /**
  * Env map injected into app-core. Keys keep the `VITE_` prefix app-core reads;
- * values must stay literal `process.env.EXPO_PUBLIC_*` member accesses so
+ * values must stay as-is (literal EXPO_PUBLIC_* key accesses) so
  * babel-preset-expo can inline them at bundle time.
  */
 export function buildAppCoreEnvSource(): Record<string, string | undefined> {
@@ -21,6 +21,7 @@ export function buildAppCoreEnvSource(): Record<string, string | undefined> {
     // Key name kept: app-core's wallet-token provider switch reads it on
     // desktop and native alike.
     VITE_DESKTOP_WALLET_PROVIDER: process.env.EXPO_PUBLIC_WALLET_TOKEN_PROVIDER,
+    VITE_PRIVY_CLIENT_ID: process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID,
     VITE_APP_RUNTIME: 'native',
     MODE: isDevBuild() ? 'development' : 'production',
   };
