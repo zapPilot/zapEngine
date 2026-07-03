@@ -95,6 +95,31 @@ describe('accountService wallet bundle errors', () => {
     });
   });
 
+  it('maps duplicate wallet conflicts to the user-facing bundle message', async () => {
+    accountApi.post.mockRejectedValue({
+      response: {
+        data: { message: 'wallet already exists in this bundle' },
+        status: 409,
+      },
+    });
+
+    await expect(
+      addWalletToBundle(
+        'user-1',
+        '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+        'Primary wallet',
+      ),
+    ).rejects.toMatchObject({
+      message: 'This wallet is already associated with an account.',
+      status: 409,
+    });
+
+    expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
+      label: 'Primary wallet',
+      wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+    });
+  });
+
   it('rejects malformed wallet bundle success responses', async () => {
     accountApi.post.mockResolvedValue({ message: 'Wallet added.' });
 
