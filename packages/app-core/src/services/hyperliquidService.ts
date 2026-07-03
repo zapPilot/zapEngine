@@ -149,7 +149,8 @@ export async function waitForPerpUsdcArrival({
 }): Promise<{ arrivedUsd6: bigint }> {
   const target = baselineUsd6 + expectedUsd6;
   const balance = await pollUntil<PerpUsdcBalance>({
-    fn: () => getPerpUsdcBalance({ user, apiUrl }),
+    fn: () =>
+      getPerpUsdcBalance({ user, apiUrl, ...(signal ? { signal } : {}) }),
     shouldStop: (value) => value.withdrawableUsd6 >= target,
     // The public info API is rate limited — never poll faster than this.
     intervalMs: 6_000,
@@ -185,11 +186,13 @@ export async function submitVaultDeposit({
   vaultAddress,
   usd6,
   isTestnet = false,
+  apiUrl,
 }: {
   walletClient: WalletClient;
   vaultAddress: Address;
   usd6: bigint;
   isTestnet?: boolean;
+  apiUrl?: string;
 }): Promise<void> {
   if (usd6 <= 0n) {
     throw new Error('Vault deposit amount must be positive');
@@ -199,7 +202,10 @@ export async function submitVaultDeposit({
   }
 
   const sdk = await loadSdk();
-  const transport = new sdk.HttpTransport({ isTestnet });
+  const transport = new sdk.HttpTransport({
+    isTestnet,
+    ...(apiUrl ? { apiUrl } : {}),
+  });
   const client = new sdk.ExchangeClient({
     transport,
     wallet: walletClient as never,

@@ -1,5 +1,9 @@
 import { createIntentEngine, LiFiAdapter } from '@zapengine/intent-engine';
-import { ChainSplitSchema } from '@zapengine/types/api';
+import {
+  ChainSplitSchema,
+  HYPERCORE_CHAIN_ID,
+  SUPPORTED_DEPOSIT_CHAINS,
+} from '@zapengine/types/api';
 
 import type { DepositPublicClients } from './publicClients';
 import {
@@ -44,6 +48,21 @@ export function parseDepositDefaultSplit(raw: string): DepositChainSplit {
       `DEPOSIT_DEFAULT_SPLIT is invalid: ${result.error.issues
         .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
         .join('; ')}`,
+    );
+  }
+
+  const supportedSplitChains = new Set<number>([
+    ...Object.values(SUPPORTED_DEPOSIT_CHAINS),
+    HYPERCORE_CHAIN_ID,
+  ]);
+  const unsupportedChainIds = Object.keys(result.data)
+    .map(Number)
+    .filter((chainId) => !supportedSplitChains.has(chainId));
+  if (unsupportedChainIds.length > 0) {
+    throw new Error(
+      `DEPOSIT_DEFAULT_SPLIT contains unsupported chain id(s): ${unsupportedChainIds.join(
+        ', ',
+      )}`,
     );
   }
 

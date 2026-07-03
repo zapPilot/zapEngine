@@ -227,6 +227,7 @@ describe('useDepositWizard', () => {
       vaultAddress: HLP,
       usd6: 29_500_000n,
       isTestnet: false,
+      apiUrl: 'https://api.hyperliquid.xyz',
     });
     expect(result.current.wizard.stage).toBe('done');
     expect(result.current.wizard.hlp.status).toBe('deposited');

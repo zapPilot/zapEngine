@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '../../../test-utils';
 
 const PRIVY_ADDRESS = '0xf8a6b8ce3a6c8F4E5a73600a89aE9A645EAEf940';
+const TX_HASH = `0x${'4'.repeat(64)}`;
 
 const mocks = vi.hoisted(() => {
   const getEthereumProvider = vi.fn();
@@ -218,6 +219,7 @@ describe('usePrivyWalletBackend', () => {
         status: 'submitted',
         transactionId: 'privy-transaction-id',
         caip2: 'eip155:8453',
+        transactionHash: TX_HASH,
       });
     mocks.sendCalls.mockResolvedValue({ id: '0xcalls' });
     mocks.waitForCallsStatus.mockResolvedValue({
@@ -275,6 +277,7 @@ describe('usePrivyWalletBackend', () => {
 
     const execution = await promise;
     expect(execution?.callsId).toBe('privy-transaction-id');
+    expect(execution?.transactionHash).toBe(TX_HASH);
 
     expect(mocks.signPrivyTypedData).toHaveBeenCalledWith(
       passedPreview().typedDataPayload,
@@ -468,6 +471,7 @@ describe('usePrivyWalletBackend', () => {
         status: 'submitted',
         transactionId: 'privy-transaction-id',
         caip2: 'eip155:8453',
+        transactionHash: TX_HASH,
       });
     const { result } = renderHook(() => usePrivyWalletBackend());
 
@@ -625,6 +629,7 @@ describe('usePrivyWalletBackend', () => {
       status: 'submitted';
       transactionId: string;
       caip2: string;
+      transactionHash?: string;
     }>();
     mocks.providerRequest.mockReturnValueOnce(typedDataSignature.promise);
     mocks.generateAuthorizationSignature.mockReturnValueOnce(
@@ -675,11 +680,13 @@ describe('usePrivyWalletBackend', () => {
         status: 'submitted',
         transactionId: 'privy-transaction-id',
         caip2: 'eip155:8453',
+        transactionHash: TX_HASH,
       });
       await confirm;
     });
     await expect(execution).resolves.toEqual({
       callsId: 'privy-transaction-id',
+      transactionHash: TX_HASH,
     });
     expect(result.current.batchExecutionPhase).toBe('idle');
   });

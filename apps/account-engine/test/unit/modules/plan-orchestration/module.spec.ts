@@ -31,4 +31,10 @@ describe('parseDepositDefaultSplit', () => {
       /DEPOSIT_DEFAULT_SPLIT is invalid/,
     );
   });
+
+  it('throws on unsupported chain ids', () => {
+    expect(() => parseDepositDefaultSplit('{"999":0.3,"8453":0.7}')).toThrow(
+      /unsupported chain id\(s\): 999/,
+    );
+  });
 });

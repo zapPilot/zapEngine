@@ -9,7 +9,6 @@ export function ConfigureStep({
   pending: boolean;
 }): ReactElement {
   const [amount, setAmount] = useState('');
-  const [lockAccepted, setLockAccepted] = useState(false);
 
   let parsedAmount: string | null = null;
   try {
@@ -18,7 +17,7 @@ export function ConfigureStep({
     parsedAmount = null;
   }
 
-  const canSubmit = Boolean(parsedAmount) && lockAccepted && !pending;
+  const canSubmit = Boolean(parsedAmount) && !pending;
 
   return (
     <div className="space-y-4" data-testid="wizard-configure-step">
@@ -50,20 +49,6 @@ export function ConfigureStep({
         bridge into your Hyperliquid account. The final HLP deposit is a gasless
         signature once funds arrive.
       </div>
-
-      <label className="flex items-start gap-2 text-sm text-gray-300">
-        <input
-          type="checkbox"
-          data-testid="wizard-lock-checkbox"
-          checked={lockAccepted}
-          onChange={(event) => setLockAccepted(event.target.checked)}
-          className="mt-1"
-        />
-        <span>
-          I understand HLP deposits lock withdrawals for 4 days, and the lock
-          resets with every new deposit.
-        </span>
-      </label>
 
       <button
         type="button"

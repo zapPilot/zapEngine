@@ -241,6 +241,21 @@ describe('submitVaultDeposit', () => {
     expect(sdkMocks.HttpTransport).toHaveBeenCalledWith({ isTestnet: true });
   });
 
+  it('passes an explicit exchange apiUrl to the SDK transport', async () => {
+    await submitVaultDeposit({
+      walletClient,
+      vaultAddress: HLP,
+      usd6: 5_000_000n,
+      apiUrl: 'https://api.hyperliquid-testnet.xyz',
+      isTestnet: true,
+    });
+
+    expect(sdkMocks.HttpTransport).toHaveBeenCalledWith({
+      apiUrl: 'https://api.hyperliquid-testnet.xyz',
+      isTestnet: true,
+    });
+  });
+
   it('rejects non-positive and unsafe amounts before touching the SDK', async () => {
     await expect(
       submitVaultDeposit({ walletClient, vaultAddress: HLP, usd6: 0n }),

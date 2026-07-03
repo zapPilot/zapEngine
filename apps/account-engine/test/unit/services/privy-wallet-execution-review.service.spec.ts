@@ -34,6 +34,7 @@ const FINGERPRINT = `0x${'1'.repeat(64)}` as const;
 const CHANGED_FINGERPRINT = `0x${'2'.repeat(64)}` as const;
 const RISK_HASH = `0x${'3'.repeat(64)}` as const;
 const EMPTY_RISK_HASH = `0x${'4'.repeat(64)}` as const;
+const TX_HASH = `0x${'5'.repeat(64)}` as const;
 
 const batch: PrivyPrepareSendCallsRequest = {
   walletId: 'privy-wallet-id',
@@ -115,6 +116,7 @@ function createClient(): PrivyWalletExecutionClient {
     sendCalls: vi.fn().mockResolvedValue({
       transactionId: 'privy-transaction-id',
       caip2: 'eip155:8453',
+      transactionHash: TX_HASH,
     }),
   };
 }
@@ -234,6 +236,7 @@ describe('PrivyWalletExecutionService review lifecycle', () => {
       status: 'submitted',
       transactionId: 'privy-transaction-id',
       caip2: 'eip155:8453',
+      transactionHash: TX_HASH,
     });
     expect(client.sendCalls).toHaveBeenCalledTimes(1);
   });
@@ -311,6 +314,7 @@ describe('PrivyWalletExecutionService review lifecycle', () => {
       .mockResolvedValueOnce({
         transactionId: 'second-transaction-id',
         caip2: 'eip155:8453',
+        transactionHash: TX_HASH,
       });
     const service = createPrivyWalletExecutionService({
       client,

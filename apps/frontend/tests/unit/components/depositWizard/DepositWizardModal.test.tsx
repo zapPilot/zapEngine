@@ -72,7 +72,7 @@ describe('DepositWizardModal', () => {
     mocks.runHlpDeposit.mockResolvedValue(undefined);
   });
 
-  it('gates the start CTA on a valid amount and the 4-day lock disclosure', () => {
+  it('gates the start CTA on a valid amount', () => {
     mocks.useDepositWizard.mockReturnValue(hookState({}));
     render(<DepositWizardModal isOpen onClose={vi.fn()} />);
 
@@ -82,9 +82,6 @@ describe('DepositWizardModal', () => {
     fireEvent.change(screen.getByTestId('wizard-amount-input'), {
       target: { value: '100' },
     });
-    expect(button).toBeDisabled();
-
-    fireEvent.click(screen.getByTestId('wizard-lock-checkbox'));
     expect(button).toBeEnabled();
 
     fireEvent.click(button);
@@ -161,6 +158,8 @@ describe('DepositWizardModal', () => {
       '29.50 USDC',
     );
     const button = screen.getByTestId('wizard-hlp-button');
+    expect(button).toBeDisabled();
+    fireEvent.click(screen.getByTestId('wizard-hlp-lock-checkbox'));
     expect(button).toBeEnabled();
     fireEvent.click(button);
     expect(mocks.runHlpDeposit).toHaveBeenCalled();

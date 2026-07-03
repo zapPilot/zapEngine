@@ -278,10 +278,12 @@ export function useDepositWizard() {
 
     const userAddress = requireUserAddress(account?.address);
     const usd6 = resolveHlpDepositUsd6(step, wizard.hlp.arrivedUsd6);
+    const signal = abortRef.current?.signal;
     const equityBefore = (await getVaultEquity({
       user: userAddress,
       vaultAddress: step.action.vaultAddress as Address,
       apiUrl: step.signing.apiUrl,
+      ...(signal ? { signal } : {}),
     })) ?? { equityUsd6: 0n };
 
     try {
@@ -294,6 +296,7 @@ export function useDepositWizard() {
         vaultAddress: step.action.vaultAddress as Address,
         usd6,
         isTestnet: step.signing.hyperliquidChain === 'Testnet',
+        apiUrl: step.signing.apiUrl,
       });
 
       const equity = await pollUntil({
@@ -302,12 +305,13 @@ export function useDepositWizard() {
             user: userAddress,
             vaultAddress: step.action.vaultAddress as Address,
             apiUrl: step.signing.apiUrl,
+            ...(signal ? { signal } : {}),
           }),
         shouldStop: (value) =>
           (value?.equityUsd6 ?? 0n) > equityBefore.equityUsd6,
         intervalMs: 4_000,
         timeoutMs: 2 * 60_000,
-        ...(abortRef.current ? { signal: abortRef.current.signal } : {}),
+        ...(signal ? { signal } : {}),
       });
       dispatch({
         type: 'HL_CONFIRMED',

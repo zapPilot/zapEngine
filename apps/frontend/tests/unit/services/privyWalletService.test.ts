@@ -88,6 +88,7 @@ const mockConfirmResponse = {
   status: 'submitted',
   transactionId: 'privy-transaction-id',
   caip2: 'eip155:8453',
+  transactionHash: `0x${'4'.repeat(64)}`,
 };
 
 describe('privyWalletService', () => {
@@ -165,6 +166,7 @@ describe('privyWalletService', () => {
       expect(result).toMatchObject({
         status: 'submitted',
         transactionId: 'privy-transaction-id',
+        transactionHash: `0x${'4'.repeat(64)}`,
       });
     });
 

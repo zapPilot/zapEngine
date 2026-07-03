@@ -43,17 +43,22 @@ export async function getBridgeStatus({
   txHash,
   fromChain,
   toChain,
+  signal,
 }: {
   txHash: Hash;
   fromChain: number;
   toChain: number;
+  signal?: AbortSignal;
 }): Promise<BridgeStatus> {
   const params = new URLSearchParams({
     txHash,
     fromChain: fromChain.toString(),
     toChain: toChain.toString(),
   });
-  const response = await fetch(`https://li.quest/v1/status?${params}`);
+  const response = await fetch(
+    `https://li.quest/v1/status?${params}`,
+    signal ? { signal } : undefined,
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to fetch LI.FI bridge status: ${response.status}`);
@@ -105,7 +110,13 @@ export async function waitForBridgeCompletion({
   onStatus?: (status: BridgeStatus) => void;
 }): Promise<BridgeStatus> {
   const status = await pollUntil<BridgeStatus>({
-    fn: () => getBridgeStatus({ txHash, fromChain, toChain }),
+    fn: () =>
+      getBridgeStatus({
+        txHash,
+        fromChain,
+        toChain,
+        ...(signal ? { signal } : {}),
+      }),
     shouldStop: (value) => TERMINAL_BRIDGE_STATUSES.has(value.status),
     ...(signal ? { signal } : {}),
     onAttempt: (value) => {
