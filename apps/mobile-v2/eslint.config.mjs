@@ -16,6 +16,31 @@ export default defineConfig([
         {
           paths: [
             {
+              name: 'hls.js',
+              message:
+                'hls.js is web-only. Native podcast playback must use expo-audio.',
+            },
+            {
+              name: 'lucide-react',
+              message:
+                'Use lucide-react-native in mobile-v2; lucide-react targets the DOM.',
+            },
+            {
+              name: 'react-dom',
+              message:
+                'react-dom is web-only and must not enter the native app.',
+            },
+            {
+              name: 'react-router-dom',
+              message:
+                'Use expo-router in mobile-v2; react-router-dom targets the DOM.',
+            },
+            {
+              name: 'recharts',
+              message:
+                'Recharts targets the DOM/SVG web stack. Use RN chart primitives instead.',
+            },
+            {
               name: '@zapengine/app-core/hooks',
               message:
                 'Do not import the broad hooks barrel on React Native. Import RN-safe hooks from @zapengine/app-core/hooks/analytics or @zapengine/app-core/hooks/queries instead.',
@@ -24,6 +49,7 @@ export default defineConfig([
           patterns: [
             {
               group: [
+                'react-dom/*',
                 '@zapengine/app-core/hooks/ui',
                 '@zapengine/app-core/hooks/ui/**',
                 '@zapengine/app-core/hooks/bundle',
@@ -53,6 +79,19 @@ export default defineConfig([
                 'Browser-only DOM UX helpers (download links / clipboard) — they throw at runtime on React Native.',
             },
           ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/integration/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "ImportDeclaration[source.value='react-native']",
+          message:
+            'src/integration must stay platform-neutral; keep React Native imports in screens, components, or providers.',
         },
       ],
     },
