@@ -45,11 +45,14 @@ export function ToastProvider({ children }: ToastProviderProps): ReactElement {
   return (
     <ToastContext.Provider value={{ showToast, hideToast }}>
       {children}
-      <View className="pointer-events-none absolute inset-x-0 top-5 z-[80] items-center gap-2 px-5">
+      <View
+        pointerEvents="box-none"
+        className="absolute inset-x-0 top-5 z-[80] items-center gap-2 px-5"
+      >
         {toasts.map((toast) => (
           <Pressable
             key={toast.id}
-            className="pointer-events-auto w-full max-w-[330px] rounded-[16px] bg-[#141416] px-4 py-3 shadow-lg"
+            className="w-full max-w-[330px] rounded-[16px] bg-[#141416] px-4 py-3 shadow-lg"
             style={{
               borderWidth: 1,
               borderColor: toastBorderColor(toast.type),
