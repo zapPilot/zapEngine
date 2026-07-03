@@ -1,6 +1,11 @@
 import { ToastContext } from '@zapengine/app-core/providers/ToastContext';
 import type { Toast } from '@zapengine/app-core/providers/toastTypes';
-import { type ReactElement, type ReactNode, useCallback, useState } from 'react';
+import {
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useState,
+} from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 interface ToastProviderProps {
@@ -16,7 +21,9 @@ function toastTitleColor(type: Toast['type']): string {
 }
 
 function toastBorderColor(type: Toast['type']): string {
-  return type === 'error' ? 'rgba(255,107,107,.42)' : 'rgba(212,197,163,.28)';
+  return type === 'error'
+    ? 'rgba(255,107,107,.42)'
+    : 'rgba(212,197,163,.28)';
 }
 
 export function ToastProvider({ children }: ToastProviderProps): ReactElement {
@@ -43,7 +50,10 @@ export function ToastProvider({ children }: ToastProviderProps): ReactElement {
           <Pressable
             key={toast.id}
             className="pointer-events-auto w-full max-w-[330px] rounded-[16px] bg-[#141416] px-4 py-3 shadow-lg"
-            style={{ borderWidth: 1, borderColor: toastBorderColor(toast.type) }}
+            style={{
+              borderWidth: 1,
+              borderColor: toastBorderColor(toast.type),
+            }}
             onPress={() => hideToast(toast.id)}
           >
             <Text
