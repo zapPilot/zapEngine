@@ -1,3 +1,4 @@
+import { API_ENDPOINTS } from '@zapengine/app-core/lib/http/config';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing } from '../theme';
@@ -16,6 +17,9 @@ export function StatusScreen({
   title,
 }: StatusScreenProps) {
   const isHome = layout === 'home';
+  // Read at render (not module scope) so the env injected at app bootstrap
+  // (configureAppCoreEnv) is honored; also proves app-core resolves via Metro.
+  const accountApiState = API_ENDPOINTS.accountApi ? 'configured' : 'missing';
 
   return (
     <View style={[styles.screen, isHome ? styles.home : styles.centered]}>
@@ -29,6 +33,9 @@ export function StatusScreen({
       <View style={[styles.panel, isHome ? styles.homePanel : styles.notice]}>
         {!isHome && <Text style={styles.noticeTitle}>{title}</Text>}
         <Text style={isHome ? styles.panelTitle : styles.body}>{body}</Text>
+        <Text style={styles.footnote}>
+          Shared app-core · account API {accountApiState}
+        </Text>
       </View>
     </View>
   );
@@ -94,5 +101,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     letterSpacing: 0,
     lineHeight: 22,
+  },
+  footnote: {
+    color: colors.inkDim,
+    fontSize: 12,
+    letterSpacing: 0,
+    lineHeight: 16,
   },
 });

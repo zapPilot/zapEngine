@@ -29,10 +29,22 @@ interface LogEntry {
 }
 
 export class Logger {
-  private config: LogConfig;
+  private config: LogConfig | undefined;
+  private readonly overrides: Partial<LogConfig>;
   private localLogs: LogEntry[] = [];
 
   constructor(config: Partial<LogConfig> = {}) {
+    // Env flags are resolved on first use, not here: the module-level
+    // singleton is constructed at import time, before the host app injects
+    // env via configureAppCoreEnv.
+    this.overrides = config;
+  }
+
+  private ensureConfig(): LogConfig {
+    if (this.config) {
+      return this.config;
+    }
+
     const isProduction = isRuntimeMode('production');
     const isDevelopment = isRuntimeMode('development');
     const enableDebugInProd =
@@ -47,12 +59,14 @@ export class Logger {
       enableDebugInProduction: enableDebugInProd,
       enableDevLogging,
       maxLocalLogs: 1000,
-      ...config,
+      ...this.overrides,
     };
+
+    return this.config;
   }
 
   private shouldLog(level: LogLevel): boolean {
-    return level >= this.config.level;
+    return level >= this.ensureConfig().level;
   }
 
   private createLogEntry(
@@ -98,16 +112,17 @@ export class Logger {
   ): void {
     if (!this.shouldLog(level)) return;
 
+    const config = this.ensureConfig();
     const entry = this.createLogEntry(level, message, data, context, error);
 
     // Store locally
     this.localLogs.push(entry);
-    if (this.localLogs.length > this.config.maxLocalLogs) {
+    if (this.localLogs.length > config.maxLocalLogs) {
       this.localLogs.shift();
     }
 
     // Console output
-    if (this.config.enableConsole) {
+    if (config.enableConsole) {
       const formattedMessage = this.formatLogEntry(entry);
 
       switch (level) {
@@ -155,25 +170,25 @@ export class Logger {
   }
 
   setLevel(level: LogLevel): void {
-    this.config.level = level;
+    this.ensureConfig().level = level;
   }
 
   /**
    * Enable/disable console logging at runtime
    */
   setConsoleLogging(enabled: boolean): void {
-    this.config.enableConsole = enabled;
+    this.ensureConfig().enableConsole = enabled;
   }
 
   /**
    * Get current configuration
    */
   getConfig(): LogConfig {
-    return { ...this.config };
+    return { ...this.ensureConfig() };
   }
 
   getLevel(): LogLevel {
-    return this.config.level;
+    return this.ensureConfig().level;
   }
 
   // Context-aware logging

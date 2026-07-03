@@ -5,7 +5,7 @@ import { invalidateAndRefetch } from '@core/hooks/utils/useQueryInvalidation';
 import { queryKeys } from '@core/lib/state/queryClient';
 import { handleWalletError } from '@core/lib/validation/walletUtils';
 import { useToast } from '@core/providers/ToastContext';
-import { useWalletProvider } from '@core/providers/WalletProvider';
+import { useWalletProvider } from '@core/providers/walletContext';
 import { deleteUser as deleteUserAccount } from '@core/services';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';

@@ -13,9 +13,11 @@ import { httpDelete, httpGet, httpPatch, httpPost, httpPut } from './methods';
 type GetConfig = Omit<HttpRequestConfig, 'method' | 'body'>;
 type MutateConfig = Omit<HttpRequestConfig, 'method'>;
 
-function createServiceHttpClient(baseURL: string) {
+// Base URLs are resolved per request (not captured at module scope) so the
+// env injected at app bootstrap (configureAppCoreEnv) is honored.
+function createServiceHttpClient(resolveBaseURL: () => string) {
   const withBase = <C extends GetConfig | MutateConfig>(config?: C): C =>
-    ({ ...config, baseURL }) as C;
+    ({ ...config, baseURL: resolveBaseURL() }) as C;
 
   const query =
     (fn: typeof httpGet) =>
@@ -49,15 +51,15 @@ export const httpUtils = {
   /**
    * Analytics Engine API utilities
    */
-  analyticsEngine: createServiceHttpClient(API_ENDPOINTS.analyticsEngine),
+  analyticsEngine: createServiceHttpClient(() => API_ENDPOINTS.analyticsEngine),
 
   /**
    * Account API utilities
    */
-  accountApi: createServiceHttpClient(API_ENDPOINTS.accountApi),
+  accountApi: createServiceHttpClient(() => API_ENDPOINTS.accountApi),
 
   /**
    * DeBank Open API utilities
    */
-  debank: createServiceHttpClient(API_ENDPOINTS.debank),
+  debank: createServiceHttpClient(() => API_ENDPOINTS.debank),
 } as const;

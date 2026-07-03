@@ -27,12 +27,14 @@
         "dist/**",
         ".next/**",
         "out/**",
-        "build/**"
+        "build/**",
+        "src/generated/**"
       ],
       "inputs": [
         "$TURBO_DEFAULT$",
         ".env*",
-        "!**/*.md"
+        "!**/*.md",
+        "!src/generated/**"
       ],
       "env": [
         "NEXT_PUBLIC_*",
@@ -58,11 +60,13 @@
     "codegen": {
       "inputs": [
         "$TURBO_DEFAULT$",
-        "tokens.json"
+        "tokens.json",
+        "!src/generated/**"
       ],
       "outputs": [
         "dist/**",
-        "lib/design_tokens.dart"
+        "lib/design_tokens.dart",
+        "src/generated/**"
       ]
     },
     "codegen:css": {
@@ -82,6 +86,16 @@
       "outputs": [
         "dist/flutter/design_tokens.dart",
         "lib/design_tokens.dart"
+      ]
+    },
+    "codegen:ts": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tokens.json",
+        "!src/generated/**"
+      ],
+      "outputs": [
+        "src/generated/**"
       ]
     },
     "dev": {

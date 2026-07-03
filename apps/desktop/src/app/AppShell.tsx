@@ -14,13 +14,12 @@ import { useAccount } from '@/integration/useAccount';
 export function AppShell() {
   const { pathname } = useLocation();
   const { isConnected } = useAccount();
-  // Podcast needs no wallet: keep it (and the tab bar) reachable pre-connect
-  // so the daily-listening loop works without signing in.
+  // Podcast needs no wallet: the tab bar stays visible pre-connect (the
+  // packaged app has no address bar) so the daily-listening loop works
+  // without signing in; wallet tabs show the connect gate instead.
   const isPublicRoute = pathname.startsWith('/podcast');
   const hideTabBar =
-    pathname.startsWith('/invest') ||
-    pathname.startsWith('/send') ||
-    (!isConnected && !isPublicRoute);
+    pathname.startsWith('/invest') || pathname.startsWith('/send');
 
   return (
     <PhoneFrame>

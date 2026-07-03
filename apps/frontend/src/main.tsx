@@ -1,3 +1,6 @@
+// Must stay the first import: injects env into app-core before any of its
+// modules evaluate.
+import './bootstrap/appCoreEnv';
 import './app/globals.css';
 
 import { isDesktopRuntime } from '@zapengine/app-core/lib/env/runtimeEnv';

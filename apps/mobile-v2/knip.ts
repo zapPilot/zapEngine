@@ -16,6 +16,13 @@ export default defineKnipConfig({
   ignoreDependencies: [
     '@expo/metro-config',
     '@privy-io/expo-native-extensions',
+    // Workspace packages imported only via subpath exports (dist); knip cannot
+    // map those back to the dependency, so it false-positives them as unused.
+    '@zapengine/app-core',
+    '@zapengine/design-tokens',
+    // Not imported directly, but app-core's public .d.ts surface references it
+    // and pnpm's strict node_modules needs it declared to resolve.
+    '@zapengine/types',
     'expo-apple-authentication',
     'expo-application',
     'expo-crypto',

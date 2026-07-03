@@ -2,7 +2,7 @@ type EnvValue = string | boolean | undefined;
 
 type EnvRecord = Record<string, EnvValue>;
 
-export type AppRuntime = 'web' | 'desktop';
+export type AppRuntime = 'web' | 'desktop' | 'native';
 
 const MODE_ALIASES = {
   development: 'development',
@@ -12,10 +12,28 @@ const MODE_ALIASES = {
 
 const DEFAULT_APP_RUNTIME: AppRuntime = 'web';
 const APP_RUNTIME_ENV_KEY = 'VITE_APP_RUNTIME';
-const APP_RUNTIMES = new Set<AppRuntime>(['web', 'desktop']);
+const APP_RUNTIMES = new Set<AppRuntime>(['web', 'desktop', 'native']);
 
-function readImportMetaEnv(key: string): EnvValue {
-  return (import.meta.env as EnvRecord | undefined)?.[key];
+// Injected by the host app at bootstrap. This package must stay free of
+// Vite-specific globals so it loads on any platform (web, desktop, native, Node).
+let injectedEnv: EnvRecord | undefined;
+
+/**
+ * Inject the environment map app-core reads from.
+ *
+ * Call once at app bootstrap, before any other app-core module evaluates:
+ * Vite apps pass their build-time env object (see `src/bootstrap/appCoreEnv.ts`
+ * in frontend/desktop); native runtimes pass an explicit literal map
+ * (including `MODE`).
+ *
+ * @param source - Environment map to read from.
+ */
+export function configureAppCoreEnv(source: EnvRecord): void {
+  injectedEnv = source;
+}
+
+function readInjectedEnv(key: string): EnvValue {
+  return injectedEnv?.[key];
 }
 
 function readProcessEnv(key: string): EnvValue {
@@ -29,7 +47,8 @@ function readProcessEnv(key: string): EnvValue {
 /**
  * Read a runtime environment variable.
  *
- * Checks `import.meta.env` first (Vite client), then `process.env` (Node/test).
+ * Checks the injected env first (see {@link configureAppCoreEnv}), then
+ * `process.env` (Node/test).
  *
  * @param key - Environment variable name to read (use the `VITE_` prefix).
  * @returns The string value, if present.
@@ -40,9 +59,9 @@ function readProcessEnv(key: string): EnvValue {
  * ```
  */
 export function getRuntimeEnv(key: string): string | undefined {
-  const importMetaValue = readImportMetaEnv(key);
-  if (typeof importMetaValue === 'string') {
-    return importMetaValue;
+  const injectedValue = readInjectedEnv(key);
+  if (typeof injectedValue === 'string') {
+    return injectedValue;
   }
 
   const processValue = readProcessEnv(key);
@@ -71,9 +90,9 @@ function getRuntimeMode(): string {
     return processMode;
   }
 
-  const importMetaMode = readImportMetaEnv('MODE');
-  if (typeof importMetaMode === 'string' && importMetaMode.length > 0) {
-    return importMetaMode;
+  const injectedMode = readInjectedEnv('MODE');
+  if (typeof injectedMode === 'string' && injectedMode.length > 0) {
+    return injectedMode;
   }
 
   return MODE_ALIASES.development;

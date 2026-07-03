@@ -6,18 +6,25 @@
 import { getRuntimeEnv, isRuntimeMode } from '@core/lib/env/runtimeEnv';
 
 // API endpoints configuration
+// Lazy accessors: env is injected at app bootstrap (configureAppCoreEnv), so
+// reads must happen after module load, not at it.
 export const API_ENDPOINTS = {
-  analyticsEngine: getRuntimeEnv('VITE_ANALYTICS_ENGINE_URL') || '',
-  accountApi: getRuntimeEnv('VITE_ACCOUNT_API_URL') || '',
+  get analyticsEngine(): string {
+    return getRuntimeEnv('VITE_ANALYTICS_ENGINE_URL') || '';
+  },
+  get accountApi(): string {
+    return getRuntimeEnv('VITE_ACCOUNT_API_URL') || '';
+  },
   debank: 'https://pro-openapi.debank.com/v1',
 } as const;
 
 // Default configuration
 // Updated for analytics endpoints: longer timeout, fewer retries to reduce cancelled request spam
-const DEFAULT_TIMEOUT_MS = isRuntimeMode('production') ? 30000 : 15000;
-
 export const HTTP_CONFIG = {
-  timeout: DEFAULT_TIMEOUT_MS, // Shorter in dev/test to avoid hanging requests
+  // Shorter in dev/test to avoid hanging requests; lazy for the same reason as above
+  get timeout(): number {
+    return isRuntimeMode('production') ? 30000 : 15000;
+  },
   retries: 1, // Only retry once to avoid request storms (was 3)
   retryDelay: 2000, // 2s delay before retry (was 1s)
 } as const;

@@ -26,6 +26,12 @@ vi.mock('@zapengine/app-core/providers/ToastContext', () => ({
   useToast: () => ({ showToast: hoisted.mockShowToast }),
 }));
 
+// Hooks resolve useWalletProvider from walletContext; reuse the
+// WalletProvider mock above (module registry returns the mocked module).
+vi.mock(
+  '@zapengine/app-core/providers/walletContext',
+  () => import('@zapengine/app-core/providers/WalletProvider'),
+);
 vi.mock('@zapengine/app-core/providers/WalletProvider', () => ({
   useWalletProvider: () => ({
     disconnect: hoisted.mockDisconnect,

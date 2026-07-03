@@ -1,5 +1,4 @@
 import type { RegimeAllocationBreakdown } from '@core/types/domain/allocation';
-import { type LucideIcon, Pause, TrendingDown, TrendingUp } from 'lucide-react';
 
 /**
  * Color Convention Note (2026-04-28):
@@ -80,8 +79,6 @@ export interface Regime {
     badge: string;
     /** Tailwind gradient classes for visual elements */
     gradient: string;
-    /** Lucide icon component for regime representation */
-    icon: LucideIcon;
   };
   strategies:
     | {
@@ -104,7 +101,6 @@ export const regimes: Regime[] = [
     visual: {
       badge: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
       gradient: 'from-emerald-400 to-green-500',
-      icon: TrendingDown,
     },
     strategies: {
       default: {
@@ -129,7 +125,6 @@ export const regimes: Regime[] = [
     visual: {
       badge: 'bg-green-500/20 text-green-400 border-green-500/30',
       gradient: 'from-green-400 to-teal-500',
-      icon: TrendingDown,
     },
     strategies: {
       fromLeft: {
@@ -167,7 +162,6 @@ export const regimes: Regime[] = [
     visual: {
       badge: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
       gradient: 'from-yellow-400 to-amber-500',
-      icon: Pause,
     },
     strategies: {
       default: {
@@ -193,7 +187,6 @@ export const regimes: Regime[] = [
     visual: {
       badge: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
       gradient: 'from-orange-400 to-red-500',
-      icon: TrendingUp,
     },
     strategies: {
       fromLeft: {
@@ -230,7 +223,6 @@ export const regimes: Regime[] = [
     visual: {
       badge: 'bg-red-500/20 text-red-400 border-red-500/30',
       gradient: 'from-red-400 to-orange-500',
-      icon: TrendingUp,
     },
     strategies: {
       default: {
