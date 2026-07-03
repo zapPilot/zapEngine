@@ -13,7 +13,8 @@ globals (`window`, `document`), no `import.meta`, and no web-only libraries
 including patterns that ban importing web-only _internal_ modules from RN-safe
 code — / `no-restricted-syntax`, with a `WEB_ONLY_FILES` exemption list that
 also covers the barrels re-exporting web-only modules: `hooks`, `hooks/wallet`,
-`hooks/bundle`, `services`, `utils`).
+`hooks/bundle`, `utils` — the `services` barrel is RN-safe; import
+`services/analyticsExportService` via its deep path on web).
 
 | Subpath                                                                                                                                                                                                                                                                                                                                     | Status   | RN-safe alternative                                                                               |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------- |
