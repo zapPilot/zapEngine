@@ -7,7 +7,7 @@ function isDevBuild(): boolean {
 
 /**
  * Env map injected into app-core. Keys keep the `VITE_` prefix app-core reads;
- * values must stay literal `process.env.EXPO_PUBLIC_*` member accesses so
+ * values must stay as-is (literal EXPO_PUBLIC_* key accesses) so
  * babel-preset-expo can inline them at bundle time.
  */
 export function buildAppCoreEnvSource(): Record<string, string | undefined> {
