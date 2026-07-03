@@ -22,8 +22,12 @@ vi.mock('../../src/utils/logger', () => ({
   },
 }));
 
-const { AccountServiceError, addWalletToBundle, triggerWalletDataFetch } =
-  await import('../../src/services/accountService');
+const {
+  AccountServiceError,
+  addWalletToBundle,
+  removeWalletFromBundle,
+  triggerWalletDataFetch,
+} = await import('../../src/services/accountService');
 
 describe('accountService wallet fetch trigger', () => {
   beforeEach(() => {
@@ -187,5 +191,33 @@ describe('accountService wallet bundle errors', () => {
       label: 'Primary wallet',
       wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
     });
+  });
+});
+
+describe('accountService wallet bundle removal errors', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('preserves unauthorized remove wallet failures as AccountServiceError details', async () => {
+    accountApi.delete.mockRejectedValue({
+      code: 'UNAUTHORIZED',
+      response: {
+        data: { message: 'Unauthorized wallet bundle access.' },
+        status: 401,
+      },
+    });
+
+    await expect(
+      removeWalletFromBundle('user-1', 'wallet-1'),
+    ).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+      message: 'Unauthorized wallet bundle access.',
+      status: 401,
+    });
+
+    expect(accountApi.delete).toHaveBeenCalledWith(
+      '/users/user-1/wallets/wallet-1',
+    );
   });
 });
