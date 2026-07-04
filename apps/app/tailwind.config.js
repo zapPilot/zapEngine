@@ -6,6 +6,7 @@ const t = require('@zapengine/design-tokens/tokens.json');
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: 'class',
   content: ['./src/**/*.{ts,tsx}'],
   presets: [require('nativewind/preset')],
   theme: {
