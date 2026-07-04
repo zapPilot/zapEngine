@@ -53,11 +53,6 @@ If CI is green but you see TS2307 locally, you almost certainly skipped
 
 ## Mechanism B — ESM / CJS interop crash (the hard one)
 
-> **If this is `@zapengine/frontend` `test:ci` / `test:coverage` (Vitest +
-> jsdom), `frontend-test-ci-debugging` is authoritative — read it first.** It
-> owns the pool / `window.location` / sharded-coverage specifics that are out of
-> scope here. This skill is the general mechanism for any package.
-
 `SyntaxError: Unexpected token 'export'` at **module load**, from a transitive
 node_modules dep (e.g. `uuid@14` ESM-only, reached via
 `@lifi/sdk → @solana/web3.js → jayson → require('uuid')`). **Tell:** `vite build`
@@ -67,7 +62,7 @@ node_modules dep (e.g. `uuid@14` ESM-only, reached via
 
 You will want to add the dep to **`server.deps.inline`** / **`ssr.noExternal`**,
 flip **`pool`**, alias it to a CJS dist path, or pin it back. **For a dep that is
-transitively `require()`d inside an *externalized* node_modules package, none of
+transitively `require()`d inside an _externalized_ node_modules package, none of
 these reach it:**
 
 - `inline` / `alias` / `vi.mock` only intercept imports made from
@@ -144,7 +139,7 @@ run time. CI (Node 24) is authoritative.
 1. **Reproduce the single failing unit in isolation** (one file / one package),
    not the whole suite.
 2. **Classify: config knob or source problem?** Config knobs only affect modules
-   the tool *transforms*; externalized deps bypass them. If `vite build` passes
+   the tool _transforms_; externalized deps bypass them. If `vite build` passes
    but the runner crashes, it's a runner-externalization issue, not your code.
 3. **Trace from the crashing leaf upward** to the first eager evaluation.
 4. **Decide:** root-fix (edit the pulling package) > boundary-mock > build-only
@@ -154,14 +149,14 @@ run time. CI (Node 24) is authoritative.
 
 ## Rationalizations — STOP
 
-| Excuse | Reality |
-| --- | --- |
+| Excuse                                                                            | Reality                                                                                                                              |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | "`vite build` passes, so the code is fine — it's just a vitest knob I'm missing." | Build ≠ test. The runner externalizes & `require()`s; build bundles statically. The knob won't reach an externalized transitive dep. |
-| "The error names `uuid`, so handle `uuid` and the chain resolves." | The whole chain is ESM. Inline one and the crash moves up. Fix the eager import at the source. |
-| "It's ESM-only → put it in `ssr.noExternal` / `deps.inline`." | No effect on a dep `require()`d inside an already-externalized package. |
-| "It's probably a pool / worker isolation quirk — flip `pool`." | It's a module-format transform issue, not isolation. |
-| "Pin `uuid` back to a CJS version via a pnpm override." | Fights the ecosystem and rots. Defer the import instead. |
-| "TS2307 means my import path is wrong." | Usually stale `dist`. Run via turbo (`^build`) or rebuild the package first. |
+| "The error names `uuid`, so handle `uuid` and the chain resolves."                | The whole chain is ESM. Inline one and the crash moves up. Fix the eager import at the source.                                       |
+| "It's ESM-only → put it in `ssr.noExternal` / `deps.inline`."                     | No effect on a dep `require()`d inside an already-externalized package.                                                              |
+| "It's probably a pool / worker isolation quirk — flip `pool`."                    | It's a module-format transform issue, not isolation.                                                                                 |
+| "Pin `uuid` back to a CJS version via a pnpm override."                           | Fights the ecosystem and rots. Defer the import instead.                                                                             |
+| "TS2307 means my import path is wrong."                                           | Usually stale `dist`. Run via turbo (`^build`) or rebuild the package first.                                                         |
 
 ## Don't
 

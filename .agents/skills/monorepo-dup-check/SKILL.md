@@ -6,7 +6,7 @@ description: >-
   touch (a time-boxed duplicate "quarantine" expired), or you're deciding whether
   to merge a clone, jscpd:ignore it, or extract a shared helper. Recurring
   "fixCI: dedupe" / "clear dup-debt to pass dup:check" / "eliminate jscpd clones"
-  task, both TS (frontend/account-engine/landing-page) and Python
+  task, both TS (app/account-engine/landing-page) and Python
   (analytics-engine). Symptoms: bumping the jscpd threshold to pass, copy-pasting
   then re-quarantining, "the gate failed but I didn't change that file".
 ---
@@ -37,7 +37,7 @@ irreducible and here's why."
 ## What the gate runs
 
 `turbo run dup:check` → each workspace's `dup:check` =
-`node scripts/lint/run-jscpd.mjs <dir>` (frontend/mobile `lib`, analytics-engine
+`node scripts/lint/run-jscpd.mjs <dir>` (app `src`, analytics-engine
 & others `src`). The runner merges a shared root config with a **local
 `.jscpd.json`** that may only set `ignore`, `ignorePattern`, `format`, `$schema`
 (other keys are rejected — threshold etc. are centralized). It passes when the
@@ -51,7 +51,7 @@ That's what to act on.
 - **Real clone** — the same logic/algorithm copy-pasted (e.g. a rolling-window
   DMA computation in two services, two strategies sharing a recommendation
   builder). → extract a shared function.
-- **Irreducible by design** — identical *signatures* that can't be merged without
+- **Irreducible by design** — identical _signatures_ that can't be merged without
   hurting clarity: an overridden method signature, a `BaseWriter` subclass shape,
   parallel test fixtures. → ignore with a reason.
 
@@ -90,13 +90,13 @@ pnpm --filter @zapengine/<pkg> run dup:check     # one workspace
 
 ## Rationalizations — STOP
 
-| Excuse | Reality |
-| --- | --- |
-| "Raise the `threshold` so the duplication passes." | That's hiding copy-paste, not removing it. Threshold is centralized in the shared config — local `.jscpd.json` can't even set it. |
-| "The gate failed but I didn't change that file — it's flaky." | Not flaky: a time-boxed ignore (quarantine) expired. Merge the clones it was covering. |
-| "Re-add the dated ignore and move on." | Re-quarantining defeats the deadline. Eliminate the duplication, or make it an explicit team decision. |
-| "Copy-paste now, I'll dedupe later." | The gate fails immediately on the new clone. Extract the shared helper as you write it. |
-| "jscpd:ignore everything that trips it." | Only intentional, irreducible duplication gets ignored — with a stated reason. Real clones get merged. |
+| Excuse                                                        | Reality                                                                                                                           |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| "Raise the `threshold` so the duplication passes."            | That's hiding copy-paste, not removing it. Threshold is centralized in the shared config — local `.jscpd.json` can't even set it. |
+| "The gate failed but I didn't change that file — it's flaky." | Not flaky: a time-boxed ignore (quarantine) expired. Merge the clones it was covering.                                            |
+| "Re-add the dated ignore and move on."                        | Re-quarantining defeats the deadline. Eliminate the duplication, or make it an explicit team decision.                            |
+| "Copy-paste now, I'll dedupe later."                          | The gate fails immediately on the new clone. Extract the shared helper as you write it.                                           |
+| "jscpd:ignore everything that trips it."                      | Only intentional, irreducible duplication gets ignored — with a stated reason. Real clones get merged.                            |
 
 ## Verification
 

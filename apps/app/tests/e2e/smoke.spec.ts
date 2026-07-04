@@ -48,7 +48,9 @@ test('renders the web app shell and primary routes without page errors', async (
   for (const tab of TAB_EXPECTATIONS) {
     await page.getByText(tab.label, { exact: true }).click();
     await expect(page).toHaveURL(tab.url);
-    await expect(page.getByText(tab.text, { exact: false })).toBeVisible();
+    await expect(
+      page.getByText(tab.text, { exact: true }).first(),
+    ).toBeVisible();
   }
 
   await page.goto('/send?token=USDC');

@@ -33,9 +33,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'node scripts/serve-web.mjs --port 3100 --build',
+    command: `node scripts/serve-web.mjs --port ${PORT} --build`,
     url: BASE_URL,
     reuseExistingServer: !process.env['CI'],
+    timeout: 180 * 1000,
     env: {
       EXPO_PUBLIC_PRIVY_APP_ID: PRIVY_PLACEHOLDER,
       EXPO_PUBLIC_PRIVY_CLIENT_ID: PRIVY_CLIENT_PLACEHOLDER,

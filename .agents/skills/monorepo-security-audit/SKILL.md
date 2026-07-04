@@ -15,7 +15,7 @@ description: >-
 
 ## Where the error already is
 
-**Not in `.ai-verify`.** The audit is a *separate* gate, **not** in `verify
+**Not in `.ai-verify`.** The audit is a _separate_ gate, **not** in `verify
 parallel`'s `result.json` / `logs/`. The entry point is the `pnpm security audit
 core` output itself — npm prints `GHSA-…` + "Patched in"; pip-audit prints the
 PyPI advisory + fixed version. See below.
@@ -35,10 +35,10 @@ threshold.
 
 `pnpm security audit core` =
 `pnpm audit --audit-level=moderate` (root workspace tree) **+**
-`turbo run security:audit --filter=!@zapengine/mobile`, where each app's
+`turbo run security:audit`, where each app's
 `security:audit` is:
 
-- JS apps (frontend, account-engine, alpha-etl, podcast-pipeline, landing-page):
+- JS apps (app, desktop, account-engine, alpha-etl, podcast-pipeline, landing-page):
   `pnpm audit --prod --audit-level=moderate`
 - analytics-engine: `uv export --locked … | uvx pip-audit` (Python advisories)
 - mobile: `flutter pub deps` (excluded by `:core`)
@@ -92,14 +92,14 @@ pnpm security audit core
 
 ## Rationalizations — STOP
 
-| Excuse | Reality |
-| --- | --- |
-| "Bump `--audit-level` to high so the moderate advisory stops failing." | That's hiding the vuln, not fixing it. `scripts/verify-*.sh` and the audit scripts are protected — edits get reverted. |
-| "Edit pnpm-lock.yaml / uv.lock directly to the patched version." | Lockfiles are generated. Add an override / catalog bump / pyproject constraint and let `pnpm install` / `uv lock` regenerate. |
-| "`verify ci` passed, so the dependencies are fine." | `security audit core` is a separate gate, not in `verify ci`. Run it. |
-| "Pin the dep *back* to the old version that built fine." | The old version is the vulnerable one. Move the floor forward to the patched release. |
-| "It's only transitive, not something we import." | A moderate+ advisory still fails the gate. Override the transitive range to the patched floor. |
-| "Web3 app — a vuln in a wallet/SDK dep is someone else's problem." | This repo guards user funds; a transitive RCE/DoS is exactly what the gate exists to catch. Patch it. |
+| Excuse                                                                 | Reality                                                                                                                       |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| "Bump `--audit-level` to high so the moderate advisory stops failing." | That's hiding the vuln, not fixing it. `scripts/verify-*.sh` and the audit scripts are protected — edits get reverted.        |
+| "Edit pnpm-lock.yaml / uv.lock directly to the patched version."       | Lockfiles are generated. Add an override / catalog bump / pyproject constraint and let `pnpm install` / `uv lock` regenerate. |
+| "`verify ci` passed, so the dependencies are fine."                    | `security audit core` is a separate gate, not in `verify ci`. Run it.                                                         |
+| "Pin the dep _back_ to the old version that built fine."               | The old version is the vulnerable one. Move the floor forward to the patched release.                                         |
+| "It's only transitive, not something we import."                       | A moderate+ advisory still fails the gate. Override the transitive range to the patched floor.                                |
+| "Web3 app — a vuln in a wallet/SDK dep is someone else's problem."     | This repo guards user funds; a transitive RCE/DoS is exactly what the gate exists to catch. Patch it.                         |
 
 ## Verification
 

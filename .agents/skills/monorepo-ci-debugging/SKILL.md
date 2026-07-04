@@ -27,13 +27,12 @@ This table is the single source of truth for CI-job ↔ local parity (root
 CLAUDE.md intentionally defers here). If it drifts from
 `.github/workflows/ci.yml`, the workflow wins — update this table.
 
-| GitHub job | What it does | Local parity |
-| --- | --- | --- |
-| `lint-test` | install → build core → `pnpm run verify ci` → `pnpm run security audit core` | `pnpm build core && pnpm verify ci && pnpm security audit core` |
-| `coverage` | self-test coverage scripts → workspace `test:coverage` summary | copy the exact command from `.github/workflows/ci.yml`; currently `pnpm turbo run test:coverage --filter='!@zapengine/mobile' --filter='!@zapengine/desktop' && pnpm exec tsx scripts/coverage-summary.ts` |
-| `check-dead-env` | env var drift check | `pnpm lint dead-env` |
-| `mobile` / `mobile-gates` | mobile-only gates when mobile paths changed | mobile-specific, only when `apps/mobile` changed |
-| `verify-fly-docker` | Docker verify when deploy/Docker paths changed | app-specific Docker verify |
+| GitHub job          | What it does                                                                 | Local parity                                                                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lint-test`         | install → build core → `pnpm run verify ci` → `pnpm run security audit core` | `pnpm build core && pnpm verify ci && pnpm security audit core`                                                                               |
+| `coverage`          | self-test coverage scripts → workspace `test:coverage` summary               | copy the exact command from `.github/workflows/ci.yml`; currently `pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts` |
+| `check-dead-env`    | env var drift check                                                          | `pnpm lint dead-env`                                                                                                                          |
+| `verify-fly-docker` | Docker verify when deploy/Docker paths changed                               | app-specific Docker verify                                                                                                                    |
 
 `pnpm verify ci` / `pnpm verify parallel` reproduce only the core `lint-test`
 checks, not `coverage`, `check-dead-env`, mobile, or Docker. A green core gate is
@@ -50,9 +49,9 @@ not the same as a green PR.
      the full gate just to recreate the summary.
 2. **Reproduce the smallest faithful unit.** Examples:
    - one workspace task: `pnpm turbo run <task> --filter=@zapengine/<workspace>`
-   - one frontend unit file: `cd apps/frontend && pnpm exec vitest run <file>`
-   - one frontend coverage file: `cd apps/frontend && pnpm exec vitest run --coverage --coverage.processingConcurrency=1 <file>`
-   - one Playwright spec: `cd apps/frontend && PLAYWRIGHT_PORT=3099 pnpm exec playwright test <spec>`
+   - one app unit file: `cd apps/app && pnpm exec vitest run <file>`
+   - one app coverage file: `cd apps/app && pnpm exec vitest run --coverage <file>`
+   - one Playwright spec: `cd apps/app && PLAYWRIGHT_PORT=3100 pnpm exec playwright test <spec>`
    - repository check: `pnpm lint repo`, `pnpm contracts check`, or `pnpm lint dead-env`
 3. **Fix the root cause and rerun that same narrow command.** Do not widen while
    the original failure is still red.
@@ -97,7 +96,7 @@ workspace you changed is the workspace that failed.
 
 **The cascade pattern to expect:** app code change + root file edit → core gates
 expose type/test/deadcode/dup issues in the app → pre-existing debt surfaces in
-*other* workspaces → the separate coverage job fails on a workspace you never
+_other_ workspaces → the separate coverage job fails on a workspace you never
 touched → a final format commit is needed after adding tests. Once the first
 gate is fixed, immediately enumerate both core and separate jobs instead of
 assuming the original app is the only blast radius.
@@ -120,29 +119,29 @@ reference in the app source.
 
 ## Triage: classify the failure → where to go
 
-| Failing job / symptom | Bucket | Action |
-| --- | --- | --- |
-| `type-check` TS error | type error | fix the type inline |
-| TS2307 `cannot find module @scope/pkg` | stale dist / build order | rebuild via turbo → **monorepo-build-import-errors** |
-| `deadcode` / knip unused exports/deps | deadcode | remove, expose only if a test/public entry truly needs it, or knip-ignore a build-only shim with a reason |
-| `dup:check` / jscpd clone | duplication | merge the clone, or `jscpd:ignore` an intentional one → **monorepo-dup-check** |
-| `lint` / `format` would change | format | run the workspace formatter; final test additions often need a formatting commit |
-| `coverage` job / workspace absolute floor | coverage | **monorepo-coverage-gate**; start from the failed workspace line |
-| `check-dead-env` | env drift | `pnpm lint dead-env`; update `.env.example` only for real env references |
-| analytics-engine Python format/mypy/contracts | python | **analytics-engine-ci-debugging** |
-| security audit | vulnerable dep | **monorepo-security-audit** |
-| desktop/Tauri-specific checks | desktop | **desktop-ci-debugging** |
+| Failing job / symptom                         | Bucket                   | Action                                                                                                    |
+| --------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `type-check` TS error                         | type error               | fix the type inline                                                                                       |
+| TS2307 `cannot find module @scope/pkg`        | stale dist / build order | rebuild via turbo → **monorepo-build-import-errors**                                                      |
+| `deadcode` / knip unused exports/deps         | deadcode                 | remove, expose only if a test/public entry truly needs it, or knip-ignore a build-only shim with a reason |
+| `dup:check` / jscpd clone                     | duplication              | merge the clone, or `jscpd:ignore` an intentional one → **monorepo-dup-check**                            |
+| `lint` / `format` would change                | format                   | run the workspace formatter; final test additions often need a formatting commit                          |
+| `coverage` job / workspace absolute floor     | coverage                 | **monorepo-coverage-gate**; start from the failed workspace line                                          |
+| `check-dead-env`                              | env drift                | `pnpm lint dead-env`; update `.env.example` only for real env references                                  |
+| analytics-engine Python format/mypy/contracts | python                   | **analytics-engine-ci-debugging**                                                                         |
+| security audit                                | vulnerable dep           | **monorepo-security-audit**                                                                               |
+| desktop/Tauri-specific checks                 | desktop                  | **desktop-ci-debugging**                                                                                  |
 
 ## Rationalizations — STOP
 
-| Excuse | Reality |
-| --- | --- |
-| "CI named one test, so fixing that test completes the goal." | The gate stops at the first failure. Rerun narrow, then widen. |
-| "`verify ci` passed, so the PR is green." | `coverage`, `check-dead-env`, mobile, and Docker are separate jobs. |
-| "I'll push and let CI tell me the next failure." | That is exactly the slow round-trip cascade. Read all red jobs and fix the batch. |
-| "The next failure is unrelated." | It may be latent debt exposed by cache invalidation or a separate job. Still fix or explicitly scope it. |
-| "The PR touched app X, so the coverage failure must be app X." | Coverage may exclude that app entirely. Read `Failed: @zapengine/<workspace>#test:coverage`. |
-| "Local `pnpm coverage check` is always CI parity." | Not necessarily. Copy the exact workflow command and filters first. |
+| Excuse                                                         | Reality                                                                                                  |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| "CI named one test, so fixing that test completes the goal."   | The gate stops at the first failure. Rerun narrow, then widen.                                           |
+| "`verify ci` passed, so the PR is green."                      | `coverage`, `check-dead-env`, mobile, and Docker are separate jobs.                                      |
+| "I'll push and let CI tell me the next failure."               | That is exactly the slow round-trip cascade. Read all red jobs and fix the batch.                        |
+| "The next failure is unrelated."                               | It may be latent debt exposed by cache invalidation or a separate job. Still fix or explicitly scope it. |
+| "The PR touched app X, so the coverage failure must be app X." | Coverage may exclude that app entirely. Read `Failed: @zapengine/<workspace>#test:coverage`.             |
+| "Local `pnpm coverage check` is always CI parity."             | Not necessarily. Copy the exact workflow command and filters first.                                      |
 
 ## Verification before handoff
 
@@ -154,7 +153,7 @@ pnpm security audit core
 
 # Separate jobs touched by the change
 pnpm lint dead-env
-pnpm turbo run test:coverage --filter='!@zapengine/mobile' --filter='!@zapengine/desktop'
+pnpm turbo run test:coverage
 pnpm exec tsx scripts/coverage-summary.ts
 ```
 

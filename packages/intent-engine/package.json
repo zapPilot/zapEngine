@@ -29,7 +29,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch",
+    "dev": "tsc --watch --preserveWatchOutput",
     "clean": "rm -rf dist",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"examples/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"examples/**/*.ts\"",

@@ -184,6 +184,77 @@ teardown() {
     rm -f "$test_dump"
 }
 
+@test "REGRESSION: managed container port check accepts configured host port" {
+    source "$TEST_SCRIPT"
+    export POSTGRES_CONTAINER="analytics-test-postgres"
+    export POSTGRES_PORT=5435
+
+    docker() {
+        if [[ "$1" == "port" ]]; then
+            printf '0.0.0.0:5435\n[::]:5435\n'
+        fi
+    }
+
+    container_publishes_expected_port
+}
+
+@test "REGRESSION: managed container port check rejects stale host port" {
+    source "$TEST_SCRIPT"
+    export POSTGRES_CONTAINER="analytics-test-postgres"
+    export POSTGRES_PORT=5435
+
+    docker() {
+        if [[ "$1" == "port" ]]; then
+            printf '0.0.0.0:5433\n[::]:5433\n'
+        fi
+    }
+
+    ! container_publishes_expected_port
+}
+
+@test "REGRESSION: start_postgres recreates stale named container before exporting localhost port" {
+    source "$TEST_SCRIPT"
+    export POSTGRES_CONTAINER="analytics-test-postgres"
+    export POSTGRES_PORT=5435
+    export POSTGRES_USER="test_user"
+    export POSTGRES_PASSWORD="testpass123"
+    export POSTGRES_DB="test_db"
+    export CREATED_NEW_CONTAINER=false
+    export GREEN=""
+    export YELLOW=""
+    export NC=""
+
+    calls_file=$(mktemp /tmp/test_docker_calls_XXXXXX)
+
+    container_running() { return 0; }
+    container_exists() { return 1; }
+    wait_for_postgres() { return 0; }
+    sleep() { :; }
+
+    docker() {
+        case "$1" in
+            port)
+                printf '0.0.0.0:5433\n[::]:5433\n'
+                ;;
+            rm)
+                printf 'rm %s %s\n' "$2" "$3" >> "$calls_file"
+                ;;
+            run)
+                printf 'run replacement\n' >> "$calls_file"
+                ;;
+        esac
+    }
+
+    start_postgres
+
+    calls=$(cat "$calls_file")
+    [[ "$calls" == *"rm -f analytics-test-postgres"* ]]
+    [[ "$calls" == *"run replacement"* ]]
+    [[ "$CREATED_NEW_CONTAINER" == "true" ]]
+
+    rm -f "$calls_file"
+}
+
 # ==============================================================================
 # INTEGRATION TESTS - Test with mock Docker environment
 # ==============================================================================

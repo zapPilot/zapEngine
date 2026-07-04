@@ -1,8 +1,7 @@
-# Zap Pilot Mobile V2
+# Zap Pilot App
 
-Temporary Expo React Native workspace for the mobile migration. The Flutter app
-in `apps/mobile` remains the stable production mobile app until this workspace
-reaches feature parity.
+Universal Expo React Native workspace for Zap Pilot across iOS, Android, and web.
+The Electron desktop shell packages this app's static web export.
 
 ## Runtime
 
@@ -15,7 +14,8 @@ EXPO_PUBLIC_PRIVY_APP_ID=...
 EXPO_PUBLIC_PRIVY_CLIENT_ID=...
 ```
 
-Initial native identifiers are deliberately separate from production:
+Native identifiers are deliberately separate from any production App Store /
+Play Store identifiers until release ownership is finalized:
 
 - iOS: `com.zapengine.zappilot.dev`
 - Android: `com.zapengine.zappilot.dev`

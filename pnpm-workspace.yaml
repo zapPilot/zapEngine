@@ -3,15 +3,17 @@ packages:
   - packages/*
 
 allowBuilds:
-  '@ffmpeg-installer/darwin-arm64': set this to true or false
-  '@reown/appkit': set this to true or false
-  bufferutil: set this to true or false
+  '@ffmpeg-installer/darwin-arm64': true
+  '@reown/appkit': true
+  bufferutil: true
   electron: true
-  esbuild: set this to true or false
-  keccak: set this to true or false
-  sharp: set this to true or false
-  unrs-resolver: set this to true or false
-  utf-8-validate: set this to true or false
+  electron-winstaller: true
+  esbuild: true
+  keccak: true
+  protobufjs: true
+  sharp: true
+  unrs-resolver: true
+  utf-8-validate: true
 
 catalog:
   '@hono/node-server': ^1.19.6

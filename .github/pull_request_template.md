@@ -10,7 +10,7 @@
 ## Test Plan
 
 - [ ] `pnpm verify` passes locally
-- [ ] <App-specific verification, for example `pnpm --filter @zapengine/frontend test:unit`>
+- [ ] <App-specific verification, for example `pnpm turbo run type-check lint test --filter=@zapengine/app`>
 - [ ] <Manual verification, if any>
 
 ## Risk
