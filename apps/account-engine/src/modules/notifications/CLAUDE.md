@@ -4,7 +4,7 @@ See @../../../CLAUDE.md for app-level conventions.
 
 Outbound user-facing communication for account-engine: Telegram messages, weekly email reports, admin failure alerts, and the analytics-client used to render chart attachments.
 
-> **Refactor in flight (Wave 2.4)**: this module will be reorganised into `channels/{telegram,email,analytics}/` + `services/{dispatcher,formatter}/`. Today the files are flat. New code should still pick the right *layer* (channel vs orchestration), even before the directory move.
+Files are currently flat. Regardless of layout, new code must pick the right **layer** (channel vs formatter vs orchestration — see Layer rules below).
 
 ## Files — current layout
 
@@ -20,7 +20,7 @@ Outbound user-facing communication for account-engine: Telegram messages, weekly
 | `email.service.ts`                  | channel  | Gmail SMTP transport (uses `EMAIL_USER` + `EMAIL_APP_PASSWORD`)            |
 | `template.service.ts`               | formatter| Email / Telegram template rendering                                        |
 | `chart.service.ts`                  | formatter| Chart image rendering for email attachments                                |
-| `analytics-client.service.ts`       | channel  | HTTP client to analytics-engine (~668 LOC — slated to split in Wave 2.4)   |
+| `analytics-client.service.ts`       | channel  | HTTP client to analytics-engine                                            |
 | `supabase-user.service.ts`          | channel  | User lookup (anon-key Supabase client)                                     |
 | `admin-notification.service.ts`     | orch     | Wraps `telegram-notification` for ops-only alerts (job failure, etc.)      |
 | `errors/`                           | shared   | Typed errors thrown by the module                                          |
@@ -39,9 +39,9 @@ Outbound user-facing communication for account-engine: Telegram messages, weekly
 - Telegram envs are namespaced: `TELEGRAM_*` here, `PIPELINE_TELEGRAM_*` for podcast-pipeline. **Do not share or rename** — they are separate bots.
 - Email failures must not block the request — wrap in `try/catch` and emit an admin notification.
 - Chart rendering (`chart.service.ts`) uses a canvas-like in-memory renderer; do not introduce headless-Chromium for this.
+- `analytics-client.service.ts` is already the largest file here — do not add more responsibilities to it; put new mapping logic in separate files.
 
 ## Gotchas
 
-- `analytics-client.service.ts` is the biggest file in this module (~668 LOC). Don't add more responsibilities — Wave 2.4 will split it into `client.ts` + `mappers.ts`.
 - Markdown V2 escaping is unforgiving — always use `telegram-message.util.ts` helpers, never hand-build payloads.
 - The Telegram webhook secret is checked in `telegram-token.service.ts` against `TELEGRAM_WEBHOOK_SECRET`; rotating the secret requires redeploying with the new env value.

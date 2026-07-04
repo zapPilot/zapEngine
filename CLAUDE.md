@@ -2,8 +2,7 @@ See @README.md for project overview and @package.json for root scripts.
 
 > **Start here:** new to the repo or hunting for a doc? Use
 > [docs/onboarding.md](docs/onboarding.md) (per-role reading order) and
-> [docs/README.md](docs/README.md) (full doc map). Most-jumped-to sections below:
-> [Architecture planes](#architecture-planes) · [Verification hierarchy](#verification-hierarchy) · [Code style](#code-style) · [Per-app tooling](#per-app-tooling).
+> [docs/README.md](docs/README.md) (full doc map).
 
 # Build order
 
@@ -14,7 +13,7 @@ For single-workspace runs, **use Turbo, not pnpm filter**:
 - ✅ `pnpm turbo run type-check --filter=@zapengine/frontend` — respects `^build` deps
 - ❌ `pnpm --filter @zapengine/frontend type-check` — runs `tsc` directly, hits TS2307 if `packages/types/dist` is empty
 
-If you hit a stale build anyway, `pnpm --filter @zapengine/types build` (or any specific package) is the targeted fix; `pnpm build packages` rebuilds all packages but is rarely needed — the `contracts check` pipeline calls it internally because `contracts export` is raw `tsx` and bypasses Turbo.
+Stale build fix: `pnpm --filter @zapengine/types build` (targeted, any package) or `pnpm build packages` (all packages, rarely needed — the `contracts check` pipeline calls it internally because `contracts export` is raw `tsx` and bypasses Turbo).
 
 ## Turbo task glossary
 
@@ -29,7 +28,7 @@ If you hit a stale build anyway, `pnpm --filter @zapengine/types build` (or any 
 | `deadcode` / `dup:check` |   ✓   | none      | Pure file scans.                                                                                                          |
 | `codegen*`               |   ✓   | none      | design-tokens generates CSS / Dart from `tokens.json`.                                                                    |
 
-Cache miss heuristics: changing any `.env*` file invalidates `build`/`type-check`/`test*` caches because they're listed in `inputs`. If you only intend to flip a runtime value, prefer `process.env` overrides at run time rather than editing `.env`.
+Cache heuristics: `.env*` files are listed in `inputs` for `build`/`type-check`/`test*`, so editing any of them invalidates those caches broadly. To flip a runtime value, prefer a `process.env` override at run time over editing `.env`.
 
 # Per-app tooling
 
@@ -39,15 +38,13 @@ First-time Python setup: `pnpm --filter @zapengine/analytics-engine run build` (
 
 ## Desktop (Tauri/macOS)
 
-The desktop app is a Tauri v2 shell around its **own** phone-frame Vite app (`apps/desktop/src`: wallet portfolio + podcast tab), built on `@zapengine/app-core` — it does not wrap `@zapengine/frontend`. Keep desktop-specific setup in [apps/desktop/README.md](apps/desktop/README.md) and AI guardrails in [apps/desktop/CLAUDE.md](apps/desktop/CLAUDE.md).
+The desktop app is a Tauri v2 shell around its **own** phone-frame Vite app (`apps/desktop/src`), built on `@zapengine/app-core` — it does not wrap `@zapengine/frontend`.
 
-- Use the workspace `@tauri-apps/cli` binary; do not require a global `tauri` install.
-- Native package/build validation requires Rust/Cargo and Xcode Command Line Tools.
-- For desktop code/config changes, finish with the desktop gate from the root:
-  `pnpm turbo run type-check lint test --filter=@zapengine/desktop`.
-- `pnpm --filter @zapengine/desktop package` builds the DMG and can be slow; it is mandatory before handing off when the user asks about desktop packaging/build failures, or when changes touch `apps/desktop/src`, `apps/desktop/src-tauri`, desktop package scripts, Tauri config, or runtime imports that can affect the packaged app. In non-interactive hooks or agents, make sure a Corepack `pnpm` shim is first on `PATH` and run the same gate with `CI=true` so Corepack uses the root `packageManager`, Turbo child tasks inherit the same pnpm, and DMG creation skips Finder scripting.
-- If the package command fails, keep debugging and fix code/config failures before final. Only hand off when blocked by an external prerequisite (for example missing dependencies after install, pnpm version/cache problems, Rust/Cargo, or Xcode Command Line Tools), and report the exact command and blocker instead of treating the gate as passed.
-- The core verification gates include desktop's TypeScript/config checks, but not a full DMG release/signing flow unless the desktop package gate above applies.
+All desktop guardrails — packaging/DMG gates, Corepack/CI env notes, Rust/Xcode prerequisites, when the package gate is mandatory — live in [apps/desktop/CLAUDE.md](apps/desktop/CLAUDE.md). Do not duplicate them here. For any desktop code/config change, finish with the desktop gate from the root:
+
+```bash
+pnpm turbo run type-check lint test --filter=@zapengine/desktop
+```
 
 ## Mobile (Flutter) exclusion
 
@@ -87,39 +84,26 @@ If you install Flutter, just use the regular non-`:core` commands. CI runs the f
 
 Four planes + one composing layer. Do not let them bleed:
 
-| Plane / layer          | Role                                                 | Lives in                                                         |
-| ---------------------- | ---------------------------------------------------- | ---------------------------------------------------------------- |
-| Strategy               | _what_ allocation; builds no transactions            | analytics-engine                                                 |
-| Intent / routing       | normalized intent → `PreparedTransaction[]`; pure    | `packages/intent-engine`                                         |
-| **plan-orchestration** | _composes_: strategy → normalized intent → exec plan | (now) account-engine module → (target) `apps/plan-orchestration` |
-| Execution              | confirm, sign & broadcast                            | frontend + wallet                                                |
-| Identity / persistence | _who_, and remembering; plans no money movement      | account-engine                                                   |
+| Plane / layer          | Role                                                 | Lives in                                        |
+| ---------------------- | ---------------------------------------------------- | ----------------------------------------------- |
+| Strategy               | _what_ allocation; builds no transactions            | analytics-engine                                |
+| Intent / routing       | normalized intent → `PreparedTransaction[]`; pure    | `packages/intent-engine`                        |
+| **plan-orchestration** | _composes_: strategy → normalized intent → exec plan | account-engine module (see evolution doc below) |
+| Execution              | confirm, sign & broadcast                            | frontend + wallet                               |
+| Identity / persistence | _who_, and remembering; plans no money movement      | account-engine                                  |
 
-Dependency rule (one line): _the intent core is a pure package; only
-plan-orchestration composes strategy + intent downward; nothing depends upward; the
-identity plane owns no money-movement planning._
+Dependency rule (one line): _the intent core is a pure package; only plan-orchestration composes strategy + intent downward; nothing depends upward; the identity plane owns no money-movement planning._
 
-- `packages/intent-engine`: internal deps limited to `@zapengine/types`; zero analytics
-  and zero identity knowledge; `intent → PreparedTransaction[]`.
-- plan-orchestration owns the analytics→intent normalization (allocation % → chain/token
-  intent — the hard part) and the `POST /plan-orchestration/{deposit,rebalance}`
-  contract (types in `@zapengine/types`). It is not an engine — never name it
-  `intent-service` (collides with `intent-engine`).
-- analytics-engine builds no transactions; frontend builds no plans (confirm + execute);
-  account-engine plans no money movement.
-- One authoritative path per money-moving flow: never compute the same plan both
-  client-side and server-side against a shared contract.
+- `packages/intent-engine`: internal deps limited to `@zapengine/types`; zero analytics and zero identity knowledge; `intent → PreparedTransaction[]`.
+- plan-orchestration owns the analytics→intent normalization (allocation % → chain/token intent) and the `POST /plan-orchestration/{deposit,rebalance}` contract (types in `@zapengine/types`). It is not an engine — never name it `intent-service` (collides with `intent-engine`).
+- analytics-engine builds no transactions; frontend builds no plans (confirm + execute); account-engine plans no money movement.
+- One authoritative path per money-moving flow: never compute the same plan both client-side and server-side against a shared contract.
 
-Evolution guardrail (multi-step roadmap for when deposit-plan stops being a
-proxy, where the bounded module lives, and when to extract
-`apps/plan-orchestration`): see
-[apps/account-engine/docs/plan-orchestration-evolution.md](apps/account-engine/docs/plan-orchestration-evolution.md).
+Where plan-orchestration lives today vs. when to extract `apps/plan-orchestration`: see [apps/account-engine/docs/plan-orchestration-evolution.md](apps/account-engine/docs/plan-orchestration-evolution.md) — that doc is the single source of truth for the migration state; do not restate it here.
 
 # Pre-commit & local verification
 
-Pre-commit runs only **fast** checks: `pnpm install` (frozen lockfile, near-instant when unchanged), `lint repo` drift checks, and `lint-staged` ESLint/Prettier on staged files.
-
-The full CI gate is **opt-in** locally — run `pnpm verify` before pushing if you want pre-push assurance. CI itself is still authoritative.
+Pre-commit runs only **fast** checks: `pnpm install` (frozen lockfile), `lint repo` drift checks, and `lint-staged` ESLint/Prettier on staged files. The full CI gate is **opt-in** locally; CI is authoritative.
 
 ## Verification hierarchy
 
@@ -130,38 +114,24 @@ The full CI gate is **opt-in** locally — run `pnpm verify` before pushing if y
 | `pnpm verify parallel` | Full, parallel                    | Local fast gate before push  |
 | `pnpm verify ci`       | CI canonical gate                 | CI / final gate before merge |
 
-**Shallow clone note:** All `pnpm verify` subcommands fail if the repo is a shallow clone. Run `git fetch --unshallow origin` first.
+**Shallow clone note:** All `pnpm verify` subcommands fail on a shallow clone. Run `git fetch --unshallow origin` first.
 
 ### AI fix loop
 
 1. Make your changes
 2. Run `pnpm verify changed` — fast, affected packages only
-3. If it fails, read `.ai-verify/result.json` — it names the failing job and
-   points to its log; read that log. `verify changed` writes one aggregate entry
-   whose log is `.ai-verify/logs/verify-changed.log` (turbo `--summarize` drops
-   `.turbo/runs/*.json` to localize the failing package#task)
+3. If it fails, read `.ai-verify/result.json` — it names the failing job and points to its log under `.ai-verify/logs/`
 4. Fix only errors related to the current change
 5. Re-run until it passes
-6. Before push, run `pnpm verify branch`
-7. Before PR merge, run `pnpm verify parallel` (per-job logs — all failures at once) or `pnpm verify ci`
+6. Before push: `pnpm verify branch`. Before PR merge: `pnpm verify parallel` or `pnpm verify ci`
 
 Do NOT run `verify ci` during the fix loop — it is too slow.
 
 ### What the local gate covers
 
-`pnpm verify ci` (sequential gate, `scripts/verify-ci.sh`) and
-`pnpm verify parallel` (parallel runner, `scripts/verify-ci-parallel.sh`,
-writes `.ai-verify/result.json` + `.ai-verify/logs/<job>.log`) cover the core
-jobs in `scripts/ci-jobs.sh`: format check, repository drift checks, contracts
-parity, per-task workspace checks (type-check, lint, test, deadcode,
-duplication), and analytics checks. They do NOT cover coverage, mobile, Docker,
-security audit (`pnpm security audit core`), or deploy — those are separate CI
-jobs / GitHub Actions. To fix failures, drive your agent (e.g. OpenCode `/goal`)
-— see the `monorepo-ci-debugging` skill.
+`pnpm verify ci` / `pnpm verify parallel` cover only the **core** CI jobs (format, repo drift, contracts parity, per-workspace type-check/lint/test/deadcode/duplication, analytics checks). They do **NOT** cover coverage, mobile, Docker, security audit, or deploy — those are separate GitHub jobs. The authoritative CI-job ↔ local-parity map lives in the `monorepo-ci-debugging` skill; when debugging CI, start there instead of restating job details here.
 
-### Running individual CI jobs
-
-The canonical gate is `pnpm verify ci` (all core jobs, sequential) or `pnpm verify parallel` (same jobs in parallel — see all failures at once). To run one job, invoke its task directly: `pnpm lint repo`, `pnpm contracts check`, `pnpm turbo run type-check --filter=!@zapengine/mobile`, or the analytics gates `pnpm turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine`.
+To run one core job directly: `pnpm lint repo`, `pnpm contracts check`, `pnpm turbo run type-check --filter=!@zapengine/mobile`, or the analytics gates `pnpm turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine`.
 
 # Python environment (analytics-engine)
 
@@ -169,7 +139,7 @@ Requires Python 3.11+ and `uv`. Do not use `pip` — use `uv add` for new depend
 
 # Analytics strategy measurement
 
-`pnpm test` / `test:ci` runs an in-process analytics-engine snapshot gate that needs `DATABASE_READ_ONLY_URL` pointed at the Supabase read-only replica — a local pg container will not satisfy it (no production `alpha_raw.*` series). DB-URL split + CI-secret requirement: see [apps/analytics-engine/CLAUDE.md](apps/analytics-engine/CLAUDE.md). Fixture refresh procedure: see [apps/analytics-engine/src/services/backtesting/CLAUDE.md](apps/analytics-engine/src/services/backtesting/CLAUDE.md).
+`pnpm test` / `test:ci` runs an in-process analytics-engine snapshot gate that needs `DATABASE_READ_ONLY_URL` pointed at the Supabase read-only replica — a local pg container will not satisfy it. DB-URL split + CI-secret requirement: see [apps/analytics-engine/CLAUDE.md](apps/analytics-engine/CLAUDE.md). Fixture refresh procedure: see [apps/analytics-engine/src/services/backtesting/CLAUDE.md](apps/analytics-engine/src/services/backtesting/CLAUDE.md).
 
 Do not create git worktrees unless explicitly requested by the user. Work directly in the current checkout by default.
 

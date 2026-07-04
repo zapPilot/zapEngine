@@ -23,7 +23,9 @@ only reveals the next latent gate.
 
 ## What CI actually runs
 
-The main PR workflow has several jobs:
+This table is the single source of truth for CI-job ↔ local parity (root
+CLAUDE.md intentionally defers here). If it drifts from
+`.github/workflows/ci.yml`, the workflow wins — update this table.
 
 | GitHub job | What it does | Local parity |
 | --- | --- | --- |
@@ -89,49 +91,32 @@ are broad.
 - `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `package.json`, `.jscpd.json`, and
   `turbo.json` similarly widen the blast radius.
 
-If a PR only meant to touch desktop adds a root env var, expect coverage and
+If a PR only meant to touch one app adds a root env var, expect coverage and
 other workspace gates to rerun. Read the failed workspace; do not assume the
 workspace you changed is the workspace that failed.
+
+**The cascade pattern to expect:** app code change + root file edit → core gates
+expose type/test/deadcode/dup issues in the app → pre-existing debt surfaces in
+*other* workspaces → the separate coverage job fails on a workspace you never
+touched → a final format commit is needed after adding tests. Once the first
+gate is fixed, immediately enumerate both core and separate jobs instead of
+assuming the original app is the only blast radius.
 
 ## Expo env bridge gotcha
 
 `apps/mobile-v2` bridges native Expo env keys into `@zapengine/app-core` Vite-style
-keys in `apps/mobile-v2/src/config/appCoreEnv.ts`. Keep those `process.env.EXPO_PUBLIC_*`
-reads literal so `babel-preset-expo` can inline them, and keep every referenced
-`EXPO_PUBLIC_*` key declared in `.env.example` when it is a real runtime input.
+keys in `apps/mobile-v2/src/config/appCoreEnv.ts`. Rules:
 
-The 2026-07-03 Privy native-wallet work exposed this failure mode:
+- Keep `process.env.EXPO_PUBLIC_*` reads literal so `babel-preset-expo` can
+  inline them.
+- Every `EXPO_PUBLIC_*` key referenced in mobile-v2 source must be declared in
+  `.env.example`, and stale keys must be deleted — otherwise `check-dead-env`
+  blocks unrelated PRs.
 
-1. `apps/mobile-v2/README.md` documented `EXPO_PUBLIC_PRIVY_APP_ID` and
-   `EXPO_PUBLIC_PRIVY_CLIENT_ID`.
-2. `appCoreEnv.ts` referenced both keys to feed `VITE_PRIVY_APP_ID` /
-   `VITE_PRIVY_CLIENT_ID` into app-core.
-3. `check-dead-env` blocked unrelated Test QA PRs until the env declaration state
-   matched the actual mobile-v2 references.
-
-When CI reports `check-dead-env` for mobile-v2, run:
-
-```bash
-pnpm lint dead-env
-```
-
-Then fix the source of truth, not the gate: add missing real `EXPO_PUBLIC_*` keys
-to `.env.example`, delete stale keys that are no longer referenced, and fix any
-accidental bare `EXPO_PUBLIC_` reference in the mobile-v2 source.
-
-## Desktop POC cascade pattern
-
-The 2026-06-29 desktop real-data POC showed this sequence:
-
-1. Desktop code changed and `.env.example` gained `VITE_MORALIS_API_KEY`.
-2. Core desktop gates exposed type/test/deadcode/dup issues.
-3. Landing-page deadcode/dup surfaced from pre-existing track-record debt.
-4. The separate coverage job failed on `@zapengine/landing-page#test:coverage`,
-   not desktop, because the workflow excludes desktop coverage.
-5. A final format commit was needed after adding tests.
-
-Lesson: once the first gate is fixed, immediately enumerate both core and
-separate jobs instead of assuming the original app is the only blast radius.
+When CI reports `check-dead-env` for mobile-v2, run `pnpm lint dead-env`, then
+fix the source of truth, not the gate: add missing real `EXPO_PUBLIC_*` keys to
+`.env.example`, delete stale keys, and fix any accidental bare `EXPO_PUBLIC_`
+reference in the mobile-v2 source.
 
 ## Triage: classify the failure → where to go
 
@@ -156,7 +141,7 @@ separate jobs instead of assuming the original app is the only blast radius.
 | "`verify ci` passed, so the PR is green." | `coverage`, `check-dead-env`, mobile, and Docker are separate jobs. |
 | "I'll push and let CI tell me the next failure." | That is exactly the slow round-trip cascade. Read all red jobs and fix the batch. |
 | "The next failure is unrelated." | It may be latent debt exposed by cache invalidation or a separate job. Still fix or explicitly scope it. |
-| "The PR touched desktop, so coverage failure must be desktop." | Current CI excludes desktop coverage. Read `Failed: @zapengine/<workspace>#test:coverage`. |
+| "The PR touched app X, so the coverage failure must be app X." | Coverage may exclude that app entirely. Read `Failed: @zapengine/<workspace>#test:coverage`. |
 | "Local `pnpm coverage check` is always CI parity." | Not necessarily. Copy the exact workflow command and filters first. |
 
 ## Verification before handoff
