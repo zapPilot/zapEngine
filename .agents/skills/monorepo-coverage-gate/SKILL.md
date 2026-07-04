@@ -4,7 +4,7 @@ description: >-
   Use when the separate GitHub `coverage` job fails, a workspace
   `test:coverage` exits non-zero, or coverage drops after adding a large POC
   surface. Covers the current CI coverage-summary job, per-workspace absolute
-  Vitest/pytest/mobile floors, and the optional monorepo no-regression baseline
+  Vitest/pytest floors, and the optional monorepo no-regression baseline
   scripts. Symptoms: `Coverage for lines/functions/statements/branches does not
   meet global threshold`, `workspace X regressed N pp vs baseline`, `verify ci`
   is green while the coverage job is red, lowering a global threshold, or
@@ -25,7 +25,7 @@ filters from the workflow before debugging. It currently runs:
 
 ```bash
 pnpm run coverage test
-pnpm turbo run test:coverage --filter='!@zapengine/mobile' --filter='!@zapengine/desktop'
+pnpm turbo run test:coverage
 pnpm exec tsx scripts/coverage-summary.ts
 ```
 
@@ -38,7 +38,7 @@ ERROR: Coverage for lines (...) does not meet global threshold (...)
 Failed: @zapengine/<workspace>#test:coverage
 ```
 
-then the failing layer is that workspace's `vitest.config.ts` / pytest / mobile
+then the failing layer is that workspace's `vitest.config.ts` or pytest
 threshold, not the baseline regression gate.
 
 ### Root `pnpm coverage summary/check` caveat
@@ -75,7 +75,7 @@ workspace absolute floor is green.
 3. If you need CI parity for the whole current coverage job, run:
 
    ```bash
-   pnpm turbo run test:coverage --filter='!@zapengine/mobile' --filter='!@zapengine/desktop'
+   pnpm turbo run test:coverage
    pnpm exec tsx scripts/coverage-summary.ts
    ```
 
@@ -116,28 +116,28 @@ floor that should only ratchet upward on `main` by explicit team agreement.
 Useful local loop for baseline regressions:
 
 ```bash
-pnpm turbo run test:coverage --filter='!@zapengine/mobile' --filter='!@zapengine/desktop'
+pnpm turbo run test:coverage
 pnpm exec tsx scripts/coverage-summary.ts
 pnpm exec tsx scripts/coverage-regression.ts
 ```
 
 ## Rationalizations — STOP
 
-| Excuse | Reality |
-| --- | --- |
-| "`verify ci` passed, so coverage is fine." | Coverage is a separate GitHub job, not part of `verify ci`. |
-| "Run `pnpm coverage check`; it's the same as CI." | Maybe not. First compare it with the workflow's exact command and filters. |
-| "Just lower the root threshold / baseline." | That weakens the gate for everyone. Only scoped, temporary workspace floors are acceptable for explicit POCs. |
-| "The branch touched desktop, so desktop coverage failed." | The current CI coverage job excludes `@zapengine/desktop`; read the failed workspace line. |
-| "A green regression script means CI coverage is fixed." | Not if the workspace absolute floor failed before regression was even run. |
-| "Blanket ignore the new dashboard." | Add high-value tests first; only ignore unreachable code with a reason. |
+| Excuse                                                                              | Reality                                                                                                       |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| "`verify ci` passed, so coverage is fine."                                          | Coverage is a separate GitHub job, not part of `verify ci`.                                                   |
+| "Run `pnpm coverage check`; it's the same as CI."                                   | Maybe not. First compare it with the workflow's exact command and filters.                                    |
+| "Just lower the root threshold / baseline."                                         | That weakens the gate for everyone. Only scoped, temporary workspace floors are acceptable for explicit POCs. |
+| "The branch touched one workspace, so that workspace must be the coverage failure." | Coverage runs all workspaces; read the failed workspace line.                                                 |
+| "A green regression script means CI coverage is fixed."                             | Not if the workspace absolute floor failed before regression was even run.                                    |
+| "Blanket ignore the new dashboard."                                                 | Add high-value tests first; only ignore unreachable code with a reason.                                       |
 
 ## Verification
 
 For the current CI coverage job:
 
 ```bash
-pnpm turbo run test:coverage --filter='!@zapengine/mobile' --filter='!@zapengine/desktop'
+pnpm turbo run test:coverage
 pnpm exec tsx scripts/coverage-summary.ts
 ```
 

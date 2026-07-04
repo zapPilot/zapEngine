@@ -7,18 +7,18 @@ import { loadTokens } from './tokens.js';
 // runs and formatting passes are both diff-clean.
 const outputPath = 'src/generated/tokens.ts';
 export async function renderTsTokens(tokens) {
-  const source = `// Generated from packages/design-tokens/tokens.json. Do not edit by hand.
+    const source = `// Generated from packages/design-tokens/tokens.json. Do not edit by hand.
 import type { DesignTokens } from '../tokens.js';
 
 export const tokens = ${JSON.stringify(tokens, null, 2)} as const satisfies DesignTokens;
 `;
-  const config = await resolveConfig(join(packageRoot, outputPath));
-  return format(source, { ...(config ?? {}), parser: 'typescript' });
+    const config = await resolveConfig(join(packageRoot, outputPath));
+    return format(source, { ...(config ?? {}), parser: 'typescript' });
 }
 export async function writeTsTokens() {
-  writeGeneratedFile(outputPath, await renderTsTokens(loadTokens()));
+    writeGeneratedFile(outputPath, await renderTsTokens(loadTokens()));
 }
 if (isCurrentScript(import.meta.url)) {
-  await writeTsTokens();
+    await writeTsTokens();
 }
 //# sourceMappingURL=ts-codegen.js.map

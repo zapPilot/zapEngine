@@ -182,11 +182,9 @@ describe('Supabase user_episode_state grants', () => {
   });
 });
 
-// Public REST column contract for podcast clients. Historically derived from
-// the Flutter app's episode_service.dart select lists; the Flutter app was
-// retired (the universal app consumes the same REST surface), so the
-// contract is pinned here. Do not shrink these lists without a coordinated
-// client migration.
+// Public REST column contract for podcast clients. The universal app consumes
+// this REST surface, so the contract is pinned here. Do not shrink these lists
+// without a coordinated client migration.
 function mobileUserEpisodeStateSelectColumns(): string[] {
   return ['episode_id', 'listened', 'last_position_seconds'];
 }

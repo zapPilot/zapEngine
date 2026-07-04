@@ -235,11 +235,32 @@ find_container_on_port() {
     docker ps --filter "publish=${port}" --format '{{.Names}}' 2>/dev/null | head -1
 }
 
+container_publishes_expected_port() {
+    local mapping
+    mapping=$(docker port "$POSTGRES_CONTAINER" 5432/tcp 2>/dev/null || true)
+
+    [[ -n "$mapping" ]] && echo "$mapping" | grep -Eq "(^|:)${POSTGRES_PORT}$"
+}
+
+remove_stale_managed_container() {
+    printf '%b\n' "${YELLOW}[Pre-commit Tests] Removing stale PostgreSQL container '${POSTGRES_CONTAINER}' because it is not published on port ${POSTGRES_PORT}${NC}"
+    docker rm -f "$POSTGRES_CONTAINER" > /dev/null 2>&1 || true
+    CREATED_NEW_CONTAINER=true
+}
+
 # Function to start PostgreSQL container
 start_postgres() {
     if container_running; then
-        printf '%b\n' "${GREEN}[Pre-commit Tests] Using existing PostgreSQL container${NC}"
-        return 0
+        if ! container_publishes_expected_port; then
+            remove_stale_managed_container
+        else
+            printf '%b\n' "${GREEN}[Pre-commit Tests] Using existing PostgreSQL container${NC}"
+            return 0
+        fi
+    fi
+
+    if container_exists && ! container_publishes_expected_port; then
+        remove_stale_managed_container
     fi
 
     # If our container exists but is stopped, try to start it
@@ -247,7 +268,11 @@ start_postgres() {
         printf '%b\n' "${YELLOW}[Pre-commit Tests] Starting stopped PostgreSQL container...${NC}"
         docker start "$POSTGRES_CONTAINER" > /dev/null 2>&1
         if wait_for_postgres; then
-            return 0
+            if container_publishes_expected_port; then
+                return 0
+            fi
+
+            remove_stale_managed_container
         fi
         # Container start may have failed (e.g. port conflict); fall through
         printf '%b\n' "${YELLOW}[Pre-commit Tests] Container start failed, checking for existing PostgreSQL on port ${POSTGRES_PORT}...${NC}"

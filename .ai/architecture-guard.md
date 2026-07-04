@@ -10,60 +10,66 @@ DO NOT modify any files.
 
 ## STEP 1 — Locate Each File's App and Layer
 
-The 5 TS/Python apps below have explicit per-app layer schemes. Other code is in `packages/*` (cross-cutting library code).
+The apps below have explicit per-app layer schemes. Other code is in `packages/*` (cross-cutting library code).
 
 ### apps/analytics-engine (Python, FastAPI)
 
-| Layer | Folders |
-| --- | --- |
-| boundary | `api/`, `main.py` |
-| orchestration | `services/backtesting/{strategies, execution}/` and loose `services/backtesting/*.py` files (e.g. `composition.py`, `strategy_catalog.py`) |
-| domain | `services/backtesting/{portfolio_rules, risk, sizing, tactics, policies, allocation, validation}/`, top-level `services/{aggregators, analytics, market, portfolio, strategy, query_builders, transformers}/` |
-| observability | `services/backtesting/audit/` |
-| pure | `services/backtesting/{signals, utils, data}/`, top-level `utils/` |
-| data | `models/`, `queries/` |
-| shared | `services/{shared, interfaces}/`, `services/{exceptions,dependencies}.py`, `config/`, `core/`, `exceptions/` |
+| Layer         | Folders                                                                                                                                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| boundary      | `api/`, `main.py`                                                                                                                                                                                             |
+| orchestration | `services/backtesting/{strategies, execution}/` and loose `services/backtesting/*.py` files (e.g. `composition.py`, `strategy_catalog.py`)                                                                    |
+| domain        | `services/backtesting/{portfolio_rules, risk, sizing, tactics, policies, allocation, validation}/`, top-level `services/{aggregators, analytics, market, portfolio, strategy, query_builders, transformers}/` |
+| observability | `services/backtesting/audit/`                                                                                                                                                                                 |
+| pure          | `services/backtesting/{signals, utils, data}/`, top-level `utils/`                                                                                                                                            |
+| data          | `models/`, `queries/`                                                                                                                                                                                         |
+| shared        | `services/{shared, interfaces}/`, `services/{exceptions,dependencies}.py`, `config/`, `core/`, `exceptions/`                                                                                                  |
 
-### apps/frontend (TypeScript, React+Vite)
+### apps/app (TypeScript, Expo React Native)
 
-| Layer | Folders |
-| --- | --- |
-| boundary | `main.tsx`, `app/` |
-| presentation | `components/` |
-| state-effects | `hooks/`, `providers/`, `contexts/` |
-| domain | `services/`, `lib/` |
-| integration | `adapters/`, `shims/` |
-| pure | `utils/`, `types/`, `schemas/`, `constants/`, `config/` |
+| Layer        | Folders                                       |
+| ------------ | --------------------------------------------- |
+| boundary     | `entrypoint.js`, `src/app/`, `src/providers/` |
+| presentation | `src/screens/`, `src/components/`             |
+| integration  | `src/integration/`                            |
+| pure         | `src/lib/`, `src/config/`, `src/data/`        |
+
+### apps/desktop (TypeScript, Electron)
+
+| Layer         | Folders                                              |
+| ------------- | ---------------------------------------------------- |
+| boundary      | `src/main/main.ts`, `src/preload/`                   |
+| orchestration | `src/main/`                                          |
+| pure          | `src/shared/`, pure helper modules under `src/main/` |
 
 ### apps/account-engine (TypeScript, Hono)
 
-| Layer | Folders |
-| --- | --- |
-| boundary | `app.ts`, `main.ts`, `routes/`, `container.ts` |
-| domain | `modules/`, `users/` |
-| persistence | `database/` |
-| shared | `common/`, `config/`, `types/` |
+| Layer       | Folders                                        |
+| ----------- | ---------------------------------------------- |
+| boundary    | `app.ts`, `main.ts`, `routes/`, `container.ts` |
+| domain      | `modules/`, `users/`                           |
+| persistence | `database/`                                    |
+| shared      | `common/`, `config/`, `types/`                 |
 
 ### apps/alpha-etl (TypeScript, Express)
 
-| Layer | Folders |
-| --- | --- |
-| boundary | `app.ts`, `routes/`, `middleware/` |
-| domain | `modules/`, `core/` |
-| shared | `config/`, `schemas/`, `types/`, `utils/` |
+| Layer    | Folders                                   |
+| -------- | ----------------------------------------- |
+| boundary | `app.ts`, `routes/`, `middleware/`        |
+| domain   | `modules/`, `core/`                       |
+| shared   | `config/`, `schemas/`, `types/`, `utils/` |
 
 ### apps/podcast-pipeline (TypeScript, Hono)
 
-| Layer | Folders |
-| --- | --- |
-| boundary | `index.ts` |
-| orchestration | `pipeline/` |
-| domain | `services/` |
-| pure | `lib/`, `types.ts` |
+| Layer         | Folders            |
+| ------------- | ------------------ |
+| boundary      | `index.ts`         |
+| orchestration | `pipeline/`        |
+| domain        | `services/`        |
+| pure          | `lib/`, `types.ts` |
 
 ### Apps not in this table
 
-`apps/mobile/` (Flutter) and `apps/landing-page/` (Next.js) are out of scope. Any other app added later: classify each file in it as `type: "unknown_classification"`, `severity: "LOW"`, `confidence: 0.5`. Suggest: "Add this app to architecture-guard.md with explicit layer rules."
+`apps/landing-page/` (Next.js) is out of scope. Any other app added later: classify each file in it as `type: "unknown_classification"`, `severity: "LOW"`, `confidence: 0.5`. Suggest: "Add this app to architecture-guard.md with explicit layer rules."
 
 ### Confidence
 
@@ -77,7 +83,8 @@ The 5 TS/Python apps below have explicit per-app layer schemes. Other code is in
 Within an app, imports may flow only in these directions:
 
 - **analytics-engine**: `boundary → orchestration → domain → pure`. `data` and `shared` may be imported by any layer but must not import upward. `observability` (audit) may be imported by any layer (read-only logging is intentional).
-- **frontend**: `boundary → presentation → state-effects → domain → integration`. `pure` is a sink — no upward imports.
+- **app**: `boundary → presentation → integration → pure`. `pure` is a sink — no upward imports.
+- **desktop**: `boundary → orchestration → pure`. `pure` is a sink — no upward imports.
 - **account-engine**: `boundary → domain → persistence`. `shared` is a sink.
 - **alpha-etl**: `boundary → domain → shared`. `shared` is a sink.
 - **podcast-pipeline**: `boundary → orchestration → domain → pure`.
@@ -101,7 +108,7 @@ A file in a lower layer importing from a higher layer (within the same app).
 - type: `layer_violation`
 - severity: HIGH
 - confidence: 0.8 if both files match exact folders; 0.6 if one end is inferred
-- example description: `"apps/frontend/src/components/Foo.tsx imports apps/frontend/src/adapters/bar — components must reach integration via services"`
+- example description: `"apps/app/src/lib/foo.ts imports apps/app/src/screens/HomeScreen.tsx — pure helpers must not import presentation"`
 
 ### 3.2 Circular Dependency
 
@@ -125,6 +132,7 @@ A cycle of imports within a single app: `A → B → ... → A`.
 ### 3.4 Side Effect in Pure Layer
 
 A file in a `pure` layer must not contain:
+
 - **Python**: `import requests`/`httpx`, `open()`, `with open(...)`, top-level mutable state with side-effecting init, network or filesystem calls
 - **TypeScript**: `fetch(...)`, `axios.*`, `localStorage.*`/`sessionStorage.*`, `document.*`/`window.*`, top-level `console.*`, top-level statements that aren't `import` / `export` / `type` / pure constant
 
@@ -148,16 +156,16 @@ A file in a `pure` layer must not contain:
 
 ## STEP 4 — Confidence Rules
 
-| Situation | Confidence |
-| --- | --- |
-| Cross-app or cross-package import (definitely a violation) | 0.95 |
-| Circular dependency | 0.95 |
-| File matches an exact folder in the per-app table | 0.9 |
-| Layer violation, both ends with exact-folder match | 0.8 |
-| Side effect in `pure` layer | 0.75 |
-| Package responsibility issue | 0.7 |
-| Layer violation, one end inferred | 0.6 |
-| File at app root or in folder not listed (unknown_classification) | 0.5 |
+| Situation                                                         | Confidence |
+| ----------------------------------------------------------------- | ---------- |
+| Cross-app or cross-package import (definitely a violation)        | 0.95       |
+| Circular dependency                                               | 0.95       |
+| File matches an exact folder in the per-app table                 | 0.9        |
+| Layer violation, both ends with exact-folder match                | 0.8        |
+| Side effect in `pure` layer                                       | 0.75       |
+| Package responsibility issue                                      | 0.7        |
+| Layer violation, one end inferred                                 | 0.6        |
+| File at app root or in folder not listed (unknown_classification) | 0.5        |
 
 `.ai/todos-planner.md` filters items with `confidence < 0.6`. Use this as the calibration target — soft signals at 0.5 will be auto-filtered, which is the intended behavior.
 
@@ -171,7 +179,14 @@ Save to `.todos/architecture-guard.json`. JSON ONLY. No prose.
 {
   "task": "architecture-guard",
   "scope": {
-    "apps_scanned": ["analytics-engine", "frontend", "account-engine", "alpha-etl", "podcast-pipeline"],
+    "apps_scanned": [
+      "analytics-engine",
+      "app",
+      "desktop",
+      "account-engine",
+      "alpha-etl",
+      "podcast-pipeline"
+    ],
     "files_analyzed": 0
   },
   "summary": {
@@ -185,7 +200,7 @@ Save to `.todos/architecture-guard.json`. JSON ONLY. No prose.
     {
       "id": "short_stable_hash",
       "type": "layer_violation | circular_dependency | boundary_violation | side_effect | package_issue | unknown_classification",
-      "app": "analytics-engine | frontend | account-engine | alpha-etl | podcast-pipeline | unknown",
+      "app": "analytics-engine | app | desktop | account-engine | alpha-etl | podcast-pipeline | unknown",
       "file": "string or array of strings",
       "severity": "CRITICAL | HIGH | MEDIUM | LOW",
       "confidence": 0.0,

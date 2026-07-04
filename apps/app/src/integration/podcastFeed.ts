@@ -18,7 +18,7 @@ interface PodcastFeedPage {
 }
 
 const DEFAULT_PODCAST_API_URL = 'https://from-fed-to-chain-api.fly.dev';
-// Matches the Flutter app's default content language (kDefaultLanguageCode).
+// Default content language for the universal app feed.
 const PODCAST_LANGUAGE_CODE = 'zh-Hant';
 const FEED_PAGE_SIZE = 30;
 

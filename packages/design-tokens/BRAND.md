@@ -255,10 +255,14 @@ combine motifs just to use every idea.
 
 ### Web SVG
 
-Place final SVGs in both:
+Place final SVGs in:
 
 - `apps/landing-page/public/`
-- `apps/app/public/`
+
+For the Expo app, mirror the same source assets under
+`apps/app/assets/brand/` and reference them from `app.config.ts` or app code.
+Do not point this brief at generated native folders; this repo no longer
+commits retired native app projects or Expo prebuild output.
 
 Required:
 
@@ -280,43 +284,45 @@ Provide 2x PNG fallback files for each SVG:
 
 ### Favicon
 
-Place `favicon.ico` in both:
+Place `favicon.ico` in:
 
 - `apps/landing-page/public/`
-- `apps/app/public/`
 
 The `.ico` must contain 16 px, 32 px, and 48 px versions. The 16 px version
 must be visually checked, not only auto-scaled.
 
+For Expo web, place the web favicon source in `apps/app/assets/brand/` and wire
+it through `web.favicon` in `apps/app/app.config.ts`.
+
 ### Web Manifest
 
-Place maskable 192 x 192 and 512 x 512 PNGs in `apps/app/public/`.
+Place maskable 192 x 192 and 512 x 512 PNGs in `apps/app/assets/brand/`.
 
-Also update `apps/app/public/manifest.json`. It currently uses legacy
-`theme_color: "#8b5cf6"` and should move to token-aligned background and accent
-colors when assets are replaced.
+Expo web manifest metadata should come from `apps/app/app.config.ts` unless a
+separate static manifest is intentionally introduced. Use token-aligned
+background and accent colors; do not reintroduce the retired purple theme
+color.
 
 ### iOS
 
-Place the full icon set in:
+Place the iOS icon source in:
 
-- `apps/mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/`
+- `apps/app/assets/brand/`
 
-Include all current iOS sizes from 20 px through 1024 px, with @1x, @2x, and
-@3x variants where required by Xcode. Preserve `Contents.json`.
+Wire it through `icon` / `ios.icon` in `apps/app/app.config.ts`. If the project
+later commits Expo prebuild output, generated `ios/` assets must match this
+source, but the generated native folder is not the canonical handoff target.
 
 ### Android
 
-Place launcher icons in:
+Place Android adaptive icon source assets in:
 
-- `apps/mobile/android/app/src/main/res/mipmap-mdpi/ic_launcher.png`
-- `apps/mobile/android/app/src/main/res/mipmap-hdpi/ic_launcher.png`
-- `apps/mobile/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png`
-- `apps/mobile/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png`
-- `apps/mobile/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png`
+- `apps/app/assets/brand/`
 
-If adaptive icons are added later, include foreground/background layers and
-update Android resource references in the same PR.
+Wire them through `android.adaptiveIcon` in `apps/app/app.config.ts`, including
+foreground/background layers and token-aligned background color. If generated
+native folders are introduced later, they must be derived from these Expo
+source assets.
 
 ### Source Files
 
@@ -379,9 +385,11 @@ Legacy visual assets:
 - `apps/landing-page/public/zap-pilot-icon.svg`
 - `apps/landing-page/public/zap-pilot-icon.png`
 - `apps/landing-page/public/brand-guide.md`
-- `apps/app/public/logo.svg`
-- `apps/app/public/logo.png`
-- `apps/app/public/manifest.json`
+
+App asset targets to create or update:
+
+- `apps/app/assets/brand/`
+- `apps/app/app.config.ts`
 
 Legacy issues to fix:
 
@@ -389,19 +397,20 @@ Legacy issues to fix:
 - Amber/red lightning is outside the token system.
 - Inter typography is outside the current token recommendation.
 - Circuit nodes and dot patterns add detail that does not scale well.
-- The web manifest still uses a retired purple theme color.
+- Any app web manifest or config colors must not use the retired purple theme.
 
 ## 10. Hand-Off Protocol
 
 When the logo redesign is complete, implement it in a separate PR.
 
 1. Place SVG and PNG assets in `apps/landing-page/public/` and
-   `apps/app/public/`.
-2. Replace iOS app icons in
-   `apps/mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/`.
-3. Replace Android launcher icons in
-   `apps/mobile/android/app/src/main/res/mipmap-*/`.
-4. Update `apps/app/public/manifest.json` and both favicon locations.
+   `apps/app/assets/brand/`.
+2. Wire app icon, iOS icon, Android adaptive icon, and web favicon paths in
+   `apps/app/app.config.ts`.
+3. Update landing-page favicon and logo references.
+4. If a static Expo web manifest is intentionally introduced, put it in
+   `apps/app/public/` in the same PR and document why generated Expo metadata
+   is insufficient.
 5. If the final design adds any brand color, add it to
    `packages/design-tokens/tokens.json`.
 6. If tokens changed, run `pnpm --filter @zapengine/design-tokens build`.
@@ -425,11 +434,7 @@ Expected implementation PR scope:
   `apps/landing-page/public/favicon.ico`, and
   `apps/landing-page/public/brand-guide.md` if retained.
 - Frontend assets:
-  `apps/app/public/logo.svg`, `apps/app/public/logo.png`,
-  `apps/app/public/manifest.json`, and `apps/app/public/favicon.ico`.
-- Mobile assets:
-  `apps/mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/` and
-  `apps/mobile/android/app/src/main/res/mipmap-*/ic_launcher.png`.
+  `apps/app/assets/brand/` and `apps/app/app.config.ts`.
 
 Verification after asset replacement:
 
@@ -438,9 +443,11 @@ Verification after asset replacement:
   changed.
 - `pnpm turbo run type-check --filter=@zapengine/app`, if app code changed.
 - Visual verification of the landing-page navbar and hero on desktop and mobile.
-- Visual verification of web manifest icon masking.
-- Xcode asset validation for the iOS icon set.
-- Android launcher verification across five mipmap densities.
+- Visual verification of Expo web favicon / manifest icon masking.
+- iOS icon validation through Expo build/prebuild output when native packaging
+  is exercised.
+- Android adaptive launcher verification through Expo build/prebuild output
+  when native packaging is exercised.
 
 Approval criteria:
 

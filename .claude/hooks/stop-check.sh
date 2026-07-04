@@ -73,12 +73,4 @@ if ! pnpm verify >"$log_file" 2>&1; then
   exit 0
 fi
 
-if [ "${SKIP_VITE_HEALTH_CHECK:-}" != "1" ]; then
-  : >"$log_file"
-  if ! pnpm --filter @zapengine/frontend run dev:health -- --allow-missing-browser >"$log_file" 2>&1; then
-    emit_failure "Vite dev health check failed." "SKIP_VITE_HEALTH_CHECK=1"
-    exit 0
-  fi
-fi
-
 exit 0
