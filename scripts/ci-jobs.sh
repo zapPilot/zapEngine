@@ -28,7 +28,7 @@ core_ci_job_name() {
     type-check) echo "Type check" ;;
     lint)      echo "Lint" ;;
     test)      echo "Tests" ;;
-    e2e)       echo "Frontend E2E" ;;
+    e2e)       echo "Web E2E" ;;
     deadcode)  echo "Dead code" ;;
     dup)       echo "Duplication" ;;
     analytics) echo "Analytics checks" ;;
@@ -44,7 +44,7 @@ core_ci_job_command() {
     type-check) echo "pnpm turbo run type-check --filter=!@zapengine/mobile" ;;
     lint)      echo "pnpm turbo run lint --filter=!@zapengine/mobile" ;;
     test)      echo "pnpm turbo run test --filter=!@zapengine/mobile --force" ;;
-    e2e)       echo "pnpm turbo run test:e2e --filter=@zapengine/frontend" ;;
+    e2e)       echo "pnpm turbo run test:e2e --filter=@zapengine/frontend --filter=@zapengine/mobile-v2" ;;
     deadcode)  echo "pnpm turbo run deadcode --filter=!@zapengine/mobile" ;;
     dup)       echo "pnpm turbo run dup:check --filter=!@zapengine/mobile" ;;
     analytics) echo "pnpm turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine" ;;

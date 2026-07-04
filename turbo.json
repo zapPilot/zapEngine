@@ -8,10 +8,7 @@
     "package.json",
     "pnpm-workspace.yaml"
   ],
-  "globalEnv": [
-    "NODE_ENV",
-    "CI"
-  ],
+  "globalEnv": ["NODE_ENV", "CI"],
   "futureFlags": {
     "longerSignatureKey": true
   },
@@ -20,9 +17,7 @@
   },
   "tasks": {
     "build": {
-      "dependsOn": [
-        "^build"
-      ],
+      "dependsOn": ["^build"],
       "outputs": [
         "dist/**",
         ".next/**",
@@ -30,117 +25,53 @@
         "build/**",
         "src/generated/**"
       ],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        ".env*",
-        "!**/*.md",
-        "!src/generated/**"
-      ],
-      "env": [
-        "NEXT_PUBLIC_*",
-        "VITE_*"
-      ]
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md", "!src/generated/**"],
+      "env": ["EXPO_PUBLIC_*", "NEXT_PUBLIC_*", "VITE_*"]
     },
     "build:web": {
-      "dependsOn": [
-        "^build"
-      ],
-      "outputs": [
-        "dist/**"
-      ],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        ".env*",
-        "!**/*.md"
-      ],
-      "env": [
-        "VITE_*"
-      ]
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
+      "env": ["EXPO_PUBLIC_*", "VITE_*"]
     },
     "codegen": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "tokens.json",
-        "!src/generated/**"
-      ],
-      "outputs": [
-        "dist/**",
-        "lib/design_tokens.dart",
-        "src/generated/**"
-      ]
+      "inputs": ["$TURBO_DEFAULT$", "tokens.json", "!src/generated/**"],
+      "outputs": ["dist/**", "lib/design_tokens.dart", "src/generated/**"]
     },
     "codegen:css": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "tokens.json"
-      ],
-      "outputs": [
-        "dist/css/variables.css"
-      ]
+      "inputs": ["$TURBO_DEFAULT$", "tokens.json"],
+      "outputs": ["dist/css/variables.css"]
     },
     "codegen:flutter": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "tokens.json"
-      ],
-      "outputs": [
-        "dist/flutter/design_tokens.dart",
-        "lib/design_tokens.dart"
-      ]
+      "inputs": ["$TURBO_DEFAULT$", "tokens.json"],
+      "outputs": ["dist/flutter/design_tokens.dart", "lib/design_tokens.dart"]
     },
     "codegen:ts": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "tokens.json",
-        "!src/generated/**"
-      ],
-      "outputs": [
-        "src/generated/**"
-      ]
+      "inputs": ["$TURBO_DEFAULT$", "tokens.json", "!src/generated/**"],
+      "outputs": ["src/generated/**"]
     },
     "dev": {
       "cache": false,
       "persistent": true,
-      "dependsOn": [
-        "^build"
-      ]
+      "dependsOn": ["^build"]
     },
     "lint": {
-      "dependsOn": [
-        "^build"
-      ],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        ".env*"
-      ],
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": []
     },
     "lint:fix": {
-      "dependsOn": [
-        "format"
-      ],
+      "dependsOn": ["format"],
       "cache": false
     },
     "type-check": {
-      "dependsOn": [
-        "^build"
-      ],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        ".env*",
-        "!**/*.md"
-      ],
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
       "outputs": []
     },
     "test": {
-      "dependsOn": [
-        "^build"
-      ],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        ".env*",
-        "!**/*.md"
-      ],
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
       "passThroughEnv": [
         "DATABASE_READ_ONLY",
         "DATABASE_READ_ONLY_URL",
@@ -150,35 +81,20 @@
       "outputs": []
     },
     "test:coverage": {
-      "dependsOn": [
-        "^build"
-      ],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        ".env*",
-        "!**/*.md"
-      ],
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
       "passThroughEnv": [
         "DATABASE_READ_ONLY",
         "DATABASE_READ_ONLY_URL",
         "TEST_DATABASE_URL",
         "DATABASE_INTEGRATION_URL"
       ],
-      "outputs": [
-        "coverage/**",
-        "htmlcov/**"
-      ]
+      "outputs": ["coverage/**", "htmlcov/**"]
     },
     "test:ci": {
-      "dependsOn": [
-        "^build"
-      ],
+      "dependsOn": ["^build"],
       "cache": false,
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        ".env*",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
       "passThroughEnv": [
         "DATABASE_READ_ONLY",
         "DATABASE_READ_ONLY_URL",
@@ -195,24 +111,15 @@
       "outputs": []
     },
     "deadcode": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": []
     },
     "deadcode:fix": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": []
     },
     "dup:check": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": []
     },
     "security:audit": {
@@ -220,25 +127,15 @@
       "cache": false
     },
     "test:e2e": {
-      "dependsOn": [
-        "^build"
-      ],
+      "dependsOn": ["^build"],
       "cache": false,
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": []
     },
     "test:e2e:safe": {
-      "dependsOn": [
-        "^build"
-      ],
+      "dependsOn": ["^build"],
       "cache": false,
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!**/*.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": []
     },
     "clean": {

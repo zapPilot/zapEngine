@@ -3,9 +3,9 @@ name: desktop-ci-debugging
 description: >-
   Use when `@zapengine/desktop` type-check, lint, test, deadcode, dup, build:web,
   or package checks fail, or when a desktop/Tauri PR triggers monorepo CI fallout.
-  Symptoms: desktop live-data POC failures, desktop knip unused exports, jscpd
-  clones in desktop hooks, import-order failures in desktop tests, or confusion
-  between frontend and desktop coverage/test gates.
+  Symptoms: desktop knip unused exports, jscpd clones in desktop hooks,
+  import-order failures in desktop tests, or confusion between frontend and
+  desktop coverage/test gates.
 ---
 
 # Desktop CI debugging
@@ -67,27 +67,16 @@ not desktop itself.
 
 Desktop changes often touch root/shared files:
 
-- `.env.example` for Vite env vars such as `VITE_MORALIS_API_KEY`;
+- `.env.example` for Vite env vars;
 - `pnpm-lock.yaml` / `pnpm-workspace.yaml` for dependencies;
 - shared packages under `packages/*`;
 - root `.jscpd.json` / `turbo.json` / package scripts.
 
 These can invalidate broad Turbo caches and surface non-desktop failures. Do not
-assume the original app is the only failing app.
-
-## Common desktop POC failure sequence
-
-The 2026-06-29 desktop real-data POC exposed this pattern:
-
-1. Live-data code introduced Moralis query wrappers and default strategy backtest
-   mappers.
-2. Tests needed pure exported helpers rather than hook-only coverage.
-3. Knip flagged unused exports / test entries.
-4. jscpd flagged duplicated hook shapes.
-5. Import ordering still failed after the logic was fixed.
-6. A root env example edit widened CI and surfaced landing-page coverage debt.
-
-Treat this as a cascade. Fix the named desktop gate, then run the affected
+assume desktop is the only failing app. Expect the typical cascade: desktop
+type/test failures first, then knip/jscpd on the new desktop code, then
+import-order/format, then *other* workspaces' latent debt surfacing via the
+separate coverage job. Fix the named desktop gate, then run the affected
 monorepo gates before pushing.
 
 ## Fix patterns

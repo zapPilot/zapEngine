@@ -46,13 +46,13 @@ When changing wallet validation behavior, check these before broadening the PR:
 
 ## Consumer-contract gotcha
 
-The 2026-07-02 wallet validation Test QA run exposed this pattern twice:
+When app-core validation acceptance changes (invalid → valid or valid → invalid),
+CI routinely fails in a *consumer* test — typically a frontend WalletManager/unit
+expectation that still encodes the old contract — even though the app-core suite
+is green.
 
-1. Add a focused app-core test for accepting trimmed valid input.
-2. Make the minimal shared implementation fix (`validateEmail` / `validateAddress` must validate the trimmed value).
-3. CI then fails in a frontend WalletManager/unit expectation that still expects the same trimmed valid input to be invalid.
-
-Lesson: when app-core validation acceptance changes, do not stop at the package test. Search for consumer tests importing the helper and update their expected UX contract in the same small PR.
+Rule: do not stop at the package test. Search for consumer tests importing the
+helper and update their expected UX contract in the same small PR.
 
 ## Validation loop
 

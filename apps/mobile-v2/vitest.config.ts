@@ -12,5 +12,16 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: ['tests/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary', 'html'],
+      include: [
+        'src/integration/**',
+        'src/lib/**',
+        'src/config/**',
+        'src/data/**',
+      ],
+      exclude: ['src/integration/podcastPlayer.ts'],
+    },
   },
 });

@@ -20,7 +20,8 @@ no-regression script fired.
 
 ### Current GitHub `coverage` job
 
-As of 2026-06-29, `.github/workflows/ci.yml` runs this step:
+`.github/workflows/ci.yml` is authoritative — always copy the exact command and
+filters from the workflow before debugging. It currently runs:
 
 ```bash
 pnpm run coverage test
@@ -42,11 +43,10 @@ threshold, not the baseline regression gate.
 
 ### Root `pnpm coverage summary/check` caveat
 
-`pnpm coverage summary` is a convenience script, but it may not be exact CI
-parity if `.github/workflows/ci.yml` has hand-written filters. When debugging CI,
-copy the command from the workflow first. On 2026-06-29 this mattered because CI
-excluded both `mobile` and `desktop`, while the root script historically only
-excluded `mobile`.
+`pnpm coverage summary` is a convenience script whose filters can drift from the
+workflow's hand-written filters (e.g. which workspaces are excluded). It is not
+guaranteed CI parity — when debugging CI, copy the command from the workflow
+first.
 
 ## Core principle — fix coverage without hiding the blast radius
 
@@ -94,18 +94,14 @@ Preferred order:
    validation helpers, and render paths.
 2. If deploy is blocked and the feature is explicitly a POC, a temporary threshold
    reduction is acceptable only when all of these are true:
-   - scoped to the affected workspace's `vitest.config.ts`, never repo-wide;
+   - scoped to the affected workspace's `vitest.config.ts`, never repo-wide —
+     other workspaces' floors stay untouched;
    - set just below the current measured coverage, with some tests added first;
    - documented with a `Temporary POC floor` comment;
    - not done by editing `coverage/baseline.json` downward;
    - followed by a separate task to ratchet the threshold back up.
 3. Do not use blanket `c8 ignore` to hide reachable dashboard code. Only ignore
    genuinely unreachable defensive branches, with a reason.
-
-The 2026-06-29 landing-page track-record incident is the model: the branch added
-track-record tests, then lowered only `@zapengine/landing-page` from strict
-94/85/95/95 to a temporary POC floor. Frontend/account-engine/analytics floors
-were not weakened.
 
 ## No-regression baseline gate
 
