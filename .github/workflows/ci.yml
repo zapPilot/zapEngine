@@ -14,7 +14,6 @@ on:
         type: choice
         options:
           - all
-          - frontend
           - account-engine
           - alpha-etl
           - analytics-engine
@@ -85,7 +84,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package.json', 'pnpm-lock.yaml') }}
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/mobile-v2/package.json', 'pnpm-lock.yaml') }}
           restore-keys: |
             playwright-${{ runner.os }}-
 
@@ -161,7 +160,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package.json', 'pnpm-lock.yaml') }}
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/mobile-v2/package.json', 'pnpm-lock.yaml') }}
           restore-keys: |
             playwright-${{ runner.os }}-
 
@@ -193,14 +192,6 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         with:
           filters: |
-            frontend:
-              - 'apps/frontend/**'
-              - 'packages/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-              - '.nvmrc'
             account-engine:
               - 'apps/account-engine/**'
               - 'packages/**'
@@ -319,7 +310,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package.json', 'pnpm-lock.yaml') }}
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/mobile-v2/package.json', 'pnpm-lock.yaml') }}
           restore-keys: |
             playwright-${{ runner.os }}-
 

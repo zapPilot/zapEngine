@@ -14,7 +14,7 @@ type MetricOverrides = Partial<
 >;
 
 // `pct` sets all four metrics; pass overrides to move one metric independently
-// (e.g. ws('apps/frontend', 90, { branches: 88 }) keeps lines at 90).
+// (e.g. ws('apps/mobile-v2', 90, { branches: 88 }) keeps lines at 90).
 function ws(
   name: string,
   pct: number,
@@ -66,11 +66,11 @@ describe('detectRegressions', () => {
   it('tolerates noise drops smaller than the threshold', () => {
     // 0.2 pp drop must not trigger (threshold is 0.3)
     const baseline: MonorepoSummaryInput = {
-      workspaces: [ws('apps/frontend', 75.5)],
+      workspaces: [ws('apps/mobile-v2', 75.5)],
       total: emptyTotal,
     };
     const current: MonorepoSummaryInput = {
-      workspaces: [ws('apps/frontend', 75.3)],
+      workspaces: [ws('apps/mobile-v2', 75.3)],
       total: emptyTotal,
     };
     assert.equal(detectRegressions(current, baseline).length, 0);
@@ -98,11 +98,11 @@ describe('detectRegressions', () => {
 
   it('flags a branches-only regression even when lines is stable', () => {
     const baseline: MonorepoSummaryInput = {
-      workspaces: [ws('apps/frontend', 90)],
+      workspaces: [ws('apps/mobile-v2', 90)],
       total: emptyTotal,
     };
     const current: MonorepoSummaryInput = {
-      workspaces: [ws('apps/frontend', 90, { branches: 88 })], // branches -2.0
+      workspaces: [ws('apps/mobile-v2', 90, { branches: 88 })], // branches -2.0
       total: emptyTotal,
     };
     const regressions = detectRegressions(current, baseline);
@@ -115,11 +115,11 @@ describe('detectRegressions', () => {
   it('tolerates branch noise under the (looser) branches threshold', () => {
     // branches threshold is 0.75 pp; a 0.5 pp branch drop must not trip it.
     const baseline: MonorepoSummaryInput = {
-      workspaces: [ws('apps/frontend', 80)],
+      workspaces: [ws('apps/mobile-v2', 80)],
       total: emptyTotal,
     };
     const current: MonorepoSummaryInput = {
-      workspaces: [ws('apps/frontend', 80, { branches: 79.5 })],
+      workspaces: [ws('apps/mobile-v2', 80, { branches: 79.5 })],
       total: emptyTotal,
     };
     assert.equal(detectRegressions(current, baseline).length, 0);
@@ -169,7 +169,7 @@ describe('detectRegressions', () => {
     const baseline: MonorepoSummaryInput = {
       workspaces: [
         ws('packages/intent-engine', 90),
-        ws('apps/frontend', 75),
+        ws('apps/mobile-v2', 75),
         ws('apps/account-engine', 90),
       ],
       total: emptyTotal,
@@ -177,7 +177,7 @@ describe('detectRegressions', () => {
     const current: MonorepoSummaryInput = {
       workspaces: [
         ws('packages/intent-engine', 88), // -2.0 pp → flag
-        ws('apps/frontend', 75.1), // +0.1 pp → ok
+        ws('apps/mobile-v2', 75.1), // +0.1 pp → ok
         ws('apps/account-engine', 89.9), // -0.1 pp → ok (under threshold)
       ],
       total: emptyTotal,
@@ -188,7 +188,7 @@ describe('detectRegressions', () => {
     const regressed = new Set(regressions.map((r) => r.workspace));
     assert.equal(regressed.size, 1);
     assert.ok(regressed.has('packages/intent-engine'));
-    assert.ok(!regressed.has('apps/frontend'));
+    assert.ok(!regressed.has('apps/mobile-v2'));
     assert.ok(!regressed.has('apps/account-engine'));
   });
 

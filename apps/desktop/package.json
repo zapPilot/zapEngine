@@ -7,7 +7,6 @@
   "scripts": {
     "dev": "tauri dev",
     "dev:web": "vite",
-    "dev:health": "pnpm --filter @zapengine/frontend run dev:health -- http://127.0.0.1:3005/",
     "build": "tauri build",
     "build:web": "vite build",
     "preview": "vite preview --port 3006",

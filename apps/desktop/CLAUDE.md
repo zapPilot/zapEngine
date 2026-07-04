@@ -4,7 +4,7 @@ Read [README.md](./README.md) first for setup, dev, packaging, and troubleshooti
 
 ## Role
 
-`apps/desktop` is a Tauri v2 macOS app that owns its **own** phone-frame product UI under `src/` (wallet portfolio + From Fed to Chain podcast tab). Business logic comes from `@zapengine/app-core` / `@zapengine/types`; do not fork services or query hooks here, and do not point the shell back at `apps/frontend`.
+`apps/desktop` is a Tauri v2 macOS app that owns its **own** phone-frame product UI under `src/` (wallet portfolio + From Fed to Chain podcast tab). Business logic comes from `@zapengine/app-core` / `@zapengine/types`; do not fork services or query hooks here.
 
 ## Runtime contract
 
@@ -69,7 +69,7 @@ The root cause was a manual `vendor-privy` chunk interacting badly with `vendor-
 Safe rule:
 
 - Do not add `vendor-privy`.
-- Do not aggressively split wallet/provider packages unless comparing against `apps/frontend/vite.config.ts`.
+- Do not aggressively split wallet/provider packages without a runtime-verified reason.
 - If this error appears again, first inspect `apps/desktop/vite.config.ts` and `dist/assets` for `vendor-privy`.
 - Verify with:
 
@@ -86,14 +86,7 @@ Expected: no `vendor-privy` output.
 Port 3005 is the desktop Vite web server. If the browser reports a
 `/node_modules/.vite/deps/... 504 (Outdated Optimize Dep)` error, treat it as a
 stale Vite optimized-dependency cache/browser-module-graph issue. Restart
-`pnpm --filter @zapengine/desktop dev:web -- --force`, then verify with:
-
-```bash
-pnpm --filter @zapengine/desktop run dev:health
-```
-
-The Claude stop hook also runs this health check automatically when a local Vite
-server is reachable.
+`pnpm --filter @zapengine/desktop dev:web -- --force` and reload the page.
 
 ## Guardrails
 

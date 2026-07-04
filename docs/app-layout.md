@@ -66,15 +66,14 @@ src/
 Frontend layout is **framework-driven** — don't try to align with the
 server convention. Current state:
 
-- `apps/frontend` (React + Vite SPA): rich layout with `components/`,
-  `hooks/`, `contexts/`, `adapters/`, `providers/`, `schemas/`, `lib/`,
-  `services/`, `utils/`. Domain helpers in `lib/<domain>/`. Generic
-  utilities in `utils/`.
+- `apps/mobile-v2` (Expo / React Native universal app): expo-router routes in
+  `app/` with screens/components under `src/`; shared business logic lives in
+  `packages/app-core` (hooks/services/adapters), not in the app.
 - `apps/landing-page` (Next.js App Router): standard Next layout —
   `app/`, `components/`, `lib/`, `data/`, `config/`.
 
 If you add a new frontend app: copy the framework's recommended layout
-(Vite docs / Next docs), then mirror the existing frontend app's
+(Vite docs / Next docs / Expo docs), then mirror the existing apps'
 sub-conventions (`lib/<domain>/`, `hooks/<scope>/`).
 
 ---

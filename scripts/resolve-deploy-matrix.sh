@@ -7,10 +7,8 @@
 #
 # Required env vars:
 #   EVENT_NAME     — 'push' | 'pull_request' | 'workflow_dispatch'
-#   DEPLOY_TARGET  — 'all' | '<app-name>' (set on workflow_dispatch only;
-#                    'frontend' is a valid option but produces no-op matrices
-#                    since frontend deploys via Vercel, not this workflow)
-#   PATHS_CHANGES  — JSON array from paths-filter like '["account-engine","frontend"]'
+#   DEPLOY_TARGET  — 'all' | '<app-name>' (set on workflow_dispatch only)
+#   PATHS_CHANGES  — JSON array from paths-filter like '["account-engine","alpha-etl"]'
 #                    Empty on workflow_dispatch events.
 #
 # Outputs (written to $GITHUB_OUTPUT when set, always echoed to stdout):
@@ -43,11 +41,10 @@ if [ "${EVENT_NAME:-}" = "workflow_dispatch" ]; then
       exit 1
       ;;
     *)
-      # Validate against the registry (+ the special 'frontend' Vercel no-op) so a
-      # typo'd dispatch fails loudly instead of silently producing an empty matrix.
-      if [ "$DEPLOY_TARGET" != "frontend" ] \
-        && ! jq -e --arg t "$DEPLOY_TARGET" 'any(.[]; .app == $t)' "$REGISTRY_FILE" >/dev/null; then
-        valid=$(jq -r '([.[].app] + ["all", "frontend"]) | unique | join(", ")' "$REGISTRY_FILE")
+      # Validate against the registry so a typo'd dispatch fails loudly
+      # instead of silently producing an empty matrix.
+      if ! jq -e --arg t "$DEPLOY_TARGET" 'any(.[]; .app == $t)' "$REGISTRY_FILE" >/dev/null; then
+        valid=$(jq -r '([.[].app] + ["all"]) | unique | join(", ")' "$REGISTRY_FILE")
         echo "error: DEPLOY_TARGET '$DEPLOY_TARGET' is not a known app. Valid: $valid" >&2
         exit 1
       fi

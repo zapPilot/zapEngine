@@ -25,13 +25,13 @@ Deeper design docs live under `apps/<app>/docs/`.
 | alpha-etl        | [CLAUDE.md](../apps/alpha-etl/CLAUDE.md) · [docs/adr/](../apps/alpha-etl/docs/adr)                                                                                                                                                                                                      |
 | analytics-engine | [CLAUDE.md](../apps/analytics-engine/CLAUDE.md) · [coding_standards](../apps/analytics-engine/docs/coding_standards.md) · [snapshot_architecture](../apps/analytics-engine/docs/snapshot_architecture.md) · [sql_parameter_audit](../apps/analytics-engine/docs/sql_parameter_audit.md) |
 | desktop          | [README.md](../apps/desktop/README.md) · [CLAUDE.md](../apps/desktop/CLAUDE.md)                                                                                                                                                                                                         |
-| frontend         | [CLAUDE.md](../apps/frontend/CLAUDE.md) · [LAYERING](../apps/frontend/docs/LAYERING.md) · [PORTFOLIO_DATA_FLOW](../apps/frontend/docs/PORTFOLIO_DATA_FLOW.md) · [SERVICES](../apps/frontend/docs/SERVICES.md)                                                                           |
 | landing-page     | [CLAUDE.md](../apps/landing-page/CLAUDE.md) · `content/docs/*.mdx` (published site docs)                                                                                                                                                                                                |
 | mobile           | [CLAUDE.md](../apps/mobile/CLAUDE.md) · [ios-release](../apps/mobile/docs/ios-release.md)                                                                                                                                                                                               |
+| mobile-v2        | [README.md](../apps/mobile-v2/README.md) · [CLAUDE.md](../apps/mobile-v2/CLAUDE.md)                                                                                                                                                                                                     |
 | podcast-pipeline | [CLAUDE.md](../apps/podcast-pipeline/CLAUDE.md)                                                                                                                                                                                                                                         |
 
 Nested module docs also exist (e.g. `apps/account-engine/src/modules/*/CLAUDE.md`,
-`apps/frontend/src/{hooks,lib,services}/CLAUDE.md`, `packages/intent-engine/src/protocols/CLAUDE.md`).
+`packages/app-core/src/services/CLAUDE.md`, `packages/intent-engine/src/protocols/CLAUDE.md`).
 Read them when you're working in that directory.
 
 ## Shared packages

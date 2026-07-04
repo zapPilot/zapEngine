@@ -327,7 +327,12 @@ while IFS= read -r var; do
     # Check if this var is likely app-specific and doesn't match filter
     case "$var" in
       VITE_*)
-        [[ "$FILTER" == "frontend" ]] || continue
+        # VITE_* keys are consumed by the desktop Vite app (and injected into
+        # app-core); mobile-v2 maps EXPO_PUBLIC_* onto them at bootstrap.
+        [[ "$FILTER" == "desktop" ]] || continue
+        ;;
+      EXPO_PUBLIC_*)
+        [[ "$FILTER" == "mobile-v2" ]] || continue
         ;;
       ACCOUNT_ENGINE_*)
         [[ "$FILTER" == "account-engine" ]] || continue

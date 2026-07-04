@@ -12,19 +12,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // see CLAUDE.md for the boundary table.
 const WEB_ONLY_FILES = [
   'src/hooks/index.ts',
-  'src/hooks/ui/**',
   'src/hooks/bundle/**',
-  'src/hooks/wallet/index.ts',
   'src/hooks/wallet/usePrivyWalletBackend.ts',
-  'src/hooks/wallet/useEtlJobSync.ts',
-  'src/hooks/wallet/useAccountDeletion.ts',
   'src/providers/PrivyAuthProvider.tsx',
   'src/providers/WalletProvider.tsx',
   'src/providers/QueryProvider.tsx',
-  'src/lib/csvGenerator.ts',
-  'src/services/analyticsExportService.ts',
-  'src/utils/index.ts',
-  'src/utils/clipboard.ts',
 ];
 
 const WEB_ONLY_IMPORT_PATHS = [
@@ -49,15 +41,8 @@ const WEB_ONLY_INTERNAL_PATTERNS = [
       '**/providers/PrivyAuthProvider',
       '**/providers/QueryProvider',
       '**/hooks/wallet/usePrivyWalletBackend',
-      '**/hooks/wallet/useEtlJobSync',
-      '**/hooks/wallet/useAccountDeletion',
-      '**/hooks/ui',
-      '**/hooks/ui/*',
       '**/hooks/bundle/useBundlePage',
       '**/hooks/bundle/useWalletOperations',
-      '**/lib/csvGenerator',
-      '**/services/analyticsExportService',
-      '**/utils/clipboard',
     ],
     allowTypeImports: true,
     message:

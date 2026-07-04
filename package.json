@@ -4,7 +4,6 @@
   "packageManager": "pnpm@10.30.3",
   "scripts": {
     "dev": "bash scripts/dev.sh",
-    "dev:health": "pnpm --filter @zapengine/frontend run dev:health",
     "build": "bash scripts/build.sh",
     "type-check": "turbo run type-check",
     "test": "bash scripts/test.sh",
@@ -49,9 +48,9 @@
       "pnpm --filter @zapengine/desktop exec eslint --fix",
       "pnpm --filter @zapengine/desktop exec prettier --write"
     ],
-    "apps/frontend/**/*.{ts,tsx}": [
-      "pnpm --filter @zapengine/frontend exec eslint --fix",
-      "pnpm --filter @zapengine/frontend exec prettier --write"
+    "apps/mobile-v2/**/*.{ts,tsx}": [
+      "pnpm --filter @zapengine/mobile-v2 exec eslint --fix",
+      "pnpm --filter @zapengine/mobile-v2 exec prettier --write"
     ],
     "apps/landing-page/**/*.{ts,tsx}": [
       "pnpm --filter @zapengine/landing-page exec eslint --fix",

@@ -56,8 +56,6 @@ export default defineConfig([
               group: [
                 '@privy-io/react-auth/*',
                 'react-dom/*',
-                '@zapengine/app-core/hooks/ui',
-                '@zapengine/app-core/hooks/ui/**',
                 '@zapengine/app-core/hooks/bundle',
                 '@zapengine/app-core/hooks/bundle/**',
                 '@zapengine/app-core/hooks/wallet',
@@ -74,15 +72,6 @@ export default defineConfig([
               ],
               message:
                 'Web-only app-core providers. Use WalletProviderBase from @zapengine/app-core/providers/walletContext and QueryClientProvider with the shared queryClient from @zapengine/app-core/lib/state/queryClient instead.',
-            },
-            {
-              group: [
-                '@zapengine/app-core/lib/csvGenerator',
-                '@zapengine/app-core/utils/clipboard',
-                '@zapengine/app-core/services/analyticsExportService',
-              ],
-              message:
-                'Browser-only DOM UX helpers (download links / clipboard) — they throw at runtime on React Native.',
             },
           ],
         },

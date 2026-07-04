@@ -10,8 +10,8 @@ Internal `packages/*` are built on demand — `turbo run` tasks declare `depends
 
 For single-workspace runs, **use Turbo, not pnpm filter**:
 
-- ✅ `pnpm turbo run type-check --filter=@zapengine/frontend` — respects `^build` deps
-- ❌ `pnpm --filter @zapengine/frontend type-check` — runs `tsc` directly, hits TS2307 if `packages/types/dist` is empty
+- ✅ `pnpm turbo run type-check --filter=@zapengine/mobile-v2` — respects `^build` deps
+- ❌ `pnpm --filter @zapengine/mobile-v2 type-check` — runs `tsc` directly, hits TS2307 if `packages/types/dist` is empty
 
 Stale build fix: `pnpm --filter @zapengine/types build` (targeted, any package) or `pnpm build packages` (all packages, rarely needed — the `contracts check` pipeline calls it internally because `contracts export` is raw `tsx` and bypasses Turbo).
 
@@ -34,11 +34,11 @@ Cache heuristics: `.env*` files are listed in `inputs` for `build`/`type-check`/
 
 All apps — including analytics-engine (Python/FastAPI) — expose the same `pnpm <script>` surface (`dev`, `test`, `test:ci`, `lint`, `type-check`, `format`, `format:check`, `security:audit`, etc.). Under the hood, analytics-engine scripts wrap `uv run …`, but the CLI is uniform.
 
-First-time Python setup: `pnpm --filter @zapengine/analytics-engine run build` (runs `uv sync --locked`). Frontend uses `pnpm test:unit` (not `pnpm test`) for unit tests.
+First-time Python setup: `pnpm --filter @zapengine/analytics-engine run build` (runs `uv sync --locked`).
 
 ## Desktop (Tauri/macOS)
 
-The desktop app is a Tauri v2 shell around its **own** phone-frame Vite app (`apps/desktop/src`), built on `@zapengine/app-core` — it does not wrap `@zapengine/frontend`.
+The desktop app is a Tauri v2 shell around its **own** phone-frame Vite app (`apps/desktop/src`), built on `@zapengine/app-core` — it does not wrap any other app's UI.
 
 All desktop guardrails — packaging/DMG gates, Corepack/CI env notes, Rust/Xcode prerequisites, when the package gate is mandatory — live in [apps/desktop/CLAUDE.md](apps/desktop/CLAUDE.md). Do not duplicate them here. For any desktop code/config change, finish with the desktop gate from the root:
 
@@ -60,20 +60,20 @@ If you install Flutter, just use the regular non-`:core` commands. CI runs the f
 - Service/API logic: plain functions in `src/services/`, no classes
 - Imports: ES modules only (`import/export`), not CommonJS
 - Validation: Zod v4 (not v3 — import paths and APIs differ slightly)
-- Path alias: `@/*` → `src/*` in frontend only
+- Path alias: `@/*` → `src/*` in mobile-v2 only
 - ESLint: flat config (`eslint.config.mjs`), not legacy `.eslintrc`
 - App `src/` layout (TS server apps): see [docs/app-layout.md](./docs/app-layout.md)
 
 # Key ports
 
-| App              | Port |
-| ---------------- | ---- |
-| frontend (dev)   | 3000 |
-| landing-page     | 3000 |
-| account-engine   | 3004 |
-| alpha-etl        | 3003 |
-| analytics-engine | 8001 |
-| frontend (E2E)   | 3099 |
+| App                 | Port |
+| ------------------- | ---- |
+| mobile-v2 (web dev) | 8081 |
+| landing-page        | 3000 |
+| account-engine      | 3004 |
+| alpha-etl           | 3003 |
+| analytics-engine    | 8001 |
+| mobile-v2 (web E2E) | 3100 |
 
 # Database rules
 
@@ -89,14 +89,14 @@ Four planes + one composing layer. Do not let them bleed:
 | Strategy               | _what_ allocation; builds no transactions            | analytics-engine                                |
 | Intent / routing       | normalized intent → `PreparedTransaction[]`; pure    | `packages/intent-engine`                        |
 | **plan-orchestration** | _composes_: strategy → normalized intent → exec plan | account-engine module (see evolution doc below) |
-| Execution              | confirm, sign & broadcast                            | frontend + wallet                               |
+| Execution              | confirm, sign & broadcast                            | app clients (mobile-v2 / desktop) + wallet      |
 | Identity / persistence | _who_, and remembering; plans no money movement      | account-engine                                  |
 
 Dependency rule (one line): _the intent core is a pure package; only plan-orchestration composes strategy + intent downward; nothing depends upward; the identity plane owns no money-movement planning._
 
 - `packages/intent-engine`: internal deps limited to `@zapengine/types`; zero analytics and zero identity knowledge; `intent → PreparedTransaction[]`.
 - plan-orchestration owns the analytics→intent normalization (allocation % → chain/token intent) and the `POST /plan-orchestration/{deposit,rebalance}` contract (types in `@zapengine/types`). It is not an engine — never name it `intent-service` (collides with `intent-engine`).
-- analytics-engine builds no transactions; frontend builds no plans (confirm + execute); account-engine plans no money movement.
+- analytics-engine builds no transactions; app clients build no plans (confirm + execute); account-engine plans no money movement.
 - One authoritative path per money-moving flow: never compute the same plan both client-side and server-side against a shared contract.
 
 Where plan-orchestration lives today vs. when to extract `apps/plan-orchestration`: see [apps/account-engine/docs/plan-orchestration-evolution.md](apps/account-engine/docs/plan-orchestration-evolution.md) — that doc is the single source of truth for the migration state; do not restate it here.

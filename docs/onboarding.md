@@ -12,15 +12,13 @@ map is [docs/README.md](./README.md).
 3. [CONTRIBUTING.md → Daily Workflow](../CONTRIBUTING.md#daily-workflow).
 4. `cp .env.example .env` and fill in values.
 
-## TypeScript frontend — `apps/frontend`
+## Universal app — `apps/mobile-v2` (Expo / React Native, iOS/Android/Web)
 
-1. [apps/frontend/CLAUDE.md](../apps/frontend/CLAUDE.md) + [README](../apps/frontend/README.md).
-2. [docs/app-layout.md](./app-layout.md) — the `src/` layout convention.
-3. Deep dives: [LAYERING](../apps/frontend/docs/LAYERING.md),
-   [PORTFOLIO_DATA_FLOW](../apps/frontend/docs/PORTFOLIO_DATA_FLOW.md),
-   [SERVICES](../apps/frontend/docs/SERVICES.md).
-4. Run `pnpm dev frontend`. Unit tests: `pnpm --filter @zapengine/frontend test:unit`
-   (note `test:unit`, **not** `test`).
+1. [apps/mobile-v2/CLAUDE.md](../apps/mobile-v2/CLAUDE.md) + [README](../apps/mobile-v2/README.md).
+2. [packages/app-core/CLAUDE.md](../packages/app-core/CLAUDE.md) — the RN-safe vs
+   web-only boundary table (business logic lives in app-core, not the app).
+3. Run `pnpm dev web` (web, port 8081) or `pnpm dev app` (native dev client).
+   Web E2E: `pnpm turbo run test:e2e --filter=@zapengine/mobile-v2` (port 3100).
 
 ## Desktop — `apps/desktop` (Tauri/macOS)
 

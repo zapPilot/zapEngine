@@ -40,13 +40,13 @@ function getManualChunk(id: string): string | undefined {
   // related wallet modules through several nested entrypoints; isolating all of
   // Privy into one manual chunk can create an ES module TDZ cycle at runtime
   // (for example: "Cannot access 'wZ' before initialization" from vendor-viem).
-  // Leave Privy to Rollup's natural chunk graph, matching apps/frontend.
+  // Leave Privy to Rollup's natural chunk graph.
 
   return undefined;
 }
 
 // Desktop loads from the repo-root .env (shared with the other apps) and runs on
-// its own port so it never collides with frontend/landing (3000).
+// its own port so it never collides with landing (3000).
 export default defineConfig({
   envDir: REPO_ROOT,
   plugins: [react()],
@@ -59,8 +59,7 @@ export default defineConfig({
     ],
     // @zapengine/app-core declares these React-context-bearing libs as peer
     // dependencies; dedupe pins a single instance so PrivyProvider /
-    // QueryClientProvider context reaches app-core's hooks (same rationale as
-    // apps/frontend/vite.config.ts).
+    // QueryClientProvider context reaches app-core's hooks.
     dedupe: [
       '@privy-io/react-auth',
       '@tanstack/react-query',
