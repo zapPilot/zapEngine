@@ -17,7 +17,13 @@ function loadRepoRootEnv(): void {
       continue;
     }
 
-    const [, key, rawValue = ''] = match;
+    const key = match[1];
+
+    if (!key) {
+      continue;
+    }
+
+    const rawValue = match[2] ?? '';
     const value = rawValue.trim().replace(/^(['"])(.*)\1$/u, '$2');
 
     process.env[key] ??= value;

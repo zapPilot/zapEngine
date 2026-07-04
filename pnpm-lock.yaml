@@ -469,9 +469,6 @@ importers:
       '@zapengine/knip-config':
         specifier: workspace:*
         version: link:../../packages/knip-config
-      dotenv:
-        specifier: 'catalog:'
-        version: 17.4.2
       eslint:
         specifier: 'catalog:'
         version: 9.39.4(jiti@1.21.7)
