@@ -18,8 +18,5 @@ export * from './analytics';
 export * from './bundle';
 export * from './wallet';
 
-// UI interaction hooks
-export * from './ui';
-
 // Utility hooks
 export * from './utils';

@@ -51,8 +51,8 @@ git commit -m "chore(coverage): ratchet baseline to <date>"
 
 ## CI behavior
 
-Coverage is intentionally NOT part of `verify ci` (frontend sharded coverage
-alone is ~6 min). The parallel job in `.github/workflows/ci.yml` runs
+Coverage is intentionally NOT part of `verify ci` (the full coverage suite
+is slow on its own). The parallel job in `.github/workflows/ci.yml` runs
 `pnpm coverage summary`:
 
 ```yaml
@@ -90,7 +90,6 @@ Each workspace enforces its own hard floor via vitest/pytest config:
 | `packages/types`         | 90               | 85       | 90        | 90    |
 | `apps/account-engine`    | 90               | 85       | 90        | 90    |
 | `apps/alpha-etl`         | 80               | 75       | 80        | 80    |
-| `apps/frontend`          | 75               | 70       | 75        | 75    |
 | `apps/podcast-pipeline`  | 75               | 70       | 75        | 75    |
 | `apps/landing-page`      | 70               | 65       | 70        | 70    |
 | `apps/analytics-engine`  | 95 line (pytest) |          |

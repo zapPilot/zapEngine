@@ -1,57 +1,27 @@
-import path from 'node:path';
-
 import { defineConfig } from 'vitest/config';
-
-const repoRoot = path.resolve(__dirname, '../..');
 
 export default defineConfig({
   test: {
-    environment: 'node',
-    globals: true,
+    watch: false,
     include: ['tests/**/*.test.ts'],
-  },
-  resolve: {
-    alias: [
-      {
-        find: '@',
-        replacement: path.resolve(__dirname, './src'),
+    exclude: ['**/node_modules/**', '**/dist/**', '**/release/**'],
+    coverage: {
+      provider: 'v8',
+      // Only the pure, injectable modules are unit-testable; Electron-host
+      // wiring (main/window/tray) is exercised by the manual package gate.
+      include: [
+        'src/shared/**',
+        'src/main/appProtocol.ts',
+        'src/main/config.ts',
+        'src/main/scheduler/**',
+      ],
+      thresholds: {
+        lines: 85,
+        functions: 85,
+        branches: 80,
+        statements: 85,
       },
-      {
-        find: /^@zapengine\/app-core\/(.*)$/,
-        replacement: `${repoRoot}/packages/app-core/src/$1`,
-      },
-      {
-        find: /^@zapengine\/app-core$/,
-        replacement: `${repoRoot}/packages/app-core/src/index.ts`,
-      },
-      {
-        find: /^@core\/(.*)$/,
-        replacement: `${repoRoot}/packages/app-core/src/$1`,
-      },
-      {
-        find: /^@zapengine\/intent-engine\/gmx-v2$/,
-        replacement: `${repoRoot}/packages/intent-engine/src/protocols/gmx-v2/index.ts`,
-      },
-      {
-        find: /^@zapengine\/intent-engine\/morpho$/,
-        replacement: `${repoRoot}/packages/intent-engine/src/protocols/morpho/index.ts`,
-      },
-      {
-        find: /^@zapengine\/intent-engine\/types$/,
-        replacement: `${repoRoot}/packages/intent-engine/src/types/index.ts`,
-      },
-      {
-        find: /^@zapengine\/intent-engine$/,
-        replacement: `${repoRoot}/packages/intent-engine/src/index.ts`,
-      },
-      {
-        find: /^@zapengine\/types\/(.*)$/,
-        replacement: `${repoRoot}/packages/types/src/$1`,
-      },
-      {
-        find: /^@zapengine\/types$/,
-        replacement: `${repoRoot}/packages/types/src/index.ts`,
-      },
-    ],
+      exclude: ['**/*.test.ts', '**/node_modules/**', '**/dist/**'],
+    },
   },
 });

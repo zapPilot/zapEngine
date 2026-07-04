@@ -38,15 +38,15 @@ core_ci_job_name() {
 
 core_ci_job_command() {
   case "$1" in
-    format)    echo "pnpm format check core" ;;
+    format)    echo "pnpm format check" ;;
     repo)      echo "pnpm lint repo" ;;
     contracts) echo "pnpm contracts check" ;;
-    type-check) echo "pnpm turbo run type-check --filter=!@zapengine/mobile" ;;
-    lint)      echo "pnpm turbo run lint --filter=!@zapengine/mobile" ;;
-    test)      echo "pnpm turbo run test --filter=!@zapengine/mobile --force" ;;
-    e2e)       echo "pnpm turbo run test:e2e --filter=@zapengine/frontend --filter=@zapengine/mobile-v2" ;;
-    deadcode)  echo "pnpm turbo run deadcode --filter=!@zapengine/mobile" ;;
-    dup)       echo "pnpm turbo run dup:check --filter=!@zapengine/mobile" ;;
+    type-check) echo "pnpm turbo run type-check" ;;
+    lint)      echo "pnpm turbo run lint" ;;
+    test)      echo "pnpm turbo run test --force" ;;
+    e2e)       echo "pnpm turbo run test:e2e --filter=@zapengine/app" ;;
+    deadcode)  echo "pnpm turbo run deadcode" ;;
+    dup)       echo "pnpm turbo run dup:check" ;;
     analytics) echo "pnpm turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine" ;;
     *) return 1 ;;
   esac

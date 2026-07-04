@@ -47,7 +47,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package.json', 'pnpm-lock.yaml') }}
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/app/package.json', 'pnpm-lock.yaml') }}
           restore-keys: |
             playwright-${{ runner.os }}-
 

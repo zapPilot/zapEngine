@@ -252,8 +252,7 @@ scan_fly_toml_env_keys() {
 # Each entry: "app-name|src-subdir|ext1 ext2 ...". Discovered from apps/* so a
 # new app is scanned automatically — no hand-maintained list to forget. Any
 # apps/<app> with a src/ tree is included: Python (pyproject.toml) scanned as
-# .py, otherwise (package.json) as .ts/.tsx. Apps without src/ (e.g. mobile /
-# Flutter, which uses lib/) are skipped.
+# .py, otherwise (package.json) as .ts/.tsx. Apps without src/ are skipped.
 declare -a APP_REGISTRY=()
 while IFS= read -r _app_dir; do
   _app_name="$(basename "$_app_dir")"
@@ -327,7 +326,12 @@ while IFS= read -r var; do
     # Check if this var is likely app-specific and doesn't match filter
     case "$var" in
       VITE_*)
-        [[ "$FILTER" == "frontend" ]] || continue
+        # VITE_* keys are app-core's env surface; hosts map onto them
+        # (app: EXPO_PUBLIC_*, desktop: ZAP_* / config.json).
+        [[ "$FILTER" == "desktop" || "$FILTER" == "app-core" ]] || continue
+        ;;
+      EXPO_PUBLIC_*)
+        [[ "$FILTER" == "app" ]] || continue
         ;;
       ACCOUNT_ENGINE_*)
         [[ "$FILTER" == "account-engine" ]] || continue

@@ -36,21 +36,22 @@
     },
     "codegen": {
       "inputs": ["$TURBO_DEFAULT$", "tokens.json", "!src/generated/**"],
-      "outputs": ["dist/**", "lib/design_tokens.dart", "src/generated/**"]
+      "outputs": ["dist/**", "src/generated/**"]
     },
     "codegen:css": {
       "inputs": ["$TURBO_DEFAULT$", "tokens.json"],
       "outputs": ["dist/css/variables.css"]
-    },
-    "codegen:flutter": {
-      "inputs": ["$TURBO_DEFAULT$", "tokens.json"],
-      "outputs": ["dist/flutter/design_tokens.dart", "lib/design_tokens.dart"]
     },
     "codegen:ts": {
       "inputs": ["$TURBO_DEFAULT$", "tokens.json", "!src/generated/**"],
       "outputs": ["src/generated/**"]
     },
     "dev": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["^build"]
+    },
+    "dev:web": {
       "cache": false,
       "persistent": true,
       "dependsOn": ["^build"]

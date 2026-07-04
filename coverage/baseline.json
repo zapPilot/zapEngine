@@ -1,29 +1,6 @@
 {
-  "generatedAt": "2026-05-23T12:20:44.561Z",
+  "generatedAt": "2026-07-04T00:00:00.000Z",
   "workspaces": [
-    {
-      "name": "apps/frontend",
-      "statements": {
-        "total": 5680,
-        "covered": 5458,
-        "pct": 96.09
-      },
-      "branches": {
-        "total": 4082,
-        "covered": 3753,
-        "pct": 91.94
-      },
-      "functions": {
-        "total": 1667,
-        "covered": 1598,
-        "pct": 95.86
-      },
-      "lines": {
-        "total": 5440,
-        "covered": 5238,
-        "pct": 96.28
-      }
-    },
     {
       "name": "packages/intent-engine",
       "statements": {
@@ -73,24 +50,24 @@
   ],
   "total": {
     "statements": {
-      "total": 6134,
-      "covered": 5893,
-      "pct": 96.07
+      "total": 454,
+      "covered": 435,
+      "pct": 95.81
     },
     "branches": {
-      "total": 4313,
-      "covered": 3953,
-      "pct": 91.65
+      "total": 231,
+      "covered": 200,
+      "pct": 86.58
     },
     "functions": {
-      "total": 1774,
-      "covered": 1703,
-      "pct": 96
+      "total": 107,
+      "covered": 105,
+      "pct": 98.13
     },
     "lines": {
-      "total": 5890,
-      "covered": 5669,
-      "pct": 96.25
+      "total": 450,
+      "covered": 431,
+      "pct": 95.78
     }
   }
 }

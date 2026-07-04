@@ -62,10 +62,6 @@
       "types": "./dist/hooks/mutations/index.d.ts",
       "import": "./dist/hooks/mutations/index.js"
     },
-    "./hooks/ui": {
-      "types": "./dist/hooks/ui/index.d.ts",
-      "import": "./dist/hooks/ui/index.js"
-    },
     "./hooks/utils": {
       "types": "./dist/hooks/utils/index.d.ts",
       "import": "./dist/hooks/utils/index.js"

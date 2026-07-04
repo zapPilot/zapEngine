@@ -24,14 +24,13 @@ Deeper design docs live under `apps/<app>/docs/`.
 | account-engine   | [CLAUDE.md](../apps/account-engine/CLAUDE.md) · [plan-orchestration-evolution](../apps/account-engine/docs/plan-orchestration-evolution.md)                                                                                                                                             |
 | alpha-etl        | [CLAUDE.md](../apps/alpha-etl/CLAUDE.md) · [docs/adr/](../apps/alpha-etl/docs/adr)                                                                                                                                                                                                      |
 | analytics-engine | [CLAUDE.md](../apps/analytics-engine/CLAUDE.md) · [coding_standards](../apps/analytics-engine/docs/coding_standards.md) · [snapshot_architecture](../apps/analytics-engine/docs/snapshot_architecture.md) · [sql_parameter_audit](../apps/analytics-engine/docs/sql_parameter_audit.md) |
-| desktop          | [README.md](../apps/desktop/README.md) · [CLAUDE.md](../apps/desktop/CLAUDE.md)                                                                                                                                                                                                         |
-| frontend         | [CLAUDE.md](../apps/frontend/CLAUDE.md) · [LAYERING](../apps/frontend/docs/LAYERING.md) · [PORTFOLIO_DATA_FLOW](../apps/frontend/docs/PORTFOLIO_DATA_FLOW.md) · [SERVICES](../apps/frontend/docs/SERVICES.md)                                                                           |
+| desktop | [CLAUDE.md](../apps/desktop/CLAUDE.md)                                                                                                                                                                                                                                         |
 | landing-page     | [CLAUDE.md](../apps/landing-page/CLAUDE.md) · `content/docs/*.mdx` (published site docs)                                                                                                                                                                                                |
-| mobile           | [CLAUDE.md](../apps/mobile/CLAUDE.md) · [ios-release](../apps/mobile/docs/ios-release.md)                                                                                                                                                                                               |
+| app        | [README.md](../apps/app/README.md) · [CLAUDE.md](../apps/app/CLAUDE.md)                                                                                                                                                                                                     |
 | podcast-pipeline | [CLAUDE.md](../apps/podcast-pipeline/CLAUDE.md)                                                                                                                                                                                                                                         |
 
 Nested module docs also exist (e.g. `apps/account-engine/src/modules/*/CLAUDE.md`,
-`apps/frontend/src/{hooks,lib,services}/CLAUDE.md`, `packages/intent-engine/src/protocols/CLAUDE.md`).
+`packages/app-core/src/services/CLAUDE.md`, `packages/intent-engine/src/protocols/CLAUDE.md`).
 Read them when you're working in that directory.
 
 ## Shared packages
@@ -56,7 +55,7 @@ knip-config, tsconfig, types.
 | AI fix inner loop (affected only)     | `pnpm verify changed`                              |
 | Before push                           | `pnpm verify branch`                               |
 | CI canonical gate (sequential)        | `pnpm verify ci`                                   |
-| Separate CI-only checks               | `pnpm security audit core` · `pnpm coverage check` |
+| Separate CI-only checks               | `pnpm security audit` · `pnpm coverage check`      |
 
 `verify ci` / `parallel` do **not** include security audit or coverage — run
 those separately. Full table + the `.ai-verify/result.json` fix loop:

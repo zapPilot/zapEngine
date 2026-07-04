@@ -28,9 +28,9 @@ if [ "$actual" = "null" ] || [ -z "$actual" ]; then
   exit 1
 fi
 
-# Build expected set from the registry + the two special values.
+# Build expected set from the registry + the special 'all' value.
 apps=$(yq -r '.[].app' "$REGISTRY_PATH" | sort | tr '\n' ',')
-expected="all,frontend,${apps%,}"
+expected="all,${apps%,}"
 
 # Compare sorted sets.
 actual_sorted=$(echo "$actual" | tr ',' '\n' | sort | tr '\n' ',' | sed 's/,$//')

@@ -1,103 +1,70 @@
-# Desktop App (Zap Pilot Desktop)
+# Desktop App (Electron shell)
 
-Read [README.md](./README.md) first for setup, dev, packaging, and troubleshooting commands.
+`apps/desktop` is the Electron macOS shell around the **app web
+export** (the universal Expo/RN app). It replaces the Tauri shell: no product
+UI lives here — the renderer is `apps/app/dist/web`, and desktop-only
+behavior (tray, deep links, background rebalance scheduler) lives in the main
+process.
 
-## Role
+## Architecture
 
-`apps/desktop` is a Tauri v2 macOS app that owns its **own** phone-frame product UI under `src/` (wallet portfolio + From Fed to Chain podcast tab). Business logic comes from `@zapengine/app-core` / `@zapengine/types`; do not fork services or query hooks here, and do not point the shell back at `apps/frontend`.
+- **Main/preload are esbuild-bundled CJS** (`scripts/build.mjs` →
+  `dist/main/main.cjs`, `dist/preload/preload.cjs`; `external: ['electron']`).
+  Bundling swallows `@zapengine/app-core` dist + viem, so the packaged app
+  never loads workspace ESM at runtime and electron-builder never walks pnpm
+  symlinks into the asar. Do not switch to electron-vite — the renderer is
+  app's expo export, not a Vite app.
+- **Renderer source priority** (see `src/main/main.ts`):
+  1. `ZAP_ELECTRON_DEV_URL=http://localhost:8081` — expo dev server
+  2. `ZAP_ELECTRON_LOOPBACK=1` — loopback http server on 127.0.0.1 (Privy
+     origin fallback, spike path (b); same SPA-fallback resolver as `app://`)
+  3. default — `app://bundle/` custom protocol over the static export
+     (dev: `../app/dist/web`; packaged: `Resources/web` extraResource)
+- `protocol.registerSchemesAsPrivileged` runs **before** `app.whenReady()`;
+  `resolveWebAsset()` mirrors `apps/app/scripts/serve-web.mjs` exactly
+  (traversal guard, extension → file, extensionless → index.html).
+- Window: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`;
+  all https navigation/window.open goes to the system browser
+  (`shell.openExternal`). OAuth returns via the `zappilotv2://` deep link —
+  the scheme matches `apps/app/app.config.ts`.
+- Tray-resident: single-instance lock, close-to-tray, `window-all-closed`
+  does not quit; quit only from the tray menu.
+- Preload exposes the minimal typed bridge `window.zapDesktop`
+  (`src/shared/ipc.ts` is the contract). app detects it in
+  `src/config/appRuntime.web.ts` to switch `APP_RUNTIME` to `'desktop'`.
 
-## Runtime contract
+## Privy login spike (record results in the PR)
 
-- `dev:web` / `build:web` run the desktop's own Vite app (port 3005) with `VITE_APP_RUNTIME=desktop`; `tauri.conf.json` `frontendDist` is `../dist`.
-- `src-tauri/tauri.conf.json` owns the native window, bundle targets, icons, and macOS metadata.
-- DMG packaging is local/manual for now: `pnpm package` from `apps/desktop` maps to `tauri build --bundles dmg`.
-- The Tauri CLI is the workspace devDependency `@tauri-apps/cli`; do not require a global `tauri` install in scripts or docs.
-- Native builds require Rust/Cargo and Xcode Command Line Tools on the machine running the package step.
-
-## DevTools
-
-DevTools are available in dev builds. In release builds, keep them opt-in only through `ZAP_PILOT_DESKTOP_DEVTOOLS=1`; do not open DevTools unconditionally in production.
-
-The production opt-in lives in `src-tauri/src/lib.rs` and requires the Tauri `devtools` feature in `src-tauri/Cargo.toml`.
+Ladder: (a) allow `app://bundle` origin in the Privy dashboard →
+(b) `ZAP_ELECTRON_LOOPBACK=1` (http://127.0.0.1:<port> is a Privy-friendly
+origin) → (c) restrict in-shell login to email OTP. Verify the OAuth
+system-browser round-trip (`shell.openExternal` → provider →
+`zappilotv2://` deep link) in the same spike.
 
 ## Verification
 
-Use the root Turbo gate when changing desktop code, config, or docs so workspace
-dependencies are built first:
+Workspace gate from the root:
 
 ```bash
-pnpm turbo run type-check lint test --filter=@zapengine/desktop
+pnpm turbo run type-check lint test build deadcode dup:check --filter=@zapengine/desktop
 pnpm --filter @zapengine/desktop format:check
 ```
 
-Run and pass `pnpm --filter @zapengine/desktop package` before final when:
-
-- The user reports or asks about a desktop package/build failure.
-- The change touches `apps/desktop/src`, `apps/desktop/src-tauri`, desktop
-  package scripts, Tauri config, runtime imports, or anything that can differ
-  between Vite dev and the packaged app.
-
-In non-interactive hooks or agents, make sure a Corepack `pnpm` shim is first on
-`PATH` and run the package gate with `CI=true` so Corepack uses the root
-`packageManager`, Turbo child tasks inherit the same pnpm, and DMG creation skips
-Finder scripting.
-
-Do not stop at a failed package command and hand the failure to the user if the
-failure is in code or config. Keep debugging until it passes. Only hand off when
-the blocker is outside the repo state, such as missing dependency install,
-pnpm/corepack cache or version mismatch, Rust/Cargo, or Xcode Command Line Tools.
-In that case, quote the exact command and failing prerequisite, and do not claim
-the package gate passed.
-
-If pnpm reports `Aborted removal of modules directory due to no TTY`, align the
-running pnpm with the root `packageManager` version or repair the install before
-re-running verification. Missing `.bin/tauri`, `.bin/tsc`, or `.bin/turbo` means
-the dependency/link layer is not usable yet; fix install state first.
-
-## Runtime bundling trap: Privy / viem manual chunks
-
-Do not force `@privy-io/*` into a dedicated Vite `manualChunks` vendor chunk in this app.
-
-We previously hit this runtime-only error in the packaged/desktop build:
-
-```txt
-ReferenceError: Cannot access 'wZ' before initialization
-```
-
-The root cause was a manual `vendor-privy` chunk interacting badly with `vendor-viem` and Privy's nested wallet imports, creating an ES module TDZ/circular-initialization issue. Build/type-check can still pass while the desktop app crashes at runtime.
-
-Safe rule:
-
-- Do not add `vendor-privy`.
-- Do not aggressively split wallet/provider packages unless comparing against `apps/frontend/vite.config.ts`.
-- If this error appears again, first inspect `apps/desktop/vite.config.ts` and `dist/assets` for `vendor-privy`.
-- Verify with:
+**Package gate is mandatory** whenever a change touches `src/main/**`,
+`src/preload/**`, `scripts/build.mjs`, or `electron-builder.yml`:
 
 ```bash
-pnpm --filter @zapengine/desktop build:web
-find apps/desktop/dist/assets -maxdepth 1 -type f -name 'vendor-*.js' -print | sort
-grep -R "vendor-privy" -n apps/desktop/dist apps/desktop/vite.config.ts || true
+pnpm --filter @zapengine/desktop package
 ```
 
-Expected: no `vendor-privy` output.
-
-## Vite dev server health
-
-Port 3005 is the desktop Vite web server. If the browser reports a
-`/node_modules/.vite/deps/... 504 (Outdated Optimize Dep)` error, treat it as a
-stale Vite optimized-dependency cache/browser-module-graph issue. Restart
-`pnpm --filter @zapengine/desktop dev:web -- --force`, then verify with:
-
-```bash
-pnpm --filter @zapengine/desktop run dev:health
-```
-
-The Claude stop hook also runs this health check automatically when a local Vite
-server is reachable.
+It rebuilds the app web export first, so it also catches renderer
+drift. DMG packaging stays local/manual (no CI job). The DMG is unsigned for
+now; Developer ID signing + notarization (`notarytool`) are a user follow-up.
 
 ## Guardrails
 
-- Do not duplicate frontend business logic in Rust.
-- Do not hard-code web-only URLs into desktop config unless the runtime boundary is documented.
-- Keep `bundle.targets` aligned with the package script. If `pnpm package` builds DMG, tests and docs should say DMG.
-- Prefer adding desktop-specific behavior behind `VITE_APP_RUNTIME=desktop` or a clearly named desktop env var.
+- No product UI or business logic here — keep it in app / app-core.
+- Never sign or broadcast transactions from the main process; the scheduler
+  only notifies and deep-links into the renderer's confirm flow.
+- Keep `zappilotv2` as the single deep-link scheme across Expo and Electron.
+- Preload API stays minimal and typed; extend `src/shared/ipc.ts` first.

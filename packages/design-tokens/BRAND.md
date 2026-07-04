@@ -1,7 +1,7 @@
 # Zap Pilot Logo Redesign Brief
 
 This is the canonical handoff brief for redesigning the Zap Pilot logo across
-web, Flutter, iOS, Android, and favicon surfaces.
+web, iOS, Android, and favicon surfaces.
 
 It lives in `packages/design-tokens` because that package is the cross-platform
 source of truth for brand tokens. The current logo assets and
@@ -258,7 +258,7 @@ combine motifs just to use every idea.
 Place final SVGs in both:
 
 - `apps/landing-page/public/`
-- `apps/frontend/public/`
+- `apps/app/public/`
 
 Required:
 
@@ -283,16 +283,16 @@ Provide 2x PNG fallback files for each SVG:
 Place `favicon.ico` in both:
 
 - `apps/landing-page/public/`
-- `apps/frontend/public/`
+- `apps/app/public/`
 
 The `.ico` must contain 16 px, 32 px, and 48 px versions. The 16 px version
 must be visually checked, not only auto-scaled.
 
 ### Web Manifest
 
-Place maskable 192 x 192 and 512 x 512 PNGs in `apps/frontend/public/`.
+Place maskable 192 x 192 and 512 x 512 PNGs in `apps/app/public/`.
 
-Also update `apps/frontend/public/manifest.json`. It currently uses legacy
+Also update `apps/app/public/manifest.json`. It currently uses legacy
 `theme_color: "#8b5cf6"` and should move to token-aligned background and accent
 colors when assets are replaced.
 
@@ -379,9 +379,9 @@ Legacy visual assets:
 - `apps/landing-page/public/zap-pilot-icon.svg`
 - `apps/landing-page/public/zap-pilot-icon.png`
 - `apps/landing-page/public/brand-guide.md`
-- `apps/frontend/public/logo.svg`
-- `apps/frontend/public/logo.png`
-- `apps/frontend/public/manifest.json`
+- `apps/app/public/logo.svg`
+- `apps/app/public/logo.png`
+- `apps/app/public/manifest.json`
 
 Legacy issues to fix:
 
@@ -389,25 +389,25 @@ Legacy issues to fix:
 - Amber/red lightning is outside the token system.
 - Inter typography is outside the current token recommendation.
 - Circuit nodes and dot patterns add detail that does not scale well.
-- The frontend manifest still uses a retired purple theme color.
+- The web manifest still uses a retired purple theme color.
 
 ## 10. Hand-Off Protocol
 
 When the logo redesign is complete, implement it in a separate PR.
 
 1. Place SVG and PNG assets in `apps/landing-page/public/` and
-   `apps/frontend/public/`.
+   `apps/app/public/`.
 2. Replace iOS app icons in
    `apps/mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/`.
 3. Replace Android launcher icons in
    `apps/mobile/android/app/src/main/res/mipmap-*/`.
-4. Update `apps/frontend/public/manifest.json` and both favicon locations.
+4. Update `apps/app/public/manifest.json` and both favicon locations.
 5. If the final design adds any brand color, add it to
    `packages/design-tokens/tokens.json`.
 6. If tokens changed, run `pnpm --filter @zapengine/design-tokens build`.
 7. Commit generated token outputs with token changes:
    `packages/design-tokens/dist/` and
-   `packages/design-tokens/lib/design_tokens.dart`.
+   `packages/design-tokens/src/generated/tokens.ts`.
 8. Update this file to record the selected motif direction, any approved color
    changes, and the final typography decision.
 9. Replace, regenerate, or delete
@@ -418,15 +418,15 @@ Expected implementation PR scope:
 
 - Token files only if colors changed: `packages/design-tokens/tokens.json`,
   `packages/design-tokens/dist/`, and
-  `packages/design-tokens/lib/design_tokens.dart`.
+  `packages/design-tokens/src/generated/tokens.ts`.
 - Brand docs/assets:
   `packages/design-tokens/BRAND.md`,
   `apps/landing-page/public/zap-pilot-*`,
   `apps/landing-page/public/favicon.ico`, and
   `apps/landing-page/public/brand-guide.md` if retained.
 - Frontend assets:
-  `apps/frontend/public/logo.svg`, `apps/frontend/public/logo.png`,
-  `apps/frontend/public/manifest.json`, and `apps/frontend/public/favicon.ico`.
+  `apps/app/public/logo.svg`, `apps/app/public/logo.png`,
+  `apps/app/public/manifest.json`, and `apps/app/public/favicon.ico`.
 - Mobile assets:
   `apps/mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/` and
   `apps/mobile/android/app/src/main/res/mipmap-*/ic_launcher.png`.
@@ -436,7 +436,7 @@ Verification after asset replacement:
 - `pnpm --filter @zapengine/design-tokens build`, if tokens changed.
 - `pnpm --filter @zapengine/landing-page type-check`, if landing-page code
   changed.
-- `pnpm --filter @zapengine/frontend type-check`, if frontend code changed.
+- `pnpm turbo run type-check --filter=@zapengine/app`, if app code changed.
 - Visual verification of the landing-page navbar and hero on desktop and mobile.
 - Visual verification of web manifest icon masking.
 - Xcode asset validation for the iOS icon set.

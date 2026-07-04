@@ -6,6 +6,7 @@ allowBuilds:
   '@ffmpeg-installer/darwin-arm64': set this to true or false
   '@reown/appkit': set this to true or false
   bufferutil: set this to true or false
+  electron: true
   esbuild: set this to true or false
   keccak: set this to true or false
   sharp: set this to true or false
@@ -47,6 +48,7 @@ catalog:
 
 onlyBuiltDependencies:
   - bufferutil
+  - electron
   - esbuild
   - sharp
   - unrs-resolver

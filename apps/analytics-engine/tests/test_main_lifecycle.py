@@ -277,8 +277,8 @@ class TestMainModuleDirectExecution:
         fails loudly instead of letting the frontend silently break.
 
         Do not delete this test without removing the corresponding frontend
-        consumers in apps/frontend/src/components/.../ConfigEditorStructuredFields.tsx
-        and apps/frontend/src/.../useStrategyConfigs.ts.
+        consumers in the app clients (packages/app-core strategyAdmin hooks/services
+        and their app screens).
         """
         route_paths = {route.path for route in app.routes}
         required_paths = {

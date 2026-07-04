@@ -14,7 +14,6 @@ on:
         type: choice
         options:
           - all
-          - frontend
           - account-engine
           - alpha-etl
           - analytics-engine
@@ -29,7 +28,7 @@ concurrency:
 
 jobs:
   # Local equivalent: `pnpm verify ci` (or `pnpm verify parallel` to see all
-  # failures at once) + `pnpm run security audit core`. See CLAUDE.md →
+  # failures at once) + `pnpm run security audit`. See CLAUDE.md →
   # "What the local gate covers".
   lint-test:
     runs-on: ubuntu-latest
@@ -85,7 +84,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package.json', 'pnpm-lock.yaml') }}
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/app/package.json', 'pnpm-lock.yaml') }}
           restore-keys: |
             playwright-${{ runner.os }}-
 
@@ -93,8 +92,8 @@ jobs:
         timeout-minutes: 10
         run: pnpm install --frozen-lockfile
 
-      - name: Build core workspaces
-        run: pnpm turbo run build --filter='!@zapengine/mobile' --filter='!@zapengine/desktop'
+      - name: Build workspaces
+        run: pnpm turbo run build
 
       - name: Run check-variant tasks
         run: pnpm run verify ci
@@ -103,77 +102,7 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
       - name: Security audit (Node + Python)
-        run: pnpm run security audit core
-
-  mobile-gates:
-    runs-on: ubuntu-latest
-    outputs:
-      mobile_changed: ${{ steps.filter.outputs.mobile }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            mobile:
-              - 'apps/mobile/**'
-              - 'packages/design-tokens/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-              - '.nvmrc'
-              - '.github/workflows/ci.yml'
-
-  # Local equivalent (needs Flutter): `pnpm turbo run format:check lint test:ci --filter=@zapengine/mobile`.
-  mobile:
-    needs: [mobile-gates]
-    if: needs.mobile-gates.outputs.mobile_changed == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Enable corepack
-        run: corepack enable && corepack prepare pnpm@10.30.3 --activate
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.44.1'
-          channel: stable
-          cache: true
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package.json', 'pnpm-lock.yaml') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-
-      - name: Install workspace dependencies
-        timeout-minutes: 10
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate mobile token package and resolve Flutter deps
-        run: pnpm turbo run build --filter=@zapengine/mobile
-
-      - name: Run mobile checks
-        run: pnpm turbo run format:check lint test:ci --filter=@zapengine/mobile
+        run: pnpm run security audit
 
   deploy-gates:
     runs-on: ubuntu-latest
@@ -193,14 +122,6 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         with:
           filters: |
-            frontend:
-              - 'apps/frontend/**'
-              - 'packages/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-              - '.nvmrc'
             account-engine:
               - 'apps/account-engine/**'
               - 'packages/**'
@@ -319,7 +240,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package.json', 'pnpm-lock.yaml') }}
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/app/package.json', 'pnpm-lock.yaml') }}
           restore-keys: |
             playwright-${{ runner.os }}-
 
@@ -331,7 +252,7 @@ jobs:
         run: pnpm run coverage test
 
       - name: Coverage summary (workspace thresholds)
-        run: pnpm turbo run test:coverage --filter='!@zapengine/mobile' --filter='!@zapengine/desktop' && pnpm exec tsx scripts/coverage-summary.ts
+        run: pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts
 
       - name: Upload coverage summary artifact
         if: always()

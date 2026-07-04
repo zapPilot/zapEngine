@@ -8,16 +8,10 @@
       "autoPort": true
     },
     {
-      "name": "frontend",
+      "name": "app-web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@zapengine/frontend", "dev", "--port", "3001", "--strictPort"],
-      "port": 3001
-    },
-    {
-      "name": "desktop",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@zapengine/desktop", "dev:web"],
-      "port": 3005
+      "runtimeArgs": ["--filter", "@zapengine/app", "exec", "expo", "start", "--web"],
+      "port": 8081
     }
   ]
 }

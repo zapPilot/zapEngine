@@ -10,7 +10,7 @@ Each preset is a factory that returns an array of flat-config blocks. Apps consu
 | ----------------------------------------- | ---------------------------------------------- | ---------------------------------------------------- |
 | `@zapengine/eslint-config/node-ts`        | Node-targeting TypeScript libraries            | `packages/{design-tokens, intent-engine, types}`     |
 | `@zapengine/eslint-config/backend-vitest` | Hono / Express services (Node + Vitest)        | `apps/{account-engine, alpha-etl, podcast-pipeline}` |
-| `@zapengine/eslint-config/react-vite`     | React 19 + Vite SPAs                           | `apps/frontend`                                      |
+| `@zapengine/eslint-config/react-vite`     | React 19 + Vite SPAs                           | `apps/desktop`                                       |
 | `@zapengine/eslint-config/next`           | Next.js 15 apps (extends `eslint-config-next`) | `apps/landing-page`                                  |
 
 Each factory takes an optional config override object and returns the composed flat-config array.
@@ -18,7 +18,7 @@ Each factory takes an optional config override object and returns the composed f
 ## Usage
 
 ```js
-// apps/frontend/eslint.config.mjs (React + Vite SPA)
+// apps/desktop/eslint.config.mjs (React + Vite SPA)
 import { createReactViteConfig } from '@zapengine/eslint-config/react-vite';
 
 export default createReactViteConfig({

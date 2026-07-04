@@ -39,7 +39,6 @@ cirun_run_logged "changed" "verify-changed.log" \
   env TURBO_SCM_BASE="$base_ref" TURBO_SCM_HEAD="$wip_commit" \
   pnpm turbo run lint type-check test test:e2e deadcode dup:check \
     --affected \
-    --filter='!@zapengine/mobile' \
     --summarize || status=$?
 cirun_write_result
 

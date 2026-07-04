@@ -12,14 +12,26 @@ import {
 import { useToast } from '../../providers/ToastContext';
 import { useWalletProvider } from '../../providers/WalletProvider';
 import type { EditingWallet, NewWallet, WalletOperations } from '../../types';
-import { copyTextToClipboard } from '../../utils/clipboard';
 import { formatAddress } from '../../utils/formatters';
-import { useAccountDeletion } from '../wallet/useAccountDeletion';
 import { useWalletLabels } from '../wallet/useWalletLabels';
 import { useWalletList } from '../wallet/useWalletList';
 import { useWalletMutations } from '../wallet/useWalletMutations';
 
 const EMPTY_CONNECTED_WALLETS: WalletData[] = [];
+
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  try {
+    const clipboard = globalThis.navigator?.clipboard;
+    if (!clipboard?.writeText) {
+      return false;
+    }
+
+    await clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 interface UseWalletOperationsParams {
   viewingUserId: string;
@@ -36,7 +48,7 @@ interface UseWalletOperationsReturn {
   editingWallet: EditingWallet | null;
   newWallet: NewWallet;
   validationError: string | null;
-  isDeletingAccount: ReturnType<typeof useAccountDeletion>['isDeletingAccount'];
+  isDeletingAccount: boolean;
   setIsAdding: Dispatch<SetStateAction<boolean>>;
   setEditingWallet: Dispatch<SetStateAction<EditingWallet | null>>;
   setNewWallet: Dispatch<SetStateAction<NewWallet>>;
@@ -48,9 +60,7 @@ interface UseWalletOperationsReturn {
   handleEditLabel: ReturnType<typeof useWalletLabels>['handleEditLabel'];
   handleAddWallet: () => Promise<void>;
   handleCopyAddress: (address: string) => Promise<void>;
-  handleDeleteAccount: ReturnType<
-    typeof useAccountDeletion
-  >['handleDeleteAccount'];
+  handleDeleteAccount: () => Promise<void>;
   handleSwitchWallet: (walletAddress: string) => Promise<void>;
 }
 
@@ -122,9 +132,13 @@ export function useWalletOperations({
     setWalletOperationState,
   });
 
-  const accountDeletion = useAccountDeletion({
-    userId: realUserId,
-  });
+  const handleDeleteAccount = useCallback(async () => {
+    showToast({
+      type: 'error',
+      title: 'Account Deletion Unavailable',
+      message: 'Account deletion is not available in this runtime.',
+    });
+  }, [showToast]);
 
   const handleAddWallet = useCallback(async () => {
     const result = await walletMutations.handleAddWallet(newWallet);
@@ -184,7 +198,7 @@ export function useWalletOperations({
     editingWallet,
     newWallet,
     validationError,
-    isDeletingAccount: accountDeletion.isDeletingAccount,
+    isDeletingAccount: false,
     setIsAdding,
     setEditingWallet,
     setNewWallet,
@@ -194,7 +208,7 @@ export function useWalletOperations({
     handleEditLabel: walletLabels.handleEditLabel,
     handleAddWallet,
     handleCopyAddress,
-    handleDeleteAccount: accountDeletion.handleDeleteAccount,
+    handleDeleteAccount,
     handleSwitchWallet,
   };
 }
