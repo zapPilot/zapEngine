@@ -1,0 +1,28 @@
+appId: com.zapengine.zappilot
+productName: Zap Pilot
+directories:
+  output: release
+
+# Main/preload are esbuild-bundled CJS files under dist/ — no node_modules are
+# packaged (avoids the pnpm-symlink/asar trap). The renderer is the mobile-v2
+# static web export shipped as an extraResource.
+files:
+  - dist/**
+  - package.json
+  - '!node_modules'
+
+extraResources:
+  - from: ../mobile-v2/dist/web
+    to: web
+
+mac:
+  category: public.app-category.finance
+  target:
+    - dmg
+  # Unsigned for now; Developer ID signing + notarytool are a follow-up.
+  identity: null
+
+protocols:
+  - name: Zap Pilot
+    schemes:
+      - zappilotv2
