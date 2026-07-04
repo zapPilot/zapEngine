@@ -5,7 +5,7 @@ export interface ExpoExtraConfig {
 }
 
 export interface MobileRuntimeConfig {
-  runtime: 'mobile-v2';
+  runtime: 'app';
   privy: {
     appId: string;
     clientId: string;
@@ -24,7 +24,7 @@ export function getMobileRuntimeConfig(
   const clientId = normalizeSecret(extra.privyClientId);
 
   return {
-    runtime: 'mobile-v2',
+    runtime: 'app',
     privy:
       appId && clientId
         ? {

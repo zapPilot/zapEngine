@@ -44,7 +44,7 @@ core_ci_job_command() {
     type-check) echo "pnpm turbo run type-check" ;;
     lint)      echo "pnpm turbo run lint" ;;
     test)      echo "pnpm turbo run test --force" ;;
-    e2e)       echo "pnpm turbo run test:e2e --filter=@zapengine/mobile-v2" ;;
+    e2e)       echo "pnpm turbo run test:e2e --filter=@zapengine/app" ;;
     deadcode)  echo "pnpm turbo run deadcode" ;;
     dup)       echo "pnpm turbo run dup:check" ;;
     analytics) echo "pnpm turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine" ;;

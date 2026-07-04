@@ -24,9 +24,9 @@ zapEngine/
 │   ├── account-engine      # Hono API — user accounts, wallets, Telegram (port 3004)
 │   ├── alpha-etl           # Express ETL — DeFi APR data ingestion (port 3003)
 │   ├── analytics-engine    # FastAPI — portfolio analytics & risk metrics (port 8001)
-│   ├── desktop-electron    # Electron — macOS shell around the mobile-v2 web export
+│   ├── desktop    # Electron — macOS shell around the app web export
 │   ├── landing-page        # Next.js 15 — marketing & docs site (port 3000)
-│   ├── mobile-v2           # Expo / React Native — universal Zap Pilot app (iOS/Android/Web)
+│   ├── app           # Expo / React Native — universal Zap Pilot app (iOS/Android/Web)
 │   └── podcast-pipeline    # Hono — article → episode pipeline (port 3000)
 └── packages/
     ├── design-tokens       # Shared Zap Pilot brand tokens (TS / Tailwind / CSS vars)
@@ -42,9 +42,9 @@ zapEngine/
 | account-engine   | TypeScript   | Hono 4.12         | Fly.io                 |
 | alpha-etl        | TypeScript   | Express 4.18      | Fly.io                 |
 | analytics-engine | Python 3.11+ | FastAPI           | Fly.io                 |
-| desktop-electron | TypeScript   | Electron          | macOS DMG              |
+| desktop | TypeScript   | Electron          | macOS DMG              |
 | landing-page     | TypeScript   | Next.js 15        | Vercel                 |
-| mobile-v2        | TypeScript   | Expo 57 / RN 0.86 | Vercel (web) / EAS     |
+| app        | TypeScript   | Expo 57 / RN 0.86 | Vercel (web) / EAS     |
 | podcast-pipeline | TypeScript   | Hono 4.12         | Fly.io                 |
 
 ## Prerequisites
@@ -74,28 +74,28 @@ pnpm --filter @zapengine/analytics-engine run build   # wraps `uv sync --locked`
 ## Development
 
 ```bash
-# Start the daily product stack: mobile-v2 web + account-engine + analytics-engine + shared package watchers
+# Start the daily product stack: app web + account-engine + analytics-engine + shared package watchers
 pnpm dev
 
 # Start analytics-engine only
 pnpm dev analytics
 
 # Start just one side of the daily stack
-pnpm dev web   # mobile-v2 web (expo start --web, port 8081)
-pnpm dev app   # mobile-v2 native dev client
+pnpm dev web   # app web (expo start --web, port 8081)
+pnpm dev app   # app native dev client
 pnpm dev api
 
 # Start landing page only (includes /pitch/)
 pnpm dev landing
 
-# Run the desktop shell (Electron; loads the mobile-v2 web export)
-pnpm --filter @zapengine/desktop-electron dev
+# Run the desktop shell (Electron; loads the app web export)
+pnpm --filter @zapengine/desktop dev
 
 # Build the macOS DMG
-pnpm --filter @zapengine/desktop-electron package
+pnpm --filter @zapengine/desktop package
 
 # Static web export of the universal app (Vercel output / Electron renderer)
-pnpm --filter @zapengine/mobile-v2 build:web
+pnpm --filter @zapengine/app build:web
 
 # Start everything
 pnpm dev all
@@ -119,6 +119,6 @@ After linking, Turbo checks remote cache on local misses — `pnpm verify` stays
 ## Deployment
 
 - **Backend services** → Fly.io via GitHub Actions (push to `main`)
-- **Universal app (web) / Landing / Docs** → Vercel (mobile-v2 root: `apps/mobile-v2`)
-- **Desktop** → local/manual macOS DMG build from `apps/desktop-electron`
+- **Universal app (web) / Landing / Docs** → Vercel (app root: `apps/app`)
+- **Desktop** → local/manual macOS DMG build from `apps/desktop`
 - CI triggers on push to `main` and PRs; deploys only on `main`

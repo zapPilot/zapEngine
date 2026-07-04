@@ -8,7 +8,7 @@ See @../../CLAUDE.md for monorepo development guidelines.
   `react-native`, screen components, route APIs, or native-only UI modules.
 - React Native imports belong in `src/screens/**`, `src/components/**`, and
   `src/providers/**`.
-- Do not import DOM/web-only packages in mobile-v2: `lucide-react`,
+- Do not import DOM/web-only packages in app: `lucide-react`,
   `react-router-dom`, `recharts`, `hls.js`, or `react-dom`.
 - Web-specific implementations for Phase 4 should use platform split files such
   as `.web.ts` / `.web.tsx`.
@@ -28,9 +28,9 @@ See @../../CLAUDE.md for monorepo development guidelines.
 Use the workspace gate before handoff:
 
 ```bash
-pnpm turbo run type-check lint test build --filter=@zapengine/mobile-v2
-pnpm --filter @zapengine/mobile-v2 format:check
-pnpm turbo run deadcode dup:check --filter=@zapengine/mobile-v2
+pnpm turbo run type-check lint test build --filter=@zapengine/app
+pnpm --filter @zapengine/app format:check
+pnpm turbo run deadcode dup:check --filter=@zapengine/app
 ```
 
 When commands invoke `tsx` through package builds, run them with the repo

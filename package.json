@@ -44,13 +44,13 @@
       "pnpm --filter @zapengine/alpha-etl exec eslint --fix",
       "pnpm --filter @zapengine/alpha-etl exec prettier --write"
     ],
-    "apps/desktop-electron/**/*.{ts,mjs}": [
-      "pnpm --filter @zapengine/desktop-electron exec eslint --fix",
-      "pnpm --filter @zapengine/desktop-electron exec prettier --write"
+    "apps/desktop/**/*.{ts,mjs}": [
+      "pnpm --filter @zapengine/desktop exec eslint --fix",
+      "pnpm --filter @zapengine/desktop exec prettier --write"
     ],
-    "apps/mobile-v2/**/*.{ts,tsx}": [
-      "pnpm --filter @zapengine/mobile-v2 exec eslint --fix",
-      "pnpm --filter @zapengine/mobile-v2 exec prettier --write"
+    "apps/app/**/*.{ts,tsx}": [
+      "pnpm --filter @zapengine/app exec eslint --fix",
+      "pnpm --filter @zapengine/app exec prettier --write"
     ],
     "apps/landing-page/**/*.{ts,tsx}": [
       "pnpm --filter @zapengine/landing-page exec eslint --fix",

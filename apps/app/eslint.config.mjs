@@ -28,7 +28,7 @@ export default defineConfig([
             {
               name: 'lucide-react',
               message:
-                'Use lucide-react-native in mobile-v2; lucide-react targets the DOM.',
+                'Use lucide-react-native in app; lucide-react targets the DOM.',
             },
             {
               name: 'react-dom',
@@ -38,7 +38,7 @@ export default defineConfig([
             {
               name: 'react-router-dom',
               message:
-                'Use expo-router in mobile-v2; react-router-dom targets the DOM.',
+                'Use expo-router in app; react-router-dom targets the DOM.',
             },
             {
               name: 'recharts',

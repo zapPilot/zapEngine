@@ -327,11 +327,11 @@ while IFS= read -r var; do
     case "$var" in
       VITE_*)
         # VITE_* keys are app-core's env surface; hosts map onto them
-        # (mobile-v2: EXPO_PUBLIC_*, desktop-electron: ZAP_* / config.json).
-        [[ "$FILTER" == "desktop-electron" || "$FILTER" == "app-core" ]] || continue
+        # (app: EXPO_PUBLIC_*, desktop: ZAP_* / config.json).
+        [[ "$FILTER" == "desktop" || "$FILTER" == "app-core" ]] || continue
         ;;
       EXPO_PUBLIC_*)
-        [[ "$FILTER" == "mobile-v2" ]] || continue
+        [[ "$FILTER" == "app" ]] || continue
         ;;
       ACCOUNT_ENGINE_*)
         [[ "$FILTER" == "account-engine" ]] || continue

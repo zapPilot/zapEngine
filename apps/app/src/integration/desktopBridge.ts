@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 
 /**
  * Native no-op half of the desktop bridge platform split. The Electron shell
- * only exists on web (apps/desktop-electron loads the web export), so the
+ * only exists on web (apps/desktop loads the web export), so the
  * native bundle ships empty stubs — see desktopBridge.web.ts for the real
  * implementation.
  */

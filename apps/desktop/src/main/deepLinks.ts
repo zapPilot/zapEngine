@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { app } from 'electron';
 
 /**
- * Matches the Expo app scheme in apps/mobile-v2/app.config.ts (C5): the same
+ * Matches the Expo app scheme in apps/app/app.config.ts (C5): the same
  * deep links resolve on iOS/Android (Expo) and macOS (this shell).
  */
 export const DEEP_LINK_SCHEME = 'zappilotv2';

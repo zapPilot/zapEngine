@@ -10,8 +10,8 @@ Internal `packages/*` are built on demand — `turbo run` tasks declare `depends
 
 For single-workspace runs, **use Turbo, not pnpm filter**:
 
-- ✅ `pnpm turbo run type-check --filter=@zapengine/mobile-v2` — respects `^build` deps
-- ❌ `pnpm --filter @zapengine/mobile-v2 type-check` — runs `tsc` directly, hits TS2307 if `packages/types/dist` is empty
+- ✅ `pnpm turbo run type-check --filter=@zapengine/app` — respects `^build` deps
+- ❌ `pnpm --filter @zapengine/app type-check` — runs `tsc` directly, hits TS2307 if `packages/types/dist` is empty
 
 Stale build fix: `pnpm --filter @zapengine/types build` (targeted, any package) or `pnpm build packages` (all packages, rarely needed — the `contracts check` pipeline calls it internally because `contracts export` is raw `tsx` and bypasses Turbo).
 
@@ -38,12 +38,12 @@ First-time Python setup: `pnpm --filter @zapengine/analytics-engine run build` (
 
 ## Desktop (Electron/macOS)
 
-The desktop app is an Electron shell (`apps/desktop-electron`) around the **mobile-v2 web export** — no product UI lives in the shell; desktop-only behavior (tray, deep links, background rebalance scheduler) is main-process code.
+The desktop app is an Electron shell (`apps/desktop`) around the **app web export** — no product UI lives in the shell; desktop-only behavior (tray, deep links, background rebalance scheduler) is main-process code.
 
-All desktop guardrails — esbuild bundling rules, packaging/DMG gates, when the package gate is mandatory, the Privy origin spike — live in [apps/desktop-electron/CLAUDE.md](apps/desktop-electron/CLAUDE.md). Do not duplicate them here. For any desktop code/config change, finish with the desktop gate from the root:
+All desktop guardrails — esbuild bundling rules, packaging/DMG gates, when the package gate is mandatory, the Privy origin spike — live in [apps/desktop/CLAUDE.md](apps/desktop/CLAUDE.md). Do not duplicate them here. For any desktop code/config change, finish with the desktop gate from the root:
 
 ```bash
-pnpm turbo run type-check lint test build deadcode dup:check --filter=@zapengine/desktop-electron
+pnpm turbo run type-check lint test build deadcode dup:check --filter=@zapengine/desktop
 ```
 
 # Code style
@@ -51,7 +51,7 @@ pnpm turbo run type-check lint test build deadcode dup:check --filter=@zapengine
 - Service/API logic: plain functions in `src/services/`, no classes
 - Imports: ES modules only (`import/export`), not CommonJS
 - Validation: Zod v4 (not v3 — import paths and APIs differ slightly)
-- Path alias: `@/*` → `src/*` in mobile-v2 only
+- Path alias: `@/*` → `src/*` in app only
 - ESLint: flat config (`eslint.config.mjs`), not legacy `.eslintrc`
 - App `src/` layout (TS server apps): see [docs/app-layout.md](./docs/app-layout.md)
 
@@ -59,12 +59,12 @@ pnpm turbo run type-check lint test build deadcode dup:check --filter=@zapengine
 
 | App                 | Port |
 | ------------------- | ---- |
-| mobile-v2 (web dev) | 8081 |
+| app (web dev) | 8081 |
 | landing-page        | 3000 |
 | account-engine      | 3004 |
 | alpha-etl           | 3003 |
 | analytics-engine    | 8001 |
-| mobile-v2 (web E2E) | 3100 |
+| app (web E2E) | 3100 |
 
 # Database rules
 
@@ -80,7 +80,7 @@ Four planes + one composing layer. Do not let them bleed:
 | Strategy               | _what_ allocation; builds no transactions            | analytics-engine                                |
 | Intent / routing       | normalized intent → `PreparedTransaction[]`; pure    | `packages/intent-engine`                        |
 | **plan-orchestration** | _composes_: strategy → normalized intent → exec plan | account-engine module (see evolution doc below) |
-| Execution              | confirm, sign & broadcast                            | app clients (mobile-v2 / desktop) + wallet      |
+| Execution              | confirm, sign & broadcast                            | app clients (app / desktop) + wallet      |
 | Identity / persistence | _who_, and remembering; plans no money movement      | account-engine                                  |
 
 Dependency rule (one line): _the intent core is a pure package; only plan-orchestration composes strategy + intent downward; nothing depends upward; the identity plane owns no money-movement planning._

@@ -8,9 +8,9 @@
       "autoPort": true
     },
     {
-      "name": "mobile-v2-web",
+      "name": "app-web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@zapengine/mobile-v2", "exec", "expo", "start", "--web"],
+      "runtimeArgs": ["--filter", "@zapengine/app", "exec", "expo", "start", "--web"],
       "port": 8081
     }
   ]

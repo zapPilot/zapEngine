@@ -10,7 +10,7 @@ describe('getMobileRuntimeConfig', () => {
         privyClientId: ' privy-client ',
       }),
     ).toEqual({
-      runtime: 'mobile-v2',
+      runtime: 'app',
       privy: {
         appId: 'privy-app',
         clientId: 'privy-client',
@@ -24,7 +24,7 @@ describe('getMobileRuntimeConfig', () => {
         privyAppId: 'privy-app',
       }),
     ).toEqual({
-      runtime: 'mobile-v2',
+      runtime: 'app',
       privy: null,
     });
   });

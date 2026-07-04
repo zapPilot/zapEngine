@@ -41,7 +41,7 @@ const nodeFs: AssetFs = {
 
 /**
  * Maps a request pathname onto the static web export. Mirrors the rules of
- * apps/mobile-v2/scripts/serve-web.mjs exactly:
+ * apps/app/scripts/serve-web.mjs exactly:
  * - traversal outside webRoot → 403
  * - has extension and exists → the file
  * - has extension but missing → 404

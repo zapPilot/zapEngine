@@ -30,7 +30,7 @@ function resolveWebRoot(): string {
   }
   return (
     process.env['ZAP_ELECTRON_WEB_ROOT'] ??
-    join(app.getAppPath(), '..', 'mobile-v2', 'dist', 'web')
+    join(app.getAppPath(), '..', 'app', 'dist', 'web')
   );
 }
 

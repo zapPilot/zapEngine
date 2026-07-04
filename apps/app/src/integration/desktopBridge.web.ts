@@ -9,8 +9,8 @@ export type { DesktopRebalanceProposal };
 
 /**
  * Web half of the desktop bridge: when the bundle runs inside the Electron
- * shell (apps/desktop-electron), window.zapDesktop is exposed by the preload
- * script. Contract: apps/desktop-electron/src/shared/ipc.ts.
+ * shell (apps/desktop), window.zapDesktop is exposed by the preload
+ * script. Contract: apps/desktop/src/shared/ipc.ts.
  *
  * Proposals only navigate to the invest flow — the user always reviews and
  * signs manually; nothing is executed unattended.

@@ -12,21 +12,21 @@ map is [docs/README.md](./README.md).
 3. [CONTRIBUTING.md → Daily Workflow](../CONTRIBUTING.md#daily-workflow).
 4. `cp .env.example .env` and fill in values.
 
-## Universal app — `apps/mobile-v2` (Expo / React Native, iOS/Android/Web)
+## Universal app — `apps/app` (Expo / React Native, iOS/Android/Web)
 
-1. [apps/mobile-v2/CLAUDE.md](../apps/mobile-v2/CLAUDE.md) + [README](../apps/mobile-v2/README.md).
+1. [apps/app/CLAUDE.md](../apps/app/CLAUDE.md) + [README](../apps/app/README.md).
 2. [packages/app-core/CLAUDE.md](../packages/app-core/CLAUDE.md) — the RN-safe vs
    web-only boundary table (business logic lives in app-core, not the app).
 3. Run `pnpm dev web` (web, port 8081) or `pnpm dev app` (native dev client).
-   Web E2E: `pnpm turbo run test:e2e --filter=@zapengine/mobile-v2` (port 3100).
+   Web E2E: `pnpm turbo run test:e2e --filter=@zapengine/app` (port 3100).
 
-## Desktop — `apps/desktop-electron` (Electron/macOS)
+## Desktop — `apps/desktop` (Electron/macOS)
 
-1. [apps/desktop-electron/CLAUDE.md](../apps/desktop-electron/CLAUDE.md) — architecture, packaging gates, and the Privy origin spike.
-2. The renderer is the mobile-v2 web export — build it first:
-   `pnpm --filter @zapengine/mobile-v2 build:web`.
-3. Run `pnpm --filter @zapengine/desktop-electron dev`. Package a DMG with
-   `pnpm --filter @zapengine/desktop-electron package`.
+1. [apps/desktop/CLAUDE.md](../apps/desktop/CLAUDE.md) — architecture, packaging gates, and the Privy origin spike.
+2. The renderer is the app web export — build it first:
+   `pnpm --filter @zapengine/app build:web`.
+3. Run `pnpm --filter @zapengine/desktop dev`. Package a DMG with
+   `pnpm --filter @zapengine/desktop package`.
 
 ## TypeScript backend — `account-engine` / `alpha-etl` / `podcast-pipeline`
 

@@ -23,13 +23,13 @@ Initial native identifiers are deliberately separate from production:
 ## Commands
 
 ```bash
-pnpm --filter @zapengine/mobile-v2 dev
-pnpm --filter @zapengine/mobile-v2 dev:web
-pnpm turbo run type-check lint test build --filter=@zapengine/mobile-v2
-pnpm turbo run build:web test:e2e --filter=@zapengine/mobile-v2
-pnpm --filter @zapengine/mobile-v2 check:web-native-leaks
-pnpm --filter @zapengine/mobile-v2 format:check
-pnpm turbo run deadcode dup:check --filter=@zapengine/mobile-v2
+pnpm --filter @zapengine/app dev
+pnpm --filter @zapengine/app dev:web
+pnpm turbo run type-check lint test build --filter=@zapengine/app
+pnpm turbo run build:web test:e2e --filter=@zapengine/app
+pnpm --filter @zapengine/app check:web-native-leaks
+pnpm --filter @zapengine/app format:check
+pnpm turbo run deadcode dup:check --filter=@zapengine/app
 ```
 
 `build` runs Expo native exports for Android and iOS, so it is the Metro graph

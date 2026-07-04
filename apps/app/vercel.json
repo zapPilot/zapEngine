@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd ../.. && pnpm turbo run build:web --filter=@zapengine/mobile-v2",
+  "buildCommand": "cd ../.. && pnpm turbo run build:web --filter=@zapengine/app",
   "framework": null,
   "outputDirectory": "dist/web",
   "rewrites": [

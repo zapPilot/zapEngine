@@ -1,5 +1,5 @@
 {
-  "name": "@zapengine/desktop-electron",
+  "name": "@zapengine/desktop",
   "version": "0.1.0",
   "private": true,
   "license": "UNLICENSED",
@@ -8,7 +8,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "dev": "node scripts/dev.mjs",
-    "package": "pnpm --dir ../mobile-v2 run build:web && pnpm run build && electron-builder --mac dmg",
+    "package": "pnpm --dir ../app run build:web && pnpm run build && electron-builder --mac dmg",
     "lint": "eslint src tests scripts --max-warnings 0",
     "lint:fix": "eslint src tests scripts --fix",
     "format": "prettier --write \"*.{json,md,mjs,ts,yml}\" \"scripts/**/*.mjs\" \"src/**/*.ts\" \"tests/**/*.ts\"",

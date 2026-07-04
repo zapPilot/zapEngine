@@ -104,19 +104,19 @@ assuming the original app is the only blast radius.
 
 ## Expo env bridge gotcha
 
-`apps/mobile-v2` bridges native Expo env keys into `@zapengine/app-core` Vite-style
-keys in `apps/mobile-v2/src/config/appCoreEnv.ts`. Rules:
+`apps/app` bridges native Expo env keys into `@zapengine/app-core` Vite-style
+keys in `apps/app/src/config/appCoreEnv.ts`. Rules:
 
 - Keep `process.env.EXPO_PUBLIC_*` reads literal so `babel-preset-expo` can
   inline them.
-- Every `EXPO_PUBLIC_*` key referenced in mobile-v2 source must be declared in
+- Every `EXPO_PUBLIC_*` key referenced in app source must be declared in
   `.env.example`, and stale keys must be deleted — otherwise `check-dead-env`
   blocks unrelated PRs.
 
-When CI reports `check-dead-env` for mobile-v2, run `pnpm lint dead-env`, then
+When CI reports `check-dead-env` for app, run `pnpm lint dead-env`, then
 fix the source of truth, not the gate: add missing real `EXPO_PUBLIC_*` keys to
 `.env.example`, delete stale keys, and fix any accidental bare `EXPO_PUBLIC_`
-reference in the mobile-v2 source.
+reference in the app source.
 
 ## Triage: classify the failure → where to go
 

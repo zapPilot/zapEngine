@@ -66,7 +66,7 @@ src/
 Frontend layout is **framework-driven** — don't try to align with the
 server convention. Current state:
 
-- `apps/mobile-v2` (Expo / React Native universal app): expo-router routes in
+- `apps/app` (Expo / React Native universal app): expo-router routes in
   `app/` with screens/components under `src/`; shared business logic lives in
   `packages/app-core` (hooks/services/adapters), not in the app.
 - `apps/landing-page` (Next.js App Router): standard Next layout —

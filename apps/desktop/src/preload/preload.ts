@@ -8,8 +8,8 @@ import {
 
 /**
  * Minimal typed bridge exposed to the renderer as `window.zapDesktop`.
- * The mobile-v2 web bundle detects it to switch APP_RUNTIME to 'desktop'
- * (see apps/mobile-v2/src/config/appRuntime.web.ts).
+ * The app web bundle detects it to switch APP_RUNTIME to 'desktop'
+ * (see apps/app/src/config/appRuntime.web.ts).
  */
 const zapDesktop = {
   platform: 'electron' as const,

@@ -4,7 +4,7 @@ See @../../CLAUDE.md for monorepo development guidelines.
 
 ## Platform boundary: RN-safe vs web-only
 
-app-core is consumed by desktop (Tauri) and React Native + web (mobile-v2).
+app-core is consumed by desktop (Tauri) and React Native + web (app).
 Every module is RN-safe unless listed below — RN-safe means no DOM
 globals (`window`, `document`), no `import.meta`, and no web-only libraries
 (`@privy-io/react-auth`, `framer-motion`, `lucide-react`,
@@ -28,7 +28,7 @@ RN-safe).
 time and never reaches the Metro bundle) — the lint uses
 `@typescript-eslint/no-restricted-imports` with `allowTypeImports`.
 
-Consumers mirror the guard: `apps/mobile-v2/eslint.config.mjs` blocks the
+Consumers mirror the guard: `apps/app/eslint.config.mjs` blocks the
 web-only subpaths via `no-restricted-imports`.
 
 ## Env access
@@ -38,7 +38,7 @@ web-only subpaths via `no-restricted-imports`.
   `config/cacheWindow.ts`). `import.meta` is banned; apps inject their env via
   `configureAppCoreEnv` as the **first import** at bootstrap
   (`apps/desktop/src/bootstrap/appCoreEnv.ts`,
-  `apps/mobile-v2/src/config/appCoreEnv.ts`).
+  `apps/app/src/config/appCoreEnv.ts`).
 - New env keys keep the `VITE_` prefix — native hosts map their
   `EXPO_PUBLIC_*` values onto the `VITE_` keys in their bootstrap file.
 

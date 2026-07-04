@@ -3,7 +3,7 @@
 // Renderer source:
 //   ZAP_ELECTRON_DEV_URL=http://localhost:8081  -> expo dev server
 //   ZAP_ELECTRON_LOOPBACK=1                     -> 127.0.0.1 static server
-//   (default)                                   -> app:// serving ../mobile-v2/dist/web
+//   (default)                                   -> app:// serving ../app/dist/web
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -23,14 +23,14 @@ if (bundle.status !== 0) {
 
 const webRoot =
   process.env.ZAP_ELECTRON_WEB_ROOT ??
-  resolve(appRoot, '../mobile-v2/dist/web');
+  resolve(appRoot, '../app/dist/web');
 if (
   !process.env.ZAP_ELECTRON_DEV_URL &&
   !existsSync(join(webRoot, 'index.html'))
 ) {
   console.error(
     `Missing ${join(webRoot, 'index.html')}.\n` +
-      'Run `pnpm --filter @zapengine/mobile-v2 run build:web` first, or set ZAP_ELECTRON_DEV_URL=http://localhost:8081.',
+      'Run `pnpm --filter @zapengine/app run build:web` first, or set ZAP_ELECTRON_DEV_URL=http://localhost:8081.',
   );
   process.exit(1);
 }

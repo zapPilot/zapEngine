@@ -4,7 +4,7 @@ directories:
   output: release
 
 # Main/preload are esbuild-bundled CJS files under dist/ — no node_modules are
-# packaged (avoids the pnpm-symlink/asar trap). The renderer is the mobile-v2
+# packaged (avoids the pnpm-symlink/asar trap). The renderer is the app
 # static web export shipped as an extraResource.
 files:
   - dist/**
@@ -12,7 +12,7 @@ files:
   - '!node_modules'
 
 extraResources:
-  - from: ../mobile-v2/dist/web
+  - from: ../app/dist/web
     to: web
 
 mac:
