@@ -1,15 +1,22 @@
 import { join } from 'node:path';
 
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, Notification } from 'electron';
 
 import {
   IPC_CHANNELS,
   isSchedulerContext,
+  type RebalanceProposal,
 } from '../shared/ipc';
 import { registerAppProtocolHandler, registerAppScheme } from './appProtocol';
+import { configureMainAppCoreEnv } from './config';
 import { extractDeepLink, registerDeepLinkScheme } from './deepLinks';
 import { openExternalUrl } from './externalAuth';
 import { startLoopbackServer } from './loopbackServer';
+import {
+  clampIntervalMs,
+  createRebalanceScheduler,
+} from './scheduler/rebalanceScheduler';
+import { createSuggestionDriftReader } from './scheduler/suggestionDriftReader';
 import { createTray } from './tray';
 import { createMainWindow } from './window';
 
@@ -46,6 +53,32 @@ function dispatchDeepLink(url: string): void {
   showMainWindow();
   mainWindow.webContents.send(IPC_CHANNELS.deepLink, url);
 }
+
+function notifyRebalanceProposal(proposal: RebalanceProposal): void {
+  const notification = new Notification({
+    title: 'Zap Pilot — rebalance suggested',
+    body: `Portfolio drift ${proposal.driftPercent.toFixed(1)}% — review and confirm in the app. Nothing is signed automatically.`,
+  });
+  notification.on('click', () => {
+    showMainWindow();
+    mainWindow?.webContents.send(IPC_CHANNELS.rebalanceProposal, proposal);
+  });
+  notification.show();
+}
+
+// Inject app-core env before any service module is used (esbuild bundles
+// app-core into this file; there is no runtime workspace resolution).
+configureMainAppCoreEnv();
+
+const rebalanceScheduler = createRebalanceScheduler({
+  readDrift: createSuggestionDriftReader({ log: console.warn }),
+  notify: notifyRebalanceProposal,
+  intervalMs: clampIntervalMs(process.env['ZAP_REBALANCE_CHECK_INTERVAL_MS']),
+  driftThresholdPercent: Number(
+    process.env['ZAP_REBALANCE_DRIFT_THRESHOLD'] ?? '',
+  ) || undefined,
+  log: console.warn,
+});
 
 // --- single instance -------------------------------------------------------
 const hasLock = app.requestSingleInstanceLock();
@@ -104,8 +137,7 @@ if (!hasLock) {
       },
     });
 
-    const coldStartLink =
-      pendingDeepLink ?? extractDeepLink(process.argv);
+    const coldStartLink = pendingDeepLink ?? extractDeepLink(process.argv);
     if (coldStartLink) {
       pendingDeepLink = undefined;
       mainWindow.webContents.once('did-finish-load', () => {
@@ -116,6 +148,7 @@ if (!hasLock) {
 
   app.on('before-quit', () => {
     isQuitting = true;
+    rebalanceScheduler.stop();
   });
 
   // Tray-resident: do not exit when the window closes.
@@ -136,33 +169,19 @@ if (!hasLock) {
     void openExternalUrl(url);
   });
 
+  // The renderer pushes {userId, walletAddress} after Privy login; the main
+  // process never holds Privy credentials.
   ipcMain.on(
     IPC_CHANNELS.registerSchedulerContext,
     (_event, context: unknown) => {
       if (!isSchedulerContext(context)) {
         return;
       }
-      // Phase 5F wires this into the background rebalance scheduler.
-      schedulerContextListeners.forEach((listener) => listener(context));
+      rebalanceScheduler.setContext(context);
     },
   );
 
   ipcMain.on(IPC_CHANNELS.clearSchedulerContext, () => {
-    schedulerContextListeners.forEach((listener) => listener(undefined));
+    rebalanceScheduler.setContext(undefined);
   });
-}
-
-type SchedulerContextListener = (
-  context: { userId: string; walletAddress: string } | undefined,
-) => void;
-const schedulerContextListeners = new Set<SchedulerContextListener>();
-
-export function onSchedulerContextChange(
-  listener: SchedulerContextListener,
-): void {
-  schedulerContextListeners.add(listener);
-}
-
-export function getMainWindow(): BrowserWindow | undefined {
-  return mainWindow;
 }
