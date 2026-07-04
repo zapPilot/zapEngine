@@ -58,6 +58,8 @@ coverage/*
 apps/*/coverage/
 packages/*/coverage/
 .jscpd/
+apps/*/test-results/
+apps/*/playwright-report/
 
 # claude
 .claude/scheduled_tasks.lock

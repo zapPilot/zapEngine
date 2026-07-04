@@ -24,24 +24,44 @@ Initial native identifiers are deliberately separate from production:
 
 ```bash
 pnpm --filter @zapengine/mobile-v2 dev
+pnpm --filter @zapengine/mobile-v2 dev:web
 pnpm turbo run type-check lint test build --filter=@zapengine/mobile-v2
+pnpm turbo run build:web test:e2e --filter=@zapengine/mobile-v2
+pnpm --filter @zapengine/mobile-v2 check:web-native-leaks
 pnpm --filter @zapengine/mobile-v2 format:check
 pnpm turbo run deadcode dup:check --filter=@zapengine/mobile-v2
 ```
 
 `build` runs Expo native exports for Android and iOS, so it is the Metro graph
-regression gate. Use the Turbo command for workspace checks so upstream package
-builds are fresh.
+regression gate. `build:web` writes the static Expo web export to `dist/web`;
+`test:e2e` serves that export through `scripts/serve-web.mjs` so route refreshes
+exercise the same SPA fallback as Vercel. `check:web-native-leaks` parses web
+sourcemaps and fails if native-only packages are present as sources or imports.
+Use the Turbo command for workspace checks so upstream package builds are fresh.
 
 ## Migration Notes
 
 - `src/app/**` route files stay thin; screen bodies live in `src/screens/**`.
 - `src/integration/**` is platform-neutral and must not import `react-native`.
-- Native podcast playback uses `expo-audio`; the Phase 4 web target will add a
-  `.web.ts` player for browser HLS.
+- Native podcast playback uses `expo-audio`; web playback uses
+  `podcastPlayer.web.ts` with Safari-native HLS or `hls.js`.
 - UI code uses NativeWind classes plus design tokens from
   `@zapengine/design-tokens/tokens.json`; loaded RN fonts need explicit family
   classes such as `font-sans-semibold` instead of web font-weight matching.
+
+## Phase 4 Web Parity Checklist
+
+Before switching production traffic, run `dev:web` with account-engine and
+analytics-engine locally, then repeat the critical items against the static
+export served by `node scripts/serve-web.mjs --port 3100 --build-if-missing`.
+
+- Privy web login works on the target origin.
+- Six tabs render live data where a connected account has data.
+- Invest flow reaches the real deposit-plan preview and wallet signature step.
+- Send flow validates token, chain, amount, and recipient input.
+- Podcast plays in Chrome through `hls.js` and in Safari through native HLS.
+- Clipboard, route hard refreshes, query parameters, fonts, and icons work.
+- Browser console has no red errors during the above flows.
 
 ## Phase 3 QA Checklist
 

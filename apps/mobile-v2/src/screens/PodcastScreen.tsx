@@ -11,10 +11,8 @@ import {
   type PodcastEpisode,
   usePodcastEpisodes,
 } from '@/integration/podcastFeed';
-import {
-  type PodcastPlayer,
-  usePodcastPlayer,
-} from '@/integration/podcastPlayer';
+import { usePodcastPlayer } from '@/integration/podcastPlayer';
+import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 import { cn } from '@/lib/cn';
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
