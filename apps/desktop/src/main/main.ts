@@ -66,6 +66,48 @@ function notifyRebalanceProposal(proposal: RebalanceProposal): void {
   notification.show();
 }
 
+async function initializeApp(): Promise<void> {
+  await app.whenReady();
+
+  const webRoot = resolveWebRoot();
+  registerAppProtocolHandler(webRoot);
+
+  let url = process.env['ZAP_ELECTRON_DEV_URL'];
+  if (!url && process.env['ZAP_ELECTRON_LOOPBACK'] === '1') {
+    const port = Number(process.env['ZAP_ELECTRON_LOOPBACK_PORT'] ?? '3105');
+    ({ url } = await startLoopbackServer(webRoot, port));
+  }
+
+  const window = createMainWindow({ url });
+  mainWindow = window;
+
+  window.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      window.hide();
+    }
+  });
+  window.on('closed', () => {
+    mainWindow = undefined;
+  });
+
+  createTray({
+    onShow: showMainWindow,
+    onQuit: () => {
+      isQuitting = true;
+      app.quit();
+    },
+  });
+
+  const coldStartLink = pendingDeepLink ?? extractDeepLink(process.argv);
+  if (coldStartLink) {
+    pendingDeepLink = undefined;
+    window.webContents.once('did-finish-load', () => {
+      dispatchDeepLink(coldStartLink);
+    });
+  }
+}
+
 // Inject app-core env before any service module is used (esbuild bundles
 // app-core into this file; there is no runtime workspace resolution).
 configureMainAppCoreEnv();
@@ -74,9 +116,8 @@ const rebalanceScheduler = createRebalanceScheduler({
   readDrift: createSuggestionDriftReader({ log: console.warn }),
   notify: notifyRebalanceProposal,
   intervalMs: clampIntervalMs(process.env['ZAP_REBALANCE_CHECK_INTERVAL_MS']),
-  driftThresholdPercent: Number(
-    process.env['ZAP_REBALANCE_DRIFT_THRESHOLD'] ?? '',
-  ) || undefined,
+  driftThresholdPercent:
+    Number(process.env['ZAP_REBALANCE_DRIFT_THRESHOLD'] ?? '') || undefined,
   log: console.warn,
 });
 
@@ -104,47 +145,7 @@ if (!hasLock) {
   registerAppScheme();
   registerDeepLinkScheme();
 
-  void app.whenReady().then(async () => {
-    const webRoot = resolveWebRoot();
-    registerAppProtocolHandler(webRoot);
-
-    // Renderer source priority: explicit dev URL (expo dev server) >
-    // loopback http fallback (Privy origin spike path (b)) > app:// bundle.
-    let url = process.env['ZAP_ELECTRON_DEV_URL'];
-    if (!url && process.env['ZAP_ELECTRON_LOOPBACK'] === '1') {
-      const port = Number(process.env['ZAP_ELECTRON_LOOPBACK_PORT'] ?? '3105');
-      ({ url } = await startLoopbackServer(webRoot, port));
-    }
-
-    mainWindow = createMainWindow({ url });
-
-    // Close-to-tray: the app keeps running for the background scheduler.
-    mainWindow.on('close', (event) => {
-      if (!isQuitting) {
-        event.preventDefault();
-        mainWindow?.hide();
-      }
-    });
-    mainWindow.on('closed', () => {
-      mainWindow = undefined;
-    });
-
-    createTray({
-      onShow: showMainWindow,
-      onQuit: () => {
-        isQuitting = true;
-        app.quit();
-      },
-    });
-
-    const coldStartLink = pendingDeepLink ?? extractDeepLink(process.argv);
-    if (coldStartLink) {
-      pendingDeepLink = undefined;
-      mainWindow.webContents.once('did-finish-load', () => {
-        dispatchDeepLink(coldStartLink);
-      });
-    }
-  });
+  void initializeApp();
 
   app.on('before-quit', () => {
     isQuitting = true;

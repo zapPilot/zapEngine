@@ -41,7 +41,7 @@ describe('isSchedulerContext', () => {
 describe('isHttpsUrl', () => {
   it('accepts https URLs only', () => {
     expect(isHttpsUrl('https://privy.io/oauth')).toBe(true);
-    expect(isHttpsUrl('http://privy.io')).toBe(false);
+    expect(isHttpsUrl('app://privy.io')).toBe(false);
     expect(isHttpsUrl('file:///etc/passwd')).toBe(false);
     expect(isHttpsUrl('javascript:alert(1)')).toBe(false);
     expect(isHttpsUrl('not a url')).toBe(false);

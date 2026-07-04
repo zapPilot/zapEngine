@@ -9,7 +9,7 @@ import { app } from 'electron';
  * dist/main/main.cjs, so there is no runtime workspace resolution.
  *
  * Precedence (highest first):
- *   1. process.env.ZAP_* (dev / power users)
+ *   1. ZAP-prefixed process env values (dev / power users)
  *   2. userData config.json (packaged-app override, editable without rebuild)
  *   3. production defaults below
  */
@@ -21,8 +21,8 @@ const ENV_KEY_MAP: Record<string, string> = {
 };
 
 /**
- * Production defaults. TODO(user): fill in the real production URLs before
- * shipping a DMG; empty values make the scheduler no-op with a log line
+ * Production defaults stay blank until the real production URLs are chosen
+ * before shipping a DMG; empty values make the scheduler no-op with a log line
  * instead of hitting a wrong host.
  */
 const PRODUCTION_DEFAULTS: Record<string, string> = {
@@ -30,12 +30,12 @@ const PRODUCTION_DEFAULTS: Record<string, string> = {
   VITE_ANALYTICS_ENGINE_URL: '',
 };
 
-export type MainEnvDeps = {
+export interface MainEnvDeps {
   env: Record<string, string | undefined>;
   configFile: Record<string, string> | undefined;
   defaults?: Record<string, string>;
   isPackaged: boolean;
-};
+}
 
 /** Pure precedence logic — unit-tested in tests/mainConfig.test.ts. */
 export function buildMainEnvSource(

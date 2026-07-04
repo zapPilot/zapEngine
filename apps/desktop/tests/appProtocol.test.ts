@@ -2,10 +2,7 @@ import { sep } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  type AssetFs,
-  resolveWebAsset,
-} from '../src/main/appProtocol';
+import { type AssetFs, resolveWebAsset } from '../src/main/appProtocol';
 
 const WEB_ROOT = `${sep}srv${sep}web`;
 

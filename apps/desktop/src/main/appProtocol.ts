@@ -10,7 +10,7 @@ export const APP_START_URL = `${APP_SCHEME}://${APP_HOST}/`;
 
 /**
  * Must run before app.whenReady(). `standard` gives the scheme an origin
- * (history/pushState work), `supportsFetchAPI` + `stream` keep fetch/HLS
+ * (history/pushState work), `supportFetchAPI` + `stream` keep fetch/HLS
  * playback working inside the renderer.
  */
 export function registerAppScheme(): void {
@@ -20,7 +20,7 @@ export function registerAppScheme(): void {
       privileges: {
         standard: true,
         secure: true,
-        supportsFetchAPI: true,
+        supportFetchAPI: true,
         stream: true,
       },
     },
@@ -29,10 +29,10 @@ export function registerAppScheme(): void {
 
 export type ResolvedAsset = { filePath: string } | { status: number };
 
-export type AssetFs = {
+export interface AssetFs {
   exists: (path: string) => boolean;
   isFile: (path: string) => boolean;
-};
+}
 
 const nodeFs: AssetFs = {
   exists: (path) => existsSync(path),
@@ -54,11 +54,15 @@ export function resolveWebAsset(
 ): ResolvedAsset {
   const indexPath = resolve(webRoot, 'index.html');
 
-  let decodedPath = '/';
+  let decodedPath: string;
   try {
     decodedPath = decodeURIComponent(pathname);
   } catch {
     return { status: 400 };
+  }
+
+  if (decodedPath.split(/[/\\]+/).includes('..')) {
+    return { status: 403 };
   }
 
   const normalized = normalize(decodedPath).replace(/^[/\\]+/, '');

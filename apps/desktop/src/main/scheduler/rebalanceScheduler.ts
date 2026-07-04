@@ -24,7 +24,7 @@ export type DriftReader = (
   context: SchedulerContext,
 ) => Promise<{ driftPercent: number; strategyId?: string } | undefined>;
 
-export type SchedulerDeps = {
+export interface SchedulerDeps {
   readDrift: DriftReader;
   /** Fires user-facing notification + renderer push. Never signs anything. */
   notify: (proposal: RebalanceProposal) => void;
@@ -34,14 +34,14 @@ export type SchedulerDeps = {
   setIntervalFn?: typeof setInterval;
   clearIntervalFn?: typeof clearInterval;
   log?: (message: string) => void;
-};
+}
 
-export type RebalanceScheduler = {
+export interface RebalanceScheduler {
   setContext: (context: SchedulerContext | undefined) => void;
   /** Exposed for tests and a manual “check now” entry point. */
   tick: () => Promise<void>;
   stop: () => void;
-};
+}
 
 export function createRebalanceScheduler(
   deps: SchedulerDeps,
@@ -51,7 +51,7 @@ export function createRebalanceScheduler(
   const now = deps.now ?? (() => new Date());
   const setIntervalFn = deps.setIntervalFn ?? setInterval;
   const clearIntervalFn = deps.clearIntervalFn ?? clearInterval;
-  const log = deps.log ?? (() => undefined);
+  const log = deps.log ?? (() => {});
 
   let context: SchedulerContext | undefined;
   let timer: ReturnType<typeof setInterval> | undefined;

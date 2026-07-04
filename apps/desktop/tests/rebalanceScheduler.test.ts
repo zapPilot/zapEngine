@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { RebalanceProposal } from '../src/shared/ipc';
 import {
   clampIntervalMs,
   createRebalanceScheduler,
   DEFAULT_INTERVAL_MS,
   MIN_INTERVAL_MS,
 } from '../src/main/scheduler/rebalanceScheduler';
+import type { RebalanceProposal } from '../src/shared/ipc';
 
 const CONTEXT = {
   userId: 'user-1',
@@ -32,10 +32,7 @@ describe('clampIntervalMs', () => {
   });
 });
 
-function makeDeps(overrides?: {
-  drift?: number | undefined;
-  threshold?: number;
-}) {
+function makeDeps(overrides?: { drift?: number; threshold?: number }) {
   const notifications: RebalanceProposal[] = [];
   const deps = {
     readDrift: vi.fn(async () =>

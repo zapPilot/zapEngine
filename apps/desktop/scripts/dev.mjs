@@ -13,17 +13,20 @@ import electronPath from 'electron';
 
 const appRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
-const bundle = spawnSync(process.execPath, [join(appRoot, 'scripts/build.mjs')], {
-  cwd: appRoot,
-  stdio: 'inherit',
-});
+const bundle = spawnSync(
+  process.execPath,
+  [join(appRoot, 'scripts/build.mjs')],
+  {
+    cwd: appRoot,
+    stdio: 'inherit',
+  },
+);
 if (bundle.status !== 0) {
   process.exit(bundle.status ?? 1);
 }
 
 const webRoot =
-  process.env.ZAP_ELECTRON_WEB_ROOT ??
-  resolve(appRoot, '../app/dist/web');
+  process.env.ZAP_ELECTRON_WEB_ROOT ?? resolve(appRoot, '../app/dist/web');
 if (
   !process.env.ZAP_ELECTRON_DEV_URL &&
   !existsSync(join(webRoot, 'index.html'))

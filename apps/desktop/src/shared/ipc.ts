@@ -17,19 +17,19 @@ export const IPC_CHANNELS = {
   deepLink: 'zap:deep-link',
 } as const;
 
-export type SchedulerContext = {
+export interface SchedulerContext {
   userId: string;
   walletAddress: string;
-};
+}
 
-export type RebalanceProposal = {
+export interface RebalanceProposal {
   /** Absolute drift in percentage points that triggered the proposal. */
   driftPercent: number;
   /** ISO timestamp when the proposal was computed. */
   generatedAt: string;
   /** Optional strategy identifier the proposal applies to. */
   strategyId?: string;
-};
+}
 
 export function isSchedulerContext(value: unknown): value is SchedulerContext {
   if (typeof value !== 'object' || value === null) {

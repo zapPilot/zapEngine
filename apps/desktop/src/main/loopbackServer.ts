@@ -27,7 +27,7 @@ export function startLoopbackServer(
   webRoot: string,
   port: number,
 ): Promise<{ server: Server; url: string }> {
-  return new Promise((resolvePromise, reject) => {
+  return new Promise((resolve, reject) => {
     const server = createServer((request, response) => {
       if (request.method !== 'GET' && request.method !== 'HEAD') {
         response.writeHead(405).end();
@@ -52,7 +52,7 @@ export function startLoopbackServer(
     });
     server.once('error', reject);
     server.listen(port, '127.0.0.1', () => {
-      resolvePromise({ server, url: `http://127.0.0.1:${port}/` });
+      resolve({ server, url: `http://127.0.0.1:${port}/` });
     });
   });
 }

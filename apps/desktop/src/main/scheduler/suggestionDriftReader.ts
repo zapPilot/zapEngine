@@ -16,18 +16,18 @@ import type { DriftReader } from './rebalanceScheduler';
 export function createSuggestionDriftReader(options?: {
   log?: (message: string) => void;
 }): DriftReader {
-  const log = options?.log ?? (() => undefined);
+  const log = options?.log ?? (() => {});
 
   return async (context: SchedulerContext) => {
     const analyticsUrl = getRuntimeEnv('VITE_ANALYTICS_ENGINE_URL');
     if (!analyticsUrl) {
       log('scheduler: VITE_ANALYTICS_ENGINE_URL is not configured; skipping');
-      return undefined;
+      return;
     }
 
     const suggestion = await getDailySuggestion(context.userId);
     if (suggestion.action.status !== 'action_required') {
-      return undefined;
+      return;
     }
 
     const transfers = suggestion.action.transfers ?? [];
@@ -35,7 +35,7 @@ export function createSuggestionDriftReader(options?: {
       (sum, transfer) => sum + Math.abs(transfer.amount_usd ?? 0),
       0,
     );
-    const totalValueUsd = suggestion.context?.portfolio?.total_value_usd;
+    const totalValueUsd = suggestion.context?.portfolio?.total_value;
     const driftPercent =
       typeof totalValueUsd === 'number' && totalValueUsd > 0
         ? (totalUsd / totalValueUsd) * 100

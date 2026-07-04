@@ -5,10 +5,10 @@ import { BrowserWindow } from 'electron';
 import { APP_START_URL } from './appProtocol';
 import { openExternalUrl } from './externalAuth';
 
-export type WindowLoadTarget = {
+export interface WindowLoadTarget {
   /** http URL (expo dev server or loopback fallback); app:// when absent. */
   url?: string;
-};
+}
 
 export function createMainWindow(target: WindowLoadTarget): BrowserWindow {
   const win = new BrowserWindow({
