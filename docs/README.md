@@ -24,9 +24,8 @@ Deeper design docs live under `apps/<app>/docs/`.
 | account-engine   | [CLAUDE.md](../apps/account-engine/CLAUDE.md) · [plan-orchestration-evolution](../apps/account-engine/docs/plan-orchestration-evolution.md)                                                                                                                                             |
 | alpha-etl        | [CLAUDE.md](../apps/alpha-etl/CLAUDE.md) · [docs/adr/](../apps/alpha-etl/docs/adr)                                                                                                                                                                                                      |
 | analytics-engine | [CLAUDE.md](../apps/analytics-engine/CLAUDE.md) · [coding_standards](../apps/analytics-engine/docs/coding_standards.md) · [snapshot_architecture](../apps/analytics-engine/docs/snapshot_architecture.md) · [sql_parameter_audit](../apps/analytics-engine/docs/sql_parameter_audit.md) |
-| desktop          | [README.md](../apps/desktop/README.md) · [CLAUDE.md](../apps/desktop/CLAUDE.md)                                                                                                                                                                                                         |
+| desktop-electron | [CLAUDE.md](../apps/desktop-electron/CLAUDE.md)                                                                                                                                                                                                                                         |
 | landing-page     | [CLAUDE.md](../apps/landing-page/CLAUDE.md) · `content/docs/*.mdx` (published site docs)                                                                                                                                                                                                |
-| mobile           | [CLAUDE.md](../apps/mobile/CLAUDE.md) · [ios-release](../apps/mobile/docs/ios-release.md)                                                                                                                                                                                               |
 | mobile-v2        | [README.md](../apps/mobile-v2/README.md) · [CLAUDE.md](../apps/mobile-v2/CLAUDE.md)                                                                                                                                                                                                     |
 | podcast-pipeline | [CLAUDE.md](../apps/podcast-pipeline/CLAUDE.md)                                                                                                                                                                                                                                         |
 
@@ -56,7 +55,7 @@ knip-config, tsconfig, types.
 | AI fix inner loop (affected only)     | `pnpm verify changed`                              |
 | Before push                           | `pnpm verify branch`                               |
 | CI canonical gate (sequential)        | `pnpm verify ci`                                   |
-| Separate CI-only checks               | `pnpm security audit core` · `pnpm coverage check` |
+| Separate CI-only checks               | `pnpm security audit` · `pnpm coverage check`      |
 
 `verify ci` / `parallel` do **not** include security audit or coverage — run
 those separately. Full table + the `.ai-verify/result.json` fix loop:

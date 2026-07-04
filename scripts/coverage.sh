@@ -9,7 +9,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 case "${1:-}" in
   summary)
-    turbo run test:coverage --filter='!@zapengine/mobile'
+    turbo run test:coverage
     tsx scripts/coverage-summary.ts
     ;;
   check)

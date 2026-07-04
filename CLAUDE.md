@@ -36,24 +36,15 @@ All apps — including analytics-engine (Python/FastAPI) — expose the same `pn
 
 First-time Python setup: `pnpm --filter @zapengine/analytics-engine run build` (runs `uv sync --locked`).
 
-## Desktop (Tauri/macOS)
+## Desktop (Electron/macOS)
 
-The desktop app is a Tauri v2 shell around its **own** phone-frame Vite app (`apps/desktop/src`), built on `@zapengine/app-core` — it does not wrap any other app's UI.
+The desktop app is an Electron shell (`apps/desktop-electron`) around the **mobile-v2 web export** — no product UI lives in the shell; desktop-only behavior (tray, deep links, background rebalance scheduler) is main-process code.
 
-All desktop guardrails — packaging/DMG gates, Corepack/CI env notes, Rust/Xcode prerequisites, when the package gate is mandatory — live in [apps/desktop/CLAUDE.md](apps/desktop/CLAUDE.md). Do not duplicate them here. For any desktop code/config change, finish with the desktop gate from the root:
+All desktop guardrails — esbuild bundling rules, packaging/DMG gates, when the package gate is mandatory, the Privy origin spike — live in [apps/desktop-electron/CLAUDE.md](apps/desktop-electron/CLAUDE.md). Do not duplicate them here. For any desktop code/config change, finish with the desktop gate from the root:
 
 ```bash
-pnpm turbo run type-check lint test --filter=@zapengine/desktop
+pnpm turbo run type-check lint test build deadcode dup:check --filter=@zapengine/desktop-electron
 ```
-
-## Mobile (Flutter) exclusion
-
-The mobile app is Dart/Flutter and has an independent toolchain (Flutter 3.32+, Xcode for iOS). Most TypeScript/Python contributors don't install it locally, so the repo provides `:core` / `:no-mobile` variants:
-
-- `pnpm verify ci` — full CI gate excluding `@zapengine/mobile`
-- `pnpm build core` / `format check core` / `security audit core` — same `--filter=!@zapengine/mobile`
-
-If you install Flutter, just use the regular non-`:core` commands. CI runs the full matrix in parallel; mobile failures only block mobile deploys.
 
 # Code style
 
@@ -129,9 +120,9 @@ Do NOT run `verify ci` during the fix loop — it is too slow.
 
 ### What the local gate covers
 
-`pnpm verify ci` / `pnpm verify parallel` cover only the **core** CI jobs (format, repo drift, contracts parity, per-workspace type-check/lint/test/deadcode/duplication, analytics checks). They do **NOT** cover coverage, mobile, Docker, security audit, or deploy — those are separate GitHub jobs. The authoritative CI-job ↔ local-parity map lives in the `monorepo-ci-debugging` skill; when debugging CI, start there instead of restating job details here.
+`pnpm verify ci` / `pnpm verify parallel` cover only the **core** CI jobs (format, repo drift, contracts parity, per-workspace type-check/lint/test/deadcode/duplication, analytics checks). They do **NOT** cover coverage, Docker, security audit, or deploy — those are separate GitHub jobs. The authoritative CI-job ↔ local-parity map lives in the `monorepo-ci-debugging` skill; when debugging CI, start there instead of restating job details here.
 
-To run one core job directly: `pnpm lint repo`, `pnpm contracts check`, `pnpm turbo run type-check --filter=!@zapengine/mobile`, or the analytics gates `pnpm turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine`.
+To run one core job directly: `pnpm lint repo`, `pnpm contracts check`, `pnpm turbo run type-check`, or the analytics gates `pnpm turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine`.
 
 # Python environment (analytics-engine)
 

@@ -1,7 +1,7 @@
 # Zap Pilot Logo Redesign Brief
 
 This is the canonical handoff brief for redesigning the Zap Pilot logo across
-web, Flutter, iOS, Android, and favicon surfaces.
+web, iOS, Android, and favicon surfaces.
 
 It lives in `packages/design-tokens` because that package is the cross-platform
 source of truth for brand tokens. The current logo assets and
@@ -389,7 +389,7 @@ Legacy issues to fix:
 - Amber/red lightning is outside the token system.
 - Inter typography is outside the current token recommendation.
 - Circuit nodes and dot patterns add detail that does not scale well.
-- The frontend manifest still uses a retired purple theme color.
+- The web manifest still uses a retired purple theme color.
 
 ## 10. Hand-Off Protocol
 
@@ -407,7 +407,7 @@ When the logo redesign is complete, implement it in a separate PR.
 6. If tokens changed, run `pnpm --filter @zapengine/design-tokens build`.
 7. Commit generated token outputs with token changes:
    `packages/design-tokens/dist/` and
-   `packages/design-tokens/lib/design_tokens.dart`.
+   `packages/design-tokens/src/generated/tokens.ts`.
 8. Update this file to record the selected motif direction, any approved color
    changes, and the final typography decision.
 9. Replace, regenerate, or delete
@@ -418,7 +418,7 @@ Expected implementation PR scope:
 
 - Token files only if colors changed: `packages/design-tokens/tokens.json`,
   `packages/design-tokens/dist/`, and
-  `packages/design-tokens/lib/design_tokens.dart`.
+  `packages/design-tokens/src/generated/tokens.ts`.
 - Brand docs/assets:
   `packages/design-tokens/BRAND.md`,
   `apps/landing-page/public/zap-pilot-*`,

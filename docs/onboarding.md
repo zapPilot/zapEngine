@@ -20,12 +20,13 @@ map is [docs/README.md](./README.md).
 3. Run `pnpm dev web` (web, port 8081) or `pnpm dev app` (native dev client).
    Web E2E: `pnpm turbo run test:e2e --filter=@zapengine/mobile-v2` (port 3100).
 
-## Desktop — `apps/desktop` (Tauri/macOS)
+## Desktop — `apps/desktop-electron` (Electron/macOS)
 
-1. [apps/desktop/README.md](../apps/desktop/README.md) — setup, dev, DMG packaging, and troubleshooting.
-2. [apps/desktop/CLAUDE.md](../apps/desktop/CLAUDE.md) — desktop/runtime guardrails.
-3. Make sure Rust/Cargo and Xcode Command Line Tools are installed before native packaging.
-4. Run `pnpm --filter @zapengine/desktop dev`. Package a DMG with `pnpm --filter @zapengine/desktop package`.
+1. [apps/desktop-electron/CLAUDE.md](../apps/desktop-electron/CLAUDE.md) — architecture, packaging gates, and the Privy origin spike.
+2. The renderer is the mobile-v2 web export — build it first:
+   `pnpm --filter @zapengine/mobile-v2 build:web`.
+3. Run `pnpm --filter @zapengine/desktop-electron dev`. Package a DMG with
+   `pnpm --filter @zapengine/desktop-electron package`.
 
 ## TypeScript backend — `account-engine` / `alpha-etl` / `podcast-pipeline`
 
@@ -48,17 +49,10 @@ map is [docs/README.md](./README.md).
    [CLAUDE.md → Analytics strategy measurement](../CLAUDE.md#analytics-strategy-measurement).
 5. Run `pnpm dev analytics`.
 
-## Mobile — `apps/mobile` (Flutter)
-
-1. [apps/mobile/CLAUDE.md](../apps/mobile/CLAUDE.md) — Flutter toolchain, runs on
-   its own CI matrix independent of the TS/Python gates.
-2. [ios-release](../apps/mobile/docs/ios-release.md).
-3. Run `pnpm --filter @zapengine/mobile dev`.
-
 ## When CI fails
 
 Don't fix it step-by-step. Reproduce the whole gate locally and fix in a batch —
 see the `monorepo-ci-debugging` skill (and its siblings) in
 [.agents/skills/](../.agents/skills). Quick start: `pnpm verify` (= parallel, all
-failures at once), then the separate `pnpm security audit core` and
+failures at once), then the separate `pnpm security audit` and
 `pnpm coverage check`, which aren't part of the core gate.

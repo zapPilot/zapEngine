@@ -23,7 +23,6 @@ cirun_run_logged "branch" "verify-branch.log" \
   env TURBO_SCM_BASE="origin/main" TURBO_SCM_HEAD="HEAD" \
   pnpm turbo run lint type-check \
     --affected \
-    --filter='!@zapengine/mobile' \
     --summarize || status=$?
 cirun_write_result
 

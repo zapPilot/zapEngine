@@ -23,19 +23,17 @@
   },
   "files": [
     "dist",
-    "lib",
     "tokens.json"
   ],
   "scripts": {
     "build": "pnpm codegen && tsc",
-    "codegen": "pnpm codegen:css && pnpm codegen:flutter && pnpm codegen:ts",
+    "codegen": "pnpm codegen:css && pnpm codegen:ts",
     "codegen:css": "tsx src/css-variables.ts",
-    "codegen:flutter": "tsx src/flutter-codegen.ts",
     "codegen:ts": "tsx src/ts-codegen.ts",
     "dev": "tsc --watch",
-    "clean": "rm -rf dist lib/design_tokens.dart",
-    "format": "prettier --write \"src/**/*.ts\" \"tokens.json\" \"pubspec.yaml\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"tokens.json\" \"pubspec.yaml\"",
+    "clean": "rm -rf dist",
+    "format": "prettier --write \"src/**/*.ts\" \"tokens.json\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"tokens.json\"",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "type-check": "tsc --noEmit",

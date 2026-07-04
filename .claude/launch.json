@@ -12,12 +12,6 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@zapengine/mobile-v2", "exec", "expo", "start", "--web"],
       "port": 8081
-    },
-    {
-      "name": "desktop",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@zapengine/desktop", "dev:web"],
-      "port": 3005
     }
   ]
 }
