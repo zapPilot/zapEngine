@@ -1,5 +1,7 @@
 import { configureAppCoreEnv } from '@zapengine/app-core/lib/env/runtimeEnv';
 
+import { APP_RUNTIME } from '@/config/appRuntime';
+
 // Metro defines __DEV__ at build/runtime; vitest (node) does not, so guard the read.
 function isDevBuild(): boolean {
   return typeof __DEV__ !== 'undefined' && __DEV__;
@@ -22,7 +24,7 @@ export function buildAppCoreEnvSource(): Record<string, string | undefined> {
     // desktop and native alike.
     VITE_DESKTOP_WALLET_PROVIDER: process.env.EXPO_PUBLIC_WALLET_TOKEN_PROVIDER,
     VITE_PRIVY_CLIENT_ID: process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID,
-    VITE_APP_RUNTIME: 'native',
+    VITE_APP_RUNTIME: APP_RUNTIME,
     MODE: isDevBuild() ? 'development' : 'production',
   };
 }

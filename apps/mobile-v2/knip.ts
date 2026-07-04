@@ -19,8 +19,10 @@ export default defineKnipConfig({
   ],
   ignoreDependencies: [
     '@expo/metro-config',
+    '@expo/metro-runtime',
     '@privy-io/expo',
     '@privy-io/expo-native-extensions',
+    '@privy-io/react-auth',
     // Workspace packages imported only via subpath exports (dist); knip cannot
     // map those back to the dependency, so it false-positives them as unused.
     '@zapengine/app-core',
@@ -37,7 +39,9 @@ export default defineKnipConfig({
     'expo-system-ui',
     'expo-updates',
     'expo-web-browser',
+    'hls.js',
     'react-native-passkeys',
+    'react-native-web',
     'react-native-webview',
     // T6 native wallet backend dependency; installed before the provider import
     // to keep the dev-client graph stable across the screen migration.

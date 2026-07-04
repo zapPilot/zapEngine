@@ -6,15 +6,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 
 import type { PodcastEpisode } from '@/integration/podcastFeed';
-
-export interface PodcastPlayer {
-  nowPlaying: PodcastEpisode | null;
-  isPlaying: boolean;
-  currentTime: number;
-  duration: number;
-  toggle: (episode: PodcastEpisode) => void;
-  seek: (seconds: number) => void;
-}
+import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 
 function finiteSeconds(value: number): number {
   return Number.isFinite(value) ? Math.max(0, value) : 0;

@@ -16,6 +16,10 @@ const config: ExpoConfig = {
   android: {
     package: 'com.zapengine.zappilot.dev',
   },
+  web: {
+    bundler: 'metro',
+    output: 'single',
+  },
   plugins: [
     'expo-dev-client',
     'expo-router',

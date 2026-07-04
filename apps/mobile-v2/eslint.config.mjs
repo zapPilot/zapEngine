@@ -16,6 +16,11 @@ export default defineConfig([
         {
           paths: [
             {
+              name: '@privy-io/react-auth',
+              message:
+                '@privy-io/react-auth is web-only. Native wallet auth must use @privy-io/expo.',
+            },
+            {
               name: 'hls.js',
               message:
                 'hls.js is web-only. Native podcast playback must use expo-audio.',
@@ -49,6 +54,7 @@ export default defineConfig([
           patterns: [
             {
               group: [
+                '@privy-io/react-auth/*',
                 'react-dom/*',
                 '@zapengine/app-core/hooks/ui',
                 '@zapengine/app-core/hooks/ui/**',
@@ -77,6 +83,50 @@ export default defineConfig([
               ],
               message:
                 'Browser-only DOM UX helpers (download links / clipboard) — they throw at runtime on React Native.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/**/*.web.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@privy-io/expo',
+              message:
+                '@privy-io/expo is native-only. Web auth must use @privy-io/react-auth through app-core.',
+            },
+            {
+              name: '@privy-io/expo/ui',
+              message:
+                '@privy-io/expo/ui is native-only. Web auth must use @privy-io/react-auth through app-core.',
+            },
+            {
+              name: '@privy-io/expo-native-extensions',
+              message:
+                '@privy-io/expo-native-extensions is native-only and must not enter the web bundle.',
+            },
+            {
+              name: 'expo-secure-store',
+              message:
+                'expo-secure-store is native-only. Web code must use web-safe storage abstractions.',
+            },
+            {
+              name: 'react-native-passkeys',
+              message:
+                'react-native-passkeys is native-only and must not enter the web bundle.',
+            },
+          ],
+          patterns: [
+            {
+              group: ['@privy-io/expo/*', 'expo-secure-store/*'],
+              message:
+                'Native-only Privy and secure-store modules must stay out of web platform files.',
             },
           ],
         },
