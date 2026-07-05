@@ -33,7 +33,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `node scripts/serve-web.mjs --port ${PORT} --build`,
+    command: `node scripts/serve-web.mjs --port ${PORT}`,
     url: BASE_URL,
     reuseExistingServer: !process.env['CI'],
     timeout: 180 * 1000,
