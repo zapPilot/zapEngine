@@ -6,6 +6,19 @@
   "type": "module",
   "scripts": {
     "build": "cd ../.. && pnpm turbo run build:web --filter=@zapengine/app && rm -rf apps/frontend/dist && mkdir -p apps/frontend/dist && cp -R apps/app/dist/web apps/frontend/dist/web",
+    "type-check": "echo 'frontend shim has no TypeScript sources'",
+    "lint": "echo 'frontend shim has no source lint target'",
+    "format": "prettier --write package.json vercel.json",
+    "format:check": "prettier --check package.json vercel.json",
+    "test": "echo 'frontend shim has no tests'",
+    "test:ci": "echo 'frontend shim has no CI tests'",
+    "test:coverage": "echo 'frontend shim has no coverage target'",
+    "test:unit": "echo 'frontend shim has no unit tests'",
+    "test:watch": "echo 'frontend shim has no watch tests'",
+    "test:e2e": "echo 'frontend shim delegates e2e to @zapengine/app'",
+    "test:e2e:safe": "echo 'frontend shim delegates e2e to @zapengine/app'",
+    "deadcode": "echo 'frontend shim has no source deadcode target'",
+    "dup:check": "echo 'frontend shim has no source duplication target'",
     "clean": "rm -rf dist"
   },
   "engines": {
