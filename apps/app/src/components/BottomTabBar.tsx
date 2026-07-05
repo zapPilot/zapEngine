@@ -3,7 +3,6 @@ import {
   Activity,
   Headphones,
   House,
-  PieChart,
   Sparkles,
   User,
 } from 'lucide-react-native';
@@ -27,7 +26,6 @@ interface TabItem {
 
 const TABS: readonly TabItem[] = [
   { name: 'home', label: 'Home', Icon: House },
-  { name: 'portfolio', label: 'Portfolio', Icon: PieChart },
   { name: 'strategy', label: 'Strategy', Icon: Sparkles },
   { name: 'podcast', label: 'Podcast', Icon: Headphones },
   { name: 'activity', label: 'Activity', Icon: Activity },

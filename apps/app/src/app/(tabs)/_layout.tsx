@@ -10,7 +10,6 @@ export default function TabsLayout(): ReactElement {
       screenOptions={{ headerShown: false }}
     >
       <Tabs.Screen name="home" />
-      <Tabs.Screen name="portfolio" />
       <Tabs.Screen name="strategy" />
       <Tabs.Screen name="podcast" />
       <Tabs.Screen name="activity" />

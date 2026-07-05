@@ -5,12 +5,18 @@ import { cn } from '@/lib/cn';
 
 interface ScreenHeaderProps {
   title: string;
+  left?: ReactNode;
   right?: ReactNode;
   className?: string;
 }
 
-/** Serif page title with an optional trailing action (tab screens). */
-export function ScreenHeader({ title, right, className }: ScreenHeaderProps) {
+/** Serif page title with optional leading/trailing actions (tab screens). */
+export function ScreenHeader({
+  title,
+  left,
+  right,
+  className,
+}: ScreenHeaderProps) {
   return (
     <View
       className={cn(
@@ -18,9 +24,12 @@ export function ScreenHeader({ title, right, className }: ScreenHeaderProps) {
         className,
       )}
     >
-      <Text className="font-serif text-[27px] leading-none text-ink">
-        {title}
-      </Text>
+      <View className="flex-row items-center gap-3">
+        {left}
+        <Text className="font-serif text-[27px] leading-none text-ink">
+          {title}
+        </Text>
+      </View>
       {right}
     </View>
   );

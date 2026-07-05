@@ -2,6 +2,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { getRuntimeEnv } from '@zapengine/app-core/lib/env/runtimeEnv';
 
+import { DEFAULT_CONTENT_LANGUAGE_CODE } from '@/config/contentLanguages';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
+
 export interface PodcastEpisode {
   id: string;
   localizationId: string;
@@ -18,8 +21,6 @@ interface PodcastFeedPage {
 }
 
 const DEFAULT_PODCAST_API_URL = 'https://from-fed-to-chain-api.fly.dev';
-// Default content language for the universal app feed.
-const PODCAST_LANGUAGE_CODE = 'zh-Hant';
 const FEED_PAGE_SIZE = 30;
 
 export function getPodcastApiUrl(): string {
@@ -31,10 +32,11 @@ export function getPodcastApiUrl(): string {
 
 export async function fetchPodcastEpisodes(
   fetchImpl: typeof fetch = fetch,
+  languageCode: string = DEFAULT_CONTENT_LANGUAGE_CODE,
 ): Promise<PodcastEpisode[]> {
   const url = new URL(`${getPodcastApiUrl()}/episodes`);
   url.searchParams.set('limit', String(FEED_PAGE_SIZE));
-  url.searchParams.set('language', PODCAST_LANGUAGE_CODE);
+  url.searchParams.set('language', languageCode);
 
   const response = await fetchImpl(url.toString());
   if (!response.ok) {
@@ -46,9 +48,11 @@ export async function fetchPodcastEpisodes(
 }
 
 export function usePodcastEpisodes() {
+  const { languageCode } = useContentLanguage();
+
   return useQuery({
-    queryKey: ['desktop', 'podcast', 'episodes', PODCAST_LANGUAGE_CODE],
-    queryFn: () => fetchPodcastEpisodes(),
+    queryKey: ['desktop', 'podcast', 'episodes', languageCode],
+    queryFn: () => fetchPodcastEpisodes(fetch, languageCode),
     staleTime: 5 * 60 * 1000,
   });
 }

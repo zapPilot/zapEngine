@@ -1,5 +1,11 @@
 import { useRouter } from 'expo-router';
-import { ArrowDown, ArrowUp, MoreHorizontal } from 'lucide-react-native';
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronRight,
+  MoreHorizontal,
+  PieChart,
+} from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
@@ -196,6 +202,27 @@ export function HomeScreen() {
           strategy={strategy}
           onStart={() => router.push('/invest/amount')}
         />
+      </View>
+
+      <View className="mt-6 px-5">
+        <Tap
+          accessibilityRole="button"
+          className="flex-row items-center gap-[13px] rounded-[15px] border border-line bg-[rgba(255,255,255,.035)] p-4"
+          onPress={() => router.push('/portfolio')}
+        >
+          <View className="h-10 w-10 items-center justify-center rounded-xl border border-[rgba(212,197,163,.3)] bg-[rgba(212,197,163,.12)]">
+            <PieChart size={18} strokeWidth={1.8} color="#d4c5a3" />
+          </View>
+          <View className="min-w-0 flex-1">
+            <Text className="font-sans-semibold text-[14.5px] text-ink">
+              Portfolio
+            </Text>
+            <Text className="mt-1 text-[12px] text-ink-dim">
+              Strategy position, metrics & allocation breakdown
+            </Text>
+          </View>
+          <ChevronRight size={18} strokeWidth={1.8} color="#71717a" />
+        </Tap>
       </View>
 
       <View className="mt-6 px-5">

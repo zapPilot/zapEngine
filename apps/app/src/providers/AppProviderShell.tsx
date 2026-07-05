@@ -9,6 +9,7 @@ import { ZapLogo } from '@/components/ui/ZapLogo';
 import { getExpoMobileRuntimeConfig } from '@/config/expoRuntimeConfig';
 import type { MobileRuntimeConfig } from '@/config/mobileRuntimeConfig';
 import { APP_FONTS } from '@/lib/fonts';
+import { ContentLanguageProvider } from '@/providers/ContentLanguageProvider';
 import { ToastProvider } from '@/providers/ToastProvider';
 
 type PrivyRuntimeConfig = NonNullable<MobileRuntimeConfig['privy']>;
@@ -77,12 +78,14 @@ export function AppProviderShell({
   }
 
   const appContent = (
-    <ToastProvider>
-      <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
-        <StatusBar style="light" />
-        {children}
-      </View>
-    </ToastProvider>
+    <ContentLanguageProvider>
+      <ToastProvider>
+        <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
+          <StatusBar style="light" />
+          {children}
+        </View>
+      </ToastProvider>
+    </ContentLanguageProvider>
   );
 
   return (

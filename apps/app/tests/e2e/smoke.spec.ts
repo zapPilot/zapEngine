@@ -17,7 +17,6 @@ const PODCAST_FIXTURE = {
 
 const PRIMARY_ROUTES = [
   { label: 'Home', path: '/home', url: /\/home$/ },
-  { label: 'Portfolio', path: '/portfolio', url: /\/portfolio$/ },
   { label: 'Strategy', path: '/strategy', url: /\/strategy$/ },
   { label: 'Podcast', path: '/podcast', url: /\/podcast$/ },
   { label: 'Activity', path: '/activity', url: /\/activity$/ },
@@ -38,7 +37,6 @@ async function routePodcastFeed(page: Page): Promise<void> {
 async function expectHealthyAppShell(page: Page): Promise<void> {
   await expect(page.locator('body')).not.toContainText(ERROR_PAGE_PATTERN);
   await expect(page.getByText('Home', { exact: true })).toBeVisible();
-  await expect(page.getByText('Portfolio', { exact: true })).toBeVisible();
   await expect(page.getByText('Strategy', { exact: true })).toBeVisible();
 }
 
@@ -54,6 +52,12 @@ test(
       await expect(page).toHaveURL(route.url);
       await expectHealthyAppShell(page);
     }
+
+    await page.goto('/home');
+    await page.getByText('Portfolio', { exact: true }).click();
+    await expect(page).toHaveURL(/\/portfolio$/);
+    await expect(page.getByText('Strategy position value')).toBeVisible();
+    await expect(page.locator('body')).not.toContainText(ERROR_PAGE_PATTERN);
 
     await page.goto('/send?token=USDC');
     await expect(page).toHaveURL(/\/send\?token=USDC$/);

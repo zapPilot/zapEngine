@@ -1,5 +1,6 @@
 import { tokens } from '@zapengine/design-tokens/tokens';
-import { SlidersHorizontal } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { ArrowLeft, SlidersHorizontal } from 'lucide-react-native';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
@@ -34,6 +35,7 @@ const DEMO_PORTFOLIO: PortfolioViewData = {
 };
 
 export function PortfolioScreen() {
+  const router = useRouter();
   const [range, setRange] = useState<PortfolioRange>('1Y');
   const account = useAccount();
   const result = usePortfolioData(account.userId, range, {
@@ -49,6 +51,26 @@ export function PortfolioScreen() {
     <ScreenScrollView>
       <ScreenHeader
         title="Portfolio"
+        left={
+          <Tap
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            className="h-[34px] w-[34px] items-center justify-center rounded-full border border-line bg-[rgba(255,255,255,.05)]"
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/home');
+              }
+            }}
+          >
+            <ArrowLeft
+              size={17}
+              strokeWidth={1.8}
+              color={tokens.color['ink-dim']}
+            />
+          </Tap>
+        }
         right={
           <Tap className="h-[34px] w-[34px] items-center justify-center rounded-full border border-line bg-[rgba(255,255,255,.05)]">
             <SlidersHorizontal
