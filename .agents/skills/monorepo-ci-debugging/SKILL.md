@@ -27,12 +27,12 @@ This table is the single source of truth for CI-job ↔ local parity (root
 CLAUDE.md intentionally defers here). If it drifts from
 `.github/workflows/ci.yml`, the workflow wins — update this table.
 
-| GitHub job          | What it does                                                                 | Local parity                                                                                                                                  |
-| ------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lint-test`         | install → build core → `pnpm run verify ci` → `pnpm run security audit core` | `pnpm build core && pnpm verify ci && pnpm security audit core`                                                                               |
-| `coverage`          | self-test coverage scripts → workspace `test:coverage` summary               | copy the exact command from `.github/workflows/ci.yml`; currently `pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts` |
-| `check-dead-env`    | env var drift check                                                          | `pnpm lint dead-env`                                                                                                                          |
-| `verify-fly-docker` | Docker verify when deploy/Docker paths changed                               | app-specific Docker verify                                                                                                                    |
+| GitHub job          | What it does                                                   | Local parity                                                                                                                                  |
+| ------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lint-test`         | install → `pnpm turbo run build` → `pnpm run verify ci` → security audit | `pnpm turbo run build && pnpm run verify ci && pnpm run security audit`                                                                       |
+| `coverage`          | self-test coverage scripts → workspace `test:coverage` summary | copy the exact command from `.github/workflows/ci.yml`; currently `pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts` |
+| `check-dead-env`    | env var drift check                                            | `pnpm lint dead-env`                                                                                                                          |
+| `verify-fly-docker` | Docker verify when deploy/Docker paths changed                 | app-specific Docker verify                                                                                                                    |
 
 `pnpm verify ci` / `pnpm verify parallel` reproduce only the core `lint-test`
 checks, not `coverage`, `check-dead-env`, mobile, or Docker. A green core gate is
@@ -170,10 +170,10 @@ cd apps/app && PLAYWRIGHT_PORT=3100 pnpm run test:e2e
 ## Verification before handoff
 
 ```bash
-# Core job
-pnpm build core
-pnpm verify ci
-pnpm security audit core
+# Core job, copied from .github/workflows/ci.yml
+pnpm turbo run build
+pnpm run verify ci
+pnpm run security audit
 
 # Separate jobs touched by the change
 pnpm lint dead-env
