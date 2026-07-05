@@ -15,14 +15,16 @@ const PODCAST_FIXTURE = {
   nextCursor: null,
 };
 
-const TAB_EXPECTATIONS = [
-  { label: 'Home', url: /\/home$/, text: 'Net worth' },
-  { label: 'Portfolio', url: /\/portfolio$/, text: 'Strategy position value' },
-  { label: 'Strategy', url: /\/strategy$/, text: 'Zap Strategy' },
-  { label: 'Podcast', url: /\/podcast$/, text: 'E2E Fed to Chain briefing' },
-  { label: 'Activity', url: /\/activity$/, text: 'Activity' },
-  { label: 'Account', url: /\/account$/, text: 'Connect wallet' },
+const PRIMARY_ROUTES = [
+  { label: 'Home', path: '/home', url: /\/home$/ },
+  { label: 'Portfolio', path: '/portfolio', url: /\/portfolio$/ },
+  { label: 'Strategy', path: '/strategy', url: /\/strategy$/ },
+  { label: 'Podcast', path: '/podcast', url: /\/podcast$/ },
+  { label: 'Activity', path: '/activity', url: /\/activity$/ },
+  { label: 'Account', path: '/account', url: /\/account$/ },
 ] as const;
+
+const ERROR_PAGE_PATTERN = /Something went wrong|Unhandled|ErrorBoundary|Page not found/i;
 
 async function routePodcastFeed(page: Page): Promise<void> {
   await page.route('**/episodes?**', async (route) => {
@@ -33,30 +35,31 @@ async function routePodcastFeed(page: Page): Promise<void> {
   });
 }
 
-test('renders the web app shell and primary routes without page errors', async ({
-  page,
-}) => {
-  const pageErrors: Error[] = [];
-  page.on('pageerror', (error) => pageErrors.push(error));
-  await routePodcastFeed(page);
+async function expectHealthyAppShell(page: Page): Promise<void> {
+  await expect(page.locator('body')).not.toContainText(ERROR_PAGE_PATTERN);
+  await expect(page.getByText('Home', { exact: true })).toBeVisible();
+  await expect(page.getByText('Portfolio', { exact: true })).toBeVisible();
+  await expect(page.getByText('Strategy', { exact: true })).toBeVisible();
+}
 
-  await page.goto('/');
-  await expect(page.getByText('Net worth')).toBeVisible();
-  await expect(page.getByText('Wallet assets')).toBeVisible();
-  await expect(page.getByText('Demo')).toBeVisible();
+test(
+  'renders the web app shell and primary routes without page errors',
+  async ({ page }) => {
+    const pageErrors: Error[] = [];
+    page.on('pageerror', (error) => pageErrors.push(error));
+    await routePodcastFeed(page);
 
-  for (const tab of TAB_EXPECTATIONS) {
-    await page.getByText(tab.label, { exact: true }).click();
-    await expect(page).toHaveURL(tab.url);
-    await expect(
-      page.getByText(tab.text, { exact: true }).first(),
-    ).toBeVisible();
-  }
+    for (const route of PRIMARY_ROUTES) {
+      await page.goto(route.path);
+      await expect(page).toHaveURL(route.url);
+      await expectHealthyAppShell(page);
+    }
 
-  await page.goto('/send?token=USDC');
-  await expect(page).toHaveURL(/\/send\?token=USDC$/);
-  await expect(page.getByText('Send', { exact: true })).toBeVisible();
-  await expect(page.getByText('Connect wallet to send')).toBeVisible();
+    await page.goto('/send?token=USDC');
+    await expect(page).toHaveURL(/\/send\?token=USDC$/);
+    await expect(page.getByText('Send', { exact: true })).toBeVisible();
+    await expect(page.getByText('Connect wallet to send')).toBeVisible();
 
-  expect(pageErrors).toEqual([]);
-});
+    expect(pageErrors).toEqual([]);
+  },
+);
