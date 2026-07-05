@@ -49,12 +49,14 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "passThroughEnv": ["EXPO_PUBLIC_*", "NEXT_PUBLIC_*", "VITE_*"]
     },
     "dev:web": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "passThroughEnv": ["EXPO_PUBLIC_*", "NEXT_PUBLIC_*", "VITE_*"]
     },
     "lint": {
       "dependsOn": ["^build"],
