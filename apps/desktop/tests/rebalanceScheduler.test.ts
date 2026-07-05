@@ -32,21 +32,35 @@ describe('clampIntervalMs', () => {
   });
 });
 
-function makeDeps(overrides?: { drift?: number; threshold?: number }) {
+function makeDeps(overrides?: {
+  drift?: number;
+  strategyId?: string;
+  threshold?: number;
+}) {
   const notifications: RebalanceProposal[] = [];
+  const setIntervalFn = vi.fn<typeof setInterval>(
+    () => 0 as unknown as ReturnType<typeof setInterval>,
+  );
   const deps = {
-    readDrift: vi.fn(async () =>
-      overrides?.drift === undefined
-        ? undefined
-        : { driftPercent: overrides.drift },
-    ),
+    readDrift: vi.fn(async () => {
+      if (overrides?.drift === undefined) {
+        return undefined;
+      }
+      if (overrides.strategyId !== undefined) {
+        return {
+          driftPercent: overrides.drift,
+          strategyId: overrides.strategyId,
+        };
+      }
+      return { driftPercent: overrides.drift };
+    }),
     notify: (proposal: RebalanceProposal) => {
       notifications.push(proposal);
     },
     intervalMs: MIN_INTERVAL_MS,
     driftThresholdPercent: overrides?.threshold,
     now: () => new Date('2026-07-04T00:00:00.000Z'),
-    setIntervalFn: vi.fn(() => 0 as unknown as ReturnType<typeof setInterval>),
+    setIntervalFn,
     clearIntervalFn: vi.fn(),
   };
   return { deps, notifications };
@@ -70,6 +84,22 @@ describe('createRebalanceScheduler', () => {
     expect(notifications[0]).toEqual({
       driftPercent: 5,
       generatedAt: '2026-07-04T00:00:00.000Z',
+    });
+  });
+
+  it('includes strategy id when drift source supplies one', async () => {
+    const { deps, notifications } = makeDeps({
+      drift: 5,
+      strategyId: 'strategy-default',
+      threshold: 1,
+    });
+    const scheduler = createRebalanceScheduler(deps);
+    scheduler.setContext(CONTEXT);
+    await scheduler.tick();
+    expect(notifications[0]).toEqual({
+      driftPercent: 5,
+      generatedAt: '2026-07-04T00:00:00.000Z',
+      strategyId: 'strategy-default',
     });
   });
 
@@ -102,6 +132,25 @@ describe('createRebalanceScheduler', () => {
     );
     scheduler.setContext(undefined);
     expect(deps.clearIntervalFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs scheduled ticks through the interval callback', async () => {
+    let intervalCallback: (() => void) | undefined;
+    const { deps, notifications } = makeDeps({ drift: 10 });
+    deps.setIntervalFn.mockImplementation((callback) => {
+      intervalCallback = callback;
+      return 0 as unknown as ReturnType<typeof setInterval>;
+    });
+    const scheduler = createRebalanceScheduler(deps);
+    scheduler.setContext(CONTEXT);
+    await Promise.resolve();
+
+    const notificationCount = notifications.length;
+    expect(intervalCallback).toBeDefined();
+    intervalCallback?.();
+    await Promise.resolve();
+
+    expect(notifications).toHaveLength(notificationCount + 1);
   });
 
   it('survives readDrift failures', async () => {
