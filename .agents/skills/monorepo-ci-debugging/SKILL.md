@@ -4,10 +4,10 @@ description: >-
   Use when a CI job in a pnpm + turbo monorepo fails, especially when failures
   appear one after another, a long local gate is silent, result.json is missing,
   or it is unclear which local command reproduces the named job. Symptoms:
-  repeated GitHub round-trips, test:ci appearing hung, later deadcode,
-  duplication, coverage, analytics, or security jobs surfacing after an earlier
-  fix, or a PR touching `.env.example` unexpectedly invalidating broad Turbo
-  caches.
+  repeated GitHub round-trips, test:ci appearing hung, app Playwright e2e
+  failures, later deadcode, duplication, coverage, analytics, or security jobs
+  surfacing after an earlier fix, or a PR touching `.env.example`
+  unexpectedly invalidating broad Turbo caches.
 ---
 
 # Monorepo CI debugging (pnpm + turbo)
@@ -116,6 +116,30 @@ When CI reports `check-dead-env` for app, run `pnpm lint dead-env`, then
 fix the source of truth, not the gate: add missing real `EXPO_PUBLIC_*` keys to
 `.env.example`, delete stale keys, and fix any accidental bare `EXPO_PUBLIC_`
 reference in the app source.
+
+## App Playwright e2e gotchas
+
+`apps/app` is the current Expo web app. Do not resurrect retired `apps/frontend`
+or `apps/mobile-v2` paths when fixing old Playwright CI notes.
+
+- Keep the e2e script and Playwright web server in sync. If `test:e2e` builds the
+  Expo web export first, the `webServer.command` should serve the existing export
+  on the same `PLAYWRIGHT_PORT` used to derive `BASE_URL`, not rebuild on a
+  hard-coded or mismatched port.
+- Expo web export and static-server startup can be slow in CI. Prefer a
+  conservative Playwright `webServer.timeout` over weakening, skipping, or
+  deleting the e2e gate.
+- For route-smoke specs, avoid mutable product-copy assertions such as balances,
+  marketing labels, `$`, or `%`. Assert the route URL and a stable healthy shell,
+  and fail on the app ErrorBoundary or not-found text.
+
+Useful narrow commands:
+
+```bash
+cd apps/app && pnpm run build:web
+cd apps/app && PLAYWRIGHT_PORT=3100 pnpm exec playwright test tests/e2e/smoke.spec.ts
+cd apps/app && PLAYWRIGHT_PORT=3100 pnpm run test:e2e
+```
 
 ## Triage: classify the failure → where to go
 
