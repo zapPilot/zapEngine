@@ -1,0 +1,14 @@
+{
+  "name": "@zapengine/frontend",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "build": "cd ../.. && pnpm turbo run build:web --filter=@zapengine/app && rm -rf apps/frontend/dist && mkdir -p apps/frontend/dist && cp -R apps/app/dist/web apps/frontend/dist/web",
+    "clean": "rm -rf dist"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}
