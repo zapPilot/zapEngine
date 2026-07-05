@@ -6,7 +6,7 @@ set -euo pipefail
 if [ "${1:-}" = "audit" ]; then
   shift
   pnpm audit --audit-level=moderate
-  exec turbo run security:audit "$@"
+  exec turbo run security:audit
 fi
 
 echo "usage: pnpm security audit" >&2
