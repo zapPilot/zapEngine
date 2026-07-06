@@ -10,6 +10,7 @@ import { getExpoMobileRuntimeConfig } from '@/config/expoRuntimeConfig';
 import type { MobileRuntimeConfig } from '@/config/mobileRuntimeConfig';
 import { APP_FONTS } from '@/lib/fonts';
 import { ContentLanguageProvider } from '@/providers/ContentLanguageProvider';
+import { PodcastPlayerProvider } from '@/providers/PodcastPlayerProvider';
 import { ToastProvider } from '@/providers/ToastProvider';
 
 type PrivyRuntimeConfig = NonNullable<MobileRuntimeConfig['privy']>;
@@ -79,12 +80,14 @@ export function AppProviderShell({
 
   const appContent = (
     <ContentLanguageProvider>
-      <ToastProvider>
-        <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
-          <StatusBar style="light" />
-          {children}
-        </View>
-      </ToastProvider>
+      <PodcastPlayerProvider>
+        <ToastProvider>
+          <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
+            <StatusBar style="light" />
+            {children}
+          </View>
+        </ToastProvider>
+      </PodcastPlayerProvider>
     </ContentLanguageProvider>
   );
 

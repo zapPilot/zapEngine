@@ -1,36 +1,22 @@
 import Slider from '@react-native-community/slider';
+import { useRouter } from 'expo-router';
 import { Headphones, Pause, Play } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
+import {
+  formatPodcastClock,
+  formatPodcastEpisodeDate,
+} from '@/components/podcast/episodeFormatters';
 import { Card } from '@/components/ui/Card';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
-import {
-  type PodcastEpisode,
-  usePodcastEpisodes,
-} from '@/integration/podcastFeed';
-import { usePodcastPlayer } from '@/integration/podcastPlayer';
-import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
+import { usePodcastEpisodes } from '@/integration/podcastFeed';
+import type { PodcastEpisode } from '@/integration/podcastFeed';
+import { usePodcastPlayer } from '@/providers/PodcastPlayerProvider';
 import { cn } from '@/lib/cn';
-
-const dateFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-});
-
-function formatEpisodeDate(createdAt: string): string {
-  const parsed = new Date(createdAt);
-  return Number.isNaN(parsed.getTime()) ? '' : dateFormatter.format(parsed);
-}
-
-function formatClock(totalSeconds: number): string {
-  const seconds = Math.max(0, Math.floor(totalSeconds));
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  return `${minutes}:${String(rest).padStart(2, '0')}`;
-}
+import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 
 function EpisodeBadge({ active }: { active: boolean }) {
   return (
@@ -57,15 +43,20 @@ function EpisodeRow({
   active,
   playing,
   onToggle,
+  onOpen,
 }: {
   episode: PodcastEpisode;
   first: boolean;
   active: boolean;
   playing: boolean;
   onToggle: () => void;
+  onOpen: () => void;
 }) {
   return (
-    <View
+    <Tap
+      onPress={onOpen}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${episode.title}`}
       className={cn(
         'flex-row gap-3 py-[13px]',
         !first && 'border-t border-line',
@@ -105,7 +96,7 @@ function EpisodeRow({
         </View>
         <View className="mt-[5px] flex-row items-center gap-2">
           <Text className="font-mono text-[10px] text-ink-faint">
-            {formatEpisodeDate(episode.createdAt)}
+            {formatPodcastEpisodeDate(episode.createdAt)}
           </Text>
           {episode.listened ? (
             <Text className="font-mono text-[9px] uppercase tracking-[0.9px] text-ink-faint">
@@ -114,7 +105,7 @@ function EpisodeRow({
           ) : null}
         </View>
       </View>
-    </View>
+    </Tap>
   );
 }
 
@@ -177,7 +168,7 @@ function NowPlayingBar({ player }: { player: PodcastPlayer }) {
           </Text>
           <View className="mt-[6px] flex-row items-center gap-2">
             <Text className="w-9 font-mono text-[9px] text-ink-faint">
-              {formatClock(player.currentTime)}
+              {formatPodcastClock(player.currentTime)}
             </Text>
             <Slider
               accessibilityLabel="Seek"
@@ -192,7 +183,7 @@ function NowPlayingBar({ player }: { player: PodcastPlayer }) {
               style={{ flex: 1, height: 28 }}
             />
             <Text className="w-9 text-right font-mono text-[9px] text-ink-faint">
-              {formatClock(player.duration)}
+              {formatPodcastClock(player.duration)}
             </Text>
           </View>
         </View>
@@ -202,6 +193,7 @@ function NowPlayingBar({ player }: { player: PodcastPlayer }) {
 }
 
 export function PodcastScreen() {
+  const router = useRouter();
   const { data, isLoading, isError } = usePodcastEpisodes();
   const player = usePodcastPlayer();
   const episodes = data ?? [];
@@ -230,7 +222,10 @@ export function PodcastScreen() {
                 playing={
                   player.nowPlaying?.id === episode.id && player.isPlaying
                 }
-                onToggle={() => player.toggle(episode)}
+                onToggle={() => player.playFromQueue(episodes, episode)}
+                onOpen={() =>
+                  router.push(`/podcast/${encodeURIComponent(episode.id)}`)
+                }
               />
             ))}
           </View>

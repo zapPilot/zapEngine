@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   fetchPodcastEpisodes,
+  findPodcastEpisodeById,
   getPodcastApiUrl,
+  parsePodcastEpisode,
 } from '@/integration/podcastFeed';
 
 const fetchMock = vi.fn();
@@ -83,5 +85,94 @@ describe('podcast feed client', () => {
     await expect(fetchPodcastEpisodes(fetchMock)).rejects.toThrow(
       'Podcast feed request failed: 502',
     );
+  });
+
+  it('parses detail fields from camelCase episode responses', () => {
+    const parsed = parsePodcastEpisode(
+      episode({
+        script: 'Paragraph one. Paragraph two.',
+        likeCount: 7,
+        lastPositionSeconds: 42,
+        audioTracks: [
+          {
+            languageCode: 'zh-Hant',
+            title: 'Main track',
+            hlsUrl: 'https://cdn.example.com/main.m3u8',
+            classroomHlsUrl: 'https://cdn.example.com/classroom.m3u8',
+          },
+        ],
+        languageClassrooms: [
+          {
+            sourceLanguageCode: 'zh-Hant',
+            targetLanguageCode: 'ja',
+            oneLiner: 'Learn the macro word of the day.',
+            keywords: [
+              {
+                term: '金利',
+                reading: 'きんり',
+                meaning: 'interest rate',
+                note: 'Used in central bank news.',
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(parsed.script).toBe('Paragraph one. Paragraph two.');
+    expect(parsed.likeCount).toBe(7);
+    expect(parsed.lastPositionSeconds).toBe(42);
+    expect(parsed.audioTracks[0]).toEqual({
+      languageCode: 'zh-Hant',
+      title: 'Main track',
+      hlsUrl: 'https://cdn.example.com/main.m3u8',
+      classroomHlsUrl: 'https://cdn.example.com/classroom.m3u8',
+    });
+    expect(parsed.languageClassrooms[0]?.keywords[0]?.term).toBe('金利');
+  });
+
+  it('parses detail fields from snake_case episode responses', () => {
+    const parsed = parsePodcastEpisode({
+      id: 'ep-2',
+      localization_id: '',
+      title: 'Liquidity cycle',
+      language_code: 'en',
+      hls_url: 'https://cdn.example.com/ep-2/playlist.m3u8',
+      created_at: '2026-07-02T00:00:00.000Z',
+      listened: true,
+      script: 'Liquidity is moving.',
+      like_count: 3,
+      last_position_seconds: 21,
+      audio_tracks: [
+        {
+          language_code: 'en',
+          title: '',
+          hls_url: 'https://cdn.example.com/en.m3u8',
+          classroom_hls_url: null,
+        },
+      ],
+      language_classrooms: [
+        {
+          source_language_code: 'en',
+          target_language_code: 'zh-Hant',
+          one_liner: 'Liquidity 的中文語感。',
+          keywords: [{ term: 'liquidity', meaning: '流動性' }],
+        },
+      ],
+    });
+
+    expect(parsed.localizationId).toBe('ep-2');
+    expect(parsed.audioTracks[0]?.title).toBe('en');
+    expect(parsed.languageClassrooms[0]?.targetLanguageCode).toBe('zh-Hant');
+  });
+
+  it('finds an episode by id or localization id', () => {
+    const episodes = [parsePodcastEpisode(episode())];
+
+    expect(findPodcastEpisodeById(episodes, 'ep-1')?.title).toBe(
+      'Fed rate decision explained',
+    );
+    expect(findPodcastEpisodeById(episodes, 'loc-1')?.id).toBe('ep-1');
+    expect(findPodcastEpisodeById(episodes, 'missing')).toBeNull();
   });
 });

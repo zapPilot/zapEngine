@@ -1,8 +1,22 @@
 import HLS from 'hls.js';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { PodcastEpisode } from '@/integration/podcastFeed';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
+import {
+  finiteSeconds,
+  hasNextPodcastEpisode,
+  hasPreviousPodcastEpisode,
+} from '@/integration/podcastPlayerShared';
+import { usePodcastPlayerQueue } from '@/integration/usePodcastPlayerQueue';
+
+function toggleAudioElement(audio: HTMLAudioElement): void {
+  if (audio.paused) {
+    void audio.play();
+  } else {
+    audio.pause();
+  }
+}
 
 export function usePodcastPlayer(): PodcastPlayer {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -11,6 +25,7 @@ export function usePodcastPlayer(): PodcastPlayer {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [speed, setSpeedState] = useState(1);
 
   useEffect(() => {
     const audio = new Audio();
@@ -42,19 +57,10 @@ export function usePodcastPlayer(): PodcastPlayer {
     };
   }, []);
 
-  const toggle = useCallback(
+  const playEpisode = useCallback(
     (episode: PodcastEpisode) => {
       const audio = audioRef.current;
       if (audio === null) return;
-
-      if (nowPlaying?.id === episode.id) {
-        if (audio.paused) {
-          void audio.play();
-        } else {
-          audio.pause();
-        }
-        return;
-      }
 
       hlsRef.current?.destroy();
       hlsRef.current = null;
@@ -74,20 +80,86 @@ export function usePodcastPlayer(): PodcastPlayer {
         return;
       }
 
+      audio.playbackRate = speed;
       setNowPlaying(episode);
       setCurrentTime(0);
       setDuration(0);
       void audio.play();
     },
-    [nowPlaying],
+    [speed],
   );
+
+  const toggleCurrentPlayback = useCallback(() => {
+    const audio = audioRef.current;
+    if (audio !== null) toggleAudioElement(audio);
+  }, []);
+
+  const queueState = usePodcastPlayerQueue({
+    nowPlaying,
+    playEpisode,
+    toggleCurrentPlayback,
+  });
 
   const seek = useCallback((seconds: number) => {
     const audio = audioRef.current;
+    if (audio === null) return;
+    const target =
+      audio.duration > 0
+        ? Math.min(Math.max(0, seconds), audio.duration)
+        : Math.max(0, seconds);
+    audio.currentTime = target;
+  }, []);
+
+  const seekRelative = useCallback(
+    (deltaSeconds: number) => {
+      seek(currentTime + deltaSeconds);
+    },
+    [currentTime, seek],
+  );
+
+  const setSpeed = useCallback((nextSpeed: number) => {
+    setSpeedState(nextSpeed);
+    const audio = audioRef.current;
     if (audio !== null) {
-      audio.currentTime = seconds;
+      audio.playbackRate = nextSpeed;
     }
   }, []);
 
-  return { nowPlaying, isPlaying, currentTime, duration, toggle, seek };
+  return useMemo(
+    () => ({
+      nowPlaying,
+      isPlaying,
+      currentTime: finiteSeconds(currentTime),
+      duration: finiteSeconds(duration),
+      speed,
+      queue: queueState.queue,
+      queueIndex: queueState.queueIndex,
+      hasPreviousEpisode: hasPreviousPodcastEpisode(
+        queueState.queue,
+        queueState.queueIndex,
+      ),
+      hasNextEpisode: hasNextPodcastEpisode(
+        queueState.queue,
+        queueState.queueIndex,
+      ),
+      toggle: queueState.toggle,
+      playFromQueue: queueState.playFromQueue,
+      seek,
+      seekRelative,
+      skipToPreviousEpisode: queueState.skipToPreviousEpisode,
+      skipToNextEpisode: queueState.skipToNextEpisode,
+      setSpeed,
+    }),
+    [
+      currentTime,
+      duration,
+      isPlaying,
+      queueState,
+      nowPlaying,
+      seek,
+      seekRelative,
+      setSpeed,
+      speed,
+    ],
+  );
 }
