@@ -7,8 +7,14 @@ import {
   DEFAULT_VAULT_REGISTRY,
   MORPHO_VAULT_CATALOG,
   GMX_V2_VAULT_CATALOG,
+  HYPERLIQUID_VAULT_CATALOG,
+  ProtocolIdSchema,
   type VaultMeta,
 } from '../../src/protocols/registry.js';
+import {
+  HLP_VAULTS,
+  HYPERCORE_CHAIN_ID,
+} from '../../src/protocols/hyperliquid/index.js';
 import { CHAIN_IDS } from '../../src/types/chain.types.js';
 
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as Address;
@@ -190,10 +196,11 @@ describe('findVaultByAddress', () => {
 });
 
 describe('DEFAULT_VAULT_REGISTRY', () => {
-  it('contains morpho and gmx-v2 catalogs', () => {
+  it('contains the morpho, gmx-v2, and hyperliquid catalogs', () => {
     expect(DEFAULT_VAULT_REGISTRY.map((source) => source.protocol)).toEqual([
       'morpho',
       'gmx-v2',
+      'hyperliquid',
     ]);
   });
 });
@@ -226,5 +233,29 @@ describe('GMX_V2_VAULT_CATALOG', () => {
     expect(GMX_V2_VAULT_CATALOG.every((v) => v.protocol === 'gmx-v2')).toBe(
       true,
     );
+  });
+});
+
+describe('HYPERLIQUID_VAULT_CATALOG', () => {
+  it('registers the hyperliquid protocol id', () => {
+    expect(ProtocolIdSchema.parse('hyperliquid')).toBe('hyperliquid');
+  });
+
+  it('lists the HLP vault on HyperCore and resolves via the registry', () => {
+    expect(HYPERLIQUID_VAULT_CATALOG).toHaveLength(1);
+
+    const byAsset = lookupVault({
+      protocol: 'hyperliquid',
+      chainId: HYPERCORE_CHAIN_ID,
+      asset: 'USDC',
+    });
+    expect(byAsset?.vaultAddress).toBe(HLP_VAULTS.mainnet);
+    expect(byAsset?.capabilities).toContain('vault');
+
+    const byAddress = findVaultByAddress({
+      vaultAddress: HLP_VAULTS.mainnet,
+    });
+    expect(byAddress?.protocol).toBe('hyperliquid');
+    expect(byAddress?.chainId).toBe(HYPERCORE_CHAIN_ID);
   });
 });

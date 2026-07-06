@@ -4,11 +4,17 @@ import type { Address } from 'viem';
 
 import { CHAIN_IDS, TOKENS, type ChainId } from '../types/chain.types.js';
 import { GMX_V2_MARKETS, GMX_V2_TOKENS } from './gmx-v2/index.js';
+import {
+  HLP_VAULT_NAME,
+  HLP_VAULTS,
+  HYPERCORE_CHAIN_ID,
+  HYPERCORE_PERPS_USDC,
+} from './hyperliquid/index.js';
 import { MORPHO_VAULTS } from './morpho/morpho.constants.js';
 
 const addressRegex = /^0x[a-fA-F0-9]{40}$/;
 
-export const ProtocolIdSchema = z.enum(['morpho', 'gmx-v2']);
+export const ProtocolIdSchema = z.enum(['morpho', 'gmx-v2', 'hyperliquid']);
 export type ProtocolId = z.infer<typeof ProtocolIdSchema>;
 
 export const ProtocolCapabilitySchema = z.enum([
@@ -125,9 +131,32 @@ export const gmxV2VaultCatalogSource: VaultCatalogSource = {
   listVaults: () => GMX_V2_VAULT_CATALOG,
 };
 
+const HYPERLIQUID_CAPABILITIES = [
+  'supply',
+  'vault',
+] as const satisfies readonly ProtocolCapability[];
+
+export const HYPERLIQUID_VAULT_CATALOG: readonly VaultMeta[] = [
+  {
+    protocol: 'hyperliquid',
+    chainId: HYPERCORE_CHAIN_ID,
+    vaultAddress: HLP_VAULTS.mainnet,
+    assetAddress: HYPERCORE_PERPS_USDC,
+    assetSymbol: 'USDC',
+    name: HLP_VAULT_NAME,
+    capabilities: HYPERLIQUID_CAPABILITIES,
+  },
+];
+
+export const hyperliquidVaultCatalogSource: VaultCatalogSource = {
+  protocol: 'hyperliquid',
+  listVaults: () => HYPERLIQUID_VAULT_CATALOG,
+};
+
 export const DEFAULT_VAULT_REGISTRY: VaultRegistry = [
   morphoVaultCatalogSource,
   gmxV2VaultCatalogSource,
+  hyperliquidVaultCatalogSource,
 ];
 
 function normalizeAddress(address: string): string {

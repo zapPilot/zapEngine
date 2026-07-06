@@ -14,11 +14,21 @@ protocols/
 │   ├── index.ts
 │   ├── morpho.constants.ts   # Addresses, ABI, gas estimates, vault catalog
 │   └── morpho.encoder.ts     # Calldata encoders (supply, redeem)
-└── gmx-v2/           # GMX v2 GM-markets — supply (mint GM tokens)
+├── gmx-v2/           # GMX v2 GM-markets — supply (mint GM tokens)
+│   ├── index.ts
+│   ├── gmx-v2.constants.ts
+│   └── gmx-v2.encoder.ts
+└── hyperliquid/      # Hyperliquid HLP — bridge-to-HyperCore follow-up descriptors
     ├── index.ts
-    ├── gmx-v2.constants.ts
-    └── gmx-v2.encoder.ts
+    ├── hyperliquid.constants.ts   # HyperCore 1337, HLP vaults, exchange API bases
+    └── hyperliquid.encoder.ts     # Declarative vaultTransfer follow-ups (NOT calldata)
 ```
+
+> Hyperliquid is the one adapter whose "encoder" emits a declarative
+> `DepositFollowUp` payload instead of `Hex` calldata: HLP deposits are
+> gasless exchange-API actions whose L1-action hash commits to the
+> execution-time nonce, so signing can only happen in the execution plane
+> (frontend). The encoder stays pure — no I/O, no nonce, no signature.
 
 ## Adding a new protocol adapter
 
