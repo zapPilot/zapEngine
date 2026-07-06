@@ -4,15 +4,21 @@ import {
   AddressSchema,
   BASE_CHAIN_ID,
   BASE_USDC_ADDRESS,
+  ChainSplitSchema,
+  DEPOSIT_USDC_ADDRESSES,
+  DepositFollowUpSchema,
   DepositLegSchema,
   DepositPlanSchema,
   DepositRequestSchema,
   HexDataSchema,
+  HYPERCORE_CHAIN_ID,
+  HyperliquidVaultDepositStepSchema,
   NATIVE_TOKEN_ADDRESS,
   PlanOrchestrationDepositRequestSchema,
   PreparedTransactionSchema,
   SUPPORTED_DEPOSIT_CHAINS,
 } from '../../../src/api/deposit.js';
+import { WithdrawPlanSchema } from '../../../src/api/withdraw.js';
 
 const USER = '0x' + 'a'.repeat(40);
 const VAULT = '0x' + 'b'.repeat(40);
@@ -79,8 +85,7 @@ describe('PreparedTransactionSchema', () => {
 
   it('rejects when value is not a decimal string', () => {
     expect(
-      PreparedTransactionSchema.safeParse({ ...valid, value: '0x10' })
-        .success,
+      PreparedTransactionSchema.safeParse({ ...valid, value: '0x10' }).success,
     ).toBe(false);
   });
 
@@ -254,15 +259,207 @@ describe('PlanOrchestrationDepositRequestSchema (discriminated union)', () => {
     ).toBe(false);
   });
 
-  it('applies Base-only validation to the invest branch only', () => {
+  it('rejects a Base-chain token on a different source chain', () => {
+    const result = PlanOrchestrationDepositRequestSchema.safeParse({
+      kind: 'invest',
+      userAddress: USER,
+      fromToken: BASE_USDC_ADDRESS, // Base USDC is not Ethereum USDC
+      fromAmount: '1000000',
+      sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ETHEREUM,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some((issue) => issue.path.includes('fromToken')),
+      ).toBe(true);
+    }
+  });
+
+  it('accepts a destination re-quote: Arbitrum source with Arbitrum USDC and a single-chain split', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse({
+        kind: 'invest',
+        userAddress: USER,
+        fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+        fromAmount: '1000000',
+        sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+        split: { '42161': 1 },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects HyperCore (1337) as a source chain', () => {
+    const result = PlanOrchestrationDepositRequestSchema.safeParse({
+      kind: 'invest',
+      userAddress: USER,
+      fromToken: BASE_USDC_ADDRESS,
+      fromAmount: '1000000',
+      sourceChainId: HYPERCORE_CHAIN_ID,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some((issue) =>
+          issue.path.includes('sourceChainId'),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('accepts a split targeting HyperCore from Base', () => {
     expect(
       PlanOrchestrationDepositRequestSchema.safeParse({
         kind: 'invest',
         userAddress: USER,
         fromToken: BASE_USDC_ADDRESS,
         fromAmount: '1000000',
-        sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ETHEREUM,
+        sourceChainId: BASE_CHAIN_ID,
+        split: { '8453': 0.7, '1337': 0.3 },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a split containing an unsupported chain', () => {
+    const result = PlanOrchestrationDepositRequestSchema.safeParse({
+      kind: 'invest',
+      userAddress: USER,
+      fromToken: BASE_USDC_ADDRESS,
+      fromAmount: '1000000',
+      sourceChainId: BASE_CHAIN_ID,
+      split: { '8453': 0.5, '999': 0.5 },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some(
+          (issue) =>
+            issue.path.includes('split') &&
+            issue.message.includes('Unsupported split chain 999'),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('rejects a multi-chain split from a non-Base source (re-quotes are single-chain)', () => {
+    const result = PlanOrchestrationDepositRequestSchema.safeParse({
+      kind: 'invest',
+      userAddress: USER,
+      fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+      fromAmount: '1000000',
+      sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+      split: { '42161': 0.5, '1337': 0.5 },
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('ChainSplitSchema', () => {
+  it('accepts chain-id keys with positive weights', () => {
+    expect(
+      ChainSplitSchema.safeParse({ '8453': 0.7, '1337': 0.3 }).success,
+    ).toBe(true);
+  });
+
+  it('rejects non-numeric keys', () => {
+    expect(ChainSplitSchema.safeParse({ base: 1 }).success).toBe(false);
+  });
+
+  it('rejects non-positive weights', () => {
+    expect(ChainSplitSchema.safeParse({ '8453': 0 }).success).toBe(false);
+    expect(ChainSplitSchema.safeParse({ '8453': -0.5 }).success).toBe(false);
+  });
+});
+
+describe('Deposit follow-up schemas', () => {
+  const hlpStep = {
+    kind: 'hyperliquid-vault-deposit',
+    chainId: HYPERCORE_CHAIN_ID,
+    afterLegIndex: 1,
+    amount: { source: 'bridge-output', legIndex: 1 },
+    expectedUsd: '3000000',
+    minDepositUsd: '5000000',
+    action: {
+      type: 'vaultTransfer',
+      vaultAddress: VAULT,
+      isDeposit: true,
+    },
+    signing: {
+      scheme: 'hyperliquid-l1-action',
+      hyperliquidChain: 'Mainnet',
+      apiUrl: 'https://api.hyperliquid.xyz',
+    },
+    lockupDays: 4,
+  };
+
+  it('accepts a full hyperliquid-vault-deposit step', () => {
+    expect(HyperliquidVaultDepositStepSchema.safeParse(hlpStep).success).toBe(
+      true,
+    );
+  });
+
+  it('accepts a fixed-amount variant', () => {
+    expect(
+      HyperliquidVaultDepositStepSchema.safeParse({
+        ...hlpStep,
+        amount: { source: 'fixed', amount: '2500000' },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a wrong chainId on the HLP step', () => {
+    expect(
+      HyperliquidVaultDepositStepSchema.safeParse({
+        ...hlpStep,
+        chainId: 8453,
       }).success,
     ).toBe(false);
+  });
+
+  it('discriminates follow-up kinds and rejects unknown ones', () => {
+    expect(DepositFollowUpSchema.safeParse(hlpStep).success).toBe(true);
+    expect(
+      DepositFollowUpSchema.safeParse({
+        kind: 'destination-replan',
+        chainId: 42161,
+        afterLegIndex: 0,
+        amount: { source: 'bridge-output', legIndex: 0 },
+        replanRequest: {
+          kind: 'invest',
+          fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+          sourceChainId: 42161,
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      DepositFollowUpSchema.safeParse({ ...hlpStep, kind: 'unknown-step' })
+        .success,
+    ).toBe(false);
+  });
+
+  it('accepts a DepositPlan with followUps and one without', () => {
+    const basePlan = {
+      legs: [],
+      approvals: [],
+      calls: [],
+      totalGasUsd: '0',
+      sourceChainId: 8453,
+    };
+    expect(DepositPlanSchema.safeParse(basePlan).success).toBe(true);
+    expect(
+      DepositPlanSchema.safeParse({ ...basePlan, followUps: [hlpStep] })
+        .success,
+    ).toBe(true);
+  });
+
+  it('keeps the WithdrawPlan derivation intact (no followUps required)', () => {
+    expect(
+      WithdrawPlanSchema.safeParse({
+        legs: [],
+        approvals: [],
+        calls: [],
+        totalGasUsd: '0',
+        sourceChainId: 8453,
+      }).success,
+    ).toBe(true);
   });
 });
