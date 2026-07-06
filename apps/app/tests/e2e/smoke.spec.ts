@@ -44,26 +44,34 @@ async function expectHealthyAppShell(page: Page): Promise<void> {
 test('renders the web app shell and primary routes without page errors', async ({
   page,
 }) => {
-  const pageErrors: Error[] = [];
-  page.on('pageerror', (error) => pageErrors.push(error));
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => {
+    pageErrors.push(`${page.url()}: ${error.stack ?? error.message}`);
+  });
   await routePodcastFeed(page);
 
   for (const route of PRIMARY_ROUTES) {
-    await page.goto(route.path);
-    await expect(page).toHaveURL(route.url);
-    await expectHealthyAppShell(page);
+    await test.step(`route ${route.label}`, async () => {
+      await page.goto(route.path);
+      await expect(page).toHaveURL(route.url);
+      await expectHealthyAppShell(page);
+    });
   }
 
-  await page.goto('/home');
-  await page.getByText('Portfolio', { exact: true }).click();
-  await expect(page).toHaveURL(/\/portfolio$/);
-  await expect(page.getByText('Strategy position value')).toBeVisible();
-  await expect(page.locator('body')).not.toContainText(ERROR_PAGE_PATTERN);
+  await test.step('Portfolio tab', async () => {
+    await page.goto('/home');
+    await page.getByText('Portfolio', { exact: true }).click();
+    await expect(page).toHaveURL(/\/portfolio$/);
+    await expect(page.getByText('Strategy position value')).toBeVisible();
+    await expect(page.locator('body')).not.toContainText(ERROR_PAGE_PATTERN);
+  });
 
-  await page.goto('/send?token=USDC');
-  await expect(page).toHaveURL(/\/send\?token=USDC$/);
-  await expect(page.getByText('Send', { exact: true })).toBeVisible();
-  await expect(page.getByText('Connect wallet to send')).toBeVisible();
+  await test.step('Send route', async () => {
+    await page.goto('/send?token=USDC');
+    await expect(page).toHaveURL(/\/send\?token=USDC$/);
+    await expect(page.getByText('Send', { exact: true })).toBeVisible();
+    await expect(page.getByText('Connect wallet to send')).toBeVisible();
+  });
 
   expect(pageErrors).toEqual([]);
 });
