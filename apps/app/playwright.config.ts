@@ -8,6 +8,8 @@ const PRIVY_PLACEHOLDER =
 const PRIVY_CLIENT_PLACEHOLDER =
   process.env['EXPO_PUBLIC_PRIVY_CLIENT_ID'] ?? 'e2eprivyclientplaceholder';
 
+const CI_REPORTER = [['list'], ['html', { open: 'never' }]] as const;
+
 export default defineConfig({
   testDir: './tests/e2e',
   testMatch: /\.spec\.ts$/,
@@ -15,7 +17,7 @@ export default defineConfig({
   forbidOnly: !!process.env['CI'],
   retries: process.env['CI'] ? 2 : 0,
   workers: 1,
-  reporter: process.env['CI'] ? [['list'], ['html', { open: 'never' }]] : 'list',
+  reporter: process.env['CI'] ? CI_REPORTER : 'list',
   globalTimeout: 10 * 60 * 1000,
   timeout: 30 * 1000,
   use: {
