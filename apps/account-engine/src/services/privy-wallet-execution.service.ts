@@ -37,6 +37,14 @@ const INVALID_ACCESS_TOKEN_MESSAGE =
 const PRIVY_API_URL = 'https://api.privy.io';
 const PRIVY_REQUEST_EXPIRY_MS = 5 * 60 * 1000;
 const PREVIEW_EXPIRY_MS = 5 * 60 * 1000;
+const PRIVY_TX_HASH_POLL_INTERVAL_MS = 1_000;
+const PRIVY_TX_HASH_TIMEOUT_MS = 30_000;
+const PRIVY_TX_HASH_REGEX = /^0x[0-9a-fA-F]{64}$/;
+const PRIVY_TERMINAL_FAILURE_STATUSES = new Set([
+  'execution_reverted',
+  'failed',
+  'provider_error',
+]);
 
 interface PrivyUserWallet {
   id: string;
@@ -53,6 +61,11 @@ interface PreviewRecord {
   preview: SignablePreview;
   consumed: boolean;
   nonce: number;
+}
+
+interface PrivyTransactionSnapshot {
+  status: string;
+  transaction_hash: string | null;
 }
 
 export function createPrivySendCallsAuthorizationPayload(input: {
@@ -162,12 +175,74 @@ function createPrivyClientAdapter(
           authorization_context: authorizationContext,
         });
 
+      const transactionHash = await waitForPrivyTransactionHash({
+        transactionId: response.transaction_id,
+        getTransaction: (transactionId) =>
+          privy.transactions().get(transactionId),
+      });
+
       return {
         transactionId: response.transaction_id,
         caip2: response.caip2,
+        ...(transactionHash ? { transactionHash } : {}),
       };
     },
   };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForPrivyTransactionHash({
+  transactionId,
+  getTransaction,
+  timeoutMs = PRIVY_TX_HASH_TIMEOUT_MS,
+}: {
+  transactionId: string;
+  getTransaction: (transactionId: string) => Promise<PrivyTransactionSnapshot>;
+  timeoutMs?: number;
+}): Promise<`0x${string}` | undefined> {
+  const deadline = Date.now() + timeoutMs;
+  let lastError: unknown;
+  let lastStatus: string | undefined;
+
+  while (Date.now() <= deadline) {
+    try {
+      const transaction = await getTransaction(transactionId);
+      lastStatus = transaction.status;
+      if (
+        transaction.transaction_hash &&
+        PRIVY_TX_HASH_REGEX.test(transaction.transaction_hash)
+      ) {
+        return transaction.transaction_hash as `0x${string}`;
+      }
+      if (PRIVY_TERMINAL_FAILURE_STATUSES.has(transaction.status)) {
+        throw new Error(
+          `Privy transaction ${transactionId} reached ${transaction.status} without a transaction hash`,
+        );
+      }
+    } catch (error) {
+      lastError = error;
+      if (
+        error instanceof Error &&
+        /reached .+ without a transaction hash/.test(error.message)
+      ) {
+        throw error;
+      }
+    }
+
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) break;
+    await sleep(Math.min(PRIVY_TX_HASH_POLL_INTERVAL_MS, remainingMs));
+  }
+
+  logger.warn('Privy transaction hash was not available before timeout', {
+    transactionId,
+    lastStatus,
+    ...(lastError ? { error: getErrorMessage(lastError) } : {}),
+  });
+  return undefined;
 }
 
 function isJwt(accessToken: string): boolean {
