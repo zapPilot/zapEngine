@@ -109,6 +109,17 @@ export {
   getWithdrawPlan,
 } from './planOrchestrationService';
 
+// Hyperliquid execution-plane access (HLP deposits + balance reads)
+export {
+  getPerpUsdcBalance,
+  getVaultEquity,
+  type PerpUsdcBalance,
+  submitVaultDeposit,
+  usdStringToUsd6,
+  type VaultEquity,
+  waitForPerpUsdcArrival,
+} from './hyperliquidService';
+
 // Moralis wallet POC (desktop/web clients; proxy before production)
 export {
   getMoralisWalletHistory,

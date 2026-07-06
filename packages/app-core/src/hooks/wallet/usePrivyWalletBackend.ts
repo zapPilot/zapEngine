@@ -33,6 +33,7 @@ import {
   decodeFunctionData,
   encodeFunctionData,
   erc20Abi,
+  type Hash,
   type Hex,
   parseUnits,
   toHex,
@@ -627,10 +628,16 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
 
         walletLogger.info('[privy.confirmBatchExecution] success', {
           transactionId: result.transactionId,
+          transactionHash: result.transactionHash,
           caip2: result.caip2,
         });
 
-        pending.resolve({ callsId: result.transactionId });
+        pending.resolve({
+          callsId: result.transactionId,
+          ...(result.transactionHash
+            ? { transactionHash: result.transactionHash as Hash }
+            : {}),
+        });
       } catch (err: unknown) {
         walletLogger.error('[privy.confirmBatchExecution] failed:', err);
         pending.reject(
