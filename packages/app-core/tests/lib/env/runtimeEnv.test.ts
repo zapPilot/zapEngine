@@ -136,6 +136,7 @@ describe('runtimeEnv', () => {
 
       expect(env.toSeconds('not-a-number', 60)).toBe(60);
       expect(env.toSeconds('60s', 30)).toBe(30);
+      expect(env.toSeconds('   ', 45)).toBe(45);
     });
   });
 });
