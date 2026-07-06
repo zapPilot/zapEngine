@@ -4,7 +4,7 @@ import expoConfig from 'eslint-config-expo/flat.js';
 export default defineConfig([
   ...expoConfig,
   {
-    ignores: ['dist/**', 'coverage/**', '.expo/**'],
+    ignores: ['dist/**', 'coverage/**', '.expo/**', 'bundle-bytecode.js'],
   },
   {
     // Boundary guard: only the RN-safe surface of app-core may be imported here
