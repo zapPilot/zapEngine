@@ -1,4 +1,8 @@
-import { defineConfig, devices } from '@playwright/test';
+import {
+  defineConfig,
+  devices,
+  type ReporterDescription,
+} from '@playwright/test';
 
 const PORT = Number(process.env['PLAYWRIGHT_PORT'] ?? '3100');
 const BASE_URL =
@@ -8,7 +12,10 @@ const PRIVY_PLACEHOLDER =
 const PRIVY_CLIENT_PLACEHOLDER =
   process.env['EXPO_PUBLIC_PRIVY_CLIENT_ID'] ?? 'e2eprivyclientplaceholder';
 
-const CI_REPORTER = [['list'], ['html', { open: 'never' }]] as const;
+const CI_REPORTER: ReporterDescription[] = [
+  ['list'],
+  ['html', { open: 'never' }],
+];
 
 export default defineConfig({
   testDir: './tests/e2e',
