@@ -41,13 +41,27 @@ export interface PodcastEpisode {
   lastPositionSeconds: number;
 }
 
+export type PodcastSearchMatchSource = 'title' | 'script';
+
+export interface PodcastEpisodeSearchResult {
+  episode: PodcastEpisode;
+  matchSource: PodcastSearchMatchSource;
+  snippet: string | null;
+}
+
 interface PodcastFeedPage {
   items: unknown[];
   nextCursor: string | null;
 }
 
+interface PodcastSearchPage {
+  items: unknown[];
+}
+
 const DEFAULT_PODCAST_API_URL = 'https://from-fed-to-chain-api.fly.dev';
 const FEED_PAGE_SIZE = 30;
+const SEARCH_PAGE_SIZE = 20;
+export const MIN_PODCAST_SEARCH_QUERY_LENGTH = 2;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -96,6 +110,17 @@ function readArray(record: Record<string, unknown>, keys: string[]): unknown[] {
     if (Array.isArray(value)) return value;
   }
   return [];
+}
+
+export function normalisePodcastSearchQuery(query: string): string {
+  return query.trim();
+}
+
+export function isPodcastSearchQueryValid(query: string): boolean {
+  return (
+    Array.from(normalisePodcastSearchQuery(query)).length >=
+    MIN_PODCAST_SEARCH_QUERY_LENGTH
+  );
 }
 
 export function parsePodcastAudioTrack(
@@ -241,6 +266,26 @@ export function parsePodcastEpisode(rawEpisode: unknown): PodcastEpisode {
   };
 }
 
+export function parsePodcastEpisodeSearchResult(
+  rawResult: unknown,
+): PodcastEpisodeSearchResult {
+  if (!isRecord(rawResult)) {
+    throw new Error('Podcast search result must be an object');
+  }
+
+  const rawEpisode = rawResult['episode'];
+  const matchSource = readString(rawResult, 'matchSource', 'match_source');
+  if (matchSource !== 'title' && matchSource !== 'script') {
+    throw new Error(`Unknown podcast search match source: ${matchSource}`);
+  }
+
+  return {
+    episode: parsePodcastEpisode(rawEpisode),
+    matchSource,
+    snippet: readNullableString(rawResult, 'snippet', 'snippet'),
+  };
+}
+
 export function getPodcastApiUrl(): string {
   const configured = getRuntimeEnv('VITE_PODCAST_API_URL')?.trim();
   return configured !== undefined && configured !== ''
@@ -267,6 +312,30 @@ export async function fetchPodcastEpisodes(
     .filter((episode) => episode.hlsUrl !== '');
 }
 
+export async function fetchPodcastEpisodeSearchResults(
+  query: string,
+  fetchImpl: typeof fetch = fetch,
+  languageCode: string = DEFAULT_CONTENT_LANGUAGE_CODE,
+): Promise<PodcastEpisodeSearchResult[]> {
+  const normalisedQuery = normalisePodcastSearchQuery(query);
+  if (!isPodcastSearchQueryValid(normalisedQuery)) return [];
+
+  const url = new URL(`${getPodcastApiUrl()}/episodes/search`);
+  url.searchParams.set('q', normalisedQuery);
+  url.searchParams.set('language', languageCode);
+  url.searchParams.set('limit', String(SEARCH_PAGE_SIZE));
+
+  const response = await fetchImpl(url.toString());
+  if (!response.ok) {
+    throw new Error(`Podcast search request failed: ${response.status}`);
+  }
+
+  const page = (await response.json()) as PodcastSearchPage;
+  return page.items
+    .map(parsePodcastEpisodeSearchResult)
+    .filter((result) => result.episode.hlsUrl !== '');
+}
+
 export function findPodcastEpisodeById(
   episodes: readonly PodcastEpisode[],
   episodeId: string,
@@ -286,5 +355,26 @@ export function usePodcastEpisodes() {
     queryKey: ['desktop', 'podcast', 'episodes', languageCode],
     queryFn: () => fetchPodcastEpisodes(fetch, languageCode),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function usePodcastEpisodeSearch(query: string) {
+  const { languageCode } = useContentLanguage();
+  const normalisedQuery = normalisePodcastSearchQuery(query);
+  const enabled = isPodcastSearchQueryValid(normalisedQuery);
+
+  return useQuery({
+    queryKey: [
+      'desktop',
+      'podcast',
+      'episodes',
+      'search',
+      languageCode,
+      normalisedQuery,
+    ],
+    queryFn: () =>
+      fetchPodcastEpisodeSearchResults(normalisedQuery, fetch, languageCode),
+    enabled,
+    staleTime: 60 * 1000,
   });
 }

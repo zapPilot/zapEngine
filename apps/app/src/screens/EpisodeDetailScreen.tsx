@@ -16,6 +16,7 @@ import { type ReactNode, useMemo } from 'react';
 import { Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PodcastLanguageDropdown } from '@/components/content/ContentLanguageSelector';
 import {
   formatPodcastClock,
   formatPodcastEpisodeDate,
@@ -39,9 +40,9 @@ import type {
   PodcastLanguageClassroomKeyword,
   PodcastLanguageClassroomLesson,
 } from '@/integration/podcastFeed';
-import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 import { cn } from '@/lib/cn';
 import { usePodcastPlayer } from '@/providers/PodcastPlayerProvider';
+import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 
 function episodeParamToString(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? '';
@@ -93,10 +94,13 @@ function EpisodeDetailHeader({
 
   return (
     <View className="flex-row items-center justify-between px-5 pb-3">
-      <IconButton label="Back" onPress={onBack}>
-        <ChevronLeft size={20} strokeWidth={2} color="#d4c5a3" />
-      </IconButton>
-      <Text className="font-sans-semibold text-[14px] text-ink">
+      <View className="flex-row items-center gap-3">
+        <IconButton label="Back" onPress={onBack}>
+          <ChevronLeft size={20} strokeWidth={2} color="#d4c5a3" />
+        </IconButton>
+        <PodcastLanguageDropdown />
+      </View>
+      <Text className="min-w-0 flex-1 px-3 text-center font-sans-semibold text-[14px] text-ink">
         From Fed to Chain
       </Text>
       <IconButton label="Share episode" onPress={shareEpisode}>
@@ -455,7 +459,9 @@ export function EpisodeDetailScreen() {
   const episode = findPodcastEpisodeById(episodes, routeEpisodeId);
 
   const handleEpisodeChanged = (nextEpisode: PodcastEpisode) => {
-    router.replace(`/podcast/${encodeURIComponent(nextEpisode.id)}`);
+    router.replace(
+      `/podcast/${encodeURIComponent(nextEpisode.localizationId)}`,
+    );
   };
 
   if (episode === null) {

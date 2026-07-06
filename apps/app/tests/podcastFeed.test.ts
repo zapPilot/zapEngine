@@ -1,10 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  fetchPodcastEpisodeSearchResults,
   fetchPodcastEpisodes,
   findPodcastEpisodeById,
   getPodcastApiUrl,
+  isPodcastSearchQueryValid,
+  normalisePodcastSearchQuery,
   parsePodcastEpisode,
+  parsePodcastEpisodeSearchResult,
 } from '@/integration/podcastFeed';
 
 const fetchMock = vi.fn();
@@ -164,6 +168,94 @@ describe('podcast feed client', () => {
     expect(parsed.localizationId).toBe('ep-2');
     expect(parsed.audioTracks[0]?.title).toBe('en');
     expect(parsed.languageClassrooms[0]?.targetLanguageCode).toBe('zh-Hant');
+  });
+
+  it('parses episode search results from camelCase responses', () => {
+    const parsed = parsePodcastEpisodeSearchResult({
+      episode: episode(),
+      matchSource: 'script',
+      snippet: 'The Fed says liquidity is changing.',
+    });
+
+    expect(parsed.episode.id).toBe('ep-1');
+    expect(parsed.matchSource).toBe('script');
+    expect(parsed.snippet).toBe('The Fed says liquidity is changing.');
+  });
+
+  it('parses episode search results from snake_case responses', () => {
+    const parsed = parsePodcastEpisodeSearchResult({
+      episode: episode({ id: 'ep-3' }),
+      match_source: 'title',
+      snippet: null,
+    });
+
+    expect(parsed.episode.id).toBe('ep-3');
+    expect(parsed.matchSource).toBe('title');
+    expect(parsed.snippet).toBeNull();
+  });
+
+  it('normalises and validates search queries', () => {
+    expect(normalisePodcastSearchQuery('  fed  ')).toBe('fed');
+    expect(isPodcastSearchQueryValid('f')).toBe(false);
+    expect(isPodcastSearchQueryValid('fed')).toBe(true);
+  });
+
+  it('requests the search endpoint with language and query params', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        items: [
+          {
+            episode: episode(),
+            matchSource: 'title',
+            snippet: 'Fed rate decision explained',
+          },
+        ],
+      }),
+    );
+
+    const results = await fetchPodcastEpisodeSearchResults(' fed ', fetchMock);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const url = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect(url.pathname).toBe('/episodes/search');
+    expect(url.searchParams.get('q')).toBe('fed');
+    expect(url.searchParams.get('language')).toBe('zh-Hant');
+    expect(url.searchParams.get('limit')).toBe('20');
+    expect(results[0]?.episode.id).toBe('ep-1');
+  });
+
+  it('skips the search request when the query is too short', async () => {
+    const results = await fetchPodcastEpisodeSearchResults('f', fetchMock);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(results).toEqual([]);
+  });
+
+  it('drops search results without playable HLS urls', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        items: [
+          { episode: episode(), matchSource: 'title', snippet: null },
+          {
+            episode: episode({ id: 'ep-2', hlsUrl: '' }),
+            matchSource: 'script',
+            snippet: 'No audio yet',
+          },
+        ],
+      }),
+    );
+
+    const results = await fetchPodcastEpisodeSearchResults('fed', fetchMock);
+
+    expect(results.map((result) => result.episode.id)).toEqual(['ep-1']);
+  });
+
+  it('throws on a non-200 search response', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 503 } as Response);
+
+    await expect(
+      fetchPodcastEpisodeSearchResults('fed', fetchMock),
+    ).rejects.toThrow('Podcast search request failed: 503');
   });
 
   it('finds an episode by id or localization id', () => {

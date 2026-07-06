@@ -23,7 +23,8 @@ const PRIMARY_ROUTES = [
   { label: 'Account', path: '/account', url: /\/account$/ },
 ] as const;
 
-const ERROR_PAGE_PATTERN = /Something went wrong|Unhandled|ErrorBoundary|Page not found/i;
+const ERROR_PAGE_PATTERN =
+  /Something went wrong|Unhandled|ErrorBoundary|Page not found/i;
 
 async function routePodcastFeed(page: Page): Promise<void> {
   await page.route('**/episodes?**', async (route) => {
@@ -40,30 +41,29 @@ async function expectHealthyAppShell(page: Page): Promise<void> {
   await expect(page.getByText('Strategy', { exact: true })).toBeVisible();
 }
 
-test(
-  'renders the web app shell and primary routes without page errors',
-  async ({ page }) => {
-    const pageErrors: Error[] = [];
-    page.on('pageerror', (error) => pageErrors.push(error));
-    await routePodcastFeed(page);
+test('renders the web app shell and primary routes without page errors', async ({
+  page,
+}) => {
+  const pageErrors: Error[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error));
+  await routePodcastFeed(page);
 
-    for (const route of PRIMARY_ROUTES) {
-      await page.goto(route.path);
-      await expect(page).toHaveURL(route.url);
-      await expectHealthyAppShell(page);
-    }
+  for (const route of PRIMARY_ROUTES) {
+    await page.goto(route.path);
+    await expect(page).toHaveURL(route.url);
+    await expectHealthyAppShell(page);
+  }
 
-    await page.goto('/home');
-    await page.getByText('Portfolio', { exact: true }).click();
-    await expect(page).toHaveURL(/\/portfolio$/);
-    await expect(page.getByText('Strategy position value')).toBeVisible();
-    await expect(page.locator('body')).not.toContainText(ERROR_PAGE_PATTERN);
+  await page.goto('/home');
+  await page.getByText('Portfolio', { exact: true }).click();
+  await expect(page).toHaveURL(/\/portfolio$/);
+  await expect(page.getByText('Strategy position value')).toBeVisible();
+  await expect(page.locator('body')).not.toContainText(ERROR_PAGE_PATTERN);
 
-    await page.goto('/send?token=USDC');
-    await expect(page).toHaveURL(/\/send\?token=USDC$/);
-    await expect(page.getByText('Send', { exact: true })).toBeVisible();
-    await expect(page.getByText('Connect wallet to send')).toBeVisible();
+  await page.goto('/send?token=USDC');
+  await expect(page).toHaveURL(/\/send\?token=USDC$/);
+  await expect(page.getByText('Send', { exact: true })).toBeVisible();
+  await expect(page.getByText('Connect wallet to send')).toBeVisible();
 
-    expect(pageErrors).toEqual([]);
-  },
-);
+  expect(pageErrors).toEqual([]);
+});
