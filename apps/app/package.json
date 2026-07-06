@@ -22,7 +22,7 @@
     "test": "vitest run",
     "test:ci": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "pnpm run build:web && PLAYWRIGHT_PORT=3100 playwright test",
+    "test:e2e": "EXPO_PUBLIC_PRIVY_APP_ID=e2eprivyappidplaceholder0 EXPO_PUBLIC_PRIVY_CLIENT_ID=e2eprivyclientplaceholder pnpm run build:web && PLAYWRIGHT_PORT=3100 playwright test",
     "test:unit": "vitest run",
     "test:watch": "vitest",
     "deadcode": "knip --files --exports --dependencies",
