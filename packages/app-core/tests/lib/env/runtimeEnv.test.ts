@@ -129,6 +129,7 @@ describe('runtimeEnv', () => {
       expect(env.toSeconds('Infinity', 60)).toBe(60);
       expect(env.toSeconds('0', 60)).toBe(0);
       expect(env.toSeconds('12.5', 60)).toBe(12.5);
+      expect(env.toSeconds(' 12.5 ', 60)).toBe(12.5);
     });
 
     it('falls back for malformed strings', async () => {
