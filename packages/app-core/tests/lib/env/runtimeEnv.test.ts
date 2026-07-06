@@ -119,4 +119,16 @@ describe('runtimeEnv', () => {
       expect(env.isDesktopRuntime()).toBe(false);
     });
   });
+
+  describe('toSeconds', () => {
+    it('falls back for missing or non-finite values while preserving finite numbers', async () => {
+      const env = await loadRuntimeEnv();
+
+      expect(env.toSeconds(undefined, 60)).toBe(60);
+      expect(env.toSeconds('', 60)).toBe(60);
+      expect(env.toSeconds('Infinity', 60)).toBe(60);
+      expect(env.toSeconds('0', 60)).toBe(0);
+      expect(env.toSeconds('12.5', 60)).toBe(12.5);
+    });
+  });
 });
