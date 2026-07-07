@@ -46,7 +46,9 @@ function createMocks(env: Record<string, string> = {}) {
   return { service, emailService, configService };
 }
 
-function getSentHtml(emailService: ReturnType<typeof createMocks>['emailService']) {
+function getSentHtml(
+  emailService: ReturnType<typeof createMocks>['emailService'],
+) {
   return emailService.sendEmail.mock.calls[0]?.[0].html as string;
 }
 
