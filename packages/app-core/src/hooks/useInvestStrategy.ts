@@ -1,12 +1,9 @@
-import {
-  ensureChain,
-  requireUserAddress,
-  useDepositExecutionState,
-} from '@core/hooks/useDepositExecutionState';
-import { executeDepositPlan } from '@core/lib/wallet/executeDepositPlan';
+import { useAbortControllerRef } from '@core/hooks/useAbortControllerRef';
+import { useDepositExecutionState } from '@core/hooks/useDepositExecutionState';
+import { executeDepositPlanWithWallet } from '@core/lib/wallet/executeDepositPlan';
+import { loadBaseInvestPlan } from '@core/lib/wallet/loadBaseInvestPlan';
 import { useWalletProvider } from '@core/providers/walletContext';
-import { getBridgeStatus } from '@core/services/intentClient';
-import { getDepositPlan } from '@core/services/planOrchestrationService';
+import { waitForBridgeCompletion } from '@core/services/intentClient';
 import { logger } from '@core/utils/logger';
 import type { DepositLeg, DepositPlan } from '@zapengine/types/api';
 import { useCallback, useState } from 'react';
@@ -52,11 +49,16 @@ function legProgress(
   }));
 }
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
 export function useInvestStrategy() {
   const { account, chain, executeAtomicBatch, getWalletClient, switchChain } =
     useWalletProvider();
   const { state, actions } = useDepositExecutionState();
   const [legs, setLegs] = useState<InvestLegProgress[]>([]);
+  const { ref: abortRef, renew: renewAbort } = useAbortControllerRef();
 
   const updateLeg = useCallback(
     (index: number, patch: Partial<InvestLegProgress>) => {
@@ -76,27 +78,28 @@ export function useInvestStrategy() {
       updateLeg(index, { status: 'bridgePending', sourceTxHash });
 
       try {
-        const status = await getBridgeStatus({
+        const status = await waitForBridgeCompletion({
           txHash: sourceTxHash,
           fromChain: base.id,
           toChain: leg.chainId,
+          ...(abortRef.current ? { signal: abortRef.current.signal } : {}),
         });
-        if (status.status === 'DONE') {
-          updateLeg(index, {
-            status: 'destinationConfirmed',
-            ...(status.receiving?.txHash
-              ? { destinationTxHash: status.receiving.txHash }
-              : {}),
-          });
-        }
+        updateLeg(index, {
+          status: 'destinationConfirmed',
+          ...(status.receiving?.txHash
+            ? { destinationTxHash: status.receiving.txHash }
+            : {}),
+        });
       } catch (error) {
+        if (isAbortError(error)) return;
         investStrategyLogger.error(
           '[invest-strategy] bridge status failed:',
           error,
         );
+        updateLeg(index, { status: 'failed' });
       }
     },
-    [updateLeg],
+    [abortRef, updateLeg],
   );
 
   const markAllCallsSubmitted = useCallback((plan: DepositPlan) => {
@@ -112,8 +115,7 @@ export function useInvestStrategy() {
       actions.run(
         async () => {
           setLegs([]);
-
-          const userAddress = requireUserAddress(account?.address);
+          renewAbort();
 
           if (sourceChainId !== base.id) {
             throw new Error(
@@ -121,25 +123,17 @@ export function useInvestStrategy() {
             );
           }
 
-          await ensureChain(chain?.id, base.id, switchChain);
-
-          const plan = await getDepositPlan({
-            kind: 'invest',
-            userAddress,
-            fromToken,
-            fromAmount,
-            sourceChainId,
-          });
+          const { plan } = await loadBaseInvestPlan(
+            { account, chain, switchChain },
+            { fromAmount, fromToken },
+          );
           actions.setLastPlan(plan);
           setLegs(legProgress(plan, 'pending'));
 
-          const walletClient = executeAtomicBatch
-            ? undefined
-            : await getWalletClient(base.id);
-          const execution = await executeDepositPlan({
+          const execution = await executeDepositPlanWithWallet({
             plan,
             chainId: sourceChainId,
-            ...(walletClient ? { walletClient } : {}),
+            getWalletClient,
             ...(executeAtomicBatch ? { executeAtomicBatch } : {}),
             onBundleSubmitted: (callsId) => {
               investStrategyLogger.info('[invest-strategy] executing EIP-7702');
@@ -175,13 +169,14 @@ export function useInvestStrategy() {
           investStrategyLogger.error('[invest-strategy] failed:', error),
       ),
     [
-      account?.address,
-      chain?.id,
+      account,
+      chain,
       executeAtomicBatch,
       getWalletClient,
       switchChain,
       markAllCallsSubmitted,
       pollBridgeStatus,
+      renewAbort,
       updateLeg,
       actions,
     ],

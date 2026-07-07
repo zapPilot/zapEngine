@@ -19,6 +19,7 @@ import { TemplateService } from './modules/notifications/template.service';
 import {
   createDepositPublicClients,
   createPlanOrchestrationModule,
+  parseDepositDefaultSplit,
   type PlanOrchestrationService,
 } from './modules/plan-orchestration';
 import {
@@ -109,6 +110,16 @@ export function createContainer(
       ...(env.LIFI_API_KEY ? { apiKey: env.LIFI_API_KEY } : {}),
     },
     publicClients: createDepositPublicClients(configService)(),
+    ...(env.DEPOSIT_DEFAULT_SPLIT
+      ? {
+          deposit: {
+            defaultSplit: parseDepositDefaultSplit(env.DEPOSIT_DEFAULT_SPLIT),
+          },
+        }
+      : {}),
+    ...(env.HYPERLIQUID_NETWORK
+      ? { hyperliquid: { network: env.HYPERLIQUID_NETWORK } }
+      : {}),
   });
   const privyWalletExecutionService = createPrivyWalletExecutionService({
     ...(env.PRIVY_APP_ID ? { appId: env.PRIVY_APP_ID } : {}),

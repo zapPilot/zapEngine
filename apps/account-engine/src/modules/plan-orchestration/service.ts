@@ -11,6 +11,8 @@ import {
   needsApproval,
 } from '@zapengine/intent-engine';
 import {
+  BASE_CHAIN_ID,
+  type ChainSplit,
   type DepositPlan,
   DepositPlanSchema,
   type PlanOrchestrationDepositRequest,
@@ -35,6 +37,9 @@ export interface PlanOrchestrationService {
   ): Promise<WithdrawPlan>;
 }
 
+/** Chain-id-keyed allocation weights, as consumed by composeDeposit. */
+export type DepositChainSplit = Partial<Record<number, number>>;
+
 export interface PlanOrchestrationServiceDeps {
   intentEngine: Pick<
     IntentEngine,
@@ -43,6 +48,21 @@ export interface PlanOrchestrationServiceDeps {
   adapter: LiFiAdapter;
   publicClients: DepositPublicClients;
   composeDeposit?: typeof composeDeposit;
+  /** Default allocation for Base-source invest plans; requests may override. */
+  defaultSplit?: DepositChainSplit;
+  /** Hyperliquid network for HLP follow-up descriptors (default mainnet). */
+  hyperliquidNetwork?: 'mainnet' | 'testnet';
+}
+
+function chainSplitFromRequest(
+  split: ChainSplit | undefined,
+): DepositChainSplit | undefined {
+  if (!split) {
+    return undefined;
+  }
+  return Object.fromEntries(
+    Object.entries(split).map(([chainId, weight]) => [Number(chainId), weight]),
+  );
 }
 
 function publicClientFor(
@@ -161,20 +181,33 @@ function gmxCollateralAmount(approvals: PreparedTransaction[]): string {
 export function createPlanOrchestrationService({
   adapter,
   composeDeposit: compose = composeDeposit,
+  defaultSplit,
+  hyperliquidNetwork,
   intentEngine,
   publicClients,
 }: PlanOrchestrationServiceDeps): PlanOrchestrationService {
   return {
     async buildDeposit(request): Promise<DepositPlan> {
       if (request.kind === 'invest') {
+        // The env-configured default only applies to Base-source plans;
+        // non-Base sources are destination re-quotes and default to
+        // single-chain inside composeDeposit.
+        const split =
+          chainSplitFromRequest(request.split) ??
+          (request.sourceChainId === BASE_CHAIN_ID ? defaultSplit : undefined);
         const plan = await compose(
           {
             userAddress: request.userAddress as Address,
             fromToken: request.fromToken as Address,
             fromAmount: request.fromAmount,
             sourceChainId: request.sourceChainId,
+            ...(split ? { split } : {}),
           },
-          { adapter, publicClients },
+          {
+            adapter,
+            publicClients,
+            ...(hyperliquidNetwork ? { hyperliquidNetwork } : {}),
+          },
         );
 
         return DepositPlanSchema.parse(plan);

@@ -8,12 +8,12 @@ Bounded composition module — **not** an engine — sitting between analytics-e
 
 ## Files
 
-| File              | Role                                                                         |
-| ----------------- | ---------------------------------------------------------------------------- |
-| `index.ts`        | Module barrel — exports the route registrar and service factory              |
-| `route.ts`        | Hono route handlers for `POST /plan-orchestration/{deposit,rebalance}`        |
-| `service.ts`      | Composition logic — strategy allocation → normalised intent → exec plan       |
-| `publicClients.ts`| Viem `PublicClient` factories per chain (lazy, memoised)                      |
+| File               | Role                                                                    |
+| ------------------ | ----------------------------------------------------------------------- |
+| `index.ts`         | Module barrel — exports the route registrar and service factory         |
+| `route.ts`         | Hono route handlers for `POST /plan-orchestration/{deposit,rebalance}`  |
+| `service.ts`       | Composition logic — strategy allocation → normalised intent → exec plan |
+| `publicClients.ts` | Viem `PublicClient` factories per chain (lazy, memoised)                |
 
 ## Dependency rules
 
@@ -31,5 +31,6 @@ Bounded composition module — **not** an engine — sitting between analytics-e
 ## Gotchas
 
 - The `POST` request body shape lives in `@zapengine/types` (`PlanOrchestrationDepositRequest`, etc.). If you change the wire shape, run `pnpm contracts check` so Pydantic side stays in sync.
+- `DEPOSIT_DEFAULT_SPLIT` (JSON, e.g. `{"8453":0.7,"1337":0.3}`) is the no-deploy rollout/rollback lever for cross-chain invest plans; malformed values fail container startup via `parseDepositDefaultSplit`. `HYPERLIQUID_NETWORK` (mainnet|testnet) picks the HLP vault + exchange API in emitted follow-ups. Before opening the split toward 1337, run `packages/intent-engine/examples/hyperliquid-hlp-verify.ts`.
 - Renaming this module to `intent-service` collides with `@zapengine/intent-engine` — don't.
 - Adding a new RPC: only update `publicClients.ts`; never instantiate a client in `service.ts` directly.
