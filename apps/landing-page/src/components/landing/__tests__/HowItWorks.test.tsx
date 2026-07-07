@@ -17,14 +17,14 @@ describe('HowItWorks', () => {
     it('renders main heading', () => {
       render(<HowItWorks />);
       expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(
-        /Three steps/,
+        /Your account, looked after/,
       );
     });
 
     it('renders subtitle', () => {
       render(<HowItWorks />);
       expect(
-        screen.getByText(/The engine turns regime data/),
+        screen.getByText(/Three steps between market data/),
       ).toBeInTheDocument();
     });
   });
@@ -47,7 +47,7 @@ describe('HowItWorks', () => {
 
       expect(screen.getByText(/200MA · FGI · ETH\/BTC/)).toBeInTheDocument();
       expect(screen.getByText(/Buy fear · defend greed/)).toBeInTheDocument();
-      expect(screen.getByText(/EIP-7702 · sequential/)).toBeInTheDocument();
+      expect(screen.getByText(/In-app · EIP-7702/)).toBeInTheDocument();
     });
   });
 

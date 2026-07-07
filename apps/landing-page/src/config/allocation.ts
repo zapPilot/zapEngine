@@ -11,5 +11,3 @@ export const ALLOCATION_PILLARS = [
   { key: 'btc', label: 'BTC · ETH', tag: 'Trade into beta', weight: 38 },
   { key: 'usd', label: 'Stablecoins', tag: 'Trade into defense', weight: 20 },
 ] as const;
-
-export type AllocationPillar = (typeof ALLOCATION_PILLARS)[number];

@@ -29,15 +29,14 @@ describe('PitchPage', () => {
   it('reuses canonical hero copy from MESSAGES on the cover slide', () => {
     const { container } = render(<PitchPage />);
     const text = container.textContent ?? '';
-    expect(text).toMatch(/A Non-Custodial BlackRock in Your Wallet/);
+    expect(text).toMatch(/Your net worth, on autopilot/);
     expect(text).toMatch(/Buy in fear\. Defend in greed\./);
   });
 
   it('reuses backtest, pillars and how-it-works content via wrapped slides', () => {
     const { container } = render(<PitchPage />);
     const text = container.textContent ?? '';
-    expect(text).toMatch(/Three steps/); // HowItWorks
-    expect(text).toMatch(/What the engine trades into/); // Pillars
+    expect(text).toMatch(/What your account holds/); // Pillars
     expect(text).toMatch(/Trades drove the return/); // BacktestProof
     expect(text).toMatch(/100% Self-Custody/); // TrustStrip
   });

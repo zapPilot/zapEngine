@@ -36,8 +36,8 @@ describe('FAQ', () => {
     it('uses native details elements', () => {
       const { container } = render(<FAQ />);
 
-      expect(container.querySelectorAll('details.faq-item').length).toBe(8);
-      expect(container.querySelectorAll('summary').length).toBe(8);
+      expect(container.querySelectorAll('details.faq-item').length).toBe(11);
+      expect(container.querySelectorAll('summary').length).toBe(11);
     });
   });
 
