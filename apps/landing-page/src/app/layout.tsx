@@ -1,10 +1,15 @@
 import type { Metadata } from 'next';
-import { Instrument_Serif, JetBrains_Mono } from 'next/font/google';
+import { Geist, Instrument_Serif, JetBrains_Mono } from 'next/font/google';
 import { GoogleAnalytics } from '@next/third-parties/google';
 import { RootProvider } from 'fumadocs-ui/provider/next';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import './globals.css';
 import './landing.css';
+
+const geistSans = Geist({
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
+});
 
 const instrumentSerif = Instrument_Serif({
   variable: '--font-serif',
@@ -19,18 +24,19 @@ const jetBrainsMono = JetBrains_Mono({
   weight: ['400', '500', '600'],
 });
 
+const SITE_DESCRIPTION =
+  'A self-custodial portfolio account: your net worth, three-pillar allocation, and regime-aware rebalancing — every trade signed from your own wallet.';
+
 export const metadata: Metadata = {
   metadataBase: new URL('https://zap-pilot.org'),
-  title: 'Zap Pilot — Liquid Metal Allocator',
-  description:
-    'A liquid-metal edition of Zap Pilot: three pillars, one wallet, regime-aware rebalancing, and 100% self-custody.',
+  title: 'Zap Pilot — Your Net Worth, on Autopilot',
+  description: SITE_DESCRIPTION,
   keywords:
-    'tokenized S&P500, Ondo, BTC ETH allocation, stablecoin, regime trading, 200MA, Fear and Greed Index, self-custody, EOA wallet, EIP-7702, bundled transaction, rebalancing, backtested',
+    'portfolio account, net worth, tokenized S&P500, Ondo, BTC ETH allocation, stablecoin, regime trading, 200MA, Fear and Greed Index, self-custody, EOA wallet, EIP-7702, bundled transaction, rebalancing, backtested',
   authors: [{ name: 'Zap Pilot Team' }],
   openGraph: {
-    title: 'Zap Pilot — Liquid Metal Allocator',
-    description:
-      'A liquid-metal edition of Zap Pilot: three pillars, one wallet, regime-aware rebalancing, and 100% self-custody.',
+    title: 'Zap Pilot — Your Net Worth, on Autopilot',
+    description: SITE_DESCRIPTION,
     url: 'https://zap-pilot.org',
     siteName: 'Zap Pilot',
     images: [
@@ -46,9 +52,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Zap Pilot — Liquid Metal Allocator',
-    description:
-      'A liquid-metal edition of Zap Pilot: three pillars, one wallet, regime-aware rebalancing, and 100% self-custody.',
+    title: 'Zap Pilot — Your Net Worth, on Autopilot',
+    description: SITE_DESCRIPTION,
     images: ['/zap-pilot-logo.svg'],
   },
   icons: {
@@ -66,7 +71,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${instrumentSerif.variable} ${jetBrainsMono.variable} antialiased flex flex-col min-h-screen`}
+        className={`${geistSans.variable} ${instrumentSerif.variable} ${jetBrainsMono.variable} antialiased flex flex-col min-h-screen`}
       >
         <RootProvider
           search={{

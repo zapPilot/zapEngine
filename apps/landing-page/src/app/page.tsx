@@ -7,6 +7,7 @@ import { Hero } from '@/components/landing/Hero';
 import { HowItWorks } from '@/components/landing/HowItWorks';
 import { Navbar } from '@/components/landing/Navbar';
 import { Pillars } from '@/components/landing/Pillars';
+import { ProductTour } from '@/components/landing/ProductTour';
 import { Protocols } from '@/components/landing/Protocols';
 import { RegimeStrip } from '@/components/landing/RegimeStrip';
 import { TrustStrip } from '@/components/landing/TrustStrip';
@@ -18,8 +19,9 @@ export default function LandingPage() {
       <Navbar />
       <main>
         <Hero />
-        <RegimeStrip />
+        <ProductTour />
         <HowItWorks />
+        <RegimeStrip />
         <Pillars />
         <BacktestProof />
         <section className="live-track-cta" aria-label="Live track record">

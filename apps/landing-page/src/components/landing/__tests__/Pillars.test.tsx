@@ -11,13 +11,13 @@ describe('Pillars', () => {
 
     it('renders section kicker', () => {
       render(<Pillars />);
-      expect(screen.getByText('Three-pillar allocator')).toBeInTheDocument();
+      expect(screen.getByText('Three-pillar account')).toBeInTheDocument();
     });
 
     it('renders main heading with aria-labelledby', () => {
       render(<Pillars />);
       const heading = screen.getByRole('heading', { level: 2 });
-      expect(heading).toHaveTextContent(/What the engine trades into/);
+      expect(heading).toHaveTextContent(/What your account holds/);
     });
 
     it('renders the example allocation disclaimer', () => {
@@ -27,6 +27,14 @@ describe('Pillars', () => {
           'Example regime-based allocation. Actual weights shift with the live regime.',
         ),
       ).toBeInTheDocument();
+    });
+
+    it('renders the allocation bar', () => {
+      const { container } = render(<Pillars />);
+      expect(container.querySelector('.pillar-alloc')).toBeInTheDocument();
+      expect(container.querySelectorAll('.allocation-bar-segment').length).toBe(
+        3,
+      );
     });
   });
 
@@ -40,14 +48,16 @@ describe('Pillars', () => {
       expect(
         screen.getByRole('heading', { name: 'BTC · ETH' }),
       ).toBeInTheDocument();
-      expect(screen.getByRole('heading', { name: 'USDC' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: 'Stablecoins' }),
+      ).toBeInTheDocument();
     });
 
     it('renders pillar tags', () => {
       render(<Pillars />);
 
       expect(screen.getByText('TRADE INTO EQUITIES')).toBeInTheDocument();
-      expect(screen.getByText('TRADE INTO CRYPTO BETA')).toBeInTheDocument();
+      expect(screen.getByText('TRADE INTO BETA')).toBeInTheDocument();
       expect(screen.getByText('TRADE INTO DEFENSE')).toBeInTheDocument();
     });
 

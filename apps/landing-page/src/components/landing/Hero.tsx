@@ -5,26 +5,9 @@ import { useRef } from 'react';
 import { LINKS } from '@/config/links';
 import { MESSAGES } from '@/config/messages';
 import HeroLiquidMetalCanvas from './HeroLiquidMetalCanvas.client';
+import { HeroAccountCard } from './HeroAccountCard';
 
 const HERO_DEFAULT_REGIME = 'neutral' as const;
-
-const HERO_PILLARS = [
-  {
-    className: 'spy',
-    name: 'S&P 500',
-    tag: 'Trade into equities',
-  },
-  {
-    className: 'btc',
-    name: 'BTC / ETH',
-    tag: 'Trade into beta',
-  },
-  {
-    className: 'usd',
-    name: 'Stablecoins',
-    tag: 'Trade into defense',
-  },
-] as const;
 
 export function Hero() {
   const heroRef = useRef<HTMLElement | null>(null);
@@ -34,7 +17,7 @@ export function Hero() {
       <div className="hero-left">
         <div className="eyebrow">
           <span className="dot" aria-hidden />
-          <span>Non-custodial · Self-directed · Live on mainnet</span>
+          <span>Non-custodial · Portfolio account · Live on mainnet</span>
         </div>
 
         <h1 className="hero-title">{MESSAGES.hero.title.primary}</h1>
@@ -44,7 +27,7 @@ export function Hero() {
         <div className="cta-row" aria-label="Primary actions">
           <a
             className="btn btn-primary"
-            href={LINKS.telegramBot}
+            href={LINKS.app}
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -56,20 +39,11 @@ export function Hero() {
             {MESSAGES.hero.ctaSecondary}
           </a>
         </div>
-
-        <div className="pillars" id="strategy">
-          {HERO_PILLARS.map((pillar) => (
-            <div key={pillar.name} className={`pillar ${pillar.className}`}>
-              <div className="p-icon" aria-hidden />
-              <div className="p-name">{pillar.name}</div>
-              <div className="p-tag">{pillar.tag}</div>
-            </div>
-          ))}
-        </div>
       </div>
 
       <div className="hero-visual" aria-label="Liquid metal allocation scene">
         <HeroLiquidMetalCanvas heroRef={heroRef} regime={HERO_DEFAULT_REGIME} />
+        <HeroAccountCard />
       </div>
     </section>
   );
