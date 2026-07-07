@@ -1,74 +1,155 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
-  TenderlySimulationAdapter,
+  createTenderlyBundleSimulationAdapter,
   NoopSimulationAdapter,
 } from '../../src/adapters/simulation.adapter.js';
 import type { PreparedTransaction } from '../../src/types/transaction.types.js';
 
-describe('Simulation Adapters', () => {
-  const mockTx: PreparedTransaction = {
-    to: '0x123',
-    data: '0xdata',
-    value: '0',
-    chainId: 1,
-    meta: {
-      intentType: 'SWAP',
-      estimatedGas: '50000',
-    },
+describe('NoopSimulationAdapter', () => {
+  it('should return success true', async () => {
+    const mockTx: PreparedTransaction = {
+      to: '0x123',
+      data: '0xdata',
+      value: '0',
+      chainId: 1,
+      meta: {
+        intentType: 'SWAP',
+        estimatedGas: '50000',
+      },
+    };
+    const adapter = new NoopSimulationAdapter();
+    const result = await adapter.simulate(mockTx);
+
+    expect(result).toEqual({ success: true });
+  });
+});
+
+describe('createTenderlyBundleSimulationAdapter', () => {
+  const CONFIG = {
+    accountSlug: 'acct',
+    projectSlug: 'proj',
+    accessKey: 'key',
   };
 
-  describe('TenderlySimulationAdapter', () => {
-    it('should return mock success and log a warning', async () => {
-      const consoleWarnSpy = vi
-        .spyOn(console, 'warn')
-        .mockImplementation(() => {});
+  const REQUEST = {
+    chainId: 8453,
+    from: '0x1111111111111111111111111111111111111111',
+    calls: [
+      {
+        to: '0x2222222222222222222222222222222222222222',
+        data: '0x',
+        value: '0',
+      },
+      {
+        to: '0x3333333333333333333333333333333333333333',
+        data: '0x',
+        value: '0',
+      },
+    ],
+  };
 
-      const adapter = new TenderlySimulationAdapter({
-        accountSlug: 'test-account',
-        projectSlug: 'test-project',
-        accessKey: 'test-key',
-      });
+  function okResponse(body: unknown): Response {
+    return new Response(JSON.stringify(body), { status: 200 });
+  }
 
-      const result = await adapter.simulate(mockTx);
+  function passedResult() {
+    return { transaction: { status: true }, simulation: { status: true } };
+  }
 
-      expect(result.success).toBe(true);
-      expect(result.gasUsed).toBe('50000');
-      expect(result.logs).toEqual([]);
-      expect(result.stateChanges).toEqual([]);
-
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        '[TenderlySimulationAdapter] Simulation is stubbed in POC',
+  it('returns passed when every call simulates successfully', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(
+        okResponse({ simulation_results: [passedResult(), passedResult()] }),
       );
-
-      consoleWarnSpy.mockRestore();
+    const adapter = createTenderlyBundleSimulationAdapter({
+      ...CONFIG,
+      fetchFn,
     });
 
-    it('should fallback to 100000 gas if estimatedGas is not provided', async () => {
-      const consoleWarnSpy = vi
-        .spyOn(console, 'warn')
-        .mockImplementation(() => {});
+    await expect(adapter.simulateBundle(REQUEST)).resolves.toEqual({
+      status: 'passed',
+    });
+    const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/account/acct/project/proj/simulate-bundle');
+    const payload = JSON.parse(init.body as string) as {
+      simulations: Array<{ network_id: string; from: string }>;
+    };
+    expect(payload.simulations).toHaveLength(2);
+    expect(payload.simulations[0]?.network_id).toBe('8453');
+  });
 
-      const adapter = new TenderlySimulationAdapter({
-        accountSlug: 'test-account',
-        projectSlug: 'test-project',
-        accessKey: 'test-key',
-      });
+  it('returns failed with the revert reason when a call reverts', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      okResponse({
+        simulation_results: [
+          passedResult(),
+          {
+            transaction: { status: false, error_message: 'ERC20: allowance' },
+            simulation: { status: true },
+          },
+        ],
+      }),
+    );
+    const adapter = createTenderlyBundleSimulationAdapter({
+      ...CONFIG,
+      fetchFn,
+    });
 
-      const txWithoutGas = { ...mockTx, meta: { intentType: 'SWAP' } };
-      const result = await adapter.simulate(txWithoutGas);
-
-      expect(result.gasUsed).toBe('100000');
-
-      consoleWarnSpy.mockRestore();
+    await expect(adapter.simulateBundle(REQUEST)).resolves.toEqual({
+      status: 'failed',
+      reason: 'ERC20: allowance',
     });
   });
 
-  describe('NoopSimulationAdapter', () => {
-    it('should return success true', async () => {
-      const adapter = new NoopSimulationAdapter();
-      const result = await adapter.simulate(mockTx);
-
-      expect(result).toEqual({ success: true });
+  it('returns unavailable on a non-2xx response', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(new Response('nope', { status: 503 }));
+    const adapter = createTenderlyBundleSimulationAdapter({
+      ...CONFIG,
+      fetchFn,
     });
+
+    const result = await adapter.simulateBundle(REQUEST);
+    expect(result.status).toBe('unavailable');
+  });
+
+  it('returns unavailable on malformed payloads', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResponse({ nope: true }));
+    const adapter = createTenderlyBundleSimulationAdapter({
+      ...CONFIG,
+      fetchFn,
+    });
+
+    const result = await adapter.simulateBundle(REQUEST);
+    expect(result.status).toBe('unavailable');
+  });
+
+  it('returns unavailable when fetch rejects', async () => {
+    const fetchFn = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+    const adapter = createTenderlyBundleSimulationAdapter({
+      ...CONFIG,
+      fetchFn,
+    });
+
+    const result = await adapter.simulateBundle(REQUEST);
+    expect(result.status).toBe('unavailable');
+    expect(result.status === 'unavailable' ? result.reason : '').toContain(
+      'ECONNREFUSED',
+    );
+  });
+
+  it('returns unavailable when results are silently truncated without a revert', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(okResponse({ simulation_results: [passedResult()] }));
+    const adapter = createTenderlyBundleSimulationAdapter({
+      ...CONFIG,
+      fetchFn,
+    });
+
+    const result = await adapter.simulateBundle(REQUEST);
+    expect(result.status).toBe('unavailable');
   });
 });

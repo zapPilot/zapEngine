@@ -1,11 +1,14 @@
 import {
   encodeFunctionData,
   erc20Abi,
+  maxUint256,
   type Address,
   type PublicClient,
 } from 'viem';
 
 import type { PreparedTransaction } from '@zapengine/types/api';
+
+import { PlanSafetyViolationError } from '../validators/plan-safety.validator.js';
 
 export interface ApprovalRequirement {
   tokenAddress: Address;
@@ -52,12 +55,21 @@ export function buildApproveTx(params: {
   gasLimit?: string;
   intentType?: string;
 }): PreparedTransaction {
+  const amount = BigInt(params.amount);
+  // Plans always know the exact amount they move (ADR 0002 A5) — an
+  // unlimited approval is never legitimate on any zapPilot path.
+  if (amount === maxUint256) {
+    throw new PlanSafetyViolationError(
+      `Refusing to build an unlimited ${params.token} approval for ${params.spender}`,
+      'APPROVAL_UNLIMITED',
+    );
+  }
   return {
     to: params.token,
     data: encodeFunctionData({
       abi: erc20Abi,
       functionName: 'approve',
-      args: [params.spender, BigInt(params.amount)],
+      args: [params.spender, amount],
     }),
     value: '0',
     chainId: params.chainId,

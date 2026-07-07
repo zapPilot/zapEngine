@@ -44,10 +44,20 @@ export {
   type LiFiAdapterConfig,
   type LiFiTokenInfo,
   type SimulationAdapter,
-  TenderlySimulationAdapter,
-  type TenderlyConfig,
+  type BundleSimulationAdapter,
+  type BundleSimulationRequest,
+  type BundleSimulationResult,
+  type TenderlyBundleConfig,
+  createTenderlyBundleSimulationAdapter,
   NoopSimulationAdapter,
 } from './adapters/index.js';
+
+// Plan-safety validators (Simulation plane, ADR 0002 A5)
+export {
+  assertApprovalCaps,
+  assertMinReceived,
+  PlanSafetyViolationError,
+} from './validators/index.js';
 
 // Execution
 export {
