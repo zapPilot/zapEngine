@@ -46,6 +46,10 @@ function createMocks(env: Record<string, string> = {}) {
   return { service, emailService, configService };
 }
 
+function getSentHtml(emailService: ReturnType<typeof createMocks>['emailService']) {
+  return emailService.sendEmail.mock.calls[0]?.[0].html as string;
+}
+
 describe('AdminNotificationService', () => {
   describe('notifyJobFailure', () => {
     it('sends failure email to admin', async () => {
@@ -69,6 +73,24 @@ describe('AdminNotificationService', () => {
       await service.notifyJobFailure(createFailedJob());
 
       expect(emailService.sendEmail).toHaveBeenCalledTimes(2);
+    });
+
+    it('ignores blank entries while trimming admin email recipients', async () => {
+      const { service, emailService } = createMocks({
+        EMAIL_USER: ' admin1@ex.com, ,admin2@ex.com, ',
+      });
+
+      await service.notifyJobFailure(createFailedJob());
+
+      expect(emailService.sendEmail).toHaveBeenCalledTimes(2);
+      expect(emailService.sendEmail).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ to: 'admin1@ex.com' }),
+      );
+      expect(emailService.sendEmail).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ to: 'admin2@ex.com' }),
+      );
     });
 
     it('does not send when notifications are disabled', async () => {
@@ -105,8 +127,49 @@ describe('AdminNotificationService', () => {
         createFailedJob({ payload: { userId: 'u-42' } }),
       );
 
-      const html = emailService.sendEmail.mock.calls[0]?.[0].html as string;
-      expect(html).toContain('u-42');
+      expect(getSentHtml(emailService)).toContain('u-42');
+    });
+
+    it('falls back to legacy user_id payload field', async () => {
+      const { service, emailService } = createMocks();
+
+      await service.notifyJobFailure(
+        createFailedJob({ payload: { user_id: 'u-legacy' } }),
+      );
+
+      expect(getSentHtml(emailService)).toContain('u-legacy');
+    });
+
+    it('falls back to id payload field when user identifiers are absent', async () => {
+      const { service, emailService } = createMocks();
+
+      await service.notifyJobFailure(
+        createFailedJob({ payload: { id: 'u-from-id' } }),
+      );
+
+      expect(getSentHtml(emailService)).toContain('u-from-id');
+    });
+
+    it('falls back to user payload field when other identifiers are absent', async () => {
+      const { service, emailService } = createMocks();
+
+      await service.notifyJobFailure(
+        createFailedJob({ payload: { user: 'u-from-user' } }),
+      );
+
+      expect(getSentHtml(emailService)).toContain('u-from-user');
+    });
+
+    it('renders N/A when payload user identifier is not a string', async () => {
+      const { service, emailService } = createMocks();
+
+      await service.notifyJobFailure(
+        createFailedJob({ payload: { userId: 12345 } }),
+      );
+
+      const html = getSentHtml(emailService);
+      expect(html).toContain('N/A');
+      expect(html).not.toContain('12345</td>');
     });
 
     it('handles missing errorMessage gracefully', async () => {
@@ -116,8 +179,7 @@ describe('AdminNotificationService', () => {
         createFailedJob({ errorMessage: undefined }),
       );
 
-      const html = emailService.sendEmail.mock.calls[0]?.[0].html as string;
-      expect(html).toContain('Unknown error');
+      expect(getSentHtml(emailService)).toContain('Unknown error');
     });
 
     it('handles job with undefined payload (extractUserId returns null)', async () => {
