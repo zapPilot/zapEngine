@@ -79,60 +79,62 @@ function EpisodeRow({
   onOpen: () => void;
 }) {
   return (
-    <Tap
-      onPress={onOpen}
-      accessibilityRole="button"
-      accessibilityLabel={`Open ${episode.title}`}
+    <View
       className={cn(
-        'flex-row gap-3 py-[13px]',
+        'flex-row items-start gap-3 py-[13px]',
         !first && 'border-t border-line',
       )}
     >
-      <EpisodeBadge active={active} />
-      <View className="min-w-0 flex-1">
-        <View className="flex-row items-center justify-between gap-2">
+      <Tap
+        onPress={onOpen}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${episode.title}`}
+        className="min-w-0 flex-1 flex-row gap-3"
+      >
+        <EpisodeBadge active={active} />
+        <View className="min-w-0 flex-1">
           <Text
             className={cn(
-              'min-w-0 flex-1 font-sans-semibold text-[14px]',
+              'font-sans-semibold text-[14px]',
               active ? 'text-accent' : 'text-ink',
             )}
             numberOfLines={1}
           >
             {episode.title}
           </Text>
-          <Tap
-            onPress={onToggle}
-            accessibilityRole="button"
-            accessibilityLabel={
-              playing ? `Pause ${episode.title}` : `Play ${episode.title}`
-            }
-            className={cn(
-              'h-8 w-8 shrink-0 items-center justify-center rounded-full border',
-              active
-                ? 'border-[rgba(212,197,163,.3)] bg-[rgba(212,197,163,.16)]'
-                : 'border-line bg-[rgba(255,255,255,.05)]',
-            )}
-          >
-            {playing ? (
-              <Pause size={14} strokeWidth={2} color="#d4c5a3" />
-            ) : (
-              <Play size={14} strokeWidth={2} color="#cfcabb" />
-            )}
-          </Tap>
-        </View>
-        <View className="mt-[5px] flex-row items-center gap-2">
-          <Text className="font-mono text-[10px] text-ink-faint">
-            {formatPodcastEpisodeDate(episode.createdAt)}
-          </Text>
-          {episode.listened ? (
-            <Text className="font-mono text-[9px] uppercase tracking-[0.9px] text-ink-faint">
-              Listened
+          <View className="mt-[5px] flex-row items-center gap-2">
+            <Text className="font-mono text-[10px] text-ink-faint">
+              {formatPodcastEpisodeDate(episode.createdAt)}
             </Text>
-          ) : null}
+            {episode.listened ? (
+              <Text className="font-mono text-[9px] uppercase tracking-[0.9px] text-ink-faint">
+                Listened
+              </Text>
+            ) : null}
+          </View>
+          {supportingContent}
         </View>
-        {supportingContent}
-      </View>
-    </Tap>
+      </Tap>
+      <Tap
+        onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityLabel={
+          playing ? `Pause ${episode.title}` : `Play ${episode.title}`
+        }
+        className={cn(
+          'h-8 w-8 shrink-0 items-center justify-center rounded-full border',
+          active
+            ? 'border-[rgba(212,197,163,.3)] bg-[rgba(212,197,163,.16)]'
+            : 'border-line bg-[rgba(255,255,255,.05)]',
+        )}
+      >
+        {playing ? (
+          <Pause size={14} strokeWidth={2} color="#d4c5a3" />
+        ) : (
+          <Play size={14} strokeWidth={2} color="#cfcabb" />
+        )}
+      </Tap>
+    </View>
   );
 }
 

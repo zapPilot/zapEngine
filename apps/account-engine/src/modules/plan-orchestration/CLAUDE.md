@@ -2,7 +2,7 @@ See @../../../CLAUDE.md and the repo root [Architecture planes](../../../../../C
 
 # plan-orchestration (module)
 
-Bounded composition module — **not** an engine — sitting between analytics-engine (strategy) and `@zapengine/intent-engine` (routing). Owns the analytics→intent normalisation (allocation % → chain/token intents) and the `POST /plan-orchestration/{deposit,rebalance}` HTTP contract.
+Bounded composition module — **not** an engine — sitting between analytics-engine (strategy) and `@zapengine/intent-engine` (routing). Owns the analytics→intent normalisation (allocation % → chain/token intents) and the `POST /plan-orchestration/{deposit,withdraw}` HTTP contract (a `rebalance` route is planned — see [ADR 0001](../../../../../docs/adr/0001-app-consolidation-and-local-allocator.md)).
 
 > **Eventual home**: this module is the proxy for the future `apps/plan-orchestration` app. See [docs/plan-orchestration-evolution.md](../../../docs/plan-orchestration-evolution.md) for the extraction roadmap.
 
@@ -11,7 +11,7 @@ Bounded composition module — **not** an engine — sitting between analytics-e
 | File               | Role                                                                    |
 | ------------------ | ----------------------------------------------------------------------- |
 | `index.ts`         | Module barrel — exports the route registrar and service factory         |
-| `route.ts`         | Hono route handlers for `POST /plan-orchestration/{deposit,rebalance}`  |
+| `route.ts`         | Hono route handlers for `POST /plan-orchestration/{deposit,withdraw}`   |
 | `service.ts`       | Composition logic — strategy allocation → normalised intent → exec plan |
 | `publicClients.ts` | Viem `PublicClient` factories per chain (lazy, memoised)                |
 

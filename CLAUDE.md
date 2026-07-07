@@ -57,14 +57,14 @@ pnpm turbo run type-check lint test build deadcode dup:check --filter=@zapengine
 
 # Key ports
 
-| App                 | Port |
-| ------------------- | ---- |
-| app (web dev) | 8081 |
-| landing-page        | 3000 |
-| account-engine      | 3004 |
-| alpha-etl           | 3003 |
-| analytics-engine    | 8001 |
-| app (web E2E) | 3100 |
+| App              | Port |
+| ---------------- | ---- |
+| app (web dev)    | 8081 |
+| landing-page     | 3000 |
+| account-engine   | 3004 |
+| alpha-etl        | 3003 |
+| analytics-engine | 8001 |
+| app (web E2E)    | 3100 |
 
 # Database rules
 
@@ -80,13 +80,13 @@ Four planes + one composing layer. Do not let them bleed:
 | Strategy               | _what_ allocation; builds no transactions            | analytics-engine                                |
 | Intent / routing       | normalized intent → `PreparedTransaction[]`; pure    | `packages/intent-engine`                        |
 | **plan-orchestration** | _composes_: strategy → normalized intent → exec plan | account-engine module (see evolution doc below) |
-| Execution              | confirm, sign & broadcast                            | app clients (app / desktop) + wallet      |
+| Execution              | confirm, sign & broadcast                            | app clients (app / desktop) + wallet            |
 | Identity / persistence | _who_, and remembering; plans no money movement      | account-engine                                  |
 
 Dependency rule (one line): _the intent core is a pure package; only plan-orchestration composes strategy + intent downward; nothing depends upward; the identity plane owns no money-movement planning._
 
 - `packages/intent-engine`: internal deps limited to `@zapengine/types`; zero analytics and zero identity knowledge; `intent → PreparedTransaction[]`.
-- plan-orchestration owns the analytics→intent normalization (allocation % → chain/token intent) and the `POST /plan-orchestration/{deposit,rebalance}` contract (types in `@zapengine/types`). It is not an engine — never name it `intent-service` (collides with `intent-engine`).
+- plan-orchestration owns the analytics→intent normalization (allocation % → chain/token intent) and the `POST /plan-orchestration/{deposit,withdraw}` contract (types in `@zapengine/types`; a `rebalance` route is planned — see [docs/adr/0001](docs/adr/0001-app-consolidation-and-local-allocator.md)). It is not an engine — never name it `intent-service` (collides with `intent-engine`).
 - analytics-engine builds no transactions; app clients build no plans (confirm + execute); account-engine plans no money movement.
 - One authoritative path per money-moving flow: never compute the same plan both client-side and server-side against a shared contract.
 

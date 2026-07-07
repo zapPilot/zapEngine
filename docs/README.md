@@ -13,6 +13,7 @@ order.
 | [CONTRIBUTING.md](../CONTRIBUTING.md)         | Daily workflow + recipes: [add an env var](../CONTRIBUTING.md#adding-an-env-var), [add an HTTP route](../CONTRIBUTING.md#adding-an-http-route), [add an app/package](../CONTRIBUTING.md#adding-an-app-or-package) |
 | [scripts/COVERAGE.md](../scripts/COVERAGE.md) | Coverage tooling + the no-regression gate                                                                                                                                                                         |
 | [docs/app-layout.md](./app-layout.md)         | Standard `src/` layout for TS server apps                                                                                                                                                                         |
+| [docs/adr/](./adr)                            | Repo-level ADRs. Start with [0001](./adr/0001-app-consolidation-and-local-allocator.md): app consolidation, frontend/desktop disposition, local-allocator roadmap                                                 |
 
 ## Per-app docs
 
@@ -24,9 +25,9 @@ Deeper design docs live under `apps/<app>/docs/`.
 | account-engine   | [CLAUDE.md](../apps/account-engine/CLAUDE.md) · [plan-orchestration-evolution](../apps/account-engine/docs/plan-orchestration-evolution.md)                                                                                                                                             |
 | alpha-etl        | [CLAUDE.md](../apps/alpha-etl/CLAUDE.md) · [docs/adr/](../apps/alpha-etl/docs/adr)                                                                                                                                                                                                      |
 | analytics-engine | [CLAUDE.md](../apps/analytics-engine/CLAUDE.md) · [coding_standards](../apps/analytics-engine/docs/coding_standards.md) · [snapshot_architecture](../apps/analytics-engine/docs/snapshot_architecture.md) · [sql_parameter_audit](../apps/analytics-engine/docs/sql_parameter_audit.md) |
-| desktop | [CLAUDE.md](../apps/desktop/CLAUDE.md)                                                                                                                                                                                                                                         |
+| desktop          | [CLAUDE.md](../apps/desktop/CLAUDE.md)                                                                                                                                                                                                                                                  |
 | landing-page     | [CLAUDE.md](../apps/landing-page/CLAUDE.md) · `content/docs/*.mdx` (published site docs)                                                                                                                                                                                                |
-| app        | [README.md](../apps/app/README.md) · [CLAUDE.md](../apps/app/CLAUDE.md)                                                                                                                                                                                                     |
+| app              | [README.md](../apps/app/README.md) · [CLAUDE.md](../apps/app/CLAUDE.md)                                                                                                                                                                                                                 |
 | podcast-pipeline | [CLAUDE.md](../apps/podcast-pipeline/CLAUDE.md)                                                                                                                                                                                                                                         |
 
 Nested module docs also exist (e.g. `apps/account-engine/src/modules/*/CLAUDE.md`,
@@ -49,13 +50,13 @@ knip-config, tsconfig, types.
 
 ## Verification quick reference
 
-| Goal                                  | Command                                            |
-| ------------------------------------- | -------------------------------------------------- |
-| Local gate — see all failures at once | `pnpm verify` (= `pnpm verify parallel`)           |
-| AI fix inner loop (affected only)     | `pnpm verify changed`                              |
-| Before push                           | `pnpm verify branch`                               |
-| CI canonical gate (sequential)        | `pnpm verify ci`                                   |
-| Separate CI-only checks               | `pnpm security audit` · `pnpm coverage check`      |
+| Goal                                  | Command                                       |
+| ------------------------------------- | --------------------------------------------- |
+| Local gate — see all failures at once | `pnpm verify` (= `pnpm verify parallel`)      |
+| AI fix inner loop (affected only)     | `pnpm verify changed`                         |
+| Before push                           | `pnpm verify branch`                          |
+| CI canonical gate (sequential)        | `pnpm verify ci`                              |
+| Separate CI-only checks               | `pnpm security audit` · `pnpm coverage check` |
 
 `verify ci` / `parallel` do **not** include security audit or coverage — run
 those separately. Full table + the `.ai-verify/result.json` fix loop:
