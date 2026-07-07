@@ -298,8 +298,11 @@ Unification — one ledger, four consumers, so two journals never get built:
 New commitments only; anything already scheduled in 0001 is deferred there, not
 duplicated.
 
-- [ ] A1. Challenge-signature ownership proof at wallet binding (sign a nonce
-      at bind time) — D1/Identity
+- [x] A1. Challenge-signature ownership proof at wallet binding (sign a nonce
+      at bind time) — D1/Identity. Server side shipped: challenge endpoint +
+      verify-on-bind + `ownership_verified_at`; the signature is optional at
+      the API so observe-only bundle wallets keep working — app-side signing
+      UX rides with 0001-M1/M2
 - [ ] A2. Timeboxed spike: can Ambire/OKX 7702 session scoping express
       whitelist + per-tx cap + revoke? Record findings — D3 Stage B
 - [ ] A3. Event schema + account-engine append-only event tables

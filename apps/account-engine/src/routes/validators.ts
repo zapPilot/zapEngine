@@ -74,8 +74,18 @@ export const walletLabelSchema = z
   .min(1, 'Label must be between 1 and 100 characters')
   .max(100, 'Label must be between 1 and 100 characters');
 
+// 65-byte ECDSA signature (r ‖ s ‖ v) over the issued binding challenge.
+const ECDSA_SIGNATURE_REGEX = /^0x[0-9a-fA-F]{130}$/;
+
 export const addWalletBodySchema = walletBodySchema.extend({
   label: walletLabelSchema.optional(),
+  signature: z
+    .string()
+    .regex(
+      ECDSA_SIGNATURE_REGEX,
+      'signature must be a 65-byte hex-encoded ECDSA signature',
+    )
+    .optional(),
 });
 export type AddWalletBody = z.infer<typeof addWalletBodySchema>;
 

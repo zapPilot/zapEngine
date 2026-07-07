@@ -16,6 +16,10 @@ import { UserValidationService } from '../database/user-validation.service';
 // EtlJobStatus type from @zapengine/types/etl is used by AlphaEtlHttpService
 import { TelegramService } from '../modules/notifications/telegram.service';
 import { TelegramTokenService } from '../modules/notifications/telegram-token.service';
+import type {
+  WalletBindingChallenge,
+  WalletBindingChallengeService,
+} from '../services/wallet-binding-challenge.service';
 import {
   AddWalletResponse,
   ConnectWalletResponse,
@@ -67,6 +71,7 @@ export class UsersService extends BaseService {
     private readonly alphaEtlHttpService: AlphaEtlHttpService,
     private readonly telegramService: TelegramService,
     private readonly telegramTokenService: TelegramTokenService,
+    private readonly walletBindingChallengeService: WalletBindingChallengeService,
   ) {
     super(databaseService);
   }
@@ -119,9 +124,31 @@ export class UsersService extends BaseService {
     userId: string,
     wallet: string,
     label?: string,
+    signature?: string,
   ): Promise<AddWalletResponse> {
     return this.withErrorHandling(async () => {
       await this.userValidationService.validateUserExists(userId);
+
+      // Ownership proof (ADR 0002 A1): a signature over the previously issued
+      // binding challenge marks the wallet ownership-verified. The signature
+      // stays optional because bundles also track observe-only addresses the
+      // user cannot sign for — but a provided-yet-invalid signature is always
+      // rejected. Tier-S flows (custody graduation, L3) require verified rows.
+      let ownershipVerifiedAt: string | undefined;
+      if (signature) {
+        const verified =
+          await this.walletBindingChallengeService.verifyChallenge(
+            userId,
+            wallet,
+            signature,
+          );
+        if (!verified) {
+          throw new BadRequestException(
+            'Wallet ownership signature is invalid, expired, or missing a challenge',
+          );
+        }
+        ownershipVerifiedAt = new Date().toISOString();
+      }
 
       // Let the unique constraint on (wallet) be the source of truth. We skip
       // the pre-check entirely so the happy path is one round-trip — and we
@@ -134,12 +161,16 @@ export class UsersService extends BaseService {
             user_id: userId,
             wallet,
             label: label ?? generateDefaultWalletLabel(wallet),
+            ...(ownershipVerifiedAt
+              ? { ownership_verified_at: ownershipVerifiedAt }
+              : {}),
           },
           { entityName: 'Wallet' },
         );
 
         return {
           wallet_id: newWallet.id,
+          ownership_verified: Boolean(ownershipVerifiedAt),
           message: 'Wallet added successfully to user bundle',
         };
       } catch (error) {
@@ -161,6 +192,16 @@ export class UsersService extends BaseService {
         throw error;
       }
     }, 'add wallet');
+  }
+
+  async requestWalletBindingChallenge(
+    userId: string,
+    wallet: string,
+  ): Promise<WalletBindingChallenge> {
+    return this.withErrorHandling(async () => {
+      await this.userValidationService.validateUserExists(userId);
+      return this.walletBindingChallengeService.issueChallenge(userId, wallet);
+    }, 'request wallet binding challenge');
   }
 
   async updateEmail(
