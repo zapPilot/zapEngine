@@ -298,12 +298,20 @@ Unification — one ledger, four consumers, so two journals never get built:
 New commitments only; anything already scheduled in 0001 is deferred there, not
 duplicated.
 
-- [ ] A1. Challenge-signature ownership proof at wallet binding (sign a nonce
-      at bind time) — D1/Identity
-- [ ] A2. Timeboxed spike: can Ambire/OKX 7702 session scoping express
-      whitelist + per-tx cap + revoke? Record findings — D3 Stage B
-- [ ] A3. Event schema + account-engine append-only event tables
-      (signal/decision/plan/execution, carrying `strategyVersion`) — D5 phase 1
+- [x] A1. Challenge-signature ownership proof at wallet binding (sign a nonce
+      at bind time) — D1/Identity. Server side shipped: challenge endpoint +
+      verify-on-bind + `ownership_verified_at`; the signature is optional at
+      the API so observe-only bundle wallets keep working — app-side signing
+      UX rides with 0001-M1/M2
+- [x] A2. Timeboxed spike: can Ambire/OKX 7702 session scoping express
+      whitelist + per-tx cap + revoke? Record findings — D3 Stage B. Findings:
+      [docs/spikes/2026-07-07-eip7702-session-scoping.md](../spikes/2026-07-07-eip7702-session-scoping.md)
+      — Ambire/OKX as-shipped: no; Stage C not triggered; re-scope Stage B to
+      the MetaMask Delegation Framework (audited caveat enforcers on Base)
+- [x] A3. Event schema + account-engine append-only event tables
+      (signal/decision/plan/execution, carrying `strategyVersion`) — D5 phase 1.
+      Shipped as the `ledger` module + `ledger_*_events` tables (insert-only
+      grants + guard trigger); event producers wire in at 0001-M3 as planned
 - [ ] A4. Fold a decision-log digest into the track-record CID chain — D5
       phase 2
 - [ ] A5. Simulation-plane hardening: fail-closed simulation on the

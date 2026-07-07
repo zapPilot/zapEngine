@@ -25,6 +25,7 @@ export interface ConnectWalletResponse {
 export interface AddWalletResponse {
   wallet_id: string;
   message: string;
+  ownership_verified: boolean;
 }
 export interface UpdateEmailResponse extends SuccessResponse {
   email_updated: boolean;

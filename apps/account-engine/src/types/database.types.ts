@@ -100,6 +100,162 @@ export interface Database {
         };
         Relationships: [];
       };
+      ledger_signal_events: {
+        Row: {
+          id: string;
+          source: string;
+          signal_type: string;
+          occurred_at: string;
+          inserted_at: string;
+          payload: Json;
+        };
+        Insert: {
+          id?: string;
+          source: string;
+          signal_type: string;
+          occurred_at?: string;
+          inserted_at?: string;
+          payload?: Json;
+        };
+        Update: {
+          id?: string;
+          source?: string;
+          signal_type?: string;
+          occurred_at?: string;
+          inserted_at?: string;
+          payload?: Json;
+        };
+        Relationships: [];
+      };
+      ledger_decision_events: {
+        Row: {
+          id: string;
+          strategy_version: string;
+          config_identity: string;
+          decision_type: string;
+          signal_event_id: string | null;
+          user_id: string | null;
+          occurred_at: string;
+          inserted_at: string;
+          payload: Json;
+        };
+        Insert: {
+          id?: string;
+          strategy_version: string;
+          config_identity: string;
+          decision_type: string;
+          signal_event_id?: string | null;
+          user_id?: string | null;
+          occurred_at?: string;
+          inserted_at?: string;
+          payload?: Json;
+        };
+        Update: {
+          id?: string;
+          strategy_version?: string;
+          config_identity?: string;
+          decision_type?: string;
+          signal_event_id?: string | null;
+          user_id?: string | null;
+          occurred_at?: string;
+          inserted_at?: string;
+          payload?: Json;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'ledger_decision_events_signal_event_id_fkey';
+            columns: ['signal_event_id'];
+            isOneToOne: false;
+            referencedRelation: 'ledger_signal_events';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      ledger_plan_events: {
+        Row: {
+          id: string;
+          plan_kind: string;
+          decision_event_id: string | null;
+          user_id: string | null;
+          plan_hash: string | null;
+          occurred_at: string;
+          inserted_at: string;
+          payload: Json;
+        };
+        Insert: {
+          id?: string;
+          plan_kind: string;
+          decision_event_id?: string | null;
+          user_id?: string | null;
+          plan_hash?: string | null;
+          occurred_at?: string;
+          inserted_at?: string;
+          payload?: Json;
+        };
+        Update: {
+          id?: string;
+          plan_kind?: string;
+          decision_event_id?: string | null;
+          user_id?: string | null;
+          plan_hash?: string | null;
+          occurred_at?: string;
+          inserted_at?: string;
+          payload?: Json;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'ledger_plan_events_decision_event_id_fkey';
+            columns: ['decision_event_id'];
+            isOneToOne: false;
+            referencedRelation: 'ledger_decision_events';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      ledger_execution_events: {
+        Row: {
+          id: string;
+          status: string;
+          plan_event_id: string | null;
+          user_id: string | null;
+          chain_id: number | null;
+          tx_hash: string | null;
+          occurred_at: string;
+          inserted_at: string;
+          payload: Json;
+        };
+        Insert: {
+          id?: string;
+          status: string;
+          plan_event_id?: string | null;
+          user_id?: string | null;
+          chain_id?: number | null;
+          tx_hash?: string | null;
+          occurred_at?: string;
+          inserted_at?: string;
+          payload?: Json;
+        };
+        Update: {
+          id?: string;
+          status?: string;
+          plan_event_id?: string | null;
+          user_id?: string | null;
+          chain_id?: number | null;
+          tx_hash?: string | null;
+          occurred_at?: string;
+          inserted_at?: string;
+          payload?: Json;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'ledger_execution_events_plan_event_id_fkey';
+            columns: ['plan_event_id'];
+            isOneToOne: false;
+            referencedRelation: 'ledger_plan_events';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       notification_settings: {
         Row: {
           channel_type: string;
@@ -266,6 +422,7 @@ export interface Database {
           id: string;
           label: string | null;
           last_portfolio_update_at: string | null;
+          ownership_verified_at: string | null;
           user_id: string;
           wallet: string;
         };
@@ -274,6 +431,7 @@ export interface Database {
           id?: string;
           label?: string | null;
           last_portfolio_update_at?: string | null;
+          ownership_verified_at?: string | null;
           user_id: string;
           wallet: string;
         };
@@ -282,6 +440,7 @@ export interface Database {
           id?: string;
           label?: string | null;
           last_portfolio_update_at?: string | null;
+          ownership_verified_at?: string | null;
           user_id?: string;
           wallet?: string;
         };

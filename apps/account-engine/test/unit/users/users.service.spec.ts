@@ -53,12 +53,22 @@ function createMocks() {
     }),
   };
 
+  const walletBindingChallengeService = {
+    issueChallenge: vi.fn().mockReturnValue({
+      nonce: 'a'.repeat(64),
+      message: 'ZapPilot wallet ownership proof',
+      expiresAt: '2026-01-01T00:05:00.000Z',
+    }),
+    verifyChallenge: vi.fn().mockResolvedValue(true),
+  };
+
   const service = new UsersService(
     dbMock.mock as unknown as DatabaseService,
     validationService as unknown as UserValidationService,
     alphaEtlHttpService as unknown as AlphaEtlHttpService,
     telegramService as unknown as TelegramService,
     telegramTokenService as unknown as TelegramTokenService,
+    walletBindingChallengeService,
   );
 
   return {
@@ -68,6 +78,7 @@ function createMocks() {
     alphaEtlHttpService,
     telegramService,
     telegramTokenService,
+    walletBindingChallengeService,
     qb: dbMock.anon.queryBuilder,
     srQb: dbMock.serviceRole.queryBuilder,
   };
@@ -165,8 +176,62 @@ describe('UsersService', () => {
 
       expect(result.wallet_id).toBe('w-new');
       expect(result.message).toContain('Wallet added');
+      expect(result.ownership_verified).toBe(false);
     });
 
+    it('marks the wallet ownership-verified when a valid signature is provided', async () => {
+      const { service, qb, walletBindingChallengeService } = createMocks();
+      qb.single.mockResolvedValue({
+        data: { id: 'w-new', user_id: 'user-1', wallet: '0x123' },
+        error: null,
+      });
+
+      const result = await service.addWallet(
+        'user-1',
+        '0x123',
+        'My Wallet',
+        '0x' + 'ab'.repeat(65),
+      );
+
+      expect(
+        walletBindingChallengeService.verifyChallenge,
+      ).toHaveBeenCalledWith('user-1', '0x123', '0x' + 'ab'.repeat(65));
+      expect(result.ownership_verified).toBe(true);
+      expect(qb.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ownership_verified_at: expect.any(String),
+        }),
+      );
+    });
+
+    it('rejects the binding when the ownership signature is invalid', async () => {
+      const { service, qb, walletBindingChallengeService } = createMocks();
+      walletBindingChallengeService.verifyChallenge.mockResolvedValue(false);
+
+      await expect(
+        service.addWallet('user-1', '0x123', undefined, '0x' + 'ab'.repeat(65)),
+      ).rejects.toThrow(BadRequestException);
+      expect(qb.insert).not.toHaveBeenCalled();
+    });
+
+    it('does not verify ownership when no signature is provided', async () => {
+      const { service, qb, walletBindingChallengeService } = createMocks();
+      qb.single.mockResolvedValue({
+        data: { id: 'w-new', user_id: 'user-1', wallet: '0x123' },
+        error: null,
+      });
+
+      await service.addWallet('user-1', '0x123');
+
+      expect(
+        walletBindingChallengeService.verifyChallenge,
+      ).not.toHaveBeenCalled();
+      expect(qb.insert).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          ownership_verified_at: expect.anything(),
+        }),
+      );
+    });
     it('throws ConflictException when wallet belongs to current user', async () => {
       const { service, qb, validationService } = createMocks();
       // insertOne fires PG unique-violation (23505) → ConflictException
@@ -210,6 +275,42 @@ describe('UsersService', () => {
       await expect(service.addWallet('user-1', '0x123')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // requestWalletBindingChallenge
+  // -----------------------------------------------------------------------
+  describe('requestWalletBindingChallenge', () => {
+    it('issues a challenge for an existing user', async () => {
+      const { service, walletBindingChallengeService } = createMocks();
+
+      const result = await service.requestWalletBindingChallenge(
+        'user-1',
+        '0x123',
+      );
+
+      expect(walletBindingChallengeService.issueChallenge).toHaveBeenCalledWith(
+        'user-1',
+        '0x123',
+      );
+      expect(result.nonce).toHaveLength(64);
+      expect(result.message).toContain('ZapPilot');
+    });
+
+    it('rejects the challenge request for a missing user', async () => {
+      const { service, validationService, walletBindingChallengeService } =
+        createMocks();
+      validationService.validateUserExists.mockRejectedValue(
+        new NotFoundException('User not found'),
+      );
+
+      await expect(
+        service.requestWalletBindingChallenge('user-1', '0x123'),
+      ).rejects.toThrow(NotFoundException);
+      expect(
+        walletBindingChallengeService.issueChallenge,
+      ).not.toHaveBeenCalled();
     });
   });
 

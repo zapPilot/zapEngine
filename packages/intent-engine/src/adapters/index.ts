@@ -5,7 +5,10 @@ export {
 } from './lifi.adapter.js';
 export {
   type SimulationAdapter,
-  TenderlySimulationAdapter,
-  type TenderlyConfig,
+  type BundleSimulationAdapter,
+  type BundleSimulationRequest,
+  type BundleSimulationResult,
+  type TenderlyBundleConfig,
+  createTenderlyBundleSimulationAdapter,
   NoopSimulationAdapter,
 } from './simulation.adapter.js';

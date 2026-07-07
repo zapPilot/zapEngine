@@ -1,6 +1,6 @@
 # zapEngine
 
-zapPilot is a **DeFi portfolio analytics and automation platform** that returns full control of investments to users. Users manage assets through their own EOA wallet — no need to trust third-party vault smart contracts. The platform also powers the **From Fed to Chain** podcast, providing free financial knowledge to the community.
+zapPilot is a **self-custodial investment autopilot** for DeFi portfolios. It brings rules-based allocation across S&P 500 exposure, BTC/ETH, and stablecoins while users keep control through their own EOA wallet — signed from your wallet, held by no one else. The platform also powers the **From Fed to Chain** podcast, providing free financial knowledge to the community.
 
 This codebase powers the full stack: TypeScript/Python microservices, a universal Expo/React Native app (iOS/Android/Web), an Electron macOS desktop shell, and a Next.js marketing site.
 

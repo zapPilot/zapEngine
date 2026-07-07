@@ -3,12 +3,21 @@ import * as intentEngine from '../../src/index.js';
 
 describe('API Documentation Consistency', () => {
   describe('README Export Table Completeness', () => {
-    it('should export TenderlySimulationAdapter', () => {
-      expect(intentEngine.TenderlySimulationAdapter).toBeDefined();
+    it('should export createTenderlyBundleSimulationAdapter', () => {
+      expect(intentEngine.createTenderlyBundleSimulationAdapter).toBeDefined();
+      expect(typeof intentEngine.createTenderlyBundleSimulationAdapter).toBe(
+        'function',
+      );
     });
 
     it('should export NoopSimulationAdapter', () => {
       expect(intentEngine.NoopSimulationAdapter).toBeDefined();
+    });
+
+    it('should export plan-safety validators', () => {
+      expect(intentEngine.assertApprovalCaps).toBeDefined();
+      expect(intentEngine.assertMinReceived).toBeDefined();
+      expect(intentEngine.PlanSafetyViolationError).toBeDefined();
     });
 
     it('should export execution functions', () => {

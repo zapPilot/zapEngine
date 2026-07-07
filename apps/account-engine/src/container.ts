@@ -8,6 +8,7 @@ import { JobProcessorService } from './modules/jobs/job-processor.service';
 import { JobQueueService } from './modules/jobs/job-queue.service';
 import { DailySuggestionProcessor } from './modules/jobs/processors/daily-suggestion.processor';
 import { WeeklyReportProcessor } from './modules/jobs/processors/weekly-report.processor';
+import { LedgerService } from './modules/ledger';
 import { AdminNotificationService } from './modules/notifications/admin-notification.service';
 import { AnalyticsClientService } from './modules/notifications/analytics-client.service';
 import { ChartService } from './modules/notifications/chart.service';
@@ -26,6 +27,7 @@ import {
   createPrivyWalletExecutionService,
   type PrivyWalletExecutionService,
 } from './services/privy-wallet-execution.service';
+import { createWalletBindingChallengeService } from './services/wallet-binding-challenge.service';
 import { UsersService } from './users/users.service';
 
 export interface AppServices {
@@ -50,6 +52,7 @@ export interface AppServices {
   activityTracker: ActivityTracker;
   planOrchestrationService: PlanOrchestrationService;
   privyWalletExecutionService: PrivyWalletExecutionService;
+  ledgerService: LedgerService;
 }
 
 export function createContainer(
@@ -66,12 +69,14 @@ export function createContainer(
     databaseService,
     telegramTokenService,
   );
+  const walletBindingChallengeService = createWalletBindingChallengeService();
   const usersService = new UsersService(
     databaseService,
     userValidationService,
     alphaEtlHttpService,
     telegramService,
     telegramTokenService,
+    walletBindingChallengeService,
   );
   const analyticsClientService = new AnalyticsClientService(configService);
   const chartService = new ChartService();
@@ -104,6 +109,7 @@ export function createContainer(
     telegramService,
   );
   const activityTracker = new ActivityTracker(databaseService);
+  const ledgerService = new LedgerService(databaseService);
   const planOrchestrationService = createPlanOrchestrationModule({
     lifi: {
       integrator: env.LIFI_INTEGRATOR,
@@ -160,6 +166,7 @@ export function createContainer(
     activityTracker,
     planOrchestrationService,
     privyWalletExecutionService,
+    ledgerService,
   };
 }
 

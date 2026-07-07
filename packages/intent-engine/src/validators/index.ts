@@ -5,3 +5,8 @@ export {
   validateWithdrawIntent,
   validateRotateIntent,
 } from './intent.validator.js';
+export {
+  assertApprovalCaps,
+  assertMinReceived,
+  PlanSafetyViolationError,
+} from './plan-safety.validator.js';

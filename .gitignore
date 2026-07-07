@@ -93,3 +93,6 @@ packages/*/coverage/**
 
 plan.md
 .opencode/goals/
+
+# claude design
+support.js

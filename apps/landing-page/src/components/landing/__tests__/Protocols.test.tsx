@@ -17,7 +17,7 @@ describe('Protocols', () => {
     it('renders main heading', () => {
       render(<Protocols />);
       expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(
-        /Where idle capital parks/,
+        /Yield is the onboarding step, not the positioning/,
       );
     });
 
