@@ -57,6 +57,19 @@ describe('CACHE_WINDOW', () => {
     );
   });
 
+  it('falls back to defaults for blank process.env values', async () => {
+    process.env['VITE_CACHE_MAX_AGE_SECONDS'] = '   ';
+    process.env['VITE_CACHE_STALE_WHILE_REVALIDATE_SECONDS'] = '\n\t';
+
+    const { CACHE_WINDOW } = await loadCacheWindow();
+
+    expect(CACHE_WINDOW.maxAgeSeconds).toBe(60 * 60);
+    expect(CACHE_WINDOW.staleWhileRevalidateSeconds).toBe(23 * 60 * 60);
+    expect(CACHE_WINDOW.headerValue).toBe(
+      'public, max-age=3600, stale-while-revalidate=82800',
+    );
+  });
+
   it('honors env injected via configureAppCoreEnv before first touch', async () => {
     const { configureAppCoreEnv } = await import('@core/lib/env/runtimeEnv');
     configureAppCoreEnv({
