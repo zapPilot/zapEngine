@@ -40,6 +40,7 @@ const batch: PrivyPrepareSendCallsRequest = {
 };
 
 const accessToken = 'header.payload.signature';
+const TX_HASH = `0x${'4'.repeat(64)}`;
 
 function simulationService(): TenderlySimulationService {
   return {
@@ -96,6 +97,7 @@ function createClient(): PrivyWalletExecutionClient {
     sendCalls: vi.fn().mockResolvedValue({
       transactionId: 'privy-transaction-id',
       caip2: 'eip155:8453',
+      transactionHash: TX_HASH,
     }),
   };
 }
@@ -337,11 +339,20 @@ describe('PrivyWalletExecutionService', () => {
         transaction_id: 'real-privy-tx-id',
         caip2: 'eip155:8453',
       });
+      const getTransaction = vi.fn().mockResolvedValue({
+        id: 'real-privy-tx-id',
+        caip2: 'eip155:8453',
+        created_at: Date.now(),
+        status: 'broadcasted',
+        transaction_hash: TX_HASH,
+        wallet_id: batch.walletId,
+      });
 
       function MockPrivyClient(this: Record<string, unknown>) {
         this['utils'] = () => ({ auth: () => ({ verifyAccessToken }) });
         this['users'] = () => ({ _get: getUser });
         this['wallets'] = () => ({ ethereum: () => ({ sendCalls }) });
+        this['transactions'] = () => ({ get: getTransaction });
         this['getRequestExpiry'] = vi
           .fn()
           .mockReturnValue(options?.requestExpiry ?? 1_800_000_000_000);
@@ -349,11 +360,11 @@ describe('PrivyWalletExecutionService', () => {
       vi.mocked(PrivyClient).mockImplementation(
         MockPrivyClient as unknown as typeof PrivyClient,
       );
-      return { getUser, sendCalls };
+      return { getUser, sendCalls, getTransaction };
     }
 
     it('prepares and submits through the Privy SDK adapter', async () => {
-      const { sendCalls } = installMockPrivyClient();
+      const { sendCalls, getTransaction } = installMockPrivyClient();
       const service = createPrivyWalletExecutionService({
         appId: 'real-app-id',
         appSecret: 'real-app-secret',
@@ -371,8 +382,10 @@ describe('PrivyWalletExecutionService', () => {
       expect(result).toMatchObject({
         status: 'submitted',
         transactionId: 'real-privy-tx-id',
+        transactionHash: TX_HASH,
       });
       expect(sendCalls).toHaveBeenCalledTimes(1);
+      expect(getTransaction).toHaveBeenCalledWith('real-privy-tx-id');
     });
 
     it('filters out external linked wallets', async () => {

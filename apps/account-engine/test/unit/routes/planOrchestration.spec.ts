@@ -94,7 +94,30 @@ describe('POST /plan-orchestration/deposit', () => {
     });
   });
 
-  it('rejects non-Base Invest requests before service execution', async () => {
+  it('rejects a source-chain/token mismatch before service execution', async () => {
+    const { app, service } = createApp();
+
+    const response = await app.request(
+      'http://localhost/plan-orchestration/deposit',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'invest',
+          userAddress: USER,
+          // Base USDC is not a valid token on Ethereum mainnet
+          fromToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+          fromAmount: '1000',
+          sourceChainId: 1,
+        }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(service.buildDeposit).not.toHaveBeenCalled();
+  });
+
+  it('forwards an Invest split to the service', async () => {
     const { app, service } = createApp();
 
     const response = await app.request(
@@ -107,13 +130,64 @@ describe('POST /plan-orchestration/deposit', () => {
           userAddress: USER,
           fromToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
           fromAmount: '1000',
-          sourceChainId: 1,
+          sourceChainId: 8453,
+          split: { '8453': 0.7, '1337': 0.3 },
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(service.buildDeposit).toHaveBeenCalledWith(
+      expect.objectContaining({ split: { '8453': 0.7, '1337': 0.3 } }),
+    );
+  });
+
+  it('rejects a split with an unsupported chain before service execution', async () => {
+    const { app, service } = createApp();
+
+    const response = await app.request(
+      'http://localhost/plan-orchestration/deposit',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'invest',
+          userAddress: USER,
+          fromToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+          fromAmount: '1000',
+          sourceChainId: 8453,
+          split: { '8453': 0.5, '999': 0.5 },
         }),
       },
     );
 
     expect(response.status).toBe(400);
     expect(service.buildDeposit).not.toHaveBeenCalled();
+  });
+
+  it('accepts an Arbitrum destination re-quote request', async () => {
+    const { app, service } = createApp();
+
+    const response = await app.request(
+      'http://localhost/plan-orchestration/deposit',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'invest',
+          userAddress: USER,
+          fromToken: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+          fromAmount: '990',
+          sourceChainId: 42161,
+          split: { '42161': 1 },
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(service.buildDeposit).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceChainId: 42161 }),
+    );
   });
 
   it('rejects invalid request bodies before service execution', async () => {

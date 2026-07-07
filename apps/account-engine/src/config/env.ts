@@ -12,6 +12,8 @@ const envSchema = z.object({
   ALPHA_ETL_WEBHOOK_SECRET: z.string().optional(),
   LIFI_INTEGRATOR: z.string().min(1),
   LIFI_API_KEY: z.string().optional(),
+  DEPOSIT_DEFAULT_SPLIT: z.string().optional(),
+  HYPERLIQUID_NETWORK: z.enum(['mainnet', 'testnet']).optional(),
   RPC_URL_BASE: z.string().optional(),
   RPC_URL_ETHEREUM: z.string().optional(),
   RPC_URL_ARBITRUM: z.string().optional(),

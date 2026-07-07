@@ -353,6 +353,8 @@ describe('composeDeposit', () => {
     expect(
       plan.legs.reduce((sum, leg) => sum + BigInt(leg.fromAmount), 0n),
     ).toBe(10001n);
+    // Execution invariant: the frontend correlates legs[i] with calls[i].
+    expect(plan.calls).toHaveLength(plan.legs.length);
   });
 
   it('does not create ERC20 approvals for native ETH source deposits', async () => {
@@ -388,6 +390,126 @@ describe('composeDeposit', () => {
     );
   });
 
+  it('emits a HyperCore bridge leg plus an HLP follow-up for a 70/30 split', async () => {
+    const { adapter, getQuote } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    const plan = await composeDeposit(
+      {
+        fromToken: BASE_USDC,
+        fromAmount: '100000000',
+        sourceChainId: 8453,
+        userAddress: USER,
+        split: { 8453: 0.7, 1337: 0.3 },
+      },
+      { adapter, publicClients: publicClients as never },
+    );
+
+    expect(plan.legs).toHaveLength(2);
+    expect(plan.calls).toHaveLength(plan.legs.length);
+    expect(plan.legs[0]).toMatchObject({ chainId: 8453, kind: 'supply' });
+    expect(plan.legs[1]).toMatchObject({
+      chainId: 1337,
+      kind: 'bridge',
+      protocol: 'hyperliquid',
+      toToken: ARBITRUM_USDC, // LI.FI's perps-USDC token id on 1337
+      fromAmount: '30000000',
+      bridge: 'relaydepository',
+    });
+    expect(getQuote).toHaveBeenCalledWith(
+      expect.objectContaining({ toChain: 1337, toToken: ARBITRUM_USDC }),
+    );
+
+    expect(plan.followUps).toHaveLength(1);
+    expect(plan.followUps?.[0]).toMatchObject({
+      kind: 'hyperliquid-vault-deposit',
+      chainId: 1337,
+      afterLegIndex: 1,
+      amount: { source: 'bridge-output', legIndex: 1 },
+      expectedUsd: plan.legs[1]!.toAmountMin,
+      lockupDays: 4,
+    });
+  });
+
+  it('supports a HyperCore-only split with no source supply leg', async () => {
+    const { adapter } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    const plan = await composeDeposit(
+      {
+        fromToken: BASE_USDC,
+        fromAmount: '20000000',
+        sourceChainId: 8453,
+        userAddress: USER,
+        split: { 1337: 1 },
+      },
+      { adapter, publicClients: publicClients as never },
+    );
+
+    expect(plan.legs).toHaveLength(1);
+    expect(plan.legs[0]).toMatchObject({ chainId: 1337, kind: 'bridge' });
+    expect(plan.followUps).toHaveLength(1);
+  });
+
+  it('propagates the testnet network into the HLP follow-up descriptor', async () => {
+    const { adapter } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    const plan = await composeDeposit(
+      {
+        fromToken: BASE_USDC,
+        fromAmount: '20000000',
+        sourceChainId: 8453,
+        userAddress: USER,
+        split: { 1337: 1 },
+      },
+      {
+        adapter,
+        publicClients: publicClients as never,
+        hyperliquidNetwork: 'testnet',
+      },
+    );
+
+    expect(plan.followUps?.[0]).toMatchObject({
+      signing: expect.objectContaining({ hyperliquidChain: 'Testnet' }),
+    });
+  });
+
+  it('omits the followUps key entirely for plans without HyperCore legs', async () => {
+    const { adapter } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    const plan = await composeDeposit(
+      {
+        fromToken: BASE_USDC,
+        fromAmount: '10000',
+        sourceChainId: 8453,
+        userAddress: USER,
+      },
+      { adapter, publicClients: publicClients as never },
+    );
+
+    expect(plan).not.toHaveProperty('followUps');
+  });
+
+  it('rejects an HLP allocation whose quoted output is below the vault minimum', async () => {
+    const { adapter } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    await expect(
+      composeDeposit(
+        {
+          fromToken: BASE_USDC,
+          fromAmount: '10000000',
+          sourceChainId: 8453,
+          userAddress: USER,
+          split: { 8453: 0.7, 1337: 0.3 }, // 3 USDC to HLP < 5 USDC minimum
+        },
+        { adapter, publicClients: publicClients as never },
+      ),
+    ).rejects.toThrow('HLP allocation is below the vault minimum');
+  });
+
   it('uses LI.FI Earn quote for non-vault-asset source deposits', async () => {
     const { adapter, getContractCallQuote, getQuote } = makeAdapter();
     const { publicClients } = makePublicClients();
@@ -418,7 +540,7 @@ describe('composeDeposit', () => {
 });
 
 describe('composeDeposit error cases', () => {
-  it('throws when sourceChainId is not Base', async () => {
+  it('throws when sourceChainId is not a supported chain', async () => {
     const { adapter } = makeAdapter();
     const { publicClients } = makePublicClients();
 
@@ -427,11 +549,66 @@ describe('composeDeposit error cases', () => {
         {
           fromToken: BASE_USDC,
           fromAmount: '1000000',
-          sourceChainId: 1, // Ethereum, not Base
+          sourceChainId: 10, // Optimism — not in SUPPORTED_CHAINS
           userAddress: USER,
         },
         { adapter, publicClients: publicClients as never },
       ),
-    ).rejects.toThrow('Deposit v1 supports Base as the source chain');
+    ).rejects.toThrow('Unsupported source chain 10');
+  });
+
+  it('accepts a non-Base source as a re-quote but fails on the missing vault', async () => {
+    const { adapter } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    await expect(
+      composeDeposit(
+        {
+          fromToken: ARBITRUM_USDC,
+          fromAmount: '1000000',
+          sourceChainId: 42161,
+          userAddress: USER,
+        },
+        { adapter, publicClients: publicClients as never },
+      ),
+    ).rejects.toThrow('No stable deposit vault configured for chain 42161');
+  });
+
+  it('rejects a multi-chain split from a non-Base source chain', async () => {
+    const { adapter } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    await expect(
+      composeDeposit(
+        {
+          fromToken: ARBITRUM_USDC,
+          fromAmount: '1000000',
+          sourceChainId: 42161,
+          userAddress: USER,
+          split: { 42161: 0.5, 8453: 0.5 },
+        },
+        { adapter, publicClients: publicClients as never },
+      ),
+    ).rejects.toThrow(
+      'Non-Base source chains support a single-chain split only',
+    );
+  });
+
+  it('throws on split keys outside the supported chain set instead of dropping them', async () => {
+    const { adapter } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    await expect(
+      composeDeposit(
+        {
+          fromToken: BASE_USDC,
+          fromAmount: '1000000',
+          sourceChainId: 8453,
+          userAddress: USER,
+          split: { 8453: 0.5, 10: 0.5 },
+        },
+        { adapter, publicClients: publicClients as never },
+      ),
+    ).rejects.toThrow('Unsupported deposit split chain 10');
   });
 });

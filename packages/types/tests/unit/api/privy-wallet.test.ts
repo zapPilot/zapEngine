@@ -236,8 +236,19 @@ describe('PrivyAtomicBatchResponseSchema', () => {
       PrivyAtomicBatchResponseSchema.safeParse({
         transactionId: 'tx_abc123',
         caip2: 'eip155:8453',
+        transactionHash: `0x${'a'.repeat(64)}`,
       }).success,
     ).toBe(true);
+  });
+
+  it('rejects a malformed transaction hash', () => {
+    expect(
+      PrivyAtomicBatchResponseSchema.safeParse({
+        transactionId: 'tx_abc123',
+        caip2: 'eip155:8453',
+        transactionHash: '0xtxhash',
+      }).success,
+    ).toBe(false);
   });
 
   it('rejects an invalid caip2 format', () => {
@@ -388,6 +399,7 @@ describe('PrivyConfirmSendCallsResponseSchema', () => {
         status: 'submitted',
         transactionId: 'tx_abc123',
         caip2: 'eip155:42161',
+        transactionHash: `0x${'b'.repeat(64)}`,
       }).success,
     ).toBe(true);
   });

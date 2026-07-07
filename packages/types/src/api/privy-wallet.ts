@@ -10,6 +10,7 @@ const HexDataSchema = z
 const HexQuantitySchema = z
   .string()
   .regex(/^0x[0-9a-fA-F]+$/, 'value must be a hex quantity');
+const Bytes32Schema = z.string().regex(/^0x[0-9a-fA-F]{64}$/);
 
 export const PrivyAtomicBatchCallSchema = z.object({
   to: z.string().regex(WALLET_ADDRESS_REGEX, 'Invalid call target address'),
@@ -41,6 +42,7 @@ export const PrivyAtomicBatchRequestSchema =
 export const PrivyAtomicBatchResponseSchema = z.object({
   transactionId: z.string().min(1),
   caip2: z.string().regex(/^eip155:\d+$/),
+  transactionHash: Bytes32Schema.optional(),
 });
 
 export const PrivyPrepareSendCallsRequestSchema =
@@ -48,7 +50,6 @@ export const PrivyPrepareSendCallsRequestSchema =
 
 const DecimalIntegerSchema = z.string().regex(/^\d+$/);
 const DecimalAmountSchema = z.string().regex(/^\d+(?:\.\d+)?$/);
-const Bytes32Schema = z.string().regex(/^0x[0-9a-fA-F]{64}$/);
 
 export const PrivySimulationTokenSchema = z
   .object({
