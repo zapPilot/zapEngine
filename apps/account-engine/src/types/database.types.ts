@@ -266,6 +266,7 @@ export interface Database {
           id: string;
           label: string | null;
           last_portfolio_update_at: string | null;
+          ownership_verified_at: string | null;
           user_id: string;
           wallet: string;
         };
@@ -274,6 +275,7 @@ export interface Database {
           id?: string;
           label?: string | null;
           last_portfolio_update_at?: string | null;
+          ownership_verified_at?: string | null;
           user_id: string;
           wallet: string;
         };
@@ -282,6 +284,7 @@ export interface Database {
           id?: string;
           label?: string | null;
           last_portfolio_update_at?: string | null;
+          ownership_verified_at?: string | null;
           user_id?: string;
           wallet?: string;
         };

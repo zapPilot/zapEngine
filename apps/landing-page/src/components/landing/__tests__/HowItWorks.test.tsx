@@ -17,7 +17,7 @@ describe('HowItWorks', () => {
     it('renders main heading', () => {
       render(<HowItWorks />);
       expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(
-        /Your account, looked after/,
+        /Your self-custodial autopilot/,
       );
     });
 

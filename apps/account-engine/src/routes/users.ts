@@ -53,8 +53,25 @@ export function createUsersRoutes(services: AppServices) {
         params.userId,
         body.wallet,
         body.label,
+        body.signature,
       );
       return jsonResponse(c, response, HttpStatus.CREATED);
+    },
+  );
+
+  app.post(
+    '/:userId/wallets/challenge',
+    paramValidator(uuidParamSchema),
+    jsonValidator(walletBodySchema),
+    async (c) => {
+      const params = c.req.valid('param') as UuidParam;
+      const body = c.req.valid('json') as WalletBody;
+      const response =
+        await services.usersService.requestWalletBindingChallenge(
+          params.userId,
+          body.wallet,
+        );
+      return jsonResponse(c, response, HttpStatus.OK);
     },
   );
 

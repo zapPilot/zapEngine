@@ -26,7 +26,7 @@ export const MESSAGES = {
   slogans: {
     philosophy: 'Buy in fear. Defend in greed.',
     philosophyDescription:
-      'A self-custodial portfolio account across S&P500 (Ondo), BTC/ETH, and stables — regime-aware rebalancing executed from your own EOA wallet with atomic batching where supported. ~90% of the return comes from buying weakness and defending in greed, not from yield.',
+      'A self-custodial investment autopilot across S&P500 (Ondo), BTC/ETH, and stables — regime-aware rebalancing executed from your own EOA wallet with atomic batching where supported. The core return story is buying weakness and defending in greed, not chasing yield.',
   },
 
   // Hero section
@@ -36,7 +36,7 @@ export const MESSAGES = {
       primary: 'Your net worth, on autopilot.',
     },
     subtitle:
-      'One account across S&P500, BTC/ETH, and stables. Watch your net worth, allocation, and every rebalance — signed from your wallet, held by no one else.',
+      'A self-custodial investment autopilot across S&P500, BTC/ETH, and stables. Watch your net worth, allocation, and every rebalance — signed from your wallet, held by no one else.',
     ctaPrimary: 'Open the app',
     ctaSecondary: 'See the Backtest',
   },
@@ -51,7 +51,7 @@ export const MESSAGES = {
   // Product tour section — mirrors the app's Home / Portfolio / Invest screens
   productTour: {
     kicker: 'Product tour',
-    title: 'The account you actually get.',
+    title: 'The autopilot you actually get.',
     subtitle:
       'The hero is not a mockup — net worth, balance trend, and allocation are the first screen of the app. Here is the rest of it.',
     frames: [
@@ -60,7 +60,7 @@ export const MESSAGES = {
         kicker: 'Net worth',
         headline: 'Every pillar in one number.',
         description:
-          'Net worth, balance trend, and wallet assets — with Invest and Send one tap away. Demo mode shows the same screen before you connect a wallet.',
+          'Net worth, balance trend, and self-custodied assets — with Invest and Send one tap away. Demo mode shows the same screen before you connect a wallet.',
       },
       {
         name: 'Portfolio',
@@ -147,9 +147,9 @@ export const MESSAGES = {
 
   // How It Works section
   howItWorks: {
-    title: 'Your account, looked after.',
+    title: 'Your self-custodial autopilot.',
     subtitle:
-      'Three steps between market data and your portfolio — the last one is always your signature.',
+      'Three steps between market data and your portfolio — the last one is always your signature, never our discretion.',
     steps: [
       {
         title: 'Sense',
@@ -174,9 +174,9 @@ export const MESSAGES = {
 
   // Protocols section
   protocols: {
-    title: 'Where idle capital parks between trades',
+    title: 'Yield is the onboarding step, not the positioning',
     subtitle:
-      'Yield is the icing — not the strategy. Between regime signals, idle S&P500, BTC/ETH, and stablecoin exposure can earn baseline yield in best-in-class venues while the rules wait for the next trade.',
+      'Yield is the icing — not the strategy. Zap Pilot is positioned around disciplined allocation; parking venues are where idle exposure can earn baseline yield while the rules wait for the next trade.',
     items: [
       {
         name: 'Ondo',
@@ -230,7 +230,7 @@ export const MESSAGES = {
       {
         question: 'What do I see inside the app?',
         answer:
-          "A portfolio account: your net worth, balance trend, three-pillar allocation, wallet assets, and the full activity log. The engine's telemetry — regime, signals, next rebalance — is visible, not hidden.",
+          "An investment autopilot account: your net worth, balance trend, three-pillar allocation, self-custodied assets, and the full activity log. The engine's telemetry — regime, signals, next rebalance — is visible, not hidden.",
       },
       {
         question: 'Is there a demo mode?',

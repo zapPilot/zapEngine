@@ -26,6 +26,7 @@ import {
   createPrivyWalletExecutionService,
   type PrivyWalletExecutionService,
 } from './services/privy-wallet-execution.service';
+import { createWalletBindingChallengeService } from './services/wallet-binding-challenge.service';
 import { UsersService } from './users/users.service';
 
 export interface AppServices {
@@ -66,12 +67,14 @@ export function createContainer(
     databaseService,
     telegramTokenService,
   );
+  const walletBindingChallengeService = createWalletBindingChallengeService();
   const usersService = new UsersService(
     databaseService,
     userValidationService,
     alphaEtlHttpService,
     telegramService,
     telegramTokenService,
+    walletBindingChallengeService,
   );
   const analyticsClientService = new AnalyticsClientService(configService);
   const chartService = new ChartService();

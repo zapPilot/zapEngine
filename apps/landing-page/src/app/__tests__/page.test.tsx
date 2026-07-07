@@ -9,12 +9,14 @@ describe('LandingPage', () => {
       const content = container.textContent || '';
 
       expect(content).toMatch(/Your net worth, on autopilot/);
-      expect(content).toMatch(/The account you actually get/);
-      expect(content).toMatch(/Your account, looked after/);
+      expect(content).toMatch(/The autopilot you actually get/);
+      expect(content).toMatch(/Your self-custodial autopilot/);
       expect(content).toMatch(/What your account holds/);
       expect(content).toMatch(/Trades drove the return/);
       expect(content).toMatch(/Before you connect a wallet/);
-      expect(content).toMatch(/Where idle capital parks/);
+      expect(content).toMatch(
+        /Yield is the onboarding step, not the positioning/,
+      );
       expect(content).toMatch(/100% Self-Custody/);
     });
 
@@ -50,10 +52,14 @@ describe('LandingPage', () => {
       const content = container.textContent || '';
 
       const heroIndex = content.indexOf('Your net worth, on autopilot');
-      const productTourIndex = content.indexOf('The account you actually get');
-      const howItWorksIndex = content.indexOf('Your account, looked after');
+      const productTourIndex = content.indexOf(
+        'The autopilot you actually get',
+      );
+      const howItWorksIndex = content.indexOf('Your self-custodial autopilot');
       const faqIndex = content.indexOf('Before you connect a wallet');
-      const protocolsIndex = content.indexOf('Where idle capital parks');
+      const protocolsIndex = content.indexOf(
+        'Yield is the onboarding step, not the positioning',
+      );
       expect(heroIndex).toBeLessThan(productTourIndex);
       expect(productTourIndex).toBeLessThan(howItWorksIndex);
       expect(faqIndex).toBeLessThan(protocolsIndex);

@@ -26,6 +26,11 @@ function createServices(): AppServices {
         .fn()
         .mockResolvedValue({ user_id: 'user-1', is_new_user: false }),
       addWallet: vi.fn().mockResolvedValue({ wallet_id: 'w-1' }),
+      requestWalletBindingChallenge: vi.fn().mockResolvedValue({
+        nonce: 'a'.repeat(64),
+        message: 'ZapPilot wallet ownership proof',
+        expiresAt: '2026-01-01T00:05:00.000Z',
+      }),
       updateEmail: vi.fn().mockResolvedValue({ email: 'a@b.com' }),
       unsubscribeFromReports: vi.fn().mockResolvedValue({ success: true }),
       updateWalletLabel: vi.fn().mockResolvedValue({ label: 'My Wallet' }),
@@ -78,7 +83,73 @@ describe('POST /users/connect-wallet', () => {
   });
 });
 
+describe('POST /users/:userId/wallets/challenge', () => {
+  it('returns 200 with the issued challenge', async () => {
+    const services = createServices();
+    const response = await createApp(services).request(
+      `http://localhost/users/${VALID_UUID}/wallets/challenge`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ wallet: VALID_WALLET }),
+      },
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { nonce: string; message: string };
+    expect(body.nonce).toHaveLength(64);
+    expect(body.message).toContain('ZapPilot');
+    expect(
+      (services.usersService.requestWalletBindingChallenge as Mock).mock
+        .calls[0],
+    ).toEqual([VALID_UUID, VALID_WALLET]);
+  });
+
+  it('returns 400 for an invalid wallet address', async () => {
+    const response = await createApp(createServices()).request(
+      `http://localhost/users/${VALID_UUID}/wallets/challenge`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ wallet: 'invalid' }),
+      },
+    );
+    expect(response.status).toBe(400);
+  });
+});
+
 describe('POST /users/:userId/wallets', () => {
+  it('forwards the ownership signature to the service', async () => {
+    const services = createServices();
+    const signature = `0x${'ab'.repeat(65)}`;
+    const response = await createApp(services).request(
+      `http://localhost/users/${VALID_UUID}/wallets`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ wallet: VALID_WALLET, signature }),
+      },
+    );
+    expect(response.status).toBe(201);
+    expect((services.usersService.addWallet as Mock).mock.calls[0]).toEqual([
+      VALID_UUID,
+      VALID_WALLET,
+      undefined,
+      signature,
+    ]);
+  });
+
+  it('returns 400 for a malformed signature', async () => {
+    const response = await createApp(createServices()).request(
+      `http://localhost/users/${VALID_UUID}/wallets`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ wallet: VALID_WALLET, signature: '0x1234' }),
+      },
+    );
+    expect(response.status).toBe(400);
+  });
+
   it('returns 201 for a valid userId + wallet', async () => {
     const response = await createApp(createServices()).request(
       `http://localhost/users/${VALID_UUID}/wallets`,
