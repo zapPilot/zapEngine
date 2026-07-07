@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 interface SparklineProps {
   data: number[];
   height?: number;
@@ -15,8 +17,11 @@ const VIEWBOX_WIDTH = 300;
  * fill). Same geometry: y-domain pinned to [min, max], area baseline at the
  * bottom, 4px top margin so the 2px stroke never clips. The gold #d4c5a3 is
  * the design-tokens accent, hardcoded identically to the app implementation.
+ *
+ * Memoized: hero parents re-render every animation frame during the
+ * net-worth count-up, while this component's props stay stable.
  */
-export function Sparkline({
+export const Sparkline = memo(function Sparkline({
   data,
   height = 54,
   gradientId,
@@ -73,4 +78,4 @@ export function Sparkline({
       />
     </svg>
   );
-}
+});

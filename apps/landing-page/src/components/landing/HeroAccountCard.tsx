@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ALLOCATION_PILLARS } from '@/config/allocation';
 import { AllocationBar } from '@/components/primitives/AllocationBar';
 import { Sparkline } from '@/components/primitives/Sparkline';
@@ -28,14 +28,21 @@ const SPARKLINE_DATA = [
   110.1, 113.6, 115.2, 114.3, 117.8,
 ];
 
-/** Rebalance states cycled by the idle loop (weights sum to 100). */
+/**
+ * Rebalance states cycled by the idle loop (weights sum to 100). The first
+ * state is derived from the shared pillar config so the canonical weights
+ * are defined exactly once (see review: duplicated 42/38/20).
+ */
+const BASE_WEIGHTS: readonly number[] = ALLOCATION_PILLARS.map(
+  (pillar) => pillar.weight,
+);
 const REBALANCE_STATES: ReadonlyArray<readonly number[]> = [
-  [42, 38, 20],
+  BASE_WEIGHTS,
   [36, 34, 30],
   [46, 40, 14],
 ];
 
-const INITIAL_WEIGHTS = REBALANCE_STATES[0] ?? [42, 38, 20];
+const INITIAL_WEIGHTS = BASE_WEIGHTS;
 
 const REBALANCE_INTERVAL_MS = 8000;
 const SWEEP_DURATION_MS = 1500;
@@ -51,20 +58,57 @@ function formatUsdParts(value: number): [string, string] {
   return [integer, fraction];
 }
 
+function getPrefersReducedMotion(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
+
+/**
+ * Tracks `prefers-reduced-motion`, including mid-session changes. Defaults
+ * to `false` where `matchMedia` is unavailable (older engines, JSDOM).
+ */
+function usePrefersReducedMotion(): boolean {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
+    getPrefersReducedMotion,
+  );
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') {
+      return undefined;
+    }
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = (event: MediaQueryListEvent) => {
+      setPrefersReducedMotion(event.matches);
+    };
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+
+  return prefersReducedMotion;
+}
+
 export function HeroAccountCard() {
   const [displayValue, setDisplayValue] = useState(NET_WORTH_USD);
   const [weights, setWeights] = useState(INITIAL_WEIGHTS);
   const [pulsing, setPulsing] = useState(false);
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {
-    const reduceMotion =
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduceMotion) {
+    if (prefersReducedMotion) {
+      // Snap to (or restore) the terminal state and hold it.
+      setDisplayValue(NET_WORTH_USD);
+      setWeights(INITIAL_WEIGHTS);
+      setPulsing(false);
       return undefined;
     }
 
     // Act ③ — account reveal: net worth counts up while the card settles.
+    // NOTE: COUNT_UP_DELAY_MS must stay below the card's `account-settle`
+    // animation delay (1.2s in landing.css) so the reset to $0 happens while
+    // the card is still at opacity 0. Keep the two in sync when tuning.
     let frame = 0;
     const startedAt = performance.now();
     setDisplayValue(0);
@@ -102,13 +146,25 @@ export function HeroAccountCard() {
         clearTimeout(sweepTimer);
       }
     };
-  }, []);
+  }, [prefersReducedMotion]);
+
+  // Stable reference so the memoized AllocationBar skips the ~60fps
+  // re-renders caused by the count-up's setDisplayValue.
+  const allocationSegments = useMemo(
+    () =>
+      ALLOCATION_PILLARS.map((pillar, index) => ({
+        color: `var(--${pillar.key})`,
+        value: weights[index] ?? 0,
+      })),
+    [weights],
+  );
 
   const [integerPart, fractionPart] = formatUsdParts(displayValue);
 
   return (
     <div
       className={pulsing ? 'account-card pulse' : 'account-card'}
+      role="group"
       aria-label="Zap Pilot account preview"
     >
       <div className="account-card-top">
@@ -138,13 +194,7 @@ export function HeroAccountCard() {
         />
       </div>
 
-      <AllocationBar
-        className="account-alloc"
-        segments={ALLOCATION_PILLARS.map((pillar, index) => ({
-          color: `var(--${pillar.key})`,
-          value: weights[index] ?? 0,
-        }))}
-      />
+      <AllocationBar className="account-alloc" segments={allocationSegments} />
 
       <div className="account-legend">
         {ALLOCATION_PILLARS.map((pillar, index) => (
