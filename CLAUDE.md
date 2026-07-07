@@ -92,6 +92,8 @@ Dependency rule (one line): _the intent core is a pure package; only plan-orches
 
 Where plan-orchestration lives today vs. when to extract `apps/plan-orchestration`: see [apps/account-engine/docs/plan-orchestration-evolution.md](apps/account-engine/docs/plan-orchestration-evolution.md) — that doc is the single source of truth for the migration state; do not restate it here.
 
+Trust boundaries, custody tiers, and the centralization taxonomy across these planes: see [docs/adr/0002](docs/adr/0002-trust-boundaries-and-progressive-decentralization.md).
+
 # Pre-commit & local verification
 
 Pre-commit runs only **fast** checks: `pnpm install` (frozen lockfile), `lint repo` drift checks, and `lint-staged` ESLint/Prettier on staged files. The full CI gate is **opt-in** locally; CI is authoritative.
