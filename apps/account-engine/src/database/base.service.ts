@@ -143,11 +143,18 @@ export abstract class BaseService {
     options: {
       select?: string;
       entityName?: string;
+      useServiceRole?: boolean;
     } = {},
   ): Promise<T> {
-    const { select = '*', entityName = 'Resource' } = options;
+    const {
+      select = '*',
+      entityName = 'Resource',
+      useServiceRole = false,
+    } = options;
 
-    const builder = this.supabase.from(table as never).insert(data as never);
+    const builder = this.resolveClient(useServiceRole)
+      .from(table as never)
+      .insert(data as never);
     const query = select ? builder.select(select) : builder;
 
     const result = await query.single();

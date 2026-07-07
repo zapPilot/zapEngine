@@ -8,6 +8,7 @@ import { JobProcessorService } from './modules/jobs/job-processor.service';
 import { JobQueueService } from './modules/jobs/job-queue.service';
 import { DailySuggestionProcessor } from './modules/jobs/processors/daily-suggestion.processor';
 import { WeeklyReportProcessor } from './modules/jobs/processors/weekly-report.processor';
+import { LedgerService } from './modules/ledger';
 import { AdminNotificationService } from './modules/notifications/admin-notification.service';
 import { AnalyticsClientService } from './modules/notifications/analytics-client.service';
 import { ChartService } from './modules/notifications/chart.service';
@@ -51,6 +52,7 @@ export interface AppServices {
   activityTracker: ActivityTracker;
   planOrchestrationService: PlanOrchestrationService;
   privyWalletExecutionService: PrivyWalletExecutionService;
+  ledgerService: LedgerService;
 }
 
 export function createContainer(
@@ -107,6 +109,7 @@ export function createContainer(
     telegramService,
   );
   const activityTracker = new ActivityTracker(databaseService);
+  const ledgerService = new LedgerService(databaseService);
   const planOrchestrationService = createPlanOrchestrationModule({
     lifi: {
       integrator: env.LIFI_INTEGRATOR,
@@ -163,6 +166,7 @@ export function createContainer(
     activityTracker,
     planOrchestrationService,
     privyWalletExecutionService,
+    ledgerService,
   };
 }
 

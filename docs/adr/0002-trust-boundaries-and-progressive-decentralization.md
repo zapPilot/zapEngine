@@ -305,8 +305,10 @@ duplicated.
       UX rides with 0001-M1/M2
 - [ ] A2. Timeboxed spike: can Ambire/OKX 7702 session scoping express
       whitelist + per-tx cap + revoke? Record findings — D3 Stage B
-- [ ] A3. Event schema + account-engine append-only event tables
-      (signal/decision/plan/execution, carrying `strategyVersion`) — D5 phase 1
+- [x] A3. Event schema + account-engine append-only event tables
+      (signal/decision/plan/execution, carrying `strategyVersion`) — D5 phase 1.
+      Shipped as the `ledger` module + `ledger_*_events` tables (insert-only
+      grants + guard trigger); event producers wire in at 0001-M3 as planned
 - [ ] A4. Fold a decision-log digest into the track-record CID chain — D5
       phase 2
 - [ ] A5. Simulation-plane hardening: fail-closed simulation on the
