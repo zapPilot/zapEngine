@@ -62,6 +62,8 @@ export default defineKnipConfig({
     'react-native-screens',
     // Consumed by nativewind's tailwind pipeline, not imported from code.
     'tailwindcss',
+    // Referenced by string name in babel.config.js presets; knip cannot trace it.
+    'babel-preset-expo',
     // babel jsxImportSource emits react-native-css-interop/jsx-runtime
     // imports; pnpm's strict node_modules needs it as a direct dependency.
     'react-native-css-interop',
