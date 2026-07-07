@@ -29,6 +29,8 @@ export default defineKnipConfig({
   ignoreDependencies: [
     '@expo/metro-config',
     '@expo/metro-runtime',
+    // Referenced from babel.config.js by preset name for Expo's Metro/Babel pipeline.
+    'babel-preset-expo',
     '@privy-io/expo',
     '@privy-io/expo-native-extensions',
     '@privy-io/react-auth',
