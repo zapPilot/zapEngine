@@ -5,10 +5,11 @@
 
 ## Narrative
 
-Zap Pilot is a **self-custodial portfolio account**. The landing page and the
-app tell one story: your net worth, your three-pillar allocation, and a
-disciplined engine that rebalances by regime — the last step is always your
-signature.
+Zap Pilot is a **self-custodial investment autopilot** — the user-facing
+line is **Your net worth, on autopilot.** The landing page and the app tell
+one story: your net worth, your three-pillar allocation, and a disciplined
+engine that rebalances by regime. Every move is signed from your wallet, held
+by no one else.
 
 > Buy in fear. Defend in greed.
 

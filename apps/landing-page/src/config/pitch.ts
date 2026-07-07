@@ -10,7 +10,7 @@ export const PITCH_CTAS = {
 export const PITCH_META = {
   title: `${MESSAGES.common.brandName} — Investor Pitch`,
   description:
-    'A non-custodial BlackRock in your wallet. Rules-based allocation across S&P 500, BTC/ETH, and stablecoins — wallet-signed execution.',
+    'BlackRock in your wallet — then, precisely: the self-custodial robo-advisor for rules-based allocation across S&P 500, BTC/ETH, and stablecoins, with wallet-signed execution and no custody.',
   url: 'https://zap-pilot.org/pitch',
 } as const;
 
@@ -63,12 +63,12 @@ export const PITCH_STRATEGY = {
 
 export const PITCH_EXECUTION = {
   kicker: 'Execution',
-  headline: 'One signature. No custody. No standing approval.',
+  headline: 'One signature. No custody. No discretion.',
   bullets: [
     'EIP-7702 atomic batch on supporting wallets',
     'Sequential approve + execute fallback elsewhere',
     'One signature from your own externally-owned account',
-    'No pooled funds, no discretionary manager',
+    'No pooled funds, no discretionary manager, no custody',
   ],
   flow: [
     'Regime shift detected',

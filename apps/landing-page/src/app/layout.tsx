@@ -25,14 +25,14 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 const SITE_DESCRIPTION =
-  'A self-custodial portfolio account: your net worth, three-pillar allocation, and regime-aware rebalancing — every trade signed from your own wallet.';
+  'A self-custodial investment autopilot: your net worth, three-pillar allocation, and regime-aware rebalancing — every trade signed from your own wallet, held by no one else.';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://zap-pilot.org'),
   title: 'Zap Pilot — Your Net Worth, on Autopilot',
   description: SITE_DESCRIPTION,
   keywords:
-    'portfolio account, net worth, tokenized S&P500, Ondo, BTC ETH allocation, stablecoin, regime trading, 200MA, Fear and Greed Index, self-custody, EOA wallet, EIP-7702, bundled transaction, rebalancing, backtested',
+    'self-custodial robo-advisor, investment autopilot, net worth, tokenized S&P500, Ondo, BTC ETH allocation, stablecoin, regime trading, 200MA, Fear and Greed Index, self-custody, EOA wallet, EIP-7702, bundled transaction, rebalancing, backtested',
   authors: [{ name: 'Zap Pilot Team' }],
   openGraph: {
     title: 'Zap Pilot — Your Net Worth, on Autopilot',
