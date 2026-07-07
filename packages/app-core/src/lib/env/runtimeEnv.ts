@@ -146,10 +146,11 @@ export function isDesktopRuntime(): boolean {
  * ```
  */
 export function toSeconds(value: string | undefined, fallback: number): number {
-  if (!value) {
+  const normalized = value?.trim();
+  if (!normalized) {
     return fallback;
   }
 
-  const parsed = Number(value);
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
