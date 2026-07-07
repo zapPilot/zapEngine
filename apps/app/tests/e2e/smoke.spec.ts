@@ -16,11 +16,36 @@ const PODCAST_FIXTURE = {
 };
 
 const PRIMARY_ROUTES = [
-  { label: 'Home', path: '/home', url: /\/home$/ },
-  { label: 'Strategy', path: '/strategy', url: /\/strategy$/ },
-  { label: 'Podcast', path: '/podcast', url: /\/podcast$/ },
-  { label: 'Activity', path: '/activity', url: /\/activity$/ },
-  { label: 'Account', path: '/account', url: /\/account$/ },
+  {
+    label: 'Home',
+    path: '/home',
+    url: /\/home$/,
+    anchors: ['Net worth', 'Balance trend'],
+  },
+  {
+    label: 'Strategy',
+    path: '/strategy',
+    url: /\/strategy$/,
+    anchors: ['Zap Strategy', 'Backtest'],
+  },
+  {
+    label: 'Podcast',
+    path: '/podcast',
+    url: /\/podcast$/,
+    anchors: ['Podcast', 'From Fed to Chain · Daily Episodes'],
+  },
+  {
+    label: 'Activity',
+    path: '/activity',
+    url: /\/activity$/,
+    anchors: ['Activity'],
+  },
+  {
+    label: 'Account',
+    path: '/account',
+    url: /\/account$/,
+    anchors: ['Account', 'Mode'],
+  },
 ] as const;
 
 const ERROR_PAGE_PATTERN =
@@ -35,10 +60,14 @@ async function routePodcastFeed(page: Page): Promise<void> {
   });
 }
 
-async function expectHealthyAppShell(page: Page): Promise<void> {
+async function expectHealthyRoute(
+  page: Page,
+  anchors: readonly string[],
+): Promise<void> {
   await expect(page.locator('body')).not.toContainText(ERROR_PAGE_PATTERN);
-  await expect(page.getByText('Home', { exact: true })).toBeVisible();
-  await expect(page.getByText('Strategy', { exact: true })).toBeVisible();
+  for (const anchor of anchors) {
+    await expect(page.getByText(anchor, { exact: true }).first()).toBeVisible();
+  }
 }
 
 test('renders the web app shell and primary routes without page errors', async ({
@@ -54,7 +83,7 @@ test('renders the web app shell and primary routes without page errors', async (
     await test.step(`route ${route.label}`, async () => {
       await page.goto(route.path);
       await expect(page).toHaveURL(route.url);
-      await expectHealthyAppShell(page);
+      await expectHealthyRoute(page, route.anchors);
     });
   }
 
