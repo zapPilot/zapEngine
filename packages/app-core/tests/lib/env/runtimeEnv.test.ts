@@ -91,6 +91,26 @@ describe('runtimeEnv', () => {
         }
       }
     });
+
+    it('falls back to development when NODE_ENV and injected MODE are blank', async () => {
+      const env = await loadRuntimeEnv();
+      const originalNodeEnv = process.env['NODE_ENV'];
+      process.env['NODE_ENV'] = '';
+
+      try {
+        env.configureAppCoreEnv({ MODE: '' });
+
+        expect(env.isRuntimeMode('development')).toBe(true);
+        expect(env.isRuntimeMode('test')).toBe(false);
+        expect(env.isRuntimeMode('production')).toBe(false);
+      } finally {
+        if (originalNodeEnv !== undefined) {
+          process.env['NODE_ENV'] = originalNodeEnv;
+        } else {
+          delete process.env['NODE_ENV'];
+        }
+      }
+    });
   });
 
   describe('getAppRuntime', () => {
