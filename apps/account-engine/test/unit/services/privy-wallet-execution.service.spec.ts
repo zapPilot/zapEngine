@@ -427,5 +427,132 @@ describe('PrivyWalletExecutionService', () => {
         service.prepareSendCalls(batch, accessToken),
       ).rejects.toThrow('Privy request expiry is unexpectedly disabled');
     });
+
+    it('throws when Privy reports a terminal-failure transaction status', async () => {
+      const { getTransaction } = installMockPrivyClient();
+      vi.mocked(getTransaction).mockResolvedValue({
+        id: 'real-privy-tx-id',
+        caip2: 'eip155:8453',
+        created_at: Date.now(),
+        status: 'execution_reverted',
+        wallet_id: batch.walletId,
+      });
+      const service = createPrivyWalletExecutionService({
+        appId: 'real-app-id',
+        appSecret: 'real-app-secret',
+        tenderlySimulationService: simulationService(),
+      });
+      const prepared = await service.prepareSendCalls(batch, accessToken);
+      if (prepared.status !== 'passed')
+        throw new Error('Expected passed preview');
+
+      await expect(
+        service.confirmSendCalls(
+          confirmRequest(prepared.previewId),
+          accessToken,
+        ),
+      ).rejects.toThrow(
+        'Privy transaction real-privy-tx-id reached execution_reverted without a transaction hash',
+      );
+    });
+
+    it('resolves without a hash and warns when Privy never returns one before the polling timeout', async () => {
+      vi.useFakeTimers();
+      try {
+        const { getTransaction } = installMockPrivyClient();
+        vi.mocked(getTransaction).mockImplementation(async () => {
+          await Promise.resolve();
+          return {
+            id: 'real-privy-tx-id',
+            caip2: 'eip155:8453',
+            created_at: Date.now(),
+            status: 'broadcasted',
+            wallet_id: batch.walletId,
+          };
+        });
+        const warnSpy = vi
+          .spyOn(console, 'warn')
+          .mockImplementation(() => undefined);
+        const service = createPrivyWalletExecutionService({
+          appId: 'real-app-id',
+          appSecret: 'real-app-secret',
+          tenderlySimulationService: simulationService(),
+        });
+        const prepared = await service.prepareSendCalls(batch, accessToken);
+        if (prepared.status !== 'passed')
+          throw new Error('Expected passed preview');
+
+        const confirmPromise = service.confirmSendCalls(
+          confirmRequest(prepared.previewId),
+          accessToken,
+        );
+
+        await vi.advanceTimersByTimeAsync(35_000);
+
+        const result = await confirmPromise;
+
+        expect(result).toMatchObject({
+          status: 'submitted',
+          transactionId: 'real-privy-tx-id',
+        });
+        expect(result).not.toHaveProperty('transactionHash');
+        expect(warnSpy).toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('attaches the last poll error to the timeout warning when getTransaction rejects', async () => {
+      vi.useFakeTimers();
+      try {
+        const { getTransaction } = installMockPrivyClient();
+        vi.mocked(getTransaction).mockRejectedValue(
+          new Error('transient tenderly-api hiccup'),
+        );
+        const warnSpy = vi
+          .spyOn(console, 'warn')
+          .mockImplementation(() => undefined);
+        const service = createPrivyWalletExecutionService({
+          appId: 'real-app-id',
+          appSecret: 'real-app-secret',
+          tenderlySimulationService: simulationService(),
+        });
+        const prepared = await service.prepareSendCalls(batch, accessToken);
+        if (prepared.status !== 'passed')
+          throw new Error('Expected passed preview');
+
+        const confirmPromise = service.confirmSendCalls(
+          confirmRequest(prepared.previewId),
+          accessToken,
+        );
+
+        await vi.advanceTimersByTimeAsync(35_000);
+
+        const result = await confirmPromise;
+
+        expect(result).toMatchObject({
+          status: 'submitted',
+          transactionId: 'real-privy-tx-id',
+        });
+        expect(result).not.toHaveProperty('transactionHash');
+        expect(warnSpy).toHaveBeenCalled();
+        const warningLine = warnSpy.mock.calls[0]?.[0] as string | undefined;
+        expect(warningLine).toContain('transient tenderly-api hiccup');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('instantiates the default Tenderly service when individual Tenderly credentials are provided', () => {
+      const service = createPrivyWalletExecutionService({
+        appId: 'real-app-id',
+        appSecret: 'real-app-secret',
+        tenderlyAccountSlug: 'tenderly-account',
+        tenderlyProjectSlug: 'tenderly-project',
+        tenderlyAccessToken: 'tenderly-token',
+      });
+
+      expect(service).toBeDefined();
+    });
   });
 });
