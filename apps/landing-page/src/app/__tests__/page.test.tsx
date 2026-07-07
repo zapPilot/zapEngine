@@ -8,9 +8,10 @@ describe('LandingPage', () => {
       const { container } = render(<LandingPage />);
       const content = container.textContent || '';
 
-      expect(content).toMatch(/A Non-Custodial BlackRock in Your Wallet/);
-      expect(content).toMatch(/Three steps/);
-      expect(content).toMatch(/What the engine trades into/);
+      expect(content).toMatch(/Your net worth, on autopilot/);
+      expect(content).toMatch(/The account you actually get/);
+      expect(content).toMatch(/Your account, looked after/);
+      expect(content).toMatch(/What your account holds/);
       expect(content).toMatch(/Trades drove the return/);
       expect(content).toMatch(/Before you connect a wallet/);
       expect(content).toMatch(/Where idle capital parks/);
@@ -48,13 +49,13 @@ describe('LandingPage', () => {
       const { container } = render(<LandingPage />);
       const content = container.textContent || '';
 
-      const heroIndex = content.indexOf(
-        'A Non-Custodial BlackRock in Your Wallet',
-      );
-      const howItWorksIndex = content.indexOf('Three steps');
+      const heroIndex = content.indexOf('Your net worth, on autopilot');
+      const productTourIndex = content.indexOf('The account you actually get');
+      const howItWorksIndex = content.indexOf('Your account, looked after');
       const faqIndex = content.indexOf('Before you connect a wallet');
       const protocolsIndex = content.indexOf('Where idle capital parks');
-      expect(heroIndex).toBeLessThan(howItWorksIndex);
+      expect(heroIndex).toBeLessThan(productTourIndex);
+      expect(productTourIndex).toBeLessThan(howItWorksIndex);
       expect(faqIndex).toBeLessThan(protocolsIndex);
       expect(heroIndex).toBeGreaterThan(-1);
       expect(faqIndex).toBeGreaterThan(-1);
@@ -96,12 +97,12 @@ describe('LandingPage', () => {
       const hasLaunchApp = ctaLinks.some((link) =>
         link.textContent?.includes('Launch App'),
       );
-      const hasTelegramBot = ctaLinks.some((link) =>
-        link.textContent?.includes('Connect Telegram Bot'),
+      const hasOpenApp = ctaLinks.some((link) =>
+        link.textContent?.includes('Open the app'),
       );
 
       expect(hasLaunchApp).toBe(true);
-      expect(hasTelegramBot).toBe(true);
+      expect(hasOpenApp).toBe(true);
     });
   });
 });

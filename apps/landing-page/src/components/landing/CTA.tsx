@@ -16,7 +16,7 @@ export function CTA() {
       <div className="cta-row center">
         <a
           className="btn btn-primary"
-          href={LINKS.telegramBot}
+          href={LINKS.app}
           target="_blank"
           rel="noopener noreferrer"
         >

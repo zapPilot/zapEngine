@@ -1,49 +1,46 @@
+import { ALLOCATION_PILLARS } from '@/config/allocation';
+import { AllocationBar } from '@/components/primitives/AllocationBar';
 import { Section } from '@/components/primitives/Section';
 
-const PILLARS = [
-  {
-    color: 'spy',
-    name: 'S&P 500',
-    tag: 'TRADE INTO EQUITIES',
-    stat: '42%',
-    body: "Tokenized U.S. equity exposure gives the allocator a traditional risk-on anchor without leaving your wallet's control surface.",
-  },
-  {
-    color: 'btc',
-    name: 'BTC · ETH',
-    tag: 'TRADE INTO CRYPTO BETA',
-    stat: '38%',
-    body: 'Digital asset beta is added when the regime rewards risk, with ETH/BTC relative strength deciding the inner crypto rotation.',
-  },
-  {
-    color: 'usd',
-    name: 'USDC',
-    tag: 'TRADE INTO DEFENSE',
-    stat: '20%',
-    body: 'Stablecoins become the active destination when the rules defend capital. Yield can accrue there, but the trade is the point.',
-  },
-] as const;
+const PILLAR_DETAILS: Record<
+  (typeof ALLOCATION_PILLARS)[number]['key'],
+  string
+> = {
+  spy: "Tokenized U.S. equity exposure gives your account a traditional risk-on anchor without leaving your wallet's control surface.",
+  btc: 'Digital asset beta is added when the regime rewards risk, with ETH/BTC relative strength deciding the inner crypto rotation.',
+  usd: 'Stablecoins become the active destination when the rules defend capital. Yield can accrue there, but the trade is the point.',
+};
 
 export function Pillars() {
   return (
     <Section
+      id="strategy"
       className="pillars-deep"
       ariaLabelledBy="pillars-title"
-      kicker="Three-pillar allocator"
+      kicker="Three-pillar account"
     >
-      <h2 id="pillars-title">What the engine trades into.</h2>
+      <h2 id="pillars-title">What your account holds.</h2>
       <p className="pillar-disclaimer">
         Example regime-based allocation. Actual weights shift with the live
         regime.
       </p>
+      <AllocationBar
+        className="pillar-alloc"
+        height={10}
+        ariaLabel="Example allocation across the three pillars"
+        segments={ALLOCATION_PILLARS.map((pillar) => ({
+          color: `var(--${pillar.key})`,
+          value: pillar.weight,
+        }))}
+      />
       <div className="pillar-card-grid">
-        {PILLARS.map((pillar) => (
-          <article className="pillar-card" key={pillar.name}>
-            <div className={`pillar-dot ${pillar.color}`} aria-hidden />
-            <p className="pillar-tag">{pillar.tag}</p>
-            <h3>{pillar.name}</h3>
-            <div className="brushed-stat">{pillar.stat}</div>
-            <p>{pillar.body}</p>
+        {ALLOCATION_PILLARS.map((pillar) => (
+          <article className="pillar-card" key={pillar.key}>
+            <div className={`pillar-dot ${pillar.key}`} aria-hidden />
+            <p className="pillar-tag">{pillar.tag.toUpperCase()}</p>
+            <h3>{pillar.label}</h3>
+            <div className="brushed-stat">{pillar.weight}%</div>
+            <p>{PILLAR_DETAILS[pillar.key]}</p>
           </article>
         ))}
       </div>

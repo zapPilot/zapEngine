@@ -22,13 +22,13 @@ describe('Hero', () => {
     it('renders main heading', () => {
       render(<Hero />);
       expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-        'A Non-Custodial BlackRock in Your Wallet.',
+        'Your net worth, on autopilot.',
       );
     });
 
     it('renders eyebrow text', () => {
       render(<Hero />);
-      expect(screen.getByText(/Non-custodial/)).toBeInTheDocument();
+      expect(screen.getByText(/Portfolio account/)).toBeInTheDocument();
     });
 
     it('renders mocked canvas component', () => {
@@ -39,29 +39,42 @@ describe('Hero', () => {
     });
   });
 
-  describe('pillars', () => {
-    it('renders all three hero pillars', () => {
+  describe('account card', () => {
+    it('renders the account preview card', () => {
+      render(<Hero />);
+      expect(
+        screen.getByLabelText('Zap Pilot account preview'),
+      ).toBeInTheDocument();
+    });
+
+    it('renders the net worth kicker and live chip', () => {
+      render(<Hero />);
+      expect(screen.getByText('Net worth')).toBeInTheDocument();
+      expect(screen.getByText(/live · mainnet/)).toBeInTheDocument();
+    });
+
+    it('renders all three allocation pillars in the legend', () => {
       render(<Hero />);
 
       expect(screen.getByText('S&P 500')).toBeInTheDocument();
-      expect(screen.getByText('BTC / ETH')).toBeInTheDocument();
+      expect(screen.getByText('BTC · ETH')).toBeInTheDocument();
       expect(screen.getByText('Stablecoins')).toBeInTheDocument();
     });
 
-    it('renders pillar tags', () => {
+    it('renders allocation weights', () => {
       render(<Hero />);
 
-      expect(screen.getByText('Trade into equities')).toBeInTheDocument();
-      expect(screen.getByText('Trade into beta')).toBeInTheDocument();
-      expect(screen.getByText('Trade into defense')).toBeInTheDocument();
+      expect(screen.getByText('42%')).toBeInTheDocument();
+      expect(screen.getByText('38%')).toBeInTheDocument();
+      expect(screen.getByText('20%')).toBeInTheDocument();
     });
   });
 
   describe('CTA buttons', () => {
-    it('renders primary CTA link to telegram bot', () => {
+    it('renders primary CTA link to the app', () => {
       render(<Hero />);
       const ctaLink = screen.getByRole('link', {
-        name: /Connect Telegram Bot/,
+        name: /Open the app/,
       });
       expect(ctaLink).toHaveAttribute('target', '_blank');
       expect(ctaLink).toHaveAttribute('rel', 'noopener noreferrer');

@@ -26,18 +26,18 @@ export const MESSAGES = {
   slogans: {
     philosophy: 'Buy in fear. Defend in greed.',
     philosophyDescription:
-      'A rules-based, regime-aware allocator across S&P500 (Ondo), BTC/ETH, and stables — executed from your own EOA wallet with atomic batching where supported. ~90% of the return comes from buying weakness and defending in greed, not from yield.',
+      'A self-custodial portfolio account across S&P500 (Ondo), BTC/ETH, and stables — regime-aware rebalancing executed from your own EOA wallet with atomic batching where supported. ~90% of the return comes from buying weakness and defending in greed, not from yield.',
   },
 
   // Hero section
   hero: {
-    badge: 'Disciplined Portfolio Autopilot',
+    badge: 'Disciplined autopilot',
     title: {
-      primary: 'A Non-Custodial BlackRock in Your Wallet.',
+      primary: 'Your net worth, on autopilot.',
     },
     subtitle:
-      'Rules-based across S&P500, BTC/ETH, and stables — wallet-signed execution you keep.',
-    ctaPrimary: 'Connect Telegram Bot (Coming Soon)',
+      'One account across S&P500, BTC/ETH, and stables. Watch your net worth, allocation, and every rebalance — signed from your wallet, held by no one else.',
+    ctaPrimary: 'Open the app',
     ctaSecondary: 'See the Backtest',
   },
 
@@ -46,6 +46,37 @@ export const MESSAGES = {
     header: 'Telemetry feeding the next bundle',
     liveStatus: 'live · mainnet',
     pendingStatus: 'awaiting live telemetry',
+  },
+
+  // Product tour section — mirrors the app's Home / Portfolio / Invest screens
+  productTour: {
+    kicker: 'Product tour',
+    title: 'The account you actually get.',
+    subtitle:
+      'The hero is not a mockup — net worth, balance trend, and allocation are the first screen of the app. Here is the rest of it.',
+    frames: [
+      {
+        name: 'Home',
+        kicker: 'Net worth',
+        headline: 'Every pillar in one number.',
+        description:
+          'Net worth, balance trend, and wallet assets — with Invest and Send one tap away. Demo mode shows the same screen before you connect a wallet.',
+      },
+      {
+        name: 'Portfolio',
+        kicker: 'Strategy position',
+        headline: 'Metrics & allocation breakdown.',
+        description:
+          'Your strategy position, performance metrics, and the live three-pillar allocation — the same bar the engine rebalances.',
+      },
+      {
+        name: 'Invest',
+        kicker: 'Invest wizard',
+        headline: 'Amount → route → confirm → sign.',
+        description:
+          'A guided flow builds the plan; the last step is always your signature from your own wallet. EIP-7702 bundles where supported.',
+      },
+    ],
   },
 
   // Backtest proof section
@@ -109,16 +140,16 @@ export const MESSAGES = {
     title: "The goal isn't to trade more;",
     titleSecondLine: "it's to trade right.",
     subtitle:
-      'A rules engine watches the regime, builds the rebalance, and leaves custody with you. Yield waits in the background.',
-    ctaPrimary: 'Connect Telegram Bot (Coming Soon)',
+      'A rules engine watches the regime, builds the rebalance, and hands your account a single signature. Custody never leaves your wallet.',
+    ctaPrimary: 'Open the app',
     ctaSecondary: 'Read the Strategy',
   },
 
   // How It Works section
   howItWorks: {
-    title: 'Three steps. Your signature.',
+    title: 'Your account, looked after.',
     subtitle:
-      'The engine turns regime data into a concrete allocation change, then hands execution back to your wallet.',
+      'Three steps between market data and your portfolio — the last one is always your signature.',
     steps: [
       {
         title: 'Sense',
@@ -130,13 +161,13 @@ export const MESSAGES = {
         title: 'Decide',
         meta: 'Buy fear · defend greed',
         description:
-          'Regime moves trigger a target allocation across S&P500, BTC/ETH, and stables. The engine trades into the pillar the rules call for.',
+          'Regime moves become a new target allocation for your account across S&P500, BTC/ETH, and stables. The engine trades into the pillar the rules call for.',
       },
       {
         title: 'Sign',
-        meta: 'EIP-7702 · sequential',
+        meta: 'In-app · EIP-7702',
         description:
-          'Telegram delivers a pre-built plan. Atomic wallets sign one EIP-7702 bundle; other wallets approve and execute sequentially. Your keys stay in control.',
+          'The app presents the rebalance as one pre-built plan. Review it and sign from your own wallet — atomic wallets sign one EIP-7702 bundle; others approve and execute sequentially. Your keys stay in control.',
       },
     ],
   },
@@ -196,6 +227,21 @@ export const MESSAGES = {
     subtitle:
       'The strategy is designed to stay self-custodial, explicit, and reviewable. These are the practical questions that should be answered before anyone signs.',
     items: [
+      {
+        question: 'What do I see inside the app?',
+        answer:
+          "A portfolio account: your net worth, balance trend, three-pillar allocation, wallet assets, and the full activity log. The engine's telemetry — regime, signals, next rebalance — is visible, not hidden.",
+      },
+      {
+        question: 'Is there a demo mode?',
+        answer:
+          'Yes. The app opens in Demo mode with the same Home, Portfolio, and Invest screens populated by sample data. Connect a wallet to switch to Live.',
+      },
+      {
+        question: 'Is the app on web and mobile?',
+        answer:
+          'One codebase ships to web and mobile. The same account — net worth, portfolio, and activity — follows you across devices.',
+      },
       {
         question: 'How is Zap Pilot truly non-custodial?',
         answer:

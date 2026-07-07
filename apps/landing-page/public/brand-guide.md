@@ -1,142 +1,58 @@
 # Zap Pilot Brand Guide
 
-## Logo Files
+> Source of truth: `packages/design-tokens/tokens.json`. This document mirrors
+> those tokens for humans — if the two ever disagree, `tokens.json` wins.
 
-### Primary Logo
+## Narrative
 
-- `zap-pilot-logo.svg` - Full horizontal logo with text (light version)
-- `zap-pilot-logo-dark.svg` - Full horizontal logo for light backgrounds
+Zap Pilot is a **self-custodial portfolio account**. The landing page and the
+app tell one story: your net worth, your three-pillar allocation, and a
+disciplined engine that rebalances by regime — the last step is always your
+signature.
 
-### Icon Only
+> Buy in fear. Defend in greed.
 
-- `zap-pilot-icon.svg` - Circular icon without text
-- `favicon.ico` - Favicon for browsers
+## Color palette
 
-## Logo Usage
+| Token                  | Value                       | Usage                                          |
+| ---------------------- | --------------------------- | ---------------------------------------------- |
+| `--bg`                 | `#0a0a0a`                   | Page background                                |
+| `--bg-2` / `--surface` | `#0e0e10`                   | Cards, panels                                  |
+| `--surface-elevated`   | `#18181b`                   | Elevated surfaces                              |
+| `--ink`                | `#f4f4f5`                   | Primary text                                   |
+| `--ink-dim`            | `#a1a1aa`                   | Secondary text                                 |
+| `--ink-faint`          | `#52525b`                   | Tertiary text, numeral fractions               |
+| `--line`               | `rgba(255, 255, 255, 0.08)` | Hairline borders                               |
+| `--accent`             | `#d4c5a3`                   | Brand gold: CTAs, sparkline, molten highlights |
+| `--accent-soft`        | `rgba(212, 197, 163, 0.16)` | Gold washes                                    |
+| `--success`            | `#7ad88f`                   | Positive deltas                                |
+| `--error`              | `#ff6f61`                   | Negative deltas                                |
+| `--spy`                | `#d7dde7`                   | S&P 500 pillar                                 |
+| `--btc`                | `#f7931a`                   | BTC · ETH pillar                               |
+| `--usd`                | `#2775ca`                   | Stablecoin pillar                              |
 
-### Primary Logo
-
-Use the full logo whenever possible. Ideal for:
-
-- Website headers
-- Marketing materials
-- Documentation
-- Social media covers
-
-### Icon Only
-
-Use the icon for:
-
-- Favicons
-- Social media profile pictures
-- App icons
-- Small space applications
-
-## Color Palette
-
-### Primary Gradients
-
-- **Main Gradient**: Purple (#8B5CF6) → Blue (#3B82F6) → Indigo (#6366F1)
-- **Lightning Gradient**: Amber (#F59E0B) → Red (#EF4444)
-
-### Supporting Colors
-
-- **Background**: Dark Gray (#0F172A)
-- **Text**: White (#FFFFFF) and Gray variants
-- **Accent**: Purple/Blue gradients
+Dark, metallic, restrained. No purple/blue gradient washes, no generic
+SaaS glow. Pillar colors appear only in allocation contexts.
 
 ## Typography
 
-### Primary Font
+| Role               | Font             | Notes                                                  |
+| ------------------ | ---------------- | ------------------------------------------------------ |
+| Display / numerals | Instrument Serif | Net worth at 54/58, hero display sizes                 |
+| Body / UI          | Geist Sans       | Loaded via `next/font`, exposed as `--font-geist-sans` |
+| Data / kickers     | JetBrains Mono   | 9.5px uppercase kickers, letter-spacing ≈ 0.95px       |
 
-- **Inter** - Used for all text in the logo and branding
-- Clean, modern, highly legible
-- Excellent for digital applications
+Never fall back to an Inter/Arial-first stack; the sans stack starts with
+Geist on every surface (web, app, docs).
 
-### Font Weights
+## Motion
 
-- **ZAP**: 800 (Extra Bold)
-- **PILOT**: 600 (Semi Bold)
-- **Tagline**: 400 (Regular)
+- One shared easing: `cubic-bezier(0.2, 0.65, 0.3, 0.99)` (`--easing-primary`).
+- Hero storyboard: pour → settle → account reveal → rebalance pulse
+  (~8s idle loop). The terminal state is always the account card.
+- Honor `prefers-reduced-motion`: skip straight to the final, legible state.
 
-## Logo Construction
+## Radii
 
-### Icon Elements
-
-1. **Circular Background**: Gradient from purple to blue
-2. **Lightning Bolt**: Central element, amber to red gradient
-3. **Circuit Nodes**: Small decorative elements suggesting connectivity
-4. **Glow Effect**: Subtle outer glow for premium feel
-
-### Proportions
-
-- Icon: 48x48px minimum size
-- Full logo: 200x60px recommended ratio
-- Maintain aspect ratio when scaling
-
-## Usage Guidelines
-
-### DO
-
-✅ Use on dark backgrounds primarily
-✅ Maintain minimum clear space around logo
-✅ Keep proportions intact when scaling
-✅ Use provided file formats for best quality
-
-### DON'T
-
-❌ Distort or stretch the logo
-❌ Change colors from brand palette
-❌ Use on busy backgrounds without contrast
-❌ Remove elements from the icon design
-
-## Technical Specifications
-
-### File Formats
-
-- **SVG**: Vector format, scalable, recommended for web
-- **PNG**: Raster format with transparency
-- **ICO**: Favicon format for browsers
-
-### Minimum Sizes
-
-- Icon only: 16x16px
-- Full logo: 120x36px
-- Recommended: 200x60px or larger
-
-## Brand Personality
-
-The Zap Pilot logo conveys:
-
-- **Innovation**: Modern gradient and tech aesthetics
-- **Speed**: Lightning bolt suggests quick execution
-- **Connectivity**: Circuit elements show cross-chain capabilities
-- **Trust**: Professional design with premium feel
-- **Energy**: Vibrant colors and dynamic composition
-
-## Applications
-
-### Web
-
-- Website headers and footers
-- Social media profiles
-- Email signatures
-- Documentation sites
-
-### Print
-
-- Business cards
-- Presentations
-- Marketing collateral
-- Merchandise
-
-### Digital
-
-- App icons
-- Loading screens
-- Social media posts
-- Digital advertisements
-
----
-
-_This brand guide ensures consistent usage of the Zap Pilot visual identity across all applications and platforms._
+`--radius-pill` 999px · `--radius-control` 12px · `--radius-card` 8px
+(app cards render at 15px) · `--radius-subtle` 4px

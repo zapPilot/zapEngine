@@ -23,10 +23,10 @@ describe('CTA', () => {
   });
 
   describe('CTA links', () => {
-    it('renders primary CTA to telegram bot', () => {
+    it('renders primary CTA to the app', () => {
       render(<CTA />);
       const primaryCta = screen.getByRole('link', {
-        name: /Connect Telegram Bot/,
+        name: /Open the app/,
       });
       expect(primaryCta).toHaveAttribute('target', '_blank');
       expect(primaryCta).toHaveAttribute('rel', 'noopener noreferrer');
