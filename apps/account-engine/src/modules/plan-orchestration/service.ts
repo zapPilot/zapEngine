@@ -1,6 +1,9 @@
 import {
   type ApprovalRequirement,
+  assertApprovalCaps,
+  assertMinReceived,
   buildApproveTx,
+  type BundleSimulationAdapter,
   composeDeposit,
   GMX_V2_ADDRESSES,
   GMX_V2_ARBITRUM_CHAIN_ID,
@@ -28,6 +31,10 @@ import {
   type PublicClient,
 } from 'viem';
 
+import {
+  PlanSimulationFailedError,
+  PlanSimulationUnavailableError,
+} from './errors';
 import type { DepositPublicClients } from './publicClients';
 
 export interface PlanOrchestrationService {
@@ -39,6 +46,12 @@ export interface PlanOrchestrationService {
 
 /** Chain-id-keyed allocation weights, as consumed by composeDeposit. */
 export type DepositChainSplit = Partial<Record<number, number>>;
+
+/** Bundle-simulation dependency for the fail-closed plan gate (ADR 0002 A5). */
+export interface PlanSimulationDeps {
+  adapter: BundleSimulationAdapter;
+  mode: 'enforce' | 'off';
+}
 
 export interface PlanOrchestrationServiceDeps {
   intentEngine: Pick<
@@ -52,6 +65,8 @@ export interface PlanOrchestrationServiceDeps {
   defaultSplit?: DepositChainSplit;
   /** Hyperliquid network for HLP follow-up descriptors (default mainnet). */
   hyperliquidNetwork?: 'mainnet' | 'testnet';
+  /** Fail-closed bundle simulation gate (ADR 0002 A5); omitted = off. */
+  simulation?: PlanSimulationDeps;
 }
 
 function chainSplitFromRequest(
@@ -168,6 +183,68 @@ async function neededApprovalFromRequirement(params: {
   ];
 }
 
+/** Server-side slippage ceiling for routed calls (bps). */
+const MAX_PLAN_SLIPPAGE_BPS = 100;
+
+/**
+ * ADR 0002 A5 fail-closed gate, run on every plan before it is returned:
+ * the pure safety validators always, then the bundle simulation when
+ * enforced. `followUps` (HyperCore actions) are not EVM transactions and are
+ * never simulated — only the source-chain approvals+calls batch is.
+ */
+async function assertPlanSafety(params: {
+  plan: {
+    approvals: PreparedTransaction[];
+    calls: PreparedTransaction[];
+    sourceChainId: number;
+  };
+  userAddress: string;
+  intent: { fromToken?: string; fromAmount?: string };
+  simulation: PlanSimulationDeps | undefined;
+}): Promise<void> {
+  assertApprovalCaps(params.plan, params.intent);
+  assertMinReceived(params.plan, { maxSlippageBps: MAX_PLAN_SLIPPAGE_BPS });
+
+  if (params.simulation?.mode !== 'enforce') {
+    return;
+  }
+
+  const result = await params.simulation.adapter.simulateBundle({
+    chainId: params.plan.sourceChainId,
+    from: params.userAddress,
+    calls: [...params.plan.approvals, ...params.plan.calls],
+  });
+
+  if (result.status === 'failed') {
+    throw new PlanSimulationFailedError(result.reason);
+  }
+  if (result.status === 'unavailable') {
+    throw new PlanSimulationUnavailableError(result.reason);
+  }
+}
+
+async function finalizePlan<
+  T extends {
+    approvals: PreparedTransaction[];
+    calls: PreparedTransaction[];
+    sourceChainId: number;
+  },
+>(
+  plan: T,
+  params: {
+    userAddress: string;
+    simulation: PlanSimulationDeps | undefined;
+  },
+): Promise<T> {
+  await assertPlanSafety({
+    plan,
+    userAddress: params.userAddress,
+    intent: {},
+    simulation: params.simulation,
+  });
+  return plan;
+}
+
 function gmxCollateralAmount(approvals: PreparedTransaction[]): string {
   const routerAddress = GMX_V2_ADDRESSES.router.toLowerCase();
   const approval = approvals.find((tx) => {
@@ -185,6 +262,7 @@ export function createPlanOrchestrationService({
   hyperliquidNetwork,
   intentEngine,
   publicClients,
+  simulation,
 }: PlanOrchestrationServiceDeps): PlanOrchestrationService {
   return {
     async buildDeposit(request): Promise<DepositPlan> {
@@ -210,7 +288,17 @@ export function createPlanOrchestrationService({
           },
         );
 
-        return DepositPlanSchema.parse(plan);
+        const parsed = DepositPlanSchema.parse(plan);
+        await assertPlanSafety({
+          plan: parsed,
+          userAddress: request.userAddress,
+          intent: {
+            fromToken: request.fromToken,
+            fromAmount: request.fromAmount,
+          },
+          simulation,
+        });
+        return parsed;
       }
 
       const publicClient = publicClientFor(
@@ -232,24 +320,27 @@ export function createPlanOrchestrationService({
       const collateralAmount =
         gmxCollateralAmount(gmxPlan.approvals) || request.amount;
 
-      return DepositPlanSchema.parse({
-        legs: [
-          {
-            chainId: GMX_V2_ARBITRUM_CHAIN_ID,
-            kind: 'supply',
-            protocol: 'gmx-v2',
-            toToken: gmxPlan.market.collateralToken,
-            fromAmount: request.amount,
-            toAmountMin: collateralAmount,
-            gasUsd: '0',
-            durationSec: 60,
-          },
-        ],
-        approvals,
-        calls: gmxPlan.steps,
-        totalGasUsd: '0',
-        sourceChainId: GMX_V2_ARBITRUM_CHAIN_ID,
-      });
+      return finalizePlan(
+        DepositPlanSchema.parse({
+          legs: [
+            {
+              chainId: GMX_V2_ARBITRUM_CHAIN_ID,
+              kind: 'supply',
+              protocol: 'gmx-v2',
+              toToken: gmxPlan.market.collateralToken,
+              fromAmount: request.amount,
+              toAmountMin: collateralAmount,
+              gasUsd: '0',
+              durationSec: 60,
+            },
+          ],
+          approvals,
+          calls: gmxPlan.steps,
+          totalGasUsd: '0',
+          sourceChainId: GMX_V2_ARBITRUM_CHAIN_ID,
+        }),
+        { userAddress: request.userAddress, simulation },
+      );
     },
 
     async buildWithdraw(request): Promise<WithdrawPlan> {
@@ -272,24 +363,27 @@ export function createPlanOrchestrationService({
 
         // GMX settles long+short asynchronously via the keeper; the leg's
         // toToken is the market's representative collateral token. No swap.
-        return WithdrawPlanSchema.parse({
-          legs: [
-            {
-              chainId: GMX_V2_ARBITRUM_CHAIN_ID,
-              kind: 'withdraw',
-              protocol: 'gmx-v2',
-              toToken: gmxPlan.market.collateralToken,
-              fromAmount: request.gmAmount,
-              toAmountMin: '0',
-              gasUsd: '0',
-              durationSec: 60,
-            },
-          ],
-          approvals,
-          calls: gmxPlan.steps,
-          totalGasUsd: '0',
-          sourceChainId: GMX_V2_ARBITRUM_CHAIN_ID,
-        });
+        return finalizePlan(
+          WithdrawPlanSchema.parse({
+            legs: [
+              {
+                chainId: GMX_V2_ARBITRUM_CHAIN_ID,
+                kind: 'withdraw',
+                protocol: 'gmx-v2',
+                toToken: gmxPlan.market.collateralToken,
+                fromAmount: request.gmAmount,
+                toAmountMin: '0',
+                gasUsd: '0',
+                durationSec: 60,
+              },
+            ],
+            approvals,
+            calls: gmxPlan.steps,
+            totalGasUsd: '0',
+            sourceChainId: GMX_V2_ARBITRUM_CHAIN_ID,
+          }),
+          { userAddress: request.userAddress, simulation },
+        );
       }
 
       const { chainId } = request;
@@ -338,13 +432,16 @@ export function createPlanOrchestrationService({
         });
       }
 
-      return WithdrawPlanSchema.parse({
-        legs,
-        approvals,
-        calls: plan.steps,
-        totalGasUsd: plan.estimates.totalGasUsd,
-        sourceChainId: chainId,
-      });
+      return finalizePlan(
+        WithdrawPlanSchema.parse({
+          legs,
+          approvals,
+          calls: plan.steps,
+          totalGasUsd: plan.estimates.totalGasUsd,
+          sourceChainId: chainId,
+        }),
+        { userAddress: request.userAddress, simulation },
+      );
     },
   };
 }
