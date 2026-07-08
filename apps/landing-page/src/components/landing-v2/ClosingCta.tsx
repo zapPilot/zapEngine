@@ -14,6 +14,7 @@ export function ClosingCta() {
           your account a single signature. Custody never leaves your wallet.
         </p>
         <div className="zp-closing-ctas">
+          {/* jscpd:ignore-start — CTA button pair, intentionally consistent styling across landing sections */}
           <a
             className="zp-btn zp-btn-primary"
             href={LINKS.app}
@@ -30,6 +31,7 @@ export function ClosingCta() {
           >
             Read the strategy
           </a>
+          {/* jscpd:ignore-end */}
         </div>
       </div>
     </section>
