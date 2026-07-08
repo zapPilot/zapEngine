@@ -169,10 +169,12 @@ Staged mechanism:
   and client-side allowlist assertions (0001-M4). Honest status: **N3 is not
   met at Stage A**; the compensating controls are human review of every
   transaction (L0–L2) plus the simulation gate.
-- **Stage B (prerequisite for L3):** timeboxed spike — can Ambire/OKX 7702
-  session scoping express whitelist + per-tx cap + revoke? If yes, session keys
-  on audited third-party delegates are the mechanism; record findings the way
-  0001-M1 records its spike.
+- **Stage B (prerequisite for L3):** spike complete
+  ([2026-07-07 EIP-7702 session scoping](../spikes/2026-07-07-eip7702-session-scoping.md)) —
+  Ambire/OKX 7702 session scoping as shipped cannot express whitelist + per-tx
+  cap + revoke, so Stage C is not triggered; Stage B is re-scoped to the
+  MetaMask Delegation Framework (audited caveat enforcers on Base) as the
+  candidate mechanism for L3 session keys.
 - **Stage C (only if B falls short, and before L4):** a minimal custom delegate
   contract — the repo's first `.sol` and a new competence (toolchain, external
   audit budget). Scope stays exactly N3: whitelist, cap, revoke; nothing else.
@@ -303,11 +305,6 @@ duplicated.
       verify-on-bind + `ownership_verified_at`; the signature is optional at
       the API so observe-only bundle wallets keep working — app-side signing
       UX rides with 0001-M1/M2
-- [x] A2. Timeboxed spike: can Ambire/OKX 7702 session scoping express
-      whitelist + per-tx cap + revoke? Record findings — D3 Stage B. Findings:
-      [docs/spikes/2026-07-07-eip7702-session-scoping.md](../spikes/2026-07-07-eip7702-session-scoping.md)
-      — Ambire/OKX as-shipped: no; Stage C not triggered; re-scope Stage B to
-      the MetaMask Delegation Framework (audited caveat enforcers on Base)
 - [x] A3. Event schema + account-engine append-only event tables
       (signal/decision/plan/execution, carrying `strategyVersion`) — D5 phase 1.
       Shipped as the `ledger` module + `ledger_*_events` tables (insert-only
@@ -325,8 +322,6 @@ duplicated.
       simulation revert → 422, simulation outage → 503, never fail-open)
 - [ ] A6. Sequential execution fallback + leg-state persistence from D5
       events — Execution plane
-- [x] A7. Doc map: docs/README.md ADR index + root CLAUDE.md
-      architecture-planes pointer — done with this ADR
 
 Deferred to 0001's existing milestones: simulation diff UI → M2; first
 rebalance decision events → M3; client-side allowlist assertions → M4; policy
