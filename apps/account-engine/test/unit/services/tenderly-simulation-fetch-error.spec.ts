@@ -7,7 +7,9 @@ const TARGET = '0x4444444444444444444444444444444444444444';
 
 describe('TenderlySimulationService fetch errors', () => {
   it('fails closed as unavailable when the core simulation request throws', async () => {
-    const fetchFn = vi.fn().mockRejectedValueOnce(new TypeError('socket hang up'));
+    const fetchFn = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('socket hang up'));
     const service = createTenderlySimulationService({
       accountSlug: 'account-slug',
       projectSlug: 'project-slug',
