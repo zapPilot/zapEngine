@@ -79,6 +79,27 @@ gh run view <run-id> --log-failed
 Fix the whole batch of red jobs, then push once. Do not push after each small fix
 just to let CI reveal the next failure.
 
+## Connector-only formatting trap
+
+Connector-created test files still have to satisfy workspace Prettier checks.
+For a PR that changes only one test file, a repeated
+`@zapengine/<workspace>#format:check` failure is not an implementation problem;
+it means the agent skipped the same format gate twice.
+
+When shell access is available, run the changed workspace formatter before
+pushing a test-only PR:
+
+```bash
+pnpm turbo run format --filter=@zapengine/<workspace>
+pnpm turbo run format:check --filter=@zapengine/<workspace>
+```
+
+When only the GitHub connector is available, avoid guessing multi-line wrapping.
+After CI reports a Prettier diff, make a formatting-only follow-up commit and do
+not change test logic in the same commit. If the same file fails Prettier again,
+stop widening the PR and rewrite the touched file in smaller, Prettier-friendly
+expressions before another push.
+
 ## Cache invalidation traps
 
 Changing root files can expose unrelated-looking workspaces because Turbo inputs
