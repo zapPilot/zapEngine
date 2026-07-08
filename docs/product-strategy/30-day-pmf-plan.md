@@ -42,6 +42,7 @@ Tasks:
 - [ ] Add landing-page A/B copy:
   - A: `Your net worth, on autopilot — self-custodial`
   - B: `Buy in fear. Defend in greed. Signed from your own wallet.`
+  - Status 2026-07-07: copy A is live as the landing hero (`Your net worth, on autopilot.`); B has not run as an experiment yet.
 - [ ] Draft the security-model page around four proofs:
   - audited/known delegate path or honest current-stage wording
   - one-click revoke / delegation status explanation
@@ -96,7 +97,7 @@ Tasks:
 - [ ] Pick one chain/path for the cohort. Prefer the one that minimizes implementation risk and maximizes proof speed.
 - [ ] Make simulation diff the decisive confirm surface.
 - [ ] Add explicit worst-case language: min received, approval cap, route, failure mode.
-- [ ] Store enough execution state to recover or manually support a failed design-partner run.
+- [ ] Store enough execution state to recover or manually support a failed design-partner run. Foundation landed: `ledger_execution_events` is designated the leg-state store, but nothing writes to it yet (ADR 0002 A6).
 - [ ] Instrument first signature, completed execution, and second signature.
 
 Evidence to collect:

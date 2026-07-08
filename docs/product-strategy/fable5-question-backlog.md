@@ -31,7 +31,7 @@ Please be hostile but fair. Do not restate the previous strategy unless the evid
 
 ### 1. Is the trust claim marketing-safe yet?
 
-Context: ADR 0002 sets the correct north star, and Privy prepare/confirm now includes simulation preview, typed-data intent signature, risk hash, and re-simulation. But Tier H/Privy does not satisfy the long-term self-custody claim, and the on-chain policy floor is not implemented.
+Context: ADR 0002 sets the correct north star, and Privy prepare/confirm now includes simulation preview, typed-data intent signature, risk hash, and re-simulation. But Tier H/Privy does not satisfy the long-term self-custody claim, and the on-chain policy floor is not implemented. As of 2026-07-07 the landing page already ships `signed from your wallet, held by no one else` as live hero copy, so the wording question is no longer hypothetical.
 
 Ask:
 

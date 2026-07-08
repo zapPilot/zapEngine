@@ -23,10 +23,10 @@ Engineering trust north star, aligned with [ADR 0002](../adr/0002-trust-boundari
 | Primary ICP | Crypto-native high-net-worth individuals with roughly $50k-$5M on-chain, already self-custodying, too busy to watch markets all day. |
 | Fallback ICP | Small crypto-native team treasuries or small fund operators handled manually as concierge design partners. Do not support DAO governance or Safe flows yet. |
 | Category | Self-custodial robo-advisor. Say less about cross-chain, more about discipline. |
-| Conversion line | `Your net worth, on autopilot` + `signed from your wallet, held by no one else` once the trust model can support that claim honestly. |
+| Conversion line | `Your net worth, on autopilot` + `signed from your wallet, held by no one else`. Note: this line is already live on the landing page while the trust model is still Tier H/Privy — keeping it honest is an open action (see Positioning in [status-map.md](./status-map.md)). |
 | Wedge | Trust ladder: public regime signal -> Parking Strategy first deposit -> signed rebalance. |
 | Near-term revenue | Routing/integrator fee first; subscription for automation/signals second; avoid AUM/performance fees. |
-| Architecture bias | Keep EIP-7702. Make BYO-EOA first-class. Keep Privy as one onboarding rail, not the product identity. |
+| Architecture bias | Keep EIP-7702. Make BYO-EOA first-class. Keep Privy as one onboarding rail, not the product identity. Per the 2026-07-07 session-scoping spike (ADR 0002 A2), Ambire/OKX delegates cannot express the policy floor; Stage B targets the MetaMask Delegation Framework. |
 
 ## Files
 
