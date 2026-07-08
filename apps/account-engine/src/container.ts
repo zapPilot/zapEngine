@@ -126,6 +126,20 @@ export function createContainer(
     ...(env.HYPERLIQUID_NETWORK
       ? { hyperliquid: { network: env.HYPERLIQUID_NETWORK } }
       : {}),
+    simulation: {
+      ...(env.TENDERLY_ACCOUNT_SLUG &&
+      env.TENDERLY_PROJECT_SLUG &&
+      env.TENDERLY_ACCESS_TOKEN
+        ? {
+            tenderly: {
+              accountSlug: env.TENDERLY_ACCOUNT_SLUG,
+              projectSlug: env.TENDERLY_PROJECT_SLUG,
+              accessToken: env.TENDERLY_ACCESS_TOKEN,
+            },
+          }
+        : {}),
+      required: env.PLAN_SIMULATION_REQUIRED === 'true',
+    },
   });
   const privyWalletExecutionService = createPrivyWalletExecutionService({
     ...(env.PRIVY_APP_ID ? { appId: env.PRIVY_APP_ID } : {}),

@@ -5,6 +5,7 @@ import { RootProvider } from 'fumadocs-ui/provider/next';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import './globals.css';
 import './landing.css';
+import './landing-v2.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',

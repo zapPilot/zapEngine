@@ -8,16 +8,13 @@ describe('LandingPage', () => {
       const { container } = render(<LandingPage />);
       const content = container.textContent || '';
 
-      expect(content).toMatch(/Your net worth, on autopilot/);
-      expect(content).toMatch(/The autopilot you actually get/);
-      expect(content).toMatch(/Your self-custodial autopilot/);
-      expect(content).toMatch(/What your account holds/);
-      expect(content).toMatch(/Trades drove the return/);
-      expect(content).toMatch(/Before you connect a wallet/);
-      expect(content).toMatch(
-        /Yield is the onboarding step, not the positioning/,
-      );
-      expect(content).toMatch(/100% Self-Custody/);
+      expect(content).toMatch(/Your net worth,on autopilot\./);
+      expect(content).toMatch(/Buy in fear\. Defend in greed\./);
+      expect(content).toMatch(/Sense\. Decide\. Sign\./);
+      expect(content).toMatch(/Trades drove the return\./);
+      expect(content).toMatch(/Parking, between trades\./);
+      expect(content).toMatch(/The engine proposes\.Only you execute\./);
+      expect(content).toMatch(/100% self-custody · EOA/);
     });
 
     it('should render navigation links', () => {
@@ -30,19 +27,19 @@ describe('LandingPage', () => {
         screen.getAllByRole('link', { name: 'Performance' }).length,
       ).toBeGreaterThan(0);
       expect(
-        screen.getAllByRole('link', { name: 'Docs' }).length,
+        screen.getAllByRole('link', { name: 'Execution' }).length,
       ).toBeGreaterThan(0);
       expect(
-        screen.getAllByRole('link', { name: 'Pitch' }).length,
+        screen.getAllByRole('link', { name: 'Docs' }).length,
       ).toBeGreaterThan(0);
     });
   });
 
   describe('layout structure', () => {
-    it('should have shell-root class on main container', () => {
+    it('should have zp-root class on main container', () => {
       const { container } = render(<LandingPage />);
       const mainDiv = container.firstChild as HTMLElement;
-      expect(mainDiv).toHaveClass('shell-root');
+      expect(mainDiv).toHaveClass('zp-root');
     });
   });
 
@@ -51,20 +48,33 @@ describe('LandingPage', () => {
       const { container } = render(<LandingPage />);
       const content = container.textContent || '';
 
-      const heroIndex = content.indexOf('Your net worth, on autopilot');
-      const productTourIndex = content.indexOf(
-        'The autopilot you actually get',
-      );
-      const howItWorksIndex = content.indexOf('Your self-custodial autopilot');
-      const faqIndex = content.indexOf('Before you connect a wallet');
-      const protocolsIndex = content.indexOf(
-        'Yield is the onboarding step, not the positioning',
-      );
-      expect(heroIndex).toBeLessThan(productTourIndex);
-      expect(productTourIndex).toBeLessThan(howItWorksIndex);
-      expect(faqIndex).toBeLessThan(protocolsIndex);
+      const heroIndex = content.indexOf('Your net worth,on autopilot.');
+      const behaviorIndex = content.indexOf('Buy in fear. Defend in greed.');
+      const howItWorksIndex = content.indexOf('Sense. Decide. Sign.');
+      const proofIndex = content.indexOf('Trades drove the return.');
+      const yieldIndex = content.indexOf('Parking, between trades.');
+      const trustIndex = content.indexOf('The engine proposes.');
+
       expect(heroIndex).toBeGreaterThan(-1);
-      expect(faqIndex).toBeGreaterThan(-1);
+      expect(heroIndex).toBeLessThan(behaviorIndex);
+      expect(behaviorIndex).toBeLessThan(howItWorksIndex);
+      expect(howItWorksIndex).toBeLessThan(proofIndex);
+      expect(proofIndex).toBeLessThan(yieldIndex);
+      expect(yieldIndex).toBeLessThan(trustIndex);
+    });
+  });
+
+  describe('hero cockpit', () => {
+    it('should render the account cockpit preview with regime telemetry', () => {
+      const { container } = render(<LandingPage />);
+      const content = container.textContent || '';
+
+      expect(
+        screen.getByRole('group', { name: 'Account cockpit preview' }),
+      ).toBeInTheDocument();
+      expect(content).toMatch(/GREED/);
+      expect(content).toMatch(/Pending bundle/);
+      expect(content).toMatch(/Nothing moves without this signature/);
     });
   });
 

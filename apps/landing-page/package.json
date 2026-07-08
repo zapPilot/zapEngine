@@ -35,7 +35,6 @@
     "next": "^15.5.7",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "three": "^0.160.0",
     "viem": "catalog:"
   },
   "devDependencies": {
@@ -45,7 +44,6 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@types/three": "^0.160.0",
     "@vitejs/plugin-react": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@zapengine/design-tokens": "workspace:*",

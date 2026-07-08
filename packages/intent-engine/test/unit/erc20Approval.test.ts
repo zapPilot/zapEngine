@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { decodeFunctionData, erc20Abi, type Address } from 'viem';
+import { decodeFunctionData, erc20Abi, maxUint256, type Address } from 'viem';
 
 import {
   buildApproveTx,
   needsApproval,
 } from '../../src/approvals/erc20Approval.js';
+import { PlanSafetyViolationError } from '../../src/validators/plan-safety.validator.js';
 
 const USER = '0x1111111111111111111111111111111111111111' as Address;
 const TOKEN = '0x2222222222222222222222222222222222222222' as Address;
@@ -93,5 +94,16 @@ describe('ERC20 approval helpers', () => {
     });
     expect(decoded.functionName).toBe('approve');
     expect(decoded.args).toEqual([SPENDER, 1000n]);
+  });
+
+  it('refuses to build an unlimited approval', () => {
+    expect(() =>
+      buildApproveTx({
+        token: TOKEN,
+        spender: SPENDER,
+        amount: maxUint256.toString(),
+        chainId: 42161,
+      }),
+    ).toThrow(PlanSafetyViolationError);
   });
 });

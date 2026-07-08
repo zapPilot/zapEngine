@@ -314,10 +314,15 @@ duplicated.
       grants + guard trigger); event producers wire in at 0001-M3 as planned
 - [ ] A4. Fold a decision-log digest into the track-record CID chain — D5
       phase 2
-- [ ] A5. Simulation-plane hardening: fail-closed simulation on the
+- [x] A5. Simulation-plane hardening: fail-closed simulation on the
       plan-orchestration path; server-side min-received validation against the
       intent; allowance-cap validation on approvals — D2/N-invariants
-      (asset-diff rendering itself stays 0001-M2)
+      (asset-diff rendering itself stays 0001-M2). Shipped as intent-engine
+      plan-safety validators (approval caps + min-received, plus unlimited-
+      approve refusal in `buildApproveTx`) enforced on every plan-orchestration
+      response, and a Tenderly simulate-bundle gate (enforce when creds
+      present; `PLAN_SIMULATION_REQUIRED=true` fails boot without them;
+      simulation revert → 422, simulation outage → 503, never fail-open)
 - [ ] A6. Sequential execution fallback + leg-state persistence from D5
       events — Execution plane
 - [x] A7. Doc map: docs/README.md ADR index + root CLAUDE.md

@@ -1,4 +1,8 @@
-import { createIntentEngine, LiFiAdapter } from '@zapengine/intent-engine';
+import {
+  createIntentEngine,
+  createTenderlyBundleSimulationAdapter,
+  LiFiAdapter,
+} from '@zapengine/intent-engine';
 import {
   ChainSplitSchema,
   HYPERCORE_CHAIN_ID,
@@ -10,6 +14,7 @@ import {
   createPlanOrchestrationService,
   type DepositChainSplit,
   type PlanOrchestrationService,
+  type PlanSimulationDeps,
 } from './service';
 
 export interface PlanOrchestrationModuleConfig {
@@ -24,6 +29,16 @@ export interface PlanOrchestrationModuleConfig {
   };
   hyperliquid?: {
     network: 'mainnet' | 'testnet';
+  };
+  simulation?: {
+    /** Tenderly simulate-bundle credentials; presence turns the gate on. */
+    tenderly?: {
+      accountSlug: string;
+      projectSlug: string;
+      accessToken: string;
+    };
+    /** Refuse to start without credentials instead of running the gate off. */
+    required?: boolean;
   };
 }
 
@@ -74,6 +89,35 @@ export function parseDepositDefaultSplit(raw: string): DepositChainSplit {
   );
 }
 
+/**
+ * Resolve the plan-simulation gate from module config. Mirrors the
+ * parseDepositDefaultSplit fail-at-boot philosophy: a deployment that
+ * requires the gate but lacks credentials must fail startup, not silently
+ * serve unsimulated plans (ADR 0002 A5).
+ */
+function resolvePlanSimulation(
+  config: PlanOrchestrationModuleConfig['simulation'],
+): PlanSimulationDeps | undefined {
+  if (config?.tenderly) {
+    return {
+      adapter: createTenderlyBundleSimulationAdapter({
+        accountSlug: config.tenderly.accountSlug,
+        projectSlug: config.tenderly.projectSlug,
+        accessKey: config.tenderly.accessToken,
+      }),
+      mode: 'enforce',
+    };
+  }
+
+  if (config?.required) {
+    throw new Error(
+      'Plan simulation is required but Tenderly credentials are incomplete: set TENDERLY_ACCOUNT_SLUG, TENDERLY_PROJECT_SLUG and TENDERLY_ACCESS_TOKEN (or unset PLAN_SIMULATION_REQUIRED)',
+    );
+  }
+
+  return undefined;
+}
+
 // The composition root for the plan-orchestration plane: it owns the only
 // permitted instantiation of intent-engine inside account-engine. Container
 // code must call this factory with primitives rather than reaching for
@@ -92,11 +136,13 @@ export function createPlanOrchestrationModule(
       ...(config.lifi.apiKey ? { apiKey: config.lifi.apiKey } : {}),
     },
   });
+  const simulation = resolvePlanSimulation(config.simulation);
 
   return createPlanOrchestrationService({
     adapter,
     intentEngine,
     publicClients: config.publicClients,
+    ...(simulation ? { simulation } : {}),
     ...(config.deposit?.defaultSplit
       ? { defaultSplit: config.deposit.defaultSplit }
       : {}),
