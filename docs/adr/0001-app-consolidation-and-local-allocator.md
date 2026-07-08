@@ -207,7 +207,6 @@ desyncs; a plan-format version check makes stale daemons fail closed.
 
 - [ ] (Human) Vercel Root Directory flip + redeploy + 24–48h soak (D1 steps 1–3)
 - [ ] Repo cleanup PR deleting `apps/frontend` (D1 step 4)
-- [x] Doc-drift fix: route claims match code (`{deposit,withdraw}`) — done with this ADR
 - [ ] M1 native Privy wallet backend (+ spike findings recorded)
 - [ ] M2 first real Base+Morpho deposit behind an env flag
 - [ ] M3 rebalance contract → endpoint → screen → desktop handoff
