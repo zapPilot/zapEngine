@@ -77,7 +77,7 @@ gh run view <run-id> --log-failed
 ```
 
 Fix the whole batch of red jobs, then push once. Do not push after each small fix
-just to let CI reveal the next job.
+just to let CI reveal the next failure.
 
 ## Cache invalidation traps
 
@@ -116,6 +116,19 @@ When CI reports `check-dead-env` for app, run `pnpm lint dead-env`, then
 fix the source of truth, not the gate: add missing real `EXPO_PUBLIC_*` keys to
 `.env.example`, delete stale keys, and fix any accidental bare `EXPO_PUBLIC_`
 reference in the app source.
+
+## CI-only env is not app env
+
+Do not put CI fixture-only variables into `.env.example` just because CI sets
+them. In this repo, `TEST_DATABASE_URL` and `DATABASE_INTEGRATION_URL` are
+provided directly by `.github/workflows/ci.yml` for analytics/test database
+fixtures; they are not app env references and `check-dead-env` should stay free
+to flag them as dead if someone adds them to `.env.example`.
+
+If `check-dead-env` reports one of these test DB keys from `.env.example`, remove
+the example entry instead of declaring fake app usage or weakening the gate.
+Keep real runtime env documentation focused on variables read by source code or
+operators, not per-job fixture inputs.
 
 ## App Playwright e2e gotchas
 
