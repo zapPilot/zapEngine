@@ -23,8 +23,7 @@ describe('TenderlySimulationService fetch errors', () => {
 
     expect(result).toMatchObject({
       status: 'unavailable',
-      unavailableReason:
-        'Tenderly simulation unavailable: socket hang up',
+      unavailableReason: 'Tenderly simulation unavailable: socket hang up',
       calls: [
         expect.objectContaining({
           index: 0,
