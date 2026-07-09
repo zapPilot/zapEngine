@@ -16,18 +16,20 @@ export function BrandMark() {
         gap: 10,
       }}
     >
-      <span
+      <svg
         aria-hidden
-        style={{
-          width: 22,
-          height: 22,
-          borderRadius: '50%',
-          background:
-            'radial-gradient(circle at 30% 30%, #ffffff, #d4c5a3 60%, #6a5e44 100%)',
-          boxShadow:
-            '0 0 12px rgba(212, 197, 163, 0.3), inset 0 0 0 1px rgba(255, 255, 255, 0.2)',
-        }}
-      />
+        width={22}
+        height={22}
+        viewBox="0 0 64 64"
+        fill="none"
+        style={{ display: 'block', flexShrink: 0 }}
+      >
+        <g stroke="#d4c5a3" strokeLinecap="round">
+          <path d="M16.5 49.5 A24 24 0 1 1 47.5 49.5" strokeWidth={4.5} />
+          <line x1={32} y1={32} x2={42.5} y2={13.8} strokeWidth={3.4} />
+        </g>
+        <circle cx={32} cy={32} r={3.6} fill="#d4c5a3" />
+      </svg>
       <span
         style={{
           color: '#f4f4f5',

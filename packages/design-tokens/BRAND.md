@@ -9,8 +9,28 @@ source of truth for brand tokens. The current logo assets and
 that conflicts with `packages/design-tokens/tokens.json`. The new logo must
 move Zap Pilot onto the warm-gold, dark-first token system.
 
-This brief is the deliverable. Do not redesign or replace the logo assets in
-this PR.
+## Status — Implemented (2026-07-09)
+
+**Selected motif:** Direction C (Autopilot Compass) — the "Regime" dial variant
+(candidate `1c` from the logo exploration). An open cockpit gauge with a single
+needle reading the regime, graduated ticks, and a central pivot.
+
+**Colors:** `color.accent` `#d4c5a3` on dark (canonical); `color.accent-muted`
+`#6a5e44` with `#14110c` ink on the light-background variant. No new brand color
+was added — `tokens.json` is unchanged.
+
+**Typography:** the "Zap Pilot" wordmark is Instrument Serif (`font.serif`),
+outlined to paths in the committed lockup SVGs; the tagline "Disciplined
+Portfolio Autopilot" is JetBrains Mono (`font.mono`).
+
+**Regenerating rasters:** the SVG sources are canonical —
+`apps/landing-page/public/zap-pilot-{icon,logo,logo-dark,logo-tagline}.svg` and
+`apps/app/assets/brand/{icon,adaptive-foreground}.svg`. Every PNG/ICO/ICNS
+(landing favicon + logo PNGs, Expo app icon/splash/adaptive/favicon/maskable,
+desktop `build/icon.icns` + tray glyph) is derived from those SVGs; re-render
+with an SVG rasterizer (e.g. `@resvg/resvg-js`) plus `iconutil` for `.icns`.
+
+The sections below are retained as the original design brief and rationale.
 
 ## 1. Product Snapshot
 

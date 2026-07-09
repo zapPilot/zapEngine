@@ -47,14 +47,17 @@ export default function PitchOpenGraphImage() {
           gap: 18,
         }}
       >
-        <div
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: 999,
-            backgroundImage:
-              'radial-gradient(circle at 30% 30%, #ffffff, #d4c5a3 60%, #6a5e44 100%)',
-          }}
+        <img
+          width={32}
+          height={32}
+          alt=""
+          src={`data:image/svg+xml,${encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="4 4 56 56" fill="none">' +
+              '<g stroke="#d4c5a3" stroke-linecap="round">' +
+              '<path d="M16.5 49.5 A24 24 0 1 1 47.5 49.5" stroke-width="4.5"/>' +
+              '<line x1="32" y1="32" x2="42.5" y2="13.8" stroke-width="3.4"/></g>' +
+              '<circle cx="32" cy="32" r="3.6" fill="#d4c5a3"/></svg>',
+          )}`}
         />
         <span
           style={{

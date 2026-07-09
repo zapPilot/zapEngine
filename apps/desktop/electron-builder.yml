@@ -17,6 +17,7 @@ extraResources:
 
 mac:
   category: public.app-category.finance
+  icon: build/icon.icns
   target:
     - dmg
   # Unsigned for now; Developer ID signing + notarytool are a follow-up.
