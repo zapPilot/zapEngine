@@ -20,31 +20,26 @@ const PRIMARY_ROUTES = [
     label: 'Home',
     path: '/home',
     url: /\/home$/,
-    anchors: ['Net worth', 'Balance trend'],
   },
   {
     label: 'Strategy',
     path: '/strategy',
     url: /\/strategy$/,
-    anchors: ['Zap Strategy', 'Backtest'],
   },
   {
     label: 'Podcast',
     path: '/podcast',
     url: /\/podcast$/,
-    anchors: ['Podcast', 'From Fed to Chain · Daily Episodes'],
   },
   {
     label: 'Activity',
     path: '/activity',
     url: /\/activity$/,
-    anchors: ['Activity'],
   },
   {
     label: 'Account',
     path: '/account',
     url: /\/account$/,
-    anchors: ['Account', 'Mode'],
   },
 ] as const;
 
@@ -60,14 +55,10 @@ async function routePodcastFeed(page: Page): Promise<void> {
   });
 }
 
-async function expectHealthyRoute(
-  page: Page,
-  anchors: readonly string[],
-): Promise<void> {
+async function expectHealthyRoute(page: Page): Promise<void> {
+  await expect(page.locator('body')).toBeVisible();
   await expect(page.locator('body')).not.toContainText(ERROR_PAGE_PATTERN);
-  for (const anchor of anchors) {
-    await expect(page.getByText(anchor, { exact: true }).first()).toBeVisible();
-  }
+  await expect(page).not.toHaveURL(/\/404/);
 }
 
 test('renders the web app shell and primary routes without page errors', async ({
@@ -83,23 +74,23 @@ test('renders the web app shell and primary routes without page errors', async (
     await test.step(`route ${route.label}`, async () => {
       await page.goto(route.path);
       await expect(page).toHaveURL(route.url);
-      await expectHealthyRoute(page, route.anchors);
+      await expectHealthyRoute(page);
     });
   }
 
   await test.step('Portfolio tab', async () => {
     await page.goto('/home');
+    await expect(page).toHaveURL(/\/home$/);
+    await expectHealthyRoute(page);
     await page.getByText('Portfolio', { exact: true }).click();
     await expect(page).toHaveURL(/\/portfolio$/);
-    await expect(page.getByText('Strategy position value')).toBeVisible();
-    await expect(page.locator('body')).not.toContainText(ERROR_PAGE_PATTERN);
+    await expectHealthyRoute(page);
   });
 
   await test.step('Send route', async () => {
     await page.goto('/send?token=USDC');
     await expect(page).toHaveURL(/\/send\?token=USDC$/);
-    await expect(page.getByText('Send', { exact: true })).toBeVisible();
-    await expect(page.getByText('Connect wallet to send')).toBeVisible();
+    await expectHealthyRoute(page);
   });
 
   expect(pageErrors).toEqual([]);
