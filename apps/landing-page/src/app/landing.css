@@ -2181,7 +2181,7 @@
   stroke-width: 1;
 }
 
-.shell-root .chart-series.strategy path {
+.shell-root .chart-series.strategy {
   fill: none;
   stroke: var(--accent);
   stroke-linecap: round;
@@ -2190,7 +2190,7 @@
   vector-effect: non-scaling-stroke;
 }
 
-.shell-root .chart-series.dca path {
+.shell-root .chart-series.dca {
   fill: none;
   stroke: #2775ca;
   stroke-linecap: round;

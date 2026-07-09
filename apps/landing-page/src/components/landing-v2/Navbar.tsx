@@ -4,8 +4,9 @@ import { LINKS } from '@/config/links';
 const NAV_LINKS = [
   { label: 'Strategy', href: '#strategy', external: false },
   { label: 'Performance', href: '#proof', external: false },
+  { label: 'Track Record', href: '/track-record', external: false },
   { label: 'Execution', href: '#trust', external: false },
-  { label: 'Docs', href: LINKS.social.github, external: true },
+  { label: 'Docs', href: '/docs', external: false },
 ] as const;
 
 export function Navbar() {

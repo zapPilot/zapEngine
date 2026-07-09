@@ -20,6 +20,11 @@ import type {
   SignatureVerification,
   SnapshotHistoryEntry,
 } from '@/data/track-record-accessor';
+import {
+  isTrackRecordMockEnabled,
+  mockMeta,
+  mockSnapshotEntries,
+} from '@/data/mock-track-record';
 
 export interface TrackRecordState {
   meta: TrackRecordMeta | null;
@@ -138,6 +143,51 @@ export function useTrackRecord() {
         const meta = await fetchMeta();
 
         if (!meta.latestSnapshotCid) {
+          // No live snapshot published yet. Fall back to demo data so the whole
+          // UI is reviewable; self-retires once a real CID lands. See
+          // src/data/mock-track-record.ts.
+          if (isTrackRecordMockEnabled()) {
+            const snapshotEntries = mockSnapshotEntries;
+            const snapshots = snapshotEntries.map((entry) => entry.snapshot);
+            const latestSnapshot = snapshots[snapshots.length - 1] ?? null;
+            const summary = computePerformanceSummary(snapshots);
+            const chainResult = verifyCidChain(snapshotEntries);
+            const performanceResult = verifyPerformanceMetrics(snapshots);
+            const sigValid = latestSnapshot
+              ? await verifySignature(latestSnapshot, '')
+              : null;
+
+            cache.meta = mockMeta;
+            cache.snapshotEntries = snapshotEntries;
+            cache.snapshots = snapshots;
+            cache.summary = summary;
+            cache.latestSnapshot = latestSnapshot;
+
+            if (mountedRef.current) {
+              setState({
+                meta: mockMeta,
+                snapshotEntries,
+                snapshots,
+                latestSnapshot,
+                summary,
+                positions: latestSnapshot?.positions ?? [],
+                rebalanceLogs: [],
+                verification: {
+                  chainValid: chainResult.valid,
+                  chainBrokenAt: chainResult.brokenAt,
+                  totalSnapshots: chainResult.totalSnapshots,
+                  signatureValid: sigValid?.valid ?? true,
+                  signature: sigValid,
+                  performanceValid: performanceResult.valid,
+                  performanceErrors: performanceResult.errors,
+                },
+                isLoading: false,
+                error: null,
+              });
+            }
+            return;
+          }
+
           if (mountedRef.current) {
             setState((prev) => ({
               ...prev,
