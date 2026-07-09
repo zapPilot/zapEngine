@@ -1,6 +1,6 @@
-# Spike: EIP-7702 session scoping via Ambire/OKX delegates (ADR 0002 Stage B)
+# Spike: EIP-7702 session scoping via Ambire/OKX delegates (Stage B)
 
-**Date:** 2026-07-07 · **Question (D3 Stage B):** can Ambire's or OKX's audited 7702 delegate express session keys with (1) target-contract whitelist, (2) per-tx value cap, (3) any-time user revocation — enforced on-chain by the delegate?
+**Date:** 2026-07-07 · **Question (Stage B):** can Ambire's or OKX's audited 7702 delegate express session keys with (1) target-contract whitelist, (2) per-tx value cap, (3) any-time user revocation — enforced on-chain by the delegate?
 
 ## TL;DR verdict
 
@@ -57,7 +57,7 @@
 - **Cross-cutting for N3:** a per-tx ETH `value` cap does **not** bound ERC-20 notional. Real DeFi rebalancing moves tokens via arbitrary protocol calldata, so "per-tx notional cap" needs token-aware enforcement (MetaMask's ERC20 amount/period enforcers + target/method whitelist come closest; a plain value cap alone is insufficient on every delegate surveyed).
 - MetaMask enforcer semantics taken from contract names, docs search results, and interface source — individual enforcer code not read line-by-line.
 
-## Recommendation for ADR 0002 D3
+## Recommendation
 
 **Do not proceed Stage B with Ambire or OKX as-shipped; do not yet trigger Stage C.** Concretely:
 

@@ -1,10 +1,10 @@
 import { Menu, nativeImage, Tray } from 'electron';
 
-// 16x16 monochrome placeholder glyph (generated); swap for a branded
-// template image when design assets land.
+// 16x16 monochrome Zap Pilot "1c" dial glyph, rendered as a macOS template
+// image (black on transparent; the menu bar re-tints it for light/dark).
 const TRAY_ICON_DATA_URL =
-  // eslint-disable-next-line no-secrets/no-secrets -- Placeholder PNG data URL, not a secret.
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAaElEQVR4nKWTQQ4AIQgDi///s3sjUFgC0hvQMRUjsJQUs9vxZk0GS+YM4eA5f4NAXTfWQrImmZ1EFBGboBPdwsqILVg2CcHa5iVOYADxFUYwMFwiHeaW+CzO13oNy3GC+sKJZ/2Z1voAj8kfEtas2JEAAAAASUVORK5CYII=';
+  // eslint-disable-next-line no-secrets/no-secrets -- Branded PNG data URL, not a secret.
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABHElEQVR4nKXPMUrDUADG8e/hLKSOuqQHEFpcBZPZQcQDmJ7AuLqY4AHMDRpHx06OzQ0sOAlCgxdoNkf9P56BNH1IsX/4PQolX/KM/F0jlBTJVUmqJT1hLYNuiaR7DLBALVcoaYQVcpT6zaAtkTRFjgINup0ixRUmKEUGtlDSEhOU8veJE5xjiiFqw2Gbw/6O5O8Oe3iArZK7zqV9KJR7e4xKmx3gDUdoi+ReOjQc9l6ZpAC+SkkveEa3BqkdyOQWI232jkPso18ltAMXGKPfB75wjH6vmNmBSO4+A9jP2qYAK8R2wPaNWxTYphSPMO1AJukGMRb4qxHmyFEYjrZS0hnGaOArwBIzJKLugP0zk9PAV4BMToO1gX+188APFQg40QGWaOEAAAAASUVORK5CYII=';
 
 export interface TrayHandlers {
   onShow: () => void;

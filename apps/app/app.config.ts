@@ -41,22 +41,38 @@ const config: ExpoConfig = {
   version: '0.1.0',
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
+  icon: './assets/brand/icon.png',
   ios: {
     bundleIdentifier: 'com.zapengine.zappilot.dev',
     supportsTablet: false,
+    icon: './assets/brand/icon.png',
   },
   android: {
     package: 'com.zapengine.zappilot.dev',
+    adaptiveIcon: {
+      foregroundImage: './assets/brand/adaptive-icon.png',
+      backgroundColor: '#0a0a0a',
+    },
   },
   web: {
     bundler: 'metro',
     output: 'single',
+    favicon: './assets/brand/favicon.png',
   },
   plugins: [
     'expo-dev-client',
     'expo-router',
     'expo-secure-store',
     'expo-web-browser',
+    [
+      'expo-splash-screen',
+      {
+        image: './assets/brand/splash-icon.png',
+        imageWidth: 180,
+        resizeMode: 'contain',
+        backgroundColor: '#0a0a0a',
+      },
+    ],
   ],
   extra: {
     appRuntime: 'app',

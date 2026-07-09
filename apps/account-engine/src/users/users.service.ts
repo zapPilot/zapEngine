@@ -129,7 +129,7 @@ export class UsersService extends BaseService {
     return this.withErrorHandling(async () => {
       await this.userValidationService.validateUserExists(userId);
 
-      // Ownership proof (ADR 0002 A1): a signature over the previously issued
+      // Ownership proof: a signature over the previously issued
       // binding challenge marks the wallet ownership-verified. The signature
       // stays optional because bundles also track observe-only addresses the
       // user cannot sign for — but a provided-yet-invalid signature is always

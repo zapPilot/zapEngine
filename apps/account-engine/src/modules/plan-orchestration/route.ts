@@ -13,7 +13,7 @@ import {
 import type { PlanOrchestrationService } from './service';
 
 // Service errors stay framework-free (module CLAUDE.md); this is the only
-// place they gain HTTP meaning. Fail-closed mapping (ADR 0002 A5): a plan
+// place they gain HTTP meaning. Fail-closed mapping: a plan
 // violating safety invariants is a bad request (400), a plan whose
 // simulation reverts is unprocessable (422), and a simulation outage refuses
 // service (503) rather than shipping an unsimulated plan.

@@ -52,7 +52,7 @@ export {
   NoopSimulationAdapter,
 } from './adapters/index.js';
 
-// Plan-safety validators (Simulation plane, ADR 0002 A5)
+// Plan-safety validators (Simulation plane)
 export {
   assertApprovalCaps,
   assertMinReceived,

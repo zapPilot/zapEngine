@@ -97,7 +97,7 @@ Tasks:
 - [ ] Pick one chain/path for the cohort. Prefer the one that minimizes implementation risk and maximizes proof speed.
 - [ ] Make simulation diff the decisive confirm surface.
 - [ ] Add explicit worst-case language: min received, approval cap, route, failure mode.
-- [ ] Store enough execution state to recover or manually support a failed design-partner run. Foundation landed: `ledger_execution_events` is designated the leg-state store, but nothing writes to it yet (ADR 0002 A6).
+- [ ] Store enough execution state to recover or manually support a failed design-partner run. Foundation landed: `ledger_execution_events` is designated the leg-state store, but nothing writes to it yet.
 - [ ] Instrument first signature, completed execution, and second signature.
 
 Evidence to collect:

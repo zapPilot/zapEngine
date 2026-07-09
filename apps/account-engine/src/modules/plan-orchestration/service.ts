@@ -47,7 +47,7 @@ export interface PlanOrchestrationService {
 /** Chain-id-keyed allocation weights, as consumed by composeDeposit. */
 export type DepositChainSplit = Partial<Record<number, number>>;
 
-/** Bundle-simulation dependency for the fail-closed plan gate (ADR 0002 A5). */
+/** Bundle-simulation dependency for the fail-closed plan gate. */
 export interface PlanSimulationDeps {
   adapter: BundleSimulationAdapter;
   mode: 'enforce' | 'off';
@@ -65,7 +65,7 @@ export interface PlanOrchestrationServiceDeps {
   defaultSplit?: DepositChainSplit;
   /** Hyperliquid network for HLP follow-up descriptors (default mainnet). */
   hyperliquidNetwork?: 'mainnet' | 'testnet';
-  /** Fail-closed bundle simulation gate (ADR 0002 A5); omitted = off. */
+  /** Fail-closed bundle simulation gate; omitted = off. */
   simulation?: PlanSimulationDeps;
 }
 
@@ -187,7 +187,7 @@ async function neededApprovalFromRequirement(params: {
 const MAX_PLAN_SLIPPAGE_BPS = 100;
 
 /**
- * ADR 0002 A5 fail-closed gate, run on every plan before it is returned:
+ * Fail-closed gate, run on every plan before it is returned:
  * the pure safety validators always, then the bundle simulation when
  * enforced. `followUps` (HyperCore actions) are not EVM transactions and are
  * never simulated — only the source-chain approvals+calls batch is.

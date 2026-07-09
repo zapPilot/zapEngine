@@ -12,7 +12,7 @@ Zap Pilot is not a wallet, fund, yield vault, or dashboard.
 
 > A self-custodial investment autopilot for crypto-native high-net-worth individuals: buy in fear, defend in greed, and sign from the wallet they already own.
 
-Engineering trust north star, aligned with [ADR 0002](../adr/0002-trust-boundaries-and-progressive-decentralization.md):
+Engineering trust north star:
 
 > My backend gets fully hacked — your money still cannot move outside the user-authorized and policy-bounded path.
 
@@ -26,7 +26,7 @@ Engineering trust north star, aligned with [ADR 0002](../adr/0002-trust-boundari
 | Conversion line | `Your net worth, on autopilot` + `signed from your wallet, held by no one else`. Note: this line is already live on the landing page while the trust model is still Tier H/Privy — keeping it honest is an open action (see Positioning in [status-map.md](./status-map.md)). |
 | Wedge | Trust ladder: public regime signal -> Parking Strategy first deposit -> signed rebalance. |
 | Near-term revenue | Routing/integrator fee first; subscription for automation/signals second; avoid AUM/performance fees. |
-| Architecture bias | Keep EIP-7702. Make BYO-EOA first-class. Keep Privy as one onboarding rail, not the product identity. Per the 2026-07-07 session-scoping spike (ADR 0002 A2), Ambire/OKX delegates cannot express the policy floor; Stage B targets the MetaMask Delegation Framework. |
+| Architecture bias | Keep EIP-7702. Make BYO-EOA first-class. Keep Privy as one onboarding rail, not the product identity. Per the 2026-07-07 session-scoping spike, Ambire/OKX delegates cannot express the policy floor; Stage B targets the MetaMask Delegation Framework. |
 
 ## Files
 

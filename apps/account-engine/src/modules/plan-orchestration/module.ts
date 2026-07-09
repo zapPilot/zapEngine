@@ -93,7 +93,7 @@ export function parseDepositDefaultSplit(raw: string): DepositChainSplit {
  * Resolve the plan-simulation gate from module config. Mirrors the
  * parseDepositDefaultSplit fail-at-boot philosophy: a deployment that
  * requires the gate but lacks credentials must fail startup, not silently
- * serve unsimulated plans (ADR 0002 A5).
+ * serve unsimulated plans.
  */
 function resolvePlanSimulation(
   config: PlanOrchestrationModuleConfig['simulation'],

@@ -86,13 +86,11 @@ Four planes + one composing layer. Do not let them bleed:
 Dependency rule (one line): _the intent core is a pure package; only plan-orchestration composes strategy + intent downward; nothing depends upward; the identity plane owns no money-movement planning._
 
 - `packages/intent-engine`: internal deps limited to `@zapengine/types`; zero analytics and zero identity knowledge; `intent → PreparedTransaction[]`.
-- plan-orchestration owns the analytics→intent normalization (allocation % → chain/token intent) and the `POST /plan-orchestration/{deposit,withdraw}` contract (types in `@zapengine/types`; a `rebalance` route is planned — see [docs/adr/0001](docs/adr/0001-app-consolidation-and-local-allocator.md)). It is not an engine — never name it `intent-service` (collides with `intent-engine`).
+- plan-orchestration owns the analytics→intent normalization (allocation % → chain/token intent) and the `POST /plan-orchestration/{deposit,withdraw}` contract (types in `@zapengine/types`; a `rebalance` route is planned). It is not an engine — never name it `intent-service` (collides with `intent-engine`).
 - analytics-engine builds no transactions; app clients build no plans (confirm + execute); account-engine plans no money movement.
 - One authoritative path per money-moving flow: never compute the same plan both client-side and server-side against a shared contract.
 
 Where plan-orchestration lives today vs. when to extract `apps/plan-orchestration`: see [apps/account-engine/docs/plan-orchestration-evolution.md](apps/account-engine/docs/plan-orchestration-evolution.md) — that doc is the single source of truth for the migration state; do not restate it here.
-
-Trust boundaries, custody tiers, and the centralization taxonomy across these planes: see [docs/adr/0002](docs/adr/0002-trust-boundaries-and-progressive-decentralization.md).
 
 # Pre-commit & local verification
 

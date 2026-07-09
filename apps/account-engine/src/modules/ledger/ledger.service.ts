@@ -17,7 +17,7 @@ interface LedgerRow {
 }
 
 /**
- * Append-only strategy ledger (ADR 0002 D5 phase 1): signal → decision →
+ * Append-only strategy ledger: signal → decision →
  * plan → execution events are the source of truth; snapshots are projections.
  * Rows are insert-only — the tables revoke UPDATE/DELETE and carry a guard
  * trigger — so this service intentionally exposes no update or delete.

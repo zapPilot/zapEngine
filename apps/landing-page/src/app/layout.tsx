@@ -60,7 +60,7 @@ export const metadata: Metadata = {
   icons: {
     icon: '/zap-pilot-icon.svg',
     shortcut: '/zap-pilot-icon.svg',
-    apple: '/zap-pilot-icon.svg',
+    apple: '/apple-touch-icon.png',
   },
 };
 
