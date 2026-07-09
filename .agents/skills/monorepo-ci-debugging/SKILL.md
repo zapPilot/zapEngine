@@ -25,7 +25,7 @@ This table maps CI jobs to local parity. If it drifts from
 | GitHub job | What it does | Local parity |
 | --- | --- | --- |
 | `lint-test` | install → build → verify core → security audit | `pnpm turbo run build && pnpm run verify ci && pnpm run security audit` |
-| `coverage` | coverage scripts + workspace `test:coverage` summary | copy the exact command from `.github/workflows/ci.yml`; currently `pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts` |
+| `coverage` | self-test coverage scripts + workspace `test:coverage` summary | `pnpm run coverage test && pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts` |
 | `check-dead-env` | env var drift check | `pnpm lint dead-env` → **env-drift-ci-debugging** |
 | `verify-fly-docker` | Docker verify when deploy/Docker paths changed | app-specific Docker verify |
 
@@ -133,6 +133,7 @@ pnpm run security audit
 
 # Separate jobs touched by the change
 pnpm lint dead-env
+pnpm run coverage test
 pnpm turbo run test:coverage
 pnpm exec tsx scripts/coverage-summary.ts
 ```
