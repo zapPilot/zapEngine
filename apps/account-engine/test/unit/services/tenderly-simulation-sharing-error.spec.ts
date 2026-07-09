@@ -73,4 +73,37 @@ describe('TenderlySimulationService sharing errors', () => {
       }),
     );
   });
+
+  it('keeps a successful simulation valid when public sharing times out', async () => {
+    const warn = vi.fn();
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(simulationResponse('sim-share-timeout'))
+      .mockRejectedValueOnce(new DOMException('share timed out', 'AbortError'));
+    const service = createTenderlySimulationService({
+      accountSlug: 'account-slug',
+      projectSlug: 'project-slug',
+      accessToken: 'secret-token',
+      fetchFn,
+      logger: { warn },
+    });
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TARGET }],
+    });
+
+    expect(result.status).toBe('passed');
+    expect(result.shareUrls).toEqual([]);
+    expect(result.simulationIds).toEqual(['sim-share-timeout']);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledWith(
+      'Tenderly simulation sharing failed',
+      expect.objectContaining({
+        simulationId: 'sim-share-timeout',
+        error: 'share timed out',
+      }),
+    );
+  });
 });

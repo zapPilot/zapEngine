@@ -28,9 +28,11 @@ older UX contract.
   - `validateNewWallet({ label, address })`
 - Focused shared tests:
   - `packages/app-core/tests/utils/walletValidation.test.ts`
-- Known consumer tests that import the shared helper:
-  - None currently; search `apps/app` when app UI adds consumer-level wallet tests.
-  - WalletManager component/unit tests around add-wallet form validation
+- Consumer checks:
+  - Search `apps/app` and app consumer tests for wallet add/invite flows when UI
+    behavior changes.
+  - Search for imports or duplicated expectations before assuming no consumer
+    contract exists.
 - Lower-level address format helper:
   - `packages/app-core/src/lib/validation/walletUtils.ts`
 
