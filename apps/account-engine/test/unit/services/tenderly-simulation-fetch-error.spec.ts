@@ -39,4 +39,43 @@ describe('TenderlySimulationService fetch errors', () => {
     });
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
+
+  it('fails closed with a timeout reason when the core simulation request aborts', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockRejectedValueOnce(new DOMException('Timed out', 'AbortError'));
+    const service = createTenderlySimulationService({
+      accountSlug: 'account-slug',
+      projectSlug: 'project-slug',
+      accessToken: 'secret-token',
+      fetchFn,
+    });
+
+    const result = await service.simulateBundle({
+      chainId: 42161,
+      walletAddress: WALLET,
+      calls: [{ to: TARGET, data: '0xabcd', value: '0x2' }],
+    });
+
+    expect(result).toMatchObject({
+      status: 'unavailable',
+      unavailableReason: 'Tenderly simulation timed out',
+      chainId: 42161,
+      walletAddress: WALLET,
+      calls: [
+        expect.objectContaining({
+          index: 0,
+          to: TARGET,
+          data: '0xabcd',
+          value: '2',
+          status: 'skipped',
+          gasUsed: null,
+          contractVerified: false,
+        }),
+      ],
+      shareUrls: [],
+      simulationIds: [],
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
 });
