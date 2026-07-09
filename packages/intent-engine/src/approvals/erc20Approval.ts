@@ -56,7 +56,7 @@ export function buildApproveTx(params: {
   intentType?: string;
 }): PreparedTransaction {
   const amount = BigInt(params.amount);
-  // Plans always know the exact amount they move (ADR 0002 A5) — an
+  // Plans always know the exact amount they move — an
   // unlimited approval is never legitimate on any zapPilot path.
   if (amount === maxUint256) {
     throw new PlanSafetyViolationError(

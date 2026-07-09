@@ -22,7 +22,7 @@ export class NoopSimulationAdapter implements SimulationAdapter {
 }
 
 // ---------------------------------------------------------------------------
-// Bundle simulation (ADR 0002 A5) — the fail-closed gate contract used by
+// Bundle simulation — the fail-closed gate contract used by
 // plan hosts. Deliberately a pass/fail verdict, not a review payload: rich
 // asset-diff evidence stays on the execution rail's own simulation service.
 // ---------------------------------------------------------------------------

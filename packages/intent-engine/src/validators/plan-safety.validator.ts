@@ -2,7 +2,7 @@ import type { PreparedTransaction } from '@zapengine/types/api';
 import { decodeFunctionData, erc20Abi, maxUint256 } from 'viem';
 
 /**
- * Simulation-plane safety checks (ADR 0002 A5), exposed by the intent core so
+ * Simulation-plane safety checks, exposed by the intent core so
  * every plan host — hosted plan-orchestration today, the local allocator
  * later — validates routes the same way. Pure functions; throw on violation.
  */
@@ -98,7 +98,7 @@ export function assertApprovalCaps(
 /**
  * Every routed call (LiFi swap/bridge) must quote a positive min-received
  * within the slippage cap: toAmountMin ≥ toAmount × (1 − maxSlippageBps/10000).
- * The quoted values were previously trusted verbatim (ADR 0002 gap map).
+ * The quoted values were previously trusted verbatim.
  */
 export function assertMinReceived(
   plan: { calls: PreparedTransaction[] },

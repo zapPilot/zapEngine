@@ -298,7 +298,7 @@ describe('POST /plan-orchestration/withdraw', () => {
   });
 });
 
-describe('plan safety gate (ADR 0002 A5)', () => {
+describe('plan safety gate', () => {
   const investBody = {
     kind: 'invest',
     userAddress: USER,

@@ -13,7 +13,6 @@ order.
 | [CONTRIBUTING.md](../CONTRIBUTING.md)         | Daily workflow + recipes: [add an env var](../CONTRIBUTING.md#adding-an-env-var), [add an HTTP route](../CONTRIBUTING.md#adding-an-http-route), [add an app/package](../CONTRIBUTING.md#adding-an-app-or-package)                                                                                                        |
 | [scripts/COVERAGE.md](../scripts/COVERAGE.md) | Coverage tooling + the no-regression gate                                                                                                                                                                                                                                                                                |
 | [docs/app-layout.md](./app-layout.md)         | Standard `src/` layout for TS server apps                                                                                                                                                                                                                                                                                |
-| [docs/adr/](./adr)                            | Repo-level ADRs. Start with [0001](./adr/0001-app-consolidation-and-local-allocator.md): app consolidation, frontend/desktop disposition, local-allocator roadmap; then [0002](./adr/0002-trust-boundaries-and-progressive-decentralization.md): trust boundaries, centralization taxonomy, event-sourced strategy plane |
 
 ## Per-app docs
 
