@@ -101,7 +101,7 @@ function EpisodeDetailHeader({
         <PodcastLanguageDropdown />
       </View>
       <Text className="min-w-0 flex-1 px-3 text-center font-sans-semibold text-[14px] text-ink">
-        From Fed to Chain
+        Podcast
       </Text>
       <IconButton label="Share episode" onPress={shareEpisode}>
         <Share2 size={18} strokeWidth={2} color="#d4c5a3" />
@@ -117,11 +117,6 @@ function EpisodeHeroCard({ episode }: { episode: PodcastEpisode }) {
     <View className="px-5">
       <Card className="overflow-hidden p-5">
         <View className="absolute -right-7 top-5 h-28 w-28 rounded-full border border-[rgba(212,197,163,.13)] bg-[rgba(212,197,163,.05)]" />
-        <View className="mb-5 h-12 w-12 items-center justify-center rounded-2xl border border-[rgba(212,197,163,.26)] bg-[rgba(212,197,163,.1)]">
-          <Text className="font-mono text-[11px] font-bold text-accent">
-            {languageBadgeFor(episode.languageCode)}
-          </Text>
-        </View>
         <Text className="font-sans-bold text-[25px] leading-[31px] text-ink">
           {episode.title}
         </Text>

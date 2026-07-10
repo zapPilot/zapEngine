@@ -339,7 +339,7 @@ export function PodcastScreen() {
 
         <View className="px-5 pt-[18px]">
           <Text className="font-mono text-[9.5px] uppercase tracking-[1.14px] text-ink-faint">
-            From Fed to Chain · Daily Episodes
+            Daily Episodes
           </Text>
         </View>
 
