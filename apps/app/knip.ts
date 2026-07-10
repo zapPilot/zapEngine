@@ -59,6 +59,11 @@ export default defineKnipConfig({
     // T6 native wallet backend dependency; installed before the provider import
     // to keep the dev-client graph stable across the screen migration.
     'viem',
+    // Web/desktop external-wallet SDK consumed entirely through
+    // @zapengine/app-core (config/wagmi, useWagmiWalletBackend, Web3Provider);
+    // apps/app never imports it directly, but pnpm's strict node_modules
+    // needs it declared here to resolve inside app-core's peer chain.
+    'wagmi',
     // expo-router runtime requirements, never imported directly.
     'react-native-safe-area-context',
     'react-native-screens',

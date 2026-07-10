@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { type ReactElement, type ReactNode, useEffect, useRef } from 'react';
 import { Text, View } from 'react-native';
 
+import { ConnectSheetHost } from '@/components/connect/ConnectSheetHost';
 import { ZapLogo } from '@/components/ui/ZapLogo';
 import { getExpoMobileRuntimeConfig } from '@/config/expoRuntimeConfig';
 import type { MobileRuntimeConfig } from '@/config/mobileRuntimeConfig';
@@ -85,6 +86,7 @@ export function AppProviderShell({
           <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
             <StatusBar style="light" />
             {children}
+            <ConnectSheetHost />
           </View>
         </ToastProvider>
       </PodcastPlayerProvider>

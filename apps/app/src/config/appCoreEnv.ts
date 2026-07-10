@@ -24,6 +24,8 @@ export function buildAppCoreEnvSource(): Record<string, string | undefined> {
     // desktop and native alike.
     VITE_DESKTOP_WALLET_PROVIDER: process.env.EXPO_PUBLIC_WALLET_TOKEN_PROVIDER,
     VITE_PRIVY_CLIENT_ID: process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID,
+    VITE_WALLETCONNECT_PROJECT_ID:
+      process.env.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID,
     VITE_APP_RUNTIME: APP_RUNTIME,
     MODE: isDevBuild() ? 'development' : 'production',
   };

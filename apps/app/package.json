@@ -75,7 +75,8 @@
     "react-native-web": "^0.21.2",
     "react-native-webview": "14.0.1",
     "react-native-worklets": "0.10.0",
-    "viem": "catalog:"
+    "viem": "catalog:",
+    "wagmi": "catalog:"
   },
   "devDependencies": {
     "@expo/metro-config": "~57.0.2",

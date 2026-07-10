@@ -47,7 +47,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
 
   const capability = resolveDepositExecutionCapability({
     isConnected: wallet.isConnected,
-    hasAtomicBatch: Boolean(wallet.executeAtomicBatch),
+    executionMode: wallet.executionMode,
     depositPath: selectedDepositPath,
   });
 

@@ -61,34 +61,47 @@ describe('resolveDepositExecutionCapability', () => {
     expect(
       resolveDepositExecutionCapability({
         isConnected: true,
-        hasAtomicBatch: true,
+        executionMode: 'atomic-batch',
         depositPath: GMX_PATH,
       }),
     ).toBe('unsupported-path');
   });
 
-  it('asks for a wallet before judging batch support', () => {
+  it('asks for a wallet before judging execution support', () => {
     expect(
       resolveDepositExecutionCapability({
         isConnected: false,
-        hasAtomicBatch: false,
+        executionMode: undefined,
         depositPath: DEFAULT_DEPOSIT_PATH,
       }),
     ).toBe('connect-wallet');
   });
 
-  it('degrades when the wallet cannot batch, and is ready otherwise', () => {
+  it('degrades when the wallet has no execution path (native Privy-Expo)', () => {
     expect(
       resolveDepositExecutionCapability({
         isConnected: true,
-        hasAtomicBatch: false,
+        executionMode: undefined,
         depositPath: DEFAULT_DEPOSIT_PATH,
       }),
     ).toBe('unsupported-wallet');
+  });
+
+  it('is ready for the Privy atomic-batch path', () => {
     expect(
       resolveDepositExecutionCapability({
         isConnected: true,
-        hasAtomicBatch: true,
+        executionMode: 'atomic-batch',
+        depositPath: DEFAULT_DEPOSIT_PATH,
+      }),
+    ).toBe('ready');
+  });
+
+  it('is ready for the wagmi EIP-7702 path (external wallet, e.g. Rabby/Ambire)', () => {
+    expect(
+      resolveDepositExecutionCapability({
+        isConnected: true,
+        executionMode: 'eip7702',
         depositPath: DEFAULT_DEPOSIT_PATH,
       }),
     ).toBe('ready');

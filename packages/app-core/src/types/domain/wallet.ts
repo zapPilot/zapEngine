@@ -78,4 +78,27 @@ export interface WalletProviderInterface {
   }[];
   switchActiveWallet(address: string): Promise<void>;
   hasMultipleWallets: boolean;
+
+  /**
+   * How this backend executes a batch of prepared transactions, so callers
+   * can pick the right execution path without depending on `executeAtomicBatch`
+   * (which only the Privy backend implements):
+   * - `'atomic-batch'`: `executeAtomicBatch` is present (Privy server-side batch).
+   * - `'eip7702'`: no `executeAtomicBatch`, but `getWalletClient` returns a
+   *   signer the generic `intentEngine.executeWithEIP7702` path can drive.
+   * - `undefined`: neither is available (e.g. native Privy-Expo) — callers
+   *   should treat the wallet as unable to execute a deposit plan.
+   */
+  executionMode?: 'atomic-batch' | 'eip7702';
+}
+
+/** A discoverable wallet a user can pick in the connect UI (web/desktop only). */
+export interface WalletConnectorOption {
+  /** Stable connector id — for EIP-6963-discovered wallets, this is their rdns. */
+  id: string;
+  name: string;
+  /** EIP-6963 icon data-URI, when the wallet provided one. */
+  icon?: string;
+  recommended: boolean;
+  type: 'injected' | 'walletConnect';
 }

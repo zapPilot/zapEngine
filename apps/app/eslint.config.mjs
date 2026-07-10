@@ -50,6 +50,11 @@ export default defineConfig([
               message:
                 'Do not import the broad hooks barrel on React Native. Import RN-safe hooks from @zapengine/app-core/hooks/analytics or @zapengine/app-core/hooks/queries instead.',
             },
+            {
+              name: 'wagmi',
+              message:
+                'wagmi is web/desktop-only. Native wallet auth must use @privy-io/expo.',
+            },
           ],
           patterns: [
             {
@@ -62,16 +67,23 @@ export default defineConfig([
                 '@zapengine/app-core/hooks/wallet/**',
               ],
               message:
-                'Web-only app-core hooks (DOM / Privy web SDK). Use the RN-safe data hooks from @zapengine/app-core/hooks/queries instead.',
+                'Web-only app-core hooks (DOM / Privy web SDK / wagmi). Use the RN-safe data hooks from @zapengine/app-core/hooks/queries instead.',
             },
             {
               group: [
                 '@zapengine/app-core/providers/PrivyAuthProvider',
                 '@zapengine/app-core/providers/WalletProvider',
                 '@zapengine/app-core/providers/QueryProvider',
+                '@zapengine/app-core/providers/Web3Provider',
+                '@zapengine/app-core/providers/walletLoginContext',
               ],
               message:
                 'Web-only app-core providers. Use WalletProviderBase from @zapengine/app-core/providers/walletContext and QueryClientProvider with the shared queryClient from @zapengine/app-core/lib/state/queryClient instead.',
+            },
+            {
+              group: ['wagmi/**', '@zapengine/app-core/config/wagmi'],
+              message:
+                'wagmi is web/desktop-only and must not enter the native bundle.',
             },
           ],
         },
