@@ -151,13 +151,17 @@
     "@tanstack/react-query": "^5.85.3",
     "@tanstack/react-query-devtools": "^5.85.3",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "wagmi": "catalog:"
   },
   "peerDependenciesMeta": {
     "@privy-io/react-auth": {
       "optional": true
     },
     "@tanstack/react-query-devtools": {
+      "optional": true
+    },
+    "wagmi": {
       "optional": true
     }
   },

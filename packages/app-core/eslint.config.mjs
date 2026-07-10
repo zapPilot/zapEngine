@@ -14,9 +14,13 @@ const WEB_ONLY_FILES = [
   'src/hooks/index.ts',
   'src/hooks/bundle/**',
   'src/hooks/wallet/usePrivyWalletBackend.ts',
+  'src/hooks/wallet/useWagmiWalletBackend.ts',
   'src/providers/PrivyAuthProvider.tsx',
   'src/providers/WalletProvider.tsx',
   'src/providers/QueryProvider.tsx',
+  'src/providers/Web3Provider.tsx',
+  'src/providers/walletLoginContext.tsx',
+  'src/config/wagmi.ts',
 ];
 
 const WEB_ONLY_IMPORT_PATHS = [
@@ -40,13 +44,28 @@ const WEB_ONLY_INTERNAL_PATTERNS = [
       '**/providers/WalletProvider',
       '**/providers/PrivyAuthProvider',
       '**/providers/QueryProvider',
+      '**/providers/Web3Provider',
+      '**/providers/walletLoginContext',
       '**/hooks/wallet/usePrivyWalletBackend',
+      '**/hooks/wallet/useWagmiWalletBackend',
       '**/hooks/bundle/useBundlePage',
       '**/hooks/bundle/useWalletOperations',
+      '**/config/wagmi',
     ],
     allowTypeImports: true,
     message:
       'Web-only internal module; RN-safe code must not import it at runtime (wallet context: providers/walletContext; query client: lib/state/queryClient — see CLAUDE.md boundary table).',
+  },
+];
+
+// wagmi (and every subpath: wagmi/actions, wagmi/connectors, wagmi/chains, …)
+// is web/desktop-only — external wallets have no reach on native.
+const WEB_ONLY_EXTERNAL_PATTERNS = [
+  {
+    group: ['wagmi', 'wagmi/**'],
+    allowTypeImports: true,
+    message:
+      'wagmi is web-only; keep it out of RN-safe modules (see CLAUDE.md boundary table).',
   },
 ];
 
@@ -88,7 +107,10 @@ export default createReactViteConfig({
           'error',
           {
             paths: WEB_ONLY_IMPORT_PATHS,
-            patterns: WEB_ONLY_INTERNAL_PATTERNS,
+            patterns: [
+              ...WEB_ONLY_INTERNAL_PATTERNS,
+              ...WEB_ONLY_EXTERNAL_PATTERNS,
+            ],
           },
         ],
       },

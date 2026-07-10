@@ -17,6 +17,7 @@ describe('buildAppCoreEnvSource', () => {
     vi.stubEnv('EXPO_PUBLIC_MORALIS_API_KEY', 'moralis-key');
     vi.stubEnv('EXPO_PUBLIC_PODCAST_API_URL', 'https://podcast.example');
     vi.stubEnv('EXPO_PUBLIC_WALLET_TOKEN_PROVIDER', 'alchemy');
+    vi.stubEnv('EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID', 'wc-project-id');
 
     expect(buildAppCoreEnvSource()).toMatchObject({
       VITE_ACCOUNT_API_URL: 'https://account.example',
@@ -27,6 +28,7 @@ describe('buildAppCoreEnvSource', () => {
       VITE_MORALIS_API_KEY: 'moralis-key',
       VITE_PODCAST_API_URL: 'https://podcast.example',
       VITE_DESKTOP_WALLET_PROVIDER: 'alchemy',
+      VITE_WALLETCONNECT_PROJECT_ID: 'wc-project-id',
     });
   });
 

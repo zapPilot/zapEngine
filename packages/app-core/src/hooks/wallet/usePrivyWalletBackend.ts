@@ -704,6 +704,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
       connectedWallets: walletList,
       switchActiveWallet: handleSwitchActiveWallet,
       hasMultipleWallets: false,
+      executionMode: 'atomic-batch',
     }),
     [
       embeddedWallet,

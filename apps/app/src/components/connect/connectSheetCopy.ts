@@ -1,0 +1,20 @@
+export const CONNECT_SHEET_COPY = {
+  eyebrow: 'CONNECT',
+  title: 'Choose how to connect',
+  subtitle:
+    'Sign in with email, or link a self-custody wallet. Zap Pilot never holds your funds.',
+  privyTitle: 'Continue with email or social',
+  privySubtitle: 'Email · Google · Apple — no wallet needed',
+  divider: 'OR CONNECT A WALLET',
+  recommendedLabel: 'RECOMMENDED',
+  otherLabel: 'OTHER WALLETS',
+  otherCaption: 'availability not guaranteed',
+  browserExtensionSubtitle: 'Browser extension',
+  walletConnectName: 'WalletConnect',
+  walletConnectSubtitle: 'Scan with a mobile wallet',
+  emptyTitle: 'No browser wallet detected',
+  emptyBody: 'Scan the QR with a mobile wallet to connect.',
+  footer: 'Self-custody. You approve every transaction.',
+  connectingSubtitle: 'Connecting…',
+  closeLabel: 'Close connect options',
+} as const;

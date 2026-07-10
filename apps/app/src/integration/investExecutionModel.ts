@@ -26,11 +26,12 @@ export type DepositExecutionCapability =
 
 export function resolveDepositExecutionCapability({
   isConnected,
-  hasAtomicBatch,
+  executionMode,
   depositPath,
 }: {
   isConnected: boolean;
-  hasAtomicBatch: boolean;
+  /** `WalletProviderInterface.executionMode` — `undefined` on native (Privy-Expo has no execution path yet). */
+  executionMode: 'atomic-batch' | 'eip7702' | undefined;
   depositPath: DesktopDepositPath;
 }): DepositExecutionCapability {
   if (isGmxDepositPath(depositPath)) {
@@ -39,7 +40,7 @@ export function resolveDepositExecutionCapability({
   if (!isConnected) {
     return 'connect-wallet';
   }
-  if (!hasAtomicBatch) {
+  if (executionMode === undefined) {
     return 'unsupported-wallet';
   }
   return 'ready';
