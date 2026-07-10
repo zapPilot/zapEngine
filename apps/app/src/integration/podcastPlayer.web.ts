@@ -21,6 +21,7 @@ function toggleAudioElement(audio: HTMLAudioElement): void {
 export function usePodcastPlayer(): PodcastPlayer {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hlsRef = useRef<HLS | null>(null);
+  const onEndedRef = useRef<() => void>(() => undefined);
   const [nowPlaying, setNowPlaying] = useState<PodcastEpisode | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -36,19 +37,23 @@ export function usePodcastPlayer(): PodcastPlayer {
       setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
+    const onEnded = () => {
+      setIsPlaying(false);
+      onEndedRef.current();
+    };
 
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('durationchange', onDurationChange);
     audio.addEventListener('play', onPlay);
     audio.addEventListener('pause', onPause);
-    audio.addEventListener('ended', onPause);
+    audio.addEventListener('ended', onEnded);
 
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('durationchange', onDurationChange);
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('pause', onPause);
-      audio.removeEventListener('ended', onPause);
+      audio.removeEventListener('ended', onEnded);
       hlsRef.current?.destroy();
       hlsRef.current = null;
       audio.pause();
@@ -99,6 +104,16 @@ export function usePodcastPlayer(): PodcastPlayer {
     playEpisode,
     toggleCurrentPlayback,
   });
+
+  // Auto-advance to the next queued episode when the current one ends, so a
+  // "play unheard" queue plays through instead of stopping after one episode.
+  useEffect(() => {
+    onEndedRef.current = () => {
+      if (hasNextPodcastEpisode(queueState.queue, queueState.queueIndex)) {
+        queueState.skipToNextEpisode();
+      }
+    };
+  }, [queueState]);
 
   const seek = useCallback((seconds: number) => {
     const audio = audioRef.current;

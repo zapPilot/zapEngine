@@ -1,8 +1,11 @@
 /** From Fed to Chain podcast feed client (podcast-pipeline `/episodes` API). */
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { getRuntimeEnv } from '@zapengine/app-core/lib/env/runtimeEnv';
 
-import { DEFAULT_CONTENT_LANGUAGE_CODE } from '@/config/contentLanguages';
+import {
+  CONTENT_LANGUAGE_OPTIONS,
+  DEFAULT_CONTENT_LANGUAGE_CODE,
+} from '@/config/contentLanguages';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 export interface PodcastAudioTrack {
@@ -356,6 +359,38 @@ export function usePodcastEpisodes() {
     queryFn: () => fetchPodcastEpisodes(fetch, languageCode),
     staleTime: 5 * 60 * 1000,
   });
+}
+
+export interface PodcastEpisodesByLanguage {
+  byLanguage: Record<string, PodcastEpisode[]>;
+  isLoading: boolean;
+  isError: boolean;
+}
+
+/**
+ * Fetches every content language's feed in parallel so the podcast list can
+ * group unheard episodes per language. Each language keeps its own React Query
+ * cache entry (same key as {@link usePodcastEpisodes}).
+ */
+export function usePodcastEpisodesAllLanguages(): PodcastEpisodesByLanguage {
+  const results = useQueries({
+    queries: CONTENT_LANGUAGE_OPTIONS.map((option) => ({
+      queryKey: ['desktop', 'podcast', 'episodes', option.code],
+      queryFn: () => fetchPodcastEpisodes(fetch, option.code),
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+
+  const byLanguage: Record<string, PodcastEpisode[]> = {};
+  CONTENT_LANGUAGE_OPTIONS.forEach((option, index) => {
+    byLanguage[option.code] = results[index]?.data ?? [];
+  });
+
+  return {
+    byLanguage,
+    isLoading: results.some((result) => result.isLoading),
+    isError: results.length > 0 && results.every((result) => result.isError),
+  };
 }
 
 export function usePodcastEpisodeSearch(query: string) {
