@@ -20,6 +20,7 @@ import { concatMp3Buffers } from '../tts/audio-concat.js';
 import { getClassroomTargetLanguageCodes } from './classroom-config.js';
 import { existingLanguageClassroomResult } from './result-builder.js';
 import { logIngestSkip, step } from './step.js';
+import { cleanTextForTts } from './tts-text-cleansing.js';
 import { packageAndUploadHls } from './upload-stage.js';
 
 export async function ensureLocalizationCompleted(
@@ -132,7 +133,7 @@ async function synthesizeMainAudio(
   costBreakdown: UsageCostLine[],
 ): Promise<Buffer> {
   const mainAudio = await step('textToSpeech', () =>
-    textToSpeech(script, {
+    textToSpeech(cleanTextForTts(script), {
       languageCode,
       usage: 'main',
       costLabel: 'TTS main audio',

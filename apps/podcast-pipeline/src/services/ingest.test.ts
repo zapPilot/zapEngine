@@ -306,6 +306,39 @@ describe('performIngest failure paths', () => {
     );
   });
 
+  it('cleans standalone separators only for the main TTS input', async () => {
+    const originalScript =
+      'First paragraph.\n\n---\n\nKeep inline --- punctuation.';
+    mockGenerateScriptWithLLM.mockResolvedValue({
+      script: originalScript,
+      model: 'test-model',
+      thinkingModel: null,
+      provider: 'test-provider',
+      costUsd: 0.00001,
+    });
+    mockUpdateEpisodeLocalizationStatus.mockImplementation(
+      (_id: string, status: EpisodeLocalizationRow['status'], updates = {}) =>
+        Promise.resolve(
+          localizationRow({
+            status,
+            script: (updates as { script?: string }).script ?? originalScript,
+          }),
+        ),
+    );
+
+    await performIngest('https://example.com/article', 'zh-Hant');
+
+    expect(mockTextToSpeech).toHaveBeenCalledWith(
+      'First paragraph.\n\nKeep inline --- punctuation.',
+      expect.objectContaining({ languageCode: 'zh-Hant', usage: 'main' }),
+    );
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
+      localizationRow().id,
+      'script_generated',
+      expect.objectContaining({ script: originalScript }),
+    );
+  });
+
   it('returns the episode when language classroom generation fails', async () => {
     const consoleSpy = vi
       .spyOn(console, 'error')
