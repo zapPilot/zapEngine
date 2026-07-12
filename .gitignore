@@ -76,6 +76,10 @@ apps/*/playwright-report/
 .turbo/*
 !.turbo/config.json
 
+# Expo generated native projects (regenerated via `npx expo prebuild --platform <os>`)
+apps/app/android/
+apps/app/ios/
+
 # analytics-engine
 apps/analytics-engine/*.md
 !apps/analytics-engine/README.md
