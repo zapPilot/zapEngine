@@ -37,8 +37,9 @@ const appScheme = 'zappilotv2';
 const config: ExpoConfig = {
   name: 'Zap Pilot',
   slug: 'zap-pilot-mobile-v2',
+  owner: 'davidtnfsh',
   scheme: appScheme,
-  version: '0.1.0',
+  version: '2.1.0',
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   icon: './assets/brand/icon.png',
@@ -48,7 +49,7 @@ const config: ExpoConfig = {
     icon: './assets/brand/icon.png',
   },
   android: {
-    package: 'com.zapengine.zappilot.dev',
+    package: 'com.fromfedtochain.app',
     adaptiveIcon: {
       foregroundImage: './assets/brand/adaptive-icon.png',
       backgroundColor: '#0a0a0a',
@@ -78,6 +79,9 @@ const config: ExpoConfig = {
     appRuntime: 'app',
     privyAppId: process.env.EXPO_PUBLIC_PRIVY_APP_ID ?? '',
     privyClientId: process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID ?? '',
+    eas: {
+      projectId: 'c20d048d-5e94-447b-b95d-dfb7fc30e23d',
+    },
   },
 };
 

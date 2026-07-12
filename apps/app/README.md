@@ -14,11 +14,14 @@ EXPO_PUBLIC_PRIVY_APP_ID=...
 EXPO_PUBLIC_PRIVY_CLIENT_ID=...
 ```
 
-Native identifiers are deliberately separate from any production App Store /
-Play Store identifiers until release ownership is finalized:
+Native identifiers:
 
-- iOS: `com.zapengine.zappilot.dev`
-- Android: `com.zapengine.zappilot.dev`
+- iOS development bundle: `com.zapengine.zappilot.dev`
+- Android production package: `com.fromfedtochain.app`
+
+The Android package intentionally preserves the existing Google Play listing and
+upload certificate from the retired Flutter app. The store-facing app name is
+`Zap Pilot`.
 
 ## Commands
 
@@ -30,6 +33,11 @@ pnpm turbo run build:web test:e2e --filter=@zapengine/app
 pnpm --filter @zapengine/app check:web-native-leaks
 pnpm --filter @zapengine/app format:check
 pnpm turbo run deadcode dup:check --filter=@zapengine/app
+
+# Android Google Play release
+pnpm --filter @zapengine/app android:release
+pnpm --filter @zapengine/app android:submit
+pnpm --filter @zapengine/app android:publish
 ```
 
 `build` runs Expo native exports for Android and iOS, so it is the Metro graph
@@ -38,6 +46,12 @@ regression gate. `build:web` writes the static Expo web export to `dist/web`;
 exercise the same SPA fallback as Vercel. `check:web-native-leaks` parses web
 sourcemaps and fails if native-only packages are present as sources or imports.
 Use the Turbo command for workspace checks so upstream package builds are fresh.
+
+`android:release` creates a signed production AAB with EAS Build.
+`android:submit` submits the most recent build to Google Play Internal testing,
+and `android:publish` builds and submits in one command. Complete the one-time
+credential and version setup in [docs/android-release.md](./docs/android-release.md)
+before the first EAS build.
 
 ## Migration Notes
 

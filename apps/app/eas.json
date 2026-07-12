@@ -1,0 +1,36 @@
+{
+  "cli": {
+    "version": ">= 20.5.1",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "corepack": true,
+      "pnpm": "10.30.3",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "environment": "production",
+      "credentialsSource": "remote",
+      "autoIncrement": true,
+      "corepack": true,
+      "pnpm": "10.30.3",
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "applicationId": "com.fromfedtochain.app",
+        "track": "internal",
+        "releaseStatus": "completed"
+      }
+    }
+  }
+}

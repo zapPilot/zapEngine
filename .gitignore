@@ -86,6 +86,8 @@ apps/analytics-engine/*.md
 service-account.json
 apps/mobile/key.properties
 apps/mobile/android/key.properties
+apps/app/credentials.json
+apps/app/google-play-service-account*.json
 *.jks
 *.keystore
 apps/*/coverage/**
