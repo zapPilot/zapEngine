@@ -11,6 +11,11 @@ import { Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui/Tap';
+import {
+  isTabAccessible,
+  type AppTabName,
+} from '@/integration/navigationModel';
+import { useAccount } from '@/integration/useAccount';
 
 type TabIcon = ComponentType<{
   color?: string;
@@ -59,6 +64,7 @@ export function BottomTabBar({
   navigation,
 }: BottomTabBarProps): ReactElement {
   const insets = useSafeAreaInsets();
+  const account = useAccount();
 
   return (
     <View
@@ -73,14 +79,30 @@ export function BottomTabBar({
         if (!tab) return null;
 
         const active = state.index === index;
+        const accessible = isTabAccessible(
+          route.name as AppTabName,
+          account.isConnected,
+        );
         const color = active ? tokens.color.accent : tokens.color['ink-faint'];
         const Icon = tab.Icon;
 
         return (
           <Tap
             key={route.key}
+            accessibilityRole="tab"
+            accessibilityLabel={tab.label}
+            accessibilityState={{ selected: active }}
+            aria-selected={active}
+            accessibilityHint={
+              accessible ? undefined : 'Sign in to open this tab'
+            }
             className="flex-1 items-center gap-1.5"
             onPress={() => {
+              if (!accessible) {
+                void account.connect();
+                return;
+              }
+
               const event = navigation.emit({
                 type: 'tabPress',
                 target: route.key,

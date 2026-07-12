@@ -169,7 +169,10 @@ export async function executeDepositPlan({
     address: walletAddress,
     chainId,
   });
-  if (delegation.compatibility === 'unsupported') {
+  if (
+    delegation.compatibility === 'unsupported' ||
+    delegation.compatibility === 'unknown'
+  ) {
     throw new Error(formatIncompatibleDelegationError(delegation));
   }
 

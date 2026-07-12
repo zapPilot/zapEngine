@@ -1,35 +1,59 @@
 import Slider from '@react-native-community/slider';
 import { useRouter } from 'expo-router';
-import { Headphones, Pause, Play, Search, X } from 'lucide-react-native';
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { Pause, Play, Search, X } from 'lucide-react-native';
+import { useEffect, useMemo, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
-import { PodcastLanguageDropdown } from '@/components/content/ContentLanguageSelector';
 import {
-  formatPodcastClock,
-  formatPodcastEpisodeDate,
-} from '@/components/podcast/episodeFormatters';
+  getContentLanguageBadge,
+  PodcastLanguageDropdown,
+} from '@/components/content/ContentLanguageSelector';
+import { formatPodcastClock } from '@/components/podcast/episodeFormatters';
+import { EpisodeRow } from '@/components/podcast/EpisodeRow';
+import { ExpandableSection } from '@/components/podcast/ExpandableSection';
+import {
+  PlayUnheardCard,
+  type PlayUnheardMode,
+} from '@/components/podcast/PlayUnheardCard';
+import {
+  type EpisodeSortDirection,
+  sortEpisodes,
+} from '@/components/podcast/episodeSorting';
 import { Card } from '@/components/ui/Card';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
+import { CONTENT_LANGUAGE_OPTIONS } from '@/config/contentLanguages';
 import {
   isPodcastSearchQueryValid,
   normalisePodcastSearchQuery,
   usePodcastEpisodeSearch,
-  usePodcastEpisodes,
+  usePodcastEpisodesAllLanguages,
 } from '@/integration/podcastFeed';
 import type {
   PodcastEpisode,
   PodcastEpisodeSearchResult,
 } from '@/integration/podcastFeed';
+import {
+  mergeEpisodeProgress,
+  resolveEpisodeStatus,
+} from '@/integration/podcastProgress';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 import { cn } from '@/lib/cn';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
+import { useEpisodeProgress } from '@/providers/PodcastProgressProvider';
 import { usePodcastPlayer } from '@/providers/PodcastPlayerProvider';
 
 const EMPTY_SEARCH_RESULTS: readonly PodcastEpisodeSearchResult[] = [];
-const EMPTY_EPISODES: readonly PodcastEpisode[] = [];
+const LISTENED_PAGE_SIZE = 12;
+
+interface LanguageGroup {
+  code: string;
+  badge: string;
+  nativeName: string;
+  episodes: PodcastEpisode[];
+}
 
 function useDebouncedValue(value: string, delayMs: number): string {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -40,102 +64,6 @@ function useDebouncedValue(value: string, delayMs: number): string {
   }, [delayMs, value]);
 
   return debouncedValue;
-}
-
-function EpisodeBadge({ active }: { active: boolean }) {
-  return (
-    <View
-      className={cn(
-        'h-10 w-10 shrink-0 items-center justify-center rounded-xl border',
-        active
-          ? 'border-[rgba(212,197,163,.3)] bg-[rgba(212,197,163,.12)]'
-          : 'border-line bg-[rgba(255,255,255,.045)]',
-      )}
-    >
-      <Headphones
-        size={18}
-        strokeWidth={1.8}
-        color={active ? '#d4c5a3' : '#a1a1aa'}
-      />
-    </View>
-  );
-}
-
-function EpisodeRow({
-  episode,
-  first,
-  active,
-  playing,
-  supportingContent,
-  onToggle,
-  onOpen,
-}: {
-  episode: PodcastEpisode;
-  first: boolean;
-  active: boolean;
-  playing: boolean;
-  supportingContent?: ReactNode;
-  onToggle: () => void;
-  onOpen: () => void;
-}) {
-  return (
-    <View
-      className={cn(
-        'flex-row items-start gap-3 py-[13px]',
-        !first && 'border-t border-line',
-      )}
-    >
-      <Tap
-        onPress={onOpen}
-        accessibilityRole="button"
-        accessibilityLabel={`Open ${episode.title}`}
-        className="min-w-0 flex-1 flex-row gap-3"
-      >
-        <EpisodeBadge active={active} />
-        <View className="min-w-0 flex-1">
-          <Text
-            className={cn(
-              'font-sans-semibold text-[14px]',
-              active ? 'text-accent' : 'text-ink',
-            )}
-            numberOfLines={1}
-          >
-            {episode.title}
-          </Text>
-          <View className="mt-[5px] flex-row items-center gap-2">
-            <Text className="font-mono text-[10px] text-ink-faint">
-              {formatPodcastEpisodeDate(episode.createdAt)}
-            </Text>
-            {episode.listened ? (
-              <Text className="font-mono text-[9px] uppercase tracking-[0.9px] text-ink-faint">
-                Listened
-              </Text>
-            ) : null}
-          </View>
-          {supportingContent}
-        </View>
-      </Tap>
-      <Tap
-        onPress={onToggle}
-        accessibilityRole="button"
-        accessibilityLabel={
-          playing ? `Pause ${episode.title}` : `Play ${episode.title}`
-        }
-        className={cn(
-          'h-8 w-8 shrink-0 items-center justify-center rounded-full border',
-          active
-            ? 'border-[rgba(212,197,163,.3)] bg-[rgba(212,197,163,.16)]'
-            : 'border-line bg-[rgba(255,255,255,.05)]',
-        )}
-      >
-        {playing ? (
-          <Pause size={14} strokeWidth={2} color="#d4c5a3" />
-        ) : (
-          <Play size={14} strokeWidth={2} color="#cfcabb" />
-        )}
-      </Tap>
-    </View>
-  );
 }
 
 function EpisodeListSkeleton() {
@@ -307,23 +235,127 @@ function EmptyStateCard({
 
 export function PodcastScreen() {
   const router = useRouter();
+  const player = usePodcastPlayer();
+  const { languageCode } = useContentLanguage();
+  const { progress, markAllListened } = useEpisodeProgress();
+
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
-  const feedQuery = usePodcastEpisodes();
+  const [direction, setDirection] = useState<EpisodeSortDirection>('newest');
+  const [visibleListened, setVisibleListened] = useState(LISTENED_PAGE_SIZE);
+  const [confirmMarkAll, setConfirmMarkAll] = useState(false);
+
+  const feedQuery = usePodcastEpisodesAllLanguages();
   const searchQueryResult = usePodcastEpisodeSearch(debouncedSearchQuery);
-  const player = usePodcastPlayer();
+
   const normalisedSearchQuery = normalisePodcastSearchQuery(searchQuery);
   const searchActive = isPodcastSearchQueryValid(normalisedSearchQuery);
   const searchPending =
     searchActive && debouncedSearchQuery.trim() !== normalisedSearchQuery;
   const searchResults = searchQueryResult.data ?? EMPTY_SEARCH_RESULTS;
-  const episodes = useMemo(
+
+  // Merge device-local progress onto each language's feed.
+  const mergedByLanguage = useMemo(() => {
+    const result: Record<string, PodcastEpisode[]> = {};
+    for (const option of CONTENT_LANGUAGE_OPTIONS) {
+      result[option.code] = (feedQuery.byLanguage[option.code] ?? []).map(
+        (episode) => mergeEpisodeProgress(episode, progress),
+      );
+    }
+    return result;
+  }, [feedQuery.byLanguage, progress]);
+
+  // Unheard episodes grouped by language, selected language first.
+  const unheardGroups = useMemo<LanguageGroup[]>(() => {
+    const orderedOptions = [
+      ...CONTENT_LANGUAGE_OPTIONS.filter((o) => o.code === languageCode),
+      ...CONTENT_LANGUAGE_OPTIONS.filter((o) => o.code !== languageCode),
+    ];
+    return orderedOptions
+      .map((option) => ({
+        code: option.code,
+        badge: option.badge,
+        nativeName: option.nativeName,
+        episodes: sortEpisodes(
+          (mergedByLanguage[option.code] ?? []).filter(
+            (episode) => !episode.listened,
+          ),
+          direction,
+        ),
+      }))
+      .filter((group) => group.episodes.length > 0);
+  }, [mergedByLanguage, languageCode, direction]);
+
+  const listenedEpisodes = useMemo(
     () =>
-      searchActive
-        ? searchResults.map((result) => result.episode)
-        : (feedQuery.data ?? EMPTY_EPISODES),
-    [feedQuery.data, searchActive, searchResults],
+      sortEpisodes(
+        CONTENT_LANGUAGE_OPTIONS.flatMap(
+          (option) => mergedByLanguage[option.code] ?? [],
+        ).filter((episode) => episode.listened),
+        'newest',
+      ),
+    [mergedByLanguage],
   );
+
+  const allLocalizationIds = useMemo(
+    () =>
+      CONTENT_LANGUAGE_OPTIONS.flatMap((option) =>
+        (mergedByLanguage[option.code] ?? []).map(
+          (episode) => episode.localizationId,
+        ),
+      ),
+    [mergedByLanguage],
+  );
+
+  // "Play unheard" target + queue, prioritising the selected language
+  // (mirrors the mobile `playSmart`: in-progress → unplayed → all completed).
+  const playback = useMemo(() => {
+    const pool = mergedByLanguage[languageCode] ?? [];
+    if (pool.length === 0) {
+      return {
+        mode: 'empty' as PlayUnheardMode,
+        target: null as PodcastEpisode | null,
+        queue: [] as PodcastEpisode[],
+      };
+    }
+    const statusOf = (episode: PodcastEpisode) =>
+      resolveEpisodeStatus(episode.listened, episode.lastPositionSeconds);
+    const inProgress = sortEpisodes(
+      pool.filter((e) => statusOf(e) === 'inProgress'),
+      direction,
+    );
+    const unplayed = sortEpisodes(
+      pool.filter((e) => statusOf(e) === 'unplayed'),
+      direction,
+    );
+    const completed = sortEpisodes(
+      pool.filter((e) => e.listened),
+      direction,
+    );
+
+    const unheardOrdered = [...inProgress, ...unplayed];
+    if (unheardOrdered.length > 0) {
+      return {
+        mode: (inProgress.length > 0
+          ? 'inProgress'
+          : 'unplayed') as PlayUnheardMode,
+        target: unheardOrdered[0] ?? null,
+        queue: unheardOrdered,
+      };
+    }
+    return {
+      mode: 'allCompleted' as PlayUnheardMode,
+      target: completed[0] ?? null,
+      queue: completed,
+    };
+  }, [mergedByLanguage, languageCode, direction]);
+
+  const playbackTarget = playback.target;
+  const playbackIsPlaying =
+    player.isPlaying &&
+    playbackTarget !== null &&
+    player.nowPlaying?.localizationId === playbackTarget.localizationId;
+
   const listLoading = searchActive
     ? (searchQueryResult.isLoading || searchPending) &&
       searchResults.length === 0
@@ -331,6 +363,37 @@ export function PodcastScreen() {
   const listError = searchActive
     ? searchQueryResult.isError
     : feedQuery.isError;
+
+  const hasAnyEpisode = unheardGroups.length > 0 || listenedEpisodes.length > 0;
+
+  const openEpisode = (episode: PodcastEpisode) =>
+    router.push(`/podcast/${encodeURIComponent(episode.localizationId)}`);
+
+  const renderRows = (
+    episodes: readonly PodcastEpisode[],
+    context: readonly PodcastEpisode[],
+    options?: { showLanguageBadge?: boolean },
+  ) =>
+    episodes.map((episode, index) => {
+      const active =
+        player.nowPlaying?.localizationId === episode.localizationId;
+      const languageBadge =
+        options?.showLanguageBadge === true
+          ? { languageBadge: getContentLanguageBadge(episode.languageCode) }
+          : {};
+      return (
+        <EpisodeRow
+          key={episode.localizationId}
+          episode={episode}
+          first={index === 0}
+          active={active}
+          playing={active && player.isPlaying}
+          {...languageBadge}
+          onToggle={() => player.playFromQueue(context, episode)}
+          onOpen={() => openEpisode(episode)}
+        />
+      );
+    });
 
   return (
     <View className="flex-1 bg-bg">
@@ -373,51 +436,138 @@ export function PodcastScreen() {
                 : 'The podcast feed is unavailable right now.'
             }
           />
-        ) : episodes.length > 0 ? (
-          <View className="px-5">
-            {episodes.map((episode, index) => {
-              const searchResult = searchActive
-                ? searchResults.find(
-                    (result) => result.episode.id === episode.id,
-                  )
-                : undefined;
-              return (
-                <EpisodeRow
-                  key={episode.localizationId}
-                  episode={episode}
-                  first={index === 0}
-                  active={player.nowPlaying?.id === episode.id}
-                  playing={
-                    player.nowPlaying?.id === episode.id && player.isPlaying
-                  }
-                  supportingContent={
-                    searchResult !== undefined ? (
-                      <SearchMatchSummary result={searchResult} />
-                    ) : undefined
-                  }
-                  onToggle={() => player.playFromQueue(episodes, episode)}
-                  onOpen={() =>
-                    router.push(
-                      `/podcast/${encodeURIComponent(episode.localizationId)}`,
-                    )
-                  }
-                />
-              );
-            })}
-          </View>
-        ) : (
+        ) : searchActive ? (
+          searchResults.length > 0 ? (
+            <View className="px-5">
+              {searchResults.map((result, index) => {
+                const episode = result.episode;
+                const active =
+                  player.nowPlaying?.localizationId === episode.localizationId;
+                return (
+                  <EpisodeRow
+                    key={episode.localizationId}
+                    episode={episode}
+                    first={index === 0}
+                    active={active}
+                    playing={active && player.isPlaying}
+                    supportingContent={<SearchMatchSummary result={result} />}
+                    onToggle={() =>
+                      player.playFromQueue(
+                        searchResults.map((r) => r.episode),
+                        episode,
+                      )
+                    }
+                    onOpen={() => openEpisode(episode)}
+                  />
+                );
+              })}
+            </View>
+          ) : (
+            <EmptyStateCard title="找不到相關集數" message="換個關鍵字試試。" />
+          )
+        ) : !hasAnyEpisode ? (
           <EmptyStateCard
-            title={searchActive ? '找不到相關集數' : 'No episodes yet'}
-            message={
-              searchActive
-                ? '換個關鍵字試試。'
-                : 'Published episodes will appear here.'
-            }
+            title="No episodes yet"
+            message="Published episodes will appear here."
           />
+        ) : (
+          <View>
+            <PlayUnheardCard
+              mode={playback.mode}
+              target={playbackTarget}
+              direction={direction}
+              isPlaying={playbackIsPlaying}
+              onDirectionChange={setDirection}
+              onPlay={() => {
+                if (playbackTarget !== null) {
+                  player.playFromQueue(playback.queue, playbackTarget);
+                }
+              }}
+            />
+
+            {unheardGroups.length > 0 ? (
+              <ExpandableSection
+                title="未聽"
+                count={unheardTotalCount(unheardGroups)}
+                defaultExpanded
+              >
+                {unheardGroups.map((group) => (
+                  <View key={group.code} className="pt-1">
+                    <View className="flex-row items-center gap-2 pb-1 pt-2">
+                      <View className="h-6 w-6 items-center justify-center rounded-md border border-line bg-[rgba(255,255,255,.045)]">
+                        <Text className="font-mono text-[10px] text-ink-dim">
+                          {group.badge}
+                        </Text>
+                      </View>
+                      <Text className="font-sans-medium text-[12.5px] text-ink-dim">
+                        {group.nativeName}
+                      </Text>
+                      <Text className="font-mono text-[10px] text-ink-faint">
+                        ({group.episodes.length})
+                      </Text>
+                    </View>
+                    {renderRows(group.episodes, group.episodes)}
+                  </View>
+                ))}
+              </ExpandableSection>
+            ) : null}
+
+            {listenedEpisodes.length > 0 ? (
+              <ExpandableSection title="已聽完" count={listenedEpisodes.length}>
+                {renderRows(
+                  listenedEpisodes.slice(0, visibleListened),
+                  listenedEpisodes,
+                  { showLanguageBadge: true },
+                )}
+                {visibleListened < listenedEpisodes.length ? (
+                  <Tap
+                    accessibilityRole="button"
+                    accessibilityLabel="載入更多已聽集數"
+                    onPress={() =>
+                      setVisibleListened(
+                        (current) => current + LISTENED_PAGE_SIZE,
+                      )
+                    }
+                    className="mt-2 items-center rounded-full border border-line py-[10px]"
+                  >
+                    <Text className="font-mono text-[11px] uppercase tracking-[0.8px] text-ink-dim">
+                      載入更多
+                    </Text>
+                  </Tap>
+                ) : null}
+              </ExpandableSection>
+            ) : null}
+
+            <View className="items-center px-5 pb-2 pt-6">
+              <Tap
+                accessibilityRole="button"
+                accessibilityLabel="全部標記為已聽"
+                onPress={() => {
+                  if (confirmMarkAll) {
+                    markAllListened(allLocalizationIds);
+                    setConfirmMarkAll(false);
+                  } else {
+                    setConfirmMarkAll(true);
+                  }
+                }}
+                className="px-3 py-1"
+              >
+                <Text className="font-mono text-[10px] text-ink-faint">
+                  {confirmMarkAll
+                    ? '再按一次確認全部標記已聽'
+                    : '全部標記為已聽'}
+                </Text>
+              </Tap>
+            </View>
+          </View>
         )}
       </ScreenScrollView>
 
       <NowPlayingBar player={player} />
     </View>
   );
+}
+
+function unheardTotalCount(groups: readonly LanguageGroup[]): number {
+  return groups.reduce((sum, group) => sum + group.episodes.length, 0);
 }

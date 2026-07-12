@@ -10,6 +10,7 @@ import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 import {
   createPodcastPlayerSnapshot,
   finiteSeconds,
+  hasNextPodcastEpisode,
 } from '@/integration/podcastPlayerShared';
 import { usePodcastPlayerQueue } from '@/integration/usePodcastPlayerQueue';
 
@@ -49,6 +50,16 @@ export function usePodcastPlayer(): PodcastPlayer {
     playEpisode,
     toggleCurrentPlayback,
   });
+
+  // Auto-advance to the next queued episode when the current one finishes.
+  useEffect(() => {
+    if (
+      status.didJustFinish &&
+      hasNextPodcastEpisode(queueState.queue, queueState.queueIndex)
+    ) {
+      queueState.skipToNextEpisode();
+    }
+  }, [status.didJustFinish, queueState]);
 
   const seek = useCallback(
     (seconds: number) => {

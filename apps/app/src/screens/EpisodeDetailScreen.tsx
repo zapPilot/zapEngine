@@ -40,8 +40,10 @@ import type {
   PodcastLanguageClassroomKeyword,
   PodcastLanguageClassroomLesson,
 } from '@/integration/podcastFeed';
+import { mergeEpisodeProgress } from '@/integration/podcastProgress';
 import { cn } from '@/lib/cn';
 import { usePodcastPlayer } from '@/providers/PodcastPlayerProvider';
+import { useEpisodeProgress } from '@/providers/PodcastProgressProvider';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 
 function episodeParamToString(value: string | string[] | undefined): string {
@@ -450,8 +452,11 @@ export function EpisodeDetailScreen() {
   );
   const { data, isLoading, isError } = usePodcastEpisodes();
   const player = usePodcastPlayer();
+  const { progress } = useEpisodeProgress();
   const episodes = data ?? [];
-  const episode = findPodcastEpisodeById(episodes, routeEpisodeId);
+  const rawEpisode = findPodcastEpisodeById(episodes, routeEpisodeId);
+  const episode =
+    rawEpisode === null ? null : mergeEpisodeProgress(rawEpisode, progress);
 
   const handleEpisodeChanged = (nextEpisode: PodcastEpisode) => {
     router.replace(

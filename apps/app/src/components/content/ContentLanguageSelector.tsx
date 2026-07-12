@@ -1,6 +1,6 @@
 import { Check, ChevronDown } from 'lucide-react-native';
-import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Modal, Pressable, Text, View } from 'react-native';
 
 import { Tap } from '@/components/ui/Tap';
 import { CONTENT_LANGUAGE_OPTIONS } from '@/config/contentLanguages';
@@ -77,17 +77,39 @@ export function ContentLanguageOptionRows({
   );
 }
 
+interface DropdownAnchor {
+  top: number;
+  left: number;
+}
+
+const FALLBACK_ANCHOR: DropdownAnchor = { top: 96, left: 20 };
+
 export function PodcastLanguageDropdown() {
   const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<DropdownAnchor>(FALLBACK_ANCHOR);
+  const triggerRef = useRef<View>(null);
   const { languageCode } = useContentLanguage();
 
+  const openMenu = () => {
+    const node = triggerRef.current;
+    if (node === null) {
+      setAnchor(FALLBACK_ANCHOR);
+      setOpen(true);
+      return;
+    }
+    node.measureInWindow((x, y, _width, height) => {
+      setAnchor({ top: y + height + 6, left: x });
+      setOpen(true);
+    });
+  };
+
   return (
-    <View className="relative" style={{ zIndex: 50 }}>
+    <View ref={triggerRef} collapsable={false}>
       <Tap
         accessibilityRole="button"
         accessibilityLabel="Choose podcast language"
         accessibilityState={{ expanded: open }}
-        onPress={() => setOpen((current) => !current)}
+        onPress={() => (open ? setOpen(false) : openMenu())}
         className={cn(
           'h-12 w-12 items-center justify-center rounded-full border',
           open
@@ -102,11 +124,24 @@ export function PodcastLanguageDropdown() {
           <ChevronDown size={10} strokeWidth={2} color="#d4c5a3" />
         </View>
       </Tap>
-      {open ? (
-        <View className="absolute left-0 top-[54px] w-[232px] rounded-[22px] border border-line bg-surface px-4 py-2 shadow-lg">
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOpen(false)}
+      >
+        <Pressable
+          accessibilityLabel="Close language menu"
+          onPress={() => setOpen(false)}
+          className="flex-1"
+        />
+        <View
+          className="absolute w-[232px] rounded-[22px] border border-line bg-surface px-4 py-2 shadow-lg"
+          style={{ top: anchor.top, left: anchor.left }}
+        >
           <ContentLanguageOptionRows onSelect={() => setOpen(false)} />
         </View>
-      ) : null}
+      </Modal>
     </View>
   );
 }

@@ -14,18 +14,28 @@ function connector(
 }
 
 describe('partitionWalletOptions', () => {
-  it('puts Rabby before Ambire in recommended, regardless of input order', () => {
+  it('keeps only approved wallets in Rabby, Ambire, OKX order', () => {
     const result = partitionWalletOptions([
+      connector({ id: 'io.metamask', name: 'MetaMask' }),
+      connector({ id: 'com.okex.wallet', name: 'OKX Wallet' }),
       connector({ id: 'com.ambire', name: 'Ambire Wallet', recommended: true }),
       connector({ id: 'io.rabby', name: 'Rabby Wallet', recommended: true }),
+      connector({
+        id: 'walletConnect',
+        name: 'WalletConnect',
+        type: 'walletConnect',
+      }),
     ]);
     expect(result.recommended.map((option) => option.name)).toEqual([
       'Rabby Wallet',
       'Ambire Wallet',
+      'OKX Wallet',
     ]);
+    expect(result.other).toEqual([]);
+    expect(result.hasInjected).toBe(true);
   });
 
-  it('groups non-recommended injected wallets and the generic WalletConnect entry into "other"', () => {
+  it('hides unapproved injected wallets and generic WalletConnect', () => {
     const result = partitionWalletOptions([
       connector({ id: 'io.metamask', name: 'MetaMask' }),
       connector({
@@ -34,11 +44,9 @@ describe('partitionWalletOptions', () => {
         type: 'walletConnect',
       }),
     ]);
-    expect(result.other.map((option) => option.name)).toEqual([
-      'MetaMask',
-      'WalletConnect',
-    ]);
+    expect(result.other).toEqual([]);
     expect(result.recommended).toEqual([]);
+    expect(result.hasInjected).toBe(false);
   });
 
   it('reports hasInjected only when an injected connector is present', () => {
@@ -53,9 +61,8 @@ describe('partitionWalletOptions', () => {
       ]).hasInjected,
     ).toBe(false);
     expect(
-      partitionWalletOptions([
-        connector({ id: 'io.metamask', name: 'MetaMask' }),
-      ]).hasInjected,
+      partitionWalletOptions([connector({ id: 'io.rabby', name: 'Rabby' })])
+        .hasInjected,
     ).toBe(true);
   });
 });

@@ -6,12 +6,15 @@ import { type ReactElement, type ReactNode, useEffect, useRef } from 'react';
 import { Text, View } from 'react-native';
 
 import { ConnectSheetHost } from '@/components/connect/ConnectSheetHost';
+import { PodcastProgressTracker } from '@/components/podcast/PodcastProgressTracker';
 import { ZapLogo } from '@/components/ui/ZapLogo';
 import { getExpoMobileRuntimeConfig } from '@/config/expoRuntimeConfig';
 import type { MobileRuntimeConfig } from '@/config/mobileRuntimeConfig';
 import { APP_FONTS } from '@/lib/fonts';
+import { AuthenticatedActionProvider } from '@/providers/AuthenticatedActionProvider';
 import { ContentLanguageProvider } from '@/providers/ContentLanguageProvider';
 import { PodcastPlayerProvider } from '@/providers/PodcastPlayerProvider';
+import { PodcastProgressProvider } from '@/providers/PodcastProgressProvider';
 import { ToastProvider } from '@/providers/ToastProvider';
 
 type PrivyRuntimeConfig = NonNullable<MobileRuntimeConfig['privy']>;
@@ -81,15 +84,20 @@ export function AppProviderShell({
 
   const appContent = (
     <ContentLanguageProvider>
-      <PodcastPlayerProvider>
-        <ToastProvider>
-          <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
-            <StatusBar style="light" />
-            {children}
-            <ConnectSheetHost />
-          </View>
-        </ToastProvider>
-      </PodcastPlayerProvider>
+      <PodcastProgressProvider>
+        <AuthenticatedActionProvider>
+          <PodcastPlayerProvider>
+            <PodcastProgressTracker />
+            <ToastProvider>
+              <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
+                <StatusBar style="light" />
+                {children}
+                <ConnectSheetHost />
+              </View>
+            </ToastProvider>
+          </PodcastPlayerProvider>
+        </AuthenticatedActionProvider>
+      </PodcastProgressProvider>
     </ContentLanguageProvider>
   );
 

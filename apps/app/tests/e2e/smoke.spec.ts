@@ -45,6 +45,7 @@ const PRIMARY_ROUTES = [
 
 const ERROR_PAGE_PATTERN =
   /Something went wrong|Unhandled|ErrorBoundary|Page not found/i;
+const AUTH_REQUIRED_ROUTES = new Set(['/strategy', '/activity', '/account']);
 
 async function routePodcastFeed(page: Page): Promise<void> {
   await page.route('**/episodes?**', async (route) => {
@@ -70,27 +71,69 @@ test('renders the web app shell and primary routes without page errors', async (
   });
   await routePodcastFeed(page);
 
+  await test.step('Podcast is the default guest route and all five tabs remain visible', async () => {
+    await page.goto('/');
+    await expect(page).toHaveURL(/\/podcast$/);
+
+    const tabs = page.getByRole('tab');
+    await expect(tabs).toHaveCount(5);
+    await expect(tabs).toHaveText([
+      'Home',
+      'Strategy',
+      'Podcast',
+      'Activity',
+      'Account',
+    ]);
+    await expect(page.getByRole('tab', { name: 'Podcast' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+
+  await test.step('guest can open Home and return to Podcast', async () => {
+    await page.getByRole('tab', { name: 'Home' }).click();
+    await expect(page).toHaveURL(/\/home$/);
+    await expectHealthyRoute(page);
+    await expect(page.getByText('Sign in to continue')).toHaveCount(0);
+
+    await page.getByRole('tab', { name: 'Podcast' }).click();
+    await expect(page).toHaveURL(/\/podcast$/);
+  });
+
+  await test.step('locked tabs open login without changing the current route', async () => {
+    for (const label of ['Strategy', 'Activity', 'Account'] as const) {
+      await page.getByRole('tab', { name: label }).click();
+      await expect(page).toHaveURL(/\/podcast$/);
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await expect(page.getByText('Choose how to connect')).toBeVisible();
+      await page.getByRole('button', { name: 'Close connect options' }).click();
+      await expect(page.getByRole('dialog')).toBeHidden();
+    }
+  });
+
   for (const route of PRIMARY_ROUTES) {
     await test.step(`route ${route.label}`, async () => {
       await page.goto(route.path);
       await expect(page).toHaveURL(route.url);
       await expectHealthyRoute(page);
+      if (AUTH_REQUIRED_ROUTES.has(route.path)) {
+        await expect(page.getByText('Sign in to continue')).toBeVisible();
+      }
     });
   }
 
-  await test.step('Portfolio tab', async () => {
-    await page.goto('/home');
-    await expect(page).toHaveURL(/\/home$/);
-    await expectHealthyRoute(page);
-    await page.getByText('Portfolio', { exact: true }).click();
+  await test.step('Portfolio route requires authentication', async () => {
+    await page.goto('/portfolio');
     await expect(page).toHaveURL(/\/portfolio$/);
     await expectHealthyRoute(page);
+    await expect(page.getByText('Sign in to continue')).toBeVisible();
   });
 
   await test.step('Send route', async () => {
     await page.goto('/send?token=USDC');
     await expect(page).toHaveURL(/\/send\?token=USDC$/);
     await expectHealthyRoute(page);
+    await expect(page.getByText('Sign in to continue')).toBeVisible();
   });
 
   expect(pageErrors).toEqual([]);

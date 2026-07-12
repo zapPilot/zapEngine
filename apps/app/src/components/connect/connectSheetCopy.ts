@@ -13,7 +13,7 @@ export const CONNECT_SHEET_COPY = {
   walletConnectName: 'WalletConnect',
   walletConnectSubtitle: 'Scan with a mobile wallet',
   emptyTitle: 'No browser wallet detected',
-  emptyBody: 'Scan the QR with a mobile wallet to connect.',
+  emptyBody: 'Install Rabby, Ambire, or OKX Wallet, or continue with Privy.',
   footer: 'Self-custody. You approve every transaction.',
   connectingSubtitle: 'Connecting…',
   closeLabel: 'Close connect options',
