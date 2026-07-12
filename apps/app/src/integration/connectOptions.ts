@@ -1,40 +1,53 @@
 import type { WalletConnectorOption } from '@zapengine/app-core/types';
 
 export interface PartitionedWalletOptions {
-  /** Rabby/Ambire, vetted — shown first with a "Recommended" badge. */
+  /** Approved EIP-7702 wallet brands, shown in product-priority order. */
   recommended: WalletConnectorOption[];
-  /** Every other discovered wallet, plus the generic WalletConnect entry when configured. */
+  /** Reserved for future curated connectors; unapproved wallets stay hidden. */
   other: WalletConnectorOption[];
-  /** Whether any browser-extension wallet was detected (false is common on Electron). */
+  /** Whether an approved browser-extension wallet was detected. */
   hasInjected: boolean;
 }
 
-const RECOMMENDED_PRIORITY = ['rabby', 'ambire'];
+const APPROVED_WALLET_PRIORITY = ['rabby', 'ambire', 'okx'];
+const APPROVED_RDNS = new Set(['io.rabby', 'com.ambire', 'com.okex.wallet']);
+
+function isApprovedWallet(option: WalletConnectorOption): boolean {
+  if (option.type !== 'injected') {
+    return false;
+  }
+  const name = option.name.toLowerCase();
+  return (
+    APPROVED_RDNS.has(option.id) ||
+    APPROVED_WALLET_PRIORITY.some((brand) => name.includes(brand))
+  );
+}
 
 function recommendedPriority(option: WalletConnectorOption): number {
   const name = option.name.toLowerCase();
-  const index = RECOMMENDED_PRIORITY.findIndex((needle) =>
+  const index = APPROVED_WALLET_PRIORITY.findIndex((needle) =>
     name.includes(needle),
   );
-  return index === -1 ? RECOMMENDED_PRIORITY.length : index;
+  return index === -1 ? APPROVED_WALLET_PRIORITY.length : index;
 }
 
 /**
- * Splits the wallets `useWalletLogin().connectors` discovered into the
- * "Recommended" and "Other / not guaranteed" tiers the picker renders.
- * `useWagmiWalletBackend` already flags `recommended` (Rabby/Ambire) and only
- * includes the generic WalletConnect entry when a project ID is configured,
- * so this is a pure partition — no extra wallet-detection logic here.
+ * Applies the product allowlist to discovered connectors. Generic
+ * WalletConnect remains configured below the UI layer for future curated
+ * deep-links, but it must never expose an unrestricted wallet directory.
  */
 export function partitionWalletOptions(
   connectors: WalletConnectorOption[],
 ): PartitionedWalletOptions {
+  const approved = connectors
+    .filter(isApprovedWallet)
+    .map((option) => ({ ...option, recommended: true }))
+    .sort((a, b) => recommendedPriority(a) - recommendedPriority(b));
+
   return {
-    recommended: connectors
-      .filter((option) => option.recommended)
-      .sort((a, b) => recommendedPriority(a) - recommendedPriority(b)),
-    other: connectors.filter((option) => !option.recommended),
-    hasInjected: connectors.some((option) => option.type === 'injected'),
+    recommended: approved,
+    other: [],
+    hasInjected: approved.length > 0,
   };
 }
 
@@ -67,7 +80,7 @@ export function mapConnectError(
   if (error.code === 'NO_WALLET' || NO_PROVIDER_PATTERN.test(error.message)) {
     return {
       title: "Couldn't reach that wallet",
-      body: 'Make sure the extension is installed and unlocked, or use WalletConnect.',
+      body: 'Make sure Rabby, Ambire, or OKX Wallet is installed and unlocked.',
     };
   }
 

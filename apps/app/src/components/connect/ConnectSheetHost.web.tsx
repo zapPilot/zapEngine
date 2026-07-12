@@ -9,6 +9,7 @@ import {
   mapConnectError,
   partitionWalletOptions,
 } from '@/integration/connectOptions';
+import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
 
 /**
  * Wires the custom connect picker to the wallet-login seam and mounts the
@@ -20,6 +21,7 @@ export function ConnectSheetHost() {
   const login = useWalletLogin();
   const wallet = useWalletProvider();
   const { showToast } = useToast();
+  const authAction = useAuthenticatedAction();
   const wasConnectedRef = useRef(wallet.isConnected);
 
   useEffect(() => {
@@ -45,7 +47,10 @@ export function ConnectSheetHost() {
   return (
     <ConnectSheet
       visible={login.isPickerOpen}
-      onClose={login.closePicker}
+      onClose={() => {
+        authAction.cancel();
+        login.closePicker();
+      }}
       recommended={recommended}
       other={other}
       connectingId={login.connectingId}

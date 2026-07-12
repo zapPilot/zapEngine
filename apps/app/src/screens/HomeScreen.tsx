@@ -29,7 +29,9 @@ import {
   type HomeRange,
   useHomeData,
 } from '@/integration/useHomeData';
+import { createStrategyStartAction } from '@/integration/strategyStartAction';
 import { formatSignedPct, formatSignedUsd, formatUsd } from '@/lib/format';
+import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
 
 const RANGE_OPTIONS = ['1D', '1W', '1M', '1Y', 'ALL'] as const;
 
@@ -117,6 +119,7 @@ function ActionButton({
 
 export function HomeScreen() {
   const router = useRouter();
+  const authAction = useAuthenticatedAction();
   const [range, setRange] = useState<HomeRange>(DEFAULT_HOME_RANGE);
   const account = useAccount();
   const { data, isLoading, walletAssets } = useHomeData(
@@ -133,6 +136,9 @@ export function HomeScreen() {
   const showAssetSkeleton = !isDemo && walletAssets.isLoading;
   const changePct = home.changePct;
   const changeUsd = home.changeUsdToday;
+  const startStrategy = createStrategyStartAction(authAction.run, () =>
+    router.push('/invest/amount'),
+  );
 
   return (
     <ScreenScrollView>
@@ -198,10 +204,7 @@ export function HomeScreen() {
       </View>
 
       <View className="mt-6 px-5">
-        <ZapStrategyCard
-          strategy={strategy}
-          onStart={() => router.push('/invest/amount')}
-        />
+        <ZapStrategyCard strategy={strategy} onStart={startStrategy} />
       </View>
 
       <View className="mt-6 px-5">

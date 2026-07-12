@@ -23,10 +23,13 @@ import {
 } from '@/integration/strategyRanges';
 import { useAccount } from '@/integration/useAccount';
 import { useStrategyData } from '@/integration/useStrategyData';
+import { createStrategyStartAction } from '@/integration/strategyStartAction';
 import { resolveColor } from '@/lib/colors';
+import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
 
 export function StrategyScreen() {
   const router = useRouter();
+  const authAction = useAuthenticatedAction();
   const [range, setRange] = useState<StrategyRange>('1Y');
   const account = useAccount();
   const result = useStrategyData(
@@ -47,6 +50,9 @@ export function StrategyScreen() {
     typeof strategy.backtest.sentiment === 'number'
       ? strategy.backtest.sentiment
       : 50;
+  const startStrategy = createStrategyStartAction(authAction.run, () =>
+    router.push('/invest/amount'),
+  );
 
   return (
     <ScreenScrollView>
@@ -192,7 +198,7 @@ export function StrategyScreen() {
       ) : null}
 
       <View className="mx-5 mt-5">
-        <PrimaryButton onPress={() => router.push('/invest/amount')}>
+        <PrimaryButton onPress={startStrategy}>
           <Text className="font-sans-semibold text-[15.5px] text-[#0a0a0a]">
             Start with Zap Strategy
           </Text>

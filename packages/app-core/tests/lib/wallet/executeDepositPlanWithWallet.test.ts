@@ -1,13 +1,12 @@
 import { executeDepositPlanWithWallet } from '@core/lib/wallet/executeDepositPlan';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const mocks = vi.hoisted(() => ({
+  inspectDelegation: vi.fn(),
+}));
+
 vi.mock('@core/lib/wallet/eip7702Delegation', () => ({
-  inspectDelegation: vi.fn().mockResolvedValue({
-    kind: 'delegated',
-    compatibility: 'unsupported',
-    label: 'Another wallet',
-    implementation: '0x0000000000000000000000000000000000000001',
-  }),
+  inspectDelegation: mocks.inspectDelegation,
 }));
 
 const plan = {
@@ -27,6 +26,12 @@ describe('executeDepositPlanWithWallet', () => {
   const getWalletClient = vi.fn();
 
   beforeEach(() => {
+    mocks.inspectDelegation.mockReset().mockResolvedValue({
+      kind: 'delegated',
+      compatibility: 'unsupported',
+      label: 'Another wallet',
+      implementation: '0x0000000000000000000000000000000000000001',
+    });
     getWalletClient.mockReset().mockResolvedValue({
       account: { address: '0x1111111111111111111111111111111111111111' },
     });
@@ -65,5 +70,22 @@ describe('executeDepositPlanWithWallet', () => {
     ).rejects.toThrow('This account is EIP-7702 delegated');
 
     expect(getWalletClient).toHaveBeenCalledWith(8453);
+  });
+
+  it('fails closed when the account uses an unknown EIP-7702 delegate', async () => {
+    mocks.inspectDelegation.mockResolvedValue({
+      kind: 'delegated',
+      compatibility: 'unknown',
+      label: 'Unknown EIP-7702 implementation',
+      implementation: '0x0000000000000000000000000000000000000002',
+    });
+
+    await expect(
+      executeDepositPlanWithWallet({
+        plan,
+        chainId: 8453,
+        getWalletClient,
+      }),
+    ).rejects.toThrow('This account is EIP-7702 delegated');
   });
 });

@@ -11,6 +11,7 @@ import { ZapLogo } from '@/components/ui/ZapLogo';
 import { getExpoMobileRuntimeConfig } from '@/config/expoRuntimeConfig';
 import type { MobileRuntimeConfig } from '@/config/mobileRuntimeConfig';
 import { APP_FONTS } from '@/lib/fonts';
+import { AuthenticatedActionProvider } from '@/providers/AuthenticatedActionProvider';
 import { ContentLanguageProvider } from '@/providers/ContentLanguageProvider';
 import { PodcastPlayerProvider } from '@/providers/PodcastPlayerProvider';
 import { PodcastProgressProvider } from '@/providers/PodcastProgressProvider';
@@ -84,16 +85,18 @@ export function AppProviderShell({
   const appContent = (
     <ContentLanguageProvider>
       <PodcastProgressProvider>
-        <PodcastPlayerProvider>
-          <PodcastProgressTracker />
-          <ToastProvider>
-            <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
-              <StatusBar style="light" />
-              {children}
-              <ConnectSheetHost />
-            </View>
-          </ToastProvider>
-        </PodcastPlayerProvider>
+        <AuthenticatedActionProvider>
+          <PodcastPlayerProvider>
+            <PodcastProgressTracker />
+            <ToastProvider>
+              <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
+                <StatusBar style="light" />
+                {children}
+                <ConnectSheetHost />
+              </View>
+            </ToastProvider>
+          </PodcastPlayerProvider>
+        </AuthenticatedActionProvider>
       </PodcastProgressProvider>
     </ContentLanguageProvider>
   );
