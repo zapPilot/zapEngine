@@ -61,7 +61,15 @@ const config: ExpoConfig = {
     favicon: './assets/brand/favicon.png',
   },
   plugins: [
-    'expo-dev-client',
+    [
+      'expo-dev-client',
+      {
+        android: {
+          launchMode: 'most-recent',
+          defaultLaunchURL: 'http://10.0.2.2:8081',
+        },
+      },
+    ],
     'expo-router',
     'expo-secure-store',
     'expo-web-browser',

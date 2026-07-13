@@ -12,4 +12,16 @@ describe('Android store identity', () => {
     expect(appConfig.version).toBe('2.1.0');
     expect(appConfig.android?.versionCode).toBeUndefined();
   });
+
+  it('launches the Android development client against the emulator Metro server', () => {
+    expect(appConfig.plugins).toContainEqual([
+      'expo-dev-client',
+      {
+        android: {
+          launchMode: 'most-recent',
+          defaultLaunchURL: 'http://10.0.2.2:8081',
+        },
+      },
+    ]);
+  });
 });
