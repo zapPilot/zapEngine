@@ -12,6 +12,12 @@ describe('cleanTextForTts', () => {
     );
   });
 
+  it('preserves CRLF newlines while removing separators', () => {
+    expect(cleanTextForTts('First.\r\n\r\n---\r\n\r\nSecond.')).toBe(
+      'First.\r\n\r\nSecond.',
+    );
+  });
+
   it('removes separators at the start and end without leaving blank lines', () => {
     expect(cleanTextForTts('---\n\nOpening.')).toBe('Opening.');
     expect(cleanTextForTts('Closing.\n\n---')).toBe('Closing.');
