@@ -40,6 +40,26 @@ pnpm --filter @zapengine/app android:submit
 pnpm --filter @zapengine/app android:publish
 ```
 
+## Android Studio development
+
+For one-click emulator development, create a local Android Studio **Shell
+Script** run configuration named `Zap Pilot (Expo)`:
+
+```text
+Working directory: repository root (the directory containing package.json)
+Command: pnpm --filter @zapengine/app android
+```
+
+Select that configuration and press Play. Expo CLI starts Metro, boots or selects
+the AVD, incrementally builds and installs the debug app, and opens Zap Pilot in
+the development client. The generated `android/.idea` directory is ignored, so
+each checkout configures its own absolute path. A local configuration may append
+`-- --device Pixel_8_API_36` to select that installed AVD without prompting.
+
+The standard Android `app` configuration remains useful for native debugging. If
+Metro is already running on port 8081, its default activity connects through the
+configured emulator fallback `http://10.0.2.2:8081`.
+
 `build` runs Expo native exports for Android and iOS, so it is the Metro graph
 regression gate. `build:web` writes the static Expo web export to `dist/web`;
 `test:e2e` serves that export through `scripts/serve-web.mjs` so route refreshes
