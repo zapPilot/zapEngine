@@ -12,8 +12,10 @@ apps/desktop/release/
 !packages/design-tokens/dist/
 !packages/design-tokens/dist/**
 
-# Expo (app)
+# Expo
 .expo/
+apps/app/android/
+apps/app/ios/
 
 # Turbo
 .turbo/
@@ -25,8 +27,6 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-htmlcov/
-.coverage
 
 # Environment
 .env
@@ -47,10 +47,8 @@ Thumbs.db
 *.log
 npm-debug.log*
 pnpm-debug.log*
-.agent-loop/
-.ai-verify/
 
-# Test
+# Test & Coverage
 coverage/*
 !coverage/baseline.json
 coverage-html/
@@ -60,23 +58,26 @@ coverage-summary/
 # Must NOT match the root `coverage/` directory, or the negation above stops working.
 apps/*/coverage/
 packages/*/coverage/
+htmlcov/
+.coverage
 .jscpd/
 apps/*/test-results/
 apps/*/playwright-report/
 
-# claude
-.claude/scheduled_tasks.lock
-.claude/worktrees
-
-# TODO reports for vibe coding
+# Agent / AI
+.agent-loop/
+.ai-verify/
 .todos/
+plan.md
+.opencode/goals/
 
-# git
+# Git
 .worktrees
 
-# Expo generated native projects (regenerated via `npx expo prebuild --platform <os>`)
-apps/app/android/
-apps/app/ios/
+# Claude
+.claude/scheduled_tasks.lock
+.claude/worktrees
+support.js
 
 # analytics-engine
 apps/analytics-engine/*.md
@@ -84,7 +85,7 @@ apps/analytics-engine/*.md
 !apps/analytics-engine/AGENTS.md
 !apps/analytics-engine/GEMINI.md
 
-# podcast-pipeline
+# podcast-pipeline & mobile credentials
 service-account.json
 apps/mobile/key.properties
 apps/mobile/android/key.properties
@@ -92,9 +93,3 @@ apps/app/credentials.json
 apps/app/google-play-service-account*.json
 *.jks
 *.keystore
-
-plan.md
-.opencode/goals/
-
-# claude design
-support.js
