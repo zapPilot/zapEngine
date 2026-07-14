@@ -74,10 +74,6 @@ apps/*/playwright-report/
 # git
 .worktrees
 
-# Turbo cache
-.turbo/*
-!.turbo/config.json
-
 # Expo generated native projects (regenerated via `npx expo prebuild --platform <os>`)
 apps/app/android/
 apps/app/ios/
@@ -96,8 +92,6 @@ apps/app/credentials.json
 apps/app/google-play-service-account*.json
 *.jks
 *.keystore
-apps/*/coverage/**
-packages/*/coverage/**
 
 plan.md
 .opencode/goals/
