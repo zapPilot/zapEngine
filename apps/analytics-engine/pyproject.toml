@@ -129,7 +129,10 @@ sort_by_size = true
 verbose = false
 
 [tool.uv]
-override-dependencies = ["idna>=3.15"]
+override-dependencies = [
+    "idna>=3.15",
+    "click>=8.3.3",
+]
 
 [tool.pylint.main]
 # Analyze import fallback blocks
