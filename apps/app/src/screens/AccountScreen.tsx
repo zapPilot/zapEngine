@@ -9,6 +9,7 @@ import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
 import { ContentLanguageOptionRows } from '@/components/content/ContentLanguageSelector';
 import { DEMO } from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
+import { NATIVE_PRIVY_AUTH_COPY } from '@/integration/nativePrivyLogin';
 import { truncateAddress } from '@/lib/format';
 
 export function AccountScreen() {
@@ -62,11 +63,13 @@ export function AccountScreen() {
             if (account.isConnected) {
               void account.disconnect();
             } else {
-              void account.connect();
+              void account.connect().catch(() => undefined);
             }
           }}
         >
-          {account.isConnected ? 'Disconnect wallet' : 'Connect wallet'}
+          {account.isConnected
+            ? 'Disconnect wallet'
+            : NATIVE_PRIVY_AUTH_COPY.cta}
         </PrimaryButton>
       </View>
     </ScreenScrollView>

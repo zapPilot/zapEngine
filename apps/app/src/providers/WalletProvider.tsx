@@ -38,6 +38,11 @@ import {
   toWalletError,
   toWalletSwitchEthereumChainParams,
 } from '@/integration/walletBackendModel';
+import {
+  isPrivyLoginCancellation,
+  loginWithPrivy,
+  NATIVE_PRIVY_PROVIDER_CONFIG,
+} from '@/integration/nativePrivyLogin';
 
 const WALLET_NOT_CONNECTED_ERROR = 'No Privy embedded wallet connected';
 
@@ -87,13 +92,7 @@ export function MobilePrivyProvider({
       appId={appId}
       clientId={clientId}
       supportedChains={supportedChains}
-      config={{
-        embedded: {
-          ethereum: {
-            createOnLogin: 'users-without-wallets',
-          },
-        },
-      }}
+      config={NATIVE_PRIVY_PROVIDER_CONFIG}
     >
       {children}
     </PrivyProvider>
@@ -111,7 +110,7 @@ export function WalletProvider({
 export function usePrivyExpoWalletBackend(): WalletProviderInterface {
   const { isReady, error: privyError, logout } = usePrivy();
   const { login } = useLogin();
-  const { wallets, create } = useEmbeddedEthereumWallet();
+  const { wallets } = useEmbeddedEthereumWallet();
   const embeddedWallet = wallets[0] ?? null;
   const [chainId, setChainId] = useState<number>(
     DEFAULT_NATIVE_WALLET_CHAIN.id,
@@ -168,19 +167,16 @@ export function usePrivyExpoWalletBackend(): WalletProviderInterface {
         throw new Error('Privy is not ready yet.');
       }
 
-      await login({ loginMethods: ['email'] });
-
-      if (wallets.length === 0) {
-        await create({ createAdditional: false });
-      }
+      await loginWithPrivy(login);
     } catch (err) {
-      const walletError = toWalletError(err);
-      setError(walletError);
+      if (!isPrivyLoginCancellation(err)) {
+        setError(toWalletError(err));
+      }
       throw err;
     } finally {
       setIsConnecting(false);
     }
-  }, [create, isReady, login, wallets.length]);
+  }, [isReady, login]);
 
   const disconnect = useCallback(async (): Promise<void> => {
     setError(null);

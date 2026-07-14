@@ -94,15 +94,10 @@ export function BottomTabBar({
             accessibilityState={{ selected: active }}
             aria-selected={active}
             accessibilityHint={
-              accessible ? undefined : 'Sign in to open this tab'
+              accessible ? undefined : 'Open this tab to continue with Privy'
             }
             className="flex-1 items-center gap-1.5"
             onPress={() => {
-              if (!accessible) {
-                void account.connect();
-                return;
-              }
-
               const event = navigation.emit({
                 type: 'tabPress',
                 target: route.key,

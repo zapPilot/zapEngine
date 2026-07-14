@@ -11,8 +11,10 @@ expects:
 
 ```bash
 EXPO_PUBLIC_PRIVY_APP_ID=...
-EXPO_PUBLIC_PRIVY_CLIENT_ID=...
+EXPO_PUBLIC_PRIVY_CLIENT_ID=... # Privy mobile app client
 ```
+
+Do not reuse a Privy web client ID in an Android or iOS build.
 
 Native identifiers:
 

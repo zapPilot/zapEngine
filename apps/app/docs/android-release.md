@@ -59,6 +59,20 @@ EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID
 Only configure variables actually used by the selected wallet/data providers.
 Do not assume the ignored repository-root `.env` is available on EAS Build.
 
+`EXPO_PUBLIC_PRIVY_CLIENT_ID` must reference a Privy **mobile** app client, not
+a web client. Open **Privy Dashboard > App settings > Clients** and register the
+native identifiers before testing or releasing:
+
+```text
+Allowed Android app identifier: com.fromfedtochain.app
+Allowed iOS app identifier:     com.zapengine.zappilot.dev
+Allowed URL scheme:             zappilotv2
+```
+
+Privy rejects every React Native authentication request when the matching app
+client has no allowed app identifier. Keep these values synchronized with
+`app.config.ts` whenever the package, bundle identifier, or scheme changes.
+
 ### 3. Import the existing Android upload key
 
 The existing keystore is expected at:

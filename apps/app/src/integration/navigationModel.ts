@@ -5,6 +5,9 @@ export type AppTabName =
   | 'activity'
   | 'account';
 
+export const DEFAULT_APP_TAB: AppTabName = 'podcast';
+export const DEFAULT_APP_TAB_PATH = '/podcast' as const;
+
 export const APP_TAB_NAMES: readonly AppTabName[] = [
   'home',
   'strategy',
