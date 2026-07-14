@@ -100,14 +100,14 @@ test('renders the web app shell and primary routes without page errors', async (
     await expect(page).toHaveURL(/\/podcast$/);
   });
 
-  await test.step('locked tabs open login without changing the current route', async () => {
+  await test.step('locked tabs navigate to their route with sign-in gate', async () => {
     for (const label of ['Strategy', 'Activity', 'Account'] as const) {
       await page.getByRole('tab', { name: label }).click();
+      await expect(page).toHaveURL(new RegExp(`/${label.toLowerCase()}$`));
+      await expectHealthyRoute(page);
+      await expect(page.getByText('Sign in to continue').first()).toBeVisible();
+      await page.getByRole('tab', { name: 'Podcast' }).click();
       await expect(page).toHaveURL(/\/podcast$/);
-      await expect(page.getByRole('dialog')).toBeVisible();
-      await expect(page.getByText('Choose how to connect')).toBeVisible();
-      await page.getByRole('button', { name: 'Close connect options' }).click();
-      await expect(page.getByRole('dialog')).toBeHidden();
     }
   });
 
@@ -117,7 +117,9 @@ test('renders the web app shell and primary routes without page errors', async (
       await expect(page).toHaveURL(route.url);
       await expectHealthyRoute(page);
       if (AUTH_REQUIRED_ROUTES.has(route.path)) {
-        await expect(page.getByText('Sign in to continue')).toBeVisible();
+        await expect(
+          page.getByText('Sign in to continue').first(),
+        ).toBeVisible();
       }
     });
   }
