@@ -20,3 +20,7 @@ All env vars live in the monorepo root `.env` (see `.env.example` at repo root).
 ## Deployment
 
 Fly.io via Docker — `fly deploy`.
+
+The weekly report scheduler and its startup watchdog are configured in
+Pipedream. See
+[Pipedream weekly report watchdog](./docs/pipedream-weekly-report-watchdog.md).

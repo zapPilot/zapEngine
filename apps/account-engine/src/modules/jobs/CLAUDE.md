@@ -2,41 +2,60 @@ See @../../../CLAUDE.md for app-level conventions.
 
 # jobs (module)
 
-Async work queue and scheduled processors for account-engine. Drives weekly email reports, drift-alert checks, wallet refreshes, and other periodic tasks.
+In-memory async work queue and processors for account-engine. It currently
+drives weekly email reports and daily suggestions.
 
 ## Layout
 
 ```
 jobs/
-├── job-processor.service.ts   # Worker loop — picks up jobs, runs them, records state
-├── job-queue.service.ts       # Queue API — enqueue, lease, ack, fail
-├── processors/                # One file per job type — pure handler functions
-├── interfaces/                # TS interfaces for jobs, payloads, and run results
-└── utils/                     # Retry helpers, backoff, time helpers
+├── job-processor.service.ts   # Worker loop — picks up and runs jobs
+├── job-queue.service.ts       # In-memory queue, status, logs, retries, cleanup
+├── processors/                # Weekly-report and daily-suggestion processors
+├── interfaces/                # Job types, payloads, and run results
+└── utils/                     # Batch fan-out helpers
 ```
 
 ## How a job works
 
-1. Some route / scheduler enqueues a job via `job-queue.service.ts.enqueue({ type, payload })`.
-2. `job-processor.service.ts` polls the queue, leases a job, and dispatches by `type` to the handler in `processors/`.
-3. The handler returns success or throws. The processor records result, retries (with backoff) on failure, or moves to dead-letter after N attempts.
+1. A route creates a job with `jobQueueService.createJob(...)`.
+2. `job-processor.service.ts` polls the in-process queue and dispatches the job
+   to a registered processor.
+3. The processor returns a `JobProcessingResult`. Successful jobs complete;
+   retryable failures are rescheduled with backoff; permanent failures are
+   marked failed and trigger an admin email.
+4. Batch jobs fan out into single-user child jobs. `GET /jobs/:jobId`
+   calculates the parent status from those children.
 
 ## Adding a new job type
 
-1. Add a payload interface in `interfaces/` (`XxxJobPayload`).
-2. Add a handler file in `processors/` exporting `processXxx(payload: XxxJobPayload): Promise<void>`.
-3. Register the handler in the dispatch map (search for the existing `case 'wallet-refresh'`-style switch).
-4. Enqueue from your route with `enqueue({ type: 'xxx', payload })`.
+1. Add the job type and payload interface in `interfaces/job.interface.ts`.
+2. Add or extend a processor in `processors/` and include the type in its
+   `supportedJobTypes`.
+3. Register the processor in `container.ts`.
+4. Create the job from a route with `jobQueueService.createJob(...)`.
 
 ## Conventions
 
-- Handlers must be **idempotent** — they may be re-run on retry.
-- Throw to fail; resolve to succeed. Don't return error objects.
-- Handlers can `await` notifications (`modules/notifications/`) but should not enqueue more jobs synchronously — return success first.
-- Wall-clock time goes through `utils/` helpers, not `Date.now()`, so tests can fake it.
+- Processors must be **idempotent** because retryable failures can run again.
+- Return `{ success: false, error }` (or use `createJobFailureResult`) to fail;
+  do not swallow errors as successful results.
+- Batch processors may synchronously create child jobs through
+  `BatchFanoutHelper`; the worker processes those children asynchronously.
+- Keep status transitions and job logs in `JobQueueService`.
 
 ## Gotchas
 
-- Failed jobs go to dead-letter after retry budget — check `job_runs` table + admin Telegram alert (`admin-notification.service.ts`).
-- Long-running jobs (>1 min) need to heartbeat by extending their lease via `job-queue.service.ts.extendLease()` — otherwise the processor will assume crash and re-lease.
-- DST / TZ: weekly schedules are in UTC; localising to user TZ happens in the handler, not the scheduler.
+- Jobs, child relationships, and logs live only in process memory. There is no
+  `job_runs` persistence, leasing, or dead-letter table for this module.
+- A restart, Fly auto-stop, deployment, process crash, or request routed to a
+  different machine can make `GET /jobs/:jobId` return 404. The job may also be
+  lost without reaching the normal permanent-failure path.
+- Permanent failures handled by `JobProcessorService` send a fire-and-forget
+  **email** through `AdminNotificationService`; they do not send Telegram
+  alerts. Delivery additionally depends on the email configuration.
+- Cleanup force-fails stale non-terminal jobs in memory but does not currently
+  invoke the admin failure notification.
+- Keep the external Pipedream weekly-report watchdog until queue and status
+  storage are durable across restarts and machines. Its 404/timeout alerts
+  cover failure modes that the in-process email path cannot observe.
