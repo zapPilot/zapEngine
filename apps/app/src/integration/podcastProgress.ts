@@ -15,6 +15,13 @@ export type PodcastProgressMap = Record<string, PodcastEpisodeProgress>;
 
 export type EpisodePlaybackStatus = 'unplayed' | 'inProgress' | 'completed';
 
+/** Completed-episode progress for one language's currently available feed. */
+export interface PodcastCompletionSummary {
+  completed: number;
+  total: number;
+  percentage: number;
+}
+
 /** `localStorage` key for the per-localization progress map (web only). */
 export const PODCAST_PROGRESS_STORAGE_KEY = 'podcast_episode_progress';
 
@@ -30,6 +37,29 @@ export function resolveEpisodeStatus(
     return 'inProgress';
   }
   return 'unplayed';
+}
+
+/**
+ * Summarizes completed episodes without treating a saved resume position as a
+ * completion. The feed currently exposes a finite page, so callers should
+ * describe this as progress through the available episodes rather than a
+ * lifetime catalog percentage.
+ */
+export function summarisePodcastCompletion(
+  episodes: readonly Pick<PodcastEpisode, 'listened'>[],
+): PodcastCompletionSummary {
+  const total = episodes.length;
+  const completed = episodes.filter((episode) => episode.listened).length;
+  return {
+    completed,
+    total,
+    percentage:
+      total === 0
+        ? 0
+        : completed === total
+          ? 100
+          : Math.min(99, Math.round((completed / total) * 100)),
+  };
 }
 
 /**

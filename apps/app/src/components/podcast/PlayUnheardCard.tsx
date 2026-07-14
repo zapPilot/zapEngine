@@ -82,24 +82,11 @@ export function PlayUnheardCard({
   const copy = resolveCopy(mode, target, direction, isPlaying);
 
   return (
-    <View className="px-5 pt-[18px]">
-      <Card className="p-5">
-        <Text className="font-mono text-[10px] uppercase tracking-[1.1px] text-accent">
-          {copy.eyebrow}
-        </Text>
-        <Text
-          className="mt-[10px] font-sans-bold text-[19px] leading-[26px] text-ink"
-          numberOfLines={2}
-        >
-          {copy.title}
-        </Text>
-        <Text className="mt-[6px] text-[12.5px] leading-[19px] text-ink-dim">
-          {copy.subtitle}
-        </Text>
-
-        <View className="mt-4 flex-row items-center justify-between">
-          <Text className="font-mono text-[10px] uppercase tracking-[0.9px] text-ink-faint">
-            播放順序
+    <View className="px-5 pt-3">
+      <Card className="p-4">
+        <View className="flex-row items-center justify-between gap-3">
+          <Text className="font-mono text-[10px] uppercase tracking-[1.1px] text-accent">
+            {copy.eyebrow}
           </Text>
           <RangeTabs
             options={DIRECTION_OPTIONS}
@@ -109,6 +96,15 @@ export function PlayUnheardCard({
             }
           />
         </View>
+        <Text
+          className="mt-2 font-sans-bold text-[19px] leading-[26px] text-ink"
+          numberOfLines={2}
+        >
+          {copy.title}
+        </Text>
+        <Text className="mt-1 text-[12.5px] leading-[19px] text-ink-dim">
+          {copy.subtitle}
+        </Text>
 
         <View className="mt-3">
           <PrimaryButton accessibilityLabel={copy.buttonLabel} onPress={onPlay}>

@@ -7,6 +7,7 @@ import { Text, TextInput, View } from 'react-native';
 import {
   getContentLanguageBadge,
   PodcastLanguageDropdown,
+  type PodcastCompletionByLanguage,
 } from '@/components/content/ContentLanguageSelector';
 import { formatPodcastClock } from '@/components/podcast/episodeFormatters';
 import { EpisodeRow } from '@/components/podcast/EpisodeRow';
@@ -24,7 +25,10 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
-import { CONTENT_LANGUAGE_OPTIONS } from '@/config/contentLanguages';
+import {
+  CONTENT_LANGUAGE_OPTIONS,
+  type ContentLanguageCode,
+} from '@/config/contentLanguages';
 import {
   isPodcastSearchQueryValid,
   normalisePodcastSearchQuery,
@@ -37,7 +41,9 @@ import type {
 } from '@/integration/podcastFeed';
 import {
   mergeEpisodeProgress,
+  type PodcastCompletionSummary,
   resolveEpisodeStatus,
+  summarisePodcastCompletion,
 } from '@/integration/podcastProgress';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 import { cn } from '@/lib/cn';
@@ -46,6 +52,7 @@ import { useEpisodeProgress } from '@/providers/PodcastProgressProvider';
 import { usePodcastPlayer } from '@/providers/PodcastPlayerProvider';
 
 const EMPTY_SEARCH_RESULTS: readonly PodcastEpisodeSearchResult[] = [];
+const EMPTY_COMPLETION_BY_LANGUAGE: PodcastCompletionByLanguage = {};
 const LISTENED_PAGE_SIZE = 12;
 
 interface LanguageGroup {
@@ -121,17 +128,20 @@ function PodcastSearchBar({
   query,
   onChangeQuery,
   onClear,
+  onCancel,
 }: {
   query: string;
   onChangeQuery: (query: string) => void;
   onClear: () => void;
+  onCancel: () => void;
 }) {
   return (
-    <View className="px-5 pt-4">
-      <View className="flex-row items-center gap-3 rounded-[22px] border border-line bg-[rgba(255,255,255,.045)] px-4 py-3">
+    <View className="flex-row items-center gap-3 px-5 pt-3">
+      <View className="h-11 min-w-0 flex-1 flex-row items-center gap-3 rounded-[18px] border border-line bg-[rgba(255,255,255,.045)] px-3">
         <Search size={18} strokeWidth={2} color="#a1a1aa" />
         <TextInput
           accessibilityLabel="Search podcast episodes"
+          autoFocus
           value={query}
           onChangeText={onChangeQuery}
           placeholder="搜尋標題或內容"
@@ -139,7 +149,7 @@ function PodcastSearchBar({
           returnKeyType="search"
           autoCapitalize="none"
           autoCorrect={false}
-          className="min-w-0 flex-1 font-sans text-[14px] text-ink"
+          className="h-full min-w-0 flex-1 font-sans text-[14px] text-ink"
         />
         {query.trim() !== '' ? (
           <Tap
@@ -152,6 +162,14 @@ function PodcastSearchBar({
           </Tap>
         ) : null}
       </View>
+      <Tap
+        accessibilityRole="button"
+        accessibilityLabel="Cancel podcast search"
+        onPress={onCancel}
+        className="h-11 items-center justify-center px-1"
+      >
+        <Text className="font-sans-medium text-[13px] text-accent">取消</Text>
+      </Tap>
     </View>
   );
 }
@@ -240,6 +258,7 @@ export function PodcastScreen() {
   const { progress, markAllListened } = useEpisodeProgress();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchExpanded, setSearchExpanded] = useState(false);
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
   const [direction, setDirection] = useState<EpisodeSortDirection>('newest');
   const [visibleListened, setVisibleListened] = useState(LISTENED_PAGE_SIZE);
@@ -296,6 +315,18 @@ export function PodcastScreen() {
       ),
     [mergedByLanguage],
   );
+
+  const completionByLanguage = useMemo<PodcastCompletionByLanguage>(() => {
+    const summaries: Partial<
+      Record<ContentLanguageCode, PodcastCompletionSummary>
+    > = {};
+    for (const option of CONTENT_LANGUAGE_OPTIONS) {
+      summaries[option.code] = summarisePodcastCompletion(
+        mergedByLanguage[option.code] ?? [],
+      );
+    }
+    return summaries;
+  }, [mergedByLanguage]);
 
   const allLocalizationIds = useMemo(
     () =>
@@ -365,6 +396,15 @@ export function PodcastScreen() {
     : feedQuery.isError;
 
   const hasAnyEpisode = unheardGroups.length > 0 || listenedEpisodes.length > 0;
+  const visibleCompletionByLanguage =
+    feedQuery.isLoading || feedQuery.isError
+      ? EMPTY_COMPLETION_BY_LANGUAGE
+      : completionByLanguage;
+
+  const cancelSearch = () => {
+    setSearchQuery('');
+    setSearchExpanded(false);
+  };
 
   const openEpisode = (episode: PodcastEpisode) =>
     router.push(`/podcast/${encodeURIComponent(episode.localizationId)}`);
@@ -398,19 +438,43 @@ export function PodcastScreen() {
   return (
     <View className="flex-1 bg-bg">
       <ScreenScrollView bottomPadding={player.nowPlaying === null ? 24 : 108}>
-        <ScreenHeader title="Podcast" left={<PodcastLanguageDropdown />} />
-
-        <View className="px-5 pt-[18px]">
-          <Text className="font-mono text-[9.5px] uppercase tracking-[1.14px] text-ink-faint">
-            Daily Episodes
-          </Text>
-        </View>
-
-        <PodcastSearchBar
-          query={searchQuery}
-          onChangeQuery={setSearchQuery}
-          onClear={() => setSearchQuery('')}
+        <ScreenHeader
+          title="Podcast"
+          left={
+            <PodcastLanguageDropdown
+              completionByLanguage={visibleCompletionByLanguage}
+            />
+          }
+          right={
+            <Tap
+              accessibilityRole="button"
+              accessibilityLabel="Search podcast episodes"
+              accessibilityState={{ expanded: searchExpanded }}
+              onPress={() => setSearchExpanded(true)}
+              className={cn(
+                'h-11 w-11 items-center justify-center rounded-full border',
+                searchExpanded
+                  ? 'border-[rgba(212,197,163,.42)] bg-[rgba(212,197,163,.16)]'
+                  : 'border-line bg-[rgba(255,255,255,.045)]',
+              )}
+            >
+              <Search
+                size={19}
+                strokeWidth={2}
+                color={searchExpanded ? '#d4c5a3' : '#a1a1aa'}
+              />
+            </Tap>
+          }
         />
+
+        {searchExpanded ? (
+          <PodcastSearchBar
+            query={searchQuery}
+            onChangeQuery={setSearchQuery}
+            onClear={() => setSearchQuery('')}
+            onCancel={cancelSearch}
+          />
+        ) : null}
 
         {searchActive &&
         searchQueryResult.isFetching &&

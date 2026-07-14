@@ -69,6 +69,7 @@ test('renders the web app shell and primary routes without page errors', async (
   page.on('pageerror', (error) => {
     pageErrors.push(`${page.url()}: ${error.stack ?? error.message}`);
   });
+  await page.setViewportSize({ width: 390, height: 844 });
   await routePodcastFeed(page);
 
   await test.step('Podcast is the default guest route and all five tabs remain visible', async () => {
@@ -88,6 +89,52 @@ test('renders the web app shell and primary routes without page errors', async (
       'aria-selected',
       'true',
     );
+  });
+
+  await test.step('Podcast keeps search compact and exposes language completion', async () => {
+    const searchInput = page.getByRole('textbox', {
+      name: 'Search podcast episodes',
+    });
+    const headerSearchButton = page.getByRole('button', {
+      name: 'Search podcast episodes',
+    });
+
+    await expect(searchInput).toBeHidden();
+    await expect(headerSearchButton).toBeVisible();
+
+    const searchButtonBounds = await headerSearchButton.boundingBox();
+    if (searchButtonBounds === null) {
+      throw new Error('Podcast search button has no layout bounds');
+    }
+    expect(searchButtonBounds.width).toBeGreaterThanOrEqual(44);
+    expect(searchButtonBounds.height).toBeGreaterThanOrEqual(44);
+
+    await headerSearchButton.click();
+    await expect(searchInput).toBeVisible();
+
+    await page.getByRole('button', { name: 'Cancel podcast search' }).click();
+    await expect(searchInput).toBeHidden();
+
+    const languageTrigger = page.getByRole('button', {
+      name: 'Choose podcast language',
+    });
+    await expect(languageTrigger).toContainText('中');
+    await expect(languageTrigger).toContainText('0%');
+    await languageTrigger.click();
+
+    for (const language of ['English', '繁體中文', '日本語']) {
+      const option = page.getByRole('button', { name: new RegExp(language) });
+      await expect(option).toBeVisible();
+      await expect(option).toContainText('0%');
+    }
+
+    await page.getByRole('button', { name: /繁體中文/ }).click();
+    await expect(page.getByText('語言里程碑')).toHaveCount(0);
+    await expect(
+      page
+        .getByRole('button', { name: 'Open E2E Fed to Chain briefing' })
+        .first(),
+    ).toBeInViewport();
   });
 
   await test.step('guest can open Home and return to Podcast', async () => {

@@ -5,6 +5,7 @@ import {
   mergeEpisodeProgress,
   type PodcastProgressMap,
   resolveEpisodeStatus,
+  summarisePodcastCompletion,
 } from '@/integration/podcastProgress';
 
 function makeEpisode(overrides: Partial<PodcastEpisode> = {}): PodcastEpisode {
@@ -38,6 +39,72 @@ describe('resolveEpisodeStatus', () => {
   it('reports unplayed at or below the threshold', () => {
     expect(resolveEpisodeStatus(false, 0)).toBe('unplayed');
     expect(resolveEpisodeStatus(false, 5)).toBe('unplayed');
+  });
+});
+
+describe('summarisePodcastCompletion', () => {
+  it('reports a non-empty unheard feed as 0%', () => {
+    expect(summarisePodcastCompletion([makeEpisode()])).toEqual({
+      completed: 0,
+      total: 1,
+      percentage: 0,
+    });
+  });
+
+  it('rounds the completed share of available episodes', () => {
+    const episodes = [
+      makeEpisode({ listened: true }),
+      makeEpisode({ listened: false }),
+      makeEpisode({ listened: false }),
+    ];
+
+    expect(summarisePodcastCompletion(episodes)).toEqual({
+      completed: 1,
+      total: 3,
+      percentage: 33,
+    });
+  });
+
+  it('counts only listened episodes, not a saved in-progress position', () => {
+    const episodes = [
+      makeEpisode({ listened: true }),
+      makeEpisode({ listened: false, lastPositionSeconds: 240 }),
+    ];
+
+    expect(summarisePodcastCompletion(episodes)).toEqual({
+      completed: 1,
+      total: 2,
+      percentage: 50,
+    });
+  });
+
+  it('reports a fully completed available feed as 100%', () => {
+    const episodes = [
+      makeEpisode({ listened: true }),
+      makeEpisode({ listened: true }),
+    ];
+
+    expect(summarisePodcastCompletion(episodes)).toEqual({
+      completed: 2,
+      total: 2,
+      percentage: 100,
+    });
+  });
+
+  it('does not round an incomplete feed up to 100%', () => {
+    const episodes = Array.from({ length: 200 }, (_, index) =>
+      makeEpisode({ listened: index < 199 }),
+    );
+
+    expect(summarisePodcastCompletion(episodes).percentage).toBe(99);
+  });
+
+  it('keeps an empty feed at zero without dividing by zero', () => {
+    expect(summarisePodcastCompletion([])).toEqual({
+      completed: 0,
+      total: 0,
+      percentage: 0,
+    });
   });
 });
 
