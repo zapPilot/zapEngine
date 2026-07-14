@@ -36,6 +36,12 @@ Scheduled tasks may propose a new skill only when all are true:
 If any condition fails, do not add a skill. Put the finding in the PR body or a
 short code comment near the relevant script instead.
 
+The repetition rule applies to **new lessons**, not correctness maintenance. Fix
+an existing skill immediately when an exact command, path, package name, or CI
+mapping no longer matches the repository. Security advisories are also
+time-dependent: one real audit failure may justify correcting the existing
+security skill, but not creating a new skill for one CVE.
+
 ## Size budget
 
 Hard limits for every `.agents/skills/*/SKILL.md`:
@@ -113,6 +119,7 @@ Before opening a PR that adds or edits a skill, check:
 - Is the safe fix path shorter than the anti-pattern list?
 - Could any paragraph be replaced by a command, path, or link?
 - Would this still be useful six months from now?
+- Do all exact commands still match current scripts and `.github/workflows`?
 
 If the answer is weak, shorten it or do not create the skill.
 
@@ -122,9 +129,10 @@ Scheduled tasks must not grow skills by appending every lesson learned. On each
 run, they should make the smallest durable update:
 
 1. Fix code/tests/config first.
-2. Update an existing skill only if the run exposed a missing recurring trap.
-3. Add a new skill only if the criteria above pass.
-4. Keep the PR diff reviewable: one behavior change plus one small doc update at
+2. Correct stale commands or paths in an existing skill as soon as verified.
+3. Update an existing skill only if the run exposed a missing recurring trap.
+4. Add a new skill only if the criteria above pass.
+5. Keep the PR diff reviewable: one behavior change plus one small doc update at
    most.
 
 When in doubt, leave a PR note instead of expanding `.agents/skills`.
