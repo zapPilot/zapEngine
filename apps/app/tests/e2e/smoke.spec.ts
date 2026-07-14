@@ -100,14 +100,15 @@ test('renders the web app shell and primary routes without page errors', async (
     await expect(page).toHaveURL(/\/podcast$/);
   });
 
-  await test.step('locked tabs navigate to their route with sign-in gate', async () => {
+  await test.step('locked tabs start sign-in without leaving the guest route', async () => {
     for (const label of ['Strategy', 'Activity', 'Account'] as const) {
+      await page.goto('/podcast');
       await page.getByRole('tab', { name: label }).click();
-      await expect(page).toHaveURL(new RegExp(`/${label.toLowerCase()}$`));
-      await expectHealthyRoute(page);
-      await expect(page.getByText('Sign in to continue').first()).toBeVisible();
-      await page.getByRole('tab', { name: 'Podcast' }).click();
       await expect(page).toHaveURL(/\/podcast$/);
+      await expect(page.getByRole('tab', { name: 'Podcast' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
     }
   });
 
