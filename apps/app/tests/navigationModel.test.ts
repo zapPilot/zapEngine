@@ -28,11 +28,9 @@ describe('app tab navigation', () => {
       'home',
       'podcast',
     ]);
-    expect(APP_TAB_NAMES.filter((tab) => !isTabAccessible(tab, false))).toEqual([
-      'strategy',
-      'activity',
-      'account',
-    ]);
+    expect(APP_TAB_NAMES.filter((tab) => !isTabAccessible(tab, false))).toEqual(
+      ['strategy', 'activity', 'account'],
+    );
   });
 
   it('lets connected users open every tab', () => {
