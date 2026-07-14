@@ -18,6 +18,16 @@ describe('native Privy login', () => {
     expect(login).toHaveBeenCalledWith({ loginMethods: ['email'] });
   });
 
+  it('propagates Privy login failures to the caller', async () => {
+    const loginError = new Error('Privy login failed');
+    const login = vi.fn().mockRejectedValue(loginError);
+
+    await expect(loginWithPrivy(login)).rejects.toBe(loginError);
+
+    expect(login).toHaveBeenCalledOnce();
+    expect(login).toHaveBeenCalledWith({ loginMethods: ['email'] });
+  });
+
   it('identifies Privy clearly in the native authentication UI', () => {
     expect(getNativePrivyLoginConfig()).toEqual({ loginMethods: ['email'] });
     expect(NATIVE_PRIVY_AUTH_COPY.cta).toBe('Continue with Privy');
