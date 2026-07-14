@@ -3,7 +3,8 @@ name: app-playwright-ci-debugging
 description: >-
   Use when `apps/app` Playwright e2e tests fail in CI or local runs, especially
   Expo web export startup, `PLAYWRIGHT_PORT` / `BASE_URL` mismatch, route-smoke
-  assertions, ErrorBoundary smoke checks, or old frontend/mobile-v2 path drift.
+  assertions, auth navigation drift, ErrorBoundary smoke checks, or old
+  frontend/mobile-v2 path drift.
 ---
 
 # App Playwright CI debugging
@@ -56,6 +57,20 @@ Prefer stable checks:
 This keeps smoke tests focused on routing and app health instead of copy or market
 data.
 
+## Auth navigation alignment
+
+When touching `BottomTabBar`, `AuthenticatedRoute`, `nativePrivyLogin`, or app tab
+route constants, update implementation and `tests/e2e/smoke.spec.ts` together.
+
+Before merging, choose and verify exactly one locked-tab behavior:
+
+- guest stays on the current route and the connect flow opens; or
+- guest navigates to the locked route and sees the sign-in gate.
+
+Do not merge a PR where `BottomTabBar` implements one behavior while the smoke
+spec asserts the other. A PR body saying “new CI will validate” is not enough;
+wait for the final GitHub Actions run on the PR head to pass.
+
 ## Fix workflow
 
 1. Read the named Playwright spec/log first.
@@ -64,7 +79,9 @@ data.
    timeout before touching assertions.
 4. If assertions fail, replace mutable copy checks with stable route/shell/error
    checks.
-5. Run the app e2e command, then return to **monorepo-ci-debugging** for widened
+5. For auth-tab failures, compare the `BottomTabBar` inaccessible-tab branch with
+   the locked-tab step in `tests/e2e/smoke.spec.ts` before changing either side.
+6. Run the app e2e command, then return to **monorepo-ci-debugging** for widened
    verification if root/shared files changed.
 
 ## Rationalizations — STOP
@@ -75,6 +92,7 @@ data.
 | "Startup is flaky, so skip the e2e gate." | Fix port/web-server/timeout parity. |
 | "A balance or APR string proves the page loaded." | Route smoke should not depend on mutable product copy or market data. |
 | "The app built locally, so Playwright port config is fine." | Build success does not prove `PLAYWRIGHT_PORT` / `BASE_URL` parity. |
+| "The implementation fix is obvious; CI can validate after merge." | Route-smoke expectations must match the auth navigation model before merge. |
 
 ## Verification
 
