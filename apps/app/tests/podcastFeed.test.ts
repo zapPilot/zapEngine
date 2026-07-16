@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  fetchPodcastEpisode,
   fetchPodcastEpisodeSearchResults,
   fetchPodcastEpisodes,
   findPodcastEpisodeById,
   getPodcastApiUrl,
+  getPodcastEpisodeShareUrl,
   isPodcastSearchQueryValid,
   normalisePodcastSearchQuery,
   parsePodcastEpisode,
@@ -97,6 +99,11 @@ describe('podcast feed client', () => {
         script: 'Paragraph one. Paragraph two.',
         likeCount: 7,
         lastPositionSeconds: 42,
+        video: {
+          url: 'https://cdn.example.com/video.mp4',
+          thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+          durationSeconds: 91.5,
+        },
         audioTracks: [
           {
             languageCode: 'zh-Hant',
@@ -126,6 +133,11 @@ describe('podcast feed client', () => {
     expect(parsed.script).toBe('Paragraph one. Paragraph two.');
     expect(parsed.likeCount).toBe(7);
     expect(parsed.lastPositionSeconds).toBe(42);
+    expect(parsed.video).toEqual({
+      url: 'https://cdn.example.com/video.mp4',
+      thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+      durationSeconds: 91.5,
+    });
     expect(parsed.audioTracks[0]).toEqual({
       languageCode: 'zh-Hant',
       title: 'Main track',
@@ -147,6 +159,11 @@ describe('podcast feed client', () => {
       script: 'Liquidity is moving.',
       like_count: 3,
       last_position_seconds: 21,
+      video: {
+        url: 'https://cdn.example.com/video-2.mp4',
+        thumbnail_url: 'https://cdn.example.com/thumbnail-2.png',
+        duration_seconds: 120,
+      },
       audio_tracks: [
         {
           language_code: 'en',
@@ -168,6 +185,24 @@ describe('podcast feed client', () => {
     expect(parsed.localizationId).toBe('ep-2');
     expect(parsed.audioTracks[0]?.title).toBe('en');
     expect(parsed.languageClassrooms[0]?.targetLanguageCode).toBe('zh-Hant');
+    expect(parsed.video?.thumbnailUrl).toBe(
+      'https://cdn.example.com/thumbnail-2.png',
+    );
+  });
+
+  it('treats null or incomplete video payloads as audio-only episodes', () => {
+    expect(parsePodcastEpisode(episode({ video: null })).video).toBeNull();
+    expect(
+      parsePodcastEpisode(
+        episode({
+          video: {
+            url: 'https://cdn.example.com/video.mp4',
+            thumbnailUrl: '',
+            durationSeconds: 90,
+          },
+        }),
+      ).video,
+    ).toBeNull();
   });
 
   it('parses episode search results from camelCase responses', () => {
@@ -266,5 +301,30 @@ describe('podcast feed client', () => {
     );
     expect(findPodcastEpisodeById(episodes, 'loc-1')?.id).toBe('ep-1');
     expect(findPodcastEpisodeById(episodes, 'missing')).toBeNull();
+  });
+
+  it('fetches one localization outside the latest feed page', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(episode()));
+
+    const result = await fetchPodcastEpisode('loc/one', fetchMock, 'zh-Hant');
+
+    const url = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect(url.pathname).toBe('/episodes/loc%2Fone');
+    expect(url.searchParams.get('language')).toBe('zh-Hant');
+    expect(result.localizationId).toBe('loc-1');
+  });
+
+  it('throws on a non-200 single episode response', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 404 } as Response);
+
+    await expect(fetchPodcastEpisode('missing', fetchMock)).rejects.toThrow(
+      'Podcast episode request failed: 404',
+    );
+  });
+
+  it('builds the canonical HTTPS episode share URL with language', () => {
+    expect(getPodcastEpisodeShareUrl(parsePodcastEpisode(episode()))).toBe(
+      'https://from-fed-to-chain-api.fly.dev/e/ep-1?lang=zh-Hant',
+    );
   });
 });

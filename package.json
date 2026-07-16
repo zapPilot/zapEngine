@@ -59,7 +59,7 @@
       "pnpm --filter @zapengine/landing-page exec eslint --fix",
       "pnpm --filter @zapengine/landing-page exec prettier --write"
     ],
-    "apps/podcast-pipeline/**/*.ts": [
+    "apps/podcast-pipeline/**/*.{ts,tsx}": [
       "pnpm --filter @zapengine/podcast-pipeline exec eslint --fix",
       "pnpm --filter @zapengine/podcast-pipeline exec prettier --write"
     ],

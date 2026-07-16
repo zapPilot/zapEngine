@@ -17,6 +17,7 @@ import { Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PodcastLanguageDropdown } from '@/components/content/ContentLanguageSelector';
+import { EpisodeVideoPlayer } from '@/components/podcast/EpisodeVideoPlayer';
 import {
   formatPodcastClock,
   formatPodcastEpisodeDate,
@@ -33,6 +34,8 @@ import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
 import {
   findPodcastEpisodeById,
+  getPodcastEpisodeShareUrl,
+  usePodcastEpisode,
   usePodcastEpisodes,
 } from '@/integration/podcastFeed';
 import type {
@@ -44,6 +47,7 @@ import { mergeEpisodeProgress } from '@/integration/podcastProgress';
 import { cn } from '@/lib/cn';
 import { usePodcastPlayer } from '@/providers/PodcastPlayerProvider';
 import { useEpisodeProgress } from '@/providers/PodcastProgressProvider';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 
 function episodeParamToString(value: string | string[] | undefined): string {
@@ -88,9 +92,11 @@ function EpisodeDetailHeader({
   onBack: () => void;
 }) {
   const shareEpisode = () => {
+    const shareUrl = getPodcastEpisodeShareUrl(episode);
     void Share.share({
       title: episode.title,
-      message: `${episode.title}\nFrom Fed to Chain`,
+      message: `${episode.title}\n${shareUrl}`,
+      url: shareUrl,
     });
   };
 
@@ -444,23 +450,44 @@ function DetailSkeleton() {
 }
 
 export function EpisodeDetailScreen() {
-  const params = useLocalSearchParams<{ episodeId?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    episodeId?: string | string[];
+    lang?: string | string[];
+    language?: string | string[];
+  }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { languageCode: selectedLanguageCode } = useContentLanguage();
   const routeEpisodeId = decodeURIComponent(
     episodeParamToString(params.episodeId),
   );
-  const { data, isLoading, isError } = usePodcastEpisodes();
+  const routeLanguageCode =
+    episodeParamToString(params.lang) ||
+    episodeParamToString(params.language) ||
+    selectedLanguageCode;
+  const feedQuery = usePodcastEpisodes();
   const player = usePodcastPlayer();
   const { progress } = useEpisodeProgress();
-  const episodes = data ?? [];
-  const rawEpisode = findPodcastEpisodeById(episodes, routeEpisodeId);
+  const feedEpisodes = feedQuery.data ?? [];
+  const feedEpisode = findPodcastEpisodeById(feedEpisodes, routeEpisodeId);
+  const detailQuery = usePodcastEpisode(
+    routeEpisodeId,
+    routeLanguageCode,
+    feedEpisode === null && !feedQuery.isLoading,
+  );
+  const rawEpisode = feedEpisode ?? detailQuery.data ?? null;
   const episode =
     rawEpisode === null ? null : mergeEpisodeProgress(rawEpisode, progress);
+  const episodes =
+    feedEpisodes.length > 0 ? feedEpisodes : episode === null ? [] : [episode];
+  const isLoading =
+    feedQuery.isLoading || (feedEpisode === null && detailQuery.isLoading);
+  const isError =
+    feedEpisode === null && feedQuery.isError && detailQuery.isError;
 
   const handleEpisodeChanged = (nextEpisode: PodcastEpisode) => {
     router.replace(
-      `/podcast/${encodeURIComponent(nextEpisode.localizationId)}`,
+      `/podcast/${encodeURIComponent(nextEpisode.localizationId)}?lang=${encodeURIComponent(nextEpisode.languageCode)}`,
     );
   };
 
@@ -500,6 +527,14 @@ export function EpisodeDetailScreen() {
       <ScreenScrollView bottomPadding={36}>
         <EpisodeDetailHeader episode={episode} onBack={() => router.back()} />
         <EpisodeHeroCard episode={episode} />
+        {episode.video === null ? null : (
+          <EpisodeVideoPlayer
+            key={episode.localizationId}
+            title={episode.title}
+            video={episode.video}
+            onPlaybackStart={player.pause}
+          />
+        )}
         <EpisodePlaybackControls
           episode={episode}
           episodes={episodes}

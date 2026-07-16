@@ -14,6 +14,7 @@ function makeEpisode(id: string, createdAt: string): PodcastEpisode {
     listened: false,
     likeCount: 0,
     script: null,
+    video: null,
     audioTracks: [],
     languageClassrooms: [],
     lastPositionSeconds: 0,

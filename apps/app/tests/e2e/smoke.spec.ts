@@ -15,6 +15,26 @@ const PODCAST_FIXTURE = {
   nextCursor: null,
 };
 
+const VIDEO_PODCAST_FIXTURE = {
+  items: [
+    {
+      id: 'episode-2',
+      localizationId: 'episode-2-zh-Hant',
+      title: 'E2E video episode',
+      languageCode: 'zh-Hant',
+      hlsUrl: 'https://media.example.test/episode-2/playlist.m3u8',
+      createdAt: '2026-07-02T00:00:00.000Z',
+      listened: false,
+      video: {
+        url: 'https://media.example.test/episode-2/video.mp4',
+        thumbnailUrl: 'https://media.example.test/episode-2/thumbnail.png',
+        durationSeconds: 90,
+      },
+    },
+  ],
+  nextCursor: null,
+};
+
 const PRIMARY_ROUTES = [
   {
     label: 'Home',
@@ -137,6 +157,15 @@ test('renders the web app shell and primary routes without page errors', async (
     ).toBeInViewport();
   });
 
+  await test.step('audio-only episode detail keeps the video player hidden', async () => {
+    await page
+      .getByRole('button', { name: 'Open E2E Fed to Chain briefing' })
+      .first()
+      .click();
+    await expect(page).toHaveURL(/\/podcast\/episode-1-zh-Hant\?lang=zh-Hant$/);
+    await expect(page.locator('video')).toHaveCount(0);
+  });
+
   await test.step('guest can open Home and return to Podcast', async () => {
     await page.getByRole('tab', { name: 'Home' }).click();
     await expect(page).toHaveURL(/\/home$/);
@@ -187,4 +216,28 @@ test('renders the web app shell and primary routes without page errors', async (
   });
 
   expect(pageErrors).toEqual([]);
+});
+
+test('an episode with a completed video renders an inline player without autoplay', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/episodes?**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(VIDEO_PODCAST_FIXTURE),
+    });
+  });
+
+  await page.goto('/podcast');
+  await page
+    .getByRole('button', { name: 'Open E2E video episode' })
+    .first()
+    .click();
+  await expect(page).toHaveURL(/\/podcast\/episode-2-zh-Hant\?lang=zh-Hant$/);
+
+  const video = page.locator('video');
+  await expect(video).toHaveCount(1);
+  // The player must not autoplay — playback only starts on user tap.
+  expect(await video.getAttribute('autoplay')).toBeNull();
 });

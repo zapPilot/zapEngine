@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  buildEpisodeShareUrl,
+  buildTelegramAudioReadyMessage,
   buildTelegramFailureMessage,
+  buildTelegramVideoCompletedMessage,
+  buildTelegramVideoFailedMessage,
   extractUrlFromMessage,
   getTelegramMessage,
   isAllowedUser,
@@ -10,7 +14,8 @@ import {
   verifySecret,
 } from './telegram.js';
 
-vi.mock('../lib/env.js', () => ({
+vi.mock('../lib/env.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/env.js')>()),
   getTelegramBotToken: vi.fn(() => 'bot-token'),
 }));
 
@@ -56,6 +61,29 @@ describe('verifySecret', () => {
 
   it('accepts matching secret values', () => {
     expect(verifySecret('secret', 'secret')).toBe(true);
+  });
+});
+
+describe('video lifecycle messages', () => {
+  it('uses the canonical zh-Hant share link for queued and terminal updates', () => {
+    const link =
+      'https://from-fed-to-chain-api.fly.dev/e/episode%2F1?lang=zh-Hant';
+    expect(buildEpisodeShareUrl('episode/1')).toBe(link);
+    expect(buildTelegramAudioReadyMessage('✅ 完成', 'episode/1')).toBe(
+      `✅ 完成\n🎬 音頻完成／影片排程中\n${link}`,
+    );
+    expect(
+      buildTelegramAudioReadyMessage('✅ 已存在', 'episode/1', 'completed'),
+    ).toContain('音頻完成／影片已可播放');
+    expect(
+      buildTelegramAudioReadyMessage('✅ 已存在', 'episode/1', 'unavailable'),
+    ).toContain('音頻完成／影片稍後補上');
+    expect(buildTelegramVideoCompletedMessage('episode/1')).toBe(
+      `🎬 影片完成\n${link}`,
+    );
+    expect(buildTelegramVideoFailedMessage('episode/1')).toBe(
+      `⚠️ 影片失敗，但音頻仍可使用\n${link}`,
+    );
   });
 });
 

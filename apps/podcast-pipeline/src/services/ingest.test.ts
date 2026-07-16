@@ -1875,6 +1875,7 @@ function localizationResponse(
     llmThinkingModel: localization.llm_thinking_model,
     llmProvider: localization.llm_provider,
     status: localization.status,
+    video: null,
     languageClassrooms: languageClassrooms.map((classroom) => ({
       sourceLanguageCode: classroom.source_language_code,
       targetLanguageCode: classroom.target_language_code,

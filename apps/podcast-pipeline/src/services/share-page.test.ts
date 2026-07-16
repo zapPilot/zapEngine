@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { localizationRow } from '../__fixtures__/index-test.js';
-import { findEpisodeLocalizationByEpisodeId } from './db.js';
+import {
+  findEpisodeLocalizationByEpisodeId,
+  listCompletedEpisodeVideosByLocalizationIds,
+} from './db.js';
 import {
   buildEpisodeSharePageHtml,
   detectPlatform,
@@ -11,9 +14,11 @@ import {
 
 vi.mock('./db.js', () => ({
   findEpisodeLocalizationByEpisodeId: vi.fn(),
+  listCompletedEpisodeVideosByLocalizationIds: vi.fn(),
 }));
 
 const findLocalizationMock = vi.mocked(findEpisodeLocalizationByEpisodeId);
+const listVideosMock = vi.mocked(listCompletedEpisodeVideosByLocalizationIds);
 
 describe('detectPlatform', () => {
   it.each([
@@ -42,9 +47,8 @@ describe('renderEpisodeSharePage', () => {
       platform: 'desktop',
       iosAppId: '6749248542',
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
-      androidAvailable: false,
       canonicalUrl: 'https://example.com/e/episode-1?x=1&y=2',
-      appDeepLinkUrl: 'fromfedtochain://e/episode-1',
+      appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
     });
 
     expect(html).toContain(
@@ -66,40 +70,62 @@ describe('renderEpisodeSharePage', () => {
       iosAppId: '6749248542',
       iosAppStoreUrl:
         'https://apps.apple.com/app/from-fed-to-chain/id6749248542',
-      androidAvailable: false,
       canonicalUrl: 'https://example.com/e/episode-1',
-      appDeepLinkUrl: 'fromfedtochain://e/episode-1',
+      appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
     });
 
     expect(html).toContain(
-      '<meta name="apple-itunes-app" content="app-id=6749248542, app-argument=fromfedtochain://e/episode-1">',
+      '<meta name="apple-itunes-app" content="app-id=6749248542, app-argument=zappilotv2://podcast/episode-1">',
     );
     expect(html).not.toContain('<meta http-equiv="refresh"');
     expect(html).toContain(
-      '<a class="button" href="fromfedtochain://e/episode-1">Open in App</a>',
+      '<a class="button" href="zappilotv2://podcast/episode-1">Open in Zap Pilot</a>',
     );
     expect(html).toContain(
-      '<a class="button button-secondary" href="https://apps.apple.com/app/from-fed-to-chain/id6749248542">Get the app</a>',
+      '<a class="button button-secondary" href="https://apps.apple.com/app/from-fed-to-chain/id6749248542">Get Zap Pilot</a>',
     );
-    expect(html).toContain('id="cancel-app-redirect"');
-    expect(html).toContain('window.setTimeout');
-    expect(html).toContain('4000');
-    expect(html).toContain('window.location.replace');
+    expect(html).not.toContain('window.location.replace');
   });
 
-  it('does not auto-redirect Android users before the Android app ships', () => {
+  it('offers Android users the explicit Zap Pilot deep link', () => {
     const html = renderEpisodeSharePage({
       episode: shareEpisode(),
       platform: 'android',
       iosAppId: '6749248542',
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
-      androidAvailable: false,
       canonicalUrl: 'https://example.com/e/episode-1',
-      appDeepLinkUrl: 'fromfedtochain://e/episode-1',
+      appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
     });
 
     expect(html).not.toContain('http-equiv="refresh"');
-    expect(html).toContain('Android version coming soon');
+    expect(html).toContain('Open in Zap Pilot');
+  });
+
+  it('renders a non-autoplay HTML5 MP4 player with its poster', () => {
+    const html = renderEpisodeSharePage({
+      episode: {
+        ...shareEpisode(),
+        video: {
+          url: 'https://cdn.example.com/video.mp4?x=1&y=2',
+          thumbnailUrl: 'https://cdn.example.com/poster.png?x=1&y=2',
+          durationSeconds: 90,
+        },
+      },
+      platform: 'desktop',
+      iosAppId: '6749248542',
+      iosAppStoreUrl: 'https://apps.apple.com/app/id123',
+      canonicalUrl: 'https://example.com/e/episode-1',
+      appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
+    });
+
+    expect(html).toContain(
+      '<video class="episode-media" controls playsinline preload="metadata" poster="https://cdn.example.com/poster.png?x=1&amp;y=2"',
+    );
+    expect(html).toContain(
+      '<source src="https://cdn.example.com/video.mp4?x=1&amp;y=2" type="video/mp4">',
+    );
+    expect(html).toContain('property="og:type" content="video.other"');
+    expect(html).not.toContain('autoplay');
   });
 
   it('truncates description longer than 220 characters in twitter card', () => {
@@ -114,9 +140,8 @@ describe('renderEpisodeSharePage', () => {
       platform: 'desktop',
       iosAppId: '6749248542',
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
-      androidAvailable: false,
       canonicalUrl: 'https://example.com/e/episode-1',
-      appDeepLinkUrl: 'fromfedtochain://e/episode-1',
+      appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
     });
 
     const twitterCard = /name="twitter:description" content="([^"]+)"/.exec(
@@ -139,9 +164,8 @@ describe('renderEpisodeSharePage', () => {
       platform: 'desktop',
       iosAppId: '6749248542',
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
-      androidAvailable: false,
       canonicalUrl: 'https://example.com/e/episode-1',
-      appDeepLinkUrl: 'fromfedtochain://e/episode-1',
+      appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
     });
 
     expect(html).toContain('From Fed to Chain');
@@ -158,9 +182,8 @@ describe('renderEpisodeSharePage', () => {
       platform: 'desktop',
       iosAppId: '6749248542',
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
-      androidAvailable: false,
       canonicalUrl: 'https://example.com/e/episode-1',
-      appDeepLinkUrl: 'fromfedtochain://e/episode-1',
+      appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
     });
 
     const twitterCard = /name="twitter:description" content="([^"]+)"/.exec(
@@ -183,9 +206,8 @@ describe('renderEpisodeSharePage', () => {
       platform: 'desktop',
       iosAppId: '6749248542',
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
-      androidAvailable: false,
       canonicalUrl: 'https://example.com/e/episode-1',
-      appDeepLinkUrl: 'fromfedtochain://e/episode-1',
+      appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
     });
 
     const twitterCard = /name="twitter:description" content="([^"]+)"/.exec(
@@ -201,6 +223,8 @@ describe('renderEpisodeSharePage', () => {
 describe('buildEpisodeSharePageHtml', () => {
   beforeEach(() => {
     findLocalizationMock.mockReset();
+    listVideosMock.mockReset();
+    listVideosMock.mockResolvedValue(new Map());
   });
 
   it('uses the script as description when raw_text is null', async () => {
@@ -257,10 +281,39 @@ describe('buildEpisodeSharePageHtml', () => {
     expect(html).toContain(
       '<link rel="canonical" href="https://from-fed-to-chain-api.fly.dev/e/episode-1?lang=ja">',
     );
-    expect(html).toContain('app-argument=fromfedtochain://e/episode-1?lang=ja');
     expect(html).toContain(
-      '<a class="button" href="fromfedtochain://e/episode-1?lang=ja">Open in App</a>',
+      `app-argument=zappilotv2://podcast/${localizationRow().id}?lang=ja`,
     );
+    expect(html).toContain(
+      `<a class="button" href="zappilotv2://podcast/${localizationRow().id}?lang=ja">Open in Zap Pilot</a>`,
+    );
+  });
+
+  it('loads a completed localization video for the share player', async () => {
+    const localization = localizationRow();
+    findLocalizationMock.mockResolvedValue(localization);
+    listVideosMock.mockResolvedValue(
+      new Map([
+        [
+          localization.id,
+          {
+            url: 'https://cdn.example.com/video.mp4',
+            thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+            durationSeconds: 90,
+          },
+        ],
+      ]),
+    );
+
+    const html = await buildEpisodeSharePageHtml({
+      id: localization.episode_id,
+      languageCode: 'zh-Hant',
+      userAgent: undefined,
+    });
+
+    expect(listVideosMock).toHaveBeenCalledWith([localization.id]);
+    expect(html).toContain('<source src="https://cdn.example.com/video.mp4"');
+    expect(html).toContain('poster="https://cdn.example.com/thumbnail.png"');
   });
 });
 

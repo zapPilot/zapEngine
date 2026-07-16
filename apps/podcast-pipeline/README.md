@@ -14,7 +14,8 @@ Hono API service for From Fed to Chain. Turns article URLs into multilingual pod
 
 ## HTTP Surface
 
-Routes include `/health`, `/ingest`, `/telegram/webhook`, `/episodes`, and `/episodes/:id/listened`.
+Routes include `/health`, `/ingest`, `/telegram/webhook`, `/episodes`,
+`/episodes/search`, `/episodes/:localizationId`, and `/episodes/:id/listened`.
 
 ## Environment
 
@@ -56,7 +57,7 @@ curl -X POST "https://api.telegram.org/bot$PIPELINE_TELEGRAM_BOT_TOKEN/setWebhoo
 curl "https://api.telegram.org/bot$PIPELINE_TELEGRAM_BOT_TOKEN/getWebhookInfo"
 ```
 
-The webhook returns a fast 200 ack, then runs ingest in the background. The current Fly configuration keeps `min_machines_running = 0`; if Fly stops a machine mid-ingest, the next submission of the same URL resumes from the latest Supabase-committed stage.
+The webhook returns a fast 200 ack, then runs ingest in the background. Fly keeps one machine running for the durable video poller; deploys or restarts can still interrupt ingest, so the next submission of the same URL resumes from the latest Supabase-committed stage.
 
 ## Deployment
 

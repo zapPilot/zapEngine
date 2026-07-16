@@ -14,6 +14,7 @@ import { APP_FONTS } from '@/lib/fonts';
 import { AuthenticatedActionProvider } from '@/providers/AuthenticatedActionProvider';
 import { ContentLanguageProvider } from '@/providers/ContentLanguageProvider';
 import { PodcastPlayerProvider } from '@/providers/PodcastPlayerProvider';
+import { VideoPlaybackCoordinatorProvider } from '@/providers/VideoPlaybackCoordinatorProvider';
 import { PodcastProgressProvider } from '@/providers/PodcastProgressProvider';
 import { ToastProvider } from '@/providers/ToastProvider';
 
@@ -86,16 +87,18 @@ export function AppProviderShell({
     <ContentLanguageProvider>
       <PodcastProgressProvider>
         <AuthenticatedActionProvider>
-          <PodcastPlayerProvider>
-            <PodcastProgressTracker />
-            <ToastProvider>
-              <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
-                <StatusBar style="light" />
-                {children}
-                <ConnectSheetHost />
-              </View>
-            </ToastProvider>
-          </PodcastPlayerProvider>
+          <VideoPlaybackCoordinatorProvider>
+            <PodcastPlayerProvider>
+              <PodcastProgressTracker />
+              <ToastProvider>
+                <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
+                  <StatusBar style="light" />
+                  {children}
+                  <ConnectSheetHost />
+                </View>
+              </ToastProvider>
+            </PodcastPlayerProvider>
+          </VideoPlaybackCoordinatorProvider>
         </AuthenticatedActionProvider>
       </PodcastProgressProvider>
     </ContentLanguageProvider>

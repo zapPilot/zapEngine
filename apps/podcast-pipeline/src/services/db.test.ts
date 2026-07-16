@@ -10,9 +10,11 @@ import {
   decodeCursor,
   encodeCursor,
   findEpisodeBySourceUrl,
+  findEpisodeListRowByLocalizationId,
   findEpisodeLocalizationByEpisodeId,
   insertEpisode,
   insertEpisodeLocalization,
+  listCompletedEpisodeVideosByLocalizationIds,
   listEpisodes,
   listEpisodesPaged,
   listLanguageClassroomsByLocalizationId,
@@ -118,6 +120,7 @@ describe('toEpisodeResponse', () => {
       llmThinkingModel: row.llm_thinking_model,
       llmProvider: row.llm_provider,
       status: row.status,
+      video: null,
       languageClassrooms: [
         {
           sourceLanguageCode: 'zh-Hant',
@@ -164,6 +167,7 @@ describe('toEpisodeResponse', () => {
       llmThinkingModel: localization.llm_thinking_model,
       llmProvider: localization.llm_provider,
       status: localization.status,
+      video: null,
       languageClassrooms: [],
     });
   });
@@ -215,6 +219,16 @@ describe('toEpisodeResponse', () => {
     );
 
     expect(response.languageClassrooms).toEqual([]);
+  });
+
+  it('maps an explicitly completed video into the public response', () => {
+    const video = {
+      url: 'https://cdn.example.com/video.mp4',
+      thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+      durationSeconds: 90,
+    };
+
+    expect(toEpisodeResponse(listRow(), undefined, video).video).toEqual(video);
   });
 
   it('normalizes a camel-case classroom lesson input', () => {
@@ -328,6 +342,20 @@ describe('episode source and localization lookup', () => {
     await expect(
       findEpisodeLocalizationByEpisodeId('episode-1', 'zh-Hant'),
     ).rejects.toThrow('localization lookup failed');
+  });
+
+  it('finds a completed feed row by localization id', async () => {
+    const row = listRow();
+    state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
+
+    await expect(
+      findEpisodeListRowByLocalizationId(row.localization_id),
+    ).resolves.toEqual(row);
+    expect(mockFrom).toHaveBeenCalledWith('episodes_with_stats');
+    expect(state.query!.eq).toHaveBeenCalledWith(
+      'localization_id',
+      row.localization_id,
+    );
   });
 });
 
@@ -455,6 +483,71 @@ describe('listEpisodesPaged', () => {
     await expect(listEpisodesPaged(20, null)).rejects.toThrow(
       'paged list failed',
     );
+  });
+});
+
+describe('listCompletedEpisodeVideosByLocalizationIds', () => {
+  it('loads completed videos in one batch and ignores incomplete media rows', async () => {
+    state.query!.returns.mockResolvedValue({
+      data: [
+        {
+          episode_localization_id: 'loc-1',
+          mp4_url: ' https://cdn.example.com/video.mp4 ',
+          thumbnail_url: ' https://cdn.example.com/thumbnail.png ',
+          duration_seconds: 90.5,
+        },
+        {
+          episode_localization_id: 'loc-broken',
+          mp4_url: null,
+          thumbnail_url: 'https://cdn.example.com/thumbnail.png',
+          duration_seconds: 90,
+        },
+      ],
+      error: null,
+    });
+
+    const result = await listCompletedEpisodeVideosByLocalizationIds([
+      'loc-1',
+      'loc-1',
+      'loc-broken',
+    ]);
+
+    expect(mockFrom).toHaveBeenCalledWith('episode_videos');
+    expect(state.query!.eq).toHaveBeenCalledWith('status', 'completed');
+    expect(state.query!.in).toHaveBeenCalledWith('episode_localization_id', [
+      'loc-1',
+      'loc-broken',
+    ]);
+    expect(result).toEqual(
+      new Map([
+        [
+          'loc-1',
+          {
+            url: 'https://cdn.example.com/video.mp4',
+            thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+            durationSeconds: 90.5,
+          },
+        ],
+      ]),
+    );
+  });
+
+  it('does not query Supabase for an empty localization list', async () => {
+    await expect(
+      listCompletedEpisodeVideosByLocalizationIds([]),
+    ).resolves.toEqual(new Map());
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('throws completed-video lookup errors', async () => {
+    state.query!.returns.mockResolvedValue({
+      data: null,
+      error: new Error('video lookup failed'),
+    });
+
+    await expect(
+      listCompletedEpisodeVideosByLocalizationIds(['loc-1']),
+    ).rejects.toThrow('video lookup failed');
   });
 });
 

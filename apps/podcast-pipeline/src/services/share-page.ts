@@ -1,6 +1,12 @@
 import { isRecord } from '../lib/typeGuards.js';
-import type { LanguageClassroomLanguageCode } from '../types.js';
-import { findEpisodeLocalizationByEpisodeId } from './db.js';
+import type {
+  EpisodeVideoResponse,
+  LanguageClassroomLanguageCode,
+} from '../types.js';
+import {
+  findEpisodeLocalizationByEpisodeId,
+  listCompletedEpisodeVideosByLocalizationIds,
+} from './db.js';
 
 export type SharePagePlatform = 'ios' | 'android' | 'desktop';
 
@@ -9,6 +15,7 @@ export interface SharePageEpisode {
   title: string;
   description: string;
   coverUrl: string;
+  video?: EpisodeVideoResponse | null;
 }
 
 export interface RenderEpisodeSharePageInput {
@@ -16,7 +23,6 @@ export interface RenderEpisodeSharePageInput {
   platform: SharePagePlatform;
   iosAppId: string;
   iosAppStoreUrl: string;
-  androidAvailable: boolean;
   canonicalUrl: string;
   appDeepLinkUrl: string;
 }
@@ -25,9 +31,8 @@ const APP_NAME = 'From Fed to Chain';
 const IOS_APP_STORE_URL =
   'https://apps.apple.com/app/from-fed-to-chain/id6749248542';
 const IOS_APP_ID = extractIosAppId(IOS_APP_STORE_URL);
-const ANDROID_AVAILABLE = false;
 const SHARE_BASE_URL = 'https://from-fed-to-chain-api.fly.dev';
-const IOS_CUSTOM_SCHEME = 'fromfedtochain';
+const APP_CUSTOM_SCHEME = 'zappilotv2';
 // Keep this in sync with the final iOS bundle ID before App Store submission.
 const APPLE_APP_ID = 'LP8CA4MT6U.com.example.fromFedToChainApp';
 const DEFAULT_SHARE_IMAGE_URL =
@@ -81,6 +86,11 @@ export async function buildEpisodeSharePageHtml(input: {
     return null;
   }
 
+  const videos = await listCompletedEpisodeVideosByLocalizationIds([
+    localization.id,
+  ]);
+  const video = videos.get(localization.id) ?? null;
+
   const langQuery = `?lang=${encodeURIComponent(input.languageCode)}`;
 
   return renderEpisodeSharePage({
@@ -89,13 +99,13 @@ export async function buildEpisodeSharePageHtml(input: {
       title: localization.title,
       description: localization.raw_text ?? localization.script ?? '',
       coverUrl: getLocalizationCoverUrl(localization),
+      video,
     },
     platform: detectPlatform(input.userAgent),
     iosAppId: IOS_APP_ID,
     iosAppStoreUrl: IOS_APP_STORE_URL,
-    androidAvailable: ANDROID_AVAILABLE,
     canonicalUrl: `${SHARE_BASE_URL}/e/${encodeURIComponent(input.id)}${langQuery}`,
-    appDeepLinkUrl: `${IOS_CUSTOM_SCHEME}://e/${encodeURIComponent(input.id)}${langQuery}`,
+    appDeepLinkUrl: `${APP_CUSTOM_SCHEME}://podcast/${encodeURIComponent(localization.id)}${langQuery}`,
   });
 }
 
@@ -104,7 +114,12 @@ export function renderEpisodeSharePage(
 ): string {
   const title = input.episode.title.trim() || APP_NAME;
   const description = summarizeDescription(input.episode.description, title);
-  const coverUrl = input.episode.coverUrl.trim() || DEFAULT_SHARE_IMAGE_URL;
+  const video = input.episode.video ?? null;
+  const coverUrl =
+    video?.thumbnailUrl.trim() ||
+    input.episode.coverUrl.trim() ||
+    DEFAULT_SHARE_IMAGE_URL;
+  const episodeMedia = renderEpisodeMedia(coverUrl, video);
   const platformContent = renderPlatformContent({
     ...input,
     episode: {
@@ -120,6 +135,12 @@ export function renderEpisodeSharePage(
           input.iosAppId,
         )}, app-argument=${htmlEscape(input.appDeepLinkUrl)}">`
       : '';
+  const openGraphVideoMeta = video
+    ? `<meta property="og:video" content="${htmlEscape(video.url)}">
+  <meta property="og:video:type" content="video/mp4">
+  <meta property="og:video:width" content="1920">
+  <meta property="og:video:height" content="1080">`
+    : '';
 
   return `<!doctype html>
 <html lang="en">
@@ -133,7 +154,8 @@ export function renderEpisodeSharePage(
   <meta property="og:description" content="${htmlEscape(description)}">
   <meta property="og:image" content="${htmlEscape(coverUrl)}">
   <meta property="og:url" content="${htmlEscape(input.canonicalUrl)}">
-  <meta property="og:type" content="music.song">
+  <meta property="og:type" content="${video ? 'video.other' : 'music.song'}">
+  ${openGraphVideoMeta}
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${htmlEscape(title)}">
   <meta name="twitter:description" content="${htmlEscape(description)}">
@@ -178,11 +200,23 @@ export function renderEpisodeSharePage(
       box-shadow: 0 18px 48px rgba(23, 23, 23, 0.07);
     }
 
-    img {
+    .episode.has-video {
+      grid-template-columns: 1fr;
+    }
+
+    .episode-media {
       width: 100%;
-      aspect-ratio: 1;
       object-fit: cover;
       border-radius: 8px;
+      background: #0b0b0b;
+    }
+
+    img.episode-media {
+      aspect-ratio: 1;
+    }
+
+    video.episode-media {
+      aspect-ratio: 16 / 9;
     }
 
     .eyebrow {
@@ -215,8 +249,7 @@ export function renderEpisodeSharePage(
       margin-top: 22px;
     }
 
-    a.button,
-    span.button {
+    a.button {
       display: inline-flex;
       min-height: 44px;
       align-items: center;
@@ -229,35 +262,9 @@ export function renderEpisodeSharePage(
       text-decoration: none;
     }
 
-    span.button {
-      background: #dbeafe;
-      color: #1e3a8a;
-    }
-
     a.button.button-secondary {
       background: #eef2f7;
       color: #171717;
-    }
-
-    .redirect-note {
-      margin-top: 14px;
-      font-size: 0.9rem;
-    }
-
-    button.link-button {
-      display: none;
-      margin: 10px 0 0;
-      padding: 0;
-      border: 0;
-      background: transparent;
-      color: #0f766e;
-      cursor: pointer;
-      font: inherit;
-      font-weight: 700;
-    }
-
-    button.link-button.is-visible {
-      display: inline;
     }
 
     @media (max-width: 560px) {
@@ -274,7 +281,7 @@ export function renderEpisodeSharePage(
         font-size: 1.8rem;
       }
 
-      img {
+      img.episode-media {
         max-width: 220px;
       }
     }
@@ -315,16 +322,13 @@ export function renderEpisodeSharePage(
         color: #faf7f1;
       }
 
-      button.link-button {
-        color: #5eead4;
-      }
     }
   </style>
 </head>
 <body>
   <main>
-    <section class="episode" aria-label="Shared episode">
-      <img src="${htmlEscape(coverUrl)}" alt="">
+    <section class="episode${video ? ' has-video' : ''}" aria-label="Shared episode">
+      ${episodeMedia}
       <div>
         <p class="eyebrow">${APP_NAME}</p>
         <h1>${htmlEscape(title)}</h1>
@@ -338,42 +342,29 @@ export function renderEpisodeSharePage(
 }
 
 function renderPlatformContent(input: RenderEpisodeSharePageInput): string {
-  if (input.platform === 'ios') {
-    return `<div class="actions">
-          <a class="button" href="${htmlEscape(input.appDeepLinkUrl)}">Open in App</a>
-          <a class="button button-secondary" href="${htmlEscape(input.iosAppStoreUrl)}">Get the app</a>
-        </div>
-        <p class="redirect-note">If nothing happens, this page will open the App Store shortly.</p>
-        <button class="link-button" id="cancel-app-redirect" type="button">Cancel App Store redirect</button>
-        <script>
-          (() => {
-            const appStoreUrl = ${jsStringLiteral(input.iosAppStoreUrl)};
-            const cancelButton = document.getElementById('cancel-app-redirect');
-            const redirectTimer = window.setTimeout(() => {
-              window.location.replace(appStoreUrl);
-            }, 4000);
-
-            window.setTimeout(() => {
-              cancelButton?.classList.add('is-visible');
-            }, 500);
-
-            cancelButton?.addEventListener('click', () => {
-              window.clearTimeout(redirectTimer);
-              cancelButton.remove();
-            });
-          })();
-        </script>`;
-  }
-
-  if (input.platform === 'android' && !input.androidAvailable) {
-    return `<div class="actions">
-          <span class="button">Android version coming soon</span>
-        </div>`;
-  }
+  const appStoreAction =
+    input.platform === 'ios'
+      ? `
+          <a class="button button-secondary" href="${htmlEscape(input.iosAppStoreUrl)}">Get Zap Pilot</a>`
+      : '';
 
   return `<div class="actions">
-          <span class="button">Open on iPhone to listen</span>
+          <a class="button" href="${htmlEscape(input.appDeepLinkUrl)}">Open in Zap Pilot</a>${appStoreAction}
         </div>`;
+}
+
+function renderEpisodeMedia(
+  coverUrl: string,
+  video: EpisodeVideoResponse | null,
+): string {
+  if (!video) {
+    return `<img class="episode-media" src="${htmlEscape(coverUrl)}" alt="">`;
+  }
+
+  return `<video class="episode-media" controls playsinline preload="metadata" poster="${htmlEscape(coverUrl)}" aria-label="Episode video">
+        <source src="${htmlEscape(video.url)}" type="video/mp4">
+        Your browser does not support HTML5 video.
+      </video>`;
 }
 
 function summarizeDescription(description: string, title: string): string {
@@ -415,13 +406,4 @@ function htmlEscape(value: string): string {
     .replaceAll("'", '&#39;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;');
-}
-
-function jsStringLiteral(value: string): string {
-  return JSON.stringify(value)
-    .replaceAll('<', '\\u003c')
-    .replaceAll('>', '\\u003e')
-    .replaceAll('&', '\\u0026')
-    .replaceAll('\u2028', '\\u2028')
-    .replaceAll('\u2029', '\\u2029');
 }

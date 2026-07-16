@@ -29,6 +29,12 @@ export interface PodcastLanguageClassroomLesson {
   keywords: PodcastLanguageClassroomKeyword[];
 }
 
+export interface PodcastEpisodeVideo {
+  url: string;
+  thumbnailUrl: string;
+  durationSeconds: number;
+}
+
 export interface PodcastEpisode {
   id: string;
   localizationId: string;
@@ -39,6 +45,7 @@ export interface PodcastEpisode {
   listened: boolean;
   likeCount: number;
   script: string | null;
+  video: PodcastEpisodeVideo | null;
   audioTracks: PodcastAudioTrack[];
   languageClassrooms: PodcastLanguageClassroomLesson[];
   lastPositionSeconds: number;
@@ -113,6 +120,25 @@ function readArray(record: Record<string, unknown>, keys: string[]): unknown[] {
     if (Array.isArray(value)) return value;
   }
   return [];
+}
+
+export function parsePodcastEpisodeVideo(
+  rawVideo: unknown,
+): PodcastEpisodeVideo | null {
+  if (!isRecord(rawVideo)) return null;
+
+  const url = readString(rawVideo, 'url', 'url');
+  const thumbnailUrl = readString(rawVideo, 'thumbnailUrl', 'thumbnail_url');
+  const durationSeconds = readNumber(
+    rawVideo,
+    'durationSeconds',
+    'duration_seconds',
+  );
+  if (url.trim() === '' || thumbnailUrl.trim() === '' || durationSeconds <= 0) {
+    return null;
+  }
+
+  return { url, thumbnailUrl, durationSeconds };
 }
 
 export function normalisePodcastSearchQuery(query: string): string {
@@ -252,6 +278,7 @@ export function parsePodcastEpisode(rawEpisode: unknown): PodcastEpisode {
     listened: readBoolean(rawEpisode, 'listened', 'listened'),
     likeCount: readNumber(rawEpisode, 'likeCount', 'like_count'),
     script: readNullableString(rawEpisode, 'script', 'script'),
+    video: parsePodcastEpisodeVideo(rawEpisode['video']),
     audioTracks,
     languageClassrooms: readArray(rawEpisode, [
       'languageClassrooms',
@@ -294,6 +321,16 @@ export function getPodcastApiUrl(): string {
   return configured !== undefined && configured !== ''
     ? configured.replace(/\/$/, '')
     : DEFAULT_PODCAST_API_URL;
+}
+
+export function getPodcastEpisodeShareUrl(
+  episode: Pick<PodcastEpisode, 'id' | 'languageCode'>,
+): string {
+  const url = new URL(
+    `${getPodcastApiUrl()}/e/${encodeURIComponent(episode.id)}`,
+  );
+  url.searchParams.set('lang', episode.languageCode);
+  return url.toString();
 }
 
 export async function fetchPodcastEpisodes(
@@ -339,6 +376,24 @@ export async function fetchPodcastEpisodeSearchResults(
     .filter((result) => result.episode.hlsUrl !== '');
 }
 
+export async function fetchPodcastEpisode(
+  localizationId: string,
+  fetchImpl: typeof fetch = fetch,
+  languageCode: string = DEFAULT_CONTENT_LANGUAGE_CODE,
+): Promise<PodcastEpisode> {
+  const url = new URL(
+    `${getPodcastApiUrl()}/episodes/${encodeURIComponent(localizationId)}`,
+  );
+  url.searchParams.set('language', languageCode);
+
+  const response = await fetchImpl(url.toString());
+  if (!response.ok) {
+    throw new Error(`Podcast episode request failed: ${response.status}`);
+  }
+
+  return parsePodcastEpisode((await response.json()) as unknown);
+}
+
 export function findPodcastEpisodeById(
   episodes: readonly PodcastEpisode[],
   episodeId: string,
@@ -357,6 +412,26 @@ export function usePodcastEpisodes() {
   return useQuery({
     queryKey: ['desktop', 'podcast', 'episodes', languageCode],
     queryFn: () => fetchPodcastEpisodes(fetch, languageCode),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function usePodcastEpisode(
+  localizationId: string,
+  languageCode: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: [
+      'desktop',
+      'podcast',
+      'episodes',
+      'detail',
+      languageCode,
+      localizationId,
+    ],
+    queryFn: () => fetchPodcastEpisode(localizationId, fetch, languageCode),
+    enabled: enabled && localizationId.trim() !== '',
     staleTime: 5 * 60 * 1000,
   });
 }

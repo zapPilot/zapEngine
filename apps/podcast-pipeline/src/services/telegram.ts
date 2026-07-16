@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 
-import { getTelegramBotToken } from '../lib/env.js';
+import { getTelegramBotToken, trimTrailingSlash } from '../lib/env.js';
 import { isRecord } from '../lib/typeGuards.js';
 
 export type TelegramChatId = number | string;
@@ -20,6 +20,41 @@ export const TELEGRAM_HELP_TEXT =
 export const TELEGRAM_NO_URL_TEXT = '請貼一個 http(s) 文章網址';
 export const TELEGRAM_INFLIGHT_TEXT = '這個 URL 已在處理中，完成後我會通知你。';
 export const TELEGRAM_START_TEXT = '收到，開始處理文章。';
+const DEFAULT_EPISODE_SHARE_BASE_URL = 'https://from-fed-to-chain-api.fly.dev';
+
+export function buildEpisodeShareUrl(episodeId: string): string {
+  const configuredBase =
+    process.env['PODCAST_PUBLIC_BASE_URL']?.trim() ||
+    DEFAULT_EPISODE_SHARE_BASE_URL;
+  return `${trimTrailingSlash(configuredBase)}/e/${encodeURIComponent(episodeId)}?lang=zh-Hant`;
+}
+
+export type EpisodeVideoLifecycle = 'completed' | 'queued' | 'unavailable';
+
+const AUDIO_READY_LIFECYCLE_LABELS: Record<EpisodeVideoLifecycle, string> = {
+  completed: '🎬 音頻完成／影片已可播放',
+  unavailable: '🎬 音頻完成／影片稍後補上',
+  queued: '🎬 音頻完成／影片排程中',
+};
+
+export function buildTelegramAudioReadyMessage(
+  ingestSummary: string,
+  episodeId: string,
+  videoLifecycle: EpisodeVideoLifecycle = 'queued',
+): string {
+  const lifecycle = AUDIO_READY_LIFECYCLE_LABELS[videoLifecycle];
+  return [ingestSummary, lifecycle, buildEpisodeShareUrl(episodeId)].join('\n');
+}
+
+export function buildTelegramVideoCompletedMessage(episodeId: string): string {
+  return ['🎬 影片完成', buildEpisodeShareUrl(episodeId)].join('\n');
+}
+
+export function buildTelegramVideoFailedMessage(episodeId: string): string {
+  return ['⚠️ 影片失敗，但音頻仍可使用', buildEpisodeShareUrl(episodeId)].join(
+    '\n',
+  );
+}
 
 export async function sendMessage(
   chatId: TelegramChatId,

@@ -407,7 +407,9 @@ export function PodcastScreen() {
   };
 
   const openEpisode = (episode: PodcastEpisode) =>
-    router.push(`/podcast/${encodeURIComponent(episode.localizationId)}`);
+    router.push(
+      `/podcast/${encodeURIComponent(episode.localizationId)}?lang=${encodeURIComponent(episode.languageCode)}`,
+    );
 
   const renderRows = (
     episodes: readonly PodcastEpisode[],

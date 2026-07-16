@@ -13,6 +13,7 @@ import type {
   EpisodeResponse,
   EpisodeRow,
   EpisodeStatus,
+  EpisodeVideoResponse,
   LanguageClassroomKeyword,
   LanguageClassroomLesson,
   LanguageClassroomRow,
@@ -30,6 +31,13 @@ const CLASSROOM_MEDIA_COLUMNS = [
   'classroom_hls_url',
   'classroom_r2_prefix',
 ] as const;
+
+interface CompletedEpisodeVideoProjection {
+  episode_localization_id: string;
+  mp4_url: string | null;
+  thumbnail_url: string | null;
+  duration_seconds: number | null;
+}
 
 type LocalizationStatusUpdates = Partial<
   Pick<
@@ -145,10 +153,12 @@ function deleteClassroomMediaFields(fields: Record<string, unknown>): void {
 export function toEpisodeResponse(
   row: EpisodeListRow,
   languageClassrooms?: LanguageClassroomRow[] | LanguageClassroomLesson[],
+  video: EpisodeVideoResponse | null = null,
 ): EpisodeResponse {
   return toEpisodeResponseWithClassrooms(
     row,
     languageClassrooms ?? parseClassroomsFromListRow(row),
+    video,
   );
 }
 
@@ -156,6 +166,7 @@ export function toEpisodeResponseFromLocalization(
   episode: EpisodeRow,
   localization: EpisodeLocalizationRow,
   languageClassrooms: LanguageClassroomRow[] | LanguageClassroomLesson[] = [],
+  video: EpisodeVideoResponse | null = null,
 ): EpisodeResponse {
   return toEpisodeResponseWithClassrooms(
     {
@@ -177,12 +188,14 @@ export function toEpisodeResponseFromLocalization(
       language_classrooms: [],
     },
     languageClassrooms,
+    video,
   );
 }
 
 export function toEpisodeResponseWithClassrooms(
   row: EpisodeListRow,
   languageClassrooms: LanguageClassroomRow[] | LanguageClassroomLesson[],
+  video: EpisodeVideoResponse | null = null,
 ): EpisodeResponse {
   return {
     id: row.episode_id,
@@ -205,6 +218,7 @@ export function toEpisodeResponseWithClassrooms(
     llmThinkingModel: row.llm_thinking_model,
     llmProvider: row.llm_provider,
     status: row.status,
+    video,
     languageClassrooms: languageClassrooms.map(toLanguageClassroomLesson),
   };
 }
@@ -253,6 +267,22 @@ export async function findEpisodeLocalizationByEpisodeId(
     .eq('episode_id', episodeId)
     .eq('language_code', languageCode)
     .maybeSingle<EpisodeLocalizationRow>();
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  return data;
+}
+
+export async function findEpisodeListRowByLocalizationId(
+  episodeLocalizationId: string,
+): Promise<EpisodeListRow | null> {
+  const { data, error } = await getSupabase()
+    .from('episodes_with_stats')
+    .select('*')
+    .eq('localization_id', episodeLocalizationId)
+    .maybeSingle<EpisodeListRow>();
 
   if (error) {
     throwSupabaseError(error);
@@ -339,6 +369,47 @@ export async function listEpisodesPaged(
     rows,
     nextCursor: last ? encodeCursor({ t: last.created_at, i: last.id }) : null,
   };
+}
+
+export async function listCompletedEpisodeVideosByLocalizationIds(
+  episodeLocalizationIds: readonly string[],
+): Promise<Map<string, EpisodeVideoResponse>> {
+  const videos = new Map<string, EpisodeVideoResponse>();
+  const uniqueIds = [...new Set(episodeLocalizationIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return videos;
+
+  const { data, error } = await getSupabase()
+    .from('episode_videos')
+    .select('episode_localization_id, mp4_url, thumbnail_url, duration_seconds')
+    .eq('status', 'completed')
+    .in('episode_localization_id', uniqueIds)
+    .returns<CompletedEpisodeVideoProjection[]>();
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  for (const row of data ?? []) {
+    const url = row.mp4_url?.trim();
+    const thumbnailUrl = row.thumbnail_url?.trim();
+    if (
+      !url ||
+      !thumbnailUrl ||
+      typeof row.duration_seconds !== 'number' ||
+      !Number.isFinite(row.duration_seconds) ||
+      row.duration_seconds <= 0
+    ) {
+      continue;
+    }
+
+    videos.set(row.episode_localization_id, {
+      url,
+      thumbnailUrl,
+      durationSeconds: row.duration_seconds,
+    });
+  }
+
+  return videos;
 }
 
 export async function insertEpisode(episode: NewEpisode): Promise<EpisodeRow> {

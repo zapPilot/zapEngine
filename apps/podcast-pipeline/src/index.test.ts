@@ -21,7 +21,9 @@ import type {
 
 const {
   mockDecodeCursor,
+  mockEnqueueEpisodeVideoJob,
   mockFindEpisodeBySourceUrl,
+  mockFindEpisodeListRowByLocalizationId,
   mockFindEpisodeLocalizationByEpisodeId,
   mockGenerateHls,
   mockGenerateLanguageClassroomsWithLLM,
@@ -30,6 +32,7 @@ const {
   mockInsertEpisodeLocalization,
   mockInvalidateEpisodeSearchCache,
   mockListEpisodesPaged,
+  mockListCompletedEpisodeVideosByLocalizationIds,
   mockListLanguageClassroomsByLocalizationId,
   mockListLanguageClassroomsByLocalizationIds,
   mockMarkEpisodeListened,
@@ -47,7 +50,9 @@ const {
   mockTelegramFetch,
 } = vi.hoisted(() => ({
   mockDecodeCursor: vi.fn(),
+  mockEnqueueEpisodeVideoJob: vi.fn(),
   mockFindEpisodeBySourceUrl: vi.fn(),
+  mockFindEpisodeListRowByLocalizationId: vi.fn(),
   mockFindEpisodeLocalizationByEpisodeId: vi.fn(),
   mockGenerateHls: vi.fn(),
   mockGenerateLanguageClassroomsWithLLM: vi.fn(),
@@ -56,6 +61,9 @@ const {
   mockInsertEpisodeLocalization: vi.fn(),
   mockInvalidateEpisodeSearchCache: vi.fn(),
   mockListEpisodesPaged: vi.fn(),
+  mockListCompletedEpisodeVideosByLocalizationIds: vi
+    .fn()
+    .mockResolvedValue(new Map()),
   mockListLanguageClassroomsByLocalizationId: vi.fn(),
   mockListLanguageClassroomsByLocalizationIds: vi.fn(),
   mockMarkEpisodeListened: vi.fn(),
@@ -86,10 +94,13 @@ vi.mock('./services/db.js', async (importOriginal) => ({
   DEFAULT_LIMIT: 20,
   decodeCursor: mockDecodeCursor,
   findEpisodeBySourceUrl: mockFindEpisodeBySourceUrl,
+  findEpisodeListRowByLocalizationId: mockFindEpisodeListRowByLocalizationId,
   findEpisodeLocalizationByEpisodeId: mockFindEpisodeLocalizationByEpisodeId,
   insertEpisode: mockInsertEpisode,
   insertEpisodeLocalization: mockInsertEpisodeLocalization,
   listEpisodesPaged: mockListEpisodesPaged,
+  listCompletedEpisodeVideosByLocalizationIds:
+    mockListCompletedEpisodeVideosByLocalizationIds,
   listLanguageClassroomsByLocalizationId:
     mockListLanguageClassroomsByLocalizationId,
   listLanguageClassroomsByLocalizationIds:
@@ -98,6 +109,7 @@ vi.mock('./services/db.js', async (importOriginal) => ({
   toEpisodeResponse: (
     row: EpisodeListRow,
     languageClassrooms?: import('./types.js').LanguageClassroomRow[],
+    video?: import('./types.js').EpisodeVideoResponse | null,
   ) => {
     const lessons: LanguageClassroomLesson[] = (
       languageClassrooms ?? row.language_classrooms
@@ -111,7 +123,10 @@ vi.mock('./services/db.js', async (importOriginal) => ({
             keywords: lc.keywords,
           },
     );
-    return episodeListResponse({ ...row, language_classrooms: lessons });
+    return {
+      ...episodeListResponse({ ...row, language_classrooms: lessons }),
+      video: video ?? null,
+    };
   },
   toEpisodeResponseFromLocalization: (
     episode: EpisodeRow,
@@ -119,6 +134,7 @@ vi.mock('./services/db.js', async (importOriginal) => ({
     languageClassrooms:
       | import('./types.js').LanguageClassroomRow[]
       | LanguageClassroomLesson[],
+    video?: import('./types.js').EpisodeVideoResponse | null,
   ) => {
     const lessons: LanguageClassroomLesson[] = languageClassrooms.map((lc) =>
       'targetLanguageCode' in lc
@@ -130,7 +146,10 @@ vi.mock('./services/db.js', async (importOriginal) => ({
             keywords: lc.keywords,
           },
     );
-    return localizationResponse(episode, localization, lessons);
+    return {
+      ...localizationResponse(episode, localization, lessons),
+      video: video ?? null,
+    };
   },
   upsertLanguageClassrooms: mockUpsertLanguageClassrooms,
   updateEpisodeLocalizationArticleContent:
@@ -149,6 +168,7 @@ vi.mock('./services/scrape.js', () => ({
 
 vi.mock('./services/storage.js', () => ({
   uploadHlsToR2: mockUploadHlsToR2,
+  uploadVideoArtifactsToR2: vi.fn(),
 }));
 
 vi.mock('./services/hls.js', () => ({
@@ -177,6 +197,11 @@ vi.mock('./services/translate.js', () => ({
   translateCanonicalScript: mockTranslateCanonicalScript,
 }));
 
+vi.mock('./services/video-jobs.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./services/video-jobs.js')>()),
+  enqueueEpisodeVideoJob: mockEnqueueEpisodeVideoJob,
+}));
+
 process.env['TTS_PROVIDER'] = 'google';
 
 const app = (await import('./index.js')).default;
@@ -186,6 +211,8 @@ beforeEach(() => {
   delete process.env['FISH_AUDIO_ENGINE'];
   delete process.env['FISH_AUDIO_REFERENCE_ID'];
   delete process.env['FISH_AUDIO_MODEL_ID'];
+  mockListCompletedEpisodeVideosByLocalizationIds.mockResolvedValue(new Map());
+  mockEnqueueEpisodeVideoJob.mockResolvedValue({ status: 'queued' });
 });
 
 describe('health checks', () => {
@@ -213,17 +240,17 @@ describe('GET /e/:id share landing page', () => {
     [
       'ios',
       'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
-      'Open in App',
+      'Open in Zap Pilot',
     ],
     [
       'android',
       'Mozilla/5.0 (Linux; Android 13; SM-S918B)',
-      'Android version coming soon',
+      'Open in Zap Pilot',
     ],
     [
       'desktop',
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-      'Open on iPhone to listen',
+      'Open in Zap Pilot',
     ],
   ])(
     'renders an %s share page with preview metadata',
@@ -1047,6 +1074,8 @@ describe('POST /telegram/webhook', () => {
         'https://cdn.example.com/playlist.m3u8',
         '💰 Total $0.00009',
         '- 外語小教室: $0.00009',
+        '🎬 音頻完成／影片排程中',
+        `https://from-fed-to-chain-api.fly.dev/e/${episodeRow().id}?lang=zh-Hant`,
       ].join('\n'),
     ]);
     expect(mockInvalidateEpisodeSearchCache).toHaveBeenCalledTimes(1);
@@ -1127,6 +1156,8 @@ describe('POST /telegram/webhook', () => {
         'https://cdn.example.com/playlist.m3u8',
         '💰 Total $0.00001',
         '- 外語小教室: $0.00001',
+        '🎬 音頻完成／影片排程中',
+        `https://from-fed-to-chain-api.fly.dev/e/${episodeRow().id}?lang=zh-Hant`,
       ].join('\n'),
     ]);
   });
@@ -1149,6 +1180,8 @@ describe('POST /telegram/webhook', () => {
         '✅ 已存在',
         '《Localization title》',
         'https://cdn.example.com/playlist.m3u8',
+        '🎬 音頻完成／影片排程中',
+        `https://from-fed-to-chain-api.fly.dev/e/${episodeRow().id}?lang=zh-Hant`,
       ].join('\n'),
     );
     expect(telegramMessageTexts()[1]).not.toContain('💰');
@@ -1181,7 +1214,10 @@ describe('POST /telegram/webhook', () => {
       telegramUpdate({ text: 'https://example.com/slow' }),
     );
     const second = await postTelegramUpdate(
-      telegramUpdate({ text: 'https://example.com/slow' }),
+      telegramUpdate({
+        chatId: 999,
+        text: 'https://example.com/slow',
+      }),
     );
 
     expect(first.status).toBe(200);
@@ -1195,6 +1231,10 @@ describe('POST /telegram/webhook', () => {
 
     localization.resolve(localizationRow());
     await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(3));
+    expect(mockEnqueueEpisodeVideoJob).toHaveBeenCalledWith(
+      localizationRow().id,
+      '999',
+    );
   });
 });
 
@@ -1277,6 +1317,27 @@ describe('GET /episodes', () => {
     ]);
   });
 
+  it('hydrates feed videos with one completed-video batch query', async () => {
+    const row = listRow();
+    const video = {
+      url: 'https://cdn.example.com/video.mp4',
+      thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+      durationSeconds: 90,
+    };
+    mockListEpisodesPaged.mockResolvedValue({ rows: [row], nextCursor: null });
+    mockListCompletedEpisodeVideosByLocalizationIds.mockResolvedValue(
+      new Map([[row.localization_id, video]]),
+    );
+
+    const response = await app.request('/episodes');
+    const body = await response.json();
+
+    expect(
+      mockListCompletedEpisodeVideosByLocalizationIds,
+    ).toHaveBeenCalledWith([row.localization_id]);
+    expect(body.items[0].video).toEqual(video);
+  });
+
   it('returns 400 for an invalid limit', async () => {
     const response = await app.request('/episodes?limit=abc');
 
@@ -1339,6 +1400,29 @@ describe('GET /episodes/search', () => {
     expect(mockSearchEpisodes).toHaveBeenCalledWith('流動性', 'zh-Hant', 20);
   });
 
+  it('hydrates ranked search results with one completed-video batch query', async () => {
+    const episode = episodeListResponse(listRow());
+    const video = {
+      url: 'https://cdn.example.com/video.mp4',
+      thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+      durationSeconds: 90,
+    };
+    mockSearchEpisodes.mockResolvedValue([
+      { episode, matchSource: 'title', snippet: null },
+    ]);
+    mockListCompletedEpisodeVideosByLocalizationIds.mockResolvedValue(
+      new Map([[episode.localizationId, video]]),
+    );
+
+    const response = await app.request('/episodes/search?q=liquidity');
+    const body = await response.json();
+
+    expect(
+      mockListCompletedEpisodeVideosByLocalizationIds,
+    ).toHaveBeenCalledWith([episode.localizationId]);
+    expect(body.items[0].episode.video).toEqual(video);
+  });
+
   it.each([
     ['missing', '/episodes/search'],
     ['too short', '/episodes/search?q=a'],
@@ -1372,6 +1456,56 @@ describe('GET /episodes/search', () => {
   });
 });
 
+describe('GET /episodes/:localizationId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListCompletedEpisodeVideosByLocalizationIds.mockResolvedValue(
+      new Map(),
+    );
+  });
+
+  it('returns a completed localization outside the paginated feed', async () => {
+    const row = listRow();
+    const video = {
+      url: 'https://cdn.example.com/video.mp4',
+      thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+      durationSeconds: 90,
+    };
+    mockFindEpisodeListRowByLocalizationId.mockResolvedValue(row);
+    mockListCompletedEpisodeVideosByLocalizationIds.mockResolvedValue(
+      new Map([[row.localization_id, video]]),
+    );
+
+    const response = await app.request(`/episodes/${row.localization_id}`);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mockFindEpisodeListRowByLocalizationId).toHaveBeenCalledWith(
+      row.localization_id,
+    );
+    expect(body).toEqual({ ...episodeListResponse(row), video });
+  });
+
+  it('returns 404 for a missing localization', async () => {
+    mockFindEpisodeListRowByLocalizationId.mockResolvedValue(null);
+    const localizationId = '00000000-0000-4000-8000-000000009999';
+
+    const response = await app.request(`/episodes/${localizationId}`);
+
+    expect(response.status).toBe(404);
+    expect(
+      mockListCompletedEpisodeVideosByLocalizationIds,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed localization ids before querying Supabase', async () => {
+    const response = await app.request('/episodes/not-a-uuid');
+
+    expect(response.status).toBe(404);
+    expect(mockFindEpisodeListRowByLocalizationId).not.toHaveBeenCalled();
+  });
+});
+
 describe('POST /episodes/:id/listened', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1399,6 +1533,29 @@ describe('POST /episodes/:id/listened', () => {
     );
     expect(body.listened).toBe(true);
     expect(body.localizationId).toBe(localizationRow().id);
+  });
+
+  it('returns the localization completed video after marking listened', async () => {
+    const localization = localizationRow();
+    const video = {
+      url: 'https://cdn.example.com/video.mp4',
+      thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+      durationSeconds: 90,
+    };
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localization);
+    mockListCompletedEpisodeVideosByLocalizationIds.mockResolvedValue(
+      new Map([[localization.id, video]]),
+    );
+
+    const response = await app.request(
+      `/episodes/${episodeRow().id}/listened`,
+      {
+        method: 'POST',
+      },
+    );
+    const body = await response.json();
+
+    expect(body.video).toEqual(video);
   });
 
   it('returns 404 when the episode cannot be marked listened', async () => {

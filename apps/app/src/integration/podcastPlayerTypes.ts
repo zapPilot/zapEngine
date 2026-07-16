@@ -10,6 +10,7 @@ export interface PodcastPlayer {
   queueIndex: number;
   hasPreviousEpisode: boolean;
   hasNextEpisode: boolean;
+  pause: () => void;
   toggle: (episode: PodcastEpisode) => void;
   playFromQueue: (
     episodes: readonly PodcastEpisode[],

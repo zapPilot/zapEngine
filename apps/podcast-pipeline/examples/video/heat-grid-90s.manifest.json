@@ -1,0 +1,435 @@
+{
+  "schemaVersion": "podcast-slide-video.v1",
+  "rendererVersion": "satori-resvg-v1",
+  "episode": {
+    "id": "9ee737b4-c3d3-4f88-9837-ccc7fc20704e",
+    "localizationId": "56b21422-1a38-4917-957e-b23223c0396c",
+    "languageCode": "zh-Hant",
+    "title": "美國高溫下電網拉響紅色警報，比特幣挖礦成了「背鍋俠」？"
+  },
+  "clip": {
+    "startMs": 0,
+    "durationMs": 90000,
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "transitionMs": 200
+  },
+  "audio": {
+    "sourceUrl": "https://pub-ef560f16ea284ef881c1f1b4141e1aae.r2.dev/episodes/9ee737b4-c3d3-4f88-9837-ccc7fc20704e/localizations/zh-Hant/main/playlist.m3u8"
+  },
+  "slides": [
+    {
+      "id": "opening-title",
+      "startMs": 0,
+      "endMs": 4000,
+      "template": "cover",
+      "kicker": "POWER GRID · HEAT DOME · BITCOIN",
+      "headline": "高溫逼電網到牆角",
+      "subheadline": "比特幣礦場為何成了「背鍋俠」？",
+      "sources": [
+        {
+          "id": "zap-editorial",
+          "label": "Zap Pilot Editorial",
+          "url": null,
+          "attribution": "Zap Pilot editorial design",
+          "license": "brand-generated",
+          "licenseUrl": null
+        }
+      ],
+      "asset": { "kind": "none" }
+    },
+    {
+      "id": "heat-dome",
+      "startMs": 4000,
+      "endMs": 16033,
+      "template": "photoFact",
+      "eyebrow": "HEAT DOME · JUNE 2026",
+      "headline": "熱穹頂壓向美國東部",
+      "subheadline": "極端高溫把用電需求推向歷史高位。",
+      "facts": ["持續異常高溫", "空調負載急升", "PJM 進入緊急狀態"],
+      "sources": [
+        {
+          "id": "noaa-june-2026",
+          "label": "NOAA NCEI · June 2026 Climate Report",
+          "url": "https://www.ncei.noaa.gov/news/national-climate-202606",
+          "attribution": "NOAA National Centers for Environmental Information",
+          "license": "official-public-domain",
+          "licenseUrl": "https://www.usa.gov/government-copyright"
+        },
+        {
+          "id": "panews-article",
+          "label": "PANews · 美國高溫下電網拉響紅色警報",
+          "url": "https://www.panewslab.com/zh-hant/articles/019f4132-8c83-700f-8a75-dc81b4faecb0",
+          "attribution": "PANews",
+          "license": "all-rights-reserved",
+          "licenseUrl": null
+        }
+      ],
+      "asset": {
+        "kind": "remoteImage",
+        "sourceId": "noaa-june-2026",
+        "url": "https://www.ncei.noaa.gov/sites/default/files/inline-images/grid-ranks-tavg-202606.png",
+        "sha256": "821b27d96fcf82fb1acca34c1fcfccd376997afd0eb6ff15eb1f18697481716c",
+        "layout": "framed",
+        "position": "center"
+      }
+    },
+    {
+      "id": "pjm-footprint",
+      "startMs": 16033,
+      "endMs": 27767,
+      "template": "sourceQuote",
+      "eyebrow": "PJM INTERCONNECTION",
+      "quote": "北美規模最大的區域傳輸組織",
+      "context": "服務範圍涵蓋 13 個州與華盛頓特區，約 6,700 萬人。",
+      "citation": "PJM · WHO WE ARE",
+      "sources": [
+        {
+          "id": "pjm-official",
+          "label": "PJM Interconnection · Territory Served",
+          "url": "https://www.pjm.com/about-pjm/who-we-are/territory-served",
+          "attribution": "PJM Interconnection",
+          "license": "all-rights-reserved",
+          "licenseUrl": null
+        },
+        {
+          "id": "us-map-cc0",
+          "label": "Wikimedia Commons · Blank US Map (states only)",
+          "url": "https://commons.wikimedia.org/wiki/File:Blank_US_Map_(states_only).svg",
+          "attribution": "Heitordp · CC0 · via Wikimedia Commons",
+          "license": "cc0",
+          "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+        }
+      ],
+      "asset": {
+        "kind": "bundledMap",
+        "sourceId": "us-map-cc0",
+        "key": "us-states-cc0",
+        "layout": "framed",
+        "highlightRegionIds": [
+          "de",
+          "il",
+          "in",
+          "ky",
+          "md",
+          "mi",
+          "nj",
+          "nc",
+          "oh",
+          "pa",
+          "tn",
+          "va",
+          "wv",
+          "dc"
+        ]
+      }
+    },
+    {
+      "id": "peak-load",
+      "startMs": 27767,
+      "endMs": 34100,
+      "template": "statistic",
+      "eyebrow": "JULY 1 · PEAK LOAD",
+      "value": "161,910",
+      "unit": "MW",
+      "label": "PJM 歷史第二高用電負荷",
+      "context": "極端高溫讓供需緩衝快速收窄。",
+      "sources": [
+        {
+          "id": "panews-peak",
+          "label": "PANews · PJM peak load reporting",
+          "url": "https://www.panewslab.com/zh-hant/articles/019f4132-8c83-700f-8a75-dc81b4faecb0",
+          "attribution": "PANews; values cross-referenced in the canonical script",
+          "license": "all-rights-reserved",
+          "licenseUrl": null
+        }
+      ],
+      "asset": { "kind": "none" }
+    },
+    {
+      "id": "reserve-drop",
+      "startMs": 34100,
+      "endMs": 45800,
+      "template": "statistic",
+      "eyebrow": "OPERATING RESERVE · 24 HOURS",
+      "value": "5,091",
+      "unit": "MW",
+      "label": "執行備用容量一天內驟降 53.7%",
+      "secondaryValue": "10,996 MW",
+      "secondaryLabel": "前一日可立刻調用的額外發電能力",
+      "context": "緩衝墊薄得讓人心驚膽戰。",
+      "sources": [
+        {
+          "id": "panews-reserve",
+          "label": "PANews · PJM operating reserve reporting",
+          "url": "https://www.panewslab.com/zh-hant/articles/019f4132-8c83-700f-8a75-dc81b4faecb0",
+          "attribution": "PANews; values cross-referenced in the canonical script",
+          "license": "all-rights-reserved",
+          "licenseUrl": null
+        }
+      ],
+      "asset": { "kind": "none" }
+    },
+    {
+      "id": "doe-order",
+      "startMs": 45800,
+      "endMs": 53667,
+      "template": "document",
+      "issuer": "美國能源部",
+      "documentNumber": "202-26-32",
+      "date": "2026-06-30 · 23:59",
+      "headline": "PJM 緊急命令即刻生效",
+      "excerpt": "指定發電機組可臨時突破環保排放上限，全力支援電網可靠度。",
+      "sources": [
+        {
+          "id": "doe-order-202-26-32",
+          "label": "U.S. DOE · Order No. 202-26-32",
+          "url": "https://www.energy.gov/ceser/federal-power-act-section-202c-pjm-interconnection-llc-pjm-order-no-202-26-32",
+          "attribution": "U.S. Department of Energy · June 30, 2026",
+          "license": "official-public-domain",
+          "licenseUrl": "https://www.usa.gov/government-copyright"
+        }
+      ],
+      "asset": { "kind": "none" }
+    },
+    {
+      "id": "first-order",
+      "startMs": 53667,
+      "endMs": 59233,
+      "template": "sourceQuote",
+      "eyebrow": "ORDER ONE · GENERATION",
+      "quote": "讓指定機組突破排放限制，全力發電",
+      "context": "緊急授權只為維持 PJM 電網可靠度，不代表永久鬆綁。",
+      "citation": "DOE ORDER NO. 202-26-32",
+      "sources": [
+        {
+          "id": "doe-order-one",
+          "label": "U.S. DOE · Emergency order",
+          "url": "https://www.energy.gov/ceser/federal-power-act-section-202c-pjm-interconnection-llc-pjm-order-no-202-26-32",
+          "attribution": "U.S. Department of Energy · June 30, 2026",
+          "license": "official-public-domain",
+          "licenseUrl": "https://www.usa.gov/government-copyright"
+        }
+      ],
+      "asset": { "kind": "none" }
+    },
+    {
+      "id": "large-load-cutoff",
+      "startMs": 59233,
+      "endMs": 72667,
+      "template": "photoFact",
+      "eyebrow": "LAST RESORT · LARGE LOAD",
+      "headline": "50 MW／15 分鐘",
+      "subheadline": "大型用電戶可能被要求切換到自己的備用發電。",
+      "facts": ["資料中心", "比特幣礦場", "不中斷服務的備援能力"],
+      "sources": [
+        {
+          "id": "bitcoin-mining-farm",
+          "label": "Wikimedia Commons · Bitcoin mining farm",
+          "url": "https://commons.wikimedia.org/wiki/File:Bitcoin_mining_farm.jpg",
+          "attribution": "Bitcoin mining farm — Marko Ahtisaari, CC BY 2.0",
+          "license": "cc-by-2.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/2.0/"
+        },
+        {
+          "id": "doe-large-load-order",
+          "label": "U.S. DOE · PJM large-load emergency order",
+          "url": "https://www.energy.gov/ceser/federal-power-act-section-202c-pjm-interconnection-llc-pjm-order-no-202-26-32",
+          "attribution": "U.S. Department of Energy",
+          "license": "official-public-domain",
+          "licenseUrl": "https://www.usa.gov/government-copyright"
+        }
+      ],
+      "asset": {
+        "kind": "remoteImage",
+        "sourceId": "bitcoin-mining-farm",
+        "url": "https://upload.wikimedia.org/wikipedia/commons/f/f7/Bitcoin_mining_farm.jpg",
+        "sha256": "697e2e51bf38c846ca6988604a64b327c233eb2d59a3545a928ef65e547a3573",
+        "layout": "fullBleed",
+        "position": "center"
+      }
+    },
+    {
+      "id": "wholesale-price-spike",
+      "startMs": 72667,
+      "endMs": 90000,
+      "template": "statistic",
+      "eyebrow": "WHOLESALE POWER · JULY 2",
+      "value": ">$2,000",
+      "unit": "/ MWh",
+      "label": "批發電價在供需壓力下飆升",
+      "secondaryValue": "$1,222.75",
+      "secondaryLabel": "Western Hub 日前結算價／MWh",
+      "context": "可比峰值接近去年同期的三倍。",
+      "sources": [
+        {
+          "id": "panews-price",
+          "label": "PANews · PJM wholesale price reporting",
+          "url": "https://www.panewslab.com/zh-hant/articles/019f4132-8c83-700f-8a75-dc81b4faecb0",
+          "attribution": "PANews; values cross-referenced in the canonical script",
+          "license": "all-rights-reserved",
+          "licenseUrl": null
+        }
+      ],
+      "asset": { "kind": "none" }
+    }
+  ],
+  "captions": [
+    {
+      "startMs": 120,
+      "endMs": 3780,
+      "text": "各位聽眾朋友，今天我們來聊\n一個有點反直覺的故事。"
+    },
+    {
+      "startMs": 3780,
+      "endMs": 6620,
+      "text": "2026 年 6 月底，一場「熱穹頂」——"
+    },
+    {
+      "startMs": 6620,
+      "endMs": 10260,
+      "text": "就是那種讓熱空氣像鍋蓋一樣\n蓋住某個區域，"
+    },
+    {
+      "startMs": 10260,
+      "endMs": 13040,
+      "text": "溫度飆升到異常高點的極端氣象——"
+    },
+    {
+      "startMs": 13040,
+      "endMs": 16030,
+      "text": "把美國最大的電網 PJM\n逼到了牆角。"
+    },
+    {
+      "startMs": 16030,
+      "endMs": 18450,
+      "text": "PJM 全名叫 Pennsylvania–\nNew Jersey–Maryland"
+    },
+    {
+      "startMs": 18450,
+      "endMs": 20350,
+      "text": "Interconnection，"
+    },
+    {
+      "startMs": 20350,
+      "endMs": 23150,
+      "text": "是北美規模最大的區域傳輸組織，"
+    },
+    {
+      "startMs": 23150,
+      "endMs": 26190,
+      "text": "服務範圍涵蓋 13 個州\n和華盛頓特區，"
+    },
+    {
+      "startMs": 26190,
+      "endMs": 27760,
+      "text": "大概六千七百萬人。"
+    },
+    {
+      "startMs": 27760,
+      "endMs": 31590,
+      "text": "7 月 1 號，這個電網創下了\n歷史第二高的用電負荷，"
+    },
+    {
+      "startMs": 31590,
+      "endMs": 34090,
+      "text": "達到 161,910 兆瓦。"
+    },
+    {
+      "startMs": 34090,
+      "endMs": 36170,
+      "text": "第二天，執行備用容量——"
+    },
+    {
+      "startMs": 36170,
+      "endMs": 39460,
+      "text": "就是電網手邊還能立刻調用的\n額外發電能力——"
+    },
+    {
+      "startMs": 39460,
+      "endMs": 43660,
+      "text": "從 10,996 兆瓦直接暴跌到\n5,091 兆瓦，"
+    },
+    {
+      "startMs": 43660,
+      "endMs": 45790,
+      "text": "緩衝墊薄得讓人心驚膽戰。"
+    },
+    {
+      "startMs": 45790,
+      "endMs": 49440,
+      "text": "所以，6 月 30 號，美國能源部部長\nChris Wright"
+    },
+    {
+      "startMs": 49440,
+      "endMs": 51080,
+      "text": "簽下了兩張緊急命令，"
+    },
+    {
+      "startMs": 51080,
+      "endMs": 53660,
+      "text": "當天晚上 11 點 59 分生效。"
+    },
+    {
+      "startMs": 53660,
+      "endMs": 58210,
+      "text": "第一張命令允許指定的發電機組\n臨時突破環保排放上限，"
+    },
+    {
+      "startMs": 58210,
+      "endMs": 59230,
+      "text": "全力發電。"
+    },
+    {
+      "startMs": 59230,
+      "endMs": 61820,
+      "text": "第二張命令更猛：作為最後手段，"
+    },
+    {
+      "startMs": 61820,
+      "endMs": 65630,
+      "text": "它允許電網強制要求\n50 兆瓦以上的大型用電戶——"
+    },
+    {
+      "startMs": 65630,
+      "endMs": 68170,
+      "text": "比如資料中心，還有比特幣礦場——"
+    },
+    {
+      "startMs": 68170,
+      "endMs": 70520,
+      "text": "在 15 分鐘內切斷電網的供電，"
+    },
+    {
+      "startMs": 70520,
+      "endMs": 72680,
+      "text": "改用他們自己的備用發電機。"
+    },
+    {
+      "startMs": 72680,
+      "endMs": 77030,
+      "text": "7 月 2 號，批發電價飆到\n每兆瓦時超過 2,000 美元，"
+    },
+    {
+      "startMs": 77030,
+      "endMs": 82260,
+      "text": "Western Hub 的日前結算價\n衝到 1,222.75 美元／兆瓦時，"
+    },
+    {
+      "startMs": 82260,
+      "endMs": 85400,
+      "text": "比去年同期的可比峰值\n翻了將近三倍。"
+    },
+    {
+      "startMs": 85400,
+      "endMs": 87780,
+      "text": "從 7 月 1 號到 7 月 3 號，"
+    },
+    {
+      "startMs": 87780,
+      "endMs": 90000,
+      "text": "PJM 連續發布高溫預警……"
+    }
+  ]
+}

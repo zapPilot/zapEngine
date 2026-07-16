@@ -76,6 +76,12 @@ export interface EpisodeAudioTrackResponse {
   classroomHlsUrl: string | null;
 }
 
+export interface EpisodeVideoResponse {
+  url: string;
+  thumbnailUrl: string;
+  durationSeconds: number;
+}
+
 export interface LanguageClassroomKeyword {
   term: string;
   reading: string | null;
@@ -118,6 +124,7 @@ export interface EpisodeResponse {
   llmThinkingModel: string | null;
   llmProvider: string | null;
   status: EpisodeStatus;
+  video: EpisodeVideoResponse | null;
   languageClassrooms: LanguageClassroomLesson[];
 }
 

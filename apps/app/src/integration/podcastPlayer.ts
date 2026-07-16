@@ -27,6 +27,10 @@ export function usePodcastPlayer(): PodcastPlayer {
     void setAudioModeAsync({ playsInSilentMode: true });
   }, []);
 
+  const pause = useCallback(() => {
+    audioPlayer.pause();
+  }, [audioPlayer]);
+
   const toggleCurrentPlayback = useCallback(() => {
     if (status.playing) {
       audioPlayer.pause();
@@ -96,6 +100,7 @@ export function usePodcastPlayer(): PodcastPlayer {
         speed,
         queue: queueState.queue,
         queueIndex: queueState.queueIndex,
+        pause,
         toggle: queueState.toggle,
         playFromQueue: queueState.playFromQueue,
         seek,
@@ -106,6 +111,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       }),
     [
       nowPlaying,
+      pause,
       queueState,
       seek,
       seekRelative,

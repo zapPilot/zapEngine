@@ -35,6 +35,7 @@ export function localizationResponse(
     llmThinkingModel: localization.llm_thinking_model,
     llmProvider: localization.llm_provider,
     status: localization.status,
+    video: null,
     languageClassrooms,
   };
 }
@@ -65,6 +66,7 @@ export function episodeListResponse(row: EpisodeListRow): EpisodeResponse {
     llmThinkingModel: row.llm_thinking_model,
     llmProvider: row.llm_provider,
     status: row.status,
+    video: null,
     languageClassrooms,
   };
 }

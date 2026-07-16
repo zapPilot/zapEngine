@@ -140,6 +140,10 @@ export function usePodcastPlayer(): PodcastPlayer {
     }
   }, []);
 
+  const pause = useCallback(() => {
+    audioRef.current?.pause();
+  }, []);
+
   return useMemo(
     () => ({
       nowPlaying,
@@ -157,6 +161,7 @@ export function usePodcastPlayer(): PodcastPlayer {
         queueState.queue,
         queueState.queueIndex,
       ),
+      pause,
       toggle: queueState.toggle,
       playFromQueue: queueState.playFromQueue,
       seek,
@@ -171,6 +176,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       isPlaying,
       queueState,
       nowPlaying,
+      pause,
       seek,
       seekRelative,
       setSpeed,
