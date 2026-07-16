@@ -31,6 +31,7 @@ describe('Moralis wallet query wrappers', () => {
     expect(useMoralisWalletAssets(null)).toMatchObject({
       assets: [],
       rows: [],
+      failedChains: [],
       totalUsdValue: null,
       isConnected: false,
       isLoading: false,
@@ -50,6 +51,7 @@ describe('Moralis wallet query wrappers', () => {
       data: {
         assets: [],
         rows: [{ usdValue: 10 }, { usdValue: null }, { usdValue: 5 }],
+        failedChains: ['base'],
       },
       isLoading: true,
       isError: false,
@@ -58,6 +60,7 @@ describe('Moralis wallet query wrappers', () => {
 
     expect(useMoralisWalletAssets('wallet-address')).toMatchObject({
       totalUsdValue: 15,
+      failedChains: ['base'],
       isConnected: true,
       isLoading: true,
     });

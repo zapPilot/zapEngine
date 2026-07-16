@@ -32,6 +32,24 @@ describe('buildAppCoreEnvSource', () => {
     });
   });
 
+  it('uses Expo config extra when the public Alchemy env is empty', () => {
+    vi.stubEnv('EXPO_PUBLIC_ALCHEMY_API_KEY', '');
+
+    expect(
+      buildAppCoreEnvSource({ alchemyApiKey: 'config-extra-key' })
+        .VITE_ALCHEMY_API_KEY,
+    ).toBe('config-extra-key');
+  });
+
+  it('prefers the public Alchemy env over Expo config extra', () => {
+    vi.stubEnv('EXPO_PUBLIC_ALCHEMY_API_KEY', 'public-key');
+
+    expect(
+      buildAppCoreEnvSource({ alchemyApiKey: 'config-extra-key' })
+        .VITE_ALCHEMY_API_KEY,
+    ).toBe('public-key');
+  });
+
   it('always reports the native app runtime', () => {
     expect(buildAppCoreEnvSource().VITE_APP_RUNTIME).toBe('native');
   });

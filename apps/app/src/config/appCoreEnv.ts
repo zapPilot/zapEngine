@@ -1,6 +1,5 @@
-import { configureAppCoreEnv } from '@zapengine/app-core/lib/env/runtimeEnv';
-
 import { APP_RUNTIME } from '@/config/appRuntime';
+import type { ExpoExtraConfig } from '@/config/mobileRuntimeConfig';
 
 // Metro defines __DEV__ at build/runtime; vitest (node) does not, so guard the read.
 function isDevBuild(): boolean {
@@ -12,12 +11,15 @@ function isDevBuild(): boolean {
  * values must stay as-is (literal EXPO_PUBLIC_* key accesses) so
  * babel-preset-expo can inline them at bundle time.
  */
-export function buildAppCoreEnvSource(): Record<string, string | undefined> {
+export function buildAppCoreEnvSource(
+  extra: ExpoExtraConfig = {},
+): Record<string, string | undefined> {
   return {
     VITE_ACCOUNT_API_URL: process.env.EXPO_PUBLIC_ACCOUNT_API_URL,
     VITE_ANALYTICS_ENGINE_URL: process.env.EXPO_PUBLIC_ANALYTICS_ENGINE_URL,
     VITE_PRIVY_APP_ID: process.env.EXPO_PUBLIC_PRIVY_APP_ID,
-    VITE_ALCHEMY_API_KEY: process.env.EXPO_PUBLIC_ALCHEMY_API_KEY,
+    VITE_ALCHEMY_API_KEY:
+      process.env.EXPO_PUBLIC_ALCHEMY_API_KEY || extra.alchemyApiKey,
     VITE_MORALIS_API_KEY: process.env.EXPO_PUBLIC_MORALIS_API_KEY,
     VITE_PODCAST_API_URL: process.env.EXPO_PUBLIC_PODCAST_API_URL,
     // Key name kept: app-core's wallet-token provider switch reads it on
@@ -30,5 +32,3 @@ export function buildAppCoreEnvSource(): Record<string, string | undefined> {
     MODE: isDevBuild() ? 'development' : 'production',
   };
 }
-
-configureAppCoreEnv(buildAppCoreEnvSource());

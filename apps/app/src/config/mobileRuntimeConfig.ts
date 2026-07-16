@@ -1,5 +1,6 @@
 export interface ExpoExtraConfig {
   appRuntime?: string;
+  alchemyApiKey?: string;
   privyAppId?: string;
   privyClientId?: string;
 }

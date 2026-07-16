@@ -122,6 +122,12 @@ describe('Home data historical dashboard window', () => {
 });
 
 describe('useHomeData', () => {
+  it('queries spendable assets for the active signer instead of bundle wallets', () => {
+    useHomeData('user-123', '0xactive', '1Y', ['0xbundle-1', '0xbundle-2']);
+
+    expect(useWalletAssetsMock).toHaveBeenCalledWith('0xactive');
+  });
+
   it('keeps disconnected users on demo data without surfacing a live error', () => {
     const result = useHomeData(null, null, '1W');
 

@@ -32,6 +32,18 @@ function loadRepoRootEnv(): void {
 
 loadRepoRootEnv();
 
+export function resolveExpoAlchemyApiKey(
+  env: Record<string, string | undefined>,
+): string {
+  return (
+    env.EXPO_PUBLIC_ALCHEMY_API_KEY?.trim() ||
+    env.VITE_ALCHEMY_API_KEY?.trim() ||
+    ''
+  );
+}
+
+process.env.EXPO_PUBLIC_ALCHEMY_API_KEY = resolveExpoAlchemyApiKey(process.env);
+
 const appScheme = 'zappilotv2';
 
 const config: ExpoConfig = {
@@ -85,6 +97,9 @@ const config: ExpoConfig = {
   ],
   extra: {
     appRuntime: 'app',
+    // EXPO_PUBLIC_* remains canonical for deployed builds. VITE_* is a local
+    // repo fallback so Expo can share the already-configured Alchemy key.
+    alchemyApiKey: process.env.EXPO_PUBLIC_ALCHEMY_API_KEY ?? '',
     privyAppId: process.env.EXPO_PUBLIC_PRIVY_APP_ID ?? '',
     privyClientId: process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID ?? '',
     eas: {

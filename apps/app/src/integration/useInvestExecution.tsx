@@ -1,31 +1,26 @@
-import { useDepositWizard } from '@zapengine/app-core/hooks/useDepositWizard';
-import type { DepositWizardState } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
+import { useStrategyDepositWizard } from '@zapengine/app-core/hooks/useStrategyDepositWizard';
+import type { StrategyDepositWizardState } from '@zapengine/app-core/lib/wallet/strategyDepositMachine';
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   createContext,
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
 } from 'react';
 
-import {
-  buildWizardStartInput,
-  type DepositExecutionCapability,
-  resolveDepositExecutionCapability,
-} from '@/integration/investExecutionModel';
+import type { DepositExecutionCapability } from '@/integration/investExecutionModel';
 import { useInvest } from '@/integration/useInvest';
 
 export interface InvestExecutionContextValue {
-  wizard: DepositWizardState;
+  wizard: StrategyDepositWizardState;
   pending: boolean;
   capability: DepositExecutionCapability;
-  /**
-   * Kicks off the wizard from the current invest draft. Errors surface via
-   * `wizard.error`, so callers fire-and-forget (`void startFromDraft()`).
-   */
   startFromDraft: () => Promise<void>;
-  runHlpDeposit: () => Promise<void>;
+  advance: () => Promise<void>;
   retry: () => void;
   reset: () => void;
 }
@@ -33,39 +28,43 @@ export interface InvestExecutionContextValue {
 const InvestExecutionContext =
   createContext<InvestExecutionContextValue | null>(null);
 
-/**
- * Holds the deposit-wizard execution state so the confirm and progress steps
- * share one live wizard. Sits inside InvestProvider (needs the draft) but
- * stays separate so high-frequency polling updates don't re-render the
- * amount/route screens through the draft context.
- */
 export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   const wallet = useWalletProvider();
-  const { selectedDepositPath, fromToken, fromAmount } = useInvest();
-  const { wizard, pending, start, runHlpDeposit, retry, reset } =
-    useDepositWizard();
+  const queryClient = useQueryClient();
+  const { totalUsd6, baseFundingToken, arbitrumFundingToken } = useInvest();
+  const { wizard, pending, start, advance, retry, reset } =
+    useStrategyDepositWizard();
+  const invalidatedDone = useRef(false);
+  const walletAddress = wallet.account?.address;
 
-  const capability = resolveDepositExecutionCapability({
-    isConnected: wallet.isConnected,
-    executionMode: wallet.executionMode,
-    depositPath: selectedDepositPath,
-  });
+  const capability: DepositExecutionCapability = wallet.isConnected
+    ? 'ready'
+    : 'connect-wallet';
 
   const startFromDraft = useCallback(async () => {
-    const input = buildWizardStartInput({
-      depositPath: selectedDepositPath,
-      fromToken,
-      fromAmount,
+    if (!walletAddress || totalUsd6 === '0') return;
+    invalidatedDone.current = false;
+    await start({
+      userAddress: walletAddress as `0x${string}`,
+      totalUsd6,
+      fundingSources: [
+        { chainId: 8453, fromToken: baseFundingToken.depositAddress },
+        { chainId: 42161, fromToken: arbitrumFundingToken.depositAddress },
+      ],
     });
-    if (!input) {
-      return;
-    }
-    try {
-      await start(input);
-    } catch {
-      // Surfaced through wizard.error; swallowing keeps the CTA fire-and-forget.
-    }
-  }, [selectedDepositPath, fromToken, fromAmount, start]);
+  }, [
+    arbitrumFundingToken.depositAddress,
+    baseFundingToken.depositAddress,
+    start,
+    totalUsd6,
+    walletAddress,
+  ]);
+
+  useEffect(() => {
+    if (wizard.status !== 'done' || invalidatedDone.current) return;
+    invalidatedDone.current = true;
+    void queryClient.invalidateQueries({ queryKey: ['desktop'] });
+  }, [queryClient, wizard.status]);
 
   const value = useMemo<InvestExecutionContextValue>(
     () => ({
@@ -73,11 +72,11 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
       pending,
       capability,
       startFromDraft,
-      runHlpDeposit,
+      advance,
       retry,
       reset,
     }),
-    [wizard, pending, capability, startFromDraft, runHlpDeposit, retry, reset],
+    [wizard, pending, capability, startFromDraft, advance, retry, reset],
   );
 
   return (

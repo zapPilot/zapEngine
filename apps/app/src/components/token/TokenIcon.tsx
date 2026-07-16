@@ -42,7 +42,8 @@ export function TokenIcon({
       {iconSrc ? (
         <Image
           source={iconSrc}
-          accessibilityLabel={alt}
+          accessible={alt.length > 0}
+          accessibilityLabel={alt || undefined}
           style={{ width: size, height: size }}
         />
       ) : (

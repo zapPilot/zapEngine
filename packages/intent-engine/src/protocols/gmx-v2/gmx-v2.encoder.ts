@@ -20,7 +20,7 @@ export interface GmxV2CreateDepositParams {
   uiFeeReceiver?: Address;
   longTokenSwapPath?: readonly Address[];
   shortTokenSwapPath?: readonly Address[];
-  minMarketTokens?: bigint;
+  minMarketTokens: bigint;
   shouldUnwrapNativeToken?: boolean;
   callbackGasLimit?: bigint;
   dataList?: readonly Hex[];
@@ -32,7 +32,7 @@ export interface GmxV2CreateDepositMulticallParams {
   longTokenAmount: bigint;
   shortTokenAmount: bigint;
   executionFee?: bigint;
-  minMarketTokens?: bigint;
+  minMarketTokens: bigint;
 }
 
 export interface GmxV2CreateWithdrawalParams {
@@ -99,7 +99,7 @@ export function encodeGmxV2CreateDeposit(
           longTokenSwapPath: [...(params.longTokenSwapPath ?? [])],
           shortTokenSwapPath: [...(params.shortTokenSwapPath ?? [])],
         },
-        minMarketTokens: params.minMarketTokens ?? 0n,
+        minMarketTokens: params.minMarketTokens,
         shouldUnwrapNativeToken: params.shouldUnwrapNativeToken ?? false,
         executionFee: params.executionFee,
         callbackGasLimit: params.callbackGasLimit ?? 0n,
@@ -114,6 +114,9 @@ export function encodeGmxV2CreateDepositMulticall(
 ): { data: Hex; value: string } {
   if (params.longTokenAmount <= 0n && params.shortTokenAmount <= 0n) {
     throw new Error('GMX deposit amount must be greater than zero');
+  }
+  if (params.minMarketTokens <= 0n) {
+    throw new Error('GMX minMarketTokens must be greater than zero');
   }
 
   const executionFee = params.executionFee ?? BigInt(GMX_V2_EXECUTION_FEE_WEI);
@@ -148,7 +151,7 @@ export function encodeGmxV2CreateDepositMulticall(
       longToken: params.market.longToken,
       shortToken: params.market.shortToken,
       executionFee,
-      minMarketTokens: params.minMarketTokens ?? 0n,
+      minMarketTokens: params.minMarketTokens,
     }),
   );
 

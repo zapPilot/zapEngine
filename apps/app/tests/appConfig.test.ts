@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import appConfig from '../app.config';
+import appConfig, { resolveExpoAlchemyApiKey } from '../app.config';
 
 describe('Android store identity', () => {
   it('preserves the existing Google Play application while using the Zap Pilot name', () => {
@@ -29,5 +29,20 @@ describe('Android store identity', () => {
         },
       },
     ]);
+  });
+
+  it('prefers Expo Alchemy config and falls back to the local Vite key', () => {
+    expect(
+      resolveExpoAlchemyApiKey({
+        EXPO_PUBLIC_ALCHEMY_API_KEY: 'expo-key',
+        VITE_ALCHEMY_API_KEY: 'vite-key',
+      }),
+    ).toBe('expo-key');
+    expect(
+      resolveExpoAlchemyApiKey({
+        EXPO_PUBLIC_ALCHEMY_API_KEY: '',
+        VITE_ALCHEMY_API_KEY: 'vite-key',
+      }),
+    ).toBe('vite-key');
   });
 });

@@ -1,5 +1,6 @@
 import {
   type AlchemyWalletTokenBalance,
+  getAlchemyWalletBalancesSnapshot,
   getAlchemyWalletTokenBalances,
 } from '@zapengine/app-core/services';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -200,5 +201,86 @@ describe('Alchemy wallet service', () => {
           row.token_address === '0x0000000000000000000000000000000000000001',
       ),
     ).toBe(false);
+  });
+
+  it('keeps balances from healthy chains when one Alchemy network fails', async () => {
+    fetchMock.mockImplementation(
+      async (urlInput: string, init: RequestInit) => {
+        const url = String(urlInput);
+        if (url.includes('/tokens/by-')) {
+          return jsonResponse({ data: [] });
+        }
+        if (url.includes('arb-mainnet.g.alchemy.com')) {
+          return { ok: false, status: 503, json: async () => ({}) } as Response;
+        }
+
+        const body = rpcBody(init);
+        return jsonResponse(
+          body.method === 'eth_getBalance'
+            ? { result: '0x0' }
+            : { result: { tokenBalances: [] } },
+        );
+      },
+    );
+
+    const snapshot = await getAlchemyWalletBalancesSnapshot(TEST_WALLET);
+
+    expect(snapshot.balances.map((entry) => entry.chain)).toEqual([
+      'eth',
+      'base',
+    ]);
+    expect(snapshot.failedChains).toEqual(['arbitrum']);
+  });
+
+  it('fails clearly when every Alchemy network is unavailable', async () => {
+    fetchMock.mockImplementation(async (urlInput: string) => {
+      const url = String(urlInput);
+      if (url.includes('/tokens/by-')) {
+        return jsonResponse({ data: [] });
+      }
+      return { ok: false, status: 503, json: async () => ({}) } as Response;
+    });
+
+    await expect(getAlchemyWalletTokenBalances(TEST_WALLET)).rejects.toThrow(
+      'HTTP 503',
+    );
+  });
+
+  it('still returns token balances when the optional price API is blocked', async () => {
+    fetchMock.mockImplementation(
+      async (urlInput: string, init: RequestInit) => {
+        const url = String(urlInput);
+        if (url.includes('/tokens/by-')) {
+          throw new Error('Blocked by browser');
+        }
+
+        const body = rpcBody(init);
+        if (body.method === 'eth_getBalance') {
+          return jsonResponse({ result: '0x0' });
+        }
+
+        const contractAddresses = body.params[1] as string[];
+        return jsonResponse({
+          result: {
+            tokenBalances: contractAddresses.map((contractAddress, index) => ({
+              contractAddress,
+              tokenBalance: index === 0 ? '0x1e8480' : '0x0',
+            })),
+          },
+        });
+      },
+    );
+
+    const balances = await getAlchemyWalletTokenBalances(TEST_WALLET);
+
+    expect(balances).toHaveLength(3);
+    expect(balances[1]?.response.result[0]).toEqual(
+      expect.objectContaining({
+        symbol: 'USDC',
+        balance_formatted: '2',
+        usd_price: 1,
+        usd_value: 2,
+      }),
+    );
   });
 });

@@ -44,6 +44,11 @@ export interface AlchemyChainBalances {
   response: AlchemyWalletTokenBalancesResponse;
 }
 
+export interface AlchemyWalletBalancesSnapshot {
+  balances: AlchemyChainBalances[];
+  failedChains: AlchemyWalletChain[];
+}
+
 interface JsonRpcResponse<T> {
   result?: T;
   error?: {
@@ -117,6 +122,10 @@ function isPositiveRawBalance(value: string | null | undefined): boolean {
   return bigintFromRawBalance(value) > 0n;
 }
 
+function fallbackPriceFor(symbol: AlchemySupportedWalletSymbol): number | null {
+  return symbol === 'USDC' || symbol === 'USDT' ? 1 : null;
+}
+
 async function fetchJsonRpc<T>(
   network: string,
   apiKey: string,
@@ -185,11 +194,17 @@ async function fetchAlchemyJson<T>(
   url: string,
   init?: RequestInit,
 ): Promise<T | null> {
-  const response = await fetch(url, init);
-  if (!response.ok) {
+  try {
+    const response = await fetch(url, init);
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as T;
+  } catch {
+    // Prices improve display but are not required to show spendable balances.
+    // Browser privacy tools can block the Prices host while RPC remains usable.
     return null;
   }
-  return (await response.json()) as T;
 }
 
 async function fetchPriceByAddress(
@@ -274,7 +289,7 @@ function buildTokenBalance(
   );
   const numericAmount = numberFrom(amount) ?? 0;
   const address = balance.contractAddress.toLowerCase();
-  const price = prices.get(`${network}:${address}`) ?? null;
+  const price = prices.get(`${network}:${address}`) ?? fallbackPriceFor(symbol);
 
   return {
     symbol,
@@ -353,9 +368,9 @@ async function getAlchemyWalletTokenBalancesForChain(
   };
 }
 
-export async function getAlchemyWalletTokenBalances(
+export async function getAlchemyWalletBalancesSnapshot(
   address: string,
-): Promise<AlchemyChainBalances[]> {
+): Promise<AlchemyWalletBalancesSnapshot> {
   const apiKey = alchemyApiKey();
   const priceRequests = WALLET_TOKEN_CHAINS.flatMap((chain) => {
     const network = ALCHEMY_RPC_NETWORK_BY_CHAIN[chain];
@@ -370,7 +385,7 @@ export async function getAlchemyWalletTokenBalances(
     fetchPriceBySymbol(apiKey, ['ETH']),
   ]);
 
-  return Promise.all(
+  const settled = await Promise.allSettled(
     ALCHEMY_WALLET_CHAINS.map((chain) =>
       getAlchemyWalletTokenBalancesForChain(
         address,
@@ -381,4 +396,27 @@ export async function getAlchemyWalletTokenBalances(
       ),
     ),
   );
+  const balances = settled.flatMap((result) =>
+    result.status === 'fulfilled' ? [result.value] : [],
+  );
+  const failedChains = ALCHEMY_WALLET_CHAINS.filter(
+    (_chain, index) => settled[index]?.status === 'rejected',
+  );
+
+  if (balances.length === 0) {
+    const firstFailure = settled.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    throw firstFailure?.reason instanceof Error
+      ? firstFailure.reason
+      : new Error('Alchemy wallet balance requests failed on every chain.');
+  }
+
+  return { balances, failedChains };
+}
+
+export async function getAlchemyWalletTokenBalances(
+  address: string,
+): Promise<AlchemyChainBalances[]> {
+  return (await getAlchemyWalletBalancesSnapshot(address)).balances;
 }

@@ -25,11 +25,6 @@ export interface DepositPlanPreview {
   isError: boolean;
 }
 
-/**
- * React Query wrapper around `getDepositPlan` for the invest route-preview
- * screen. Stays disabled until a wallet is connected and a positive amount is
- * entered, so it never fires a plan request for an empty draft.
- */
 export function useDepositPlanPreview({
   address,
   fromToken,
@@ -39,7 +34,6 @@ export function useDepositPlanPreview({
   depositPath,
 }: DepositPlanPreviewInput): DepositPlanPreview {
   const enabled = Boolean(address && amountUsd > 0 && fromAmount !== '0');
-
   const query = useQuery({
     queryKey: [
       'deposit-plan-preview',
@@ -52,7 +46,6 @@ export function useDepositPlanPreview({
     enabled,
     queryFn: () => {
       const userAddress = address as `0x${string}`;
-
       if (isGmxDepositPath(depositPath)) {
         return getGmxDepositPlan({
           kind: 'gmx-v2',
@@ -61,7 +54,6 @@ export function useDepositPlanPreview({
           amount: fromAmount,
         });
       }
-
       return getDepositPlan({
         kind: 'invest',
         userAddress,
@@ -74,8 +66,6 @@ export function useDepositPlanPreview({
 
   return {
     plan: query.data,
-    // `isLoading` is `pending && fetching`; gate on `enabled` so a disabled
-    // (no wallet / zero amount) query reads as idle, not loading.
     isLoading: enabled && query.isLoading,
     isError: query.isError,
   };

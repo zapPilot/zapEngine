@@ -4,7 +4,7 @@ import '@ethersproject/shims';
 
 // Env must be injected before any app-core module evaluates (expo-router/entry
 // pulls in the whole route tree).
-import './src/config/appCoreEnv';
+import './src/config/configureAppCoreEnv';
 
 // NativeWind style registry — Metro intercepts this import.
 import './global.css';

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildActivityGroupsFromMoralisHistory,
+  buildChainTokenBalanceRows,
   buildDesktopWalletAssets,
   buildInvestableBalanceRows,
   type MoralisChainKey,
@@ -163,6 +164,38 @@ describe('Moralis desktop wallet mapping', () => {
         usdValue: 100,
         isDepositSupported: true,
       }),
+    ]);
+  });
+
+  it('flattens exact chain-token holdings without cross-chain aggregation', () => {
+    const rows = buildChainTokenBalanceRows(
+      buildDesktopWalletAssets([
+        balances('base', [
+          {
+            symbol: 'USDC',
+            name: 'USD Coin',
+            token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+            balance_formatted: '12.345678',
+            usd_value: 12.345678,
+          },
+        ]),
+        balances('arbitrum', [
+          {
+            symbol: 'USDC',
+            name: 'USD Coin',
+            token_address: '0xaf88d065e77c8cc2239327c5edb3a432268e5831',
+            balance_formatted: '7.000001',
+            usd_value: 7.000001,
+          },
+        ]),
+      ]),
+    );
+
+    expect(
+      rows.map(({ id, balanceBaseUnits }) => ({ id, balanceBaseUnits })),
+    ).toEqual([
+      { id: '8453:USDC', balanceBaseUnits: '12345678' },
+      { id: '42161:USDC', balanceBaseUnits: '7000001' },
     ]);
   });
 

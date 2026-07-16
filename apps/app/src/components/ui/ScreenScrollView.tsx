@@ -20,6 +20,7 @@ export function ScreenScrollView({
         paddingTop: Math.max(insets.top, 12),
         paddingBottom: bottomPadding,
       }}
+      keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
       {children}

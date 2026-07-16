@@ -1,105 +1,138 @@
 import { useRouter } from 'expo-router';
 import { Text, View } from 'react-native';
 
-import { StepHeader } from '@/components/invest/StepHeader';
-import { StepProgress } from '@/components/invest/StepProgress';
+import * as StrategyFlow from '@/components/invest/StrategyFlow';
 import { Card } from '@/components/ui/Card';
-import { InfoRow } from '@/components/ui/InfoRow';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import {
-  depositPathChainLabel,
-  depositPathInputLabel,
-  depositPathProtocolLabel,
-} from '@/integration/depositPaths';
-import {
-  formatPlanDuration,
-  formatPlanGas,
-  planLegsToRouteRows,
-  routeStepsLabel,
-} from '@/integration/planPreviewFormatters';
-import { useInvestDepositPlanPreview } from '@/integration/useInvest';
+  useInvest,
+  useInvestDepositPlanPreview,
+} from '@/integration/useInvest';
 import { formatUsd } from '@/lib/format';
+
+function RailNode({
+  title,
+  badge,
+  body,
+  tone = 'chain',
+}: {
+  title: string;
+  badge: string;
+  body: string;
+  tone?: 'chain' | 'mock';
+}) {
+  const color = tone === 'mock' ? '#d7bd70' : '#d4c5a3';
+  return (
+    <View className="flex-row gap-3">
+      <View className="items-center">
+        <View
+          className="h-8 w-8 items-center justify-center rounded-full border"
+          style={{ borderColor: `${color}66`, backgroundColor: `${color}14` }}
+        >
+          <View
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: color }}
+          />
+        </View>
+        <View className="h-8 w-px bg-[rgba(212,197,163,.22)]" />
+      </View>
+      <View className="flex-1 pb-5 pt-0.5">
+        <View className="flex-row items-center gap-2">
+          <Text className="font-sans-semibold text-[14px] text-ink">
+            {title}
+          </Text>
+          <Text
+            className="rounded-full px-2 py-0.5 font-mono text-[8px] uppercase tracking-[.5px]"
+            style={{ color, backgroundColor: `${color}12` }}
+          >
+            {badge}
+          </Text>
+        </View>
+        <Text className="mt-1 text-[11.5px] leading-[17px] text-ink-dim">
+          {body}
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 export function InvestRouteScreen() {
   const router = useRouter();
+  const invest = useInvest();
   const preview = useInvestDepositPlanPreview();
-  const rows = planLegsToRouteRows(preview.plan?.legs);
 
   return (
     <ScreenScrollView>
-      <StepHeader title="Route" step="Step 2 of 3" />
-      <StepProgress current={2} />
+      <StrategyFlow.StepHeader title="Route" step="Step 2 of 3" />
+      <StrategyFlow.StepProgress current={2} />
       <View className="px-5 pt-6">
         <Text className="font-serif text-[28px] leading-[32px] text-ink">
           Preview route
         </Text>
         <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
-          {formatUsd(preview.amountUsd)} via{' '}
-          {depositPathProtocolLabel(preview.selectedDepositPath)}
+          {formatUsd(preview.amountUsd)} across Morpho and two GMX markets.
         </Text>
-        <Card className="mt-5 p-4">
-          <InfoRow
-            label="Input"
-            value={depositPathInputLabel(preview.selectedDepositPath)}
-            divider
-          />
-          <InfoRow
-            label="Chain"
-            value={depositPathChainLabel(preview.selectedDepositPath)}
-            divider
-          />
-          <InfoRow
-            label="Steps"
-            value={routeStepsLabel(preview.plan?.legs)}
-            divider
-          />
-          <InfoRow
-            label="Gas"
-            value={formatPlanGas(preview.plan?.totalGasUsd)}
-            divider
-          />
-          <InfoRow
-            label="Time"
-            value={formatPlanDuration(preview.plan?.legs)}
-          />
-        </Card>
-        <View className="mt-4 gap-3">
+
+        <StrategyFlow.StrategyPlanSummary
+          variant="route"
+          plan={preview.plan}
+          amountUsd={preview.amountUsd}
+          baseToken={invest.baseFundingToken}
+          arbitrumToken={invest.arbitrumFundingToken}
+        />
+
+        <Card className="mt-4 px-4 pb-1 pt-4">
           {preview.isLoading ? (
-            <SkeletonBlock className="h-[76px] w-full rounded-2xl" />
-          ) : rows.length > 0 ? (
-            rows.map((row) => (
-              <Card key={row.id} className="p-4">
-                <View className="flex-row items-center gap-3">
-                  <View
-                    className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: row.dotColor }}
-                  />
-                  <View className="flex-1">
-                    <Text className="font-sans-semibold text-[14px] text-ink">
-                      {row.label}
-                    </Text>
-                    <Text className="mt-1 text-[12px] text-ink-dim">
-                      {row.meta}
-                    </Text>
-                  </View>
-                </View>
-              </Card>
-            ))
+            <View className="gap-3 pb-4">
+              <SkeletonBlock className="h-[68px] w-full rounded-xl" />
+              <SkeletonBlock className="h-[68px] w-full rounded-xl" />
+              <SkeletonBlock className="h-[68px] w-full rounded-xl" />
+            </View>
+          ) : preview.plan ? (
+            <>
+              <RailNode
+                title="Morpho Moonwell USDC"
+                badge="Base · 40%"
+                body={`${invest.baseFundingToken.symbol} funding with separate approval, same-chain swap when needed, and vault deposit confirmations.`}
+              />
+              <RailNode
+                title="Mock bridge checkpoint"
+                badge="No transaction"
+                tone="mock"
+                body="No assets move between chains. The next group rechecks the wallet's real Arbitrum balance."
+              />
+              <RailNode
+                title="GMX BTC/USDC + ETH/USDC"
+                badge="Arbitrum · 30/30"
+                body={`${invest.arbitrumFundingToken.symbol} funding with separate approvals, same-chain USDC swaps when needed, and two asynchronous GMX deposits.`}
+              />
+            </>
           ) : (
-            <Card className="p-4">
+            <View className="pb-4">
               <Text className="font-sans-semibold text-[14px] text-ink">
-                Route preview pending
+                {preview.isError
+                  ? 'Route unavailable'
+                  : 'Route preview pending'}
               </Text>
               <Text className="mt-2 text-[12px] leading-[18px] text-ink-dim">
-                Connect a wallet and enter an amount to fetch the live plan.
+                {preview.isError
+                  ? 'The live quote could not be prepared. Return to the amount step and retry.'
+                  : 'Connect a wallet and enter an amount to fetch the live plan.'}
               </Text>
-            </Card>
+            </View>
           )}
-        </View>
+        </Card>
+
+        <StrategyFlow.MockBridgeNotice
+          title="Mock bridge — development only"
+          body={`Arbitrum must already hold enough ${invest.arbitrumFundingToken.symbol} plus ETH for gas and GMX keeper execution fees.`}
+        />
+
         <PrimaryButton
           className="mt-5"
+          disabled={!preview.plan || preview.isLoading || preview.isError}
           onPress={() => router.push('/invest/confirm')}
         >
           Continue

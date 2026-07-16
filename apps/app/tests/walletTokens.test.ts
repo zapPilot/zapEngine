@@ -19,7 +19,7 @@ beforeEach(() => {
   delete process.env['VITE_DESKTOP_WALLET_PROVIDER'];
   useQueryMock.mockReset();
   useQueryMock.mockReturnValue({
-    data: { assets: [], rows: [] },
+    data: { assets: [], rows: [], failedChains: [] },
     isLoading: false,
     isError: false,
     error: null,

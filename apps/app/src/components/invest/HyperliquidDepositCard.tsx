@@ -1,5 +1,5 @@
-import { tokens } from '@zapengine/design-tokens/tokens';
 import type { WizardHlpState } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
+import { tokens } from '@zapengine/design-tokens/tokens';
 import { Check } from 'lucide-react-native';
 import { useState } from 'react';
 import { Linking, Text, View } from 'react-native';
@@ -21,11 +21,6 @@ interface HyperliquidDepositCardProps {
   onDeposit: () => void;
 }
 
-/**
- * Final wizard step: gasless HLP vault deposit once bridged USDC lands on
- * HyperCore. The lockup acknowledgement gates the CTA because HLP deposits
- * cannot be withdrawn for `lockupDays` after entry.
- */
 export function HyperliquidDepositCard({
   hlp,
   userAddress,
@@ -34,7 +29,6 @@ export function HyperliquidDepositCard({
   const [lockAccepted, setLockAccepted] = useState(false);
   const rows = hlpAmountRows(hlp);
   const accountUrl = hyperliquidAccountUrl(hlp, userAddress);
-  const lockupDays = hlp.step?.lockupDays;
 
   return (
     <Card className="p-4">
@@ -42,7 +36,7 @@ export function HyperliquidDepositCard({
         {HLP_STATUS_COPY[hlp.status]}
       </Text>
 
-      {rows.length > 0 && (
+      {rows.length > 0 ? (
         <View className="mt-3">
           {rows.map((row, index) => (
             <InfoRow
@@ -53,15 +47,15 @@ export function HyperliquidDepositCard({
             />
           ))}
         </View>
-      )}
+      ) : null}
 
-      {hlp.status !== 'deposited' && (
+      {hlp.status !== 'deposited' ? (
         <>
           <Tap
             accessibilityRole="checkbox"
             accessibilityState={{ checked: lockAccepted }}
-            onPress={() => setLockAccepted((value) => !value)}
             className="mt-4 flex-row items-start gap-2.5"
+            onPress={() => setLockAccepted((value) => !value)}
           >
             <View
               className="mt-[1px] h-[18px] w-[18px] items-center justify-center rounded-[5px] border"
@@ -74,13 +68,13 @@ export function HyperliquidDepositCard({
                   : 'transparent',
               }}
             >
-              {lockAccepted && (
+              {lockAccepted ? (
                 <Check size={13} strokeWidth={3} color="#0a0a0a" />
-              )}
+              ) : null}
             </View>
             <Text className="flex-1 text-[12.5px] leading-[18px] text-ink-dim">
-              I understand HLP deposits are locked for {lockupDays ?? 'several'}{' '}
-              days after entry.
+              I understand HLP deposits are locked for{' '}
+              {hlp.step?.lockupDays ?? 'several'} days after entry.
             </Text>
           </Tap>
 
@@ -92,9 +86,9 @@ export function HyperliquidDepositCard({
             {hlp.status === 'confirming' ? 'Confirming…' : 'Deposit to HLP'}
           </PrimaryButton>
         </>
-      )}
+      ) : null}
 
-      {accountUrl && (
+      {accountUrl ? (
         <Tap
           className="mt-3 self-start"
           onPress={() => void Linking.openURL(accountUrl)}
@@ -103,7 +97,7 @@ export function HyperliquidDepositCard({
             View your Hyperliquid account
           </Text>
         </Tap>
-      )}
+      ) : null}
     </Card>
   );
 }

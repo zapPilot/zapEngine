@@ -19,7 +19,6 @@ function TxLink({ label, url }: { label: string; url: string }) {
   );
 }
 
-/** Per-leg execution progress: chain dot, action, status pill, tx links. */
 export function WizardLegList({ rows }: { rows: WizardLegRow[] }) {
   return (
     <Card className="p-4">
@@ -38,16 +37,16 @@ export function WizardLegList({ rows }: { rows: WizardLegRow[] }) {
               {row.statusLabel}
             </Pill>
           </View>
-          {(row.sourceTxUrl || row.destinationTxUrl) && (
+          {row.sourceTxUrl || row.destinationTxUrl ? (
             <View className="mt-1.5 flex-row gap-4 pl-[18px]">
-              {row.sourceTxUrl && (
+              {row.sourceTxUrl ? (
                 <TxLink label="Source tx" url={row.sourceTxUrl} />
-              )}
-              {row.destinationTxUrl && (
+              ) : null}
+              {row.destinationTxUrl ? (
                 <TxLink label="Destination tx" url={row.destinationTxUrl} />
-              )}
+              ) : null}
             </View>
-          )}
+          ) : null}
         </View>
       ))}
     </Card>

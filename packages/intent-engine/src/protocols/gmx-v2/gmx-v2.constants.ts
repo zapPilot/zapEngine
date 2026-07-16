@@ -17,6 +17,16 @@ export const GMX_V2_TOKENS = {
     symbol: 'USDC',
     decimals: 6,
   },
+  USDT: {
+    address: '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9',
+    symbol: 'USDT',
+    decimals: 6,
+  },
+  ETH: {
+    address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+    symbol: 'ETH',
+    decimals: 18,
+  },
   WETH: {
     address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
     symbol: 'WETH',
@@ -35,6 +45,16 @@ export const GMX_V2_TOKENS = {
     readonly decimals: number;
   }
 >;
+
+/** Canonical Arbitrum funding assets accepted by the public GMX builder. */
+export const GMX_V2_FUNDING_TOKENS = [
+  GMX_V2_TOKENS.USDC.address,
+  GMX_V2_TOKENS.USDT.address,
+  GMX_V2_TOKENS.ETH.address,
+] as const satisfies readonly Address[];
+
+/** One-percent protection for the asynchronous GM-token mint quote. */
+export const GMX_V2_DEFAULT_DEPOSIT_SLIPPAGE_BPS = 100;
 
 export type GmxV2FundedSide = 'long' | 'short';
 

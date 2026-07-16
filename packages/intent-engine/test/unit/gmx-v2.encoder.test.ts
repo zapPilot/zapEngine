@@ -18,6 +18,7 @@ import {
 } from '../../src/protocols/gmx-v2/gmx-v2.constants.js';
 
 const USER = '0x1111111111111111111111111111111111111111' as Address;
+const MIN_MARKET_TOKENS = 9_900n;
 
 const SELECTORS = {
   multicall: '0xac9650d8',
@@ -83,6 +84,7 @@ describe('GMX v2 calldata encoders', () => {
       longToken: market.longToken,
       shortToken: market.shortToken,
       executionFee: BigInt(GMX_V2_EXECUTION_FEE_WEI),
+      minMarketTokens: MIN_MARKET_TOKENS,
     });
 
     expect(data.slice(0, 10)).toBe(SELECTORS.createDeposit);
@@ -121,7 +123,7 @@ describe('GMX v2 calldata encoders', () => {
     });
     expect(params.addresses.longTokenSwapPath).toEqual([]);
     expect(params.addresses.shortTokenSwapPath).toEqual([]);
-    expect(params.minMarketTokens).toBe(0n);
+    expect(params.minMarketTokens).toBe(MIN_MARKET_TOKENS);
     expect(params.shouldUnwrapNativeToken).toBe(false);
     expect(params.executionFee).toBe(BigInt(GMX_V2_EXECUTION_FEE_WEI));
     expect(params.callbackGasLimit).toBe(0n);
@@ -136,6 +138,7 @@ describe('GMX v2 calldata encoders', () => {
         receiver: USER,
         market,
         ...collateralAmounts(market, amount),
+        minMarketTokens: MIN_MARKET_TOKENS,
       });
 
       expect(data.slice(0, 10)).toBe(SELECTORS.multicall);
@@ -181,6 +184,7 @@ describe('GMX v2 calldata encoders', () => {
             initialShortToken: Address;
           };
           executionFee: bigint;
+          minMarketTokens: bigint;
         },
       ];
       expect(params.addresses.receiver).toBe(USER);
@@ -188,6 +192,7 @@ describe('GMX v2 calldata encoders', () => {
       expect(params.addresses.initialLongToken).toBe(market.longToken);
       expect(params.addresses.initialShortToken).toBe(market.shortToken);
       expect(params.executionFee).toBe(BigInt(GMX_V2_EXECUTION_FEE_WEI));
+      expect(params.minMarketTokens).toBe(MIN_MARKET_TOKENS);
     },
   );
 
@@ -198,8 +203,21 @@ describe('GMX v2 calldata encoders', () => {
         market: GMX_V2_MARKETS['btc-usdc'],
         longTokenAmount: 0n,
         shortTokenAmount: 0n,
+        minMarketTokens: MIN_MARKET_TOKENS,
       }),
     ).toThrow('GMX deposit amount must be greater than zero');
+  });
+
+  it('rejects a deposit multicall without positive GM-token protection', () => {
+    expect(() =>
+      encodeGmxV2CreateDepositMulticall({
+        receiver: USER,
+        market: GMX_V2_MARKETS['btc-usdc'],
+        longTokenAmount: 0n,
+        shortTokenAmount: 10_000n,
+        minMarketTokens: 0n,
+      }),
+    ).toThrow('GMX minMarketTokens must be greater than zero');
   });
 
   it('encodes createWithdrawal with the live GMX tuple order', () => {
@@ -336,6 +354,7 @@ describe('GMX v2 calldata encoders', () => {
         market,
         longTokenAmount,
         shortTokenAmount,
+        minMarketTokens: MIN_MARKET_TOKENS,
       });
 
       const calls = decodeMulticallCalls(data);

@@ -106,6 +106,7 @@ export {
 export {
   getDepositPlan,
   getGmxDepositPlan,
+  getStrategyDepositPlan,
   getWithdrawPlan,
 } from './planOrchestrationService';
 
@@ -143,9 +144,11 @@ export {
   ALCHEMY_WALLET_CHAINS,
   type AlchemyChainBalances,
   type AlchemySupportedWalletSymbol,
+  type AlchemyWalletBalancesSnapshot,
   type AlchemyWalletChain,
   type AlchemyWalletTokenBalance,
   type AlchemyWalletTokenBalancesResponse,
+  getAlchemyWalletBalancesSnapshot,
   getAlchemyWalletTokenBalances,
 } from './alchemyWalletService';
 

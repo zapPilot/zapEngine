@@ -5,7 +5,7 @@ import {
   getMobileRuntimeConfig,
 } from './mobileRuntimeConfig';
 
-function readExpoExtra(): ExpoExtraConfig {
+export function readExpoExtra(): ExpoExtraConfig {
   const extra = (Constants.expoConfig?.extra ?? {}) as ExpoExtraConfig;
   const privyAppId = extra.privyAppId || process.env.EXPO_PUBLIC_PRIVY_APP_ID;
   const privyClientId =

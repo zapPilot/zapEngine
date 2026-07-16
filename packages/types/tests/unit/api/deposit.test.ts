@@ -16,6 +16,8 @@ import {
   NATIVE_TOKEN_ADDRESS,
   PlanOrchestrationDepositRequestSchema,
   PreparedTransactionSchema,
+  StrategyDepositPlanSchema,
+  STRATEGY_DEPOSIT_ID,
   SUPPORTED_DEPOSIT_CHAINS,
 } from '../../../src/api/deposit.js';
 import { WithdrawPlanSchema } from '../../../src/api/withdraw.js';
@@ -224,6 +226,50 @@ describe('DepositRequestSchema (Base-only v1)', () => {
 });
 
 describe('PlanOrchestrationDepositRequestSchema (discriminated union)', () => {
+  it('accepts a chain-aware fixed strategy request', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse({
+        kind: 'strategy',
+        strategyId: STRATEGY_DEPOSIT_ID,
+        userAddress: USER,
+        totalUsd6: '100000000',
+        fundingSources: [
+          {
+            chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
+            fromToken: BASE_USDC_ADDRESS,
+          },
+          {
+            chainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+            fromToken:
+              DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+          },
+        ],
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a strategy request with reversed funding chains', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse({
+        kind: 'strategy',
+        strategyId: STRATEGY_DEPOSIT_ID,
+        userAddress: USER,
+        totalUsd6: '100000000',
+        fundingSources: [
+          {
+            chainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+            fromToken:
+              DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+          },
+          {
+            chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
+            fromToken: BASE_USDC_ADDRESS,
+          },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
   it('accepts a v1 invest request with Base USDC', () => {
     expect(
       PlanOrchestrationDepositRequestSchema.safeParse({
@@ -350,6 +396,182 @@ describe('PlanOrchestrationDepositRequestSchema (discriminated union)', () => {
       split: { '42161': 0.5, '1337': 0.5 },
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('StrategyDepositPlanSchema', () => {
+  it('accepts the fixed 40/30/30 plan with a declarative checkpoint', () => {
+    const allocation = (params: {
+      id: 'morpho-base-usdc' | 'gmx-btc-usdc' | 'gmx-eth-usdc';
+      weightBps: number;
+      chainId: 8453 | 42161;
+      protocol: 'morpho' | 'gmx-v2';
+      marketKey?: 'btc-usdc' | 'eth-usdc';
+    }) => ({
+      ...params,
+      label: params.id,
+      fromToken:
+        params.chainId === 8453
+          ? BASE_USDC_ADDRESS
+          : DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+      fromAmount: String(params.weightBps),
+      toToken: VAULT,
+      toAmountMin: String(params.weightBps),
+      gasUsd: '0',
+      durationSec: 60,
+    });
+    const plan = {
+      kind: 'strategy',
+      strategyId: STRATEGY_DEPOSIT_ID,
+      totalUsd6: '100000000',
+      allocations: [
+        allocation({
+          id: 'morpho-base-usdc',
+          weightBps: 4000,
+          chainId: 8453,
+          protocol: 'morpho',
+        }),
+        allocation({
+          id: 'gmx-btc-usdc',
+          weightBps: 3000,
+          chainId: 42161,
+          protocol: 'gmx-v2',
+          marketKey: 'btc-usdc',
+        }),
+        allocation({
+          id: 'gmx-eth-usdc',
+          weightBps: 3000,
+          chainId: 42161,
+          protocol: 'gmx-v2',
+          marketKey: 'eth-usdc',
+        }),
+      ],
+      executionGroups: [
+        {
+          id: 'base-morpho',
+          chainId: 8453,
+          fromToken: BASE_USDC_ADDRESS,
+          fromAmount: '40000000',
+          approvals: [],
+          calls: [
+            {
+              to: VAULT,
+              data: '0x',
+              value: '0',
+              chainId: 8453,
+              meta: { intentType: 'SUPPLY' },
+            },
+          ],
+          allocationIds: ['morpho-base-usdc'],
+          gasUsd: '0',
+        },
+        {
+          id: 'arbitrum-gmx',
+          chainId: 42161,
+          fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+          fromAmount: '60000000',
+          approvals: [],
+          calls: [
+            {
+              to: VAULT,
+              data: '0x',
+              value: '0',
+              chainId: 42161,
+              meta: { intentType: 'SUPPLY' },
+            },
+            {
+              to: VAULT,
+              data: '0x',
+              value: '0',
+              chainId: 42161,
+              meta: { intentType: 'SUPPLY' },
+            },
+          ],
+          allocationIds: ['gmx-btc-usdc', 'gmx-eth-usdc'],
+          gasUsd: '0',
+        },
+      ],
+      checkpoints: [
+        {
+          kind: 'mock-bridge',
+          id: 'base-to-arbitrum',
+          fromChainId: 8453,
+          toChainId: 42161,
+          afterGroupId: 'base-morpho',
+          beforeGroupId: 'arbitrum-gmx',
+          amountUsd6: '60000000',
+          disclosure: 'Mock only; no funds move.',
+        },
+      ],
+      totalGasUsd: '0',
+    };
+    const result = StrategyDepositPlanSchema.safeParse(plan);
+
+    expect(result.success).toBe(true);
+
+    const nativeBasePlan = {
+      ...plan,
+      allocations: plan.allocations.map((entry, index) =>
+        index === 0 ? { ...entry, fromToken: NATIVE_TOKEN_ADDRESS } : entry,
+      ),
+      executionGroups: plan.executionGroups.map((group, index) =>
+        index === 0
+          ? {
+              ...group,
+              fromToken: NATIVE_TOKEN_ADDRESS,
+              calls: [
+                {
+                  to: VAULT,
+                  data: '0x',
+                  value: '40000000000000000',
+                  chainId: 8453,
+                  meta: { intentType: 'SWAP' },
+                },
+                ...group.calls,
+              ],
+            }
+          : group,
+      ),
+    };
+    expect(StrategyDepositPlanSchema.safeParse(nativeBasePlan).success).toBe(
+      true,
+    );
+    expect(
+      StrategyDepositPlanSchema.safeParse({
+        ...nativeBasePlan,
+        executionGroups: nativeBasePlan.executionGroups.map((group, index) =>
+          index === 0 ? { ...group, calls: group.calls.slice(1) } : group,
+        ),
+      }).success,
+    ).toBe(false);
+
+    expect(
+      StrategyDepositPlanSchema.safeParse({
+        ...plan,
+        executionGroups: [...plan.executionGroups].reverse(),
+      }).success,
+    ).toBe(false);
+    expect(
+      StrategyDepositPlanSchema.safeParse({
+        ...plan,
+        executionGroups: plan.executionGroups.map((group, index) =>
+          index === 0
+            ? {
+                ...group,
+                calls: [
+                  {
+                    to: VAULT,
+                    data: '0x',
+                    value: '0',
+                    chainId: 42161,
+                    meta: { intentType: 'SUPPLY' },
+                  },
+                ],
+              }
+            : group,
+        ),
+      }).success,
+    ).toBe(false);
   });
 });
 

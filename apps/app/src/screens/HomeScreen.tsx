@@ -5,6 +5,8 @@ import {
   ChevronRight,
   MoreHorizontal,
   PieChart,
+  RefreshCw,
+  Wallet,
 } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
@@ -93,6 +95,82 @@ function AssetListSkeleton() {
           </View>
         </View>
       ))}
+    </View>
+  );
+}
+
+function WalletAssetStatus({
+  isError,
+  onRetry,
+}: {
+  isError: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <View className="items-center px-4 py-6">
+      <View
+        className="h-10 w-10 items-center justify-center rounded-full border"
+        style={{
+          borderColor: isError
+            ? 'rgba(239,116,116,.24)'
+            : 'rgba(212,197,163,.2)',
+          backgroundColor: isError
+            ? 'rgba(239,116,116,.08)'
+            : 'rgba(212,197,163,.07)',
+        }}
+      >
+        {isError ? (
+          <RefreshCw size={17} strokeWidth={1.8} color="#ef9292" />
+        ) : (
+          <Wallet size={17} strokeWidth={1.8} color="#d4c5a3" />
+        )}
+      </View>
+      <Text className="mt-3 font-sans-semibold text-[13.5px] text-ink">
+        {isError ? 'Wallet balance unavailable' : 'No supported assets found'}
+      </Text>
+      <Text className="mt-1 max-w-[270px] text-center text-[11.5px] leading-[17px] text-ink-dim">
+        {isError
+          ? 'We could not load this wallet’s live balances.'
+          : 'USDC, USDT and ETH on Ethereum, Base or Arbitrum will appear here.'}
+      </Text>
+      {isError ? (
+        <Tap
+          accessibilityLabel="Retry wallet balances"
+          accessibilityRole="button"
+          className="mt-3 flex-row items-center gap-1.5 rounded-full border px-3 py-1.5"
+          style={{
+            borderColor: 'rgba(212,197,163,.22)',
+            backgroundColor: 'rgba(212,197,163,.07)',
+          }}
+          onPress={onRetry}
+        >
+          <RefreshCw size={12} strokeWidth={2} color="#d4c5a3" />
+          <Text className="font-sans-semibold text-[11px] text-accent">
+            Try again
+          </Text>
+        </Tap>
+      ) : null}
+    </View>
+  );
+}
+
+function PartialWalletWarning({ onRetry }: { onRetry: () => void }) {
+  return (
+    <View className="mb-2 flex-row items-center gap-2 rounded-xl bg-[rgba(239,146,146,.07)] px-3 py-2.5">
+      <Text className="min-w-0 flex-1 text-[11px] leading-[16px] text-[#ef9292]">
+        Some network balances could not be loaded. The assets below are partial.
+      </Text>
+      <Tap
+        accessibilityLabel="Retry unavailable network balances"
+        accessibilityRole="button"
+        className="min-h-9 justify-center px-1"
+        hitSlop={8}
+        onPress={onRetry}
+      >
+        <Text className="font-sans-semibold text-[10.5px] text-accent">
+          Retry
+        </Text>
+      </Tap>
     </View>
   );
 }
@@ -204,7 +282,20 @@ export function HomeScreen() {
       </View>
 
       <View className="mt-6 px-5">
-        <ZapStrategyCard strategy={strategy} onStart={startStrategy} />
+        <ZapStrategyCard
+          strategy={strategy}
+          onStart={startStrategy}
+          availableToInvest={{
+            totalUsdValue: walletAssets.totalUsdValue,
+            rows: walletAssets.chainRows,
+            isConnected: account.isConnected,
+            isLoading: walletAssets.isLoading,
+            isError: walletAssets.isError,
+            error: walletAssets.error,
+            failedChains: walletAssets.failedChains,
+            onRetry: () => void walletAssets.refetch(),
+          }}
+        />
       </View>
 
       <View className="mt-6 px-5">
@@ -234,20 +325,43 @@ export function HomeScreen() {
             Wallet assets
           </Text>
           <Text className="font-mono text-[9.5px] uppercase tracking-[0.76px] text-ink-faint">
-            {isDemo ? 'Demo' : 'Live'}
+            {isDemo
+              ? 'Demo'
+              : walletAssets.failedChains.length > 0
+                ? 'Partial'
+                : 'Live'}
           </Text>
         </View>
         <Card className="p-[13px]">
           {showAssetSkeleton ? (
             <AssetListSkeleton />
+          ) : walletAssets.isError ? (
+            <WalletAssetStatus
+              isError
+              onRetry={() => void walletAssets.refetch()}
+            />
           ) : (
-            home.assets.map((asset, index) => (
-              <AssetRow
-                key={asset.symbol}
-                asset={asset}
-                divider={index < home.assets.length - 1}
-              />
-            ))
+            <>
+              {walletAssets.failedChains.length > 0 ? (
+                <PartialWalletWarning
+                  onRetry={() => void walletAssets.refetch()}
+                />
+              ) : null}
+              {home.assets.length === 0 ? (
+                <WalletAssetStatus
+                  isError={false}
+                  onRetry={() => void walletAssets.refetch()}
+                />
+              ) : (
+                home.assets.map((asset, index) => (
+                  <AssetRow
+                    key={asset.symbol}
+                    asset={asset}
+                    divider={index < home.assets.length - 1}
+                  />
+                ))
+              )}
+            </>
           )}
         </Card>
       </View>

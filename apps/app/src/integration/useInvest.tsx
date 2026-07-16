@@ -5,63 +5,31 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getStrategyDepositPlan } from '@zapengine/app-core/services';
+import {
+  STRATEGY_DEPOSIT_ID,
+  type StrategyDepositPlan,
+} from '@zapengine/types/api';
 
 import {
-  DEFAULT_DEPOSIT_PATH,
-  type DesktopDepositPath,
-  isGmxDepositPath,
-} from '@/integration/depositPaths';
-import {
-  DEFAULT_DEPOSIT_TOKEN,
+  DEFAULT_ARBITRUM_FUNDING_TOKEN,
+  DEFAULT_BASE_FUNDING_TOKEN,
   type DesktopDepositToken,
 } from '@/integration/depositTokens';
+import { amountInputToUsd6 } from '@/integration/investAmountModel';
 import { useAccount } from '@/integration/useAccount';
-import {
-  type DepositPlanPreview,
-  useDepositPlanPreview,
-} from '@/integration/useDepositPlanPreview';
-
-/** Convert a decimal token amount to a base-unit integer string. */
-function toBaseUnits(value: number, decimals: number): string {
-  if (!Number.isFinite(value) || value <= 0) {
-    return '0';
-  }
-  const [whole = '0', fraction = ''] = value.toFixed(decimals).split('.');
-  const paddedFraction = fraction.padEnd(decimals, '0').slice(0, decimals);
-  const baseUnits = `${whole}${paddedFraction}`.replace(/^0+(?=\d)/, '');
-  return baseUnits || '0';
-}
-
-function toFromAmount(
-  amountUsd: number,
-  token: DesktopDepositToken,
-  usdPrice: number | null,
-): string {
-  if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
-    return '0';
-  }
-  const price = token.symbol === 'USDC' ? (usdPrice ?? 1) : usdPrice;
-  if (!price || price <= 0) {
-    return '0';
-  }
-  return toBaseUnits(amountUsd / price, token.decimals);
-}
 
 export interface InvestContextValue {
   /** USD amount the user is investing (entered in step 1). */
   amountUsd: number;
-  setAmountUsd: (value: number) => void;
-  selectedToken: DesktopDepositToken;
-  setSelectedToken: (value: DesktopDepositToken) => void;
-  selectedDepositPath: DesktopDepositPath;
-  setSelectedDepositPath: (value: DesktopDepositPath) => void;
-  selectedTokenUsdPrice: number | null;
-  setSelectedTokenUsdPrice: (value: number | null) => void;
-  /** Source token for the deposit plan. */
-  fromToken: `0x${string}`;
-  sourceChainId: number;
-  /** `amountUsd` converted to the selected token's base-unit decimal string. */
-  fromAmount: string;
+  amountInput: string;
+  setAmountInput: (value: string) => void;
+  totalUsd6: string;
+  baseFundingToken: DesktopDepositToken;
+  setBaseFundingToken: (value: DesktopDepositToken) => void;
+  arbitrumFundingToken: DesktopDepositToken;
+  setArbitrumFundingToken: (value: DesktopDepositToken) => void;
 }
 
 const InvestContext = createContext<InvestContextValue | null>(null);
@@ -72,33 +40,26 @@ const InvestContext = createContext<InvestContextValue | null>(null);
  * `/invest/*` routes via a layout route.
  */
 export function InvestProvider({ children }: { children: ReactNode }) {
-  const [amountUsd, setAmountUsd] = useState(0);
-  const [selectedToken, setSelectedToken] = useState<DesktopDepositToken>(
-    DEFAULT_DEPOSIT_TOKEN,
+  const [amountInput, setAmountInput] = useState('');
+  const amountUsd = Number.parseFloat(amountInput.replace(/,/gu, '')) || 0;
+  const [baseFundingToken, setBaseFundingToken] = useState<DesktopDepositToken>(
+    DEFAULT_BASE_FUNDING_TOKEN,
   );
-  const [selectedDepositPath, setSelectedDepositPath] =
-    useState<DesktopDepositPath>(DEFAULT_DEPOSIT_PATH);
-  const [selectedTokenUsdPrice, setSelectedTokenUsdPrice] = useState<
-    number | null
-  >(1);
+  const [arbitrumFundingToken, setArbitrumFundingToken] =
+    useState<DesktopDepositToken>(DEFAULT_ARBITRUM_FUNDING_TOKEN);
 
   const value = useMemo<InvestContextValue>(
     () => ({
       amountUsd,
-      setAmountUsd,
-      selectedToken,
-      setSelectedToken,
-      selectedDepositPath,
-      setSelectedDepositPath,
-      selectedTokenUsdPrice,
-      setSelectedTokenUsdPrice,
-      fromToken: selectedToken.depositAddress,
-      sourceChainId: selectedDepositPath.chainId,
-      fromAmount: isGmxDepositPath(selectedDepositPath)
-        ? toBaseUnits(amountUsd, DEFAULT_DEPOSIT_TOKEN.decimals)
-        : toFromAmount(amountUsd, selectedToken, selectedTokenUsdPrice),
+      amountInput,
+      setAmountInput,
+      totalUsd6: amountInputToUsd6(amountInput),
+      baseFundingToken,
+      setBaseFundingToken,
+      arbitrumFundingToken,
+      setArbitrumFundingToken,
     }),
-    [amountUsd, selectedDepositPath, selectedToken, selectedTokenUsdPrice],
+    [amountInput, amountUsd, arbitrumFundingToken, baseFundingToken],
   );
 
   return (
@@ -115,38 +76,51 @@ export function useInvest(): InvestContextValue {
 }
 
 /**
- * Combines useAccount + useInvest + useDepositPlanPreview into one call.
- * Eliminates the duplicate useDepositPlanPreview call in InvestConfirmScreen and InvestRouteScreen.
+ * Shares one strategy-plan query across the route and confirm screens.
  */
-export function useInvestDepositPlanPreview(): DepositPlanPreview & {
+export function useInvestDepositPlanPreview(): {
+  plan: StrategyDepositPlan | undefined;
+  isLoading: boolean;
+  isError: boolean;
   amountUsd: number;
-  fromToken: `0x${string}`;
-  fromAmount: string;
-  sourceChainId: number;
-  selectedDepositPath: DesktopDepositPath;
+  totalUsd6: string;
 } {
   const { address } = useAccount();
-  const {
-    amountUsd,
-    fromToken,
-    fromAmount,
-    sourceChainId,
-    selectedDepositPath,
-  } = useInvest();
-  const result = useDepositPlanPreview({
-    address,
-    amountUsd,
-    fromToken,
-    fromAmount,
-    sourceChainId,
-    depositPath: selectedDepositPath,
+  const { amountUsd, totalUsd6, baseFundingToken, arbitrumFundingToken } =
+    useInvest();
+  const enabled = Boolean(address && amountUsd > 0 && totalUsd6 !== '0');
+  const result = useQuery({
+    queryKey: [
+      'strategy-deposit-plan-preview',
+      address,
+      totalUsd6,
+      baseFundingToken.depositAddress,
+      arbitrumFundingToken.depositAddress,
+    ],
+    enabled,
+    queryFn: () =>
+      getStrategyDepositPlan({
+        kind: 'strategy',
+        strategyId: STRATEGY_DEPOSIT_ID,
+        userAddress: address as `0x${string}`,
+        totalUsd6,
+        fundingSources: [
+          {
+            chainId: 8453,
+            fromToken: baseFundingToken.depositAddress,
+          },
+          {
+            chainId: 42161,
+            fromToken: arbitrumFundingToken.depositAddress,
+          },
+        ],
+      }),
   });
   return {
-    ...result,
+    plan: result.data,
+    isLoading: enabled && result.isLoading,
+    isError: result.isError,
     amountUsd,
-    fromToken,
-    fromAmount,
-    sourceChainId,
-    selectedDepositPath,
+    totalUsd6,
   };
 }

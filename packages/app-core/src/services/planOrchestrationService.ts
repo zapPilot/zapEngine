@@ -6,20 +6,38 @@ import {
   PlanOrchestrationDepositRequestSchema,
   type PlanOrchestrationWithdrawRequest,
   PlanOrchestrationWithdrawRequestSchema,
+  type StrategyDepositPlan,
+  StrategyDepositPlanSchema,
   type WithdrawPlan,
   WithdrawPlanSchema,
 } from '@zapengine/types/api';
 
-async function postDepositPlan(
+interface ParseSchema<T> {
+  parse(value: unknown): T;
+}
+
+async function postDepositPlanRequest<TPlan>(
   request: PlanOrchestrationDepositRequest,
-): Promise<DepositPlan> {
+  planSchema: ParseSchema<TPlan>,
+): Promise<TPlan> {
   const body = PlanOrchestrationDepositRequestSchema.parse(request);
   const response = await httpUtils.accountApi.post<unknown>(
     '/plan-orchestration/deposit',
     body,
   );
+  return planSchema.parse(response);
+}
 
-  return DepositPlanSchema.parse(response);
+async function postDepositPlan(
+  request: Exclude<PlanOrchestrationDepositRequest, { kind: 'strategy' }>,
+): Promise<DepositPlan> {
+  return postDepositPlanRequest(request, DepositPlanSchema);
+}
+
+async function postStrategyDepositPlan(
+  request: Extract<PlanOrchestrationDepositRequest, { kind: 'strategy' }>,
+): Promise<StrategyDepositPlan> {
+  return postDepositPlanRequest(request, StrategyDepositPlanSchema);
 }
 
 async function postWithdrawPlan(
@@ -36,4 +54,5 @@ async function postWithdrawPlan(
 
 export const getDepositPlan = postDepositPlan;
 export const getGmxDepositPlan = postDepositPlan;
+export const getStrategyDepositPlan = postStrategyDepositPlan;
 export const getWithdrawPlan = postWithdrawPlan;

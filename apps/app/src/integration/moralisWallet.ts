@@ -95,8 +95,32 @@ export interface DesktopWalletAssetHolding {
   chainId: number;
   tokenAddress: `0x${string}` | null;
   decimals: number;
+  /** Exact decimal balance for display/input; never derived from JS number. */
+  balance?: string;
+  /** Exact chain base units for transaction validation and Max. */
+  balanceBaseUnits?: string;
   rawAmount: number;
   usdValue: number | null;
+}
+
+export interface ChainTokenBalanceRow {
+  id: string;
+  chain: DesktopChainKey;
+  chainLabel: string;
+  chainId: number;
+  tokenAddress: `0x${string}` | null;
+  decimals: number;
+  balance: string;
+  balanceBaseUnits: string;
+  usdValue: number | null;
+  usdPrice: number | null;
+  token: {
+    symbol: SupportedWalletSymbol;
+    name: string;
+    iconBg: string;
+    glyph: string;
+    iconSrc: string;
+  };
 }
 
 export interface InvestableBalanceRow {
@@ -120,6 +144,8 @@ export interface InvestableBalanceRow {
 export interface WalletAssetsQueryData {
   assets: DesktopWalletAsset[];
   rows: InvestableBalanceRow[];
+  chainRows: ChainTokenBalanceRow[];
+  failedChains?: MoralisChainKey[];
 }
 
 function buildHookStatus(
@@ -147,6 +173,7 @@ export function buildWalletAssetsResult(
     isLoading: boolean;
     isError: boolean;
     error: Error | null | undefined;
+    refetch?: (() => Promise<unknown>) | undefined;
   },
   enabled: boolean,
 ): UseMoralisWalletAssetsResult {
@@ -158,22 +185,28 @@ export function buildWalletAssetsResult(
   return {
     assets: query.data?.assets ?? [],
     rows,
+    chainRows: query.data?.chainRows ?? [],
+    failedChains: query.data?.failedChains ?? [],
     totalUsdValue:
       liveValues.length > 0
         ? liveValues.reduce((total, value) => total + value, 0)
         : null,
     ...buildHookStatus(query, enabled),
+    refetch: query.refetch ?? (async () => undefined),
   };
 }
 
 export interface UseMoralisWalletAssetsResult {
   assets: DesktopWalletAsset[];
   rows: InvestableBalanceRow[];
+  chainRows: ChainTokenBalanceRow[];
+  failedChains: MoralisChainKey[];
   totalUsdValue: number | null;
   isConnected: boolean;
   isLoading: boolean;
   isError: boolean;
   error: Error | null;
+  refetch: () => Promise<unknown>;
 }
 
 export interface UseMoralisWalletHistoryResult {
@@ -272,6 +305,22 @@ function usdPriceFor(amount: number, usdValue: number | null): number | null {
   return usdValue / amount;
 }
 
+function decimalToBaseUnits(value: string, decimals: number): bigint {
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(value.trim());
+  if (!match) return 0n;
+  const fraction = (match[2] ?? '').slice(0, decimals).padEnd(decimals, '0');
+  return BigInt(match[1]!) * 10n ** BigInt(decimals) + BigInt(fraction || '0');
+}
+
+function baseUnitsToDecimal(value: bigint, decimals: number): string {
+  if (decimals === 0) return value.toString();
+  const scale = 10n ** BigInt(decimals);
+  const whole = value / scale;
+  const fraction = (value % scale).toString().padStart(decimals, '0');
+  const trimmed = fraction.replace(/0+$/u, '');
+  return trimmed ? `${whole}.${trimmed}` : whole.toString();
+}
+
 interface WalletAggregationEntry {
   amount: number;
   usdValue: number;
@@ -312,6 +361,12 @@ function aggregateChainBalance(
       : null;
   const existing = grouped.get(symbol);
   const existingHolding = existing?.holdings.get(chainConfig.desktop);
+  const baseUnits = decimalToBaseUnits(
+    String(balance.balance_formatted ?? '0'),
+    definition.decimals,
+  );
+  const balanceBaseUnits =
+    BigInt(existingHolding?.balanceBaseUnits ?? '0') + baseUnits;
   const holdingUsdValue =
     usdValue > 0
       ? (existingHolding?.usdValue ?? 0) + usdValue
@@ -321,6 +376,8 @@ function aggregateChainBalance(
     chainId: chainConfig.chainId,
     tokenAddress,
     decimals: definition.decimals,
+    balance: baseUnitsToDecimal(balanceBaseUnits, definition.decimals),
+    balanceBaseUnits: balanceBaseUnits.toString(),
     rawAmount: (existingHolding?.rawAmount ?? 0) + amount,
     usdValue: holdingUsdValue,
   };
@@ -341,6 +398,51 @@ function aggregateChainBalance(
           : meta.name,
     });
   }
+}
+
+export function buildChainTokenBalanceRows(
+  assets: readonly DesktopWalletAsset[],
+): ChainTokenBalanceRow[] {
+  return assets
+    .flatMap((asset) =>
+      asset.holdings.map((holding) => {
+        const chain = MORALIS_WALLET_CHAINS.find(
+          (candidate) => candidate.chainId === holding.chainId,
+        );
+        const holdingAmount = numberFrom(holding.balance) ?? 0;
+        const meta = TOKEN_META[asset.symbol];
+        return {
+          id: `${holding.chainId}:${asset.symbol}`,
+          chain: holding.chain,
+          chainLabel: chain?.label ?? String(holding.chainId),
+          chainId: holding.chainId,
+          tokenAddress: holding.tokenAddress,
+          decimals: holding.decimals,
+          balance: holding.balance ?? String(holding.rawAmount),
+          balanceBaseUnits:
+            holding.balanceBaseUnits ??
+            decimalToBaseUnits(
+              String(holding.rawAmount),
+              holding.decimals,
+            ).toString(),
+          usdValue: holding.usdValue,
+          usdPrice: usdPriceFor(holdingAmount, holding.usdValue),
+          token: {
+            symbol: asset.symbol,
+            name: asset.name || meta.name,
+            iconBg: asset.iconBg,
+            glyph: asset.glyph,
+            iconSrc: asset.iconSrc ?? tokenIconSrcFor(asset.symbol),
+          },
+        } satisfies ChainTokenBalanceRow;
+      }),
+    )
+    .sort((a, b) => {
+      const positiveDifference =
+        Number(BigInt(b.balanceBaseUnits) > 0n) -
+        Number(BigInt(a.balanceBaseUnits) > 0n);
+      return positiveDifference || (b.usdValue ?? 0) - (a.usdValue ?? 0);
+    });
 }
 
 export function buildDesktopWalletAssets(
@@ -680,6 +782,7 @@ export function useMoralisWalletAssets(
       return {
         assets,
         rows: buildInvestableBalanceRows(assets),
+        chainRows: buildChainTokenBalanceRows(assets),
       };
     },
   });

@@ -69,7 +69,3 @@ export function depositPathProtocolLabel(path: DesktopDepositPath): string {
 export function depositPathChainLabel(path: DesktopDepositPath): string {
   return isGmxDepositPath(path) ? 'Arbitrum' : 'Base';
 }
-
-export function depositPathInputLabel(path: DesktopDepositPath): string {
-  return isGmxDepositPath(path) ? 'Arbitrum USDC' : 'Base USDC / ETH';
-}

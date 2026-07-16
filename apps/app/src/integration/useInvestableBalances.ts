@@ -18,7 +18,6 @@ export function useInvestableBalances(
   address: WalletAddressInput,
 ): UseInvestableBalancesResult {
   const walletAssets = useWalletAssets(address);
-
   return {
     rows: walletAssets.rows,
     totalUsdValue: walletAssets.totalUsdValue,

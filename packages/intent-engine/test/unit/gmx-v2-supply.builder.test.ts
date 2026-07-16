@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { decodeFunctionData, erc20Abi, type Address, type Hex } from 'viem';
+import {
+  decodeFunctionData,
+  erc20Abi,
+  getAddress,
+  type Address,
+  type Hex,
+} from 'viem';
 
 import type { LiFiAdapter } from '../../src/adapters/lifi.adapter.js';
 import { buildGmxV2SupplyTx } from '../../src/builders/gmx-v2-supply.builder.js';
@@ -22,12 +28,14 @@ const LIFI_APPROVAL = '0x2222222222222222222222222222222222222222' as Address;
 const LIFI_TX_TARGET = '0x3333333333333333333333333333333333333333' as Address;
 const USDC_AMOUNT = '1000000';
 const SWAPPED_MIN = '12345';
+const NATIVE_ETH = GMX_V2_TOKENS.ETH.address;
 
 function makeSwapQuote(params: {
   fromToken: Address;
   toToken: Address;
   fromAmount: string;
 }): TransactionQuote {
+  const nativeFunding = params.fromToken.toLowerCase() === NATIVE_ETH;
   return {
     transaction: {
       to: LIFI_TX_TARGET,
@@ -47,11 +55,15 @@ function makeSwapQuote(params: {
       gasCostUsd: '0.02',
       executionDuration: 30,
     },
-    approval: {
-      tokenAddress: params.fromToken,
-      spenderAddress: LIFI_APPROVAL,
-      amount: params.fromAmount,
-    },
+    ...(nativeFunding
+      ? {}
+      : {
+          approval: {
+            tokenAddress: params.fromToken,
+            spenderAddress: LIFI_APPROVAL,
+            amount: params.fromAmount,
+          },
+        }),
     route: {
       action: {
         fromToken: { address: params.fromToken },
@@ -76,9 +88,49 @@ function makeAdapter() {
       }) => Promise.resolve(makeSwapQuote({ fromToken, toToken, fromAmount })),
     );
 
+  const getTokenPrice = vi
+    .fn()
+    .mockImplementation((_chainId: number, tokenAddress: string) => {
+      const normalized = tokenAddress.toLowerCase();
+      if (
+        normalized === GMX_V2_TOKENS.USDC.address.toLowerCase() ||
+        normalized === GMX_V2_TOKENS.USDT.address.toLowerCase()
+      ) {
+        return Promise.resolve({
+          address: tokenAddress,
+          symbol: 'USD',
+          decimals: 6,
+          priceUSD: '1',
+        });
+      }
+      if (normalized === GMX_V2_TOKENS.WBTC_B.address.toLowerCase()) {
+        return Promise.resolve({
+          address: tokenAddress,
+          symbol: 'WBTC',
+          decimals: 8,
+          priceUSD: '60000',
+        });
+      }
+      if (normalized === GMX_V2_TOKENS.WETH.address.toLowerCase()) {
+        return Promise.resolve({
+          address: tokenAddress,
+          symbol: 'WETH',
+          decimals: 18,
+          priceUSD: '3000',
+        });
+      }
+      return Promise.resolve({
+        address: tokenAddress,
+        symbol: 'GM',
+        decimals: 18,
+        priceUSD: '2',
+      });
+    });
+
   return {
-    adapter: { getSwapQuote } as unknown as LiFiAdapter,
+    adapter: { getSwapQuote, getTokenPrice } as unknown as LiFiAdapter,
     getSwapQuote,
+    getTokenPrice,
   };
 }
 
@@ -120,6 +172,24 @@ function decodeMulticallSendTokensList(
     .map((d) => d.args as readonly [Address, Address, bigint]);
 }
 
+function decodeMulticallMinMarketTokens(data: Hex): bigint {
+  const decoded = decodeFunctionData({
+    abi: GMX_V2_EXCHANGE_ROUTER_ABI,
+    data,
+  });
+  expect(decoded.functionName).toBe('multicall');
+  const calls = decoded.args[0] as Hex[];
+  const createDeposit = decodeFunctionData({
+    abi: GMX_V2_EXCHANGE_ROUTER_ABI,
+    data: calls.at(-1)!,
+  });
+  expect(createDeposit.functionName).toBe('createDeposit');
+  const [params] = createDeposit.args as unknown as [
+    { minMarketTokens: bigint },
+  ];
+  return params.minMarketTokens;
+}
+
 describe('buildGmxV2SupplyTx', () => {
   it.each(['btc-usdc', 'eth-usdc'] as const)(
     'builds a direct USDC deposit plan for %s without a LiFi swap',
@@ -150,6 +220,11 @@ describe('buildGmxV2SupplyTx', () => {
       const deposit = plan.steps[0]!;
       expect(deposit.to).toBe(GMX_V2_ADDRESSES.exchangeRouter);
       expect(deposit.value).toBe(GMX_V2_EXECUTION_FEE_WEI);
+      expect(plan.estimatedMarketTokens).toBe('500000000000000000');
+      expect(plan.minMarketTokens).toBe('495000000000000000');
+      expect(decodeMulticallMinMarketTokens(deposit.data as Hex)).toBe(
+        BigInt(plan.minMarketTokens),
+      );
 
       // Two-token markets fund a single side, so exactly one sendTokens.
       expect(decodeMulticallSendTokensList(deposit.data as Hex)).toHaveLength(
@@ -248,8 +323,62 @@ describe('buildGmxV2SupplyTx', () => {
     },
   );
 
-  it('rejects non-USDC source tokens for the dev-only GMX path', async () => {
+  it.each([
+    ['USDT', GMX_V2_TOKENS.USDT.address],
+    ['native ETH', NATIVE_ETH],
+  ] as const)(
+    'swaps canonical %s funding to USDC before the GMX deposit',
+    async (_label, fromToken) => {
+      const { adapter, getSwapQuote } = makeAdapter();
+
+      const plan = await buildGmxV2SupplyTx(
+        {
+          marketKey: 'eth-usdc',
+          fromToken: getAddress(fromToken),
+          fromAmount: USDC_AMOUNT,
+          userAddress: USER,
+        },
+        adapter,
+      );
+
+      expect(getSwapQuote).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fromChain: GMX_V2_ARBITRUM_CHAIN_ID,
+          toChain: GMX_V2_ARBITRUM_CHAIN_ID,
+          fromToken: getAddress(fromToken),
+          toToken: GMX_V2_TOKENS.USDC.address,
+        }),
+      );
+      expect(plan.steps.map((step) => step.meta.intentType)).toEqual([
+        'SWAP',
+        'SUPPLY',
+      ]);
+      expect(plan.approvals).toHaveLength(fromToken === NATIVE_ETH ? 1 : 2);
+      expect(plan.minMarketTokens).not.toBe(SWAPPED_MIN);
+      expect(
+        decodeMulticallMinMarketTokens(plan.steps.at(-1)!.data as Hex),
+      ).toBe(BigInt(plan.minMarketTokens));
+    },
+  );
+
+  it('does not emit a source-token approval for native ETH funding', async () => {
     const { adapter } = makeAdapter();
+    const plan = await buildGmxV2SupplyTx(
+      {
+        marketKey: 'eth-usdc',
+        fromToken: NATIVE_ETH,
+        fromAmount: USDC_AMOUNT,
+        userAddress: USER,
+      },
+      adapter,
+    );
+
+    expect(plan.approvals).toHaveLength(1);
+    expect(plan.approvals[0]!.to).toBe(GMX_V2_TOKENS.USDC.address);
+  });
+
+  it('rejects non-canonical Arbitrum funding tokens before quoting', async () => {
+    const { adapter, getSwapQuote } = makeAdapter();
 
     await expect(
       buildGmxV2SupplyTx(
@@ -261,7 +390,25 @@ describe('buildGmxV2SupplyTx', () => {
         },
         adapter,
       ),
-    ).rejects.toThrow('GMX v2 dev deposits require Arbitrum native USDC input');
+    ).rejects.toThrow('canonical Arbitrum USDC, USDT, or native ETH');
+    expect(getSwapQuote).not.toHaveBeenCalled();
+  });
+
+  it('supports a tighter GM-token slippage bound', async () => {
+    const { adapter } = makeAdapter();
+    const plan = await buildGmxV2SupplyTx(
+      {
+        marketKey: 'eth-usdc',
+        fromToken: GMX_V2_TOKENS.USDC.address,
+        fromAmount: USDC_AMOUNT,
+        userAddress: USER,
+        slippageBps: 50,
+      },
+      adapter,
+    );
+
+    expect(plan.estimatedMarketTokens).toBe('500000000000000000');
+    expect(plan.minMarketTokens).toBe('497500000000000000');
   });
 
   it('rejects zero deposit amounts', async () => {

@@ -18,6 +18,7 @@ import {
   useStrategySuggestion,
 } from '@/integration/useStrategySuggestion';
 import { useWalletAssets } from '@/integration/walletTokens';
+import type { UseWalletAssetsResult } from '@/integration/walletTokens';
 
 type HomeSlice = (typeof DEMO)['home'];
 type StrategySlice = (typeof DEMO)['strategy'];
@@ -38,11 +39,7 @@ export interface UseHomeDataResult {
   data: HomeData | null;
   isLoading: boolean;
   isError: boolean;
-  walletAssets: {
-    isConnected: boolean;
-    isLoading: boolean;
-    isError: boolean;
-  };
+  walletAssets: UseWalletAssetsResult;
 }
 
 /**
@@ -152,7 +149,7 @@ export function useHomeData(
   userId: string | null,
   address: string | null,
   range: HomeRange,
-  walletAddresses: readonly string[] = [],
+  _walletAddresses: readonly string[] = [],
 ): UseHomeDataResult {
   // Hooks run unconditionally (React rules); analytics no-ops until we have
   // either an account-engine user id or a connected wallet address.
@@ -162,9 +159,9 @@ export function useHomeData(
     analyticsSubjectId ?? undefined,
     getHomeDashboardWindowParams(),
   );
-  const walletAssets = useWalletAssets(
-    walletAddresses.length > 0 ? walletAddresses : address,
-  );
+  // Transaction readiness must reflect the active signing EOA only. Bundle
+  // wallets remain an analytics concern and must not inflate spendable funds.
+  const walletAssets = useWalletAssets(address);
   const defaultBacktest = useDefaultStrategyBacktest();
   const suggestion = useStrategySuggestion(userId);
 
@@ -265,10 +262,6 @@ export function useHomeData(
     data: { home, strategy },
     isLoading,
     isError,
-    walletAssets: {
-      isConnected: walletAssets.isConnected,
-      isLoading: walletAssets.isLoading,
-      isError: walletAssets.isError,
-    },
+    walletAssets,
   };
 }

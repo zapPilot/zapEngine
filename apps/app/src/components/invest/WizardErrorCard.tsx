@@ -5,10 +5,15 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 interface WizardErrorCardProps {
   message: string;
   onDismiss: () => void;
+  actionLabel?: string;
 }
 
-/** Execution error surface with a dismiss CTA (clears wizard.error). */
-export function WizardErrorCard({ message, onDismiss }: WizardErrorCardProps) {
+/** Execution error surface with a caller-defined recovery action. */
+export function WizardErrorCard({
+  message,
+  onDismiss,
+  actionLabel = 'Dismiss',
+}: WizardErrorCardProps) {
   return (
     <View
       className="rounded-2xl border p-4"
@@ -24,7 +29,7 @@ export function WizardErrorCard({ message, onDismiss }: WizardErrorCardProps) {
         {message}
       </Text>
       <PrimaryButton className="mt-4" variant="secondary" onPress={onDismiss}>
-        Dismiss
+        {actionLabel}
       </PrimaryButton>
     </View>
   );

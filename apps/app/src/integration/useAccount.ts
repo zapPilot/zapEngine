@@ -34,11 +34,9 @@ export function useAccount(): DesktopAccount {
   return {
     isConnected: wallet.isConnected,
     isConnecting: wallet.isConnecting,
-    address:
-      wallet.account?.address ??
-      user.connectedWallet ??
-      walletAddresses[0] ??
-      null,
+    // Only the active signing EOA can fund an execution. Bundle wallets stay
+    // available separately for read-only portfolio and activity aggregation.
+    address: wallet.account?.address ?? user.connectedWallet ?? null,
     walletAddresses,
     userId,
     email: user.userInfo?.email ?? null,
