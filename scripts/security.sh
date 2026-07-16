@@ -5,7 +5,10 @@ set -euo pipefail
 
 if [ "${1:-}" = "audit" ]; then
   shift
-  pnpm audit --audit-level=moderate
+  # pnpm 10 uses npm audit endpoints that the registry has retired.
+  # Keep the workspace package manager unchanged while running audit with the
+  # first pnpm major that uses npm's supported bulk advisory endpoint.
+  pnpm dlx pnpm@11.4.0 audit --audit-level=moderate
   exec turbo run security:audit
 fi
 
