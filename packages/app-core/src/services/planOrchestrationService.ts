@@ -16,6 +16,11 @@ interface ParseSchema<T> {
   parse(value: unknown): T;
 }
 
+// Plan builds run LiFi quotes plus Tenderly bundle simulations, so they
+// outlast the default request budget; retrying a 5xx doubles that load and
+// only delays the real error.
+const PLAN_REQUEST_CONFIG = { timeout: 60_000, retries: 0 } as const;
+
 async function postDepositPlanRequest<TPlan>(
   request: PlanOrchestrationDepositRequest,
   planSchema: ParseSchema<TPlan>,
@@ -24,6 +29,7 @@ async function postDepositPlanRequest<TPlan>(
   const response = await httpUtils.accountApi.post<unknown>(
     '/plan-orchestration/deposit',
     body,
+    PLAN_REQUEST_CONFIG,
   );
   return planSchema.parse(response);
 }
@@ -47,6 +53,7 @@ async function postWithdrawPlan(
   const response = await httpUtils.accountApi.post<unknown>(
     '/plan-orchestration/withdraw',
     body,
+    PLAN_REQUEST_CONFIG,
   );
 
   return WithdrawPlanSchema.parse(response);

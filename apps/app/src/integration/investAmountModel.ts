@@ -1,3 +1,5 @@
+import { STRATEGY_MIN_DEPOSIT_USD6 } from '@zapengine/types/api';
+
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
 import {
   BASE_DEPOSIT_TOKENS,
@@ -6,7 +8,9 @@ import {
 
 export type AmountUnit = 'USD' | 'Token';
 
-export const MIN_STRATEGY_DEPOSIT_USD6 = 4n;
+// Shared with the server-side request schema so the amount screen and the
+// zValidator reject the same floor.
+export const MIN_STRATEGY_DEPOSIT_USD6 = STRATEGY_MIN_DEPOSIT_USD6;
 const USD_INPUT_DECIMALS = 6;
 
 /** Parse the grouped display amount (e.g. "1,000.50") to a number. */

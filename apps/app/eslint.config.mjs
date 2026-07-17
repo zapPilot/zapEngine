@@ -63,11 +63,11 @@ export default defineConfig([
                 'react-dom/*',
                 '@zapengine/app-core/hooks/bundle',
                 '@zapengine/app-core/hooks/bundle/**',
-                '@zapengine/app-core/hooks/wallet',
-                '@zapengine/app-core/hooks/wallet/**',
+                '@zapengine/app-core/hooks/wallet/usePrivyWalletBackend',
+                '@zapengine/app-core/hooks/wallet/useWagmiWalletBackend',
               ],
               message:
-                'Web-only app-core hooks (DOM / Privy web SDK / wagmi). Use the RN-safe data hooks from @zapengine/app-core/hooks/queries instead.',
+                'Web-only app-core hooks (DOM / Privy web SDK / wagmi). The hooks/wallet barrel is RN-safe apart from the Privy/wagmi backends; use it or the RN-safe data hooks from @zapengine/app-core/hooks/queries instead.',
             },
             {
               group: [

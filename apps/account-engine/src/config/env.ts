@@ -37,6 +37,7 @@ const envSchema = z.object({
   TENDERLY_PROJECT_SLUG: z.string().optional(),
   TENDERLY_ACCESS_TOKEN: z.string().optional(),
   PLAN_SIMULATION_REQUIRED: z.string().optional(),
+  PLAN_SIMULATION_MODE: z.enum(['enforce', 'off']).optional(),
 });
 
 export type RawEnv = z.infer<typeof envSchema>;

@@ -1,6 +1,5 @@
 import { tokens } from '@zapengine/design-tokens/tokens';
-import { useRouter } from 'expo-router';
-import { ArrowLeft, SlidersHorizontal } from 'lucide-react-native';
+import { SlidersHorizontal } from 'lucide-react-native';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
@@ -12,6 +11,7 @@ import { Card } from '@/components/ui/Card';
 import { DisplayUsdValue } from '@/components/ui/DisplayUsdValue';
 import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
 import { RangeTabs } from '@/components/ui/RangeTabs';
+import { ScreenBackButton } from '@/components/ui/ScreenBackButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { SectionLabel } from '@/components/ui/SectionLabel';
@@ -35,14 +35,13 @@ const DEMO_PORTFOLIO: PortfolioViewData = {
 };
 
 export function PortfolioScreen() {
-  const router = useRouter();
   const [range, setRange] = useState<PortfolioRange>('1Y');
   const account = useAccount();
-  const result = usePortfolioData(account.userId, range, {
-    isResolvingUser: account.isConnected && account.loadingUser,
+  const result = usePortfolioData(account.viewingUserId, range, {
+    isResolvingUser: account.isResolvingViewingUser,
   });
 
-  const isDemo = !account.isConnected;
+  const isDemo = account.isDemo;
   const portfolio = isDemo ? DEMO_PORTFOLIO : result.data;
   const loading = !isDemo && result.isLoading;
   const chartData = portfolio?.chartData ?? [];
@@ -51,26 +50,7 @@ export function PortfolioScreen() {
     <ScreenScrollView>
       <ScreenHeader
         title="Portfolio"
-        left={
-          <Tap
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            className="h-[34px] w-[34px] items-center justify-center rounded-full border border-line bg-[rgba(255,255,255,.05)]"
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace('/home');
-              }
-            }}
-          >
-            <ArrowLeft
-              size={17}
-              strokeWidth={1.8}
-              color={tokens.color['ink-dim']}
-            />
-          </Tap>
-        }
+        left={<ScreenBackButton fallbackHref="/home" />}
         right={
           <Tap className="h-[34px] w-[34px] items-center justify-center rounded-full border border-line bg-[rgba(255,255,255,.05)]">
             <SlidersHorizontal

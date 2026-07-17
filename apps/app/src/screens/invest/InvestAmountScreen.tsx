@@ -362,7 +362,8 @@ export function InvestAmountScreen() {
 
           {belowMinimum ? (
             <Text className="mt-2.5 px-1 text-[11px] text-danger">
-              Enter at least $0.000004 so every allocation is non-zero.
+              Enter at least $10 — GMX keeper fees make smaller deposits
+              uneconomical.
             </Text>
           ) : exceedsBalance ? (
             <Text className="mt-2.5 px-1 text-[11px] text-danger">

@@ -5,7 +5,6 @@ import {
   DEFAULT_HOME_RANGE,
   getHomeDashboardWindowParams,
   type HomeRange,
-  resolveHomeAnalyticsSubjectId,
   sliceHomeDailyValuesForRange,
   useHomeData,
 } from '../src/integration/useHomeData';
@@ -70,21 +69,23 @@ beforeEach(() => {
   mockSettledSources();
 });
 
-describe('Home data analytics subject resolution', () => {
-  it('prefers account-engine user id and falls back to connected wallet address', () => {
-    expect(
-      resolveHomeAnalyticsSubjectId(
-        'user-123',
-        '0x1234567890123456789012345678901234567890',
-      ),
-    ).toBe('user-123');
-    expect(
-      resolveHomeAnalyticsSubjectId(
-        null,
-        '0x1234567890123456789012345678901234567890',
-      ),
-    ).toBe('0x1234567890123456789012345678901234567890');
-    expect(resolveHomeAnalyticsSubjectId(null, null)).toBeNull();
+describe('Home data analytics subject', () => {
+  it('never forwards a wallet address to the UUID-typed analytics paths', () => {
+    useHomeData(null, '0x1234567890123456789012345678901234567890', '1Y');
+
+    expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(null);
+    expect(usePortfolioDashboardMock).toHaveBeenCalledWith(
+      undefined,
+      getHomeDashboardWindowParams(),
+    );
+  });
+
+  it('passes a bundle-view subject id through verbatim', () => {
+    useHomeData('5fc63d4e-4e07-47d8-840b-ccd3420d553f', null, '1Y');
+
+    expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(
+      '5fc63d4e-4e07-47d8-840b-ccd3420d553f',
+    );
   });
 });
 
@@ -122,10 +123,21 @@ describe('Home data historical dashboard window', () => {
 });
 
 describe('useHomeData', () => {
-  it('queries spendable assets for the active signer instead of bundle wallets', () => {
-    useHomeData('user-123', '0xactive', '1Y', ['0xbundle-1', '0xbundle-2']);
+  it('queries spendable assets for the active signer only', () => {
+    useHomeData('user-123', '0xactive', '1Y');
 
     expect(useWalletAssetsMock).toHaveBeenCalledWith('0xactive');
+  });
+
+  it('shows the live loading state while the backend user record resolves', () => {
+    const result = useHomeData(null, '0xabc', '1W', {
+      isResolvingSubject: true,
+    });
+
+    expect(result).toMatchObject({ isLoading: true, isError: false });
+    expect(result.data?.home.totalBalance).toBeNull();
+    expect(result.data?.home.assets).not.toBe(DEMO.home.assets);
+    expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(null);
   });
 
   it('keeps disconnected users on demo data without surfacing a live error', () => {

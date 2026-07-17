@@ -58,10 +58,9 @@ export interface UseHomeDataResult {
  * Default strategy ROI/drawdown metrics come from the backtesting compare
  * endpoint.
  *
- * @param userId Resolved account-engine user id, or null while connecting.
- *   Analytics endpoints accept the account-engine id or a connected wallet
- *   address, so Home can still request `/landing` and `/dashboard` while the
- *   backend user record is settling.
+ * @param subjectUserId Account-engine user id whose bundle is displayed —
+ *   the viewer's own id or a `?userId=` bundle-view id. Analytics v2 paths
+ *   are UUID-typed; a wallet address 422s, so it must never be passed here.
  */
 export function getHomeDashboardWindowParams() {
   return {
@@ -106,19 +105,6 @@ export function sliceHomeDailyValuesForRange(
   return sliced.length >= 2 ? sliced : sorted.slice(-2);
 }
 
-export function resolveHomeAnalyticsSubjectId(
-  userId: string | null,
-  address: string | null,
-): string | null {
-  const resolvedUserId = userId?.trim();
-  if (resolvedUserId) {
-    return resolvedUserId;
-  }
-
-  const resolvedAddress = address?.trim();
-  return resolvedAddress || null;
-}
-
 function sparklineOrFallback(
   liveSparkline: number[],
   demoSparkline: number[],
@@ -146,14 +132,14 @@ function unavailableBacktest(): StrategySlice['backtest'] {
 }
 
 export function useHomeData(
-  userId: string | null,
+  subjectUserId: string | null,
   address: string | null,
   range: HomeRange,
-  _walletAddresses: readonly string[] = [],
+  options: { isResolvingSubject?: boolean } = {},
 ): UseHomeDataResult {
   // Hooks run unconditionally (React rules); analytics no-ops until we have
-  // either an account-engine user id or a connected wallet address.
-  const analyticsSubjectId = resolveHomeAnalyticsSubjectId(userId, address);
+  // an account-engine user id to display.
+  const analyticsSubjectId = subjectUserId?.trim() || null;
   const progressive = usePortfolioDataProgressive(analyticsSubjectId);
   const dashboard = usePortfolioDashboard(
     analyticsSubjectId ?? undefined,
@@ -163,7 +149,7 @@ export function useHomeData(
   // wallets remain an analytics concern and must not inflate spendable funds.
   const walletAssets = useWalletAssets(address);
   const defaultBacktest = useDefaultStrategyBacktest();
-  const suggestion = useStrategySuggestion(userId);
+  const suggestion = useStrategySuggestion(analyticsSubjectId);
 
   const demoHome = DEMO.home;
   const demoStrategy = DEMO.strategy;
@@ -171,7 +157,11 @@ export function useHomeData(
   const balanceSection = progressive.sections?.balance;
   const strategySection = progressive.sections?.strategy;
 
+  const isResolvingSubject =
+    Boolean(options.isResolvingSubject) && analyticsSubjectId === null;
+
   const isLoading =
+    isResolvingSubject ||
     Boolean(balanceSection?.isLoading) ||
     Boolean(strategySection?.isLoading) ||
     dashboard.isLoading ||
@@ -182,7 +172,9 @@ export function useHomeData(
     dashboard.isError ||
     suggestion.isError;
 
-  const isDemo = analyticsSubjectId === null;
+  // While the subject is still resolving, stay in the live (skeleton) state
+  // instead of flashing demo data.
+  const isDemo = analyticsSubjectId === null && !isResolvingSubject;
 
   // --- Live: total balance from the landing balance section ---
   const totalBalance = isDemo

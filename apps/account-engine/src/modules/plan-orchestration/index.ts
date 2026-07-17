@@ -2,6 +2,7 @@ export {
   createPlanOrchestrationModule,
   parseDepositDefaultSplit,
   type PlanOrchestrationModuleConfig,
+  planSimulationConfigFromEnv,
 } from './module';
 export {
   createDepositPublicClients,

@@ -248,6 +248,38 @@ describe('PlanOrchestrationDepositRequestSchema (discriminated union)', () => {
     ).toBe(true);
   });
 
+  it('enforces the $10 strategy minimum at the exact boundary', () => {
+    const request = (totalUsd6: string) => ({
+      kind: 'strategy',
+      strategyId: STRATEGY_DEPOSIT_ID,
+      userAddress: USER,
+      totalUsd6,
+      fundingSources: [
+        {
+          chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
+          fromToken: BASE_USDC_ADDRESS,
+        },
+        {
+          chainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+          fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+        },
+      ],
+    });
+
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse(request('10000000'))
+        .success,
+    ).toBe(true);
+
+    const below = PlanOrchestrationDepositRequestSchema.safeParse(
+      request('9999999'),
+    );
+    expect(below.success).toBe(false);
+    if (!below.success) {
+      expect(below.error.issues[0]?.message).toMatch(/at least \$10/);
+    }
+  });
+
   it('rejects a strategy request with reversed funding chains', () => {
     expect(
       PlanOrchestrationDepositRequestSchema.safeParse({

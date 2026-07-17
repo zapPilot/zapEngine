@@ -77,5 +77,9 @@ export async function getDailySuggestion(
     ? new URLSearchParams({ config_id: configId }).toString()
     : '';
   const endpoint = `/api/v3/strategy/daily-suggestion/${userId}${query ? `?${query}` : ''}`;
-  return httpUtils.analyticsEngine.get<DailySuggestionResponse>(endpoint);
+  // Suggestion composition aggregates the whole bundle — same cold-cache
+  // budget as the per-user analytics endpoints.
+  return httpUtils.analyticsEngine.get<DailySuggestionResponse>(endpoint, {
+    timeout: 60_000,
+  });
 }

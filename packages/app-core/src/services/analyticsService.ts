@@ -32,6 +32,11 @@ export type {
   UnifiedDashboardResponse,
 } from '@core/schemas/api/analyticsSchemas';
 
+// Bundle-level endpoints aggregate every wallet in the user's bundle and can
+// take >15s on a cold server cache — the default dev timeout aborts right
+// before the server finishes, so these requests carry their own budget.
+const USER_ANALYTICS_REQUEST_CONFIG = { timeout: 60_000 } as const;
+
 /**
  * Query parameters for the unified dashboard endpoint.
  *
@@ -59,7 +64,10 @@ export async function getLandingPagePortfolioData(
   userId: string,
 ): Promise<LandingPageResponse> {
   const endpoint = `/api/v2/portfolio/${userId}/landing`;
-  const response = await httpUtils.analyticsEngine.get(endpoint);
+  const response = await httpUtils.analyticsEngine.get(
+    endpoint,
+    USER_ANALYTICS_REQUEST_CONFIG,
+  );
   return validateLandingPageResponse(response);
 }
 
@@ -103,7 +111,10 @@ export async function getPortfolioDashboard(
   params: DashboardWindowParams = {},
 ): Promise<UnifiedDashboardResponse> {
   const endpoint = `/api/v2/analytics/${userId}/dashboard${buildAnalyticsQueryString(params)}`;
-  const response = await httpUtils.analyticsEngine.get(endpoint);
+  const response = await httpUtils.analyticsEngine.get(
+    endpoint,
+    USER_ANALYTICS_REQUEST_CONFIG,
+  );
   return validateUnifiedDashboardResponse(response);
 }
 
@@ -142,7 +153,10 @@ export async function getDailyYieldReturns(
     params.append('walletAddress', walletAddress);
   }
   const endpoint = `/api/v2/analytics/${userId}/yield/daily?${params}`;
-  const response = await httpUtils.analyticsEngine.get(endpoint);
+  const response = await httpUtils.analyticsEngine.get(
+    endpoint,
+    USER_ANALYTICS_REQUEST_CONFIG,
+  );
   return validateDailyYieldReturnsResponse(response);
 }
 
@@ -172,7 +186,10 @@ export async function getBorrowingPositions(
   userId: string,
 ): Promise<BorrowingPositionsResponse> {
   const endpoint = `/api/v2/analytics/${userId}/borrowing/positions`;
-  const response = await httpUtils.analyticsEngine.get(endpoint);
+  const response = await httpUtils.analyticsEngine.get(
+    endpoint,
+    USER_ANALYTICS_REQUEST_CONFIG,
+  );
   return validateBorrowingPositionsResponse(response);
 }
 

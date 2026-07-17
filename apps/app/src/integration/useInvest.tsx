@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { handleHTTPError } from '@zapengine/app-core/lib/http';
 import { getStrategyDepositPlan } from '@zapengine/app-core/services';
 import {
   STRATEGY_DEPOSIT_ID,
@@ -82,6 +83,9 @@ export function useInvestDepositPlanPreview(): {
   plan: StrategyDepositPlan | undefined;
   isLoading: boolean;
   isError: boolean;
+  /** Human-readable backend failure reason (plan 4xx/5xx body), or null. */
+  errorMessage: string | null;
+  retry: () => void;
   amountUsd: number;
   totalUsd6: string;
 } {
@@ -120,6 +124,8 @@ export function useInvestDepositPlanPreview(): {
     plan: result.data,
     isLoading: enabled && result.isLoading,
     isError: result.isError,
+    errorMessage: result.error ? handleHTTPError(result.error) : null,
+    retry: () => void result.refetch(),
     amountUsd,
     totalUsd6,
   };

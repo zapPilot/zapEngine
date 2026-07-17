@@ -1,3 +1,5 @@
+import { useRouter } from 'expo-router';
+import { ChevronRight } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
@@ -6,6 +8,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { InfoRow } from '@/components/ui/InfoRow';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
+import { Tap } from '@/components/ui/Tap';
 import { ContentLanguageOptionRows } from '@/components/content/ContentLanguageSelector';
 import { DEMO } from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
@@ -13,6 +16,7 @@ import { NATIVE_PRIVY_AUTH_COPY } from '@/integration/nativePrivyLogin';
 import { truncateAddress } from '@/lib/format';
 
 export function AccountScreen() {
+  const router = useRouter();
   const account = useAccount();
   const address = account.address ?? DEMO.account.address;
   const walletCount = account.walletAddresses.length || 1;
@@ -21,23 +25,34 @@ export function AccountScreen() {
     <ScreenScrollView>
       <ScreenHeader title="Account" />
       <View className="px-5 pt-5">
-        <Card className="p-5">
-          <Text className="font-sans-semibold text-[15px] text-ink">
-            {account.email || DEMO.account.label}
-          </Text>
-          <Text className="mt-2 font-mono text-[13px] text-accent">
-            {truncateAddress(address)}
-          </Text>
-          <View className="mt-4">
-            <InfoRow
-              label="Mode"
-              value={account.isConnected ? 'Live' : 'Demo'}
-              divider
-            />
-            <InfoRow label="Wallets" value={String(walletCount)} divider />
-            <InfoRow label="Runtime" value="Expo" />
-          </View>
-        </Card>
+        <Tap
+          accessibilityRole="button"
+          accessibilityLabel="Manage wallets"
+          onPress={() => router.push('/wallets')}
+        >
+          <Card className="p-5">
+            <View className="flex-row items-start justify-between gap-3">
+              <View className="min-w-0 flex-1">
+                <Text className="font-sans-semibold text-[15px] text-ink">
+                  {account.email || DEMO.account.label}
+                </Text>
+                <Text className="mt-2 font-mono text-[13px] text-accent">
+                  {truncateAddress(address)}
+                </Text>
+              </View>
+              <ChevronRight size={18} strokeWidth={1.8} color="#71717a" />
+            </View>
+            <View className="mt-4">
+              <InfoRow
+                label="Mode"
+                value={account.isConnected ? 'Live' : 'Demo'}
+                divider
+              />
+              <InfoRow label="Wallets" value={String(walletCount)} divider />
+              <InfoRow label="Runtime" value="Expo" />
+            </View>
+          </Card>
+        </Tap>
         <Card className="mt-4 p-5">
           <Text className="font-sans-semibold text-[15px] text-ink">
             Content language

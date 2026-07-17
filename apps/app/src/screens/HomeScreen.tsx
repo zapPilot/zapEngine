@@ -201,16 +201,16 @@ export function HomeScreen() {
   const [range, setRange] = useState<HomeRange>(DEFAULT_HOME_RANGE);
   const account = useAccount();
   const { data, isLoading, walletAssets } = useHomeData(
-    account.userId,
+    account.viewingUserId,
     account.address,
     range,
-    account.walletAddresses,
+    { isResolvingSubject: account.isResolvingViewingUser },
   );
 
-  const isDemo = !account.isConnected;
+  const isDemo = account.isDemo;
   const home = data?.home ?? DEMO.home;
   const strategy = data?.strategy ?? DEMO.strategy;
-  const showBalanceSkeleton = !isDemo && isLoading && data === null;
+  const showBalanceSkeleton = !isDemo && isLoading;
   const showAssetSkeleton = !isDemo && walletAssets.isLoading;
   const changePct = home.changePct;
   const changeUsd = home.changeUsdToday;
@@ -264,22 +264,26 @@ export function HomeScreen() {
         </View>
       </View>
 
-      <View className="mt-5 flex-row gap-3 px-5">
-        <ActionButton
-          label="Invest"
-          onPress={() => router.push('/invest/amount')}
-          icon={<ArrowDown size={18} color="#d4c5a3" strokeWidth={1.8} />}
-        />
-        <ActionButton
-          label="Send"
-          onPress={() => router.push('/send')}
-          icon={<ArrowUp size={18} color="#d4c5a3" strokeWidth={1.8} />}
-        />
-        <ActionButton
-          label="More"
-          icon={<MoreHorizontal size={18} color="#d4c5a3" strokeWidth={1.8} />}
-        />
-      </View>
+      {account.isOwnBundle ? (
+        <View className="mt-5 flex-row gap-3 px-5">
+          <ActionButton
+            label="Invest"
+            onPress={() => router.push('/invest/amount')}
+            icon={<ArrowDown size={18} color="#d4c5a3" strokeWidth={1.8} />}
+          />
+          <ActionButton
+            label="Send"
+            onPress={() => router.push('/send')}
+            icon={<ArrowUp size={18} color="#d4c5a3" strokeWidth={1.8} />}
+          />
+          <ActionButton
+            label="More"
+            icon={
+              <MoreHorizontal size={18} color="#d4c5a3" strokeWidth={1.8} />
+            }
+          />
+        </View>
+      ) : null}
 
       <View className="mt-6 px-5">
         <ZapStrategyCard
@@ -319,52 +323,54 @@ export function HomeScreen() {
         </Tap>
       </View>
 
-      <View className="mt-6 px-5">
-        <View className="mb-2 flex-row items-center justify-between">
-          <Text className="font-sans-semibold text-[15px] text-ink">
-            Wallet assets
-          </Text>
-          <Text className="font-mono text-[9.5px] uppercase tracking-[0.76px] text-ink-faint">
-            {isDemo
-              ? 'Demo'
-              : walletAssets.failedChains.length > 0
-                ? 'Partial'
-                : 'Live'}
-          </Text>
-        </View>
-        <Card className="p-[13px]">
-          {showAssetSkeleton ? (
-            <AssetListSkeleton />
-          ) : walletAssets.isError ? (
-            <WalletAssetStatus
-              isError
-              onRetry={() => void walletAssets.refetch()}
-            />
-          ) : (
-            <>
-              {walletAssets.failedChains.length > 0 ? (
-                <PartialWalletWarning
-                  onRetry={() => void walletAssets.refetch()}
-                />
-              ) : null}
-              {home.assets.length === 0 ? (
-                <WalletAssetStatus
-                  isError={false}
-                  onRetry={() => void walletAssets.refetch()}
-                />
-              ) : (
-                home.assets.map((asset, index) => (
-                  <AssetRow
-                    key={asset.symbol}
-                    asset={asset}
-                    divider={index < home.assets.length - 1}
+      {account.isOwnBundle ? (
+        <View className="mt-6 px-5">
+          <View className="mb-2 flex-row items-center justify-between">
+            <Text className="font-sans-semibold text-[15px] text-ink">
+              Wallet assets
+            </Text>
+            <Text className="font-mono text-[9.5px] uppercase tracking-[0.76px] text-ink-faint">
+              {isDemo
+                ? 'Demo'
+                : walletAssets.failedChains.length > 0
+                  ? 'Partial'
+                  : 'Live'}
+            </Text>
+          </View>
+          <Card className="p-[13px]">
+            {showAssetSkeleton ? (
+              <AssetListSkeleton />
+            ) : walletAssets.isError ? (
+              <WalletAssetStatus
+                isError
+                onRetry={() => void walletAssets.refetch()}
+              />
+            ) : (
+              <>
+                {walletAssets.failedChains.length > 0 ? (
+                  <PartialWalletWarning
+                    onRetry={() => void walletAssets.refetch()}
                   />
-                ))
-              )}
-            </>
-          )}
-        </Card>
-      </View>
+                ) : null}
+                {home.assets.length === 0 ? (
+                  <WalletAssetStatus
+                    isError={false}
+                    onRetry={() => void walletAssets.refetch()}
+                  />
+                ) : (
+                  home.assets.map((asset, index) => (
+                    <AssetRow
+                      key={asset.symbol}
+                      asset={asset}
+                      divider={index < home.assets.length - 1}
+                    />
+                  ))
+                )}
+              </>
+            )}
+          </Card>
+        </View>
+      ) : null}
     </ScreenScrollView>
   );
 }

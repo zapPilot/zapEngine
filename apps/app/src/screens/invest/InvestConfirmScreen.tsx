@@ -88,9 +88,11 @@ export function InvestConfirmScreen() {
               return;
             }
             if (!ready) return;
-            void startFromDraft().finally(() =>
-              router.push('/invest/progress'),
-            );
+            // The wizard reducer already captures start failures as
+            // wizard.error; the catch only silences the duplicate rejection.
+            void startFromDraft()
+              .catch(() => undefined)
+              .finally(() => router.push('/invest/progress'));
           }}
         >
           {ctaLabel}

@@ -1,6 +1,9 @@
 import { useUser } from '@zapengine/app-core/hooks/queries/wallet/useUser';
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
 
+import { resolveViewingState } from '@/integration/bundleViewModel';
+import { getBundleViewUserId } from '@/integration/bundleViewParam';
+
 export interface DesktopAccount {
   /** A wallet/account is connected (Privy embedded wallet present). */
   isConnected: boolean;
@@ -11,6 +14,14 @@ export interface DesktopAccount {
   walletAddresses: string[];
   /** Resolved Zap Pilot user id (from account-engine), or null. */
   userId: string | null;
+  /** User id whose bundle the screens display: URL `?userId=` or `userId`. */
+  viewingUserId: string | null;
+  /** False when viewing someone else's bundle — hide write affordances. */
+  isOwnBundle: boolean;
+  /** Connected and waiting on account-engine before `viewingUserId` settles. */
+  isResolvingViewingUser: boolean;
+  /** No live subject to display — screens render DEMO data. */
+  isDemo: boolean;
   email: string | null;
   /** Still resolving the backend user record after connect. */
   loadingUser: boolean;
@@ -30,6 +41,14 @@ export function useAccount(): DesktopAccount {
   const user = useUser();
   const userId = user.userInfo?.userId?.trim() || null;
   const walletAddresses = user.userInfo?.bundleWallets ?? [];
+  // `userId` stays the real logged-in user; the viewing fields decide whose
+  // bundle the screens display (a `?userId=` link overrides, read-only).
+  const viewing = resolveViewingState({
+    urlUserId: getBundleViewUserId(),
+    ownUserId: userId,
+    isConnected: wallet.isConnected,
+    loadingUser: user.loading,
+  });
 
   return {
     isConnected: wallet.isConnected,
@@ -39,6 +58,7 @@ export function useAccount(): DesktopAccount {
     address: wallet.account?.address ?? user.connectedWallet ?? null,
     walletAddresses,
     userId,
+    ...viewing,
     email: user.userInfo?.email ?? null,
     loadingUser: user.loading,
     error: wallet.error?.message ?? user.error ?? null,

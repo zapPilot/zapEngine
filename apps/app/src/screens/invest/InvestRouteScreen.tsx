@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
+import { Tap } from '@/components/ui/Tap';
 import {
   useInvest,
   useInvestDepositPlanPreview,
@@ -118,9 +119,30 @@ export function InvestRouteScreen() {
               </Text>
               <Text className="mt-2 text-[12px] leading-[18px] text-ink-dim">
                 {preview.isError
-                  ? 'The live quote could not be prepared. Return to the amount step and retry.'
+                  ? 'The live quote could not be prepared.'
                   : 'Connect a wallet and enter an amount to fetch the live plan.'}
               </Text>
+              {preview.isError && preview.errorMessage ? (
+                <Text className="mt-2 text-[11.5px] leading-[17px] text-[#ef9292]">
+                  {preview.errorMessage}
+                </Text>
+              ) : null}
+              {preview.isError ? (
+                <Tap
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry route preview"
+                  className="mt-3 self-start rounded-full border px-3 py-1.5"
+                  style={{
+                    borderColor: 'rgba(212,197,163,.22)',
+                    backgroundColor: 'rgba(212,197,163,.07)',
+                  }}
+                  onPress={preview.retry}
+                >
+                  <Text className="font-sans-semibold text-[11px] text-accent">
+                    Retry
+                  </Text>
+                </Tap>
+              ) : null}
             </View>
           )}
         </Card>

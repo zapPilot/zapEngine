@@ -1,4 +1,5 @@
 import { ActivityTracker } from './common/interceptors';
+import { Logger } from './common/logger';
 import { AlphaEtlHttpService } from './common/services';
 import { ConfigService } from './config/config.service';
 import { AppEnv, loadEnv } from './config/env';
@@ -22,6 +23,7 @@ import {
   createPlanOrchestrationModule,
   parseDepositDefaultSplit,
   type PlanOrchestrationService,
+  planSimulationConfigFromEnv,
 } from './modules/plan-orchestration';
 import {
   createPrivyWalletExecutionService,
@@ -110,6 +112,18 @@ export function createContainer(
   );
   const activityTracker = new ActivityTracker(databaseService);
   const ledgerService = new LedgerService(databaseService);
+  const planSimulation = planSimulationConfigFromEnv({
+    accountSlug: env.TENDERLY_ACCOUNT_SLUG,
+    projectSlug: env.TENDERLY_PROJECT_SLUG,
+    accessToken: env.TENDERLY_ACCESS_TOKEN,
+    required: env.PLAN_SIMULATION_REQUIRED,
+    mode: env.PLAN_SIMULATION_MODE,
+  });
+  if (env.PLAN_SIMULATION_MODE === 'off' && !planSimulation.tenderly) {
+    new Logger('plan-orchestration').warn(
+      'Plan simulation disabled via PLAN_SIMULATION_MODE=off — deposit plans are not Tenderly-simulated',
+    );
+  }
   const planOrchestrationService = createPlanOrchestrationModule({
     lifi: {
       integrator: env.LIFI_INTEGRATOR,
@@ -126,20 +140,7 @@ export function createContainer(
     ...(env.HYPERLIQUID_NETWORK
       ? { hyperliquid: { network: env.HYPERLIQUID_NETWORK } }
       : {}),
-    simulation: {
-      ...(env.TENDERLY_ACCOUNT_SLUG &&
-      env.TENDERLY_PROJECT_SLUG &&
-      env.TENDERLY_ACCESS_TOKEN
-        ? {
-            tenderly: {
-              accountSlug: env.TENDERLY_ACCOUNT_SLUG,
-              projectSlug: env.TENDERLY_PROJECT_SLUG,
-              accessToken: env.TENDERLY_ACCESS_TOKEN,
-            },
-          }
-        : {}),
-      required: env.PLAN_SIMULATION_REQUIRED === 'true',
-    },
+    simulation: planSimulation,
   });
   const privyWalletExecutionService = createPrivyWalletExecutionService({
     ...(env.PRIVY_APP_ID ? { appId: env.PRIVY_APP_ID } : {}),

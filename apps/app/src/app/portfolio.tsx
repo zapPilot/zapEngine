@@ -5,7 +5,7 @@ import { PortfolioScreen } from '@/screens/PortfolioScreen';
 
 export default function PortfolioRoute(): ReactElement {
   return (
-    <AuthenticatedRoute>
+    <AuthenticatedRoute allowBundleView>
       <PortfolioScreen />
     </AuthenticatedRoute>
   );

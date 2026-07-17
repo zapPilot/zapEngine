@@ -16,6 +16,13 @@ export const HYPERCORE_CHAIN_ID = 1337;
 
 export const BASE_CHAIN_ID = SUPPORTED_DEPOSIT_CHAINS.BASE;
 export const STRATEGY_DEPOSIT_ID = 'zap-morpho-gmx-v1' as const;
+/**
+ * Minimum strategy deposit ($10, 6-decimal USD). The two GMX legs each pay a
+ * fixed 0.001 ETH keeper execution fee and the builders reject amounts too
+ * small to keep a slippage buffer — below this floor a plan either fails or
+ * is uneconomical. Shared by the request schema and the app's amount screen.
+ */
+export const STRATEGY_MIN_DEPOSIT_USD6 = 10_000_000n;
 export const BASE_USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 export const NATIVE_TOKEN_ADDRESS =
   '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
@@ -507,9 +514,10 @@ export const PlanOrchestrationDepositRequestSchema = z
       kind: z.literal('strategy'),
       strategyId: z.literal(STRATEGY_DEPOSIT_ID),
       userAddress: AddressSchema,
-      totalUsd6: decimalStringSchema.refine((value) => BigInt(value) > 0n, {
-        message: 'totalUsd6 must be greater than zero',
-      }),
+      totalUsd6: decimalStringSchema.refine(
+        (value) => BigInt(value) >= STRATEGY_MIN_DEPOSIT_USD6,
+        { message: 'Strategy deposits require at least $10 total' },
+      ),
       fundingSources: z.tuple([
         z.object({
           chainId: z.literal(SUPPORTED_DEPOSIT_CHAINS.BASE),

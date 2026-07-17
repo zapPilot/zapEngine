@@ -89,6 +89,34 @@ export function parseDepositDefaultSplit(raw: string): DepositChainSplit {
   );
 }
 
+export interface PlanSimulationEnvInput {
+  accountSlug: string | undefined;
+  projectSlug: string | undefined;
+  accessToken: string | undefined;
+  required: string | undefined;
+  mode: 'enforce' | 'off' | undefined;
+}
+
+/**
+ * Map the plan-simulation env values onto module config.
+ * PLAN_SIMULATION_MODE=off is a dev-only escape hatch that skips the Tenderly
+ * gate even when credentials are present; PLAN_SIMULATION_REQUIRED=true always
+ * wins so a fail-closed deployment cannot be silently un-gated.
+ */
+export function planSimulationConfigFromEnv(
+  input: PlanSimulationEnvInput,
+): NonNullable<PlanOrchestrationModuleConfig['simulation']> {
+  const { accountSlug, projectSlug, accessToken } = input;
+  const required = input.required === 'true';
+  const disabled = input.mode === 'off' && !required;
+  const tenderly =
+    !disabled && accountSlug && projectSlug && accessToken
+      ? { accountSlug, projectSlug, accessToken }
+      : undefined;
+
+  return { ...(tenderly ? { tenderly } : {}), required };
+}
+
 /**
  * Resolve the plan-simulation gate from module config. Mirrors the
  * parseDepositDefaultSplit fail-at-boot philosophy: a deployment that
