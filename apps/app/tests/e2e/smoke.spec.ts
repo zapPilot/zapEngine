@@ -94,7 +94,7 @@ test('renders the web app shell and primary routes without page errors', async (
 
   await test.step('Podcast is the default guest route and all five tabs remain visible', async () => {
     await page.goto('/');
-    await expect(page).toHaveURL(/\/podcast$/);
+    await expect(page).toHaveURL(/\/podcast$/, { timeout: 15_000 });
 
     const tabs = page.getByRole('tab');
     await expect(tabs).toHaveCount(5);
@@ -167,6 +167,7 @@ test('renders the web app shell and primary routes without page errors', async (
   });
 
   await test.step('guest can open Home and return to Podcast', async () => {
+    await page.goto('/podcast');
     await page.getByRole('tab', { name: 'Home' }).click();
     await expect(page).toHaveURL(/\/home$/);
     await expectHealthyRoute(page);

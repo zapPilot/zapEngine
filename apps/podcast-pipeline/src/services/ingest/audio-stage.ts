@@ -41,13 +41,22 @@ export async function ensureLocalizationCompleted(
   const mainAudioReady = isMainAudioReady(localization);
   const classroomAudioReady = isClassroomAudioReady(localization, languageCode);
 
+  if (
+    localization.status === 'completed' &&
+    (!mainAudioReady || !classroomAudioReady)
+  ) {
+    localization = await demoteIncompleteCompletedLocalization(
+      localization,
+      mainAudioReady,
+    );
+  }
+
   if (!mainAudioReady || !classroomAudioReady) {
     classroomRows = await ensureLanguageClassroomsAndRecordCost(
       localization,
       languageCode,
       costBreakdown,
     );
-    assertLanguageClassroomsReady(classroomRows, languageCode);
 
     const uploadedMain = mainAudioReady
       ? null
@@ -57,6 +66,14 @@ export async function ensureLocalizationCompleted(
           languageCode,
           costBreakdown,
         );
+    if (uploadedMain) {
+      localization = await checkpointMainAudio(
+        localization,
+        uploadedMain,
+        languageCode,
+      );
+    }
+
     const uploadedClassroom = classroomAudioReady
       ? null
       : await synthesizeAndUploadClassroomAudio(
@@ -66,6 +83,13 @@ export async function ensureLocalizationCompleted(
           classroomRows,
           costBreakdown,
         );
+    if (uploadedClassroom) {
+      localization = await checkpointClassroomAudio(
+        localization,
+        uploadedClassroom,
+        languageCode,
+      );
+    }
 
     const hlsUrl = uploadedMain?.hlsUrl ?? localization.hls_url;
     const classroomHlsUrl =
@@ -94,7 +118,24 @@ export async function ensureLocalizationCompleted(
         'Failed to retrieve episode localization after audio completion',
       );
     }
+    if (completedLocalization.status !== 'completed') {
+      throw new Error(
+        'Episode localization did not persist the completed audio status',
+      );
+    }
+    assertRequiredAudioArtifacts(
+      completedLocalization.hls_url,
+      completedLocalization.classroom_hls_url,
+      languageCode,
+    );
     localization = completedLocalization;
+  } else if (localization.status !== 'completed') {
+    classroomRows = await ensureLanguageClassroomsAndRecordCost(
+      localization,
+      languageCode,
+      costBreakdown,
+    );
+    localization = await markLocalizationCompleted(localization, languageCode);
   }
 
   if (!classroomRows) {
@@ -104,7 +145,6 @@ export async function ensureLocalizationCompleted(
       languageCode,
       costBreakdown,
     );
-    assertLanguageClassroomsReady(classroomRows, languageCode);
   }
 
   return { localization, classroomRows };
@@ -120,11 +160,12 @@ export async function ensureLanguageClassroomsAndRecordCost(
     sourceLanguageCode,
   );
   costBreakdown.push(...ensuredClassrooms.cost);
+  assertLanguageClassroomsReady(ensuredClassrooms.rows, sourceLanguageCode);
   return ensuredClassrooms.rows;
 }
 
 export function isAudioReady(localization: EpisodeLocalizationRow): boolean {
-  if (!hasAudioReadyStatus(localization)) {
+  if (localization.status !== 'completed') {
     return false;
   }
 
@@ -160,7 +201,7 @@ function isClassroomAudioReady(
   localization: EpisodeLocalizationRow,
   languageCode: LanguageClassroomLanguageCode,
 ): boolean {
-  if (!isLanguageClassroomAudioRequired(languageCode)) {
+  if (getClassroomTargetLanguageCodes(languageCode).length === 0) {
     return true;
   }
 
@@ -169,6 +210,102 @@ function isClassroomAudioReady(
 
 function hasNonEmptyString(value: string | null | undefined): value is string {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+async function demoteIncompleteCompletedLocalization(
+  localization: EpisodeLocalizationRow,
+  mainAudioReady: boolean,
+): Promise<EpisodeLocalizationRow> {
+  const repairStatus = mainAudioReady
+    ? ('audio_generated' as const)
+    : ('script_generated' as const);
+  const demotedLocalization = await step(
+    `updateEpisodeLocalizationStatus:${repairStatus}`,
+    () => updateEpisodeLocalizationStatus(localization.id, repairStatus),
+  );
+
+  if (!demotedLocalization) {
+    throw new Error(
+      'Failed to mark incomplete episode localization for audio repair',
+    );
+  }
+
+  return demotedLocalization;
+}
+
+async function checkpointMainAudio(
+  localization: EpisodeLocalizationRow,
+  uploadedMain: UploadedAudioSection,
+  languageCode: LanguageClassroomLanguageCode,
+): Promise<EpisodeLocalizationRow> {
+  const ttsMetadata = getTtsMetadataForLanguage(languageCode);
+  const checkpoint = await step(
+    'updateEpisodeLocalizationStatus:audio_generated:main',
+    () =>
+      updateEpisodeLocalizationStatus(localization.id, 'audio_generated', {
+        hlsUrl: uploadedMain.hlsUrl,
+        r2Prefix: uploadedMain.r2Prefix,
+        ttsLanguageCode: ttsMetadata.languageCode,
+        ttsVoiceName: ttsMetadata.voiceName,
+      }),
+  );
+
+  if (!checkpoint || !hasNonEmptyString(checkpoint.hls_url)) {
+    throw new Error('Failed to persist generated main audio');
+  }
+
+  return checkpoint;
+}
+
+async function checkpointClassroomAudio(
+  localization: EpisodeLocalizationRow,
+  uploadedClassroom: UploadedAudioSection,
+  languageCode: LanguageClassroomLanguageCode,
+): Promise<EpisodeLocalizationRow> {
+  const checkpoint = await step(
+    'updateEpisodeLocalizationStatus:audio_generated:classroom',
+    () =>
+      updateEpisodeLocalizationStatus(localization.id, 'audio_generated', {
+        classroomHlsUrl: uploadedClassroom.hlsUrl,
+        classroomR2Prefix: uploadedClassroom.r2Prefix,
+      }),
+  );
+
+  if (!checkpoint) {
+    throw new Error('Failed to persist generated language classroom audio');
+  }
+  assertRequiredAudioArtifacts(
+    checkpoint.hls_url,
+    checkpoint.classroom_hls_url,
+    languageCode,
+  );
+
+  return checkpoint;
+}
+
+async function markLocalizationCompleted(
+  localization: EpisodeLocalizationRow,
+  languageCode: LanguageClassroomLanguageCode,
+): Promise<EpisodeLocalizationRow> {
+  assertRequiredAudioArtifacts(
+    localization.hls_url,
+    localization.classroom_hls_url,
+    languageCode,
+  );
+  const completed = await step(
+    'updateEpisodeLocalizationStatus:completed',
+    () => updateEpisodeLocalizationStatus(localization.id, 'completed'),
+  );
+
+  if (completed?.status !== 'completed') {
+    throw new Error('Failed to persist the completed audio status');
+  }
+  assertRequiredAudioArtifacts(
+    completed.hls_url,
+    completed.classroom_hls_url,
+    languageCode,
+  );
+  return completed;
 }
 
 async function synthesizeAndUploadMainAudio(

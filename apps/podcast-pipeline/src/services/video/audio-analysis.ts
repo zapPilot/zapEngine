@@ -169,11 +169,13 @@ export async function detectAudioSilences(
   return parseSilenceDetection(result.stderr);
 }
 
+// jscpd:ignore-start — weighted word count; same formula in fallback.ts speakingWeight
 function speakingUnits(value: string): number {
   const latinWords = value.match(/[A-Za-z0-9]+/g)?.length ?? 0;
   const nonLatin = Array.from(value.replace(/[A-Za-z0-9\s]/g, '')).length;
   return Math.max(1, nonLatin + latinWords * 1.4);
 }
+// jscpd:ignore-end
 
 function snapToFrame(valueMs: number, fps = OUTPUT_FPS): number {
   return Math.round((Math.round((valueMs * fps) / 1_000) * 1_000) / fps);

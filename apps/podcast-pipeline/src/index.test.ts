@@ -874,7 +874,11 @@ describe('POST /telegram/webhook', () => {
       }),
     );
     mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
-    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localizationRow());
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(
+      localizationRow({
+        classroom_hls_url: 'https://cdn.example.com/classroom/playlist.m3u8',
+      }),
+    );
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
     mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
       lessons: [
@@ -1261,7 +1265,11 @@ describe('POST /telegram/webhook', () => {
       expect.stringContaining('已在處理'),
     ]);
 
-    localization.resolve(localizationRow());
+    localization.resolve(
+      localizationRow({
+        classroom_hls_url: 'https://cdn.example.com/classroom/playlist.m3u8',
+      }),
+    );
     await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(3));
     expect(mockEnqueueEpisodeVideoJob).toHaveBeenCalledWith(
       localizationRow().id,

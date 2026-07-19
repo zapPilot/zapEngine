@@ -151,6 +151,26 @@ describe('strict language classroom audio integrity', () => {
     expect(
       isAudioReady(
         localizationRow({
+          status: 'audio_generated',
+          hls_url: 'https://cdn.example.com/main/playlist.m3u8',
+          classroom_hls_url: 'https://cdn.example.com/classroom/playlist.m3u8',
+        }),
+      ),
+    ).toBe(false);
+
+    expect(
+      isAudioReady(
+        localizationRow({
+          status: 'completed',
+          hls_url: 'https://cdn.example.com/main/playlist.m3u8',
+          classroom_hls_url: '   ',
+        }),
+      ),
+    ).toBe(false);
+
+    expect(
+      isAudioReady(
+        localizationRow({
           language_code: 'ja',
           status: 'completed',
           hls_url: 'https://cdn.example.com/ja/playlist.m3u8',
@@ -158,6 +178,36 @@ describe('strict language classroom audio integrity', () => {
         }),
       ),
     ).toBe(true);
+  });
+
+  it('promotes fully checkpointed audio without regenerating either section', async () => {
+    const checkpointed = localizationRow({
+      status: 'audio_generated',
+      hls_url: 'https://cdn.example.com/main/playlist.m3u8',
+      r2_prefix: 'episodes/main',
+      classroom_hls_url: 'https://cdn.example.com/classroom/playlist.m3u8',
+      classroom_r2_prefix: 'episodes/classroom',
+    });
+    mockUpdateEpisodeLocalizationStatus.mockResolvedValue(
+      localizationRow({ ...checkpointed, status: 'completed' }),
+    );
+
+    const result = await ensureLocalizationCompleted(
+      episodeRow(),
+      checkpointed,
+      'zh-Hant',
+      [],
+    );
+
+    expect(mockTextToSpeech).not.toHaveBeenCalled();
+    expect(mockSynthesizeClassroomAudio).not.toHaveBeenCalled();
+    expect(mockPackageAndUploadHls).not.toHaveBeenCalled();
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
+      checkpointed.id,
+      'completed',
+    );
+    expect(result.localization.status).toBe('completed');
+    expect(isAudioReady(result.localization)).toBe(true);
   });
 
   it('repairs a missing classroom track without regenerating main narration', async () => {
@@ -179,6 +229,11 @@ describe('strict language classroom audio integrity', () => {
     expect(mockTextToSpeech).not.toHaveBeenCalled();
     expect(mockSynthesizeClassroomAudio).toHaveBeenCalledTimes(2);
     expect(mockPackageAndUploadHls).toHaveBeenCalledTimes(1);
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenNthCalledWith(
+      1,
+      localization.id,
+      'audio_generated',
+    );
     expect(mockPackageAndUploadHls).toHaveBeenCalledWith(
       expect.objectContaining({
         section: 'classroom',
@@ -198,6 +253,50 @@ describe('strict language classroom audio integrity', () => {
       }),
     );
   });
+
+  it.each([
+    {
+      existingRows: [] as LanguageClassroomRow[],
+      missingTargets: 'ja, en',
+      scenario: 'all configured targets are missing',
+    },
+    {
+      existingRows: [classroomRows[0]!],
+      missingTargets: 'en',
+      scenario: 'one configured target is missing',
+    },
+  ])(
+    'fails ingest when $scenario',
+    async ({ existingRows, missingTargets }) => {
+      mockListLanguageClassroomsByLocalizationId.mockResolvedValue(
+        existingRows,
+      );
+      mockUpsertLanguageClassrooms.mockResolvedValue([]);
+
+      await expect(
+        ensureLocalizationCompleted(
+          episodeRow(),
+          localizationRow({
+            status: 'script_generated',
+            hls_url: '',
+            classroom_hls_url: null,
+          }),
+          'zh-Hant',
+          [],
+        ),
+      ).rejects.toThrow(
+        `Language classroom generation incomplete for zh-Hant; missing targets: ${missingTargets}`,
+      );
+
+      expect(mockTextToSpeech).not.toHaveBeenCalled();
+      expect(mockPackageAndUploadHls).not.toHaveBeenCalled();
+      expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
+        expect.any(String),
+        'completed',
+        expect.anything(),
+      );
+    },
+  );
 
   it('fails ingest when classroom generation fails', async () => {
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
@@ -231,11 +330,46 @@ describe('strict language classroom audio integrity', () => {
     consoleSpy.mockRestore();
   });
 
-  it('fails ingest when any required classroom TTS produces no audio', async () => {
+  it('demotes legacy main-only completion before repair and leaves it non-completed when classroom TTS fails', async () => {
+    const localization = localizationRow({
+      status: 'completed',
+      hls_url: 'https://cdn.example.com/main/playlist.m3u8',
+      r2_prefix: 'episodes/main',
+      classroom_hls_url: null,
+    });
     mockSynthesizeClassroomAudio.mockResolvedValueOnce({
       audio: null,
       cost: [],
     });
+
+    await expect(
+      ensureLocalizationCompleted(episodeRow(), localization, 'zh-Hant', []),
+    ).rejects.toThrow('Language classroom audio synthesis failed for ja');
+
+    expect(mockPackageAndUploadHls).not.toHaveBeenCalled();
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledTimes(1);
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenNthCalledWith(
+      1,
+      localization.id,
+      'audio_generated',
+    );
+    expect(
+      mockUpdateEpisodeLocalizationStatus.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      mockSynthesizeClassroomAudio.mock.invocationCallOrder[0] ??
+        Number.POSITIVE_INFINITY,
+    );
+    expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
+      expect.any(String),
+      'completed',
+      expect.anything(),
+    );
+  });
+
+  it('rejects when required classroom audio concatenation fails', async () => {
+    mockConcatMp3Buffers.mockRejectedValue(
+      new Error('classroom concat failed'),
+    );
 
     await expect(
       ensureLocalizationCompleted(
@@ -249,13 +383,174 @@ describe('strict language classroom audio integrity', () => {
         'zh-Hant',
         [],
       ),
-    ).rejects.toThrow('Language classroom audio synthesis failed for ja');
+    ).rejects.toThrow(
+      '[step:concatEpisodeClassroomAudio] classroom concat failed',
+    );
 
     expect(mockPackageAndUploadHls).not.toHaveBeenCalled();
     expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
       expect.any(String),
       'completed',
       expect.anything(),
+    );
+  });
+
+  it('rejects when classroom HLS packaging or upload fails', async () => {
+    mockPackageAndUploadHls.mockRejectedValue(
+      new Error('classroom HLS upload failed'),
+    );
+
+    await expect(
+      ensureLocalizationCompleted(
+        episodeRow(),
+        localizationRow({
+          status: 'completed',
+          hls_url: 'https://cdn.example.com/main/playlist.m3u8',
+          r2_prefix: 'episodes/main',
+          classroom_hls_url: null,
+        }),
+        'zh-Hant',
+        [],
+      ),
+    ).rejects.toThrow('classroom HLS upload failed');
+
+    expect(mockPackageAndUploadHls).toHaveBeenCalledTimes(1);
+    expect(mockPackageAndUploadHls).toHaveBeenCalledWith(
+      expect.objectContaining({
+        section: 'classroom',
+        audio: Buffer.from('classroom-combined'),
+      }),
+    );
+    expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
+      expect.any(String),
+      'completed',
+      expect.anything(),
+    );
+  });
+
+  it('generates separate main and classroom HLS artifacts for a fresh canonical localization', async () => {
+    const result = await ensureLocalizationCompleted(
+      episodeRow(),
+      localizationRow({
+        status: 'script_generated',
+        hls_url: '',
+        r2_prefix: null,
+        classroom_hls_url: null,
+        classroom_r2_prefix: null,
+      }),
+      'zh-Hant',
+      [],
+    );
+
+    expect(mockPackageAndUploadHls).toHaveBeenCalledTimes(2);
+    expect(mockPackageAndUploadHls).toHaveBeenCalledWith(
+      expect.objectContaining({
+        section: 'main',
+        audio: Buffer.from('main-audio'),
+      }),
+    );
+    expect(mockPackageAndUploadHls).toHaveBeenCalledWith(
+      expect.objectContaining({
+        section: 'classroom',
+        audio: Buffer.from('classroom-combined'),
+      }),
+    );
+    expect(result.localization).toMatchObject({
+      status: 'completed',
+      hls_url:
+        'https://cdn.example.com/episodes/00000000-0000-4000-8000-000000000001/localizations/zh-Hant/main/playlist.m3u8',
+      classroom_hls_url:
+        'https://cdn.example.com/episodes/00000000-0000-4000-8000-000000000001/localizations/zh-Hant/classroom/playlist.m3u8',
+    });
+    expect(isAudioReady(result.localization)).toBe(true);
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenNthCalledWith(
+      1,
+      result.localization.id,
+      'audio_generated',
+      expect.objectContaining({
+        hlsUrl:
+          'https://cdn.example.com/episodes/00000000-0000-4000-8000-000000000001/localizations/zh-Hant/main/playlist.m3u8',
+      }),
+    );
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenNthCalledWith(
+      2,
+      result.localization.id,
+      'audio_generated',
+      expect.objectContaining({
+        classroomHlsUrl:
+          'https://cdn.example.com/episodes/00000000-0000-4000-8000-000000000001/localizations/zh-Hant/classroom/playlist.m3u8',
+      }),
+    );
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenNthCalledWith(
+      3,
+      result.localization.id,
+      'completed',
+      expect.objectContaining({
+        hlsUrl:
+          'https://cdn.example.com/episodes/00000000-0000-4000-8000-000000000001/localizations/zh-Hant/main/playlist.m3u8',
+        classroomHlsUrl:
+          'https://cdn.example.com/episodes/00000000-0000-4000-8000-000000000001/localizations/zh-Hant/classroom/playlist.m3u8',
+      }),
+    );
+  });
+
+  it('rejects a completed persistence result that omits the required classroom artifact', async () => {
+    let persistedLocalization = localizationRow({
+      status: 'script_generated',
+      hls_url: '',
+      classroom_hls_url: null,
+    });
+    mockUpdateEpisodeLocalizationStatus.mockImplementation(
+      (_id, status, updates = {}) => {
+        persistedLocalization = localizationRow({
+          ...persistedLocalization,
+          status,
+          hls_url: updates.hlsUrl ?? persistedLocalization.hls_url,
+          r2_prefix: updates.r2Prefix ?? persistedLocalization.r2_prefix,
+          classroom_hls_url:
+            updates.classroomHlsUrl ?? persistedLocalization.classroom_hls_url,
+          classroom_r2_prefix:
+            updates.classroomR2Prefix ??
+            persistedLocalization.classroom_r2_prefix,
+        });
+
+        if (status === 'completed') {
+          return Promise.resolve(
+            localizationRow({
+              ...persistedLocalization,
+              classroom_hls_url: null,
+              classroom_r2_prefix: null,
+            }),
+          );
+        }
+
+        return Promise.resolve(persistedLocalization);
+      },
+    );
+
+    await expect(
+      ensureLocalizationCompleted(
+        episodeRow(),
+        localizationRow({
+          status: 'script_generated',
+          hls_url: '',
+          classroom_hls_url: null,
+        }),
+        'zh-Hant',
+        [],
+      ),
+    ).rejects.toThrow('Language classroom HLS was not produced for zh-Hant');
+
+    expect(mockPackageAndUploadHls).toHaveBeenCalledTimes(2);
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledTimes(3);
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenNthCalledWith(
+      3,
+      expect.any(String),
+      'completed',
+      expect.objectContaining({
+        classroomHlsUrl:
+          'https://cdn.example.com/episodes/00000000-0000-4000-8000-000000000001/localizations/zh-Hant/classroom/playlist.m3u8',
+      }),
     );
   });
 });

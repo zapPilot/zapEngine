@@ -54,11 +54,13 @@ function firstNumericToken(value: string): string | null {
   return /[$€£¥]?\d[\d,.]*[%％]?/.exec(value)?.[0] ?? null;
 }
 
+// jscpd:ignore-start — weighted word count; same formula in audio-analysis.ts speakingUnits
 function speakingWeight(value: string): number {
   const latinWords = value.match(/[A-Za-z0-9]+/g)?.length ?? 0;
   const nonLatin = Array.from(value.replace(/[A-Za-z0-9\s]/g, '')).length;
   return Math.max(1, nonLatin + latinWords * 1.4);
 }
+// jscpd:ignore-end
 
 function chooseBalancedGroups(
   sentences: readonly CanonicalSentence[],

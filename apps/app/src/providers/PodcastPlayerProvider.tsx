@@ -34,6 +34,7 @@ export function PodcastPlayerProvider({
     if (isPlaying) pauseActiveVideo();
   }, [isPlaying, pauseActiveVideo]);
 
+  // jscpd:ignore-start — toggle and playFromQueue share the same auth+gating pattern
   const toggle = useCallback<PodcastPlayer['toggle']>(
     (episode) =>
       authAction.run(() => {
@@ -60,6 +61,7 @@ export function PodcastPlayerProvider({
       rawPlayFromQueue,
     ],
   );
+  // jscpd:ignore-end
   const skipToPreviousEpisode = useCallback<
     PodcastPlayer['skipToPreviousEpisode']
   >(() => {

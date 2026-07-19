@@ -8,6 +8,9 @@ const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
 const migration = readRepoFile(
   'apps/podcast-pipeline/supabase/migrations/017_add_episode_videos.sql',
 );
+const audioIntegrityMigration = readRepoFile(
+  'apps/podcast-pipeline/supabase/migrations/018_enforce_canonical_audio_integrity.sql',
+);
 const rpcNames = [
   'enqueue_episode_video',
   'claim_episode_video',
@@ -60,17 +63,45 @@ describe('episode video lifecycle schema', () => {
     );
   });
 
-  it('keeps enqueue idempotent and restricted to completed zh-Hant audio', () => {
-    expect(migration).toMatch(
-      /on conflict \(episode_localization_id\) do nothing/i,
+  it.each([
+    ['schema.sql', schema],
+    ['migration 018', audioIntegrityMigration],
+  ])(
+    'keeps enqueue idempotent and restricted to complete zh-Hant main and classroom audio in %s',
+    (_name, sql) => {
+      const enqueueDefinition = functionDefinition(
+        sql,
+        'enqueue_episode_video',
+      );
+
+      expect(enqueueDefinition).toMatch(
+        /on conflict \(episode_localization_id\) do nothing/i,
+      );
+      expect(enqueueDefinition).toMatch(
+        /localization\.language_code = 'zh-Hant'/i,
+      );
+      expect(enqueueDefinition).toMatch(/localization\.status = 'completed'/i);
+      expect(enqueueDefinition).toMatch(
+        /nullif\(btrim\(localization\.hls_url\), ''\) is not null/i,
+      );
+      expect(enqueueDefinition).toMatch(
+        /nullif\(btrim\(localization\.classroom_hls_url\), ''\) is not null/i,
+      );
+      expect(enqueueDefinition).toMatch(
+        /current_status = 'failed'[\s\S]+?attempt_count = 0/i,
+      );
+      expect(enqueueDefinition).toMatch(
+        /current_status in \('queued', 'processing'\)[\s\S]+?telegram_chat_id/i,
+      );
+    },
+  );
+
+  it('patches the enqueue contract after migration 017', () => {
+    expect(migration).not.toMatch(
+      /nullif\(btrim\(localization\.classroom_hls_url\), ''\) is not null/i,
     );
-    expect(migration).toMatch(/localization\.language_code = 'zh-Hant'/i);
-    expect(migration).toMatch(/localization\.status = 'completed'/i);
-    expect(migration).toMatch(
-      /current_status = 'failed'[\s\S]+?attempt_count = 0/i,
-    );
-    expect(migration).toMatch(
-      /current_status in \('queued', 'processing'\)[\s\S]+?telegram_chat_id/i,
+    expect(audioIntegrityMigration).toMatch(
+      /create or replace function from_fed_to_chain\.enqueue_episode_video/i,
     );
   });
 
@@ -121,8 +152,23 @@ describe('episode video lifecycle schema', () => {
 
   it('reloads the PostgREST schema after adding RPCs and privileges', () => {
     expect(migration).toMatch(/notify pgrst, 'reload schema';/i);
+    expect(audioIntegrityMigration).toMatch(/notify pgrst, 'reload schema';/i);
   });
 });
+
+function functionDefinition(sql: string, name: string): string {
+  const pattern = new RegExp(
+    `create\\s+or\\s+replace\\s+function\\s+from_fed_to_chain\\.${name}[\\s\\S]+?\\$\\$\\s*;`,
+    'gi',
+  );
+  const definition = [...sql.matchAll(pattern)].at(-1)?.[0];
+
+  if (!definition) {
+    throw new Error(`Could not find ${name} function definition`);
+  }
+
+  return definition;
+}
 
 function readRepoFile(relativePath: string): string {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');

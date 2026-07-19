@@ -38,6 +38,14 @@ create table if not exists from_fed_to_chain.episode_localizations (
     check (status in ('pending', 'scraped', 'script_generated', 'audio_generated', 'completed')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  constraint episode_localizations_canonical_completed_audio_check check (
+    language_code <> 'zh-Hant'
+    or status <> 'completed'
+    or (
+      nullif(btrim(hls_url), '') is not null
+      and nullif(btrim(classroom_hls_url), '') is not null
+    )
+  ),
   unique (episode_id, language_code)
 );
 
@@ -259,9 +267,10 @@ begin
     where localization.id = p_episode_localization_id
       and localization.language_code = 'zh-Hant'
       and localization.status = 'completed'
-      and localization.hls_url <> ''
+      and nullif(btrim(localization.hls_url), '') is not null
+      and nullif(btrim(localization.classroom_hls_url), '') is not null
   ) then
-    raise exception 'Episode video jobs require a completed zh-Hant localization'
+    raise exception 'Episode video jobs require completed zh-Hant main and classroom audio'
       using errcode = '22023';
   end if;
 
@@ -598,7 +607,11 @@ left join (
   group by episode_id
 ) l on l.episode_id = e.id
 where el.status = 'completed'
-  and el.hls_url <> '';
+  and nullif(btrim(el.hls_url), '') is not null
+  and (
+    el.language_code <> 'zh-Hant'
+    or nullif(btrim(el.classroom_hls_url), '') is not null
+  );
 
 drop policy if exists "Service role can manage episodes"
   on from_fed_to_chain.episodes;
@@ -616,7 +629,11 @@ create policy "anon read completed podcast episodes"
       from from_fed_to_chain.episode_localizations el
       where el.episode_id = episodes.id
         and el.status = 'completed'
-        and el.hls_url <> ''
+        and nullif(btrim(el.hls_url), '') is not null
+        and (
+          el.language_code <> 'zh-Hant'
+          or nullif(btrim(el.classroom_hls_url), '') is not null
+        )
     )
   );
 
@@ -636,7 +653,14 @@ drop policy if exists "anon read completed episode localizations"
   on from_fed_to_chain.episode_localizations;
 create policy "anon read completed episode localizations"
   on from_fed_to_chain.episode_localizations for select to anon, authenticated
-  using (status = 'completed' and hls_url <> '');
+  using (
+    status = 'completed'
+    and nullif(btrim(hls_url), '') is not null
+    and (
+      language_code <> 'zh-Hant'
+      or nullif(btrim(classroom_hls_url), '') is not null
+    )
+  );
 
 drop policy if exists "anon read podcast users"
   on from_fed_to_chain.users;
@@ -709,7 +733,11 @@ create policy "anon read completed language classrooms"
       from from_fed_to_chain.episode_localizations el
       where el.id = language_classrooms.episode_localization_id
         and el.status = 'completed'
-        and el.hls_url <> ''
+        and nullif(btrim(el.hls_url), '') is not null
+        and (
+          el.language_code <> 'zh-Hant'
+          or nullif(btrim(el.classroom_hls_url), '') is not null
+        )
     )
   );
 

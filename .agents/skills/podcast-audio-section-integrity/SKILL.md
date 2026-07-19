@@ -27,6 +27,13 @@ For source languages with configured classroom targets (`zh-Hant` currently targ
 - Main and classroom are uploaded as separate HLS sections.
 - The app sequences the two sections; the pipeline never appends classroom audio to main audio.
 - A completed row missing `classroom_hls_url` must resume classroom generation while reusing the existing main HLS.
+- Before repairing a stale completed row, persist a non-completed status so a
+  failed repair cannot remain publicly playable as completed.
+- Checkpoint each uploaded section under `audio_generated`; only transition to
+  `completed` after both required artifacts have been persisted and re-read.
+- Database constraints, feed views, RLS, and video eligibility must enforce the
+  same canonical dual-audio contract. Never drop classroom fields and retry a
+  completed write as a compatibility fallback.
 
 Secondary localizations without configured classroom targets may complete with main HLS only.
 
@@ -38,6 +45,11 @@ Secondary localizations without configured classroom targets may complete with m
   - `isAudioReady` validates required artifacts.
   - `ensureLocalizationCompleted` independently repairs main and classroom sections.
   - classroom lesson generation, TTS, concatenation, HLS packaging, and persistence are fail-closed when classroom audio is required.
+- `apps/podcast-pipeline/src/services/db.ts`
+  - completed media writes fail when classroom columns are unavailable.
+- `apps/podcast-pipeline/supabase/schema.sql`
+  - the canonical completion constraint and public read/video predicates require
+    both nonblank HLS URLs.
 - `apps/podcast-pipeline/src/services/podcast/classroom-audio.ts`
   - synthesizes one classroom lesson; it may return `audio: null`, which the ingest stage must reject for required targets.
 - `apps/podcast-pipeline/src/services/ingest/classroom-config.ts`
@@ -57,6 +69,11 @@ When touching this flow, preserve all of these:
 6. Classroom concat/HLS upload failure rejects ingest.
 7. The main HLS input never contains classroom audio.
 8. Secondary languages with no classroom targets remain main-only.
+9. A failed repair leaves the row non-completed.
+10. Main and classroom upload checkpoints survive later-stage failure, and an
+    artifact-complete `audio_generated` row promotes without regeneration.
+11. A persistence result or public read path cannot expose completed canonical
+    audio when either HLS URL is blank.
 
 ## Test environment rule
 
@@ -84,11 +101,11 @@ pnpm verify changed
 
 ## Rationalizations — STOP
 
-| Excuse | Reality |
-| --- | --- |
-| "The row says completed, so playback is ready." | Status can be stale; required HLS URLs define readiness. |
-| "Publishing main-only is better than failing." | It silently removes a promised product section and makes the regression hard to notice. Fail visibly. |
-| "We can append classroom to main so users still hear it." | That breaks independent playback and can play classroom twice. Keep two artifacts. |
-| "Regenerating main during repair is harmless." | It wastes TTS cost and can change an already published narration. Reuse main HLS. |
-| "One classroom target failed, but the rest are enough." | Configured targets are the contract. Required target output must be complete. |
-| "The unit tests mock empty lessons, so production should tolerate them." | Test fixtures are not the product contract; strict regression tests must cover production behavior. |
+| Excuse                                                                   | Reality                                                                                               |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| "The row says completed, so playback is ready."                          | Status can be stale; required HLS URLs define readiness.                                              |
+| "Publishing main-only is better than failing."                           | It silently removes a promised product section and makes the regression hard to notice. Fail visibly. |
+| "We can append classroom to main so users still hear it."                | That breaks independent playback and can play classroom twice. Keep two artifacts.                    |
+| "Regenerating main during repair is harmless."                           | It wastes TTS cost and can change an already published narration. Reuse main HLS.                     |
+| "One classroom target failed, but the rest are enough."                  | Configured targets are the contract. Required target output must be complete.                         |
+| "The unit tests mock empty lessons, so production should tolerate them." | Test fixtures are not the product contract; strict regression tests must cover production behavior.   |

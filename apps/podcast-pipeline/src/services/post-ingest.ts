@@ -59,10 +59,11 @@ export async function performMultilingualIngestAndEnqueueVideo(
         );
       if (
         canonicalLocalization?.status !== 'completed' ||
-        !canonicalLocalization.hls_url.trim()
+        !canonicalLocalization.hls_url.trim() ||
+        !canonicalLocalization.classroom_hls_url?.trim()
       ) {
         throw new Error(
-          'Completed canonical localization is required to enqueue video',
+          'Completed canonical localization is required to enqueue video and must include main and classroom audio',
         );
       }
 

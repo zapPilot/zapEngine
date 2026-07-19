@@ -1057,44 +1057,38 @@ describe('updates', () => {
     );
   });
 
-  it('retries completed status updates without classroom media columns when PostgREST has stale schema', async () => {
-    const row = localizationRow({ status: 'completed' });
-    state
-      .query!.maybeSingle.mockResolvedValueOnce({
-        data: null,
-        error: {
-          code: 'PGRST204',
-          message:
-            "Could not find the 'classroom_hls_url' column of 'episode_localizations' in the schema cache",
-          details: null,
-          hint: "If a new column was added, reload PostgREST's schema cache.",
-        },
-      })
-      .mockResolvedValueOnce({ data: row, error: null });
+  it('fails closed without retrying when PostgREST has a stale classroom media schema', async () => {
+    const staleSchemaError = {
+      code: 'PGRST204',
+      message:
+        "Could not find the 'classroom_hls_url' column of 'episode_localizations' in the schema cache",
+      details: null,
+      hint: "If a new column was added, reload PostgREST's schema cache.",
+    };
+    state.query!.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: staleSchemaError,
+    });
 
     await expect(
-      updateEpisodeLocalizationStatus(row.id, 'completed', {
+      updateEpisodeLocalizationStatus('localization-1', 'completed', {
         hlsUrl: 'https://cdn.example.com/playlist.m3u8',
         r2Prefix: 'episodes/e/localizations/zh-Hant/main',
         classroomHlsUrl:
           'https://cdn.example.com/episodes/e/localizations/zh-Hant/classroom/playlist.m3u8',
         classroomR2Prefix: 'episodes/e/localizations/zh-Hant/classroom',
       }),
-    ).resolves.toEqual(row);
+    ).rejects.toMatchObject({
+      cause: staleSchemaError,
+      message: expect.stringContaining('PGRST204'),
+    });
 
-    expect(state.query!.update).toHaveBeenNthCalledWith(
-      1,
+    expect(state.query!.update).toHaveBeenCalledTimes(1);
+    expect(state.query!.update).toHaveBeenCalledWith(
       expect.objectContaining({
         classroom_hls_url:
           'https://cdn.example.com/episodes/e/localizations/zh-Hant/classroom/playlist.m3u8',
         classroom_r2_prefix: 'episodes/e/localizations/zh-Hant/classroom',
-      }),
-    );
-    expect(state.query!.update).toHaveBeenNthCalledWith(
-      2,
-      expect.not.objectContaining({
-        classroom_hls_url: expect.any(String),
-        classroom_r2_prefix: expect.any(String),
       }),
     );
   });

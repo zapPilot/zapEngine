@@ -138,6 +138,47 @@ describe('Supabase user_episode_state grants', () => {
     expectEpisodesWithStatsColumns(migrations, mobileColumns, 'migrations');
   });
 
+  it.each([
+    ['schema.sql', readRepoFile('apps/podcast-pipeline/supabase/schema.sql')],
+    [
+      'migration 018',
+      readRepoFile(
+        'apps/podcast-pipeline/supabase/migrations/018_enforce_canonical_audio_integrity.sql',
+      ),
+    ],
+  ])(
+    'requires both canonical audio artifacts and hides incomplete canonical rows in %s',
+    (sourceName, sql) => {
+      expectCanonicalCompletionConstraint(sql, sourceName);
+      expectCanonicalAudioReadBoundaries(sql, sourceName);
+    },
+  );
+
+  it('demotes invalid legacy canonical rows before validating the completion constraint', () => {
+    const migration = readRepoFile(
+      'apps/podcast-pipeline/supabase/migrations/018_enforce_canonical_audio_integrity.sql',
+    );
+    const normalizedMigration = normalizeSql(migration);
+
+    expect(normalizedMigration).toContain(
+      "update from_fed_to_chain.episode_localizations set status = case when nullif(btrim(hls_url), '') is null then 'script_generated' else 'audio_generated' end, updated_at = now()",
+    );
+    expect(normalizedMigration).toContain(
+      "where language_code = 'zh-hant' and status = 'completed' and ( nullif(btrim(hls_url), '') is null or nullif(btrim(classroom_hls_url), '') is null )",
+    );
+    expect(normalizedMigration).toContain(
+      'add constraint episode_localizations_canonical_completed_audio_check',
+    );
+    expect(normalizedMigration).not.toContain('not valid');
+    expect(normalizedMigration).toContain(
+      'grant select on from_fed_to_chain.episodes_with_stats to anon, authenticated;',
+    );
+    expect(normalizedMigration).toContain(
+      'grant select on from_fed_to_chain.episodes_with_stats to service_role;',
+    );
+    expect(normalizedMigration).toContain("notify pgrst, 'reload schema';");
+  });
+
   it('latest migration restores language classroom data in the mobile episode view', () => {
     const migrationsDir = path.join(
       repoRoot,
@@ -249,6 +290,67 @@ function expectEpisodesWithStatsColumns(
   }
 }
 
+function expectCanonicalCompletionConstraint(
+  sql: string,
+  sourceName: string,
+): void {
+  const normalizedSql = normalizeSql(sql);
+
+  expect(
+    normalizedSql,
+    `${sourceName} must reject newly written completed zh-Hant rows without both audio artifacts`,
+  ).toContain(
+    "episode_localizations_canonical_completed_audio_check check ( language_code <> 'zh-hant' or status <> 'completed' or ( nullif(btrim(hls_url), '') is not null and nullif(btrim(classroom_hls_url), '') is not null ) )",
+  );
+}
+
+function expectCanonicalAudioReadBoundaries(
+  sql: string,
+  sourceName: string,
+): void {
+  const boundaries = [
+    ['episodes_with_stats view', extractEpisodesWithStatsView(sql)],
+    [
+      'episode visibility policy',
+      latestPolicyDefinition(sql, 'anon read completed podcast episodes'),
+    ],
+    [
+      'localization visibility policy',
+      latestPolicyDefinition(sql, 'anon read completed episode localizations'),
+    ],
+    [
+      'classroom visibility policy',
+      latestPolicyDefinition(sql, 'anon read completed language classrooms'),
+    ],
+  ] as const;
+
+  for (const [boundaryName, definition] of boundaries) {
+    expect(
+      definition,
+      `${sourceName} must define the ${boundaryName}`,
+    ).not.toBeNull();
+
+    if (!definition) {
+      throw new Error(`${sourceName} must define the ${boundaryName}`);
+    }
+
+    const normalizedDefinition = normalizeSql(definition).replaceAll('el.', '');
+
+    expect(
+      normalizedDefinition,
+      `${sourceName} ${boundaryName} must require nonblank main audio and require classroom audio only for zh-Hant`,
+    ).toContain(
+      "status = 'completed' and nullif(btrim(hls_url), '') is not null",
+    );
+    expect(
+      normalizedDefinition,
+      `${sourceName} ${boundaryName} must preserve main-only secondary localizations`,
+    ).toContain(
+      "and ( language_code <> 'zh-hant' or nullif(btrim(classroom_hls_url), '') is not null )",
+    );
+  }
+}
+
 function extractEpisodesWithStatsView(sql: string): string {
   const matches = [
     ...sql.matchAll(
@@ -262,6 +364,19 @@ function extractEpisodesWithStatsView(sql: string): string {
   }
 
   return last[0];
+}
+
+function latestPolicyDefinition(
+  sql: string,
+  policyName: string,
+): string | null {
+  const pattern = new RegExp(
+    `create\\s+policy\\s+"${escapeRegExp(policyName)}"[\\s\\S]+?;`,
+    'gi',
+  );
+  const matches = [...sql.matchAll(pattern)];
+
+  return matches.at(-1)?.[0] ?? null;
 }
 
 function effectiveDataApiTableGrants(
@@ -435,6 +550,10 @@ function splitColumns(value: string): string[] {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeSql(sql: string): string {
+  return sql.replaceAll(/\s+/g, ' ').trim().toLowerCase();
 }
 
 function readSortedMigrations(): string[] {
