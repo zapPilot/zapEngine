@@ -150,6 +150,7 @@ export async function runStoryboardSmokeCli(
   );
 }
 
+// jscpd:ignore-start — CLI direct-invocation check, same pattern in cli.ts, r2-playback-canary.ts, raster-stage-entry.ts
 const invokedPath = process.argv[1]
   ? pathToFileURL(resolve(process.argv[1])).href
   : null;
@@ -161,3 +162,4 @@ if (invokedPath === import.meta.url) {
     process.exitCode = 1;
   }
 }
+// jscpd:ignore-end

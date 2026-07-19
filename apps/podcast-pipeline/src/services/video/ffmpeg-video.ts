@@ -53,6 +53,7 @@ export async function runProcess(
     const child = spawn(executable, args, {
       stdio: inheritStdio ? 'inherit' : ['ignore', 'pipe', 'pipe'],
     });
+    // jscpd:ignore-start — shared child-process lifecycle pattern; same design in rasterizer.ts
     let settled = false;
     let forceKillTimer: NodeJS.Timeout | undefined;
     let stdout = '';
@@ -80,6 +81,7 @@ export async function runProcess(
     };
     abortSignal?.addEventListener('abort', onAbort, { once: true });
     if (abortSignal?.aborted) onAbort();
+    // jscpd:ignore-end
 
     child.stdout?.setEncoding('utf8');
     child.stderr?.setEncoding('utf8');

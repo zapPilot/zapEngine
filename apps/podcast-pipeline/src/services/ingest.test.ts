@@ -244,14 +244,33 @@ describe('performIngest failure paths', () => {
     );
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
     mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
-      lessons: [],
+      lessons: [
+        {
+          sourceLanguageCode: 'zh-Hant',
+          targetLanguageCode: 'ja',
+          oneLiner: 'Japanese lesson',
+          keywords: [],
+        },
+        {
+          sourceLanguageCode: 'zh-Hant',
+          targetLanguageCode: 'en',
+          oneLiner: 'English lesson',
+          keywords: [],
+        },
+      ],
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
       costUsd: 0.00009,
     });
-    mockUpsertLanguageClassrooms.mockResolvedValue([]);
-    mockSynthesizeClassroomAudio.mockResolvedValue({ audio: null, cost: [] });
+    mockUpsertLanguageClassrooms.mockResolvedValue([
+      classroomRow({ id: 'classroom-ja', target_language_code: 'ja' }),
+      classroomRow({ id: 'classroom-en', target_language_code: 'en' }),
+    ]);
+    mockSynthesizeClassroomAudio.mockResolvedValue({
+      audio: Buffer.from('classroom-audio'),
+      cost: [],
+    });
     mockConcatMp3Buffers.mockResolvedValue(Buffer.from('combined-audio'));
   });
 
@@ -339,7 +358,7 @@ describe('performIngest failure paths', () => {
     );
   });
 
-  it('returns the episode when language classroom generation fails', async () => {
+  it('fails cached ingest when required classroom generation fails', async () => {
     const consoleSpy = vi
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
@@ -349,14 +368,16 @@ describe('performIngest failure paths', () => {
       new Error('LLM timeout'),
     );
 
-    const result = await performIngest(
-      'https://example.com/article',
-      'zh-Hant',
-    );
+    await expect(
+      performIngest('https://example.com/article', 'zh-Hant'),
+    ).rejects.toThrow('[step:generateLanguageClassrooms] LLM timeout');
 
-    expect(result.statusCode).toBe(200);
-    expect(result.costUsd).toBe(0);
-    expect(result.episode.languageClassrooms).toEqual([]);
+    expect(mockTextToSpeech).not.toHaveBeenCalled();
+    expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
+      localizationRow().id,
+      'completed',
+      expect.anything(),
+    );
     expect(consoleSpy).toHaveBeenCalledWith(
       '[/ingest] language classroom generation failed:',
       expect.objectContaining({
@@ -542,7 +563,7 @@ describe('performIngest failure paths', () => {
     );
   });
 
-  it('publishes main audio only when classroom LLM generation fails before HLS generation', async () => {
+  it('fails before audio generation when classroom LLM generation fails', async () => {
     const consoleSpy = vi
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
@@ -550,24 +571,19 @@ describe('performIngest failure paths', () => {
       new Error('LLM timeout'),
     );
 
-    await performIngest('https://example.com/article', 'zh-Hant');
+    await expect(
+      performIngest('https://example.com/article', 'zh-Hant'),
+    ).rejects.toThrow('[step:generateLanguageClassrooms] LLM timeout');
 
     expect(mockSynthesizeClassroomAudio).not.toHaveBeenCalled();
     expect(mockConcatMp3Buffers).not.toHaveBeenCalled();
-    expect(mockGenerateHls).toHaveBeenCalledWith(Buffer.from('audio'));
-    expect(mockUploadHlsToR2).toHaveBeenCalledWith(
-      expect.any(Array),
-      episodeRow().id,
-      'zh-Hant',
-      'main',
-    );
-    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
+    expect(mockTextToSpeech).not.toHaveBeenCalled();
+    expect(mockGenerateHls).not.toHaveBeenCalled();
+    expect(mockUploadHlsToR2).not.toHaveBeenCalled();
+    expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
       localizationRow().id,
       'completed',
-      expect.not.objectContaining({
-        classroomHlsUrl: expect.any(String),
-        classroomR2Prefix: expect.any(String),
-      }),
+      expect.anything(),
     );
     expect(consoleSpy).toHaveBeenCalledWith(
       '[/ingest] language classroom generation failed:',
@@ -579,7 +595,7 @@ describe('performIngest failure paths', () => {
     );
   });
 
-  it('skips only the classroom audio item that fails synthesis', async () => {
+  it('fails ingest when any required classroom audio item fails synthesis', async () => {
     mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
       lessons: [
         {
@@ -628,15 +644,24 @@ describe('performIngest failure paths', () => {
       .mockResolvedValueOnce({ audio: null, cost: [] });
     mockConcatMp3Buffers.mockResolvedValueOnce(Buffer.from('classroom-audio'));
 
-    await performIngest('https://example.com/article', 'zh-Hant');
+    await expect(
+      performIngest('https://example.com/article', 'zh-Hant'),
+    ).rejects.toThrow('Language classroom audio synthesis failed for en');
 
-    expect(mockConcatMp3Buffers).toHaveBeenNthCalledWith(1, [
-      Buffer.from('ja-classroom'),
-    ]);
-    expect(mockGenerateHls).toHaveBeenNthCalledWith(1, Buffer.from('audio'));
-    expect(mockGenerateHls).toHaveBeenNthCalledWith(
-      2,
-      Buffer.from('classroom-audio'),
+    expect(mockConcatMp3Buffers).not.toHaveBeenCalled();
+    expect(mockGenerateHls).toHaveBeenCalledTimes(1);
+    expect(mockGenerateHls).toHaveBeenCalledWith(Buffer.from('audio'));
+    expect(mockUploadHlsToR2).toHaveBeenCalledTimes(1);
+    expect(mockUploadHlsToR2).toHaveBeenCalledWith(
+      expect.any(Array),
+      episodeRow().id,
+      'zh-Hant',
+      'main',
+    );
+    expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
+      localizationRow().id,
+      'completed',
+      expect.anything(),
     );
   });
 
@@ -1368,8 +1393,16 @@ describe('performIngest failure paths', () => {
       targetLanguageCode: 'en',
     });
     expect(
-      mockUploadHlsToR2.mock.calls.map(([, , languageCode]) => languageCode),
-    ).toEqual(['zh-Hant', 'ja', 'en']);
+      mockUploadHlsToR2.mock.calls.map(([, , languageCode, section]) => [
+        languageCode,
+        section,
+      ]),
+    ).toEqual([
+      ['zh-Hant', 'main'],
+      ['zh-Hant', 'classroom'],
+      ['ja', 'main'],
+      ['en', 'main'],
+    ]);
   });
 
   it('regenerates an obviously corrupted secondary script before TTS', async () => {
@@ -1636,11 +1669,8 @@ describe('performIngest failure paths', () => {
     ['Error rejection', new Error('ffmpeg failed')],
     ['non-Error rejection', 'ffmpeg failed'],
   ])(
-    'completes without classroom HLS when classroom concat fails with %s',
+    'fails ingest when required classroom concat fails with %s',
     async (_label, rejection) => {
-      const consoleSpy = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => undefined);
       mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
         lessons: [
           {
@@ -1678,35 +1708,27 @@ describe('performIngest failure paths', () => {
         .mockResolvedValueOnce({ audio: Buffer.from('en'), cost: [] });
       mockConcatMp3Buffers.mockRejectedValue(rejection);
 
-      const result = await performIngest(
-        'https://example.com/article',
-        'zh-Hant',
-      );
+      await expect(
+        performIngest('https://example.com/article', 'zh-Hant'),
+      ).rejects.toThrow('[step:concatEpisodeClassroomAudio] ffmpeg failed');
 
-      expect(result.statusCode).toBe(201);
       expect(mockGenerateHls).toHaveBeenCalledTimes(1);
       expect(mockUploadHlsToR2).toHaveBeenCalledTimes(1);
-      expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
+      expect(mockUploadHlsToR2).toHaveBeenCalledWith(
+        expect.any(Array),
+        episodeRow().id,
+        'zh-Hant',
+        'main',
+      );
+      expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
         localizationRow().id,
         'completed',
-        expect.not.objectContaining({
-          classroomHlsUrl: expect.any(String),
-          classroomR2Prefix: expect.any(String),
-        }),
-      );
-      expect(consoleSpy).toHaveBeenCalledWith(
-        '[/ingest] classroom audio concat failed:',
-        expect.objectContaining({
-          episodeId: episodeRow().id,
-          localizationId: localizationRow().id,
-          languageCode: 'zh-Hant',
-          message: '[step:concatEpisodeClassroomAudio] ffmpeg failed',
-        }),
+        expect.anything(),
       );
     },
   );
 
-  it('returns retained existing classrooms when upsert fails', async () => {
+  it('fails ingest when required classroom persistence fails', async () => {
     const consoleSpy = vi
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
@@ -1733,15 +1755,18 @@ describe('performIngest failure paths', () => {
     });
     mockUpsertLanguageClassrooms.mockRejectedValue('database offline');
 
-    const result = await performIngest(
-      'https://example.com/article',
-      'zh-Hant',
-    );
+    await expect(
+      performIngest('https://example.com/article', 'zh-Hant'),
+    ).rejects.toThrow('[step:upsertLanguageClassrooms] database offline');
 
-    expect(result.statusCode).toBe(201);
-    expect(result.episode.languageClassrooms).toEqual([
-      expect.objectContaining({ targetLanguageCode: 'ja' }),
-    ]);
+    expect(mockTextToSpeech).not.toHaveBeenCalled();
+    expect(mockGenerateHls).not.toHaveBeenCalled();
+    expect(mockUploadHlsToR2).not.toHaveBeenCalled();
+    expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
+      localizationRow().id,
+      'completed',
+      expect.anything(),
+    );
     expect(consoleSpy).toHaveBeenCalledWith(
       '[/ingest] language classroom generation failed:',
       expect.objectContaining({
@@ -1899,13 +1924,31 @@ function episodeRow(overrides: Partial<EpisodeRow> = {}): EpisodeRow {
 function localizationRow(
   overrides: Partial<EpisodeLocalizationRow> = {},
 ): EpisodeLocalizationRow {
+  const status = overrides.status ?? 'completed';
+  const hlsUrl = overrides.hls_url ?? 'https://cdn.example.com/playlist.m3u8';
+  const audioStatus = status === 'audio_generated' || status === 'completed';
+  let classroomHlsUrl =
+    audioStatus && hlsUrl.trim().length > 0
+      ? 'https://cdn.example.com/classroom/playlist.m3u8'
+      : null;
+  if ('classroom_hls_url' in overrides) {
+    classroomHlsUrl = overrides.classroom_hls_url ?? null;
+  }
+
+  let classroomR2Prefix = classroomHlsUrl
+    ? 'episodes/e/localizations/zh-Hant/classroom'
+    : null;
+  if ('classroom_r2_prefix' in overrides) {
+    classroomR2Prefix = overrides.classroom_r2_prefix ?? null;
+  }
+
   return {
     id: '00000000-0000-4000-8000-000000000101',
     episode_id: episodeRow().id,
     language_code: 'zh-Hant',
     title: 'Localization title',
-    hls_url: 'https://cdn.example.com/playlist.m3u8',
-    classroom_hls_url: null,
+    hls_url: hlsUrl,
+    classroom_hls_url: classroomHlsUrl,
     raw_text: 'Article text',
     script: 'Script',
     llm_model: 'model',
@@ -1914,8 +1957,8 @@ function localizationRow(
     tts_language_code: null,
     tts_voice_name: null,
     r2_prefix: null,
-    classroom_r2_prefix: null,
-    status: 'completed',
+    classroom_r2_prefix: classroomR2Prefix,
+    status,
     created_at: '2024-01-01T00:00:00.000Z',
     updated_at: '2024-01-01T00:00:00.000Z',
     ...overrides,

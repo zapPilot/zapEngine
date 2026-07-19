@@ -11,6 +11,7 @@ const imageSearchIntentSchema = z
   .max(3)
   .default([]);
 
+// jscpd:ignore-start — parallel Zod schemas to manifest.ts for different pipeline stages
 const coverDraftSchema = z
   .object({
     ...sentenceRangeShape,
@@ -75,6 +76,7 @@ const sourceQuoteDraftSchema = z
     citation: z.string().min(1).max(96),
   })
   .strict();
+// jscpd:ignore-end
 
 export const storyboardDraftSlideSchema = z.discriminatedUnion('template', [
   coverDraftSchema,

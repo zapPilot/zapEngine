@@ -19,5 +19,12 @@ The canonical contract is:
 - `episode_localizations.classroom_hls_url` / `classroom_r2_prefix` stores language classroom audio only.
 - The mobile app is responsible for playing these as sequential playback sections within the same logical episode.
 - Main and classroom playback speeds are intentionally independent. Classroom defaults to 1.0x.
+- For a localization with configured classroom targets (currently canonical `zh-Hant`), `completed` means both the main HLS and classroom HLS exist. A status value alone is not evidence that audio is complete.
+- Missing classroom lessons, failed classroom TTS, failed classroom concatenation, or a missing classroom HLS must fail ingest. Never publish a successful main-only canonical episode as a fallback.
+- A previously completed row with `hls_url` but no `classroom_hls_url` is incomplete and must resume by generating the classroom track without regenerating the main narration.
+- Demote an invalid completed row before repair, and persist each uploaded audio section under `audio_generated` before advancing. Promote to `completed` only after the persisted row contains both canonical HLS URLs.
+- Database compatibility fallbacks must never remove classroom media fields from a completed write. Feed/RLS/video eligibility must enforce the same dual-audio condition.
 
 Never reintroduce `concatMainWithClassroomAudio` or equivalent logic that appends classroom audio into the main HLS.
+
+All tests must exercise the same fail-closed classroom audio invariant as production. Do not add test-only switches that make canonical classroom audio optional.

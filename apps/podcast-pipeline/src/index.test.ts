@@ -20,6 +20,7 @@ import type {
 } from './types.js';
 
 const {
+  mockConcatMp3Buffers,
   mockDecodeCursor,
   mockEnqueueEpisodeVideoJob,
   mockFindEpisodeBySourceUrl,
@@ -49,6 +50,7 @@ const {
   mockSearchEpisodes,
   mockTelegramFetch,
 } = vi.hoisted(() => ({
+  mockConcatMp3Buffers: vi.fn(),
   mockDecodeCursor: vi.fn(),
   mockEnqueueEpisodeVideoJob: vi.fn(),
   mockFindEpisodeBySourceUrl: vi.fn(),
@@ -179,6 +181,10 @@ vi.mock('./services/podcast/classroom-audio.js', () => ({
   synthesizeClassroomAudio: mockSynthesizeClassroomAudio,
 }));
 
+vi.mock('./services/tts/audio-concat.js', () => ({
+  concatMp3Buffers: mockConcatMp3Buffers,
+}));
+
 vi.mock('./services/tts.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./services/tts.js')>()),
   textToSpeech: mockTextToSpeech,
@@ -213,6 +219,11 @@ beforeEach(() => {
   delete process.env['FISH_AUDIO_MODEL_ID'];
   mockListCompletedEpisodeVideosByLocalizationIds.mockResolvedValue(new Map());
   mockEnqueueEpisodeVideoJob.mockResolvedValue({ status: 'queued' });
+  mockConcatMp3Buffers.mockResolvedValue(Buffer.from('classroom-combined'));
+  mockSynthesizeClassroomAudio.mockResolvedValue({
+    audio: Buffer.from('classroom-audio'),
+    cost: [],
+  });
 });
 
 describe('health checks', () => {
@@ -389,13 +400,22 @@ describe('POST /ingest authorization', () => {
     mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localizationRow());
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
     mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
-      lessons: [],
+      lessons: [
+        classroomLesson({ targetLanguageCode: 'ja' }),
+        classroomLesson({
+          targetLanguageCode: 'en',
+          oneLiner: 'This article explains market liquidity.',
+        }),
+      ],
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
       costUsd: 0.00009,
     });
-    mockUpsertLanguageClassrooms.mockResolvedValue([]);
+    mockUpsertLanguageClassrooms.mockResolvedValue([
+      classroomRow({ target_language_code: 'ja' }),
+      classroomRow({ id: 'classroom-en', target_language_code: 'en' }),
+    ]);
   });
 
   afterEach(() => {
@@ -660,7 +680,10 @@ describe('POST /ingest pipeline', () => {
         },
       ],
     });
-    mockSynthesizeClassroomAudio.mockResolvedValue({ audio: null, cost: [] });
+    mockSynthesizeClassroomAudio.mockResolvedValue({
+      audio: Buffer.from('classroom-audio'),
+      cost: [],
+    });
     mockGenerateHls.mockResolvedValue({
       files: [
         {
@@ -851,16 +874,29 @@ describe('POST /telegram/webhook', () => {
       }),
     );
     mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
-    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localizationRow());
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(
+      localizationRow({
+        classroom_hls_url: 'https://cdn.example.com/classroom/playlist.m3u8',
+      }),
+    );
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
     mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
-      lessons: [],
+      lessons: [
+        classroomLesson({ targetLanguageCode: 'ja' }),
+        classroomLesson({
+          targetLanguageCode: 'en',
+          oneLiner: 'This article explains market liquidity.',
+        }),
+      ],
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
       costUsd: 0.00009,
     });
-    mockUpsertLanguageClassrooms.mockResolvedValue([]);
+    mockUpsertLanguageClassrooms.mockResolvedValue([
+      classroomRow({ target_language_code: 'ja' }),
+      classroomRow({ id: 'classroom-en', target_language_code: 'en' }),
+    ]);
   });
 
   afterEach(() => {
@@ -1229,7 +1265,11 @@ describe('POST /telegram/webhook', () => {
       expect.stringContaining('已在處理'),
     ]);
 
-    localization.resolve(localizationRow());
+    localization.resolve(
+      localizationRow({
+        classroom_hls_url: 'https://cdn.example.com/classroom/playlist.m3u8',
+      }),
+    );
     await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(3));
     expect(mockEnqueueEpisodeVideoJob).toHaveBeenCalledWith(
       localizationRow().id,

@@ -85,13 +85,31 @@ export function episodeRow(overrides: Partial<EpisodeRow> = {}): EpisodeRow {
 export function localizationRow(
   overrides: Partial<EpisodeLocalizationRow> = {},
 ): EpisodeLocalizationRow {
+  const status = overrides.status ?? 'completed';
+  const hlsUrl = overrides.hls_url ?? 'https://cdn.example.com/playlist.m3u8';
+  const audioStatus = status === 'audio_generated' || status === 'completed';
+  let classroomHlsUrl =
+    audioStatus && hlsUrl.trim().length > 0
+      ? 'https://cdn.example.com/classroom/playlist.m3u8'
+      : null;
+  if ('classroom_hls_url' in overrides) {
+    classroomHlsUrl = overrides.classroom_hls_url ?? null;
+  }
+
+  let classroomR2Prefix = classroomHlsUrl
+    ? 'episodes/e/localizations/zh-Hant/classroom'
+    : null;
+  if ('classroom_r2_prefix' in overrides) {
+    classroomR2Prefix = overrides.classroom_r2_prefix ?? null;
+  }
+
   return {
     id: '00000000-0000-4000-8000-000000000101',
     episode_id: episodeRow().id,
     language_code: 'zh-Hant',
     title: 'Localization title',
-    hls_url: 'https://cdn.example.com/playlist.m3u8',
-    classroom_hls_url: null,
+    hls_url: hlsUrl,
+    classroom_hls_url: classroomHlsUrl,
     raw_text: 'Article text',
     script: 'Script',
     llm_model: 'model',
@@ -100,8 +118,8 @@ export function localizationRow(
     tts_language_code: null,
     tts_voice_name: null,
     r2_prefix: null,
-    classroom_r2_prefix: null,
-    status: 'completed',
+    classroom_r2_prefix: classroomR2Prefix,
+    status,
     created_at: FIXED_TIMESTAMP,
     updated_at: FIXED_TIMESTAMP,
     ...overrides,
@@ -111,19 +129,30 @@ export function localizationRow(
 export function listRow(
   overrides: Partial<EpisodeListRow> = {},
 ): EpisodeListRow {
+  const status = overrides.status ?? 'completed';
+  const hlsUrl = overrides.hls_url ?? 'https://cdn.example.com/playlist.m3u8';
+  const audioStatus = status === 'audio_generated' || status === 'completed';
+  let classroomHlsUrl =
+    audioStatus && hlsUrl.trim().length > 0
+      ? 'https://cdn.example.com/classroom/playlist.m3u8'
+      : null;
+  if ('classroom_hls_url' in overrides) {
+    classroomHlsUrl = overrides.classroom_hls_url ?? null;
+  }
+
   return {
     id: episodeRow().id,
     episode_id: episodeRow().id,
     localization_id: localizationRow().id,
     title: 'Localization title',
     language_code: 'zh-Hant',
-    hls_url: 'https://cdn.example.com/playlist.m3u8',
-    classroom_hls_url: null,
+    hls_url: hlsUrl,
+    classroom_hls_url: classroomHlsUrl,
     script: 'Script',
     llm_model: 'model',
     llm_thinking_model: null,
     llm_provider: 'provider',
-    status: 'completed',
+    status,
     created_at: FIXED_TIMESTAMP,
     listened: false,
     like_count: 0,

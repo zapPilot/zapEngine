@@ -23,6 +23,11 @@ import { logIngestSkip, step } from './step.js';
 import { cleanTextForTts } from './tts-text-cleansing.js';
 import { packageAndUploadHls } from './upload-stage.js';
 
+interface UploadedAudioSection {
+  hlsUrl: string;
+  r2Prefix: string;
+}
+
 export async function ensureLocalizationCompleted(
   episode: EpisodeRow,
   localization: EpisodeLocalizationRow,
@@ -33,56 +38,77 @@ export async function ensureLocalizationCompleted(
   classroomRows: LanguageClassroomRow[];
 }> {
   let classroomRows: LanguageClassroomRow[] | null = null;
+  const mainAudioReady = isMainAudioReady(localization);
+  const classroomAudioReady = isClassroomAudioReady(localization, languageCode);
 
-  if (!isAudioReady(localization)) {
+  if (
+    localization.status === 'completed' &&
+    (!mainAudioReady || !classroomAudioReady)
+  ) {
+    localization = await demoteIncompleteCompletedLocalization(
+      localization,
+      mainAudioReady,
+    );
+  }
+
+  if (!mainAudioReady || !classroomAudioReady) {
     classroomRows = await ensureLanguageClassroomsAndRecordCost(
       localization,
       languageCode,
       costBreakdown,
     );
 
-    const mainAudio = await synthesizeMainAudio(
-      localization.script ?? '',
-      languageCode,
-      costBreakdown,
-    );
-    const classroomAudios = await synthesizeClassroomAudios(
-      episode.id,
-      classroomRows,
-    );
-    costBreakdown.push(...classroomAudios.cost);
-    const classroomAudio = await combineClassroomAudio(
-      classroomAudios.audioBuffers,
-      {
-        episodeId: episode.id,
-        localizationId: localization.id,
-        languageCode,
-      },
-    );
-    const uploadedMain = await packageMainHls(
-      mainAudio,
-      episode.id,
-      languageCode,
-    );
-    const uploadedClassroom = classroomAudio
-      ? await packageAndUploadHls({
-          audio: classroomAudio,
-          episodeId: episode.id,
+    const uploadedMain = mainAudioReady
+      ? null
+      : await synthesizeAndUploadMainAudio(
+          localization,
+          episode.id,
           languageCode,
-          section: 'classroom',
-          generateStepName: 'generateClassroomHls',
-          uploadStepName: 'uploadClassroomHlsToR2',
-        })
-      : null;
+          costBreakdown,
+        );
+    if (uploadedMain) {
+      localization = await checkpointMainAudio(
+        localization,
+        uploadedMain,
+        languageCode,
+      );
+    }
+
+    const uploadedClassroom = classroomAudioReady
+      ? null
+      : await synthesizeAndUploadClassroomAudio(
+          episode.id,
+          localization,
+          languageCode,
+          classroomRows,
+          costBreakdown,
+        );
+    if (uploadedClassroom) {
+      localization = await checkpointClassroomAudio(
+        localization,
+        uploadedClassroom,
+        languageCode,
+      );
+    }
+
+    const hlsUrl = uploadedMain?.hlsUrl ?? localization.hls_url;
+    const classroomHlsUrl =
+      uploadedClassroom?.hlsUrl ?? localization.classroom_hls_url;
+    assertRequiredAudioArtifacts(hlsUrl, classroomHlsUrl, languageCode);
+
     const ttsMetadata = getTtsMetadataForLanguage(languageCode);
     const completedLocalization = await step(
       'updateEpisodeLocalizationStatus:completed',
       () =>
         updateEpisodeLocalizationStatus(localization.id, 'completed', {
-          hlsUrl: uploadedMain.hlsUrl,
-          r2Prefix: uploadedMain.r2Prefix,
-          classroomHlsUrl: uploadedClassroom?.hlsUrl,
-          classroomR2Prefix: uploadedClassroom?.r2Prefix,
+          hlsUrl,
+          r2Prefix:
+            uploadedMain?.r2Prefix ?? localization.r2_prefix ?? undefined,
+          classroomHlsUrl: classroomHlsUrl ?? undefined,
+          classroomR2Prefix:
+            uploadedClassroom?.r2Prefix ??
+            localization.classroom_r2_prefix ??
+            undefined,
           ttsLanguageCode: ttsMetadata.languageCode,
           ttsVoiceName: ttsMetadata.voiceName,
         }),
@@ -92,11 +118,28 @@ export async function ensureLocalizationCompleted(
         'Failed to retrieve episode localization after audio completion',
       );
     }
+    if (completedLocalization.status !== 'completed') {
+      throw new Error(
+        'Episode localization did not persist the completed audio status',
+      );
+    }
+    assertRequiredAudioArtifacts(
+      completedLocalization.hls_url,
+      completedLocalization.classroom_hls_url,
+      languageCode,
+    );
     localization = completedLocalization;
+  } else if (localization.status !== 'completed') {
+    classroomRows = await ensureLanguageClassroomsAndRecordCost(
+      localization,
+      languageCode,
+      costBreakdown,
+    );
+    localization = await markLocalizationCompleted(localization, languageCode);
   }
 
   if (!classroomRows) {
-    logIngestSkip('main audio already ready');
+    logIngestSkip('localization audio already ready');
     classroomRows = await ensureLanguageClassroomsAndRecordCost(
       localization,
       languageCode,
@@ -117,14 +160,211 @@ export async function ensureLanguageClassroomsAndRecordCost(
     sourceLanguageCode,
   );
   costBreakdown.push(...ensuredClassrooms.cost);
+  assertLanguageClassroomsReady(ensuredClassrooms.rows, sourceLanguageCode);
   return ensuredClassrooms.rows;
 }
 
 export function isAudioReady(localization: EpisodeLocalizationRow): boolean {
+  if (localization.status !== 'completed') {
+    return false;
+  }
+
+  return (
+    hasNonEmptyString(localization.hls_url) &&
+    isClassroomAudioReady(
+      localization,
+      localization.language_code as LanguageClassroomLanguageCode,
+    )
+  );
+}
+
+export function isLanguageClassroomAudioRequired(
+  languageCode: LanguageClassroomLanguageCode,
+): boolean {
+  return getClassroomTargetLanguageCodes(languageCode).length > 0;
+}
+
+function hasAudioReadyStatus(localization: EpisodeLocalizationRow): boolean {
   return (
     localization.status === 'audio_generated' ||
     localization.status === 'completed'
   );
+}
+
+function isMainAudioReady(localization: EpisodeLocalizationRow): boolean {
+  return (
+    hasAudioReadyStatus(localization) && hasNonEmptyString(localization.hls_url)
+  );
+}
+
+function isClassroomAudioReady(
+  localization: EpisodeLocalizationRow,
+  languageCode: LanguageClassroomLanguageCode,
+): boolean {
+  if (getClassroomTargetLanguageCodes(languageCode).length === 0) {
+    return true;
+  }
+
+  return hasNonEmptyString(localization.classroom_hls_url);
+}
+
+function hasNonEmptyString(value: string | null | undefined): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+async function demoteIncompleteCompletedLocalization(
+  localization: EpisodeLocalizationRow,
+  mainAudioReady: boolean,
+): Promise<EpisodeLocalizationRow> {
+  const repairStatus = mainAudioReady
+    ? ('audio_generated' as const)
+    : ('script_generated' as const);
+  const demotedLocalization = await step(
+    `updateEpisodeLocalizationStatus:${repairStatus}`,
+    () => updateEpisodeLocalizationStatus(localization.id, repairStatus),
+  );
+
+  if (!demotedLocalization) {
+    throw new Error(
+      'Failed to mark incomplete episode localization for audio repair',
+    );
+  }
+
+  return demotedLocalization;
+}
+
+async function checkpointMainAudio(
+  localization: EpisodeLocalizationRow,
+  uploadedMain: UploadedAudioSection,
+  languageCode: LanguageClassroomLanguageCode,
+): Promise<EpisodeLocalizationRow> {
+  const ttsMetadata = getTtsMetadataForLanguage(languageCode);
+  const checkpoint = await step(
+    'updateEpisodeLocalizationStatus:audio_generated:main',
+    () =>
+      updateEpisodeLocalizationStatus(localization.id, 'audio_generated', {
+        hlsUrl: uploadedMain.hlsUrl,
+        r2Prefix: uploadedMain.r2Prefix,
+        ttsLanguageCode: ttsMetadata.languageCode,
+        ttsVoiceName: ttsMetadata.voiceName,
+      }),
+  );
+
+  if (!checkpoint || !hasNonEmptyString(checkpoint.hls_url)) {
+    throw new Error('Failed to persist generated main audio');
+  }
+
+  return checkpoint;
+}
+
+async function checkpointClassroomAudio(
+  localization: EpisodeLocalizationRow,
+  uploadedClassroom: UploadedAudioSection,
+  languageCode: LanguageClassroomLanguageCode,
+): Promise<EpisodeLocalizationRow> {
+  const checkpoint = await step(
+    'updateEpisodeLocalizationStatus:audio_generated:classroom',
+    () =>
+      updateEpisodeLocalizationStatus(localization.id, 'audio_generated', {
+        classroomHlsUrl: uploadedClassroom.hlsUrl,
+        classroomR2Prefix: uploadedClassroom.r2Prefix,
+      }),
+  );
+
+  if (!checkpoint) {
+    throw new Error('Failed to persist generated language classroom audio');
+  }
+  assertRequiredAudioArtifacts(
+    checkpoint.hls_url,
+    checkpoint.classroom_hls_url,
+    languageCode,
+  );
+
+  return checkpoint;
+}
+
+async function markLocalizationCompleted(
+  localization: EpisodeLocalizationRow,
+  languageCode: LanguageClassroomLanguageCode,
+): Promise<EpisodeLocalizationRow> {
+  assertRequiredAudioArtifacts(
+    localization.hls_url,
+    localization.classroom_hls_url,
+    languageCode,
+  );
+  const completed = await step(
+    'updateEpisodeLocalizationStatus:completed',
+    () => updateEpisodeLocalizationStatus(localization.id, 'completed'),
+  );
+
+  if (completed?.status !== 'completed') {
+    throw new Error('Failed to persist the completed audio status');
+  }
+  assertRequiredAudioArtifacts(
+    completed.hls_url,
+    completed.classroom_hls_url,
+    languageCode,
+  );
+  return completed;
+}
+
+async function synthesizeAndUploadMainAudio(
+  localization: EpisodeLocalizationRow,
+  episodeId: string,
+  languageCode: LanguageClassroomLanguageCode,
+  costBreakdown: UsageCostLine[],
+): Promise<UploadedAudioSection> {
+  const mainAudio = await synthesizeMainAudio(
+    localization.script ?? '',
+    languageCode,
+    costBreakdown,
+  );
+  return packageMainHls(mainAudio, episodeId, languageCode);
+}
+
+async function synthesizeAndUploadClassroomAudio(
+  episodeId: string,
+  localization: EpisodeLocalizationRow,
+  languageCode: LanguageClassroomLanguageCode,
+  classroomRows: LanguageClassroomRow[],
+  costBreakdown: UsageCostLine[],
+): Promise<UploadedAudioSection | null> {
+  if (getClassroomTargetLanguageCodes(languageCode).length === 0) {
+    return null;
+  }
+
+  const classroomAudios = await synthesizeClassroomAudios(
+    episodeId,
+    languageCode,
+    classroomRows,
+  );
+  costBreakdown.push(...classroomAudios.cost);
+  const classroomAudio = await combineClassroomAudio(
+    classroomAudios.audioBuffers,
+    {
+      episodeId,
+      localizationId: localization.id,
+      languageCode,
+    },
+  );
+
+  if (!classroomAudio) {
+    if (isLanguageClassroomAudioRequired(languageCode)) {
+      throw new Error(
+        `Language classroom audio was not produced for ${languageCode}`,
+      );
+    }
+    return null;
+  }
+
+  return packageAndUploadHls({
+    audio: classroomAudio,
+    episodeId,
+    languageCode,
+    section: 'classroom',
+    generateStepName: 'generateClassroomHls',
+    uploadStepName: 'uploadClassroomHlsToR2',
+  });
 }
 
 async function synthesizeMainAudio(
@@ -147,10 +387,7 @@ async function packageMainHls(
   audio: Buffer,
   episodeId: string,
   languageCode: LanguageClassroomLanguageCode,
-): Promise<{
-  hlsUrl: string;
-  r2Prefix: string;
-}> {
+): Promise<UploadedAudioSection> {
   return packageAndUploadHls({
     audio,
     episodeId,
@@ -163,6 +400,7 @@ async function packageMainHls(
 
 async function synthesizeClassroomAudios(
   episodeId: string,
+  languageCode: LanguageClassroomLanguageCode,
   classrooms: LanguageClassroomRow[],
 ): Promise<{ audioBuffers: Buffer[]; cost: UsageCostLine[] }> {
   const audioBuffers: Buffer[] = [];
@@ -176,6 +414,13 @@ async function synthesizeClassroomAudios(
     cost.push(...result.cost);
     if (result.audio) {
       audioBuffers.push(result.audio);
+      continue;
+    }
+
+    if (isLanguageClassroomAudioRequired(languageCode)) {
+      throw new Error(
+        `Language classroom audio synthesis failed for ${classroom.target_language_code}`,
+      );
     }
   }
 
@@ -212,7 +457,18 @@ async function combineClassroomAudio(
   },
 ): Promise<Buffer | null> {
   if (classroomAudios.length === 0) {
+    if (isLanguageClassroomAudioRequired(context.languageCode)) {
+      throw new Error(
+        `Language classroom audio buffers are missing for ${context.languageCode}`,
+      );
+    }
     return null;
+  }
+
+  if (isLanguageClassroomAudioRequired(context.languageCode)) {
+    return step('concatEpisodeClassroomAudio', () =>
+      concatMp3Buffers(classroomAudios),
+    );
   }
 
   return wrapWithErrorHandling(
@@ -305,7 +561,52 @@ async function ensureLanguageClassrooms(
       sourceLanguageCode,
       error,
     );
+    if (isLanguageClassroomAudioRequired(sourceLanguageCode)) {
+      throw error;
+    }
     return existingLanguageClassroomResult(existing, sourceLanguageCode, cost);
+  }
+}
+
+function assertLanguageClassroomsReady(
+  classrooms: LanguageClassroomRow[],
+  sourceLanguageCode: LanguageClassroomLanguageCode,
+): void {
+  if (!isLanguageClassroomAudioRequired(sourceLanguageCode)) {
+    return;
+  }
+
+  const expectedTargets = getClassroomTargetLanguageCodes(sourceLanguageCode);
+  const actualTargets = new Set(
+    classrooms.map((classroom) => classroom.target_language_code),
+  );
+  const missingTargets = expectedTargets.filter(
+    (targetLanguageCode) => !actualTargets.has(targetLanguageCode),
+  );
+
+  if (missingTargets.length > 0) {
+    throw new Error(
+      `Language classroom generation incomplete for ${sourceLanguageCode}; missing targets: ${missingTargets.join(', ')}`,
+    );
+  }
+}
+
+function assertRequiredAudioArtifacts(
+  hlsUrl: string | null | undefined,
+  classroomHlsUrl: string | null | undefined,
+  languageCode: LanguageClassroomLanguageCode,
+): void {
+  if (!hasNonEmptyString(hlsUrl)) {
+    throw new Error(`Main audio HLS was not produced for ${languageCode}`);
+  }
+
+  if (
+    isLanguageClassroomAudioRequired(languageCode) &&
+    !hasNonEmptyString(classroomHlsUrl)
+  ) {
+    throw new Error(
+      `Language classroom HLS was not produced for ${languageCode}`,
+    );
   }
 }
 

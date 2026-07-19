@@ -126,6 +126,7 @@ interface EpisodeVideoSourceLocalizationRow {
   title: string;
   script: string | null;
   hls_url: string;
+  classroom_hls_url: string | null;
   status: string;
 }
 
@@ -231,7 +232,9 @@ export function createVideoJobRepository(
     ): Promise<EpisodeVideoSource> {
       const { data: localization, error: localizationError } = await supabase
         .from('episode_localizations')
-        .select('id, episode_id, language_code, title, script, hls_url, status')
+        .select(
+          'id, episode_id, language_code, title, script, hls_url, classroom_hls_url, status',
+        )
         .eq('id', episodeLocalizationId)
         .maybeSingle<EpisodeVideoSourceLocalizationRow>();
       if (localizationError) throwSupabaseError(localizationError);
@@ -240,6 +243,7 @@ export function createVideoJobRepository(
         localization.language_code !== 'zh-Hant' ||
         localization.status !== 'completed' ||
         !localization.hls_url.trim() ||
+        !localization.classroom_hls_url?.trim() ||
         !localization.script?.trim()
       ) {
         throw new Error('Video job localization is not renderable');

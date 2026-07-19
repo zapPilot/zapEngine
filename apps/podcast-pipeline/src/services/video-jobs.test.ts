@@ -129,6 +129,7 @@ describe('createVideoJobRepository', () => {
           title: 'Episode',
           script: 'Canonical script',
           hls_url: 'https://cdn.example.com/audio.m3u8',
+          classroom_hls_url: 'https://cdn.example.com/classroom/playlist.m3u8',
           status: 'completed',
         },
         error: null,
@@ -155,6 +156,32 @@ describe('createVideoJobRepository', () => {
     });
     expect(supabase.from).toHaveBeenNthCalledWith(1, 'episode_localizations');
     expect(supabase.from).toHaveBeenNthCalledWith(2, 'episodes');
+    expect(supabase.query.select).toHaveBeenNthCalledWith(
+      1,
+      'id, episode_id, language_code, title, script, hls_url, classroom_hls_url, status',
+    );
+  });
+
+  it('rejects a completed canonical source missing classroom audio', async () => {
+    const supabase = makeSupabase();
+    supabase.query.maybeSingle.mockResolvedValue({
+      data: {
+        id: 'localization-1',
+        episode_id: 'episode-1',
+        language_code: 'zh-Hant',
+        title: 'Episode',
+        script: 'Canonical script',
+        hls_url: 'https://cdn.example.com/audio.m3u8',
+        classroom_hls_url: '   ',
+        status: 'completed',
+      },
+      error: null,
+    });
+
+    await expect(
+      createVideoJobRepository(supabase as never).loadSource('localization-1'),
+    ).rejects.toThrow('not renderable');
+    expect(supabase.query.maybeSingle).toHaveBeenCalledTimes(1);
   });
 
   it('rejects a non-renderable localization', async () => {
@@ -167,6 +194,7 @@ describe('createVideoJobRepository', () => {
         title: 'Episode',
         script: 'Script',
         hls_url: 'https://cdn.example.com/audio.m3u8',
+        classroom_hls_url: 'https://cdn.example.com/classroom/playlist.m3u8',
         status: 'completed',
       },
       error: null,

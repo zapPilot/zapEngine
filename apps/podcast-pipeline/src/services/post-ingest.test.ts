@@ -49,9 +49,11 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
       costUsd: 0,
       costDetails: buildUsageCostDetails([]),
     });
-    const findCanonicalLocalization = vi
-      .fn()
-      .mockResolvedValue(localizationRow());
+    const findCanonicalLocalization = vi.fn().mockResolvedValue(
+      localizationRow({
+        classroom_hls_url: 'https://cdn.example.com/classroom/playlist.m3u8',
+      }),
+    );
     const enqueueVideo = vi.fn().mockResolvedValue(queuedVideoJob());
 
     const result = await performMultilingualIngestAndEnqueueVideo(
@@ -81,7 +83,7 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
     expect(result.videoEnqueueError).toBeNull();
   });
 
-  it('keeps audio available when the canonical audio precondition blocks enqueue', async () => {
+  it('does not enqueue a completed canonical localization missing classroom audio', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const enqueueVideo = vi.fn();
 
@@ -97,9 +99,12 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
             costUsd: 0,
             costDetails: buildUsageCostDetails([]),
           }),
-          findCanonicalLocalization: vi
-            .fn()
-            .mockResolvedValue(localizationRow({ status: 'audio_generated' })),
+          findCanonicalLocalization: vi.fn().mockResolvedValue(
+            localizationRow({
+              classroom_hls_url: '   ',
+              status: 'completed',
+            }),
+          ),
           enqueueVideo,
         },
       },
@@ -108,7 +113,7 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
     expect(enqueueVideo).not.toHaveBeenCalled();
     expect(result.videoJob).toBeNull();
     expect(result.videoEnqueueError?.message).toContain(
-      'Completed canonical localization is required',
+      'must include main and classroom audio',
     );
     expect(result.ingest.statusCode).toBe(201);
   });
@@ -132,9 +137,12 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
             costUsd: 0,
             costDetails: buildUsageCostDetails([]),
           }),
-          findCanonicalLocalization: vi
-            .fn()
-            .mockResolvedValue(localizationRow()),
+          findCanonicalLocalization: vi.fn().mockResolvedValue(
+            localizationRow({
+              classroom_hls_url:
+                'https://cdn.example.com/classroom/playlist.m3u8',
+            }),
+          ),
           enqueueVideo,
         },
       },

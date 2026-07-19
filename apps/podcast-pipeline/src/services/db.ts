@@ -27,10 +27,6 @@ type PipelineSupabaseClient = SupabaseClient<any, any, any>;
 let client: PipelineSupabaseClient | null = null;
 
 const DEFAULT_SUPABASE_DB_SCHEMA = 'from_fed_to_chain';
-const CLASSROOM_MEDIA_COLUMNS = [
-  'classroom_hls_url',
-  'classroom_r2_prefix',
-] as const;
 
 interface CompletedEpisodeVideoProjection {
   episode_localization_id: string;
@@ -125,29 +121,6 @@ function formatSupabaseError(error: unknown): string {
 
 function readOptionalString(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
-}
-
-function isMissingSupabaseColumnsError(
-  error: unknown,
-  columns: readonly string[],
-): boolean {
-  // Errors here come from `throwSupabaseError`, which always rethrows or wraps
-  // into a real Error; the non-Error branch is defensive only.
-  /* v8 ignore start -- @preserve */
-  if (!(error instanceof Error)) {
-    return false;
-  }
-  /* v8 ignore stop -- @preserve */
-  return (
-    error.message.includes('PGRST204') &&
-    columns.some((column) => error.message.includes(column))
-  );
-}
-
-function deleteClassroomMediaFields(fields: Record<string, unknown>): void {
-  for (const column of CLASSROOM_MEDIA_COLUMNS) {
-    delete fields[column];
-  }
 }
 
 export function toEpisodeResponse(
@@ -576,24 +549,7 @@ export async function updateEpisodeLocalizationStatus(
     if (value !== undefined) setFields[column] = value;
   }
 
-  const includesClassroomMediaFields = CLASSROOM_MEDIA_COLUMNS.some(
-    (column) => column in setFields,
-  );
-
-  try {
-    return await updateLocalizationFields(id, setFields);
-  } catch (error) {
-    if (
-      includesClassroomMediaFields &&
-      isMissingSupabaseColumnsError(error, CLASSROOM_MEDIA_COLUMNS)
-    ) {
-      const retryFields = { ...setFields };
-      deleteClassroomMediaFields(retryFields);
-      return updateLocalizationFields(id, retryFields);
-    }
-
-    throw error;
-  }
+  return updateLocalizationFields(id, setFields);
 }
 
 function toLocalizationPayload(
