@@ -25,4 +25,4 @@ The canonical contract is:
 
 Never reintroduce `concatMainWithClassroomAudio` or equivalent logic that appends classroom audio into the main HLS.
 
-Focused tests that exercise the production fail-closed invariant set `PODCAST_STRICT_CLASSROOM_AUDIO_TEST=true`; broad legacy tests run with Vitest's normal test environment.
+All tests must exercise the same fail-closed classroom audio invariant as production. Do not add test-only switches that make canonical classroom audio optional.

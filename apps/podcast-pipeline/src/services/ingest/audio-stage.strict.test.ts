@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   classroomRow,
@@ -43,8 +43,7 @@ vi.mock('../db.js', () => ({
 }));
 
 vi.mock('../llm.js', () => ({
-  generateLanguageClassroomsWithLLM:
-    mockGenerateLanguageClassroomsWithLLM,
+  generateLanguageClassroomsWithLLM: mockGenerateLanguageClassroomsWithLLM,
 }));
 
 vi.mock('../podcast/classroom-audio.js', () => ({
@@ -64,9 +63,8 @@ vi.mock('./upload-stage.js', () => ({
   packageAndUploadHls: mockPackageAndUploadHls,
 }));
 
-const { ensureLocalizationCompleted, isAudioReady } = await import(
-  './audio-stage.js'
-);
+const { ensureLocalizationCompleted, isAudioReady } =
+  await import('./audio-stage.js');
 
 const classroomRows = [
   classroomRow({
@@ -84,8 +82,6 @@ const classroomRows = [
 describe('strict language classroom audio integrity', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubEnv('NODE_ENV', 'test');
-    vi.stubEnv('PODCAST_STRICT_CLASSROOM_AUDIO_TEST', 'true');
 
     mockListLanguageClassroomsByLocalizationId.mockResolvedValue(classroomRows);
     mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
@@ -131,10 +127,6 @@ describe('strict language classroom audio integrity', () => {
     );
   });
 
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
   it('does not treat canonical main-only audio as completed', () => {
     expect(
       isAudioReady(
@@ -151,8 +143,7 @@ describe('strict language classroom audio integrity', () => {
         localizationRow({
           status: 'completed',
           hls_url: 'https://cdn.example.com/main/playlist.m3u8',
-          classroom_hls_url:
-            'https://cdn.example.com/classroom/playlist.m3u8',
+          classroom_hls_url: 'https://cdn.example.com/classroom/playlist.m3u8',
         }),
       ),
     ).toBe(true);

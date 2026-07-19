@@ -23,9 +23,6 @@ import { logIngestSkip, step } from './step.js';
 import { cleanTextForTts } from './tts-text-cleansing.js';
 import { packageAndUploadHls } from './upload-stage.js';
 
-const STRICT_CLASSROOM_AUDIO_TEST_ENV =
-  'PODCAST_STRICT_CLASSROOM_AUDIO_TEST';
-
 interface UploadedAudioSection {
   hlsUrl: string;
   r2Prefix: string;
@@ -131,10 +128,6 @@ export function isAudioReady(localization: EpisodeLocalizationRow): boolean {
     return false;
   }
 
-  if (!shouldRequireClassroomAudioIntegrity()) {
-    return true;
-  }
-
   return (
     hasNonEmptyString(localization.hls_url) &&
     isClassroomAudioReady(
@@ -147,10 +140,7 @@ export function isAudioReady(localization: EpisodeLocalizationRow): boolean {
 export function isLanguageClassroomAudioRequired(
   languageCode: LanguageClassroomLanguageCode,
 ): boolean {
-  return (
-    shouldRequireClassroomAudioIntegrity() &&
-    getClassroomTargetLanguageCodes(languageCode).length > 0
-  );
+  return getClassroomTargetLanguageCodes(languageCode).length > 0;
 }
 
 function hasAudioReadyStatus(localization: EpisodeLocalizationRow): boolean {
@@ -161,13 +151,8 @@ function hasAudioReadyStatus(localization: EpisodeLocalizationRow): boolean {
 }
 
 function isMainAudioReady(localization: EpisodeLocalizationRow): boolean {
-  if (!hasAudioReadyStatus(localization)) {
-    return false;
-  }
-
   return (
-    !shouldRequireClassroomAudioIntegrity() ||
-    hasNonEmptyString(localization.hls_url)
+    hasAudioReadyStatus(localization) && hasNonEmptyString(localization.hls_url)
   );
 }
 
@@ -180,14 +165,6 @@ function isClassroomAudioReady(
   }
 
   return hasNonEmptyString(localization.classroom_hls_url);
-}
-
-function shouldRequireClassroomAudioIntegrity(): boolean {
-  if (process.env['NODE_ENV'] !== 'test') {
-    return true;
-  }
-
-  return process.env[STRICT_CLASSROOM_AUDIO_TEST_ENV] === 'true';
 }
 
 function hasNonEmptyString(value: string | null | undefined): value is string {

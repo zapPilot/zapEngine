@@ -58,22 +58,16 @@ When touching this flow, preserve all of these:
 7. The main HLS input never contains classroom audio.
 8. Secondary languages with no classroom targets remain main-only.
 
-## Test environment note
+## Test environment rule
 
-The production fail-closed behavior is always enabled outside `NODE_ENV=test`. Focused tests opt into the same behavior with:
-
-```bash
-PODCAST_STRICT_CLASSROOM_AUDIO_TEST=true
-```
-
-Do not remove the focused strict tests merely because broad legacy ingest tests intentionally exercise best-effort mocks.
+Production and tests must use the same fail-closed behavior. Do not introduce `NODE_ENV` or test-only feature switches that make canonical classroom audio optional, and do not keep broad tests that assert main-only fallback.
 
 ## Validation loop
 
 Run the focused suite first:
 
 ```bash
-PODCAST_STRICT_CLASSROOM_AUDIO_TEST=true pnpm turbo run test --filter=@zapengine/podcast-pipeline -- --run src/services/ingest/audio-stage.strict.test.ts
+pnpm turbo run test --filter=@zapengine/podcast-pipeline -- --run src/services/ingest/audio-stage.strict.test.ts
 ```
 
 Then run the package gate:
