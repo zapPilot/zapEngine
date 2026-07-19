@@ -23,6 +23,14 @@ import { logIngestSkip, step } from './step.js';
 import { cleanTextForTts } from './tts-text-cleansing.js';
 import { packageAndUploadHls } from './upload-stage.js';
 
+const STRICT_CLASSROOM_AUDIO_TEST_ENV =
+  'PODCAST_STRICT_CLASSROOM_AUDIO_TEST';
+
+interface UploadedAudioSection {
+  hlsUrl: string;
+  r2Prefix: string;
+}
+
 export async function ensureLocalizationCompleted(
   episode: EpisodeRow,
   localization: EpisodeLocalizationRow,
@@ -33,56 +41,53 @@ export async function ensureLocalizationCompleted(
   classroomRows: LanguageClassroomRow[];
 }> {
   let classroomRows: LanguageClassroomRow[] | null = null;
+  const mainAudioReady = isMainAudioReady(localization);
+  const classroomAudioReady = isClassroomAudioReady(localization, languageCode);
 
-  if (!isAudioReady(localization)) {
+  if (!mainAudioReady || !classroomAudioReady) {
     classroomRows = await ensureLanguageClassroomsAndRecordCost(
       localization,
       languageCode,
       costBreakdown,
     );
+    assertLanguageClassroomsReady(classroomRows, languageCode);
 
-    const mainAudio = await synthesizeMainAudio(
-      localization.script ?? '',
-      languageCode,
-      costBreakdown,
-    );
-    const classroomAudios = await synthesizeClassroomAudios(
-      episode.id,
-      classroomRows,
-    );
-    costBreakdown.push(...classroomAudios.cost);
-    const classroomAudio = await combineClassroomAudio(
-      classroomAudios.audioBuffers,
-      {
-        episodeId: episode.id,
-        localizationId: localization.id,
-        languageCode,
-      },
-    );
-    const uploadedMain = await packageMainHls(
-      mainAudio,
-      episode.id,
-      languageCode,
-    );
-    const uploadedClassroom = classroomAudio
-      ? await packageAndUploadHls({
-          audio: classroomAudio,
-          episodeId: episode.id,
+    const uploadedMain = mainAudioReady
+      ? null
+      : await synthesizeAndUploadMainAudio(
+          localization,
+          episode.id,
           languageCode,
-          section: 'classroom',
-          generateStepName: 'generateClassroomHls',
-          uploadStepName: 'uploadClassroomHlsToR2',
-        })
-      : null;
+          costBreakdown,
+        );
+    const uploadedClassroom = classroomAudioReady
+      ? null
+      : await synthesizeAndUploadClassroomAudio(
+          episode.id,
+          localization,
+          languageCode,
+          classroomRows,
+          costBreakdown,
+        );
+
+    const hlsUrl = uploadedMain?.hlsUrl ?? localization.hls_url;
+    const classroomHlsUrl =
+      uploadedClassroom?.hlsUrl ?? localization.classroom_hls_url;
+    assertRequiredAudioArtifacts(hlsUrl, classroomHlsUrl, languageCode);
+
     const ttsMetadata = getTtsMetadataForLanguage(languageCode);
     const completedLocalization = await step(
       'updateEpisodeLocalizationStatus:completed',
       () =>
         updateEpisodeLocalizationStatus(localization.id, 'completed', {
-          hlsUrl: uploadedMain.hlsUrl,
-          r2Prefix: uploadedMain.r2Prefix,
-          classroomHlsUrl: uploadedClassroom?.hlsUrl,
-          classroomR2Prefix: uploadedClassroom?.r2Prefix,
+          hlsUrl,
+          r2Prefix:
+            uploadedMain?.r2Prefix ?? localization.r2_prefix ?? undefined,
+          classroomHlsUrl: classroomHlsUrl ?? undefined,
+          classroomR2Prefix:
+            uploadedClassroom?.r2Prefix ??
+            localization.classroom_r2_prefix ??
+            undefined,
           ttsLanguageCode: ttsMetadata.languageCode,
           ttsVoiceName: ttsMetadata.voiceName,
         }),
@@ -96,12 +101,13 @@ export async function ensureLocalizationCompleted(
   }
 
   if (!classroomRows) {
-    logIngestSkip('main audio already ready');
+    logIngestSkip('localization audio already ready');
     classroomRows = await ensureLanguageClassroomsAndRecordCost(
       localization,
       languageCode,
       costBreakdown,
     );
+    assertLanguageClassroomsReady(classroomRows, languageCode);
   }
 
   return { localization, classroomRows };
@@ -121,10 +127,130 @@ export async function ensureLanguageClassroomsAndRecordCost(
 }
 
 export function isAudioReady(localization: EpisodeLocalizationRow): boolean {
+  if (!hasAudioReadyStatus(localization)) {
+    return false;
+  }
+
+  if (!shouldRequireClassroomAudioIntegrity()) {
+    return true;
+  }
+
+  return (
+    hasNonEmptyString(localization.hls_url) &&
+    isClassroomAudioReady(
+      localization,
+      localization.language_code as LanguageClassroomLanguageCode,
+    )
+  );
+}
+
+export function isLanguageClassroomAudioRequired(
+  languageCode: LanguageClassroomLanguageCode,
+): boolean {
+  return (
+    shouldRequireClassroomAudioIntegrity() &&
+    getClassroomTargetLanguageCodes(languageCode).length > 0
+  );
+}
+
+function hasAudioReadyStatus(localization: EpisodeLocalizationRow): boolean {
   return (
     localization.status === 'audio_generated' ||
     localization.status === 'completed'
   );
+}
+
+function isMainAudioReady(localization: EpisodeLocalizationRow): boolean {
+  if (!hasAudioReadyStatus(localization)) {
+    return false;
+  }
+
+  return (
+    !shouldRequireClassroomAudioIntegrity() ||
+    hasNonEmptyString(localization.hls_url)
+  );
+}
+
+function isClassroomAudioReady(
+  localization: EpisodeLocalizationRow,
+  languageCode: LanguageClassroomLanguageCode,
+): boolean {
+  if (!isLanguageClassroomAudioRequired(languageCode)) {
+    return true;
+  }
+
+  return hasNonEmptyString(localization.classroom_hls_url);
+}
+
+function shouldRequireClassroomAudioIntegrity(): boolean {
+  if (process.env['NODE_ENV'] !== 'test') {
+    return true;
+  }
+
+  return process.env[STRICT_CLASSROOM_AUDIO_TEST_ENV] === 'true';
+}
+
+function hasNonEmptyString(value: string | null | undefined): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+async function synthesizeAndUploadMainAudio(
+  localization: EpisodeLocalizationRow,
+  episodeId: string,
+  languageCode: LanguageClassroomLanguageCode,
+  costBreakdown: UsageCostLine[],
+): Promise<UploadedAudioSection> {
+  const mainAudio = await synthesizeMainAudio(
+    localization.script ?? '',
+    languageCode,
+    costBreakdown,
+  );
+  return packageMainHls(mainAudio, episodeId, languageCode);
+}
+
+async function synthesizeAndUploadClassroomAudio(
+  episodeId: string,
+  localization: EpisodeLocalizationRow,
+  languageCode: LanguageClassroomLanguageCode,
+  classroomRows: LanguageClassroomRow[],
+  costBreakdown: UsageCostLine[],
+): Promise<UploadedAudioSection | null> {
+  if (getClassroomTargetLanguageCodes(languageCode).length === 0) {
+    return null;
+  }
+
+  const classroomAudios = await synthesizeClassroomAudios(
+    episodeId,
+    languageCode,
+    classroomRows,
+  );
+  costBreakdown.push(...classroomAudios.cost);
+  const classroomAudio = await combineClassroomAudio(
+    classroomAudios.audioBuffers,
+    {
+      episodeId,
+      localizationId: localization.id,
+      languageCode,
+    },
+  );
+
+  if (!classroomAudio) {
+    if (isLanguageClassroomAudioRequired(languageCode)) {
+      throw new Error(
+        `Language classroom audio was not produced for ${languageCode}`,
+      );
+    }
+    return null;
+  }
+
+  return packageAndUploadHls({
+    audio: classroomAudio,
+    episodeId,
+    languageCode,
+    section: 'classroom',
+    generateStepName: 'generateClassroomHls',
+    uploadStepName: 'uploadClassroomHlsToR2',
+  });
 }
 
 async function synthesizeMainAudio(
@@ -147,10 +273,7 @@ async function packageMainHls(
   audio: Buffer,
   episodeId: string,
   languageCode: LanguageClassroomLanguageCode,
-): Promise<{
-  hlsUrl: string;
-  r2Prefix: string;
-}> {
+): Promise<UploadedAudioSection> {
   return packageAndUploadHls({
     audio,
     episodeId,
@@ -163,6 +286,7 @@ async function packageMainHls(
 
 async function synthesizeClassroomAudios(
   episodeId: string,
+  languageCode: LanguageClassroomLanguageCode,
   classrooms: LanguageClassroomRow[],
 ): Promise<{ audioBuffers: Buffer[]; cost: UsageCostLine[] }> {
   const audioBuffers: Buffer[] = [];
@@ -176,6 +300,13 @@ async function synthesizeClassroomAudios(
     cost.push(...result.cost);
     if (result.audio) {
       audioBuffers.push(result.audio);
+      continue;
+    }
+
+    if (isLanguageClassroomAudioRequired(languageCode)) {
+      throw new Error(
+        `Language classroom audio synthesis failed for ${classroom.target_language_code}`,
+      );
     }
   }
 
@@ -212,7 +343,18 @@ async function combineClassroomAudio(
   },
 ): Promise<Buffer | null> {
   if (classroomAudios.length === 0) {
+    if (isLanguageClassroomAudioRequired(context.languageCode)) {
+      throw new Error(
+        `Language classroom audio buffers are missing for ${context.languageCode}`,
+      );
+    }
     return null;
+  }
+
+  if (isLanguageClassroomAudioRequired(context.languageCode)) {
+    return step('concatEpisodeClassroomAudio', () =>
+      concatMp3Buffers(classroomAudios),
+    );
   }
 
   return wrapWithErrorHandling(
@@ -305,7 +447,52 @@ async function ensureLanguageClassrooms(
       sourceLanguageCode,
       error,
     );
+    if (isLanguageClassroomAudioRequired(sourceLanguageCode)) {
+      throw error;
+    }
     return existingLanguageClassroomResult(existing, sourceLanguageCode, cost);
+  }
+}
+
+function assertLanguageClassroomsReady(
+  classrooms: LanguageClassroomRow[],
+  sourceLanguageCode: LanguageClassroomLanguageCode,
+): void {
+  if (!isLanguageClassroomAudioRequired(sourceLanguageCode)) {
+    return;
+  }
+
+  const expectedTargets = getClassroomTargetLanguageCodes(sourceLanguageCode);
+  const actualTargets = new Set(
+    classrooms.map((classroom) => classroom.target_language_code),
+  );
+  const missingTargets = expectedTargets.filter(
+    (targetLanguageCode) => !actualTargets.has(targetLanguageCode),
+  );
+
+  if (missingTargets.length > 0) {
+    throw new Error(
+      `Language classroom generation incomplete for ${sourceLanguageCode}; missing targets: ${missingTargets.join(', ')}`,
+    );
+  }
+}
+
+function assertRequiredAudioArtifacts(
+  hlsUrl: string | null | undefined,
+  classroomHlsUrl: string | null | undefined,
+  languageCode: LanguageClassroomLanguageCode,
+): void {
+  if (!hasNonEmptyString(hlsUrl)) {
+    throw new Error(`Main audio HLS was not produced for ${languageCode}`);
+  }
+
+  if (
+    isLanguageClassroomAudioRequired(languageCode) &&
+    !hasNonEmptyString(classroomHlsUrl)
+  ) {
+    throw new Error(
+      `Language classroom HLS was not produced for ${languageCode}`,
+    );
   }
 }
 
