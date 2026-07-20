@@ -134,7 +134,7 @@ describe('createPodcastPlayerSnapshot', () => {
       makeEpisode({ localizationId: 'loc-3' }),
     ];
     const snapshot = createPodcastPlayerSnapshot({
-      nowPlaying: queue[1],
+      nowPlaying: queue[1] ?? null,
       isPlaying: true,
       currentTime: Number.NaN,
       duration: Number.POSITIVE_INFINITY,
@@ -147,8 +147,8 @@ describe('createPodcastPlayerSnapshot', () => {
       playFromQueueAt: noop,
       seek: noop,
       seekRelative: noop,
-      skipToPreviousEpisode: () => queue[0],
-      skipToNextEpisode: () => queue[2],
+      skipToPreviousEpisode: () => queue[0] ?? null,
+      skipToNextEpisode: () => queue[2] ?? null,
       setSpeed: noop,
     });
 
