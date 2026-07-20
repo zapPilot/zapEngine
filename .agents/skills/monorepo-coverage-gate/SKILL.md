@@ -92,16 +92,23 @@ Preferred order:
 
 1. Add smoke/unit tests for the highest-value pure functions, data mappers,
    validation helpers, and render paths.
-2. If deploy is blocked and the feature is explicitly a POC, a temporary threshold
-   reduction is acceptable only when all of these are true:
-   - scoped to the affected workspace's `vitest.config.ts`, never repo-wide —
-     other workspaces' floors stay untouched;
-   - set just below the current measured coverage, with some tests added first;
-   - documented with a `Temporary POC floor` comment;
-   - not done by editing `coverage/baseline.json` downward;
-   - followed by a separate task to ratchet the threshold back up.
-3. Do not use blanket `c8 ignore` to hide reachable dashboard code. Only ignore
-   genuinely unreachable defensive branches, with a reason.
+2. A temporary workspace threshold reduction is allowed only for an explicitly
+   disposable POC or experiment. It is **not** an acceptable way to land a
+   production pipeline, durable worker, schema migration, auth boundary, or
+   invariant fix.
+3. When the POC exception genuinely applies, all of these are required:
+   - scoped to the affected workspace's `vitest.config.ts`, never repo-wide;
+   - set just below the current measured coverage, with meaningful tests added first;
+   - documented beside the threshold with a `Temporary POC floor` comment;
+   - recorded in the PR body with before/after metrics and a concrete ratchet task;
+   - not combined with blanket `knip`, `jscpd`, or coverage ignores to clear the
+     same large feature surface;
+   - not done by editing `coverage/baseline.json` downward.
+4. If those conditions are missing, keep the threshold and either add coverage,
+   remove dead surface, or split the feature so the uncovered portion cannot be
+   mistaken for validated production code.
+5. Do not use blanket `c8 ignore` to hide reachable code. Only ignore genuinely
+   unreachable defensive branches, with a reason.
 
 ## No-regression baseline gate
 
@@ -130,6 +137,8 @@ pnpm exec tsx scripts/coverage-regression.ts
 | "Just lower the root threshold / baseline."                                         | That weakens the gate for everyone. Only scoped, temporary workspace floors are acceptable for explicit POCs. |
 | "The branch touched one workspace, so that workspace must be the coverage failure." | Coverage runs all workspaces; read the failed workspace line.                                                 |
 | "A green regression script means CI coverage is fixed."                             | Not if the workspace absolute floor failed before regression was even run.                                    |
+| "This production pipeline is large, so call it a POC and lower the floor."           | Durable production behavior must earn coverage; the POC exception requires disposable scope and an explicit ratchet plan. |
+| "Blanket-ignore deadcode and duplicates too; they are all from the same feature."    | Multiple gate suppressions hide an unreviewed surface. Fix or split it instead.                               |
 | "Blanket ignore the new dashboard."                                                 | Add high-value tests first; only ignore unreachable code with a reason.                                       |
 
 ## Verification
@@ -137,6 +146,7 @@ pnpm exec tsx scripts/coverage-regression.ts
 For the current CI coverage job:
 
 ```bash
+pnpm run coverage test
 pnpm turbo run test:coverage
 pnpm exec tsx scripts/coverage-summary.ts
 ```
