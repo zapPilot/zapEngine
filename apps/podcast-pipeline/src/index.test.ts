@@ -640,7 +640,7 @@ describe('POST /ingest pipeline', () => {
       costUsd: 0.00001,
     });
     mockUpdateEpisodeLocalizationStatus.mockImplementation(
-      (_id: string, status: string) => {
+      (_id: string, status: string, data?: Record<string, unknown>) => {
         if (status === 'script_generated') {
           return Promise.resolve(
             localizationRow({
@@ -651,6 +651,24 @@ describe('POST /ingest pipeline', () => {
               status: 'script_generated',
             }),
           );
+        }
+        if (status === 'audio_generated') {
+          const overrides: Record<string, unknown> = {
+            status: 'audio_generated',
+          };
+          if (data?.['hlsUrl'] !== undefined)
+            overrides['hls_url'] = data['hlsUrl'];
+          if (data?.['r2Prefix'] !== undefined)
+            overrides['r2_prefix'] = data['r2Prefix'];
+          if (data?.['classroomHlsUrl'] !== undefined)
+            overrides['classroom_hls_url'] = data['classroomHlsUrl'];
+          if (data?.['classroomR2Prefix'] !== undefined)
+            overrides['classroom_r2_prefix'] = data['classroomR2Prefix'];
+          if (data?.['ttsLanguageCode'] !== undefined)
+            overrides['tts_language_code'] = data['ttsLanguageCode'];
+          if (data?.['ttsVoiceName'] !== undefined)
+            overrides['tts_voice_name'] = data['ttsVoiceName'];
+          return Promise.resolve(localizationRow(overrides));
         }
         if (status === 'completed') {
           return Promise.resolve(
@@ -1781,6 +1799,8 @@ function configureFreshTelegramIngest(): void {
         llmProvider?: string;
         ttsLanguageCode?: string | null;
         ttsVoiceName?: string | null;
+        classroomHlsUrl?: string;
+        classroomR2Prefix?: string | null;
       };
       const next = localizationRow({
         ...row,
@@ -1803,6 +1823,14 @@ function configureFreshTelegramIngest(): void {
           update.ttsVoiceName === undefined
             ? row.tts_voice_name
             : update.ttsVoiceName,
+        classroom_hls_url:
+          update.classroomHlsUrl === undefined
+            ? row.classroom_hls_url
+            : update.classroomHlsUrl,
+        classroom_r2_prefix:
+          update.classroomR2Prefix === undefined
+            ? row.classroom_r2_prefix
+            : update.classroomR2Prefix,
       });
       localizations.set(languageCode, next);
       return Promise.resolve(next);

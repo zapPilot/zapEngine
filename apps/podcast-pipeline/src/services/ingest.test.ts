@@ -170,7 +170,7 @@ describe('performIngest failure paths', () => {
       ],
     });
     mockUpdateEpisodeLocalizationStatus.mockImplementation(
-      (_id: string, status: string) => {
+      (_id: string, status: string, data?: Record<string, unknown>) => {
         if (status === 'scraped') {
           return Promise.resolve(
             localizationRow({
@@ -192,6 +192,24 @@ describe('performIngest failure paths', () => {
               status: 'script_generated',
             }),
           );
+        }
+        if (status === 'audio_generated') {
+          const overrides: Record<string, unknown> = {
+            status: 'audio_generated',
+          };
+          if (data?.['hlsUrl'] !== undefined)
+            overrides['hls_url'] = data['hlsUrl'];
+          if (data?.['r2Prefix'] !== undefined)
+            overrides['r2_prefix'] = data['r2Prefix'];
+          if (data?.['classroomHlsUrl'] !== undefined)
+            overrides['classroom_hls_url'] = data['classroomHlsUrl'];
+          if (data?.['classroomR2Prefix'] !== undefined)
+            overrides['classroom_r2_prefix'] = data['classroomR2Prefix'];
+          if (data?.['ttsLanguageCode'] !== undefined)
+            overrides['tts_language_code'] = data['ttsLanguageCode'];
+          if (data?.['ttsVoiceName'] !== undefined)
+            overrides['tts_voice_name'] = data['ttsVoiceName'];
+          return Promise.resolve(localizationRow(overrides));
         }
         if (status === 'completed') {
           return Promise.resolve(
@@ -690,7 +708,7 @@ describe('performIngest failure paths', () => {
       }),
     );
     mockUpdateEpisodeLocalizationStatus.mockImplementation(
-      (_id: string, status: string) => {
+      (_id: string, status: string, data?: Record<string, unknown>) => {
         if (status === 'scraped') {
           return Promise.resolve(
             localizationRow({
@@ -712,6 +730,24 @@ describe('performIngest failure paths', () => {
               status: 'script_generated',
             }),
           );
+        }
+        if (status === 'audio_generated') {
+          const overrides: Record<string, unknown> = {
+            status: 'audio_generated',
+          };
+          if (data?.['hlsUrl'] !== undefined)
+            overrides['hls_url'] = data['hlsUrl'];
+          if (data?.['r2Prefix'] !== undefined)
+            overrides['r2_prefix'] = data['r2Prefix'];
+          if (data?.['classroomHlsUrl'] !== undefined)
+            overrides['classroom_hls_url'] = data['classroomHlsUrl'];
+          if (data?.['classroomR2Prefix'] !== undefined)
+            overrides['classroom_r2_prefix'] = data['classroomR2Prefix'];
+          if (data?.['ttsLanguageCode'] !== undefined)
+            overrides['tts_language_code'] = data['ttsLanguageCode'];
+          if (data?.['ttsVoiceName'] !== undefined)
+            overrides['tts_voice_name'] = data['ttsVoiceName'];
+          return Promise.resolve(localizationRow(overrides));
         }
         if (status === 'completed') {
           return Promise.resolve(
@@ -1036,7 +1072,7 @@ describe('performIngest failure paths', () => {
     );
     mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(null);
     mockUpdateEpisodeLocalizationStatus.mockImplementation(
-      (id: string, status: string) => {
+      (id: string, status: string, data?: Record<string, unknown>) => {
         if (status === 'script_generated' && id !== 'en-localization') {
           return Promise.resolve(
             localizationRow({
@@ -1050,15 +1086,43 @@ describe('performIngest failure paths', () => {
         if (id === 'en-localization' && status === 'script_generated') {
           return Promise.resolve(englishScriptLocalization);
         }
-        if (id === 'en-localization' && status === 'completed') {
-          return Promise.resolve(
-            localizationRow({
-              ...englishScriptLocalization,
-              hls_url:
-                'https://cdn.example.com/episodes/e/localizations/en/playlist.m3u8',
-              status: 'completed',
-            }),
-          );
+        if (status === 'audio_generated') {
+          const overrides: Record<string, unknown> = {
+            status: 'audio_generated',
+          };
+          if (data?.['hlsUrl'] !== undefined)
+            overrides['hls_url'] = data['hlsUrl'];
+          if (data?.['r2Prefix'] !== undefined)
+            overrides['r2_prefix'] = data['r2Prefix'];
+          if (data?.['classroomHlsUrl'] !== undefined)
+            overrides['classroom_hls_url'] = data['classroomHlsUrl'];
+          if (data?.['classroomR2Prefix'] !== undefined)
+            overrides['classroom_r2_prefix'] = data['classroomR2Prefix'];
+          if (data?.['ttsLanguageCode'] !== undefined)
+            overrides['tts_language_code'] = data['ttsLanguageCode'];
+          if (data?.['ttsVoiceName'] !== undefined)
+            overrides['tts_voice_name'] = data['ttsVoiceName'];
+          return Promise.resolve(localizationRow(overrides));
+        }
+        if (status === 'completed') {
+          const overrides: Record<string, unknown> = {
+            hls_url:
+              'https://cdn.example.com/episodes/e/localizations/local/playlist.m3u8',
+            r2_prefix: 'episodes/e/localizations/local',
+            classroom_hls_url:
+              'https://cdn.example.com/episodes/e/localizations/local/classroom/playlist.m3u8',
+            classroom_r2_prefix: 'episodes/e/localizations/local/classroom',
+            status: 'completed',
+          };
+          if (data?.['hlsUrl'] !== undefined)
+            overrides['hls_url'] = data['hlsUrl'];
+          if (data?.['r2Prefix'] !== undefined)
+            overrides['r2_prefix'] = data['r2Prefix'];
+          if (data?.['classroomHlsUrl'] !== undefined)
+            overrides['classroom_hls_url'] = data['classroomHlsUrl'];
+          if (data?.['classroomR2Prefix'] !== undefined)
+            overrides['classroom_r2_prefix'] = data['classroomR2Prefix'];
+          return Promise.resolve(localizationRow(overrides));
         }
         return Promise.resolve(null);
       },
@@ -1176,19 +1240,47 @@ describe('performIngest failure paths', () => {
       ],
     });
     mockUpdateEpisodeLocalizationStatus.mockImplementation(
-      (id: string, status: string) => {
+      (id: string, status: string, data?: Record<string, unknown>) => {
         if (id === 'ja-localization' && status === 'script_generated') {
           return Promise.resolve(jaScriptLocalization);
         }
-        if (id === 'ja-localization' && status === 'completed') {
-          return Promise.resolve(
-            localizationRow({
-              ...jaScriptLocalization,
-              hls_url:
-                'https://cdn.example.com/episodes/e/localizations/ja/playlist.m3u8',
-              status: 'completed',
-            }),
-          );
+        if (status === 'audio_generated') {
+          const overrides: Record<string, unknown> = {
+            status: 'audio_generated',
+          };
+          if (data?.['hlsUrl'] !== undefined)
+            overrides['hls_url'] = data['hlsUrl'];
+          if (data?.['r2Prefix'] !== undefined)
+            overrides['r2_prefix'] = data['r2Prefix'];
+          if (data?.['classroomHlsUrl'] !== undefined)
+            overrides['classroom_hls_url'] = data['classroomHlsUrl'];
+          if (data?.['classroomR2Prefix'] !== undefined)
+            overrides['classroom_r2_prefix'] = data['classroomR2Prefix'];
+          if (data?.['ttsLanguageCode'] !== undefined)
+            overrides['tts_language_code'] = data['ttsLanguageCode'];
+          if (data?.['ttsVoiceName'] !== undefined)
+            overrides['tts_voice_name'] = data['ttsVoiceName'];
+          return Promise.resolve(localizationRow(overrides));
+        }
+        if (status === 'completed') {
+          const overrides: Record<string, unknown> = {
+            hls_url:
+              'https://cdn.example.com/episodes/e/localizations/local/playlist.m3u8',
+            r2_prefix: 'episodes/e/localizations/local',
+            classroom_hls_url:
+              'https://cdn.example.com/episodes/e/localizations/local/classroom/playlist.m3u8',
+            classroom_r2_prefix: 'episodes/e/localizations/local/classroom',
+            status: 'completed',
+          };
+          if (data?.['hlsUrl'] !== undefined)
+            overrides['hls_url'] = data['hlsUrl'];
+          if (data?.['r2Prefix'] !== undefined)
+            overrides['r2_prefix'] = data['r2Prefix'];
+          if (data?.['classroomHlsUrl'] !== undefined)
+            overrides['classroom_hls_url'] = data['classroomHlsUrl'];
+          if (data?.['classroomR2Prefix'] !== undefined)
+            overrides['classroom_r2_prefix'] = data['classroomR2Prefix'];
+          return Promise.resolve(localizationRow(overrides));
         }
         return Promise.resolve(null);
       },
@@ -1347,6 +1439,8 @@ describe('performIngest failure paths', () => {
           llmProvider?: string;
           ttsLanguageCode?: string | null;
           ttsVoiceName?: string | null;
+          classroomHlsUrl?: string;
+          classroomR2Prefix?: string | null;
         };
         const next = localizationRow({
           ...row,
@@ -1369,6 +1463,14 @@ describe('performIngest failure paths', () => {
             update.ttsVoiceName === undefined
               ? row.tts_voice_name
               : update.ttsVoiceName,
+          classroom_hls_url:
+            update.classroomHlsUrl === undefined
+              ? row.classroom_hls_url
+              : update.classroomHlsUrl,
+          classroom_r2_prefix:
+            update.classroomR2Prefix === undefined
+              ? row.classroom_r2_prefix
+              : update.classroomR2Prefix,
         });
         localizations.set(languageCode, next);
         return Promise.resolve(next);
@@ -1590,7 +1692,7 @@ describe('performIngest failure paths', () => {
 
   it('throws when completed status update returns no localization', async () => {
     mockUpdateEpisodeLocalizationStatus.mockImplementation(
-      (_id: string, status: string) => {
+      (_id: string, status: string, data?: Record<string, unknown>) => {
         if (status === 'script_generated') {
           return Promise.resolve(
             localizationRow({
@@ -1602,6 +1704,24 @@ describe('performIngest failure paths', () => {
             }),
           );
         }
+        if (status === 'audio_generated') {
+          const overrides: Record<string, unknown> = {
+            status: 'audio_generated',
+          };
+          if (data?.['hlsUrl'] !== undefined)
+            overrides['hls_url'] = data['hlsUrl'];
+          if (data?.['r2Prefix'] !== undefined)
+            overrides['r2_prefix'] = data['r2Prefix'];
+          if (data?.['classroomHlsUrl'] !== undefined)
+            overrides['classroom_hls_url'] = data['classroomHlsUrl'];
+          if (data?.['classroomR2Prefix'] !== undefined)
+            overrides['classroom_r2_prefix'] = data['classroomR2Prefix'];
+          if (data?.['ttsLanguageCode'] !== undefined)
+            overrides['tts_language_code'] = data['ttsLanguageCode'];
+          if (data?.['ttsVoiceName'] !== undefined)
+            overrides['tts_voice_name'] = data['ttsVoiceName'];
+          return Promise.resolve(localizationRow(overrides));
+        }
         if (status === 'completed') {
           return Promise.resolve(null);
         }
@@ -1611,7 +1731,9 @@ describe('performIngest failure paths', () => {
 
     await expect(
       performIngest('https://example.com/article', 'zh-Hant'),
-    ).rejects.toThrow('Failed to retrieve episode localization');
+    ).rejects.toThrow(
+      'Failed to retrieve episode localization after audio completion',
+    );
     expect(mockUploadHlsToR2).toHaveBeenCalledWith(
       expect.any(Array),
       episodeRow().id,
@@ -1819,22 +1941,50 @@ describe('performIngest failure paths', () => {
     );
     mockInsertEpisodeLocalization.mockResolvedValue(englishPending);
     mockUpdateEpisodeLocalizationStatus.mockImplementation(
-      (id: string, status: string) => {
+      (id: string, status: string, data?: Record<string, unknown>) => {
         if (id === canonical.id && status === 'script_generated') {
           return Promise.resolve(canonicalAfterScript);
         }
         if (id === 'en-localization' && status === 'script_generated') {
           return Promise.resolve(englishScript);
         }
-        if (id === 'en-localization' && status === 'completed') {
-          return Promise.resolve(
-            localizationRow({
-              ...englishScript,
-              hls_url:
-                'https://cdn.example.com/episodes/e/localizations/en/playlist.m3u8',
-              status: 'completed',
-            }),
-          );
+        if (status === 'audio_generated') {
+          const overrides: Record<string, unknown> = {
+            status: 'audio_generated',
+          };
+          if (data?.['hlsUrl'] !== undefined)
+            overrides['hls_url'] = data['hlsUrl'];
+          if (data?.['r2Prefix'] !== undefined)
+            overrides['r2_prefix'] = data['r2Prefix'];
+          if (data?.['classroomHlsUrl'] !== undefined)
+            overrides['classroom_hls_url'] = data['classroomHlsUrl'];
+          if (data?.['classroomR2Prefix'] !== undefined)
+            overrides['classroom_r2_prefix'] = data['classroomR2Prefix'];
+          if (data?.['ttsLanguageCode'] !== undefined)
+            overrides['tts_language_code'] = data['ttsLanguageCode'];
+          if (data?.['ttsVoiceName'] !== undefined)
+            overrides['tts_voice_name'] = data['ttsVoiceName'];
+          return Promise.resolve(localizationRow(overrides));
+        }
+        if (status === 'completed') {
+          const overrides: Record<string, unknown> = {
+            hls_url:
+              'https://cdn.example.com/episodes/e/localizations/local/playlist.m3u8',
+            r2_prefix: 'episodes/e/localizations/local',
+            classroom_hls_url:
+              'https://cdn.example.com/episodes/e/localizations/local/classroom/playlist.m3u8',
+            classroom_r2_prefix: 'episodes/e/localizations/local/classroom',
+            status: 'completed',
+          };
+          if (data?.['hlsUrl'] !== undefined)
+            overrides['hls_url'] = data['hlsUrl'];
+          if (data?.['r2Prefix'] !== undefined)
+            overrides['r2_prefix'] = data['r2Prefix'];
+          if (data?.['classroomHlsUrl'] !== undefined)
+            overrides['classroom_hls_url'] = data['classroomHlsUrl'];
+          if (data?.['classroomR2Prefix'] !== undefined)
+            overrides['classroom_r2_prefix'] = data['classroomR2Prefix'];
+          return Promise.resolve(localizationRow(overrides));
         }
         return Promise.resolve(null);
       },
