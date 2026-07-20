@@ -43,6 +43,7 @@ function queuedVideoJob(): EpisodeVideoJobRow {
 
 describe('performMultilingualIngestAndEnqueueVideo', () => {
   it('enqueues exactly one canonical video after multilingual audio completes', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const performIngest = vi.fn().mockResolvedValue({
       episode: episodeListResponse(listRow({ language_code: 'ja' })),
       statusCode: 201,
@@ -81,6 +82,21 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
     expect(enqueueVideo).toHaveBeenCalledWith(localizationRow().id, '123');
     expect(result.videoJob?.status).toBe('queued');
     expect(result.videoEnqueueError).toBeNull();
+    expect(log.mock.calls.map(([message]) => String(message))).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^\[\/ingest\] run:start run=[^ ]+ /),
+        expect.stringMatching(
+          /^\[\/ingest\] video:enqueue:start run=[^ ]+ episodeId=/,
+        ),
+        expect.stringMatching(
+          /^\[\/ingest\] video:enqueue:done run=[^ ]+ elapsedMs=\d+ episodeId=.* status=queued$/,
+        ),
+        expect.stringMatching(
+          /^\[\/ingest\] run:done run=[^ ]+ elapsedMs=\d+ /,
+        ),
+      ]),
+    );
+    log.mockRestore();
   });
 
   it('does not enqueue a completed canonical localization missing classroom audio', async () => {

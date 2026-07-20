@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { StoryboardDraft } from './draft.js';
+import { MAX_STORYBOARD_SLIDES, type StoryboardDraft } from './draft.js';
 import {
   createDeterministicStoryboard,
   createDeterministicStoryboardProvider,
@@ -21,7 +21,10 @@ import {
   canonicalSentenceRangeText,
   splitCanonicalSentences,
 } from './sentences.js';
-import { validateStoryboardDraft } from './validation.js';
+import {
+  storyboardSlideCountRange,
+  validateStoryboardDraft,
+} from './validation.js';
 
 const script = [
   '今天先看市場流動性的變化。',
@@ -79,6 +82,37 @@ describe('storyboard validation and fallback', () => {
     expect(draft.slides.length).toBeLessThanOrEqual(10);
     expect(draft.slides[0]?.template).toBe('cover');
     expect(draft.slides.at(-1)?.endSentenceId).toBe('s0010');
+  });
+
+  it('caps a 12-minute deterministic fallback at 64 slides with full coverage', () => {
+    const longScript = Array.from(
+      { length: 120 },
+      (_, index) => `第${String(index + 1)}項市場觀察持續變化。`,
+    ).join('');
+    const sentences = splitCanonicalSentences(longScript);
+    const draft = createDeterministicStoryboard({
+      title: '長篇市場觀察',
+      script: longScript,
+      durationMs: 12 * 60_000,
+      sentences,
+    });
+    const validation = validateStoryboardDraft(draft, {
+      script: longScript,
+      sentences,
+      durationMs: 12 * 60_000,
+    });
+
+    expect(validation.success).toBe(true);
+    expect(draft.slides.length).toBeLessThanOrEqual(MAX_STORYBOARD_SLIDES);
+    expect(draft.slides[0]?.template).toBe('cover');
+    expect(draft.slides.at(-1)?.endSentenceId).toBe('s0120');
+  });
+
+  it('caps extreme-duration slide count ranges without inverting the bounds', () => {
+    expect(storyboardSlideCountRange(24 * 60 * 60_000, 1_000)).toEqual({
+      min: MAX_STORYBOARD_SLIDES,
+      max: MAX_STORYBOARD_SLIDES,
+    });
   });
 
   it('rejects non-exact evidence and numbers absent from the selected range', () => {

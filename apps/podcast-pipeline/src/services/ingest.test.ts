@@ -317,6 +317,14 @@ describe('performIngest failure paths', () => {
     );
   });
 
+  it('labels an OpenRouter timeout with the generateScript stage', async () => {
+    mockGenerateScriptWithLLM.mockRejectedValue(new Error('Request timed out'));
+
+    await expect(
+      performIngest('https://example.com/article', 'zh-Hant'),
+    ).rejects.toThrow('[step:generateScript] Request timed out');
+  });
+
   it('does not mark completed when HLS upload fails', async () => {
     mockUploadHlsToR2.mockRejectedValue(new Error('R2 upload failed'));
 
@@ -1350,6 +1358,7 @@ describe('performIngest failure paths', () => {
   });
 
   it('generates every supported localization in order and returns the requested language', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const localizations = new Map<string, EpisodeLocalizationRow>();
 
     mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
@@ -1505,6 +1514,37 @@ describe('performIngest failure paths', () => {
       ['ja', 'main'],
       ['en', 'main'],
     ]);
+
+    const localizationEvents = log.mock.calls
+      .map(([message]) => String(message))
+      .filter((message) => message.includes('localization:'));
+    expect(localizationEvents).toEqual([
+      expect.stringMatching(
+        /^\[\/ingest\] localization:start run=[^ ]+ language=zh-Hant progress=1\/3$/,
+      ),
+      expect.stringMatching(
+        /^\[\/ingest\] localization:done run=[^ ]+ language=zh-Hant progress=1\/3 elapsedMs=\d+ status=201$/,
+      ),
+      expect.stringMatching(
+        /^\[\/ingest\] localization:start run=[^ ]+ language=ja progress=2\/3$/,
+      ),
+      expect.stringMatching(
+        /^\[\/ingest\] localization:done run=[^ ]+ language=ja progress=2\/3 elapsedMs=\d+ status=201$/,
+      ),
+      expect.stringMatching(
+        /^\[\/ingest\] localization:start run=[^ ]+ language=en progress=3\/3$/,
+      ),
+      expect.stringMatching(
+        /^\[\/ingest\] localization:done run=[^ ]+ language=en progress=3\/3 elapsedMs=\d+ status=201$/,
+      ),
+    ]);
+    const scriptStep = log.mock.calls
+      .map(([message]) => String(message))
+      .find((message) => message.includes('name=generateScript'));
+    expect(scriptStep).toMatch(
+      /^\[\/ingest\] step:start run=[^ ]+ language=zh-Hant progress=1\/3 name=generateScript$/,
+    );
+    log.mockRestore();
   });
 
   it('regenerates an obviously corrupted secondary script before TTS', async () => {

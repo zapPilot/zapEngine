@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 
 import {
+  MAX_STORYBOARD_SLIDES,
   type StoryboardDraft,
   storyboardDraftSchema,
   type StoryboardDraftSlide,
@@ -40,7 +41,7 @@ export function storyboardSlideCountRange(
   durationMs: number,
   sentenceCount: number,
 ): { min: number; max: number } {
-  const available = Math.max(sentenceCount, 1);
+  const available = Math.min(Math.max(sentenceCount, 1), MAX_STORYBOARD_SLIDES);
   const min = Math.min(
     available,
     Math.max(1, Math.floor(durationMs / 12_000) + 1),

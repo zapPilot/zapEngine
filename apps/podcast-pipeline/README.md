@@ -25,6 +25,19 @@ TTS provider selection is per classroom language and code-owned in `src/services
 
 Telegram trigger support is optional. Use `PIPELINE_TELEGRAM_BOT_TOKEN`, `PIPELINE_TELEGRAM_WEBHOOK_SECRET`, and `PIPELINE_TELEGRAM_ALLOWED_USER_IDS` for this service so it does not collide with account-engine's Telegram bot settings.
 
+`OPENROUTER_TIMEOUT_MS` limits each OpenRouter request and defaults to `120000` milliseconds. Invalid or empty values use that default; OpenRouter retries are disabled so a stuck provider request fails promptly and a resubmission can resume from the latest committed ingest stage.
+
+## Ingest Progress Logs
+
+`POST /ingest` remains synchronous and returns its normal JSON only after all three localizations (`zh-Hant`, `ja`, then `en`) finish. Watch the pipeline process logs while a curl request is running. Every line carries a short `run` ID; long-running steps emit `step:waiting` every 15 seconds, and completion or failure includes `elapsedMs`.
+
+```text
+[/ingest] localization:start run=abcd1234 language=zh-Hant progress=1/3
+[/ingest] step:start run=abcd1234 name=generateScript
+[/ingest] step:waiting run=abcd1234 name=generateScript elapsedMs=15000
+[/ingest] step:done run=abcd1234 name=generateScript elapsedMs=8421
+```
+
 ## Telegram Bot Setup
 
 Create a bot with [BotFather](https://t.me/BotFather), then set these env vars for the pipeline process:

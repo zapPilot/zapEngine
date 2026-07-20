@@ -812,6 +812,110 @@ describe('POST /ingest pipeline', () => {
     expect(mockInvalidateEpisodeSearchCache).toHaveBeenCalledTimes(1);
   });
 
+  it('requeues canonical video from completed multilingual audio without regenerating ingest artifacts', async () => {
+    const canonicalLocalization = localizationRow({
+      id: 'canonical-localization',
+      language_code: 'zh-Hant',
+      status: 'completed',
+    });
+    const jaLocalization = localizationRow({
+      id: 'ja-localization',
+      language_code: 'ja',
+      status: 'completed',
+    });
+    const enLocalization = localizationRow({
+      id: 'en-localization',
+      language_code: 'en',
+      status: 'completed',
+    });
+    const localizations = new Map([
+      ['zh-Hant', canonicalLocalization],
+      ['ja', jaLocalization],
+      ['en', enLocalization],
+    ]);
+
+    mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
+    mockFindEpisodeLocalizationByEpisodeId.mockImplementation(
+      (_episodeId: string, languageCode: string) =>
+        Promise.resolve(localizations.get(languageCode) ?? null),
+    );
+    mockListLanguageClassroomsByLocalizationId.mockImplementation(
+      (episodeLocalizationId: string) =>
+        Promise.resolve(
+          episodeLocalizationId === canonicalLocalization.id
+            ? [
+                classroomRow({
+                  id: 'canonical-classroom-ja',
+                  episode_localization_id: canonicalLocalization.id,
+                  target_language_code: 'ja',
+                }),
+                classroomRow({
+                  id: 'canonical-classroom-en',
+                  episode_localization_id: canonicalLocalization.id,
+                  target_language_code: 'en',
+                }),
+              ]
+            : [],
+        ),
+    );
+    mockEnqueueEpisodeVideoJob.mockResolvedValue({
+      status: 'queued',
+      attempt_count: 0,
+      last_error: null,
+    });
+
+    const response = await app.request('/ingest', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ url: 'https://example.com/article' }),
+    });
+    const body = (await response.json()) as {
+      episode: EpisodeResponse;
+      costUsd: number;
+      costDetails: { totalUsd: number; breakdown: unknown[] };
+      summary: string;
+    };
+
+    expect(response.status).toBe(200);
+    expect(Object.keys(body).sort()).toEqual([
+      'costDetails',
+      'costUsd',
+      'episode',
+      'summary',
+    ]);
+    expect(body.episode).toMatchObject({
+      id: episodeRow().id,
+      localizationId: canonicalLocalization.id,
+      languageCode: 'zh-Hant',
+      video: null,
+    });
+    expect(body.costUsd).toBe(0);
+    expect(body.costDetails).toEqual({ totalUsd: 0, breakdown: [] });
+    expect(body.summary).toContain('✅ 已存在');
+
+    expect(mockEnqueueEpisodeVideoJob).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueEpisodeVideoJob).toHaveBeenCalledWith(
+      canonicalLocalization.id,
+      null,
+    );
+    expect(mockScrapeArticle).not.toHaveBeenCalled();
+    expect(mockConvertArticleToZhTW).not.toHaveBeenCalled();
+    expect(mockInsertEpisode).not.toHaveBeenCalled();
+    expect(mockInsertEpisodeLocalization).not.toHaveBeenCalled();
+    expect(mockGenerateScriptWithLLM).not.toHaveBeenCalled();
+    expect(mockTranslateCanonicalScript).not.toHaveBeenCalled();
+    expect(mockGenerateLanguageClassroomsWithLLM).not.toHaveBeenCalled();
+    expect(mockTextToSpeech).not.toHaveBeenCalled();
+    expect(mockSynthesizeClassroomAudio).not.toHaveBeenCalled();
+    expect(mockGenerateHls).not.toHaveBeenCalled();
+    expect(mockUploadHlsToR2).not.toHaveBeenCalled();
+    expect(mockUpdateEpisodeLocalizationArticleContent).not.toHaveBeenCalled();
+    expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalled();
+  });
+
   it('returns the cost envelope and a Telegram-equivalent summary string', async () => {
     const response = await app.request('/ingest', {
       method: 'POST',

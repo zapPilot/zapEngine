@@ -14,9 +14,15 @@ import {
 import {
   buildLanguageClassroomUserMessage,
   buildUserMessage,
+  DEFAULT_OPENROUTER_TIMEOUT_MS,
   generateLanguageClassroomsWithLLM,
   generateScriptWithLLM,
+  getOpenRouterTimeoutMs,
 } from './llm.js';
+
+const ingestMocks = vi.hoisted(() => ({
+  logIngestEvent: vi.fn(),
+}));
 
 const createMockOpenAI = (createMock: Mock): unknown => {
   return {
@@ -59,6 +65,30 @@ vi.mock('openai', () => {
       };
     }),
   };
+});
+
+vi.mock('./ingest/step.js', () => ingestMocks);
+
+describe('getOpenRouterTimeoutMs', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('uses 120 seconds when no timeout is configured', () => {
+    vi.stubEnv('OPENROUTER_TIMEOUT_MS', '');
+    expect(getOpenRouterTimeoutMs()).toBe(DEFAULT_OPENROUTER_TIMEOUT_MS);
+  });
+
+  it('uses a valid positive integer timeout', () => {
+    expect(getOpenRouterTimeoutMs('45000')).toBe(45_000);
+  });
+
+  it.each(['', '0', '-1', '1.5', 'not-a-number', 'Infinity'])(
+    'falls back to the default for an invalid timeout of %j',
+    (value) => {
+      expect(getOpenRouterTimeoutMs(value)).toBe(DEFAULT_OPENROUTER_TIMEOUT_MS);
+    },
+  );
 });
 
 describe('buildUserMessage', () => {
@@ -192,6 +222,7 @@ describe('generateScriptWithLLM', () => {
   beforeEach(() => {
     vi.stubEnv('OPENROUTER_API_KEY', 'test-api-key');
     vi.stubEnv('OPENROUTER_BASE_URL', 'https://test.openrouter.ai/api/v1');
+    vi.stubEnv('OPENROUTER_TIMEOUT_MS', '');
     vi.stubEnv('LLM_MODEL', 'test/model');
     vi.stubEnv('LLM_THINKING_MODEL', '');
   });
@@ -226,6 +257,8 @@ describe('generateScriptWithLLM', () => {
     expect(OpenAI).toHaveBeenCalledWith({
       apiKey: 'test-api-key',
       baseURL: 'https://openrouter.ai/api/v1',
+      timeout: DEFAULT_OPENROUTER_TIMEOUT_MS,
+      maxRetries: 0,
     });
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -239,6 +272,48 @@ describe('generateScriptWithLLM', () => {
       provider: 'unknown',
       costUsd: 0,
     });
+  });
+
+  it('configures a valid OpenRouter timeout and disables SDK retries', async () => {
+    vi.stubEnv('OPENROUTER_TIMEOUT_MS', '45000');
+    vi.mocked(OpenAI).mockClear();
+
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'Script' } }],
+      provider: 'Cloudflare',
+      model: 'test/model',
+    });
+    mockOpenAIClient(mockCreate);
+
+    await generateScriptWithLLM('Title', 'Text');
+
+    expect(OpenAI).toHaveBeenCalledWith({
+      apiKey: 'test-api-key',
+      baseURL: 'https://test.openrouter.ai/api/v1',
+      timeout: 45_000,
+      maxRetries: 0,
+    });
+  });
+
+  it('falls back to the default timeout for an invalid environment value', async () => {
+    vi.stubEnv('OPENROUTER_TIMEOUT_MS', 'not-a-number');
+    vi.mocked(OpenAI).mockClear();
+
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'Script' } }],
+      provider: 'Cloudflare',
+      model: 'test/model',
+    });
+    mockOpenAIClient(mockCreate);
+
+    await generateScriptWithLLM('Title', 'Text');
+
+    expect(OpenAI).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timeout: DEFAULT_OPENROUTER_TIMEOUT_MS,
+        maxRetries: 0,
+      }),
+    );
   });
 
   it('returns script from mocked OpenRouter API response', async () => {
@@ -275,6 +350,75 @@ describe('generateScriptWithLLM', () => {
       extra_body?: { usage?: object };
     };
     expect(callArgs.extra_body?.usage).toEqual({ include: true });
+  });
+
+  it('logs safe request and response metadata without prompt or completion content', async () => {
+    vi.stubEnv('OPENROUTER_TIMEOUT_MS', '45000');
+    ingestMocks.logIngestEvent.mockClear();
+
+    const title = 'Sensitive article title';
+    const articleText = 'Sensitive article body that must not be logged';
+    const generatedScript =
+      'Sensitive generated script that must not be logged';
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: generatedScript } }],
+      provider: 'Cloudflare',
+      model: 'resolved/model',
+      usage: { cost: 0.00001 },
+    });
+    mockOpenAIClient(mockCreate);
+
+    await generateScriptWithLLM(title, articleText);
+
+    const inputChars = buildUserMessage(title, articleText).length;
+    expect(ingestMocks.logIngestEvent).toHaveBeenNthCalledWith(
+      1,
+      'llm:request',
+      {
+        model: 'test/model',
+        thinking: false,
+        inputChars,
+        timeoutMs: 45_000,
+      },
+    );
+    expect(ingestMocks.logIngestEvent).toHaveBeenNthCalledWith(
+      2,
+      'llm:response',
+      {
+        model: 'resolved/model',
+        thinking: false,
+        inputChars,
+        timeoutMs: 45_000,
+        provider: 'Cloudflare',
+        costUsd: 0.00001,
+        outputChars: generatedScript.length,
+      },
+    );
+
+    const logs = JSON.stringify(ingestMocks.logIngestEvent.mock.calls);
+    expect(logs).not.toContain(articleText);
+    expect(logs).not.toContain(generatedScript);
+    expect(logs).not.toContain('test-api-key');
+  });
+
+  it('does not log an LLM response when the request fails', async () => {
+    ingestMocks.logIngestEvent.mockClear();
+    const timeoutError = new Error('Request timed out');
+    const mockCreate = vi.fn().mockRejectedValue(timeoutError);
+    mockOpenAIClient(mockCreate);
+
+    await expect(generateScriptWithLLM('Title', 'Text')).rejects.toBe(
+      timeoutError,
+    );
+
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledTimes(1);
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:request',
+      expect.objectContaining({
+        model: 'test/model',
+        timeoutMs: DEFAULT_OPENROUTER_TIMEOUT_MS,
+      }),
+    );
   });
 
   it('uses thinking model when configured', async () => {
@@ -397,6 +541,7 @@ describe('generateLanguageClassroomsWithLLM', () => {
   beforeEach(() => {
     vi.stubEnv('OPENROUTER_API_KEY', 'test-api-key');
     vi.stubEnv('OPENROUTER_BASE_URL', 'https://test.openrouter.ai/api/v1');
+    vi.stubEnv('OPENROUTER_TIMEOUT_MS', '');
     vi.stubEnv('LLM_MODEL', 'test/model');
     vi.stubEnv('LLM_THINKING_MODEL', '');
   });

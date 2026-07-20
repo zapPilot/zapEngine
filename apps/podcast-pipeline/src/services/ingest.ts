@@ -27,7 +27,13 @@ import {
   findEpisodeAndLocalization,
   needsGeneratedScript,
 } from './ingest/script-stage.js';
-import { logIngestSkip, step, withStepLogContext } from './ingest/step.js';
+import {
+  getStepLogContext,
+  logIngestEvent,
+  logIngestSkip,
+  step,
+  withStepLogContext,
+} from './ingest/step.js';
 import {
   type SecondaryLanguageCode,
   translateCanonicalScript,
@@ -47,41 +53,80 @@ export async function performMultilingualIngest(
   url: string,
   responseLanguageCode: LanguageClassroomLanguageCode,
 ): Promise<IngestResult> {
-  const results: IngestResult[] = [];
+  const runId = getStepLogContext()?.runId ?? randomUUID().slice(0, 8);
+  return withStepLogContext({ runId }, async () => {
+    const results: IngestResult[] = [];
+    const total = MULTILINGUAL_INGEST_LANGUAGE_CODES.length;
 
-  for (const languageCode of MULTILINGUAL_INGEST_LANGUAGE_CODES) {
-    results.push(await performIngest(url, languageCode));
-  }
+    for (const [
+      index,
+      languageCode,
+    ] of MULTILINGUAL_INGEST_LANGUAGE_CODES.entries()) {
+      results.push(
+        await withStepLogContext(
+          {
+            languageCode,
+            localizationIndex: index + 1,
+            localizationTotal: total,
+          },
+          async () => {
+            const startedAt = Date.now();
+            logIngestEvent('localization:start');
+            try {
+              const result = await performIngest(url, languageCode);
+              logIngestEvent('localization:done', {
+                elapsedMs: Date.now() - startedAt,
+                status: result.statusCode,
+              });
+              return result;
+            } catch (error) {
+              const err =
+                error instanceof Error ? error : new Error(String(error));
+              logIngestEvent('localization:failed', {
+                elapsedMs: Date.now() - startedAt,
+                error: err.message,
+              });
+              throw error;
+            }
+          },
+        ),
+      );
+    }
 
-  const selectedResult = results.find(
-    (result) => result.episode.languageCode === responseLanguageCode,
-  );
-  if (!selectedResult) {
-    throw new Error(
-      `Failed to generate requested localization: ${responseLanguageCode}`,
+    const selectedResult = results.find(
+      (result) => result.episode.languageCode === responseLanguageCode,
     );
-  }
+    if (!selectedResult) {
+      throw new Error(
+        `Failed to generate requested localization: ${responseLanguageCode}`,
+      );
+    }
 
-  const costDetails = buildUsageCostDetails(
-    results.flatMap((result) => result.costDetails.breakdown),
-  );
+    const costDetails = buildUsageCostDetails(
+      results.flatMap((result) => result.costDetails.breakdown),
+    );
 
-  return {
-    episode: selectedResult.episode,
-    statusCode: results.some((result) => result.statusCode === 201)
-      ? 201
-      : selectedResult.statusCode,
-    costUsd: costDetails.totalUsd,
-    costDetails,
-  };
+    return {
+      episode: selectedResult.episode,
+      statusCode: results.some((result) => result.statusCode === 201)
+        ? 201
+        : selectedResult.statusCode,
+      costUsd: costDetails.totalUsd,
+      costDetails,
+    };
+  });
 }
 
 export async function performIngest(
   url: string,
   languageCode: LanguageClassroomLanguageCode,
 ): Promise<IngestResult> {
-  return withStepLogContext({ languageCode }, () =>
-    performIngestWithContext(url, languageCode),
+  return withStepLogContext(
+    {
+      runId: getStepLogContext()?.runId ?? randomUUID().slice(0, 8),
+      languageCode,
+    },
+    () => performIngestWithContext(url, languageCode),
   );
 }
 

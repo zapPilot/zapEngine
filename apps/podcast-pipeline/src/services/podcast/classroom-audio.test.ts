@@ -93,6 +93,24 @@ describe('synthesizeClassroomAudio', () => {
     ]);
   });
 
+  it('logs target and segment-level classroom progress', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await synthesizeClassroomAudio(classroomLesson(), {
+      episodeId: 'episode-1',
+    });
+
+    expect(log.mock.calls.map(([message]) => String(message))).toEqual(
+      expect.arrayContaining([
+        '[/ingest] classroom:target:start segmentCount=4 targetLanguage=ja',
+        '[/ingest] classroom:segment:start segment=1 segmentCount=4 targetLanguage=ja ttsLanguage=zh-Hant',
+        '[/ingest] classroom:segment:done segment=4 segmentCount=4 targetLanguage=ja',
+        '[/ingest] classroom:target:done segmentCount=4 targetLanguage=ja',
+      ]),
+    );
+    log.mockRestore();
+  });
+
   it('returns null and logs structured context when classroom synthesis fails', async () => {
     const consoleSpy = vi
       .spyOn(console, 'error')

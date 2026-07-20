@@ -9,6 +9,7 @@ import type {
   LanguageClassroomLanguageCode,
   LanguageClassroomLesson,
 } from '../types.js';
+import { logIngestEvent } from './ingest/step.js';
 
 export interface ScriptResult {
   script: string;
@@ -73,6 +74,18 @@ export interface OpenRouterConfig {
   openai: OpenAI;
   model: string;
   thinkingModel: string | null;
+  timeoutMs: number;
+}
+
+export const DEFAULT_OPENROUTER_TIMEOUT_MS = 120_000;
+
+export function getOpenRouterTimeoutMs(
+  value: string | undefined = process.env['OPENROUTER_TIMEOUT_MS'],
+): number {
+  const timeoutMs = Number(value);
+  return Number.isSafeInteger(timeoutMs) && timeoutMs > 0
+    ? timeoutMs
+    : DEFAULT_OPENROUTER_TIMEOUT_MS;
 }
 
 export function getOpenRouterConfig(overrides?: {
@@ -94,13 +107,16 @@ export function getOpenRouterConfig(overrides?: {
     overrides?.thinkingModel !== undefined
       ? overrides.thinkingModel
       : process.env['LLM_THINKING_MODEL'] || null;
+  const timeoutMs = getOpenRouterTimeoutMs();
 
   const openai = new OpenAI({
     apiKey,
     baseURL,
+    timeout: timeoutMs,
+    maxRetries: 0,
   });
 
-  return { openai, model, thinkingModel };
+  return { openai, model, thinkingModel, timeoutMs };
 }
 
 export type OpenRouterParams =
@@ -137,9 +153,64 @@ export async function createOpenRouterChatCompletion(
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
   thinkingModel: string | null,
 ): Promise<OpenRouterChatCompletion> {
-  return await openai.chat.completions.create(
+  const inputChars = userInputCharacterCount(params.messages);
+  const timeoutMs = getOpenRouterTimeoutMs();
+  logIngestEvent('llm:request', {
+    model: params.model,
+    thinking: Boolean(thinkingModel),
+    inputChars,
+    timeoutMs,
+  });
+
+  const completion = await openai.chat.completions.create(
     withThinkingModel(params, thinkingModel),
   );
+  const metadata = completionMetadata(completion, params.model, thinkingModel);
+  logIngestEvent('llm:response', {
+    model: metadata.model,
+    thinking: Boolean(thinkingModel),
+    inputChars,
+    timeoutMs,
+    provider: metadata.provider,
+    costUsd: metadata.costUsd,
+    outputChars: completionOutputCharacterCount(completion),
+  });
+
+  return completion;
+}
+
+function userInputCharacterCount(
+  messages: OpenAI.Chat.ChatCompletionMessageParam[],
+): number {
+  return messages.reduce(
+    (total, message) =>
+      message.role === 'user'
+        ? total + messageContentCharacterCount(message.content)
+        : total,
+    0,
+  );
+}
+
+function completionOutputCharacterCount(
+  completion: OpenRouterChatCompletion,
+): number {
+  return completion.choices.reduce(
+    (total, choice) =>
+      total + messageContentCharacterCount(choice.message.content),
+    0,
+  );
+}
+
+function messageContentCharacterCount(content: unknown): number {
+  if (typeof content === 'string') return content.length;
+  if (!Array.isArray(content)) return 0;
+
+  const contentParts = content as unknown[];
+  return contentParts.reduce<number>((total, part) => {
+    if (!part || typeof part !== 'object') return total;
+    const text = (part as { text?: unknown }).text;
+    return total + (typeof text === 'string' ? text.length : 0);
+  }, 0);
 }
 
 export function completionMetadata(

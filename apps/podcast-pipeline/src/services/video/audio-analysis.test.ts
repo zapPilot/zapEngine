@@ -62,6 +62,22 @@ describe('podcast video audio analysis', () => {
     }
   });
 
+  it('keeps constrained caption chunks on exact video frames', () => {
+    const timing = buildWeightedCaptionTiming({
+      script: `${'甲'.repeat(100)}。第二句很長很長的內容，用來測試字幕切分是否會在不正確的影格位置結束，並且持續加入更多中文文字確保切成多段。第三句。`,
+      durationMs: 550,
+    });
+
+    for (const caption of timing.captions) {
+      expect(caption.endMs).toBeGreaterThan(caption.startMs);
+      for (const value of [caption.startMs, caption.endMs]) {
+        const nearestFrameMs = (Math.round((value * 30) / 1_000) * 1_000) / 30;
+        expect(Math.abs(nearestFrameMs - value)).toBeLessThanOrEqual(0.51);
+      }
+    }
+    expect(timing.captions.at(-1)?.endMs).toBe(timing.durationMs);
+  });
+
   it('splits long captions within the two-line safe-area budget', () => {
     const chunks = splitCaptionText(
       '這是一段非常長的繁體中文字幕，必須在合理的位置切開，避免任何單一字幕超出兩行安全範圍。',

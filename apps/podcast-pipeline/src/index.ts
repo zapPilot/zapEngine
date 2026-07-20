@@ -71,7 +71,6 @@ import {
 import {
   createVideoWorker,
   type EpisodeVideoWorker,
-  isVideoWorkerEnabled,
   type ProcessEpisodeVideoJob,
 } from './services/video-worker.js';
 import {
@@ -140,17 +139,11 @@ export function createApp(): Hono {
         : c.req.query('language'),
     );
 
-    console.log(`[/ingest] start url=${url} language=${languageCode}`);
-
     const { ingest: result } = await performMultilingualIngestAndEnqueueVideo(
       url,
       languageCode,
     );
     invalidateEpisodeSearchCache();
-
-    console.log(
-      `[/ingest] done episode=${result.episode.id} status=${result.statusCode}`,
-    );
 
     return c.json(
       {
@@ -428,18 +421,16 @@ export function createApp(): Hono {
 }
 
 export interface BootstrapOptions {
-  environment?: NodeJS.ProcessEnv;
   app?: Hono;
   processVideoJob?: ProcessEpisodeVideoJob;
   videoWorker?: EpisodeVideoWorker;
 }
 
 export function bootstrap(options: BootstrapOptions = {}) {
-  const environment = options.environment ?? process.env;
   const app = options.app ?? createApp();
   let videoWorker = options.videoWorker ?? null;
 
-  if (isVideoWorkerEnabled(environment) && !videoWorker) {
+  if (!videoWorker) {
     videoWorker = createVideoWorker({
       processJob: options.processVideoJob ?? processEpisodeVideoJob,
     });
@@ -455,7 +446,7 @@ export function bootstrap(options: BootstrapOptions = {}) {
       console.log(`Pipeline API listening on http://localhost:${info.port}`);
     },
   );
-  if (isVideoWorkerEnabled(environment)) videoWorker?.start();
+  videoWorker?.start();
 
   let shutdownPromise: Promise<void> | null = null;
   const shutdown = (signal = 'shutdown'): Promise<void> => {

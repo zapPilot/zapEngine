@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+export const MAX_STORYBOARD_SLIDES = 64;
+
 const sentenceIdSchema = z.string().regex(/^s\d{4}$/);
 const sentenceRangeShape = {
   startSentenceId: sentenceIdSchema,
@@ -88,7 +90,10 @@ export const storyboardDraftSlideSchema = z.discriminatedUnion('template', [
 
 export const storyboardDraftSchema = z
   .object({
-    slides: z.array(storyboardDraftSlideSchema).min(1).max(64),
+    slides: z
+      .array(storyboardDraftSlideSchema)
+      .min(1)
+      .max(MAX_STORYBOARD_SLIDES),
   })
   .strict();
 

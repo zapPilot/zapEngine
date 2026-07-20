@@ -177,8 +177,16 @@ function speakingUnits(value: string): number {
 }
 // jscpd:ignore-end
 
+function frameIndex(valueMs: number, fps = OUTPUT_FPS): number {
+  return Math.round((valueMs * fps) / 1_000);
+}
+
+function frameTime(frame: number, fps = OUTPUT_FPS): number {
+  return Math.round((frame * 1_000) / fps);
+}
+
 function snapToFrame(valueMs: number, fps = OUTPUT_FPS): number {
-  return Math.round((Math.round((valueMs * fps) / 1_000) * 1_000) / fps);
+  return frameTime(frameIndex(valueMs, fps), fps);
 }
 
 function nearestSilenceBoundary(
@@ -208,14 +216,15 @@ function sentenceBoundaries(
 ): number[] {
   const weights = sentences.map((sentence) => speakingUnits(sentence.text));
   const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  const durationFrames = frameIndex(durationMs);
   const boundaries = [0];
   let cumulativeWeight = 0;
   for (let index = 0; index < sentences.length - 1; index += 1) {
     cumulativeWeight += weights[index]!;
     const ideal = (durationMs * cumulativeWeight) / totalWeight;
     const remaining = sentences.length - index - 1;
-    const min = boundaries.at(-1)! + 33;
-    const max = durationMs - remaining * 33;
+    const min = frameTime(frameIndex(boundaries.at(-1)!) + 1);
+    const max = frameTime(durationFrames - remaining);
     const silence = nearestSilenceBoundary(ideal, silences, min, max);
     const snapped = snapToFrame(silence ?? ideal);
     boundaries.push(Math.min(max, Math.max(min, snapped)));
@@ -263,22 +272,34 @@ function captionChunksForSentence(
   const chunks = splitCaptionText(sentence.sentence.text);
   const weights = chunks.map(speakingUnits);
   const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
-  const duration = sentence.endMs - sentence.startMs;
+  const sentenceStartFrame = frameIndex(sentence.startMs);
+  const sentenceEndFrame = frameIndex(sentence.endMs);
+  const durationFrames = sentenceEndFrame - sentenceStartFrame;
   const captions: WeightedCaption[] = [];
   let cumulative = 0;
+  let startFrame = sentenceStartFrame;
   for (const [index, chunk] of chunks.entries()) {
-    const startMs = index === 0 ? sentence.startMs : captions.at(-1)!.endMs;
     cumulative += weights[index]!;
-    const endMs =
+    const remainingChunks = chunks.length - index - 1;
+    const endFrame =
       index === chunks.length - 1
-        ? sentence.endMs
-        : Math.max(
-            startMs + 33,
-            snapToFrame(
-              sentence.startMs + (duration * cumulative) / totalWeight,
+        ? sentenceEndFrame
+        : Math.min(
+            sentenceEndFrame - remainingChunks,
+            Math.max(
+              startFrame + 1,
+              Math.round(
+                sentenceStartFrame +
+                  (durationFrames * cumulative) / totalWeight,
+              ),
             ),
           );
-    captions.push({ startMs, endMs, text: chunk });
+    captions.push({
+      startMs: frameTime(startFrame),
+      endMs: frameTime(endFrame),
+      text: chunk,
+    });
+    startFrame = endFrame;
   }
   return captions;
 }

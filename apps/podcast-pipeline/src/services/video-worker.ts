@@ -316,12 +316,6 @@ export function createVideoWorker(
   };
 }
 
-export function isVideoWorkerEnabled(
-  environment: NodeJS.ProcessEnv = process.env,
-): boolean {
-  return environment['VIDEO_WORKER_ENABLED']?.trim() === 'true';
-}
-
 function createVideoWorkerLeaseOwner(): string {
   return `${hostname()}:${process.pid}:${randomUUID()}`;
 }
