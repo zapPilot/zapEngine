@@ -14,7 +14,9 @@ vi.mock('@hono/node-server', () => ({
 }));
 
 vi.mock('./services/video-worker.js', async (importOriginal) => {
-  const actual = await importOriginal();
+  const actual = (await importOriginal<
+    typeof import('./services/video-worker.js')
+  >()) as Record<string, unknown>;
   return {
     ...actual,
     createVideoWorker: vi.fn(() => ({
@@ -30,7 +32,9 @@ vi.mock('./services/episode-video-processor.js', () => ({
 }));
 
 vi.mock('./lib/env.js', async (importOriginal) => {
-  const actual = await importOriginal();
+  const actual = (await importOriginal<
+    typeof import('./lib/env.js')
+  >()) as Record<string, unknown>;
   return {
     ...actual,
     getRequiredEnv: vi.fn((key: string) => {
@@ -67,7 +71,6 @@ describe('bootstrap', () => {
     const processJob = vi.fn().mockResolvedValue({});
 
     const handle = bootstrap({
-      environment: { VIDEO_WORKER_ENABLED: 'true' },
       app: fakeApp,
       videoWorker: providedWorker,
       processVideoJob: processJob,
@@ -97,28 +100,10 @@ describe('bootstrap', () => {
     expect(postRunSigtermListeners).toBeLessThanOrEqual(startSigtermListeners);
   });
 
-  it('does not start polling when VIDEO_WORKER_ENABLED is unset', async () => {
-    const { bootstrap } = await import('./index.js');
-    const startSpy = vi.fn();
-    const handle = bootstrap({
-      environment: {},
-      app: { fetch: vi.fn() } as unknown as Hono,
-      videoWorker: {
-        start: startSpy,
-        runOnce: vi.fn(),
-        stop: vi.fn().mockResolvedValue(undefined),
-      },
-    });
-    expect(handle.videoWorker).toBeDefined();
-    expect(startSpy).toHaveBeenCalledTimes(0);
-    await handle.shutdown();
-  });
-
   it('deduplicates concurrent shutdown invocations into a single promise', async () => {
     const { bootstrap } = await import('./index.js');
     const stop = vi.fn().mockResolvedValue(undefined);
     const server = bootstrap({
-      environment: { VIDEO_WORKER_ENABLED: 'true' },
       app: { fetch: vi.fn() } as unknown as Hono,
       videoWorker: {
         start: vi.fn(),

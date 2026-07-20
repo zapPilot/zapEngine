@@ -4,7 +4,7 @@ import { createEpisodeVideoManifest } from './episode-video.js';
 import { createDeterministicStoryboardProvider } from './storyboard/fallback.js';
 
 vi.mock('./audio-analysis.js', async (importOriginal) => {
-  const actual = await importOriginal();
+  const actual = await importOriginal<typeof import('./audio-analysis.js')>();
   return {
     ...actual,
     probeAudioDurationMs: vi.fn().mockResolvedValue(90_000),

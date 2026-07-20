@@ -10,7 +10,6 @@ import type {
 } from './video-jobs.js';
 import {
   createVideoWorker,
-  isVideoWorkerEnabled,
   type ProcessEpisodeVideoJob,
 } from './video-worker.js';
 
@@ -695,13 +694,5 @@ describe('createVideoWorker', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(repository.claim).toHaveBeenCalledTimes(1);
     await worker.stop();
-  });
-});
-
-describe('isVideoWorkerEnabled', () => {
-  it('requires an explicit true value', () => {
-    expect(isVideoWorkerEnabled({ VIDEO_WORKER_ENABLED: 'true' })).toBe(true);
-    expect(isVideoWorkerEnabled({ VIDEO_WORKER_ENABLED: 'false' })).toBe(false);
-    expect(isVideoWorkerEnabled({})).toBe(false);
   });
 });

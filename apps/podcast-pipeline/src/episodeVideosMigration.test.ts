@@ -96,6 +96,23 @@ describe('episode video lifecycle schema', () => {
     },
   );
 
+  it.each([
+    ['schema.sql', schema],
+    ['migration 018', audioIntegrityMigration],
+  ])(
+    'requeues a failed video job with a clean immediate retry in %s',
+    (_name, sql) => {
+      const enqueueDefinition = functionDefinition(
+        sql,
+        'enqueue_episode_video',
+      );
+
+      expect(enqueueDefinition).toMatch(
+        /if current_status = 'failed' then[\s\S]+?set status = 'queued',[\s\S]+?attempt_count = 0,[\s\S]+?next_attempt_at = now\(\),[\s\S]+?lease_owner = null,[\s\S]+?lease_expires_at = null,[\s\S]+?last_error = null,[\s\S]+?failure_notified_at = null,[\s\S]+?started_at = null,[\s\S]+?completed_at = null/i,
+      );
+    },
+  );
+
   it('patches the enqueue contract after migration 017', () => {
     expect(migration).not.toMatch(
       /nullif\(btrim\(localization\.classroom_hls_url\), ''\) is not null/i,
