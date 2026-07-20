@@ -74,6 +74,14 @@ const config: ExpoConfig = {
   },
   plugins: [
     [
+      'expo-build-properties',
+      {
+        ios: {
+          buildReactNativeFromSource: true,
+        },
+      },
+    ],
+    [
       'expo-dev-client',
       {
         android: {
