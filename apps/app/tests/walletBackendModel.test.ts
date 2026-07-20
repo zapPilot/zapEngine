@@ -8,6 +8,7 @@ import {
   getNativeWalletChain,
   NATIVE_WALLET_SUPPORTED_CHAINS,
   shouldSwitchChain,
+  toWalletError,
   toWalletSwitchEthereumChainParams,
 } from '@/integration/walletBackendModel';
 
@@ -50,5 +51,14 @@ describe('native wallet backend model', () => {
     expect(toWalletSwitchEthereumChainParams(base.id)).toEqual([
       { chainId: '0x2105' },
     ]);
+  });
+
+  it('preserves wallet provider error messages for UI state', () => {
+    expect(toWalletError(new Error('Provider rejected request'))).toEqual({
+      message: 'Provider rejected request',
+    });
+    expect(toWalletError({ code: 4001 })).toEqual({
+      message: '[object Object]',
+    });
   });
 });
