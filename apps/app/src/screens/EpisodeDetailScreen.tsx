@@ -1,28 +1,18 @@
-import Slider from '@react-native-community/slider';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import {
-  Bookmark,
-  ChevronLeft,
-  Gauge,
-  Pause,
-  Play,
-  RotateCcw,
-  RotateCw,
-  Share2,
-  SkipBack,
-  SkipForward,
-} from 'lucide-react-native';
-import { type ReactNode, useMemo } from 'react';
+import { Bookmark, ChevronLeft, Share2 } from 'lucide-react-native';
+import { useMemo } from 'react';
 import { Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PodcastLanguageDropdown } from '@/components/content/ContentLanguageSelector';
-import { EpisodeVideoPlayer } from '@/components/podcast/EpisodeVideoPlayer';
+import {
+  EpisodeMediaPlayer,
+  PodcastIconButton,
+} from '@/components/podcast/EpisodeMediaPlayer';
 import {
   formatPodcastClock,
   formatPodcastEpisodeDate,
   languageBadgeFor,
-  nextPodcastPlaybackSpeed,
 } from '@/components/podcast/episodeFormatters';
 import {
   estimateTranscriptTiming,
@@ -55,35 +45,6 @@ function episodeParamToString(value: string | string[] | undefined): string {
   return value ?? '';
 }
 
-function IconButton({
-  label,
-  disabled = false,
-  onPress,
-  children,
-}: {
-  label: string;
-  disabled?: boolean;
-  onPress: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <Tap
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      disabled={disabled}
-      onPress={onPress}
-      className={cn(
-        'h-11 w-11 items-center justify-center rounded-full border',
-        disabled
-          ? 'border-line bg-[rgba(255,255,255,.03)] opacity-40'
-          : 'border-[rgba(212,197,163,.28)] bg-[rgba(212,197,163,.12)]',
-      )}
-    >
-      {children}
-    </Tap>
-  );
-}
-
 function EpisodeDetailHeader({
   episode,
   onBack,
@@ -103,17 +64,17 @@ function EpisodeDetailHeader({
   return (
     <View className="flex-row items-center justify-between px-5 pb-3">
       <View className="flex-row items-center gap-3">
-        <IconButton label="Back" onPress={onBack}>
+        <PodcastIconButton label="Back" onPress={onBack}>
           <ChevronLeft size={20} strokeWidth={2} color="#d4c5a3" />
-        </IconButton>
+        </PodcastIconButton>
         <PodcastLanguageDropdown />
       </View>
       <Text className="min-w-0 flex-1 px-3 text-center font-sans-semibold text-[14px] text-ink">
         Podcast
       </Text>
-      <IconButton label="Share episode" onPress={shareEpisode}>
+      <PodcastIconButton label="Share episode" onPress={shareEpisode}>
         <Share2 size={18} strokeWidth={2} color="#d4c5a3" />
-      </IconButton>
+      </PodcastIconButton>
     </View>
   );
 }
@@ -144,121 +105,6 @@ function EpisodeHeroCard({ episode }: { episode: PodcastEpisode }) {
           ) : null}
         </View>
       </Card>
-    </View>
-  );
-}
-
-function EpisodePlaybackControls({
-  episode,
-  episodes,
-  player,
-  onEpisodeChanged,
-}: {
-  episode: PodcastEpisode;
-  episodes: readonly PodcastEpisode[];
-  player: PodcastPlayer;
-  onEpisodeChanged: (episode: PodcastEpisode) => void;
-}) {
-  const isCurrent = player.nowPlaying?.id === episode.id;
-  const duration = isCurrent ? Math.floor(player.duration) : 0;
-  const currentTime = isCurrent
-    ? Math.min(Math.floor(player.currentTime), duration)
-    : 0;
-  const isPlaying = isCurrent && player.isPlaying;
-
-  const play = () => player.playFromQueue(episodes, episode);
-  const skipPrevious = () => {
-    const nextEpisode = player.skipToPreviousEpisode();
-    if (nextEpisode !== null) onEpisodeChanged(nextEpisode);
-  };
-  const skipNext = () => {
-    const nextEpisode = player.skipToNextEpisode();
-    if (nextEpisode !== null) onEpisodeChanged(nextEpisode);
-  };
-
-  return (
-    <View className="px-5 pt-5">
-      <View className="rounded-[28px] border border-line bg-surface p-5">
-        <Slider
-          accessibilityLabel="Seek episode"
-          disabled={!isCurrent || duration <= 0}
-          minimumValue={0}
-          maximumValue={duration > 0 ? duration : 1}
-          value={currentTime}
-          minimumTrackTintColor="#d4c5a3"
-          maximumTrackTintColor="rgba(255,255,255,.12)"
-          thumbTintColor="#d4c5a3"
-          onSlidingComplete={player.seek}
-          style={{ height: 32 }}
-        />
-        <View className="mt-1 flex-row items-center justify-between px-1">
-          <Text className="font-mono text-[10px] text-ink-faint">
-            {formatPodcastClock(currentTime)}
-          </Text>
-          <Text className="font-mono text-[10px] text-ink-faint">
-            {formatPodcastClock(duration)}
-          </Text>
-        </View>
-
-        <View className="mt-5 flex-row items-center justify-between">
-          <IconButton
-            label="Rewind 15 seconds"
-            disabled={!isCurrent}
-            onPress={() => player.seekRelative(-15)}
-          >
-            <RotateCcw size={19} strokeWidth={2} color="#d4c5a3" />
-          </IconButton>
-          <IconButton
-            label="Previous episode"
-            disabled={!player.hasPreviousEpisode}
-            onPress={skipPrevious}
-          >
-            <SkipBack size={20} strokeWidth={2} color="#d4c5a3" />
-          </IconButton>
-          <Tap
-            accessibilityRole="button"
-            accessibilityLabel={isPlaying ? 'Pause episode' : 'Play episode'}
-            onPress={play}
-            className="h-[72px] w-[72px] items-center justify-center rounded-full border border-[rgba(212,197,163,.35)] bg-[rgba(212,197,163,.18)]"
-          >
-            {isPlaying ? (
-              <Pause size={31} strokeWidth={2.1} color="#d4c5a3" />
-            ) : (
-              <Play size={31} strokeWidth={2.1} color="#d4c5a3" />
-            )}
-          </Tap>
-          <IconButton
-            label="Next episode"
-            disabled={!player.hasNextEpisode}
-            onPress={skipNext}
-          >
-            <SkipForward size={20} strokeWidth={2} color="#d4c5a3" />
-          </IconButton>
-          <IconButton
-            label="Forward 30 seconds"
-            disabled={!isCurrent}
-            onPress={() => player.seekRelative(30)}
-          >
-            <RotateCw size={19} strokeWidth={2} color="#d4c5a3" />
-          </IconButton>
-        </View>
-
-        <View className="mt-5 items-end">
-          <Tap
-            accessibilityRole="button"
-            accessibilityLabel="Change playback speed"
-            onPress={() =>
-              player.setSpeed(nextPodcastPlaybackSpeed(player.speed))
-            }
-            className="flex-row items-center gap-2 rounded-full border border-line bg-[rgba(255,255,255,.04)] px-3 py-2"
-          >
-            <Gauge size={14} strokeWidth={2} color="#a1a1aa" />
-            <Text className="font-mono text-[11px] text-ink-dim">
-              {player.speed}x
-            </Text>
-          </Tap>
-        </View>
-      </View>
     </View>
   );
 }
@@ -498,9 +344,9 @@ export function EpisodeDetailScreen() {
         style={{ paddingTop: Math.max(insets.top, 12) }}
       >
         <View className="flex-row items-center px-5 pb-3">
-          <IconButton label="Back" onPress={() => router.back()}>
+          <PodcastIconButton label="Back" onPress={() => router.back()}>
             <ChevronLeft size={20} strokeWidth={2} color="#d4c5a3" />
-          </IconButton>
+          </PodcastIconButton>
         </View>
         {isLoading ? (
           <DetailSkeleton />
@@ -527,15 +373,8 @@ export function EpisodeDetailScreen() {
       <ScreenScrollView bottomPadding={36}>
         <EpisodeDetailHeader episode={episode} onBack={() => router.back()} />
         <EpisodeHeroCard episode={episode} />
-        {episode.video === null ? null : (
-          <EpisodeVideoPlayer
-            key={episode.localizationId}
-            title={episode.title}
-            video={episode.video}
-            onPlaybackStart={player.pause}
-          />
-        )}
-        <EpisodePlaybackControls
+        <EpisodeMediaPlayer
+          key={episode.localizationId}
           episode={episode}
           episodes={episodes}
           player={player}

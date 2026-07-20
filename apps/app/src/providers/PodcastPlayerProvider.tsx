@@ -27,6 +27,7 @@ export function PodcastPlayerProvider({
   const isPlaying = player.isPlaying;
   const rawToggle = player.toggle;
   const rawPlayFromQueue = player.playFromQueue;
+  const rawPlayFromQueueAt = player.playFromQueueAt;
   const rawSkipToPreviousEpisode = player.skipToPreviousEpisode;
   const rawSkipToNextEpisode = player.skipToNextEpisode;
 
@@ -34,7 +35,7 @@ export function PodcastPlayerProvider({
     if (isPlaying) pauseActiveVideo();
   }, [isPlaying, pauseActiveVideo]);
 
-  // jscpd:ignore-start — toggle and playFromQueue share the same auth+gating pattern
+  // jscpd:ignore-start — playback actions share the same auth+gating pattern
   const toggle = useCallback<PodcastPlayer['toggle']>(
     (episode) =>
       authAction.run(() => {
@@ -61,6 +62,14 @@ export function PodcastPlayerProvider({
       rawPlayFromQueue,
     ],
   );
+  const playFromQueueAt = useCallback<PodcastPlayer['playFromQueueAt']>(
+    (episodes, episode, seconds, shouldPlay = true) =>
+      authAction.run(() => {
+        pauseActiveVideo();
+        rawPlayFromQueueAt(episodes, episode, seconds, shouldPlay);
+      }),
+    [authAction, pauseActiveVideo, rawPlayFromQueueAt],
+  );
   // jscpd:ignore-end
   const skipToPreviousEpisode = useCallback<
     PodcastPlayer['skipToPreviousEpisode']
@@ -79,10 +88,18 @@ export function PodcastPlayerProvider({
       ...player,
       toggle,
       playFromQueue,
+      playFromQueueAt,
       skipToPreviousEpisode,
       skipToNextEpisode,
     }),
-    [player, playFromQueue, skipToNextEpisode, skipToPreviousEpisode, toggle],
+    [
+      player,
+      playFromQueue,
+      playFromQueueAt,
+      skipToNextEpisode,
+      skipToPreviousEpisode,
+      toggle,
+    ],
   );
 
   return (

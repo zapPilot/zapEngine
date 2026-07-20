@@ -164,6 +164,7 @@ test('renders the web app shell and primary routes without page errors', async (
       .click();
     await expect(page).toHaveURL(/\/podcast\/episode-1-zh-Hant\?lang=zh-Hant$/);
     await expect(page.locator('video')).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: 'Watch' })).toHaveCount(0);
   });
 
   await test.step('guest can open Home and return to Podcast', async () => {
@@ -219,15 +220,23 @@ test('renders the web app shell and primary routes without page errors', async (
   expect(pageErrors).toEqual([]);
 });
 
-test('an episode with a completed video renders an inline player without autoplay', async ({
+test('video is visible as an opt-in mode and does not load before selection', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  let releaseVideoResponse: () => void = () => undefined;
+  const holdVideoResponse = new Promise<void>((resolve) => {
+    releaseVideoResponse = resolve;
+  });
   await page.route('**/episodes?**', async (route) => {
     await route.fulfill({
       contentType: 'application/json',
       body: JSON.stringify(VIDEO_PODCAST_FIXTURE),
     });
+  });
+  await page.route('**/episode-2/video.mp4', async (route) => {
+    await holdVideoResponse;
+    await route.abort();
   });
 
   await page.goto('/podcast');
@@ -237,8 +246,28 @@ test('an episode with a completed video renders an inline player without autopla
     .click();
   await expect(page).toHaveURL(/\/podcast\/episode-2-zh-Hant\?lang=zh-Hant$/);
 
-  const video = page.locator('video');
-  await expect(video).toHaveCount(1);
-  // The player must not autoplay — playback only starts on user tap.
-  expect(await video.getAttribute('autoplay')).toBeNull();
+  const listenMode = page.getByRole('tab', { name: 'Listen' });
+  const watchMode = page.getByRole('tab', { name: 'Watch' });
+  await expect(listenMode).toHaveAttribute('aria-selected', 'true');
+  await expect(watchMode).toHaveAttribute('aria-selected', 'false');
+  await expect(page.getByText('Video continues from 0:00')).toBeVisible();
+  await expect(page.locator('video')).toHaveCount(0);
+
+  const watchBounds = await watchMode.boundingBox();
+  if (watchBounds === null) {
+    throw new Error('Watch mode has no layout bounds');
+  }
+  expect(watchBounds.height).toBeGreaterThanOrEqual(44);
+
+  const videoRequest = page.waitForRequest(
+    'https://media.example.test/episode-2/video.mp4',
+  );
+  await watchMode.click();
+  await videoRequest;
+  await expect(page.locator('video')).toHaveCount(1);
+  await expect(watchMode).toHaveAttribute('aria-selected', 'true');
+
+  releaseVideoResponse();
+  await expect(listenMode).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('video')).toHaveCount(0);
 });

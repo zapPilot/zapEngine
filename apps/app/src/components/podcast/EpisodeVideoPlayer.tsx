@@ -1,26 +1,48 @@
-import { useEvent } from 'expo';
+import { useEvent, useEventListener } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { Play } from 'lucide-react-native';
-import { memo, useEffect, useMemo, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { memo, useEffect, useMemo, useRef } from 'react';
+import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 
-import { Tap } from '@/components/ui/Tap';
 import type { PodcastEpisodeVideo } from '@/integration/podcastFeed';
 import { useVideoPlaybackCoordinator } from '@/providers/VideoPlaybackCoordinatorProvider';
 
 const FULLSCREEN_OPTIONS = { enable: true } as const;
+const TIME_UPDATE_INTERVAL_SECONDS = 0.5;
+
+function finiteVideoTime(seconds: number, duration: number): number {
+  if (!Number.isFinite(seconds)) return 0;
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return Math.max(0, seconds);
+  }
+  return Math.min(Math.max(0, seconds), duration);
+}
 
 export const EpisodeVideoPlayer = memo(function EpisodeVideoPlayer({
   title,
   video,
-  onPlaybackStart,
+  initialTimeSeconds,
+  playbackRate,
+  shouldPlay,
+  onPlayingChange,
+  onPlaybackRateChange,
+  onTimeUpdate,
+  onPlaybackEnd,
+  onPlaybackError,
+  onPlaybackExit,
 }: {
   title: string;
   video: PodcastEpisodeVideo;
-  onPlaybackStart: () => void;
+  initialTimeSeconds: number;
+  playbackRate: number;
+  shouldPlay: boolean;
+  onPlayingChange: (isPlaying: boolean) => void;
+  onPlaybackRateChange: (rate: number) => void;
+  onTimeUpdate: (seconds: number, duration: number) => void;
+  onPlaybackEnd: (duration: number) => void;
+  onPlaybackError: () => void;
+  onPlaybackExit: (seconds: number) => void;
 }) {
   const { registerVideo } = useVideoPlaybackCoordinator();
-  const [showPoster, setShowPoster] = useState(true);
   const source = useMemo(
     () => ({
       uri: video.url,
@@ -36,60 +58,88 @@ export const EpisodeVideoPlayer = memo(function EpisodeVideoPlayer({
     () => ({ uri: video.thumbnailUrl }),
     [video.thumbnailUrl],
   );
-  const player = useVideoPlayer(source);
-  const { isPlaying } = useEvent(player, 'playingChange', {
-    isPlaying: player.playing,
+  const player = useVideoPlayer(source, (createdPlayer) => {
+    createdPlayer.playbackRate = playbackRate;
+    createdPlayer.timeUpdateEventInterval = TIME_UPDATE_INTERVAL_SECONDS;
+  });
+  const latestTimeRef = useRef(finiteVideoTime(initialTimeSeconds, 0));
+  const latestExitHandlerRef = useRef(onPlaybackExit);
+  latestExitHandlerRef.current = onPlaybackExit;
+  const { status } = useEvent(player, 'statusChange', {
+    status: player.status,
   });
 
-  useEffect(() => registerVideo(() => player.pause()), [player, registerVideo]);
-
   useEffect(() => {
-    if (!isPlaying) return;
-    onPlaybackStart();
-  }, [isPlaying, onPlaybackStart]);
+    const unregister = registerVideo(() => player.pause());
+    return () => {
+      unregister();
+      latestExitHandlerRef.current(latestTimeRef.current);
+    };
+  }, [player, registerVideo]);
 
-  const startPlayback = () => {
-    onPlaybackStart();
-    setShowPoster(false);
-    player.play();
-  };
+  useEventListener(player, 'sourceLoad', ({ duration }) => {
+    const actualDuration = duration > 0 ? duration : video.durationSeconds;
+    const startTime = finiteVideoTime(initialTimeSeconds, actualDuration);
+    latestTimeRef.current = startTime;
+    player.currentTime = startTime;
+    onTimeUpdate(startTime, actualDuration);
+    if (shouldPlay) player.play();
+  });
+
+  useEventListener(player, 'playingChange', ({ isPlaying }) => {
+    onPlayingChange(isPlaying);
+  });
+
+  useEventListener(player, 'playbackRateChange', ({ playbackRate: rate }) => {
+    onPlaybackRateChange(rate);
+  });
+
+  useEventListener(player, 'timeUpdate', ({ currentTime }) => {
+    latestTimeRef.current = currentTime;
+    onTimeUpdate(currentTime, player.duration || video.durationSeconds);
+  });
+
+  useEventListener(player, 'playToEnd', () => {
+    const duration = player.duration || video.durationSeconds;
+    latestTimeRef.current = duration;
+    onPlaybackEnd(duration);
+  });
+
+  useEventListener(player, 'statusChange', ({ status: nextStatus }) => {
+    if (nextStatus === 'error') onPlaybackError();
+  });
 
   return (
-    <View className="px-5 pt-5">
-      <View
-        className="overflow-hidden rounded-[22px] border border-line bg-black"
-        style={styles.frame}
-      >
-        <VideoView
-          player={player}
-          nativeControls
-          contentFit="contain"
-          fullscreenOptions={FULLSCREEN_OPTIONS}
-          style={styles.video}
-        />
-        {showPoster ? (
-          <Tap
-            accessibilityRole="button"
-            accessibilityLabel={`Play video: ${title}`}
-            onPress={startPlayback}
-            className="absolute inset-0 items-center justify-center bg-black"
-          >
-            <Image
-              accessibilityIgnoresInvertColors
-              source={posterSource}
-              resizeMode="cover"
-              style={styles.poster}
-            />
-            <View className="absolute inset-0 bg-[rgba(0,0,0,.28)]" />
-            <View className="h-16 w-16 items-center justify-center rounded-full border border-[rgba(255,255,255,.5)] bg-[rgba(10,10,10,.72)]">
-              <Play size={28} strokeWidth={2} color="#f5f1e8" fill="#f5f1e8" />
-            </View>
-            <Text className="absolute bottom-3 right-3 rounded-md bg-[rgba(10,10,10,.76)] px-2 py-1 font-mono text-[10px] text-white">
-              Video · {Math.ceil(video.durationSeconds / 60)} min
-            </Text>
-          </Tap>
-        ) : null}
-      </View>
+    <View
+      accessibilityLabel={`Video player: ${title}`}
+      className="overflow-hidden bg-black"
+      style={styles.frame}
+    >
+      <VideoView
+        player={player}
+        nativeControls
+        contentFit="contain"
+        fullscreenOptions={FULLSCREEN_OPTIONS}
+        style={styles.video}
+      />
+      {status === 'readyToPlay' ? null : (
+        <View
+          pointerEvents="none"
+          className="absolute inset-0 items-center justify-center bg-black"
+        >
+          <Image
+            accessibilityIgnoresInvertColors
+            source={posterSource}
+            resizeMode="cover"
+            style={styles.poster}
+          />
+          <View className="absolute inset-0 bg-[rgba(0,0,0,.4)]" />
+          <ActivityIndicator
+            accessibilityLabel="Loading video"
+            color="#f5f1e8"
+          />
+        </View>
+      )}
     </View>
   );
 });

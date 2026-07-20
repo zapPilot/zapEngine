@@ -1,15 +1,32 @@
 import type { PodcastEpisode } from '@/integration/podcastFeed';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 
+export interface PendingPodcastPlaybackHandoff {
+  id: number;
+  seconds: number;
+  shouldPlay: boolean;
+}
+
 export function finiteSeconds(value: number): number {
   return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+export function clampPodcastPlaybackSeconds(
+  seconds: number,
+  duration: number,
+): number {
+  const finiteDuration = finiteSeconds(duration);
+  const finiteTarget = finiteSeconds(seconds);
+  return finiteDuration > 0
+    ? Math.min(finiteTarget, finiteDuration)
+    : finiteTarget;
 }
 
 export function isSamePodcastEpisode(
   first: PodcastEpisode | null,
   second: PodcastEpisode,
 ): boolean {
-  return first?.id === second.id;
+  return first?.localizationId === second.localizationId;
 }
 
 export function findPodcastQueueIndex(
@@ -17,9 +34,7 @@ export function findPodcastQueueIndex(
   episode: PodcastEpisode,
 ): number {
   return episodes.findIndex(
-    (candidate) =>
-      candidate.id === episode.id &&
-      candidate.localizationId === episode.localizationId,
+    (candidate) => candidate.localizationId === episode.localizationId,
   );
 }
 
@@ -53,6 +68,7 @@ export function createPodcastPlayerSnapshot({
   pause,
   toggle,
   playFromQueue,
+  playFromQueueAt,
   seek,
   seekRelative,
   skipToPreviousEpisode,
@@ -72,6 +88,7 @@ export function createPodcastPlayerSnapshot({
     pause,
     toggle,
     playFromQueue,
+    playFromQueueAt,
     seek,
     seekRelative,
     skipToPreviousEpisode,

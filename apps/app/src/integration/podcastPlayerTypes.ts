@@ -16,6 +16,12 @@ export interface PodcastPlayer {
     episodes: readonly PodcastEpisode[],
     episode: PodcastEpisode,
   ) => void;
+  playFromQueueAt: (
+    episodes: readonly PodcastEpisode[],
+    episode: PodcastEpisode,
+    seconds: number,
+    shouldPlay?: boolean,
+  ) => void;
   seek: (seconds: number) => void;
   seekRelative: (deltaSeconds: number) => void;
   skipToPreviousEpisode: () => PodcastEpisode | null;
