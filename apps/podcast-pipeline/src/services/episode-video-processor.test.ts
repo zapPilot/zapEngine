@@ -103,6 +103,54 @@ describe('createEpisodeVideoProcessor', () => {
     });
   });
 
+  it('rejects when the rendered manifest hash diverges from the persisted hash', async () => {
+    const processJob = createEpisodeVideoProcessor({
+      analyzeAudio: vi.fn().mockResolvedValue({
+        durationMs: 60_000,
+        silences: [],
+      }),
+      createManifest: vi.fn().mockResolvedValue({
+        manifest: {},
+        manifestJson: '{"schemaVersion":"v1"}\n',
+        manifestHash: 'persisted-hash',
+        scriptHash: 'script-hash',
+        provenance: {
+          requestedProvider: 'deterministic',
+          effectiveProvider: 'deterministic',
+          model: 'deterministic-v1',
+          promptVersion: 'nvidia-storyboard-v1',
+          rendererVersion: 'satori-resvg-v1',
+          usedFallback: false,
+        },
+        validation: {
+          attempts: [],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      }),
+      render: vi.fn().mockResolvedValue({
+        previewPath: '/work/preview.mp4',
+        thumbnailPath: '/work/thumbnail.png',
+        storyboardPath: '/work/storyboard.json',
+        subtitlePath: '/work/captions.ass',
+        sourcesPath: '/work/sources.md',
+        manifestHash: 'rendered-hash-differs',
+        slideMasterPaths: [],
+        slideOutputPaths: [],
+      }),
+      upload: vi.fn(),
+      makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
+      writeManifest: vi.fn().mockResolvedValue(undefined),
+      removeDirectory: vi.fn().mockResolvedValue(undefined),
+    });
+
+    await expect(
+      processJob(job(), source(), {
+        signal: new AbortController().signal,
+        saveManifest: vi.fn().mockResolvedValue(undefined),
+      }),
+    ).rejects.toThrow('Rendered manifest hash differs from persisted hash');
+  });
+
   it('cleans up the render directory after upload failure', async () => {
     const removeDirectory = vi.fn().mockResolvedValue(undefined);
     const processJob = createEpisodeVideoProcessor({

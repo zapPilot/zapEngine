@@ -181,4 +181,21 @@ describe('uploadVideoArtifactsToR2', () => {
     ).rejects.toThrow('Invalid video artifact episode id');
     expect(mockUploadDone).not.toHaveBeenCalled();
   });
+
+  it('rejects slide paths with unsafe filenames', async () => {
+    await expect(
+      uploadVideoArtifactsToR2({
+        episodeId: 'episode-1',
+        languageCode: 'zh-Hant',
+        rendererVersion: 'renderer-v1',
+        manifestHash: 'hash',
+        videoPath: '/render/video.mp4',
+        thumbnailPath: '/render/thumbnail.png',
+        manifestPath: '/render/manifest.json',
+        captionsPath: '/render/captions.ass',
+        slidePaths: ['/render/unsafe name with space.png'],
+      }),
+    ).rejects.toThrow('Invalid slide filename at index 0');
+    expect(mockUploadDone).not.toHaveBeenCalled();
+  });
 });

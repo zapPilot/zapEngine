@@ -165,6 +165,62 @@ describe('podcast slide video manifest', () => {
     expectCustomIssue(tooManyLines, 'Caption may contain at most two lines');
   });
 
+  it('enforces strict generated-timing invariants for non-v1 renderer versions', () => {
+    const base = loadPreviewManifest();
+    const strict: SlideVideoManifest = {
+      ...base,
+      rendererVersion: 'satori-resvg-v2',
+    };
+
+    const overlapping = {
+      ...strict,
+      captions: [
+        strict.captions[0]!,
+        {
+          startMs: strict.captions[0]!.endMs - 100,
+          endMs: strict.captions[0]!.endMs + 500,
+          text: 'overlap',
+        },
+        ...strict.captions.slice(2),
+      ],
+    };
+    expectCustomIssue(
+      overlapping,
+      'Captions must be ordered and non-overlapping',
+    );
+
+    const unaligned = {
+      ...strict,
+      captions: [
+        { startMs: 0, endMs: 1_000, text: 'frame' },
+        { startMs: 1_000, endMs: 2_032, text: 'off frame' },
+      ],
+    };
+    expectCustomIssue(unaligned, 'Caption endMs must align with a video frame');
+
+    const wrongStart = {
+      ...strict,
+      captions: strict.captions.map((caption, index) =>
+        index === 0 ? { ...caption, startMs: 33 } : caption,
+      ),
+    };
+    expectCustomIssue(wrongStart, 'Generated captions must start at 0ms');
+
+    const wrongEnd = {
+      ...strict,
+      captions: strict.captions.slice(0, -1).concat([
+        {
+          ...strict.captions.at(-1)!,
+          endMs: (strict.captions.at(-1)?.endMs ?? 0) - 100,
+        },
+      ]),
+    };
+    expectCustomIssue(
+      wrongEnd,
+      'Generated captions must end at the clip duration',
+    );
+  });
+
   it('rejects unknown properties and malformed versioned fields', () => {
     const manifest = loadPreviewManifest();
     const withUnknownField = {

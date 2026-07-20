@@ -1,7 +1,26 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createEpisodeVideoManifest } from './episode-video.js';
 import { createDeterministicStoryboardProvider } from './storyboard/fallback.js';
+
+vi.mock('./audio-analysis.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    probeAudioDurationMs: vi.fn().mockResolvedValue(90_000),
+    detectAudioSilences: vi.fn().mockResolvedValue([]),
+  };
+});
+
+vi.mock('./storyboard/nvidia.js', () => ({
+  createNvidiaStoryboardProvider: vi.fn(() => ({
+    name: 'nvidia',
+    model: 'test-model',
+    async generate() {
+      throw new Error('Simulated API failure');
+    },
+  })),
+}));
 
 describe('createEpisodeVideoManifest', () => {
   it('returns a trusted, hash-addressable, frame-aligned worker contract', async () => {
@@ -49,5 +68,69 @@ describe('createEpisodeVideoManifest', () => {
       expect(slide.endMs - slide.startMs).toBeGreaterThanOrEqual(8_000);
       expect(slide.endMs - slide.startMs).toBeLessThanOrEqual(13_000);
     }
+  });
+
+  it('rejects audio that does not point to the main HLS section', async () => {
+    const { analyzeEpisodeAudio } = await import('./episode-video.js');
+    await expect(
+      analyzeEpisodeAudio('https://cdn.example.com/audio.m3u8'),
+    ).rejects.toThrow('must point to the main HLS section');
+  });
+
+  it('rejects classroom audio sources', async () => {
+    const { analyzeEpisodeAudio } = await import('./episode-video.js');
+    await expect(
+      analyzeEpisodeAudio(
+        'https://cdn.example.com/episodes/e/localizations/zh-Hant/classroom/playlist.m3u8',
+      ),
+    ).rejects.toThrow('not classroom audio');
+  });
+
+  describe('analyzeEpisodeAudio', () => {
+    it('resolves duration and silences from a valid main HLS URL', async () => {
+      const { analyzeEpisodeAudio } = await import('./episode-video.js');
+      const result = await analyzeEpisodeAudio(
+        'https://cdn.example.com/episodes/e/localizations/zh-Hant/main/playlist.m3u8',
+      );
+      expect(result).toEqual({ durationMs: 90_000, silences: [] });
+    });
+  });
+
+  describe('configuredProvider', () => {
+    afterEach(() => {
+      delete process.env['VIDEO_STORYBOARD_PROVIDER'];
+    });
+
+    it('falls back to nvidia provider when env var is set', async () => {
+      process.env['VIDEO_STORYBOARD_PROVIDER'] = 'nvidia';
+      const result = await createEpisodeVideoManifest({
+        episodeId: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
+        localizationId: '56b21422-1a38-4917-957e-b23223c0396c',
+        title: 'test',
+        script: '今天先看市場流動性的變化。',
+        hlsUrl:
+          'https://cdn.example.com/episodes/e/localizations/zh-Hant/main/playlist.m3u8',
+        sourceUrl: 'https://news.example.com/article',
+        durationMs: 90_000,
+      });
+      expect(result.provenance.requestedProvider).toBe('nvidia');
+      expect(result.provenance.usedFallback).toBe(true);
+    });
+
+    it('throws for unsupported provider name', async () => {
+      process.env['VIDEO_STORYBOARD_PROVIDER'] = 'invalid';
+      await expect(
+        createEpisodeVideoManifest({
+          episodeId: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
+          localizationId: '56b21422-1a38-4917-957e-b23223c0396c',
+          title: 'test',
+          script: '今天先看市場流動性的變化。',
+          hlsUrl:
+            'https://cdn.example.com/episodes/e/localizations/zh-Hant/main/playlist.m3u8',
+          sourceUrl: 'https://news.example.com/article',
+          durationMs: 90_000,
+        }),
+      ).rejects.toThrow('Unsupported VIDEO_STORYBOARD_PROVIDER: invalid');
+    });
   });
 });

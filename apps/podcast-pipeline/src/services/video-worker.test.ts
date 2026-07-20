@@ -361,6 +361,341 @@ describe('createVideoWorker', () => {
     await vi.advanceTimersByTimeAsync(30_000);
     expect(repository.claim).toHaveBeenCalledTimes(2);
   });
+
+  it('start() is idempotent when called repeatedly', async () => {
+    vi.useFakeTimers();
+    const repository = makeRepository(null);
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn(),
+      leaseOwner: 'worker-1',
+      pollIntervalMs: 15_000,
+    });
+
+    worker.start();
+    worker.start();
+    worker.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(repository.claim).toHaveBeenCalledTimes(1);
+    await worker.stop();
+  });
+
+  it('start() after stop() does not rearm polling', async () => {
+    vi.useFakeTimers();
+    const repository = makeRepository(null);
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn(),
+      leaseOwner: 'worker-1',
+      pollIntervalMs: 15_000,
+    });
+
+    worker.start();
+    await worker.stop();
+    worker.start();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(repository.claim).not.toHaveBeenCalled();
+  });
+
+  it('returns busy when a poll is already in flight', async () => {
+    const repository = makeRepository();
+    const render = createDeferred<EpisodeVideoCompletion>();
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn().mockReturnValue(render.promise),
+      notify: vi.fn().mockResolvedValue(undefined),
+      leaseOwner: 'worker-1',
+    });
+
+    const first = worker.runOnce();
+    await vi.waitFor(() => expect(repository.loadSource).toHaveBeenCalled());
+    await expect(worker.runOnce()).resolves.toBe('busy');
+    render.resolve(completion);
+    await expect(first).resolves.toBe('completed');
+  });
+
+  it('handles lease-lost when persistManifest returns false', async () => {
+    const repository = makeRepository();
+    vi.mocked(repository.saveManifest).mockResolvedValue(false);
+    vi.mocked(repository.fail).mockResolvedValue(
+      job({ status: 'queued', lease_owner: null, lease_expires_at: null }),
+    );
+    const processJob: ProcessEpisodeVideoJob = vi
+      .fn()
+      .mockImplementation(async (_job, _source, context) => {
+        await context.saveManifest({
+          manifest: { schemaVersion: 'v1' },
+          manifestHash: 'manifest-hash',
+          rendererVersion: 'renderer-v1',
+          storyboardProvider: 'nvidia',
+          storyboardModel: 'model',
+          storyboardPromptVersion: 'prompt-v1',
+          scriptHash: 'script-hash',
+        });
+        return completion;
+      });
+    const worker = createVideoWorker({
+      repository,
+      processJob,
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('failed');
+    expect(repository.saveManifest).toHaveBeenCalled();
+    expect(repository.fail).toHaveBeenCalledWith(
+      'localization-1',
+      'worker-1',
+      expect.stringContaining('lease lost'),
+    );
+  });
+
+  it('handles lease-lost when complete() returns false', async () => {
+    const repository = makeRepository();
+    vi.mocked(repository.complete).mockResolvedValue(false);
+    vi.mocked(repository.fail).mockResolvedValue(
+      job({ status: 'queued', lease_owner: null, lease_expires_at: null }),
+    );
+    const processJob: ProcessEpisodeVideoJob = vi
+      .fn()
+      .mockResolvedValue(completion);
+    const worker = createVideoWorker({
+      repository,
+      processJob,
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('failed');
+    expect(repository.complete).toHaveBeenCalled();
+    expect(repository.fail).toHaveBeenCalledWith(
+      'localization-1',
+      'worker-1',
+      expect.stringContaining('lease lost'),
+    );
+  });
+
+  it('continues without notification when latest job lookup throws', async () => {
+    const repository = makeRepository();
+    vi.mocked(repository.find).mockRejectedValue(
+      new Error('find lookup exploded'),
+    );
+    const errorLogs: { msg: string; details?: unknown }[] = [];
+    const logger = {
+      info: vi.fn(),
+      error: (msg: string, details?: unknown) => {
+        errorLogs.push({ msg, details });
+      },
+    };
+    const processJob: ProcessEpisodeVideoJob = vi
+      .fn()
+      .mockImplementation(async (_job, _source, context) => {
+        await context.saveManifest({
+          manifest: { schemaVersion: 'v1' },
+          manifestHash: 'manifest-hash',
+          rendererVersion: 'renderer-v1',
+          storyboardProvider: 'nvidia',
+          storyboardModel: 'model',
+          storyboardPromptVersion: 'prompt-v1',
+          scriptHash: 'script-hash',
+        });
+        return completion;
+      });
+    const worker = createVideoWorker({
+      repository,
+      processJob,
+      notify: vi.fn().mockResolvedValue(undefined),
+      logger,
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('completed');
+    expect(
+      errorLogs.some((entry) =>
+        entry.msg.includes('completed job notification lookup failed'),
+      ),
+    ).toBe(true);
+  });
+
+  it('returns failed and logs when repository.fail itself throws', async () => {
+    const repository = makeRepository();
+    const errorLogs: { msg: string; details?: unknown }[] = [];
+    const logger = {
+      info: vi.fn(),
+      error: (msg: string, details?: unknown) => {
+        errorLogs.push({ msg, details });
+      },
+    };
+    vi.mocked(repository.fail).mockRejectedValue(new Error('release rpc down'));
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn().mockRejectedValue(new Error('render exploded')),
+      notify: vi.fn(),
+      logger,
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('failed');
+    expect(
+      errorLogs.some((entry) =>
+        entry.msg.includes('failed to release video job'),
+      ),
+    ).toBe(true);
+  });
+
+  it('records the reap sweep stamp even when the send only logs a warning', async () => {
+    const repository = makeRepository(job({ attempt_count: 3 }));
+    vi.mocked(repository.fail).mockResolvedValue(
+      job({
+        status: 'failed',
+        attempt_count: 3,
+        telegram_chat_id: 'last-chat',
+        lease_owner: null,
+        lease_expires_at: null,
+      }),
+    );
+    vi.mocked(repository.reapFailedNotifications)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          episodeLocalizationId: 'localization-1',
+          telegramChatId: 'last-chat',
+          episodeId: 'episode-1',
+          lastError: 'render failed',
+        },
+      ]);
+    const errorLogs: { msg: string; details?: unknown }[] = [];
+    const logger = {
+      info: vi.fn(),
+      error: (msg: string, details?: unknown) => {
+        errorLogs.push({ msg, details });
+      },
+    };
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn().mockRejectedValue(new Error('render failed')),
+      notify: vi.fn().mockResolvedValue(undefined),
+      logger,
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('failed');
+    vi.mocked(repository.claim).mockResolvedValueOnce(null);
+    await worker.runOnce();
+    expect(repository.markFailureNotified).toHaveBeenCalledWith(
+      'localization-1',
+    );
+    expect(
+      errorLogs.some((entry) =>
+        entry.msg.includes('failed to record failure notification'),
+      ),
+    ).toBe(false);
+  });
+
+  it('scheduled poll catches and logs uncaught errors thrown from runOnce', async () => {
+    vi.useFakeTimers();
+    const repository = makeRepository(null);
+    vi.mocked(repository.claim).mockReset();
+    vi.mocked(repository.claim).mockRejectedValue(new Error('claim blew up'));
+    const errorLogs: { msg: string; details?: unknown }[] = [];
+    const logger = {
+      info: vi.fn(),
+      error: (msg: string, details?: unknown) => {
+        errorLogs.push({ msg, details });
+      },
+    };
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn(),
+      notify: vi.fn(),
+      logger,
+      leaseOwner: 'worker-1',
+      pollIntervalMs: 5_000,
+    });
+
+    worker.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(errorLogs.some((entry) => entry.msg.includes('poll failed'))).toBe(
+      true,
+    );
+    expect(
+      errorLogs.some((entry) => {
+        const err = entry.details as Error | undefined;
+        return err?.message?.includes('claim blew up');
+      }),
+    ).toBe(true);
+    await worker.stop();
+  });
+
+  it('logs when the reapFailedNotifications sweep itself errors', async () => {
+    const repository = makeRepository(null);
+    vi.mocked(repository.reapFailedNotifications).mockReset();
+    vi.mocked(repository.reapFailedNotifications).mockRejectedValue(
+      new Error('reap failed'),
+    );
+    const errorLogs: { msg: string; details?: unknown }[] = [];
+    const logger = {
+      info: vi.fn(),
+      error: (msg: string, details?: unknown) => {
+        errorLogs.push({ msg, details });
+      },
+    };
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn(),
+      notify: vi.fn(),
+      logger,
+      leaseOwner: 'worker-1',
+    });
+
+    await worker.runOnce();
+    expect(
+      errorLogs.some((entry) =>
+        entry.msg.includes('failed to reap video failure notifications'),
+      ),
+    ).toBe(true);
+  });
+
+  it('returns stop without claiming when shutdown is requested mid-poll', async () => {
+    const repository = makeRepository();
+    const render = createDeferred<EpisodeVideoCompletion>();
+    const abortableJob: ProcessEpisodeVideoJob = vi
+      .fn()
+      .mockImplementation(async (_job, _source, context) => {
+        context.signal.addEventListener(
+          'abort',
+          () => render.reject(context.signal.reason),
+          { once: true },
+        );
+        return render.promise;
+      });
+    const worker = createVideoWorker({
+      repository,
+      processJob: abortableJob,
+      notify: vi.fn(),
+      leaseOwner: 'worker-1',
+    });
+
+    const running = worker.runOnce();
+    await vi.waitFor(() => expect(repository.loadSource).toHaveBeenCalled());
+    render.reject(new Error('aborted shutdown'));
+    await expect(
+      worker.stop(new Error('shutting down')),
+    ).resolves.toBeUndefined();
+    await running;
+  });
+
+  it('returns stopped when stop() runs while no active poll exists', async () => {
+    vi.useFakeTimers();
+    const repository = makeRepository(null);
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn(),
+      leaseOwner: 'worker-1',
+    });
+    worker.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(repository.claim).toHaveBeenCalledTimes(1);
+    await worker.stop();
+  });
 });
 
 describe('isVideoWorkerEnabled', () => {

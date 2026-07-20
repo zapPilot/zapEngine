@@ -357,6 +357,17 @@ describe('episode source and localization lookup', () => {
       row.localization_id,
     );
   });
+
+  it('throws Supabase errors when feed lookup fails', async () => {
+    state.query!.maybeSingle.mockResolvedValue({
+      data: null,
+      error: new Error('feed lookup failed'),
+    });
+
+    await expect(
+      findEpisodeListRowByLocalizationId('localization-1'),
+    ).rejects.toThrow('feed lookup failed');
+  });
 });
 
 describe('cursor helpers', () => {

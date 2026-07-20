@@ -221,4 +221,160 @@ describe('createVideoJobRepository', () => {
       'database unavailable',
     );
   });
+
+  it('surfaces Supabase errors when loading a source', async () => {
+    const supabase = makeSupabase();
+    supabase.query.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'connection refused' },
+    });
+    await expect(
+      createVideoJobRepository(supabase as never).loadSource('localization-1'),
+    ).rejects.toThrow('connection refused');
+  });
+
+  it('rejects when the localization row is missing', async () => {
+    const supabase = makeSupabase();
+    supabase.query.maybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'episode-1',
+          source_url: 'https://example.com/article',
+          source_title: 'Article',
+        },
+        error: null,
+      });
+    await expect(
+      createVideoJobRepository(supabase as never).loadSource(
+        'missing-localization',
+      ),
+    ).rejects.toThrow('localization not found');
+  });
+
+  it('rejects when the episode row is missing for a renderable localization', async () => {
+    const supabase = makeSupabase();
+    supabase.query.maybeSingle
+      .mockResolvedValueOnce({
+        data: {
+          id: 'localization-1',
+          episode_id: 'episode-1',
+          language_code: 'zh-Hant',
+          title: 'Episode',
+          script: 'Canonical script',
+          hls_url: 'https://cdn.example.com/audio.m3u8',
+          classroom_hls_url: 'https://cdn.example.com/classroom/playlist.m3u8',
+          status: 'completed',
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: null, error: null });
+    await expect(
+      createVideoJobRepository(supabase as never).loadSource('localization-1'),
+    ).rejects.toThrow('episode not found');
+  });
+
+  it('surfaces errors when loading the episode row fails', async () => {
+    const supabase = makeSupabase();
+    supabase.query.maybeSingle
+      .mockResolvedValueOnce({
+        data: {
+          id: 'localization-1',
+          episode_id: 'episode-1',
+          language_code: 'zh-Hant',
+          title: 'Episode',
+          script: 'Canonical script',
+          hls_url: 'https://cdn.example.com/audio.m3u8',
+          classroom_hls_url: 'https://cdn.example.com/classroom/playlist.m3u8',
+          status: 'completed',
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: 'episodes table unreachable' },
+      });
+    await expect(
+      createVideoJobRepository(supabase as never).loadSource('localization-1'),
+    ).rejects.toThrow('episodes table unreachable');
+  });
+
+  it('reapFailedNotifications flattens rows, drops incomplete ones, and reports RPC errors', async () => {
+    const supabase = makeSupabase();
+    const repository = createVideoJobRepository(supabase as never);
+
+    supabase.rpc.mockResolvedValueOnce({
+      data: [
+        {
+          episode_localization_id: 'loc-1',
+          telegram_chat_id: 'chat-1',
+          episode_id: 'episode-1',
+          last_error: 'filming failed',
+        },
+        // dropped: missing telegram_chat_id
+        {
+          episode_localization_id: 'loc-2',
+          telegram_chat_id: null,
+          episode_id: 'episode-2',
+          last_error: null,
+        },
+        // dropped: missing episode_id
+        {
+          episode_localization_id: 'loc-3',
+          telegram_chat_id: 'chat-3',
+          episode_id: null,
+          last_error: null,
+        },
+      ],
+      error: null,
+    });
+    await expect(repository.reapFailedNotifications()).resolves.toEqual([
+      {
+        episodeLocalizationId: 'loc-1',
+        telegramChatId: 'chat-1',
+        episodeId: 'episode-1',
+        lastError: 'filming failed',
+      },
+    ]);
+
+    supabase.rpc.mockResolvedValueOnce({ data: null, error: null });
+    await expect(repository.reapFailedNotifications()).resolves.toEqual([]);
+
+    supabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'rpc broken' },
+    });
+    await expect(repository.reapFailedNotifications()).rejects.toThrow(
+      'rpc broken',
+    );
+
+    supabase.rpc.mockResolvedValueOnce({ data: true, error: null });
+    await expect(repository.markFailureNotified('loc-1')).resolves.toBe(true);
+    expect(supabase.rpc).toHaveBeenLastCalledWith(
+      'mark_episode_video_failure_notified',
+      { p_episode_localization_id: 'loc-1' },
+    );
+  });
+
+  it('find surfaces Supabase errors thrown by the underlying query', async () => {
+    const supabase = makeSupabase();
+    supabase.query.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'row lookup failed' },
+    });
+    await expect(
+      createVideoJobRepository(supabase as never).find('loc-1'),
+    ).rejects.toThrow('row lookup failed');
+  });
+
+  it('find returns null when no job row exists', async () => {
+    const supabase = makeSupabase();
+    supabase.query.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+    await expect(
+      createVideoJobRepository(supabase as never).find('missing-loc'),
+    ).resolves.toBeNull();
+  });
 });

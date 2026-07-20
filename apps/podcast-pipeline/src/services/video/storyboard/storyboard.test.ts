@@ -105,6 +105,89 @@ describe('storyboard validation and fallback', () => {
     );
   });
 
+  it('detects disallowed control characters in slide content', () => {
+    const sentences = splitCanonicalSentences('測試。Ａ。Ｂ。');
+    const draft = structuredClone(fallbackDraft());
+    const slide = draft.slides[1]!;
+    if (slide.template === 'cover') throw new Error('Expected content slide');
+    const originalKey = Object.keys(slide).find(
+      (k) =>
+        typeof slide[k as keyof typeof slide] === 'string' &&
+        k !== 'template' &&
+        k !== 'evidenceText' &&
+        k !== 'startSentenceId' &&
+        k !== 'endSentenceId',
+    );
+    if (originalKey)
+      (slide as Record<string, unknown>)[originalKey] = 'te\x00st';
+
+    const validation = validateStoryboardDraft(draft, {
+      script: '測試。Ａ。Ｂ。',
+      sentences,
+      durationMs: 90_000,
+    });
+    expect(validation.success).toBe(false);
+    if (validation.success) throw new Error('Expected invalid');
+    expect(
+      validation.issues.some((i) => i.code === 'text.invalid_unicode'),
+    ).toBe(true);
+  });
+
+  it('flags slides missing Traditional Chinese text', () => {
+    const sentences = splitCanonicalSentences(script);
+    const draft = structuredClone(fallbackDraft());
+    const slide = draft.slides[1]!;
+    if (slide.template === 'cover') throw new Error('Expected content slide');
+    for (const [key, value] of Object.entries(slide)) {
+      if (
+        [
+          'startSentenceId',
+          'endSentenceId',
+          'evidenceText',
+          'imageSearchIntent',
+          'template',
+        ].includes(key)
+      )
+        continue;
+      if (typeof value === 'string')
+        (slide as Record<string, unknown>)[key] = 'test';
+      if (Array.isArray(value))
+        (slide as Record<string, unknown>)[key] = ['test'];
+    }
+
+    const validation = validateStoryboardDraft(draft, {
+      script,
+      sentences,
+      durationMs: 90_000,
+    });
+    expect(validation.success).toBe(false);
+    if (validation.success) throw new Error('Expected invalid');
+    expect(
+      validation.issues.some(
+        (i) => i.code === 'text.missing_traditional_chinese',
+      ),
+    ).toBe(true);
+  });
+
+  it('flags incomplete sentence coverage', () => {
+    const sentences = splitCanonicalSentences(script);
+    const draft = structuredClone(fallbackDraft());
+    draft.slides = draft.slides.slice(0, -1);
+    if (draft.slides.length < 2) throw new Error('Expected enough slides');
+    draft.slides[draft.slides.length - 1]!.endSentenceId = 's0008';
+
+    const validation = validateStoryboardDraft(draft, {
+      script,
+      sentences,
+      durationMs: 90_000,
+    });
+    expect(validation.success).toBe(false);
+    if (validation.success) throw new Error('Expected invalid');
+    expect(
+      validation.issues.some((i) => i.code === 'sentences.incomplete_coverage'),
+    ).toBe(true);
+  });
+
   it('grounds numeric cover copy against its selected sentence range', () => {
     const sentences = splitCanonicalSentences(script);
     const draft = structuredClone(fallbackDraft());
@@ -126,6 +209,18 @@ describe('storyboard validation and fallback', () => {
 });
 
 describe('storyboard provider orchestration', () => {
+  it('throws on empty canonical script', async () => {
+    const provider = createDeterministicStoryboardProvider();
+    await expect(
+      generateStoryboard({
+        title: 'test',
+        script: '',
+        durationMs: 90_000,
+        provider,
+      }),
+    ).rejects.toThrow('Canonical script does not contain any sentences');
+  });
+
   it('sends validation feedback once and accepts the repaired draft', async () => {
     const repairOptions: (StoryboardProviderOptions | undefined)[] = [];
     const provider: StoryboardProvider = {
