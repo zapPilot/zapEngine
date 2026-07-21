@@ -42,6 +42,21 @@ Keep the e2e script and Playwright web server in sync:
 - Expo web export and static-server startup can be slow in CI. Prefer a
   conservative Playwright `webServer.timeout` over skipping or deleting the gate.
 
+## App boot and hydration failures
+
+When both the root redirect and a direct route fail before any app control is
+visible, treat them as one app-boot failure rather than two locator bugs.
+
+- Compare adjacent CI runs before changing product routing. A later pass with no
+  relevant app diff is evidence of runner-sensitive startup, not a route contract
+  change.
+- Use a dedicated boot timeout for the first stable shell/control; keep normal
+  interaction assertions strict after the app is visible.
+- Retain Playwright traces and failure screenshots in CI, and upload
+  `apps/app/playwright-report` plus `apps/app/test-results` on failure.
+- Do not add `window` fallbacks to shared Expo route files. Shared routes also run
+  on native, and browser navigation still cannot help when React never mounts.
+
 ## Route-smoke assertion rules
 
 For route-smoke specs, avoid mutable product-copy assertions such as balances,
@@ -86,13 +101,14 @@ wait for the final GitHub Actions run on the PR head to pass.
 
 ## Rationalizations — STOP
 
-| Excuse | Reality |
-| --- | --- |
-| "The old frontend path is where e2e used to live." | `apps/app` is the current Expo web app. Do not revive retired paths. |
-| "Startup is flaky, so skip the e2e gate." | Fix port/web-server/timeout parity. |
-| "A balance or APR string proves the page loaded." | Route smoke should not depend on mutable product copy or market data. |
-| "The app built locally, so Playwright port config is fine." | Build success does not prove `PLAYWRIGHT_PORT` / `BASE_URL` parity. |
+| Excuse                                                            | Reality                                                                     |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| "The old frontend path is where e2e used to live."                | `apps/app` is the current Expo web app. Do not revive retired paths.        |
+| "Startup is flaky, so skip the e2e gate."                         | Preserve the gate; add boot-specific waiting and failure artifacts.         |
+| "A balance or APR string proves the page loaded."                 | Route smoke should not depend on mutable product copy or market data.       |
+| "The app built locally, so Playwright port config is fine."       | Build success does not prove `PLAYWRIGHT_PORT` / `BASE_URL` parity.         |
 | "The implementation fix is obvious; CI can validate after merge." | Route-smoke expectations must match the auth navigation model before merge. |
+| "A browser redirect fallback will fix CI hydration."              | It only runs after React mounts and is unsafe in a shared native route.     |
 
 ## Verification
 

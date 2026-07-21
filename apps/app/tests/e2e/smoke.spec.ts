@@ -66,6 +66,8 @@ const PRIMARY_ROUTES = [
 const ERROR_PAGE_PATTERN =
   /Something went wrong|Unhandled|ErrorBoundary|Page not found/i;
 const AUTH_REQUIRED_ROUTES = new Set(['/strategy', '/activity', '/account']);
+const APP_BOOT_TIMEOUT = 45_000;
+const E2E_TEST_TIMEOUT = 90_000;
 
 async function routePodcastFeed(page: Page): Promise<void> {
   await page.route('**/episodes?**', async (route) => {
@@ -85,6 +87,7 @@ async function expectHealthyRoute(page: Page): Promise<void> {
 test('renders the web app shell and primary routes without page errors', async ({
   page,
 }) => {
+  test.setTimeout(E2E_TEST_TIMEOUT);
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => {
     pageErrors.push(`${page.url()}: ${error.stack ?? error.message}`);
@@ -94,7 +97,9 @@ test('renders the web app shell and primary routes without page errors', async (
 
   await test.step('Podcast is the default guest route and all five tabs remain visible', async () => {
     await page.goto('/');
-    await expect(page).toHaveURL(/\/podcast$/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/podcast$/, {
+      timeout: APP_BOOT_TIMEOUT,
+    });
 
     const tabs = page.getByRole('tab');
     await expect(tabs).toHaveCount(5);
@@ -223,6 +228,7 @@ test('renders the web app shell and primary routes without page errors', async (
 test('video is visible as an opt-in mode and does not load before selection', async ({
   page,
 }) => {
+  test.setTimeout(E2E_TEST_TIMEOUT);
   await page.setViewportSize({ width: 390, height: 844 });
   let releaseVideoResponse: () => void = () => undefined;
   const holdVideoResponse = new Promise<void>((resolve) => {
@@ -240,10 +246,11 @@ test('video is visible as an opt-in mode and does not load before selection', as
   });
 
   await page.goto('/podcast');
-  await page
+  const episodeButton = page
     .getByRole('button', { name: 'Open E2E video episode' })
-    .first()
-    .click();
+    .first();
+  await expect(episodeButton).toBeVisible({ timeout: APP_BOOT_TIMEOUT });
+  await episodeButton.click();
   await expect(page).toHaveURL(/\/podcast\/episode-2-zh-Hant\?lang=zh-Hant$/);
 
   const listenMode = page.getByRole('tab', { name: 'Listen' });

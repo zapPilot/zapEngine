@@ -29,9 +29,9 @@ export default defineConfig({
   timeout: 30 * 1000,
   use: {
     baseURL: BASE_URL,
-    trace: 'off',
+    trace: 'retain-on-failure',
     video: 'off',
-    screenshot: 'off',
+    screenshot: 'only-on-failure',
     viewport: { width: 390, height: 844 },
     ignoreHTTPSErrors: true,
   },
