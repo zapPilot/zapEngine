@@ -5,6 +5,8 @@ import {
   clampPodcastPlaybackSeconds,
   createPodcastPlayerSnapshot,
   findPodcastQueueIndex,
+  hasNextPodcastEpisode,
+  hasPreviousPodcastEpisode,
   isSamePodcastEpisode,
 } from '@/integration/podcastPlayerShared';
 
@@ -59,6 +61,28 @@ describe('podcast episode playback identity', () => {
   });
 });
 
+describe('podcast queue boundaries', () => {
+  const queue = [
+    makeEpisode({ localizationId: 'loc-1' }),
+    makeEpisode({ localizationId: 'loc-2' }),
+    makeEpisode({ localizationId: 'loc-3' }),
+  ];
+
+  it('only exposes previous navigation for valid non-first items', () => {
+    expect(hasPreviousPodcastEpisode(queue, -1)).toBe(false);
+    expect(hasPreviousPodcastEpisode(queue, 0)).toBe(false);
+    expect(hasPreviousPodcastEpisode(queue, 1)).toBe(true);
+    expect(hasPreviousPodcastEpisode(queue, queue.length)).toBe(false);
+  });
+
+  it('only exposes next navigation for valid non-last items', () => {
+    expect(hasNextPodcastEpisode(queue, -1)).toBe(false);
+    expect(hasNextPodcastEpisode(queue, 0)).toBe(true);
+    expect(hasNextPodcastEpisode(queue, queue.length - 1)).toBe(false);
+    expect(hasNextPodcastEpisode(queue, queue.length)).toBe(false);
+  });
+});
+
 describe('clampPodcastPlaybackSeconds', () => {
   it('clamps a finite handoff position to the media duration', () => {
     expect(clampPodcastPlaybackSeconds(90, 60)).toBe(60);
@@ -100,5 +124,37 @@ describe('createPodcastPlayerSnapshot', () => {
     });
 
     expect(snapshot.playFromQueueAt).toBe(playFromQueueAt);
+  });
+
+  it('normalises invalid playback state and derives queue navigation', () => {
+    const noop = vi.fn();
+    const queue = [
+      makeEpisode({ localizationId: 'loc-1' }),
+      makeEpisode({ localizationId: 'loc-2' }),
+      makeEpisode({ localizationId: 'loc-3' }),
+    ];
+    const snapshot = createPodcastPlayerSnapshot({
+      nowPlaying: queue[1] ?? null,
+      isPlaying: true,
+      currentTime: Number.NaN,
+      duration: Number.POSITIVE_INFINITY,
+      speed: 1,
+      queue,
+      queueIndex: 1,
+      pause: noop,
+      toggle: noop,
+      playFromQueue: noop,
+      playFromQueueAt: noop,
+      seek: noop,
+      seekRelative: noop,
+      skipToPreviousEpisode: () => queue[0] ?? null,
+      skipToNextEpisode: () => queue[2] ?? null,
+      setSpeed: noop,
+    });
+
+    expect(snapshot.currentTime).toBe(0);
+    expect(snapshot.duration).toBe(0);
+    expect(snapshot.hasPreviousEpisode).toBe(true);
+    expect(snapshot.hasNextEpisode).toBe(true);
   });
 });
