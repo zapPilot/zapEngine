@@ -61,7 +61,7 @@ const config: ExpoConfig = {
     icon: './assets/brand/icon.png',
   },
   android: {
-    package: 'com.fromfedtochain.app',
+    package: 'com.zap_pilot.app',
     adaptiveIcon: {
       foregroundImage: './assets/brand/adaptive-icon.png',
       backgroundColor: '#0a0a0a',
