@@ -33,10 +33,19 @@ const MAX_REDIRECTS = 3;
 const DEFAULT_DOWNLOAD_TIMEOUT_MS = 15_000;
 const MIN_FRAMED_LONG_EDGE = 800;
 const MIN_FRAMED_SHORT_EDGE = 320;
-const MIN_FULL_BLEED_LONG_EDGE = 2_400;
-const MIN_FULL_BLEED_SHORT_EDGE = 1_200;
+const MIN_FULL_BLEED_LONG_EDGE = 1_600;
+const MIN_FULL_BLEED_SHORT_EDGE = 900;
 
-const ALLOWED_IMAGE_CONTENT_TYPES = new Map([
+export type SupportedRemoteImageContentType =
+  | 'image/avif'
+  | 'image/jpeg'
+  | 'image/png'
+  | 'image/webp';
+
+const ALLOWED_IMAGE_CONTENT_TYPES = new Map<
+  SupportedRemoteImageContentType | 'image/jpg',
+  'avif' | 'jpeg' | 'png' | 'webp'
+>([
   ['image/avif', 'avif'],
   ['image/jpeg', 'jpeg'],
   ['image/jpg', 'jpeg'],
@@ -78,6 +87,20 @@ export interface ResolveSlideAssetOptions {
   workingDirectory?: string;
   signal?: AbortSignal;
   timeoutMs?: number;
+}
+
+export interface AcquiredRemoteImage {
+  path: string;
+  contentType: SupportedRemoteImageContentType;
+  sha256: string;
+  width: number;
+  height: number;
+}
+
+export interface AcquireRemoteImageOptions extends ResolveSlideAssetOptions {
+  workingDirectory: string;
+  filename: string;
+  layout?: 'fullBleed' | 'framed';
 }
 
 function findAssetSource(slide: Slide): SlideSource | null {
@@ -479,7 +502,10 @@ async function downloadRemoteImage(
   url: string,
   outputPath: string,
   options: ResolveSlideAssetOptions,
-): Promise<{ contentType: string; sha256: string }> {
+): Promise<{
+  contentType: SupportedRemoteImageContentType;
+  sha256: string;
+}> {
   const timeout = combineAbortSignalWithTimeout(
     options.signal,
     options.timeoutMs ?? DEFAULT_DOWNLOAD_TIMEOUT_MS,
@@ -500,7 +526,10 @@ async function downloadRemoteImage(
       ?.split(';', 1)[0]
       ?.trim()
       .toLowerCase();
-    if (!contentType || !ALLOWED_IMAGE_CONTENT_TYPES.has(contentType)) {
+    if (
+      !contentType ||
+      !ALLOWED_IMAGE_CONTENT_TYPES.has(contentType as never)
+    ) {
       throw new Error(
         'Remote asset is not an image or uses an unsupported raster format',
       );
@@ -511,12 +540,97 @@ async function downloadRemoteImage(
       outputPath,
       timeout.signal,
     );
-    return { contentType, sha256: streamed.sha256 };
+    return {
+      contentType:
+        contentType === 'image/jpg'
+          ? 'image/jpeg'
+          : (contentType as SupportedRemoteImageContentType),
+      sha256: streamed.sha256,
+    };
   } catch (error) {
     if (timeout.signal.aborted) throw abortError(timeout.signal);
     throw error;
   } finally {
     timeout.dispose();
+  }
+}
+
+async function inspectDownloadedImage(
+  outputPath: string,
+  contentType: SupportedRemoteImageContentType,
+  layout: 'fullBleed' | 'framed',
+): Promise<{ width: number; height: number }> {
+  const metadata = await sharp(outputPath, {
+    failOn: 'error',
+    limitInputPixels: MAX_REMOTE_IMAGE_PIXELS,
+    animated: false,
+  }).metadata();
+  if (!metadata.width || !metadata.height) {
+    throw new Error('Image dimensions could not be read');
+  }
+  if ((metadata.pages ?? 1) !== 1) {
+    throw new Error('Animated or multi-page images are not supported');
+  }
+  const expectedFormat = ALLOWED_IMAGE_CONTENT_TYPES.get(contentType);
+  if (metadata.format !== expectedFormat) {
+    throw new Error('Image content type does not match decoded format');
+  }
+  if (
+    metadata.width > MAX_REMOTE_IMAGE_DIMENSION ||
+    metadata.height > MAX_REMOTE_IMAGE_DIMENSION ||
+    metadata.width * metadata.height > MAX_REMOTE_IMAGE_PIXELS
+  ) {
+    throw new Error('Image exceeds the safe pixel-dimension limit');
+  }
+
+  const longEdge = Math.max(metadata.width, metadata.height);
+  const shortEdge = Math.min(metadata.width, metadata.height);
+  const requiredLongEdge =
+    layout === 'fullBleed' ? MIN_FULL_BLEED_LONG_EDGE : MIN_FRAMED_LONG_EDGE;
+  const requiredShortEdge =
+    layout === 'fullBleed' ? MIN_FULL_BLEED_SHORT_EDGE : MIN_FRAMED_SHORT_EDGE;
+  if (longEdge < requiredLongEdge) {
+    throw new Error(
+      `${layout} image long edge is ${longEdge}px; ${requiredLongEdge}px is required`,
+    );
+  }
+  if (shortEdge < requiredShortEdge) {
+    throw new Error(
+      `${layout} image short edge is ${shortEdge}px; ${requiredShortEdge}px is required`,
+    );
+  }
+  return { width: metadata.width, height: metadata.height };
+}
+
+export async function acquireRemoteImage(
+  url: string,
+  options: AcquireRemoteImageOptions,
+): Promise<AcquiredRemoteImage> {
+  throwIfAborted(options.signal);
+  if (!/^[a-z\d][a-z\d._-]*$/i.test(options.filename)) {
+    throw new Error('Remote image filename contains unsafe characters');
+  }
+  await mkdir(options.workingDirectory, { recursive: true });
+  const outputPath = join(
+    options.workingDirectory,
+    `${options.filename}.image`,
+  );
+  const downloaded = await downloadRemoteImage(url, outputPath, options);
+  try {
+    const dimensions = await inspectDownloadedImage(
+      outputPath,
+      downloaded.contentType,
+      options.layout ?? 'framed',
+    );
+    return {
+      path: outputPath,
+      contentType: downloaded.contentType,
+      sha256: downloaded.sha256,
+      ...dimensions,
+    };
+  } catch (error) {
+    await rm(outputPath, { force: true });
+    throw error;
   }
 }
 
@@ -551,49 +665,11 @@ async function resolveRemoteImage(
       throw new Error('Image SHA-256 does not match the manifest');
     }
 
-    const metadata = await sharp(outputPath, {
-      failOn: 'error',
-      limitInputPixels: MAX_REMOTE_IMAGE_PIXELS,
-      animated: false,
-    }).metadata();
-    if (!metadata.width || !metadata.height) {
-      throw new Error('Image dimensions could not be read');
-    }
-    if ((metadata.pages ?? 1) !== 1) {
-      throw new Error('Animated or multi-page images are not supported');
-    }
-    const expectedFormat = ALLOWED_IMAGE_CONTENT_TYPES.get(contentType);
-    if (metadata.format !== expectedFormat) {
-      throw new Error('Image content type does not match decoded format');
-    }
-    if (
-      metadata.width > MAX_REMOTE_IMAGE_DIMENSION ||
-      metadata.height > MAX_REMOTE_IMAGE_DIMENSION ||
-      metadata.width * metadata.height > MAX_REMOTE_IMAGE_PIXELS
-    ) {
-      throw new Error('Image exceeds the safe pixel-dimension limit');
-    }
-
-    const longEdge = Math.max(metadata.width, metadata.height);
-    const shortEdge = Math.min(metadata.width, metadata.height);
-    const requiredLongEdge =
-      slide.asset.layout === 'fullBleed'
-        ? MIN_FULL_BLEED_LONG_EDGE
-        : MIN_FRAMED_LONG_EDGE;
-    const requiredShortEdge =
-      slide.asset.layout === 'fullBleed'
-        ? MIN_FULL_BLEED_SHORT_EDGE
-        : MIN_FRAMED_SHORT_EDGE;
-    if (longEdge < requiredLongEdge) {
-      throw new Error(
-        `${slide.asset.layout} image long edge is ${longEdge}px; ${requiredLongEdge}px is required`,
-      );
-    }
-    if (shortEdge < requiredShortEdge) {
-      throw new Error(
-        `${slide.asset.layout} image short edge is ${shortEdge}px; ${requiredShortEdge}px is required`,
-      );
-    }
+    const metadata = await inspectDownloadedImage(
+      outputPath,
+      contentType,
+      slide.asset.layout,
+    );
 
     const dataUri = ownsDirectory
       ? toDataUri(contentType, await readFile(outputPath))

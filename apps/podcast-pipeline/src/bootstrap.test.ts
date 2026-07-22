@@ -31,6 +31,10 @@ vi.mock('./services/episode-video-processor.js', () => ({
   processEpisodeVideoJob: vi.fn(),
 }));
 
+vi.mock('./services/episode-video-visual-processor.js', () => ({
+  processEpisodeVideoVisualJob: vi.fn(),
+}));
+
 vi.mock('./lib/env.js', async (importOriginal) => {
   const actual = (await importOriginal<
     typeof import('./lib/env.js')
@@ -115,5 +119,24 @@ describe('bootstrap', () => {
     expect(stop).toHaveBeenCalledTimes(1);
     await server.shutdown('SIGTERM');
     expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('wires both the shared visual and localization processors into the worker', async () => {
+    const { bootstrap } = await import('./index.js');
+    const { createVideoWorker } = await import('./services/video-worker.js');
+    const processVideoJob = vi.fn();
+    const processVideoVisualJob = vi.fn();
+    const handle = bootstrap({
+      app: { fetch: vi.fn() } as unknown as Hono,
+      processVideoJob,
+      processVideoVisualJob,
+    });
+
+    expect(createVideoWorker).toHaveBeenCalledWith({
+      processJob: processVideoJob,
+      processVisualJob: processVideoVisualJob,
+    });
+
+    await handle.shutdown();
   });
 });

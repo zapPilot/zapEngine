@@ -6,11 +6,17 @@ import type {
   EpisodeVideoCompletion,
   EpisodeVideoJobRow,
   EpisodeVideoSource,
+  EpisodeVideoVisualCompletion,
+  EpisodeVideoVisualJobRow,
+  EpisodeVideoVisualSource,
   VideoJobRepository,
+  VisualJobRepository,
 } from './video-jobs.js';
 import {
-  createVideoWorker,
+  createVideoWorker as createVideoWorkerImplementation,
+  type CreateVideoWorkerOptions,
   type ProcessEpisodeVideoJob,
+  type ProcessEpisodeVideoVisualJob,
 } from './video-worker.js';
 
 const source: EpisodeVideoSource = {
@@ -19,6 +25,24 @@ const source: EpisodeVideoSource = {
   languageCode: 'zh-Hant',
   title: 'Episode',
   script: 'Canonical script',
+  hlsUrl: 'https://cdn.example.com/audio.m3u8',
+  sourceUrl: 'https://example.com/article',
+  sourceTitle: 'Article',
+  canonicalLocalizationId: 'localization-1',
+  canonicalScript: 'Canonical script',
+  visualManifest: { schemaVersion: 'image-slideshow-v1' },
+  visualHash: 'visual-hash',
+  visualVersion: 'visual-v1',
+  visualR2Prefix: 'episodes/episode-1/visuals/visual-v1/visual-hash',
+};
+
+const visualSource: EpisodeVideoVisualSource = {
+  episodeId: 'episode-1',
+  canonicalLocalizationId: 'localization-1',
+  title: 'Episode',
+  script: 'Canonical script',
+  englishTitle: 'English episode',
+  englishScript: 'English script',
   hlsUrl: 'https://cdn.example.com/audio.m3u8',
   sourceUrl: 'https://example.com/article',
   sourceTitle: 'Article',
@@ -33,10 +57,21 @@ const completion: EpisodeVideoCompletion = {
   durationSeconds: 90,
 };
 
+const visualCompletion: EpisodeVideoVisualCompletion = {
+  visualPayload: { schemaVersion: 'image-slideshow-v1' },
+  visualHash: 'visual-hash',
+  visualVersion: 'visual-v1',
+  sourceHash: 'source-hash',
+  r2Prefix: 'episodes/episode-1/visuals/visual-v1/visual-hash',
+};
+
 function job(overrides: Partial<EpisodeVideoJobRow> = {}): EpisodeVideoJobRow {
   return {
     episode_localization_id: 'localization-1',
+    episode_id: 'episode-1',
     status: 'processing',
+    visual_hash: 'visual-hash',
+    visual_version: 'visual-v1',
     manifest: null,
     manifest_hash: null,
     renderer_version: null,
@@ -57,6 +92,31 @@ function job(overrides: Partial<EpisodeVideoJobRow> = {}): EpisodeVideoJobRow {
     lease_expires_at: '2026-07-16T00:10:00.000Z',
     last_error: null,
     failure_notified_at: null,
+    started_at: '2026-07-16T00:00:00.000Z',
+    completed_at: null,
+    created_at: '2026-07-16T00:00:00.000Z',
+    updated_at: '2026-07-16T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function visualJob(
+  overrides: Partial<EpisodeVideoVisualJobRow> = {},
+): EpisodeVideoVisualJobRow {
+  return {
+    episode_id: 'episode-1',
+    status: 'processing',
+    visual_payload: null,
+    visual_hash: null,
+    visual_version: 'visual-v1',
+    source_hash: 'source-hash',
+    r2_prefix: null,
+    telegram_chat_id: 'first-chat',
+    attempt_count: 1,
+    next_attempt_at: '2026-07-16T00:00:00.000Z',
+    lease_owner: 'worker-1',
+    lease_expires_at: '2026-07-16T00:10:00.000Z',
+    last_error: null,
     started_at: '2026-07-16T00:00:00.000Z',
     completed_at: null,
     created_at: '2026-07-16T00:00:00.000Z',
@@ -86,6 +146,36 @@ function makeRepository(
   };
 }
 
+function makeVisualRepository(
+  claimed: EpisodeVideoVisualJobRow | null = null,
+): VisualJobRepository {
+  return {
+    enqueue: vi.fn(),
+    claim: vi.fn().mockResolvedValue(claimed),
+    renewLease: vi.fn().mockResolvedValue(true),
+    complete: vi.fn().mockResolvedValue(true),
+    fail: vi.fn().mockResolvedValue(null),
+    find: vi.fn().mockResolvedValue(claimed),
+    loadSource: vi.fn().mockResolvedValue(visualSource),
+  };
+}
+
+type TestVideoWorkerOptions = Omit<
+  CreateVideoWorkerOptions,
+  'processVisualJob' | 'visualRepository'
+> &
+  Partial<
+    Pick<CreateVideoWorkerOptions, 'processVisualJob' | 'visualRepository'>
+  >;
+
+function createVideoWorker(options: TestVideoWorkerOptions) {
+  return createVideoWorkerImplementation({
+    visualRepository: makeVisualRepository(),
+    processVisualJob: vi.fn(),
+    ...options,
+  });
+}
+
 describe('createVideoWorker', () => {
   beforeEach(() => {
     vi.useRealTimers();
@@ -97,6 +187,7 @@ describe('createVideoWorker', () => {
     const processJob: ProcessEpisodeVideoJob = vi
       .fn()
       .mockImplementation(async (_job, _source, context) => {
+        expect(context.runId).toMatch(/^[a-f0-9]{8}$/);
         await context.saveManifest({
           manifest: { schemaVersion: 'v1' },
           manifestHash: 'manifest-hash',
@@ -130,6 +221,140 @@ describe('createVideoWorker', () => {
     expect(notify).toHaveBeenCalledWith(
       'latest-chat',
       expect.stringContaining('影片完成'),
+    );
+  });
+
+  it('claims and completes shared visual work before localization renders', async () => {
+    const repository = makeRepository();
+    const visualRepository = makeVisualRepository(visualJob());
+    const processVisualJob: ProcessEpisodeVideoVisualJob = vi
+      .fn()
+      .mockImplementation((_job, _source, context) => {
+        expect(context.signal.aborted).toBe(false);
+        expect(context.runId).toMatch(/^[a-f0-9]{8}$/);
+        return Promise.resolve(visualCompletion);
+      });
+    const worker = createVideoWorker({
+      repository,
+      visualRepository,
+      processJob: vi.fn(),
+      processVisualJob,
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('completed');
+    expect(visualRepository.claim).toHaveBeenCalledWith('worker-1');
+    expect(visualRepository.loadSource).toHaveBeenCalledWith('episode-1');
+    expect(processVisualJob).toHaveBeenCalledWith(
+      expect.objectContaining({ episode_id: 'episode-1' }),
+      visualSource,
+      expect.objectContaining({ runId: expect.any(String) }),
+    );
+    expect(visualRepository.complete).toHaveBeenCalledWith(
+      'episode-1',
+      'worker-1',
+      visualCompletion,
+    );
+    expect(repository.claim).not.toHaveBeenCalled();
+  });
+
+  it('releases a failed visual job without attempting a localization render', async () => {
+    const repository = makeRepository();
+    const visualRepository = makeVisualRepository(visualJob());
+    vi.mocked(visualRepository.fail).mockResolvedValue(
+      visualJob({
+        status: 'queued',
+        lease_owner: null,
+        lease_expires_at: null,
+      }),
+    );
+    const worker = createVideoWorker({
+      repository,
+      visualRepository,
+      processJob: vi.fn(),
+      processVisualJob: vi
+        .fn()
+        .mockRejectedValue(new Error('no qualified images')),
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('failed');
+    expect(visualRepository.fail).toHaveBeenCalledWith(
+      'episode-1',
+      'worker-1',
+      'no qualified images',
+    );
+    expect(repository.claim).not.toHaveBeenCalled();
+  });
+
+  it('aborts visual processing when its heartbeat loses the episode lease', async () => {
+    vi.useFakeTimers();
+    const visualRepository = makeVisualRepository(visualJob());
+    vi.mocked(visualRepository.renewLease).mockResolvedValue(false);
+    vi.mocked(visualRepository.fail).mockResolvedValue(
+      visualJob({
+        status: 'queued',
+        lease_owner: null,
+        lease_expires_at: null,
+      }),
+    );
+    const processVisualJob: ProcessEpisodeVideoVisualJob = vi.fn(
+      (_job, _source, context) =>
+        new Promise<EpisodeVideoVisualCompletion>((_resolve, reject) => {
+          context.signal.addEventListener(
+            'abort',
+            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+            () => reject(context.signal.reason),
+            { once: true },
+          );
+        }),
+    );
+    const worker = createVideoWorker({
+      repository: makeRepository(),
+      visualRepository,
+      processJob: vi.fn(),
+      processVisualJob,
+      leaseOwner: 'worker-1',
+      heartbeatIntervalMs: 60_000,
+    });
+
+    const running = worker.runOnce();
+    await vi.advanceTimersByTimeAsync(60_000);
+    await expect(running).resolves.toBe('failed');
+    expect(visualRepository.renewLease).toHaveBeenCalledWith(
+      'episode-1',
+      'worker-1',
+    );
+    expect(visualRepository.fail).toHaveBeenCalledWith(
+      'episode-1',
+      'worker-1',
+      expect.stringContaining('lease lost'),
+    );
+  });
+
+  it('treats a false visual completion update as a lost lease', async () => {
+    const visualRepository = makeVisualRepository(visualJob());
+    vi.mocked(visualRepository.complete).mockResolvedValue(false);
+    vi.mocked(visualRepository.fail).mockResolvedValue(
+      visualJob({
+        status: 'queued',
+        lease_owner: null,
+        lease_expires_at: null,
+      }),
+    );
+    const worker = createVideoWorker({
+      repository: makeRepository(),
+      visualRepository,
+      processJob: vi.fn(),
+      processVisualJob: vi.fn().mockResolvedValue(visualCompletion),
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('failed');
+    expect(visualRepository.fail).toHaveBeenCalledWith(
+      'episode-1',
+      'worker-1',
+      expect.stringContaining('lease lost'),
     );
   });
 

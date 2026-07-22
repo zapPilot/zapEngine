@@ -15,6 +15,7 @@ import {
   insertEpisode,
   insertEpisodeLocalization,
   listCompletedEpisodeVideosByLocalizationIds,
+  listEpisodeLocalizationsByEpisodeId,
   listEpisodes,
   listEpisodesPaged,
   listLanguageClassroomsByLocalizationId,
@@ -342,6 +343,53 @@ describe('episode source and localization lookup', () => {
     await expect(
       findEpisodeLocalizationByEpisodeId('episode-1', 'zh-Hant'),
     ).rejects.toThrow('localization lookup failed');
+  });
+
+  it('lists requested localizations for an episode in one query', async () => {
+    const rows = [
+      localizationRow(),
+      localizationRow({
+        id: '00000000-0000-4000-8000-000000000003',
+        language_code: 'ja',
+      }),
+    ];
+    state.query!.returns.mockResolvedValue({ data: rows, error: null });
+
+    await expect(
+      listEpisodeLocalizationsByEpisodeId(rows[0]!.episode_id, [
+        'zh-Hant',
+        'ja',
+        'zh-Hant',
+      ]),
+    ).resolves.toEqual(rows);
+
+    expect(mockFrom).toHaveBeenCalledWith('episode_localizations');
+    expect(state.query!.eq).toHaveBeenCalledWith(
+      'episode_id',
+      rows[0]!.episode_id,
+    );
+    expect(state.query!.in).toHaveBeenCalledWith('language_code', [
+      'zh-Hant',
+      'ja',
+    ]);
+  });
+
+  it('skips the database for an empty localization language list', async () => {
+    await expect(
+      listEpisodeLocalizationsByEpisodeId('episode-1', []),
+    ).resolves.toEqual([]);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('throws Supabase errors when localization listing fails', async () => {
+    state.query!.returns.mockResolvedValue({
+      data: null,
+      error: new Error('localization list failed'),
+    });
+
+    await expect(
+      listEpisodeLocalizationsByEpisodeId('episode-1', ['en']),
+    ).rejects.toThrow('localization list failed');
   });
 
   it('finds a completed feed row by localization id', async () => {

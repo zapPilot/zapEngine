@@ -4,7 +4,6 @@ import {
   MAX_STORYBOARD_SLIDES,
   type StoryboardDraft,
   storyboardDraftSchema,
-  type StoryboardDraftSlide,
 } from './draft.js';
 import {
   type CanonicalSentence,
@@ -37,7 +36,7 @@ function zodIssues(error: z.ZodError): StoryboardValidationIssue[] {
   }));
 }
 
-export function storyboardSlideCountRange(
+export function storyboardSceneCountRange(
   durationMs: number,
   sentenceCount: number,
 ): { min: number; max: number } {
@@ -51,24 +50,6 @@ export function storyboardSlideCountRange(
     Math.min(available, Math.max(1, Math.ceil(durationMs / 9_000))),
   );
   return { min, max };
-}
-
-function contentStrings(slide: StoryboardDraftSlide): string[] {
-  const excluded = new Set([
-    'startSentenceId',
-    'endSentenceId',
-    'evidenceText',
-    'imageSearchIntent',
-    'template',
-  ]);
-  return Object.entries(slide).flatMap(([key, value]) => {
-    if (excluded.has(key)) return [];
-    if (typeof value === 'string') return [value];
-    if (Array.isArray(value)) {
-      return value.filter((item): item is string => typeof item === 'string');
-    }
-    return [];
-  });
 }
 
 function numericTokens(value: string): string[] {
@@ -116,62 +97,53 @@ export function validateStoryboardDraft(
 
   const draft = parsed.data;
   const issues: StoryboardValidationIssue[] = [];
-  const countRange = storyboardSlideCountRange(
+  const countRange = storyboardSceneCountRange(
     context.durationMs,
     context.sentences.length,
   );
   if (
-    draft.slides.length < countRange.min ||
-    draft.slides.length > countRange.max
+    draft.scenes.length < countRange.min ||
+    draft.scenes.length > countRange.max
   ) {
     addIssue(
       issues,
-      'slides.count',
-      ['slides'],
-      `Expected ${countRange.min}-${countRange.max} slides for this duration, received ${draft.slides.length}`,
+      'scenes.count',
+      ['scenes'],
+      `Expected ${countRange.min}-${countRange.max} scenes for this duration, received ${draft.scenes.length}`,
     );
   }
-
-  if (draft.slides[0]?.template !== 'cover') {
-    addIssue(
-      issues,
-      'slides.cover_first',
-      ['slides', 0, 'template'],
-      'The first slide must use the cover template',
-    );
-  }
-  draft.slides.slice(1).forEach((slide, index) => {
-    if (slide.template === 'cover') {
-      addIssue(
-        issues,
-        'slides.duplicate_cover',
-        ['slides', index + 1, 'template'],
-        'Only the first slide may use the cover template',
-      );
-    }
-  });
 
   const sentenceById = new Map(
     context.sentences.map((sentence) => [sentence.id, sentence]),
   );
   let expectedStartIndex = 0;
-  draft.slides.forEach((slide, slideIndex) => {
-    const start = sentenceById.get(slide.startSentenceId);
-    const end = sentenceById.get(slide.endSentenceId);
+  draft.scenes.forEach((scene, sceneIndex) => {
+    const expectedSceneId = `scene-${String(sceneIndex + 1).padStart(2, '0')}`;
+    if (scene.sceneId !== expectedSceneId) {
+      addIssue(
+        issues,
+        'scenes.unstable_id',
+        ['scenes', sceneIndex, 'sceneId'],
+        `Scene ${sceneIndex + 1} must use stable ID ${expectedSceneId}`,
+      );
+    }
+
+    const start = sentenceById.get(scene.startSentenceId);
+    const end = sentenceById.get(scene.endSentenceId);
     if (!start) {
       addIssue(
         issues,
         'sentences.unknown_start',
-        ['slides', slideIndex, 'startSentenceId'],
-        `Unknown sentence ID ${slide.startSentenceId}`,
+        ['scenes', sceneIndex, 'startSentenceId'],
+        `Unknown sentence ID ${scene.startSentenceId}`,
       );
     }
     if (!end) {
       addIssue(
         issues,
         'sentences.unknown_end',
-        ['slides', slideIndex, 'endSentenceId'],
-        `Unknown sentence ID ${slide.endSentenceId}`,
+        ['scenes', sceneIndex, 'endSentenceId'],
+        `Unknown sentence ID ${scene.endSentenceId}`,
       );
     }
     if (!start || !end) return;
@@ -180,15 +152,15 @@ export function validateStoryboardDraft(
       addIssue(
         issues,
         'sentences.coverage',
-        ['slides', slideIndex, 'startSentenceId'],
-        `Slide must start at ${context.sentences[expectedStartIndex]?.id ?? 'the end of the script'}`,
+        ['scenes', sceneIndex, 'startSentenceId'],
+        `Scene must start at ${context.sentences[expectedStartIndex]?.id ?? 'the end of the script'}`,
       );
     }
     if (end.index < start.index) {
       addIssue(
         issues,
         'sentences.reversed_range',
-        ['slides', slideIndex, 'endSentenceId'],
+        ['scenes', sceneIndex, 'endSentenceId'],
         'Sentence range end precedes its start',
       );
       return;
@@ -203,47 +175,30 @@ export function validateStoryboardDraft(
     );
     if (!rangeText) return;
 
-    const combinedContent = contentStrings(slide).join('\n');
+    const combinedIntent = scene.imageSearchIntent.join('\n');
     if (
-      combinedContent.includes('\uFFFD') ||
-      containsDisallowedControlCharacters(combinedContent)
+      combinedIntent.includes('\uFFFD') ||
+      containsDisallowedControlCharacters(combinedIntent)
     ) {
       addIssue(
         issues,
-        'text.invalid_unicode',
-        ['slides', slideIndex],
-        'Slide text contains replacement or control characters',
-      );
-    }
-    if (!/\p{Script=Han}/u.test(combinedContent)) {
-      addIssue(
-        issues,
-        'text.missing_traditional_chinese',
-        ['slides', slideIndex],
-        'Slide copy must contain Traditional Chinese text',
+        'intent.invalid_unicode',
+        ['scenes', sceneIndex, 'imageSearchIntent'],
+        'Image search intent contains replacement or control characters',
       );
     }
 
     const normalizedEvidence = normalizeNumericToken(rangeText);
-    for (const token of numericTokens(combinedContent)) {
+    for (const token of numericTokens(combinedIntent)) {
       const normalized = normalizeNumericToken(token);
       if (normalized && !normalizedEvidence.includes(normalized)) {
         addIssue(
           issues,
-          'evidence.ungrounded_number',
-          ['slides', slideIndex],
-          `Numeric claim ${token} is not present in the canonical sentence range`,
+          'intent.ungrounded_number',
+          ['scenes', sceneIndex, 'imageSearchIntent'],
+          `Numeric search claim ${token} is not present in the canonical sentence range`,
         );
       }
-    }
-    if (slide.template === 'cover') return;
-    if (!rangeText.includes(slide.evidenceText)) {
-      addIssue(
-        issues,
-        'evidence.not_exact',
-        ['slides', slideIndex, 'evidenceText'],
-        'evidenceText must be an exact substring of the selected canonical sentence range',
-      );
     }
   });
 
@@ -251,7 +206,7 @@ export function validateStoryboardDraft(
     addIssue(
       issues,
       'sentences.incomplete_coverage',
-      ['slides'],
+      ['scenes'],
       `Storyboard covers ${expectedStartIndex} of ${context.sentences.length} canonical sentences`,
     );
   }

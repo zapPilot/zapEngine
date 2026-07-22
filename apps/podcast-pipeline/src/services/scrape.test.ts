@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { scrapeArticle } from './scrape.js';
@@ -9,6 +11,7 @@ vi.mock('node:fs', async () => {
 
 describe('scrapeArticle', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
@@ -25,6 +28,39 @@ describe('scrapeArticle', () => {
     await expect(scrapeArticle('https://example.com')).rejects.toThrow(
       'Failed to fetch article: 404 Not Found',
     );
+  });
+
+  it('aborts a stalled visual re-scrape at its requested deadline', async () => {
+    vi.useFakeTimers();
+    let requestSignal: AbortSignal | undefined;
+    const mockFetch = vi.fn(
+      async (_url: string | URL | Request, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          requestSignal = init?.signal ?? undefined;
+          requestSignal?.addEventListener(
+            'abort',
+            () =>
+              reject(
+                requestSignal?.reason instanceof Error
+                  ? requestSignal.reason
+                  : new Error('Request aborted'),
+              ),
+            { once: true },
+          );
+        }),
+    );
+    vi.stubGlobal('fetch', mockFetch);
+
+    const result = scrapeArticle('https://example.com/visual-source', {
+      timeoutMs: 25,
+    });
+    const assertion = expect(result).rejects.toThrow(
+      'Article scrape timed out after 25ms',
+    );
+    await vi.advanceTimersByTimeAsync(25);
+
+    await assertion;
+    expect(requestSignal?.aborted).toBe(true);
   });
 
   it('returns article from successful fetch', async () => {
@@ -50,6 +86,64 @@ describe('scrapeArticle', () => {
     expect(result.title).toBe('Test Article');
     expect(result.text).toBeTruthy();
     expect(result.text.length).toBeGreaterThan(0);
+  });
+
+  it('extracts structured article image candidates from a fixed fixture', async () => {
+    const html = await readFile(
+      new URL('./__fixtures__/article-images.html', import.meta.url),
+      'utf8',
+    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(html, { status: 200, statusText: 'OK' }));
+    vi.stubGlobal('fetch', mockFetch);
+
+    const result = await scrapeArticle(
+      'https://publisher.example.test/news/power-markets',
+    );
+
+    expect(result.images).toEqual([
+      {
+        imageUrl: 'https://cdn.example.test/social-grid.jpg',
+        sourceUrl: 'https://publisher.example.test/news/power-markets',
+        origin: 'openGraph',
+        altText: 'A regional power grid at dusk',
+        width: 2400,
+        height: 1260,
+      },
+      {
+        imageUrl: 'https://publisher.example.test/images/control-room.jpg',
+        sourceUrl: 'https://publisher.example.test/news/power-markets',
+        origin: 'article',
+        altText: 'Operators in a control room',
+        width: 1600,
+        height: 900,
+      },
+      {
+        imageUrl: 'https://publisher.example.test/images/chart-large.jpg',
+        sourceUrl: 'https://publisher.example.test/news/power-markets',
+        origin: 'article',
+        altText: 'Electricity demand chart',
+        width: 1920,
+        height: 1080,
+      },
+      {
+        imageUrl: 'https://publisher.example.test/images/turbine-high.jpg',
+        sourceUrl: 'https://publisher.example.test/news/power-markets',
+        origin: 'figure',
+        altText: 'Wind turbines near a transmission corridor',
+        width: 1200,
+        height: 800,
+      },
+      {
+        imageUrl: 'https://media.example.test/standalone-figure.webp',
+        sourceUrl: 'https://publisher.example.test/news/power-markets',
+        origin: 'figure',
+        altText: 'A standalone grid map',
+        width: 1280,
+        height: 720,
+      },
+    ]);
   });
 
   it('does not log noisy jsdom CSS parse errors while scraping', async () => {

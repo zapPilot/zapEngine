@@ -27,6 +27,24 @@ Telegram trigger support is optional. Use `PIPELINE_TELEGRAM_BOT_TOKEN`, `PIPELI
 
 `OPENROUTER_TIMEOUT_MS` limits each OpenRouter request and defaults to `120000` milliseconds. Invalid or empty values use that default; OpenRouter retries are disabled so a stuck provider request fails promptly and a resubmission can resume from the latest committed ingest stage.
 
+Scene alignment for `ja` and `en` is selected independently with `VIDEO_ALIGNMENT_PROVIDER=openrouter|nvidia`. `VIDEO_ALIGNMENT_MODEL` is interpreted by that provider. NVIDIA alignment uses `NVIDIA_API_KEY` and `NVIDIA_BASE_URL`; for example, set `VIDEO_ALIGNMENT_PROVIDER=nvidia` with `VIDEO_ALIGNMENT_MODEL=deepseek-ai/deepseek-v4-flash`. Invalid semantic output falls back to deterministic proportional alignment so rendering remains resumable.
+
+## Image-only multilingual video
+
+After all three audio localizations complete, ingest idempotently enqueues one episode-scoped visual job and three localization render jobs. The visual job creates a shared, image-only storyboard, mirrors selected images to R2, and records source-page/original-image provenance with `license: unknown`. It never stores a text-card fallback.
+
+Images are tried in this order:
+
+1. `og:image`, article/figure images, lazy-load attributes, and the largest `srcset` candidate from the source article.
+2. Bing Images HTML with strict SafeSearch when the article has too few usable images.
+3. A non-consecutive reuse of an already validated image when a scene search cannot produce a new one.
+
+Candidates must pass HTTPS/SSRF, download timeout, format, size, pixel-dimension, animation, SHA-256, and perceptual-hash checks. Bing HTML is an unofficial interface: zero parseable results or a markup change fails the visual checkpoint explicitly. Web-search images are retained as `license: unknown`; this pilot workflow does not claim usage rights.
+
+Once the shared visual checkpoint completes, `zh-Hant`, `ja`, and `en` each use their own main HLS duration, sentence timing, subtitles, and audio to render a progressive MP4. The canonical scene IDs and images are shared, while semantic alignment maps every translated sentence continuously onto those scenes. Classroom HLS is an ingest-readiness check for the canonical localization only and is never used as video audio.
+
+`POST /ingest` still returns immediately after audio work and enqueueing; it does not wait for rendering or add video-job fields to the response. `GET /episodes/:localizationId` returns `video: null` until that localization finishes. Re-submitting the same URL revives stale or failed visual/render jobs without re-running completed scrape, LLM, translation, or TTS checkpoints.
+
 ## Ingest Progress Logs
 
 `POST /ingest` remains synchronous and returns its normal JSON only after all three localizations (`zh-Hant`, `ja`, then `en`) finish. Watch the pipeline process logs while a curl request is running. Every line carries a short `run` ID; long-running steps emit `step:waiting` every 15 seconds, and completion or failure includes `elapsedMs`.
@@ -36,6 +54,15 @@ Telegram trigger support is optional. Use `PIPELINE_TELEGRAM_BOT_TOKEN`, `PIPELI
 [/ingest] step:start run=abcd1234 name=generateScript
 [/ingest] step:waiting run=abcd1234 name=generateScript elapsedMs=15000
 [/ingest] step:done run=abcd1234 name=generateScript elapsedMs=8421
+```
+
+Background video logs use the same short-run convention and expose only safe operational metadata:
+
+```text
+[video-worker] visual:search run=abcd1234 episode=... language=shared scene=scene-01 progress=1/9 candidateCount=13
+[video-worker] visual:assets run=abcd1234 episode=... language=shared scene=scene-01 progress=1/9
+[video-worker] video:alignment run=ef123456 episode=... language=ja phase=done elapsedMs=842
+[video-worker] video:render run=ef123456 episode=... language=ja scene=scene-01 progress=1/9
 ```
 
 ## Telegram Bot Setup

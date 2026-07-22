@@ -41,25 +41,18 @@ function parseDraftJson(content: string): unknown {
 
 export function buildNvidiaStoryboardSystemPrompt(): string {
   return `/no_think
-你是 Zap Pilot 的繁體中文 storyboard 編排器。你只能重新編排提供的 canonical script，不能搜尋新聞、補充事實、判斷授權或產生 TTS。
+你是 Zap Pilot 的影像 storyboard 編排器。你只能把 canonical script 切成搜尋影像用的 scenes，不能搜尋新聞、補充事實、判斷授權、產生畫面文案或產生 TTS。
 
-只輸出單一 JSON object，不要 Markdown。JSON 只能有 slides；每張 slide 只能使用指定 template 的欄位。
+只輸出單一 JSON object，不要 Markdown。JSON 只能有 scenes。每個 scene 只能有 sceneId、startSentenceId、endSentenceId、imageSearchIntent。
 
 共同規則：
-- 每張 slide 必須填 startSentenceId、endSentenceId，依序、連續、不可重疊或漏句。
-- 第一張必須是 cover；其餘不得是 cover。
-- 每張非 cover 必須填 evidenceText，而且必須逐字複製自該 sentence range 的 canonical 原文。
-- imageSearchIntent 只能是 0 到 3 個搜尋關鍵詞，不得輸出圖片 URL、來源、授權、slide ID 或時間。
-- 所有人名、機構、事件、日期、數字與單位都必須已存在 evidenceText；不得新增推論。
-- 90 秒內容使用 8 到 10 張，其他長度約每 9 到 12 秒一張。
-- 所有面向觀眾的文字使用繁體中文，保留原稿中的必要英文專名。
-
-template 欄位：
-- cover: kicker, headline, subheadline
-- photoFact: eyebrow, headline, optional subheadline, facts (1-3)
-- statistic: eyebrow, value, optional unit, label, optional secondaryValue, optional secondaryLabel, optional context
-- document: issuer, documentNumber, date, headline, excerpt
-- sourceQuote: eyebrow, quote, optional context, citation`;
+- sceneId 必須依序使用 scene-01、scene-02，以此類推。
+- 每個 scene 必須填 startSentenceId、endSentenceId，依序、連續、不可重疊或漏句。
+- imageSearchIntent 必須是 1 到 3 個具體影像搜尋短語，每個短語 2 到 80 個字元。
+- 搜尋短語應描述可攝影的主體、地點、機構、物件或事件；不得寫旁白、標題、重點、引言、字幕或版面文案。
+- 不得輸出圖片 URL、來源、授權、時間、template 或任何顯示文字。
+- 所有人名、機構、事件、日期、數字與單位都必須已存在該 scene 的 canonical sentence range；不得新增推論。
+- 90 秒內容使用 8 到 10 個 scenes，其他長度約每 9 到 12 秒一個 scene，最多 64 個。`;
 }
 
 export function buildNvidiaStoryboardUserPrompt(
@@ -81,7 +74,7 @@ export function buildNvidiaStoryboardUserPrompt(
     `音訊長度：${request.durationMs} ms`,
     `sentence 數：${request.sentences.length}`,
     '',
-    'Canonical sentences（ID 後文字不可改寫為 evidenceText）：',
+    'Canonical sentences（只可用來劃分 scene 範圍與建立影像搜尋意圖）：',
     formatSentencesForPrompt(request.sentences),
     ...repair,
   ].join('\n');

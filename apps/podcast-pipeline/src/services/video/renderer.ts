@@ -25,6 +25,8 @@ import { rasterizeSlide } from './rasterizer.js';
 import { videoAssetPaths } from './runtime-assets.js';
 import { createAssSubtitles } from './subtitles.js';
 
+type ResolvedImageAsset = Extract<ResolvedSlideAsset, { kind: 'image' }>;
+
 export interface RenderedSlideVideo {
   previewPath: string;
   thumbnailPath: string;
@@ -74,13 +76,10 @@ function sourceListMarkdown(manifest: SlideVideoManifest): string {
 function renderReportMarkdown(
   manifest: SlideVideoManifest,
   manifestHash: string,
-  assets: { slide: Slide; asset: ResolvedSlideAsset }[],
+  assets: { slide: Slide; asset: ResolvedImageAsset }[],
 ): string {
   const assetRows = assets.map(({ slide, asset }) => {
-    const result =
-      asset.kind === 'image'
-        ? `${asset.width}×${asset.height} ${asset.layout}`
-        : `fallback — ${asset.reason}`;
+    const result = `${asset.width}×${asset.height} ${asset.layout}`;
     return `| ${slide.id} | ${slide.template} | ${result} |`;
   });
   return [
@@ -149,7 +148,7 @@ export async function renderSlideVideo(options: {
 
     const assetResults: {
       slide: Slide;
-      asset: ResolvedSlideAsset;
+      asset: ResolvedImageAsset;
     }[] = [];
     const slideMasterPaths: string[] = [];
     const slideOutputPaths: string[] = [];
@@ -163,6 +162,11 @@ export async function renderSlideVideo(options: {
         workingDirectory: assetDirectory,
         signal: options.signal,
       });
+      if (asset.kind !== 'image') {
+        throw new Error(
+          `Scene ${slide.id} requires a remote image: ${asset.reason}`,
+        );
+      }
       assetResults.push({ slide, asset });
       const filename = numberedSlideFilename(index);
       const masterPath = join(mastersDirectory, filename);
@@ -200,7 +204,7 @@ export async function renderSlideVideo(options: {
       'utf8',
     );
 
-    options.onProgress?.('Encoding static slide video');
+    options.onProgress?.('Encoding image scene video');
     throwIfAborted(options.signal);
     await dependencies.renderVideo({
       manifest,

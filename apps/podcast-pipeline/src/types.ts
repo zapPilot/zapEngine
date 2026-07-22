@@ -1,6 +1,18 @@
+export type ImageCandidateOrigin = 'openGraph' | 'article' | 'figure' | 'bing';
+
+export interface ImageCandidate {
+  imageUrl: string;
+  sourceUrl: string;
+  origin: ImageCandidateOrigin;
+  altText?: string;
+  width?: number;
+  height?: number;
+}
+
 export interface Article {
   title: string;
   text: string;
+  images?: ImageCandidate[];
 }
 
 export const DEFAULT_LANGUAGE_CODE = 'zh-Hant';

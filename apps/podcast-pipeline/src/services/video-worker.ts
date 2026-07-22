@@ -16,8 +16,14 @@ import {
   type EpisodeVideoJobRow,
   type EpisodeVideoManifestPersistence,
   type EpisodeVideoSource,
+  type EpisodeVideoVisualCompletion,
+  type EpisodeVideoVisualJobRow,
+  type EpisodeVideoVisualSource,
   getVideoJobRepository,
+  getVideoVisualJobRepository,
+  type ProcessEpisodeVideoVisualJobContext,
   type VideoJobRepository,
+  type VisualJobRepository,
 } from './video-jobs.js';
 
 export const VIDEO_WORKER_POLL_INTERVAL_MS = 15_000;
@@ -27,6 +33,7 @@ export const VIDEO_WORKER_MAX_LEASE_RENEW_FAILURES = 3;
 
 export interface ProcessEpisodeVideoJobContext {
   signal: AbortSignal;
+  runId: string;
   saveManifest(input: EpisodeVideoManifestPersistence): Promise<void>;
 }
 
@@ -35,6 +42,12 @@ export type ProcessEpisodeVideoJob = (
   source: EpisodeVideoSource,
   context: ProcessEpisodeVideoJobContext,
 ) => Promise<EpisodeVideoCompletion>;
+
+export type ProcessEpisodeVideoVisualJob = (
+  job: EpisodeVideoVisualJobRow,
+  source: EpisodeVideoVisualSource,
+  context: ProcessEpisodeVideoVisualJobContext,
+) => Promise<EpisodeVideoVisualCompletion>;
 
 export type VideoWorkerPollResult =
   | 'busy'
@@ -57,7 +70,9 @@ interface VideoWorkerLogger {
 
 export interface CreateVideoWorkerOptions {
   processJob: ProcessEpisodeVideoJob;
+  processVisualJob: ProcessEpisodeVideoVisualJob;
   repository?: VideoJobRepository;
+  visualRepository?: VisualJobRepository;
   coordinator?: HeavyWorkCoordinator;
   notify?: (chatId: TelegramChatId, text: string) => Promise<void>;
   leaseOwner?: string;
@@ -71,6 +86,8 @@ export function createVideoWorker(
   options: CreateVideoWorkerOptions,
 ): EpisodeVideoWorker {
   const repository = options.repository ?? getVideoJobRepository();
+  const visualRepository =
+    options.visualRepository ?? getVideoVisualJobRepository();
   const coordinator = options.coordinator ?? heavyWorkCoordinator;
   // Default to the throwing sender so the reap sweep can tell whether a failure
   // notice was actually delivered before marking it notified. The completion
@@ -123,6 +140,10 @@ export function createVideoWorker(
 
     const attempt = await coordinator.tryRunVideo(async () => {
       shutdownController.signal.throwIfAborted();
+      const visualJob = await visualRepository.claim(leaseOwner);
+      if (visualJob) return processClaimedVisualJob(visualJob);
+
+      shutdownController.signal.throwIfAborted();
       const job = await repository.claim(leaseOwner);
       if (!job) return 'empty' as const;
       return processClaimedJob(job);
@@ -169,6 +190,79 @@ export function createVideoWorker(
     }
   };
 
+  /* jscpd:ignore-start -- processClaimedVisualJob and processClaimedJob share an irreducible job-lifecycle pattern; different types prevent extraction */
+  const processClaimedVisualJob = async (
+    job: EpisodeVideoVisualJobRow,
+  ): Promise<'completed' | 'failed'> => {
+    const jobController = new AbortController();
+    const runId = createVideoJobRunId();
+    activeJobController = jobController;
+    const relayShutdown = () => {
+      jobController.abort(shutdownController.signal.reason);
+    };
+    shutdownController.signal.addEventListener('abort', relayShutdown, {
+      once: true,
+    });
+    const stopHeartbeat = startLeaseHeartbeat({
+      repository: visualRepository,
+      jobId: job.episode_id,
+      leaseOwner,
+      intervalMs: heartbeatIntervalMs,
+      retryIntervalMs: leaseRenewRetryIntervalMs,
+      controller: jobController,
+      logger,
+      kind: 'visual',
+    });
+
+    logger.info(
+      `[video-worker] visual:start run=${runId} episode=${job.episode_id}`,
+    );
+    try {
+      jobController.signal.throwIfAborted();
+      const source = await visualRepository.loadSource(job.episode_id);
+      jobController.signal.throwIfAborted();
+      const visual = await options.processVisualJob(job, source, {
+        signal: jobController.signal,
+        runId,
+      });
+      jobController.signal.throwIfAborted();
+      const completed = await visualRepository.complete(
+        job.episode_id,
+        leaseOwner,
+        visual,
+      );
+      if (!completed) {
+        throw new VideoLeaseLostError('visual', job.episode_id);
+      }
+      logger.info(
+        `[video-worker] visual:done run=${runId} episode=${job.episode_id}`,
+      );
+      return 'completed';
+    } catch (error) {
+      const failedJob = await visualRepository
+        .fail(job.episode_id, leaseOwner, videoJobErrorMessage(error))
+        .catch((failError) => {
+          logger.error(
+            '[video-worker] failed to release visual job',
+            normalizeError(failError),
+          );
+          return null;
+        });
+      logger.error('[video-worker] visual:failed', {
+        run: runId,
+        episodeId: job.episode_id,
+        attemptCount: job.attempt_count,
+        status: failedJob?.status ?? 'unknown',
+        error: videoJobErrorMessage(error),
+      });
+      return 'failed';
+    } finally {
+      stopHeartbeat();
+      shutdownController.signal.removeEventListener('abort', relayShutdown);
+      if (activeJobController === jobController) activeJobController = null;
+    }
+  };
+
   const runOnce = async (): Promise<VideoWorkerPollResult> => {
     if (stopped) return 'stopped';
     if (activePoll) return 'busy';
@@ -186,6 +280,7 @@ export function createVideoWorker(
     job: EpisodeVideoJobRow,
   ): Promise<'completed' | 'failed'> => {
     const jobController = new AbortController();
+    const runId = createVideoJobRunId();
     activeJobController = jobController;
     const relayShutdown = () => {
       jobController.abort(shutdownController.signal.reason);
@@ -195,12 +290,13 @@ export function createVideoWorker(
     });
     const stopHeartbeat = startLeaseHeartbeat({
       repository,
-      episodeLocalizationId: job.episode_localization_id,
+      jobId: job.episode_localization_id,
       leaseOwner,
       intervalMs: heartbeatIntervalMs,
       retryIntervalMs: leaseRenewRetryIntervalMs,
       controller: jobController,
       logger,
+      kind: 'localization',
     });
     let source: EpisodeVideoSource | null = null;
 
@@ -208,8 +304,12 @@ export function createVideoWorker(
       jobController.signal.throwIfAborted();
       source = await repository.loadSource(job.episode_localization_id);
       jobController.signal.throwIfAborted();
+      logger.info(
+        `[video-worker] video:render:start run=${runId} episode=${source.episodeId} language=${source.languageCode} localization=${job.episode_localization_id}`,
+      );
       const completion = await options.processJob(job, source, {
         signal: jobController.signal,
+        runId,
         saveManifest: async (manifest) => {
           jobController.signal.throwIfAborted();
           const saved = await repository.saveManifest(
@@ -218,7 +318,10 @@ export function createVideoWorker(
             manifest,
           );
           if (!saved) {
-            const error = new VideoLeaseLostError(job.episode_localization_id);
+            const error = new VideoLeaseLostError(
+              'localization',
+              job.episode_localization_id,
+            );
             jobController.abort(error);
             throw error;
           }
@@ -231,8 +334,14 @@ export function createVideoWorker(
         completion,
       );
       if (!completed) {
-        throw new VideoLeaseLostError(job.episode_localization_id);
+        throw new VideoLeaseLostError(
+          'localization',
+          job.episode_localization_id,
+        );
       }
+      logger.info(
+        `[video-worker] video:render:done run=${runId} episode=${source.episodeId} language=${source.languageCode} localization=${job.episode_localization_id}`,
+      );
 
       const latestJob = await repository
         .find(job.episode_localization_id)
@@ -253,11 +362,6 @@ export function createVideoWorker(
       }
       return 'completed';
     } catch (error) {
-      // The failure notification is intentionally not sent here. Releasing the
-      // job flips it to 'queued' (retry pending) or 'failed' (terminal); the
-      // reap sweep in executePoll then notifies terminal failures exactly once,
-      // which also covers the source-never-loaded and crash-recovery paths that
-      // never reach this catch with a usable episode id.
       const failedJob = await repository
         .fail(
           job.episode_localization_id,
@@ -272,6 +376,7 @@ export function createVideoWorker(
           return null;
         });
       logger.error('[video-worker] job failed', {
+        run: runId,
         episodeLocalizationId: job.episode_localization_id,
         attemptCount: job.attempt_count,
         status: failedJob?.status ?? 'unknown',
@@ -284,6 +389,7 @@ export function createVideoWorker(
       if (activeJobController === jobController) activeJobController = null;
     }
   };
+  /* jscpd:ignore-end */
 
   return {
     start(): void {
@@ -320,14 +426,23 @@ function createVideoWorkerLeaseOwner(): string {
   return `${hostname()}:${process.pid}:${randomUUID()}`;
 }
 
+function createVideoJobRunId(): string {
+  return randomUUID().replaceAll('-', '').slice(0, 8);
+}
+
+interface LeaseRepository {
+  renewLease(jobId: string, leaseOwner: string): Promise<boolean>;
+}
+
 function startLeaseHeartbeat(input: {
-  repository: VideoJobRepository;
-  episodeLocalizationId: string;
+  repository: LeaseRepository;
+  jobId: string;
   leaseOwner: string;
   intervalMs: number;
   retryIntervalMs: number;
   controller: AbortController;
   logger: VideoWorkerLogger;
+  kind: 'visual' | 'localization';
 }): () => void {
   let timer: NodeJS.Timeout | null = null;
   let stopped = false;
@@ -346,7 +461,7 @@ function startLeaseHeartbeat(input: {
     let renewed: boolean;
     try {
       renewed = await input.repository.renewLease(
-        input.episodeLocalizationId,
+        input.jobId,
         input.leaseOwner,
       );
     } catch (error) {
@@ -370,9 +485,7 @@ function startLeaseHeartbeat(input: {
     }
     if (!renewed) {
       // A definitive false means another owner holds the lease — abort now.
-      input.controller.abort(
-        new VideoLeaseLostError(input.episodeLocalizationId),
-      );
+      input.controller.abort(new VideoLeaseLostError(input.kind, input.jobId));
       return;
     }
     consecutiveFailures = 0;
@@ -390,8 +503,8 @@ function startLeaseHeartbeat(input: {
 }
 
 class VideoLeaseLostError extends Error {
-  constructor(episodeLocalizationId: string) {
-    super(`Video job lease lost: ${episodeLocalizationId}`);
+  constructor(kind: 'visual' | 'localization', jobId: string) {
+    super(`Video ${kind} job lease lost: ${jobId}`);
     this.name = 'VideoLeaseLostError';
   }
 }

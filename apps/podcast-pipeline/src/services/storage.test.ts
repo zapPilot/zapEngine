@@ -56,7 +56,11 @@ vi.mock('@aws-sdk/lib-storage', () => ({
 }));
 
 import type { HlsFile } from './hls.js';
-import { uploadHlsToR2, uploadVideoArtifactsToR2 } from './storage.js';
+import {
+  uploadEpisodeVisualAssetsToR2,
+  uploadHlsToR2,
+  uploadVideoArtifactsToR2,
+} from './storage.js';
 
 beforeEach(() => {
   mockSend.mockClear();
@@ -197,5 +201,59 @@ describe('uploadVideoArtifactsToR2', () => {
       }),
     ).rejects.toThrow('Invalid slide filename at index 0');
     expect(mockUploadDone).not.toHaveBeenCalled();
+  });
+});
+
+describe('uploadEpisodeVisualAssetsToR2', () => {
+  it('uploads one immutable shared image per scene and its visual manifest', async () => {
+    const result = await uploadEpisodeVisualAssetsToR2({
+      episodeId: '00000000-0000-4000-8000-000000000001',
+      visualVersion: 'image-slideshow-v1',
+      visualHash: 'visual-hash',
+      manifestPath: '/render/visual-manifest.json',
+      images: [
+        {
+          sceneId: 'scene-01',
+          path: '/render/scene-01.image',
+          contentType: 'image/jpeg',
+        },
+        {
+          sceneId: 'scene-02',
+          path: '/render/scene-02.image',
+          contentType: 'image/webp',
+        },
+      ],
+    });
+    const prefix =
+      'episodes/00000000-0000-4000-8000-000000000001/visuals/image-slideshow-v1/visual-hash';
+
+    expect(result).toEqual({
+      manifestUrl: `https://cdn.example.com/${prefix}/visual-manifest.json`,
+      imageUrls: {
+        'scene-01': `https://cdn.example.com/${prefix}/images/scene-01.jpg`,
+        'scene-02': `https://cdn.example.com/${prefix}/images/scene-02.webp`,
+      },
+      r2Prefix: prefix,
+    });
+    expect(mockSend).toHaveBeenCalledTimes(3);
+  });
+
+  it('rejects duplicate or unsafe visual scene ids before upload', async () => {
+    await expect(
+      uploadEpisodeVisualAssetsToR2({
+        episodeId: 'episode-1',
+        visualVersion: 'image-slideshow-v1',
+        visualHash: 'visual-hash',
+        manifestPath: '/render/visual-manifest.json',
+        images: [
+          {
+            sceneId: '../scene',
+            path: '/render/scene.image',
+            contentType: 'image/png',
+          },
+        ],
+      }),
+    ).rejects.toThrow('Invalid video artifact visual scene id');
+    expect(mockSend).not.toHaveBeenCalled();
   });
 });

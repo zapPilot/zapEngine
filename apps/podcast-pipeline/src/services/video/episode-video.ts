@@ -7,21 +7,20 @@ import {
   probeAudioDurationMs,
   type SilenceInterval,
 } from './audio-analysis.js';
-import type { SlideVideoManifest } from './manifest.js';
-import { createDeterministicStoryboardProvider } from './storyboard/fallback.js';
-import { materializeStoryboardManifest } from './storyboard/materialize.js';
-import { createNvidiaStoryboardProvider } from './storyboard/nvidia.js';
+import type { ImageVideoManifest } from './manifest.js';
 import {
-  generateStoryboard,
-  type StoryboardAttemptReport,
-} from './storyboard/orchestrator.js';
-import type {
-  StoryboardProvider,
-  StoryboardTokenUsage,
-} from './storyboard/provider.js';
-import { splitCanonicalSentences } from './storyboard/sentences.js';
+  alignLocalizedScenes,
+  canonicalSceneAlignment,
+  type SceneAlignmentProvider,
+} from './scene-alignment.js';
+import { materializeLocaleImageVideoManifest } from './storyboard/materialize.js';
+import {
+  type ImageVisualPlan,
+  parseImageVisualPlan,
+} from './storyboard/visual-plan.js';
 
-export const STORYBOARD_PROMPT_VERSION = 'nvidia-storyboard-v1' as const;
+export const SCENE_ALIGNMENT_PROMPT_VERSION =
+  'semantic-scene-alignment-v1' as const;
 
 export interface EpisodeAudioAnalysis {
   durationMs: number;
@@ -39,38 +38,16 @@ export async function analyzeEpisodeAudio(
   return { durationMs, silences };
 }
 
-function sourceLabel(sourceUrl: string): string {
-  try {
-    return new URL(sourceUrl).hostname;
-  } catch {
-    return '原始文章';
-  }
-}
-
-function configuredProvider(): StoryboardProvider {
-  const name =
-    process.env['VIDEO_STORYBOARD_PROVIDER']?.trim() ?? 'deterministic';
-  if (name === 'nvidia') return createNvidiaStoryboardProvider();
-  if (name === 'deterministic') return createDeterministicStoryboardProvider();
-  throw new Error(`Unsupported VIDEO_STORYBOARD_PROVIDER: ${name}`);
-}
-
 export interface EpisodeVideoManifestResult {
-  manifest: SlideVideoManifest;
+  manifest: ImageVideoManifest;
   manifestJson: string;
   manifestHash: string;
   scriptHash: string;
   provenance: {
-    requestedProvider: string;
-    effectiveProvider: string;
-    model: string | null;
-    promptVersion: typeof STORYBOARD_PROMPT_VERSION;
+    storyboardProvider: string;
+    storyboardModel: string | null;
+    promptVersion: typeof SCENE_ALIGNMENT_PROMPT_VERSION;
     rendererVersion: string;
-    usedFallback: boolean;
-  };
-  validation: {
-    attempts: StoryboardAttemptReport[];
-    usage: StoryboardTokenUsage;
   };
 }
 
@@ -79,48 +56,58 @@ export async function createEpisodeVideoManifest(input: {
   localizationId: string;
   title: string;
   script: string;
+  canonicalScript: string;
+  visualPlan: ImageVisualPlan;
+  storyboardProvider: string;
+  storyboardModel: string | null;
   hlsUrl: string;
-  sourceUrl: string;
   durationMs: number;
   silences?: readonly SilenceInterval[];
-  languageCode?: string;
+  languageCode: 'zh-Hant' | 'ja' | 'en';
   signal?: AbortSignal;
-  provider?: StoryboardProvider;
+  alignmentProvider?: SceneAlignmentProvider;
 }): Promise<EpisodeVideoManifestResult> {
   assertMainNarrationAudioSource(input.hlsUrl);
-  const provider = input.provider ?? configuredProvider();
-  const generated = await generateStoryboard({
-    title: input.title,
-    script: input.script,
-    durationMs: input.durationMs,
-    provider,
-    ...(input.signal ? { signal: input.signal } : {}),
-  });
-  const sentences = splitCanonicalSentences(input.script);
+  const visualPlan = parseImageVisualPlan(input.visualPlan);
   const timing = buildWeightedCaptionTiming({
     script: input.script,
     durationMs: input.durationMs,
     ...(input.silences ? { silences: input.silences } : {}),
   });
-  const manifest = materializeStoryboardManifest({
-    draft: generated.draft,
-    sentences,
+  const sceneAnchors = visualPlan.scenes.map((scene) => ({
+    sceneId: scene.sceneId,
+    startSentenceId: scene.startSentenceId,
+    endSentenceId: scene.endSentenceId,
+  }));
+  let sceneAlignment;
+  if (input.languageCode === 'zh-Hant') {
+    sceneAlignment = canonicalSceneAlignment(sceneAnchors, input.script);
+  } else {
+    const alignmentOptions = {
+      ...(input.alignmentProvider ? { provider: input.alignmentProvider } : {}),
+      ...(input.signal ? { signal: input.signal } : {}),
+    };
+    sceneAlignment = await alignLocalizedScenes(
+      {
+        canonicalScript: input.canonicalScript,
+        localizedScript: input.script,
+        languageCode: input.languageCode,
+        scenes: sceneAnchors,
+      },
+      alignmentOptions,
+    );
+  }
+  const manifest = materializeLocaleImageVideoManifest({
+    visualPlan,
     timing,
+    sceneAlignment,
     episode: {
       id: input.episodeId,
       localizationId: input.localizationId,
-      languageCode: input.languageCode ?? 'zh-Hant',
+      languageCode: input.languageCode,
       title: input.title,
     },
     audioSource: input.hlsUrl,
-    source: {
-      id: 'canonical-article',
-      label: sourceLabel(input.sourceUrl),
-      url: input.sourceUrl,
-      attribution: `原始文章 · ${sourceLabel(input.sourceUrl)}`,
-      license: 'unknown',
-      licenseUrl: null,
-    },
   });
   const manifestJson = `${JSON.stringify(manifest, null, 2)}\n`;
 
@@ -130,16 +117,10 @@ export async function createEpisodeVideoManifest(input: {
     manifestHash: createHash('sha256').update(manifestJson).digest('hex'),
     scriptHash: createHash('sha256').update(input.script).digest('hex'),
     provenance: {
-      requestedProvider: generated.requestedProvider,
-      effectiveProvider: generated.effectiveProvider,
-      model: generated.model,
-      promptVersion: STORYBOARD_PROMPT_VERSION,
+      storyboardProvider: input.storyboardProvider,
+      storyboardModel: input.storyboardModel,
+      promptVersion: SCENE_ALIGNMENT_PROMPT_VERSION,
       rendererVersion: manifest.rendererVersion,
-      usedFallback: generated.usedFallback,
-    },
-    validation: {
-      attempts: generated.attempts,
-      usage: generated.totalUsage,
     },
   };
 }

@@ -148,10 +148,53 @@ export type OpenRouterChatCompletion = OpenAI.Chat.ChatCompletion & {
   provider?: string | null;
 };
 
+export interface OpenRouterRequestOptions {
+  signal?: AbortSignal;
+}
+
+interface OpenRouterDeadline {
+  signal: AbortSignal;
+  cleanup: () => void;
+}
+
+function createOpenRouterDeadline(
+  externalSignal: AbortSignal | undefined,
+  timeoutMs: number,
+): OpenRouterDeadline {
+  const controller = new AbortController();
+  const abortFromExternalSignal = (): void => {
+    controller.abort(externalSignal?.reason);
+  };
+
+  if (externalSignal?.aborted) {
+    abortFromExternalSignal();
+  } else {
+    externalSignal?.addEventListener('abort', abortFromExternalSignal, {
+      once: true,
+    });
+  }
+
+  const timeout = setTimeout(() => {
+    controller.abort(
+      new Error(`OpenRouter request timed out after ${timeoutMs}ms`),
+    );
+  }, timeoutMs);
+  timeout.unref();
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timeout);
+      externalSignal?.removeEventListener('abort', abortFromExternalSignal);
+    },
+  };
+}
+
 export async function createOpenRouterChatCompletion(
   openai: OpenAI,
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
   thinkingModel: string | null,
+  requestOptions: OpenRouterRequestOptions = {},
 ): Promise<OpenRouterChatCompletion> {
   const inputChars = userInputCharacterCount(params.messages);
   const timeoutMs = getOpenRouterTimeoutMs();
@@ -162,9 +205,16 @@ export async function createOpenRouterChatCompletion(
     timeoutMs,
   });
 
-  const completion = await openai.chat.completions.create(
-    withThinkingModel(params, thinkingModel),
-  );
+  const request = withThinkingModel(params, thinkingModel);
+  const deadline = createOpenRouterDeadline(requestOptions.signal, timeoutMs);
+  let completion: OpenRouterChatCompletion;
+  try {
+    completion = await openai.chat.completions.create(request, {
+      signal: deadline.signal,
+    });
+  } finally {
+    deadline.cleanup();
+  }
   const metadata = completionMetadata(completion, params.model, thinkingModel);
   logIngestEvent('llm:response', {
     model: metadata.model,

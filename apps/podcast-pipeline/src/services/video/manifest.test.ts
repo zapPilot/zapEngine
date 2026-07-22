@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
+  type ImageVideoManifest,
+  parseImageVideoManifest,
   parseSlideVideoManifest,
   type SlideVideoManifest,
   slideVideoManifestSchema,
@@ -41,6 +43,60 @@ function findSlide(
   return slide;
 }
 
+function createImageManifest(): ImageVideoManifest {
+  return parseImageVideoManifest({
+    schemaVersion: 'podcast-slide-video.v2',
+    rendererVersion: 'satori-resvg-v3',
+    episode: {
+      id: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
+      localizationId: '56b21422-1a38-4917-957e-b23223c0396c',
+      languageCode: 'zh-Hant',
+      title: 'Image video',
+    },
+    clip: {
+      startMs: 0,
+      durationMs: 90_000,
+      width: 1920,
+      height: 1080,
+      fps: 30,
+      transitionMs: 200,
+    },
+    audio: { sourceUrl: '/audio/main.m4a' },
+    slides: Array.from({ length: 9 }, (_, index) => {
+      const sceneId = `scene-${String(index + 1).padStart(2, '0')}`;
+      return {
+        id: sceneId,
+        startMs: index * 10_000,
+        endMs: (index + 1) * 10_000,
+        template: 'image',
+        sources: [
+          {
+            id: `${sceneId}-source`,
+            label: `${sceneId} source`,
+            url: `https://news.example.test/${sceneId}`,
+            attribution: 'Example News',
+            license: 'unknown',
+            licenseUrl: null,
+          },
+        ],
+        asset: {
+          kind: 'remoteImage',
+          sourceId: `${sceneId}-source`,
+          url: `https://images.example.test/${sceneId}.jpg`,
+          sha256: 'a'.repeat(64),
+          layout: 'fullBleed',
+          position: 'center',
+        },
+      };
+    }),
+    captions: Array.from({ length: 9 }, (_, index) => ({
+      startMs: index * 10_000,
+      endMs: (index + 1) * 10_000,
+      text: `字幕 ${index + 1}`,
+    })),
+  });
+}
+
 describe('podcast slide video manifest', () => {
   it('parses the 90-second preview with every production template', () => {
     const manifest = loadPreviewManifest();
@@ -58,6 +114,47 @@ describe('podcast slide video manifest', () => {
       new Set(['cover', 'photoFact', 'statistic', 'document', 'sourceQuote']),
     );
     expect(manifest.captions).toHaveLength(31);
+  });
+
+  it('parses v2 as image-only while retaining unknown-license provenance', () => {
+    const manifest = createImageManifest();
+    expect(manifest.slides).toHaveLength(9);
+    expect(
+      manifest.slides.every(
+        (slide) =>
+          slide.template === 'image' &&
+          slide.asset.kind === 'remoteImage' &&
+          slide.asset.layout === 'fullBleed' &&
+          slide.sources[0]?.license === 'unknown',
+      ),
+    ).toBe(true);
+    expect(JSON.stringify(manifest.slides)).not.toMatch(
+      /headline|quote|citation|facts/,
+    );
+  });
+
+  it('requires every v2 scene to have a remote image and stable ID', () => {
+    const missingImage = structuredClone(createImageManifest()) as unknown as {
+      slides: { asset: unknown }[];
+    };
+    missingImage.slides[0]!.asset = { kind: 'none' };
+    expect(slideVideoManifestSchema.safeParse(missingImage).success).toBe(
+      false,
+    );
+
+    const unstableId = createImageManifest();
+    unstableId.slides[0]!.id = 'opening';
+    expectCustomIssue(unstableId, 'Scene 1 must use stable ID scene-01');
+  });
+
+  it('keeps 90-second v2 manifests within 8-10 image scenes', () => {
+    const tooFew = createImageManifest();
+    tooFew.slides = tooFew.slides.slice(0, 7);
+    tooFew.slides.at(-1)!.endMs = 90_000;
+    expectCustomIssue(
+      tooFew,
+      'A 90-second image video must contain 8-10 scenes',
+    );
   });
 
   it('requires contiguous frame-aligned slides ending at the clip duration', () => {

@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 
 import satori from 'satori';
+import sharp from 'sharp';
 
 import type { ResolvedSlideAsset } from './assets.js';
 import {
@@ -25,15 +26,53 @@ function svgDataUri(svg: Buffer): string {
   return `data:image/svg+xml;base64,${svg.toString('base64')}`;
 }
 
+function isSupportedRasterContentType(contentType: string): boolean {
+  return (
+    contentType === 'image/avif' ||
+    contentType === 'image/jpeg' ||
+    contentType === 'image/jpg' ||
+    contentType === 'image/png' ||
+    contentType === 'image/webp'
+  );
+}
+
+function decodeDataUri(dataUri: string): Buffer {
+  const separatorIndex = dataUri.indexOf(',');
+  const header = dataUri.slice(0, separatorIndex);
+  if (separatorIndex < 0 || !/;base64$/i.test(header)) {
+    throw new Error('Resolved image asset data URI must be base64 encoded');
+  }
+  return Buffer.from(dataUri.slice(separatorIndex + 1), 'base64');
+}
+
+async function readAssetBytes(
+  asset: Extract<ResolvedSlideAsset, { kind: 'image' }>,
+): Promise<Buffer> {
+  if (asset.dataUri) return decodeDataUri(asset.dataUri);
+  if (asset.filePath) return readFile(asset.filePath);
+  throw new Error('Resolved image asset has neither dataUri nor filePath');
+}
+
 async function materializeAssetDataUri(
   asset: ResolvedSlideAsset,
 ): Promise<ResolvedSlideAsset> {
-  if (asset.kind !== 'image' || asset.dataUri) return asset;
-  if (!asset.filePath) {
-    throw new Error('Resolved image asset has neither dataUri nor filePath');
+  if (asset.kind !== 'image') return asset;
+
+  const bytes = await readAssetBytes(asset);
+  if (isSupportedRasterContentType(asset.contentType)) {
+    const png = await sharp(bytes, {
+      animated: false,
+      failOn: 'error',
+    })
+      .png()
+      .toBuffer();
+    return {
+      ...asset,
+      contentType: 'image/png',
+      dataUri: `data:image/png;base64,${png.toString('base64')}`,
+    };
   }
 
-  const bytes = await readFile(asset.filePath);
   return {
     ...asset,
     dataUri: `data:${asset.contentType};base64,${bytes.toString('base64')}`,

@@ -142,6 +142,7 @@ export async function assertVideoFfmpegCapabilities(
   const encoderOutput = `${encoders.stdout}\n${encoders.stderr}`;
   const missing = [
     !/\bxfade\b/.test(filterOutput) ? 'xfade filter' : null,
+    !/\bzoompan\b/.test(filterOutput) ? 'zoompan filter' : null,
     !/\bass\b/.test(filterOutput) ? 'ass filter' : null,
     !/\blibx264\b/.test(encoderOutput) ? 'libx264 encoder' : null,
     !/\baac\b/.test(encoderOutput) ? 'AAC encoder' : null,
@@ -159,6 +160,60 @@ function escapeFilterPath(path: string): string {
     .replaceAll("'", "\\'");
 }
 
+export type KenBurnsPan =
+  | 'center'
+  | 'leftToRight'
+  | 'rightToLeft'
+  | 'topToBottom';
+
+export function kenBurnsPanForScene(index: number): KenBurnsPan {
+  const motions: readonly KenBurnsPan[] = [
+    'center',
+    'leftToRight',
+    'rightToLeft',
+    'topToBottom',
+  ];
+  return motions[index % motions.length] ?? 'center';
+}
+
+function kenBurnsFilter(
+  slide: SlideVideoManifest['slides'][number],
+  index: number,
+  fps: number,
+  width: number,
+  height: number,
+): string {
+  const durationFrames = Math.max(
+    2,
+    Math.round(((slide.endMs - slide.startMs) * fps) / 1_000),
+  );
+  const finalFrame = durationFrames - 1;
+  const progress = `min(on/${finalFrame}\\,1)`;
+  const zoom = `1+0.05*${progress}`;
+  const centerX = '(iw-iw/zoom)/2';
+  const centerY = '(ih-ih/zoom)/2';
+  const motion = kenBurnsPanForScene(index);
+
+  let x = centerX;
+  let y = centerY;
+  if (slide.asset.kind === 'remoteImage') {
+    if (slide.asset.position === 'top') y = '0';
+    if (slide.asset.position === 'bottom') y = 'ih-ih/zoom';
+  }
+  if (motion === 'leftToRight') {
+    x = `(iw-iw/zoom)*${progress}`;
+  } else if (motion === 'rightToLeft') {
+    x = `(iw-iw/zoom)*(1-${progress})`;
+  } else if (
+    motion === 'topToBottom' &&
+    (slide.asset.kind !== 'remoteImage' || slide.asset.position === 'center')
+  ) {
+    y = `(ih-ih/zoom)*${progress}`;
+  }
+
+  return `zoompan=z='${zoom}':x='${x}':y='${y}':d=1:s=${width}x${height}:fps=${fps}`;
+}
+
 export function buildStaticSlideFilter(
   manifest: SlideVideoManifest,
   subtitlePath: string,
@@ -170,8 +225,8 @@ export function buildStaticSlideFilter(
   );
   const totalFrames = Math.round((manifest.clip.durationMs * fps) / 1_000);
   const filters: string[] = manifest.slides.map(
-    (_, index) =>
-      `[${index}:v]fps=${fps},scale=${manifest.clip.width}:${manifest.clip.height}:flags=lanczos+accurate_rnd:in_range=pc:out_range=tv:out_color_matrix=bt709,setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`,
+    (slide, index) =>
+      `[${index}:v]fps=${fps},scale=${manifest.clip.width}:${manifest.clip.height}:flags=lanczos+accurate_rnd:in_range=pc:out_range=tv:out_color_matrix=bt709,${kenBurnsFilter(slide, index, fps, manifest.clip.width, manifest.clip.height)},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`,
   );
 
   let priorLabel = 's0';

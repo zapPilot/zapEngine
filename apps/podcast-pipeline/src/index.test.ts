@@ -23,6 +23,7 @@ const {
   mockConcatMp3Buffers,
   mockDecodeCursor,
   mockEnqueueEpisodeVideoJob,
+  mockEnqueueEpisodeVideoVisualJob,
   mockFindEpisodeBySourceUrl,
   mockFindEpisodeListRowByLocalizationId,
   mockFindEpisodeLocalizationByEpisodeId,
@@ -34,6 +35,7 @@ const {
   mockInvalidateEpisodeSearchCache,
   mockListEpisodesPaged,
   mockListCompletedEpisodeVideosByLocalizationIds,
+  mockListEpisodeLocalizationsByEpisodeId,
   mockListLanguageClassroomsByLocalizationId,
   mockListLanguageClassroomsByLocalizationIds,
   mockMarkEpisodeListened,
@@ -53,6 +55,7 @@ const {
   mockConcatMp3Buffers: vi.fn(),
   mockDecodeCursor: vi.fn(),
   mockEnqueueEpisodeVideoJob: vi.fn(),
+  mockEnqueueEpisodeVideoVisualJob: vi.fn(),
   mockFindEpisodeBySourceUrl: vi.fn(),
   mockFindEpisodeListRowByLocalizationId: vi.fn(),
   mockFindEpisodeLocalizationByEpisodeId: vi.fn(),
@@ -66,6 +69,7 @@ const {
   mockListCompletedEpisodeVideosByLocalizationIds: vi
     .fn()
     .mockResolvedValue(new Map()),
+  mockListEpisodeLocalizationsByEpisodeId: vi.fn(),
   mockListLanguageClassroomsByLocalizationId: vi.fn(),
   mockListLanguageClassroomsByLocalizationIds: vi.fn(),
   mockMarkEpisodeListened: vi.fn(),
@@ -103,6 +107,7 @@ vi.mock('./services/db.js', async (importOriginal) => ({
   listEpisodesPaged: mockListEpisodesPaged,
   listCompletedEpisodeVideosByLocalizationIds:
     mockListCompletedEpisodeVideosByLocalizationIds,
+  listEpisodeLocalizationsByEpisodeId: mockListEpisodeLocalizationsByEpisodeId,
   listLanguageClassroomsByLocalizationId:
     mockListLanguageClassroomsByLocalizationId,
   listLanguageClassroomsByLocalizationIds:
@@ -171,6 +176,7 @@ vi.mock('./services/scrape.js', () => ({
 vi.mock('./services/storage.js', () => ({
   uploadHlsToR2: mockUploadHlsToR2,
   uploadVideoArtifactsToR2: vi.fn(),
+  uploadEpisodeVisualAssetsToR2: vi.fn(),
 }));
 
 vi.mock('./services/hls.js', () => ({
@@ -206,6 +212,7 @@ vi.mock('./services/translate.js', () => ({
 vi.mock('./services/video-jobs.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./services/video-jobs.js')>()),
   enqueueEpisodeVideoJob: mockEnqueueEpisodeVideoJob,
+  enqueueEpisodeVideoVisualJob: mockEnqueueEpisodeVideoVisualJob,
 }));
 
 process.env['TTS_PROVIDER'] = 'google';
@@ -219,6 +226,23 @@ beforeEach(() => {
   delete process.env['FISH_AUDIO_MODEL_ID'];
   mockListCompletedEpisodeVideosByLocalizationIds.mockResolvedValue(new Map());
   mockEnqueueEpisodeVideoJob.mockResolvedValue({ status: 'queued' });
+  mockEnqueueEpisodeVideoVisualJob.mockResolvedValue({ status: 'queued' });
+  mockListEpisodeLocalizationsByEpisodeId.mockResolvedValue([
+    localizationRow({
+      language_code: 'zh-Hant',
+      classroom_hls_url: 'https://cdn.example.com/classroom/playlist.m3u8',
+    }),
+    localizationRow({
+      id: '00000000-0000-4000-8000-000000000003',
+      language_code: 'ja',
+      classroom_hls_url: null,
+    }),
+    localizationRow({
+      id: '00000000-0000-4000-8000-000000000004',
+      language_code: 'en',
+      classroom_hls_url: null,
+    }),
+  ]);
   mockConcatMp3Buffers.mockResolvedValue(Buffer.from('classroom-combined'));
   mockSynthesizeClassroomAudio.mockResolvedValue({
     audio: Buffer.from('classroom-audio'),
@@ -839,6 +863,11 @@ describe('POST /ingest pipeline', () => {
       (_episodeId: string, languageCode: string) =>
         Promise.resolve(localizations.get(languageCode) ?? null),
     );
+    mockListEpisodeLocalizationsByEpisodeId.mockResolvedValue([
+      canonicalLocalization,
+      jaLocalization,
+      enLocalization,
+    ]);
     mockListLanguageClassroomsByLocalizationId.mockImplementation(
       (episodeLocalizationId: string) =>
         Promise.resolve(
@@ -896,11 +925,12 @@ describe('POST /ingest pipeline', () => {
     expect(body.costDetails).toEqual({ totalUsd: 0, breakdown: [] });
     expect(body.summary).toContain('✅ 已存在');
 
-    expect(mockEnqueueEpisodeVideoJob).toHaveBeenCalledTimes(1);
-    expect(mockEnqueueEpisodeVideoJob).toHaveBeenCalledWith(
-      canonicalLocalization.id,
-      null,
-    );
+    expect(mockEnqueueEpisodeVideoVisualJob).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueEpisodeVideoJob.mock.calls).toEqual([
+      [canonicalLocalization.id, null],
+      [jaLocalization.id, null],
+      [enLocalization.id, null],
+    ]);
     expect(mockScrapeArticle).not.toHaveBeenCalled();
     expect(mockConvertArticleToZhTW).not.toHaveBeenCalled();
     expect(mockInsertEpisode).not.toHaveBeenCalled();

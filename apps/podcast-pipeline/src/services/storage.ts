@@ -3,7 +3,9 @@ import { basename } from 'node:path';
 
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
+import { contentTypeExtension } from '../lib/content-type.js';
 import { getRequiredEnv, trimTrailingSlash } from '../lib/env.js';
+import type { LanguageClassroomLanguageCode } from '../types.js';
 import type { HlsFile } from './hls.js';
 
 export interface HlsUploadResult {
@@ -13,7 +15,7 @@ export interface HlsUploadResult {
 
 export interface VideoArtifactUploadInput {
   episodeId: string;
-  languageCode: 'zh-Hant';
+  languageCode: LanguageClassroomLanguageCode;
   rendererVersion: string;
   manifestHash: string;
   videoPath: string;
@@ -31,6 +33,27 @@ export interface VideoArtifactUploadResult {
   captionsAssUrl: string;
   r2Prefix: string;
   slideUrls: string[];
+}
+
+export interface VisualSourceImageUpload {
+  sceneId: string;
+  path: string;
+  contentType: 'image/avif' | 'image/jpeg' | 'image/png' | 'image/webp';
+}
+
+export interface EpisodeVisualUploadInput {
+  episodeId: string;
+  visualVersion: string;
+  visualHash: string;
+  manifestPath: string;
+  images: readonly VisualSourceImageUpload[];
+  signal?: AbortSignal;
+}
+
+export interface EpisodeVisualUploadResult {
+  manifestUrl: string;
+  imageUrls: Record<string, string>;
+  r2Prefix: string;
 }
 
 const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
@@ -163,6 +186,66 @@ export async function uploadVideoArtifactsToR2(
     captionsAssUrl: `${base}/${captionsKey}`,
     r2Prefix: prefix,
     slideUrls: slideKeys.map((key) => `${base}/${key}`),
+  };
+}
+
+export async function uploadEpisodeVisualAssetsToR2(
+  input: EpisodeVisualUploadInput,
+): Promise<EpisodeVisualUploadResult> {
+  input.signal?.throwIfAborted();
+  const episodeId = safeKeySegment(input.episodeId, 'episode id');
+  const visualVersion = safeKeySegment(
+    input.visualVersion,
+    'visual renderer version',
+  );
+  const visualHash = safeKeySegment(input.visualHash, 'visual hash');
+  const prefix = `episodes/${episodeId}/visuals/${visualVersion}/${visualHash}`;
+  const r2 = getR2Client();
+  const Bucket = getBucket();
+  const manifestKey = `${prefix}/visual-manifest.json`;
+  const seenSceneIds = new Set<string>();
+  const imageEntries = input.images.map((image) => {
+    const sceneId = safeKeySegment(image.sceneId, 'visual scene id');
+    if (seenSceneIds.has(sceneId)) {
+      throw new Error(`Duplicate visual scene id: ${sceneId}`);
+    }
+    seenSceneIds.add(sceneId);
+    const extension = contentTypeExtension(image.contentType);
+    return {
+      ...image,
+      sceneId,
+      key: `${prefix}/images/${sceneId}.${extension}`,
+    };
+  });
+
+  await Promise.all([
+    putFile(
+      r2,
+      Bucket,
+      manifestKey,
+      input.manifestPath,
+      'application/json',
+      input.signal,
+    ),
+    ...imageEntries.map((image) =>
+      putFile(
+        r2,
+        Bucket,
+        image.key,
+        image.path,
+        image.contentType,
+        input.signal,
+      ),
+    ),
+  ]);
+
+  const base = getPublicBase();
+  return {
+    manifestUrl: `${base}/${manifestKey}`,
+    imageUrls: Object.fromEntries(
+      imageEntries.map((image) => [image.sceneId, `${base}/${image.key}`]),
+    ),
+    r2Prefix: prefix,
   };
 }
 

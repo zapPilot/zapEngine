@@ -14,6 +14,7 @@ import {
 import {
   buildLanguageClassroomUserMessage,
   buildUserMessage,
+  createOpenRouterChatCompletion,
   DEFAULT_OPENROUTER_TIMEOUT_MS,
   generateLanguageClassroomsWithLLM,
   generateScriptWithLLM,
@@ -89,6 +90,110 @@ describe('getOpenRouterTimeoutMs', () => {
       expect(getOpenRouterTimeoutMs(value)).toBe(DEFAULT_OPENROUTER_TIMEOUT_MS);
     },
   );
+});
+
+describe('createOpenRouterChatCompletion', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  it('passes the abort signal to the OpenAI request and rejects when aborted', async () => {
+    const controller = new AbortController();
+    const abortReason = new Error('video lease lost');
+    const mockCreate = vi.fn(
+      (_request: unknown, options?: { signal?: AbortSignal }): Promise<never> =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener(
+            'abort',
+            () => reject(abortReason),
+            { once: true },
+          );
+        }),
+    );
+    const openai = createMockOpenAI(mockCreate) as OpenAI;
+
+    const completion = createOpenRouterChatCompletion(
+      openai,
+      {
+        model: 'test/model',
+        messages: [{ role: 'user', content: 'align scenes' }],
+      },
+      null,
+      { signal: controller.signal },
+    );
+    controller.abort(abortReason);
+
+    await expect(completion).rejects.toBe(abortReason);
+    const requestSignal: AbortSignal | undefined =
+      mockCreate.mock.calls[0]?.[1]?.signal;
+    if (!requestSignal) {
+      throw new Error('Expected OpenRouter request signal');
+    }
+    expect(requestSignal).not.toBe(controller.signal);
+    expect(requestSignal.aborted).toBe(true);
+    expect(requestSignal.reason).toBe(abortReason);
+  });
+
+  it('enforces the configured timeout with an explicit request deadline', async () => {
+    vi.useFakeTimers();
+    vi.stubEnv('OPENROUTER_TIMEOUT_MS', '25');
+    const mockCreate = vi.fn(
+      (_request: unknown, options?: { signal?: AbortSignal }): Promise<never> =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener(
+            'abort',
+            () => {
+              const reason = options.signal?.reason;
+              reject(
+                reason instanceof Error
+                  ? reason
+                  : new Error('OpenRouter request aborted'),
+              );
+            },
+            { once: true },
+          );
+        }),
+    );
+    const openai = createMockOpenAI(mockCreate) as OpenAI;
+
+    const completion = createOpenRouterChatCompletion(
+      openai,
+      {
+        model: 'test/model',
+        messages: [{ role: 'user', content: 'align scenes' }],
+      },
+      null,
+    );
+    const rejection = expect(completion).rejects.toThrow(
+      'OpenRouter request timed out after 25ms',
+    );
+    await vi.advanceTimersByTimeAsync(25);
+
+    await rejection;
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('clears the deadline after a successful response', async () => {
+    vi.useFakeTimers();
+    vi.stubEnv('OPENROUTER_TIMEOUT_MS', '25');
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'ok' } }],
+      model: 'test/model',
+    });
+    const openai = createMockOpenAI(mockCreate) as OpenAI;
+
+    await createOpenRouterChatCompletion(
+      openai,
+      {
+        model: 'test/model',
+        messages: [{ role: 'user', content: 'align scenes' }],
+      },
+      null,
+    );
+
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });
 
 describe('buildUserMessage', () => {
@@ -264,6 +369,7 @@ describe('generateScriptWithLLM', () => {
       expect.objectContaining({
         model: 'anthropic/claude-3-5-sonnet-20241022',
       }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(result).toEqual({
       script: 'Script',

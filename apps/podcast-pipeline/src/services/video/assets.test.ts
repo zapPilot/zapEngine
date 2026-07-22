@@ -113,7 +113,7 @@ describe('resolveSlideAsset', () => {
 
   it.each([
     { layout: 'framed' as const, width: 800, height: 450 },
-    { layout: 'fullBleed' as const, width: 2_400, height: 1_200 },
+    { layout: 'fullBleed' as const, width: 1_600, height: 900 },
   ])(
     'accepts a $layout image at its minimum long-edge size',
     async ({ layout, width, height }) => {
@@ -155,7 +155,7 @@ describe('resolveSlideAsset', () => {
 
   it.each([
     { layout: 'framed' as const, width: 799, required: 800 },
-    { layout: 'fullBleed' as const, width: 2_399, required: 2_400 },
+    { layout: 'fullBleed' as const, width: 1_599, required: 1_600 },
   ])(
     'falls back when a $layout image is below its quality floor',
     async ({ layout, width, required }) => {
@@ -187,6 +187,35 @@ describe('resolveSlideAsset', () => {
       );
     },
   );
+
+  it('rejects a full-bleed image below the 900px short-edge floor', async () => {
+    const buffer = await sharp({
+      create: {
+        width: 1_600,
+        height: 899,
+        channels: 3,
+        background: '#0a0a0a',
+      },
+    })
+      .png()
+      .toBuffer();
+
+    const resolved = await resolveSlideAsset(
+      remoteImageSlide({
+        imageHash: hash(buffer),
+        layout: 'fullBleed',
+      }),
+      async () => imageResponse(buffer),
+    );
+
+    expect(resolved).toMatchObject({ kind: 'fallback' });
+    if (resolved.kind !== 'fallback') {
+      throw new Error('Expected a short-edge dimension fallback');
+    }
+    expect(resolved.reason).toContain(
+      'fullBleed image short edge is 899px; 900px is required',
+    );
+  });
 
   it('falls back when the downloaded bytes do not match the manifest hash', async () => {
     const buffer = await sharp({

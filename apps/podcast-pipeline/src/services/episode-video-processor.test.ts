@@ -1,7 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createEpisodeVideoProcessor } from './episode-video-processor.js';
-import type { EpisodeVideoJobRow, EpisodeVideoSource } from './video-jobs.js';
+import {
+  EPISODE_VIDEO_VISUAL_VERSION,
+  type EpisodeVideoJobRow,
+  type EpisodeVideoSource,
+} from './video-jobs.js';
+
+const episodeId = '00000000-0000-4000-8000-000000000001';
+const localizationId = '00000000-0000-4000-8000-000000000002';
+const visualHash = 'a'.repeat(64);
 
 describe('createEpisodeVideoProcessor', () => {
   it('persists provenance before rendering and uploads immutable artifacts', async () => {
@@ -40,24 +48,9 @@ describe('createEpisodeVideoProcessor', () => {
         durationMs: 90_000,
         silences: [{ startMs: 1_000, endMs: 1_200 }],
       }),
-      createManifest: vi.fn().mockResolvedValue({
-        manifest: {},
-        manifestJson: '{"schemaVersion":"v1"}\n',
-        manifestHash: 'manifest-hash',
-        scriptHash: 'script-hash',
-        provenance: {
-          requestedProvider: 'nvidia',
-          effectiveProvider: 'deterministic',
-          model: null,
-          promptVersion: 'nvidia-storyboard-v1',
-          rendererVersion: 'satori-resvg-v1',
-          usedFallback: true,
-        },
-        validation: {
-          attempts: [],
-          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-        },
-      }),
+      createManifest: vi
+        .fn()
+        .mockResolvedValue(generatedManifest('manifest-hash')),
       render,
       upload,
       makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
@@ -67,6 +60,7 @@ describe('createEpisodeVideoProcessor', () => {
 
     const result = await processJob(job(), source(), {
       signal,
+      runId: 'run12345',
       saveManifest,
     });
 
@@ -75,7 +69,7 @@ describe('createEpisodeVideoProcessor', () => {
       expect.objectContaining({
         manifestHash: 'manifest-hash',
         storyboardProvider: 'deterministic',
-        storyboardPromptVersion: 'nvidia-storyboard-v1',
+        storyboardPromptVersion: 'semantic-scene-alignment-v1',
       }),
     );
     expect(render).toHaveBeenCalledWith(
@@ -109,24 +103,9 @@ describe('createEpisodeVideoProcessor', () => {
         durationMs: 60_000,
         silences: [],
       }),
-      createManifest: vi.fn().mockResolvedValue({
-        manifest: {},
-        manifestJson: '{"schemaVersion":"v1"}\n',
-        manifestHash: 'persisted-hash',
-        scriptHash: 'script-hash',
-        provenance: {
-          requestedProvider: 'deterministic',
-          effectiveProvider: 'deterministic',
-          model: 'deterministic-v1',
-          promptVersion: 'nvidia-storyboard-v1',
-          rendererVersion: 'satori-resvg-v1',
-          usedFallback: false,
-        },
-        validation: {
-          attempts: [],
-          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-        },
-      }),
+      createManifest: vi
+        .fn()
+        .mockResolvedValue(generatedManifest('persisted-hash')),
       render: vi.fn().mockResolvedValue({
         previewPath: '/work/preview.mp4',
         thumbnailPath: '/work/thumbnail.png',
@@ -146,6 +125,7 @@ describe('createEpisodeVideoProcessor', () => {
     await expect(
       processJob(job(), source(), {
         signal: new AbortController().signal,
+        runId: 'run12345',
         saveManifest: vi.fn().mockResolvedValue(undefined),
       }),
     ).rejects.toThrow('Rendered manifest hash differs from persisted hash');
@@ -158,24 +138,7 @@ describe('createEpisodeVideoProcessor', () => {
         durationMs: 90_000,
         silences: [],
       }),
-      createManifest: vi.fn().mockResolvedValue({
-        manifest: {},
-        manifestJson: '{}\n',
-        manifestHash: 'hash',
-        scriptHash: 'script-hash',
-        provenance: {
-          requestedProvider: 'deterministic',
-          effectiveProvider: 'deterministic',
-          model: 'deterministic-v1',
-          promptVersion: 'nvidia-storyboard-v1',
-          rendererVersion: 'satori-resvg-v1',
-          usedFallback: false,
-        },
-        validation: {
-          attempts: [],
-          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-        },
-      }),
+      createManifest: vi.fn().mockResolvedValue(generatedManifest('hash')),
       render: vi.fn().mockResolvedValue({
         previewPath: '/work/preview.mp4',
         thumbnailPath: '/work/thumbnail.png',
@@ -195,6 +158,7 @@ describe('createEpisodeVideoProcessor', () => {
     await expect(
       processJob(job(), source(), {
         signal: new AbortController().signal,
+        runId: 'run12345',
         saveManifest: vi.fn().mockResolvedValue(undefined),
       }),
     ).rejects.toThrow('R2 unavailable');
@@ -204,8 +168,8 @@ describe('createEpisodeVideoProcessor', () => {
 
 function source(): EpisodeVideoSource {
   return {
-    episodeId: 'episode-1',
-    localizationId: 'localization-1',
+    episodeId,
+    localizationId,
     languageCode: 'zh-Hant',
     title: 'Episode',
     script: 'Canonical script',
@@ -213,13 +177,22 @@ function source(): EpisodeVideoSource {
       'https://cdn.example.com/episodes/episode-1/localizations/zh-Hant/main/playlist.m3u8',
     sourceUrl: 'https://example.com/article',
     sourceTitle: 'Article',
+    canonicalLocalizationId: localizationId,
+    canonicalScript: 'Canonical script',
+    visualManifest: visualManifest(),
+    visualHash,
+    visualVersion: EPISODE_VIDEO_VISUAL_VERSION,
+    visualR2Prefix: 'episodes/e/visuals/v/hash',
   };
 }
 
 function job(): EpisodeVideoJobRow {
   return {
-    episode_localization_id: 'localization-1',
+    episode_localization_id: localizationId,
+    episode_id: episodeId,
     status: 'processing',
+    visual_hash: visualHash,
+    visual_version: EPISODE_VIDEO_VISUAL_VERSION,
     manifest: null,
     manifest_hash: null,
     renderer_version: null,
@@ -244,5 +217,81 @@ function job(): EpisodeVideoJobRow {
     completed_at: null,
     created_at: '2026-07-16T00:00:00.000Z',
     updated_at: '2026-07-16T00:00:00.000Z',
+  };
+}
+
+function generatedManifest(manifestHash: string) {
+  return {
+    manifest: {},
+    manifestJson: '{"schemaVersion":"v2"}\n',
+    manifestHash,
+    scriptHash: 'script-hash',
+    provenance: {
+      storyboardProvider: 'deterministic',
+      storyboardModel: 'deterministic-v1',
+      promptVersion: 'semantic-scene-alignment-v1',
+      rendererVersion: 'satori-resvg-v3',
+    },
+  };
+}
+
+function visualManifest(): Record<string, unknown> {
+  return {
+    schemaVersion: 'podcast-episode-visual.v1',
+    visualVersion: EPISODE_VIDEO_VISUAL_VERSION,
+    visualHash,
+    episodeId,
+    canonicalLocalizationId: localizationId,
+    manifestUrl: 'https://cdn.example.com/visual-manifest.json',
+    visualPlan: {
+      schemaVersion: 'podcast-image-visual-plan.v1',
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          startSentenceId: 's0001',
+          endSentenceId: 's0001',
+          imageSearchIntent: ['canonical visual'],
+          sources: [
+            {
+              id: 'image-01-source',
+              label: 'example.com',
+              url: 'https://example.com/article',
+              attribution: 'Image source · example.com',
+              license: 'unknown',
+              licenseUrl: null,
+            },
+          ],
+          asset: {
+            kind: 'remoteImage',
+            sourceId: 'image-01-source',
+            url: 'https://cdn.example.com/visuals/image-01.jpg',
+            sha256: 'b'.repeat(64),
+            layout: 'fullBleed',
+            position: 'center',
+          },
+        },
+      ],
+    },
+    assets: [
+      {
+        assetId: 'image-01',
+        r2Url: 'https://cdn.example.com/visuals/image-01.jpg',
+        originalImageUrl: 'https://images.example.com/image-01.jpg',
+        sourcePageUrl: 'https://example.com/article',
+        provider: 'article',
+        license: 'unknown',
+        contentType: 'image/jpeg',
+        sha256: 'b'.repeat(64),
+        perceptualHash: '0'.repeat(16),
+        width: 2400,
+        height: 1350,
+      },
+    ],
+    provenance: {
+      storyboardProvider: 'deterministic',
+      storyboardModel: 'deterministic-v1',
+      storyboardPromptVersion: 'image-storyboard-v2',
+      usedFallback: false,
+    },
   };
 }

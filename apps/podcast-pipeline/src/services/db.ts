@@ -248,6 +248,27 @@ export async function findEpisodeLocalizationByEpisodeId(
   return data;
 }
 
+export async function listEpisodeLocalizationsByEpisodeId(
+  episodeId: string,
+  languageCodes: readonly string[],
+): Promise<EpisodeLocalizationRow[]> {
+  const uniqueLanguageCodes = [...new Set(languageCodes.filter(Boolean))];
+  if (uniqueLanguageCodes.length === 0) return [];
+
+  const { data, error } = await getSupabase()
+    .from('episode_localizations')
+    .select('*')
+    .eq('episode_id', episodeId)
+    .in('language_code', uniqueLanguageCodes)
+    .returns<EpisodeLocalizationRow[]>();
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  return data ?? [];
+}
+
 export async function findEpisodeListRowByLocalizationId(
   episodeLocalizationId: string,
 ): Promise<EpisodeListRow | null> {

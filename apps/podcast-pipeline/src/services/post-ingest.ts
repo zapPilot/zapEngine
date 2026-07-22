@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto';
 
 import {
   DEFAULT_LANGUAGE_CODE,
+  type EpisodeLocalizationRow,
   type LanguageClassroomLanguageCode,
+  SUPPORTED_PRIMARY_LANGUAGE_CODES,
 } from '../types.js';
-import { findEpisodeLocalizationByEpisodeId } from './db.js';
+import { listEpisodeLocalizationsByEpisodeId } from './db.js';
 import {
   type HeavyWorkCoordinator,
   heavyWorkCoordinator,
@@ -18,27 +20,35 @@ import {
 import type { TelegramChatId } from './telegram.js';
 import {
   enqueueEpisodeVideoJob,
+  enqueueEpisodeVideoVisualJob,
+  EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoJobRow,
+  type EpisodeVideoVisualJobRow,
+  hashEpisodeVideoVisualSource,
 } from './video-jobs.js';
 
 export interface PostIngestResult {
   ingest: IngestResult;
   /** Null when audio finished but scheduling the video job failed. */
   videoJob: EpisodeVideoJobRow | null;
+  videoJobs: EpisodeVideoJobRow[];
+  visualJob: EpisodeVideoVisualJobRow | null;
   videoEnqueueError: Error | null;
 }
 
 interface PostIngestDependencies {
   coordinator: HeavyWorkCoordinator;
   performIngest: typeof performMultilingualIngest;
-  findCanonicalLocalization: typeof findEpisodeLocalizationByEpisodeId;
+  listLocalizations: typeof listEpisodeLocalizationsByEpisodeId;
+  enqueueVisual: typeof enqueueEpisodeVideoVisualJob;
   enqueueVideo: typeof enqueueEpisodeVideoJob;
 }
 
 const defaultDependencies: PostIngestDependencies = {
   coordinator: heavyWorkCoordinator,
   performIngest: performMultilingualIngest,
-  findCanonicalLocalization: findEpisodeLocalizationByEpisodeId,
+  listLocalizations: listEpisodeLocalizationsByEpisodeId,
+  enqueueVisual: enqueueEpisodeVideoVisualJob,
   enqueueVideo: enqueueEpisodeVideoJob,
 };
 
@@ -74,46 +84,71 @@ export async function performMultilingualIngestAndEnqueueVideo(
         // separately, and the audio result is still returned to the caller.
         try {
           const lookupStartedAt = Date.now();
-          logIngestEvent('video:canonical-localization:start', {
+          logIngestEvent('video:localizations:start', {
             episodeId: ingest.episode.id,
           });
-          const canonicalLocalization =
-            await dependencies.findCanonicalLocalization(
-              ingest.episode.id,
-              DEFAULT_LANGUAGE_CODE,
-            );
-          logIngestEvent('video:canonical-localization:done', {
+          const localizations = await dependencies.listLocalizations(
+            ingest.episode.id,
+            SUPPORTED_PRIMARY_LANGUAGE_CODES,
+          );
+          logIngestEvent('video:localizations:done', {
             elapsedMs: Date.now() - lookupStartedAt,
             episodeId: ingest.episode.id,
           });
-          if (
-            canonicalLocalization?.status !== 'completed' ||
-            !canonicalLocalization.hls_url.trim() ||
-            !canonicalLocalization.classroom_hls_url?.trim()
-          ) {
-            throw new Error(
-              'Completed canonical localization is required to enqueue video and must include main and classroom audio',
-            );
-          }
 
+          const renderableLocalizations =
+            requireVideoLocalizations(localizations);
+
+          const canonicalLocalization = renderableLocalizations[0]!;
+          const englishLocalization = renderableLocalizations.find(
+            (localization) => localization.language_code === 'en',
+          )!;
           const telegramChatId =
             typeof options.telegramChatId === 'function'
               ? options.telegramChatId()
               : options.telegramChatId;
+          const normalizedTelegramChatId =
+            telegramChatId === undefined ? null : String(telegramChatId);
           logIngestEvent('video:enqueue:start', {
             episodeId: ingest.episode.id,
           });
           const enqueueStartedAt = Date.now();
-          const videoJob = await dependencies.enqueueVideo(
-            canonicalLocalization.id,
-            telegramChatId === undefined ? null : String(telegramChatId),
+          const visualJob = await dependencies.enqueueVisual(
+            ingest.episode.id,
+            {
+              visualVersion: EPISODE_VIDEO_VISUAL_VERSION,
+              sourceHash: hashEpisodeVideoVisualSource(
+                canonicalLocalization.script!,
+                englishLocalization.script!,
+              ),
+              telegramChatId: normalizedTelegramChatId,
+            },
           );
+          const videoJobs: EpisodeVideoJobRow[] = [];
+          for (const [
+            index,
+            localization,
+          ] of renderableLocalizations.entries()) {
+            videoJobs.push(
+              await dependencies.enqueueVideo(
+                localization.id,
+                index === 0 ? normalizedTelegramChatId : null,
+              ),
+            );
+          }
+          const videoJob = videoJobs[0] ?? null;
           logIngestEvent('video:enqueue:done', {
             elapsedMs: Date.now() - enqueueStartedAt,
             episodeId: ingest.episode.id,
-            status: videoJob.status,
+            status: videoJob?.status ?? 'unavailable',
           });
-          return { ingest, videoJob, videoEnqueueError: null };
+          return {
+            ingest,
+            videoJob,
+            videoJobs,
+            visualJob,
+            videoEnqueueError: null,
+          };
         } catch (error) {
           const videoEnqueueError =
             error instanceof Error ? error : new Error(String(error));
@@ -128,7 +163,13 @@ export async function performMultilingualIngestAndEnqueueVideo(
             episodeId: ingest.episode.id,
             error: videoEnqueueError.message,
           });
-          return { ingest, videoJob: null, videoEnqueueError };
+          return {
+            ingest,
+            videoJob: null,
+            videoJobs: [],
+            visualJob: null,
+            videoEnqueueError,
+          };
         }
       }, options.signal);
 
@@ -146,5 +187,29 @@ export async function performMultilingualIngestAndEnqueueVideo(
       });
       throw error;
     }
+  });
+}
+
+function requireVideoLocalizations(
+  localizations: readonly EpisodeLocalizationRow[],
+): EpisodeLocalizationRow[] {
+  return SUPPORTED_PRIMARY_LANGUAGE_CODES.map((languageCode) => {
+    const localization = localizations.find(
+      (candidate) => candidate.language_code === languageCode,
+    );
+    const audioReady =
+      Boolean(localization?.hls_url.trim()) &&
+      (languageCode !== DEFAULT_LANGUAGE_CODE ||
+        Boolean(localization?.classroom_hls_url?.trim()));
+    if (
+      localization?.status !== 'completed' ||
+      !localization.script?.trim() ||
+      !audioReady
+    ) {
+      throw new Error(
+        `Completed ${languageCode} localization with eligible audio is required to enqueue video`,
+      );
+    }
+    return localization;
   });
 }

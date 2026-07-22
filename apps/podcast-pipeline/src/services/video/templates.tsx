@@ -736,12 +736,48 @@ function SourceQuoteTemplate({
   );
 }
 
+function ImageTemplate({
+  slide,
+  asset,
+  logoDataUri,
+}: Readonly<{
+  slide: Extract<Slide, { template: 'image' }>;
+  asset: ResolvedSlideAsset;
+  logoDataUri: string;
+}>): ReactElement {
+  if (asset.kind !== 'image' || !asset.dataUri) {
+    throw new Error(`Scene ${slide.id} requires a resolved remote image`);
+  }
+
+  return (
+    <div style={rootStyle}>
+      <img
+        alt=""
+        src={asset.dataUri}
+        width={canvasWidth}
+        height={canvasHeight}
+        style={{
+          width: canvasWidth,
+          height: canvasHeight,
+          objectFit: 'cover',
+          objectPosition: asset.position,
+        }}
+      />
+      <Logo dataUri={logoDataUri} />
+    </div>
+  );
+}
+
 export function renderSlideElement(
   slide: Slide,
   asset: ResolvedSlideAsset,
   logoDataUri: string,
 ): ReactElement {
   switch (slide.template) {
+    case 'image':
+      return (
+        <ImageTemplate slide={slide} asset={asset} logoDataUri={logoDataUri} />
+      );
     case 'cover':
       return <CoverTemplate slide={slide} logoDataUri={logoDataUri} />;
     case 'photoFact':

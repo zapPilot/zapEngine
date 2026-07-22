@@ -38,6 +38,7 @@ import {
   searchEpisodes,
 } from './services/episode-search.js';
 import { processEpisodeVideoJob } from './services/episode-video-processor.js';
+import { processEpisodeVideoVisualJob } from './services/episode-video-visual-processor.js';
 import { handleAppError } from './services/error-response.js';
 import { performMultilingualIngestAndEnqueueVideo } from './services/post-ingest.js';
 import {
@@ -72,6 +73,7 @@ import {
   createVideoWorker,
   type EpisodeVideoWorker,
   type ProcessEpisodeVideoJob,
+  type ProcessEpisodeVideoVisualJob,
 } from './services/video-worker.js';
 import {
   DEFAULT_LANGUAGE_CODE,
@@ -423,6 +425,7 @@ export function createApp(): Hono {
 export interface BootstrapOptions {
   app?: Hono;
   processVideoJob?: ProcessEpisodeVideoJob;
+  processVideoVisualJob?: ProcessEpisodeVideoVisualJob;
   videoWorker?: EpisodeVideoWorker;
 }
 
@@ -433,6 +436,8 @@ export function bootstrap(options: BootstrapOptions = {}) {
   if (!videoWorker) {
     videoWorker = createVideoWorker({
       processJob: options.processVideoJob ?? processEpisodeVideoJob,
+      processVisualJob:
+        options.processVideoVisualJob ?? processEpisodeVideoVisualJob,
     });
   }
 

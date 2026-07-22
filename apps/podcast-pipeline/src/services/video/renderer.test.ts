@@ -25,17 +25,36 @@ import {
 const temporaryRoots: string[] = [];
 
 function createManifest(): SlideVideoManifest {
-  const editorialSource = {
-    id: 'editorial',
-    label: 'Zap Pilot editorial',
-    url: null,
-    attribution: 'Zap Pilot',
-    license: 'brand-generated' as const,
+  const sourceFor = (sceneId: string) => ({
+    id: `${sceneId}-source`,
+    label: `${sceneId} source`,
+    url: `https://news.example.test/${sceneId}`,
+    attribution: 'Example News',
+    license: 'unknown' as const,
     licenseUrl: null,
+  });
+  const slideFor = (index: number) => {
+    const sceneId = `scene-${String(index + 1).padStart(2, '0')}`;
+    const source = sourceFor(sceneId);
+    return {
+      id: sceneId,
+      startMs: index * 5_000,
+      endMs: (index + 1) * 5_000,
+      template: 'image' as const,
+      sources: [source],
+      asset: {
+        kind: 'remoteImage' as const,
+        sourceId: source.id,
+        url: `https://images.example.test/${sceneId}.jpg`,
+        sha256: 'a'.repeat(64),
+        layout: 'fullBleed' as const,
+        position: 'center' as const,
+      },
+    };
   };
   return {
-    schemaVersion: 'podcast-slide-video.v1',
-    rendererVersion: 'satori-resvg-v1',
+    schemaVersion: 'podcast-slide-video.v2',
+    rendererVersion: 'satori-resvg-v3',
     episode: {
       id: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
       localizationId: '56b21422-1a38-4917-957e-b23223c0396c',
@@ -51,59 +70,27 @@ function createManifest(): SlideVideoManifest {
       transitionMs: 200,
     },
     audio: { sourceUrl: 'https://cdn.example.test/narration.m4a' },
-    slides: [
-      {
-        id: 'opening',
-        startMs: 0,
-        endMs: 4_000,
-        template: 'cover',
-        kicker: 'ZAP PILOT · GRID WATCH',
-        headline: '電網紅色警報',
-        subheadline: '前 90 秒靜態投影片試片',
-        sources: [editorialSource],
-        asset: { kind: 'none' },
-      },
-      {
-        id: 'peak-load',
-        startMs: 4_000,
-        endMs: 10_000,
-        template: 'statistic',
-        eyebrow: 'PJM PEAK LOAD',
-        value: '161,910',
-        unit: 'MW',
-        label: '預測尖峰負載',
-        context: '備用容量同步下降',
-        sources: [editorialSource],
-        asset: { kind: 'none' },
-      },
-      {
-        id: 'doe-order',
-        startMs: 10_000,
-        endMs: 15_000,
-        template: 'document',
-        issuer: 'U.S. DEPARTMENT OF ENERGY',
-        documentNumber: 'ORDER NO. 202-26-3',
-        date: 'JUNE 2026',
-        headline: '緊急調度命令',
-        excerpt: '要求在電網最吃緊時提供額外電力。',
-        sources: [
-          editorialSource,
-          {
-            id: 'doe-order',
-            label: 'DOE emergency order',
-            url: 'https://www.energy.gov/example-order',
-            attribution: 'U.S. Department of Energy',
-            license: 'official-public-domain',
-            licenseUrl: null,
-          },
-        ],
-        asset: { kind: 'none' },
-      },
-    ],
+    slides: [slideFor(0), slideFor(1), slideFor(2)],
     captions: [
-      { startMs: 0, endMs: 2_000, text: '這是一段靜態投影片試片' },
-      { startMs: 2_000, endMs: 5_000, text: '畫面只在換頁時淡入淡出' },
+      { startMs: 0, endMs: 5_000, text: '第一段字幕' },
+      { startMs: 5_000, endMs: 10_000, text: '第二段字幕' },
+      { startMs: 10_000, endMs: 15_000, text: '第三段字幕' },
     ],
+  };
+}
+
+function resolvedImage(slide: Slide) {
+  const source = slide.sources[0];
+  if (!source) throw new Error('Test slide is missing its source');
+  return {
+    kind: 'image' as const,
+    filePath: `/tmp/${slide.id}.jpg`,
+    contentType: 'image/jpeg',
+    layout: 'fullBleed' as const,
+    position: 'center' as const,
+    width: 3_000,
+    height: 2_000,
+    source,
   };
 }
 
@@ -135,11 +122,7 @@ describe('renderSlideVideo', () => {
     const progress: string[] = [];
     let isolatedWorkDirectory = '';
     let renderedFilter = '';
-    const resolveAsset = vi.fn(async (slide: Slide) => ({
-      kind: 'fallback' as const,
-      reason: `No photo for ${slide.id}`,
-      source: slide.sources[0] ?? null,
-    }));
+    const resolveAsset = vi.fn(async (slide: Slide) => resolvedImage(slide));
     const rasterize = vi.fn(
       async (
         slide: Slide,
@@ -176,9 +159,9 @@ describe('renderSlideVideo', () => {
     });
 
     expect(resolveAsset.mock.calls.map(([slide]) => slide.id)).toEqual([
-      'opening',
-      'peak-load',
-      'doe-order',
+      'scene-01',
+      'scene-02',
+      'scene-03',
     ]);
     expect(rasterize).toHaveBeenCalledTimes(3);
     expect(renderVideo).toHaveBeenCalledOnce();
@@ -188,40 +171,40 @@ describe('renderSlideVideo', () => {
       outputPath: result.previewPath,
     });
     expect(progress).toEqual([
-      'Rendering slide 1/3: opening',
-      'Rendering slide 2/3: peak-load',
-      'Rendering slide 3/3: doe-order',
-      'Encoding static slide video',
+      'Rendering slide 1/3: scene-01',
+      'Rendering slide 2/3: scene-02',
+      'Rendering slide 3/3: scene-03',
+      'Encoding image scene video',
     ]);
     expect(
       result.slideMasterPaths.map((path) => path.split('/').at(-1)),
     ).toEqual(['slide-01.png', 'slide-02.png', 'slide-03.png']);
-    expect(await readFile(result.thumbnailPath, 'utf8')).toBe('1080p:opening');
+    expect(await readFile(result.thumbnailPath, 'utf8')).toBe('1080p:scene-01');
     expect(await readFile(result.previewPath, 'utf8')).toBe('mock-mp4');
     expect(renderedFilter).toContain('xfade=transition=fade');
-    expect(renderedFilter).not.toMatch(/zoompan|gblur|boxblur/i);
+    expect(renderedFilter).toContain('zoompan=');
+    expect(renderedFilter).not.toMatch(/gblur|boxblur/i);
 
     const storyboard = await readFile(result.storyboardPath, 'utf8');
     const expectedHash = createHash('sha256').update(storyboard).digest('hex');
     expect(result.manifestHash).toBe(expectedHash);
     expect(storyboard.endsWith('\n')).toBe(true);
     expect(await readFile(result.subtitlePath, 'utf8')).toContain(
-      'Dialogue: 0,0:00:00.00,0:00:02.00',
+      'Dialogue: 0,0:00:00.00,0:00:05.00',
     );
 
     const sources = await readFile(result.sourcesPath, 'utf8');
-    expect(sources.match(/Zap Pilot editorial/g)).toHaveLength(1);
     expect(sources).toContain(
-      '[DOE emergency order](https://www.energy.gov/example-order)',
+      '[scene-01 source](https://news.example.test/scene-01)',
     );
-    expect(sources).toContain('License: official-public-domain');
+    expect(sources).toContain('License: unknown');
 
     const report = await readFile(
       join(paths.outputDirectory, 'render-report.md'),
       'utf8',
     );
     expect(report).toContain('Master raster: 3840×2160');
-    expect(report).toContain('| peak-load | statistic | fallback');
+    expect(report).toContain('| scene-02 | image | 3000×2000 fullBleed |');
     expect(report).toContain('separate child processes');
     await expect(access(isolatedWorkDirectory)).rejects.toMatchObject({
       code: 'ENOENT',
@@ -231,11 +214,7 @@ describe('renderSlideVideo', () => {
   it('uses manifest audio by default and removes its work directory on failure', async () => {
     const paths = await makeRenderPaths();
     let isolatedWorkDirectory = '';
-    const resolveAsset = vi.fn(async (slide: Slide) => ({
-      kind: 'fallback' as const,
-      reason: 'No image',
-      source: slide.sources[0] ?? null,
-    }));
+    const resolveAsset = vi.fn(async (slide: Slide) => resolvedImage(slide));
     const rasterize = vi.fn(
       async (
         slide: Slide,
@@ -274,6 +253,31 @@ describe('renderSlideVideo', () => {
     });
   });
 
+  it('fails closed when a remote image cannot be resolved', async () => {
+    const paths = await makeRenderPaths();
+    const rasterize = vi.fn();
+    const renderVideo = vi.fn();
+
+    await expect(
+      renderSlideVideo({
+        ...paths,
+        dependencies: {
+          resolveAsset: async (slide: Slide) => ({
+            kind: 'fallback',
+            reason: 'download failed',
+            source: slide.sources[0] ?? null,
+          }),
+          rasterize,
+          renderVideo,
+        },
+      }),
+    ).rejects.toThrow(
+      'Scene scene-01 requires a remote image: download failed',
+    );
+    expect(rasterize).not.toHaveBeenCalled();
+    expect(renderVideo).not.toHaveBeenCalled();
+  });
+
   it('removes its work directory when rasterization fails before encoding', async () => {
     const paths = await makeRenderPaths();
     let isolatedWorkDirectory = '';
@@ -293,9 +297,7 @@ describe('renderSlideVideo', () => {
         ...paths,
         dependencies: {
           resolveAsset: async (slide: Slide) => ({
-            kind: 'fallback',
-            reason: 'No image',
-            source: slide.sources[0] ?? null,
+            ...resolvedImage(slide),
           }),
           rasterize,
           renderVideo: vi.fn(),

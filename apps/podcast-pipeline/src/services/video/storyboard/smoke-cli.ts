@@ -117,7 +117,7 @@ export async function runStoryboardSmokeCli(
           model: result.model,
           usedFallback: result.usedFallback,
           sentenceCount: sentences.length,
-          slideCount: result.draft.slides.length,
+          sceneCount: result.draft.scenes.length,
           attempts: result.attempts,
         },
         null,
@@ -146,7 +146,7 @@ export async function runStoryboardSmokeCli(
   ]);
 
   console.log(
-    `Storyboard smoke complete: ${result.effectiveProvider}, ${result.draft.slides.length} slides`,
+    `Storyboard smoke complete: ${result.effectiveProvider}, ${result.draft.scenes.length} scenes`,
   );
 }
 

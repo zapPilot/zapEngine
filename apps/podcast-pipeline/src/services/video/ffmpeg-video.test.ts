@@ -4,6 +4,7 @@ import {
   assertVideoFfmpegCapabilities,
   buildStaticSlideFfmpegArgs,
   buildStaticSlideFilter,
+  kenBurnsPanForScene,
   renderStaticSlideVideo,
   resolveVideoFfmpegPath,
   runProcess,
@@ -12,16 +13,34 @@ import type { SlideVideoManifest } from './manifest.js';
 
 function createManifest(): SlideVideoManifest {
   const source = {
-    id: 'editorial',
-    label: 'Zap Pilot editorial',
-    url: null,
-    attribution: 'Zap Pilot',
-    license: 'brand-generated' as const,
+    id: 'image-source',
+    label: 'Image source',
+    url: 'https://news.example.test/story',
+    attribution: 'Example News',
+    license: 'unknown' as const,
     licenseUrl: null,
   };
+  const slide = (index: number, startMs: number, endMs: number) => {
+    const sceneId = `scene-${String(index + 1).padStart(2, '0')}`;
+    return {
+      id: sceneId,
+      startMs,
+      endMs,
+      template: 'image' as const,
+      sources: [source],
+      asset: {
+        kind: 'remoteImage' as const,
+        sourceId: source.id,
+        url: `https://images.example.test/${sceneId}.jpg`,
+        sha256: 'a'.repeat(64),
+        layout: 'fullBleed' as const,
+        position: 'center' as const,
+      },
+    };
+  };
   return {
-    schemaVersion: 'podcast-slide-video.v1',
-    rendererVersion: 'satori-resvg-v1',
+    schemaVersion: 'podcast-slide-video.v2',
+    rendererVersion: 'satori-resvg-v3',
     episode: {
       id: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
       localizationId: '56b21422-1a38-4917-957e-b23223c0396c',
@@ -38,46 +57,20 @@ function createManifest(): SlideVideoManifest {
     },
     audio: { sourceUrl: 'https://cdn.example.test/audio.m4a' },
     slides: [
-      {
-        id: 'slide-one',
-        startMs: 0,
-        endMs: 4_000,
-        template: 'cover',
-        kicker: 'ONE',
-        headline: 'First slide',
-        subheadline: 'Static frame',
-        sources: [source],
-        asset: { kind: 'none' },
-      },
-      {
-        id: 'slide-two',
-        startMs: 4_000,
-        endMs: 10_000,
-        template: 'cover',
-        kicker: 'TWO',
-        headline: 'Second slide',
-        subheadline: 'Static frame',
-        sources: [source],
-        asset: { kind: 'none' },
-      },
-      {
-        id: 'slide-three',
-        startMs: 10_000,
-        endMs: 15_000,
-        template: 'cover',
-        kicker: 'THREE',
-        headline: 'Third slide',
-        subheadline: 'Static frame',
-        sources: [source],
-        asset: { kind: 'none' },
-      },
+      slide(0, 0, 4_000),
+      slide(1, 4_000, 10_000),
+      slide(2, 10_000, 15_000),
     ],
-    captions: [{ startMs: 0, endMs: 1_000, text: '字幕' }],
+    captions: [
+      { startMs: 0, endMs: 4_000, text: '第一段字幕' },
+      { startMs: 4_000, endMs: 10_000, text: '第二段字幕' },
+      { startMs: 10_000, endMs: 15_000, text: '第三段字幕' },
+    ],
   };
 }
 
 describe('static slide FFmpeg composition', () => {
-  it('builds frame-exact static fades with no camera motion', () => {
+  it('builds frame-exact crossfades with gentle deterministic camera motion', () => {
     const filter = buildStaticSlideFilter(
       createManifest(),
       "/render:one/captions'final.ass",
@@ -95,7 +88,20 @@ describe('static slide FFmpeg composition', () => {
     expect(filter).toContain("filename='/render\\:one/captions\\'final.ass'");
     expect(filter).toContain("fontsdir='/render/fonts'");
     expect(filter.match(/xfade=/g)).toHaveLength(2);
-    expect(filter).not.toMatch(/zoompan|crop=.*t\b|rotate|gblur|boxblur/i);
+    expect(filter.match(/zoompan=/g)).toHaveLength(3);
+    expect(filter).toContain("z='1+0.05*min(on/119\\,1)'");
+    expect(filter).toContain('(iw-iw/zoom)*min(on/179\\,1)');
+    expect(filter).toContain('(iw-iw/zoom)*(1-min(on/149\\,1))');
+    expect(filter).not.toMatch(/rotate|gblur|boxblur/i);
+    expect(
+      Array.from({ length: 5 }, (_, index) => kenBurnsPanForScene(index)),
+    ).toEqual([
+      'center',
+      'leftToRight',
+      'rightToLeft',
+      'topToBottom',
+      'center',
+    ]);
   });
 
   it('builds 1080p H.264 High 4.1 and AAC still-image encoding args', () => {
@@ -154,7 +160,10 @@ describe('static slide FFmpeg composition', () => {
   it('accepts all required FFmpeg capabilities from stdout or stderr', async () => {
     const processRunner = vi
       .fn()
-      .mockResolvedValueOnce({ stdout: '... xfade ...', stderr: '... ass ...' })
+      .mockResolvedValueOnce({
+        stdout: '... xfade ... zoompan ...',
+        stderr: '... ass ...',
+      })
       .mockResolvedValueOnce({
         stdout: '... libx264 ...',
         stderr: '... aac ...',
@@ -179,14 +188,14 @@ describe('static slide FFmpeg composition', () => {
     await expect(
       assertVideoFfmpegCapabilities('/bad/ffmpeg', processRunner),
     ).rejects.toThrow(
-      'FFmpeg is missing: xfade filter, ass filter, libx264 encoder, AAC encoder',
+      'FFmpeg is missing: xfade filter, zoompan filter, ass filter, libx264 encoder, AAC encoder',
     );
   });
 
   it('checks capabilities before invoking the real render', async () => {
     const processRunner = vi
       .fn()
-      .mockResolvedValueOnce({ stdout: 'xfade ass', stderr: '' })
+      .mockResolvedValueOnce({ stdout: 'xfade zoompan ass', stderr: '' })
       .mockResolvedValueOnce({ stdout: 'libx264 aac', stderr: '' })
       .mockResolvedValueOnce({ stdout: '', stderr: '' });
     const options = {
