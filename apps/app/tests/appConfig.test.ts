@@ -5,11 +5,11 @@ import appConfig, { resolveExpoAlchemyApiKey } from '../app.config';
 describe('Android store identity', () => {
   it('preserves the existing Google Play application while using the Zap Pilot name', () => {
     expect(appConfig.name).toBe('Zap Pilot');
-    expect(appConfig.android?.package).toBe('com.zap_pilot.app');
+    expect(appConfig.android?.package).toBe('com.fromfedtochain.app');
   });
 
   it('keeps the native identifiers registered with the Privy mobile client', () => {
-    expect(appConfig.android?.package).toBe('com.zap_pilot.app');
+    expect(appConfig.android?.package).toBe('com.fromfedtochain.app');
     expect(appConfig.ios?.bundleIdentifier).toBe('com.zapengine.zappilot.dev');
     expect(appConfig.scheme).toBe('zappilotv2');
   });

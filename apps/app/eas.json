@@ -27,7 +27,7 @@
   "submit": {
     "production": {
       "android": {
-        "applicationId": "com.zap_pilot.app",
+        "applicationId": "com.fromfedtochain.app",
         "track": "internal",
         "releaseStatus": "completed"
       }

@@ -6,7 +6,7 @@ new listing.
 | Setting                           | Value                           |
 | --------------------------------- | ------------------------------- |
 | App / launcher name               | `Zap Pilot`                     |
-| Android package                   | `com.zap_pilot.app`        |
+| Android package                   | `com.fromfedtochain.app`        |
 | User-facing version               | `2.1.0`                         |
 | Repo's last Flutter `versionCode` | `204`                           |
 | First Expo production build       | `205` if Play still ends at 204 |
@@ -64,7 +64,7 @@ a web client. Open **Privy Dashboard > App settings > Clients** and register the
 native identifiers before testing or releasing:
 
 ```text
-Allowed Android app identifier: com.zap_pilot.app
+Allowed Android app identifier: com.fromfedtochain.app
 Allowed iOS app identifier:     com.zapengine.zappilot.dev
 Allowed URL scheme:             zappilotv2
 ```
@@ -127,7 +127,7 @@ gcloud services enable androidpublisher.googleapis.com \
 
 Then open **Google Play Console > Users and permissions > Invite new users** and
 invite the service-account email above. On **App permissions**, select the
-existing `com.zap_pilot.app` app and grant the release permissions
+existing `com.fromfedtochain.app` app and grant the release permissions
 recommended by Expo:
 
 - View app information (read-only)
@@ -216,7 +216,7 @@ does not rename the existing Play listing by itself.
 
 ## Failure guide
 
-- **Package mismatch:** the build must use `com.zap_pilot.app`.
+- **Package mismatch:** the build must use `com.fromfedtochain.app`.
 - **Wrong certificate:** re-import the existing upload keystore; do not create a
   new app or silently replace the key.
 - **Version code already used:** check EAS remote version state and set it to the

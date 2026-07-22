@@ -19,7 +19,7 @@ Do not reuse a Privy web client ID in an Android or iOS build.
 Native identifiers:
 
 - iOS development bundle: `com.zapengine.zappilot.dev`
-- Android production package: `com.zap_pilot.app`
+- Android production package: `com.fromfedtochain.app`
 
 The Android package intentionally preserves the existing Google Play listing and
 upload certificate from the retired Flutter app. The store-facing app name is
