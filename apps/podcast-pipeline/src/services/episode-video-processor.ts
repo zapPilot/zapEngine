@@ -146,7 +146,9 @@ export function createEpisodeVideoProcessor(
         manifestUrl: uploaded.manifestUrl,
         captionsAssUrl: uploaded.captionsAssUrl,
         r2Prefix: uploaded.r2Prefix,
-        durationSeconds: analysis.durationMs / 1_000,
+        // The MP4 outlives the narration by the BGM outro tail, so player
+        // scrubbers must use the clip duration, not the audio analysis.
+        durationSeconds: generated.manifest.clip.durationMs / 1_000,
       };
     } finally {
       await dependencies.removeDirectory(outputDirectory, {

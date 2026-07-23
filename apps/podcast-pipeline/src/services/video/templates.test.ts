@@ -10,8 +10,12 @@ import type { ResolvedSlideAsset } from './assets.js';
 import type { ImageSlide, Slide, SlideSource } from './manifest.js';
 import { runResvgStage } from './resvg-stage.js';
 import { runSatoriStage } from './satori-stage.js';
-import { runSharpStage } from './sharp-stage.js';
-import { renderSlideElement } from './templates.js';
+import { runSharpScaleStage, runSharpStage } from './sharp-stage.js';
+import {
+  renderBrandFrameElement,
+  renderOutroElement,
+  renderSlideElement,
+} from './templates.js';
 
 const source = {
   id: 'scene-source',
@@ -523,5 +527,102 @@ describe('native image raster stages', () => {
       width: 1_920,
       height: 1_080,
     });
+  }, 120_000);
+});
+
+describe('vertical brand frame and outro templates', () => {
+  it('dispatches headline and outro content to the portrait components', () => {
+    const frameElement = renderBrandFrameElement(
+      { kicker: '鏈上快訊', titleLines: ['世界盃最賺錢的生意'] },
+      LOGO_DATA_URI,
+    );
+    expect(componentName(frameElement)).toBe('BrandFrameTemplate');
+
+    const outroElement = renderOutroElement(
+      { title: 'From Fed to Chain', callToAction: '訂閱・分享・留言' },
+      LOGO_DATA_URI,
+    );
+    expect(componentName(outroElement)).toBe('OutroTemplate');
+  });
+
+  it('rasterizes the brand frame at 1080x1920 with a transparent media window', async () => {
+    temporaryDirectory = await mkdtemp(join(tmpdir(), 'brand-frame-raster-'));
+    const inputPath = join(temporaryDirectory, 'frame.json');
+    const svgPath = join(temporaryDirectory, 'frame.svg');
+    const masterPath = join(temporaryDirectory, 'frame-master.png');
+    const outputPath = join(temporaryDirectory, 'frame.png');
+
+    await writeFile(
+      inputPath,
+      JSON.stringify({
+        kind: 'frame',
+        frame: {
+          kicker: '鏈上快訊',
+          titleLines: ['世界盃最賺錢的生意', '暴漲三百倍'],
+        },
+      }),
+      'utf8',
+    );
+    await runSatoriStage(inputPath, svgPath);
+
+    const svg = await readFile(svgPath, 'utf8');
+    expect(svg).toContain('width="2160"');
+    expect(svg).toContain('height="3840"');
+
+    await runResvgStage(svgPath, masterPath);
+    await runSharpScaleStage(masterPath, outputPath);
+    await expect(sharp(outputPath).metadata()).resolves.toMatchObject({
+      format: 'png',
+      width: 1_080,
+      height: 1_920,
+    });
+
+    // sharp's stats() reads the ORIGINAL input, ignoring chained operations —
+    // materialize each extracted region to a buffer before measuring alpha.
+    const regionStats = async (top: number, height: number) => {
+      const region = await sharp(outputPath)
+        .extract({ left: 0, top, width: 1_080, height })
+        .png()
+        .toBuffer();
+      return sharp(region).stats();
+    };
+
+    const mediaWindow = await regionStats(640, 920);
+    expect(mediaWindow.channels[3]?.max).toBe(0);
+
+    const topBand = await regionStats(0, 600);
+    expect(topBand.channels[3]?.min).toBe(255);
+
+    const bottomBand = await regionStats(1_600, 320);
+    expect(bottomBand.channels[3]?.min).toBe(255);
+  }, 120_000);
+
+  it('rasterizes the outro card fully opaque at 1080x1920', async () => {
+    temporaryDirectory = await mkdtemp(join(tmpdir(), 'outro-raster-'));
+    const inputPath = join(temporaryDirectory, 'outro.json');
+    const svgPath = join(temporaryDirectory, 'outro.svg');
+    const masterPath = join(temporaryDirectory, 'outro-master.png');
+    const outputPath = join(temporaryDirectory, 'outro.png');
+
+    await writeFile(
+      inputPath,
+      JSON.stringify({
+        kind: 'outro',
+        outro: { title: 'From Fed to Chain', callToAction: '訂閱・分享・留言' },
+      }),
+      'utf8',
+    );
+    await runSatoriStage(inputPath, svgPath);
+    await runResvgStage(svgPath, masterPath);
+    await runSharpScaleStage(masterPath, outputPath);
+
+    await expect(sharp(outputPath).metadata()).resolves.toMatchObject({
+      format: 'png',
+      width: 1_080,
+      height: 1_920,
+    });
+    const stats = await sharp(outputPath).stats();
+    const alpha = stats.channels[3];
+    if (alpha) expect(alpha.min).toBe(255);
   }, 120_000);
 });

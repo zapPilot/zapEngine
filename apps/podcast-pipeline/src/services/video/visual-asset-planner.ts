@@ -8,8 +8,11 @@ import {
   acquireRemoteImage,
   type SupportedRemoteImageContentType,
 } from './assets.js';
-import { searchBingImages } from './bing-image-search.js';
 import { filterImageCandidates } from './image-candidates.js';
+import {
+  defaultImageSearchProviders,
+  type ImageSearchProvider,
+} from './image-search-provider.js';
 
 const MAX_SEARCH_CANDIDATES_PER_SCENE = 35;
 const PERCEPTUAL_HASH_DISTANCE_LIMIT = 6;
@@ -18,6 +21,15 @@ export interface VisualAssetScene {
   sceneId: string;
   imageSearchIntent: readonly string[];
 }
+
+export type VisualImageProvider = 'article' | ImageSearchProvider['origin'];
+
+const PROVIDER_LICENSES = {
+  article: 'unknown',
+  bing: 'unknown',
+  pexels: 'pexels',
+  pixabay: 'pixabay',
+} as const satisfies Record<VisualImageProvider, string>;
 
 export interface PlannedVisualImage {
   assetId: string;
@@ -29,8 +41,10 @@ export interface PlannedVisualImage {
   height: number;
   originalImageUrl: string;
   sourcePageUrl: string;
-  provider: 'article' | 'bing';
-  license: 'unknown';
+  provider: VisualImageProvider;
+  license: (typeof PROVIDER_LICENSES)[VisualImageProvider];
+  photographer?: string;
+  photographerUrl?: string;
 }
 
 export interface PlannedVisualScene {
@@ -51,13 +65,13 @@ export interface VisualAssetProgress {
   candidateCount?: number;
   rejectedCandidateCount?: number;
   rejectionSummary?: string;
-  provider?: 'article' | 'bing' | 'reuse';
+  provider?: VisualImageProvider | 'reuse';
   elapsedMs: number;
 }
 
 interface VisualAssetPlannerDependencies {
   acquireImage: typeof acquireRemoteImage;
-  searchImages: typeof searchBingImages;
+  searchProviders: readonly ImageSearchProvider[];
   fingerprintImage: typeof fingerprintImage;
 }
 
@@ -69,12 +83,6 @@ export interface PlanVisualAssetsInput {
   onProgress?: (event: VisualAssetProgress) => void;
   dependencies?: Partial<VisualAssetPlannerDependencies>;
 }
-
-const defaultDependencies: VisualAssetPlannerDependencies = {
-  acquireImage: acquireRemoteImage,
-  searchImages: searchBingImages,
-  fingerprintImage,
-};
 
 interface VisualAssetPlannerState {
   input: PlanVisualAssetsInput;
@@ -97,6 +105,19 @@ interface SearchedVisualImage {
   failures: Error[];
 }
 
+function resolvePlannerDependencies(
+  overrides: Partial<VisualAssetPlannerDependencies> | undefined,
+): VisualAssetPlannerDependencies {
+  return {
+    acquireImage: acquireRemoteImage,
+    fingerprintImage,
+    // Resolved per invocation so API-key env changes take effect without a
+    // module reload.
+    searchProviders: defaultImageSearchProviders(),
+    ...overrides,
+  };
+}
+
 interface CandidateRejections {
   total: number;
   causes: Map<string, number>;
@@ -111,7 +132,7 @@ export async function planVisualAssets(
 
   const state: VisualAssetPlannerState = {
     input,
-    dependencies: { ...defaultDependencies, ...input.dependencies },
+    dependencies: resolvePlannerDependencies(input.dependencies),
     articleImages: viableCandidates(input.articleImages ?? [], [
       'openGraph',
       'article',
@@ -177,7 +198,11 @@ async function selectImageForScene(
     rejections,
   );
   if (searched.asset) {
-    return { asset: searched.asset, provider: 'bing', rejections };
+    return {
+      asset: searched.asset,
+      provider: searched.asset.provider,
+      rejections,
+    };
   }
   if (searched.failures.length > 0) {
     throw visualSearchFailure(scene.sceneId, searched.failures, rejections);
@@ -224,59 +249,65 @@ async function acquireSearchedImage(
   rejections: CandidateRejections,
 ): Promise<SearchedVisualImage> {
   const failures: Error[] = [];
-  for (const intent of scene.imageSearchIntent) {
-    state.input.signal?.throwIfAborted();
-    const searchStartedAt = Date.now();
-    const searched = await state.dependencies
-      .searchImages(intent, {
-        count: MAX_SEARCH_CANDIDATES_PER_SCENE,
-        ...(state.input.signal ? { signal: state.input.signal } : {}),
-      })
-      .catch((error: unknown): ImageCandidate[] => {
-        if (state.input.signal?.aborted) throw error;
-        failures.push(normalizeError(error));
-        return [];
-      });
-    const candidates = rankSearchCandidates(
-      viableCandidates(searched, ['bing']),
-      intent,
-      state.assets,
-    );
-    const rejectedBefore = rejections.total;
+  // Providers are ordered license-clean first; each provider exhausts every
+  // search intent before the chain falls through to the next provider.
+  for (const searchProvider of state.dependencies.searchProviders) {
+    for (const intent of scene.imageSearchIntent) {
+      state.input.signal?.throwIfAborted();
+      const searchStartedAt = Date.now();
+      const searched = await searchProvider
+        .search(intent, {
+          count: MAX_SEARCH_CANDIDATES_PER_SCENE,
+          ...(state.input.signal ? { signal: state.input.signal } : {}),
+        })
+        .catch((error: unknown): ImageCandidate[] => {
+          if (state.input.signal?.aborted) throw error;
+          failures.push(normalizeError(error));
+          return [];
+        });
+      const candidates = rankSearchCandidates(
+        viableCandidates(searched, [searchProvider.origin]),
+        intent,
+        state.assets,
+      );
+      const rejectedBefore = rejections.total;
 
-    for (const candidate of candidates) {
-      const acquired = await tryAcquireUniqueImage({
-        candidate,
-        provider: 'bing',
-        scene,
-        input: state.input,
-        dependencies: state.dependencies,
-        assets: state.assets,
-        attemptedUrls: state.attemptedUrls,
-        rejections,
-      });
-      if (acquired) {
-        reportSearchProgress(
-          state,
+      for (const candidate of candidates) {
+        const acquired = await tryAcquireUniqueImage({
+          candidate,
+          provider: searchProvider.origin,
           scene,
-          sceneIndex,
-          candidates.length,
+          input: state.input,
+          dependencies: state.dependencies,
+          assets: state.assets,
+          attemptedUrls: state.attemptedUrls,
           rejections,
-          rejectedBefore,
-          searchStartedAt,
-        );
-        return { asset: acquired, failures };
+        });
+        if (acquired) {
+          reportSearchProgress(
+            state,
+            scene,
+            sceneIndex,
+            candidates.length,
+            rejections,
+            rejectedBefore,
+            searchStartedAt,
+            searchProvider.origin,
+          );
+          return { asset: acquired, failures };
+        }
       }
+      reportSearchProgress(
+        state,
+        scene,
+        sceneIndex,
+        candidates.length,
+        rejections,
+        rejectedBefore,
+        searchStartedAt,
+        searchProvider.origin,
+      );
     }
-    reportSearchProgress(
-      state,
-      scene,
-      sceneIndex,
-      candidates.length,
-      rejections,
-      rejectedBefore,
-      searchStartedAt,
-    );
   }
   return { asset: null, failures };
 }
@@ -289,6 +320,7 @@ function reportSearchProgress(
   rejections: CandidateRejections,
   rejectedBefore: number,
   searchStartedAt: number,
+  provider: ImageSearchProvider['origin'],
 ): void {
   const rejectedCandidateCount = rejections.total - rejectedBefore;
   state.input.onProgress?.({
@@ -303,7 +335,7 @@ function reportSearchProgress(
           rejectionSummary: summarizeCandidateRejections(rejections),
         }
       : {}),
-    provider: 'bing',
+    provider,
     elapsedMs: Date.now() - searchStartedAt,
   });
 }
@@ -481,7 +513,11 @@ function toPlannedImage(
     originalImageUrl: candidate.imageUrl,
     sourcePageUrl: candidate.sourceUrl,
     provider,
-    license: 'unknown',
+    license: PROVIDER_LICENSES[provider],
+    ...(candidate.photographer ? { photographer: candidate.photographer } : {}),
+    ...(candidate.photographerUrl
+      ? { photographerUrl: candidate.photographerUrl }
+      : {}),
   };
 }
 
@@ -601,15 +637,25 @@ function rankSearchCandidates(
   existingAssets: readonly PlannedVisualImage[],
 ): ImageCandidate[] {
   const queryTokens = normalizedSearchTokens(intent);
-  return candidates
-    .filter((candidate) => hasSemanticSearchOverlap(candidate, queryTokens))
-    .map((candidate, index) => ({
-      candidate,
-      index,
-      score: searchCandidateScore(candidate, intent, existingAssets),
-    }))
-    .sort((left, right) => right.score - left.score || left.index - right.index)
-    .map(({ candidate }) => candidate);
+  return (
+    candidates
+      // Curated stock APIs already matched the query semantically; the overlap
+      // recheck only guards the noisy Bing HTML scrape.
+      .filter(
+        (candidate) =>
+          candidate.origin !== 'bing' ||
+          hasSemanticSearchOverlap(candidate, queryTokens),
+      )
+      .map((candidate, index) => ({
+        candidate,
+        index,
+        score: searchCandidateScore(candidate, intent, existingAssets),
+      }))
+      .sort(
+        (left, right) => right.score - left.score || left.index - right.index,
+      )
+      .map(({ candidate }) => candidate)
+  );
 }
 
 function hasSemanticSearchOverlap(
@@ -619,6 +665,19 @@ function hasSemanticSearchOverlap(
   if (queryTokens.length === 0) return true;
   const corpus = normalizedSearchCandidateCorpus(candidate);
   return queryTokens.some((token) => corpus.includes(token));
+}
+
+function candidateDimensionScore(candidate: ImageCandidate): number {
+  if (!candidate.width || !candidate.height) return 0;
+  let score = 0;
+  if (Math.max(candidate.width, candidate.height) >= 1920) score += 3;
+  const aspectRatio = candidate.width / candidate.height;
+  // The 1080x960 media window (aspect 1.125) crops squarish sources least;
+  // strongly portrait sources lose most of their content to the cover crop.
+  if (aspectRatio >= 0.9 && aspectRatio <= 1.6) score += 3;
+  else if (aspectRatio > 1.6 && aspectRatio <= 2.0) score += 1;
+  if (aspectRatio < 0.75) score -= 4;
+  return score;
 }
 
 function searchCandidateScore(
@@ -638,11 +697,7 @@ function searchCandidateScore(
   else if (extension === 'webp') score += 2;
   else if (extension === 'png') score -= 3;
 
-  if (candidate.width && candidate.height) {
-    if (Math.max(candidate.width, candidate.height) >= 1920) score += 3;
-    const aspectRatio = candidate.width / candidate.height;
-    if (aspectRatio >= 1.4 && aspectRatio <= 2.2) score += 2;
-  }
+  score += candidateDimensionScore(candidate);
 
   const normalizedIntent = intent.toLowerCase();
   if (

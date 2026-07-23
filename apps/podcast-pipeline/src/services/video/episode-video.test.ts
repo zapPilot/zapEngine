@@ -37,8 +37,10 @@ describe('createEpisodeVideoManifest', () => {
       durationMs: 90_000,
     });
 
-    expect(result.manifest.schemaVersion).toBe('podcast-slide-video.v2');
-    expect(result.manifest.rendererVersion).toBe('satori-resvg-v3');
+    expect(result.manifest.schemaVersion).toBe('podcast-slide-video.v3');
+    expect(result.manifest.rendererVersion).toBe('satori-resvg-v4');
+    expect(result.manifest.audio.narrationDurationMs).toBe(90_000);
+    expect(result.manifest.headline.kicker).toBe('鏈上快訊');
     expect(result.manifestHash).toMatch(/^[a-f\d]{64}$/);
     expect(result.scriptHash).toMatch(/^[a-f\d]{64}$/);
     expect(result.provenance).toMatchObject({

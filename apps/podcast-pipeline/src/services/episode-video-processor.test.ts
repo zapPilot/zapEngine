@@ -89,7 +89,7 @@ describe('createEpisodeVideoProcessor', () => {
       manifestUrl: 'https://cdn.example.com/manifest.json',
       captionsAssUrl: 'https://cdn.example.com/captions.ass',
       r2Prefix: 'episodes/episode-1/video/renderer-v1/manifest-hash',
-      durationSeconds: 90,
+      durationSeconds: 92.8,
     });
     expect(removeDirectory).toHaveBeenCalledWith('/work', {
       recursive: true,
@@ -222,8 +222,8 @@ function job(): EpisodeVideoJobRow {
 
 function generatedManifest(manifestHash: string) {
   return {
-    manifest: {},
-    manifestJson: '{"schemaVersion":"v2"}\n',
+    manifest: { clip: { durationMs: 92_800 } },
+    manifestJson: '{"schemaVersion":"v3"}\n',
     manifestHash,
     scriptHash: 'script-hash',
     provenance: {

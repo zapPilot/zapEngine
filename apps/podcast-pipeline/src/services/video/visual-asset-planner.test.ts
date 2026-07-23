@@ -2,11 +2,18 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ImageCandidate } from '../../types.js';
 import type { AcquiredRemoteImage } from './assets.js';
+import type { ImageSearchProvider } from './image-search-provider.js';
 import {
   perceptualHashDistance,
   planVisualAssets,
   type VisualAssetScene,
 } from './visual-asset-planner.js';
+
+function bingProviders(
+  search: ImageSearchProvider['search'],
+): ImageSearchProvider[] {
+  return [{ origin: 'bing', search }];
+}
 
 const scenes: VisualAssetScene[] = [
   { sceneId: 'scene-01', imageSearchIntent: ['first subject'] },
@@ -50,7 +57,7 @@ describe('planVisualAssets', () => {
       workingDirectory: '/work/visual-assets',
       dependencies: {
         acquireImage,
-        searchImages,
+        searchProviders: bingProviders(searchImages),
         fingerprintImage: vi
           .fn()
           .mockResolvedValueOnce('0000000000000000')
@@ -83,7 +90,7 @@ describe('planVisualAssets', () => {
       workingDirectory: '/work/visual-assets',
       dependencies: {
         acquireImage,
-        searchImages: vi.fn(),
+        searchProviders: bingProviders(vi.fn()),
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
@@ -146,18 +153,20 @@ describe('planVisualAssets', () => {
       workingDirectory: '/work/visual-assets',
       dependencies: {
         acquireImage,
-        searchImages: vi
-          .fn()
-          .mockResolvedValue([
-            infographic,
-            presentation,
-            comparisonCover,
-            watermarkedStock,
-            vecteezyPreview,
-            publisherTextCard,
-            brandedArticleCover,
-            photograph,
-          ]),
+        searchProviders: bingProviders(
+          vi
+            .fn()
+            .mockResolvedValue([
+              infographic,
+              presentation,
+              comparisonCover,
+              watermarkedStock,
+              vecteezyPreview,
+              publisherTextCard,
+              brandedArticleCover,
+              photograph,
+            ]),
+        ),
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
@@ -192,7 +201,7 @@ describe('planVisualAssets', () => {
       onProgress: progress,
       dependencies: {
         acquireImage,
-        searchImages,
+        searchProviders: bingProviders(searchImages),
         fingerprintImage: vi
           .fn()
           .mockResolvedValueOnce('0000000000000000')
@@ -235,7 +244,7 @@ describe('planVisualAssets', () => {
       workingDirectory: '/work/visual-assets',
       dependencies: {
         acquireImage: vi.fn().mockResolvedValue(acquired('search-result')),
-        searchImages,
+        searchProviders: bingProviders(searchImages),
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
@@ -269,7 +278,9 @@ describe('planVisualAssets', () => {
       workingDirectory: '/work/visual-assets',
       dependencies: {
         acquireImage,
-        searchImages: vi.fn().mockResolvedValue([unrelated, related]),
+        searchProviders: bingProviders(
+          vi.fn().mockResolvedValue([unrelated, related]),
+        ),
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
@@ -307,7 +318,9 @@ describe('planVisualAssets', () => {
       workingDirectory: '/work/visual-assets',
       dependencies: {
         acquireImage,
-        searchImages: vi.fn().mockResolvedValue([unrelated, related]),
+        searchProviders: bingProviders(
+          vi.fn().mockResolvedValue([unrelated, related]),
+        ),
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
@@ -342,7 +355,9 @@ describe('planVisualAssets', () => {
       workingDirectory: '/work/visual-assets',
       dependencies: {
         acquireImage,
-        searchImages: vi.fn().mockResolvedValue([slide, photograph]),
+        searchProviders: bingProviders(
+          vi.fn().mockResolvedValue([slide, photograph]),
+        ),
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
@@ -378,10 +393,12 @@ describe('planVisualAssets', () => {
       workingDirectory: '/work/visual-assets',
       dependencies: {
         acquireImage,
-        searchImages: vi
-          .fn()
-          .mockResolvedValueOnce([rejected])
-          .mockResolvedValueOnce([usable]),
+        searchProviders: bingProviders(
+          vi
+            .fn()
+            .mockResolvedValueOnce([rejected])
+            .mockResolvedValueOnce([usable]),
+        ),
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
@@ -421,7 +438,7 @@ describe('planVisualAssets', () => {
               'fetch https://media.example.test/image?token=secret failed',
             ),
           ),
-        searchImages: vi.fn().mockResolvedValue(searched),
+        searchProviders: bingProviders(vi.fn().mockResolvedValue(searched)),
         fingerprintImage: vi.fn(),
       },
     });
@@ -456,7 +473,7 @@ describe('planVisualAssets', () => {
         signal: controller.signal,
         dependencies: {
           acquireImage,
-          searchImages: vi.fn(),
+          searchProviders: bingProviders(vi.fn()),
           fingerprintImage: vi.fn(),
         },
       }),
@@ -475,7 +492,7 @@ describe('planVisualAssets', () => {
           .fn()
           .mockResolvedValueOnce(acquired('article-a'))
           .mockResolvedValueOnce(acquired('article-b')),
-        searchImages,
+        searchProviders: bingProviders(searchImages),
         fingerprintImage: vi
           .fn()
           .mockResolvedValueOnce('0000000000000000')
@@ -505,7 +522,7 @@ describe('planVisualAssets', () => {
             .fn()
             .mockResolvedValueOnce(acquired('article-a'))
             .mockResolvedValueOnce(acquired('article-b')),
-          searchImages,
+          searchProviders: bingProviders(searchImages),
           fingerprintImage: vi
             .fn()
             .mockResolvedValueOnce('0000000000000000')
@@ -536,7 +553,7 @@ describe('planVisualAssets', () => {
         workingDirectory: '/work/visual-assets',
         dependencies: {
           acquireImage: vi.fn(),
-          searchImages,
+          searchProviders: bingProviders(searchImages),
           fingerprintImage: vi.fn(),
         },
       }),
@@ -554,13 +571,80 @@ describe('planVisualAssets', () => {
         workingDirectory: '/work/visual-assets',
         dependencies: {
           acquireImage: vi.fn().mockResolvedValue(acquired('article-a')),
-          searchImages: vi.fn().mockResolvedValue([]),
+          searchProviders: bingProviders(vi.fn().mockResolvedValue([])),
           fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
         },
       }),
     ).rejects.toThrow(
       'Visual scene scene-02 cannot reuse the immediately preceding image',
     );
+  });
+
+  it('prefers license-clean providers and records photographer provenance', async () => {
+    const pexelsCandidate: ImageCandidate = {
+      imageUrl: 'https://images.pexels.example.test/world-cup.jpeg',
+      sourceUrl: 'https://www.pexels.com/photo/world-cup-12345/',
+      origin: 'pexels',
+      width: 1_600,
+      height: 1_200,
+      altText: 'stadium crowd',
+      photographer: 'Jane Doe',
+      photographerUrl: 'https://www.pexels.com/@jane-doe/',
+    };
+    const pexelsSearch = vi.fn().mockResolvedValue([pexelsCandidate]);
+    const pixabaySearch = vi.fn();
+    const bingSearch = vi.fn();
+
+    const result = await planVisualAssets({
+      scenes: scenes.slice(0, 1),
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage: vi.fn().mockResolvedValue(acquired('world-cup')),
+        searchProviders: [
+          { origin: 'pexels', search: pexelsSearch },
+          { origin: 'pixabay', search: pixabaySearch },
+          { origin: 'bing', search: bingSearch },
+        ],
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(pixabaySearch).not.toHaveBeenCalled();
+    expect(bingSearch).not.toHaveBeenCalled();
+    expect(result.assets[0]).toMatchObject({
+      provider: 'pexels',
+      license: 'pexels',
+      photographer: 'Jane Doe',
+      photographerUrl: 'https://www.pexels.com/@jane-doe/',
+    });
+  });
+
+  it('falls through to the next provider when a clean provider errors', async () => {
+    const pexelsSearch = vi
+      .fn()
+      .mockRejectedValue(new Error('Pexels search failed: 429'));
+    const bingCandidate = {
+      ...candidate('fallback', 'bing'),
+      altText: 'first subject',
+    };
+    const bingSearch = vi.fn().mockResolvedValue([bingCandidate]);
+
+    const result = await planVisualAssets({
+      scenes: scenes.slice(0, 1),
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage: vi.fn().mockResolvedValue(acquired('fallback')),
+        searchProviders: [
+          { origin: 'pexels', search: pexelsSearch },
+          { origin: 'bing', search: bingSearch },
+        ],
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(pexelsSearch).toHaveBeenCalledOnce();
+    expect(result.assets[0]?.provider).toBe('bing');
+    expect(result.assets[0]?.license).toBe('unknown');
   });
 
   it('fails explicitly instead of producing an asset-none or text fallback', async () => {
@@ -571,7 +655,7 @@ describe('planVisualAssets', () => {
         workingDirectory: '/work/visual-assets',
         dependencies: {
           acquireImage: vi.fn(),
-          searchImages: vi.fn().mockResolvedValue([]),
+          searchProviders: bingProviders(vi.fn().mockResolvedValue([])),
           fingerprintImage: vi.fn(),
         },
       }),

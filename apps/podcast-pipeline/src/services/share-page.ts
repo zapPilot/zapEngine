@@ -135,12 +135,14 @@ export function renderEpisodeSharePage(
           input.iosAppId,
         )}, app-argument=${htmlEscape(input.appDeepLinkUrl)}">`
       : '';
-  const openGraphVideoMeta = video
-    ? `<meta property="og:video" content="${htmlEscape(video.url)}">
+  const videoSize = video ? videoDimensions(video.url) : null;
+  const openGraphVideoMeta =
+    video && videoSize
+      ? `<meta property="og:video" content="${htmlEscape(video.url)}">
   <meta property="og:video:type" content="video/mp4">
-  <meta property="og:video:width" content="1920">
-  <meta property="og:video:height" content="1080">`
-    : '';
+  <meta property="og:video:width" content="${videoSize.width}">
+  <meta property="og:video:height" content="${videoSize.height}">`
+      : '';
 
   return `<!doctype html>
 <html lang="en">
@@ -339,6 +341,23 @@ export function renderEpisodeSharePage(
   </main>
 </body>
 </html>`;
+}
+
+// Renderer versions v1-v3 are the closed set of historical 16:9 renders;
+// every later renderer version produces the 1080x1920 vertical news layout.
+const LANDSCAPE_RENDERER_URL_SEGMENTS = [
+  '/video/satori-resvg-v1/',
+  '/video/satori-resvg-v2/',
+  '/video/satori-resvg-v3/',
+] as const;
+
+function videoDimensions(videoUrl: string): { width: number; height: number } {
+  const isLegacyLandscape = LANDSCAPE_RENDERER_URL_SEGMENTS.some((segment) =>
+    videoUrl.includes(segment),
+  );
+  return isLegacyLandscape
+    ? { width: 1920, height: 1080 }
+    : { width: 1080, height: 1920 };
 }
 
 function renderPlatformContent(input: RenderEpisodeSharePageInput): string {

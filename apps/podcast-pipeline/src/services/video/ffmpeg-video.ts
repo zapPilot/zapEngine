@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { path as bundledFfmpegPath } from '@ffmpeg-installer/ffmpeg';
 
 import { abortError, throwIfAborted } from './abort.js';
-import type { SlideVideoManifest } from './manifest.js';
+import type { SlideVideoManifest, VerticalVideoManifest } from './manifest.js';
 
 export interface VideoProcessResult {
   stdout: string;
@@ -20,6 +20,18 @@ export interface StaticSlideVideoOptions {
   manifest: SlideVideoManifest;
   slidePaths: string[];
   audioSource: string;
+  filterScriptPath: string;
+  outputPath: string;
+  signal?: AbortSignal;
+}
+
+export interface VerticalSlideVideoOptions {
+  manifest: VerticalVideoManifest;
+  mediaPaths: string[];
+  framePath: string;
+  outroPath: string;
+  audioSource: string;
+  bgmPath: string;
   filterScriptPath: string;
   outputPath: string;
   signal?: AbortSignal;
@@ -116,36 +128,67 @@ export async function runProcess(
   });
 }
 
+const HIDE_BANNER_FLAG = '-hide_banner';
+
 export async function assertVideoFfmpegCapabilities(
   ffmpegPath = resolveVideoFfmpegPath(),
   processRunner: VideoProcessRunner = runProcess,
   signal?: AbortSignal,
 ): Promise<void> {
   throwIfAborted(signal);
-  const [filters, encoders] = await Promise.all([
+  const [filters, encoders, amixHelp] = await Promise.all([
     invokeProcessRunner(
       processRunner,
       ffmpegPath,
-      ['-hide_banner', '-filters'],
+      [HIDE_BANNER_FLAG, '-filters'],
       false,
       signal,
     ),
     invokeProcessRunner(
       processRunner,
       ffmpegPath,
-      ['-hide_banner', '-encoders'],
+      [HIDE_BANNER_FLAG, '-encoders'],
+      false,
+      signal,
+    ),
+    invokeProcessRunner(
+      processRunner,
+      ffmpegPath,
+      [HIDE_BANNER_FLAG, '-h', 'filter=amix'],
       false,
       signal,
     ),
   ]);
   const filterOutput = `${filters.stdout}\n${filters.stderr}`;
   const encoderOutput = `${encoders.stdout}\n${encoders.stderr}`;
+  const amixHelpOutput = `${amixHelp.stdout}\n${amixHelp.stderr}`;
+  const requiredFilters = [
+    'xfade',
+    'zoompan',
+    'ass',
+    'overlay',
+    'pad',
+    'fade',
+    'apad',
+    'afade',
+    'amix',
+    'asplit',
+    'aformat',
+    'sidechaincompress',
+  ];
   const missing = [
-    !/\bxfade\b/.test(filterOutput) ? 'xfade filter' : null,
-    !/\bzoompan\b/.test(filterOutput) ? 'zoompan filter' : null,
-    !/\bass\b/.test(filterOutput) ? 'ass filter' : null,
+    ...requiredFilters.map((filterName) =>
+      new RegExp(`\\b${filterName}\\b`).test(filterOutput)
+        ? null
+        : `${filterName} filter`,
+    ),
     !/\blibx264\b/.test(encoderOutput) ? 'libx264 encoder' : null,
     !/\baac\b/.test(encoderOutput) ? 'AAC encoder' : null,
+    // amix appears in `-filters` on old builds too, but the normalize option
+    // the BGM mix relies on needs ffmpeg >= 4.4 — probe the filter help.
+    !/\bnormalize\b/.test(amixHelpOutput)
+      ? 'amix normalize option (ffmpeg >= 4.4)'
+      : null,
   ].filter((capability): capability is string => capability !== null);
 
   if (missing.length > 0) {
@@ -214,32 +257,67 @@ function kenBurnsFilter(
   return `zoompan=z='${zoom}':x='${x}':y='${y}':d=1:s=${width}x${height}:fps=${fps}`;
 }
 
+function slideSceneFilters(
+  slides: SlideVideoManifest['slides'],
+  fps: number,
+  width: number,
+  height: number,
+): string[] {
+  return slides.map(
+    (slide, index) =>
+      `[${index}:v]fps=${fps},scale=${width}:${height}:flags=lanczos+accurate_rnd:in_range=pc:out_range=tv:out_color_matrix=bt709,${kenBurnsFilter(slide, index, fps, width, height)},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`,
+  );
+}
+
+function sceneChain(
+  manifest: Pick<SlideVideoManifest, 'slides' | 'clip'>,
+  width: number,
+  height: number,
+): { filters: string[]; priorLabel: string } {
+  const fps = manifest.clip.fps;
+  const filters = slideSceneFilters(manifest.slides, fps, width, height);
+  const priorLabel = appendXfadeChain(
+    filters,
+    manifest.slides,
+    fps,
+    manifest.clip.transitionMs,
+  );
+  return { filters, priorLabel };
+}
+
+function appendXfadeChain(
+  filters: string[],
+  slides: SlideVideoManifest['slides'],
+  fps: number,
+  transitionMs: number,
+): string {
+  const transitionFrames = Math.round((transitionMs * fps) / 1_000);
+  let priorLabel = 's0';
+  slides.slice(1).forEach((slide, offsetIndex) => {
+    const slideIndex = offsetIndex + 1;
+    const nextStartFrame = Math.round((slide.startMs * fps) / 1_000);
+    const transitionOffset = (nextStartFrame - transitionFrames) / fps;
+    const outputLabel = `x${slideIndex}`;
+    filters.push(
+      `[${priorLabel}][s${slideIndex}]xfade=transition=fade:duration=${transitionMs / 1_000}:offset=${transitionOffset.toFixed(6)}[${outputLabel}]`,
+    );
+    priorLabel = outputLabel;
+  });
+  return priorLabel;
+}
+
 export function buildStaticSlideFilter(
   manifest: SlideVideoManifest,
   subtitlePath: string,
   fontsDirectory: string,
 ): string {
   const fps = manifest.clip.fps;
-  const transitionFrames = Math.round(
-    (manifest.clip.transitionMs * fps) / 1_000,
-  );
   const totalFrames = Math.round((manifest.clip.durationMs * fps) / 1_000);
-  const filters: string[] = manifest.slides.map(
-    (slide, index) =>
-      `[${index}:v]fps=${fps},scale=${manifest.clip.width}:${manifest.clip.height}:flags=lanczos+accurate_rnd:in_range=pc:out_range=tv:out_color_matrix=bt709,${kenBurnsFilter(slide, index, fps, manifest.clip.width, manifest.clip.height)},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`,
+  const { filters, priorLabel } = sceneChain(
+    manifest,
+    manifest.clip.width,
+    manifest.clip.height,
   );
-
-  let priorLabel = 's0';
-  manifest.slides.slice(1).forEach((slide, offsetIndex) => {
-    const slideIndex = offsetIndex + 1;
-    const nextStartFrame = Math.round((slide.startMs * fps) / 1_000);
-    const transitionOffset = (nextStartFrame - transitionFrames) / fps;
-    const outputLabel = `x${slideIndex}`;
-    filters.push(
-      `[${priorLabel}][s${slideIndex}]xfade=transition=fade:duration=${manifest.clip.transitionMs / 1_000}:offset=${transitionOffset.toFixed(6)}[${outputLabel}]`,
-    );
-    priorLabel = outputLabel;
-  });
 
   filters.push(
     `[${priorLabel}]fps=${fps},trim=end_frame=${totalFrames},settb=expr=1/${fps},setpts=N,ass=filename='${escapeFilterPath(subtitlePath)}':fontsdir='${escapeFilterPath(fontsDirectory)}',format=yuv420p[vout]`,
@@ -252,42 +330,94 @@ export function buildStaticSlideFilter(
   return filters.join(';\n');
 }
 
-export function buildStaticSlideFfmpegArgs(
-  options: StaticSlideVideoOptions,
-): string[] {
-  const { manifest } = options;
-  const totalFrames = Math.round(
-    (manifest.clip.durationMs * manifest.clip.fps) / 1_000,
+const OUTRO_FADE_IN_SECONDS = 0.4;
+const BGM_FADE_OUT_SECONDS = 0.9;
+const BGM_DUCK_SIDECHAIN =
+  'sidechaincompress=threshold=0.02:ratio=12:attack=25:release=450';
+
+export function buildVerticalSlideFilter(
+  manifest: VerticalVideoManifest,
+  subtitlePath: string,
+  fontsDirectory: string,
+): string {
+  const fps = manifest.clip.fps;
+  const window = manifest.mediaWindow;
+  const totalFrames = Math.round((manifest.clip.durationMs * fps) / 1_000);
+  const totalSeconds = manifest.clip.durationMs / 1_000;
+  const narrationSeconds = manifest.audio.narrationDurationMs / 1_000;
+  const totalSamples = Math.round((manifest.clip.durationMs / 1_000) * 48_000);
+  const frameInputIndex = manifest.slides.length;
+  const outroInputIndex = frameInputIndex + 1;
+  const narrationInputIndex = frameInputIndex + 2;
+  const bgmInputIndex = frameInputIndex + 3;
+
+  // Media scenes render at window resolution, so the Ken Burns motion never
+  // touches the brand frame layered on top of the padded canvas.
+  const { filters, priorLabel } = sceneChain(
+    manifest,
+    window.width,
+    window.height,
   );
-  const durationSeconds = manifest.clip.durationMs / 1_000;
-  const imageInputs = options.slidePaths.flatMap((slidePath) => [
+
+  filters.push(
+    `[${priorLabel}]fps=${fps},trim=end_frame=${totalFrames},settb=expr=1/${fps},setpts=N,pad=${manifest.clip.width}:${manifest.clip.height}:${window.x}:${window.y}:color=0x101014[canvas]`,
+  );
+  filters.push(`[${frameInputIndex}:v]format=rgba[frame]`);
+  filters.push(`[canvas][frame]overlay=0:0:format=auto[framed]`);
+  filters.push(
+    `[${outroInputIndex}:v]format=rgba,fade=t=in:st=${narrationSeconds}:d=${OUTRO_FADE_IN_SECONDS}:alpha=1[outro]`,
+  );
+  filters.push(
+    `[framed][outro]overlay=0:0:format=auto:enable='gte(t,${narrationSeconds})'[branded]`,
+  );
+  filters.push(
+    `[branded]ass=filename='${escapeFilterPath(subtitlePath)}':fontsdir='${escapeFilterPath(fontsDirectory)}',format=yuv420p[vout]`,
+  );
+
+  // Narration is padded with silence through the outro tail and split so the
+  // pre-pad signal keys the BGM ducking compressor.
+  filters.push(
+    `[${narrationInputIndex}:a]aresample=sample_rate=48000:async=1:first_pts=0,aformat=channel_layouts=stereo,apad=whole_dur=${totalSeconds},atrim=end_sample=${totalSamples},asetpts=N/SR/TB,asplit=2[nar_mix][nar_key]`,
+  );
+  filters.push(
+    `[${bgmInputIndex}:a]aresample=sample_rate=48000,aformat=channel_layouts=stereo,volume=${manifest.bgm.gainDb}dB,atrim=end_sample=${totalSamples},asetpts=N/SR/TB[bgm_lvl]`,
+  );
+  filters.push(`[bgm_lvl][nar_key]${BGM_DUCK_SIDECHAIN}[bgm_duck]`);
+  filters.push(
+    `[nar_mix][bgm_duck]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,afade=t=out:st=${(totalSeconds - BGM_FADE_OUT_SECONDS).toFixed(3)}:d=${BGM_FADE_OUT_SECONDS},atrim=end_sample=${totalSamples},asetpts=N/SR/TB[aout]`,
+  );
+  return filters.join(';\n');
+}
+
+function loopedImageInputs(paths: readonly string[], fps: number): string[] {
+  return paths.flatMap((path) => [
     '-loop',
     '1',
     '-framerate',
-    String(manifest.clip.fps),
+    String(fps),
     '-i',
-    slidePath,
+    path,
   ]);
+}
 
+function encoderOutputArgs(input: {
+  fps: number;
+  totalFrames: number;
+  durationSeconds: number;
+  filterScriptPath: string;
+  outputPath: string;
+}): string[] {
   return [
-    '-y',
-    '-hide_banner',
-    '-loglevel',
-    'warning',
-    '-stats',
-    ...imageInputs,
-    '-i',
-    options.audioSource,
     '-filter_complex_script',
-    options.filterScriptPath,
+    input.filterScriptPath,
     '-map',
     '[vout]',
     '-map',
     '[aout]',
     '-frames:v',
-    String(totalFrames),
+    String(input.totalFrames),
     '-t',
-    String(durationSeconds),
+    String(input.durationSeconds),
     '-shortest',
     '-c:v',
     'libx264',
@@ -304,7 +434,7 @@ export function buildStaticSlideFfmpegArgs(
     '-pix_fmt',
     'yuv420p',
     '-r',
-    String(manifest.clip.fps),
+    String(input.fps),
     '-g',
     '60',
     '-keyint_min',
@@ -327,8 +457,85 @@ export function buildStaticSlideFfmpegArgs(
     '48000',
     '-movflags',
     '+faststart',
-    options.outputPath,
+    input.outputPath,
   ];
+}
+
+function renderArgs(input: {
+  fps: number;
+  durationMs: number;
+  imagePaths: readonly string[];
+  audioInputArgs: readonly string[];
+  filterScriptPath: string;
+  outputPath: string;
+}): string[] {
+  return [
+    '-y',
+    HIDE_BANNER_FLAG,
+    '-loglevel',
+    'warning',
+    '-stats',
+    ...loopedImageInputs(input.imagePaths, input.fps),
+    ...input.audioInputArgs,
+    ...encoderOutputArgs({
+      fps: input.fps,
+      totalFrames: Math.round((input.durationMs * input.fps) / 1_000),
+      durationSeconds: input.durationMs / 1_000,
+      filterScriptPath: input.filterScriptPath,
+      outputPath: input.outputPath,
+    }),
+  ];
+}
+
+export function buildStaticSlideFfmpegArgs(
+  options: StaticSlideVideoOptions,
+): string[] {
+  return renderArgs({
+    fps: options.manifest.clip.fps,
+    durationMs: options.manifest.clip.durationMs,
+    imagePaths: options.slidePaths,
+    audioInputArgs: ['-i', options.audioSource],
+    filterScriptPath: options.filterScriptPath,
+    outputPath: options.outputPath,
+  });
+}
+
+export function buildVerticalFfmpegArgs(
+  options: VerticalSlideVideoOptions,
+): string[] {
+  const { manifest } = options;
+  if (options.mediaPaths.length !== manifest.slides.length) {
+    throw new Error(
+      `Vertical render needs ${manifest.slides.length} media inputs, received ${options.mediaPaths.length}`,
+    );
+  }
+  return renderArgs({
+    fps: manifest.clip.fps,
+    durationMs: manifest.clip.durationMs,
+    imagePaths: [...options.mediaPaths, options.framePath, options.outroPath],
+    // The BGM track loops for as long as the mix needs it; atrim in the
+    // filtergraph bounds the audible length.
+    audioInputArgs: [
+      '-i',
+      options.audioSource,
+      '-stream_loop',
+      '-1',
+      '-i',
+      options.bgmPath,
+    ],
+    filterScriptPath: options.filterScriptPath,
+    outputPath: options.outputPath,
+  });
+}
+
+async function renderWithFfmpeg(
+  args: string[],
+  signal: AbortSignal | undefined,
+  ffmpegPath: string,
+  processRunner: VideoProcessRunner,
+): Promise<void> {
+  await assertVideoFfmpegCapabilities(ffmpegPath, processRunner, signal);
+  await invokeProcessRunner(processRunner, ffmpegPath, args, true, signal);
 }
 
 export async function renderStaticSlideVideo(
@@ -337,16 +544,24 @@ export async function renderStaticSlideVideo(
   processRunner: VideoProcessRunner = runProcess,
 ): Promise<void> {
   throwIfAborted(options.signal);
-  await assertVideoFfmpegCapabilities(
-    ffmpegPath,
-    processRunner,
-    options.signal,
-  );
-  await invokeProcessRunner(
-    processRunner,
-    ffmpegPath,
+  await renderWithFfmpeg(
     buildStaticSlideFfmpegArgs(options),
-    true,
     options.signal,
+    ffmpegPath,
+    processRunner,
+  );
+}
+
+export async function renderVerticalSlideVideo(
+  options: VerticalSlideVideoOptions,
+  ffmpegPath = resolveVideoFfmpegPath(),
+  processRunner: VideoProcessRunner = runProcess,
+): Promise<void> {
+  throwIfAborted(options.signal);
+  await renderWithFfmpeg(
+    buildVerticalFfmpegArgs(options),
+    options.signal,
+    ffmpegPath,
+    processRunner,
   );
 }

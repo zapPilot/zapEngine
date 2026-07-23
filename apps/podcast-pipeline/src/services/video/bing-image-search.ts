@@ -6,8 +6,10 @@ import type { ImageCandidate } from '../../types.js';
 const BING_IMAGES_SEARCH_ENDPOINT = 'https://www.bing.com/images/search';
 const DEFAULT_RESULT_COUNT = 35;
 const MAX_RESULT_COUNT = 150;
+// aspect-square favors sources that survive the near-square 1080x960 media
+// window crop of the vertical news layout.
 const BING_IMAGE_QUALITY_FILTERS =
-  '+filterui:imagesize-large+filterui:aspect-wide+filterui:photo-photo';
+  '+filterui:imagesize-large+filterui:aspect-square+filterui:photo-photo';
 const BING_IMAGE_VISUAL_QUERY_SUFFIX =
   'real world documentary photograph -text -typography -infographic -diagram -chart -presentation -slide -poster -tutorial -screenshot -banner -cover -quote -guide -explained -report -ppt -powerpoint -template -vector -clipart';
 export const BING_IMAGES_FETCH_TIMEOUT_MS = 15_000;
@@ -251,6 +253,9 @@ export async function searchBingImages(
       BING_IMAGES_FETCH_TIMEOUT_MS,
       'Bing Images search',
     );
+    /* jscpd:ignore-start — same error-normalization tail as the JSON stock
+       providers, but the HTML scrape keeps its own deadline/parse flow, so
+       only this catch block coincides */
   } catch (error) {
     if (options.signal?.aborted) throw error;
     if (error instanceof BingImagesProviderError) throw error;
@@ -264,3 +269,4 @@ export async function searchBingImages(
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+/* jscpd:ignore-end */

@@ -33,8 +33,11 @@ const MAX_REDIRECTS = 3;
 const DEFAULT_DOWNLOAD_TIMEOUT_MS = 15_000;
 const MIN_FRAMED_LONG_EDGE = 800;
 const MIN_FRAMED_SHORT_EDGE = 320;
-const MIN_FULL_BLEED_LONG_EDGE = 1_600;
-const MIN_FULL_BLEED_SHORT_EDGE = 900;
+// Full-bleed sources now fill the 1080x960 media window rather than a full
+// 1920x1080 canvas, so the floors track the window with the same modest
+// upscale tolerance the old 1080p floors allowed.
+const MIN_FULL_BLEED_LONG_EDGE = 1_000;
+const MIN_FULL_BLEED_SHORT_EDGE = 800;
 
 export type SupportedRemoteImageContentType =
   | 'image/avif'
