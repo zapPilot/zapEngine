@@ -16,6 +16,7 @@ import { Sparkline } from '@/components/charts/Sparkline';
 import { ZapStrategyCard } from '@/components/strategy/ZapStrategyCard';
 import { ChainIconStack } from '@/components/token/ChainIconStack';
 import { TokenIcon } from '@/components/token/TokenIcon';
+import { SharePortfolioButton } from '@/components/share/SharePortfolioButton';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
 import { DEMO } from '@/data/demo';
@@ -220,7 +221,7 @@ export function HomeScreen() {
 
   return (
     <ScreenScrollView>
-      <AppHeader />
+      <AppHeader action={<SharePortfolioButton />} />
 
       <View className="px-5 pt-6">
         <SectionLabel>Net worth</SectionLabel>

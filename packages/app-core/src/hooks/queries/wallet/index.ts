@@ -9,3 +9,4 @@ export {
   useUserById,
   useUserByWallet,
 } from './useUserQuery';
+export { useUserWallets } from './useUserWallets';
