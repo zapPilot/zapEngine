@@ -121,7 +121,7 @@
   },
   "scripts": {
     "build": "tsc && tsc-alias",
-    "dev": "tsc --watch --preserveWatchOutput",
+    "dev": "tsc --watch --preserveWatchOutput & tsc-alias --watch",
     "clean": "rm -rf dist",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",

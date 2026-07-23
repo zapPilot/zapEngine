@@ -92,6 +92,13 @@ const config: ExpoConfig = {
     ],
     'expo-router',
     'expo-secure-store',
+    [
+      'expo-video',
+      {
+        supportsBackgroundPlayback: false,
+        supportsPictureInPicture: false,
+      },
+    ],
     'expo-web-browser',
     [
       'expo-splash-screen',
