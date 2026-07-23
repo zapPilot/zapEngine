@@ -583,4 +583,338 @@ describe('shared visual plan and locale manifest materialization', () => {
       /headline|quote|citation|facts|sourceQuote|statistic/,
     );
   });
+
+  it('throws when scene alignment count mismatches visual plan scenes', () => {
+    const sentences = splitCanonicalSentences('Markets changed.');
+    const timing: CanonicalAudioTiming = {
+      durationMs: 10_000,
+      sentences: [{ sentence: sentences[0]!, startMs: 0, endMs: 10_000 }],
+      captions: [{ startMs: 0, endMs: 10_000, text: 'Markets changed.' }],
+      silences: [],
+    };
+    const draft: StoryboardDraft = {
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          startSentenceId: 's0001',
+          endSentenceId: 's0001',
+          imageSearchIntent: ['test'],
+        },
+      ],
+    };
+    const visualPlan = materializeImageVisualPlan({
+      draft,
+      sceneAssets: [
+        {
+          sceneId: 'scene-01',
+          sources: [sceneSource('scene-01')],
+          asset: sceneAsset('scene-01'),
+        },
+      ],
+    });
+    expect(() =>
+      materializeLocaleImageVideoManifest({
+        visualPlan,
+        timing,
+        sceneAlignment: [],
+        episode: {
+          id: 'id',
+          localizationId: 'loc',
+          languageCode: 'en',
+          title: 'T',
+        },
+        audioSource: '/audio/en.m4a',
+      }),
+    ).toThrow('Expected 1 aligned scenes, received 0');
+  });
+
+  it('throws when scene alignment sceneId mismatches', () => {
+    const sentences = splitCanonicalSentences('Markets changed.');
+    const timing: CanonicalAudioTiming = {
+      durationMs: 10_000,
+      sentences: [{ sentence: sentences[0]!, startMs: 0, endMs: 10_000 }],
+      captions: [{ startMs: 0, endMs: 10_000, text: 'Markets changed.' }],
+      silences: [],
+    };
+    const draft: StoryboardDraft = {
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          startSentenceId: 's0001',
+          endSentenceId: 's0001',
+          imageSearchIntent: ['test'],
+        },
+      ],
+    };
+    const visualPlan = materializeImageVisualPlan({
+      draft,
+      sceneAssets: [
+        {
+          sceneId: 'scene-01',
+          sources: [sceneSource('scene-01')],
+          asset: sceneAsset('scene-01'),
+        },
+      ],
+    });
+    expect(() =>
+      materializeLocaleImageVideoManifest({
+        visualPlan,
+        timing,
+        sceneAlignment: [
+          {
+            sceneId: 'scene-99',
+            startSentenceId: 's0001',
+            endSentenceId: 's0001',
+          },
+        ],
+        episode: {
+          id: 'id',
+          localizationId: 'loc',
+          languageCode: 'en',
+          title: 'T',
+        },
+        audioSource: '/audio/en.m4a',
+      }),
+    ).toThrow('Scene alignment 1 must reference scene-01');
+  });
+
+  it('throws when scene alignment references unknown locale sentence', () => {
+    const sentences = splitCanonicalSentences('Markets changed.');
+    const timing: CanonicalAudioTiming = {
+      durationMs: 10_000,
+      sentences: [{ sentence: sentences[0]!, startMs: 0, endMs: 10_000 }],
+      captions: [{ startMs: 0, endMs: 10_000, text: 'Markets changed.' }],
+      silences: [],
+    };
+    const draft: StoryboardDraft = {
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          startSentenceId: 's0001',
+          endSentenceId: 's0001',
+          imageSearchIntent: ['test'],
+        },
+      ],
+    };
+    const visualPlan = materializeImageVisualPlan({
+      draft,
+      sceneAssets: [
+        {
+          sceneId: 'scene-01',
+          sources: [sceneSource('scene-01')],
+          asset: sceneAsset('scene-01'),
+        },
+      ],
+    });
+    expect(() =>
+      materializeLocaleImageVideoManifest({
+        visualPlan,
+        timing,
+        sceneAlignment: [
+          {
+            sceneId: 'scene-01',
+            startSentenceId: 's0999',
+            endSentenceId: 's0999',
+          },
+        ],
+        episode: {
+          id: 'id',
+          localizationId: 'loc',
+          languageCode: 'en',
+          title: 'T',
+        },
+        audioSource: '/audio/en.m4a',
+      }),
+    ).toThrow('references an unknown locale sentence');
+  });
+
+  it('throws when scene alignment is not contiguous', () => {
+    const sentences = splitCanonicalSentences('First. Second.');
+    const timing: CanonicalAudioTiming = {
+      durationMs: 20_000,
+      sentences: [
+        { sentence: sentences[0]!, startMs: 0, endMs: 10_000 },
+        { sentence: sentences[1]!, startMs: 10_000, endMs: 20_000 },
+      ],
+      captions: [
+        { startMs: 0, endMs: 10_000, text: 'First.' },
+        { startMs: 10_000, endMs: 20_000, text: 'Second.' },
+      ],
+      silences: [],
+    };
+    const draft: StoryboardDraft = {
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          startSentenceId: 's0001',
+          endSentenceId: 's0002',
+          imageSearchIntent: ['test'],
+        },
+      ],
+    };
+    const visualPlan = materializeImageVisualPlan({
+      draft,
+      sceneAssets: [
+        {
+          sceneId: 'scene-01',
+          sources: [sceneSource('scene-01')],
+          asset: sceneAsset('scene-01'),
+        },
+      ],
+    });
+    expect(() =>
+      materializeLocaleImageVideoManifest({
+        visualPlan,
+        timing,
+        sceneAlignment: [
+          {
+            sceneId: 'scene-01',
+            startSentenceId: 's0002',
+            endSentenceId: 's0002',
+          },
+        ],
+        episode: {
+          id: 'id',
+          localizationId: 'loc',
+          languageCode: 'en',
+          title: 'T',
+        },
+        audioSource: '/audio/en.m4a',
+      }),
+    ).toThrow('must cover the next contiguous locale sentence range');
+  });
+
+  it('throws when scene alignment does not cover every locale sentence', () => {
+    const sentences = splitCanonicalSentences('First. Second.');
+    const timing: CanonicalAudioTiming = {
+      durationMs: 20_000,
+      sentences: [
+        { sentence: sentences[0]!, startMs: 0, endMs: 10_000 },
+        { sentence: sentences[1]!, startMs: 10_000, endMs: 20_000 },
+      ],
+      captions: [
+        { startMs: 0, endMs: 10_000, text: 'First.' },
+        { startMs: 10_000, endMs: 20_000, text: 'Second.' },
+      ],
+      silences: [],
+    };
+    const draft: StoryboardDraft = {
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          startSentenceId: 's0001',
+          endSentenceId: 's0001',
+          imageSearchIntent: ['test'],
+        },
+      ],
+    };
+    const visualPlan = materializeImageVisualPlan({
+      draft,
+      sceneAssets: [
+        {
+          sceneId: 'scene-01',
+          sources: [sceneSource('scene-01')],
+          asset: sceneAsset('scene-01'),
+        },
+      ],
+    });
+    expect(() =>
+      materializeLocaleImageVideoManifest({
+        visualPlan,
+        timing,
+        sceneAlignment: [
+          {
+            sceneId: 'scene-01',
+            startSentenceId: 's0001',
+            endSentenceId: 's0001',
+          },
+        ],
+        episode: {
+          id: 'id',
+          localizationId: 'loc',
+          languageCode: 'en',
+          title: 'T',
+        },
+        audioSource: '/audio/en.m4a',
+      }),
+    ).toThrow('Scene alignment must cover every locale sentence');
+  });
+
+  it('rejects a scene index below zero', () => {
+    expect(() => stableSceneId(-1)).toThrow(
+      'Scene index must be an integer from 0 to 63',
+    );
+  });
+
+  it('rejects duplicate scene asset IDs', () => {
+    const draft: StoryboardDraft = {
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          startSentenceId: 's0001',
+          endSentenceId: 's0001',
+          imageSearchIntent: ['test'],
+        },
+        {
+          sceneId: 'scene-02',
+          startSentenceId: 's0002',
+          endSentenceId: 's0002',
+          imageSearchIntent: ['test 2'],
+        },
+      ],
+    };
+    expect(() =>
+      materializeImageVisualPlan({
+        draft,
+        sceneAssets: [
+          {
+            sceneId: 'scene-01',
+            sources: [sceneSource('scene-01')],
+            asset: sceneAsset('scene-01'),
+          },
+          {
+            sceneId: 'scene-01',
+            sources: [sceneSource('scene-01')],
+            asset: sceneAsset('scene-01'),
+          },
+        ],
+      }),
+    ).toThrow('Materialized scene assets contain duplicate scene IDs');
+  });
+
+  it('rejects a draft scene with no matching scene asset', () => {
+    const draft: StoryboardDraft = {
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          startSentenceId: 's0001',
+          endSentenceId: 's0001',
+          imageSearchIntent: ['test'],
+        },
+        {
+          sceneId: 'scene-02',
+          startSentenceId: 's0002',
+          endSentenceId: 's0002',
+          imageSearchIntent: ['test 2'],
+        },
+      ],
+    };
+    expect(() =>
+      materializeImageVisualPlan({
+        draft,
+        sceneAssets: [
+          {
+            sceneId: 'scene-01',
+            sources: [sceneSource('scene-01')],
+            asset: sceneAsset('scene-01'),
+          },
+          {
+            sceneId: 'scene-03',
+            sources: [sceneSource('scene-01')],
+            asset: sceneAsset('scene-01'),
+          },
+        ],
+      }),
+    ).toThrow('Materialized image is missing for scene-02');
+  });
 });
