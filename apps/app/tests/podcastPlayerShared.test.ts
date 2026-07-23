@@ -95,8 +95,11 @@ describe('clampPodcastPlaybackSeconds', () => {
     expect(clampPodcastPlaybackSeconds(Number.POSITIVE_INFINITY, 60)).toBe(0);
   });
 
-  it('retains the finite target while duration is not known', () => {
+  it('retains the finite target while duration is unknown or invalid', () => {
     expect(clampPodcastPlaybackSeconds(42, 0)).toBe(42);
+    expect(clampPodcastPlaybackSeconds(42, -1)).toBe(42);
+    expect(clampPodcastPlaybackSeconds(42, Number.NaN)).toBe(42);
+    expect(clampPodcastPlaybackSeconds(42, Number.POSITIVE_INFINITY)).toBe(42);
   });
 });
 
