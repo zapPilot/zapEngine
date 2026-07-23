@@ -5,6 +5,7 @@ import {
   clampPodcastPlaybackSeconds,
   createPodcastPlayerSnapshot,
   findPodcastQueueIndex,
+  finiteSeconds,
   hasNextPodcastEpisode,
   hasPreviousPodcastEpisode,
   isSamePodcastEpisode,
@@ -80,6 +81,15 @@ describe('podcast queue boundaries', () => {
     expect(hasNextPodcastEpisode(queue, 0)).toBe(true);
     expect(hasNextPodcastEpisode(queue, queue.length - 1)).toBe(false);
     expect(hasNextPodcastEpisode(queue, queue.length)).toBe(false);
+  });
+});
+
+describe('finiteSeconds', () => {
+  it('preserves finite playback time and rejects invalid media state', () => {
+    expect(finiteSeconds(42)).toBe(42);
+    expect(finiteSeconds(-1)).toBe(0);
+    expect(finiteSeconds(Number.NaN)).toBe(0);
+    expect(finiteSeconds(Number.POSITIVE_INFINITY)).toBe(0);
   });
 });
 
