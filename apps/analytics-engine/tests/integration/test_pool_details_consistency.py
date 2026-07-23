@@ -26,7 +26,7 @@ async def test_user_with_pools(integration_db_session: AsyncSession) -> dict[str
     Creates a realistic portfolio with:
     - Multiple pools on different chains
     - Different protocols (Aave, Compound, Hyperliquid)
-    - APR data from DeFiLlama and Hyperliquid sources
+    - Pool details derived entirely from portfolio snapshots
     """
     user_id = str(uuid.uuid4())
     wallet_address = f"0x{''.join(str(uuid.uuid4()).replace('-', '')[:40])}"
@@ -125,37 +125,6 @@ async def test_user_with_pools(integration_db_session: AsyncSession) -> dict[str
             },
         )
 
-    # Insert APR data for DeFiLlama
-    await integration_db_session.execute(
-        text(
-            """
-            INSERT INTO alpha_raw.pool_apr_snapshots (
-                pool_address, protocol, chain, symbol, apr, apr_base, apr_reward,
-                snapshot_time, source
-            )
-            VALUES
-                ('0xaave_usdc', 'Aave V3', 'Ethereum', 'USDC', 5.5, 4.0, 1.5, :now, 'defillama'),
-                ('0xaave_weth', 'Aave V3', 'Ethereum', 'WETH', 3.2, 2.5, 0.7, :now, 'defillama'),
-                ('0xcompound_usdt', 'Compound V3', 'Polygon', 'USDT', 4.8, 4.8, 0.0, :now, 'defillama')
-            """
-        ),
-        {"now": snapshot_time},
-    )
-
-    # Insert APR data for Hyperliquid
-    await integration_db_session.execute(
-        text(
-            """
-            INSERT INTO alpha_raw.hyperliquid_vault_apr_snapshots (
-                vault_address, vault_name, apr, apr_base, apr_reward,
-                snapshot_time, source
-            )
-            VALUES ('0xhlp_vault', 'HLP Vault', 12.5, 12.5, 0.0, :now, 'hyperliquid_api')
-            """
-        ),
-        {"now": snapshot_time},
-    )
-
     await integration_db_session.commit()
     await refresh_mv_session(integration_db_session)
 
@@ -178,7 +147,6 @@ async def test_pool_details_consistency(
     - Same number of pools
     - Same pool identifiers (protocol, chain, symbols)
     - Same USD values
-    - Same APR data
     - Same structure/fields
     """
     user_id = test_user_with_pools["user_id"]

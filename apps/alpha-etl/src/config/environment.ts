@@ -9,10 +9,6 @@ const configDir = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT_ENV = path.resolve(configDir, '../../../../.env');
 config({ path: REPO_ROOT_ENV, quiet: true });
 
-function parseBoolean(value: string): boolean {
-  return value.toLowerCase() === 'true';
-}
-
 function parsePort(defaultValue: string) {
   return z
     .string()
@@ -40,14 +36,6 @@ function parseOptionalNonEmptyString() {
     }
     return value;
   }, z.string().min(1).optional());
-}
-
-function parseBooleanFlag(defaultValue: 'true' | 'false') {
-  return z
-    .string()
-    .default(defaultValue)
-    .transform(parseBoolean)
-    .pipe(z.boolean());
 }
 
 const envSchema = z.object({
@@ -88,9 +76,6 @@ const envSchema = z.object({
 
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
-
-  // Materialized View Refresh
-  ENABLE_MV_REFRESH: parseBooleanFlag('true'),
 });
 
 type Environment = z.infer<typeof envSchema>;

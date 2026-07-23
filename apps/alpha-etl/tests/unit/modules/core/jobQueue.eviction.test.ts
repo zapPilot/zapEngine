@@ -18,14 +18,21 @@ vi.mock('../../../../src/utils/logger.js', async () => {
   return mockLogger();
 });
 
-vi.mock('../../../../src/modules/core/mvRefresh.js', () => ({
-  mvRefresher: {
-    refreshAllViews: vi.fn().mockResolvedValue({
-      totalDurationMs: 0,
-      results: [],
-      allSucceeded: true,
-      failedCount: 0,
-      skippedCount: 0,
+vi.mock('../../../../src/modules/core/portfolioRollupSync.js', () => ({
+  portfolioRollupSynchronizer: {
+    synchronize: vi.fn().mockResolvedValue({
+      durationMs: 0,
+      metrics: {
+        portfolioKeysProcessed: 0,
+        walletKeysProcessed: 0,
+        usersProcessed: 0,
+        portfolioRowsWritten: 0,
+        walletRowsWritten: 0,
+        trendRowsWritten: 0,
+        remainingPortfolioKeys: 0,
+        remainingWalletKeys: 0,
+        remainingUsers: 0,
+      },
     }),
   },
 }));

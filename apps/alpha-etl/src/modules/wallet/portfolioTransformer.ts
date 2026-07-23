@@ -119,7 +119,7 @@ export class DeBankPortfolioTransformer {
     const results: PortfolioItemSnapshotInsert[] = [];
 
     // Generate ONE timestamp for the entire batch to ensure consistent snapshot time
-    // This allows Materialized Views to correctly group all items for this snapshot
+    // This lets the incremental rollup keep every item in the latest protocol batch.
     const batchTimestamp = new Date().toISOString();
 
     for (const protocol of protocols) {

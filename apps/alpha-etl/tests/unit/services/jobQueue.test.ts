@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { ETLJobQueue } from '../../../src/modules/core/jobQueue.js';
-import { accessPrivate, castTo } from '../../utils/typeCasts.ts';
+import { accessPrivate } from '../../utils/typeCasts.ts';
 
 // Mock the ETL processor
 vi.mock('../../../src/modules/core/pipelineFactory.js', () => ({
@@ -15,15 +15,22 @@ vi.mock('../../../src/utils/logger.js', async () => {
   return mockLogger();
 });
 
-// Mock MV refresher
-vi.mock('../../../src/modules/core/mvRefresh.js', () => ({
-  mvRefresher: {
-    refreshAllViews: vi.fn().mockResolvedValue({
-      totalDurationMs: 5000,
-      results: [],
-      allSucceeded: true,
-      failedCount: 0,
-      skippedCount: 0,
+// Mock incremental portfolio rollup synchronizer
+vi.mock('../../../src/modules/core/portfolioRollupSync.js', () => ({
+  portfolioRollupSynchronizer: {
+    synchronize: vi.fn().mockResolvedValue({
+      durationMs: 5,
+      metrics: {
+        portfolioKeysProcessed: 1,
+        walletKeysProcessed: 1,
+        usersProcessed: 1,
+        portfolioRowsWritten: 1,
+        walletRowsWritten: 1,
+        trendRowsWritten: 1,
+        remainingPortfolioKeys: 0,
+        remainingWalletKeys: 0,
+        remainingUsers: 0,
+      },
     }),
   },
 }));
@@ -39,7 +46,7 @@ vi.mock('../../../src/config/database.js', async (importOriginal) => {
 });
 
 import { getDbClient } from '../../../src/config/database.js';
-import { mvRefresher } from '../../../src/modules/core/mvRefresh.js';
+import { portfolioRollupSynchronizer } from '../../../src/modules/core/portfolioRollupSync.js';
 
 type PersistedJobStatus = 'pending' | 'processing' | 'completed' | 'failed';
 interface MockProcessor {
@@ -75,6 +82,20 @@ describe('ETLJobQueue', () => {
     jobQueue = new ETLJobQueue();
     mockProcessor = { processJob: vi.fn() };
     privateQueue(jobQueue).processor = mockProcessor;
+    vi.mocked(portfolioRollupSynchronizer.synchronize).mockResolvedValue({
+      durationMs: 5,
+      metrics: {
+        portfolioKeysProcessed: 1,
+        walletKeysProcessed: 1,
+        usersProcessed: 1,
+        portfolioRowsWritten: 1,
+        walletRowsWritten: 1,
+        trendRowsWritten: 1,
+        remainingPortfolioKeys: 0,
+        remainingWalletKeys: 0,
+        remainingUsers: 0,
+      },
+    });
   });
 
   afterEach(() => {
@@ -566,7 +587,7 @@ describe('ETLJobQueue', () => {
     });
   });
 
-  describe('MV refresh integration', () => {
+  describe('portfolio rollup synchronization', () => {
     beforeEach(() => {
       vi.useFakeTimers();
       const mockDbClient = {
@@ -580,19 +601,27 @@ describe('ETLJobQueue', () => {
       vi.useRealTimers();
     });
 
-    it('should trigger MV refresh when job has records inserted', async () => {
+    it('synchronizes after DeBank actually writes records', async () => {
       mockProcessor.processJob.mockResolvedValue({
         success: true,
         recordsProcessed: 10,
         recordsInserted: 5,
         errors: [],
-        sourceResults: {},
+        sourceResults: {
+          debank: {
+            source: 'debank',
+            success: true,
+            recordsProcessed: 10,
+            recordsInserted: 5,
+            errors: [],
+          },
+        },
       });
 
       const job = {
-        jobId: 'job-with-records',
+        jobId: 'debank-with-records',
         trigger: 'manual',
-        sources: ['hyperliquid'],
+        sources: ['debank'],
         createdAt: new Date(),
         status: 'pending',
       };
@@ -600,18 +629,26 @@ describe('ETLJobQueue', () => {
       privateQueue(jobQueue).jobs.set(job.jobId, job);
       await privateQueue(jobQueue).processNext();
 
-      expect(mvRefresher.refreshAllViews).toHaveBeenCalledWith(
-        'job-with-records',
+      expect(portfolioRollupSynchronizer.synchronize).toHaveBeenCalledWith(
+        'debank-with-records',
       );
     });
 
-    it('should trigger MV refresh for wallet_fetch jobs even with 0 records', async () => {
+    it('synchronizes a successful wallet_fetch even when it writes zero rows', async () => {
       mockProcessor.processJob.mockResolvedValue({
         success: true,
         recordsProcessed: 0,
         recordsInserted: 0,
         errors: [],
-        sourceResults: {},
+        sourceResults: {
+          debank: {
+            source: 'debank',
+            success: true,
+            recordsProcessed: 0,
+            recordsInserted: 0,
+            errors: [],
+          },
+        },
       });
 
       const job = {
@@ -630,26 +667,34 @@ describe('ETLJobQueue', () => {
       privateQueue(jobQueue).jobs.set(job.jobId, job);
       await privateQueue(jobQueue).processNext();
 
-      expect(mvRefresher.refreshAllViews).toHaveBeenCalledWith(
+      expect(portfolioRollupSynchronizer.synchronize).toHaveBeenCalledWith(
         'wallet-job-zero',
       );
     });
 
-    it('should trigger MV refresh when partial ETL failure still inserted records', async () => {
+    it('synchronizes a partial DeBank failure that still wrote records', async () => {
       mockProcessor.processJob.mockResolvedValue({
         success: false,
         recordsProcessed: 10,
         recordsInserted: 2,
-        errors: ['hyperliquid: API timeout'],
-        sourceResults: {},
+        errors: ['debank: API timeout'],
+        sourceResults: {
+          debank: {
+            source: 'debank',
+            success: false,
+            recordsProcessed: 10,
+            recordsInserted: 2,
+            errors: ['API timeout'],
+          },
+        },
       });
 
-      vi.mocked(mvRefresher.refreshAllViews).mockClear();
+      vi.mocked(portfolioRollupSynchronizer.synchronize).mockClear();
 
       const job = {
         jobId: 'partial-failure-with-inserts',
         trigger: 'manual',
-        sources: ['hyperliquid', 'hyperliquid'],
+        sources: ['debank'],
         createdAt: new Date(),
         status: 'pending',
       };
@@ -657,7 +702,7 @@ describe('ETLJobQueue', () => {
       privateQueue(jobQueue).jobs.set(job.jobId, job);
       await privateQueue(jobQueue).processNext();
 
-      expect(mvRefresher.refreshAllViews).toHaveBeenCalledWith(
+      expect(portfolioRollupSynchronizer.synchronize).toHaveBeenCalledWith(
         'partial-failure-with-inserts',
       );
       expect(job.status).toBe('failed');
@@ -666,21 +711,35 @@ describe('ETLJobQueue', () => {
       expect(result?.data.status).toBe('failed');
     });
 
-    it('should skip MV refresh when job failed', async () => {
+    it.each([
+      'hyperliquid',
+      'feargreed',
+      'macro-fear-greed',
+      'token-price',
+      'stock-price',
+    ] as const)('never synchronizes for %s writes', async (source) => {
       mockProcessor.processJob.mockResolvedValue({
-        success: false,
-        recordsProcessed: 0,
-        recordsInserted: 0,
-        errors: ['error'],
-        sourceResults: {},
+        success: true,
+        recordsProcessed: 5,
+        recordsInserted: 5,
+        errors: [],
+        sourceResults: {
+          [source]: {
+            source,
+            success: true,
+            recordsProcessed: 5,
+            recordsInserted: 5,
+            errors: [],
+          },
+        },
       });
 
-      vi.mocked(mvRefresher.refreshAllViews).mockClear();
+      vi.mocked(portfolioRollupSynchronizer.synchronize).mockClear();
 
       const job = {
-        jobId: 'failed-job',
+        jobId: `non-portfolio-${source}`,
         trigger: 'manual',
-        sources: ['hyperliquid'],
+        sources: [source],
         createdAt: new Date(),
         status: 'pending',
       };
@@ -688,19 +747,27 @@ describe('ETLJobQueue', () => {
       privateQueue(jobQueue).jobs.set(job.jobId, job);
       await privateQueue(jobQueue).processNext();
 
-      expect(mvRefresher.refreshAllViews).not.toHaveBeenCalled();
+      expect(portfolioRollupSynchronizer.synchronize).not.toHaveBeenCalled();
     });
 
-    it('should skip MV refresh for failed wallet_fetch jobs with 0 records', async () => {
+    it('does not synchronize a failed wallet_fetch that wrote zero rows', async () => {
       mockProcessor.processJob.mockResolvedValue({
         success: false,
         recordsProcessed: 0,
         recordsInserted: 0,
         errors: ['wallet fetch failed'],
-        sourceResults: {},
+        sourceResults: {
+          debank: {
+            source: 'debank',
+            success: false,
+            recordsProcessed: 0,
+            recordsInserted: 0,
+            errors: ['wallet fetch failed'],
+          },
+        },
       });
 
-      vi.mocked(mvRefresher.refreshAllViews).mockClear();
+      vi.mocked(portfolioRollupSynchronizer.synchronize).mockClear();
 
       const job = {
         jobId: 'wallet-failed-zero',
@@ -718,25 +785,33 @@ describe('ETLJobQueue', () => {
       privateQueue(jobQueue).jobs.set(job.jobId, job);
       await privateQueue(jobQueue).processNext();
 
-      expect(mvRefresher.refreshAllViews).not.toHaveBeenCalled();
+      expect(portfolioRollupSynchronizer.synchronize).not.toHaveBeenCalled();
       expect(job.status).toBe('failed');
     });
 
-    it('should skip MV refresh when no records inserted (non-wallet job)', async () => {
+    it('does not synchronize a normal DeBank job that wrote zero rows', async () => {
       mockProcessor.processJob.mockResolvedValue({
         success: true,
         recordsProcessed: 5,
         recordsInserted: 0,
         errors: [],
-        sourceResults: {},
+        sourceResults: {
+          debank: {
+            source: 'debank',
+            success: true,
+            recordsProcessed: 5,
+            recordsInserted: 0,
+            errors: [],
+          },
+        },
       });
 
-      vi.mocked(mvRefresher.refreshAllViews).mockClear();
+      vi.mocked(portfolioRollupSynchronizer.synchronize).mockClear();
 
       const job = {
-        jobId: 'no-records-job',
+        jobId: 'debank-no-records',
         trigger: 'scheduled',
-        sources: ['hyperliquid'],
+        sources: ['debank'],
         createdAt: new Date(),
         status: 'pending',
       };
@@ -744,32 +819,34 @@ describe('ETLJobQueue', () => {
       privateQueue(jobQueue).jobs.set(job.jobId, job);
       await privateQueue(jobQueue).processNext();
 
-      expect(mvRefresher.refreshAllViews).not.toHaveBeenCalled();
+      expect(portfolioRollupSynchronizer.synchronize).not.toHaveBeenCalled();
     });
 
-    it('should mark job as failed when MV refresh fails', async () => {
+    it('marks the job failed when rollup synchronization fails', async () => {
       mockProcessor.processJob.mockResolvedValue({
         success: true,
         recordsProcessed: 10,
         recordsInserted: 5,
         errors: [],
-        sourceResults: {},
+        sourceResults: {
+          debank: {
+            source: 'debank',
+            success: true,
+            recordsProcessed: 10,
+            recordsInserted: 5,
+            errors: [],
+          },
+        },
       });
 
-      vi.mocked(mvRefresher.refreshAllViews).mockResolvedValue({
-        totalDurationMs: 3000,
-        results: [
-          { mvName: 'mv1', success: false, durationMs: 0, error: 'timeout' },
-        ],
-        allSucceeded: false,
-        failedCount: 1,
-        skippedCount: 2,
-      });
+      vi.mocked(portfolioRollupSynchronizer.synchronize).mockRejectedValue(
+        new Error('queue timeout'),
+      );
 
       const job = {
-        jobId: 'mv-fail-job',
+        jobId: 'rollup-fail-job',
         trigger: 'manual',
-        sources: ['hyperliquid'],
+        sources: ['debank'],
         createdAt: new Date(),
         status: 'pending',
       };
@@ -778,39 +855,43 @@ describe('ETLJobQueue', () => {
       await privateQueue(jobQueue).processNext();
 
       expect(job.status).toBe('failed');
-      const result = jobQueue.getResult('mv-fail-job');
-
-      // Job overall success is false because MV refresh failed
+      const result = jobQueue.getResult('rollup-fail-job');
       expect(result?.success).toBe(true);
-
-      if (result) {
+      if (result?.success) {
         expect(result.data.status).toBe('failed');
-        expect(
-          castTo<Record<string, unknown>>(result.data).mvRefreshSuccess,
-        ).toBe(false);
-        expect(
-          castTo<Record<string, unknown>>(result.data).mvRefreshFailedCount,
-        ).toBe(1);
+        expect(result.data.errors).toContain(
+          'Portfolio rollup synchronization failed: queue timeout',
+        );
+        expect(result.data).not.toHaveProperty('mvRefreshSuccess');
+        expect(result.data).not.toHaveProperty('mvRefreshResults');
       }
     });
 
-    it('should mark job as failed when MV refresh throws non-Error', async () => {
+    it('handles a non-Error rollup synchronization failure', async () => {
       mockProcessor.processJob.mockResolvedValue({
         success: true,
         recordsProcessed: 2,
         recordsInserted: 1,
         errors: [],
-        sourceResults: {},
+        sourceResults: {
+          debank: {
+            source: 'debank',
+            success: true,
+            recordsProcessed: 2,
+            recordsInserted: 1,
+            errors: [],
+          },
+        },
       });
 
-      vi.mocked(mvRefresher.refreshAllViews).mockRejectedValue(
-        'MV refresh failed',
+      vi.mocked(portfolioRollupSynchronizer.synchronize).mockRejectedValue(
+        'processor unavailable',
       );
 
       const job = {
-        jobId: 'mv-throw-job',
+        jobId: 'rollup-throw-job',
         trigger: 'manual',
-        sources: ['hyperliquid'],
+        sources: ['debank'],
         createdAt: new Date(),
         status: 'pending',
       };
@@ -819,7 +900,7 @@ describe('ETLJobQueue', () => {
       await privateQueue(jobQueue).processNext();
 
       expect(job.status).toBe('failed');
-      const result = jobQueue.getResult('mv-throw-job');
+      const result = jobQueue.getResult('rollup-throw-job');
       expect(result?.data.status).toBe('failed');
     });
 
@@ -829,13 +910,21 @@ describe('ETLJobQueue', () => {
         recordsProcessed: 10,
         recordsInserted: 5,
         errors: '',
-        sourceResults: {},
+        sourceResults: {
+          debank: {
+            source: 'debank',
+            success: true,
+            recordsProcessed: 10,
+            recordsInserted: 5,
+            errors: [],
+          },
+        },
       });
 
       const job = {
         jobId: 'job-no-errors',
         trigger: 'manual',
-        sources: ['hyperliquid'],
+        sources: ['debank'],
         createdAt: new Date(),
         status: 'pending',
       };
@@ -847,30 +936,27 @@ describe('ETLJobQueue', () => {
       expect(result?.data.errors).toEqual([]);
     });
 
-    it('should include MV refresh stats in job result', async () => {
+    it('keeps internal rollup metrics out of the public job result', async () => {
       mockProcessor.processJob.mockResolvedValue({
         success: true,
         recordsProcessed: 10,
         recordsInserted: 5,
         errors: [],
-        sourceResults: {},
-      });
-
-      vi.mocked(mvRefresher.refreshAllViews).mockResolvedValue({
-        totalDurationMs: 2000,
-        results: [
-          { mvName: 'mv1', success: true, durationMs: 1000 },
-          { mvName: 'mv2', success: true, durationMs: 1000 },
-        ],
-        allSucceeded: true,
-        failedCount: 0,
-        skippedCount: 0,
+        sourceResults: {
+          debank: {
+            source: 'debank',
+            success: true,
+            recordsProcessed: 10,
+            recordsInserted: 5,
+            errors: [],
+          },
+        },
       });
 
       const job = {
-        jobId: 'job-with-mv-stats',
+        jobId: 'job-with-rollup-metrics',
         trigger: 'manual',
-        sources: ['hyperliquid'],
+        sources: ['debank'],
         createdAt: new Date(),
         status: 'pending',
       };
@@ -878,21 +964,12 @@ describe('ETLJobQueue', () => {
       privateQueue(jobQueue).jobs.set(job.jobId, job);
       await privateQueue(jobQueue).processNext();
 
-      const result = jobQueue.getResult('job-with-mv-stats');
+      const result = jobQueue.getResult('job-with-rollup-metrics');
       expect(result?.success).toBe(true);
       if (result?.success) {
-        expect(
-          castTo<Record<string, unknown>>(result.data).mvRefreshDurationMs,
-        ).toBe(2000);
-        expect(
-          castTo<Record<string, unknown>>(result.data).mvRefreshSuccess,
-        ).toBe(true);
-        expect(
-          castTo<Record<string, unknown>>(result.data).mvRefreshFailedCount,
-        ).toBe(0);
-        expect(
-          castTo<Record<string, unknown>>(result.data).mvRefreshResults,
-        ).toHaveLength(2);
+        expect(result.data.status).toBe('completed');
+        expect(result.data).not.toHaveProperty('mvRefreshDurationMs');
+        expect(result.data).not.toHaveProperty('rollupSyncMetrics');
       }
     });
   });

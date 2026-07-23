@@ -3,11 +3,9 @@ import { Pool, type PoolClient } from 'pg';
 import { logger } from '../utils/logger.js';
 import { sleep } from '../utils/sleep.js';
 import { env } from './environment.js';
-export type { MVConfig } from './constants.js';
 export {
   APR_VALIDATION,
   DATA_LIMITS,
-  MV_REFRESH_CONFIG,
   RATE_LIMITS,
   TIME_CONSTANTS,
   TIMEOUTS,
