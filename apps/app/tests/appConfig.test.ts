@@ -31,6 +31,16 @@ describe('Android store identity', () => {
     ]);
   });
 
+  it('keeps video playback foreground-only without picture-in-picture', () => {
+    expect(appConfig.plugins).toContainEqual([
+      'expo-video',
+      {
+        supportsBackgroundPlayback: false,
+        supportsPictureInPicture: false,
+      },
+    ]);
+  });
+
   it('prefers Expo Alchemy config and falls back to the local Vite key', () => {
     expect(
       resolveExpoAlchemyApiKey({
