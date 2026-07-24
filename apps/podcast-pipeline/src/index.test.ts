@@ -38,6 +38,7 @@ const {
   mockListEpisodeLocalizationsByEpisodeId,
   mockListLanguageClassroomsByLocalizationId,
   mockListLanguageClassroomsByLocalizationIds,
+  mockLoadEpisodeVideoGeneration,
   mockMarkEpisodeListened,
   mockScrapeArticle,
   mockServe,
@@ -72,6 +73,7 @@ const {
   mockListEpisodeLocalizationsByEpisodeId: vi.fn(),
   mockListLanguageClassroomsByLocalizationId: vi.fn(),
   mockListLanguageClassroomsByLocalizationIds: vi.fn(),
+  mockLoadEpisodeVideoGeneration: vi.fn(),
   mockMarkEpisodeListened: vi.fn(),
   mockScrapeArticle: vi.fn(),
   mockServe: vi.fn(
@@ -215,6 +217,11 @@ vi.mock('./services/video-jobs.js', async (importOriginal) => ({
   enqueueEpisodeVideoVisualJob: mockEnqueueEpisodeVideoVisualJob,
 }));
 
+vi.mock('./services/video-status.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./services/video-status.js')>()),
+  loadEpisodeVideoGeneration: mockLoadEpisodeVideoGeneration,
+}));
+
 process.env['TTS_PROVIDER'] = 'google';
 
 const app = (await import('./index.js')).default;
@@ -224,8 +231,24 @@ beforeEach(() => {
   delete process.env['FISH_AUDIO_ENGINE'];
   delete process.env['FISH_AUDIO_REFERENCE_ID'];
   mockListCompletedEpisodeVideosByLocalizationIds.mockResolvedValue(new Map());
-  mockEnqueueEpisodeVideoJob.mockResolvedValue({ status: 'queued' });
-  mockEnqueueEpisodeVideoVisualJob.mockResolvedValue({ status: 'queued' });
+  mockLoadEpisodeVideoGeneration.mockResolvedValue(null);
+  mockEnqueueEpisodeVideoJob.mockImplementation(
+    (episodeLocalizationId: string) =>
+      Promise.resolve({
+        episode_localization_id: episodeLocalizationId,
+        status: 'queued',
+        mp4_url: null,
+        thumbnail_url: null,
+        duration_seconds: null,
+        last_error: null,
+        updated_at: '2026-07-24T00:00:00.000Z',
+      }),
+  );
+  mockEnqueueEpisodeVideoVisualJob.mockResolvedValue({
+    status: 'queued',
+    last_error: null,
+    updated_at: '2026-07-24T00:00:00.000Z',
+  });
   mockListEpisodeLocalizationsByEpisodeId.mockResolvedValue([
     localizationRow({
       language_code: 'zh-Hant',
@@ -886,11 +909,19 @@ describe('POST /ingest pipeline', () => {
             : [],
         ),
     );
-    mockEnqueueEpisodeVideoJob.mockResolvedValue({
-      status: 'queued',
-      attempt_count: 0,
-      last_error: null,
-    });
+    mockEnqueueEpisodeVideoJob.mockImplementation(
+      (episodeLocalizationId: string) =>
+        Promise.resolve({
+          episode_localization_id: episodeLocalizationId,
+          status: 'queued',
+          attempt_count: 0,
+          mp4_url: null,
+          thumbnail_url: null,
+          duration_seconds: null,
+          last_error: null,
+          updated_at: '2026-07-24T00:00:00.000Z',
+        }),
+    );
 
     const response = await app.request('/ingest', {
       method: 'POST',
@@ -901,10 +932,20 @@ describe('POST /ingest pipeline', () => {
       body: JSON.stringify({ url: 'https://example.com/article' }),
     });
     const body = (await response.json()) as {
-      episode: EpisodeResponse;
+      episode: Omit<EpisodeResponse, 'video'>;
       costUsd: number;
       costDetails: { totalUsd: number; breakdown: unknown[] };
       summary: string;
+      videoGeneration: {
+        episodeId: string;
+        status: string;
+        statusEndpoint: string;
+        items: {
+          languageCode: string;
+          localizationId: string;
+          status: string;
+        }[];
+      };
     };
 
     expect(response.status).toBe(200);
@@ -913,12 +954,35 @@ describe('POST /ingest pipeline', () => {
       'costUsd',
       'episode',
       'summary',
+      'videoGeneration',
     ]);
     expect(body.episode).toMatchObject({
       id: episodeRow().id,
       localizationId: canonicalLocalization.id,
       languageCode: 'zh-Hant',
-      video: null,
+    });
+    expect(body.episode).not.toHaveProperty('video');
+    expect(body.videoGeneration).toMatchObject({
+      episodeId: episodeRow().id,
+      status: 'queued',
+      statusEndpoint: `/episodes/${episodeRow().id}/videos`,
+      items: [
+        {
+          languageCode: 'zh-Hant',
+          localizationId: canonicalLocalization.id,
+          status: 'queued',
+        },
+        {
+          languageCode: 'ja',
+          localizationId: jaLocalization.id,
+          status: 'queued',
+        },
+        {
+          languageCode: 'en',
+          localizationId: enLocalization.id,
+          status: 'queued',
+        },
+      ],
     });
     expect(body.costUsd).toBe(0);
     expect(body.costDetails).toEqual({ totalUsd: 0, breakdown: [] });
@@ -1644,6 +1708,80 @@ describe('GET /episodes/search', () => {
 
     expect(response.status).toBe(400);
     expect(mockSearchEpisodes).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /episodes/:episodeId/videos', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv('INGEST_ADMIN_TOKEN', 'secret-token');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('returns generation status and URLs for every language', async () => {
+    const episodeId = episodeRow().id;
+    const videoGeneration = {
+      episodeId,
+      status: 'completed',
+      statusEndpoint: `/episodes/${episodeId}/videos`,
+      error: null,
+      visual: {
+        status: 'completed',
+        lastError: null,
+        updatedAt: '2026-07-24T00:00:00.000Z',
+      },
+      items: [
+        {
+          languageCode: 'zh-Hant',
+          localizationId: localizationRow().id,
+          status: 'completed',
+          url: 'https://cdn.example.com/zh-Hant.mp4',
+          thumbnailUrl: 'https://cdn.example.com/zh-Hant.png',
+          durationSeconds: 90,
+          lastError: null,
+          updatedAt: '2026-07-24T00:00:00.000Z',
+          episodeEndpoint: `/episodes/${localizationRow().id}`,
+        },
+      ],
+    };
+    mockLoadEpisodeVideoGeneration.mockResolvedValue(videoGeneration);
+
+    const response = await app.request(`/episodes/${episodeId}/videos`, {
+      headers: { authorization: 'Bearer secret-token' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(videoGeneration);
+    expect(mockLoadEpisodeVideoGeneration).toHaveBeenCalledWith(episodeId);
+  });
+
+  it('requires admin authorization', async () => {
+    const response = await app.request(`/episodes/${episodeRow().id}/videos`);
+
+    expect(response.status).toBe(401);
+    expect(mockLoadEpisodeVideoGeneration).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the episode does not exist', async () => {
+    mockLoadEpisodeVideoGeneration.mockResolvedValue(null);
+
+    const response = await app.request(`/episodes/${episodeRow().id}/videos`, {
+      headers: { authorization: 'Bearer secret-token' },
+    });
+
+    expect(response.status).toBe(404);
+  });
+
+  it('rejects malformed episode ids before querying Supabase', async () => {
+    const response = await app.request('/episodes/not-a-uuid/videos', {
+      headers: { authorization: 'Bearer secret-token' },
+    });
+
+    expect(response.status).toBe(404);
+    expect(mockLoadEpisodeVideoGeneration).not.toHaveBeenCalled();
   });
 });
 
