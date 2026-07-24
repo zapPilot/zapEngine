@@ -4,7 +4,7 @@ import { Text, View } from 'react-native';
 
 import { StepHeader } from '@/components/invest/StepHeader';
 import { WizardDoneCard } from '@/components/invest/WizardDoneCard';
-import { WizardErrorCard } from '@/components/invest/WizardErrorCard';
+import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
@@ -140,7 +140,10 @@ export function InvestProgressScreen() {
 
         {wizard.error ? (
           <View className="mt-5">
-            <WizardErrorCard message={wizard.error} onDismiss={retry} />
+            <InlineErrorCard
+              body={wizard.error}
+              action={{ label: 'Dismiss', onPress: retry }}
+            />
           </View>
         ) : null}
 

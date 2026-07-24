@@ -18,12 +18,12 @@ function createToastId(): string {
 
 function toastBorderClassName(type: Toast['type']): string {
   return type === 'error'
-    ? 'border-[rgba(255,107,107,.42)]'
+    ? 'border-error/40'
     : 'border-[rgba(212,197,163,.28)]';
 }
 
 function toastTitleClassName(type: Toast['type']): string {
-  if (type === 'error') return 'text-[#ff6b6b]';
+  if (type === 'error') return 'text-error';
   if (type === 'warning') return 'text-[#ffd166]';
   return 'text-accent';
 }

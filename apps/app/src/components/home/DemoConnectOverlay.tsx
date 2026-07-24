@@ -1,10 +1,13 @@
 import { BlurView } from 'expo-blur';
 import { StyleSheet, View } from 'react-native';
 
-import { ConnectPromptCard } from '@/components/home/ConnectPromptCard';
+import { ConnectGateCard } from '@/components/connect/ConnectGateCard';
+import { CONNECT_GATE_COPY } from '@/components/connect/connectCopy';
 
 interface DemoConnectOverlayProps {
   onConnect: () => void;
+  isConnecting?: boolean;
+  error?: string | null;
 }
 
 /** Plain blur cover for secondary demo sections (no repeated CTA). */
@@ -29,7 +32,11 @@ export function DemoBlurCover() {
  * sign-in card on top. Mount inside a `relative` container wrapping the
  * demo-data sections.
  */
-export function DemoConnectOverlay({ onConnect }: DemoConnectOverlayProps) {
+export function DemoConnectOverlay({
+  onConnect,
+  isConnecting,
+  error,
+}: DemoConnectOverlayProps) {
   return (
     <View className="absolute inset-0 z-10 items-center justify-center px-8">
       <BlurView
@@ -39,10 +46,13 @@ export function DemoConnectOverlay({ onConnect }: DemoConnectOverlayProps) {
         experimentalBlurMethod="dimezisBlurView"
       />
       <View className="w-full max-w-[360px]">
-        <ConnectPromptCard
-          title="You're viewing sample data"
-          body="Connect your wallet to see your real portfolio, balance trend and assets."
+        <ConnectGateCard
+          variant="overlay"
+          title={CONNECT_GATE_COPY.demoTitle}
+          body={CONNECT_GATE_COPY.demoBody}
           onConnect={onConnect}
+          isConnecting={isConnecting}
+          error={error}
         />
       </View>
     </View>

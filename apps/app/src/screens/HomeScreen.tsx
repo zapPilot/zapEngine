@@ -271,7 +271,13 @@ export function HomeScreen() {
           </View>
         </View>
 
-        {isDemo ? <DemoConnectOverlay onConnect={connect} /> : null}
+        {isDemo ? (
+          <DemoConnectOverlay
+            onConnect={connect}
+            isConnecting={account.isConnecting}
+            error={account.error}
+          />
+        ) : null}
       </View>
 
       {account.isOwnBundle ? (

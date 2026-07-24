@@ -11,11 +11,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CONNECT_SHEET_COPY } from '@/components/connect/connectSheetCopy';
+import { CONNECT_SHEET_COPY } from '@/components/connect/connectCopy';
 import { PrivyLoginOption } from '@/components/connect/PrivyLoginOption';
 import { WalletOptionList } from '@/components/connect/WalletOptionList';
 import { WalletOptionRow } from '@/components/connect/WalletOptionRow';
 import { GlowCircle } from '@/components/ui/GlowCircle';
+import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 
 const SHEET_OFFSCREEN_Y = 420;
@@ -172,20 +173,11 @@ export function ConnectSheet({
           </Text>
 
           {errorCopy ? (
-            <View
-              className="mt-4 rounded-2xl border px-4 py-3"
-              style={{
-                borderColor: 'rgba(255,111,97,.42)',
-                backgroundColor: 'rgba(255,111,97,.08)',
-              }}
-            >
-              <Text className="font-sans-semibold text-[12.5px] text-[#ff6f61]">
-                {errorCopy.title}
-              </Text>
-              <Text className="mt-1 font-sans text-[11px] text-ink-dim">
-                {errorCopy.body}
-              </Text>
-            </View>
+            <InlineErrorCard
+              className="mt-4"
+              title={errorCopy.title}
+              body={errorCopy.body}
+            />
           ) : null}
 
           <View className="mt-4">
