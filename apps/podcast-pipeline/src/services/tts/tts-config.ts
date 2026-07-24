@@ -97,7 +97,7 @@ function resolveTtsProvider(): TtsProvider {
     const referenceId = getFishAudioReferenceId();
     if (!referenceId) {
       console.warn(
-        'TTS_PROVIDER=fish-audio but neither FISH_AUDIO_REFERENCE_ID nor FISH_AUDIO_MODEL_ID is set; falling back to google',
+        'TTS_PROVIDER=fish-audio but FISH_AUDIO_REFERENCE_ID is not set; falling back to google',
       );
       return 'google';
     }
@@ -107,9 +107,7 @@ function resolveTtsProvider(): TtsProvider {
 }
 
 function getFishAudioReferenceId(): string | null {
-  const referenceId =
-    process.env['FISH_AUDIO_REFERENCE_ID']?.trim() ||
-    process.env['FISH_AUDIO_MODEL_ID']?.trim();
+  const referenceId = process.env['FISH_AUDIO_REFERENCE_ID']?.trim();
 
   return referenceId && referenceId.length > 0 ? referenceId : null;
 }

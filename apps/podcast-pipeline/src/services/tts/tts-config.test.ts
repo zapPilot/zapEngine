@@ -72,50 +72,26 @@ describe('TTS language config', () => {
     });
   });
 
-  it('falls back to legacy FISH_AUDIO_MODEL_ID when FISH_AUDIO_REFERENCE_ID is missing', () => {
-    vi.stubEnv('TTS_PROVIDER', 'fish-audio');
-    vi.stubEnv('FISH_AUDIO_MODEL_ID', 'legacy-voice-model');
-
-    expect(getTtsConfig('main', 'ja')).toEqual({
-      provider: 'fish-audio',
-      modelId: 'legacy-voice-model',
-      engine: 's2-pro',
-    });
-  });
-
-  it('prefers FISH_AUDIO_REFERENCE_ID over legacy FISH_AUDIO_MODEL_ID', () => {
-    vi.stubEnv('TTS_PROVIDER', 'fish-audio');
-    vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'preferred-reference');
-    vi.stubEnv('FISH_AUDIO_MODEL_ID', 'legacy-model');
-
-    expect(getTtsConfig('classroom', 'en')).toEqual({
-      provider: 'fish-audio',
-      modelId: 'preferred-reference',
-      engine: 's2-pro',
-    });
-  });
-
   it('falls back to google when TTS_PROVIDER=fish-audio but no Fish Audio reference id is set', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.stubEnv('TTS_PROVIDER', 'fish-audio');
 
     expect(getTtsConfig('main', 'zh-Hant').provider).toBe('google');
     expect(warnSpy).toHaveBeenCalledWith(
-      'TTS_PROVIDER=fish-audio but neither FISH_AUDIO_REFERENCE_ID nor FISH_AUDIO_MODEL_ID is set; falling back to google',
+      'TTS_PROVIDER=fish-audio but FISH_AUDIO_REFERENCE_ID is not set; falling back to google',
     );
 
     warnSpy.mockRestore();
   });
 
-  it('falls back to google when Fish Audio reference id env vars are empty', () => {
+  it('falls back to google when Fish Audio reference id env var is empty', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.stubEnv('TTS_PROVIDER', 'fish-audio');
     vi.stubEnv('FISH_AUDIO_REFERENCE_ID', '   ');
-    vi.stubEnv('FISH_AUDIO_MODEL_ID', '   ');
 
     expect(getTtsConfig('main', 'en').provider).toBe('google');
     expect(warnSpy).toHaveBeenCalledWith(
-      'TTS_PROVIDER=fish-audio but neither FISH_AUDIO_REFERENCE_ID nor FISH_AUDIO_MODEL_ID is set; falling back to google',
+      'TTS_PROVIDER=fish-audio but FISH_AUDIO_REFERENCE_ID is not set; falling back to google',
     );
 
     warnSpy.mockRestore();

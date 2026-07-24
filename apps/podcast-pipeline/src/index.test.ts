@@ -223,7 +223,6 @@ beforeEach(() => {
   process.env['TTS_PROVIDER'] = 'google';
   delete process.env['FISH_AUDIO_ENGINE'];
   delete process.env['FISH_AUDIO_REFERENCE_ID'];
-  delete process.env['FISH_AUDIO_MODEL_ID'];
   mockListCompletedEpisodeVideosByLocalizationIds.mockResolvedValue(new Map());
   mockEnqueueEpisodeVideoJob.mockResolvedValue({ status: 'queued' });
   mockEnqueueEpisodeVideoVisualJob.mockResolvedValue({ status: 'queued' });

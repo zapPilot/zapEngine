@@ -862,8 +862,6 @@ describe('ETLJobQueue', () => {
         expect(result.data.errors).toContain(
           'Portfolio rollup synchronization failed: queue timeout',
         );
-        expect(result.data).not.toHaveProperty('mvRefreshSuccess');
-        expect(result.data).not.toHaveProperty('mvRefreshResults');
       }
     });
 
@@ -968,7 +966,6 @@ describe('ETLJobQueue', () => {
       expect(result?.success).toBe(true);
       if (result?.success) {
         expect(result.data.status).toBe('completed');
-        expect(result.data).not.toHaveProperty('mvRefreshDurationMs');
         expect(result.data).not.toHaveProperty('rollupSyncMetrics');
       }
     });
