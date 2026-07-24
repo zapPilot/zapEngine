@@ -1,6 +1,8 @@
 -- Minimal schema/bootstrap for integration tests
 -- Safe to run multiple times (uses IF NOT EXISTS where possible)
 
+\set ON_ERROR_STOP on
+
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE SCHEMA IF NOT EXISTS alpha_raw;
@@ -28,57 +30,6 @@ BEGIN
         ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT TRUE;
     END IF;
 END$$;
-
--- daily_wallet_token_snapshots (latest wallet token snapshot per wallet per day)
-DROP VIEW IF EXISTS alpha_raw.daily_wallet_token_snapshots;
-DROP MATERIALIZED VIEW IF EXISTS alpha_raw.daily_wallet_token_snapshots;
-CREATE MATERIALIZED VIEW alpha_raw.daily_wallet_token_snapshots AS
-WITH latest_daily AS (
-  SELECT
-    LOWER(user_wallet_address) AS user_wallet_address,
-    inserted_at AS snapshot_date,
-    MAX(time_at) AS latest_time_at
-  FROM alpha_raw.wallet_token_snapshots
-  WHERE is_wallet = TRUE
-  GROUP BY LOWER(user_wallet_address), inserted_at
-)
-SELECT
-  wts.id,
-  LOWER(wts.user_wallet_address) AS user_wallet_address,
-  wts.token_address,
-  wts.chain,
-  wts.name,
-  wts.symbol,
-  wts.display_symbol,
-  wts.optimized_symbol,
-  wts.decimals,
-  wts.logo_url,
-  wts.protocol_id,
-  wts.price,
-  wts.price_24h_change,
-  wts.is_verified,
-  wts.is_core,
-  wts.is_wallet,
-  wts.time_at,
-  wts.inserted_at,
-  wts.total_supply,
-  wts.credit_score,
-  wts.amount,
-  wts.raw_amount,
-  wts.raw_amount_hex_str,
-  wts.inserted_at AS snapshot_date
-FROM alpha_raw.wallet_token_snapshots wts
-JOIN latest_daily ld
-  ON LOWER(wts.user_wallet_address) = ld.user_wallet_address
- AND wts.inserted_at = ld.snapshot_date
- AND wts.time_at = ld.latest_time_at
-WHERE wts.is_wallet = TRUE;
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_wallet_token_snapshots_id
-  ON alpha_raw.daily_wallet_token_snapshots (id);
-
-CREATE INDEX IF NOT EXISTS idx_daily_wallet_token_snapshots_wallet_date
-  ON alpha_raw.daily_wallet_token_snapshots (user_wallet_address, snapshot_date);
 
 CREATE TABLE IF NOT EXISTS plans (
     code TEXT PRIMARY KEY,
@@ -427,23 +378,120 @@ END$$;
 ALTER TABLE IF EXISTS portfolio_item_snapshots
     ADD COLUMN IF NOT EXISTS debt_usd_value NUMERIC;
 
--- daily_portfolio_snapshots (latest snapshot per wallet per UTC day)
-DROP VIEW IF EXISTS public.daily_portfolio_snapshots;
-DROP MATERIALIZED VIEW IF EXISTS public.daily_portfolio_snapshots;
-CREATE MATERIALIZED VIEW public.daily_portfolio_snapshots AS
+ALTER TABLE public.portfolio_item_snapshots
+  ADD COLUMN IF NOT EXISTS wallet_lower text
+    GENERATED ALWAYS AS (lower(wallet)) STORED,
+  ADD COLUMN IF NOT EXISTS snapshot_date_utc date
+    GENERATED ALWAYS AS ((snapshot_at AT TIME ZONE 'UTC')::date) STORED;
+
+-- Recreate the three legacy MVs so migrations 023/024 exercise the production
+-- transition on every integration bootstrap.
+DO $$
+DECLARE
+  target record;
+  relation_kind "char";
+BEGIN
+  FOR target IN
+    SELECT *
+    FROM (
+      VALUES
+        ('public', 'portfolio_category_trend_mv'),
+        ('public', 'daily_portfolio_snapshots'),
+        ('alpha_raw', 'daily_wallet_token_snapshots')
+    ) AS relations(schema_name, relation_name)
+  LOOP
+    SELECT relation.relkind
+    INTO relation_kind
+    FROM pg_catalog.pg_class AS relation
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = relation.relnamespace
+    WHERE namespace.nspname = target.schema_name
+      AND relation.relname = target.relation_name;
+
+    IF relation_kind = 'v' THEN
+      EXECUTE format(
+        'DROP VIEW %I.%I',
+        target.schema_name,
+        target.relation_name
+      );
+    ELSIF relation_kind = 'm' THEN
+      EXECUTE format(
+        'DROP MATERIALIZED VIEW %I.%I',
+        target.schema_name,
+        target.relation_name
+      );
+    END IF;
+  END LOOP;
+END
+$$;
+
+-- daily_wallet_token_snapshots (latest wallet token batch per wallet/day)
+CREATE MATERIALIZED VIEW alpha_raw.daily_wallet_token_snapshots AS
 WITH latest_daily AS (
   SELECT
-    LOWER(wallet) AS wallet,
-    DATE(snapshot_at AT TIME ZONE 'UTC') AS snapshot_date,
+    LOWER(user_wallet_address) AS user_wallet_address,
+    inserted_at::date AS snapshot_date,
+    MAX(time_at) AS latest_time_at
+  FROM alpha_raw.wallet_token_snapshots
+  WHERE is_wallet = TRUE
+  GROUP BY LOWER(user_wallet_address), inserted_at::date
+)
+SELECT
+  wts.id,
+  LOWER(wts.user_wallet_address) AS user_wallet_address,
+  wts.token_address,
+  wts.chain,
+  wts.name,
+  wts.symbol,
+  wts.display_symbol,
+  wts.optimized_symbol,
+  wts.decimals,
+  wts.logo_url,
+  wts.protocol_id,
+  wts.price,
+  wts.price_24h_change,
+  wts.is_verified,
+  wts.is_core,
+  wts.is_wallet,
+  wts.time_at,
+  wts.inserted_at,
+  wts.total_supply,
+  wts.credit_score,
+  wts.amount,
+  wts.raw_amount,
+  wts.raw_amount_hex_str,
+  wts.inserted_at AS snapshot_date
+FROM alpha_raw.wallet_token_snapshots AS wts
+JOIN latest_daily AS latest
+  ON LOWER(wts.user_wallet_address) = latest.user_wallet_address
+ AND wts.inserted_at::date = latest.snapshot_date
+ AND wts.time_at = latest.latest_time_at
+WHERE wts.is_wallet = TRUE;
+
+CREATE UNIQUE INDEX idx_daily_wallet_token_snapshots_id
+  ON alpha_raw.daily_wallet_token_snapshots (id);
+CREATE INDEX idx_daily_wallet_token_snapshots_wallet_date
+  ON alpha_raw.daily_wallet_token_snapshots (
+    user_wallet_address,
+    snapshot_date
+  );
+
+-- daily_portfolio_snapshots (latest protocol batch per wallet/UTC day)
+CREATE MATERIALIZED VIEW public.daily_portfolio_snapshots AS
+WITH latest_protocol_batch AS (
+  SELECT
+    wallet_lower,
+    name,
+    snapshot_date_utc,
     MAX(snapshot_at) AS latest_snapshot_at
   FROM public.portfolio_item_snapshots
-  GROUP BY LOWER(wallet), DATE(snapshot_at AT TIME ZONE 'UTC')
+  GROUP BY wallet_lower, name, snapshot_date_utc
 )
 SELECT
   pis.id,
-  LOWER(pis.wallet) AS wallet,
+  pis.wallet_lower AS wallet,
   pis.snapshot_at,
-  DATE(pis.snapshot_at AT TIME ZONE 'UTC') AS snapshot_date,
+  pis.snapshot_date_utc AS snapshot_date,
   pis.chain,
   pis.has_supported_portfolio,
   pis.id_raw,
@@ -461,16 +509,17 @@ SELECT
   pis.net_usd_value,
   pis.update_at,
   pis.name_item
-FROM public.portfolio_item_snapshots pis
-JOIN latest_daily ld
-  ON LOWER(pis.wallet) = ld.wallet
- AND DATE(pis.snapshot_at AT TIME ZONE 'UTC') = ld.snapshot_date
- AND pis.snapshot_at = ld.latest_snapshot_at;
+FROM public.portfolio_item_snapshots AS pis
+JOIN latest_protocol_batch AS latest
+  ON pis.wallet_lower = latest.wallet_lower
+ AND pis.name = latest.name
+ AND pis.snapshot_date_utc = latest.snapshot_date_utc
+ AND pis.snapshot_at = latest.latest_snapshot_at;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_portfolio_snapshots_id
+CREATE UNIQUE INDEX idx_daily_portfolio_snapshots_id
   ON public.daily_portfolio_snapshots (id);
 
-CREATE INDEX IF NOT EXISTS idx_daily_portfolio_snapshots_wallet_date
+CREATE INDEX idx_daily_portfolio_snapshots_wallet_date
   ON public.daily_portfolio_snapshots (wallet, snapshot_date);
 
 -- Required function for classification tests
@@ -600,33 +649,11 @@ CREATE INDEX IF NOT EXISTS idx_portfolio_category_trend_user_category
 CREATE INDEX IF NOT EXISTS idx_portfolio_category_trend_user_source
     ON portfolio_category_trend_mv (user_id, source_type);
 
--- Minimal alpha_raw tables used by queries (empty but present)
-CREATE TABLE IF NOT EXISTS alpha_raw.pool_apr_snapshots (
-    pool_address TEXT,
-    pool_id TEXT,
-    protocol TEXT,
-    chain TEXT,
-    symbol TEXT,
-    apr NUMERIC,
-    apr_base NUMERIC,
-    apr_reward NUMERIC,
-    snapshot_time TIMESTAMPTZ,
-    source TEXT,
-    inserted_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-ALTER TABLE IF EXISTS alpha_raw.pool_apr_snapshots
-    ADD COLUMN IF NOT EXISTS pool_address TEXT,
-    ADD COLUMN IF NOT EXISTS pool_id TEXT,
-    ADD COLUMN IF NOT EXISTS protocol TEXT,
-    ADD COLUMN IF NOT EXISTS chain TEXT,
-    ADD COLUMN IF NOT EXISTS symbol TEXT,
-    ADD COLUMN IF NOT EXISTS apr NUMERIC,
-    ADD COLUMN IF NOT EXISTS apr_base NUMERIC,
-    ADD COLUMN IF NOT EXISTS apr_reward NUMERIC,
-    ADD COLUMN IF NOT EXISTS snapshot_time TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS source TEXT,
-    ADD COLUMN IF NOT EXISTS inserted_at TIMESTAMPTZ DEFAULT NOW();
+-- Apply the production rollup prepare/activation path to the integration DB.
+BEGIN;
+\ir ../../migrations/023_prepare_incremental_portfolio_rollups.sql
+\ir ../../migrations/024_activate_incremental_portfolio_rollups.sql
+COMMIT;
 
 CREATE TABLE IF NOT EXISTS alpha_raw.hyperliquid_vault_apr_snapshots (
     vault_address TEXT,
@@ -652,6 +679,3 @@ ALTER TABLE IF EXISTS alpha_raw.hyperliquid_vault_apr_snapshots
     ADD COLUMN IF NOT EXISTS snapshot_time TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS source TEXT,
     ADD COLUMN IF NOT EXISTS inserted_at TIMESTAMPTZ DEFAULT NOW();
-
--- Refresh placeholder MV after creation
-REFRESH MATERIALIZED VIEW portfolio_category_trend_mv;

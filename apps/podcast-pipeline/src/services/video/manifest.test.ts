@@ -4,10 +4,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   type ImageVideoManifest,
+  OUTRO_TAIL_MS,
   parseImageVideoManifest,
   parseSlideVideoManifest,
+  parseVerticalVideoManifest,
   type SlideVideoManifest,
   slideVideoManifestSchema,
+  type VerticalVideoManifest,
 } from './manifest.js';
 
 const previewManifestPath = new URL(
@@ -96,6 +99,155 @@ function createImageManifest(): ImageVideoManifest {
     })),
   });
 }
+
+function createVerticalManifest(): VerticalVideoManifest {
+  return parseVerticalVideoManifest({
+    schemaVersion: 'podcast-slide-video.v3',
+    rendererVersion: 'satori-resvg-v4',
+    episode: {
+      id: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
+      localizationId: '56b21422-1a38-4917-957e-b23223c0396c',
+      languageCode: 'zh-Hant',
+      title: '世界盃最賺錢的生意',
+    },
+    clip: {
+      startMs: 0,
+      durationMs: 90_000 + OUTRO_TAIL_MS,
+      width: 1080,
+      height: 1920,
+      fps: 30,
+      transitionMs: 200,
+    },
+    mediaWindow: { x: 0, y: 620, width: 1080, height: 960 },
+    headline: {
+      kicker: '鏈上快訊',
+      titleLines: ['世界盃最賺錢的生意'],
+    },
+    audio: { sourceUrl: '/audio/main.m4a', narrationDurationMs: 90_000 },
+    bgm: { trackId: 'bgm-01', gainDb: -21 },
+    outro: {
+      startMs: 90_000,
+      title: 'From Fed to Chain',
+      callToAction: '訂閱・分享・留言',
+    },
+    slides: Array.from({ length: 9 }, (_, index) => {
+      const sceneId = `scene-${String(index + 1).padStart(2, '0')}`;
+      return {
+        id: sceneId,
+        startMs: index * 10_000,
+        endMs: (index + 1) * 10_000,
+        template: 'image',
+        sources: [
+          {
+            id: `${sceneId}-source`,
+            label: `${sceneId} source`,
+            url: `https://images.example.test/pages/${sceneId}`,
+            attribution: 'Example Photographer',
+            license: 'unknown',
+            licenseUrl: null,
+          },
+        ],
+        asset: {
+          kind: 'remoteImage',
+          sourceId: `${sceneId}-source`,
+          url: `https://images.example.test/${sceneId}.jpg`,
+          sha256: 'a'.repeat(64),
+          layout: 'fullBleed',
+          position: 'center',
+        },
+      };
+    }),
+    captions: Array.from({ length: 9 }, (_, index) => ({
+      startMs: index * 10_000,
+      endMs: (index + 1) * 10_000,
+      text: `字幕 ${index + 1}`,
+    })),
+  });
+}
+
+describe('vertical news video manifest (v3)', () => {
+  it('parses a portrait manifest with headline, bgm, and outro tail', () => {
+    const manifest = createVerticalManifest();
+    expect(manifest.schemaVersion).toBe('podcast-slide-video.v3');
+    expect(manifest.clip).toMatchObject({ width: 1080, height: 1920 });
+    expect(manifest.clip.durationMs).toBe(
+      manifest.audio.narrationDurationMs + OUTRO_TAIL_MS,
+    );
+    expect(manifest.mediaWindow).toEqual({
+      x: 0,
+      y: 620,
+      width: 1080,
+      height: 960,
+    });
+    expect(parseSlideVideoManifest(manifest)).toMatchObject({
+      schemaVersion: 'podcast-slide-video.v3',
+    });
+  });
+
+  it('rejects landscape clip dimensions on a v3 manifest', () => {
+    const manifest = structuredClone(createVerticalManifest()) as unknown as {
+      clip: { width: number; height: number };
+    };
+    manifest.clip.width = 1920;
+    manifest.clip.height = 1080;
+    expect(slideVideoManifestSchema.safeParse(manifest).success).toBe(false);
+  });
+
+  it('requires the clip to cover narration plus the outro tail exactly', () => {
+    const manifest = createVerticalManifest();
+    manifest.clip.durationMs = 90_000;
+    expectCustomIssue(
+      manifest,
+      `Clip duration must equal narration plus the ${OUTRO_TAIL_MS}ms outro tail`,
+    );
+  });
+
+  it('requires the outro to start when narration ends', () => {
+    const manifest = createVerticalManifest();
+    manifest.outro.startMs = 91_000;
+    expectCustomIssue(manifest, 'Outro must start when narration ends');
+  });
+
+  it('requires slides and captions to end at the narration end, not the clip end', () => {
+    const slideTail = createVerticalManifest();
+    slideTail.slides.at(-1)!.endMs = slideTail.clip.durationMs;
+    expectCustomIssue(
+      slideTail,
+      'The final slide must end at the narration end',
+    );
+
+    const captionTail = createVerticalManifest();
+    captionTail.captions.at(-1)!.endMs = 90_100;
+    expectCustomIssue(captionTail, 'Caption extends beyond the narration');
+  });
+
+  it('enforces headline display-unit budgets beyond raw length caps', () => {
+    const wideKicker = createVerticalManifest();
+    wideKicker.headline.kicker = '這是一個超過十四顯示單位的鉤子句';
+    expectCustomIssue(wideKicker, 'Headline kicker exceeds 14 display units');
+
+    const wideTitle = createVerticalManifest();
+    wideTitle.headline.titleLines = ['這是一行超過十四個顯示單位的主標題'];
+    expectCustomIssue(
+      wideTitle,
+      'Headline title line 1 exceeds 14 display units',
+    );
+  });
+
+  it('rejects unknown bgm tracks and out-of-range gain', () => {
+    const unknownTrack = structuredClone(
+      createVerticalManifest(),
+    ) as unknown as { bgm: { trackId: string; gainDb: number } };
+    unknownTrack.bgm.trackId = 'bgm-99';
+    expect(slideVideoManifestSchema.safeParse(unknownTrack).success).toBe(
+      false,
+    );
+
+    const tooLoud = createVerticalManifest();
+    tooLoud.bgm.gainDb = 3;
+    expect(slideVideoManifestSchema.safeParse(tooLoud).success).toBe(false);
+  });
+});
 
 describe('podcast slide video manifest', () => {
   it('parses the 90-second preview with every production template', () => {

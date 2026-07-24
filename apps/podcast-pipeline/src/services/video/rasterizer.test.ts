@@ -12,7 +12,13 @@ const spawnMock = vi.hoisted(() => vi.fn());
 
 vi.mock('node:child_process', () => ({ spawn: spawnMock }));
 
-import { rasterizeSlide, runRasterStage } from './rasterizer.js';
+import {
+  cropMediaImage,
+  rasterizeBrandFrame,
+  rasterizeOutro,
+  rasterizeSlide,
+  runRasterStage,
+} from './rasterizer.js';
 
 function createSlide(): Slide {
   return {
@@ -62,11 +68,7 @@ describe('rasterizeSlide', () => {
     };
     const calls: string[] = [];
     const runStage = vi.fn(
-      async (
-        stage: 'satori' | 'resvg' | 'sharp',
-        input: string,
-        output: string,
-      ) => {
+      async (stage: string, input: string, output: string) => {
         calls.push(`${stage}:${input}->${output}`);
         await writeFile(output, stage, 'utf8');
       },
@@ -105,6 +107,88 @@ describe('rasterizeSlide', () => {
     ).rejects.toThrow('resvg exhausted memory');
     expect(runStage).toHaveBeenCalledTimes(2);
     expect(runStage.mock.calls[1]?.[0]).toBe('resvg');
+  });
+});
+
+describe('portrait card rasterization', () => {
+  it('writes the frame stage input and runs satori, resvg, then sharp-scale', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'rasterizer-frame-test-'));
+    const paths = {
+      input: join(directory, 'work', 'frame.json'),
+      svg: join(directory, 'work', 'frame.svg'),
+      master: join(directory, 'master', 'frame.png'),
+      output: join(directory, 'out', 'frame.png'),
+    };
+    const frame = { kicker: '鏈上快訊', titleLines: ['世界盃最賺錢的生意'] };
+    const calls: string[] = [];
+    const runStage = vi.fn(
+      async (stage: string, input: string, output: string) => {
+        calls.push(`${stage}:${input}->${output}`);
+        await writeFile(output, stage, 'utf8');
+      },
+    );
+
+    await rasterizeBrandFrame(frame, paths, { runStage });
+
+    expect(JSON.parse(await readFile(paths.input, 'utf8'))).toEqual({
+      kind: 'frame',
+      frame,
+    });
+    expect(calls).toEqual([
+      `satori:${paths.input}->${paths.svg}`,
+      `resvg:${paths.svg}->${paths.master}`,
+      `sharp-scale:${paths.master}->${paths.output}`,
+    ]);
+  });
+
+  it('writes the outro stage input with its own kind', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'rasterizer-outro-test-'));
+    const paths = {
+      input: join(directory, 'outro.json'),
+      svg: join(directory, 'outro.svg'),
+      master: join(directory, 'master', 'outro.png'),
+      output: join(directory, 'out', 'outro.png'),
+    };
+    const outro = { title: 'From Fed to Chain', callToAction: '訂閱・分享' };
+    const stages: string[] = [];
+    const runStage = vi.fn(async (stage: string) => {
+      stages.push(stage);
+    });
+
+    await rasterizeOutro(outro, paths, { runStage });
+
+    expect(JSON.parse(await readFile(paths.input, 'utf8'))).toEqual({
+      kind: 'outro',
+      outro,
+    });
+    expect(stages).toEqual(['satori', 'resvg', 'sharp-scale']);
+  });
+});
+
+describe('cropMediaImage', () => {
+  it('writes the crop parameters and runs only the sharp-crop stage', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'rasterizer-crop-test-'));
+    const paths = {
+      input: join(directory, 'crop.json'),
+      output: join(directory, 'out', 'scene.png'),
+    };
+    const crop = {
+      imagePath: join(directory, 'scene-source.png'),
+      width: 1_080,
+      height: 960,
+      position: 'top' as const,
+    };
+    const calls: string[] = [];
+    const runStage = vi.fn(
+      async (stage: string, input: string, output: string) => {
+        calls.push(`${stage}:${input}->${output}`);
+      },
+    );
+
+    await cropMediaImage(crop, paths, { runStage });
+
+    expect(JSON.parse(await readFile(paths.input, 'utf8'))).toEqual(crop);
+    expect(calls).toEqual([`sharp-crop:${paths.input}->${paths.output}`]);
   });
 });
 

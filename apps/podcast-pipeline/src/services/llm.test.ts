@@ -143,14 +143,10 @@ describe('createOpenRouterChatCompletion', () => {
         new Promise((_resolve, reject) => {
           options?.signal?.addEventListener(
             'abort',
-            () => {
-              const reason = options.signal?.reason;
+            () =>
               reject(
-                reason instanceof Error
-                  ? reason
-                  : new Error('OpenRouter request aborted'),
-              );
-            },
+                new DOMException('This operation was aborted', 'AbortError'),
+              ),
             { once: true },
           );
         }),
@@ -214,18 +210,16 @@ describe('buildUserMessage', () => {
 });
 
 describe('buildLanguageClassroomUserMessage', () => {
-  it('includes source and target languages', () => {
+  it('sends only the title and requested languages', () => {
     const result = buildLanguageClassroomUserMessage({
       title: 'Title',
-      articleText: 'Article',
-      script: 'Script',
       sourceLanguageCode: 'zh-Hant',
       targetLanguageCodes: ['ja', 'en'],
     });
 
-    expect(result).toContain('主語言：zh-Hant');
-    expect(result).toContain('目標語言：ja, en');
-    expect(result).toContain('Podcast 講稿：\nScript');
+    expect(result).toBe('主語言：zh-Hant\n目標語言：ja, en\n標題：Title');
+    expect(result).not.toContain('文章內容');
+    expect(result).not.toContain('Podcast 講稿');
   });
 });
 
@@ -701,8 +695,6 @@ describe('generateLanguageClassroomsWithLLM', () => {
 
     const result = await generateLanguageClassroomsWithLLM({
       title: '市場流動性',
-      articleText: '文章內容',
-      script: '講稿內容',
       sourceLanguageCode: 'zh-Hant',
       targetLanguageCodes: ['ja', 'en'],
     });
@@ -736,8 +728,6 @@ ${validLanguageClassroomPayload()}
 
     const result = await generateLanguageClassroomsWithLLM({
       title: '市場流動性',
-      articleText: '文章內容',
-      script: '講稿內容',
       sourceLanguageCode: 'zh-Hant',
       targetLanguageCodes: ['ja'],
     });
@@ -777,8 +767,6 @@ ${validLanguageClassroomPayload()}
       await expect(
         generateLanguageClassroomsWithLLM({
           title: 'Title',
-          articleText: 'Text',
-          script: 'Script',
           sourceLanguageCode: 'zh-Hant',
           targetLanguageCodes: ['ja'],
         }),
@@ -798,8 +786,6 @@ ${validLanguageClassroomPayload()}
     await expect(
       generateLanguageClassroomsWithLLM({
         title: 'Title',
-        articleText: 'Text',
-        script: 'Script',
         sourceLanguageCode: 'zh-Hant',
         targetLanguageCodes: ['ja'],
       }),
@@ -818,8 +804,6 @@ ${validLanguageClassroomPayload()}
     await expect(
       generateLanguageClassroomsWithLLM({
         title: 'Title',
-        articleText: 'Text',
-        script: 'Script',
         sourceLanguageCode: 'zh-Hant',
         targetLanguageCodes: ['ja'],
       }),

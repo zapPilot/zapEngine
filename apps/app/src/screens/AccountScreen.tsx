@@ -5,10 +5,10 @@ import { Text, View } from 'react-native';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { InfoRow } from '@/components/ui/InfoRow';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
 import { Tap } from '@/components/ui/Tap';
+import { TelegramCard } from '@/components/account/TelegramCard';
 import { ContentLanguageOptionRows } from '@/components/content/ContentLanguageSelector';
 import { DEMO } from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
@@ -19,7 +19,6 @@ export function AccountScreen() {
   const router = useRouter();
   const account = useAccount();
   const address = account.address ?? DEMO.account.address;
-  const walletCount = account.walletAddresses.length || 1;
 
   return (
     <ScreenScrollView>
@@ -42,15 +41,6 @@ export function AccountScreen() {
               </View>
               <ChevronRight size={18} strokeWidth={1.8} color="#71717a" />
             </View>
-            <View className="mt-4">
-              <InfoRow
-                label="Mode"
-                value={account.isConnected ? 'Live' : 'Demo'}
-                divider
-              />
-              <InfoRow label="Wallets" value={String(walletCount)} divider />
-              <InfoRow label="Runtime" value="Expo" />
-            </View>
           </Card>
         </Tap>
         <Card className="mt-4 p-5">
@@ -65,6 +55,7 @@ export function AccountScreen() {
             <ContentLanguageOptionRows />
           </View>
         </Card>
+        <TelegramCard />
         <View className="mt-4">
           <NonCustodialCard
             title="You approve every transaction"

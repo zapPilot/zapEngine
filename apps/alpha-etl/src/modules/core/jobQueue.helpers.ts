@@ -1,13 +1,8 @@
-import { MV_REFRESH_CONFIG } from '../../config/constants.js';
-import type { MVRefreshStats } from '../../modules/core/mvRefresh.js';
 import type { ETLJob, ETLJobResult } from '../../types/index.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import type { ETLJobProcessingResult } from './pipelineFactory.helpers.js';
-
-export const MATERIALIZED_VIEW_NAMES = MV_REFRESH_CONFIG.MATERIALIZED_VIEWS.map(
-  (mv) => mv.name,
-);
+import type { PortfolioRollupSyncStats } from './portfolioRollupSync.js';
 
 export type PersistedJobStatus =
   | 'pending'
@@ -30,7 +25,8 @@ interface ProcessedJobOutcomeLike {
   pipelineResult: ETLJobProcessingResult;
   etlDurationMs: number;
   totalDurationMs: number;
-  mvRefreshStats?: MVRefreshStats | undefined;
+  rollupSyncStats?: PortfolioRollupSyncStats | undefined;
+  rollupSyncError?: string | undefined;
 }
 
 function normalizeJobErrors(errors: unknown): string[] {
@@ -56,30 +52,12 @@ export function createPendingJob(
   };
 }
 
-export function createFailedMvRefreshStats(
-  mvRefreshDurationMs: number,
-): MVRefreshStats {
-  const results = MATERIALIZED_VIEW_NAMES.map((mvName) => ({
-    mvName,
-    success: false,
-    skipped: false,
-    durationMs: 0,
-  }));
-
-  return {
-    allSucceeded: false,
-    totalDurationMs: mvRefreshDurationMs,
-    failedCount: results.length,
-    skippedCount: 0,
-    results,
-  };
-}
-
-export function shouldRefreshMaterializedViews(
+export function shouldSynchronizePortfolioRollups(
   job: ETLJob,
   pipelineResult: ETLJobProcessingResult,
 ): boolean {
-  if (pipelineResult.recordsInserted > 0) {
+  const debankResult = pipelineResult.sourceResults.debank;
+  if (debankResult && debankResult.recordsInserted > 0) {
     return true;
   }
 
@@ -90,17 +68,16 @@ export function shouldRefreshMaterializedViews(
 export function resolveJobSuccess(
   job: ETLJob,
   pipelineResult: ETLJobProcessingResult,
-  mvRefreshStats?: MVRefreshStats,
+  rollupSyncError?: string,
 ): boolean {
-  if (!mvRefreshStats || mvRefreshStats.allSucceeded) {
+  if (!rollupSyncError) {
     return pipelineResult.success;
   }
 
-  logger.warn('Job marked as failed due to MV refresh failure', {
+  logger.warn('Job marked as failed due to portfolio rollup sync failure', {
     jobId: job.jobId,
     etlSuccess: pipelineResult.success,
-    mvFailedCount: mvRefreshStats.failedCount,
-    mvSkippedCount: mvRefreshStats.skippedCount,
+    error: rollupSyncError,
   });
 
   return false;
@@ -108,13 +85,9 @@ export function resolveJobSuccess(
 
 export function getPersistedErrorMessage(
   metadata: ETLJob['metadata'] | undefined,
-  jobSuccess: boolean,
-  mvRefreshStats?: MVRefreshStats,
+  rollupSyncError?: string,
 ): string | undefined {
-  if (!jobSuccess && mvRefreshStats && !mvRefreshStats.allSucceeded) {
-    return `MV refresh failed: ${mvRefreshStats.failedCount} views failed, ${mvRefreshStats.skippedCount} skipped`;
-  }
-  return metadata?.errorMessage;
+  return rollupSyncError ?? metadata?.errorMessage;
 }
 
 export function createSuccessResult(
@@ -122,8 +95,11 @@ export function createSuccessResult(
   outcome: ProcessedJobOutcomeLike,
   finalStatus: 'completed' | 'failed',
 ): ETLJobResult {
-  const { pipelineResult, totalDurationMs, mvRefreshStats } = outcome;
+  const { pipelineResult, totalDurationMs, rollupSyncError } = outcome;
   const errors = normalizeJobErrors(pipelineResult.errors);
+  if (rollupSyncError) {
+    errors.push(rollupSyncError);
+  }
 
   return {
     success: true,
@@ -136,13 +112,6 @@ export function createSuccessResult(
       duration: totalDurationMs,
       completedAt: new Date(),
       errors,
-      ...(mvRefreshStats && {
-        mvRefreshDurationMs: mvRefreshStats.totalDurationMs,
-        mvRefreshSuccess: mvRefreshStats.allSucceeded,
-        mvRefreshFailedCount: mvRefreshStats.failedCount,
-        mvRefreshSkippedCount: mvRefreshStats.skippedCount,
-        mvRefreshResults: mvRefreshStats.results,
-      }),
     },
   };
 }
@@ -153,14 +122,17 @@ export function logJobCompletion(
 ): void {
   const errors = normalizeJobErrors(outcome.pipelineResult.errors);
 
-  logger.info('ETL job completed (including MV refresh)', {
+  logger.info('ETL job completed', {
     jobId: job.jobId,
     success: outcome.pipelineResult.success,
     recordsProcessed: outcome.pipelineResult.recordsProcessed,
     recordsInserted: outcome.pipelineResult.recordsInserted,
     etlDurationMs: outcome.etlDurationMs,
     totalDurationMs: outcome.totalDurationMs,
-    mvRefreshIncluded: !!outcome.mvRefreshStats,
+    rollupSyncIncluded: !!outcome.rollupSyncStats,
+    rollupSyncDurationMs: outcome.rollupSyncStats?.durationMs,
+    rollupSyncMetrics: outcome.rollupSyncStats?.metrics,
+    rollupSyncError: outcome.rollupSyncError,
     errors: errors.length,
   });
 }

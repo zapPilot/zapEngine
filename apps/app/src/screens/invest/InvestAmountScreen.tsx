@@ -3,6 +3,10 @@ import { ChevronDown, Info } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
+import {
+  CONNECT_WALLET_CTA,
+  CONNECTING_LABEL,
+} from '@/components/connect/connectCopy';
 import { ChainTokenSelectorSheet } from '@/components/invest/ChainTokenSelectorSheet';
 import { StepHeader } from '@/components/invest/StepHeader';
 import { StepProgress } from '@/components/invest/StepProgress';
@@ -226,8 +230,8 @@ export function InvestAmountScreen() {
 
   const primaryLabel = !account.isConnected
     ? account.isConnecting
-      ? 'Connecting…'
-      : 'Connect wallet'
+      ? CONNECTING_LABEL
+      : CONNECT_WALLET_CTA
     : requiredChainUnavailable
       ? 'Retry balances'
       : balances.isLoading

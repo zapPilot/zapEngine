@@ -1,6 +1,10 @@
 import { useRouter } from 'expo-router';
 import { Text, View } from 'react-native';
 
+import {
+  CONNECT_WALLET_CTA,
+  CONNECTING_LABEL,
+} from '@/components/connect/connectCopy';
 import * as StrategyFlow from '@/components/invest/StrategyFlow';
 import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -38,8 +42,8 @@ export function InvestConfirmScreen() {
   const canConnect = capability === 'connect-wallet';
   const ctaLabel = canConnect
     ? account.isConnecting
-      ? 'Connecting…'
-      : 'Connect wallet'
+      ? CONNECTING_LABEL
+      : CONNECT_WALLET_CTA
     : pending
       ? 'Refreshing plan…'
       : 'Start guided execution';

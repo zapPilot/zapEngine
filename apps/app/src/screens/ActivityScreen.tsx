@@ -52,9 +52,12 @@ function ActivityRow({ event }: { event: ActivityEvent }) {
 export function ActivityScreen() {
   const [filter, setFilter] = useState<ActivityFilter>('All');
   const account = useAccount();
-  const activity = useActivityData(
-    account.walletAddresses[0] ?? account.address,
-  );
+  const activity = useActivityData({
+    isOwnBundle: account.isOwnBundle,
+    viewingUserId: account.viewingUserId,
+    ownWalletAddresses: account.walletAddresses,
+    ownAddress: account.address,
+  });
   const groups = account.isConnected
     ? (activity.data?.groups ?? [])
     : DEMO.activity;

@@ -13,10 +13,18 @@ import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { resolveSlideAsset } from './assets.js';
-import type { renderStaticSlideVideo } from './ffmpeg-video.js';
-import type { Slide, SlideVideoManifest } from './manifest.js';
-import type { rasterizeSlide } from './rasterizer.js';
+import type {
+  renderStaticSlideVideo,
+  renderVerticalSlideVideo,
+} from './ffmpeg-video.js';
+import type {
+  Slide,
+  SlideVideoManifest,
+  VerticalVideoManifest,
+} from './manifest.js';
+import type { cropMediaImage, rasterizeSlide } from './rasterizer.js';
 import {
+  type composeVerticalThumbnail,
   describeRenderedVideo,
   outputDirectoryLabel,
   renderSlideVideo,
@@ -307,6 +315,181 @@ describe('renderSlideVideo', () => {
     await expect(access(isolatedWorkDirectory)).rejects.toMatchObject({
       code: 'ENOENT',
     });
+  });
+});
+
+function createVerticalManifest(): VerticalVideoManifest {
+  const base = createManifest() as Extract<
+    SlideVideoManifest,
+    { schemaVersion: 'podcast-slide-video.v2' }
+  >;
+  return {
+    schemaVersion: 'podcast-slide-video.v3',
+    rendererVersion: 'satori-resvg-v4',
+    episode: base.episode,
+    clip: {
+      startMs: 0,
+      durationMs: 17_800,
+      width: 1080,
+      height: 1920,
+      fps: 30,
+      transitionMs: 200,
+    },
+    mediaWindow: { x: 0, y: 620, width: 1080, height: 960 },
+    headline: {
+      kicker: '鏈上快訊',
+      titleLines: ['美國高溫下電網拉響紅色警報'],
+    },
+    audio: {
+      sourceUrl: 'https://cdn.example.test/narration.m4a',
+      narrationDurationMs: 15_000,
+    },
+    bgm: { trackId: 'bgm-02', gainDb: -21 },
+    outro: {
+      startMs: 15_000,
+      title: 'From Fed to Chain',
+      callToAction: '訂閱・分享・留言',
+    },
+    slides: base.slides,
+    captions: base.captions,
+  };
+}
+
+describe('renderSlideVideo (vertical news manifests)', () => {
+  it('runs the two-layer pipeline: crops, brand cards, thumbnail, and BGM mix', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'renderer-vertical-test-'));
+    temporaryRoots.push(root);
+    const manifestPath = join(root, 'manifest.json');
+    const outputDirectory = join(root, 'rendered');
+    await writeFile(manifestPath, JSON.stringify(createVerticalManifest()));
+
+    const progress: string[] = [];
+    let renderedFilter = '';
+    const resolveAsset = vi.fn(async (slide: Slide) => resolvedImage(slide));
+    const rasterize = vi.fn();
+    const renderVideo = vi.fn();
+    const cropMedia = vi.fn(
+      async (
+        crop: Parameters<typeof cropMediaImage>[0],
+        cropPaths: Parameters<typeof cropMediaImage>[1],
+      ) => {
+        await mkdir(dirname(cropPaths.output), { recursive: true });
+        await writeFile(cropPaths.output, `crop:${crop.imagePath}`, 'utf8');
+      },
+    );
+    const writeCard = async (cardPaths: { output: string }, body: string) => {
+      await mkdir(dirname(cardPaths.output), { recursive: true });
+      await writeFile(cardPaths.output, body, 'utf8');
+    };
+    const rasterizeFrame = vi.fn(
+      async (_frame: unknown, cardPaths: { output: string }) =>
+        writeCard(cardPaths, 'brand-frame'),
+    );
+    const rasterizeOutroCard = vi.fn(
+      async (_outro: unknown, cardPaths: { output: string }) =>
+        writeCard(cardPaths, 'outro-card'),
+    );
+    const composeThumbnail = vi.fn(
+      async (input: Parameters<typeof composeVerticalThumbnail>[0]) => {
+        await writeFile(input.outputPath, 'thumbnail', 'utf8');
+      },
+    );
+    const renderVerticalVideo = vi.fn(
+      async (videoOptions: Parameters<typeof renderVerticalSlideVideo>[0]) => {
+        renderedFilter = await readFile(videoOptions.filterScriptPath, 'utf8');
+        await writeFile(videoOptions.outputPath, 'mock-vertical-mp4', 'utf8');
+      },
+    );
+
+    const result = await renderSlideVideo({
+      manifestPath,
+      outputDirectory,
+      onProgress: (message) => progress.push(message),
+      dependencies: {
+        resolveAsset,
+        rasterize,
+        renderVideo,
+        cropMedia,
+        rasterizeFrame,
+        rasterizeOutroCard,
+        composeThumbnail,
+        renderVerticalVideo,
+      },
+    });
+
+    expect(rasterize).not.toHaveBeenCalled();
+    expect(renderVideo).not.toHaveBeenCalled();
+    expect(cropMedia).toHaveBeenCalledTimes(3);
+    const firstCrop = cropMedia.mock.calls[0]?.[0];
+    expect(firstCrop).toMatchObject({
+      width: 1080,
+      height: 960,
+      position: 'center',
+    });
+    expect(firstCrop?.imagePath.endsWith('scene-01.jpg')).toBe(true);
+    expect(rasterizeFrame.mock.calls[0]?.[0]).toEqual({
+      kicker: '鏈上快訊',
+      titleLines: ['美國高溫下電網拉響紅色警報'],
+    });
+    expect(rasterizeOutroCard.mock.calls[0]?.[0]).toEqual({
+      title: 'From Fed to Chain',
+      callToAction: '訂閱・分享・留言',
+    });
+    expect(composeThumbnail.mock.calls[0]?.[0]).toMatchObject({
+      mediaPath: result.slideOutputPaths[0],
+      framePath: result.framePath,
+      window: { x: 0, y: 620, width: 1080, height: 960 },
+      width: 1080,
+      height: 1920,
+    });
+    expect(renderVerticalVideo).toHaveBeenCalledOnce();
+    expect(renderVerticalVideo.mock.calls[0]?.[0]).toMatchObject({
+      mediaPaths: result.slideOutputPaths,
+      framePath: result.framePath,
+      outroPath: result.outroPath,
+      audioSource: 'https://cdn.example.test/narration.m4a',
+      outputPath: result.previewPath,
+    });
+    expect(
+      renderVerticalVideo.mock.calls[0]?.[0]?.bgmPath.endsWith(
+        'music/bgm-02.mp3',
+      ),
+    ).toBe(true);
+    expect(renderedFilter).toContain('pad=1080:1920:0:620');
+    expect(renderedFilter).toContain('sidechaincompress=');
+    expect(await readFile(result.subtitlePath, 'utf8')).toContain(
+      'PlayResX: 1080',
+    );
+    expect(result.slideMasterPaths).toEqual([]);
+    expect(progress).toEqual([
+      'Preparing media 1/3: scene-01',
+      'Preparing media 2/3: scene-02',
+      'Preparing media 3/3: scene-03',
+      'Rendering brand frame and outro card',
+      'Encoding vertical news video',
+    ]);
+  });
+
+  it('fails closed when the resolved media has no file on disk', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'renderer-vertical-nofile-'));
+    temporaryRoots.push(root);
+    const manifestPath = join(root, 'manifest.json');
+    await writeFile(manifestPath, JSON.stringify(createVerticalManifest()));
+
+    await expect(
+      renderSlideVideo({
+        manifestPath,
+        outputDirectory: join(root, 'rendered'),
+        dependencies: {
+          resolveAsset: async (slide: Slide) => ({
+            ...resolvedImage(slide),
+            filePath: undefined,
+          }),
+          cropMedia: vi.fn(),
+          renderVerticalVideo: vi.fn(),
+        },
+      }),
+    ).rejects.toThrow('Scene scene-01 media was not materialized to disk');
   });
 });
 

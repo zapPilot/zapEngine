@@ -10,20 +10,31 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
+import sharp from 'sharp';
+
 import { throwIfAborted } from './abort.js';
 import { type ResolvedSlideAsset, resolveSlideAsset } from './assets.js';
 import {
   buildStaticSlideFilter,
+  buildVerticalSlideFilter,
   renderStaticSlideVideo,
+  renderVerticalSlideVideo,
 } from './ffmpeg-video.js';
 import {
   parseSlideVideoManifest,
   type Slide,
   type SlideVideoManifest,
+  VERTICAL_VIDEO_SCHEMA_VERSION,
+  type VerticalVideoManifest,
 } from './manifest.js';
-import { rasterizeSlide } from './rasterizer.js';
-import { videoAssetPaths } from './runtime-assets.js';
-import { createAssSubtitles } from './subtitles.js';
+import {
+  cropMediaImage,
+  rasterizeBrandFrame,
+  rasterizeOutro,
+  rasterizeSlide,
+} from './rasterizer.js';
+import { bgmTrackPath, videoAssetPaths } from './runtime-assets.js';
+import { createAssSubtitles, PORTRAIT_SUBTITLE_LAYOUT } from './subtitles.js';
 
 type ResolvedImageAsset = Extract<ResolvedSlideAsset, { kind: 'image' }>;
 
@@ -36,18 +47,59 @@ export interface RenderedSlideVideo {
   manifestHash: string;
   slideMasterPaths: string[];
   slideOutputPaths: string[];
+  framePath?: string;
+  outroPath?: string;
+}
+
+export interface VerticalThumbnailInput {
+  mediaPath: string;
+  framePath: string;
+  window: VerticalVideoManifest['mediaWindow'];
+  width: number;
+  height: number;
+  outputPath: string;
+}
+
+export async function composeVerticalThumbnail(
+  input: VerticalThumbnailInput,
+): Promise<void> {
+  sharp.cache(false);
+  await sharp({
+    create: {
+      width: input.width,
+      height: input.height,
+      channels: 3,
+      background: '#101014',
+    },
+  })
+    .composite([
+      { input: input.mediaPath, left: input.window.x, top: input.window.y },
+      { input: input.framePath, left: 0, top: 0 },
+    ])
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toFile(input.outputPath);
 }
 
 interface RenderDependencies {
   resolveAsset: typeof resolveSlideAsset;
   rasterize: typeof rasterizeSlide;
   renderVideo: typeof renderStaticSlideVideo;
+  rasterizeFrame: typeof rasterizeBrandFrame;
+  rasterizeOutroCard: typeof rasterizeOutro;
+  cropMedia: typeof cropMediaImage;
+  renderVerticalVideo: typeof renderVerticalSlideVideo;
+  composeThumbnail: typeof composeVerticalThumbnail;
 }
 
 const defaultDependencies: RenderDependencies = {
   resolveAsset: resolveSlideAsset,
   rasterize: rasterizeSlide,
   renderVideo: renderStaticSlideVideo,
+  rasterizeFrame: rasterizeBrandFrame,
+  rasterizeOutroCard: rasterizeOutro,
+  cropMedia: cropMediaImage,
+  renderVerticalVideo: renderVerticalSlideVideo,
+  composeThumbnail: composeVerticalThumbnail,
 };
 
 function sourceListMarkdown(manifest: SlideVideoManifest): string {
@@ -104,14 +156,18 @@ function numberedSlideFilename(index: number): string {
   return `slide-${String(index + 1).padStart(2, '0')}.png`;
 }
 
-export async function renderSlideVideo(options: {
+interface RenderSlideVideoOptions {
   manifestPath: string;
   outputDirectory: string;
   audioSource?: string;
   signal?: AbortSignal;
   onProgress?: (message: string) => void;
   dependencies?: Partial<RenderDependencies>;
-}): Promise<RenderedSlideVideo> {
+}
+
+export async function renderSlideVideo(
+  options: RenderSlideVideoOptions,
+): Promise<RenderedSlideVideo> {
   throwIfAborted(options.signal);
   const dependencies = { ...defaultDependencies, ...options.dependencies };
   const rawManifest = JSON.parse(
@@ -140,11 +196,40 @@ export async function renderSlideVideo(options: {
   ]);
 
   try {
+    const isVertical = manifest.schemaVersion === VERTICAL_VIDEO_SCHEMA_VERSION;
     await Promise.all([
       writeFile(storyboardPath, canonicalManifest, 'utf8'),
-      writeFile(subtitlePath, createAssSubtitles(manifest.captions), 'utf8'),
+      writeFile(
+        subtitlePath,
+        createAssSubtitles(
+          manifest.captions,
+          isVertical ? PORTRAIT_SUBTITLE_LAYOUT : undefined,
+        ),
+        'utf8',
+      ),
       writeFile(sourcesPath, sourceListMarkdown(manifest), 'utf8'),
     ]);
+
+    if (manifest.schemaVersion === VERTICAL_VIDEO_SCHEMA_VERSION) {
+      return await renderVerticalNewsVideo({
+        manifest,
+        manifestHash,
+        workDirectory,
+        outputsDirectory,
+        assetDirectory,
+        filterScriptPath,
+        paths: {
+          storyboardPath,
+          subtitlePath,
+          sourcesPath,
+          reportPath,
+          thumbnailPath,
+          previewPath,
+        },
+        options,
+        dependencies,
+      });
+    }
 
     const assetResults: {
       slide: Slide;
@@ -228,6 +313,143 @@ export async function renderSlideVideo(options: {
   } finally {
     await rm(workDirectory, { recursive: true, force: true });
   }
+}
+
+async function renderVerticalNewsVideo(context: {
+  manifest: VerticalVideoManifest;
+  manifestHash: string;
+  workDirectory: string;
+  outputsDirectory: string;
+  assetDirectory: string;
+  filterScriptPath: string;
+  paths: {
+    storyboardPath: string;
+    subtitlePath: string;
+    sourcesPath: string;
+    reportPath: string;
+    thumbnailPath: string;
+    previewPath: string;
+  };
+  options: RenderSlideVideoOptions;
+  dependencies: RenderDependencies;
+}): Promise<RenderedSlideVideo> {
+  const { manifest, options, dependencies } = context;
+  const assetResults: { slide: Slide; asset: ResolvedImageAsset }[] = [];
+  const slideOutputPaths: string[] = [];
+
+  for (const [index, slide] of manifest.slides.entries()) {
+    throwIfAborted(options.signal);
+    options.onProgress?.(
+      `Preparing media ${index + 1}/${manifest.slides.length}: ${slide.id}`,
+    );
+    const asset = await dependencies.resolveAsset(slide, {
+      workingDirectory: context.assetDirectory,
+      signal: options.signal,
+    });
+    if (asset.kind !== 'image') {
+      throw new Error(
+        `Scene ${slide.id} requires a remote image: ${asset.reason}`,
+      );
+    }
+    if (!asset.filePath) {
+      throw new Error(`Scene ${slide.id} media was not materialized to disk`);
+    }
+    assetResults.push({ slide, asset });
+    const outputPath = join(
+      context.outputsDirectory,
+      numberedSlideFilename(index),
+    );
+    slideOutputPaths.push(outputPath);
+    await dependencies.cropMedia(
+      {
+        imagePath: asset.filePath,
+        width: manifest.mediaWindow.width,
+        height: manifest.mediaWindow.height,
+        position: asset.position,
+      },
+      {
+        input: join(context.workDirectory, `${slide.id}-crop.json`),
+        output: outputPath,
+      },
+      { signal: options.signal },
+    );
+  }
+  const firstMediaPath = slideOutputPaths[0];
+  if (!firstMediaPath) throw new Error('Renderer produced no media images');
+
+  options.onProgress?.('Rendering brand frame and outro card');
+  const framePath = join(options.outputDirectory, 'frame.png');
+  const outroPath = join(options.outputDirectory, 'outro.png');
+  await dependencies.rasterizeFrame(
+    manifest.headline,
+    {
+      input: join(context.workDirectory, 'frame.json'),
+      svg: join(context.workDirectory, 'frame.svg'),
+      master: join(context.workDirectory, 'frame-master.png'),
+      output: framePath,
+    },
+    { signal: options.signal },
+  );
+  await dependencies.rasterizeOutroCard(
+    { title: manifest.outro.title, callToAction: manifest.outro.callToAction },
+    {
+      input: join(context.workDirectory, 'outro.json'),
+      svg: join(context.workDirectory, 'outro.svg'),
+      master: join(context.workDirectory, 'outro-master.png'),
+      output: outroPath,
+    },
+    { signal: options.signal },
+  );
+
+  await writeFile(
+    context.paths.reportPath,
+    renderReportMarkdown(manifest, context.manifestHash, assetResults),
+    'utf8',
+  );
+  await dependencies.composeThumbnail({
+    mediaPath: firstMediaPath,
+    framePath,
+    window: manifest.mediaWindow,
+    width: manifest.clip.width,
+    height: manifest.clip.height,
+    outputPath: context.paths.thumbnailPath,
+  });
+  await writeFile(
+    context.filterScriptPath,
+    buildVerticalSlideFilter(
+      manifest,
+      context.paths.subtitlePath,
+      videoAssetPaths.fontsDirectory,
+    ),
+    'utf8',
+  );
+
+  options.onProgress?.('Encoding vertical news video');
+  throwIfAborted(options.signal);
+  await dependencies.renderVerticalVideo({
+    manifest,
+    mediaPaths: slideOutputPaths,
+    framePath,
+    outroPath,
+    audioSource: options.audioSource ?? manifest.audio.sourceUrl,
+    bgmPath: bgmTrackPath(manifest.bgm.trackId),
+    filterScriptPath: context.filterScriptPath,
+    outputPath: context.paths.previewPath,
+    signal: options.signal,
+  });
+
+  return {
+    previewPath: context.paths.previewPath,
+    thumbnailPath: context.paths.thumbnailPath,
+    storyboardPath: context.paths.storyboardPath,
+    subtitlePath: context.paths.subtitlePath,
+    sourcesPath: context.paths.sourcesPath,
+    manifestHash: context.manifestHash,
+    slideMasterPaths: [],
+    slideOutputPaths,
+    framePath,
+    outroPath,
+  };
 }
 
 export function describeRenderedVideo(result: RenderedSlideVideo): string {

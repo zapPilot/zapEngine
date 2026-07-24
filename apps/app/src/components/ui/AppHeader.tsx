@@ -1,10 +1,14 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 import { ZapLogo } from '@/components/ui/ZapLogo';
 
-/** Home header: brand mark + name on the left, account avatar on the right. */
-export function AppHeader() {
+/**
+ * Home header: brand mark + name on the left, an optional action and the
+ * account avatar on the right.
+ */
+export function AppHeader({ action }: { action?: ReactNode } = {}) {
   return (
     <View className="flex-row items-center justify-between px-5 pt-1.5">
       <View className="flex-row items-center gap-2.5">
@@ -15,14 +19,17 @@ export function AppHeader() {
           Zap Pilot
         </Text>
       </View>
-      <LinearGradient
-        colors={['#2b2820', '#141416']}
-        start={{ x: 0.18, y: 0.12 }}
-        end={{ x: 0.82, y: 0.88 }}
-        className="h-[34px] w-[34px] items-center justify-center overflow-hidden rounded-full border border-[rgba(212,197,163,.3)]"
-      >
-        <Text className="font-sans-semibold text-[13px] text-accent">A</Text>
-      </LinearGradient>
+      <View className="flex-row items-center gap-2.5">
+        {action}
+        <LinearGradient
+          colors={['#2b2820', '#141416']}
+          start={{ x: 0.18, y: 0.12 }}
+          end={{ x: 0.82, y: 0.88 }}
+          className="h-[34px] w-[34px] items-center justify-center overflow-hidden rounded-full border border-[rgba(212,197,163,.3)]"
+        >
+          <Text className="font-sans-semibold text-[13px] text-accent">A</Text>
+        </LinearGradient>
+      </View>
     </View>
   );
 }

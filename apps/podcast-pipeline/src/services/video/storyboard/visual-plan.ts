@@ -14,6 +14,8 @@ export const sourceLicenseSchema = z.enum([
   'cc-by-sa-4.0',
   'official-public-domain',
   'all-rights-reserved',
+  'pexels',
+  'pixabay',
   'unknown',
 ]);
 

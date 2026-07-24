@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { createAssSubtitles, wrapSubtitle } from './subtitles.js';
+import {
+  createAssSubtitles,
+  PORTRAIT_SUBTITLE_LAYOUT,
+  wrapSubtitle,
+} from './subtitles.js';
 
 describe('wrapSubtitle', () => {
   it('keeps short text and exact-width Traditional Chinese on one line', () => {
@@ -75,5 +79,27 @@ describe('createAssSubtitles', () => {
     expect(ass).toContain('[Events]');
     expect(ass).not.toContain('Dialogue:');
     expect(ass.endsWith('\n')).toBe(true);
+  });
+
+  it('styles the portrait news layout with its own canvas, size, and margins', () => {
+    const ass = createAssSubtitles(
+      [{ startMs: 0, endMs: 2_000, text: '第一段字幕' }],
+      PORTRAIT_SUBTITLE_LAYOUT,
+    );
+
+    expect(ass).toContain('PlayResX: 1080');
+    expect(ass).toContain('PlayResY: 1920');
+    expect(ass).toContain('Style: Subtitle,Noto Sans CJK TC,56,');
+    expect(ass).toContain(',2,54,54,132,1');
+  });
+
+  it('wraps at the portrait unit budget when the layout narrows the line', () => {
+    const eighteen = '好'.repeat(18);
+    expect(
+      wrapSubtitle(eighteen, PORTRAIT_SUBTITLE_LAYOUT.maxLineUnits),
+    ).toEqual(['好'.repeat(17), '好']);
+    expect(() =>
+      wrapSubtitle('好'.repeat(35), PORTRAIT_SUBTITLE_LAYOUT.maxLineUnits),
+    ).toThrow('cannot fit within two lines');
   });
 });

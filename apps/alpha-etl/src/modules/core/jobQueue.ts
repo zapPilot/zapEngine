@@ -2,17 +2,16 @@ import type { EtlError } from '@zapengine/types/etl';
 import type { PoolClient } from 'pg';
 
 import { getDbClient, TIMEOUTS } from '../../config/database.js';
-import {
-  mvRefresher,
-  type MVRefreshStats,
-} from '../../modules/core/mvRefresh.js';
 import { ETLPipelineFactory } from '../../modules/core/pipelineFactory.js';
+import {
+  portfolioRollupSynchronizer,
+  type PortfolioRollupSyncStats,
+} from '../../modules/core/portfolioRollupSync.js';
 import type { ETLJob, ETLJobResult } from '../../types/index.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import {
   buildPersistJobStatusQuery,
-  createFailedMvRefreshStats,
   createPendingJob,
   createSuccessResult,
   getPersistedErrorMessage,
@@ -22,7 +21,7 @@ import {
   type PersistJobMetadata,
   resolveJobSuccess,
   shouldPersistJobStatus,
-  shouldRefreshMaterializedViews,
+  shouldSynchronizePortfolioRollups,
 } from './jobQueue.helpers.js';
 
 export interface QueueStatus {
@@ -50,7 +49,8 @@ interface ProcessedJobOutcome {
   pipelineResult: PipelineProcessResult;
   etlDurationMs: number;
   totalDurationMs: number;
-  mvRefreshStats?: MVRefreshStats | undefined;
+  rollupSyncStats?: PortfolioRollupSyncStats | undefined;
+  rollupSyncError?: string | undefined;
   jobSuccess: boolean;
 }
 
@@ -182,76 +182,75 @@ export class ETLJobQueue {
     const startTime = Date.now();
     const pipelineResult = await this.processor.processJob(job);
     const etlDurationMs = Date.now() - startTime;
-    const mvRefreshStats = await this.refreshMaterializedViewsIfNeeded(
-      job,
-      pipelineResult,
-      startTime,
-    );
+    const { stats: rollupSyncStats, error: rollupSyncError } =
+      await this.synchronizePortfolioRollupsIfNeeded(job, pipelineResult);
     const totalDurationMs = Date.now() - startTime;
-    const jobSuccess = resolveJobSuccess(job, pipelineResult, mvRefreshStats);
+    const jobSuccess = resolveJobSuccess(job, pipelineResult, rollupSyncError);
 
     return {
       pipelineResult,
       etlDurationMs,
       totalDurationMs,
-      mvRefreshStats,
+      rollupSyncStats,
+      rollupSyncError,
       jobSuccess,
     };
   }
 
-  private async refreshMaterializedViewsIfNeeded(
+  private async synchronizePortfolioRollupsIfNeeded(
     job: ETLJob,
     pipelineResult: PipelineProcessResult,
-    startTimeMs: number,
-  ): Promise<MVRefreshStats | undefined> {
-    // Refresh materialized views BEFORE marking job as completed
-    // This ensures /jobs/:jobId returns 'processing' until MVs are ready
-    const shouldRefresh = shouldRefreshMaterializedViews(job, pipelineResult);
+  ): Promise<{
+    stats?: PortfolioRollupSyncStats;
+    error?: string;
+  }> {
+    // Keep wallet onboarding in "processing" until incremental caches are ready.
+    const shouldSynchronize = shouldSynchronizePortfolioRollups(
+      job,
+      pipelineResult,
+    );
 
-    if (!shouldRefresh) {
-      logger.debug('Skipping MV refresh (no records inserted)', {
+    if (!shouldSynchronize) {
+      logger.debug('Skipping portfolio rollup sync', {
         jobId: job.jobId,
         success: pipelineResult.success,
         recordsInserted: pipelineResult.recordsInserted,
+        debankRecordsInserted:
+          pipelineResult.sourceResults.debank?.recordsInserted ?? 0,
         isWalletJob: job.metadata?.jobType === 'wallet_fetch',
       });
-      return undefined;
+      return {};
     }
 
-    if (!pipelineResult.success && pipelineResult.recordsInserted > 0) {
+    if (!pipelineResult.success) {
       logger.warn(
-        'Refreshing MVs despite ETL partial failure because records were inserted',
+        'Synchronizing portfolio rollups after a partial DeBank write',
         {
           jobId: job.jobId,
-          recordsInserted: pipelineResult.recordsInserted,
+          debankRecordsInserted:
+            pipelineResult.sourceResults.debank?.recordsInserted ?? 0,
           errors: pipelineResult.errors.length,
         },
       );
     }
 
     try {
-      logger.info('Starting MV refresh (job still processing)', {
+      logger.info('Starting portfolio rollup sync (job still processing)', {
         jobId: job.jobId,
-        recordsInserted: pipelineResult.recordsInserted,
+        debankRecordsInserted:
+          pipelineResult.sourceResults.debank?.recordsInserted ?? 0,
       });
 
-      const mvRefreshStats = await mvRefresher.refreshAllViews(job.jobId);
-      logger.info('MV refresh completed', {
-        jobId: job.jobId,
-        mvRefreshDurationMs: mvRefreshStats.totalDurationMs,
-        allSucceeded: mvRefreshStats.allSucceeded,
-        failedCount: mvRefreshStats.failedCount,
-        skippedCount: mvRefreshStats.skippedCount,
-      });
-      return mvRefreshStats;
+      return {
+        stats: await portfolioRollupSynchronizer.synchronize(job.jobId),
+      };
     } catch (error) {
-      logger.error('MV refresh failed - marking job as failed', {
+      const errorMessage = `Portfolio rollup synchronization failed: ${toErrorMessage(error)}`;
+      logger.error('Portfolio rollup sync failed - marking job as failed', {
         jobId: job.jobId,
-        error: toErrorMessage(error),
+        error: errorMessage,
       });
-
-      const mvRefreshDurationMs = Date.now() - startTimeMs;
-      return createFailedMvRefreshStats(mvRefreshDurationMs);
+      return { error: errorMessage };
     }
   }
 
@@ -274,8 +273,7 @@ export class ETLJobQueue {
       ...job.metadata,
       errorMessage: getPersistedErrorMessage(
         job.metadata,
-        outcome.jobSuccess,
-        outcome.mvRefreshStats,
+        outcome.rollupSyncError,
       ),
     });
   }

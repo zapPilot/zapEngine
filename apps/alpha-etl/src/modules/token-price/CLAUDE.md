@@ -27,4 +27,5 @@ Pulls token spot prices from CoinGecko and derives daily moving averages (DMA) a
 - CoinGecko ids ≠ symbol. The mapping must come from the registered token list, not user input.
 - DMA windows are inclusive of the current day's price — if the price for "today" isn't in yet, the latest DMA point is stale. `backfill.helpers.ts` skips today during cold backfill.
 - Ratio-DMA depends on both legs being present for the same day. Missing data points must produce NULL, not zero.
-- Materialized views downstream depend on `dmaWriter.ts` + `ratioDmaWriter.ts` outputs — trigger MV refresh after both complete.
+- Portfolio rollups do not depend on token-price DMA outputs; this pipeline must
+  not invoke `private.process_portfolio_rollup_queue()`.

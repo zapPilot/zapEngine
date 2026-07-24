@@ -1,5 +1,5 @@
 -- Get all borrowing positions for a user (one row per position)
--- Uses daily_portfolio_snapshots MV for consistent daily deduplication
+-- Uses the daily_portfolio_snapshots compatibility view for daily consistency
 -- Supports canonical snapshot date for multi-wallet consistency
 --
 -- Parameters:
@@ -28,7 +28,7 @@ WITH user_wallets AS (
 latest_snapshot AS (
     -- Get the target snapshot date
     -- If snapshot_date provided: use it (for canonical snapshot consistency)
-    -- If NULL: use most recent snapshot_date across all user wallets (MV-backed)
+    -- If NULL: use most recent snapshot_date across all user wallets (cache-backed)
     SELECT
         COALESCE(
             CAST(:snapshot_date AS DATE),

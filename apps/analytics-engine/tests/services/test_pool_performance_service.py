@@ -202,7 +202,7 @@ def test_get_pool_performance_single_pool_complete_data(db_session: Session):
 
 
 def test_get_pool_performance_multiple_pools_mixed_protocols(db_session: Session):
-    """Test retrieval of multiple pools with DeFiLlama and Hyperliquid protocols."""
+    """Test retrieval of multiple DeFi protocol pools."""
     rows = [
         _create_pool_row(
             snapshot_id=str(uuid4()),

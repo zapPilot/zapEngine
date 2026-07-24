@@ -29,8 +29,6 @@ export interface LanguageClassroomResult {
 
 export interface LanguageClassroomInput {
   title: string;
-  articleText: string;
-  script: string;
   sourceLanguageCode: string;
   targetLanguageCodes: LanguageClassroomLanguageCode[];
 }
@@ -212,6 +210,12 @@ export async function createOpenRouterChatCompletion(
     completion = await openai.chat.completions.create(request, {
       signal: deadline.signal,
     });
+  } catch (error) {
+    const abortReason = deadline.signal.reason;
+    if (deadline.signal.aborted && abortReason instanceof Error) {
+      throw abortReason;
+    }
+    throw error;
   } finally {
     deadline.cleanup();
   }
@@ -315,12 +319,6 @@ export function buildLanguageClassroomUserMessage(
     `主語言：${input.sourceLanguageCode}`,
     `目標語言：${input.targetLanguageCodes.join(', ')}`,
     `標題：${input.title}`,
-    '',
-    '文章內容：',
-    input.articleText,
-    '',
-    'Podcast 講稿：',
-    input.script,
   ].join('\n');
 }
 

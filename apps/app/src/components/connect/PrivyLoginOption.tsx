@@ -1,7 +1,7 @@
 import { ChevronRight, Mail } from 'lucide-react-native';
 import { ActivityIndicator, Text, View } from 'react-native';
 
-import { CONNECT_SHEET_COPY } from '@/components/connect/connectSheetCopy';
+import { CONNECT_SHEET_COPY } from '@/components/connect/connectCopy';
 import { Tap } from '@/components/ui/Tap';
 import { cn } from '@/lib/cn';
 

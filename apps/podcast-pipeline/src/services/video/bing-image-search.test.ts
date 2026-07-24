@@ -39,7 +39,7 @@ describe('buildBingImagesSearchUrl', () => {
     expect(result.searchParams.get('first')).toBe('49');
     expect(result.searchParams.get('count')).toBe('24');
     expect(result.searchParams.get('qft')).toBe(
-      '+filterui:imagesize-large+filterui:aspect-wide+filterui:photo-photo',
+      '+filterui:imagesize-large+filterui:aspect-square+filterui:photo-photo',
     );
   });
 

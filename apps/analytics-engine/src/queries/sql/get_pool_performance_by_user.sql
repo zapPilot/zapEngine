@@ -1,5 +1,5 @@
 -- Get pool performance data for a specific user
--- Aggregates portfolio positions with APR data from DeFiLlama and Hyperliquid sources
+-- Aggregates portfolio positions from canonical daily portfolio snapshots.
 --
 -- Parameters:
 --   :user_id - UUID of the user
@@ -10,7 +10,6 @@
 --   - Position identifiers and metadata
 --   - Protocol and chain information
 --   - Asset values and portfolio contribution
---   - APR data with source matching
 --   - Pool token composition
 --
 -- Data Quality (v6 - Deduplication Removed):
