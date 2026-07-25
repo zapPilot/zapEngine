@@ -5,6 +5,7 @@ import {
   clampPodcastPlaybackSeconds,
   createPodcastPlayerSnapshot,
   findPodcastQueueIndex,
+  finiteSeconds,
   hasNextPodcastEpisode,
   hasPreviousPodcastEpisode,
   isSamePodcastEpisode,
@@ -83,6 +84,15 @@ describe('podcast queue boundaries', () => {
   });
 });
 
+describe('finiteSeconds', () => {
+  it('preserves finite playback time and rejects invalid media state', () => {
+    expect(finiteSeconds(42)).toBe(42);
+    expect(finiteSeconds(-1)).toBe(0);
+    expect(finiteSeconds(Number.NaN)).toBe(0);
+    expect(finiteSeconds(Number.POSITIVE_INFINITY)).toBe(0);
+  });
+});
+
 describe('clampPodcastPlaybackSeconds', () => {
   it('clamps a finite handoff position to the media duration', () => {
     expect(clampPodcastPlaybackSeconds(90, 60)).toBe(60);
@@ -95,8 +105,11 @@ describe('clampPodcastPlaybackSeconds', () => {
     expect(clampPodcastPlaybackSeconds(Number.POSITIVE_INFINITY, 60)).toBe(0);
   });
 
-  it('retains the finite target while duration is not known', () => {
+  it('retains the finite target while duration is unknown or invalid', () => {
     expect(clampPodcastPlaybackSeconds(42, 0)).toBe(42);
+    expect(clampPodcastPlaybackSeconds(42, -1)).toBe(42);
+    expect(clampPodcastPlaybackSeconds(42, Number.NaN)).toBe(42);
+    expect(clampPodcastPlaybackSeconds(42, Number.POSITIVE_INFINITY)).toBe(42);
   });
 });
 
