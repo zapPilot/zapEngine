@@ -7,7 +7,9 @@ See @README.md for project overview and @package.json for available scripts.
 - Close DB pool in tests: `afterAll(() => closeDbPool())`
 - APY and APR should not be mixed; active pipelines store provider-normalized yield fields.
 - Rate limits are enforced in `BaseApiFetcher` — do not bypass: DeBank 1 req/sec, Hyperliquid 60 req/min
-- Materialized views refresh automatically when `ENABLE_MV_REFRESH=true`
+- DeBank writes enqueue portfolio rollup keys in Postgres; Alpha ETL invokes
+  `private.process_portfolio_rollup_queue()` immediately, with the 30-minute
+  database cron retained as a fallback.
 
 # Macro Fear & Greed
 

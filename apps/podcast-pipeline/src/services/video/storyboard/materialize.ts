@@ -1,17 +1,28 @@
 import type { CanonicalAudioTiming } from '../audio-analysis.js';
 import {
-  type ImageVideoManifest,
+  headlineKickerFor,
+  OUTRO_TITLE,
+  outroCallToActionFor,
+  wrapHeadlineTitle,
+} from '../headline.js';
+import {
+  MEDIA_WINDOW,
   OUTPUT_FPS,
-  OUTPUT_HEIGHT,
-  OUTPUT_WIDTH,
-  parseImageVideoManifest,
+  OUTRO_TAIL_MS,
+  parseVerticalVideoManifest,
+  PORTRAIT_OUTPUT_HEIGHT,
+  PORTRAIT_OUTPUT_WIDTH,
+  VERTICAL_VIDEO_SCHEMA_VERSION,
+  type VerticalVideoManifest,
 } from '../manifest.js';
+import { pickBgmTrack } from '../runtime-assets.js';
 import type { SceneSentenceAlignment } from '../scene-alignment.js';
 import { type ImageVisualPlan, parseImageVisualPlan } from './visual-plan.js';
 
-export const TRUSTED_RENDERER_VERSION = 'satori-resvg-v3' as const;
+export const TRUSTED_RENDERER_VERSION = 'satori-resvg-v4' as const;
+export const BGM_MIX_GAIN_DB = -21;
 
-export interface MaterializeLocaleImageVideoManifestInput {
+export interface MaterializeLocaleVideoManifestInput {
   visualPlan: ImageVisualPlan;
   timing: CanonicalAudioTiming;
   sceneAlignment: readonly SceneSentenceAlignment[];
@@ -24,9 +35,9 @@ export interface MaterializeLocaleImageVideoManifestInput {
   audioSource: string;
 }
 
-export function materializeLocaleImageVideoManifest(
-  input: MaterializeLocaleImageVideoManifestInput,
-): ImageVideoManifest {
+export function materializeLocaleVideoManifest(
+  input: MaterializeLocaleVideoManifestInput,
+): VerticalVideoManifest {
   const visualPlan = parseImageVisualPlan(input.visualPlan);
   if (input.sceneAlignment.length !== visualPlan.scenes.length) {
     throw new Error(
@@ -86,19 +97,33 @@ export function materializeLocaleImageVideoManifest(
     throw new Error('Scene alignment must cover every locale sentence');
   }
 
-  return parseImageVideoManifest({
-    schemaVersion: 'podcast-slide-video.v2',
+  return parseVerticalVideoManifest({
+    schemaVersion: VERTICAL_VIDEO_SCHEMA_VERSION,
     rendererVersion: TRUSTED_RENDERER_VERSION,
     episode: input.episode,
     clip: {
       startMs: 0,
-      durationMs: input.timing.durationMs,
-      width: OUTPUT_WIDTH,
-      height: OUTPUT_HEIGHT,
+      durationMs: input.timing.durationMs + OUTRO_TAIL_MS,
+      width: PORTRAIT_OUTPUT_WIDTH,
+      height: PORTRAIT_OUTPUT_HEIGHT,
       fps: OUTPUT_FPS,
       transitionMs: 200,
     },
-    audio: { sourceUrl: input.audioSource },
+    mediaWindow: MEDIA_WINDOW,
+    headline: {
+      kicker: headlineKickerFor(input.episode.languageCode),
+      titleLines: wrapHeadlineTitle(input.episode.title),
+    },
+    audio: {
+      sourceUrl: input.audioSource,
+      narrationDurationMs: input.timing.durationMs,
+    },
+    bgm: { trackId: pickBgmTrack(input.episode.id), gainDb: BGM_MIX_GAIN_DB },
+    outro: {
+      startMs: input.timing.durationMs,
+      title: OUTRO_TITLE,
+      callToAction: outroCallToActionFor(input.episode.languageCode),
+    },
     slides,
     captions: input.timing.captions,
   });

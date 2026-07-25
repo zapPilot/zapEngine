@@ -1,13 +1,18 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-export type RasterStage = 'satori' | 'resvg' | 'sharp';
+export type RasterStage =
+  | 'satori'
+  | 'resvg'
+  | 'sharp'
+  | 'sharp-scale'
+  | 'sharp-crop';
 
 export async function runRasterStageCli(argv: string[]): Promise<void> {
   const [stage, inputPath, outputPath] = argv;
   if (!inputPath || !outputPath) {
     throw new Error(
-      'Usage: raster-stage-entry <satori|resvg|sharp> <input> <output>',
+      'Usage: raster-stage-entry <satori|resvg|sharp|sharp-scale|sharp-crop> <input> <output>',
     );
   }
 
@@ -25,6 +30,16 @@ export async function runRasterStageCli(argv: string[]): Promise<void> {
     case 'sharp': {
       const { runSharpStage } = await import('./sharp-stage.js');
       await runSharpStage(inputPath, outputPath);
+      return;
+    }
+    case 'sharp-scale': {
+      const { runSharpScaleStage } = await import('./sharp-stage.js');
+      await runSharpScaleStage(inputPath, outputPath);
+      return;
+    }
+    case 'sharp-crop': {
+      const { runSharpCropStage } = await import('./sharp-stage.js');
+      await runSharpCropStage(inputPath, outputPath);
       return;
     }
     default:

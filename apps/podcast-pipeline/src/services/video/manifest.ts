@@ -6,13 +6,33 @@ import {
   type VisualSource,
   visualSourceSchema,
 } from './storyboard/visual-plan.js';
+import { lineUnits } from './text-units.js';
 
 export const LEGACY_VIDEO_SCHEMA_VERSION = 'podcast-slide-video.v1' as const;
-export const VIDEO_SCHEMA_VERSION = 'podcast-slide-video.v2' as const;
-export const OUTPUT_WIDTH = 1920 as const;
-export const OUTPUT_HEIGHT = 1080 as const;
+export const IMAGE_VIDEO_SCHEMA_VERSION = 'podcast-slide-video.v2' as const;
+// The version producers stamp on freshly generated manifests; parsers keep
+// accepting every version above so stored renders stay readable.
+export const VERTICAL_VIDEO_SCHEMA_VERSION = 'podcast-slide-video.v3' as const;
+// Landscape dimensions are frozen for stored v1/v2 manifests; portrait is the
+// 9:16 news layout every new render uses.
+export const LANDSCAPE_OUTPUT_WIDTH = 1920 as const;
+export const LANDSCAPE_OUTPUT_HEIGHT = 1080 as const;
+export const PORTRAIT_OUTPUT_WIDTH = 1080 as const;
+export const PORTRAIT_OUTPUT_HEIGHT = 1920 as const;
 export const RASTER_SCALE = 2 as const;
 export const OUTPUT_FPS = 30 as const;
+// BGM keeps playing for this long after narration ends so the outro card can
+// breathe; 2800ms is exactly 84 frames at 30fps, keeping the clip frame-aligned.
+export const OUTRO_TAIL_MS = 2_800 as const;
+export const MEDIA_WINDOW = {
+  x: 0,
+  y: 620,
+  width: 1080,
+  height: 960,
+} as const;
+export const BGM_TRACK_IDS = ['bgm-01', 'bgm-02', 'bgm-03'] as const;
+export const HEADLINE_MAX_UNITS_PER_LINE = 14;
+export const HEADLINE_MAX_TITLE_LINES = 3;
 
 const noAssetSchema = z.object({ kind: z.literal('none') }).strict();
 
@@ -142,20 +162,93 @@ const episodeSchema = z
   })
   .strict();
 
-const clipSchema = z
-  .object({
-    startMs: z.literal(0),
-    durationMs: z.number().int().positive(),
-    width: z.literal(OUTPUT_WIDTH),
-    height: z.literal(OUTPUT_HEIGHT),
-    fps: z.literal(OUTPUT_FPS),
-    transitionMs: z.number().int().min(0).max(1_000),
-  })
-  .strict();
+function clipSchemaFor<Width extends number, Height extends number>(
+  width: Width,
+  height: Height,
+) {
+  return z
+    .object({
+      startMs: z.literal(0),
+      durationMs: z.number().int().positive(),
+      width: z.literal(width),
+      height: z.literal(height),
+      fps: z.literal(OUTPUT_FPS),
+      transitionMs: z.number().int().min(0).max(1_000),
+    })
+    .strict();
+}
+
+const clipSchema = clipSchemaFor(
+  LANDSCAPE_OUTPUT_WIDTH,
+  LANDSCAPE_OUTPUT_HEIGHT,
+);
+const portraitClipSchema = clipSchemaFor(
+  PORTRAIT_OUTPUT_WIDTH,
+  PORTRAIT_OUTPUT_HEIGHT,
+);
 
 const audioSchema = z
   .object({
     sourceUrl: z.string().min(1),
+  })
+  .strict();
+
+const verticalAudioSchema = z
+  .object({
+    sourceUrl: z.string().min(1),
+    narrationDurationMs: z.number().int().positive(),
+  })
+  .strict();
+
+const mediaWindowSchema = z
+  .object({
+    x: z.literal(MEDIA_WINDOW.x),
+    y: z.literal(MEDIA_WINDOW.y),
+    width: z.literal(MEDIA_WINDOW.width),
+    height: z.literal(MEDIA_WINDOW.height),
+  })
+  .strict();
+
+const headlineSchema = z
+  .object({
+    kicker: z.string().min(1).max(24),
+    titleLines: z
+      .array(z.string().min(1).max(28))
+      .min(1)
+      .max(HEADLINE_MAX_TITLE_LINES),
+  })
+  .strict()
+  .superRefine((headline, context) => {
+    if (lineUnits(headline.kicker) > HEADLINE_MAX_UNITS_PER_LINE) {
+      context.addIssue({
+        code: 'custom',
+        message: `Headline kicker exceeds ${HEADLINE_MAX_UNITS_PER_LINE} display units`,
+        path: ['kicker'],
+      });
+    }
+    headline.titleLines.forEach((line, index) => {
+      if (lineUnits(line) > HEADLINE_MAX_UNITS_PER_LINE) {
+        context.addIssue({
+          code: 'custom',
+          message: `Headline title line ${index + 1} exceeds ${HEADLINE_MAX_UNITS_PER_LINE} display units`,
+          path: ['titleLines', index],
+        });
+      }
+    });
+  });
+
+const bgmSchema = z
+  .object({
+    trackId: z.enum(BGM_TRACK_IDS),
+    gainDb: z.number().min(-40).max(0),
+  })
+  .strict();
+
+const outroSchema = z
+  .object({
+    startMs: z.number().int().positive(),
+    title: z.string().min(1).max(48),
+    callToAction: z.string().min(1).max(64),
   })
   .strict();
 
@@ -170,7 +263,7 @@ const openFullBleedLicenses = new Set<z.infer<typeof sourceLicenseSchema>>([
 
 interface ManifestForValidation {
   rendererVersion: string;
-  clip: z.infer<typeof clipSchema>;
+  clip: { durationMs: number; fps: number; transitionMs: number };
   slides: {
     id: string;
     startMs: number;
@@ -186,8 +279,21 @@ interface ManifestForValidation {
 function validateManifest(
   manifest: ManifestForValidation,
   context: z.RefinementCtx,
-  options: { strictGeneratedTiming: boolean; imageOnly: boolean },
+  options: {
+    strictGeneratedTiming: boolean;
+    imageOnly: boolean;
+    // Portrait manifests keep a BGM-only outro tail after narration, so the
+    // slide/caption timeline ends before the clip does.
+    contentEndMs?: number;
+  },
 ): void {
+  const contentEndMs = options.contentEndMs ?? manifest.clip.durationMs;
+  const contentEndLabel =
+    options.contentEndMs === undefined
+      ? 'the clip duration'
+      : 'the narration end';
+  const captionBoundLabel =
+    options.contentEndMs === undefined ? 'the clip' : 'the narration';
   const frameDurationMs = 1_000 / manifest.clip.fps;
   const transitionFrames = Math.round(
     (manifest.clip.transitionMs * manifest.clip.fps) / 1_000,
@@ -195,8 +301,8 @@ function validateManifest(
 
   if (
     options.imageOnly &&
-    manifest.clip.durationMs >= 85_000 &&
-    manifest.clip.durationMs <= 95_000 &&
+    contentEndMs >= 85_000 &&
+    contentEndMs <= 95_000 &&
     (manifest.slides.length < 8 || manifest.slides.length > 10)
   ) {
     context.addIssue({
@@ -288,10 +394,10 @@ function validateManifest(
   });
 
   const lastSlide = manifest.slides.at(-1);
-  if (lastSlide?.endMs !== manifest.clip.durationMs) {
+  if (lastSlide?.endMs !== contentEndMs) {
     context.addIssue({
       code: 'custom',
-      message: 'The final slide must end at the clip duration',
+      message: `The final slide must end at ${contentEndLabel}`,
       path: ['slides', manifest.slides.length - 1, 'endMs'],
     });
   }
@@ -328,10 +434,10 @@ function validateManifest(
         path: ['captions', index, 'endMs'],
       });
     }
-    if (caption.endMs > manifest.clip.durationMs) {
+    if (caption.endMs > contentEndMs) {
       context.addIssue({
         code: 'custom',
-        message: 'Caption extends beyond the clip',
+        message: `Caption extends beyond ${captionBoundLabel}`,
         path: ['captions', index, 'endMs'],
       });
     }
@@ -376,10 +482,10 @@ function validateManifest(
       path: ['captions', 0, 'startMs'],
     });
   }
-  if (manifest.captions.at(-1)?.endMs !== manifest.clip.durationMs) {
+  if (manifest.captions.at(-1)?.endMs !== contentEndMs) {
     context.addIssue({
       code: 'custom',
-      message: 'Generated captions must end at the clip duration',
+      message: `Generated captions must end at ${contentEndLabel}`,
       path: ['captions', manifest.captions.length - 1, 'endMs'],
     });
   }
@@ -405,7 +511,7 @@ export const legacySlideVideoManifestSchema = z
 
 export const imageVideoManifestSchema = z
   .object({
-    schemaVersion: z.literal(VIDEO_SCHEMA_VERSION),
+    schemaVersion: z.literal(IMAGE_VIDEO_SCHEMA_VERSION),
     rendererVersion: z.string().regex(/^satori-resvg-v\d+$/),
     episode: episodeSchema,
     clip: clipSchema,
@@ -421,16 +527,65 @@ export const imageVideoManifestSchema = z
     }),
   );
 
+/* jscpd:ignore-start — the v3 schema head intentionally parallels the v2 one;
+   both are strict zod contracts whose field sets must stay independently
+   readable rather than be merged behind a shared factory */
+export const verticalVideoManifestSchema = z
+  .object({
+    schemaVersion: z.literal(VERTICAL_VIDEO_SCHEMA_VERSION),
+    rendererVersion: z.string().regex(/^satori-resvg-v\d+$/),
+    episode: episodeSchema,
+    clip: portraitClipSchema,
+    mediaWindow: mediaWindowSchema,
+    headline: headlineSchema,
+    audio: verticalAudioSchema,
+    bgm: bgmSchema,
+    outro: outroSchema,
+    slides: z.array(imageSlideSchema).min(1).max(64),
+    captions: z.array(captionSchema).min(1),
+  })
+  .strict()
+  /* jscpd:ignore-end */
+  .superRefine((manifest, context) => {
+    validateManifest(manifest, context, {
+      strictGeneratedTiming: true,
+      imageOnly: true,
+      contentEndMs: manifest.audio.narrationDurationMs,
+    });
+    if (
+      manifest.clip.durationMs !==
+      manifest.audio.narrationDurationMs + OUTRO_TAIL_MS
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: `Clip duration must equal narration plus the ${OUTRO_TAIL_MS}ms outro tail`,
+        path: ['clip', 'durationMs'],
+      });
+    }
+    if (manifest.outro.startMs !== manifest.audio.narrationDurationMs) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Outro must start when narration ends',
+        path: ['outro', 'startMs'],
+      });
+    }
+  });
+
 export const slideVideoManifestSchema = z.union([
+  verticalVideoManifestSchema,
   imageVideoManifestSchema,
   legacySlideVideoManifestSchema,
 ]);
 
 export type ImageVideoManifest = z.infer<typeof imageVideoManifestSchema>;
+export type VerticalVideoManifest = z.infer<typeof verticalVideoManifestSchema>;
 export type LegacySlideVideoManifest = z.infer<
   typeof legacySlideVideoManifestSchema
 >;
-export type SlideVideoManifest = ImageVideoManifest | LegacySlideVideoManifest;
+export type SlideVideoManifest =
+  | VerticalVideoManifest
+  | ImageVideoManifest
+  | LegacySlideVideoManifest;
 export type Slide = SlideVideoManifest['slides'][number];
 export type ImageSlide = ImageVideoManifest['slides'][number];
 export type SlideSource = VisualSource;
@@ -438,6 +593,12 @@ export type SlideAsset = Slide['asset'];
 
 export function parseImageVideoManifest(input: unknown): ImageVideoManifest {
   return imageVideoManifestSchema.parse(input);
+}
+
+export function parseVerticalVideoManifest(
+  input: unknown,
+): VerticalVideoManifest {
+  return verticalVideoManifestSchema.parse(input);
 }
 
 export function parseSlideVideoManifest(input: unknown): SlideVideoManifest {

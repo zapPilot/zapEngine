@@ -70,6 +70,10 @@ import {
   verifySecret,
 } from './services/telegram.js';
 import {
+  buildEpisodeVideoGenerationFromEnqueue,
+  loadEpisodeVideoGeneration,
+} from './services/video-status.js';
+import {
   createVideoWorker,
   type EpisodeVideoWorker,
   type ProcessEpisodeVideoJob,
@@ -82,6 +86,14 @@ import {
 
 function healthResponse(c: Context) {
   return c.json({ ok: true });
+}
+
+function omitEpisodeVideo<T extends { video: unknown }>(
+  episode: T,
+): Omit<T, 'video'> {
+  const withoutVideo = { ...episode } as Partial<T>;
+  delete withoutVideo.video;
+  return withoutVideo as Omit<T, 'video'>;
 }
 
 function emptyTelegramResponse(c: Context): Response {
@@ -141,15 +153,24 @@ export function createApp(): Hono {
         : c.req.query('language'),
     );
 
-    const { ingest: result } = await performMultilingualIngestAndEnqueueVideo(
+    const postIngest = await performMultilingualIngestAndEnqueueVideo(
       url,
       languageCode,
     );
+    const result = postIngest.ingest;
+    const episode = omitEpisodeVideo(result.episode);
+    const videoGeneration = buildEpisodeVideoGenerationFromEnqueue({
+      episodeId: result.episode.id,
+      videoJobs: postIngest.videoJobs,
+      visualJob: postIngest.visualJob,
+      error: postIngest.videoEnqueueError,
+    });
     invalidateEpisodeSearchCache();
 
     return c.json(
       {
-        episode: result.episode,
+        episode,
+        videoGeneration,
         costUsd: result.costUsd,
         costDetails: {
           totalUsd: result.costDetails.totalUsd,
@@ -262,6 +283,20 @@ export function createApp(): Hono {
       },
     }));
     return c.json({ items });
+  });
+
+  app.get('/episodes/:episodeId/videos', async (c) => {
+    requireAdminAuthorization(c.req.header('authorization'));
+    const episodeId = c.req.param('episodeId');
+    if (!isEpisodeId(episodeId)) {
+      return c.notFound();
+    }
+
+    const videoGeneration = await loadEpisodeVideoGeneration(episodeId);
+    if (!videoGeneration) {
+      throw new HTTPException(404, { message: 'Episode not found' });
+    }
+    return c.json(videoGeneration);
   });
 
   app.get('/episodes/:localizationId', async (c) => {

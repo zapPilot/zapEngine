@@ -212,6 +212,12 @@ export async function createOpenRouterChatCompletion(
     completion = await openai.chat.completions.create(request, {
       signal: deadline.signal,
     });
+  } catch (error) {
+    const abortReason = deadline.signal.reason;
+    if (deadline.signal.aborted && abortReason instanceof Error) {
+      throw abortReason;
+    }
+    throw error;
   } finally {
     deadline.cleanup();
   }
@@ -358,11 +364,12 @@ export async function generateLanguageClassroomsWithLLM(
 }
 
 function languageClassroomSystemPrompt(sourceLanguageCode: string): string {
-  return `你是語言小教室編輯。請根據文章標題為 ${sourceLanguageCode} 使用者產生外語學習卡片。
+  return `你是語言小教室編輯。請閱讀文章內容與 Podcast 講稿，為 ${sourceLanguageCode} 使用者挑選本集最值得學的外語詞彙，並產生外語學習卡片。
 
 工作流程：
-1. 先把原始文章標題直接翻譯成目標語言，作為 oneLiner。
-2. 從翻譯後的 oneLiner 中挑 3 到 5 個最關鍵的詞彙作為 keywords。
+1. 先用 ${sourceLanguageCode} 通讀文章與講稿，選出 3 到 5 個本集最核心、最實用的概念詞彙。優先挑本集主題的財經／加密貨幣關鍵概念；避免虛詞、寒暄語，以及過度在地、換個語言就失去意義的專有名詞。這一組概念是所有目標語言共用的。
+2. oneLiner 是原始文章標題在目標語言的直譯，只當作開場句，不是選詞的依據。
+3. 對每個 targetLanguageCode，用「同一組概念」產生 keywords：term 是該概念在目標語言的實際說法，meaning／note 用 ${sourceLanguageCode} 解釋。各語言的 lesson 必須對應同一組概念、同樣的數量與順序。
 
 請只輸出有效 JSON，不要 Markdown，不要註解。格式：
 {
@@ -372,9 +379,9 @@ function languageClassroomSystemPrompt(sourceLanguageCode: string): string {
       "oneLiner": "原文標題在目標語言的直譯",
       "keywords": [
         {
-          "term": "出現在 oneLiner 中的關鍵字",
+          "term": "核心概念在目標語言的實際說法",
           "reading": "日文假名讀音；英文請用 null",
-          "meaning": "用主語言解釋意思",
+          "meaning": "用主語言解釋這個概念的意思",
           "note": "用主語言給初學者的簡短提醒；沒有就 null"
         }
       ]
@@ -384,11 +391,11 @@ function languageClassroomSystemPrompt(sourceLanguageCode: string): string {
 
 規則：
 - 每個 targetLanguageCode 都要回傳一筆 lesson。
-- oneLiner 必須是原始文章標題在目標語言的直譯，盡量保留原意，不要自行擴寫成描述句。
-- keywords 必須來自 oneLiner（必須是 oneLiner 中的子字串或主要詞彙），選 3 到 5 個最重要的。
+- keywords 從文章與講稿選出的核心概念而來，不必來自 oneLiner 或標題；重點是實用、能帶著走的外語詞彙。
+- 所有目標語言共用同一組概念：每個 lesson 的 keywords 數量、順序、對應的概念都必須一致。
+- oneLiner 是標題的直譯，盡量保留原意，不要自行擴寫成描述句。
 - meaning 和 note 一律使用主語言 ${sourceLanguageCode}。
-- reading: targetLanguageCode === 'ja' 時填假名讀音；其他語言一律 null。
-- 不要翻完整篇文章，只做標題的直譯與其中的重點單字。`;
+- reading: targetLanguageCode === 'ja' 時填假名讀音；其他語言一律 null。`;
 }
 
 function parseLanguageClassroomLessons(

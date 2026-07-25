@@ -2,10 +2,19 @@ import { tokens } from '@zapengine/design-tokens/tokens';
 import type { CSSProperties, ReactElement } from 'react';
 
 import type { ResolvedSlideAsset } from './assets.js';
-import type { Slide, SlideSource } from './manifest.js';
+import {
+  MEDIA_WINDOW,
+  PORTRAIT_OUTPUT_HEIGHT,
+  PORTRAIT_OUTPUT_WIDTH,
+  RASTER_SCALE,
+  type Slide,
+  type SlideSource,
+} from './manifest.js';
 
 const canvasWidth = 3_840;
 const canvasHeight = 2_160;
+const portraitCanvasWidth = PORTRAIT_OUTPUT_WIDTH * RASTER_SCALE;
+const portraitCanvasHeight = PORTRAIT_OUTPUT_HEIGHT * RASTER_SCALE;
 const sans = 'Noto Sans TC';
 const mono = 'JetBrains Mono';
 
@@ -766,6 +775,202 @@ function ImageTemplate({
       <Logo dataUri={logoDataUri} />
     </div>
   );
+}
+
+export interface BrandFrameContent {
+  kicker: string;
+  titleLines: readonly string[];
+}
+
+export interface OutroContent {
+  title: string;
+  callToAction: string;
+}
+
+function BrandFrameTemplate({
+  frame,
+  logoDataUri,
+}: Readonly<{
+  frame: BrandFrameContent;
+  logoDataUri: string;
+}>): ReactElement {
+  const topBandHeight = MEDIA_WINDOW.y * RASTER_SCALE;
+  const bottomBandTop = (MEDIA_WINDOW.y + MEDIA_WINDOW.height) * RASTER_SCALE;
+
+  return (
+    <div
+      style={{
+        width: portraitCanvasWidth,
+        height: portraitCanvasHeight,
+        display: 'flex',
+        position: 'relative',
+        color: colors.ink,
+        fontFamily: sans,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: portraitCanvasWidth,
+          height: topBandHeight,
+          backgroundImage: `linear-gradient(180deg, ${colors.surface} 0%, ${colors.bg} 100%)`,
+          borderBottom: `6px solid ${colors.accent}`,
+        }}
+      >
+        <img
+          alt="Zap Pilot"
+          src={logoDataUri}
+          width={500}
+          height={139}
+          style={{ marginTop: 88, objectFit: 'contain' }}
+        />
+        <div
+          style={{
+            display: 'flex',
+            marginTop: 56,
+            padding: '14px 44px',
+            backgroundColor: colors.accent,
+            borderRadius: 999,
+            color: colors.bg,
+            fontSize: 52,
+            fontWeight: 700,
+            letterSpacing: 6,
+          }}
+        >
+          {frame.kicker}
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            marginTop: 44,
+            padding: '44px 64px',
+            backgroundColor: '#ffffff',
+            borderRadius: 28,
+            color: '#101014',
+          }}
+        >
+          {frame.titleLines.map((line, index) => (
+            <div
+              key={`${index}-${line}`}
+              style={{
+                display: 'flex',
+                fontSize: 104,
+                fontWeight: 700,
+                lineHeight: 1.28,
+                letterSpacing: 2,
+              }}
+            >
+              {line}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          position: 'absolute',
+          top: bottomBandTop,
+          left: 0,
+          width: portraitCanvasWidth,
+          height: portraitCanvasHeight - bottomBandTop,
+          backgroundColor: colors.bg,
+          borderTop: `4px solid ${colors.line}`,
+        }}
+      />
+    </div>
+  );
+}
+
+function OutroTemplate({
+  outro,
+  logoDataUri,
+}: Readonly<{
+  outro: OutroContent;
+  logoDataUri: string;
+}>): ReactElement {
+  return (
+    <div
+      style={{
+        width: portraitCanvasWidth,
+        height: portraitCanvasHeight,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+        backgroundColor: colors.bg,
+        color: colors.ink,
+        fontFamily: sans,
+      }}
+    >
+      <img
+        alt="Zap Pilot"
+        src={logoDataUri}
+        width={700}
+        height={194}
+        style={{ objectFit: 'contain' }}
+      />
+      <div
+        style={{
+          display: 'flex',
+          marginTop: 104,
+          maxWidth: 1_880,
+          fontSize: 92,
+          fontWeight: 700,
+          lineHeight: 1.3,
+          textAlign: 'center',
+        }}
+      >
+        {outro.title}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          marginTop: 64,
+          color: colors.accent,
+          fontSize: 60,
+          fontWeight: 700,
+          letterSpacing: 6,
+        }}
+      >
+        {outro.callToAction}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          position: 'absolute',
+          bottom: 96,
+          color: colors.inkFaint,
+          fontFamily: mono,
+          fontSize: 38,
+          letterSpacing: 2,
+        }}
+      >
+        MEDIA&nbsp;·&nbsp;PEXELS&nbsp;·&nbsp;PIXABAY
+      </div>
+    </div>
+  );
+}
+
+export function renderBrandFrameElement(
+  frame: BrandFrameContent,
+  logoDataUri: string,
+): ReactElement {
+  return <BrandFrameTemplate frame={frame} logoDataUri={logoDataUri} />;
+}
+
+export function renderOutroElement(
+  outro: OutroContent,
+  logoDataUri: string,
+): ReactElement {
+  return <OutroTemplate outro={outro} logoDataUri={logoDataUri} />;
 }
 
 export function renderSlideElement(

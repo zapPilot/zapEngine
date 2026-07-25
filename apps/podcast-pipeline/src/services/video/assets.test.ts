@@ -155,7 +155,7 @@ describe('resolveSlideAsset', () => {
 
   it.each([
     { layout: 'framed' as const, width: 799, required: 800 },
-    { layout: 'fullBleed' as const, width: 1_599, required: 1_600 },
+    { layout: 'fullBleed' as const, width: 999, required: 1_000 },
   ])(
     'falls back when a $layout image is below its quality floor',
     async ({ layout, width, required }) => {
@@ -188,11 +188,11 @@ describe('resolveSlideAsset', () => {
     },
   );
 
-  it('rejects a full-bleed image below the 900px short-edge floor', async () => {
+  it('rejects a full-bleed image below the 800px short-edge floor', async () => {
     const buffer = await sharp({
       create: {
         width: 1_600,
-        height: 899,
+        height: 799,
         channels: 3,
         background: '#0a0a0a',
       },
@@ -213,7 +213,7 @@ describe('resolveSlideAsset', () => {
       throw new Error('Expected a short-edge dimension fallback');
     }
     expect(resolved.reason).toContain(
-      'fullBleed image short edge is 899px; 900px is required',
+      'fullBleed image short edge is 799px; 800px is required',
     );
   });
 

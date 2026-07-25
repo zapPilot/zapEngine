@@ -40,7 +40,8 @@ Do not duplicate strategy iteration content here — that file is the canonical 
 
 # IMPORTANT: Do not add deduplication to `daily_portfolio_snapshots`
 
-Never add `ROW_NUMBER()`, `PARTITION BY id_raw`, or `DISTINCT ON (id_raw)` to the `daily_portfolio_snapshots` MV.
+Never add `ROW_NUMBER()`, `PARTITION BY id_raw`, or `DISTINCT ON (id_raw)` to
+the `daily_portfolio_snapshots` incremental rollup.
 DeBank's `id_raw` is protocol-level, not position-level — multiple distinct positions legitimately share the same `id_raw`.
 All records in a batch are valid; there is no duplicate data to remove.
 See `migrations/015_simplify_daily_portfolio_snapshots.sql`.

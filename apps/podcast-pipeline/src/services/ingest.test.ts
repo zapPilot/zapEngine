@@ -120,7 +120,6 @@ describe('performIngest failure paths', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env['TTS_PROVIDER'] = 'google';
-    delete process.env['FISH_AUDIO_MODEL_ID'];
     mockFindEpisodeBySourceUrl.mockResolvedValue(null);
     mockScrapeArticle.mockResolvedValue({
       title: '软件更新',
@@ -869,7 +868,7 @@ describe('performIngest failure paths', () => {
 
   it('reuses completed audio even when stored TTS metadata differs from the current Fish Audio config', async () => {
     vi.stubEnv('TTS_PROVIDER', 'fish-audio');
-    vi.stubEnv('FISH_AUDIO_MODEL_ID', 'fish-model');
+    vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'fish-model');
     const existingLocalization = localizationRow({
       status: 'completed',
       script: 'Existing script',
@@ -900,7 +899,7 @@ describe('performIngest failure paths', () => {
 
   it('reuses completed audio when stored TTS metadata matches Fish Audio config', async () => {
     vi.stubEnv('TTS_PROVIDER', 'fish-audio');
-    vi.stubEnv('FISH_AUDIO_MODEL_ID', 'fish-model');
+    vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'fish-model');
     mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
     mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(
       localizationRow({

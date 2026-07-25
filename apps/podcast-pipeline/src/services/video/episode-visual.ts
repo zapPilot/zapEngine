@@ -24,8 +24,10 @@ const visualAssetMetadataSchema = z
     r2Url: z.string().url(),
     originalImageUrl: z.string().url(),
     sourcePageUrl: z.string().url(),
-    provider: z.enum(['article', 'bing']),
-    license: z.literal('unknown'),
+    provider: z.enum(['article', 'pexels', 'pixabay', 'bing']),
+    license: z.enum(['unknown', 'pexels', 'pixabay']),
+    photographer: z.string().min(1).optional(),
+    photographerUrl: z.string().url().optional(),
     contentType: z.enum([
       'image/avif',
       'image/jpeg',
@@ -163,9 +165,9 @@ export function buildEpisodeVisualPayload(input: {
             id: sourceId,
             label: sourceLabel(asset.sourcePageUrl),
             url: asset.sourcePageUrl,
-            attribution: `Image source · ${sourceLabel(asset.sourcePageUrl)}`,
-            license: 'unknown' as const,
-            licenseUrl: null,
+            attribution: assetAttribution(asset),
+            license: asset.license,
+            licenseUrl: STOCK_LICENSE_URLS[asset.license] ?? null,
           },
         ],
         asset: {
@@ -200,6 +202,10 @@ export function buildEpisodeVisualPayload(input: {
         sourcePageUrl: asset.sourcePageUrl,
         provider: asset.provider,
         license: asset.license,
+        ...(asset.photographer ? { photographer: asset.photographer } : {}),
+        ...(asset.photographerUrl
+          ? { photographerUrl: asset.photographerUrl }
+          : {}),
         contentType: asset.contentType,
         sha256: asset.sha256,
         perceptualHash: asset.perceptualHash,
@@ -214,6 +220,30 @@ export function buildEpisodeVisualPayload(input: {
       usedFallback: input.storyboard.usedFallback,
     },
   });
+}
+
+const STOCK_LICENSE_URLS: Partial<
+  Record<PlannedVisualImage['license'], string>
+> = {
+  pexels: 'https://www.pexels.com/license/',
+  pixabay: 'https://pixabay.com/service/license-summary/',
+};
+
+const STOCK_PROVIDER_LABELS: Partial<
+  Record<PlannedVisualImage['provider'], string>
+> = {
+  pexels: 'Pexels',
+  pixabay: 'Pixabay',
+};
+
+function assetAttribution(asset: PlannedVisualImage): string {
+  const providerLabel = STOCK_PROVIDER_LABELS[asset.provider];
+  if (providerLabel) {
+    return asset.photographer
+      ? `Photo by ${asset.photographer} · ${providerLabel}`
+      : `Photo · ${providerLabel}`;
+  }
+  return `Image source · ${sourceLabel(asset.sourcePageUrl)}`;
 }
 
 function sourceLabel(sourceUrl: string): string {

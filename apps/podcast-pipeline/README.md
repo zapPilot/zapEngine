@@ -29,19 +29,24 @@ Telegram trigger support is optional. Use `PIPELINE_TELEGRAM_BOT_TOKEN`, `PIPELI
 
 Scene alignment for `ja` and `en` is selected independently with `VIDEO_ALIGNMENT_PROVIDER=openrouter|nvidia`. `VIDEO_ALIGNMENT_MODEL` is interpreted by that provider. NVIDIA alignment uses `NVIDIA_API_KEY` and `NVIDIA_BASE_URL`; for example, set `VIDEO_ALIGNMENT_PROVIDER=nvidia` with `VIDEO_ALIGNMENT_MODEL=deepseek-ai/deepseek-v4-flash`. Invalid semantic output falls back to deterministic proportional alignment so rendering remains resumable.
 
-## Image-only multilingual video
+## Vertical news video (image-only, multilingual)
 
-After all three audio localizations complete, ingest idempotently enqueues one episode-scoped visual job and three localization render jobs. The visual job creates a shared, image-only storyboard, mirrors selected images to R2, and records source-page/original-image provenance with `license: unknown`. It never stores a text-card fallback.
+After all three audio localizations complete, ingest idempotently enqueues one episode-scoped visual job and three localization render jobs. The visual job creates a shared, image-only storyboard, mirrors selected images to R2, and records source-page/original-image provenance (license + photographer for stock providers). It never stores a text-card fallback.
 
 Images are tried in this order:
 
 1. `og:image`, article/figure images, lazy-load attributes, and the largest `srcset` candidate from the source article.
-2. Bing Images HTML with strict SafeSearch when the article has too few usable images.
-3. A non-consecutive reuse of an already validated image when a scene search cannot produce a new one.
+2. Pexels then Pixabay photo search (`orientation=square`, SafeSearch) when `PEXELS_API_KEY` / `PIXABAY_API_KEY` are set — these are license-clean sources and record `license: pexels` / `license: pixabay` plus photographer attribution.
+3. Bing Images HTML with strict SafeSearch as the zero-config fallback.
+4. A non-consecutive reuse of an already validated image when a scene search cannot produce a new one.
 
-Candidates must pass HTTPS/SSRF, download timeout, format, size, pixel-dimension, animation, SHA-256, and perceptual-hash checks. Bing HTML is an unofficial interface: zero parseable results or a markup change fails the visual checkpoint explicitly. Web-search images are retained as `license: unknown`; this pilot workflow does not claim usage rights.
+Candidates must pass HTTPS/SSRF, download timeout, format, size, pixel-dimension, animation, SHA-256, and perceptual-hash checks. Bing HTML is an unofficial interface: zero parseable results or a markup change fails the visual checkpoint explicitly. Bing images are retained as `license: unknown`; that fallback path does not claim usage rights.
 
 Once the shared visual checkpoint completes, `zh-Hant`, `ja`, and `en` each use their own main HLS duration, sentence timing, subtitles, and audio to render a progressive MP4. The canonical scene IDs and images are shared, while semantic alignment maps every translated sentence continuously onto those scenes. Classroom HLS is an ingest-readiness check for the canonical localization only and is never used as video audio.
+
+Renders are **1080x1920 vertical news videos** (`podcast-slide-video.v3`, renderer `satori-resvg-v4`): a persistent brand frame (logo, localized kicker, headline card from the episode title) over a 1080x960 media window that plays the searched images with Ken Burns motion, narration-synced captions in the bottom band, a bundled BGM bed ducked under narration (`assets/video/music`, see its README for licensing), and a ~2.8 s outro card while the music tails out. Stored `v1`/`v2` landscape manifests keep parsing; resubmitting an episode URL revives the visual/render jobs at the new versions and writes to new R2 prefixes without touching old artifacts.
+
+Local renders need an ffmpeg >= 4.4 built with libass (`VIDEO_FFMPEG_PATH=$(which ffmpeg)`); the capability check names anything missing — note some Homebrew builds ship without libass.
 
 `POST /ingest` still returns immediately after audio work and enqueueing; it does not wait for rendering or add video-job fields to the response. `GET /episodes/:localizationId` returns `video: null` until that localization finishes. Re-submitting the same URL revives stale or failed visual/render jobs without re-running completed scrape, LLM, translation, or TTS checkpoints.
 

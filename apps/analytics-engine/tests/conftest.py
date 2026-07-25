@@ -74,20 +74,6 @@ def _table_exists(conn, table: str) -> bool:
     return result.scalar() is not None
 
 
-def _matview_exists(conn, schema: str, name: str) -> bool:
-    result = conn.execute(
-        text(
-            """
-            SELECT 1
-            FROM pg_matviews
-            WHERE schemaname = :schema AND matviewname = :name
-            """
-        ),
-        {"schema": schema, "name": name},
-    )
-    return result.scalar() is not None
-
-
 def _is_retryable_lock_error(error: OperationalError) -> bool:
     message = str(getattr(error, "orig", error)).lower()
     patterns = (
@@ -125,21 +111,13 @@ def _set_local_lock_timeouts(conn) -> None:
     conn.execute(text("SET LOCAL statement_timeout = '120s'"))
 
 
-def _refresh_materialized_views(
+def _process_portfolio_rollup_queue(
     conn, *, include_portfolio_category_trend: bool = True
 ) -> None:
+    del include_portfolio_category_trend
     _set_local_lock_timeouts(conn)
     _acquire_test_setup_lock(conn)
-    if _matview_exists(conn, "public", "daily_portfolio_snapshots"):
-        conn.execute(text("REFRESH MATERIALIZED VIEW daily_portfolio_snapshots"))
-    if _matview_exists(conn, "alpha_raw", "daily_wallet_token_snapshots"):
-        conn.execute(
-            text("REFRESH MATERIALIZED VIEW alpha_raw.daily_wallet_token_snapshots")
-        )
-    if include_portfolio_category_trend and _matview_exists(
-        conn, "public", "portfolio_category_trend_mv"
-    ):
-        conn.execute(text("REFRESH MATERIALIZED VIEW portfolio_category_trend_mv"))
+    conn.execute(text("SELECT * FROM private.process_portfolio_rollup_queue()"))
 
 
 def _truncate_test_tables(conn) -> None:
@@ -151,6 +129,12 @@ def _truncate_test_tables(conn) -> None:
         "users",
         "plans",
         "mv_portfolio_summary_v2",
+        "private.daily_portfolio_snapshots_cache",
+        "private.daily_wallet_token_snapshots_cache",
+        "private.portfolio_category_trend_cache",
+        "private.portfolio_rollup_dirty_portfolio",
+        "private.portfolio_rollup_dirty_wallet",
+        "private.portfolio_rollup_dirty_users",
     ]
     existing_tables = [
         table for table in table_candidates if _table_exists(conn, table)
@@ -165,11 +149,9 @@ def _initialize_test_database(engine) -> None:
         with engine.begin() as conn:
             _set_local_lock_timeouts(conn)
             _acquire_test_setup_lock(conn)
-            _refresh_materialized_views(conn)
-            _truncate_test_tables(conn)
-            _refresh_materialized_views(conn)
             _ensure_test_schema_and_tables(conn)
-            _ensure_test_materialized_views_and_indexes(conn)
+            _ensure_test_incremental_rollups(conn)
+            _truncate_test_tables(conn)
             _seed_test_reference_data(conn)
 
     _run_with_lock_retry("test database initialization", _setup_once)
@@ -293,222 +275,40 @@ def _ensure_test_schema_and_tables(conn) -> None:
     )
 
 
-def _ensure_test_materialized_views_and_indexes(conn) -> None:
-    conn.execute(text("DROP MATERIALIZED VIEW IF EXISTS portfolio_category_trend_mv"))
-    conn.execute(text("DROP MATERIALIZED VIEW IF EXISTS daily_portfolio_snapshots"))
-    conn.execute(
-        text("""
-        CREATE MATERIALIZED VIEW daily_portfolio_snapshots AS
-        WITH latest_protocol_batch AS (
-          SELECT
-            LOWER(wallet) AS wallet,
-            name,
-            DATE(snapshot_at AT TIME ZONE 'UTC') AS snapshot_date,
-            MAX(snapshot_at) AS latest_snapshot_at
-          FROM portfolio_item_snapshots
-          GROUP BY LOWER(wallet), name, DATE(snapshot_at AT TIME ZONE 'UTC')
+def _ensure_test_incremental_rollups(conn) -> None:
+    processor = conn.execute(
+        text(
+            "SELECT to_regprocedure('private.process_portfolio_rollup_queue(integer)')"
         )
-        SELECT
-          pis.id,
-          LOWER(pis.wallet) AS wallet,
-          pis.snapshot_at,
-          DATE(pis.snapshot_at AT TIME ZONE 'UTC') AS snapshot_date,
-          pis.chain,
-          pis.has_supported_portfolio,
-          pis.id_raw,
-          pis.logo_url,
-          pis.name,
-          pis.site_url,
-          pis.asset_dict,
-          pis.asset_token_list,
-          pis.detail,
-          pis.detail_types,
-          pis.pool,
-          pis.proxy_detail,
-          pis.asset_usd_value,
-          pis.debt_usd_value,
-          pis.net_usd_value,
-          pis.update_at,
-          pis.name_item
-        FROM portfolio_item_snapshots pis
-        JOIN latest_protocol_batch lpb
-          ON LOWER(pis.wallet) = lpb.wallet
-         AND pis.name = lpb.name
-         AND DATE(pis.snapshot_at AT TIME ZONE 'UTC') = lpb.snapshot_date
-         AND pis.snapshot_at = lpb.latest_snapshot_at
-    """)
-    )
-    conn.execute(
+    ).scalar()
+    if processor is None:
+        raise RuntimeError(
+            "Incremental portfolio rollups are not installed. "
+            "Run scripts/db/bootstrap-integration-db.sh before tests."
+        )
+
+    relation_kinds = conn.execute(
         text(
             """
-            DO $$
-            BEGIN
-              IF NOT EXISTS (
-                  SELECT 1 FROM pg_matviews
-                  WHERE schemaname = 'alpha_raw' AND matviewname = 'daily_wallet_token_snapshots'
-              ) AND NOT EXISTS (
-                  SELECT 1 FROM information_schema.views
-                  WHERE table_schema = 'alpha_raw' AND table_name = 'daily_wallet_token_snapshots'
-              ) THEN
-                EXECUTE $sql$
-                  CREATE MATERIALIZED VIEW alpha_raw.daily_wallet_token_snapshots AS
-                  WITH latest_daily AS (
-                    SELECT
-                      LOWER(user_wallet_address) AS user_wallet_address,
-                      inserted_at AS snapshot_date,
-                      MAX(time_at) AS latest_time_at
-                    FROM alpha_raw.wallet_token_snapshots
-                    WHERE is_wallet = TRUE
-                    GROUP BY LOWER(user_wallet_address), inserted_at
-                  )
-                  SELECT
-                    wts.id,
-                    LOWER(wts.user_wallet_address) AS user_wallet_address,
-                    wts.token_address,
-                    wts.amount,
-                    wts.price,
-                    wts.symbol,
-                    wts.chain,
-                    wts.is_wallet,
-                    wts.logo_url,
-                    wts.time_at,
-                    wts.inserted_at,
-                    wts.inserted_at AS snapshot_date
-                  FROM alpha_raw.wallet_token_snapshots wts
-                  JOIN latest_daily ld
-                    ON LOWER(wts.user_wallet_address) = ld.user_wallet_address
-                   AND wts.inserted_at = ld.snapshot_date
-                   AND wts.time_at = ld.latest_time_at
-                  WHERE wts.is_wallet = TRUE
-                $sql$;
-              END IF;
-            END$$;
+            SELECT
+              namespace.nspname,
+              relation.relname,
+              relation.relkind::text AS relkind
+            FROM pg_catalog.pg_class AS relation
+            JOIN pg_catalog.pg_namespace AS namespace
+              ON namespace.oid = relation.relnamespace
+            WHERE (namespace.nspname, relation.relname) IN (
+              ('public', 'daily_portfolio_snapshots'),
+              ('alpha_raw', 'daily_wallet_token_snapshots'),
+              ('public', 'portfolio_category_trend_mv')
+            )
             """
         )
-    )
-    conn.execute(
-        text("""
-        CREATE OR REPLACE FUNCTION classify_token_category(symbol TEXT)
-        RETURNS TEXT AS $$
-        BEGIN
-            IF symbol IS NULL THEN
-                RETURN 'others';
-            END IF;
-
-            CASE LOWER(symbol)
-                WHEN 'btc' THEN RETURN 'btc';
-                WHEN 'wbtc' THEN RETURN 'btc';
-                WHEN 'tbtc' THEN RETURN 'btc';
-                WHEN 'renbtc' THEN RETURN 'btc';
-                WHEN 'eth' THEN RETURN 'eth';
-                WHEN 'weth' THEN RETURN 'eth';
-                WHEN 'steth' THEN RETURN 'eth';
-                WHEN 'reth' THEN RETURN 'eth';
-                WHEN 'usdc' THEN RETURN 'stablecoins';
-                WHEN 'usdt' THEN RETURN 'stablecoins';
-                WHEN 'dai' THEN RETURN 'stablecoins';
-                WHEN 'busd' THEN RETURN 'stablecoins';
-                WHEN 'tusd' THEN RETURN 'stablecoins';
-                WHEN 'usdp' THEN RETURN 'stablecoins';
-                WHEN 'frax' THEN RETURN 'stablecoins';
-                ELSE RETURN 'others';
-            END CASE;
-        END;
-        $$ LANGUAGE plpgsql IMMUTABLE;
-    """)
-    )
-    conn.execute(
-        text("""
-        CREATE MATERIALIZED VIEW IF NOT EXISTS portfolio_category_trend_mv AS
-        WITH user_wallets AS (
-          SELECT user_id, LOWER(wallet) AS wallet FROM user_crypto_wallets
-        ),
-        portfolio_snapshots AS (
-          SELECT uw.user_id, dps.wallet, dps.snapshot_at, dps.asset_token_list
-          FROM daily_portfolio_snapshots dps
-          JOIN user_wallets uw ON dps.wallet = uw.wallet
-        ),
-        defi_tokens AS (
-          SELECT
-            ps.user_id,
-            (ps.snapshot_at AT TIME ZONE 'UTC')::date AS bucket_date,
-            'defi' AS source_type,
-            classify_token_category(token->>'symbol') AS category,
-            (COALESCE((token->>'amount')::numeric, 0) * COALESCE((token->>'price')::numeric, 0)) AS token_value
-          FROM portfolio_snapshots ps
-          CROSS JOIN LATERAL jsonb_array_elements(ps.asset_token_list) AS token
-          WHERE ps.asset_token_list IS NOT NULL
-            AND jsonb_array_length(ps.asset_token_list) > 0
-        ),
-        wallet_tokens AS (
-          SELECT
-            uw.user_id,
-            DATE_TRUNC('day', dwt.inserted_at)::date AS bucket_date,
-            'wallet' AS source_type,
-            classify_token_category(dwt.symbol) AS category,
-            (COALESCE(dwt.amount, 0) * COALESCE(dwt.price, 0)) AS token_value
-          FROM alpha_raw.daily_wallet_token_snapshots dwt
-          JOIN user_wallets uw ON dwt.user_wallet_address = uw.wallet
-          WHERE dwt.is_wallet = TRUE
-        ),
-        all_tokens AS (
-          SELECT * FROM defi_tokens WHERE token_value <> 0
-          UNION ALL
-          SELECT * FROM wallet_tokens WHERE token_value <> 0
-        ),
-        daily_aggregation AS (
-          SELECT
-            user_id, bucket_date, source_type, category,
-            SUM(CASE WHEN token_value > 0 THEN token_value ELSE 0 END) AS category_assets_usd,
-            SUM(CASE WHEN token_value < 0 THEN ABS(token_value) ELSE 0 END) AS category_debt_usd,
-            SUM(token_value) AS category_value_usd
-          FROM all_tokens
-          GROUP BY user_id, bucket_date, source_type, category
-        ),
-        daily_totals AS (
-          SELECT user_id, bucket_date, SUM(category_value_usd) AS total_value_usd
-          FROM daily_aggregation
-          GROUP BY user_id, bucket_date
-        ),
-        with_window_metrics AS (
-          SELECT
-            da.user_id, da.bucket_date, da.source_type, da.category,
-            da.category_value_usd, da.category_assets_usd, da.category_debt_usd,
-            LAG(da.category_value_usd) OVER (
-              PARTITION BY da.user_id, da.source_type, da.category
-              ORDER BY da.bucket_date
-            ) AS prev_value_usd,
-            dt.total_value_usd
-          FROM daily_aggregation da
-          JOIN daily_totals dt ON da.user_id = dt.user_id AND da.bucket_date = dt.bucket_date
+    ).all()
+    if len(relation_kinds) != 3 or any(row.relkind != "v" for row in relation_kinds):
+        raise RuntimeError(
+            "Portfolio compatibility relations must all be ordinary views."
         )
-        SELECT
-          user_id, bucket_date AS date, source_type, category,
-          category_value_usd, category_assets_usd, category_debt_usd,
-          COALESCE(category_value_usd - prev_value_usd, 0) AS pnl_usd,
-          total_value_usd
-        FROM with_window_metrics
-        ORDER BY user_id, date ASC, category ASC, source_type ASC
-    """)
-    )
-    conn.execute(
-        text("""
-        CREATE INDEX IF NOT EXISTS idx_portfolio_category_trend_user_date
-            ON portfolio_category_trend_mv (user_id, date DESC)
-    """)
-    )
-    conn.execute(
-        text("""
-        CREATE INDEX IF NOT EXISTS idx_portfolio_category_trend_user_category
-            ON portfolio_category_trend_mv (user_id, category)
-    """)
-    )
-    conn.execute(
-        text("""
-        CREATE INDEX IF NOT EXISTS idx_portfolio_category_trend_user_source
-            ON portfolio_category_trend_mv (user_id, source_type)
-    """)
-    )
 
 
 def _seed_test_reference_data(conn) -> None:
@@ -611,13 +411,13 @@ def query_service():
 
 @pytest.fixture
 def refresh_materialized_views(db_session: Session):
-    """Refresh test materialized views in dependency order with lock protection."""
+    """Drain the incremental rollup queue with lock retry protection."""
 
     def _refresh(*, include_portfolio_category_trend: bool = True) -> None:
         for attempt in range(1, TEST_DB_LOCK_RETRY_ATTEMPTS + 1):
             try:
                 with db_session.begin_nested():
-                    _refresh_materialized_views(
+                    _process_portfolio_rollup_queue(
                         db_session.connection(),
                         include_portfolio_category_trend=include_portfolio_category_trend,
                     )
@@ -637,11 +437,11 @@ def refresh_materialized_views(db_session: Session):
 @pytest.fixture
 def refresh_portfolio_mv(refresh_materialized_views):
     """
-    Refresh portfolio_category_trend_mv after inserting test data.
+    Process portfolio rollups after inserting test data.
 
-    In production, this MV is refreshed daily post-ETL. In tests, call this
-    fixture after inserting portfolio snapshots to populate the MV with fresh data.
-    This mirrors the production ETL → MV refresh workflow.
+    In production, DeBank invokes the same incremental processor immediately and
+    the 30-minute cron is a fallback. Tests keep the historical fixture name to
+    avoid obscuring query-test intent.
 
     Usage:
         def test_portfolio_trend(db_session, refresh_portfolio_mv):
@@ -649,10 +449,10 @@ def refresh_portfolio_mv(refresh_materialized_views):
             db_session.execute(text("INSERT INTO portfolio_item_snapshots ..."))
             db_session.commit()
 
-            # Refresh MV with new data (mimics post-ETL refresh)
+            # Drain dirty keys with the production processor
             refresh_portfolio_mv()
 
-            # Query MV - now contains fresh data
+            # Query the compatibility view - now contains fresh data
             result = query_service.execute(QUERY_NAMES.PORTFOLIO_CATEGORY_TREND_MV, {...})
     """
 

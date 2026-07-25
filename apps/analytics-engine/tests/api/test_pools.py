@@ -57,10 +57,10 @@ def create_pool_dict(
     return pool
 
 
-def create_defi_llama_pool(
+def create_protocol_pool(
     protocol: str = "aave-v3", protocol_name: str = "Aave V3"
 ) -> dict[str, Any]:
-    """Factory for DeFiLlama protocol pool response."""
+    """Factory for a portfolio-derived protocol pool response."""
     return create_pool_dict(
         protocol=protocol,
         protocol_name=protocol_name,
@@ -113,7 +113,7 @@ class TestPoolPerformanceEndpoint:
     async def test_pool_performance_success_with_valid_uuid(self, client: AsyncClient):
         """Pool performance endpoint returns 200 with valid UUID and pool data."""
         user_id = str(uuid4())
-        pools = [create_defi_llama_pool()]
+        pools = [create_protocol_pool()]
         service = MockPoolPerformanceService(pools)
         app.dependency_overrides[get_pool_performance_service] = lambda: service
 
@@ -152,7 +152,7 @@ class TestPoolPerformanceEndpoint:
         """Pool performance response has correct structure with all required fields."""
         user_id = str(uuid4())
         pools = [
-            create_defi_llama_pool("aave-v3", "Aave V3"),
+            create_protocol_pool("aave-v3", "Aave V3"),
             create_hyperliquid_pool(0.12),
         ]
         service = MockPoolPerformanceService(pools)
@@ -167,7 +167,7 @@ class TestPoolPerformanceEndpoint:
         data = response.json()
         assert len(data) == 2
 
-        # Validate DeFiLlama pool structure
+        # Validate a standard protocol pool structure
         aave_pool = data[0]
         # snapshot_id and wallet are now included to match PoolDetail model
         assert "snapshot_id" in aave_pool
@@ -204,7 +204,7 @@ class TestPoolPerformanceCaching:
     async def test_cache_control_header_set_correctly(self, client: AsyncClient):
         """Cache-Control header is set to settings.http_cache_max_age_seconds."""
         user_id = str(uuid4())
-        pools = [create_defi_llama_pool()]
+        pools = [create_protocol_pool()]
         service = MockPoolPerformanceService(pools)
         app.dependency_overrides[get_pool_performance_service] = lambda: service
 
@@ -228,7 +228,7 @@ class TestPoolPerformanceCaching:
         router correctly calls the service method (caching tested in service tests).
         """
         user_id = str(uuid4())
-        pools = [create_defi_llama_pool()]
+        pools = [create_protocol_pool()]
         service = MockPoolPerformanceService(pools)
         app.dependency_overrides[get_pool_performance_service] = lambda: service
 
@@ -260,7 +260,7 @@ class TestPoolPerformanceCaching:
     async def test_server_cache_miss_fetches_fresh_data(self, client: AsyncClient):
         """Server cache miss fetches fresh data from service."""
         user_id = str(uuid4())
-        pools = [create_defi_llama_pool()]
+        pools = [create_protocol_pool()]
         service = MockPoolPerformanceService(pools)
         app.dependency_overrides[get_pool_performance_service] = lambda: service
 
@@ -286,7 +286,7 @@ class TestPoolPerformanceCaching:
     async def test_cache_disabled_bypasses_caching(self, client: AsyncClient):
         """When cache is disabled, service is called on every request."""
         user_id = str(uuid4())
-        pools = [create_defi_llama_pool()]
+        pools = [create_protocol_pool()]
         service = MockPoolPerformanceService(pools)
         app.dependency_overrides[get_pool_performance_service] = lambda: service
 
@@ -319,7 +319,7 @@ class TestPoolPerformanceServiceIntegration:
         """Pool service dependency injection provides service correctly."""
         user_id = str(uuid4())
         pools = [
-            create_defi_llama_pool("compound-v3", "Compound V3"),
+            create_protocol_pool("compound-v3", "Compound V3"),
             create_hyperliquid_pool(0.15),
         ]
         service = MockPoolPerformanceService(pools)
@@ -367,13 +367,13 @@ class TestPoolPerformanceProtocolTypes:
     """Protocol-specific response tests."""
 
     @pytest.mark.asyncio
-    async def test_defi_llama_protocols_response(self, client: AsyncClient):
-        """DeFiLlama protocols return pools without deprecated APR fields."""
+    async def test_standard_protocols_response(self, client: AsyncClient):
+        """Standard protocols return pools without deprecated APR fields."""
         user_id = str(uuid4())
         pools = [
-            create_defi_llama_pool("aave-v3", "Aave V3"),
-            create_defi_llama_pool("compound-v3", "Compound V3"),
-            create_defi_llama_pool("curve", "Curve Finance"),
+            create_protocol_pool("aave-v3", "Aave V3"),
+            create_protocol_pool("compound-v3", "Compound V3"),
+            create_protocol_pool("curve", "Curve Finance"),
         ]
         service = MockPoolPerformanceService(pools)
         app.dependency_overrides[get_pool_performance_service] = lambda: service
@@ -424,9 +424,9 @@ class TestPoolPerformanceProtocolTypes:
         """Mixed protocols return correctly without APR fields."""
         user_id = str(uuid4())
         pools = [
-            create_defi_llama_pool("aave-v3", "Aave V3"),
+            create_protocol_pool("aave-v3", "Aave V3"),
             create_hyperliquid_pool(),
-            create_defi_llama_pool("compound-v3", "Compound V3"),
+            create_protocol_pool("compound-v3", "Compound V3"),
         ]
         service = MockPoolPerformanceService(pools)
         app.dependency_overrides[get_pool_performance_service] = lambda: service

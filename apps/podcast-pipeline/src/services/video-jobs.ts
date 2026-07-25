@@ -6,7 +6,7 @@ import { getRequiredEnv } from '../lib/env.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
 
 export const EPISODE_VIDEO_VISUAL_VERSION =
-  'podcast-image-visual-plan.v2' as const;
+  'podcast-image-visual-plan.v3' as const;
 
 export type EpisodeVideoJobStatus =
   | 'queued'

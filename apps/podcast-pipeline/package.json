@@ -19,7 +19,7 @@
     "start": "node dist/index.js",
     "format": "prettier --write \"src/**/*.{ts,tsx}\" \"examples/**/*.json\" \"*.config.*\" \"*.json\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\" \"examples/**/*.json\" \"*.config.*\" \"*.json\"",
-    "lint": "eslint src/ --max-warnings 0",
+    "lint": "eslint src/ --max-warnings 0 && node scripts/check-classroom-contract.mjs",
     "lint:fix": "eslint src/ --fix",
     "type-check": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",

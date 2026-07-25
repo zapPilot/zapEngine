@@ -87,22 +87,6 @@ export function SendScreen() {
               </View>
               <ChainIconStack chains={selectedAsset.chains} />
             </View>
-          ) : !account.isConnected ? (
-            <Tap
-              accessibilityRole="button"
-              accessibilityLabel="Connect wallet"
-              onPress={() => void account.connect()}
-              className="flex-row items-center gap-3"
-            >
-              <TokenIcon
-                glyph={SEND_FALLBACK_TOKEN.glyph}
-                bg={SEND_FALLBACK_TOKEN.iconBg}
-                alt={SEND_FALLBACK_TOKEN.symbol}
-              />
-              <Text className="font-sans-semibold text-[15px] text-accent">
-                Connect wallet to send
-              </Text>
-            </Tap>
           ) : (
             <View className="flex-row items-center gap-3">
               <TokenIcon

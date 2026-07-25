@@ -49,7 +49,7 @@ def integration_db_url() -> str:
     """
     Get PostgreSQL integration test database URL from environment.
 
-    Session-scoped to allow session-scoped fixtures (e.g., ensure_integration_mv_exists)
+    Session-scoped to allow session-scoped integration schema checks.
     to depend on it. The environment variable is read once per test session.
 
     Raises:
@@ -171,30 +171,23 @@ async def _acquire_test_setup_lock(session: AsyncSession) -> None:
     )
 
 
-async def _refresh_materialized_views(
+async def _process_portfolio_rollup_queue(
     session: AsyncSession,
     *,
     include_daily_portfolio: bool = True,
     include_daily_wallet_token: bool = True,
     include_portfolio_category_trend: bool = True,
 ) -> None:
+    del (
+        include_daily_portfolio,
+        include_daily_wallet_token,
+        include_portfolio_category_trend,
+    )
     await _set_local_lock_timeouts(session)
     await _acquire_test_setup_lock(session)
-
-    if include_daily_portfolio:
-        await session.execute(
-            text("REFRESH MATERIALIZED VIEW daily_portfolio_snapshots")
-        )
-
-    if include_daily_wallet_token:
-        await session.execute(
-            text("REFRESH MATERIALIZED VIEW alpha_raw.daily_wallet_token_snapshots")
-        )
-
-    if include_portfolio_category_trend:
-        await session.execute(
-            text("REFRESH MATERIALIZED VIEW portfolio_category_trend_mv")
-        )
+    await session.execute(
+        text("SELECT * FROM private.process_portfolio_rollup_queue()")
+    )
 
 
 async def refresh_mv_session(
@@ -204,10 +197,10 @@ async def refresh_mv_session(
     include_daily_wallet_token: bool = True,
     include_portfolio_category_trend: bool = True,
 ) -> None:
-    """Refresh integration materialized views with lock retries."""
+    """Drain integration portfolio rollup queues with lock retries."""
     for attempt in range(1, INTEGRATION_DB_LOCK_RETRY_ATTEMPTS + 1):
         try:
-            await _refresh_materialized_views(
+            await _process_portfolio_rollup_queue(
                 session,
                 include_daily_portfolio=include_daily_portfolio,
                 include_daily_wallet_token=include_daily_wallet_token,
@@ -716,12 +709,12 @@ def assert_endpoint_consistency():
 
 
 @pytest.fixture(scope="session", autouse=True)
-async def ensure_integration_mv_exists(request: pytest.FixtureRequest):
+async def ensure_incremental_rollups_exist(request: pytest.FixtureRequest):
     """
-    Verify portfolio_category_trend_mv exists in integration database.
+    Verify incremental portfolio rollups exist in the integration database.
 
     Integration tests assume database has migrations pre-applied.
-    This fixture validates setup and provides helpful error if MV missing.
+    This fixture validates setup and provides a helpful error if they are missing.
     """
     from sqlalchemy import text
     from sqlalchemy.ext.asyncio import create_async_engine
@@ -741,20 +734,52 @@ async def ensure_integration_mv_exists(request: pytest.FixtureRequest):
     engine = create_async_engine(integration_db_url, echo=False)
 
     async with engine.begin() as conn:
-        required_objects = [
-            "portfolio_category_trend_mv",
-            "daily_portfolio_snapshots",
-            "alpha_raw.daily_wallet_token_snapshots",
-        ]
-        for obj in required_objects:
-            result = await conn.execute(text("SELECT to_regclass(:obj)"), {"obj": obj})
-            if result.scalar() is None:
+        expected_views = (
+            ("public", "portfolio_category_trend_mv"),
+            ("public", "daily_portfolio_snapshots"),
+            ("alpha_raw", "daily_wallet_token_snapshots"),
+        )
+        for schema_name, relation_name in expected_views:
+            result = await conn.execute(
+                text(
+                    """
+                    SELECT relation.relkind::text
+                    FROM pg_catalog.pg_class AS relation
+                    JOIN pg_catalog.pg_namespace AS namespace
+                      ON namespace.oid = relation.relnamespace
+                    WHERE namespace.nspname = :schema_name
+                      AND relation.relname = :relation_name
+                    """
+                ),
+                {
+                    "schema_name": schema_name,
+                    "relation_name": relation_name,
+                },
+            )
+            if result.scalar() != "v":
                 pytest.fail(
-                    f"Integration test database missing {obj}.\n"
+                    f"Integration test database missing compatibility view "
+                    f"{schema_name}.{relation_name}.\n"
                     "Apply migrations:\n"
-                    "  psql <db> < migrations/013_daily_snapshot_views.sql\n"
-                    "  psql <db> < migrations/create_portfolio_category_trend_mv.sql"
+                    "  psql <db> < migrations/023_prepare_incremental_portfolio_rollups.sql\n"
+                    "  psql <db> < migrations/024_activate_incremental_portfolio_rollups.sql"
                 )
+
+        processor = await conn.execute(
+            text(
+                "SELECT to_regprocedure("
+                "'private.process_portfolio_rollup_queue(integer)'"
+                ")"
+            )
+        )
+        if processor.scalar() is None:
+            pytest.fail("Integration test database is missing the rollup processor.")
+
+        retired_table = await conn.execute(
+            text("SELECT to_regclass('alpha_raw.pool_apr_snapshots')")
+        )
+        if retired_table.scalar() is not None:
+            pytest.fail("Retired alpha_raw.pool_apr_snapshots still exists.")
 
     await engine.dispose()
 
@@ -762,9 +787,9 @@ async def ensure_integration_mv_exists(request: pytest.FixtureRequest):
 @pytest.fixture
 async def refresh_integration_mv(integration_db_session: AsyncSession):
     """
-    Refresh portfolio_category_trend_mv in integration tests.
+    Process incremental portfolio rollups in integration tests.
 
-    Call after inserting portfolio snapshots to populate MV with test data.
-    Mirrors production post-ETL refresh workflow.
+    Call after inserting portfolio snapshots to update compatibility views.
+    Mirrors the production post-DeBank workflow.
     """
     await refresh_mv_session(integration_db_session)

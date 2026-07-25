@@ -11,6 +11,18 @@ import {
   hasPreviousPodcastEpisode,
   isSamePodcastEpisode,
 } from '@/integration/podcastPlayerShared';
+import type {
+  PodcastPlaybackSection,
+  PodcastSectionKind,
+} from '@/integration/podcastSections';
+import {
+  buildPlaybackSections,
+  persistSpeedPreferences,
+  readStoredSpeedPreferences,
+  resolveFinishedPlayback,
+  speedForSection,
+  withSectionSpeed,
+} from '@/integration/podcastSections';
 import { usePodcastPlayerQueue } from '@/integration/usePodcastPlayerQueue';
 
 function toggleAudioElement(audio: HTMLAudioElement): void {
@@ -31,7 +43,18 @@ export function usePodcastPlayer(): PodcastPlayer {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [speed, setSpeedState] = useState(1);
+  const [speedPreferences, setSpeedPreferences] = useState(
+    readStoredSpeedPreferences,
+  );
+  const [currentSection, setCurrentSection] =
+    useState<PodcastSectionKind>('main');
+
+  // jscpd:ignore-start — native and web players are intentional twins that
+  // implement one shared PodcastPlayer contract over different media APIs.
+  const sections = useMemo(
+    () => (nowPlaying === null ? [] : buildPlaybackSections(nowPlaying)),
+    [nowPlaying],
+  );
 
   const cancelPendingHandoff = useCallback(() => {
     handoffIdRef.current += 1;
@@ -105,8 +128,69 @@ export function usePodcastPlayer(): PodcastPlayer {
     };
   }, [completePendingHandoff]);
 
-  const replaceEpisodeSource = useCallback(
-    (audio: HTMLAudioElement, episode: PodcastEpisode): boolean => {
+  // Media Session API: lock-screen / notification controls for mobile web.
+  // Handlers read the audio element lazily, so they register once.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) {
+      return;
+    }
+    const { mediaSession } = navigator;
+    mediaSession.setActionHandler('play', () => {
+      void audioRef.current?.play();
+    });
+    mediaSession.setActionHandler('pause', () => {
+      audioRef.current?.pause();
+    });
+    mediaSession.setActionHandler('seekbackward', () => {
+      const audio = audioRef.current;
+      if (audio !== null) {
+        audio.currentTime = Math.max(0, audio.currentTime - 15);
+      }
+    });
+    mediaSession.setActionHandler('seekforward', () => {
+      const audio = audioRef.current;
+      if (audio !== null && audio.duration > 0) {
+        audio.currentTime = Math.min(audio.duration, audio.currentTime + 30);
+      }
+    });
+    return () => {
+      mediaSession.setActionHandler('play', null);
+      mediaSession.setActionHandler('pause', null);
+      mediaSession.setActionHandler('seekbackward', null);
+      mediaSession.setActionHandler('seekforward', null);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (
+      typeof navigator === 'undefined' ||
+      !('mediaSession' in navigator) ||
+      typeof MediaMetadata === 'undefined'
+    ) {
+      return;
+    }
+    if (nowPlaying === null) {
+      navigator.mediaSession.metadata = null;
+      return;
+    }
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title:
+        currentSection === 'classroom'
+          ? `${nowPlaying.title} — Language Classroom`
+          : nowPlaying.title,
+      artist: 'From Fed to Chain',
+    });
+  }, [nowPlaying, currentSection]);
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) {
+      return;
+    }
+    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+  }, [isPlaying]);
+
+  const replaceSource = useCallback(
+    (audio: HTMLAudioElement, hlsUrl: string): boolean => {
       hlsRef.current?.destroy();
       hlsRef.current = null;
 
@@ -122,15 +206,14 @@ export function usePodcastPlayer(): PodcastPlayer {
       }
 
       if (audio.canPlayType('application/vnd.apple.mpegurl') !== '') {
-        audio.src = episode.hlsUrl;
+        audio.src = hlsUrl;
       } else {
         const hls = new HLS();
-        hls.loadSource(episode.hlsUrl);
+        hls.loadSource(hlsUrl);
         hls.attachMedia(audio);
         hlsRef.current = hls;
       }
 
-      setNowPlaying(episode);
       setCurrentTime(0);
       setDuration(0);
       return true;
@@ -144,11 +227,48 @@ export function usePodcastPlayer(): PodcastPlayer {
       if (audio === null) return;
 
       cancelPendingHandoff();
-      if (!replaceEpisodeSource(audio, episode)) return;
-      audio.playbackRate = speed;
+      if (!replaceSource(audio, episode.hlsUrl)) return;
+      setNowPlaying(episode);
+      setCurrentSection('main');
+      audio.playbackRate = speedForSection(speedPreferences, 'main');
       void audio.play();
     },
-    [cancelPendingHandoff, replaceEpisodeSource, speed],
+    [cancelPendingHandoff, replaceSource, speedPreferences],
+  );
+
+  // Swap the loaded source to a section of the current episode (main or
+  // classroom) and apply that section's independent playback speed.
+  const playSection = useCallback(
+    (section: PodcastPlaybackSection, atSeconds = 0, shouldPlay = true) => {
+      const audio = audioRef.current;
+      if (audio === null) return;
+
+      cancelPendingHandoff();
+      const startAt = finiteSeconds(atSeconds);
+      if (startAt > 0) {
+        audio.pause();
+        const handoffId = handoffIdRef.current + 1;
+        handoffIdRef.current = handoffId;
+        pendingHandoffRef.current = {
+          id: handoffId,
+          seconds: startAt,
+          shouldPlay,
+        };
+        if (!replaceSource(audio, section.hlsUrl)) {
+          pendingHandoffRef.current = null;
+          return;
+        }
+        setCurrentSection(section.kind);
+        audio.playbackRate = speedForSection(speedPreferences, section.kind);
+        return;
+      }
+
+      if (!replaceSource(audio, section.hlsUrl)) return;
+      setCurrentSection(section.kind);
+      audio.playbackRate = speedForSection(speedPreferences, section.kind);
+      if (shouldPlay) void audio.play();
+    },
+    [cancelPendingHandoff, replaceSource, speedPreferences],
   );
 
   const playEpisodeAt = useCallback(
@@ -166,17 +286,19 @@ export function usePodcastPlayer(): PodcastPlayer {
       };
 
       if (!isSamePodcastEpisode(nowPlaying, episode)) {
-        if (!replaceEpisodeSource(audio, episode)) {
+        if (!replaceSource(audio, episode.hlsUrl)) {
           pendingHandoffRef.current = null;
           return;
         }
-        audio.playbackRate = speed;
+        setNowPlaying(episode);
+        setCurrentSection('main');
+        audio.playbackRate = speedForSection(speedPreferences, 'main');
         return;
       }
 
       completePendingHandoff();
     },
-    [completePendingHandoff, nowPlaying, replaceEpisodeSource, speed],
+    [completePendingHandoff, nowPlaying, replaceSource, speedPreferences],
   );
 
   const toggleCurrentPlayback = useCallback(() => {
@@ -192,15 +314,25 @@ export function usePodcastPlayer(): PodcastPlayer {
     toggleCurrentPlayback,
   });
 
-  // Auto-advance to the next queued episode when the current one ends, so a
-  // "play unheard" queue plays through instead of stopping after one episode.
+  // When the current source ends, play the classroom section before advancing
+  // to the next episode (section advance precedes episode advance), so a "play
+  // unheard" queue plays through without skipping the classroom section. The
+  // 'ended' event is edge-triggered, so no dedupe latch is needed here.
   useEffect(() => {
     onEndedRef.current = () => {
-      if (hasNextPodcastEpisode(queueState.queue, queueState.queueIndex)) {
+      const action = resolveFinishedPlayback({
+        sections,
+        currentSection,
+        queue: queueState.queue,
+        queueIndex: queueState.queueIndex,
+      });
+      if (action.type === 'playSection') {
+        playSection(action.section);
+      } else if (action.type === 'nextEpisode') {
         queueState.skipToNextEpisode();
       }
     };
-  }, [queueState]);
+  }, [queueState, sections, currentSection, playSection]);
 
   const seek = useCallback(
     (seconds: number) => {
@@ -223,13 +355,35 @@ export function usePodcastPlayer(): PodcastPlayer {
     [currentTime, seek],
   );
 
-  const setSpeed = useCallback((nextSpeed: number) => {
-    setSpeedState(nextSpeed);
-    const audio = audioRef.current;
-    if (audio !== null) {
-      audio.playbackRate = nextSpeed;
-    }
-  }, []);
+  // Setting speed writes only the CURRENT section's preference; classroom and
+  // main speeds stay independent.
+  const setSpeed = useCallback(
+    (nextSpeed: number) => {
+      const updated = withSectionSpeed(
+        speedPreferences,
+        currentSection,
+        nextSpeed,
+      );
+      setSpeedPreferences(updated);
+      persistSpeedPreferences(updated);
+      const audio = audioRef.current;
+      if (audio !== null) {
+        audio.playbackRate = speedForSection(updated, currentSection);
+      }
+    },
+    [currentSection, speedPreferences],
+  );
+
+  const skipToSection = useCallback(
+    (kind: PodcastSectionKind, atSeconds = 0) => {
+      const target = sections.find((section) => section.kind === kind);
+      if (target === undefined) return;
+      playSection(target, atSeconds, true);
+    },
+    [playSection, sections],
+  );
+
+  const speed = speedForSection(speedPreferences, currentSection);
 
   const pause = useCallback(() => {
     cancelPendingHandoff();
@@ -243,6 +397,8 @@ export function usePodcastPlayer(): PodcastPlayer {
       currentTime: finiteSeconds(currentTime),
       duration: finiteSeconds(duration),
       speed,
+      sections,
+      currentSection,
       queue: queueState.queue,
       queueIndex: queueState.queueIndex,
       hasPreviousEpisode: hasPreviousPodcastEpisode(
@@ -261,6 +417,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       seekRelative,
       skipToPreviousEpisode: queueState.skipToPreviousEpisode,
       skipToNextEpisode: queueState.skipToNextEpisode,
+      skipToSection,
       setSpeed,
     }),
     [
@@ -274,6 +431,10 @@ export function usePodcastPlayer(): PodcastPlayer {
       seekRelative,
       setSpeed,
       speed,
+      sections,
+      currentSection,
+      skipToSection,
     ],
   );
+  // jscpd:ignore-end
 }

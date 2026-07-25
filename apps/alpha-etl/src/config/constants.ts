@@ -62,28 +62,3 @@ export const DATA_LIMITS = {
   /** Maximum age for cached data in hours */
   MAX_DATA_AGE_HOURS: 24,
 } as const;
-
-/**
- * Materialized View Configuration
- */
-export interface MVConfig {
-  name: string;
-}
-
-/** Materialized View Refresh Configuration */
-export const MV_REFRESH_CONFIG = {
-  /**
-   * List of materialized views to refresh after ETL completion
-   * Order matters - MVs are refreshed sequentially and abort on failure
-   * since later MVs may depend on earlier ones
-   */
-  MATERIALIZED_VIEWS: [
-    { name: 'alpha_raw.daily_wallet_token_snapshots' },
-    { name: 'public.daily_portfolio_snapshots' },
-    { name: 'public.portfolio_category_trend_mv' },
-  ] as const satisfies readonly MVConfig[],
-  /** Number of retry attempts for failed MV refresh operations */
-  MAX_RETRIES: 2,
-  /** Base delay for exponential backoff retry (milliseconds) */
-  RETRY_BASE_DELAY_MS: 1000,
-} as const;

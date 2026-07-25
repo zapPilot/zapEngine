@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { CanonicalAudioTiming } from '../audio-analysis.js';
+import { OUTRO_TAIL_MS } from '../manifest.js';
 import type { SceneSentenceAlignment } from '../scene-alignment.js';
 import { MAX_STORYBOARD_SLIDES, type StoryboardDraft } from './draft.js';
 import {
@@ -9,7 +10,7 @@ import {
   createDeterministicStoryboardProvider,
 } from './fallback.js';
 import {
-  materializeLocaleImageVideoManifest,
+  materializeLocaleVideoManifest,
   TRUSTED_RENDERER_VERSION,
 } from './materialize.js';
 import {
@@ -546,7 +547,7 @@ describe('shared visual plan and locale manifest materialization', () => {
       }),
     );
 
-    const manifest = materializeLocaleImageVideoManifest({
+    const manifest = materializeLocaleVideoManifest({
       visualPlan,
       timing,
       sceneAlignment,
@@ -559,8 +560,13 @@ describe('shared visual plan and locale manifest materialization', () => {
       audioSource: '/audio/en.m4a',
     });
 
-    expect(manifest.schemaVersion).toBe('podcast-slide-video.v2');
+    expect(manifest.schemaVersion).toBe('podcast-slide-video.v3');
     expect(manifest.rendererVersion).toBe(TRUSTED_RENDERER_VERSION);
+    expect(manifest.clip).toMatchObject({ width: 1080, height: 1920 });
+    expect(manifest.audio.narrationDurationMs).toBe(20_000);
+    expect(manifest.clip.durationMs).toBe(20_000 + OUTRO_TAIL_MS);
+    expect(manifest.headline.titleLines).toEqual(['Markets']);
+    expect(manifest.outro.startMs).toBe(20_000);
     expect(manifest.slides).toEqual([
       expect.objectContaining({
         id: 'scene-01',
@@ -613,7 +619,7 @@ describe('shared visual plan and locale manifest materialization', () => {
       ],
     });
     expect(() =>
-      materializeLocaleImageVideoManifest({
+      materializeLocaleVideoManifest({
         visualPlan,
         timing,
         sceneAlignment: [],
@@ -657,7 +663,7 @@ describe('shared visual plan and locale manifest materialization', () => {
       ],
     });
     expect(() =>
-      materializeLocaleImageVideoManifest({
+      materializeLocaleVideoManifest({
         visualPlan,
         timing,
         sceneAlignment: [
@@ -707,7 +713,7 @@ describe('shared visual plan and locale manifest materialization', () => {
       ],
     });
     expect(() =>
-      materializeLocaleImageVideoManifest({
+      materializeLocaleVideoManifest({
         visualPlan,
         timing,
         sceneAlignment: [
@@ -763,7 +769,7 @@ describe('shared visual plan and locale manifest materialization', () => {
       ],
     });
     expect(() =>
-      materializeLocaleImageVideoManifest({
+      materializeLocaleVideoManifest({
         visualPlan,
         timing,
         sceneAlignment: [
@@ -819,7 +825,7 @@ describe('shared visual plan and locale manifest materialization', () => {
       ],
     });
     expect(() =>
-      materializeLocaleImageVideoManifest({
+      materializeLocaleVideoManifest({
         visualPlan,
         timing,
         sceneAlignment: [

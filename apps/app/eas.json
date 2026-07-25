@@ -28,7 +28,7 @@
     "production": {
       "android": {
         "applicationId": "com.fromfedtochain.app",
-        "track": "internal",
+        "track": "alpha",
         "releaseStatus": "completed"
       }
     }

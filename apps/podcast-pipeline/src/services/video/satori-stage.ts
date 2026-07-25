@@ -5,18 +5,29 @@ import sharp from 'sharp';
 
 import type { ResolvedSlideAsset } from './assets.js';
 import {
-  OUTPUT_HEIGHT,
-  OUTPUT_WIDTH,
+  LANDSCAPE_OUTPUT_HEIGHT,
+  LANDSCAPE_OUTPUT_WIDTH,
+  PORTRAIT_OUTPUT_HEIGHT,
+  PORTRAIT_OUTPUT_WIDTH,
   RASTER_SCALE,
   type Slide,
 } from './manifest.js';
 import { videoAssetPaths } from './runtime-assets.js';
-import { renderSlideElement } from './templates.js';
+import {
+  type BrandFrameContent,
+  type OutroContent,
+  renderBrandFrameElement,
+  renderOutroElement,
+  renderSlideElement,
+} from './templates.js';
 
-interface SatoriStageInput {
-  slide: Slide;
-  asset: ResolvedSlideAsset;
-}
+// Slides keep the frozen landscape canvas that stored v1/v2 templates were
+// designed for; the portrait brand frame and outro card are the only stage
+// kinds rendered at the 9:16 canvas.
+export type SatoriStageInput =
+  | { kind?: 'slide'; slide: Slide; asset: ResolvedSlideAsset }
+  | { kind: 'frame'; frame: BrandFrameContent }
+  | { kind: 'outro'; outro: OutroContent };
 
 function fontArrayBuffer(buffer: Buffer): ArrayBuffer {
   return Uint8Array.from(buffer).buffer;
@@ -79,6 +90,36 @@ async function materializeAssetDataUri(
   };
 }
 
+async function stageElementAndSize(
+  input: SatoriStageInput,
+  logoDataUri: string,
+): Promise<{
+  element: ReturnType<typeof renderSlideElement>;
+  width: number;
+  height: number;
+}> {
+  if (input.kind === 'frame') {
+    return {
+      element: renderBrandFrameElement(input.frame, logoDataUri),
+      width: PORTRAIT_OUTPUT_WIDTH * RASTER_SCALE,
+      height: PORTRAIT_OUTPUT_HEIGHT * RASTER_SCALE,
+    };
+  }
+  if (input.kind === 'outro') {
+    return {
+      element: renderOutroElement(input.outro, logoDataUri),
+      width: PORTRAIT_OUTPUT_WIDTH * RASTER_SCALE,
+      height: PORTRAIT_OUTPUT_HEIGHT * RASTER_SCALE,
+    };
+  }
+  const asset = await materializeAssetDataUri(input.asset);
+  return {
+    element: renderSlideElement(input.slide, asset, logoDataUri),
+    width: LANDSCAPE_OUTPUT_WIDTH * RASTER_SCALE,
+    height: LANDSCAPE_OUTPUT_HEIGHT * RASTER_SCALE,
+  };
+}
+
 export async function runSatoriStage(
   inputPath: string,
   outputPath: string,
@@ -92,12 +133,14 @@ export async function runSatoriStage(
     readFile(videoAssetPaths.jetBrainsMonoSemibold),
     readFile(videoAssetPaths.logo),
   ]);
-  const asset = await materializeAssetDataUri(input.asset);
 
-  const element = renderSlideElement(input.slide, asset, svgDataUri(logo));
+  const { element, width, height } = await stageElementAndSize(
+    input,
+    svgDataUri(logo),
+  );
   const svg = await satori(element, {
-    width: OUTPUT_WIDTH * RASTER_SCALE,
-    height: OUTPUT_HEIGHT * RASTER_SCALE,
+    width,
+    height,
     embedFont: true,
     fonts: [
       {

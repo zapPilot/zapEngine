@@ -11,7 +11,7 @@ import {
   type CanonicalSentence,
   splitCanonicalSentences,
 } from './storyboard/sentences.js';
-import { characterUnits, MAX_LINE_UNITS } from './subtitles.js';
+import { characterUnits, PORTRAIT_SUBTITLE_LAYOUT } from './subtitles.js';
 
 export interface SilenceInterval {
   startMs: number;
@@ -236,8 +236,11 @@ function sentenceBoundaries(
 // Generated captions must each fit a single rendered subtitle line: the ASS
 // wrapper breaks overflow greedily with no phrase awareness, so multi-line
 // chunks would wrap mid-phrase. Two-line rendering stays reserved for
-// explicit editorial "\n" breaks.
-const CAPTION_MAX_UNITS = MAX_LINE_UNITS;
+// explicit editorial "\n" breaks. The budget follows the portrait news
+// layout's narrower caption band.
+const CAPTION_MAX_UNITS = PORTRAIT_SUBTITLE_LAYOUT.maxLineUnits;
+// Prefer breaking after punctuation once a chunk is reasonably full.
+const CAPTION_PREFERRED_BREAK_UNITS = 10;
 
 export function splitCaptionText(text: string): string[] {
   const characters = Array.from(text.trim());
@@ -253,7 +256,10 @@ export function splitCaptionText(text: string): string[] {
       if (nextUnits > CAPTION_MAX_UNITS) break;
       units = nextUnits;
       end += 1;
-      if (/[，。！？、：；,!?\s]/.test(character) && units >= 16) {
+      if (
+        /[，。！？、：；,!?\s]/.test(character) &&
+        units >= CAPTION_PREFERRED_BREAK_UNITS
+      ) {
         preferredBreak = end;
       }
     }

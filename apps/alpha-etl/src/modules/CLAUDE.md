@@ -19,7 +19,7 @@ Each subdirectory is one ETL pipeline. Pipelines follow a common shape:
 
 | Pipeline           | Source / API                            | Cadence    | Rate limit          | Notes                                                                 |
 | ------------------ | --------------------------------------- | ---------- | ------------------- | --------------------------------------------------------------------- |
-| `core/`            | (infrastructure, not a pipeline)        | —          | —                   | Job queue, processor registry, DMA snapshots, MV refresh, health      |
+| `core/`            | (infrastructure, not a pipeline)        | —          | —                   | Job queue, processor registry, DMA snapshots, portfolio rollups, health |
 | `hyperliquid/`     | Hyperliquid public API                  | minute     | 60 RPM (`HYPERLIQUID_RATE_LIMIT_RPM`) | Perp funding + APR                                                    |
 | `token-price/`     | CoinGecko + DMA backfill                | hourly     | shared `RATE_LIMIT_*` | Token spot prices + ratio-DMA derived series                          |
 | `stock-price/`     | Alpha Vantage (Yahoo fetcher fallback)  | daily      | 5/min, 25/day       | S&P500 reference series (free tier — careful with backfill)           |
@@ -32,7 +32,9 @@ Each subdirectory is one ETL pipeline. Pipelines follow a common shape:
 
 - **Idempotency**: every writer must be idempotent — pipelines re-run on retry / replay
 - **Rate limits**: respect the upstream limits in the table above. Use `core/`'s rate-limit helpers when sharing budget across pipelines.
-- **MV refresh**: pipelines that feed materialised views should trigger `core/mvRefresh.ts` after a successful run when `ENABLE_MV_REFRESH=true`.
+- **Portfolio rollups**: only DeBank writes and successful `wallet_fetch` jobs
+  trigger `core/portfolioRollupSync.ts`; other data sources leave the database
+  queue for the retained 30-minute fallback cron.
 - **Telegram naming**: alpha-etl admin alerts use `TELEGRAM_*` — distinct from podcast-pipeline's `PIPELINE_TELEGRAM_*`. Keep them separate.
 - **Schema drift**: any new column or table must add a Zod schema (`schema.ts`) and a SQL migration. The analytics-engine reads `alpha_raw.*` — coordinate breaking changes.
 

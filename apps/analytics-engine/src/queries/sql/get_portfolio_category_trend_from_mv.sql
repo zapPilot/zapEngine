@@ -1,17 +1,17 @@
 -- ============================================================================
--- PORTFOLIO CATEGORY TREND FROM MATERIALIZED VIEW
+-- PORTFOLIO CATEGORY TREND FROM INCREMENTAL CACHE
 -- ============================================================================
--- Queries pre-computed portfolio_category_trend_mv for ultra-fast retrieval
+-- Queries the portfolio_category_trend_mv compatibility view, backed by the
+-- private incremental category-trend cache.
 --
 -- Performance:
 --   - Query latency: 150-250ms → 5-15ms (15-25x faster)
---   - Uses materialized view instead of 5-CTE runtime aggregation
+--   - Uses a precomputed cache instead of 5-CTE runtime aggregation
 --   - Leverages (user_id, date DESC) index for efficient filtering
 --
--- Refresh:
---   - MV refreshed daily post-ETL (5-10 min duration)
---   - Data may be up to 24h stale compared to runtime query
---   - Use runtime query if real-time data is critical
+-- Freshness:
+--   - DeBank writes trigger incremental processing immediately
+--   - A 30-minute cron drains any queue entries left by a failed immediate call
 --
 -- Parameters:
 --   :user_id (UUID) - User identifier for portfolio filtering
@@ -57,15 +57,14 @@ ORDER BY date ASC, category ASC, source_type ASC;
 --   ✅ Eliminates duplicate aggregation across services
 --
 -- Trade-offs:
---   ⚠️ Data freshness: Up to 24h delay (depends on MV refresh schedule)
 --   ⚠️ Storage overhead: ~1-2MB per 10k users
---   ⚠️ Maintenance: Daily MV refresh required
+--   ⚠️ Queue lag: Up to 30 minutes if the immediate ETL call fails
 --
 -- When to Use Runtime Query Instead:
 --   - Real-time data requirements (< 1 hour staleness)
---   - MV refresh failed or delayed
+--   - Incremental queue processing is delayed
 --   - Development/testing with fresh data
---   - MV not yet created in environment
+--   - Compatibility views are not yet activated in an environment
 --
 -- Service Integration:
 --   - TrendAnalysisService: Historical trend calculations

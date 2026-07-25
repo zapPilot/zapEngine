@@ -7,13 +7,13 @@ import {
   probeAudioDurationMs,
   type SilenceInterval,
 } from './audio-analysis.js';
-import type { ImageVideoManifest } from './manifest.js';
+import type { VerticalVideoManifest } from './manifest.js';
 import {
   alignLocalizedScenes,
   canonicalSceneAlignment,
   type SceneAlignmentProvider,
 } from './scene-alignment.js';
-import { materializeLocaleImageVideoManifest } from './storyboard/materialize.js';
+import { materializeLocaleVideoManifest } from './storyboard/materialize.js';
 import {
   type ImageVisualPlan,
   parseImageVisualPlan,
@@ -39,7 +39,7 @@ export async function analyzeEpisodeAudio(
 }
 
 export interface EpisodeVideoManifestResult {
-  manifest: ImageVideoManifest;
+  manifest: VerticalVideoManifest;
   manifestJson: string;
   manifestHash: string;
   scriptHash: string;
@@ -97,7 +97,7 @@ export async function createEpisodeVideoManifest(input: {
       alignmentOptions,
     );
   }
-  const manifest = materializeLocaleImageVideoManifest({
+  const manifest = materializeLocaleVideoManifest({
     visualPlan,
     timing,
     sceneAlignment,

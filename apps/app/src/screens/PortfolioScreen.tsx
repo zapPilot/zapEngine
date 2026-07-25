@@ -7,6 +7,7 @@ import { AllocationBar } from '@/components/charts/AllocationBar';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { MetricsGrid } from '@/components/metrics/MetricsGrid';
 import { MetricsGridSkeleton } from '@/components/metrics/MetricsGridSkeleton';
+import { SharePortfolioButton } from '@/components/share/SharePortfolioButton';
 import { Card } from '@/components/ui/Card';
 import { DisplayUsdValue } from '@/components/ui/DisplayUsdValue';
 import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
@@ -52,13 +53,16 @@ export function PortfolioScreen() {
         title="Portfolio"
         left={<ScreenBackButton fallbackHref="/home" />}
         right={
-          <Tap className="h-[34px] w-[34px] items-center justify-center rounded-full border border-line bg-[rgba(255,255,255,.05)]">
-            <SlidersHorizontal
-              size={17}
-              strokeWidth={1.8}
-              color={tokens.color['ink-dim']}
-            />
-          </Tap>
+          <View className="flex-row items-center gap-2">
+            <SharePortfolioButton />
+            <Tap className="h-[34px] w-[34px] items-center justify-center rounded-full border border-line bg-[rgba(255,255,255,.05)]">
+              <SlidersHorizontal
+                size={17}
+                strokeWidth={1.8}
+                color={tokens.color['ink-dim']}
+              />
+            </Tap>
+          </View>
         }
       />
 

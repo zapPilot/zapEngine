@@ -22,7 +22,7 @@
 --   3. Return the most recent date with ANY snapshot data
 --
 -- Performance:
---   - Uses daily_portfolio_snapshots MV (already deduped)
+--   - Uses the indexed daily_portfolio_snapshots compatibility view
 --   - Index on (wallet, snapshot_date) provides fast lookups
 --   - Typical latency: 5-15ms
 --

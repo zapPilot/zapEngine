@@ -1,4 +1,10 @@
-export type ImageCandidateOrigin = 'openGraph' | 'article' | 'figure' | 'bing';
+export type ImageCandidateOrigin =
+  | 'openGraph'
+  | 'article'
+  | 'figure'
+  | 'pexels'
+  | 'pixabay'
+  | 'bing';
 
 export interface ImageCandidate {
   imageUrl: string;
@@ -7,6 +13,8 @@ export interface ImageCandidate {
   altText?: string;
   width?: number;
   height?: number;
+  photographer?: string;
+  photographerUrl?: string;
 }
 
 export interface Article {

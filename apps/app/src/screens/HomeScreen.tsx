@@ -13,9 +13,14 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { Sparkline } from '@/components/charts/Sparkline';
+import {
+  DemoBlurCover,
+  DemoConnectOverlay,
+} from '@/components/home/DemoConnectOverlay';
 import { ZapStrategyCard } from '@/components/strategy/ZapStrategyCard';
 import { ChainIconStack } from '@/components/token/ChainIconStack';
 import { TokenIcon } from '@/components/token/TokenIcon';
+import { SharePortfolioButton } from '@/components/share/SharePortfolioButton';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
 import { DEMO } from '@/data/demo';
@@ -217,51 +222,62 @@ export function HomeScreen() {
   const startStrategy = createStrategyStartAction(authAction.run, () =>
     router.push('/invest/amount'),
   );
+  const connect = () => void account.connect().catch(() => undefined);
 
   return (
     <ScreenScrollView>
-      <AppHeader />
+      <AppHeader action={<SharePortfolioButton />} />
 
-      <View className="px-5 pt-6">
-        <SectionLabel>Net worth</SectionLabel>
-        <DisplayUsdValue
-          loading={showBalanceSkeleton}
-          value={home.totalBalance}
-          valueClassName="mt-2 font-serif text-[54px] leading-[58px] text-ink"
-          fractionClassName="text-[34px] text-ink-faint"
-          skeletonClassName="mt-2 h-[58px] w-[230px] rounded-xl"
-          emptyClassName="text-ink-faint"
-        />
-        <View className="mt-[9px] flex-row items-center gap-2">
-          <Text className="rounded-full bg-[rgba(122,216,143,.12)] px-[9px] py-[3px] font-sans-semibold text-[12.5px] text-success">
-            {typeof changePct === 'number'
-              ? formatSignedPct(changePct).replace('+', '')
-              : '-'}
-          </Text>
-          <Text className="text-[13px] text-ink-dim">
-            {typeof changeUsd === 'number'
-              ? `${formatSignedUsd(changeUsd)} today`
-              : 'today'}
-          </Text>
-        </View>
-      </View>
-
-      <View className="mt-5 px-5">
-        <View className="flex-row items-center justify-between">
-          <SectionLabel>Balance trend</SectionLabel>
-          <RangeTabs
-            options={RANGE_OPTIONS}
-            value={range}
-            onChange={(value) => setRange(value as HomeRange)}
+      <View className="relative">
+        <View className="px-5 pt-6">
+          <SectionLabel>Net worth</SectionLabel>
+          <DisplayUsdValue
+            loading={showBalanceSkeleton}
+            value={home.totalBalance}
+            valueClassName="mt-2 font-serif text-[54px] leading-[58px] text-ink"
+            fractionClassName="text-[34px] text-ink-faint"
+            skeletonClassName="mt-2 h-[58px] w-[230px] rounded-xl"
+            emptyClassName="text-ink-faint"
           />
+          <View className="mt-[9px] flex-row items-center gap-2">
+            <Text className="rounded-full bg-[rgba(122,216,143,.12)] px-[9px] py-[3px] font-sans-semibold text-[12.5px] text-success">
+              {typeof changePct === 'number'
+                ? formatSignedPct(changePct).replace('+', '')
+                : '-'}
+            </Text>
+            <Text className="text-[13px] text-ink-dim">
+              {typeof changeUsd === 'number'
+                ? `${formatSignedUsd(changeUsd)} today`
+                : 'today'}
+            </Text>
+          </View>
         </View>
-        <View className="mt-3 h-[88px] justify-center">
-          {showBalanceSkeleton ? (
-            <SkeletonBlock className="h-[70px] w-full rounded-2xl" />
-          ) : (
-            <Sparkline data={home.sparkline} height={82} />
-          )}
+
+        <View className="mt-5 px-5">
+          <View className="flex-row items-center justify-between">
+            <SectionLabel>Balance trend</SectionLabel>
+            <RangeTabs
+              options={RANGE_OPTIONS}
+              value={range}
+              onChange={(value) => setRange(value as HomeRange)}
+            />
+          </View>
+          <View className="mt-3 h-[88px] justify-center">
+            {showBalanceSkeleton ? (
+              <SkeletonBlock className="h-[70px] w-full rounded-2xl" />
+            ) : (
+              <Sparkline data={home.sparkline} height={82} />
+            )}
+          </View>
         </View>
+
+        {isDemo ? (
+          <DemoConnectOverlay
+            onConnect={connect}
+            isConnecting={account.isConnecting}
+            error={account.error}
+          />
+        ) : null}
       </View>
 
       {account.isOwnBundle ? (
@@ -337,38 +353,41 @@ export function HomeScreen() {
                   : 'Live'}
             </Text>
           </View>
-          <Card className="p-[13px]">
-            {showAssetSkeleton ? (
-              <AssetListSkeleton />
-            ) : walletAssets.isError ? (
-              <WalletAssetStatus
-                isError
-                onRetry={() => void walletAssets.refetch()}
-              />
-            ) : (
-              <>
-                {walletAssets.failedChains.length > 0 ? (
-                  <PartialWalletWarning
-                    onRetry={() => void walletAssets.refetch()}
-                  />
-                ) : null}
-                {home.assets.length === 0 ? (
-                  <WalletAssetStatus
-                    isError={false}
-                    onRetry={() => void walletAssets.refetch()}
-                  />
-                ) : (
-                  home.assets.map((asset, index) => (
-                    <AssetRow
-                      key={asset.symbol}
-                      asset={asset}
-                      divider={index < home.assets.length - 1}
+          <View className="relative">
+            <Card className="p-[13px]">
+              {showAssetSkeleton ? (
+                <AssetListSkeleton />
+              ) : walletAssets.isError ? (
+                <WalletAssetStatus
+                  isError
+                  onRetry={() => void walletAssets.refetch()}
+                />
+              ) : (
+                <>
+                  {walletAssets.failedChains.length > 0 ? (
+                    <PartialWalletWarning
+                      onRetry={() => void walletAssets.refetch()}
                     />
-                  ))
-                )}
-              </>
-            )}
-          </Card>
+                  ) : null}
+                  {home.assets.length === 0 ? (
+                    <WalletAssetStatus
+                      isError={false}
+                      onRetry={() => void walletAssets.refetch()}
+                    />
+                  ) : (
+                    home.assets.map((asset, index) => (
+                      <AssetRow
+                        key={asset.symbol}
+                        asset={asset}
+                        divider={index < home.assets.length - 1}
+                      />
+                    ))
+                  )}
+                </>
+              )}
+            </Card>
+            {isDemo ? <DemoBlurCover /> : null}
+          </View>
         </View>
       ) : null}
     </ScreenScrollView>

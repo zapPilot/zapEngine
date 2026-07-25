@@ -200,12 +200,21 @@ function NowPlayingBar({ player }: { player: PodcastPlayer }) {
           )}
         </Tap>
         <View className="min-w-0 flex-1">
-          <Text
-            className="font-sans-semibold text-[12.5px] text-ink"
-            numberOfLines={1}
-          >
-            {episode.title}
-          </Text>
+          <View className="flex-row items-center gap-2">
+            <Text
+              className="min-w-0 flex-1 font-sans-semibold text-[12.5px] text-ink"
+              numberOfLines={1}
+            >
+              {episode.title}
+            </Text>
+            {player.currentSection === 'classroom' ? (
+              <View className="shrink-0 rounded-full bg-[rgba(212,197,163,.16)] px-2 py-[2px]">
+                <Text className="font-sans-semibold text-[9px] text-accent">
+                  Classroom
+                </Text>
+              </View>
+            ) : null}
+          </View>
           <View className="mt-[6px] flex-row items-center gap-2">
             <Text className="w-9 font-mono text-[9px] text-ink-faint">
               {formatPodcastClock(player.currentTime)}

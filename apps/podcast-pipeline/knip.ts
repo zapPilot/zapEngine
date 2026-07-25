@@ -8,7 +8,6 @@ export default defineKnipConfig({
     // Pre-existing: types and constants used via barrel re-exports and schema
     // composition; knip can't trace these patterns
     'src/services/video/manifest.ts',
-    'src/services/video/storyboard/draft.ts',
   ],
   ignoreDependencies: [
     // Pre-existing: loaded via CSS @import; knip only resolves JS imports

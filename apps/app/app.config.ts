@@ -99,6 +99,18 @@ const config: ExpoConfig = {
         supportsPictureInPicture: false,
       },
     ],
+    [
+      // Background audio + lock-screen controls for podcast playback. This is an
+      // audio-playback-only app, so recording/microphone permissions are
+      // explicitly disabled (recordAudioAndroid defaults to true otherwise).
+      'expo-audio',
+      {
+        microphonePermission: false,
+        recordAudioAndroid: false,
+        enableBackgroundRecording: false,
+        enableBackgroundPlayback: true,
+      },
+    ],
     'expo-web-browser',
     [
       'expo-splash-screen',

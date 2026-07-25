@@ -13,11 +13,16 @@ import {
   PODCAST_PROGRESS_STORAGE_KEY,
   type PodcastProgressMap,
 } from '@/integration/podcastProgress';
+import type { PodcastSectionKind } from '@/integration/podcastSections';
 
 interface PodcastProgressContextValue {
   progress: PodcastProgressMap;
   markListened: (localizationId: string, listened: boolean) => void;
-  setPosition: (localizationId: string, seconds: number) => void;
+  setPosition: (
+    localizationId: string,
+    seconds: number,
+    section?: PodcastSectionKind,
+  ) => void;
   markAllListened: (localizationIds: readonly string[]) => void;
 }
 
@@ -82,18 +87,34 @@ export function PodcastProgressProvider({
     [],
   );
 
-  const setPosition = useCallback((localizationId: string, seconds: number) => {
-    setProgress((current) => {
-      const existing = current[localizationId] ?? EMPTY_ENTRY;
-      if (existing.lastPositionSeconds === seconds) return current;
-      const next: PodcastProgressMap = {
-        ...current,
-        [localizationId]: { ...existing, lastPositionSeconds: seconds },
-      };
-      persistProgress(next);
-      return next;
-    });
-  }, []);
+  const setPosition = useCallback(
+    (
+      localizationId: string,
+      seconds: number,
+      section: PodcastSectionKind = 'main',
+    ) => {
+      setProgress((current) => {
+        const existing = current[localizationId] ?? EMPTY_ENTRY;
+        if (
+          existing.lastPositionSeconds === seconds &&
+          (existing.lastPositionSection ?? 'main') === section
+        ) {
+          return current;
+        }
+        const next: PodcastProgressMap = {
+          ...current,
+          [localizationId]: {
+            ...existing,
+            lastPositionSeconds: seconds,
+            lastPositionSection: section,
+          },
+        };
+        persistProgress(next);
+        return next;
+      });
+    },
+    [],
+  );
 
   const markAllListened = useCallback((localizationIds: readonly string[]) => {
     setProgress((current) => {

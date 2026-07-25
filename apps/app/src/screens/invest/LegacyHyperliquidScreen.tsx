@@ -3,13 +3,14 @@ import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
 import { useRouter } from 'expo-router';
 import { Text, TextInput, View } from 'react-native';
 
+import { CONNECT_WALLET_CTA } from '@/components/connect/connectCopy';
 import { HyperliquidDepositCard } from '@/components/invest/HyperliquidDepositCard';
 import { StepHeader } from '@/components/invest/StepHeader';
 import { WizardDoneCard } from '@/components/invest/WizardDoneCard';
-import { WizardErrorCard } from '@/components/invest/WizardErrorCard';
 import { WizardLegList } from '@/components/invest/WizardLegList';
 import { Card } from '@/components/ui/Card';
 import { InfoRow } from '@/components/ui/InfoRow';
+import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { DEFAULT_BASE_FUNDING_TOKEN } from '@/integration/depositTokens';
@@ -149,7 +150,7 @@ export function LegacyHyperliquidScreen() {
               }}
             >
               {capability === 'connect-wallet'
-                ? 'Connect wallet'
+                ? CONNECT_WALLET_CTA
                 : capability === 'unsupported-wallet'
                   ? 'Use a supported web wallet'
                   : pending
@@ -161,10 +162,9 @@ export function LegacyHyperliquidScreen() {
 
         {wizard.error ? (
           <View className="mt-5">
-            <WizardErrorCard
-              message={wizard.error.message}
-              actionLabel="Return to setup"
-              onDismiss={reset}
+            <InlineErrorCard
+              body={wizard.error.message}
+              action={{ label: 'Return to setup', onPress: reset }}
             />
           </View>
         ) : null}
