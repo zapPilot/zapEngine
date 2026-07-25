@@ -119,6 +119,39 @@ function MediaModeButton({
   );
 }
 
+function SectionChip({
+  active,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Tap
+      accessibilityRole="tab"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
+      aria-selected={active}
+      onPress={onPress}
+      className={cn(
+        'h-9 min-w-0 flex-1 items-center justify-center rounded-lg',
+        active ? 'bg-[rgba(212,197,163,.18)]' : 'bg-transparent opacity-70',
+      )}
+    >
+      <Text
+        className={cn(
+          'font-sans-semibold text-[12px]',
+          active ? 'text-accent' : 'text-ink-dim',
+        )}
+      >
+        {label}
+      </Text>
+    </Tap>
+  );
+}
+
 function AudioPlaybackControls({
   episode,
   episodes,
@@ -133,6 +166,8 @@ function AudioPlaybackControls({
     : 0;
   const isPlaying = isCurrent && player.isPlaying;
   const PrimaryPlaybackIcon = isPlaying ? Pause : Play;
+  const showSectionSwitcher = isCurrent && player.sections.length > 1;
+  const isClassroomSection = player.currentSection === 'classroom';
 
   const play = () => player.playFromQueue(episodes, episode);
   const skipPrevious = () => {
@@ -146,6 +181,20 @@ function AudioPlaybackControls({
 
   return (
     <View className="p-5">
+      {showSectionSwitcher ? (
+        <View className="mb-4 flex-row rounded-xl bg-[rgba(255,255,255,.045)] p-1">
+          <SectionChip
+            active={!isClassroomSection}
+            label="Story"
+            onPress={() => player.skipToSection('main')}
+          />
+          <SectionChip
+            active={isClassroomSection}
+            label="Classroom"
+            onPress={() => player.skipToSection('classroom')}
+          />
+        </View>
+      ) : null}
       <Slider
         accessibilityLabel="Seek episode"
         disabled={!isCurrent || duration <= 0}
@@ -217,7 +266,7 @@ function AudioPlaybackControls({
         >
           <Gauge size={14} strokeWidth={2} color="#a1a1aa" />
           <Text className="font-mono text-[11px] text-ink-dim">
-            {player.speed}x
+            {player.speed}x{isClassroomSection ? ' · Classroom' : ''}
           </Text>
         </Tap>
       </View>
@@ -249,9 +298,14 @@ export function EpisodeMediaPlayer({
 
   const isCurrentAudio =
     player.nowPlaying?.localizationId === episode.localizationId;
-  const audioHandoffTime = isCurrentAudio
-    ? finiteSeconds(player.currentTime)
-    : finiteSeconds(episode.lastPositionSeconds);
+  // The video is the main narration. When the classroom section is playing,
+  // the main narration has finished, so hand off at the video's end rather than
+  // the classroom-relative position.
+  const audioHandoffTime = !isCurrentAudio
+    ? finiteSeconds(episode.lastPositionSeconds)
+    : player.currentSection === 'classroom'
+      ? finiteSeconds(episode.video?.durationSeconds ?? 0)
+      : finiteSeconds(player.currentTime);
 
   const persistVideoPosition = useCallback(
     (seconds: number, force = false) => {

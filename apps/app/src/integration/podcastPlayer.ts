@@ -13,9 +13,20 @@ import {
   clampPodcastPlaybackSeconds,
   createPodcastPlayerSnapshot,
   finiteSeconds,
-  hasNextPodcastEpisode,
   isSamePodcastEpisode,
 } from '@/integration/podcastPlayerShared';
+import type {
+  PodcastPlaybackSection,
+  PodcastSectionKind,
+} from '@/integration/podcastSections';
+import {
+  buildPlaybackSections,
+  persistSpeedPreferences,
+  readStoredSpeedPreferences,
+  resolveFinishedPlayback,
+  speedForSection,
+  withSectionSpeed,
+} from '@/integration/podcastSections';
 import { usePodcastPlayerQueue } from '@/integration/usePodcastPlayerQueue';
 // jscpd:ignore-end
 
@@ -26,14 +37,65 @@ export function usePodcastPlayer(): PodcastPlayer {
   });
   const status = useAudioPlayerStatus(audioPlayer);
   const [nowPlaying, setNowPlaying] = useState<PodcastEpisode | null>(null);
-  const [speed, setSpeedState] = useState(1);
+  const [speedPreferences, setSpeedPreferences] = useState(
+    readStoredSpeedPreferences,
+  );
+  const [currentSection, setCurrentSection] =
+    useState<PodcastSectionKind>('main');
   const pendingHandoffRef = useRef<PendingPodcastPlaybackHandoff | null>(null);
   const handoffIdRef = useRef(0);
   const [handoffRevision, setHandoffRevision] = useState(0);
+  const finishConsumedRef = useRef(false);
+  const lockScreenActiveRef = useRef(false);
+
+  const sections = useMemo(
+    () => (nowPlaying === null ? [] : buildPlaybackSections(nowPlaying)),
+    [nowPlaying],
+  );
 
   useEffect(() => {
-    void setAudioModeAsync({ playsInSilentMode: true });
+    // `shouldPlayInBackground` keeps audio alive with the screen off; the JS
+    // that drives the main->classroom transition stays running while the audio
+    // session is active. `doNotMix` is required for the lock-screen controls
+    // enabled below (and by expo-audio's Android media foreground service).
+    void setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: true,
+      interruptionMode: 'doNotMix',
+    });
   }, []);
+
+  // Lock-screen / media-session controls. On Android this also binds the media
+  // foreground service that sustains background playback past ~3 minutes, so the
+  // main->classroom transition survives the screen being off.
+  useEffect(() => {
+    if (nowPlaying === null) return;
+    const metadata = {
+      title:
+        currentSection === 'classroom'
+          ? `${nowPlaying.title} — Language Classroom`
+          : nowPlaying.title,
+      artist: 'From Fed to Chain',
+    };
+    if (lockScreenActiveRef.current) {
+      audioPlayer.updateLockScreenMetadata(metadata);
+    } else {
+      lockScreenActiveRef.current = true;
+      audioPlayer.setActiveForLockScreen(true, metadata, {
+        showSeekForward: true,
+        showSeekBackward: true,
+      });
+    }
+  }, [audioPlayer, nowPlaying, currentSection]);
+
+  useEffect(
+    () => () => {
+      if (lockScreenActiveRef.current) {
+        audioPlayer.clearLockScreenControls();
+      }
+    },
+    [audioPlayer],
+  );
 
   const cancelPendingHandoff = useCallback(() => {
     handoffIdRef.current += 1;
@@ -60,11 +122,43 @@ export function usePodcastPlayer(): PodcastPlayer {
     (episode: PodcastEpisode) => {
       cancelPendingHandoff();
       audioPlayer.replace({ uri: episode.hlsUrl, name: episode.title });
-      audioPlayer.setPlaybackRate(speed);
+      audioPlayer.setPlaybackRate(speedForSection(speedPreferences, 'main'));
       setNowPlaying(episode);
+      setCurrentSection('main');
       audioPlayer.play();
     },
-    [audioPlayer, cancelPendingHandoff, speed],
+    [audioPlayer, cancelPendingHandoff, speedPreferences],
+  );
+
+  // Swap the loaded source to a section of the current episode (main or
+  // classroom) and apply that section's independent playback speed.
+  const playSection = useCallback(
+    (section: PodcastPlaybackSection, atSeconds = 0, shouldPlay = true) => {
+      cancelPendingHandoff();
+      audioPlayer.replace({
+        uri: section.hlsUrl,
+        name: nowPlaying?.title ?? '',
+      });
+      audioPlayer.setPlaybackRate(
+        speedForSection(speedPreferences, section.kind),
+      );
+      setCurrentSection(section.kind);
+
+      const startAt = finiteSeconds(atSeconds);
+      if (startAt > 0) {
+        const handoffId = handoffIdRef.current + 1;
+        handoffIdRef.current = handoffId;
+        pendingHandoffRef.current = {
+          id: handoffId,
+          seconds: startAt,
+          shouldPlay,
+        };
+        setHandoffRevision((current) => current + 1);
+      } else if (shouldPlay) {
+        audioPlayer.play();
+      }
+    },
+    [audioPlayer, cancelPendingHandoff, nowPlaying?.title, speedPreferences],
   );
 
   // jscpd:ignore-start — native and web handoffs enforce the same transition
@@ -82,13 +176,14 @@ export function usePodcastPlayer(): PodcastPlayer {
 
       if (!isSamePodcastEpisode(nowPlaying, episode)) {
         audioPlayer.replace({ uri: episode.hlsUrl, name: episode.title });
-        audioPlayer.setPlaybackRate(speed);
+        audioPlayer.setPlaybackRate(speedForSection(speedPreferences, 'main'));
         setNowPlaying(episode);
+        setCurrentSection('main');
       }
 
       setHandoffRevision((current) => current + 1);
     },
-    [audioPlayer, nowPlaying, speed],
+    [audioPlayer, nowPlaying, speedPreferences],
   );
   // jscpd:ignore-end
 
@@ -130,15 +225,34 @@ export function usePodcastPlayer(): PodcastPlayer {
     [],
   );
 
-  // Auto-advance to the next queued episode when the current one finishes.
+  // When the current source finishes, play the classroom section before
+  // advancing to the next episode (section advance precedes episode advance),
+  // then auto-advance so a "play unheard" queue plays through. The consumed
+  // latch guards against a stale `didJustFinish` snapshot double-firing this
+  // effect across re-renders and skipping the classroom section.
   useEffect(() => {
-    if (
-      status.didJustFinish &&
-      hasNextPodcastEpisode(queueState.queue, queueState.queueIndex)
-    ) {
+    if (!status.didJustFinish) {
+      finishConsumedRef.current = false;
+      return;
+    }
+    if (finishConsumedRef.current) return;
+    finishConsumedRef.current = true;
+
+    const action = resolveFinishedPlayback({
+      sections,
+      currentSection,
+      queue: queueState.queue,
+      queueIndex: queueState.queueIndex,
+    });
+    if (action.type === 'playSection') {
+      // The external audio 'finished' event drives an imperative section
+      // transition (swap source + set current section); it is not derived state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      playSection(action.section);
+    } else if (action.type === 'nextEpisode') {
       queueState.skipToNextEpisode();
     }
-  }, [status.didJustFinish, queueState]);
+  }, [status.didJustFinish, sections, currentSection, queueState, playSection]);
 
   const seek = useCallback(
     (seconds: number) => {
@@ -158,13 +272,32 @@ export function usePodcastPlayer(): PodcastPlayer {
     [seek, status.currentTime],
   );
 
+  // Setting speed writes only the CURRENT section's preference; classroom and
+  // main speeds stay independent.
   const setSpeed = useCallback(
     (nextSpeed: number) => {
-      setSpeedState(nextSpeed);
-      audioPlayer.setPlaybackRate(nextSpeed);
+      const updated = withSectionSpeed(
+        speedPreferences,
+        currentSection,
+        nextSpeed,
+      );
+      setSpeedPreferences(updated);
+      persistSpeedPreferences(updated);
+      audioPlayer.setPlaybackRate(speedForSection(updated, currentSection));
     },
-    [audioPlayer],
+    [audioPlayer, currentSection, speedPreferences],
   );
+
+  const skipToSection = useCallback(
+    (kind: PodcastSectionKind, atSeconds = 0) => {
+      const target = sections.find((section) => section.kind === kind);
+      if (target === undefined) return;
+      playSection(target, atSeconds, true);
+    },
+    [playSection, sections],
+  );
+
+  const speed = speedForSection(speedPreferences, currentSection);
 
   // jscpd:ignore-start — platform snapshots implement the same public contract
   return useMemo(() => {
@@ -177,6 +310,8 @@ export function usePodcastPlayer(): PodcastPlayer {
       currentTime: status.currentTime,
       duration: status.duration,
       speed,
+      sections,
+      currentSection,
       queue: queueState.queue,
       queueIndex: queueState.queueIndex,
       pause,
@@ -187,6 +322,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       seekRelative,
       skipToPreviousEpisode: queueState.skipToPreviousEpisode,
       skipToNextEpisode: queueState.skipToNextEpisode,
+      skipToSection,
       setSpeed,
     });
   }, [
@@ -197,6 +333,9 @@ export function usePodcastPlayer(): PodcastPlayer {
     seekRelative,
     setSpeed,
     speed,
+    sections,
+    currentSection,
+    skipToSection,
     status.currentTime,
     status.duration,
     status.playing,

@@ -110,6 +110,8 @@ describe('createPodcastPlayerSnapshot', () => {
       currentTime: 0,
       duration: 0,
       speed: 1.5,
+      sections: [],
+      currentSection: 'main',
       queue: [],
       queueIndex: -1,
       pause: noop,
@@ -120,6 +122,7 @@ describe('createPodcastPlayerSnapshot', () => {
       seekRelative: noop,
       skipToPreviousEpisode: () => null,
       skipToNextEpisode: () => null,
+      skipToSection: noop,
       setSpeed: noop,
     });
 
@@ -139,6 +142,8 @@ describe('createPodcastPlayerSnapshot', () => {
       currentTime: Number.NaN,
       duration: Number.POSITIVE_INFINITY,
       speed: 1,
+      sections: [],
+      currentSection: 'main',
       queue,
       queueIndex: 1,
       pause: noop,
@@ -149,6 +154,7 @@ describe('createPodcastPlayerSnapshot', () => {
       seekRelative: noop,
       skipToPreviousEpisode: () => queue[0] ?? null,
       skipToNextEpisode: () => queue[2] ?? null,
+      skipToSection: noop,
       setSpeed: noop,
     });
 

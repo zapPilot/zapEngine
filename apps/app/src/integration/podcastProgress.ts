@@ -5,10 +5,17 @@
  * device (web `localStorage`) instead of an account-synced backend.
  */
 import type { PodcastEpisode } from '@/integration/podcastFeed';
+import type { PodcastSectionKind } from '@/integration/podcastSections';
 
 export interface PodcastEpisodeProgress {
   listened: boolean;
   lastPositionSeconds: number;
+  /**
+   * Which playback section `lastPositionSeconds` belongs to. Absent means the
+   * main narration (backward compatible: entries written before sectioned
+   * playback resume into the main section).
+   */
+  lastPositionSection?: PodcastSectionKind;
 }
 
 export type PodcastProgressMap = Record<string, PodcastEpisodeProgress>;

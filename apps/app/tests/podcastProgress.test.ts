@@ -167,4 +167,26 @@ describe('mergeEpisodeProgress', () => {
     expect(mergeEpisodeProgress(zh, progress).listened).toBe(true);
     expect(mergeEpisodeProgress(ja, progress).listened).toBe(false);
   });
+
+  it('merges legacy entries without a section and section-tagged entries alike', () => {
+    const episode = makeEpisode({ lastPositionSeconds: 0 });
+    // Legacy entry (written before sectioned playback) has no section field.
+    const legacy: PodcastProgressMap = {
+      'loc-zh-1': { listened: false, lastPositionSeconds: 42 },
+    };
+    expect(mergeEpisodeProgress(episode, legacy).lastPositionSeconds).toBe(42);
+
+    // A classroom-section position merges the same way; the section lives on the
+    // stored entry and is read directly by the tracker, not via the episode.
+    const classroom: PodcastProgressMap = {
+      'loc-zh-1': {
+        listened: false,
+        lastPositionSeconds: 30,
+        lastPositionSection: 'classroom',
+      },
+    };
+    expect(mergeEpisodeProgress(episode, classroom).lastPositionSeconds).toBe(
+      30,
+    );
+  });
 });

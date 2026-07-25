@@ -63,6 +63,8 @@ export function createPodcastPlayerSnapshot({
   currentTime,
   duration,
   speed,
+  sections,
+  currentSection,
   queue,
   queueIndex,
   pause,
@@ -73,6 +75,7 @@ export function createPodcastPlayerSnapshot({
   seekRelative,
   skipToPreviousEpisode,
   skipToNextEpisode,
+  skipToSection,
   setSpeed,
 }: PodcastPlayerSnapshotParams): PodcastPlayer {
   return {
@@ -81,6 +84,8 @@ export function createPodcastPlayerSnapshot({
     currentTime: finiteSeconds(currentTime),
     duration: finiteSeconds(duration),
     speed,
+    sections,
+    currentSection,
     queue,
     queueIndex,
     hasPreviousEpisode: hasPreviousPodcastEpisode(queue, queueIndex),
@@ -93,6 +98,7 @@ export function createPodcastPlayerSnapshot({
     seekRelative,
     skipToPreviousEpisode,
     skipToNextEpisode,
+    skipToSection,
     setSpeed,
   };
 }
