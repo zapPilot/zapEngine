@@ -845,6 +845,8 @@ describe('POST /ingest pipeline', () => {
     );
     expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
       expect.objectContaining({
+        articleText: '滑鼠和腳踏車市場',
+        script: 'Generated script',
         sourceLanguageCode: 'zh-Hant',
         targetLanguageCodes: ['ja', 'en'],
       }),

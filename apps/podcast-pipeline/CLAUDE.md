@@ -28,3 +28,12 @@ The canonical contract is:
 Never reintroduce `concatMainWithClassroomAudio` or equivalent logic that appends classroom audio into the main HLS.
 
 All tests must exercise the same fail-closed classroom audio invariant as production. Do not add test-only switches that make canonical classroom audio optional.
+
+## Language classroom content invariant
+
+The audio-section invariant above governs the two HLS *artifacts*. This section governs the *content* those artifacts carry. The content layer has no schema/DB enforcement, so it is guarded by `src/services/llm.classroom.strict.test.ts` and the independent `scripts/check-classroom-contract.mjs` gate (wired into `lint`).
+
+- **Grounding is required.** The classroom lesson generator (`generateLanguageClassroomsWithLLM` in `src/services/llm.ts`) must receive the title **and** the full article text **and** the podcast script. `LanguageClassroomInput` carries `articleText` and `script`; `buildLanguageClassroomUserMessage` must include the `文章內容：` and `Podcast 講稿：` blocks; the `ensureLanguageClassrooms` call site (`src/services/ingest/audio-stage.ts`) must pass `localization.raw_text` and `localization.script`. Narrowing the prompt to the title alone is a content regression, not a simplification.
+- **Keyword selection is concept-based and shared.** Keywords are the episode's core financial/crypto concepts chosen from the article and script (thinking in `zh-Hant`), not substrings of the title or `oneLiner`. Every target language teaches the same shared concept set (same count and order). `oneLiner` remains the title translation used only as the classroom opening line.
+- **Contract changes need explicit product sign-off.** Changing the system prompt, the input contract, or the lesson shape is a product decision. Do not alter it as an incidental part of unrelated work, and never rewrite the strict/contract tests in the same change to make a narrowed prompt pass.
+- **App-side dual-section contract.** `hls_url` and `classroom_hls_url` are two playback sections of one logical episode. The app (`apps/app`) must play them sequentially with independent per-section speed (classroom defaults to 1.0x); see `apps/app/src/integration/podcastSections.ts` and its tests. Dropping classroom playback on the client is the app-side equivalent of a main-only fallback.

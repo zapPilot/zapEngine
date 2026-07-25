@@ -6,7 +6,9 @@ description: >-
   or mobile main/classroom playback contracts. Symptoms include completed
   episodes with no classroom track, classroom audio appended to main audio,
   main-only fallback after classroom failures, duplicate classroom playback,
-  or repeated regressions around classroom_hls_url.
+  repeated regressions around classroom_hls_url, a classroom lesson prompt
+  narrowed to the title (losing article/script grounding), or the app dropping
+  classroom playback.
 ---
 
 # Podcast audio section integrity
@@ -16,6 +18,8 @@ description: >-
 **A canonical podcast localization is complete only when it has two separate audio artifacts: main narration and language classroom. Missing classroom output is an ingest failure, not a degraded success.**
 
 Do not use `status === completed` as the only readiness signal. Validate the required artifact URLs.
+
+**Two layers, both load-bearing.** The *artifact* layer (two separate HLS sections, enforced by schema + `audio-stage.strict.test.ts`) is the historically fragile one. The *content* layer has no schema/DB enforcement and is guarded only by `llm.classroom.strict.test.ts` and the independent `scripts/check-classroom-contract.mjs` gate: the classroom lesson prompt must stay grounded in the article and script (not just the title), keywords are concept-based and shared across every target language, and the app must actually play both sections. A prior regression narrowed the prompt to the title and rewrote its unit test in the same diff — a co-editable unit test is not a guard against that.
 
 ## Canonical contract
 
@@ -56,6 +60,22 @@ Secondary localizations without configured classroom targets may complete with m
   - defines which source languages require classroom targets.
 - `apps/podcast-pipeline/src/services/ingest/audio-stage.strict.test.ts`
   - focused regressions for production-strength classroom integrity.
+- `apps/podcast-pipeline/src/services/llm.ts`
+  - `LanguageClassroomInput` (carries `articleText` + `script`),
+    `buildLanguageClassroomUserMessage`, and `languageClassroomSystemPrompt`
+    define the content contract: article/script grounding + concept-based,
+    shared keyword selection.
+- `apps/podcast-pipeline/src/services/llm.classroom.strict.test.ts`
+  - production-contract tests for the content layer; must not be weakened.
+- `apps/podcast-pipeline/scripts/check-classroom-contract.mjs`
+  - vitest-independent gate (wired into `lint`) asserting grounding is present
+    in `llm.ts` source, so co-editing tests cannot hide a narrowed prompt.
+- `apps/app/src/integration/podcastSections.ts` (+ `podcastSections.test.ts`,
+  `podcastPlaybackTransitions.test.ts`)
+  - client-side dual-section contract: `buildPlaybackSections` includes
+    classroom whenever `classroomHlsUrl` is present; `resolveFinishedPlayback`
+    plays the classroom section before advancing to the next episode;
+    per-section playback speed (classroom defaults to 1.0x).
 
 ## Required regression cases
 
@@ -74,6 +94,17 @@ When touching this flow, preserve all of these:
     artifact-complete `audio_generated` row promotes without regeneration.
 11. A persistence result or public read path cannot expose completed canonical
     audio when either HLS URL is blank.
+12. The classroom lesson prompt stays grounded: `generateLanguageClassroomsWithLLM`
+    receives the title, full article text, and script, and the user message
+    includes the `文章內容：` and `Podcast 講稿：` blocks. Narrowing to the title
+    alone is a regression.
+13. Keyword selection is concept-based and shared across target languages
+    (chosen from the article/script, not derived from the title/`oneLiner`); the
+    "keywords must come from oneLiner" rule does not return.
+14. The app builds a classroom playback section whenever `classroomHlsUrl` is
+    present and plays it before advancing to the next episode, with independent
+    per-section speed (classroom defaults to 1.0x). Dropping classroom playback
+    client-side is the app-side main-only fallback.
 
 ## Test environment rule
 
@@ -109,3 +140,5 @@ pnpm verify changed
 | "Regenerating main during repair is harmless."                           | It wastes TTS cost and can change an already published narration. Reuse main HLS.                     |
 | "One classroom target failed, but the rest are enough."                  | Configured targets are the contract. Required target output must be complete.                         |
 | "The unit tests mock empty lessons, so production should tolerate them." | Test fixtures are not the product contract; strict regression tests must cover production behavior.   |
+| "The article/script is redundant context — dropping it just saves tokens."| The classroom prompt's grounding IS the product. Narrowing to the title is a content regression; changing the contract needs explicit product sign-off, not an incidental edit. |
+| "I'll update the test in the same change to match the new prompt."         | That is exactly how the last regression shipped. Content-contract tests and `check-classroom-contract.mjs` are guards, not obstacles to edit around.                             |

@@ -513,6 +513,8 @@ async function ensureLanguageClassrooms(
     const generated = await step('generateLanguageClassrooms', () =>
       generateLanguageClassroomsWithLLM({
         title: localization.title,
+        articleText: localization.raw_text ?? '',
+        script: localization.script ?? '',
         sourceLanguageCode,
         targetLanguageCodes: missingTargets,
       }),

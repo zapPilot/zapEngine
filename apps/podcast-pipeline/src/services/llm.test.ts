@@ -210,16 +210,20 @@ describe('buildUserMessage', () => {
 });
 
 describe('buildLanguageClassroomUserMessage', () => {
-  it('sends only the title and requested languages', () => {
+  it('grounds the prompt in the title, article, and script', () => {
     const result = buildLanguageClassroomUserMessage({
       title: 'Title',
+      articleText: 'Article',
+      script: 'Script',
       sourceLanguageCode: 'zh-Hant',
       targetLanguageCodes: ['ja', 'en'],
     });
 
-    expect(result).toBe('主語言：zh-Hant\n目標語言：ja, en\n標題：Title');
-    expect(result).not.toContain('文章內容');
-    expect(result).not.toContain('Podcast 講稿');
+    expect(result).toContain('主語言：zh-Hant');
+    expect(result).toContain('目標語言：ja, en');
+    expect(result).toContain('標題：Title');
+    expect(result).toContain('文章內容：\nArticle');
+    expect(result).toContain('Podcast 講稿：\nScript');
   });
 });
 
@@ -695,6 +699,8 @@ describe('generateLanguageClassroomsWithLLM', () => {
 
     const result = await generateLanguageClassroomsWithLLM({
       title: '市場流動性',
+      articleText: '這篇文章解釋市場流動性與資金進出。',
+      script: '大家好，今天談市場流動性。',
       sourceLanguageCode: 'zh-Hant',
       targetLanguageCodes: ['ja', 'en'],
     });
@@ -728,6 +734,8 @@ ${validLanguageClassroomPayload()}
 
     const result = await generateLanguageClassroomsWithLLM({
       title: '市場流動性',
+      articleText: '這篇文章解釋市場流動性與資金進出。',
+      script: '大家好，今天談市場流動性。',
       sourceLanguageCode: 'zh-Hant',
       targetLanguageCodes: ['ja'],
     });
@@ -767,6 +775,8 @@ ${validLanguageClassroomPayload()}
       await expect(
         generateLanguageClassroomsWithLLM({
           title: 'Title',
+          articleText: 'Article',
+          script: 'Script',
           sourceLanguageCode: 'zh-Hant',
           targetLanguageCodes: ['ja'],
         }),
@@ -786,6 +796,8 @@ ${validLanguageClassroomPayload()}
     await expect(
       generateLanguageClassroomsWithLLM({
         title: 'Title',
+        articleText: 'Article',
+        script: 'Script',
         sourceLanguageCode: 'zh-Hant',
         targetLanguageCodes: ['ja'],
       }),
@@ -804,6 +816,8 @@ ${validLanguageClassroomPayload()}
     await expect(
       generateLanguageClassroomsWithLLM({
         title: 'Title',
+        articleText: 'Article',
+        script: 'Script',
         sourceLanguageCode: 'zh-Hant',
         targetLanguageCodes: ['ja'],
       }),
