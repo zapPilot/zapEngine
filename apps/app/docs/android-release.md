@@ -168,16 +168,19 @@ Create a signed production AAB on EAS:
 pnpm --filter @zapengine/app android:release
 ```
 
-Submit the latest successful EAS build to Internal testing:
+Submit the latest finished **production store** build to Internal testing:
 
 ```bash
 pnpm --filter @zapengine/app android:submit
 ```
 
-This command uses `--latest`, so it is safe for retrying a failed submission
-without rebuilding or consuming another Android `versionCode`.
+The wrapper filters EAS builds by Android, `production`, `store`, and `finished`,
+then submits the exact build ID. Do not replace it with an unfiltered
+`eas submit --latest`: a newer preview APK could otherwise be selected and be
+fully shadowed by an existing production AAB in Google Play.
 
-After the one-time setup is complete, build and submit in one command:
+After the one-time setup is complete, build and submit the exact resulting build
+in one command:
 
 ```bash
 pnpm --filter @zapengine/app android:publish
@@ -221,6 +224,9 @@ does not rename the existing Play listing by itself.
   new app or silently replace the key.
 - **Version code already used:** check EAS remote version state and set it to the
   highest version currently present in Play Console, then rebuild.
+- **Shadowed APK:** do not submit an unfiltered latest build. Use
+  `android:submit` or `android:publish` so only the production store build is
+  selected.
 - **Runtime config missing:** add the required variable to the EAS `production`
   environment; the local `.env` is not uploaded.
 - **Publishing API disabled:** enable `androidpublisher.googleapis.com` in the
