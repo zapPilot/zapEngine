@@ -1,5 +1,5 @@
 import { usePathname } from 'expo-router';
-import { type ReactElement, useEffect, useRef, useState } from 'react';
+import { type ReactElement, useEffect, useState } from 'react';
 
 import { resolveOwnBundleUrlSearch } from '@/integration/bundleShareModel';
 import { getBundleViewUserId } from '@/integration/bundleViewParam';
@@ -23,10 +23,6 @@ export function OwnBundleUrlSync(): ReactElement | null {
     return () => cancelAnimationFrame(id);
   }, []);
 
-  const flushedUserIdRef = useRef(userId);
-  const userIdKey =
-    userId === flushedUserIdRef.current ? 0 : (flushedUserIdRef.current = userId, +new Date());
-
   useEffect(() => {
     if (!ready) return;
     if (typeof window === 'undefined') return;
@@ -44,9 +40,7 @@ export function OwnBundleUrlSync(): ReactElement | null {
       '',
       `${locationPathname}${query}${hash}`,
     );
-    // Only re-sync when the path changes, not when userId resolves.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, ready, userIdKey]);
+  }, [pathname, ready, userId]);
 
   return null;
 }
