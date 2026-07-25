@@ -494,6 +494,14 @@ setup_database_schema() {
     # Step 4: Apply comprehensive compatibility shim
     apply_schema_compat_shim "$env"
 
+    # Step 5: Ensure incremental portfolio rollup infra is installed even when
+    # schema dumps were used (migrations 023/024 add private.* tables and the
+    # process_portfolio_rollup_queue function). The bootstrap SQL is idempotent
+    # and skips existing objects (CREATE TABLE IF NOT EXISTS, CREATE OR REPLACE
+    # FUNCTION), so it is safe to run regardless of whether we used dumps or
+    # fresh bootstrap.
+    bootstrap_schema "$env" || true
+
     printf '%b\n' "${GREEN}[Pre-commit Tests] Schema setup complete${NC}"
 }
 
