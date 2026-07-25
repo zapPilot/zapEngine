@@ -1,3 +1,5 @@
+\ir ../bootstrap-integration-db.sql
+
 ALTER TABLE IF EXISTS users
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(),
     ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
