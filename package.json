@@ -35,6 +35,9 @@
     "node": "24.x",
     "pnpm": ">=10.0.0"
   },
+  "overrides": {
+    "brace-expansion": ">=5.0.8"
+  },
   "lint-staged": {
     "apps/account-engine/**/*.{ts,tsx}": [
       "pnpm --filter @zapengine/account-engine exec eslint --fix",
