@@ -1,8 +1,9 @@
-import type {
-  DepositPlan,
-  PlanOrchestrationDepositPlan,
-  PreparedTransaction,
-  StrategyDepositPlan,
+import {
+  type DepositPlan,
+  type PlanOrchestrationDepositPlan,
+  type PreparedTransaction,
+  type StrategyDepositPlan,
+  SUPPORTED_DEPOSIT_CHAINS,
 } from '@zapengine/types/api';
 import { formatEther, formatUnits } from 'viem';
 
@@ -33,6 +34,24 @@ export function isStrategyDepositPlan(
   plan: PlanOrchestrationDepositPlan | undefined,
 ): plan is StrategyDepositPlan {
   return Boolean(plan && 'executionGroups' in plan);
+}
+
+export function isDepositPlanForScope(
+  plan: PlanOrchestrationDepositPlan | undefined,
+  scope: InvestScope,
+): boolean {
+  if (scope === 'both') {
+    return isStrategyDepositPlan(plan);
+  }
+  if (!plan || isStrategyDepositPlan(plan)) {
+    return false;
+  }
+  return (
+    plan.sourceChainId ===
+    (scope === 'base'
+      ? SUPPORTED_DEPOSIT_CHAINS.BASE
+      : SUPPORTED_DEPOSIT_CHAINS.ARBITRUM)
+  );
 }
 
 function transactionActionLabel(
@@ -181,11 +200,7 @@ function StrategySummary({
         value={String(strategyTransactionCount(plan))}
         divider
       />
-      <InfoRow
-        label="Gas"
-        value={formatPlanGas(plan?.totalGasUsd)}
-        divider={variant === 'confirm'}
-      />
+      <InfoRow label="Gas" value={formatPlanGas(plan?.totalGasUsd)} divider />
       <InfoRow
         label="GMX execution fee"
         value={executionFeeLabel(arbitrumGroup?.calls)}
@@ -247,7 +262,11 @@ function SingleChainSummary({
         divider
       />
       <InfoRow label="Transactions" value={String(transactionCount)} divider />
-      <InfoRow label="Gas" value={formatPlanGas(plan?.totalGasUsd)} divider />
+      <InfoRow
+        label="Gas"
+        value={formatPlanGas(plan?.totalGasUsd)}
+        divider={variant === 'confirm' || !isBase}
+      />
       {!isBase ? (
         <InfoRow
           label="GMX execution fee"

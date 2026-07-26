@@ -16,6 +16,7 @@ import {
 import {
   STRATEGY_DEPOSIT_ID,
   type PlanOrchestrationDepositPlan,
+  type PlanOrchestrationDepositRequest,
 } from '@zapengine/types/api';
 
 import {
@@ -128,8 +129,96 @@ export function useInvest(): InvestContextValue {
   return context;
 }
 
+interface InvestDepositPlanRequestParams {
+  userAddress: `0x${string}`;
+  scope: InvestScope;
+  totalUsd6: string;
+  baseFundingToken: DesktopDepositToken;
+  arbitrumFundingToken: DesktopDepositToken;
+  singleChainFundingDraft: SingleChainFundingDraft | null;
+}
+
+export function buildInvestDepositPlanRequest({
+  userAddress,
+  scope,
+  totalUsd6,
+  baseFundingToken,
+  arbitrumFundingToken,
+  singleChainFundingDraft,
+}: InvestDepositPlanRequestParams): PlanOrchestrationDepositRequest | null {
+  if (scope === 'both') {
+    return {
+      kind: 'strategy',
+      strategyId: STRATEGY_DEPOSIT_ID,
+      userAddress,
+      totalUsd6,
+      fundingSources: [
+        {
+          chainId: 8453,
+          fromToken: baseFundingToken.depositAddress,
+        },
+        {
+          chainId: 42161,
+          fromToken: arbitrumFundingToken.depositAddress,
+        },
+      ],
+    };
+  }
+  if (!singleChainFundingDraft || singleChainFundingDraft.scope !== scope) {
+    return null;
+  }
+  if (singleChainFundingDraft.scope === 'base') {
+    return {
+      kind: 'invest',
+      userAddress,
+      fromToken: singleChainFundingDraft.fromToken,
+      fromAmount: singleChainFundingDraft.fromAmount,
+      sourceChainId: singleChainFundingDraft.chainId,
+      split: { '8453': 1 },
+    };
+  }
+  return {
+    kind: 'gmx-v2',
+    userAddress,
+    marketKey: singleChainFundingDraft.marketKey,
+    amount: singleChainFundingDraft.fromAmount,
+  };
+}
+
+export function buildInvestDepositPlanPreviewKey(
+  scope: InvestScope,
+  request: PlanOrchestrationDepositRequest | null,
+): readonly unknown[] {
+  if (!request) {
+    return [scope, 'no-frozen-draft'];
+  }
+  if (request.kind === 'strategy') {
+    return [
+      scope,
+      request.totalUsd6,
+      request.fundingSources[0].fromToken,
+      request.fundingSources[1].fromToken,
+    ];
+  }
+  if (request.kind === 'invest') {
+    return [
+      scope,
+      request.sourceChainId,
+      request.fromToken,
+      request.fromAmount,
+    ];
+  }
+  return [
+    scope,
+    42161,
+    DEFAULT_ARBITRUM_FUNDING_TOKEN.depositAddress,
+    request.amount,
+    request.marketKey,
+  ];
+}
+
 /**
- * Shares one strategy-plan query across the route and confirm screens.
+ * Shares one deposit-plan query across the route and confirm screens.
  */
 export function useInvestDepositPlanPreview(): {
   plan: PlanOrchestrationDepositPlan | undefined;
@@ -150,75 +239,34 @@ export function useInvestDepositPlanPreview(): {
     arbitrumFundingToken,
     singleChainFundingDraft,
   } = useInvest();
-  const hasMatchingSingleChainDraft =
-    scope !== 'both' && singleChainFundingDraft?.scope === scope;
+  const request = address
+    ? buildInvestDepositPlanRequest({
+        userAddress: address as `0x${string}`,
+        scope,
+        totalUsd6,
+        baseFundingToken,
+        arbitrumFundingToken,
+        singleChainFundingDraft,
+      })
+    : null;
   const enabled = Boolean(
-    address &&
-    amountUsd > 0 &&
-    totalUsd6 !== '0' &&
-    (scope === 'both' || hasMatchingSingleChainDraft),
+    address && request && amountUsd > 0 && totalUsd6 !== '0',
   );
-  const requestKey =
-    scope === 'both'
-      ? [
-          scope,
-          totalUsd6,
-          baseFundingToken.depositAddress,
-          arbitrumFundingToken.depositAddress,
-        ]
-      : singleChainFundingDraft?.scope === scope
-        ? [
-            singleChainFundingDraft.scope,
-            singleChainFundingDraft.chainId,
-            singleChainFundingDraft.fromToken,
-            singleChainFundingDraft.fromAmount,
-            singleChainFundingDraft.scope === 'arbitrum'
-              ? singleChainFundingDraft.marketKey
-              : null,
-          ]
-        : [scope, 'no-frozen-draft'];
+  const requestKey = buildInvestDepositPlanPreviewKey(scope, request);
   const result = useQuery({
     queryKey: ['invest-deposit-plan-preview', address, ...requestKey],
     enabled,
     queryFn: (): Promise<PlanOrchestrationDepositPlan> => {
-      const userAddress = address as `0x${string}`;
-      if (scope === 'both') {
-        return getStrategyDepositPlan({
-          kind: 'strategy',
-          strategyId: STRATEGY_DEPOSIT_ID,
-          userAddress,
-          totalUsd6,
-          fundingSources: [
-            {
-              chainId: 8453,
-              fromToken: baseFundingToken.depositAddress,
-            },
-            {
-              chainId: 42161,
-              fromToken: arbitrumFundingToken.depositAddress,
-            },
-          ],
-        });
+      if (!request) {
+        throw new Error('Deposit plan request is unavailable');
       }
-      if (!singleChainFundingDraft || singleChainFundingDraft.scope !== scope) {
-        throw new Error('Single-chain funding draft is unavailable');
+      if (request.kind === 'strategy') {
+        return getStrategyDepositPlan(request);
       }
-      if (singleChainFundingDraft.scope === 'base') {
-        return getDepositPlan({
-          kind: 'invest',
-          userAddress,
-          fromToken: singleChainFundingDraft.fromToken,
-          fromAmount: singleChainFundingDraft.fromAmount,
-          sourceChainId: singleChainFundingDraft.chainId,
-          split: { '8453': 1 },
-        });
+      if (request.kind === 'invest') {
+        return getDepositPlan(request);
       }
-      return getGmxDepositPlan({
-        kind: 'gmx-v2',
-        userAddress,
-        marketKey: singleChainFundingDraft.marketKey,
-        amount: singleChainFundingDraft.fromAmount,
-      });
+      return getGmxDepositPlan(request);
     },
   });
   return {
