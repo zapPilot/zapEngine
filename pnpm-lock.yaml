@@ -136,6 +136,11 @@ overrides:
   vite@<=6.4.1: '>=6.4.2'
   ws@>=8.0.0 <8.21.0: '>=8.21.0'
 
+patchedDependencies:
+  minimatch@3.1.5:
+    hash: 9588ff2dcc6a55df1d84a1f097389e95faa94ed23c71574212b9e5148ecf4c2b
+    path: patches/minimatch@3.1.5.patch
+
 importers:
 
   .:
@@ -13161,7 +13166,7 @@ snapshots:
     dependencies:
       commander: 5.1.0
       glob: 7.2.3
-      minimatch: 3.1.5
+      minimatch: 3.1.5(patch_hash=9588ff2dcc6a55df1d84a1f097389e95faa94ed23c71574212b9e5148ecf4c2b)
 
   '@electron/fuses@1.8.0':
     dependencies:
@@ -13371,7 +13376,7 @@ snapshots:
     dependencies:
       '@eslint/object-schema': 2.1.7
       debug: 4.4.3
-      minimatch: 3.1.5
+      minimatch: 3.1.5(patch_hash=9588ff2dcc6a55df1d84a1f097389e95faa94ed23c71574212b9e5148ecf4c2b)
     transitivePeerDependencies:
       - supports-color
 
@@ -13392,7 +13397,7 @@ snapshots:
       ignore: 5.3.2
       import-fresh: 3.3.1
       js-yaml: 4.3.0
-      minimatch: 3.1.5
+      minimatch: 3.1.5(patch_hash=9588ff2dcc6a55df1d84a1f097389e95faa94ed23c71574212b9e5148ecf4c2b)
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
       - supports-color
@@ -22129,7 +22134,7 @@ snapshots:
 
   dir-compare@4.2.0:
     dependencies:
-      minimatch: 3.1.5
+      minimatch: 3.1.5(patch_hash=9588ff2dcc6a55df1d84a1f097389e95faa94ed23c71574212b9e5148ecf4c2b)
       p-limit: 3.1.0
 
   dir-glob@3.0.1:
@@ -22678,7 +22683,7 @@ snapshots:
       hasown: 2.0.4
       is-core-module: 2.16.2
       is-glob: 4.0.3
-      minimatch: 3.1.5
+      minimatch: 3.1.5(patch_hash=9588ff2dcc6a55df1d84a1f097389e95faa94ed23c71574212b9e5148ecf4c2b)
       object.fromentries: 2.0.8
       object.groupby: 1.0.3
       object.values: 1.2.1
@@ -22707,7 +22712,7 @@ snapshots:
       hasown: 2.0.4
       is-core-module: 2.16.2
       is-glob: 4.0.3
-      minimatch: 3.1.5
+      minimatch: 3.1.5(patch_hash=9588ff2dcc6a55df1d84a1f097389e95faa94ed23c71574212b9e5148ecf4c2b)
       object.fromentries: 2.0.8
       object.groupby: 1.0.3
       object.values: 1.2.1
@@ -22736,7 +22741,7 @@ snapshots:
       hasown: 2.0.4
       is-core-module: 2.16.2
       is-glob: 4.0.3
-      minimatch: 3.1.5
+      minimatch: 3.1.5(patch_hash=9588ff2dcc6a55df1d84a1f097389e95faa94ed23c71574212b9e5148ecf4c2b)
       object.fromentries: 2.0.8
       object.groupby: 1.0.3
       object.values: 1.2.1
@@ -22764,7 +22769,7 @@ snapshots:
       hasown: 2.0.4
       jsx-ast-utils: 3.3.5
       language-tags: 1.0.9
-      minimatch: 3.1.5
+      minimatch: 3.1.5(patch_hash=9588ff2dcc6a55df1d84a1f097389e95faa94ed23c71574212b9e5148ecf4c2b)
       object.fromentries: 2.0.8
       safe-regex-test: 1.1.0
       string.prototype.includes: 2.0.1
@@ -22814,7 +22819,7 @@ snapshots:
       estraverse: 5.3.0
       hasown: 2.0.4
       jsx-ast-utils: 3.3.5
-      minimatch: 3.1.5
+      minimatch: 3.1.5(patch_hash=9588ff2dcc6a55df1d84a1f097389e95faa94ed23c71574212b9e5148ecf4c2b)
       object.entries: 1.1.9
       object.fromentries: 2.0.8
       object.values: 1.2.1
@@ -22836,7 +22841,7 @@ snapshots:
       estraverse: 5.3.0
       hasown: 2.0.4
       jsx-ast-utils: 3.3.5
-      minimatch: 3.1.5
+      minimatch: 3.1.5(patch_hash=9588ff2dcc6a55df1d84a1f097389e95faa94ed23c71574212b9e5148ecf4c2b)
       object.entries: 1.1.9
       object.fromentries: 2.0.8
       object.values: 1.2.1
@@ -22930,7 +22935,7 @@ snapshots:
       is-glob: 4.0.3
       json-stable-stringify-without-jsonify: 1.0.1
       lodash.merge: 4.6.2
-      minimatch: 3.1.5
+      minimatch: 3.1.5(patch_hash=9588ff2dcc6a55df1d84a1f097389e95faa94ed23c71574212b9e5148ecf4c2b)
       natural-compare: 1.4.0
       optionator: 0.9.4
     optionalDependencies:
@@ -22971,7 +22976,7 @@ snapshots:
       is-glob: 4.0.3
       json-stable-stringify-without-jsonify: 1.0.1
       lodash.merge: 4.6.2
-      minimatch: 3.1.5
+      minimatch: 3.1.5(patch_hash=9588ff2dcc6a55df1d84a1f097389e95faa94ed23c71574212b9e5148ecf4c2b)
       natural-compare: 1.4.0
       optionator: 0.9.4
     optionalDependencies:
@@ -24016,7 +24021,7 @@ snapshots:
       fs.realpath: 1.0.0
       inflight: 1.0.6
       inherits: 2.0.4
-      minimatch: 3.1.5
+      minimatch: 3.1.5(patch_hash=9588ff2dcc6a55df1d84a1f097389e95faa94ed23c71574212b9e5148ecf4c2b)
       once: 1.4.0
       path-is-absolute: 1.0.1
 
@@ -25858,7 +25863,7 @@ snapshots:
     dependencies:
       brace-expansion: 5.0.8
 
-  minimatch@3.1.5:
+  minimatch@3.1.5(patch_hash=9588ff2dcc6a55df1d84a1f097389e95faa94ed23c71574212b9e5148ecf4c2b):
     dependencies:
       brace-expansion: 5.0.8
 
