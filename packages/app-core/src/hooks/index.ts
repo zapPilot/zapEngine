@@ -16,6 +16,7 @@ export * from './queries';
 // Feature hooks
 export * from './analytics';
 export * from './bundle';
+export * from './useSingleChainDepositWizard';
 export * from './wallet';
 
 // Utility hooks

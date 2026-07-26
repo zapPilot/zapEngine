@@ -15,7 +15,6 @@ import {
   type PlanOrchestrationDepositRequest,
 } from '@zapengine/types/api';
 import { useCallback, useEffect, useReducer, useRef } from 'react';
-import { flushSync } from 'react-dom';
 import {
   type Address,
   erc20Abi,
@@ -586,16 +585,12 @@ export function useSingleChainDepositWizard(): {
         });
       } catch (error) {
         if (generation === generationRef.current) {
-          flushSync(() => {
-            dispatch({
-              type: 'BATCH_FAILED',
-              message: extractErrorMessage(error, 'Deposit batch failed'),
-              submitted: batchSubmittedRef.current,
-            });
+          dispatch({
+            type: 'BATCH_FAILED',
+            message: extractErrorMessage(error, 'Deposit batch failed'),
+            submitted: batchSubmittedRef.current,
           });
         }
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-        throw error;
       }
     },
     [],
@@ -617,18 +612,14 @@ export function useSingleChainDepositWizard(): {
         }
       } catch (error) {
         if (generation === generationRef.current) {
-          flushSync(() => {
-            dispatch({
-              type: 'SETTLEMENT_FAILED',
-              message: extractErrorMessage(
-                error,
-                'Unable to verify protocol settlement',
-              ),
-            });
+          dispatch({
+            type: 'SETTLEMENT_FAILED',
+            message: extractErrorMessage(
+              error,
+              'Unable to verify protocol settlement',
+            ),
           });
         }
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-        throw error;
       }
     },
     [],

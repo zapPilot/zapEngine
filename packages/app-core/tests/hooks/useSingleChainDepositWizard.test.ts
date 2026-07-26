@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
 import { useSingleChainDepositWizard } from '@core/hooks/useSingleChainDepositWizard';
-import type {
-  DepositPlan,
-  PlanOrchestrationDepositRequest,
+import {
+  type DepositPlan,
+  NATIVE_TOKEN_ADDRESS,
+  type PlanOrchestrationDepositRequest,
 } from '@zapengine/types/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -67,6 +68,12 @@ const gmxRequest: Exclude<
   marketKey: 'btc-usdc',
   amount: '10000000',
   userAddress: USER,
+};
+
+const baseEthRequest = {
+  ...baseRequest,
+  fromToken: NATIVE_TOKEN_ADDRESS,
+  fromAmount: '1000000000000000000',
 };
 
 const basePlan: DepositPlan = {
@@ -140,6 +147,17 @@ const gmxPlan: DepositPlan = {
   ],
   totalGasUsd: '0.02',
   sourceChainId: 42161,
+};
+
+const baseEthPlan: DepositPlan = {
+  ...basePlan,
+  approvals: [],
+  calls: [
+    {
+      ...basePlan.calls[0]!,
+      value: baseEthRequest.fromAmount,
+    },
+  ],
 };
 
 describe('useSingleChainDepositWizard', () => {
@@ -218,16 +236,15 @@ describe('useSingleChainDepositWizard', () => {
     });
 
     wallet.account.address = OTHER_USER;
-    await expect(
-      act(async () => {
-        await result.current.advance();
-      }),
-    ).rejects.toThrow('connected wallet changed');
+    await act(async () => {
+      await result.current.advance();
+    });
 
     expect(mocks.getDepositPlan).toHaveBeenCalledTimes(1);
     expect(mocks.executeDepositPlanWithWallet).not.toHaveBeenCalled();
     expect(result.current.wizard.currentIndex).toBe(1);
     expect(result.current.wizard.steps[1]?.status).toBe('failed');
+    expect(result.current.wizard.error).toContain('connected wallet changed');
   });
 
   it('refreshes, preflights, executes a Privy batch, and verifies settlement', async () => {
@@ -317,14 +334,13 @@ describe('useSingleChainDepositWizard', () => {
       await result.current.start(baseRequest);
       await result.current.advance();
     });
-    await expect(
-      act(async () => {
-        await result.current.advance();
-      }),
-    ).rejects.toThrow('Polling timed out');
+    await act(async () => {
+      await result.current.advance();
+    });
 
     expect(result.current.wizard.currentIndex).toBe(2);
     expect(result.current.wizard.steps[2]?.status).toBe('failed');
+    expect(result.current.wizard.error).toContain('Polling timed out');
     expect(mocks.executeDepositPlanWithWallet).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -337,6 +353,89 @@ describe('useSingleChainDepositWizard', () => {
     expect(mocks.pollUntil).toHaveBeenCalledTimes(2);
     expect(mocks.executeDepositPlanWithWallet).toHaveBeenCalledTimes(1);
     expect(mocks.getDepositPlan).toHaveBeenCalledTimes(2);
+    expect(result.current.wizard.status).toBe('done');
+  });
+
+  it('blocks a low funding balance before wallet submission', async () => {
+    mocks.getDepositPlan.mockResolvedValue(basePlan);
+    mocks.readContract.mockResolvedValue(9_999_999n);
+    const { result } = renderHook(() => useSingleChainDepositWizard());
+
+    await act(async () => {
+      await result.current.start(baseRequest);
+      await result.current.advance();
+    });
+
+    expect(mocks.executeDepositPlanWithWallet).not.toHaveBeenCalled();
+    expect(result.current.wizard.steps[1]?.status).toBe('failed');
+    expect(result.current.wizard.error).toContain('Funding balance too low');
+  });
+
+  it('blocks a low native gas balance before a GMX wallet submission', async () => {
+    wallet.chain.id = 42161;
+    mocks.getDepositPlan.mockResolvedValue(gmxPlan);
+    mocks.readContract.mockResolvedValue(100_000_000n);
+    mocks.getBalance.mockResolvedValue(1_000_000_000_000_000n);
+    const { result } = renderHook(() => useSingleChainDepositWizard());
+
+    await act(async () => {
+      await result.current.start(gmxRequest);
+      await result.current.advance();
+    });
+
+    expect(mocks.executeDepositPlanWithWallet).not.toHaveBeenCalled();
+    expect(result.current.wizard.steps[1]?.status).toBe('failed');
+    expect(result.current.wizard.error).toContain('ETH balance too low');
+  });
+
+  it('reserves gas in addition to the exact Base ETH funding amount', async () => {
+    mocks.getDepositPlan.mockResolvedValue(baseEthPlan);
+    mocks.getBalance.mockResolvedValue(1_000_499_999_999_999_999n);
+    const { result } = renderHook(() => useSingleChainDepositWizard());
+
+    await act(async () => {
+      await result.current.start(baseEthRequest);
+      await result.current.advance();
+    });
+
+    expect(mocks.readContract).not.toHaveBeenCalled();
+    expect(mocks.executeDepositPlanWithWallet).not.toHaveBeenCalled();
+    expect(result.current.wizard.error).toContain('Native balance too low');
+  });
+
+  it('only checks settlement after the executor reports a submitted failure', async () => {
+    mocks.getDepositPlan.mockResolvedValue(basePlan);
+    mocks.readContract
+      .mockResolvedValueOnce(100_000_000n)
+      .mockResolvedValueOnce(4n);
+    mocks.executeDepositPlanWithWallet.mockImplementationOnce(
+      async ({ onBundleSubmitted }) => {
+        onBundleSubmitted?.('0xsubmitted');
+        throw new Error('Batch failed on-chain');
+      },
+    );
+    const { result } = renderHook(() => useSingleChainDepositWizard());
+
+    await act(async () => {
+      await result.current.start(baseRequest);
+      await result.current.advance();
+    });
+
+    expect(result.current.wizard.currentIndex).toBe(2);
+    expect(result.current.wizard.error).toContain(
+      'retry will only check the position',
+    );
+    expect(mocks.executeDepositPlanWithWallet).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      result.current.retry();
+    });
+    await act(async () => {
+      await result.current.advance();
+    });
+
+    expect(mocks.pollUntil).toHaveBeenCalledTimes(1);
+    expect(mocks.executeDepositPlanWithWallet).toHaveBeenCalledTimes(1);
     expect(result.current.wizard.status).toBe('done');
   });
 });
