@@ -2,11 +2,28 @@ import { STRATEGY_MIN_DEPOSIT_USD6 } from '@zapengine/types/api';
 
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
 import {
+  DEFAULT_ARBITRUM_FUNDING_TOKEN,
   BASE_DEPOSIT_TOKENS,
   type DesktopDepositToken,
 } from '@/integration/depositTokens';
 
 export type AmountUnit = 'USD' | 'Token';
+export type InvestScope = 'both' | 'base' | 'arbitrum';
+
+export type SingleChainFundingDraft =
+  | {
+      scope: 'base';
+      chainId: 8453;
+      fromToken: `0x${string}`;
+      fromAmount: string;
+    }
+  | {
+      scope: 'arbitrum';
+      chainId: 42161;
+      fromToken: `0x${string}`;
+      fromAmount: string;
+      marketKey: 'btc-usdc';
+    };
 
 // Shared with the server-side request schema so the amount screen and the
 // zValidator reject the same floor.
@@ -163,6 +180,108 @@ export function spendableUsdForFundingToken(
   }
 
   return Math.max(0, row.usdValue - row.usdPrice * NATIVE_GAS_RESERVE_ETH);
+}
+
+/** Single-chain capacity does not need the strategy's reciprocal 40/60 cap. */
+export function chainMaxUsd(
+  token: DesktopDepositToken,
+  balance: ChainTokenBalanceRow | null,
+): number | null {
+  return spendableUsdForFundingToken(balance, token);
+}
+
+export function requiredChainUnavailableForScope(
+  scope: InvestScope,
+  failedChains: readonly string[],
+  queryFailed: boolean,
+): boolean {
+  if (queryFailed) return true;
+  if (scope === 'base') return failedChains.includes('base');
+  if (scope === 'arbitrum') return failedChains.includes('arbitrum');
+  return failedChains.includes('base') || failedChains.includes('arbitrum');
+}
+
+const USD_PRICE_SCALE = 1_000_000;
+
+/**
+ * Convert an exact USD6 amount into the selected token's base units.
+ *
+ * ETH uses a price rounded up to USD6 precision, then integer division. Both
+ * rounding choices bias the result down so a frozen draft never asks the
+ * wallet for more ETH than the entered USD amount implies.
+ */
+export function singleChainFromAmount(params: {
+  totalUsd6: string;
+  token: DesktopDepositToken;
+  usdPrice: number | null;
+}): string | null {
+  if (!/^\d+$/u.test(params.totalUsd6)) return null;
+  const totalUsd6 = BigInt(params.totalUsd6);
+  if (totalUsd6 <= 0n) return null;
+
+  if (params.token.symbol === 'USDC' && params.token.decimals === 6) {
+    return totalUsd6.toString();
+  }
+  if (params.token.symbol !== 'ETH' || params.token.decimals !== 18) {
+    return null;
+  }
+  if (
+    params.usdPrice === null ||
+    !Number.isFinite(params.usdPrice) ||
+    params.usdPrice <= 0
+  ) {
+    return null;
+  }
+
+  const priceUsd6Number = Math.ceil(params.usdPrice * USD_PRICE_SCALE);
+  if (!Number.isSafeInteger(priceUsd6Number) || priceUsd6Number <= 0) {
+    return null;
+  }
+  const fromAmount =
+    (totalUsd6 * 10n ** BigInt(params.token.decimals)) /
+    BigInt(priceUsd6Number);
+  return fromAmount > 0n ? fromAmount.toString() : null;
+}
+
+/** Build the immutable request input captured when the user taps Review. */
+export function buildSingleChainFundingDraft(params: {
+  scope: InvestScope;
+  totalUsd6: string;
+  baseFundingToken: DesktopDepositToken;
+  baseUsdPrice: number | null;
+}): SingleChainFundingDraft | null {
+  if (params.scope === 'both') return null;
+
+  if (params.scope === 'arbitrum') {
+    const fromAmount = singleChainFromAmount({
+      totalUsd6: params.totalUsd6,
+      token: DEFAULT_ARBITRUM_FUNDING_TOKEN,
+      usdPrice: 1,
+    });
+    return fromAmount === null
+      ? null
+      : {
+          scope: 'arbitrum',
+          chainId: 42161,
+          fromToken: DEFAULT_ARBITRUM_FUNDING_TOKEN.depositAddress,
+          fromAmount,
+          marketKey: 'btc-usdc',
+        };
+  }
+
+  const fromAmount = singleChainFromAmount({
+    totalUsd6: params.totalUsd6,
+    token: params.baseFundingToken,
+    usdPrice: params.baseUsdPrice,
+  });
+  return fromAmount === null
+    ? null
+    : {
+        scope: 'base',
+        chainId: 8453,
+        fromToken: params.baseFundingToken.depositAddress,
+        fromAmount,
+      };
 }
 
 /**
