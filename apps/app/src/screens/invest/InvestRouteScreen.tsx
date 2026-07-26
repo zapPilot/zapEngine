@@ -63,6 +63,20 @@ export function InvestRouteScreen() {
   const router = useRouter();
   const invest = useInvest();
   const preview = useInvestDepositPlanPreview();
+  const isBoth = invest.scope === 'both';
+  const hasPlanForScope = isBoth
+    ? StrategyFlow.isStrategyDepositPlan(preview.plan)
+    : Boolean(
+        preview.plan &&
+        !StrategyFlow.isStrategyDepositPlan(preview.plan) &&
+        preview.plan.sourceChainId === (invest.scope === 'base' ? 8453 : 42161),
+      );
+  const routeDescription =
+    invest.scope === 'base'
+      ? `${formatUsd(preview.amountUsd)} on Base into Morpho Moonwell.`
+      : invest.scope === 'arbitrum'
+        ? `${formatUsd(preview.amountUsd)} on Arbitrum into GMX BTC/USDC.`
+        : `${formatUsd(preview.amountUsd)} across Morpho and two GMX markets.`;
 
   return (
     <ScreenScrollView>
@@ -73,13 +87,15 @@ export function InvestRouteScreen() {
           Preview route
         </Text>
         <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
-          {formatUsd(preview.amountUsd)} across Morpho and two GMX markets.
+          {routeDescription}
         </Text>
 
         <StrategyFlow.StrategyPlanSummary
           variant="route"
           plan={preview.plan}
           amountUsd={preview.amountUsd}
+          scope={invest.scope}
+          singleChainFundingDraft={invest.singleChainFundingDraft}
           baseToken={invest.baseFundingToken}
           arbitrumToken={invest.arbitrumFundingToken}
         />
@@ -88,28 +104,50 @@ export function InvestRouteScreen() {
           {preview.isLoading ? (
             <View className="gap-3 pb-4">
               <SkeletonBlock className="h-[68px] w-full rounded-xl" />
-              <SkeletonBlock className="h-[68px] w-full rounded-xl" />
-              <SkeletonBlock className="h-[68px] w-full rounded-xl" />
+              {isBoth ? (
+                <>
+                  <SkeletonBlock className="h-[68px] w-full rounded-xl" />
+                  <SkeletonBlock className="h-[68px] w-full rounded-xl" />
+                </>
+              ) : null}
             </View>
-          ) : preview.plan ? (
-            <>
+          ) : hasPlanForScope ? (
+            isBoth ? (
+              <>
+                <RailNode
+                  title="Morpho Moonwell USDC"
+                  badge="Base · 40%"
+                  body={`${invest.baseFundingToken.symbol} funding with separate approval, same-chain swap when needed, and vault deposit confirmations.`}
+                />
+                <RailNode
+                  title="Mock bridge checkpoint"
+                  badge="No transaction"
+                  tone="mock"
+                  body="No assets move between chains. The next group rechecks the wallet's real Arbitrum balance."
+                />
+                <RailNode
+                  title="GMX BTC/USDC + ETH/USDC"
+                  badge="Arbitrum · 30/30"
+                  body={`${invest.arbitrumFundingToken.symbol} funding with separate approvals, same-chain USDC swaps when needed, and two asynchronous GMX deposits.`}
+                />
+              </>
+            ) : invest.scope === 'base' ? (
               <RailNode
                 title="Morpho Moonwell USDC"
-                badge="Base · 40%"
-                body={`${invest.baseFundingToken.symbol} funding with separate approval, same-chain swap when needed, and vault deposit confirmations.`}
+                badge="Base · 100%"
+                body={
+                  invest.baseFundingToken.symbol === 'ETH'
+                    ? 'ETH funding in one wallet batch with a same-chain USDC swap and Morpho vault supply.'
+                    : 'USDC funding in one wallet batch with approval when required and a Morpho vault supply.'
+                }
               />
+            ) : (
               <RailNode
-                title="Mock bridge checkpoint"
-                badge="No transaction"
-                tone="mock"
-                body="No assets move between chains. The next group rechecks the wallet's real Arbitrum balance."
+                title="GMX BTC/USDC"
+                badge="Arbitrum · 100%"
+                body="USDC funding in one wallet batch with approval when required and asynchronous GMX settlement."
               />
-              <RailNode
-                title="GMX BTC/USDC + ETH/USDC"
-                badge="Arbitrum · 30/30"
-                body={`${invest.arbitrumFundingToken.symbol} funding with separate approvals, same-chain USDC swaps when needed, and two asynchronous GMX deposits.`}
-              />
-            </>
+            )
           ) : (
             <View className="pb-4">
               <Text className="font-sans-semibold text-[14px] text-ink">
@@ -147,14 +185,16 @@ export function InvestRouteScreen() {
           )}
         </Card>
 
-        <StrategyFlow.MockBridgeNotice
-          title="Mock bridge — development only"
-          body={`Arbitrum must already hold enough ${invest.arbitrumFundingToken.symbol} plus ETH for gas and GMX keeper execution fees.`}
-        />
+        {isBoth ? (
+          <StrategyFlow.MockBridgeNotice
+            title="Mock bridge — development only"
+            body={`Arbitrum must already hold enough ${invest.arbitrumFundingToken.symbol} plus ETH for gas and GMX keeper execution fees.`}
+          />
+        ) : null}
 
         <PrimaryButton
           className="mt-5"
-          disabled={!preview.plan || preview.isLoading || preview.isError}
+          disabled={!hasPlanForScope || preview.isLoading || preview.isError}
           onPress={() => router.push('/invest/confirm')}
         >
           Continue

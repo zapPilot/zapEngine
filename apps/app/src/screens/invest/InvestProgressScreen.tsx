@@ -8,12 +8,14 @@ import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
-import type { StrategyWizardStep } from '@zapengine/app-core/lib/wallet/strategyDepositMachine';
 import { useInvest } from '@/integration/useInvest';
-import { useInvestExecution } from '@/integration/useInvestExecution';
+import {
+  type InvestExecutionWizardStep,
+  useInvestExecution,
+} from '@/integration/useInvestExecution';
 import { formatUsd } from '@/lib/format';
 
-function StepIcon({ step }: { step: StrategyWizardStep }) {
+function StepIcon({ step }: { step: InvestExecutionWizardStep }) {
   if (step.status === 'confirmed') {
     return <Check size={14} color="#0a0a0a" strokeWidth={2.5} />;
   }
@@ -36,7 +38,7 @@ function StepRow({
   step,
   isLast,
 }: {
-  step: StrategyWizardStep;
+  step: InvestExecutionWizardStep;
   isLast: boolean;
 }) {
   const confirmed = step.status === 'confirmed';
@@ -87,12 +89,20 @@ function StepRow({
             {step.transactionHash.slice(0, 10)}… submitted
           </Text>
         ) : null}
+        {'callsId' in step && step.callsId ? (
+          <Text className="mt-1 font-mono text-[9px] text-accent">
+            Batch {step.callsId.slice(0, 10)}… submitted
+          </Text>
+        ) : null}
       </View>
     </View>
   );
 }
 
-function ctaLabel(step: StrategyWizardStep | undefined, pending: boolean) {
+function ctaLabel(
+  step: InvestExecutionWizardStep | undefined,
+  pending: boolean,
+) {
   if (pending) {
     return step?.status === 'confirming'
       ? 'Waiting for confirmation…'
@@ -101,14 +111,17 @@ function ctaLabel(step: StrategyWizardStep | undefined, pending: boolean) {
   if (!step) return 'Continue';
   if (step.kind === 'switch-chain') return step.label;
   if (step.kind === 'mock-bridge') return 'Confirm mock checkpoint';
+  if (step.kind === 'batch') return 'Execute wallet batch';
+  if (step.kind === 'settlement') return 'Verify protocol position';
+  if (step.kind === 'prepare') return 'Prepare plan';
   if (step.status === 'confirming') return 'Retry confirmation check';
   return step.label;
 }
 
 export function InvestProgressScreen() {
   const router = useRouter();
-  const { amountUsd } = useInvest();
-  const { wizard, pending, startFromDraft, advance, retry, reset } =
+  const { amountUsd, scope } = useInvest();
+  const { wizard, pending, mode, startFromDraft, advance, retry, reset } =
     useInvestExecution();
 
   if (wizard.status === 'idle' && !pending && !wizard.error) {
@@ -134,8 +147,9 @@ export function InvestProgressScreen() {
           {isDone ? 'Investment complete' : 'One action at a time'}
         </Text>
         <Text className="mt-2 text-[12px] leading-[18px] text-ink-dim">
-          Each successful wallet action unlocks the next. Confirmed transactions
-          are never submitted again on retry.
+          {mode === 'strategy'
+            ? 'Each successful wallet action unlocks the next. Confirmed transactions are never submitted again on retry.'
+            : 'Submit one wallet batch, then verify that the protocol position increased. A submitted batch is never sent again on retry.'}
         </Text>
 
         {wizard.error ? (
@@ -166,7 +180,7 @@ export function InvestProgressScreen() {
           </View>
         ) : null}
 
-        {currentStep?.kind === 'mock-bridge' && !isDone ? (
+        {scope === 'both' && currentStep?.kind === 'mock-bridge' && !isDone ? (
           <View className="mt-4 rounded-xl border border-[rgba(234,179,8,.2)] bg-[rgba(234,179,8,.06)] p-3">
             <Text className="font-sans-semibold text-[12px] text-[#d7bd70]">
               This is a UI checkpoint only
@@ -196,16 +210,24 @@ export function InvestProgressScreen() {
           </PrimaryButton>
         ) : null}
 
+        {/* jscpd:ignore-start -- current and legacy execution screens intentionally share the completion card contract */}
         {isDone ? (
           <WizardDoneCard
             amountLabel={formatUsd(amountUsd)}
-            statusLabel="Morpho supplied · GMX settled"
+            statusLabel={
+              scope === 'base'
+                ? 'Morpho supplied'
+                : scope === 'arbitrum'
+                  ? 'GMX settled'
+                  : 'Morpho supplied · GMX settled'
+            }
             onDone={() => {
               reset();
               router.replace('/home');
             }}
           />
         ) : null}
+        {/* jscpd:ignore-end */}
       </View>
     </ScreenScrollView>
   );

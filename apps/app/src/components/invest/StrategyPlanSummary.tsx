@@ -1,34 +1,46 @@
-import type { StrategyDepositPlan } from '@zapengine/types/api';
+import type {
+  DepositPlan,
+  PlanOrchestrationDepositPlan,
+  PreparedTransaction,
+  StrategyDepositPlan,
+} from '@zapengine/types/api';
 import { formatEther, formatUnits } from 'viem';
 
 import { Card } from '@/components/ui/Card';
 import { InfoRow } from '@/components/ui/InfoRow';
-import type { DesktopDepositToken } from '@/integration/depositTokens';
+import {
+  DEFAULT_ARBITRUM_FUNDING_TOKEN,
+  type DesktopDepositToken,
+} from '@/integration/depositTokens';
+import type {
+  InvestScope,
+  SingleChainFundingDraft,
+} from '@/integration/useInvest';
 import { formatPlanGas } from '@/integration/planPreviewFormatters';
 import { formatUsd } from '@/lib/format';
 
 interface StrategyPlanSummaryProps {
   variant: 'route' | 'confirm';
-  plan: StrategyDepositPlan | undefined;
+  plan: PlanOrchestrationDepositPlan | undefined;
   amountUsd: number;
+  scope: InvestScope;
+  singleChainFundingDraft: SingleChainFundingDraft | null;
   baseToken: DesktopDepositToken;
   arbitrumToken: DesktopDepositToken;
 }
 
-function planTransactionCount(plan: StrategyDepositPlan | undefined): number {
-  return (
-    plan?.executionGroups.reduce(
-      (count, group) => count + group.approvals.length + group.calls.length,
-      0,
-    ) ?? 0
-  );
+export function isStrategyDepositPlan(
+  plan: PlanOrchestrationDepositPlan | undefined,
+): plan is StrategyDepositPlan {
+  return Boolean(plan && 'executionGroups' in plan);
 }
 
-function groupActionLabel(
-  group: StrategyDepositPlan['executionGroups'][number] | undefined,
+function transactionActionLabel(
+  approvals: readonly PreparedTransaction[] | undefined,
+  calls: readonly PreparedTransaction[] | undefined,
 ): string {
-  if (!group) return '—';
-  const transactions = [...group.approvals, ...group.calls];
+  if (!approvals || !calls) return '—';
+  const transactions = [...approvals, ...calls];
   const approvalCount = transactions.filter((transaction) =>
     ['APPROVAL', 'ERC20_APPROVE'].includes(transaction.meta.intentType),
   ).length;
@@ -65,12 +77,22 @@ function tokenAmountLabel(
   )} ${token.symbol}`;
 }
 
-function executionFeeLabel(plan: StrategyDepositPlan | undefined): string {
-  if (!plan) return '—';
-  const group = plan.executionGroups.find(
-    (candidate) => candidate.id === 'arbitrum-gmx',
+function strategyTransactionCount(
+  plan: StrategyDepositPlan | undefined,
+): number {
+  return (
+    plan?.executionGroups.reduce(
+      (count, group) => count + group.approvals.length + group.calls.length,
+      0,
+    ) ?? 0
   );
-  const executionFee = (group?.calls ?? []).reduce((total, transaction) => {
+}
+
+function executionFeeLabel(
+  calls: readonly PreparedTransaction[] | undefined,
+): string {
+  if (!calls) return '—';
+  const executionFee = calls.reduce((total, transaction) => {
     const route = transaction.meta.route;
     const isGmxDeposit =
       typeof route === 'object' && route !== null && 'marketKey' in route;
@@ -79,13 +101,18 @@ function executionFeeLabel(plan: StrategyDepositPlan | undefined): string {
   return `${formatEther(executionFee)} ETH total`;
 }
 
-export function StrategyPlanSummary({
+function StrategySummary({
   variant,
   plan,
   amountUsd,
   baseToken,
   arbitrumToken,
-}: StrategyPlanSummaryProps) {
+}: Omit<
+  StrategyPlanSummaryProps,
+  'scope' | 'singleChainFundingDraft' | 'plan'
+> & {
+  plan: StrategyDepositPlan | undefined;
+}) {
   const baseGroup = plan?.executionGroups.find(
     (group) => group.id === 'base-morpho',
   );
@@ -100,7 +127,8 @@ export function StrategyPlanSummary({
   );
 
   return (
-    <Card className="mt-5 p-4">
+    <>
+      {/* jscpd:ignore-start -- strategy and single-chain summaries intentionally share the same confirmation row shape */}
       {variant === 'confirm' ? (
         <>
           <InfoRow label="Total" value={formatUsd(amountUsd)} divider />
@@ -134,30 +162,145 @@ export function StrategyPlanSummary({
           />
         </>
       )}
+      {/* jscpd:ignore-end */}
       <InfoRow
         label="Base actions"
-        value={groupActionLabel(baseGroup)}
+        value={transactionActionLabel(baseGroup?.approvals, baseGroup?.calls)}
         divider
       />
       <InfoRow
         label="Arbitrum actions"
-        value={groupActionLabel(arbitrumGroup)}
+        value={transactionActionLabel(
+          arbitrumGroup?.approvals,
+          arbitrumGroup?.calls,
+        )}
         divider
       />
       <InfoRow
         label="Transactions"
-        value={String(planTransactionCount(plan))}
+        value={String(strategyTransactionCount(plan))}
         divider
       />
-      <InfoRow label="Gas" value={formatPlanGas(plan?.totalGasUsd)} divider />
       <InfoRow
-        label="GMX execution fee"
-        value={executionFeeLabel(plan)}
+        label="Gas"
+        value={formatPlanGas(plan?.totalGasUsd)}
         divider={variant === 'confirm'}
       />
+      <InfoRow
+        label="GMX execution fee"
+        value={executionFeeLabel(arbitrumGroup?.calls)}
+        divider={variant === 'confirm'}
+      />
+      {/* jscpd:ignore-start -- strategy and single-chain summaries intentionally share the same confirmation row shape */}
       {variant === 'confirm' ? (
         <InfoRow label="Settlement" value="Up to 5 minutes" />
       ) : null}
+    </>
+  );
+}
+
+function SingleChainSummary({
+  variant,
+  plan,
+  amountUsd,
+  scope,
+  singleChainFundingDraft,
+  baseToken,
+}: Omit<StrategyPlanSummaryProps, 'plan' | 'scope' | 'arbitrumToken'> & {
+  plan: DepositPlan | undefined;
+  scope: Exclude<InvestScope, 'both'>;
+}) {
+  const isBase = scope === 'base';
+  const token = isBase ? baseToken : DEFAULT_ARBITRUM_FUNDING_TOKEN;
+  const fromAmount =
+    singleChainFundingDraft?.scope === scope
+      ? singleChainFundingDraft.fromAmount
+      : plan?.legs[0]?.fromAmount;
+  const actionLabel = isBase ? 'Base actions' : 'Arbitrum actions';
+  const allocationLabel = isBase ? 'Base · Morpho' : 'Arbitrum · GMX BTC';
+  const fundingLabel = isBase ? 'Base funding' : 'Arbitrum funding';
+  const transactionCount =
+    (plan?.approvals.length ?? 0) + (plan?.calls.length ?? 0);
+
+  return (
+    <>
+      {variant === 'confirm' ? (
+        <>
+          <InfoRow label="Total" value={formatUsd(amountUsd)} divider />
+          <InfoRow
+            label={allocationLabel}
+            value={`${tokenAmountLabel(fromAmount, token)} · 100%`}
+            divider
+          />
+        </>
+      ) : (
+        <InfoRow
+          label={fundingLabel}
+          value={`${tokenAmountLabel(fromAmount, token)} · 100%`}
+          divider
+        />
+      )}
+      {/* jscpd:ignore-end */}
+      <InfoRow
+        label={actionLabel}
+        value={transactionActionLabel(plan?.approvals, plan?.calls)}
+        divider
+      />
+      <InfoRow label="Transactions" value={String(transactionCount)} divider />
+      <InfoRow label="Gas" value={formatPlanGas(plan?.totalGasUsd)} divider />
+      {!isBase ? (
+        <InfoRow
+          label="GMX execution fee"
+          value={executionFeeLabel(plan?.calls)}
+          divider={variant === 'confirm'}
+        />
+      ) : null}
+      {variant === 'confirm' ? (
+        <InfoRow
+          label="Settlement"
+          value={isBase ? 'On-chain confirmation' : 'Up to 5 minutes'}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function depositPlan(
+  plan: PlanOrchestrationDepositPlan | undefined,
+): DepositPlan | undefined {
+  if (!plan) return undefined;
+  return isStrategyDepositPlan(plan) ? undefined : plan;
+}
+
+export function StrategyPlanSummary({
+  variant,
+  plan,
+  amountUsd,
+  scope,
+  singleChainFundingDraft,
+  baseToken,
+  arbitrumToken,
+}: StrategyPlanSummaryProps) {
+  return (
+    <Card className="mt-5 p-4">
+      {scope === 'both' ? (
+        <StrategySummary
+          variant={variant}
+          plan={isStrategyDepositPlan(plan) ? plan : undefined}
+          amountUsd={amountUsd}
+          baseToken={baseToken}
+          arbitrumToken={arbitrumToken}
+        />
+      ) : (
+        <SingleChainSummary
+          variant={variant}
+          plan={depositPlan(plan)}
+          amountUsd={amountUsd}
+          scope={scope}
+          singleChainFundingDraft={singleChainFundingDraft}
+          baseToken={baseToken}
+        />
+      )}
     </Card>
   );
 }

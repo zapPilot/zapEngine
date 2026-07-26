@@ -1,5 +1,12 @@
+import {
+  useSingleChainDepositWizard,
+  type SingleChainDepositWizardStep,
+} from '@zapengine/app-core/hooks/useSingleChainDepositWizard';
 import { useStrategyDepositWizard } from '@zapengine/app-core/hooks/useStrategyDepositWizard';
-import type { StrategyDepositWizardState } from '@zapengine/app-core/lib/wallet/strategyDepositMachine';
+import type {
+  StrategyDepositWizardState,
+  StrategyWizardStep,
+} from '@zapengine/app-core/lib/wallet/strategyDepositMachine';
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -16,13 +23,25 @@ import type { DepositExecutionCapability } from '@/integration/investExecutionMo
 import { useInvest } from '@/integration/useInvest';
 
 export interface InvestExecutionContextValue {
-  wizard: StrategyDepositWizardState;
+  wizard: InvestExecutionWizardState;
   pending: boolean;
   capability: DepositExecutionCapability;
+  mode: 'strategy' | 'single-chain';
   startFromDraft: () => Promise<void>;
   advance: () => Promise<void>;
   retry: () => void;
   reset: () => void;
+}
+
+export type InvestExecutionWizardStep =
+  | StrategyWizardStep
+  | SingleChainDepositWizardStep;
+
+export interface InvestExecutionWizardState {
+  steps: InvestExecutionWizardStep[];
+  currentIndex: number;
+  status: StrategyDepositWizardState['status'] | 'failed';
+  error: string | null;
 }
 
 const InvestExecutionContext =
@@ -31,34 +50,137 @@ const InvestExecutionContext =
 export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   const wallet = useWalletProvider();
   const queryClient = useQueryClient();
-  const { totalUsd6, baseFundingToken, arbitrumFundingToken } = useInvest();
-  const { wizard, pending, start, advance, retry, reset } =
-    useStrategyDepositWizard();
+  const {
+    scope,
+    totalUsd6,
+    baseFundingToken,
+    arbitrumFundingToken,
+    singleChainFundingDraft,
+  } = useInvest();
+  const {
+    wizard: strategyWizard,
+    pending: strategyPending,
+    start: startStrategy,
+    advance: advanceStrategy,
+    retry: retryStrategy,
+    reset: resetStrategy,
+  } = useStrategyDepositWizard();
+  const {
+    wizard: singleChainWizard,
+    pending: singleChainPending,
+    start: startSingleChain,
+    advance: advanceSingleChain,
+    retry: retrySingleChain,
+    reset: resetSingleChain,
+  } = useSingleChainDepositWizard();
   const invalidatedDone = useRef(false);
+  const previousDraftKey = useRef('');
   const walletAddress = wallet.account?.address;
+  const mode = scope === 'both' ? 'strategy' : 'single-chain';
+  const singleChainDraftKey = singleChainFundingDraft
+    ? [
+        singleChainFundingDraft.scope,
+        singleChainFundingDraft.chainId,
+        singleChainFundingDraft.fromToken,
+        singleChainFundingDraft.fromAmount,
+        singleChainFundingDraft.scope === 'arbitrum'
+          ? singleChainFundingDraft.marketKey
+          : '',
+      ].join(':')
+    : 'none';
+  const executionDraftKey = [
+    scope,
+    totalUsd6,
+    baseFundingToken.depositAddress,
+    arbitrumFundingToken.depositAddress,
+    singleChainDraftKey,
+  ].join('|');
 
-  const capability: DepositExecutionCapability = wallet.isConnected
-    ? 'ready'
-    : 'connect-wallet';
+  const capability: DepositExecutionCapability = !wallet.isConnected
+    ? 'connect-wallet'
+    : mode === 'single-chain' && wallet.executionMode === undefined
+      ? 'unsupported-wallet'
+      : 'ready';
+
+  useEffect(() => {
+    if (previousDraftKey.current === '') {
+      previousDraftKey.current = executionDraftKey;
+      return;
+    }
+    if (previousDraftKey.current === executionDraftKey) return;
+    previousDraftKey.current = executionDraftKey;
+    invalidatedDone.current = false;
+    resetStrategy();
+    resetSingleChain();
+  }, [executionDraftKey, resetSingleChain, resetStrategy]);
 
   const startFromDraft = useCallback(async () => {
     if (!walletAddress || totalUsd6 === '0') return;
     invalidatedDone.current = false;
-    await start({
-      userAddress: walletAddress as `0x${string}`,
-      totalUsd6,
-      fundingSources: [
-        { chainId: 8453, fromToken: baseFundingToken.depositAddress },
-        { chainId: 42161, fromToken: arbitrumFundingToken.depositAddress },
-      ],
+    const userAddress = walletAddress as `0x${string}`;
+
+    if (scope === 'both') {
+      await startStrategy({
+        userAddress,
+        totalUsd6,
+        fundingSources: [
+          { chainId: 8453, fromToken: baseFundingToken.depositAddress },
+          { chainId: 42161, fromToken: arbitrumFundingToken.depositAddress },
+        ],
+      });
+      return;
+    }
+
+    if (!singleChainFundingDraft || singleChainFundingDraft.scope !== scope) {
+      return;
+    }
+    if (singleChainFundingDraft.scope === 'base') {
+      await startSingleChain({
+        kind: 'invest',
+        userAddress,
+        fromToken: singleChainFundingDraft.fromToken,
+        fromAmount: singleChainFundingDraft.fromAmount,
+        sourceChainId: singleChainFundingDraft.chainId,
+        split: { '8453': 1 },
+      });
+      return;
+    }
+    await startSingleChain({
+      kind: 'gmx-v2',
+      userAddress,
+      marketKey: singleChainFundingDraft.marketKey,
+      amount: singleChainFundingDraft.fromAmount,
     });
   }, [
     arbitrumFundingToken.depositAddress,
     baseFundingToken.depositAddress,
-    start,
+    scope,
+    singleChainFundingDraft,
+    startSingleChain,
+    startStrategy,
     totalUsd6,
     walletAddress,
   ]);
+
+  const selectedWizard =
+    mode === 'strategy' ? strategyWizard : singleChainWizard;
+  const wizard = useMemo<InvestExecutionWizardState>(
+    () => ({
+      steps: selectedWizard.steps,
+      currentIndex: selectedWizard.currentIndex,
+      status: selectedWizard.status,
+      error: selectedWizard.error,
+    }),
+    [selectedWizard],
+  );
+  const pending = mode === 'strategy' ? strategyPending : singleChainPending;
+  const advance = mode === 'strategy' ? advanceStrategy : advanceSingleChain;
+  const retry = mode === 'strategy' ? retryStrategy : retrySingleChain;
+  const reset = useCallback(() => {
+    invalidatedDone.current = false;
+    resetStrategy();
+    resetSingleChain();
+  }, [resetSingleChain, resetStrategy]);
 
   useEffect(() => {
     if (wizard.status !== 'done' || invalidatedDone.current) return;
@@ -71,12 +193,13 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
       wizard,
       pending,
       capability,
+      mode,
       startFromDraft,
       advance,
       retry,
       reset,
     }),
-    [wizard, pending, capability, startFromDraft, advance, retry, reset],
+    [wizard, pending, capability, mode, startFromDraft, advance, retry, reset],
   );
 
   return (

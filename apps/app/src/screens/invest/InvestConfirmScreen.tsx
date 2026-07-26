@@ -17,10 +17,6 @@ import {
 import { useInvestExecution } from '@/integration/useInvestExecution';
 
 const CAPABILITY_NOTICE = {
-  'connect-wallet': {
-    title: 'Connect your wallet',
-    body: 'Connect the wallet that holds both Base and Arbitrum funding balances.',
-  },
   'unsupported-wallet': {
     title: 'Wallet execution unavailable',
     body: 'This wallet cannot submit the guided transactions.',
@@ -31,6 +27,19 @@ const CAPABILITY_NOTICE = {
   },
 } as const;
 
+function connectWalletBody(
+  scope: ReturnType<typeof useInvest>['scope'],
+  baseTokenSymbol: string,
+): string {
+  if (scope === 'base') {
+    return `Connect the wallet that holds Base ${baseTokenSymbol}.`;
+  }
+  if (scope === 'arbitrum') {
+    return 'Connect the wallet that holds Arbitrum USDC.';
+  }
+  return 'Connect the wallet that holds both Base and Arbitrum funding balances.';
+}
+
 export function InvestConfirmScreen() {
   const router = useRouter();
   const account = useAccount();
@@ -40,6 +49,37 @@ export function InvestConfirmScreen() {
 
   const ready = capability === 'ready';
   const canConnect = capability === 'connect-wallet';
+  const hasPlanForScope =
+    invest.scope === 'both'
+      ? StrategyFlow.isStrategyDepositPlan(preview.plan)
+      : Boolean(
+          preview.plan &&
+          !StrategyFlow.isStrategyDepositPlan(preview.plan) &&
+          preview.plan.sourceChainId ===
+            (invest.scope === 'base' ? 8453 : 42161),
+        );
+  const capabilityNotice = canConnect
+    ? {
+        title: 'Connect your wallet',
+        body: connectWalletBody(invest.scope, invest.baseFundingToken.symbol),
+      }
+    : capability === 'unsupported-wallet'
+      ? {
+          ...CAPABILITY_NOTICE[capability],
+          body:
+            invest.scope === 'both'
+              ? CAPABILITY_NOTICE[capability].body
+              : 'Use Privy or an Ambire EIP-7702 wallet to submit this single-chain batch.',
+        }
+      : capability === 'unsupported-path'
+        ? {
+            ...CAPABILITY_NOTICE[capability],
+            title:
+              invest.scope === 'both'
+                ? CAPABILITY_NOTICE[capability].title
+                : `${invest.scope === 'base' ? 'Base' : 'Arbitrum'} route unavailable`,
+          }
+        : null;
   const ctaLabel = canConnect
     ? account.isConnecting
       ? CONNECTING_LABEL
@@ -60,20 +100,24 @@ export function InvestConfirmScreen() {
           variant="confirm"
           plan={preview.plan}
           amountUsd={preview.amountUsd}
+          scope={invest.scope}
+          singleChainFundingDraft={invest.singleChainFundingDraft}
           baseToken={invest.baseFundingToken}
           arbitrumToken={invest.arbitrumFundingToken}
         />
 
-        <StrategyFlow.MockBridgeNotice
-          title="Mock bridge does not transfer assets"
-          body="You will approve and submit each action manually. Before the Arbitrum group starts, the app checks this wallet's real balance again."
-        />
+        {invest.scope === 'both' ? (
+          <StrategyFlow.MockBridgeNotice
+            title="Mock bridge does not transfer assets"
+            body="You will approve and submit each action manually. Before the Arbitrum group starts, the app checks this wallet's real balance again."
+          />
+        ) : null}
 
-        {!ready ? (
+        {capabilityNotice ? (
           <View className="mt-4">
             <NonCustodialCard
-              title={CAPABILITY_NOTICE[capability].title}
-              body={CAPABILITY_NOTICE[capability].body}
+              title={capabilityNotice.title}
+              body={capabilityNotice.body}
             />
           </View>
         ) : null}
@@ -83,7 +127,7 @@ export function InvestConfirmScreen() {
             account.isConnecting ||
             pending ||
             preview.amountUsd <= 0 ||
-            !preview.plan ||
+            !hasPlanForScope ||
             (!ready && !canConnect)
           }
           onPress={() => {
@@ -102,8 +146,9 @@ export function InvestConfirmScreen() {
           {ctaLabel}
         </PrimaryButton>
         <Text className="mt-3 text-center text-[10.5px] leading-[16px] text-ink-faint">
-          No custody and no automatic signatures. Confirm one wallet action at a
-          time.
+          {invest.scope === 'both'
+            ? 'No custody and no automatic signatures. Confirm one wallet action at a time.'
+            : 'No custody and no automatic signatures. Confirm the wallet batch in Privy or Ambire.'}
         </Text>
       </View>
     </ScreenScrollView>

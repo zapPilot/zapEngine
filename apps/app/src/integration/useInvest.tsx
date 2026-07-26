@@ -1,16 +1,21 @@
 import {
   createContext,
   type ReactNode,
+  useCallback,
   useContext,
   useMemo,
   useState,
 } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { handleHTTPError } from '@zapengine/app-core/lib/http';
-import { getStrategyDepositPlan } from '@zapengine/app-core/services';
+import {
+  getDepositPlan,
+  getGmxDepositPlan,
+  getStrategyDepositPlan,
+} from '@zapengine/app-core/services';
 import {
   STRATEGY_DEPOSIT_ID,
-  type StrategyDepositPlan,
+  type PlanOrchestrationDepositPlan,
 } from '@zapengine/types/api';
 
 import {
@@ -18,8 +23,17 @@ import {
   DEFAULT_BASE_FUNDING_TOKEN,
   type DesktopDepositToken,
 } from '@/integration/depositTokens';
-import { amountInputToUsd6 } from '@/integration/investAmountModel';
+import {
+  amountInputToUsd6,
+  type InvestScope,
+  type SingleChainFundingDraft,
+} from '@/integration/investAmountModel';
 import { useAccount } from '@/integration/useAccount';
+
+export type {
+  InvestScope,
+  SingleChainFundingDraft,
+} from '@/integration/investAmountModel';
 
 export interface InvestContextValue {
   /** USD amount the user is investing (entered in step 1). */
@@ -27,10 +41,14 @@ export interface InvestContextValue {
   amountInput: string;
   setAmountInput: (value: string) => void;
   totalUsd6: string;
+  scope: InvestScope;
+  setScope: (value: InvestScope) => void;
   baseFundingToken: DesktopDepositToken;
   setBaseFundingToken: (value: DesktopDepositToken) => void;
   arbitrumFundingToken: DesktopDepositToken;
   setArbitrumFundingToken: (value: DesktopDepositToken) => void;
+  singleChainFundingDraft: SingleChainFundingDraft | null;
+  setSingleChainFundingDraft: (value: SingleChainFundingDraft | null) => void;
 }
 
 const InvestContext = createContext<InvestContextValue | null>(null);
@@ -41,13 +59,32 @@ const InvestContext = createContext<InvestContextValue | null>(null);
  * `/invest/*` routes via a layout route.
  */
 export function InvestProvider({ children }: { children: ReactNode }) {
-  const [amountInput, setAmountInput] = useState('');
+  const [amountInput, setAmountInputState] = useState('');
+  const [scope, setScopeState] = useState<InvestScope>('both');
   const amountUsd = Number.parseFloat(amountInput.replace(/,/gu, '')) || 0;
-  const [baseFundingToken, setBaseFundingToken] = useState<DesktopDepositToken>(
-    DEFAULT_BASE_FUNDING_TOKEN,
-  );
-  const [arbitrumFundingToken, setArbitrumFundingToken] =
+  const [baseFundingToken, setBaseFundingTokenState] =
+    useState<DesktopDepositToken>(DEFAULT_BASE_FUNDING_TOKEN);
+  const [arbitrumFundingToken, setArbitrumFundingTokenState] =
     useState<DesktopDepositToken>(DEFAULT_ARBITRUM_FUNDING_TOKEN);
+  const [singleChainFundingDraft, setSingleChainFundingDraft] =
+    useState<SingleChainFundingDraft | null>(null);
+
+  const setAmountInput = useCallback((value: string) => {
+    setAmountInputState(value);
+    setSingleChainFundingDraft(null);
+  }, []);
+  const setScope = useCallback((value: InvestScope) => {
+    setScopeState(value);
+    setSingleChainFundingDraft(null);
+  }, []);
+  const setBaseFundingToken = useCallback((value: DesktopDepositToken) => {
+    setBaseFundingTokenState(value);
+    setSingleChainFundingDraft(null);
+  }, []);
+  const setArbitrumFundingToken = useCallback((value: DesktopDepositToken) => {
+    setArbitrumFundingTokenState(value);
+    setSingleChainFundingDraft(null);
+  }, []);
 
   const value = useMemo<InvestContextValue>(
     () => ({
@@ -55,12 +92,27 @@ export function InvestProvider({ children }: { children: ReactNode }) {
       amountInput,
       setAmountInput,
       totalUsd6: amountInputToUsd6(amountInput),
+      scope,
+      setScope,
       baseFundingToken,
       setBaseFundingToken,
       arbitrumFundingToken,
       setArbitrumFundingToken,
+      singleChainFundingDraft,
+      setSingleChainFundingDraft,
     }),
-    [amountInput, amountUsd, arbitrumFundingToken, baseFundingToken],
+    [
+      amountInput,
+      amountUsd,
+      arbitrumFundingToken,
+      baseFundingToken,
+      scope,
+      setAmountInput,
+      setArbitrumFundingToken,
+      setBaseFundingToken,
+      setScope,
+      singleChainFundingDraft,
+    ],
   );
 
   return (
@@ -80,7 +132,7 @@ export function useInvest(): InvestContextValue {
  * Shares one strategy-plan query across the route and confirm screens.
  */
 export function useInvestDepositPlanPreview(): {
-  plan: StrategyDepositPlan | undefined;
+  plan: PlanOrchestrationDepositPlan | undefined;
   isLoading: boolean;
   isError: boolean;
   /** Human-readable backend failure reason (plan 4xx/5xx body), or null. */
@@ -90,35 +142,84 @@ export function useInvestDepositPlanPreview(): {
   totalUsd6: string;
 } {
   const { address } = useAccount();
-  const { amountUsd, totalUsd6, baseFundingToken, arbitrumFundingToken } =
-    useInvest();
-  const enabled = Boolean(address && amountUsd > 0 && totalUsd6 !== '0');
+  const {
+    amountUsd,
+    totalUsd6,
+    scope,
+    baseFundingToken,
+    arbitrumFundingToken,
+    singleChainFundingDraft,
+  } = useInvest();
+  const hasMatchingSingleChainDraft =
+    scope !== 'both' && singleChainFundingDraft?.scope === scope;
+  const enabled = Boolean(
+    address &&
+    amountUsd > 0 &&
+    totalUsd6 !== '0' &&
+    (scope === 'both' || hasMatchingSingleChainDraft),
+  );
+  const requestKey =
+    scope === 'both'
+      ? [
+          scope,
+          totalUsd6,
+          baseFundingToken.depositAddress,
+          arbitrumFundingToken.depositAddress,
+        ]
+      : singleChainFundingDraft?.scope === scope
+        ? [
+            singleChainFundingDraft.scope,
+            singleChainFundingDraft.chainId,
+            singleChainFundingDraft.fromToken,
+            singleChainFundingDraft.fromAmount,
+            singleChainFundingDraft.scope === 'arbitrum'
+              ? singleChainFundingDraft.marketKey
+              : null,
+          ]
+        : [scope, 'no-frozen-draft'];
   const result = useQuery({
-    queryKey: [
-      'strategy-deposit-plan-preview',
-      address,
-      totalUsd6,
-      baseFundingToken.depositAddress,
-      arbitrumFundingToken.depositAddress,
-    ],
+    queryKey: ['invest-deposit-plan-preview', address, ...requestKey],
     enabled,
-    queryFn: () =>
-      getStrategyDepositPlan({
-        kind: 'strategy',
-        strategyId: STRATEGY_DEPOSIT_ID,
-        userAddress: address as `0x${string}`,
-        totalUsd6,
-        fundingSources: [
-          {
-            chainId: 8453,
-            fromToken: baseFundingToken.depositAddress,
-          },
-          {
-            chainId: 42161,
-            fromToken: arbitrumFundingToken.depositAddress,
-          },
-        ],
-      }),
+    queryFn: (): Promise<PlanOrchestrationDepositPlan> => {
+      const userAddress = address as `0x${string}`;
+      if (scope === 'both') {
+        return getStrategyDepositPlan({
+          kind: 'strategy',
+          strategyId: STRATEGY_DEPOSIT_ID,
+          userAddress,
+          totalUsd6,
+          fundingSources: [
+            {
+              chainId: 8453,
+              fromToken: baseFundingToken.depositAddress,
+            },
+            {
+              chainId: 42161,
+              fromToken: arbitrumFundingToken.depositAddress,
+            },
+          ],
+        });
+      }
+      if (!singleChainFundingDraft || singleChainFundingDraft.scope !== scope) {
+        throw new Error('Single-chain funding draft is unavailable');
+      }
+      if (singleChainFundingDraft.scope === 'base') {
+        return getDepositPlan({
+          kind: 'invest',
+          userAddress,
+          fromToken: singleChainFundingDraft.fromToken,
+          fromAmount: singleChainFundingDraft.fromAmount,
+          sourceChainId: singleChainFundingDraft.chainId,
+          split: { '8453': 1 },
+        });
+      }
+      return getGmxDepositPlan({
+        kind: 'gmx-v2',
+        userAddress,
+        marketKey: singleChainFundingDraft.marketKey,
+        amount: singleChainFundingDraft.fromAmount,
+      });
+    },
   });
   return {
     plan: result.data,
