@@ -64,13 +64,10 @@ export function InvestRouteScreen() {
   const invest = useInvest();
   const preview = useInvestDepositPlanPreview();
   const isBoth = invest.scope === 'both';
-  const hasPlanForScope = isBoth
-    ? StrategyFlow.isStrategyDepositPlan(preview.plan)
-    : Boolean(
-        preview.plan &&
-        !StrategyFlow.isStrategyDepositPlan(preview.plan) &&
-        preview.plan.sourceChainId === (invest.scope === 'base' ? 8453 : 42161),
-      );
+  const hasPlanForScope = StrategyFlow.isDepositPlanForScope(
+    preview.plan,
+    invest.scope,
+  );
   const routeDescription =
     invest.scope === 'base'
       ? `${formatUsd(preview.amountUsd)} on Base into Morpho Moonwell.`

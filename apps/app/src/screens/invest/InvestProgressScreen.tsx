@@ -130,7 +130,9 @@ export function InvestProgressScreen() {
 
   const currentStep = wizard.steps[wizard.currentIndex];
   const isDone = wizard.status === 'done';
-  const planFailed = wizard.steps.length === 0 && Boolean(wizard.error);
+  const planUnavailable = wizard.steps.length === 0 && wizard.status !== 'idle';
+  const shouldStartPlan = planUnavailable || currentStep?.kind === 'prepare';
+  const shouldRetryPlan = shouldStartPlan && Boolean(wizard.error);
 
   return (
     <ScreenScrollView>
@@ -156,7 +158,17 @@ export function InvestProgressScreen() {
           <View className="mt-5">
             <InlineErrorCard
               body={wizard.error}
-              action={{ label: 'Dismiss', onPress: retry }}
+              action={
+                shouldStartPlan
+                  ? {
+                      label: 'Retry plan',
+                      onPress: () => {
+                        retry();
+                        void startFromDraft().catch(() => undefined);
+                      },
+                    }
+                  : { label: 'Dismiss', onPress: retry }
+              }
             />
           </View>
         ) : null}
@@ -195,18 +207,18 @@ export function InvestProgressScreen() {
         {!isDone ? (
           <PrimaryButton
             className="mt-5"
-            disabled={pending || (!currentStep && !planFailed)}
+            disabled={pending || (!currentStep && !shouldStartPlan)}
             onPress={() => {
-              if (planFailed) {
-                retry();
-                void startFromDraft();
+              if (shouldStartPlan) {
+                if (wizard.error) retry();
+                void startFromDraft().catch(() => undefined);
                 return;
               }
               if (wizard.error) retry();
-              void advance();
+              void advance().catch(() => undefined);
             }}
           >
-            {planFailed ? 'Retry plan' : ctaLabel(currentStep, pending)}
+            {shouldRetryPlan ? 'Retry plan' : ctaLabel(currentStep, pending)}
           </PrimaryButton>
         ) : null}
 

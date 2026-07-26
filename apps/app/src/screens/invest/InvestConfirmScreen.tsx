@@ -49,15 +49,10 @@ export function InvestConfirmScreen() {
 
   const ready = capability === 'ready';
   const canConnect = capability === 'connect-wallet';
-  const hasPlanForScope =
-    invest.scope === 'both'
-      ? StrategyFlow.isStrategyDepositPlan(preview.plan)
-      : Boolean(
-          preview.plan &&
-          !StrategyFlow.isStrategyDepositPlan(preview.plan) &&
-          preview.plan.sourceChainId ===
-            (invest.scope === 'base' ? 8453 : 42161),
-        );
+  const hasPlanForScope = StrategyFlow.isDepositPlanForScope(
+    preview.plan,
+    invest.scope,
+  );
   const capabilityNotice = canConnect
     ? {
         title: 'Connect your wallet',

@@ -524,7 +524,9 @@ export function InvestAmountScreen() {
             <Text className="mt-2.5 px-1 text-[11px] text-danger">
               {isBaseOnly
                 ? 'Enter at least $10 to test the Base Morpho deposit.'
-                : 'Enter at least $10 — GMX keeper fees make smaller deposits uneconomical.'}
+                : isBoth
+                  ? 'Enter at least $10 to deposit into the strategy.'
+                  : 'Enter at least $10 — GMX keeper fees make smaller deposits uneconomical.'}
             </Text>
           ) : exceedsBalance ? (
             <Text className="mt-2.5 px-1 text-[11px] text-danger">
