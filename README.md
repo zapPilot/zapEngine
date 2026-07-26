@@ -59,11 +59,17 @@ zapEngine/
 pnpm install
 ```
 
-All apps read from a single `.env` at the repo root — copy the example and fill in values:
+All apps read from a single `.env` at the repo root — copy the example, then
+keep only the values needed for the apps and optional features you run:
 
 ```bash
 cp .env.example .env
 ```
+
+Do not add empty optional overrides to `.env`; leave them unset so their code
+defaults apply. Use a command-line environment override for a one-off local
+run, and configure CI-only or production secrets in the CI/deployment platform
+rather than the shared local file.
 
 For analytics-engine's Python venv (first-time only):
 
