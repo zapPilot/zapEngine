@@ -275,6 +275,6 @@ test('video is visible as an opt-in mode and does not load before selection', as
   await expect(watchMode).toHaveAttribute('aria-selected', 'true');
 
   releaseVideoResponse();
+  await expect(page.locator('video')).toHaveCount(0, { timeout: 10_000 });
   await expect(listenMode).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('video')).toHaveCount(0);
 });

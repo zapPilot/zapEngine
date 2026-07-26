@@ -7,10 +7,6 @@ import {
 const PORT = Number(process.env['PLAYWRIGHT_PORT'] ?? '3100');
 const BASE_URL =
   process.env['PLAYWRIGHT_BASE_URL'] ?? `http://127.0.0.1:${PORT}`;
-const PRIVY_PLACEHOLDER =
-  process.env['EXPO_PUBLIC_PRIVY_APP_ID'] ?? 'e2eprivyappidplaceholder0';
-const PRIVY_CLIENT_PLACEHOLDER =
-  process.env['EXPO_PUBLIC_PRIVY_CLIENT_ID'] ?? 'e2eprivyclientplaceholder';
 
 const CI_REPORTER: ReporterDescription[] = [
   ['list'],
@@ -46,9 +42,5 @@ export default defineConfig({
     url: BASE_URL,
     reuseExistingServer: !process.env['CI'],
     timeout: 180 * 1000,
-    env: {
-      EXPO_PUBLIC_PRIVY_APP_ID: PRIVY_PLACEHOLDER,
-      EXPO_PUBLIC_PRIVY_CLIENT_ID: PRIVY_CLIENT_PLACEHOLDER,
-    },
   },
 });
