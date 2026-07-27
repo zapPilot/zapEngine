@@ -105,6 +105,22 @@ describe('Invest deposit plan requests', () => {
     ).toBeNull();
   });
 
+  it.each(['base', 'arbitrum'] as const)(
+    'does not build a %s request before the exact funding draft is frozen',
+    (scope) => {
+      expect(
+        buildInvestDepositPlanRequest({
+          userAddress: USER_ADDRESS,
+          scope,
+          totalUsd6: '10000000',
+          baseFundingToken: DEFAULT_BASE_FUNDING_TOKEN,
+          arbitrumFundingToken: DEFAULT_ARBITRUM_FUNDING_TOKEN,
+          singleChainFundingDraft: null,
+        }),
+      ).toBeNull();
+    },
+  );
+
   it('partitions preview cache keys by scope, token, market, and exact amount', () => {
     const baseRequest = buildInvestDepositPlanRequest({
       userAddress: USER_ADDRESS,
