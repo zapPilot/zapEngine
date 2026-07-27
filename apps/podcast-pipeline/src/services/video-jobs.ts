@@ -68,38 +68,6 @@ export interface EpisodeVideoJobRow {
 }
 /* jscpd:ignore-end */
 
-export interface EpisodeVideoJobRow {
-  episode_localization_id: string;
-  episode_id: string;
-  status: EpisodeVideoJobStatus;
-  visual_hash: string | null;
-  visual_version: string;
-  manifest: Record<string, unknown> | null;
-  manifest_hash: string | null;
-  renderer_version: string | null;
-  storyboard_provider: string | null;
-  storyboard_model: string | null;
-  storyboard_prompt_version: string | null;
-  script_hash: string | null;
-  mp4_url: string | null;
-  thumbnail_url: string | null;
-  manifest_url: string | null;
-  captions_ass_url: string | null;
-  r2_prefix: string | null;
-  duration_seconds: number | null;
-  telegram_chat_id: string | null;
-  attempt_count: number;
-  next_attempt_at: string;
-  lease_owner: string | null;
-  lease_expires_at: string | null;
-  last_error: string | null;
-  failure_notified_at: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface EpisodeVideoVisualSource {
   episodeId: string;
   canonicalLocalizationId: string;
@@ -296,9 +264,10 @@ export function createVideoVisualJobRepository(
     claim(leaseOwner: string): Promise<EpisodeVideoVisualJobRow | null> {
       return callRowRpc<EpisodeVideoVisualJobRow>(
         supabase,
-        'claim_episode_video_visual',
+        'claim_episode_video_visual_v2',
         {
           p_lease_owner: leaseOwner,
+          p_visual_version: EPISODE_VIDEO_VISUAL_VERSION,
         },
       );
     },
@@ -379,9 +348,14 @@ export function createVideoJobRepository(
     },
 
     claim(leaseOwner: string): Promise<EpisodeVideoJobRow | null> {
-      return callRowRpc<EpisodeVideoJobRow>(supabase, 'claim_episode_video', {
-        p_lease_owner: leaseOwner,
-      });
+      return callRowRpc<EpisodeVideoJobRow>(
+        supabase,
+        'claim_episode_video_v2',
+        {
+          p_lease_owner: leaseOwner,
+          p_visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+        },
+      );
     },
 
     renewLease(
@@ -509,6 +483,18 @@ export function enqueueEpisodeVideoJob(
   telegramChatId?: string | null,
 ): Promise<EpisodeVideoJobRow> {
   return getVideoJobRepository().enqueue(episodeLocalizationId, telegramChatId);
+}
+
+export function findEpisodeVideoVisualJob(
+  episodeId: string,
+): Promise<EpisodeVideoVisualJobRow | null> {
+  return getVideoVisualJobRepository().find(episodeId);
+}
+
+export function findEpisodeVideoJob(
+  episodeLocalizationId: string,
+): Promise<EpisodeVideoJobRow | null> {
+  return getVideoJobRepository().find(episodeLocalizationId);
 }
 
 export function hashEpisodeVideoVisualSource(

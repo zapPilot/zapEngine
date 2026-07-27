@@ -132,6 +132,22 @@ describe('createEpisodeVideoVisualProcessor', () => {
     expect(scrape).not.toHaveBeenCalled();
   });
 
+  it('rejects a job whose visual version this worker does not support', async () => {
+    // Backstop behind the version-fenced claim RPCs (migration 021): a
+    // mismatched row must fail before any scrape or temp-dir work starts.
+    const scrape = vi.fn();
+    const processor = createEpisodeVideoVisualProcessor({ scrape });
+    const mismatchedJob = {
+      ...job(),
+      visual_version: 'podcast-image-visual-plan.v2',
+    };
+
+    await expect(processor(mismatchedJob, source(), context())).rejects.toThrow(
+      'Unsupported episode visual version: podcast-image-visual-plan.v2',
+    );
+    expect(scrape).not.toHaveBeenCalled();
+  });
+
   it('cleans up its temporary images after an R2 upload failure', async () => {
     const removeDirectory = vi.fn().mockResolvedValue(undefined);
     const processor = createEpisodeVideoVisualProcessor({

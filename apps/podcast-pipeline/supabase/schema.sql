@@ -468,8 +468,35 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- Deprecation fence (migration 021): pre-021 workers poll this signature.
+  -- Return no rows so they idle quietly and never claim jobs enqueued by
+  -- newer code. Current workers call claim_episode_video_visual_v2 instead.
+  return;
+end;
+$$;
+
+-- Version-fenced visual claim: only hands out rows matching the caller's
+-- supported visual_version, so mixed worker fleets (local dev vs prod)
+-- sharing this database never burn attempts on version mismatches. The
+-- expired-lease sweep intentionally stays unfenced: releasing any version's
+-- expired lease is safe, and the stubbed legacy claim no longer sweeps.
+create or replace function from_fed_to_chain.claim_episode_video_visual_v2(
+  p_lease_owner text,
+  p_visual_version text
+)
+returns setof from_fed_to_chain.episode_video_visuals
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
   if nullif(btrim(p_lease_owner), '') is null then
     raise exception 'p_lease_owner must not be empty'
+      using errcode = '22023';
+  end if;
+
+  if nullif(btrim(p_visual_version), '') is null then
+    raise exception 'p_visual_version must not be empty'
       using errcode = '22023';
   end if;
 
@@ -497,6 +524,7 @@ begin
     where visual.status = 'queued'
       and visual.next_attempt_at <= now()
       and visual.attempt_count < 3
+      and visual.visual_version = btrim(p_visual_version)
     order by visual.next_attempt_at, visual.created_at
     limit 1
     for update skip locked
@@ -807,8 +835,30 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- Deprecation fence (migration 021): see claim_episode_video_visual.
+  return;
+end;
+$$;
+
+-- Version-fenced localization claim (same pattern as
+-- claim_episode_video_visual_v2).
+create or replace function from_fed_to_chain.claim_episode_video_v2(
+  p_lease_owner text,
+  p_visual_version text
+)
+returns setof from_fed_to_chain.episode_videos
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
   if nullif(btrim(p_lease_owner), '') is null then
     raise exception 'p_lease_owner must not be empty'
+      using errcode = '22023';
+  end if;
+
+  if nullif(btrim(p_visual_version), '') is null then
+    raise exception 'p_visual_version must not be empty'
       using errcode = '22023';
   end if;
 
@@ -842,6 +892,7 @@ begin
     where video.status = 'queued'
       and video.next_attempt_at <= now()
       and video.attempt_count < 3
+      and video.visual_version = btrim(p_visual_version)
       and visual.status = 'completed'
       and localization.language_code in ('zh-Hant', 'ja', 'en')
       and localization.status = 'completed'
@@ -1362,6 +1413,15 @@ revoke execute on function from_fed_to_chain.claim_episode_video_visual(text)
 grant execute on function from_fed_to_chain.claim_episode_video_visual(text)
   to service_role;
 
+revoke execute on function from_fed_to_chain.claim_episode_video_visual_v2(
+  text,
+  text
+) from public, anon, authenticated;
+grant execute on function from_fed_to_chain.claim_episode_video_visual_v2(
+  text,
+  text
+) to service_role;
+
 revoke execute on function from_fed_to_chain.renew_episode_video_visual_lease(
   uuid,
   text
@@ -1409,6 +1469,11 @@ grant execute on function from_fed_to_chain.enqueue_episode_video(uuid, text)
 revoke execute on function from_fed_to_chain.claim_episode_video(text)
   from public, anon, authenticated;
 grant execute on function from_fed_to_chain.claim_episode_video(text)
+  to service_role;
+
+revoke execute on function from_fed_to_chain.claim_episode_video_v2(text, text)
+  from public, anon, authenticated;
+grant execute on function from_fed_to_chain.claim_episode_video_v2(text, text)
   to service_role;
 
 revoke execute on function from_fed_to_chain.renew_episode_video_lease(uuid, text)

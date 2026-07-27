@@ -17,6 +17,9 @@ const migration019 = readRepoFile(
 const migration020 = readRepoFile(
   'apps/podcast-pipeline/supabase/migrations/020_fix_episode_video_visual_checkpoint_index.sql',
 );
+const migration021 = readRepoFile(
+  'apps/podcast-pipeline/supabase/migrations/021_version_fence_video_claims.sql',
+);
 const localizationRpcNames = [
   'enqueue_episode_video',
   'claim_episode_video',
@@ -281,6 +284,81 @@ describe('episode video lifecycle schema', () => {
     }
   });
 
+  it('version-fences both v2 claims so workers only take jobs they support', () => {
+    for (const sql of [schema, migration021]) {
+      const visualClaim = functionDefinition(
+        sql,
+        'claim_episode_video_visual_v2',
+      );
+      expect(visualClaim).toMatch(/p_visual_version text/i);
+      expect(visualClaim).toMatch(
+        /visual\.visual_version = btrim\(p_visual_version\)/i,
+      );
+      expect(visualClaim).toMatch(/p_visual_version must not be empty/i);
+      expect(visualClaim).toMatch(/for update skip locked/i);
+      expect(visualClaim).toMatch(
+        /when 1 then now\(\) \+ interval '1 minute'/i,
+      );
+      expect(visualClaim).toMatch(
+        /when 2 then now\(\) \+ interval '5 minutes'/i,
+      );
+      expect(visualClaim).toMatch(
+        /status = 'processing'[\s\S]+?lease_expires_at <= now\(\)/i,
+      );
+
+      const videoClaim = functionDefinition(sql, 'claim_episode_video_v2');
+      expect(videoClaim).toMatch(
+        /video\.visual_version = btrim\(p_visual_version\)/i,
+      );
+      expect(videoClaim).toMatch(/visual\.status = 'completed'/i);
+      expect(videoClaim).toMatch(/for update of video skip locked/i);
+    }
+  });
+
+  it('reduces the legacy claim signatures to inert stubs', () => {
+    for (const sql of [schema, migration021]) {
+      for (const name of [
+        'claim_episode_video_visual',
+        'claim_episode_video',
+      ]) {
+        const definitions = [
+          ...sql.matchAll(
+            new RegExp(
+              `create\\s+or\\s+replace\\s+function\\s+from_fed_to_chain\\.${name}\\(\\s*p_lease_owner text\\s*\\)[\\s\\S]+?\\$\\$\\s*;`,
+              'gi',
+            ),
+          ),
+        ];
+        expect(definitions).toHaveLength(1);
+        const stub = definitions[0]![0];
+        expect(stub).toMatch(/security definer/i);
+        expect(stub).not.toMatch(/update|insert|return query/i);
+      }
+    }
+  });
+
+  it('keeps the v2 claim RPCs service-role-only', () => {
+    for (const sql of [schema, migration021]) {
+      for (const name of [
+        'claim_episode_video_visual_v2',
+        'claim_episode_video_v2',
+      ]) {
+        expect(sql).toMatch(
+          new RegExp(
+            `revoke execute on function from_fed_to_chain\\.${name}\\([\\s\\S]+?from public, anon, authenticated;`,
+            'i',
+          ),
+        );
+        expect(sql).toMatch(
+          new RegExp(
+            `grant execute on function from_fed_to_chain\\.${name}\\([\\s\\S]+?to service_role;`,
+            'i',
+          ),
+        );
+      }
+    }
+  });
+
   it.each([
     ['schema.sql', schema],
     ['migration 019', migration019],
@@ -391,6 +469,7 @@ describe('episode video lifecycle schema', () => {
     expect(migration017).toMatch(/notify pgrst, 'reload schema';/i);
     expect(migration018).toMatch(/notify pgrst, 'reload schema';/i);
     expect(migration019).toMatch(/notify pgrst, 'reload schema';/i);
+    expect(migration021).toMatch(/notify pgrst, 'reload schema';/i);
   });
 });
 
