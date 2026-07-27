@@ -12,6 +12,7 @@ import {
   type TelegramChatId,
 } from './telegram.js';
 import {
+  EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoCompletion,
   type EpisodeVideoJobRow,
   type EpisodeVideoManifestPersistence,
@@ -395,7 +396,9 @@ export function createVideoWorker(
     start(): void {
       if (started || stopped) return;
       started = true;
-      logger.info(`[video-worker] started leaseOwner=${leaseOwner}`);
+      logger.info(
+        `[video-worker] started lease_owner=${leaseOwner} visual_version=${EPISODE_VIDEO_VISUAL_VERSION}`,
+      );
       schedulePoll(0);
     },
 

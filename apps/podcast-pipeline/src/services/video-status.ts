@@ -1,4 +1,5 @@
 import {
+  type EpisodeLocalizationRow,
   type EpisodeVideoResponse,
   type LanguageClassroomLanguageCode,
   SUPPORTED_PRIMARY_LANGUAGE_CODES,
@@ -24,6 +25,7 @@ export interface EpisodeVideoGenerationItem {
   thumbnailUrl: string | null;
   durationSeconds: number | null;
   lastError: string | null;
+  previousError: string | null;
   updatedAt: string | null;
   episodeEndpoint: string;
 }
@@ -36,9 +38,20 @@ export interface EpisodeVideoGenerationResponse {
   visual: {
     status: EpisodeVideoJobStatus;
     lastError: string | null;
+    previousError: string | null;
     updatedAt: string;
   } | null;
   items: EpisodeVideoGenerationItem[];
+}
+
+/**
+ * Errors that a re-submission's self-healing enqueue wiped from the job rows.
+ * Without this, retrying a failed episode clears last_error before the caller
+ * ever sees why it failed.
+ */
+export interface EpisodeVideoGenerationPreviousErrors {
+  visual: string | null;
+  videosByLocalizationId: Record<string, string | null>;
 }
 
 export interface EpisodeVideoJobWithLanguage {
@@ -52,6 +65,7 @@ export function buildEpisodeVideoGenerationResponse(input: {
   jobs: readonly EpisodeVideoJobWithLanguage[];
   visualJob: EpisodeVideoVisualJobRow | null;
   error?: Error | null;
+  previousErrors?: EpisodeVideoGenerationPreviousErrors;
 }): EpisodeVideoGenerationResponse {
   const items: EpisodeVideoGenerationItem[] = input.jobs.map(
     ({ languageCode, localizationId, job }) => {
@@ -65,6 +79,8 @@ export function buildEpisodeVideoGenerationResponse(input: {
         thumbnailUrl: video?.thumbnailUrl ?? null,
         durationSeconds: video?.durationSeconds ?? null,
         lastError: job?.last_error ?? null,
+        previousError:
+          input.previousErrors?.videosByLocalizationId[localizationId] ?? null,
         updatedAt: job?.updated_at ?? null,
         episodeEndpoint: `/episodes/${localizationId}`,
       };
@@ -83,6 +99,7 @@ export function buildEpisodeVideoGenerationResponse(input: {
       ? {
           status: input.visualJob.status,
           lastError: input.visualJob.last_error,
+          previousError: input.previousErrors?.visual ?? null,
           updatedAt: input.visualJob.updated_at,
         }
       : null,
@@ -90,44 +107,14 @@ export function buildEpisodeVideoGenerationResponse(input: {
   };
 }
 
-export function buildEpisodeVideoGenerationFromEnqueue(input: {
-  episodeId: string;
-  videoJobs: readonly EpisodeVideoJobRow[];
-  visualJob: EpisodeVideoVisualJobRow | null;
-  error?: Error | null;
-}): EpisodeVideoGenerationResponse {
-  const orderedJobs: EpisodeVideoJobWithLanguage[] = input.videoJobs.flatMap(
-    (job, index) => {
-      const languageCode = SUPPORTED_PRIMARY_LANGUAGE_CODES[index];
-      return languageCode
-        ? [
-            {
-              languageCode,
-              localizationId: job.episode_localization_id,
-              job,
-            },
-          ]
-        : [];
-    },
-  );
-
-  return buildEpisodeVideoGenerationResponse({
-    episodeId: input.episodeId,
-    jobs: orderedJobs,
-    visualJob: input.visualJob,
-    error: input.error,
-  });
-}
-
-export async function loadEpisodeVideoGeneration(
+export async function buildEpisodeVideoGenerationForLocalizations(
   episodeId: string,
-): Promise<EpisodeVideoGenerationResponse | null> {
-  const localizations = await listEpisodeLocalizationsByEpisodeId(
-    episodeId,
-    SUPPORTED_PRIMARY_LANGUAGE_CODES,
-  );
-  if (localizations.length === 0) return null;
-
+  localizations: readonly EpisodeLocalizationRow[],
+  options: {
+    error?: Error | null;
+    previousErrors?: EpisodeVideoGenerationPreviousErrors;
+  } = {},
+): Promise<EpisodeVideoGenerationResponse> {
   const visualRepository = getVideoVisualJobRepository();
   const videoRepository = getVideoJobRepository();
   const [visualJob, jobs] = await Promise.all([
@@ -154,7 +141,21 @@ export async function loadEpisodeVideoGeneration(
     episodeId,
     jobs,
     visualJob,
+    error: options.error,
+    previousErrors: options.previousErrors,
   });
+}
+
+export async function loadEpisodeVideoGeneration(
+  episodeId: string,
+): Promise<EpisodeVideoGenerationResponse | null> {
+  const localizations = await listEpisodeLocalizationsByEpisodeId(
+    episodeId,
+    SUPPORTED_PRIMARY_LANGUAGE_CODES,
+  );
+  if (localizations.length === 0) return null;
+
+  return buildEpisodeVideoGenerationForLocalizations(episodeId, localizations);
 }
 
 export function completedVideoResponse(

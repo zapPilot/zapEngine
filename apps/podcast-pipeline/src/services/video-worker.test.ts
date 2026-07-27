@@ -604,6 +604,25 @@ describe('createVideoWorker', () => {
     await worker.stop();
   });
 
+  it('start() announces the lease owner and supported visual version', async () => {
+    vi.useFakeTimers();
+    const repository = makeRepository(null);
+    const logger = { info: vi.fn(), error: vi.fn() };
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn(),
+      logger,
+      leaseOwner: 'host-1:42:uuid',
+      pollIntervalMs: 15_000,
+    });
+
+    worker.start();
+    expect(logger.info).toHaveBeenCalledWith(
+      '[video-worker] started lease_owner=host-1:42:uuid visual_version=podcast-image-visual-plan.v3',
+    );
+    await worker.stop();
+  });
+
   it('start() after stop() does not rearm polling', async () => {
     vi.useFakeTimers();
     const repository = makeRepository(null);

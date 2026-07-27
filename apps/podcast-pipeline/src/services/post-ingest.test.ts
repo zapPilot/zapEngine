@@ -130,10 +130,13 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
         telegramChatId: 123,
         dependencies: {
           coordinator: createHeavyWorkCoordinator(),
+          findEpisode: vi.fn().mockResolvedValue(null),
           performIngest,
           listLocalizations,
           enqueueVisual,
           enqueueVideo,
+          findVisualJob: vi.fn().mockResolvedValue(null),
+          findVideoJob: vi.fn().mockResolvedValue(null),
         },
       },
     );
@@ -164,6 +167,15 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
     expect(result.videoJob?.episode_localization_id).toBe(localizations[0]!.id);
     expect(result.visualJob?.status).toBe('queued');
     expect(result.videoEnqueueError).toBeNull();
+    expect(result.runId).toMatch(/^[0-9a-f-]{8}$/);
+    expect(result.previousErrors).toEqual({
+      visual: null,
+      videosByLocalizationId: {
+        [localizations[0]!.id]: null,
+        [localizations[1]!.id]: null,
+        [localizations[2]!.id]: null,
+      },
+    });
     expect(log.mock.calls.map(([message]) => String(message))).toEqual(
       expect.arrayContaining([
         expect.stringMatching(/^\[\/ingest\] run:start run=[^ ]+ /),
@@ -197,6 +209,7 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
       {
         dependencies: {
           coordinator: createHeavyWorkCoordinator(),
+          findEpisode: vi.fn().mockResolvedValue(null),
           performIngest: vi.fn().mockResolvedValue({
             episode: episodeListResponse(listRow()),
             statusCode: 201,
@@ -237,6 +250,7 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
       {
         dependencies: {
           coordinator: createHeavyWorkCoordinator(),
+          findEpisode: vi.fn().mockResolvedValue(null),
           performIngest: vi.fn().mockResolvedValue({
             episode: episodeListResponse(listRow({ language_code: 'ja' })),
             statusCode: 201,
@@ -269,6 +283,7 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
         telegramChatId: 123,
         dependencies: {
           coordinator: createHeavyWorkCoordinator(),
+          findEpisode: vi.fn().mockResolvedValue(null),
           performIngest: vi.fn().mockResolvedValue({
             episode: episodeListResponse(listRow({ language_code: 'ja' })),
             statusCode: 201,
@@ -280,6 +295,8 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
             .fn()
             .mockRejectedValue(new Error('supabase rpc unavailable')),
           enqueueVideo,
+          findVisualJob: vi.fn().mockResolvedValue(null),
+          findVideoJob: vi.fn().mockResolvedValue(null),
         },
       },
     );
@@ -290,5 +307,187 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
     expect(result.visualJob).toBeNull();
     expect(result.videoEnqueueError?.message).toBe('supabase rpc unavailable');
     expect(result.ingest.statusCode).toBe(201);
+    expect(result.runId).toMatch(/^[0-9a-f-]{8}$/);
+    expect(result.previousErrors).toEqual({
+      visual: null,
+      videosByLocalizationId: {},
+    });
+  });
+
+  it('surfaces errors wiped by the self-healing re-enqueue', async () => {
+    const localizations = videoLocalizations();
+    const canonical = localizations[0]!;
+    const priorError = 'Unsupported episode visual version: stale';
+    const findVisualJob = vi.fn().mockResolvedValue({
+      ...queuedVisualJob(),
+      status: 'failed',
+      last_error: priorError,
+    });
+    const findVideoJob = vi.fn(async (localizationId: string) =>
+      localizationId === canonical.id
+        ? {
+            ...queuedVideoJob(canonical),
+            status: 'failed' as const,
+            last_error: 'render failed',
+          }
+        : null,
+    );
+
+    const result = await performMultilingualIngestAndEnqueueVideo(
+      'https://example.com/article',
+      'ja',
+      {
+        dependencies: {
+          coordinator: createHeavyWorkCoordinator(),
+          findEpisode: vi.fn().mockResolvedValue(null),
+          performIngest: vi.fn().mockResolvedValue({
+            episode: episodeListResponse(listRow({ language_code: 'ja' })),
+            statusCode: 200,
+            costUsd: 0,
+            costDetails: buildUsageCostDetails([]),
+          }),
+          listLocalizations: vi.fn().mockResolvedValue(localizations),
+          enqueueVisual: vi.fn().mockResolvedValue(queuedVisualJob()),
+          enqueueVideo: vi.fn(async (localizationId: string) =>
+            queuedVideoJob(
+              localizations.find(({ id }) => id === localizationId),
+            ),
+          ),
+          findVisualJob,
+          findVideoJob,
+        },
+      },
+    );
+
+    expect(findVisualJob).toHaveBeenCalledWith(result.ingest.episode.id);
+    expect(result.previousErrors).toEqual({
+      visual: priorError,
+      videosByLocalizationId: {
+        [localizations[0]!.id]: 'render failed',
+        [localizations[1]!.id]: null,
+        [localizations[2]!.id]: null,
+      },
+    });
+  });
+
+  it('keeps previousError null while a pending error is still on the row', async () => {
+    const localizations = videoLocalizations();
+    const canonical = localizations[0]!;
+    // A queued row mid-backoff keeps its last_error through re-enqueue; the
+    // live lastError field reports it, so previousErrors must stay null.
+    const pendingVideoJob = {
+      ...queuedVideoJob(canonical),
+      last_error: 'transient render error',
+    };
+
+    const result = await performMultilingualIngestAndEnqueueVideo(
+      'https://example.com/article',
+      'ja',
+      {
+        dependencies: {
+          coordinator: createHeavyWorkCoordinator(),
+          findEpisode: vi.fn().mockResolvedValue(null),
+          performIngest: vi.fn().mockResolvedValue({
+            episode: episodeListResponse(listRow({ language_code: 'ja' })),
+            statusCode: 200,
+            costUsd: 0,
+            costDetails: buildUsageCostDetails([]),
+          }),
+          listLocalizations: vi.fn().mockResolvedValue(localizations),
+          enqueueVisual: vi.fn().mockResolvedValue(queuedVisualJob()),
+          enqueueVideo: vi.fn(async (localizationId: string) =>
+            localizationId === canonical.id
+              ? pendingVideoJob
+              : queuedVideoJob(
+                  localizations.find(({ id }) => id === localizationId),
+                ),
+          ),
+          findVisualJob: vi.fn().mockResolvedValue(null),
+          findVideoJob: vi.fn(async (localizationId: string) =>
+            localizationId === canonical.id ? pendingVideoJob : null,
+          ),
+        },
+      },
+    );
+
+    expect(result.previousErrors.videosByLocalizationId[canonical.id]).toBe(
+      null,
+    );
+  });
+
+  it('bypasses the heavy-work queue when the episode is already fully ingested', async () => {
+    const localizations = videoLocalizations();
+    const runIngest = vi.fn();
+    const enqueueVideo = vi.fn(async (localizationId: string) =>
+      queuedVideoJob(localizations.find(({ id }) => id === localizationId)),
+    );
+
+    const result = await performMultilingualIngestAndEnqueueVideo(
+      'https://example.com/article',
+      'ja',
+      {
+        dependencies: {
+          coordinator: { runIngest } as never,
+          findEpisode: vi
+            .fn()
+            .mockResolvedValue({ id: localizations[0]!.episode_id }),
+          performIngest: vi.fn().mockResolvedValue({
+            episode: episodeListResponse(listRow({ language_code: 'ja' })),
+            statusCode: 200,
+            costUsd: 0,
+            costDetails: buildUsageCostDetails([]),
+          }),
+          listLocalizations: vi.fn().mockResolvedValue(localizations),
+          enqueueVisual: vi.fn().mockResolvedValue(queuedVisualJob()),
+          enqueueVideo,
+          findVisualJob: vi.fn().mockResolvedValue(null),
+          findVideoJob: vi.fn().mockResolvedValue(null),
+        },
+      },
+    );
+
+    // A render in flight holds the coordinator for minutes; the progress
+    // re-POST must not queue behind it.
+    expect(runIngest).not.toHaveBeenCalled();
+    expect(enqueueVideo).toHaveBeenCalledTimes(3);
+    expect(result.videoEnqueueError).toBeNull();
+    expect(result.videoJobs).toHaveLength(3);
+  });
+
+  it('waits for the heavy-work queue when any localization still needs work', async () => {
+    const localizations = videoLocalizations();
+    localizations[1] = { ...localizations[1]!, status: 'scraped' };
+    const coordinator = createHeavyWorkCoordinator();
+    const runIngest = vi.spyOn(coordinator, 'runIngest');
+
+    await performMultilingualIngestAndEnqueueVideo(
+      'https://example.com/article',
+      'ja',
+      {
+        dependencies: {
+          coordinator,
+          findEpisode: vi
+            .fn()
+            .mockResolvedValue({ id: localizations[0]!.episode_id }),
+          performIngest: vi.fn().mockResolvedValue({
+            episode: episodeListResponse(listRow({ language_code: 'ja' })),
+            statusCode: 201,
+            costUsd: 0,
+            costDetails: buildUsageCostDetails([]),
+          }),
+          listLocalizations: vi.fn().mockResolvedValue(localizations),
+          enqueueVisual: vi.fn().mockResolvedValue(queuedVisualJob()),
+          enqueueVideo: vi.fn(async (localizationId: string) =>
+            queuedVideoJob(
+              localizations.find(({ id }) => id === localizationId),
+            ),
+          ),
+          findVisualJob: vi.fn().mockResolvedValue(null),
+          findVideoJob: vi.fn().mockResolvedValue(null),
+        },
+      },
+    );
+
+    expect(runIngest).toHaveBeenCalledTimes(1);
   });
 });

@@ -27,6 +27,7 @@ import {
   findEpisodeListRowByLocalizationId,
   findEpisodeLocalizationByEpisodeId,
   listCompletedEpisodeVideosByLocalizationIds,
+  listEpisodeLocalizationsByEpisodeId,
   listEpisodesPaged,
   listLanguageClassroomsByLocalizationId,
   markEpisodeListened,
@@ -70,7 +71,7 @@ import {
   verifySecret,
 } from './services/telegram.js';
 import {
-  buildEpisodeVideoGenerationFromEnqueue,
+  buildEpisodeVideoGenerationForLocalizations,
   loadEpisodeVideoGeneration,
 } from './services/video-status.js';
 import {
@@ -81,7 +82,9 @@ import {
 } from './services/video-worker.js';
 import {
   DEFAULT_LANGUAGE_CODE,
+  type EpisodeLocalizationRow,
   type LanguageClassroomLanguageCode,
+  SUPPORTED_PRIMARY_LANGUAGE_CODES,
 } from './types.js';
 
 function healthResponse(c: Context) {
@@ -94,6 +97,33 @@ function omitEpisodeVideo<T extends { video: unknown }>(
   const withoutVideo = { ...episode } as Partial<T>;
   delete withoutVideo.video;
   return withoutVideo as Omit<T, 'video'>;
+}
+
+function toIngestLocalizationSummaries(
+  localizations: readonly EpisodeLocalizationRow[],
+) {
+  return SUPPORTED_PRIMARY_LANGUAGE_CODES.flatMap((languageCode) => {
+    const localization = localizations.find(
+      (candidate) => candidate.language_code === languageCode,
+    );
+    return localization
+      ? [
+          {
+            languageCode,
+            localizationId: localization.id,
+            status: localization.status,
+            hasMainAudio: Boolean(localization.hls_url.trim()),
+            // Classroom audio is an ingest requirement only for the canonical
+            // language; other languages report null instead of false.
+            hasClassroomAudio:
+              languageCode === DEFAULT_LANGUAGE_CODE
+                ? Boolean(localization.classroom_hls_url?.trim())
+                : null,
+            updatedAt: localization.updated_at,
+          },
+        ]
+      : [];
+  });
 }
 
 function emptyTelegramResponse(c: Context): Response {
@@ -159,18 +189,30 @@ export function createApp(): Hono {
     );
     const result = postIngest.ingest;
     const episode = omitEpisodeVideo(result.episode);
-    const videoGeneration = buildEpisodeVideoGenerationFromEnqueue({
-      episodeId: result.episode.id,
-      videoJobs: postIngest.videoJobs,
-      visualJob: postIngest.visualJob,
-      error: postIngest.videoEnqueueError,
-    });
+    // Assemble the video snapshot from current DB state rather than the
+    // enqueue return values: re-POSTing the same URL then doubles as a
+    // progress query, and an enqueue failure still reports all languages.
+    const localizations = await listEpisodeLocalizationsByEpisodeId(
+      result.episode.id,
+      SUPPORTED_PRIMARY_LANGUAGE_CODES,
+    );
+    const videoGeneration = await buildEpisodeVideoGenerationForLocalizations(
+      result.episode.id,
+      localizations,
+      {
+        error: postIngest.videoEnqueueError,
+        previousErrors: postIngest.previousErrors,
+      },
+    );
     invalidateEpisodeSearchCache();
 
+    c.header('x-run-id', postIngest.runId);
     return c.json(
       {
         episode,
+        localizations: toIngestLocalizationSummaries(localizations),
         videoGeneration,
+        runId: postIngest.runId,
         costUsd: result.costUsd,
         costDetails: {
           totalUsd: result.costDetails.totalUsd,

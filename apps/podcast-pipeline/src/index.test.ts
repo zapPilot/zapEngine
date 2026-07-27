@@ -27,6 +27,8 @@ const {
   mockFindEpisodeBySourceUrl,
   mockFindEpisodeListRowByLocalizationId,
   mockFindEpisodeLocalizationByEpisodeId,
+  mockFindEpisodeVideoJob,
+  mockFindEpisodeVideoVisualJob,
   mockGenerateHls,
   mockGenerateLanguageClassroomsWithLLM,
   mockGenerateScriptWithLLM,
@@ -60,6 +62,8 @@ const {
   mockFindEpisodeBySourceUrl: vi.fn(),
   mockFindEpisodeListRowByLocalizationId: vi.fn(),
   mockFindEpisodeLocalizationByEpisodeId: vi.fn(),
+  mockFindEpisodeVideoJob: vi.fn(),
+  mockFindEpisodeVideoVisualJob: vi.fn(),
   mockGenerateHls: vi.fn(),
   mockGenerateLanguageClassroomsWithLLM: vi.fn(),
   mockGenerateScriptWithLLM: vi.fn(),
@@ -215,6 +219,10 @@ vi.mock('./services/video-jobs.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./services/video-jobs.js')>()),
   enqueueEpisodeVideoJob: mockEnqueueEpisodeVideoJob,
   enqueueEpisodeVideoVisualJob: mockEnqueueEpisodeVideoVisualJob,
+  findEpisodeVideoJob: mockFindEpisodeVideoJob,
+  findEpisodeVideoVisualJob: mockFindEpisodeVideoVisualJob,
+  getVideoJobRepository: () => ({ find: mockFindEpisodeVideoJob }),
+  getVideoVisualJobRepository: () => ({ find: mockFindEpisodeVideoVisualJob }),
 }));
 
 vi.mock('./services/video-status.js', async (importOriginal) => ({
@@ -249,6 +257,8 @@ beforeEach(() => {
     last_error: null,
     updated_at: '2026-07-24T00:00:00.000Z',
   });
+  mockFindEpisodeVideoVisualJob.mockResolvedValue(null);
+  mockFindEpisodeVideoJob.mockResolvedValue(null);
   mockListEpisodeLocalizationsByEpisodeId.mockResolvedValue([
     localizationRow({
       language_code: 'zh-Hant',
@@ -924,6 +934,23 @@ describe('POST /ingest pipeline', () => {
           updated_at: '2026-07-24T00:00:00.000Z',
         }),
     );
+    mockFindEpisodeVideoVisualJob.mockResolvedValue({
+      status: 'queued',
+      last_error: null,
+      updated_at: '2026-07-24T00:00:00.000Z',
+    });
+    mockFindEpisodeVideoJob.mockImplementation(
+      (episodeLocalizationId: string) =>
+        Promise.resolve({
+          episode_localization_id: episodeLocalizationId,
+          status: 'queued',
+          mp4_url: null,
+          thumbnail_url: null,
+          duration_seconds: null,
+          last_error: null,
+          updated_at: '2026-07-24T00:00:00.000Z',
+        }),
+    );
 
     const response = await app.request('/ingest', {
       method: 'POST',
@@ -935,6 +962,15 @@ describe('POST /ingest pipeline', () => {
     });
     const body = (await response.json()) as {
       episode: Omit<EpisodeResponse, 'video'>;
+      localizations: {
+        languageCode: string;
+        localizationId: string;
+        status: string;
+        hasMainAudio: boolean;
+        hasClassroomAudio: boolean | null;
+        updatedAt: string;
+      }[];
+      runId: string;
       costUsd: number;
       costDetails: { totalUsd: number; breakdown: unknown[] };
       summary: string;
@@ -942,6 +978,7 @@ describe('POST /ingest pipeline', () => {
         episodeId: string;
         status: string;
         statusEndpoint: string;
+        visual: { status: string; previousError: string | null } | null;
         items: {
           languageCode: string;
           localizationId: string;
@@ -955,19 +992,50 @@ describe('POST /ingest pipeline', () => {
       'costDetails',
       'costUsd',
       'episode',
+      'localizations',
+      'runId',
       'summary',
       'videoGeneration',
     ]);
+    expect(body.runId).toMatch(/^[0-9a-f-]{8}$/);
+    expect(response.headers.get('x-run-id')).toBe(body.runId);
     expect(body.episode).toMatchObject({
       id: episodeRow().id,
       localizationId: canonicalLocalization.id,
       languageCode: 'zh-Hant',
     });
     expect(body.episode).not.toHaveProperty('video');
+    expect(body.localizations).toEqual([
+      {
+        languageCode: 'zh-Hant',
+        localizationId: canonicalLocalization.id,
+        status: 'completed',
+        hasMainAudio: true,
+        hasClassroomAudio: true,
+        updatedAt: canonicalLocalization.updated_at,
+      },
+      {
+        languageCode: 'ja',
+        localizationId: jaLocalization.id,
+        status: 'completed',
+        hasMainAudio: true,
+        hasClassroomAudio: null,
+        updatedAt: jaLocalization.updated_at,
+      },
+      {
+        languageCode: 'en',
+        localizationId: enLocalization.id,
+        status: 'completed',
+        hasMainAudio: true,
+        hasClassroomAudio: null,
+        updatedAt: enLocalization.updated_at,
+      },
+    ]);
     expect(body.videoGeneration).toMatchObject({
       episodeId: episodeRow().id,
       status: 'queued',
       statusEndpoint: `/episodes/${episodeRow().id}/videos`,
+      visual: { status: 'queued', previousError: null },
       items: [
         {
           languageCode: 'zh-Hant',
@@ -1009,6 +1077,82 @@ describe('POST /ingest pipeline', () => {
     expect(mockUploadHlsToR2).not.toHaveBeenCalled();
     expect(mockUpdateEpisodeLocalizationArticleContent).not.toHaveBeenCalled();
     expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalled();
+  });
+
+  it('keeps all languages in videoGeneration when the video enqueue fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockEnqueueEpisodeVideoVisualJob.mockRejectedValue(
+      new Error('supabase rpc unavailable'),
+    );
+
+    const response = await app.request('/ingest', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ url: 'https://example.com/article' }),
+    });
+    const body = (await response.json()) as {
+      videoGeneration: {
+        status: string;
+        error: string | null;
+        items: { languageCode: string; status: string }[];
+      };
+    };
+
+    expect(response.status).toBe(201);
+    expect(body.videoGeneration.error).toBe('supabase rpc unavailable');
+    expect(body.videoGeneration.status).toBe('unavailable');
+    expect(body.videoGeneration.items.map((item) => item.languageCode)).toEqual(
+      ['zh-Hant', 'ja', 'en'],
+    );
+    expect(
+      body.videoGeneration.items.every((item) => item.status === 'unavailable'),
+    ).toBe(true);
+  });
+
+  it('surfaces the previous visual error wiped by a self-healing re-submission', async () => {
+    // First attempt failed; the re-POST resets the row (clearing last_error),
+    // so the response must carry the wiped message as previousError.
+    mockFindEpisodeVideoVisualJob
+      .mockResolvedValueOnce({
+        status: 'failed',
+        last_error:
+          'Unsupported episode visual version: podcast-image-visual-plan.v3',
+        updated_at: '2026-07-24T00:00:00.000Z',
+      })
+      .mockResolvedValue({
+        status: 'queued',
+        last_error: null,
+        updated_at: '2026-07-24T00:01:00.000Z',
+      });
+
+    const response = await app.request('/ingest', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer secret-token',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ url: 'https://example.com/article' }),
+    });
+    const body = (await response.json()) as {
+      videoGeneration: {
+        visual: {
+          status: string;
+          lastError: string | null;
+          previousError: string | null;
+        } | null;
+      };
+    };
+
+    expect(response.status).toBe(201);
+    expect(body.videoGeneration.visual).toMatchObject({
+      status: 'queued',
+      lastError: null,
+      previousError:
+        'Unsupported episode visual version: podcast-image-visual-plan.v3',
+    });
   });
 
   it('returns the cost envelope and a Telegram-equivalent summary string', async () => {
@@ -1476,7 +1620,10 @@ describe('POST /telegram/webhook', () => {
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
     await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(2));
-    expect(mockFindEpisodeBySourceUrl).toHaveBeenCalledTimes(1);
+    // One deduped run performs exactly two source-url lookups: the
+    // heavy-work bypass pre-check plus the ingest resume check. A second
+    // ingest would add more.
+    expect(mockFindEpisodeBySourceUrl).toHaveBeenCalledTimes(2);
     expect(telegramMessageTexts()).toEqual([
       expect.stringContaining('收到'),
       expect.stringContaining('已在處理'),

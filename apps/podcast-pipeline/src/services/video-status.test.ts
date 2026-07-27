@@ -26,7 +26,7 @@ vi.mock('./video-jobs.js', async (importOriginal) => ({
 }));
 
 const {
-  buildEpisodeVideoGenerationFromEnqueue,
+  buildEpisodeVideoGenerationForLocalizations,
   buildEpisodeVideoGenerationResponse,
   completedVideoResponse,
   loadEpisodeVideoGeneration,
@@ -36,31 +36,36 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('buildEpisodeVideoGenerationFromEnqueue', () => {
-  it('returns a discoverable queued status for all three languages', () => {
+describe('buildEpisodeVideoGenerationForLocalizations', () => {
+  it('returns a discoverable queued status for all three languages', async () => {
     const episodeId = '00000000-0000-4000-8000-000000000001';
-    const result = buildEpisodeVideoGenerationFromEnqueue({
+    mockVisualFind.mockResolvedValue(visualJob({ status: 'queued' }));
+    mockVideoFind.mockImplementation((localizationId: string) =>
+      Promise.resolve(videoJob({ episode_localization_id: localizationId })),
+    );
+
+    const result = await buildEpisodeVideoGenerationForLocalizations(
       episodeId,
-      visualJob: visualJob({ status: 'queued' }),
-      videoJobs: [
-        videoJob({ episode_localization_id: 'localization-zh' }),
-        videoJob({ episode_localization_id: 'localization-ja' }),
-        videoJob({ episode_localization_id: 'localization-en' }),
+      [
+        localizationRow({ id: 'localization-zh', language_code: 'zh-Hant' }),
+        localizationRow({ id: 'localization-ja', language_code: 'ja' }),
+        localizationRow({ id: 'localization-en', language_code: 'en' }),
       ],
-    });
+    );
 
     expect(result).toMatchObject({
       episodeId,
       status: 'queued',
       statusEndpoint: `/episodes/${episodeId}/videos`,
       error: null,
-      visual: { status: 'queued' },
+      visual: { status: 'queued', previousError: null },
       items: [
         {
           languageCode: 'zh-Hant',
           localizationId: 'localization-zh',
           status: 'queued',
           url: null,
+          previousError: null,
           episodeEndpoint: '/episodes/localization-zh',
         },
         {
@@ -75,19 +80,58 @@ describe('buildEpisodeVideoGenerationFromEnqueue', () => {
         },
       ],
     });
+    expect(mockListLocalizations).not.toHaveBeenCalled();
   });
 
-  it('returns unavailable with the enqueue error when scheduling failed', () => {
-    const result = buildEpisodeVideoGenerationFromEnqueue({
-      episodeId: 'episode-1',
-      visualJob: null,
-      videoJobs: [],
-      error: new Error('video enqueue failed'),
-    });
+  it('keeps every language visible when scheduling failed', async () => {
+    mockVisualFind.mockResolvedValue(null);
+    mockVideoFind.mockResolvedValue(null);
+
+    const result = await buildEpisodeVideoGenerationForLocalizations(
+      'episode-1',
+      [
+        localizationRow({ id: 'localization-zh', language_code: 'zh-Hant' }),
+        localizationRow({ id: 'localization-ja', language_code: 'ja' }),
+        localizationRow({ id: 'localization-en', language_code: 'en' }),
+      ],
+      { error: new Error('video enqueue failed') },
+    );
 
     expect(result.status).toBe('unavailable');
     expect(result.error).toBe('video enqueue failed');
-    expect(result.items).toEqual([]);
+    expect(result.items.map((item) => item.languageCode)).toEqual([
+      'zh-Hant',
+      'ja',
+      'en',
+    ]);
+    expect(result.items.every((item) => item.status === 'unavailable')).toBe(
+      true,
+    );
+  });
+
+  it('surfaces previous errors wiped by the self-healing enqueue', async () => {
+    mockVisualFind.mockResolvedValue(visualJob({ status: 'queued' }));
+    mockVideoFind.mockImplementation((localizationId: string) =>
+      Promise.resolve(videoJob({ episode_localization_id: localizationId })),
+    );
+
+    const result = await buildEpisodeVideoGenerationForLocalizations(
+      'episode-1',
+      [localizationRow({ id: 'localization-zh', language_code: 'zh-Hant' })],
+      {
+        previousErrors: {
+          visual:
+            'Unsupported episode visual version: podcast-image-visual-plan.v3',
+          videosByLocalizationId: { 'localization-zh': 'render aborted' },
+        },
+      },
+    );
+
+    expect(result.visual?.previousError).toBe(
+      'Unsupported episode visual version: podcast-image-visual-plan.v3',
+    );
+    expect(result.items[0]?.previousError).toBe('render aborted');
+    expect(result.items[0]?.lastError).toBeNull();
   });
 });
 

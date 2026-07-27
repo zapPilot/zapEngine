@@ -196,8 +196,9 @@ describe('createVideoJobRepository', () => {
       p_episode_localization_id: 'localization-1',
       p_telegram_chat_id: '123',
     });
-    expect(supabase.rpc).toHaveBeenNthCalledWith(2, 'claim_episode_video', {
+    expect(supabase.rpc).toHaveBeenNthCalledWith(2, 'claim_episode_video_v2', {
       p_lease_owner: 'worker-1',
+      p_visual_version: EPISODE_VIDEO_VISUAL_VERSION,
     });
     expect(supabase.rpc).toHaveBeenNthCalledWith(6, 'fail_episode_video', {
       p_episode_localization_id: 'localization-1',
@@ -484,6 +485,14 @@ describe('createVideoVisualJobRepository', () => {
         p_visual_version: EPISODE_VIDEO_VISUAL_VERSION,
         p_source_hash: 'source-hash',
         p_telegram_chat_id: 'chat-1',
+      },
+    );
+    expect(supabase.rpc).toHaveBeenNthCalledWith(
+      2,
+      'claim_episode_video_visual_v2',
+      {
+        p_lease_owner: 'visual-worker',
+        p_visual_version: EPISODE_VIDEO_VISUAL_VERSION,
       },
     );
     expect(supabase.rpc).toHaveBeenNthCalledWith(
