@@ -10,6 +10,8 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# pnpm-workspace.yaml patchedDependencies resolves these at install time
+COPY patches patches
 COPY apps/alpha-etl/package.json apps/alpha-etl/package.json
 COPY packages/eslint-config/package.json packages/eslint-config/package.json
 COPY packages/knip-config/package.json packages/knip-config/package.json
