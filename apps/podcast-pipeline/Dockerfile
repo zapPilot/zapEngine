@@ -7,6 +7,8 @@ WORKDIR /workspace
 FROM base AS deps
 RUN apk add --no-cache libc6-compat ffmpeg python3 make g++
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# pnpm-workspace.yaml patchedDependencies resolves these at install time
+COPY patches patches
 COPY apps/podcast-pipeline/package.json apps/podcast-pipeline/package.json
 COPY packages/design-tokens/package.json packages/design-tokens/package.json
 COPY packages/eslint-config/package.json packages/eslint-config/package.json
