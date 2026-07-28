@@ -37,9 +37,34 @@ load_repo_env() {
 cd "$repo_root"
 load_repo_env
 
+# Sourced after load_repo_env so ACCOUNT_ENGINE_PORT and friends are exported
+# before the port table is built from them.
+# shellcheck source=scripts/dev-ports-lib.sh
+source "$repo_root/scripts/dev-ports-lib.sh"
+
 flags=(--cache=local:rw --ui=stream --no-update-notifier)
 
-case "${1:-}" in
+usage() {
+  echo "usage: pnpm dev [web|app|api|landing|analytics|all|stop]" >&2
+  exit 2
+}
+
+sub="${1:-}"
+
+# Validate before touching any process — dev_ports_for rejects what it has no
+# port table for.
+dev_ports_for "$sub" > /dev/null || usage
+
+# Free the ports this stack binds, so a dev server whose terminal is long gone
+# cannot keep answering on 8081 while turbo reports a healthy start.
+if [ "$sub" = "stop" ]; then
+  dev_preflight_ports stop --force || exit 1
+  echo "✅ dev ports released"
+  exit 0
+fi
+dev_preflight_ports "$sub" || exit 1
+
+case "$sub" in
   "")        exec turbo run @zapengine/app#dev:web @zapengine/account-engine#dev @zapengine/analytics-engine#dev @zapengine/types#dev @zapengine/intent-engine#dev "${flags[@]}" ;;
   web)       exec turbo run dev:web "${flags[@]}" --filter=@zapengine/app ;;
   app)       exec turbo run dev "${flags[@]}" --filter=@zapengine/app --filter=@zapengine/types --filter=@zapengine/intent-engine ;;
@@ -47,5 +72,5 @@ case "${1:-}" in
   landing)   exec turbo run dev "${flags[@]}" --filter=@zapengine/landing-page ;;
   analytics) exec turbo run dev "${flags[@]}" --filter=@zapengine/analytics-engine ;;
   all)       exec turbo run dev "${flags[@]}" ;;
-  *) echo "usage: pnpm dev [web|app|api|landing|analytics|all]" >&2; exit 2 ;;
+  *) usage ;;
 esac

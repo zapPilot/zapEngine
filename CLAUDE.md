@@ -66,6 +66,8 @@ pnpm turbo run type-check lint test build deadcode dup:check --filter=@zapengine
 | analytics-engine | 8001 |
 | app (web E2E)    | 3100 |
 
+`pnpm dev` reclaims these ports before starting: a dev server from this repo that is orphaned (its terminal is gone) or older than `ZAP_DEV_STALE_HOURS` (default 12) is killed, one that still looks live is reported and the run aborts, and a process from outside the repo is never touched. `pnpm dev stop` releases every port unconditionally; `ZAP_DEV_NO_RECLAIM=1` downgrades the preflight to a warning.
+
 # Database rules
 
 - analytics-engine: read-only DB connection — NEVER add write operations here

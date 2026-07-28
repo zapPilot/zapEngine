@@ -37,15 +37,15 @@ zapEngine/
     └── types               # Shared TypeScript types & Zod schemas
 ```
 
-| App              | Language     | Framework         | Deploy                 |
-| ---------------- | ------------ | ----------------- | ---------------------- |
-| account-engine   | TypeScript   | Hono 4.12         | Fly.io                 |
-| alpha-etl        | TypeScript   | Express 4.18      | Fly.io                 |
-| analytics-engine | Python 3.11+ | FastAPI           | Fly.io                 |
-| desktop | TypeScript   | Electron          | macOS DMG              |
-| landing-page     | TypeScript   | Next.js 15        | Vercel                 |
-| app        | TypeScript   | Expo 57 / RN 0.86 | Vercel (web) / EAS     |
-| podcast-pipeline | TypeScript   | Hono 4.12         | Fly.io                 |
+| App              | Language     | Framework         | Deploy             |
+| ---------------- | ------------ | ----------------- | ------------------ |
+| account-engine   | TypeScript   | Hono 4.12         | Fly.io             |
+| alpha-etl        | TypeScript   | Express 4.18      | Fly.io             |
+| analytics-engine | Python 3.11+ | FastAPI           | Fly.io             |
+| desktop          | TypeScript   | Electron          | macOS DMG          |
+| landing-page     | TypeScript   | Next.js 15        | Vercel             |
+| app              | TypeScript   | Expo 57 / RN 0.86 | Vercel (web) / EAS |
+| podcast-pipeline | TypeScript   | Hono 4.12         | Fly.io             |
 
 ## Prerequisites
 
@@ -105,7 +105,15 @@ pnpm --filter @zapengine/app build:web
 
 # Start everything
 pnpm dev all
+
+# Release every dev port (kills this repo's dev servers, leaves others alone)
+pnpm dev stop
 ```
+
+`pnpm dev` frees the ports its stack needs before starting. A dev server from
+this repo whose terminal is gone gets reclaimed automatically; one that still
+looks live is reported so you can decide, and a process from another project is
+never killed.
 
 All apps — including analytics-engine — run via `pnpm <script>`. Python scripts wrap `uv run` under the hood; the CLI is uniform. The default `pnpm dev` includes analytics-engine so backtesting and analytics pages work out of the box. Use `pnpm dev lite` only when you are not touching those pages.
 

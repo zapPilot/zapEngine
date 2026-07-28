@@ -6,7 +6,7 @@
   "main": "entrypoint.js",
   "scripts": {
     "dev": "expo start --dev-client",
-    "dev:web": "expo start --web",
+    "dev:web": "expo start --web --port 8081",
     "postinstall": "node scripts/install-playwright.mjs",
     "eas-build-post-install": "cd ../.. && pnpm turbo run build --filter=@zapengine/app-core",
     "start": "expo start --dev-client",
