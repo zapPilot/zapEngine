@@ -114,6 +114,11 @@ export function SimulationCallList({
   return (
     <View className="overflow-hidden rounded-2xl border border-line bg-surface">
       <Tap
+        accessibilityLabel={
+          expanded
+            ? 'Hide transaction call details'
+            : 'Show transaction call details'
+        }
         accessibilityRole="button"
         accessibilityState={{ expanded }}
         className="flex-row items-center justify-between gap-3 px-4 py-3.5"

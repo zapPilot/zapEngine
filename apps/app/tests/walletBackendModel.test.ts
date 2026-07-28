@@ -7,6 +7,7 @@ import {
   DEFAULT_NATIVE_WALLET_CHAIN,
   getNativeWalletChain,
   NATIVE_WALLET_SUPPORTED_CHAINS,
+  resolveEmbeddedWalletId,
   shouldSwitchChain,
   toWalletError,
   toWalletSwitchEthereumChainParams,
@@ -40,6 +41,61 @@ describe('native wallet backend model', () => {
     expect(buildConnectedWallets('0xabc')).toEqual([
       { address: '0xabc', isActive: true },
     ]);
+  });
+
+  it('resolves the matching Expo embedded Ethereum wallet resource id', () => {
+    expect(
+      resolveEmbeddedWalletId(
+        [
+          {
+            id: 'wallet-1',
+            address: '0xAbC',
+            connector_type: 'embedded',
+            chain_type: 'ethereum',
+          },
+        ],
+        '0xaBc',
+      ),
+    ).toBe('wallet-1');
+  });
+
+  it('ignores linked accounts that are not embedded Ethereum wallets', () => {
+    const address = '0xabc';
+    expect(
+      resolveEmbeddedWalletId(
+        [
+          {
+            id: 'injected-wallet',
+            address,
+            connector_type: 'injected',
+            chain_type: 'ethereum',
+          },
+          {
+            id: 'embedded-solana-wallet',
+            address,
+            connector_type: 'embedded',
+            chain_type: 'solana',
+          },
+        ],
+        address,
+      ),
+    ).toBeUndefined();
+  });
+
+  it('guards a matching embedded account whose resource id is null', () => {
+    expect(
+      resolveEmbeddedWalletId(
+        [
+          {
+            id: null,
+            address: '0xabc',
+            connector_type: 'embedded',
+            chain_type: 'ethereum',
+          },
+        ],
+        '0xabc',
+      ),
+    ).toBeUndefined();
   });
 
   it('only switches chains when the requested chain differs', () => {

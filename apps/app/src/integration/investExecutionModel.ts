@@ -30,7 +30,7 @@ export function resolveDepositExecutionCapability({
   depositPath,
 }: {
   isConnected: boolean;
-  /** `WalletProviderInterface.executionMode` — `undefined` on native (Privy-Expo has no execution path yet). */
+  /** `WalletProviderInterface.executionMode`; undefined when the active backend cannot execute a deposit plan. */
   executionMode: 'atomic-batch' | 'eip7702' | undefined;
   depositPath: DesktopDepositPath;
 }): DepositExecutionCapability {

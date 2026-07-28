@@ -86,8 +86,8 @@ export interface WalletProviderInterface {
    * - `'atomic-batch'`: `executeAtomicBatch` is present (Privy server-side batch).
    * - `'eip7702'`: no `executeAtomicBatch`, but `getWalletClient` returns a
    *   signer the generic `intentEngine.executeWithEIP7702` path can drive.
-   * - `undefined`: neither is available (e.g. native Privy-Expo) — callers
-   *   should treat the wallet as unable to execute a deposit plan.
+   * - `undefined`: neither is available — callers should treat the wallet as
+   *   unable to execute a deposit plan.
    */
   executionMode?: 'atomic-batch' | 'eip7702';
 }

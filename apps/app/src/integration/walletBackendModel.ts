@@ -18,6 +18,43 @@ export interface ConnectedWalletListItem {
   isActive: boolean;
 }
 
+type LinkedAccountRecord = Record<PropertyKey, unknown>;
+
+function isLinkedAccountRecord(value: unknown): value is LinkedAccountRecord {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * Resolves the Privy Wallets API resource id for the active Expo embedded
+ * wallet. Expo's user payload deliberately uses snake_case fields, unlike the
+ * react-auth payload used by app-core's web adapter.
+ */
+export function resolveEmbeddedWalletId(
+  linkedAccounts: readonly unknown[] | null | undefined,
+  address: string | null | undefined,
+): string | undefined {
+  if (!address) {
+    return undefined;
+  }
+
+  const normalizedAddress = address.toLowerCase();
+  for (const account of linkedAccounts ?? []) {
+    if (
+      !isLinkedAccountRecord(account) ||
+      account.connector_type !== 'embedded' ||
+      account.chain_type !== 'ethereum' ||
+      typeof account.address !== 'string' ||
+      account.address.toLowerCase() !== normalizedAddress ||
+      typeof account.id !== 'string'
+    ) {
+      continue;
+    }
+    return account.id;
+  }
+
+  return undefined;
+}
+
 export function getNativeWalletChain(
   chainId: number | null | undefined,
 ): Chain {

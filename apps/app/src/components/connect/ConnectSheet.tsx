@@ -1,14 +1,7 @@
 import type { WalletConnectorOption } from '@zapengine/app-core/types';
 import { QrCode } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Animated,
-  Easing,
-  Pressable,
-  Text,
-  View,
-} from 'react-native';
+import { Animated, Easing, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CONNECT_SHEET_COPY } from '@/components/connect/connectCopy';
@@ -18,6 +11,7 @@ import { WalletOptionRow } from '@/components/connect/WalletOptionRow';
 import { GlowCircle } from '@/components/ui/GlowCircle';
 import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { SectionLabel } from '@/components/ui/SectionLabel';
+import { useReducedMotion } from '@/components/ui/useReducedMotion';
 
 const SHEET_OFFSCREEN_Y = 420;
 const BRAND_EASING = Easing.bezier(0.2, 0.65, 0.3, 0.99);
@@ -50,7 +44,7 @@ export function ConnectSheet({
   onWalletPress,
 }: ConnectSheetProps) {
   const insets = useSafeAreaInsets();
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const reduceMotion = useReducedMotion();
   const [backdropOpacity] = useState(() => new Animated.Value(visible ? 1 : 0));
   const [translateY] = useState(
     () => new Animated.Value(visible ? 0 : SHEET_OFFSCREEN_Y),
@@ -68,16 +62,6 @@ export function ConnectSheet({
     }
   }
   const shouldRender = visible || isClosing;
-
-  useEffect(() => {
-    let cancelled = false;
-    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (!cancelled) setReduceMotion(enabled);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     if (visible) {

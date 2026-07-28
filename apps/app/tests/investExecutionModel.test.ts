@@ -77,7 +77,7 @@ describe('resolveDepositExecutionCapability', () => {
     ).toBe('connect-wallet');
   });
 
-  it('degrades when the wallet has no execution path (native Privy-Expo)', () => {
+  it('degrades when the wallet has no execution path', () => {
     expect(
       resolveDepositExecutionCapability({
         isConnected: true,

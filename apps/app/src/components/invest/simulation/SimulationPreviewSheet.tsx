@@ -30,6 +30,7 @@ import { SimulationAssetRows } from '@/components/invest/simulation/SimulationAs
 import { SimulationCallList } from '@/components/invest/simulation/SimulationCallList';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Tap } from '@/components/ui/Tap';
+import { useReducedMotion } from '@/components/ui/useReducedMotion';
 import {
   confirmGate,
   confirmRiskHash,
@@ -299,15 +300,24 @@ export function SimulationPreviewSheet({
   const insets = useSafeAreaInsets();
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [riskReview, setRiskReview] = useState(() => ({
+    simulationFingerprint: previewData.simulationFingerprint,
     riskHash: previewData.riskHash,
     acknowledged: false,
     changed: false,
   }));
+  const reduceMotion = useReducedMotion();
 
-  if (riskReview.riskHash !== previewData.riskHash) {
+  if (
+    riskReview.simulationFingerprint !== previewData.simulationFingerprint ||
+    riskReview.riskHash !== previewData.riskHash
+  ) {
     setRiskReview({
+      simulationFingerprint: previewData.simulationFingerprint,
       riskHash: previewData.riskHash,
-      acknowledged: false,
+      acknowledged:
+        riskReview.riskHash === previewData.riskHash
+          ? riskReview.acknowledged
+          : false,
       changed: true,
     });
   }
@@ -341,7 +351,7 @@ export function SimulationPreviewSheet({
 
   return (
     <Modal
-      animationType="slide"
+      animationType={reduceMotion ? 'none' : 'slide'}
       onRequestClose={close}
       transparent
       visible={isOpen}
@@ -356,6 +366,10 @@ export function SimulationPreviewSheet({
         />
 
         <View
+          aria-label="Transaction review"
+          aria-modal
+          accessible
+          accessibilityLabel="Transaction review"
           accessibilityViewIsModal
           role="dialog"
           className="w-full max-w-[640px] self-center overflow-hidden rounded-t-[28px] border border-b-0 border-line bg-bg shadow-lg"
@@ -378,7 +392,7 @@ export function SimulationPreviewSheet({
             <Tap
               accessibilityLabel="Close transaction review"
               accessibilityRole="button"
-              className="h-9 w-9 items-center justify-center rounded-full bg-[rgba(255,255,255,.04)]"
+              className="h-11 w-11 items-center justify-center rounded-full bg-[rgba(255,255,255,.04)]"
               disabled={busy}
               onPress={onClose}
             >

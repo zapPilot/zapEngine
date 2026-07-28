@@ -1,9 +1,14 @@
 import {
   PrivyProvider,
+  useAuthorizationSignature,
   useEmbeddedEthereumWallet,
   usePrivy,
 } from '@privy-io/expo';
 import { useLogin } from '@privy-io/expo/ui';
+import {
+  type AtomicBatchExecution,
+  useAtomicBatchExecution,
+} from '@zapengine/app-core/hooks/wallet/useAtomicBatchExecution';
 import { WalletProviderBase } from '@zapengine/app-core/providers/walletContext';
 import {
   buildWalletAccount,
@@ -29,11 +34,13 @@ import {
   type Hex,
 } from 'viem';
 
+import { SimulationPreviewSheet } from '@/components/invest/simulation/SimulationPreviewSheet';
 import {
   assertNativeWalletChain,
   buildConnectedWallets,
   DEFAULT_NATIVE_WALLET_CHAIN,
   getNativeWalletChain,
+  resolveEmbeddedWalletId,
   shouldSwitchChain,
   toWalletError,
   toWalletSwitchEthereumChainParams,
@@ -48,6 +55,11 @@ const WALLET_NOT_CONNECTED_ERROR = 'No Privy embedded wallet connected';
 
 interface WalletProviderProps {
   children: ReactNode;
+}
+
+interface PrivyExpoWalletBackend {
+  backend: WalletProviderInterface;
+  batch: AtomicBatchExecution;
 }
 
 type EthereumRequestProvider = EIP1193Provider & {
@@ -102,13 +114,38 @@ export function MobilePrivyProvider({
 export function WalletProvider({
   children,
 }: WalletProviderProps): ReactElement {
-  const backend = usePrivyExpoWalletBackend();
+  const { backend, batch } = usePrivyExpoWalletBackend();
 
-  return <WalletProviderBase value={backend}>{children}</WalletProviderBase>;
+  return (
+    <WalletProviderBase value={backend}>
+      {children}
+      {batch.simulationPreview ? (
+        <SimulationPreviewSheet
+          isOpen
+          onClose={batch.cancelBatchExecution}
+          previewData={batch.simulationPreview}
+          onConfirm={batch.confirmBatchExecution}
+          onRetry={batch.retryBatchSimulation}
+          onUpdateApproval={batch.updateApprovalAmount}
+          isSigningAndSending={batch.isSigningAndSending}
+          batchExecutionPhase={batch.batchExecutionPhase}
+          isRetryingSimulation={batch.isRetryingSimulation}
+          retryError={batch.retryError}
+        />
+      ) : null}
+    </WalletProviderBase>
+  );
 }
 
-export function usePrivyExpoWalletBackend(): WalletProviderInterface {
-  const { isReady, error: privyError, logout } = usePrivy();
+export function usePrivyExpoWalletBackend(): PrivyExpoWalletBackend {
+  const {
+    isReady,
+    error: privyError,
+    logout,
+    getAccessToken,
+    user,
+  } = usePrivy();
+  const { generateAuthorizationSignature } = useAuthorizationSignature();
   const { login } = useLogin();
   const { wallets } = useEmbeddedEthereumWallet();
   const embeddedWallet = wallets[0] ?? null;
@@ -231,6 +268,33 @@ export function usePrivyExpoWalletBackend(): WalletProviderInterface {
     [getWalletClient],
   );
 
+  const ensureChain = useCallback(
+    async (requestedChainId: number): Promise<void> => {
+      assertNativeWalletChain(requestedChainId);
+      if (shouldSwitchChain(chainId, requestedChainId)) {
+        await switchChain(requestedChainId);
+      }
+    },
+    [chainId, switchChain],
+  );
+
+  const resolveWalletId = useCallback(
+    (): string | undefined =>
+      resolveEmbeddedWalletId(user?.linked_accounts, embeddedWallet?.address),
+    [embeddedWallet?.address, user?.linked_accounts],
+  );
+
+  const batch = useAtomicBatchExecution({
+    getAccessToken,
+    // Native confirmation happens in SimulationPreviewSheet, so keep this
+    // signature headless through the existing viem wallet client.
+    signPreviewTypedData: signTypedData,
+    generateAuthorizationSignature,
+    ensureChain,
+    resolveWalletId,
+    walletAddress: embeddedWallet?.address,
+  });
+
   const clearError = useCallback(() => {
     setError(null);
   }, []);
@@ -273,7 +337,7 @@ export function usePrivyExpoWalletBackend(): WalletProviderInterface {
   const handleSwitchActiveWallet =
     useCallback(async (): Promise<void> => {}, []);
 
-  return useMemo<WalletProviderInterface>(
+  const backend = useMemo<WalletProviderInterface>(
     () => ({
       account: buildWalletAccount(embeddedWallet?.address),
       chain: embeddedWallet
@@ -284,6 +348,7 @@ export function usePrivyExpoWalletBackend(): WalletProviderInterface {
       switchChain,
       sendTransaction,
       getWalletClient,
+      executeAtomicBatch: batch.executeAtomicBatch,
       signMessage,
       signTypedData,
       isConnected: Boolean(embeddedWallet),
@@ -295,8 +360,10 @@ export function usePrivyExpoWalletBackend(): WalletProviderInterface {
       connectedWallets: walletList,
       switchActiveWallet: handleSwitchActiveWallet,
       hasMultipleWallets: false,
+      executionMode: 'atomic-batch',
     }),
     [
+      batch.executeAtomicBatch,
       chainId,
       clearError,
       connect,
@@ -316,4 +383,6 @@ export function usePrivyExpoWalletBackend(): WalletProviderInterface {
       walletList,
     ],
   );
+
+  return { backend, batch };
 }
