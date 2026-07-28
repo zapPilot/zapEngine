@@ -1,9 +1,15 @@
 import { queryClient } from '@zapengine/app-core/lib/state/queryClient';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { focusManager, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { type ReactElement, type ReactNode, useEffect, useRef } from 'react';
-import { Text, View } from 'react-native';
+import {
+  AppState,
+  type AppStateStatus,
+  Platform,
+  Text,
+  View,
+} from 'react-native';
 
 import { ConnectSheetHost } from '@/components/connect/ConnectSheetHost';
 import { PodcastProgressTracker } from '@/components/podcast/PodcastProgressTracker';
@@ -32,6 +38,23 @@ interface AppProviderShellProps {
 
 type AppProvidersConfig = Omit<AppProviderShellProps, 'children'>;
 
+function useReactQueryNativeAppFocus(): void {
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    const updateFocus = (status: AppStateStatus) => {
+      focusManager.setFocused(status === 'active');
+    };
+    updateFocus(AppState.currentState);
+
+    const subscription = AppState.addEventListener('change', updateFocus);
+    return () => {
+      subscription.remove();
+      focusManager.setFocused(undefined);
+    };
+  }, []);
+}
+
 function ConfigNoticeScreen({ target }: { target: string }): ReactElement {
   return (
     <View className="flex-1 items-center justify-center bg-bg px-6">
@@ -58,6 +81,7 @@ export function AppProviderShell({
   const [fontsLoaded] = useFonts(APP_FONTS);
   const runtimeConfig = getExpoMobileRuntimeConfig();
   const readyNotifiedRef = useRef(false);
+  useReactQueryNativeAppFocus();
 
   useEffect(() => {
     if (fontsLoaded && !readyNotifiedRef.current) {

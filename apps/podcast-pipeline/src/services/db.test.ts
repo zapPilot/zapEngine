@@ -14,10 +14,10 @@ import {
   findEpisodeLocalizationByEpisodeId,
   insertEpisode,
   insertEpisodeLocalization,
-  listCompletedEpisodeVideosByLocalizationIds,
   listEpisodeLocalizationsByEpisodeId,
   listEpisodes,
   listEpisodesPaged,
+  listEpisodeVideoSummariesByLocalizationIds,
   listLanguageClassroomsByLocalizationId,
   listLanguageClassroomsByLocalizationIds,
   markEpisodeListened,
@@ -122,6 +122,7 @@ describe('toEpisodeResponse', () => {
       llmProvider: row.llm_provider,
       status: row.status,
       video: null,
+      videoGeneration: null,
       languageClassrooms: [
         {
           sourceLanguageCode: 'zh-Hant',
@@ -169,6 +170,7 @@ describe('toEpisodeResponse', () => {
       llmProvider: localization.llm_provider,
       status: localization.status,
       video: null,
+      videoGeneration: null,
       languageClassrooms: [],
     });
   });
@@ -222,14 +224,23 @@ describe('toEpisodeResponse', () => {
     expect(response.languageClassrooms).toEqual([]);
   });
 
-  it('maps an explicitly completed video into the public response', () => {
+  it('maps an explicitly completed video and generation summary into the public response', () => {
     const video = {
       url: 'https://cdn.example.com/video.mp4',
       thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
       durationSeconds: 90,
     };
+    const videoGeneration = {
+      status: 'completed' as const,
+      updatedAt: '2026-07-24T00:00:00.000Z',
+    };
 
-    expect(toEpisodeResponse(listRow(), undefined, video).video).toEqual(video);
+    expect(
+      toEpisodeResponse(listRow(), undefined, video, videoGeneration),
+    ).toMatchObject({
+      video,
+      videoGeneration,
+    });
   });
 
   it('normalizes a camel-case classroom lesson input', () => {
@@ -545,67 +556,143 @@ describe('listEpisodesPaged', () => {
   });
 });
 
-describe('listCompletedEpisodeVideosByLocalizationIds', () => {
-  it('loads completed videos in one batch and ignores incomplete media rows', async () => {
+describe('listEpisodeVideoSummariesByLocalizationIds', () => {
+  it('loads public status summaries in one batch without selecting failure details', async () => {
     state.query!.returns.mockResolvedValue({
       data: [
         {
           episode_localization_id: 'loc-1',
+          status: 'completed',
+          updated_at: '2026-07-24T00:00:00.000Z',
           mp4_url: ' https://cdn.example.com/video.mp4 ',
           thumbnail_url: ' https://cdn.example.com/thumbnail.png ',
           duration_seconds: 90.5,
         },
         {
-          episode_localization_id: 'loc-broken',
+          episode_localization_id: 'loc-completed-broken',
+          status: 'completed',
+          updated_at: '2026-07-24T01:00:00.000Z',
           mp4_url: null,
           thumbnail_url: 'https://cdn.example.com/thumbnail.png',
           duration_seconds: 90,
+        },
+        {
+          episode_localization_id: 'loc-processing',
+          status: 'processing',
+          updated_at: '2026-07-24T02:00:00.000Z',
+          mp4_url: 'https://cdn.example.com/stale-video.mp4',
+          thumbnail_url: 'https://cdn.example.com/stale-thumbnail.png',
+          duration_seconds: 45,
+        },
+        {
+          episode_localization_id: 'loc-failed',
+          status: 'failed',
+          updated_at: null,
+          mp4_url: null,
+          thumbnail_url: null,
+          duration_seconds: null,
+          last_error: 'internal ffmpeg detail',
+        },
+        {
+          episode_localization_id: 'loc-unknown',
+          status: 'rendering',
+          updated_at: '2026-07-24T03:00:00.000Z',
+          mp4_url: null,
+          thumbnail_url: null,
+          duration_seconds: null,
         },
       ],
       error: null,
     });
 
-    const result = await listCompletedEpisodeVideosByLocalizationIds([
+    const result = await listEpisodeVideoSummariesByLocalizationIds([
       'loc-1',
       'loc-1',
-      'loc-broken',
+      'loc-completed-broken',
+      'loc-processing',
+      'loc-failed',
+      'loc-unknown',
     ]);
 
     expect(mockFrom).toHaveBeenCalledWith('episode_videos');
-    expect(state.query!.eq).toHaveBeenCalledWith('status', 'completed');
+    expect(state.query!.select).toHaveBeenCalledWith(
+      'episode_localization_id, status, updated_at, mp4_url, thumbnail_url, duration_seconds',
+    );
+    expect(state.query!.eq).not.toHaveBeenCalled();
     expect(state.query!.in).toHaveBeenCalledWith('episode_localization_id', [
       'loc-1',
-      'loc-broken',
+      'loc-completed-broken',
+      'loc-processing',
+      'loc-failed',
+      'loc-unknown',
     ]);
     expect(result).toEqual(
       new Map([
         [
           'loc-1',
           {
-            url: 'https://cdn.example.com/video.mp4',
-            thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
-            durationSeconds: 90.5,
+            video: {
+              url: 'https://cdn.example.com/video.mp4',
+              thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+              durationSeconds: 90.5,
+            },
+            videoGeneration: {
+              status: 'completed',
+              updatedAt: '2026-07-24T00:00:00.000Z',
+            },
+          },
+        ],
+        [
+          'loc-completed-broken',
+          {
+            video: null,
+            videoGeneration: {
+              status: 'completed',
+              updatedAt: '2026-07-24T01:00:00.000Z',
+            },
+          },
+        ],
+        [
+          'loc-processing',
+          {
+            video: null,
+            videoGeneration: {
+              status: 'processing',
+              updatedAt: '2026-07-24T02:00:00.000Z',
+            },
+          },
+        ],
+        [
+          'loc-failed',
+          {
+            video: null,
+            videoGeneration: {
+              status: 'failed',
+              updatedAt: null,
+            },
           },
         ],
       ]),
     );
+    expect(result.has('loc-unknown')).toBe(false);
+    expect(JSON.stringify([...result.values()])).not.toContain('last_error');
   });
 
   it('does not query Supabase for an empty localization list', async () => {
     await expect(
-      listCompletedEpisodeVideosByLocalizationIds([]),
+      listEpisodeVideoSummariesByLocalizationIds([]),
     ).resolves.toEqual(new Map());
     expect(mockFrom).not.toHaveBeenCalled();
   });
 
-  it('throws completed-video lookup errors', async () => {
+  it('throws video-summary lookup errors', async () => {
     state.query!.returns.mockResolvedValue({
       data: null,
       error: new Error('video lookup failed'),
     });
 
     await expect(
-      listCompletedEpisodeVideosByLocalizationIds(['loc-1']),
+      listEpisodeVideoSummariesByLocalizationIds(['loc-1']),
     ).rejects.toThrow('video lookup failed');
   });
 });

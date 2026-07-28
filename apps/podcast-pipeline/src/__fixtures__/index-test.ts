@@ -36,6 +36,7 @@ export function localizationResponse(
     llmProvider: localization.llm_provider,
     status: localization.status,
     video: null,
+    videoGeneration: null,
     languageClassrooms,
   };
 }
@@ -67,6 +68,7 @@ export function episodeListResponse(row: EpisodeListRow): EpisodeResponse {
     llmProvider: row.llm_provider,
     status: row.status,
     video: null,
+    videoGeneration: null,
     languageClassrooms,
   };
 }

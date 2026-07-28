@@ -25,6 +25,8 @@ import { Tap } from '@/components/ui/Tap';
 import {
   findPodcastEpisodeById,
   getPodcastEpisodeShareUrl,
+  isPodcastVideoGenerationPending,
+  mergePodcastEpisodeVideo,
   usePodcastEpisode,
   usePodcastEpisodes,
 } from '@/integration/podcastFeed';
@@ -295,12 +297,22 @@ export function EpisodeDetailScreen() {
   const { progress } = useEpisodeProgress();
   const feedEpisodes = feedQuery.data ?? [];
   const feedEpisode = findPodcastEpisodeById(feedEpisodes, routeEpisodeId);
+  const isFeedVideoGenerationPending =
+    isPodcastVideoGenerationPending(feedEpisode);
+  const pendingFeedVideoGeneration = isFeedVideoGenerationPending
+    ? (feedEpisode?.videoGeneration ?? null)
+    : null;
   const detailQuery = usePodcastEpisode(
-    routeEpisodeId,
-    routeLanguageCode,
-    feedEpisode === null && !feedQuery.isLoading,
+    feedEpisode?.localizationId ?? routeEpisodeId,
+    feedEpisode?.languageCode ?? routeLanguageCode,
+    (feedEpisode === null && !feedQuery.isLoading) ||
+      isFeedVideoGenerationPending,
+    pendingFeedVideoGeneration,
   );
-  const rawEpisode = feedEpisode ?? detailQuery.data ?? null;
+  const rawEpisode = mergePodcastEpisodeVideo(
+    feedEpisode,
+    detailQuery.data ?? null,
+  );
   const episode =
     rawEpisode === null ? null : mergeEpisodeProgress(rawEpisode, progress);
   const episodes =

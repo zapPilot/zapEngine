@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { localizationRow } from '../__fixtures__/index-test.js';
 import {
   findEpisodeLocalizationByEpisodeId,
-  listCompletedEpisodeVideosByLocalizationIds,
+  listEpisodeVideoSummariesByLocalizationIds,
 } from './db.js';
 import {
   buildEpisodeSharePageHtml,
@@ -14,11 +14,13 @@ import {
 
 vi.mock('./db.js', () => ({
   findEpisodeLocalizationByEpisodeId: vi.fn(),
-  listCompletedEpisodeVideosByLocalizationIds: vi.fn(),
+  listEpisodeVideoSummariesByLocalizationIds: vi.fn(),
 }));
 
 const findLocalizationMock = vi.mocked(findEpisodeLocalizationByEpisodeId);
-const listVideosMock = vi.mocked(listCompletedEpisodeVideosByLocalizationIds);
+const listVideoSummariesMock = vi.mocked(
+  listEpisodeVideoSummariesByLocalizationIds,
+);
 
 describe('detectPlatform', () => {
   it.each([
@@ -223,8 +225,8 @@ describe('renderEpisodeSharePage', () => {
 describe('buildEpisodeSharePageHtml', () => {
   beforeEach(() => {
     findLocalizationMock.mockReset();
-    listVideosMock.mockReset();
-    listVideosMock.mockResolvedValue(new Map());
+    listVideoSummariesMock.mockReset();
+    listVideoSummariesMock.mockResolvedValue(new Map());
   });
 
   it('uses the script as description when raw_text is null', async () => {
@@ -292,14 +294,20 @@ describe('buildEpisodeSharePageHtml', () => {
   it('loads a completed localization video for the share player', async () => {
     const localization = localizationRow();
     findLocalizationMock.mockResolvedValue(localization);
-    listVideosMock.mockResolvedValue(
+    listVideoSummariesMock.mockResolvedValue(
       new Map([
         [
           localization.id,
           {
-            url: 'https://cdn.example.com/video.mp4',
-            thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
-            durationSeconds: 90,
+            video: {
+              url: 'https://cdn.example.com/video.mp4',
+              thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+              durationSeconds: 90,
+            },
+            videoGeneration: {
+              status: 'completed',
+              updatedAt: '2026-07-24T00:00:00.000Z',
+            },
           },
         ],
       ]),
@@ -311,7 +319,7 @@ describe('buildEpisodeSharePageHtml', () => {
       userAgent: undefined,
     });
 
-    expect(listVideosMock).toHaveBeenCalledWith([localization.id]);
+    expect(listVideoSummariesMock).toHaveBeenCalledWith([localization.id]);
     expect(html).toContain('<source src="https://cdn.example.com/video.mp4"');
     expect(html).toContain('poster="https://cdn.example.com/thumbnail.png"');
   });

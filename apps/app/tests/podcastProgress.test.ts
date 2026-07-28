@@ -20,6 +20,7 @@ function makeEpisode(overrides: Partial<PodcastEpisode> = {}): PodcastEpisode {
     likeCount: 0,
     script: null,
     video: null,
+    videoGeneration: null,
     audioTracks: [],
     languageClassrooms: [],
     lastPositionSeconds: 0,

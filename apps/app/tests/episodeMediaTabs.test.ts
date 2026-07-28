@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   episodeMediaTabAvailability,
+  episodeVideoPanelState,
   resolveActiveEpisodeMediaTab,
   type EpisodeMediaTab,
 } from '@/integration/episodeMediaTabs';
@@ -34,6 +35,7 @@ function episode(overrides: Partial<PodcastEpisode> = {}): PodcastEpisode {
     likeCount: 0,
     script: null,
     video: null,
+    videoGeneration: null,
     audioTracks: [audioTrack()],
     languageClassrooms: [],
     lastPositionSeconds: 0,
@@ -110,6 +112,60 @@ describe('episodeMediaTabAvailability', () => {
 
   it('disables Video when the displayed episode has no completed video', () => {
     expect(episodeMediaTabAvailability(episode()).video).toBe(false);
+  });
+});
+
+describe('episodeVideoPanelState', () => {
+  it('reports ready whenever the episode has a playable video', () => {
+    expect(
+      episodeVideoPanelState(
+        episode({
+          video: {
+            url: 'https://cdn.example.com/video.mp4',
+            thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+            durationSeconds: 90,
+          },
+          videoGeneration: { status: 'failed', updatedAt: null },
+        }),
+      ),
+    ).toBe('ready');
+  });
+
+  it.each(['queued', 'processing'] as const)(
+    'reports generating for a %s video job',
+    (status) => {
+      expect(
+        episodeVideoPanelState(
+          episode({
+            video: null,
+            videoGeneration: { status, updatedAt: null },
+          }),
+        ),
+      ).toBe('generating');
+    },
+  );
+
+  it('reports failed for a failed video job', () => {
+    expect(
+      episodeVideoPanelState(
+        episode({
+          video: null,
+          videoGeneration: { status: 'failed', updatedAt: null },
+        }),
+      ),
+    ).toBe('failed');
+  });
+
+  it('reports unavailable without a job or when completed assets are absent', () => {
+    expect(episodeVideoPanelState(episode())).toBe('unavailable');
+    expect(
+      episodeVideoPanelState(
+        episode({
+          video: null,
+          videoGeneration: { status: 'completed', updatedAt: null },
+        }),
+      ),
+    ).toBe('unavailable');
   });
 });
 

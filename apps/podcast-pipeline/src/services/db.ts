@@ -13,6 +13,8 @@ import type {
   EpisodeResponse,
   EpisodeRow,
   EpisodeStatus,
+  EpisodeVideoGenerationPublicStatus,
+  EpisodeVideoGenerationSummary,
   EpisodeVideoResponse,
   LanguageClassroomKeyword,
   LanguageClassroomLesson,
@@ -28,8 +30,10 @@ let client: PipelineSupabaseClient | null = null;
 
 const DEFAULT_SUPABASE_DB_SCHEMA = 'from_fed_to_chain';
 
-interface CompletedEpisodeVideoProjection {
+interface EpisodeVideoStatusProjection {
   episode_localization_id: string;
+  status: string;
+  updated_at: string | null;
   mp4_url: string | null;
   thumbnail_url: string | null;
   duration_seconds: number | null;
@@ -127,11 +131,13 @@ export function toEpisodeResponse(
   row: EpisodeListRow,
   languageClassrooms?: LanguageClassroomRow[] | LanguageClassroomLesson[],
   video: EpisodeVideoResponse | null = null,
+  videoGeneration: EpisodeVideoGenerationSummary | null = null,
 ): EpisodeResponse {
   return toEpisodeResponseWithClassrooms(
     row,
     languageClassrooms ?? parseClassroomsFromListRow(row),
     video,
+    videoGeneration,
   );
 }
 
@@ -140,6 +146,7 @@ export function toEpisodeResponseFromLocalization(
   localization: EpisodeLocalizationRow,
   languageClassrooms: LanguageClassroomRow[] | LanguageClassroomLesson[] = [],
   video: EpisodeVideoResponse | null = null,
+  videoGeneration: EpisodeVideoGenerationSummary | null = null,
 ): EpisodeResponse {
   return toEpisodeResponseWithClassrooms(
     {
@@ -162,6 +169,7 @@ export function toEpisodeResponseFromLocalization(
     },
     languageClassrooms,
     video,
+    videoGeneration,
   );
 }
 
@@ -169,6 +177,7 @@ export function toEpisodeResponseWithClassrooms(
   row: EpisodeListRow,
   languageClassrooms: LanguageClassroomRow[] | LanguageClassroomLesson[],
   video: EpisodeVideoResponse | null = null,
+  videoGeneration: EpisodeVideoGenerationSummary | null = null,
 ): EpisodeResponse {
   return {
     id: row.episode_id,
@@ -192,6 +201,7 @@ export function toEpisodeResponseWithClassrooms(
     llmProvider: row.llm_provider,
     status: row.status,
     video,
+    videoGeneration,
     languageClassrooms: languageClassrooms.map(toLanguageClassroomLesson),
   };
 }
@@ -365,45 +375,72 @@ export async function listEpisodesPaged(
   };
 }
 
-export async function listCompletedEpisodeVideosByLocalizationIds(
+export interface EpisodeVideoSummary {
+  video: EpisodeVideoResponse | null;
+  videoGeneration: EpisodeVideoGenerationSummary;
+}
+
+export async function listEpisodeVideoSummariesByLocalizationIds(
   episodeLocalizationIds: readonly string[],
-): Promise<Map<string, EpisodeVideoResponse>> {
-  const videos = new Map<string, EpisodeVideoResponse>();
+): Promise<Map<string, EpisodeVideoSummary>> {
+  const summaries = new Map<string, EpisodeVideoSummary>();
   const uniqueIds = [...new Set(episodeLocalizationIds.filter(Boolean))];
-  if (uniqueIds.length === 0) return videos;
+  if (uniqueIds.length === 0) return summaries;
 
   const { data, error } = await getSupabase()
     .from('episode_videos')
-    .select('episode_localization_id, mp4_url, thumbnail_url, duration_seconds')
-    .eq('status', 'completed')
+    .select(
+      'episode_localization_id, status, updated_at, mp4_url, thumbnail_url, duration_seconds',
+    )
     .in('episode_localization_id', uniqueIds)
-    .returns<CompletedEpisodeVideoProjection[]>();
+    .returns<EpisodeVideoStatusProjection[]>();
 
   if (error) {
     throwSupabaseError(error);
   }
 
   for (const row of data ?? []) {
-    const url = row.mp4_url?.trim();
-    const thumbnailUrl = row.thumbnail_url?.trim();
-    if (
-      !url ||
-      !thumbnailUrl ||
-      typeof row.duration_seconds !== 'number' ||
-      !Number.isFinite(row.duration_seconds) ||
-      row.duration_seconds <= 0
-    ) {
+    if (!isEpisodeVideoGenerationPublicStatus(row.status)) {
       continue;
     }
 
-    videos.set(row.episode_localization_id, {
-      url,
-      thumbnailUrl,
-      durationSeconds: row.duration_seconds,
+    const url = row.mp4_url?.trim();
+    const thumbnailUrl = row.thumbnail_url?.trim();
+    const video =
+      row.status === 'completed' &&
+      url &&
+      thumbnailUrl &&
+      typeof row.duration_seconds === 'number' &&
+      Number.isFinite(row.duration_seconds) &&
+      row.duration_seconds > 0
+        ? {
+            url,
+            thumbnailUrl,
+            durationSeconds: row.duration_seconds,
+          }
+        : null;
+
+    summaries.set(row.episode_localization_id, {
+      video,
+      videoGeneration: {
+        status: row.status,
+        updatedAt: row.updated_at,
+      },
     });
   }
 
-  return videos;
+  return summaries;
+}
+
+function isEpisodeVideoGenerationPublicStatus(
+  status: string,
+): status is EpisodeVideoGenerationPublicStatus {
+  return (
+    status === 'queued' ||
+    status === 'processing' ||
+    status === 'completed' ||
+    status === 'failed'
+  );
 }
 
 export async function insertEpisode(episode: NewEpisode): Promise<EpisodeRow> {

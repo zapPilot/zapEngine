@@ -26,9 +26,9 @@ import {
   DEFAULT_LIMIT,
   findEpisodeListRowByLocalizationId,
   findEpisodeLocalizationByEpisodeId,
-  listCompletedEpisodeVideosByLocalizationIds,
   listEpisodeLocalizationsByEpisodeId,
   listEpisodesPaged,
+  listEpisodeVideoSummariesByLocalizationIds,
   listLanguageClassroomsByLocalizationId,
   markEpisodeListened,
   toEpisodeResponse,
@@ -91,12 +91,13 @@ function healthResponse(c: Context) {
   return c.json({ ok: true });
 }
 
-function omitEpisodeVideo<T extends { video: unknown }>(
-  episode: T,
-): Omit<T, 'video'> {
-  const withoutVideo = { ...episode } as Partial<T>;
-  delete withoutVideo.video;
-  return withoutVideo as Omit<T, 'video'>;
+function omitEpisodeVideoFields<
+  T extends { video: unknown; videoGeneration: unknown },
+>(episode: T): Omit<T, 'video' | 'videoGeneration'> {
+  const withoutVideoFields = { ...episode } as Partial<T>;
+  delete withoutVideoFields.video;
+  delete withoutVideoFields.videoGeneration;
+  return withoutVideoFields as Omit<T, 'video' | 'videoGeneration'>;
 }
 
 function toIngestLocalizationSummaries(
@@ -188,7 +189,7 @@ export function createApp(): Hono {
       languageCode,
     );
     const result = postIngest.ingest;
-    const episode = omitEpisodeVideo(result.episode);
+    const episode = omitEpisodeVideoFields(result.episode);
     // Assemble the video snapshot from current DB state rather than the
     // enqueue return values: re-POSTing the same URL then doubles as a
     // progress query, and an enqueue failure still reports all languages.
@@ -294,17 +295,19 @@ export function createApp(): Hono {
       cursor,
       languageCode,
     );
-    const videos = await listCompletedEpisodeVideosByLocalizationIds(
+    const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds(
       rows.map((row) => row.localization_id),
     );
     return c.json({
-      items: rows.map((row) =>
-        toEpisodeResponse(
+      items: rows.map((row) => {
+        const summary = videoSummaries.get(row.localization_id);
+        return toEpisodeResponse(
           row,
           row.language_classrooms,
-          videos.get(row.localization_id) ?? null,
-        ),
-      ),
+          summary?.video ?? null,
+          summary?.videoGeneration ?? null,
+        );
+      }),
       nextCursor,
     });
   });
@@ -314,16 +317,20 @@ export function createApp(): Hono {
     const languageCode = parsePrimaryLanguageCode(c.req.query('language'));
     const limit = parseEpisodeSearchLimit(c.req.query('limit'));
     const searchResults = await searchEpisodes(query, languageCode, limit);
-    const videos = await listCompletedEpisodeVideosByLocalizationIds(
+    const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds(
       searchResults.map((result) => result.episode.localizationId),
     );
-    const items = searchResults.map((result) => ({
-      ...result,
-      episode: {
-        ...result.episode,
-        video: videos.get(result.episode.localizationId) ?? null,
-      },
-    }));
+    const items = searchResults.map((result) => {
+      const summary = videoSummaries.get(result.episode.localizationId);
+      return {
+        ...result,
+        episode: {
+          ...result.episode,
+          video: summary?.video ?? null,
+          videoGeneration: summary?.videoGeneration ?? null,
+        },
+      };
+    });
     return c.json({ items });
   });
 
@@ -354,14 +361,16 @@ export function createApp(): Hono {
       });
     }
 
-    const videos = await listCompletedEpisodeVideosByLocalizationIds([
+    const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds([
       localizationId,
     ]);
+    const videoSummary = videoSummaries.get(localizationId);
     return c.json(
       toEpisodeResponse(
         row,
         row.language_classrooms,
-        videos.get(localizationId) ?? null,
+        videoSummary?.video ?? null,
+        videoSummary?.videoGeneration ?? null,
       ),
     );
   });
@@ -387,15 +396,17 @@ export function createApp(): Hono {
     const classrooms = await listLanguageClassroomsByLocalizationId(
       localization.id,
     );
-    const videos = await listCompletedEpisodeVideosByLocalizationIds([
+    const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds([
       localization.id,
     ]);
+    const videoSummary = videoSummaries.get(localization.id);
     return c.json(
       toEpisodeResponseFromLocalization(
         episode,
         localization,
         classrooms,
-        videos.get(localization.id) ?? null,
+        videoSummary?.video ?? null,
+        videoSummary?.videoGeneration ?? null,
       ),
     );
   });

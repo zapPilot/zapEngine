@@ -12,10 +12,30 @@ export interface EpisodeMediaTabAvailability {
   video: boolean;
 }
 
+export type EpisodeVideoPanelState =
+  | 'ready'
+  | 'generating'
+  | 'failed'
+  | 'unavailable';
+
 type EpisodeMediaTabEpisode = Pick<
   PodcastEpisode,
   'hlsUrl' | 'languageCode' | 'audioTracks' | 'video'
 >;
+
+export function episodeVideoPanelState(
+  episode: Pick<PodcastEpisode, 'video' | 'videoGeneration'>,
+): EpisodeVideoPanelState {
+  if (episode.video !== null) return 'ready';
+  if (
+    episode.videoGeneration?.status === 'queued' ||
+    episode.videoGeneration?.status === 'processing'
+  ) {
+    return 'generating';
+  }
+  if (episode.videoGeneration?.status === 'failed') return 'failed';
+  return 'unavailable';
+}
 
 export function episodeMediaTabAvailability(
   episode: EpisodeMediaTabEpisode,

@@ -36,7 +36,7 @@ const {
   mockInsertEpisodeLocalization,
   mockInvalidateEpisodeSearchCache,
   mockListEpisodesPaged,
-  mockListCompletedEpisodeVideosByLocalizationIds,
+  mockListEpisodeVideoSummariesByLocalizationIds,
   mockListEpisodeLocalizationsByEpisodeId,
   mockListLanguageClassroomsByLocalizationId,
   mockListLanguageClassroomsByLocalizationIds,
@@ -71,7 +71,7 @@ const {
   mockInsertEpisodeLocalization: vi.fn(),
   mockInvalidateEpisodeSearchCache: vi.fn(),
   mockListEpisodesPaged: vi.fn(),
-  mockListCompletedEpisodeVideosByLocalizationIds: vi
+  mockListEpisodeVideoSummariesByLocalizationIds: vi
     .fn()
     .mockResolvedValue(new Map()),
   mockListEpisodeLocalizationsByEpisodeId: vi.fn(),
@@ -111,8 +111,8 @@ vi.mock('./services/db.js', async (importOriginal) => ({
   insertEpisode: mockInsertEpisode,
   insertEpisodeLocalization: mockInsertEpisodeLocalization,
   listEpisodesPaged: mockListEpisodesPaged,
-  listCompletedEpisodeVideosByLocalizationIds:
-    mockListCompletedEpisodeVideosByLocalizationIds,
+  listEpisodeVideoSummariesByLocalizationIds:
+    mockListEpisodeVideoSummariesByLocalizationIds,
   listEpisodeLocalizationsByEpisodeId: mockListEpisodeLocalizationsByEpisodeId,
   listLanguageClassroomsByLocalizationId:
     mockListLanguageClassroomsByLocalizationId,
@@ -123,6 +123,7 @@ vi.mock('./services/db.js', async (importOriginal) => ({
     row: EpisodeListRow,
     languageClassrooms?: import('./types.js').LanguageClassroomRow[],
     video?: import('./types.js').EpisodeVideoResponse | null,
+    videoGeneration?: import('./types.js').EpisodeVideoGenerationSummary | null,
   ) => {
     const lessons: LanguageClassroomLesson[] = (
       languageClassrooms ?? row.language_classrooms
@@ -139,6 +140,7 @@ vi.mock('./services/db.js', async (importOriginal) => ({
     return {
       ...episodeListResponse({ ...row, language_classrooms: lessons }),
       video: video ?? null,
+      videoGeneration: videoGeneration ?? null,
     };
   },
   toEpisodeResponseFromLocalization: (
@@ -148,6 +150,7 @@ vi.mock('./services/db.js', async (importOriginal) => ({
       | import('./types.js').LanguageClassroomRow[]
       | LanguageClassroomLesson[],
     video?: import('./types.js').EpisodeVideoResponse | null,
+    videoGeneration?: import('./types.js').EpisodeVideoGenerationSummary | null,
   ) => {
     const lessons: LanguageClassroomLesson[] = languageClassrooms.map((lc) =>
       'targetLanguageCode' in lc
@@ -162,6 +165,7 @@ vi.mock('./services/db.js', async (importOriginal) => ({
     return {
       ...localizationResponse(episode, localization, lessons),
       video: video ?? null,
+      videoGeneration: videoGeneration ?? null,
     };
   },
   upsertLanguageClassrooms: mockUpsertLanguageClassrooms,
@@ -238,7 +242,7 @@ beforeEach(() => {
   process.env['TTS_PROVIDER'] = 'google';
   delete process.env['FISH_AUDIO_ENGINE'];
   delete process.env['FISH_AUDIO_REFERENCE_ID'];
-  mockListCompletedEpisodeVideosByLocalizationIds.mockResolvedValue(new Map());
+  mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(new Map());
   mockLoadEpisodeVideoGeneration.mockResolvedValue(null);
   mockEnqueueEpisodeVideoJob.mockImplementation(
     (episodeLocalizationId: string) =>
@@ -961,7 +965,7 @@ describe('POST /ingest pipeline', () => {
       body: JSON.stringify({ url: 'https://example.com/article' }),
     });
     const body = (await response.json()) as {
-      episode: Omit<EpisodeResponse, 'video'>;
+      episode: Omit<EpisodeResponse, 'video' | 'videoGeneration'>;
       localizations: {
         languageCode: string;
         localizationId: string;
@@ -1005,6 +1009,7 @@ describe('POST /ingest pipeline', () => {
       languageCode: 'zh-Hant',
     });
     expect(body.episode).not.toHaveProperty('video');
+    expect(body.episode).not.toHaveProperty('videoGeneration');
     expect(body.localizations).toEqual([
       {
         languageCode: 'zh-Hant',
@@ -1721,25 +1726,94 @@ describe('GET /episodes', () => {
     ]);
   });
 
-  it('hydrates feed videos with one completed-video batch query', async () => {
+  it('hydrates feed video fields with one batch query', async () => {
     const row = listRow();
     const video = {
       url: 'https://cdn.example.com/video.mp4',
       thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
       durationSeconds: 90,
     };
+    const videoGeneration = {
+      status: 'completed' as const,
+      updatedAt: '2026-07-24T00:00:00.000Z',
+    };
     mockListEpisodesPaged.mockResolvedValue({ rows: [row], nextCursor: null });
-    mockListCompletedEpisodeVideosByLocalizationIds.mockResolvedValue(
-      new Map([[row.localization_id, video]]),
+    mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(
+      new Map([
+        [
+          row.localization_id,
+          {
+            video,
+            videoGeneration,
+          },
+        ],
+      ]),
     );
 
     const response = await app.request('/episodes');
     const body = await response.json();
 
-    expect(
-      mockListCompletedEpisodeVideosByLocalizationIds,
-    ).toHaveBeenCalledWith([row.localization_id]);
+    expect(mockListEpisodeVideoSummariesByLocalizationIds).toHaveBeenCalledWith(
+      [row.localization_id],
+    );
     expect(body.items[0].video).toEqual(video);
+    expect(body.items[0].videoGeneration).toEqual(videoGeneration);
+  });
+
+  it('returns a processing generation status while the video is unavailable', async () => {
+    const row = listRow();
+    const videoGeneration = {
+      status: 'processing' as const,
+      updatedAt: '2026-07-24T00:00:00.000Z',
+    };
+    mockListEpisodesPaged.mockResolvedValue({ rows: [row], nextCursor: null });
+    mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(
+      new Map([
+        [
+          row.localization_id,
+          {
+            video: null,
+            videoGeneration,
+          },
+        ],
+      ]),
+    );
+
+    const response = await app.request('/episodes');
+    const body = await response.json();
+
+    expect(body.items[0]).toMatchObject({
+      video: null,
+      videoGeneration,
+    });
+  });
+
+  it('redacts internal video failure details from the public feed', async () => {
+    const row = listRow();
+    mockListEpisodesPaged.mockResolvedValue({ rows: [row], nextCursor: null });
+    mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(
+      new Map([
+        [
+          row.localization_id,
+          {
+            video: null,
+            videoGeneration: {
+              status: 'failed',
+              updatedAt: '2026-07-24T00:00:00.000Z',
+            },
+          },
+        ],
+      ]),
+    );
+
+    const response = await app.request('/episodes');
+    const body = await response.json();
+
+    expect(body.items[0].videoGeneration).toEqual({
+      status: 'failed',
+      updatedAt: '2026-07-24T00:00:00.000Z',
+    });
+    expect(JSON.stringify(body)).not.toContain('lastError');
   });
 
   it('returns 400 for an invalid limit', async () => {
@@ -1804,27 +1878,40 @@ describe('GET /episodes/search', () => {
     expect(mockSearchEpisodes).toHaveBeenCalledWith('流動性', 'zh-Hant', 20);
   });
 
-  it('hydrates ranked search results with one completed-video batch query', async () => {
+  it('hydrates ranked search results with one video-summary batch query', async () => {
     const episode = episodeListResponse(listRow());
     const video = {
       url: 'https://cdn.example.com/video.mp4',
       thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
       durationSeconds: 90,
     };
+    const videoGeneration = {
+      status: 'completed' as const,
+      updatedAt: '2026-07-24T00:00:00.000Z',
+    };
     mockSearchEpisodes.mockResolvedValue([
       { episode, matchSource: 'title', snippet: null },
     ]);
-    mockListCompletedEpisodeVideosByLocalizationIds.mockResolvedValue(
-      new Map([[episode.localizationId, video]]),
+    mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(
+      new Map([
+        [
+          episode.localizationId,
+          {
+            video,
+            videoGeneration,
+          },
+        ],
+      ]),
     );
 
     const response = await app.request('/episodes/search?q=liquidity');
     const body = await response.json();
 
-    expect(
-      mockListCompletedEpisodeVideosByLocalizationIds,
-    ).toHaveBeenCalledWith([episode.localizationId]);
+    expect(mockListEpisodeVideoSummariesByLocalizationIds).toHaveBeenCalledWith(
+      [episode.localizationId],
+    );
     expect(body.items[0].episode.video).toEqual(video);
+    expect(body.items[0].episode.videoGeneration).toEqual(videoGeneration);
   });
 
   it.each([
@@ -1937,9 +2024,7 @@ describe('GET /episodes/:episodeId/videos', () => {
 describe('GET /episodes/:localizationId', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockListCompletedEpisodeVideosByLocalizationIds.mockResolvedValue(
-      new Map(),
-    );
+    mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(new Map());
   });
 
   it('returns a completed localization outside the paginated feed', async () => {
@@ -1949,9 +2034,21 @@ describe('GET /episodes/:localizationId', () => {
       thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
       durationSeconds: 90,
     };
+    const videoGeneration = {
+      status: 'completed' as const,
+      updatedAt: '2026-07-24T00:00:00.000Z',
+    };
     mockFindEpisodeListRowByLocalizationId.mockResolvedValue(row);
-    mockListCompletedEpisodeVideosByLocalizationIds.mockResolvedValue(
-      new Map([[row.localization_id, video]]),
+    mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(
+      new Map([
+        [
+          row.localization_id,
+          {
+            video,
+            videoGeneration,
+          },
+        ],
+      ]),
     );
 
     const response = await app.request(`/episodes/${row.localization_id}`);
@@ -1961,7 +2058,11 @@ describe('GET /episodes/:localizationId', () => {
     expect(mockFindEpisodeListRowByLocalizationId).toHaveBeenCalledWith(
       row.localization_id,
     );
-    expect(body).toEqual({ ...episodeListResponse(row), video });
+    expect(body).toEqual({
+      ...episodeListResponse(row),
+      video,
+      videoGeneration,
+    });
   });
 
   it('returns 404 for a missing localization', async () => {
@@ -1972,7 +2073,7 @@ describe('GET /episodes/:localizationId', () => {
 
     expect(response.status).toBe(404);
     expect(
-      mockListCompletedEpisodeVideosByLocalizationIds,
+      mockListEpisodeVideoSummariesByLocalizationIds,
     ).not.toHaveBeenCalled();
   });
 
@@ -2020,9 +2121,21 @@ describe('POST /episodes/:id/listened', () => {
       thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
       durationSeconds: 90,
     };
+    const videoGeneration = {
+      status: 'completed' as const,
+      updatedAt: '2026-07-24T00:00:00.000Z',
+    };
     mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localization);
-    mockListCompletedEpisodeVideosByLocalizationIds.mockResolvedValue(
-      new Map([[localization.id, video]]),
+    mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(
+      new Map([
+        [
+          localization.id,
+          {
+            video,
+            videoGeneration,
+          },
+        ],
+      ]),
     );
 
     const response = await app.request(
@@ -2034,6 +2147,7 @@ describe('POST /episodes/:id/listened', () => {
     const body = await response.json();
 
     expect(body.video).toEqual(video);
+    expect(body.videoGeneration).toEqual(videoGeneration);
   });
 
   it('returns 404 when the episode cannot be marked listened', async () => {

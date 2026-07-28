@@ -20,6 +20,7 @@ function makeEpisode(
     likeCount: 0,
     script: null,
     video: null,
+    videoGeneration: null,
     audioTracks: [],
     languageClassrooms: [],
     lastPositionSeconds: 0,

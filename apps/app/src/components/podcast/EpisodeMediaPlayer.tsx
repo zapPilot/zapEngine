@@ -15,17 +15,27 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  ActivityIndicator,
+  Platform,
+  Text,
+  View,
+} from 'react-native';
 
 import { EpisodeVideoPlayer } from '@/components/podcast/EpisodeVideoPlayer';
 import {
   formatPodcastClock,
   nextPodcastPlaybackSpeed,
 } from '@/components/podcast/episodeFormatters';
+import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Tap } from '@/components/ui/Tap';
 import {
   episodeMediaTabAvailability,
+  episodeVideoPanelState,
   type EpisodeMediaTab,
+  type EpisodeVideoPanelState,
   resolveActiveEpisodeMediaTab,
 } from '@/integration/episodeMediaTabs';
 import type { PodcastEpisode } from '@/integration/podcastFeed';
@@ -121,9 +131,17 @@ function EpisodeMediaTabButton({
 function UnavailableMediaPanel({
   message,
   label,
+  accessory,
+  detail = 'Choose another tab to keep listening.',
+  action,
+  liveRegion,
 }: {
   message: string;
   label: string;
+  accessory?: ReactNode;
+  detail?: string;
+  action?: { label: string; onPress: () => void };
+  liveRegion?: 'polite';
 }) {
   return (
     <View
@@ -132,14 +150,99 @@ function UnavailableMediaPanel({
       accessibilityLabel={`${label} player`}
       className="min-h-[220px] items-center justify-center p-5"
     >
-      <Text className="text-center font-sans-semibold text-[15px] text-ink">
+      {accessory === undefined ? null : (
+        <View className="mb-4">{accessory}</View>
+      )}
+      <Text
+        accessibilityLiveRegion={liveRegion}
+        className="text-center font-sans-semibold text-[15px] text-ink"
+      >
         {message}
       </Text>
       <Text className="mt-2 text-center text-[12px] leading-[18px] text-ink-dim">
-        Choose another tab to keep listening.
+        {detail}
       </Text>
+      {action === undefined ? null : (
+        <PrimaryButton
+          accessibilityRole="button"
+          accessibilityLabel={action.label}
+          className="mt-4"
+          onPress={action.onPress}
+        >
+          {action.label}
+        </PrimaryButton>
+      )}
     </View>
   );
+}
+
+function EpisodeVideoStatusPanel({
+  state,
+  onPlay,
+}: {
+  state: EpisodeVideoPanelState;
+  onPlay: () => void;
+}) {
+  const previousStateRef = useRef(state);
+
+  useEffect(() => {
+    if (
+      Platform.OS === 'ios' &&
+      previousStateRef.current !== 'ready' &&
+      state === 'ready'
+    ) {
+      AccessibilityInfo.announceForAccessibility('Video is ready');
+    }
+    previousStateRef.current = state;
+  }, [state]);
+
+  switch (state) {
+    case 'generating':
+      return (
+        <UnavailableMediaPanel
+          label="Video"
+          message="Video is being generated"
+          detail="This page updates automatically while the video renders."
+          liveRegion="polite"
+          accessory={
+            <ActivityIndicator
+              accessibilityLabel="Generating video"
+              color="#f5f1e8"
+            />
+          }
+        />
+      );
+    case 'failed':
+      return (
+        <View
+          nativeID="episode-media-panel"
+          role="tabpanel"
+          accessibilityLabel="Video player"
+          className="min-h-[220px] justify-center p-5"
+        >
+          <InlineErrorCard
+            title="Video unavailable"
+            body="Video generation failed for this episode. Story and Classroom audio still work."
+          />
+        </View>
+      );
+    case 'ready':
+      return (
+        <UnavailableMediaPanel
+          label="Video"
+          message="Video is ready"
+          liveRegion="polite"
+          action={{ label: 'Play video', onPress: onPlay }}
+        />
+      );
+    case 'unavailable':
+      return (
+        <UnavailableMediaPanel
+          label="Video"
+          message="Video isn’t available yet"
+        />
+      );
+  }
 }
 
 function AudioPlaybackControls({
@@ -276,6 +379,7 @@ export function EpisodeMediaPlayer({
   const isCurrentAudio =
     player.nowPlaying?.localizationId === episode.localizationId;
   const availability = episodeMediaTabAvailability(episode);
+  const videoPanelState = episodeVideoPanelState(episode);
   const activeTab = resolveActiveEpisodeMediaTab({
     selectedTab,
     isCurrentAudio: isCurrentAudio && availability[selectedTab],
@@ -411,6 +515,21 @@ export function EpisodeMediaPlayer({
   }, [continueWithAudio]);
 
   const video = episode.video;
+  let videoTabHint: string;
+  switch (videoPanelState) {
+    case 'ready':
+      videoTabHint = `Continue video from ${formatPodcastClock(audioHandoffTime)}`;
+      break;
+    case 'generating':
+      videoTabHint = 'Video is being generated';
+      break;
+    case 'failed':
+      videoTabHint = 'Video generation failed';
+      break;
+    case 'unavailable':
+      videoTabHint = 'Video isn’t available yet';
+      break;
+  }
 
   return (
     <View className="px-5 pt-5">
@@ -440,11 +559,7 @@ export function EpisodeMediaPlayer({
             <EpisodeMediaTabButton
               active={activeTab === 'video'}
               label="Video"
-              hint={
-                availability.video
-                  ? `Continue video from ${formatPodcastClock(audioHandoffTime)}`
-                  : 'Video isn’t available yet'
-              }
+              hint={videoTabHint}
               onPress={showVideo}
             />
           </View>
@@ -479,9 +594,9 @@ export function EpisodeMediaPlayer({
               />
             </View>
           ) : (
-            <UnavailableMediaPanel
-              label="Video"
-              message="Video isn’t available yet"
+            <EpisodeVideoStatusPanel
+              state={videoPanelState}
+              onPlay={showVideo}
             />
           )
         ) : activeTab === 'classroom' && !availability.classroom ? (

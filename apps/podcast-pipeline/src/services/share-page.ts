@@ -5,7 +5,7 @@ import type {
 } from '../types.js';
 import {
   findEpisodeLocalizationByEpisodeId,
-  listCompletedEpisodeVideosByLocalizationIds,
+  listEpisodeVideoSummariesByLocalizationIds,
 } from './db.js';
 
 export type SharePagePlatform = 'ios' | 'android' | 'desktop';
@@ -86,10 +86,10 @@ export async function buildEpisodeSharePageHtml(input: {
     return null;
   }
 
-  const videos = await listCompletedEpisodeVideosByLocalizationIds([
+  const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds([
     localization.id,
   ]);
-  const video = videos.get(localization.id) ?? null;
+  const video = videoSummaries.get(localization.id)?.video ?? null;
 
   const langQuery = `?lang=${encodeURIComponent(input.languageCode)}`;
 

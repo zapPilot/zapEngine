@@ -8,9 +8,12 @@ import {
   getPodcastApiUrl,
   getPodcastEpisodeShareUrl,
   isPodcastSearchQueryValid,
+  isPodcastVideoGenerationPending,
+  mergePodcastEpisodeVideo,
   normalisePodcastSearchQuery,
   parsePodcastEpisode,
   parsePodcastEpisodeSearchResult,
+  podcastVideoRefetchInterval,
 } from '@/integration/podcastFeed';
 
 const fetchMock = vi.fn();
@@ -104,6 +107,10 @@ describe('podcast feed client', () => {
           thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
           durationSeconds: 91.5,
         },
+        videoGeneration: {
+          status: 'completed',
+          updatedAt: '2026-07-01T00:05:00.000Z',
+        },
         audioTracks: [
           {
             languageCode: 'zh-Hant',
@@ -138,6 +145,10 @@ describe('podcast feed client', () => {
       thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
       durationSeconds: 91.5,
     });
+    expect(parsed.videoGeneration).toEqual({
+      status: 'completed',
+      updatedAt: '2026-07-01T00:05:00.000Z',
+    });
     expect(parsed.audioTracks[0]).toEqual({
       languageCode: 'zh-Hant',
       title: 'Main track',
@@ -164,6 +175,10 @@ describe('podcast feed client', () => {
         thumbnail_url: 'https://cdn.example.com/thumbnail-2.png',
         duration_seconds: 120,
       },
+      video_generation: {
+        status: 'processing',
+        updated_at: '2026-07-02T00:05:00.000Z',
+      },
       audio_tracks: [
         {
           language_code: 'en',
@@ -188,6 +203,10 @@ describe('podcast feed client', () => {
     expect(parsed.video?.thumbnailUrl).toBe(
       'https://cdn.example.com/thumbnail-2.png',
     );
+    expect(parsed.videoGeneration).toEqual({
+      status: 'processing',
+      updatedAt: '2026-07-02T00:05:00.000Z',
+    });
   });
 
   it('treats null or incomplete video payloads as audio-only episodes', () => {
@@ -203,6 +222,202 @@ describe('podcast feed client', () => {
         }),
       ).video,
     ).toBeNull();
+  });
+
+  it('treats missing or malformed video generation summaries as absent', () => {
+    expect(parsePodcastEpisode(episode()).videoGeneration).toBeNull();
+    expect(
+      parsePodcastEpisode(
+        episode({
+          videoGeneration: {
+            status: 'rendering',
+            updatedAt: '2026-07-01T00:05:00.000Z',
+          },
+        }),
+      ).videoGeneration,
+    ).toBeNull();
+    expect(
+      parsePodcastEpisode(episode({ videoGeneration: 'processing' }))
+        .videoGeneration,
+    ).toBeNull();
+  });
+
+  it('detects only queued or processing episodes without a completed video as pending', () => {
+    expect(
+      isPodcastVideoGenerationPending({
+        video: null,
+        videoGeneration: { status: 'queued', updatedAt: null },
+      }),
+    ).toBe(true);
+    expect(
+      isPodcastVideoGenerationPending({
+        video: null,
+        videoGeneration: { status: 'processing', updatedAt: null },
+      }),
+    ).toBe(true);
+    expect(
+      isPodcastVideoGenerationPending({
+        video: null,
+        videoGeneration: { status: 'completed', updatedAt: null },
+      }),
+    ).toBe(false);
+    expect(
+      isPodcastVideoGenerationPending({
+        video: null,
+        videoGeneration: { status: 'failed', updatedAt: null },
+      }),
+    ).toBe(false);
+    expect(
+      isPodcastVideoGenerationPending({
+        video: {
+          url: 'https://cdn.example.com/video.mp4',
+          thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+          durationSeconds: 90,
+        },
+        videoGeneration: { status: 'processing', updatedAt: null },
+      }),
+    ).toBe(false);
+    expect(
+      isPodcastVideoGenerationPending({
+        video: null,
+        videoGeneration: null,
+      }),
+    ).toBe(false);
+    expect(isPodcastVideoGenerationPending(null)).toBe(false);
+    expect(isPodcastVideoGenerationPending(undefined)).toBe(false);
+  });
+
+  it('merges fresh detail video fields into the feed episode', () => {
+    const feedEpisode = parsePodcastEpisode(
+      episode({
+        title: 'Feed title',
+        video: null,
+        videoGeneration: {
+          status: 'processing',
+          updatedAt: '2026-07-01T00:05:00.000Z',
+        },
+      }),
+    );
+    const detailEpisode = parsePodcastEpisode(
+      episode({
+        title: 'Detail title',
+        video: {
+          url: 'https://cdn.example.com/video.mp4',
+          thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+          durationSeconds: 90,
+        },
+        videoGeneration: {
+          status: 'completed',
+          updatedAt: '2026-07-01T00:10:00.000Z',
+        },
+      }),
+    );
+
+    expect(mergePodcastEpisodeVideo(feedEpisode, null)).toBe(feedEpisode);
+    expect(mergePodcastEpisodeVideo(null, detailEpisode)).toBe(detailEpisode);
+    expect(mergePodcastEpisodeVideo(null, null)).toBeNull();
+    expect(mergePodcastEpisodeVideo(feedEpisode, detailEpisode)).toMatchObject({
+      title: 'Feed title',
+      video: detailEpisode.video,
+      videoGeneration: detailEpisode.videoGeneration,
+    });
+  });
+
+  it('keeps feed video fields when the detail response has null values', () => {
+    const feedEpisode = parsePodcastEpisode(
+      episode({
+        video: {
+          url: 'https://cdn.example.com/video.mp4',
+          thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+          durationSeconds: 90,
+        },
+        videoGeneration: {
+          status: 'completed',
+          updatedAt: '2026-07-01T00:10:00.000Z',
+        },
+      }),
+    );
+    const detailEpisode = parsePodcastEpisode(
+      episode({ video: null, videoGeneration: null }),
+    );
+
+    expect(mergePodcastEpisodeVideo(feedEpisode, detailEpisode)).toMatchObject({
+      video: feedEpisode.video,
+      videoGeneration: feedEpisode.videoGeneration,
+    });
+  });
+
+  it('keeps a newer pending feed generation ahead of stale completed detail data', () => {
+    const feedEpisode = parsePodcastEpisode(
+      episode({
+        video: null,
+        videoGeneration: {
+          status: 'processing',
+          updatedAt: '2026-07-01T00:20:00.000Z',
+        },
+      }),
+    );
+    const detailEpisode = parsePodcastEpisode(
+      episode({
+        video: {
+          url: 'https://cdn.example.com/old-video.mp4',
+          thumbnailUrl: 'https://cdn.example.com/old-thumbnail.png',
+          durationSeconds: 90,
+        },
+        videoGeneration: {
+          status: 'completed',
+          updatedAt: '2026-07-01T00:10:00.000Z',
+        },
+      }),
+    );
+
+    expect(mergePodcastEpisodeVideo(feedEpisode, detailEpisode)).toMatchObject({
+      video: null,
+      videoGeneration: feedEpisode.videoGeneration,
+    });
+  });
+
+  it('polls pending generations through initial failures and stops at fresh terminal data', () => {
+    const pendingGeneration = {
+      status: 'processing' as const,
+      updatedAt: '2026-07-01T00:20:00.000Z',
+    };
+    const staleCompletedEpisode = parsePodcastEpisode(
+      episode({
+        video: {
+          url: 'https://cdn.example.com/old-video.mp4',
+          thumbnailUrl: 'https://cdn.example.com/old-thumbnail.png',
+          durationSeconds: 90,
+        },
+        videoGeneration: {
+          status: 'completed',
+          updatedAt: '2026-07-01T00:10:00.000Z',
+        },
+      }),
+    );
+    const freshFailedEpisode = parsePodcastEpisode(
+      episode({
+        video: null,
+        videoGeneration: {
+          status: 'failed',
+          updatedAt: '2026-07-01T00:25:00.000Z',
+        },
+      }),
+    );
+
+    expect(podcastVideoRefetchInterval(undefined, pendingGeneration)).toBe(
+      20_000,
+    );
+    expect(
+      podcastVideoRefetchInterval(staleCompletedEpisode, pendingGeneration),
+    ).toBe(20_000);
+    expect(
+      podcastVideoRefetchInterval(freshFailedEpisode, pendingGeneration),
+    ).toBe(false);
+    expect(
+      podcastVideoRefetchInterval(freshFailedEpisode, pendingGeneration, 1),
+    ).toBe(20_000);
+    expect(podcastVideoRefetchInterval(freshFailedEpisode, null)).toBe(false);
   });
 
   it('parses episode search results from camelCase responses', () => {

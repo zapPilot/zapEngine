@@ -102,6 +102,17 @@ export interface EpisodeVideoResponse {
   durationSeconds: number;
 }
 
+export type EpisodeVideoGenerationPublicStatus =
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'failed';
+
+export interface EpisodeVideoGenerationSummary {
+  status: EpisodeVideoGenerationPublicStatus;
+  updatedAt: string | null;
+}
+
 export interface LanguageClassroomKeyword {
   term: string;
   reading: string | null;
@@ -145,6 +156,7 @@ export interface EpisodeResponse {
   llmProvider: string | null;
   status: EpisodeStatus;
   video: EpisodeVideoResponse | null;
+  videoGeneration: EpisodeVideoGenerationSummary | null;
   languageClassrooms: LanguageClassroomLesson[];
 }
 

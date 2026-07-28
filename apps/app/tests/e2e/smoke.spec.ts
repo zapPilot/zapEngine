@@ -25,6 +25,55 @@ const PODCAST_FIXTURE = {
   nextCursor: null,
 };
 
+const GENERATING_PODCAST_EPISODE = {
+  id: 'episode-3',
+  localizationId: 'episode-3-zh-Hant',
+  title: 'E2E generating video episode',
+  languageCode: 'zh-Hant',
+  hlsUrl: 'https://media.example.test/episode-3/playlist.m3u8',
+  createdAt: '2026-07-03T00:00:00.000Z',
+  listened: false,
+  video: null,
+  videoGeneration: {
+    status: 'processing',
+    updatedAt: '2026-07-03T00:05:00.000Z',
+  },
+  audioTracks: [
+    {
+      languageCode: 'zh-Hant',
+      title: 'E2E generating video episode',
+      hlsUrl: 'https://media.example.test/episode-3/playlist.m3u8',
+      classroomHlsUrl: 'https://media.example.test/episode-3/classroom.m3u8',
+    },
+  ],
+};
+
+const GENERATING_PODCAST_FIXTURE = {
+  items: [GENERATING_PODCAST_EPISODE],
+  nextCursor: null,
+};
+
+const COMPLETED_PODCAST_DETAIL_FIXTURE = {
+  ...GENERATING_PODCAST_EPISODE,
+  video: {
+    url: 'https://media.example.test/episode-3/video.mp4',
+    thumbnailUrl: 'https://media.example.test/episode-3/thumbnail.png',
+    durationSeconds: 90,
+  },
+  videoGeneration: {
+    status: 'completed',
+    updatedAt: '2026-07-03T00:10:00.000Z',
+  },
+};
+
+const FAILED_PODCAST_DETAIL_FIXTURE = {
+  ...GENERATING_PODCAST_EPISODE,
+  videoGeneration: {
+    status: 'failed',
+    updatedAt: '2026-07-03T00:10:00.000Z',
+  },
+};
+
 const VIDEO_PODCAST_FIXTURE = {
   items: [
     {
@@ -94,6 +143,15 @@ async function routePodcastFeed(page: Page): Promise<void> {
     await route.fulfill({
       contentType: 'application/json',
       body: JSON.stringify(PODCAST_FIXTURE),
+    });
+  });
+}
+
+async function routeGeneratingPodcastFeed(page: Page): Promise<void> {
+  await page.route('**/episodes?**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(GENERATING_PODCAST_FIXTURE),
     });
   });
 }
@@ -338,6 +396,96 @@ test('audio-only episode keeps Video selectable with an unavailable state', asyn
 
   await expect(videoTab).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText('Video isn’t available yet')).toBeVisible();
+  await expect(page.locator('video')).toHaveCount(0);
+});
+
+test('processing video generation shows a live generating state', async ({
+  page,
+}) => {
+  test.setTimeout(E2E_TEST_TIMEOUT);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await routeGeneratingPodcastFeed(page);
+  await page.route('**/episodes/episode-3-zh-Hant**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(GENERATING_PODCAST_EPISODE),
+    });
+  });
+
+  await page.goto('/podcast/episode-3-zh-Hant?lang=zh-Hant');
+  const videoTab = page.getByRole('tab', { name: 'Video', exact: true });
+  await expect(videoTab).toBeVisible({ timeout: APP_BOOT_TIMEOUT });
+  await videoTab.click();
+
+  await expect(videoTab).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByText('Video is being generated')).toBeVisible();
+  await expect(page.getByLabel('Generating video')).toBeVisible();
+  await expect(page.locator('video')).toHaveCount(0);
+});
+
+test('video polling stops after a completed detail becomes ready', async ({
+  page,
+}) => {
+  test.setTimeout(E2E_TEST_TIMEOUT);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.clock.install();
+  await routeGeneratingPodcastFeed(page);
+
+  let detailRequestCount = 0;
+  await page.route('**/episodes/episode-3-zh-Hant**', async (route) => {
+    detailRequestCount += 1;
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(
+        detailRequestCount === 1
+          ? GENERATING_PODCAST_EPISODE
+          : COMPLETED_PODCAST_DETAIL_FIXTURE,
+      ),
+    });
+  });
+
+  await page.goto('/podcast/episode-3-zh-Hant?lang=zh-Hant');
+  const videoTab = page.getByRole('tab', { name: 'Video', exact: true });
+  await expect(videoTab).toBeVisible({ timeout: APP_BOOT_TIMEOUT });
+  await videoTab.click();
+  await expect(page.getByText('Video is being generated')).toBeVisible();
+  await expect.poll(() => detailRequestCount).toBe(1);
+
+  await page.clock.runFor(20_000);
+  await expect.poll(() => detailRequestCount).toBe(2);
+
+  await expect(page.getByText('Video is ready')).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Play video', exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('video')).toHaveCount(0);
+
+  await page.clock.runFor(20_000);
+  await expect.poll(() => detailRequestCount).toBe(2);
+});
+
+test('failed video detail shows a redacted failure state', async ({ page }) => {
+  test.setTimeout(E2E_TEST_TIMEOUT);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await routeGeneratingPodcastFeed(page);
+  await page.route('**/episodes/episode-3-zh-Hant**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(FAILED_PODCAST_DETAIL_FIXTURE),
+    });
+  });
+
+  await page.goto('/podcast/episode-3-zh-Hant?lang=zh-Hant');
+  const videoTab = page.getByRole('tab', { name: 'Video', exact: true });
+  await expect(videoTab).toBeVisible({ timeout: APP_BOOT_TIMEOUT });
+  await videoTab.click();
+
+  await expect(page.getByText('Video unavailable')).toBeVisible();
+  await expect(
+    page.getByText(
+      'Video generation failed for this episode. Story and Classroom audio still work.',
+    ),
+  ).toBeVisible();
   await expect(page.locator('video')).toHaveCount(0);
 });
 

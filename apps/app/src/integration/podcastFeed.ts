@@ -35,6 +35,17 @@ export interface PodcastEpisodeVideo {
   durationSeconds: number;
 }
 
+export type PodcastVideoGenerationStatus =
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'failed';
+
+export interface PodcastEpisodeVideoGeneration {
+  status: PodcastVideoGenerationStatus;
+  updatedAt: string | null;
+}
+
 export interface PodcastEpisode {
   id: string;
   localizationId: string;
@@ -46,6 +57,7 @@ export interface PodcastEpisode {
   likeCount: number;
   script: string | null;
   video: PodcastEpisodeVideo | null;
+  videoGeneration: PodcastEpisodeVideoGeneration | null;
   audioTracks: PodcastAudioTrack[];
   languageClassrooms: PodcastLanguageClassroomLesson[];
   lastPositionSeconds: number;
@@ -71,6 +83,7 @@ interface PodcastSearchPage {
 const DEFAULT_PODCAST_API_URL = 'https://from-fed-to-chain-api.fly.dev';
 const FEED_PAGE_SIZE = 30;
 const SEARCH_PAGE_SIZE = 20;
+const PODCAST_VIDEO_POLL_INTERVAL_MS = 20_000;
 export const MIN_PODCAST_SEARCH_QUERY_LENGTH = 2;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -139,6 +152,122 @@ export function parsePodcastEpisodeVideo(
   }
 
   return { url, thumbnailUrl, durationSeconds };
+}
+
+export function parsePodcastEpisodeVideoGeneration(
+  rawVideoGeneration: unknown,
+): PodcastEpisodeVideoGeneration | null {
+  if (!isRecord(rawVideoGeneration)) return null;
+
+  const status = rawVideoGeneration['status'];
+  if (
+    status !== 'queued' &&
+    status !== 'processing' &&
+    status !== 'completed' &&
+    status !== 'failed'
+  ) {
+    return null;
+  }
+
+  return {
+    status,
+    updatedAt: readNullableString(
+      rawVideoGeneration,
+      'updatedAt',
+      'updated_at',
+    ),
+  };
+}
+
+export function isPodcastVideoGenerationPending(
+  episode: Pick<PodcastEpisode, 'video' | 'videoGeneration'> | null | undefined,
+): boolean {
+  if (episode === null || episode === undefined || episode.video !== null) {
+    return false;
+  }
+  return (
+    episode.videoGeneration?.status === 'queued' ||
+    episode.videoGeneration?.status === 'processing'
+  );
+}
+
+function videoGenerationUpdatedAtMs(
+  videoGeneration: PodcastEpisodeVideoGeneration | null,
+): number | null {
+  if (videoGeneration?.updatedAt === null || videoGeneration === null) {
+    return null;
+  }
+
+  const updatedAtMs = Date.parse(videoGeneration.updatedAt);
+  return Number.isNaN(updatedAtMs) ? null : updatedAtMs;
+}
+
+function isVideoGenerationNewer(
+  candidate: PodcastEpisodeVideoGeneration | null,
+  current: PodcastEpisodeVideoGeneration | null,
+): boolean {
+  if (candidate === null) return false;
+  if (current === null) return true;
+
+  const candidateUpdatedAtMs = videoGenerationUpdatedAtMs(candidate);
+  const currentUpdatedAtMs = videoGenerationUpdatedAtMs(current);
+  return (
+    candidateUpdatedAtMs !== null &&
+    currentUpdatedAtMs !== null &&
+    candidateUpdatedAtMs > currentUpdatedAtMs
+  );
+}
+
+export function podcastVideoRefetchInterval(
+  detailEpisode:
+    | Pick<PodcastEpisode, 'video' | 'videoGeneration'>
+    | null
+    | undefined,
+  pendingFeedVideoGeneration: PodcastEpisodeVideoGeneration | null,
+  fetchFailureCount = 0,
+): number | false {
+  if (isPodcastVideoGenerationPending(detailEpisode)) {
+    return PODCAST_VIDEO_POLL_INTERVAL_MS;
+  }
+  if (pendingFeedVideoGeneration === null) {
+    return false;
+  }
+  if (
+    detailEpisode === null ||
+    detailEpisode === undefined ||
+    fetchFailureCount > 0 ||
+    isVideoGenerationNewer(
+      pendingFeedVideoGeneration,
+      detailEpisode.videoGeneration,
+    )
+  ) {
+    return PODCAST_VIDEO_POLL_INTERVAL_MS;
+  }
+  return false;
+}
+
+export function mergePodcastEpisodeVideo(
+  feedEpisode: PodcastEpisode | null,
+  detailEpisode: PodcastEpisode | null,
+): PodcastEpisode | null {
+  if (feedEpisode === null) return detailEpisode;
+  if (detailEpisode === null) return feedEpisode;
+
+  if (
+    isVideoGenerationNewer(
+      feedEpisode.videoGeneration,
+      detailEpisode.videoGeneration,
+    )
+  ) {
+    return feedEpisode;
+  }
+
+  return {
+    ...feedEpisode,
+    video: detailEpisode.video ?? feedEpisode.video,
+    videoGeneration:
+      detailEpisode.videoGeneration ?? feedEpisode.videoGeneration,
+  };
 }
 
 export function normalisePodcastSearchQuery(query: string): string {
@@ -279,6 +408,9 @@ export function parsePodcastEpisode(rawEpisode: unknown): PodcastEpisode {
     likeCount: readNumber(rawEpisode, 'likeCount', 'like_count'),
     script: readNullableString(rawEpisode, 'script', 'script'),
     video: parsePodcastEpisodeVideo(rawEpisode['video']),
+    videoGeneration: parsePodcastEpisodeVideoGeneration(
+      rawEpisode['videoGeneration'] ?? rawEpisode['video_generation'],
+    ),
     audioTracks,
     languageClassrooms: readArray(rawEpisode, [
       'languageClassrooms',
@@ -422,6 +554,7 @@ export function usePodcastEpisode(
   localizationId: string,
   languageCode: string,
   enabled = true,
+  pendingFeedVideoGeneration: PodcastEpisodeVideoGeneration | null = null,
 ) {
   return useQuery({
     queryKey: [
@@ -434,6 +567,13 @@ export function usePodcastEpisode(
     ],
     queryFn: () => fetchPodcastEpisode(localizationId, fetch, languageCode),
     enabled: enabled && localizationId.trim() !== '',
+    refetchInterval: (query) =>
+      podcastVideoRefetchInterval(
+        query.state.data,
+        pendingFeedVideoGeneration,
+        query.state.fetchFailureCount,
+      ),
+    refetchOnMount: pendingFeedVideoGeneration === null ? false : 'always',
     staleTime: 5 * 60 * 1000,
   });
 }
