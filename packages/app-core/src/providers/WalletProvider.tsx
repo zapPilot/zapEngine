@@ -1,3 +1,4 @@
+import type { SimulationPreviewRenderProps } from '@core/hooks/wallet/useAtomicBatchExecution';
 import { usePrivyWalletBackend } from '@core/hooks/wallet/usePrivyWalletBackend';
 import { useWagmiWalletBackend } from '@core/hooks/wallet/useWagmiWalletBackend';
 import { WalletProviderBase } from '@core/providers/walletContext';
@@ -17,28 +18,14 @@ import {
 export { useWalletProvider } from '@core/providers/walletContext';
 export { useWalletLogin } from '@core/providers/walletLoginContext';
 
-type WalletBackend = ReturnType<typeof usePrivyWalletBackend>;
-
 /**
- * Props the provider hands to a simulation-preview renderer. The web frontend
- * injects its `TenderlyPreviewModal`; the desktop app can inject its own or
- * omit it. Keeping the modal injected (rather than imported here) is what lets
- * this provider live in `@zapengine/app-core` without a UI-component dependency.
- * Always bound to the Privy backend — the wagmi path never produces a
- * simulation preview (external wallets show their own confirmation UI).
+ * Render props for the injected simulation-preview UI — defined next to the
+ * RN-safe `useAtomicBatchExecution` hook so native hosts can import the type
+ * without touching this web-only provider. Keeping the renderer injected
+ * (rather than imported here) is what lets this provider live in
+ * `@zapengine/app-core` without a UI-component dependency.
  */
-export interface SimulationPreviewRenderProps {
-  isOpen: boolean;
-  onClose: WalletBackend['cancelBatchExecution'];
-  previewData: NonNullable<WalletBackend['simulationPreview']>;
-  onConfirm: WalletBackend['confirmBatchExecution'];
-  onRetry: WalletBackend['retryBatchSimulation'];
-  onUpdateApproval: WalletBackend['updateApprovalAmount'];
-  isSigningAndSending: WalletBackend['isSigningAndSending'];
-  batchExecutionPhase: WalletBackend['batchExecutionPhase'];
-  isRetryingSimulation: WalletBackend['isRetryingSimulation'];
-  retryError: WalletBackend['retryError'];
-}
+export type { SimulationPreviewRenderProps } from '@core/hooks/wallet/useAtomicBatchExecution';
 
 interface WalletProviderProps {
   children: ReactNode;

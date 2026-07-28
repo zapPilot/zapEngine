@@ -2,6 +2,7 @@ import type { WalletProviderInterface } from '@core/types';
 import { renderToString } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { SimulationPreviewRenderProps } from '../../src/providers/WalletProvider';
 import type { WalletLoginContextValue } from '../../src/providers/walletLoginContext';
 
 function stubBackend(
@@ -83,6 +84,10 @@ beforeEach(async () => {
   mocks.privy.backend = stubBackend();
   mocks.privy.isActive = false;
   mocks.privy.simulationPreview = null;
+  mocks.privy.isSigningAndSending = false;
+  mocks.privy.batchExecutionPhase = 'idle';
+  mocks.privy.isRetryingSimulation = false;
+  mocks.privy.retryError = null;
 
   ({ WalletProvider } = await import('@core/providers/WalletProvider'));
   ({ useWalletProvider } = await import('@core/providers/walletContext'));
@@ -170,17 +175,43 @@ describe('WalletProvider (unified)', () => {
 
   it('still renders the Privy simulation preview via renderSimulationPreview', () => {
     mocks.privy.simulationPreview = { status: 'passed' };
-    let renderedStatus: string | undefined;
+    mocks.privy.isSigningAndSending = true;
+    mocks.privy.batchExecutionPhase = 'authorizingBatch';
+    mocks.privy.isRetryingSimulation = true;
+    mocks.privy.retryError = 'retry failed';
+    let renderedProps: SimulationPreviewRenderProps | undefined;
     renderToString(
       <WalletProvider
         renderSimulationPreview={(props) => {
-          renderedStatus = (props.previewData as { status: string }).status;
+          renderedProps = props;
           return null;
         }}
       >
         <span />
       </WalletProvider>,
     );
-    expect(renderedStatus).toBe('passed');
+    expect(renderedProps).toMatchObject({
+      isOpen: true,
+      previewData: { status: 'passed' },
+      onClose: mocks.privy.cancelBatchExecution,
+      onConfirm: mocks.privy.confirmBatchExecution,
+      onRetry: mocks.privy.retryBatchSimulation,
+      onUpdateApproval: mocks.privy.updateApprovalAmount,
+      isSigningAndSending: true,
+      batchExecutionPhase: 'authorizingBatch',
+      isRetryingSimulation: true,
+      retryError: 'retry failed',
+    });
+  });
+
+  it('does not invoke renderSimulationPreview while no batch is pending', () => {
+    mocks.privy.simulationPreview = null;
+    const renderPreview = vi.fn(() => null);
+    renderToString(
+      <WalletProvider renderSimulationPreview={renderPreview}>
+        <span />
+      </WalletProvider>,
+    );
+    expect(renderPreview).not.toHaveBeenCalled();
   });
 });

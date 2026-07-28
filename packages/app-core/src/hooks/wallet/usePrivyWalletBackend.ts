@@ -1,15 +1,15 @@
 import {
+  type AtomicBatchExecution,
+  useAtomicBatchExecution,
+} from '@core/hooks/wallet/useAtomicBatchExecution';
+import { WALLET_NOT_CONNECTED_ERROR } from '@core/lib/wallet/privyAtomicBatch';
+import {
   buildWalletAccount,
   buildWalletChain,
   type WalletError,
 } from '@core/providers/walletProviderUtils';
-import {
-  preparePrivyAtomicBatch,
-  sendPrivyAtomicBatch,
-} from '@core/services/privyWalletService';
 import type {
   ConnectedWalletClient,
-  WalletAtomicBatchResult,
   WalletProviderInterface,
   WalletTypedData,
 } from '@core/types';
@@ -21,24 +21,11 @@ import {
   useSignTypedData,
   useWallets,
 } from '@privy-io/react-auth';
-import type {
-  PreparedTransaction,
-  PrivyPrepareSendCallsResponse,
-} from '@zapengine/types/api';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import {
-  type Chain,
-  createWalletClient,
-  custom,
-  decodeFunctionData,
-  encodeFunctionData,
-  erc20Abi,
-  type Hash,
-  type Hex,
-  parseUnits,
-  toHex,
-} from 'viem';
+import { useCallback, useMemo, useState } from 'react';
+import { type Chain, createWalletClient, custom } from 'viem';
 import { arbitrum, base, optimism } from 'viem/chains';
+
+export type { PrivyBatchExecutionPhase } from '@core/hooks/wallet/useAtomicBatchExecution';
 
 /**
  * Chains the Privy embedded wallet may operate on. Defined inline from
@@ -48,17 +35,7 @@ const PRIVY_CHAINS: readonly Chain[] = [arbitrum, base, optimism];
 const CHAIN_BY_ID = new Map<number, Chain>(
   PRIVY_CHAINS.map((chain) => [chain.id, chain]),
 );
-const PRIVY_ATOMIC_BATCH_CHAINS = new Map<number, Chain>(
-  [arbitrum, base].map((chain) => [chain.id, chain]),
-);
 const DEFAULT_CHAIN = arbitrum;
-const WALLET_NOT_CONNECTED_ERROR = 'No Privy wallet connected';
-
-export type PrivyBatchExecutionPhase =
-  | 'idle'
-  | 'signingIntent'
-  | 'authorizingBatch'
-  | 'sendingBatch';
 
 /**
  * Parse a CAIP-2 chain id (e.g. `"eip155:42161"`) into its numeric chain id.
@@ -70,115 +47,7 @@ function parseChainId(caip2: string | undefined): number | undefined {
   return Number.isFinite(id) ? id : undefined;
 }
 
-function getPrivyAtomicBatchChain(chainId: number): Chain {
-  const chain = PRIVY_ATOMIC_BATCH_CHAINS.get(chainId);
-  if (!chain) {
-    throw new Error(
-      `Privy EOA EIP-7702 atomic batching is not configured for chain ${chainId}`,
-    );
-  }
-  return chain;
-}
-
-function summarizeTransaction(tx: PreparedTransaction, index: number) {
-  return {
-    index,
-    to: tx.to,
-    value: tx.value,
-    chainId: tx.chainId,
-    intentType: tx.meta.intentType,
-  };
-}
-
-function approvalSummary(tx: PreparedTransaction) {
-  try {
-    const decoded = decodeFunctionData({
-      abi: erc20Abi,
-      data: tx.data as Hex,
-    });
-
-    if (decoded.functionName !== 'approve') {
-      return;
-    }
-
-    const [spender, amount] = decoded.args;
-    return {
-      token: tx.to,
-      spender,
-      amount: amount.toString(),
-    };
-  } catch {
-    return;
-  }
-}
-
-function atomicBatchSummary(transactions: PreparedTransaction[]) {
-  const approvals = transactions.flatMap((tx) => {
-    const approval = approvalSummary(tx);
-    return approval ? [approval] : [];
-  });
-
-  return { approvals };
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return String(error);
-}
-
-function decodeBase64(value: string): Uint8Array {
-  return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function toWalletTypedData(payload: Record<string, unknown>): WalletTypedData {
-  if (
-    !isRecord(payload['domain']) ||
-    !isRecord(payload['types']) ||
-    !isRecord(payload['message']) ||
-    typeof payload['primaryType'] !== 'string'
-  ) {
-    throw new Error('Privy preview typed data payload is malformed');
-  }
-
-  return payload as unknown as WalletTypedData;
-}
-
-function assertSameChainTransactions(
-  transactions: PreparedTransaction[],
-  chainId: number,
-): void {
-  const mismatch = transactions.find((tx) => tx.chainId !== chainId);
-  if (!mismatch) {
-    return;
-  }
-
-  throw new Error(
-    `Privy EOA atomic batch contains a transaction for chain ${mismatch.chainId}, expected ${chainId}`,
-  );
-}
-
-function toWalletSendCall(tx: PreparedTransaction) {
-  return {
-    to: tx.to,
-    data: tx.data,
-    value: toHex(BigInt(tx.value)),
-  };
-}
-
-function createIdempotencyKey(): string {
-  if (typeof globalThis.crypto?.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-export interface PrivyWalletBackend {
+export interface PrivyWalletBackend extends AtomicBatchExecution {
   /** The wallet interface backed by the Privy embedded wallet. */
   backend: WalletProviderInterface;
   /**
@@ -186,15 +55,6 @@ export interface PrivyWalletBackend {
    * user is authenticated and an embedded wallet exists.
    */
   isActive: boolean;
-  simulationPreview: PrivyPrepareSendCallsResponse | null;
-  confirmBatchExecution: (acknowledgedRiskHash?: string) => Promise<void>;
-  retryBatchSimulation: () => Promise<void>;
-  updateApprovalAmount: (callIndex: number, amount: string) => Promise<void>;
-  cancelBatchExecution: () => void;
-  isSigningAndSending: boolean;
-  batchExecutionPhase: PrivyBatchExecutionPhase;
-  isRetryingSimulation: boolean;
-  retryError: string | null;
 }
 
 /**
@@ -203,7 +63,8 @@ export interface PrivyWalletBackend {
  * Uses Privy's core hooks (no `@privy-io/wagmi`). Single transactions and
  * signatures use the embedded wallet's EIP-1193 provider. Atomic batches use
  * the server-side Privy Wallets API and never forward `wallet_sendCalls` to a
- * chain RPC provider.
+ * chain RPC provider — the shared `useAtomicBatchExecution` flow drives them
+ * with the react-auth primitives wired in below.
  *
  * Must be rendered inside a `PrivyProvider` (see `PrivyAuthProvider`).
  *
@@ -217,21 +78,6 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
   const { wallets } = useWallets();
   const [error, setError] = useState<WalletError | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
-
-  // States and refs to coordinate two-step execution
-  const [simulationPreview, setSimulationPreview] =
-    useState<PrivyPrepareSendCallsResponse | null>(null);
-  const [isSigningAndSending, setIsSigningAndSending] = useState(false);
-  const [batchExecutionPhase, setBatchExecutionPhase] =
-    useState<PrivyBatchExecutionPhase>('idle');
-  const [isRetryingSimulation, setIsRetryingSimulation] = useState(false);
-  const [retryError, setRetryError] = useState<string | null>(null);
-  const pendingExecutionRef = useRef<{
-    resolve: (result: WalletAtomicBatchResult) => void;
-    reject: (err: Error) => void;
-    preview: PrivyPrepareSendCallsResponse;
-    batch: Parameters<typeof preparePrivyAtomicBatch>[0];
-  } | null>(null);
 
   const embeddedWallet = useMemo(
     () => wallets.find((wallet) => wallet.walletClientType === 'privy'),
@@ -319,17 +165,11 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
   );
 
   const signPreviewTypedData = useCallback(
-    async (
-      preview: Extract<
-        PrivyPrepareSendCallsResponse,
-        { status: 'passed' | 'warning' }
-      >,
-    ): Promise<`0x${string}`> => {
+    async (typedData: WalletTypedData): Promise<`0x${string}`> => {
       if (!embeddedWallet) {
         throw new Error(WALLET_NOT_CONNECTED_ERROR);
       }
 
-      const typedData = toWalletTypedData(preview.typedDataPayload);
       const { signature } = await signPrivyTypedData(
         typedData as SignTypedDataParams,
         {
@@ -373,22 +213,11 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
     [embeddedWallet, currentChainId, buildClient],
   );
 
-  const executeAtomicBatch = useCallback(
-    async (
-      transactions: PreparedTransaction[],
-      chainId: number,
-    ): Promise<WalletAtomicBatchResult> => {
+  const ensureChain = useCallback(
+    async (chainId: number): Promise<void> => {
       if (!embeddedWallet) {
         throw new Error(WALLET_NOT_CONNECTED_ERROR);
       }
-      if (transactions.length === 0) {
-        throw new Error('Cannot execute empty Privy EIP-7702 batch');
-      }
-      assertSameChainTransactions(transactions, chainId);
-
-      const chain = getPrivyAtomicBatchChain(chainId);
-      const caip2 = `eip155:${chain.id}`;
-
       if (currentChainId !== chainId) {
         walletLogger.info('[privy.executeAtomicBatch] switching chain', {
           from: currentChainId,
@@ -396,279 +225,37 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
         });
         await embeddedWallet.switchChain(chainId);
       }
-
-      const calls = transactions.map(toWalletSendCall);
-      const walletId = user?.linkedAccounts
-        .flatMap((account) =>
-          account.type === 'wallet' &&
-          account.walletClientType === 'privy' &&
-          account.chainType === 'ethereum' &&
-          account.address.toLowerCase() ===
-            embeddedWallet.address.toLowerCase() &&
-          'id' in account &&
-          typeof account.id === 'string'
-            ? [account.id]
-            : [],
-        )
-        .at(0);
-      if (!walletId) {
-        throw new Error('Privy wallet resource id is unavailable');
-      }
-      const batch = {
-        walletId,
-        walletAddress: embeddedWallet.address,
-        chainId: chain.id as 8453 | 42161,
-        calls,
-        idempotencyKey: createIdempotencyKey(),
-      };
-
-      walletLogger.info(
-        '[privy.executeAtomicBatch] preparing Privy Wallets API batch',
-        {
-          chainId,
-          caip2,
-          embeddedWalletAddress: embeddedWallet.address,
-          transactionCount: transactions.length,
-          transactions: transactions.map(summarizeTransaction),
-          atomicBatch: atomicBatchSummary(transactions),
-        },
-      );
-
-      const prepareAccessToken = await getAccessToken();
-      if (!prepareAccessToken) {
-        throw new Error(
-          'Privy user access token is invalid or expired. Please re-login.',
-        );
-      }
-
-      // 1. Prepare batch and simulation
-      const preview = await preparePrivyAtomicBatch(
-        batch,
-        prepareAccessToken,
-      ).catch((error: unknown) => {
-        throw new Error(
-          `Privy EOA EIP-7702 atomic batch preparation failed: ${errorMessage(error)}`,
-        );
-      });
-
-      // 2. Intercept flow and return promise waiting for user signature & confirmation
-      return new Promise<WalletAtomicBatchResult>((resolve, reject) => {
-        pendingExecutionRef.current = {
-          resolve,
-          reject,
-          preview,
-          batch,
-        };
-        setRetryError(null);
-        setSimulationPreview(preview);
-      });
     },
-    [embeddedWallet, currentChainId, getAccessToken, user?.linkedAccounts],
+    [embeddedWallet, currentChainId],
   );
 
-  const retryBatchSimulation = useCallback(async (): Promise<void> => {
-    const pending = pendingExecutionRef.current;
-    if (!pending) return;
-
-    setRetryError(null);
-    setIsRetryingSimulation(true);
-    try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        throw new Error(
-          'Privy user access token is invalid or expired. Please re-login.',
-        );
-      }
-      const preview = await preparePrivyAtomicBatch(pending.batch, accessToken);
-      pending.preview = preview;
-      setSimulationPreview(preview);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : errorMessage(err);
-      setRetryError(message);
-    } finally {
-      setIsRetryingSimulation(false);
+  const resolveWalletId = useCallback((): string | undefined => {
+    if (!embeddedWallet) {
+      return undefined;
     }
-  }, [getAccessToken]);
+    return user?.linkedAccounts
+      .flatMap((account) =>
+        account.type === 'wallet' &&
+        account.walletClientType === 'privy' &&
+        account.chainType === 'ethereum' &&
+        account.address.toLowerCase() ===
+          embeddedWallet.address.toLowerCase() &&
+        'id' in account &&
+        typeof account.id === 'string'
+          ? [account.id]
+          : [],
+      )
+      .at(0);
+  }, [embeddedWallet, user?.linkedAccounts]);
 
-  const updateApprovalAmount = useCallback(
-    async (callIndex: number, amount: string): Promise<void> => {
-      const pending = pendingExecutionRef.current;
-      if (!pending) return;
-
-      const approval = pending.preview.approvals.find(
-        (candidate) => candidate.callIndex === callIndex,
-      );
-      const call = pending.batch.calls[callIndex];
-      if (!approval || !call) {
-        const error = new Error('Approval call is no longer available.');
-        setRetryError(error.message);
-        throw error;
-      }
-
-      let rawAmount: bigint;
-      try {
-        rawAmount = parseUnits(amount.trim(), approval.token.decimals);
-      } catch {
-        const error = new Error('Enter a valid approval amount.');
-        setRetryError(error.message);
-        throw error;
-      }
-      if (rawAmount < 0n) {
-        const error = new Error('Approval amount cannot be negative.');
-        setRetryError(error.message);
-        throw error;
-      }
-
-      const updatedBatch = {
-        ...pending.batch,
-        idempotencyKey: createIdempotencyKey(),
-        calls: pending.batch.calls.map((candidate, index) =>
-          index === callIndex
-            ? {
-                ...candidate,
-                data: encodeFunctionData({
-                  abi: erc20Abi,
-                  functionName: 'approve',
-                  args: [approval.spender as `0x${string}`, rawAmount],
-                }),
-              }
-            : candidate,
-        ),
-      };
-
-      setRetryError(null);
-      setIsRetryingSimulation(true);
-      try {
-        const accessToken = await getAccessToken();
-        if (!accessToken) {
-          throw new Error(
-            'Privy user access token is invalid or expired. Please re-login.',
-          );
-        }
-        const preview = await preparePrivyAtomicBatch(
-          updatedBatch,
-          accessToken,
-        );
-        pending.batch = updatedBatch;
-        pending.preview = preview;
-        setSimulationPreview(preview);
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : errorMessage(err);
-        setRetryError(message);
-        throw err;
-      } finally {
-        setIsRetryingSimulation(false);
-      }
-    },
-    [getAccessToken],
-  );
-
-  const confirmBatchExecution = useCallback(
-    async (acknowledgedRiskHash?: string): Promise<void> => {
-      const pending = pendingExecutionRef.current;
-      if (!pending) return;
-
-      if (!embeddedWallet) {
-        throw new Error(WALLET_NOT_CONNECTED_ERROR);
-      }
-      if (
-        pending.preview.status === 'failed' ||
-        pending.preview.status === 'unavailable'
-      ) {
-        return;
-      }
-
-      let keepPending = false;
-      setIsSigningAndSending(true);
-      try {
-        // 1. User signs EIP-712 Intent via Privy modal
-        walletLogger.info(
-          '[privy.confirmBatchExecution] signing EIP-712 intent',
-        );
-        setBatchExecutionPhase('signingIntent');
-        const userSignature = await signPreviewTypedData(pending.preview);
-
-        // 2. User signs Privy SendCalls authorization payload
-        walletLogger.info(
-          '[privy.confirmBatchExecution] signing EIP-7702 auth',
-        );
-        setBatchExecutionPhase('authorizingBatch');
-        const { signature: authorizationSignature } =
-          await generateAuthorizationSignature(
-            decodeBase64(pending.preview.authorizationPayload),
-          );
-
-        const executeAccessToken = await getAccessToken();
-        if (!executeAccessToken) {
-          throw new Error(
-            'Privy user access token is invalid or expired. Please re-login.',
-          );
-        }
-
-        // 3. Post to confirm endpoint
-        walletLogger.info('[privy.confirmBatchExecution] confirming preview');
-        setBatchExecutionPhase('sendingBatch');
-        const result = await sendPrivyAtomicBatch(
-          {
-            previewId: pending.preview.previewId,
-            userSignature,
-            authorizationSignature,
-            ...(acknowledgedRiskHash ? { acknowledgedRiskHash } : {}),
-          },
-          executeAccessToken,
-        );
-
-        if (result.status === 'review') {
-          pending.preview = result.preview;
-          setRetryError(null);
-          setSimulationPreview(result.preview);
-          keepPending = true;
-          return;
-        }
-
-        walletLogger.info('[privy.confirmBatchExecution] success', {
-          transactionId: result.transactionId,
-          transactionHash: result.transactionHash,
-          caip2: result.caip2,
-        });
-
-        pending.resolve({
-          callsId: result.transactionId,
-          ...(result.transactionHash
-            ? { transactionHash: result.transactionHash as Hash }
-            : {}),
-        });
-      } catch (err: unknown) {
-        walletLogger.error('[privy.confirmBatchExecution] failed:', err);
-        pending.reject(
-          err instanceof Error ? err : new Error(errorMessage(err)),
-        );
-      } finally {
-        setIsSigningAndSending(false);
-        setBatchExecutionPhase('idle');
-        if (!keepPending) {
-          setSimulationPreview(null);
-          pendingExecutionRef.current = null;
-        }
-      }
-    },
-    [
-      embeddedWallet,
-      generateAuthorizationSignature,
-      getAccessToken,
-      signPreviewTypedData,
-    ],
-  );
-
-  const cancelBatchExecution = useCallback((): void => {
-    const pending = pendingExecutionRef.current;
-    if (pending) {
-      pending.reject(new Error('Transaction rejected by the user.'));
-    }
-    setSimulationPreview(null);
-    setRetryError(null);
-    pendingExecutionRef.current = null;
-  }, []);
+  const batch = useAtomicBatchExecution({
+    getAccessToken,
+    signPreviewTypedData,
+    generateAuthorizationSignature,
+    ensureChain,
+    resolveWalletId,
+    walletAddress: embeddedWallet?.address,
+  });
 
   const walletList = useMemo(
     () =>
@@ -691,7 +278,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
       switchChain,
       sendTransaction,
       getWalletClient,
-      executeAtomicBatch,
+      executeAtomicBatch: batch.executeAtomicBatch,
       connect,
       disconnect,
       isConnecting: false,
@@ -712,7 +299,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
       switchChain,
       sendTransaction,
       getWalletClient,
-      executeAtomicBatch,
+      batch.executeAtomicBatch,
       connect,
       disconnect,
       isDisconnecting,
@@ -728,14 +315,15 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
   return {
     backend,
     isActive,
-    simulationPreview,
-    confirmBatchExecution,
-    retryBatchSimulation,
-    updateApprovalAmount,
-    cancelBatchExecution,
-    isSigningAndSending,
-    batchExecutionPhase,
-    isRetryingSimulation,
-    retryError,
+    executeAtomicBatch: batch.executeAtomicBatch,
+    simulationPreview: batch.simulationPreview,
+    confirmBatchExecution: batch.confirmBatchExecution,
+    retryBatchSimulation: batch.retryBatchSimulation,
+    updateApprovalAmount: batch.updateApprovalAmount,
+    cancelBatchExecution: batch.cancelBatchExecution,
+    isSigningAndSending: batch.isSigningAndSending,
+    batchExecutionPhase: batch.batchExecutionPhase,
+    isRetryingSimulation: batch.isRetryingSimulation,
+    retryError: batch.retryError,
   };
 }
