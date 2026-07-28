@@ -28,6 +28,8 @@ const envSchema = z.object({
   EMAIL_HOST: z.string().optional(),
   EMAIL_USER: z.string().optional(),
   EMAIL_APP_PASSWORD: z.string().optional(),
+  REPORT_UNSUBSCRIBE_SECRET: z.string().optional(),
+  REPORT_UNSUBSCRIBE_URL: z.url().optional(),
   NOTIFICATIONS_TEST_RECIPIENT: z.string().optional(),
   ADMIN_NOTIFICATIONS_ENABLED: z.string().optional(),
   TELEGRAM_BOT_TOKEN: z.string().optional(),

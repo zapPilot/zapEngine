@@ -7,6 +7,8 @@ import { jsonResponse, jsonValidator, paramValidator } from './shared';
 import {
   type AddWalletBody,
   addWalletBodySchema,
+  type ReportUnsubscribeBody,
+  reportUnsubscribeBodySchema,
   type UpdateEmailBody,
   updateEmailBodySchema,
   type UpdateWalletLabelBody,
@@ -29,6 +31,17 @@ export function createUsersRoutes(services: AppServices) {
     const response = await services.usersService.connectWallet(body.wallet);
     return jsonResponse(c, response, HttpStatus.OK);
   });
+
+  app.post(
+    '/reports/unsubscribe',
+    jsonValidator(reportUnsubscribeBodySchema),
+    async (c) => {
+      const body = c.req.valid('json') as ReportUnsubscribeBody;
+      const response =
+        await services.usersService.unsubscribeFromReportsWithToken(body.token);
+      return jsonResponse(c, response, HttpStatus.OK);
+    },
+  );
 
   // Activity tracking — mounted on patterns that declare `:userId` so the
   // middleware's `c.req.param('userId')` resolves correctly. The UUID-shape

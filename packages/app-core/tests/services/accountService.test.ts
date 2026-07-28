@@ -27,6 +27,7 @@ const {
   addWalletToBundle,
   removeWalletFromBundle,
   triggerWalletDataFetch,
+  unsubscribeFromReportsWithToken,
 } = await import('../../src/services/accountService');
 
 describe('accountService wallet fetch trigger', () => {
@@ -64,6 +65,29 @@ describe('accountService wallet fetch trigger', () => {
         '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
       ),
     ).rejects.toBeInstanceOf(AccountServiceError);
+  });
+});
+
+describe('accountService report unsubscribe', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('posts the signed token to the public unsubscribe endpoint', async () => {
+    accountApi.post.mockResolvedValue({
+      success: true,
+      message: 'Successfully unsubscribed from email reports',
+    });
+
+    await expect(
+      unsubscribeFromReportsWithToken('signed-token'),
+    ).resolves.toEqual({
+      success: true,
+      message: 'Successfully unsubscribed from email reports',
+    });
+    expect(accountApi.post).toHaveBeenCalledWith('/users/reports/unsubscribe', {
+      token: 'signed-token',
+    });
   });
 });
 

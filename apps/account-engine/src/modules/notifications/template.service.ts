@@ -67,11 +67,11 @@ export class TemplateService {
    */
   private buildTemplateVariables(
     userId: string,
-    email: string,
     cssStyles: string,
     primaryAddress: string,
     shortAddress: string,
     balanceChartCid: string,
+    unsubscribeUrl: string,
     metrics: EmailMetrics,
     calculatedValues: {
       yearlyROIPercentage: number;
@@ -107,8 +107,7 @@ export class TemplateService {
       MONTHLY_PROFIT_CLASS: this.getTrendClass(calculatedValues.monthlyIncome),
       MONTHLY_PROFIT: this.formatCurrency(calculatedValues.monthlyIncome, true),
       MAX_DRAWDOWN: this.formatDrawdown(metrics.weightedAPR),
-      ENCODED_EMAIL: encodeURIComponent(email),
-      ENCODED_ADDRESS: encodeURIComponent(primaryAddress),
+      UNSUBSCRIBE_URL: unsubscribeUrl,
     };
   }
 
@@ -130,8 +129,8 @@ export class TemplateService {
   generateReportHTML(
     userId: string,
     metrics: EmailMetrics,
-    email: string,
     balanceChartCid: string,
+    unsubscribeUrl: string,
     allWalletAddresses: string[] = [],
   ): string {
     // Load template files
@@ -150,11 +149,11 @@ export class TemplateService {
     // Build template variables
     const templateVars = this.buildTemplateVariables(
       userId,
-      email,
       cssStyles,
       primaryAddress,
       shortAddress,
       balanceChartCid,
+      unsubscribeUrl,
       metrics,
       calculatedValues,
     );

@@ -1,7 +1,6 @@
 import { ServiceLayerException } from '../../../../src/common/exceptions';
 import { DatabaseService } from '../../../../src/database/database.service';
 import { AnalyticsClientService } from '../../../../src/modules/notifications/analytics-client.service';
-import { PortfolioNotFoundError } from '../../../../src/modules/notifications/errors/portfolio-not-found.error';
 import { SupabaseUserService } from '../../../../src/modules/notifications/supabase-user.service';
 import { createMockDatabaseService } from '../../../test-utils';
 
@@ -21,131 +20,105 @@ function createMocks() {
 }
 
 describe('SupabaseUserService', () => {
-  describe('getUsersWithAllWallets', () => {
-    it('returns users with wallets from VIP subscriptions', async () => {
+  describe('getReportRecipientsWithWallets', () => {
+    it('returns subscribed users with wallets without consulting plans', async () => {
       const { service, dbMock } = createMocks();
-      const qb = dbMock.anon.queryBuilder;
+      const qb = dbMock.serviceRole.queryBuilder;
 
       qb.mockResolvedThen({
         data: [
           {
-            user_id: 'u-1',
-            ends_at: null,
-            users: {
-              id: 'u-1',
-              email: 'a@b.com',
-              user_crypto_wallets: [{ wallet: '0xabc' }],
-            },
+            id: 'u-1',
+            email: 'a@b.com',
+            user_crypto_wallets: [{ wallet: '0xabc' }],
           },
         ],
         error: null,
       });
 
-      const result = await service.getUsersWithAllWallets();
+      const result = await service.getReportRecipientsWithWallets();
       expect(result).toHaveLength(1);
       expect(result[0]?.user.email).toBe('a@b.com');
       expect(result[0]?.wallets).toEqual(['0xabc']);
+      expect(dbMock.mock.getServiceRoleClient).toHaveBeenCalled();
+      expect(qb.eq).toHaveBeenCalledWith('is_subscribed_to_reports', true);
+      expect(qb.not).toHaveBeenCalledWith('email', 'is', null);
+      expect(qb.eq).not.toHaveBeenCalledWith('plan_code', 'vip');
     });
 
-    it('merges wallets when user has multiple subscription rows', async () => {
+    it('returns every linked wallet on the user row', async () => {
       const { service, dbMock } = createMocks();
-      dbMock.anon.queryBuilder.mockResolvedThen({
+      dbMock.serviceRole.queryBuilder.mockResolvedThen({
         data: [
           {
-            user_id: 'u-1',
-            ends_at: null,
-            users: {
-              id: 'u-1',
-              email: 'a@b.com',
-              user_crypto_wallets: [{ wallet: '0xaaa' }],
-            },
-          },
-          {
-            user_id: 'u-1',
-            ends_at: null,
-            users: {
-              id: 'u-1',
-              email: 'a@b.com',
-              user_crypto_wallets: [{ wallet: '0xbbb' }],
-            },
+            id: 'u-1',
+            email: 'a@b.com',
+            user_crypto_wallets: [{ wallet: '0xaaa' }, { wallet: '0xbbb' }],
           },
         ],
         error: null,
       });
 
-      const result = await service.getUsersWithAllWallets();
+      const result = await service.getReportRecipientsWithWallets();
       expect(result).toHaveLength(1);
-      expect(result[0]?.wallets).toEqual(
-        expect.arrayContaining(['0xaaa', '0xbbb']),
-      );
+      expect(result[0]?.wallets).toEqual(['0xaaa', '0xbbb']);
     });
 
     it('returns empty when no users match', async () => {
       const { service, dbMock } = createMocks();
-      dbMock.anon.queryBuilder.mockResolvedThen({ data: [], error: null });
+      dbMock.serviceRole.queryBuilder.mockResolvedThen({
+        data: [],
+        error: null,
+      });
 
-      const result = await service.getUsersWithAllWallets();
+      const result = await service.getReportRecipientsWithWallets();
       expect(result).toEqual([]);
     });
 
     it('throws ServiceLayerException on database error', async () => {
       const { service, dbMock } = createMocks();
-      dbMock.anon.queryBuilder.mockResolvedThen({
+      dbMock.serviceRole.queryBuilder.mockResolvedThen({
         data: null,
         error: { message: 'query failed' },
       });
 
-      await expect(service.getUsersWithAllWallets()).rejects.toThrow(
+      await expect(service.getReportRecipientsWithWallets()).rejects.toThrow(
         ServiceLayerException,
       );
     });
 
-    it('filters out expired subscriptions', async () => {
-      const { service, dbMock } = createMocks();
-      dbMock.anon.queryBuilder.mockResolvedThen({
-        data: [
-          {
-            user_id: 'u-1',
-            ends_at: '2020-01-01T00:00:00Z',
-            users: {
-              id: 'u-1',
-              email: 'a@b.com',
-              user_crypto_wallets: [{ wallet: '0x1' }],
-            },
-          },
-        ],
-        error: null,
-      });
-
-      const result = await service.getUsersWithAllWallets();
-      expect(result).toHaveLength(0);
-    });
-
     it('skips users without email', async () => {
       const { service, dbMock } = createMocks();
-      dbMock.anon.queryBuilder.mockResolvedThen({
+      dbMock.serviceRole.queryBuilder.mockResolvedThen({
         data: [
           {
-            user_id: 'u-1',
-            ends_at: null,
-            users: { id: 'u-1', email: null, user_crypto_wallets: [] },
+            id: 'u-1',
+            email: null,
+            user_crypto_wallets: [],
           },
         ],
         error: null,
       });
 
-      const result = await service.getUsersWithAllWallets();
+      const result = await service.getReportRecipientsWithWallets();
       expect(result).toHaveLength(0);
     });
   });
 
-  describe('getUserWithWallets', () => {
+  describe('getReportRecipientWithWallets', () => {
     it('returns null when user not found', async () => {
       const { service, dbMock } = createMocks();
-      dbMock.anon.queryBuilder.mockResolvedThen({ data: [], error: null });
+      dbMock.serviceRole.queryBuilder.mockResolvedThen({
+        data: [],
+        error: null,
+      });
 
-      const result = await service.getUserWithWallets('u-1');
+      const result = await service.getReportRecipientWithWallets('u-1');
       expect(result).toBeNull();
+      expect(dbMock.serviceRole.queryBuilder.eq).toHaveBeenCalledWith(
+        'id',
+        'u-1',
+      );
     });
   });
 
@@ -165,14 +138,15 @@ describe('SupabaseUserService', () => {
       expect(result[0]?.usd_value).toBe(1100);
     });
 
-    it('returns empty array when portfolio not found', async () => {
+    it('propagates portfolio-not-found errors for job retry handling', async () => {
       const { service, analyticsClient } = createMocks();
       analyticsClient.getPortfolioTrendData.mockRejectedValue(
-        new PortfolioNotFoundError('u-1'),
+        new Error('portfolio not found'),
       );
 
-      const result = await service.getBalanceHistory('u-1');
-      expect(result).toEqual([]);
+      await expect(service.getBalanceHistory('u-1')).rejects.toThrow(
+        'portfolio not found',
+      );
     });
 
     it('propagates non-portfolio errors', async () => {
@@ -211,30 +185,6 @@ describe('SupabaseUserService', () => {
       const result = await service.getBalanceHistory('u-1');
       expect(result).toHaveLength(1);
       expect(result[0]?.usd_value).toBe(1000);
-    });
-  });
-
-  describe('getEmailSubscriptions', () => {
-    it('returns subscribed users', async () => {
-      const { service, dbMock } = createMocks();
-      dbMock.anon.queryBuilder.mockResolvedThen({
-        data: [
-          {
-            user_id: 'u-1',
-            ends_at: null,
-            users: {
-              id: 'u-1',
-              email: 'a@b.com',
-              user_crypto_wallets: [{ wallet: '0x1' }],
-            },
-          },
-        ],
-        error: null,
-      });
-
-      const result = await service.getEmailSubscriptions();
-      expect(result).toHaveLength(1);
-      expect(result[0]?.email).toBe('a@b.com');
     });
   });
 });

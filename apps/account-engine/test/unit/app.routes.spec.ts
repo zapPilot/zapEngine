@@ -62,6 +62,7 @@ function createServices(): AppServices {
       }),
       updateEmail: vi.fn(),
       unsubscribeFromReports: vi.fn(),
+      unsubscribeFromReportsWithToken: vi.fn(),
       updateWalletLabel: vi.fn(),
       getUserWallets: vi.fn(),
       removeWallet: vi.fn(),

@@ -56,6 +56,7 @@ jobs/
   alerts. Delivery additionally depends on the email configuration.
 - Cleanup force-fails stale non-terminal jobs in memory but does not currently
   invoke the admin failure notification.
-- Keep the external Pipedream weekly-report watchdog until queue and status
-  storage are durable across restarts and machines. Its 404/timeout alerts
-  cover failure modes that the in-process email path cannot observe.
+- Keep the external Pipedream weekly-report completion watchdog until queue
+  and status storage are durable across restarts and machines. Its
+  post-fan-out 404/timeout alerts cover failure modes that the in-process email
+  path cannot observe.

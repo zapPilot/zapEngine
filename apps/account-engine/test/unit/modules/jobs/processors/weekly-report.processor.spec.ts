@@ -9,6 +9,7 @@ import { AnalyticsClientService } from '../../../../../src/modules/notifications
 import { ChartService } from '../../../../../src/modules/notifications/chart.service';
 import { EmailService } from '../../../../../src/modules/notifications/email.service';
 import { PortfolioNotFoundError } from '../../../../../src/modules/notifications/errors/portfolio-not-found.error';
+import { ReportUnsubscribeTokenService } from '../../../../../src/modules/notifications/report-unsubscribe-token.service';
 import { SupabaseUserService } from '../../../../../src/modules/notifications/supabase-user.service';
 import { TemplateService } from '../../../../../src/modules/notifications/template.service';
 
@@ -93,20 +94,26 @@ function createMocks() {
   };
 
   const supabaseUserService = {
-    getUsersWithAllWallets: vi.fn().mockResolvedValue([
+    getReportRecipientsWithWallets: vi.fn().mockResolvedValue([
       {
-        user: { id: 'u-1', email: 'user@test.com', subscription_active: true },
+        user: { id: 'u-1', email: 'user@test.com' },
         wallets: ['0xabc'],
       },
     ]),
-    getUserWithWallets: vi.fn().mockResolvedValue({
-      user: { id: 'u-1', email: 'user@test.com', subscription_active: true },
+    getReportRecipientWithWallets: vi.fn().mockResolvedValue({
+      user: { id: 'u-1', email: 'user@test.com' },
       wallets: ['0xabc'],
     }),
     getBalanceHistory: vi.fn().mockResolvedValue([
       { date: '2025-01-01', usd_value: 4800 },
       { date: '2025-01-08', usd_value: 5000 },
     ]),
+  };
+
+  const reportUnsubscribeTokenService = {
+    createUnsubscribeUrl: vi
+      .fn()
+      .mockReturnValue('https://app.zap-pilot.org/unsubscribe?token=signed'),
   };
 
   const processor = new WeeklyReportProcessor(
@@ -116,6 +123,7 @@ function createMocks() {
     templateService as unknown as TemplateService,
     analyticsClient as unknown as AnalyticsClientService,
     supabaseUserService as unknown as SupabaseUserService,
+    reportUnsubscribeTokenService as unknown as ReportUnsubscribeTokenService,
   );
 
   return {
@@ -126,6 +134,7 @@ function createMocks() {
     templateService,
     analyticsClient,
     supabaseUserService,
+    reportUnsubscribeTokenService,
   };
 }
 
@@ -158,13 +167,13 @@ describe('WeeklyReportProcessor', () => {
 
     it('filters users by provided userIds', async () => {
       const { processor, supabaseUserService, jobQueueService } = createMocks();
-      supabaseUserService.getUsersWithAllWallets.mockResolvedValue([
+      supabaseUserService.getReportRecipientsWithWallets.mockResolvedValue([
         {
-          user: { id: 'u-1', email: 'a@b.com', subscription_active: true },
+          user: { id: 'u-1', email: 'a@b.com' },
           wallets: ['0x1'],
         },
         {
-          user: { id: 'u-2', email: 'c@d.com', subscription_active: true },
+          user: { id: 'u-2', email: 'c@d.com' },
           wallets: ['0x2'],
         },
       ]);
@@ -200,7 +209,7 @@ describe('WeeklyReportProcessor', () => {
 
     it('returns failure when no users match', async () => {
       const { processor, supabaseUserService } = createMocks();
-      supabaseUserService.getUsersWithAllWallets.mockResolvedValue([]);
+      supabaseUserService.getReportRecipientsWithWallets.mockResolvedValue([]);
 
       const job = createPendingJob({
         type: JobType.WEEKLY_REPORT_BATCH,
@@ -214,7 +223,12 @@ describe('WeeklyReportProcessor', () => {
 
   describe('process - single', () => {
     it('sends weekly report email successfully', async () => {
-      const { processor, emailService } = createMocks();
+      const {
+        processor,
+        emailService,
+        reportUnsubscribeTokenService,
+        templateService,
+      } = createMocks();
       const job = createPendingJob({
         type: JobType.WEEKLY_REPORT_SINGLE,
         payload: { userId: 'u-1' },
@@ -223,6 +237,100 @@ describe('WeeklyReportProcessor', () => {
       const result = await processor.process(job);
 
       expect(result.success).toBe(true);
+      expect(result.metadata?.['balanceUsd']).toBe(5000);
+      expect(emailService.sendEmail).toHaveBeenCalled();
+      expect(
+        reportUnsubscribeTokenService.createUnsubscribeUrl,
+      ).toHaveBeenCalledWith('u-1', 'user@test.com');
+      expect(templateService.generateReportHTML).toHaveBeenCalledWith(
+        'u-1',
+        expect.any(Object),
+        'chart-cid',
+        'https://app.zap-pilot.org/unsubscribe?token=signed',
+        ['0xabc'],
+      );
+    });
+
+    it('skips a portfolio below the $10 minimum', async () => {
+      const {
+        processor,
+        analyticsClient,
+        emailService,
+        chartService,
+        jobQueueService,
+      } = createMocks();
+      analyticsClient.getPortfolioData.mockResolvedValue({
+        total_net_usd: 9.99,
+      });
+
+      const result = await processor.process(
+        createPendingJob({
+          type: JobType.WEEKLY_REPORT_SINGLE,
+          payload: { userId: 'u-1' },
+        }),
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          metadata: expect.objectContaining({
+            balanceUsd: 9.99,
+            skipped: true,
+            skipReason: 'below_minimum_balance',
+          }),
+        }),
+      );
+      expect(emailService.sendEmail).not.toHaveBeenCalled();
+      expect(
+        chartService.generateHistoricalBalanceChart,
+      ).not.toHaveBeenCalled();
+      expect(jobQueueService.updateJobMetadata).toHaveBeenCalledWith(
+        'job-1',
+        expect.objectContaining({
+          balanceUsd: 9.99,
+          skipReason: 'below_minimum_balance',
+        }),
+      );
+    });
+
+    it('treats a normal empty portfolio as a zero-dollar skip', async () => {
+      const { processor, analyticsClient, emailService } = createMocks();
+      analyticsClient.getPortfolioData.mockResolvedValue({
+        total_net_usd: 0,
+      });
+
+      const result = await processor.process(
+        createPendingJob({
+          type: JobType.WEEKLY_REPORT_SINGLE,
+          payload: { userId: 'u-1' },
+        }),
+      );
+
+      expect(result.metadata).toEqual(
+        expect.objectContaining({
+          balanceUsd: 0,
+          skipped: true,
+          skipReason: 'below_minimum_balance',
+        }),
+      );
+      expect(emailService.sendEmail).not.toHaveBeenCalled();
+    });
+
+    it('sends a portfolio worth exactly $10', async () => {
+      const { processor, analyticsClient, emailService } = createMocks();
+      analyticsClient.getPortfolioData.mockResolvedValue({
+        total_net_usd: 10,
+      });
+
+      const result = await processor.process(
+        createPendingJob({
+          type: JobType.WEEKLY_REPORT_SINGLE,
+          payload: { userId: 'u-1' },
+        }),
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.metadata?.['balanceUsd']).toBe(10);
       expect(emailService.sendEmail).toHaveBeenCalled();
     });
 
@@ -240,7 +348,7 @@ describe('WeeklyReportProcessor', () => {
       );
     });
 
-    it('skips gracefully when portfolio not found', async () => {
+    it('returns a retryable failure when portfolio is not found', async () => {
       const { processor, analyticsClient, emailService } = createMocks();
       analyticsClient.getPortfolioData.mockRejectedValue(
         new PortfolioNotFoundError('u-1'),
@@ -253,14 +361,14 @@ describe('WeeklyReportProcessor', () => {
 
       const result = await processor.process(job);
 
-      expect(result.success).toBe(true);
-      expect(result.metadata?.['skipped']).toBe(true);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Portfolio data not found');
       expect(emailService.sendEmail).not.toHaveBeenCalled();
     });
 
-    it('returns failure when user not found', async () => {
+    it('skips when the user is no longer an eligible recipient', async () => {
       const { processor, supabaseUserService } = createMocks();
-      supabaseUserService.getUserWithWallets.mockResolvedValue(null);
+      supabaseUserService.getReportRecipientWithWallets.mockResolvedValue(null);
 
       const job = createPendingJob({
         type: JobType.WEEKLY_REPORT_SINGLE,
@@ -268,7 +376,36 @@ describe('WeeklyReportProcessor', () => {
       });
 
       const result = await processor.process(job);
-      expect(result.success).toBe(false);
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          metadata: expect.objectContaining({
+            balanceUsd: null,
+            skipped: true,
+            skipReason: 'recipient_not_eligible',
+          }),
+        }),
+      );
+    });
+
+    it('does not trust stale recipient details carried by an older child job', async () => {
+      const { processor, supabaseUserService, emailService } = createMocks();
+      supabaseUserService.getReportRecipientWithWallets.mockResolvedValue(null);
+
+      const result = await processor.process(
+        createPendingJob({
+          type: JobType.WEEKLY_REPORT_SINGLE,
+          payload: {
+            userId: 'u-1',
+            email: 'stale@test.com',
+            wallets: ['0xstale'],
+          },
+        }),
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.metadata?.['skipReason']).toBe('recipient_not_eligible');
+      expect(emailService.sendEmail).not.toHaveBeenCalled();
     });
 
     it('propagates send failure as job failure', async () => {

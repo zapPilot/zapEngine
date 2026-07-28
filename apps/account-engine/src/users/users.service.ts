@@ -13,6 +13,7 @@ import {
 import { BaseService } from '../database/base.service';
 import { DatabaseService } from '../database/database.service';
 import { UserValidationService } from '../database/user-validation.service';
+import { ReportUnsubscribeTokenService } from '../modules/notifications/report-unsubscribe-token.service';
 // EtlJobStatus type from @zapengine/types/etl is used by AlphaEtlHttpService
 import { TelegramService } from '../modules/notifications/telegram.service';
 import { TelegramTokenService } from '../modules/notifications/telegram-token.service';
@@ -42,16 +43,6 @@ interface CreateUserRpcResponse {
 }
 
 /**
- * Expected response from update_user_email_and_upgrade_plan RPC
- */
-interface UpdateEmailRpcResponse {
-  success: boolean;
-  message: string;
-  email_updated: boolean;
-  plan_upgraded: boolean;
-}
-
-/**
  * Snake_case version of EtlJobStatus for API responses
  * (The API transforms from camelCase to snake_case for consistency)
  */
@@ -72,6 +63,7 @@ export class UsersService extends BaseService {
     private readonly telegramService: TelegramService,
     private readonly telegramTokenService: TelegramTokenService,
     private readonly walletBindingChallengeService: WalletBindingChallengeService,
+    private readonly reportUnsubscribeTokenService: ReportUnsubscribeTokenService,
   ) {
     super(databaseService);
   }
@@ -219,32 +211,89 @@ export class UsersService extends BaseService {
         throw new ConflictException('Email already in use by another user');
       }
 
-      const result = (await this.databaseService.rpc(
-        'update_user_email_and_upgrade_plan',
-        { p_user_id: userId, p_email: email },
-        { useServiceRole: true },
-      )) as unknown as UpdateEmailRpcResponse;
+      await this.updateReportPreferences(
+        userId,
+        {
+          email,
+          is_subscribed_to_reports: true,
+        },
+        true,
+      );
 
-      return result;
+      return {
+        success: true,
+        message: 'Email subscription updated successfully',
+        email_updated: true,
+        plan_upgraded: false,
+      };
     }, 'update email');
   }
 
   async unsubscribeFromReports(userId: string): Promise<SuccessResponse> {
     return this.withErrorHandling(async () => {
-      await this.updateWhere(
-        'users',
+      await this.updateReportPreferences(
+        userId,
         { is_subscribed_to_reports: false },
-        { id: userId },
-        {
-          entityName: 'User',
-          requireSingleResult: true,
-        },
+        false,
       );
       return {
         success: true,
         message: 'Successfully unsubscribed from email reports',
       };
     }, 'unsubscribe from reports');
+  }
+
+  async unsubscribeFromReportsWithToken(
+    token: string,
+  ): Promise<SuccessResponse> {
+    return this.withErrorHandling(async () => {
+      const identity = this.reportUnsubscribeTokenService.verifyToken(token);
+      const user = await this.findOne<{ email: string | null }>(
+        'users',
+        { id: identity.userId },
+        {
+          select: 'email',
+          entityName: 'User',
+          throwOnNotFound: false,
+          useServiceRole: true,
+        },
+      );
+
+      if (user?.email?.toLowerCase() !== identity.email.toLowerCase()) {
+        throw new BadRequestException('Invalid unsubscribe token');
+      }
+
+      await this.updateReportPreferences(
+        identity.userId,
+        { is_subscribed_to_reports: false },
+        true,
+      );
+
+      return {
+        success: true,
+        message: 'Successfully unsubscribed from email reports',
+      };
+    }, 'unsubscribe from reports');
+  }
+
+  private async updateReportPreferences(
+    userId: string,
+    updates: {
+      email?: string;
+      is_subscribed_to_reports: boolean;
+    },
+    useServiceRole: boolean,
+  ): Promise<void> {
+    await this.updateWhere(
+      'users',
+      updates,
+      { id: userId },
+      {
+        entityName: 'User',
+        requireSingleResult: true,
+        useServiceRole,
+      },
+    );
   }
 
   async updateWalletLabel(

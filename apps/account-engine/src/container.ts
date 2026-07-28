@@ -14,6 +14,7 @@ import { AdminNotificationService } from './modules/notifications/admin-notifica
 import { AnalyticsClientService } from './modules/notifications/analytics-client.service';
 import { ChartService } from './modules/notifications/chart.service';
 import { EmailService } from './modules/notifications/email.service';
+import { ReportUnsubscribeTokenService } from './modules/notifications/report-unsubscribe-token.service';
 import { SupabaseUserService } from './modules/notifications/supabase-user.service';
 import { TelegramService } from './modules/notifications/telegram.service';
 import { TelegramTokenService } from './modules/notifications/telegram-token.service';
@@ -45,6 +46,7 @@ export interface AppServices {
   chartService: ChartService;
   templateService: TemplateService;
   emailService: EmailService;
+  reportUnsubscribeTokenService: ReportUnsubscribeTokenService;
   adminNotificationService: AdminNotificationService;
   supabaseUserService: SupabaseUserService;
   jobQueueService: JobQueueService;
@@ -65,6 +67,9 @@ export function createContainer(
   const databaseService = new DatabaseService(configService);
   const userValidationService = new UserValidationService(databaseService);
   const alphaEtlHttpService = new AlphaEtlHttpService(configService);
+  const reportUnsubscribeTokenService = new ReportUnsubscribeTokenService(
+    configService,
+  );
   const telegramTokenService = new TelegramTokenService(databaseService);
   const telegramService = new TelegramService(
     configService,
@@ -79,6 +84,7 @@ export function createContainer(
     telegramService,
     telegramTokenService,
     walletBindingChallengeService,
+    reportUnsubscribeTokenService,
   );
   const analyticsClientService = new AnalyticsClientService(configService);
   const chartService = new ChartService();
@@ -104,6 +110,7 @@ export function createContainer(
     templateService,
     analyticsClientService,
     supabaseUserService,
+    reportUnsubscribeTokenService,
   );
   const dailySuggestionProcessor = new DailySuggestionProcessor(
     jobQueueService,
@@ -172,6 +179,7 @@ export function createContainer(
     chartService,
     templateService,
     emailService,
+    reportUnsubscribeTokenService,
     adminNotificationService,
     supabaseUserService,
     jobQueueService,

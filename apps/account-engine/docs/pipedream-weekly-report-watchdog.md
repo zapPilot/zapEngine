@@ -6,16 +6,16 @@ The weekly Pipedream workflow has three steps:
 2. An authenticated `POST https://account-engine.fly.dev/jobs/weekly-report/batch` request.
 3. The Node.js watchdog component below.
 
-The watchdog confirms that the accepted job starts. It deliberately stops once
-the job reaches `processing` or `completed`; ordinary permanent processing
-failures are reported by account-engine's `[ALERT] Job Failure` email. The
-watchdog separately detects a missing in-memory job or a job that never starts.
+The watchdog follows the accepted parent job until every child finishes. This
+keeps the external workflow watching for an in-memory job that disappears
+after fan-out, while account-engine's `[ALERT] Job Failure` email still reports
+ordinary permanent child failures.
 
 ```js
 import axios from 'axios';
 
 const POLL_INTERVAL_MS = 5_000;
-const START_TIMEOUT_MS = 2 * 60_000;
+const COMPLETION_TIMEOUT_MS = 10 * 60_000;
 
 export default defineComponent({
   async run({ steps }) {
@@ -27,7 +27,7 @@ export default defineComponent({
       throw new Error('Weekly report request did not return job.id');
     }
 
-    const deadline = Date.now() + START_TIMEOUT_MS;
+    const deadline = Date.now() + COMPLETION_TIMEOUT_MS;
 
     while (Date.now() < deadline) {
       let jobData;
@@ -49,7 +49,7 @@ export default defineComponent({
         throw error;
       }
 
-      if (jobData.status === 'processing' || jobData.status === 'completed') {
+      if (jobData.status === 'completed') {
         return {
           jobId,
           status: jobData.status,
@@ -63,7 +63,7 @@ export default defineComponent({
         );
       }
 
-      if (jobData.status !== 'pending') {
+      if (jobData.status !== 'pending' && jobData.status !== 'processing') {
         throw new Error(
           `Weekly report job ${jobId} returned unknown status: ${jobData.status}`,
         );
@@ -78,7 +78,7 @@ export default defineComponent({
     }
 
     throw new Error(
-      `Weekly report job never started: ${jobId} remained pending for 2 minutes`,
+      `Weekly report job did not complete within 10 minutes: ${jobId}`,
     );
   },
 });
@@ -94,11 +94,11 @@ workflow step alone is not an operational notification.
 
 Test the watchdog with mocked status responses before publishing the workflow:
 
-- `pending` then `processing` succeeds.
+- `pending`, `processing`, then `completed` succeeds.
 - `completed` on the first poll succeeds.
 - `failed` throws and includes `errorMessage`.
-- HTTP 404 throws a `job state lost` error.
-- `pending` for two minutes throws a `job never started` error.
+- HTTP 404 before or after fan-out throws a `job state lost` error.
+- A non-terminal job at ten minutes throws a completion-timeout error.
 
 Do not remove the watchdog until the account-engine job queue and status lookup
 are durable across Fly restarts and multiple machines.

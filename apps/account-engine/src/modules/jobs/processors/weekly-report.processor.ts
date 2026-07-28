@@ -1,3 +1,4 @@
+import { EMAIL_CONFIG } from '../../../common/constants';
 import { Logger } from '../../../common/logger';
 import {
   getErrorMessage,
@@ -7,8 +8,7 @@ import {
 import { AnalyticsClientService } from '../../notifications/analytics-client.service';
 import { ChartService } from '../../notifications/chart.service';
 import { EmailService } from '../../notifications/email.service';
-import { PortfolioNotFoundError } from '../../notifications/errors/portfolio-not-found.error';
-import { PortfolioResponse } from '../../notifications/interfaces/portfolio-response.interface';
+import { ReportUnsubscribeTokenService } from '../../notifications/report-unsubscribe-token.service';
 import {
   BalanceHistoryPoint,
   SupabaseUserService,
@@ -50,6 +50,7 @@ export class WeeklyReportProcessor implements JobProcessor {
     private readonly templateService: TemplateService,
     private readonly analyticsClientService: AnalyticsClientService,
     private readonly supabaseUserService: SupabaseUserService,
+    private readonly reportUnsubscribeTokenService: ReportUnsubscribeTokenService,
   ) {
     this.batchFanoutHelper = new BatchFanoutHelper(
       jobQueueService,
@@ -164,28 +165,16 @@ export class WeeklyReportProcessor implements JobProcessor {
       throw new Error('No subscribed users matched the provided filters');
     }
 
-    // Index by id once so the per-user payload builder is O(1), not O(N).
-    const byUserId = new Map(
-      usersWithWallets.map((uw) => [uw.user.id, uw] as const),
-    );
-
     // Fan out to individual jobs
     return this.batchFanoutHelper.fanOutBatch(
       job,
       usersWithWallets.map((uw) => uw.user.id),
       JobType.WEEKLY_REPORT_SINGLE,
-      (userId) => {
-        const userEntry = byUserId.get(userId)!;
-        // Carry email + wallets in the payload so the child processor doesn't
-        // re-run getUserWithWallets (a full VIP-subscriber join) per recipient.
-        return {
-          userId,
-          email: userEntry.user.email,
-          wallets: userEntry.wallets,
-          testMode: payload.testMode,
-          testRecipient,
-        };
-      },
+      (userId) => ({
+        userId,
+        testMode: payload.testMode,
+        testRecipient,
+      }),
       (totalUsers) => {
         this.jobQueueService.logJobEvent(
           job.id,
@@ -204,38 +193,35 @@ export class WeeklyReportProcessor implements JobProcessor {
   ): Promise<JobProcessingResult> {
     const payload: SingleUserReportJobPayload = {
       userId: job.payload['userId'] as string,
-      email: job.payload['email'] as string | undefined,
-      wallets: job.payload['wallets'] as string[] | undefined,
       ...this.extractTestModeOptions(job.payload),
     };
 
     try {
-      // Prefer the payload-supplied identity (set by the batch parent).
-      // Fall back to a Supabase lookup for older in-flight jobs that lack it.
-      // Use a truthy + Array.isArray guard so an explicit `null`/non-array
-      // placeholder doesn't short-circuit the Supabase fallback and end up
-      // sending an email to `null`.
-      let user: { id: string; email: string; subscription_active: boolean };
-      let userWallets: string[];
-      if (
-        typeof payload.email === 'string' &&
-        payload.email.length > 0 &&
-        Array.isArray(payload.wallets)
-      ) {
-        user = {
-          id: payload.userId,
-          email: payload.email,
-          subscription_active: true,
-        };
-        userWallets = payload.wallets;
-      } else {
-        const userWithWallets =
-          await this.supabaseUserService.getUserWithWallets(payload.userId);
-        if (!userWithWallets) {
-          throw new Error(`User ${payload.userId} not found or not subscribed`);
-        }
-        ({ user, wallets: userWallets } = userWithWallets);
+      // Re-check at child execution time so an unsubscribe or email removal
+      // after batch fan-out cannot send using stale parent-job data.
+      const userWithWallets =
+        await this.supabaseUserService.getReportRecipientWithWallets(
+          payload.userId,
+        );
+      if (!userWithWallets) {
+        this.jobQueueService.logJobEvent(
+          job.id,
+          LogLevel.INFO,
+          'Weekly report skipped: recipient is no longer eligible',
+          {
+            userId: payload.userId,
+            balanceUsd: null,
+            skipReason: 'recipient_not_eligible',
+          },
+        );
+        return this.createSuccessWithPersistedMetadata(job.id, {
+          userId: payload.userId,
+          balanceUsd: null,
+          skipped: true,
+          skipReason: 'recipient_not_eligible',
+        });
       }
+      const { user, wallets: userWallets } = userWithWallets;
 
       this.jobQueueService.logJobEvent(
         job.id,
@@ -244,61 +230,37 @@ export class WeeklyReportProcessor implements JobProcessor {
         { userId: payload.userId, walletCount: userWallets.length },
       );
 
-      // Get portfolio data - wrap in try-catch for 404 handling
-      let portfolioData: PortfolioResponse;
-      let emailMetrics: EmailMetrics;
-
-      try {
-        portfolioData = await this.analyticsClientService.getPortfolioData(
-          user.id,
+      const portfolioData = await this.analyticsClientService.getPortfolioData(
+        user.id,
+      );
+      const balanceUsd = portfolioData.total_net_usd;
+      if (!isFiniteNumber(balanceUsd)) {
+        throw new Error(
+          `Analytics returned an invalid portfolio balance for user ${user.id}`,
         );
-        emailMetrics =
-          this.analyticsClientService.transformToEmailMetrics(portfolioData);
-      } catch (error) {
-        // Portfolio 404 is expected for new/inactive users - skip gracefully
-        if (error instanceof PortfolioNotFoundError) {
-          this.logger.error(
-            `Portfolio data not found for user ${user.id}. Skipping weekly report email.`,
-            {
-              userId: user.id,
-              userEmail: user.email,
-              walletCount: userWallets.length,
-              wallets: userWallets,
-              skipReason: 'portfolio_not_found',
-              analyticsEngineUrl:
-                this.analyticsClientService.getAnalyticsEngineUrl(),
-            },
-          );
-
-          // Log job event for observability
-          this.jobQueueService.logJobEvent(
-            job.id,
-            LogLevel.ERROR,
-            'Weekly report skipped: portfolio data not available',
-            {
-              userId: user.id,
-              userEmail: user.email,
-              skipReason: 'portfolio_not_found',
-              walletCount: userWallets.length,
-            },
-          );
-
-          // Mark job as COMPLETED (not failed) - 404 is expected state
-          return {
-            success: true,
-            metadata: {
-              userId: user.id,
-              userEmail: user.email,
-              skipped: true,
-              skipReason: 'portfolio_not_found',
-              walletCount: userWallets.length,
-            },
-          };
-        }
-
-        // Other errors (500, network, etc.) should still retry
-        throw error;
       }
+      if (balanceUsd < EMAIL_CONFIG.MIN_WEEKLY_REPORT_BALANCE_USD) {
+        this.jobQueueService.logJobEvent(
+          job.id,
+          LogLevel.INFO,
+          'Weekly report skipped: portfolio balance below minimum',
+          {
+            userId: user.id,
+            balanceUsd,
+            minimumBalanceUsd: EMAIL_CONFIG.MIN_WEEKLY_REPORT_BALANCE_USD,
+            skipReason: 'below_minimum_balance',
+          },
+        );
+        return this.createSuccessWithPersistedMetadata(job.id, {
+          userId: user.id,
+          balanceUsd,
+          skipped: true,
+          skipReason: 'below_minimum_balance',
+          walletCount: userWallets.length,
+        });
+      }
+      const emailMetrics: EmailMetrics =
+        this.analyticsClientService.transformToEmailMetrics(portfolioData);
 
       // Get balance history
       const balanceHistory = await this.supabaseUserService.getBalanceHistory(
@@ -321,11 +283,16 @@ export class WeeklyReportProcessor implements JobProcessor {
       );
 
       // Generate email HTML with portfolio metrics
+      const unsubscribeUrl =
+        this.reportUnsubscribeTokenService.createUnsubscribeUrl(
+          user.id,
+          user.email,
+        );
       const emailHtml = this.templateService.generateReportHTML(
         user.id,
         emailMetrics,
-        user.email,
         chart.contentId,
+        unsubscribeUrl,
         userWallets.length > 0 ? userWallets : ['unknown'],
       );
 
@@ -356,15 +323,13 @@ export class WeeklyReportProcessor implements JobProcessor {
         { userId: user.id, recipient, testMode: payload.testMode },
       );
 
-      return {
-        success: true,
-        metadata: {
-          userId: user.id,
-          recipient,
-          testMode: payload.testMode,
-          walletCount: userWallets.length,
-        },
-      };
+      return this.createSuccessWithPersistedMetadata(job.id, {
+        userId: user.id,
+        recipient,
+        testMode: payload.testMode,
+        balanceUsd,
+        walletCount: userWallets.length,
+      });
     } catch (error) {
       this.logger.error(
         `Failed to process weekly report for user ${payload.userId}`,
@@ -390,7 +355,7 @@ export class WeeklyReportProcessor implements JobProcessor {
    */
   private async getUsersWithWallets(userIds?: string[]) {
     const allUsersWithWallets =
-      await this.supabaseUserService.getUsersWithAllWallets();
+      await this.supabaseUserService.getReportRecipientsWithWallets();
 
     // Apply additional user ID filter if provided
     if (userIds && userIds.length > 0) {
@@ -400,6 +365,14 @@ export class WeeklyReportProcessor implements JobProcessor {
     }
 
     return allUsersWithWallets;
+  }
+
+  private createSuccessWithPersistedMetadata(
+    jobId: string,
+    metadata: Record<string, unknown>,
+  ): JobProcessingResult {
+    this.jobQueueService.updateJobMetadata(jobId, metadata);
+    return { success: true, metadata };
   }
 
   private resolveWeeklySubjectPercentage(

@@ -206,6 +206,21 @@ export async function removeUserEmail(
 }
 
 /**
+ * Unsubscribe from reports using the signed token embedded in report emails.
+ */
+export async function unsubscribeFromReportsWithToken(
+  token: string,
+): Promise<UpdateEmailResponse> {
+  return requestAndValidate(
+    () =>
+      postAccountResource<UpdateEmailResponse>('/users/reports/unsubscribe', {
+        token,
+      }),
+    validateUpdateEmailResponse,
+  );
+}
+
+/**
  * Delete user account.
  * Cannot delete users with active subscriptions.
  */

@@ -33,6 +33,9 @@ function createServices(): AppServices {
       }),
       updateEmail: vi.fn().mockResolvedValue({ email: 'a@b.com' }),
       unsubscribeFromReports: vi.fn().mockResolvedValue({ success: true }),
+      unsubscribeFromReportsWithToken: vi
+        .fn()
+        .mockResolvedValue({ success: true }),
       updateWalletLabel: vi.fn().mockResolvedValue({ label: 'My Wallet' }),
       getUserWallets: vi.fn().mockResolvedValue([]),
       removeWallet: vi.fn().mockResolvedValue({ success: true }),
@@ -79,6 +82,38 @@ describe('POST /users/connect-wallet', () => {
         body: JSON.stringify({ wallet: 'invalid' }),
       },
     );
+    expect(response.status).toBe(400);
+  });
+});
+
+describe('POST /users/reports/unsubscribe', () => {
+  it('forwards a signed token to the user service', async () => {
+    const services = createServices();
+    const response = await createApp(services).request(
+      'http://localhost/users/reports/unsubscribe',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: 'signed-token' }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      services.usersService.unsubscribeFromReportsWithToken,
+    ).toHaveBeenCalledWith('signed-token');
+  });
+
+  it('rejects an empty token', async () => {
+    const response = await createApp(createServices()).request(
+      'http://localhost/users/reports/unsubscribe',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: '' }),
+      },
+    );
+
     expect(response.status).toBe(400);
   });
 });

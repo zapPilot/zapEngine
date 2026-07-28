@@ -94,6 +94,11 @@ export const updateEmailBodySchema = z.object({
 });
 export type UpdateEmailBody = z.infer<typeof updateEmailBodySchema>;
 
+export const reportUnsubscribeBodySchema = z.object({
+  token: z.string().min(1).max(4096),
+});
+export type ReportUnsubscribeBody = z.infer<typeof reportUnsubscribeBodySchema>;
+
 export const updateWalletLabelBodySchema = z.object({
   label: walletLabelSchema,
 });

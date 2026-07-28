@@ -29,6 +29,7 @@ export {
   removeUserEmail,
   removeWalletFromBundle,
   triggerWalletDataFetch,
+  unsubscribeFromReportsWithToken,
   updateUserEmail,
   updateWalletLabel,
 } from './accountService';

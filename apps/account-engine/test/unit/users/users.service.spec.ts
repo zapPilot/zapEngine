@@ -7,6 +7,7 @@ import {
 import { AlphaEtlHttpService } from '../../../src/common/services';
 import { DatabaseService } from '../../../src/database/database.service';
 import { UserValidationService } from '../../../src/database/user-validation.service';
+import { ReportUnsubscribeTokenService } from '../../../src/modules/notifications/report-unsubscribe-token.service';
 import { TelegramService } from '../../../src/modules/notifications/telegram.service';
 import { TelegramTokenService } from '../../../src/modules/notifications/telegram-token.service';
 import { UsersService } from '../../../src/users/users.service';
@@ -62,6 +63,14 @@ function createMocks() {
     verifyChallenge: vi.fn().mockResolvedValue(true),
   };
 
+  const reportUnsubscribeTokenService = {
+    verifyToken: vi.fn().mockReturnValue({
+      v: 1,
+      userId: 'user-1',
+      email: 'test@test.com',
+    }),
+  };
+
   const service = new UsersService(
     dbMock.mock as unknown as DatabaseService,
     validationService as unknown as UserValidationService,
@@ -69,6 +78,7 @@ function createMocks() {
     telegramService as unknown as TelegramService,
     telegramTokenService as unknown as TelegramTokenService,
     walletBindingChallengeService,
+    reportUnsubscribeTokenService as unknown as ReportUnsubscribeTokenService,
   );
 
   return {
@@ -79,6 +89,7 @@ function createMocks() {
     telegramService,
     telegramTokenService,
     walletBindingChallengeService,
+    reportUnsubscribeTokenService,
     qb: dbMock.anon.queryBuilder,
     srQb: dbMock.serviceRole.queryBuilder,
   };
@@ -319,17 +330,22 @@ describe('UsersService', () => {
   // -----------------------------------------------------------------------
   describe('updateEmail', () => {
     it('updates email successfully', async () => {
-      const { service, dbMock } = createMocks();
-      dbMock.mock.rpc.mockResolvedValue({
-        success: true,
-        message: 'Email updated',
-        email_updated: true,
-        plan_upgraded: false,
+      const { service, dbMock, srQb } = createMocks();
+      srQb.single.mockResolvedValue({
+        data: { id: 'user-1' },
+        error: null,
       });
 
       const result = await service.updateEmail('user-1', 'new@test.com');
 
       expect(result.success).toBe(true);
+      expect(result.email_updated).toBe(true);
+      expect(result.plan_upgraded).toBe(false);
+      expect(dbMock.mock.rpc).not.toHaveBeenCalled();
+      expect(srQb.update).toHaveBeenCalledWith({
+        email: 'new@test.com',
+        is_subscribed_to_reports: true,
+      });
     });
 
     it('throws ConflictException when email already in use', async () => {
@@ -356,6 +372,55 @@ describe('UsersService', () => {
 
       expect(result.success).toBe(true);
       expect(result.message).toContain('unsubscribed');
+    });
+  });
+
+  describe('unsubscribeFromReportsWithToken', () => {
+    it('unsubscribes the matching email using the service-role client', async () => {
+      const { service, srQb } = createMocks();
+      srQb.single
+        .mockResolvedValueOnce({
+          data: { email: 'test@test.com' },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: { id: 'user-1' },
+          error: null,
+        });
+
+      const result =
+        await service.unsubscribeFromReportsWithToken('signed-token');
+
+      expect(result.success).toBe(true);
+      expect(srQb.update).toHaveBeenCalledWith({
+        is_subscribed_to_reports: false,
+      });
+    });
+
+    it('rejects a token when the current email no longer matches', async () => {
+      const { service, srQb } = createMocks();
+      srQb.single.mockResolvedValue({
+        data: { email: 'changed@test.com' },
+        error: null,
+      });
+
+      await expect(
+        service.unsubscribeFromReportsWithToken('signed-token'),
+      ).rejects.toThrow(BadRequestException);
+      expect(srQb.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a token when the user no longer exists', async () => {
+      const { service, srQb } = createMocks();
+      srQb.single.mockResolvedValue({
+        data: null,
+        error: null,
+      });
+
+      await expect(
+        service.unsubscribeFromReportsWithToken('signed-token'),
+      ).rejects.toThrow(BadRequestException);
+      expect(srQb.update).not.toHaveBeenCalled();
     });
   });
 

@@ -21,7 +21,7 @@ describe('TemplateService', () => {
     it('replaces template placeholders with actual values', () => {
       mockReadFileSync
         .mockReturnValueOnce(
-          '<html>{{CSS_STYLES}} {{USER_ID}} {{CURRENT_BALANCE}} {{SHORT_ADDRESS}}</html>',
+          '<html>{{CSS_STYLES}} {{USER_ID}} {{CURRENT_BALANCE}} {{SHORT_ADDRESS}} {{UNSUBSCRIBE_URL}}</html>',
         )
         .mockReturnValueOnce('.test { color: red; }');
 
@@ -36,14 +36,17 @@ describe('TemplateService', () => {
           walletCount: 2,
           recommendedPeriod: '30_days',
         },
-        'user@test.com',
         'chart-cid-123',
+        'https://app.example.com/unsubscribe?token=signed',
         ['0x1234567890abcdef1234567890abcdef12345678'],
       );
 
       expect(result).toContain('user-1');
       expect(result).toContain('.test { color: red; }');
       expect(result).toContain('$1,000.00');
+      expect(result).toContain(
+        'https://app.example.com/unsubscribe?token=signed',
+      );
     });
 
     it('returns empty string when template file not found', () => {
@@ -62,8 +65,8 @@ describe('TemplateService', () => {
           walletCount: 0,
           recommendedPeriod: '',
         },
-        'a@b.com',
         'cid',
+        'https://app.example.com/unsubscribe?token=signed',
       );
 
       expect(result).toBe('');
@@ -85,8 +88,8 @@ describe('TemplateService', () => {
           walletCount: 0,
           recommendedPeriod: '',
         },
-        'a@b.com',
         'cid',
+        'https://app.example.com/unsubscribe?token=signed',
         ['unknown', '0xAbCdEf1234567890AbCdEf1234567890AbCdEf12'],
       );
 
@@ -111,11 +114,21 @@ describe('TemplateService', () => {
       };
 
       // First call loads from disk
-      service.generateReportHTML('u-1', baseMetrics, 'a@b.com', 'cid');
+      service.generateReportHTML(
+        'u-1',
+        baseMetrics,
+        'cid',
+        'https://app.example.com/unsubscribe?token=one',
+      );
       const callsAfterFirst = mockReadFileSync.mock.calls.length;
 
       // Second call should use cache — readFileSync should NOT be called again
-      service.generateReportHTML('u-2', baseMetrics, 'b@c.com', 'cid2');
+      service.generateReportHTML(
+        'u-2',
+        baseMetrics,
+        'cid2',
+        'https://app.example.com/unsubscribe?token=two',
+      );
       expect(mockReadFileSync.mock.calls.length).toBe(callsAfterFirst);
     });
 
@@ -135,8 +148,8 @@ describe('TemplateService', () => {
           walletCount: 0,
           recommendedPeriod: '',
         },
-        'a@b.com',
         'cid',
+        'https://app.example.com/unsubscribe?token=signed',
         ['non-wallet-address'], // no valid wallet → fallback to addresses[0]
       );
 
@@ -159,8 +172,8 @@ describe('TemplateService', () => {
           walletCount: 0,
           recommendedPeriod: 'no_digits_here', // regex won't match
         },
-        'a@b.com',
         'cid',
+        'https://app.example.com/unsubscribe?token=signed',
       );
 
       expect(result).toContain('N/A');
@@ -182,8 +195,8 @@ describe('TemplateService', () => {
           walletCount: 0,
           recommendedPeriod: '0_days', // days = 0 → days <= 0 → N/A
         },
-        'a@b.com',
         'cid',
+        'https://app.example.com/unsubscribe?token=signed',
       );
 
       expect(result).toContain('N/A');
