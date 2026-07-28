@@ -70,10 +70,10 @@ sourcemaps and fails if native-only packages are present as sources or imports.
 Use the Turbo command for workspace checks so upstream package builds are fresh.
 
 `android:release` creates a signed production AAB with EAS Build.
-`android:submit` submits the most recent build to Google Play Internal testing,
-and `android:publish` builds and submits in one command. Complete the one-time
-credential and version setup in [docs/android-release.md](./docs/android-release.md)
-before the first EAS build.
+`android:submit` submits the most recent build to the Google Play Closed testing
+`alpha` track, and `android:publish` builds and submits in one command. Complete
+the one-time credential and version setup in
+[docs/android-release.md](./docs/android-release.md) before the first EAS build.
 
 ## Migration Notes
 

@@ -10,11 +10,16 @@ new listing.
 | User-facing version               | `2.1.0`                         |
 | Repo's last Flutter `versionCode` | `204`                           |
 | First Expo production build       | `205` if Play still ends at 204 |
-| Default submission track          | Google Play Internal testing    |
+| Default submission track          | Closed testing, `alpha` track   |
 
 Do not change the Android package or create a new upload key. Google Play treats
 a different package as another app, and updates must be signed with the upload
 certificate already registered for this listing.
+
+The track is Closed testing rather than Internal testing because this developer
+account must satisfy Google's pre-production requirement: 12 opted-in testers
+running a closed test for 14 consecutive days before production access can be
+requested. Internal testing does not count toward that requirement.
 
 ## Tooling choice
 
@@ -168,7 +173,8 @@ Create a signed production AAB on EAS:
 pnpm --filter @zapengine/app android:release
 ```
 
-Submit the latest finished **production store** build to Internal testing:
+Submit the latest finished **production store** build to the Closed testing
+`alpha` track:
 
 ```bash
 pnpm --filter @zapengine/app android:submit
@@ -186,9 +192,23 @@ in one command:
 pnpm --filter @zapengine/app android:publish
 ```
 
-The default is intentionally Internal testing. Promote a tested release to
-Closed testing, Open testing, or Production from Play Console rather than making
-the repository command publish directly to all users.
+The default is intentionally a testing track. Promote a tested release to Open
+testing or Production from Play Console rather than making the repository command
+publish directly to all users.
+
+## Testers
+
+The `alpha` track draws its audience from the `internal_testers` email list in
+Play Console. Being on the list is not enough: each tester must also opt in with
+that same Google account before the build appears in their Play Store.
+
+```text
+https://play.google.com/apps/testing/com.fromfedtochain.app
+```
+
+The app dashboard reports how many testers have opted in. Only opted-in testers
+count toward the 12-tester threshold, and the 14-day window is measured on the
+closed test.
 
 ## Local AAB fallback
 

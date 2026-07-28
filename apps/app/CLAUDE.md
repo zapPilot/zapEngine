@@ -35,3 +35,27 @@ pnpm turbo run deadcode dup:check --filter=@zapengine/app
 
 When commands invoke `tsx` through package builds, run them with the repo
 Corepack pnpm shim so the root `packageManager` is honored.
+
+## Native builds and stale `packages/*/dist`
+
+Xcode's "Bundle React Native code and images" phase runs `expo export:embed`
+directly and never invokes Turbo, so `packages/*/dist` can drift behind `src`.
+The app resolves `@zapengine/app-core`, `types`, `intent-engine`, and
+`design-tokens` through `dist`, so drift surfaces as
+`Unable to resolve module @zapengine/…` rather than anything naming the cause.
+
+`metro.config.js` calls `scripts/assert-workspace-dist-fresh.cjs` before
+anything else. It **fails** when a `src` file has no corresponding `dist` emit,
+and only **warns** when `src` is merely newer by mtime — Turbo hashes content,
+so `touch` and branch switches leave `src` newer while a rebuild is a genuine
+no-op, and a hard error there would be unfixable. When the guard fires:
+
+```bash
+pnpm turbo run build --filter=@zapengine/app-core
+```
+
+The `ios`, `android`, and `start` scripts rebuild first, so in practice only
+Xcode ⌘R reaches the guard. It is skipped under `CI` (Turbo already orders
+`^build`) and via `ZAP_SKIP_DIST_FRESHNESS_CHECK=1`. Do not add the rebuild
+prefix to `dev` or `dev:web` — those are Turbo task names that already declare
+`dependsOn: ["^build"]`, and nesting a Turbo call inside a Turbo task errors.
