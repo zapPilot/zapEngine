@@ -9,7 +9,7 @@ import { DailySuggestionResponseSchema } from '@zapengine/types/strategy';
 
 import { ServiceLayerException } from '../../../common/exceptions';
 import { HttpStatus } from '../../../common/http';
-import { isFiniteNumber, percentChange } from '../../../common/utils';
+import { isFiniteNumber } from '../../../common/utils';
 import { DailySuggestionData } from '../interfaces/daily-suggestion.interface';
 import {
   PortfolioResponse,
@@ -54,15 +54,19 @@ function resolveWeeklyPnLPercentage(
   >;
   const roi7d = windows['roi_7d'] as ROIData | undefined;
 
-  if (isFiniteNumber(roi7d?.value)) {
+  if (
+    isFiniteNumber(roi7d?.value) &&
+    isFiniteNumber(roi7d.data_points) &&
+    roi7d.data_points >= 2 &&
+    isFiniteNumber(roi7d.start_balance) &&
+    roi7d.start_balance > 0 &&
+    isFiniteNumber(roi7d.days_spanned) &&
+    roi7d.days_spanned >= 6
+  ) {
     return roi7d.value;
   }
 
-  // Fall back to computing from the 7-day starting balance vs current net.
-  return (
-    percentChange(portfolioData.total_net_usd, roi7d?.start_balance) ??
-    undefined
-  );
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------

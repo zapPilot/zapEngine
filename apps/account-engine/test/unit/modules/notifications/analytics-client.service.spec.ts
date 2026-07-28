@@ -180,7 +180,12 @@ describe('AnalyticsClientService', () => {
           estimated_yearly_pnl_usd: 1550,
           recommended_period: '90_days',
           windows: {
-            roi_7d: { value: 2.3, start_balance: 9770 },
+            roi_7d: {
+              value: 2.3,
+              data_points: 7,
+              start_balance: 9770,
+              days_spanned: 6,
+            },
           },
         },
         estimated_monthly_income: 129.17,
@@ -197,7 +202,7 @@ describe('AnalyticsClientService', () => {
       expect(result.walletCount).toBe(3);
     });
 
-    it('calculates weekly PnL from start_balance when value is missing', () => {
+    it('does not treat incomplete ROI metadata as a weekly return', () => {
       const portfolioData = {
         total_net_usd: 10000,
         portfolio_roi: {
@@ -205,7 +210,12 @@ describe('AnalyticsClientService', () => {
           estimated_yearly_pnl_usd: 1000,
           recommended_period: '30_days',
           windows: {
-            roi_7d: { start_balance: 9500 },
+            roi_7d: {
+              value: 0,
+              data_points: 0,
+              start_balance: 0,
+              days_spanned: 0,
+            },
           },
         },
         estimated_monthly_income: 83.33,
@@ -214,8 +224,32 @@ describe('AnalyticsClientService', () => {
       } as any;
 
       const result = service.transformToEmailMetrics(portfolioData);
-      // (10000 - 9500) / 9500 * 100 ≈ 5.26
-      expect(result.weeklyPnLPercentage).toBeCloseTo(5.26, 1);
+      expect(result.weeklyPnLPercentage).toBeUndefined();
+    });
+
+    it('preserves a real zero return for a complete seven-day window', () => {
+      const portfolioData = {
+        total_net_usd: 10000,
+        portfolio_roi: {
+          recommended_yearly_roi: 10,
+          estimated_yearly_pnl_usd: 1000,
+          recommended_period: '30_days',
+          windows: {
+            roi_7d: {
+              value: 0,
+              data_points: 7,
+              start_balance: 10000,
+              days_spanned: 6,
+            },
+          },
+        },
+        estimated_monthly_income: 83.33,
+        weighted_apr: 10,
+        wallet_count: 1,
+      } as any;
+
+      const result = service.transformToEmailMetrics(portfolioData);
+      expect(result.weeklyPnLPercentage).toBe(0);
     });
   });
 
