@@ -25,10 +25,16 @@ export type SingleChainFundingDraft =
       marketKey: 'btc-usdc';
     };
 
-// Shared with the server-side request schema so the amount screen and the
-// zValidator reject the same floor.
+// Shared with the strategy request schema for flows that include GMX legs.
 export const MIN_STRATEGY_DEPOSIT_USD6 = STRATEGY_MIN_DEPOSIT_USD6;
+export const MIN_BASE_MORPHO_DEPOSIT_USD6 = 10_000n;
 const USD_INPUT_DECIMALS = 6;
+
+export function minimumDepositUsd6ForScope(scope: InvestScope): bigint {
+  return scope === 'base'
+    ? MIN_BASE_MORPHO_DEPOSIT_USD6
+    : MIN_STRATEGY_DEPOSIT_USD6;
+}
 
 /** Parse the grouped display amount (e.g. "1,000.50") to a number. */
 export function parseAmount(grouped: string): number {

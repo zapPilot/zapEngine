@@ -42,14 +42,14 @@ describe('Invest deposit plan requests', () => {
     const request = buildInvestDepositPlanRequest({
       userAddress: USER_ADDRESS,
       scope: 'base',
-      totalUsd6: '10000000',
+      totalUsd6: '10000',
       baseFundingToken: DEFAULT_BASE_FUNDING_TOKEN,
       arbitrumFundingToken: DEFAULT_ARBITRUM_FUNDING_TOKEN,
       singleChainFundingDraft: {
         scope: 'base',
         chainId: 8453,
         fromToken: DEFAULT_BASE_FUNDING_TOKEN.depositAddress,
-        fromAmount: '9999999',
+        fromAmount: '10000',
       },
     });
 
@@ -58,7 +58,7 @@ describe('Invest deposit plan requests', () => {
       userAddress: USER_ADDRESS,
       sourceChainId: 8453,
       fromToken: DEFAULT_BASE_FUNDING_TOKEN.depositAddress,
-      fromAmount: '9999999',
+      fromAmount: '10000',
       split: { '8453': 1 },
     });
   });

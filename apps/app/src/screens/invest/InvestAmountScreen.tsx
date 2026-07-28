@@ -28,7 +28,7 @@ import {
   chainMaxUsd,
   fundingTokenAmountFromUsd,
   maxUsdAmountInput,
-  MIN_STRATEGY_DEPOSIT_USD6,
+  minimumDepositUsd6ForScope,
   normalizeAmountInput,
   requiredChainUnavailableForScope,
   strategyMaxTotalUsd,
@@ -258,7 +258,8 @@ export function InvestAmountScreen() {
     maxTotalUsd === null ? '' : maxUsdAmountInput(maxTotalUsd);
   const maxUsd6 = BigInt(amountInputToUsd6(maxAmountInput));
   const hasExactAmount = amountUsd6 > 0n;
-  const belowMinimum = hasExactAmount && amountUsd6 < MIN_STRATEGY_DEPOSIT_USD6;
+  const minimumDepositUsd6 = minimumDepositUsd6ForScope(invest.scope);
+  const belowMinimum = hasExactAmount && amountUsd6 < minimumDepositUsd6;
   const exceedsBalance =
     maxTotalUsd !== null && hasExactAmount && amountUsd6 > maxUsd6;
   const baseUnavailable =
@@ -334,7 +335,7 @@ export function InvestAmountScreen() {
     account.isConnected &&
     !requiredChainUnavailable &&
     !balances.isLoading &&
-    amountUsd6 >= MIN_STRATEGY_DEPOSIT_USD6 &&
+    amountUsd6 >= minimumDepositUsd6 &&
     !exceedsBalance &&
     hasStrategyCapacity &&
     hasExecutableFundingAmount;
@@ -523,7 +524,7 @@ export function InvestAmountScreen() {
           {belowMinimum ? (
             <Text className="mt-2.5 px-1 text-[11px] text-danger">
               {isBaseOnly
-                ? 'Enter at least $10 to test the Base Morpho deposit.'
+                ? 'Enter at least $0.01 to test the Base Morpho deposit.'
                 : isBoth
                   ? 'Enter at least $10 to deposit into the strategy.'
                   : 'Enter at least $10 — GMX keeper fees make smaller deposits uneconomical.'}
