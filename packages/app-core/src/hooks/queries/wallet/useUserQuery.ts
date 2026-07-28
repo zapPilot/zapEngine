@@ -22,6 +22,7 @@ export const userQueryKeys = queryKeys.user;
 export interface UserInfo {
   userId: string;
   email: string;
+  isSubscribedToReports: boolean;
   bundleWallets: string[];
   additionalWallets: {
     wallet_address: string;
@@ -74,6 +75,7 @@ function buildUserInfo({
   return {
     userId,
     email: userEmail,
+    isSubscribedToReports: profileData.user?.is_subscribed_to_reports ?? false,
     bundleWallets,
     additionalWallets,
     visibleWallets: bundleWallets,

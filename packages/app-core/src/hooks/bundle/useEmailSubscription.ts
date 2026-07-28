@@ -42,7 +42,7 @@ export function useEmailSubscription({
   onEmailSubscribed,
 }: UseEmailSubscriptionParams): UseEmailSubscriptionReturn {
   const { showToast } = useToast();
-  const { userInfo } = useUser();
+  const { userInfo, refetch } = useUser();
   const [email, setEmail] = useState('');
   const [subscribedEmail, setSubscribedEmail] = useState<string | null>(null);
   const [isEditingSubscription, setIsEditingSubscription] = useState(false);
@@ -60,13 +60,23 @@ export function useEmailSubscription({
 
     const emailFromContext = userInfo?.email || null;
     if (emailFromContext) {
-      setSubscribedEmail(emailFromContext);
       setEmail(emailFromContext);
-      onEmailSubscribed?.();
+      if (userInfo?.isSubscribedToReports) {
+        setSubscribedEmail(emailFromContext);
+        onEmailSubscribed?.();
+      } else {
+        setSubscribedEmail(null);
+      }
     } else {
       setSubscribedEmail(null);
+      setEmail('');
     }
-  }, [isOpen, userInfo?.email, onEmailSubscribed]);
+  }, [
+    isOpen,
+    userInfo?.email,
+    userInfo?.isSubscribedToReports,
+    onEmailSubscribed,
+  ]);
 
   const handleSubscribe = useCallback(async () => {
     if (!realUserId) {
@@ -88,6 +98,7 @@ export function useEmailSubscription({
       setSubscribedEmail(email);
       setIsEditingSubscription(false);
       onEmailSubscribed?.();
+      void refetch();
 
       showToast({
         type: 'success',
@@ -106,6 +117,7 @@ export function useEmailSubscription({
     setLoading,
     setSuccess,
     setError,
+    refetch,
   ]);
 
   const handleUnsubscribe = useCallback(async () => {
@@ -120,8 +132,8 @@ export function useEmailSubscription({
       await unsubscribeUserEmail(realUserId);
       setSuccess();
       setSubscribedEmail(null);
-      setEmail('');
       setIsEditingSubscription(false);
+      void refetch();
 
       showToast({
         type: 'success',
@@ -132,7 +144,7 @@ export function useEmailSubscription({
       const errorMessage = handleWalletError(error);
       setError(errorMessage);
     }
-  }, [realUserId, showToast, setLoading, setSuccess, setError]);
+  }, [realUserId, showToast, setLoading, setSuccess, setError, refetch]);
 
   const startEditingSubscription = useCallback(() => {
     setIsEditingSubscription(true);
