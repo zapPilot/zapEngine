@@ -73,6 +73,7 @@ const config: ExpoConfig = {
     favicon: './assets/brand/favicon.png',
   },
   plugins: [
+    './scripts/with-app-store-icon.cjs',
     [
       'expo-build-properties',
       {
@@ -93,22 +94,32 @@ const config: ExpoConfig = {
     'expo-router',
     'expo-secure-store',
     [
-      'expo-video',
-      {
-        supportsBackgroundPlayback: false,
-        supportsPictureInPicture: false,
-      },
-    ],
-    [
       // Background audio + lock-screen controls for podcast playback. This is an
       // audio-playback-only app, so recording/microphone permissions are
       // explicitly disabled (recordAudioAndroid defaults to true otherwise).
+      //
+      // ORDER MATTERS — expo-audio must stay ABOVE expo-video. @expo/config-plugins
+      // executes each mod chain in REVERSE array order (the plugin listed first
+      // runs last and owns the final Info.plist value). expo-video's plugin, with
+      // supportsBackgroundPlayback: false, actively REMOVES 'audio' from
+      // UIBackgroundModes; expo-audio's plugin adds it. Listed the other way
+      // round, expo-video runs last and background playback silently dies.
+      // Guarded by tests/appConfig.test.ts.
       'expo-audio',
       {
         microphonePermission: false,
         recordAudioAndroid: false,
         enableBackgroundRecording: false,
         enableBackgroundPlayback: true,
+      },
+    ],
+    [
+      // Video stays foreground-only (product decision). Keep this entry BELOW
+      // expo-audio — see the ordering note above.
+      'expo-video',
+      {
+        supportsBackgroundPlayback: false,
+        supportsPictureInPicture: false,
       },
     ],
     'expo-web-browser',

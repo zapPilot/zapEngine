@@ -1,6 +1,13 @@
 const { getDefaultConfig } = require('expo/metro-config');
 const { withNativeWind } = require('nativewind/metro');
 
+const assertWorkspaceDistFresh = require('./scripts/assert-workspace-dist-fresh.cjs');
+
+// Every Metro entry point loads this file — dev server, `expo export`, and the
+// `expo export:embed` invoked by Xcode's bundle phase. Fail here so a stale
+// packages/*/dist reports itself instead of surfacing as a resolution error.
+assertWorkspaceDistFresh(__dirname);
+
 const config = getDefaultConfig(__dirname);
 
 function resolveRequestWithPackageExports(context, moduleName, platform) {
