@@ -1,8 +1,6 @@
 import Slider from '@react-native-community/slider';
 import {
   Gauge,
-  Headphones,
-  MonitorPlay,
   Pause,
   Play,
   RotateCcw,
@@ -25,15 +23,19 @@ import {
   nextPodcastPlaybackSpeed,
 } from '@/components/podcast/episodeFormatters';
 import { Tap } from '@/components/ui/Tap';
+import {
+  episodeMediaTabAvailability,
+  type EpisodeMediaTab,
+  resolveActiveEpisodeMediaTab,
+} from '@/integration/episodeMediaTabs';
 import type { PodcastEpisode } from '@/integration/podcastFeed';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
+import type { PodcastSectionKind } from '@/integration/podcastSections';
 import { cn } from '@/lib/cn';
 import { useEpisodeProgress } from '@/providers/PodcastProgressProvider';
 
 const VIDEO_PROGRESS_PERSIST_INTERVAL_SECONDS = 10;
 const VIDEO_COMPLETION_THRESHOLD_SECONDS = 2;
-
-type MediaMode = 'audio' | 'video';
 
 function finiteSeconds(seconds: number): number {
   return Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
@@ -80,18 +82,16 @@ interface EpisodeMediaPlayerProps {
   onEpisodeChanged: (episode: PodcastEpisode) => void;
 }
 
-function MediaModeButton({
+function EpisodeMediaTabButton({
   active,
   label,
   hint,
   onPress,
-  children,
 }: {
   active: boolean;
   label: string;
   hint: string;
   onPress: () => void;
-  children: ReactNode;
 }) {
   return (
     <Tap
@@ -102,11 +102,10 @@ function MediaModeButton({
       aria-selected={active}
       onPress={onPress}
       className={cn(
-        'h-11 min-w-0 flex-1 flex-row items-center justify-center gap-2 rounded-xl',
+        'h-11 min-w-0 flex-1 items-center justify-center rounded-xl',
         active ? 'bg-[rgba(212,197,163,.18)]' : 'bg-transparent opacity-70',
       )}
     >
-      {children}
       <Text
         className={cn(
           'font-sans-semibold text-[13px]',
@@ -119,36 +118,27 @@ function MediaModeButton({
   );
 }
 
-function SectionChip({
-  active,
+function UnavailableMediaPanel({
+  message,
   label,
-  onPress,
 }: {
-  active: boolean;
+  message: string;
   label: string;
-  onPress: () => void;
 }) {
   return (
-    <Tap
-      accessibilityRole="tab"
-      accessibilityLabel={label}
-      accessibilityState={{ selected: active }}
-      aria-selected={active}
-      onPress={onPress}
-      className={cn(
-        'h-9 min-w-0 flex-1 items-center justify-center rounded-lg',
-        active ? 'bg-[rgba(212,197,163,.18)]' : 'bg-transparent opacity-70',
-      )}
+    <View
+      nativeID="episode-media-panel"
+      role="tabpanel"
+      accessibilityLabel={`${label} player`}
+      className="min-h-[220px] items-center justify-center p-5"
     >
-      <Text
-        className={cn(
-          'font-sans-semibold text-[12px]',
-          active ? 'text-accent' : 'text-ink-dim',
-        )}
-      >
-        {label}
+      <Text className="text-center font-sans-semibold text-[15px] text-ink">
+        {message}
       </Text>
-    </Tap>
+      <Text className="mt-2 text-center text-[12px] leading-[18px] text-ink-dim">
+        Choose another tab to keep listening.
+      </Text>
+    </View>
   );
 }
 
@@ -157,17 +147,18 @@ function AudioPlaybackControls({
   episodes,
   player,
   onEpisodeChanged,
-}: EpisodeMediaPlayerProps) {
-  const isCurrent =
+  section,
+}: EpisodeMediaPlayerProps & { section: PodcastSectionKind }) {
+  const isCurrentEpisode =
     player.nowPlaying?.localizationId === episode.localizationId;
+  const isCurrent = isCurrentEpisode && player.currentSection === section;
   const duration = isCurrent ? Math.floor(player.duration) : 0;
   const currentTime = isCurrent
     ? Math.min(Math.floor(player.currentTime), duration)
     : 0;
   const isPlaying = isCurrent && player.isPlaying;
   const PrimaryPlaybackIcon = isPlaying ? Pause : Play;
-  const showSectionSwitcher = isCurrent && player.sections.length > 1;
-  const isClassroomSection = player.currentSection === 'classroom';
+  const isClassroomSection = section === 'classroom';
 
   const play = () => player.playFromQueue(episodes, episode);
   const skipPrevious = () => {
@@ -181,20 +172,6 @@ function AudioPlaybackControls({
 
   return (
     <View className="p-5">
-      {showSectionSwitcher ? (
-        <View className="mb-4 flex-row rounded-xl bg-[rgba(255,255,255,.045)] p-1">
-          <SectionChip
-            active={!isClassroomSection}
-            label="Story"
-            onPress={() => player.skipToSection('main')}
-          />
-          <SectionChip
-            active={isClassroomSection}
-            label="Classroom"
-            onPress={() => player.skipToSection('classroom')}
-          />
-        </View>
-      ) : null}
       <Slider
         accessibilityLabel="Seek episode"
         disabled={!isCurrent || duration <= 0}
@@ -280,7 +257,7 @@ export function EpisodeMediaPlayer({
   player,
   onEpisodeChanged,
 }: EpisodeMediaPlayerProps) {
-  const [mode, setMode] = useState<MediaMode>('audio');
+  const [selectedTab, setSelectedTab] = useState<EpisodeMediaTab>('story');
   const [videoSession, setVideoSession] = useState<{
     initialTimeSeconds: number;
     playbackRate: number;
@@ -298,6 +275,15 @@ export function EpisodeMediaPlayer({
 
   const isCurrentAudio =
     player.nowPlaying?.localizationId === episode.localizationId;
+  const availability = episodeMediaTabAvailability(episode);
+  const activeTab = resolveActiveEpisodeMediaTab({
+    selectedTab,
+    isCurrentAudio: isCurrentAudio && availability[selectedTab],
+    currentSection: player.currentSection,
+    isVideoActive: selectedTab === 'video',
+  });
+  const activeAudioSection: PodcastSectionKind =
+    activeTab === 'classroom' ? 'classroom' : 'main';
   // The video is the main narration. When the classroom section is playing,
   // the main narration has finished, so hand off at the video's end rather than
   // the classroom-relative position.
@@ -326,20 +312,21 @@ export function EpisodeMediaPlayer({
 
   useEffect(
     () => () => {
-      if (mode === 'video') {
+      if (videoSession !== null) {
         persistVideoPosition(videoTimeRef.current, true);
       }
     },
-    [mode, persistVideoPosition],
+    [persistVideoPosition, videoSession],
   );
 
   const showVideo = () => {
-    if (episode.video === null || mode === 'video') return;
+    setSelectedTab('video');
+    if (episode.video === null || videoSession !== null) return;
     const initialTimeSeconds = clampSeconds(
       audioHandoffTime,
       episode.video.durationSeconds,
     );
-    const shouldPlay = isCurrentAudio ? player.isPlaying : true;
+    const shouldPlay = player.isPlaying;
     videoTimeRef.current = initialTimeSeconds;
     videoDurationRef.current = episode.video.durationSeconds;
     videoPlayingRef.current = shouldPlay;
@@ -351,23 +338,44 @@ export function EpisodeMediaPlayer({
       playbackRate: player.speed,
       shouldPlay,
     });
-    setMode('video');
   };
 
   const continueWithAudio = useCallback(
-    (shouldPlay = videoPlayingRef.current) => {
+    (
+      section: PodcastSectionKind = 'main',
+      shouldPlay = videoPlayingRef.current,
+    ) => {
       const position = clampSeconds(
         videoTimeRef.current,
         videoDurationRef.current,
       );
       persistVideoPosition(position, true);
       player.setSpeed(videoRateRef.current);
-      player.playFromQueueAt(episodes, episode, position, shouldPlay);
-      setMode('audio');
+      player.playSectionFromQueue(episodes, episode, section, {
+        atSeconds: section === 'main' ? position : 0,
+        shouldPlay,
+      });
+      setSelectedTab(section === 'classroom' ? 'classroom' : 'story');
       setVideoSession(null);
     },
     [episode, episodes, persistVideoPosition, player],
   );
+
+  const selectAudioTab = (tab: 'story' | 'classroom') => {
+    const section: PodcastSectionKind =
+      tab === 'classroom' ? 'classroom' : 'main';
+    setSelectedTab(tab);
+    if (!availability[tab]) return;
+
+    if (videoSession !== null) {
+      continueWithAudio(section);
+      return;
+    }
+    if (isCurrentAudio && player.currentSection === section) return;
+    player.playSectionFromQueue(episodes, episode, section, {
+      shouldPlay: player.isPlaying,
+    });
+  };
 
   const handleVideoTimeUpdate = useCallback(
     (seconds: number, duration: number) => {
@@ -399,81 +407,106 @@ export function EpisodeMediaPlayer({
   const handleVideoError = useCallback(() => {
     if (videoFailureHandledRef.current) return;
     videoFailureHandledRef.current = true;
-    continueWithAudio(videoPlayingRef.current);
+    continueWithAudio('main', videoPlayingRef.current);
   }, [continueWithAudio]);
 
   const video = episode.video;
-  const showModeControl = video !== null;
 
   return (
     <View className="px-5 pt-5">
       <View className="overflow-hidden rounded-[28px] border border-line bg-surface">
-        {showModeControl ? (
-          <View className="border-b border-line p-3">
-            <View className="flex-row rounded-2xl bg-[rgba(255,255,255,.045)] p-1">
-              <MediaModeButton
-                active={mode === 'audio'}
-                label="Listen"
-                hint="Use the audio-only player"
-                onPress={() => {
-                  if (mode === 'video') continueWithAudio();
-                }}
-              >
-                <Headphones
-                  size={17}
-                  strokeWidth={2}
-                  color={mode === 'audio' ? '#d4c5a3' : '#a1a1aa'}
-                />
-              </MediaModeButton>
-              <MediaModeButton
-                active={mode === 'video'}
-                label="Watch"
-                hint={`Continue video from ${formatPodcastClock(audioHandoffTime)}`}
-                onPress={showVideo}
-              >
-                <MonitorPlay
-                  size={17}
-                  strokeWidth={2}
-                  color={mode === 'video' ? '#d4c5a3' : '#a1a1aa'}
-                />
-              </MediaModeButton>
-            </View>
-            <Text className="mt-2 px-1 text-right font-mono text-[10px] text-ink-faint">
-              {mode === 'audio'
-                ? `Video continues from ${formatPodcastClock(audioHandoffTime)}`
-                : 'Switch to Listen to continue with audio only'}
-            </Text>
+        <View className="border-b border-line p-3">
+          <View
+            accessibilityRole="tablist"
+            accessibilityLabel="Episode media"
+            className="flex-row rounded-2xl bg-[rgba(255,255,255,.045)] p-1"
+          >
+            <EpisodeMediaTabButton
+              active={activeTab === 'story'}
+              label="Story"
+              hint="Use the story audio player"
+              onPress={() => selectAudioTab('story')}
+            />
+            <EpisodeMediaTabButton
+              active={activeTab === 'classroom'}
+              label="Classroom"
+              hint={
+                availability.classroom
+                  ? 'Use the language classroom audio player'
+                  : 'Classroom isn’t available for this episode'
+              }
+              onPress={() => selectAudioTab('classroom')}
+            />
+            <EpisodeMediaTabButton
+              active={activeTab === 'video'}
+              label="Video"
+              hint={
+                availability.video
+                  ? `Continue video from ${formatPodcastClock(audioHandoffTime)}`
+                  : 'Video isn’t available yet'
+              }
+              onPress={showVideo}
+            />
           </View>
-        ) : null}
+        </View>
 
-        {mode === 'video' && video !== null && videoSession !== null ? (
-          <EpisodeVideoPlayer
-            title={episode.title}
-            video={video}
-            initialTimeSeconds={videoSession.initialTimeSeconds}
-            playbackRate={videoSession.playbackRate}
-            shouldPlay={videoSession.shouldPlay}
-            onPlayingChange={(isPlaying) => {
-              videoPlayingRef.current = isPlaying;
-            }}
-            onPlaybackRateChange={(rate) => {
-              videoRateRef.current = rate;
-            }}
-            onTimeUpdate={handleVideoTimeUpdate}
-            onPlaybackEnd={handleVideoEnd}
-            onPlaybackError={handleVideoError}
-            onPlaybackExit={(seconds) => {
-              videoTimeRef.current = finiteSeconds(seconds);
-              persistVideoPosition(seconds, true);
-            }}
+        {activeTab === 'video' ? (
+          video !== null && videoSession !== null ? (
+            <View
+              nativeID="episode-media-panel"
+              role="tabpanel"
+              accessibilityLabel="Video player"
+            >
+              <EpisodeVideoPlayer
+                title={episode.title}
+                video={video}
+                initialTimeSeconds={videoSession.initialTimeSeconds}
+                playbackRate={videoSession.playbackRate}
+                shouldPlay={videoSession.shouldPlay}
+                onPlayingChange={(isPlaying) => {
+                  videoPlayingRef.current = isPlaying;
+                }}
+                onPlaybackRateChange={(rate) => {
+                  videoRateRef.current = rate;
+                }}
+                onTimeUpdate={handleVideoTimeUpdate}
+                onPlaybackEnd={handleVideoEnd}
+                onPlaybackError={handleVideoError}
+                onPlaybackExit={(seconds) => {
+                  videoTimeRef.current = finiteSeconds(seconds);
+                  persistVideoPosition(seconds, true);
+                }}
+              />
+            </View>
+          ) : (
+            <UnavailableMediaPanel
+              label="Video"
+              message="Video isn’t available yet"
+            />
+          )
+        ) : activeTab === 'classroom' && !availability.classroom ? (
+          <UnavailableMediaPanel
+            label="Classroom"
+            message="Classroom isn’t available for this episode"
           />
         ) : (
-          <AudioPlaybackControls
-            episode={episode}
-            episodes={episodes}
-            player={player}
-            onEpisodeChanged={onEpisodeChanged}
-          />
+          <View
+            nativeID="episode-media-panel"
+            role="tabpanel"
+            accessibilityLabel={
+              activeAudioSection === 'classroom'
+                ? 'Classroom player'
+                : 'Story player'
+            }
+          >
+            <AudioPlaybackControls
+              episode={episode}
+              episodes={episodes}
+              player={player}
+              onEpisodeChanged={onEpisodeChanged}
+              section={activeAudioSection}
+            />
+          </View>
         )}
       </View>
     </View>

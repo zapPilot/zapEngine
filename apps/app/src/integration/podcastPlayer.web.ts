@@ -236,17 +236,20 @@ export function usePodcastPlayer(): PodcastPlayer {
     [cancelPendingHandoff, replaceSource, speedPreferences],
   );
 
-  // Swap the loaded source to a section of the current episode (main or
-  // classroom) and apply that section's independent playback speed.
-  const playSection = useCallback(
-    (section: PodcastPlaybackSection, atSeconds = 0, shouldPlay = true) => {
+  const playEpisodeSection = useCallback(
+    (
+      episode: PodcastEpisode,
+      section: PodcastPlaybackSection,
+      atSeconds = 0,
+      shouldPlay = true,
+    ) => {
       const audio = audioRef.current;
       if (audio === null) return;
 
       cancelPendingHandoff();
+      audio.pause();
       const startAt = finiteSeconds(atSeconds);
       if (startAt > 0) {
-        audio.pause();
         const handoffId = handoffIdRef.current + 1;
         handoffIdRef.current = handoffId;
         pendingHandoffRef.current = {
@@ -254,21 +257,28 @@ export function usePodcastPlayer(): PodcastPlayer {
           seconds: startAt,
           shouldPlay,
         };
-        if (!replaceSource(audio, section.hlsUrl)) {
-          pendingHandoffRef.current = null;
-          return;
-        }
-        setCurrentSection(section.kind);
-        audio.playbackRate = speedForSection(speedPreferences, section.kind);
-        return;
       }
 
-      if (!replaceSource(audio, section.hlsUrl)) return;
+      if (!replaceSource(audio, section.hlsUrl)) {
+        pendingHandoffRef.current = null;
+        return;
+      }
+      setNowPlaying(episode);
       setCurrentSection(section.kind);
       audio.playbackRate = speedForSection(speedPreferences, section.kind);
-      if (shouldPlay) void audio.play();
+      if (startAt === 0 && shouldPlay) void audio.play();
     },
     [cancelPendingHandoff, replaceSource, speedPreferences],
+  );
+
+  // Swap the loaded source to a section of the current episode (main or
+  // classroom) and apply that section's independent playback speed.
+  const playSection = useCallback(
+    (section: PodcastPlaybackSection, atSeconds = 0, shouldPlay = true) => {
+      if (nowPlaying === null) return;
+      playEpisodeSection(nowPlaying, section, atSeconds, shouldPlay);
+    },
+    [nowPlaying, playEpisodeSection],
   );
 
   const playEpisodeAt = useCallback(
@@ -311,6 +321,7 @@ export function usePodcastPlayer(): PodcastPlayer {
     nowPlaying,
     playEpisode,
     playEpisodeAt,
+    playEpisodeSection,
     toggleCurrentPlayback,
   });
 
@@ -413,6 +424,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       toggle: queueState.toggle,
       playFromQueue: queueState.playFromQueue,
       playFromQueueAt: queueState.playFromQueueAt,
+      playSectionFromQueue: queueState.playSectionFromQueue,
       seek,
       seekRelative,
       skipToPreviousEpisode: queueState.skipToPreviousEpisode,

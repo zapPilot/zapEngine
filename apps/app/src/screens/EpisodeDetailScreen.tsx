@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Bookmark, ChevronLeft, Share2 } from 'lucide-react-native';
+import { ChevronLeft, Share2 } from 'lucide-react-native';
 import { useMemo } from 'react';
 import { Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -105,27 +105,6 @@ function EpisodeHeroCard({ episode }: { episode: PodcastEpisode }) {
           ) : null}
         </View>
       </Card>
-    </View>
-  );
-}
-
-function EpisodeActionRow() {
-  return (
-    <View className="px-5 pt-4">
-      <View className="flex-row justify-evenly rounded-[22px] border border-line bg-[rgba(255,255,255,.035)] p-3">
-        <View className="items-center gap-1">
-          <Bookmark size={18} strokeWidth={2} color="#a1a1aa" />
-          <Text className="font-mono text-[9px] uppercase tracking-[0.9px] text-ink-faint">
-            Save later
-          </Text>
-        </View>
-        <View className="items-center gap-1">
-          <Share2 size={18} strokeWidth={2} color="#a1a1aa" />
-          <Text className="font-mono text-[9px] uppercase tracking-[0.9px] text-ink-faint">
-            Share
-          </Text>
-        </View>
-      </View>
     </View>
   );
 }
@@ -380,7 +359,6 @@ export function EpisodeDetailScreen() {
           player={player}
           onEpisodeChanged={handleEpisodeChanged}
         />
-        <EpisodeActionRow />
         <LanguageClassroomSection lessons={episode.languageClassrooms} />
         <EpisodeTranscript episode={episode} player={player} />
       </ScreenScrollView>

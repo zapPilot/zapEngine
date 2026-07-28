@@ -116,6 +116,7 @@ describe('clampPodcastPlaybackSeconds', () => {
 describe('createPodcastPlayerSnapshot', () => {
   it('exposes the explicit queue handoff action unchanged', () => {
     const playFromQueueAt = vi.fn();
+    const playSectionFromQueue = vi.fn();
     const noop = vi.fn();
     const snapshot = createPodcastPlayerSnapshot({
       nowPlaying: null,
@@ -131,6 +132,7 @@ describe('createPodcastPlayerSnapshot', () => {
       toggle: noop,
       playFromQueue: noop,
       playFromQueueAt,
+      playSectionFromQueue,
       seek: noop,
       seekRelative: noop,
       skipToPreviousEpisode: () => null,
@@ -140,6 +142,7 @@ describe('createPodcastPlayerSnapshot', () => {
     });
 
     expect(snapshot.playFromQueueAt).toBe(playFromQueueAt);
+    expect(snapshot.playSectionFromQueue).toBe(playSectionFromQueue);
   });
 
   it('normalises invalid playback state and derives queue navigation', () => {
@@ -163,6 +166,7 @@ describe('createPodcastPlayerSnapshot', () => {
       toggle: noop,
       playFromQueue: noop,
       playFromQueueAt: noop,
+      playSectionFromQueue: noop,
       seek: noop,
       seekRelative: noop,
       skipToPreviousEpisode: () => queue[0] ?? null,

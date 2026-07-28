@@ -445,9 +445,9 @@ export interface PodcastEpisodesByLanguage {
 }
 
 /**
- * Fetches every content language's feed in parallel so the podcast list can
- * group unheard episodes per language. Each language keeps its own React Query
- * cache entry (same key as {@link usePodcastEpisodes}).
+ * Fetches every content language's feed in parallel so the language dropdown
+ * can show each language's completion percentage. Each language keeps its own
+ * React Query cache entry (same key as {@link usePodcastEpisodes}).
  */
 export function usePodcastEpisodesAllLanguages(): PodcastEpisodesByLanguage {
   const results = useQueries({

@@ -4,6 +4,11 @@ import type {
   PodcastSectionKind,
 } from '@/integration/podcastSections';
 
+export interface PodcastSectionPlaybackOptions {
+  atSeconds?: number;
+  shouldPlay?: boolean;
+}
+
 export interface PodcastPlayer {
   nowPlaying: PodcastEpisode | null;
   isPlaying: boolean;
@@ -32,6 +37,12 @@ export interface PodcastPlayer {
     episode: PodcastEpisode,
     seconds: number,
     shouldPlay?: boolean,
+  ) => void;
+  playSectionFromQueue: (
+    episodes: readonly PodcastEpisode[],
+    episode: PodcastEpisode,
+    section: PodcastSectionKind,
+    options?: PodcastSectionPlaybackOptions,
   ) => void;
   seek: (seconds: number) => void;
   seekRelative: (deltaSeconds: number) => void;

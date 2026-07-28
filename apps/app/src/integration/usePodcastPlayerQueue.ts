@@ -6,12 +6,22 @@ import {
   findPodcastQueueIndex,
   isSamePodcastEpisode,
 } from '@/integration/podcastPlayerShared';
+import {
+  buildPlaybackSections,
+  type PodcastPlaybackSection,
+} from '@/integration/podcastSections';
 
 interface PodcastPlayerQueueParams {
   nowPlaying: PodcastEpisode | null;
   playEpisode: (episode: PodcastEpisode) => void;
   playEpisodeAt: (
     episode: PodcastEpisode,
+    seconds: number,
+    shouldPlay: boolean,
+  ) => void;
+  playEpisodeSection: (
+    episode: PodcastEpisode,
+    section: PodcastPlaybackSection,
     seconds: number,
     shouldPlay: boolean,
   ) => void;
@@ -24,6 +34,7 @@ interface PodcastPlayerQueueState {
   toggle: PodcastPlayer['toggle'];
   playFromQueue: PodcastPlayer['playFromQueue'];
   playFromQueueAt: PodcastPlayer['playFromQueueAt'];
+  playSectionFromQueue: PodcastPlayer['playSectionFromQueue'];
   skipToPreviousEpisode: PodcastPlayer['skipToPreviousEpisode'];
   skipToNextEpisode: PodcastPlayer['skipToNextEpisode'];
 }
@@ -32,6 +43,7 @@ export function usePodcastPlayerQueue({
   nowPlaying,
   playEpisode,
   playEpisodeAt,
+  playEpisodeSection,
   toggleCurrentPlayback,
 }: PodcastPlayerQueueParams): PodcastPlayerQueueState {
   const [queue, setQueue] = useState<readonly PodcastEpisode[]>([]);
@@ -85,6 +97,24 @@ export function usePodcastPlayerQueue({
     [playEpisodeAt],
   );
 
+  const playSectionFromQueue = useCallback<
+    PodcastPlayer['playSectionFromQueue']
+  >(
+    (episodes, episode, kind, { atSeconds = 0, shouldPlay = true } = {}) => {
+      const section = buildPlaybackSections(episode).find(
+        (candidate) => candidate.kind === kind,
+      );
+      if (section === undefined) return;
+
+      const nextQueue = [...episodes];
+      const targetIndex = findPodcastQueueIndex(nextQueue, episode);
+      setQueue(nextQueue);
+      setQueueIndex(targetIndex);
+      playEpisodeSection(episode, section, atSeconds, shouldPlay);
+    },
+    [playEpisodeSection],
+  );
+
   const skipToQueueIndex = useCallback(
     (targetIndex: number): PodcastEpisode | null => {
       const episode = queue[targetIndex];
@@ -110,6 +140,7 @@ export function usePodcastPlayerQueue({
     toggle,
     playFromQueue,
     playFromQueueAt,
+    playSectionFromQueue,
     skipToPreviousEpisode,
     skipToNextEpisode,
   };

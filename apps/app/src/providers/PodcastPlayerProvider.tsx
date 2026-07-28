@@ -28,6 +28,7 @@ export function PodcastPlayerProvider({
   const rawToggle = player.toggle;
   const rawPlayFromQueue = player.playFromQueue;
   const rawPlayFromQueueAt = player.playFromQueueAt;
+  const rawPlaySectionFromQueue = player.playSectionFromQueue;
   const rawSkipToPreviousEpisode = player.skipToPreviousEpisode;
   const rawSkipToNextEpisode = player.skipToNextEpisode;
 
@@ -70,6 +71,16 @@ export function PodcastPlayerProvider({
       }),
     [authAction, pauseActiveVideo, rawPlayFromQueueAt],
   );
+  const playSectionFromQueue = useCallback<
+    PodcastPlayer['playSectionFromQueue']
+  >(
+    (episodes, episode, section, options) =>
+      authAction.run(() => {
+        pauseActiveVideo();
+        rawPlaySectionFromQueue(episodes, episode, section, options);
+      }),
+    [authAction, pauseActiveVideo, rawPlaySectionFromQueue],
+  );
   // jscpd:ignore-end
   const skipToPreviousEpisode = useCallback<
     PodcastPlayer['skipToPreviousEpisode']
@@ -89,6 +100,7 @@ export function PodcastPlayerProvider({
       toggle,
       playFromQueue,
       playFromQueueAt,
+      playSectionFromQueue,
       skipToPreviousEpisode,
       skipToNextEpisode,
     }),
@@ -96,6 +108,7 @@ export function PodcastPlayerProvider({
       player,
       playFromQueue,
       playFromQueueAt,
+      playSectionFromQueue,
       skipToNextEpisode,
       skipToPreviousEpisode,
       toggle,

@@ -5,13 +5,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
 import {
-  getContentLanguageBadge,
   PodcastLanguageDropdown,
   type PodcastCompletionByLanguage,
 } from '@/components/content/ContentLanguageSelector';
 import { formatPodcastClock } from '@/components/podcast/episodeFormatters';
 import { EpisodeRow } from '@/components/podcast/EpisodeRow';
 import { ExpandableSection } from '@/components/podcast/ExpandableSection';
+import { selectPodcastLists } from '@/components/podcast/episodeListSelection';
 import {
   PlayUnheardCard,
   type PlayUnheardMode,
@@ -54,13 +54,6 @@ import { usePodcastPlayer } from '@/providers/PodcastPlayerProvider';
 const EMPTY_SEARCH_RESULTS: readonly PodcastEpisodeSearchResult[] = [];
 const EMPTY_COMPLETION_BY_LANGUAGE: PodcastCompletionByLanguage = {};
 const LISTENED_PAGE_SIZE = 12;
-
-interface LanguageGroup {
-  code: string;
-  badge: string;
-  nativeName: string;
-  episodes: PodcastEpisode[];
-}
 
 function useDebouncedValue(value: string, delayMs: number): string {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -293,36 +286,12 @@ export function PodcastScreen() {
     return result;
   }, [feedQuery.byLanguage, progress]);
 
-  // Unheard episodes grouped by language, selected language first.
-  const unheardGroups = useMemo<LanguageGroup[]>(() => {
-    const orderedOptions = [
-      ...CONTENT_LANGUAGE_OPTIONS.filter((o) => o.code === languageCode),
-      ...CONTENT_LANGUAGE_OPTIONS.filter((o) => o.code !== languageCode),
-    ];
-    return orderedOptions
-      .map((option) => ({
-        code: option.code,
-        badge: option.badge,
-        nativeName: option.nativeName,
-        episodes: sortEpisodes(
-          (mergedByLanguage[option.code] ?? []).filter(
-            (episode) => !episode.listened,
-          ),
-          direction,
-        ),
-      }))
-      .filter((group) => group.episodes.length > 0);
-  }, [mergedByLanguage, languageCode, direction]);
-
-  const listenedEpisodes = useMemo(
-    () =>
-      sortEpisodes(
-        CONTENT_LANGUAGE_OPTIONS.flatMap(
-          (option) => mergedByLanguage[option.code] ?? [],
-        ).filter((episode) => episode.listened),
-        'newest',
-      ),
-    [mergedByLanguage],
+  // Selected-language lists: unheard follows the direction toggle,
+  // listened is always newest-first. The language dropdown is the single
+  // language selector, so the list below only ever shows one language.
+  const { unheard: unheardEpisodes, listened: listenedEpisodes } = useMemo(
+    () => selectPodcastLists(mergedByLanguage, languageCode, direction),
+    [mergedByLanguage, languageCode, direction],
   );
 
   const completionByLanguage = useMemo<PodcastCompletionByLanguage>(() => {
@@ -404,7 +373,8 @@ export function PodcastScreen() {
     ? searchQueryResult.isError
     : feedQuery.isError;
 
-  const hasAnyEpisode = unheardGroups.length > 0 || listenedEpisodes.length > 0;
+  const hasAnyEpisode =
+    unheardEpisodes.length > 0 || listenedEpisodes.length > 0;
   const visibleCompletionByLanguage =
     feedQuery.isLoading || feedQuery.isError
       ? EMPTY_COMPLETION_BY_LANGUAGE
@@ -423,15 +393,10 @@ export function PodcastScreen() {
   const renderRows = (
     episodes: readonly PodcastEpisode[],
     context: readonly PodcastEpisode[],
-    options?: { showLanguageBadge?: boolean },
   ) =>
     episodes.map((episode, index) => {
       const active =
         player.nowPlaying?.localizationId === episode.localizationId;
-      const languageBadge =
-        options?.showLanguageBadge === true
-          ? { languageBadge: getContentLanguageBadge(episode.languageCode) }
-          : {};
       return (
         <EpisodeRow
           key={episode.localizationId}
@@ -439,7 +404,6 @@ export function PodcastScreen() {
           first={index === 0}
           active={active}
           playing={active && player.isPlaying}
-          {...languageBadge}
           onToggle={() => player.playFromQueue(context, episode)}
           onOpen={() => openEpisode(episode)}
         />
@@ -558,32 +522,20 @@ export function PodcastScreen() {
                   player.playFromQueue(playback.queue, playbackTarget);
                 }
               }}
+              onOpen={() => {
+                if (playbackTarget !== null) {
+                  openEpisode(playbackTarget);
+                }
+              }}
             />
 
-            {unheardGroups.length > 0 ? (
+            {unheardEpisodes.length > 0 ? (
               <ExpandableSection
                 title="未聽"
-                count={unheardTotalCount(unheardGroups)}
+                count={unheardEpisodes.length}
                 defaultExpanded
               >
-                {unheardGroups.map((group) => (
-                  <View key={group.code} className="pt-1">
-                    <View className="flex-row items-center gap-2 pb-1 pt-2">
-                      <View className="h-6 w-6 items-center justify-center rounded-md border border-line bg-[rgba(255,255,255,.045)]">
-                        <Text className="font-mono text-[10px] text-ink-dim">
-                          {group.badge}
-                        </Text>
-                      </View>
-                      <Text className="font-sans-medium text-[12.5px] text-ink-dim">
-                        {group.nativeName}
-                      </Text>
-                      <Text className="font-mono text-[10px] text-ink-faint">
-                        ({group.episodes.length})
-                      </Text>
-                    </View>
-                    {renderRows(group.episodes, group.episodes)}
-                  </View>
-                ))}
+                {renderRows(unheardEpisodes, unheardEpisodes)}
               </ExpandableSection>
             ) : null}
 
@@ -592,7 +544,6 @@ export function PodcastScreen() {
                 {renderRows(
                   listenedEpisodes.slice(0, visibleListened),
                   listenedEpisodes,
-                  { showLanguageBadge: true },
                 )}
                 {visibleListened < listenedEpisodes.length ? (
                   <Tap
@@ -641,8 +592,4 @@ export function PodcastScreen() {
       <NowPlayingBar player={player} />
     </View>
   );
-}
-
-function unheardTotalCount(groups: readonly LanguageGroup[]): number {
-  return groups.reduce((sum, group) => sum + group.episodes.length, 0);
 }

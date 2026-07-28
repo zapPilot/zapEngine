@@ -31,7 +31,6 @@ export function EpisodeRow({
   first,
   active,
   playing,
-  languageBadge,
   supportingContent,
   onToggle,
   onOpen,
@@ -40,7 +39,6 @@ export function EpisodeRow({
   first: boolean;
   active: boolean;
   playing: boolean;
-  languageBadge?: string;
   supportingContent?: ReactNode;
   onToggle: () => void;
   onOpen: () => void;
@@ -73,13 +71,6 @@ export function EpisodeRow({
             <Text className="font-mono text-[10px] text-ink-faint">
               {formatPodcastEpisodeDate(episode.createdAt)}
             </Text>
-            {languageBadge !== undefined ? (
-              <View className="rounded-full border border-line px-[6px] py-[1px]">
-                <Text className="font-mono text-[9px] text-ink-faint">
-                  {languageBadge}
-                </Text>
-              </View>
-            ) : null}
             {episode.listened ? (
               <Text className="font-mono text-[9px] uppercase tracking-[0.9px] text-ink-faint">
                 Listened

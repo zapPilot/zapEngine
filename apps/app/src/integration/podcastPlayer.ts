@@ -58,10 +58,14 @@ export function usePodcastPlayer(): PodcastPlayer {
     // that drives the main->classroom transition stays running while the audio
     // session is active. `doNotMix` is required for the lock-screen controls
     // enabled below (and by expo-audio's Android media foreground service).
-    void setAudioModeAsync({
+    setAudioModeAsync({
       playsInSilentMode: true,
       shouldPlayInBackground: true,
       interruptionMode: 'doNotMix',
+    }).catch((error: unknown) => {
+      // If this rejects, expo-audio pauses every player the moment the app
+      // backgrounds — losing the classroom handoff. Surface it; don't swallow.
+      console.warn('[podcastPlayer] setAudioModeAsync failed', error);
     });
   }, []);
 
@@ -130,18 +134,23 @@ export function usePodcastPlayer(): PodcastPlayer {
     [audioPlayer, cancelPendingHandoff, speedPreferences],
   );
 
-  // Swap the loaded source to a section of the current episode (main or
-  // classroom) and apply that section's independent playback speed.
-  const playSection = useCallback(
-    (section: PodcastPlaybackSection, atSeconds = 0, shouldPlay = true) => {
+  const playEpisodeSection = useCallback(
+    (
+      episode: PodcastEpisode,
+      section: PodcastPlaybackSection,
+      atSeconds = 0,
+      shouldPlay = true,
+    ) => {
       cancelPendingHandoff();
+      audioPlayer.pause();
       audioPlayer.replace({
         uri: section.hlsUrl,
-        name: nowPlaying?.title ?? '',
+        name: episode.title,
       });
       audioPlayer.setPlaybackRate(
         speedForSection(speedPreferences, section.kind),
       );
+      setNowPlaying(episode);
       setCurrentSection(section.kind);
 
       const startAt = finiteSeconds(atSeconds);
@@ -158,7 +167,17 @@ export function usePodcastPlayer(): PodcastPlayer {
         audioPlayer.play();
       }
     },
-    [audioPlayer, cancelPendingHandoff, nowPlaying?.title, speedPreferences],
+    [audioPlayer, cancelPendingHandoff, speedPreferences],
+  );
+
+  // Swap the loaded source to a section of the current episode (main or
+  // classroom) and apply that section's independent playback speed.
+  const playSection = useCallback(
+    (section: PodcastPlaybackSection, atSeconds = 0, shouldPlay = true) => {
+      if (nowPlaying === null) return;
+      playEpisodeSection(nowPlaying, section, atSeconds, shouldPlay);
+    },
+    [nowPlaying, playEpisodeSection],
   );
 
   // jscpd:ignore-start — native and web handoffs enforce the same transition
@@ -191,6 +210,7 @@ export function usePodcastPlayer(): PodcastPlayer {
     nowPlaying,
     playEpisode,
     playEpisodeAt,
+    playEpisodeSection,
     toggleCurrentPlayback,
   });
 
@@ -318,6 +338,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       toggle: queueState.toggle,
       playFromQueue: queueState.playFromQueue,
       playFromQueueAt: queueState.playFromQueueAt,
+      playSectionFromQueue: queueState.playSectionFromQueue,
       seek,
       seekRelative,
       skipToPreviousEpisode: queueState.skipToPreviousEpisode,

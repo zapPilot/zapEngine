@@ -6,6 +6,7 @@ import type { EpisodeSortDirection } from '@/components/podcast/episodeSorting';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { RangeTabs } from '@/components/ui/RangeTabs';
+import { Tap } from '@/components/ui/Tap';
 import type { PodcastEpisode } from '@/integration/podcastFeed';
 
 export type PlayUnheardMode =
@@ -69,6 +70,7 @@ export function PlayUnheardCard({
   isPlaying,
   onDirectionChange,
   onPlay,
+  onOpen,
 }: {
   mode: PlayUnheardMode;
   target: PodcastEpisode | null;
@@ -76,10 +78,25 @@ export function PlayUnheardCard({
   isPlaying: boolean;
   onDirectionChange: (direction: EpisodeSortDirection) => void;
   onPlay: () => void;
+  onOpen: () => void;
 }) {
   if (mode === 'empty') return null;
 
   const copy = resolveCopy(mode, target, direction, isPlaying);
+
+  const body = (
+    <>
+      <Text
+        className="mt-2 font-sans-bold text-[19px] leading-[26px] text-ink"
+        numberOfLines={2}
+      >
+        {copy.title}
+      </Text>
+      <Text className="mt-1 text-[12.5px] leading-[19px] text-ink-dim">
+        {copy.subtitle}
+      </Text>
+    </>
+  );
 
   return (
     <View className="px-5 pt-3">
@@ -96,15 +113,17 @@ export function PlayUnheardCard({
             }
           />
         </View>
-        <Text
-          className="mt-2 font-sans-bold text-[19px] leading-[26px] text-ink"
-          numberOfLines={2}
-        >
-          {copy.title}
-        </Text>
-        <Text className="mt-1 text-[12.5px] leading-[19px] text-ink-dim">
-          {copy.subtitle}
-        </Text>
+        {target !== null ? (
+          <Tap
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${target.title}`}
+            onPress={onOpen}
+          >
+            {body}
+          </Tap>
+        ) : (
+          body
+        )}
 
         <View className="mt-3">
           <PrimaryButton accessibilityLabel={copy.buttonLabel} onPress={onPlay}>

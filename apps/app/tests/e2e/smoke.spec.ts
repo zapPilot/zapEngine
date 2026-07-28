@@ -10,6 +10,16 @@ const PODCAST_FIXTURE = {
       hlsUrl: 'https://media.example.test/episode-1/playlist.m3u8',
       createdAt: '2026-07-01T00:00:00.000Z',
       listened: false,
+      video: null,
+      audioTracks: [
+        {
+          languageCode: 'zh-Hant',
+          title: 'E2E Fed to Chain briefing',
+          hlsUrl: 'https://media.example.test/episode-1/playlist.m3u8',
+          classroomHlsUrl:
+            'https://media.example.test/episode-1/classroom.m3u8',
+        },
+      ],
     },
   ],
   nextCursor: null,
@@ -25,6 +35,15 @@ const VIDEO_PODCAST_FIXTURE = {
       hlsUrl: 'https://media.example.test/episode-2/playlist.m3u8',
       createdAt: '2026-07-02T00:00:00.000Z',
       listened: false,
+      audioTracks: [
+        {
+          languageCode: 'zh-Hant',
+          title: 'E2E video episode',
+          hlsUrl: 'https://media.example.test/episode-2/playlist.m3u8',
+          classroomHlsUrl:
+            'https://media.example.test/episode-2/classroom.m3u8',
+        },
+      ],
       video: {
         url: 'https://media.example.test/episode-2/video.mp4',
         thumbnailUrl: 'https://media.example.test/episode-2/thumbnail.png',
@@ -68,6 +87,7 @@ const ERROR_PAGE_PATTERN =
 const AUTH_REQUIRED_ROUTES = new Set(['/strategy', '/activity', '/account']);
 const APP_BOOT_TIMEOUT = 45_000;
 const E2E_TEST_TIMEOUT = 90_000;
+const EPISODE_MEDIA_TAB_LABELS = ['Story', 'Classroom', 'Video'] as const;
 
 async function routePodcastFeed(page: Page): Promise<void> {
   await page.route('**/episodes?**', async (route) => {
@@ -82,6 +102,60 @@ async function expectHealthyRoute(page: Page): Promise<void> {
   await expect(page.locator('body')).toBeVisible();
   await expect(page.locator('body')).not.toContainText(ERROR_PAGE_PATTERN);
   await expect(page).not.toHaveURL(/\/404/);
+}
+
+async function expectResponsiveEpisodeMediaTabs(page: Page): Promise<void> {
+  const tabs = EPISODE_MEDIA_TAB_LABELS.map((label) =>
+    page.getByRole('tab', { name: label, exact: true }),
+  );
+  const [storyTab] = tabs;
+  if (storyTab === undefined) {
+    throw new Error('Story tab locator is unavailable');
+  }
+
+  for (const tab of tabs) {
+    await expect(tab).toBeVisible();
+  }
+  await expect(storyTab).toHaveAttribute('aria-selected', 'true');
+
+  const tabList = page.getByRole('tablist').filter({ has: storyTab });
+  await expect(tabList).toHaveCount(1);
+
+  const tabListMetrics = await tabList.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(tabListMetrics.clientWidth).toBeGreaterThan(0);
+  expect(tabListMetrics.scrollWidth).toBeLessThanOrEqual(
+    tabListMetrics.clientWidth + 1,
+  );
+
+  const viewport = page.viewportSize();
+  if (viewport === null) throw new Error('Viewport size is unavailable');
+
+  const bounds = await Promise.all(tabs.map((tab) => tab.boundingBox()));
+  const firstBounds = bounds[0];
+  if (firstBounds === null || firstBounds === undefined) {
+    throw new Error('Story tab has no layout bounds');
+  }
+  for (const [index, box] of bounds.entries()) {
+    if (box === null) {
+      throw new Error(`${EPISODE_MEDIA_TAB_LABELS[index]} tab has no bounds`);
+    }
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
+    expect(Math.abs(box.y - firstBounds.y)).toBeLessThanOrEqual(1);
+  }
+
+  const documentMetrics = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(documentMetrics.scrollWidth).toBeLessThanOrEqual(
+    documentMetrics.clientWidth + 1,
+  );
 }
 
 test('renders the web app shell and primary routes without page errors', async ({
@@ -162,14 +236,14 @@ test('renders the web app shell and primary routes without page errors', async (
     ).toBeInViewport();
   });
 
-  await test.step('audio-only episode detail keeps the video player hidden', async () => {
+  await test.step('audio-only episode detail keeps the video player unloaded', async () => {
     await page
       .getByRole('button', { name: 'Open E2E Fed to Chain briefing' })
       .first()
       .click();
     await expect(page).toHaveURL(/\/podcast\/episode-1-zh-Hant\?lang=zh-Hant$/);
     await expect(page.locator('video')).toHaveCount(0);
-    await expect(page.getByRole('tab', { name: 'Watch' })).toHaveCount(0);
+    await expectResponsiveEpisodeMediaTabs(page);
   });
 
   await test.step('guest can open Home and return to Podcast', async () => {
@@ -225,11 +299,54 @@ test('renders the web app shell and primary routes without page errors', async (
   expect(pageErrors).toEqual([]);
 });
 
-test('video is visible as an opt-in mode and does not load before selection', async ({
+test('episode media tabs stay fixed before playback at mobile and web widths', async ({
+  page,
+}) => {
+  test.setTimeout(E2E_TEST_TIMEOUT);
+  await routePodcastFeed(page);
+
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 1440, height: 1000 },
+  ]) {
+    await test.step(`${viewport.width}x${viewport.height}`, async () => {
+      await page.setViewportSize(viewport);
+      await page.goto('/podcast/episode-1-zh-Hant?lang=zh-Hant');
+      await expect(page).toHaveURL(
+        /\/podcast\/episode-1-zh-Hant\?lang=zh-Hant$/,
+        { timeout: APP_BOOT_TIMEOUT },
+      );
+      await expectResponsiveEpisodeMediaTabs(page);
+      await expect(page.locator('video')).toHaveCount(0);
+    });
+  }
+});
+
+test('audio-only episode keeps Video selectable with an unavailable state', async ({
   page,
 }) => {
   test.setTimeout(E2E_TEST_TIMEOUT);
   await page.setViewportSize({ width: 390, height: 844 });
+  await routePodcastFeed(page);
+  await page.goto('/podcast/episode-1-zh-Hant?lang=zh-Hant');
+  await expect(
+    page.getByRole('tab', { name: 'Video', exact: true }),
+  ).toBeVisible({ timeout: APP_BOOT_TIMEOUT });
+
+  const videoTab = page.getByRole('tab', { name: 'Video', exact: true });
+  await videoTab.click();
+
+  await expect(videoTab).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByText('Video isn’t available yet')).toBeVisible();
+  await expect(page.locator('video')).toHaveCount(0);
+});
+
+test('complete video stays lazy and falls back to Story after an error', async ({
+  page,
+}) => {
+  test.setTimeout(E2E_TEST_TIMEOUT);
+  await page.setViewportSize({ width: 390, height: 844 });
+  let videoRequestCount = 0;
   let releaseVideoResponse: () => void = () => undefined;
   const holdVideoResponse = new Promise<void>((resolve) => {
     releaseVideoResponse = resolve;
@@ -241,6 +358,7 @@ test('video is visible as an opt-in mode and does not load before selection', as
     });
   });
   await page.route('**/episode-2/video.mp4', async (route) => {
+    videoRequestCount += 1;
     await holdVideoResponse;
     await route.abort();
   });
@@ -253,28 +371,25 @@ test('video is visible as an opt-in mode and does not load before selection', as
   await episodeButton.click();
   await expect(page).toHaveURL(/\/podcast\/episode-2-zh-Hant\?lang=zh-Hant$/);
 
-  const listenMode = page.getByRole('tab', { name: 'Listen' });
-  const watchMode = page.getByRole('tab', { name: 'Watch' });
-  await expect(listenMode).toHaveAttribute('aria-selected', 'true');
-  await expect(watchMode).toHaveAttribute('aria-selected', 'false');
-  await expect(page.getByText('Video continues from 0:00')).toBeVisible();
+  const storyTab = page.getByRole('tab', { name: 'Story', exact: true });
+  const videoTab = page.getByRole('tab', { name: 'Video', exact: true });
+  await expectResponsiveEpisodeMediaTabs(page);
+  await expect(storyTab).toHaveAttribute('aria-selected', 'true');
+  await expect(videoTab).toHaveAttribute('aria-selected', 'false');
   await expect(page.locator('video')).toHaveCount(0);
-
-  const watchBounds = await watchMode.boundingBox();
-  if (watchBounds === null) {
-    throw new Error('Watch mode has no layout bounds');
-  }
-  expect(watchBounds.height).toBeGreaterThanOrEqual(44);
+  expect(videoRequestCount).toBe(0);
 
   const videoRequest = page.waitForRequest(
     'https://media.example.test/episode-2/video.mp4',
   );
-  await watchMode.click();
+  await videoTab.click();
   await videoRequest;
+  expect(videoRequestCount).toBe(1);
   await expect(page.locator('video')).toHaveCount(1);
-  await expect(watchMode).toHaveAttribute('aria-selected', 'true');
+  await expect(videoTab).toHaveAttribute('aria-selected', 'true');
 
   releaseVideoResponse();
   await expect(page.locator('video')).toHaveCount(0, { timeout: 10_000 });
-  await expect(listenMode).toHaveAttribute('aria-selected', 'true');
+  await expect(storyTab).toHaveAttribute('aria-selected', 'true');
+  await expect(videoTab).toHaveAttribute('aria-selected', 'false');
 });
