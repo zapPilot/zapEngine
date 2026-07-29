@@ -13,6 +13,18 @@ See @../../CLAUDE.md for monorepo development guidelines.
 - Web-specific implementations for Phase 4 should use platform split files such
   as `.web.ts` / `.web.tsx`.
 
+## Podcast Persistence Invariants
+
+- Native podcast progress and playback-speed preferences must use durable
+  device storage. Never rely on `globalThis.localStorage` for native state.
+- Flush the latest podcast position when the app becomes inactive/backgrounded,
+  playback pauses, the episode or section changes, and the tracker unmounts.
+- Resume logic must wait for durable storage hydration. Hydration must merge
+  changes made while storage is loading, and asynchronous writes must preserve
+  newest-value ordering.
+- Changes to the podcast progress provider, tracker, or storage adapter must
+  pass the podcast persistence and lifecycle tests.
+
 ## Styling Rules
 
 - Use NativeWind classes backed by `@zapengine/design-tokens/tokens.json`.

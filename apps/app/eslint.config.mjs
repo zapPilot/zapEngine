@@ -147,4 +147,12 @@ export default defineConfig([
       ],
     },
   },
+  {
+    // React provider/lifecycle tests render into jsdom; DOM imports here never
+    // enter the universal app bundle.
+    files: ['tests/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
 ]);
