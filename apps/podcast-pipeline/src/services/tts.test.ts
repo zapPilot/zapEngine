@@ -48,6 +48,7 @@ import { getTtsMetadata, textToSpeech } from './tts.js';
 describe('TTS provider dispatcher', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('TTS_PROVIDER', 'google');
     mockGetTtsConfig.mockImplementation((usage, languageCode) =>
       realTtsConfig.getTtsConfig!(usage, languageCode),
     );
