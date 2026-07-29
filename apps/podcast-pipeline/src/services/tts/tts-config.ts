@@ -97,18 +97,19 @@ function resolveTtsProvider(): TtsProvider {
     const referenceId = getFishAudioReferenceId();
     if (!referenceId) {
       throw new Error(
-        'TTS_PROVIDER=fish-audio requires FISH_AUDIO_REFERENCE_ID (or legacy FISH_AUDIO_MODEL_ID)',
+        'TTS_PROVIDER=fish-audio requires FISH_AUDIO_REFERENCE_ID',
       );
     }
     return FISH_AUDIO_PROVIDER;
   }
-  return 'google';
+  if (envProvider === GOOGLE_PROVIDER) {
+    return GOOGLE_PROVIDER;
+  }
+  throw new Error('TTS_PROVIDER must be set to fish-audio or google');
 }
 
 function getFishAudioReferenceId(): string | null {
-  const referenceId =
-    process.env['FISH_AUDIO_REFERENCE_ID']?.trim() ||
-    process.env['FISH_AUDIO_MODEL_ID']?.trim();
+  const referenceId = process.env['FISH_AUDIO_REFERENCE_ID']?.trim();
 
   return referenceId && referenceId.length > 0 ? referenceId : null;
 }

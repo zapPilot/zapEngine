@@ -6,7 +6,7 @@ Hono API service for From Fed to Chain. Turns article URLs into multilingual pod
 
 - Hono on Node.js - TypeScript
 - OpenRouter-compatible LLM API
-- Google Cloud Text-to-Speech (Fish Audio provider wired but currently unused)
+- Fish Audio Text-to-Speech, with Google TTS as an explicit manual alternative
 - FFmpeg HLS packaging
 - Cloudflare R2 (S3-compatible storage)
 - Supabase PostgreSQL
@@ -19,9 +19,9 @@ Routes include `/health`, `/ingest`, `/telegram/webhook`, `/episodes`,
 
 ## Environment
 
-All env vars live in the monorepo root `.env` (see `.env.example` at repo root). Required for full ingest: `OPENROUTER_API_KEY`, `GOOGLE_TRANSLATE_API_KEY`, Google TTS credentials, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, and `INGEST_ADMIN_TOKEN`. Google credentials are only used by TTS. Script generation and language-classroom generation use `LLM_MODEL` (via OpenRouter). Title/script translation uses OpenRouter first via `TRANSLATION_LLM_MODEL=openrouter/free`; Google Cloud Translation API v2 remains the fallback through `GOOGLE_TRANSLATE_API_KEY`. `FISH_AUDIO_API_KEY` is only needed if the Fish Audio provider is re-enabled.
+All env vars live in the monorepo root `.env` (see `.env.example` at repo root). Required for full ingest: `OPENROUTER_API_KEY`, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, `INGEST_ADMIN_TOKEN`, and an explicit `TTS_PROVIDER`. Production-quality audio uses `TTS_PROVIDER=fish-audio` with `FISH_AUDIO_API_KEY` and `FISH_AUDIO_REFERENCE_ID`; Google credentials are needed only when deliberately setting `TTS_PROVIDER=google`. Script generation and language-classroom generation use `LLM_MODEL` via OpenRouter. Title/script translation uses OpenRouter first via `TRANSLATION_LLM_MODEL=openrouter/free`; Google Cloud Translation API v2 remains the fallback when `GOOGLE_TRANSLATE_API_KEY` is configured.
 
-TTS provider selection is per classroom language and code-owned in `src/services/tts/tts-config.ts`. All languages (`zh-Hant`, `ja`, `en`) currently route to Google for both main and classroom audio; the Fish Audio provider remains wired but unused. Changing providers, models, engines, or voices requires a code change and deploy.
+TTS provider selection is code-owned in `src/services/tts/tts-config.ts` and applies to both main and classroom audio for all languages (`zh-Hant`, `ja`, `en`). Missing, unknown, or incomplete Fish Audio configuration fails ingest instead of silently falling back to Google. Changing providers is an explicit env change and deploy.
 
 Telegram trigger support is optional. Use `PIPELINE_TELEGRAM_BOT_TOKEN`, `PIPELINE_TELEGRAM_WEBHOOK_SECRET`, and `PIPELINE_TELEGRAM_ALLOWED_USER_IDS` for this service so it does not collide with account-engine's Telegram bot settings.
 

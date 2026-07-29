@@ -12,6 +12,7 @@ pnpm install --frozen-lockfile --prefer-offline --ignore-scripts
 pnpm lint snapshot-sync --fix
 git add apps/landing-page/src/data/strategy-snapshot.json
 pnpm lint repo
+pnpm lint dead-env
 
 pnpm lint-staged
 

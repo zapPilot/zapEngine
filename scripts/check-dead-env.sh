@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # scripts/check-dead-env.sh
 #
-# Detects environment variables declared in root .env.example that are never
-# referenced in any app's source code, and code references to env vars missing
-# from root .env.example.
+# Treats root .env.example as the canonical env-key registry. Detects keys that
+# are dead in source, source references missing from the registry, and (when a
+# local .env exists) duplicate, blank, or unregistered local overrides.
 #
 # Supports all apps in this monorepo:
 #   - TypeScript / Node.js  (account-engine, alpha-etl, podcast-pipeline)
@@ -21,6 +21,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APPS_DIR="$REPO_ROOT/apps"
 PACKAGES_DIR="$REPO_ROOT/packages"
 ENV_FILE="$REPO_ROOT/.env.example"
+LOCAL_ENV_FILE="$REPO_ROOT/.env"
 
 # ── ANSI colours ────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -31,6 +32,7 @@ RESET='\033[0m'
 
 found_dead=0
 found_orphan=0
+found_local_drift=0
 
 declare -a EXCLUDED_BUILTINS=(
   "NODE_ENV"
@@ -310,6 +312,64 @@ declared_vars=$(
     | sort -u
 )
 
+# ── local .env audit: optional locally, absent in CI by design ───────────────
+if [ -f "$LOCAL_ENV_FILE" ]; then
+  duplicate_local_vars=$(
+    grep -E '^[A-Z_][A-Z0-9_]*=' "$LOCAL_ENV_FILE" \
+      | sed 's/=.*//' \
+      | sort \
+      | uniq -d
+  )
+
+  if [ -n "$duplicate_local_vars" ]; then
+    printf "${RED}${BOLD}Duplicate env vars found in .env:${RESET}\n"
+    while IFS= read -r var; do
+      printf "    ${RED}✗${RESET}  %s\n" "$var"
+    done <<< "$duplicate_local_vars"
+    printf "\n"
+    found_local_drift=1
+  fi
+
+  local_vars=$(
+    grep -E '^[A-Z_][A-Z0-9_]*=' "$LOCAL_ENV_FILE" \
+      | sed 's/=.*//' \
+      | sort -u
+  )
+  undeclared_local_vars=$(comm -23 <(printf '%s\n' "$local_vars") <(printf '%s\n' "$declared_vars"))
+
+  if [ -n "$undeclared_local_vars" ]; then
+    printf "${RED}${BOLD}Local .env vars missing from .env.example:${RESET}\n"
+    while IFS= read -r var; do
+      [ -n "$var" ] || continue
+      printf "    ${RED}✗${RESET}  %s\n" "$var"
+    done <<< "$undeclared_local_vars"
+    printf "\n"
+    found_local_drift=1
+  fi
+
+  empty_local_vars=$(
+    awk -F= '
+      /^[A-Z_][A-Z0-9_]*=/ {
+        value = substr($0, index($0, "=") + 1)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+        if (value == "" || value == "\"\"" || value == "\047\047") {
+          print $1
+        }
+      }
+    ' "$LOCAL_ENV_FILE" | sort -u
+  )
+
+  if [ -n "$empty_local_vars" ]; then
+    printf "${RED}${BOLD}Blank overrides found in .env:${RESET}\n"
+    while IFS= read -r var; do
+      [ -n "$var" ] || continue
+      printf "    ${RED}✗${RESET}  %s (remove the line and use the code default)\n" "$var"
+    done <<< "$empty_local_vars"
+    printf "\n"
+    found_local_drift=1
+  fi
+fi
+
 if [ -z "$declared_vars" ]; then
   printf "${YELLOW}No env vars declared in .env.example${RESET}\n"
   exit 0
@@ -428,10 +488,10 @@ if [ ${#fly_warnings[@]} -gt 0 ]; then
 fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
-if [ "$found_dead" -eq 0 ] && [ "$found_orphan" -eq 0 ]; then
-  printf "${GREEN}${BOLD}✓  No dead or undeclared env vars found.${RESET}\n\n"
+if [ "$found_dead" -eq 0 ] && [ "$found_orphan" -eq 0 ] && [ "$found_local_drift" -eq 0 ]; then
+  printf "${GREEN}${BOLD}✓  Env registry and local overrides are in sync.${RESET}\n\n"
   exit 0
 else
-  printf "${RED}${BOLD}✗  Env var drift detected — sync root .env.example and source code.${RESET}\n\n"
+  printf "${RED}${BOLD}✗  Env var drift detected — sync source, .env.example, and local .env.${RESET}\n\n"
   exit 1
 fi
