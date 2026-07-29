@@ -16,7 +16,9 @@ description: >-
 
 The podcast pipeline intentionally translates through OpenRouter first and falls back to Google Translate for transient model/provider issues. A syntactically successful provider response can still be semantically unusable.
 
-For main/classroom HLS separation, completion/resume, and playback sequencing, use [podcast-audio-section-integrity](../podcast-audio-section-integrity/SKILL.md); this skill owns translation provider fallback.
+For classroom generation, dual-HLS resume, and playback integrity, use
+[podcast-audio-section-integrity](../podcast-audio-section-integrity/SKILL.md);
+this skill owns translation provider validation, fallback, and cost behavior.
 
 ## Current implementation map
 

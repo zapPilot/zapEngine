@@ -4,20 +4,21 @@ description: >-
   Use when `apps/app` Playwright e2e tests fail in CI or local runs, especially
   Expo web export startup, `PLAYWRIGHT_PORT` / `PLAYWRIGHT_BASE_URL` mismatch,
   route-smoke assertions, a `Privy config is missing` screen, Metro env-cache
-  poisoning, auth navigation drift, ErrorBoundary smoke checks, or old
-  frontend/mobile-v2 path drift.
+  poisoning, auth navigation drift, ErrorBoundary smoke checks, old
+  `apps/mobile-v2` references, or product code added to the frontend build shim.
 ---
 
 # App Playwright CI debugging
 
 ## Core principle
 
-**Test the current Expo web app shell on the same port CI uses; do not add tests
-or product code to the frontend build shim, resurrect mobile-v2, or weaken the
-e2e gate to hide slow startup.**
+**Test the current Expo web app shell on the same port CI uses; do not resurrect
+retired mobile paths, put product code in the frontend shim, or weaken the e2e
+gate to hide slow startup.**
 
-`apps/mobile-v2` is retired. `apps/frontend` remains only as a build shim that
-delegates export to `apps/app`; do not add tests or product code to it.
+`apps/app` is the current Expo web app. `apps/mobile-v2` has been retired.
+`apps/frontend` remains only as a build shim that delegates the web export to
+`apps/app`; do not add tests or product code to either path.
 
 ## Where the signal already is
 
@@ -41,8 +42,8 @@ Keep the e2e script and Playwright web server in sync:
 
 - If `test:e2e` builds the Expo web export first, `webServer.command` should serve
   the existing export rather than rebuild it.
-- The server must bind to `PLAYWRIGHT_PORT`, and `PLAYWRIGHT_BASE_URL` must point
-  to that server.
+- The server must bind to `PLAYWRIGHT_PORT`, and `PLAYWRIGHT_BASE_URL` must
+  resolve to that server.
 - Avoid hard-coded ports in one side of the setup.
 - Expo web export and static-server startup can be slow in CI. Prefer a
   conservative Playwright `webServer.timeout` over skipping or deleting the gate.
@@ -136,7 +137,7 @@ wait for the final GitHub Actions run on the PR head to pass.
 
 | Excuse                                                            | Reality                                                                        |
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| "The old frontend path is where e2e used to live."                | `apps/app` owns e2e; `apps/frontend` is only an export build shim.             |
+| "The old frontend path is where e2e used to live."                | `apps/frontend` is a build shim; `apps/app` owns the Playwright tests.         |
 | "Startup is flaky, so skip the e2e gate."                         | Preserve the gate; add boot-specific waiting and failure artifacts.            |
 | "A balance or APR string proves the page loaded."                 | Route smoke should not depend on mutable product copy or market data.          |
 | "The app built locally, so Playwright port config is fine."       | Build success does not prove `PLAYWRIGHT_PORT` / `PLAYWRIGHT_BASE_URL` parity. |

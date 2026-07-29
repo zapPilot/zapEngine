@@ -126,6 +126,7 @@ pnpm exec tsx scripts/coverage-regression.ts
 | Excuse                                                                              | Reality                                                                                                                   |
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | "`verify ci` passed, so coverage is fine."                                          | Coverage is a separate GitHub job, not part of `verify ci`.                                                               |
+| "Run `pnpm coverage check`; it's the same as CI."                                   | Maybe not. First compare it with the workflow's exact command and filters.                                                |
 | "Just lower the root threshold / baseline."                                         | That weakens the gate for everyone. Only scoped, temporary workspace floors are acceptable for explicit POCs.             |
 | "The branch touched one workspace, so that workspace must be the coverage failure." | Coverage runs all workspaces; read the failed workspace line.                                                             |
 | "A green regression script means CI coverage is fixed."                             | Not if the workspace absolute floor failed before regression was even run.                                                |

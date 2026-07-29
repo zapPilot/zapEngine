@@ -19,7 +19,9 @@ description: >-
 
 Do not use `status === completed` as the only readiness signal. Validate the required artifact URLs.
 
-For translation provider fallback and translated-field validation, use [podcast-translation-fallback-testing](../podcast-translation-fallback-testing/SKILL.md); this skill owns main/classroom artifact integrity.
+For translation provider validation, fallback, and cost behavior, use
+[podcast-translation-fallback-testing](../podcast-translation-fallback-testing/SKILL.md);
+this skill owns dual-audio artifact, ingest, and playback integrity.
 
 **Two layers, both load-bearing.** The _artifact_ layer (two separate HLS sections, enforced by schema + `audio-stage.strict.test.ts`) is the historically fragile one. The _content_ layer has no schema/DB enforcement and is guarded only by `llm.classroom.strict.test.ts` and the independent `scripts/check-classroom-contract.mjs` gate: the classroom lesson prompt must stay grounded in the article and script (not just the title), keywords are concept-based and shared across every target language, and the app must actually play both sections. A prior regression narrowed the prompt to the title and rewrote its unit test in the same diff — a co-editable unit test is not a guard against that.
 

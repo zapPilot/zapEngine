@@ -1,9 +1,9 @@
 ---
 name: desktop-ci-debugging
 description: >-
-  Use when the `@zapengine/desktop` Electron shell fails CI, build, or packaging,
-  especially `app://` asset/SPA routing, bundled main/preload entry paths,
-  Electron externals, tray lifecycle, or packaged-only behavior.
+  Use when the Electron desktop shell fails around app:// asset routing,
+  main/preload CJS bundling, tray lifecycle, or electron-builder packaging.
+  Product UI failures belong to apps/app.
 ---
 
 # Desktop CI debugging
@@ -13,6 +13,14 @@ description: >-
 `apps/desktop` is an Electron shell that packages the static Expo web export
 from `apps/app`. Product UI lives in `apps/app`; desktop-only behavior lives in
 Electron main/preload code.
+
+Route generic gate failures to the sibling skill that owns their mechanism:
+
+| Failure                               | Route                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------ |
+| `format:check`                        | [monorepo-lint-format-loop](../monorepo-lint-format-loop/SKILL.md)       |
+| `dup:check`                           | [monorepo-dup-check](../monorepo-dup-check/SKILL.md)                     |
+| `type-check` import/build-order error | [monorepo-build-import-errors](../monorepo-build-import-errors/SKILL.md) |
 
 ## Correct desktop gates
 
@@ -31,13 +39,6 @@ pnpm --filter @zapengine/desktop package
 
 Package failures may require local macOS/Electron prerequisites. Code/config
 failures should be fixed before handoff.
-
-## Route sibling failures
-
-- `format` / `format:check` → [monorepo-lint-format-loop](../monorepo-lint-format-loop/SKILL.md)
-- `dup:check` → [monorepo-dup-check](../monorepo-dup-check/SKILL.md)
-- `type-check` module-resolution or build-order failures →
-  [monorepo-build-import-errors](../monorepo-build-import-errors/SKILL.md)
 
 ## Root-file blast radius
 
@@ -71,13 +72,14 @@ code.
 
 ## Rationalizations — STOP
 
-| Excuse                                                         | Reality                                                                         |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| "It's a desktop bug, so the UI fix belongs in `apps/desktop`." | Product UI lives in `apps/app`; the desktop workspace owns only shell behavior. |
-| "The build gate covers packaging too."                         | Main/preload/builder/package config can fail only at the package gate.          |
+| Excuse                                                     | Reality                                                                                               |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| "The desktop shell owns this product UI bug."              | Product UI lives in `apps/app`; keep the Electron shell focused on native integration.                |
+| "A package failure means the source gates can be skipped." | Packaging prerequisites are separate; fix code/config gates before diagnosing the macOS package step. |
+| "Run the workspace type-check directly."                   | Raw workspace commands bypass Turbo's dependency builds; use the canonical desktop gate above.        |
 
 ## Verification
 
-Run the [correct desktop gates](#correct-desktop-gates) above before handoff.
-When Electron main/preload/builder/package config changes, include the package
-gate.
+Before handoff, run the **Correct desktop gates** above. If the change touches
+Electron main/preload/builder/package config, also run the package command shown
+there.
