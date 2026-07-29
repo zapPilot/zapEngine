@@ -4,9 +4,11 @@ import type {
 } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
 import { describe, expect, it } from 'vitest';
 
+import { SUPPORTED_DEPOSIT_CHAINS } from '@zapengine/types/api';
+
 import {
   DEFAULT_DEPOSIT_PATH,
-  GMX_DEPOSIT_PATHS,
+  type GmxV2DepositPath,
 } from '@/integration/depositPaths';
 import {
   buildWizardStartInput,
@@ -18,7 +20,13 @@ import {
 } from '@/integration/investExecutionModel';
 
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`;
-const GMX_PATH = GMX_DEPOSIT_PATHS[0]!;
+const GMX_PATH: GmxV2DepositPath = {
+  kind: 'gmx-v2',
+  id: 'gmx-v2-btc-btc',
+  chainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+  marketKey: 'btc-btc',
+  marketLabel: 'BTC/BTC',
+};
 
 describe('buildWizardStartInput', () => {
   it('maps a base-invest draft onto the wizard start input', () => {

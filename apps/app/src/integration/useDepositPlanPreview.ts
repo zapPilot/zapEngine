@@ -46,6 +46,9 @@ export function useDepositPlanPreview({
     enabled,
     queryFn: () => {
       const userAddress = address as `0x${string}`;
+      // No production caller passes a gmx-v2 path today (LegacyHyperliquidScreen
+      // always sends DEFAULT_DEPOSIT_PATH); depositPath.id stays in the queryKey,
+      // so removing the parameter must be done together with a cache-key review.
       if (isGmxDepositPath(depositPath)) {
         return getGmxDepositPlan({
           kind: 'gmx-v2',
