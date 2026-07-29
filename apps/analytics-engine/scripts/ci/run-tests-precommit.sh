@@ -541,7 +541,7 @@ run_postgres_suite() {
     fi
 
     if [[ "${RUN_COVERAGE}" == "true" ]]; then
-        pytest_args+=(--cov=src --cov-report=term-missing)
+        pytest_args+=(--cov=src --cov-report=term-missing --cov-report=xml)
 
         if [[ "${GENERATE_HTMLCOV}" == "true" ]]; then
             pytest_args+=(--cov-report=html)

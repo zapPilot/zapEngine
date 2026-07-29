@@ -1,8 +1,9 @@
 ---
 name: desktop-ci-debugging
 description: >-
-  Use when `@zapengine/desktop` type-check, lint, test, deadcode, duplication,
-  build, or package checks fail for the Electron desktop shell.
+  Use when the `@zapengine/desktop` Electron shell fails CI, build, or packaging,
+  especially `app://` asset/SPA routing, bundled main/preload entry paths,
+  Electron externals, tray lifecycle, or packaged-only behavior.
 ---
 
 # Desktop CI debugging
@@ -30,6 +31,13 @@ pnpm --filter @zapengine/desktop package
 
 Package failures may require local macOS/Electron prerequisites. Code/config
 failures should be fixed before handoff.
+
+## Route sibling failures
+
+- `format` / `format:check` → [monorepo-lint-format-loop](../monorepo-lint-format-loop/SKILL.md)
+- `dup:check` → [monorepo-dup-check](../monorepo-dup-check/SKILL.md)
+- `type-check` module-resolution or build-order failures →
+  [monorepo-build-import-errors](../monorepo-build-import-errors/SKILL.md)
 
 ## Root-file blast radius
 
@@ -61,17 +69,15 @@ Close-to-tray and quit behavior are stateful. Prefer pure helpers or injected
 fakes in tests, then manually verify packaged behavior when changing lifecycle
 code.
 
+## Rationalizations — STOP
+
+| Excuse                                                         | Reality                                                                         |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| "It's a desktop bug, so the UI fix belongs in `apps/desktop`." | Product UI lives in `apps/app`; the desktop workspace owns only shell behavior. |
+| "The build gate covers packaging too."                         | Main/preload/builder/package config can fail only at the package gate.          |
+
 ## Verification
 
-Before handoff for desktop code/config changes:
-
-```bash
-pnpm turbo run type-check lint test build deadcode dup:check --filter=@zapengine/desktop
-pnpm --filter @zapengine/desktop format:check
-```
-
-If the change touches Electron main/preload/builder/package config:
-
-```bash
-pnpm --filter @zapengine/desktop package
-```
+Run the [correct desktop gates](#correct-desktop-gates) above before handoff.
+When Electron main/preload/builder/package config changes, include the package
+gate.

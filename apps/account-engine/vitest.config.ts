@@ -15,7 +15,7 @@ export default defineConfig({
     hookTimeout: 30_000,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html', 'clover', 'json', 'lcov'],
+      reporter: ['text', 'json-summary', 'html', 'clover', 'json', 'lcov'],
       include: ['src/**/*.{ts,js}'],
       exclude: [
         'node_modules/',

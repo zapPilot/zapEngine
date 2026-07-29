@@ -83,7 +83,7 @@ Before merge, use the repo's CI-equivalent gate from `.github/workflows/ci.yml`:
 
 ```bash
 pnpm verify ci
-pnpm run security audit core
+pnpm run security audit
 ```
 
 ## Rationalizations — STOP

@@ -9,6 +9,20 @@ export default defineConfig({
     globals: true,
     passWithNoTests: true,
     include: ['tests/**/*.{test,spec}.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary', 'html'],
+      reportsDirectory: 'coverage',
+      // Baseline on 2026-07-29 (statements/branches/functions/lines):
+      // 55.59/44.95/48.88/56.90.
+      // Keep a two-point buffer for normal churn, then ratchet upward.
+      thresholds: {
+        statements: 53,
+        branches: 42,
+        functions: 46,
+        lines: 54,
+      },
+    },
   },
   resolve: {
     alias: [

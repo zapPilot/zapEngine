@@ -2,21 +2,22 @@
 name: app-playwright-ci-debugging
 description: >-
   Use when `apps/app` Playwright e2e tests fail in CI or local runs, especially
-  Expo web export startup, `PLAYWRIGHT_PORT` / `BASE_URL` mismatch, route-smoke
-  assertions, a `Privy config is missing` screen, Metro env-cache poisoning,
-  auth navigation drift, ErrorBoundary smoke checks, or old frontend/mobile-v2
-  path drift.
+  Expo web export startup, `PLAYWRIGHT_PORT` / `PLAYWRIGHT_BASE_URL` mismatch,
+  route-smoke assertions, a `Privy config is missing` screen, Metro env-cache
+  poisoning, auth navigation drift, ErrorBoundary smoke checks, or old
+  frontend/mobile-v2 path drift.
 ---
 
 # App Playwright CI debugging
 
 ## Core principle
 
-**Test the current Expo web app shell on the same port CI uses; do not resurrect
-retired frontend paths or weaken the e2e gate to hide slow startup.**
+**Test the current Expo web app shell on the same port CI uses; do not add tests
+or product code to the frontend build shim, resurrect mobile-v2, or weaken the
+e2e gate to hide slow startup.**
 
-`apps/app` is the current Expo web app. Retired `apps/frontend` and
-`apps/mobile-v2` paths should not be reintroduced when fixing old Playwright notes.
+`apps/mobile-v2` is retired. `apps/frontend` remains only as a build shim that
+delegates export to `apps/app`; do not add tests or product code to it.
 
 ## Where the signal already is
 
@@ -40,7 +41,8 @@ Keep the e2e script and Playwright web server in sync:
 
 - If `test:e2e` builds the Expo web export first, `webServer.command` should serve
   the existing export rather than rebuild it.
-- The server must bind to the same `PLAYWRIGHT_PORT` used to derive `BASE_URL`.
+- The server must bind to `PLAYWRIGHT_PORT`, and `PLAYWRIGHT_BASE_URL` must point
+  to that server.
 - Avoid hard-coded ports in one side of the setup.
 - Expo web export and static-server startup can be slow in CI. Prefer a
   conservative Playwright `webServer.timeout` over skipping or deleting the gate.
@@ -56,7 +58,7 @@ shim before E2E runs. That env-less export warms Metro's transform cache. A late
 export with E2E Privy placeholders can reuse the stale transforms unless its
 bundler cache is cleared.
 
-- Build E2E only through `scripts/build-e2e-web.mjs`.
+- Build E2E only through `apps/app/scripts/build-e2e-web.mjs`.
 - Keep Expo's `--clear` flag and the compiled-placeholder verification together.
 - Treat a fast rebuild after an earlier env-less export as evidence to inspect
   the bundle, not proof that the new env was compiled.
@@ -132,17 +134,17 @@ wait for the final GitHub Actions run on the PR head to pass.
 
 ## Rationalizations — STOP
 
-| Excuse                                                            | Reality                                                                     |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| "The old frontend path is where e2e used to live."                | `apps/app` is the current Expo web app. Do not revive retired paths.        |
-| "Startup is flaky, so skip the e2e gate."                         | Preserve the gate; add boot-specific waiting and failure artifacts.         |
-| "A balance or APR string proves the page loaded."                 | Route smoke should not depend on mutable product copy or market data.       |
-| "The app built locally, so Playwright port config is fine."       | Build success does not prove `PLAYWRIGHT_PORT` / `BASE_URL` parity.         |
-| "The implementation fix is obvious; CI can validate after merge." | Route-smoke expectations must match the auth navigation model before merge. |
-| "A browser redirect fallback will fix CI hydration."              | It only runs after React mounts and is unsafe in a shared native route.     |
-| "The Playwright web server has the env, so the app does too."     | Static Expo config was compiled earlier; serving env cannot rewrite it.     |
-| "Reorder the later video assertions to fix both failed tests."    | If both tests show the config screen, neither reached the video assertions. |
-| "Drop `--clear` because a warm Metro build is faster."            | Env-less transforms can silently restore the config screen in E2E.          |
+| Excuse                                                            | Reality                                                                        |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| "The old frontend path is where e2e used to live."                | `apps/app` owns e2e; `apps/frontend` is only an export build shim.             |
+| "Startup is flaky, so skip the e2e gate."                         | Preserve the gate; add boot-specific waiting and failure artifacts.            |
+| "A balance or APR string proves the page loaded."                 | Route smoke should not depend on mutable product copy or market data.          |
+| "The app built locally, so Playwright port config is fine."       | Build success does not prove `PLAYWRIGHT_PORT` / `PLAYWRIGHT_BASE_URL` parity. |
+| "The implementation fix is obvious; CI can validate after merge." | Route-smoke expectations must match the auth navigation model before merge.    |
+| "A browser redirect fallback will fix CI hydration."              | It only runs after React mounts and is unsafe in a shared native route.        |
+| "The Playwright web server has the env, so the app does too."     | Static Expo config was compiled earlier; serving env cannot rewrite it.        |
+| "Reorder the later video assertions to fix both failed tests."    | If both tests show the config screen, neither reached the video assertions.    |
+| "Drop `--clear` because a warm Metro build is faster."            | Env-less transforms can silently restore the config screen in E2E.             |
 
 ## Verification
 

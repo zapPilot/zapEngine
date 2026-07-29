@@ -11,7 +11,7 @@ const config: ViteUserConfig = {
     coverage: {
       provider: 'v8',
       all: true,
-      reporter: ['text', 'html', 'clover', 'json'],
+      reporter: ['text', 'json-summary', 'html', 'clover', 'json'],
       exclude: [
         'node_modules/',
         'dist/',

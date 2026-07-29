@@ -16,6 +16,8 @@ description: >-
 
 The podcast pipeline intentionally translates through OpenRouter first and falls back to Google Translate for transient model/provider issues. A syntactically successful provider response can still be semantically unusable.
 
+For main/classroom HLS separation, completion/resume, and playback sequencing, use [podcast-audio-section-integrity](../podcast-audio-section-integrity/SKILL.md); this skill owns translation provider fallback.
+
 ## Current implementation map
 
 - `apps/podcast-pipeline/src/services/translate.ts`
@@ -63,9 +65,9 @@ If a PR changes root config, shared packages, or CI inputs, also follow `monorep
 
 ## Rationalizations — STOP
 
-| Excuse | Reality |
-| --- | --- |
-| "The provider returned HTTP 200, so the translation is valid." | A successful response can still have missing or blank fields. Validate shape and content. |
-| "Only one field is non-empty, so the cost should be one unit." | Cost is character-based, not field-based. Count source characters. |
-| "Empty title/script should still go through Google for consistency." | `translateText('')` intentionally preserves empty input and skips provider calls. |
-| "This is just another edge-case test." | Fallback behavior protects user-facing podcast scripts from blank localized content. |
+| Excuse                                                               | Reality                                                                                   |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| "The provider returned HTTP 200, so the translation is valid."       | A successful response can still have missing or blank fields. Validate shape and content. |
+| "Only one field is non-empty, so the cost should be one unit."       | Cost is character-based, not field-based. Count source characters.                        |
+| "Empty title/script should still go through Google for consistency." | `translateText('')` intentionally preserves empty input and skips provider calls.         |
+| "This is just another edge-case test."                               | Fallback behavior protects user-facing podcast scripts from blank localized content.      |

@@ -10,7 +10,7 @@
 #   .ai-verify/result.json      { schemaVersion, status, jobs[{id,status,exitCode,log}] }
 #   .ai-verify/logs/<id>.log    one combined-output log per recorded job
 #
-# Core gates (verify ci / parallel) record the 9 jobs from ci-jobs.sh, one log
+# Core gates (verify ci / parallel) record the jobs from ci-jobs.sh, one log
 # each. Affected gates (verify changed / branch) record a single
 # aggregate entry whose log holds the turbo run; turbo `--summarize` then lets a
 # reader localize the failing package#task from .turbo/runs/*.json.

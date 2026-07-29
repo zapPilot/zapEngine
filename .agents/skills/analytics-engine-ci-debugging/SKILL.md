@@ -22,9 +22,10 @@ plus one log per job under `.ai-verify/logs/`. Read `result.json`, find the
 failed job, then read its log. analytics-engine failures surface across several
 core jobs:
 
-- **`format`** (ruff format), **`lint`** (ruff check + mypy), **`contracts`**
-  (zod↔pydantic), **`dup`** (jscpd), and **`analytics`** (sql:audit /
-  service-reachability / pylint) → the matching `.ai-verify/logs/<job>.log`
+- **`format`** (ruff format), **`lint`** (ruff check + mypy),
+  **`type-check`** (mypy), **`contracts`** (zod↔pydantic), **`dup`** (jscpd),
+  and **`analytics`** (sql:audit / service-reachability / pylint) → the matching
+  `.ai-verify/logs/<job>.log`
 
 That log holds the full error. The per-gate commands below are for re-running a
 single gate once you've located it — not the entry point.
@@ -67,13 +68,13 @@ Burned `651d7ec1` (and the cleanup `961f7186`).
 
 ## The other Python gates — triage
 
-| Failing check | Command (wraps `uv run`) | Action |
-| --- | --- | --- |
-| `type-check` / `lint`'s mypy half | `mypy src` (strict) | Every function needs annotations. **Add the real types** — don't `# type: ignore` to silence it. |
-| `dup:check` | jscpd on `src` | Merge the clone, or `jscpd:ignore` an intentional one with a reason; a dated dup-quarantine that lapsed must be eliminated, not re-quarantined (`2decbc0e` → `58514fb9`). → **monorepo-dup-check** owns the jscpd mechanism repo-wide. |
-| `contracts check` | `pnpm contracts check` | zod↔pydantic parity. It runs `build packages` then exports the zod schemas via raw `tsx` (bypasses turbo, hence the explicit prebuild) and diffs against the pydantic models. Fix whichever side drifted — the zod schema in `@zapengine/types` or the pydantic model. |
-| `pnpm turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine` | `sql:audit` + `service-reachability` + `pylint:duplicate-check` | analytics-specific gates; read the named failure. |
-| `test:ci` | `… --cov-fail-under 95` + `test:strategy-snapshot:fast` | **95% coverage floor** (see [monorepo-coverage-gate](../monorepo-coverage-gate/SKILL.md)) and the strategy-snapshot gate. The snapshot/measurement gate needs `DATABASE_READ_ONLY_URL` (Supabase read-only replica) — it's **CI-validated only**; don't burn cycles reproducing it locally (see [apps/analytics-engine/CLAUDE.md](../../../apps/analytics-engine/CLAUDE.md)). |
+| Failing check                                                                                               | Command (wraps `uv run`)                                        | Action                                                                                                                                                                                                                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type-check` / `lint`'s mypy half                                                                           | `mypy src` (strict)                                             | Every function needs annotations. **Add the real types** — don't `# type: ignore` to silence it.                                                                                                                                                                                                                                                                                                    |
+| `dup:check`                                                                                                 | jscpd on `src`                                                  | Merge the clone, or `jscpd:ignore` an intentional one with a reason; a dated dup-quarantine that lapsed must be eliminated, not re-quarantined (`2decbc0e` → `58514fb9`). → **monorepo-dup-check** owns the jscpd mechanism repo-wide.                                                                                                                                                              |
+| `contracts check`                                                                                           | `pnpm contracts check`                                          | zod↔pydantic parity. It runs `build packages` then exports the zod schemas via raw `tsx` (bypasses turbo, hence the explicit prebuild) and diffs against the pydantic models. Fix whichever side drifted — the zod schema in `@zapengine/types` or the pydantic model.                                                                                                                              |
+| `pnpm turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine` | `sql:audit` + `service-reachability` + `pylint:duplicate-check` | analytics-specific gates; read the named failure.                                                                                                                                                                                                                                                                                                                                                   |
+| `test:ci`                                                                                                   | `… --coverage` + `test:strategy-snapshot:fast`                  | **95% coverage floor** from `pyproject.toml` (see [monorepo-coverage-gate](../monorepo-coverage-gate/SKILL.md)) and the strategy-snapshot gate. The snapshot/measurement gate needs `DATABASE_READ_ONLY_URL` (Supabase read-only replica) — it's **CI-validated only**; don't burn cycles reproducing it locally (see [apps/analytics-engine/CLAUDE.md](../../../apps/analytics-engine/CLAUDE.md)). |
 
 ## Reproduce locally
 
@@ -82,7 +83,9 @@ Burned `651d7ec1` (and the cleanup `961f7186`).
 pnpm --filter @zapengine/analytics-engine run build
 
 # the fast, deterministic gates (no DB needed)
-pnpm --filter @zapengine/analytics-engine run format:check lint type-check
+pnpm --filter @zapengine/analytics-engine run format:check
+pnpm --filter @zapengine/analytics-engine run lint
+pnpm --filter @zapengine/analytics-engine run type-check
 pnpm --filter @zapengine/analytics-engine run dup:check
 pnpm contracts check
 ```
@@ -92,18 +95,20 @@ New dependency? `uv add <pkg>` — **never `pip install`** (it won't touch
 
 ## Rationalizations — STOP
 
-| Excuse | Reality |
-| --- | --- |
-| "`ruff check` is clean, so formatting is fine." | `check` (linter) and `format` (formatter) are separate. CI's `format:check` runs the formatter. Run `ruff format`. |
-| "The pre-commit hook passed, so format is fine." | lint-staged runs `ruff check --fix` only — not `ruff format`. Formatter drift escapes the hook. |
-| "Add `# type: ignore` / `# noqa` to get past mypy/ruff." | That hides the defect the strict gate exists to catch. Add the annotation / fix the lint. |
-| "Bump the jscpd threshold / re-quarantine the clones." | The quarantine is a deadline, not a permanent waiver. Eliminate the duplication or `jscpd:ignore` a genuinely-irreducible signature with a reason. |
-| "I'll edit `uv.lock` by hand to fix a dep." | Use `uv add` / `uv lock`; hand-edits drift from CI's locked install. |
+| Excuse                                                             | Reality                                                                                                                                            |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "`ruff check` is clean, so formatting is fine."                    | `check` (linter) and `format` (formatter) are separate. CI's `format:check` runs the formatter. Run `ruff format`.                                 |
+| "The pre-commit hook passed, so the whole workspace is formatted." | lint-staged formats staged Python files only. Run the workspace `format:check` to cover the full configured scope.                                 |
+| "Add `# type: ignore` / `# noqa` to get past mypy/ruff."           | That hides the defect the strict gate exists to catch. Add the annotation / fix the lint.                                                          |
+| "Bump the jscpd threshold / re-quarantine the clones."             | The quarantine is a deadline, not a permanent waiver. Eliminate the duplication or `jscpd:ignore` a genuinely-irreducible signature with a reason. |
+| "I'll edit `uv.lock` by hand to fix a dep."                        | Use `uv add` / `uv lock`; hand-edits drift from CI's locked install.                                                                               |
 
 ## Verification
 
 ```bash
-pnpm --filter @zapengine/analytics-engine run format:check lint type-check
+pnpm --filter @zapengine/analytics-engine run format:check
+pnpm --filter @zapengine/analytics-engine run lint
+pnpm --filter @zapengine/analytics-engine run type-check
 pnpm --filter @zapengine/analytics-engine run dup:check
 pnpm contracts check
 pnpm turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine
