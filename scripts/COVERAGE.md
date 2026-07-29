@@ -82,18 +82,37 @@ absolute threshold is not met. Baseline drift alone does not fail CI; run
 
 ## Per-workspace thresholds
 
-Each workspace enforces its own hard floor via vitest/pytest config:
+Each gated workspace enforces its own hard floor via vitest/pytest config
+(`coverage.thresholds` in `vitest.config.ts`, or `[tool.coverage.report]
+fail_under` in `pyproject.toml`):
 
-| Workspace                | Statements       | Branches | Functions | Lines |
-| ------------------------ | ---------------- | -------- | --------- | ----- |
-| `packages/intent-engine` | 90               | 85       | 90        | 90    |
-| `packages/types`         | 90               | 85       | 90        | 90    |
-| `apps/account-engine`    | 90               | 85       | 90        | 90    |
-| `apps/alpha-etl`         | 80               | 75       | 80        | 80    |
-| `apps/podcast-pipeline`  | 75               | 70       | 75        | 75    |
-| `apps/landing-page`      | 70               | 65       | 70        | 70    |
-| `apps/analytics-engine`  | 95 line (pytest) |          |
+| Workspace                | Statements | Branches | Functions | Lines |
+| ------------------------ | ---------- | -------- | --------- | ----- |
+| `packages/intent-engine` | 90         | 85       | 90        | 90    |
+| `packages/types`         | 90         | 85       | 90        | 90    |
+| `apps/account-engine`    | 95         | 90       | 95        | 95    |
+| `apps/alpha-etl`         | 92         | 92       | 92        | 92    |
+| `apps/podcast-pipeline`  | 91         | 80       | 92        | 92    |
+| `apps/desktop`           | 85         | 80       | 85        | 85    |
+| `apps/landing-page`      | 50         | 45       | 55        | 50    |
+| `apps/analytics-engine`  | —          | —        | —         | 98    |
 
-These are aspirational starting floors. Raise a config-level threshold when the
-team wants to make sustained improvements mandatory, and update this table in
-the same PR.
+- `apps/landing-page`: the global floor is a temporary POC floor while the
+  track-record dashboard is backfilled with tests (see the comment in its
+  `vitest.config.ts`). `src/hooks/useMediaQuery.ts` and
+  `src/hooks/useReducedMotion.ts` additionally carry per-file thresholds of
+  80/75/80/80.
+- `apps/analytics-engine`: pytest-cov enforces a single line-coverage floor —
+  `fail_under = 98` under `[tool.coverage.report]` in `pyproject.toml` — used
+  by `test:coverage` (the CI coverage job). `test:ci` separately passes an
+  explicit `--cov-fail-under 95` to the same suite.
+
+### Workspaces without a coverage floor
+
+`apps/app` and `packages/design-tokens` run coverage (`test:coverage`) but
+configure no thresholds, and `packages/app-core` has no coverage block at all
+(and sets `passWithNoTests: true`). The coverage job can never fail these
+workspaces on coverage — do not assume every workspace is gated.
+
+Raise a config-level threshold when the team wants to make sustained
+improvements mandatory, and update this table in the same PR.
