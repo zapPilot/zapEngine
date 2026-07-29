@@ -1,54 +1,24 @@
+import {
+  approvedWalletRank,
+  formatApprovedWalletList,
+  isApprovedWalletConnector,
+} from '@zapengine/app-core/lib/wallet/approvedWallets';
 import type { WalletConnectorOption } from '@zapengine/app-core/types';
-
-export interface PartitionedWalletOptions {
-  /** Approved EIP-7702 wallet brands, shown in product-priority order. */
-  recommended: WalletConnectorOption[];
-  /** Reserved for future curated connectors; unapproved wallets stay hidden. */
-  other: WalletConnectorOption[];
-  /** Whether an approved browser-extension wallet was detected. */
-  hasInjected: boolean;
-}
-
-const APPROVED_WALLET_PRIORITY = ['rabby', 'ambire', 'okx'];
-const APPROVED_RDNS = new Set(['io.rabby', 'com.ambire', 'com.okex.wallet']);
-
-function isApprovedWallet(option: WalletConnectorOption): boolean {
-  if (option.type !== 'injected') {
-    return false;
-  }
-  const name = option.name.toLowerCase();
-  return (
-    APPROVED_RDNS.has(option.id) ||
-    APPROVED_WALLET_PRIORITY.some((brand) => name.includes(brand))
-  );
-}
-
-function recommendedPriority(option: WalletConnectorOption): number {
-  const name = option.name.toLowerCase();
-  const index = APPROVED_WALLET_PRIORITY.findIndex((needle) =>
-    name.includes(needle),
-  );
-  return index === -1 ? APPROVED_WALLET_PRIORITY.length : index;
-}
 
 /**
  * Applies the product allowlist to discovered connectors. Generic
  * WalletConnect remains configured below the UI layer for future curated
  * deep-links, but it must never expose an unrestricted wallet directory.
  */
-export function partitionWalletOptions(
-  connectors: WalletConnectorOption[],
-): PartitionedWalletOptions {
-  const approved = connectors
-    .filter(isApprovedWallet)
-    .map((option) => ({ ...option, recommended: true }))
-    .sort((a, b) => recommendedPriority(a) - recommendedPriority(b));
-
-  return {
-    recommended: approved,
-    other: [],
-    hasInjected: approved.length > 0,
-  };
+export function approvedWalletOptions(
+  connectors: readonly WalletConnectorOption[],
+): WalletConnectorOption[] {
+  return connectors
+    .filter(
+      (option) =>
+        option.type === 'injected' && isApprovedWalletConnector(option),
+    )
+    .sort((a, b) => approvedWalletRank(a) - approvedWalletRank(b));
 }
 
 export interface ConnectErrorCopy {
@@ -80,7 +50,7 @@ export function mapConnectError(
   if (error.code === 'NO_WALLET' || NO_PROVIDER_PATTERN.test(error.message)) {
     return {
       title: "Couldn't reach that wallet",
-      body: 'Make sure Rabby, Ambire, or OKX Wallet is installed and unlocked.',
+      body: `Make sure ${formatApprovedWalletList()} is installed and unlocked.`,
     };
   }
 

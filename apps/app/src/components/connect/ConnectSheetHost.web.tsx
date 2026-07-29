@@ -6,8 +6,8 @@ import { useEffect, useRef } from 'react';
 
 import { ConnectSheet } from '@/components/connect/ConnectSheet';
 import {
+  approvedWalletOptions,
   mapConnectError,
-  partitionWalletOptions,
 } from '@/integration/connectOptions';
 import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
 
@@ -33,15 +33,11 @@ export function ConnectSheetHost() {
     }
   }, [wallet.isConnected, login, showToast]);
 
-  const { recommended, other } = partitionWalletOptions(login.connectors);
+  const options = approvedWalletOptions(login.connectors);
   const errorCopy = mapConnectError(login.error);
 
   const handleWalletPress = (option: WalletConnectorOption) => {
-    if (option.type === 'walletConnect') {
-      void login.connectWalletConnect();
-    } else {
-      void login.connectInjected(option.id);
-    }
+    void login.connectInjected(option.id);
   };
 
   return (
@@ -51,8 +47,7 @@ export function ConnectSheetHost() {
         authAction.cancel();
         login.closePicker();
       }}
-      recommended={recommended}
-      other={other}
+      options={options}
       connectingId={login.connectingId}
       errorCopy={errorCopy}
       onPrivyPress={() => void login.connectPrivy()}

@@ -1,5 +1,6 @@
 import { getWagmiConfig } from '@core/config/wagmi';
 import { isWalletConnectEnabled } from '@core/lib/env/walletConnect';
+import { isApprovedWalletConnector } from '@core/lib/wallet/approvedWallets';
 import {
   buildWalletAccount,
   buildWalletChain,
@@ -28,30 +29,6 @@ import {
 import { getWalletClient as getWagmiWalletClient } from 'wagmi/actions';
 
 /**
- * Wallets whose extension is verified against Zap Pilot's supported chains
- * and shown first, badged "Recommended". Everything else discovered via
- * EIP-6963 (or the generic WalletConnect connector) is still connectable,
- * just not vetted.
- *
- * Matched primarily by the EIP-6963 display name (a stable, human-authored
- * field every wallet sets to its own brand) rather than `rdns` — `rdns`
- * strings aren't published in one canonical place, so a name match is the
- * more robust signal; the `rdns` set below is a defensive secondary check.
- */
-const RECOMMENDED_NAME_PATTERN = /rabby|ambire/i;
-const RECOMMENDED_RDNS = new Set(['io.rabby', 'com.ambire']);
-
-function isRecommendedConnector(connector: {
-  id: string;
-  name: string;
-}): boolean {
-  return (
-    RECOMMENDED_NAME_PATTERN.test(connector.name) ||
-    RECOMMENDED_RDNS.has(connector.id)
-  );
-}
-
-/**
  * Maps wagmi's live connector list onto the picker's `WalletConnectorOption`
  * shape. EIP-6963 multi-injected discovery adds one connector per detected
  * extension alongside the generic `injected()` fallback (`id: 'injected'`);
@@ -75,7 +52,7 @@ function toConnectorOptions(
       id: connector.id,
       name: connector.name,
       ...(connector.icon ? { icon: connector.icon } : {}),
-      recommended: isRecommendedConnector(connector),
+      recommended: isApprovedWalletConnector(connector),
       type: 'injected',
     }),
   );

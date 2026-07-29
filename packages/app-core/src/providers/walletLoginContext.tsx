@@ -19,15 +19,11 @@ export interface WalletLoginContextValue {
   /** Discovered wallets (injected + the generic WalletConnect entry). */
   connectors: WalletConnectorOption[];
   connectInjected(connectorId: string): Promise<void>;
-  connectWalletConnect(): Promise<void>;
   connectPrivy(): Promise<void>;
-  /** id of the option currently connecting, or `null`. One of `connectors[].id`, `'privy'`, or `'walletconnect'`. */
+  /** id of the option currently connecting, or `null`: `connectors[].id` or `'privy'`. */
   connectingId: string | null;
   isConnecting: boolean;
-  isWalletConnectAvailable: boolean;
   error: { message: string; code?: string } | null;
-  clearError(): void;
-  activeMethod: 'privy' | 'wagmi' | null;
 }
 
 const WalletLoginContext = createContext<WalletLoginContextValue | null>(null);

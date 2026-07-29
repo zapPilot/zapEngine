@@ -69,7 +69,7 @@ describe('useWagmiWalletBackend', () => {
     expect(result.current.backend.executeAtomicBatch).toBeUndefined();
   });
 
-  it('maps discovered connectors, flags Rabby/Ambire as recommended, and drops the generic injected fallback once a specific wallet is found', () => {
+  it('maps discovered connectors, flags all approved wallets as recommended, and drops the generic injected fallback once a specific wallet is found', () => {
     mocks.connectors = [
       { id: 'injected', name: 'Injected', type: 'injected' },
       {
@@ -80,17 +80,30 @@ describe('useWagmiWalletBackend', () => {
       },
       { id: 'com.ambire', name: 'Ambire Wallet', type: 'injected' },
       { id: 'io.metamask', name: 'MetaMask', type: 'injected' },
+      {
+        id: 'com.okex.wallet',
+        name: 'OKX Wallet',
+        type: 'injected',
+      },
     ];
     const { result } = renderHook(() => useWagmiWalletBackend());
 
     const ids = result.current.connectors.map((option) => option.id);
     expect(ids).not.toContain('injected');
-    expect(ids).toEqual(['io.rabby', 'com.ambire', 'io.metamask']);
+    expect(ids).toEqual([
+      'io.rabby',
+      'com.ambire',
+      'io.metamask',
+      'com.okex.wallet',
+    ]);
 
     const rabby = result.current.connectors.find((o) => o.id === 'io.rabby');
     const ambire = result.current.connectors.find((o) => o.id === 'com.ambire');
     const metamask = result.current.connectors.find(
       (o) => o.id === 'io.metamask',
+    );
+    const okx = result.current.connectors.find(
+      (o) => o.id === 'com.okex.wallet',
     );
     expect(rabby).toMatchObject({
       recommended: true,
@@ -98,7 +111,8 @@ describe('useWagmiWalletBackend', () => {
       icon: 'data:image/png;base64,x',
     });
     expect(ambire).toMatchObject({ recommended: true, type: 'injected' });
-    expect(metamask).toMatchObject({ recommended: false, type: 'injected' });
+    expect(metamask).toMatchObject({ recommended: true, type: 'injected' });
+    expect(okx).toMatchObject({ recommended: true, type: 'injected' });
   });
 
   it('keeps the bare injected connector when no specific wallet is discovered', () => {

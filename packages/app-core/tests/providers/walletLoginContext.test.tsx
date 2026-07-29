@@ -20,14 +20,10 @@ const stubValue: WalletLoginContextValue = {
     },
   ],
   connectInjected: async () => {},
-  connectWalletConnect: async () => {},
   connectPrivy: async () => {},
   connectingId: null,
   isConnecting: false,
-  isWalletConnectAvailable: false,
   error: null,
-  clearError: () => {},
-  activeMethod: null,
 };
 
 function ShowFirstConnectorName() {
@@ -36,7 +32,7 @@ function ShowFirstConnectorName() {
 }
 
 describe('walletLoginContext', () => {
-  it('exposes the connection-method value through useWalletLogin', () => {
+  it('exposes connector options through useWalletLogin', () => {
     const html = renderToString(
       <WalletLoginProvider value={stubValue}>
         <ShowFirstConnectorName />

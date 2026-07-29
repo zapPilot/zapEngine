@@ -2,8 +2,8 @@ import type { WalletConnectorOption } from '@zapengine/app-core/types';
 import { describe, expect, it } from 'vitest';
 
 import {
+  approvedWalletOptions,
   mapConnectError,
-  partitionWalletOptions,
 } from '@/integration/connectOptions';
 
 function connector(
@@ -13,9 +13,9 @@ function connector(
   return { recommended: false, type: 'injected', ...overrides };
 }
 
-describe('partitionWalletOptions', () => {
-  it('keeps only approved wallets in Rabby, Ambire, OKX order', () => {
-    const result = partitionWalletOptions([
+describe('approvedWalletOptions', () => {
+  it('keeps approved wallets in Rabby, Ambire, OKX, MetaMask order', () => {
+    const result = approvedWalletOptions([
       connector({ id: 'io.metamask', name: 'MetaMask' }),
       connector({ id: 'com.okex.wallet', name: 'OKX Wallet' }),
       connector({ id: 'com.ambire', name: 'Ambire Wallet', recommended: true }),
@@ -26,44 +26,24 @@ describe('partitionWalletOptions', () => {
         type: 'walletConnect',
       }),
     ]);
-    expect(result.recommended.map((option) => option.name)).toEqual([
+    expect(result.map((option) => option.name)).toEqual([
       'Rabby Wallet',
       'Ambire Wallet',
       'OKX Wallet',
+      'MetaMask',
     ]);
-    expect(result.other).toEqual([]);
-    expect(result.hasInjected).toBe(true);
   });
 
   it('hides unapproved injected wallets and generic WalletConnect', () => {
-    const result = partitionWalletOptions([
-      connector({ id: 'io.metamask', name: 'MetaMask' }),
+    const result = approvedWalletOptions([
+      connector({ id: 'app.phantom', name: 'Phantom' }),
       connector({
         id: 'walletConnect',
         name: 'WalletConnect',
         type: 'walletConnect',
       }),
     ]);
-    expect(result.other).toEqual([]);
-    expect(result.recommended).toEqual([]);
-    expect(result.hasInjected).toBe(false);
-  });
-
-  it('reports hasInjected only when an injected connector is present', () => {
-    expect(partitionWalletOptions([]).hasInjected).toBe(false);
-    expect(
-      partitionWalletOptions([
-        connector({
-          id: 'walletConnect',
-          name: 'WalletConnect',
-          type: 'walletConnect',
-        }),
-      ]).hasInjected,
-    ).toBe(false);
-    expect(
-      partitionWalletOptions([connector({ id: 'io.rabby', name: 'Rabby' })])
-        .hasInjected,
-    ).toBe(true);
+    expect(result).toEqual([]);
   });
 });
 
@@ -82,9 +62,14 @@ describe('mapConnectError', () => {
   });
 
   it('maps NO_WALLET (and provider-not-found messages) to an unreachable-wallet copy', () => {
-    expect(
-      mapConnectError({ message: 'No wallet detected', code: 'NO_WALLET' }),
-    ).toMatchObject({ title: "Couldn't reach that wallet" });
+    const noWalletCopy = mapConnectError({
+      message: 'No wallet detected',
+      code: 'NO_WALLET',
+    });
+    expect(noWalletCopy).toMatchObject({
+      title: "Couldn't reach that wallet",
+    });
+    expect(noWalletCopy?.body).toContain('MetaMask');
     // wagmi's ProviderNotFoundError message (@wagmi/core/errors/connector.ts)
     expect(mapConnectError({ message: 'Provider not found.' })).toMatchObject({
       title: "Couldn't reach that wallet",

@@ -40,14 +40,12 @@ interface WalletProviderProps {
  * SDK directly. Mounted after `PrivyAuthProvider` and `Web3Provider` (which
  * supply the `PrivyProvider`/`WagmiProvider` ancestors).
  *
- * Active backend: an externally connected wagmi wallet wins over Privy (a
- * user who connected Rabby/Ambire is deliberately not using the embedded
- * wallet); otherwise an authenticated Privy session; otherwise the
- * disconnected wagmi backend as a neutral default. The exposed `connect()` is
- * always overridden to open the custom picker (`useWalletLogin().openPicker`)
- * — screens keep calling `useWalletProvider().connect()` unchanged, and on
- * web/desktop that now shows the wallet-or-Privy choice instead of jumping
- * straight into Privy.
+ * Active backend: an externally connected wagmi wallet wins over Privy;
+ * otherwise an authenticated Privy session; otherwise the disconnected wagmi
+ * backend as a neutral default. The exposed `connect()` is always overridden
+ * to open the custom picker (`useWalletLogin().openPicker`) — screens keep
+ * calling `useWalletProvider().connect()` unchanged, and on web/desktop that
+ * now shows the wallet-or-Privy choice instead of jumping straight into Privy.
  */
 export function WalletProvider({
   children,
@@ -81,18 +79,6 @@ export function WalletProvider({
     },
     [wagmi],
   );
-
-  const connectWalletConnect = useCallback(async (): Promise<void> => {
-    setConnectingId('walletconnect');
-    try {
-      await wagmi.connectWalletConnect();
-    } finally {
-      setConnectingId(null);
-    }
-  }, [wagmi]);
-
-  const activeMethod: WalletLoginContextValue['activeMethod'] =
-    wagmi.isConnected ? 'wagmi' : privy.isActive ? 'privy' : null;
 
   const activeBackend: WalletProviderInterface = wagmi.isConnected
     ? wagmi.backend
@@ -134,17 +120,13 @@ export function WalletProvider({
       closePicker,
       connectors: wagmi.connectors,
       connectInjected,
-      connectWalletConnect,
       connectPrivy,
       connectingId,
       isConnecting:
         connectingId !== null ||
         wagmi.backend.isConnecting ||
         privy.backend.isConnecting,
-      isWalletConnectAvailable: wagmi.isWalletConnectAvailable,
       error: activeBackend.error,
-      clearError: activeBackend.clearError,
-      activeMethod,
     }),
     [
       isPickerOpen,
@@ -152,15 +134,11 @@ export function WalletProvider({
       closePicker,
       wagmi.connectors,
       connectInjected,
-      connectWalletConnect,
       connectPrivy,
       connectingId,
       wagmi.backend.isConnecting,
       privy.backend.isConnecting,
-      wagmi.isWalletConnectAvailable,
       activeBackend.error,
-      activeBackend.clearError,
-      activeMethod,
     ],
   );
 

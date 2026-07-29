@@ -12,12 +12,10 @@ import { walletConnect } from 'wagmi/connectors/walletConnect';
  * wagmi config for external-wallet login (web + Electron desktop only).
  *
  * `injected()` surfaces one connector per EIP-6963-announced browser
- * extension (Rabby, Ambire, MetaMask, …) — real browsers only. `walletConnect()`
- * is the only external-wallet path on hosts with no browser extensions (the
- * Electron shell), so it is added whenever a project ID is configured; unlike
- * the pre-removal config, a missing project ID does not throw — `injected()`
- * still works in real browsers, it just means desktop has no external-wallet
- * option beyond Privy.
+ * extension in real browsers. `walletConnect()` is added whenever a project ID
+ * is configured, but remains below the visible picker as a future seam for
+ * curated mobile-wallet handoffs. Unlike the pre-removal config, a missing
+ * project ID does not throw — `injected()` still works in real browsers.
  *
  * Lazily memoized so `createConfig` (which touches storage) never runs at
  * import time, matching the app-core "no module-scope env read" rule.

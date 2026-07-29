@@ -1,3 +1,5 @@
+import { formatApprovedWalletList } from '@zapengine/app-core/lib/wallet/approvedWallets';
+
 export const CONNECTING_LABEL = 'Connecting…';
 
 export const CONNECT_SHEET_COPY = {
@@ -9,13 +11,9 @@ export const CONNECT_SHEET_COPY = {
   privySubtitle: 'Email · Google · Apple — no wallet needed',
   divider: 'OR CONNECT A WALLET',
   recommendedLabel: 'RECOMMENDED',
-  otherLabel: 'OTHER WALLETS',
-  otherCaption: 'availability not guaranteed',
   browserExtensionSubtitle: 'Browser extension',
-  walletConnectName: 'WalletConnect',
-  walletConnectSubtitle: 'Scan with a mobile wallet',
   emptyTitle: 'No browser wallet detected',
-  emptyBody: 'Install Rabby, Ambire, or OKX Wallet, or continue with Privy.',
+  emptyBody: `Install ${formatApprovedWalletList()}, or continue with Privy.`,
   footer: 'Self-custody. You approve every transaction.',
   connectingSubtitle: CONNECTING_LABEL,
   closeLabel: 'Close connect options',

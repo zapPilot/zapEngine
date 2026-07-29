@@ -10,7 +10,7 @@ interface WalletOptionListProps {
   onWalletPress: (option: WalletConnectorOption) => void;
 }
 
-/** Renders one wallet-option group (Recommended or Other) as connect rows. */
+/** Renders the approved wallet options as connect rows. */
 export function WalletOptionList({
   options,
   connectingId,

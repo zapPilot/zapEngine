@@ -12,7 +12,7 @@ interface WalletBrandIconProps {
 /**
  * Wallet logo for a connect-sheet row. Prefers the EIP-6963 icon data-URI the
  * connector announced; falls back to a neutral glyph when a wallet doesn't
- * provide one (e.g. the generic WalletConnect entry).
+ * provide one.
  */
 export function WalletBrandIcon({
   icon,

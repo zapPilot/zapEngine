@@ -7,7 +7,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CONNECT_SHEET_COPY } from '@/components/connect/connectCopy';
 import { PrivyLoginOption } from '@/components/connect/PrivyLoginOption';
 import { WalletOptionList } from '@/components/connect/WalletOptionList';
-import { WalletOptionRow } from '@/components/connect/WalletOptionRow';
 import { GlowCircle } from '@/components/ui/GlowCircle';
 import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { SectionLabel } from '@/components/ui/SectionLabel';
@@ -19,8 +18,7 @@ const BRAND_EASING = Easing.bezier(0.2, 0.65, 0.3, 0.99);
 export interface ConnectSheetProps {
   visible: boolean;
   onClose: () => void;
-  recommended: WalletConnectorOption[];
-  other: WalletConnectorOption[];
+  options: WalletConnectorOption[];
   connectingId: string | null;
   errorCopy: { title: string; body: string } | null;
   onPrivyPress: () => void;
@@ -36,8 +34,7 @@ export interface ConnectSheetProps {
 export function ConnectSheet({
   visible,
   onClose,
-  recommended,
-  other,
+  options,
   connectingId,
   errorCopy,
   onPrivyPress,
@@ -101,17 +98,6 @@ export function ConnectSheet({
   }
 
   const isBusy = connectingId !== null;
-  const injectedOther = other.filter(
-    (option) => option.type !== 'walletConnect',
-  );
-  const walletConnectOption = other.find(
-    (option) => option.type === 'walletConnect',
-  );
-  const hasAnyInjected = recommended.length > 0 || injectedOther.length > 0;
-  const otherRows = [
-    ...injectedOther,
-    ...(walletConnectOption ? [walletConnectOption] : []),
-  ];
 
   return (
     <View className="absolute inset-0 z-50 items-center justify-end">
@@ -178,47 +164,16 @@ export function ConnectSheet({
             <View className="h-px flex-1 bg-line" />
           </View>
 
-          {hasAnyInjected ? (
-            <>
-              {recommended.length > 0 ? (
-                <View className="mb-2">
-                  <SectionLabel>
-                    {CONNECT_SHEET_COPY.recommendedLabel}
-                  </SectionLabel>
-                  <WalletOptionList
-                    options={recommended}
-                    connectingId={connectingId}
-                    isBusy={isBusy}
-                    onWalletPress={onWalletPress}
-                  />
-                </View>
-              ) : null}
-
-              {otherRows.length > 0 ? (
-                <View>
-                  <View className="flex-row items-baseline justify-between">
-                    <SectionLabel>{CONNECT_SHEET_COPY.otherLabel}</SectionLabel>
-                    <Text className="font-sans text-[10.5px] text-ink-faint">
-                      {CONNECT_SHEET_COPY.otherCaption}
-                    </Text>
-                  </View>
-                  <WalletOptionList
-                    options={otherRows}
-                    connectingId={connectingId}
-                    isBusy={isBusy}
-                    onWalletPress={onWalletPress}
-                  />
-                </View>
-              ) : null}
-            </>
-          ) : walletConnectOption ? (
-            <WalletOptionRow
-              option={walletConnectOption}
-              isConnecting={connectingId === walletConnectOption.id}
-              disabled={isBusy && connectingId !== walletConnectOption.id}
-              showBorder={false}
-              onPress={() => onWalletPress(walletConnectOption)}
-            />
+          {options.length > 0 ? (
+            <View className="mb-2">
+              <SectionLabel>{CONNECT_SHEET_COPY.recommendedLabel}</SectionLabel>
+              <WalletOptionList
+                options={options}
+                connectingId={connectingId}
+                isBusy={isBusy}
+                onWalletPress={onWalletPress}
+              />
+            </View>
           ) : (
             <View className="flex-row items-center gap-3 rounded-2xl border border-line bg-[rgba(255,255,255,.03)] px-4 py-4">
               <View className="h-9 w-9 items-center justify-center rounded-xl border border-line bg-[rgba(255,255,255,.04)]">

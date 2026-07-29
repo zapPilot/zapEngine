@@ -113,15 +113,21 @@ function renderAndCapture() {
 
 describe('WalletProvider (unified)', () => {
   it('defaults to the wagmi backend when neither wallet is connected', () => {
-    const { login } = renderAndCapture();
-    expect(login.activeMethod).toBeNull();
+    mocks.wagmi.backend = stubBackend({
+      account: { address: '0xwagmi', isConnected: false },
+    });
+    const { wallet } = renderAndCapture();
+    expect(wallet.account?.address).toBe('0xwagmi');
   });
 
   it('prefers Privy when only Privy is authenticated', () => {
     mocks.privy.isActive = true;
-    mocks.privy.backend = stubBackend({ isConnected: true });
-    const { wallet, login } = renderAndCapture();
-    expect(login.activeMethod).toBe('privy');
+    mocks.privy.backend = stubBackend({
+      account: { address: '0xprivy', isConnected: true },
+      isConnected: true,
+    });
+    const { wallet } = renderAndCapture();
+    expect(wallet.account?.address).toBe('0xprivy');
     expect(wallet.isConnected).toBe(true);
   });
 
@@ -133,8 +139,7 @@ describe('WalletProvider (unified)', () => {
     });
     mocks.privy.isActive = true;
     mocks.privy.backend = stubBackend({ isConnected: true });
-    const { wallet, login } = renderAndCapture();
-    expect(login.activeMethod).toBe('wagmi');
+    const { wallet } = renderAndCapture();
     expect(wallet.account?.address).toBe('0xabc');
   });
 
