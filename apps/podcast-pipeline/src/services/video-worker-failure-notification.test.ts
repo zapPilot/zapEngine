@@ -74,4 +74,54 @@ describe('video worker failure notification retry', () => {
       'localization-1',
     );
   });
+
+  it('continues polling jobs when the failure notification sweep cannot read the database', async () => {
+    const repository = makeRepository();
+    const visualRepository = makeVisualRepository();
+    const notify = vi.fn().mockResolvedValue(undefined);
+    const logger = { info: vi.fn(), error: vi.fn() };
+    vi.mocked(repository.reapFailedNotifications).mockRejectedValue(
+      new Error('reap unavailable'),
+    );
+    const worker = createVideoWorker({
+      repository,
+      visualRepository,
+      processJob: vi.fn(),
+      processVisualJob: vi.fn(),
+      notify,
+      logger,
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('empty');
+    expect(visualRepository.claim).toHaveBeenCalledWith('worker-1');
+    expect(repository.claim).toHaveBeenCalledWith('worker-1');
+    expect(notify).not.toHaveBeenCalled();
+    expect(repository.markFailureNotified).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      '[video-worker] failed to reap video failure notifications',
+      expect.objectContaining({ message: 'reap unavailable' }),
+    );
+  });
+
+  it('does not claim or fail a localization job when visual queue claiming fails', async () => {
+    const repository = makeRepository();
+    const visualRepository = makeVisualRepository();
+    vi.mocked(repository.reapFailedNotifications).mockResolvedValue([]);
+    vi.mocked(visualRepository.claim).mockRejectedValue(
+      new Error('visual queue unavailable'),
+    );
+    const worker = createVideoWorker({
+      repository,
+      visualRepository,
+      processJob: vi.fn(),
+      processVisualJob: vi.fn(),
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).rejects.toThrow('visual queue unavailable');
+    expect(repository.claim).not.toHaveBeenCalled();
+    expect(visualRepository.fail).not.toHaveBeenCalled();
+    expect(repository.fail).not.toHaveBeenCalled();
+  });
 });
