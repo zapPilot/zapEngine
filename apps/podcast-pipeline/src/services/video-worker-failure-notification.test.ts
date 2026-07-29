@@ -99,4 +99,25 @@ describe('video worker failure notification retry', () => {
       expect.objectContaining({ message: 'reap unavailable' }),
     );
   });
+
+  it('does not claim or fail a localization job when visual queue claiming fails', async () => {
+    const repository = makeRepository();
+    const visualRepository = makeVisualRepository();
+    vi.mocked(repository.reapFailedNotifications).mockResolvedValue([]);
+    vi.mocked(visualRepository.claim).mockRejectedValue(
+      new Error('visual queue unavailable'),
+    );
+    const worker = createVideoWorker({
+      repository,
+      visualRepository,
+      processJob: vi.fn(),
+      processVisualJob: vi.fn(),
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).rejects.toThrow('visual queue unavailable');
+    expect(repository.claim).not.toHaveBeenCalled();
+    expect(visualRepository.fail).not.toHaveBeenCalled();
+    expect(repository.fail).not.toHaveBeenCalled();
+  });
 });
