@@ -186,6 +186,7 @@ jobs:
     outputs:
       fly_matrix: ${{ steps.resolve.outputs.fly_matrix }}
       fly_verify_matrix: ${{ steps.resolve.outputs.fly_verify_matrix }}
+      app_ios: ${{ steps.filter.outputs.app_ios }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -232,6 +233,18 @@ jobs:
               - 'turbo.json'
               - '.dockerignore'
               - '.nvmrc'
+            app_ios:
+              - 'apps/app/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'patches/**'
+              - 'turbo.json'
+              - '.npmrc'
+              - '.nvmrc'
+              - '.github/actions/setup-workspace/**'
+              - '.github/workflows/ci.yml'
 
       - id: resolve
         env:
@@ -239,6 +252,43 @@ jobs:
           DEPLOY_TARGET: ${{ inputs.deploy_target }}
           PATHS_CHANGES: ${{ steps.filter.outputs.changes }}
         run: bash scripts/resolve-deploy-matrix.sh
+
+  # Local equivalent:
+  # `pnpm turbo run test:ios:release-smoke --filter=@zapengine/app`
+  ios-release-smoke:
+    needs: [deploy-gates]
+    if: github.event_name == 'workflow_dispatch' || needs.deploy-gates.outputs.app_ios == 'true'
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-workspace
+        with:
+          uv: 'false'
+        env:
+          EAS_BUILD: 'true'
+          HUSKY: '0'
+
+      - name: Show Apple toolchain
+        run: |
+          xcodebuild -version
+          pod --version
+          xcrun simctl list runtimes
+
+      - name: Build and cold-launch iOS Release
+        run: pnpm turbo run test:ios:release-smoke --filter=@zapengine/app
+
+      - name: Upload iOS smoke failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-ios-release-smoke-${{ github.run_attempt }}
+          path: apps/app/test-results/ios-release-smoke
+          if-no-files-found: ignore
+          retention-days: 7
 
   verify-fly-docker:
     needs: [deploy-gates]

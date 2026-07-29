@@ -43,6 +43,9 @@ Use the workspace gate before handoff:
 pnpm turbo run type-check lint test build --filter=@zapengine/app
 pnpm --filter @zapengine/app format:check
 pnpm turbo run deadcode dup:check --filter=@zapengine/app
+
+# Required for iOS dependency/config/release changes on macOS
+pnpm turbo run test:ios:release-smoke --filter=@zapengine/app
 ```
 
 When commands invoke `tsx` through package builds, run them with the repo
@@ -66,8 +69,24 @@ no-op, and a hard error there would be unfixable. When the guard fires:
 pnpm turbo run build --filter=@zapengine/app-core
 ```
 
-The `ios`, `android`, and `start` scripts rebuild first, so in practice only
-Xcode ⌘R reaches the guard. It is skipped under `CI` (Turbo already orders
-`^build`) and via `ZAP_SKIP_DIST_FRESHNESS_CHECK=1`. Do not add the rebuild
-prefix to `dev` or `dev:web` — those are Turbo task names that already declare
-`dependsOn: ["^build"]`, and nesting a Turbo call inside a Turbo task errors.
+`ios:archive` rebuilds the app-core dependency graph before opening Xcode.
+Turbo-driven tasks also order `^build`; the freshness guard is skipped under
+`CI` and via `ZAP_SKIP_DIST_FRESHNESS_CHECK=1`. Do not add a nested Turbo build
+to `dev` or `dev:web` — those tasks already declare `dependsOn: ["^build"]`.
+
+## Native dependency synchronization
+
+The generated `ios/` directory is ignored and can outlive a JavaScript native
+dependency change. Xcode's `[CP] Check Pods Manifest.lock` only compares two
+generated lockfiles, so two equally stale files are not proof that
+`package.json` and the executable agree.
+
+- Use `pnpm --filter @zapengine/app ios:native:sync` before native work.
+- Use `pnpm --filter @zapengine/app ios:archive` before Product → Archive.
+- Never open the `.xcodeproj`; use the generated `.xcworkspace`.
+- `metro.config.js` calls `assert-ios-native-dependencies.cjs` during iOS
+  Release bundling. It rejects missing/mismatched cold-start Pods even when a
+  developer bypasses the supported archive command.
+- CI runs `test:ios:release-smoke` on `macos-26` for app/native-related changes.
+  It clean-prebuilds, installs Pods, builds Release, installs it in a simulator,
+  and proves the process survives cold start.

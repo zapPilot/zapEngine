@@ -129,6 +129,12 @@
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": []
     },
+    "test:ios:release-smoke": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
+      "outputs": ["test-results/ios-release-smoke/**"]
+    },
     "clean": {
       "cache": false
     },
