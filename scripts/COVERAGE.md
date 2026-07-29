@@ -51,29 +51,97 @@ git commit -m "chore(coverage): ratchet baseline to <date>"
 
 ## CI behavior
 
-Coverage is intentionally NOT part of `verify ci` (the full coverage suite
-is slow on its own). The parallel job in `.github/workflows/ci.yml` runs
-`pnpm coverage summary`:
+Coverage is intentionally NOT part of `verify ci` because frontend sharded
+coverage takes about six minutes on its own. The parallel coverage job first
+self-tests the coverage scripts with `pnpm run coverage test`, then runs every
+workspace's coverage suite and aggregates the results with
+`pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts`:
 
 ```yaml
 coverage:
   runs-on: ubuntu-latest
-  needs: [install]
+  timeout-minutes: 45
+  services:
+    postgres:
+      image: postgres:15-alpine
+      env:
+        POSTGRES_USER: test_user
+        POSTGRES_PASSWORD: testpass123
+        POSTGRES_DB: test_db
+      ports:
+        - 5432:5432
+      options: >-
+        --health-cmd "pg_isready -U test_user"
+        --health-interval 10s
+        --health-timeout 5s
+        --health-retries 5
   env:
+    TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+    TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+    TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+    DATABASE_READ_ONLY: 'true'
     DATABASE_READ_ONLY_URL: ${{ secrets.DATABASE_READ_ONLY_URL }}
+    TEST_DATABASE_URL: postgresql+psycopg://test_user:testpass123@localhost:5432/test_db
+    DATABASE_INTEGRATION_URL: postgresql+asyncpg://test_user:testpass123@localhost:5432/test_db
   steps:
     - uses: actions/checkout@v4
-    - uses: pnpm/action-setup@v4
+      with:
+        fetch-depth: 0
+
+    - name: Enable corepack
+      run: corepack enable && corepack prepare pnpm@10.30.3 --activate
+
     - uses: actions/setup-node@v4
-      with: { node-version: '24', cache: 'pnpm' }
-    - run: pnpm install --frozen-lockfile
-    - run: pnpm build packages
-    - run: pnpm coverage summary
-    - uses: actions/upload-artifact@v4
+      with:
+        node-version: '24'
+        cache: 'pnpm'
+
+    - name: Install uv (for analytics-engine pytest-cov)
+      uses: astral-sh/setup-uv@v5
+      with:
+        version: '0.8.13'
+        enable-cache: true
+        cache-dependency-glob: apps/analytics-engine/uv.lock
+
+    - name: Cache Playwright browsers
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ hashFiles('apps/app/package.json', 'pnpm-lock.yaml') }}
+        restore-keys: |
+          playwright-${{ runner.os }}-
+
+    - name: Install workspace dependencies
+      timeout-minutes: 10
+      run: pnpm install --frozen-lockfile
+
+    - name: Self-test the coverage scripts
+      run: pnpm run coverage test
+
+    - name: Coverage summary (workspace thresholds)
+      run: pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts
+
+    - name: Upload coverage summary artifact
       if: always()
+      uses: actions/upload-artifact@v4
       with:
         name: coverage-summary
         path: coverage/summary.json
+        if-no-files-found: warn
+        retention-days: 30
+
+    - name: Upload per-workspace HTML reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-html
+        path: |
+          apps/*/coverage/index.html
+          apps/*/coverage/**/*.html
+          packages/*/coverage/index.html
+          packages/*/coverage/**/*.html
+        if-no-files-found: ignore
+        retention-days: 7
 ```
 
 Each workspace's `test:coverage` command fails the job when its configured
