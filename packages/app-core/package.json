@@ -172,6 +172,7 @@
     "@types/react-dom": "catalog:",
     "@zapengine/eslint-config": "workspace:*",
     "jsdom": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "@zapengine/knip-config": "workspace:*",
     "@zapengine/tsconfig": "workspace:*",
     "eslint": "catalog:",
