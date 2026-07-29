@@ -11,7 +11,6 @@ from src.core.financial_utils import (
     safe_float,
     safe_int,
     sum_category_total_values,
-    sum_category_wallet_values,
 )
 from src.models.portfolio import CategoryAllocation, PortfolioAllocation
 
@@ -305,104 +304,6 @@ class TestDocstringExamples:
         assert calculate_percentage_rounded(50, 0) == 0.0
 
 
-class TestSumCategoryWalletValues:
-    """Test suite for sum_category_wallet_values() function"""
-
-    def test_sums_all_category_wallet_values(self):
-        """Should sum wallet_tokens_value across all categories"""
-        allocation = PortfolioAllocation(
-            btc=CategoryAllocation(
-                total_value=100.0,
-                percentage_of_portfolio=25.0,
-                wallet_tokens_value=50.0,
-                other_sources_value=50.0,
-            ),
-            eth=CategoryAllocation(
-                total_value=200.0,
-                percentage_of_portfolio=50.0,
-                wallet_tokens_value=150.0,
-                other_sources_value=50.0,
-            ),
-            stablecoins=CategoryAllocation(
-                total_value=80.0,
-                percentage_of_portfolio=20.0,
-                wallet_tokens_value=80.0,
-                other_sources_value=0.0,
-            ),
-            others=CategoryAllocation(
-                total_value=20.0,
-                percentage_of_portfolio=5.0,
-                wallet_tokens_value=20.0,
-                other_sources_value=0.0,
-            ),
-        )
-        # 50.0 + 150.0 + 80.0 + 20.0 = 300.0
-        assert sum_category_wallet_values(allocation) == 300.0
-
-    def test_handles_decimal_precision(self):
-        """Test with exact bug case: 680.39 precision issue"""
-        # Create allocation with values that triggered the original bug
-        allocation = PortfolioAllocation(
-            btc=CategoryAllocation(
-                total_value=170.1,
-                percentage_of_portfolio=25.0,
-                wallet_tokens_value=170.1,
-                other_sources_value=0.0,
-            ),
-            eth=CategoryAllocation(
-                total_value=340.19,
-                percentage_of_portfolio=50.0,
-                wallet_tokens_value=340.19,
-                other_sources_value=0.0,
-            ),
-            stablecoins=CategoryAllocation(
-                total_value=136.08,
-                percentage_of_portfolio=20.0,
-                wallet_tokens_value=136.08,
-                other_sources_value=0.0,
-            ),
-            others=CategoryAllocation(
-                total_value=34.02,
-                percentage_of_portfolio=5.0,
-                wallet_tokens_value=34.02,
-                other_sources_value=0.0,
-            ),
-        )
-        # Expected: 170.1 + 340.19 + 136.08 + 34.02 = 680.39
-        result = sum_category_wallet_values(allocation)
-        assert result == 680.39
-
-    def test_handles_zero_values(self):
-        """Should handle edge case with zero values"""
-        allocation = PortfolioAllocation(
-            btc=CategoryAllocation(
-                total_value=0.0,
-                percentage_of_portfolio=0.0,
-                wallet_tokens_value=0.0,
-                other_sources_value=0.0,
-            ),
-            eth=CategoryAllocation(
-                total_value=0.0,
-                percentage_of_portfolio=0.0,
-                wallet_tokens_value=0.0,
-                other_sources_value=0.0,
-            ),
-            stablecoins=CategoryAllocation(
-                total_value=0.0,
-                percentage_of_portfolio=0.0,
-                wallet_tokens_value=0.0,
-                other_sources_value=0.0,
-            ),
-            others=CategoryAllocation(
-                total_value=0.0,
-                percentage_of_portfolio=0.0,
-                wallet_tokens_value=0.0,
-                other_sources_value=0.0,
-            ),
-        )
-        assert sum_category_wallet_values(allocation) == 0.0
-
-
 class TestSumCategoryTotalValues:
     """Test suite for sum_category_total_values() function"""
 
@@ -478,50 +379,6 @@ class TestCategoryCalculationConsistency:
     produces bit-for-bit identical results, proving that the builder
     and validator will never have precision discrepancies.
     """
-
-    def test_builder_validator_produce_identical_results(self):
-        """Verify both calculation paths produce bit-for-bit identical results"""
-        # Create allocation with decimal precision edge cases (the bug case)
-        allocation = PortfolioAllocation(
-            btc=CategoryAllocation(
-                total_value=170.1,
-                percentage_of_portfolio=25.0,
-                wallet_tokens_value=170.1,
-                other_sources_value=0.0,
-            ),
-            eth=CategoryAllocation(
-                total_value=340.19,
-                percentage_of_portfolio=50.0,
-                wallet_tokens_value=340.19,
-                other_sources_value=0.0,
-            ),
-            stablecoins=CategoryAllocation(
-                total_value=136.08,
-                percentage_of_portfolio=20.0,
-                wallet_tokens_value=136.08,
-                other_sources_value=0.0,
-            ),
-            others=CategoryAllocation(
-                total_value=34.02,
-                percentage_of_portfolio=5.0,
-                wallet_tokens_value=34.02,
-                other_sources_value=0.0,
-            ),
-        )
-
-        # Call function multiple times (simulating builder and validator)
-        result1 = sum_category_wallet_values(allocation)
-        result2 = sum_category_wallet_values(allocation)
-        result3 = sum_category_wallet_values(allocation)
-
-        # Assert EXACT equality (not just within tolerance)
-        # This proves identical execution path
-        assert result1 == result2
-        assert result2 == result3
-        assert result1 == result3
-
-        # Also verify the expected value
-        assert result1 == 680.39
 
     def test_total_values_calculation_consistency(self):
         """Verify total_value summation is also consistent"""

@@ -2,12 +2,9 @@
 
 Sections in this file (use these as a folding map):
 - Exceptions: ``ValidationEventError``, ``ConstraintValidationFailed``
-- Data classes: ``ValidationEvent``, ``AssertionResult``, ``EventResult``
+- Data classes: ``ValidationEvent``, ``EventResult``
 - Public API: ``load_validation_events``, ``evaluate_event``,
   ``build_constraint_validation``
-- Assertion predicates: ``assert_target_asset_equals`` /
-  ``assert_target_asset_increased_from_previous`` /
-  ``assert_target_asset_decreased_from_previous``
 - Constraint case evaluator: ``_validate_constraint_case``
 - Trigger-failure detectors: ``_constraint_event_trigger_failure``,
   ``_crypto_cross_trigger_failure``, ``_dma_cross_trigger_failure``,
@@ -150,13 +147,6 @@ class ValidationEvent:
         if self.applicable_strategies is not None:
             case["applicable_strategies"] = list(self.applicable_strategies)
         return case
-
-
-@dataclass(frozen=True)
-class AssertionResult:
-    assertion_type: str
-    passed: bool
-    message: str = "passed"
 
 
 @dataclass(frozen=True)
@@ -303,61 +293,6 @@ def build_constraint_validation(
         "results": results,
         "skipped": skipped,
     }
-
-
-def assert_target_asset_equals(
-    assertion: dict[str, Any],
-    points: list[dict[str, Any]],
-    event_point: dict[str, Any],
-) -> str | None:
-    del points
-    from src.services.backtesting.validation.constraint_predicates import (
-        predicate_asset_compare,
-    )
-
-    return predicate_asset_compare(
-        assertion=assertion,
-        point=event_point,
-        comparator="equals",
-    )
-
-
-def assert_target_asset_increased_from_previous(
-    assertion: dict[str, Any],
-    points: list[dict[str, Any]],
-    event_point: dict[str, Any],
-) -> str | None:
-    from src.services.backtesting.validation.constraint_predicates import (
-        predicate_asset_vs_previous,
-    )
-
-    return predicate_asset_vs_previous(
-        assertion=assertion,
-        point=event_point,
-        previous_point=previous_constraint_point(
-            points=points, event_point=event_point
-        ),
-        comparator="greater_than",
-    )
-
-
-def assert_target_asset_decreased_from_previous(
-    assertion: dict[str, Any],
-    points: list[dict[str, Any]],
-    event_point: dict[str, Any],
-) -> str | None:
-    from src.services.backtesting.validation.constraint_predicates import (
-        predicate_asset_vs_previous,
-    )
-
-    return predicate_asset_vs_previous(
-        assertion=assertion,
-        point=event_point,
-        previous_point=previous_constraint_point(
-            points=points, event_point=event_point
-        ),
-        comparator="less_than",
-    )
 
 
 def _coerce_points(timeline: list[dict[str, Any] | Any]) -> list[dict[str, Any]]:
@@ -712,14 +647,10 @@ def _constraint_trigger_failure(point: dict[str, Any], message: str) -> str:
 
 
 __all__ = [
-    "AssertionResult",
     "ConstraintValidationFailed",
     "EventResult",
     "ValidationEvent",
     "ValidationEventError",
-    "assert_target_asset_decreased_from_previous",
-    "assert_target_asset_equals",
-    "assert_target_asset_increased_from_previous",
     "build_constraint_validation",
     "evaluate_event",
     "load_validation_events",

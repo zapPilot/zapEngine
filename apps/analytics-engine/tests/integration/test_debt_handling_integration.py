@@ -429,6 +429,8 @@ class TestDebtHandlingSQLValidation:
         """
         from datetime import datetime, timedelta
 
+        from sqlalchemy import text
+
         from src.services.shared.query_names import QUERY_NAMES
         from src.services.shared.query_service import QueryService
 
@@ -441,7 +443,7 @@ class TestDebtHandlingSQLValidation:
 
         # Execute the actual SQL query
         result = await integration_db_session.execute(
-            query_service._prepare_query(query_content),
+            text(query_content),
             {
                 "user_id": user_id,
                 "start_date": start_date,

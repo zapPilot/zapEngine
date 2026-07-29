@@ -14,7 +14,6 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from sqlalchemy.sql.elements import TextClause
 
 from src.core.config import Environment, settings
 from src.core.utils import coerce_date_to_datetime, row_to_dict
@@ -369,39 +368,6 @@ class QueryService:
         )
         return f"{error_type} executing {query_label} '{query_name}': {error}. {advice}"
 
-    def list_available_queries(self) -> list[str]:
-        """List all available query names.
-
-        Returns:
-            list: Sorted list of available query names
-        """
-        return sorted(self.queries.keys())
-
-    def get_query_count(self) -> int:
-        """Get the total number of loaded queries.
-
-        Returns:
-            int: Number of loaded queries
-        """
-        return len(self.queries)
-
-    def refresh_queries(self) -> None:
-        """Reload all queries from the file system.
-
-        This method clears the cache and reloads all SQL files.
-        Useful for development when SQL files are modified.
-        """
-        self.logger.info("Refreshing query cache...")
-        QueryService._query_cache.clear()
-        QueryService._cache_initialized = False
-
-        # Reload queries
-        QueryService._query_cache = self._load_queries()
-        QueryService._cache_initialized = True
-        self.queries = QueryService._query_cache
-
-        self.logger.info("Query cache refreshed with %d queries", len(self.queries))
-
     @classmethod
     def _reset_cache_for_testing(cls) -> None:
         """Reset the class-level cache for testing purposes.
@@ -411,11 +377,6 @@ class QueryService:
         """
         cls._query_cache.clear()
         cls._cache_initialized = False
-
-    # Compatibility helper used by some integration tests to validate raw SQL strings
-    def _prepare_query(self, query_content: str) -> TextClause:
-        """Return SQLAlchemy text() for legacy tests expecting prepared statements."""
-        return text(query_content)
 
 
 # Global instance for easy access (singleton pattern)

@@ -1,7 +1,7 @@
 # flake8: noqa
 # pylint: skip-file
 # mypy: ignore-errors
-market_cap  # unused variable (src/services/backtesting/core/rebalance_pacing.py:52)
+market_cap  # unused variable (src/services/backtesting/execution/pacing/base.py:35)
 regime_action  # unused variable (src/models/backtesting.py:56)
 regime_total_invested  # unused variable (src/models/backtesting.py:70)
 min_usd_value  # unused variable (src/core/config.py:65)
@@ -117,17 +117,16 @@ PortfolioSnapshotServiceDep  # unused variable (src/services/dependencies.py:414
 RegimeTrackingServiceDep  # unused variable (src/services/dependencies.py:435)
 BacktestingServiceDep  # unused variable (src/services/dependencies.py:441)
 recommended_roi  # unused variable (src/services/interfaces/types.py:19)
-weighted_apr  # unused variable (src/services/portfolio_response_builder.py:43)
-estimated_monthly_income  # unused variable (src/services/portfolio_response_builder.py:44)
-_._prepare_query  # unused method (src/services/query_service.py:394)
+weighted_apr  # unused variable (src/services/portfolio/portfolio_response_builder.py:43)
+estimated_monthly_income  # unused variable (src/services/portfolio/portfolio_response_builder.py:44)
 root  # unused function (src/main.py:181)
 healthz  # unused function (src/main.py:191)
 _.max_drawdown_percentage  # unused method (src/models/analytics_responses.py:154)
 _.allocation_data  # unused method (src/models/analytics_responses.py:396)
 _.validate_protocols_unique  # unused method (src/models/analytics_responses.py:197)
 _._validate_snapshot_date_present  # unused method (src/models/analytics_responses.py:241)
-_.validate_dates # unused method (src/models/backtesting.py:27)
-final_asset_allocation # unused variable (src/models/backtesting.py:144)
+_.validate_dates  # unused method (src/models/backtesting.py:27)
+final_asset_allocation  # unused variable (src/models/backtesting.py:144)
 param_schema  # unused variable (src/models/backtesting.py:258)
 default_params  # unused variable (src/models/backtesting.py:259)
 _.validate_snapshot_ids_unique  # unused method (src/models/portfolio.py:228)
@@ -141,15 +140,13 @@ _.parse_origins  # unused method (src/core/config.py:355)
 validate_write_operation  # unused function (src/core/database.py:177)
 _.ensure_categories  # unused method (src/models/portfolio_snapshot.py:58)
 _.validate_iso8601_format_field  # unused method (src/models/yield_returns.py:70)
-_.list_available_queries  # unused method (src/services/query_service.py:350)
-_.get_query_count  # unused method (src/services/query_service.py:358)
 _.max_drawdown  # unused method (src/models/analytics_responses.py:159)
 _.validate_recommended_period_present  # unused method (src/models/portfolio.py:163)
 _.validate_iso8601_dates  # unused method (src/models/yield_returns.py:25)
 _.validate_token_count_bounds  # unused method (src/models/portfolio.py:110)
-_._reset_cache_for_testing  # unused method (src/services/query_service.py:383)
+_._reset_cache_for_testing  # unused method (src/services/shared/query_service.py)
 _.validate_apr_bounds  # unused method (src/core/config.py:116)
-_._execute_query_one  # unused method (src/services/base_analytics_service.py:76)
+_._execute_query_one  # unused method (src/services/shared/base_analytics_service.py:76)
 _.validate_uuid_format  # unused method (src/models/portfolio.py:216)
 _.label  # unused property (src/models/regime_tracking.py:49)
 _.sentiment_range  # unused property (src/models/regime_tracking.py:61)
@@ -163,29 +160,27 @@ _.delete  # unused method (src/core/cache_service.py:183)
 _.validate_snapshot_date_matches_latest  # unused method (src/models/analytics_responses.py:247)
 _.validate_debt_to_assets_ratio  # unused method (src/models/portfolio.py:472)
 _.get_sentiment_at_time  # unused method (src/services/interfaces/market.py:74)
-_.refresh_queries  # unused method (src/services/query_service.py:366)
 get_trend_v2  # unused function (src/api/routers/v2_analytics.py:29)
 _.validate_database_url  # unused method (src/core/config.py:337)
 _.validate_component_sum  # unused method (src/models/portfolio.py:40)
 _.validate_portfolio_allocation_sum_equals_total_assets  # unused method (src/models/portfolio.py:411)
-_.get_snapshot_date_range  # unused method (src/services/canonical_snapshot_service.py:147)
+_.get_snapshot_date_range  # unused method (src/services/portfolio/canonical_snapshot_service.py:147)
 _.get_stats  # unused method (src/core/cache_service.py:223)
 session_scope  # unused function (src/core/database.py:143)
 _.validate_percentages_sum_to_100  # unused method (src/models/portfolio.py:69)
 _.validate_net_calculation  # unused method (src/models/portfolio.py:432)
 _.get_snapshot_date_range  # unused method (src/services/interfaces/snapshot.py:52)
-_.get_snapshot_count  # unused method (src/services/token_price_service.py:228)
+_.get_snapshot_count  # unused method (src/services/market/token_price_service.py:228)
 _.validate_origins  # unused method (src/core/config.py:363)
 get_market_sentiment_health  # unused function (src/api/routers/market.py:128)
 get_pool_performance_v2  # unused function (src/api/routers/v2_pools.py:16)
-sum_category_wallet_values  # unused function (src/core/financial_utils.py:185)
 _.validate_snapshot_consistency  # unused method (src/services/interfaces/snapshot.py:79)
-_.validate_snapshot_consistency  # unused method (src/services/canonical_snapshot_service.py:168)
-_.get_wallet_token_summary  # unused method (src/services/wallet_service.py:64)
+_.validate_snapshot_consistency  # unused method (src/services/portfolio/canonical_snapshot_service.py:168)
+_.get_wallet_token_summary  # unused method (src/services/portfolio/wallet_service.py:64)
 get_daily_yield_returns_v2  # unused function (src/api/routers/v2_analytics.py:48)
-_.get_price_for_date  # unused method (src/services/token_price_service.py:171)
+_.get_price_for_date  # unused method (src/services/market/token_price_service.py:171)
 is_above_dma  # unused variable (src/services/market/token_price_service.py:27)
-_.get_sentiment_at_time  # unused method (src/services/sentiment_database_service.py:248)
+_.get_sentiment_at_time  # unused method (src/services/market/sentiment_database_service.py:248)
 get_dashboard_v2  # unused function (src/api/routers/v2_analytics.py:104)
 get_token_price_history  # unused function (src/api/routers/market.py:343)
 _.aggregate_assets_only  # unused method (src/services/transformers/category_data_transformer.py:186)
@@ -215,16 +210,9 @@ DailySuggestionRequest  # unused class (src/models/strategy.py:224)
 DailySuggestionResponse  # unused class (src/models/strategy.py:153)
 _.validate_sum_to_one  # unused method (src/models/strategy.py:40)
 
-# Pattern Matcher & Signals
-_.matched  # unused variable (src/services/backtesting/signals/pattern_matcher.py:46)
-_.clear_cache  # unused method (src/services/backtesting/signals/pattern_matcher.py:269)
-get_pattern_matcher  # unused function (src/services/backtesting/signals/pattern_matcher.py:289)
-
 # Sentiment Service
-_.get_daily_sentiment_aggregates  # unused method (src/services/sentiment_database_service.py:306)
+_.get_daily_sentiment_aggregates  # unused method (src/services/market/sentiment_database_service.py:306)
 
-simulate_normal_dca_pool  # unused function (src/services/backtesting/core/engine.py:487)
-FixedFeeModel  # unused class (src/services/backtesting/core/cost_model.py:28)
 # ============================================================================
 # Backtesting Models - Unused Fields (src/models/backtesting.py)
 # ============================================================================
@@ -243,8 +231,6 @@ use_equal_capital_pool  # unused variable (src/models/backtesting.py:168)
 # ============================================================================
 _.validate_action_regimes  # unused method (src/models/backtesting.py:179)
 _.reject_legacy_borrow_params  # unused method (src/models/backtesting.py:357)
-_.get_allocation_state  # unused method (src/services/backtesting/core/config.py:66)
-_.allocation_percentages  # unused method (src/services/backtesting/core/portfolio.py:188)
 
 # ============================================================================
 # Backtesting Module - Cross-module usage not detected by vulture
@@ -260,6 +246,7 @@ from src.services.backtesting.execution.engine import (
 
 _ = _build_pacing_policy_from_name  # noqa: F841
 _ = _instantiate_policy_dataclass  # noqa: F841
+_ = simulate_normal_dca_pool  # noqa: F841 (used in tests only)
 
 # Methods called on instances
 _ = BacktestDataProvider.fetch_token_prices  # noqa: F841
@@ -305,68 +292,6 @@ from src.services.interfaces.backtesting import BacktestingServiceProtocol
 _ = BacktestingService.run_compare_v3  # noqa: F841
 _ = BacktestingServiceProtocol.run_compare_v3  # noqa: F841
 
-# ============================================================================
-# 3-Layer Architecture - Signal/Allocation/Execution Layers
-# ============================================================================
-
-# Future extensibility flags in RegimeConfig (placeholders for design)
-from src.services.backtesting.allocation.config import RegimeConfig
-
-enable_multi_token_spot = RegimeConfig.enable_multi_token_spot  # noqa: F841
-enable_collateral_borrowing = RegimeConfig.enable_collateral_borrowing  # noqa: F841
-
-# Optional 3-layer architecture components in SimpleRegimeOrchestrationStrategy
-from src.services.backtesting.strategies.simple_regime_orchestration import (
-    SimpleRegimeOrchestrationStrategy,
-)
-
-_ = SimpleRegimeOrchestrationStrategy.signal_provider  # noqa: F841
-_ = SimpleRegimeOrchestrationStrategy.allocation_selector  # noqa: F841
-
-# Protocol definitions - interface methods
-from src.services.backtesting.allocation.selector import AllocationSelector
-
-_ = AllocationSelector.select  # noqa: F841
-
-from src.services.backtesting.signals.protocols import SignalProvider
-
-_ = SignalProvider.get_signal  # noqa: F841
-_ = SignalProvider.reset  # noqa: F841
-_ = SignalProvider.update_regime_history  # noqa: F841
-
-# Signal provider implementation and factory methods
-from src.services.backtesting.signals.fgi.provider import FGISignalProvider
-
-_ = FGISignalProvider.reset  # noqa: F841
-_ = FGISignalProvider.update_regime_history  # noqa: F841
-_ = FGISignalProvider.get_signal  # noqa: F841
-_ = FGISignalProvider._compute_score  # noqa: F841
-_ = FGISignalProvider._compute_confidence  # noqa: F841
-
-from src.services.backtesting.signals.dma.provider import DMA200SignalProvider
-
-_ = DMA200SignalProvider.reset  # noqa: F841
-_ = DMA200SignalProvider.update_regime_history  # noqa: F841
-_ = DMA200SignalProvider.get_signal  # noqa: F841
-_ = DMA200SignalProvider._compute_score  # noqa: F841
-_ = DMA200SignalProvider._compute_confidence  # noqa: F841
-
-from src.services.backtesting.signals.vix.provider import VIXSignalProvider
-
-_ = VIXSignalProvider.reset  # noqa: F841
-_ = VIXSignalProvider.update_regime_history  # noqa: F841
-_ = VIXSignalProvider.get_signal  # noqa: F841
-_ = VIXSignalProvider._compute_score  # noqa: F841
-_ = VIXSignalProvider._compute_confidence  # noqa: F841
-
-from src.services.backtesting.signals.mvrv.provider import MVRVSignalProvider
-
-_ = MVRVSignalProvider.reset  # noqa: F841
-_ = MVRVSignalProvider.update_regime_history  # noqa: F841
-_ = MVRVSignalProvider.get_signal  # noqa: F841
-_ = MVRVSignalProvider._compute_score  # noqa: F841
-_ = MVRVSignalProvider._compute_confidence  # noqa: F841
-
 from src.services.backtesting.response_utils import (
     coerce_action,
     coerce_rule_group,
@@ -382,36 +307,10 @@ _ = coerce_action  # noqa: F841
 _ = coerce_rule_group  # noqa: F841
 _ = optional_float  # noqa: F841
 
-from src.services.backtesting.allocation.selector import RegimeAllocationSelector
-
-_ = RegimeAllocationSelector.from_config  # noqa: F841
-_ = RegimeAllocationSelector.get_state_names  # noqa: F841
-_ = RegimeAllocationSelector.select  # noqa: F841
-default_allocation_name = RegimeAllocationSelector.default_allocation_name  # noqa: F841
-
-from src.services.backtesting.allocation.selector import UnifiedAllocationSelector
-
-_ = UnifiedAllocationSelector.from_config  # noqa: F841
-_ = UnifiedAllocationSelector.default_allocation_name  # noqa: F841
-
-from src.services.backtesting.signals.protocols import SignalContext
-
-_ = SignalContext.from_strategy_context  # noqa: F841
 total_yield_from_borrowed  # unused variable (src/models/backtesting.py:106)
 liquidation_events  # unused variable (src/models/backtesting.py:100)
 _.force_liquidation  # unused method (src/services/backtesting/execution/portfolio.py:1203)
 operation  # unused variable (src/services/backtesting/strategies/base.py:26)
-
-# SimpleRegimeOrchestrationStrategy legitimate unused items
-_ = SimpleRegimeOrchestrationStrategy.strategy_id
-_ = SimpleRegimeOrchestrationStrategy.display_name
-_ = SimpleRegimeOrchestrationStrategy.parameters
-_ = SimpleRegimeOrchestrationStrategy.record_day
-_ = SimpleRegimeOrchestrationStrategy.finalize
-_ = SimpleRegimeOrchestrationStrategy.get_daily_recommendation
-_ = SimpleRegimeOrchestrationStrategy.configure_borrowing
-yield_breakdown  # unused variable (src/services/backtesting/strategies/simple_regime_orchestration.py:1773)
-trade_executed  # unused variable (src/services/backtesting/strategies/simple_regime_orchestration.py:1774)
 
 # Portfolio attributes
 from src.services.backtesting.execution.portfolio import Portfolio
@@ -440,31 +339,6 @@ from src.config.strategy_presets import get_benchmark_strategy_preset
 
 _ = get_benchmark_strategy_preset  # noqa: F841
 
-# Backtesting compatibility/test-only symbols
-from src.services.backtesting.risk.dma_overlay_tracker import DMAOverlayTracker
-
-_ = DMAOverlayTracker.last_transition_date  # noqa: F841
-_ = SimpleRegimeOrchestrationStrategy.last_allocation  # noqa: F841
-_ = SimpleRegimeOrchestrationStrategy._match_pattern  # noqa: F841
-
-from src.services.backtesting.signals.fgi.regime_classifier import (
-    RegimeClassifier as _FGIRegimeClassifier,
-)
-
-_ = _FGIRegimeClassifier.classify_from_sentiment  # noqa: F841
-
-# DMA-Gated FGI Signal Provider
-from src.services.backtesting.signals.dma_gated_fgi.provider import (
-    DmaGatedFgiSignalProvider,
-)
-
-_ = DmaGatedFgiSignalProvider.reset  # noqa: F841
-_ = DmaGatedFgiSignalProvider.update_regime_history  # noqa: F841
-_ = DmaGatedFgiSignalProvider.get_signal  # noqa: F841
-_ = DmaGatedFgiSignalProvider._in_deadzone  # noqa: F841
-_ = DmaGatedFgiSignalProvider._zone_direction_gate  # noqa: F841
-_ = DmaGatedFgiSignalProvider._build_output  # noqa: F841
-
 # DMA-first response models - runtime serialization / Pydantic-only access
 spot_usd  # unused variable (src/models/backtesting.py)
 stable_usd  # unused variable (src/models/backtesting.py)
@@ -483,7 +357,6 @@ final_allocation  # unused variable (src/models/backtesting.py)
 description  # unused variable (src/models/backtesting.py, src/models/strategy_config.py)
 as_of  # unused variable (src/models/strategy.py)
 presets  # unused variable (src/models/strategy_config.py)
-hold  # unused variable (src/services/backtesting/signals/protocols.py)
 _ = _BacktestCompareConfigV3.validate_config  # noqa: F841
 _ = _StrategyConfigsResponse.presets  # noqa: F841
 
@@ -516,11 +389,10 @@ _ = STRATEGY_PRESETS  # noqa: F841
 _ = get_default_strategy_preset  # noqa: F841
 _ = resolve_strategy_preset  # noqa: F841
 
-# Decision policy dataclass field
-decision_policy_id  # unused variable (src/services/backtesting/strategies/dma_gated_fgi.py)
-
 # Config store methods - used via management service and tests
-from src.services.strategy.strategy_config_store import StrategyConfigStore as _StrategyConfigStore
+from src.services.strategy.strategy_config_store import (
+    StrategyConfigStore as _StrategyConfigStore,
+)
 
 _ = _StrategyConfigStore.upsert_config  # noqa: F841
 
@@ -534,7 +406,9 @@ _ = _StrategyComponentRef.check_component_id  # noqa: F841
 _ = _StrategyComposition.validate_composition  # noqa: F841
 
 # CompositionCatalog extensibility method - used in test mock helpers
-from src.services.backtesting.composition_catalog import CompositionCatalog as _CompositionCatalog
+from src.services.backtesting.composition_catalog import (
+    CompositionCatalog as _CompositionCatalog,
+)
 
 _ = _CompositionCatalog.with_extensions  # noqa: F841
 

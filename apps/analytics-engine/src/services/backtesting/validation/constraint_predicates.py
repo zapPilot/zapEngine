@@ -521,6 +521,92 @@ def predicate_ratio_zone_equals(
 # Top-level assertion dispatcher
 # ---------------------------------------------------------------------------
 
+# Asset assertions all reduce to one of six predicate shapes parameterized by a
+# comparator, plus an optional assertion override: ("replace", …) swaps the
+# assertion dict wholesale, ("merge", …) overlays fields on top of it.
+_AssertionOverride = tuple[str, dict[str, Any]] | None
+
+_ASSET_ASSERTIONS: dict[str, tuple[str, str, _AssertionOverride]] = {
+    "target_asset_equals": ("compare", "equals", None),
+    "target_asset_greater_than": ("compare", "greater_than", None),
+    "target_asset_gt": ("compare", "greater_than", None),
+    "target_asset_gte": ("compare", "greater_than_or_equal", None),
+    "target_asset_greater_than_previous": ("vs_previous", "greater_than", None),
+    "target_asset_increased_from_previous": ("vs_previous", "greater_than", None),
+    "target_asset_less_than_previous": ("vs_previous", "less_than", None),
+    "target_asset_decreased_from_previous": ("vs_previous", "less_than", None),
+    "target_asset_not_greater_than_previous": (
+        "vs_previous",
+        "not_greater_than",
+        None,
+    ),
+    "target_asset_not_increased_from_previous": (
+        "vs_previous",
+        "not_greater_than",
+        None,
+    ),
+    "target_stable_decreased_from_previous": (
+        "vs_previous",
+        "less_than",
+        ("replace", {"asset": "stable"}),
+    ),
+    "target_stable_increased_from_previous": (
+        "vs_previous",
+        "greater_than",
+        ("replace", {"asset": "stable"}),
+    ),
+    "target_spy_not_increased_from_previous": (
+        "vs_previous",
+        "not_greater_than",
+        ("merge", {"asset": "spy"}),
+    ),
+    "target_asset_not_greater_than_current": ("vs_current", "not_greater_than", None),
+    "target_asset_not_increased_from_current": ("vs_current", "not_greater_than", None),
+    "target_asset_unchanged_from_current": ("vs_current", "equals", None),
+    "target_asset_not_decreased_from_current": ("vs_current", "not_less_than", None),
+    "target_asset_not_less_than_current": ("vs_current", "not_less_than", None),
+    "target_spy_not_greater_than_current": (
+        "vs_current",
+        "not_greater_than",
+        ("merge", {"asset": "spy"}),
+    ),
+    "target_crypto_greater_than_previous": ("crypto_vs_previous", "greater_than", None),
+    "target_crypto_increased_from_previous": (
+        "crypto_vs_previous",
+        "greater_than",
+        None,
+    ),
+    "if_current_crypto_gt_target_asset_equals": (
+        "crypto_gated_compare",
+        "equals",
+        None,
+    ),
+    "if_current_crypto_gt_target_asset_gt": (
+        "crypto_gated_compare",
+        "greater_than",
+        None,
+    ),
+    "eventually_target_asset_greater_than_previous": (
+        "eventually_vs_previous",
+        "greater_than",
+        None,
+    ),
+    "eventually_target_asset_less_than_previous": (
+        "eventually_vs_previous",
+        "less_than",
+        None,
+    ),
+}
+
+_DECISION_ASSERTIONS: dict[str, Callable[..., str | None]] = {
+    "decision_action_in": predicate_decision_action_in,
+    "decision_action_equals": predicate_decision_action_equals,
+    "matched_rule_name_not_equals": predicate_matched_rule_name_not_equals,
+    "decision_reason_in": predicate_decision_reason_in,
+    "decision_detail_equals": predicate_decision_detail_equals,
+    "ratio_zone_equals": predicate_ratio_zone_equals,
+}
+
 
 def evaluate_constraint_assertion(
     *,
@@ -535,159 +621,66 @@ def evaluate_constraint_assertion(
         ``None`` on pass, or a human-readable failure string on fail.
     """
     assertion_type = assertion.get("type")
+    if not isinstance(assertion_type, str):
+        return constraint_failure(
+            event_point,
+            f"Unsupported assertion type: {assertion_type!r}",
+        )
     previous_point = previous_constraint_point(points=points, event_point=event_point)
 
-    if assertion_type == "target_asset_equals":
-        return predicate_asset_compare(
-            assertion=assertion,
-            point=event_point,
-            comparator="equals",
+    decision_predicate = _DECISION_ASSERTIONS.get(assertion_type)
+    if decision_predicate is not None:
+        return decision_predicate(assertion=assertion, point=event_point)
+
+    dispatch = _ASSET_ASSERTIONS.get(assertion_type)
+    if dispatch is None:
+        return constraint_failure(
+            event_point,
+            f"Unsupported assertion type: {assertion_type!r}",
         )
-    if assertion_type in {"target_asset_greater_than", "target_asset_gt"}:
+
+    kind, comparator, override = dispatch
+    effective_assertion = assertion
+    if override is not None:
+        mode, fields = override
+        effective_assertion = fields if mode == "replace" else {**assertion, **fields}
+
+    if kind == "compare":
         return predicate_asset_compare(
-            assertion=assertion,
+            assertion=effective_assertion,
             point=event_point,
-            comparator="greater_than",
+            comparator=comparator,
         )
-    if assertion_type == "target_asset_gte":
-        return predicate_asset_compare(
-            assertion=assertion,
-            point=event_point,
-            comparator="greater_than_or_equal",
-        )
-    if assertion_type in {
-        "target_asset_greater_than_previous",
-        "target_asset_increased_from_previous",
-    }:
+    if kind == "vs_previous":
         return predicate_asset_vs_previous(
-            assertion=assertion,
+            assertion=effective_assertion,
             point=event_point,
             previous_point=previous_point,
-            comparator="greater_than",
+            comparator=comparator,
         )
-    if assertion_type in {
-        "target_asset_less_than_previous",
-        "target_asset_decreased_from_previous",
-    }:
-        return predicate_asset_vs_previous(
-            assertion=assertion,
-            point=event_point,
-            previous_point=previous_point,
-            comparator="less_than",
-        )
-    if assertion_type in {
-        "target_asset_not_greater_than_previous",
-        "target_asset_not_increased_from_previous",
-    }:
-        return predicate_asset_vs_previous(
-            assertion=assertion,
-            point=event_point,
-            previous_point=previous_point,
-            comparator="not_greater_than",
-        )
-    if assertion_type in {
-        "target_asset_not_greater_than_current",
-        "target_asset_not_increased_from_current",
-    }:
+    if kind == "vs_current":
         return predicate_asset_vs_current(
-            assertion=assertion,
+            assertion=effective_assertion,
             point=event_point,
-            comparator="not_greater_than",
+            comparator=comparator,
         )
-    if assertion_type == "target_asset_unchanged_from_current":
-        return predicate_asset_vs_current(
-            assertion=assertion,
-            point=event_point,
-            comparator="equals",
-        )
-    if assertion_type in {
-        "target_asset_not_decreased_from_current",
-        "target_asset_not_less_than_current",
-    }:
-        return predicate_asset_vs_current(
-            assertion=assertion,
-            point=event_point,
-            comparator="not_less_than",
-        )
-    if assertion_type in {
-        "target_crypto_greater_than_previous",
-        "target_crypto_increased_from_previous",
-    }:
+    if kind == "crypto_vs_previous":
         return predicate_crypto_vs_previous(
             point=event_point,
             previous_point=previous_point,
-            comparator="greater_than",
+            comparator=comparator,
         )
-    if assertion_type == "target_stable_decreased_from_previous":
-        return predicate_asset_vs_previous(
-            assertion={"asset": "stable"},
-            point=event_point,
-            previous_point=previous_point,
-            comparator="less_than",
-        )
-    if assertion_type == "target_stable_increased_from_previous":
-        return predicate_asset_vs_previous(
-            assertion={"asset": "stable"},
-            point=event_point,
-            previous_point=previous_point,
-            comparator="greater_than",
-        )
-    if assertion_type == "target_spy_not_increased_from_previous":
-        return predicate_asset_vs_previous(
-            assertion={**assertion, "asset": "spy"},
-            point=event_point,
-            previous_point=previous_point,
-            comparator="not_greater_than",
-        )
-    if assertion_type == "target_spy_not_greater_than_current":
-        return predicate_asset_vs_current(
-            assertion={**assertion, "asset": "spy"},
-            point=event_point,
-            comparator="not_greater_than",
-        )
-    if assertion_type == "if_current_crypto_gt_target_asset_equals":
+    if kind == "crypto_gated_compare":
         return predicate_if_current_crypto_gt_asset_compare(
-            assertion=assertion,
+            assertion=effective_assertion,
             point=event_point,
-            comparator="equals",
+            comparator=comparator,
         )
-    if assertion_type == "if_current_crypto_gt_target_asset_gt":
-        return predicate_if_current_crypto_gt_asset_compare(
-            assertion=assertion,
-            point=event_point,
-            comparator="greater_than",
-        )
-    if assertion_type == "eventually_target_asset_greater_than_previous":
-        return predicate_eventual_asset_vs_previous(
-            assertion=assertion,
-            points=points,
-            event_point=event_point,
-            comparator="greater_than",
-        )
-    if assertion_type == "eventually_target_asset_less_than_previous":
-        return predicate_eventual_asset_vs_previous(
-            assertion=assertion,
-            points=points,
-            event_point=event_point,
-            comparator="less_than",
-        )
-    if assertion_type == "decision_action_in":
-        return predicate_decision_action_in(assertion=assertion, point=event_point)
-    if assertion_type == "decision_action_equals":
-        return predicate_decision_action_equals(assertion=assertion, point=event_point)
-    if assertion_type == "matched_rule_name_not_equals":
-        return predicate_matched_rule_name_not_equals(
-            assertion=assertion, point=event_point
-        )
-    if assertion_type == "decision_reason_in":
-        return predicate_decision_reason_in(assertion=assertion, point=event_point)
-    if assertion_type == "decision_detail_equals":
-        return predicate_decision_detail_equals(assertion=assertion, point=event_point)
-    if assertion_type == "ratio_zone_equals":
-        return predicate_ratio_zone_equals(assertion=assertion, point=event_point)
-    return constraint_failure(
-        event_point,
-        f"Unsupported assertion type: {assertion_type!r}",
+    return predicate_eventual_asset_vs_previous(
+        assertion=effective_assertion,
+        points=points,
+        event_point=event_point,
+        comparator=comparator,
     )
 
 

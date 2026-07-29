@@ -9,7 +9,6 @@ Functions:
     - safe_int: Convert any value to int with fallback to 0
     - calculate_percentage: Calculate percentage with division-by-zero protection
     - calculate_percentage_rounded: Calculate percentage rounded to 2 decimal places
-    - sum_category_wallet_values: Sum wallet_tokens_value across portfolio categories
     - sum_category_total_values: Sum total_value across portfolio categories
 
 All functions are defensive against None, invalid types, and edge cases.
@@ -182,44 +181,10 @@ def calculate_percentage_rounded(part: float, whole: float, decimals: int = 2) -
     return round(calculate_percentage(part, whole), decimals)
 
 
-def sum_category_wallet_values(allocation: "PortfolioAllocation") -> float:
-    """
-    Sum wallet_tokens_value across all portfolio categories.
-
-    Provides a single source of truth for category wallet value summation,
-    eliminating floating-point precision discrepancies between duplicate
-    calculation paths in the builder and validator.
-
-    Args:
-        allocation: PortfolioAllocation containing category data
-
-    Returns:
-        Sum of wallet_tokens_value from btc, eth, stablecoins, others
-
-    Example:
-        >>> allocation = PortfolioAllocation(...)
-        >>> total = sum_category_wallet_values(allocation)
-        >>> # Guarantees exact match between builder and validator
-
-    Notes:
-        - Uses forward reference to avoid circular import
-        - Evaluates categories in consistent order (btc, eth, stablecoins, others)
-        - Guarantees exact match between builder and validator calculations
-        - Both builder and validator MUST use this function
-    """
-    return (
-        allocation.btc.wallet_tokens_value
-        + allocation.eth.wallet_tokens_value
-        + allocation.stablecoins.wallet_tokens_value
-        + allocation.others.wallet_tokens_value
-    )
-
-
 def sum_category_total_values(allocation: "PortfolioAllocation") -> float:
     """
     Sum total_value across all portfolio categories.
 
-    Companion to sum_category_wallet_values() for total value summation.
     Provides consistent calculation path for allocation sum validation.
 
     Args:

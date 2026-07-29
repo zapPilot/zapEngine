@@ -30,12 +30,7 @@ class TestEnhancedQueryService:
         # Should load real queries from the project
         assert len(service.queries) > 0
         assert isinstance(service.queries, dict)
-
-        # Check for some expected queries based on the SQL files we saw
-        available_queries = service.list_available_queries()
-        assert len(available_queries) > 0
-        assert isinstance(available_queries, list)
-        assert all(isinstance(q, str) for q in available_queries)
+        assert all(isinstance(q, str) for q in service.queries)
 
     def test_query_service_caching(self):
         """Test that multiple instances share cache"""
@@ -46,35 +41,15 @@ class TestEnhancedQueryService:
         assert service1.queries is service2.queries
         assert QueryService._cache_initialized is True
 
-    def test_get_query_count(self):
-        """Test getting query count"""
-        service = QueryService()
-        count = service.get_query_count()
-
-        assert isinstance(count, int)
-        assert count > 0
-        assert count == len(service.queries)
-
-    def test_list_available_queries(self):
-        """Test listing available queries"""
-        service = QueryService()
-        queries = service.list_available_queries()
-
-        assert isinstance(queries, list)
-        assert len(queries) > 0
-        assert queries == sorted(queries)  # Should be sorted
-
     def test_get_query_with_real_query(self):
         """Test getting a real query"""
         service = QueryService()
-        available_queries = service.list_available_queries()
 
-        if available_queries:
-            first_query = available_queries[0]
-            query_content = service.get_query(first_query)
+        first_query = sorted(service.queries)[0]
+        query_content = service.get_query(first_query)
 
-            assert isinstance(query_content, str)
-            assert len(query_content.strip()) > 0
+        assert isinstance(query_content, str)
+        assert len(query_content.strip()) > 0
 
     def test_get_query_not_found_error_message(self):
         """Test descriptive error message for missing query"""
@@ -93,18 +68,6 @@ class TestEnhancedQueryService:
 
         with pytest.raises(ValueError, match="Query name cannot be empty"):
             service.get_query("")
-
-    def test_refresh_queries(self):
-        """Test query refresh functionality"""
-        service = QueryService()
-        initial_count = service.get_query_count()
-
-        # Refresh should reload queries
-        service.refresh_queries()
-
-        # Should still have queries (same ones in this case)
-        assert service.get_query_count() == initial_count
-        assert QueryService._cache_initialized is True
 
     def test_schema_removal_in_test_environment(self):
         """Test that schema prefixes are removed in test environment"""

@@ -295,24 +295,6 @@ class TestQueryServiceUtilities:
         yield
         QueryService._reset_cache_for_testing()
 
-    def test_refresh_queries_clears_and_reloads(self):
-        """Test that refresh_queries properly clears cache and reloads"""
-        service = QueryService()
-        initial_queries = service.queries.copy()
-
-        # Modify cache directly
-        QueryService._query_cache["test_query"] = "SELECT 1"
-        assert "test_query" in service.queries
-
-        # Refresh should reload from filesystem
-        service.refresh_queries()
-
-        # Should not have the manually added query
-        assert "test_query" not in service.queries
-        # Should have the original queries
-        for key in initial_queries:
-            assert key in service.queries
-
     def test_get_query_with_none_parameter(self):
         """Test get_query with None parameter"""
         service = QueryService()

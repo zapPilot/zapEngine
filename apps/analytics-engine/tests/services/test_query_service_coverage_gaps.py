@@ -43,9 +43,3 @@ class TestQueryServiceCoverageGaps:
             args, _ = mock_db.execute.call_args
             executed_sql = str(args[0])
             assert executed_sql == fallback_query
-
-    def test_prepare_query_compatibility(self):
-        """Test _prepare_query returns TextClause."""
-        service = QueryService()
-        res = service._prepare_query("SELECT 1")
-        assert str(res) == "SELECT 1"
