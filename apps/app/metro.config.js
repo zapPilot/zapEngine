@@ -1,11 +1,14 @@
 const { getDefaultConfig } = require('expo/metro-config');
 const { withNativeWind } = require('nativewind/metro');
 
+const assertIosNativeDependencies = require('./scripts/assert-ios-native-dependencies.cjs');
 const assertWorkspaceDistFresh = require('./scripts/assert-workspace-dist-fresh.cjs');
 
 // Every Metro entry point loads this file — dev server, `expo export`, and the
 // `expo export:embed` invoked by Xcode's bundle phase. Fail here so a stale
 // packages/*/dist reports itself instead of surfacing as a resolution error.
+// Release Xcode builds also fail before emitting a JS/native-mismatched app.
+assertIosNativeDependencies(__dirname);
 assertWorkspaceDistFresh(__dirname);
 
 const config = getDefaultConfig(__dirname);

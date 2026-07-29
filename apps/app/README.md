@@ -36,6 +36,13 @@ pnpm --filter @zapengine/app check:web-native-leaks
 pnpm --filter @zapengine/app format:check
 pnpm turbo run deadcode dup:check --filter=@zapengine/app
 
+# iOS development, archive, and Release cold-start gate (macOS)
+pnpm --filter @zapengine/app ios
+pnpm --filter @zapengine/app ios:native:sync
+pnpm --filter @zapengine/app ios:archive
+pnpm turbo run test:ios:release-smoke --filter=@zapengine/app
+pnpm --filter @zapengine/app ios:release
+
 # Android Google Play release
 pnpm --filter @zapengine/app android:release
 pnpm --filter @zapengine/app android:submit
@@ -74,6 +81,34 @@ Use the Turbo command for workspace checks so upstream package builds are fresh.
 `alpha` track, and `android:publish` builds and submits in one command. Complete
 the one-time credential and version setup in
 [docs/android-release.md](./docs/android-release.md) before the first EAS build.
+
+## iOS archive and TestFlight safety
+
+The generated `ios/` directory is intentionally ignored. A direct Xcode open can
+therefore retain Pods from an older `package.json`, even when its own
+`Podfile.lock` and `Pods/Manifest.lock` still match. That can produce an IPA
+whose JavaScript imports a native module that the executable never linked.
+
+Use `ios:archive` as the supported TestFlight entry point. It builds the
+workspace dependencies, applies Expo config to the existing native project,
+runs `pod install`, verifies required cold-start Pods, and opens
+`ZapPilot.xcworkspace`. Then choose **Product → Archive** in Xcode. A Release
+bundle also runs the same dependency guard, so bypassing the command with stale
+Pods fails the archive instead of emitting a crash-on-launch app.
+
+`ios:release` uses the clean-source EAS production profile. It creates the iOS
+store build but does not submit it to App Store Connect automatically.
+
+The macOS `test:ios:release-smoke` gate performs a clean Expo prebuild in CI,
+builds the actual Release simulator app with embedded JavaScript, verifies
+`RNCAsyncStorage` is linked, installs it, cold-launches it, and requires it to
+remain alive for 15 seconds without fatal React Native log signatures. Failure
+artifacts include the Xcode result bundle, build logs, simulator logs, and a
+screenshot under `test-results/ios-release-smoke/`.
+
+After this workflow has run on GitHub once, repository administration must mark
+`ios-release-smoke` as a required `main` branch check. Workflow YAML creates and
+runs the gate; the GitHub ruleset is what prevents merging around a red gate.
 
 ## Migration Notes
 
