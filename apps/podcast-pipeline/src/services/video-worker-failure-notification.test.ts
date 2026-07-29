@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type {
-  VideoJobRepository,
-  VisualJobRepository,
-} from './video-jobs.js';
+import type { VideoJobRepository, VisualJobRepository } from './video-jobs.js';
 import { createVideoWorker } from './video-worker.js';
 
 const failedNotification = {
