@@ -52,15 +52,6 @@ export class JobProcessorService {
   }
 
   /**
-   * Unregister a job processor
-   */
-  unregisterProcessor(jobType: JobType): void {
-    if (this.processors.delete(jobType)) {
-      this.logger.log(`Unregistered processor for job type: ${jobType}`);
-    }
-  }
-
-  /**
    * Start background job processing
    */
   startProcessing(): void {
@@ -131,23 +122,6 @@ export class JobProcessorService {
     }
 
     return this.executeJob(job);
-  }
-
-  /**
-   * Get processing statistics
-   */
-  getProcessingStats(): {
-    isProcessing: boolean;
-    activeJobs: number;
-    maxConcurrentJobs: number;
-    registeredProcessors: JobType[];
-  } {
-    return {
-      isProcessing: this.isProcessing,
-      activeJobs: this.activeJobs.size,
-      maxConcurrentJobs: this.maxConcurrentJobs,
-      registeredProcessors: Array.from(this.processors.keys()),
-    };
   }
 
   /**

@@ -8,8 +8,6 @@ import { BackoffCalculator } from '../../common/utils';
 import {
   CreateJobOptions,
   Job,
-  JobQueryFilters,
-  JobStatistics,
   JobStatus,
   LogLevel,
 } from './interfaces/job.interface';
@@ -340,100 +338,6 @@ export class JobQueueService {
   }
 
   /**
-   * Apply filters to job list
-   */
-  private applyFilters(jobs: Job[], filters: JobQueryFilters): Job[] {
-    let filtered = jobs;
-    const {
-      status,
-      type,
-      priority,
-      scheduledBefore,
-      scheduledAfter,
-      createdBefore,
-      createdAfter,
-    } = filters;
-    const minPriority = priority?.min;
-    const maxPriority = priority?.max;
-
-    if (status?.length) {
-      filtered = filtered.filter((job) => status.includes(job.status));
-    }
-
-    if (type?.length) {
-      filtered = filtered.filter((job) => type.includes(job.type));
-    }
-
-    if (minPriority !== undefined) {
-      filtered = filtered.filter((job) => job.priority >= minPriority);
-    }
-
-    if (maxPriority !== undefined) {
-      filtered = filtered.filter((job) => job.priority <= maxPriority);
-    }
-
-    if (scheduledBefore) {
-      filtered = filtered.filter((job) => job.scheduledAt <= scheduledBefore);
-    }
-
-    if (scheduledAfter) {
-      filtered = filtered.filter((job) => job.scheduledAt >= scheduledAfter);
-    }
-
-    if (createdBefore) {
-      filtered = filtered.filter((job) => job.createdAt <= createdBefore);
-    }
-
-    if (createdAfter) {
-      filtered = filtered.filter((job) => job.createdAt >= createdAfter);
-    }
-
-    return filtered;
-  }
-
-  /**
-   * Query jobs with filters, sorting, and pagination
-   */
-  queryJobs(filters: JobQueryFilters = {}): Job[] {
-    const jobs = this.applyFilters(Array.from(this.jobs.values()), filters);
-    jobs.sort((a, b) => this.compareJobsByPriorityAndSchedule(a, b));
-    const offset = filters.offset ?? 0;
-    return jobs.slice(offset, offset + (filters.limit ?? 50));
-  }
-
-  /**
-   * Get job statistics
-   */
-  getJobStatistics(): JobStatistics {
-    const stats: JobStatistics = {
-      total: this.jobs.size,
-      pending: 0,
-      processing: 0,
-      completed: 0,
-      failed: 0,
-    };
-
-    for (const job of this.jobs.values()) {
-      switch (job.status) {
-        case JobStatus.PENDING:
-          stats.pending++;
-          break;
-        case JobStatus.PROCESSING:
-          stats.processing++;
-          break;
-        case JobStatus.COMPLETED:
-          stats.completed++;
-          break;
-        case JobStatus.FAILED:
-          stats.failed++;
-          break;
-      }
-    }
-
-    return stats;
-  }
-
-  /**
    * Log job event with structured console output
    */
   logJobEvent(
@@ -468,13 +372,6 @@ export class JobQueueService {
         this.logger.error(logEntry);
         break;
     }
-  }
-
-  /**
-   * Get job logs from memory
-   */
-  getJobLogs(jobId: string): string[] {
-    return this.jobLogs.get(jobId) ?? [];
   }
 
   /**

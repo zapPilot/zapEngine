@@ -11,6 +11,12 @@ function makeService() {
   return service;
 }
 
+// logJobEvent's in-memory store has no public reader; tests peek at the
+// private map instead of keeping a public getter alive for tests only.
+function jobLogsOf(service: JobQueueService): Map<string, string[]> {
+  return (service as unknown as { jobLogs: Map<string, string[]> }).jobLogs;
+}
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -395,153 +401,8 @@ describe('JobQueueService', () => {
     });
   });
 
-  describe('queryJobs', () => {
-    it('returns all jobs when no filters are applied', () => {
-      const service = makeService();
-      service.createJob({ type: JobType.WEEKLY_REPORT_BATCH, payload: {} });
-      service.createJob({ type: JobType.DAILY_SUGGESTION_BATCH, payload: {} });
-      expect(service.queryJobs().length).toBe(2);
-      service.stop();
-    });
-
-    it('filters by status', () => {
-      const service = makeService();
-      const j1 = service.createJob({
-        type: JobType.WEEKLY_REPORT_BATCH,
-        payload: {},
-      });
-      service.createJob({ type: JobType.DAILY_SUGGESTION_BATCH, payload: {} });
-      service.completeJob(j1.id);
-      const result = service.queryJobs({ status: [JobStatus.COMPLETED] });
-      expect(result.length).toBe(1);
-      expect(result[0]?.status).toBe(JobStatus.COMPLETED);
-      service.stop();
-    });
-
-    it('filters by type', () => {
-      const service = makeService();
-      service.createJob({ type: JobType.WEEKLY_REPORT_BATCH, payload: {} });
-      service.createJob({ type: JobType.DAILY_SUGGESTION_BATCH, payload: {} });
-      const result = service.queryJobs({ type: [JobType.WEEKLY_REPORT_BATCH] });
-      expect(result.length).toBe(1);
-      service.stop();
-    });
-
-    it('filters by priority range', () => {
-      const service = makeService();
-      service.createJob({
-        type: JobType.WEEKLY_REPORT_BATCH,
-        payload: {},
-        priority: 1,
-      });
-      service.createJob({
-        type: JobType.WEEKLY_REPORT_BATCH,
-        payload: {},
-        priority: 5,
-      });
-      service.createJob({
-        type: JobType.WEEKLY_REPORT_BATCH,
-        payload: {},
-        priority: 10,
-      });
-      const result = service.queryJobs({ priority: { min: 3, max: 8 } });
-      expect(result.length).toBe(1);
-      expect(result[0]?.priority).toBe(5);
-      service.stop();
-    });
-
-    it('filters by scheduledBefore and scheduledAfter', () => {
-      const service = makeService();
-      const past = new Date(Date.now() - 10_000);
-      const future = new Date(Date.now() + 10_000);
-      service.createJob({
-        type: JobType.WEEKLY_REPORT_BATCH,
-        payload: {},
-        scheduledAt: past,
-      });
-      service.createJob({
-        type: JobType.WEEKLY_REPORT_BATCH,
-        payload: {},
-        scheduledAt: future,
-      });
-
-      const beforeNow = service.queryJobs({ scheduledBefore: new Date() });
-      expect(beforeNow.length).toBe(1);
-
-      const afterNow = service.queryJobs({ scheduledAfter: new Date() });
-      expect(afterNow.length).toBe(1);
-      service.stop();
-    });
-
-    it('filters by createdBefore and createdAfter', () => {
-      const service = makeService();
-      service.createJob({ type: JobType.WEEKLY_REPORT_BATCH, payload: {} });
-      const afterFarFuture = service.queryJobs({
-        createdAfter: new Date(Date.now() + 100_000),
-      });
-      expect(afterFarFuture.length).toBe(0);
-      const beforeFarFuture = service.queryJobs({
-        createdBefore: new Date(Date.now() + 100_000),
-      });
-      expect(beforeFarFuture.length).toBe(1);
-      service.stop();
-    });
-
-    it('paginates with offset and limit', () => {
-      const service = makeService();
-      for (let i = 0; i < 5; i++) {
-        service.createJob({ type: JobType.WEEKLY_REPORT_BATCH, payload: {} });
-      }
-      const page1 = service.queryJobs({ limit: 2, offset: 0 });
-      const page2 = service.queryJobs({ limit: 2, offset: 2 });
-      expect(page1.length).toBe(2);
-      expect(page2.length).toBe(2);
-      expect(page1[0]?.id).not.toBe(page2[0]?.id);
-      service.stop();
-    });
-  });
-
-  describe('getJobStatistics', () => {
-    it('returns zero stats for an empty queue', () => {
-      const service = makeService();
-      const stats = service.getJobStatistics();
-      expect(stats.total).toBe(0);
-      expect(stats.pending).toBe(0);
-      service.stop();
-    });
-
-    it('counts jobs by status correctly', () => {
-      const service = makeService();
-      service.createJob({ type: JobType.WEEKLY_REPORT_BATCH, payload: {} }); // stays PENDING
-      const j2 = service.createJob({
-        type: JobType.WEEKLY_REPORT_BATCH,
-        payload: {},
-      });
-      const j3 = service.createJob({
-        type: JobType.WEEKLY_REPORT_BATCH,
-        payload: {},
-      });
-      const j4 = service.createJob({
-        type: JobType.WEEKLY_REPORT_BATCH,
-        payload: {},
-      });
-
-      service.startProcessing(j2.id);
-      service.completeJob(j3.id);
-      service.failJob(j4.id, 'error');
-
-      const stats = service.getJobStatistics();
-      expect(stats.total).toBe(4);
-      expect(stats.pending).toBe(1);
-      expect(stats.processing).toBe(1);
-      expect(stats.completed).toBe(1);
-      expect(stats.failed).toBe(1);
-      service.stop();
-    });
-  });
-
   describe('logJobEvent', () => {
-    it('stores log entries and can be retrieved via getJobLogs', () => {
+    it('stores log entries in memory', () => {
       const service = makeService();
       const job = service.createJob({
         type: JobType.WEEKLY_REPORT_BATCH,
@@ -550,7 +411,7 @@ describe('JobQueueService', () => {
       service.logJobEvent(job.id, LogLevel.INFO, 'test log entry', {
         key: 'value',
       });
-      const logs = service.getJobLogs(job.id);
+      const logs = jobLogsOf(service).get(job.id) ?? [];
       expect(logs.some((l) => l.includes('test log entry'))).toBe(true);
       service.stop();
     });
@@ -592,21 +453,13 @@ describe('JobQueueService', () => {
         service.logJobEvent(job.id, LogLevel.INFO, `entry-${i}`);
       }
 
-      const logs = service.getJobLogs(job.id);
+      const logs = jobLogsOf(service).get(job.id) ?? [];
       expect(logs.length).toBe(JOB_CONFIG.MAX_LOGS_PER_JOB);
       // FIFO eviction: oldest entries dropped, newest retained
       expect(logs[0]).toContain(
         `entry-${overflow - JOB_CONFIG.MAX_LOGS_PER_JOB}`,
       );
       expect(logs[logs.length - 1]).toContain(`entry-${overflow - 1}`);
-      service.stop();
-    });
-  });
-
-  describe('getJobLogs', () => {
-    it('returns empty array for unknown jobId', () => {
-      const service = makeService();
-      expect(service.getJobLogs('nonexistent')).toEqual([]);
       service.stop();
     });
   });

@@ -2,7 +2,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
-import { HttpStatus, toErrorResponse } from './common/http';
+import { getErrorStatus, HttpStatus, toErrorResponse } from './common/http';
 import { Logger } from './common/logger';
 import { createRequestLoggerMiddleware } from './common/middleware';
 import {
@@ -57,13 +57,7 @@ export function createApp(
   );
 
   app.onError((error, c) =>
-    jsonResponse(
-      c,
-      toErrorResponse(c.req.path, error),
-      error instanceof Error && 'statusCode' in error
-        ? Number(error.statusCode)
-        : HttpStatus.INTERNAL_SERVER_ERROR,
-    ),
+    jsonResponse(c, toErrorResponse(c.req.path, error), getErrorStatus(error)),
   );
 
   return app;

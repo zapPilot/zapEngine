@@ -113,35 +113,6 @@ export interface JobProcessingResult {
 }
 
 /**
- * Job statistics interface for monitoring
- */
-export interface JobStatistics {
-  total: number;
-  pending: number;
-  processing: number;
-  completed: number;
-  failed: number;
-}
-
-/**
- * Job query filters interface
- */
-export interface JobQueryFilters {
-  status?: JobStatus[];
-  type?: JobType[];
-  priority?: {
-    min?: number;
-    max?: number;
-  };
-  scheduledBefore?: Date;
-  scheduledAfter?: Date;
-  createdBefore?: Date;
-  createdAfter?: Date;
-  limit?: number;
-  offset?: number;
-}
-
-/**
  * Job processor interface for implementing job handlers
  */
 export interface JobProcessor {

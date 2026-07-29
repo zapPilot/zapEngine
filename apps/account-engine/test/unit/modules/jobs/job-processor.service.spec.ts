@@ -60,6 +60,15 @@ function createTestProcessor(
   };
 }
 
+// The service exposes no public read surface for these; tests peek at the
+// private state instead of keeping a public getter alive for tests only.
+function internals(service: JobProcessorService) {
+  return service as unknown as {
+    processors: Map<JobType, JobProcessor>;
+    isProcessing: boolean;
+  };
+}
+
 describe('JobProcessorService', () => {
   describe('registerProcessor', () => {
     it('registers a processor for supported job types', () => {
@@ -68,8 +77,9 @@ describe('JobProcessorService', () => {
 
       service.registerProcessor(processor);
 
-      const stats = service.getProcessingStats();
-      expect(stats.registeredProcessors).toContain(JobType.WEEKLY_REPORT_BATCH);
+      expect(
+        internals(service).processors.get(JobType.WEEKLY_REPORT_BATCH),
+      ).toBe(processor);
     });
 
     it('warns when overwriting an already registered processor', () => {
@@ -82,29 +92,15 @@ describe('JobProcessorService', () => {
     });
   });
 
-  describe('unregisterProcessor', () => {
-    it('removes a registered processor', () => {
-      const { service } = createMocks();
-      service.registerProcessor(createTestProcessor());
-
-      service.unregisterProcessor(JobType.WEEKLY_REPORT_BATCH);
-
-      const stats = service.getProcessingStats();
-      expect(stats.registeredProcessors).not.toContain(
-        JobType.WEEKLY_REPORT_BATCH,
-      );
-    });
-  });
-
   describe('start / stop', () => {
     it('starts and stops processing', () => {
       const { service } = createMocks();
 
       service.start();
-      expect(service.getProcessingStats().isProcessing).toBe(true);
+      expect(internals(service).isProcessing).toBe(true);
 
       service.stop();
-      expect(service.getProcessingStats().isProcessing).toBe(false);
+      expect(internals(service).isProcessing).toBe(false);
     });
 
     it('is idempotent when already started', () => {
@@ -118,7 +114,7 @@ describe('JobProcessorService', () => {
       const { service } = createMocks();
       // never started
       expect(() => service.stop()).not.toThrow();
-      expect(service.getProcessingStats().isProcessing).toBe(false);
+      expect(internals(service).isProcessing).toBe(false);
     });
   });
 
