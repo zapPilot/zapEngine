@@ -24,7 +24,6 @@ Stale build fix: `pnpm --filter @zapengine/types build` (targeted, any package) 
 | `lint`                   |   ✓   | `^build`  | Type-aware ESLint needs package dist (like `type-check`); standalone runs surface resolution errors if you skip `^build`. |
 | `type-check`             |   ✓   | `^build`  | TypeScript needs package dist; will surface TS2307 if you skip `^build`.                                                  |
 | `test` / `test:coverage` |   ✓   | `^build`  | `passThroughEnv` whitelists `DATABASE_READ_ONLY*`, `TEST_DATABASE_URL`, `DATABASE_INTEGRATION_URL` for analytics-engine.  |
-| `test:ci`                |   ✗   | `^build`  | Always re-runs (no cache). Same env passthrough.                                                                          |
 | `deadcode` / `dup:check` |   ✓   | none      | Pure file scans.                                                                                                          |
 | `codegen*`               |   ✓   | none      | design-tokens generates CSS / Dart from `tokens.json`.                                                                    |
 
@@ -100,12 +99,12 @@ Pre-commit runs only **fast** checks: `pnpm install` (frozen lockfile), `lint re
 
 ## Verification hierarchy
 
-| Command                | Scope                             | When to run                  |
-| ---------------------- | --------------------------------- | ---------------------------- |
-| `pnpm verify changed`  | committed + staged + working tree | AI fix inner loop            |
-| `pnpm verify branch`   | origin/main...HEAD                | Before push / PR             |
-| `pnpm verify parallel` | Full, parallel                    | Local fast gate before push  |
-| `pnpm verify ci`       | CI canonical gate                 | CI / final gate before merge |
+| Command                | Scope                             | When to run                   |
+| ---------------------- | --------------------------------- | ----------------------------- |
+| `pnpm verify changed`  | committed + staged + working tree | AI fix inner loop             |
+| `pnpm verify branch`   | origin/main...HEAD                | Before push / PR              |
+| `pnpm verify parallel` | Full, parallel                    | Local fast gate before push   |
+| `pnpm verify ci`       | Full, sequential and fail-fast    | Local failure-order diagnosis |
 
 **Shallow clone note:** All `pnpm verify` subcommands fail on a shallow clone. Run `git fetch --unshallow origin` first.
 
@@ -116,13 +115,20 @@ Pre-commit runs only **fast** checks: `pnpm install` (frozen lockfile), `lint re
 3. If it fails, read `.ai-verify/result.json` — it names the failing job and points to its log under `.ai-verify/logs/`
 4. Fix only errors related to the current change
 5. Re-run until it passes
-6. Before push: `pnpm verify branch`. Before PR merge: `pnpm verify parallel` or `pnpm verify ci`
+6. Before push: `pnpm verify branch`. Before PR merge: `pnpm verify parallel`
 
 Do NOT run `verify ci` during the fix loop — it is too slow.
 
 ### What the local gate covers
 
-`pnpm verify ci` / `pnpm verify parallel` cover only the **core** CI jobs (format, repo drift, contracts parity, per-workspace type-check/lint/test/deadcode/duplication, analytics checks). They do **NOT** cover coverage, Docker, security audit, or deploy — those are separate GitHub jobs. The authoritative CI-job ↔ local-parity map lives in the `monorepo-ci-debugging` skill; when debugging CI, start there instead of restating job details here.
+`pnpm verify ci` / `pnpm verify parallel` cover the same core command registry
+that GitHub splits across four independently rerunnable jobs:
+`quick-gates` (format, repo drift, contracts), `code-quality` (type-check, lint,
+deadcode, duplication), `tests` (tests and analytics checks), and `e2e`.
+GitHub runs security, coverage, dead-env, Docker verification, and deploy as
+separate jobs. The authoritative CI-job ↔ local-parity map lives in the
+`monorepo-ci-debugging` skill; when debugging CI, start there instead of
+restating job details here.
 
 To run one core job directly: `pnpm lint repo`, `pnpm contracts check`, `pnpm turbo run type-check`, or the analytics gates `pnpm turbo run sql:audit service-reachability pylint:duplicate-check --filter=@zapengine/analytics-engine`.
 
@@ -132,7 +138,7 @@ Requires Python 3.11+ and `uv`. Do not use `pip` — use `uv add` for new depend
 
 # Analytics strategy measurement
 
-`pnpm test` / `test:ci` runs an in-process analytics-engine snapshot gate that needs `DATABASE_READ_ONLY_URL` pointed at the Supabase read-only replica — a local pg container will not satisfy it. DB-URL split + CI-secret requirement: see [apps/analytics-engine/CLAUDE.md](apps/analytics-engine/CLAUDE.md). Fixture refresh procedure: see [apps/analytics-engine/src/services/backtesting/CLAUDE.md](apps/analytics-engine/src/services/backtesting/CLAUDE.md).
+The analytics-engine workspace `test` / `test:ci` scripts run an in-process snapshot gate that needs `DATABASE_READ_ONLY_URL` pointed at the Supabase read-only replica — a local pg container will not satisfy it. DB-URL split + CI-secret requirement: see [apps/analytics-engine/CLAUDE.md](apps/analytics-engine/CLAUDE.md). Fixture refresh procedure: see [apps/analytics-engine/src/services/backtesting/CLAUDE.md](apps/analytics-engine/src/services/backtesting/CLAUDE.md).
 
 Do not create git worktrees unless explicitly requested by the user. Work directly in the current checkout by default.
 

@@ -4,8 +4,8 @@
 # Canonical sequential CI gate. Runs every core job (ci-jobs.sh) in priority
 # order, tee-ing each to its own log and recording it into the shared
 # .ai-verify/result.json (see ci-run-lib.sh). Stops at the first failure
-# (fail-fast, matching CI). Wired to `pnpm verify ci` and run by GitHub CI
-# (.github/workflows/ci.yml).
+# (fail-fast). Wired to `pnpm verify ci`; GitHub CI runs grouped subsets through
+# scripts/verify-jobs.sh so independent failures are visible in one workflow run.
 #
 # To see ALL failures in one pass instead of stopping at the first, use
 # `pnpm verify parallel` — same logs, same result.json.

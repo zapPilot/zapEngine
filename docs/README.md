@@ -54,9 +54,11 @@ knip-config, tsconfig, types.
 | Local gate — see all failures at once | `pnpm verify` (= `pnpm verify parallel`)      |
 | AI fix inner loop (affected only)     | `pnpm verify changed`                         |
 | Before push                           | `pnpm verify branch`                          |
-| CI canonical gate (sequential)        | `pnpm verify ci`                              |
+| Local sequential fail-fast gate       | `pnpm verify ci`                              |
 | Separate CI-only checks               | `pnpm security audit` · `pnpm coverage check` |
 
-`verify ci` / `parallel` do **not** include security audit or coverage — run
-those separately. Full table + the `.ai-verify/result.json` fix loop:
+GitHub splits the core registry into quick-gates, code-quality, tests, and e2e
+jobs so failures surface independently. `verify ci` / `parallel` do **not**
+include security audit or coverage — run those separately. Full table + the
+`.ai-verify/result.json` fix loop:
 [CLAUDE.md → Verification hierarchy](../CLAUDE.md#verification-hierarchy).

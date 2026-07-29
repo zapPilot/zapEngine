@@ -1,5 +1,10 @@
 import { spawnSync } from 'node:child_process';
 
+if (process.env.PLAYWRIGHT_SKIP_INSTALL === '1') {
+  console.log('Skipping Playwright browser installation.');
+  process.exit(0);
+}
+
 if (process.env.EAS_BUILD === 'true') {
   console.log(
     'Skipping Playwright browser installation during EAS native builds.',

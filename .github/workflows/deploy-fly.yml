@@ -13,7 +13,7 @@ on:
         description: Path to fly.toml (e.g., apps/account-engine/fly.toml).
       verify_package_script:
         type: string
-        default: ""
+        default: ''
         description: Optional root pnpm script (may include a subcommand, e.g. "verify deploy") to run before deploy. Skipped when empty.
       capture_release_metadata:
         type: boolean
@@ -26,35 +26,18 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     concurrency:
       group: deploy-${{ inputs.app }}-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
 
-      - name: Enable corepack
+      - name: Setup workspace
         if: inputs.verify_package_script != ''
-        run: corepack enable && corepack prepare pnpm@10.30.3 --activate
-
-      - uses: actions/setup-node@v4
-        if: inputs.verify_package_script != ''
+        uses: ./.github/actions/setup-workspace
         with:
-          node-version: "24"
-          cache: "pnpm"
-
-      - name: Cache Playwright browsers
-        if: inputs.verify_package_script != ''
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('apps/app/package.json', 'pnpm-lock.yaml') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-
-      - name: Install workspace dependencies
-        if: inputs.verify_package_script != ''
-        timeout-minutes: 10
-        run: HUSKY=0 pnpm install --frozen-lockfile
+          uv: 'false'
 
       - name: Run verify script
         if: inputs.verify_package_script != ''

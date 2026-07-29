@@ -135,7 +135,6 @@ const ERROR_PAGE_PATTERN =
   /Something went wrong|Unhandled|ErrorBoundary|Page not found/i;
 const AUTH_REQUIRED_ROUTES = new Set(['/strategy', '/activity', '/account']);
 const APP_BOOT_TIMEOUT = 45_000;
-const E2E_TEST_TIMEOUT = 90_000;
 const EPISODE_MEDIA_TAB_LABELS = ['Story', 'Classroom', 'Video'] as const;
 
 async function routePodcastFeed(page: Page): Promise<void> {
@@ -219,7 +218,6 @@ async function expectResponsiveEpisodeMediaTabs(page: Page): Promise<void> {
 test('renders the web app shell and primary routes without page errors', async ({
   page,
 }) => {
-  test.setTimeout(E2E_TEST_TIMEOUT);
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => {
     pageErrors.push(`${page.url()}: ${error.stack ?? error.message}`);
@@ -360,7 +358,6 @@ test('renders the web app shell and primary routes without page errors', async (
 test('episode media tabs stay fixed before playback at mobile and web widths', async ({
   page,
 }) => {
-  test.setTimeout(E2E_TEST_TIMEOUT);
   await routePodcastFeed(page);
 
   for (const viewport of [
@@ -383,7 +380,6 @@ test('episode media tabs stay fixed before playback at mobile and web widths', a
 test('audio-only episode keeps Video selectable with an unavailable state', async ({
   page,
 }) => {
-  test.setTimeout(E2E_TEST_TIMEOUT);
   await page.setViewportSize({ width: 390, height: 844 });
   await routePodcastFeed(page);
   await page.goto('/podcast/episode-1-zh-Hant?lang=zh-Hant');
@@ -402,7 +398,6 @@ test('audio-only episode keeps Video selectable with an unavailable state', asyn
 test('processing video generation shows a live generating state', async ({
   page,
 }) => {
-  test.setTimeout(E2E_TEST_TIMEOUT);
   await page.setViewportSize({ width: 390, height: 844 });
   await routeGeneratingPodcastFeed(page);
   await page.route('**/episodes/episode-3-zh-Hant**', async (route) => {
@@ -426,7 +421,6 @@ test('processing video generation shows a live generating state', async ({
 test('video polling stops after a completed detail becomes ready', async ({
   page,
 }) => {
-  test.setTimeout(E2E_TEST_TIMEOUT);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.clock.install();
   await routeGeneratingPodcastFeed(page);
@@ -465,7 +459,6 @@ test('video polling stops after a completed detail becomes ready', async ({
 });
 
 test('failed video detail shows a redacted failure state', async ({ page }) => {
-  test.setTimeout(E2E_TEST_TIMEOUT);
   await page.setViewportSize({ width: 390, height: 844 });
   await routeGeneratingPodcastFeed(page);
   await page.route('**/episodes/episode-3-zh-Hant**', async (route) => {
@@ -492,7 +485,6 @@ test('failed video detail shows a redacted failure state', async ({ page }) => {
 test('complete video stays lazy and falls back to Story after an error', async ({
   page,
 }) => {
-  test.setTimeout(E2E_TEST_TIMEOUT);
   await page.setViewportSize({ width: 390, height: 844 });
   let videoRequestCount = 0;
   let releaseVideoResponse: () => void = () => undefined;

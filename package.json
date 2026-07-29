@@ -58,12 +58,21 @@
       "pnpm --filter @zapengine/app exec eslint --fix",
       "pnpm --filter @zapengine/app exec prettier --write"
     ],
+    "apps/app/**/*.{js,json,md,mjs}": [
+      "pnpm --filter @zapengine/app exec prettier --write --ignore-unknown"
+    ],
     "apps/landing-page/**/*.{ts,tsx}": [
       "pnpm --filter @zapengine/landing-page exec eslint --fix",
       "pnpm --filter @zapengine/landing-page exec prettier --write"
     ],
+    "apps/landing-page/**/*.{js,jsx,json,md,mdx,css,scss,yml,yaml,mjs}": [
+      "pnpm --filter @zapengine/landing-page exec prettier --write --ignore-unknown"
+    ],
     "apps/podcast-pipeline/**/*.{ts,tsx}": [
       "pnpm --filter @zapengine/podcast-pipeline exec eslint --fix",
+      "pnpm --filter @zapengine/podcast-pipeline exec prettier --write"
+    ],
+    "apps/podcast-pipeline/{*.json,*.config.*,examples/**/*.json}": [
       "pnpm --filter @zapengine/podcast-pipeline exec prettier --write"
     ],
     "packages/**/*.{js,mjs,cjs,ts,tsx,json,md}": [

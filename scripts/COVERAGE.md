@@ -1,186 +1,134 @@
 # Coverage tooling
 
-Per-workspace test coverage is enforced by each workspace's own `vitest.config.ts`
-(TS) or `pyproject.toml` (Python). CI enforces those absolute thresholds and
-publishes the aggregate summary. A separate baseline comparison remains
-available for manual regression review, but it does not block CI.
+Each workspace owns its absolute coverage floor in `vitest.config.ts` (TypeScript)
+or `pyproject.toml` (Python). The separate GitHub `coverage` job runs every
+workspace's `test:coverage` script, so a workspace exits non-zero when one of
+its configured floors is missed. The job then publishes a complete monorepo
+summary; the optional baseline comparison remains a manual no-regression tool.
 
-## Scripts
+## Commands
 
-| Script                  | Purpose                                                                       |
-| ----------------------- | ----------------------------------------------------------------------------- |
-| `pnpm coverage summary` | Run all coverage suites + aggregate into `coverage/summary.json`.             |
-| `pnpm coverage check`   | Optional manual check: run all suites and compare against baseline.json.      |
-| `pnpm coverage test`    | Run the unit tests for `coverage-summary.ts` / `coverage-regression.ts`.      |
+| Command                 | Purpose                                                                 |
+| ----------------------- | ----------------------------------------------------------------------- |
+| `pnpm coverage summary` | Run all coverage suites and write `coverage/summary.json`.              |
+| `pnpm coverage check`   | Run the summary, then compare it with committed `baseline.json`.        |
+| `pnpm coverage test`    | Unit-test `coverage-summary.ts` and `coverage-regression.ts`.           |
+| `pnpm test coverage`    | Run every workspace's `test:coverage` task without aggregating reports. |
 
-The aggregator walks `apps/*/coverage/coverage-summary.json` (vitest v8) and
-`apps/analytics-engine/htmlcov/coverage.xml` (pytest-cov Cobertura). New
-workspaces with a `coverage/coverage-summary.json` are discovered automatically.
+analytics-engine uses the configured database URLs when present and otherwise
+starts its managed local PostgreSQL backend. CI supplies its read-only and test
+database URLs.
 
-## Regenerating the baseline (committed)
+## Aggregate report
 
-`coverage/baseline.json` is the floor that `pnpm coverage check` enforces. Only
-regenerate it when the team agrees to ratchet the floor up (e.g. after landing
-a coverage improvement on `main`).
+`scripts/coverage-summary.ts` discovers reports beneath both `apps/*` and
+`packages/*`:
+
+- Vitest workspaces emit `coverage/coverage-summary.json` via the
+  `json-summary` reporter.
+- analytics-engine emits pytest-cov Cobertura at `coverage.xml`; the aggregator
+  also accepts `htmlcov/coverage.xml` as a fallback.
+
+A complete sweep contains 11 workspaces:
+
+```text
+apps/account-engine
+apps/alpha-etl
+apps/analytics-engine
+apps/app
+apps/desktop
+apps/landing-page
+apps/podcast-pipeline
+packages/app-core
+packages/design-tokens
+packages/intent-engine
+packages/types
+```
+
+After a full run, verify completeness with:
 
 ```bash
-# 1. Make sure the env is set — analytics-engine's snapshot gate needs the
-#    Supabase read-only replica.
-export DATABASE_READ_ONLY_URL="postgresql://...read-only..."
-# Optional:
-# export DATABASE_INTEGRATION_URL=...    # alpha-etl integration suite
-# export TEST_DATABASE_URL=...
-
-# 2. Clean prior coverage outputs to avoid stale data.
-pnpm clean   # or: turbo run clean
-
-# 3. Run the full coverage sweep (~10–15 min cold, ~3 min warm).
-pnpm coverage summary
-
-# 4. Inspect coverage/summary.json — confirm every expected workspace is present.
-jq '.workspaces[] | { name, lines: .lines.pct }' coverage/summary.json
-
-# 5. Promote it to the committed baseline.
-cp coverage/summary.json coverage/baseline.json
-
-# 6. Commit. The .gitignore exception (line 49) allows `coverage/baseline.json`
-#    through while keeping the rest of `coverage/` ignored.
-git add coverage/baseline.json
-git commit -m "chore(coverage): ratchet baseline to <date>"
+pnpm exec tsx scripts/coverage-summary.ts
+jq '.workspaces | length' coverage/summary.json # 11
 ```
 
 ## CI behavior
 
-Coverage is intentionally NOT part of `verify ci` because frontend sharded
-coverage takes about six minutes on its own. The parallel coverage job first
-self-tests the coverage scripts with `pnpm run coverage test`, then runs every
-workspace's coverage suite and aggregates the results with
-`pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts`:
+Coverage is a standalone GitHub job, parallel to the core quality jobs and
+intentionally outside `pnpm verify ci`. The job has a 45-minute timeout, starts
+PostgreSQL 15, uses the shared workspace setup action, and runs:
 
-```yaml
-coverage:
-  runs-on: ubuntu-latest
-  timeout-minutes: 45
-  services:
-    postgres:
-      image: postgres:15-alpine
-      env:
-        POSTGRES_USER: test_user
-        POSTGRES_PASSWORD: testpass123
-        POSTGRES_DB: test_db
-      ports:
-        - 5432:5432
-      options: >-
-        --health-cmd "pg_isready -U test_user"
-        --health-interval 10s
-        --health-timeout 5s
-        --health-retries 5
-  env:
-    TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-    TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-    TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
-    DATABASE_READ_ONLY: 'true'
-    DATABASE_READ_ONLY_URL: ${{ secrets.DATABASE_READ_ONLY_URL }}
-    TEST_DATABASE_URL: postgresql+psycopg://test_user:testpass123@localhost:5432/test_db
-    DATABASE_INTEGRATION_URL: postgresql+asyncpg://test_user:testpass123@localhost:5432/test_db
-  steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Enable corepack
-      run: corepack enable && corepack prepare pnpm@10.30.3 --activate
-
-    - uses: actions/setup-node@v4
-      with:
-        node-version: '24'
-        cache: 'pnpm'
-
-    - name: Install uv (for analytics-engine pytest-cov)
-      uses: astral-sh/setup-uv@v5
-      with:
-        version: '0.8.13'
-        enable-cache: true
-        cache-dependency-glob: apps/analytics-engine/uv.lock
-
-    - name: Cache Playwright browsers
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/ms-playwright
-        key: playwright-${{ runner.os }}-${{ hashFiles('apps/app/package.json', 'pnpm-lock.yaml') }}
-        restore-keys: |
-          playwright-${{ runner.os }}-
-
-    - name: Install workspace dependencies
-      timeout-minutes: 10
-      run: pnpm install --frozen-lockfile
-
-    - name: Self-test the coverage scripts
-      run: pnpm run coverage test
-
-    - name: Coverage summary (workspace thresholds)
-      run: pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts
-
-    - name: Upload coverage summary artifact
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-summary
-        path: coverage/summary.json
-        if-no-files-found: warn
-        retention-days: 30
-
-    - name: Upload per-workspace HTML reports
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-html
-        path: |
-          apps/*/coverage/index.html
-          apps/*/coverage/**/*.html
-          packages/*/coverage/index.html
-          packages/*/coverage/**/*.html
-        if-no-files-found: ignore
-        retention-days: 7
+```bash
+pnpm run coverage test
+pnpm turbo run test:coverage
+pnpm exec tsx scripts/coverage-summary.ts
 ```
 
-Each workspace's `test:coverage` command fails the job when its configured
-absolute threshold is not met. Baseline drift alone does not fail CI; run
-`pnpm coverage check` manually when a no-regression comparison is useful.
+The first command validates the aggregation and regression scripts. The Turbo
+run enforces the absolute workspace floors below. The final command creates the
+11-workspace aggregate. CI uploads `coverage/summary.json` for 30 days and
+per-workspace HTML reports for seven days.
 
-## Per-workspace thresholds
+`scripts/coverage-regression.ts` is not part of the CI job. Baseline drift alone
+does not fail CI; use `pnpm coverage check` when a manual no-regression
+comparison is useful.
 
-Each gated workspace enforces its own hard floor via vitest/pytest config
-(`coverage.thresholds` in `vitest.config.ts`, or `[tool.coverage.report]
-fail_under` in `pyproject.toml`):
+## Per-workspace absolute floors
 
 | Workspace                | Statements | Branches | Functions | Lines |
 | ------------------------ | ---------- | -------- | --------- | ----- |
-| `packages/intent-engine` | 90         | 85       | 90        | 90    |
-| `packages/types`         | 90         | 85       | 90        | 90    |
 | `apps/account-engine`    | 95         | 90       | 95        | 95    |
 | `apps/alpha-etl`         | 92         | 92       | 92        | 92    |
-| `apps/podcast-pipeline`  | 91         | 80       | 92        | 92    |
+| `apps/analytics-engine`  | —          | —        | —         | 95    |
+| `apps/app`               | 57         | 61       | 60        | 58    |
 | `apps/desktop`           | 85         | 80       | 85        | 85    |
 | `apps/landing-page`      | 50         | 45       | 55        | 50    |
-| `apps/analytics-engine`  | —          | —        | —         | 98    |
+| `apps/podcast-pipeline`  | 91         | 80       | 92        | 92    |
+| `packages/app-core`      | 53         | 42       | 46        | 54    |
+| `packages/design-tokens` | —          | —        | —         | —     |
+| `packages/intent-engine` | 90         | 85       | 90        | 90    |
+| `packages/types`         | 90         | 85       | 90        | 90    |
 
-- `apps/landing-page`: the global floor is a temporary POC floor while the
-  track-record dashboard is backfilled with tests (see the comment in its
-  `vitest.config.ts`). `src/hooks/useMediaQuery.ts` and
-  `src/hooks/useReducedMotion.ts` additionally carry per-file thresholds of
+- `apps/analytics-engine` has one canonical pytest-cov floor:
+  `[tool.coverage.report] fail_under = 95` in `pyproject.toml`.
+- `apps/app` floors come from the 2026-07-29 baseline
+  (59.90/63.05/62.98/60.71), rounded down with a two-point buffer.
+- `packages/app-core` floors come from the same baseline run
+  (55.59/44.95/48.88/56.90), rounded down with a two-point buffer. Its test
+  suite is populated even though Vitest retains `passWithNoTests: true`.
+- `apps/landing-page` keeps a scoped temporary POC floor while the track-record
+  dashboard is backfilled. `src/hooks/useMediaQuery.ts` and
+  `src/hooks/useReducedMotion.ts` additionally enforce per-file floors of
   80/75/80/80.
-- `apps/analytics-engine`: pytest-cov enforces a single line-coverage floor —
-  `fail_under = 98` under `[tool.coverage.report]` in `pyproject.toml` — used
-  by `test:coverage` (the CI coverage job). `test:ci` separately passes an
-  explicit `--cov-fail-under 95` to the same suite.
+- `packages/design-tokens` reports coverage for aggregation but has no absolute
+  floor. Raise a config-level threshold when the team chooses to gate it.
 
-### Workspaces without a coverage floor
+Update this table whenever a workspace threshold changes. Ratchet floors upward
+only after sustained coverage improvements; do not lower them to conceal a
+regression.
 
-`apps/app` and `packages/design-tokens` run coverage (`test:coverage`) but
-configure no thresholds, and `packages/app-core` has no coverage block at all
-(and sets `passWithNoTests: true`). The coverage job can never fail these
-workspaces on coverage — do not assume every workspace is gated.
+## Manual no-regression baseline
 
-Raise a config-level threshold when the team wants to make sustained
-improvements mandatory, and update this table in the same PR.
+`coverage/baseline.json` is the committed reference used only by
+`pnpm coverage check`. Do not regenerate it to make a failing change pass.
+Promote a new baseline only after the team agrees to ratchet it upward on
+`main`.
+
+```bash
+# 1. Supply optional external database URLs, if needed.
+# export DATABASE_READ_ONLY_URL="postgresql://...read-only..."
+# export DATABASE_INTEGRATION_URL=...
+# export TEST_DATABASE_URL=...
+
+# 2. Run the full sweep (reporters overwrite their workspace outputs).
+pnpm coverage summary
+
+# 3. Confirm all expected workspaces and inspect their metrics.
+jq '.workspaces | length' coverage/summary.json
+jq '.workspaces[] | {name, lines: .lines.pct}' coverage/summary.json
+
+# 4. Promote only an approved upward ratchet.
+cp coverage/summary.json coverage/baseline.json
+git add coverage/baseline.json
+git commit -m "chore(coverage): ratchet baseline to <date>"
+```

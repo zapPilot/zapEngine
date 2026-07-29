@@ -7,6 +7,7 @@ export default defineConfig({
     exclude: ['**/node_modules/**', '**/dist/**', '**/release/**'],
     coverage: {
       provider: 'v8',
+      reporter: ['text', 'json-summary', 'html'],
       // Only the pure, injectable modules are unit-testable; Electron-host
       // wiring (main/window/tray) is exercised by the manual package gate.
       include: [

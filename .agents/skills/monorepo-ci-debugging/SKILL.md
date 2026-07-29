@@ -14,24 +14,32 @@ description: >-
 **Start with the failure CI named. Reproduce its smallest faithful unit, fix it,
 then widen verification one level at a time.**
 
-CI has both a fail-fast core gate and separate jobs. Fixing the first red gate can
-reveal the next latent failure; treat that as normal cascade behavior.
+CI splits the core registry into independently rerunnable jobs, and each grouped
+job runs all of its checks before reporting failure. Local `pnpm verify ci`
+remains sequential and fail-fast for failure-order diagnosis.
 
 ## What CI actually runs
 
 This table maps CI jobs to local parity. If it drifts from
 `.github/workflows/ci.yml`, the workflow wins and this table should be updated.
 
-| GitHub job | What it does | Local parity |
-| --- | --- | --- |
-| `lint-test` | install → build → verify core → security audit | `pnpm turbo run build && pnpm run verify ci && pnpm run security audit` |
-| `coverage` | self-test coverage scripts + workspace `test:coverage` summary | `pnpm run coverage test && pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts` |
-| `check-dead-env` | env var drift check | `pnpm lint dead-env` → **env-drift-ci-debugging** |
-| `verify-fly-docker` | Docker verify when deploy/Docker paths changed | app-specific Docker verify |
+| GitHub job          | What it does                                                                         | Local parity                                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `quick-gates`       | format, repository drift, and contract parity                                        | `bash scripts/verify-jobs.sh format repo contracts`                                                                    |
+| `code-quality`      | type-check, lint, deadcode, and duplication                                          | `bash scripts/verify-jobs.sh type-check lint deadcode dup`                                                             |
+| `tests`             | workspace tests and analytics checks, with the CI database env                       | `bash scripts/verify-jobs.sh test analytics`                                                                           |
+| `e2e`               | app web smoke tests with the Playwright browser                                      | `bash scripts/verify-jobs.sh e2e` → **app-playwright-ci-debugging**                                                    |
+| `security`          | Node and Python dependency audits                                                    | `pnpm run security audit` → **monorepo-security-audit**                                                                |
+| `deploy-gates`      | validate deploy registry and resolve changed-app matrices                            | `bash scripts/check-dispatch-registry-drift.sh`; test `scripts/resolve-deploy-matrix.sh` with its documented env cases |
+| `verify-fly-docker` | Docker verify when deploy/Docker paths changed                                       | app-specific Docker verify                                                                                             |
+| `deploy-fly`        | run any app-specific verify script, then deploy the selected Fly apps on non-PR runs | run the registry-selected verify script locally; deployment remains CI-only                                            |
+| `check-dead-env`    | env var drift check                                                                  | `pnpm lint dead-env` → **env-drift-ci-debugging**                                                                      |
+| `coverage`          | self-test coverage scripts + workspace `test:coverage` summary                       | `pnpm run coverage test && pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts`                  |
 
-`pnpm verify ci` / `pnpm verify parallel` reproduce only the core `lint-test`
-checks, not `coverage`, `check-dead-env`, mobile, or Docker. A green core gate is
-not the same as a green PR.
+`pnpm verify ci` / `pnpm verify parallel` reproduce the union of `quick-gates`,
+`code-quality`, `tests`, and `e2e`. They do not include `security`, `coverage`,
+`check-dead-env`, deploy gates, or Docker. A green core gate is not the same as
+a green PR.
 
 ## Fast fix loop
 
@@ -100,35 +108,34 @@ the source.
 
 ## Triage: classify the failure → where to go
 
-| Failing job / symptom | Bucket | Action |
-| --- | --- | --- |
-| `type-check` TS error | type error | fix the type inline |
-| TS2307 `cannot find module @scope/pkg` | stale dist / build order | **monorepo-build-import-errors** |
-| `deadcode` / knip unused exports/deps | deadcode | remove, expose only if public/test entry needs it, or knip-ignore a build-only shim with a reason |
-| `dup:check` / jscpd clone | duplication | **monorepo-dup-check** |
-| `lint` / `format` would change | format | run the workspace formatter; final test additions often need a formatting commit |
-| `coverage` job / workspace absolute floor | coverage | **monorepo-coverage-gate** |
-| `check-dead-env` / `.env.example` drift | env drift | **env-drift-ci-debugging** |
-| `apps/app` Playwright e2e | app e2e | **app-playwright-ci-debugging** |
-| analytics-engine Python format/mypy/contracts | python | **analytics-engine-ci-debugging** |
-| security audit | vulnerable dep | **monorepo-security-audit** |
-| desktop/Tauri-specific checks | desktop | **desktop-ci-debugging** |
+| Failing job / symptom                         | Bucket                   | Action                                                                                            |
+| --------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------- |
+| `type-check` TS error                         | type error               | fix the type inline                                                                               |
+| TS2307 `cannot find module @scope/pkg`        | stale dist / build order | **monorepo-build-import-errors**                                                                  |
+| `deadcode` / knip unused exports/deps         | deadcode                 | remove, expose only if public/test entry needs it, or knip-ignore a build-only shim with a reason |
+| `dup:check` / jscpd clone                     | duplication              | **monorepo-dup-check**                                                                            |
+| `lint` / `format` would change                | format                   | run the workspace formatter; final test additions often need a formatting commit                  |
+| `coverage` job / workspace absolute floor     | coverage                 | **monorepo-coverage-gate**                                                                        |
+| `check-dead-env` / `.env.example` drift       | env drift                | **env-drift-ci-debugging**                                                                        |
+| `apps/app` Playwright e2e                     | app e2e                  | **app-playwright-ci-debugging**                                                                   |
+| analytics-engine Python format/mypy/contracts | python                   | **analytics-engine-ci-debugging**                                                                 |
+| security audit                                | vulnerable dep           | **monorepo-security-audit**                                                                       |
+| desktop/Electron-specific checks              | desktop                  | **desktop-ci-debugging**                                                                          |
 
 ## Rationalizations — STOP
 
-| Excuse | Reality |
-| --- | --- |
-| "CI named one test, so fixing that test completes the goal." | The gate stops at the first failure. Rerun narrow, then widen. |
-| "`verify ci` passed, so the PR is green." | `coverage`, `check-dead-env`, mobile, and Docker are separate jobs. |
-| "I'll push and let CI tell me the next failure." | Read all red jobs and fix the batch. |
-| "The next failure is unrelated." | It may be latent debt exposed by cache invalidation or a separate job. Still fix or explicitly scope it. |
-| "The PR touched app X, so the coverage failure must be app X." | Read `Failed: @zapengine/<workspace>#test:coverage`. |
+| Excuse                                                         | Reality                                                                                                  |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| "CI named one test, so fixing that test completes the goal."   | Other grouped jobs may also be red. Rerun narrow, then widen.                                            |
+| "`verify ci` passed, so the PR is green."                      | Security, coverage, `check-dead-env`, deploy gates, and Docker are separate jobs.                        |
+| "I'll push and let CI tell me the next failure."               | Read all red jobs and fix the batch.                                                                     |
+| "The next failure is unrelated."                               | It may be latent debt exposed by cache invalidation or a separate job. Still fix or explicitly scope it. |
+| "The PR touched app X, so the coverage failure must be app X." | Read `Failed: @zapengine/<workspace>#test:coverage`.                                                     |
 
 ## Verification before handoff
 
 ```bash
-pnpm turbo run build
-pnpm run verify ci
+pnpm run verify parallel
 pnpm run security audit
 
 # Separate jobs touched by the change
