@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
-  EpisodeVideoJobRow,
   VideoJobRepository,
   VisualJobRepository,
 } from './video-jobs.js';
@@ -24,9 +23,7 @@ function makeRepository(): VideoJobRepository {
     fail: vi.fn().mockResolvedValue(null),
     find: vi.fn().mockResolvedValue(null),
     loadSource: vi.fn(),
-    reapFailedNotifications: vi
-      .fn()
-      .mockResolvedValue([failedNotification]),
+    reapFailedNotifications: vi.fn().mockResolvedValue([failedNotification]),
     markFailureNotified: vi
       .fn()
       .mockRejectedValueOnce(new Error('database unavailable'))
