@@ -15,6 +15,14 @@ kill_timeout = '30s'
   NODE_ENV = 'production'
   PORT = '3000'
 
+# Two groups so ffmpeg never shares a CPU with the HTTP service. When they were
+# co-located, a render starved the event loop until /health blew past its 5s
+# timeout and Fly pulled the only instance out of the proxy pool
+# ([PR01] no known healthy instances found for route tcp/443).
+[processes]
+  app = 'node dist/index.js'
+  render = 'node dist/worker.js'
+
 [http_service]
   internal_port = 3000
   force_https = true
@@ -30,9 +38,23 @@ kill_timeout = '30s'
     method = 'GET'
     path = '/health'
 
-# The renderer keeps dozens of decoded image inputs plus the xfade graph alive
-# during the final ffmpeg pass. Production renders have exceeded the 1 GB limit
-# and been killed with SIGKILL, so keep 2 GB of memory headroom.
+# HTTP service plus ingest (LLM, TTS, audio HLS). Unchanged — audio work has
+# always fit here.
 [[vm]]
   size = 'shared-cpu-1x'
   memory = '2gb'
+  processes = ['app']
+
+# Video rendering needs a dedicated CPU. A shared vCPU has a baseline of 1/16 of
+# a core, and once the burst balance is spent x264 collapses — a production
+# render was measured at speed=0.00434x, i.e. 25 minutes of wall clock for 6.6
+# seconds of video, which no lease can outlast.
+#
+# The renderer also keeps dozens of decoded image inputs plus the xfade graph
+# alive during the final pass, so peak memory scales with scene count (roughly
+# one scene per 10s of narration). ffmpeg was OOM-killed at 1.73 GB against the
+# old 2 GB limit, and that figure is a floor on the true peak, not the peak.
+[[vm]]
+  size = 'performance-2x'
+  memory = '8gb'
+  processes = ['render']

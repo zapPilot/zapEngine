@@ -27,7 +27,8 @@ RUN pnpm --filter @zapengine/design-tokens build \
  && pnpm --filter @zapengine/podcast-pipeline deploy --legacy /out \
  && cp -R apps/podcast-pipeline/assets /out/assets \
  && cp -R apps/podcast-pipeline/prompts /out/prompts \
- && test -f /out/dist/index.js
+ && test -f /out/dist/index.js \
+ && test -f /out/dist/worker.js
 
 FROM node:24-alpine AS runner
 RUN apk add --no-cache ffmpeg

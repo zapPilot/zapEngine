@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createEpisodeVideoProcessor } from './episode-video-processor.js';
+import {
+  createEpisodeVideoProcessor,
+  EPISODE_VIDEO_RENDER_TIMEOUT_MS,
+} from './episode-video-processor.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoJobRow,
@@ -72,8 +75,13 @@ describe('createEpisodeVideoProcessor', () => {
         storyboardPromptVersion: 'semantic-scene-alignment-v1',
       }),
     );
+    // The render runs on a signal derived from the job's, so it can also be cut
+    // short by its own deadline; the upload keeps the job signal.
     expect(render).toHaveBeenCalledWith(
-      expect.objectContaining({ signal, audioSource: source().hlsUrl }),
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        audioSource: source().hlsUrl,
+      }),
     );
     expect(upload).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -131,6 +139,54 @@ describe('createEpisodeVideoProcessor', () => {
     ).rejects.toThrow('Rendered manifest hash differs from persisted hash');
   });
 
+  it('fails a wedged render on its own deadline while still relaying job aborts', async () => {
+    vi.useFakeTimers();
+    try {
+      const renderSignals: AbortSignal[] = [];
+      const render = vi.fn((options: { signal: AbortSignal }) => {
+        renderSignals.push(options.signal);
+        return new Promise<never>((_resolve, reject) => {
+          options.signal.addEventListener(
+            'abort',
+            () => reject(abortReason(options.signal)),
+            { once: true },
+          );
+        });
+      });
+      const processJob = createEpisodeVideoProcessor({
+        analyzeAudio: vi
+          .fn()
+          .mockResolvedValue({ durationMs: 90_000, silences: [] }),
+        createManifest: vi.fn().mockResolvedValue(generatedManifest('hash')),
+        render: render as never,
+        upload: vi.fn(),
+        makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
+        writeManifest: vi.fn().mockResolvedValue(undefined),
+        removeDirectory: vi.fn().mockResolvedValue(undefined),
+      });
+      const controller = new AbortController();
+
+      // Attach the rejection handler before advancing, or the timer fires while
+      // the promise is still unobserved.
+      const settled = processJob(job(), source(), {
+        signal: controller.signal,
+        runId: 'run12345',
+        saveManifest: vi.fn().mockResolvedValue(undefined),
+      }).catch((error: unknown) => error);
+
+      // A hung ffmpeg keeps renewing its lease, and the render process group has
+      // no health check to notice, so the deadline is the only backstop.
+      await vi.advanceTimersByTimeAsync(EPISODE_VIDEO_RENDER_TIMEOUT_MS);
+      await expect(settled).resolves.toMatchObject({
+        message: 'Video render exceeded 40m',
+      });
+      expect(controller.signal.aborted).toBe(false);
+      expect(renderSignals[0]).not.toBe(controller.signal);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('cleans up the render directory after upload failure', async () => {
     const removeDirectory = vi.fn().mockResolvedValue(undefined);
     const processJob = createEpisodeVideoProcessor({
@@ -165,6 +221,11 @@ describe('createEpisodeVideoProcessor', () => {
     expect(removeDirectory).toHaveBeenCalled();
   });
 });
+
+function abortReason(signal: AbortSignal): Error {
+  const reason: unknown = signal.reason;
+  return reason instanceof Error ? reason : new Error(String(reason));
+}
 
 function source(): EpisodeVideoSource {
   return {

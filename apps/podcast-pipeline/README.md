@@ -102,8 +102,28 @@ curl -X POST "https://api.telegram.org/bot$PIPELINE_TELEGRAM_BOT_TOKEN/setWebhoo
 curl "https://api.telegram.org/bot$PIPELINE_TELEGRAM_BOT_TOKEN/getWebhookInfo"
 ```
 
-The webhook returns a fast 200 ack, then runs ingest in the background. Fly keeps one machine running for the durable video poller; deploys or restarts can still interrupt ingest, so the next submission of the same URL resumes from the latest Supabase-committed stage.
+The webhook returns a fast 200 ack, then runs ingest in the background. Fly keeps one `app` machine running so the webhook is always reachable; deploys or restarts can still interrupt ingest, so the next submission of the same URL resumes from the latest Supabase-committed stage.
 
 ## Deployment
 
 Fly.io via the zapEngine deploy registry. The Fly app name remains `from-fed-to-chain-api`.
+
+Two process groups, because video rendering and the HTTP service cannot share a CPU:
+
+| Group    | Command               | Machine                 | Serves HTTP |
+| -------- | --------------------- | ----------------------- | ----------- |
+| `app`    | `node dist/index.js`  | `shared-cpu-1x` / 2 GB  | yes         |
+| `render` | `node dist/worker.js` | `performance-2x` / 8 GB | no          |
+
+A shared vCPU has a baseline of 1/16 of a core, and once its burst balance is spent x264 collapses — a co-located render was measured at `speed=0.00434x` while starving `/health` past its 5 s timeout, which took the only instance out of the proxy pool. The `render` group therefore gets dedicated CPUs, and peak render memory scales with scene count (roughly one scene per 10 s of narration), so it gets 8 GB.
+
+The `render` group has no service and no health check; `[video-worker] alive` every five minutes is the liveness signal in `fly logs`. If a render machine dies, the 10-minute DB lease expires and the job is reclaimed on the next poll.
+
+The worker's poll loop also owns the Telegram video-failure sweep, so `fly scale count render=0 -a from-fed-to-chain-api` turns off more than rendering: queued visual and render jobs wait, and so do undelivered failure notices. Nothing is lost — `failure_notified_at` stays null and the sweep resumes when the group comes back — but while the group is at zero no video notification of any kind is sent.
+
+Locally the two entry points are separate processes:
+
+```bash
+pnpm --filter @zapengine/podcast-pipeline dev          # API only
+pnpm --filter @zapengine/podcast-pipeline dev:worker   # video renders only
+```

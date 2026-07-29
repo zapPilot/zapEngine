@@ -528,7 +528,34 @@ describe('createVideoWorker', () => {
     await expect(running).resolves.toBe('completed');
   });
 
-  it('aborts the render after repeated heartbeat failures', async () => {
+  it('keeps retrying heartbeat failures with backoff while the lease can still outlast them', async () => {
+    vi.useFakeTimers();
+    const repository = makeRepository();
+    vi.mocked(repository.renewLease).mockRejectedValue(
+      new Error('supabase unreachable'),
+    );
+    const render = createDeferred<EpisodeVideoCompletion>();
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn().mockReturnValue(render.promise),
+      notify: vi.fn().mockResolvedValue(undefined),
+      leaseOwner: 'worker-1',
+      heartbeatIntervalMs: 60_000,
+      leaseRenewRetryIntervalMs: 5_000,
+    });
+
+    const running = worker.runOnce();
+    // Four consecutive failures — one more than the retired three-strike rule —
+    // spread over 5s, 10s and 20s of backoff.
+    await vi.advanceTimersByTimeAsync(60_000 + 5_000 + 10_000 + 20_000);
+    expect(repository.renewLease).toHaveBeenCalledTimes(4);
+
+    render.resolve(completion);
+    await expect(running).resolves.toBe('completed');
+    expect(repository.fail).not.toHaveBeenCalled();
+  });
+
+  it('aborts the render once continued heartbeat failures would outlive the lease', async () => {
     vi.useFakeTimers();
     const repository = makeRepository();
     vi.mocked(repository.renewLease).mockRejectedValue(
@@ -542,7 +569,12 @@ describe('createVideoWorker', () => {
         new Promise<EpisodeVideoCompletion>((_resolve, reject) => {
           context.signal.addEventListener(
             'abort',
-            () => reject(new Error('aborted render')),
+            () => {
+              const reason: unknown = context.signal.reason;
+              reject(
+                reason instanceof Error ? reason : new Error(String(reason)),
+              );
+            },
             { once: true },
           );
         }),
@@ -556,11 +588,16 @@ describe('createVideoWorker', () => {
     });
 
     const running = worker.runOnce();
-    await vi.advanceTimersByTimeAsync(60_000);
-    await vi.advanceTimersByTimeAsync(5_000);
-    await vi.advanceTimersByTimeAsync(5_000);
+    // Backoff caps at 60s, so the budget (10min lease minus a 90s margin) is
+    // reached on the 11th failure at t=495s — not after 10 seconds.
+    await vi.advanceTimersByTimeAsync(600_000);
     await expect(running).resolves.toBe('failed');
-    expect(repository.renewLease).toHaveBeenCalledTimes(3);
+    expect(repository.renewLease).toHaveBeenCalledTimes(11);
+    expect(repository.fail).toHaveBeenCalledWith(
+      'localization-1',
+      'worker-1',
+      expect.stringContaining('Video lease heartbeat failed for 495s'),
+    );
   });
 
   it('uses recursive polling and aborts active work on stop', async () => {
@@ -924,6 +961,81 @@ describe('createVideoWorker', () => {
       worker.stop(new Error('shutting down')),
     ).resolves.toBeUndefined();
     await running;
+  });
+
+  it('aborts a render job claimed after shutdown began mid-claim', async () => {
+    const repository = makeRepository();
+    const claim = createDeferred<EpisodeVideoJobRow>();
+    vi.mocked(repository.claim).mockReturnValue(claim.promise);
+    vi.mocked(repository.fail).mockResolvedValue(
+      job({ status: 'queued', lease_owner: null, lease_expires_at: null }),
+    );
+    // Never resolved: if the job controller misses the already-aborted shutdown
+    // signal, the render owns the poll forever and stop() cannot return.
+    const render = createDeferred<EpisodeVideoCompletion>();
+    const processJob: ProcessEpisodeVideoJob = vi
+      .fn()
+      .mockReturnValue(render.promise);
+    const worker = createVideoWorker({
+      repository,
+      processJob,
+      notify: vi.fn(),
+      leaseOwner: 'worker-1',
+    });
+
+    const running = worker.runOnce();
+    await vi.waitFor(() => expect(repository.claim).toHaveBeenCalled());
+    // stop() aborts synchronously, so the claim below settles into an
+    // already-aborted shutdown signal.
+    const stopping = worker.stop(new Error('video worker shutting down'));
+    claim.resolve(job());
+
+    await expect(stopping).resolves.toBeUndefined();
+    await expect(running).resolves.toBe('failed');
+    expect(processJob).not.toHaveBeenCalled();
+    expect(repository.fail).toHaveBeenCalledWith(
+      'localization-1',
+      'worker-1',
+      'video worker shutting down',
+    );
+  });
+
+  it('aborts a visual job claimed after shutdown began mid-claim', async () => {
+    const visualRepository = makeVisualRepository();
+    const claim = createDeferred<EpisodeVideoVisualJobRow>();
+    vi.mocked(visualRepository.claim).mockReturnValue(claim.promise);
+    vi.mocked(visualRepository.fail).mockResolvedValue(
+      visualJob({
+        status: 'queued',
+        lease_owner: null,
+        lease_expires_at: null,
+      }),
+    );
+    const visual = createDeferred<EpisodeVideoVisualCompletion>();
+    const processVisualJob: ProcessEpisodeVideoVisualJob = vi
+      .fn()
+      .mockReturnValue(visual.promise);
+    const worker = createVideoWorker({
+      repository: makeRepository(null),
+      visualRepository,
+      processJob: vi.fn(),
+      processVisualJob,
+      leaseOwner: 'worker-1',
+    });
+
+    const running = worker.runOnce();
+    await vi.waitFor(() => expect(visualRepository.claim).toHaveBeenCalled());
+    const stopping = worker.stop(new Error('video worker shutting down'));
+    claim.resolve(visualJob());
+
+    await expect(stopping).resolves.toBeUndefined();
+    await expect(running).resolves.toBe('failed');
+    expect(processVisualJob).not.toHaveBeenCalled();
+    expect(visualRepository.fail).toHaveBeenCalledWith(
+      'episode-1',
+      'worker-1',
+      'video worker shutting down',
+    );
   });
 
   it('returns stopped when stop() runs while no active poll exists', async () => {

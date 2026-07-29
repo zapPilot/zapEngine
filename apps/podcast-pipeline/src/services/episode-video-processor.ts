@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { uploadVideoArtifactsToR2 } from './storage.js';
+import { combineAbortSignalWithTimeout } from './video/abort.js';
 import {
   analyzeEpisodeAudio,
   createEpisodeVideoManifest,
@@ -10,6 +11,11 @@ import {
 import { parseEpisodeVisualPayload } from './video/episode-visual.js';
 import { renderSlideVideo } from './video/renderer.js';
 import type { ProcessEpisodeVideoJob } from './video-worker.js';
+
+// A wedged ffmpeg would keep renewing its lease forever, and the render process
+// group has no HTTP service and therefore no Fly health check to notice. Bound
+// the encode so the job fails with a legible reason instead of holding the lease.
+export const EPISODE_VIDEO_RENDER_TIMEOUT_MS = 2_400_000;
 
 /* jscpd:ignore-start -- dependency injection factory pattern, irreducible by design */
 
@@ -110,20 +116,29 @@ export function createEpisodeVideoProcessor(
         'utf8',
       );
       context.signal.throwIfAborted();
-      const rendered = await dependencies.render({
-        manifestPath,
-        outputDirectory,
-        audioSource: source.hlsUrl,
-        signal: context.signal,
-        onProgress: (message) =>
-          logRenderProgress(
-            dependencies.logger,
-            context.runId,
-            source.episodeId,
-            source.languageCode,
-            message,
-          ),
-      });
+      const renderDeadline = combineAbortSignalWithTimeout(
+        context.signal,
+        EPISODE_VIDEO_RENDER_TIMEOUT_MS,
+        `Video render exceeded ${Math.round(EPISODE_VIDEO_RENDER_TIMEOUT_MS / 60_000)}m`,
+      );
+      const rendered = await dependencies
+        .render({
+          manifestPath,
+          outputDirectory,
+          audioSource: source.hlsUrl,
+          signal: renderDeadline.signal,
+          onProgress: (message) =>
+            logRenderProgress(
+              dependencies.logger,
+              context.runId,
+              source.episodeId,
+              source.languageCode,
+              message,
+            ),
+        })
+        .finally(() => {
+          renderDeadline.dispose();
+        });
       if (rendered.manifestHash !== generated.manifestHash) {
         throw new Error('Rendered manifest hash differs from persisted hash');
       }

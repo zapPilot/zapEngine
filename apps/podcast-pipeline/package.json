@@ -13,10 +13,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
+    "dev:worker": "tsx watch src/worker.ts",
     "video:render": "tsx src/services/video/cli.ts",
     "video:storyboard:smoke": "tsx src/services/video/storyboard/smoke-cli.ts",
     "video:r2-canary": "tsx src/services/video/r2-playback-canary.ts",
     "start": "node dist/index.js",
+    "start:worker": "node dist/worker.js",
     "format": "prettier --write \"src/**/*.{ts,tsx}\" \"examples/**/*.json\" \"*.config.*\" \"*.json\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\" \"examples/**/*.json\" \"*.config.*\" \"*.json\"",
     "lint": "eslint src/ --max-warnings 0 && node scripts/check-classroom-contract.mjs",

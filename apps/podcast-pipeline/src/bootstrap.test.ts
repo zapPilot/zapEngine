@@ -121,6 +121,20 @@ describe('bootstrap', () => {
     expect(stop).toHaveBeenCalledTimes(1);
   });
 
+  it('does not render video by default — the render Fly process group owns that', async () => {
+    const { bootstrap } = await import('./index.js');
+    const { createVideoWorker } = await import('./services/video-worker.js');
+
+    const handle = bootstrap({
+      app: { fetch: vi.fn() } as unknown as Hono,
+    });
+
+    expect(createVideoWorker).not.toHaveBeenCalled();
+    expect(handle.videoWorker).toBeNull();
+
+    await handle.shutdown();
+  });
+
   it('wires both the shared visual and localization processors into the worker', async () => {
     const { bootstrap } = await import('./index.js');
     const { createVideoWorker } = await import('./services/video-worker.js');
@@ -130,6 +144,7 @@ describe('bootstrap', () => {
       app: { fetch: vi.fn() } as unknown as Hono,
       processVideoJob,
       processVideoVisualJob,
+      startVideoWorker: true,
     });
 
     expect(createVideoWorker).toHaveBeenCalledWith({
