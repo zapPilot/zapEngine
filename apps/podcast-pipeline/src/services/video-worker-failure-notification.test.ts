@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { VideoJobRepository, VisualJobRepository } from './video-jobs.js';
+import type {
+  VideoJobRepository,
+  VisualJobRepository,
+} from './video-jobs.js';
 import { createVideoWorker } from './video-worker.js';
 
 const failedNotification = {
@@ -66,6 +69,8 @@ describe('video worker failure notification retry', () => {
     await expect(worker.runOnce()).resolves.toBe('empty');
     expect(notify).toHaveBeenCalledTimes(2);
     expect(repository.markFailureNotified).toHaveBeenCalledTimes(2);
-    expect(repository.markFailureNotified).toHaveBeenLastCalledWith('localization-1');
+    expect(repository.markFailureNotified).toHaveBeenLastCalledWith(
+      'localization-1',
+    );
   });
 });
