@@ -96,11 +96,13 @@ function EpisodeMediaTabButton({
   active,
   label,
   hint,
+  busy = false,
   onPress,
 }: {
   active: boolean;
   label: string;
   hint: string;
+  busy?: boolean;
   onPress: () => void;
 }) {
   return (
@@ -108,7 +110,7 @@ function EpisodeMediaTabButton({
       accessibilityRole="tab"
       accessibilityLabel={label}
       accessibilityHint={hint}
-      accessibilityState={{ selected: active }}
+      accessibilityState={{ selected: active, busy }}
       aria-selected={active}
       onPress={onPress}
       className={cn(
@@ -116,14 +118,23 @@ function EpisodeMediaTabButton({
         active ? 'bg-[rgba(212,197,163,.18)]' : 'bg-transparent opacity-70',
       )}
     >
-      <Text
-        className={cn(
-          'font-sans-semibold text-[13px]',
-          active ? 'text-accent' : 'text-ink-dim',
-        )}
-      >
-        {label}
-      </Text>
+      <View className="flex-row items-center gap-2">
+        {busy ? (
+          <ActivityIndicator
+            accessibilityLabel={`${label} is being generated`}
+            color="#d4c5a3"
+            size="small"
+          />
+        ) : null}
+        <Text
+          className={cn(
+            'font-sans-semibold text-[13px]',
+            active ? 'text-accent' : 'text-ink-dim',
+          )}
+        >
+          {label}
+        </Text>
+      </View>
     </Tap>
   );
 }
@@ -560,6 +571,7 @@ export function EpisodeMediaPlayer({
               active={activeTab === 'video'}
               label="Video"
               hint={videoTabHint}
+              busy={videoPanelState === 'generating'}
               onPress={showVideo}
             />
           </View>

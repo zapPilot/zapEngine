@@ -20,6 +20,9 @@ const migration020 = readRepoFile(
 const migration021 = readRepoFile(
   'apps/podcast-pipeline/supabase/migrations/021_version_fence_video_claims.sql',
 );
+const migration022 = readRepoFile(
+  'apps/podcast-pipeline/supabase/migrations/022_repair_episode_video_enqueue.sql',
+);
 const localizationRpcNames = [
   'enqueue_episode_video',
   'claim_episode_video',
@@ -188,6 +191,26 @@ describe('episode video lifecycle schema', () => {
       );
     },
   );
+
+  it('repairs production enqueue drift after episode_id became required', () => {
+    const enqueueDefinition = functionDefinition(
+      migration022,
+      'enqueue_episode_video',
+    );
+
+    expect(enqueueDefinition).toMatch(
+      /insert into from_fed_to_chain\.episode_videos \([\s\S]+?episode_localization_id,[\s\S]+?episode_id,[\s\S]+?visual_hash,[\s\S]+?visual_version/i,
+    );
+    expect(enqueueDefinition).toMatch(
+      /values \([\s\S]+?p_episode_localization_id,[\s\S]+?localization_record\.episode_id,[\s\S]+?target_visual_hash,[\s\S]+?visual_record\.visual_version/i,
+    );
+    expect(enqueueDefinition).toMatch(
+      /localization_record\.language_code not in \('zh-Hant', 'ja', 'en'\)/i,
+    );
+    expect(enqueueDefinition).toMatch(
+      /from from_fed_to_chain\.episode_video_visuals visual[\s\S]+?for share;/i,
+    );
+  });
 
   it('records the historical canonical-only enqueue hardening before migration 019', () => {
     const enqueueDefinition = functionDefinition(

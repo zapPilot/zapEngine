@@ -21,6 +21,7 @@ import { type ImageVisualPlan, parseImageVisualPlan } from './visual-plan.js';
 
 export const TRUSTED_RENDERER_VERSION = 'satori-resvg-v4' as const;
 export const BGM_MIX_GAIN_DB = -21;
+const PREFERRED_TRANSITION_MS = 200;
 
 export interface MaterializeLocaleVideoManifestInput {
   visualPlan: ImageVisualPlan;
@@ -97,6 +98,12 @@ export function materializeLocaleVideoManifest(
     throw new Error('Scene alignment must cover every locale sentence');
   }
 
+  const transitionMs = fitTransitionToShortestSlide(
+    slides,
+    OUTPUT_FPS,
+    PREFERRED_TRANSITION_MS,
+  );
+
   return parseVerticalVideoManifest({
     schemaVersion: VERTICAL_VIDEO_SCHEMA_VERSION,
     rendererVersion: TRUSTED_RENDERER_VERSION,
@@ -107,7 +114,7 @@ export function materializeLocaleVideoManifest(
       width: PORTRAIT_OUTPUT_WIDTH,
       height: PORTRAIT_OUTPUT_HEIGHT,
       fps: OUTPUT_FPS,
-      transitionMs: 200,
+      transitionMs,
     },
     mediaWindow: MEDIA_WINDOW,
     headline: {
@@ -127,4 +134,24 @@ export function materializeLocaleVideoManifest(
     slides,
     captions: input.timing.captions,
   });
+}
+
+function fitTransitionToShortestSlide(
+  slides: readonly { startMs: number; endMs: number }[],
+  fps: number,
+  preferredTransitionMs: number,
+): number {
+  const shortestSlideFrames = Math.min(
+    ...slides.map((slide) =>
+      Math.round(((slide.endMs - slide.startMs) * fps) / 1_000),
+    ),
+  );
+  const preferredTransitionFrames = Math.round(
+    (preferredTransitionMs * fps) / 1_000,
+  );
+  const transitionFrames = Math.min(
+    preferredTransitionFrames,
+    Math.max(0, shortestSlideFrames - 1),
+  );
+  return Math.round((transitionFrames * 1_000) / fps);
 }

@@ -305,8 +305,7 @@ export function EpisodeDetailScreen() {
   const detailQuery = usePodcastEpisode(
     feedEpisode?.localizationId ?? routeEpisodeId,
     feedEpisode?.languageCode ?? routeLanguageCode,
-    (feedEpisode === null && !feedQuery.isLoading) ||
-      isFeedVideoGenerationPending,
+    !feedQuery.isLoading,
     pendingFeedVideoGeneration,
   );
   const rawEpisode = mergePodcastEpisodeVideo(

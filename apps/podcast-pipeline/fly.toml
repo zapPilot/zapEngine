@@ -30,8 +30,9 @@ kill_timeout = '30s'
     method = 'GET'
     path = '/health'
 
-# 1 GB gives the vertical news renderer (media decode + two portrait card
-# rasters + BGM mix) comfortable headroom over the old 512 MB budget.
+# The renderer keeps dozens of decoded image inputs plus the xfade graph alive
+# during the final ffmpeg pass. Production renders have exceeded the 1 GB limit
+# and been killed with SIGKILL, so keep 2 GB of memory headroom.
 [[vm]]
   size = 'shared-cpu-1x'
-  memory = '1gb'
+  memory = '2gb'

@@ -590,6 +590,53 @@ describe('shared visual plan and locale manifest materialization', () => {
     );
   });
 
+  it('fits the transition to a localized scene shorter than 200ms', () => {
+    const sentences = splitCanonicalSentences('Brief. Markets changed.');
+    const timing: CanonicalAudioTiming = {
+      durationMs: 10_000,
+      sentences: [
+        { sentence: sentences[0]!, startMs: 0, endMs: 100 },
+        { sentence: sentences[1]!, startMs: 100, endMs: 10_000 },
+      ],
+      captions: [
+        { startMs: 0, endMs: 100, text: 'Brief.' },
+        { startMs: 100, endMs: 10_000, text: 'Markets changed.' },
+      ],
+      silences: [],
+    };
+    const draft: StoryboardDraft = {
+      scenes: sentences.map((sentence, index) => ({
+        sceneId: stableSceneId(index),
+        startSentenceId: sentence.id,
+        endSentenceId: sentence.id,
+        imageSearchIntent: [`image intent ${index + 1}`],
+      })),
+    };
+    const visualPlan = materializeImageVisualPlan({
+      draft,
+      sceneAssets: draft.scenes.map((scene) => ({
+        sceneId: scene.sceneId,
+        sources: [sceneSource(scene.sceneId)],
+        asset: sceneAsset(scene.sceneId),
+      })),
+    });
+
+    const manifest = materializeLocaleVideoManifest({
+      visualPlan,
+      timing,
+      sceneAlignment: draft.scenes,
+      episode: {
+        id: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
+        localizationId: '56b21422-1a38-4917-957e-b23223c0396c',
+        languageCode: 'en',
+        title: 'Markets',
+      },
+      audioSource: '/audio/en.m4a',
+    });
+
+    expect(manifest.clip.transitionMs).toBe(67);
+  });
+
   it('throws when scene alignment count mismatches visual plan scenes', () => {
     const sentences = splitCanonicalSentences('Markets changed.');
     const timing: CanonicalAudioTiming = {

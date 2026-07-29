@@ -573,7 +573,7 @@ export function usePodcastEpisode(
         pendingFeedVideoGeneration,
         query.state.fetchFailureCount,
       ),
-    refetchOnMount: pendingFeedVideoGeneration === null ? false : 'always',
+    refetchOnMount: 'always',
     staleTime: 5 * 60 * 1000,
   });
 }
