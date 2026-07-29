@@ -57,6 +57,10 @@ describe('video worker failure notification retry', () => {
 
     await expect(worker.runOnce()).resolves.toBe('empty');
     expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith(
+      'chat-1',
+      expect.stringContaining('原因：render failed'),
+    );
     expect(repository.markFailureNotified).toHaveBeenCalledTimes(1);
     expect(logger.error).toHaveBeenCalledWith(
       '[video-worker] failed to record failure notification',

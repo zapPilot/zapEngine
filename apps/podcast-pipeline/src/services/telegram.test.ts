@@ -85,6 +85,29 @@ describe('video lifecycle messages', () => {
       `⚠️ 影片失敗，但音頻仍可使用\n${link}`,
     );
   });
+
+  it('names the stored failure reason when the job recorded one', () => {
+    const link =
+      'https://from-fed-to-chain-api.fly.dev/e/episode%2F1?lang=zh-Hant';
+
+    expect(
+      buildTelegramVideoFailedMessage(
+        'episode/1',
+        '/usr/bin/ffmpeg failed (signal SIGKILL, likely out of memory): Conversion failed\nframe= 201 fps=0.1',
+      ),
+    ).toBe(
+      `⚠️ 影片失敗，但音頻仍可使用\n原因：/usr/bin/ffmpeg failed (signal SIGKILL, likely out of memory): Conversion failed\n${link}`,
+    );
+    expect(buildTelegramVideoFailedMessage('episode/1', '   ')).toBe(
+      `⚠️ 影片失敗，但音頻仍可使用\n${link}`,
+    );
+    expect(buildTelegramVideoFailedMessage('episode/1', null)).toBe(
+      `⚠️ 影片失敗，但音頻仍可使用\n${link}`,
+    );
+    expect(
+      buildTelegramVideoFailedMessage('episode/1', 'x'.repeat(600)),
+    ).toContain(`原因：${'x'.repeat(497)}...`);
+  });
 });
 
 describe('extractUrlFromMessage', () => {

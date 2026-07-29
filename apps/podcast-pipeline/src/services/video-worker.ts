@@ -30,7 +30,13 @@ import {
 export const VIDEO_WORKER_POLL_INTERVAL_MS = 15_000;
 export const VIDEO_WORKER_HEARTBEAT_INTERVAL_MS = 60_000;
 export const VIDEO_WORKER_LEASE_RENEW_RETRY_INTERVAL_MS = 5_000;
-export const VIDEO_WORKER_MAX_LEASE_RENEW_FAILURES = 3;
+export const VIDEO_WORKER_LEASE_RENEW_MAX_RETRY_INTERVAL_MS = 60_000;
+// Mirrors `lease_expires_at = now() + interval '10 minutes'` in the claim and
+// renew RPCs (supabase/schema.sql).
+export const VIDEO_WORKER_LEASE_TTL_MS = 600_000;
+// Give up while there is still lease left, so a lost race surfaces as a clean
+// abort rather than a write against an expired lease.
+export const VIDEO_WORKER_LEASE_RENEW_SAFETY_MARGIN_MS = 90_000;
 
 export interface ProcessEpisodeVideoJobContext {
   signal: AbortSignal;
@@ -169,7 +175,7 @@ export function createVideoWorker(
       try {
         await notify(
           failure.telegramChatId,
-          buildTelegramVideoFailedMessage(failure.episodeId),
+          buildTelegramVideoFailedMessage(failure.episodeId, failure.lastError),
         );
       } catch (error) {
         // Leave the row unstamped so a later poll retries the notification.
@@ -195,15 +201,10 @@ export function createVideoWorker(
   const processClaimedVisualJob = async (
     job: EpisodeVideoVisualJobRow,
   ): Promise<'completed' | 'failed'> => {
-    const jobController = new AbortController();
+    const { controller: jobController, releaseShutdownRelay } =
+      createJobController(shutdownController.signal);
     const runId = createVideoJobRunId();
     activeJobController = jobController;
-    const relayShutdown = () => {
-      jobController.abort(shutdownController.signal.reason);
-    };
-    shutdownController.signal.addEventListener('abort', relayShutdown, {
-      once: true,
-    });
     const stopHeartbeat = startLeaseHeartbeat({
       repository: visualRepository,
       jobId: job.episode_id,
@@ -259,7 +260,7 @@ export function createVideoWorker(
       return 'failed';
     } finally {
       stopHeartbeat();
-      shutdownController.signal.removeEventListener('abort', relayShutdown);
+      releaseShutdownRelay();
       if (activeJobController === jobController) activeJobController = null;
     }
   };
@@ -280,15 +281,10 @@ export function createVideoWorker(
   const processClaimedJob = async (
     job: EpisodeVideoJobRow,
   ): Promise<'completed' | 'failed'> => {
-    const jobController = new AbortController();
+    const { controller: jobController, releaseShutdownRelay } =
+      createJobController(shutdownController.signal);
     const runId = createVideoJobRunId();
     activeJobController = jobController;
-    const relayShutdown = () => {
-      jobController.abort(shutdownController.signal.reason);
-    };
-    shutdownController.signal.addEventListener('abort', relayShutdown, {
-      once: true,
-    });
     const stopHeartbeat = startLeaseHeartbeat({
       repository,
       jobId: job.episode_localization_id,
@@ -386,7 +382,7 @@ export function createVideoWorker(
       return 'failed';
     } finally {
       stopHeartbeat();
-      shutdownController.signal.removeEventListener('abort', relayShutdown);
+      releaseShutdownRelay();
       if (activeJobController === jobController) activeJobController = null;
     }
   };
@@ -433,6 +429,32 @@ function createVideoJobRunId(): string {
   return randomUUID().replaceAll('-', '').slice(0, 8);
 }
 
+// Bind a job's abort controller to worker shutdown. `executePoll` only checks the
+// shutdown signal *before* each claim, so a stop() landing while the claim RPC is
+// in flight hands back a job whose controller is created against an already-
+// aborted signal — and addEventListener never fires on one of those. Relaying
+// that pending abort by hand is what lets stop() reach the render: otherwise the
+// listener stays silent, `activeJobController` was still null when stop() read it,
+// and ffmpeg runs to its own deadline while stop() waits on the poll and Fly
+// SIGKILLs the machine with the DB lease still held.
+function createJobController(shutdownSignal: AbortSignal): {
+  controller: AbortController;
+  releaseShutdownRelay: () => void;
+} {
+  const controller = new AbortController();
+  const relayShutdown = () => {
+    controller.abort(shutdownSignal.reason);
+  };
+  shutdownSignal.addEventListener('abort', relayShutdown, { once: true });
+  if (shutdownSignal.aborted) relayShutdown();
+  return {
+    controller,
+    releaseShutdownRelay: () => {
+      shutdownSignal.removeEventListener('abort', relayShutdown);
+    },
+  };
+}
+
 interface LeaseRepository {
   renewLease(jobId: string, leaseOwner: string): Promise<boolean>;
 }
@@ -450,6 +472,12 @@ function startLeaseHeartbeat(input: {
   let timer: NodeJS.Timeout | null = null;
   let stopped = false;
   let consecutiveFailures = 0;
+  // The claim RPC just refreshed the lease, so the retry budget runs from here
+  // rather than from the first failure.
+  let lastRenewedAt = Date.now();
+
+  const renewBudgetMs =
+    VIDEO_WORKER_LEASE_TTL_MS - VIDEO_WORKER_LEASE_RENEW_SAFETY_MARGIN_MS;
 
   const scheduleIn = (delayMs: number): void => {
     if (stopped || input.controller.signal.aborted) return;
@@ -460,6 +488,12 @@ function startLeaseHeartbeat(input: {
     timer.unref();
   };
 
+  const retryDelayMs = (): number =>
+    Math.min(
+      input.retryIntervalMs * 2 ** (consecutiveFailures - 1),
+      VIDEO_WORKER_LEASE_RENEW_MAX_RETRY_INTERVAL_MS,
+    );
+
   const renew = async (): Promise<void> => {
     let renewed: boolean;
     try {
@@ -469,21 +503,28 @@ function startLeaseHeartbeat(input: {
       );
     } catch (error) {
       // A thrown error is a transient RPC failure (network blip, 5xx), not proof
-      // the lease is gone — the DB lease is still valid for up to ~10 minutes.
-      // Retry a few times before giving up so one flaky call does not discard an
-      // otherwise-healthy render and consume a scarce retry attempt.
+      // the lease is gone — the DB lease stays valid for VIDEO_WORKER_LEASE_TTL_MS
+      // after the last success. Budget the retries against that clock instead of
+      // a fixed attempt count: three attempts at a fixed 5s interval gave up
+      // after ~10 seconds and discarded renders that still held nine minutes of
+      // valid lease, burning one of only three allowed attempts each time.
       consecutiveFailures += 1;
+      const staleForMs = Date.now() - lastRenewedAt;
+      const nextDelayMs = retryDelayMs();
       input.logger.error(
-        `[video-worker] lease heartbeat call failed (attempt ${consecutiveFailures}/${VIDEO_WORKER_MAX_LEASE_RENEW_FAILURES})`,
+        `[video-worker] lease heartbeat call failed (attempt ${consecutiveFailures}, stale ${formatSeconds(staleForMs)}/${formatSeconds(renewBudgetMs)})`,
         normalizeError(error),
       );
-      if (consecutiveFailures >= VIDEO_WORKER_MAX_LEASE_RENEW_FAILURES) {
+      if (staleForMs + nextDelayMs >= renewBudgetMs) {
         input.controller.abort(
-          new Error('Video lease heartbeat failed', { cause: error }),
+          new Error(
+            `Video lease heartbeat failed for ${formatSeconds(staleForMs)} after ${consecutiveFailures} attempts`,
+            { cause: error },
+          ),
         );
         return;
       }
-      scheduleIn(input.retryIntervalMs);
+      scheduleIn(nextDelayMs);
       return;
     }
     if (!renewed) {
@@ -491,6 +532,7 @@ function startLeaseHeartbeat(input: {
       input.controller.abort(new VideoLeaseLostError(input.kind, input.jobId));
       return;
     }
+    lastRenewedAt = Date.now();
     consecutiveFailures = 0;
     scheduleIn(input.intervalMs);
   };
@@ -526,6 +568,10 @@ async function safelyNotify(
       normalizeError(error),
     );
   }
+}
+
+function formatSeconds(milliseconds: number): string {
+  return `${Math.round(milliseconds / 1_000)}s`;
 }
 
 function videoJobErrorMessage(error: unknown): string {

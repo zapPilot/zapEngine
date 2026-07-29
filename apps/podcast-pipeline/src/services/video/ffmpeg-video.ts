@@ -12,9 +12,14 @@ export interface VideoProcessResult {
 export type VideoProcessRunner = (
   executable: string,
   args: string[],
-  inheritStdio?: boolean,
+  streamStdio?: boolean,
   signal?: AbortSignal,
 ) => Promise<VideoProcessResult>;
+
+// Streamed runs are long (a full render) and ffmpeg's -stats writes a line per
+// second, so the retained copy has to be bounded. Keeping the tail is what
+// matters: it holds the error ffmpeg printed just before it died.
+const STREAMED_OUTPUT_TAIL_LIMIT = 8_000;
 
 export interface StaticSlideVideoOptions {
   manifest: SlideVideoManifest;
@@ -45,25 +50,32 @@ function invokeProcessRunner(
   processRunner: VideoProcessRunner,
   executable: string,
   args: string[],
-  inheritStdio: boolean | undefined,
+  streamStdio: boolean | undefined,
   signal: AbortSignal | undefined,
 ): Promise<VideoProcessResult> {
-  if (signal) return processRunner(executable, args, inheritStdio, signal);
-  return inheritStdio
+  if (signal) return processRunner(executable, args, streamStdio, signal);
+  return streamStdio
     ? processRunner(executable, args, true)
     : processRunner(executable, args);
 }
 
+/**
+ * `streamStdio` relays the child's output to this process's stdio as it
+ * arrives — the render needs its progress visible in the service log — while
+ * still retaining a bounded tail. The previous `stdio: 'inherit'` gave up the
+ * retained copy entirely, so a failed render threw
+ * `ffmpeg failed (signal SIGKILL): ` with nothing after the colon.
+ */
 export async function runProcess(
   executable: string,
   args: string[],
-  inheritStdio = false,
+  streamStdio = false,
   abortSignal?: AbortSignal,
 ): Promise<VideoProcessResult> {
   throwIfAborted(abortSignal);
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, {
-      stdio: inheritStdio ? 'inherit' : ['ignore', 'pipe', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
     // jscpd:ignore-start — shared child-process lifecycle pattern; same design in rasterizer.ts
     let settled = false;
@@ -98,9 +110,21 @@ export async function runProcess(
     child.stdout?.setEncoding('utf8');
     child.stderr?.setEncoding('utf8');
     child.stdout?.on('data', (chunk: string) => {
+      if (streamStdio) {
+        process.stdout.write(chunk);
+        stdout = boundedTail(stdout, chunk);
+        return;
+      }
+      // Capability probes regex over the whole of `ffmpeg -filters`, so the
+      // non-streaming path must keep every byte.
       stdout += chunk;
     });
     child.stderr?.on('data', (chunk: string) => {
+      if (streamStdio) {
+        process.stderr.write(chunk);
+        stderr = boundedTail(stderr, chunk);
+        return;
+      }
       stderr += chunk;
     });
     child.once('error', (error) =>
@@ -119,13 +143,48 @@ export async function runProcess(
         settleResolve({ stdout, stderr });
         return;
       }
-      settleReject(
-        new Error(
-          `${executable} failed (${signal ? `signal ${signal}` : `exit ${String(code)}`}): ${stderr.trim()}`,
-        ),
-      );
+      settleReject(processFailureError(executable, code, signal, stderr));
     });
   });
+}
+
+function boundedTail(current: string, chunk: string): string {
+  const combined = current + chunk;
+  return combined.length > STREAMED_OUTPUT_TAIL_LIMIT
+    ? combined.slice(combined.length - STREAMED_OUTPUT_TAIL_LIMIT)
+    : combined;
+}
+
+function processFailureError(
+  executable: string,
+  code: number | null,
+  signal: NodeJS.Signals | null,
+  stderr: string,
+): Error {
+  const how = signal ? `signal ${signal}` : `exit ${String(code)}`;
+  // The Linux OOM killer prints nothing the child can capture. An unrequested
+  // SIGKILL during a render is almost always the kernel reclaiming memory, and
+  // saying so is the difference between a diagnosable failure and a dead end.
+  const hint = signal === 'SIGKILL' ? ', likely out of memory' : '';
+  const tail = stderr.trim();
+  const summary = lastNonBlankLine(tail);
+  // Telegram surfaces only the first line of a failure, so it has to stand on
+  // its own; the full tail follows for the job's stored last_error.
+  const firstLine = `${executable} failed (${how}${hint})${summary ? `: ${summary}` : ''}`;
+  return new Error(
+    tail && tail !== summary ? `${firstLine}\n${tail}` : firstLine,
+  );
+}
+
+function lastNonBlankLine(value: string): string {
+  // ffmpeg's -stats output overwrites itself with bare carriage returns, so
+  // splitting on \n alone would return every progress update as one line.
+  const lines = value.split(/\r\n|[\n\r]/);
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]?.trim();
+    if (line) return line;
+  }
+  return '';
 }
 
 const HIDE_BANNER_FLAG = '-hide_banner';
@@ -400,6 +459,13 @@ function loopedImageInputs(paths: readonly string[], fps: number): string[] {
   ]);
 }
 
+// Ken Burns stills plus burned-in captions gain almost nothing from x264's
+// slower presets, and `slow` is what stalled production: a 1080x1920 render on
+// a throttled shared vCPU encoded at 0.004x realtime before the OOM killer took
+// ffmpeg. `veryfast` at crf 20 is visually equivalent on this material.
+const X264_PRESET = 'veryfast';
+const X264_CRF = '20';
+
 function encoderOutputArgs(input: {
   fps: number;
   totalFrames: number;
@@ -422,9 +488,9 @@ function encoderOutputArgs(input: {
     '-c:v',
     'libx264',
     '-preset',
-    'slow',
+    X264_PRESET,
     '-crf',
-    '17',
+    X264_CRF,
     '-tune',
     'stillimage',
     '-profile:v',

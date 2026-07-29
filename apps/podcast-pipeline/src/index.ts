@@ -15,6 +15,7 @@ import {
   getPort,
   getTelegramWebhookSecret,
 } from './lib/env.js';
+import { installProcessShutdown } from './lib/process-shutdown.js';
 import { isRecord } from './lib/typeGuards.js';
 import {
   buildIngestSummaryFromResult,
@@ -515,19 +516,26 @@ export interface BootstrapOptions {
   processVideoJob?: ProcessEpisodeVideoJob;
   processVideoVisualJob?: ProcessEpisodeVideoVisualJob;
   videoWorker?: EpisodeVideoWorker;
+  /**
+   * Off by default: video renders run in their own Fly process group
+   * (`render`, see fly.toml and src/worker.ts) on a dedicated-CPU machine, so
+   * the API process must not compete for the same CPU. Single-process setups
+   * and tests opt back in explicitly.
+   */
+  startVideoWorker?: boolean;
 }
 
 export function bootstrap(options: BootstrapOptions = {}) {
   const app = options.app ?? createApp();
-  let videoWorker = options.videoWorker ?? null;
-
-  if (!videoWorker) {
-    videoWorker = createVideoWorker({
-      processJob: options.processVideoJob ?? processEpisodeVideoJob,
-      processVisualJob:
-        options.processVideoVisualJob ?? processEpisodeVideoVisualJob,
-    });
-  }
+  const videoWorker =
+    options.videoWorker ??
+    (options.startVideoWorker === true
+      ? createVideoWorker({
+          processJob: options.processVideoJob ?? processEpisodeVideoJob,
+          processVisualJob:
+            options.processVideoVisualJob ?? processEpisodeVideoVisualJob,
+        })
+      : null);
 
   const server = serve(
     {
@@ -541,24 +549,10 @@ export function bootstrap(options: BootstrapOptions = {}) {
   );
   videoWorker?.start();
 
-  let shutdownPromise: Promise<void> | null = null;
-  const shutdown = (signal = 'shutdown'): Promise<void> => {
-    shutdownPromise ??= (async () => {
-      process.off('SIGINT', onSigint);
-      process.off('SIGTERM', onSigterm);
-      server.close();
-      await videoWorker?.stop(new Error(`Received ${signal}`));
-    })();
-    return shutdownPromise;
-  };
-  const onSigint = () => {
-    void shutdown('SIGINT');
-  };
-  const onSigterm = () => {
-    void shutdown('SIGTERM');
-  };
-  process.once('SIGINT', onSigint);
-  process.once('SIGTERM', onSigterm);
+  const { shutdown } = installProcessShutdown(async (signal) => {
+    server.close();
+    await videoWorker?.stop(new Error(`Received ${signal}`));
+  });
 
   return { app, server, videoWorker, shutdown };
 }

@@ -50,10 +50,19 @@ export function buildTelegramVideoCompletedMessage(episodeId: string): string {
   return ['🎬 影片完成', buildEpisodeShareUrl(episodeId)].join('\n');
 }
 
-export function buildTelegramVideoFailedMessage(episodeId: string): string {
-  return ['⚠️ 影片失敗，但音頻仍可使用', buildEpisodeShareUrl(episodeId)].join(
-    '\n',
-  );
+export function buildTelegramVideoFailedMessage(
+  episodeId: string,
+  lastError?: string | null,
+): string {
+  // episode_videos.last_error is already carried through the reap RPC, so the
+  // notice can name the reason instead of sending the submitter back to the
+  // service logs.
+  const reason = lastError?.trim();
+  return [
+    '⚠️ 影片失敗，但音頻仍可使用',
+    ...(reason ? [`原因：${publicTelegramErrorMessage(reason)}`] : []),
+    buildEpisodeShareUrl(episodeId),
+  ].join('\n');
 }
 
 export async function sendMessage(
