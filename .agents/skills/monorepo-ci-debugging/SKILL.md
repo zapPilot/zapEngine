@@ -22,16 +22,18 @@ reveal the next latent failure; treat that as normal cascade behavior.
 This table maps CI jobs to local parity. If it drifts from
 `.github/workflows/ci.yml`, the workflow wins and this table should be updated.
 
-| GitHub job | What it does | Local parity |
-| --- | --- | --- |
-| `lint-test` | install → build → verify core → security audit | `pnpm turbo run build && pnpm run verify ci && pnpm run security audit` |
-| `coverage` | self-test coverage scripts + workspace `test:coverage` summary | `pnpm run coverage test && pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts` |
-| `check-dead-env` | env var drift check | `pnpm lint dead-env` → **env-drift-ci-debugging** |
-| `verify-fly-docker` | Docker verify when deploy/Docker paths changed | app-specific Docker verify |
+| GitHub job          | What it does                                                                  | Local parity                                                                                                                                       |
+| ------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lint-test`         | install → build → verify core → security audit                                | `pnpm turbo run build && pnpm run verify ci && pnpm run security audit`                                                                            |
+| `deploy-gates`      | validate the Fly registry and resolve deploy/verify matrices                  | `bash scripts/check-dispatch-registry-drift.sh`; locally exercise `scripts/resolve-deploy-matrix.sh` with the event vars documented in that script |
+| `verify-fly-docker` | build changed Fly app Dockerfiles on pull requests                            | app-specific `docker build` from `.github/workflows/verify-docker.yml`                                                                             |
+| `deploy-fly`        | run any registry-selected package verification, then deploy selected Fly apps | no deployment parity; run the selected `verify_package_script` from `.github/fly-apps.json` before handoff                                         |
+| `check-dead-env`    | env var drift check                                                           | `pnpm lint dead-env` → **env-drift-ci-debugging**                                                                                                  |
+| `coverage`          | self-test coverage scripts + workspace `test:coverage` summary                | `pnpm run coverage test && pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts`                                              |
 
 `pnpm verify ci` / `pnpm verify parallel` reproduce only the core `lint-test`
-checks, not `coverage`, `check-dead-env`, mobile, or Docker. A green core gate is
-not the same as a green PR.
+checks, not `coverage`, `check-dead-env`, deploy selection/deployment, or Docker.
+A green core gate is not the same as a green PR.
 
 ## Fast fix loop
 
@@ -100,29 +102,29 @@ the source.
 
 ## Triage: classify the failure → where to go
 
-| Failing job / symptom | Bucket | Action |
-| --- | --- | --- |
-| `type-check` TS error | type error | fix the type inline |
-| TS2307 `cannot find module @scope/pkg` | stale dist / build order | **monorepo-build-import-errors** |
-| `deadcode` / knip unused exports/deps | deadcode | remove, expose only if public/test entry needs it, or knip-ignore a build-only shim with a reason |
-| `dup:check` / jscpd clone | duplication | **monorepo-dup-check** |
-| `lint` / `format` would change | format | run the workspace formatter; final test additions often need a formatting commit |
-| `coverage` job / workspace absolute floor | coverage | **monorepo-coverage-gate** |
-| `check-dead-env` / `.env.example` drift | env drift | **env-drift-ci-debugging** |
-| `apps/app` Playwright e2e | app e2e | **app-playwright-ci-debugging** |
-| analytics-engine Python format/mypy/contracts | python | **analytics-engine-ci-debugging** |
-| security audit | vulnerable dep | **monorepo-security-audit** |
-| desktop/Tauri-specific checks | desktop | **desktop-ci-debugging** |
+| Failing job / symptom                         | Bucket                   | Action                                                                                            |
+| --------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------- |
+| `type-check` TS error                         | type error               | fix the type inline                                                                               |
+| TS2307 `cannot find module @scope/pkg`        | stale dist / build order | **monorepo-build-import-errors**                                                                  |
+| `deadcode` / knip unused exports/deps         | deadcode                 | remove, expose only if public/test entry needs it, or knip-ignore a build-only shim with a reason |
+| `dup:check` / jscpd clone                     | duplication              | **monorepo-dup-check**                                                                            |
+| `lint` / `format` would change                | format                   | run the workspace formatter; final test additions often need a formatting commit                  |
+| `coverage` job / workspace absolute floor     | coverage                 | **monorepo-coverage-gate**                                                                        |
+| `check-dead-env` / `.env.example` drift       | env drift                | **env-drift-ci-debugging**                                                                        |
+| `apps/app` Playwright e2e                     | app e2e                  | **app-playwright-ci-debugging**                                                                   |
+| analytics-engine Python format/mypy/contracts | python                   | **analytics-engine-ci-debugging**                                                                 |
+| security audit                                | vulnerable dep           | **monorepo-security-audit**                                                                       |
+| desktop/Electron-specific checks              | desktop                  | **desktop-ci-debugging**                                                                          |
 
 ## Rationalizations — STOP
 
-| Excuse | Reality |
-| --- | --- |
-| "CI named one test, so fixing that test completes the goal." | The gate stops at the first failure. Rerun narrow, then widen. |
-| "`verify ci` passed, so the PR is green." | `coverage`, `check-dead-env`, mobile, and Docker are separate jobs. |
-| "I'll push and let CI tell me the next failure." | Read all red jobs and fix the batch. |
-| "The next failure is unrelated." | It may be latent debt exposed by cache invalidation or a separate job. Still fix or explicitly scope it. |
-| "The PR touched app X, so the coverage failure must be app X." | Read `Failed: @zapengine/<workspace>#test:coverage`. |
+| Excuse                                                         | Reality                                                                                                  |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| "CI named one test, so fixing that test completes the goal."   | The gate stops at the first failure. Rerun narrow, then widen.                                           |
+| "`verify ci` passed, so the PR is green."                      | `coverage`, `check-dead-env`, deploy, and Docker are separate jobs.                                      |
+| "I'll push and let CI tell me the next failure."               | Read all red jobs and fix the batch.                                                                     |
+| "The next failure is unrelated."                               | It may be latent debt exposed by cache invalidation or a separate job. Still fix or explicitly scope it. |
+| "The PR touched app X, so the coverage failure must be app X." | Read `Failed: @zapengine/<workspace>#test:coverage`.                                                     |
 
 ## Verification before handoff
 

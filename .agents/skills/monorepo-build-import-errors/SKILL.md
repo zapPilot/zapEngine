@@ -49,7 +49,7 @@ pnpm build packages                             # rebuild all packages (rarely n
 ```
 
 If CI is green but you see TS2307 locally, you almost certainly skipped
-`pnpm build core` before running a turbo task.
+`pnpm build packages` before running a turbo task.
 
 ## Mechanism B — ESM / CJS interop crash (the hard one)
 

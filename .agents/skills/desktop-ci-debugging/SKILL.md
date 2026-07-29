@@ -1,8 +1,9 @@
 ---
 name: desktop-ci-debugging
 description: >-
-  Use when `@zapengine/desktop` type-check, lint, test, deadcode, duplication,
-  build, or package checks fail for the Electron desktop shell.
+  Use when the Electron desktop shell fails around app:// asset routing,
+  main/preload CJS bundling, tray lifecycle, or electron-builder packaging.
+  Product UI failures belong to apps/app.
 ---
 
 # Desktop CI debugging
@@ -12,6 +13,14 @@ description: >-
 `apps/desktop` is an Electron shell that packages the static Expo web export
 from `apps/app`. Product UI lives in `apps/app`; desktop-only behavior lives in
 Electron main/preload code.
+
+Route generic gate failures to the sibling skill that owns their mechanism:
+
+| Failure                               | Route                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------ |
+| `format:check`                        | [monorepo-lint-format-loop](../monorepo-lint-format-loop/SKILL.md)       |
+| `dup:check`                           | [monorepo-dup-check](../monorepo-dup-check/SKILL.md)                     |
+| `type-check` import/build-order error | [monorepo-build-import-errors](../monorepo-build-import-errors/SKILL.md) |
 
 ## Correct desktop gates
 
@@ -61,17 +70,16 @@ Close-to-tray and quit behavior are stateful. Prefer pure helpers or injected
 fakes in tests, then manually verify packaged behavior when changing lifecycle
 code.
 
+## Rationalizations — STOP
+
+| Excuse                                                     | Reality                                                                                               |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| "The desktop shell owns this product UI bug."              | Product UI lives in `apps/app`; keep the Electron shell focused on native integration.                |
+| "A package failure means the source gates can be skipped." | Packaging prerequisites are separate; fix code/config gates before diagnosing the macOS package step. |
+| "Run the workspace type-check directly."                   | Raw workspace commands bypass Turbo's dependency builds; use the canonical desktop gate above.        |
+
 ## Verification
 
-Before handoff for desktop code/config changes:
-
-```bash
-pnpm turbo run type-check lint test build deadcode dup:check --filter=@zapengine/desktop
-pnpm --filter @zapengine/desktop format:check
-```
-
-If the change touches Electron main/preload/builder/package config:
-
-```bash
-pnpm --filter @zapengine/desktop package
-```
+Before handoff, run the **Correct desktop gates** above. If the change touches
+Electron main/preload/builder/package config, also run the package command shown
+there.

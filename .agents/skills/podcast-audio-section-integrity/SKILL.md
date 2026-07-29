@@ -19,7 +19,11 @@ description: >-
 
 Do not use `status === completed` as the only readiness signal. Validate the required artifact URLs.
 
-**Two layers, both load-bearing.** The *artifact* layer (two separate HLS sections, enforced by schema + `audio-stage.strict.test.ts`) is the historically fragile one. The *content* layer has no schema/DB enforcement and is guarded only by `llm.classroom.strict.test.ts` and the independent `scripts/check-classroom-contract.mjs` gate: the classroom lesson prompt must stay grounded in the article and script (not just the title), keywords are concept-based and shared across every target language, and the app must actually play both sections. A prior regression narrowed the prompt to the title and rewrote its unit test in the same diff — a co-editable unit test is not a guard against that.
+For translation provider validation, fallback, and cost behavior, use
+[podcast-translation-fallback-testing](../podcast-translation-fallback-testing/SKILL.md);
+this skill owns dual-audio artifact, ingest, and playback integrity.
+
+**Two layers, both load-bearing.** The _artifact_ layer (two separate HLS sections, enforced by schema + `audio-stage.strict.test.ts`) is the historically fragile one. The _content_ layer has no schema/DB enforcement and is guarded only by `llm.classroom.strict.test.ts` and the independent `scripts/check-classroom-contract.mjs` gate: the classroom lesson prompt must stay grounded in the article and script (not just the title), keywords are concept-based and shared across every target language, and the app must actually play both sections. A prior regression narrowed the prompt to the title and rewrote its unit test in the same diff — a co-editable unit test is not a guard against that.
 
 ## Canonical contract
 
@@ -70,8 +74,9 @@ Secondary localizations without configured classroom targets may complete with m
 - `apps/podcast-pipeline/scripts/check-classroom-contract.mjs`
   - vitest-independent gate (wired into `lint`) asserting grounding is present
     in `llm.ts` source, so co-editing tests cannot hide a narrowed prompt.
-- `apps/app/src/integration/podcastSections.ts` (+ `podcastSections.test.ts`,
-  `podcastPlaybackTransitions.test.ts`)
+- `apps/app/src/integration/podcastSections.ts`,
+  `apps/app/tests/podcastSections.test.ts`, and
+  `apps/app/tests/podcastPlaybackTransitions.test.ts`
   - client-side dual-section contract: `buildPlaybackSections` includes
     classroom whenever `classroomHlsUrl` is present; `resolveFinishedPlayback`
     plays the classroom section before advancing to the next episode;
@@ -132,13 +137,13 @@ pnpm verify changed
 
 ## Rationalizations — STOP
 
-| Excuse                                                                   | Reality                                                                                               |
-| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| "The row says completed, so playback is ready."                          | Status can be stale; required HLS URLs define readiness.                                              |
-| "Publishing main-only is better than failing."                           | It silently removes a promised product section and makes the regression hard to notice. Fail visibly. |
-| "We can append classroom to main so users still hear it."                | That breaks independent playback and can play classroom twice. Keep two artifacts.                    |
-| "Regenerating main during repair is harmless."                           | It wastes TTS cost and can change an already published narration. Reuse main HLS.                     |
-| "One classroom target failed, but the rest are enough."                  | Configured targets are the contract. Required target output must be complete.                         |
-| "The unit tests mock empty lessons, so production should tolerate them." | Test fixtures are not the product contract; strict regression tests must cover production behavior.   |
-| "The article/script is redundant context — dropping it just saves tokens."| The classroom prompt's grounding IS the product. Narrowing to the title is a content regression; changing the contract needs explicit product sign-off, not an incidental edit. |
-| "I'll update the test in the same change to match the new prompt."         | That is exactly how the last regression shipped. Content-contract tests and `check-classroom-contract.mjs` are guards, not obstacles to edit around.                             |
+| Excuse                                                                     | Reality                                                                                                                                                                         |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "The row says completed, so playback is ready."                            | Status can be stale; required HLS URLs define readiness.                                                                                                                        |
+| "Publishing main-only is better than failing."                             | It silently removes a promised product section and makes the regression hard to notice. Fail visibly.                                                                           |
+| "We can append classroom to main so users still hear it."                  | That breaks independent playback and can play classroom twice. Keep two artifacts.                                                                                              |
+| "Regenerating main during repair is harmless."                             | It wastes TTS cost and can change an already published narration. Reuse main HLS.                                                                                               |
+| "One classroom target failed, but the rest are enough."                    | Configured targets are the contract. Required target output must be complete.                                                                                                   |
+| "The unit tests mock empty lessons, so production should tolerate them."   | Test fixtures are not the product contract; strict regression tests must cover production behavior.                                                                             |
+| "The article/script is redundant context — dropping it just saves tokens." | The classroom prompt's grounding IS the product. Narrowing to the title is a content regression; changing the contract needs explicit product sign-off, not an incidental edit. |
+| "I'll update the test in the same change to match the new prompt."         | That is exactly how the last regression shipped. Content-contract tests and `check-classroom-contract.mjs` are guards, not obstacles to edit around.                            |

@@ -41,13 +41,6 @@ Failed: @zapengine/<workspace>#test:coverage
 then the failing layer is that workspace's `vitest.config.ts` or pytest
 threshold, not the baseline regression gate.
 
-### Root `pnpm coverage summary/check` caveat
-
-`pnpm coverage summary` is a convenience script whose filters can drift from the
-workflow's hand-written filters (e.g. which workspaces are excluded). It is not
-guaranteed CI parity — when debugging CI, copy the command from the workflow
-first.
-
 ## Core principle — fix coverage without hiding the blast radius
 
 Coverage failures have two valid shapes:
@@ -130,16 +123,16 @@ pnpm exec tsx scripts/coverage-regression.ts
 
 ## Rationalizations — STOP
 
-| Excuse                                                                              | Reality                                                                                                       |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| "`verify ci` passed, so coverage is fine."                                          | Coverage is a separate GitHub job, not part of `verify ci`.                                                   |
-| "Run `pnpm coverage check`; it's the same as CI."                                   | Maybe not. First compare it with the workflow's exact command and filters.                                    |
-| "Just lower the root threshold / baseline."                                         | That weakens the gate for everyone. Only scoped, temporary workspace floors are acceptable for explicit POCs. |
-| "The branch touched one workspace, so that workspace must be the coverage failure." | Coverage runs all workspaces; read the failed workspace line.                                                 |
-| "A green regression script means CI coverage is fixed."                             | Not if the workspace absolute floor failed before regression was even run.                                    |
-| "This production pipeline is large, so call it a POC and lower the floor."           | Durable production behavior must earn coverage; the POC exception requires disposable scope and an explicit ratchet plan. |
-| "Blanket-ignore deadcode and duplicates too; they are all from the same feature."    | Multiple gate suppressions hide an unreviewed surface. Fix or split it instead.                               |
-| "Blanket ignore the new dashboard."                                                 | Add high-value tests first; only ignore unreachable code with a reason.                                       |
+| Excuse                                                                              | Reality                                                                                                                   |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| "`verify ci` passed, so coverage is fine."                                          | Coverage is a separate GitHub job, not part of `verify ci`.                                                               |
+| "Run `pnpm coverage check`; it's the same as CI."                                   | Maybe not. First compare it with the workflow's exact command and filters.                                                |
+| "Just lower the root threshold / baseline."                                         | That weakens the gate for everyone. Only scoped, temporary workspace floors are acceptable for explicit POCs.             |
+| "The branch touched one workspace, so that workspace must be the coverage failure." | Coverage runs all workspaces; read the failed workspace line.                                                             |
+| "A green regression script means CI coverage is fixed."                             | Not if the workspace absolute floor failed before regression was even run.                                                |
+| "This production pipeline is large, so call it a POC and lower the floor."          | Durable production behavior must earn coverage; the POC exception requires disposable scope and an explicit ratchet plan. |
+| "Blanket-ignore deadcode and duplicates too; they are all from the same feature."   | Multiple gate suppressions hide an unreviewed surface. Fix or split it instead.                                           |
+| "Blanket ignore the new dashboard."                                                 | Add high-value tests first; only ignore unreachable code with a reason.                                                   |
 
 ## Verification
 
