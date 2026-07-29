@@ -1,8 +1,8 @@
 /**
  * Device-local podcast listening progress. Mirrors the retired mobile app's
  * `user_episode_state` model (`listened` + `last_position_seconds`) but is keyed
- * per `localizationId` so each language tracks separately, and it lives on the
- * device (web `localStorage`) instead of an account-synced backend.
+ * per `localizationId` so each language tracks separately, and it lives in
+ * durable device storage instead of an account-synced backend.
  */
 import type { PodcastEpisode } from '@/integration/podcastFeed';
 import type { PodcastSectionKind } from '@/integration/podcastSections';
@@ -29,7 +29,7 @@ export interface PodcastCompletionSummary {
   percentage: number;
 }
 
-/** `localStorage` key for the per-localization progress map (web only). */
+/** Durable device-storage key for the per-localization progress map. */
 export const PODCAST_PROGRESS_STORAGE_KEY = 'podcast_episode_progress';
 
 /** Saved position (seconds) an episode must exceed before it counts as in-progress. */

@@ -164,32 +164,3 @@ export function parseStoredSpeedPreferences(
     classroomSpeed: normaliseSpeed(record['classroomSpeed']),
   };
 }
-
-/** Best-effort read; on native `globalThis.localStorage` is undefined so this
- * returns defaults (in-memory only), matching the podcast progress storage. */
-export function readStoredSpeedPreferences(): PodcastSpeedPreferences {
-  try {
-    const raw = globalThis.localStorage?.getItem(
-      PODCAST_SPEED_PREFERENCES_STORAGE_KEY,
-    );
-    if (raw === null || raw === undefined) {
-      return { ...DEFAULT_PODCAST_SPEED_PREFERENCES };
-    }
-    return parseStoredSpeedPreferences(JSON.parse(raw));
-  } catch {
-    return { ...DEFAULT_PODCAST_SPEED_PREFERENCES };
-  }
-}
-
-export function persistSpeedPreferences(
-  preferences: PodcastSpeedPreferences,
-): void {
-  try {
-    globalThis.localStorage?.setItem(
-      PODCAST_SPEED_PREFERENCES_STORAGE_KEY,
-      JSON.stringify(preferences),
-    );
-  } catch {
-    // Persistence is best-effort; ignore quota/availability failures.
-  }
-}

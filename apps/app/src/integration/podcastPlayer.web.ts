@@ -17,13 +17,11 @@ import type {
 } from '@/integration/podcastSections';
 import {
   buildPlaybackSections,
-  persistSpeedPreferences,
-  readStoredSpeedPreferences,
   resolveFinishedPlayback,
   speedForSection,
-  withSectionSpeed,
 } from '@/integration/podcastSections';
 import { usePodcastPlayerQueue } from '@/integration/usePodcastPlayerQueue';
+import { usePodcastSpeedPreferences } from '@/hooks/usePodcastSpeedPreferences';
 
 function toggleAudioElement(audio: HTMLAudioElement): void {
   if (audio.paused) {
@@ -43,9 +41,8 @@ export function usePodcastPlayer(): PodcastPlayer {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [speedPreferences, setSpeedPreferences] = useState(
-    readStoredSpeedPreferences,
-  );
+  const { preferences: speedPreferences, setSpeedForSection } =
+    usePodcastSpeedPreferences();
   const [currentSection, setCurrentSection] =
     useState<PodcastSectionKind>('main');
 
@@ -370,19 +367,13 @@ export function usePodcastPlayer(): PodcastPlayer {
   // main speeds stay independent.
   const setSpeed = useCallback(
     (nextSpeed: number) => {
-      const updated = withSectionSpeed(
-        speedPreferences,
-        currentSection,
-        nextSpeed,
-      );
-      setSpeedPreferences(updated);
-      persistSpeedPreferences(updated);
+      const appliedSpeed = setSpeedForSection(currentSection, nextSpeed);
       const audio = audioRef.current;
       if (audio !== null) {
-        audio.playbackRate = speedForSection(updated, currentSection);
+        audio.playbackRate = appliedSpeed;
       }
     },
-    [currentSection, speedPreferences],
+    [currentSection, setSpeedForSection],
   );
 
   const skipToSection = useCallback(
@@ -395,6 +386,13 @@ export function usePodcastPlayer(): PodcastPlayer {
   );
 
   const speed = speedForSection(speedPreferences, currentSection);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (nowPlaying !== null && audio !== null) {
+      audio.playbackRate = speed;
+    }
+  }, [nowPlaying, speed]);
 
   const pause = useCallback(() => {
     cancelPendingHandoff();

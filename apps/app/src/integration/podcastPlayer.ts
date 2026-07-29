@@ -21,13 +21,11 @@ import type {
 } from '@/integration/podcastSections';
 import {
   buildPlaybackSections,
-  persistSpeedPreferences,
-  readStoredSpeedPreferences,
   resolveFinishedPlayback,
   speedForSection,
-  withSectionSpeed,
 } from '@/integration/podcastSections';
 import { usePodcastPlayerQueue } from '@/integration/usePodcastPlayerQueue';
+import { usePodcastSpeedPreferences } from '@/hooks/usePodcastSpeedPreferences';
 // jscpd:ignore-end
 
 export function usePodcastPlayer(): PodcastPlayer {
@@ -37,9 +35,8 @@ export function usePodcastPlayer(): PodcastPlayer {
   });
   const status = useAudioPlayerStatus(audioPlayer);
   const [nowPlaying, setNowPlaying] = useState<PodcastEpisode | null>(null);
-  const [speedPreferences, setSpeedPreferences] = useState(
-    readStoredSpeedPreferences,
-  );
+  const { preferences: speedPreferences, setSpeedForSection } =
+    usePodcastSpeedPreferences();
   const [currentSection, setCurrentSection] =
     useState<PodcastSectionKind>('main');
   const pendingHandoffRef = useRef<PendingPodcastPlaybackHandoff | null>(null);
@@ -296,16 +293,10 @@ export function usePodcastPlayer(): PodcastPlayer {
   // main speeds stay independent.
   const setSpeed = useCallback(
     (nextSpeed: number) => {
-      const updated = withSectionSpeed(
-        speedPreferences,
-        currentSection,
-        nextSpeed,
-      );
-      setSpeedPreferences(updated);
-      persistSpeedPreferences(updated);
-      audioPlayer.setPlaybackRate(speedForSection(updated, currentSection));
+      const appliedSpeed = setSpeedForSection(currentSection, nextSpeed);
+      audioPlayer.setPlaybackRate(appliedSpeed);
     },
-    [audioPlayer, currentSection, speedPreferences],
+    [audioPlayer, currentSection, setSpeedForSection],
   );
 
   const skipToSection = useCallback(
@@ -318,6 +309,12 @@ export function usePodcastPlayer(): PodcastPlayer {
   );
 
   const speed = speedForSection(speedPreferences, currentSection);
+
+  useEffect(() => {
+    if (nowPlaying !== null) {
+      audioPlayer.setPlaybackRate(speed);
+    }
+  }, [audioPlayer, nowPlaying, speed]);
 
   // jscpd:ignore-start — platform snapshots implement the same public contract
   return useMemo(() => {

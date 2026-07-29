@@ -4,19 +4,25 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
 import {
   type PodcastEpisodeProgress,
-  PODCAST_PROGRESS_STORAGE_KEY,
   type PodcastProgressMap,
 } from '@/integration/podcastProgress';
 import type { PodcastSectionKind } from '@/integration/podcastSections';
+import {
+  loadPodcastProgress,
+  savePodcastProgress,
+} from '@/storage/podcastStorage';
 
-interface PodcastProgressContextValue {
+export interface PodcastProgressContextValue {
   progress: PodcastProgressMap;
+  isHydrated: boolean;
   markListened: (localizationId: string, listened: boolean) => void;
   setPosition: (
     localizationId: string,
@@ -26,37 +32,76 @@ interface PodcastProgressContextValue {
   markAllListened: (localizationIds: readonly string[]) => void;
 }
 
+type PodcastProgressMutation =
+  | {
+      type: 'markListened';
+      localizationId: string;
+      listened: boolean;
+    }
+  | {
+      type: 'setPosition';
+      localizationId: string;
+      seconds: number;
+      section: PodcastSectionKind;
+    }
+  | {
+      type: 'markAllListened';
+      localizationIds: readonly string[];
+    };
+
 const EMPTY_ENTRY: PodcastEpisodeProgress = {
   listened: false,
   lastPositionSeconds: 0,
 };
 
-function readStoredProgress(): PodcastProgressMap {
-  try {
-    const raw = globalThis.localStorage?.getItem(PODCAST_PROGRESS_STORAGE_KEY);
-    if (raw == null) return {};
-    const parsed = JSON.parse(raw) as unknown;
-    if (parsed === null || typeof parsed !== 'object') return {};
-    return parsed as PodcastProgressMap;
-  } catch {
-    // Web storage is unavailable (native runtime) or the value is corrupt.
-    return {};
+function applyProgressMutation(
+  current: PodcastProgressMap,
+  mutation: PodcastProgressMutation,
+): PodcastProgressMap {
+  if (mutation.type === 'markListened') {
+    const existing = current[mutation.localizationId] ?? EMPTY_ENTRY;
+    if (existing.listened === mutation.listened) return current;
+    return {
+      ...current,
+      [mutation.localizationId]: {
+        ...existing,
+        listened: mutation.listened,
+      },
+    };
   }
-}
 
-function persistProgress(map: PodcastProgressMap): void {
-  try {
-    globalThis.localStorage?.setItem(
-      PODCAST_PROGRESS_STORAGE_KEY,
-      JSON.stringify(map),
-    );
-  } catch {
-    // Best effort: the in-memory map still applies for this session.
+  if (mutation.type === 'setPosition') {
+    const existing = current[mutation.localizationId] ?? EMPTY_ENTRY;
+    if (
+      existing.lastPositionSeconds === mutation.seconds &&
+      (existing.lastPositionSection ?? 'main') === mutation.section
+    ) {
+      return current;
+    }
+    return {
+      ...current,
+      [mutation.localizationId]: {
+        ...existing,
+        lastPositionSeconds: mutation.seconds,
+        lastPositionSection: mutation.section,
+      },
+    };
   }
+
+  const next: PodcastProgressMap = { ...current };
+  let changed = false;
+  for (const localizationId of mutation.localizationIds) {
+    const existing = next[localizationId] ?? EMPTY_ENTRY;
+    if (existing.listened) continue;
+    next[localizationId] = { ...existing, listened: true };
+    changed = true;
+  }
+  return changed ? next : current;
 }
 
 const PodcastProgressContext = createContext<PodcastProgressContextValue>({
   progress: {},
+  isHydrated: false,
   markListened: () => undefined,
   setPosition: () => undefined,
   markAllListened: () => undefined,
@@ -68,23 +113,54 @@ export function PodcastProgressProvider({
 }: {
   children: ReactNode;
 }): ReactElement {
-  const [progress, setProgress] =
-    useState<PodcastProgressMap>(readStoredProgress);
+  const [progress, setProgress] = useState<PodcastProgressMap>({});
+  const [isHydrated, setIsHydrated] = useState(false);
+  const progressRef = useRef<PodcastProgressMap>({});
+  const hydratedRef = useRef(false);
+  const pendingMutationsRef = useRef<PodcastProgressMutation[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    void loadPodcastProgress().then((stored) => {
+      if (!active) return;
+
+      const pending = pendingMutationsRef.current;
+      pendingMutationsRef.current = [];
+      const hydrated = pending.reduce(applyProgressMutation, stored);
+
+      hydratedRef.current = true;
+      progressRef.current = hydrated;
+      setProgress(hydrated);
+      setIsHydrated(true);
+      if (pending.length > 0) {
+        void savePodcastProgress(hydrated);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const commitMutation = useCallback((mutation: PodcastProgressMutation) => {
+    if (!hydratedRef.current) {
+      pendingMutationsRef.current.push(mutation);
+    }
+
+    const next = applyProgressMutation(progressRef.current, mutation);
+    if (next === progressRef.current) return;
+
+    progressRef.current = next;
+    setProgress(next);
+    if (hydratedRef.current) {
+      void savePodcastProgress(next);
+    }
+  }, []);
 
   const markListened = useCallback(
     (localizationId: string, listened: boolean) => {
-      setProgress((current) => {
-        const existing = current[localizationId] ?? EMPTY_ENTRY;
-        if (existing.listened === listened) return current;
-        const next: PodcastProgressMap = {
-          ...current,
-          [localizationId]: { ...existing, listened },
-        };
-        persistProgress(next);
-        return next;
-      });
+      commitMutation({ type: 'markListened', localizationId, listened });
     },
-    [],
+    [commitMutation],
   );
 
   const setPosition = useCallback(
@@ -93,51 +169,32 @@ export function PodcastProgressProvider({
       seconds: number,
       section: PodcastSectionKind = 'main',
     ) => {
-      setProgress((current) => {
-        const existing = current[localizationId] ?? EMPTY_ENTRY;
-        if (
-          existing.lastPositionSeconds === seconds &&
-          (existing.lastPositionSection ?? 'main') === section
-        ) {
-          return current;
-        }
-        const next: PodcastProgressMap = {
-          ...current,
-          [localizationId]: {
-            ...existing,
-            lastPositionSeconds: seconds,
-            lastPositionSection: section,
-          },
-        };
-        persistProgress(next);
-        return next;
+      commitMutation({
+        type: 'setPosition',
+        localizationId,
+        seconds,
+        section,
       });
     },
-    [],
+    [commitMutation],
   );
 
-  const markAllListened = useCallback((localizationIds: readonly string[]) => {
-    setProgress((current) => {
-      const next: PodcastProgressMap = { ...current };
-      let changed = false;
-      for (const localizationId of localizationIds) {
-        const existing = next[localizationId];
-        if (existing?.listened === true) continue;
-        next[localizationId] = {
-          listened: true,
-          lastPositionSeconds: existing?.lastPositionSeconds ?? 0,
-        };
-        changed = true;
-      }
-      if (!changed) return current;
-      persistProgress(next);
-      return next;
-    });
-  }, []);
+  const markAllListened = useCallback(
+    (localizationIds: readonly string[]) => {
+      commitMutation({ type: 'markAllListened', localizationIds });
+    },
+    [commitMutation],
+  );
 
   const value = useMemo(
-    () => ({ progress, markListened, setPosition, markAllListened }),
-    [progress, markListened, setPosition, markAllListened],
+    () => ({
+      progress,
+      isHydrated,
+      markListened,
+      setPosition,
+      markAllListened,
+    }),
+    [progress, isHydrated, markListened, setPosition, markAllListened],
   );
 
   return (
