@@ -19,8 +19,14 @@ import {
   useRef,
 } from 'react';
 
-import type { DepositExecutionCapability } from '@/integration/investExecutionModel';
-import { useInvest } from '@/integration/useInvest';
+import {
+  type DepositExecutionCapability,
+  resolveInvestExecutionCapability,
+} from '@/integration/investExecutionModel';
+import {
+  buildInvestDepositPlanRequest,
+  useInvest,
+} from '@/integration/useInvest';
 
 export interface InvestExecutionContextValue {
   wizard: InvestExecutionWizardState;
@@ -96,11 +102,11 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
     singleChainDraftKey,
   ].join('|');
 
-  const capability: DepositExecutionCapability = !wallet.isConnected
-    ? 'connect-wallet'
-    : mode === 'single-chain' && wallet.executionMode === undefined
-      ? 'unsupported-wallet'
-      : 'ready';
+  const capability = resolveInvestExecutionCapability({
+    isConnected: wallet.isConnected,
+    executionMode: wallet.executionMode,
+    scope,
+  });
 
   useEffect(() => {
     if (previousDraftKey.current === '') {
@@ -118,42 +124,31 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
     if (!walletAddress || totalUsd6 === '0') return;
     invalidatedDone.current = false;
     const userAddress = walletAddress as `0x${string}`;
-
-    if (scope === 'both') {
-      await startStrategy({
-        userAddress,
-        totalUsd6,
-        fundingSources: [
-          { chainId: 8453, fromToken: baseFundingToken.depositAddress },
-          { chainId: 42161, fromToken: arbitrumFundingToken.depositAddress },
-        ],
-      });
-      return;
-    }
-
-    if (!singleChainFundingDraft || singleChainFundingDraft.scope !== scope) {
-      return;
-    }
-    if (singleChainFundingDraft.scope === 'base') {
-      await startSingleChain({
-        kind: 'invest',
-        userAddress,
-        fromToken: singleChainFundingDraft.fromToken,
-        fromAmount: singleChainFundingDraft.fromAmount,
-        sourceChainId: singleChainFundingDraft.chainId,
-        split: { '8453': 1 },
-      });
-      return;
-    }
-    await startSingleChain({
-      kind: 'gmx-v2',
+    const request = buildInvestDepositPlanRequest({
       userAddress,
-      marketKey: singleChainFundingDraft.marketKey,
-      amount: singleChainFundingDraft.fromAmount,
+      scope,
+      totalUsd6,
+      baseFundingToken,
+      arbitrumFundingToken,
+      singleChainFundingDraft,
     });
+    if (request === null) return;
+
+    if (request.kind === 'strategy') {
+      const {
+        kind: _kind,
+        strategyId: _strategyId,
+        ...strategyRequest
+      } = request;
+      void _kind;
+      void _strategyId;
+      await startStrategy(strategyRequest);
+      return;
+    }
+    await startSingleChain(request);
   }, [
-    arbitrumFundingToken.depositAddress,
-    baseFundingToken.depositAddress,
+    arbitrumFundingToken,
+    baseFundingToken,
     scope,
     singleChainFundingDraft,
     startSingleChain,

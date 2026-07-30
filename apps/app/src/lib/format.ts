@@ -26,6 +26,21 @@ export function formatSignedUsd(value: number, decimals = 2): string {
   return `${sign}${formatUsd(Math.abs(value), decimals)}`;
 }
 
+export function formatTokenBalance(
+  balance: string | null | undefined,
+  symbol: string,
+  state: 'loading' | 'unavailable' | 'loaded',
+): string {
+  if (state === 'loading') return 'Loading…';
+  if (state === 'unavailable') return 'Unavailable';
+
+  const parsed = Number.parseFloat(balance ?? '0');
+  const value = Number.isFinite(parsed) ? parsed : 0;
+  return `${value.toLocaleString('en-US', {
+    maximumFractionDigits: symbol === 'ETH' ? 6 : 2,
+  })} ${symbol}`;
+}
+
 export function truncateAddress(
   address: string,
   prefix = 6,

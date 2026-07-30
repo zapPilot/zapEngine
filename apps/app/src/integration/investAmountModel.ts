@@ -3,11 +3,9 @@ import { STRATEGY_MIN_DEPOSIT_USD6 } from '@zapengine/types/api';
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
 import {
   DEFAULT_ARBITRUM_FUNDING_TOKEN,
-  BASE_DEPOSIT_TOKENS,
   type DesktopDepositToken,
 } from '@/integration/depositTokens';
 
-export type AmountUnit = 'USD' | 'Token';
 export type InvestScope = 'both' | 'base' | 'arbitrum';
 
 export type SingleChainFundingDraft =
@@ -27,7 +25,7 @@ export type SingleChainFundingDraft =
 
 // Shared with the strategy request schema for flows that include GMX legs.
 export const MIN_STRATEGY_DEPOSIT_USD6 = STRATEGY_MIN_DEPOSIT_USD6;
-export const MIN_BASE_MORPHO_DEPOSIT_USD6 = 10_000n;
+const MIN_BASE_MORPHO_DEPOSIT_USD6 = 10_000n;
 const USD_INPUT_DECIMALS = 6;
 
 export function minimumDepositUsd6ForScope(scope: InvestScope): bigint {
@@ -37,16 +35,9 @@ export function minimumDepositUsd6ForScope(scope: InvestScope): bigint {
 }
 
 /** Parse the grouped display amount (e.g. "1,000.50") to a number. */
-export function parseAmount(grouped: string): number {
+function parseAmount(grouped: string): number {
   const parsed = Number(grouped.replace(/,/g, ''));
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function joinWithAnd(items: string[]): string {
-  if (items.length <= 1) {
-    return items[0] ?? '';
-  }
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
 function groupWholeDigits(digits: string): string {
@@ -94,29 +85,9 @@ export function maxUsdAmountInput(value: number): string {
   );
 }
 
-export function depositSupportLabel(
-  tokens: readonly { symbol: string }[] = BASE_DEPOSIT_TOKENS,
-): string {
-  const supported = joinWithAnd(tokens.map((token) => `Base ${token.symbol}`));
-  return `Deposit v1 supports ${supported}`;
-}
-
-export function amountUsdFromInput(
-  groupedAmount: string,
-  unit: AmountUnit,
-  usdPrice: number | null,
-): number | null {
+export function amountUsdFromInput(groupedAmount: string): number | null {
   const value = parseAmount(groupedAmount);
-  if (value <= 0) {
-    return null;
-  }
-  if (unit === 'USD') {
-    return value;
-  }
-  if (typeof usdPrice === 'number' && usdPrice > 0) {
-    return value * usdPrice;
-  }
-  return null;
+  return value > 0 ? value : null;
 }
 
 /** Convert a user-entered USD decimal to an exact 6-decimal integer string. */
@@ -186,14 +157,6 @@ export function spendableUsdForFundingToken(
   }
 
   return Math.max(0, row.usdValue - row.usdPrice * NATIVE_GAS_RESERVE_ETH);
-}
-
-/** Single-chain capacity does not need the strategy's reciprocal 40/60 cap. */
-export function chainMaxUsd(
-  token: DesktopDepositToken,
-  balance: ChainTokenBalanceRow | null,
-): number | null {
-  return spendableUsdForFundingToken(balance, token);
 }
 
 export function requiredChainUnavailableForScope(

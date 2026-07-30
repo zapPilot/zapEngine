@@ -542,6 +542,71 @@ export function EpisodeMediaPlayer({
       break;
   }
 
+  const renderMediaPanel = () => {
+    if (activeTab === 'video') {
+      if (video === null || videoSession === null) {
+        return (
+          <EpisodeVideoStatusPanel state={videoPanelState} onPlay={showVideo} />
+        );
+      }
+      return (
+        <View
+          nativeID="episode-media-panel"
+          role="tabpanel"
+          accessibilityLabel="Video player"
+        >
+          <EpisodeVideoPlayer
+            title={episode.title}
+            video={video}
+            initialTimeSeconds={videoSession.initialTimeSeconds}
+            playbackRate={videoSession.playbackRate}
+            shouldPlay={videoSession.shouldPlay}
+            onPlayingChange={(isPlaying) => {
+              videoPlayingRef.current = isPlaying;
+            }}
+            onPlaybackRateChange={(rate) => {
+              videoRateRef.current = rate;
+            }}
+            onTimeUpdate={handleVideoTimeUpdate}
+            onPlaybackEnd={handleVideoEnd}
+            onPlaybackError={handleVideoError}
+            onPlaybackExit={(seconds) => {
+              videoTimeRef.current = finiteSeconds(seconds);
+              persistVideoPosition(seconds, true);
+            }}
+          />
+        </View>
+      );
+    }
+    if (activeTab === 'classroom' && !availability.classroom) {
+      return (
+        <UnavailableMediaPanel
+          label="Classroom"
+          message="Classroom isn’t available for this episode"
+        />
+      );
+    }
+    return (
+      <View
+        nativeID="episode-media-panel"
+        role="tabpanel"
+        accessibilityLabel={
+          activeAudioSection === 'classroom'
+            ? 'Classroom player'
+            : 'Story player'
+        }
+      >
+        <AudioPlaybackControls
+          episode={episode}
+          episodes={episodes}
+          player={player}
+          onEpisodeChanged={onEpisodeChanged}
+          section={activeAudioSection}
+        />
+      </View>
+    );
+  };
+
   return (
     <View className="px-5 pt-5">
       <View className="overflow-hidden rounded-[28px] border border-line bg-surface">
@@ -577,64 +642,7 @@ export function EpisodeMediaPlayer({
           </View>
         </View>
 
-        {activeTab === 'video' ? (
-          video !== null && videoSession !== null ? (
-            <View
-              nativeID="episode-media-panel"
-              role="tabpanel"
-              accessibilityLabel="Video player"
-            >
-              <EpisodeVideoPlayer
-                title={episode.title}
-                video={video}
-                initialTimeSeconds={videoSession.initialTimeSeconds}
-                playbackRate={videoSession.playbackRate}
-                shouldPlay={videoSession.shouldPlay}
-                onPlayingChange={(isPlaying) => {
-                  videoPlayingRef.current = isPlaying;
-                }}
-                onPlaybackRateChange={(rate) => {
-                  videoRateRef.current = rate;
-                }}
-                onTimeUpdate={handleVideoTimeUpdate}
-                onPlaybackEnd={handleVideoEnd}
-                onPlaybackError={handleVideoError}
-                onPlaybackExit={(seconds) => {
-                  videoTimeRef.current = finiteSeconds(seconds);
-                  persistVideoPosition(seconds, true);
-                }}
-              />
-            </View>
-          ) : (
-            <EpisodeVideoStatusPanel
-              state={videoPanelState}
-              onPlay={showVideo}
-            />
-          )
-        ) : activeTab === 'classroom' && !availability.classroom ? (
-          <UnavailableMediaPanel
-            label="Classroom"
-            message="Classroom isn’t available for this episode"
-          />
-        ) : (
-          <View
-            nativeID="episode-media-panel"
-            role="tabpanel"
-            accessibilityLabel={
-              activeAudioSection === 'classroom'
-                ? 'Classroom player'
-                : 'Story player'
-            }
-          >
-            <AudioPlaybackControls
-              episode={episode}
-              episodes={episodes}
-              player={player}
-              onEpisodeChanged={onEpisodeChanged}
-              section={activeAudioSection}
-            />
-          </View>
-        )}
+        {renderMediaPanel()}
       </View>
     </View>
   );

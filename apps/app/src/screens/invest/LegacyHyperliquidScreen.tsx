@@ -45,7 +45,7 @@ export function LegacyHyperliquidScreen() {
   const wallet = useWalletProvider();
   const { wizard, pending, start, runHlpDeposit, reset } = useDepositWizard();
   const [amountInput, setAmountInput] = useState('');
-  const amountUsd = amountUsdFromInput(amountInput, 'USD', 1);
+  const amountUsd = amountUsdFromInput(amountInput);
   const fromAmount = amountInputToUsd6(amountInput);
   const balances = useInvestableBalances(account.address);
   const preview = useDepositPlanPreview({

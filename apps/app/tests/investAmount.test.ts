@@ -5,8 +5,6 @@ import {
   amountUsdFromInput,
   buildSingleChainFundingDraft,
   buildStrategyFundingOptions,
-  chainMaxUsd,
-  depositSupportLabel,
   fundingTokenAmountFromUsd,
   maxUsdAmountInput,
   minimumDepositUsd6ForScope,
@@ -14,6 +12,7 @@ import {
   normalizeAmountInput,
   requiredChainUnavailableForScope,
   singleChainFromAmount,
+  spendableUsdForFundingToken,
   strategyMaxTotalUsd,
 } from '@/integration/investAmountModel';
 import {
@@ -22,6 +21,7 @@ import {
   DEFAULT_ARBITRUM_FUNDING_TOKEN,
 } from '@/integration/depositTokens';
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
+import { formatTokenBalance } from '@/lib/format';
 
 function row(
   chainId: 8453 | 42161,
@@ -52,17 +52,9 @@ function row(
 }
 
 describe('Invest amount helpers', () => {
-  it('generates deposit support copy from supported Base tokens', () => {
-    expect(depositSupportLabel([{ symbol: 'USDC' }, { symbol: 'ETH' }])).toBe(
-      'Deposit v1 supports Base USDC and Base ETH',
-    );
-  });
-
-  it('keeps USD mode as USD and converts token mode through selected price', () => {
-    expect(amountUsdFromInput('1,000', 'USD', null)).toBe(1000);
-    expect(amountUsdFromInput('2.5', 'Token', 3000)).toBe(7500);
-    expect(amountUsdFromInput('2.5', 'Token', null)).toBeNull();
-    expect(amountUsdFromInput('0', 'USD', 1)).toBeNull();
+  it('parses grouped USD input and rejects an empty amount', () => {
+    expect(amountUsdFromInput('1,000')).toBe(1000);
+    expect(amountUsdFromInput('0')).toBeNull();
   });
 
   it('normalizes direct keyboard amount input while preserving decimals', () => {
@@ -158,8 +150,19 @@ describe('Invest amount helpers', () => {
   it('uses only the active chain for single-chain Max capacity', () => {
     const baseUsdc = row(8453, 'USDC', 40, '40000000', 1);
     const baseEth = row(8453, 'ETH', 2_000, '1000000000000000000', 2_000);
-    expect(chainMaxUsd(BASE_DEPOSIT_TOKENS[0], baseUsdc)).toBe(40);
-    expect(chainMaxUsd(BASE_DEPOSIT_TOKENS[1], baseEth)).toBe(1_994);
+    expect(spendableUsdForFundingToken(baseUsdc, BASE_DEPOSIT_TOKENS[0])).toBe(
+      40,
+    );
+    expect(spendableUsdForFundingToken(baseEth, BASE_DEPOSIT_TOKENS[1])).toBe(
+      1_994,
+    );
+  });
+
+  it('formats invalid token balances as zero instead of NaN', () => {
+    expect(formatTokenBalance('not-a-number', 'USDC', 'loaded')).toBe('0 USDC');
+    expect(formatTokenBalance('1.23456789', 'ETH', 'loaded')).toBe(
+      '1.234568 ETH',
+    );
   });
 
   it('ignores inactive-chain balance failures in single-chain scopes', () => {

@@ -30,7 +30,7 @@ interface StrategyPlanSummaryProps {
   arbitrumToken: DesktopDepositToken;
 }
 
-export function isStrategyDepositPlan(
+function isStrategyDepositPlan(
   plan: PlanOrchestrationDepositPlan | undefined,
 ): plan is StrategyDepositPlan {
   return Boolean(plan && 'executionGroups' in plan);

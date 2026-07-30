@@ -11,7 +11,7 @@ import {
   type StrategyFundingOption,
 } from '@/integration/investAmountModel';
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
-import { formatUsd } from '@/lib/format';
+import { formatTokenBalance, formatUsd } from '@/lib/format';
 
 interface ChainTokenSelectorSheetProps {
   visible: boolean;
@@ -28,12 +28,11 @@ function balanceLabel(
   option: StrategyFundingOption,
   state: ChainTokenSelectorSheetProps['balanceState'],
 ): string {
-  if (state === 'loading') return 'Loading…';
-  if (state === 'unavailable') return 'Unavailable';
-  const balance = Number.parseFloat(option.balance?.balance ?? '0');
-  return `${balance.toLocaleString('en-US', {
-    maximumFractionDigits: option.token.symbol === 'ETH' ? 6 : 2,
-  })} ${option.token.symbol}`;
+  return formatTokenBalance(
+    option.balance?.balance,
+    option.token.symbol,
+    state,
+  );
 }
 
 export function ChainTokenSelectorSheet({

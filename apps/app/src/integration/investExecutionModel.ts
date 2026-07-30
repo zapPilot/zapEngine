@@ -15,6 +15,7 @@ import {
   type DesktopDepositPath,
   isGmxDepositPath,
 } from '@/integration/depositPaths';
+import type { InvestScope } from '@/integration/investAmountModel';
 import { chainDisplay } from '@/integration/planPreviewFormatters';
 
 /** Why the confirm CTA can or cannot hand off to the deposit wizard. */
@@ -41,6 +42,24 @@ export function resolveDepositExecutionCapability({
     return 'connect-wallet';
   }
   if (executionMode === undefined) {
+    return 'unsupported-wallet';
+  }
+  return 'ready';
+}
+
+export function resolveInvestExecutionCapability({
+  isConnected,
+  executionMode,
+  scope,
+}: {
+  isConnected: boolean;
+  executionMode: 'atomic-batch' | 'eip7702' | undefined;
+  scope: InvestScope;
+}): DepositExecutionCapability {
+  if (!isConnected) {
+    return 'connect-wallet';
+  }
+  if (scope !== 'both' && executionMode === undefined) {
     return 'unsupported-wallet';
   }
   return 'ready';

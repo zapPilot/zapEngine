@@ -1,7 +1,13 @@
 import { useRouter } from 'expo-router';
 import { Text, View } from 'react-native';
 
-import * as StrategyFlow from '@/components/invest/StrategyFlow';
+import { MockBridgeNotice } from '@/components/invest/MockBridgeNotice';
+import {
+  isDepositPlanForScope,
+  StrategyPlanSummary,
+} from '@/components/invest/StrategyPlanSummary';
+import { StepHeader } from '@/components/invest/StepHeader';
+import { StepProgress } from '@/components/invest/StepProgress';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
@@ -64,10 +70,7 @@ export function InvestRouteScreen() {
   const invest = useInvest();
   const preview = useInvestDepositPlanPreview();
   const isBoth = invest.scope === 'both';
-  const hasPlanForScope = StrategyFlow.isDepositPlanForScope(
-    preview.plan,
-    invest.scope,
-  );
+  const hasPlanForScope = isDepositPlanForScope(preview.plan, invest.scope);
   const routeDescription =
     invest.scope === 'base'
       ? `${formatUsd(preview.amountUsd)} on Base into Morpho Moonwell.`
@@ -77,8 +80,8 @@ export function InvestRouteScreen() {
 
   return (
     <ScreenScrollView>
-      <StrategyFlow.StepHeader title="Route" step="Step 2 of 3" />
-      <StrategyFlow.StepProgress current={2} />
+      <StepHeader title="Route" step="Step 2 of 3" />
+      <StepProgress current={2} />
       <View className="px-5 pt-6">
         <Text className="font-serif text-[28px] leading-[32px] text-ink">
           Preview route
@@ -87,7 +90,7 @@ export function InvestRouteScreen() {
           {routeDescription}
         </Text>
 
-        <StrategyFlow.StrategyPlanSummary
+        <StrategyPlanSummary
           variant="route"
           plan={preview.plan}
           amountUsd={preview.amountUsd}
@@ -183,7 +186,7 @@ export function InvestRouteScreen() {
         </Card>
 
         {isBoth ? (
-          <StrategyFlow.MockBridgeNotice
+          <MockBridgeNotice
             title="Mock bridge — development only"
             body={`Arbitrum must already hold enough ${invest.arbitrumFundingToken.symbol} plus ETH for gas and GMX keeper execution fees.`}
           />

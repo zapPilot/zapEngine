@@ -93,37 +93,41 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function readString(
   record: Record<string, unknown>,
   camelKey: string,
-  snakeKey: string,
+  snakeKey?: string,
   fallback = '',
 ): string {
-  const value = record[camelKey] ?? record[snakeKey];
+  const value =
+    record[camelKey] ?? (snakeKey === undefined ? undefined : record[snakeKey]);
   return typeof value === 'string' ? value : fallback;
 }
 
 function readNullableString(
   record: Record<string, unknown>,
   camelKey: string,
-  snakeKey: string,
+  snakeKey?: string,
 ): string | null {
-  const value = record[camelKey] ?? record[snakeKey];
+  const value =
+    record[camelKey] ?? (snakeKey === undefined ? undefined : record[snakeKey]);
   return typeof value === 'string' ? value : null;
 }
 
 function readNumber(
   record: Record<string, unknown>,
   camelKey: string,
-  snakeKey: string,
+  snakeKey?: string,
 ): number {
-  const value = record[camelKey] ?? record[snakeKey];
+  const value =
+    record[camelKey] ?? (snakeKey === undefined ? undefined : record[snakeKey]);
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
 function readBoolean(
   record: Record<string, unknown>,
   camelKey: string,
-  snakeKey: string,
+  snakeKey?: string,
 ): boolean {
-  const value = record[camelKey] ?? record[snakeKey];
+  const value =
+    record[camelKey] ?? (snakeKey === undefined ? undefined : record[snakeKey]);
   return value === true;
 }
 
@@ -140,7 +144,7 @@ export function parsePodcastEpisodeVideo(
 ): PodcastEpisodeVideo | null {
   if (!isRecord(rawVideo)) return null;
 
-  const url = readString(rawVideo, 'url', 'url');
+  const url = readString(rawVideo, 'url');
   const thumbnailUrl = readString(rawVideo, 'thumbnailUrl', 'thumbnail_url');
   const durationSeconds = readNumber(
     rawVideo,
@@ -287,7 +291,7 @@ export function parsePodcastAudioTrack(
   if (!isRecord(rawTrack)) return null;
 
   const languageCode = readString(rawTrack, 'languageCode', 'language_code');
-  const title = readString(rawTrack, 'title', 'title', languageCode);
+  const title = readString(rawTrack, 'title', undefined, languageCode);
   return {
     languageCode,
     title: title.trim() === '' ? languageCode : title,
@@ -305,15 +309,15 @@ export function parsePodcastLanguageClassroomKeyword(
 ): PodcastLanguageClassroomKeyword | null {
   if (!isRecord(rawKeyword)) return null;
 
-  const term = readString(rawKeyword, 'term', 'term');
-  const meaning = readString(rawKeyword, 'meaning', 'meaning');
+  const term = readString(rawKeyword, 'term');
+  const meaning = readString(rawKeyword, 'meaning');
   if (term.trim() === '' || meaning.trim() === '') return null;
 
   return {
     term,
-    reading: readNullableString(rawKeyword, 'reading', 'reading'),
+    reading: readNullableString(rawKeyword, 'reading'),
     meaning,
-    note: readNullableString(rawKeyword, 'note', 'note'),
+    note: readNullableString(rawKeyword, 'note'),
   };
 }
 
@@ -354,7 +358,7 @@ export function parsePodcastEpisode(rawEpisode: unknown): PodcastEpisode {
     throw new Error('Podcast episode must be an object');
   }
 
-  const id = readString(rawEpisode, 'id', 'id');
+  const id = readString(rawEpisode, 'id');
   if (id.trim() === '') {
     throw new Error('Podcast episode is missing id');
   }
@@ -379,7 +383,7 @@ export function parsePodcastEpisode(rawEpisode: unknown): PodcastEpisode {
       : [
           {
             languageCode,
-            title: readString(rawEpisode, 'title', 'title'),
+            title: readString(rawEpisode, 'title'),
             hlsUrl,
             classroomHlsUrl: readNullableString(
               rawEpisode,
@@ -399,14 +403,14 @@ export function parsePodcastEpisode(rawEpisode: unknown): PodcastEpisode {
   return {
     id,
     localizationId: localizationId.trim() === '' ? id : localizationId,
-    title: readString(rawEpisode, 'title', 'title'),
+    title: readString(rawEpisode, 'title'),
     languageCode:
       languageCode.trim() === '' ? DEFAULT_CONTENT_LANGUAGE_CODE : languageCode,
     hlsUrl,
     createdAt: readString(rawEpisode, 'createdAt', 'created_at'),
-    listened: readBoolean(rawEpisode, 'listened', 'listened'),
+    listened: readBoolean(rawEpisode, 'listened'),
     likeCount: readNumber(rawEpisode, 'likeCount', 'like_count'),
-    script: readNullableString(rawEpisode, 'script', 'script'),
+    script: readNullableString(rawEpisode, 'script'),
     video: parsePodcastEpisodeVideo(rawEpisode['video']),
     videoGeneration: parsePodcastEpisodeVideoGeneration(
       rawEpisode['videoGeneration'] ?? rawEpisode['video_generation'],
@@ -444,7 +448,7 @@ export function parsePodcastEpisodeSearchResult(
   return {
     episode: parsePodcastEpisode(rawEpisode),
     matchSource,
-    snippet: readNullableString(rawResult, 'snippet', 'snippet'),
+    snippet: readNullableString(rawResult, 'snippet'),
   };
 }
 
@@ -465,6 +469,18 @@ export function getPodcastEpisodeShareUrl(
   return url.toString();
 }
 
+async function fetchPodcastJson<T>(
+  url: URL,
+  fetchImpl: typeof fetch,
+  requestLabel: string,
+): Promise<T> {
+  const response = await fetchImpl(url.toString());
+  if (!response.ok) {
+    throw new Error(`${requestLabel} request failed: ${response.status}`);
+  }
+  return (await response.json()) as T;
+}
+
 export async function fetchPodcastEpisodes(
   fetchImpl: typeof fetch = fetch,
   languageCode: string = DEFAULT_CONTENT_LANGUAGE_CODE,
@@ -473,12 +489,11 @@ export async function fetchPodcastEpisodes(
   url.searchParams.set('limit', String(FEED_PAGE_SIZE));
   url.searchParams.set('language', languageCode);
 
-  const response = await fetchImpl(url.toString());
-  if (!response.ok) {
-    throw new Error(`Podcast feed request failed: ${response.status}`);
-  }
-
-  const page = (await response.json()) as PodcastFeedPage;
+  const page = await fetchPodcastJson<PodcastFeedPage>(
+    url,
+    fetchImpl,
+    'Podcast feed',
+  );
   return page.items
     .map(parsePodcastEpisode)
     .filter((episode) => episode.hlsUrl !== '');
@@ -497,18 +512,16 @@ export async function fetchPodcastEpisodeSearchResults(
   url.searchParams.set('language', languageCode);
   url.searchParams.set('limit', String(SEARCH_PAGE_SIZE));
 
-  const response = await fetchImpl(url.toString());
-  if (!response.ok) {
-    throw new Error(`Podcast search request failed: ${response.status}`);
-  }
-
-  const page = (await response.json()) as PodcastSearchPage;
+  const page = await fetchPodcastJson<PodcastSearchPage>(
+    url,
+    fetchImpl,
+    'Podcast search',
+  );
   return page.items
     .map(parsePodcastEpisodeSearchResult)
     .filter((result) => result.episode.hlsUrl !== '');
 }
 
-// jscpd:ignore-start — fetch + error-handling pattern shared with fetchPodcastEpisodeSearchResults
 export async function fetchPodcastEpisode(
   localizationId: string,
   fetchImpl: typeof fetch = fetch,
@@ -519,13 +532,9 @@ export async function fetchPodcastEpisode(
   );
   url.searchParams.set('language', languageCode);
 
-  const response = await fetchImpl(url.toString());
-  if (!response.ok) {
-    throw new Error(`Podcast episode request failed: ${response.status}`);
-  }
-  // jscpd:ignore-end
-
-  return parsePodcastEpisode((await response.json()) as unknown);
+  return parsePodcastEpisode(
+    await fetchPodcastJson<unknown>(url, fetchImpl, 'Podcast episode'),
+  );
 }
 
 export function findPodcastEpisodeById(
@@ -543,11 +552,15 @@ export function findPodcastEpisodeById(
 export function usePodcastEpisodes() {
   const { languageCode } = useContentLanguage();
 
-  return useQuery({
+  return useQuery(podcastEpisodesQueryOptions(languageCode));
+}
+
+function podcastEpisodesQueryOptions(languageCode: string) {
+  return {
     queryKey: ['desktop', 'podcast', 'episodes', languageCode],
     queryFn: () => fetchPodcastEpisodes(fetch, languageCode),
     staleTime: 5 * 60 * 1000,
-  });
+  } as const;
 }
 
 export function usePodcastEpisode(
@@ -591,11 +604,9 @@ export interface PodcastEpisodesByLanguage {
  */
 export function usePodcastEpisodesAllLanguages(): PodcastEpisodesByLanguage {
   const results = useQueries({
-    queries: CONTENT_LANGUAGE_OPTIONS.map((option) => ({
-      queryKey: ['desktop', 'podcast', 'episodes', option.code],
-      queryFn: () => fetchPodcastEpisodes(fetch, option.code),
-      staleTime: 5 * 60 * 1000,
-    })),
+    queries: CONTENT_LANGUAGE_OPTIONS.map((option) =>
+      podcastEpisodesQueryOptions(option.code),
+    ),
   });
 
   const byLanguage: Record<string, PodcastEpisode[]> = {};

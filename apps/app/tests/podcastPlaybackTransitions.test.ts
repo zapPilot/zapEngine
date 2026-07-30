@@ -1,37 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
-import type { PodcastEpisode } from '@/integration/podcastFeed';
 import {
   buildPlaybackSections,
   resolveFinishedPlayback,
 } from '@/integration/podcastSections';
+import { createPodcastEpisodeFactory } from './support/podcastEpisode';
 
-function makeEpisode(overrides: Partial<PodcastEpisode> = {}): PodcastEpisode {
-  return {
-    id: 'article-1',
-    localizationId: 'loc-1',
-    title: 'Episode',
-    languageCode: 'zh-Hant',
-    hlsUrl: 'https://cdn.example.com/main/playlist.m3u8',
-    createdAt: '2026-07-10T00:00:00.000Z',
-    listened: false,
-    likeCount: 0,
-    script: null,
-    video: null,
-    videoGeneration: null,
-    audioTracks: [
-      {
-        languageCode: 'zh-Hant',
-        title: 'Episode',
-        hlsUrl: 'https://cdn.example.com/main/playlist.m3u8',
-        classroomHlsUrl: 'https://cdn.example.com/classroom/playlist.m3u8',
-      },
-    ],
-    languageClassrooms: [],
-    lastPositionSeconds: 0,
-    ...overrides,
-  };
-}
+const makeEpisode = createPodcastEpisodeFactory({
+  id: 'article-1',
+  localizationId: 'loc-1',
+  hlsUrl: 'https://cdn.example.com/main/playlist.m3u8',
+  audioTracks: [
+    {
+      languageCode: 'zh-Hant',
+      title: 'Episode',
+      hlsUrl: 'https://cdn.example.com/main/playlist.m3u8',
+      classroomHlsUrl: 'https://cdn.example.com/classroom/playlist.m3u8',
+    },
+  ],
+});
 
 const withClassroom = makeEpisode({ localizationId: 'loc-1' });
 const nextEpisode = makeEpisode({ localizationId: 'loc-2' });

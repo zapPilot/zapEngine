@@ -86,26 +86,34 @@ function unavailableMetric(
   return { label, value: '—', tone };
 }
 
+function numberMetric(
+  label: string,
+  value: number | null | undefined,
+  format: (value: number) => string,
+  tone: MetricTone | ((value: number) => MetricTone) = 'neutral',
+): Metric {
+  const resolvedTone =
+    typeof tone === 'function'
+      ? typeof value === 'number'
+        ? tone(value)
+        : 'neutral'
+      : tone;
+  return typeof value === 'number'
+    ? { label, value: format(value), tone: resolvedTone }
+    : unavailableMetric(label, resolvedTone);
+}
+
 function pctMetric(label: string, pct: number | null): Metric {
-  if (typeof pct !== 'number') {
-    return unavailableMetric(label);
-  }
-  return {
-    label,
-    value: formatSignedPct(pct),
-    tone: toneForSignedPct(pct),
-  };
+  return numberMetric(label, pct, formatSignedPct, toneForSignedPct);
 }
 
 function positivePctMetric(label: string, pct: number | null): Metric {
-  if (typeof pct !== 'number') {
-    return unavailableMetric(label, 'accent');
-  }
-  return {
+  return numberMetric(
     label,
-    value: `${Math.abs(pct).toFixed(1)}%`,
-    tone: 'accent',
-  };
+    pct,
+    (value) => `${Math.abs(value).toFixed(1)}%`,
+    'accent',
+  );
 }
 
 function unavailablePortfolioData(): PortfolioViewData {
@@ -210,58 +218,45 @@ export function usePortfolioData(
   // --- Metrics: real where analytics gives a clean source, unavailable otherwise. ---
   const sharpeSeries =
     dashboard?.rolling_analytics?.sharpe?.rolling_sharpe_data ?? [];
-  const lastSharpe =
-    sharpeSeries[sharpeSeries.length - 1]?.rolling_sharpe_ratio;
+  const lastSharpe = sharpeSeries.at(-1)?.rolling_sharpe_ratio;
 
   const volatilitySeries =
     dashboard?.rolling_analytics?.volatility?.rolling_volatility_data ?? [];
-  const lastVolatilityPct =
-    volatilitySeries[volatilitySeries.length - 1]?.annualized_volatility_pct;
+  const lastVolatilityPct = volatilitySeries.at(-1)?.annualized_volatility_pct;
 
   const maxDrawdownPct =
     dashboard?.drawdown_analysis?.enhanced?.summary?.max_drawdown_pct;
 
   const totalReturnMetric = pctMetric('Total return', changePct);
 
-  const maxDrawdownMetric: Metric =
-    typeof maxDrawdownPct === 'number'
-      ? {
-          label: 'Max drawdown',
-          // max_drawdown_pct is reported as a negative value upstream.
-          value: formatSignedPct(maxDrawdownPct),
-          tone: 'negative',
-        }
-      : unavailableMetric('Max drawdown', 'negative');
-
-  const volatilityMetric: Metric =
-    typeof lastVolatilityPct === 'number'
-      ? {
-          label: 'Volatility',
-          value: `${Math.abs(lastVolatilityPct).toFixed(1)}%`,
-          tone: 'neutral',
-        }
-      : unavailableMetric('Volatility');
-
-  const sharpeMetric: Metric =
-    typeof lastSharpe === 'number'
-      ? {
-          label: 'Sharpe',
-          value: lastSharpe.toFixed(2),
-          tone: 'accent',
-        }
-      : unavailableMetric('Sharpe', 'accent');
+  // max_drawdown_pct is reported as a negative value upstream.
+  const maxDrawdownMetric = numberMetric(
+    'Max drawdown',
+    maxDrawdownPct,
+    formatSignedPct,
+    'negative',
+  );
+  const volatilityMetric = numberMetric(
+    'Volatility',
+    lastVolatilityPct,
+    (value) => `${Math.abs(value).toFixed(1)}%`,
+  );
+  const sharpeMetric = numberMetric(
+    'Sharpe',
+    lastSharpe,
+    (value) => value.toFixed(2),
+    'accent',
+  );
 
   const return7d = calculateWindowReturn(chronologicalDailyValues, 7);
   const return30d = calculateWindowReturn(chronologicalDailyValues, 30);
   const realizedYield = sumYieldReturns(yieldQuery.data?.daily_returns);
-  const realizedYieldMetric: Metric =
-    typeof realizedYield === 'number'
-      ? {
-          label: 'Realized yield',
-          value: formatUsd(realizedYield),
-          tone: realizedYield < 0 ? 'negative' : 'neutral',
-        }
-      : unavailableMetric('Realized yield');
+  const realizedYieldMetric = numberMetric(
+    'Realized yield',
+    realizedYield,
+    formatUsd,
+    (value) => (value < 0 ? 'negative' : 'neutral'),
+  );
 
   const metrics: PortfolioViewData['metrics'] = [
     totalReturnMetric,
@@ -277,21 +272,23 @@ export function usePortfolioData(
     sharpeMetric,
   ];
 
-  const allocation: PortfolioViewData['allocation'] =
-    landing?.portfolio_allocation
-      ? [
-          ...calculateAllocation(landing).simplifiedCrypto.map((row) => ({
-            label: row.name,
-            pct: Math.round(row.value),
-            color: row.color,
-          })),
-          {
-            label: 'Stablecoins',
-            pct: Math.round(calculateAllocation(landing).stable),
-            color: allocationColor('Stables', 0),
-          },
-        ].filter((row) => row.pct > 0)
-      : [];
+  const calculatedAllocation = landing?.portfolio_allocation
+    ? calculateAllocation(landing)
+    : null;
+  const allocation: PortfolioViewData['allocation'] = calculatedAllocation
+    ? [
+        ...calculatedAllocation.simplifiedCrypto.map((row) => ({
+          label: row.name,
+          pct: Math.round(row.value),
+          color: row.color,
+        })),
+        {
+          label: 'Stablecoins',
+          pct: Math.round(calculatedAllocation.stable),
+          color: allocationColor('Stables', 0),
+        },
+      ].filter((row) => row.pct > 0)
+    : [];
 
   const data: PortfolioViewData = {
     positionValue,

@@ -1,32 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import type { PodcastEpisode } from '@/integration/podcastFeed';
 import {
   mergeEpisodeProgress,
   type PodcastProgressMap,
   resolveEpisodeStatus,
   summarisePodcastCompletion,
 } from '@/integration/podcastProgress';
+import { createPodcastEpisodeFactory } from './support/podcastEpisode';
 
-function makeEpisode(overrides: Partial<PodcastEpisode> = {}): PodcastEpisode {
-  return {
-    id: 'article-1',
-    localizationId: 'loc-zh-1',
-    title: 'Episode',
-    languageCode: 'zh-Hant',
-    hlsUrl: 'https://example.com/a.m3u8',
-    createdAt: '2026-07-10T00:00:00.000Z',
-    listened: false,
-    likeCount: 0,
-    script: null,
-    video: null,
-    videoGeneration: null,
-    audioTracks: [],
-    languageClassrooms: [],
-    lastPositionSeconds: 0,
-    ...overrides,
-  };
-}
+const makeEpisode = createPodcastEpisodeFactory({
+  id: 'article-1',
+  localizationId: 'loc-zh-1',
+  hlsUrl: 'https://example.com/a.m3u8',
+});
 
 describe('resolveEpisodeStatus', () => {
   it('reports completed when listened, regardless of position', () => {

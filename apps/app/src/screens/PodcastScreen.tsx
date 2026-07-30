@@ -1,7 +1,7 @@
 import Slider from '@react-native-community/slider';
 import { useRouter } from 'expo-router';
 import { Pause, Play, Search, X } from 'lucide-react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
 import {
@@ -11,15 +11,12 @@ import {
 import { formatPodcastClock } from '@/components/podcast/episodeFormatters';
 import { EpisodeRow } from '@/components/podcast/EpisodeRow';
 import { ExpandableSection } from '@/components/podcast/ExpandableSection';
-import { selectPodcastLists } from '@/components/podcast/episodeListSelection';
 import {
-  PlayUnheardCard,
-  type PlayUnheardMode,
-} from '@/components/podcast/PlayUnheardCard';
-import {
-  type EpisodeSortDirection,
-  sortEpisodes,
-} from '@/components/podcast/episodeSorting';
+  selectPlayUnheardTarget,
+  selectPodcastLists,
+} from '@/components/podcast/episodeListSelection';
+import { PlayUnheardCard } from '@/components/podcast/PlayUnheardCard';
+import type { EpisodeSortDirection } from '@/components/podcast/episodeSorting';
 import { Card } from '@/components/ui/Card';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
@@ -42,7 +39,6 @@ import type {
 import {
   mergeEpisodeProgress,
   type PodcastCompletionSummary,
-  resolveEpisodeStatus,
   summarisePodcastCompletion,
 } from '@/integration/podcastProgress';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
@@ -318,46 +314,11 @@ export function PodcastScreen() {
 
   // "Play unheard" target + queue, prioritising the selected language
   // (mirrors the mobile `playSmart`: in-progress → unplayed → all completed).
-  const playback = useMemo(() => {
-    const pool = mergedByLanguage[languageCode] ?? [];
-    if (pool.length === 0) {
-      return {
-        mode: 'empty' as PlayUnheardMode,
-        target: null as PodcastEpisode | null,
-        queue: [] as PodcastEpisode[],
-      };
-    }
-    const statusOf = (episode: PodcastEpisode) =>
-      resolveEpisodeStatus(episode.listened, episode.lastPositionSeconds);
-    const inProgress = sortEpisodes(
-      pool.filter((e) => statusOf(e) === 'inProgress'),
-      direction,
-    );
-    const unplayed = sortEpisodes(
-      pool.filter((e) => statusOf(e) === 'unplayed'),
-      direction,
-    );
-    const completed = sortEpisodes(
-      pool.filter((e) => e.listened),
-      direction,
-    );
-
-    const unheardOrdered = [...inProgress, ...unplayed];
-    if (unheardOrdered.length > 0) {
-      return {
-        mode: (inProgress.length > 0
-          ? 'inProgress'
-          : 'unplayed') as PlayUnheardMode,
-        target: unheardOrdered[0] ?? null,
-        queue: unheardOrdered,
-      };
-    }
-    return {
-      mode: 'allCompleted' as PlayUnheardMode,
-      target: completed[0] ?? null,
-      queue: completed,
-    };
-  }, [mergedByLanguage, languageCode, direction]);
+  const playback = useMemo(
+    () =>
+      selectPlayUnheardTarget(mergedByLanguage[languageCode] ?? [], direction),
+    [mergedByLanguage, languageCode, direction],
+  );
 
   const playbackTarget = playback.target;
   const playbackIsPlaying =
@@ -393,6 +354,7 @@ export function PodcastScreen() {
   const renderRows = (
     episodes: readonly PodcastEpisode[],
     context: readonly PodcastEpisode[],
+    supporting?: (episode: PodcastEpisode, index: number) => ReactNode,
   ) =>
     episodes.map((episode, index) => {
       const active =
@@ -404,11 +366,135 @@ export function PodcastScreen() {
           first={index === 0}
           active={active}
           playing={active && player.isPlaying}
+          supportingContent={supporting?.(episode, index)}
           onToggle={() => player.playFromQueue(context, episode)}
           onOpen={() => openEpisode(episode)}
         />
       );
     });
+
+  const renderEpisodeContent = () => {
+    if (normalisedSearchQuery !== '' && !searchActive) {
+      return (
+        <EmptyStateCard
+          title="搜尋節目內容"
+          message="輸入至少兩個字，找出標題或逐字稿中的相關集數。"
+        />
+      );
+    }
+    if (listLoading) {
+      return <EpisodeListSkeleton />;
+    }
+    if (listError) {
+      return (
+        <EmptyStateCard
+          title={searchActive ? 'Search unavailable' : 'Podcast unavailable'}
+          message={
+            searchActive
+              ? 'The podcast search API is unavailable right now.'
+              : 'The podcast feed is unavailable right now.'
+          }
+        />
+      );
+    }
+    if (searchActive) {
+      if (searchResults.length === 0) {
+        return (
+          <EmptyStateCard title="找不到相關集數" message="換個關鍵字試試。" />
+        );
+      }
+      const searchEpisodes = searchResults.map((result) => result.episode);
+      return (
+        <View className="px-5">
+          {renderRows(searchEpisodes, searchEpisodes, (_episode, index) => (
+            <SearchMatchSummary result={searchResults[index]!} />
+          ))}
+        </View>
+      );
+    }
+    if (!hasAnyEpisode) {
+      return (
+        <EmptyStateCard
+          title="No episodes yet"
+          message="Published episodes will appear here."
+        />
+      );
+    }
+    return (
+      <View>
+        <PlayUnheardCard
+          mode={playback.mode}
+          target={playbackTarget}
+          direction={direction}
+          isPlaying={playbackIsPlaying}
+          onDirectionChange={setDirection}
+          onPlay={() => {
+            if (playbackTarget !== null) {
+              player.playFromQueue(playback.queue, playbackTarget);
+            }
+          }}
+          onOpen={() => {
+            if (playbackTarget !== null) {
+              openEpisode(playbackTarget);
+            }
+          }}
+        />
+
+        {unheardEpisodes.length > 0 ? (
+          <ExpandableSection
+            title="未聽"
+            count={unheardEpisodes.length}
+            defaultExpanded
+          >
+            {renderRows(unheardEpisodes, unheardEpisodes)}
+          </ExpandableSection>
+        ) : null}
+
+        {listenedEpisodes.length > 0 ? (
+          <ExpandableSection title="已聽完" count={listenedEpisodes.length}>
+            {renderRows(
+              listenedEpisodes.slice(0, visibleListened),
+              listenedEpisodes,
+            )}
+            {visibleListened < listenedEpisodes.length ? (
+              <Tap
+                accessibilityRole="button"
+                accessibilityLabel="載入更多已聽集數"
+                onPress={() =>
+                  setVisibleListened((current) => current + LISTENED_PAGE_SIZE)
+                }
+                className="mt-2 items-center rounded-full border border-line py-[10px]"
+              >
+                <Text className="font-mono text-[11px] uppercase tracking-[0.8px] text-ink-dim">
+                  載入更多
+                </Text>
+              </Tap>
+            ) : null}
+          </ExpandableSection>
+        ) : null}
+
+        <View className="items-center px-5 pb-2 pt-6">
+          <Tap
+            accessibilityRole="button"
+            accessibilityLabel="全部標記為已聽"
+            onPress={() => {
+              if (confirmMarkAll) {
+                markAllListened(allLocalizationIds);
+                setConfirmMarkAll(false);
+              } else {
+                setConfirmMarkAll(true);
+              }
+            }}
+            className="px-3 py-1"
+          >
+            <Text className="font-mono text-[10px] text-ink-faint">
+              {confirmMarkAll ? '再按一次確認全部標記已聽' : '全部標記為已聽'}
+            </Text>
+          </Tap>
+        </View>
+      </View>
+    );
+  };
 
   return (
     <View className="flex-1 bg-bg">
@@ -459,134 +545,7 @@ export function PodcastScreen() {
           </View>
         ) : null}
 
-        {normalisedSearchQuery !== '' && !searchActive ? (
-          <EmptyStateCard
-            title="搜尋節目內容"
-            message="輸入至少兩個字，找出標題或逐字稿中的相關集數。"
-          />
-        ) : listLoading ? (
-          <EpisodeListSkeleton />
-        ) : listError ? (
-          <EmptyStateCard
-            title={searchActive ? 'Search unavailable' : 'Podcast unavailable'}
-            message={
-              searchActive
-                ? 'The podcast search API is unavailable right now.'
-                : 'The podcast feed is unavailable right now.'
-            }
-          />
-        ) : searchActive ? (
-          searchResults.length > 0 ? (
-            <View className="px-5">
-              {searchResults.map((result, index) => {
-                const episode = result.episode;
-                const active =
-                  player.nowPlaying?.localizationId === episode.localizationId;
-                return (
-                  <EpisodeRow
-                    key={episode.localizationId}
-                    episode={episode}
-                    first={index === 0}
-                    active={active}
-                    playing={active && player.isPlaying}
-                    supportingContent={<SearchMatchSummary result={result} />}
-                    onToggle={() =>
-                      player.playFromQueue(
-                        searchResults.map((r) => r.episode),
-                        episode,
-                      )
-                    }
-                    onOpen={() => openEpisode(episode)}
-                  />
-                );
-              })}
-            </View>
-          ) : (
-            <EmptyStateCard title="找不到相關集數" message="換個關鍵字試試。" />
-          )
-        ) : !hasAnyEpisode ? (
-          <EmptyStateCard
-            title="No episodes yet"
-            message="Published episodes will appear here."
-          />
-        ) : (
-          <View>
-            <PlayUnheardCard
-              mode={playback.mode}
-              target={playbackTarget}
-              direction={direction}
-              isPlaying={playbackIsPlaying}
-              onDirectionChange={setDirection}
-              onPlay={() => {
-                if (playbackTarget !== null) {
-                  player.playFromQueue(playback.queue, playbackTarget);
-                }
-              }}
-              onOpen={() => {
-                if (playbackTarget !== null) {
-                  openEpisode(playbackTarget);
-                }
-              }}
-            />
-
-            {unheardEpisodes.length > 0 ? (
-              <ExpandableSection
-                title="未聽"
-                count={unheardEpisodes.length}
-                defaultExpanded
-              >
-                {renderRows(unheardEpisodes, unheardEpisodes)}
-              </ExpandableSection>
-            ) : null}
-
-            {listenedEpisodes.length > 0 ? (
-              <ExpandableSection title="已聽完" count={listenedEpisodes.length}>
-                {renderRows(
-                  listenedEpisodes.slice(0, visibleListened),
-                  listenedEpisodes,
-                )}
-                {visibleListened < listenedEpisodes.length ? (
-                  <Tap
-                    accessibilityRole="button"
-                    accessibilityLabel="載入更多已聽集數"
-                    onPress={() =>
-                      setVisibleListened(
-                        (current) => current + LISTENED_PAGE_SIZE,
-                      )
-                    }
-                    className="mt-2 items-center rounded-full border border-line py-[10px]"
-                  >
-                    <Text className="font-mono text-[11px] uppercase tracking-[0.8px] text-ink-dim">
-                      載入更多
-                    </Text>
-                  </Tap>
-                ) : null}
-              </ExpandableSection>
-            ) : null}
-
-            <View className="items-center px-5 pb-2 pt-6">
-              <Tap
-                accessibilityRole="button"
-                accessibilityLabel="全部標記為已聽"
-                onPress={() => {
-                  if (confirmMarkAll) {
-                    markAllListened(allLocalizationIds);
-                    setConfirmMarkAll(false);
-                  } else {
-                    setConfirmMarkAll(true);
-                  }
-                }}
-                className="px-3 py-1"
-              >
-                <Text className="font-mono text-[10px] text-ink-faint">
-                  {confirmMarkAll
-                    ? '再按一次確認全部標記已聽'
-                    : '全部標記為已聽'}
-                </Text>
-              </Tap>
-            </View>
-          </View>
-        )}
+        {renderEpisodeContent()}
       </ScreenScrollView>
 
       <NowPlayingBar player={player} />
