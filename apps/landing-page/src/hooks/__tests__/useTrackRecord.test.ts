@@ -50,16 +50,21 @@ const emptySummary = {
 const metaWithoutSnapshot = {
   schemaVersion: '1.0.0',
   strategyId: 'parking-strategy',
+  strategyVersion: '2026-06-poc',
   latestSnapshotCid: null,
-} as TrackRecordMeta;
+  updatedAt: '2026-07-30T00:00:00.000Z',
+};
 
-const liveMeta = {
-  ...metaWithoutSnapshot,
+const liveMeta: TrackRecordMeta = {
+  schemaVersion: '1.0.0',
+  strategyId: 'parking-strategy',
+  strategyVersion: '2026-06-poc',
   latestSnapshotCid: 'cid-latest',
+  updatedAt: '2026-07-30T00:00:00.000Z',
   officialSigner: '0x0000000000000000000000000000000000000001',
-} as TrackRecordMeta;
+};
 
-const liveSnapshot = {
+const liveSnapshot: DailySnapshot = {
   schemaVersion: '1.0.0',
   strategyId: 'parking-strategy',
   strategyVersion: '2026-06-poc',
@@ -74,7 +79,17 @@ const liveSnapshot = {
     cumulativeReturn: '0.00%',
     maxDrawdown: '0.00%',
   },
-  positions: [{ protocol: 'aave', asset: 'USDC', valueUsd: '100' }],
+  positions: [
+    {
+      chainId: 1,
+      protocol: 'aave',
+      asset: 'USDC',
+      amount: '100',
+      valueUsd: '100',
+      weight: '100.00%',
+      pricingSource: 'fixture',
+    },
+  ],
   costs: {
     gasUsd: '0',
     slippageUsd: '0',
@@ -83,7 +98,7 @@ const liveSnapshot = {
   },
   transactions: [],
   benchmarks: [],
-} as DailySnapshot;
+};
 
 describe('useTrackRecord', () => {
   beforeEach(() => {
