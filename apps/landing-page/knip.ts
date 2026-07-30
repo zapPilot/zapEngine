@@ -3,21 +3,16 @@ import { defineKnipConfig } from '@zapengine/knip-config/base';
 export default defineKnipConfig({
   entry: ['src/app/**/page.tsx', 'src/app/**/layout.tsx'],
   project: ['src/**/*.{ts,tsx}'],
-  ignore: [
-    // Track-record helpers are intentionally kept available for the verification
-    // pages/scripts roadmap even though not every helper is wired in the current
-    // landing UI yet. Keep the deadcode gate focused on newly introduced drift.
-    'src/data/track-record-accessor.ts',
-  ],
   ignoreDependencies: [
     'postcss',
     'eslint-config-next',
     // Used from src/app/globals.css via @import; Knip does not resolve CSS
     // package imports as dependency usage.
     '@zapengine/design-tokens',
-    // The live track-record UI imports the strategy subpath in ten files.
-    // Knip does not map that workspace subpath back to the package dependency
-    // while the accessor remains roadmap-ignored above.
+    // Only ever imported as the `/strategy` subpath, never bare. Once
+    // packages/types/dist exists, Knip resolves that through the package's
+    // `exports` map and stops crediting the dependency as used. Load-bearing in
+    // CI even though a dist-less local run reports it as removable.
     '@zapengine/types',
   ],
   // eslint-config-next pulls in @rushstack/eslint-patch, which rejects
