@@ -40,6 +40,12 @@ import {
 } from 'viem';
 
 import {
+  gasUsdFromUnits,
+  sumGasUsd,
+  tokenAmountFromUsd,
+  transactionGasUnits,
+} from './decimal';
+import {
   PlanSimulationFailedError,
   PlanSimulationUnavailableError,
 } from './errors';
@@ -262,112 +268,6 @@ async function finalizePlan<
   return plan;
 }
 
-const USD_DECIMALS = 6n;
-const USD_SCALE = 10n ** USD_DECIMALS;
-const PRICE_SCALE = 10n ** 12n;
-const WEI_SCALE = 10n ** 18n;
-
-function hasOnlyAsciiDigits(input: string): boolean {
-  return (
-    input.length > 0 &&
-    [...input].every((character) => character >= '0' && character <= '9')
-  );
-}
-
-function trimTrailingZeros(input: string): string {
-  let end = input.length;
-  while (end > 0 && input[end - 1] === '0') {
-    end -= 1;
-  }
-  return input.slice(0, end);
-}
-
-function decimalToScaledInteger(value: string, scale: bigint): bigint {
-  const parts = value.trim().split('.');
-  const whole = parts[0] ?? '';
-  const decimal = parts[1] ?? '';
-  if (
-    parts.length > 2 ||
-    !hasOnlyAsciiDigits(whole) ||
-    (parts.length === 2 && !hasOnlyAsciiDigits(decimal))
-  ) {
-    throw new Error(`Invalid decimal value: ${value}`);
-  }
-
-  const scaleDigits = scale.toString().length - 1;
-  const fraction = decimal.slice(0, scaleDigits).padEnd(scaleDigits, '0');
-  return BigInt(whole) * scale + BigInt(fraction || '0');
-}
-
-function tokenAmountFromUsd(params: {
-  usd6: bigint;
-  decimals: number;
-  priceUsd: string;
-}): string {
-  const price = decimalToScaledInteger(params.priceUsd, PRICE_SCALE);
-  if (price <= 0n) {
-    throw new Error('Funding token price must be greater than zero');
-  }
-
-  const amount =
-    (params.usd6 * 10n ** BigInt(params.decimals) * PRICE_SCALE) /
-    (USD_SCALE * price);
-  if (amount <= 0n) {
-    throw new Error('Strategy allocation is too small for the funding token');
-  }
-  return amount.toString();
-}
-
-function scaledIntegerToDecimal(value: bigint, scaleDigits: number): string {
-  const scale = 10n ** BigInt(scaleDigits);
-  const whole = value / scale;
-  const fraction = (value % scale).toString().padStart(scaleDigits, '0');
-  const trimmedFraction = trimTrailingZeros(fraction);
-  return trimmedFraction ? `${whole}.${trimmedFraction}` : whole.toString();
-}
-
-function sumGasUsd(values: readonly string[]): string {
-  const totalUsd6 = values.reduce(
-    (sum, value) => sum + decimalToScaledInteger(value || '0', USD_SCALE),
-    0n,
-  );
-  return scaledIntegerToDecimal(totalUsd6, Number(USD_DECIMALS));
-}
-
-function transactionGasUnits(
-  transactions: readonly PreparedTransaction[],
-): bigint {
-  return transactions.reduce((total, transaction) => {
-    const estimate = transaction.gasLimit ?? transaction.meta.estimatedGas;
-    if (!estimate) {
-      throw new Error(
-        `Missing gas estimate for ${transaction.meta.intentType} transaction`,
-      );
-    }
-    return total + BigInt(estimate);
-  }, 0n);
-}
-
-function gasUsdFromUnits(params: {
-  gasUnits: bigint;
-  gasPriceWei: bigint;
-  nativePriceUsd: string;
-}): string {
-  const nativePrice = decimalToScaledInteger(
-    params.nativePriceUsd,
-    PRICE_SCALE,
-  );
-  if (params.gasPriceWei <= 0n || nativePrice <= 0n) {
-    throw new Error('Chain gas price inputs must be greater than zero');
-  }
-
-  const denominator = WEI_SCALE * PRICE_SCALE;
-  const numerator =
-    params.gasUnits * params.gasPriceWei * nativePrice * USD_SCALE;
-  const usd6 = (numerator + denominator - 1n) / denominator;
-  return scaledIntegerToDecimal(usd6, Number(USD_DECIMALS));
-}
-
 async function getChainGasPricing(params: {
   intentEngine: PlanOrchestrationServiceDeps['intentEngine'];
   publicClient: PublicClient;
@@ -460,17 +360,16 @@ function approvalTransaction(
   });
 }
 
-async function buildStrategyDeposit(params: {
-  request: Extract<PlanOrchestrationDepositRequest, { kind: 'strategy' }>;
+type StrategyDepositRequest = Extract<
+  PlanOrchestrationDepositRequest,
+  { kind: 'strategy' }
+>;
+
+async function calculateStrategyFunding(params: {
+  request: StrategyDepositRequest;
   intentEngine: PlanOrchestrationServiceDeps['intentEngine'];
-  publicClients: DepositPublicClients;
-  simulation: PlanSimulationDeps | undefined;
-}): Promise<StrategyDepositPlan> {
-  const { request, intentEngine, publicClients, simulation } = params;
-  if (!intentEngine.buildSupply || !intentEngine.getTokenPrice) {
-    throw new Error('Strategy planning dependencies are not configured');
-  }
-  const userAddress = request.userAddress as Address;
+}) {
+  const { request, intentEngine } = params;
   const baseSource = request.fundingSources[0];
   const arbitrumSource = request.fundingSources[1];
   const totalUsd6 = BigInt(request.totalUsd6);
@@ -479,90 +378,141 @@ async function buildStrategyDeposit(params: {
   const ethUsd6 = totalUsd6 - baseUsd6 - btcUsd6;
 
   const [baseToken, arbitrumToken] = await Promise.all([
-    intentEngine.getTokenPrice(baseSource.chainId, baseSource.fromToken),
-    intentEngine.getTokenPrice(
+    intentEngine.getTokenPrice!(baseSource.chainId, baseSource.fromToken),
+    intentEngine.getTokenPrice!(
       arbitrumSource.chainId,
       arbitrumSource.fromToken,
     ),
   ]);
-  const baseAmount = tokenAmountFromUsd({
-    usd6: baseUsd6,
-    decimals: baseToken.decimals,
-    priceUsd: baseToken.priceUSD,
-  });
-  const btcAmount = tokenAmountFromUsd({
-    usd6: btcUsd6,
-    decimals: arbitrumToken.decimals,
-    priceUsd: arbitrumToken.priceUSD,
-  });
-  const ethAmount = tokenAmountFromUsd({
-    usd6: ethUsd6,
-    decimals: arbitrumToken.decimals,
-    priceUsd: arbitrumToken.priceUSD,
-  });
 
-  const baseClient = publicClientFor(
-    publicClients,
-    SUPPORTED_DEPOSIT_CHAINS.BASE,
-  );
-  const arbitrumClient = publicClientFor(
-    publicClients,
-    SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
-  );
-  const morphoVault =
-    MORPHO_VAULTS[SUPPORTED_DEPOSIT_CHAINS.BASE].MOONWELL_USDC;
+  return {
+    baseSource,
+    arbitrumSource,
+    baseUsd6,
+    btcUsd6,
+    ethUsd6,
+    baseAmount: tokenAmountFromUsd({
+      usd6: baseUsd6,
+      decimals: baseToken.decimals,
+      priceUsd: baseToken.priceUSD,
+    }),
+    btcAmount: tokenAmountFromUsd({
+      usd6: btcUsd6,
+      decimals: arbitrumToken.decimals,
+      priceUsd: arbitrumToken.priceUSD,
+    }),
+    ethAmount: tokenAmountFromUsd({
+      usd6: ethUsd6,
+      decimals: arbitrumToken.decimals,
+      priceUsd: arbitrumToken.priceUSD,
+    }),
+  };
+}
 
-  const buildBaseMorphoPlan = async () => {
-    const requiresSwap =
-      baseSource.fromToken.toLowerCase() !== BASE_USDC_ADDRESS.toLowerCase();
-    if (requiresSwap && !intentEngine.buildSwap) {
-      throw new Error('Strategy swap planning dependency is not configured');
-    }
+async function buildBaseMorphoAllocation(params: {
+  baseSource: StrategyDepositRequest['fundingSources'][0];
+  baseAmount: string;
+  userAddress: Address;
+  intentEngine: PlanOrchestrationServiceDeps['intentEngine'];
+  baseClient: PublicClient;
+  morphoVault: Address;
+}) {
+  const {
+    baseSource,
+    baseAmount,
+    userAddress,
+    intentEngine,
+    baseClient,
+    morphoVault,
+  } = params;
+  const requiresSwap =
+    baseSource.fromToken.toLowerCase() !== BASE_USDC_ADDRESS.toLowerCase();
+  if (requiresSwap && !intentEngine.buildSwap) {
+    throw new Error('Strategy swap planning dependency is not configured');
+  }
 
-    const swapQuote = requiresSwap
-      ? await intentEngine.buildSwap!({
-          type: 'SWAP',
-          chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
-          fromAddress: userAddress,
-          fromToken: baseSource.fromToken,
-          toToken: BASE_USDC_ADDRESS,
-          fromAmount: baseAmount,
-        })
-      : null;
-    const depositAmount = swapQuote?.estimate.toAmountMin ?? baseAmount;
-    const supplyQuote = await intentEngine.buildSupply!(
-      {
-        type: 'SUPPLY',
+  const swapQuote = requiresSwap
+    ? await intentEngine.buildSwap!({
+        type: 'SWAP',
         chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
         fromAddress: userAddress,
-        fromToken: BASE_USDC_ADDRESS,
-        fromAmount: depositAmount,
-        vaultAddress: morphoVault,
-        protocol: 'morpho',
-      },
-      baseClient,
-    );
+        fromToken: baseSource.fromToken,
+        toToken: BASE_USDC_ADDRESS,
+        fromAmount: baseAmount,
+      })
+    : null;
+  const depositAmount = swapQuote?.estimate.toAmountMin ?? baseAmount;
+  const supplyQuote = await intentEngine.buildSupply!(
+    {
+      type: 'SUPPLY',
+      chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
+      fromAddress: userAddress,
+      fromToken: BASE_USDC_ADDRESS,
+      fromAmount: depositAmount,
+      vaultAddress: morphoVault,
+      protocol: 'morpho',
+    },
+    baseClient,
+  );
 
-    return { swapQuote, supplyQuote, depositAmount };
-  };
+  return { swapQuote, supplyQuote, depositAmount };
+}
 
+async function buildStrategyAllocationPlans(params: {
+  funding: Awaited<ReturnType<typeof calculateStrategyFunding>>;
+  userAddress: Address;
+  intentEngine: PlanOrchestrationServiceDeps['intentEngine'];
+  baseClient: PublicClient;
+  morphoVault: Address;
+}) {
+  const { funding, userAddress, intentEngine, baseClient, morphoVault } =
+    params;
   const [basePlan, btcPlan, ethPlan] = await Promise.all([
-    buildBaseMorphoPlan(),
+    buildBaseMorphoAllocation({
+      baseSource: funding.baseSource,
+      baseAmount: funding.baseAmount,
+      userAddress,
+      intentEngine,
+      baseClient,
+      morphoVault,
+    }),
     intentEngine.buildGmxV2Supply({
       marketKey: 'btc-usdc',
-      fromToken: arbitrumSource.fromToken as Address,
-      fromAmount: btcAmount,
+      fromToken: funding.arbitrumSource.fromToken as Address,
+      fromAmount: funding.btcAmount,
       userAddress,
     }),
     intentEngine.buildGmxV2Supply({
       marketKey: 'eth-usdc',
-      fromToken: arbitrumSource.fromToken as Address,
-      fromAmount: ethAmount,
+      fromToken: funding.arbitrumSource.fromToken as Address,
+      fromAmount: funding.ethAmount,
       userAddress,
     }),
   ]);
-  const { swapQuote: baseSwapQuote, supplyQuote: morphoQuote } = basePlan;
 
+  return { basePlan, btcPlan, ethPlan };
+}
+
+async function buildStrategyExecutionGroups(params: {
+  funding: Awaited<ReturnType<typeof calculateStrategyFunding>>;
+  plans: Awaited<ReturnType<typeof buildStrategyAllocationPlans>>;
+  userAddress: Address;
+  intentEngine: PlanOrchestrationServiceDeps['intentEngine'];
+  baseClient: PublicClient;
+  arbitrumClient: PublicClient;
+  morphoVault: Address;
+}) {
+  const {
+    funding,
+    plans,
+    userAddress,
+    intentEngine,
+    baseClient,
+    arbitrumClient,
+    morphoVault,
+  } = params;
+  const { basePlan, btcPlan, ethPlan } = plans;
+  const { swapQuote: baseSwapQuote, supplyQuote: morphoQuote } = basePlan;
   const baseApprovalCandidates = [
     approvalTransaction(baseSwapQuote?.approval, SUPPORTED_DEPOSIT_CHAINS.BASE),
     buildApproveTx({
@@ -604,7 +554,9 @@ async function buildStrategyDeposit(params: {
       withStrategyAllocation(transaction, 'gmx-eth-usdc'),
     ),
   ];
-  const arbitrumAmount = (BigInt(btcAmount) + BigInt(ethAmount)).toString();
+  const arbitrumAmount = (
+    BigInt(funding.btcAmount) + BigInt(funding.ethAmount)
+  ).toString();
   const [baseGasPricing, arbitrumGasPricing] = await Promise.all([
     getChainGasPricing({
       intentEngine,
@@ -643,8 +595,8 @@ async function buildStrategyDeposit(params: {
   const baseGroup = {
     id: 'base-morpho' as const,
     chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
-    fromToken: baseSource.fromToken,
-    fromAmount: baseAmount,
+    fromToken: funding.baseSource.fromToken,
+    fromAmount: funding.baseAmount,
     approvals: baseApprovals,
     calls: baseCalls,
     allocationIds: ['morpho-base-usdc'] as const,
@@ -653,13 +605,31 @@ async function buildStrategyDeposit(params: {
   const arbitrumGroup = {
     id: 'arbitrum-gmx' as const,
     chainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
-    fromToken: arbitrumSource.fromToken,
+    fromToken: funding.arbitrumSource.fromToken,
     fromAmount: arbitrumAmount,
     approvals: arbitrumApprovals,
     calls: arbitrumCalls,
     allocationIds: ['gmx-btc-usdc', 'gmx-eth-usdc'] as const,
     gasUsd: arbitrumGasUsd,
   };
+
+  return {
+    baseGroup,
+    arbitrumGroup,
+    baseGasUsd,
+    btcGasUsd,
+    ethGasUsd,
+    baseDurationSec,
+  };
+}
+
+async function assertStrategyExecutionSafety(params: {
+  execution: Awaited<ReturnType<typeof buildStrategyExecutionGroups>>;
+  request: StrategyDepositRequest;
+  simulation: PlanSimulationDeps | undefined;
+}): Promise<void> {
+  const { execution, request, simulation } = params;
+  const { baseGroup, arbitrumGroup } = execution;
 
   await Promise.all([
     assertPlanSafety({
@@ -681,6 +651,63 @@ async function buildStrategyDeposit(params: {
       simulation,
     }),
   ]);
+}
+
+async function buildStrategyDeposit(params: {
+  request: StrategyDepositRequest;
+  intentEngine: PlanOrchestrationServiceDeps['intentEngine'];
+  publicClients: DepositPublicClients;
+  simulation: PlanSimulationDeps | undefined;
+}): Promise<StrategyDepositPlan> {
+  const { request, intentEngine, publicClients, simulation } = params;
+  if (!intentEngine.buildSupply || !intentEngine.getTokenPrice) {
+    throw new Error('Strategy planning dependencies are not configured');
+  }
+  const userAddress = request.userAddress as Address;
+  const funding = await calculateStrategyFunding({
+    request,
+    intentEngine,
+  });
+  const baseClient = publicClientFor(
+    publicClients,
+    SUPPORTED_DEPOSIT_CHAINS.BASE,
+  );
+  const arbitrumClient = publicClientFor(
+    publicClients,
+    SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+  );
+  const morphoVault =
+    MORPHO_VAULTS[SUPPORTED_DEPOSIT_CHAINS.BASE].MOONWELL_USDC;
+  const plans = await buildStrategyAllocationPlans({
+    funding,
+    userAddress,
+    intentEngine,
+    baseClient,
+    morphoVault,
+  });
+  const execution = await buildStrategyExecutionGroups({
+    funding,
+    plans,
+    userAddress,
+    intentEngine,
+    baseClient,
+    arbitrumClient,
+    morphoVault,
+  });
+  await assertStrategyExecutionSafety({ execution, request, simulation });
+
+  const { baseSource, arbitrumSource, btcUsd6, ethUsd6 } = funding;
+  const { baseAmount, btcAmount, ethAmount } = funding;
+  const { basePlan, btcPlan, ethPlan } = plans;
+  const { supplyQuote: morphoQuote } = basePlan;
+  const {
+    baseGroup,
+    arbitrumGroup,
+    baseGasUsd,
+    btcGasUsd,
+    ethGasUsd,
+    baseDurationSec,
+  } = execution;
 
   return StrategyDepositPlanSchema.parse({
     kind: 'strategy',
