@@ -1,11 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type {
-  DailySnapshot,
-  RebalanceLog,
-  TrackRecordMeta,
-} from '@zapengine/types/strategy';
+import type { DailySnapshot, TrackRecordMeta } from '@zapengine/types/strategy';
 import type { PerformanceSummary } from '@/data/track-record-accessor';
 import {
   fetchMeta,
@@ -25,6 +21,7 @@ import {
   mockMeta,
   mockSnapshotEntries,
 } from '@/data/mock-track-record';
+import { DEFAULT_HISTORY_LIMIT } from '@/config/track-record';
 
 export interface TrackRecordState {
   meta: TrackRecordMeta | null;
@@ -33,7 +30,6 @@ export interface TrackRecordState {
   latestSnapshot: DailySnapshot | null;
   summary: PerformanceSummary;
   positions: DailySnapshot['positions'];
-  rebalanceLogs: RebalanceLog[];
   verification: {
     chainValid: boolean;
     chainBrokenAt: number | undefined;
@@ -47,26 +43,62 @@ export interface TrackRecordState {
   error: string | null;
 }
 
-const MAX_SNAPSHOTS = 90;
-
 const moduleCache: {
   meta: TrackRecordMeta | null;
   snapshots: DailySnapshot[] | null;
   snapshotEntries: SnapshotHistoryEntry[] | null;
   summary: PerformanceSummary | null;
   latestSnapshot: DailySnapshot | null;
-  rebalanceLogs: Map<string, RebalanceLog>;
 } = {
   meta: null,
   snapshots: null,
   snapshotEntries: null,
   summary: null,
   latestSnapshot: null,
-  rebalanceLogs: new Map(),
 };
 
-function loadCache() {
-  return moduleCache;
+interface LoadedTrackRecord {
+  meta: TrackRecordMeta;
+  snapshotEntries: SnapshotHistoryEntry[];
+  snapshots: DailySnapshot[];
+  latestSnapshot: DailySnapshot | null;
+  summary: PerformanceSummary;
+}
+
+async function buildVerification({
+  meta,
+  snapshotEntries,
+  snapshots,
+  latestSnapshot,
+}: LoadedTrackRecord): Promise<TrackRecordState['verification']> {
+  const chainResult = verifyCidChain(snapshotEntries);
+  const performanceResult = verifyPerformanceMetrics(snapshots);
+  const signature = latestSnapshot
+    ? await verifySignature(latestSnapshot, meta.officialSigner ?? '')
+    : null;
+
+  return {
+    chainValid: chainResult.valid,
+    chainBrokenAt: chainResult.brokenAt,
+    totalSnapshots: chainResult.totalSnapshots,
+    signatureValid: signature?.valid ?? true,
+    signature,
+    performanceValid: performanceResult.valid,
+    performanceErrors: performanceResult.errors,
+  };
+}
+
+function toLoadedState(
+  loaded: LoadedTrackRecord,
+  verification: TrackRecordState['verification'],
+): TrackRecordState {
+  return {
+    ...loaded,
+    positions: loaded.latestSnapshot?.positions ?? [],
+    verification,
+    isLoading: false,
+    error: null,
+  };
 }
 
 export function useTrackRecord() {
@@ -77,7 +109,6 @@ export function useTrackRecord() {
     latestSnapshot: null,
     summary: computePerformanceSummary([]),
     positions: [],
-    rebalanceLogs: [],
     verification: {
       chainValid: true,
       chainBrokenAt: undefined,
@@ -97,7 +128,7 @@ export function useTrackRecord() {
     mountedRef.current = true;
 
     async function load() {
-      const cache = loadCache();
+      const cache = moduleCache;
 
       if (
         cache.meta &&
@@ -105,36 +136,17 @@ export function useTrackRecord() {
         cache.snapshots &&
         cache.summary
       ) {
-        const chainResult = verifyCidChain(cache.snapshotEntries);
-        const performanceResult = verifyPerformanceMetrics(cache.snapshots);
-        const sigValid = cache.latestSnapshot
-          ? await verifySignature(
-              cache.latestSnapshot,
-              cache.meta.officialSigner ?? '',
-            )
-          : null;
+        const loaded: LoadedTrackRecord = {
+          meta: cache.meta,
+          snapshotEntries: cache.snapshotEntries,
+          snapshots: cache.snapshots,
+          latestSnapshot: cache.latestSnapshot,
+          summary: cache.summary,
+        };
+        const verification = await buildVerification(loaded);
 
         if (mountedRef.current) {
-          setState({
-            meta: cache.meta,
-            snapshotEntries: cache.snapshotEntries,
-            snapshots: cache.snapshots,
-            latestSnapshot: cache.latestSnapshot,
-            summary: cache.summary,
-            positions: cache.latestSnapshot?.positions ?? [],
-            rebalanceLogs: [],
-            verification: {
-              chainValid: chainResult.valid,
-              chainBrokenAt: chainResult.brokenAt,
-              totalSnapshots: chainResult.totalSnapshots,
-              signatureValid: sigValid?.valid ?? true,
-              signature: sigValid,
-              performanceValid: performanceResult.valid,
-              performanceErrors: performanceResult.errors,
-            },
-            isLoading: false,
-            error: null,
-          });
+          setState(toLoadedState(loaded, verification));
         }
         return;
       }
@@ -151,11 +163,14 @@ export function useTrackRecord() {
             const snapshots = snapshotEntries.map((entry) => entry.snapshot);
             const latestSnapshot = snapshots[snapshots.length - 1] ?? null;
             const summary = computePerformanceSummary(snapshots);
-            const chainResult = verifyCidChain(snapshotEntries);
-            const performanceResult = verifyPerformanceMetrics(snapshots);
-            const sigValid = latestSnapshot
-              ? await verifySignature(latestSnapshot, '')
-              : null;
+            const loaded: LoadedTrackRecord = {
+              meta: mockMeta,
+              snapshotEntries,
+              snapshots,
+              latestSnapshot,
+              summary,
+            };
+            const verification = await buildVerification(loaded);
 
             cache.meta = mockMeta;
             cache.snapshotEntries = snapshotEntries;
@@ -164,26 +179,7 @@ export function useTrackRecord() {
             cache.latestSnapshot = latestSnapshot;
 
             if (mountedRef.current) {
-              setState({
-                meta: mockMeta,
-                snapshotEntries,
-                snapshots,
-                latestSnapshot,
-                summary,
-                positions: latestSnapshot?.positions ?? [],
-                rebalanceLogs: [],
-                verification: {
-                  chainValid: chainResult.valid,
-                  chainBrokenAt: chainResult.brokenAt,
-                  totalSnapshots: chainResult.totalSnapshots,
-                  signatureValid: sigValid?.valid ?? true,
-                  signature: sigValid,
-                  performanceValid: performanceResult.valid,
-                  performanceErrors: performanceResult.errors,
-                },
-                isLoading: false,
-                error: null,
-              });
+              setState(toLoadedState(loaded, verification));
             }
             return;
           }
@@ -203,17 +199,18 @@ export function useTrackRecord() {
         const latestSnapshot = await fetchLatestSnapshot(meta);
         const snapshotEntries = await fetchSnapshotHistoryEntries(
           meta.latestSnapshotCid,
-          MAX_SNAPSHOTS,
+          DEFAULT_HISTORY_LIMIT,
         );
         const snapshots = snapshotEntries.map((entry) => entry.snapshot);
         const summary = computePerformanceSummary(snapshots);
-
-        const chainResult = verifyCidChain(snapshotEntries);
-        const performanceResult = verifyPerformanceMetrics(snapshots);
-        const sigValid = await verifySignature(
+        const loaded: LoadedTrackRecord = {
+          meta,
+          snapshotEntries,
+          snapshots,
           latestSnapshot,
-          meta.officialSigner ?? '',
-        );
+          summary,
+        };
+        const verification = await buildVerification(loaded);
 
         cache.meta = meta;
         cache.snapshotEntries = snapshotEntries;
@@ -222,26 +219,7 @@ export function useTrackRecord() {
         cache.latestSnapshot = latestSnapshot;
 
         if (mountedRef.current) {
-          setState({
-            meta,
-            snapshotEntries,
-            snapshots,
-            latestSnapshot,
-            summary,
-            positions: latestSnapshot.positions,
-            rebalanceLogs: [],
-            verification: {
-              chainValid: chainResult.valid,
-              chainBrokenAt: chainResult.brokenAt,
-              totalSnapshots: chainResult.totalSnapshots,
-              signatureValid: sigValid.valid,
-              signature: sigValid,
-              performanceValid: performanceResult.valid,
-              performanceErrors: performanceResult.errors,
-            },
-            isLoading: false,
-            error: null,
-          });
+          setState(toLoadedState(loaded, verification));
         }
       } catch (err) {
         if (mountedRef.current) {

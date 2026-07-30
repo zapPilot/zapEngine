@@ -4,11 +4,9 @@ export default defineKnipConfig({
   entry: ['src/app/**/page.tsx', 'src/app/**/layout.tsx'],
   project: ['src/**/*.{ts,tsx}'],
   ignore: [
-    '**/index.ts',
     // Track-record helpers are intentionally kept available for the verification
     // pages/scripts roadmap even though not every helper is wired in the current
     // landing UI yet. Keep the deadcode gate focused on newly introduced drift.
-    'src/config/track-record.ts',
     'src/data/track-record-accessor.ts',
   ],
   ignoreDependencies: [
