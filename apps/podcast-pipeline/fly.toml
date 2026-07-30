@@ -56,7 +56,7 @@ kill_timeout = '30s'
 # always fit here.
 [[vm]]
   size = 'shared-cpu-1x'
-  memory = '2gb'
+  memory = '512mb'
   processes = ['app']
 
 # Video rendering needs a dedicated CPU. A shared vCPU has a baseline of 1/16 of
@@ -73,5 +73,5 @@ kill_timeout = '30s'
 # cost; trimming it would trade a small saving for the OOM this limit fixed.
 [[vm]]
   size = 'performance-2x'
-  memory = '8gb'
+  memory = '4gb'
   processes = ['render']
