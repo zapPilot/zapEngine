@@ -25,19 +25,21 @@ import {
   amountUsdFromInput,
   balanceForFundingToken,
   buildSingleChainFundingDraft,
-  chainMaxUsd,
   fundingTokenAmountFromUsd,
   maxUsdAmountInput,
   minimumDepositUsd6ForScope,
   normalizeAmountInput,
   requiredChainUnavailableForScope,
+  spendableUsdForFundingToken,
   strategyMaxTotalUsd,
 } from '@/integration/investAmountModel';
 import { useAccount } from '@/integration/useAccount';
 import { type InvestScope, useInvest } from '@/integration/useInvest';
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
 import { useWalletAssets } from '@/integration/walletTokens';
-import { formatUsd } from '@/lib/format';
+import { formatTokenBalance, formatUsd } from '@/lib/format';
+
+type FundingBalanceState = 'loading' | 'unavailable' | 'loaded';
 
 interface FundingSourceInputProps {
   chainLabel: string;
@@ -48,7 +50,7 @@ interface FundingSourceInputProps {
   hasAmount: boolean;
   allocatedUsd: number;
   balance: ChainTokenBalanceRow | null;
-  balanceState: 'loading' | 'unavailable' | 'loaded';
+  balanceState: FundingBalanceState;
   onSelect: (() => void) | undefined;
 }
 
@@ -62,19 +64,6 @@ function formattedTokenAmount(
   return value.toLocaleString('en-US', {
     maximumFractionDigits: token.symbol === 'ETH' ? 6 : 2,
   });
-}
-
-function formattedBalance(
-  token: DesktopDepositToken,
-  balance: ChainTokenBalanceRow | null,
-  state: FundingSourceInputProps['balanceState'],
-): string {
-  if (state === 'loading') return 'Loading…';
-  if (state === 'unavailable') return 'Unavailable';
-  const value = Number.parseFloat(balance?.balance ?? '0');
-  return `${(Number.isFinite(value) ? value : 0).toLocaleString('en-US', {
-    maximumFractionDigits: token.symbol === 'ETH' ? 6 : 2,
-  })} ${token.symbol}`;
 }
 
 function FundingSourceInput({
@@ -115,7 +104,8 @@ function FundingSourceInput({
           <Text className="mt-1 text-[11px] text-ink-dim">{protocol}</Text>
         </View>
         <Text className="font-mono text-[10px] text-ink-dim">
-          Balance {formattedBalance(token, balance, balanceState)}
+          Balance{' '}
+          {formatTokenBalance(balance?.balance, token.symbol, balanceState)}
         </Text>
       </View>
 
@@ -163,6 +153,95 @@ const INVEST_SCOPE_OPTIONS: readonly {
   { value: 'base', label: 'Base only' },
   { value: 'arbitrum', label: 'Arbitrum only' },
 ];
+
+function fundingBalanceState({
+  isConnected,
+  isBoth,
+  requiredChainUnavailable,
+  chainUnavailable,
+  isLoading,
+}: {
+  isConnected: boolean;
+  isBoth: boolean;
+  requiredChainUnavailable: boolean;
+  chainUnavailable: boolean;
+  isLoading: boolean;
+}): FundingBalanceState {
+  if (!isConnected || (isBoth ? requiredChainUnavailable : chainUnavailable)) {
+    return 'unavailable';
+  }
+  return isLoading ? 'loading' : 'loaded';
+}
+
+interface AmountNotice {
+  message: string;
+  className: string;
+  style?: { color: string };
+}
+
+function amountNotice({
+  belowMinimum,
+  exceedsBalance,
+  requiredChainUnavailable,
+  priceUnavailable,
+  noSupportedBalance,
+  isBoth,
+  isBaseOnly,
+  activeChainLabel,
+}: {
+  belowMinimum: boolean;
+  exceedsBalance: boolean;
+  requiredChainUnavailable: boolean;
+  priceUnavailable: boolean;
+  noSupportedBalance: boolean;
+  isBoth: boolean;
+  isBaseOnly: boolean;
+  activeChainLabel: string;
+}): AmountNotice | null {
+  if (belowMinimum) {
+    return {
+      className: 'mt-2.5 px-1 text-[11px] text-danger',
+      message: isBaseOnly
+        ? 'Enter at least $0.01 to test the Base Morpho deposit.'
+        : isBoth
+          ? 'Enter at least $10 to deposit into the strategy.'
+          : 'Enter at least $10 — GMX keeper fees make smaller deposits uneconomical.',
+    };
+  }
+  if (exceedsBalance) {
+    return {
+      className: 'mt-2.5 px-1 text-[11px] text-danger',
+      message: isBoth
+        ? 'This amount exceeds the available balance on at least one chain.'
+        : `This amount exceeds the available ${activeChainLabel} balance.`,
+    };
+  }
+  if (requiredChainUnavailable) {
+    return {
+      className: 'mt-2.5 px-1 text-[11px]',
+      style: { color: '#ef7474' },
+      message: isBoth
+        ? 'Base or Arbitrum balances are unavailable. Retry to continue.'
+        : `${activeChainLabel} balances are unavailable. Retry to continue.`,
+    };
+  }
+  if (priceUnavailable) {
+    return {
+      className: 'mt-2.5 px-1 text-[11px] leading-[16px] text-ink-dim',
+      message:
+        'Live ETH pricing is unavailable, so this deposit cannot freeze an exact funding amount yet.',
+    };
+  }
+  if (noSupportedBalance) {
+    return {
+      className: 'mt-2.5 px-1 text-[11px] text-ink-dim',
+      message: isBoth
+        ? 'No supported balance is available on both Base and Arbitrum.'
+        : `No supported balance is available on ${activeChainLabel}.`,
+    };
+  }
+  return null;
+}
 
 function InvestScopeToggle({
   value,
@@ -219,11 +298,12 @@ export function InvestAmountScreen() {
   const [selector, setSelector] = useState<'base' | 'arbitrum' | null>(null);
   const isBoth = invest.scope === 'both';
   const isBaseOnly = invest.scope === 'base';
+  const activeChainLabel = isBaseOnly ? 'Base' : 'Arbitrum';
   const activeArbitrumFundingToken =
     invest.scope === 'arbitrum'
       ? DEFAULT_ARBITRUM_FUNDING_TOKEN
       : invest.arbitrumFundingToken;
-  const amountUsd = amountUsdFromInput(invest.amountInput, 'USD', 1);
+  const amountUsd = amountUsdFromInput(invest.amountInput);
   const baseBalance = balanceForFundingToken(
     balances.chainRows,
     invest.baseFundingToken,
@@ -234,10 +314,13 @@ export function InvestAmountScreen() {
   );
   const maxTotalUsd = useMemo(() => {
     if (invest.scope === 'base') {
-      return chainMaxUsd(invest.baseFundingToken, baseBalance);
+      return spendableUsdForFundingToken(baseBalance, invest.baseFundingToken);
     }
     if (invest.scope === 'arbitrum') {
-      return chainMaxUsd(activeArbitrumFundingToken, arbitrumBalance);
+      return spendableUsdForFundingToken(
+        arbitrumBalance,
+        activeArbitrumFundingToken,
+      );
     }
     return strategyMaxTotalUsd({
       base: { token: invest.baseFundingToken, balance: baseBalance },
@@ -271,20 +354,20 @@ export function InvestAmountScreen() {
     balances.failedChains,
     balances.isError,
   );
-  const baseBalanceState: FundingSourceInputProps['balanceState'] =
-    !account.isConnected ||
-    (isBoth ? requiredChainUnavailable : baseUnavailable)
-      ? 'unavailable'
-      : balances.isLoading
-        ? 'loading'
-        : 'loaded';
-  const arbitrumBalanceState: FundingSourceInputProps['balanceState'] =
-    !account.isConnected ||
-    (isBoth ? requiredChainUnavailable : arbitrumUnavailable)
-      ? 'unavailable'
-      : balances.isLoading
-        ? 'loading'
-        : 'loaded';
+  const baseBalanceState = fundingBalanceState({
+    isConnected: account.isConnected,
+    isBoth,
+    requiredChainUnavailable,
+    chainUnavailable: baseUnavailable,
+    isLoading: balances.isLoading,
+  });
+  const arbitrumBalanceState = fundingBalanceState({
+    isConnected: account.isConnected,
+    isBoth,
+    requiredChainUnavailable,
+    chainUnavailable: arbitrumUnavailable,
+    isLoading: balances.isLoading,
+  });
   const baseAllocationBps = isBoth ? 4_000 : 10_000;
   const arbitrumAllocationBps = isBoth ? 6_000 : 10_000;
   const baseTokenAmount = fundingTokenAmountFromUsd(
@@ -366,6 +449,17 @@ export function InvestAmountScreen() {
       : balances.isLoading
         ? 'Loading balances…'
         : 'Review deposit';
+  const notice = amountNotice({
+    belowMinimum,
+    exceedsBalance,
+    requiredChainUnavailable,
+    priceUnavailable,
+    noSupportedBalance:
+      account.isConnected && !balances.isLoading && maxTotalUsd === 0,
+    isBoth,
+    isBaseOnly,
+    activeChainLabel,
+  });
 
   return (
     <>
@@ -401,9 +495,7 @@ export function InvestAmountScreen() {
                   accessibilityLabel={
                     isBoth
                       ? 'Use maximum strategy deposit supported by both chains'
-                      : `Use maximum deposit supported on ${
-                          isBaseOnly ? 'Base' : 'Arbitrum'
-                        }`
+                      : `Use maximum deposit supported on ${activeChainLabel}`
                   }
                   accessibilityState={{
                     disabled:
@@ -521,49 +613,11 @@ export function InvestAmountScreen() {
             </View>
           </View>
 
-          {belowMinimum ? (
-            <Text className="mt-2.5 px-1 text-[11px] text-danger">
-              {isBaseOnly
-                ? 'Enter at least $0.01 to test the Base Morpho deposit.'
-                : isBoth
-                  ? 'Enter at least $10 to deposit into the strategy.'
-                  : 'Enter at least $10 — GMX keeper fees make smaller deposits uneconomical.'}
+          {notice === null ? null : (
+            <Text className={notice.className} style={notice.style}>
+              {notice.message}
             </Text>
-          ) : exceedsBalance ? (
-            <Text className="mt-2.5 px-1 text-[11px] text-danger">
-              {isBoth
-                ? 'This amount exceeds the available balance on at least one chain.'
-                : `This amount exceeds the available ${
-                    isBaseOnly ? 'Base' : 'Arbitrum'
-                  } balance.`}
-            </Text>
-          ) : requiredChainUnavailable ? (
-            <Text
-              className="mt-2.5 px-1 text-[11px]"
-              style={{ color: '#ef7474' }}
-            >
-              {isBoth
-                ? 'Base or Arbitrum balances are unavailable. Retry to continue.'
-                : `${
-                    isBaseOnly ? 'Base' : 'Arbitrum'
-                  } balances are unavailable. Retry to continue.`}
-            </Text>
-          ) : priceUnavailable ? (
-            <Text className="mt-2.5 px-1 text-[11px] leading-[16px] text-ink-dim">
-              Live ETH pricing is unavailable, so this deposit cannot freeze an
-              exact funding amount yet.
-            </Text>
-          ) : account.isConnected &&
-            !balances.isLoading &&
-            maxTotalUsd === 0 ? (
-            <Text className="mt-2.5 px-1 text-[11px] text-ink-dim">
-              {isBoth
-                ? 'No supported balance is available on both Base and Arbitrum.'
-                : `No supported balance is available on ${
-                    isBaseOnly ? 'Base' : 'Arbitrum'
-                  }.`}
-            </Text>
-          ) : null}
+          )}
 
           {isBoth ? (
             <View className="mt-3 flex-row items-start gap-2 rounded-xl bg-[rgba(212,197,163,.055)] px-3 py-2.5">
