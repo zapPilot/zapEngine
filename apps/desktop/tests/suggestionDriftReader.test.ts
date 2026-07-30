@@ -15,11 +15,7 @@ vi.mock('@zapengine/app-core/services', () => ({
 }));
 
 import { createSuggestionDriftReader } from '../src/main/scheduler/suggestionDriftReader';
-
-const CONTEXT = {
-  userId: 'user-1',
-  walletAddress: '0x1111111111111111111111111111111111111111',
-};
+import { CONTEXT } from './fixtures';
 
 const ASSET_ALLOCATION = {
   alt: 0,
@@ -145,12 +141,13 @@ describe('createSuggestionDriftReader', () => {
   });
 
   it('uses sentinel drift when actionable transfer volume cannot be normalized', async () => {
+    const base = makeDailySuggestion();
     suggestionMocks.getDailySuggestion.mockResolvedValue(
       makeDailySuggestion({
         context: {
-          ...makeDailySuggestion().context,
+          ...base.context,
           portfolio: {
-            ...makeDailySuggestion().context.portfolio,
+            ...base.context.portfolio,
             total_value: 0,
           },
         },

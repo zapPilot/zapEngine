@@ -38,6 +38,17 @@ function restoreEnvValue(key: string, value: string | undefined): void {
   process.env[key] = value;
 }
 
+function expectInjectedDefaults(mode: 'development' | 'production'): void {
+  expect(configMocks.configureAppCoreEnv).toHaveBeenCalledWith(
+    expect.objectContaining({
+      MODE: mode,
+      VITE_ACCOUNT_API_URL: '',
+      VITE_ANALYTICS_ENGINE_URL: '',
+      VITE_APP_RUNTIME: 'desktop',
+    }),
+  );
+}
+
 describe('configureMainAppCoreEnv', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -85,14 +96,7 @@ describe('configureMainAppCoreEnv', () => {
 
     configureMainAppCoreEnv();
 
-    expect(configMocks.configureAppCoreEnv).toHaveBeenCalledWith(
-      expect.objectContaining({
-        MODE: 'development',
-        VITE_ACCOUNT_API_URL: '',
-        VITE_ANALYTICS_ENGINE_URL: '',
-        VITE_APP_RUNTIME: 'desktop',
-      }),
-    );
+    expectInjectedDefaults('development');
   });
 
   it('uses defaults when config JSON cannot be parsed', () => {
@@ -100,14 +104,7 @@ describe('configureMainAppCoreEnv', () => {
 
     configureMainAppCoreEnv();
 
-    expect(configMocks.configureAppCoreEnv).toHaveBeenCalledWith(
-      expect.objectContaining({
-        MODE: 'production',
-        VITE_ACCOUNT_API_URL: '',
-        VITE_ANALYTICS_ENGINE_URL: '',
-        VITE_APP_RUNTIME: 'desktop',
-      }),
-    );
+    expectInjectedDefaults('production');
   });
 
   it('uses defaults when config file cannot be read', () => {
@@ -117,13 +114,6 @@ describe('configureMainAppCoreEnv', () => {
 
     configureMainAppCoreEnv();
 
-    expect(configMocks.configureAppCoreEnv).toHaveBeenCalledWith(
-      expect.objectContaining({
-        MODE: 'production',
-        VITE_ACCOUNT_API_URL: '',
-        VITE_ANALYTICS_ENGINE_URL: '',
-        VITE_APP_RUNTIME: 'desktop',
-      }),
-    );
+    expectInjectedDefaults('production');
   });
 });
