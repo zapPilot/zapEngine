@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  useMoralisWalletAssets,
-  useMoralisWalletHistory,
-} from '@/integration/moralisWallet';
+import { useMoralisWalletHistory } from '@/integration/moralisWallet';
 
 const useQueryMock = vi.hoisted(() => vi.fn());
 
@@ -20,52 +17,6 @@ beforeEach(() => {
 });
 
 describe('Moralis wallet query wrappers', () => {
-  it('keeps asset queries disabled while disconnected', () => {
-    useQueryMock.mockReturnValueOnce({
-      data: undefined,
-      isLoading: false,
-      isError: false,
-      error: null,
-    });
-
-    expect(useMoralisWalletAssets(null)).toMatchObject({
-      assets: [],
-      rows: [],
-      failedChains: [],
-      totalUsdValue: null,
-      isConnected: false,
-      isLoading: false,
-      isError: false,
-      error: null,
-    });
-    expect(useQueryMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        enabled: false,
-        queryKey: ['desktop', 'moralis', 'wallet-assets', []],
-      }),
-    );
-  });
-
-  it('sums live asset row values when connected', () => {
-    useQueryMock.mockReturnValueOnce({
-      data: {
-        assets: [],
-        rows: [{ usdValue: 10 }, { usdValue: null }, { usdValue: 5 }],
-        failedChains: ['base'],
-      },
-      isLoading: true,
-      isError: false,
-      error: null,
-    });
-
-    expect(useMoralisWalletAssets('wallet-address')).toMatchObject({
-      totalUsdValue: 15,
-      failedChains: ['base'],
-      isConnected: true,
-      isLoading: true,
-    });
-  });
-
   it('returns history query state with the mapped groups', () => {
     const error = new Error('history failed');
     useQueryMock.mockReturnValueOnce({

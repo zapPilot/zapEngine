@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   getMoralisWalletHistory,
-  getMoralisWalletTokenBalances,
   getSupportedMoralisWalletSymbol,
   getSupportedWalletTokenDefinition,
   type MoralisChainHistory,
@@ -45,7 +44,7 @@ interface ChainConfig {
 const WALLET_HISTORY_LIMIT = 10;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-export const MORALIS_WALLET_CHAINS = [
+const MORALIS_WALLET_CHAINS = [
   { moralis: 'eth', desktop: 'ethereum', label: 'Ethereum', chainId: 1 },
   { moralis: 'base', desktop: 'base', label: 'Base', chainId: 8453 },
   {
@@ -758,37 +757,6 @@ export function buildActivityGroupsFromMoralisHistory(
         .map((entry) => entry.event),
     }))
     .filter((group) => group.events.length > 0);
-}
-
-export function useMoralisWalletAssets(
-  addressInput: WalletAddressInput,
-): UseMoralisWalletAssetsResult {
-  const walletAddresses = normalizeWalletAddressList(addressInput);
-  const enabled = walletAddresses.length > 0;
-  // jscpd:ignore-start
-  const query = useQuery({
-    queryKey: ['desktop', 'moralis', 'wallet-assets', walletAddresses],
-    enabled,
-    staleTime: 60 * 1000,
-    queryFn: async () => {
-      const responses = (
-        await Promise.all(
-          walletAddresses.map((address) =>
-            getMoralisWalletTokenBalances(address),
-          ),
-        )
-      ).flat();
-      const assets = buildDesktopWalletAssets(responses);
-      return {
-        assets,
-        rows: buildInvestableBalanceRows(assets),
-        chainRows: buildChainTokenBalanceRows(assets),
-      };
-    },
-  });
-  // jscpd:ignore-end
-
-  return buildWalletAssetsResult(query, enabled);
 }
 
 export function useMoralisWalletHistory(
