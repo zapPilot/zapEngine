@@ -823,9 +823,7 @@ function rankSearchCandidates(
       index,
       score: searchCandidateScore(candidate, intent, existingAssets),
     }))
-    .sort(
-      (left, right) => right.score - left.score || left.index - right.index,
-    )
+    .sort((left, right) => right.score - left.score || left.index - right.index)
     .map(({ candidate }) => candidate);
 }
 
