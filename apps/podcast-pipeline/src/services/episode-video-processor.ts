@@ -9,7 +9,14 @@ import {
   createEpisodeVideoManifest,
 } from './video/episode-video.js';
 import { parseEpisodeVisualPayload } from './video/episode-visual.js';
-import { renderSlideVideo } from './video/renderer.js';
+import {
+  type RenderProgressEvent,
+  renderSlideVideo,
+} from './video/renderer.js';
+import {
+  type EpisodeVideoProgressUpdate,
+  renderStageProgress,
+} from './video-progress.js';
 import type { ProcessEpisodeVideoJob } from './video-worker.js';
 
 // A wedged ffmpeg would keep renewing its lease forever, and the render process
@@ -62,9 +69,11 @@ export function createEpisodeVideoProcessor(
       );
     }
 
+    context.reportProgress(renderStageProgress('analyzing-audio', 0));
     const analysis = await dependencies.analyzeAudio(source.hlsUrl, {
       signal: context.signal,
     });
+    context.reportProgress(renderStageProgress('analyzing-audio'));
     const alignmentStartedAt = Date.now();
     logLocaleVideoEvent(dependencies.logger, 'video:alignment', {
       run: context.runId,
@@ -94,6 +103,7 @@ export function createEpisodeVideoProcessor(
       phase: 'done',
       elapsedMs: Date.now() - alignmentStartedAt,
     });
+    context.reportProgress(renderStageProgress('aligning-script'));
 
     await context.saveManifest({
       manifest: JSON.parse(generated.manifestJson) as Record<string, unknown>,
@@ -127,14 +137,16 @@ export function createEpisodeVideoProcessor(
           outputDirectory,
           audioSource: source.hlsUrl,
           signal: renderDeadline.signal,
-          onProgress: (message) =>
+          onProgress: (event) => {
             logRenderProgress(
               dependencies.logger,
               context.runId,
               source.episodeId,
               source.languageCode,
-              message,
-            ),
+              event,
+            );
+            context.reportProgress(renderEventProgress(event));
+          },
         })
         .finally(() => {
           renderDeadline.dispose();
@@ -143,6 +155,7 @@ export function createEpisodeVideoProcessor(
         throw new Error('Rendered manifest hash differs from persisted hash');
       }
 
+      context.reportProgress(renderStageProgress('uploading-video', 0));
       const uploaded = await dependencies.upload({
         episodeId: source.episodeId,
         languageCode: source.languageCode,
@@ -174,27 +187,43 @@ export function createEpisodeVideoProcessor(
   };
 }
 
+/**
+ * Progress within the render half of the bar. Weights live in video-progress.ts
+ * so the worker's writes and the API's composition cannot drift apart.
+ */
+function renderEventProgress(
+  event: RenderProgressEvent,
+): EpisodeVideoProgressUpdate {
+  if (event.phase === 'encode') {
+    return renderStageProgress('encoding', event.encodeFraction ?? 0);
+  }
+  if (event.phase === 'frame') return renderStageProgress('preparing-media');
+  const fraction =
+    event.sceneIndex !== undefined && event.sceneCount
+      ? event.sceneIndex / event.sceneCount
+      : 0;
+  return renderStageProgress('preparing-media', fraction);
+}
+
 function logRenderProgress(
   logger: Pick<Console, 'info'>,
   runId: string,
   episodeId: string,
   languageCode: string,
-  message: string,
+  event: RenderProgressEvent,
 ): void {
-  const sceneProgress = /^Rendering slide (\d+)\/(\d+): (scene-\d+)$/.exec(
-    message,
-  );
   logLocaleVideoEvent(logger, 'video:render', {
     run: runId,
     episode: episodeId,
     language: languageCode,
-    phase: sceneProgress ? 'scene' : 'encoding',
-    ...(sceneProgress
-      ? {
-          scene: sceneProgress[3],
-          progress: `${sceneProgress[1]}/${sceneProgress[2]}`,
-        }
+    phase: event.phase === 'encode' ? 'encoding' : event.phase,
+    ...(event.sceneId ? { scene: event.sceneId } : {}),
+    ...(event.sceneIndex !== undefined && event.sceneCount !== undefined
+      ? { progress: `${event.sceneIndex}/${event.sceneCount}` }
       : {}),
+    ...(event.encodeFraction === undefined
+      ? {}
+      : { percent: Math.round(event.encodeFraction * 100) }),
   });
 }
 

@@ -3,6 +3,11 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import {
+  RENDER_JOB_PROGRESS_STAGES,
+  VISUAL_JOB_PROGRESS_STAGES,
+} from './services/video-progress.js';
+
 const repoRoot = path.resolve(process.cwd(), '../..');
 const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
 const migration017 = readRepoFile(
@@ -22,6 +27,9 @@ const migration021 = readRepoFile(
 );
 const migration022 = readRepoFile(
   'apps/podcast-pipeline/supabase/migrations/022_repair_episode_video_enqueue.sql',
+);
+const migration023 = readRepoFile(
+  'apps/podcast-pipeline/supabase/migrations/023_add_video_progress.sql',
 );
 const localizationRpcNames = [
   'enqueue_episode_video',
@@ -493,6 +501,201 @@ describe('episode video lifecycle schema', () => {
     expect(migration018).toMatch(/notify pgrst, 'reload schema';/i);
     expect(migration019).toMatch(/notify pgrst, 'reload schema';/i);
     expect(migration021).toMatch(/notify pgrst, 'reload schema';/i);
+    // New *columns* need the reload as much as new functions do: a stale
+    // PostgREST cache turns every select naming progress_percent into a 42703,
+    // which fails the whole episode feed rather than just the video tab.
+    expect(migration023).toMatch(/notify pgrst, 'reload schema';/i);
+  });
+});
+
+describe('episode video progress schema', () => {
+  const progressTables = [
+    {
+      table: 'episode_video_visuals',
+      stages: VISUAL_JOB_PROGRESS_STAGES,
+      rpc: 'report_episode_video_visual_progress',
+      claim: 'claim_episode_video_visual_v2',
+      key: 'p_episode_id',
+    },
+    {
+      table: 'episode_videos',
+      stages: RENDER_JOB_PROGRESS_STAGES,
+      rpc: 'report_episode_video_progress',
+      claim: 'claim_episode_video_v2',
+      key: 'p_episode_localization_id',
+    },
+  ] as const;
+
+  const sources = [
+    ['schema.sql', schema],
+    ['migration 023', migration023],
+  ] as const;
+
+  it.each(sources)(
+    'adds nullable progress columns to both queues in %s',
+    (_name, sql) => {
+      for (const { table } of progressTables) {
+        expect(sql).toMatch(
+          new RegExp(
+            `${table}[\\s\\S]+?progress_percent smallint[\\s\\S]{0,80}?progress_stage text`,
+            'i',
+          ),
+        );
+        // Nullable with no default: "0%" and "nothing reported yet" differ, and a
+        // backfilled 0 on a completed row would read as no progress at all.
+        expect(sql).not.toMatch(/progress_percent smallint[^,\n]*not null/i);
+        expect(sql).not.toMatch(/progress_percent smallint[^,\n]*default/i);
+      }
+    },
+  );
+
+  it.each(sources)(
+    'bounds the stored percentage to 0..100 in %s',
+    (_name, sql) => {
+      for (const { table } of progressTables) {
+        expect(sql).toMatch(
+          new RegExp(
+            `${table}_progress_percent_range check \\(\\s*progress_percent is null\\s*or \\(progress_percent >= 0 and progress_percent <= 100\\)`,
+            'i',
+          ),
+        );
+      }
+    },
+  );
+
+  it.each(sources)(
+    'whitelists exactly the stages the TypeScript contract can emit in %s',
+    (_name, sql) => {
+      for (const { table, stages } of progressTables) {
+        const constraint = new RegExp(
+          `${table}_progress_stage_known check \\([\\s\\S]+?in \\(([\\s\\S]+?)\\)\\s*\\)`,
+          'i',
+        ).exec(sql);
+        expect(constraint).not.toBeNull();
+        const listed = [...(constraint?.[1] ?? '').matchAll(/'([^']+)'/g)].map(
+          (match) => match[1],
+        );
+        expect(listed).toEqual([...stages]);
+      }
+    },
+  );
+
+  it.each(sources)(
+    'fences each progress RPC behind a live lease in %s',
+    (_name, sql) => {
+      for (const { rpc, key } of progressTables) {
+        const definition = functionDefinition(sql, rpc);
+        expect(definition).toMatch(/security definer/i);
+        expect(definition).toMatch(/set search_path = ''/i);
+        expect(definition).toMatch(new RegExp(`= ${key}`, 'i'));
+        expect(definition).toMatch(/status = 'processing'/i);
+        expect(definition).toMatch(/lease_owner = p_lease_owner/i);
+        expect(definition).toMatch(/lease_expires_at > now\(\)/i);
+        expect(definition).toMatch(/updated_at = now\(\)/i);
+      }
+    },
+  );
+
+  it.each(sources)(
+    'clamps progress monotonically in the database in %s',
+    (_name, sql) => {
+      for (const { rpc } of progressTables) {
+        // Enforced in SQL so no out-of-order flush can walk the bar backwards,
+        // whatever the worker sends.
+        expect(functionDefinition(sql, rpc)).toMatch(
+          /progress_percent = greatest\(\s*coalesce\([a-z]+\.progress_percent, 0\),\s*least\(greatest\(coalesce\(p_percent, 0\), 0\), 100\)/i,
+        );
+      }
+    },
+  );
+
+  it.each(sources)(
+    'pins the stage label whenever the monotonic clamp rejects a percentage in %s',
+    (_name, sql) => {
+      for (const { rpc } of progressTables) {
+        // Otherwise a stale flush leaves the stored percentage from one stage
+        // beside the name of an earlier one, and the client renders e.g. "64%"
+        // next to "Preparing the scenes".
+        expect(functionDefinition(sql, rpc)).toMatch(
+          /progress_stage = case\s+(?:--[^\n]*\n\s*)*when coalesce\(p_percent, 0\) < coalesce\([a-z]+\.progress_percent, 0\)\s+then [a-z]+\.progress_stage/i,
+        );
+      }
+    },
+  );
+
+  it.each(sources)(
+    'degrades an unrecognised stage to null instead of raising in %s',
+    (_name, sql) => {
+      for (const { rpc, stages } of progressTables) {
+        const definition = functionDefinition(sql, rpc);
+        // A newly deployed worker must be able to run against a database that
+        // predates its stage vocabulary and merely lose the label. Progress
+        // reporting can never be allowed to fail a render.
+        expect(definition).toMatch(
+          /progress_stage = case[\s\S]+?when p_stage in \([\s\S]+?\) then p_stage\s+else null\s+end/i,
+        );
+        for (const stage of stages) {
+          expect(definition).toContain(`'${stage}'`);
+        }
+      }
+    },
+  );
+
+  it.each(sources)(
+    'keeps both progress RPCs service-role-only in %s',
+    (_name, sql) => {
+      for (const { rpc } of progressTables) {
+        expect(sql).toMatch(
+          new RegExp(
+            `revoke execute on function from_fed_to_chain\\.${rpc}\\([\\s\\S]+?from public, anon, authenticated;`,
+            'i',
+          ),
+        );
+        expect(sql).toMatch(
+          new RegExp(
+            `grant execute on function from_fed_to_chain\\.${rpc}\\([\\s\\S]+?to service_role;`,
+            'i',
+          ),
+        );
+      }
+    },
+  );
+
+  it.each(sources)(
+    'clears stale progress when a claim starts an attempt in %s',
+    (_name, sql) => {
+      for (const { claim } of progressTables) {
+        expect(functionDefinition(sql, claim)).toMatch(
+          /set status = 'processing',[\s\S]+?progress_percent = null,\s*progress_stage = null/i,
+        );
+      }
+    },
+  );
+
+  it.each(sources)(
+    'leaves the expired-lease reap free to keep its last percentage in %s',
+    (_name, sql) => {
+      for (const { claim } of progressTables) {
+        // The reap can push a row to 'failed', and a failed row should report
+        // how far it actually got, so only the claim itself resets progress.
+        const reap =
+          /set status = case[\s\S]+?where [a-z]+\.status = 'processing'\s+and [a-z]+\.lease_expires_at <= now\(\);/i.exec(
+            functionDefinition(sql, claim),
+          );
+        expect(reap).not.toBeNull();
+        expect(reap?.[0]).not.toMatch(/progress_percent/i);
+      }
+    },
+  );
+
+  it('does not widen the render-capacity work probe field lists', () => {
+    // evaluatePendingRenderWork mirrors the claim RPCs' WHERE clauses, which
+    // migration 023 does not touch. Selecting the new columns there would make
+    // the wake-up probe fail on a database that has not been migrated yet.
+    const probe = readRepoFile(
+      'apps/podcast-pipeline/src/services/render-capacity.ts',
+    );
+    expect(probe).not.toMatch(/progress_percent|progress_stage/i);
   });
 });
 

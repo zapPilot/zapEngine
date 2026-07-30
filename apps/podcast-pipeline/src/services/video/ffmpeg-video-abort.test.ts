@@ -128,6 +128,50 @@ describe('runProcess failure reporting', () => {
     expect(failure.message.length).toBeLessThan(9_000);
   });
 
+  it('splits streamed stdout into whole lines across chunk boundaries', async () => {
+    const child = spawnPipedChild();
+    const lines: string[] = [];
+
+    const promise = runProcess(
+      '/usr/bin/ffmpeg',
+      ['-i', 'input'],
+      true,
+      undefined,
+      (line) => lines.push(line),
+    );
+    // ffmpeg's -progress output arrives in arbitrary chunks, so a key=value pair
+    // can be cut in half; reassembling it is what keeps a sample from being lost.
+    child.stdout.write('frame=120\nout_time_us=40');
+    child.stdout.write('00000\nprogress=continue\n');
+    await flushStreams();
+    child.emit('exit', 0, null);
+    await promise;
+
+    expect(lines).toEqual([
+      'frame=120',
+      'out_time_us=4000000',
+      'progress=continue',
+    ]);
+  });
+
+  it('keeps machine-readable stdout out of the service log', async () => {
+    const child = spawnPipedChild();
+    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+
+    const promise = runProcess('/usr/bin/ffmpeg', ['-i', 'input'], true);
+    child.stdout.write('out_time_us=4000000\nprogress=continue\n');
+    child.stderr.write('frame=  201 fps=0.1 q=23.0\r');
+    await flushStreams();
+    child.emit('exit', 0, null);
+    await promise;
+
+    // `-progress pipe:1` emits ~24 lines a second; relaying it would bury the
+    // human-readable -stats line that operators actually read in `fly logs`.
+    expect(stdoutWrite).not.toHaveBeenCalled();
+    expect(stderrWrite).toHaveBeenCalled();
+  });
+
   it('retains the whole of a captured run so capability probes stay complete', async () => {
     const child = spawnPipedChild();
 

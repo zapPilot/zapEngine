@@ -13,6 +13,12 @@ import {
   getVideoJobRepository,
   getVideoVisualJobRepository,
 } from './video-jobs.js';
+import {
+  composeEpisodeVideoProgress,
+  type EpisodeVideoProgressJobState,
+  type EpisodeVideoProgressStage,
+  VISUAL_JOB_PROGRESS_STAGES,
+} from './video-progress.js';
 
 export type EpisodeVideoGenerationStatus =
   | EpisodeVideoJobStatus
@@ -22,6 +28,9 @@ export interface EpisodeVideoGenerationItem {
   languageCode: LanguageClassroomLanguageCode;
   localizationId: string;
   status: EpisodeVideoGenerationStatus;
+  /** Composed the same way as the public summary, so the two cannot disagree. */
+  progressPercent: number;
+  stage: EpisodeVideoProgressStage | null;
   url: string | null;
   thumbnailUrl: string | null;
   durationSeconds: number | null;
@@ -38,6 +47,8 @@ export interface EpisodeVideoGenerationResponse {
   error: string | null;
   visual: {
     status: EpisodeVideoJobStatus;
+    progressPercent: number;
+    stage: EpisodeVideoProgressStage | null;
     lastError: string | null;
     previousError: string | null;
     updatedAt: string;
@@ -68,14 +79,21 @@ export function buildEpisodeVideoGenerationResponse(input: {
   error?: Error | null;
   previousErrors?: EpisodeVideoGenerationPreviousErrors;
 }): EpisodeVideoGenerationResponse {
+  const visualState = progressJobState(input.visualJob);
   const items: EpisodeVideoGenerationItem[] = input.jobs.map(
     ({ languageCode, localizationId, job }) => {
       const video = completedVideoResponse(job);
       const status: EpisodeVideoGenerationStatus = job?.status ?? 'unavailable';
+      const progress = composeEpisodeVideoProgress({
+        render: progressJobState(job),
+        visual: visualState,
+      });
       return {
         languageCode,
         localizationId,
         status,
+        progressPercent: progress.progressPercent,
+        stage: progress.stage,
         url: video?.url ?? null,
         thumbnailUrl: video?.thumbnailUrl ?? null,
         durationSeconds: video?.durationSeconds ?? null,
@@ -99,6 +117,8 @@ export function buildEpisodeVideoGenerationResponse(input: {
     visual: input.visualJob
       ? {
           status: input.visualJob.status,
+          progressPercent: clampStoredPercent(input.visualJob.progress_percent),
+          stage: visualStageOf(input.visualJob.progress_stage),
           lastError: input.visualJob.last_error,
           previousError: input.previousErrors?.visual ?? null,
           updatedAt: input.visualJob.updated_at,
@@ -106,6 +126,28 @@ export function buildEpisodeVideoGenerationResponse(input: {
       : null,
     items,
   };
+}
+
+function progressJobState(
+  job: EpisodeVideoJobRow | EpisodeVideoVisualJobRow | null,
+): EpisodeVideoProgressJobState | null {
+  if (!job) return null;
+  return {
+    status: job.status,
+    progressPercent: job.progress_percent,
+    progressStage: job.progress_stage,
+    updatedAt: job.updated_at,
+  };
+}
+
+/** The visual block reports the job's own 0-100, not the composed bar value. */
+function clampStoredPercent(value: number | null): number {
+  if (value === null || !Number.isFinite(value)) return 0;
+  return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+function visualStageOf(value: string | null): EpisodeVideoProgressStage | null {
+  return VISUAL_JOB_PROGRESS_STAGES.find((stage) => stage === value) ?? null;
 }
 
 export async function buildEpisodeVideoGenerationForLocalizations(

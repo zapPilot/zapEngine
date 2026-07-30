@@ -30,6 +30,7 @@ import {
 } from '@/components/podcast/episodeFormatters';
 import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Tap } from '@/components/ui/Tap';
 import {
   episodeMediaTabAvailability,
@@ -38,6 +39,10 @@ import {
   type EpisodeVideoPanelState,
   resolveActiveEpisodeMediaTab,
 } from '@/integration/episodeMediaTabs';
+import {
+  episodeVideoProgressView,
+  type EpisodeVideoProgressView,
+} from '@/integration/episodeVideoProgress';
 import type { PodcastEpisode } from '@/integration/podcastFeed';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 import type { PodcastSectionKind } from '@/integration/podcastSections';
@@ -187,11 +192,32 @@ function UnavailableMediaPanel({
   );
 }
 
+function EpisodeVideoProgressAccessory({
+  percent,
+  stageLabel,
+}: EpisodeVideoProgressView) {
+  return (
+    // A definite width: it gives ProgressBar's `w-full` track something to
+    // measure inside the panel's `items-center` column, which has none.
+    <View className="w-[240px]">
+      <ProgressBar value={percent} accessibilityLabel="Generating video" />
+      <View className="mt-2 flex-row items-center justify-between">
+        <Text className="font-sans-medium text-[12px] text-ink-dim">
+          {stageLabel ?? 'Video is rendering'}
+        </Text>
+        <Text className="font-mono text-[11px] text-accent">{percent}%</Text>
+      </View>
+    </View>
+  );
+}
+
 function EpisodeVideoStatusPanel({
   state,
+  progress,
   onPlay,
 }: {
   state: EpisodeVideoPanelState;
+  progress: EpisodeVideoProgressView | null;
   onPlay: () => void;
 }) {
   const previousStateRef = useRef(state);
@@ -216,10 +242,20 @@ function EpisodeVideoStatusPanel({
           detail="This page updates automatically while the video renders."
           liveRegion="polite"
           accessory={
-            <ActivityIndicator
-              accessibilityLabel="Generating video"
-              color="#f5f1e8"
-            />
+            // The label is identical on both branches, so a screen reader (and
+            // any test) finds the same control whether or not the server
+            // reported progress.
+            progress === null ? (
+              <ActivityIndicator
+                accessibilityLabel="Generating video"
+                color="#f5f1e8"
+              />
+            ) : (
+              <EpisodeVideoProgressAccessory
+                percent={progress.percent}
+                stageLabel={progress.stageLabel}
+              />
+            )
           }
         />
       );
@@ -391,6 +427,7 @@ export function EpisodeMediaPlayer({
     player.nowPlaying?.localizationId === episode.localizationId;
   const availability = episodeMediaTabAvailability(episode);
   const videoPanelState = episodeVideoPanelState(episode);
+  const videoProgress = episodeVideoProgressView(episode);
   const activeTab = resolveActiveEpisodeMediaTab({
     selectedTab,
     isCurrentAudio: isCurrentAudio && availability[selectedTab],
@@ -546,7 +583,11 @@ export function EpisodeMediaPlayer({
     if (activeTab === 'video') {
       if (video === null || videoSession === null) {
         return (
-          <EpisodeVideoStatusPanel state={videoPanelState} onPlay={showVideo} />
+          <EpisodeVideoStatusPanel
+            state={videoPanelState}
+            progress={videoProgress}
+            onPlay={showVideo}
+          />
         );
       }
       return (

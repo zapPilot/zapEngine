@@ -8,6 +8,7 @@ function makeRepository(): VideoJobRepository {
     enqueue: vi.fn(),
     claim: vi.fn().mockResolvedValue(null),
     renewLease: vi.fn().mockResolvedValue(true),
+    reportProgress: vi.fn().mockResolvedValue(true),
     saveManifest: vi.fn().mockResolvedValue(true),
     complete: vi.fn().mockResolvedValue(true),
     fail: vi.fn().mockResolvedValue(null),
@@ -26,6 +27,7 @@ function makeVisualRepository(): VisualJobRepository {
       .mockRejectedValueOnce(new Error('visual queue unavailable'))
       .mockResolvedValue(null),
     renewLease: vi.fn().mockResolvedValue(true),
+    reportProgress: vi.fn().mockResolvedValue(true),
     complete: vi.fn().mockResolvedValue(true),
     fail: vi.fn().mockResolvedValue(null),
     find: vi.fn().mockResolvedValue(null),

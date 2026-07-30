@@ -16,6 +16,8 @@ function jobRow(
     episode_localization_id: 'localization-1',
     episode_id: 'episode-1',
     status: 'queued',
+    progress_percent: null,
+    progress_stage: null,
     visual_hash: null,
     visual_version: EPISODE_VIDEO_VISUAL_VERSION,
     manifest: null,
@@ -52,6 +54,8 @@ function visualJobRow(
   return {
     episode_id: 'episode-1',
     status: 'queued',
+    progress_percent: null,
+    progress_stage: null,
     visual_payload: null,
     visual_hash: null,
     visual_version: EPISODE_VIDEO_VISUAL_VERSION,
@@ -205,6 +209,51 @@ describe('createVideoJobRepository', () => {
       p_lease_owner: 'worker-1',
       p_last_error: 'render failed',
     });
+  });
+
+  it('maps progress reports onto each queue lease-fenced RPC', async () => {
+    const supabase = makeSupabase();
+    supabase.rpc
+      .mockResolvedValueOnce({ data: true, error: null })
+      .mockResolvedValueOnce({ data: false, error: null });
+
+    await expect(
+      createVideoJobRepository(supabase as never).reportProgress(
+        'localization-1',
+        'worker-1',
+        { percent: 64, stage: 'encoding' },
+      ),
+    ).resolves.toBe(true);
+    expect(supabase.rpc).toHaveBeenNthCalledWith(
+      1,
+      'report_episode_video_progress',
+      {
+        p_episode_localization_id: 'localization-1',
+        p_lease_owner: 'worker-1',
+        p_percent: 64,
+        p_stage: 'encoding',
+      },
+    );
+
+    // A false return means the lease is gone or the row was reset. The worker
+    // deliberately treats that as "skip this write", not as a lost lease.
+    await expect(
+      createVideoVisualJobRepository(supabase as never).reportProgress(
+        'episode-1',
+        'worker-1',
+        { percent: 43, stage: 'selecting-images' },
+      ),
+    ).resolves.toBe(false);
+    expect(supabase.rpc).toHaveBeenNthCalledWith(
+      2,
+      'report_episode_video_visual_progress',
+      {
+        p_episode_id: 'episode-1',
+        p_lease_owner: 'worker-1',
+        p_percent: 43,
+        p_stage: 'selecting-images',
+      },
+    );
   });
 
   it('loads a canonical localization with its completed shared visuals', async () => {

@@ -1760,6 +1760,38 @@ describe('GET /episodes', () => {
     expect(body.items[0].videoGeneration).toEqual(videoGeneration);
   });
 
+  it('serves the public progress fields without leaking failure details', async () => {
+    const row = listRow();
+    mockFindEpisodeListRowByLocalizationId.mockResolvedValue(row);
+    mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(
+      new Map([
+        [
+          row.localization_id,
+          {
+            video: null,
+            videoGeneration: {
+              status: 'queued' as const,
+              updatedAt: '2026-07-24T02:30:00.000Z',
+              progressPercent: 22,
+              stage: 'selecting-images' as const,
+            },
+          },
+        ],
+      ]),
+    );
+
+    const response = await app.request(`/episodes/${row.localization_id}`);
+    const body = await response.json();
+
+    expect(body.videoGeneration).toEqual({
+      status: 'queued',
+      updatedAt: '2026-07-24T02:30:00.000Z',
+      progressPercent: 22,
+      stage: 'selecting-images',
+    });
+    expect(JSON.stringify(body)).not.toContain('lastError');
+  });
+
   it('returns a processing generation status while the video is unavailable', async () => {
     const row = listRow();
     const videoGeneration = {

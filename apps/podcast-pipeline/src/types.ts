@@ -1,3 +1,5 @@
+import type { EpisodeVideoProgressStage } from './services/video-progress.js';
+
 export type ImageCandidateOrigin =
   | 'openGraph'
   | 'article'
@@ -111,6 +113,20 @@ export type EpisodeVideoGenerationPublicStatus =
 export interface EpisodeVideoGenerationSummary {
   status: EpisodeVideoGenerationPublicStatus;
   updatedAt: string | null;
+  /**
+   * 0-100. Capped at 99 unless `status` is `completed`, so the client never shows
+   * a finished bar over an unfinished video.
+   */
+  progressPercent: number;
+  /**
+   * What the pipeline is doing right now, or null when nothing is in flight
+   * (idle queue, completed, failed). The client uses this — not `status` — to
+   * decide between a determinate bar and an indeterminate spinner.
+   *
+   * Stages never go in `status`: the app rejects an unknown status value by
+   * discarding the whole summary.
+   */
+  stage: EpisodeVideoProgressStage | null;
 }
 
 export interface LanguageClassroomKeyword {

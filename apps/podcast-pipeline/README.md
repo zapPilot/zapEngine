@@ -50,7 +50,32 @@ Renders are **1080x1920 vertical news videos** (`podcast-slide-video.v3`, render
 
 Local renders need an ffmpeg >= 4.4 built with libass (`VIDEO_FFMPEG_PATH=$(which ffmpeg)`); the capability check names anything missing — note some Homebrew builds ship without libass.
 
-`POST /ingest` still returns right after audio work and enqueueing — it never waits for rendering — but its response is a full pipeline snapshot: a `runId` (also sent as the `x-run-id` header, for grepping server logs), a `localizations` array with each language's ingest status and audio readiness, and a `videoGeneration` object read from current DB state (visual checkpoint plus per-language render jobs, each with `status`, `lastError`, `updatedAt`, and final `url`/`thumbnailUrl` when done). Re-POSTing the same URL is therefore also the progress query: completed stages are skipped cheaply and the response reflects whatever the background jobs have reached. Re-submission revives stale or failed visual/render jobs without re-running completed scrape, LLM, translation, or TTS checkpoints; because that self-heal wipes `last_error` on the rows it resets, the wiped message is surfaced once as `previousError` in the same response, so a failure reason is never lost by retrying. `GET /episodes/:localizationId` returns `video: null` until that localization finishes and includes the redacted public `videoGeneration: { status, updatedAt }` summary without internal error details; `GET /episodes/:episodeId/videos` (admin token) serves the full `videoGeneration` snapshot standalone.
+`POST /ingest` still returns right after audio work and enqueueing — it never waits for rendering — but its response is a full pipeline snapshot: a `runId` (also sent as the `x-run-id` header, for grepping server logs), a `localizations` array with each language's ingest status and audio readiness, and a `videoGeneration` object read from current DB state (visual checkpoint plus per-language render jobs, each with `status`, `lastError`, `updatedAt`, and final `url`/`thumbnailUrl` when done). Re-POSTing the same URL is therefore also the progress query: completed stages are skipped cheaply and the response reflects whatever the background jobs have reached. Re-submission revives stale or failed visual/render jobs without re-running completed scrape, LLM, translation, or TTS checkpoints; because that self-heal wipes `last_error` on the rows it resets, the wiped message is surfaced once as `previousError` in the same response, so a failure reason is never lost by retrying. `GET /episodes/:localizationId` returns `video: null` until that localization finishes and includes the redacted public `videoGeneration: { status, updatedAt, progressPercent, stage }` summary without internal error details; `GET /episodes/:episodeId/videos` (admin token) serves the full `videoGeneration` snapshot standalone, with the same `progressPercent`/`stage` on every item and on the `visual` block.
+
+### Video generation progress
+
+`progressPercent` is a composed 0-100 for one localization: the shared visual
+checkpoint owns 0-40 and that language's own render owns 40-100. It is capped at
+99 for anything other than `status: 'completed'`, so a full bar always means a
+playable video.
+
+`stage` names what is running right now, or is `null` when nothing is
+(`analyzing-audio`, `planning-scenes`, `selecting-images`, `uploading-visuals`,
+`waiting-for-renderer`, `aligning-script`, `preparing-media`, `encoding`,
+`uploading-video`). Stages never appear in `status`, whose value set stays
+`queued|processing|completed|failed` — clients reject an unknown status outright.
+
+The visual stages matter to clients: while image selection runs, each
+localization's own render row is still `queued`, so a UI that keys progress off
+`status` shows nothing for the slowest part of the wait. Key off `stage` instead.
+
+Weights, the composition formula, and the per-table stage whitelists live in one
+place, `src/services/video-progress.ts`, which both the worker (write side) and
+the API (read side) import. The worker coalesces reports and flushes the newest
+one every 10 s under the same lease fence as its heartbeat; a failed progress
+write is logged and never fails a render. Encode progress comes from ffmpeg's own
+`-progress pipe:1` output clock, so the bar keeps moving through the single
+longest step of a render.
 
 ## Ingest Progress Logs
 
@@ -71,7 +96,8 @@ Background video logs use the same short-run convention and expose only safe ope
 [video-worker] visual:search run=abcd1234 episode=... language=shared scene=scene-01 progress=1/9 candidateCount=13
 [video-worker] visual:assets run=abcd1234 episode=... language=shared scene=scene-01 progress=1/9
 [video-worker] video:alignment run=ef123456 episode=... language=ja phase=done elapsedMs=842
-[video-worker] video:render run=ef123456 episode=... language=ja scene=scene-01 progress=1/9
+[video-worker] video:render run=ef123456 episode=... language=ja phase=media scene=scene-01 progress=1/9
+[video-worker] video:render run=ef123456 episode=... language=ja phase=encoding percent=42
 ```
 
 ## Telegram Bot Setup

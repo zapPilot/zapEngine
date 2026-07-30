@@ -297,6 +297,8 @@ function videoJob(
     episode_localization_id: 'localization-1',
     episode_id: 'episode-1',
     status: 'queued',
+    progress_percent: null,
+    progress_stage: null,
     visual_hash: null,
     visual_version: 'visual-v1',
     manifest: null,
@@ -333,6 +335,8 @@ function visualJob(
   return {
     episode_id: 'episode-1',
     status: 'queued',
+    progress_percent: null,
+    progress_stage: null,
     visual_payload: null,
     visual_hash: null,
     visual_version: 'visual-v1',

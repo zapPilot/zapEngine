@@ -26,9 +26,18 @@ import {
   type VideoJobRepository,
   type VisualJobRepository,
 } from './video-jobs.js';
+import type { EpisodeVideoProgressUpdate } from './video-progress.js';
 
 export const VIDEO_WORKER_POLL_INTERVAL_MS = 15_000;
 export const VIDEO_WORKER_HEARTBEAT_INTERVAL_MS = 60_000;
+/**
+ * Progress gets its own timer rather than riding the lease heartbeat. The client
+ * polls every 10s, so a 60s flush would leave most polls showing an unchanged
+ * number — exactly the frozen bar this feature exists to remove. Renewing the
+ * lease 6x more often is not an option: renew_episode_video_lease re-checks the
+ * completed-visual join and its `false` aborts the job.
+ */
+export const VIDEO_WORKER_PROGRESS_FLUSH_INTERVAL_MS = 10_000;
 export const VIDEO_WORKER_LEASE_RENEW_RETRY_INTERVAL_MS = 5_000;
 export const VIDEO_WORKER_LEASE_RENEW_MAX_RETRY_INTERVAL_MS = 60_000;
 // Mirrors `lease_expires_at = now() + interval '10 minutes'` in the claim and
@@ -42,6 +51,8 @@ export interface ProcessEpisodeVideoJobContext {
   signal: AbortSignal;
   runId: string;
   saveManifest(input: EpisodeVideoManifestPersistence): Promise<void>;
+  /** See the note on ProcessEpisodeVideoVisualJobContext.reportProgress. */
+  reportProgress(update: EpisodeVideoProgressUpdate): void;
 }
 
 export type ProcessEpisodeVideoJob = (
@@ -85,6 +96,7 @@ export interface CreateVideoWorkerOptions {
   leaseOwner?: string;
   pollIntervalMs?: number;
   heartbeatIntervalMs?: number;
+  progressFlushIntervalMs?: number;
   leaseRenewRetryIntervalMs?: number;
   logger?: VideoWorkerLogger;
   /**
@@ -111,6 +123,8 @@ export function createVideoWorker(
     options.pollIntervalMs ?? VIDEO_WORKER_POLL_INTERVAL_MS;
   const heartbeatIntervalMs =
     options.heartbeatIntervalMs ?? VIDEO_WORKER_HEARTBEAT_INTERVAL_MS;
+  const progressFlushIntervalMs =
+    options.progressFlushIntervalMs ?? VIDEO_WORKER_PROGRESS_FLUSH_INTERVAL_MS;
   const leaseRenewRetryIntervalMs =
     options.leaseRenewRetryIntervalMs ??
     VIDEO_WORKER_LEASE_RENEW_RETRY_INTERVAL_MS;
@@ -222,6 +236,15 @@ export function createVideoWorker(
       logger,
       kind: 'visual',
     });
+    const progress = createProgressCell();
+    const stopProgressFlush = startProgressFlush({
+      report: (update) =>
+        visualRepository.reportProgress(job.episode_id, leaseOwner, update),
+      cell: progress,
+      intervalMs: progressFlushIntervalMs,
+      controller: jobController,
+      logger,
+    });
 
     logger.info(
       `[video-worker] visual:start run=${runId} episode=${job.episode_id}`,
@@ -233,6 +256,7 @@ export function createVideoWorker(
       const visual = await options.processVisualJob(job, source, {
         signal: jobController.signal,
         runId,
+        reportProgress: progress.set,
       });
       jobController.signal.throwIfAborted();
       const completed = await visualRepository.complete(
@@ -267,6 +291,7 @@ export function createVideoWorker(
       return 'failed';
     } finally {
       stopHeartbeat();
+      stopProgressFlush();
       releaseShutdownRelay();
       if (activeJobController === jobController) activeJobController = null;
     }
@@ -302,6 +327,19 @@ export function createVideoWorker(
       logger,
       kind: 'localization',
     });
+    const progress = createProgressCell();
+    const stopProgressFlush = startProgressFlush({
+      report: (update) =>
+        repository.reportProgress(
+          job.episode_localization_id,
+          leaseOwner,
+          update,
+        ),
+      cell: progress,
+      intervalMs: progressFlushIntervalMs,
+      controller: jobController,
+      logger,
+    });
     let source: EpisodeVideoSource | null = null;
 
     try {
@@ -314,6 +352,7 @@ export function createVideoWorker(
       const completion = await options.processJob(job, source, {
         signal: jobController.signal,
         runId,
+        reportProgress: progress.set,
         saveManifest: async (manifest) => {
           jobController.signal.throwIfAborted();
           const saved = await repository.saveManifest(
@@ -389,6 +428,7 @@ export function createVideoWorker(
       return 'failed';
     } finally {
       stopHeartbeat();
+      stopProgressFlush();
       releaseShutdownRelay();
       if (activeJobController === jobController) activeJobController = null;
     }
@@ -462,6 +502,101 @@ function createJobController(shutdownSignal: AbortSignal): {
   };
 }
 
+/**
+ * A rescheduling timer handle both background loops park their `setTimeout` in,
+ * so cancelling one is a single call rather than a repeated null-and-clear dance.
+ */
+interface PendingTimer {
+  handle: NodeJS.Timeout | null;
+}
+
+function cancelPendingTimer(pending: PendingTimer): void {
+  if (pending.handle) {
+    clearTimeout(pending.handle);
+    pending.handle = null;
+  }
+}
+
+/**
+ * Function properties rather than methods, because `set` is handed straight to a
+ * processor as its `reportProgress` and must stay callable detached from the cell.
+ */
+interface ProgressCell {
+  set: (update: EpisodeVideoProgressUpdate) => void;
+  take: () => EpisodeVideoProgressUpdate | null;
+}
+
+/**
+ * Coalesces progress reports down to the newest one. ffmpeg emits roughly two
+ * per second and the asset planner several per scene, so a write per event would
+ * be ~1200 round trips per render to display a number that is polled every 10s.
+ */
+function createProgressCell(): ProgressCell {
+  let latest: EpisodeVideoProgressUpdate | null = null;
+  return {
+    set: (update) => {
+      latest = update;
+    },
+    take: () => {
+      const pending = latest;
+      latest = null;
+      return pending;
+    },
+  };
+}
+
+/**
+ * Deliberately much simpler than startLeaseHeartbeat: no backoff, no retry
+ * budget, and it never touches the controller. Progress is cosmetic, so neither
+ * a thrown error nor a `false` return (lease gone, row reset) may abort a render
+ * — the lease heartbeat is the only thing allowed to make that call.
+ */
+function startProgressFlush(input: {
+  report(update: EpisodeVideoProgressUpdate): Promise<boolean>;
+  cell: ProgressCell;
+  intervalMs: number;
+  controller: AbortController;
+  logger: VideoWorkerLogger;
+}): () => void {
+  const pending: PendingTimer = { handle: null };
+  let stopped = false;
+  let loggedFailure = false;
+
+  const scheduleFlush = (): void => {
+    pending.handle = setTimeout(() => {
+      pending.handle = null;
+      void flush();
+    }, input.intervalMs);
+    pending.handle.unref();
+  };
+
+  const flush = async (): Promise<void> => {
+    const update = input.cell.take();
+    if (update !== null) {
+      try {
+        await input.report(update);
+      } catch (error) {
+        if (!loggedFailure) {
+          loggedFailure = true;
+          input.logger.error(
+            '[video-worker] progress reporting unavailable; continuing',
+            normalizeError(error),
+          );
+        }
+      }
+    }
+    if (stopped || input.controller.signal.aborted) return;
+    scheduleFlush();
+  };
+
+  scheduleFlush();
+
+  return () => {
+    stopped = true;
+    cancelPendingTimer(pending);
+  };
+}
+
 interface LeaseRepository {
   renewLease(jobId: string, leaseOwner: string): Promise<boolean>;
 }
@@ -476,7 +611,7 @@ function startLeaseHeartbeat(input: {
   logger: VideoWorkerLogger;
   kind: 'visual' | 'localization';
 }): () => void {
-  let timer: NodeJS.Timeout | null = null;
+  const pending: PendingTimer = { handle: null };
   let stopped = false;
   let consecutiveFailures = 0;
   // The claim RPC just refreshed the lease, so the retry budget runs from here
@@ -488,11 +623,11 @@ function startLeaseHeartbeat(input: {
 
   const scheduleIn = (delayMs: number): void => {
     if (stopped || input.controller.signal.aborted) return;
-    timer = setTimeout(() => {
-      timer = null;
+    pending.handle = setTimeout(() => {
+      pending.handle = null;
       void renew();
     }, delayMs);
-    timer.unref();
+    pending.handle.unref();
   };
 
   const retryDelayMs = (): number =>
@@ -547,10 +682,7 @@ function startLeaseHeartbeat(input: {
   scheduleIn(input.intervalMs);
   return () => {
     stopped = true;
-    if (timer) {
-      clearTimeout(timer);
-      timer = null;
-    }
+    cancelPendingTimer(pending);
   };
 }
 

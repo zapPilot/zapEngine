@@ -34,6 +34,7 @@ import {
   hashEpisodeVideoVisualSource,
   type ProcessEpisodeVideoVisualJobContext,
 } from './video-jobs.js';
+import { visualStageProgress } from './video-progress.js';
 
 export const VISUAL_ARTICLE_SCRAPE_TIMEOUT_MS = 15_000;
 
@@ -80,9 +81,11 @@ export function createEpisodeVideoVisualProcessor(
     );
 
     try {
+      context.reportProgress(visualStageProgress('analyzing-audio', 0));
       const analysis = await dependencies.analyzeAudio(source.hlsUrl, {
         signal: context.signal,
       });
+      context.reportProgress(visualStageProgress('analyzing-audio'));
       const storyboard = await dependencies.generateStoryboard({
         title: source.title,
         script: source.script,
@@ -92,6 +95,7 @@ export function createEpisodeVideoVisualProcessor(
         signal: context.signal,
       });
 
+      context.reportProgress(visualStageProgress('planning-scenes'));
       const searchStartedAt = Date.now();
       logVisualProgress(dependencies.logger, 'visual:search', {
         run: context.runId,
@@ -116,13 +120,25 @@ export function createEpisodeVideoVisualProcessor(
         workingDirectory: join(outputDirectory, 'images'),
         selectionMode: 'resilient',
         signal: context.signal,
-        onProgress: (progress) =>
+        onProgress: (progress) => {
           logPlannerProgress(
             dependencies.logger,
             context.runId,
             source.episodeId,
             progress,
-          ),
+          );
+          // Only 'assets' advances the number. A scene can be searched several
+          // times before one candidate passes validation, so driving the bar
+          // from 'search' would make it jitter back and forth.
+          if (progress.phase === 'assets') {
+            context.reportProgress(
+              visualStageProgress(
+                'selecting-images',
+                progress.sceneIndex / progress.sceneCount,
+              ),
+            );
+          }
+        },
       });
       const visualHash = hashEpisodeVisualSelection({
         visualVersion: job.visual_version,
@@ -147,6 +163,7 @@ export function createEpisodeVideoVisualProcessor(
       );
       context.signal.throwIfAborted();
 
+      context.reportProgress(visualStageProgress('uploading-visuals', 0));
       const uploadStartedAt = Date.now();
       const uploaded = await dependencies.upload({
         episodeId: source.episodeId,

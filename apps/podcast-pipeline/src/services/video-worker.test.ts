@@ -70,6 +70,8 @@ function job(overrides: Partial<EpisodeVideoJobRow> = {}): EpisodeVideoJobRow {
     episode_localization_id: 'localization-1',
     episode_id: 'episode-1',
     status: 'processing',
+    progress_percent: null,
+    progress_stage: null,
     visual_hash: 'visual-hash',
     visual_version: 'visual-v1',
     manifest: null,
@@ -106,6 +108,8 @@ function visualJob(
   return {
     episode_id: 'episode-1',
     status: 'processing',
+    progress_percent: null,
+    progress_stage: null,
     visual_payload: null,
     visual_hash: null,
     visual_version: 'visual-v1',
@@ -132,6 +136,7 @@ function makeRepository(
     enqueue: vi.fn(),
     claim: vi.fn().mockResolvedValue(claimed),
     renewLease: vi.fn().mockResolvedValue(true),
+    reportProgress: vi.fn().mockResolvedValue(true),
     saveManifest: vi.fn().mockResolvedValue(true),
     complete: vi.fn().mockResolvedValue(true),
     fail: vi.fn().mockResolvedValue(null),
@@ -153,6 +158,7 @@ function makeVisualRepository(
     enqueue: vi.fn(),
     claim: vi.fn().mockResolvedValue(claimed),
     renewLease: vi.fn().mockResolvedValue(true),
+    reportProgress: vi.fn().mockResolvedValue(true),
     complete: vi.fn().mockResolvedValue(true),
     fail: vi.fn().mockResolvedValue(null),
     find: vi.fn().mockResolvedValue(claimed),
@@ -285,6 +291,149 @@ describe('createVideoWorker', () => {
       'no qualified images',
     );
     expect(repository.claim).not.toHaveBeenCalled();
+  });
+
+  it('flushes only the newest progress report per interval', async () => {
+    vi.useFakeTimers();
+    const repository = makeRepository();
+    const processJob: ProcessEpisodeVideoJob = vi.fn(
+      (_job, _source, context) =>
+        new Promise<EpisodeVideoCompletion>((resolve) => {
+          // ffmpeg emits roughly two of these per second; only the last one
+          // before each flush should reach the database.
+          context.reportProgress({ percent: 35, stage: 'encoding' });
+          context.reportProgress({ percent: 48, stage: 'encoding' });
+          context.reportProgress({ percent: 61, stage: 'encoding' });
+          setTimeout(() => resolve(completion), 25_000);
+        }),
+    );
+    const worker = createVideoWorker({
+      repository,
+      processJob,
+      leaseOwner: 'worker-1',
+      progressFlushIntervalMs: 10_000,
+    });
+
+    const running = worker.runOnce();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(repository.reportProgress).toHaveBeenCalledTimes(1);
+    expect(repository.reportProgress).toHaveBeenCalledWith(
+      'localization-1',
+      'worker-1',
+      { percent: 61, stage: 'encoding' },
+    );
+
+    // Nothing new was reported, so the next tick must not write again.
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(repository.reportProgress).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await expect(running).resolves.toBe('completed');
+  });
+
+  it('routes visual progress to the visual queue', async () => {
+    vi.useFakeTimers();
+    const visualRepository = makeVisualRepository(visualJob());
+    const processVisualJob: ProcessEpisodeVideoVisualJob = vi.fn(
+      (_job, _source, context) =>
+        new Promise<EpisodeVideoVisualCompletion>((resolve) => {
+          context.reportProgress({ percent: 43, stage: 'selecting-images' });
+          setTimeout(() => resolve(visualCompletion), 15_000);
+        }),
+    );
+    const worker = createVideoWorker({
+      repository: makeRepository(null),
+      visualRepository,
+      processJob: vi.fn(),
+      processVisualJob,
+      leaseOwner: 'worker-1',
+      progressFlushIntervalMs: 10_000,
+    });
+
+    const running = worker.runOnce();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(visualRepository.reportProgress).toHaveBeenCalledWith(
+      'episode-1',
+      'worker-1',
+      { percent: 43, stage: 'selecting-images' },
+    );
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await expect(running).resolves.toBe('completed');
+  });
+
+  it('completes the render when progress reporting throws', async () => {
+    vi.useFakeTimers();
+    const repository = makeRepository();
+    vi.mocked(repository.reportProgress).mockRejectedValue(
+      new Error('progress RPC unavailable'),
+    );
+    const processJob: ProcessEpisodeVideoJob = vi.fn(
+      (_job, _source, context) =>
+        new Promise<EpisodeVideoCompletion>((resolve) => {
+          context.reportProgress({ percent: 61, stage: 'encoding' });
+          setTimeout(() => resolve(completion), 15_000);
+        }),
+    );
+    const worker = createVideoWorker({
+      repository,
+      processJob,
+      leaseOwner: 'worker-1',
+      progressFlushIntervalMs: 10_000,
+    });
+
+    const running = worker.runOnce();
+    await vi.advanceTimersByTimeAsync(20_000);
+    // Progress is cosmetic: a broken progress RPC must never cost a render.
+    await expect(running).resolves.toBe('completed');
+    expect(repository.fail).not.toHaveBeenCalled();
+  });
+
+  it('does not treat a false progress report as a lost lease', async () => {
+    vi.useFakeTimers();
+    const repository = makeRepository();
+    // renewLease returning false aborts the job; reportProgress must not, or a
+    // row reset between flushes would kill an otherwise healthy render.
+    vi.mocked(repository.reportProgress).mockResolvedValue(false);
+    const processJob: ProcessEpisodeVideoJob = vi.fn(
+      (_job, _source, context) =>
+        new Promise<EpisodeVideoCompletion>((resolve) => {
+          context.reportProgress({ percent: 61, stage: 'encoding' });
+          setTimeout(() => resolve(completion), 15_000);
+        }),
+    );
+    const worker = createVideoWorker({
+      repository,
+      processJob,
+      leaseOwner: 'worker-1',
+      progressFlushIntervalMs: 10_000,
+    });
+
+    const running = worker.runOnce();
+    await vi.advanceTimersByTimeAsync(20_000);
+    await expect(running).resolves.toBe('completed');
+    expect(repository.fail).not.toHaveBeenCalled();
+  });
+
+  it('stops flushing progress once the job settles', async () => {
+    vi.useFakeTimers();
+    const repository = makeRepository();
+    const processJob: ProcessEpisodeVideoJob = vi.fn(
+      async (_job, _source, context) => {
+        context.reportProgress({ percent: 61, stage: 'encoding' });
+        return completion;
+      },
+    );
+    const worker = createVideoWorker({
+      repository,
+      processJob,
+      leaseOwner: 'worker-1',
+      progressFlushIntervalMs: 10_000,
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('completed');
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(repository.reportProgress).not.toHaveBeenCalled();
   });
 
   it('aborts visual processing when its heartbeat loses the episode lease', async () => {

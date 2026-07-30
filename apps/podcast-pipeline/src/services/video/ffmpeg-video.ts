@@ -14,6 +14,7 @@ export type VideoProcessRunner = (
   args: string[],
   streamStdio?: boolean,
   signal?: AbortSignal,
+  onStdoutLine?: (line: string) => void,
 ) => Promise<VideoProcessResult>;
 
 // Streamed runs are long (a full render) and ffmpeg's -stats writes a line per
@@ -21,25 +22,26 @@ export type VideoProcessRunner = (
 // matters: it holds the error ffmpeg printed just before it died.
 const STREAMED_OUTPUT_TAIL_LIMIT = 8_000;
 
-export interface StaticSlideVideoOptions {
-  manifest: SlideVideoManifest;
-  slidePaths: string[];
+interface SlideVideoRenderOptionsBase {
   audioSource: string;
   filterScriptPath: string;
   outputPath: string;
   signal?: AbortSignal;
+  /** Fraction 0..1 of the encode, from ffmpeg's own output clock. */
+  onEncodeProgress?: (fraction: number) => void;
 }
 
-export interface VerticalSlideVideoOptions {
+export interface StaticSlideVideoOptions extends SlideVideoRenderOptionsBase {
+  manifest: SlideVideoManifest;
+  slidePaths: string[];
+}
+
+export interface VerticalSlideVideoOptions extends SlideVideoRenderOptionsBase {
   manifest: VerticalVideoManifest;
   mediaPaths: string[];
   framePath: string;
   outroPath: string;
-  audioSource: string;
   bgmPath: string;
-  filterScriptPath: string;
-  outputPath: string;
-  signal?: AbortSignal;
 }
 
 export function resolveVideoFfmpegPath(): string {
@@ -52,7 +54,14 @@ function invokeProcessRunner(
   args: string[],
   streamStdio: boolean | undefined,
   signal: AbortSignal | undefined,
+  onStdoutLine?: (line: string) => void,
 ): Promise<VideoProcessResult> {
+  // The arity branches below are load-bearing: injected test doubles assert the
+  // exact argument shape they are called with, so a caller that wants none of
+  // the optional arguments must still be invoked with none of them.
+  if (onStdoutLine) {
+    return processRunner(executable, args, streamStdio, signal, onStdoutLine);
+  }
   if (signal) return processRunner(executable, args, streamStdio, signal);
   return streamStdio
     ? processRunner(executable, args, true)
@@ -60,17 +69,22 @@ function invokeProcessRunner(
 }
 
 /**
- * `streamStdio` relays the child's output to this process's stdio as it
- * arrives — the render needs its progress visible in the service log — while
- * still retaining a bounded tail. The previous `stdio: 'inherit'` gave up the
+ * `streamStdio` relays the child's *stderr* to this process as it arrives — the
+ * render needs its progress visible in the service log — while still retaining a
+ * bounded tail of both streams. The previous `stdio: 'inherit'` gave up the
  * retained copy entirely, so a failed render threw
  * `ffmpeg failed (signal SIGKILL): ` with nothing after the colon.
+ *
+ * Stdout is deliberately not relayed in this mode: renders pass
+ * `-progress pipe:1`, which makes it a machine stream. Pass `onStdoutLine` to
+ * consume it line by line instead.
  */
 export async function runProcess(
   executable: string,
   args: string[],
   streamStdio = false,
   abortSignal?: AbortSignal,
+  onStdoutLine?: (line: string) => void,
 ): Promise<VideoProcessResult> {
   throwIfAborted(abortSignal);
   return new Promise((resolve, reject) => {
@@ -82,6 +96,7 @@ export async function runProcess(
     let forceKillTimer: NodeJS.Timeout | undefined;
     let stdout = '';
     let stderr = '';
+    let stdoutResidual = '';
     const cleanup = () => {
       abortSignal?.removeEventListener('abort', onAbort);
       if (forceKillTimer) clearTimeout(forceKillTimer);
@@ -111,8 +126,13 @@ export async function runProcess(
     child.stderr?.setEncoding('utf8');
     child.stdout?.on('data', (chunk: string) => {
       if (streamStdio) {
-        process.stdout.write(chunk);
+        // Renders pass `-progress pipe:1`, so child stdout is a machine stream
+        // of ~24 key=value lines per second. Relaying it would bury the service
+        // log; the bounded tail is still kept for failure diagnostics.
         stdout = boundedTail(stdout, chunk);
+        if (onStdoutLine) {
+          stdoutResidual = consumeLines(stdoutResidual, chunk, onStdoutLine);
+        }
         return;
       }
       // Capability probes regex over the whole of `ffmpeg -filters`, so the
@@ -146,6 +166,66 @@ export async function runProcess(
       settleReject(processFailureError(executable, code, signal, stderr));
     });
   });
+}
+
+/**
+ * Microseconds of output written so far, from one `-progress` line.
+ *
+ * ffmpeg's `out_time_ms` key is a long-standing misnomer: it carries the same
+ * microsecond value as `out_time_us`. Dividing it by 1000 would report an encode
+ * as 0.1% done for its entire run.
+ */
+export function parseFfmpegProgressOutTimeUs(line: string): number | null {
+  const match = /^out_time_(?:us|ms)=(-?\d+)$/.exec(line.trim());
+  if (!match?.[1]) return null;
+  const microseconds = Number(match[1]);
+  return Number.isFinite(microseconds) && microseconds >= 0
+    ? microseconds
+    : null;
+}
+
+/**
+ * Turns `-progress` lines into a monotonic 0..1 fraction of the encode.
+ * `out_time_us=N/A` appears before the first frame is written, and `progress=end`
+ * is ffmpeg's own statement that the output is complete.
+ */
+export function createFfmpegEncodeProgressReader(
+  totalDurationMs: number,
+  onFraction: (fraction: number) => void,
+): (line: string) => void {
+  const totalUs = totalDurationMs * 1_000;
+  let highWaterMark = 0;
+  return (line) => {
+    if (line.trim() === 'progress=end') {
+      // A fast encode can have its last out_time sample already reach the end,
+      // in which case the end marker would emit a duplicate 1.
+      if (highWaterMark >= 1) return;
+      highWaterMark = 1;
+      onFraction(1);
+      return;
+    }
+    const outTimeUs = parseFfmpegProgressOutTimeUs(line);
+    if (outTimeUs === null || totalUs <= 0) return;
+    const fraction = Math.min(1, outTimeUs / totalUs);
+    if (fraction <= highWaterMark) return;
+    highWaterMark = fraction;
+    onFraction(fraction);
+  };
+}
+
+/**
+ * Emits every complete line in `chunk` and returns the trailing partial line, so
+ * a `key=value` pair split across two stream chunks is still parsed once.
+ */
+function consumeLines(
+  residual: string,
+  chunk: string,
+  onLine: (line: string) => void,
+): string {
+  const lines = (residual + chunk).split('\n');
+  const trailing = lines.pop() ?? '';
+  for (const line of lines) onLine(line);
+  return trailing;
 }
 
 function boundedTail(current: string, chunk: string): string {
@@ -541,6 +621,11 @@ function renderArgs(input: {
     '-loglevel',
     'warning',
     '-stats',
+    // `-stats` writes a human line to stderr that overwrites itself with bare
+    // carriage returns; `-progress` writes parseable key=value pairs to stdout.
+    // Both are kept: the first for `fly logs`, the second to drive the bar.
+    '-progress',
+    'pipe:1',
     ...loopedImageInputs(input.imagePaths, input.fps),
     ...input.audioInputArgs,
     ...encoderOutputArgs({
@@ -599,9 +684,37 @@ async function renderWithFfmpeg(
   signal: AbortSignal | undefined,
   ffmpegPath: string,
   processRunner: VideoProcessRunner,
+  encode?: {
+    totalDurationMs: number;
+    onFraction: (fraction: number) => void;
+  },
 ): Promise<void> {
   await assertVideoFfmpegCapabilities(ffmpegPath, processRunner, signal);
-  await invokeProcessRunner(processRunner, ffmpegPath, args, true, signal);
+  await invokeProcessRunner(
+    processRunner,
+    ffmpegPath,
+    args,
+    true,
+    signal,
+    encode
+      ? createFfmpegEncodeProgressReader(
+          encode.totalDurationMs,
+          encode.onFraction,
+        )
+      : undefined,
+  );
+}
+
+function encodeProgressOptions(
+  options: StaticSlideVideoOptions | VerticalSlideVideoOptions,
+):
+  | { totalDurationMs: number; onFraction: (fraction: number) => void }
+  | undefined {
+  const onFraction = options.onEncodeProgress;
+  if (!onFraction) return undefined;
+  // The same clip.durationMs drives `-frames:v` and `-t`, so ffmpeg's output
+  // clock genuinely reaches this value rather than approaching it.
+  return { totalDurationMs: options.manifest.clip.durationMs, onFraction };
 }
 
 export async function renderStaticSlideVideo(
@@ -615,6 +728,7 @@ export async function renderStaticSlideVideo(
     options.signal,
     ffmpegPath,
     processRunner,
+    encodeProgressOptions(options),
   );
 }
 
@@ -629,5 +743,6 @@ export async function renderVerticalSlideVideo(
     options.signal,
     ffmpegPath,
     processRunner,
+    encodeProgressOptions(options),
   );
 }

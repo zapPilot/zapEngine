@@ -6,16 +6,54 @@ import {
   buildStaticSlideFilter,
   buildVerticalFfmpegArgs,
   buildVerticalSlideFilter,
+  createFfmpegEncodeProgressReader,
   kenBurnsPanForScene,
+  parseFfmpegProgressOutTimeUs,
   renderStaticSlideVideo,
   renderVerticalSlideVideo,
   resolveVideoFfmpegPath,
   runProcess,
+  type VerticalSlideVideoOptions,
+  type VideoProcessResult,
+  type VideoProcessRunner,
 } from './ffmpeg-video.js';
 import type { SlideVideoManifest, VerticalVideoManifest } from './manifest.js';
 
 const CAPABLE_FILTER_LIST =
   'xfade zoompan ass overlay pad fade apad afade amix asplit aformat sidechaincompress';
+
+function verticalRenderOptions(): VerticalSlideVideoOptions {
+  return {
+    manifest: createVerticalManifest(),
+    mediaPaths: ['/m/01.png', '/m/02.png', '/m/03.png'],
+    framePath: '/m/frame.png',
+    outroPath: '/m/outro.png',
+    audioSource: '/audio/narration.m4a',
+    bgmPath: '/music/bgm-02.mp3',
+    filterScriptPath: '/filter.txt',
+    outputPath: '/output/news.mp4',
+  };
+}
+
+/**
+ * Answers the three capability probes by inspecting the args, so one runner can
+ * serve several renders without a brittle mockResolvedValueOnce chain.
+ */
+const capabilityAwareRunner: VideoProcessRunner = (
+  _executable,
+  args,
+): Promise<VideoProcessResult> => {
+  if (args.includes('-filters')) {
+    return Promise.resolve({ stdout: CAPABLE_FILTER_LIST, stderr: '' });
+  }
+  if (args.includes('-encoders')) {
+    return Promise.resolve({ stdout: 'libx264 aac', stderr: '' });
+  }
+  if (args.includes('-h')) {
+    return Promise.resolve({ stdout: 'normalize', stderr: '' });
+  }
+  return Promise.resolve({ stdout: '', stderr: '' });
+};
 
 function createManifest(): SlideVideoManifest {
   const source = {
@@ -245,6 +283,138 @@ describe('vertical news FFmpeg composition', () => {
       buildVerticalFfmpegArgs(options),
       true,
     ]);
+  });
+
+  it('asks ffmpeg for machine-readable progress on both render paths', () => {
+    const verticalArgs = buildVerticalFfmpegArgs(verticalRenderOptions());
+    const staticArgs = buildStaticSlideFfmpegArgs({
+      manifest: createManifest(),
+      slidePaths: ['/slides/slide-01.png'],
+      audioSource: 'https://cdn.example.test/audio.m3u8',
+      filterScriptPath: '/filter.txt',
+      outputPath: '/output/slides.mp4',
+    });
+
+    for (const args of [verticalArgs, staticArgs]) {
+      expect(args).toContain('-progress');
+      expect(args[args.indexOf('-progress') + 1]).toBe('pipe:1');
+      // -stats stays: it is what a human reads in `fly logs`.
+      expect(args).toContain('-stats');
+    }
+  });
+
+  it('forwards a stdout line reader only when encode progress is wanted', async () => {
+    const processRunner = vi.fn(capabilityAwareRunner);
+    const options = verticalRenderOptions();
+
+    await renderVerticalSlideVideo(options, '/opt/ffmpeg', processRunner);
+    // Without onEncodeProgress the runner keeps its historical 3-argument shape,
+    // which existing injected doubles assert on exactly.
+    expect(processRunner.mock.calls[3]).toHaveLength(3);
+
+    processRunner.mockClear();
+    await renderVerticalSlideVideo(
+      { ...options, onEncodeProgress: vi.fn() },
+      '/opt/ffmpeg',
+      processRunner,
+    );
+    const renderCall = processRunner.mock.calls[3];
+    expect(renderCall).toHaveLength(5);
+    expect(typeof renderCall?.[4]).toBe('function');
+  });
+
+  it('drives the encode callback from the reader it hands to the runner', async () => {
+    const onEncodeProgress = vi.fn();
+    const processRunner = vi.fn<VideoProcessRunner>(
+      (executable, args, _streamStdio, _signal, onStdoutLine) => {
+        // Replay what ffmpeg writes to `-progress pipe:1`.
+        onStdoutLine?.('out_time_us=8900000');
+        onStdoutLine?.('progress=end');
+        return capabilityAwareRunner(executable, args);
+      },
+    );
+
+    await renderVerticalSlideVideo(
+      { ...verticalRenderOptions(), onEncodeProgress },
+      '/opt/ffmpeg',
+      processRunner,
+    );
+
+    // createVerticalManifest's clip runs 17.8s, so 8.9s of output is halfway.
+    expect(onEncodeProgress.mock.calls).toEqual([[0.5], [1]]);
+  });
+});
+
+describe('ffmpeg encode progress', () => {
+  it('reads out_time_ms as microseconds, matching ffmpeg despite the key name', () => {
+    // A long-standing ffmpeg misnomer: out_time_ms carries microseconds. Reading
+    // it as milliseconds would peg any encode near 0% for its whole run.
+    expect(parseFfmpegProgressOutTimeUs('out_time_ms=41200000')).toBe(
+      41_200_000,
+    );
+    expect(parseFfmpegProgressOutTimeUs('out_time_us=41200000')).toBe(
+      41_200_000,
+    );
+  });
+
+  it('ignores placeholder, negative, and unrelated progress lines', () => {
+    expect(parseFfmpegProgressOutTimeUs('out_time_us=N/A')).toBeNull();
+    expect(parseFfmpegProgressOutTimeUs('out_time_us=-1')).toBeNull();
+    expect(parseFfmpegProgressOutTimeUs('frame=201')).toBeNull();
+    expect(parseFfmpegProgressOutTimeUs('out_time=00:00:41.200000')).toBeNull();
+    expect(parseFfmpegProgressOutTimeUs('')).toBeNull();
+  });
+
+  it('reports a monotonic fraction of the clip duration', () => {
+    const fractions: number[] = [];
+    const read = createFfmpegEncodeProgressReader(100_000, (fraction) =>
+      fractions.push(fraction),
+    );
+
+    read('out_time_us=25000000');
+    read('out_time_us=50000000');
+    // A repeated or stale sample must not emit, so the bar cannot stutter.
+    read('out_time_us=40000000');
+    read('out_time_us=50000000');
+    read('out_time_us=999000000');
+
+    expect(fractions).toEqual([0.25, 0.5, 1]);
+  });
+
+  it('treats ffmpeg’s own end marker as complete', () => {
+    const fractions: number[] = [];
+    const read = createFfmpegEncodeProgressReader(100_000, (fraction) =>
+      fractions.push(fraction),
+    );
+
+    read('out_time_us=25000000');
+    read('progress=end');
+
+    expect(fractions).toEqual([0.25, 1]);
+  });
+
+  it('does not double-report completion for a fast encode', () => {
+    // Real ffmpeg emits a progress block only every stats period, so an encode
+    // that outruns it lands its final out_time sample on the last frame and then
+    // sends progress=end. Both must not report 100%.
+    const fractions: number[] = [];
+    const read = createFfmpegEncodeProgressReader(6_000, (fraction) =>
+      fractions.push(fraction),
+    );
+
+    read('out_time_us=6000000');
+    read('progress=end');
+
+    expect(fractions).toEqual([1]);
+  });
+
+  it('stays silent when the clip duration is unusable', () => {
+    const onFraction = vi.fn();
+    const read = createFfmpegEncodeProgressReader(0, onFraction);
+
+    read('out_time_us=25000000');
+
+    expect(onFraction).not.toHaveBeenCalled();
   });
 });
 

@@ -15,7 +15,10 @@ import {
   parsePodcastEpisodeSearchResult,
   podcastVideoRefetchInterval,
 } from '@/integration/podcastFeed';
-import { createPodcastEpisodeFactory } from './support/podcastEpisode';
+import {
+  createPodcastEpisodeFactory,
+  createPodcastVideoGeneration,
+} from './support/podcastEpisode';
 
 const fetchMock = vi.fn();
 
@@ -106,6 +109,8 @@ describe('podcast feed client', () => {
         videoGeneration: {
           status: 'completed',
           updatedAt: '2026-07-01T00:05:00.000Z',
+          progressPercent: 100,
+          stage: null,
         },
         audioTracks: [
           {
@@ -144,6 +149,8 @@ describe('podcast feed client', () => {
     expect(parsed.videoGeneration).toEqual({
       status: 'completed',
       updatedAt: '2026-07-01T00:05:00.000Z',
+      progressPercent: 100,
+      stage: null,
     });
     expect(parsed.audioTracks[0]).toEqual({
       languageCode: 'zh-Hant',
@@ -174,6 +181,8 @@ describe('podcast feed client', () => {
       video_generation: {
         status: 'processing',
         updated_at: '2026-07-02T00:05:00.000Z',
+        progress_percent: 78,
+        progress_stage: 'encoding',
       },
       audio_tracks: [
         {
@@ -202,6 +211,8 @@ describe('podcast feed client', () => {
     expect(parsed.videoGeneration).toEqual({
       status: 'processing',
       updatedAt: '2026-07-02T00:05:00.000Z',
+      progressPercent: 78,
+      stage: 'encoding',
     });
   });
 
@@ -218,6 +229,72 @@ describe('podcast feed client', () => {
         }),
       ).video,
     ).toBeNull();
+  });
+
+  it('clamps and floors out-of-range progress percentages', () => {
+    const percentOf = (progressPercent: unknown) =>
+      parsePodcastEpisode(
+        episode({
+          videoGeneration: { status: 'processing', progressPercent },
+        }),
+      ).videoGeneration?.progressPercent;
+
+    expect(percentOf(101)).toBe(100);
+    expect(percentOf(-5)).toBe(0);
+    // Floor, not round: 99.6 must never claim the video is finished.
+    expect(percentOf(42.9)).toBe(42);
+    expect(percentOf(99.6)).toBe(99);
+  });
+
+  it('ignores non-numeric, NaN, and infinite progress percentages', () => {
+    const percentOf = (progressPercent: unknown) =>
+      parsePodcastEpisode(
+        episode({
+          videoGeneration: { status: 'processing', progressPercent },
+        }),
+      ).videoGeneration?.progressPercent;
+
+    // A numeric string means a broken contract; degrading to the indeterminate
+    // spinner is safer than trusting it.
+    expect(percentOf('42')).toBeNull();
+    expect(percentOf(Number.NaN)).toBeNull();
+    expect(percentOf(Number.POSITIVE_INFINITY)).toBeNull();
+    expect(percentOf(null)).toBeNull();
+  });
+
+  it('keeps a recognised percentage when the stage slug is unknown', () => {
+    // A newer server's vocabulary must not cost the user their progress bar, and
+    // a raw slug must never reach the UI.
+    expect(
+      parsePodcastEpisode(
+        episode({
+          videoGeneration: {
+            status: 'processing',
+            progressPercent: 55,
+            stage: 'transcoding-hdr',
+          },
+        }),
+      ).videoGeneration,
+    ).toMatchObject({ progressPercent: 55, stage: null });
+  });
+
+  it('keeps the generation summary when progress fields are absent', () => {
+    // The back-compat path: rows written before progress existed.
+    expect(
+      parsePodcastEpisode(
+        episode({
+          videoGeneration: {
+            status: 'processing',
+            updatedAt: '2026-07-01T00:05:00.000Z',
+          },
+        }),
+      ).videoGeneration,
+    ).toEqual({
+      status: 'processing',
+      updatedAt: '2026-07-01T00:05:00.000Z',
+      progressPercent: null,
+      stage: null,
+    });
   });
 
   it('treats missing or malformed video generation summaries as absent', () => {
@@ -242,25 +319,25 @@ describe('podcast feed client', () => {
     expect(
       isPodcastVideoGenerationPending({
         video: null,
-        videoGeneration: { status: 'queued', updatedAt: null },
+        videoGeneration: createPodcastVideoGeneration({ status: 'queued' }),
       }),
     ).toBe(true);
     expect(
       isPodcastVideoGenerationPending({
         video: null,
-        videoGeneration: { status: 'processing', updatedAt: null },
+        videoGeneration: createPodcastVideoGeneration({ status: 'processing' }),
       }),
     ).toBe(true);
     expect(
       isPodcastVideoGenerationPending({
         video: null,
-        videoGeneration: { status: 'completed', updatedAt: null },
+        videoGeneration: createPodcastVideoGeneration({ status: 'completed' }),
       }),
     ).toBe(false);
     expect(
       isPodcastVideoGenerationPending({
         video: null,
-        videoGeneration: { status: 'failed', updatedAt: null },
+        videoGeneration: createPodcastVideoGeneration({ status: 'failed' }),
       }),
     ).toBe(false);
     expect(
@@ -270,7 +347,7 @@ describe('podcast feed client', () => {
           thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
           durationSeconds: 90,
         },
-        videoGeneration: { status: 'processing', updatedAt: null },
+        videoGeneration: createPodcastVideoGeneration({ status: 'processing' }),
       }),
     ).toBe(false);
     expect(
@@ -374,10 +451,10 @@ describe('podcast feed client', () => {
   });
 
   it('polls pending generations through initial failures and stops at fresh terminal data', () => {
-    const pendingGeneration = {
-      status: 'processing' as const,
+    const pendingGeneration = createPodcastVideoGeneration({
+      status: 'processing',
       updatedAt: '2026-07-01T00:20:00.000Z',
-    };
+    });
     const staleCompletedEpisode = parsePodcastEpisode(
       episode({
         video: {
@@ -414,6 +491,162 @@ describe('podcast feed client', () => {
       podcastVideoRefetchInterval(freshFailedEpisode, pendingGeneration, 1),
     ).toBe(20_000);
     expect(podcastVideoRefetchInterval(freshFailedEpisode, null)).toBe(false);
+  });
+
+  it('polls faster only while a stage is actually in flight', () => {
+    const generatingEpisode = (
+      videoGeneration: Record<string, unknown>,
+    ): ReturnType<typeof parsePodcastEpisode> =>
+      parsePodcastEpisode(episode({ video: null, videoGeneration }));
+
+    // A visual stage runs while this localization's own render row is still
+    // 'queued', so the cadence keys off `stage`, never off `status`.
+    expect(
+      podcastVideoRefetchInterval(
+        generatingEpisode({
+          status: 'queued',
+          progressPercent: 22,
+          stage: 'selecting-images',
+        }),
+        null,
+      ),
+    ).toBe(10_000);
+    expect(
+      podcastVideoRefetchInterval(
+        generatingEpisode({
+          status: 'processing',
+          progressPercent: 78,
+          stage: 'encoding',
+        }),
+        null,
+      ),
+    ).toBe(10_000);
+    // Nothing claimed yet, or a server with no stage vocabulary: the bar is
+    // indeterminate, so there is nothing to poll faster for.
+    expect(
+      podcastVideoRefetchInterval(
+        generatingEpisode({ status: 'queued' }),
+        null,
+      ),
+    ).toBe(20_000);
+  });
+
+  it('propagates a progress-only detail update with an unchanged status', () => {
+    const feedEpisode = parsePodcastEpisode(
+      episode({
+        video: null,
+        videoGeneration: {
+          status: 'processing',
+          updatedAt: '2026-07-01T00:05:00.000Z',
+          progressPercent: 20,
+          stage: 'preparing-media',
+        },
+      }),
+    );
+    const detailEpisode = parsePodcastEpisode(
+      episode({
+        video: null,
+        videoGeneration: {
+          status: 'processing',
+          updatedAt: '2026-07-01T00:10:00.000Z',
+          progressPercent: 65,
+          stage: 'encoding',
+        },
+      }),
+    );
+
+    expect(
+      mergePodcastEpisodeVideo(feedEpisode, detailEpisode)?.videoGeneration,
+    ).toMatchObject({ progressPercent: 65, stage: 'encoding' });
+  });
+
+  it('keeps the newer feed progress when the detail poll is behind', () => {
+    const feedEpisode = parsePodcastEpisode(
+      episode({
+        video: null,
+        videoGeneration: {
+          status: 'processing',
+          updatedAt: '2026-07-01T00:20:00.000Z',
+          progressPercent: 80,
+          stage: 'encoding',
+        },
+      }),
+    );
+    const detailEpisode = parsePodcastEpisode(
+      episode({
+        video: null,
+        videoGeneration: {
+          status: 'processing',
+          updatedAt: '2026-07-01T00:10:00.000Z',
+          progressPercent: 30,
+          stage: 'preparing-media',
+        },
+      }),
+    );
+
+    expect(
+      mergePodcastEpisodeVideo(feedEpisode, detailEpisode)?.videoGeneration,
+    ).toMatchObject({ progressPercent: 80, stage: 'encoding' });
+  });
+
+  it('prefers the detail generation when both report the same updatedAt', () => {
+    // Pins the tie-break, which a backend change could otherwise silently rely on.
+    const sameTimestamp = '2026-07-01T00:10:00.000Z';
+    const feedEpisode = parsePodcastEpisode(
+      episode({
+        video: null,
+        videoGeneration: {
+          status: 'processing',
+          updatedAt: sameTimestamp,
+          progressPercent: 80,
+        },
+      }),
+    );
+    const detailEpisode = parsePodcastEpisode(
+      episode({
+        video: null,
+        videoGeneration: {
+          status: 'processing',
+          updatedAt: sameTimestamp,
+          progressPercent: 30,
+        },
+      }),
+    );
+
+    expect(
+      mergePodcastEpisodeVideo(feedEpisode, detailEpisode)?.videoGeneration
+        ?.progressPercent,
+    ).toBe(30);
+  });
+
+  it('lets progress fall back when a resubmission restarts the pipeline', () => {
+    // Re-POSTing the same URL revives the jobs and legitimately resets progress,
+    // so freshness must stay timestamp-based rather than "keep the higher percent".
+    const feedEpisode = parsePodcastEpisode(
+      episode({
+        video: null,
+        videoGeneration: {
+          status: 'processing',
+          updatedAt: '2026-07-01T00:05:00.000Z',
+          progressPercent: 88,
+        },
+      }),
+    );
+    const detailEpisode = parsePodcastEpisode(
+      episode({
+        video: null,
+        videoGeneration: {
+          status: 'queued',
+          updatedAt: '2026-07-01T00:30:00.000Z',
+          progressPercent: 2,
+        },
+      }),
+    );
+
+    expect(
+      mergePodcastEpisodeVideo(feedEpisode, detailEpisode)?.videoGeneration
+        ?.progressPercent,
+    ).toBe(2);
   });
 
   it('parses episode search results from camelCase responses', () => {

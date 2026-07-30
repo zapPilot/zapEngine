@@ -156,12 +156,40 @@ function numberedSlideFilename(index: number): string {
   return `slide-${String(index + 1).padStart(2, '0')}.png`;
 }
 
+function encodeProgressReporter(
+  onProgress: ((event: RenderProgressEvent) => void) | undefined,
+  label: string,
+): ((fraction: number) => void) | undefined {
+  if (!onProgress) return undefined;
+  return (fraction) =>
+    onProgress({
+      message: `${label} ${Math.round(fraction * 100)}%`,
+      phase: 'encode',
+      encodeFraction: fraction,
+    });
+}
+
+/**
+ * A render step, carried as structured data so callers can drive a progress bar
+ * instead of regex-matching a log line. `message` stays human-readable for the
+ * CLI and the service log.
+ */
+export interface RenderProgressEvent {
+  message: string;
+  phase: 'media' | 'frame' | 'encode';
+  sceneId?: string;
+  sceneIndex?: number;
+  sceneCount?: number;
+  /** Fraction 0..1 of the encode; present only on `phase: 'encode'`. */
+  encodeFraction?: number;
+}
+
 interface RenderSlideVideoOptions {
   manifestPath: string;
   outputDirectory: string;
   audioSource?: string;
   signal?: AbortSignal;
-  onProgress?: (message: string) => void;
+  onProgress?: (event: RenderProgressEvent) => void;
   dependencies?: Partial<RenderDependencies>;
 }
 
@@ -240,9 +268,13 @@ export async function renderSlideVideo(
 
     for (const [index, slide] of manifest.slides.entries()) {
       throwIfAborted(options.signal);
-      options.onProgress?.(
-        `Rendering slide ${index + 1}/${manifest.slides.length}: ${slide.id}`,
-      );
+      options.onProgress?.({
+        message: `Rendering slide ${index + 1}/${manifest.slides.length}: ${slide.id}`,
+        phase: 'media',
+        sceneId: slide.id,
+        sceneIndex: index + 1,
+        sceneCount: manifest.slides.length,
+      });
       const asset = await dependencies.resolveAsset(slide, {
         workingDirectory: assetDirectory,
         signal: options.signal,
@@ -289,9 +321,16 @@ export async function renderSlideVideo(
       'utf8',
     );
 
-    options.onProgress?.('Encoding image scene video');
+    options.onProgress?.({
+      message: 'Encoding image scene video',
+      phase: 'encode',
+    });
     throwIfAborted(options.signal);
     await dependencies.renderVideo({
+      onEncodeProgress: encodeProgressReporter(
+        options.onProgress,
+        'Encoding image scene video',
+      ),
       manifest,
       slidePaths: slideOutputPaths,
       audioSource: options.audioSource ?? manifest.audio.sourceUrl,
@@ -339,9 +378,13 @@ async function renderVerticalNewsVideo(context: {
 
   for (const [index, slide] of manifest.slides.entries()) {
     throwIfAborted(options.signal);
-    options.onProgress?.(
-      `Preparing media ${index + 1}/${manifest.slides.length}: ${slide.id}`,
-    );
+    options.onProgress?.({
+      message: `Preparing media ${index + 1}/${manifest.slides.length}: ${slide.id}`,
+      phase: 'media',
+      sceneId: slide.id,
+      sceneIndex: index + 1,
+      sceneCount: manifest.slides.length,
+    });
     const asset = await dependencies.resolveAsset(slide, {
       workingDirectory: context.assetDirectory,
       signal: options.signal,
@@ -377,7 +420,10 @@ async function renderVerticalNewsVideo(context: {
   const firstMediaPath = slideOutputPaths[0];
   if (!firstMediaPath) throw new Error('Renderer produced no media images');
 
-  options.onProgress?.('Rendering brand frame and outro card');
+  options.onProgress?.({
+    message: 'Rendering brand frame and outro card',
+    phase: 'frame',
+  });
   const framePath = join(options.outputDirectory, 'frame.png');
   const outroPath = join(options.outputDirectory, 'outro.png');
   await dependencies.rasterizeFrame(
@@ -424,7 +470,10 @@ async function renderVerticalNewsVideo(context: {
     'utf8',
   );
 
-  options.onProgress?.('Encoding vertical news video');
+  options.onProgress?.({
+    message: 'Encoding vertical news video',
+    phase: 'encode',
+  });
   throwIfAborted(options.signal);
   await dependencies.renderVerticalVideo({
     manifest,
@@ -436,6 +485,13 @@ async function renderVerticalNewsVideo(context: {
     filterScriptPath: context.filterScriptPath,
     outputPath: context.paths.previewPath,
     signal: options.signal,
+    // This single ffmpeg call is the longest step of a render — minutes to tens
+    // of minutes — so without its own progress the bar would freeze right where
+    // the user is most likely to be watching it.
+    onEncodeProgress: encodeProgressReporter(
+      options.onProgress,
+      'Encoding vertical news video',
+    ),
   });
 
   return {
