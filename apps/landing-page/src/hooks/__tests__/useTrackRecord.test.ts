@@ -1,5 +1,8 @@
 import { renderHook, waitFor } from '@testing-library/react';
-import type { DailySnapshot, TrackRecordMeta } from '@zapengine/types/strategy';
+import type {
+  DailySnapshot,
+  TrackRecordMeta,
+} from '@zapengine/types/strategy';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -110,7 +113,10 @@ describe('useTrackRecord', () => {
       brokenAt: undefined,
       totalSnapshots: 1,
     });
-    mocks.verifyPerformanceMetrics.mockReturnValue({ valid: true, errors: [] });
+    mocks.verifyPerformanceMetrics.mockReturnValue({
+      valid: true,
+      errors: [],
+    });
     mocks.verifySignature.mockResolvedValue({
       valid: true,
       signaturePresent: true,
@@ -165,7 +171,10 @@ describe('useTrackRecord', () => {
         performanceErrors: [],
       },
     });
-    expect(mocks.fetchSnapshotHistoryEntries).toHaveBeenCalledWith('cid-latest', 90);
+    expect(mocks.fetchSnapshotHistoryEntries).toHaveBeenCalledWith(
+      'cid-latest',
+      90,
+    );
     expect(mocks.verifySignature).toHaveBeenCalledWith(
       liveSnapshot,
       liveMeta.officialSigner,
@@ -181,18 +190,21 @@ describe('useTrackRecord', () => {
   it.each([
     [new Error('metadata unavailable'), 'metadata unavailable'],
     ['bad response', 'Unknown error'],
-  ])('exposes metadata load failures without stale data', async (failure, message) => {
-    mocks.fetchMeta.mockRejectedValue(failure);
-    const { useTrackRecord } = await import('../useTrackRecord');
+  ])(
+    'exposes metadata load failures without stale data',
+    async (failure, message) => {
+      mocks.fetchMeta.mockRejectedValue(failure);
+      const { useTrackRecord } = await import('../useTrackRecord');
 
-    const { result } = renderHook(() => useTrackRecord());
+      const { result } = renderHook(() => useTrackRecord());
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current).toMatchObject({
-      meta: null,
-      snapshots: [],
-      latestSnapshot: null,
-      error: message,
-    });
-  });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      expect(result.current).toMatchObject({
+        meta: null,
+        snapshots: [],
+        latestSnapshot: null,
+        error: message,
+      });
+    },
+  );
 });
