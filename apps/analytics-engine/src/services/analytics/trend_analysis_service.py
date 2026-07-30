@@ -8,6 +8,7 @@ for historical portfolio performance visualization.
 import logging
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, time, timedelta
+from functools import cached_property
 from typing import Any, ClassVar, cast
 from uuid import UUID
 
@@ -19,8 +20,7 @@ from src.models.analytics_responses import (
     PeriodInfo,
     PortfolioTrendResponse,
 )
-from src.services.analytics.analytics_context import PortfolioAnalyticsContext
-from src.services.interfaces import QueryServiceProtocol, TrendAnalysisServiceProtocol
+from src.services.interfaces import TrendAnalysisServiceProtocol
 from src.services.shared.base_analytics_service import (
     BaseAnalyticsService,
     TimeRangeQueryPayload,
@@ -95,17 +95,10 @@ class TrendAnalysisService(BaseAnalyticsService, TrendAnalysisServiceProtocol):
     See: get_portfolio_trend() below for in-memory filtering implementation
     """
 
-    # jscpd:ignore-start — subclass __init__ overrides parent; signature match is irreducible
-    def __init__(
-        self,
-        db: Session,
-        query_service: QueryServiceProtocol,
-        context: PortfolioAnalyticsContext | None = None,
-    ) -> None:
-        super().__init__(db, query_service, context)
-        self._category_transformer = self._transformer_cls()
-
-    # jscpd:ignore-end
+    @cached_property
+    def _category_transformer(self) -> CategoryDataTransformer:
+        """Build the category transformer once per service instance."""
+        return self._transformer_cls()
 
     @classmethod
     def extract_category_value(cls, row: dict[str, Any]) -> float:

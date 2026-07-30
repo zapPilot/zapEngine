@@ -81,6 +81,22 @@ gh run view <run-id> --log-failed
 Fix the whole batch of red jobs, then push once. Do not push after every tiny fix
 just to let CI reveal the next failure.
 
+## Evidence & completion rules
+
+- Evidence is the **latest completed run** on the target ref (or `gh pr checks`
+  when a PR exists). If the newest run is queued or in progress, wait for it to
+  finish — never triage an older run as if it were current.
+- Enumerate **all** failing jobs before fixing any one of them. A job named in
+  the prompt or user report is a starting hint, never the scope.
+- On `main` (or any tree with no diff vs `origin/main`), `pnpm verify changed`
+  and `pnpm verify branch` resolve to zero affected packages and pass while
+  running nothing. They are never evidence for a red CI job — use the failing
+  job's full-scope parity command from the table above.
+- CI red but local `turbo run <task>` green → suspect stale cache replay. Rerun
+  uncached: `pnpm --filter @zapengine/<pkg> run <task>` or `turbo run <task> --force`.
+- A CI-fix task is done only when the previously-red jobs' parity commands are
+  green locally **and** the new run / PR checks are green after push.
+
 ## Formatting trap
 
 A connector-created test file still has to pass workspace Prettier. For a
