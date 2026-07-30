@@ -16,6 +16,7 @@ import {
   hlpAmountRows,
   hyperliquidAccountUrl,
   resolveDepositExecutionCapability,
+  resolveInvestExecutionCapability,
   wizardLegRows,
 } from '@/integration/investExecutionModel';
 
@@ -114,6 +115,58 @@ describe('resolveDepositExecutionCapability', () => {
       }),
     ).toBe('ready');
   });
+});
+
+describe('resolveInvestExecutionCapability', () => {
+  it('asks for a wallet before checking the execution mode', () => {
+    expect(
+      resolveInvestExecutionCapability({
+        isConnected: false,
+        executionMode: undefined,
+        scope: 'base',
+      }),
+    ).toBe('connect-wallet');
+  });
+
+  it('requires an executable wallet for either single-chain scope', () => {
+    expect(
+      resolveInvestExecutionCapability({
+        isConnected: true,
+        executionMode: undefined,
+        scope: 'base',
+      }),
+    ).toBe('unsupported-wallet');
+    expect(
+      resolveInvestExecutionCapability({
+        isConnected: true,
+        executionMode: undefined,
+        scope: 'arbitrum',
+      }),
+    ).toBe('unsupported-wallet');
+  });
+
+  it('keeps strategy execution ready without a single-chain batch mode', () => {
+    expect(
+      resolveInvestExecutionCapability({
+        isConnected: true,
+        executionMode: undefined,
+        scope: 'both',
+      }),
+    ).toBe('ready');
+  });
+
+  it.each(['atomic-batch', 'eip7702'] as const)(
+    'accepts %s for single-chain execution',
+    (executionMode) => {
+      expect(
+        resolveInvestExecutionCapability({
+          isConnected: true,
+          executionMode,
+          scope: 'base',
+        }),
+      ).toBe('ready');
+    },
+  );
 });
 
 describe('wizardLegRows', () => {
