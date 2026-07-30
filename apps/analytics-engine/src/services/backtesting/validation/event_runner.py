@@ -35,6 +35,7 @@ from src.services.backtesting.validation.constraint_predicates import (
     ValidationEventError,
     constraint_decision,
     constraint_dma,
+    constraint_failure,
     constraint_inner_ratio_zone,
     constraint_macro_sentiment_label,
     constraint_number,
@@ -475,7 +476,7 @@ def _constraint_event_trigger_failure(
         )
     if event_type in {"decision_action_assertion", "hold"}:
         return None
-    return _constraint_trigger_failure(
+    return constraint_failure(
         point,
         f"Unsupported constraint event type: {event_type!r}",
     )
@@ -497,7 +498,7 @@ def _trigger_extreme_fear_below_crypto_dma(
         include_macro_sentiment=True,
     ):
         return None
-    return _constraint_trigger_failure(
+    return constraint_failure(
         point,
         f"no extreme_fear (crypto or macro) with DMA below within {within_days} days",
     )
@@ -519,7 +520,7 @@ def _trigger_extreme_fear_below_spy_dma(
         include_macro_sentiment=True,
     ):
         return None
-    return _constraint_trigger_failure(
+    return constraint_failure(
         point,
         f"no macro extreme_fear with SPY DMA below within {within_days} days",
     )
@@ -529,7 +530,7 @@ def _trigger_crypto_dma_fgi_sell(*, point: dict[str, Any]) -> str | None:
     reason = constraint_decision(point).get("reason")
     if isinstance(reason, str) and "crypto_" in reason and "sell" in reason:
         return None
-    return _constraint_trigger_failure(
+    return constraint_failure(
         point,
         f"expected crypto DMA/FGI sell; observed reason={reason!r}",
     )
@@ -556,7 +557,7 @@ def _crypto_cross_trigger_failure(
     )
     if observed_reference == reference_asset:
         return None
-    return _constraint_trigger_failure(
+    return constraint_failure(
         point,
         f"expected crypto DMA reference {reference_asset}; observed {observed_reference!r}",
     )
@@ -572,7 +573,7 @@ def _dma_cross_trigger_failure(
     observed = dma.get("cross_event")
     if observed == expected_cross:
         return None
-    return _constraint_trigger_failure(
+    return constraint_failure(
         point,
         f"expected {dma_key} cross_event={expected_cross!r}; observed {observed!r}",
     )
@@ -587,7 +588,7 @@ def _inner_ratio_cross_trigger_failure(
 ) -> str | None:
     previous_point = previous_constraint_point(points=points, event_point=point)
     if previous_point is None:
-        return _constraint_trigger_failure(
+        return constraint_failure(
             point,
             "No previous point available for ratio-cross event trigger",
         )
@@ -595,7 +596,7 @@ def _inner_ratio_cross_trigger_failure(
     observed = constraint_inner_ratio_zone(point)
     if previous == from_zone and observed == to_zone:
         return None
-    return _constraint_trigger_failure(
+    return constraint_failure(
         point,
         f"expected inner ratio zone transition {from_zone!r}->{to_zone!r}; "
         f"observed {previous!r}->{observed!r}",
@@ -640,10 +641,6 @@ def _window_contains_extreme_fear_below_dma(
         if include_macro_sentiment and macro_extreme:
             return True
     return False
-
-
-def _constraint_trigger_failure(point: dict[str, Any], message: str) -> str:
-    return f"{point['date']}: {message}"
 
 
 __all__ = [
