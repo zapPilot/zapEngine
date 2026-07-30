@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { extname, normalize, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -30,13 +30,17 @@ export function registerAppScheme(): void {
 export type ResolvedAsset = { filePath: string } | { status: number };
 
 export interface AssetFs {
-  exists: (path: string) => boolean;
   isFile: (path: string) => boolean;
 }
 
 const nodeFs: AssetFs = {
-  exists: (path) => existsSync(path),
-  isFile: (path) => statSync(path).isFile(),
+  isFile: (path) => {
+    try {
+      return statSync(path).isFile();
+    } catch {
+      return false;
+    }
+  },
 };
 
 /**
@@ -72,7 +76,7 @@ export function resolveWebAsset(
   }
 
   if (extname(candidate)) {
-    if (fs.exists(candidate) && fs.isFile(candidate)) {
+    if (fs.isFile(candidate)) {
       return { filePath: candidate };
     }
     return { status: 404 };

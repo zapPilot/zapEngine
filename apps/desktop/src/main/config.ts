@@ -32,7 +32,7 @@ const PRODUCTION_DEFAULTS: Record<string, string> = {
 
 export interface MainEnvDeps {
   env: Record<string, string | undefined>;
-  configFile: Record<string, string> | undefined;
+  configFile?: Record<string, unknown>;
   defaults?: Record<string, string>;
   isPackaged: boolean;
 }
@@ -62,14 +62,14 @@ export function buildMainEnvSource(
   return source;
 }
 
-function readUserConfigFile(): Record<string, string> | undefined {
+function readUserConfigFile(): Record<string, unknown> | undefined {
   try {
     const configPath = join(app.getPath('userData'), 'config.json');
     const parsed: unknown = JSON.parse(readFileSync(configPath, 'utf8'));
     if (typeof parsed !== 'object' || parsed === null) {
       return undefined;
     }
-    return parsed as Record<string, string>;
+    return parsed as Record<string, unknown>;
   } catch {
     return undefined;
   }

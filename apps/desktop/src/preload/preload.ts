@@ -49,6 +49,4 @@ const zapDesktop = {
   },
 };
 
-export type ZapDesktopBridge = typeof zapDesktop;
-
 contextBridge.exposeInMainWorld('zapDesktop', zapDesktop);

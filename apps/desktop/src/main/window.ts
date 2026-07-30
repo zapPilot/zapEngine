@@ -5,12 +5,8 @@ import { BrowserWindow } from 'electron';
 import { APP_START_URL } from './appProtocol';
 import { openExternalUrl } from './externalAuth';
 
-export interface WindowLoadTarget {
-  /** http URL (expo dev server or loopback fallback); app:// when absent. */
-  url?: string;
-}
-
-export function createMainWindow(target: WindowLoadTarget): BrowserWindow {
+/** Uses an http URL for an expo dev server or loopback fallback when given. */
+export function createMainWindow(url?: string): BrowserWindow {
   const win = new BrowserWindow({
     width: 430,
     height: 900,
@@ -33,16 +29,16 @@ export function createMainWindow(target: WindowLoadTarget): BrowserWindow {
   });
 
   // In-place navigation must stay on the bundled origin.
-  win.webContents.on('will-navigate', (event, url) => {
+  win.webContents.on('will-navigate', (event, navigationUrl) => {
     const stays =
-      url.startsWith(APP_START_URL) ||
-      (target.url !== undefined && url.startsWith(target.url));
+      navigationUrl.startsWith(APP_START_URL) ||
+      (url !== undefined && navigationUrl.startsWith(url));
     if (!stays) {
       event.preventDefault();
-      void openExternalUrl(url);
+      void openExternalUrl(navigationUrl);
     }
   });
 
-  void win.loadURL(target.url ?? APP_START_URL);
+  void win.loadURL(url ?? APP_START_URL);
   return win;
 }

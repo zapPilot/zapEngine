@@ -45,13 +45,17 @@ function showMainWindow(): void {
   mainWindow.focus();
 }
 
+function showAndSend(channel: string, payload: unknown): void {
+  showMainWindow();
+  mainWindow?.webContents.send(channel, payload);
+}
+
 function dispatchDeepLink(url: string): void {
   if (!mainWindow) {
     pendingDeepLink = url;
     return;
   }
-  showMainWindow();
-  mainWindow.webContents.send(IPC_CHANNELS.deepLink, url);
+  showAndSend(IPC_CHANNELS.deepLink, url);
 }
 
 function notifyRebalanceProposal(proposal: RebalanceProposal): void {
@@ -60,10 +64,15 @@ function notifyRebalanceProposal(proposal: RebalanceProposal): void {
     body: `Portfolio drift ${proposal.driftPercent.toFixed(1)}% — review and confirm in the app. Nothing is signed automatically.`,
   });
   notification.on('click', () => {
-    showMainWindow();
-    mainWindow?.webContents.send(IPC_CHANNELS.rebalanceProposal, proposal);
+    showAndSend(IPC_CHANNELS.rebalanceProposal, proposal);
   });
   notification.show();
+}
+
+function parseDriftThresholdPercent(
+  value: string | undefined,
+): number | undefined {
+  return Number(value ?? '') || undefined;
 }
 
 async function initializeApp(): Promise<void> {
@@ -75,10 +84,10 @@ async function initializeApp(): Promise<void> {
   let url = process.env['ZAP_ELECTRON_DEV_URL'];
   if (!url && process.env['ZAP_ELECTRON_LOOPBACK'] === '1') {
     const port = Number(process.env['ZAP_ELECTRON_LOOPBACK_PORT'] ?? '3105');
-    ({ url } = await startLoopbackServer(webRoot, port));
+    url = await startLoopbackServer(webRoot, port);
   }
 
-  const window = createMainWindow({ url });
+  const window = createMainWindow(url);
   mainWindow = window;
 
   window.on('close', (event) => {
@@ -108,24 +117,7 @@ async function initializeApp(): Promise<void> {
   }
 }
 
-// Inject app-core env before any service module is used (esbuild bundles
-// app-core into this file; there is no runtime workspace resolution).
-configureMainAppCoreEnv();
-
-const rebalanceScheduler = createRebalanceScheduler({
-  readDrift: createSuggestionDriftReader({ log: console.warn }),
-  notify: notifyRebalanceProposal,
-  intervalMs: clampIntervalMs(process.env['ZAP_REBALANCE_CHECK_INTERVAL_MS']),
-  driftThresholdPercent:
-    Number(process.env['ZAP_REBALANCE_DRIFT_THRESHOLD'] ?? '') || undefined,
-  log: console.warn,
-});
-
-// --- single instance -------------------------------------------------------
-const hasLock = app.requestSingleInstanceLock();
-if (!hasLock) {
-  app.quit();
-} else {
+function bootstrap(): void {
   app.on('second-instance', (_event, argv) => {
     const link = extractDeepLink(argv);
     if (link) {
@@ -185,4 +177,26 @@ if (!hasLock) {
   ipcMain.on(IPC_CHANNELS.clearSchedulerContext, () => {
     rebalanceScheduler.setContext(undefined);
   });
+}
+
+// Inject app-core env before any service module is used (esbuild bundles
+// app-core into this file; there is no runtime workspace resolution).
+configureMainAppCoreEnv();
+
+const rebalanceScheduler = createRebalanceScheduler({
+  readDrift: createSuggestionDriftReader({ log: console.warn }),
+  notify: notifyRebalanceProposal,
+  intervalMs: clampIntervalMs(process.env['ZAP_REBALANCE_CHECK_INTERVAL_MS']),
+  driftThresholdPercent: parseDriftThresholdPercent(
+    process.env['ZAP_REBALANCE_DRIFT_THRESHOLD'],
+  ),
+  log: console.warn,
+});
+
+// --- single instance -------------------------------------------------------
+const hasLock = app.requestSingleInstanceLock();
+if (!hasLock) {
+  app.quit();
+} else {
+  bootstrap();
 }

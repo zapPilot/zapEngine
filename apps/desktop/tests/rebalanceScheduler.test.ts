@@ -7,11 +7,7 @@ import {
   MIN_INTERVAL_MS,
 } from '../src/main/scheduler/rebalanceScheduler';
 import type { RebalanceProposal } from '../src/shared/ipc';
-
-const CONTEXT = {
-  userId: 'user-1',
-  walletAddress: '0x1111111111111111111111111111111111111111',
-};
+import { CONTEXT } from './fixtures';
 
 describe('clampIntervalMs', () => {
   it('defaults to 6h when unset or invalid', () => {
