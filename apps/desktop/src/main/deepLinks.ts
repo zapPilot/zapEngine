@@ -2,6 +2,8 @@ import { resolve } from 'node:path';
 
 import { app } from 'electron';
 
+import { isDeepLinkUrl } from '../shared/ipc';
+
 /**
  * Matches the Expo app scheme in apps/app/app.config.ts (C5): the same
  * deep links resolve on iOS/Android (Expo) and macOS (this shell).
@@ -22,5 +24,5 @@ export function registerDeepLinkScheme(): void {
 
 /** Extracts a zappilotv2:// URL from second-instance / cold-start argv. */
 export function extractDeepLink(argv: readonly string[]): string | undefined {
-  return argv.find((arg) => arg.startsWith(`${DEEP_LINK_SCHEME}://`));
+  return argv.find((arg) => isDeepLinkUrl(arg, DEEP_LINK_SCHEME));
 }

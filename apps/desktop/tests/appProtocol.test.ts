@@ -9,7 +9,6 @@ const WEB_ROOT = `${sep}srv${sep}web`;
 function fakeFs(existingFiles: string[]): AssetFs {
   const files = new Set(existingFiles);
   return {
-    exists: (path) => files.has(path),
     isFile: (path) => files.has(path),
   };
 }

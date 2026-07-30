@@ -7,10 +7,9 @@ import { isHttpsUrl } from '../shared/ipc';
  * browser (Privy OAuth round-trips back via the zappilotv2:// deep link).
  * Everything else is refused.
  */
-export async function openExternalUrl(url: unknown): Promise<boolean> {
+export async function openExternalUrl(url: unknown): Promise<void> {
   if (!isHttpsUrl(url)) {
-    return false;
+    return;
   }
   await shell.openExternal(url);
-  return true;
 }

@@ -84,7 +84,7 @@ async function initializeApp(): Promise<void> {
   let url = process.env['ZAP_ELECTRON_DEV_URL'];
   if (!url && process.env['ZAP_ELECTRON_LOOPBACK'] === '1') {
     const port = Number(process.env['ZAP_ELECTRON_LOOPBACK_PORT'] ?? '3105');
-    ({ url } = await startLoopbackServer(webRoot, port));
+    url = await startLoopbackServer(webRoot, port);
   }
 
   const window = createMainWindow(url);

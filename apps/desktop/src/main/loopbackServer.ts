@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { createServer, type Server } from 'node:http';
+import { createServer } from 'node:http';
 import { extname } from 'node:path';
 
 import { resolveWebAsset } from './appProtocol';
@@ -26,7 +26,7 @@ const MIME_TYPES = new Map([
 export function startLoopbackServer(
   webRoot: string,
   port: number,
-): Promise<{ server: Server; url: string }> {
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const server = createServer((request, response) => {
       if (request.method !== 'GET' && request.method !== 'HEAD') {
@@ -52,7 +52,7 @@ export function startLoopbackServer(
     });
     server.once('error', reject);
     server.listen(port, '127.0.0.1', () => {
-      resolve({ server, url: `http://127.0.0.1:${port}/` });
+      resolve(`http://127.0.0.1:${port}/`);
     });
   });
 }
