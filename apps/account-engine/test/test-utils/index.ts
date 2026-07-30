@@ -1,4 +1,11 @@
 import type { Mock } from 'vitest';
+
+import {
+  type CreateJobOptions,
+  type Job,
+  JobStatus,
+  JobType,
+} from '../../src/modules/jobs/interfaces/job.interface';
 /**
  * Shared test utilities for Hono-based service tests.
  * Replaces the old NestJS-centric src/test-utils/ that was deleted during migration.
@@ -134,6 +141,41 @@ export function createMockDatabaseService() {
 }
 
 // ---------------------------------------------------------------------------
+// Job fixtures and mocks
+// ---------------------------------------------------------------------------
+
+export function createJobFixture(overrides: Partial<Job> = {}): Job {
+  const now = new Date();
+  return {
+    id: 'job-1',
+    type: JobType.WEEKLY_REPORT_BATCH,
+    status: JobStatus.PENDING,
+    payload: {},
+    priority: 0,
+    maxRetries: 3,
+    retryCount: 0,
+    retryDelaySeconds: 60,
+    scheduledAt: now,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+export function createMockJobQueueService() {
+  let childJobCounter = 0;
+  return {
+    createJob: vi.fn((options: CreateJobOptions) => ({
+      id: `child-${String(++childJobCounter).padStart(4, '0')}`,
+      ...options,
+    })),
+    logJobEvent: vi.fn(),
+    updateJobMetadata: vi.fn(),
+    updateJobStatus: vi.fn(),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // ConfigService mock
 // ---------------------------------------------------------------------------
 
@@ -141,9 +183,9 @@ export function createMockConfigService(
   overrides: Record<string, unknown> = {},
 ): any {
   const defaults: Record<string, unknown> = {
-    'database.supabase.url': 'http://localhost:54321',
-    'database.supabase.anonKey': 'test-anon-key',
-    'database.supabase.serviceRoleKey': 'test-service-role-key',
+    SUPABASE_URL: 'http://localhost:54321',
+    SUPABASE_ANON_KEY: 'test-anon-key',
+    SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
     ADMIN_API_KEY: 'test-admin-key',
     API_KEY: 'test-api-key',
     TELEGRAM_BOT_TOKEN: 'test-bot-token',
@@ -167,7 +209,6 @@ export function createMockConfigService(
   return {
     env: defaults as any,
     get: vi.fn(<T>(key: string, defaultValue?: T): T | undefined => {
-      // Support dot-path lookups
       if (key in defaults) {
         return defaults[key] as T;
       }

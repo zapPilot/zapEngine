@@ -13,7 +13,7 @@ Bounded composition module — **not** an engine — sitting between analytics-e
 | `index.ts`         | Module barrel — exports the route registrar and service factory         |
 | `route.ts`         | Hono route handlers for `POST /plan-orchestration/{deposit,withdraw}`   |
 | `service.ts`       | Composition logic — strategy allocation → normalised intent → exec plan |
-| `publicClients.ts` | Viem `PublicClient` factories per chain (lazy, memoised)                |
+| `publicClients.ts` | Viem `PublicClient` creation per chain                                  |
 
 ## Dependency rules
 

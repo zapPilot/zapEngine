@@ -41,12 +41,10 @@ export function zEmail(message = 'Invalid email address') {
 export const uuidParamSchema = z.object({
   userId: zUuid(),
 });
-export type UuidParam = z.infer<typeof uuidParamSchema>;
 
 export const jobIdParamSchema = z.object({
   jobId: z.string().min(1),
 });
-export type JobIdParam = z.infer<typeof jobIdParamSchema>;
 
 export const walletAddressParamSchema = uuidParamSchema.extend({
   walletAddress: z.string().refine(isWalletAddress, {
@@ -54,12 +52,10 @@ export const walletAddressParamSchema = uuidParamSchema.extend({
       'Wallet address must be a valid Ethereum address (42 characters starting with 0x)',
   }),
 });
-export type WalletAddressParam = z.infer<typeof walletAddressParamSchema>;
 
 export const walletIdParamSchema = uuidParamSchema.extend({
   walletId: zUuid(),
 });
-export type WalletIdParam = z.infer<typeof walletIdParamSchema>;
 
 export const walletBodySchema = z.object({
   wallet: z.string().min(1).refine(isWalletAddress, {
@@ -67,7 +63,6 @@ export const walletBodySchema = z.object({
       'Wallet address must be a valid Ethereum address (42 characters starting with 0x)',
   }),
 });
-export type WalletBody = z.infer<typeof walletBodySchema>;
 
 export const walletLabelSchema = z
   .string()
@@ -87,22 +82,18 @@ export const addWalletBodySchema = walletBodySchema.extend({
     )
     .optional(),
 });
-export type AddWalletBody = z.infer<typeof addWalletBodySchema>;
 
 export const updateEmailBodySchema = z.object({
   email: zEmail(),
 });
-export type UpdateEmailBody = z.infer<typeof updateEmailBodySchema>;
 
 export const reportUnsubscribeBodySchema = z.object({
   token: z.string().min(1).max(4096),
 });
-export type ReportUnsubscribeBody = z.infer<typeof reportUnsubscribeBodySchema>;
 
 export const updateWalletLabelBodySchema = z.object({
   label: walletLabelSchema,
 });
-export type UpdateWalletLabelBody = z.infer<typeof updateWalletLabelBodySchema>;
 
 export const singleUserReportBodySchema = z.object({
   userId: zUuid('userId must be a valid UUID'),
@@ -112,11 +103,7 @@ export const singleUserReportBodySchema = z.object({
   ).optional(),
   note: z.string().optional(),
 });
-export type SingleUserReportBody = z.infer<typeof singleUserReportBodySchema>;
 
 export const dailySuggestionBatchBodySchema = z.object({
   userIds: z.array(zUuid('Each userId must be a valid UUID')).optional(),
 });
-export type DailySuggestionBatchBody = z.infer<
-  typeof dailySuggestionBatchBodySchema
->;

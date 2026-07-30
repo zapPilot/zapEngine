@@ -1,6 +1,5 @@
 import { ServiceLayerException } from '../../../../src/common/exceptions';
 import {
-  type Job,
   type JobProcessingResult,
   type JobProcessor,
   JobStatus,
@@ -10,23 +9,7 @@ import {
 import { JobProcessorService } from '../../../../src/modules/jobs/job-processor.service';
 import { JobQueueService } from '../../../../src/modules/jobs/job-queue.service';
 import { AdminNotificationService } from '../../../../src/modules/notifications/admin-notification.service';
-
-function createPendingJob(overrides: Partial<Job> = {}): Job {
-  return {
-    id: 'job-1',
-    type: JobType.WEEKLY_REPORT_BATCH,
-    status: JobStatus.PENDING,
-    payload: {},
-    priority: 0,
-    maxRetries: 3,
-    retryCount: 0,
-    retryDelaySeconds: 60,
-    scheduledAt: new Date(),
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides,
-  };
-}
+import { createJobFixture as createPendingJob } from '../../../test-utils';
 
 function createMocks() {
   const jobQueueService = {

@@ -1,8 +1,4 @@
-import {
-  type Job,
-  JobStatus,
-  JobType,
-} from '../../../../../src/modules/jobs/interfaces/job.interface';
+import { JobType } from '../../../../../src/modules/jobs/interfaces/job.interface';
 import { JobQueueService } from '../../../../../src/modules/jobs/job-queue.service';
 import { WeeklyReportProcessor } from '../../../../../src/modules/jobs/processors/weekly-report.processor';
 import { AnalyticsClientService } from '../../../../../src/modules/notifications/analytics-client.service';
@@ -12,36 +8,13 @@ import { PortfolioNotFoundError } from '../../../../../src/modules/notifications
 import { ReportUnsubscribeTokenService } from '../../../../../src/modules/notifications/report-unsubscribe-token.service';
 import { SupabaseUserService } from '../../../../../src/modules/notifications/supabase-user.service';
 import { TemplateService } from '../../../../../src/modules/notifications/template.service';
-
-function createPendingJob(overrides: Partial<Job> = {}): Job {
-  return {
-    id: 'job-1',
-    type: JobType.WEEKLY_REPORT_BATCH,
-    status: JobStatus.PENDING,
-    payload: {},
-    priority: 0,
-    maxRetries: 3,
-    retryCount: 0,
-    retryDelaySeconds: 60,
-    scheduledAt: new Date(),
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides,
-  };
-}
-
-let mockChildJobCounter = 0;
+import {
+  createJobFixture as createPendingJob,
+  createMockJobQueueService,
+} from '../../../../test-utils';
 
 function createMocks() {
-  const jobQueueService = {
-    createJob: vi.fn().mockImplementation((opts: any) => ({
-      id: `child-${String(++mockChildJobCounter).padStart(4, '0')}`,
-      ...opts,
-    })),
-    logJobEvent: vi.fn(),
-    updateJobMetadata: vi.fn(),
-    updateJobStatus: vi.fn(),
-  };
+  const jobQueueService = createMockJobQueueService();
 
   const emailService = {
     validateEmailConfiguration: vi

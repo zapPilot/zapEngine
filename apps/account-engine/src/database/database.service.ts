@@ -15,10 +15,8 @@ export class DatabaseService {
   }
 
   private initializeSupabase() {
-    const supabaseUrl = this.configService.get<string>('database.supabase.url');
-    const supabaseKey = this.configService.get<string>(
-      'database.supabase.anonKey',
-    );
+    const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
+    const supabaseKey = this.configService.get<string>('SUPABASE_ANON_KEY');
 
     if (!supabaseUrl || !supabaseKey) {
       this.logger.error('Supabase URL and ANON_KEY must be provided');
@@ -47,9 +45,9 @@ export class DatabaseService {
       return this.serviceRoleClient;
     }
 
-    const supabaseUrl = this.configService.get<string>('database.supabase.url');
+    const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
     const serviceRoleKey = this.configService.get<string>(
-      'database.supabase.serviceRoleKey',
+      'SUPABASE_SERVICE_ROLE_KEY',
     );
 
     if (!supabaseUrl || !serviceRoleKey) {

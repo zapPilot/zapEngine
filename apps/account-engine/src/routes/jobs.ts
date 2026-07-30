@@ -7,11 +7,8 @@ import type { AppServices } from '../container';
 import { Job, JobType } from '../modules/jobs/interfaces/job.interface';
 import { jsonResponse, jsonValidator, paramValidator } from './shared';
 import {
-  type DailySuggestionBatchBody,
   dailySuggestionBatchBodySchema,
-  type JobIdParam,
   jobIdParamSchema,
-  type SingleUserReportBody,
   singleUserReportBodySchema,
 } from './validators';
 
@@ -39,7 +36,7 @@ export function createJobsRoutes(services: AppServices) {
     requireAdminApiKey,
     jsonValidator(singleUserReportBodySchema),
     (c) => {
-      const body = c.req.valid('json') as SingleUserReportBody;
+      const body = c.req.valid('json');
 
       if (body.testMode && !body.testRecipient) {
         return jsonResponse(
@@ -81,7 +78,7 @@ export function createJobsRoutes(services: AppServices) {
     requireAdminApiKey,
     jsonValidator(dailySuggestionBatchBodySchema),
     (c) => {
-      const body = c.req.valid('json') as DailySuggestionBatchBody;
+      const body = c.req.valid('json');
       const job = services.jobQueueService.createJob({
         type: JobType.DAILY_SUGGESTION_BATCH,
         payload: { userIds: body.userIds },
@@ -101,7 +98,7 @@ export function createJobsRoutes(services: AppServices) {
   );
 
   app.get('/:jobId', paramValidator(jobIdParamSchema), (c) => {
-    const params = c.req.valid('param') as JobIdParam;
+    const params = c.req.valid('param');
     const result = services.jobQueueService.getJobWithAggregatedStatus(
       params.jobId,
     );

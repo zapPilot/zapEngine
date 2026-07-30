@@ -39,14 +39,6 @@ function createServices(): AppServices {
       PORT: 3004,
       NODE_ENV: 'test',
       ADMIN_API_KEY: 'secret',
-      server: { port: 3004 },
-      database: {
-        supabase: {
-          url: 'http://localhost',
-          anonKey: 'anon',
-          serviceRoleKey: 'service',
-        },
-      },
     },
     activityTracker: {
       trackUserId: vi.fn(),

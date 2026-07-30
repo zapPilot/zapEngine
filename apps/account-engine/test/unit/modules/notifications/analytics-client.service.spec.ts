@@ -315,7 +315,7 @@ describe('AnalyticsClientService', () => {
     });
 
     it('falls back to default trends port when URL is invalid', () => {
-      // A non-HTTP URL passes the string check but is treated as invalid by UrlValidator
+      // A non-HTTP URL passes the string check but is rejected by URL parsing.
       expect(
         () =>
           new AnalyticsClientService(

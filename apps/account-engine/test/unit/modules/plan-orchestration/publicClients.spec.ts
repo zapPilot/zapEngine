@@ -34,10 +34,9 @@ describe('createDepositPublicClients', () => {
   it('builds clients for mainnet, base, and arbitrum keyed by chain id', () => {
     const config = makeConfig();
 
-    const factory = createDepositPublicClients(
+    const clients = createDepositPublicClients(
       config as unknown as ConfigService,
     );
-    const clients = factory();
 
     expect(
       Object.keys(clients)
@@ -90,13 +89,5 @@ describe('createDepositPublicClients', () => {
     expect(chainIds).toContain(mainnet.id);
     expect(chainIds).toContain(base.id);
     expect(chainIds).toContain(arbitrum.id);
-  });
-
-  it('returns a factory whose subsequent calls return the same client set (memoized)', () => {
-    const config = makeConfig();
-    const factory = createDepositPublicClients(
-      config as unknown as ConfigService,
-    );
-    expect(factory()).toBe(factory());
   });
 });

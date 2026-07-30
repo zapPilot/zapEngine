@@ -78,7 +78,7 @@ export function bootstrap(rawEnv: NodeJS.ProcessEnv = process.env) {
   const server = serve(
     {
       fetch: app.fetch,
-      port: services.env.server.port,
+      port: services.env.PORT,
       hostname: '0.0.0.0',
     },
     (info) => {

@@ -44,15 +44,15 @@ describe('DatabaseService', () => {
     });
 
     it('throws when Supabase URL is missing', () => {
-      expect(() =>
-        buildService({ 'database.supabase.url': undefined }),
-      ).toThrow('Missing Supabase configuration');
+      expect(() => buildService({ SUPABASE_URL: undefined })).toThrow(
+        'Missing Supabase configuration',
+      );
     });
 
     it('throws when Supabase anon key is missing', () => {
-      expect(() =>
-        buildService({ 'database.supabase.anonKey': undefined }),
-      ).toThrow('Missing Supabase configuration');
+      expect(() => buildService({ SUPABASE_ANON_KEY: undefined })).toThrow(
+        'Missing Supabase configuration',
+      );
     });
   });
 
@@ -97,7 +97,7 @@ describe('DatabaseService', () => {
 
     it('throws when service role key is missing', () => {
       const service = buildService({
-        'database.supabase.serviceRoleKey': undefined,
+        SUPABASE_SERVICE_ROLE_KEY: undefined,
       });
 
       expect(() => service.getServiceRoleClient()).toThrow(

@@ -22,8 +22,8 @@ function getRpcUrl(
 
 export function createDepositPublicClients(
   configService: Pick<ConfigService, 'get'>,
-): () => DepositPublicClients {
-  const publicClients: DepositPublicClients = {
+): DepositPublicClients {
+  return {
     [mainnet.id]: createPublicClient({
       chain: mainnet,
       transport: http(
@@ -58,6 +58,4 @@ export function createDepositPublicClients(
       ),
     }),
   };
-
-  return () => publicClients;
 }

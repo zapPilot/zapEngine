@@ -197,8 +197,6 @@ export class WeeklyReportProcessor implements JobProcessor {
     };
 
     try {
-      // Re-check at child execution time so an unsubscribe or email removal
-      // after batch fan-out cannot send using stale parent-job data.
       const userWithWallets =
         await this.supabaseUserService.getReportRecipientWithWallets(
           payload.userId,

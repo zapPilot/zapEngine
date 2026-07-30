@@ -46,16 +46,6 @@ export type RawEnv = z.infer<typeof envSchema>;
 
 export interface AppEnv extends Omit<RawEnv, 'PORT'> {
   readonly PORT: number;
-  readonly server: {
-    readonly port: number;
-  };
-  readonly database: {
-    readonly supabase: {
-      readonly url: string;
-      readonly anonKey: string;
-      readonly serviceRoleKey: string;
-    };
-  };
 }
 
 export function loadEnv(raw: NodeJS.ProcessEnv = process.env): AppEnv {
@@ -76,15 +66,5 @@ export function loadEnv(raw: NodeJS.ProcessEnv = process.env): AppEnv {
   return {
     ...env,
     PORT: port,
-    server: {
-      port,
-    },
-    database: {
-      supabase: {
-        url: env.SUPABASE_URL,
-        anonKey: env.SUPABASE_ANON_KEY,
-        serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
-      },
-    },
   };
 }

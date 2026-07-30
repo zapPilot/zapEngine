@@ -31,10 +31,11 @@ async function handlePrivyCall<
   T extends PrivyPrepareSendCallsRequest | PrivyConfirmSendCallsRequest,
 >(
   c: Context,
+  request: T,
   serviceCall: (request: T, accessToken: string) => Promise<unknown>,
 ) {
   const accessToken = requireBearerToken(c.req.header('authorization'));
-  const response = await serviceCall(c.req.valid('json' as never), accessToken);
+  const response = await serviceCall(request, accessToken);
   return c.json(response, { status: 200 });
 }
 
@@ -47,14 +48,24 @@ export function createWalletExecutionRoutes(
     '/privy/prepare-send-calls',
     requireAuth(),
     jsonValidator(PrivyPrepareSendCallsRequestSchema),
-    (c) => handlePrivyCall(c, service.prepareSendCalls.bind(service)),
+    (c) =>
+      handlePrivyCall(
+        c,
+        c.req.valid('json'),
+        service.prepareSendCalls.bind(service),
+      ),
   );
 
   app.post(
     '/privy/confirm-send-calls',
     requireAuth(),
     jsonValidator(PrivyConfirmSendCallsRequestSchema),
-    (c) => handlePrivyCall(c, service.confirmSendCalls.bind(service)),
+    (c) =>
+      handlePrivyCall(
+        c,
+        c.req.valid('json'),
+        service.confirmSendCalls.bind(service),
+      ),
   );
 
   return app;
