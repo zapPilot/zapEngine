@@ -1,9 +1,16 @@
+// Each entry already carries the `/ipfs` path segment — a CID is appended
+// directly. `.env.example` documents the override vars in the same shape, so do
+// not strip the suffix here without migrating those values first.
 export const IPFS_GATEWAYS = [
   process.env['NEXT_PUBLIC_IPFS_GATEWAY'] ?? 'https://ipfs.io/ipfs',
   process.env['NEXT_PUBLIC_IPFS_GATEWAY_FALLBACK'] ??
     'https://cloudflare-ipfs.com/ipfs',
   'https://dweb.link/ipfs',
 ] as const;
+
+export function ipfsGatewayUrl(gateway: string, cid: string): string {
+  return `${gateway.replace(/\/$/, '')}/${cid}`;
+}
 
 export const DEFAULT_HISTORY_LIMIT = 90;
 

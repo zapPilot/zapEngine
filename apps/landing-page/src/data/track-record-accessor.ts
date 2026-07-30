@@ -1,11 +1,6 @@
-import type {
-  DailySnapshot,
-  RebalanceLog,
-  TrackRecordMeta,
-} from '@zapengine/types/strategy';
+import type { DailySnapshot, TrackRecordMeta } from '@zapengine/types/strategy';
 import {
   DailySnapshotSchema,
-  RebalanceLogSchema,
   TrackRecordMetaSchema,
 } from '@zapengine/types/strategy';
 import {
@@ -15,7 +10,11 @@ import {
   recoverMessageAddress,
   toBytes,
 } from 'viem';
-import { DEFAULT_HISTORY_LIMIT, IPFS_GATEWAYS } from '@/config/track-record';
+import {
+  DEFAULT_HISTORY_LIMIT,
+  IPFS_GATEWAYS,
+  ipfsGatewayUrl,
+} from '@/config/track-record';
 
 const GATEWAY_TIMEOUT_MS = 8_000;
 
@@ -42,7 +41,7 @@ async function fetchFromIpfs(
 
   try {
     for (const gateway of gateways) {
-      const url = `${gateway.replace(/\/$/, '')}/${cid}`;
+      const url = ipfsGatewayUrl(gateway, cid);
       try {
         const data = await fetchFromGateway(url, controller.signal);
         return data;
@@ -75,32 +74,6 @@ async function fetchLatestSnapshot(
   return DailySnapshotSchema.parse(raw);
 }
 
-async function fetchSnapshotHistory(
-  entryCid: string,
-  limit = DEFAULT_HISTORY_LIMIT,
-): Promise<DailySnapshot[]> {
-  const snapshots: DailySnapshot[] = [];
-  let currentCid: string | null = entryCid;
-  const visited = new Set<string>();
-
-  while (currentCid && snapshots.length < limit) {
-    if (visited.has(currentCid)) break;
-    visited.add(currentCid);
-
-    const raw = await fetchFromIpfs(currentCid);
-    const snapshot = DailySnapshotSchema.parse(raw);
-    snapshots.unshift(snapshot);
-    currentCid = snapshot.previousCid ?? null;
-  }
-
-  return snapshots;
-}
-
-async function fetchRebalanceLog(cid: string): Promise<RebalanceLog> {
-  const raw = await fetchFromIpfs(cid);
-  return RebalanceLogSchema.parse(raw);
-}
-
 export interface PerformanceSummary {
   totalDays: number;
   startDate: string;
@@ -119,8 +92,6 @@ export interface PerformanceSummary {
   worstDay: string;
   worstDayDate: string;
   timeUnderwater: string;
-  bestMonth: string;
-  bestMonthDate: string;
 }
 
 function computeDailyReturns(snapshots: DailySnapshot[]): number[] {
@@ -176,8 +147,6 @@ function computePerformanceSummary(
       worstDay: '0.00%',
       worstDayDate: '',
       timeUnderwater: '0 days',
-      bestMonth: '0.00%',
-      bestMonthDate: '',
     };
   }
 
@@ -266,8 +235,6 @@ function computePerformanceSummary(
     worstDay: formatPercentSigned(worstDay),
     worstDayDate,
     timeUnderwater: `${underwaterDays} days`,
-    bestMonth: '0.00%',
-    bestMonthDate: '',
   };
 }
 
@@ -659,9 +626,7 @@ async function verifySignature(
 export {
   fetchMeta,
   fetchLatestSnapshot,
-  fetchSnapshotHistory,
   fetchSnapshotHistoryEntries,
-  fetchRebalanceLog,
   computePerformanceSummary,
   verifyCidChain,
   verifyPerformanceMetrics,

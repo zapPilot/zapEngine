@@ -4,6 +4,7 @@ import { useTrackRecord } from '@/hooks/useTrackRecord';
 import { RebalanceTable } from '@/components/track-record/RebalanceTable';
 import { TrackRecordLoading } from '@/components/track-record/TrackRecordLoading';
 import { hasRebalance } from '@/components/track-record/rebalance';
+import { IPFS_GATEWAYS, ipfsGatewayUrl } from '@/config/track-record';
 
 export default function RebalancesPage() {
   const state = useTrackRecord();
@@ -35,7 +36,7 @@ export default function RebalancesPage() {
               (s.rebalanceLogCids ?? []).map((cid) => (
                 <li key={cid}>
                   <a
-                    href={`https://ipfs.io/ipfs/${cid}`}
+                    href={ipfsGatewayUrl(IPFS_GATEWAYS[0], cid)}
                     target="_blank"
                     rel="noopener noreferrer"
                   >

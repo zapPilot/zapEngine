@@ -1,6 +1,6 @@
 import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import type { TrackRecordState } from '@/hooks/useTrackRecord';
-import { IPFS_GATEWAYS } from '@/config/track-record';
+import { IPFS_GATEWAYS, ipfsGatewayUrl } from '@/config/track-record';
 
 interface VerificationPanelProps {
   state: TrackRecordState;
@@ -127,11 +127,14 @@ export function VerificationPanel({
               {IPFS_GATEWAYS.map((gw) => (
                 <div className="verification-item" key={gw}>
                   <a
-                    href={`${gw}/${meta!.latestSnapshotCid}`}
+                    href={ipfsGatewayUrl(gw, meta!.latestSnapshotCid)}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    {gw}/ipfs/{meta!.latestSnapshotCid.slice(0, 16)}…
+                    {ipfsGatewayUrl(
+                      gw,
+                      `${meta!.latestSnapshotCid.slice(0, 16)}…`,
+                    )}
                   </a>
                 </div>
               ))}
