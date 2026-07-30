@@ -9,7 +9,7 @@ for base analytics infrastructure used by all analytics services.
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -25,20 +25,6 @@ def mock_cache():
     cache = MagicMock()
     cache.get.return_value = None  # Default: cache miss
     return cache
-
-
-@pytest.fixture
-def mock_db_session():
-    """Mock async SQLAlchemy session."""
-    return AsyncMock()
-
-
-@pytest.fixture
-def mock_query_service():
-    """Mock QueryService for database operations."""
-    service = MagicMock()
-    service.execute_query.return_value = []
-    return service
 
 
 @pytest.fixture

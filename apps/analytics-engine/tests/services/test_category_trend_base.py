@@ -17,18 +17,6 @@ from src.services.shared.query_names import QUERY_NAMES
 
 
 @pytest.fixture
-def mock_db():
-    """Mock database session."""
-    return MagicMock()
-
-
-@pytest.fixture
-def mock_query_service():
-    """Mock QueryService."""
-    return MagicMock()
-
-
-@pytest.fixture
 def category_trend_service(mock_db, mock_query_service):
     """Create TrendAnalysisService instance with mocked dependencies."""
     return TrendAnalysisService(db=mock_db, query_service=mock_query_service)

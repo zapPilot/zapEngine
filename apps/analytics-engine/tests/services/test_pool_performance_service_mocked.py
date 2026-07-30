@@ -7,20 +7,9 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.orm import Session
 
 from src.core.exceptions import DatabaseError, ValidationError
 from src.services.portfolio.pool_performance_service import PoolPerformanceService
-
-
-@pytest.fixture
-def mock_db() -> MagicMock:
-    return MagicMock(spec=Session)
-
-
-@pytest.fixture
-def mock_query_service() -> MagicMock:
-    return MagicMock()
 
 
 @pytest.fixture

@@ -43,19 +43,9 @@ class TestROIPeriodCalculations:
     """Test ROI calculations across different periods."""
 
     @pytest.fixture
-    def mock_query_service(self):
-        """Provide mock query service."""
-        return Mock()
-
-    @pytest.fixture
     def roi_calculator(self, mock_query_service):
         """Provide ROICalculator instance with mocked dependencies."""
         return ROICalculator(query_service=mock_query_service)
-
-    @pytest.fixture
-    def mock_db_session(self):
-        """Provide mock database session."""
-        return Mock()
 
     @pytest.mark.parametrize(
         "period_key,expected_days",
@@ -407,11 +397,6 @@ class TestROICalculatorPrivateMethods:
     """Test private helper methods of ROICalculator."""
 
     @pytest.fixture
-    def mock_query_service(self):
-        """Provide mock query service."""
-        return Mock()
-
-    @pytest.fixture
     def roi_calculator(self, mock_query_service):
         """Provide ROICalculator instance."""
         return ROICalculator(query_service=mock_query_service)
@@ -486,19 +471,9 @@ class TestROICalculatorEdgeCases:
     """Test edge cases and error handling."""
 
     @pytest.fixture
-    def mock_query_service(self):
-        """Provide mock query service."""
-        return Mock()
-
-    @pytest.fixture
     def roi_calculator(self, mock_query_service):
         """Provide ROICalculator instance."""
         return ROICalculator(query_service=mock_query_service)
-
-    @pytest.fixture
-    def mock_db_session(self):
-        """Provide mock database session."""
-        return Mock()
 
     def test_missing_date_fields_in_data(
         self, roi_calculator, mock_query_service, mock_db_session

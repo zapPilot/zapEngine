@@ -13,11 +13,6 @@ from src.services.market.sentiment_database_service import (
 from src.services.shared.query_names import QUERY_NAMES
 
 
-@pytest.fixture
-def mock_db():
-    return MagicMock()
-
-
 def test_init_default_query_service(mock_db):
     """Test initialization uses default query service if not provided."""
     with patch("src.services.dependencies.get_query_service") as mock_get_qs:

@@ -1,21 +1,10 @@
 from datetime import date
-from unittest.mock import MagicMock, Mock
 from uuid import uuid4
 
 import pytest
 
 from src.services.portfolio.canonical_snapshot_service import CanonicalSnapshotService
 from src.services.shared.query_names import QUERY_NAMES
-
-
-@pytest.fixture
-def mock_db():
-    return MagicMock()
-
-
-@pytest.fixture
-def mock_query_service():
-    return Mock()
 
 
 @pytest.fixture

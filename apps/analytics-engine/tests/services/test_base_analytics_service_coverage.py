@@ -1,22 +1,11 @@
 """Supplemental tests for BaseAnalyticsService coverage."""
 
 from datetime import timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from src.services.shared.base_analytics_service import BaseAnalyticsService
-
-
-@pytest.fixture
-def mock_db():
-    return MagicMock()
-
-
-@pytest.fixture
-def mock_query_service():
-    service = MagicMock()
-    return service
 
 
 @pytest.fixture

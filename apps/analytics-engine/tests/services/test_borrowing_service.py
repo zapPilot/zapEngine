@@ -24,18 +24,6 @@ def user_id() -> UUID:
 
 
 @pytest.fixture
-def mock_query_service():
-    """Mock query service."""
-    return MagicMock()
-
-
-@pytest.fixture
-def mock_db():
-    """Mock database session."""
-    return MagicMock()
-
-
-@pytest.fixture
 def mock_canonical_snapshot_service():
     """Mock canonical snapshot service."""
     service = MagicMock()

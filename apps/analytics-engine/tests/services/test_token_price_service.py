@@ -9,24 +9,10 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy.orm import Session
 
 from src.models.token_price import TokenPriceSnapshot
 from src.services.market.token_price_service import TokenPriceService
 from src.services.shared.query_names import QUERY_NAMES
-from src.services.shared.query_service import QueryService
-
-
-@pytest.fixture
-def mock_db_session() -> MagicMock:
-    """Provides a mock SQLAlchemy session."""
-    return MagicMock(spec=Session)
-
-
-@pytest.fixture
-def mock_query_service() -> MagicMock:
-    """Provides a mock QueryService."""
-    return MagicMock(spec=QueryService)
 
 
 @pytest.fixture

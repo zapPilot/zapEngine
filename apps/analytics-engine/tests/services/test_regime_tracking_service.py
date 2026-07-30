@@ -84,10 +84,6 @@ class TestGetRegimeHistory:
     """Test get_regime_history() with database mocking."""
 
     @pytest.fixture
-    def mock_query_service(self):
-        return MagicMock(spec=QueryService)
-
-    @pytest.fixture
     def service(self, mock_query_service):
         """Create service instance with mocked database."""
         mock_db = MagicMock()
