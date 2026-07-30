@@ -23,6 +23,8 @@ export interface VisualAssetScene {
 }
 
 export type VisualImageProvider = 'article' | ImageSearchProvider['origin'];
+export type VisualSelectionMode = 'strict' | 'resilient';
+export type VisualReuseKind = 'non-consecutive' | 'consecutive';
 
 const PROVIDER_LICENSES = {
   article: 'unknown',
@@ -66,6 +68,9 @@ export interface VisualAssetProgress {
   rejectedCandidateCount?: number;
   rejectionSummary?: string;
   provider?: VisualImageProvider | 'reuse';
+  assetId?: string;
+  sourceHostname?: string;
+  reuseKind?: VisualReuseKind;
   elapsedMs: number;
 }
 
@@ -79,6 +84,7 @@ export interface PlanVisualAssetsInput {
   scenes: readonly VisualAssetScene[];
   articleImages?: readonly ImageCandidate[];
   workingDirectory: string;
+  selectionMode?: VisualSelectionMode;
   signal?: AbortSignal;
   onProgress?: (event: VisualAssetProgress) => void;
   dependencies?: Partial<VisualAssetPlannerDependencies>;
@@ -86,6 +92,7 @@ export interface PlanVisualAssetsInput {
 
 interface VisualAssetPlannerState {
   input: PlanVisualAssetsInput;
+  mode: VisualSelectionMode;
   dependencies: VisualAssetPlannerDependencies;
   articleImages: ImageCandidate[];
   articleCursor: number;
@@ -98,11 +105,17 @@ interface SelectedVisualImage {
   asset: PlannedVisualImage;
   provider: VisualAssetProgress['provider'];
   rejections: CandidateRejections;
+  reuseKind?: VisualReuseKind;
 }
 
 interface SearchedVisualImage {
   asset: PlannedVisualImage | null;
   failures: Error[];
+}
+
+interface CandidateRejections {
+  total: number;
+  causes: Map<string, number>;
 }
 
 function resolvePlannerDependencies(
@@ -118,11 +131,6 @@ function resolvePlannerDependencies(
   };
 }
 
-interface CandidateRejections {
-  total: number;
-  causes: Map<string, number>;
-}
-
 export async function planVisualAssets(
   input: PlanVisualAssetsInput,
 ): Promise<VisualAssetPlan> {
@@ -132,6 +140,7 @@ export async function planVisualAssets(
 
   const state: VisualAssetPlannerState = {
     input,
+    mode: input.selectionMode ?? 'strict',
     dependencies: resolvePlannerDependencies(input.dependencies),
     articleImages: viableCandidates(input.articleImages ?? [], [
       'openGraph',
@@ -150,11 +159,7 @@ export async function planVisualAssets(
     const selected = await selectImageForScene(state, scene, sceneIndex);
 
     if (!selected) {
-      throw new Error(
-        state.assets.length === 0
-          ? `Visual scene ${scene.sceneId} has no usable image`
-          : `Visual scene ${scene.sceneId} cannot reuse the immediately preceding image`,
-      );
+      throw new Error(`Visual scene ${scene.sceneId} has no usable image`);
     }
 
     state.scenes.push({
@@ -167,6 +172,10 @@ export async function planVisualAssets(
       sceneIndex: sceneIndex + 1,
       sceneCount: input.scenes.length,
       provider: selected.provider,
+      assetId: selected.asset.assetId,
+      sourceHostname:
+        candidateHostname(selected.asset.sourcePageUrl) ?? undefined,
+      ...(selected.reuseKind ? { reuseKind: selected.reuseKind } : {}),
       ...(selected.rejections.total > 0
         ? {
             rejectedCandidateCount: selected.rejections.total,
@@ -204,20 +213,66 @@ async function selectImageForScene(
       rejections,
     };
   }
-  if (searched.failures.length > 0) {
+
+  // Strict mode keeps provider failures loud so callers can diagnose a broken
+  // search integration. Production uses resilient mode and may reuse an
+  // existing image instead of dropping the entire video.
+  if (state.mode === 'strict' && searched.failures.length > 0) {
     throw visualSearchFailure(scene.sceneId, searched.failures, rejections);
   }
 
   const previousAssetId = state.scenes.at(-1)?.assetId;
-  const reusable =
+  const previousAsset = previousAssetId
+    ? (state.assets.find((asset) => asset.assetId === previousAssetId) ?? null)
+    : null;
+  const nonConsecutiveReusable =
     [...state.assets]
       .reverse()
       .find((asset) => asset.assetId !== previousAssetId) ?? null;
-  if (reusable) return { asset: reusable, provider: 'reuse', rejections };
+
+  if (nonConsecutiveReusable) {
+    if (state.mode === 'resilient') {
+      recordSearchFailures(rejections, searched.failures);
+    }
+    return {
+      asset: nonConsecutiveReusable,
+      provider: 'reuse',
+      reuseKind: 'non-consecutive',
+      rejections,
+    };
+  }
+
+  if (state.mode === 'resilient' && previousAsset) {
+    recordSearchFailures(rejections, searched.failures);
+    return {
+      asset: previousAsset,
+      provider: 'reuse',
+      reuseKind: 'consecutive',
+      rejections,
+    };
+  }
+
+  if (searched.failures.length > 0) {
+    throw visualSearchFailure(scene.sceneId, searched.failures, rejections);
+  }
   if (rejections.total > 0) {
     throw candidateExhaustionFailure(scene.sceneId, rejections);
   }
+  if (previousAsset) {
+    throw new Error(
+      `Visual scene ${scene.sceneId} cannot reuse the immediately preceding image`,
+    );
+  }
   return null;
+}
+
+function recordSearchFailures(
+  rejections: CandidateRejections,
+  failures: readonly Error[],
+): void {
+  for (const _failure of failures) {
+    recordCandidateRejection(rejections, 'search-provider-failure');
+  }
 }
 
 async function acquireNextArticleImage(
@@ -249,10 +304,14 @@ async function acquireSearchedImage(
   rejections: CandidateRejections,
 ): Promise<SearchedVisualImage> {
   const failures: Error[] = [];
-  // Providers are ordered license-clean first; each provider exhausts every
-  // search intent before the chain falls through to the next provider.
-  for (const searchProvider of state.dependencies.searchProviders) {
-    for (const intent of scene.imageSearchIntent) {
+  const providers = orderedSearchProviders(
+    state.dependencies.searchProviders,
+    state.mode,
+  );
+  const intents = searchIntentsForScene(scene, state.mode);
+
+  for (const searchProvider of providers) {
+    for (const intent of intents) {
       state.input.signal?.throwIfAborted();
       const searchStartedAt = Date.now();
       const searched = await searchProvider
@@ -310,6 +369,65 @@ async function acquireSearchedImage(
     }
   }
   return { asset: null, failures };
+}
+
+function orderedSearchProviders(
+  providers: readonly ImageSearchProvider[],
+  mode: VisualSelectionMode,
+): ImageSearchProvider[] {
+  if (mode === 'strict') return [...providers];
+
+  const priority: Record<ImageSearchProvider['origin'], number> = {
+    bing: 0,
+    pexels: 1,
+    pixabay: 2,
+  };
+  return providers
+    .map((provider, index) => ({ provider, index }))
+    .sort(
+      (left, right) =>
+        priority[left.provider.origin] - priority[right.provider.origin] ||
+        left.index - right.index,
+    )
+    .map(({ provider }) => provider);
+}
+
+function searchIntentsForScene(
+  scene: VisualAssetScene,
+  mode: VisualSelectionMode,
+): string[] {
+  const original = [
+    ...new Set(
+      scene.imageSearchIntent
+        .map((intent) => intent.trim())
+        .filter((intent) => intent.length > 0),
+    ),
+  ];
+  if (mode === 'strict') return original;
+
+  const relaxed = original
+    .map(relaxedSearchIntent)
+    .filter((intent): intent is string => intent !== null)
+    .filter((intent) => !original.includes(intent));
+  return [...original, ...new Set(relaxed)];
+}
+
+const RELAXED_SEARCH_NOISE_WORDS = new Set([
+  'developers',
+  'engineers',
+  'founders',
+  'people',
+  'team',
+  'teams',
+  'traders',
+]);
+
+function relaxedSearchIntent(intent: string): string | null {
+  const topicTokens = normalizedSearchTokens(intent)
+    .filter((token) => !RELAXED_SEARCH_NOISE_WORDS.has(token))
+    .slice(0, 4);
+  if (topicTokens.length === 0) return null;
+  return `${topicTokens.join(' ')} official event photo`;
 }
 
 function reportSearchProgress(
@@ -585,6 +703,59 @@ const COVER_SOURCE_PENALTY_TERMS = [
   'youtube.com',
 ] as const;
 
+const GENERIC_STOCK_PENALTY_TERMS = [
+  'business people',
+  'business team',
+  'collaborating in office',
+  'coworkers',
+  'futuristic interface',
+  'glowing screen',
+  'handshake',
+  'hologram',
+  'looking at laptop',
+  'people working in office',
+  'smiling team',
+  'team meeting',
+  'teamwork',
+] as const;
+
+const SYNTHETIC_IMAGE_TERMS = [
+  '3d illustration',
+  '3d render',
+  'ai generated',
+  'ai-generated',
+  'concept art',
+  'dall-e',
+  'dalle',
+  'digital art',
+  'generated by ai',
+  'generative artwork',
+  'midjourney',
+  'stable diffusion',
+  'synthetic image',
+] as const;
+
+const EDITORIAL_OR_OFFICIAL_SOURCE_TERMS = [
+  '.gov',
+  '.int',
+  'apnews.com',
+  'bbc.com',
+  'bloomberg.com',
+  'cnbc.com',
+  'coindesk.com',
+  'cointelegraph.com',
+  'ecb.europa.eu',
+  'ethereum.org',
+  'federalreserve.gov',
+  'ft.com',
+  'reuters.com',
+  'sec.gov',
+  'theblock.co',
+  'theguardian.com',
+  'whitehouse.gov',
+  'wsj.com',
+] as const;
+
 const STOCK_PREVIEW_TERMS = [
   '123rf',
   'adobestock',
@@ -637,25 +808,21 @@ function rankSearchCandidates(
   existingAssets: readonly PlannedVisualImage[],
 ): ImageCandidate[] {
   const queryTokens = normalizedSearchTokens(intent);
-  return (
-    candidates
-      // Curated stock APIs already matched the query semantically; the overlap
-      // recheck only guards the noisy Bing HTML scrape.
-      .filter(
-        (candidate) =>
-          candidate.origin !== 'bing' ||
-          hasSemanticSearchOverlap(candidate, queryTokens),
-      )
-      .map((candidate, index) => ({
-        candidate,
-        index,
-        score: searchCandidateScore(candidate, intent, existingAssets),
-      }))
-      .sort(
-        (left, right) => right.score - left.score || left.index - right.index,
-      )
-      .map(({ candidate }) => candidate)
-  );
+  return candidates
+    .filter(
+      (candidate) =>
+        candidate.origin !== 'bing' ||
+        hasSemanticSearchOverlap(candidate, queryTokens),
+    )
+    .map((candidate, index) => ({
+      candidate,
+      index,
+      score: searchCandidateScore(candidate, intent, existingAssets),
+    }))
+    .sort(
+      (left, right) => right.score - left.score || left.index - right.index,
+    )
+    .map(({ candidate }) => candidate);
 }
 
 function hasSemanticSearchOverlap(
@@ -672,8 +839,6 @@ function candidateDimensionScore(candidate: ImageCandidate): number {
   let score = 0;
   if (Math.max(candidate.width, candidate.height) >= 1920) score += 3;
   const aspectRatio = candidate.width / candidate.height;
-  // The 1080x960 media window (aspect 1.125) crops squarish sources least;
-  // strongly portrait sources lose most of their content to the cover crop.
   if (aspectRatio >= 0.9 && aspectRatio <= 1.6) score += 3;
   else if (aspectRatio > 1.6 && aspectRatio <= 2.0) score += 1;
   if (aspectRatio < 0.75) score -= 4;
@@ -722,9 +887,16 @@ function searchCandidateScore(
     score -= 12;
   }
   if (includesAny(corpus, COVER_SOURCE_PENALTY_TERMS)) score -= 12;
+  if (includesAny(corpus, GENERIC_STOCK_PENALTY_TERMS)) score -= 16;
 
   const sourceHostname = candidateHostname(candidate.sourceUrl);
   if (sourceHostname) {
+    if (
+      candidate.origin === 'bing' &&
+      includesAny(sourceHostname, EDITORIAL_OR_OFFICIAL_SOURCE_TERMS)
+    ) {
+      score += 18;
+    }
     const priorUses = existingAssets.filter(
       (asset) => candidateHostname(asset.sourcePageUrl) === sourceHostname,
     ).length;
@@ -785,8 +957,7 @@ function includesAny(value: string, terms: readonly string[]): boolean {
 }
 
 function looksDecorative(candidate: ImageCandidate): boolean {
-  const value =
-    `${candidate.imageUrl} ${candidate.sourceUrl} ${candidate.altText ?? ''}`.toLowerCase();
+  const value = normalizedSearchCandidateCorpus(candidate);
   if (
     /(?:^|[./_\-\s])(avatar|emoji|emoticon|favicon|icon|logo|profile|sprite|sticker|thumb|thumbnail|wechat|weibo)(?:[./_\-\s]|$)/i.test(
       value,
@@ -794,10 +965,24 @@ function looksDecorative(candidate: ImageCandidate): boolean {
   ) {
     return true;
   }
+  if (
+    isSearchCandidate(candidate) &&
+    includesAny(value, SYNTHETIC_IMAGE_TERMS)
+  ) {
+    return true;
+  }
   if (includesAny(value, STOCK_PREVIEW_TERMS)) return true;
   if (includesAny(value, TEXT_CARD_PUBLISHER_TERMS)) return true;
   return (
     candidate.origin === 'bing' && looksLikeTextHeavySearchResult(candidate)
+  );
+}
+
+function isSearchCandidate(candidate: ImageCandidate): boolean {
+  return (
+    candidate.origin === 'bing' ||
+    candidate.origin === 'pexels' ||
+    candidate.origin === 'pixabay'
   );
 }
 
