@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { PodcastEpisode } from '@/integration/podcastFeed';
 import {
   clampPodcastPlaybackSeconds,
   createPodcastPlayerSnapshot,
@@ -10,26 +9,13 @@ import {
   hasPreviousPodcastEpisode,
   isSamePodcastEpisode,
 } from '@/integration/podcastPlayerShared';
+import { createPodcastEpisodeFactory } from './support/podcastEpisode';
 
-function makeEpisode(overrides: Partial<PodcastEpisode> = {}): PodcastEpisode {
-  return {
-    id: 'article-1',
-    localizationId: 'loc-zh-1',
-    title: 'Episode',
-    languageCode: 'zh-Hant',
-    hlsUrl: 'https://example.com/audio.m3u8',
-    createdAt: '2026-07-20T00:00:00.000Z',
-    listened: false,
-    likeCount: 0,
-    script: null,
-    video: null,
-    videoGeneration: null,
-    audioTracks: [],
-    languageClassrooms: [],
-    lastPositionSeconds: 0,
-    ...overrides,
-  };
-}
+const makeEpisode = createPodcastEpisodeFactory({
+  id: 'article-1',
+  localizationId: 'loc-zh-1',
+  createdAt: '2026-07-20T00:00:00.000Z',
+});
 
 describe('podcast episode playback identity', () => {
   it('uses localizationId rather than the article id', () => {

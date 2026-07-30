@@ -10,6 +10,7 @@ import {
   speedForSection,
   withSectionSpeed,
 } from '@/integration/podcastSections';
+import { createPodcastEpisodeFactory } from './support/podcastEpisode';
 
 function track(overrides: Partial<PodcastAudioTrack> = {}): PodcastAudioTrack {
   return {
@@ -21,18 +22,10 @@ function track(overrides: Partial<PodcastAudioTrack> = {}): PodcastAudioTrack {
   };
 }
 
-function episode(overrides: {
-  hlsUrl?: string;
-  languageCode?: string;
-  audioTracks?: PodcastAudioTrack[];
-}) {
-  return {
-    hlsUrl: 'https://cdn.example.com/main/playlist.m3u8',
-    languageCode: 'zh-Hant',
-    audioTracks: [track()],
-    ...overrides,
-  };
-}
+const episode = createPodcastEpisodeFactory({
+  hlsUrl: 'https://cdn.example.com/main/playlist.m3u8',
+  audioTracks: [track()],
+});
 
 describe('buildPlaybackSections', () => {
   it('includes a classroom section whenever a classroom URL is present (invariant)', () => {

@@ -1,62 +1,55 @@
 import { describe, expect, it } from 'vitest';
 
-import { selectPodcastLists } from '@/components/podcast/episodeListSelection';
-import type { PodcastEpisode } from '@/integration/podcastFeed';
-
-function makeEpisode(
-  id: string,
-  createdAt: string,
-  languageCode: string,
-  listened: boolean,
-): PodcastEpisode {
-  return {
-    id,
-    localizationId: `loc-${id}`,
-    title: id,
-    languageCode,
-    hlsUrl: 'https://example.com/a.m3u8',
-    createdAt,
-    listened,
-    likeCount: 0,
-    script: null,
-    video: null,
-    videoGeneration: null,
-    audioTracks: [],
-    languageClassrooms: [],
-    lastPositionSeconds: 0,
-  };
-}
+import {
+  selectPlayUnheardTarget,
+  selectPodcastLists,
+} from '@/components/podcast/episodeListSelection';
+import { createPodcastEpisode } from './support/podcastEpisode';
 
 describe('selectPodcastLists', () => {
   const byLanguage = {
     'zh-Hant': [
-      makeEpisode(
-        'zh-old-unheard',
-        '2026-07-01T00:00:00.000Z',
-        'zh-Hant',
-        false,
-      ),
-      makeEpisode(
-        'zh-new-unheard',
-        '2026-07-10T00:00:00.000Z',
-        'zh-Hant',
-        false,
-      ),
-      makeEpisode(
-        'zh-old-listened',
-        '2026-07-02T00:00:00.000Z',
-        'zh-Hant',
-        true,
-      ),
-      makeEpisode(
-        'zh-new-listened',
-        '2026-07-12T00:00:00.000Z',
-        'zh-Hant',
-        true,
-      ),
+      createPodcastEpisode({
+        id: 'zh-old-unheard',
+        createdAt: '2026-07-01T00:00:00.000Z',
+        languageCode: 'zh-Hant',
+        listened: false,
+      }),
+      createPodcastEpisode({
+        id: 'zh-new-unheard',
+        createdAt: '2026-07-10T00:00:00.000Z',
+        languageCode: 'zh-Hant',
+        listened: false,
+      }),
+      createPodcastEpisode({
+        id: 'zh-old-listened',
+        createdAt: '2026-07-02T00:00:00.000Z',
+        languageCode: 'zh-Hant',
+        listened: true,
+      }),
+      createPodcastEpisode({
+        id: 'zh-new-listened',
+        createdAt: '2026-07-12T00:00:00.000Z',
+        languageCode: 'zh-Hant',
+        listened: true,
+      }),
     ],
-    en: [makeEpisode('en-unheard', '2026-07-15T00:00:00.000Z', 'en', false)],
-    ja: [makeEpisode('ja-listened', '2026-07-05T00:00:00.000Z', 'ja', true)],
+    en: [
+      createPodcastEpisode({
+        id: 'en-unheard',
+        createdAt: '2026-07-15T00:00:00.000Z',
+        languageCode: 'en',
+        listened: false,
+      }),
+    ],
+    ja: [
+      createPodcastEpisode({
+        id: 'ja-listened',
+        createdAt: '2026-07-05T00:00:00.000Z',
+        languageCode: 'ja',
+        listened: true,
+      }),
+    ],
   };
 
   it('returns only the selected language episodes in both sections', () => {
@@ -97,5 +90,76 @@ describe('selectPodcastLists', () => {
     const result = selectPodcastLists(byLanguage, 'fr', 'newest');
     expect(result.unheard).toEqual([]);
     expect(result.listened).toEqual([]);
+  });
+});
+
+describe('selectPlayUnheardTarget', () => {
+  it('returns an empty selection for an empty feed', () => {
+    expect(selectPlayUnheardTarget([], 'newest')).toEqual({
+      mode: 'empty',
+      target: null,
+      queue: [],
+    });
+  });
+
+  it('prioritises in-progress episodes before sorted unplayed episodes', () => {
+    const inProgress = createPodcastEpisode({
+      id: 'in-progress',
+      createdAt: '2026-07-01T00:00:00.000Z',
+      languageCode: 'zh-Hant',
+      listened: false,
+      lastPositionSeconds: 20,
+    });
+    const newerUnplayed = createPodcastEpisode({
+      id: 'newer-unplayed',
+      createdAt: '2026-07-12T00:00:00.000Z',
+      languageCode: 'zh-Hant',
+      listened: false,
+    });
+    const olderUnplayed = createPodcastEpisode({
+      id: 'older-unplayed',
+      createdAt: '2026-07-02T00:00:00.000Z',
+      languageCode: 'zh-Hant',
+      listened: false,
+    });
+
+    const result = selectPlayUnheardTarget(
+      [newerUnplayed, inProgress, olderUnplayed],
+      'oldest',
+    );
+
+    expect(result.mode).toBe('inProgress');
+    expect(result.target?.id).toBe('in-progress');
+    expect(result.queue.map((episode) => episode.id)).toEqual([
+      'in-progress',
+      'older-unplayed',
+      'newer-unplayed',
+    ]);
+  });
+
+  it('sorts the completed replay queue in the requested direction', () => {
+    const older = createPodcastEpisode({
+      id: 'older',
+      createdAt: '2026-07-01T00:00:00.000Z',
+      languageCode: 'zh-Hant',
+      listened: true,
+    });
+    const newer = createPodcastEpisode({
+      id: 'newer',
+      createdAt: '2026-07-12T00:00:00.000Z',
+      languageCode: 'zh-Hant',
+      listened: true,
+    });
+
+    expect(
+      selectPlayUnheardTarget([older, newer], 'newest').queue.map(
+        (episode) => episode.id,
+      ),
+    ).toEqual(['newer', 'older']);
+    expect(
+      selectPlayUnheardTarget([older, newer], 'oldest').queue.map(
+        (episode) => episode.id,
+      ),
+    ).toEqual(['older', 'newer']);
   });
 });

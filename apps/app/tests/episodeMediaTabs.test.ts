@@ -6,10 +6,8 @@ import {
   resolveActiveEpisodeMediaTab,
   type EpisodeMediaTab,
 } from '@/integration/episodeMediaTabs';
-import type {
-  PodcastAudioTrack,
-  PodcastEpisode,
-} from '@/integration/podcastFeed';
+import type { PodcastAudioTrack } from '@/integration/podcastFeed';
+import { createPodcastEpisodeFactory } from './support/podcastEpisode';
 
 function audioTrack(
   overrides: Partial<PodcastAudioTrack> = {},
@@ -23,25 +21,11 @@ function audioTrack(
   };
 }
 
-function episode(overrides: Partial<PodcastEpisode> = {}): PodcastEpisode {
-  return {
-    id: 'episode-1',
-    localizationId: 'episode-1-zh-Hant',
-    title: 'Episode',
-    languageCode: 'zh-Hant',
-    hlsUrl: 'https://cdn.example.com/main.m3u8',
-    createdAt: '2026-07-28T00:00:00.000Z',
-    listened: false,
-    likeCount: 0,
-    script: null,
-    video: null,
-    videoGeneration: null,
-    audioTracks: [audioTrack()],
-    languageClassrooms: [],
-    lastPositionSeconds: 0,
-    ...overrides,
-  };
-}
+const episode = createPodcastEpisodeFactory({
+  hlsUrl: 'https://cdn.example.com/main.m3u8',
+  createdAt: '2026-07-28T00:00:00.000Z',
+  audioTracks: [audioTrack()],
+});
 
 describe('episodeMediaTabAvailability', () => {
   it('always exposes Story and enables media backed by the displayed episode', () => {

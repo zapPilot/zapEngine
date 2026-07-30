@@ -15,6 +15,7 @@ import {
   parsePodcastEpisodeSearchResult,
   podcastVideoRefetchInterval,
 } from '@/integration/podcastFeed';
+import { createPodcastEpisodeFactory } from './support/podcastEpisode';
 
 const fetchMock = vi.fn();
 
@@ -26,18 +27,13 @@ function jsonResponse(body: unknown): Response {
   } as Response;
 }
 
-function episode(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'ep-1',
-    localizationId: 'loc-1',
-    title: 'Fed rate decision explained',
-    languageCode: 'zh-Hant',
-    hlsUrl: 'https://cdn.example.com/ep-1/playlist.m3u8',
-    createdAt: '2026-07-01T00:00:00.000Z',
-    listened: false,
-    ...overrides,
-  };
-}
+const episode = createPodcastEpisodeFactory({
+  id: 'ep-1',
+  localizationId: 'loc-1',
+  title: 'Fed rate decision explained',
+  hlsUrl: 'https://cdn.example.com/ep-1/playlist.m3u8',
+  createdAt: '2026-07-01T00:00:00.000Z',
+});
 
 describe('podcast feed client', () => {
   beforeEach(() => {
