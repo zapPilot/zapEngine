@@ -1,8 +1,5 @@
 import { renderHook, waitFor } from '@testing-library/react';
-import type {
-  DailySnapshot,
-  TrackRecordMeta,
-} from '@zapengine/types/strategy';
+import type { DailySnapshot, TrackRecordMeta } from '@zapengine/types/strategy';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

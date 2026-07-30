@@ -25,6 +25,12 @@ import {
 } from 'viem';
 import { arbitrum, base } from 'viem/chains';
 
+const STEP_ID = {
+  preparePlan: 'prepare-plan',
+  executeBatch: 'execute-batch',
+  verifyPosition: 'verify-position',
+} as const;
+
 export type SingleChainDepositRequest = Exclude<
   PlanOrchestrationDepositRequest,
   { kind: 'strategy' }
@@ -44,7 +50,10 @@ export type SingleChainDepositWizardStepStatus =
   | 'failed';
 
 export interface SingleChainDepositWizardStep {
-  id: 'prepare-plan' | 'execute-batch' | 'verify-position';
+  id:
+    | typeof STEP_ID.preparePlan
+    | typeof STEP_ID.executeBatch
+    | typeof STEP_ID.verifyPosition;
   kind: SingleChainDepositWizardStepKind;
   label: string;
   detail: string;
@@ -118,7 +127,7 @@ function createSteps(
       status: 'submitting',
     },
     {
-      id: 'execute-batch',
+      id: STEP_ID.executeBatch,
       kind: 'batch',
       label: 'Execute atomic batch',
       detail: `Approve and deposit on ${chainName} in one wallet confirmation.`,
@@ -126,7 +135,7 @@ function createSteps(
       status: 'locked',
     },
     {
-      id: 'verify-position',
+      id: STEP_ID.verifyPosition,
       kind: 'settlement',
       label: `Verify ${protocol} position`,
       detail:
@@ -167,7 +176,7 @@ export function singleChainDepositWizardReducer(
         plan: event.plan,
         steps: patchStep(
           patchStep(state.steps, 'prepare-plan', { status: 'confirmed' }),
-          'execute-batch',
+          STEP_ID.executeBatch,
           { status: 'ready' },
         ),
         currentIndex: 1,
@@ -189,7 +198,7 @@ export function singleChainDepositWizardReducer(
     case 'BATCH_STARTED':
       return {
         ...state,
-        steps: patchStep(state.steps, 'execute-batch', {
+        steps: patchStep(state.steps, STEP_ID.executeBatch, {
           status: 'submitting',
         }),
         status: 'busy',
@@ -199,7 +208,7 @@ export function singleChainDepositWizardReducer(
     case 'BATCH_SUBMITTED':
       return {
         ...state,
-        steps: patchStep(state.steps, 'execute-batch', {
+        steps: patchStep(state.steps, STEP_ID.executeBatch, {
           status: 'confirming',
           callsId: event.callsId,
         }),
@@ -208,7 +217,7 @@ export function singleChainDepositWizardReducer(
     case 'BATCH_CONFIRMED':
       return {
         ...state,
-        steps: patchStep(state.steps, 'execute-batch', {
+        steps: patchStep(state.steps, STEP_ID.executeBatch, {
           status: 'confirming',
           ...(event.transactionHash
             ? { transactionHash: event.transactionHash }
@@ -227,8 +236,8 @@ export function singleChainDepositWizardReducer(
       return {
         ...state,
         steps: patchStep(
-          patchStep(state.steps, 'execute-batch', batchPatch),
-          'verify-position',
+          patchStep(state.steps, STEP_ID.executeBatch, batchPatch),
+          STEP_ID.verifyPosition,
           { status: 'ready' },
         ),
         currentIndex: 2,
@@ -241,7 +250,7 @@ export function singleChainDepositWizardReducer(
       if (event.submitted) {
         return {
           ...state,
-          steps: patchStep(state.steps, 'verify-position', {
+          steps: patchStep(state.steps, STEP_ID.verifyPosition, {
             status: 'failed',
           }),
           currentIndex: 2,
@@ -251,7 +260,9 @@ export function singleChainDepositWizardReducer(
       }
       return {
         ...state,
-        steps: patchStep(state.steps, 'execute-batch', { status: 'failed' }),
+        steps: patchStep(state.steps, STEP_ID.executeBatch, {
+          status: 'failed',
+        }),
         status: 'failed',
         error: event.message,
       };
@@ -259,7 +270,7 @@ export function singleChainDepositWizardReducer(
     case 'SETTLEMENT_STARTED':
       return {
         ...state,
-        steps: patchStep(state.steps, 'verify-position', {
+        steps: patchStep(state.steps, STEP_ID.verifyPosition, {
           status: 'confirming',
         }),
         status: 'busy',
@@ -270,8 +281,8 @@ export function singleChainDepositWizardReducer(
       return {
         ...state,
         steps: patchStep(
-          patchStep(state.steps, 'execute-batch', { status: 'confirmed' }),
-          'verify-position',
+          patchStep(state.steps, STEP_ID.executeBatch, { status: 'confirmed' }),
+          STEP_ID.verifyPosition,
           { status: 'confirmed' },
         ),
         currentIndex: state.steps.length,
@@ -282,7 +293,9 @@ export function singleChainDepositWizardReducer(
     case 'SETTLEMENT_FAILED':
       return {
         ...state,
-        steps: patchStep(state.steps, 'verify-position', { status: 'failed' }),
+        steps: patchStep(state.steps, STEP_ID.verifyPosition, {
+          status: 'failed',
+        }),
         status: 'failed',
         error: event.message,
       };

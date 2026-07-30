@@ -37,7 +37,9 @@ let failures = 0;
 
 function check(label: string, ok: boolean, detail: string) {
   console.log(`${ok ? '✅' : '❌'} ${label}: ${detail}`);
-  if (!ok) failures += 1;
+  if (!ok) {
+    failures += 1;
+  }
 }
 
 async function verifyPerpsUsdcToken(): Promise<void> {

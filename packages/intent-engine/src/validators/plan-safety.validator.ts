@@ -24,7 +24,9 @@ function decodeApproval(
       abi: erc20Abi,
       data: tx.data as `0x${string}`,
     });
-    if (decoded.functionName !== 'approve') return null;
+    if (decoded.functionName !== 'approve') {
+      return null;
+    }
     const [spender, amount] = decoded.args;
     return { spender, amount };
   } catch {
@@ -36,9 +38,13 @@ function routedEstimate(
   tx: PreparedTransaction,
 ): { toAmount: bigint; toAmountMin: bigint } | null {
   const route = tx.meta.route;
-  if (typeof route !== 'object' || route === null) return null;
+  if (typeof route !== 'object' || route === null) {
+    return null;
+  }
   const estimate = (route as { estimate?: unknown }).estimate;
-  if (typeof estimate !== 'object' || estimate === null) return null;
+  if (typeof estimate !== 'object' || estimate === null) {
+    return null;
+  }
   const { toAmount, toAmountMin } = estimate as {
     toAmount?: unknown;
     toAmountMin?: unknown;
@@ -72,7 +78,9 @@ export function assertApprovalCaps(
 
   for (const tx of [...plan.approvals, ...plan.calls]) {
     const approval = decodeApproval(tx);
-    if (!approval) continue;
+    if (!approval) {
+      continue;
+    }
 
     if (approval.amount === maxUint256) {
       throw new PlanSafetyViolationError(
@@ -108,7 +116,9 @@ export function assertMinReceived(
 
   for (const tx of plan.calls) {
     const estimate = routedEstimate(tx);
-    if (!estimate) continue;
+    if (!estimate) {
+      continue;
+    }
 
     if (estimate.toAmountMin <= 0n) {
       throw new PlanSafetyViolationError(

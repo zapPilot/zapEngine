@@ -95,6 +95,7 @@ class TrendAnalysisService(BaseAnalyticsService, TrendAnalysisServiceProtocol):
     See: get_portfolio_trend() below for in-memory filtering implementation
     """
 
+    # jscpd:ignore-start — subclass __init__ overrides parent; signature match is irreducible
     def __init__(
         self,
         db: Session,
@@ -103,6 +104,8 @@ class TrendAnalysisService(BaseAnalyticsService, TrendAnalysisServiceProtocol):
     ) -> None:
         super().__init__(db, query_service, context)
         self._category_transformer = self._transformer_cls()
+
+    # jscpd:ignore-end
 
     @classmethod
     def extract_category_value(cls, row: dict[str, Any]) -> float:

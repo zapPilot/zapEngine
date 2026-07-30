@@ -18,5 +18,11 @@ export default createNodeTsConfig({
         '@typescript-eslint/no-unused-vars': 'off',
       },
     },
+    {
+      files: ['src/approvals/erc20Approval.ts'],
+      rules: {
+        'no-console': 'off',
+      },
+    },
   ],
 });
