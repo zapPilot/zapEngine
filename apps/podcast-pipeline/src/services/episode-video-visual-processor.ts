@@ -114,6 +114,7 @@ export function createEpisodeVideoVisualProcessor(
         scenes: storyboard.draft.scenes,
         articleImages: article.images ?? [],
         workingDirectory: join(outputDirectory, 'images'),
+        selectionMode: 'resilient',
         signal: context.signal,
         onProgress: (progress) =>
           logPlannerProgress(
@@ -302,6 +303,9 @@ function logPlannerProgress(
     sceneId: progress.sceneId,
     progress: `${progress.sceneIndex}/${progress.sceneCount}`,
     provider: progress.provider,
+    assetId: progress.assetId,
+    sourceHostname: progress.sourceHostname,
+    reuseKind: progress.reuseKind,
     candidateCount: progress.candidateCount,
     rejectedCandidateCount: progress.rejectedCandidateCount,
     rejectionSummary: progress.rejectionSummary,
