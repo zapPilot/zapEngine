@@ -22,12 +22,6 @@ interface InsertValuesResult<K extends string> {
   values: unknown[];
 }
 
-type InsertValueTransformer<T, K extends keyof T & string> = (
-  column: K,
-  value: T[K],
-  record: T,
-) => unknown;
-
 interface TokenPriceInsertRecord {
   price_usd: number;
   market_cap_usd: number;
@@ -56,19 +50,11 @@ function serializeJson(value: unknown): string {
   return JSON.stringify(value ?? null);
 }
 
-function buildInsertValuesFor<T, K extends keyof T & string>(
-  records: readonly T[],
-  columns: readonly K[],
-  valueTransformer?: InsertValueTransformer<T, K>,
-): InsertValuesResult<K> {
-  return buildGenericInsertValues(records, columns, valueTransformer);
-}
-
 function buildNullableInsertValuesFor<T, K extends keyof T & string>(
   records: readonly T[],
   columns: readonly K[],
 ): InsertValuesResult<K> {
-  return buildInsertValuesFor(records, columns, (_column, value) =>
+  return buildGenericInsertValues(records, columns, (_column, value) =>
     toNullishSqlValue(value),
   );
 }
@@ -133,7 +119,7 @@ export function buildInsertValues(
   records: WalletBalanceSnapshotInsert[],
   columns: readonly WalletBalanceColumn[] = WALLET_BALANCE_COLUMNS,
 ): InsertValuesResult<WalletBalanceColumn> {
-  return buildInsertValuesFor(records, columns);
+  return buildGenericInsertValues(records, columns);
 }
 
 export const PORTFOLIO_ITEM_COLUMNS: readonly (keyof PortfolioItemSnapshotInsert)[] =
@@ -171,7 +157,7 @@ const PORTFOLIO_JSON_COLUMNS = new Set<PortfolioItemColumn>([
 export function buildPortfolioInsertValues(
   records: PortfolioItemSnapshotInsert[],
 ): InsertValuesResult<PortfolioItemColumn> {
-  return buildInsertValuesFor(
+  return buildGenericInsertValues(
     records,
     PORTFOLIO_ITEM_COLUMNS,
     (column, value) => {
@@ -194,7 +180,7 @@ export const SENTIMENT_COLUMNS: readonly (keyof SentimentSnapshotInsert)[] = [
 export function buildSentimentInsertValues(
   records: SentimentSnapshotInsert[],
 ): InsertValuesResult<keyof SentimentSnapshotInsert & string> {
-  return buildInsertValuesFor(records, SENTIMENT_COLUMNS);
+  return buildGenericInsertValues(records, SENTIMENT_COLUMNS);
 }
 
 export const MACRO_FEAR_GREED_COLUMNS: readonly (keyof MacroFearGreedSnapshotInsert)[] =
@@ -211,7 +197,7 @@ export const MACRO_FEAR_GREED_COLUMNS: readonly (keyof MacroFearGreedSnapshotIns
 export function buildMacroFearGreedInsertValues(
   records: MacroFearGreedSnapshotInsert[],
 ): InsertValuesResult<keyof MacroFearGreedSnapshotInsert & string> {
-  return buildInsertValuesFor(
+  return buildGenericInsertValues(
     records,
     MACRO_FEAR_GREED_COLUMNS,
     (column, value) => {
@@ -246,7 +232,7 @@ export const HYPERLIQUID_VAULT_APR_COLUMNS: readonly (keyof HyperliquidVaultAprS
 export function buildHyperliquidInsertValues(
   records: HyperliquidVaultAprSnapshotInsert[],
 ): InsertValuesResult<keyof HyperliquidVaultAprSnapshotInsert & string> {
-  return buildInsertValuesFor(records, HYPERLIQUID_VAULT_APR_COLUMNS);
+  return buildGenericInsertValues(records, HYPERLIQUID_VAULT_APR_COLUMNS);
 }
 
 export const TOKEN_PRICE_DMA_COLUMNS: readonly (keyof TokenPriceDmaSnapshotInsert)[] =
@@ -309,7 +295,7 @@ export function buildTokenPriceInsertValues(
   records: TokenPriceData[],
 ): InsertValuesResult<TokenPriceColumn> {
   const mappedRecords = records.map(mapTokenPriceRecord);
-  return buildInsertValuesFor(mappedRecords, TOKEN_PRICE_COLUMNS);
+  return buildGenericInsertValues(mappedRecords, TOKEN_PRICE_COLUMNS);
 }
 
 export const STOCK_PRICE_COLUMNS = [
@@ -326,7 +312,7 @@ export function buildStockPriceInsertValues(
   records: (DailyStockPrice | StockPriceData)[],
 ): InsertValuesResult<StockPriceColumn> {
   const mappedRecords = records.map(mapStockPriceRecord);
-  return buildInsertValuesFor(mappedRecords, STOCK_PRICE_COLUMNS);
+  return buildGenericInsertValues(mappedRecords, STOCK_PRICE_COLUMNS);
 }
 
 export const STOCK_PRICE_DMA_COLUMNS: readonly (keyof StockPriceDmaSnapshotInsert)[] =
