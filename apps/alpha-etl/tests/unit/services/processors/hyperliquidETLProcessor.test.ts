@@ -8,6 +8,8 @@ import type {
   ETLJob,
   VipUserWithActivity,
 } from "../../../../src/types/index.js";
+import { logger as mockLogger } from "../../../../src/utils/logger.js";
+import { createEtlJob } from "../../../utils/createEtlJob.js";
 import type {
   VaultPositionData,
   VaultAprData,
@@ -21,7 +23,6 @@ import type { HyperliquidVaultETLProcessor } from "../../../../src/modules/hyper
 
 // Hoisted mocks for proper timing
 const {
-  mockLogger,
   mockHyperliquidFetcher,
   mockSupabaseFetcher,
   mockTransformer,
@@ -31,12 +32,6 @@ const {
   const fetchVipUsers = vi.fn();
 
   return {
-    mockLogger: {
-      info: vi.fn(),
-      error: vi.fn(),
-      warn: vi.fn(),
-      debug: vi.fn(),
-    },
     mockHyperliquidFetcher: {
       getVaultDetails: vi.fn(),
       extractPositionData: vi.fn(),
@@ -65,9 +60,10 @@ const {
 });
 
 // Mock all dependencies
-vi.mock("../../../../src/utils/logger.js", () => ({
-  logger: mockLogger,
-}));
+vi.mock("../../../../src/utils/logger.js", async () => {
+  const { mockLogger } = await import("../../../setup/mocks.js");
+  return mockLogger();
+});
 
 vi.mock("../../../../src/utils/mask.js", () => ({
   maskWalletAddress: vi.fn(
@@ -117,15 +113,13 @@ vi.mock("../../../../src/modules/wallet/portfolioWriter.js", () => ({
 
 // Test data factory functions
 function createMockJob(overrides: Partial<ETLJob> = {}): ETLJob {
-  return {
+  return createEtlJob({
     jobId: "test-job-123",
-    trigger: "scheduled",
     sources: ["hyperliquid"],
     filters: {},
     createdAt: new Date("2025-02-01T12:00:00Z"),
-    status: "pending",
     ...overrides,
-  };
+  });
 }
 
 function createMockVipUser(

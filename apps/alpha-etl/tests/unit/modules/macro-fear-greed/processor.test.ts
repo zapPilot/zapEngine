@@ -7,6 +7,7 @@ import type { MacroFearGreedData } from '../../../../src/modules/macro-fear-gree
 import { MacroFearGreedWriter } from '../../../../src/modules/macro-fear-greed/writer.js';
 import type { MacroFearGreedSnapshotInsert } from '../../../../src/types/database.js';
 import type { ETLJob } from '../../../../src/types/index.js';
+import { createEtlJob } from '../../../utils/createEtlJob.js';
 
 vi.mock('../../../../src/utils/logger.js', async () => {
   const { mockLogger } = await import('../../../setup/mocks.js');
@@ -23,13 +24,12 @@ const macroData: MacroFearGreedData = {
 };
 
 function createJob(overrides: Partial<ETLJob> = {}): ETLJob {
-  return {
+  return createEtlJob({
     jobId: 'macro-job-1',
     sources: ['macro-fear-greed'],
     createdAt: new Date('2026-05-01T00:00:00.000Z'),
-    status: 'pending',
     ...overrides,
-  };
+  });
 }
 
 function createWriteResult(overrides: Partial<WriteResult> = {}): WriteResult {

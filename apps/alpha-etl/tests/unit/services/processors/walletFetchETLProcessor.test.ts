@@ -6,15 +6,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { WalletFetchETLProcessor } from '../../../../src/modules/wallet/fetchProcessor.js';
 import type { ETLJob } from '../../../../src/types/index.js';
+import { logger as mockLogger } from '../../../../src/utils/logger.js';
+import { createEtlJob } from '../../../utils/createEtlJob.js';
 
 // Hoisted mocks
-const { mockLogger, mockDebankFetcher, mockTransformer, mockWriter, mockPortfolioTransformer, mockPortfolioWriter } = vi.hoisted(() => ({
-    mockLogger: {
-        info: vi.fn(),
-        error: vi.fn(),
-        warn: vi.fn(),
-        debug: vi.fn(),
-    },
+const { mockDebankFetcher, mockTransformer, mockWriter, mockPortfolioTransformer, mockPortfolioWriter } = vi.hoisted(() => ({
     mockDebankFetcher: {
         fetchWalletTokenList: vi.fn(),
         fetchComplexProtocolList: vi.fn(),
@@ -35,9 +31,10 @@ const { mockLogger, mockDebankFetcher, mockTransformer, mockWriter, mockPortfoli
     },
 }));
 
-vi.mock('../../../../src/utils/logger.js', () => ({
-    logger: mockLogger,
-}));
+vi.mock('../../../../src/utils/logger.js', async () => {
+    const { mockLogger } = await import('../../../setup/mocks.js');
+    return mockLogger();
+});
 
 vi.mock('../../../../src/modules/wallet/fetcher.js', () => ({
     DeBankFetcher: class {
@@ -73,9 +70,8 @@ vi.mock('../../../../src/modules/wallet/portfolioWriter.js', () => ({
 }));
 
 // Helper to create mock jobs
-const createMockJob = (overrides: Partial<ETLJob> = {}): ETLJob => ({
+const createMockJob = (overrides: Partial<ETLJob> = {}): ETLJob => createEtlJob({
     jobId: 'wallet-fetch-job-123',
-    trigger: 'manual',
     sources: ['debank'],
     createdAt: new Date(),
     status: 'processing',

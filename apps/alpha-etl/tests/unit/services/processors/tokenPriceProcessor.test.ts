@@ -4,9 +4,10 @@ import {
   calculateMissingDates,
   formatDateToYYYYMMDD,
 } from "../../../../src/utils/dateUtils.js";
+import { logger as mockLogger } from "../../../../src/utils/logger.js";
 
 // Hoisted mocks - must be declared before vi.mock
-const { mockFetcher, mockWriter, mockLogger } = vi.hoisted(() => ({
+const { mockFetcher, mockWriter } = vi.hoisted(() => ({
   mockFetcher: {
     fetchCurrentPrice: vi.fn(),
     fetchHistoricalPrice: vi.fn(),
@@ -23,18 +24,13 @@ const { mockFetcher, mockWriter, mockLogger } = vi.hoisted(() => ({
     getLatestSnapshot: vi.fn(),
     getSnapshotCount: vi.fn(),
   },
-  mockLogger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  },
 }));
 
 // Mock logger
-vi.mock("../../../../src/utils/logger.js", () => ({
-  logger: mockLogger,
-}));
+vi.mock("../../../../src/utils/logger.js", async () => {
+  const { mockLogger } = await import("../../../setup/mocks.js");
+  return mockLogger();
+});
 
 vi.mock("../../../../src/modules/token-price/processor.js", async () => {
   const actualModule = await vi.importActual<

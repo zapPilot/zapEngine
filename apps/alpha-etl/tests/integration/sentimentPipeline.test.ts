@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type { ETLJob } from "../../src/types/index.js";
 import type { SentimentData } from "../../src/modules/sentiment/schema.js";
 import type { WriteResult } from "../../src/core/database/baseWriter.js";
+import { createEtlJob } from "../utils/createEtlJob.js";
 
 const createRequestStats = () => ({
   requestCount: 0,
@@ -136,14 +136,13 @@ const createMockSentimentData = (
   ...overrides,
 });
 
-const createTestJob = (): ETLJob => ({
-  jobId: `test-sentiment-${Date.now()}`,
-  trigger: "scheduled",
-  sources: ["feargreed"],
-  filters: {},
-  createdAt: new Date(),
-  status: "pending",
-});
+const createTestJob = () =>
+  createEtlJob({
+    jobId: `test-sentiment-${Date.now()}`,
+    sources: ["feargreed"],
+    filters: {},
+    createdAt: new Date(),
+  });
 
 describe("Sentiment Pipeline Integration Tests", () => {
   let processor: SentimentETLProcessor;

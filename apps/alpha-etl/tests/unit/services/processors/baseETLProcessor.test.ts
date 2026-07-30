@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { executeETLFlow } from '../../../../src/core/processors/baseETLProcessor.js';
 import { wrapHealthCheck } from '../../../../src/utils/healthCheck.js';
 import { logger } from '../../../../src/utils/logger.js';
-import type { ETLJob } from '../../../../src/types/index.js';
+import { createEtlJob } from '../../../utils/createEtlJob.js';
 
 vi.mock('../../../../src/utils/logger.js', async () => {
   const { mockLogger } = await import('../../../setup/mocks.js');
@@ -10,14 +10,12 @@ vi.mock('../../../../src/utils/logger.js', async () => {
 });
 
 describe('BaseETLProcessor - executeETLFlow', () => {
-  const mockJob: ETLJob = {
+  const mockJob = createEtlJob({
     jobId: 'test-job',
-    trigger: 'scheduled',
-    sources: ['test'],
     filters: {},
     createdAt: new Date(),
     status: 'pending'
-  };
+  });
 
   async function runFlow<TRaw, TTransformed>(
     fetchFn: () => Promise<TRaw[]>,

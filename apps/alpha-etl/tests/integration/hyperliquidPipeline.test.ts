@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type { ETLJob } from "../../src/types/index.js";
 import type { VaultDetailsResponse } from "../../src/modules/hyperliquid/fetcher.js";
 import type { WriteResult } from "../../src/core/database/baseWriter.js";
+import { createEtlJob } from "../utils/createEtlJob.js";
 
 function createRequestStats(): { requestCount: number; lastRequestTime: null } {
   return {
@@ -159,15 +159,13 @@ function createMockVipUser(userId: string, wallet: string) {
   };
 }
 
-function createTestJob(): ETLJob {
-  return {
+function createTestJob() {
+  return createEtlJob({
     jobId: `test-hyperliquid-${Date.now()}`,
-    trigger: "manual",
     sources: ["hyperliquid"],
     filters: {},
     createdAt: new Date(),
-    status: "pending",
-  };
+  });
 }
 
 describe("Hyperliquid Pipeline Integration Tests", () => {

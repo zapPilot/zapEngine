@@ -7,21 +7,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { HyperliquidVaultAprSnapshotInsert } from "../../../../src/types/database.js";
 import type { QueryResult } from "pg";
-
-// Hoisted mocks for proper timing
-const { mockLogger } = vi.hoisted(() => ({
-  mockLogger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  },
-}));
+import { logger as mockLogger } from "../../../../src/utils/logger.js";
 
 // Mock logger before imports
-vi.mock("../../../../src/utils/logger.js", () => ({
-  logger: mockLogger,
-}));
+vi.mock("../../../../src/utils/logger.js", async () => {
+  const { mockLogger } = await import("../../../setup/mocks.js");
+  return mockLogger();
+});
 
 // Note: tables.js was merged into database.js - getTableName now comes from there
 

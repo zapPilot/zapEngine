@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { logger as mockLogger } from "../../../../src/utils/logger.js";
 
-const { mockFetcher, mockTransformer, mockWriter, mockLogger } = vi.hoisted(
+const { mockFetcher, mockTransformer, mockWriter } = vi.hoisted(
   () => ({
     mockFetcher: {
       fetchCurrentSentiment: vi.fn(),
@@ -13,18 +14,13 @@ const { mockFetcher, mockTransformer, mockWriter, mockLogger } = vi.hoisted(
     mockWriter: {
       writeSentimentSnapshots: vi.fn(),
     },
-    mockLogger: {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    },
   }),
 );
 
-vi.mock("../../../../src/utils/logger.js", () => ({
-  logger: mockLogger,
-}));
+vi.mock("../../../../src/utils/logger.js", async () => {
+  const { mockLogger } = await import("../../../setup/mocks.js");
+  return mockLogger();
+});
 
 vi.mock("../../../../src/modules/sentiment/processor.js", async () => {
   const actualModule = await vi.importActual<
@@ -119,15 +115,15 @@ vi.mock("../../../../src/modules/sentiment/processor.js", async () => {
 
 import { SentimentETLProcessor } from "../../../../src/modules/sentiment/processor.js";
 import type { ETLJob } from "../../../../src/types/index.js";
+import { createEtlJob } from "../../../utils/createEtlJob.js";
 
-const createJob = (overrides: Partial<ETLJob> = {}): ETLJob => ({
-  jobId: "job-1",
-  trigger: "scheduled",
-  sources: ["feargreed"],
-  createdAt: new Date(),
-  status: "pending",
-  ...overrides,
-});
+const createJob = (overrides: Partial<ETLJob> = {}): ETLJob =>
+  createEtlJob({
+    jobId: "job-1",
+    sources: ["feargreed"],
+    createdAt: new Date(),
+    ...overrides,
+  });
 
 describe("SentimentETLProcessor", () => {
   let processor: SentimentETLProcessor;

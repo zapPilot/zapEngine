@@ -10,6 +10,7 @@ import type {
 import { StockPriceWriter } from '../../../../src/modules/stock-price/writer.js';
 import { YahooFinanceFetcher } from '../../../../src/modules/stock-price/yahooFetcher.js';
 import type { ETLJob } from '../../../../src/types/index.js';
+import { createEtlJob } from '../../../utils/createEtlJob.js';
 
 const { mockPool } = vi.hoisted(() => ({
   mockPool: {
@@ -30,13 +31,12 @@ vi.mock('../../../../src/config/database.js', () => ({
 }));
 
 function createJob(overrides: Partial<ETLJob> = {}): ETLJob {
-  return {
+  return createEtlJob({
     jobId: 'stock-job-1',
     sources: ['stock-price'],
     createdAt: new Date('2026-05-01T00:00:00.000Z'),
-    status: 'pending',
     ...overrides,
-  };
+  });
 }
 
 function createDailyPrice(overrides: Partial<DailyStockPrice> = {}) {

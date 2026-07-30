@@ -9,10 +9,11 @@ import type {
   ETLProcessResult,
 } from '../../../../src/core/processors/baseETLProcessor.js';
 import type { ETLJob, DataSource } from '../../../../src/types/index.js';
+import { logger as mockLogger } from '../../../../src/utils/logger.js';
+import { createEtlJob } from '../../../utils/createEtlJob.js';
 
 // Hoisted mocks for proper timing
 const {
-  mockLogger,
   mockHyperliquidProcessor,
   mockWalletProcessor,
   mockSentimentProcessor,
@@ -20,12 +21,6 @@ const {
   mockTokenPriceProcessor,
   mockStockPriceProcessor,
 } = vi.hoisted(() => ({
-  mockLogger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  },
   mockHyperliquidProcessor: {
     process: vi.fn(),
     healthCheck: vi.fn(),
@@ -65,9 +60,10 @@ const {
 }));
 
 // Mock the logger before any imports
-vi.mock('../../../../src/utils/logger.js', () => ({
-  logger: mockLogger,
-}));
+vi.mock('../../../../src/utils/logger.js', async () => {
+  const { mockLogger } = await import('../../../setup/mocks.js');
+  return mockLogger();
+});
 
 vi.mock('../../../../src/modules/wallet/processor.js', () => ({
   WalletBalanceETLProcessor: class MockWalletBalanceETLProcessor {
@@ -118,15 +114,12 @@ vi.mock('../../../../src/modules/stock-price/processor.js', () => ({
 }));
 
 // Helper function for creating mock jobs - global scope for all tests
-const createMockJob = (overrides: Partial<ETLJob> = {}): ETLJob => ({
-  jobId: 'job-123',
-  trigger: 'scheduled',
-  sources: ['hyperliquid'],
-  filters: { chains: ['ethereum'] },
-  createdAt: new Date(),
-  status: 'pending',
-  ...overrides,
-});
+const createMockJob = (overrides: Partial<ETLJob> = {}): ETLJob =>
+  createEtlJob({
+    filters: { chains: ['ethereum'] },
+    createdAt: new Date(),
+    ...overrides,
+  });
 
 const walletFetchMetadata = {
   jobType: 'wallet_fetch' as const,

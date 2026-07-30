@@ -7,6 +7,7 @@ import type {
 import { ETLPipelineFactory } from '../../../../src/modules/core/pipelineFactory.js';
 import type { ProcessorConstructor } from '../../../../src/modules/core/processorRegistry.js';
 import type { DataSource, ETLJob } from '../../../../src/types/index.js';
+import { createEtlJob } from '../../../utils/createEtlJob.js';
 
 function createResult(source: DataSource): ETLProcessResult {
   return {
@@ -96,13 +97,9 @@ function createRegistry(
 }
 
 function createJob(overrides: Partial<ETLJob>): ETLJob {
-  return {
-    jobId: 'job-123',
-    sources: ['hyperliquid'],
-    createdAt: new Date('2024-01-01T00:00:00Z'),
-    status: 'pending',
+  return createEtlJob({
     ...overrides,
-  };
+  });
 }
 
 describe('ETLPipelineFactory task jobs', () => {

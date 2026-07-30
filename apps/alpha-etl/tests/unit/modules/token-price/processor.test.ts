@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { logger as mockLogger } from "../../../../src/utils/logger.js";
 
 const mocks = vi.hoisted(() => ({
   fetcher: {
@@ -20,15 +21,12 @@ const mocks = vi.hoisted(() => ({
     updateEthBtcRatioDma: vi.fn(),
     getLatestDmaSnapshot: vi.fn(),
   },
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  },
 }));
 
-vi.mock("../../../../src/utils/logger.js", () => ({ logger: mocks.logger }));
+vi.mock("../../../../src/utils/logger.js", async () => {
+  const { mockLogger } = await import("../../../setup/mocks.js");
+  return mockLogger();
+});
 
 vi.mock("../../../../src/modules/token-price/fetcher.js", () => ({
   CoinGeckoFetcher: class {
@@ -81,7 +79,7 @@ describe("TokenPriceETLProcessor error paths", () => {
 
       expect(result.status).toBe("unhealthy");
       expect(result.details).toBe("health boom");
-      expect(mocks.logger.error).toHaveBeenCalledWith(
+      expect(mockLogger.error).toHaveBeenCalledWith(
         "Health check failed",
         expect.objectContaining({ error: "health boom" }),
       );
@@ -170,7 +168,7 @@ describe("TokenPriceETLProcessor error paths", () => {
       const result = await processor.backfillHistory(1);
 
       expect(result.existing).toBe(0);
-      expect(mocks.logger.warn).toHaveBeenCalledWith(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         "Gap detection failed, falling back to full fetch",
         expect.objectContaining({ error: "gap error" }),
       );
@@ -186,7 +184,7 @@ describe("TokenPriceETLProcessor error paths", () => {
       const result = await processor.backfillHistory(1);
 
       expect(result.fetched).toBe(0);
-      expect(mocks.logger.error).toHaveBeenCalledWith(
+      expect(mockLogger.error).toHaveBeenCalledWith(
         "Failed to fetch missing date",
         expect.objectContaining({ error: "fetch fail" }),
       );
