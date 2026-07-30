@@ -70,6 +70,9 @@ call it. This is the default and the right fix most of the time. Examples:
 Either an `ignore` / `ignorePattern` entry in the workspace's `.jscpd.json`, or
 inline `jscpd:ignore-start` … `jscpd:ignore-end` comments around the block.
 **Always say why** (e.g. "override signature, cannot be merged" — `2decbc0e`).
+An override whose body is just `super().__init__(...)` plus one assignment is
+**not** irreducible — delete the override and lazy-init the extra attribute
+(e.g. `functools.cached_property`) instead of ignoring.
 
 ### A "quarantine" expired — the spontaneous failure
 
@@ -87,6 +90,12 @@ pnpm dup:check                                   # all workspaces (turbo)
 pnpm --filter @zapengine/<pkg> run dup:check     # one workspace
 # the named clones live in <pkg>/.jscpd/jscpd-report.json after a run
 ```
+
+`turbo run dup:check` can replay a stale **green** cache even when a fresh run
+would fail — the analytics dup-debt quarantine flips on a wall-clock expiry
+date that turbo's input hash cannot see. When CI says red but turbo says green,
+trust only the uncached `pnpm --filter … run dup:check` form (or `turbo run
+dup:check --force`).
 
 ## Rationalizations — STOP
 

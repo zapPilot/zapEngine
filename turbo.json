@@ -110,7 +110,11 @@
       "outputs": []
     },
     "dup:check": {
-      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.md",
+        "$TURBO_ROOT$/scripts/lint/run-jscpd.mjs"
+      ],
       "outputs": []
     },
     "security:audit": {
