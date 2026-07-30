@@ -1151,14 +1151,14 @@ function chooseBalancedGroups(
   maxGroups: number,
   durationMs: number,
 ): CanonicalSentence[][] {
-  let best = sentenceGroups(sentences, minGroups);
+  let best: CanonicalSentence[][] = [];
   let bestPenalty = Number.POSITIVE_INFINITY;
+  const totalWeight = sentences.reduce(
+    (sum, sentence) => sum + speakingWeight(sentence.text),
+    0,
+  );
   for (let groupCount = minGroups; groupCount <= maxGroups; groupCount += 1) {
     const groups = sentenceGroups(sentences, groupCount);
-    const totalWeight = sentences.reduce(
-      (sum, sentence) => sum + speakingWeight(sentence.text),
-      0,
-    );
     const penalty = groups.reduce((sum, group) => {
       const weight = group.reduce(
         (groupSum, sentence) => groupSum + speakingWeight(sentence.text),

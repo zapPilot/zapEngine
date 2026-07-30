@@ -8,8 +8,8 @@ import {
 } from './storyboard/visual-plan.js';
 import { lineUnits } from './text-units.js';
 
-export const LEGACY_VIDEO_SCHEMA_VERSION = 'podcast-slide-video.v1' as const;
-export const IMAGE_VIDEO_SCHEMA_VERSION = 'podcast-slide-video.v2' as const;
+const LEGACY_VIDEO_SCHEMA_VERSION = 'podcast-slide-video.v1' as const;
+const IMAGE_VIDEO_SCHEMA_VERSION = 'podcast-slide-video.v2' as const;
 // The version producers stamp on freshly generated manifests; parsers keep
 // accepting every version above so stored renders stay readable.
 export const VERTICAL_VIDEO_SCHEMA_VERSION = 'podcast-slide-video.v3' as const;
@@ -137,7 +137,7 @@ const legacySlideSchema = z.discriminatedUnion('template', [
   sourceQuoteSlideSchema,
 ]);
 
-export const imageSlideSchema = z
+const imageSlideSchema = z
   .object({
     ...commonSlideShape,
     template: z.literal('image'),
@@ -491,7 +491,7 @@ function validateManifest(
   }
 }
 
-export const legacySlideVideoManifestSchema = z
+const legacySlideVideoManifestSchema = z
   .object({
     schemaVersion: z.literal(LEGACY_VIDEO_SCHEMA_VERSION),
     rendererVersion: z.string().regex(/^satori-resvg-v\d+$/),
@@ -509,7 +509,7 @@ export const legacySlideVideoManifestSchema = z
     }),
   );
 
-export const imageVideoManifestSchema = z
+const imageVideoManifestSchema = z
   .object({
     schemaVersion: z.literal(IMAGE_VIDEO_SCHEMA_VERSION),
     rendererVersion: z.string().regex(/^satori-resvg-v\d+$/),
@@ -530,7 +530,7 @@ export const imageVideoManifestSchema = z
 /* jscpd:ignore-start — the v3 schema head intentionally parallels the v2 one;
    both are strict zod contracts whose field sets must stay independently
    readable rather than be merged behind a shared factory */
-export const verticalVideoManifestSchema = z
+const verticalVideoManifestSchema = z
   .object({
     schemaVersion: z.literal(VERTICAL_VIDEO_SCHEMA_VERSION),
     rendererVersion: z.string().regex(/^satori-resvg-v\d+$/),
@@ -579,9 +579,7 @@ export const slideVideoManifestSchema = z.union([
 
 export type ImageVideoManifest = z.infer<typeof imageVideoManifestSchema>;
 export type VerticalVideoManifest = z.infer<typeof verticalVideoManifestSchema>;
-export type LegacySlideVideoManifest = z.infer<
-  typeof legacySlideVideoManifestSchema
->;
+type LegacySlideVideoManifest = z.infer<typeof legacySlideVideoManifestSchema>;
 export type SlideVideoManifest =
   | VerticalVideoManifest
   | ImageVideoManifest
@@ -589,7 +587,6 @@ export type SlideVideoManifest =
 export type Slide = SlideVideoManifest['slides'][number];
 export type ImageSlide = ImageVideoManifest['slides'][number];
 export type SlideSource = VisualSource;
-export type SlideAsset = Slide['asset'];
 
 export function parseImageVideoManifest(input: unknown): ImageVideoManifest {
   return imageVideoManifestSchema.parse(input);

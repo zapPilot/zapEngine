@@ -37,7 +37,7 @@ export interface CanonicalAudioTiming {
   silences: SilenceInterval[];
 }
 
-export function resolveVideoFfprobePath(): string {
+function resolveVideoFfprobePath(): string {
   const configured = process.env['VIDEO_FFPROBE_PATH']?.trim();
   if (configured) return configured;
   const configuredFfmpeg = process.env['VIDEO_FFMPEG_PATH']?.trim();
@@ -333,32 +333,4 @@ export function buildWeightedCaptionTiming(input: {
     captions: timedSentences.flatMap(captionChunksForSentence),
     silences: [...silences],
   };
-}
-
-export async function analyzeCanonicalAudio(input: {
-  script: string;
-  audioSource: string;
-  ffprobePath?: string;
-  ffmpegPath?: string;
-  processRunner?: VideoProcessRunner;
-  signal?: AbortSignal;
-}): Promise<CanonicalAudioTiming> {
-  assertMainNarrationAudioSource(input.audioSource);
-  const common = {
-    ...(input.processRunner ? { processRunner: input.processRunner } : {}),
-    ...(input.signal ? { signal: input.signal } : {}),
-  };
-  const durationMs = await probeAudioDurationMs(input.audioSource, {
-    ...common,
-    ...(input.ffprobePath ? { ffprobePath: input.ffprobePath } : {}),
-  });
-  const silences = await detectAudioSilences(input.audioSource, {
-    ...common,
-    ...(input.ffmpegPath ? { ffmpegPath: input.ffmpegPath } : {}),
-  });
-  return buildWeightedCaptionTiming({
-    script: input.script,
-    durationMs,
-    silences,
-  });
 }
