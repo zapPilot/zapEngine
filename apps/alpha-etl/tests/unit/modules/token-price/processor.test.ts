@@ -73,34 +73,6 @@ describe("TokenPriceETLProcessor error paths", () => {
     processor = new TokenPriceETLProcessor({} as unknown);
   });
 
-  describe("processCurrentPrice", () => {
-    it("should log and re-throw on fetch failure", async () => {
-      mocks.fetcher.fetchCurrentPrice.mockRejectedValueOnce(
-        new Error("API down"),
-      );
-
-      await expect(processor.processCurrentPrice()).rejects.toThrow("API down");
-      expect(mocks.logger.error).toHaveBeenCalledWith(
-        "Token price ETL failed",
-        expect.objectContaining({ error: "API down" }),
-      );
-    });
-  });
-
-  describe("processCurrentPrice non-Error", () => {
-    it("logs undefined stack when a non-Error is thrown", async () => {
-      mocks.fetcher.fetchCurrentPrice.mockRejectedValueOnce("string-error");
-
-      await expect(processor.processCurrentPrice()).rejects.toBe(
-        "string-error",
-      );
-      expect(mocks.logger.error).toHaveBeenCalledWith(
-        "Token price ETL failed",
-        expect.objectContaining({ stack: undefined }),
-      );
-    });
-  });
-
   describe("healthCheck", () => {
     it("should return unhealthy on exception", async () => {
       mocks.fetcher.healthCheck.mockRejectedValueOnce(new Error("health boom"));

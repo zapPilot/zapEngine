@@ -98,14 +98,6 @@ vi.mock("../../../../src/modules/token-price/processor.js", async () => {
       }
     }
 
-    async processCurrentPrice(tokenId = "bitcoin", tokenSymbol = "BTC") {
-      const priceData = await this.fetcher.fetchCurrentPrice(
-        tokenId,
-        tokenSymbol,
-      );
-      await this.writer.insertSnapshot(priceData);
-    }
-
     async backfillHistory(
       daysBack = 30,
       tokenId = "bitcoin",
@@ -355,78 +347,6 @@ describe("TokenPriceProcessor", () => {
       const result = await processor.backfillHistory();
 
       expect(result.requested).toBe(30); // Default daysBack
-    });
-  });
-
-  describe("processCurrentPrice", () => {
-    it("should fetch and store current price successfully", async () => {
-      mockFetcher.fetchCurrentPrice.mockResolvedValue({
-        priceUsd: 97500,
-        marketCapUsd: 1900000000000,
-        volume24hUsd: 45000000000,
-        tokenSymbol: "BTC",
-        tokenId: "bitcoin",
-        source: "coingecko",
-        timestamp: new Date(),
-      });
-      mockWriter.insertSnapshot.mockResolvedValue(undefined);
-
-      await processor.processCurrentPrice("bitcoin", "BTC");
-
-      expect(mockFetcher.fetchCurrentPrice).toHaveBeenCalledWith(
-        "bitcoin",
-        "BTC",
-      );
-      expect(mockWriter.insertSnapshot).toHaveBeenCalled();
-    });
-
-    it("should throw error when fetch fails", async () => {
-      mockFetcher.fetchCurrentPrice.mockRejectedValue(
-        new Error("API rate limited"),
-      );
-
-      await expect(
-        processor.processCurrentPrice("bitcoin", "BTC"),
-      ).rejects.toThrow("API rate limited");
-    });
-
-    it("should throw error when database insert fails", async () => {
-      mockFetcher.fetchCurrentPrice.mockResolvedValue({
-        priceUsd: 97500,
-        marketCapUsd: 1900000000000,
-        volume24hUsd: 45000000000,
-        tokenSymbol: "BTC",
-        tokenId: "bitcoin",
-        source: "coingecko",
-        timestamp: new Date(),
-      });
-      mockWriter.insertSnapshot.mockRejectedValue(
-        new Error("Connection refused"),
-      );
-
-      await expect(
-        processor.processCurrentPrice("bitcoin", "BTC"),
-      ).rejects.toThrow("Connection refused");
-    });
-
-    it("should use default parameters", async () => {
-      mockFetcher.fetchCurrentPrice.mockResolvedValue({
-        priceUsd: 97500,
-        marketCapUsd: 1900000000000,
-        volume24hUsd: 45000000000,
-        tokenSymbol: "BTC",
-        tokenId: "bitcoin",
-        source: "coingecko",
-        timestamp: new Date(),
-      });
-      mockWriter.insertSnapshot.mockResolvedValue(undefined);
-
-      await processor.processCurrentPrice();
-
-      expect(mockFetcher.fetchCurrentPrice).toHaveBeenCalledWith(
-        "bitcoin",
-        "BTC",
-      );
     });
   });
 

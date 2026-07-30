@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
-  shouldUpdateUser,
   filterVipUsersByActivity,
   ACTIVITY_THRESHOLDS,
   type UserFilteringOptions,
@@ -16,6 +15,13 @@ describe('userActivityFiltering', () => {
     now = new Date('2025-01-15T12:00:00Z');
     vi.setSystemTime(now);
   });
+
+  function shouldUpdateUser(
+    user: VipUserWithActivity,
+    options: UserFilteringOptions = {},
+  ): boolean {
+    return filterVipUsersByActivity([user], options).usersToUpdate.length === 1;
+  }
 
   describe('shouldUpdateUser', () => {
     describe('never updated before', () => {

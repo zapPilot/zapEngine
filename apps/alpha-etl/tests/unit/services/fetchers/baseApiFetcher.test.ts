@@ -445,56 +445,6 @@ describe('BaseApiFetcher', () => {
     });
   });
 
-  describe('resetStats', () => {
-    it('resets request count to zero', async () => {
-      await fetcher.testEnforceRateLimit();
-      await vi.advanceTimersByTimeAsync(1000);
-      await fetcher.testEnforceRateLimit();
-
-      expect(fetcher.getRequestStats().requestCount).toBe(2);
-
-      fetcher.resetStats();
-
-      expect(fetcher.getRequestStats().requestCount).toBe(0);
-    });
-
-    it('resets last request time to zero', async () => {
-      await fetcher.testEnforceRateLimit();
-
-      expect(fetcher.getRequestStats().lastRequestTime).toBeGreaterThan(0);
-
-      fetcher.resetStats();
-
-      expect(fetcher.getRequestStats().lastRequestTime).toBe(0);
-    });
-
-    it('allows fresh start after reset', async () => {
-      await fetcher.testEnforceRateLimit();
-      await vi.advanceTimersByTimeAsync(1000);
-      await fetcher.testEnforceRateLimit();
-
-      fetcher.resetStats();
-
-      // Next request should have no delay (like first request)
-      const startTime = Date.now();
-      await fetcher.testEnforceRateLimit();
-      const elapsed = Date.now() - startTime;
-
-      expect(elapsed).toBe(0);
-      expect(fetcher.getRequestStats().requestCount).toBe(1);
-    });
-
-    it('can be called multiple times safely', () => {
-      fetcher.resetStats();
-      fetcher.resetStats();
-      fetcher.resetStats();
-
-      const stats = fetcher.getRequestStats();
-      expect(stats.requestCount).toBe(0);
-      expect(stats.lastRequestTime).toBe(0);
-    });
-  });
-
   describe('Edge cases', () => {
     it('handles very long delay times', async () => {
       const longDelayFetcher = new TestApiFetcher('https://api.example.com', 60000); // 1 minute

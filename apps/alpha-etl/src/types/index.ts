@@ -141,20 +141,12 @@ export interface ETLFilters {
   minTvl?: number | undefined;
 }
 
-export interface SourceHealth {
-  status: 'healthy' | 'unhealthy';
-  details?: string;
-  lastCheck?: string;
-}
-
 export type HealthCheckResponse = ApiResponse<{
   status: 'healthy' | 'degraded' | 'unhealthy';
   timestamp: string;
   version: string;
-  database: boolean;
   uptime: number;
   cached: boolean;
   lastCheckedAt: Nullable<string>;
   message?: string;
-  sources?: Record<DataSource, SourceHealth>;
 }>;

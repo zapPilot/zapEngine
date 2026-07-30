@@ -116,11 +116,6 @@ export abstract class BaseApiFetcher {
     };
   }
 
-  public resetStats(): void {
-    this.requestCount = 0;
-    this.lastRequestTime = 0;
-  }
-
   private buildRequestHeaders(
     customHeaders?: Record<string, string>,
   ): Record<string, string> {

@@ -697,42 +697,6 @@ describe("BTC Price Pipeline", () => {
   });
 
   describe("Other Pipeline Methods", () => {
-    it("processCurrentPrice should fetch and store data", async () => {
-      const mockPriceData = {
-        priceUsd: 50000,
-        marketCapUsd: 1000000,
-        volume24hUsd: 500000,
-        timestamp: new Date(),
-        source: "coingecko",
-        tokenSymbol: "BTC",
-        tokenId: "bitcoin",
-      };
-
-      vi.spyOn(
-        CoinGeckoFetcher.prototype,
-        "fetchCurrentPrice",
-      ).mockResolvedValue(mockPriceData);
-      vi.spyOn(
-        TokenPriceWriter.prototype,
-        "insertSnapshot",
-      ).mockResolvedValue();
-
-      await pipeline.processCurrentPrice();
-
-      expect(CoinGeckoFetcher.prototype.fetchCurrentPrice).toHaveBeenCalled();
-      expect(TokenPriceWriter.prototype.insertSnapshot).toHaveBeenCalledWith(
-        mockPriceData,
-      );
-    });
-
-    it("processCurrentPrice should propagate error", async () => {
-      vi.spyOn(
-        CoinGeckoFetcher.prototype,
-        "fetchCurrentPrice",
-      ).mockRejectedValue(new Error("Fail"));
-      await expect(pipeline.processCurrentPrice()).rejects.toThrow("Fail");
-    });
-
     it("healthCheck should return healthy status", async () => {
       vi.spyOn(CoinGeckoFetcher.prototype, "healthCheck").mockResolvedValue({
         status: "healthy",

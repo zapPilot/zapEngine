@@ -31,13 +31,3 @@ function findMatchingClassification(
 export function normalizeSentimentClassification(input: string): string {
   return findMatchingClassification(input) ?? input;
 }
-
-/**
- * Validates if a string matches one of the valid sentiment classifications
- * Uses case-insensitive comparison for flexible validation
- */
-export function isValidSentimentClassification(
-  classification: string,
-): boolean {
-  return findMatchingClassification(classification) !== undefined;
-}

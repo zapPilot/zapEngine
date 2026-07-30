@@ -9,7 +9,6 @@ import express from 'express';
 import type { HealthCheckResponse } from '../../../src/types/index.js';
 import {
   setHealthState,
-  resetHealthState,
 } from '../../../src/modules/core/healthStatus.js';
 
 // Mock the logger to prevent console output during tests
@@ -29,7 +28,7 @@ describe('Health Router', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    resetHealthState();
+    setHealthState({ status: 'initializing', lastCheckedAt: null });
 
     // Mock process.uptime to return consistent value
     vi.spyOn(process, 'uptime').mockReturnValue(123.45);
@@ -56,7 +55,7 @@ describe('Health Router', () => {
   afterEach(() => {
     vi.resetAllMocks();
     vi.restoreAllMocks();
-    resetHealthState();
+    setHealthState({ status: 'initializing', lastCheckedAt: null });
   });
 
   describe('Express Integration Tests', () => {
@@ -68,10 +67,6 @@ describe('Health Router', () => {
         data: {
           status: 'unhealthy',
           version: '1.0.0',
-          // database is optional/undefined in this mock setup if not provided?
-          // checking database: false because setHealthState mock default might be missing details
-          // The previous output showed database: false was present
-          database: false,
           uptime: 123.45,
           cached: false,
           lastCheckedAt: null,
@@ -80,32 +75,9 @@ describe('Health Router', () => {
       });
     });
 
-    it('should default missing details to empty results', async () => {
-      const lastCheckedAt = new Date().toISOString();
-      setHealthState({
-        status: 'unhealthy',
-        lastCheckedAt,
-        message: 'Missing details',
-        details: null as unknown as Record<string, unknown>,
-      });
-
-      const response = await request(app).get('/health').expect(503);
-
-      expect(response.body.data.database).toBe(false);
-      expect(response.body.data.sources).toEqual({});
-      expect(response.body.data.lastCheckedAt).toBe(lastCheckedAt);
-    });
-
     it('should return healthy status when cached state is healthy', async () => {
       const lastCheckedAt = new Date().toISOString();
       setHealthyState(lastCheckedAt);
-      setHealthState({
-        status: 'healthy',
-        lastCheckedAt,
-        details: {
-          database: { status: 'healthy' } as unknown,
-        },
-      });
 
       const response = await request(app).get('/health').expect(200);
 
@@ -114,7 +86,6 @@ describe('Health Router', () => {
         data: {
           status: 'healthy',
           version: '1.0.0',
-          database: true,
           uptime: 123.45,
           cached: true,
           lastCheckedAt,
@@ -146,7 +117,6 @@ describe('Health Router', () => {
         data: {
           status: 'unhealthy',
           version: '1.0.0',
-          database: false,
           uptime: 123.45,
           cached: true,
           lastCheckedAt,
@@ -206,7 +176,6 @@ describe('Health Router', () => {
         expect(healthResponse.data.status).toBe('healthy');
         expect(typeof healthResponse.timestamp).toBe('string');
         expect(typeof healthResponse.data.version).toBe('string');
-        expect(typeof healthResponse.data.database).toBe('boolean');
         expect(typeof healthResponse.data.uptime).toBe('number');
         expect(typeof healthResponse.data.cached).toBe('boolean');
       } else {
@@ -229,48 +198,5 @@ describe('Health Router', () => {
       ).toBe(false);
     });
 
-    it('should handle sources with undefined health details', async () => {
-      const lastCheckedAt = new Date().toISOString();
-      setHealthState({
-        status: 'healthy',
-        lastCheckedAt,
-        details: {
-          database: { status: 'healthy' },
-          debank: undefined,
-          hyperliquid: undefined,
-          feargreed: undefined,
-          'macro-fear-greed': undefined,
-          'token-price': undefined,
-          'stock-price': undefined,
-        },
-      });
-
-      const response = await request(app).get('/health').expect(200);
-
-      expect(response.body.data.status).toBe('healthy');
-      expect(response.body.data.sources).toBeDefined();
-    });
-
-    it('should include source health when defined for a DataSource', async () => {
-      const lastCheckedAt = new Date().toISOString();
-      setHealthState({
-        status: 'healthy',
-        lastCheckedAt,
-        details: {
-          database: { status: 'healthy' },
-          hyperliquid: {
-            status: 'healthy',
-            details: 'OK',
-            lastCheck: new Date().toISOString(),
-          },
-        },
-      });
-
-      const response = await request(app).get('/health').expect(200);
-
-      expect(response.body.data.sources).toBeDefined();
-      expect(response.body.data.sources.hyperliquid).toBeDefined();
-      expect(response.body.data.sources.hyperliquid.status).toBe('healthy');
-    });
   });
 });

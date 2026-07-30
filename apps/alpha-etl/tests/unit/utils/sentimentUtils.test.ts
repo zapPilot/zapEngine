@@ -3,10 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  normalizeSentimentClassification,
-  isValidSentimentClassification
-} from '../../../src/utils/sentimentUtils.js';
+import { normalizeSentimentClassification } from '../../../src/utils/sentimentUtils.js';
 
 describe('Sentiment Utils', () => {
   describe('normalizeSentimentClassification', () => {
@@ -39,29 +36,4 @@ describe('Sentiment Utils', () => {
     });
   });
 
-  describe('isValidSentimentClassification', () => {
-    it('should validate correct sentiment classifications', () => {
-      expect(isValidSentimentClassification('extreme fear')).toBe(true);
-      expect(isValidSentimentClassification('EXTREME FEAR')).toBe(true);
-      expect(isValidSentimentClassification('Extreme Fear')).toBe(true);
-      expect(isValidSentimentClassification('  fear  ')).toBe(true);
-      expect(isValidSentimentClassification('neutral')).toBe(true);
-      expect(isValidSentimentClassification('GREED')).toBe(true);
-      expect(isValidSentimentClassification('Extreme Greed')).toBe(true);
-    });
-
-    it('should reject invalid sentiment classifications', () => {
-      expect(isValidSentimentClassification('invalid')).toBe(false);
-      expect(isValidSentimentClassification('not found')).toBe(false);
-      expect(isValidSentimentClassification('')).toBe(false);
-      expect(isValidSentimentClassification('extreme-fear')).toBe(false);
-      expect(isValidSentimentClassification('EXTREME_FEAR')).toBe(false);
-    });
-
-    it('should be case-insensitive and ignore whitespace', () => {
-      expect(isValidSentimentClassification('  NEUTRAL  ')).toBe(true);
-      expect(isValidSentimentClassification('\tFEAR\n')).toBe(true);
-      expect(isValidSentimentClassification('  greed  ')).toBe(true);
-    });
-  });
 });

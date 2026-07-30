@@ -160,39 +160,6 @@ describe('stock-price/processor', () => {
     });
   });
 
-  it('processes a current price for an explicit symbol', async () => {
-    const price = createDailyPrice({ symbol: 'QQQ' });
-    vi.spyOn(
-      YahooFinanceFetcher.prototype,
-      'fetchLatestPrice',
-    ).mockResolvedValue(price);
-    vi.spyOn(StockPriceWriter.prototype, 'insertSnapshot').mockResolvedValue();
-
-    const processor = new StockPriceETLProcessor(mockPool as unknown as Pool);
-
-    await processor.processCurrentPrice('QQQ');
-
-    expect(YahooFinanceFetcher.prototype.fetchLatestPrice).toHaveBeenCalledWith(
-      'QQQ',
-    );
-    expect(StockPriceWriter.prototype.insertSnapshot).toHaveBeenCalledWith(
-      price,
-    );
-  });
-
-  it('rethrows current price processing errors', async () => {
-    vi.spyOn(
-      YahooFinanceFetcher.prototype,
-      'fetchLatestPrice',
-    ).mockRejectedValue(new Error('quote unavailable'));
-
-    const processor = new StockPriceETLProcessor(mockPool as unknown as Pool);
-
-    await expect(processor.processCurrentPrice()).rejects.toThrow(
-      'quote unavailable',
-    );
-  });
-
   it('backfills full history and reports insert counts', async () => {
     vi.spyOn(
       YahooFinanceFetcher.prototype,

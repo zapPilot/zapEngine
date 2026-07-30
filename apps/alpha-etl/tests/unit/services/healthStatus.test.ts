@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { getHealthState, setHealthState, resetHealthState, type HealthState } from '../../../src/modules/core/healthStatus.js';
+import {
+  getHealthState,
+  setHealthState,
+  type HealthState,
+} from '../../../src/modules/core/healthStatus.js';
 
 // Mock logger to prevent console noise during tests
 vi.mock('../../../src/utils/logger.js', async () => {
@@ -9,8 +13,7 @@ vi.mock('../../../src/utils/logger.js', async () => {
 
 describe('HealthStatus', () => {
   beforeEach(() => {
-    // Reset health state before each test
-    resetHealthState();
+    setHealthState({ status: 'initializing', lastCheckedAt: null });
   });
 
   describe('getHealthState', () => {
@@ -135,58 +138,6 @@ describe('HealthStatus', () => {
       });
 
       expect(getHealthState().message).toBeUndefined();
-    });
-  });
-
-  describe('resetHealthState', () => {
-    it('resets state to initializing', () => {
-      setHealthState({
-        status: 'healthy',
-        lastCheckedAt: '2024-01-15T10:00:00.000Z'
-      });
-
-      resetHealthState();
-
-      expect(getHealthState()).toEqual({
-        status: 'initializing',
-        lastCheckedAt: null
-      });
-    });
-
-    it('clears lastCheckedAt timestamp', () => {
-      setHealthState({
-        status: 'healthy',
-        lastCheckedAt: '2024-01-15T10:00:00.000Z'
-      });
-
-      resetHealthState();
-
-      expect(getHealthState().lastCheckedAt).toBeNull();
-    });
-
-    it('clears any error messages', () => {
-      setHealthState({
-        status: 'unhealthy',
-        lastCheckedAt: '2024-01-15T10:00:00.000Z',
-        message: 'Critical error'
-      });
-
-      resetHealthState();
-
-      const state = getHealthState();
-      expect(state.message).toBeUndefined();
-      expect(state.status).toBe('initializing');
-    });
-
-    it('can be called multiple times safely', () => {
-      resetHealthState();
-      resetHealthState();
-      resetHealthState();
-
-      expect(getHealthState()).toEqual({
-        status: 'initializing',
-        lastCheckedAt: null
-      });
     });
   });
 

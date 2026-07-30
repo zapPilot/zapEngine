@@ -75,29 +75,6 @@ export class StockPriceETLProcessor implements BaseETLProcessor {
     );
   }
 
-  async processCurrentPrice(
-    symbol: string = StockPriceETLProcessor.DEFAULT_SYMBOL,
-  ): Promise<void> {
-    logger.info('Starting stock price ETL job', { symbol });
-
-    try {
-      const priceData = await this.fetcher.fetchLatestPrice(symbol);
-      await this.writer.insertSnapshot(priceData);
-
-      logger.info('Stock price ETL completed successfully', {
-        symbol,
-        price: priceData.priceUsd,
-        date: priceData.date,
-      });
-    } catch (error) {
-      logProcessorFailureAndRethrow(
-        'Stock price ETL failed',
-        { symbol },
-        error,
-      );
-    }
-  }
-
   async backfillHistory(
     daysBack = 365 * 5,
     symbol: string = StockPriceETLProcessor.DEFAULT_SYMBOL,

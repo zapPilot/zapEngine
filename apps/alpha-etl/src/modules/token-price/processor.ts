@@ -11,7 +11,6 @@ import {
 import type { ETLJob } from '../../types/index.js';
 import {
   calculateMissingDates,
-  formatDateToYYYYMMDD,
   generateDateRange,
 } from '../../utils/dateUtils.js';
 import { toErrorMessage } from '../../utils/errors.js';
@@ -19,7 +18,6 @@ import { logger } from '../../utils/logger.js';
 import {
   buildProcessorStats,
   createProcessorStats,
-  logProcessorFailureAndRethrow,
   runDmaPostStep,
   writeSnapshotData,
 } from '../core/processorRun.js';
@@ -94,45 +92,6 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
     for (const token of TokenPriceETLProcessor.DEFAULT_TOKENS) {
       await runDmaPostStep(jobId, () =>
         this.updateDmaForToken(token.tokenSymbol, token.tokenId, jobId),
-      );
-    }
-  }
-
-  /**
-   * Fetch and store current token price (daily ETL job)
-   *
-   * This is the main entry point for the daily scheduled job
-   *
-   * @param tokenId - CoinGecko token ID (default: 'bitcoin')
-   * @param tokenSymbol - Token symbol (default: 'BTC')
-   * @returns Promise<void>
-   * @throws Error if ETL operation fails
-   */
-  async processCurrentPrice(
-    tokenId: string = TokenPriceETLProcessor.DEFAULT_TOKEN_ID,
-    tokenSymbol: string = TokenPriceETLProcessor.DEFAULT_TOKEN_SYMBOL,
-  ): Promise<void> {
-    logger.info('Starting token price ETL job', { tokenId, tokenSymbol });
-
-    try {
-      const priceData = await this.fetcher.fetchCurrentPrice(
-        tokenId,
-        tokenSymbol,
-      );
-      await this.writer.insertSnapshot(priceData);
-
-      logger.info('Token price ETL completed successfully', {
-        tokenId,
-        tokenSymbol,
-        price: priceData.priceUsd,
-        marketCap: priceData.marketCapUsd,
-        date: formatDateToYYYYMMDD(priceData.timestamp),
-      });
-    } catch (error) {
-      logProcessorFailureAndRethrow(
-        'Token price ETL failed',
-        { tokenId, tokenSymbol },
-        error,
       );
     }
   }

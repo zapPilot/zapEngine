@@ -112,7 +112,7 @@ function isActiveWithinThreshold(
  * @param options - Configuration options for thresholds
  * @returns true if user should be updated, false otherwise
  */
-export function shouldUpdateUser(
+function shouldUpdateUser(
   user: VipUserWithActivity,
   options: UserFilteringOptions = {},
 ): boolean {
