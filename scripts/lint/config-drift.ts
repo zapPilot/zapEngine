@@ -100,8 +100,6 @@ function main() {
   const packageDirs = findTsConfigs(PACKAGES_DIR);
   const allConfigs = [...appDirs, ...packageDirs];
 
-  const rootDirs: string[] = [];
-
   for (const configPath of allConfigs) {
     const dir = join(configPath, '..');
     const name = getPackageName(dir);
@@ -109,7 +107,6 @@ function main() {
     const cfg = loadTsConfig(configPath);
 
     if (cfg.compilerOptions?.rootDir !== undefined) {
-      rootDirs.push(cfg.compilerOptions.rootDir);
       if (cfg.compilerOptions.rootDir !== './src' && cfg.compilerOptions.rootDir !== '.') {
         issues.push({
           type: 'tsconfig_rootDir',
@@ -170,15 +167,6 @@ function main() {
         severity: 'HIGH',
       });
     }
-  }
-
-  const uniqueRootDirs = [...new Set(rootDirs)];
-  if (uniqueRootDirs.length > 1) {
-    console.log('⚠️  tsconfig rootDir drift detected:');
-    for (const rd of uniqueRootDirs) {
-      console.log(`  - rootDir: "${rd}"`);
-    }
-    console.log('');
   }
 
   if (issues.length > 0) {
