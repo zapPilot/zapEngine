@@ -6,13 +6,19 @@ export const baseConfig = {
   },
 };
 
-export function defineKnipConfig(config) {
+export function defineKnipConfig(config, options = {}) {
+  const omittedDefaultDependencies = new Set(
+    options.omitDefaultIgnoreDependencies ?? [],
+  );
+
   return {
     ...baseConfig,
     ...config,
     ignoreDependencies: [
       ...new Set([
-        ...(baseConfig.ignoreDependencies ?? []),
+        ...(baseConfig.ignoreDependencies ?? []).filter(
+          (dependency) => !omittedDefaultDependencies.has(dependency),
+        ),
         ...(config.ignoreDependencies ?? []),
       ]),
     ],

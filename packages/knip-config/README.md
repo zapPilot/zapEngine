@@ -6,7 +6,9 @@ Shared base configuration for [knip](https://knip.dev) dead-code detection acros
 
 Exposes a `defineKnipConfig(config)` helper that merges per-workspace overrides on top of a shared `baseConfig`:
 
-- Adds `@zapengine/eslint-config` and `@zapengine/knip-config` to `ignoreDependencies` automatically (prevents false positives on the workspace tooling packages)
+- Adds `@zapengine/eslint-config` and `@zapengine/knip-config` to
+  `ignoreDependencies` automatically (prevents false positives on workspace
+  tooling packages)
 - Sets `ignoreExportsUsedInFile: true` and `eslint.config: ['eslint.config.mjs']` as defaults
 - Per-workspace `ignoreDependencies` are deep-merged with the base list (deduplicated), not replaced
 
@@ -23,6 +25,15 @@ export default defineKnipConfig({
     config: ['vitest.config.ts'],
     entry: ['test/unit/**/*.spec.ts'],
   },
+});
+```
+
+Workspaces that do not declare one of the shared tooling packages can omit that
+default without weakening the defaults for other consumers:
+
+```ts
+defineKnipConfig(config, {
+  omitDefaultIgnoreDependencies: ['@zapengine/eslint-config'],
 });
 ```
 
