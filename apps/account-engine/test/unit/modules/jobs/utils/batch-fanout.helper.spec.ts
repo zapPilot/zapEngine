@@ -7,24 +7,18 @@ import {
 import type { JobQueueService } from '../../../../../src/modules/jobs/job-queue.service';
 import { BatchFanoutHelper } from '../../../../../src/modules/jobs/utils/batch-fanout.helper';
 import { PortfolioNotFoundError } from '../../../../../src/modules/notifications/errors/portfolio-not-found.error';
+import { createJobFixture } from '../../../../test-utils';
 
 const now = new Date('2026-01-01T00:00:00.000Z');
 
 function createParentJob(overrides: Partial<Job> = {}): Job {
-  return {
+  return createJobFixture({
     id: 'parent-job-1',
-    type: JobType.WEEKLY_REPORT_BATCH,
-    status: JobStatus.PENDING,
-    payload: {},
-    priority: 0,
-    maxRetries: 3,
-    retryCount: 0,
-    retryDelaySeconds: 60,
     scheduledAt: now,
     createdAt: now,
     updatedAt: now,
     ...overrides,
-  };
+  });
 }
 
 function createMocks() {

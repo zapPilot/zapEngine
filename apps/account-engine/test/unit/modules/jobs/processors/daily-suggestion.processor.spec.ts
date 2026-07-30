@@ -1,43 +1,25 @@
-import {
-  type Job,
-  JobStatus,
-  JobType,
-} from '../../../../../src/modules/jobs/interfaces/job.interface';
+import { JobType } from '../../../../../src/modules/jobs/interfaces/job.interface';
 import { JobQueueService } from '../../../../../src/modules/jobs/job-queue.service';
 import { DailySuggestionProcessor } from '../../../../../src/modules/jobs/processors/daily-suggestion.processor';
 import { AnalyticsClientService } from '../../../../../src/modules/notifications/analytics-client.service';
 import { PortfolioNotFoundError } from '../../../../../src/modules/notifications/errors/portfolio-not-found.error';
 import { TelegramService } from '../../../../../src/modules/notifications/telegram.service';
+import {
+  createJobFixture,
+  createMockJobQueueService,
+} from '../../../../test-utils';
 
-function createPendingJob(overrides: Partial<Job> = {}): Job {
-  return {
-    id: 'job-1',
+function createPendingJob(
+  overrides: Parameters<typeof createJobFixture>[0] = {},
+) {
+  return createJobFixture({
     type: JobType.DAILY_SUGGESTION_BATCH,
-    status: JobStatus.PENDING,
-    payload: {},
-    priority: 0,
-    maxRetries: 3,
-    retryCount: 0,
-    retryDelaySeconds: 60,
-    scheduledAt: new Date(),
-    createdAt: new Date(),
-    updatedAt: new Date(),
     ...overrides,
-  };
+  });
 }
 
-let mockChildJobCounter = 0;
-
 function createMocks() {
-  const jobQueueService = {
-    createJob: vi.fn().mockImplementation((opts: any) => ({
-      id: `child-${String(++mockChildJobCounter).padStart(4, '0')}`,
-      ...opts,
-    })),
-    logJobEvent: vi.fn(),
-    updateJobMetadata: vi.fn(),
-    updateJobStatus: vi.fn(),
-  };
+  const jobQueueService = createMockJobQueueService();
 
   const analyticsClient = {
     getDailySuggestion: vi.fn(),
