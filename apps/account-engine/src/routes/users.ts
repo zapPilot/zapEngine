@@ -5,21 +5,13 @@ import { createActivityTrackingMiddleware } from '../common/interceptors';
 import type { AppServices } from '../container';
 import { jsonResponse, jsonValidator, paramValidator } from './shared';
 import {
-  type AddWalletBody,
   addWalletBodySchema,
-  type ReportUnsubscribeBody,
   reportUnsubscribeBodySchema,
-  type UpdateEmailBody,
   updateEmailBodySchema,
-  type UpdateWalletLabelBody,
   updateWalletLabelBodySchema,
-  type UuidParam,
   uuidParamSchema,
-  type WalletAddressParam,
   walletAddressParamSchema,
-  type WalletBody,
   walletBodySchema,
-  type WalletIdParam,
   walletIdParamSchema,
 } from './validators';
 
@@ -27,7 +19,7 @@ export function createUsersRoutes(services: AppServices) {
   const app = new Hono();
 
   app.post('/connect-wallet', jsonValidator(walletBodySchema), async (c) => {
-    const body = c.req.valid('json') as WalletBody;
+    const body = c.req.valid('json');
     const response = await services.usersService.connectWallet(body.wallet);
     return jsonResponse(c, response, HttpStatus.OK);
   });
@@ -36,7 +28,7 @@ export function createUsersRoutes(services: AppServices) {
     '/reports/unsubscribe',
     jsonValidator(reportUnsubscribeBodySchema),
     async (c) => {
-      const body = c.req.valid('json') as ReportUnsubscribeBody;
+      const body = c.req.valid('json');
       const response =
         await services.usersService.unsubscribeFromReportsWithToken(body.token);
       return jsonResponse(c, response, HttpStatus.OK);
@@ -60,10 +52,10 @@ export function createUsersRoutes(services: AppServices) {
     paramValidator(uuidParamSchema),
     jsonValidator(addWalletBodySchema),
     async (c) => {
-      const params = c.req.valid('param') as UuidParam;
-      const body = c.req.valid('json') as AddWalletBody;
+      const { userId } = c.req.valid('param');
+      const body = c.req.valid('json');
       const response = await services.usersService.addWallet(
-        params.userId,
+        userId,
         body.wallet,
         body.label,
         body.signature,
@@ -77,8 +69,8 @@ export function createUsersRoutes(services: AppServices) {
     paramValidator(uuidParamSchema),
     jsonValidator(walletBodySchema),
     async (c) => {
-      const params = c.req.valid('param') as UuidParam;
-      const body = c.req.valid('json') as WalletBody;
+      const params = c.req.valid('param');
+      const body = c.req.valid('json');
       const response =
         await services.usersService.requestWalletBindingChallenge(
           params.userId,
@@ -93,8 +85,8 @@ export function createUsersRoutes(services: AppServices) {
     paramValidator(uuidParamSchema),
     jsonValidator(updateEmailBodySchema),
     async (c) => {
-      const params = c.req.valid('param') as UuidParam;
-      const body = c.req.valid('json') as UpdateEmailBody;
+      const params = c.req.valid('param');
+      const body = c.req.valid('json');
       const response = await services.usersService.updateEmail(
         params.userId,
         body.email,
@@ -104,7 +96,7 @@ export function createUsersRoutes(services: AppServices) {
   );
 
   app.delete('/:userId/email', paramValidator(uuidParamSchema), async (c) => {
-    const params = c.req.valid('param') as UuidParam;
+    const params = c.req.valid('param');
     const response = await services.usersService.unsubscribeFromReports(
       params.userId,
     );
@@ -116,8 +108,8 @@ export function createUsersRoutes(services: AppServices) {
     paramValidator(walletAddressParamSchema),
     jsonValidator(updateWalletLabelBodySchema),
     async (c) => {
-      const params = c.req.valid('param') as WalletAddressParam;
-      const body = c.req.valid('json') as UpdateWalletLabelBody;
+      const params = c.req.valid('param');
+      const body = c.req.valid('json');
       const response = await services.usersService.updateWalletLabel(
         params.userId,
         params.walletAddress,
@@ -128,7 +120,7 @@ export function createUsersRoutes(services: AppServices) {
   );
 
   app.get('/:userId/wallets', paramValidator(uuidParamSchema), async (c) => {
-    const params = c.req.valid('param') as UuidParam;
+    const params = c.req.valid('param');
     const response = await services.usersService.getUserWallets(params.userId);
     return jsonResponse(c, response, HttpStatus.OK);
   });
@@ -137,7 +129,7 @@ export function createUsersRoutes(services: AppServices) {
     '/:userId/wallets/:walletId',
     paramValidator(walletIdParamSchema),
     async (c) => {
-      const params = c.req.valid('param') as WalletIdParam;
+      const params = c.req.valid('param');
       const response = await services.usersService.removeWallet(
         params.userId,
         params.walletId,
@@ -150,7 +142,7 @@ export function createUsersRoutes(services: AppServices) {
     '/:userId/wallets/:walletAddress/fetch-data',
     paramValidator(walletAddressParamSchema),
     async (c) => {
-      const params = c.req.valid('param') as WalletAddressParam;
+      const params = c.req.valid('param');
       const response = await services.usersService.triggerWalletDataFetch(
         params.userId,
         params.walletAddress,
@@ -165,13 +157,13 @@ export function createUsersRoutes(services: AppServices) {
   );
 
   app.get('/:userId', paramValidator(uuidParamSchema), async (c) => {
-    const params = c.req.valid('param') as UuidParam;
+    const params = c.req.valid('param');
     const response = await services.usersService.getUserProfile(params.userId);
     return jsonResponse(c, response, HttpStatus.OK);
   });
 
   app.delete('/:userId', paramValidator(uuidParamSchema), async (c) => {
-    const params = c.req.valid('param') as UuidParam;
+    const params = c.req.valid('param');
     const response = await services.usersService.deleteUser(params.userId);
     return jsonResponse(c, response, HttpStatus.OK);
   });
@@ -180,7 +172,7 @@ export function createUsersRoutes(services: AppServices) {
     '/:userId/telegram/request-token',
     paramValidator(uuidParamSchema),
     async (c) => {
-      const params = c.req.valid('param') as UuidParam;
+      const params = c.req.valid('param');
       const response = await services.usersService.requestTelegramToken(
         params.userId,
       );
@@ -192,7 +184,7 @@ export function createUsersRoutes(services: AppServices) {
     '/:userId/telegram/status',
     paramValidator(uuidParamSchema),
     async (c) => {
-      const params = c.req.valid('param') as UuidParam;
+      const params = c.req.valid('param');
       const response = await services.usersService.getTelegramStatus(
         params.userId,
       );
@@ -204,7 +196,7 @@ export function createUsersRoutes(services: AppServices) {
     '/:userId/telegram/disconnect',
     paramValidator(uuidParamSchema),
     async (c) => {
-      const params = c.req.valid('param') as UuidParam;
+      const params = c.req.valid('param');
       const response = await services.usersService.disconnectTelegram(
         params.userId,
       );

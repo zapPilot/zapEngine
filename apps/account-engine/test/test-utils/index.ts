@@ -141,9 +141,9 @@ export function createMockConfigService(
   overrides: Record<string, unknown> = {},
 ): any {
   const defaults: Record<string, unknown> = {
-    'database.supabase.url': 'http://localhost:54321',
-    'database.supabase.anonKey': 'test-anon-key',
-    'database.supabase.serviceRoleKey': 'test-service-role-key',
+    SUPABASE_URL: 'http://localhost:54321',
+    SUPABASE_ANON_KEY: 'test-anon-key',
+    SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
     ADMIN_API_KEY: 'test-admin-key',
     API_KEY: 'test-api-key',
     TELEGRAM_BOT_TOKEN: 'test-bot-token',
@@ -167,7 +167,6 @@ export function createMockConfigService(
   return {
     env: defaults as any,
     get: vi.fn(<T>(key: string, defaultValue?: T): T | undefined => {
-      // Support dot-path lookups
       if (key in defaults) {
         return defaults[key] as T;
       }

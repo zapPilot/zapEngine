@@ -1,5 +1,6 @@
 import { zValidator } from '@hono/zod-validator';
 import type { Context } from 'hono';
+import type { z } from 'zod';
 
 import { HttpStatus, toErrorResponse } from '../common/http';
 
@@ -24,12 +25,12 @@ export function validationHook(
   );
 }
 
-export function jsonValidator<T>(schema: T) {
-  return zValidator('json', schema as never, validationHook);
+export function jsonValidator<T extends z.ZodType>(schema: T) {
+  return zValidator('json', schema, validationHook);
 }
 
-export function paramValidator<T>(schema: T) {
-  return zValidator('param', schema as never, validationHook);
+export function paramValidator<T extends z.ZodType>(schema: T) {
+  return zValidator('param', schema, validationHook);
 }
 
 export function jsonResponse<T>(

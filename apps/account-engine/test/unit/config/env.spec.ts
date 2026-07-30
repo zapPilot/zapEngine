@@ -24,7 +24,6 @@ describe('loadEnv', () => {
 
   it('defaults PORT to 3004 when no port env is provided', () => {
     const result = loadEnv(validEnv);
-    expect(result.server.port).toBe(3004);
     expect(result.PORT).toBe(3004);
   });
 
@@ -35,20 +34,12 @@ describe('loadEnv', () => {
       PORT: '8001',
     });
 
-    expect(result.server.port).toBe(3004);
     expect(result.PORT).toBe(3004);
   });
 
   it('uses the generic PORT fallback when ACCOUNT_ENGINE_PORT is absent', () => {
     const result = loadEnv({ ...validEnv, PORT: '8080' });
-    expect(result.server.port).toBe(8080);
-  });
-
-  it('maps database.supabase nested fields correctly', () => {
-    const result = loadEnv(validEnv);
-    expect(result.database.supabase.url).toBe('https://example.supabase.co');
-    expect(result.database.supabase.anonKey).toBe('anon-key');
-    expect(result.database.supabase.serviceRoleKey).toBe('service-role-key');
+    expect(result.PORT).toBe(8080);
   });
 
   it('throws BadRequestException when SUPABASE_URL is missing', () => {
