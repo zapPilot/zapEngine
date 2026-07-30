@@ -427,27 +427,6 @@ async function synthesizeClassroomAudios(
   return { audioBuffers, cost };
 }
 
-async function wrapWithErrorHandling<T>(
-  promise: () => Promise<T>,
-  fallback: T,
-  errorMessage: string,
-  context: Record<string, unknown>,
-): Promise<T> {
-  try {
-    return await promise();
-  } catch (error) {
-    /* v8 ignore next -- @preserve */
-    const err = error instanceof Error ? error : new Error(String(error));
-    console.error(errorMessage, {
-      ...context,
-      message: err.message,
-      stack: err.stack,
-      cause: err.cause,
-    });
-    return fallback;
-  }
-}
-
 async function combineClassroomAudio(
   classroomAudios: Buffer[],
   context: {
@@ -471,15 +450,21 @@ async function combineClassroomAudio(
     );
   }
 
-  return wrapWithErrorHandling(
-    () =>
-      step('concatEpisodeClassroomAudio', () =>
-        concatMp3Buffers(classroomAudios),
-      ),
-    null,
-    '[/ingest] classroom audio concat failed:',
-    context,
-  );
+  try {
+    return await step('concatEpisodeClassroomAudio', () =>
+      concatMp3Buffers(classroomAudios),
+    );
+  } catch (error) {
+    /* v8 ignore next -- @preserve */
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error('[/ingest] classroom audio concat failed:', {
+      ...context,
+      message: err.message,
+      stack: err.stack,
+      cause: err.cause,
+    });
+    return null;
+  }
 }
 
 async function ensureLanguageClassrooms(

@@ -1,11 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type {
-  EpisodeListRow,
-  EpisodeLocalizationRow,
-  EpisodeRow,
-} from '../types.js';
+import {
+  classroomRow,
+  episodeRow,
+  listRow,
+  localizationRow,
+} from '../__fixtures__/index-test.js';
 import {
   decodeCursor,
   encodeCursor,
@@ -42,6 +43,12 @@ const { state, mockFrom } = vi.hoisted(() => {
   const mockFrom = vi.fn(() => state.query);
   return { state, mockFrom };
 });
+
+const DB_CLASSROOM_ROW_DEFAULTS = {
+  id: 'classroom-1',
+  episode_localization_id: 'loc-1',
+  one_liner: 'この記事は流動性を説明します。',
+} as const;
 
 function makeQuery() {
   const query = {
@@ -178,8 +185,8 @@ describe('toEpisodeResponse', () => {
   it('maps direct localization rows with explicit classrooms', () => {
     const response = toEpisodeResponseFromLocalization(
       episodeRow(),
-      localizationRow(),
-      [classroomRow()],
+      localizationRow({ classroom_hls_url: null }),
+      [classroomRow(DB_CLASSROOM_ROW_DEFAULTS)],
     );
 
     expect(response.languageClassrooms).toEqual([
@@ -195,6 +202,7 @@ describe('toEpisodeResponse', () => {
   it('uses inline list-row classrooms when no explicit classrooms are supplied', () => {
     const response = toEpisodeResponse(
       listRow({
+        classroom_hls_url: null,
         language_classrooms: [
           {
             sourceLanguageCode: 'zh-Hant',
@@ -218,7 +226,10 @@ describe('toEpisodeResponse', () => {
 
   it('ignores non-array inline classroom payloads on list rows', () => {
     const response = toEpisodeResponse(
-      listRow({ language_classrooms: null as never }),
+      listRow({
+        classroom_hls_url: null,
+        language_classrooms: null as never,
+      }),
     );
 
     expect(response.languageClassrooms).toEqual([]);
@@ -236,7 +247,12 @@ describe('toEpisodeResponse', () => {
     };
 
     expect(
-      toEpisodeResponse(listRow(), undefined, video, videoGeneration),
+      toEpisodeResponse(
+        listRow({ classroom_hls_url: null }),
+        undefined,
+        video,
+        videoGeneration,
+      ),
     ).toMatchObject({
       video,
       videoGeneration,
@@ -331,7 +347,7 @@ describe('episode source and localization lookup', () => {
   });
 
   it('finds an episode localization by episode id and language', async () => {
-    const row = localizationRow();
+    const row = localizationRow({ classroom_hls_url: null });
     state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
 
     const result = await findEpisodeLocalizationByEpisodeId(
@@ -358,10 +374,11 @@ describe('episode source and localization lookup', () => {
 
   it('lists requested localizations for an episode in one query', async () => {
     const rows = [
-      localizationRow(),
+      localizationRow({ classroom_hls_url: null }),
       localizationRow({
         id: '00000000-0000-4000-8000-000000000003',
         language_code: 'ja',
+        classroom_hls_url: null,
       }),
     ];
     state.query!.returns.mockResolvedValue({ data: rows, error: null });
@@ -404,7 +421,7 @@ describe('episode source and localization lookup', () => {
   });
 
   it('finds a completed feed row by localization id', async () => {
-    const row = listRow();
+    const row = listRow({ classroom_hls_url: null });
     state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
 
     await expect(
@@ -491,9 +508,14 @@ describe('listEpisodesPaged', () => {
   });
 
   it('queries the localization view by language and returns next cursor', async () => {
-    const rows = [listRow({ id: '00000000-0000-4000-8000-000000000001' })];
+    const rows = [
+      listRow({
+        id: '00000000-0000-4000-8000-000000000001',
+        classroom_hls_url: null,
+      }),
+    ];
     state.query!.returns.mockResolvedValue({
-      data: [...rows, listRow()],
+      data: [...rows, listRow({ classroom_hls_url: null })],
       error: null,
     });
 
@@ -509,7 +531,7 @@ describe('listEpisodesPaged', () => {
   });
 
   it('returns rows without a cursor when there is no next page', async () => {
-    const rows = [listRow()];
+    const rows = [listRow({ classroom_hls_url: null })];
     state.query!.returns.mockResolvedValue({ data: rows, error: null });
 
     const result = await listEpisodesPaged(100, null);
@@ -733,7 +755,7 @@ describe('insertEpisode and insertEpisodeLocalization', () => {
   });
 
   it('inserts a localized episode row', async () => {
-    const row = localizationRow();
+    const row = localizationRow({ classroom_hls_url: null });
     state.query!.single.mockResolvedValue({ data: row, error: null });
 
     const result = await insertEpisodeLocalization({
@@ -966,7 +988,7 @@ describe('language classrooms', () => {
   });
 
   it('lists classrooms for one localization id', async () => {
-    const rows = [classroomRow()];
+    const rows = [classroomRow(DB_CLASSROOM_ROW_DEFAULTS)];
     state.query!.returns.mockResolvedValue({ data: rows, error: null });
 
     await expect(
@@ -1005,10 +1027,12 @@ describe('language classrooms', () => {
   it('groups classrooms by episode localization id', async () => {
     const rows = [
       classroomRow({
+        ...DB_CLASSROOM_ROW_DEFAULTS,
         episode_localization_id: 'loc-1',
         target_language_code: 'ja',
       }),
       classroomRow({
+        ...DB_CLASSROOM_ROW_DEFAULTS,
         episode_localization_id: 'loc-2',
         target_language_code: 'en',
       }),
@@ -1143,7 +1167,11 @@ describe('updates', () => {
   });
 
   it('updates localized article content', async () => {
-    const row = localizationRow({ title: '軟體更新', raw_text: '滑鼠' });
+    const row = localizationRow({
+      title: '軟體更新',
+      raw_text: '滑鼠',
+      classroom_hls_url: null,
+    });
     state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
 
     const result = await updateEpisodeLocalizationArticleContent(row.id, {
@@ -1176,7 +1204,10 @@ describe('updates', () => {
   });
 
   it('updates localized status and generated media fields', async () => {
-    const row = localizationRow({ status: 'completed' });
+    const row = localizationRow({
+      status: 'completed',
+      classroom_hls_url: null,
+    });
     state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
 
     await updateEpisodeLocalizationStatus(row.id, 'completed', {
@@ -1240,7 +1271,7 @@ describe('updates', () => {
   });
 
   it('rethrows unrelated update errors without stripping classroom fields', async () => {
-    const row = localizationRow();
+    const row = localizationRow({ classroom_hls_url: null });
     state.query!.maybeSingle.mockResolvedValueOnce({
       data: null,
       error: new Error('connection refused'),
@@ -1260,7 +1291,10 @@ describe('updates', () => {
   });
 
   it('updates localized script metadata fields', async () => {
-    const row = localizationRow({ status: 'script_generated' });
+    const row = localizationRow({
+      status: 'script_generated',
+      classroom_hls_url: null,
+    });
     state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
 
     await updateEpisodeLocalizationStatus(row.id, 'script_generated', {
@@ -1281,81 +1315,3 @@ describe('updates', () => {
     );
   });
 });
-
-function episodeRow(overrides: Partial<EpisodeRow> = {}): EpisodeRow {
-  return {
-    id: '00000000-0000-4000-8000-000000000001',
-    source_url: 'https://example.com/article',
-    source_title: 'Source title',
-    created_at: '2024-01-01T00:00:00.000Z',
-    listened: false,
-    ...overrides,
-  };
-}
-
-function localizationRow(
-  overrides: Partial<EpisodeLocalizationRow> = {},
-): EpisodeLocalizationRow {
-  return {
-    id: '00000000-0000-4000-8000-000000000101',
-    episode_id: '00000000-0000-4000-8000-000000000001',
-    language_code: 'zh-Hant',
-    title: 'Localization title',
-    hls_url: 'https://cdn.example.com/playlist.m3u8',
-    classroom_hls_url: null,
-    raw_text: 'Article text',
-    script: 'Script',
-    llm_model: 'model',
-    llm_thinking_model: null,
-    llm_provider: 'provider',
-    tts_language_code: null,
-    tts_voice_name: null,
-    r2_prefix: null,
-    classroom_r2_prefix: null,
-    status: 'completed',
-    created_at: '2024-01-01T00:00:00.000Z',
-    updated_at: '2024-01-01T00:00:00.000Z',
-    ...overrides,
-  };
-}
-
-function listRow(overrides: Partial<EpisodeListRow> = {}): EpisodeListRow {
-  return {
-    id: '00000000-0000-4000-8000-000000000001',
-    episode_id: '00000000-0000-4000-8000-000000000001',
-    localization_id: '00000000-0000-4000-8000-000000000101',
-    title: 'Localization title',
-    language_code: 'zh-Hant',
-    hls_url: 'https://cdn.example.com/playlist.m3u8',
-    classroom_hls_url: null,
-    script: 'Script',
-    llm_model: 'model',
-    llm_thinking_model: null,
-    llm_provider: 'provider',
-    status: 'completed',
-    created_at: '2024-01-01T00:00:00.000Z',
-    listened: false,
-    like_count: 0,
-    language_classrooms: [],
-    ...overrides,
-  };
-}
-
-function classroomRow(
-  overrides: Partial<import('../types.js').LanguageClassroomRow> = {},
-): import('../types.js').LanguageClassroomRow {
-  return {
-    id: 'classroom-1',
-    episode_localization_id: 'loc-1',
-    source_language_code: 'zh-Hant',
-    target_language_code: 'ja',
-    one_liner: 'この記事は流動性を説明します。',
-    keywords: [],
-    llm_model: 'model',
-    llm_thinking_model: null,
-    llm_provider: 'provider',
-    created_at: '2024-01-01T00:00:00.000Z',
-    updated_at: '2024-01-01T00:00:00.000Z',
-    ...overrides,
-  };
-}

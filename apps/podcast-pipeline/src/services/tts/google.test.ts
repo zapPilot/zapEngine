@@ -58,100 +58,15 @@ vi.mock('crypto', () => ({
 
 import {
   buildGoogleCostLine,
-  concatenateAudioChunks,
-  getClientOptions,
   splitTextIntoChunks,
   synthesize as textToSpeech,
   synthesizeChunk,
 } from './google.js';
 
-describe('Google credentials', () => {
+describe('Google TTS client credentials', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     mockTextToSpeechClient.mockClear();
-  });
-
-  it('returns undefined when GOOGLE_APPLICATION_CREDENTIALS_BASE64 is not set', () => {
-    vi.stubEnv('GOOGLE_APPLICATION_CREDENTIALS_BASE64', '');
-    expect(getClientOptions()).toBeUndefined();
-  });
-
-  it('uses GOOGLE_APPLICATION_CREDENTIALS as a credentials file path fallback', () => {
-    vi.stubEnv('GOOGLE_APPLICATION_CREDENTIALS_BASE64', '');
-    vi.stubEnv('GOOGLE_APPLICATION_CREDENTIALS', '/secrets/google-sa.json');
-
-    expect(getClientOptions()).toEqual({
-      keyFilename: '/secrets/google-sa.json',
-    });
-  });
-
-  it('throws when GOOGLE_APPLICATION_CREDENTIALS_BASE64 is not valid base64', () => {
-    vi.stubEnv('GOOGLE_APPLICATION_CREDENTIALS_BASE64', 'not-valid-base64!!!');
-    expect(() => getClientOptions()).toThrow(
-      'Invalid GOOGLE_APPLICATION_CREDENTIALS_BASE64: expected base64-encoded service account JSON',
-    );
-  });
-
-  it('throws when service account JSON is missing client_email', () => {
-    const credentials = {
-      private_key:
-        '-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n',
-      project_id: 'test-project',
-    };
-    vi.stubEnv(
-      'GOOGLE_APPLICATION_CREDENTIALS_BASE64',
-      Buffer.from(JSON.stringify(credentials), 'utf8').toString('base64'),
-    );
-    expect(() => getClientOptions()).toThrow(
-      'Invalid GOOGLE_APPLICATION_CREDENTIALS_BASE64: service account JSON must include client_email, private_key, and project_id',
-    );
-  });
-
-  it('throws when service account JSON is missing private_key', () => {
-    const credentials = {
-      client_email: 'tts@example.iam.gserviceaccount.com',
-      project_id: 'test-project',
-    };
-    vi.stubEnv(
-      'GOOGLE_APPLICATION_CREDENTIALS_BASE64',
-      Buffer.from(JSON.stringify(credentials), 'utf8').toString('base64'),
-    );
-    expect(() => getClientOptions()).toThrow(
-      'Invalid GOOGLE_APPLICATION_CREDENTIALS_BASE64: service account JSON must include client_email, private_key, and project_id',
-    );
-  });
-
-  it('throws when service account JSON is missing project_id', () => {
-    const credentials = {
-      client_email: 'tts@example.iam.gserviceaccount.com',
-      private_key:
-        '-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n',
-    };
-    vi.stubEnv(
-      'GOOGLE_APPLICATION_CREDENTIALS_BASE64',
-      Buffer.from(JSON.stringify(credentials), 'utf8').toString('base64'),
-    );
-    expect(() => getClientOptions()).toThrow(
-      'Invalid GOOGLE_APPLICATION_CREDENTIALS_BASE64: service account JSON must include client_email, private_key, and project_id',
-    );
-  });
-
-  it('builds TTS client options from base64 service account JSON', () => {
-    const credentials = {
-      client_email: 'tts@example.iam.gserviceaccount.com',
-      private_key:
-        '-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n',
-      project_id: 'test-project',
-    };
-    vi.stubEnv(
-      'GOOGLE_APPLICATION_CREDENTIALS_BASE64',
-      Buffer.from(JSON.stringify(credentials), 'utf8').toString('base64'),
-    );
-
-    expect(getClientOptions()).toEqual({
-      credentials,
-      projectId: 'test-project',
-    });
   });
 
   it('passes base64 service account credentials to the TTS client', async () => {
@@ -581,70 +496,5 @@ describe('synthesizeChunk', () => {
       }),
       audioConfig: { audioEncoding: 'MP3' },
     });
-  });
-});
-
-describe('concatenateAudioChunks', () => {
-  it('returns single chunk unchanged', async () => {
-    const buf = Buffer.alloc(100);
-    const result = await concatenateAudioChunks([buf]);
-    expect(result).toBe(buf);
-  });
-
-  it('concatenates multiple chunks using ffmpeg with dynamic fs import', async () => {
-    const { readFileSync } = await import('node:fs');
-    vi.mocked(readFileSync).mockReturnValue(Buffer.alloc(200));
-
-    const { concatenateAudioChunks: concat } = await import('./google.js');
-    const chunks = [Buffer.alloc(100, 0x01), Buffer.alloc(100, 0x02)];
-    const result = await concat(chunks);
-    expect(result).toBeInstanceOf(Buffer);
-  });
-
-  it('swallows error when unlinkSync throws on input file deletion', async () => {
-    const { readFileSync, unlinkSync } = await import('node:fs');
-    vi.mocked(readFileSync).mockReturnValue(Buffer.alloc(300));
-    vi.mocked(unlinkSync).mockImplementation(() => {
-      throw new Error('unlink input file error');
-    });
-
-    const { concatenateAudioChunks: concat } = await import('./google.js');
-    const chunks = [Buffer.alloc(100, 0x01), Buffer.alloc(100, 0x02)];
-    const result = await concat(chunks);
-    expect(result).toBeInstanceOf(Buffer);
-  });
-
-  it('swallows error when unlinkSync throws on output file deletion', async () => {
-    let inputUnlinkCalled = false;
-    const { readFileSync, unlinkSync } = await import('node:fs');
-    vi.mocked(readFileSync).mockReturnValue(Buffer.alloc(300));
-    vi.mocked(unlinkSync).mockImplementation(() => {
-      if (!inputUnlinkCalled) {
-        inputUnlinkCalled = true;
-        // First calls are for input files - succeed
-        return;
-      }
-      // Subsequent call for output file - throw
-      throw new Error('unlink output file error');
-    });
-
-    const { concatenateAudioChunks: concat } = await import('./google.js');
-    const chunks = [Buffer.alloc(100, 0x01), Buffer.alloc(100, 0x02)];
-    const result = await concat(chunks);
-    expect(result).toBeInstanceOf(Buffer);
-  });
-
-  it('concatenates multiple chunks (3+) with ffmpeg', async () => {
-    const { readFileSync } = await import('node:fs');
-    vi.mocked(readFileSync).mockReturnValue(Buffer.alloc(400));
-
-    const { concatenateAudioChunks: concat } = await import('./google.js');
-    const chunks = [
-      Buffer.alloc(100, 0x01),
-      Buffer.alloc(100, 0x02),
-      Buffer.alloc(100, 0x03),
-    ];
-    const result = await concat(chunks);
-    expect(result).toBeInstanceOf(Buffer);
   });
 });

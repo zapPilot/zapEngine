@@ -1,3 +1,4 @@
+import { sleep } from '../../lib/sleep.js';
 import type { UsageCostLine } from '../cost.js';
 import type {
   TtsMetadata,
@@ -562,14 +563,6 @@ function getRetryDelayMs(response: Response | null, attempt: number): number {
       : DEFAULT_RETRY_DELAY_MS;
 
   return safeBaseDelay * attempt;
-}
-
-function sleep(ms: number): Promise<void> {
-  if (ms <= 0) {
-    return Promise.resolve();
-  }
-
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function buildFishAudioCostLine(

@@ -1,20 +1,12 @@
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 
+import { sleep } from '../../lib/sleep.js';
 import type { UsageCostLine } from '../cost.js';
 import { resolveGcpClientOptions } from '../gcp-credentials.js';
 import type { TtsMetadata, TtsSynthesizeOptions } from '../tts.js';
 import { concatMp3Buffers } from './audio-concat.js';
 
-type TextToSpeechClientOptions = ConstructorParameters<
-  typeof TextToSpeechClient
->[0];
-
 let client: TextToSpeechClient | null = null;
-
-function getClient(): TextToSpeechClient {
-  client ??= new TextToSpeechClient(getClientOptions());
-  return client;
-}
 
 const MAX_BYTES = 4800;
 const MAX_INTERNAL_ATTEMPTS = 3;
@@ -28,10 +20,6 @@ const DEFAULT_GOOGLE_VOICE = {
 interface GoogleVoiceOptions {
   languageCode: string;
   voiceName: string;
-}
-
-export function getClientOptions(): TextToSpeechClientOptions | undefined {
-  return resolveGcpClientOptions();
 }
 
 export function splitTextIntoChunks(text: string, maxBytes: number): string[] {
@@ -95,7 +83,8 @@ export async function synthesizeChunk(
   text: string,
   voiceOptions: GoogleVoiceOptions = DEFAULT_GOOGLE_VOICE,
 ): Promise<Buffer> {
-  const [response] = await getClient().synthesizeSpeech({
+  client ??= new TextToSpeechClient(resolveGcpClientOptions());
+  const [response] = await client.synthesizeSpeech({
     input: { text },
     voice: {
       languageCode: voiceOptions.languageCode,
@@ -109,12 +98,6 @@ export async function synthesizeChunk(
   }
 
   return Buffer.from(response.audioContent as Uint8Array);
-}
-
-export async function concatenateAudioChunks(
-  chunks: Buffer[],
-): Promise<Buffer> {
-  return concatMp3Buffers(chunks);
 }
 
 export function getMetadata(opts?: TtsSynthesizeOptions): TtsMetadata {
@@ -158,7 +141,7 @@ export async function synthesize(
     ),
   );
   return {
-    audio: await concatenateAudioChunks(audioBuffers),
+    audio: await concatMp3Buffers(audioBuffers),
     cost: [buildGoogleCostLine(chunks, voiceOptions, opts)],
   };
 }
@@ -201,7 +184,7 @@ async function synthesizeChunkWithInternalRetry(
         throw error;
       }
 
-      await delay(INITIAL_INTERNAL_RETRY_DELAY_MS * 2 ** (attempt - 1));
+      await sleep(INITIAL_INTERNAL_RETRY_DELAY_MS * 2 ** (attempt - 1));
     }
   }
 
@@ -214,10 +197,6 @@ function isGoogleInternalError(error: unknown): boolean {
   }
 
   return error['code'] === 13 || error['code'] === '13';
-}
-
-function delay(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function googleErrorDetails(error: unknown): string[] {
@@ -309,10 +288,7 @@ export function buildGoogleCostLine(
   voiceOptions: GoogleVoiceOptions = DEFAULT_GOOGLE_VOICE,
   opts?: TtsSynthesizeOptions,
 ): UsageCostLine {
-  const characters = chunks.reduce(
-    (sum, chunk) => sum + countUnicodeCharacters(chunk),
-    0,
-  );
+  const characters = chunks.reduce((sum, chunk) => sum + [...chunk].length, 0);
 
   return {
     category: 'tts',
@@ -326,8 +302,4 @@ export function buildGoogleCostLine(
       unitPriceUsd: GOOGLE_WAVENET_PRICE_USD_PER_CHARACTER,
     },
   };
-}
-
-function countUnicodeCharacters(text: string): number {
-  return [...text].length;
 }
