@@ -118,6 +118,8 @@ export function createContainer(
     telegramService,
   );
   const activityTracker = new ActivityTracker(databaseService);
+  // Intentionally pre-wired for the plan-orchestration audit-trail integration
+  // point; having no consumers yet is the expected state.
   const ledgerService = new LedgerService(databaseService);
   const planSimulation = planSimulationConfigFromEnv({
     accountSlug: env.TENDERLY_ACCOUNT_SLUG,
