@@ -5,7 +5,7 @@ import { PitchSlide } from '../PitchSlide';
 describe('PitchSlide', () => {
   it('emits the canonical id/data attributes', () => {
     const { container } = render(
-      <PitchSlide id="cover" index={0}>
+      <PitchSlide id="cover">
         <p>body</p>
       </PitchSlide>,
     );
@@ -19,7 +19,6 @@ describe('PitchSlide', () => {
     const { container, getByText } = render(
       <PitchSlide
         id="problem"
-        index={1}
         kicker="Problem"
         title="Headline"
         subtitle="Subtitle"
@@ -38,7 +37,7 @@ describe('PitchSlide', () => {
 
   it('omits aria-labelledby when no title is provided', () => {
     const { container } = render(
-      <PitchSlide id="solution" index={2} variant="wrapped">
+      <PitchSlide id="solution" variant="wrapped">
         <p>x</p>
       </PitchSlide>,
     );
@@ -49,7 +48,7 @@ describe('PitchSlide', () => {
 
   it('accepts a custom className', () => {
     const { container } = render(
-      <PitchSlide id="ask" index={8} className="extra">
+      <PitchSlide id="ask" className="extra">
         <p>x</p>
       </PitchSlide>,
     );

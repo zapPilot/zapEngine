@@ -10,7 +10,6 @@ export function PitchStrategySlide() {
   return (
     <PitchSlide
       id="strategy"
-      index={3}
       kicker={PITCH_STRATEGY.kicker}
       title={PITCH_STRATEGY.headline}
       subtitle={PITCH_STRATEGY.body}

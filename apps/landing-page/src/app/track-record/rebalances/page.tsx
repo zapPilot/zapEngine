@@ -2,22 +2,18 @@
 
 import { useTrackRecord } from '@/hooks/useTrackRecord';
 import { RebalanceTable } from '@/components/track-record/RebalanceTable';
+import { TrackRecordLoading } from '@/components/track-record/TrackRecordLoading';
+import { hasRebalance } from '@/components/track-record/rebalance';
 
 export default function RebalancesPage() {
   const state = useTrackRecord();
   const { snapshots, isLoading } = state;
 
   if (isLoading) {
-    return (
-      <div className="track-record-loading">
-        <p>Loading rebalance data…</p>
-      </div>
-    );
+    return <TrackRecordLoading label="Loading rebalance data…" />;
   }
 
-  const rebalances = snapshots.filter((s) =>
-    s.transactions.some((t) => t.type === 'rebalance'),
-  );
+  const rebalances = snapshots.filter(hasRebalance);
 
   return (
     <div className="track-record-rebalances">

@@ -2,43 +2,14 @@
 
 import { useEffect, useState } from 'react';
 
-export type CockpitRegime = 'greed' | 'neutral' | 'fear';
-
-interface RegimeReadout {
-  regimeLabel: string;
-  regimeColor: string;
-  fgi: string;
-  dma: string;
-  nextRebal: string;
-  bundleAction: string;
-}
-
-const REGIME_READOUTS: Record<CockpitRegime, RegimeReadout> = {
-  greed: {
-    regimeLabel: 'GREED',
-    regimeColor: '#f7931a',
-    fgi: 'FGI 72',
-    dma: '200MA +14.2%',
-    nextRebal: '02:14:00',
-    bundleAction: 'Trim BTC · ETH → Stablecoins (defensive tilt)',
-  },
-  neutral: {
-    regimeLabel: 'NEUTRAL',
-    regimeColor: '#a1a1aa',
-    fgi: 'FGI 54',
-    dma: '200MA +6.1%',
-    nextRebal: '—',
-    bundleAction: 'Holding target — no trade due',
-  },
-  fear: {
-    regimeLabel: 'FEAR',
-    regimeColor: '#7ad88f',
-    fgi: 'FGI 21',
-    dma: '200MA −8.4%',
-    nextRebal: '00:41:00',
-    bundleAction: 'Buy S&P500 + BTC · ETH ← Stablecoins',
-  },
-};
+const REGIME_READOUT = {
+  regimeLabel: 'GREED',
+  regimeColor: '#f7931a',
+  fgi: 'FGI 72',
+  dma: '200MA +14.2%',
+  nextRebal: '02:14:00',
+  bundleAction: 'Trim BTC · ETH → Stablecoins (defensive tilt)',
+} as const;
 
 const NET_WORTH_USD = 128540.22;
 const COUNT_UP_DELAY_MS = 300;
@@ -76,7 +47,7 @@ function splitAmount(value: number): { int: string; frac: string } {
   return { int: formatted.slice(0, dot), frac: formatted.slice(dot + 1) };
 }
 
-export function HeroCockpit({ regime = 'greed' }: { regime?: CockpitRegime }) {
+export function HeroCockpit() {
   const [net, setNet] = useState(NET_WORTH_USD);
   const [weightIndex, setWeightIndex] = useState(0);
 
@@ -116,7 +87,7 @@ export function HeroCockpit({ regime = 'greed' }: { regime?: CockpitRegime }) {
 
   const { int: netInt, frac: netFrac } = splitAmount(net);
   const weights = WEIGHT_STATES[weightIndex] ?? INITIAL_WEIGHTS;
-  const readout = REGIME_READOUTS[regime];
+  const readout = REGIME_READOUT;
 
   return (
     <div className="zp-cockpit">

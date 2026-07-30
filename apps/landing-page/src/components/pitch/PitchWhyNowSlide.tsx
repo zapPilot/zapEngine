@@ -9,7 +9,6 @@ export function PitchWhyNowSlide() {
   return (
     <PitchSlide
       id="why-now"
-      index={7}
       kicker={PITCH_WHY_NOW.kicker}
       title={PITCH_WHY_NOW.headline}
     >

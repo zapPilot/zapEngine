@@ -8,7 +8,7 @@ import { PitchSlide } from './PitchSlide';
  */
 export function PitchProofSlide() {
   return (
-    <PitchSlide id="proof" index={5} variant="wrapped">
+    <PitchSlide id="proof" variant="wrapped">
       <BacktestProof />
     </PitchSlide>
   );

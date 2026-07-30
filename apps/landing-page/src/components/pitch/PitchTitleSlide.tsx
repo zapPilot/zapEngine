@@ -7,7 +7,7 @@ import { PitchSlide } from './PitchSlide';
  */
 export function PitchTitleSlide() {
   return (
-    <PitchSlide id="cover" index={0}>
+    <PitchSlide id="cover">
       <div className="pitch-cover-inner">
         <span className="pitch-cover-pill">{MESSAGES.slogans.philosophy}</span>
         <h1 className="pitch-cover-headline" id="pitch-cover-title">

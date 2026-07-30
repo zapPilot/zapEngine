@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { classNames } from '@/lib/classNames';
 
 export interface AllocationSegment {
   color: string;
@@ -32,7 +33,7 @@ export const AllocationBar = memo(function AllocationBar({
 
   return (
     <div
-      className={['allocation-bar', className].filter(Boolean).join(' ')}
+      className={classNames('allocation-bar', className)}
       style={{ height }}
       role="img"
       aria-label={ariaLabel}

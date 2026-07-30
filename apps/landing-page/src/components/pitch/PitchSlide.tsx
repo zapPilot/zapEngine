@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import type { PitchSlideId } from '@/config/pitch';
+import { PITCH_SLIDES, type PitchSlideId } from '@/config/pitch';
+import { classNames } from '@/lib/classNames';
 
 type PitchSlideProps = {
   id: PitchSlideId;
-  index: number;
   kicker?: string;
   title?: string;
   subtitle?: string;
@@ -11,10 +11,6 @@ type PitchSlideProps = {
   className?: string;
   children: ReactNode;
 };
-
-function classNames(...values: (string | false | undefined)[]) {
-  return values.filter(Boolean).join(' ');
-}
 
 /**
  * Snap-aligned slide primitive for the /pitch deck.
@@ -25,7 +21,6 @@ function classNames(...values: (string | false | undefined)[]) {
  */
 export function PitchSlide({
   id,
-  index,
   kicker,
   title,
   subtitle,
@@ -34,6 +29,7 @@ export function PitchSlide({
   children,
 }: PitchSlideProps) {
   const titleId = title ? `pitch-${id}-title` : undefined;
+  const index = PITCH_SLIDES.findIndex((slide) => slide.id === id);
 
   return (
     <section

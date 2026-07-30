@@ -10,7 +10,6 @@ export function PitchProblemSlide() {
   return (
     <PitchSlide
       id="problem"
-      index={1}
       kicker={PITCH_PROBLEM.kicker}
       title={PITCH_PROBLEM.headline}
     >
