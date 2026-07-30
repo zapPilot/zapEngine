@@ -38,7 +38,6 @@ def _log_trend_cache_stats(
 ) -> None:
     """Log cache efficiency metrics for trend queries."""
     elapsed_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
-    cache_efficiency_ratio = max_cache_days / days if days > 0 else 1.0
     cache_overfetch_factor = round(max_cache_days / days, 1) if days > 0 else 1.0
 
     logger.info(
@@ -48,7 +47,6 @@ def _log_trend_cache_stats(
             "requested_days": days,
             "cached_days": max_cache_days,
             "data_points": data_points,
-            "cache_efficiency_ratio": round(cache_efficiency_ratio, 2),
             "elapsed_ms": round(elapsed_ms, 2),
             "likely_cache_hit": elapsed_ms < 50,
             "cache_overfetch_factor": cache_overfetch_factor,
@@ -100,13 +98,6 @@ class TrendAnalysisService(CategoryTrendBaseService, TrendAnalysisServiceProtoco
         """Initialize service and validate cache-window bounds."""
         super().__init__(db, query_service, context)
 
-        # Validate MAX_CACHE_DAYS to prevent production incidents
-        if not (30 <= self.MAX_CACHE_DAYS <= 365):
-            raise ValueError(
-                f"MAX_CACHE_DAYS must be between 30 and 365 days, got {self.MAX_CACHE_DAYS}. "
-                f"This value affects cache key construction and changing it invalidates all cached data. "
-                f"See class docstring for details on safe modification procedures."
-            )
 
     # jscpd:ignore-end
 

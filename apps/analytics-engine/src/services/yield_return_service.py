@@ -218,16 +218,8 @@ class YieldReturnService(BaseAnalyticsService, YieldReturnServiceProtocol):
             protocol_totals[entry.protocol_name] += entry.yield_return_usd
             chain_totals[entry.chain] += entry.yield_return_usd
 
-        top_protocol = (
-            max(protocol_totals.items(), key=lambda kv: abs(kv[1]))[0]
-            if protocol_totals
-            else None
-        )
-        top_chain = (
-            max(chain_totals.items(), key=lambda kv: abs(kv[1]))[0]
-            if chain_totals
-            else None
-        )
+        top_protocol = max(protocol_totals.items(), key=lambda kv: abs(kv[1]))[0]
+        top_chain = max(chain_totals.items(), key=lambda kv: abs(kv[1]))[0]
 
         return YieldReturnSummary(
             total_yield_return_usd=total_return,

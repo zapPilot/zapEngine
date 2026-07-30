@@ -430,24 +430,3 @@ class TestQueryServiceLogging:
 
             assert result is None
             mock_debug.assert_any_call("Query '%s' returned no rows", "empty_query")
-
-    def test_get_query_schema_removal_logging(self):
-        """Test logging when schema prefixes are removed"""
-        service = QueryService()
-
-        with (
-            patch.object(
-                service, "queries", {"schema_query": "SELECT * FROM alpha_raw.users"}
-            ),
-            patch.object(service.logger, "debug") as mock_debug,
-            patch("src.services.shared.query_service.settings") as mock_settings,
-        ):
-            # Mock settings to be in test environment
-            mock_settings.ENVIRONMENT = "test"
-            result = service.get_query("schema_query")
-
-            assert "alpha_raw." not in result
-            mock_debug.assert_called_with(
-                "Removed schema prefix from query '%s' for test environment",
-                "schema_query",
-            )

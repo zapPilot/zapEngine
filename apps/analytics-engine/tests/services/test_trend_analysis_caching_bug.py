@@ -1,7 +1,5 @@
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from src.core.config import settings
 from src.services.analytics.trend_analysis_service import TrendAnalysisService
@@ -173,44 +171,7 @@ class TestTrendAnalysisCacheReuse:
 
 
 class TestTrendAnalysisConfigValidation:
-    """Tests for MAX_CACHE_DAYS configuration validation."""
+    """Guard the documented cache-window configuration."""
 
-    def test_initialization_with_valid_max_cache_days(self):
-        """Verify service initializes successfully with valid MAX_CACHE_DAYS."""
-        # Default value (365) should be valid
-        service = TrendAnalysisService(db=MagicMock(), query_service=QueryService())
-        assert service.MAX_CACHE_DAYS == 365
-
-    def test_initialization_rejects_too_small_max_cache_days(self):
-        """Verify initialization fails if MAX_CACHE_DAYS < 30."""
-        with patch.object(TrendAnalysisService, "MAX_CACHE_DAYS", 29):
-            with pytest.raises(ValueError) as exc_info:
-                TrendAnalysisService(db=MagicMock(), query_service=QueryService())
-
-            assert "MAX_CACHE_DAYS must be between 30 and 365" in str(exc_info.value)
-            assert "29" in str(exc_info.value)
-
-    def test_initialization_rejects_too_large_max_cache_days(self):
-        """Verify initialization fails if MAX_CACHE_DAYS > 365."""
-        with patch.object(TrendAnalysisService, "MAX_CACHE_DAYS", 366):
-            with pytest.raises(ValueError) as exc_info:
-                TrendAnalysisService(db=MagicMock(), query_service=QueryService())
-
-            assert "MAX_CACHE_DAYS must be between 30 and 365" in str(exc_info.value)
-            assert "366" in str(exc_info.value)
-
-    def test_initialization_accepts_boundary_values(self):
-        """Verify initialization succeeds at boundary values (30 and 365)."""
-        # Test lower boundary
-        with patch.object(TrendAnalysisService, "MAX_CACHE_DAYS", 30):
-            service_30 = TrendAnalysisService(
-                db=MagicMock(), query_service=QueryService()
-            )
-            assert service_30.MAX_CACHE_DAYS == 30
-
-        # Test upper boundary
-        with patch.object(TrendAnalysisService, "MAX_CACHE_DAYS", 365):
-            service_365 = TrendAnalysisService(
-                db=MagicMock(), query_service=QueryService()
-            )
-            assert service_365.MAX_CACHE_DAYS == 365
+    def test_max_cache_days_stays_within_documented_bounds(self):
+        assert 30 <= TrendAnalysisService.MAX_CACHE_DAYS <= 365

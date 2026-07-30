@@ -69,34 +69,13 @@ class TestEnhancedQueryService:
         with pytest.raises(ValueError, match="Query name cannot be empty"):
             service.get_query("")
 
-    def test_schema_removal_in_test_environment(self):
-        """Test that schema prefixes are removed in test environment"""
+    def test_schema_prefix_is_preserved(self):
+        """Query retrieval preserves production schema-qualified SQL."""
         service = QueryService()
 
-        # Mock a query with schema prefix
-        with (
-            patch.object(
-                service, "queries", {"test_query": "SELECT * FROM alpha_raw.users"}
-            ),
-            patch("src.core.config.settings.environment") as mock_env,
+        with patch.object(
+            service, "queries", {"prod_query": "SELECT * FROM alpha_raw.users"}
         ):
-            mock_env.value = "test"
-            result = service.get_query("test_query")
-            assert "alpha_raw." not in result
-            assert result == "SELECT * FROM users"
-
-    def test_schema_preserved_in_production(self):
-        """Test that schema prefixes are preserved in production"""
-        service = QueryService()
-
-        # Mock a query with schema prefix
-        with (
-            patch.object(
-                service, "queries", {"prod_query": "SELECT * FROM alpha_raw.users"}
-            ),
-            patch("src.core.config.settings.environment") as mock_env,
-        ):
-            mock_env.value = "production"
             result = service.get_query("prod_query")
             assert "alpha_raw." in result
             assert result == "SELECT * FROM alpha_raw.users"

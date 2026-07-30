@@ -28,6 +28,7 @@ from src.models.market_dashboard import (
 )
 from src.models.regime_tracking import RegimeId
 from src.services.backtesting.data.forward_fill import forward_fill_on_dates
+from src.services.market._coercion import coerce_dma_snapshot_date
 from src.services.market.macro_fear_greed_history import (
     resolve_macro_fear_greed_history,
 )
@@ -91,6 +92,19 @@ _SERIES_REGISTRY: dict[str, SeriesDescriptor] = {
 _PRIMARY_SERIES = "btc"
 
 
+def _dma_series_point(point: dict[str, Any], *, value_key: str) -> SeriesPoint:
+    """Build a dashboard point with its optional DMA indicator."""
+    indicators: dict[str, Indicator] = {}
+    dma_value = point.get("dma_200")
+    if dma_value is not None:
+        raw_is_above = point.get("is_above_dma")
+        indicators["dma_200"] = Indicator(
+            value=float(dma_value),
+            is_above=bool(raw_is_above) if raw_is_above is not None else None,
+        )
+    return SeriesPoint(value=float(point[value_key]), indicators=indicators)
+
+
 class MarketDashboardService:
     """Service for aggregating market data for dashboard visualization."""
 
@@ -131,7 +145,7 @@ class MarketDashboardService:
         end_date = datetime.now(UTC).date()
         start_date = end_date - timedelta(days=days)
 
-        logger.info(f"Building market dashboard from {start_date} to {end_date}")
+        logger.info("Building market dashboard from %s to %s", start_date, end_date)
 
         btc_prices = self.token_price_service.get_price_history(
             days=days, token_symbol="BTC"
@@ -164,9 +178,7 @@ class MarketDashboardService:
 
         sentiment_map: dict[date, float] = {}
         for row in sentiment_rows:
-            s_date = row["snapshot_date"]
-            if isinstance(s_date, str):
-                s_date = date.fromisoformat(s_date)
+            s_date = coerce_dma_snapshot_date(row["snapshot_date"])
             sentiment_map[s_date] = float(row["avg_sentiment"])
 
         # SPY trades weekdays only; BTC is daily. Forward-fill SPY across the
@@ -174,16 +186,12 @@ class MarketDashboardService:
         # having to span gaps with `connectNulls`.
         price_dates: list[date] = []
         for p in btc_prices:
-            p_date = date.fromisoformat(p.date) if isinstance(p.date, str) else p.date
+            p_date = coerce_dma_snapshot_date(p.date)
             price_dates.append(p_date)
 
         eth_price_map: dict[date, float] = {}
         for eth_price in eth_prices:
-            eth_date = (
-                date.fromisoformat(eth_price.date)
-                if isinstance(eth_price.date, str)
-                else eth_price.date
-            )
+            eth_date = coerce_dma_snapshot_date(eth_price.date)
             eth_price_map[eth_date] = eth_price.price_usd
 
         spy_filled = forward_fill_on_dates(dict(spy_dma_rows), price_dates)
@@ -220,35 +228,11 @@ class MarketDashboardService:
 
             spy_point = spy_filled.get(p_date)
             if spy_point is not None:
-                spy_indicators: dict[str, Indicator] = {}
-                spy_dma = spy_point.get("dma_200")
-                if spy_dma is not None:
-                    spy_indicators["dma_200"] = Indicator(
-                        value=float(spy_dma),
-                        is_above=bool(spy_point.get("is_above_dma"))
-                        if spy_point.get("is_above_dma") is not None
-                        else None,
-                    )
-                values["spy"] = SeriesPoint(
-                    value=float(spy_point["price_usd"]),
-                    indicators=spy_indicators,
-                )
+                values["spy"] = _dma_series_point(spy_point, value_key="price_usd")
 
             ratio_point = eth_btc_ratio_map.get(p_date)
             if ratio_point is not None:
-                ratio_indicators: dict[str, Indicator] = {}
-                ratio_dma = ratio_point.get("dma_200")
-                if ratio_dma is not None:
-                    ratio_indicators["dma_200"] = Indicator(
-                        value=float(ratio_dma),
-                        is_above=bool(ratio_point.get("is_above_dma"))
-                        if ratio_point.get("is_above_dma") is not None
-                        else None,
-                    )
-                values["eth_btc"] = SeriesPoint(
-                    value=float(ratio_point["ratio"]),
-                    indicators=ratio_indicators,
-                )
+                values["eth_btc"] = _dma_series_point(ratio_point, value_key="ratio")
 
             sentiment_val = sentiment_map.get(p_date)
             if sentiment_val is not None:

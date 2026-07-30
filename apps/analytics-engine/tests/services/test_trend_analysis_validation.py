@@ -6,7 +6,7 @@ configuration validation error messages.
 """
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -218,47 +218,6 @@ class TestMissingOrMalformedData:
         # So the LAST row's total is used (700.0), not the first
         assert result.data_points == 1
         assert result.daily_values[0].total_value_usd == 700.0
-
-
-class TestConfigurationValidationMessages:
-    """Enhanced tests for configuration validation error messages."""
-
-    def test_error_message_includes_actual_value(self):
-        """Error should show what value was provided."""
-        with patch.object(TrendAnalysisService, "MAX_CACHE_DAYS", 29):
-            with pytest.raises(ValueError) as exc_info:
-                TrendAnalysisService(db=MagicMock(), query_service=QueryService())
-
-            # Should include "got 29" in error message
-            assert "got 29" in str(exc_info.value)
-
-    def test_error_message_includes_expected_range(self):
-        """Error should show valid range."""
-        with patch.object(TrendAnalysisService, "MAX_CACHE_DAYS", 29):
-            with pytest.raises(ValueError) as exc_info:
-                TrendAnalysisService(db=MagicMock(), query_service=QueryService())
-
-            # Should include "must be between 30 and 365" in error
-            assert "must be between 30 and 365" in str(exc_info.value)
-
-    def test_error_message_references_documentation(self):
-        """Error should point to class docstring for details."""
-        with patch.object(TrendAnalysisService, "MAX_CACHE_DAYS", 366):
-            with pytest.raises(ValueError) as exc_info:
-                TrendAnalysisService(db=MagicMock(), query_service=QueryService())
-
-            # Should reference docstring
-            assert "See class docstring" in str(exc_info.value)
-
-    def test_error_message_mentions_cache_key_impact(self):
-        """Error should explain cache key invalidation impact."""
-        with patch.object(TrendAnalysisService, "MAX_CACHE_DAYS", 29):
-            with pytest.raises(ValueError) as exc_info:
-                TrendAnalysisService(db=MagicMock(), query_service=QueryService())
-
-            # Should explain cache impact
-            assert "cache key construction" in str(exc_info.value)
-            assert "invalidates all cached data" in str(exc_info.value)
 
 
 class TestMalformedDataEdgeCases:

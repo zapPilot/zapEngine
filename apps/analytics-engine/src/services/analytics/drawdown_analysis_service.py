@@ -91,10 +91,8 @@ class DrawdownAnalysisService(BaseAnalyticsService):
             1 for row in underwater_timeseries if row["is_underwater"]
         )
         underwater_percentage = (
-            (total_underwater_days / len(underwater_timeseries)) * 100
-            if underwater_timeseries
-            else 0.0
-        )
+            total_underwater_days / len(underwater_timeseries)
+        ) * 100
         recovery_points = sum(
             1 for row in underwater_timeseries if row["recovery_point"]
         )
