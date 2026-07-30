@@ -32,6 +32,18 @@ export function logIngestEvent(
   logIngestEventWithContext(event, details, stepLogContext.getStore());
 }
 
+/**
+ * Resident set size of the API process, in MiB.
+ *
+ * Attached to the long-running ingest events so the `app` machine's memory
+ * limit can be sized from measured peaks (`fly logs | grep rssMb`) rather than
+ * from the history of the co-located ffmpeg era. `process.memoryUsage.rss()` is
+ * the cheap variant — it reads RSS without collecting heap statistics.
+ */
+export function currentRssMb(): number {
+  return Math.round(process.memoryUsage.rss() / 1_048_576);
+}
+
 function logIngestEventWithContext(
   event: string,
   details: IngestLogDetails,
@@ -61,6 +73,7 @@ export async function step<T>(name: string, fn: () => Promise<T>): Promise<T> {
       {
         name,
         elapsedMs: Date.now() - startedAt,
+        rssMb: currentRssMb(),
       },
       context,
     );
@@ -74,6 +87,7 @@ export async function step<T>(name: string, fn: () => Promise<T>): Promise<T> {
       {
         name,
         elapsedMs: Date.now() - startedAt,
+        rssMb: currentRssMb(),
       },
       context,
     );

@@ -8,25 +8,59 @@ vi.mock('./services/episode-video-visual-processor.js', () => ({
   processEpisodeVideoVisualJob: vi.fn(),
 }));
 
-import { startVideoWorkerProcess } from './worker.js';
+import type { VideoWorkerPollResult } from './services/video-worker.js';
+import {
+  startVideoWorkerProcess,
+  type VideoWorkerProcessHandle,
+  type VideoWorkerProcessOptions,
+} from './worker.js';
 
-function makeWorker() {
-  return {
+const IDLE_SHUTDOWN_MS = 60_000;
+
+const openHandles: VideoWorkerProcessHandle[] = [];
+
+function makeHarness(overrides: Partial<VideoWorkerProcessOptions> = {}) {
+  const videoWorker = {
     start: vi.fn(),
     runOnce: vi.fn(),
     stop: vi.fn().mockResolvedValue(undefined),
   };
+  let onPollResult: ((result: VideoWorkerPollResult) => void) | undefined;
+  const exit = vi.fn();
+  const logger = { info: vi.fn() };
+
+  const handle = startVideoWorkerProcess({
+    createWorker: (options) => {
+      onPollResult = options.onPollResult;
+      return videoWorker;
+    },
+    exit,
+    logger,
+    ...overrides,
+  });
+  openHandles.push(handle);
+
+  return {
+    handle,
+    videoWorker,
+    exit,
+    logger,
+    poll: (result: VideoWorkerPollResult) => onPollResult?.(result),
+  };
 }
 
-afterEach(() => {
+afterEach(async () => {
+  // installProcessShutdown registers process listeners that only detach on
+  // shutdown; leaving them attached leaks across tests.
+  while (openHandles.length > 0) {
+    await openHandles.pop()?.shutdown('test cleanup');
+  }
   vi.useRealTimers();
 });
 
 describe('startVideoWorkerProcess', () => {
   it('starts the worker and stops it on a signal-driven shutdown', async () => {
-    const videoWorker = makeWorker();
-
-    const handle = startVideoWorkerProcess({ videoWorker });
+    const { handle, videoWorker } = makeHarness();
 
     expect(handle.videoWorker).toBe(videoWorker);
     expect(videoWorker.start).toHaveBeenCalled();
@@ -41,17 +75,11 @@ describe('startVideoWorkerProcess', () => {
 
   it('holds the event loop open with a liveness timer and releases it on shutdown', async () => {
     vi.useFakeTimers();
-    const videoWorker = makeWorker();
-    const logger = { info: vi.fn() };
+    const { handle, logger } = makeHarness({ livenessIntervalMs: 1_000 });
+    logger.info.mockClear();
 
     // The worker's own poll timer is unref'd, so without this handle a
     // render-only process would exit as soon as bootstrap returned.
-    const handle = startVideoWorkerProcess({
-      videoWorker,
-      logger,
-      livenessIntervalMs: 1_000,
-    });
-
     await vi.advanceTimersByTimeAsync(2_000);
     expect(logger.info).toHaveBeenCalledTimes(2);
     expect(logger.info).toHaveBeenLastCalledWith('[video-worker] alive');
@@ -59,5 +87,83 @@ describe('startVideoWorkerProcess', () => {
     await handle.shutdown('SIGINT');
     await vi.advanceTimersByTimeAsync(5_000);
     expect(logger.info).toHaveBeenCalledTimes(2);
+  });
+
+  it('stays alive on an empty queue when on-demand mode is off', async () => {
+    vi.useFakeTimers();
+    const { exit, videoWorker, poll, logger } = makeHarness({
+      onDemand: false,
+      idleShutdownMs: IDLE_SHUTDOWN_MS,
+    });
+
+    poll('empty');
+    await vi.advanceTimersByTimeAsync(IDLE_SHUTDOWN_MS * 5);
+    poll('empty');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(exit).not.toHaveBeenCalled();
+    expect(videoWorker.stop).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('always-on'),
+    );
+  });
+
+  it('exits 0 once the queue has stayed empty past the idle window', async () => {
+    vi.useFakeTimers();
+    const { exit, videoWorker, poll, logger } = makeHarness({
+      onDemand: true,
+      idleShutdownMs: IDLE_SHUTDOWN_MS,
+    });
+
+    poll('empty');
+    await vi.advanceTimersByTimeAsync(IDLE_SHUTDOWN_MS - 1_000);
+    poll('empty');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(exit).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    poll('empty');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(videoWorker.stop).toHaveBeenCalled();
+    expect(exit).toHaveBeenCalledWith(0);
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('idle:shutdown'),
+    );
+  });
+
+  it('restarts the idle window whenever a poll finds work', async () => {
+    vi.useFakeTimers();
+    const { exit, poll } = makeHarness({
+      onDemand: true,
+      idleShutdownMs: IDLE_SHUTDOWN_MS,
+    });
+
+    poll('empty');
+    await vi.advanceTimersByTimeAsync(IDLE_SHUTDOWN_MS * 2);
+    poll('completed');
+    poll('empty');
+    await vi.advanceTimersByTimeAsync(IDLE_SHUTDOWN_MS - 1_000);
+    poll('empty');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(exit).not.toHaveBeenCalled();
+  });
+
+  it('shuts down only once even if further empty polls land', async () => {
+    vi.useFakeTimers();
+    const { exit, videoWorker, poll } = makeHarness({
+      onDemand: true,
+      idleShutdownMs: IDLE_SHUTDOWN_MS,
+    });
+
+    poll('empty');
+    await vi.advanceTimersByTimeAsync(IDLE_SHUTDOWN_MS + 1_000);
+    poll('empty');
+    poll('empty');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(videoWorker.stop).toHaveBeenCalledTimes(1);
+    expect(exit).toHaveBeenCalledTimes(1);
   });
 });

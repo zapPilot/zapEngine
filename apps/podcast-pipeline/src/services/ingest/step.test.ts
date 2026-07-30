@@ -7,6 +7,14 @@ import {
   withStepLogContext,
 } from './step.js';
 
+// Pinning RSS keeps the exact-log assertions exact; the reported value is
+// whatever the process happens to use at that moment in production.
+const PINNED_RSS_BYTES = 220 * 1_048_576;
+
+function pinRss(): void {
+  vi.spyOn(process.memoryUsage, 'rss').mockReturnValue(PINNED_RSS_BYTES);
+}
+
 describe('step', () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -15,6 +23,7 @@ describe('step', () => {
 
   it('logs start and completion with elapsed time and inherited context', async () => {
     vi.useFakeTimers();
+    pinRss();
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
     const result = await withStepLogContext(
@@ -44,12 +53,13 @@ describe('step', () => {
     );
     expect(log).toHaveBeenNthCalledWith(
       2,
-      '[/ingest] step:done run=run-1234 language=zh-Hant progress=1/3 name=generateScript elapsedMs=42',
+      '[/ingest] step:done run=run-1234 language=zh-Hant progress=1/3 name=generateScript elapsedMs=42 rssMb=220',
     );
   });
 
   it('logs a heartbeat every 15 seconds and clears it when work completes', async () => {
     vi.useFakeTimers();
+    pinRss();
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
     let resolveWork: (() => void) | undefined;
@@ -72,9 +82,9 @@ describe('step', () => {
 
     expect(log.mock.calls.map(([message]) => message)).toEqual([
       '[/ingest] step:start run=run-1234 name=generateScript',
-      '[/ingest] step:waiting run=run-1234 name=generateScript elapsedMs=15000',
-      '[/ingest] step:waiting run=run-1234 name=generateScript elapsedMs=30000',
-      '[/ingest] step:done run=run-1234 name=generateScript elapsedMs=30000',
+      '[/ingest] step:waiting run=run-1234 name=generateScript elapsedMs=15000 rssMb=220',
+      '[/ingest] step:waiting run=run-1234 name=generateScript elapsedMs=30000 rssMb=220',
+      '[/ingest] step:done run=run-1234 name=generateScript elapsedMs=30000 rssMb=220',
     ]);
     expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
   });

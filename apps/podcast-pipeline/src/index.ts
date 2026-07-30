@@ -14,6 +14,7 @@ import {
   getAllowedTelegramUserIds,
   getPort,
   getTelegramWebhookSecret,
+  readRenderOnDemandConfig,
 } from './lib/env.js';
 import { installProcessShutdown } from './lib/process-shutdown.js';
 import { isRecord } from './lib/typeGuards.js';
@@ -42,8 +43,13 @@ import {
 import { processEpisodeVideoJob } from './services/episode-video-processor.js';
 import { processEpisodeVideoVisualJob } from './services/episode-video-visual-processor.js';
 import { handleAppError } from './services/error-response.js';
+import { createFlyMachinesClient } from './services/fly-machines.js';
 import { performMultilingualIngestAndEnqueueVideo } from './services/post-ingest.js';
 import { orderedPrimaryLocalizations } from './services/primary-localizations.js';
+import {
+  createRenderCapacityReconciler,
+  type RenderCapacityReconciler,
+} from './services/render-capacity.js';
 import {
   isEpisodeId,
   parseEpisodeSearchLimit,
@@ -418,6 +424,8 @@ export interface BootstrapOptions {
    * and tests opt back in explicitly.
    */
   startVideoWorker?: boolean;
+  /** Pass `null` to leave the render group alone; omit to read the Fly config. */
+  renderCapacity?: RenderCapacityReconciler | null;
 }
 
 export function bootstrap(options: BootstrapOptions = {}) {
@@ -431,6 +439,10 @@ export function bootstrap(options: BootstrapOptions = {}) {
             options.processVideoVisualJob ?? processEpisodeVideoVisualJob,
         })
       : null);
+  const renderCapacity =
+    options.renderCapacity === undefined
+      ? createRenderCapacityFromEnv()
+      : options.renderCapacity;
 
   const server = serve(
     {
@@ -443,13 +455,36 @@ export function bootstrap(options: BootstrapOptions = {}) {
     },
   );
   videoWorker?.start();
+  renderCapacity?.start();
 
   const { shutdown } = installProcessShutdown(async (signal) => {
     server.close();
+    renderCapacity?.stop();
     await videoWorker?.stop(new Error(`Received ${signal}`));
   });
 
-  return { app, server, videoWorker, shutdown };
+  return { app, server, videoWorker, renderCapacity, shutdown };
+}
+
+/**
+ * The API process is the only always-on part of the deployment, so it owns
+ * restarting the on-demand `render` group. Both groups evaluate the same gate
+ * against the same Fly secrets: when this returns null the worker also stays
+ * always-on, so the two can never disagree about who keeps renders moving.
+ */
+function createRenderCapacityFromEnv(): RenderCapacityReconciler | null {
+  const config = readRenderOnDemandConfig();
+  if (!config.enabled) {
+    console.log(`[render-capacity] disabled: ${config.reason}`);
+    return null;
+  }
+
+  return createRenderCapacityReconciler({
+    machines: createFlyMachinesClient({
+      appName: config.appName,
+      token: config.token,
+    }),
+  });
 }
 
 const app = createApp();

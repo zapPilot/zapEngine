@@ -19,9 +19,23 @@ kill_timeout = '30s'
 # co-located, a render starved the event loop until /health blew past its 5s
 # timeout and Fly pulled the only instance out of the proxy pool
 # ([PR01] no known healthy instances found for route tcp/443).
+#
+# `app` is always on: it takes the Telegram webhook, which times out easily.
+# `render` is on demand — it has no service, so Fly Proxy cannot auto-stop it;
+# instead the worker exits 0 on an idle queue and `app` starts it again through
+# the Machines API (src/services/render-capacity.ts). Both behaviours are gated
+# on PIPELINE_RENDER_ON_DEMAND + PIPELINE_FLY_API_TOKEN; without them the group
+# stays up 24/7 as before.
 [processes]
   app = 'node dist/index.js'
   render = 'node dist/worker.js'
+
+# The whole on-demand scheme rests on this: exit 0 must leave the machine
+# `stopped` rather than restart it into another idle loop. `on-failure` is also
+# the Fly default, but it is far too load-bearing here to leave implicit.
+[[restart]]
+  policy = 'on-failure'
+  processes = ['render']
 
 [http_service]
   internal_port = 3000
@@ -54,6 +68,9 @@ kill_timeout = '30s'
 # alive during the final pass, so peak memory scales with scene count (roughly
 # one scene per 10s of narration). ffmpeg was OOM-killed at 1.73 GB against the
 # old 2 GB limit, and that figure is a floor on the true peak, not the peak.
+#
+# The size stays generous because on-demand billing already removes the 24/7
+# cost; trimming it would trade a small saving for the OOM this limit fixed.
 [[vm]]
   size = 'performance-2x'
   memory = '8gb'

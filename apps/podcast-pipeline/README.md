@@ -25,6 +25,8 @@ TTS provider selection is code-owned in `src/services/tts/tts-config.ts` and app
 
 Telegram trigger support is optional. Use `PIPELINE_TELEGRAM_BOT_TOKEN`, `PIPELINE_TELEGRAM_WEBHOOK_SECRET`, and `PIPELINE_TELEGRAM_ALLOWED_USER_IDS` for this service so it does not collide with account-engine's Telegram bot settings.
 
+`PIPELINE_RENDER_ON_DEMAND` and `PIPELINE_FLY_API_TOKEN` are deployment-only and unset locally; they let the render machine stop when idle (see [Deployment](#on-demand-render-machines)).
+
 `OPENROUTER_TIMEOUT_MS` limits each OpenRouter request and defaults to `120000` milliseconds. Invalid or empty values use that default; OpenRouter retries are disabled so a stuck provider request fails promptly and a resubmission can resume from the latest committed ingest stage.
 
 Scene alignment for `ja` and `en` is selected independently with `VIDEO_ALIGNMENT_PROVIDER=openrouter|nvidia`. `VIDEO_ALIGNMENT_MODEL` is interpreted by that provider. NVIDIA alignment uses `NVIDIA_API_KEY` and `NVIDIA_BASE_URL`; for example, set `VIDEO_ALIGNMENT_PROVIDER=nvidia` with `VIDEO_ALIGNMENT_MODEL=deepseek-ai/deepseek-v4-flash`. Invalid semantic output falls back to deterministic proportional alignment so rendering remains resumable.
@@ -57,9 +59,11 @@ Local renders need an ffmpeg >= 4.4 built with libass (`VIDEO_FFMPEG_PATH=$(whic
 ```text
 [/ingest] localization:start run=abcd1234 language=zh-Hant progress=1/3
 [/ingest] step:start run=abcd1234 name=generateScript
-[/ingest] step:waiting run=abcd1234 name=generateScript elapsedMs=15000
-[/ingest] step:done run=abcd1234 name=generateScript elapsedMs=8421
+[/ingest] step:waiting run=abcd1234 name=generateScript elapsedMs=15000 rssMb=238
+[/ingest] step:done run=abcd1234 name=generateScript elapsedMs=8421 rssMb=241
 ```
+
+`rssMb` is the API process's resident set size at that moment, carried on `step:waiting`, `step:done` and `run:done`. `fly logs | grep rssMb` is how the `app` machine's memory limit gets sized from measured peaks — the current 2 GB dates from when ffmpeg still shared this process, not from anything ingest itself needs.
 
 Background video logs use the same short-run convention and expose only safe operational metadata:
 
@@ -110,16 +114,38 @@ Fly.io via the zapEngine deploy registry. The Fly app name remains `from-fed-to-
 
 Two process groups, because video rendering and the HTTP service cannot share a CPU:
 
-| Group    | Command               | Machine                 | Serves HTTP |
-| -------- | --------------------- | ----------------------- | ----------- |
-| `app`    | `node dist/index.js`  | `shared-cpu-1x` / 2 GB  | yes         |
-| `render` | `node dist/worker.js` | `performance-2x` / 8 GB | no          |
+| Group    | Command               | Machine                 | Serves HTTP | Lifecycle          |
+| -------- | --------------------- | ----------------------- | ----------- | ------------------ |
+| `app`    | `node dist/index.js`  | `shared-cpu-1x` / 2 GB  | yes         | always on          |
+| `render` | `node dist/worker.js` | `performance-2x` / 8 GB | no          | on demand (opt-in) |
 
 A shared vCPU has a baseline of 1/16 of a core, and once its burst balance is spent x264 collapses — a co-located render was measured at `speed=0.00434x` while starving `/health` past its 5 s timeout, which took the only instance out of the proxy pool. The `render` group therefore gets dedicated CPUs, and peak render memory scales with scene count (roughly one scene per 10 s of narration), so it gets 8 GB.
 
 The `render` group has no service and no health check; `[video-worker] alive` every five minutes is the liveness signal in `fly logs`. If a render machine dies, the 10-minute DB lease expires and the job is reclaimed on the next poll.
 
-The worker's poll loop also owns the Telegram video-failure sweep, so `fly scale count render=0 -a from-fed-to-chain-api` turns off more than rendering: queued visual and render jobs wait, and so do undelivered failure notices. Nothing is lost — `failure_notified_at` stays null and the sweep resumes when the group comes back — but while the group is at zero no video notification of any kind is sent.
+### On-demand render machines
+
+Having no service also means Fly Proxy cannot auto-stop the `render` group, and a dedicated-CPU machine idling 24/7 is where nearly all of this app's hosting cost went. So the two groups split the job between them:
+
+- The worker exits `0` after six minutes of an empty queue. Under `[[restart]] policy = 'on-failure'` (fly.toml) that leaves the machine `stopped` — billed for storage only. Six minutes outlasts the longest retry backoff the claim RPCs hand out, so a job waiting on its third attempt does not pay for an extra stop/start cycle.
+- The always-on `app` process polls every 30 s for work the render group could actually claim and starts a stopped machine through the Machines API (`http://_api.internal:4280`, never leaving the private network). See `src/services/render-capacity.ts`.
+
+Enable it with both secrets — `fly tokens deploy` defaults to a 20-minute expiry, so the expiry must be given explicitly or waking silently stops working:
+
+```bash
+fly secrets set \
+  PIPELINE_FLY_API_TOKEN="$(fly tokens create deploy --expiry 8760h -a from-fed-to-chain-api)" \
+  PIPELINE_RENDER_ON_DEMAND=1 \
+  -a from-fed-to-chain-api
+```
+
+Both process groups read the same secrets and evaluate the same gate, so they cannot disagree: unset either value and the worker goes back to running forever while `app` stops touching the Machines API. That also makes `fly secrets unset PIPELINE_RENDER_ON_DEMAND` a full rollback without a redeploy.
+
+What the reconciler counts as claimable mirrors the `WHERE` clauses of `claim_episode_video_v2` / `claim_episode_video_visual_v2`, including their `visual_version` fence and the completed-visual join. A looser test would wake a machine that claims nothing, idles out and wakes again; the repeat guard stops after three wakes on an unchanged backlog and sends one Telegram warning. Rows stuck in `processing` with an expired lease count as work too — only the claim RPCs reap those, so a stopped worker would otherwise strand them forever.
+
+Wake failures are never silent: three consecutive Machines API errors (an expired token, a Fly outage, an empty `render` group) send one Telegram notice to the submitter of the queued job.
+
+The worker's poll loop also owns the Telegram video-failure sweep. An undelivered failure notice is therefore itself a reason the reconciler wakes the group. `fly scale count render=0 -a from-fed-to-chain-api` still turns all of this off: queued visual and render jobs wait, and so do undelivered failure notices. Nothing is lost — `failure_notified_at` stays null and the sweep resumes when the group comes back — but while the group is scaled to zero no video notification of any kind is sent.
 
 Locally the two entry points are separate processes:
 

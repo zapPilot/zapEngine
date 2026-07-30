@@ -135,6 +135,38 @@ describe('bootstrap', () => {
     await handle.shutdown();
   });
 
+  it('leaves the render group alone unless the Fly on-demand gate is configured', async () => {
+    const { bootstrap } = await import('./index.js');
+
+    const handle = bootstrap({
+      app: { fetch: vi.fn() } as unknown as Hono,
+    });
+
+    expect(handle.renderCapacity).toBeNull();
+
+    await handle.shutdown();
+  });
+
+  it('runs the render-capacity reconciler for the process lifetime when one is provided', async () => {
+    const { bootstrap } = await import('./index.js');
+    const renderCapacity = {
+      start: vi.fn(),
+      runOnce: vi.fn(),
+      stop: vi.fn(),
+    };
+
+    const handle = bootstrap({
+      app: { fetch: vi.fn() } as unknown as Hono,
+      renderCapacity,
+    });
+
+    expect(renderCapacity.start).toHaveBeenCalled();
+    expect(renderCapacity.stop).not.toHaveBeenCalled();
+
+    await handle.shutdown('SIGTERM');
+    expect(renderCapacity.stop).toHaveBeenCalled();
+  });
+
   it('wires both the shared visual and localization processors into the worker', async () => {
     const { bootstrap } = await import('./index.js');
     const { createVideoWorker } = await import('./services/video-worker.js');

@@ -87,6 +87,12 @@ export interface CreateVideoWorkerOptions {
   heartbeatIntervalMs?: number;
   leaseRenewRetryIntervalMs?: number;
   logger?: VideoWorkerLogger;
+  /**
+   * Called after each *scheduled* poll (not a direct `runOnce`). The on-demand
+   * render process group uses it to notice a queue that has stayed empty and
+   * exit; see src/worker.ts.
+   */
+  onPollResult?: (result: VideoWorkerPollResult) => void;
 }
 
 export function createVideoWorker(
@@ -127,7 +133,8 @@ export function createVideoWorker(
 
   const runScheduledPoll = async (): Promise<void> => {
     try {
-      await runOnce();
+      const result = await runOnce();
+      options.onPollResult?.(result);
     } catch (error) {
       logger.error('[video-worker] poll failed', normalizeError(error));
     } finally {
