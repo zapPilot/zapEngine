@@ -99,4 +99,44 @@ describe('video worker version-fenced idle polling', () => {
     expect(visualRepository.fail).not.toHaveBeenCalled();
     expect(repository.fail).not.toHaveBeenCalled();
   });
+
+  it('reports scheduled poll results so an on-demand worker can notice an idle queue', async () => {
+    vi.useFakeTimers();
+    try {
+      const repository = {
+        claim: vi.fn().mockResolvedValue(null),
+        reapFailedNotifications: vi.fn().mockResolvedValue([]),
+        markFailureNotified: vi.fn(),
+        fail: vi.fn(),
+      };
+      const visualRepository = {
+        claim: vi.fn().mockResolvedValue(null),
+        fail: vi.fn(),
+      };
+      const onPollResult = vi.fn();
+
+      const worker = createVideoWorker({
+        repository: repository as never,
+        visualRepository: visualRepository as never,
+        coordinator: createHeavyWorkCoordinator(),
+        processJob: vi.fn(),
+        processVisualJob: vi.fn(),
+        leaseOwner: 'worker-1',
+        pollIntervalMs: 1_000,
+        onPollResult,
+      });
+
+      // A direct runOnce is a test/manual path and must not move the idle clock.
+      await worker.runOnce();
+      expect(onPollResult).not.toHaveBeenCalled();
+
+      worker.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(onPollResult).toHaveBeenCalledWith('empty');
+
+      await worker.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

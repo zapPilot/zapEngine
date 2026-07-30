@@ -16,6 +16,7 @@ import {
 } from './heavy-work.js';
 import { type IngestResult, performMultilingualIngest } from './ingest.js';
 import {
+  currentRssMb,
   getStepLogContext,
   logIngestEvent,
   withStepLogContext,
@@ -251,6 +252,7 @@ export async function performMultilingualIngestAndEnqueueVideo(
         elapsedMs: Date.now() - startedAt,
         episodeId: result.ingest.episode.id,
         status: result.ingest.statusCode,
+        rssMb: currentRssMb(),
       });
       return result;
     } catch (error) {

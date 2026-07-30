@@ -37,6 +37,37 @@ export function getAllowedTelegramUserIds(): Set<string> {
   );
 }
 
+export type RenderOnDemandConfig =
+  | { enabled: true; appName: string; token: string }
+  | { enabled: false; reason: string };
+
+/**
+ * Gate for the on-demand `render` process group: the worker only exits on an
+ * idle queue when the API process can start it again.
+ *
+ * Both process groups read the same Fly secrets, so evaluating the identical
+ * condition on both sides is what guarantees they agree. A worker that stopped
+ * itself while the API cannot wake it would strand every queued job.
+ */
+export function readRenderOnDemandConfig(): RenderOnDemandConfig {
+  const flag = process.env['PIPELINE_RENDER_ON_DEMAND']?.trim().toLowerCase();
+  if (flag !== '1' && flag !== 'true') {
+    return { enabled: false, reason: 'PIPELINE_RENDER_ON_DEMAND is not set' };
+  }
+
+  const token = process.env['PIPELINE_FLY_API_TOKEN']?.trim();
+  if (!token) {
+    return { enabled: false, reason: 'PIPELINE_FLY_API_TOKEN is empty' };
+  }
+
+  const appName = process.env['FLY_APP_NAME']?.trim();
+  if (!appName) {
+    return { enabled: false, reason: 'FLY_APP_NAME is empty' };
+  }
+
+  return { enabled: true, appName, token };
+}
+
 export function trimTrailingSlash(value: string): string {
   let end = value.length;
   while (end > 0 && value[end - 1] === '/') {

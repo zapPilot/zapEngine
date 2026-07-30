@@ -65,6 +65,19 @@ export function buildTelegramVideoFailedMessage(
   ].join('\n');
 }
 
+/**
+ * The render process group is started on demand, so a wake that never succeeds
+ * leaves queued video work with no worker and no other visible symptom. This is
+ * the only signal that reaches a human.
+ */
+export function buildTelegramRenderWakeFailedMessage(detail: string): string {
+  return [
+    '⚠️ 影片算圖機器無法自動喚醒',
+    `原因：${publicTelegramErrorMessage(detail)}`,
+    '音頻不受影響。影片工作留在佇列，喚醒恢復後會自動繼續。',
+  ].join('\n');
+}
+
 export async function sendMessage(
   chatId: TelegramChatId,
   text: string,
