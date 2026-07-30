@@ -9,7 +9,11 @@ import { ANALYTICS_CONFIG } from '../../../common/constants';
 import { ServiceLayerException } from '../../../common/exceptions';
 import { HttpStatus } from '../../../common/http';
 import { Logger } from '../../../common/logger';
-import { getErrorMessage, UrlValidator } from '../../../common/utils';
+import {
+  getErrorMessage,
+  getOrigin,
+  normalizeLoopbackUrl,
+} from '../../../common/utils';
 import { ConfigService } from '../../../config/config.service';
 import { PortfolioNotFoundError } from '../errors/portfolio-not-found.error';
 import { DailySuggestionData } from '../interfaces/daily-suggestion.interface';
@@ -30,7 +34,7 @@ export class AnalyticsClientService {
   constructor(private configService: ConfigService) {
     const configuredAnalyticsEngineUrl =
       this.configService.get<string>('ANALYTICS_ENGINE_URL') ?? '';
-    this.analyticsEngineUrl = UrlValidator.normalizeLoopbackUrl(
+    this.analyticsEngineUrl = normalizeLoopbackUrl(
       configuredAnalyticsEngineUrl,
     );
 
@@ -92,7 +96,7 @@ export class AnalyticsClientService {
       timeoutMs?: number;
     },
   ): Promise<T> {
-    const base = UrlValidator.normalizeLoopbackUrl(
+    const base = normalizeLoopbackUrl(
       options?.baseUrl ?? this.analyticsEngineUrl,
     );
     const maxAttempts = options?.retryOnTimeout ? 2 : 1;
@@ -220,23 +224,22 @@ export class AnalyticsClientService {
   }
 
   private resolvePortfolioTrendsBaseUrl(baseUrl: string): string {
-    // `new URL(...)` below is the real guard; previously we double-validated
-    // with `isValidHttpUrl` and made the catch unreachable.
+    // `new URL(...)` below is the guard for invalid input.
     try {
-      const url = new URL(UrlValidator.normalizeLoopbackUrl(baseUrl));
+      const url = new URL(normalizeLoopbackUrl(baseUrl));
 
       if (url.port === String(ANALYTICS_CONFIG.DEFAULT_BASE_PORT)) {
         url.port = String(ANALYTICS_CONFIG.DEFAULT_TRENDS_PORT);
-        return UrlValidator.normalizeLoopbackUrl(url.origin);
+        return normalizeLoopbackUrl(url.origin);
       }
 
-      return UrlValidator.normalizeLoopbackUrl(UrlValidator.getOrigin(baseUrl));
+      return normalizeLoopbackUrl(getOrigin(baseUrl));
     } catch (error) {
       this.logger.warn(
         'Unable to derive analytics trends URL from base; using default',
         getErrorMessage(error),
       );
-      return UrlValidator.normalizeLoopbackUrl(
+      return normalizeLoopbackUrl(
         `http://localhost:${ANALYTICS_CONFIG.DEFAULT_TRENDS_PORT}`,
       );
     }

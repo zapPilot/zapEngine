@@ -170,9 +170,6 @@ function integerString(value: number | string): string {
 }
 
 function parseRawAmount(value: number | string): bigint {
-  if (typeof value === 'number') {
-    return BigInt(value);
-  }
   return BigInt(value);
 }
 
@@ -214,7 +211,15 @@ function hashMaterial(value: unknown): `0x${string}` {
 function emptyCalls(
   calls: PrivyPrepareSendCallsRequest['calls'],
 ): PrivySimulationCall[] {
-  return calls.map((call, index) => ({
+  return calls.map((call, index) => skippedCall(call, index, false));
+}
+
+function skippedCall(
+  call: PrivyPrepareSendCallsRequest['calls'][number],
+  index: number,
+  contractVerified: boolean,
+): PrivySimulationCall {
+  return {
     index,
     to: normalizeAddress(call.to),
     data: call.data ?? '0x',
@@ -223,8 +228,8 @@ function emptyCalls(
     status: 'skipped',
     gasUsed: null,
     error: null,
-    contractVerified: false,
-  }));
+    contractVerified,
+  };
 }
 
 function unavailableReview(
@@ -351,19 +356,11 @@ function normalizeReview(
     const target = normalizeAddress(call.to);
     const rawContract = contractsByAddress.get(target);
     if (!result) {
-      return {
+      return skippedCall(
+        call,
         index,
-        to: target,
-        data: call.data ?? '0x',
-        value: BigInt(call.value ?? '0x0').toString(),
-        method: null,
-        status: 'skipped',
-        gasUsed: null,
-        error: null,
-        contractVerified: Boolean(
-          rawContract && contractIsVerified(rawContract),
-        ),
-      };
+        Boolean(rawContract && contractIsVerified(rawContract)),
+      );
     }
 
     const succeeded = result.transaction.status && result.simulation.status;

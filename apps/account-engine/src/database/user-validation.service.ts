@@ -140,7 +140,6 @@ export class UserValidationService extends BaseService {
   ): Promise<{
     exists: boolean;
     userId?: string;
-    walletId?: string;
     belongsToUser?: boolean;
   }> {
     const wallet = await this.findOne<
@@ -149,7 +148,7 @@ export class UserValidationService extends BaseService {
       'user_crypto_wallets',
       { wallet: walletAddress },
       {
-        select: 'id, user_id, wallet',
+        select: 'user_id',
         entityName: 'Wallet',
         throwOnNotFound: false,
       },
@@ -166,7 +165,6 @@ export class UserValidationService extends BaseService {
     return {
       exists: true,
       userId: String(wallet.user_id),
-      walletId: wallet.id,
       belongsToUser,
     };
   }
@@ -174,7 +172,7 @@ export class UserValidationService extends BaseService {
   private async validateEmailAvailable(
     email: string,
     excludeUserId?: string,
-  ): Promise<{ exists: boolean; userId?: string; belongsToUser?: boolean }> {
+  ): Promise<{ exists: boolean }> {
     let query = this.supabase.from('users').select('id').eq('email', email);
 
     if (excludeUserId) {
@@ -191,15 +189,7 @@ export class UserValidationService extends BaseService {
       throw new ServiceLayerException('Failed to validate email availability');
     }
 
-    const exists = result.data !== null;
-    const belongsToUser =
-      excludeUserId && exists ? result.data.id === excludeUserId : undefined;
-
-    return {
-      exists,
-      userId: exists ? result.data.id : undefined,
-      belongsToUser,
-    };
+    return { exists: result.data !== null };
   }
 
   private buildAvailabilityResult<
