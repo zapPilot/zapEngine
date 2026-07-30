@@ -7,13 +7,7 @@ from uuid import uuid4
 import pytest
 
 from src.core.cache_service import analytics_cache
-from src.services.interfaces import QueryServiceProtocol
 from src.services.portfolio.roi_calculator import ROICalculator
-
-
-@pytest.fixture
-def mock_query_service():
-    return MagicMock(spec=QueryServiceProtocol)
 
 
 @pytest.fixture

@@ -494,11 +494,6 @@ class Settings(BaseSettings):
         """Get the effective database URL - always read-only in this configuration."""
         return self.database_read_only_url
 
-    # Minimal backward compatibility for tests that patch ENVIRONMENT
-    @property
-    def ENVIRONMENT(self) -> str:
-        return self.environment.value
-
     model_config = {
         "env_prefix": "",
         "case_sensitive": False,

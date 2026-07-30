@@ -169,7 +169,7 @@ class QueryService:
             query_name: Name of the query to retrieve
 
         Returns:
-            str: SQL query content, with schema prefixes removed in test environment
+            str: SQL query content
 
         Raises:
             ValueError: If query is not found
@@ -187,14 +187,6 @@ class QueryService:
             )
             self.logger.error(error_msg)
             raise ValueError(error_msg)
-
-        # If in test environment, remove the schema prefix to work with SQLite
-        if settings.ENVIRONMENT == "test":
-            query = query.replace("alpha_raw.", "")
-            self.logger.debug(
-                "Removed schema prefix from query '%s' for test environment",
-                query_name,
-            )
 
         return query
 

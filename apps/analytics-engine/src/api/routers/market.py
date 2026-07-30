@@ -5,7 +5,9 @@ Provides proxy endpoints for external market data sources with caching
 and error handling.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from typing import NoReturn
+
+from fastapi import APIRouter, HTTPException, Query, Response
 
 from src.models.market_dashboard import MarketDashboardResponse
 from src.models.market_sentiment import (
@@ -17,11 +19,10 @@ from src.models.token_price import TokenPriceHistoryResponse
 from src.services.dependencies import (
     MarketDashboardServiceDep,
     MarketSentimentServiceDep,
+    RegimeTrackingServiceDep,
     SentimentDatabaseServiceDep,
     TokenPriceServiceDep,
-    get_regime_tracking_service,
 )
-from src.services.market.regime_tracking_service import RegimeTrackingService
 
 router = APIRouter(prefix="/market")
 
@@ -39,12 +40,7 @@ def _apply_market_cache_headers(
     response.headers["Access-Control-Allow-Origin"] = "*"
 
 
-def _normalize_token_symbol(token: str) -> str:
-    """Normalize token query value to canonical symbol representation."""
-    return token.upper()
-
-
-def _raise_token_history_not_found(token_symbol: str) -> None:
+def _raise_token_history_not_found(token_symbol: str) -> NoReturn:
     """Raise standardized not-found error for token history endpoint."""
     raise HTTPException(
         status_code=404,
@@ -302,7 +298,7 @@ async def get_sentiment_history(
 )
 async def get_regime_history(
     response: Response,
-    regime_service: RegimeTrackingService = Depends(get_regime_tracking_service),
+    regime_service: RegimeTrackingServiceDep,
     limit: int = Query(
         default=2,
         ge=1,
@@ -439,7 +435,7 @@ async def get_token_price_history(
 
     Cache-Control: 1 hour cache, 6 hour stale-while-revalidate
     """
-    token_symbol = _normalize_token_symbol(token)
+    token_symbol = token.upper()
     snapshots = token_price_service.get_price_history(
         days=days, token_symbol=token_symbol
     )

@@ -80,13 +80,12 @@ class TestCacheEfficiencyLogging:
         assert "requested_days" in extra_fields
         assert "cached_days" in extra_fields
         assert "data_points" in extra_fields
-        assert "cache_efficiency_ratio" in extra_fields
         assert "elapsed_ms" in extra_fields
         assert "likely_cache_hit" in extra_fields
         assert "cache_overfetch_factor" in extra_fields
 
-    def test_cache_efficiency_ratio_calculation(self, mocker, caplog):
-        """Cache efficiency ratio should be MAX_CACHE_DAYS / requested_days."""
+    def test_cache_overfetch_factor_calculation(self, mocker, caplog):
+        """Cache overfetch factor should be MAX_CACHE_DAYS / requested_days."""
         import logging
 
         caplog.set_level(logging.INFO)
@@ -105,8 +104,8 @@ class TestCacheEfficiencyLogging:
         extra_fields = log_records[0].__dict__
 
         # MAX_CACHE_DAYS = 365, requested_days = 30
-        # cache_efficiency_ratio = 365 / 30 = 12.17 (rounded to 2 decimals)
-        assert extra_fields["cache_efficiency_ratio"] == pytest.approx(12.17, abs=0.01)
+        # cache_overfetch_factor = 365 / 30 = 12.2 (rounded to 1 decimal)
+        assert extra_fields["cache_overfetch_factor"] == pytest.approx(12.2, abs=0.1)
         assert extra_fields["requested_days"] == 30
         assert extra_fields["cached_days"] == 365
 
@@ -202,15 +201,9 @@ class TestCacheEfficiencyLogging:
         assert isinstance(extra_fields["requested_days"], int)
         assert isinstance(extra_fields["cached_days"], int)
         assert isinstance(extra_fields["data_points"], int)
-        assert isinstance(extra_fields["cache_efficiency_ratio"], float)
         assert isinstance(extra_fields["elapsed_ms"], float)
         assert isinstance(extra_fields["likely_cache_hit"], bool)
         assert isinstance(extra_fields["cache_overfetch_factor"], float)
-
-        # Verify rounding (cache_efficiency_ratio: 2 decimals)
-        ratio_str = str(extra_fields["cache_efficiency_ratio"])
-        decimal_places = len(ratio_str.split(".")[-1]) if "." in ratio_str else 0
-        assert decimal_places <= 2, "cache_efficiency_ratio should round to 2 decimals"
 
         # Verify rounding (cache_overfetch_factor: 1 decimal)
         overfetch_str = str(extra_fields["cache_overfetch_factor"])
@@ -244,28 +237,6 @@ class TestCacheEfficiencyLoggingEdgeCases:
         assert extra_fields["data_points"] == 0
         assert extra_fields["requested_days"] == 30
 
-    def test_cache_overfetch_factor_calculation(self, mocker, caplog):
-        """Cache overfetch factor should equal cache_efficiency_ratio."""
-        import logging
-
-        caplog.set_level(logging.INFO)
-
-        mock_rows = _build_mock_rows()
-        mocker.patch.object(QueryService, "execute_query", return_value=mock_rows)
-
-        service = TrendAnalysisService(db=MagicMock(), query_service=QueryService())
-
-        service.get_portfolio_trend(user_id="test-user", days=30)
-
-        log_records = [r for r in caplog.records if "trend_cache_stats" in r.message]
-        assert len(log_records) > 0
-
-        extra_fields = log_records[0].__dict__
-
-        # Both should be 365/30 = 12.17 and 12.2 respectively (different rounding)
-        assert extra_fields["cache_efficiency_ratio"] == pytest.approx(12.17, abs=0.01)
-        assert extra_fields["cache_overfetch_factor"] == pytest.approx(12.2, abs=0.1)
-
     def test_log_with_max_cache_days_request(self, mocker, caplog):
         """Cache stats for MAX_CACHE_DAYS request (no overfetch)."""
         import logging
@@ -284,7 +255,6 @@ class TestCacheEfficiencyLoggingEdgeCases:
 
         extra_fields = log_records[0].__dict__
 
-        # When days == MAX_CACHE_DAYS, efficiency ratio = 1.0 (no overfetch)
-        assert extra_fields["cache_efficiency_ratio"] == 1.0
+        # When days == MAX_CACHE_DAYS, overfetch factor = 1.0.
         assert extra_fields["cache_overfetch_factor"] == 1.0
         assert extra_fields["requested_days"] == 365

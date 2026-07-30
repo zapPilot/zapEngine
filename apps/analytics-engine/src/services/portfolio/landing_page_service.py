@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, TypeVar, cast
@@ -42,6 +44,14 @@ logger = logging.getLogger(__name__)
 DependencyT = TypeVar("DependencyT")
 
 
+@contextmanager
+def _timed(label: str) -> Iterator[None]:
+    """Log the elapsed time for one landing-page operation."""
+    started_at = time.time()
+    yield
+    logger.info("PERF: %s took %.2fms", label, (time.time() - started_at) * 1000)
+
+
 @dataclass(frozen=True)
 class _LandingComponents:
     """Container for fetched landing-page component payloads."""
@@ -53,16 +63,6 @@ class _LandingComponents:
     protocols_count: int
     chains_count: int
     borrowing_summary: Any
-    timings: dict[str, float]
-
-
-@dataclass(frozen=True)
-class _LandingAssemblyResult:
-    """Container for assembled landing response and timing metadata."""
-
-    response: PortfolioResponse
-    component_timings: dict[str, float]
-    response_elapsed: float
 
 
 @dataclass(frozen=True)
@@ -71,7 +71,6 @@ class _PreparedLandingContext:
 
     cache_key: str
     snapshot_date: date
-    summary_elapsed: float
     wallet_addresses: list[str]
     wallet_override: WalletTrendOverride | None
     portfolio_summary: dict[str, Any]
@@ -164,7 +163,7 @@ class LandingPageService(CacheKeyMixin):
         if not isinstance(prepared, _PreparedLandingContext):
             return prepared
         try:
-            assembly_result = self._assemble_landing_response(
+            response = self._assemble_landing_response(
                 user_id=user_id,
                 cache_key=prepared.cache_key,
                 wallet_addresses=prepared.wallet_addresses,
@@ -172,16 +171,8 @@ class LandingPageService(CacheKeyMixin):
                 snapshot_date=prepared.snapshot_date,
                 portfolio_summary=prepared.portfolio_summary,
             )
-            self._log_landing_perf_summary(
-                start_time=start_time,
-                summary_elapsed=prepared.summary_elapsed,
-                wallet_elapsed=assembly_result.component_timings["wallet"],
-                roi_elapsed=assembly_result.component_timings["roi"],
-                pools_elapsed=assembly_result.component_timings["pools"],
-                risk_elapsed=assembly_result.component_timings["risk"],
-                response_elapsed=assembly_result.response_elapsed,
-            )
-            return assembly_result.response
+            self._log_landing_perf_summary(start_time=start_time)
+            return response
         except PydanticValidationError as exc:
             logger.error("Portfolio validation failed for user %s: %s", user_id, exc)
             raise ValidationError(
@@ -203,20 +194,13 @@ class LandingPageService(CacheKeyMixin):
         user_id: UUID,
         start_time: float,
     ) -> _PreparedLandingContext | PortfolioResponse:
-        snapshot_date, snapshot_info, t0_elapsed = self._resolve_canonical_snapshot(
-            user_id
-        )
+        snapshot_date, snapshot_info = self._resolve_canonical_snapshot(user_id)
         if snapshot_date is None:
             logger.warning(
                 "No snapshot data exists for user %s - returning empty response",
                 user_id,
             )
             return self.response_builder.build_empty_response(user_id)
-        logger.info(
-            "PERF: canonical snapshot info lookup took %.2fms (date=%s)",
-            t0_elapsed,
-            snapshot_date,
-        )
         cache_key = self._cache_key(user_id, snapshot_date)
         cached_result = self._get_cached_landing_response(
             cache_key=cache_key,
@@ -225,7 +209,7 @@ class LandingPageService(CacheKeyMixin):
         )
         if cached_result is not None:
             return cached_result
-        snapshot, summary_elapsed = self._fetch_landing_snapshot(
+        snapshot = self._fetch_landing_snapshot(
             user_id=user_id,
             snapshot_date=snapshot_date,
         )
@@ -245,7 +229,6 @@ class LandingPageService(CacheKeyMixin):
         return _PreparedLandingContext(
             cache_key=cache_key,
             snapshot_date=snapshot_date,
-            summary_elapsed=summary_elapsed,
             wallet_addresses=wallet_addresses,
             wallet_override=wallet_override,
             portfolio_summary=portfolio_summary,
@@ -260,7 +243,7 @@ class LandingPageService(CacheKeyMixin):
         wallet_override: Any,
         snapshot_date: date,
         portfolio_summary: dict[str, Any],
-    ) -> _LandingAssemblyResult:
+    ) -> PortfolioResponse:
         components = self._fetch_landing_components(
             user_id,
             wallet_addresses=wallet_addresses,
@@ -268,7 +251,7 @@ class LandingPageService(CacheKeyMixin):
             snapshot_date=snapshot_date,
             portfolio_summary=portfolio_summary,
         )
-        response, response_elapsed = self._build_and_cache_landing_response(
+        return self._build_and_cache_landing_response(
             cache_key=cache_key,
             portfolio_summary=portfolio_summary,
             wallet_summary=components.wallet_summary,
@@ -279,27 +262,19 @@ class LandingPageService(CacheKeyMixin):
             chains_count=components.chains_count,
             borrowing_summary=components.borrowing_summary,
         )
-        return _LandingAssemblyResult(
-            response=response,
-            component_timings=components.timings,
-            response_elapsed=response_elapsed,
-        )
 
     def _fetch_landing_snapshot(
         self,
         *,
         user_id: UUID,
         snapshot_date: date,
-    ) -> tuple[Any, float]:
+    ) -> Any:
         """Fetch canonical snapshot payload for landing response assembly."""
-        t1 = time.time()
-        snapshot = self.portfolio_snapshot_service.get_portfolio_snapshot(
-            user_id,
-            snapshot_date=snapshot_date,
-        )
-        t1_elapsed = (time.time() - t1) * 1000
-        logger.info("PERF: portfolio snapshot build took %.2fms", t1_elapsed)
-        return snapshot, t1_elapsed
+        with _timed("portfolio snapshot build"):
+            return self.portfolio_snapshot_service.get_portfolio_snapshot(
+                user_id,
+                snapshot_date=snapshot_date,
+            )
 
     @staticmethod
     def _build_snapshot_context(
@@ -319,11 +294,11 @@ class LandingPageService(CacheKeyMixin):
     def _resolve_canonical_snapshot(
         self,
         user_id: UUID,
-    ) -> tuple[date | None, SnapshotInfo | None, float]:
+    ) -> tuple[date | None, SnapshotInfo | None]:
         """Resolve canonical snapshot date and optional snapshot metadata."""
-        t0 = time.time()
-        snapshot_date = self.canonical_snapshot_service.get_snapshot_date(user_id)
-        snapshot_info = self.canonical_snapshot_service.get_snapshot_info(user_id)
+        with _timed("canonical snapshot info lookup"):
+            snapshot_date = self.canonical_snapshot_service.get_snapshot_date(user_id)
+            snapshot_info = self.canonical_snapshot_service.get_snapshot_info(user_id)
 
         if isinstance(snapshot_info, SnapshotInfo):
             snapshot_date = snapshot_info.snapshot_date
@@ -332,8 +307,7 @@ class LandingPageService(CacheKeyMixin):
             if not isinstance(snapshot_date, date):
                 snapshot_date = None
 
-        t0_elapsed = (time.time() - t0) * 1000
-        return snapshot_date, snapshot_info, t0_elapsed
+        return snapshot_date, snapshot_info
 
     def _get_cached_landing_response(
         self,
@@ -391,14 +365,12 @@ class LandingPageService(CacheKeyMixin):
         portfolio_summary: dict[str, Any],
     ) -> _LandingComponents:
         """Fetch wallet/ROI/pool/borrowing components with timing capture."""
-        t2 = time.time()
-        wallet_summary = self._fetch_wallet_summary(
-            user_id,
-            wallet_addresses=wallet_addresses,
-            wallet_override=wallet_override,
-        )
-        t2_elapsed = (time.time() - t2) * 1000
-        logger.info("PERF: _fetch_wallet_summary took %.2fms", t2_elapsed)
+        with _timed("_fetch_wallet_summary"):
+            wallet_summary = self._fetch_wallet_summary(
+                user_id,
+                wallet_addresses=wallet_addresses,
+                wallet_override=wallet_override,
+            )
 
         wallet_assets = portfolio_summary.get("wallet_assets", {})
         snapshot_total_calculated = (
@@ -413,39 +385,29 @@ class LandingPageService(CacheKeyMixin):
             wallet_total=wallet_summary.total_value,
         )
 
-        t3 = time.time()
-        roi_data = self.roi_calculator.compute_portfolio_roi(
-            self.db, user_id, current_snapshot_date=snapshot_date
-        )
-        t3_elapsed = (time.time() - t3) * 1000
-        logger.info("PERF: compute_portfolio_roi took %.2fms", t3_elapsed)
+        with _timed("compute_portfolio_roi"):
+            roi_data = self.roi_calculator.compute_portfolio_roi(
+                self.db, user_id, current_snapshot_date=snapshot_date
+            )
 
-        t4 = time.time()
-        pool_details = self._fetch_pool_details(user_id, snapshot_date=snapshot_date)
-        positions_count = len(pool_details)
-        protocols_count = len(
-            {p.get("protocol_id") for p in pool_details if p.get("protocol_id")}
-        )
-        chains_count = len({p.get("chain") for p in pool_details if p.get("chain")})
-        t4_elapsed = (time.time() - t4) * 1000
-        logger.info("PERF: _fetch_pool_details and counting took %.2fms", t4_elapsed)
+        with _timed("_fetch_pool_details and counting"):
+            pool_details = self._fetch_pool_details(
+                user_id, snapshot_date=snapshot_date
+            )
+            positions_count = len(pool_details)
+            protocols_count = len(
+                {p.get("protocol_id") for p in pool_details if p.get("protocol_id")}
+            )
+            chains_count = len({p.get("chain") for p in pool_details if p.get("chain")})
 
-        t5 = time.time()
-        borrowing_summary = self.borrowing_service.get_borrowing_summary(
-            user_id=user_id,
-            total_assets_usd=portfolio_summary["total_assets"],
-            total_debt_usd=portfolio_summary["total_debt"],
-            total_net_usd=portfolio_summary["net_portfolio_value"],
-        )
-        t5_elapsed = (time.time() - t5) * 1000
-        logger.info("PERF: borrowing_summary calculation took %.2fms", t5_elapsed)
+        with _timed("borrowing_summary calculation"):
+            borrowing_summary = self.borrowing_service.get_borrowing_summary(
+                user_id=user_id,
+                total_assets_usd=portfolio_summary["total_assets"],
+                total_debt_usd=portfolio_summary["total_debt"],
+                total_net_usd=portfolio_summary["net_portfolio_value"],
+            )
 
-        component_timings = {
-            "wallet": t2_elapsed,
-            "roi": t3_elapsed,
-            "pools": t4_elapsed,
-            "risk": t5_elapsed,
-        }
         return _LandingComponents(
             wallet_summary=wallet_summary,
             roi_data=roi_data,
@@ -454,7 +416,6 @@ class LandingPageService(CacheKeyMixin):
             protocols_count=protocols_count,
             chains_count=chains_count,
             borrowing_summary=borrowing_summary,
-            timings=component_timings,
         )
 
     def _build_and_cache_landing_response(
@@ -469,21 +430,19 @@ class LandingPageService(CacheKeyMixin):
         protocols_count: int,
         chains_count: int,
         borrowing_summary: Any,
-    ) -> tuple[PortfolioResponse, float]:
+    ) -> PortfolioResponse:
         """Build final landing response and cache it when enabled."""
-        t6 = time.time()
-        result = self.response_builder.build_portfolio_response(
-            portfolio_summary,
-            wallet_summary,
-            roi_data,
-            pool_details=pool_details,
-            positions_count=positions_count,
-            protocols_count=protocols_count,
-            chains_count=chains_count,
-            borrowing_summary=borrowing_summary,
-        )
-        t6_elapsed = (time.time() - t6) * 1000
-        logger.info("PERF: build_portfolio_response took %.2fms", t6_elapsed)
+        with _timed("build_portfolio_response"):
+            result = self.response_builder.build_portfolio_response(
+                portfolio_summary,
+                wallet_summary,
+                roi_data,
+                pool_details=pool_details,
+                positions_count=positions_count,
+                protocols_count=protocols_count,
+                chains_count=chains_count,
+                borrowing_summary=borrowing_summary,
+            )
 
         if settings.analytics_cache_enabled:
             analytics_cache.set(
@@ -491,28 +450,16 @@ class LandingPageService(CacheKeyMixin):
                 result,
                 ttl=timedelta(hours=settings.analytics_cache_default_ttl_hours),
             )
-        return result, t6_elapsed
+        return result
 
     def _log_landing_perf_summary(
         self,
         *,
         start_time: float,
-        summary_elapsed: float,
-        wallet_elapsed: float,
-        roi_elapsed: float,
-        pools_elapsed: float,
-        risk_elapsed: float,
-        response_elapsed: float,
     ) -> None:
-        """Log landing-page step timings and total elapsed duration."""
+        """Log total landing-page elapsed duration."""
         total_elapsed = (time.time() - start_time) * 1000
-        perf_summary = (
-            f"PERF: Landing page total: {total_elapsed:.2f}ms "
-            f"(summary: {summary_elapsed:.2f}ms, wallet: {wallet_elapsed:.2f}ms, "
-            f"roi: {roi_elapsed:.2f}ms, pools: {pools_elapsed:.2f}ms, "
-            f"risk: {risk_elapsed:.2f}ms, response: {response_elapsed:.2f}ms)"
-        )
-        logger.info(perf_summary)
+        logger.info("PERF: Landing page total: %.2fms", total_elapsed)
 
     def _fetch_wallet_summary(
         self,

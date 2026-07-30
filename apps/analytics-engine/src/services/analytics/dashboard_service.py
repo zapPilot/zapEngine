@@ -14,6 +14,7 @@ Key Features:
 import inspect
 import logging
 from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, cast
 from uuid import UUID
@@ -35,6 +36,86 @@ logger = logging.getLogger(__name__)
 
 DashboardPayload = BaseModel | dict[str, Any] | None
 DashboardFetcher = Callable[[], DashboardPayload | Awaitable[DashboardPayload]]
+DashboardMethod = Callable[..., DashboardPayload | Awaitable[DashboardPayload]]
+
+
+@dataclass(frozen=True)
+class _SectionEntry:
+    path: tuple[str, ...]
+    service_name: str
+    service_attr: str
+    method_name: str
+    days_attr: str
+    include_snapshot_date: bool = False
+
+
+_SECTIONS: dict[str, tuple[_SectionEntry, ...]] = {
+    "trend": (
+        _SectionEntry(
+            path=("trends",),
+            service_name="trends",
+            service_attr="trend_service",
+            method_name="get_portfolio_trend",
+            days_attr="trend_days",
+            include_snapshot_date=True,
+        ),
+    ),
+    "risk": (
+        _SectionEntry(
+            path=("risk_metrics", "volatility"),
+            service_name="risk_volatility",
+            service_attr="risk_service",
+            method_name="calculate_portfolio_volatility",
+            days_attr="trend_days",
+        ),
+        _SectionEntry(
+            path=("risk_metrics", "sharpe_ratio"),
+            service_name="risk_sharpe",
+            service_attr="risk_service",
+            method_name="calculate_sharpe_ratio",
+            days_attr="trend_days",
+        ),
+        _SectionEntry(
+            path=("risk_metrics", "max_drawdown"),
+            service_name="risk_max_drawdown",
+            service_attr="risk_service",
+            method_name="calculate_max_drawdown",
+            days_attr="drawdown_days",
+        ),
+    ),
+    "drawdown": (
+        _SectionEntry(
+            path=("drawdown_analysis", "enhanced"),
+            service_name="enhanced_drawdown",
+            service_attr="drawdown_service",
+            method_name="get_enhanced_drawdown_analysis",
+            days_attr="drawdown_days",
+        ),
+        _SectionEntry(
+            path=("drawdown_analysis", "underwater_recovery"),
+            service_name="underwater_recovery",
+            service_attr="drawdown_service",
+            method_name="get_underwater_recovery_analysis",
+            days_attr="drawdown_days",
+        ),
+    ),
+    "rolling": (
+        _SectionEntry(
+            path=("rolling_analytics", "sharpe"),
+            service_name="rolling_sharpe",
+            service_attr="rolling_service",
+            method_name="get_rolling_sharpe_analysis",
+            days_attr="rolling_days",
+        ),
+        _SectionEntry(
+            path=("rolling_analytics", "volatility"),
+            service_name="rolling_volatility",
+            service_attr="rolling_service",
+            method_name="get_rolling_volatility_analysis",
+            days_attr="rolling_days",
+        ),
+    ),
+}
 
 
 class DashboardService(CacheKeyMixin):
@@ -148,24 +229,14 @@ class DashboardService(CacheKeyMixin):
             "parameters": time_ranges.model_dump(),
         }
 
-        if "trend" in normalized_metrics:
-            await self._add_trend_section(
-                dashboard, user_id, time_ranges, wallet_address, snapshot_date
-            )
-
-        if "risk" in normalized_metrics:
-            await self._add_risk_section(
-                dashboard, user_id, time_ranges, wallet_address
-            )
-
-        if "drawdown" in normalized_metrics:
-            await self._add_drawdown_section(
-                dashboard, user_id, time_ranges, wallet_address
-            )
-
-        if "rolling" in normalized_metrics:
-            await self._add_rolling_section(
-                dashboard, user_id, time_ranges, wallet_address
+        for metric in normalized_metrics:
+            await self._add_dashboard_section(
+                dashboard=dashboard,
+                metric=metric,
+                user_id=user_id,
+                time_ranges=time_ranges,
+                wallet_address=wallet_address,
+                snapshot_date=snapshot_date,
             )
 
         # Calculate aggregation statistics
@@ -223,132 +294,41 @@ class DashboardService(CacheKeyMixin):
             },
         }
 
-    async def _add_trend_section(
+    async def _add_dashboard_section(
         self,
+        *,
         dashboard: dict[str, Any],
+        metric: str,
         user_id: UUID,
         time_ranges: DashboardTimeRanges,
         wallet_address: str | None,
         snapshot_date: Any,
     ) -> None:
-        dashboard["trends"] = await self._safe_call(
-            "trends",
-            lambda: self.trend_service.get_portfolio_trend(
-                user_id,
-                time_ranges.trend_days,
-                wallet_address=wallet_address,
-                snapshot_date=snapshot_date,
-            ),
-        )
+        for entry in _SECTIONS[metric]:
+            method = cast(
+                DashboardMethod,
+                getattr(getattr(self, entry.service_attr), entry.method_name),
+            )
+            kwargs: dict[str, Any] = {"wallet_address": wallet_address}
+            if entry.include_snapshot_date:
+                kwargs["snapshot_date"] = snapshot_date
 
-    async def _add_risk_section(
-        self,
-        dashboard: dict[str, Any],
-        user_id: UUID,
-        time_ranges: DashboardTimeRanges,
-        wallet_address: str | None,
-    ) -> None:
-        dashboard["risk_metrics"] = {
-            "volatility": await self._safe_call(
-                "risk_volatility",
-                lambda: self.risk_service.calculate_portfolio_volatility(
-                    user_id,
-                    days=time_ranges.trend_days,
-                    wallet_address=wallet_address,
-                ),
-            ),
-            "sharpe_ratio": await self._safe_call(
-                "risk_sharpe",
-                lambda: self.risk_service.calculate_sharpe_ratio(
-                    user_id,
-                    days=time_ranges.trend_days,
-                    wallet_address=wallet_address,
-                ),
-            ),
-            "max_drawdown": await self._safe_call(
-                "risk_max_drawdown",
-                lambda: self.risk_service.calculate_max_drawdown(
-                    user_id,
-                    days=time_ranges.drawdown_days,
-                    wallet_address=wallet_address,
-                ),
-            ),
-        }
+            def fetcher(
+                method: DashboardMethod = method,
+                days: int = getattr(time_ranges, entry.days_attr),
+                kwargs: dict[str, Any] = kwargs,
+            ) -> DashboardPayload | Awaitable[DashboardPayload]:
+                return method(user_id, days=days, **kwargs)
 
-    # jscpd:ignore-start
-    # Reason: dashboard sections intentionally share the same section-builder shape.
-    async def _add_drawdown_section(
-        self,
-        dashboard: dict[str, Any],
-        user_id: UUID,
-        time_ranges: DashboardTimeRanges,
-        wallet_address: str | None,
-    ) -> None:
-        await self._add_dashboard_section(
-            dashboard,
-            "drawdown_analysis",
-            {
-                "enhanced": (
-                    "enhanced_drawdown",
-                    lambda: self.drawdown_service.get_enhanced_drawdown_analysis(
-                        user_id,
-                        time_ranges.drawdown_days,
-                        wallet_address=wallet_address,
-                    ),
-                ),
-                "underwater_recovery": (
-                    "underwater_recovery",
-                    lambda: self.drawdown_service.get_underwater_recovery_analysis(
-                        user_id,
-                        time_ranges.drawdown_days,
-                        wallet_address=wallet_address,
-                    ),
-                ),
-            },
-        )
-
-    # jscpd:ignore-end
-
-    # jscpd:ignore-start
-    # Reason: dashboard sections intentionally share the same section-builder shape.
-    async def _add_rolling_section(
-        self,
-        dashboard: dict[str, Any],
-        user_id: UUID,
-        time_ranges: DashboardTimeRanges,
-        wallet_address: str | None,
-    ) -> None:
-        await self._add_dashboard_section(
-            dashboard,
-            "rolling_analytics",
-            {
-                "sharpe": (
-                    "rolling_sharpe",
-                    lambda: self.rolling_service.get_rolling_sharpe_analysis(
-                        user_id, time_ranges.rolling_days, wallet_address=wallet_address
-                    ),
-                ),
-                "volatility": (
-                    "rolling_volatility",
-                    lambda: self.rolling_service.get_rolling_volatility_analysis(
-                        user_id, time_ranges.rolling_days, wallet_address=wallet_address
-                    ),
-                ),
-            },
-        )
-
-    # jscpd:ignore-end
-
-    async def _add_dashboard_section(
-        self,
-        dashboard: dict[str, Any],
-        key: str,
-        entries: Mapping[str, tuple[str, DashboardFetcher]],
-    ) -> None:
-        dashboard[key] = {
-            entry_key: await self._safe_call(service_name, fetcher)
-            for entry_key, (service_name, fetcher) in entries.items()
-        }
+            result = await self._safe_call(entry.service_name, fetcher)
+            if len(entry.path) == 1:
+                dashboard[entry.path[0]] = result
+                continue
+            section = cast(
+                dict[str, Any],
+                dashboard.setdefault(entry.path[0], {}),
+            )
+            section[entry.path[1]] = result
 
     async def _safe_call(
         self,
@@ -419,35 +399,11 @@ class DashboardService(CacheKeyMixin):
         success_count = 0
         error_count = 0
 
-        # Check all sections for errors
-        sections: list[dict[str, Any] | None] = []
-        if "trend" in metrics:
-            sections.append(dashboard.get("trends"))
-        if "risk" in metrics:
-            risk_section = dashboard.get("risk_metrics", {})
-            sections.extend(
-                [
-                    risk_section.get("volatility"),
-                    risk_section.get("sharpe_ratio"),
-                    risk_section.get("max_drawdown"),
-                ]
-            )
-        if "drawdown" in metrics:
-            drawdown_section = dashboard.get("drawdown_analysis", {})
-            sections.extend(
-                [
-                    drawdown_section.get("enhanced"),
-                    drawdown_section.get("underwater_recovery"),
-                ]
-            )
-        if "rolling" in metrics:
-            rolling_section = dashboard.get("rolling_analytics", {})
-            sections.extend(
-                [
-                    rolling_section.get("sharpe"),
-                    rolling_section.get("volatility"),
-                ]
-            )
+        sections = [
+            self._get_dashboard_section_value(dashboard, entry.path)
+            for metric in metrics
+            for entry in _SECTIONS[metric]
+        ]
 
         for section in sections:
             if isinstance(section, dict) and section.get("error"):
@@ -464,3 +420,14 @@ class DashboardService(CacheKeyMixin):
             "success_rate": round(success_count / total_sections, 4),
             "snapshot_date": str(snapshot_date) if snapshot_date else None,
         }
+
+    @staticmethod
+    def _get_dashboard_section_value(
+        dashboard: dict[str, Any], path: tuple[str, ...]
+    ) -> Any:
+        value: Any = dashboard
+        for key in path:
+            if not isinstance(value, Mapping):
+                return None
+            value = value.get(key)
+        return value

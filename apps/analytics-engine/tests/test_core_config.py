@@ -4,7 +4,7 @@ Unit tests for src.core.config.Settings behavior
 
 import pytest
 
-from src.core.config import Settings
+from src.core.config import Environment, Settings
 
 PRODUCTION_DATABASE_URL = "postgresql+asyncpg://ro/url"
 
@@ -29,7 +29,7 @@ def test_settings_defaults_parse_correctly(monkeypatch):
     assert s.port == 8001
     assert s.host == "0.0.0.0"
     assert s.debug is False
-    assert s.ENVIRONMENT == "development"
+    assert s.environment is Environment.DEVELOPMENT
     assert s.is_development is True
     assert s.is_production is False
 
@@ -62,7 +62,7 @@ def test_settings_env_overrides(monkeypatch):
     assert s.port == 9000
     assert s.host == "127.0.0.1"
     assert s.debug is True
-    assert s.ENVIRONMENT == "production"
+    assert s.environment is Environment.PRODUCTION
     assert s.is_production is True
     assert s.is_development is False
 

@@ -8,7 +8,6 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.orm import Session
 
 from src.core.exceptions import CrossServiceConsistencyError
 from src.models.portfolio import PortfolioResponse
@@ -21,17 +20,7 @@ from src.services.shared.value_objects import WalletAggregate
 
 
 @pytest.fixture
-def mock_db() -> MagicMock:
-    return MagicMock(spec=Session)
-
-
-@pytest.fixture
 def mock_wallet_service() -> MagicMock:
-    return MagicMock()
-
-
-@pytest.fixture
-def mock_query_service() -> MagicMock:
     return MagicMock()
 
 

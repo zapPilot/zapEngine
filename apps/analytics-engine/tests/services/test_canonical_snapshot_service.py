@@ -6,7 +6,7 @@ and snapshot consistency validation logic.
 """
 
 from datetime import date, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -21,18 +21,6 @@ from src.services.portfolio.canonical_snapshot_service import (
 def user_id() -> UUID:
     """Test user ID."""
     return uuid4()
-
-
-@pytest.fixture
-def mock_db():
-    """Mock database session."""
-    return MagicMock()
-
-
-@pytest.fixture
-def mock_query_service():
-    """Mock query service."""
-    return MagicMock()
 
 
 @pytest.fixture

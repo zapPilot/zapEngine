@@ -1,5 +1,5 @@
 """
-Unit tests for CategoryTrendBaseService conditional routing logic.
+Unit tests for TrendAnalysisService conditional category-trend routing.
 
 Tests the critical wallet filtering bug fix that ensures:
 1. Bundle queries (wallet_address=None) use MV for performance (5-15ms)
@@ -12,32 +12,23 @@ from uuid import UUID
 
 import pytest
 
-from src.services.analytics.category_trend_base import CategoryTrendBaseService
+from src.services.analytics.trend_analysis_service import TrendAnalysisService
 from src.services.shared.query_names import QUERY_NAMES
 
 
 @pytest.fixture
-def mock_db():
-    """Mock database session."""
-    return MagicMock()
-
-
-@pytest.fixture
-def mock_query_service():
-    """Mock QueryService."""
-    return MagicMock()
-
-
-@pytest.fixture
 def category_trend_service(mock_db, mock_query_service):
-    """Create CategoryTrendBaseService instance with mocked dependencies."""
-    return CategoryTrendBaseService(db=mock_db, query_service=mock_query_service)
+    """Create TrendAnalysisService instance with mocked dependencies."""
+    return TrendAnalysisService(db=mock_db, query_service=mock_query_service)
 
 
 class TestConditionalRouting:
     """Test conditional routing between MV and runtime queries."""
 
-    @patch("src.services.analytics.category_trend_base.fetch_time_range_query")
+    @patch(
+        "src.services.analytics.trend_analysis_service."
+        "TrendAnalysisService._fetch_time_range_query"
+    )
     def test_bundle_query_uses_mv(
         self, mock_fetch, category_trend_service, mock_db, mock_query_service
     ):
@@ -55,7 +46,10 @@ class TestConditionalRouting:
         assert call_args.kwargs["query_name"] == QUERY_NAMES.PORTFOLIO_CATEGORY_TREND_MV
         assert call_args.kwargs["wallet_address"] is None
 
-    @patch("src.services.analytics.category_trend_base.fetch_time_range_query")
+    @patch(
+        "src.services.analytics.trend_analysis_service."
+        "TrendAnalysisService._fetch_time_range_query"
+    )
     def test_wallet_specific_query_uses_runtime(
         self, mock_fetch, category_trend_service, mock_db, mock_query_service
     ):
@@ -81,7 +75,10 @@ class TestConditionalRouting:
 class TestAdaptiveTTL:
     """Test adaptive TTL caching based on query type."""
 
-    @patch("src.services.analytics.category_trend_base.fetch_time_range_query")
+    @patch(
+        "src.services.analytics.trend_analysis_service."
+        "TrendAnalysisService._fetch_time_range_query"
+    )
     def test_bundle_query_uses_12h_ttl(
         self, mock_fetch, category_trend_service, mock_db, mock_query_service
     ):
@@ -98,7 +95,10 @@ class TestAdaptiveTTL:
         call_args = mock_fetch.call_args
         assert call_args.kwargs["ttl_hours"] == 12
 
-    @patch("src.services.analytics.category_trend_base.fetch_time_range_query")
+    @patch(
+        "src.services.analytics.trend_analysis_service."
+        "TrendAnalysisService._fetch_time_range_query"
+    )
     def test_wallet_specific_query_uses_2h_ttl(
         self, mock_fetch, category_trend_service, mock_db, mock_query_service
     ):
@@ -116,7 +116,10 @@ class TestAdaptiveTTL:
         call_args = mock_fetch.call_args
         assert call_args.kwargs["ttl_hours"] == 2
 
-    @patch("src.services.analytics.category_trend_base.fetch_time_range_query")
+    @patch(
+        "src.services.analytics.trend_analysis_service."
+        "TrendAnalysisService._fetch_time_range_query"
+    )
     def test_explicit_ttl_override_respected(
         self, mock_fetch, category_trend_service, mock_db, mock_query_service
     ):
@@ -137,7 +140,10 @@ class TestAdaptiveTTL:
 class TestWalletFilteringConsistency:
     """Test that wallet filtering is consistently applied across queries."""
 
-    @patch("src.services.analytics.category_trend_base.fetch_time_range_query")
+    @patch(
+        "src.services.analytics.trend_analysis_service."
+        "TrendAnalysisService._fetch_time_range_query"
+    )
     def test_wallet_address_passed_to_query_builder(
         self, mock_fetch, category_trend_service, mock_db, mock_query_service
     ):
@@ -154,7 +160,10 @@ class TestWalletFilteringConsistency:
         call_args = mock_fetch.call_args
         assert call_args.kwargs["wallet_address"] == wallet_address
 
-    @patch("src.services.analytics.category_trend_base.fetch_time_range_query")
+    @patch(
+        "src.services.analytics.trend_analysis_service."
+        "TrendAnalysisService._fetch_time_range_query"
+    )
     def test_none_wallet_address_passed_to_query_builder(
         self, mock_fetch, category_trend_service, mock_db, mock_query_service
     ):
@@ -174,7 +183,10 @@ class TestWalletFilteringConsistency:
 class TestQueryParameters:
     """Test that all query parameters are correctly forwarded."""
 
-    @patch("src.services.analytics.category_trend_base.fetch_time_range_query")
+    @patch(
+        "src.services.analytics.trend_analysis_service."
+        "TrendAnalysisService._fetch_time_range_query"
+    )
     def test_all_parameters_forwarded(
         self, mock_fetch, category_trend_service, mock_db, mock_query_service
     ):
@@ -213,8 +225,11 @@ class TestQueryParameters:
 class TestLogging:
     """Test logging behavior for query routing decisions."""
 
-    @patch("src.services.analytics.category_trend_base.fetch_time_range_query")
-    @patch("src.services.analytics.category_trend_base.logger")
+    @patch(
+        "src.services.analytics.trend_analysis_service."
+        "TrendAnalysisService._fetch_time_range_query"
+    )
+    @patch("src.services.analytics.trend_analysis_service.logger")
     def test_bundle_query_logs_debug(
         self,
         mock_logger,
@@ -236,8 +251,11 @@ class TestLogging:
         assert "MV query" in args[0]
         assert user_id in args
 
-    @patch("src.services.analytics.category_trend_base.fetch_time_range_query")
-    @patch("src.services.analytics.category_trend_base.logger")
+    @patch(
+        "src.services.analytics.trend_analysis_service."
+        "TrendAnalysisService._fetch_time_range_query"
+    )
+    @patch("src.services.analytics.trend_analysis_service.logger")
     def test_wallet_specific_query_logs_info(
         self,
         mock_logger,

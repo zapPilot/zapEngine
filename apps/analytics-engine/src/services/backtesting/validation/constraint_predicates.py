@@ -262,22 +262,21 @@ def predicate_asset_compare(
     asset = constraint_asset(assertion)
     actual = constraint_target_asset(point, asset=asset)
     expected = float(assertion.get("value", 0.0))
-    if comparator == "equals" and abs(actual - expected) > CONSTRAINT_EPSILON:
-        return constraint_failure(
-            point,
-            f"target {asset}={actual:.6f}; expected {expected:.6f}",
-        )
-    if comparator == "greater_than" and actual <= expected + CONSTRAINT_EPSILON:
-        return constraint_failure(
-            point,
-            f"target {asset}={actual:.6f}; expected > {expected:.6f}",
-        )
-    if comparator == "greater_than_or_equal" and actual < expected - CONSTRAINT_EPSILON:
-        return constraint_failure(
-            point,
-            f"target {asset}={actual:.6f}; expected >= {expected:.6f}",
-        )
-    return None
+    if constraint_comparison_passes(
+        actual=actual,
+        previous=expected,
+        comparator=comparator,
+    ):
+        return None
+    symbol = {
+        "equals": "",
+        "greater_than": "> ",
+        "not_less_than": ">= ",
+    }.get(comparator, comparator)
+    return constraint_failure(
+        point,
+        f"target {asset}={actual:.6f}; expected {symbol}{expected:.6f}",
+    )
 
 
 def predicate_asset_vs_previous(
@@ -530,7 +529,7 @@ _ASSET_ASSERTIONS: dict[str, tuple[str, str, _AssertionOverride]] = {
     "target_asset_equals": ("compare", "equals", None),
     "target_asset_greater_than": ("compare", "greater_than", None),
     "target_asset_gt": ("compare", "greater_than", None),
-    "target_asset_gte": ("compare", "greater_than_or_equal", None),
+    "target_asset_gte": ("compare", "not_less_than", None),
     "target_asset_greater_than_previous": ("vs_previous", "greater_than", None),
     "target_asset_increased_from_previous": ("vs_previous", "greater_than", None),
     "target_asset_less_than_previous": ("vs_previous", "less_than", None),

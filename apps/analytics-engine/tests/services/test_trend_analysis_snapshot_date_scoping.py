@@ -13,12 +13,6 @@ from src.services.analytics.trend_analysis_service import TrendAnalysisService
 from src.services.shared.query_service import QueryService
 
 
-@pytest.fixture
-def mock_query_service():
-    """Provides a mock QueryService."""
-    return QueryService()
-
-
 class TestSnapshotDateScoping:
     """Tests for the snapshot_date/anchor_date scoping fix.
 
