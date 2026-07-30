@@ -72,5 +72,5 @@ ORDER BY date ASC, category ASC, source_type ASC;
 --   - PortfolioSnapshotService: Current portfolio state
 --   - ROICalculator: ROI window calculations
 --
--- All services automatically benefit from this query via CategoryTrendBaseService
+-- TrendAnalysisService routes bundle requests through this materialized view.
 -- ============================================================================

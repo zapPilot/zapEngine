@@ -1,7 +1,7 @@
 """
-Unit tests for the time_range_fetcher module.
+Unit tests for BaseAnalyticsService time-range query handling.
 
-Tests the fetch_time_range_query function, specifically verifying
+Tests the _fetch_time_range_query method, specifically verifying
 that end_date parameter scoping is handled correctly in closures.
 """
 
@@ -12,14 +12,14 @@ from uuid import UUID
 
 import pytest
 
-from src.services.query_builders.time_range_fetcher import (
+from src.services.shared.base_analytics_service import (
+    BaseAnalyticsService,
     TimeRangeQueryPayload,
-    fetch_time_range_query,
 )
 
 
-class MockAnalyticsService:
-    """Mock service implementing SupportsAnalyticsQueries protocol."""
+class MockAnalyticsService(BaseAnalyticsService):
+    """Minimal analytics service exposing the base time-range helper."""
 
     def __init__(self, mock_rows: list[dict[str, Any]] | None = None):
         self.mock_rows = mock_rows or []
@@ -81,8 +81,7 @@ class TestFetchTimeRangeQueryEndDateScoping:
         user_id = UUID("12345678-1234-5678-1234-567812345678")
         custom_end_date = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
 
-        _result = fetch_time_range_query(
-            service,
+        _result = service._fetch_time_range_query(
             cache_namespace="test",
             query_name="test_query",
             user_id=user_id,
@@ -100,8 +99,7 @@ class TestFetchTimeRangeQueryEndDateScoping:
         service = MockAnalyticsService()
         user_id = UUID("12345678-1234-5678-1234-567812345678")
 
-        _result = fetch_time_range_query(
-            service,
+        _result = service._fetch_time_range_query(
             cache_namespace="test",
             query_name="test_query",
             user_id=user_id,
@@ -119,8 +117,7 @@ class TestFetchTimeRangeQueryEndDateScoping:
         user_id = UUID("12345678-1234-5678-1234-567812345678")
         custom_end_date = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
 
-        result = fetch_time_range_query(
-            service,
+        result = service._fetch_time_range_query(
             cache_namespace="test",
             query_name="test_query",
             user_id=user_id,
@@ -140,8 +137,7 @@ class TestFetchTimeRangeQueryEndDateScoping:
         user_id = UUID("12345678-1234-5678-1234-567812345678")
         wallet = "0x1234567890abcdef1234567890abcdef12345678"
 
-        _result = fetch_time_range_query(
-            service,
+        _result = service._fetch_time_range_query(
             cache_namespace="test",
             query_name="test_query",
             user_id=user_id,
@@ -158,8 +154,7 @@ class TestFetchTimeRangeQueryEndDateScoping:
         service = MockAnalyticsService()
         user_id = UUID("12345678-1234-5678-1234-567812345678")
 
-        _result = fetch_time_range_query(
-            service,
+        _result = service._fetch_time_range_query(
             cache_namespace="test",
             query_name="test_query",
             user_id=user_id,
@@ -176,8 +171,7 @@ class TestFetchTimeRangeQueryEndDateScoping:
         service = MockAnalyticsService()
         user_id = UUID("12345678-1234-5678-1234-567812345678")
 
-        _result = fetch_time_range_query(
-            service,
+        _result = service._fetch_time_range_query(
             cache_namespace="test",
             query_name="test_query",
             user_id=user_id,
@@ -194,8 +188,7 @@ class TestFetchTimeRangeQueryEndDateScoping:
         service = MockAnalyticsService()
         user_id = UUID("12345678-1234-5678-1234-567812345678")
 
-        _result = fetch_time_range_query(
-            service,
+        _result = service._fetch_time_range_query(
             cache_namespace="test",
             query_name="test_query",
             user_id=user_id,

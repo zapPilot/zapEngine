@@ -8,7 +8,7 @@ for historical portfolio performance visualization.
 import logging
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, time, timedelta
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -20,10 +20,15 @@ from src.models.analytics_responses import (
     PortfolioTrendResponse,
 )
 from src.services.analytics.analytics_context import PortfolioAnalyticsContext
-from src.services.analytics.category_trend_base import CategoryTrendBaseService
 from src.services.interfaces import QueryServiceProtocol, TrendAnalysisServiceProtocol
+from src.services.shared.base_analytics_service import (
+    BaseAnalyticsService,
+    TimeRangeQueryPayload,
+)
+from src.services.shared.query_names import QUERY_NAMES
 from src.services.transformers.category_data_transformer import (
     CategoryDailyAggregate,
+    CategoryDataTransformer,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,8 +59,11 @@ def _log_trend_cache_stats(
     )
 
 
-class TrendAnalysisService(CategoryTrendBaseService, TrendAnalysisServiceProtocol):
+class TrendAnalysisService(BaseAnalyticsService, TrendAnalysisServiceProtocol):
     """Service for portfolio trend analysis and historical data aggregation."""
+
+    _transformer_cls: ClassVar[type[CategoryDataTransformer]] = CategoryDataTransformer
+    _category_trend_cache_namespace: ClassVar[str] = "category_trend_rows"
 
     MAX_CACHE_DAYS = 365
     """Maximum cache window for trend data.
@@ -63,7 +71,7 @@ class TrendAnalysisService(CategoryTrendBaseService, TrendAnalysisServiceProtoco
     ⚠️ CRITICAL CONFIGURATION WARNING ⚠️
 
     This value affects cache key construction in the base class via
-    fetch_time_range_query(). Changing this constant will:
+    ``_fetch_time_range_query``. Changing this constant will:
 
     1. Invalidate ALL cached trend data
     2. Cause 100% cache miss rate on deployment
@@ -83,23 +91,62 @@ class TrendAnalysisService(CategoryTrendBaseService, TrendAnalysisServiceProtoco
     Current value (365) chosen to maximize cache reuse. Smaller windows
     (30d, 90d) are filtered in-memory from the cached 365-day dataset.
 
-    See: fetch_time_range_query() in time_range_fetcher.py for cache key logic
+    See: BaseAnalyticsService._fetch_time_range_query() for cache key logic
     See: get_portfolio_trend() below for in-memory filtering implementation
     """
 
-    # jscpd:ignore-start
-    # Reason: subclass constructor intentionally mirrors BaseAnalyticsService DI shape.
     def __init__(
         self,
         db: Session,
         query_service: QueryServiceProtocol,
         context: PortfolioAnalyticsContext | None = None,
     ) -> None:
-        """Initialize service and validate cache-window bounds."""
         super().__init__(db, query_service, context)
+        self._category_transformer = self._transformer_cls()
 
+    @classmethod
+    def extract_category_value(cls, row: dict[str, Any]) -> float:
+        """Expose consistent value extraction for downstream helpers."""
+        return cls._transformer_cls.extract_row_value(row)
 
-    # jscpd:ignore-end
+    def _fetch_category_trend_payload(
+        self,
+        user_id: UUID,
+        days: int,
+        *,
+        wallet_address: str | None = None,
+        limit: int | None = None,
+        end_date: datetime | None = None,
+        ttl_hours: int | None = None,
+        db_override: Session | None = None,
+    ) -> TimeRangeQueryPayload:
+        """Fetch cached category-trend rows using wallet-aware query routing."""
+        if wallet_address is not None:
+            query_name = QUERY_NAMES.PORTFOLIO_CATEGORY_TREND_BY_USER_ID
+            logger.info(
+                "Using runtime query for wallet-specific request: "
+                "user_id=%s, wallet=%s",
+                user_id,
+                wallet_address,
+            )
+        else:
+            query_name = QUERY_NAMES.PORTFOLIO_CATEGORY_TREND_MV
+            logger.debug("Using MV query for bundle request: user_id=%s", user_id)
+
+        if ttl_hours is None:
+            _, ttl_hours = self._wallet_cache_config(wallet_address)
+
+        return self._fetch_time_range_query(
+            cache_namespace=self._category_trend_cache_namespace,
+            query_name=query_name,
+            user_id=user_id,
+            days=days,
+            wallet_address=wallet_address,
+            limit=limit,
+            end_date=end_date,
+            ttl_hours=ttl_hours,
+            db_override=db_override,
+        )
 
     def get_portfolio_trend(
         self,

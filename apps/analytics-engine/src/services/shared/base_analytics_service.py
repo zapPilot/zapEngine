@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, TypeVar, cast
@@ -23,6 +24,16 @@ CacheT = TypeVar("CacheT")
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class TimeRangeQueryPayload:
+    """Container for cached time-range query responses."""
+
+    rows: list[dict[str, Any]]
+    period_info: dict[str, Any]
+    start_date: datetime
+    end_date: datetime
 
 
 class CacheKeyMixin:
@@ -109,6 +120,59 @@ class BaseAnalyticsService(CacheKeyMixin):
         )
         period_info = self.context.build_period_info(start_date, end_date, days)
         return start_date, end_date, period_info
+
+    def _fetch_time_range_query(
+        self,
+        *,
+        cache_namespace: str,
+        query_name: str,
+        user_id: UUID,
+        days: int,
+        wallet_address: str | None = None,
+        limit: int | None = None,
+        include_end_date: bool = True,
+        end_date: datetime | None = None,
+        ttl_hours: int | None = 12,
+        db_override: Session | None = None,
+    ) -> TimeRangeQueryPayload:
+        """Execute and cache a time-range query payload."""
+        user_key = self.uuid_to_str(user_id)
+        wallet_key = wallet_address or "bundle"
+        key_parts: list[Any] = [
+            cache_namespace,
+            user_key,
+            wallet_key,
+            days,
+        ]
+        if limit is not None:
+            key_parts.append(limit)
+        if end_date is not None:
+            key_parts.append(end_date.isoformat())
+        cache_key = analytics_cache.build_key(*key_parts)
+
+        def compute() -> TimeRangeQueryPayload:
+            computed_start, computed_end, computed_period = (
+                self._date_range_with_period(days, end_date=end_date)
+            )
+            query_params: dict[str, Any] = {
+                "user_id": user_key,
+                "start_date": computed_start,
+                "wallet_address": wallet_address,
+            }
+            if include_end_date:
+                query_params["end_date"] = computed_end
+            if limit is not None:
+                query_params["limit"] = limit
+
+            rows = self._execute_query(query_name, query_params, db=db_override)
+            return TimeRangeQueryPayload(
+                rows=rows,
+                period_info=computed_period,
+                start_date=computed_start,
+                end_date=computed_end,
+            )
+
+        return self._with_cache(cache_key, compute, ttl_hours=ttl_hours)
 
     def _build_empty_response(
         self,
