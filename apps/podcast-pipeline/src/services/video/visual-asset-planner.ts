@@ -166,6 +166,7 @@ export async function planVisualAssets(
       sceneId: scene.sceneId,
       assetId: selected.asset.assetId,
     });
+    const sourceHostname = candidateHostname(selected.asset.sourcePageUrl);
     input.onProgress?.({
       phase: 'assets',
       sceneId: scene.sceneId,
@@ -173,8 +174,7 @@ export async function planVisualAssets(
       sceneCount: input.scenes.length,
       provider: selected.provider,
       assetId: selected.asset.assetId,
-      sourceHostname:
-        candidateHostname(selected.asset.sourcePageUrl) ?? undefined,
+      ...(sourceHostname ? { sourceHostname } : {}),
       ...(selected.reuseKind ? { reuseKind: selected.reuseKind } : {}),
       ...(selected.rejections.total > 0
         ? {
@@ -270,9 +270,13 @@ function recordSearchFailures(
   rejections: CandidateRejections,
   failures: readonly Error[],
 ): void {
-  for (const _failure of failures) {
-    recordCandidateRejection(rejections, 'search-provider-failure');
-  }
+  if (failures.length === 0) return;
+  const cause = 'search-provider-failure';
+  rejections.total += failures.length;
+  rejections.causes.set(
+    cause,
+    (rejections.causes.get(cause) ?? 0) + failures.length,
+  );
 }
 
 async function acquireNextArticleImage(
