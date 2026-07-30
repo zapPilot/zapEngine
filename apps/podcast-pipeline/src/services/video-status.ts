@@ -5,6 +5,7 @@ import {
   SUPPORTED_PRIMARY_LANGUAGE_CODES,
 } from '../types.js';
 import { listEpisodeLocalizationsByEpisodeId } from './db.js';
+import { orderedPrimaryLocalizations } from './primary-localizations.js';
 import {
   type EpisodeVideoJobRow,
   type EpisodeVideoJobStatus,
@@ -120,20 +121,19 @@ export async function buildEpisodeVideoGenerationForLocalizations(
   const [visualJob, jobs] = await Promise.all([
     visualRepository.find(episodeId),
     Promise.all(
-      SUPPORTED_PRIMARY_LANGUAGE_CODES.flatMap((languageCode) => {
-        const localization = localizations.find(
-          (candidate) => candidate.language_code === languageCode,
-        );
-        return localization
-          ? [
-              (async (): Promise<EpisodeVideoJobWithLanguage> => ({
-                languageCode,
-                localizationId: localization.id,
-                job: await videoRepository.find(localization.id),
-              }))(),
-            ]
-          : [];
-      }),
+      orderedPrimaryLocalizations(localizations).flatMap(
+        ({ languageCode, localization }) => {
+          return localization
+            ? [
+                (async (): Promise<EpisodeVideoJobWithLanguage> => ({
+                  languageCode,
+                  localizationId: localization.id,
+                  job: await videoRepository.find(localization.id),
+                }))(),
+              ]
+            : [];
+        },
+      ),
     ),
   ]);
 

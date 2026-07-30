@@ -201,7 +201,7 @@ function isClassroomAudioReady(
   localization: EpisodeLocalizationRow,
   languageCode: LanguageClassroomLanguageCode,
 ): boolean {
-  if (getClassroomTargetLanguageCodes(languageCode).length === 0) {
+  if (!isLanguageClassroomAudioRequired(languageCode)) {
     return true;
   }
 
@@ -329,7 +329,7 @@ async function synthesizeAndUploadClassroomAudio(
   classroomRows: LanguageClassroomRow[],
   costBreakdown: UsageCostLine[],
 ): Promise<UploadedAudioSection | null> {
-  if (getClassroomTargetLanguageCodes(languageCode).length === 0) {
+  if (!isLanguageClassroomAudioRequired(languageCode)) {
     return null;
   }
 

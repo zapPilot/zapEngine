@@ -10,3 +10,9 @@ export function lineUnits(text: string): number {
     0,
   );
 }
+
+export function speakingUnits(value: string): number {
+  const latinWords = value.match(/[A-Za-z0-9]+/g)?.length ?? 0;
+  const nonLatin = Array.from(value.replace(/[A-Za-z0-9\s]/g, '')).length;
+  return Math.max(1, nonLatin + latinWords * 1.4);
+}

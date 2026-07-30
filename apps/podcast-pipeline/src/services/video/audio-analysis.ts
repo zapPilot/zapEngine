@@ -12,6 +12,7 @@ import {
   splitCanonicalSentences,
 } from './storyboard/sentences.js';
 import { characterUnits, PORTRAIT_SUBTITLE_LAYOUT } from './subtitles.js';
+import { speakingUnits } from './text-units.js';
 
 export interface SilenceInterval {
   startMs: number;
@@ -168,14 +169,6 @@ export async function detectAudioSilences(
   );
   return parseSilenceDetection(result.stderr);
 }
-
-// jscpd:ignore-start — weighted word count; same formula in fallback.ts speakingWeight
-function speakingUnits(value: string): number {
-  const latinWords = value.match(/[A-Za-z0-9]+/g)?.length ?? 0;
-  const nonLatin = Array.from(value.replace(/[A-Za-z0-9\s]/g, '')).length;
-  return Math.max(1, nonLatin + latinWords * 1.4);
-}
-// jscpd:ignore-end
 
 function frameIndex(valueMs: number, fps = OUTPUT_FPS): number {
   return Math.round((valueMs * fps) / 1_000);
