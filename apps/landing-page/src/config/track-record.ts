@@ -7,16 +7,6 @@ export const IPFS_GATEWAYS = [
 
 export const DEFAULT_HISTORY_LIMIT = 90;
 
-export const CHART_COLORS = {
-  strategy: '#d4c5a3',
-  benchmark: '#2775ca',
-  drawdown: 'rgba(212, 197, 163, 0.12)',
-  gridLine: 'rgba(255, 255, 255, 0.065)',
-  axis: 'rgba(255, 255, 255, 0.09)',
-  text: 'var(--ink-faint)',
-  accent: 'var(--accent)',
-} as const;
-
 export const CHART_DIMENSIONS = {
   width: 720,
   height: 320,

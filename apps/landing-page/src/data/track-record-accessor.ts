@@ -15,13 +15,7 @@ import {
   recoverMessageAddress,
   toBytes,
 } from 'viem';
-
-const DEFAULT_GATEWAYS = [
-  process.env['NEXT_PUBLIC_IPFS_GATEWAY'] ?? 'https://ipfs.io/ipfs',
-  process.env['NEXT_PUBLIC_IPFS_GATEWAY_FALLBACK'] ??
-    'https://cloudflare-ipfs.com/ipfs',
-  'https://dweb.link/ipfs',
-];
+import { DEFAULT_HISTORY_LIMIT, IPFS_GATEWAYS } from '@/config/track-record';
 
 const GATEWAY_TIMEOUT_MS = 8_000;
 
@@ -41,7 +35,7 @@ async function fetchFromGateway(
 
 async function fetchFromIpfs(
   cid: string,
-  gateways: string[] = DEFAULT_GATEWAYS,
+  gateways: readonly string[] = IPFS_GATEWAYS,
 ): Promise<unknown> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), GATEWAY_TIMEOUT_MS);
@@ -83,7 +77,7 @@ async function fetchLatestSnapshot(
 
 async function fetchSnapshotHistory(
   entryCid: string,
-  limit = 90,
+  limit = DEFAULT_HISTORY_LIMIT,
 ): Promise<DailySnapshot[]> {
   const snapshots: DailySnapshot[] = [];
   let currentCid: string | null = entryCid;
@@ -146,22 +140,9 @@ function computeDailyReturns(snapshots: DailySnapshot[]): number[] {
 function computeRollingVolatility(returns: number[], window: number): number[] {
   const volatilities: number[] = [];
   for (let i = window; i <= returns.length; i++) {
-    const windowReturns = returns.slice(i - window, i);
-    const mean = windowReturns.reduce((a, b) => a + b, 0) / window;
-    const squaredDiffs = windowReturns.map((r) => (r - mean) ** 2);
-    const variance = squaredDiffs.reduce((a, b) => a + b, 0) / window;
-    volatilities.push(Math.sqrt(variance * 252));
+    volatilities.push(annualizedVolatility(returns.slice(i - window, i)));
   }
   return volatilities;
-}
-
-function computeDownsideDeviation(returns: number[]): number {
-  const negativeReturns = returns.filter((r) => r < 0);
-  if (negativeReturns.length === 0) return 0;
-  const squaredNegatives = negativeReturns.map((r) => r ** 2);
-  const avgSquared =
-    squaredNegatives.reduce((a, b) => a + b, 0) / negativeReturns.length;
-  return Math.sqrt(avgSquared * 252);
 }
 
 function formatPercent(value: number): string {
@@ -264,7 +245,7 @@ function computePerformanceSummary(
   const annualVol = avgVol30d;
   const sharpe = annualVol > 0 ? (annualMean / annualVol).toFixed(2) : '—';
 
-  const downsideDev = computeDownsideDeviation(dailyReturns);
+  const downsideDev = annualizedDownsideDeviation(dailyReturns);
   const sortino = downsideDev > 0 ? (annualMean / downsideDev).toFixed(2) : '—';
 
   return {
@@ -460,7 +441,7 @@ export interface SnapshotHistoryEntry {
 
 async function fetchSnapshotHistoryEntries(
   entryCid: string,
-  limit = 90,
+  limit = DEFAULT_HISTORY_LIMIT,
 ): Promise<SnapshotHistoryEntry[]> {
   const entries: SnapshotHistoryEntry[] = [];
   let currentCid: string | null = entryCid;

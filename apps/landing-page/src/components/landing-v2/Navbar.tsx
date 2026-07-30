@@ -2,11 +2,11 @@ import Image from 'next/image';
 import { LINKS } from '@/config/links';
 
 const NAV_LINKS = [
-  { label: 'Strategy', href: '#strategy', external: false },
-  { label: 'Performance', href: '#proof', external: false },
-  { label: 'Track Record', href: '/track-record', external: false },
-  { label: 'Execution', href: '#trust', external: false },
-  { label: 'Docs', href: '/docs', external: false },
+  { label: 'Strategy', href: '#strategy' },
+  { label: 'Performance', href: '#proof' },
+  { label: 'Track Record', href: '/track-record' },
+  { label: 'Execution', href: '#trust' },
+  { label: 'Docs', href: '/docs' },
 ] as const;
 
 export function Navbar() {
@@ -23,22 +23,11 @@ export function Navbar() {
         <span className="zp-nav-tagline">— rules engine</span>
       </div>
       <div className="zp-nav-links">
-        {NAV_LINKS.map((link) =>
-          link.external ? (
-            <a
-              key={link.label}
-              href={link.href}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {link.label}
-            </a>
-          ) : (
-            <a key={link.label} href={link.href}>
-              {link.label}
-            </a>
-          ),
-        )}
+        {NAV_LINKS.map((link) => (
+          <a key={link.label} href={link.href}>
+            {link.label}
+          </a>
+        ))}
       </div>
       <a
         className="zp-nav-cta"

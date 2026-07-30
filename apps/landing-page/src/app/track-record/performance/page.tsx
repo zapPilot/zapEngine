@@ -5,17 +5,14 @@ import { NavCurveChart } from '@/components/track-record/NavCurveChart';
 import { DrawdownChart } from '@/components/track-record/DrawdownChart';
 import { BenchmarkChart } from '@/components/track-record/BenchmarkChart';
 import { MetricsRow } from '@/components/track-record/MetricsRow';
+import { TrackRecordLoading } from '@/components/track-record/TrackRecordLoading';
 
 export default function PerformancePage() {
   const state = useTrackRecord();
   const { snapshots, summary, isLoading } = state;
 
   if (isLoading) {
-    return (
-      <div className="track-record-loading">
-        <p>Loading performance data…</p>
-      </div>
-    );
+    return <TrackRecordLoading label="Loading performance data…" />;
   }
 
   return (

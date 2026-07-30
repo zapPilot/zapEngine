@@ -8,9 +8,6 @@ import { Navbar } from '@/components/landing-v2/Navbar';
 import { TrustBoundary } from '@/components/landing-v2/TrustBoundary';
 import { YieldVenues } from '@/components/landing-v2/YieldVenues';
 
-// Mirrors the mockup's `showYield` prop (default: true).
-const SHOW_YIELD_SECTION: boolean = true;
-
 export default function LandingPage() {
   return (
     <div className="zp-root">
@@ -20,7 +17,7 @@ export default function LandingPage() {
         <BehaviorReplacement />
         <HowItWorks />
         <BacktestProof />
-        {SHOW_YIELD_SECTION ? <YieldVenues /> : null}
+        <YieldVenues />
         <TrustBoundary />
         <ClosingCta />
       </main>

@@ -1,4 +1,5 @@
 import type { DailySnapshot } from '@zapengine/types/strategy';
+import { hasRebalance } from './rebalance';
 
 interface RebalanceTableProps {
   snapshots: DailySnapshot[];
@@ -6,9 +7,7 @@ interface RebalanceTableProps {
 }
 
 export function RebalanceTable({ snapshots, className }: RebalanceTableProps) {
-  const rebalanceSnapshots = snapshots.filter((s) =>
-    s.transactions.some((t) => t.type === 'rebalance'),
-  );
+  const rebalanceSnapshots = snapshots.filter(hasRebalance);
 
   if (rebalanceSnapshots.length === 0) {
     return (

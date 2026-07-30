@@ -7,7 +7,7 @@ import { PitchSlide } from './PitchSlide';
  */
 export function PitchPillarsSlide() {
   return (
-    <PitchSlide id="pillars" index={4} variant="wrapped">
+    <PitchSlide id="pillars" variant="wrapped">
       <Pillars />
     </PitchSlide>
   );

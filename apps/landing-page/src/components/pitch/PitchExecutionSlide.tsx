@@ -10,7 +10,6 @@ export function PitchExecutionSlide() {
   return (
     <PitchSlide
       id="execution"
-      index={6}
       kicker={PITCH_EXECUTION.kicker}
       title={PITCH_EXECUTION.headline}
     >

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { classNames } from '@/lib/classNames';
 
 type SectionProps = {
   id?: string;
@@ -11,10 +12,6 @@ type SectionProps = {
   headingAction?: ReactNode;
   children: ReactNode;
 };
-
-function classNames(...values: (string | undefined)[]) {
-  return values.filter(Boolean).join(' ');
-}
 
 export function Section({
   id,

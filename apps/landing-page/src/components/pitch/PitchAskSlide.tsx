@@ -9,7 +9,7 @@ import { PitchSlide } from './PitchSlide';
  */
 export function PitchAskSlide() {
   return (
-    <PitchSlide id="ask" index={8}>
+    <PitchSlide id="ask">
       <div className="pitch-ask-inner">
         <h2 className="pitch-ask-headline" id="pitch-ask-title">
           {PITCH_ASK.headline}

@@ -2,17 +2,14 @@
 
 import { useTrackRecord } from '@/hooks/useTrackRecord';
 import { PositionsTable } from '@/components/track-record/PositionsTable';
+import { TrackRecordLoading } from '@/components/track-record/TrackRecordLoading';
 
 export default function PositionsPage() {
   const state = useTrackRecord();
   const { latestSnapshot, positions, isLoading } = state;
 
   if (isLoading) {
-    return (
-      <div className="track-record-loading">
-        <p>Loading positions…</p>
-      </div>
-    );
+    return <TrackRecordLoading label="Loading positions…" />;
   }
 
   return (

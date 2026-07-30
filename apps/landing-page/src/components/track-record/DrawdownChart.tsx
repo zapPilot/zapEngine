@@ -1,14 +1,18 @@
 import type { DailySnapshot } from '@zapengine/types/strategy';
-import { CHART_DIMENSIONS } from '@/config/track-record';
+import { ChartEmptyState } from './ChartEmptyState';
+import {
+  chartDateRange,
+  height,
+  padding,
+  plotHeight,
+  width,
+  xForPoint,
+} from './chartGeometry';
 
 interface DrawdownChartProps {
   snapshots: DailySnapshot[];
   className?: string;
 }
-
-const { width, height, padding } = CHART_DIMENSIONS;
-const plotWidth = width - padding.left - padding.right;
-const plotHeight = height - padding.top - padding.bottom;
 
 function buildDrawdownSeries(
   snapshots: DailySnapshot[],
@@ -28,19 +32,16 @@ function buildDrawdownSeries(
   return series;
 }
 
-function xForPoint(index: number, total: number) {
-  if (total <= 1) return padding.left;
-  return padding.left + (index / (total - 1)) * plotWidth;
-}
-
 export function DrawdownChart({ snapshots, className }: DrawdownChartProps) {
   const points = buildDrawdownSeries(snapshots);
 
   if (points.length === 0) {
     return (
-      <div className={`drawdown-chart-empty ${className ?? ''}`}>
-        <p>No live data yet.</p>
-      </div>
+      <ChartEmptyState
+        emptyClassName="drawdown-chart-empty"
+        className={className}
+        message="No live data yet."
+      />
     );
   }
 
@@ -48,8 +49,7 @@ export function DrawdownChart({ snapshots, className }: DrawdownChartProps) {
   const domainMax = Math.ceil(maxDD * 10) / 10 + 0.05;
   const yTicks = [0, domainMax / 2, domainMax];
 
-  const startDate = points[0]?.date ?? '';
-  const endDate = points[points.length - 1]?.date ?? '';
+  const { startDate, endDate } = chartDateRange(points);
 
   const areaPath = points
     .map((pt, i) => {
