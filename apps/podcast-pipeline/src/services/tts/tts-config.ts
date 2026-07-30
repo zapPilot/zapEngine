@@ -55,40 +55,20 @@ const FISH_AUDIO_EN_CONFIG: FishAudioTtsLanguageConfig = {
   engine: DEFAULT_FISH_AUDIO_ENGINE,
 };
 
-const GOOGLE_MAIN_TTS_CONFIG: Record<
-  LanguageClassroomLanguageCode,
-  TtsLanguageConfig
+const TTS_CONFIG: Record<
+  TtsProvider,
+  Record<LanguageClassroomLanguageCode, TtsLanguageConfig>
 > = {
-  'zh-Hant': GOOGLE_ZH_HANT_CONFIG,
-  ja: GOOGLE_JA_CONFIG,
-  en: GOOGLE_EN_CONFIG,
-};
-
-const GOOGLE_CLASSROOM_TTS_CONFIG: Record<
-  LanguageClassroomLanguageCode,
-  TtsLanguageConfig
-> = {
-  'zh-Hant': GOOGLE_ZH_HANT_CONFIG,
-  ja: GOOGLE_JA_CONFIG,
-  en: GOOGLE_EN_CONFIG,
-};
-
-const FISH_AUDIO_MAIN_TTS_CONFIG: Record<
-  LanguageClassroomLanguageCode,
-  TtsLanguageConfig
-> = {
-  'zh-Hant': FISH_AUDIO_ZH_HANT_CONFIG,
-  ja: FISH_AUDIO_JA_CONFIG,
-  en: FISH_AUDIO_EN_CONFIG,
-};
-
-const FISH_AUDIO_CLASSROOM_TTS_CONFIG: Record<
-  LanguageClassroomLanguageCode,
-  TtsLanguageConfig
-> = {
-  'zh-Hant': FISH_AUDIO_ZH_HANT_CONFIG,
-  ja: FISH_AUDIO_JA_CONFIG,
-  en: FISH_AUDIO_EN_CONFIG,
+  google: {
+    'zh-Hant': GOOGLE_ZH_HANT_CONFIG,
+    ja: GOOGLE_JA_CONFIG,
+    en: GOOGLE_EN_CONFIG,
+  },
+  'fish-audio': {
+    'zh-Hant': FISH_AUDIO_ZH_HANT_CONFIG,
+    ja: FISH_AUDIO_JA_CONFIG,
+    en: FISH_AUDIO_EN_CONFIG,
+  },
 };
 
 function resolveTtsProvider(): TtsProvider {
@@ -129,21 +109,15 @@ function buildFishAudioConfig(
 }
 
 export function getTtsConfig(
-  usage: TtsUsage,
+  _usage: TtsUsage,
   languageCode: LanguageClassroomLanguageCode,
 ): TtsLanguageConfig {
   const provider = resolveTtsProvider();
+  const base = TTS_CONFIG[provider][languageCode];
 
-  if (provider === 'fish-audio') {
-    const baseMap =
-      usage === 'main'
-        ? FISH_AUDIO_MAIN_TTS_CONFIG
-        : FISH_AUDIO_CLASSROOM_TTS_CONFIG;
-    const base = baseMap[languageCode];
-    return buildFishAudioConfig(base as FishAudioTtsLanguageConfig);
+  if (base.provider === 'fish-audio') {
+    return buildFishAudioConfig(base);
   }
 
-  const googleMap =
-    usage === 'main' ? GOOGLE_MAIN_TTS_CONFIG : GOOGLE_CLASSROOM_TTS_CONFIG;
-  return googleMap[languageCode];
+  return base;
 }

@@ -20,6 +20,7 @@ import {
   logIngestEvent,
   withStepLogContext,
 } from './ingest/step.js';
+import { orderedPrimaryLocalizations } from './primary-localizations.js';
 import type { TelegramChatId } from './telegram.js';
 import {
   enqueueEpisodeVideoJob,
@@ -291,23 +292,22 @@ async function isFullyIngested(
 function requireVideoLocalizations(
   localizations: readonly EpisodeLocalizationRow[],
 ): EpisodeLocalizationRow[] {
-  return SUPPORTED_PRIMARY_LANGUAGE_CODES.map((languageCode) => {
-    const localization = localizations.find(
-      (candidate) => candidate.language_code === languageCode,
-    );
-    const audioReady =
-      Boolean(localization?.hls_url.trim()) &&
-      (languageCode !== DEFAULT_LANGUAGE_CODE ||
-        Boolean(localization?.classroom_hls_url?.trim()));
-    if (
-      localization?.status !== 'completed' ||
-      !localization.script?.trim() ||
-      !audioReady
-    ) {
-      throw new Error(
-        `Completed ${languageCode} localization with eligible audio is required to enqueue video`,
-      );
-    }
-    return localization;
-  });
+  return orderedPrimaryLocalizations(localizations).map(
+    ({ languageCode, localization }) => {
+      const audioReady =
+        Boolean(localization?.hls_url.trim()) &&
+        (languageCode !== DEFAULT_LANGUAGE_CODE ||
+          Boolean(localization?.classroom_hls_url?.trim()));
+      if (
+        localization?.status !== 'completed' ||
+        !localization.script?.trim() ||
+        !audioReady
+      ) {
+        throw new Error(
+          `Completed ${languageCode} localization with eligible audio is required to enqueue video`,
+        );
+      }
+      return localization;
+    },
+  );
 }

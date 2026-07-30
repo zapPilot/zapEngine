@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-
-import { getRequiredEnv } from '../lib/env.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
+import {
+  createPipelineSupabaseClient,
+  type PipelineSupabaseClient,
+} from './supabase-client.js';
 
 export const EPISODE_VIDEO_VISUAL_VERSION =
   'podcast-image-visual-plan.v3' as const;
@@ -203,8 +204,6 @@ export interface VideoJobRepository {
   markFailureNotified(episodeLocalizationId: string): Promise<boolean>;
 }
 
-type PipelineSupabaseClient = SupabaseClient<any, any, any>;
-const DEFAULT_SUPABASE_DB_SCHEMA = 'from_fed_to_chain';
 let defaultClient: PipelineSupabaseClient | null = null;
 let defaultRepository: VideoJobRepository | null = null;
 let defaultVisualRepository: VisualJobRepository | null = null;
@@ -692,21 +691,7 @@ async function callBooleanRpc(
 }
 
 function getSupabase(): PipelineSupabaseClient {
-  defaultClient ??= createClient(
-    getRequiredEnv('SUPABASE_URL'),
-    getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY'),
-    {
-      db: {
-        schema:
-          process.env['SUPABASE_DB_SCHEMA']?.trim() ||
-          DEFAULT_SUPABASE_DB_SCHEMA,
-      },
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    },
-  );
+  defaultClient ??= createPipelineSupabaseClient();
   return defaultClient;
 }
 

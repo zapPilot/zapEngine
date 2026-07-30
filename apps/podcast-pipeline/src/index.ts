@@ -43,6 +43,7 @@ import { processEpisodeVideoJob } from './services/episode-video-processor.js';
 import { processEpisodeVideoVisualJob } from './services/episode-video-visual-processor.js';
 import { handleAppError } from './services/error-response.js';
 import { performMultilingualIngestAndEnqueueVideo } from './services/post-ingest.js';
+import { orderedPrimaryLocalizations } from './services/primary-localizations.js';
 import {
   isEpisodeId,
   parseEpisodeSearchLimit,
@@ -56,21 +57,15 @@ import {
   buildEpisodeSharePageHtml,
 } from './services/share-page.js';
 import {
-  buildTelegramAudioReadyMessage,
-  buildTelegramFailureMessage,
-  type EpisodeVideoLifecycle,
   extractUrlFromMessage,
   getTelegramMessage,
   isAllowedUser,
   isTelegramHelpCommand,
-  sendTelegramNotification,
   TELEGRAM_HELP_TEXT,
-  TELEGRAM_INFLIGHT_TEXT,
   TELEGRAM_NO_URL_TEXT,
-  TELEGRAM_START_TEXT,
-  type TelegramChatId,
   verifySecret,
 } from './services/telegram.js';
+import { createTelegramIngestQueue } from './services/telegram-ingest-queue.js';
 import {
   buildEpisodeVideoGenerationForLocalizations,
   loadEpisodeVideoGeneration,
@@ -84,7 +79,6 @@ import {
 import {
   DEFAULT_LANGUAGE_CODE,
   type EpisodeLocalizationRow,
-  type LanguageClassroomLanguageCode,
   SUPPORTED_PRIMARY_LANGUAGE_CODES,
 } from './types.js';
 
@@ -104,28 +98,27 @@ function omitEpisodeVideoFields<
 function toIngestLocalizationSummaries(
   localizations: readonly EpisodeLocalizationRow[],
 ) {
-  return SUPPORTED_PRIMARY_LANGUAGE_CODES.flatMap((languageCode) => {
-    const localization = localizations.find(
-      (candidate) => candidate.language_code === languageCode,
-    );
-    return localization
-      ? [
-          {
-            languageCode,
-            localizationId: localization.id,
-            status: localization.status,
-            hasMainAudio: Boolean(localization.hls_url.trim()),
-            // Classroom audio is an ingest requirement only for the canonical
-            // language; other languages report null instead of false.
-            hasClassroomAudio:
-              languageCode === DEFAULT_LANGUAGE_CODE
-                ? Boolean(localization.classroom_hls_url?.trim())
-                : null,
-            updatedAt: localization.updated_at,
-          },
-        ]
-      : [];
-  });
+  return orderedPrimaryLocalizations(localizations).flatMap(
+    ({ languageCode, localization }) => {
+      return localization
+        ? [
+            {
+              languageCode,
+              localizationId: localization.id,
+              status: localization.status,
+              hasMainAudio: Boolean(localization.hls_url.trim()),
+              // Classroom audio is an ingest requirement only for the canonical
+              // language; other languages report null instead of false.
+              hasClassroomAudio:
+                languageCode === DEFAULT_LANGUAGE_CODE
+                  ? Boolean(localization.classroom_hls_url?.trim())
+                  : null,
+              updatedAt: localization.updated_at,
+            },
+          ]
+        : [];
+    },
+  );
 }
 
 function emptyTelegramResponse(c: Context): Response {
@@ -134,11 +127,7 @@ function emptyTelegramResponse(c: Context): Response {
 
 export function createApp(): Hono {
   const app = new Hono();
-  interface InflightTelegramIngest {
-    latestChatId: TelegramChatId;
-    promise: Promise<void>;
-  }
-  const inflightTelegramIngests = new Map<string, InflightTelegramIngest>();
+  const telegramIngestQueue = createTelegramIngestQueue();
 
   app.use('*', cors());
 
@@ -250,13 +239,13 @@ export function createApp(): Hono {
 
     const text = typeof message.text === 'string' ? message.text.trim() : '';
     if (isTelegramHelpCommand(text)) {
-      scheduleTelegramMessage(chatId, TELEGRAM_HELP_TEXT);
+      telegramIngestQueue.scheduleMessage(chatId, TELEGRAM_HELP_TEXT);
       return emptyTelegramResponse(c);
     }
 
     const extractedUrl = extractUrlFromMessage(text);
     if (!extractedUrl) {
-      scheduleTelegramMessage(chatId, TELEGRAM_NO_URL_TEXT);
+      telegramIngestQueue.scheduleMessage(chatId, TELEGRAM_NO_URL_TEXT);
       return emptyTelegramResponse(c);
     }
 
@@ -264,11 +253,11 @@ export function createApp(): Hono {
     try {
       url = parseInputUrl(extractedUrl);
     } catch {
-      scheduleTelegramMessage(chatId, TELEGRAM_NO_URL_TEXT);
+      telegramIngestQueue.scheduleMessage(chatId, TELEGRAM_NO_URL_TEXT);
       return emptyTelegramResponse(c);
     }
 
-    enqueueTelegramIngest(chatId, url, DEFAULT_LANGUAGE_CODE);
+    telegramIngestQueue.enqueue(chatId, url, DEFAULT_LANGUAGE_CODE);
     return emptyTelegramResponse(c);
   });
 
@@ -411,100 +400,6 @@ export function createApp(): Hono {
       ),
     );
   });
-
-  function enqueueTelegramIngest(
-    chatId: TelegramChatId,
-    url: string,
-    languageCode: LanguageClassroomLanguageCode,
-  ): void {
-    const existing = inflightTelegramIngests.get(url);
-    if (existing) {
-      existing.latestChatId = chatId;
-      scheduleTelegramMessage(chatId, TELEGRAM_INFLIGHT_TEXT);
-      return;
-    }
-
-    const inflight: InflightTelegramIngest = {
-      latestChatId: chatId,
-      promise: Promise.resolve(),
-    };
-    const job = new Promise<void>((resolve) => {
-      process.nextTick(() => {
-        void runTelegramIngestJob(inflight, url, languageCode, resolve);
-      });
-    });
-
-    inflight.promise = job;
-    inflightTelegramIngests.set(url, inflight);
-    void clearTelegramIngestWhenDone(url, inflight);
-  }
-
-  async function clearTelegramIngestWhenDone(
-    url: string,
-    inflight: InflightTelegramIngest,
-  ): Promise<void> {
-    try {
-      await inflight.promise;
-    } finally {
-      if (inflightTelegramIngests.get(url) === inflight) {
-        inflightTelegramIngests.delete(url);
-      }
-    }
-  }
-
-  async function runTelegramIngestJob(
-    inflight: InflightTelegramIngest,
-    url: string,
-    languageCode: LanguageClassroomLanguageCode,
-    resolve: () => void,
-  ): Promise<void> {
-    try {
-      await runTelegramIngest(inflight, url, languageCode);
-    } finally {
-      resolve();
-    }
-  }
-
-  async function runTelegramIngest(
-    inflight: InflightTelegramIngest,
-    url: string,
-    languageCode: LanguageClassroomLanguageCode,
-  ): Promise<void> {
-    await sendTelegramNotification(inflight.latestChatId, TELEGRAM_START_TEXT);
-
-    try {
-      const { ingest: result, videoJob } =
-        await performMultilingualIngestAndEnqueueVideo(url, languageCode, {
-          telegramChatId: () => inflight.latestChatId,
-        });
-      invalidateEpisodeSearchCache();
-      let videoLifecycle: EpisodeVideoLifecycle = 'queued';
-      if (videoJob === null) {
-        videoLifecycle = 'unavailable';
-      } else if (videoJob.status === 'completed') {
-        videoLifecycle = 'completed';
-      }
-      await sendTelegramNotification(
-        inflight.latestChatId,
-        buildTelegramAudioReadyMessage(
-          buildIngestSummaryFromResult(result),
-          result.episode.id,
-          videoLifecycle,
-        ),
-      );
-    } catch (error) {
-      await sendTelegramNotification(
-        inflight.latestChatId,
-        buildTelegramFailureMessage(error),
-      );
-    }
-  }
-
-  function scheduleTelegramMessage(chatId: TelegramChatId, text: string): void {
-    process.nextTick(() => {
-      void sendTelegramNotification(chatId, text);
-    });
-  }
 
   app.onError(handleAppError);
 

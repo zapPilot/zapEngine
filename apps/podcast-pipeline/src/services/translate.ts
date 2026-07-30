@@ -1,3 +1,4 @@
+import { getRequiredEnv } from '../lib/env.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import type { UsageCostLine } from './cost.js';
 import {
@@ -18,16 +19,6 @@ const TARGET_LANGUAGE_NAMES: Record<SecondaryLanguageCode, string> = {
   ja: 'Japanese',
   en: 'English',
 };
-
-function getGoogleTranslateApiKey(): string {
-  const key = process.env['GOOGLE_TRANSLATE_API_KEY'];
-  if (!key) {
-    throw new Error(
-      'Missing required environment variable: GOOGLE_TRANSLATE_API_KEY',
-    );
-  }
-  return key;
-}
 
 export interface TranslateCanonicalScriptOptions {
   title: string;
@@ -262,7 +253,7 @@ async function translateText(
     return { text: '', charCount: 0 };
   }
 
-  const apiKey = getGoogleTranslateApiKey();
+  const apiKey = getRequiredEnv('GOOGLE_TRANSLATE_API_KEY');
 
   let lastError: Error | undefined;
 

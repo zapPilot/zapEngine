@@ -53,6 +53,8 @@ import { concatMp3Buffers } from './audio-concat.js';
 describe('concatMp3Buffers', () => {
   afterEach(() => {
     vi.clearAllMocks();
+    vi.mocked(readFileSync).mockReset();
+    vi.mocked(unlinkSync).mockReset();
   });
 
   it('throws when no buffers are provided', async () => {
@@ -84,5 +86,54 @@ describe('concatMp3Buffers', () => {
       'concat=n=2:v=0:a=1',
     );
     expect(unlinkSync).toHaveBeenCalled();
+  });
+
+  it('returns combined audio when deleting an input temp file fails', async () => {
+    vi.mocked(readFileSync).mockReturnValue(Buffer.from('combined'));
+    vi.mocked(unlinkSync)
+      .mockImplementationOnce(() => {
+        throw new Error('input cleanup failed');
+      })
+      .mockImplementation(() => undefined);
+
+    const result = await concatMp3Buffers([
+      Buffer.from('first'),
+      Buffer.from('second'),
+    ]);
+
+    expect(result).toEqual(Buffer.from('combined'));
+    expect(unlinkSync).toHaveBeenCalledTimes(3);
+  });
+
+  it('returns combined audio when deleting the output temp file fails', async () => {
+    vi.mocked(readFileSync).mockReturnValue(Buffer.from('combined'));
+    vi.mocked(unlinkSync)
+      .mockImplementationOnce(() => undefined)
+      .mockImplementationOnce(() => undefined)
+      .mockImplementationOnce(() => {
+        throw new Error('output cleanup failed');
+      });
+
+    const result = await concatMp3Buffers([
+      Buffer.from('first'),
+      Buffer.from('second'),
+    ]);
+
+    expect(result).toEqual(Buffer.from('combined'));
+    expect(unlinkSync).toHaveBeenCalledTimes(3);
+  });
+
+  it('concatenates three buffers with the matching ffmpeg filter', async () => {
+    vi.mocked(readFileSync).mockReturnValue(Buffer.from('combined'));
+
+    await concatMp3Buffers([
+      Buffer.from('first'),
+      Buffer.from('second'),
+      Buffer.from('third'),
+    ]);
+
+    expect(mockFfmpegChain.complexFilter).toHaveBeenCalledWith(
+      'concat=n=3:v=0:a=1',
+    );
   });
 });

@@ -1,3 +1,4 @@
+import { speakingUnits } from '../text-units.js';
 import type { StoryboardDraft, StoryboardDraftScene } from './draft.js';
 import type {
   StoryboardProvider,
@@ -9,7 +10,11 @@ import {
   canonicalSentenceRangeText,
   splitCanonicalSentences,
 } from './sentences.js';
-import { storyboardSceneCountRange } from './validation.js';
+import {
+  normalizeNumericToken,
+  NUMERIC_TOKEN_PATTERN,
+  storyboardSceneCountRange,
+} from './validation.js';
 import { stableSceneId } from './visual-plan.js';
 
 const keywordSegmenter = new Intl.Segmenter('zh-Hant', {
@@ -889,21 +894,16 @@ function selectKeywordPhrases(value: string, limit: number): string[] {
     .map((phrase) => phrase.value);
 }
 
-function normalizeNumericToken(value: string): string {
-  return value.replace(/[,$€£¥%％\s]/gu, '').replace(/^0+(?=\d)/u, '');
-}
-
-function groundedTitle(title: string, evidence: string): string {
+function groundedNumericText(
+  value: string,
+  evidence: string,
+  replacement: string,
+): string {
   const normalizedEvidence = normalizeNumericToken(evidence);
-  return title.replace(/[$€£¥]?\d[\d,.]*[%％]?/gu, (token) =>
-    normalizedEvidence.includes(normalizeNumericToken(token)) ? token : '',
-  );
-}
-
-function groundedNumericText(value: string, evidence: string): string {
-  const normalizedEvidence = normalizeNumericToken(evidence);
-  return value.replace(/[$€£¥]?\d[\d,.]*[%％]?/gu, (token) =>
-    normalizedEvidence.includes(normalizeNumericToken(token)) ? token : ' ',
+  return value.replace(NUMERIC_TOKEN_PATTERN, (token) =>
+    normalizedEvidence.includes(normalizeNumericToken(token))
+      ? token
+      : replacement,
   );
 }
 
@@ -1023,11 +1023,11 @@ function deterministicSearchIntents(
   numericEvidence = evidence,
 ): string[] {
   const titlePhrases = selectKeywordPhrases(
-    groundedTitle(title, numericEvidence),
+    groundedNumericText(title, numericEvidence, ''),
     1,
   );
   const scenePhrases = selectKeywordPhrases(
-    groundedNumericText(evidence, numericEvidence),
+    groundedNumericText(evidence, numericEvidence, ' '),
     3,
   );
   const concept = selectPhotographicConcept(title, evidence);
@@ -1054,7 +1054,7 @@ function sentenceGroups<T extends { text: string }>(
   sentences: readonly T[],
   groupCount: number,
 ): T[][] {
-  const weights = sentences.map((sentence) => speakingWeight(sentence.text));
+  const weights = sentences.map((sentence) => speakingUnits(sentence.text));
   const prefixWeights = [0];
   for (const weight of weights) {
     prefixWeights.push(prefixWeights.at(-1)! + weight);
@@ -1137,31 +1137,23 @@ function balancedSearchEvidenceGroups(
   });
 }
 
-// jscpd:ignore-start — weighted word count; same formula in audio-analysis.ts speakingUnits
-function speakingWeight(value: string): number {
-  const latinWords = value.match(/[A-Za-z0-9]+/g)?.length ?? 0;
-  const nonLatin = Array.from(value.replace(/[A-Za-z0-9\s]/g, '')).length;
-  return Math.max(1, nonLatin + latinWords * 1.4);
-}
-// jscpd:ignore-end
-
 function chooseBalancedGroups(
   sentences: readonly CanonicalSentence[],
   minGroups: number,
   maxGroups: number,
   durationMs: number,
 ): CanonicalSentence[][] {
-  let best = sentenceGroups(sentences, minGroups);
+  let best: CanonicalSentence[][] = [];
   let bestPenalty = Number.POSITIVE_INFINITY;
+  const totalWeight = sentences.reduce(
+    (sum, sentence) => sum + speakingUnits(sentence.text),
+    0,
+  );
   for (let groupCount = minGroups; groupCount <= maxGroups; groupCount += 1) {
     const groups = sentenceGroups(sentences, groupCount);
-    const totalWeight = sentences.reduce(
-      (sum, sentence) => sum + speakingWeight(sentence.text),
-      0,
-    );
     const penalty = groups.reduce((sum, group) => {
       const weight = group.reduce(
-        (groupSum, sentence) => groupSum + speakingWeight(sentence.text),
+        (groupSum, sentence) => groupSum + speakingUnits(sentence.text),
         0,
       );
       const estimatedDuration = (durationMs * weight) / totalWeight;

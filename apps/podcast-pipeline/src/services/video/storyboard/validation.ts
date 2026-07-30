@@ -52,12 +52,14 @@ export function storyboardSceneCountRange(
   return { min, max };
 }
 
+export const NUMERIC_TOKEN_PATTERN = /[$€£¥]?\d[\d,.]*[%％]?/gu;
+
 function numericTokens(value: string): string[] {
-  return value.match(/[$€£¥]?\d[\d,.]*[%％]?/g) ?? [];
+  return value.match(NUMERIC_TOKEN_PATTERN) ?? [];
 }
 
-function normalizeNumericToken(value: string): string {
-  return value.replace(/[,$€£¥%％\s]/g, '').replace(/^0+(?=\d)/, '');
+export function normalizeNumericToken(value: string): string {
+  return value.replace(/[,$€£¥%％\s]/gu, '').replace(/^0+(?=\d)/u, '');
 }
 
 // Tab, LF, and CR are legitimate whitespace; every other C0 control character
