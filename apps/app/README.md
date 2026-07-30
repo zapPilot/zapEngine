@@ -28,7 +28,11 @@ upload certificate from the retired Flutter app. The store-facing app name is
 ## Commands
 
 ```bash
+# One Metro server on port 8081 for web, iOS, and Android.
+# Press W, I, or A in this terminal to open the target platform.
 pnpm --filter @zapengine/app dev
+
+# Browser-only shortcut when native development clients are not needed.
 pnpm --filter @zapengine/app dev:web
 pnpm turbo run type-check lint test build --filter=@zapengine/app
 pnpm turbo run build:web test:e2e --filter=@zapengine/app
@@ -36,8 +40,11 @@ pnpm --filter @zapengine/app check:web-native-leaks
 pnpm --filter @zapengine/app format:check
 pnpm turbo run deadcode dup:check --filter=@zapengine/app
 
-# iOS development, archive, and Release cold-start gate (macOS)
-pnpm --filter @zapengine/app ios
+# Native compilation only (Metro must already be running via `dev`)
+pnpm --filter @zapengine/app ios:native
+pnpm --filter @zapengine/app android:native
+
+# iOS archive and Release cold-start gate (macOS)
 pnpm --filter @zapengine/app ios:native:sync
 pnpm --filter @zapengine/app ios:archive
 pnpm turbo run test:ios:release-smoke --filter=@zapengine/app
@@ -59,15 +66,19 @@ Working directory: repository root (the directory containing package.json)
 Command: pnpm --filter @zapengine/app android
 ```
 
-Select that configuration and press Play. Expo CLI starts Metro, boots or selects
-the AVD, incrementally builds and installs the debug app, and opens Zap Pilot in
-the development client. The generated `android/.idea` directory is ignored, so
-each checkout configures its own absolute path. A local configuration may append
-`-- --device Pixel_8_API_36` to select that installed AVD without prompting.
+Start `pnpm --filter @zapengine/app dev` first, then select that configuration
+and press Play only when a native rebuild is needed. Expo CLI boots or selects
+the AVD, incrementally builds and installs the debug app, and opens Zap Pilot
+without starting a second Metro server. The generated `android/.idea` directory
+is ignored, so each checkout configures its own absolute path. A local
+configuration may append `-- --device Pixel_8_API_36` to select that installed
+AVD without prompting.
 
-The standard Android `app` configuration remains useful for native debugging. If
-Metro is already running on port 8081, its default activity connects through the
-configured emulator fallback `http://10.0.2.2:8081`.
+The standard Android `app` configuration remains useful for native debugging.
+The development client connects to the shared Metro server on port 8081 through
+the configured emulator fallback `http://10.0.2.2:8081`. The iOS Simulator uses
+`http://localhost:8081`. Physical devices still need the Mac's LAN address or an
+Expo tunnel.
 
 `build` runs Expo native exports for Android and iOS, so it is the Metro graph
 regression gate. `build:web` writes the static Expo web export to `dist/web`;

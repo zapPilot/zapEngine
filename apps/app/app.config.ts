@@ -89,6 +89,10 @@ const config: ExpoConfig = {
           launchMode: 'most-recent',
           defaultLaunchURL: 'http://10.0.2.2:8081',
         },
+        ios: {
+          launchMode: 'most-recent',
+          defaultLaunchURL: 'http://localhost:8081',
+        },
       },
     ],
     'expo-router',

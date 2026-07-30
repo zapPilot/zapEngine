@@ -27,13 +27,17 @@ describe('Android store identity', () => {
     expect(appConfig.android?.versionCode).toBeUndefined();
   });
 
-  it('launches the Android development client against the emulator Metro server', () => {
+  it('launches development clients against the shared Metro server', () => {
     expect(appConfig.plugins).toContainEqual([
       'expo-dev-client',
       {
         android: {
           launchMode: 'most-recent',
           defaultLaunchURL: 'http://10.0.2.2:8081',
+        },
+        ios: {
+          launchMode: 'most-recent',
+          defaultLaunchURL: 'http://localhost:8081',
         },
       },
     ]);
