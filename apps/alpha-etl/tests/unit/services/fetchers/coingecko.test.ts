@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { CoinGeckoFetcher } from '../../../../src/modules/token-price/index.js';
+import { CoinGeckoFetcher } from '../../../../src/modules/token-price/fetcher.js';
 
 // Mock logger
 vi.mock('../../../../src/utils/logger.js', async () => {

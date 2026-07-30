@@ -36,11 +36,10 @@ vi.mock("../../../../src/utils/logger.js", () => ({
   logger: mockLogger,
 }));
 
-// Mock the consolidated pipeline module with MockedTokenPriceETLProcessor
-vi.mock("../../../../src/modules/token-price/index.js", async () => {
+vi.mock("../../../../src/modules/token-price/processor.js", async () => {
   const actualModule = await vi.importActual<
-    typeof import("../../../../src/modules/token-price/index.js")
-  >("../../../../src/modules/token-price/index.js");
+    typeof import("../../../../src/modules/token-price/processor.js")
+  >("../../../../src/modules/token-price/processor.js");
 
   // Create a MockedTokenPriceETLProcessor that uses hoisted mock objects directly
   class MockedTokenPriceETLProcessor {
@@ -225,7 +224,7 @@ vi.mock("../../../../src/modules/token-price/index.js", async () => {
   };
 });
 
-import { TokenPriceETLProcessor } from "../../../../src/modules/token-price/index.js";
+import { TokenPriceETLProcessor } from "../../../../src/modules/token-price/processor.js";
 
 describe("TokenPriceProcessor", () => {
   let processor: TokenPriceETLProcessor;

@@ -33,12 +33,6 @@ import {
 import { TokenPriceDmaWriter } from './dmaWriter.js';
 import { TokenPairRatioDmaWriter } from './ratioDmaWriter.js';
 
-export {
-  buildAlignedPairRatioSeries,
-  computeDma,
-  computeTokenPairRatioDma,
-} from './dmaCalculator.js';
-
 interface TokenContext {
   tokenSymbol: string;
   tokenId: string;

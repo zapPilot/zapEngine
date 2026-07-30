@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
-  TokenPriceETLProcessor,
-  CoinGeckoFetcher,
-  TokenPriceWriter,
   TokenPriceDmaService,
-} from "../../../src/modules/token-price/index.js";
+} from "../../../src/modules/token-price/dmaService.js";
+import { CoinGeckoFetcher } from "../../../src/modules/token-price/fetcher.js";
+import { TokenPriceETLProcessor } from "../../../src/modules/token-price/processor.js";
+import { TokenPriceWriter } from "../../../src/modules/token-price/writer.js";
 import { APIError } from "../../../src/utils/errors.js";
 import { Pool } from "pg";
 import type { ETLJob } from "../../../src/types/index.js";

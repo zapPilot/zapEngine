@@ -1,10 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import {
-  SentimentETLProcessor,
-  FearGreedFetcher,
-  SentimentDataTransformer,
-  SentimentWriter,
-} from "../../../src/modules/sentiment/index.js";
+import { FearGreedFetcher } from "../../../src/modules/sentiment/fetcher.js";
+import { SentimentETLProcessor } from "../../../src/modules/sentiment/processor.js";
+import { SentimentDataTransformer } from "../../../src/modules/sentiment/transformer.js";
+import { SentimentWriter } from "../../../src/modules/sentiment/writer.js";
 import { logger } from "../../../src/utils/logger.js";
 import { Pool } from "pg";
 import type { ETLJob } from "../../../src/types/index.js";

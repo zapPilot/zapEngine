@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SentimentDataTransformer } from '../../../../src/modules/sentiment/index.js';
+import { SentimentDataTransformer } from '../../../../src/modules/sentiment/transformer.js';
 import { WalletBalanceTransformer } from '../../../../src/modules/wallet/balanceTransformer.js';
 import { DeBankPortfolioTransformer } from '../../../../src/modules/wallet/portfolioTransformer.js';
 import { HyperliquidDataTransformer } from '../../../../src/modules/hyperliquid/transformer.js';

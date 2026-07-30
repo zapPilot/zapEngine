@@ -26,12 +26,10 @@ vi.mock("../../../../src/utils/logger.js", () => ({
   logger: mockLogger,
 }));
 
-// Mock the entire feargreed module with hoisted mocks
-// SentimentETLProcessor imports and instantiates these classes internally
-vi.mock("../../../../src/modules/sentiment/index.js", async () => {
+vi.mock("../../../../src/modules/sentiment/processor.js", async () => {
   const actualModule = await vi.importActual<
-    typeof import("../../../../src/modules/sentiment/index.js")
-  >("../../../../src/modules/sentiment/index.js");
+    typeof import("../../../../src/modules/sentiment/processor.js")
+  >("../../../../src/modules/sentiment/processor.js");
 
   // Create a custom SentimentETLProcessor that uses the mocked dependencies
   class MockedSentimentETLProcessor {
@@ -119,7 +117,7 @@ vi.mock("../../../../src/modules/sentiment/index.js", async () => {
   };
 });
 
-import { SentimentETLProcessor } from "../../../../src/modules/sentiment/index.js";
+import { SentimentETLProcessor } from "../../../../src/modules/sentiment/processor.js";
 import type { ETLJob } from "../../../../src/types/index.js";
 
 const createJob = (overrides: Partial<ETLJob> = {}): ETLJob => ({

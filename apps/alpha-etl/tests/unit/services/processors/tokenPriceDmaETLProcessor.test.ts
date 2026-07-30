@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Pool } from 'pg';
 import {
-  TokenPriceDmaService,
   buildAlignedPairRatioSeries,
   computeDma,
   computeTokenPairRatioDma
+} from '../../../../src/modules/token-price/dmaCalculator.js';
+import {
+  TokenPriceDmaService
 } from '../../../../src/modules/token-price/dmaService.js';
 import { TokenPriceDmaWriter } from '../../../../src/modules/token-price/dmaWriter.js';
 import { TokenPairRatioDmaWriter } from '../../../../src/modules/token-price/ratioDmaWriter.js';

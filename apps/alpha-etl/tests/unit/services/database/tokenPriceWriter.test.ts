@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { logger } from "../../../../src/utils/logger.js";
-import { TokenPriceWriter } from "../../../../src/modules/token-price/index.js";
+import { TokenPriceWriter } from "../../../../src/modules/token-price/writer.js";
 
 // Mock logger
 vi.mock("../../../../src/utils/logger.js", async () => {

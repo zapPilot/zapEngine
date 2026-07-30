@@ -51,7 +51,7 @@ export function createCompositeHealthCheck(
   return () => wrapCompositeHealthCheck(checksFactory());
 }
 
-export function formatHealthComponent(
+function formatHealthComponent(
   label: string,
   status: string,
   details?: string,
@@ -59,7 +59,7 @@ export function formatHealthComponent(
   return `${label}: ${status}${details ? ` (${details})` : ''}`;
 }
 
-export async function wrapCompositeHealthCheck(
+async function wrapCompositeHealthCheck(
   checks: { label: string; check: () => Promise<HealthCheckResult> }[],
 ): Promise<HealthCheckResult> {
   try {

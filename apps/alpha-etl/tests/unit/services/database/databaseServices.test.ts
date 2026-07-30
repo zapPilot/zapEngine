@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PortfolioItemWriter } from '../../../../src/modules/wallet/portfolioWriter.js';
-import { SentimentWriter } from '../../../../src/modules/sentiment/index.js';
-import { TokenPriceWriter } from '../../../../src/modules/token-price/index.js';
+import { SentimentWriter } from '../../../../src/modules/sentiment/writer.js';
+import { TokenPriceWriter } from '../../../../src/modules/token-price/writer.js';
 import { WalletBalanceWriter } from '../../../../src/modules/wallet/balanceWriter.js';
 
 vi.mock('../../../../src/config/database.js', async (importOriginal) => {
