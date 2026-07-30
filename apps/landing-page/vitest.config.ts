@@ -32,14 +32,7 @@ export default defineConfig({
         'src/app/**',
         'src/types/**',
         'src/**/index.ts',
-        'src/test-utils/**',
         'src/lib/source.ts',
-        'src/components/v2/__mocks__/**',
-        'src/components/v2/HeroLiquidMetalCanvas.tsx',
-        'src/components/landing/__mocks__/**',
-        'src/components/landing/HeroLiquidMetalCanvas.tsx',
-        'src/components/landing/HeroLiquidMetalCanvas.client.tsx',
-        'src/components/landing/heroCanvas/**',
       ],
       thresholds: {
         // Temporary POC floor while the track-record dashboard is being backfilled
@@ -49,18 +42,6 @@ export default defineConfig({
         branches: 45,
         functions: 55,
         lines: 50,
-        'src/hooks/useMediaQuery.ts': {
-          statements: 80,
-          branches: 75,
-          functions: 80,
-          lines: 80,
-        },
-        'src/hooks/useReducedMotion.ts': {
-          statements: 80,
-          branches: 75,
-          functions: 80,
-          lines: 80,
-        },
       },
     },
   },

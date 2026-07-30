@@ -5,11 +5,6 @@ export default defineKnipConfig({
   project: ['src/**/*.{ts,tsx}'],
   ignore: [
     '**/index.ts',
-    // Reached transitively through src/test-utils/index.ts (ignored barrel).
-    'src/test-utils/**',
-    // Auto-loaded by vitest's __mocks__ resolution adjacent to vi.mock()
-    // calls (see Hero.test.tsx). Knip can't trace this convention.
-    'src/components/landing/__mocks__/**',
     // Track-record helpers are intentionally kept available for the verification
     // pages/scripts roadmap even though not every helper is wired in the current
     // landing UI yet. Keep the deadcode gate focused on newly introduced drift.
@@ -22,8 +17,9 @@ export default defineKnipConfig({
     // Used from src/app/globals.css via @import; Knip does not resolve CSS
     // package imports as dependency usage.
     '@zapengine/design-tokens',
-    // Kept for track-record schema/type integration; the current landing UI
-    // paths do not import it directly yet.
+    // The live track-record UI imports the strategy subpath in ten files.
+    // Knip does not map that workspace subpath back to the package dependency
+    // while the accessor remains roadmap-ignored above.
     '@zapengine/types',
   ],
   // eslint-config-next pulls in @rushstack/eslint-patch, which rejects
