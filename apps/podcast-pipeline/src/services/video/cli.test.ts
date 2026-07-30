@@ -96,7 +96,13 @@ describe('runVideoCli', () => {
     };
     renderSlideVideoMock.mockImplementation(
       async (options: Parameters<typeof renderSlideVideoType>[0]) => {
-        options.onProgress?.('Rendering slide 1/1: opening');
+        options.onProgress?.({
+          message: 'Rendering slide 1/1: opening',
+          phase: 'media',
+          sceneId: 'opening',
+          sceneIndex: 1,
+          sceneCount: 1,
+        });
         return result;
       },
     );

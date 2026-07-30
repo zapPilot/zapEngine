@@ -129,6 +129,24 @@ describe('episodeVideoPanelState', () => {
     },
   );
 
+  it('still reports generating when progress fields are populated', () => {
+    // Progress rides alongside this state as a separate payload; the panel needs
+    // a payload, not a fifth state, so nothing here may shift.
+    expect(
+      episodeVideoPanelState(
+        episode({
+          video: null,
+          videoGeneration: {
+            status: 'queued',
+            updatedAt: null,
+            progressPercent: 22,
+            stage: 'selecting-images',
+          },
+        }),
+      ),
+    ).toBe('generating');
+  });
+
   it('reports failed for a failed video job', () => {
     expect(
       episodeVideoPanelState(

@@ -24,16 +24,31 @@ import {
   createPipelineSupabaseClient,
   type PipelineSupabaseClient,
 } from './supabase-client.js';
+import {
+  composeEpisodeVideoProgress,
+  type EpisodeVideoProgressJobState,
+} from './video-progress.js';
 
 let client: PipelineSupabaseClient | null = null;
 
 interface EpisodeVideoStatusProjection {
   episode_localization_id: string;
+  episode_id: string;
   status: string;
+  progress_percent: number | null;
+  progress_stage: string | null;
   updated_at: string | null;
   mp4_url: string | null;
   thumbnail_url: string | null;
   duration_seconds: number | null;
+}
+
+interface EpisodeVideoVisualStatusProjection {
+  episode_id: string;
+  status: string;
+  progress_percent: number | null;
+  progress_stage: string | null;
+  updated_at: string | null;
 }
 
 type LocalizationStatusUpdates = Partial<
@@ -369,7 +384,7 @@ export async function listEpisodeVideoSummariesByLocalizationIds(
   const { data, error } = await getSupabase()
     .from('episode_videos')
     .select(
-      'episode_localization_id, status, updated_at, mp4_url, thumbnail_url, duration_seconds',
+      'episode_localization_id, episode_id, status, progress_percent, progress_stage, updated_at, mp4_url, thumbnail_url, duration_seconds',
     )
     .in('episode_localization_id', uniqueIds)
     .returns<EpisodeVideoStatusProjection[]>();
@@ -378,7 +393,10 @@ export async function listEpisodeVideoSummariesByLocalizationIds(
     throwSupabaseError(error);
   }
 
-  for (const row of data ?? []) {
+  const rows = data ?? [];
+  const visuals = await loadVisualProgressForQueuedRows(rows);
+
+  for (const row of rows) {
     if (!isEpisodeVideoGenerationPublicStatus(row.status)) {
       continue;
     }
@@ -399,16 +417,72 @@ export async function listEpisodeVideoSummariesByLocalizationIds(
           }
         : null;
 
+    const progress = composeEpisodeVideoProgress({
+      render: {
+        status: row.status,
+        progressPercent: row.progress_percent,
+        progressStage: row.progress_stage,
+        updatedAt: row.updated_at,
+      },
+      visual: visuals.get(row.episode_id) ?? null,
+    });
+
     summaries.set(row.episode_localization_id, {
       video,
       videoGeneration: {
         status: row.status,
-        updatedAt: row.updated_at,
+        // Deliberately the composed timestamp, not the render row's: during the
+        // visual phase that row has not been touched since it was enqueued, so
+        // using it would freeze the client's freshness check and the bar with it.
+        updatedAt: progress.updatedAt,
+        progressPercent: progress.progressPercent,
+        stage: progress.stage,
       },
     });
   }
 
   return summaries;
+}
+
+/**
+ * The shared visual checkpoint is where the work actually is while a render row
+ * is still `queued`, so its progress is what the bar has to show. Any other
+ * status makes the render row self-sufficient, and the query is skipped.
+ */
+async function loadVisualProgressForQueuedRows(
+  rows: readonly EpisodeVideoStatusProjection[],
+): Promise<Map<string, EpisodeVideoProgressJobState>> {
+  const visuals = new Map<string, EpisodeVideoProgressJobState>();
+  const episodeIds = [
+    ...new Set(
+      rows
+        .filter((row) => row.status === 'queued')
+        .map((row) => row.episode_id),
+    ),
+  ].filter(Boolean);
+  if (episodeIds.length === 0) return visuals;
+
+  const { data, error } = await getSupabase()
+    .from('episode_video_visuals')
+    .select('episode_id, status, progress_percent, progress_stage, updated_at')
+    .in('episode_id', episodeIds)
+    .returns<EpisodeVideoVisualStatusProjection[]>();
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  for (const row of data ?? []) {
+    if (!isEpisodeVideoGenerationPublicStatus(row.status)) continue;
+    visuals.set(row.episode_id, {
+      status: row.status,
+      progressPercent: row.progress_percent,
+      progressStage: row.progress_stage,
+      updatedAt: row.updated_at,
+    });
+  }
+
+  return visuals;
 }
 
 function isEpisodeVideoGenerationPublicStatus(

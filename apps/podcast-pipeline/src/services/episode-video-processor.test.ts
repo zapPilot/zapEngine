@@ -15,6 +15,30 @@ const localizationId = '00000000-0000-4000-8000-000000000002';
 const visualHash = 'a'.repeat(64);
 
 describe('createEpisodeVideoProcessor', () => {
+  function renderedArtifacts(manifestHash: string) {
+    return {
+      previewPath: '/work/preview.mp4',
+      thumbnailPath: '/work/thumbnail.png',
+      storyboardPath: '/work/storyboard.json',
+      subtitlePath: '/work/captions.ass',
+      sourcesPath: '/work/sources.md',
+      manifestHash,
+      slideMasterPaths: [],
+      slideOutputPaths: ['/work/slides/slide-01.png'],
+    };
+  }
+
+  function uploadedArtifacts() {
+    return {
+      mp4Url: 'https://cdn.example.com/video.mp4',
+      thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+      manifestUrl: 'https://cdn.example.com/manifest.json',
+      captionsAssUrl: 'https://cdn.example.com/captions.ass',
+      r2Prefix: 'episodes/episode-1/video/renderer-v1/manifest-hash',
+      slideUrls: [],
+    };
+  }
+
   it('persists provenance before rendering and uploads immutable artifacts', async () => {
     const calls: string[] = [];
     const signal = new AbortController().signal;
@@ -65,6 +89,7 @@ describe('createEpisodeVideoProcessor', () => {
       signal,
       runId: 'run12345',
       saveManifest,
+      reportProgress: vi.fn(),
     });
 
     expect(calls).toEqual(['save', 'render', 'upload']);
@@ -105,6 +130,113 @@ describe('createEpisodeVideoProcessor', () => {
     });
   });
 
+  it('reports weighted progress across every render stage', async () => {
+    const reportProgress = vi.fn();
+    const logger = { info: vi.fn() };
+    const render = vi.fn().mockImplementation(async (options) => {
+      options.onProgress?.({
+        message: 'Preparing media 1/3: scene-01',
+        phase: 'media',
+        sceneId: 'scene-01',
+        sceneIndex: 1,
+        sceneCount: 3,
+      });
+      options.onProgress?.({
+        message: 'Rendering brand frame and outro card',
+        phase: 'frame',
+      });
+      options.onProgress?.({
+        message: 'Encoding vertical news video 50%',
+        phase: 'encode',
+        encodeFraction: 0.5,
+      });
+      return renderedArtifacts('manifest-hash');
+    });
+    const processJob = createEpisodeVideoProcessor({
+      analyzeAudio: vi
+        .fn()
+        .mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      createManifest: vi
+        .fn()
+        .mockResolvedValue(generatedManifest('manifest-hash')),
+      render,
+      upload: vi.fn().mockResolvedValue(uploadedArtifacts()),
+      makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
+      writeManifest: vi.fn().mockResolvedValue(undefined),
+      removeDirectory: vi.fn().mockResolvedValue(undefined),
+      logger,
+    });
+
+    await processJob(job(), source(), {
+      signal: new AbortController().signal,
+      runId: 'run12345',
+      saveManifest: vi.fn().mockResolvedValue(undefined),
+      reportProgress,
+    });
+
+    expect(reportProgress.mock.calls.map(([update]) => update)).toEqual([
+      { percent: 0, stage: 'analyzing-audio' },
+      { percent: 5, stage: 'analyzing-audio' },
+      { percent: 15, stage: 'aligning-script' },
+      // preparing-media spans 15..35, so scene 1 of 3 lands a third of the way.
+      { percent: 22, stage: 'preparing-media' },
+      { percent: 35, stage: 'preparing-media' },
+      // encoding spans 35..92.
+      { percent: 64, stage: 'encoding' },
+      { percent: 92, stage: 'uploading-video' },
+    ]);
+  });
+
+  it('logs the scene fraction of a vertical render instead of calling it encoding', async () => {
+    // The previous log helper regex only matched the retired landscape message
+    // ("Rendering slide i/n"), so every vertical render logged phase=encoding
+    // with no scene and no fraction at all.
+    const logger = { info: vi.fn() };
+    const render = vi.fn().mockImplementation(async (options) => {
+      options.onProgress?.({
+        message: 'Preparing media 1/3: scene-01',
+        phase: 'media',
+        sceneId: 'scene-01',
+        sceneIndex: 1,
+        sceneCount: 3,
+      });
+      options.onProgress?.({
+        message: 'Encoding vertical news video 42%',
+        phase: 'encode',
+        encodeFraction: 0.42,
+      });
+      return renderedArtifacts('manifest-hash');
+    });
+    const processJob = createEpisodeVideoProcessor({
+      analyzeAudio: vi
+        .fn()
+        .mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      createManifest: vi
+        .fn()
+        .mockResolvedValue(generatedManifest('manifest-hash')),
+      render,
+      upload: vi.fn().mockResolvedValue(uploadedArtifacts()),
+      makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
+      writeManifest: vi.fn().mockResolvedValue(undefined),
+      removeDirectory: vi.fn().mockResolvedValue(undefined),
+      logger,
+    });
+
+    await processJob(job(), source(), {
+      signal: new AbortController().signal,
+      runId: 'run12345',
+      saveManifest: vi.fn().mockResolvedValue(undefined),
+      reportProgress: vi.fn(),
+    });
+
+    const lines = logger.info.mock.calls.map(([line]) => line as string);
+    const prefix = `[video-worker] video:render run=run12345 episode=${episodeId} language=zh-Hant`;
+    expect(lines).toContain(
+      `${prefix} phase=media scene=scene-01 progress=1/3`,
+    );
+    expect(lines).toContain(`${prefix} phase=encoding percent=42`);
+  });
+
   it('rejects when the rendered manifest hash diverges from the persisted hash', async () => {
     const processJob = createEpisodeVideoProcessor({
       analyzeAudio: vi.fn().mockResolvedValue({
@@ -135,6 +267,7 @@ describe('createEpisodeVideoProcessor', () => {
         signal: new AbortController().signal,
         runId: 'run12345',
         saveManifest: vi.fn().mockResolvedValue(undefined),
+        reportProgress: vi.fn(),
       }),
     ).rejects.toThrow('Rendered manifest hash differs from persisted hash');
   });
@@ -172,6 +305,7 @@ describe('createEpisodeVideoProcessor', () => {
         signal: controller.signal,
         runId: 'run12345',
         saveManifest: vi.fn().mockResolvedValue(undefined),
+        reportProgress: vi.fn(),
       }).catch((error: unknown) => error);
 
       // A hung ffmpeg keeps renewing its lease, and the render process group has
@@ -216,6 +350,7 @@ describe('createEpisodeVideoProcessor', () => {
         signal: new AbortController().signal,
         runId: 'run12345',
         saveManifest: vi.fn().mockResolvedValue(undefined),
+        reportProgress: vi.fn(),
       }),
     ).rejects.toThrow('R2 unavailable');
     expect(removeDirectory).toHaveBeenCalled();
@@ -252,6 +387,8 @@ function job(): EpisodeVideoJobRow {
     episode_localization_id: localizationId,
     episode_id: episodeId,
     status: 'processing',
+    progress_percent: null,
+    progress_stage: null,
     visual_hash: visualHash,
     visual_version: EPISODE_VIDEO_VISUAL_VERSION,
     manifest: null,

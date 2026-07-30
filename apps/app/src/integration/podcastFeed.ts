@@ -41,9 +41,37 @@ export type PodcastVideoGenerationStatus =
   | 'completed'
   | 'failed';
 
+/**
+ * What the pipeline is doing right now. Deliberately separate from `status`:
+ * an unknown `status` makes the parser discard the whole summary, so a stage
+ * value there would cost the user the panel entirely.
+ *
+ * The visual stages run on an episode-scoped job shared by all three languages,
+ * during which this localization's own render row is still `queued` — which is
+ * why the UI keys off this field rather than off `status`.
+ */
+export const PODCAST_VIDEO_GENERATION_STAGES = [
+  'analyzing-audio',
+  'planning-scenes',
+  'selecting-images',
+  'uploading-visuals',
+  'waiting-for-renderer',
+  'aligning-script',
+  'preparing-media',
+  'encoding',
+  'uploading-video',
+] as const;
+
+export type PodcastVideoGenerationStage =
+  (typeof PODCAST_VIDEO_GENERATION_STAGES)[number];
+
 export interface PodcastEpisodeVideoGeneration {
   status: PodcastVideoGenerationStatus;
   updatedAt: string | null;
+  /** 0-100, or null when this row or server reports no progress. */
+  progressPercent: number | null;
+  /** Null when nothing is in flight, or the slug is unknown to this build. */
+  stage: PodcastVideoGenerationStage | null;
 }
 
 export interface PodcastEpisode {
@@ -84,6 +112,8 @@ const DEFAULT_PODCAST_API_URL = 'https://from-fed-to-chain-api.fly.dev';
 const FEED_PAGE_SIZE = 30;
 const SEARCH_PAGE_SIZE = 20;
 const PODCAST_VIDEO_POLL_INTERVAL_MS = 20_000;
+/** Matches the worker's own 10s progress flush, so no tick is wasted. */
+const PODCAST_VIDEO_ACTIVE_POLL_INTERVAL_MS = 10_000;
 export const MIN_PODCAST_SEARCH_QUERY_LENGTH = 2;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -158,6 +188,33 @@ export function parsePodcastEpisodeVideo(
   return { url, thumbnailUrl, durationSeconds };
 }
 
+/**
+ * Progress is read defensively rather than trusted: the app ships on its own
+ * cadence (web export, app stores), so an older build routinely talks to a newer
+ * API and vice versa. Anything unreadable degrades to `null`, which the UI
+ * renders as the indeterminate spinner it used before progress existed.
+ */
+function readVideoGenerationPercent(
+  record: Record<string, unknown>,
+): number | null {
+  const value = record['progressPercent'] ?? record['progress_percent'];
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  // Clamp rather than reject: an out-of-range value from a server rounding bug
+  // should not flip the whole panel back to a spinner mid-render. Floor rather
+  // than round, so 99.6 never claims a video is finished.
+  return Math.min(100, Math.max(0, Math.floor(value)));
+}
+
+function readVideoGenerationStage(
+  record: Record<string, unknown>,
+): PodcastVideoGenerationStage | null {
+  const value = record['stage'] ?? record['progress_stage'];
+  const known = PODCAST_VIDEO_GENERATION_STAGES.find(
+    (stage) => stage === value,
+  );
+  return known ?? null;
+}
+
 export function parsePodcastEpisodeVideoGeneration(
   rawVideoGeneration: unknown,
 ): PodcastEpisodeVideoGeneration | null {
@@ -180,6 +237,8 @@ export function parsePodcastEpisodeVideoGeneration(
       'updatedAt',
       'updated_at',
     ),
+    progressPercent: readVideoGenerationPercent(rawVideoGeneration),
+    stage: readVideoGenerationStage(rawVideoGeneration),
   };
 }
 
@@ -231,7 +290,7 @@ export function podcastVideoRefetchInterval(
   fetchFailureCount = 0,
 ): number | false {
   if (isPodcastVideoGenerationPending(detailEpisode)) {
-    return PODCAST_VIDEO_POLL_INTERVAL_MS;
+    return videoPollIntervalFor(detailEpisode?.videoGeneration ?? null);
   }
   if (pendingFeedVideoGeneration === null) {
     return false;
@@ -245,9 +304,23 @@ export function podcastVideoRefetchInterval(
       detailEpisode.videoGeneration,
     )
   ) {
-    return PODCAST_VIDEO_POLL_INTERVAL_MS;
+    return videoPollIntervalFor(pendingFeedVideoGeneration);
   }
   return false;
+}
+
+/**
+ * Poll faster only while a stage is actually in flight, because that is the only
+ * time the number moves. An idle queue gains nothing from a faster poll: the
+ * render machine is started on demand and the server-side reconciler looks for
+ * wake-able work every 30s, so that edge lags regardless.
+ */
+function videoPollIntervalFor(
+  videoGeneration: PodcastEpisodeVideoGeneration | null,
+): number {
+  return videoGeneration?.stage != null
+    ? PODCAST_VIDEO_ACTIVE_POLL_INTERVAL_MS
+    : PODCAST_VIDEO_POLL_INTERVAL_MS;
 }
 
 export function mergePodcastEpisodeVideo(

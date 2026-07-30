@@ -55,7 +55,7 @@ export async function runVideoCli(argv: string[]): Promise<void> {
   console.log(`Rendering ${outputDirectoryLabel(options.outputDirectory)}`);
   const result = await renderSlideVideo({
     ...options,
-    onProgress: (message) => console.log(message),
+    onProgress: (event) => console.log(event.message),
   });
   console.log(describeRenderedVideo(result));
 }

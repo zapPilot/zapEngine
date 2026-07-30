@@ -158,7 +158,7 @@ describe('renderSlideVideo', () => {
     const result = await renderSlideVideo({
       ...paths,
       audioSource: localAudioSource,
-      onProgress: (message) => progress.push(message),
+      onProgress: (event) => progress.push(event.message),
       dependencies: {
         resolveAsset,
         rasterize,
@@ -404,7 +404,7 @@ describe('renderSlideVideo (vertical news manifests)', () => {
     const result = await renderSlideVideo({
       manifestPath,
       outputDirectory,
-      onProgress: (message) => progress.push(message),
+      onProgress: (event) => progress.push(event.message),
       dependencies: {
         resolveAsset,
         rasterize,

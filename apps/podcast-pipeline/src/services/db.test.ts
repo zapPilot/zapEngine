@@ -39,8 +39,16 @@ vi.mock('../lib/env.js', () => ({
 }));
 
 const { state, mockFrom } = vi.hoisted(() => {
-  const state: { query: ReturnType<typeof makeQuery> | null } = { query: null };
-  const mockFrom = vi.fn(() => state.query);
+  const state: {
+    query: ReturnType<typeof makeQuery> | null;
+    queryByTable: Record<string, ReturnType<typeof makeQuery>>;
+  } = { query: null, queryByTable: {} };
+  // Most tests touch a single table and share `state.query`. A test whose call
+  // spans two tables registers a per-table stub, so the two responses cannot
+  // collide the way one shared mock would.
+  const mockFrom = vi.fn(
+    (table: string) => state.queryByTable[table] ?? state.query,
+  );
   return { state, mockFrom };
 });
 
@@ -80,6 +88,7 @@ vi.mock('@supabase/supabase-js', () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   state.query = makeQuery();
+  state.queryByTable = {};
 });
 
 describe('toEpisodeResponse', () => {
@@ -244,6 +253,8 @@ describe('toEpisodeResponse', () => {
     const videoGeneration = {
       status: 'completed' as const,
       updatedAt: '2026-07-24T00:00:00.000Z',
+      progressPercent: 100,
+      stage: null,
     };
 
     expect(
@@ -584,6 +595,9 @@ describe('listEpisodeVideoSummariesByLocalizationIds', () => {
       data: [
         {
           episode_localization_id: 'loc-1',
+          episode_id: 'episode-loc-1',
+          progress_percent: null,
+          progress_stage: null,
           status: 'completed',
           updated_at: '2026-07-24T00:00:00.000Z',
           mp4_url: ' https://cdn.example.com/video.mp4 ',
@@ -592,6 +606,9 @@ describe('listEpisodeVideoSummariesByLocalizationIds', () => {
         },
         {
           episode_localization_id: 'loc-completed-broken',
+          episode_id: 'episode-loc-completed-broken',
+          progress_percent: null,
+          progress_stage: null,
           status: 'completed',
           updated_at: '2026-07-24T01:00:00.000Z',
           mp4_url: null,
@@ -600,6 +617,9 @@ describe('listEpisodeVideoSummariesByLocalizationIds', () => {
         },
         {
           episode_localization_id: 'loc-processing',
+          episode_id: 'episode-loc-processing',
+          progress_percent: null,
+          progress_stage: null,
           status: 'processing',
           updated_at: '2026-07-24T02:00:00.000Z',
           mp4_url: 'https://cdn.example.com/stale-video.mp4',
@@ -608,6 +628,9 @@ describe('listEpisodeVideoSummariesByLocalizationIds', () => {
         },
         {
           episode_localization_id: 'loc-failed',
+          episode_id: 'episode-loc-failed',
+          progress_percent: null,
+          progress_stage: null,
           status: 'failed',
           updated_at: null,
           mp4_url: null,
@@ -617,6 +640,9 @@ describe('listEpisodeVideoSummariesByLocalizationIds', () => {
         },
         {
           episode_localization_id: 'loc-unknown',
+          episode_id: 'episode-loc-unknown',
+          progress_percent: null,
+          progress_stage: null,
           status: 'rendering',
           updated_at: '2026-07-24T03:00:00.000Z',
           mp4_url: null,
@@ -638,7 +664,7 @@ describe('listEpisodeVideoSummariesByLocalizationIds', () => {
 
     expect(mockFrom).toHaveBeenCalledWith('episode_videos');
     expect(state.query!.select).toHaveBeenCalledWith(
-      'episode_localization_id, status, updated_at, mp4_url, thumbnail_url, duration_seconds',
+      'episode_localization_id, episode_id, status, progress_percent, progress_stage, updated_at, mp4_url, thumbnail_url, duration_seconds',
     );
     expect(state.query!.eq).not.toHaveBeenCalled();
     expect(state.query!.in).toHaveBeenCalledWith('episode_localization_id', [
@@ -661,6 +687,8 @@ describe('listEpisodeVideoSummariesByLocalizationIds', () => {
             videoGeneration: {
               status: 'completed',
               updatedAt: '2026-07-24T00:00:00.000Z',
+              progressPercent: 100,
+              stage: null,
             },
           },
         ],
@@ -671,6 +699,8 @@ describe('listEpisodeVideoSummariesByLocalizationIds', () => {
             videoGeneration: {
               status: 'completed',
               updatedAt: '2026-07-24T01:00:00.000Z',
+              progressPercent: 100,
+              stage: null,
             },
           },
         ],
@@ -681,6 +711,8 @@ describe('listEpisodeVideoSummariesByLocalizationIds', () => {
             videoGeneration: {
               status: 'processing',
               updatedAt: '2026-07-24T02:00:00.000Z',
+              progressPercent: 40,
+              stage: null,
             },
           },
         ],
@@ -691,6 +723,8 @@ describe('listEpisodeVideoSummariesByLocalizationIds', () => {
             videoGeneration: {
               status: 'failed',
               updatedAt: null,
+              progressPercent: 40,
+              stage: null,
             },
           },
         ],
@@ -717,6 +751,117 @@ describe('listEpisodeVideoSummariesByLocalizationIds', () => {
       listEpisodeVideoSummariesByLocalizationIds(['loc-1']),
     ).rejects.toThrow('video lookup failed');
   });
+
+  it('scales a processing render into the upper band of the bar', async () => {
+    state.query!.returns.mockResolvedValue({
+      data: [
+        videoRow({
+          status: 'processing',
+          progress_percent: 64,
+          progress_stage: 'encoding',
+        }),
+      ],
+      error: null,
+    });
+
+    const result = await listEpisodeVideoSummariesByLocalizationIds(['loc-1']);
+
+    expect(result.get('loc-1')?.videoGeneration).toEqual({
+      status: 'processing',
+      updatedAt: '2026-07-24T02:00:00.000Z',
+      progressPercent: 78,
+      stage: 'encoding',
+    });
+    // A processing render is self-sufficient, so the visual table is untouched.
+    expect(mockFrom).not.toHaveBeenCalledWith('episode_video_visuals');
+  });
+
+  it('reports the shared visual phase while the render row is still queued', async () => {
+    // This is the case the whole design turns on: the slow image search runs on
+    // the episode-scoped visual job, and this localization's render row will not
+    // leave 'queued' until that finishes. Reading only the render row would show
+    // 0% for the longest part of the wait.
+    state.queryByTable['episode_videos'] = makeQuery();
+    state.queryByTable['episode_videos'].returns.mockResolvedValue({
+      data: [
+        videoRow({ status: 'queued', updated_at: '2026-07-24T02:00:00.000Z' }),
+      ],
+      error: null,
+    });
+    state.queryByTable['episode_video_visuals'] = makeQuery();
+    state.queryByTable['episode_video_visuals'].returns.mockResolvedValue({
+      data: [
+        {
+          episode_id: 'episode-loc-1',
+          status: 'processing',
+          progress_percent: 52,
+          progress_stage: 'selecting-images',
+          updated_at: '2026-07-24T02:30:00.000Z',
+        },
+      ],
+      error: null,
+    });
+
+    const result = await listEpisodeVideoSummariesByLocalizationIds(['loc-1']);
+
+    expect(result.get('loc-1')?.videoGeneration).toEqual({
+      status: 'queued',
+      // The visual row is the fresher of the two; using the untouched render
+      // row's timestamp would freeze the client's own freshness check.
+      updatedAt: '2026-07-24T02:30:00.000Z',
+      progressPercent: 22,
+      stage: 'selecting-images',
+    });
+    expect(state.queryByTable['episode_video_visuals'].in).toHaveBeenCalledWith(
+      'episode_id',
+      ['episode-loc-1'],
+    );
+  });
+
+  it('parks a queued render at the hand-off point once the visual checkpoint lands', async () => {
+    state.queryByTable['episode_videos'] = makeQuery();
+    state.queryByTable['episode_videos'].returns.mockResolvedValue({
+      data: [videoRow({ status: 'queued' })],
+      error: null,
+    });
+    state.queryByTable['episode_video_visuals'] = makeQuery();
+    state.queryByTable['episode_video_visuals'].returns.mockResolvedValue({
+      data: [
+        {
+          episode_id: 'episode-loc-1',
+          status: 'completed',
+          progress_percent: 100,
+          progress_stage: null,
+          updated_at: '2026-07-24T02:30:00.000Z',
+        },
+      ],
+      error: null,
+    });
+
+    const result = await listEpisodeVideoSummariesByLocalizationIds(['loc-1']);
+
+    expect(result.get('loc-1')?.videoGeneration).toMatchObject({
+      progressPercent: 40,
+      stage: 'waiting-for-renderer',
+    });
+  });
+
+  function videoRow(
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      episode_localization_id: 'loc-1',
+      episode_id: 'episode-loc-1',
+      status: 'processing',
+      progress_percent: null,
+      progress_stage: null,
+      updated_at: '2026-07-24T02:00:00.000Z',
+      mp4_url: null,
+      thumbnail_url: null,
+      duration_seconds: null,
+      ...overrides,
+    };
+  }
 });
 
 describe('insertEpisode and insertEpisodeLocalization', () => {

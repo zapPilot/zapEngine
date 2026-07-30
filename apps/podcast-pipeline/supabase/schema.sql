@@ -54,6 +54,10 @@ create table if not exists from_fed_to_chain.episode_video_visuals (
     references from_fed_to_chain.episodes(id) on delete cascade,
   status text not null default 'queued'
     check (status in ('queued', 'processing', 'completed', 'failed')),
+  -- Advisory progress for the client's progress bar. Nullable because "0%" and
+  -- "nothing reported yet" are different facts; see migration 023.
+  progress_percent smallint,
+  progress_stage text,
   visual_payload jsonb,
   visual_hash text,
   visual_version text not null,
@@ -78,6 +82,21 @@ create table if not exists from_fed_to_chain.episode_video_visuals (
   ),
   constraint episode_video_visuals_source_hash_not_empty check (
     nullif(btrim(source_hash), '') is not null
+  ),
+  constraint episode_video_visuals_progress_percent_range check (
+    progress_percent is null
+    or (progress_percent >= 0 and progress_percent <= 100)
+  ),
+  -- A whitelist, not free text: this value reaches the public episode API and
+  -- the app maps it to display copy.
+  constraint episode_video_visuals_progress_stage_known check (
+    progress_stage is null
+    or progress_stage in (
+      'analyzing-audio',
+      'planning-scenes',
+      'selecting-images',
+      'uploading-visuals'
+    )
   ),
   constraint episode_video_visuals_processing_has_lease check (
     (
@@ -113,6 +132,9 @@ create table if not exists from_fed_to_chain.episode_videos (
     references from_fed_to_chain.episodes(id) on delete cascade,
   status text not null default 'queued'
     check (status in ('queued', 'processing', 'completed', 'failed')),
+  -- Advisory progress for the client's progress bar; see migration 023.
+  progress_percent smallint,
+  progress_stage text,
   visual_hash text,
   visual_version text not null,
   manifest jsonb,
@@ -142,6 +164,22 @@ create table if not exists from_fed_to_chain.episode_videos (
   updated_at timestamptz not null default now(),
   constraint episode_videos_manifest_is_object check (
     manifest is null or jsonb_typeof(manifest) = 'object'
+  ),
+  constraint episode_videos_progress_percent_range check (
+    progress_percent is null
+    or (progress_percent >= 0 and progress_percent <= 100)
+  ),
+  -- A whitelist, not free text: this value reaches the public episode API and
+  -- the app maps it to display copy.
+  constraint episode_videos_progress_stage_known check (
+    progress_stage is null
+    or progress_stage in (
+      'analyzing-audio',
+      'aligning-script',
+      'preparing-media',
+      'encoding',
+      'uploading-video'
+    )
   ),
   constraint episode_videos_processing_has_lease check (
     (
@@ -535,6 +573,11 @@ begin
       lease_owner = btrim(p_lease_owner),
       lease_expires_at = now() + interval '10 minutes',
       started_at = coalesce(visual.started_at, now()),
+      -- A claim restarts an attempt, so the previous attempt's progress must
+      -- not survive into it. The expired-lease reap above deliberately keeps
+      -- its value: a row it pushes to 'failed' should report how far it got.
+      progress_percent = null,
+      progress_stage = null,
       updated_at = now()
   from candidate
   where visual.episode_id = candidate.episode_id
@@ -556,6 +599,56 @@ declare
 begin
   update from_fed_to_chain.episode_video_visuals visual
   set lease_expires_at = now() + interval '10 minutes',
+      updated_at = now()
+  where visual.episode_id = p_episode_id
+    and visual.status = 'processing'
+    and visual.lease_owner = p_lease_owner
+    and visual.lease_expires_at > now();
+
+  get diagnostics updated_rows = row_count;
+  return updated_rows = 1;
+end;
+$$;
+
+-- Progress reporting must never be able to fail a render, so this is forgiving
+-- in one specific way: a stage outside the whitelist is normalized to null
+-- rather than raising, which lets a newly deployed worker run against a
+-- not-yet-migrated database and merely lose the label. The lease fence is
+-- otherwise identical to the renew RPC above, and the monotonic clamp lives
+-- here so no out-of-order flush can walk the bar backwards.
+create or replace function from_fed_to_chain.report_episode_video_visual_progress(
+  p_episode_id uuid,
+  p_lease_owner text,
+  p_percent integer,
+  p_stage text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  updated_rows integer;
+begin
+  update from_fed_to_chain.episode_video_visuals visual
+  set progress_percent = greatest(
+        coalesce(visual.progress_percent, 0),
+        least(greatest(coalesce(p_percent, 0), 0), 100)
+      ),
+      progress_stage = case
+        -- A stale report that loses the monotonic clamp must not drag the label
+        -- back either, or the client renders a percentage from one stage beside
+        -- the name of an earlier one.
+        when coalesce(p_percent, 0) < coalesce(visual.progress_percent, 0)
+          then visual.progress_stage
+        when p_stage in (
+          'analyzing-audio',
+          'planning-scenes',
+          'selecting-images',
+          'uploading-visuals'
+        ) then p_stage
+        else null
+      end,
       updated_at = now()
   where visual.episode_id = p_episode_id
     and visual.status = 'processing'
@@ -912,6 +1005,8 @@ begin
       lease_owner = btrim(p_lease_owner),
       lease_expires_at = now() + interval '10 minutes',
       started_at = coalesce(video.started_at, now()),
+      progress_percent = null,
+      progress_stage = null,
       updated_at = now()
   from candidate
   where video.episode_localization_id = candidate.episode_localization_id
@@ -933,6 +1028,58 @@ declare
 begin
   update from_fed_to_chain.episode_videos video
   set lease_expires_at = now() + interval '10 minutes',
+      updated_at = now()
+  where video.episode_localization_id = p_episode_localization_id
+    and video.status = 'processing'
+    and video.lease_owner = p_lease_owner
+    and video.lease_expires_at > now()
+    and exists (
+      select 1
+      from from_fed_to_chain.episode_video_visuals visual
+      where visual.episode_id = video.episode_id
+        and visual.status = 'completed'
+        and visual.visual_hash = video.visual_hash
+        and visual.visual_version = video.visual_version
+    );
+
+  get diagnostics updated_rows = row_count;
+  return updated_rows = 1;
+end;
+$$;
+
+-- Localization counterpart of report_episode_video_visual_progress; see the
+-- comment there for why an unknown stage degrades instead of raising.
+create or replace function from_fed_to_chain.report_episode_video_progress(
+  p_episode_localization_id uuid,
+  p_lease_owner text,
+  p_percent integer,
+  p_stage text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  updated_rows integer;
+begin
+  update from_fed_to_chain.episode_videos video
+  set progress_percent = greatest(
+        coalesce(video.progress_percent, 0),
+        least(greatest(coalesce(p_percent, 0), 0), 100)
+      ),
+      progress_stage = case
+        when coalesce(p_percent, 0) < coalesce(video.progress_percent, 0)
+          then video.progress_stage
+        when p_stage in (
+          'analyzing-audio',
+          'aligning-script',
+          'preparing-media',
+          'encoding',
+          'uploading-video'
+        ) then p_stage
+        else null
+      end,
       updated_at = now()
   where video.episode_localization_id = p_episode_localization_id
     and video.status = 'processing'
@@ -1431,6 +1578,19 @@ grant execute on function from_fed_to_chain.renew_episode_video_visual_lease(
   text
 ) to service_role;
 
+revoke execute on function from_fed_to_chain.report_episode_video_visual_progress(
+  uuid,
+  text,
+  integer,
+  text
+) from public, anon, authenticated;
+grant execute on function from_fed_to_chain.report_episode_video_visual_progress(
+  uuid,
+  text,
+  integer,
+  text
+) to service_role;
+
 revoke execute on function from_fed_to_chain.complete_episode_video_visual(
   uuid,
   text,
@@ -1480,6 +1640,19 @@ revoke execute on function from_fed_to_chain.renew_episode_video_lease(uuid, tex
   from public, anon, authenticated;
 grant execute on function from_fed_to_chain.renew_episode_video_lease(uuid, text)
   to service_role;
+
+revoke execute on function from_fed_to_chain.report_episode_video_progress(
+  uuid,
+  text,
+  integer,
+  text
+) from public, anon, authenticated;
+grant execute on function from_fed_to_chain.report_episode_video_progress(
+  uuid,
+  text,
+  integer,
+  text
+) to service_role;
 
 revoke execute on function from_fed_to_chain.save_episode_video_manifest(
   uuid,

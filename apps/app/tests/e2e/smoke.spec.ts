@@ -53,6 +53,20 @@ const GENERATING_PODCAST_FIXTURE = {
   nextCursor: null,
 };
 
+/**
+ * The render row is still `queued` here on purpose: the slow image search runs on
+ * the episode-scoped visual job, and the bar has to move during it.
+ */
+const GENERATING_WITH_PROGRESS_EPISODE = {
+  ...GENERATING_PODCAST_EPISODE,
+  videoGeneration: {
+    status: 'queued',
+    updatedAt: '2026-07-03T00:05:00.000Z',
+    progressPercent: 42,
+    stage: 'preparing-media',
+  },
+};
+
 const COMPLETED_PODCAST_DETAIL_FIXTURE = {
   ...GENERATING_PODCAST_EPISODE,
   video: {
@@ -416,6 +430,41 @@ test('processing video generation shows a live generating state', async ({
   await expect(page.getByText('Video is being generated')).toBeVisible();
   await expect(page.getByLabel('Generating video')).toBeVisible();
   await expect(page.locator('video')).toHaveCount(0);
+});
+
+test('reported progress shows a determinate video progress bar', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await routeGeneratingPodcastFeed(page);
+  await page.route('**/episodes/episode-3-zh-Hant**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(GENERATING_WITH_PROGRESS_EPISODE),
+    });
+  });
+
+  await page.goto('/podcast/episode-3-zh-Hant?lang=zh-Hant');
+  const videoTab = page.getByRole('tab', { name: 'Video', exact: true });
+  await expect(videoTab).toBeVisible({ timeout: APP_BOOT_TIMEOUT });
+  await videoTab.click();
+
+  // Scoped by accessible name: the detail skeleton also carries a progressbar
+  // role, and the two must not be confused.
+  const bar = page.getByRole('progressbar', { name: 'Generating video' });
+  await expect(bar).toBeVisible();
+  await expect(bar).toHaveAttribute('aria-valuenow', '42');
+  await expect(bar).toHaveAttribute('aria-valuemax', '100');
+  await expect(page.getByText('Preparing the scenes')).toBeVisible();
+  await expect(page.getByText('42%')).toBeVisible();
+
+  // The fill must actually paint: a percentage width inside an auto-sized parent
+  // is exactly how a bar like this ships invisible.
+  const fillWidth = await bar
+    .locator('div')
+    .first()
+    .evaluate((node) => node.getBoundingClientRect().width);
+  expect(fillWidth).toBeGreaterThan(0);
 });
 
 test('video polling stops after a completed detail becomes ready', async ({

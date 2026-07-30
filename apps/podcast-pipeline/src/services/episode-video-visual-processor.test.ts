@@ -121,6 +121,81 @@ describe('createEpisodeVideoVisualProcessor', () => {
     });
   });
 
+  it('advances progress per selected scene and ignores repeated searches', async () => {
+    const jobContext = context();
+    const reportProgress = vi.mocked(jobContext.reportProgress);
+    const processor = createEpisodeVideoVisualProcessor({
+      analyzeAudio: vi
+        .fn()
+        .mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      generateStoryboard: vi.fn().mockResolvedValue(storyboard()),
+      scrape: vi.fn().mockResolvedValue({
+        text: 'source text',
+        images: [articleCandidate()],
+      }),
+      planAssets: vi.fn().mockImplementation(async (input) => {
+        // A scene is searched repeatedly until a candidate passes validation;
+        // only the 'assets' event means one is actually locked in.
+        input.onProgress?.({
+          phase: 'search',
+          sceneId: 'scene-01',
+          sceneIndex: 1,
+          sceneCount: 2,
+          candidateCount: 12,
+          elapsedMs: 10,
+        });
+        input.onProgress?.({
+          phase: 'search',
+          sceneId: 'scene-01',
+          sceneIndex: 1,
+          sceneCount: 2,
+          candidateCount: 4,
+          elapsedMs: 20,
+        });
+        input.onProgress?.({
+          phase: 'assets',
+          sceneId: 'scene-01',
+          sceneIndex: 1,
+          sceneCount: 2,
+          elapsedMs: 30,
+        });
+        input.onProgress?.({
+          phase: 'assets',
+          sceneId: 'scene-02',
+          sceneIndex: 2,
+          sceneCount: 2,
+          elapsedMs: 40,
+        });
+        return assetPlan();
+      }),
+      upload: vi.fn().mockResolvedValue({
+        manifestUrl:
+          'https://cdn.example.test/episodes/e/visuals/v/hash/visual-manifest.json',
+        imageUrls: {
+          'image-01': 'https://cdn.example.test/visuals/image-01.jpg',
+          'image-02': 'https://cdn.example.test/visuals/image-02.webp',
+        },
+        r2Prefix: 'episodes/e/visuals/v/hash',
+      }),
+      makeTemporaryDirectory: vi.fn().mockResolvedValue('/work/visual'),
+      writeManifest: vi.fn().mockResolvedValue(undefined),
+      removeDirectory: vi.fn().mockResolvedValue(undefined),
+      logger: { info: vi.fn() },
+    });
+
+    await processor(job(), source(), jobContext);
+
+    expect(reportProgress.mock.calls.map(([update]) => update)).toEqual([
+      { percent: 0, stage: 'analyzing-audio' },
+      { percent: 5, stage: 'analyzing-audio' },
+      { percent: 15, stage: 'planning-scenes' },
+      // selecting-images spans 15..90, so scene 1 of 2 is the midpoint.
+      { percent: 53, stage: 'selecting-images' },
+      { percent: 90, stage: 'selecting-images' },
+      { percent: 90, stage: 'uploading-visuals' },
+    ]);
+  });
+
   it('rejects a stale source hash without scraping or searching', async () => {
     const scrape = vi.fn();
     const processor = createEpisodeVideoVisualProcessor({ scrape });
@@ -194,6 +269,8 @@ function job(): EpisodeVideoVisualJobRow {
   return {
     episode_id: episodeId,
     status: 'processing',
+    progress_percent: null,
+    progress_stage: null,
     visual_payload: null,
     visual_hash: null,
     visual_version: EPISODE_VIDEO_VISUAL_VERSION,
@@ -219,6 +296,7 @@ function context(): ProcessEpisodeVideoVisualJobContext {
   return {
     signal: new AbortController().signal,
     runId: 'run12345',
+    reportProgress: vi.fn(),
   };
 }
 

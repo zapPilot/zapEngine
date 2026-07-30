@@ -23,6 +23,8 @@ function queuedVideoJob(
     episode_localization_id: localization.id,
     episode_id: localization.episode_id,
     status: 'queued',
+    progress_percent: null,
+    progress_stage: null,
     visual_hash: null,
     visual_version: EPISODE_VIDEO_VISUAL_VERSION,
     manifest: null,
@@ -59,6 +61,8 @@ function queuedVisualJob(): EpisodeVideoVisualJobRow {
   return {
     episode_id: canonical.episode_id,
     status: 'queued',
+    progress_percent: null,
+    progress_stage: null,
     visual_payload: null,
     visual_hash: null,
     visual_version: EPISODE_VIDEO_VISUAL_VERSION,

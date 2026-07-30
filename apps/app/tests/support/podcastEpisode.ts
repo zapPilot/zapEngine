@@ -1,4 +1,24 @@
-import type { PodcastEpisode } from '@/integration/podcastFeed';
+import type {
+  PodcastEpisode,
+  PodcastEpisodeVideoGeneration,
+} from '@/integration/podcastFeed';
+
+/**
+ * `progressPercent` and `stage` are required-but-nullable on the interface, so a
+ * factory keeps every construction site explicit about the degraded path rather
+ * than letting an optional field quietly go missing.
+ */
+export function createPodcastVideoGeneration(
+  overrides: Partial<PodcastEpisodeVideoGeneration> = {},
+): PodcastEpisodeVideoGeneration {
+  return {
+    status: 'processing',
+    updatedAt: null,
+    progressPercent: null,
+    stage: null,
+    ...overrides,
+  };
+}
 
 const DEFAULT_PODCAST_EPISODE: PodcastEpisode = {
   id: 'episode-1',

@@ -5,6 +5,7 @@ import {
   createPipelineSupabaseClient,
   type PipelineSupabaseClient,
 } from './supabase-client.js';
+import type { EpisodeVideoProgressUpdate } from './video-progress.js';
 
 export const EPISODE_VIDEO_VISUAL_VERSION =
   'podcast-image-visual-plan.v3' as const;
@@ -19,6 +20,8 @@ export type EpisodeVideoJobStatus =
 export interface EpisodeVideoVisualJobRow {
   episode_id: string;
   status: EpisodeVideoJobStatus;
+  progress_percent: number | null;
+  progress_stage: string | null;
   visual_payload: Record<string, unknown> | null;
   visual_hash: string | null;
   visual_version: string;
@@ -40,6 +43,8 @@ export interface EpisodeVideoJobRow {
   episode_localization_id: string;
   episode_id: string;
   status: EpisodeVideoJobStatus;
+  progress_percent: number | null;
+  progress_stage: string | null;
   visual_hash: string | null;
   visual_version: string;
   manifest: Record<string, unknown> | null;
@@ -84,6 +89,12 @@ export interface EpisodeVideoVisualSource {
 export interface ProcessEpisodeVideoVisualJobContext {
   signal: AbortSignal;
   runId: string;
+  /**
+   * Records progress for the client's progress bar. Synchronous and
+   * fire-and-forget: the worker coalesces reports and flushes the latest one on
+   * its own timer, so a render never waits on (or fails because of) this.
+   */
+  reportProgress(update: EpisodeVideoProgressUpdate): void;
 }
 
 export interface EpisodeVideoSource {
@@ -157,6 +168,11 @@ export interface VisualJobRepository {
   ): Promise<EpisodeVideoVisualJobRow>;
   claim(leaseOwner: string): Promise<EpisodeVideoVisualJobRow | null>;
   renewLease(episodeId: string, leaseOwner: string): Promise<boolean>;
+  reportProgress(
+    episodeId: string,
+    leaseOwner: string,
+    update: EpisodeVideoProgressUpdate,
+  ): Promise<boolean>;
   complete(
     episodeId: string,
     leaseOwner: string,
@@ -180,6 +196,11 @@ export interface VideoJobRepository {
   renewLease(
     episodeLocalizationId: string,
     leaseOwner: string,
+  ): Promise<boolean>;
+  reportProgress(
+    episodeLocalizationId: string,
+    leaseOwner: string,
+    update: EpisodeVideoProgressUpdate,
   ): Promise<boolean>;
   saveManifest(
     episodeLocalizationId: string,
@@ -278,6 +299,19 @@ export function createVideoVisualJobRepository(
       });
     },
 
+    reportProgress(
+      episodeId: string,
+      leaseOwner: string,
+      update: EpisodeVideoProgressUpdate,
+    ): Promise<boolean> {
+      return callBooleanRpc(supabase, 'report_episode_video_visual_progress', {
+        p_episode_id: episodeId,
+        p_lease_owner: leaseOwner,
+        p_percent: update.percent,
+        p_stage: update.stage,
+      });
+    },
+
     complete(
       episodeId: string,
       leaseOwner: string,
@@ -364,6 +398,19 @@ export function createVideoJobRepository(
       return callBooleanRpc(supabase, 'renew_episode_video_lease', {
         p_episode_localization_id: episodeLocalizationId,
         p_lease_owner: leaseOwner,
+      });
+    },
+
+    reportProgress(
+      episodeLocalizationId: string,
+      leaseOwner: string,
+      update: EpisodeVideoProgressUpdate,
+    ): Promise<boolean> {
+      return callBooleanRpc(supabase, 'report_episode_video_progress', {
+        p_episode_localization_id: episodeLocalizationId,
+        p_lease_owner: leaseOwner,
+        p_percent: update.percent,
+        p_stage: update.stage,
       });
     },
 

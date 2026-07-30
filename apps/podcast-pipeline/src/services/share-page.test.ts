@@ -305,8 +305,10 @@ describe('buildEpisodeSharePageHtml', () => {
               durationSeconds: 90,
             },
             videoGeneration: {
-              status: 'completed',
+              status: 'completed' as const,
               updatedAt: '2026-07-24T00:00:00.000Z',
+              progressPercent: 100,
+              stage: null,
             },
           },
         ],
