@@ -6,15 +6,12 @@
 
 import { z } from 'zod';
 
-import { DATA_LIMITS } from '../../config/database.js';
+import { DATA_LIMITS } from '../../config/constants.js';
 import { transformBatchWithLogging } from '../../core/transformers/baseTransformer.js';
-import {
-  type SentimentData,
-  SentimentDataSchema,
-} from '../../modules/sentiment/schema.js';
 import type { SentimentSnapshotInsert } from '../../types/database.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
+import { type SentimentData, SentimentDataSchema } from './schema.js';
 
 const SENTIMENT_CLASSIFICATION_BOUNDARIES: Record<string, [number, number]> = {
   'Extreme Fear': [DATA_LIMITS.SENTIMENT_MIN, 25],

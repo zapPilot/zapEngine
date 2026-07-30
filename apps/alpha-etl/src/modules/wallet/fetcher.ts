@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { RATE_LIMITS } from '../../config/database.js';
+import { RATE_LIMITS } from '../../config/constants.js';
 import { BaseApiFetcher } from '../../core/fetchers/baseApiFetcher.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import {

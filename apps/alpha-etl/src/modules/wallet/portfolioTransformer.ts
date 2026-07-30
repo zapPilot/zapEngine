@@ -1,7 +1,3 @@
-import type {
-  DeBankProtocol,
-  DeBankProtocolItem,
-} from '../../modules/wallet/fetcher.js';
 import type { PortfolioItemSnapshotInsert } from '../../types/database.js';
 import {
   resolveSnapshotTime,
@@ -10,6 +6,7 @@ import {
 import { toErrorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import { maskWalletAddress } from '../../utils/mask.js';
+import type { DeBankProtocol, DeBankProtocolItem } from './fetcher.js';
 
 export interface TransformPortfolioParams {
   protocol: DeBankProtocol;

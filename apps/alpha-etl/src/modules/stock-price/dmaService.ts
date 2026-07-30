@@ -14,14 +14,14 @@
 import type { Pool } from 'pg';
 
 import { getDbPool, getTableName } from '../../config/database.js';
-import type { LatestDmaSnapshot } from '../../modules/core/dmaSnapshot.js';
-import { runDmaUpdate } from '../../modules/core/dmaUpdateRunner.js';
-import { StockPriceDmaWriter } from '../../modules/stock-price/dmaWriter.js';
 import {
   buildRollingDmaSnapshots,
   mapRollingMetric,
-} from '../../modules/token-price/dmaCalculator.js';
+} from '../../modules/core/dmaRolling.js';
+import type { LatestDmaSnapshot } from '../../modules/core/dmaSnapshot.js';
+import { runDmaUpdate } from '../../modules/core/dmaUpdateRunner.js';
 import { logger } from '../../utils/logger.js';
+import { StockPriceDmaWriter } from './dmaWriter.js';
 
 export interface StockPriceDmaSnapshotInsert {
   symbol: string;

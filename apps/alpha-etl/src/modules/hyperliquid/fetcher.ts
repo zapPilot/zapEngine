@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { RATE_LIMITS, TIMEOUTS } from '../../config/database.js';
+import { RATE_LIMITS, TIMEOUTS } from '../../config/constants.js';
 import { env } from '../../config/environment.js';
 import {
   BaseApiFetcher,

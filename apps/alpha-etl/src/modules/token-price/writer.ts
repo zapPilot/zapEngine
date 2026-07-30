@@ -1,9 +1,9 @@
 import { getTableName } from '../../config/database.js';
 import { BaseWriter } from '../../core/database/baseWriter.js';
 import { buildTokenPriceInsertValues } from '../../core/database/columnDefinitions.js';
-import type { TokenPriceData } from '../../modules/token-price/schema.js';
 import { formatDateToYYYYMMDD } from '../../utils/dateUtils.js';
 import { logger } from '../../utils/logger.js';
+import type { TokenPriceData } from './schema.js';
 
 function normalizeSnapshotDateValue(snapshotDate: Date | string): Date {
   return snapshotDate instanceof Date ? snapshotDate : new Date(snapshotDate);

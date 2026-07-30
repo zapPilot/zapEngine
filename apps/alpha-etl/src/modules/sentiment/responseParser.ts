@@ -3,7 +3,7 @@ import {
   type CoinMarketCapFearGreedResponse,
   CoinMarketCapFearGreedSchema,
   type SentimentData,
-} from '../../modules/sentiment/schema.js';
+} from './schema.js';
 
 interface ValidSentimentEntry {
   value: number;

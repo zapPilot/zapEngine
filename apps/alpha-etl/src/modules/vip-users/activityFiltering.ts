@@ -1,4 +1,4 @@
-import { TIME_CONSTANTS } from '../../config/database.js';
+import { TIME_CONSTANTS } from '../../config/constants.js';
 import type { VipUserWithActivity } from '../../types/index.js';
 import { logger } from '../../utils/logger.js';
 import { maskWalletAddress } from '../../utils/mask.js';

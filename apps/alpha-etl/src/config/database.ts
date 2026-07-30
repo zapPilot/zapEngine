@@ -3,13 +3,6 @@ import { Pool, type PoolClient } from 'pg';
 import { logger } from '../utils/logger.js';
 import { sleep } from '../utils/sleep.js';
 import { env } from './environment.js';
-export {
-  APR_VALIDATION,
-  DATA_LIMITS,
-  RATE_LIMITS,
-  TIME_CONSTANTS,
-  TIMEOUTS,
-} from './constants.js';
 
 // ============================================================================
 // Table Definitions (consolidated from tables.ts)

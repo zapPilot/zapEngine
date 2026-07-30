@@ -12,7 +12,7 @@ import {
   type DmaWriterConfig,
 } from '../../core/database/baseDmaWriter.js';
 import { buildStockPriceDmaInsertValues } from '../../core/database/columnDefinitions.js';
-import type { StockPriceDmaSnapshotInsert } from '../../modules/stock-price/dmaService.js';
+import type { StockPriceDmaSnapshotInsert } from './dmaService.js';
 
 export class StockPriceDmaWriter extends BaseDmaWriter<StockPriceDmaSnapshotInsert> {
   protected readonly dmaConfig: DmaWriterConfig<StockPriceDmaSnapshotInsert> = {

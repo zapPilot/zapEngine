@@ -15,8 +15,6 @@ import { Pool } from 'pg';
 
 import { getDbPool, getTableName } from '../../config/database.js';
 import { runDmaUpdate } from '../../modules/core/dmaUpdateRunner.js';
-import { TokenPriceDmaWriter } from '../../modules/token-price/dmaWriter.js';
-import { TokenPairRatioDmaWriter } from '../../modules/token-price/ratioDmaWriter.js';
 import type {
   TokenPairRatioDmaSnapshotInsert,
   TokenPriceDmaSnapshotInsert,
@@ -32,6 +30,8 @@ import {
   type PairRatioContext,
   type PriceRow,
 } from './dmaCalculator.js';
+import { TokenPriceDmaWriter } from './dmaWriter.js';
+import { TokenPairRatioDmaWriter } from './ratioDmaWriter.js';
 
 export {
   buildAlignedPairRatioSeries,

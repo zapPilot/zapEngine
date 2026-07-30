@@ -18,20 +18,20 @@ import {
   type HealthCheckResult,
   withValidatedJob,
 } from '../../core/processors/baseETLProcessor.js';
-import { StockPriceDmaService } from '../../modules/stock-price/dmaService.js';
-import type { DailyStockPrice } from '../../modules/stock-price/schema.js';
-import { StockPriceWriter } from '../../modules/stock-price/writer.js';
-import { YahooFinanceFetcher } from '../../modules/stock-price/yahooFetcher.js';
+import type { ETLJob } from '../../types/index.js';
+import { toErrorMessage } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
 import {
   buildProcessorStats,
   createProcessorStats,
   logProcessorFailureAndRethrow,
   runDmaPostStep,
   writeSnapshotData,
-} from '../../modules/token-price/processor.helpers.js';
-import type { ETLJob } from '../../types/index.js';
-import { toErrorMessage } from '../../utils/errors.js';
-import { logger } from '../../utils/logger.js';
+} from '../core/processorRun.js';
+import { StockPriceDmaService } from './dmaService.js';
+import type { DailyStockPrice } from './schema.js';
+import { StockPriceWriter } from './writer.js';
+import { YahooFinanceFetcher } from './yahooFetcher.js';
 
 export class StockPriceETLProcessor implements BaseETLProcessor {
   private static readonly DEFAULT_SYMBOL = 'SPY';

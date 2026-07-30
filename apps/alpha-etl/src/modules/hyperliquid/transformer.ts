@@ -1,10 +1,5 @@
 import { transformBatchWithLogging } from '../../core/transformers/baseTransformer.js';
 import type {
-  VaultAprData,
-  VaultDetailsResponse,
-  VaultPositionData,
-} from '../../modules/hyperliquid/fetcher.js';
-import type {
   HyperliquidVaultAprSnapshotInsert,
   PortfolioItemSnapshotInsert,
 } from '../../types/database.js';
@@ -15,6 +10,11 @@ import {
   isFiniteNumber,
   toFiniteNumberOrNull,
 } from '../../utils/numberUtils.js';
+import type {
+  VaultAprData,
+  VaultDetailsResponse,
+  VaultPositionData,
+} from './fetcher.js';
 
 export interface TransformPositionParams {
   position: VaultPositionData | null;
