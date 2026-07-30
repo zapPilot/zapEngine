@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HyperliquidFetcher } from '../../../../src/modules/hyperliquid/fetcher.js';
 import { deriveTvlFromPortfolio } from '../../../../src/modules/hyperliquid/fetcher.helpers.js';
-import { CoinGeckoFetcher } from '../../../../src/modules/token-price/index.js';
+import { CoinGeckoFetcher } from '../../../../src/modules/token-price/fetcher.js';
 
 // Mock logger
 vi.mock('../../../../src/utils/logger.js', async () => {

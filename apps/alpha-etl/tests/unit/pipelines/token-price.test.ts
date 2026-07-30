@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
-  TokenPriceETLProcessor,
-  CoinGeckoFetcher,
-  TokenPriceWriter,
   TokenPriceDmaService,
-} from "../../../src/modules/token-price/index.js";
+} from "../../../src/modules/token-price/dmaService.js";
+import { CoinGeckoFetcher } from "../../../src/modules/token-price/fetcher.js";
+import { TokenPriceETLProcessor } from "../../../src/modules/token-price/processor.js";
+import { TokenPriceWriter } from "../../../src/modules/token-price/writer.js";
 import { APIError } from "../../../src/utils/errors.js";
 import { Pool } from "pg";
-import type { ETLJob } from "../../../src/types/index.js";
+import { createEtlJob } from "../../utils/createEtlJob.js";
 
 // Mock dependencies
 const mockPool = {
@@ -472,13 +472,11 @@ describe("BTC Price Pipeline", () => {
 
   describe("Pipeline Integration", () => {
     it("process should run successfully", async () => {
-      const job: ETLJob = {
+      const job = createEtlJob({
         jobId: "test-job",
-        trigger: "manual",
         sources: ["token-price"],
         createdAt: new Date(),
-        status: "pending",
-      };
+      });
 
       const mockPriceData = {
         priceUsd: 50000,
@@ -519,13 +517,11 @@ describe("BTC Price Pipeline", () => {
     });
 
     it("process should trigger DMA post-step on success", async () => {
-      const job: ETLJob = {
+      const job = createEtlJob({
         jobId: "test-dma-post",
-        trigger: "manual",
         sources: ["token-price"],
         createdAt: new Date(),
-        status: "pending",
-      };
+      });
 
       const mockPriceData = {
         priceUsd: 50000,
@@ -556,13 +552,11 @@ describe("BTC Price Pipeline", () => {
     });
 
     it("process should handle DMA post-step failure gracefully", async () => {
-      const job: ETLJob = {
+      const job = createEtlJob({
         jobId: "test-dma-fail",
-        trigger: "manual",
         sources: ["token-price"],
         createdAt: new Date(),
-        status: "pending",
-      };
+      });
 
       const mockPriceData = {
         priceUsd: 50000,
@@ -609,13 +603,11 @@ describe("BTC Price Pipeline", () => {
     });
 
     it("process should handle execution errors", async () => {
-      const job: ETLJob = {
+      const job = createEtlJob({
         jobId: "test-job",
-        trigger: "manual",
         sources: ["token-price"],
         createdAt: new Date(),
-        status: "pending",
-      };
+      });
 
       vi.spyOn(
         CoinGeckoFetcher.prototype,
@@ -630,13 +622,11 @@ describe("BTC Price Pipeline", () => {
 
   describe("Process Edge Cases", () => {
     it("process should handle non-Error exceptions", async () => {
-      const job: ETLJob = {
+      const job = createEtlJob({
         jobId: "test-job-error",
-        trigger: "manual",
         sources: ["token-price"],
         createdAt: new Date(),
-        status: "pending",
-      };
+      });
       // Mock validateETLJob to throw a string
       (validateETLJob as unknown).mockImplementationOnce(() => {
         const nonError: unknown = "String Error";
@@ -697,42 +687,6 @@ describe("BTC Price Pipeline", () => {
   });
 
   describe("Other Pipeline Methods", () => {
-    it("processCurrentPrice should fetch and store data", async () => {
-      const mockPriceData = {
-        priceUsd: 50000,
-        marketCapUsd: 1000000,
-        volume24hUsd: 500000,
-        timestamp: new Date(),
-        source: "coingecko",
-        tokenSymbol: "BTC",
-        tokenId: "bitcoin",
-      };
-
-      vi.spyOn(
-        CoinGeckoFetcher.prototype,
-        "fetchCurrentPrice",
-      ).mockResolvedValue(mockPriceData);
-      vi.spyOn(
-        TokenPriceWriter.prototype,
-        "insertSnapshot",
-      ).mockResolvedValue();
-
-      await pipeline.processCurrentPrice();
-
-      expect(CoinGeckoFetcher.prototype.fetchCurrentPrice).toHaveBeenCalled();
-      expect(TokenPriceWriter.prototype.insertSnapshot).toHaveBeenCalledWith(
-        mockPriceData,
-      );
-    });
-
-    it("processCurrentPrice should propagate error", async () => {
-      vi.spyOn(
-        CoinGeckoFetcher.prototype,
-        "fetchCurrentPrice",
-      ).mockRejectedValue(new Error("Fail"));
-      await expect(pipeline.processCurrentPrice()).rejects.toThrow("Fail");
-    });
-
     it("healthCheck should return healthy status", async () => {
       vi.spyOn(CoinGeckoFetcher.prototype, "healthCheck").mockResolvedValue({
         status: "healthy",
@@ -905,13 +859,11 @@ describe("BTC Price Pipeline", () => {
     });
 
     it("getStats should show success rate after successful processing", async () => {
-      const job: ETLJob = {
+      const job = createEtlJob({
         jobId: "stats-test-job",
-        trigger: "manual",
         sources: ["token-price"],
         createdAt: new Date(),
-        status: "pending",
-      };
+      });
 
       const mockPriceData = {
         priceUsd: 50000,

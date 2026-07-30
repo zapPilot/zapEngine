@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { SentimentWriter } from '../../../../src/modules/sentiment/index.js';
+import { SentimentWriter } from '../../../../src/modules/sentiment/writer.js';
 import type { SentimentSnapshotInsert } from '../../../../src/types/database.js';
 
 const { mockClient } = vi.hoisted(() => ({

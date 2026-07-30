@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { EventEmitter } from 'events';
+import { logger as mockLogger } from '../../../src/utils/logger.js';
 
 const poolEmitter = new EventEmitter() as unknown;
 poolEmitter.end = vi.fn();
@@ -11,14 +12,10 @@ vi.mock('pg', () => ({
   }),
 }));
 
-const mockLogger = {
-  info: vi.fn(),
-  error: vi.fn(),
-};
-
-vi.mock('../../../src/utils/logger.js', () => ({
-  logger: mockLogger,
-}));
+vi.mock('../../../src/utils/logger.js', async () => {
+  const { mockLogger } = await import('../../setup/mocks.js');
+  return mockLogger();
+});
 
 vi.mock('../../../src/config/environment.js', () => ({
   env: {

@@ -7,12 +7,8 @@
  * Data Source: CoinMarketCap API (v3/fear-and-greed/latest)
  */
 
-import { RATE_LIMITS } from '../../config/database.js';
+import { RATE_LIMITS } from '../../config/constants.js';
 import { BaseApiFetcher } from '../../core/fetchers/baseApiFetcher.js';
-import {
-  type CoinMarketCapFearGreedResponse,
-  type SentimentData,
-} from '../../modules/sentiment/schema.js';
 import { APIError } from '../../utils/errors.js';
 import { serializeError } from '../../utils/errorSerializer.js';
 import {
@@ -24,11 +20,15 @@ import {
   normalizeSentimentData,
   validateAndExtractSentimentEntry,
 } from './responseParser.js';
+import {
+  type CoinMarketCapFearGreedResponse,
+  type SentimentData,
+} from './schema.js';
 
 export type {
   CoinMarketCapFearGreedResponse,
   SentimentData,
-} from '../../modules/sentiment/schema.js';
+} from './schema.js';
 
 interface FearGreedConfig {
   apiKey?: string;

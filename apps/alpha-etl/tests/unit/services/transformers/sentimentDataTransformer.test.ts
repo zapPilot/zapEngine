@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import {
-  SentimentDataTransformer,
-  type SentimentData,
-} from "../../../../src/modules/sentiment/index.js";
+import type { SentimentData } from "../../../../src/modules/sentiment/schema.js";
+import { SentimentDataTransformer } from "../../../../src/modules/sentiment/transformer.js";
 
 // Silence logs
 vi.mock("../../../../src/utils/logger.js", async () => {

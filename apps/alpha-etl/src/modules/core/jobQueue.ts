@@ -1,12 +1,8 @@
 import type { EtlError } from '@zapengine/types/etl';
 import type { PoolClient } from 'pg';
 
-import { getDbClient, TIMEOUTS } from '../../config/database.js';
-import { ETLPipelineFactory } from '../../modules/core/pipelineFactory.js';
-import {
-  portfolioRollupSynchronizer,
-  type PortfolioRollupSyncStats,
-} from '../../modules/core/portfolioRollupSync.js';
+import { TIMEOUTS } from '../../config/constants.js';
+import { getDbClient } from '../../config/database.js';
 import type { ETLJob, ETLJobResult } from '../../types/index.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
@@ -23,6 +19,11 @@ import {
   shouldPersistJobStatus,
   shouldSynchronizePortfolioRollups,
 } from './jobQueue.helpers.js';
+import { ETLPipelineFactory } from './pipelineFactory.js';
+import {
+  portfolioRollupSynchronizer,
+  type PortfolioRollupSyncStats,
+} from './portfolioRollupSync.js';
 
 export interface QueueStatus {
   total: number;

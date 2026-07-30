@@ -1,4 +1,4 @@
-import { TIME_CONSTANTS } from '../../config/database.js';
+import { TIME_CONSTANTS } from '../../config/constants.js';
 import type { VipUserWithActivity } from '../../types/index.js';
 import { logger } from '../../utils/logger.js';
 import { maskWalletAddress } from '../../utils/mask.js';
@@ -112,7 +112,7 @@ function isActiveWithinThreshold(
  * @param options - Configuration options for thresholds
  * @returns true if user should be updated, false otherwise
  */
-export function shouldUpdateUser(
+function shouldUpdateUser(
   user: VipUserWithActivity,
   options: UserFilteringOptions = {},
 ): boolean {

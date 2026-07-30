@@ -1,7 +1,7 @@
-import type { TokenPriceData } from '../../modules/token-price/fetcher.js';
 import { formatDateToYYYYMMDD } from '../../utils/dateUtils.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
+import type { TokenPriceData } from './fetcher.js';
 
 interface HistoricalPriceFetcher {
   formatDateForApi(date: Date): string;

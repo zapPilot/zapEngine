@@ -2,13 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import type { ETLJob, ETLJobResult } from '../../../src/types/index.js';
-
-const mockLogger = {
-  info: vi.fn(),
-  error: vi.fn(),
-  warn: vi.fn(),
-  debug: vi.fn(),
-};
+import { createEtlJob } from '../../utils/createEtlJob.js';
 
 const mockJobQueue = {
   enqueue: vi.fn(),
@@ -16,9 +10,10 @@ const mockJobQueue = {
   getResult: vi.fn(),
 };
 
-vi.mock('../../../src/utils/logger.js', () => ({
-  logger: mockLogger,
-}));
+vi.mock('../../../src/utils/logger.js', async () => {
+  const { mockLogger } = await import('../../setup/mocks.js');
+  return mockLogger();
+});
 
 vi.mock('../../../src/modules/core/jobQueueSingleton.js', () => ({
   etlJobQueue: mockJobQueue,
@@ -49,13 +44,8 @@ async function createTestApp(): Promise<express.Application> {
 describe('Webhooks Router', () => {
   let app: express.Application;
 
-  const createMockJob = (overrides: Partial<ETLJob> = {}): ETLJob => ({
-    jobId: 'job-123',
-    sources: ['hyperliquid'],
-    createdAt: new Date('2024-01-01T00:00:00Z'),
-    status: 'pending',
-    ...overrides,
-  });
+  const createMockJob = (overrides: Partial<ETLJob> = {}): ETLJob =>
+    createEtlJob(overrides);
 
   beforeEach(async () => {
     vi.clearAllMocks();

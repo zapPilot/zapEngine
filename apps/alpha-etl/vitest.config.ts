@@ -23,8 +23,6 @@ const config: ViteUserConfig = {
         'scripts/',
         'vitest.config.ts',
         'src/pipelines/**',
-        'src/modules/sentiment/index.ts',
-        'src/modules/token-price/index.ts',
       ],
       thresholds: {
         statements: 92,

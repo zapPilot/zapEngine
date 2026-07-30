@@ -33,16 +33,6 @@ export const TIMEOUTS = {
   HEALTH_CHECK_INTERVAL_MS: 15000,
 } as const;
 
-/** APR Validation Rules */
-export const APR_VALIDATION = {
-  /** Minimum valid APR value (0%) */
-  MIN_APR: 0,
-  /** Maximum valid APR value (1000%) - rejects obviously invalid data */
-  MAX_APR: 10,
-  /** Days per year for APR calculations */
-  DAYS_PER_YEAR: 365,
-} as const;
-
 /** Time Calculation Constants */
 export const TIME_CONSTANTS = {
   /** Milliseconds per second */

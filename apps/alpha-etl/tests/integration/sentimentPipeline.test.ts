@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type { ETLJob } from "../../src/types/index.js";
-import type { SentimentData } from "../../src/modules/sentiment/index.js";
+import type { SentimentData } from "../../src/modules/sentiment/schema.js";
 import type { WriteResult } from "../../src/core/database/baseWriter.js";
+import { createEtlJob } from "../utils/createEtlJob.js";
 
 const createRequestStats = () => ({
   requestCount: 0,
@@ -38,19 +38,20 @@ let mockFetcher: ReturnType<typeof createMockFearGreedFetcher>;
 let mockWriter: ReturnType<typeof createMockSentimentWriter>;
 
 // Mock external dependencies with factory functions
-// Note: We must also override SentimentETLProcessor because when all classes are in
-// the same module, the internal `new FearGreedFetcher()` doesn't use the mocked constructor
-vi.mock("../../src/modules/sentiment/index.js", async (importOriginal) => {
+vi.mock("../../src/modules/sentiment/processor.js", async (importOriginal) => {
   const actual =
     await importOriginal<
-      typeof import("../../src/modules/sentiment/index.js")
+      typeof import("../../src/modules/sentiment/processor.js")
     >();
+  const { SentimentDataTransformer } = await vi.importActual<
+    typeof import("../../src/modules/sentiment/transformer.js")
+  >("../../src/modules/sentiment/transformer.js");
 
   // Create a MockedSentimentETLProcessor that uses the mock dependencies
   // but uses the real SentimentDataTransformer for integration testing
   class MockedSentimentETLProcessor {
     private fetcher = mockFetcher;
-    private transformer = new actual.SentimentDataTransformer();
+    private transformer = new SentimentDataTransformer();
     private writer = mockWriter;
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -109,12 +110,6 @@ vi.mock("../../src/modules/sentiment/index.js", async (importOriginal) => {
   return {
     ...actual,
     SentimentETLProcessor: MockedSentimentETLProcessor,
-    FearGreedFetcher: vi.fn().mockImplementation(function FearGreedFetcher() {
-      return mockFetcher;
-    }),
-    SentimentWriter: vi.fn().mockImplementation(function SentimentWriter() {
-      return mockWriter;
-    }),
   };
 });
 
@@ -126,7 +121,7 @@ vi.mock("../../src/utils/logger.js", async () => {
 
 // Import after mocks are set up
 const { SentimentETLProcessor } =
-  await import("../../src/modules/sentiment/index.js");
+  await import("../../src/modules/sentiment/processor.js");
 
 /**
  * Test fixtures
@@ -141,14 +136,13 @@ const createMockSentimentData = (
   ...overrides,
 });
 
-const createTestJob = (): ETLJob => ({
-  jobId: `test-sentiment-${Date.now()}`,
-  trigger: "scheduled",
-  sources: ["feargreed"],
-  filters: {},
-  createdAt: new Date(),
-  status: "pending",
-});
+const createTestJob = () =>
+  createEtlJob({
+    jobId: `test-sentiment-${Date.now()}`,
+    sources: ["feargreed"],
+    filters: {},
+    createdAt: new Date(),
+  });
 
 describe("Sentiment Pipeline Integration Tests", () => {
   let processor: SentimentETLProcessor;

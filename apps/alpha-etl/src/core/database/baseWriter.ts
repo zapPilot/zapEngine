@@ -129,35 +129,6 @@ export abstract class BaseWriter<T> extends BaseDatabaseClient {
     throw error;
   }
 
-  protected prepareValidBatch<TRecord>(
-    batch: TRecord[],
-    filterValidRecords: (batch: TRecord[], result: WriteResult) => TRecord[],
-  ): { result: WriteResult; validRecords: TRecord[] } {
-    const result = createEmptyWriteResult();
-    return {
-      result,
-      validRecords: filterValidRecords(batch, result),
-    };
-  }
-
-  protected async executePreparedBatchWrite<TRecord>(
-    result: WriteResult,
-    validRecords: TRecord[],
-    batchNumber: number,
-    logContext: string,
-    buildQuery: () => { query: string; values: unknown[] },
-  ): Promise<WriteResult> {
-    const batchResult = await this.executeBatchWrite({
-      batchNumber,
-      logContext,
-      recordCount: validRecords.length,
-      buildQuery,
-    });
-
-    this.mergeBatchResult(result, batchResult);
-    return result;
-  }
-
   protected async writeValidatedBatch<TRecord>(
     batch: TRecord[],
     batchNumber: number,
@@ -171,56 +142,23 @@ export abstract class BaseWriter<T> extends BaseDatabaseClient {
       };
     },
   ): Promise<WriteResult> {
-    const { result, validRecords } = this.prepareValidBatch(
-      batch,
-      filterValidRecords,
-    );
+    const result = createEmptyWriteResult();
+    const validRecords = filterValidRecords(batch, result);
 
     if (validRecords.length === 0) {
       config.onEmpty?.();
       return result;
     }
 
-    return this.executePreparedBatchWrite(
-      result,
-      validRecords,
+    const batchResult = await this.executeBatchWrite({
       batchNumber,
-      config.logContext,
-      () => config.buildQuery(validRecords),
-    );
-  }
+      logContext: config.logContext,
+      recordCount: validRecords.length,
+      buildQuery: () => config.buildQuery(validRecords),
+    });
 
-  protected async executeCountedQuery(config: {
-    query: string;
-    values: unknown[];
-    totalRecords: number;
-    successMessage: string;
-    successContext: Record<string, unknown>;
-    failureMessage: string;
-    failureContext: Record<string, unknown>;
-  }): Promise<number> {
-    try {
-      const queryResult = await this.withDatabaseClient((client) =>
-        client.query(config.query, config.values),
-      );
-      const countedResult = queryResult as {
-        rowCount?: number | null;
-        rows?: unknown[];
-      };
-      const inserted =
-        countedResult.rowCount ?? countedResult.rows?.length ?? 0;
-      const successRate = `${((inserted / config.totalRecords) * 100).toFixed(1)}%`;
-      logger.info(config.successMessage, {
-        ...config.successContext,
-        inserted,
-        failed: config.totalRecords - inserted,
-        successRate,
-      });
-      return inserted;
-    } catch (error) {
-      const { failureMessage, failureContext } = config;
-      this.throwConfiguredError(failureMessage, failureContext, error);
-    }
+    this.mergeBatchResult(result, batchResult);
+    return result;
   }
 
   protected async executeStandardBatchInsert(
@@ -229,15 +167,32 @@ export abstract class BaseWriter<T> extends BaseDatabaseClient {
     totalRecords: number,
     context: Record<string, unknown>,
   ): Promise<number> {
-    return this.executeCountedQuery({
-      query,
-      values,
-      totalRecords,
-      successMessage: 'Batch insert completed',
-      successContext: { total: totalRecords, ...context },
-      failureMessage: 'Batch insert failed',
-      failureContext: { ...context, total: totalRecords },
-    });
+    try {
+      const queryResult = await this.withDatabaseClient((client) =>
+        client.query(query, values),
+      );
+      const countedResult = queryResult as {
+        rowCount?: number | null;
+        rows?: unknown[];
+      };
+      const inserted =
+        countedResult.rowCount ?? countedResult.rows?.length ?? 0;
+      const successRate = `${((inserted / totalRecords) * 100).toFixed(1)}%`;
+      logger.info('Batch insert completed', {
+        total: totalRecords,
+        ...context,
+        inserted,
+        failed: totalRecords - inserted,
+        successRate,
+      });
+      return inserted;
+    } catch (error) {
+      this.throwConfiguredError(
+        'Batch insert failed',
+        { ...context, total: totalRecords },
+        error,
+      );
+    }
   }
 
   protected async queryCountOrZero(config: {
@@ -281,76 +236,6 @@ export abstract class BaseWriter<T> extends BaseDatabaseClient {
     }
   }
 
-  protected async querySnapshotDatesInRange(config: {
-    tableName: string;
-    source: string;
-    entityColumn: string;
-    entityValue: string;
-    startDate: string;
-    endDate: string;
-    successContext: Record<string, unknown>;
-    failureMessage: string;
-    failureContext: Record<string, unknown>;
-  }): Promise<string[]> {
-    const query = `
-      SELECT to_char(snapshot_date, 'YYYY-MM-DD') as snapshot_date
-      FROM ${config.tableName}
-      WHERE source = $1
-        AND ${config.entityColumn} = $2
-        AND snapshot_date >= $3
-        AND snapshot_date <= $4
-      ORDER BY snapshot_date ASC
-    `;
-
-    try {
-      const result = await this.withDatabaseClient((client) =>
-        client.query(query, [
-          config.source,
-          config.entityValue,
-          config.startDate,
-          config.endDate,
-        ]),
-      );
-      const dates = result.rows.map(
-        (row: { snapshot_date: string }) => row.snapshot_date,
-      );
-      logger.info('Retrieved existing snapshots in range', {
-        ...config.successContext,
-        count: dates.length,
-      });
-      return dates;
-    } catch (error) {
-      this.logConfiguredError(
-        config.failureMessage,
-        config.failureContext,
-        error,
-      );
-      return [];
-    }
-  }
-
-  protected async queryEntitySnapshotDatesInRange(
-    tableName: string,
-    entityColumn: string,
-    entityValue: string,
-    source: string,
-    startDate: string,
-    endDate: string,
-    context: Record<string, unknown>,
-  ): Promise<string[]> {
-    return this.querySnapshotDatesInRange({
-      tableName,
-      source,
-      entityColumn,
-      entityValue,
-      startDate,
-      endDate,
-      successContext: { ...context, source, startDate, endDate },
-      failureMessage: 'Failed to get existing dates in range',
-      failureContext: { ...context, source },
-    });
-  }
-
   protected async queryEntitySnapshotDatesForDates(
     tableName: string,
     entityColumn: string,
@@ -360,15 +245,46 @@ export abstract class BaseWriter<T> extends BaseDatabaseClient {
     endDate: Date,
     context: Record<string, unknown>,
   ): Promise<string[]> {
-    return this.queryEntitySnapshotDatesInRange(
-      tableName,
-      entityColumn,
-      entityValue,
-      source,
-      formatDateToYYYYMMDD(startDate),
-      formatDateToYYYYMMDD(endDate),
-      context,
-    );
+    const formattedStartDate = formatDateToYYYYMMDD(startDate);
+    const formattedEndDate = formatDateToYYYYMMDD(endDate);
+    const query = `
+      SELECT to_char(snapshot_date, 'YYYY-MM-DD') as snapshot_date
+      FROM ${tableName}
+      WHERE source = $1
+        AND ${entityColumn} = $2
+        AND snapshot_date >= $3
+        AND snapshot_date <= $4
+      ORDER BY snapshot_date ASC
+    `;
+
+    try {
+      const result = await this.withDatabaseClient((client) =>
+        client.query(query, [
+          source,
+          entityValue,
+          formattedStartDate,
+          formattedEndDate,
+        ]),
+      );
+      const dates = result.rows.map(
+        (row: { snapshot_date: string }) => row.snapshot_date,
+      );
+      logger.info('Retrieved existing snapshots in range', {
+        ...context,
+        source,
+        startDate: formattedStartDate,
+        endDate: formattedEndDate,
+        count: dates.length,
+      });
+      return dates;
+    } catch (error) {
+      this.logConfiguredError(
+        'Failed to get existing dates in range',
+        { ...context, source },
+        error,
+      );
+      return [];
+    }
   }
 
   protected logSnapshotSaved(

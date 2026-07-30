@@ -1,3 +1,4 @@
+import type { WriteResult } from '../../core/database/baseWriter.js';
 import {
   type BaseETLProcessor,
   type ETLProcessResult,
@@ -38,61 +39,76 @@ export class SentimentETLProcessor implements BaseETLProcessor {
       executeETLFlow<SentimentData, SentimentSnapshotInsert>(
         job,
         'feargreed',
-        async () => {
-          logger.info('Fetching Fear & Greed Index', { jobId: job.jobId });
-          const sentimentData = await this.fetcher.fetchCurrentSentiment();
-          logger.info('Sentiment data fetched successfully', {
-            jobId: job.jobId,
-            value: sentimentData.value,
-            classification: sentimentData.classification,
-          });
-          return [sentimentData];
-        },
-        async (rawData) => {
-          const raw = rawData[0]!;
-
-          logger.info('Transforming sentiment data', {
-            jobId: job.jobId,
-            value: raw.value,
-            classification: raw.classification,
-          });
-
-          const transformed = this.transformer.transform(raw);
-          if (!transformed) {
-            throw new Error('Sentiment data failed validation');
-          }
-
-          logger.info('Sentiment transformation completed', {
-            jobId: job.jobId,
-            sentiment_value: transformed.sentiment_value,
-            classification: transformed.classification,
-          });
-
-          return [transformed];
-        },
-        async (transformedData) => {
-          logger.info('Writing sentiment data to database', {
-            jobId: job.jobId,
-            recordCount: transformedData.length,
-          });
-
-          const writeResult = await this.writer.writeSentimentSnapshots(
-            transformedData,
-            'feargreed',
-          );
-
-          logger.info('Sentiment database write completed', {
-            jobId: job.jobId,
-            recordsInserted: writeResult.recordsInserted,
-            duplicatesSkipped: writeResult.duplicatesSkipped,
-            errors: writeResult.errors.length,
-            success: writeResult.success,
-          });
-
-          return writeResult;
-        },
+        () => this.fetchSentiment(job.jobId),
+        (rawData) => this.transformSentiment(rawData, job.jobId),
+        (transformedData) => this.writeSentiment(transformedData, job.jobId),
       ),
     );
+  }
+
+  private async fetchSentiment(jobId: string): Promise<SentimentData[]> {
+    logger.info('Fetching Fear & Greed Index', { jobId });
+    const sentimentData = await this.fetcher.fetchCurrentSentiment();
+    logger.info('Sentiment data fetched successfully', {
+      jobId,
+      value: sentimentData.value,
+      classification: sentimentData.classification,
+    });
+    return [sentimentData];
+  }
+
+  private async transformSentiment(
+    rawData: SentimentData[],
+    jobId: string,
+  ): Promise<SentimentSnapshotInsert[]> {
+    const raw = rawData[0];
+    if (!raw) {
+      return [];
+    }
+
+    logger.info('Transforming sentiment data', {
+      jobId,
+      value: raw.value,
+      classification: raw.classification,
+    });
+
+    const transformed = this.transformer.transform(raw);
+    if (!transformed) {
+      throw new Error('Sentiment data failed validation');
+    }
+
+    logger.info('Sentiment transformation completed', {
+      jobId,
+      sentiment_value: transformed.sentiment_value,
+      classification: transformed.classification,
+    });
+
+    return [transformed];
+  }
+
+  private async writeSentiment(
+    transformedData: SentimentSnapshotInsert[],
+    jobId: string,
+  ): Promise<WriteResult> {
+    logger.info('Writing sentiment data to database', {
+      jobId,
+      recordCount: transformedData.length,
+    });
+
+    const writeResult = await this.writer.writeSentimentSnapshots(
+      transformedData,
+      'feargreed',
+    );
+
+    logger.info('Sentiment database write completed', {
+      jobId,
+      recordsInserted: writeResult.recordsInserted,
+      duplicatesSkipped: writeResult.duplicatesSkipped,
+      errors: writeResult.errors.length,
+      success: writeResult.success,
+    });
+
+    return writeResult;
   }
 
   async healthCheck(): Promise<HealthCheckResult> {

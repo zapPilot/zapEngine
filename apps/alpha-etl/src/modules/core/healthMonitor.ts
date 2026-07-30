@@ -1,4 +1,5 @@
-import { pingDatabase, TIMEOUTS } from '../../config/database.js';
+import { TIMEOUTS } from '../../config/constants.js';
+import { pingDatabase } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
 import { getHealthState, setHealthState } from './healthStatus.js';
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { logger as mockLogger } from '../../src/utils/logger.js';
 
 vi.mock('../../src/config/environment.js', () => ({
   env: {
@@ -7,16 +8,10 @@ vi.mock('../../src/config/environment.js', () => ({
   }
 }));
 
-const mockLogger = {
-  info: vi.fn(),
-  error: vi.fn(),
-  warn: vi.fn(),
-  debug: vi.fn()
-};
-
-vi.mock('../../src/utils/logger.js', () => ({
-  logger: mockLogger
-}));
+vi.mock('../../src/utils/logger.js', async () => {
+  const { mockLogger } = await import('../setup/mocks.js');
+  return mockLogger();
+});
 
 vi.mock('../../src/config/database.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/config/database.js')>();

@@ -7,20 +7,20 @@
  * Data Source: CoinGecko API (simple/price, coins/history)
  */
 
-import { RATE_LIMITS } from '../../config/database.js';
+import { RATE_LIMITS } from '../../config/constants.js';
 import { BaseApiFetcher } from '../../core/fetchers/baseApiFetcher.js';
+import { APIError } from '../../utils/errors.js';
+import { wrapHealthCheck } from '../../utils/healthCheck.js';
+import { logger } from '../../utils/logger.js';
 import {
   type CoinGeckoHistoricalResponse,
   CoinGeckoHistoricalSchema,
   type CoinGeckoSimplePriceResponse,
   CoinGeckoSimplePriceSchema,
   type TokenPriceData,
-} from '../../modules/token-price/schema.js';
-import { APIError } from '../../utils/errors.js';
-import { wrapHealthCheck } from '../../utils/healthCheck.js';
-import { logger } from '../../utils/logger.js';
+} from './schema.js';
 
-export type { TokenPriceData } from '../../modules/token-price/schema.js';
+export type { TokenPriceData } from './schema.js';
 
 interface CoinGeckoFetcherConfig {
   baseUrl?: string;

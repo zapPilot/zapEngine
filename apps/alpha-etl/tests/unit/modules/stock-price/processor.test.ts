@@ -10,6 +10,7 @@ import type {
 import { StockPriceWriter } from '../../../../src/modules/stock-price/writer.js';
 import { YahooFinanceFetcher } from '../../../../src/modules/stock-price/yahooFetcher.js';
 import type { ETLJob } from '../../../../src/types/index.js';
+import { createEtlJob } from '../../../utils/createEtlJob.js';
 
 const { mockPool } = vi.hoisted(() => ({
   mockPool: {
@@ -30,13 +31,12 @@ vi.mock('../../../../src/config/database.js', () => ({
 }));
 
 function createJob(overrides: Partial<ETLJob> = {}): ETLJob {
-  return {
+  return createEtlJob({
     jobId: 'stock-job-1',
     sources: ['stock-price'],
     createdAt: new Date('2026-05-01T00:00:00.000Z'),
-    status: 'pending',
     ...overrides,
-  };
+  });
 }
 
 function createDailyPrice(overrides: Partial<DailyStockPrice> = {}) {
@@ -158,39 +158,6 @@ describe('stock-price/processor', () => {
       totalProcessed: 1,
       totalErrors: 1,
     });
-  });
-
-  it('processes a current price for an explicit symbol', async () => {
-    const price = createDailyPrice({ symbol: 'QQQ' });
-    vi.spyOn(
-      YahooFinanceFetcher.prototype,
-      'fetchLatestPrice',
-    ).mockResolvedValue(price);
-    vi.spyOn(StockPriceWriter.prototype, 'insertSnapshot').mockResolvedValue();
-
-    const processor = new StockPriceETLProcessor(mockPool as unknown as Pool);
-
-    await processor.processCurrentPrice('QQQ');
-
-    expect(YahooFinanceFetcher.prototype.fetchLatestPrice).toHaveBeenCalledWith(
-      'QQQ',
-    );
-    expect(StockPriceWriter.prototype.insertSnapshot).toHaveBeenCalledWith(
-      price,
-    );
-  });
-
-  it('rethrows current price processing errors', async () => {
-    vi.spyOn(
-      YahooFinanceFetcher.prototype,
-      'fetchLatestPrice',
-    ).mockRejectedValue(new Error('quote unavailable'));
-
-    const processor = new StockPriceETLProcessor(mockPool as unknown as Pool);
-
-    await expect(processor.processCurrentPrice()).rejects.toThrow(
-      'quote unavailable',
-    );
   });
 
   it('backfills full history and reports insert counts', async () => {

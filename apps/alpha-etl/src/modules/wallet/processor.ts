@@ -14,20 +14,6 @@ import {
   updatePortfolioTimestampsNonFatal,
 } from '../../modules/vip-users/processing.js';
 import { SupabaseFetcher } from '../../modules/vip-users/supabaseFetcher.js';
-import { WalletBalanceTransformer } from '../../modules/wallet/balanceTransformer.js';
-import { WalletBalanceWriter } from '../../modules/wallet/balanceWriter.js';
-import {
-  DeBankFetcher,
-  type DeBankTokenBalance,
-} from '../../modules/wallet/fetcher.js';
-import {
-  createMergedFetchResult,
-  createWalletLoadCallback,
-  createWalletTransformCallback,
-  type WalletETLRecord,
-} from '../../modules/wallet/helpers.js';
-import { DeBankPortfolioTransformer } from '../../modules/wallet/portfolioTransformer.js';
-import { PortfolioItemWriter } from '../../modules/wallet/portfolioWriter.js';
 import type {
   PortfolioItemSnapshotInsert,
   WalletBalanceSnapshotInsert,
@@ -41,6 +27,17 @@ import { toErrorMessage } from '../../utils/errors.js';
 import { createCompositeHealthCheck } from '../../utils/healthCheck.js';
 import { logger } from '../../utils/logger.js';
 import { maskWalletAddress } from '../../utils/mask.js';
+import { WalletBalanceTransformer } from './balanceTransformer.js';
+import { WalletBalanceWriter } from './balanceWriter.js';
+import { DeBankFetcher, type DeBankTokenBalance } from './fetcher.js';
+import {
+  createMergedFetchResult,
+  createWalletLoadCallback,
+  createWalletTransformCallback,
+  type WalletETLRecord,
+} from './helpers.js';
+import { DeBankPortfolioTransformer } from './portfolioTransformer.js';
+import { PortfolioItemWriter } from './portfolioWriter.js';
 
 /**
  * ETL processor for wallet balance data and portfolio items from DeBank

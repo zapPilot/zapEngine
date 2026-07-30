@@ -8,38 +8,35 @@ import {
   type HealthCheckResult,
   withValidatedJob,
 } from '../../core/processors/baseETLProcessor.js';
+import type { ETLJob } from '../../types/index.js';
+import {
+  calculateMissingDates,
+  generateDateRange,
+} from '../../utils/dateUtils.js';
+import { toErrorMessage } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
+import {
+  buildProcessorStats,
+  createProcessorStats,
+  runDmaPostStep,
+  writeSnapshotData,
+} from '../core/processorRun.js';
 import {
   type BackfillDateRange,
   fetchMissingDateSnapshots,
   getBackfillDateRange,
   getExistingDates,
   logGapDetectionSummary,
-} from '../../modules/token-price/backfill.helpers.js';
-import {
-  CoinGeckoFetcher,
-  type TokenPriceData,
-} from '../../modules/token-price/fetcher.js';
+} from './backfill.helpers.js';
+import { TokenPriceDmaService } from './dmaService.js';
+import { CoinGeckoFetcher, type TokenPriceData } from './fetcher.js';
 import {
   buildHealthCheckDetails,
-  buildProcessorStats,
-  createProcessorStats,
   getOptionalDmaHealthInfo,
-  logProcessorFailureAndRethrow,
   resolveHealthStatus,
-  runDmaPostStep,
   updateStatsAfterProcess,
-  writeSnapshotData,
-} from '../../modules/token-price/processor.helpers.js';
-import { TokenPriceWriter } from '../../modules/token-price/writer.js';
-import type { ETLJob } from '../../types/index.js';
-import {
-  calculateMissingDates,
-  formatDateToYYYYMMDD,
-  generateDateRange,
-} from '../../utils/dateUtils.js';
-import { toErrorMessage } from '../../utils/errors.js';
-import { logger } from '../../utils/logger.js';
-import { TokenPriceDmaService } from './dmaService.js';
+} from './processor.helpers.js';
+import { TokenPriceWriter } from './writer.js';
 
 export class TokenPriceETLProcessor implements BaseETLProcessor {
   private static readonly DEFAULT_TOKENS: readonly {
@@ -95,45 +92,6 @@ export class TokenPriceETLProcessor implements BaseETLProcessor {
     for (const token of TokenPriceETLProcessor.DEFAULT_TOKENS) {
       await runDmaPostStep(jobId, () =>
         this.updateDmaForToken(token.tokenSymbol, token.tokenId, jobId),
-      );
-    }
-  }
-
-  /**
-   * Fetch and store current token price (daily ETL job)
-   *
-   * This is the main entry point for the daily scheduled job
-   *
-   * @param tokenId - CoinGecko token ID (default: 'bitcoin')
-   * @param tokenSymbol - Token symbol (default: 'BTC')
-   * @returns Promise<void>
-   * @throws Error if ETL operation fails
-   */
-  async processCurrentPrice(
-    tokenId: string = TokenPriceETLProcessor.DEFAULT_TOKEN_ID,
-    tokenSymbol: string = TokenPriceETLProcessor.DEFAULT_TOKEN_SYMBOL,
-  ): Promise<void> {
-    logger.info('Starting token price ETL job', { tokenId, tokenSymbol });
-
-    try {
-      const priceData = await this.fetcher.fetchCurrentPrice(
-        tokenId,
-        tokenSymbol,
-      );
-      await this.writer.insertSnapshot(priceData);
-
-      logger.info('Token price ETL completed successfully', {
-        tokenId,
-        tokenSymbol,
-        price: priceData.priceUsd,
-        marketCap: priceData.marketCapUsd,
-        date: formatDateToYYYYMMDD(priceData.timestamp),
-      });
-    } catch (error) {
-      logProcessorFailureAndRethrow(
-        'Token price ETL failed',
-        { tokenId, tokenSymbol },
-        error,
       );
     }
   }

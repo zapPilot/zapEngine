@@ -11,16 +11,16 @@ import YahooFinance from 'yahoo-finance2';
 
 const yahooFinance = new YahooFinance();
 
+import { logger } from '../../utils/logger.js';
 import {
   type StockPriceData,
   type YahooFinanceChartQuote,
   YahooFinanceChartQuoteSchema,
   type YahooFinanceQuote,
   YahooFinanceQuoteSchema,
-} from '../../modules/stock-price/schema.js';
-import { logger } from '../../utils/logger.js';
+} from './schema.js';
 
-export type { StockPriceData } from '../../modules/stock-price/schema.js';
+export type { StockPriceData } from './schema.js';
 
 export interface YahooFinanceFetcherConfig {
   rateLimitMs?: number;

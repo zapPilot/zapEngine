@@ -9,15 +9,6 @@ import {
   withValidatedJob,
 } from '../../core/processors/baseETLProcessor.js';
 import { buildRequestStats } from '../../modules/core/processorStats.js';
-import { HyperliquidFetcher } from '../../modules/hyperliquid/fetcher.js';
-import {
-  collectUserTransformResult,
-  type HyperliquidProcessSummary,
-  type HyperliquidTransformBatch,
-  type HyperliquidUserTransformResult,
-  updateProcessSummary,
-} from '../../modules/hyperliquid/processor.helpers.js';
-import { HyperliquidDataTransformer } from '../../modules/hyperliquid/transformer.js';
 import {
   fetchAndFilterVipUsersForProcessing,
   updatePortfolioTimestampsNonFatal,
@@ -34,6 +25,15 @@ import { createCompositeHealthCheck } from '../../utils/healthCheck.js';
 import { logger } from '../../utils/logger.js';
 import { maskWalletAddress } from '../../utils/mask.js';
 import { HyperliquidVaultAprWriter } from './aprWriter.js';
+import { HyperliquidFetcher } from './fetcher.js';
+import {
+  collectUserTransformResult,
+  type HyperliquidProcessSummary,
+  type HyperliquidTransformBatch,
+  type HyperliquidUserTransformResult,
+  updateProcessSummary,
+} from './processor.helpers.js';
+import { HyperliquidDataTransformer } from './transformer.js';
 
 export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
   private readonly hyperliquidFetcher: HyperliquidFetcher;

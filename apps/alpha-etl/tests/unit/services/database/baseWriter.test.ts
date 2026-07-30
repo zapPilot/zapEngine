@@ -4,20 +4,12 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { logger as mockLogger } from '../../../../src/utils/logger.js';
 
-// Hoisted mocks
-const { mockLogger } = vi.hoisted(() => ({
-    mockLogger: {
-        info: vi.fn(),
-        error: vi.fn(),
-        warn: vi.fn(),
-        debug: vi.fn(),
-    },
-}));
-
-vi.mock('../../../../src/utils/logger.js', () => ({
-    logger: mockLogger,
-}));
+vi.mock('../../../../src/utils/logger.js', async () => {
+    const { mockLogger } = await import('../../../setup/mocks.js');
+    return mockLogger();
+});
 
 // Mock the database module
 vi.mock('../../../../src/config/database.js', async (importOriginal) => {

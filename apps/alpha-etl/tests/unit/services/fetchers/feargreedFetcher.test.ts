@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import {
   FearGreedFetcher,
   type CoinMarketCapFearGreedResponse,
-} from "../../../../src/modules/sentiment/index.js";
+} from "../../../../src/modules/sentiment/fetcher.js";
 import { APIError } from "../../../../src/utils/errors.js";
 
 // Silence logger

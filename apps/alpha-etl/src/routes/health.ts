@@ -1,55 +1,14 @@
 import { type Request, type Response, Router } from 'express';
 
-import {
-  getHealthState,
-  type HealthDetailStatus,
-} from '../modules/core/healthStatus.js';
-import {
-  DATA_SOURCES,
-  type DataSource,
-  type HealthCheckResponse,
-  type SourceHealth,
-} from '../types/index.js';
+import { getHealthState } from '../modules/core/healthStatus.js';
+import type { HealthCheckResponse } from '../types/index.js';
 import { logger } from '../utils/logger.js';
-
-/**
- * Convert health details to sources record, filtering to only valid DataSource keys
- * Returns empty object if no details provided (for backwards compatibility)
- */
-function extractSourcesHealth(
-  details: Record<string, HealthDetailStatus | undefined> | undefined | null,
-): Record<DataSource, SourceHealth> {
-  const sources: Partial<Record<DataSource, SourceHealth>> = {};
-
-  if (!details) {
-    return sources as Record<DataSource, SourceHealth>;
-  }
-
-  for (const source of DATA_SOURCES) {
-    const sourceHealth = details[source];
-    if (sourceHealth) {
-      sources[source] = {
-        status: sourceHealth.status,
-        ...(sourceHealth.details !== undefined && {
-          details: sourceHealth.details,
-        }),
-        ...(sourceHealth.lastCheck !== undefined && {
-          lastCheck: sourceHealth.lastCheck,
-        }),
-      };
-    }
-  }
-
-  return sources as Record<DataSource, SourceHealth>;
-}
 
 function buildHealthResponse(cachedState: ReturnType<typeof getHealthState>): {
   response: HealthCheckResponse;
   isHealthy: boolean;
 } {
   const isHealthy = cachedState.status === 'healthy';
-  const details = cachedState.details;
-  const dbHealthy = details?.database?.status === 'healthy';
   const status = isHealthy ? 'healthy' : 'unhealthy';
   const now = new Date().toISOString();
 
@@ -61,14 +20,12 @@ function buildHealthResponse(cachedState: ReturnType<typeof getHealthState>): {
         status,
         timestamp: now,
         version: '1.0.0',
-        database: dbHealthy,
         uptime: process.uptime(),
         cached: cachedState.status !== 'initializing',
         lastCheckedAt: cachedState.lastCheckedAt,
         ...(cachedState.message !== undefined && {
           message: cachedState.message,
         }),
-        sources: extractSourcesHealth(details),
       },
       timestamp: now,
     },

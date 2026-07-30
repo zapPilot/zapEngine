@@ -4,9 +4,10 @@ import {
   calculateMissingDates,
   formatDateToYYYYMMDD,
 } from "../../../../src/utils/dateUtils.js";
+import { logger as mockLogger } from "../../../../src/utils/logger.js";
 
 // Hoisted mocks - must be declared before vi.mock
-const { mockFetcher, mockWriter, mockLogger } = vi.hoisted(() => ({
+const { mockFetcher, mockWriter } = vi.hoisted(() => ({
   mockFetcher: {
     fetchCurrentPrice: vi.fn(),
     fetchHistoricalPrice: vi.fn(),
@@ -23,24 +24,18 @@ const { mockFetcher, mockWriter, mockLogger } = vi.hoisted(() => ({
     getLatestSnapshot: vi.fn(),
     getSnapshotCount: vi.fn(),
   },
-  mockLogger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  },
 }));
 
 // Mock logger
-vi.mock("../../../../src/utils/logger.js", () => ({
-  logger: mockLogger,
-}));
+vi.mock("../../../../src/utils/logger.js", async () => {
+  const { mockLogger } = await import("../../../setup/mocks.js");
+  return mockLogger();
+});
 
-// Mock the consolidated pipeline module with MockedTokenPriceETLProcessor
-vi.mock("../../../../src/modules/token-price/index.js", async () => {
+vi.mock("../../../../src/modules/token-price/processor.js", async () => {
   const actualModule = await vi.importActual<
-    typeof import("../../../../src/modules/token-price/index.js")
-  >("../../../../src/modules/token-price/index.js");
+    typeof import("../../../../src/modules/token-price/processor.js")
+  >("../../../../src/modules/token-price/processor.js");
 
   // Create a MockedTokenPriceETLProcessor that uses hoisted mock objects directly
   class MockedTokenPriceETLProcessor {
@@ -97,14 +92,6 @@ vi.mock("../../../../src/modules/token-price/index.js", async () => {
           source: "token-price",
         };
       }
-    }
-
-    async processCurrentPrice(tokenId = "bitcoin", tokenSymbol = "BTC") {
-      const priceData = await this.fetcher.fetchCurrentPrice(
-        tokenId,
-        tokenSymbol,
-      );
-      await this.writer.insertSnapshot(priceData);
     }
 
     async backfillHistory(
@@ -225,7 +212,7 @@ vi.mock("../../../../src/modules/token-price/index.js", async () => {
   };
 });
 
-import { TokenPriceETLProcessor } from "../../../../src/modules/token-price/index.js";
+import { TokenPriceETLProcessor } from "../../../../src/modules/token-price/processor.js";
 
 describe("TokenPriceProcessor", () => {
   let processor: TokenPriceETLProcessor;
@@ -356,78 +343,6 @@ describe("TokenPriceProcessor", () => {
       const result = await processor.backfillHistory();
 
       expect(result.requested).toBe(30); // Default daysBack
-    });
-  });
-
-  describe("processCurrentPrice", () => {
-    it("should fetch and store current price successfully", async () => {
-      mockFetcher.fetchCurrentPrice.mockResolvedValue({
-        priceUsd: 97500,
-        marketCapUsd: 1900000000000,
-        volume24hUsd: 45000000000,
-        tokenSymbol: "BTC",
-        tokenId: "bitcoin",
-        source: "coingecko",
-        timestamp: new Date(),
-      });
-      mockWriter.insertSnapshot.mockResolvedValue(undefined);
-
-      await processor.processCurrentPrice("bitcoin", "BTC");
-
-      expect(mockFetcher.fetchCurrentPrice).toHaveBeenCalledWith(
-        "bitcoin",
-        "BTC",
-      );
-      expect(mockWriter.insertSnapshot).toHaveBeenCalled();
-    });
-
-    it("should throw error when fetch fails", async () => {
-      mockFetcher.fetchCurrentPrice.mockRejectedValue(
-        new Error("API rate limited"),
-      );
-
-      await expect(
-        processor.processCurrentPrice("bitcoin", "BTC"),
-      ).rejects.toThrow("API rate limited");
-    });
-
-    it("should throw error when database insert fails", async () => {
-      mockFetcher.fetchCurrentPrice.mockResolvedValue({
-        priceUsd: 97500,
-        marketCapUsd: 1900000000000,
-        volume24hUsd: 45000000000,
-        tokenSymbol: "BTC",
-        tokenId: "bitcoin",
-        source: "coingecko",
-        timestamp: new Date(),
-      });
-      mockWriter.insertSnapshot.mockRejectedValue(
-        new Error("Connection refused"),
-      );
-
-      await expect(
-        processor.processCurrentPrice("bitcoin", "BTC"),
-      ).rejects.toThrow("Connection refused");
-    });
-
-    it("should use default parameters", async () => {
-      mockFetcher.fetchCurrentPrice.mockResolvedValue({
-        priceUsd: 97500,
-        marketCapUsd: 1900000000000,
-        volume24hUsd: 45000000000,
-        tokenSymbol: "BTC",
-        tokenId: "bitcoin",
-        source: "coingecko",
-        timestamp: new Date(),
-      });
-      mockWriter.insertSnapshot.mockResolvedValue(undefined);
-
-      await processor.processCurrentPrice();
-
-      expect(mockFetcher.fetchCurrentPrice).toHaveBeenCalledWith(
-        "bitcoin",
-        "BTC",
-      );
     });
   });
 

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { startDatabaseHealthMonitor } from "../../../src/modules/core/healthMonitor.js";
 import {
   getHealthState,
-  resetHealthState,
+  setHealthState,
 } from "../../../src/modules/core/healthStatus.js";
 import * as database from "../../../src/config/database.js";
 
@@ -24,7 +24,7 @@ vi.mock("../../../src/config/database.js", async (importOriginal) => {
 describe("HealthMonitor", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    resetHealthState();
+    setHealthState({ status: "initializing", lastCheckedAt: null });
     vi.clearAllMocks();
   });
 

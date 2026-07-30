@@ -1,4 +1,4 @@
-import { RATE_LIMITS } from '../../config/database.js';
+import { RATE_LIMITS } from '../../config/constants.js';
 import { APIError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import { withRetry } from '../../utils/retry.js';
@@ -96,29 +96,14 @@ export abstract class BaseApiFetcher {
     maxRetries = 3,
     baseDelayMs = 1000,
   ): Promise<T> {
-    let attemptNum = 0;
     const maxAttempts = maxRetries + 1;
 
     try {
-      return await withRetry(
-        async () => {
-          try {
-            return await this.fetchJson<T>(url, options);
-          } catch (error) {
-            const errorMsg = this.toErrorObject(error).message;
-            attemptNum++;
-            if (attemptNum < maxAttempts) {
-              this.logRetryAttempt(url, attemptNum, maxAttempts, errorMsg, 0);
-            }
-            throw error;
-          }
-        },
-        {
-          maxAttempts,
-          baseDelayMs,
-          label: `Fetch ${url}`,
-        },
-      );
+      return await withRetry(() => this.fetchJson<T>(url, options), {
+        maxAttempts,
+        baseDelayMs,
+        label: `Fetch ${url}`,
+      });
     } catch (error) {
       throw this.toErrorObject(error);
     }
@@ -129,11 +114,6 @@ export abstract class BaseApiFetcher {
       requestCount: this.requestCount,
       lastRequestTime: this.lastRequestTime,
     };
-  }
-
-  public resetStats(): void {
-    this.requestCount = 0;
-    this.lastRequestTime = 0;
   }
 
   private buildRequestHeaders(
@@ -148,21 +128,6 @@ export abstract class BaseApiFetcher {
 
   protected toErrorObject(error: unknown): Error {
     return error instanceof Error ? error : new Error(String(error));
-  }
-
-  private logRetryAttempt(
-    url: string,
-    attempt: number,
-    maxAttempts: number,
-    errorMessage: string,
-    delayMs: number,
-  ): void {
-    logger.warn(`Fetch attempt ${attempt}/${maxAttempts} failed, retrying`, {
-      fetcher: this.constructor.name,
-      url,
-      error: errorMessage,
-      delayMs,
-    });
   }
 
   // Abstract method that subclasses must implement for health checks

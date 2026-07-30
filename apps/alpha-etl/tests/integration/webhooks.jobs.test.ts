@@ -6,7 +6,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import { app } from '../../src/app.js';
-import type { ETLJob, ETLJobResult } from '../../src/types/index.js';
+import type { ETLJobResult } from '../../src/types/index.js';
+import { createEtlJob } from '../utils/createEtlJob.js';
 
 // Mock the logger to prevent console output during tests
 vi.mock('../../src/utils/logger.js', async () => {
@@ -53,15 +54,6 @@ describe('GET /webhooks/jobs/:jobId', () => {
 
   afterEach(() => {
     vi.resetAllMocks();
-  });
-
-  const createJob = (overrides: Partial<ETLJob> = {}): ETLJob => ({
-    jobId: overrides.jobId ?? 'etl_test_job',
-    trigger: overrides.trigger ?? 'manual',
-    sources: overrides.sources ?? ['hyperliquid'],
-    filters: overrides.filters,
-    createdAt: overrides.createdAt ?? new Date('2024-01-01T00:00:00Z'),
-    status: overrides.status ?? 'pending',
   });
 
   type SuccessfulResultData = Extract<ETLJobResult, { success: true }>['data'];
@@ -113,7 +105,7 @@ describe('GET /webhooks/jobs/:jobId', () => {
   });
 
   it('should return 202 while a job is pending', async () => {
-    const job = createJob({ status: 'pending' });
+    const job = createEtlJob({ jobId: 'etl_test_job', status: 'pending' });
     mockJobQueue.getJob.mockReturnValue(job);
     mockJobQueue.getResult.mockReturnValue(undefined);
 
@@ -129,7 +121,7 @@ describe('GET /webhooks/jobs/:jobId', () => {
   });
 
   it('should return 202 while a job is processing', async () => {
-    const job = createJob({ status: 'processing' });
+    const job = createEtlJob({ jobId: 'etl_test_job', status: 'processing' });
     mockJobQueue.getJob.mockReturnValue(job);
     mockJobQueue.getResult.mockReturnValue(undefined);
 
@@ -145,7 +137,7 @@ describe('GET /webhooks/jobs/:jobId', () => {
   });
 
   it('should return 500 when the job status is failed', async () => {
-    const job = createJob({ status: 'failed' });
+    const job = createEtlJob({ jobId: 'etl_test_job', status: 'failed' });
     const result = createFailureResult('timeout');
     mockJobQueue.getJob.mockReturnValue(job);
     mockJobQueue.getResult.mockReturnValue(result);
@@ -161,7 +153,7 @@ describe('GET /webhooks/jobs/:jobId', () => {
   });
 
   it('should return 500 when a completed job reports failure in the result', async () => {
-    const job = createJob({ status: 'completed' });
+    const job = createEtlJob({ jobId: 'etl_test_job', status: 'completed' });
     const result = createFailureResult('validation error');
     mockJobQueue.getJob.mockReturnValue(job);
     mockJobQueue.getResult.mockReturnValue(result);
@@ -177,7 +169,7 @@ describe('GET /webhooks/jobs/:jobId', () => {
   });
 
   it('should return 206 when inserts are less than processed records', async () => {
-    const job = createJob({ status: 'completed' });
+    const job = createEtlJob({ jobId: 'etl_test_job', status: 'completed' });
     const result = createSuccessResult({
       recordsProcessed: 10,
       recordsInserted: 8,
@@ -197,7 +189,7 @@ describe('GET /webhooks/jobs/:jobId', () => {
   });
 
   it('should return 200 for a fully successful completed job', async () => {
-    const job = createJob({ status: 'completed' });
+    const job = createEtlJob({ jobId: 'etl_test_job', status: 'completed' });
     const result = createSuccessResult({
       recordsProcessed: 5,
       recordsInserted: 5,
@@ -232,7 +224,7 @@ describe('GET /webhooks/jobs/:jobId', () => {
   });
 
   it('should include proper headers in all responses', async () => {
-    const job = createJob({ status: 'completed' });
+    const job = createEtlJob({ jobId: 'etl_test_job', status: 'completed' });
     mockJobQueue.getJob.mockReturnValue(job);
     mockJobQueue.getResult.mockReturnValue(createSuccessResult());
 
@@ -248,8 +240,8 @@ describe('GET /webhooks/jobs/:jobId', () => {
   });
 
   it('should handle concurrent requests properly', async () => {
-    const job1 = createJob({ jobId: 'job1', status: 'completed' });
-    const job2 = createJob({ jobId: 'job2', status: 'pending' });
+    const job1 = createEtlJob({ jobId: 'job1', status: 'completed' });
+    const job2 = createEtlJob({ jobId: 'job2', status: 'pending' });
 
     mockJobQueue.getJob.mockImplementation((jobId: string) => {
       if (jobId === 'job1') {

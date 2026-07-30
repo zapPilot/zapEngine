@@ -1,13 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import {
-  SentimentETLProcessor,
-  FearGreedFetcher,
-  SentimentDataTransformer,
-  SentimentWriter,
-} from "../../../src/modules/sentiment/index.js";
+import { FearGreedFetcher } from "../../../src/modules/sentiment/fetcher.js";
+import { SentimentETLProcessor } from "../../../src/modules/sentiment/processor.js";
+import { SentimentDataTransformer } from "../../../src/modules/sentiment/transformer.js";
+import { SentimentWriter } from "../../../src/modules/sentiment/writer.js";
 import { logger } from "../../../src/utils/logger.js";
 import { Pool } from "pg";
-import type { ETLJob } from "../../../src/types/index.js";
+import { createEtlJob } from "../../utils/createEtlJob.js";
 
 // Mock dependencies
 const mockClient = { query: vi.fn(), release: vi.fn() };
@@ -333,13 +331,11 @@ describe("Fear & Greed Pipeline", () => {
     });
 
     it("process should run successfully", async () => {
-      const job: ETLJob = {
+      const job = createEtlJob({
         jobId: "test-job",
-        trigger: "manual",
         sources: ["feargreed"],
         createdAt: new Date(),
-        status: "pending",
-      };
+      });
 
       // Mock fetcher
       const mockSentiment = {
@@ -369,13 +365,11 @@ describe("Fear & Greed Pipeline", () => {
     });
 
     it("process should handle fetch failure", async () => {
-      const job: ETLJob = {
+      const job = createEtlJob({
         jobId: "test-job",
-        trigger: "manual",
         sources: ["feargreed"],
         createdAt: new Date(),
-        status: "pending",
-      };
+      });
       vi.spyOn(
         FearGreedFetcher.prototype,
         "fetchCurrentSentiment",
@@ -387,13 +381,11 @@ describe("Fear & Greed Pipeline", () => {
     });
 
     it("process should handle transform failure (null return)", async () => {
-      const job: ETLJob = {
+      const job = createEtlJob({
         jobId: "test-job",
-        trigger: "manual",
         sources: ["feargreed"],
         createdAt: new Date(),
-        status: "pending",
-      };
+      });
 
       const mockSentiment = {
         value: 50,
@@ -417,13 +409,11 @@ describe("Fear & Greed Pipeline", () => {
     });
 
     it("process should handle transform exception", async () => {
-      const job: ETLJob = {
+      const job = createEtlJob({
         jobId: "test-job",
-        trigger: "manual",
         sources: ["feargreed"],
         createdAt: new Date(),
-        status: "pending",
-      };
+      });
       const mockSentiment = {
         value: 50,
         classification: "Neutral",

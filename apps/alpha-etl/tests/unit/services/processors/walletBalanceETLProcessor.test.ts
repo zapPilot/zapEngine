@@ -6,20 +6,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { WalletBalanceETLProcessor } from "../../../../src/modules/wallet/processor.js";
 import type { ETLJob } from "../../../../src/types/index.js";
+import { logger as mockLogger } from "../../../../src/utils/logger.js";
+import { createEtlJob } from "../../../utils/createEtlJob.js";
 
 // Mock the logger to prevent console output during tests
-const { mockLogger } = vi.hoisted(() => ({
-  mockLogger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  },
-}));
-
-vi.mock("../../../../src/utils/logger.js", () => ({
-  logger: mockLogger,
-}));
+vi.mock("../../../../src/utils/logger.js", async () => {
+  const { mockLogger } = await import("../../../setup/mocks.js");
+  return mockLogger();
+});
 
 // Mock the mask utility
 vi.mock("../../../../src/utils/mask.js", () => ({
@@ -167,15 +161,14 @@ describe("WalletBalanceETLProcessor", () => {
     consoleErrorSpy.mockRestore();
   });
 
-  const createMockJob = (overrides: Partial<ETLJob> = {}): ETLJob => ({
-    jobId: "test-job-123",
-    trigger: "manual",
-    sources: ["debank"],
-    filters: {},
-    createdAt: new Date(),
-    status: "pending",
-    ...overrides,
-  });
+  const createMockJob = (overrides: Partial<ETLJob> = {}): ETLJob =>
+    createEtlJob({
+      jobId: "test-job-123",
+      sources: ["debank"],
+      filters: {},
+      createdAt: new Date(),
+      ...overrides,
+    });
 
   describe("constructor", () => {
     it("should initialize successfully", () => {

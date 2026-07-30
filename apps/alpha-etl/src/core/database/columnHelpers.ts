@@ -34,10 +34,7 @@ function toSqlValue<T, K extends keyof T & string>(
  * @param columnCount - Number of columns per record
  * @returns Placeholder string like "($1, $2), ($3, $4)"
  */
-export function buildPlaceholders(
-  recordCount: number,
-  columnCount: number,
-): string {
+function buildPlaceholders(recordCount: number, columnCount: number): string {
   return Array.from({ length: recordCount }, (_, rowIdx) => {
     const start = rowIdx * columnCount + 1;
     return buildRowPlaceholders(start, columnCount);

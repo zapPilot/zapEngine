@@ -1,7 +1,7 @@
-import type { SupabaseFetcher } from '../../modules/vip-users/supabaseFetcher.js';
 import type { VipUserWithActivity } from '../../types/index.js';
 import { logger } from '../../utils/logger.js';
 import { filterVipUsersByActivity } from './activityFiltering.js';
+import type { SupabaseFetcher } from './supabaseFetcher.js';
 
 export interface VipUsersProcessingResult {
   usersToUpdate: VipUserWithActivity[];
