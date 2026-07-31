@@ -4,7 +4,7 @@
     "end": "2026-04-15",
     "days": 500
   },
-  "source": "Generated from sweep_production_window.py --update-snapshot on 2026-05-29. Strategy/DCA final values match strategy-snapshot.json within 1pp tolerance.",
+  "source": "Generated from sweep_production_window.py for the window ending 2026-04-15. Strategy/DCA final values match strategy-snapshot.json within 1pp tolerance.",
   "drawdownBand": {
     "label": "Max drawdown range",
     "strategyPercent": -8.93,
@@ -4025,5 +4025,550 @@
         }
       ]
     }
-  ]
+  ],
+  "events": [
+    {
+      "date": "2024-12-02",
+      "type": "rotate_to_spy",
+      "toAsset": "SPY",
+      "fromAssets": ["BTC", "ETH"],
+      "amountUsd": 1000.0,
+      "stableDeltaUsd": 750.0,
+      "indexedValue": 100.0,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2024-12-05",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 504.08,
+      "stableDeltaUsd": 504.08,
+      "indexedValue": 100.84,
+      "reason": "portfolio_fgi_downshift_dca_sell"
+    },
+    {
+      "date": "2024-12-09",
+      "type": "rotate_to_spy",
+      "toAsset": "SPY",
+      "fromAssets": ["ETH", "BTC"],
+      "amountUsd": 1007.47,
+      "stableDeltaUsd": 755.6,
+      "indexedValue": 100.75,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2024-12-16",
+      "type": "rotate_to_spy",
+      "toAsset": "SPY",
+      "fromAssets": ["BTC", "ETH"],
+      "amountUsd": 1021.78,
+      "stableDeltaUsd": 766.34,
+      "indexedValue": 102.19,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2024-12-17",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 510.34,
+      "stableDeltaUsd": 510.34,
+      "indexedValue": 102.1,
+      "reason": "portfolio_fgi_downshift_dca_sell"
+    },
+    {
+      "date": "2024-12-23",
+      "type": "rotate_to_spy",
+      "toAsset": "SPY",
+      "fromAssets": ["BTC"],
+      "amountUsd": 208.48,
+      "stableDeltaUsd": 104.24,
+      "indexedValue": 101.66,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2024-12-27",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["ETH"],
+      "amountUsd": 190.15,
+      "stableDeltaUsd": 190.15,
+      "indexedValue": 101.78,
+      "reason": "portfolio_fgi_downshift_dca_sell"
+    },
+    {
+      "date": "2025-03-10",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 1410.51,
+      "stableDeltaUsd": 1410.51,
+      "indexedValue": 103.17,
+      "reason": "portfolio_cross_down_exit"
+    },
+    {
+      "date": "2025-04-22",
+      "type": "buy",
+      "toAsset": "BTC",
+      "fromAssets": [],
+      "amountUsd": 10408.84,
+      "stableDeltaUsd": -10408.84,
+      "indexedValue": 103.77,
+      "reason": "portfolio_cross_up_equal_weight"
+    },
+    {
+      "date": "2025-05-09",
+      "type": "rotate_to_spy",
+      "toAsset": "SPY",
+      "fromAssets": ["BTC"],
+      "amountUsd": 572.58,
+      "stableDeltaUsd": 286.29,
+      "indexedValue": 114.5,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-05-12",
+      "type": "rotate_to_spy",
+      "toAsset": "SPY",
+      "fromAssets": ["BTC"],
+      "amountUsd": 5428.91,
+      "stableDeltaUsd": -285.9,
+      "indexedValue": 114.31,
+      "reason": "portfolio_cross_up_equal_weight"
+    },
+    {
+      "date": "2025-05-16",
+      "type": "rotate_to_spy",
+      "toAsset": "SPY",
+      "fromAssets": ["BTC"],
+      "amountUsd": 579.09,
+      "stableDeltaUsd": 289.55,
+      "indexedValue": 115.79,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-05-23",
+      "type": "rotate_to_spy",
+      "toAsset": "SPY",
+      "fromAssets": ["BTC"],
+      "amountUsd": 581.08,
+      "stableDeltaUsd": 290.54,
+      "indexedValue": 116.19,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-05-31",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["BTC"],
+      "amountUsd": 580.99,
+      "stableDeltaUsd": 580.99,
+      "indexedValue": 116.17,
+      "reason": "portfolio_fgi_downshift_dca_sell"
+    },
+    {
+      "date": "2025-06-09",
+      "type": "rotate_to_eth",
+      "toAsset": "ETH",
+      "fromAssets": ["SPY", "BTC"],
+      "amountUsd": 3986.11,
+      "stableDeltaUsd": -1165.55,
+      "indexedValue": 119.46,
+      "reason": "portfolio_cross_up_equal_weight"
+    },
+    {
+      "date": "2025-06-10",
+      "type": "rotate_to_spy",
+      "toAsset": "SPY",
+      "fromAssets": ["BTC"],
+      "amountUsd": 608.2,
+      "stableDeltaUsd": 304.1,
+      "indexedValue": 121.62,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-06-13",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["BTC", "ETH"],
+      "amountUsd": 1164.76,
+      "stableDeltaUsd": 1164.76,
+      "indexedValue": 116.44,
+      "reason": "portfolio_fgi_downshift_dca_sell"
+    },
+    {
+      "date": "2025-06-24",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 289.3,
+      "stableDeltaUsd": 289.3,
+      "indexedValue": 115.71,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-07-01",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 289.75,
+      "stableDeltaUsd": 289.75,
+      "indexedValue": 115.89,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-07-08",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 299.03,
+      "stableDeltaUsd": 299.03,
+      "indexedValue": 119.6,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-07-15",
+      "type": "rotate_to_eth",
+      "toAsset": "ETH",
+      "fromAssets": ["BTC"],
+      "amountUsd": 5336.37,
+      "stableDeltaUsd": -2365.82,
+      "indexedValue": 128.51,
+      "reason": "portfolio_eth_btc_ratio_rotation_to_eth"
+    },
+    {
+      "date": "2025-07-16",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["ETH"],
+      "amountUsd": 677.45,
+      "stableDeltaUsd": 677.45,
+      "indexedValue": 135.47,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-07-23",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["ETH"],
+      "amountUsd": 716.39,
+      "stableDeltaUsd": 716.39,
+      "indexedValue": 143.26,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-07-30",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["ETH"],
+      "amountUsd": 739.93,
+      "stableDeltaUsd": 739.93,
+      "indexedValue": 147.97,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-08-01",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY", "ETH"],
+      "amountUsd": 1397.06,
+      "stableDeltaUsd": 1397.06,
+      "indexedValue": 139.67,
+      "reason": "portfolio_fgi_downshift_dca_sell"
+    },
+    {
+      "date": "2025-08-06",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 361.3,
+      "stableDeltaUsd": 361.3,
+      "indexedValue": 144.51,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-08-12",
+      "type": "rotate_to_btc",
+      "toAsset": "BTC",
+      "fromAssets": ["ETH"],
+      "amountUsd": 2491.02,
+      "stableDeltaUsd": 0.0,
+      "indexedValue": 164.68,
+      "reason": "portfolio_eth_btc_deviation_dca_to_btc"
+    },
+    {
+      "date": "2025-08-13",
+      "type": "rotate_to_spy",
+      "toAsset": "SPY",
+      "fromAssets": ["ETH", "BTC"],
+      "amountUsd": 1681.38,
+      "stableDeltaUsd": 1261.04,
+      "indexedValue": 168.11,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-08-15",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["BTC", "ETH"],
+      "amountUsd": 1626.85,
+      "stableDeltaUsd": 1626.85,
+      "indexedValue": 162.65,
+      "reason": "portfolio_fgi_downshift_dca_sell"
+    },
+    {
+      "date": "2025-08-20",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["ETH"],
+      "amountUsd": 804.98,
+      "stableDeltaUsd": 804.98,
+      "indexedValue": 160.99,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-08-25",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 807.43,
+      "stableDeltaUsd": 807.43,
+      "indexedValue": 161.48,
+      "reason": "portfolio_fgi_downshift_dca_sell"
+    },
+    {
+      "date": "2025-08-26",
+      "type": "rotate_to_btc",
+      "toAsset": "BTC",
+      "fromAssets": ["ETH"],
+      "amountUsd": 1246.48,
+      "stableDeltaUsd": 0.0,
+      "indexedValue": 164.16,
+      "reason": "portfolio_eth_btc_deviation_dca_to_btc"
+    },
+    {
+      "date": "2025-08-27",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["ETH"],
+      "amountUsd": 816.67,
+      "stableDeltaUsd": 816.67,
+      "indexedValue": 163.33,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-09-03",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["ETH"],
+      "amountUsd": 816.01,
+      "stableDeltaUsd": 816.01,
+      "indexedValue": 163.2,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-09-10",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["ETH"],
+      "amountUsd": 818.66,
+      "stableDeltaUsd": 818.66,
+      "indexedValue": 163.73,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-09-12",
+      "type": "rotate_to_btc",
+      "toAsset": "BTC",
+      "fromAssets": ["ETH"],
+      "amountUsd": 307.18,
+      "stableDeltaUsd": 0.0,
+      "indexedValue": 165.34,
+      "reason": "portfolio_eth_btc_deviation_dca_to_btc"
+    },
+    {
+      "date": "2025-09-17",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["ETH"],
+      "amountUsd": 827.25,
+      "stableDeltaUsd": 827.25,
+      "indexedValue": 165.46,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-09-24",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 412.97,
+      "stableDeltaUsd": 412.97,
+      "indexedValue": 165.18,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-10-01",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 414.43,
+      "stableDeltaUsd": 414.43,
+      "indexedValue": 165.79,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-10-08",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 419.66,
+      "stableDeltaUsd": 419.66,
+      "indexedValue": 167.89,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-10-15",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 415.7,
+      "stableDeltaUsd": 415.7,
+      "indexedValue": 166.28,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-10-18",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["BTC", "ETH"],
+      "amountUsd": 2269.83,
+      "stableDeltaUsd": 2269.83,
+      "indexedValue": 164.86,
+      "reason": "portfolio_cross_down_exit"
+    },
+    {
+      "date": "2025-10-22",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 319.88,
+      "stableDeltaUsd": 319.88,
+      "indexedValue": 165.02,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-10-29",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 164.63,
+      "stableDeltaUsd": 164.63,
+      "indexedValue": 165.42,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-11-05",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 81.14,
+      "stableDeltaUsd": 81.14,
+      "indexedValue": 165.65,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-11-12",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 40.92,
+      "stableDeltaUsd": 40.92,
+      "indexedValue": 165.91,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-11-25",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 20.21,
+      "stableDeltaUsd": 20.21,
+      "indexedValue": 166.22,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-12-02",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 10.2,
+      "stableDeltaUsd": 10.2,
+      "indexedValue": 166.44,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-12-09",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 5.11,
+      "stableDeltaUsd": 5.11,
+      "indexedValue": 166.7,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-12-22",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 2.57,
+      "stableDeltaUsd": 2.57,
+      "indexedValue": 167.17,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    },
+    {
+      "date": "2025-12-26",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 2.59,
+      "stableDeltaUsd": 2.59,
+      "indexedValue": 167.32,
+      "reason": "portfolio_fgi_downshift_dca_sell"
+    },
+    {
+      "date": "2026-04-08",
+      "type": "buy",
+      "toAsset": "SPY",
+      "fromAssets": [],
+      "amountUsd": 17136.04,
+      "stableDeltaUsd": -17136.04,
+      "indexedValue": 170.82,
+      "reason": "portfolio_cross_up_equal_weight"
+    },
+    {
+      "date": "2026-04-15",
+      "type": "sell",
+      "toAsset": null,
+      "fromAssets": ["SPY"],
+      "amountUsd": 442.24,
+      "stableDeltaUsd": 442.24,
+      "indexedValue": 176.86,
+      "reason": "portfolio_dma_overextension_dca_sell"
+    }
+  ],
+  "eventsMeta": {
+    "strategyId": "dma_fgi_portfolio_rules",
+    "count": 53,
+    "unclassifiedCount": 0,
+    "initialAllocation": {
+      "btc": 0.1167,
+      "eth": 0.1167,
+      "spy": 0.1916,
+      "stable": 0.5751,
+      "alt": 0.0
+    },
+    "tradeCount": 53
+  }
 }

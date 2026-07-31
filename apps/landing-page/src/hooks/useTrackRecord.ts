@@ -21,6 +21,11 @@ import {
   mockMeta,
   mockSnapshotEntries,
 } from '@/data/mock-track-record';
+import type { StrategyEvent } from '@/data/track-record-events';
+import {
+  demoStrategyEvents,
+  deriveEventsFromSnapshots,
+} from '@/data/track-record-events';
 import { DEFAULT_HISTORY_LIMIT } from '@/config/track-record';
 
 export interface TrackRecordState {
@@ -29,6 +34,8 @@ export interface TrackRecordState {
   snapshots: DailySnapshot[];
   latestSnapshot: DailySnapshot | null;
   summary: PerformanceSummary;
+  /** Trade markers for the NAV chart; source follows the demo/live split. */
+  events: StrategyEvent[];
   positions: DailySnapshot['positions'];
   verification: {
     chainValid: boolean;
@@ -49,12 +56,14 @@ const moduleCache: {
   snapshotEntries: SnapshotHistoryEntry[] | null;
   summary: PerformanceSummary | null;
   latestSnapshot: DailySnapshot | null;
+  events: StrategyEvent[] | null;
 } = {
   meta: null,
   snapshots: null,
   snapshotEntries: null,
   summary: null,
   latestSnapshot: null,
+  events: null,
 };
 
 interface LoadedTrackRecord {
@@ -63,6 +72,7 @@ interface LoadedTrackRecord {
   snapshots: DailySnapshot[];
   latestSnapshot: DailySnapshot | null;
   summary: PerformanceSummary;
+  events: StrategyEvent[];
 }
 
 async function buildVerification({
@@ -108,6 +118,7 @@ export function useTrackRecord() {
     snapshots: [],
     latestSnapshot: null,
     summary: computePerformanceSummary([]),
+    events: [],
     positions: [],
     verification: {
       chainValid: true,
@@ -134,7 +145,8 @@ export function useTrackRecord() {
         cache.meta &&
         cache.snapshotEntries &&
         cache.snapshots &&
-        cache.summary
+        cache.summary &&
+        cache.events
       ) {
         const loaded: LoadedTrackRecord = {
           meta: cache.meta,
@@ -142,6 +154,7 @@ export function useTrackRecord() {
           snapshots: cache.snapshots,
           latestSnapshot: cache.latestSnapshot,
           summary: cache.summary,
+          events: cache.events,
         };
         const verification = await buildVerification(loaded);
 
@@ -163,12 +176,17 @@ export function useTrackRecord() {
             const snapshots = snapshotEntries.map((entry) => entry.snapshot);
             const latestSnapshot = snapshots[snapshots.length - 1] ?? null;
             const summary = computePerformanceSummary(snapshots);
+            // The demo curve is a real backtest, so its markers come from that
+            // same run rather than being re-derived from the synthesised
+            // snapshots.
+            const events = demoStrategyEvents();
             const loaded: LoadedTrackRecord = {
               meta: mockMeta,
               snapshotEntries,
               snapshots,
               latestSnapshot,
               summary,
+              events,
             };
             const verification = await buildVerification(loaded);
 
@@ -177,6 +195,7 @@ export function useTrackRecord() {
             cache.snapshots = snapshots;
             cache.summary = summary;
             cache.latestSnapshot = latestSnapshot;
+            cache.events = events;
 
             if (mountedRef.current) {
               setState(toLoadedState(loaded, verification));
@@ -203,12 +222,14 @@ export function useTrackRecord() {
         );
         const snapshots = snapshotEntries.map((entry) => entry.snapshot);
         const summary = computePerformanceSummary(snapshots);
+        const events = deriveEventsFromSnapshots(snapshots);
         const loaded: LoadedTrackRecord = {
           meta,
           snapshotEntries,
           snapshots,
           latestSnapshot,
           summary,
+          events,
         };
         const verification = await buildVerification(loaded);
 
@@ -217,6 +238,7 @@ export function useTrackRecord() {
         cache.snapshots = snapshots;
         cache.summary = summary;
         cache.latestSnapshot = latestSnapshot;
+        cache.events = events;
 
         if (mountedRef.current) {
           setState(toLoadedState(loaded, verification));

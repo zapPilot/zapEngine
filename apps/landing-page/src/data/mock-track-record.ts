@@ -18,6 +18,7 @@
 import type { DailySnapshot, Position } from '@zapengine/types/strategy';
 import type { SnapshotHistoryEntry } from '@/data/track-record-accessor';
 import equityCurveRaw from '@/data/equity-curve.json';
+import { demoStrategyEventDates } from '@/data/track-record-events';
 
 const STRATEGY_ID = 'dma_fgi_portfolio_rules';
 const STRATEGY_VERSION = 'v1';
@@ -25,7 +26,12 @@ const SCHEMA_VERSION = '1';
 const BASE_CAPITAL = 10_000; // matches strategy-snapshot.json total_capital
 const MODEL_WALLET = '0x1111111111111111111111111111111111111111';
 const MAINNET = 1;
-const REBALANCE_EVERY = 21; // ~monthly rebalance cadence over the daily series
+/**
+ * The days the backtest behind equity-curve.json actually traded, so the
+ * Rebalances tab and the chart's markers agree instead of contradicting each
+ * other on the same page. Empty if the artifact predates the events field.
+ */
+const REBALANCE_DATES = demoStrategyEventDates();
 
 /** Three-pillar model portfolio (weights mirror src/config/allocation.ts). */
 const PILLARS = [
@@ -154,7 +160,7 @@ function buildEntries(): SnapshotHistoryEntry[] {
     const drawdown = (point.value / peak - 1) * 100; // <= 0
     const dcaCumulative = point.dca - 100;
 
-    const isRebalance = i > 0 && i % REBALANCE_EVERY === 0;
+    const isRebalance = REBALANCE_DATES.has(point.date);
     const gasUsd = isRebalance ? '8.20' : '0.00';
     const slippageUsd = isRebalance ? '3.10' : '0.00';
     const totalUsd = isRebalance ? '11.30' : '0.00';
