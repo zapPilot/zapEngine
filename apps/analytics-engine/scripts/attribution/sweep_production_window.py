@@ -246,7 +246,7 @@ def _collect_snapshot_result(
     tolerances: dict[str, float],
     show_progress: bool = True,
     exclude_deprecated: bool = False,
-) -> dict[str, Any]:
+) -> SnapshotCollection:
     strategy_ids = _default_strategy_universe(exclude_deprecated=exclude_deprecated)
     start_date = _window_start(reference_date, window_days)
     if show_progress:
@@ -549,6 +549,17 @@ def main() -> None:
         help="Overwrite the snapshot fixture with current compare API results.",
     )
     parser.add_argument(
+        "--write-landing-curve",
+        action="store_true",
+        help=(
+            "Regenerate apps/landing-page/src/data/equity-curve.json from this "
+            "run without touching the snapshot fixture. The committed fixture "
+            "is passed in as the expected metrics, so a drifted database fails "
+            "the 1pp ROI validation instead of silently rewriting the landing "
+            "page's headline numbers."
+        ),
+    )
+    parser.add_argument(
         "--exclude-deprecated",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -563,6 +574,12 @@ def main() -> None:
         help="Disable stderr progress output.",
     )
     args = parser.parse_args()
+
+    if args.write_landing_curve and args.update_snapshot:
+        parser.error(
+            "--write-landing-curve cannot be combined with --update-snapshot; "
+            "the former exists to leave the snapshot fixture alone"
+        )
 
     snapshot_path = Path(str(args.snapshot))
     reference_date, window_days, total_capital, tolerances, expected = (
@@ -624,6 +641,23 @@ def main() -> None:
             exclude_deprecated=exclude_deprecated,
         )
     actual = collection.snapshot
+    if args.write_landing_curve:
+        if expected is None:
+            print(f"Snapshot fixture not found: {snapshot_path}", file=sys.stderr)
+            raise SystemExit(1)
+        # `expected`, not `actual`, on purpose: validating the freshly computed
+        # curve against the committed metrics makes database drift fail the 1pp
+        # check here, instead of quietly republishing different headline numbers.
+        point_count = _regenerate_landing_equity_curve(
+            compare_payload=collection.compare_payload,
+            snapshot=expected,
+        )
+        if point_count is not None:
+            print(
+                "✓ wrote landing-page equity-curve.json "
+                f"({point_count} daily points); snapshot fixture untouched"
+            )
+
     if args.update_snapshot:
         snapshot = _merge_preserved_excluded_entries(existing=expected, actual=actual)
         point_count = _regenerate_landing_equity_curve(

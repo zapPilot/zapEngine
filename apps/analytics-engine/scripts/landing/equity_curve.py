@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
-from datetime import date
 from pathlib import Path
 from typing import Any
+
+from scripts.landing.events import derive_events, reconcile
 
 DCA_CONFIG_ID = "dca_classic"
 ROI_TOLERANCE_PP = 1.0
@@ -149,6 +150,23 @@ def _validate_final_roi(
         )
 
 
+def _generated_from(snapshot_meta: dict[str, Any], fallback: str) -> str:
+    """Provenance line, keyed to the pinned window rather than the wall clock.
+
+    Stamping today's date here would make the artifact non-reproducible, so a
+    regeneration could not be diffed against the committed copy to prove the
+    curve did not move.
+    """
+    reference = snapshot_meta.get("reference_date")
+    if not isinstance(reference, str) or not reference:
+        reference = fallback
+    return (
+        "Generated from sweep_production_window.py for the window ending "
+        f"{reference}. Strategy/DCA final values match strategy-snapshot.json "
+        "within 1pp tolerance."
+    )
+
+
 def _window_payload(
     snapshot_meta: dict[str, Any],
     strategy_points: list[dict[str, Any]],
@@ -203,13 +221,22 @@ def generate(
         ),
     )
 
+    events, events_meta = derive_events(
+        timeline=timeline,
+        strategy_id=strategy_id,
+        indexed_by_date={point["date"]: point["value"] for point in strategy_points},
+    )
+    trade_count = int(_snapshot_float(snapshot_meta, strategy_id, "trade_count"))
+    reconcile(
+        event_count=events_meta["count"],
+        unclassified_count=events_meta["unclassifiedCount"],
+        trade_count=trade_count,
+    )
+    events_meta["tradeCount"] = trade_count
+
     payload = {
         "window": _window_payload(snapshot_meta, strategy_points),
-        "source": (
-            "Generated from sweep_production_window.py --update-snapshot on "
-            f"{date.today().isoformat()}. Strategy/DCA final values match "
-            "strategy-snapshot.json within 1pp tolerance."
-        ),
+        "source": _generated_from(snapshot_meta, strategy_points[-1]["date"]),
         "drawdownBand": {
             "label": "Max drawdown range",
             "strategyPercent": round(
@@ -235,6 +262,11 @@ def generate(
                 "values": dca_points,
             },
         ],
+        # Top-level rather than nested under series[0]: events belong to the
+        # strategy alone, and eventsMeta.strategyId removes the ambiguity that
+        # nesting would create for the DCA series.
+        "events": events,
+        "eventsMeta": events_meta,
     }
 
     output_path.write_text(json.dumps(payload, indent=2) + "\n")

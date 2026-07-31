@@ -8,27 +8,48 @@ import pytest
 from scripts.landing.equity_curve import generate
 
 
+def _strategy_day(total_value: float, transfers: list[dict] | None = None) -> dict:
+    return {
+        "portfolio": {
+            "total_value": total_value,
+            "spot_asset": "BTC",
+            "asset_allocation": {
+                "btc": 0.5,
+                "eth": 0.0,
+                "spy": 0.0,
+                "stable": 0.5,
+                "alt": 0.0,
+            },
+        },
+        "decision": {"reason": "dma_cross_up", "details": {}},
+        "execution": {"transfers": transfers or []},
+    }
+
+
 def _timeline() -> list[dict]:
     return [
         {
             "market": {"date": "2026-01-01"},
             "strategies": {
-                "dma_fgi_portfolio_rules": {"portfolio": {"total_value": 10_000.0}},
-                "dca_classic": {"portfolio": {"total_value": 10_000.0}},
+                "dma_fgi_portfolio_rules": _strategy_day(10_000.0),
+                "dca_classic": _strategy_day(10_000.0),
             },
         },
         {
             "market": {"date": "2026-01-02"},
             "strategies": {
-                "dma_fgi_portfolio_rules": {"portfolio": {"total_value": 12_500.0}},
-                "dca_classic": {"portfolio": {"total_value": 9_500.0}},
+                "dma_fgi_portfolio_rules": _strategy_day(
+                    12_500.0,
+                    [{"from_bucket": "btc", "to_bucket": "eth", "amount_usd": 4_000.0}],
+                ),
+                "dca_classic": _strategy_day(9_500.0),
             },
         },
         {
             "market": {"date": "2026-01-03"},
             "strategies": {
-                "dma_fgi_portfolio_rules": {"portfolio": {"total_value": 15_000.0}},
-                "dca_classic": {"portfolio": {"total_value": 9_000.0}},
+                "dma_fgi_portfolio_rules": _strategy_day(15_000.0),
+                "dca_classic": _strategy_day(9_000.0),
             },
         },
     ]
@@ -36,6 +57,7 @@ def _timeline() -> list[dict]:
 
 def _snapshot_meta() -> dict:
     return {
+        "reference_date": "2026-01-03",
         "window_start": "2026-01-01",
         "window_end": "2026-01-03",
         "window_days": 3,
@@ -44,10 +66,12 @@ def _snapshot_meta() -> dict:
             "dma_fgi_portfolio_rules": {
                 "roi_percent": 50.0,
                 "max_drawdown_percent": -5.25,
+                "trade_count": 1,
             },
             "dca_classic": {
                 "roi_percent": -10.0,
                 "max_drawdown_percent": -20.5,
+                "trade_count": 3,
             },
         },
     }
@@ -75,7 +99,7 @@ def test_generate_writes_indexed_equity_curve_shape(tmp_path: Path) -> None:
         "dcaPercent": -20.5,
     }
     assert payload["source"].startswith(
-        "Generated from sweep_production_window.py --update-snapshot"
+        "Generated from sweep_production_window.py for the window ending 2026-01-03"
     )
     assert payload["series"][0]["id"] == "strategy"
     assert payload["series"][0]["values"] == [
@@ -89,6 +113,68 @@ def test_generate_writes_indexed_equity_curve_shape(tmp_path: Path) -> None:
         {"date": "2026-01-02", "value": 95.0},
         {"date": "2026-01-03", "value": 90.0},
     ]
+
+
+def test_source_line_is_reproducible_across_runs(tmp_path: Path) -> None:
+    """No wall-clock stamp, so a regeneration can be diffed against the commit."""
+    first = tmp_path / "a.json"
+    second = tmp_path / "b.json"
+
+    for path in (first, second):
+        generate(timeline=_timeline(), snapshot_meta=_snapshot_meta(), output_path=path)
+
+    assert first.read_text() == second.read_text()
+
+
+def test_generate_emits_events_anchored_to_the_strategy_series(tmp_path: Path) -> None:
+    output_path = tmp_path / "equity-curve.json"
+
+    generate(
+        timeline=_timeline(),
+        snapshot_meta=_snapshot_meta(),
+        output_path=output_path,
+    )
+
+    payload = json.loads(output_path.read_text())
+    series_by_date = {
+        point["date"]: point["value"] for point in payload["series"][0]["values"]
+    }
+
+    assert payload["events"] == [
+        {
+            "date": "2026-01-02",
+            "type": "rotate_to_eth",
+            "toAsset": "ETH",
+            "fromAssets": ["BTC"],
+            "amountUsd": 4_000.0,
+            "stableDeltaUsd": 0.0,
+            "indexedValue": 125.0,
+            "reason": "dma_cross_up",
+        }
+    ]
+    # The defect this artifact exists to prevent: a marker off the curve.
+    for event in payload["events"]:
+        assert event["indexedValue"] == series_by_date[event["date"]]
+
+    assert payload["eventsMeta"]["strategyId"] == "dma_fgi_portfolio_rules"
+    assert payload["eventsMeta"]["count"] == 1
+    assert payload["eventsMeta"]["tradeCount"] == 1
+    assert payload["eventsMeta"]["unclassifiedCount"] == 0
+    assert payload["eventsMeta"]["initialAllocation"]["stable"] == 0.5
+
+
+def test_generate_rejects_event_count_that_misses_recorded_trades(
+    tmp_path: Path,
+) -> None:
+    snapshot_meta = _snapshot_meta()
+    snapshot_meta["strategies"]["dma_fgi_portfolio_rules"]["trade_count"] = 9
+
+    with pytest.raises(ValueError, match="Event reconciliation failed"):
+        generate(
+            timeline=_timeline(),
+            snapshot_meta=snapshot_meta,
+            output_path=tmp_path / "equity-curve.json",
+        )
 
 
 def test_generate_rejects_strategy_roi_drift(tmp_path: Path) -> None:
