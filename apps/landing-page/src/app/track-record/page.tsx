@@ -8,7 +8,8 @@ import { Section } from '@/components/primitives/Section';
 
 export default function TrackRecordPage() {
   const state = useTrackRecord();
-  const { meta, latestSnapshot, summary, snapshots, isLoading, error } = state;
+  const { meta, latestSnapshot, summary, snapshots, events, isLoading, error } =
+    state;
 
   const hasLiveData = !!meta?.latestSnapshotCid;
 
@@ -59,7 +60,7 @@ export default function TrackRecordPage() {
         )}
       </section>
 
-      {hasLiveData && <NavCurveChart snapshots={snapshots} />}
+      {hasLiveData && <NavCurveChart snapshots={snapshots} events={events} />}
 
       {!hasLiveData && (
         <Section kicker="Backtest" title="Historical performance">
@@ -71,7 +72,9 @@ export default function TrackRecordPage() {
               : '2026-04-15'}
             .
           </p>
-          {snapshots.length > 0 && <NavCurveChart snapshots={snapshots} />}
+          {snapshots.length > 0 && (
+            <NavCurveChart snapshots={snapshots} events={events} />
+          )}
         </Section>
       )}
 

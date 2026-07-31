@@ -9,7 +9,7 @@ import { TrackRecordLoading } from '@/components/track-record/TrackRecordLoading
 
 export default function PerformancePage() {
   const state = useTrackRecord();
-  const { snapshots, summary, isLoading } = state;
+  const { snapshots, summary, events, isLoading } = state;
 
   if (isLoading) {
     return <TrackRecordLoading label="Loading performance data…" />;
@@ -20,7 +20,7 @@ export default function PerformancePage() {
       <h2>Performance</h2>
 
       <section className="perf-charts">
-        <NavCurveChart snapshots={snapshots} />
+        <NavCurveChart snapshots={snapshots} events={events} />
         <DrawdownChart snapshots={snapshots} />
       </section>
 

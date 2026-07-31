@@ -1988,6 +1988,210 @@
   text-anchor: end;
 }
 
+/* Chart hover layer
+   Every interactive element here is HTML on top of the SVG, never an SVG
+   child: the chart is width:100% on a fixed 720x320 viewBox, so one unit
+   renders between roughly 0.4px and 1.5px depending on the column. Marker
+   sizes and hit targets in px cannot live inside the viewBox. Positions come
+   from chartGeometry as percentages of the same box; sizes are CSS px.
+   The reduced-motion block above already neutralises transitions here. */
+
+.shell-root .chart-hover-shell {
+  position: relative;
+  display: block;
+  container-type: inline-size;
+}
+
+/* Inset comes from plotInsetPercent() inline, so the surface spans exactly the
+   plot band and pointer-fraction maps straight onto index-fraction. It holds
+   nothing: a wrapper that also contained the tooltip would widen when the
+   tooltip mounts and corrupt the measured box mid-hover. */
+.shell-root .chart-hover-surface {
+  position: absolute;
+  touch-action: pan-y;
+  cursor: crosshair;
+  background: transparent;
+}
+
+.shell-root .chart-hover-surface:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.shell-root .chart-crosshair {
+  position: absolute;
+  width: 1px;
+  margin-left: -0.5px;
+  background: var(--line-hi);
+  pointer-events: none;
+}
+
+.shell-root .chart-focus-dot {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border: 2px solid var(--accent);
+  border-radius: 999px;
+  background: var(--bg);
+  pointer-events: none;
+}
+
+.shell-root .chart-tooltip {
+  position: absolute;
+  top: 4px;
+  z-index: 2;
+  width: max-content;
+  max-width: 220px;
+  transform: translateX(-50%);
+  padding: 8px 10px;
+  border: 1px solid var(--line-hi);
+  border-radius: var(--radius-subtle);
+  background: var(--surface-elevated);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.shell-root .chart-tooltip-date {
+  margin: 0 0 6px;
+  color: var(--ink-faint);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.shell-root .chart-tooltip-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* A line key, not a filled box: at tooltip density a swatch is data-weight ink
+   doing a label's job. */
+.shell-root .chart-tooltip-key {
+  width: 12px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--row-color, var(--ink-faint));
+}
+
+/* Value leads, label follows — the reader already knows the series. */
+.shell-root .chart-tooltip-value {
+  color: var(--ink);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.shell-root .chart-tooltip-label {
+  color: var(--ink-dim);
+  font-size: 11px;
+}
+
+.shell-root .chart-tooltip-event {
+  margin: 6px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-dim);
+  font-size: 11px;
+}
+
+/* Validated as a set against #0a0a0a: worst CVD pair ΔE 10.1, worst
+   normal-vision pair ΔE 21.7. Deliberately literals rather than
+   var(--pillar-*) — aliasing to shared marketing tokens would let an unrelated
+   tweak degrade the separation with no failing test. Re-run the dataviz
+   palette validator if any of them changes. See chartMarkers.tsx. */
+.shell-root .chart-event-layer,
+.shell-root .chart-legend {
+  --event-btc: #f7931a;
+  --event-eth: #627eea;
+  --event-spy: #7ad88f;
+}
+
+.shell-root .chart-event-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* The crosshair snaps to the nearest index, so it — not the 12px glyph —
+   carries the hit target. That also keeps the chart at one tab stop. */
+.shell-root .chart-event-marker {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+}
+
+.shell-root .chart-event-marker svg {
+  width: 12px;
+  height: 12px;
+  overflow: visible;
+}
+
+/* paint-order puts the surface-coloured stroke behind the fill, leaving a ~2px
+   ring so markers stay legible where they cross the series line. */
+.shell-root .chart-event-marker path {
+  fill: var(--marker-color);
+  stroke: var(--bg);
+  stroke-width: 4;
+  stroke-linejoin: round;
+  paint-order: stroke fill;
+}
+
+/* The two-column performance layout gives the same events half the width, and
+   a busy period puts markers ~5px apart. Shrink the glyph so the series stays
+   readable; dropping events instead would read as "the strategy traded less". */
+@container (max-width: 700px) {
+  .shell-root .chart-event-marker svg {
+    width: 8px;
+    height: 8px;
+  }
+
+  .shell-root .chart-event-marker path {
+    stroke-width: 3;
+  }
+}
+
+.shell-root .chart-legend-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.shell-root .legend-item.asset span {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.shell-root .legend-item.action span {
+  width: auto;
+  height: auto;
+  background: none;
+}
+
+.shell-root .legend-item.action svg {
+  width: 9px;
+  height: 9px;
+  fill: var(--ink-dim);
+}
+
+.shell-root .chart-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 .shell-root .nav-curve-chart figcaption,
 .shell-root .drawdown-chart figcaption,
 .shell-root .benchmark-chart figcaption {

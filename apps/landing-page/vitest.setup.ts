@@ -16,6 +16,19 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
+// jsdom ships no PointerEvent, so fireEvent.pointerMove degrades to a generic
+// Event and silently drops clientX — pointer assertions would read undefined.
+// MouseEvent is captured first because `'PointerEvent' in window` narrows the
+// negative branch to never (lib.dom declares the property unconditionally).
+const mouseEventCtor = window.MouseEvent;
+if (!('PointerEvent' in window)) {
+  Object.defineProperty(window, 'PointerEvent', {
+    writable: true,
+    configurable: true,
+    value: mouseEventCtor,
+  });
+}
+
 Object.defineProperty(window, 'gtag', {
   writable: true,
   configurable: true,

@@ -1,12 +1,18 @@
 import type { DailySnapshot } from '@zapengine/types/strategy';
+import type { StrategyEvent } from '@/data/track-record-events';
 import { ChartAxis } from './ChartAxis';
 import { ChartEmptyState } from './ChartEmptyState';
+import { ChartHoverLayer } from './ChartHoverLayer.client';
+import { ChartLegend } from './ChartLegend';
+import type { ChartLegendItem } from './ChartLegend';
+import { buildChartMarkers } from './chartEvents';
 import * as geometry from './chartGeometry';
 
 type EquityPoint = { date: string; value: number };
 
 interface NavCurveChartProps {
   snapshots: DailySnapshot[];
+  events?: readonly StrategyEvent[];
   className?: string;
 }
 
@@ -21,7 +27,29 @@ function buildNavSeries(snapshots: DailySnapshot[]): EquityPoint[] {
   });
 }
 
-export function NavCurveChart({ snapshots, className }: NavCurveChartProps) {
+/** Only the categories actually present earn a legend slot. */
+function legendItems(markers: readonly { asset: string; action: string }[]) {
+  const items: ChartLegendItem[] = [
+    { kind: 'series', label: 'Strategy', variant: 'strategy' },
+  ];
+  for (const asset of ['BTC', 'ETH', 'SPY'] as const) {
+    if (markers.some((marker) => marker.asset === asset)) {
+      items.push({ kind: 'asset', asset });
+    }
+  }
+  for (const action of ['buy', 'sell', 'rotate'] as const) {
+    if (markers.some((marker) => marker.action === action)) {
+      items.push({ kind: 'action', action });
+    }
+  }
+  return items;
+}
+
+export function NavCurveChart({
+  snapshots,
+  events = [],
+  className,
+}: NavCurveChartProps) {
   const points = buildNavSeries(snapshots);
 
   if (points.length === 0) {
@@ -40,6 +68,7 @@ export function NavCurveChart({ snapshots, className }: NavCurveChartProps) {
   const yTicks = geometry.midAndMaxTicks(domainMin, domainMax);
   const { startDate, endDate } = geometry.chartDateRange(points);
   const endValue = points[points.length - 1]?.value.toFixed(2) ?? '0';
+  const markers = buildChartMarkers(events, points, domainMin, domainMax);
 
   return (
     <figure
@@ -51,59 +80,75 @@ export function NavCurveChart({ snapshots, className }: NavCurveChartProps) {
           <p className="nav-curve-kicker">Indexed growth</p>
           <h3>Strategy NAV</h3>
         </div>
-        <div className="nav-curve-legend" aria-hidden>
-          <span className="legend-item strategy">
-            <span />
-            Strategy
-          </span>
-        </div>
+        <ChartLegend
+          items={legendItems(markers)}
+          className="nav-curve-legend"
+        />
       </div>
 
-      <svg
-        className="nav-curve-svg"
-        viewBox={`0 0 ${geometry.width} ${geometry.height}`}
-        role="img"
-        aria-label={`NAV curve from ${startDate} to ${endDate}`}
+      <ChartHoverLayer
+        total={points.length}
+        ariaLabel="Strategy NAV by date"
+        labelForIndex={(index) => points[index]!.date}
+        rowsForIndex={(index) => [
+          {
+            id: 'strategy',
+            label: 'Strategy',
+            value: points[index]!.value.toFixed(2),
+            color: 'var(--accent)',
+          },
+        ]}
+        focusYForIndex={(index) =>
+          geometry.yForValue(points[index]!.value, domainMin, domainMax)
+        }
+        markers={markers}
       >
-        <title>NAV curve</title>
+        <svg
+          className="nav-curve-svg"
+          viewBox={`0 0 ${geometry.width} ${geometry.height}`}
+          role="img"
+          aria-label={`NAV curve from ${startDate} to ${endDate}`}
+        >
+          <title>NAV curve</title>
 
-        <ChartAxis
-          yTicks={yTicks}
-          domainMin={domainMin}
-          domainMax={domainMax}
-          startDate={startDate}
-          endDate={endDate}
-        />
+          <ChartAxis
+            yTicks={yTicks}
+            domainMin={domainMin}
+            domainMax={domainMax}
+            startDate={startDate}
+            endDate={endDate}
+          />
 
-        <path
-          className="chart-series strategy"
-          d={geometry.pathForSeries(points, domainMin, domainMax)}
-        />
+          <path
+            className="chart-series strategy"
+            d={geometry.pathForSeries(points, domainMin, domainMax)}
+          />
 
-        <circle
-          className="chart-endpoint"
-          cx={geometry.xForPoint(points.length - 1, points.length)}
-          cy={geometry.yForValue(
-            points[points.length - 1]!.value,
-            domainMin,
-            domainMax,
-          )}
-          r="4"
-        />
-        <text
-          className="chart-end-label"
-          x={geometry.xForPoint(points.length - 1, points.length) - 8}
-          y={
-            geometry.yForValue(
+          <circle
+            className="chart-endpoint"
+            cx={geometry.xForPoint(points.length - 1, points.length)}
+            cy={geometry.yForValue(
               points[points.length - 1]!.value,
               domainMin,
               domainMax,
-            ) - 12
-          }
-        >
-          {endValue}
-        </text>
-      </svg>
+            )}
+            r="4"
+          />
+          <text
+            className="chart-end-label"
+            x={geometry.xForPoint(points.length - 1, points.length) - 8}
+            y={
+              geometry.yForValue(
+                points[points.length - 1]!.value,
+                domainMin,
+                domainMax,
+              ) - 12
+            }
+          >
+            {endValue}
+          </text>
+        </svg>
+      </ChartHoverLayer>
 
       <figcaption>Indexed to 100 at strategy start.</figcaption>
     </figure>

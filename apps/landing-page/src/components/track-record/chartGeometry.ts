@@ -35,6 +35,44 @@ export function yForValue(
   return padding.top + ratio * plotHeight;
 }
 
+export function indexForX(x: number, total: number): number {
+  if (total <= 1) return 0;
+  const ratio = (x - padding.left) / plotWidth;
+  return Math.min(total - 1, Math.max(0, Math.round(ratio * (total - 1))));
+}
+
+/**
+ * The interactive layer is HTML on top of the SVG, not SVG children: the chart
+ * scales roughly 0.4x-1.5x with the viewport, so hit targets and marker sizes
+ * specified in px cannot live inside the viewBox. These helpers restate viewBox
+ * coordinates as percentages of the same box, derived from CHART_DIMENSIONS so
+ * the overlay cannot drift from the chart the way hardcoded CSS would.
+ */
+export function plotInsetPercent(): {
+  top: string;
+  right: string;
+  bottom: string;
+  left: string;
+} {
+  return {
+    top: percentOf(padding.top, height),
+    right: percentOf(padding.right, width),
+    bottom: percentOf(padding.bottom, height),
+    left: percentOf(padding.left, width),
+  };
+}
+
+export function pointPercent(
+  x: number,
+  y: number,
+): { left: string; top: string } {
+  return { left: percentOf(x, width), top: percentOf(y, height) };
+}
+
+function percentOf(value: number, extent: number): string {
+  return `${((value / extent) * 100).toFixed(4)}%`;
+}
+
 export function pathForSeries(
   points: ReadonlyArray<{ value: number }>,
   domainMin: number,
