@@ -5,19 +5,6 @@ export default defineKnipConfig(
     entry: [
       'babel.config.js',
       'metro.config.js',
-      // Reached only by being executed, never by being imported. knip finds these
-      // specifiers while scanning package.json but does not turn them into entry
-      // points, and `project` below includes scripts/**, so every one of them is
-      // otherwise reported as an unused file. Declaring them means reachability
-      // stops depending on whether a co-located test happens to import the file
-      // — which is the only reason install-playwright.mjs used to survive.
-      'scripts/build-e2e-web.mjs',
-      'scripts/check-web-native-leaks.mjs',
-      'scripts/install-playwright.mjs',
-      'scripts/ios-archive.mjs',
-      'scripts/ios-release-smoke.mjs',
-      'scripts/submit-latest-production-android.mjs',
-      'scripts/sync-ios-native.mjs',
       // Launched by playwright.config.ts as a webServer command.
       'scripts/serve-web.mjs',
       // expo-router discovers route files by convention; knip cannot trace them.
