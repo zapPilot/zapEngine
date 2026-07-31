@@ -3,6 +3,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     watch: false,
+    // The bootstrap suite dynamically imports the full app graph on its first
+    // test; give it the same budget other heavy workspaces use.
+    testTimeout: 30_000,
     exclude: ['**/node_modules/**', '**/dist/**'],
     coverage: {
       provider: 'v8',
