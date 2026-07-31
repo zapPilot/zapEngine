@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { ChartHoverLayer } from '../ChartHoverLayer.client';
-import type { ChartMarker } from '../ChartHoverLayer.client';
+import type {
+  ChartAllocationBar,
+  ChartMarker,
+} from '../ChartHoverLayer.client';
 
 const DATES = [
   '2026-01-01',
@@ -23,7 +26,36 @@ const MARKERS: ChartMarker[] = [
   { index: 3, y: 20, asset: 'SPY', action: 'sell', label: 'Sold SPY' },
 ];
 
-function renderLayer(markers: ChartMarker[] = []) {
+function bar(
+  spy: number,
+  stable: number,
+  options: { label?: string; showValues?: boolean } = {},
+): ChartAllocationBar {
+  return {
+    ...options,
+    segments: [
+      {
+        id: 'spy',
+        label: 'SPY',
+        percent: spy,
+        display: `${spy}%`,
+        color: 'var(--event-spy)',
+      },
+      {
+        id: 'stable',
+        label: 'Cash',
+        percent: stable,
+        display: `${stable}%`,
+        color: 'var(--event-stable)',
+      },
+    ],
+  };
+}
+
+function renderLayer(
+  markers: ChartMarker[] = [],
+  allocationForIndex?: (index: number) => readonly ChartAllocationBar[] | null,
+) {
   return render(
     <ChartHoverLayer
       total={DATES.length}
@@ -39,6 +71,7 @@ function renderLayer(markers: ChartMarker[] = []) {
       ]}
       focusYForIndex={() => 100}
       markers={markers}
+      {...(allocationForIndex ? { allocationForIndex } : {})}
     >
       <svg data-testid="chart" />
     </ChartHoverLayer>,
@@ -47,6 +80,11 @@ function renderLayer(markers: ChartMarker[] = []) {
 
 function surface() {
   return screen.getByRole('slider');
+}
+
+/** Raw textContent: the figures row is separated by a double space CSS preserves. */
+function tooltipText(container: HTMLElement): string {
+  return container.querySelector('.chart-tooltip')?.textContent ?? '';
 }
 
 describe('ChartHoverLayer', () => {
@@ -176,5 +214,76 @@ describe('ChartHoverLayer', () => {
     expect(container.querySelector('.chart-event-layer')).toHaveAttribute(
       'aria-hidden',
     );
+  });
+
+  it('draws no allocation markup for charts that pass none', () => {
+    // The drawdown and benchmark charts adopt this layer without a position to
+    // show; the bar must stay opt-in rather than degrade to an empty rail.
+    const { container } = renderLayer(MARKERS);
+
+    fireEvent.pointerMove(surface(), { clientX: 250 });
+
+    expect(container.querySelector('.chart-tooltip')).not.toBeNull();
+    expect(container.querySelector('.chart-tooltip-alloc-group')).toBeNull();
+  });
+
+  it('draws one unlabelled bar on a day with nothing to compare', () => {
+    const { container } = renderLayer([], () => [bar(75, 25)]);
+
+    fireEvent.pointerMove(surface(), { clientX: 250 });
+
+    const bars = container.querySelectorAll('.chart-tooltip-alloc');
+    expect(bars).toHaveLength(1);
+    expect(bars[0]).toHaveAttribute('data-labelled', 'false');
+
+    const segments = container.querySelectorAll(
+      '.chart-tooltip-alloc-bar span',
+    );
+    expect(segments).toHaveLength(2);
+    expect(segments[0]).toHaveStyle({ width: '75%' });
+    expect(segments[1]).toHaveStyle({ width: '25%' });
+    expect(tooltipText(container)).toContain('SPY 75%  Cash 25%');
+  });
+
+  it('puts a trade between its before and after, figures on the after only', () => {
+    const { container } = renderLayer([], () => [
+      bar(20, 80, { label: 'Before', showValues: false }),
+      bar(75, 25, { label: 'After' }),
+    ]);
+
+    fireEvent.pointerMove(surface(), { clientX: 250 });
+
+    expect(container.querySelectorAll('.chart-tooltip-alloc')).toHaveLength(2);
+    expect(screen.getByText('Before')).toBeInTheDocument();
+    expect(screen.getByText('After')).toBeInTheDocument();
+    // One figure row, not two: the pair is read by shape.
+    expect(
+      container.querySelectorAll('.chart-tooltip-alloc-values'),
+    ).toHaveLength(1);
+    expect(tooltipText(container)).toContain('SPY 75%  Cash 25%');
+  });
+
+  it('reads out both bars, including the one drawn without figures', () => {
+    // Comparing two bars by shape is exactly what a readout cannot do, so the
+    // suppressed figures have to come back as text.
+    renderLayer([], () => [
+      bar(20, 80, { label: 'Before', showValues: false }),
+      bar(75, 25, { label: 'After' }),
+    ]);
+
+    fireEvent.focus(surface());
+
+    const readout = surface().getAttribute('aria-valuetext') ?? '';
+    expect(readout).toContain('Before SPY 20%, Cash 80%');
+    expect(readout).toContain('After SPY 75%, Cash 25%');
+  });
+
+  it('shows nothing for an index whose data cannot say', () => {
+    const { container } = renderLayer([], () => null);
+
+    fireEvent.pointerMove(surface(), { clientX: 250 });
+
+    expect(container.querySelector('.chart-tooltip')).not.toBeNull();
+    expect(container.querySelector('.chart-tooltip-alloc-group')).toBeNull();
   });
 });

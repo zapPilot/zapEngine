@@ -5,6 +5,7 @@ import { ChartEmptyState } from './ChartEmptyState';
 import { ChartHoverLayer } from './ChartHoverLayer.client';
 import { ChartLegend } from './ChartLegend';
 import type { ChartLegendItem } from './ChartLegend';
+import { allocationBar, allocationFromSnapshot } from './chartAllocation';
 import { buildChartMarkers } from './chartEvents';
 import * as geometry from './chartGeometry';
 
@@ -69,6 +70,24 @@ export function NavCurveChart({
   const { startDate, endDate } = geometry.chartDateRange(points);
   const endValue = points[points.length - 1]?.value.toFixed(2) ?? '0';
   const markers = buildChartMarkers(events, points, domainMin, domainMax);
+  const allocations = snapshots.map(allocationFromSnapshot);
+  const tradedIndices = new Set(markers.map((marker) => marker.index));
+
+  /**
+   * A trade gets both sides of itself; every other day gets the position as it
+   * stood. Day zero can be a trading day with nothing before it, which falls
+   * back to the single bar rather than inventing a prior position.
+   */
+  function allocationBarsForIndex(index: number) {
+    const current = allocations[index];
+    if (!current) return null;
+    const previous = index > 0 ? allocations[index - 1] : null;
+    if (!tradedIndices.has(index) || !previous) return [allocationBar(current)];
+    return [
+      allocationBar(previous, { label: 'Before', showValues: false }),
+      allocationBar(current, { label: 'After' }),
+    ];
+  }
 
   return (
     <figure
@@ -102,6 +121,7 @@ export function NavCurveChart({
           geometry.yForValue(points[index]!.value, domainMin, domainMax)
         }
         markers={markers}
+        allocationForIndex={allocationBarsForIndex}
       >
         <svg
           className="nav-curve-svg"

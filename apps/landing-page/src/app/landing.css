@@ -2042,7 +2042,10 @@
   top: 4px;
   z-index: 2;
   width: max-content;
-  max-width: 220px;
+  /* Sized for the widest line: a trade sentence carrying both its USD amount
+     and its share of the book. Half of this is TOOLTIP_EDGE_GUARD in
+     chartHover.ts, which keeps the box inside the card. */
+  max-width: 240px;
   transform: translateX(-50%);
   padding: 8px 10px;
   border: 1px solid var(--line-hi);
@@ -2097,16 +2100,79 @@
   font-size: 11px;
 }
 
+.shell-root .chart-tooltip-alloc-group {
+  display: grid;
+  row-gap: 5px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+/* On a trading day the event sentence already drew the rule; a second one two
+   rows later reads as a divider between the trade and its own before/after. */
+.shell-root .chart-tooltip-event + .chart-tooltip-alloc-group {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.shell-root .chart-tooltip-alloc {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 6px;
+}
+
+.shell-root .chart-tooltip-alloc[data-labelled='false'] {
+  grid-template-columns: 1fr;
+}
+
+.shell-root .chart-tooltip-alloc-label {
+  color: var(--ink-faint);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shell-root .chart-tooltip-alloc-bar {
+  display: flex;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  /* Shows through only if the segments ever fail to sum to 100. */
+  background: var(--line);
+}
+
+.shell-root .chart-tooltip-alloc-bar span {
+  height: 100%;
+}
+
+.shell-root .chart-tooltip-alloc-values {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--ink-dim);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
 /* Validated as a set against #0a0a0a: worst CVD pair ΔE 10.1, worst
    normal-vision pair ΔE 21.7. Deliberately literals rather than
    var(--pillar-*) — aliasing to shared marketing tokens would let an unrelated
    tweak degrade the separation with no failing test. Re-run the dataviz
    palette validator if any of them changes. See chartMarkers.tsx. */
 .shell-root .chart-event-layer,
-.shell-root .chart-legend {
+.shell-root .chart-legend,
+.shell-root .chart-tooltip {
   --event-btc: #f7931a;
   --event-eth: #627eea;
   --event-spy: #7ad88f;
+  /* Cash is the one segment that is not an asset, so it is the one colour that
+     is not a hue: achromatic grey cannot be confused with any of the three
+     under any CVD type, and it reads as absence of position. ΔE 7.6 against
+     #0a0a0a keeps a 6px band visible. */
+  --event-stable: #a1a1aa;
 }
 
 .shell-root .chart-event-layer {

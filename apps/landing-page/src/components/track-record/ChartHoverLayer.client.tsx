@@ -47,6 +47,24 @@ export interface ChartMarker {
   readonly label: string;
 }
 
+export interface ChartAllocationSegment {
+  readonly id: string;
+  readonly label: string;
+  /** Raw portfolio percentage point used for width; filtered sets may sum <100. */
+  readonly percent: number;
+  /** Preformatted, like every other value here. */
+  readonly display: string;
+  readonly color: string;
+}
+
+export interface ChartAllocationBar {
+  /** Omit on a single bar; a pair names itself, e.g. "Before" / "After". */
+  readonly label?: string;
+  /** Defaults to true. False suppresses the figures, not the bar. */
+  readonly showValues?: boolean;
+  readonly segments: readonly ChartAllocationSegment[];
+}
+
 interface ChartHoverLayerProps {
   readonly total: number;
   readonly labelForIndex: (index: number) => string;
@@ -54,6 +72,17 @@ interface ChartHoverLayerProps {
   /** viewBox y of the focus dot on the primary series; omit for no dot. */
   readonly focusYForIndex?: (index: number) => number;
   readonly markers?: readonly ChartMarker[];
+  /**
+   * Composition of the position at this index — one bar, or two to put a
+   * trade's before and after side by side. Omit for charts with no position to
+   * show; null for an index whose data cannot say.
+   *
+   * Structured rather than a render prop because the same data has to become
+   * the screen-reader readout, and an opaque node cannot be summarised.
+   */
+  readonly allocationForIndex?: (
+    index: number,
+  ) => readonly ChartAllocationBar[] | null;
   readonly ariaLabel: string;
   readonly children: ReactNode;
 }
@@ -64,6 +93,7 @@ export function ChartHoverLayer({
   rowsForIndex,
   focusYForIndex,
   markers = [],
+  allocationForIndex,
   ariaLabel,
   children,
 }: ChartHoverLayerProps) {
@@ -108,6 +138,8 @@ export function ChartHoverLayer({
     activeIndex === null
       ? '0%'
       : pointPercent(xForPoint(activeIndex, total), 0).left;
+  const bars =
+    activeIndex === null ? [] : (allocationForIndex?.(activeIndex) ?? []);
   const readout =
     activeIndex === null
       ? ''
@@ -115,6 +147,15 @@ export function ChartHoverLayer({
           labelForIndex(activeIndex),
           ...rows.map((row) => `${row.label} ${row.value}`),
           ...(activeMarker ? [activeMarker.label] : []),
+          // Every bar's figures, including a bar rendered without them: a
+          // sighted reader compares two bars by their shapes, and that is the
+          // one comparison a readout cannot carry.
+          ...bars.map(
+            (bar) =>
+              `${bar.label ?? 'Allocation'} ${bar.segments
+                .map((segment) => `${segment.label} ${segment.display}`)
+                .join(', ')}`,
+          ),
         ].join(', ');
 
   return (
@@ -175,6 +216,43 @@ export function ChartHoverLayer({
             ))}
             {activeMarker && (
               <p className="chart-tooltip-event">{activeMarker.label}</p>
+            )}
+            {bars.length > 0 && (
+              <div className="chart-tooltip-alloc-group">
+                {bars.map((bar, barIndex) => (
+                  <div
+                    className="chart-tooltip-alloc"
+                    data-labelled={bar.label !== undefined}
+                    key={bar.label ?? barIndex}
+                  >
+                    {bar.label !== undefined && (
+                      <span className="chart-tooltip-alloc-label">
+                        {bar.label}
+                      </span>
+                    )}
+                    <span className="chart-tooltip-alloc-bar">
+                      {bar.segments.map((segment) => (
+                        <span
+                          key={segment.id}
+                          style={{
+                            width: `${segment.percent}%`,
+                            background: segment.color,
+                          }}
+                        />
+                      ))}
+                    </span>
+                    {bar.showValues !== false && (
+                      <p className="chart-tooltip-alloc-values">
+                        {bar.segments
+                          .map(
+                            (segment) => `${segment.label} ${segment.display}`,
+                          )
+                          .join('  ')}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </>

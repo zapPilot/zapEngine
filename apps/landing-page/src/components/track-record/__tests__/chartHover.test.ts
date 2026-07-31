@@ -87,7 +87,7 @@ describe('nextIndexForKey', () => {
 describe('tooltipLeftStyle', () => {
   it('clamps in CSS so the tooltip never escapes the card', () => {
     expect(tooltipLeftStyle('7.7778%')).toBe(
-      'clamp(112px, 7.7778%, calc(100% - 112px))',
+      'clamp(122px, 7.7778%, calc(100% - 122px))',
     );
   });
 });

@@ -81,9 +81,33 @@ describe('deriveEventsFromSnapshots', () => {
         type: 'buy',
         toAsset: 'BTC',
         fromAssets: [],
+        amountPercent: 40,
         reason: 'Rebalance',
       },
     ]);
+  });
+
+  it('sizes a trade by the larger side, which the cash leg closes', () => {
+    const [bought] = deriveEventsFromSnapshots([
+      snapshot('2026-01-01', { BTC: 20, USDC: 80 }),
+      snapshot('2026-01-02', { BTC: 60, USDC: 40 }),
+    ]);
+    const [rotated] = deriveEventsFromSnapshots([
+      snapshot('2026-01-01', { BTC: 40, ETH: 20, USDC: 40 }),
+      snapshot('2026-01-02', { BTC: 10, ETH: 50, USDC: 40 }),
+    ]);
+
+    expect(bought?.amountPercent).toBe(40);
+    expect(rotated?.amountPercent).toBe(30);
+  });
+
+  it('never claims a fill amount it cannot know', () => {
+    const [event] = deriveEventsFromSnapshots([
+      snapshot('2026-01-01', { BTC: 20, USDC: 80 }),
+      snapshot('2026-01-02', { BTC: 60, USDC: 40 }),
+    ]);
+
+    expect(event?.amountUsd).toBeUndefined();
   });
 
   it('reads a risk decrease as a sell', () => {
@@ -183,6 +207,17 @@ describe('demoStrategyEvents', () => {
   it('gives every event a nameable asset to colour by', () => {
     for (const event of demoStrategyEvents()) {
       expect(eventAsset(event)).not.toBeNull();
+    }
+  });
+
+  it('carries both measures of size for every event', () => {
+    for (const event of demoStrategyEvents()) {
+      expect(event.amountUsd).toBeGreaterThan(0);
+      // Deploying the whole book can land marginally over 100: the denominator
+      // is the end-of-day total, which a same-day mark-down makes smaller than
+      // the gross that moved.
+      expect(event.amountPercent).toBeGreaterThan(0);
+      expect(event.amountPercent).toBeLessThanOrEqual(105);
     }
   });
 

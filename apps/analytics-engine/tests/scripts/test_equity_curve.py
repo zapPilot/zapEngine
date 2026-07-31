@@ -5,15 +5,21 @@ from pathlib import Path
 
 import pytest
 
+import scripts.landing.equity_curve as equity_curve
 from scripts.landing.equity_curve import generate
 
 
-def _strategy_day(total_value: float, transfers: list[dict] | None = None) -> dict:
+def _strategy_day(
+    total_value: float,
+    transfers: list[dict] | None = None,
+    asset_allocation: dict[str, float] | None = None,
+) -> dict:
     return {
         "portfolio": {
             "total_value": total_value,
             "spot_asset": "BTC",
-            "asset_allocation": {
+            "asset_allocation": asset_allocation
+            or {
                 "btc": 0.5,
                 "eth": 0.0,
                 "spy": 0.0,
@@ -147,6 +153,7 @@ def test_generate_emits_events_anchored_to_the_strategy_series(tmp_path: Path) -
             "toAsset": "ETH",
             "fromAssets": ["BTC"],
             "amountUsd": 4_000.0,
+            "amountPercent": 32.0,
             "stableDeltaUsd": 0.0,
             "indexedValue": 125.0,
             "reason": "dma_cross_up",
@@ -161,6 +168,90 @@ def test_generate_emits_events_anchored_to_the_strategy_series(tmp_path: Path) -
     assert payload["eventsMeta"]["tradeCount"] == 1
     assert payload["eventsMeta"]["unclassifiedCount"] == 0
     assert payload["eventsMeta"]["initialAllocation"]["stable"] == 0.5
+
+
+def test_generate_emits_one_allocation_row_per_series_point(tmp_path: Path) -> None:
+    output_path = tmp_path / "equity-curve.json"
+    timeline = _timeline()
+    timeline[1]["strategies"]["dma_fgi_portfolio_rules"] = _strategy_day(
+        12_500.0,
+        [{"from_bucket": "btc", "to_bucket": "eth", "amount_usd": 4_000.0}],
+        asset_allocation={
+            "btc": 0.18,
+            "eth": 0.32,
+            "spy": 0.0,
+            "stable": 0.5,
+            "alt": 0.0,
+        },
+    )
+
+    generate(
+        timeline=timeline,
+        snapshot_meta=_snapshot_meta(),
+        output_path=output_path,
+    )
+
+    payload = json.loads(output_path.read_text())
+
+    assert payload["allocations"] == {
+        "assets": ["btc", "eth", "spy", "stable"],
+        "values": [
+            [0.5, 0.0, 0.0, 0.5],
+            [0.18, 0.32, 0.0, 0.5],
+            [0.5, 0.0, 0.0, 0.5],
+        ],
+    }
+    # Index alignment is the whole contract of the date-less columnar shape.
+    assert len(payload["allocations"]["values"]) == len(payload["series"][0]["values"])
+
+
+def test_generate_rejects_initial_allocation_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = equity_curve._extract_allocations
+
+    def drifted_allocations(
+        timeline: list[dict],
+        strategy_id: str,
+    ) -> list[list[float]]:
+        values = original(timeline, strategy_id)
+        values[0][0] = 0.4
+        return values
+
+    monkeypatch.setattr(equity_curve, "_extract_allocations", drifted_allocations)
+
+    with pytest.raises(
+        ValueError,
+        match=r"allocations.values\[0\] and eventsMeta.initialAllocation disagree",
+    ):
+        generate(
+            timeline=_timeline(),
+            snapshot_meta=_snapshot_meta(),
+            output_path=tmp_path / "equity-curve.json",
+        )
+
+
+def test_generate_rejects_a_nonzero_alt_bucket(tmp_path: Path) -> None:
+    """A bucket the chart cannot draw must fail loudly, not fold into stable."""
+    timeline = _timeline()
+    timeline[2]["strategies"]["dma_fgi_portfolio_rules"] = _strategy_day(
+        15_000.0,
+        asset_allocation={
+            "btc": 0.4,
+            "eth": 0.0,
+            "spy": 0.0,
+            "stable": 0.5,
+            "alt": 0.1,
+        },
+    )
+
+    with pytest.raises(ValueError, match="alt bucket"):
+        generate(
+            timeline=timeline,
+            snapshot_meta=_snapshot_meta(),
+            output_path=tmp_path / "equity-curve.json",
+        )
 
 
 def test_generate_rejects_event_count_that_misses_recorded_trades(

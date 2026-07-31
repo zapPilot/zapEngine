@@ -18,6 +18,8 @@
 import type { DailySnapshot, Position } from '@zapengine/types/strategy';
 import type { SnapshotHistoryEntry } from '@/data/track-record-accessor';
 import equityCurveRaw from '@/data/equity-curve.json';
+import type { AllocationWeights } from '@/data/track-record-allocations';
+import { demoDailyAllocations } from '@/data/track-record-allocations';
 import { demoStrategyEventDates } from '@/data/track-record-events';
 
 const STRATEGY_ID = 'dma_fgi_portfolio_rules';
@@ -32,11 +34,22 @@ const MAINNET = 1;
  * other on the same page. Empty if the artifact predates the events field.
  */
 const REBALANCE_DATES = demoStrategyEventDates();
+/**
+ * The weights the backtest held each day. Empty if the artifact predates the
+ * field, in which case every day falls back to the static pillar split below.
+ */
+const DAILY_ALLOCATIONS = demoDailyAllocations();
 
-/** Three-pillar model portfolio (weights mirror src/config/allocation.ts). */
+/**
+ * Three-pillar model portfolio. `weight` is only the fallback split (it mirrors
+ * src/config/allocation.ts); when the artifact carries daily allocations the
+ * real ones win, so the Positions tab and the chart's markers describe the same
+ * portfolio. `bucket` is the allocation key each pillar stands in for.
+ */
 const PILLARS = [
   {
     asset: 'SPY',
+    bucket: 'spy',
     protocol: 'Ondo',
     tokenAddress: '0x96F6eF951840721AdBF46Ac996b59E0235CB985C',
     weight: 42,
@@ -46,6 +59,7 @@ const PILLARS = [
   },
   {
     asset: 'BTC',
+    bucket: 'btc',
     protocol: 'Aave',
     tokenAddress: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
     weight: 24,
@@ -55,6 +69,7 @@ const PILLARS = [
   },
   {
     asset: 'ETH',
+    bucket: 'eth',
     protocol: 'Lido',
     tokenAddress: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
     weight: 14,
@@ -64,6 +79,7 @@ const PILLARS = [
   },
   {
     asset: 'USDC',
+    bucket: 'stable',
     protocol: 'Morpho',
     tokenAddress: '0xA0b86991c6218b36c1d19D4a2E9Eb0cE3606eB48',
     weight: 20,
@@ -72,6 +88,9 @@ const PILLARS = [
     pricingSource: 'Chainlink',
   },
 ] as const;
+
+/** Positions below half a percentage point are visual dust in the demo UI. */
+const MIN_POSITION_WEIGHT = 0.5;
 
 interface CurvePoint {
   date: string;
@@ -118,19 +137,29 @@ function cidFor(index: number): string {
   return `bafkreidemotrackrecordsnapshot${String(index).padStart(5, '0')}`;
 }
 
-function positionsForNav(navUsd: number): Position[] {
-  return PILLARS.map((pillar) => {
-    const valueUsd = (navUsd * pillar.weight) / 100;
-    return {
-      chainId: MAINNET,
-      protocol: pillar.protocol,
-      asset: pillar.asset,
-      tokenAddress: pillar.tokenAddress,
-      amount: (valueUsd / pillar.price).toFixed(pillar.amountDp),
-      valueUsd: valueUsd.toFixed(2),
-      weight: `${pillar.weight.toFixed(2)}%`,
-      pricingSource: pillar.pricingSource,
-    };
+export function positionsForNav(
+  navUsd: number,
+  weights?: AllocationWeights,
+): Position[] {
+  return PILLARS.flatMap((pillar): Position[] => {
+    const weight = weights ? weights[pillar.bucket] : pillar.weight;
+    // The strategy sits fully out of BTC on most days; carrying an empty row
+    // for it would read as a position rather than an exit.
+    if (weight < MIN_POSITION_WEIGHT) return [];
+
+    const valueUsd = (navUsd * weight) / 100;
+    return [
+      {
+        chainId: MAINNET,
+        protocol: pillar.protocol,
+        asset: pillar.asset,
+        tokenAddress: pillar.tokenAddress,
+        amount: (valueUsd / pillar.price).toFixed(pillar.amountDp),
+        valueUsd: valueUsd.toFixed(2),
+        weight: `${weight.toFixed(2)}%`,
+        pricingSource: pillar.pricingSource,
+      },
+    ];
   });
 }
 
@@ -180,7 +209,7 @@ function buildEntries(): SnapshotHistoryEntry[] {
         cumulativeReturn: signed(cumulativeReturn),
         maxDrawdown: `${drawdown.toFixed(2)}%`,
       },
-      positions: positionsForNav(navUsd),
+      positions: positionsForNav(navUsd, DAILY_ALLOCATIONS[i]),
       costs: {
         gasUsd,
         slippageUsd,

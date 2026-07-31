@@ -68,6 +68,16 @@ def _spot_asset(state: dict[str, Any]) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def _portfolio_total(state: dict[str, Any]) -> float | None:
+    portfolio = state.get("portfolio")
+    if not isinstance(portfolio, dict):
+        return None
+    value = portfolio.get("total_value")
+    if not isinstance(value, int | float):
+        return None
+    return float(value)
+
+
 def _transfers(state: dict[str, Any]) -> list[dict[str, Any]]:
     execution = state.get("execution")
     if not isinstance(execution, dict):
@@ -256,6 +266,18 @@ def derive_events(
                 "series; the marker would not sit on the curve"
             )
 
+        # The USD figure alone cannot say whether a trade was a nudge or a
+        # wholesale reallocation — that depends on the book it moved within, and
+        # this one compounds 77% over the window. Denominator is the same
+        # end-of-day total the indexed series is built from.
+        total_value = _portfolio_total(state)
+        if total_value is None or total_value <= 0.0:
+            raise ValueError(
+                f"timeline[{point_date}] records transfers but "
+                f"portfolio.total_value is {total_value!r}; the traded share of "
+                "the portfolio is undefined"
+            )
+
         events.append(
             {
                 "date": point_date,
@@ -263,6 +285,7 @@ def derive_events(
                 "toAsset": to_asset,
                 "fromAssets": _sold_assets(net),
                 "amountUsd": round(gross, 2),
+                "amountPercent": round((gross / total_value) * 100.0, 2),
                 "stableDeltaUsd": round(net.get(_STABLE_BUCKET, 0.0), 2),
                 "indexedValue": indexed_by_date[point_date],
                 "reason": _reason(state),

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,12 @@ DCA_CONFIG_ID = "dca_classic"
 ROI_TOLERANCE_PP = 1.0
 STRATEGY_COLOR = "#d4c5a3"
 DCA_COLOR = "#52525b"
+
+# The buckets the landing chart draws. `alt` is deliberately absent: the
+# production strategy never allocates to it, and folding a non-zero alt into
+# stable would misreport the position rather than fail loudly.
+ALLOCATION_ASSETS = ("btc", "eth", "spy", "stable")
+_ALT_EPSILON = 0.001
 
 
 def _require_mapping(value: Any, *, label: str) -> dict[str, Any]:
@@ -50,17 +57,25 @@ def _strategy_state(
     )
 
 
+def _portfolio(
+    state: dict[str, Any],
+    strategy_id: str,
+    *,
+    point_date: str,
+) -> dict[str, Any]:
+    return _require_mapping(
+        state.get("portfolio"),
+        label=f"timeline[{point_date}].strategies[{strategy_id!r}].portfolio",
+    )
+
+
 def _portfolio_total(
-    point: dict[str, Any],
+    state: dict[str, Any],
     strategy_id: str,
     *,
     point_date: str,
 ) -> float:
-    state = _strategy_state(point, strategy_id, point_date=point_date)
-    portfolio = _require_mapping(
-        state.get("portfolio"),
-        label=f"timeline[{point_date}].strategies[{strategy_id!r}].portfolio",
-    )
+    portfolio = _portfolio(state, strategy_id, point_date=point_date)
     value = portfolio.get("total_value")
     if not isinstance(value, int | float):
         raise ValueError(
@@ -70,25 +85,75 @@ def _portfolio_total(
     return float(value)
 
 
-def _extract_totals(
+def _point_allocation(
+    state: dict[str, Any],
+    strategy_id: str,
+    *,
+    point_date: str,
+) -> list[float]:
+    """One day's weights as fractions, in ``ALLOCATION_ASSETS`` order."""
+    portfolio = _portfolio(state, strategy_id, point_date=point_date)
+    allocation = _require_mapping(
+        portfolio.get("asset_allocation"),
+        label=(
+            f"timeline[{point_date}].strategies[{strategy_id!r}].portfolio."
+            "asset_allocation"
+        ),
+    )
+
+    alt = allocation.get("alt", 0.0)
+    if isinstance(alt, int | float) and float(alt) > _ALT_EPSILON:
+        raise ValueError(
+            f"timeline[{point_date}] allocates {float(alt):.4f} to the alt "
+            "bucket; extend ALLOCATION_ASSETS before shipping a chart that "
+            "omits it"
+        )
+
+    weights: list[float] = []
+    for asset in ALLOCATION_ASSETS:
+        value = allocation.get(asset)
+        if not isinstance(value, int | float):
+            raise ValueError(
+                f"timeline[{point_date}].strategies[{strategy_id!r}].portfolio."
+                f"asset_allocation.{asset} must be numeric"
+            )
+        weights.append(round(float(value), 4))
+    return weights
+
+
+def _iter_strategy_points(
     timeline: list[dict[str, Any]],
     strategy_id: str,
-) -> list[tuple[str, float]]:
-    totals: list[tuple[str, float]] = []
+) -> Iterator[tuple[str, dict[str, Any]]]:
+    """Yield ``(date, strategy state)`` per point, validating the shape once."""
     for point in timeline:
         if not isinstance(point, dict):
             raise ValueError("Each timeline point must be an object")
         point_date = _timeline_date(point)
-        totals.append(
-            (
-                point_date,
-                _portfolio_total(point, strategy_id, point_date=point_date),
-            )
-        )
+        yield point_date, _strategy_state(point, strategy_id, point_date=point_date)
 
+
+def _extract_totals(
+    timeline: list[dict[str, Any]],
+    strategy_id: str,
+) -> list[tuple[str, float]]:
+    totals = [
+        (point_date, _portfolio_total(state, strategy_id, point_date=point_date))
+        for point_date, state in _iter_strategy_points(timeline, strategy_id)
+    ]
     if not totals:
         raise ValueError("Timeline must contain at least one point")
     return totals
+
+
+def _extract_allocations(
+    timeline: list[dict[str, Any]],
+    strategy_id: str,
+) -> list[list[float]]:
+    return [
+        _point_allocation(state, strategy_id, point_date=point_date)
+        for point_date, state in _iter_strategy_points(timeline, strategy_id)
+    ]
 
 
 def _to_indexed_points(totals: list[tuple[str, float]]) -> list[dict[str, Any]]:
@@ -202,6 +267,14 @@ def generate(
     strategy_points = _to_indexed_points(_extract_totals(timeline, strategy_id))
     dca_points = _to_indexed_points(_extract_totals(timeline, DCA_CONFIG_ID))
 
+    allocation_values = _extract_allocations(timeline, strategy_id)
+    if len(allocation_values) != len(strategy_points):
+        raise ValueError(
+            f"Allocation rows ({len(allocation_values)}) and strategy series "
+            f"points ({len(strategy_points)}) disagree; the chart joins them by "
+            "index"
+        )
+
     _validate_final_roi(
         series_label="strategy",
         points=strategy_points,
@@ -226,6 +299,15 @@ def generate(
         strategy_id=strategy_id,
         indexed_by_date={point["date"]: point["value"] for point in strategy_points},
     )
+    initial_allocation = events_meta.get("initialAllocation")
+    if not isinstance(initial_allocation, dict) or any(
+        initial_allocation.get(asset) != allocation_values[0][index]
+        for index, asset in enumerate(ALLOCATION_ASSETS)
+    ):
+        raise ValueError(
+            "allocations.values[0] and eventsMeta.initialAllocation disagree"
+        )
+
     trade_count = int(_snapshot_float(snapshot_meta, strategy_id, "trade_count"))
     reconcile(
         event_count=events_meta["count"],
@@ -262,6 +344,14 @@ def generate(
                 "values": dca_points,
             },
         ],
+        # Columnar and date-less: 500 rows of {date, btc, eth, spy, stable}
+        # would more than double the artifact for a key the chart already has
+        # from series[0]. The length check above is what holds the index
+        # alignment the consumer relies on.
+        "allocations": {
+            "assets": list(ALLOCATION_ASSETS),
+            "values": allocation_values,
+        },
         # Top-level rather than nested under series[0]: events belong to the
         # strategy alone, and eventsMeta.strategyId removes the ambiguity that
         # nesting would create for the DCA series.

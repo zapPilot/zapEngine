@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import type { DailySnapshot } from '@zapengine/types/strategy';
+import { fireEvent, render, screen } from '@testing-library/react';
+import type { DailySnapshot, Position } from '@zapengine/types/strategy';
 import type { StrategyEvent } from '@/data/track-record-events';
 import { NavCurveChart } from '../NavCurveChart';
 import { pointPercent, xForPoint, yForValue } from '../chartGeometry';
@@ -49,6 +49,40 @@ const EVENTS: StrategyEvent[] = [
     reason: 'test',
   },
 ];
+
+function positions(weights: Record<string, number>): Position[] {
+  return Object.entries(weights).map(([asset, weight]) => ({
+    chainId: 1,
+    protocol: 'Test',
+    asset,
+    amount: '1',
+    valueUsd: '1',
+    weight: `${weight.toFixed(2)}%`,
+    pricingSource: 'Test',
+  }));
+}
+
+/** Same five days, holding a real position that rotates on the event dates. */
+const HELD: Record<string, number>[] = [
+  { BTC: 50, USDC: 50 },
+  { ETH: 50, USDC: 50 },
+  { ETH: 50, USDC: 50 },
+  { USDC: 100 },
+  { USDC: 100 },
+];
+
+const SNAPSHOTS_WITH_POSITIONS: DailySnapshot[] = SNAPSHOTS.map(
+  (snapshot, index) => ({ ...snapshot, positions: positions(HELD[index]!) }),
+);
+
+/** clientX for an index, given the 500px box the suite stubs. */
+function xForIndex(index: number): number {
+  return (index / (SNAPSHOTS.length - 1)) * 500;
+}
+
+function tooltipText(container: HTMLElement): string {
+  return container.querySelector('.chart-tooltip')?.textContent ?? '';
+}
 
 describe('NavCurveChart', () => {
   beforeEach(() => {
@@ -170,5 +204,84 @@ describe('NavCurveChart', () => {
 
     expect(screen.getByText('Strategy')).toBeInTheDocument();
     expect(screen.queryByText('Rotate')).toBeNull();
+  });
+
+  it('shows the position as it stood on a day with no trade', () => {
+    const { container } = render(
+      <NavCurveChart snapshots={SNAPSHOTS_WITH_POSITIONS} events={EVENTS} />,
+    );
+
+    fireEvent.pointerMove(screen.getByRole('slider'), {
+      clientX: xForIndex(2),
+    });
+
+    expect(container.querySelectorAll('.chart-tooltip-alloc')).toHaveLength(1);
+    expect(tooltipText(container)).toContain('ETH 50%  Cash 50%');
+  });
+
+  it('puts a trading day between the position before it and after it', () => {
+    const { container } = render(
+      <NavCurveChart snapshots={SNAPSHOTS_WITH_POSITIONS} events={EVENTS} />,
+    );
+
+    fireEvent.pointerMove(screen.getByRole('slider'), {
+      clientX: xForIndex(1),
+    });
+
+    const bars = container.querySelectorAll('.chart-tooltip-alloc');
+    expect(bars).toHaveLength(2);
+    // Before is the previous day's book — BTC, which the rotation left.
+    const readout = screen
+      .getByRole('slider')
+      .getAttribute('aria-valuetext')
+      ?.replace(/\s+/g, ' ');
+    expect(readout).toContain('Before BTC 50%, Cash 50%');
+    expect(readout).toContain('After ETH 50%, Cash 50%');
+  });
+
+  it('falls back to one bar when a trade lands on day zero', () => {
+    const { container } = render(
+      <NavCurveChart
+        snapshots={SNAPSHOTS_WITH_POSITIONS}
+        events={[{ ...EVENTS[0]!, date: '2026-01-01' }]}
+      />,
+    );
+
+    fireEvent.pointerMove(screen.getByRole('slider'), {
+      clientX: xForIndex(0),
+    });
+
+    expect(container.querySelectorAll('.chart-tooltip-alloc')).toHaveLength(1);
+    expect(tooltipText(container)).toContain('BTC 50%  Cash 50%');
+  });
+
+  it('draws no bar for snapshots that carry no positions', () => {
+    const { container } = render(
+      <NavCurveChart snapshots={SNAPSHOTS} events={EVENTS} />,
+    );
+
+    fireEvent.pointerMove(screen.getByRole('slider'), {
+      clientX: xForIndex(1),
+    });
+
+    expect(container.querySelector('.chart-tooltip')).not.toBeNull();
+    expect(container.querySelector('.chart-tooltip-alloc-group')).toBeNull();
+  });
+
+  it('sizes the trade in the tooltip when the event carries the figures', () => {
+    const { container } = render(
+      <NavCurveChart
+        snapshots={SNAPSHOTS_WITH_POSITIONS}
+        events={[{ ...EVENTS[0]!, amountUsd: 10408.84, amountPercent: 19.4 }]}
+      />,
+    );
+
+    fireEvent.pointerMove(screen.getByRole('slider'), {
+      clientX: xForIndex(1),
+    });
+
+    expect(tooltipText(container)).toContain(
+      'Rotated BTC into ETH · $10.4k · 19% of portfolio',
+    );
   });
 });

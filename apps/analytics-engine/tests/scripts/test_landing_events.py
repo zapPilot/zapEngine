@@ -21,13 +21,14 @@ def _day(
     spot_asset: str | None = None,
     asset_allocation: dict[str, float] | None = None,
     reason: str = "",
+    total_value: float = 10_000.0,
 ) -> dict[str, Any]:
     return {
         "market": {"date": date},
         "strategies": {
             STRATEGY_ID: {
                 "portfolio": {
-                    "total_value": 10_000.0,
+                    "total_value": total_value,
                     "spot_asset": spot_asset,
                     "asset_allocation": asset_allocation
                     or {"btc": 0.5, "eth": 0.0, "spy": 0.0, "stable": 0.5, "alt": 0.0},
@@ -69,7 +70,50 @@ def test_stable_into_risk_is_a_buy() -> None:
     assert events[0]["toAsset"] == "BTC"
     assert events[0]["fromAssets"] == []
     assert events[0]["amountUsd"] == 2_000.0
+    assert events[0]["amountPercent"] == 20.0
     assert events[0]["stableDeltaUsd"] == -2_000.0
+
+
+def test_amount_percent_measures_gross_against_that_day_s_book() -> None:
+    """The same USD trade is a different decision in a book that has doubled."""
+    events, _ = _derive(
+        [
+            _day(
+                "2026-01-01",
+                transfers=[_leg("stable", "btc", 5_000.0)],
+                total_value=20_000.0,
+            )
+        ]
+    )
+
+    assert events[0]["amountUsd"] == 5_000.0
+    assert events[0]["amountPercent"] == 25.0
+
+
+def test_rotation_amount_percent_counts_gross_moved_once() -> None:
+    events, _ = _derive([_day("2026-01-01", transfers=[_leg("btc", "eth", 3_000.0)])])
+
+    assert events[0]["amountPercent"] == 30.0
+
+
+@pytest.mark.parametrize("total_value", [0.0, -1.0, None, "10000"])
+def test_trade_day_without_a_usable_portfolio_total_raises(total_value: Any) -> None:
+    day = _day("2026-01-01", transfers=[_leg("stable", "btc", 100.0)])
+    day["strategies"][STRATEGY_ID]["portfolio"]["total_value"] = total_value
+
+    with pytest.raises(ValueError, match="traded share of the portfolio"):
+        _derive([day])
+
+
+def test_a_broken_portfolio_total_on_a_hold_day_is_not_an_error() -> None:
+    """No trade, no denominator needed — holds must not gate on it."""
+    day = _day("2026-01-02")
+    day["strategies"][STRATEGY_ID]["portfolio"]["total_value"] = 0.0
+
+    events, meta = _derive([_day("2026-01-01"), day])
+
+    assert events == []
+    assert meta["unclassifiedCount"] == 0
 
 
 def test_risk_into_stable_is_a_sell() -> None:
@@ -284,3 +328,34 @@ def test_committed_artifact_reconciles_with_the_snapshot_fixture() -> None:
     }
     for event in curve["events"]:
         assert event["indexedValue"] == series_by_date[event["date"]]
+        assert event["amountUsd"] > 0.0
+        # Deploying the entire book can land just over 100%: the denominator is
+        # the end-of-day total, so a same-day mark-down makes it smaller than
+        # the gross that moved. A multiple of 100 would mean chained legs are
+        # being double-counted.
+        assert 0.0 < event["amountPercent"] <= 105.0
+
+
+def test_committed_artifact_carries_a_daily_allocation_row_per_series_point() -> None:
+    """The tooltip's stacked bar indexes into this by chart index, not by date."""
+    curve = json.loads(LANDING_EQUITY_CURVE_PATH.read_text())
+    allocations = curve["allocations"]
+    strategy_values = curve["series"][0]["values"]
+
+    assert allocations["assets"] == ["btc", "eth", "spy", "stable"]
+    assert len(allocations["values"]) == len(strategy_values)
+
+    for index, row in enumerate(allocations["values"]):
+        assert len(row) == len(allocations["assets"])
+        assert all(0.0 <= weight <= 1.0 for weight in row)
+        # 4dp rounding across four buckets, so the residual is bounded well
+        # inside a tenth of a point.
+        assert abs(sum(row) - 1.0) < 0.002, f"row {index} does not sum to 1"
+
+    # Two producers read the same portfolio dict — events.py rounds every key,
+    # equity_curve.py picks four. A drift between them shows up here first.
+    initial = curve["eventsMeta"]["initialAllocation"]
+    for asset, weight in zip(
+        allocations["assets"], allocations["values"][0], strict=True
+    ):
+        assert abs(initial[asset] - weight) < 1e-4

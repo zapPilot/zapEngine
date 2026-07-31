@@ -17,8 +17,8 @@ export interface HoverKey {
   readonly shiftKey: boolean;
 }
 
-/** Half the tooltip's max-width plus a little air, in px. */
-const TOOLTIP_EDGE_GUARD = 112;
+/** Half the tooltip's max-width plus a little air, in px. Track landing.css. */
+const TOOLTIP_EDGE_GUARD = 122;
 
 /**
  * Nearest data index under the pointer, or -1 when the box has no layout.

@@ -41,6 +41,17 @@ export interface StrategyEvent {
    * catch an artifact whose events and series disagree.
    */
   readonly indexedValue?: number;
+  /**
+   * Gross USD moved on the day. Backtest-only: a published snapshot records
+   * position weights, not fills, so the live path leaves this unset rather than
+   * inventing a number from a weight delta.
+   */
+  readonly amountUsd?: number;
+  /**
+   * That gross as a share of the day's portfolio, which is what makes a trade
+   * legible — $10k means nothing without the book it moved within.
+   */
+  readonly amountPercent?: number;
   readonly reason: string;
 }
 
@@ -106,7 +117,6 @@ export function demoStrategyEvents(): StrategyEvent[] {
           (asset): asset is string => typeof asset === 'string',
         )
       : [];
-    const indexedValue = event['indexedValue'];
 
     return [
       {
@@ -116,11 +126,24 @@ export function demoStrategyEvents(): StrategyEvent[] {
           typeof event['toAsset'] === 'string' ? event['toAsset'] : null,
         ),
         fromAssets,
-        ...(typeof indexedValue === 'number' ? { indexedValue } : {}),
+        ...numberField(event, 'indexedValue'),
+        ...numberField(event, 'amountUsd'),
+        ...numberField(event, 'amountPercent'),
         reason: typeof event['reason'] === 'string' ? event['reason'] : '',
       },
     ];
   });
+}
+
+/** Spread-or-omit, so a malformed artifact leaves the field absent rather than NaN. */
+function numberField<K extends string>(
+  event: Record<string, unknown>,
+  key: K,
+): Record<K, number> | Record<string, never> {
+  const value = event[key];
+  return typeof value === 'number' && Number.isFinite(value)
+    ? ({ [key]: value } as Record<K, number>)
+    : {};
 }
 
 /** Dates the backtest traded on, so the demo snapshots can agree with the chart. */
@@ -128,7 +151,8 @@ export function demoStrategyEventDates(): ReadonlySet<string> {
   return new Set(demoStrategyEvents().map((event) => event.date));
 }
 
-function weightsByAsset(snapshot: DailySnapshot): Map<string, number> {
+/** Position weights folded to one entry per asset, in percentage points. */
+export function weightsByAsset(snapshot: DailySnapshot): Map<string, number> {
   const weights = new Map<string, number>();
   for (const position of snapshot.positions) {
     const weight = Number.parseFloat(position.weight);
@@ -157,10 +181,19 @@ function riskDeltas(
  * USD: risk both in and out is a rotation; otherwise the sign of the net risk
  * change says whether cash was deployed or raised. Nothing enumerates stable
  * symbols — a portfolio whose weights sum to 100 makes that redundant.
+ *
+ * `amountPercent` comes out of the same two sums, which is why measuring lives
+ * here rather than in a second pass: the larger side is the gross that moved,
+ * since the stable leg closes whichever side is short. It approximates the
+ * artifact's USD figure and inherits this path's existing caveat — weights are
+ * end-of-day, so a delta blends trading with price drift.
  */
 function classify(
   deltas: Map<StrategyEventAsset, number>,
-): Pick<StrategyEvent, 'type' | 'toAsset' | 'fromAssets'> | null {
+): Pick<
+  StrategyEvent,
+  'type' | 'toAsset' | 'fromAssets' | 'amountPercent'
+> | null {
   let riskIn = 0;
   let riskOut = 0;
   for (const delta of deltas.values()) {
@@ -179,15 +212,21 @@ function classify(
   const fromAssets = RISK_ASSETS.filter(
     (asset) => (deltas.get(asset) ?? 0) < 0,
   ).sort((a, b) => (deltas.get(a) ?? 0) - (deltas.get(b) ?? 0));
+  const amountPercent = Math.round(Math.max(riskIn, riskOut) * 10) / 10;
 
   if (riskIn > 0 && riskOut > 0) {
     if (target === null) return null;
-    return { type: ROTATION_TYPE[target], toAsset: target, fromAssets };
+    return {
+      type: ROTATION_TYPE[target],
+      toAsset: target,
+      fromAssets,
+      amountPercent,
+    };
   }
   if (riskIn > riskOut) {
-    return { type: 'buy', toAsset: target, fromAssets: [] };
+    return { type: 'buy', toAsset: target, fromAssets: [], amountPercent };
   }
-  return { type: 'sell', toAsset: null, fromAssets };
+  return { type: 'sell', toAsset: null, fromAssets, amountPercent };
 }
 
 /** Events derived from published snapshots, for the live path. */
