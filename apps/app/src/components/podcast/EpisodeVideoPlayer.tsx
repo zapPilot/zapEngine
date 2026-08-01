@@ -3,11 +3,13 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { memo, useEffect, useMemo, useRef } from 'react';
 import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 
+import { isVideoHandoffSeekConfirmed } from '@/integration/episodeMediaSync';
 import type { PodcastEpisodeVideo } from '@/integration/podcastFeed';
 import { useVideoPlaybackCoordinator } from '@/providers/VideoPlaybackCoordinatorProvider';
 
 const FULLSCREEN_OPTIONS = { enable: true } as const;
 const TIME_UPDATE_INTERVAL_SECONDS = 0.5;
+const HANDOFF_SEEK_FALLBACK_MS = 1_500;
 
 function finiteVideoTime(seconds: number, duration: number): number {
   if (!Number.isFinite(seconds)) return 0;
@@ -64,6 +66,10 @@ export const EpisodeVideoPlayer = memo(function EpisodeVideoPlayer({
   });
   const latestTimeRef = useRef(finiteVideoTime(initialTimeSeconds, 0));
   const latestExitHandlerRef = useRef(onPlaybackExit);
+  const pendingAutoplayTargetRef = useRef<number | null>(null);
+  const pendingAutoplayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   latestExitHandlerRef.current = onPlaybackExit;
   const { status } = useEvent(player, 'statusChange', {
     status: player.status,
@@ -73,17 +79,54 @@ export const EpisodeVideoPlayer = memo(function EpisodeVideoPlayer({
     const unregister = registerVideo(() => player.pause());
     return () => {
       unregister();
+      pendingAutoplayTargetRef.current = null;
+      if (pendingAutoplayTimerRef.current !== null) {
+        clearTimeout(pendingAutoplayTimerRef.current);
+        pendingAutoplayTimerRef.current = null;
+      }
       latestExitHandlerRef.current(latestTimeRef.current);
     };
   }, [player, registerVideo]);
+
+  const clearPendingAutoplay = () => {
+    pendingAutoplayTargetRef.current = null;
+    if (pendingAutoplayTimerRef.current !== null) {
+      clearTimeout(pendingAutoplayTimerRef.current);
+      pendingAutoplayTimerRef.current = null;
+    }
+  };
+
+  const queueAutoplayAfterSeek = (targetSeconds: number) => {
+    clearPendingAutoplay();
+    pendingAutoplayTargetRef.current = targetSeconds;
+    pendingAutoplayTimerRef.current = setTimeout(() => {
+      if (pendingAutoplayTargetRef.current !== targetSeconds) return;
+      pendingAutoplayTargetRef.current = null;
+      pendingAutoplayTimerRef.current = null;
+      // Some native backends do not emit timeUpdate while paused after an
+      // initial seek. Re-issue the target before the bounded fallback play.
+      player.currentTime = targetSeconds;
+      player.play();
+    }, HANDOFF_SEEK_FALLBACK_MS);
+  };
 
   useEventListener(player, 'sourceLoad', ({ duration }) => {
     const actualDuration = duration > 0 ? duration : video.durationSeconds;
     const startTime = finiteVideoTime(initialTimeSeconds, actualDuration);
     latestTimeRef.current = startTime;
+    player.pause();
     player.currentTime = startTime;
     onTimeUpdate(startTime, actualDuration);
-    if (shouldPlay) player.play();
+    if (!shouldPlay) {
+      clearPendingAutoplay();
+      return;
+    }
+    if (isVideoHandoffSeekConfirmed(startTime, 0)) {
+      clearPendingAutoplay();
+      player.play();
+      return;
+    }
+    queueAutoplayAfterSeek(startTime);
   });
 
   useEventListener(player, 'playingChange', ({ isPlaying }) => {
@@ -96,6 +139,14 @@ export const EpisodeVideoPlayer = memo(function EpisodeVideoPlayer({
 
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
     latestTimeRef.current = currentTime;
+    const pendingTarget = pendingAutoplayTargetRef.current;
+    if (
+      pendingTarget !== null &&
+      isVideoHandoffSeekConfirmed(currentTime, pendingTarget)
+    ) {
+      clearPendingAutoplay();
+      player.play();
+    }
     onTimeUpdate(currentTime, player.duration || video.durationSeconds);
   });
 

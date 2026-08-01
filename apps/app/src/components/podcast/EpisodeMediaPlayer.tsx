@@ -40,6 +40,11 @@ import {
   resolveActiveEpisodeMediaTab,
 } from '@/integration/episodeMediaTabs';
 import {
+  handoffAudioToVideo,
+  type EpisodeMediaClock,
+  type VideoHandoffSession,
+} from '@/integration/episodeMediaSync';
+import {
   episodeVideoProgressView,
   type EpisodeVideoProgressView,
 } from '@/integration/episodeVideoProgress';
@@ -95,6 +100,7 @@ interface EpisodeMediaPlayerProps {
   episodes: readonly PodcastEpisode[];
   player: PodcastPlayer;
   onEpisodeChanged: (episode: PodcastEpisode) => void;
+  onVideoClockChange?: (clock: EpisodeMediaClock | null) => void;
 }
 
 function EpisodeMediaTabButton({
@@ -406,13 +412,12 @@ export function EpisodeMediaPlayer({
   episodes,
   player,
   onEpisodeChanged,
+  onVideoClockChange,
 }: EpisodeMediaPlayerProps) {
   const [selectedTab, setSelectedTab] = useState<EpisodeMediaTab>('story');
-  const [videoSession, setVideoSession] = useState<{
-    initialTimeSeconds: number;
-    playbackRate: number;
-    shouldPlay: boolean;
-  } | null>(null);
+  const [videoSession, setVideoSession] = useState<VideoHandoffSession | null>(
+    null,
+  );
   const { markListened, setPosition } = useEpisodeProgress();
   const videoTimeRef = useRef(finiteSeconds(episode.lastPositionSeconds));
   const videoDurationRef = useRef(episode.video?.durationSeconds ?? 0);
@@ -471,25 +476,28 @@ export function EpisodeMediaPlayer({
     [persistVideoPosition, videoSession],
   );
 
+  useEffect(() => () => onVideoClockChange?.(null), [onVideoClockChange]);
+
   const showVideo = () => {
     setSelectedTab('video');
     if (episode.video === null || videoSession !== null) return;
-    const initialTimeSeconds = clampSeconds(
-      audioHandoffTime,
-      episode.video.durationSeconds,
-    );
-    const shouldPlay = player.isPlaying;
-    videoTimeRef.current = initialTimeSeconds;
-    videoDurationRef.current = episode.video.durationSeconds;
-    videoPlayingRef.current = shouldPlay;
-    videoRateRef.current = player.speed;
-    videoFailureHandledRef.current = false;
-    player.pause();
-    setVideoSession({
-      initialTimeSeconds,
+    const nextVideoSession = handoffAudioToVideo({
+      audioTimeSeconds: audioHandoffTime,
+      videoDurationSeconds: episode.video.durationSeconds,
       playbackRate: player.speed,
-      shouldPlay,
+      shouldPlay: player.isPlaying,
+      pauseAudio: () => player.pause(),
     });
+    videoTimeRef.current = nextVideoSession.initialTimeSeconds;
+    videoDurationRef.current = episode.video.durationSeconds;
+    videoPlayingRef.current = nextVideoSession.shouldPlay;
+    videoRateRef.current = nextVideoSession.playbackRate;
+    videoFailureHandledRef.current = false;
+    onVideoClockChange?.({
+      currentTimeSeconds: nextVideoSession.initialTimeSeconds,
+      durationSeconds: episode.video.durationSeconds,
+    });
+    setVideoSession(nextVideoSession);
   };
 
   const continueWithAudio = useCallback(
@@ -508,9 +516,10 @@ export function EpisodeMediaPlayer({
         shouldPlay,
       });
       setSelectedTab(section === 'classroom' ? 'classroom' : 'story');
+      onVideoClockChange?.(null);
       setVideoSession(null);
     },
-    [episode, episodes, persistVideoPosition, player],
+    [episode, episodes, onVideoClockChange, persistVideoPosition, player],
   );
 
   const selectAudioTab = (tab: 'story' | 'classroom') => {
@@ -534,6 +543,10 @@ export function EpisodeMediaPlayer({
       const position = clampSeconds(seconds, duration);
       videoTimeRef.current = position;
       videoDurationRef.current = duration;
+      onVideoClockChange?.({
+        currentTimeSeconds: position,
+        durationSeconds: duration,
+      });
       persistVideoPosition(position);
       if (
         duration > 0 &&
@@ -542,7 +555,12 @@ export function EpisodeMediaPlayer({
         markListened(episode.localizationId, true);
       }
     },
-    [episode.localizationId, markListened, persistVideoPosition],
+    [
+      episode.localizationId,
+      markListened,
+      onVideoClockChange,
+      persistVideoPosition,
+    ],
   );
 
   const handleVideoEnd = useCallback(
@@ -550,10 +568,19 @@ export function EpisodeMediaPlayer({
       const finalPosition = finiteSeconds(duration);
       videoTimeRef.current = finalPosition;
       videoDurationRef.current = finalPosition;
+      onVideoClockChange?.({
+        currentTimeSeconds: finalPosition,
+        durationSeconds: finalPosition,
+      });
       persistVideoPosition(finalPosition, true);
       markListened(episode.localizationId, true);
     },
-    [episode.localizationId, markListened, persistVideoPosition],
+    [
+      episode.localizationId,
+      markListened,
+      onVideoClockChange,
+      persistVideoPosition,
+    ],
   );
 
   const handleVideoError = useCallback(() => {

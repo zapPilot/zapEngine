@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, Share2 } from 'lucide-react-native';
-import { useMemo } from 'react';
+import { useState } from 'react';
 import { Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,6 +22,10 @@ import { Card } from '@/components/ui/Card';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
+import {
+  resolveActiveMediaClock,
+  type EpisodeMediaClock,
+} from '@/integration/episodeMediaSync';
 import {
   findPodcastEpisodeById,
   getPodcastEpisodeShareUrl,
@@ -188,19 +192,24 @@ function currentTranscriptIndex(
 function EpisodeTranscript({
   episode,
   player,
+  activeVideoClock,
 }: {
   episode: PodcastEpisode;
   player: PodcastPlayer;
+  activeVideoClock: EpisodeMediaClock | null;
 }) {
-  const isCurrent = player.nowPlaying?.id === episode.id;
-  const segments = useMemo(
-    () =>
-      estimateTranscriptTiming(episode.script, isCurrent ? player.duration : 0),
-    [episode.script, isCurrent, player.duration],
-  );
+  const isCurrentAudio = player.nowPlaying?.id === episode.id;
+  const activeClock = resolveActiveMediaClock({
+    videoClock: activeVideoClock,
+    isCurrentAudio,
+    audioCurrentTimeSeconds: player.currentTime,
+    audioDurationSeconds: player.duration,
+  });
+  const activeDuration = activeClock?.durationSeconds ?? 0;
+  const segments = estimateTranscriptTiming(episode.script, activeDuration);
   const currentIndex =
-    isCurrent && player.duration > 0
-      ? currentTranscriptIndex(segments, player.currentTime)
+    activeClock !== null && activeDuration > 0
+      ? currentTranscriptIndex(segments, activeClock.currentTimeSeconds)
       : -1;
   const body = episode.script?.trim();
 
@@ -226,7 +235,7 @@ function EpisodeTranscript({
                   accessibilityRole="button"
                   accessibilityLabel={`Seek to ${formatPodcastClock(segment.start)}`}
                   onPress={() => {
-                    if (!isCurrent) player.toggle(episode);
+                    if (!isCurrentAudio) player.toggle(episode);
                     player.seek(segment.start);
                   }}
                   className={cn(
@@ -285,6 +294,8 @@ export function EpisodeDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { languageCode: selectedLanguageCode } = useContentLanguage();
+  const [activeVideoClock, setActiveVideoClock] =
+    useState<EpisodeMediaClock | null>(null);
   const routeEpisodeId = decodeURIComponent(
     episodeParamToString(params.episodeId),
   );
@@ -369,9 +380,14 @@ export function EpisodeDetailScreen() {
           episodes={episodes}
           player={player}
           onEpisodeChanged={handleEpisodeChanged}
+          onVideoClockChange={setActiveVideoClock}
         />
         <LanguageClassroomSection lessons={episode.languageClassrooms} />
-        <EpisodeTranscript episode={episode} player={player} />
+        <EpisodeTranscript
+          episode={episode}
+          player={player}
+          activeVideoClock={activeVideoClock}
+        />
       </ScreenScrollView>
     </View>
   );
