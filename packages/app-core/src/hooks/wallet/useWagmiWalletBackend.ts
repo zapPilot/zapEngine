@@ -13,7 +13,7 @@ import type {
   WalletTypedData,
 } from '@core/types';
 import { walletLogger } from '@core/utils';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { formatUnits } from 'viem';
 import {
   type Connector,
@@ -93,8 +93,8 @@ export interface WagmiWalletBackend {
   /** Discovered wallets (injected + the generic WalletConnect entry). */
   connectors: WalletConnectorOption[];
   /** Connect to a specific discovered connector by its `WalletConnectorOption.id`. */
-  connectInjected: (connectorId: string) => Promise<void>;
-  connectWalletConnect: () => Promise<void>;
+  connectInjected: (connectorId: string) => Promise<boolean>;
+  connectWalletConnect: () => Promise<boolean>;
   isWalletConnectAvailable: boolean;
 }
 
@@ -115,6 +115,8 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
     address,
     isConnected,
     isConnecting: accountIsConnecting,
+    isReconnecting,
+    connector: activeConnector,
     chain,
   } = useConnection();
   const connectors = useConnectors();
@@ -160,52 +162,105 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
 
   const walletChain = useMemo(() => buildWalletChain(chain), [chain]);
 
-  const isConnectingState = accountIsConnecting || connectIsPending;
+  const isConnectingState =
+    accountIsConnecting || isReconnecting || connectIsPending;
+  const connectPromiseRef = useRef<Promise<boolean> | null>(null);
 
   const clearError = useCallback(() => {
     setError(null);
   }, []);
 
   const connectToConnector = useCallback(
-    async (connector: Connector): Promise<void> => {
-      try {
+    (connector: Connector): Promise<boolean> => {
+      const pending = connectPromiseRef.current;
+      if (pending) return pending;
+
+      const isSameActiveConnector =
+        isConnected &&
+        activeConnector !== undefined &&
+        ((Boolean(activeConnector.uid) &&
+          Boolean(connector.uid) &&
+          activeConnector.uid === connector.uid) ||
+          activeConnector === connector);
+      if (isSameActiveConnector) {
         setError(null);
-        await connectAsync({ connector });
-      } catch (err) {
-        walletLogger.error('Failed to connect wallet:', err);
-        setError(
-          toWalletError(err, 'Failed to connect wallet', 'CONNECT_ERROR'),
-        );
+        return Promise.resolve(true);
       }
+
+      // Auto-reconnect/another connect owns wagmi's state machine. Waiting
+      // for it avoids racing a second SDK call from the picker.
+      if (isReconnecting || accountIsConnecting || connectIsPending) {
+        return Promise.resolve(false);
+      }
+
+      const promise = (async (): Promise<boolean> => {
+        try {
+          setError(null);
+          await connectAsync({ connector });
+          return true;
+        } catch (err) {
+          const name =
+            typeof err === 'object' && err !== null && 'name' in err
+              ? String((err as { name?: unknown }).name)
+              : '';
+          if (name === 'ConnectorAlreadyConnectedError') {
+            setError(null);
+            return true;
+          }
+          walletLogger.error('Failed to connect wallet:', err);
+          setError(
+            toWalletError(err, 'Failed to connect wallet', 'CONNECT_ERROR'),
+          );
+          return false;
+        }
+      })();
+      connectPromiseRef.current = promise;
+      void (async () => {
+        try {
+          await promise;
+        } finally {
+          if (connectPromiseRef.current === promise) {
+            connectPromiseRef.current = null;
+          }
+        }
+      })();
+      return promise;
     },
-    [connectAsync],
+    [
+      accountIsConnecting,
+      activeConnector,
+      connectAsync,
+      connectIsPending,
+      isConnected,
+      isReconnecting,
+    ],
   );
 
   const connectInjected = useCallback(
-    async (connectorId: string): Promise<void> => {
+    async (connectorId: string): Promise<boolean> => {
       const connector = connectors.find((c) => c.id === connectorId);
       if (!connector) {
         setError({
           message: 'That wallet is no longer available.',
           code: 'NO_WALLET',
         });
-        return;
+        return false;
       }
-      await connectToConnector(connector);
+      return connectToConnector(connector);
     },
     [connectors, connectToConnector],
   );
 
-  const connectWalletConnect = useCallback(async (): Promise<void> => {
+  const connectWalletConnect = useCallback(async (): Promise<boolean> => {
     const connector = connectors.find((c) => c.type === 'walletConnect');
     if (!connector) {
       setError({
         message: 'WalletConnect is not configured.',
         code: 'NO_WALLET',
       });
-      return;
+      return false;
     }
-    await connectToConnector(connector);
+    return connectToConnector(connector);
   }, [connectors, connectToConnector]);
 
   /**

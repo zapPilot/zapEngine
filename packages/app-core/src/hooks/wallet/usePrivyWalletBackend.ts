@@ -281,7 +281,9 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
       executeAtomicBatch: batch.executeAtomicBatch,
       connect,
       disconnect,
-      isConnecting: false,
+      // Privy is not ready to resolve its session yet. Surface that busy
+      // state so the unified picker cannot race initial hydration/login.
+      isConnecting: !ready,
       isDisconnecting,
       isConnected: Boolean(embeddedWallet),
       error,
@@ -302,6 +304,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
       batch.executeAtomicBatch,
       connect,
       disconnect,
+      ready,
       isDisconnecting,
       error,
       clearError,

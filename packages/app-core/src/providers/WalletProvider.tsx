@@ -72,12 +72,15 @@ export function WalletProvider({
     async (connectorId: string): Promise<void> => {
       setConnectingId(connectorId);
       try {
-        await wagmi.connectInjected(connectorId);
+        const connected = await wagmi.connectInjected(connectorId);
+        if (connected) {
+          closePicker();
+        }
       } finally {
         setConnectingId(null);
       }
     },
-    [wagmi],
+    [closePicker, wagmi],
   );
 
   const activeBackend: WalletProviderInterface = wagmi.isConnected
@@ -85,6 +88,10 @@ export function WalletProvider({
     : privy.isActive
       ? privy.backend
       : wagmi.backend;
+  const isConnecting =
+    connectingId !== null ||
+    wagmi.backend.isConnecting ||
+    privy.backend.isConnecting;
 
   /**
    * Disconnects both backends. wagmi and Privy are independent sessions — a
@@ -109,8 +116,9 @@ export function WalletProvider({
       ...activeBackend,
       connect: connectViaPicker,
       disconnect: disconnectAll,
+      isConnecting,
     }),
-    [activeBackend, connectViaPicker, disconnectAll],
+    [activeBackend, connectViaPicker, disconnectAll, isConnecting],
   );
 
   const loginValue = useMemo<WalletLoginContextValue>(
@@ -122,10 +130,7 @@ export function WalletProvider({
       connectInjected,
       connectPrivy,
       connectingId,
-      isConnecting:
-        connectingId !== null ||
-        wagmi.backend.isConnecting ||
-        privy.backend.isConnecting,
+      isConnecting,
       error: activeBackend.error,
     }),
     [
@@ -136,8 +141,7 @@ export function WalletProvider({
       connectInjected,
       connectPrivy,
       connectingId,
-      wagmi.backend.isConnecting,
-      privy.backend.isConnecting,
+      isConnecting,
       activeBackend.error,
     ],
   );

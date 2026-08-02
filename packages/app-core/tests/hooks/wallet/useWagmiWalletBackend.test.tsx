@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
     address: undefined as string | undefined,
     isConnected: false,
     isConnecting: false,
+    isReconnecting: false,
+    connector: undefined as { uid?: string } | undefined,
     chain: undefined as { id: number; name: string } | undefined,
   },
   connectors: [] as { id: string; name: string; icon?: string; type: string }[],
@@ -52,10 +54,14 @@ vi.mock('@core/utils', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.connectAsync.mockReset();
+  mocks.connectAsync.mockResolvedValue(undefined);
   mocks.connection = {
     address: undefined,
     isConnected: false,
     isConnecting: false,
+    isReconnecting: false,
+    connector: undefined,
     chain: undefined,
   };
   mocks.connectors = [];
@@ -166,6 +172,141 @@ describe('useWagmiWalletBackend', () => {
 
     expect(mocks.connectAsync).not.toHaveBeenCalled();
     expect(result.current.backend.error).toMatchObject({ code: 'NO_WALLET' });
+  });
+
+  it('treats an already-connected active connector as a successful no-op', async () => {
+    const connector = {
+      id: 'io.rabby',
+      uid: 'io.rabby-1',
+      name: 'Rabby Wallet',
+      type: 'injected',
+    };
+    mocks.connectors = [connector];
+    mocks.connection = {
+      address: '0x1111111111111111111111111111111111111111',
+      isConnected: true,
+      isConnecting: false,
+      isReconnecting: false,
+      connector,
+      chain: { id: 8453, name: 'Base' },
+    };
+    const { result } = renderHook(() => useWagmiWalletBackend());
+
+    await act(async () => {
+      await expect(result.current.connectInjected('io.rabby')).resolves.toBe(
+        true,
+      );
+    });
+
+    expect(mocks.connectAsync).not.toHaveBeenCalled();
+    expect(result.current.backend.error).toBeNull();
+  });
+
+  it('treats a named ConnectorAlreadyConnectedError as benign without logging', async () => {
+    const connector = {
+      id: 'io.rabby',
+      uid: 'io.rabby-1',
+      name: 'Rabby Wallet',
+      type: 'injected',
+    };
+    mocks.connectors = [connector];
+    mocks.connectAsync.mockRejectedValue(
+      Object.assign(new Error('Connector already connected.'), {
+        name: 'ConnectorAlreadyConnectedError',
+      }),
+    );
+    const { result } = renderHook(() => useWagmiWalletBackend());
+
+    await act(async () => {
+      await expect(result.current.connectInjected('io.rabby')).resolves.toBe(
+        true,
+      );
+    });
+
+    const { walletLogger } = await import('@core/utils');
+    expect(walletLogger.error).not.toHaveBeenCalled();
+    expect(result.current.backend.error).toBeNull();
+  });
+
+  it('keeps ordinary connector errors visible as CONNECT_ERROR', async () => {
+    const connector = {
+      id: 'io.rabby',
+      uid: 'io.rabby-1',
+      name: 'Rabby Wallet',
+      type: 'injected',
+    };
+    mocks.connectors = [connector];
+    mocks.connectAsync.mockRejectedValue(new Error('User rejected request'));
+    const { result } = renderHook(() => useWagmiWalletBackend());
+
+    await act(async () => {
+      await expect(result.current.connectInjected('io.rabby')).resolves.toBe(
+        false,
+      );
+    });
+
+    const { walletLogger } = await import('@core/utils');
+    expect(walletLogger.error).toHaveBeenCalledTimes(1);
+    expect(result.current.backend.error).toMatchObject({
+      code: 'CONNECT_ERROR',
+      message: 'User rejected request',
+    });
+  });
+
+  it('reports reconnecting as busy and does not start a manual connect', async () => {
+    const connector = {
+      id: 'io.rabby',
+      uid: 'io.rabby-1',
+      name: 'Rabby Wallet',
+      type: 'injected',
+    };
+    mocks.connectors = [connector];
+    mocks.connection = {
+      address: undefined,
+      isConnected: false,
+      isConnecting: false,
+      isReconnecting: true,
+      connector: undefined,
+      chain: undefined,
+    };
+    const { result } = renderHook(() => useWagmiWalletBackend());
+
+    expect(result.current.backend.isConnecting).toBe(true);
+    await act(async () => {
+      await expect(result.current.connectInjected('io.rabby')).resolves.toBe(
+        false,
+      );
+    });
+    expect(mocks.connectAsync).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates deferred connect calls while the SDK promise is pending', async () => {
+    const connector = {
+      id: 'io.rabby',
+      uid: 'io.rabby-1',
+      name: 'Rabby Wallet',
+      type: 'injected',
+    };
+    mocks.connectors = [connector];
+    let resolveConnect: (() => void) | undefined;
+    mocks.connectAsync.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveConnect = resolve;
+        }),
+    );
+    const { result } = renderHook(() => useWagmiWalletBackend());
+
+    let first: Promise<boolean>;
+    let second: Promise<boolean>;
+    await act(async () => {
+      first = result.current.connectInjected('io.rabby');
+      second = result.current.connectInjected('io.rabby');
+      expect(mocks.connectAsync).toHaveBeenCalledTimes(1);
+      resolveConnect?.();
+      await expect(first).resolves.toBe(true);
+      await expect(second).resolves.toBe(true);
+    });
   });
 
   it('the default connect() asks the user to choose when multiple wallets are detected, and connects the sole one otherwise', async () => {

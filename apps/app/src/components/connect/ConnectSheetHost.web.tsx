@@ -49,6 +49,7 @@ export function ConnectSheetHost() {
       }}
       options={options}
       connectingId={login.connectingId}
+      isConnecting={login.isConnecting}
       errorCopy={errorCopy}
       onPrivyPress={() => void login.connectPrivy()}
       onWalletPress={handleWalletPress}

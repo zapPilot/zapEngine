@@ -20,6 +20,7 @@ export interface ConnectSheetProps {
   onClose: () => void;
   options: WalletConnectorOption[];
   connectingId: string | null;
+  isConnecting: boolean;
   errorCopy: { title: string; body: string } | null;
   onPrivyPress: () => void;
   onWalletPress: (option: WalletConnectorOption) => void;
@@ -36,6 +37,7 @@ export function ConnectSheet({
   onClose,
   options,
   connectingId,
+  isConnecting,
   errorCopy,
   onPrivyPress,
   onWalletPress,
@@ -97,7 +99,7 @@ export function ConnectSheet({
     return null;
   }
 
-  const isBusy = connectingId !== null;
+  const isBusy = isConnecting || connectingId !== null;
 
   return (
     <View className="absolute inset-0 z-50 items-center justify-end">
@@ -153,7 +155,7 @@ export function ConnectSheet({
           <View className="mt-4">
             <PrivyLoginOption
               isConnecting={connectingId === 'privy'}
-              disabled={isBusy && connectingId !== 'privy'}
+              disabled={isBusy}
               onPress={onPrivyPress}
             />
           </View>

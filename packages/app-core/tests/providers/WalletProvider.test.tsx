@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+import { act, render } from '@testing-library/react';
 import type { WalletProviderInterface } from '@core/types';
 import { renderToString } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -79,6 +81,8 @@ function Capture({
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  mocks.wagmi.connectInjected.mockReset();
+  mocks.wagmi.connectInjected.mockResolvedValue(false);
   mocks.wagmi.backend = stubBackend();
   mocks.wagmi.isConnected = false;
   mocks.privy.backend = stubBackend();
@@ -109,6 +113,28 @@ function renderAndCapture() {
   );
   if (!captured) throw new Error('WalletProvider did not render children');
   return captured;
+}
+
+function renderClientAndCapture() {
+  let captured:
+    | { wallet: WalletProviderInterface; login: WalletLoginContextValue }
+    | undefined;
+  const rendered = render(
+    <WalletProvider>
+      <Capture
+        onValue={(v) => {
+          captured = v;
+        }}
+      />
+    </WalletProvider>,
+  );
+  return {
+    get value() {
+      if (!captured) throw new Error('WalletProvider did not render children');
+      return captured;
+    },
+    unmount: rendered.unmount,
+  };
 }
 
 describe('WalletProvider (unified)', () => {
@@ -151,6 +177,46 @@ describe('WalletProvider (unified)', () => {
 
     expect(mocks.wagmi.backend.connect).not.toHaveBeenCalled();
     expect(mocks.privy.backend.connect).not.toHaveBeenCalled();
+  });
+
+  it('exposes unified busy state through both wallet and login contexts', () => {
+    mocks.wagmi.backend = stubBackend({ isConnecting: true });
+    const { wallet, login } = renderAndCapture();
+
+    expect(wallet.isConnecting).toBe(true);
+    expect(login.isConnecting).toBe(true);
+  });
+
+  it('closes the picker when injected connection resolves true', async () => {
+    mocks.wagmi.connectInjected.mockResolvedValue(true);
+    const rendered = renderClientAndCapture();
+
+    await act(async () => {
+      rendered.value.login.openPicker();
+    });
+    expect(rendered.value.login.isPickerOpen).toBe(true);
+
+    await act(async () => {
+      await rendered.value.login.connectInjected('io.rabby');
+    });
+
+    expect(rendered.value.login.isPickerOpen).toBe(false);
+    rendered.unmount();
+  });
+
+  it('keeps the picker open when injected connection resolves false', async () => {
+    mocks.wagmi.connectInjected.mockResolvedValue(false);
+    const rendered = renderClientAndCapture();
+
+    await act(async () => {
+      rendered.value.login.openPicker();
+    });
+    await act(async () => {
+      await rendered.value.login.connectInjected('io.rabby');
+    });
+
+    expect(rendered.value.login.isPickerOpen).toBe(true);
+    rendered.unmount();
   });
 
   it('disconnect() clears both backends when both are connected', async () => {

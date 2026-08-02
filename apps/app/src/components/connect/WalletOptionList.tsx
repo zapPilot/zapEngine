@@ -24,7 +24,7 @@ export function WalletOptionList({
           key={option.id}
           option={option}
           isConnecting={connectingId === option.id}
-          disabled={isBusy && connectingId !== option.id}
+          disabled={isBusy}
           showBorder={index < options.length - 1}
           onPress={() => onWalletPress(option)}
         />
