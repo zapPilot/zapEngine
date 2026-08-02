@@ -36,6 +36,9 @@ export const en = {
     'Zap Pilot can prepare routes, but your wallet must sign before anything moves.',
   'account.disconnectWallet': 'Disconnect wallet',
   'account.connectWallet': 'Connect wallet',
+  'account.unavailableTitle': 'Account unavailable',
+  'account.unavailableBody':
+    'Your wallet is connected, but Zap Pilot couldn’t load your account. Retry to continue.',
   'podcast.title': 'Podcast',
   'podcast.searchEpisodes': 'Search podcast episodes',
   'podcast.clearSearch': 'Clear podcast search',
@@ -216,6 +219,9 @@ export const zhHant = {
     'Zap Pilot 可以準備交易路徑，但資產移動前仍需由你的錢包簽署。',
   'account.disconnectWallet': '中斷錢包連線',
   'account.connectWallet': '連接錢包',
+  'account.unavailableTitle': '帳戶暫時無法使用',
+  'account.unavailableBody':
+    '錢包已連線，但 Zap Pilot 無法載入帳戶資料。請重試以繼續。',
   'podcast.title': 'Podcast',
   'podcast.searchEpisodes': '搜尋 Podcast 節目',
   'podcast.clearSearch': '清除 Podcast 搜尋',
@@ -387,6 +393,9 @@ export const ja = {
     'Zap Pilotは取引ルートを準備しますが、資産が移動する前にウォレットでの署名が必要です。',
   'account.disconnectWallet': 'ウォレット接続を解除',
   'account.connectWallet': 'ウォレットを接続',
+  'account.unavailableTitle': 'アカウントを利用できません',
+  'account.unavailableBody':
+    'ウォレットは接続されていますが、Zap Pilot がアカウント情報を読み込めませんでした。再試行してください。',
   'podcast.title': 'ポッドキャスト',
   'podcast.searchEpisodes': 'ポッドキャストを検索',
   'podcast.clearSearch': '検索内容を消去',

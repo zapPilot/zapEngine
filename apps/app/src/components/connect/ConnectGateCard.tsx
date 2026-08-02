@@ -17,6 +17,8 @@ interface ConnectGateCardProps {
   variant: 'page' | 'overlay';
   onConnect: () => void;
   isConnecting?: boolean | undefined;
+  /** Override the platform sign-in label for recovery actions. */
+  actionLabel?: string | undefined;
   /** Non-null renders the generic sign-in-unavailable error card. */
   error?: string | null | undefined;
 }
@@ -28,11 +30,14 @@ export function ConnectGateCard({
   variant,
   onConnect,
   isConnecting = false,
+  actionLabel,
   error = null,
 }: ConnectGateCardProps) {
   const isWeb = Platform.OS === 'web';
   const isPage = variant === 'page';
-  const cta = isWeb ? CONNECT_GATE_COPY.webCta : NATIVE_PRIVY_AUTH_COPY.cta;
+  const cta =
+    actionLabel ??
+    (isWeb ? CONNECT_GATE_COPY.webCta : NATIVE_PRIVY_AUTH_COPY.cta);
 
   return (
     <Card className={isPage ? 'p-5' : 'items-center p-6'}>

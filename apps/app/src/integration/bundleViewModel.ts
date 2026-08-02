@@ -31,6 +31,8 @@ export interface ViewingState {
   isOwnBundle: boolean;
   /** Connected and waiting on the backend user record; no URL override present. */
   isResolvingViewingUser: boolean;
+  /** The connected wallet's backend user record could not be loaded. */
+  isUserResolutionFailed: boolean;
   /** No subject at all — screens render DEMO data. */
   isDemo: boolean;
 }
@@ -40,16 +42,28 @@ export function resolveViewingState(input: {
   ownUserId: string | null;
   isConnected: boolean;
   loadingUser: boolean;
+  userError?: string | null;
 }): ViewingState {
-  const { urlUserId, ownUserId, isConnected, loadingUser } = input;
+  const { urlUserId, ownUserId, isConnected, loadingUser, userError } = input;
   const viewingUserId = urlUserId ?? ownUserId;
   const isOwnBundle =
     urlUserId === null || (ownUserId !== null && ownUserId === urlUserId);
   // A URL override renders immediately; only the own-bundle path has to wait
   // for account-engine to resolve who the connected wallet belongs to.
   const isResolvingViewingUser =
-    urlUserId === null && isConnected && loadingUser && ownUserId === null;
-  const isDemo = viewingUserId === null && !isResolvingViewingUser;
+    urlUserId === null && isConnected && ownUserId === null;
+  const isUserResolutionFailed =
+    isResolvingViewingUser && !loadingUser && Boolean(userError?.trim());
+  // Demo mode is strictly the disconnected, no-override state. A connected
+  // wallet with a missing account record must stay on the real-data path so
+  // it can show an account-unavailable/retry state instead of Sign in.
+  const isDemo = viewingUserId === null && !isConnected;
 
-  return { viewingUserId, isOwnBundle, isResolvingViewingUser, isDemo };
+  return {
+    viewingUserId,
+    isOwnBundle,
+    isResolvingViewingUser,
+    isUserResolutionFailed,
+    isDemo,
+  };
 }

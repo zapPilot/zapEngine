@@ -58,6 +58,7 @@ describe('resolveViewingState', () => {
       viewingUserId: null,
       isOwnBundle: true,
       isResolvingViewingUser: false,
+      isUserResolutionFailed: false,
       isDemo: true,
     });
   });
@@ -74,6 +75,7 @@ describe('resolveViewingState', () => {
       viewingUserId: BUNDLE_ID,
       isOwnBundle: false,
       isResolvingViewingUser: false,
+      isUserResolutionFailed: false,
       isDemo: false,
     });
   });
@@ -90,6 +92,7 @@ describe('resolveViewingState', () => {
       viewingUserId: null,
       isOwnBundle: true,
       isResolvingViewingUser: true,
+      isUserResolutionFailed: false,
       isDemo: false,
     });
   });
@@ -106,6 +109,7 @@ describe('resolveViewingState', () => {
       viewingUserId: OWN_ID,
       isOwnBundle: true,
       isResolvingViewingUser: false,
+      isUserResolutionFailed: false,
       isDemo: false,
     });
   });
@@ -122,6 +126,7 @@ describe('resolveViewingState', () => {
       viewingUserId: OWN_ID,
       isOwnBundle: true,
       isResolvingViewingUser: false,
+      isUserResolutionFailed: false,
       isDemo: false,
     });
   });
@@ -138,6 +143,7 @@ describe('resolveViewingState', () => {
       viewingUserId: BUNDLE_ID,
       isOwnBundle: false,
       isResolvingViewingUser: false,
+      isUserResolutionFailed: false,
       isDemo: false,
     });
   });
@@ -154,6 +160,60 @@ describe('resolveViewingState', () => {
       viewingUserId: BUNDLE_ID,
       isOwnBundle: false,
       isResolvingViewingUser: false,
+      isUserResolutionFailed: false,
+      isDemo: false,
+    });
+  });
+
+  it('keeps a connected wallet out of demo mode when account resolution fails', () => {
+    expect(
+      resolveViewingState({
+        urlUserId: null,
+        ownUserId: null,
+        isConnected: true,
+        loadingUser: false,
+        userError: 'USER_NOT_FOUND',
+      }),
+    ).toEqual({
+      viewingUserId: null,
+      isOwnBundle: true,
+      isResolvingViewingUser: true,
+      isUserResolutionFailed: true,
+      isDemo: false,
+    });
+  });
+
+  it('clears the failed flag while retrying a query with a stale error', () => {
+    expect(
+      resolveViewingState({
+        urlUserId: null,
+        ownUserId: null,
+        isConnected: true,
+        loadingUser: true,
+        userError: 'stale account lookup failure',
+      }),
+    ).toEqual({
+      viewingUserId: null,
+      isOwnBundle: true,
+      isResolvingViewingUser: true,
+      isUserResolutionFailed: false,
+      isDemo: false,
+    });
+  });
+
+  it('does not let a public bundle override inherit own account failure', () => {
+    expect(
+      resolveViewingState({
+        urlUserId: BUNDLE_ID,
+        ownUserId: null,
+        isConnected: true,
+        loadingUser: false,
+        userError: 'USER_NOT_FOUND',
+      }),
+    ).toMatchObject({
+      viewingUserId: BUNDLE_ID,
+      isResolvingViewingUser: false,
+      isUserResolutionFailed: false,
       isDemo: false,
     });
   });

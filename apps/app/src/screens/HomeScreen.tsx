@@ -14,6 +14,7 @@ import { Text, View } from 'react-native';
 
 import { Sparkline } from '@/components/charts/Sparkline';
 import {
+  AccountUnavailableOverlay,
   DemoBlurCover,
   DemoConnectOverlay,
 } from '@/components/home/DemoConnectOverlay';
@@ -385,7 +386,12 @@ export function HomeScreen() {
           <DemoConnectOverlay
             onConnect={connect}
             isConnecting={account.isConnecting}
-            error={account.error}
+            error={account.connectionError}
+          />
+        ) : account.isUserResolutionFailed ? (
+          <AccountUnavailableOverlay
+            onRetry={() => void account.retryUserResolution()}
+            isRetrying={account.loadingUser}
           />
         ) : null}
       </View>

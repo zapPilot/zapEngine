@@ -20,12 +20,19 @@ export interface UseUserResult {
  * into the shape feature components expect.
  */
 export function useUser(): UseUserResult {
-  const { userInfo, isLoading, error, isConnected, connectedWallet, refetch } =
-    useCurrentUser();
+  const {
+    userInfo,
+    isLoading,
+    isFetching,
+    error,
+    isConnected,
+    connectedWallet,
+    refetch,
+  } = useCurrentUser();
 
   return {
     userInfo,
-    loading: isLoading,
+    loading: isLoading || isFetching,
     error,
     isConnected,
     connectedWallet,

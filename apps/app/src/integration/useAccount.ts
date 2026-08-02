@@ -1,5 +1,6 @@
 import { useUser } from '@zapengine/app-core/hooks/queries/wallet/useUser';
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
+import { useCallback } from 'react';
 
 import { resolveViewingState } from '@/integration/bundleViewModel';
 import { getBundleViewUserId } from '@/integration/bundleViewParam';
@@ -24,13 +25,19 @@ export interface DesktopAccount {
   isOwnBundle: boolean;
   /** Connected and waiting on account-engine before `viewingUserId` settles. */
   isResolvingViewingUser: boolean;
+  /** Connected wallet whose account-engine user record failed to load. */
+  isUserResolutionFailed: boolean;
   /** No live subject to display — screens render DEMO data. */
   isDemo: boolean;
   email: string | null;
   /** Still resolving the backend user record after connect. */
   loadingUser: boolean;
-  error: string | null;
+  /** Error raised while connecting the wallet itself. */
+  connectionError: string | null;
+  /** Error raised while loading the connected wallet's account record. */
+  userResolutionError: string | null;
   connect: () => Promise<void>;
+  retryUserResolution: () => Promise<unknown>;
   disconnect: () => Promise<void>;
 }
 
@@ -43,23 +50,50 @@ export interface DesktopAccount {
 export function useAccount(): DesktopAccount {
   const wallet = useWalletProvider();
   const user = useUser();
+  const refetchUser = user.refetch;
+  const {
+    account,
+    connect: connectWallet,
+    disconnect,
+    error: walletError,
+    isConnected,
+    isConnecting,
+  } = wallet;
   const userId = user.userInfo?.userId?.trim() || null;
   const walletAddresses = user.userInfo?.bundleWallets ?? [];
+  const urlUserId = getBundleViewUserId();
   // `userId` stays the real logged-in user; the viewing fields decide whose
   // bundle the screens display (a `?userId=` link overrides, read-only).
   const viewing = resolveViewingState({
-    urlUserId: getBundleViewUserId(),
+    urlUserId,
     ownUserId: userId,
-    isConnected: wallet.isConnected,
+    isConnected,
     loadingUser: user.loading,
+    userError: user.error,
   });
 
+  const retryUserResolution = useCallback(() => refetchUser(), [refetchUser]);
+
+  const connect = useCallback(async (): Promise<void> => {
+    if (!isConnected) {
+      await connectWallet();
+      return;
+    }
+
+    // A connected wallet already has a live connector. If its account-engine
+    // record is missing, retry that query instead of reopening the wallet
+    // picker (which would make wagmi throw ConnectorAlreadyConnectedError).
+    if (userId === null && urlUserId === null) {
+      await retryUserResolution();
+    }
+  }, [connectWallet, isConnected, retryUserResolution, urlUserId, userId]);
+
   return {
-    isConnected: wallet.isConnected,
-    isConnecting: wallet.isConnecting,
+    isConnected,
+    isConnecting,
     // Only the active signing EOA can fund an execution. Bundle wallets stay
     // available separately for read-only portfolio and activity aggregation.
-    address: wallet.account?.address ?? user.connectedWallet ?? null,
+    address: account?.address ?? user.connectedWallet ?? null,
     walletAddresses,
     userId,
     etlJobId: user.userInfo?.etlJobId ?? null,
@@ -67,8 +101,10 @@ export function useAccount(): DesktopAccount {
     ...viewing,
     email: user.userInfo?.email ?? null,
     loadingUser: user.loading,
-    error: wallet.error?.message ?? user.error ?? null,
-    connect: wallet.connect,
-    disconnect: wallet.disconnect,
+    connectionError: walletError?.message ?? null,
+    userResolutionError: user.error,
+    connect,
+    retryUserResolution,
+    disconnect,
   };
 }

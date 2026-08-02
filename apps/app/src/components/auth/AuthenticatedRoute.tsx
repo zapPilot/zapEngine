@@ -4,6 +4,7 @@ import { Platform, View } from 'react-native';
 
 import { ConnectGateCard } from '@/components/connect/ConnectGateCard';
 import { CONNECT_GATE_COPY } from '@/components/connect/connectCopy';
+import { AccountUnavailableCard } from '@/components/home/DemoConnectOverlay';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { useAccount } from '@/integration/useAccount';
 import { NATIVE_PRIVY_AUTH_COPY } from '@/integration/nativePrivyLogin';
@@ -22,11 +23,26 @@ export function AuthenticatedRoute({
   const router = useRouter();
   const isWeb = Platform.OS === 'web';
 
-  if (
-    account.isConnected ||
-    (allowBundleView && account.viewingUserId !== null)
-  ) {
+  if (allowBundleView && account.viewingUserId !== null) {
     return <>{children}</>;
+  }
+
+  if (account.isConnected && !account.isUserResolutionFailed) {
+    return <>{children}</>;
+  }
+
+  if (account.isConnected) {
+    return (
+      <ScreenScrollView>
+        <View className="flex-1 px-5 pt-16">
+          <AccountUnavailableCard
+            variant="page"
+            onRetry={() => void account.retryUserResolution()}
+            isRetrying={account.loadingUser}
+          />
+        </View>
+      </ScreenScrollView>
+    );
   }
 
   return (
@@ -37,7 +53,7 @@ export function AuthenticatedRoute({
           title={CONNECT_GATE_COPY.signInTitle}
           body={isWeb ? CONNECT_GATE_COPY.webBody : NATIVE_PRIVY_AUTH_COPY.body}
           isConnecting={account.isConnecting}
-          error={account.error}
+          error={account.connectionError}
           onConnect={() => {
             void account
               .connect()
