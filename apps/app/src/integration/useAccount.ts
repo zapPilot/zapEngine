@@ -14,6 +14,10 @@ export interface DesktopAccount {
   walletAddresses: string[];
   /** Resolved Zap Pilot user id (from account-engine), or null. */
   userId: string | null;
+  /** First-login ETL job returned by account-engine, if one was scheduled. */
+  etlJobId: string | null;
+  /** Whether account-engine created this user during the current connection. */
+  isNewUser: boolean;
   /** User id whose bundle the screens display: URL `?userId=` or `userId`. */
   viewingUserId: string | null;
   /** False when viewing someone else's bundle — hide write affordances. */
@@ -58,6 +62,8 @@ export function useAccount(): DesktopAccount {
     address: wallet.account?.address ?? user.connectedWallet ?? null,
     walletAddresses,
     userId,
+    etlJobId: user.userInfo?.etlJobId ?? null,
+    isNewUser: user.userInfo?.isNewUser ?? false,
     ...viewing,
     email: user.userInfo?.email ?? null,
     loadingUser: user.loading,

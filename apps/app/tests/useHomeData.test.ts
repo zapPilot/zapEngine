@@ -40,7 +40,10 @@ vi.mock('@/integration/useStrategySuggestion', () => ({
 }));
 
 function mockSettledSources() {
-  usePortfolioDataProgressiveMock.mockReturnValue({ sections: {} });
+  usePortfolioDataProgressiveMock.mockReturnValue({
+    unifiedData: null,
+    sections: {},
+  });
   usePortfolioDashboardMock.mockReturnValue({
     dashboard: null,
     isLoading: false,
@@ -73,7 +76,7 @@ describe('Home data analytics subject', () => {
   it('never forwards a wallet address to the UUID-typed analytics paths', () => {
     useHomeData(null, '0x1234567890123456789012345678901234567890', '1Y');
 
-    expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(null);
+    expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(null, false);
     expect(usePortfolioDashboardMock).toHaveBeenCalledWith(
       undefined,
       getHomeDashboardWindowParams(),
@@ -85,6 +88,7 @@ describe('Home data analytics subject', () => {
 
     expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(
       '5fc63d4e-4e07-47d8-840b-ccd3420d553f',
+      false,
     );
   });
 });
@@ -137,7 +141,7 @@ describe('useHomeData', () => {
     expect(result).toMatchObject({ isLoading: true, isError: false });
     expect(result.data?.home.totalBalance).toBeNull();
     expect(result.data?.home.assets).not.toBe(DEMO.home.assets);
-    expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(null);
+    expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(null, false);
   });
 
   it('keeps disconnected users on demo data without surfacing a live error', () => {
@@ -192,8 +196,54 @@ describe('useHomeData', () => {
     });
   });
 
+  it('treats a missing snapshot as unavailable instead of a zero balance', () => {
+    usePortfolioDataProgressiveMock.mockReturnValue({
+      unifiedData: { lastUpdated: null },
+      sections: {
+        balance: {
+          data: { balance: 0 },
+          isLoading: false,
+          error: null,
+        },
+      },
+    });
+
+    const result = useHomeData('user-123', '0xabc', '1Y');
+
+    expect(result.snapshotAvailability).toBe('unavailable');
+    expect(result.data?.home.totalBalance).toBeNull();
+  });
+
+  it('preserves a legitimate zero balance when a snapshot timestamp exists', () => {
+    usePortfolioDataProgressiveMock.mockReturnValue({
+      unifiedData: { lastUpdated: '2026-08-02T00:00:00.000Z' },
+      sections: {
+        balance: {
+          data: { balance: 0 },
+          isLoading: false,
+          error: null,
+        },
+      },
+    });
+
+    const result = useHomeData('user-123', '0xabc', '1Y');
+
+    expect(result.snapshotAvailability).toBe('available');
+    expect(result.data?.home.totalBalance).toBe(0);
+  });
+
+  it('forwards the active ETL state to the landing query', () => {
+    useHomeData('user-123', '0xabc', '1Y', { isEtlInProgress: true });
+
+    expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(
+      'user-123',
+      true,
+    );
+  });
+
   it('reports upstream errors while preserving partial live data', () => {
     usePortfolioDataProgressiveMock.mockReturnValue({
+      unifiedData: { lastUpdated: '2026-08-02T00:00:00.000Z' },
       sections: {
         balance: {
           data: { balance: 1234 },
