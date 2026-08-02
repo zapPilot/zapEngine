@@ -1,12 +1,58 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  validateConnectWalletResponse,
   validateAddWalletResponse,
   validateMessageResponse,
+  validateUserProfileResponse,
   validateUserWallets,
 } from '../../src/schemas/api/accountSchemas';
 
 describe('account service response schemas', () => {
+  it('accepts wallet-only profiles with a nullable email from account-engine', () => {
+    expect(
+      validateUserProfileResponse({
+        user: {
+          id: 'user-1',
+          email: null,
+          is_subscribed_to_reports: false,
+          created_at: '2026-07-02T00:00:00.000Z',
+        },
+        wallets: [],
+      }),
+    ).toMatchObject({
+      user: {
+        id: 'user-1',
+        email: null,
+      },
+      wallets: [],
+    });
+  });
+
+  it('accepts failed ETL responses when connecting a new wallet', () => {
+    expect(
+      validateConnectWalletResponse({
+        user_id: 'user-1',
+        is_new_user: true,
+        etl_job: {
+          job_id: null,
+          status: 'error',
+          message: 'Failed to queue ETL job',
+          rate_limited: false,
+        },
+      }),
+    ).toEqual({
+      user_id: 'user-1',
+      is_new_user: true,
+      etl_job: {
+        job_id: null,
+        status: 'error',
+        message: 'Failed to queue ETL job',
+        rate_limited: false,
+      },
+    });
+  });
+
   it('accepts complete user wallet rows and nullable labels from account-engine', () => {
     expect(
       validateUserWallets([

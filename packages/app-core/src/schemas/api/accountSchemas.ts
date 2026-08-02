@@ -19,7 +19,7 @@ import { z } from 'zod';
 export const userSchema = z.object({
   id: z.string(),
   // eslint-disable-next-line sonarjs/deprecation
-  email: z.string().email().optional(),
+  email: z.string().email().nullable().optional(),
   is_subscribed_to_reports: z.boolean(),
   created_at: z.string(),
 });
@@ -145,7 +145,7 @@ export const etlJobTriggerResponseSchema = z.object({
 export const connectWalletResponseSchema = z.object({
   user_id: z.string(),
   is_new_user: z.boolean(),
-  etl_job: etlJobStatusResponseSchema.optional(),
+  etl_job: etlJobTriggerResponseSchema.optional(),
 });
 
 /**
@@ -192,33 +192,9 @@ export const userProfileResponseSchema = z.object({
   typeof userCryptoWalletSchema
 >;
 
-/**
- * ConnectWalletResponse type with snake_case etl_job field
- * Matches the API's response structure directly without transformation
- *
- * Note: We use a custom etl_job structure instead of the imported EtlJobStatus
- * because the API returns a subset of fields with snake_case naming.
- */
-/** @public */ export interface ConnectWalletResponse {
-  user_id: string;
-  is_new_user: boolean;
-  etl_job?: {
-    job_id: string;
-    status: 'pending' | 'processing' | 'completed' | 'failed';
-    message?: string;
-    rate_limited?: boolean;
-    created_at?: string;
-    updated_at?: string;
-    completed_at?: string;
-    records_processed?: number;
-    records_inserted?: number;
-    duration?: number;
-    error?: {
-      code: string;
-      message: string;
-    };
-  };
-}
+/** @public */ export type ConnectWalletResponse = z.infer<
+  typeof connectWalletResponseSchema
+>;
 /** @public */ export type EtlJobTriggerResponse = z.infer<
   typeof etlJobTriggerResponseSchema
 >;
