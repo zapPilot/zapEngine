@@ -1,5 +1,6 @@
 import { extractErrorMessage } from '@core/lib/errors';
 import { pollUntil } from '@core/lib/polling';
+import { sendPreparedTransaction } from '@core/lib/wallet/sendPreparedTransaction';
 import {
   initialStrategyDepositWizardState,
   strategyDepositWizardReducer,
@@ -266,15 +267,7 @@ export function useStrategyDepositWizard() {
       if (!hash) {
         const activeWallet = walletRef.current;
         assertPlannedAccount(activeWallet.account?.address, address);
-        hash = await activeWallet.sendTransaction({
-          to: transaction.to as Address,
-          data: transaction.data as `0x${string}`,
-          value: BigInt(transaction.value),
-          chainId: transaction.chainId,
-          ...(transaction.gasLimit
-            ? { gas: BigInt(transaction.gasLimit) }
-            : {}),
-        });
+        hash = await sendPreparedTransaction(activeWallet, transaction);
         dispatch({ type: 'TX_SUBMITTED', hash });
       }
       await confirmTransaction(step, hash, address);

@@ -26,6 +26,7 @@ interface LiFiQuoteResponse {
     approvalAddress?: string;
     executionDuration?: number;
     gasCosts?: Array<{ amountUSD?: string }>;
+    feeCosts?: Array<{ amountUSD?: string }>;
   };
   transactionRequest?: {
     to: string;
@@ -272,11 +273,17 @@ export class LiFiAdapter {
           }
         : undefined;
 
-    // Calculate gas cost from gasCosts array
-    const gasCostUsd =
-      quote.estimate.gasCosts
-        ?.reduce((sum, gc) => sum + parseFloat(gc.amountUSD ?? '0'), 0)
+    // LI.FI already includes bridge fees in `toAmount`; expose fee costs for
+    // display only so callers do not subtract them a second time.
+    const sumUsdCosts = (costs: Array<{ amountUSD?: string }> | undefined) =>
+      costs
+        ?.reduce(
+          (sum, cost) => sum + Number.parseFloat(cost.amountUSD ?? '0'),
+          0,
+        )
         .toString() ?? '0';
+    const gasCostUsd = sumUsdCosts(quote.estimate.gasCosts);
+    const feeCostUsd = sumUsdCosts(quote.estimate.feeCosts);
 
     return {
       transaction,
@@ -285,7 +292,9 @@ export class LiFiAdapter {
         toAmount: quote.estimate.toAmount,
         toAmountMin: quote.estimate.toAmountMin,
         gasCostUsd,
+        feeCostUsd,
         executionDuration,
+        tool: quote.tool,
       },
       approval,
       route: quote,

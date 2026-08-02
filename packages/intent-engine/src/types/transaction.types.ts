@@ -28,7 +28,9 @@ export interface TransactionQuote {
     toAmount: string;
     toAmountMin: string;
     gasCostUsd: string;
+    feeCostUsd: string;
     executionDuration: number; // seconds
+    tool: string;
   };
   approval?: {
     tokenAddress: Address;

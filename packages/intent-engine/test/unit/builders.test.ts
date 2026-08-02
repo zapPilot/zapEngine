@@ -189,7 +189,9 @@ describe('buildSupplyTx', () => {
       toAmount: '5000000',
       toAmountMin: '5000000',
       gasCostUsd: '0',
+      feeCostUsd: '0',
       executionDuration: 0,
+      tool: 'direct',
     });
     expect(result.route).toEqual({ tool: 'direct' });
 

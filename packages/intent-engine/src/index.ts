@@ -158,6 +158,10 @@ import {
   type SimulationAdapter,
 } from './adapters/simulation.adapter.js';
 import { buildSwapTx } from './builders/swap.builder.js';
+import {
+  buildBridgeTx,
+  type BridgeIntentInput,
+} from './builders/bridge.builder.js';
 import { buildSupplyTx } from './builders/supply.builder.js';
 import { buildWithdrawTx } from './builders/withdraw.builder.js';
 import {
@@ -216,6 +220,9 @@ export interface IntentEngine {
 
   /** Build a swap transaction */
   buildSwap(intent: SwapIntentInput): Promise<TransactionQuote>;
+
+  /** Build a cross-chain bridge transaction */
+  buildBridge(intent: BridgeIntentInput): Promise<TransactionQuote>;
 
   /** Build a supply (deposit) transaction (requires a PublicClient to read vault.asset()) */
   buildSupply(
@@ -301,6 +308,10 @@ export function createIntentEngine(config: IntentEngineConfig): IntentEngine {
 
     async buildSwap(intent: SwapIntentInput) {
       return buildSwapTx(intent, lifiAdapter);
+    },
+
+    async buildBridge(intent: BridgeIntentInput) {
+      return buildBridgeTx(intent, lifiAdapter);
     },
 
     async buildSupply(intent: SupplyIntentInput, publicClient: PublicClient) {

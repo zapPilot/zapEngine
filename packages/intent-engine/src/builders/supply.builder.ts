@@ -62,7 +62,9 @@ export async function buildSupplyTx(
         toAmount: validated.fromAmount,
         toAmountMin: validated.fromAmount,
         gasCostUsd: '0',
+        feeCostUsd: '0',
         executionDuration: 0,
+        tool: 'direct',
       },
       route: { tool: 'direct' },
     };

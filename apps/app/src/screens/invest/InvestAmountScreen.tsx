@@ -7,6 +7,7 @@ import {
   CONNECT_WALLET_CTA,
   CONNECTING_LABEL,
 } from '@/components/connect/connectCopy';
+import { BridgeTestPanel } from '@/components/invest/BridgeTestPanel';
 import { ChainTokenSelectorSheet } from '@/components/invest/ChainTokenSelectorSheet';
 import { StepHeader } from '@/components/invest/StepHeader';
 import { StepProgress } from '@/components/invest/StepProgress';
@@ -145,13 +146,16 @@ function FundingSourceInput({
   );
 }
 
+type InvestAmountTab = InvestScope | 'bridge';
+
 const INVEST_SCOPE_OPTIONS: readonly {
-  value: InvestScope;
+  value: InvestAmountTab;
   label: string;
 }[] = [
   { value: 'both', label: 'Both chains' },
   { value: 'base', label: 'Base only' },
   { value: 'arbitrum', label: 'Arbitrum only' },
+  { value: 'bridge', label: 'Bridge' },
 ];
 
 function fundingBalanceState({
@@ -247,8 +251,8 @@ function InvestScopeToggle({
   value,
   onChange,
 }: {
-  value: InvestScope;
-  onChange: (scope: InvestScope) => void;
+  value: InvestAmountTab;
+  onChange: (scope: InvestAmountTab) => void;
 }) {
   return (
     <View
@@ -295,6 +299,7 @@ export function InvestAmountScreen() {
   const account = useAccount();
   const invest = useInvest();
   const balances = useWalletAssets(account.address);
+  const [activeTab, setActiveTab] = useState<InvestAmountTab>(invest.scope);
   const [selector, setSelector] = useState<'base' | 'arbitrum' | null>(null);
   const isBoth = invest.scope === 'both';
   const isBaseOnly = invest.scope === 'base';
@@ -461,6 +466,33 @@ export function InvestAmountScreen() {
     activeChainLabel,
   });
 
+  function handleTabChange(tab: InvestAmountTab): void {
+    setSelector(null);
+    setActiveTab(tab);
+    if (tab !== 'bridge') {
+      invest.setScope(tab);
+    }
+  }
+
+  if (activeTab === 'bridge') {
+    return (
+      <ScreenScrollView>
+        <StepHeader title="Invest" step="Bridge test" />
+        <View className="px-5 pt-5">
+          <Text className="font-sans-semibold text-[22px] text-ink">
+            Bridge USDC
+          </Text>
+          <Text className="mt-1.5 text-[12px] leading-[18px] text-ink-dim">
+            Test canonical USDC transfers through LI.FI without entering a
+            strategy.
+          </Text>
+          <InvestScopeToggle value={activeTab} onChange={handleTabChange} />
+          <BridgeTestPanel />
+        </View>
+      </ScreenScrollView>
+    );
+  }
+
   return (
     <>
       <ScreenScrollView>
@@ -478,13 +510,7 @@ export function InvestAmountScreen() {
                 : 'Test canonical Arbitrum USDC with GMX BTC/USDC.'}
           </Text>
 
-          <InvestScopeToggle
-            value={invest.scope}
-            onChange={(scope) => {
-              setSelector(null);
-              invest.setScope(scope);
-            }}
-          />
+          <InvestScopeToggle value={activeTab} onChange={handleTabChange} />
 
           <View className="mt-4 rounded-[22px] border border-line bg-[#111113] p-3">
             <View className="px-1 pb-3 pt-1">
