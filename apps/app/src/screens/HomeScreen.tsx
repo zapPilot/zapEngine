@@ -9,7 +9,7 @@ import {
   Wallet,
 } from 'lucide-react-native';
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { Sparkline } from '@/components/charts/Sparkline';
@@ -30,6 +30,8 @@ import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
+import { useEtlJobPolling } from '@zapengine/app-core/hooks/wallet';
+
 import { useAccount } from '@/integration/useAccount';
 import {
   DEFAULT_HOME_RANGE,
@@ -181,6 +183,42 @@ function PartialWalletWarning({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+function PortfolioImportState({
+  title,
+  body,
+  retryLabel,
+  onRetry,
+}: {
+  title: string;
+  body: string;
+  retryLabel?: string | undefined;
+  onRetry?: (() => void) | undefined;
+}) {
+  return (
+    <View className="items-center justify-center rounded-2xl border border-line bg-[rgba(255,255,255,.025)] px-5 py-5">
+      <Text className="text-center font-sans-semibold text-[14px] text-ink">
+        {title}
+      </Text>
+      <Text className="mt-1.5 max-w-[310px] text-center text-[11.5px] leading-[17px] text-ink-dim">
+        {body}
+      </Text>
+      {retryLabel && onRetry ? (
+        <Tap
+          accessibilityLabel={retryLabel}
+          accessibilityRole="button"
+          className="mt-3 flex-row items-center gap-1.5 rounded-full border border-[rgba(212,197,163,.22)] bg-[rgba(212,197,163,.07)] px-3 py-1.5"
+          onPress={onRetry}
+        >
+          <RefreshCw size={12} strokeWidth={2} color="#d4c5a3" />
+          <Text className="font-sans-semibold text-[11px] text-accent">
+            {retryLabel}
+          </Text>
+        </Tap>
+      ) : null}
+    </View>
+  );
+}
+
 function ActionButton({
   icon,
   label,
@@ -207,17 +245,54 @@ export function HomeScreen() {
   const authAction = useAuthenticatedAction();
   const [range, setRange] = useState<HomeRange>(DEFAULT_HOME_RANGE);
   const account = useAccount();
-  const { data, isLoading, walletAssets } = useHomeData(
+  const {
+    state: etlState,
+    startPolling: startEtlPolling,
+    triggerEtl,
+  } = useEtlJobPolling();
+  const { data, isLoading, snapshotAvailability, walletAssets } = useHomeData(
     account.viewingUserId,
     account.address,
     range,
-    { isResolvingSubject: account.isResolvingViewingUser },
+    {
+      isResolvingSubject: account.isResolvingViewingUser,
+      isEtlInProgress: account.isOwnBundle && etlState.isInProgress,
+    },
   );
+
+  useEffect(() => {
+    if (
+      account.isOwnBundle &&
+      snapshotAvailability === 'unavailable' &&
+      account.etlJobId &&
+      etlState.jobId !== account.etlJobId
+    ) {
+      startEtlPolling(account.etlJobId, account.userId);
+    }
+  }, [
+    account.etlJobId,
+    account.isOwnBundle,
+    account.userId,
+    etlState.jobId,
+    snapshotAvailability,
+    startEtlPolling,
+  ]);
 
   const isDemo = account.isDemo;
   const home = data?.home ?? DEMO.home;
   const strategy = data?.strategy ?? DEMO.strategy;
-  const showBalanceSkeleton = !isDemo && isLoading;
+  const showBalanceSkeleton = !isDemo && isLoading && !etlState.isInProgress;
+  const showPortfolioImportState =
+    account.isOwnBundle &&
+    !isDemo &&
+    !showBalanceSkeleton &&
+    snapshotAvailability === 'unavailable';
+  const portfolioImportStatus = etlState.status;
+  const retryPortfolioImport = () => {
+    if (account.userId && account.address) {
+      void triggerEtl(account.userId, account.address);
+    }
+  };
   const showAssetSkeleton = !isDemo && walletAssets.isLoading;
   const changePct = home.changePct;
   const changeUsd = home.changeUsdToday;
@@ -233,26 +308,59 @@ export function HomeScreen() {
       <View className="relative">
         <View className="px-5 pt-6">
           <SectionLabel>{t('home.netWorth')}</SectionLabel>
-          <DisplayUsdValue
-            loading={showBalanceSkeleton}
-            value={home.totalBalance}
-            valueClassName="mt-2 font-serif text-[54px] leading-[58px] text-ink"
-            fractionClassName="text-[34px] text-ink-faint"
-            skeletonClassName="mt-2 h-[58px] w-[230px] rounded-xl"
-            emptyClassName="text-ink-faint"
-          />
-          <View className="mt-[9px] flex-row items-center gap-2">
-            <Text className="rounded-full bg-[rgba(122,216,143,.12)] px-[9px] py-[3px] font-sans-semibold text-[12.5px] text-success">
-              {typeof changePct === 'number'
-                ? formatSignedPct(changePct).replace('+', '')
-                : '-'}
-            </Text>
-            <Text className="text-[13px] text-ink-dim">
-              {typeof changeUsd === 'number'
-                ? `${formatSignedUsd(changeUsd)} ${t('home.today')}`
-                : t('home.today')}
-            </Text>
-          </View>
+          {showPortfolioImportState ? (
+            <View className="mt-3">
+              <PortfolioImportState
+                title={
+                  portfolioImportStatus === 'failed'
+                    ? t('home.etlFailedTitle')
+                    : portfolioImportStatus === 'completed'
+                      ? t('home.noPortfolioHistoryTitle')
+                      : t('home.etlPreparingTitle')
+                }
+                body={
+                  portfolioImportStatus === 'failed'
+                    ? t('home.etlFailedBody')
+                    : portfolioImportStatus === 'completed'
+                      ? t('home.noPortfolioHistoryBody')
+                      : t('home.etlPreparingBody')
+                }
+                retryLabel={
+                  portfolioImportStatus === 'failed'
+                    ? t('common.retry')
+                    : undefined
+                }
+                onRetry={
+                  portfolioImportStatus === 'failed'
+                    ? retryPortfolioImport
+                    : undefined
+                }
+              />
+            </View>
+          ) : (
+            <>
+              <DisplayUsdValue
+                loading={showBalanceSkeleton}
+                value={home.totalBalance}
+                valueClassName="mt-2 font-serif text-[54px] leading-[58px] text-ink"
+                fractionClassName="text-[34px] text-ink-faint"
+                skeletonClassName="mt-2 h-[58px] w-[230px] rounded-xl"
+                emptyClassName="text-ink-faint"
+              />
+              <View className="mt-[9px] flex-row items-center gap-2">
+                <Text className="rounded-full bg-[rgba(122,216,143,.12)] px-[9px] py-[3px] font-sans-semibold text-[12.5px] text-success">
+                  {typeof changePct === 'number'
+                    ? formatSignedPct(changePct).replace('+', '')
+                    : '-'}
+                </Text>
+                <Text className="text-[13px] text-ink-dim">
+                  {typeof changeUsd === 'number'
+                    ? `${formatSignedUsd(changeUsd)} ${t('home.today')}`
+                    : t('home.today')}
+                </Text>
+              </View>
+            </>
+          )}
         </View>
 
         <View className="mt-5 px-5">
@@ -265,7 +373,7 @@ export function HomeScreen() {
             />
           </View>
           <View className="mt-3 h-[88px] justify-center">
-            {showBalanceSkeleton ? (
+            {showPortfolioImportState ? null : showBalanceSkeleton ? (
               <SkeletonBlock className="h-[70px] w-full rounded-2xl" />
             ) : (
               <Sparkline data={home.sparkline} height={82} />

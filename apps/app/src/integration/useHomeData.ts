@@ -35,10 +35,13 @@ export interface HomeData {
   strategy: StrategySlice;
 }
 
+export type HomeSnapshotAvailability = 'demo' | 'available' | 'unavailable';
+
 export interface UseHomeDataResult {
   data: HomeData | null;
   isLoading: boolean;
   isError: boolean;
+  snapshotAvailability: HomeSnapshotAvailability;
   walletAssets: UseWalletAssetsResult;
 }
 
@@ -135,12 +138,18 @@ export function useHomeData(
   subjectUserId: string | null,
   address: string | null,
   range: HomeRange,
-  options: { isResolvingSubject?: boolean } = {},
+  options: {
+    isResolvingSubject?: boolean;
+    isEtlInProgress?: boolean;
+  } = {},
 ): UseHomeDataResult {
   // Hooks run unconditionally (React rules); analytics no-ops until we have
   // an account-engine user id to display.
   const analyticsSubjectId = subjectUserId?.trim() || null;
-  const progressive = usePortfolioDataProgressive(analyticsSubjectId);
+  const progressive = usePortfolioDataProgressive(
+    analyticsSubjectId,
+    Boolean(options.isEtlInProgress),
+  );
   const dashboard = usePortfolioDashboard(
     analyticsSubjectId ?? undefined,
     getHomeDashboardWindowParams(),
@@ -156,6 +165,7 @@ export function useHomeData(
 
   const balanceSection = progressive.sections?.balance;
   const strategySection = progressive.sections?.strategy;
+  const hasPortfolioSnapshot = Boolean(progressive.unifiedData?.lastUpdated);
 
   const isResolvingSubject =
     Boolean(options.isResolvingSubject) && analyticsSubjectId === null;
@@ -179,7 +189,9 @@ export function useHomeData(
   // --- Live: total balance from the landing balance section ---
   const totalBalance = isDemo
     ? demoHome.totalBalance
-    : (balanceSection?.data?.balance ?? null);
+    : hasPortfolioSnapshot
+      ? (balanceSection?.data?.balance ?? null)
+      : null;
 
   // --- Live: today's change + balance sparkline from the trends series ---
   const dailyValues = dashboard.dashboard?.trends?.daily_values ?? [];
@@ -254,6 +266,11 @@ export function useHomeData(
     data: { home, strategy },
     isLoading,
     isError,
+    snapshotAvailability: isDemo
+      ? 'demo'
+      : hasPortfolioSnapshot
+        ? 'available'
+        : 'unavailable',
     walletAssets,
   };
 }

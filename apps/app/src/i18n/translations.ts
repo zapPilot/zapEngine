@@ -121,6 +121,15 @@ export const en = {
   'home.demo': 'Demo',
   'home.partial': 'Partial',
   'home.live': 'Live',
+  'home.etlPreparingTitle': 'Preparing your portfolio',
+  'home.etlPreparingBody':
+    'We’re importing this wallet’s activity. This usually takes a few minutes and updates automatically.',
+  'home.etlFailedTitle': 'Portfolio import failed',
+  'home.etlFailedBody':
+    'We couldn’t import this wallet’s activity. Try starting the import again.',
+  'home.noPortfolioHistoryTitle': 'No portfolio history found',
+  'home.noPortfolioHistoryBody':
+    'The import finished, but no portfolio history was available for this wallet.',
   'strategy.title': 'Strategy',
   'strategy.currentAllocation': 'Current allocation',
   'strategy.targetAllocation': 'Target allocation',
@@ -289,6 +298,14 @@ export const zhHant = {
   'home.demo': '展示',
   'home.partial': '部分資料',
   'home.live': '即時',
+  'home.etlPreparingTitle': '正在準備你的投資組合',
+  'home.etlPreparingBody':
+    '我們正在匯入這個錢包的活動紀錄。通常會在幾分鐘內完成，完成後會自動更新。',
+  'home.etlFailedTitle': '投資組合匯入失敗',
+  'home.etlFailedBody': '無法匯入這個錢包的活動紀錄，請重新啟動匯入。',
+  'home.noPortfolioHistoryTitle': '找不到投資組合歷史紀錄',
+  'home.noPortfolioHistoryBody':
+    '匯入已完成，但這個錢包沒有可用的投資組合歷史紀錄。',
   'strategy.title': '策略',
   'strategy.currentAllocation': '目前配置',
   'strategy.targetAllocation': '目標配置',
@@ -453,6 +470,15 @@ export const ja = {
   'home.demo': 'デモ',
   'home.partial': '一部取得',
   'home.live': 'リアルタイム',
+  'home.etlPreparingTitle': 'ポートフォリオを準備しています',
+  'home.etlPreparingBody':
+    'このウォレットのアクティビティを取り込んでいます。通常は数分で完了し、自動的に更新されます。',
+  'home.etlFailedTitle': 'ポートフォリオの取り込みに失敗しました',
+  'home.etlFailedBody':
+    'このウォレットのアクティビティを取り込めませんでした。もう一度お試しください。',
+  'home.noPortfolioHistoryTitle': 'ポートフォリオ履歴が見つかりません',
+  'home.noPortfolioHistoryBody':
+    '取り込みは完了しましたが、このウォレットで利用できるポートフォリオ履歴はありませんでした。',
   'strategy.title': 'ストラテジー',
   'strategy.currentAllocation': '現在の配分',
   'strategy.targetAllocation': '目標配分',
