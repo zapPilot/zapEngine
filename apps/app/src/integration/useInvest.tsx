@@ -11,6 +11,7 @@ import { handleHTTPError } from '@zapengine/app-core/lib/http';
 import { getDepositReview } from '@zapengine/app-core/services';
 import {
   STRATEGY_DEPOSIT_ID,
+  type DepositReviewGroup,
   type PlanOrchestrationDepositReviewResponse,
   type PlanOrchestrationDepositPlan,
   type PlanOrchestrationDepositRequest,
@@ -215,6 +216,29 @@ export function buildInvestDepositPlanPreviewKey(
 }
 
 /**
+ * Resolves which execution groups the current scope expects, keyed by the
+ * group ids emitted by `/plan-orchestration/deposit/review`.
+ */
+function reviewGroupKeysFor(
+  scope: InvestScope,
+  plan: PlanOrchestrationDepositPlan | undefined,
+): readonly string[] {
+  if (scope === 'both') {
+    return ['base-morpho', 'arbitrum-gmx'];
+  }
+  if (!plan) {
+    return [];
+  }
+  const sourceChainId =
+    'sourceChainId' in plan
+      ? plan.sourceChainId
+      : scope === 'base'
+        ? 8453
+        : 42161;
+  return [`chain-${sourceChainId}`];
+}
+
+/**
  * Fetches the wallet-neutral Tenderly review used by the unified Step 2.
  * Unlike the legacy Privy preview this endpoint returns no signing envelope;
  * the review hashes bind the exact plan that the wallet executor may submit.
@@ -229,6 +253,12 @@ export function useInvestDepositReview(): {
   refresh: () => Promise<PlanOrchestrationDepositReviewResponse | undefined>;
   amountUsd: number;
   totalUsd6: string;
+  /** Group ids this scope expects from the review response. */
+  reviewGroupKeys: readonly string[];
+  /** Groups present in the review response, in expected order. */
+  reviewGroups: DepositReviewGroup[];
+  /** True when every expected group is present in the review. */
+  reviewHasAllGroups: boolean;
 } {
   const { address } = useAccount();
   const {
@@ -261,9 +291,17 @@ export function useInvestDepositReview(): {
       return getDepositReview(request);
     },
   });
+  const plan = result.data?.plan;
+  const reviewGroupKeys = reviewGroupKeysFor(scope, plan);
+  const reviewGroups = reviewGroupKeys
+    .map((key) => result.data?.reviews[key])
+    .filter((group): group is DepositReviewGroup => Boolean(group));
+  const reviewHasAllGroups =
+    reviewGroupKeys.length > 0 &&
+    reviewGroups.length === reviewGroupKeys.length;
   return {
     review: result.data,
-    plan: result.data?.plan,
+    plan,
     isLoading: enabled && result.isLoading,
     isError: result.isError,
     errorMessage: result.error ? handleHTTPError(result.error) : null,
@@ -274,5 +312,8 @@ export function useInvestDepositReview(): {
     },
     amountUsd,
     totalUsd6,
+    reviewGroupKeys,
+    reviewGroups,
+    reviewHasAllGroups,
   };
 }

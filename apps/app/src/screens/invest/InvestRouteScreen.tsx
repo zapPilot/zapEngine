@@ -1,11 +1,4 @@
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
-
-import {
-  CONNECT_WALLET_CTA,
-  CONNECTING_LABEL,
-} from '@/components/connect/connectCopy';
 
 import { MockBridgeNotice } from '@/components/invest/MockBridgeNotice';
 import { SimulationReviewBody } from '@/components/invest/simulation/SimulationReviewBody';
@@ -22,9 +15,9 @@ import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
 import { useInvest, useInvestDepositReview } from '@/integration/useInvest';
-import { useAccount } from '@/integration/useAccount';
 import type { DepositExecutionCapability } from '@/integration/investExecutionModel';
 import { useInvestExecution } from '@/integration/useInvestExecution';
+import { useInvestRouteSubmit } from './useInvestRouteSubmit';
 import { formatUsd } from '@/lib/format';
 
 const CAPABILITY_NOTICE = {
@@ -120,18 +113,9 @@ function RailNode({
 }
 
 export function InvestRouteScreen() {
-  const router = useRouter();
-  const account = useAccount();
   const invest = useInvest();
   const review = useInvestDepositReview();
-  const { capability, pending, reviewedProgress, submitReviewedBatch } =
-    useInvestExecution();
-  const [launchRequested, setLaunchRequested] = useState(false);
-  const [submissionError, setSubmissionError] = useState<string | null>(null);
-  const [reviewNow, setReviewNow] = useState(() => Date.now());
-  const [acknowledgedRiskHashes, setAcknowledgedRiskHashes] = useState<
-    Record<string, string>
-  >({});
+  const { capability } = useInvestExecution();
   const isBoth = invest.scope === 'both';
   const hasPlanForScope = isDepositPlanForScope(review.plan, invest.scope);
   const routeDescription =
@@ -146,193 +130,18 @@ export function InvestRouteScreen() {
     invest.scope,
     invest.baseFundingToken.symbol,
   );
-  const reviewGroupKeys =
-    invest.scope === 'both'
-      ? (['base-morpho', 'arbitrum-gmx'] as const)
-      : review.plan
-        ? ([
-            `chain-${
-              'sourceChainId' in review.plan
-                ? review.plan.sourceChainId
-                : invest.scope === 'base'
-                  ? 8453
-                  : 42161
-            }`,
-          ] as const)
-        : ([] as const);
-  const reviewGroups = reviewGroupKeys
-    .map((key) => review.review?.reviews[key])
-    .filter((group): group is NonNullable<typeof group> => Boolean(group));
-  const reviewExpiryKey = reviewGroups
-    .map((group) => `${group.groupId}:${group.expiresAt}`)
-    .join('|');
-  const reviewGroupCount = reviewGroups.length;
-  useEffect(() => {
-    if (reviewGroupCount === 0) return;
-    const timer = setInterval(() => setReviewNow(Date.now()), 1_000);
-    return () => clearInterval(timer);
-  }, [reviewExpiryKey, reviewGroupCount]);
-  const reviewHasAllGroups =
-    reviewGroupKeys.length > 0 &&
-    reviewGroups.length === reviewGroupKeys.length;
-  const firstReviewForGate =
-    reviewGroups.find((group) => group.groupId === 'base-morpho') ??
-    reviewGroups[0];
-  const reviewBlocked =
-    reviewGroups.some(
-      (group) =>
-        group.blocked ||
-        !group.executionAllowed ||
-        group.expiresAt <= reviewNow,
-    ) ||
-    Boolean(
-      firstReviewForGate?.requiresRiskAcknowledgement &&
-      acknowledgedRiskHashes[firstReviewForGate.groupId] !==
-        firstReviewForGate.expectedRiskHash,
-    );
-  const reviewNotReadyForSend =
-    capability === 'ready' &&
-    (review.isLoading ||
-      review.isError ||
-      !reviewHasAllGroups ||
-      reviewBlocked);
-  const reviewExecutionLocked = reviewedProgress !== null;
-
-  const handleConfirm = async () => {
-    if (reviewExecutionLocked) {
-      router.replace('/invest/progress');
-      return;
-    }
-    if (capability === 'connect-wallet') {
-      void account.connect();
-      return;
-    }
-    if (
-      capability !== 'ready' ||
-      !hasPlanForScope ||
-      reviewNotReadyForSend ||
-      launchRequested
-    ) {
-      return;
-    }
-    setLaunchRequested(true);
-    setSubmissionError(null);
-    try {
-      const displayed = review.review;
-      const fresh = await review.refresh();
-      const displayedGroups = displayed?.reviews ?? {};
-      const freshGroups = reviewGroupKeys
-        .map((key) => fresh?.reviews[key])
-        .filter((group): group is NonNullable<typeof group> => Boolean(group));
-      const firstReview =
-        freshGroups.find((group) => group.groupId === 'base-morpho') ??
-        freshGroups[0];
-      const displayedFirst = firstReview
-        ? displayedGroups[firstReview.groupId]
-        : undefined;
-      const freshGroupsSafe =
-        freshGroups.length === reviewGroupKeys.length &&
-        freshGroups.every(
-          (group) =>
-            !group.blocked &&
-            group.executionAllowed &&
-            group.expiresAt > Date.now() &&
-            (group.groupId !== firstReview?.groupId ||
-              !group.requiresRiskAcknowledgement ||
-              acknowledgedRiskHashes[group.groupId] === group.expectedRiskHash),
-        );
-      const anyGroupDrift = reviewGroupKeys.some((key) => {
-        const before = displayedGroups[key];
-        const after = fresh?.reviews[key];
-        return (
-          !before ||
-          !after ||
-          before.groupFingerprint !== after.groupFingerprint ||
-          before.batchFingerprint !== after.batchFingerprint ||
-          before.expectedSimulationFingerprint !==
-            after.expectedSimulationFingerprint ||
-          before.expectedRiskHash !== after.expectedRiskHash
-        );
-      });
-      const drifted =
-        !fresh ||
-        !review.plan ||
-        !firstReview ||
-        !displayed ||
-        fresh.planFingerprint !== displayed.planFingerprint ||
-        !displayedFirst ||
-        displayedFirst.groupFingerprint !== firstReview.groupFingerprint ||
-        displayedFirst.expectedSimulationFingerprint !==
-          firstReview.expectedSimulationFingerprint ||
-        displayedFirst.expectedRiskHash !== firstReview.expectedRiskHash ||
-        displayedFirst.batchFingerprint !== firstReview.batchFingerprint ||
-        anyGroupDrift ||
-        !freshGroupsSafe;
-      if (drifted) {
-        setSubmissionError(
-          'The review changed while you were deciding. Review the updated Tenderly evidence and confirm again.',
-        );
-        if (
-          firstReview &&
-          displayedFirst?.expectedRiskHash !== firstReview.expectedRiskHash
-        ) {
-          setAcknowledgedRiskHashes((current) => {
-            const next = { ...current };
-            delete next[firstReview.groupId];
-            return next;
-          });
-        }
-        return;
-      }
-      const result = await submitReviewedBatch({
-        plan: fresh.plan,
-        review: firstReview,
-        queue: freshGroups.map((group) => ({
-          plan: fresh.plan,
-          review: group,
-        })),
-        ...(firstReview.requiresRiskAcknowledgement &&
-        acknowledgedRiskHashes[firstReview.groupId] ===
-          firstReview.expectedRiskHash
-          ? { acknowledgedRiskHash: firstReview.expectedRiskHash }
-          : {}),
-      });
-      if (result.status === 'submitted') {
-        router.replace('/invest/progress');
-        return;
-      }
-      setSubmissionError(result.reason);
-      if (result.status === 'review-changed') void review.refresh();
-    } catch (error: unknown) {
-      setSubmissionError(
-        error instanceof Error ? error.message : String(error),
-      );
-    } finally {
-      setLaunchRequested(false);
-    }
-  };
-
-  const ctaLabel = reviewExecutionLocked
-    ? 'Return to progress'
-    : capability === 'connect-wallet'
-      ? account.isConnecting
-        ? CONNECTING_LABEL
-        : CONNECT_WALLET_CTA
-      : pending || launchRequested
-        ? 'Confirm in wallet…'
-        : 'Confirm & send';
-  const ctaDisabled = reviewExecutionLocked
-    ? false
-    : capability === 'connect-wallet'
-      ? account.isConnecting
-      : account.isConnecting ||
-        pending ||
-        launchRequested ||
-        review.amountUsd <= 0 ||
-        !hasPlanForScope ||
-        reviewNotReadyForSend ||
-        capability === 'unsupported-wallet' ||
-        capability === 'unsupported-path';
+  const {
+    handleConfirm,
+    ctaLabel,
+    ctaDisabled,
+    pending,
+    launchRequested,
+    reviewNow,
+    acknowledgedRiskHashes,
+    toggleAcknowledgment,
+    submissionError,
+    dismissSubmissionError,
+  } = useInvestRouteSubmit({ review, capability, hasPlanForScope });
 
   return (
     <ScreenScrollView>
@@ -473,9 +282,11 @@ export function InvestRouteScreen() {
                 </Text>
               </Tap>
             </View>
-          ) : reviewGroups.length > 0 ? (
+          ) : review.reviewGroups.length > 0 ? (
             <View className="gap-4">
-              {reviewGroups.some((group) => group.expiresAt <= reviewNow) ? (
+              {review.reviewGroups.some(
+                (group) => group.expiresAt <= reviewNow,
+              ) ? (
                 <View
                   accessibilityRole="alert"
                   className="rounded-2xl border border-error/30 bg-error/10 p-3"
@@ -498,7 +309,7 @@ export function InvestRouteScreen() {
                   </Tap>
                 </View>
               ) : null}
-              {reviewGroups.map((group) => (
+              {review.reviewGroups.map((group) => (
                 <Card key={group.groupId} className="p-4">
                   <SimulationReviewBody
                     review={group}
@@ -507,17 +318,13 @@ export function InvestRouteScreen() {
                       group.expectedRiskHash
                     }
                     disabled={pending || launchRequested}
-                    onAcknowledgedChange={(acknowledged) => {
-                      setAcknowledgedRiskHashes((current) => {
-                        const next = { ...current };
-                        if (acknowledged) {
-                          next[group.groupId] = group.expectedRiskHash;
-                        } else {
-                          delete next[group.groupId];
-                        }
-                        return next;
-                      });
-                    }}
+                    onAcknowledgedChange={(acknowledged) =>
+                      toggleAcknowledgment(
+                        group.groupId,
+                        group.expectedRiskHash,
+                        acknowledged,
+                      )
+                    }
                   />
                 </Card>
               ))}
@@ -561,8 +368,7 @@ export function InvestRouteScreen() {
               accessibilityLabel="Retry wallet submission"
               className="mt-2 self-start rounded-full border border-error/30 px-3 py-1.5"
               onPress={() => {
-                setSubmissionError(null);
-                setLaunchRequested(false);
+                dismissSubmissionError();
                 review.retry();
               }}
             >

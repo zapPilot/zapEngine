@@ -2,7 +2,10 @@ import { getWagmiConfig } from '@core/config/wagmi';
 import { isWalletConnectEnabled } from '@core/lib/env/walletConnect';
 import { isApprovedWalletConnector } from '@core/lib/wallet/approvedWallets';
 import { submitPreparedTransactionsWithEIP7702 } from '@core/lib/wallet/executeDepositPlan';
-import { computeReviewedBatchFingerprint } from '@core/lib/wallet/reviewedBatchFingerprint';
+import {
+  checkReviewedBatchGuards,
+  useDeduplicatedReviewedExecution,
+} from '@core/lib/wallet/reviewedBatchExecution';
 import {
   buildWalletAccount,
   buildWalletChain,
@@ -13,14 +16,13 @@ import type {
   WalletConnectorOption,
   WalletProviderInterface,
   WalletReviewedBatchExecutor,
-  WalletReviewedBatchResult,
   WalletReviewedBatchStatus,
   WalletReviewedBatchStatusExecutor,
   WalletTypedData,
 } from '@core/types';
 import { walletLogger } from '@core/utils';
 import { waitForEIP7702Confirmation } from '@zapengine/intent-engine';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { formatUnits } from 'viem';
 import {
   type Connector,
@@ -137,13 +139,6 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
     chainId: chain?.id,
   });
   const [error, setError] = useState<WalletError | null>(null);
-  /* jscpd:ignore-start -- Privy and external adapters share required review guard rails. */
-  const reviewedExecutionRef = useRef(
-    new Map<
-      string,
-      { promise: Promise<WalletReviewedBatchResult>; expiresAt: number }
-    >(),
-  );
 
   const connectorOptions = useMemo(
     () => toConnectorOptions(connectors),
@@ -355,178 +350,50 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
     [address, chain?.id, switchChainAsync],
   );
 
-  const executeReviewedBatch = useCallback<WalletReviewedBatchExecutor>(
-    (input) => {
-      const key = JSON.stringify({
-        chainId: input.chainId,
-        expectedWalletAddress: input.expectedWalletAddress.toLowerCase(),
-        expectedBatchFingerprint: input.expectedBatchFingerprint,
-        expiresAt: input.expiresAt,
-        executionAllowed: input.executionAllowed,
-        expectedSimulationFingerprint: input.expectedSimulationFingerprint,
-        expectedRiskHash: input.expectedRiskHash,
-        transactions: input.transactions.map((transaction) => ({
-          chainId: transaction.chainId,
-          to: transaction.to.toLowerCase(),
-          data: transaction.data,
-          value: transaction.value,
-        })),
-      });
-      const existing = reviewedExecutionRef.current.get(key);
-      if (existing) {
-        if (Date.now() < existing.expiresAt) {
-          return existing.promise;
-        }
-        reviewedExecutionRef.current.delete(key);
+  const executeExternalReviewedBatch = useCallback<WalletReviewedBatchExecutor>(
+    async (input) => {
+      const guard = checkReviewedBatchGuards(input, address);
+      if (!guard.ok) {
+        return guard.result;
       }
 
-      const run = (async (): Promise<WalletReviewedBatchResult> => {
-        if (!address) {
-          return {
-            status: 'blocked',
-            code: 'WALLET_NOT_CONNECTED',
-            reason: 'No external wallet connected',
-          };
-        }
-        if (!input.executionAllowed) {
-          return {
-            status: 'blocked',
-            code: 'REVIEW_BLOCKED',
-            reason: 'The execution review is blocked and cannot be submitted.',
-          };
-        }
+      try {
+        const walletClient = await getActiveWalletClient(input.chainId);
+        const result = await submitPreparedTransactionsWithEIP7702({
+          transactions: input.transactions,
+          walletClient,
+          chainId: input.chainId,
+        });
+        return {
+          status: 'submitted',
+          callsId: result.callsId,
+        };
+      } catch (error: unknown) {
+        const reason = error instanceof Error ? error.message : String(error);
+        const lowerReason = reason.toLowerCase();
         if (
-          address.toLowerCase() !== input.expectedWalletAddress.toLowerCase()
-        ) {
-          return {
-            status: 'review-changed',
-            reason: 'wallet-address-mismatch',
-          };
-        }
-        if (input.transactions.length === 0) {
-          return {
-            status: 'blocked',
-            code: 'EMPTY_BATCH',
-            reason: 'Cannot execute empty EIP-7702 batch',
-          };
-        }
-        if (Date.now() >= input.expiresAt) {
-          return {
-            status: 'blocked',
-            code: 'REVIEW_EXPIRED',
-            reason:
-              'The execution review has expired. Refresh it before sending.',
-          };
-        }
-        if (
-          !input.expectedBatchFingerprint ||
-          !input.expectedSimulationFingerprint ||
-          !input.expectedRiskHash
+          lowerReason.includes('eip-7702') ||
+          lowerReason.includes('wallet_sendcalls') ||
+          lowerReason.includes('atomic') ||
+          lowerReason.includes('delegat') ||
+          lowerReason.includes('no account') ||
+          lowerReason.includes('wallet client')
         ) {
           return {
             status: 'blocked',
-            code: 'REVIEW_HASH_MISSING',
-            reason: 'The execution review is missing its safety hashes',
+            code: 'EIP7702_UNAVAILABLE',
+            reason,
           };
         }
-        if (
-          input.requiresRiskAcknowledgement &&
-          input.acknowledgedRiskHash?.toLowerCase() !==
-            input.expectedRiskHash.toLowerCase()
-        ) {
-          return {
-            status: 'blocked',
-            code: 'RISK_ACKNOWLEDGEMENT_REQUIRED',
-            reason: 'Warning risks must be acknowledged before signing',
-          };
-        }
-        const crossChain = input.transactions.find(
-          (transaction) => transaction.chainId !== input.chainId,
-        );
-        if (crossChain) {
-          return {
-            status: 'blocked',
-            code: 'CROSS_CHAIN_BATCH',
-            reason: `Batch contains chain ${crossChain.chainId}, expected ${input.chainId}`,
-          };
-        }
-        let batchFingerprint: `0x${string}`;
-        try {
-          batchFingerprint = computeReviewedBatchFingerprint({
-            chainId: input.chainId,
-            transactions: input.transactions,
-          });
-        } catch (error: unknown) {
-          return {
-            status: 'blocked',
-            code: 'INVALID_REVIEWED_BATCH',
-            reason: error instanceof Error ? error.message : String(error),
-          };
-        }
-        if (
-          batchFingerprint.toLowerCase() !==
-          input.expectedBatchFingerprint.toLowerCase()
-        ) {
-          return {
-            status: 'review-changed',
-            reason: 'batch-fingerprint-mismatch',
-          };
-        }
-
-        try {
-          const walletClient = await getActiveWalletClient(input.chainId);
-          const result = await submitPreparedTransactionsWithEIP7702({
-            transactions: input.transactions,
-            walletClient,
-            chainId: input.chainId,
-          });
-          return {
-            status: 'submitted',
-            callsId: result.callsId,
-          };
-        } catch (error: unknown) {
-          const reason = error instanceof Error ? error.message : String(error);
-          const lowerReason = reason.toLowerCase();
-          if (
-            lowerReason.includes('eip-7702') ||
-            lowerReason.includes('wallet_sendcalls') ||
-            lowerReason.includes('atomic') ||
-            lowerReason.includes('delegat') ||
-            lowerReason.includes('no account') ||
-            lowerReason.includes('wallet client')
-          ) {
-            return {
-              status: 'blocked',
-              code: 'EIP7702_UNAVAILABLE',
-              reason,
-            };
-          }
-          throw error;
-        }
-      })();
-
-      reviewedExecutionRef.current.set(key, {
-        promise: run,
-        expiresAt: input.expiresAt,
-      });
-      void (async () => {
-        let result: WalletReviewedBatchResult | undefined;
-        try {
-          result = await run;
-        } catch {
-          // The caller receives the original rejection; cleanup is still
-          // required so a later review can be attempted.
-        } finally {
-          if (result?.status !== 'submitted' || Date.now() >= input.expiresAt) {
-            reviewedExecutionRef.current.delete(key);
-          }
-        }
-      })();
-      return run;
+        throw error;
+      }
     },
     [address, getActiveWalletClient],
   );
-  /* jscpd:ignore-end */
+
+  const executeReviewedBatch = useDeduplicatedReviewedExecution(
+    executeExternalReviewedBatch,
+  );
 
   const waitForReviewedBatch = useCallback<WalletReviewedBatchStatusExecutor>(
     async ({ callsId, chainId }): Promise<WalletReviewedBatchStatus> => {
