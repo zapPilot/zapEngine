@@ -25,7 +25,7 @@ TTS provider selection is code-owned in `src/services/tts/tts-config.ts` and app
 
 Telegram trigger support is optional. Use `PIPELINE_TELEGRAM_BOT_TOKEN`, `PIPELINE_TELEGRAM_WEBHOOK_SECRET`, and `PIPELINE_TELEGRAM_ALLOWED_USER_IDS` for this service so it does not collide with account-engine's Telegram bot settings.
 
-`PIPELINE_RENDER_ON_DEMAND` and `PIPELINE_FLY_API_TOKEN` are deployment-only and unset locally; they let the render machine stop when idle (see [Deployment](#on-demand-render-machines)).
+`PIPELINE_RENDER_ON_DEMAND=1` is version-controlled in `fly.toml`; `PIPELINE_FLY_API_TOKEN` is the deployment-only secret that lets the render machine stop when idle and be started again (see [Deployment](#on-demand-render-machines)). Both remain unset in normal local development.
 
 `OPENROUTER_TIMEOUT_MS` limits each OpenRouter request and defaults to `120000` milliseconds. Invalid or empty values use that default; OpenRouter retries are disabled so a stuck provider request fails promptly and a resubmission can resume from the latest committed ingest stage.
 
@@ -156,16 +156,15 @@ Having no service also means Fly Proxy cannot auto-stop the `render` group, and 
 - The worker exits `0` after six minutes of an empty queue. Under `[[restart]] policy = 'on-failure'` (fly.toml) that leaves the machine `stopped` — billed for storage only. Six minutes outlasts the longest retry backoff the claim RPCs hand out, so a job waiting on its third attempt does not pay for an extra stop/start cycle.
 - The always-on `app` process polls every 30 s for work the render group could actually claim and starts a stopped machine through the Machines API (`http://_api.internal:4280`, never leaving the private network). See `src/services/render-capacity.ts`.
 
-Enable it with both secrets — `fly tokens deploy` defaults to a 20-minute expiry, so the expiry must be given explicitly or waking silently stops working:
+Provision the API token once — `fly tokens deploy` defaults to a 20-minute expiry, so the expiry must be given explicitly or waking silently stops working. The non-secret feature flag is already committed in `fly.toml`:
 
 ```bash
 fly secrets set \
   PIPELINE_FLY_API_TOKEN="$(fly tokens create deploy --expiry 8760h -a from-fed-to-chain-api)" \
-  PIPELINE_RENDER_ON_DEMAND=1 \
   -a from-fed-to-chain-api
 ```
 
-Both process groups read the same secrets and evaluate the same gate, so they cannot disagree: unset either value and the worker goes back to running forever while `app` stops touching the Machines API. That also makes `fly secrets unset PIPELINE_RENDER_ON_DEMAND` a full rollback without a redeploy.
+Both process groups evaluate the same gate, so they cannot disagree: if the token is absent or expired, the worker goes back to running forever while `app` stops touching the Machines API. `fly secrets unset PIPELINE_FLY_API_TOKEN -a from-fed-to-chain-api` is therefore an emergency rollback that favors availability over cost.
 
 What the reconciler counts as claimable mirrors the `WHERE` clauses of `claim_episode_video_v2` / `claim_episode_video_visual_v2`, including their `visual_version` fence and the completed-visual join. A looser test would wake a machine that claims nothing, idles out and wakes again; the repeat guard stops after three wakes on an unchanged backlog and sends one Telegram warning. Rows stuck in `processing` with an expired lease count as work too — only the claim RPCs reap those, so a stopped worker would otherwise strand them forever.
 

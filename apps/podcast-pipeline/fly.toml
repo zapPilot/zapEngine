@@ -14,6 +14,10 @@ kill_timeout = '30s'
 [env]
   NODE_ENV = 'production'
   PORT = '3000'
+  # This is normal deployment configuration, not a secret. Keeping it here
+  # prevents a deploy from silently reverting the expensive render group to
+  # always-on merely because an enablement secret was never provisioned.
+  PIPELINE_RENDER_ON_DEMAND = '1'
 
 # Two groups so ffmpeg never shares a CPU with the HTTP service. When they were
 # co-located, a render starved the event loop until /health blew past its 5s
@@ -23,9 +27,9 @@ kill_timeout = '30s'
 # `app` is always on: it takes the Telegram webhook, which times out easily.
 # `render` is on demand — it has no service, so Fly Proxy cannot auto-stop it;
 # instead the worker exits 0 on an idle queue and `app` starts it again through
-# the Machines API (src/services/render-capacity.ts). Both behaviours are gated
-# on PIPELINE_RENDER_ON_DEMAND + PIPELINE_FLY_API_TOKEN; without them the group
-# stays up 24/7 as before.
+# the Machines API (src/services/render-capacity.ts). The feature flag is
+# version-controlled above; PIPELINE_FLY_API_TOKEN remains a Fly secret. If the
+# token is absent, both sides fail safe to always-on rather than stranding jobs.
 [processes]
   app = 'node dist/index.js'
   render = 'node dist/worker.js'
