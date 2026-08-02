@@ -8,13 +8,10 @@ import {
 } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { handleHTTPError } from '@zapengine/app-core/lib/http';
-import {
-  getDepositPlan,
-  getGmxDepositPlan,
-  getStrategyDepositPlan,
-} from '@zapengine/app-core/services';
+import { getDepositReview } from '@zapengine/app-core/services';
 import {
   STRATEGY_DEPOSIT_ID,
+  type PlanOrchestrationDepositReviewResponse,
   type PlanOrchestrationDepositPlan,
   type PlanOrchestrationDepositRequest,
 } from '@zapengine/types/api';
@@ -218,15 +215,18 @@ export function buildInvestDepositPlanPreviewKey(
 }
 
 /**
- * Shares one deposit-plan query across the route and confirm screens.
+ * Fetches the wallet-neutral Tenderly review used by the unified Step 2.
+ * Unlike the legacy Privy preview this endpoint returns no signing envelope;
+ * the review hashes bind the exact plan that the wallet executor may submit.
  */
-export function useInvestDepositPlanPreview(): {
+export function useInvestDepositReview(): {
+  review: PlanOrchestrationDepositReviewResponse | undefined;
   plan: PlanOrchestrationDepositPlan | undefined;
   isLoading: boolean;
   isError: boolean;
-  /** Human-readable backend failure reason (plan 4xx/5xx body), or null. */
   errorMessage: string | null;
   retry: () => void;
+  refresh: () => Promise<PlanOrchestrationDepositReviewResponse | undefined>;
   amountUsd: number;
   totalUsd6: string;
 } {
@@ -254,27 +254,24 @@ export function useInvestDepositPlanPreview(): {
   );
   const requestKey = buildInvestDepositPlanPreviewKey(scope, request);
   const result = useQuery({
-    queryKey: ['invest-deposit-plan-preview', address, ...requestKey],
+    queryKey: ['invest-deposit-review', address, ...requestKey],
     enabled,
-    queryFn: (): Promise<PlanOrchestrationDepositPlan> => {
-      if (!request) {
-        throw new Error('Deposit plan request is unavailable');
-      }
-      if (request.kind === 'strategy') {
-        return getStrategyDepositPlan(request);
-      }
-      if (request.kind === 'invest') {
-        return getDepositPlan(request);
-      }
-      return getGmxDepositPlan(request);
+    queryFn: async (): Promise<PlanOrchestrationDepositReviewResponse> => {
+      if (!request) throw new Error('Deposit review request is unavailable');
+      return getDepositReview(request);
     },
   });
   return {
-    plan: result.data,
+    review: result.data,
+    plan: result.data?.plan,
     isLoading: enabled && result.isLoading,
     isError: result.isError,
     errorMessage: result.error ? handleHTTPError(result.error) : null,
     retry: () => void result.refetch(),
+    refresh: async () => {
+      const refreshed = await result.refetch();
+      return refreshed.data;
+    },
     amountUsd,
     totalUsd6,
   };

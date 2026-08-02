@@ -50,7 +50,6 @@ export function resolveDepositExecutionCapability({
 export function resolveInvestExecutionCapability({
   isConnected,
   executionMode,
-  scope,
 }: {
   isConnected: boolean;
   executionMode: 'atomic-batch' | 'eip7702' | undefined;
@@ -59,7 +58,10 @@ export function resolveInvestExecutionCapability({
   if (!isConnected) {
     return 'connect-wallet';
   }
-  if (scope !== 'both' && executionMode === undefined) {
+  // The unified review always submits one atomic group. Both-chain plans must
+  // never fall back to sequential wallet sends, so every scope needs a
+  // reviewed-capable execution backend.
+  if (executionMode === undefined) {
     return 'unsupported-wallet';
   }
   return 'ready';

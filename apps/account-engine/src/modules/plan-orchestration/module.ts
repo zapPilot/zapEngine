@@ -14,6 +14,7 @@ import {
   createPlanOrchestrationService,
   type DepositChainSplit,
   type PlanOrchestrationService,
+  type PlanReviewSimulationService,
   type PlanSimulationDeps,
 } from './service';
 
@@ -39,6 +40,8 @@ export interface PlanOrchestrationModuleConfig {
     };
     /** Refuse to start without credentials instead of running the gate off. */
     required?: boolean;
+    /** Rich evidence rail composed by the account-engine container. */
+    reviewService?: PlanReviewSimulationService;
   };
 }
 
@@ -134,6 +137,7 @@ function resolvePlanSimulation(
         accessKey: config.tenderly.accessToken,
       }),
       mode: 'enforce',
+      ...(config.reviewService ? { reviewService: config.reviewService } : {}),
     };
   }
 

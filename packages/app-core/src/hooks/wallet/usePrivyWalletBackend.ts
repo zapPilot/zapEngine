@@ -11,6 +11,7 @@ import {
 import type {
   ConnectedWalletClient,
   WalletProviderInterface,
+  WalletReviewedBatchStatusExecutor,
   WalletTypedData,
 } from '@core/types';
 import { walletLogger } from '@core/utils';
@@ -257,6 +258,17 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
     walletAddress: embeddedWallet?.address,
   });
 
+  // Privy confirmation is tracked by account-engine after `sendCalls`; there
+  // is no wallet_getCallsStatus transport for the embedded provider. Returning
+  // `unknown` keeps the progress layer from ever attempting a duplicate send.
+  const waitForReviewedBatch = useCallback<WalletReviewedBatchStatusExecutor>(
+    async () => ({
+      status: 'unknown',
+      reason: 'Privy batch confirmation is tracked by account-engine.',
+    }),
+    [],
+  );
+
   const walletList = useMemo(
     () =>
       embeddedWallet
@@ -279,6 +291,8 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
       sendTransaction,
       getWalletClient,
       executeAtomicBatch: batch.executeAtomicBatch,
+      executeReviewedBatch: batch.executeReviewedBatch,
+      waitForReviewedBatch,
       connect,
       disconnect,
       isConnecting: false,
@@ -300,6 +314,8 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
       sendTransaction,
       getWalletClient,
       batch.executeAtomicBatch,
+      batch.executeReviewedBatch,
+      waitForReviewedBatch,
       connect,
       disconnect,
       isDisconnecting,
@@ -316,6 +332,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
     backend,
     isActive,
     executeAtomicBatch: batch.executeAtomicBatch,
+    executeReviewedBatch: batch.executeReviewedBatch,
     simulationPreview: batch.simulationPreview,
     confirmBatchExecution: batch.confirmBatchExecution,
     retryBatchSimulation: batch.retryBatchSimulation,

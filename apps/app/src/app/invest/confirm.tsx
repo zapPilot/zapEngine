@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react';
 
-import { InvestConfirmScreen } from '@/screens/invest/InvestConfirmScreen';
+import { Redirect } from 'expo-router';
 
 export default function InvestConfirmRoute(): ReactElement {
-  return <InvestConfirmScreen />;
+  // Keep old deep links safe while the route and confirm steps are merged.
+  return <Redirect href="/invest/route" />;
 }

@@ -106,6 +106,7 @@ export {
 // Deposit & withdraw planning
 export {
   getDepositPlan,
+  getDepositReview,
   getGmxDepositPlan,
   getStrategyDepositPlan,
   getWithdrawPlan,

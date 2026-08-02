@@ -218,6 +218,69 @@ describe('POST /plan-orchestration/deposit', () => {
   });
 });
 
+describe('POST /plan-orchestration/deposit/review', () => {
+  it('validates the request and delegates to the rich review service', async () => {
+    const review = {
+      plan,
+      planFingerprint: `0x${'1'.repeat(64)}`,
+      reviewedAt: 1_000,
+      expiresAt: 301_000,
+      reviews: {},
+    };
+    const service: PlanOrchestrationService = {
+      buildDeposit: vi.fn().mockResolvedValue(plan),
+      buildDepositReview: vi.fn().mockResolvedValue(review),
+      buildWithdraw: vi.fn().mockResolvedValue(withdrawPlan),
+    };
+    const { app } = createApp(service);
+
+    const response = await app.request(
+      'http://localhost/plan-orchestration/deposit/review',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'invest',
+          userAddress: USER,
+          fromToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+          fromAmount: '1000',
+          sourceChainId: 8453,
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(review);
+    expect(service.buildDepositReview).toHaveBeenCalledWith({
+      kind: 'invest',
+      userAddress: USER,
+      fromToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      fromAmount: '1000',
+      sourceChainId: 8453,
+    });
+  });
+
+  it('returns service unavailable when the review rail is not configured', async () => {
+    const { app } = createApp();
+    const response = await app.request(
+      'http://localhost/plan-orchestration/deposit/review',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'invest',
+          userAddress: USER,
+          fromToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+          fromAmount: '1000',
+          sourceChainId: 8453,
+        }),
+      },
+    );
+
+    expect(response.status).toBe(503);
+  });
+});
+
 describe('POST /plan-orchestration/withdraw', () => {
   it('validates the GMX withdraw request and returns the WithdrawPlan', async () => {
     const { app, service } = createApp();

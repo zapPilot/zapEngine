@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
 import { useWagmiWalletBackend } from '@core/hooks/wallet/useWagmiWalletBackend';
+import { computeReviewedBatchFingerprint } from '@core/lib/wallet/reviewedBatchFingerprint';
+import type { PreparedTransaction } from '@zapengine/types/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -10,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   signMessageAsync: vi.fn(),
   signTypedDataAsync: vi.fn(),
   getWalletClient: vi.fn(),
+  submitPreparedTransactionsWithEIP7702: vi.fn(),
   connection: {
     address: undefined as string | undefined,
     isConnected: false,
@@ -42,6 +45,11 @@ vi.mock('@core/config/wagmi', () => ({
   getWagmiConfig: () => ({}),
 }));
 
+vi.mock('@core/lib/wallet/executeDepositPlan', () => ({
+  submitPreparedTransactionsWithEIP7702:
+    mocks.submitPreparedTransactionsWithEIP7702,
+}));
+
 vi.mock('@core/lib/env/walletConnect', () => ({
   isWalletConnectEnabled: mocks.isWalletConnectEnabled,
 }));
@@ -67,6 +75,93 @@ describe('useWagmiWalletBackend', () => {
     const { result } = renderHook(() => useWagmiWalletBackend());
     expect(result.current.backend.executionMode).toBe('eip7702');
     expect(result.current.backend.executeAtomicBatch).toBeUndefined();
+  });
+
+  it('submits the exact reviewed calls without waiting for bundle status', async () => {
+    const transactions: PreparedTransaction[] = [
+      {
+        to: '0x2222222222222222222222222222222222222222',
+        data: '0x',
+        value: '0',
+        chainId: 8453,
+        meta: { intentType: 'supply' },
+      },
+    ];
+    mocks.connection = {
+      address: '0x1111111111111111111111111111111111111111',
+      isConnected: true,
+      isConnecting: false,
+      chain: { id: 8453, name: 'Base' },
+    };
+    const walletClient = { account: { address: mocks.connection.address } };
+    mocks.getWalletClient.mockResolvedValue(walletClient);
+    mocks.submitPreparedTransactionsWithEIP7702.mockResolvedValue({
+      callsId: 'calls-1',
+    });
+    const { result } = renderHook(() => useWagmiWalletBackend());
+
+    await expect(
+      result.current.backend.executeReviewedBatch?.({
+        transactions,
+        chainId: 8453,
+        expectedWalletAddress: '0x1111111111111111111111111111111111111111',
+        expectedBatchFingerprint: computeReviewedBatchFingerprint({
+          chainId: 8453,
+          transactions,
+        }),
+        expiresAt: Date.now() + 60_000,
+        executionAllowed: true,
+        expectedSimulationFingerprint: `0x${'ab'.repeat(32)}`,
+        expectedRiskHash: `0x${'cd'.repeat(32)}`,
+        requiresRiskAcknowledgement: false,
+      }),
+    ).resolves.toEqual({ status: 'submitted', callsId: 'calls-1' });
+
+    expect(mocks.getWalletClient).toHaveBeenCalledWith({}, { chainId: 8453 });
+    expect(mocks.submitPreparedTransactionsWithEIP7702).toHaveBeenCalledWith({
+      transactions,
+      walletClient,
+      chainId: 8453,
+    });
+  });
+
+  it('blocks a failed or unavailable review before resolving a wallet client', async () => {
+    mocks.connection = {
+      address: '0x1111111111111111111111111111111111111111',
+      isConnected: true,
+      isConnecting: false,
+      chain: { id: 8453, name: 'Base' },
+    };
+    const transactions: PreparedTransaction[] = [
+      {
+        to: '0x2222222222222222222222222222222222222222',
+        data: '0x',
+        value: '0',
+        chainId: 8453,
+        meta: { intentType: 'supply' },
+      },
+    ];
+    const { result } = renderHook(() => useWagmiWalletBackend());
+
+    await expect(
+      result.current.backend.executeReviewedBatch?.({
+        transactions,
+        chainId: 8453,
+        expectedWalletAddress: '0x1111111111111111111111111111111111111111',
+        expectedBatchFingerprint: computeReviewedBatchFingerprint({
+          chainId: 8453,
+          transactions,
+        }),
+        expiresAt: Date.now() + 60_000,
+        executionAllowed: false,
+        expectedSimulationFingerprint: `0x${'ab'.repeat(32)}`,
+        expectedRiskHash: `0x${'cd'.repeat(32)}`,
+        requiresRiskAcknowledgement: false,
+      }),
+    ).resolves.toMatchObject({ status: 'blocked', code: 'REVIEW_BLOCKED' });
+
+    expect(mocks.getWalletClient).not.toHaveBeenCalled();
+    expect(mocks.submitPreparedTransactionsWithEIP7702).not.toHaveBeenCalled();
   });
 
   it('maps discovered connectors, flags all approved wallets as recommended, and drops the generic injected fallback once a specific wallet is found', () => {
