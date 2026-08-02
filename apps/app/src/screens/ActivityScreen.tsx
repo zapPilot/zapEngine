@@ -14,6 +14,7 @@ import {
   DEMO,
 } from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 import { useActivityData } from '@/integration/useActivityData';
 
 function ActivityRow({ event }: { event: ActivityEvent }) {
@@ -51,6 +52,7 @@ function ActivityRow({ event }: { event: ActivityEvent }) {
 
 export function ActivityScreen() {
   const [filter, setFilter] = useState<ActivityFilter>('All');
+  const { t } = useContentLanguage();
   const account = useAccount();
   const activity = useActivityData({
     isOwnBundle: account.isOwnBundle,
@@ -64,7 +66,7 @@ export function ActivityScreen() {
 
   return (
     <ScreenScrollView>
-      <ScreenHeader title="Activity" />
+      <ScreenHeader title={t('activity.title')} />
       <View className="px-5 pt-4">
         <RangeTabs
           options={ACTIVITY_FILTERS}
@@ -95,10 +97,10 @@ export function ActivityScreen() {
         ) : (
           <Card className="p-5">
             <Text className="font-sans-semibold text-[15px] text-ink">
-              No activity yet
+              {t('activity.noActivity')}
             </Text>
             <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
-              Deposits, sends, and strategy changes will appear here.
+              {t('activity.noActivityMessage')}
             </Text>
           </Card>
         )}

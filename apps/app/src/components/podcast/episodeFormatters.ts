@@ -1,24 +1,26 @@
-import { CONTENT_LANGUAGE_OPTIONS } from '@/config/contentLanguages';
+import {
+  CONTENT_LANGUAGE_OPTIONS,
+  type ContentLanguageCode,
+} from '@/config/contentLanguages';
 
-const shortDateFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-});
-
-const longDateFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-});
+const INTL_LOCALES: Readonly<Record<ContentLanguageCode, string>> = {
+  en: 'en-US',
+  'zh-Hant': 'zh-TW',
+  ja: 'ja-JP',
+};
 
 export function formatPodcastEpisodeDate(
   createdAt: string,
   variant: 'short' | 'long' = 'short',
+  locale: ContentLanguageCode = 'en',
 ): string {
   const parsed = new Date(createdAt);
   if (Number.isNaN(parsed.getTime())) return '';
-  const formatter = variant === 'long' ? longDateFormatter : shortDateFormatter;
-  return formatter.format(parsed);
+  return new Intl.DateTimeFormat(INTL_LOCALES[locale], {
+    month: variant === 'long' ? 'long' : 'short',
+    day: 'numeric',
+    ...(variant === 'long' ? { year: 'numeric' as const } : {}),
+  }).format(parsed);
 }
 
 export function formatPodcastClock(totalSeconds: number): string {

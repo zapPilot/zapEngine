@@ -31,7 +31,7 @@ export function ContentLanguageOptionRows({
   onSelect,
   completionByLanguage,
 }: ContentLanguageOptionRowsProps) {
-  const { languageCode, setLanguageCode } = useContentLanguage();
+  const { languageCode, setLanguageCode, t } = useContentLanguage();
 
   const selectLanguage = (code: ContentLanguageCode) => {
     setLanguageCode(code);
@@ -47,14 +47,19 @@ export function ContentLanguageOptionRows({
           completion === undefined
             ? null
             : completion.total === 0
-              ? '尚無節目'
+              ? t('language.noEpisodes')
               : `${completion.percentage}%`;
         const accessibilityLabel =
           completion === undefined
             ? option.nativeName
             : completion.total === 0
-              ? `${option.nativeName}，尚無節目`
-              : `${option.nativeName}，已聽完 ${completion.completed} / ${completion.total} 集，${completion.percentage}%`;
+              ? `${option.nativeName}, ${t('language.noEpisodes')}`
+              : t('language.progress', {
+                  name: option.nativeName,
+                  completed: completion.completed,
+                  total: completion.total,
+                  percentage: completion.percentage,
+                });
         return (
           <Tap
             key={option.code}
@@ -122,7 +127,7 @@ export function PodcastLanguageDropdown({
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<DropdownAnchor>(FALLBACK_ANCHOR);
   const triggerRef = useRef<View>(null);
-  const { languageCode } = useContentLanguage();
+  const { languageCode, t } = useContentLanguage();
   const selectedOption = CONTENT_LANGUAGE_OPTIONS.find(
     (option) => option.code === languageCode,
   );
@@ -136,8 +141,13 @@ export function PodcastLanguageDropdown({
     selectedCompletion === undefined
       ? undefined
       : selectedCompletion.total === 0
-        ? `${selectedOption?.nativeName ?? languageCode}，尚無節目`
-        : `${selectedOption?.nativeName ?? languageCode}，已聽完 ${selectedCompletion.completed} / ${selectedCompletion.total} 集，${selectedCompletion.percentage}%`;
+        ? `${selectedOption?.nativeName ?? languageCode}, ${t('language.noEpisodes')}`
+        : t('language.progress', {
+            name: selectedOption?.nativeName ?? languageCode,
+            completed: selectedCompletion.completed,
+            total: selectedCompletion.total,
+            percentage: selectedCompletion.percentage,
+          });
 
   const openMenu = () => {
     const node = triggerRef.current;
@@ -156,7 +166,7 @@ export function PodcastLanguageDropdown({
     <View ref={triggerRef} collapsable={false}>
       <Tap
         accessibilityRole="button"
-        accessibilityLabel="Choose podcast language"
+        accessibilityLabel={t('language.choose')}
         accessibilityHint={completionHint}
         accessibilityState={{ expanded: open }}
         onPress={() => (open ? setOpen(false) : openMenu())}
@@ -200,7 +210,7 @@ export function PodcastLanguageDropdown({
         onRequestClose={() => setOpen(false)}
       >
         <Pressable
-          accessibilityLabel="Close language menu"
+          accessibilityLabel={t('language.closeMenu')}
           onPress={() => setOpen(false)}
           className="flex-1"
         />

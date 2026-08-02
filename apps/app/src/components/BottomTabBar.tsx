@@ -16,6 +16,8 @@ import {
   type AppTabName,
 } from '@/integration/navigationModel';
 import { useAccount } from '@/integration/useAccount';
+import type { TranslationKey } from '@/i18n/translations';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 type TabIcon = ComponentType<{
   color?: string;
@@ -25,16 +27,16 @@ type TabIcon = ComponentType<{
 
 interface TabItem {
   name: string;
-  label: string;
+  labelKey: TranslationKey;
   Icon: TabIcon;
 }
 
 const TABS: readonly TabItem[] = [
-  { name: 'home', label: 'Home', Icon: House },
-  { name: 'strategy', label: 'Strategy', Icon: Sparkles },
-  { name: 'podcast', label: 'Podcast', Icon: Headphones },
-  { name: 'activity', label: 'Activity', Icon: Activity },
-  { name: 'account', label: 'Account', Icon: User },
+  { name: 'home', labelKey: 'tabs.home', Icon: House },
+  { name: 'strategy', labelKey: 'tabs.strategy', Icon: Sparkles },
+  { name: 'podcast', labelKey: 'tabs.podcast', Icon: Headphones },
+  { name: 'activity', labelKey: 'tabs.activity', Icon: Activity },
+  { name: 'account', labelKey: 'tabs.account', Icon: User },
 ];
 
 interface TabBarRoute {
@@ -65,6 +67,7 @@ export function BottomTabBar({
 }: BottomTabBarProps): ReactElement {
   const insets = useSafeAreaInsets();
   const account = useAccount();
+  const { t } = useContentLanguage();
 
   return (
     <View
@@ -85,17 +88,16 @@ export function BottomTabBar({
         );
         const color = active ? tokens.color.accent : tokens.color['ink-faint'];
         const Icon = tab.Icon;
+        const label = t(tab.labelKey);
 
         return (
           <Tap
             key={route.key}
             accessibilityRole="tab"
-            accessibilityLabel={tab.label}
+            accessibilityLabel={label}
             accessibilityState={{ selected: active }}
             aria-selected={active}
-            accessibilityHint={
-              accessible ? undefined : 'Open this tab to continue with Privy'
-            }
+            accessibilityHint={accessible ? undefined : t('tabs.signInHint')}
             className="flex-1 items-center gap-1.5"
             onPress={async () => {
               if (!accessible) {
@@ -121,7 +123,7 @@ export function BottomTabBar({
                   : 'font-sans text-[10px] text-ink-faint'
               }
             >
-              {tab.label}
+              {label}
             </Text>
           </Tap>
         );

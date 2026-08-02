@@ -1,14 +1,7 @@
+import { createWebKeyValueStorage } from '@/storage/keyValueStorage';
 import { createPodcastStorage } from '@/storage/podcastStorageCore';
 
-const podcastStorage = createPodcastStorage({
-  getItem(key) {
-    return Promise.resolve(globalThis.localStorage?.getItem(key) ?? null);
-  },
-  setItem(key, value) {
-    globalThis.localStorage?.setItem(key, value);
-    return Promise.resolve();
-  },
-});
+const podcastStorage = createPodcastStorage(createWebKeyValueStorage());
 
 export const {
   loadPodcastProgress,

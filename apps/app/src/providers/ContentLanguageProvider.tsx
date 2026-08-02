@@ -1,70 +1,115 @@
+import type { ReactElement, ReactNode } from 'react';
 import {
   createContext,
-  type ReactElement,
-  type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
 import {
-  CONTENT_LANGUAGE_STORAGE_KEY,
   type ContentLanguageCode,
   DEFAULT_CONTENT_LANGUAGE_CODE,
-  isContentLanguageCode,
 } from '@/config/contentLanguages';
+import {
+  TRANSLATIONS,
+  type TranslationKey,
+  type TranslationParams,
+} from '@/i18n/translations';
+import { loadLocale, saveLocale } from '@/storage/localeStorage';
 
 interface ContentLanguageContextValue {
   languageCode: ContentLanguageCode;
+  locale: ContentLanguageCode;
+  isHydrated: boolean;
   setLanguageCode: (code: ContentLanguageCode) => void;
+  setLocale: (code: ContentLanguageCode) => void;
+  t: (key: TranslationKey, params?: TranslationParams) => string;
 }
 
-function readStoredLanguageCode(): ContentLanguageCode {
+function detectDeviceLocale(): ContentLanguageCode {
   try {
-    const stored = globalThis.localStorage?.getItem(
-      CONTENT_LANGUAGE_STORAGE_KEY,
-    );
-    if (stored != null && isContentLanguageCode(stored)) {
-      return stored;
+    const locale = Intl.DateTimeFormat().resolvedOptions().locale.toLowerCase();
+    if (locale.startsWith('ja')) return 'ja';
+    if (
+      locale.startsWith('zh-tw') ||
+      locale.startsWith('zh-hk') ||
+      locale.startsWith('zh-mo') ||
+      locale.includes('hant')
+    ) {
+      return 'zh-Hant';
     }
+    if (locale.startsWith('en')) return 'en';
   } catch {
-    // Web storage is unavailable (native runtime); fall back to the default.
+    // Use the product default when the runtime does not expose a locale.
   }
   return DEFAULT_CONTENT_LANGUAGE_CODE;
 }
 
-function persistLanguageCode(code: ContentLanguageCode): void {
-  try {
-    globalThis.localStorage?.setItem(CONTENT_LANGUAGE_STORAGE_KEY, code);
-  } catch {
-    // Best effort: the in-memory value still applies for this session.
-  }
+function interpolate(template: string, params?: TranslationParams): string {
+  if (params === undefined) return template;
+  return template.replace(/\{([^}]+)\}/g, (match, key: string) => {
+    const value = params[key];
+    return value === undefined ? match : String(value);
+  });
 }
 
-const ContentLanguageContext = createContext<ContentLanguageContextValue>({
-  languageCode: DEFAULT_CONTENT_LANGUAGE_CODE,
-  setLanguageCode: () => undefined,
-});
+const ContentLanguageContext =
+  createContext<ContentLanguageContextValue | null>(null);
 
-/** Persists the podcast/content language preference across app launches. */
+/**
+ * One global locale for both app chrome and localized podcast content. The
+ * legacy hook name remains exported so existing podcast data consumers keep a
+ * single source of truth while the UI migrates to translations.
+ */
 export function ContentLanguageProvider({
   children,
 }: {
   children: ReactNode;
 }): ReactElement {
-  const [languageCode, setLanguageCodeState] = useState<ContentLanguageCode>(
-    readStoredLanguageCode,
-  );
+  const [languageCode, setLanguageCodeState] =
+    useState<ContentLanguageCode>(detectDeviceLocale);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const changedWhileHydratingRef = useRef(false);
 
-  const setLanguageCode = useCallback((code: ContentLanguageCode) => {
-    setLanguageCodeState(code);
-    persistLanguageCode(code);
+  useEffect(() => {
+    let active = true;
+    void loadLocale().then((stored) => {
+      if (!active) return;
+      if (stored !== null && !changedWhileHydratingRef.current) {
+        setLanguageCodeState(stored);
+      }
+      setIsHydrated(true);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
+  const setLanguageCode = useCallback((code: ContentLanguageCode) => {
+    changedWhileHydratingRef.current = true;
+    setLanguageCodeState(code);
+    void saveLocale(code);
+  }, []);
+
+  const t = useCallback(
+    (key: TranslationKey, params?: TranslationParams) =>
+      interpolate(TRANSLATIONS[languageCode][key], params),
+    [languageCode],
+  );
+
   const value = useMemo(
-    () => ({ languageCode, setLanguageCode }),
-    [languageCode, setLanguageCode],
+    () => ({
+      languageCode,
+      locale: languageCode,
+      isHydrated,
+      setLanguageCode,
+      setLocale: setLanguageCode,
+      t,
+    }),
+    [isHydrated, languageCode, setLanguageCode, t],
   );
 
   return (
@@ -75,5 +120,11 @@ export function ContentLanguageProvider({
 }
 
 export function useContentLanguage(): ContentLanguageContextValue {
-  return useContext(ContentLanguageContext);
+  const value = useContext(ContentLanguageContext);
+  if (value === null) {
+    throw new Error(
+      'useContentLanguage must be used within ContentLanguageProvider',
+    );
+  }
+  return value;
 }

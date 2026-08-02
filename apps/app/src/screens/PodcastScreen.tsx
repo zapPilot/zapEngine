@@ -92,13 +92,16 @@ function SearchMatchSummary({
 }: {
   result: PodcastEpisodeSearchResult;
 }) {
+  const { t } = useContentLanguage();
   const snippet = result.snippet?.trim();
 
   return (
     <View className="mt-2">
       <View className="self-start rounded-full bg-[rgba(212,197,163,.12)] px-2 py-1">
         <Text className="font-mono text-[9px] uppercase tracking-[0.8px] text-accent">
-          {result.matchSource === 'title' ? 'Title' : 'Transcript'}
+          {result.matchSource === 'title'
+            ? t('podcast.matchTitle')
+            : t('podcast.matchTranscript')}
         </Text>
       </View>
       {snippet !== undefined && snippet !== '' ? (
@@ -124,16 +127,18 @@ function PodcastSearchBar({
   onClear: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useContentLanguage();
+
   return (
     <View className="flex-row items-center gap-3 px-5 pt-3">
       <View className="h-11 min-w-0 flex-1 flex-row items-center gap-3 rounded-[18px] border border-line bg-[rgba(255,255,255,.045)] px-3">
         <Search size={18} strokeWidth={2} color="#a1a1aa" />
         <TextInput
-          accessibilityLabel="Search podcast episodes"
+          accessibilityLabel={t('podcast.searchEpisodes')}
           autoFocus
           value={query}
           onChangeText={onChangeQuery}
-          placeholder="搜尋標題或內容"
+          placeholder={t('podcast.searchPlaceholder')}
           placeholderTextColor="#71717a"
           returnKeyType="search"
           autoCapitalize="none"
@@ -143,7 +148,7 @@ function PodcastSearchBar({
         {query.trim() !== '' ? (
           <Tap
             accessibilityRole="button"
-            accessibilityLabel="Clear podcast search"
+            accessibilityLabel={t('podcast.clearSearch')}
             onPress={onClear}
             className="h-7 w-7 items-center justify-center rounded-full bg-[rgba(255,255,255,.06)]"
           >
@@ -153,17 +158,20 @@ function PodcastSearchBar({
       </View>
       <Tap
         accessibilityRole="button"
-        accessibilityLabel="Cancel podcast search"
+        accessibilityLabel={t('podcast.cancelSearch')}
         onPress={onCancel}
         className="h-11 items-center justify-center px-1"
       >
-        <Text className="font-sans-medium text-[13px] text-accent">取消</Text>
+        <Text className="font-sans-medium text-[13px] text-accent">
+          {t('common.cancel')}
+        </Text>
       </Tap>
     </View>
   );
 }
 
 function NowPlayingBar({ player }: { player: PodcastPlayer }) {
+  const { t } = useContentLanguage();
   const episode = player.nowPlaying;
   if (episode === null) return null;
 
@@ -179,7 +187,9 @@ function NowPlayingBar({ player }: { player: PodcastPlayer }) {
         <Tap
           onPress={() => player.toggle(episode)}
           accessibilityRole="button"
-          accessibilityLabel={player.isPlaying ? 'Pause' : 'Play'}
+          accessibilityLabel={
+            player.isPlaying ? t('common.pause') : t('common.play')
+          }
           className="h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[rgba(212,197,163,.3)] bg-[rgba(212,197,163,.16)]"
         >
           {player.isPlaying ? (
@@ -199,7 +209,7 @@ function NowPlayingBar({ player }: { player: PodcastPlayer }) {
             {player.currentSection === 'classroom' ? (
               <View className="shrink-0 rounded-full bg-[rgba(212,197,163,.16)] px-2 py-[2px]">
                 <Text className="font-sans-semibold text-[9px] text-accent">
-                  Classroom
+                  {t('podcast.classroom')}
                 </Text>
               </View>
             ) : null}
@@ -209,7 +219,7 @@ function NowPlayingBar({ player }: { player: PodcastPlayer }) {
               {formatPodcastClock(player.currentTime)}
             </Text>
             <Slider
-              accessibilityLabel="Seek"
+              accessibilityLabel={t('common.seek')}
               disabled={duration <= 0}
               minimumValue={0}
               maximumValue={duration > 0 ? duration : 1}
@@ -252,7 +262,7 @@ function EmptyStateCard({
 export function PodcastScreen() {
   const router = useRouter();
   const player = usePodcastPlayer();
-  const { languageCode } = useContentLanguage();
+  const { languageCode, t } = useContentLanguage();
   const { progress, markAllListened } = useEpisodeProgress();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -377,8 +387,8 @@ export function PodcastScreen() {
     if (normalisedSearchQuery !== '' && !searchActive) {
       return (
         <EmptyStateCard
-          title="搜尋節目內容"
-          message="輸入至少兩個字，找出標題或逐字稿中的相關集數。"
+          title={t('podcast.searchPromptTitle')}
+          message={t('podcast.searchPromptMessage')}
         />
       );
     }
@@ -388,11 +398,15 @@ export function PodcastScreen() {
     if (listError) {
       return (
         <EmptyStateCard
-          title={searchActive ? 'Search unavailable' : 'Podcast unavailable'}
+          title={
+            searchActive
+              ? t('podcast.searchUnavailableTitle')
+              : t('podcast.feedUnavailableTitle')
+          }
           message={
             searchActive
-              ? 'The podcast search API is unavailable right now.'
-              : 'The podcast feed is unavailable right now.'
+              ? t('podcast.searchUnavailableMessage')
+              : t('podcast.feedUnavailableMessage')
           }
         />
       );
@@ -400,7 +414,10 @@ export function PodcastScreen() {
     if (searchActive) {
       if (searchResults.length === 0) {
         return (
-          <EmptyStateCard title="找不到相關集數" message="換個關鍵字試試。" />
+          <EmptyStateCard
+            title={t('podcast.noSearchResultsTitle')}
+            message={t('podcast.noSearchResultsMessage')}
+          />
         );
       }
       const searchEpisodes = searchResults.map((result) => result.episode);
@@ -415,8 +432,8 @@ export function PodcastScreen() {
     if (!hasAnyEpisode) {
       return (
         <EmptyStateCard
-          title="No episodes yet"
-          message="Published episodes will appear here."
+          title={t('podcast.noEpisodesTitle')}
+          message={t('podcast.noEpisodesMessage')}
         />
       );
     }
@@ -442,7 +459,7 @@ export function PodcastScreen() {
 
         {unheardEpisodes.length > 0 ? (
           <ExpandableSection
-            title="未聽"
+            title={t('podcast.unheard')}
             count={unheardEpisodes.length}
             defaultExpanded
           >
@@ -451,7 +468,10 @@ export function PodcastScreen() {
         ) : null}
 
         {listenedEpisodes.length > 0 ? (
-          <ExpandableSection title="已聽完" count={listenedEpisodes.length}>
+          <ExpandableSection
+            title={t('podcast.listened')}
+            count={listenedEpisodes.length}
+          >
             {renderRows(
               listenedEpisodes.slice(0, visibleListened),
               listenedEpisodes,
@@ -459,14 +479,14 @@ export function PodcastScreen() {
             {visibleListened < listenedEpisodes.length ? (
               <Tap
                 accessibilityRole="button"
-                accessibilityLabel="載入更多已聽集數"
+                accessibilityLabel={t('podcast.loadMoreListened')}
                 onPress={() =>
                   setVisibleListened((current) => current + LISTENED_PAGE_SIZE)
                 }
                 className="mt-2 items-center rounded-full border border-line py-[10px]"
               >
                 <Text className="font-mono text-[11px] uppercase tracking-[0.8px] text-ink-dim">
-                  載入更多
+                  {t('podcast.loadMore')}
                 </Text>
               </Tap>
             ) : null}
@@ -476,7 +496,7 @@ export function PodcastScreen() {
         <View className="items-center px-5 pb-2 pt-6">
           <Tap
             accessibilityRole="button"
-            accessibilityLabel="全部標記為已聽"
+            accessibilityLabel={t('podcast.markAllListened')}
             onPress={() => {
               if (confirmMarkAll) {
                 markAllListened(allLocalizationIds);
@@ -488,7 +508,9 @@ export function PodcastScreen() {
             className="px-3 py-1"
           >
             <Text className="font-mono text-[10px] text-ink-faint">
-              {confirmMarkAll ? '再按一次確認全部標記已聽' : '全部標記為已聽'}
+              {confirmMarkAll
+                ? t('podcast.confirmMarkAllListened')
+                : t('podcast.markAllListened')}
             </Text>
           </Tap>
         </View>
@@ -500,7 +522,7 @@ export function PodcastScreen() {
     <View className="flex-1 bg-bg">
       <ScreenScrollView bottomPadding={player.nowPlaying === null ? 24 : 108}>
         <ScreenHeader
-          title="Podcast"
+          title={t('podcast.title')}
           left={
             <PodcastLanguageDropdown
               completionByLanguage={visibleCompletionByLanguage}
@@ -509,7 +531,7 @@ export function PodcastScreen() {
           right={
             <Tap
               accessibilityRole="button"
-              accessibilityLabel="Search podcast episodes"
+              accessibilityLabel={t('podcast.searchEpisodes')}
               accessibilityState={{ expanded: searchExpanded }}
               onPress={() => setSearchExpanded(true)}
               className={cn(

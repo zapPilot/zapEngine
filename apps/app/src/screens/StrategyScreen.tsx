@@ -26,9 +26,11 @@ import { useStrategyData } from '@/integration/useStrategyData';
 import { createStrategyStartAction } from '@/integration/strategyStartAction';
 import { resolveColor } from '@/lib/colors';
 import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 export function StrategyScreen() {
   const router = useRouter();
+  const { t } = useContentLanguage();
   const authAction = useAuthenticatedAction();
   const [range, setRange] = useState<StrategyRange>('1Y');
   const account = useAccount();
@@ -72,7 +74,7 @@ export function StrategyScreen() {
 
       <View className="mx-5 mt-5 flex-row items-center justify-between">
         <Text className="font-sans-semibold text-[14px] text-ink">
-          Backtest
+          {t('strategy.backtest')}
         </Text>
         <RangeTabs
           options={RANGE_OPTIONS}
@@ -129,7 +131,7 @@ export function StrategyScreen() {
       <Card className="mx-5 mt-6 p-4">
         <View className="flex-row items-center justify-between">
           <Text className="font-sans-semibold text-[15px] text-ink">
-            Current positioning
+            {t('strategy.currentPositioning')}
           </Text>
           <Pill className="border border-line bg-[rgba(255,255,255,.05)]">
             {strategy.backtest.currentModeLabel}
@@ -167,7 +169,7 @@ export function StrategyScreen() {
       <Card className="mx-5 mt-4 p-4">
         <View className="flex-row items-center justify-between">
           <Text className="font-sans-semibold text-[15px] text-ink">
-            Fear and greed
+            {t('strategy.fearAndGreed')}
           </Text>
           <Text className="font-mono text-[12px] text-accent">
             {Math.round(sentiment)}
@@ -192,7 +194,7 @@ export function StrategyScreen() {
             color={tokens.color.error}
           />
           <Text className="flex-1 text-[12px] leading-[18px] text-error">
-            Strategy allocation is unavailable for this account.
+            {t('strategy.allocationUnavailable')}
           </Text>
         </View>
       ) : null}
@@ -200,7 +202,7 @@ export function StrategyScreen() {
       <View className="mx-5 mt-5">
         <PrimaryButton onPress={startStrategy}>
           <Text className="font-sans-semibold text-[15.5px] text-[#0a0a0a]">
-            Start with Zap Strategy
+            {t('strategy.start')}
           </Text>
           <ArrowRight size={16} strokeWidth={1.8} color="#0a0a0a" />
         </PrimaryButton>

@@ -8,16 +8,14 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { RangeTabs } from '@/components/ui/RangeTabs';
 import { Tap } from '@/components/ui/Tap';
 import type { PodcastEpisode } from '@/integration/podcastFeed';
+import type { TranslationKey } from '@/i18n/translations';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 export type PlayUnheardMode =
   | 'unplayed'
   | 'inProgress'
   | 'allCompleted'
   | 'empty';
-
-const NEWEST_LABEL = '最新';
-const OLDEST_LABEL = '最舊';
-const DIRECTION_OPTIONS = [NEWEST_LABEL, OLDEST_LABEL] as const;
 
 interface CardCopy {
   eyebrow: string;
@@ -26,43 +24,50 @@ interface CardCopy {
   buttonLabel: string;
 }
 
+type Translate = (
+  key: TranslationKey,
+  params?: Readonly<Record<string, string | number>>,
+) => string;
+
 function resolveCopy(
   mode: PlayUnheardMode,
   target: PodcastEpisode | null,
   direction: EpisodeSortDirection,
   isPlaying: boolean,
+  t: Translate,
 ): CardCopy {
-  const fromEdge = direction === 'newest' ? '最新' : '最舊';
+  const edge = t(direction === 'newest' ? 'podcast.newest' : 'podcast.oldest');
 
   if (mode === 'allCompleted') {
     return {
-      eyebrow: '已全部聽完',
-      title: '已全部聽完',
-      subtitle: `重新從${fromEdge}一集開始播放`,
-      buttonLabel: isPlaying ? '暫停' : `從${fromEdge}重新播放`,
+      eyebrow: t('podcast.allCompletedEyebrow'),
+      title: t('podcast.allCompletedTitle'),
+      subtitle: t('podcast.restartFrom', { edge }),
+      buttonLabel: isPlaying
+        ? t('common.pause')
+        : t('podcast.restartButton', { edge }),
     };
   }
   if (mode === 'inProgress' && target !== null) {
     return {
-      eyebrow: '繼續收聽',
+      eyebrow: t('podcast.continueListening'),
       title: target.title,
-      subtitle: `上次收聽至 ${formatPodcastClock(target.lastPositionSeconds)}`,
-      buttonLabel: isPlaying ? '暫停' : '繼續收聽',
+      subtitle: t('podcast.lastPosition', {
+        time: formatPodcastClock(target.lastPositionSeconds),
+      }),
+      buttonLabel: isPlaying
+        ? t('common.pause')
+        : t('podcast.continueListening'),
     };
   }
   return {
-    eyebrow: '一鍵播放',
+    eyebrow: t('podcast.oneTapPlay'),
     title: target?.title ?? '',
-    subtitle: `從${fromEdge}未聽的一集開始`,
-    buttonLabel: isPlaying ? '暫停' : '一鍵播放未聽',
+    subtitle: t('podcast.startUnheardFrom', { edge }),
+    buttonLabel: isPlaying ? t('common.pause') : t('podcast.playUnheard'),
   };
 }
 
-/**
- * Large one-tap "play unheard" CTA, ported from the mobile
- * `continue_listening_card.dart` (three states: play / resume / all-done) with a
- * newest/oldest direction toggle.
- */
 export function PlayUnheardCard({
   mode,
   target,
@@ -80,9 +85,13 @@ export function PlayUnheardCard({
   onPlay: () => void;
   onOpen: () => void;
 }) {
+  const { t } = useContentLanguage();
   if (mode === 'empty') return null;
 
-  const copy = resolveCopy(mode, target, direction, isPlaying);
+  const newestLabel = t('podcast.newest');
+  const oldestLabel = t('podcast.oldest');
+  const directionOptions = [newestLabel, oldestLabel] as const;
+  const copy = resolveCopy(mode, target, direction, isPlaying, t);
 
   const body = (
     <>
@@ -106,17 +115,19 @@ export function PlayUnheardCard({
             {copy.eyebrow}
           </Text>
           <RangeTabs
-            options={DIRECTION_OPTIONS}
-            value={direction === 'newest' ? NEWEST_LABEL : OLDEST_LABEL}
+            options={directionOptions}
+            value={direction === 'newest' ? newestLabel : oldestLabel}
             onChange={(value) =>
-              onDirectionChange(value === OLDEST_LABEL ? 'oldest' : 'newest')
+              onDirectionChange(value === oldestLabel ? 'oldest' : 'newest')
             }
           />
         </View>
         {target !== null ? (
           <Tap
             accessibilityRole="button"
-            accessibilityLabel={`Open ${target.title}`}
+            accessibilityLabel={t('podcast.openEpisode', {
+              title: target.title,
+            })}
             onPress={onOpen}
           >
             {body}

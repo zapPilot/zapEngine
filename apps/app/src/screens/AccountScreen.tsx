@@ -12,21 +12,22 @@ import { TelegramCard } from '@/components/account/TelegramCard';
 import { ContentLanguageOptionRows } from '@/components/content/ContentLanguageSelector';
 import { DEMO } from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
-import { NATIVE_PRIVY_AUTH_COPY } from '@/integration/nativePrivyLogin';
 import { truncateAddress } from '@/lib/format';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 export function AccountScreen() {
   const router = useRouter();
   const account = useAccount();
+  const { t } = useContentLanguage();
   const address = account.address ?? DEMO.account.address;
 
   return (
     <ScreenScrollView>
-      <ScreenHeader title="Account" />
+      <ScreenHeader title={t('tabs.account')} />
       <View className="px-5 pt-5">
         <Tap
           accessibilityRole="button"
-          accessibilityLabel="Manage wallets"
+          accessibilityLabel={t('account.manageWallets')}
           onPress={() => router.push('/wallets')}
         >
           <Card className="p-5">
@@ -45,11 +46,10 @@ export function AccountScreen() {
         </Tap>
         <Card className="mt-4 p-5">
           <Text className="font-sans-semibold text-[15px] text-ink">
-            Content language
+            {t('language.title')}
           </Text>
           <Text className="mt-1 text-[12.5px] leading-5 text-ink-dim">
-            Affects podcast episodes and audio versions. Listening history is
-            preserved.
+            {t('language.description')}
           </Text>
           <View className="mt-3">
             <ContentLanguageOptionRows />
@@ -58,8 +58,8 @@ export function AccountScreen() {
         <TelegramCard />
         <View className="mt-4">
           <NonCustodialCard
-            title="You approve every transaction"
-            body="Zap Pilot can prepare routes, but the wallet backend must sign before anything moves."
+            title={t('account.approveEveryTransaction')}
+            body={t('account.nonCustodialBody')}
           />
         </View>
         <PrimaryButton
@@ -74,8 +74,8 @@ export function AccountScreen() {
           }}
         >
           {account.isConnected
-            ? 'Disconnect wallet'
-            : NATIVE_PRIVY_AUTH_COPY.cta}
+            ? t('account.disconnectWallet')
+            : t('account.connectWallet')}
         </PrimaryButton>
       </View>
     </ScreenScrollView>

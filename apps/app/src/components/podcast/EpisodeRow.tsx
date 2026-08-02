@@ -6,6 +6,7 @@ import { formatPodcastEpisodeDate } from '@/components/podcast/episodeFormatters
 import { Tap } from '@/components/ui/Tap';
 import type { PodcastEpisode } from '@/integration/podcastFeed';
 import { cn } from '@/lib/cn';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 export function EpisodeBadge({ active }: { active: boolean }) {
   return (
@@ -43,6 +44,8 @@ export function EpisodeRow({
   onToggle: () => void;
   onOpen: () => void;
 }) {
+  const { languageCode, t } = useContentLanguage();
+
   return (
     <View
       className={cn(
@@ -53,7 +56,7 @@ export function EpisodeRow({
       <Tap
         onPress={onOpen}
         accessibilityRole="button"
-        accessibilityLabel={`Open ${episode.title}`}
+        accessibilityLabel={t('podcast.openEpisode', { title: episode.title })}
         className="min-w-0 flex-1 flex-row gap-3"
       >
         <EpisodeBadge active={active} />
@@ -69,11 +72,15 @@ export function EpisodeRow({
           </Text>
           <View className="mt-[5px] flex-row items-center gap-2">
             <Text className="font-mono text-[10px] text-ink-faint">
-              {formatPodcastEpisodeDate(episode.createdAt)}
+              {formatPodcastEpisodeDate(
+                episode.createdAt,
+                'short',
+                languageCode,
+              )}
             </Text>
             {episode.listened ? (
               <Text className="font-mono text-[9px] uppercase tracking-[0.9px] text-ink-faint">
-                Listened
+                {t('podcast.completedEpisode')}
               </Text>
             ) : null}
           </View>
@@ -84,7 +91,9 @@ export function EpisodeRow({
         onPress={onToggle}
         accessibilityRole="button"
         accessibilityLabel={
-          playing ? `Pause ${episode.title}` : `Play ${episode.title}`
+          playing
+            ? t('podcast.pauseEpisode', { title: episode.title })
+            : t('podcast.playEpisode', { title: episode.title })
         }
         className={cn(
           'h-8 w-8 shrink-0 items-center justify-center rounded-full border',

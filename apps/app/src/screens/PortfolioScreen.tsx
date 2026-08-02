@@ -27,6 +27,7 @@ import {
 } from '@/integration/usePortfolioData';
 import { resolveColor } from '@/lib/colors';
 import { formatSignedPct, formatSignedUsd } from '@/lib/format';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 const RANGE_OPTIONS = ['1W', '1M', '3M', '1Y', 'ALL'] as const;
 
@@ -37,6 +38,7 @@ const DEMO_PORTFOLIO: PortfolioViewData = {
 
 export function PortfolioScreen() {
   const [range, setRange] = useState<PortfolioRange>('1Y');
+  const { t } = useContentLanguage();
   const account = useAccount();
   const result = usePortfolioData(account.viewingUserId, range, {
     isResolvingUser: account.isResolvingViewingUser,
@@ -50,7 +52,7 @@ export function PortfolioScreen() {
   return (
     <ScreenScrollView>
       <ScreenHeader
-        title="Portfolio"
+        title={t('portfolio.title')}
         left={<ScreenBackButton fallbackHref="/home" />}
         right={
           <View className="flex-row items-center gap-2">
@@ -67,7 +69,7 @@ export function PortfolioScreen() {
       />
 
       <View className="px-5 pt-4">
-        <SectionLabel>Strategy position value</SectionLabel>
+        <SectionLabel>{t('portfolio.positionValue')}</SectionLabel>
         <View className="mt-[5px]">
           <DisplayUsdValue
             loading={loading && portfolio === null}
@@ -95,7 +97,7 @@ export function PortfolioScreen() {
 
       <View className="mt-3 px-5">
         <View className="flex-row items-center justify-between">
-          <SectionLabel>Value history</SectionLabel>
+          <SectionLabel>{t('portfolio.valueHistory')}</SectionLabel>
           <RangeTabs
             options={RANGE_OPTIONS}
             value={range}
@@ -128,7 +130,7 @@ export function PortfolioScreen() {
       <View className="mt-6 px-5">
         <View className="flex-row items-center justify-between">
           <Text className="font-sans-semibold text-[15px] text-ink">
-            Current allocation
+            {t('strategy.currentAllocation')}
           </Text>
           <Text className="font-mono text-[9.5px] text-ink-faint">
             High-level
@@ -164,8 +166,8 @@ export function PortfolioScreen() {
         </Card>
         <View className="mt-4">
           <NonCustodialCard
-            title="Non-custodial execution"
-            body="Zap Pilot prepares transactions; your wallet signs every move."
+            title={t('portfolio.nonCustodialTitle')}
+            body={t('portfolio.nonCustodialBody')}
           />
         </View>
       </View>

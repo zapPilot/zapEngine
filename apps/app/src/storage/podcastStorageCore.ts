@@ -9,11 +9,9 @@ import {
   PODCAST_SPEED_PREFERENCES_STORAGE_KEY,
   type PodcastSpeedPreferences,
 } from '@/integration/podcastSections';
+import type { KeyValueStorage } from '@/storage/keyValueStorage';
 
-export interface PodcastKeyValueStorage {
-  getItem: (key: string) => Promise<string | null>;
-  setItem: (key: string, value: string) => Promise<void>;
-}
+export type PodcastKeyValueStorage = KeyValueStorage;
 
 export interface PodcastStorage {
   loadPodcastProgress: () => Promise<PodcastProgressMap>;

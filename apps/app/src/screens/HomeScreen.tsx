@@ -39,6 +39,7 @@ import {
 import { createStrategyStartAction } from '@/integration/strategyStartAction';
 import { formatSignedPct, formatSignedUsd, formatUsd } from '@/lib/format';
 import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 const RANGE_OPTIONS = ['1D', '1W', '1M', '1Y', 'ALL'] as const;
 
@@ -202,6 +203,7 @@ function ActionButton({
 
 export function HomeScreen() {
   const router = useRouter();
+  const { t } = useContentLanguage();
   const authAction = useAuthenticatedAction();
   const [range, setRange] = useState<HomeRange>(DEFAULT_HOME_RANGE);
   const account = useAccount();
@@ -230,7 +232,7 @@ export function HomeScreen() {
 
       <View className="relative">
         <View className="px-5 pt-6">
-          <SectionLabel>Net worth</SectionLabel>
+          <SectionLabel>{t('home.netWorth')}</SectionLabel>
           <DisplayUsdValue
             loading={showBalanceSkeleton}
             value={home.totalBalance}
@@ -247,15 +249,15 @@ export function HomeScreen() {
             </Text>
             <Text className="text-[13px] text-ink-dim">
               {typeof changeUsd === 'number'
-                ? `${formatSignedUsd(changeUsd)} today`
-                : 'today'}
+                ? `${formatSignedUsd(changeUsd)} ${t('home.today')}`
+                : t('home.today')}
             </Text>
           </View>
         </View>
 
         <View className="mt-5 px-5">
           <View className="flex-row items-center justify-between">
-            <SectionLabel>Balance trend</SectionLabel>
+            <SectionLabel>{t('home.balanceTrend')}</SectionLabel>
             <RangeTabs
               options={RANGE_OPTIONS}
               value={range}
@@ -283,17 +285,17 @@ export function HomeScreen() {
       {account.isOwnBundle ? (
         <View className="mt-5 flex-row gap-3 px-5">
           <ActionButton
-            label="Invest"
+            label={t('home.invest')}
             onPress={() => router.push('/invest/amount')}
             icon={<ArrowDown size={18} color="#d4c5a3" strokeWidth={1.8} />}
           />
           <ActionButton
-            label="Send"
+            label={t('home.send')}
             onPress={() => router.push('/send')}
             icon={<ArrowUp size={18} color="#d4c5a3" strokeWidth={1.8} />}
           />
           <ActionButton
-            label="More"
+            label={t('home.more')}
             icon={
               <MoreHorizontal size={18} color="#d4c5a3" strokeWidth={1.8} />
             }
@@ -329,10 +331,10 @@ export function HomeScreen() {
           </View>
           <View className="min-w-0 flex-1">
             <Text className="font-sans-semibold text-[14.5px] text-ink">
-              Portfolio
+              {t('home.portfolio')}
             </Text>
             <Text className="mt-1 text-[12px] text-ink-dim">
-              Strategy position, metrics & allocation breakdown
+              {t('home.portfolioDescription')}
             </Text>
           </View>
           <ChevronRight size={18} strokeWidth={1.8} color="#71717a" />
@@ -343,14 +345,14 @@ export function HomeScreen() {
         <View className="mt-6 px-5">
           <View className="mb-2 flex-row items-center justify-between">
             <Text className="font-sans-semibold text-[15px] text-ink">
-              Wallet assets
+              {t('home.walletAssets')}
             </Text>
             <Text className="font-mono text-[9.5px] uppercase tracking-[0.76px] text-ink-faint">
               {isDemo
-                ? 'Demo'
+                ? t('home.demo')
                 : walletAssets.failedChains.length > 0
-                  ? 'Partial'
-                  : 'Live'}
+                  ? t('home.partial')
+                  : t('home.live')}
             </Text>
           </View>
           <View className="relative">
