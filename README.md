@@ -134,5 +134,8 @@ After linking, Turbo checks remote cache on local misses — `pnpm verify` stays
 
 - **Backend services** → Fly.io via GitHub Actions (push to `main`)
 - **Universal app (web) / Landing / Docs** → Vercel (app root: `apps/app`)
+- **Universal app (iOS / Android)** → EAS Build + Submit via GitHub Actions,
+  triggered manually from the Actions tab
+  ([runbook](./apps/app/docs/android-release.md#ci-release))
 - **Desktop** → local/manual macOS DMG build from `apps/desktop`
 - CI triggers on push to `main` and PRs; deploys only on `main`

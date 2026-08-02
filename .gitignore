@@ -91,5 +91,12 @@ apps/mobile/key.properties
 apps/mobile/android/key.properties
 apps/app/credentials.json
 apps/app/google-play-service-account*.json
+# Expo's own documented default filename for the Play submit credential.
+google-service-account*.json
 *.jks
 *.keystore
+# App Store Connect API key, plus the certificate/profile files an Apple
+# credential setup leaves behind.
+*.p8
+*.p12
+*.mobileprovision

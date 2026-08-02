@@ -48,13 +48,20 @@ pnpm --filter @zapengine/app android:native
 pnpm --filter @zapengine/app ios:native:sync
 pnpm --filter @zapengine/app ios:archive
 pnpm turbo run test:ios:release-smoke --filter=@zapengine/app
+
+# iOS App Store release
 pnpm --filter @zapengine/app ios:release
+pnpm --filter @zapengine/app ios:submit
 
 # Android Google Play release
 pnpm --filter @zapengine/app android:release
 pnpm --filter @zapengine/app android:submit
 pnpm --filter @zapengine/app android:publish
 ```
+
+Every EAS command routes through `scripts/eas.mjs`, which owns the single pinned
+EAS CLI version and adds `--non-interactive` when `CI` is set. Local runs stay
+interactive so credential setup can still prompt.
 
 ## Android Studio development
 
@@ -93,6 +100,10 @@ Use the Turbo command for workspace checks so upstream package builds are fresh.
 the one-time credential and version setup in
 [docs/android-release.md](./docs/android-release.md) before the first EAS build.
 
+`.github/workflows/release-mobile.yml` runs those same commands on GitHub Actions
+for either platform, triggered manually from the Actions tab. See
+[docs/android-release.md](./docs/android-release.md#ci-release).
+
 ## iOS archive and TestFlight safety
 
 The generated `ios/` directory is intentionally ignored. A direct Xcode open can
@@ -100,15 +111,20 @@ therefore retain Pods from an older `package.json`, even when its own
 `Podfile.lock` and `Pods/Manifest.lock` still match. That can produce an IPA
 whose JavaScript imports a native module that the executable never linked.
 
-Use `ios:archive` as the supported TestFlight entry point. It builds the
-workspace dependencies, applies Expo config to the existing native project,
-runs `pod install`, verifies required cold-start Pods, and opens
-`ZapPilot.xcworkspace`. Then choose **Product → Archive** in Xcode. A Release
-bundle also runs the same dependency guard, so bypassing the command with stale
-Pods fails the archive instead of emitting a crash-on-launch app.
+`ios:release` + `ios:submit` are the primary release path: the clean-source EAS
+production profile builds on Expo's macOS infrastructure, and the submit wrapper
+uploads that exact build to App Store Connect, which makes it available to
+TestFlight. Complete the one-time credential and versioning setup in
+[docs/ios-release.md](./docs/ios-release.md) first — `credentialsSource: remote`
+has no local fallback.
 
-`ios:release` uses the clean-source EAS production profile. It creates the iOS
-store build but does not submit it to App Store Connect automatically.
+`ios:archive` remains the supported local archiving path, and is what to reach
+for when EAS itself is the problem. It builds the workspace dependencies, applies
+Expo config to the existing native project, runs `pod install`, verifies required
+cold-start Pods, and opens `ZapPilot.xcworkspace`. Then choose **Product →
+Archive** in Xcode. A Release bundle also runs the same dependency guard, so
+bypassing the command with stale Pods fails the archive instead of emitting a
+crash-on-launch app.
 
 The macOS `test:ios:release-smoke` gate performs a clean Expo prebuild in CI,
 builds the actual Release simulator app with embedded JavaScript, verifies

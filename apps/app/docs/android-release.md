@@ -196,6 +196,42 @@ The default is intentionally a testing track. Promote a tested release to Open
 testing or Production from Play Console rather than making the repository command
 publish directly to all users.
 
+## CI release
+
+`.github/workflows/release-mobile.yml` runs the same commands on GitHub Actions.
+It drives Android and iOS from one workflow; the iOS-only prerequisites are in
+[ios-release.md](./ios-release.md).
+
+It needs one repository secret, `EXPO_TOKEN` — an Expo **robot** access token
+rather than a personal one, so revoking it does not lock anyone out of their own
+account. Nothing else moves to GitHub: the keystore, the Play service-account
+key, and the `production` environment variables all stay on EAS.
+
+Trigger it from the repository's **Actions** tab with two inputs:
+
+| Input      | Values                                          |
+| ---------- | ----------------------------------------------- |
+| `platform` | `android`, `ios`, `both`                        |
+| `mode`     | `build-and-submit`, `build-only`, `submit-only` |
+
+`submit-only` is the mode that matters operationally: it maps to this document's
+guidance for a build that succeeded but whose submission did not. It resolves the
+latest finished production store build and submits that exact binary, so no new
+version code is consumed.
+
+Two properties of the workflow are deliberate and worth knowing before changing
+it:
+
+- **Manual trigger only.** Remote auto-increment consumes a version code on
+  every build attempt, including failures, so a push-triggered release would burn
+  store version numbers on each merge.
+- **One global concurrency slot, never cancelled.** Concurrent releases would
+  each consume a version code, and both would race for the single "latest
+  finished production store build" that the submit wrapper resolves.
+
+A runner timeout does not cancel the build on EAS. When a build outlives its
+runner, rerun the workflow with `mode: submit-only` to ship the finished binary.
+
 ## Testers
 
 The `alpha` track draws its audience from the `internal_testers` email list in
