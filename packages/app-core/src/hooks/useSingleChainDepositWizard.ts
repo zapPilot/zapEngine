@@ -1,6 +1,9 @@
 import { extractErrorMessage } from '@core/lib/errors';
 import { pollUntil } from '@core/lib/polling';
-import { executeDepositPlanWithWallet } from '@core/lib/wallet/executeDepositPlan';
+import {
+  executeDepositPlanWithWallet,
+  isEIP7702WalletRecoveryError,
+} from '@core/lib/wallet/executeDepositPlan';
 import { useWalletProvider } from '@core/providers/walletContext';
 import { getPublicClient } from '@core/services/intentClient';
 import { getDepositPlan } from '@core/services/planOrchestrationService';
@@ -63,12 +66,15 @@ export interface SingleChainDepositWizardStep {
   callsId?: string;
 }
 
+export type SingleChainDepositRecovery = 'wallet-delegation' | null;
+
 export interface SingleChainDepositWizardState {
   plan: DepositPlan | null;
   steps: SingleChainDepositWizardStep[];
   currentIndex: number;
   status: 'idle' | 'ready' | 'busy' | 'done' | 'failed';
   error: string | null;
+  recovery: SingleChainDepositRecovery;
 }
 
 type SingleChainDepositWizardEvent =
@@ -84,7 +90,12 @@ type SingleChainDepositWizardEvent =
       callsId?: string;
       transactionHash?: Hash;
     }
-  | { type: 'BATCH_FAILED'; message: string; submitted: boolean }
+  | {
+      type: 'BATCH_FAILED';
+      message: string;
+      submitted: boolean;
+      recovery: SingleChainDepositRecovery;
+    }
   | { type: 'SETTLEMENT_STARTED' }
   | { type: 'SETTLEMENT_CONFIRMED' }
   | { type: 'SETTLEMENT_FAILED'; message: string }
@@ -98,6 +109,7 @@ export const initialSingleChainDepositWizardState: SingleChainDepositWizardState
     currentIndex: 0,
     status: 'idle',
     error: null,
+    recovery: null,
   };
 
 const GAS_RESERVE_WEI = parseEther('0.0005');
@@ -168,6 +180,7 @@ export function singleChainDepositWizardReducer(
         currentIndex: 0,
         status: 'busy',
         error: null,
+        recovery: null,
       };
 
     case 'PLAN_LOADED':
@@ -182,6 +195,7 @@ export function singleChainDepositWizardReducer(
         currentIndex: 1,
         status: 'ready',
         error: null,
+        recovery: null,
       };
 
     case 'PLAN_LOAD_FAILED':
@@ -190,6 +204,7 @@ export function singleChainDepositWizardReducer(
         steps: patchStep(state.steps, 'prepare-plan', { status: 'failed' }),
         status: 'failed',
         error: event.message,
+        recovery: null,
       };
 
     case 'PLAN_REFRESHED':
@@ -203,6 +218,7 @@ export function singleChainDepositWizardReducer(
         }),
         status: 'busy',
         error: null,
+        recovery: null,
       };
 
     case 'BATCH_SUBMITTED':
@@ -243,6 +259,7 @@ export function singleChainDepositWizardReducer(
         currentIndex: 2,
         status: 'ready',
         error: null,
+        recovery: null,
       };
     }
 
@@ -256,6 +273,7 @@ export function singleChainDepositWizardReducer(
           currentIndex: 2,
           status: 'failed',
           error: `${event.message} The batch was already submitted; retry will only check the position to avoid a duplicate deposit.`,
+          recovery: null,
         };
       }
       return {
@@ -265,6 +283,7 @@ export function singleChainDepositWizardReducer(
         }),
         status: 'failed',
         error: event.message,
+        recovery: event.recovery,
       };
 
     case 'SETTLEMENT_STARTED':
@@ -275,6 +294,7 @@ export function singleChainDepositWizardReducer(
         }),
         status: 'busy',
         error: null,
+        recovery: null,
       };
 
     case 'SETTLEMENT_CONFIRMED':
@@ -288,6 +308,7 @@ export function singleChainDepositWizardReducer(
         currentIndex: state.steps.length,
         status: 'done',
         error: null,
+        recovery: null,
       };
 
     case 'SETTLEMENT_FAILED':
@@ -298,16 +319,18 @@ export function singleChainDepositWizardReducer(
         }),
         status: 'failed',
         error: event.message,
+        recovery: null,
       };
 
     case 'RETRY': {
       const step = state.steps[state.currentIndex];
-      if (!step) return { ...state, error: null };
+      if (!step) return { ...state, error: null, recovery: null };
       return {
         ...state,
         steps: patchStep(state.steps, step.id, { status: 'ready' }),
         status: 'ready',
         error: null,
+        recovery: null,
       };
     }
 
@@ -602,6 +625,9 @@ export function useSingleChainDepositWizard(): {
             type: 'BATCH_FAILED',
             message: extractErrorMessage(error, 'Deposit batch failed'),
             submitted: batchSubmittedRef.current,
+            recovery: isEIP7702WalletRecoveryError(error)
+              ? 'wallet-delegation'
+              : null,
           });
         }
       }

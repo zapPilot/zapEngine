@@ -6,26 +6,21 @@ const EIP7702_IMPLEMENTATION_HEX_LENGTH = 40;
 
 export const EIP7702_DELEGATES = {
   ambire: getAddress('0x5A7FC11397E9a8AD41BF10bf13F22B0a63f96f6d'),
-  okx: getAddress('0x80296FF8D1ED46f8e3C7992664D13B833504c2Bb'),
+  okx: getAddress('0xe40ccB2D94975c51bff0C004eFDfd9B3a5796fA4'),
+  okxLegacy: getAddress('0x80296FF8D1ED46f8e3C7992664D13B833504c2Bb'),
   metamask: getAddress('0x63c0c19a282a1B52b07dD5a65b58948A07DAE32B'),
 } as const;
-
-export type EIP7702DelegationCompatibility =
-  | 'none'
-  | 'supported'
-  | 'unsupported'
-  | 'unknown';
 
 export type EIP7702DelegationInspection =
   | {
       kind: 'notDelegated';
-      compatibility: 'none';
     }
   | {
       kind: 'delegated';
       implementation: Address;
       label: string;
-      compatibility: Exclude<EIP7702DelegationCompatibility, 'none'>;
+      /** Optional diagnostic hint only; never use it as an execution allowlist. */
+      walletLabel?: string;
     };
 
 interface InspectDelegationInput {
@@ -37,20 +32,24 @@ const DELEGATE_METADATA: Record<
   string,
   {
     label: string;
-    compatibility: Exclude<EIP7702DelegationCompatibility, 'none'>;
+    walletLabel: string;
   }
 > = {
   [EIP7702_DELEGATES.ambire.toLowerCase()]: {
     label: 'Ambire EIP-7702 Delegator',
-    compatibility: 'supported',
+    walletLabel: 'Ambire Wallet',
   },
   [EIP7702_DELEGATES.okx.toLowerCase()]: {
-    label: 'OKX EIP-7702 Delegator',
-    compatibility: 'supported',
+    label: 'OKX SmartWalletEntry',
+    walletLabel: 'OKX Wallet',
+  },
+  [EIP7702_DELEGATES.okxLegacy.toLowerCase()]: {
+    label: 'OKX EIP-7702 Delegator (legacy)',
+    walletLabel: 'OKX Wallet',
   },
   [EIP7702_DELEGATES.metamask.toLowerCase()]: {
     label: 'MetaMask EIP-7702 Delegator',
-    compatibility: 'unsupported',
+    walletLabel: 'MetaMask',
   },
 };
 
@@ -87,7 +86,6 @@ export async function inspectDelegation({
   if (!implementation) {
     return {
       kind: 'notDelegated',
-      compatibility: 'none',
     };
   }
 
@@ -96,8 +94,7 @@ export async function inspectDelegation({
     return {
       kind: 'delegated',
       implementation,
-      label: 'Unknown EIP-7702 implementation',
-      compatibility: 'unknown',
+      label: 'Unrecognized EIP-7702 implementation',
     };
   }
 
@@ -105,6 +102,6 @@ export async function inspectDelegation({
     kind: 'delegated',
     implementation,
     label: metadata.label,
-    compatibility: metadata.compatibility,
+    walletLabel: metadata.walletLabel,
   };
 }

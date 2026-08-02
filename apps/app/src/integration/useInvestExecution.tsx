@@ -1,5 +1,6 @@
 import {
   useSingleChainDepositWizard,
+  type SingleChainDepositRecovery,
   type SingleChainDepositWizardStep,
 } from '@zapengine/app-core/hooks/useSingleChainDepositWizard';
 import { useStrategyDepositWizard } from '@zapengine/app-core/hooks/useStrategyDepositWizard';
@@ -48,6 +49,7 @@ export interface InvestExecutionWizardState {
   currentIndex: number;
   status: StrategyDepositWizardState['status'] | 'failed';
   error: string | null;
+  recovery: SingleChainDepositRecovery;
 }
 
 const InvestExecutionContext =
@@ -165,8 +167,9 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
       currentIndex: selectedWizard.currentIndex,
       status: selectedWizard.status,
       error: selectedWizard.error,
+      recovery: mode === 'single-chain' ? singleChainWizard.recovery : null,
     }),
-    [selectedWizard],
+    [mode, selectedWizard, singleChainWizard.recovery],
   );
   const pending = mode === 'strategy' ? strategyPending : singleChainPending;
   const advance = mode === 'strategy' ? advanceStrategy : advanceSingleChain;

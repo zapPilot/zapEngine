@@ -1,12 +1,27 @@
-import { executeDepositPlanWithWallet } from '@core/lib/wallet/executeDepositPlan';
+import {
+  EIP7702WalletRecoveryError,
+  executeDepositPlanWithWallet,
+} from '@core/lib/wallet/executeDepositPlan';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   inspectDelegation: vi.fn(),
+  executeWithEIP7702: vi.fn(),
+  waitForEIP7702Confirmation: vi.fn(),
 }));
 
 vi.mock('@core/lib/wallet/eip7702Delegation', () => ({
   inspectDelegation: mocks.inspectDelegation,
+}));
+
+vi.mock('@core/services/intentClient', () => ({
+  intentEngine: {
+    executeWithEIP7702: mocks.executeWithEIP7702,
+  },
+}));
+
+vi.mock('@zapengine/intent-engine', () => ({
+  waitForEIP7702Confirmation: mocks.waitForEIP7702Confirmation,
 }));
 
 const plan = {
@@ -23,17 +38,22 @@ const plan = {
 };
 
 describe('executeDepositPlanWithWallet', () => {
+  const walletClient = {
+    account: { address: '0x1111111111111111111111111111111111111111' },
+  };
   const getWalletClient = vi.fn();
 
   beforeEach(() => {
+    getWalletClient.mockReset().mockResolvedValue(walletClient);
     mocks.inspectDelegation.mockReset().mockResolvedValue({
-      kind: 'delegated',
-      compatibility: 'unsupported',
-      label: 'Another wallet',
-      implementation: '0x0000000000000000000000000000000000000001',
+      kind: 'notDelegated',
     });
-    getWalletClient.mockReset().mockResolvedValue({
-      account: { address: '0x1111111111111111111111111111111111111111' },
+    mocks.executeWithEIP7702.mockReset().mockResolvedValue({
+      success: true,
+      callsId: '0xbundle',
+    });
+    mocks.waitForEIP7702Confirmation.mockReset().mockResolvedValue({
+      status: 'success',
     });
   });
 
@@ -58,25 +78,10 @@ describe('executeDepositPlanWithWallet', () => {
     });
   });
 
-  it('resolves a chain RPC wallet client for the generic EIP-7702 path', async () => {
-    // The unsupported-delegation pre-flight (mocked above) proves the resolved
-    // wallet client actually reached executeDepositPlan.
-    await expect(
-      executeDepositPlanWithWallet({
-        plan,
-        chainId: 8453,
-        getWalletClient,
-      }),
-    ).rejects.toThrow('This account is EIP-7702 delegated');
-
-    expect(getWalletClient).toHaveBeenCalledWith(8453);
-  });
-
-  it('fails closed when the account uses an unknown EIP-7702 delegate', async () => {
+  it('lets the connected wallet execute before consulting delegation metadata', async () => {
     mocks.inspectDelegation.mockResolvedValue({
       kind: 'delegated',
-      compatibility: 'unknown',
-      label: 'Unknown EIP-7702 implementation',
+      label: 'Unrecognized EIP-7702 implementation',
       implementation: '0x0000000000000000000000000000000000000002',
     });
 
@@ -86,6 +91,57 @@ describe('executeDepositPlanWithWallet', () => {
         chainId: 8453,
         getWalletClient,
       }),
-    ).rejects.toThrow('This account is EIP-7702 delegated');
+    ).resolves.toEqual({ kind: 'eip7702', callsId: '0xbundle' });
+
+    expect(getWalletClient).toHaveBeenCalledWith(8453);
+    expect(mocks.executeWithEIP7702).toHaveBeenCalledWith(
+      plan.calls,
+      walletClient,
+      { chainId: 8453 },
+    );
+    expect(mocks.inspectDelegation).not.toHaveBeenCalled();
+  });
+
+  it('uses known delegation metadata only after the wallet reports incompatibility', async () => {
+    mocks.executeWithEIP7702.mockResolvedValue({
+      success: false,
+      error: 'Unsupported implementation for current delegation',
+    });
+    mocks.inspectDelegation.mockResolvedValue({
+      kind: 'delegated',
+      label: 'OKX SmartWalletEntry',
+      walletLabel: 'OKX Wallet',
+      implementation: '0xe40ccB2D94975c51bff0C004eFDfd9B3a5796fA4',
+    });
+
+    const execution = executeDepositPlanWithWallet({
+      plan,
+      chainId: 8453,
+      getWalletClient,
+    });
+
+    await expect(execution).rejects.toBeInstanceOf(EIP7702WalletRecoveryError);
+    await expect(execution).rejects.toThrow('reconnect with OKX Wallet');
+    expect(mocks.inspectDelegation).toHaveBeenCalledWith({
+      address: walletClient.account.address,
+      chainId: 8453,
+    });
+  });
+
+  it('preserves user rejection without suggesting a wallet migration', async () => {
+    mocks.executeWithEIP7702.mockResolvedValue({
+      success: false,
+      error: 'User rejected the request (code 4001)',
+    });
+
+    await expect(
+      executeDepositPlanWithWallet({
+        plan,
+        chainId: 8453,
+        getWalletClient,
+      }),
+    ).rejects.toThrow('User rejected the request');
+
+    expect(mocks.inspectDelegation).not.toHaveBeenCalled();
   });
 });

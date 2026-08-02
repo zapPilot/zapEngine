@@ -3,11 +3,18 @@ import { Text, View } from 'react-native';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { cn } from '@/lib/cn';
 
+interface InlineErrorAction {
+  label: string;
+  onPress: () => void;
+  variant?: 'primary' | 'secondary';
+}
+
 interface InlineErrorCardProps {
   title?: string;
   body: string;
-  /** Optional recovery action rendered as a secondary pill button. */
-  action?: { label: string; onPress: () => void };
+  /** Optional recovery actions rendered as pill buttons. */
+  action?: InlineErrorAction;
+  secondaryAction?: InlineErrorAction;
   className?: string;
 }
 
@@ -16,6 +23,7 @@ export function InlineErrorCard({
   title = 'Something went wrong',
   body,
   action,
+  secondaryAction,
   className,
 }: InlineErrorCardProps) {
   return (
@@ -33,10 +41,19 @@ export function InlineErrorCard({
       {action ? (
         <PrimaryButton
           className="mt-4"
-          variant="secondary"
+          variant={action.variant ?? 'secondary'}
           onPress={action.onPress}
         >
           {action.label}
+        </PrimaryButton>
+      ) : null}
+      {secondaryAction ? (
+        <PrimaryButton
+          className="mt-2"
+          variant={secondaryAction.variant ?? 'secondary'}
+          onPress={secondaryAction.onPress}
+        >
+          {secondaryAction.label}
         </PrimaryButton>
       ) : null}
     </View>

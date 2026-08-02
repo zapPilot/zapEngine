@@ -68,12 +68,29 @@ function formatDelegation(delegation: EIP7702DelegationInspection): string {
   return `${delegation.label} (${delegation.implementation})`;
 }
 
-function formatIncompatibleDelegationError(
-  delegation: EIP7702DelegationInspection,
-): string {
-  return `This account is EIP-7702 delegated to ${formatDelegation(
-    delegation,
-  )} (another wallet). Reset or re-delegate via Ambire/OKX before depositing.`;
+export class EIP7702WalletRecoveryError extends Error {
+  readonly code = 'EIP7702_WALLET_RECOVERY';
+  readonly originalWalletLabel?: string;
+
+  constructor(delegation: EIP7702DelegationInspection) {
+    const reconnectTarget =
+      delegation.kind === 'delegated' && delegation.walletLabel
+        ? delegation.walletLabel
+        : 'the wallet that originally enabled Smart Account features';
+    super(
+      `The connected wallet could not execute this atomic batch with the account's current EIP-7702 delegation. Try again to let the current wallet update or repair the account. If it still fails, reconnect with ${reconnectTarget}.`,
+    );
+    this.name = 'EIP7702WalletRecoveryError';
+    if (delegation.kind === 'delegated' && delegation.walletLabel) {
+      this.originalWalletLabel = delegation.walletLabel;
+    }
+  }
+}
+
+export function isEIP7702WalletRecoveryError(
+  error: unknown,
+): error is EIP7702WalletRecoveryError {
+  return error instanceof EIP7702WalletRecoveryError;
 }
 
 function formatBundleFailureError(
@@ -82,28 +99,68 @@ function formatBundleFailureError(
 ): string {
   return `EIP-7702 bundle ${callsId} failed on-chain. Current delegation: ${formatDelegation(
     delegation,
-  )}. Reset or re-delegate via Ambire/OKX before retrying.`;
+  )}. The wallet already submitted this bundle, so Zap Pilot will verify settlement before allowing another submission.`;
 }
 
-const NEEDS_7702_WALLET_MESSAGE =
-  'This deposit needs an EIP-7702 wallet with atomic batching (e.g. Ambire or OKX).';
-
-function isAtomicUnsupportedError(error: string | undefined): boolean {
+function errorIncludes(
+  error: string | undefined,
+  patterns: readonly string[],
+): boolean {
   if (!error) {
     return false;
   }
 
   const message = error.toLowerCase();
-  return (
-    message.includes('atomicity not supported') ||
-    message.includes('forceatomic') ||
-    message.includes('eip-7702 not supported') ||
-    message.includes('wallet_sendcalls') ||
-    message.includes('method not found') ||
-    message.includes('method not supported') ||
-    message.includes('unsupported wc_ method') ||
-    message.includes('unsupported eip-7702 chain id')
-  );
+  return patterns.some((pattern) => message.includes(pattern));
+}
+
+function isUserRejectedError(error: string | undefined): boolean {
+  return errorIncludes(error, [
+    'user rejected',
+    'user denied',
+    'request rejected',
+    'code 4001',
+    'error 4001',
+    '5750',
+  ]);
+}
+
+function isAtomicUnsupportedError(error: string | undefined): boolean {
+  return errorIncludes(error, [
+    'atomicity not supported',
+    'forceatomic',
+    'eip-7702 not supported',
+    'wallet_sendcalls',
+    'method not found',
+    'method not supported',
+    'unsupported wc_ method',
+    'unsupported eip-7702 chain id',
+    'insufficient capabilities',
+    '5760',
+  ]);
+}
+
+function isDelegationCompatibilityError(error: string | undefined): boolean {
+  return errorIncludes(error, [
+    'delegation',
+    'delegate implementation',
+    'smart account',
+    'authorization',
+    'invalid signature',
+    'unsupported implementation',
+    'incompatible account',
+  ]);
+}
+
+async function inspectDelegationForDiagnostics(
+  address: Address,
+  chainId: number,
+): Promise<EIP7702DelegationInspection> {
+  try {
+    return await inspectDelegation({ address, chainId });
+  } catch {
+    return { kind: 'notDelegated' };
+  }
 }
 
 /**
@@ -159,23 +216,9 @@ export async function executeDepositPlan({
 
   const walletAddress = getWalletAddress(walletClient);
 
-  // Reliable on-chain pre-flight via eth_getCode. We deliberately do NOT pre-gate
-  // on wallet_getCapabilities: it is unreliable through wallet abstractions
-  // (wallets omit chains rather than reporting them unsupported), so a hard
-  // capability check would wrongly block the Ambire/OKX wallets we support. If
-  // the wallet genuinely cannot batch atomically, we surface that reactively
-  // from the submission error below.
-  const delegation = await inspectDelegation({
-    address: walletAddress,
-    chainId,
-  });
-  if (
-    delegation.compatibility === 'unsupported' ||
-    delegation.compatibility === 'unknown'
-  ) {
-    throw new Error(formatIncompatibleDelegationError(delegation));
-  }
-
+  // Do not pre-gate execution by implementation address. The connected wallet
+  // is authoritative for whether it can execute, upgrade, or migrate this EOA;
+  // the local delegation registry is used only after failure for diagnostics.
   const result = await intentEngine.executeWithEIP7702(
     transactions,
     walletClient,
@@ -212,15 +255,26 @@ export async function executeDepositPlan({
       };
     }
 
-    const latestDelegation = await inspectDelegation({
-      address: walletAddress,
+    const latestDelegation = await inspectDelegationForDiagnostics(
+      walletAddress,
       chainId,
-    }).catch(() => delegation);
+    );
     throw new Error(formatBundleFailureError(result.callsId, latestDelegation));
   }
 
-  if (isAtomicUnsupportedError(result.error)) {
-    throw new Error(NEEDS_7702_WALLET_MESSAGE);
+  if (isUserRejectedError(result.error)) {
+    throw new Error(result.error);
+  }
+
+  if (
+    isAtomicUnsupportedError(result.error) ||
+    isDelegationCompatibilityError(result.error)
+  ) {
+    const delegation = await inspectDelegationForDiagnostics(
+      walletAddress,
+      chainId,
+    );
+    throw new EIP7702WalletRecoveryError(delegation);
   }
 
   throw new Error(

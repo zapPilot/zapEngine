@@ -38,6 +38,8 @@ vi.mock('@core/services/planOrchestrationService', () => ({
 
 vi.mock('@core/lib/wallet/executeDepositPlan', () => ({
   executeDepositPlanWithWallet: mocks.executeDepositPlanWithWallet,
+  isEIP7702WalletRecoveryError: (error: unknown) =>
+    error instanceof Error && error.name === 'EIP7702WalletRecoveryError',
 }));
 
 vi.mock('@core/services/intentClient', () => ({
@@ -318,6 +320,33 @@ describe('useSingleChainDepositWizard', () => {
     expect(mocks.pollUntil).toHaveBeenCalledWith(
       expect.objectContaining({ timeoutMs: 5 * 60_000 }),
     );
+  });
+
+  it('marks wallet delegation failures for the recovery UI', async () => {
+    delete wallet.executeAtomicBatch;
+    mocks.getDepositPlan.mockResolvedValue(basePlan);
+    mocks.readContract
+      .mockResolvedValueOnce(100_000_000n)
+      .mockResolvedValueOnce(4n);
+    const recoveryError = new Error(
+      'Reconnect with the wallet that originally enabled Smart Account features.',
+    );
+    recoveryError.name = 'EIP7702WalletRecoveryError';
+    mocks.executeDepositPlanWithWallet.mockRejectedValueOnce(recoveryError);
+    const { result } = renderHook(() => useSingleChainDepositWizard());
+
+    await act(async () => {
+      await result.current.start(baseRequest);
+      await result.current.advance();
+    });
+
+    expect(result.current.wizard.recovery).toBe('wallet-delegation');
+    expect(result.current.wizard.steps[1]?.status).toBe('failed');
+
+    act(() => {
+      result.current.retry();
+    });
+    expect(result.current.wizard.recovery).toBeNull();
   });
 
   it('only re-polls settlement after a submitted batch times out', async () => {

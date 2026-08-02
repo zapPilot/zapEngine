@@ -1,3 +1,4 @@
+import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
 import { Redirect, useRouter } from 'expo-router';
 import { Check, Circle, LoaderCircle, X } from 'lucide-react-native';
 import { Text, View } from 'react-native';
@@ -120,6 +121,7 @@ function ctaLabel(
 
 export function InvestProgressScreen() {
   const router = useRouter();
+  const wallet = useWalletProvider();
   const { amountUsd, scope } = useInvest();
   const { wizard, pending, mode, startFromDraft, advance, retry, reset } =
     useInvestExecution();
@@ -133,6 +135,7 @@ export function InvestProgressScreen() {
   const planUnavailable = wizard.steps.length === 0 && wizard.status !== 'idle';
   const shouldStartPlan = planUnavailable || currentStep?.kind === 'prepare';
   const shouldRetryPlan = shouldStartPlan && Boolean(wizard.error);
+  const needsWalletRecovery = wizard.recovery === 'wallet-delegation';
 
   return (
     <ScreenScrollView>
@@ -157,18 +160,46 @@ export function InvestProgressScreen() {
         {wizard.error ? (
           <View className="mt-5">
             <InlineErrorCard
+              title={
+                needsWalletRecovery
+                  ? 'Wallet recovery needed'
+                  : 'Something went wrong'
+              }
               body={wizard.error}
               action={
-                shouldStartPlan
+                needsWalletRecovery
                   ? {
-                      label: 'Retry plan',
+                      label: 'Try with current wallet',
+                      variant: 'primary',
                       onPress: () => {
                         retry();
-                        void startFromDraft().catch(() => undefined);
+                        void advance().catch(() => undefined);
                       },
                     }
-                  : { label: 'Dismiss', onPress: retry }
+                  : shouldStartPlan
+                    ? {
+                        label: 'Retry plan',
+                        onPress: () => {
+                          retry();
+                          void startFromDraft().catch(() => undefined);
+                        },
+                      }
+                    : { label: 'Dismiss', onPress: retry }
               }
+              {...(needsWalletRecovery
+                ? {
+                    secondaryAction: {
+                      label: 'Switch wallet',
+                      onPress: () => {
+                        void (async () => {
+                          await wallet.disconnect();
+                          reset();
+                          await wallet.connect();
+                        })().catch(() => undefined);
+                      },
+                    },
+                  }
+                : {})}
             />
           </View>
         ) : null}
@@ -204,7 +235,7 @@ export function InvestProgressScreen() {
           </View>
         ) : null}
 
-        {!isDone ? (
+        {!isDone && !needsWalletRecovery ? (
           <PrimaryButton
             className="mt-5"
             disabled={pending || (!currentStep && !shouldStartPlan)}

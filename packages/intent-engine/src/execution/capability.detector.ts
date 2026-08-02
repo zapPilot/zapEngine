@@ -48,8 +48,8 @@ function isAtomicSupported(status: string | undefined): boolean {
  *
  * Uses EIP-5792 `wallet_getCapabilities` via viem. Modern EIP-5792 wallets
  * expose `atomic.status: 'supported' | 'ready' | 'unsupported'`:
- *   - `supported` → wallet can sign and broadcast an atomic bundle
- *   - `ready`     → EOA is already EIP-7702-delegated, ready to batch
+ *   - `supported` → wallet can make the account atomic after user approval
+ *   - `ready`     → account is already ready for atomic execution
  *   - `unsupported` → fall back to sequential EOA transactions
  *
  * Returns false on any request failure so callers fall back cleanly.

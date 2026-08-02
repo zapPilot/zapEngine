@@ -30,7 +30,7 @@ describe('detectEIP7702Support', () => {
     expect(await detectEIP7702Support(DUMMY_WALLET, 1)).toBe(true);
   });
 
-  it('returns true when atomic.status === "ready" (EOA already delegated)', async () => {
+  it('returns true when atomic.status === "ready" (account ready for atomic execution)', async () => {
     getCapabilitiesMock.mockResolvedValueOnce({ atomic: { status: 'ready' } });
     expect(await detectEIP7702Support(DUMMY_WALLET, 1)).toBe(true);
   });
