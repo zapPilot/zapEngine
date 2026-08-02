@@ -285,9 +285,9 @@ test('renders the web app shell and primary routes without page errors', async (
     await expect(searchInput).toBeHidden();
 
     const languageTrigger = page.getByRole('button', {
-      name: 'Choose podcast language',
+      name: 'Choose app language',
     });
-    await expect(languageTrigger).toContainText('中');
+    await expect(languageTrigger).toContainText('EN');
     await expect(languageTrigger).toContainText('0%');
     await languageTrigger.click();
 
@@ -298,12 +298,21 @@ test('renders the web app shell and primary routes without page errors', async (
     }
 
     await page.getByRole('button', { name: /繁體中文/ }).click();
+    await expect(page.getByRole('tab', { name: '首頁' })).toBeVisible();
     await expect(page.getByText('語言里程碑')).toHaveCount(0);
     await expect(
       page
-        .getByRole('button', { name: 'Open E2E Fed to Chain briefing' })
+        .getByRole('button', { name: '開啟「E2E Fed to Chain briefing」' })
         .first(),
     ).toBeInViewport();
+
+    const localizedLanguageTrigger = page.getByRole('button', {
+      name: '選擇 App 語言',
+    });
+    await expect(localizedLanguageTrigger).toContainText('中');
+    await localizedLanguageTrigger.click();
+    await page.getByRole('button', { name: /English/ }).click();
+    await expect(page.getByRole('tab', { name: 'Home' })).toBeVisible();
   });
 
   await test.step('audio-only episode detail keeps the video player unloaded', async () => {
