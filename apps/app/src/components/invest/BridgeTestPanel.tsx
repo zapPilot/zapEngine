@@ -1,22 +1,26 @@
+import { useQuery } from '@tanstack/react-query';
 import { useBridgeTest } from '@zapengine/app-core/hooks/useBridgeTest';
+import {
+  getOnChainTokenBalance,
+  NATIVE_TOKEN_ADDRESS,
+} from '@zapengine/app-core/services';
 import { ExternalLink } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { Linking, Text, TextInput, View } from 'react-native';
-import { formatUnits } from 'viem';
+import { formatUnits, parseUnits } from 'viem';
 
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Tap } from '@/components/ui/Tap';
 import {
   baseUnitsToUsdcInput,
+  bridgeBalanceQueryKey,
   bridgeChain,
   bridgeDestinationChains,
-  bridgeUsdcBalance,
   BRIDGE_SOURCE_CHAINS,
   normalizeUsdcInput,
   usdcInputToBaseUnits,
 } from '@/integration/bridgeTestModel';
 import { useAccount } from '@/integration/useAccount';
-import { useWalletAssets } from '@/integration/walletTokens';
 
 const STATUS_LABELS = {
   idle: 'Enter an amount to request a route.',
@@ -76,7 +80,6 @@ function ChainPill({
 
 export function BridgeTestPanel() {
   const account = useAccount();
-  const balances = useWalletAssets(account.address);
   const bridge = useBridgeTest();
   const { prepare, reset } = bridge;
   const [sourceChainId, setSourceChainId] = useState(8453);
@@ -89,14 +92,50 @@ export function BridgeTestPanel() {
     () => bridgeDestinationChains(sourceChainId),
     [sourceChainId],
   );
-  const sourceBalance = bridgeUsdcBalance(balances.chainRows, sourceChainId);
-  const sourceEthBalance = balances.chainRows.find(
-    (row) => row.chainId === sourceChainId && row.token.symbol === 'ETH',
-  );
+  const sourceUsdcBalance = useQuery({
+    queryKey: bridgeBalanceQueryKey({
+      address: account.address,
+      chainId: source.chainId,
+      tokenAddress: source.usdcAddress,
+      kind: 'token',
+    }),
+    queryFn: () =>
+      getOnChainTokenBalance(
+        source.chainId,
+        source.usdcAddress,
+        source.usdcDecimals,
+        account.address!,
+      ),
+    enabled: Boolean(account.address),
+    staleTime: 10_000,
+  });
+  const sourceEthBalance = useQuery({
+    queryKey: bridgeBalanceQueryKey({
+      address: account.address,
+      chainId: source.chainId,
+      tokenAddress: NATIVE_TOKEN_ADDRESS,
+      kind: 'gas',
+    }),
+    queryFn: () =>
+      getOnChainTokenBalance(
+        source.chainId,
+        NATIVE_TOKEN_ADDRESS,
+        18,
+        account.address!,
+      ),
+    enabled: Boolean(account.address),
+    staleTime: 10_000,
+  });
+  const sourceBalanceBaseUnits = sourceUsdcBalance.data
+    ? parseUnits(sourceUsdcBalance.data.balance, source.usdcDecimals).toString()
+    : null;
   const amountBaseUnits = usdcInputToBaseUnits(amountInput);
   const exceedsBalance =
-    BigInt(amountBaseUnits) > BigInt(sourceBalance?.balanceBaseUnits ?? '0');
-  const hasGas = BigInt(sourceEthBalance?.balanceBaseUnits ?? '0') > 0n;
+    sourceBalanceBaseUnits !== null &&
+    BigInt(amountBaseUnits) > BigInt(sourceBalanceBaseUnits);
+  const hasGas = sourceEthBalance.data
+    ? parseUnits(sourceEthBalance.data.balance, 18) > 0n
+    : false;
   const request = useMemo(
     () => ({
       fromChainId: source.chainId,
@@ -113,6 +152,7 @@ export function BridgeTestPanel() {
     if (
       !account.isConnected ||
       BigInt(amountBaseUnits) <= 0n ||
+      sourceBalanceBaseUnits === null ||
       exceedsBalance ||
       sourceChainId === destinationChainId
     ) {
@@ -130,6 +170,7 @@ export function BridgeTestPanel() {
     prepare,
     request,
     reset,
+    sourceBalanceBaseUnits,
     sourceChainId,
   ]);
 
@@ -147,6 +188,9 @@ export function BridgeTestPanel() {
     bridge.quote !== null &&
     BigInt(amountBaseUnits) > 0n &&
     !exceedsBalance &&
+    sourceBalanceBaseUnits !== null &&
+    !sourceUsdcBalance.isError &&
+    !sourceEthBalance.isError &&
     hasGas;
 
   const primaryLabel = !account.isConnected
@@ -167,11 +211,21 @@ export function BridgeTestPanel() {
     if (bridge.status === 'completed') {
       setAmountInput('');
       bridge.reset();
-      void balances.refetch();
+      void Promise.all([
+        sourceUsdcBalance.refetch(),
+        sourceEthBalance.refetch(),
+      ]);
       return;
     }
     if (canExecute) {
-      void bridge.execute(request).then(() => balances.refetch());
+      void bridge
+        .execute(request)
+        .then(() =>
+          Promise.all([
+            sourceUsdcBalance.refetch(),
+            sourceEthBalance.refetch(),
+          ]),
+        );
     }
   }
 
@@ -211,15 +265,25 @@ export function BridgeTestPanel() {
           <Tap
             accessibilityRole="button"
             className="min-h-8 justify-center"
-            disabled={!sourceBalance || balances.isLoading}
+            disabled={
+              sourceBalanceBaseUnits === null ||
+              sourceUsdcBalance.isLoading ||
+              sourceUsdcBalance.isError
+            }
             onPress={() =>
               setAmountInput(
-                baseUnitsToUsdcInput(sourceBalance?.balanceBaseUnits ?? '0'),
+                baseUnitsToUsdcInput(sourceBalanceBaseUnits ?? '0'),
               )
             }
           >
             <Text className="font-mono text-[10px] text-accent">
-              Balance {sourceBalance?.balance ?? '0'} USDC · MAX
+              Balance{' '}
+              {sourceUsdcBalance.isLoading
+                ? 'Loading…'
+                : sourceUsdcBalance.isError
+                  ? 'Unavailable'
+                  : (sourceUsdcBalance.data?.balance ?? '0')}{' '}
+              USDC · MAX
             </Text>
           </Tap>
         </View>
@@ -243,7 +307,11 @@ export function BridgeTestPanel() {
           <Text className="mt-2 text-[11px] text-danger">
             This amount exceeds your {source.label} USDC balance.
           </Text>
-        ) : !hasGas && account.isConnected && !balances.isLoading ? (
+        ) : sourceUsdcBalance.isError ? (
+          <Text className="mt-2 text-[11px] text-danger">
+            Unable to load {source.label} USDC balance.
+          </Text>
+        ) : !hasGas && account.isConnected && !sourceEthBalance.isLoading ? (
           <Text className="mt-2 text-[11px] text-danger">
             Add ETH on {source.label} to pay network gas.
           </Text>

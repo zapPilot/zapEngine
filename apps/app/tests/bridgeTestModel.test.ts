@@ -1,7 +1,7 @@
 import {
   baseUnitsToUsdcInput,
+  bridgeBalanceQueryKey,
   bridgeDestinationChains,
-  bridgeUsdcBalance,
   BRIDGE_CHAIN_OPTIONS,
   BRIDGE_SOURCE_CHAINS,
   normalizeUsdcInput,
@@ -37,21 +37,35 @@ describe('bridgeTestModel', () => {
     expect(baseUnitsToUsdcInput('10250000')).toBe('10.25');
   });
 
-  it('finds only canonical USDC balance rows for the source chain', () => {
-    const rows = [
-      {
-        chainId: 8453,
-        token: { symbol: 'ETH' },
-      },
-      {
-        chainId: 8453,
-        token: { symbol: 'USDC' },
-        balanceBaseUnits: '1000000',
-      },
-    ] as never;
-    expect(bridgeUsdcBalance(rows, 8453)).toMatchObject({
-      balanceBaseUnits: '1000000',
+  it('scopes live balance queries by wallet, chain, token, and purpose', () => {
+    const baseKey = bridgeBalanceQueryKey({
+      address: '0xABC',
+      chainId: 8453,
+      tokenAddress: '0xUSDC',
+      kind: 'token',
     });
-    expect(bridgeUsdcBalance(rows, 42161)).toBeNull();
+    const arbitrumKey = bridgeBalanceQueryKey({
+      address: '0xABC',
+      chainId: 42161,
+      tokenAddress: '0xUSDC',
+      kind: 'token',
+    });
+    const gasKey = bridgeBalanceQueryKey({
+      address: '0xABC',
+      chainId: 8453,
+      tokenAddress: '0x0000000000000000000000000000000000000000',
+      kind: 'gas',
+    });
+
+    expect(baseKey).not.toEqual(arbitrumKey);
+    expect(baseKey).not.toEqual(gasKey);
+    expect(baseKey).toEqual([
+      'bridge-test',
+      'balance',
+      'token',
+      '0xABC',
+      8453,
+      '0xusdc',
+    ]);
   });
 });
