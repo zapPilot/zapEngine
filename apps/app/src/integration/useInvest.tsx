@@ -8,13 +8,11 @@ import {
 } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { handleHTTPError } from '@zapengine/app-core/lib/http';
-import {
-  getDepositPlan,
-  getGmxDepositPlan,
-  getStrategyDepositPlan,
-} from '@zapengine/app-core/services';
+import { getDepositReview } from '@zapengine/app-core/services';
 import {
   STRATEGY_DEPOSIT_ID,
+  type DepositReviewGroup,
+  type PlanOrchestrationDepositReviewResponse,
   type PlanOrchestrationDepositPlan,
   type PlanOrchestrationDepositRequest,
 } from '@zapengine/types/api';
@@ -218,17 +216,49 @@ export function buildInvestDepositPlanPreviewKey(
 }
 
 /**
- * Shares one deposit-plan query across the route and confirm screens.
+ * Resolves which execution groups the current scope expects, keyed by the
+ * group ids emitted by `/plan-orchestration/deposit/review`.
  */
-export function useInvestDepositPlanPreview(): {
+function reviewGroupKeysFor(
+  scope: InvestScope,
+  plan: PlanOrchestrationDepositPlan | undefined,
+): readonly string[] {
+  if (scope === 'both') {
+    return ['base-morpho', 'arbitrum-gmx'];
+  }
+  if (!plan) {
+    return [];
+  }
+  const sourceChainId =
+    'sourceChainId' in plan
+      ? plan.sourceChainId
+      : scope === 'base'
+        ? 8453
+        : 42161;
+  return [`chain-${sourceChainId}`];
+}
+
+/**
+ * Fetches the wallet-neutral Tenderly review used by the unified Step 2.
+ * Unlike the legacy Privy preview this endpoint returns no signing envelope;
+ * the review hashes bind the exact plan that the wallet executor may submit.
+ */
+export function useInvestDepositReview(): {
+  review: PlanOrchestrationDepositReviewResponse | undefined;
   plan: PlanOrchestrationDepositPlan | undefined;
   isLoading: boolean;
   isError: boolean;
-  /** Human-readable backend failure reason (plan 4xx/5xx body), or null. */
   errorMessage: string | null;
   retry: () => void;
+  refresh: () => Promise<PlanOrchestrationDepositReviewResponse | undefined>;
   amountUsd: number;
   totalUsd6: string;
+  /** Group ids this scope expects from the review response. */
+  reviewGroupKeys: readonly string[];
+  /** Groups present in the review response, in expected order. */
+  reviewGroups: DepositReviewGroup[];
+  /** True when every expected group is present in the review. */
+  reviewHasAllGroups: boolean;
 } {
   const { address } = useAccount();
   const {
@@ -254,28 +284,36 @@ export function useInvestDepositPlanPreview(): {
   );
   const requestKey = buildInvestDepositPlanPreviewKey(scope, request);
   const result = useQuery({
-    queryKey: ['invest-deposit-plan-preview', address, ...requestKey],
+    queryKey: ['invest-deposit-review', address, ...requestKey],
     enabled,
-    queryFn: (): Promise<PlanOrchestrationDepositPlan> => {
-      if (!request) {
-        throw new Error('Deposit plan request is unavailable');
-      }
-      if (request.kind === 'strategy') {
-        return getStrategyDepositPlan(request);
-      }
-      if (request.kind === 'invest') {
-        return getDepositPlan(request);
-      }
-      return getGmxDepositPlan(request);
+    queryFn: async (): Promise<PlanOrchestrationDepositReviewResponse> => {
+      if (!request) throw new Error('Deposit review request is unavailable');
+      return getDepositReview(request);
     },
   });
+  const plan = result.data?.plan;
+  const reviewGroupKeys = reviewGroupKeysFor(scope, plan);
+  const reviewGroups = reviewGroupKeys
+    .map((key) => result.data?.reviews[key])
+    .filter((group): group is DepositReviewGroup => Boolean(group));
+  const reviewHasAllGroups =
+    reviewGroupKeys.length > 0 &&
+    reviewGroups.length === reviewGroupKeys.length;
   return {
-    plan: result.data,
+    review: result.data,
+    plan,
     isLoading: enabled && result.isLoading,
     isError: result.isError,
     errorMessage: result.error ? handleHTTPError(result.error) : null,
     retry: () => void result.refetch(),
+    refresh: async () => {
+      const refreshed = await result.refetch();
+      return refreshed.data;
+    },
     amountUsd,
     totalUsd6,
+    reviewGroupKeys,
+    reviewGroups,
+    reviewHasAllGroups,
   };
 }

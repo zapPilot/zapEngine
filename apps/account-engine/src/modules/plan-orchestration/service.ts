@@ -23,6 +23,9 @@ import {
   NATIVE_TOKEN_ADDRESS,
   type PlanOrchestrationDepositPlan,
   type PlanOrchestrationDepositRequest,
+  type PlanOrchestrationDepositReviewRequest,
+  type PlanOrchestrationDepositReviewResponse,
+  PlanOrchestrationDepositReviewResponseSchema,
   type PlanOrchestrationWithdrawRequest,
   type PreparedTransaction,
   STRATEGY_DEPOSIT_ID,
@@ -36,9 +39,15 @@ import {
   type Address,
   decodeFunctionData,
   erc20Abi,
+  keccak256,
   type PublicClient,
+  toBytes,
 } from 'viem';
 
+import type {
+  TenderlySimulationReview,
+  TenderlySimulationService,
+} from '../../services/tenderly-simulation.service';
 import {
   gasUsdFromUnits,
   sumGasUsd,
@@ -61,9 +70,18 @@ export interface PlanOrchestrationService {
   buildDeposit(
     request: PlanOrchestrationDepositRequest,
   ): Promise<PlanOrchestrationDepositPlan>;
+  /** Build the authoritative plan and attach rich, wallet-neutral reviews. */
+  buildDepositReview?: (
+    request: PlanOrchestrationDepositReviewRequest,
+  ) => Promise<PlanOrchestrationDepositReviewResponse>;
   buildWithdraw(
     request: PlanOrchestrationWithdrawRequest,
   ): Promise<WithdrawPlan>;
+}
+
+/** Rich review rail injected by the account-engine composition root. */
+export interface PlanReviewSimulationService {
+  simulateBundle: TenderlySimulationService['simulateBundle'];
 }
 
 /** Chain-id-keyed allocation weights, as consumed by composeDeposit. */
@@ -73,6 +91,8 @@ export type DepositChainSplit = Partial<Record<number, number>>;
 export interface PlanSimulationDeps {
   adapter: BundleSimulationAdapter;
   mode: 'enforce' | 'off';
+  /** Rich evidence rail used by `/deposit/review`; not used by `/deposit`. */
+  reviewService?: PlanReviewSimulationService;
 }
 
 export interface PlanOrchestrationServiceDeps {
@@ -774,6 +794,194 @@ async function buildStrategyDeposit(params: {
   });
 }
 
+const DEPOSIT_REVIEW_EXPIRY_MS = 5 * 60 * 1000;
+const REVIEW_SIMULATION_OFF: PlanSimulationDeps = {
+  adapter: {
+    async simulateBundle() {
+      return { status: 'passed' };
+    },
+  },
+  mode: 'off',
+};
+
+function reviewFingerprint(value: unknown): `0x${string}` {
+  return keccak256(toBytes(JSON.stringify(value)));
+}
+
+interface ReviewExecutionGroup {
+  id: string;
+  chainId: number;
+  approvals: PreparedTransaction[];
+  calls: PreparedTransaction[];
+}
+
+function reviewExecutionGroups(
+  plan: PlanOrchestrationDepositPlan,
+): ReviewExecutionGroup[] {
+  if ('executionGroups' in plan) {
+    return plan.executionGroups.map((group) => ({
+      id: group.id,
+      chainId: group.chainId,
+      approvals: group.approvals,
+      calls: group.calls,
+    }));
+  }
+
+  return [
+    {
+      id: `chain-${plan.sourceChainId}`,
+      chainId: plan.sourceChainId,
+      approvals: plan.approvals,
+      calls: plan.calls,
+    },
+  ];
+}
+
+function unavailableExecutionReview(params: {
+  group: ReviewExecutionGroup;
+  userAddress: string;
+  reason: string;
+}): TenderlySimulationReview {
+  const calls = [...params.group.approvals, ...params.group.calls].map(
+    (call, index) => ({
+      index,
+      to: call.to.toLowerCase(),
+      data: call.data,
+      value: BigInt(call.value).toString(),
+      method: null,
+      status: 'skipped' as const,
+      gasUsed: null,
+      error: null,
+      contractVerified: false,
+    }),
+  );
+  const warnings: [] = [];
+  const material = {
+    status: 'unavailable',
+    groupId: params.group.id,
+    reason: params.reason,
+  };
+  return {
+    status: 'unavailable',
+    unavailableReason: params.reason,
+    chainId: params.group.chainId as 8453 | 42161,
+    walletAddress: params.userAddress.toLowerCase(),
+    calls,
+    assetChanges: [],
+    approvals: [],
+    contracts: [],
+    warnings,
+    blockNumber: null,
+    callGas: '0',
+    simulationIds: [],
+    shareUrls: [],
+    simulationFingerprint: reviewFingerprint(material),
+    riskHash: reviewFingerprint({ groupId: params.group.id, warnings }),
+  };
+}
+
+async function buildDepositReviewResponse(params: {
+  request: PlanOrchestrationDepositReviewRequest;
+  buildDeposit: (
+    request: PlanOrchestrationDepositRequest,
+    simulation: PlanSimulationDeps | undefined,
+  ) => Promise<PlanOrchestrationDepositPlan>;
+  reviewService: PlanReviewSimulationService | undefined;
+}): Promise<PlanOrchestrationDepositReviewResponse> {
+  // Build with the rich review rail disabled.  This preserves all pure safety
+  // checks while ensuring the endpoint performs exactly one Tenderly call per
+  // execution group rather than first running the pass/fail gate and then
+  // asking Tenderly for rich evidence again.
+  const plan = await params.buildDeposit(params.request, REVIEW_SIMULATION_OFF);
+  const reviewedAt = Date.now();
+  const expiresAt = reviewedAt + DEPOSIT_REVIEW_EXPIRY_MS;
+  const planFingerprint = reviewFingerprint(plan);
+
+  const reviews = Object.fromEntries(
+    await Promise.all(
+      reviewExecutionGroups(plan).map(async (group) => {
+        let review: TenderlySimulationReview;
+        if (!params.reviewService) {
+          review = unavailableExecutionReview({
+            group,
+            userAddress: params.request.userAddress,
+            reason: 'Tenderly simulation is not configured',
+          });
+        } else if (group.chainId !== 8453 && group.chainId !== 42161) {
+          // The current rich Tenderly endpoint is intentionally limited to the
+          // wallet execution chains. Keep unsupported plans renderable and
+          // blocked rather than returning an unsimulated executable review.
+          review = unavailableExecutionReview({
+            group,
+            userAddress: params.request.userAddress,
+            reason: `Tenderly review is unavailable for chain ${group.chainId}`,
+          });
+        } else {
+          try {
+            review = await params.reviewService.simulateBundle({
+              chainId: group.chainId,
+              walletAddress: params.request.userAddress,
+              calls: [...group.approvals, ...group.calls],
+            });
+          } catch (error) {
+            review = unavailableExecutionReview({
+              group,
+              userAddress: params.request.userAddress,
+              reason:
+                error instanceof Error
+                  ? `Tenderly simulation unavailable: ${error.message}`
+                  : `Tenderly simulation unavailable: ${String(error)}`,
+            });
+          }
+        }
+
+        const blocked =
+          review.status === 'failed' || review.status === 'unavailable';
+        const batchFingerprint = reviewFingerprint({
+          chainId: group.chainId,
+          transactions: [...group.approvals, ...group.calls].map((call) => ({
+            chainId: call.chainId,
+            to: call.to.toLowerCase(),
+            data: call.data,
+            value: BigInt(call.value).toString(),
+          })),
+        });
+        const groupFingerprint = reviewFingerprint({
+          planFingerprint,
+          groupId: group.id,
+          batchFingerprint,
+          simulationFingerprint: review.simulationFingerprint,
+          riskHash: review.riskHash,
+        });
+        return [
+          group.id,
+          {
+            ...review,
+            groupId: group.id,
+            groupFingerprint,
+            batchFingerprint,
+            reviewedAt,
+            expiresAt,
+            expectedSimulationFingerprint: review.simulationFingerprint,
+            expectedRiskHash: review.riskHash,
+            blocked,
+            executionAllowed: !blocked,
+            requiresRiskAcknowledgement: review.status === 'warning',
+          },
+        ] as const;
+      }),
+    ),
+  );
+
+  return PlanOrchestrationDepositReviewResponseSchema.parse({
+    plan,
+    planFingerprint,
+    reviewedAt,
+    expiresAt,
+    reviews,
+  });
+}
+
 export function createPlanOrchestrationService({
   adapter,
   composeDeposit: compose = composeDeposit,
@@ -783,102 +991,118 @@ export function createPlanOrchestrationService({
   publicClients,
   simulation,
 }: PlanOrchestrationServiceDeps): PlanOrchestrationService {
-  return {
-    buildDeposit: (async (
-      request: PlanOrchestrationDepositRequest,
-    ): Promise<PlanOrchestrationDepositPlan> => {
-      if (request.kind === 'invest') {
-        // The env-configured default only applies to Base-source plans;
-        // non-Base sources are destination re-quotes and default to
-        // single-chain inside composeDeposit.
-        const split =
-          chainSplitFromRequest(request.split) ??
-          (request.sourceChainId === BASE_CHAIN_ID ? defaultSplit : undefined);
-        const plan = await compose(
-          {
-            userAddress: request.userAddress as Address,
-            fromToken: request.fromToken as Address,
-            fromAmount: request.fromAmount,
-            sourceChainId: request.sourceChainId,
-            ...(split ? { split } : {}),
-          },
-          {
-            adapter,
-            publicClients,
-            ...(hyperliquidNetwork ? { hyperliquidNetwork } : {}),
-          },
-        );
-
-        const parsed = DepositPlanSchema.parse(plan);
-        await assertPlanSafety({
-          plan: parsed,
-          userAddress: request.userAddress,
-          intent: {
-            fromToken: request.fromToken,
-            fromAmount: request.fromAmount,
-          },
-          simulation,
-        });
-        return parsed;
-      }
-
-      if (request.kind === 'strategy') {
-        return buildStrategyDeposit({
-          request,
-          intentEngine,
+  async function buildDeposit(
+    request: PlanOrchestrationDepositRequest,
+    simulationForSafety: PlanSimulationDeps | undefined,
+  ): Promise<PlanOrchestrationDepositPlan> {
+    if (request.kind === 'invest') {
+      // The env-configured default only applies to Base-source plans;
+      // non-Base sources are destination re-quotes and default to
+      // single-chain inside composeDeposit.
+      const split =
+        chainSplitFromRequest(request.split) ??
+        (request.sourceChainId === BASE_CHAIN_ID ? defaultSplit : undefined);
+      const plan = await compose(
+        {
+          userAddress: request.userAddress as Address,
+          fromToken: request.fromToken as Address,
+          fromAmount: request.fromAmount,
+          sourceChainId: request.sourceChainId,
+          ...(split ? { split } : {}),
+        },
+        {
+          adapter,
           publicClients,
-          simulation,
-        });
-      }
-
-      const publicClient = publicClientFor(
-        publicClients,
-        GMX_V2_ARBITRUM_CHAIN_ID,
+          ...(hyperliquidNetwork ? { hyperliquidNetwork } : {}),
+        },
       );
-      const userAddress = request.userAddress as Address;
-      const gmxPlan = await intentEngine.buildGmxV2Supply({
-        marketKey: request.marketKey,
-        fromToken: GMX_V2_TOKENS.USDC.address,
-        fromAmount: request.amount,
-        userAddress,
+
+      const parsed = DepositPlanSchema.parse(plan);
+      await assertPlanSafety({
+        plan: parsed,
+        userAddress: request.userAddress,
+        intent: {
+          fromToken: request.fromToken,
+          fromAmount: request.fromAmount,
+        },
+        simulation: simulationForSafety,
       });
-      const approvals = await filterNeededApprovals({
-        approvals: gmxPlan.approvals,
-        owner: userAddress,
-        publicClient,
-      });
-      const gasPricing = await getChainGasPricing({
+      return parsed;
+    }
+
+    if (request.kind === 'strategy') {
+      return buildStrategyDeposit({
+        request,
         intentEngine,
-        publicClient,
-        chainId: GMX_V2_ARBITRUM_CHAIN_ID,
+        publicClients,
+        simulation: simulationForSafety,
       });
-      const gasUsd = gasUsdFromUnits({
-        gasUnits: transactionGasUnits([...approvals, ...gmxPlan.steps]),
-        ...gasPricing,
-      });
+    }
 
-      return finalizePlan(
-        DepositPlanSchema.parse({
-          legs: [
-            {
-              chainId: GMX_V2_ARBITRUM_CHAIN_ID,
-              kind: 'supply',
-              protocol: 'gmx-v2',
-              toToken: gmxPlan.market.marketToken,
-              fromAmount: request.amount,
-              toAmountMin: gmxPlan.minMarketTokens,
-              gasUsd,
-              durationSec: 60,
-            },
-          ],
-          approvals,
-          calls: gmxPlan.steps,
-          totalGasUsd: gasUsd,
-          sourceChainId: GMX_V2_ARBITRUM_CHAIN_ID,
-        }),
-        { userAddress: request.userAddress, simulation },
-      );
-    }) as PlanOrchestrationService['buildDeposit'],
+    const publicClient = publicClientFor(
+      publicClients,
+      GMX_V2_ARBITRUM_CHAIN_ID,
+    );
+    const userAddress = request.userAddress as Address;
+    const gmxPlan = await intentEngine.buildGmxV2Supply({
+      marketKey: request.marketKey,
+      fromToken: GMX_V2_TOKENS.USDC.address,
+      fromAmount: request.amount,
+      userAddress,
+    });
+    const approvals = await filterNeededApprovals({
+      approvals: gmxPlan.approvals,
+      owner: userAddress,
+      publicClient,
+    });
+    const gasPricing = await getChainGasPricing({
+      intentEngine,
+      publicClient,
+      chainId: GMX_V2_ARBITRUM_CHAIN_ID,
+    });
+    const gasUsd = gasUsdFromUnits({
+      gasUnits: transactionGasUnits([...approvals, ...gmxPlan.steps]),
+      ...gasPricing,
+    });
+
+    return finalizePlan(
+      DepositPlanSchema.parse({
+        legs: [
+          {
+            chainId: GMX_V2_ARBITRUM_CHAIN_ID,
+            kind: 'supply',
+            protocol: 'gmx-v2',
+            toToken: gmxPlan.market.marketToken,
+            fromAmount: request.amount,
+            toAmountMin: gmxPlan.minMarketTokens,
+            gasUsd,
+            durationSec: 60,
+          },
+        ],
+        approvals,
+        calls: gmxPlan.steps,
+        totalGasUsd: gasUsd,
+        sourceChainId: GMX_V2_ARBITRUM_CHAIN_ID,
+      }),
+      {
+        userAddress: request.userAddress,
+        simulation: simulationForSafety,
+      },
+    );
+  }
+
+  return {
+    buildDeposit: ((request: PlanOrchestrationDepositRequest) =>
+      buildDeposit(
+        request,
+        simulation,
+      )) as PlanOrchestrationService['buildDeposit'],
+    buildDepositReview: (request) =>
+      buildDepositReviewResponse({
+        request,
+        buildDeposit,
+        reviewService: simulation?.reviewService,
+      }),
 
     async buildWithdraw(request): Promise<WithdrawPlan> {
       if (request.kind === 'gmx-v2') {

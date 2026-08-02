@@ -464,7 +464,7 @@ export function InvestAmountScreen() {
   return (
     <>
       <ScreenScrollView>
-        <StepHeader title="Invest" step="Step 1 of 3" />
+        <StepHeader title="Invest" step="Step 1 of 2" />
         <StepProgress current={1} />
         <View className="px-5 pt-5">
           <Text className="font-sans-semibold text-[22px] text-ink">

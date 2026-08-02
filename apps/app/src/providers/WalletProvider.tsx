@@ -349,6 +349,7 @@ export function usePrivyExpoWalletBackend(): PrivyExpoWalletBackend {
       sendTransaction,
       getWalletClient,
       executeAtomicBatch: batch.executeAtomicBatch,
+      executeReviewedBatch: batch.executeReviewedBatch,
       signMessage,
       signTypedData,
       isConnected: Boolean(embeddedWallet),
@@ -364,6 +365,7 @@ export function usePrivyExpoWalletBackend(): PrivyExpoWalletBackend {
     }),
     [
       batch.executeAtomicBatch,
+      batch.executeReviewedBatch,
       chainId,
       clearError,
       connect,

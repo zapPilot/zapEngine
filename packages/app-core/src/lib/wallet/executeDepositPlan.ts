@@ -1,5 +1,8 @@
 import { intentEngine } from '@core/services/intentClient';
-import type { WalletAtomicBatchExecutor } from '@core/types';
+import type {
+  WalletAtomicBatchExecutor,
+  WalletAtomicBatchResult,
+} from '@core/types';
 import { waitForEIP7702Confirmation } from '@zapengine/intent-engine';
 import type { DepositPlan, PreparedTransaction } from '@zapengine/types/api';
 import type { Address, Hash, WalletClient } from 'viem';
@@ -183,6 +186,55 @@ export async function executeDepositPlanWithWallet({
     ...input,
     ...(walletClient ? { walletClient } : {}),
   });
+}
+
+async function submitPreparedTransactionsInternal({
+  transactions,
+  walletClient,
+  chainId,
+}: {
+  transactions: PreparedTransaction[];
+  walletClient: WalletClient;
+  chainId: number;
+}): Promise<{ result: WalletAtomicBatchResult }> {
+  if (transactions.length === 0) {
+    throw new Error('Cannot execute empty transaction array');
+  }
+
+  const result = await intentEngine.executeWithEIP7702(
+    transactions,
+    walletClient,
+    { chainId },
+  );
+  if (result.success && result.callsId) {
+    return { result: { callsId: result.callsId } };
+  }
+  throw new Error(
+    result.error ?? 'EIP-7702 batch failed to return a calls bundle id',
+  );
+}
+
+/**
+ * Submit an exact, already-reviewed batch through an external EIP-7702
+ * wallet. This intentionally stops once `wallet_sendCalls` returns a calls
+ * id; status polling belongs to the progress/state layer and must not delay
+ * the hand-off from the review screen.
+ */
+export async function submitPreparedTransactionsWithEIP7702({
+  transactions,
+  walletClient,
+  chainId,
+}: {
+  transactions: PreparedTransaction[];
+  walletClient: WalletClient;
+  chainId: number;
+}): Promise<WalletAtomicBatchResult> {
+  const { result } = await submitPreparedTransactionsInternal({
+    transactions,
+    walletClient,
+    chainId,
+  });
+  return result;
 }
 
 export async function executeDepositPlan({

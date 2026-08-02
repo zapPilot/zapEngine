@@ -7,8 +7,8 @@ interface StepProgressProps {
   total?: number;
 }
 
-/** Three-segment progress indicator for the invest flow. */
-export function StepProgress({ current, total = 3 }: StepProgressProps) {
+/** Two-segment progress indicator for the invest flow. */
+export function StepProgress({ current, total = 2 }: StepProgressProps) {
   return (
     <View className="flex-row gap-[5px] px-5 pt-[14px]">
       {Array.from({ length: total }, (_, index) => (

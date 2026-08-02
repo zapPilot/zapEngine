@@ -33,6 +33,68 @@ export type WalletAtomicBatchExecutor = (
   chainId: number,
 ) => Promise<WalletAtomicBatchResult>;
 
+/**
+ * Exact batch that was shown to the user in the unified execution review.
+ *
+ * The hashes are deliberately supplied by the review caller instead of being
+ * computed in the wallet adapter.  This keeps the wallet executor from ever
+ * signing a batch different from the one the user approved.
+ */
+export interface WalletReviewedBatchInput {
+  transactions: PreparedTransaction[];
+  chainId: number;
+  /** Wallet address captured by the server review. */
+  expectedWalletAddress: string;
+  /** Hash of the ordered transaction batch from the server review. */
+  expectedBatchFingerprint: string;
+  /** Server review expiry (milliseconds since epoch). */
+  expiresAt: number;
+  /** Server fail-closed gate; failed/unavailable reviews must be false. */
+  executionAllowed: boolean;
+  expectedSimulationFingerprint: string;
+  expectedRiskHash: string;
+  requiresRiskAcknowledgement: boolean;
+  /** Required for warning reviews; should equal `expectedRiskHash`. */
+  acknowledgedRiskHash?: string;
+}
+
+export type WalletReviewedBatchResult =
+  | (WalletAtomicBatchResult & { status: 'submitted' })
+  | {
+      status: 'review-changed';
+      reason:
+        | 'simulation-fingerprint-mismatch'
+        | 'risk-hash-mismatch'
+        | 'batch-fingerprint-mismatch'
+        | 'wallet-address-mismatch'
+        | 'server-review-changed';
+      simulationFingerprint?: string;
+      riskHash?: string;
+    }
+  | {
+      status: 'blocked';
+      reason: string;
+      code?: string;
+    };
+
+export type WalletReviewedBatchExecutor = (
+  input: WalletReviewedBatchInput,
+) => Promise<WalletReviewedBatchResult>;
+
+export interface WalletReviewedBatchStatusInput {
+  callsId: string;
+  chainId: number;
+}
+
+export type WalletReviewedBatchStatus =
+  | { status: 'confirmed'; transactionHash?: Hash }
+  | { status: 'failed'; reason: string }
+  | { status: 'unknown'; reason: string };
+
+export type WalletReviewedBatchStatusExecutor = (
+  input: WalletReviewedBatchStatusInput,
+) => Promise<WalletReviewedBatchStatus>;
+
 export interface WalletTypedData {
   domain: Record<string, unknown>;
   types: Record<string, { name: string; type: string }[]>;
@@ -63,6 +125,14 @@ export interface WalletProviderInterface {
   }): Promise<`0x${string}`>;
   getWalletClient(chainId?: number): Promise<ConnectedWalletClient>;
   executeAtomicBatch?: WalletAtomicBatchExecutor;
+  /**
+   * Execute exactly the batch a unified review approved without opening the
+   * legacy Privy preview sheet.  The executor must compare both review hashes
+   * before asking the wallet to sign.
+   */
+  executeReviewedBatch?: WalletReviewedBatchExecutor;
+  /** Poll an accepted reviewed batch without ever resubmitting it. */
+  waitForReviewedBatch?: WalletReviewedBatchStatusExecutor;
   signMessage(message: string): Promise<string>;
   signTypedData(typedData: WalletTypedData): Promise<Hex>;
   isConnected: boolean;

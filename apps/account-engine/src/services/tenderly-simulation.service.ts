@@ -1,11 +1,10 @@
 import type {
-  PrivyPrepareSendCallsRequest,
-  PrivySimulationApproval,
-  PrivySimulationAssetChange,
-  PrivySimulationCall,
-  PrivySimulationContract,
-  PrivySimulationToken,
-  PrivySimulationWarning,
+  ExecutionSimulationApproval,
+  ExecutionSimulationAssetChange,
+  ExecutionSimulationCall,
+  ExecutionSimulationContract,
+  ExecutionSimulationToken,
+  ExecutionSimulationWarning,
 } from '@zapengine/types/api';
 import {
   decodeFunctionData,
@@ -124,11 +123,11 @@ type RawTokenInfo = z.infer<typeof RawTokenInfoSchema>;
 interface ReviewEvidence {
   chainId: 8453 | 42161;
   walletAddress: string;
-  calls: PrivySimulationCall[];
-  assetChanges: PrivySimulationAssetChange[];
-  approvals: PrivySimulationApproval[];
-  contracts: PrivySimulationContract[];
-  warnings: PrivySimulationWarning[];
+  calls: ExecutionSimulationCall[];
+  assetChanges: ExecutionSimulationAssetChange[];
+  approvals: ExecutionSimulationApproval[];
+  contracts: ExecutionSimulationContract[];
+  warnings: ExecutionSimulationWarning[];
   blockNumber: number | null;
   callGas: string;
   simulationIds: string[];
@@ -146,8 +145,16 @@ export interface TenderlySimulationService {
   simulateBundle(input: {
     chainId: 8453 | 42161;
     walletAddress: string;
-    calls: PrivyPrepareSendCallsRequest['calls'];
+    calls: TenderlySimulationCall[];
   }): Promise<TenderlySimulationReview>;
+}
+
+/** A wallet-neutral call accepted by the rich Tenderly normalizer. */
+export interface TenderlySimulationCall {
+  to: string;
+  data?: string;
+  /** Decimal or hex quantity; the normalizer canonicalizes it to decimal. */
+  value?: string;
 }
 
 interface TenderlyLogger {
@@ -182,7 +189,7 @@ function normalizeLogoUrl(value: string | null | undefined): string | null {
   }
 }
 
-function normalizeToken(token: RawTokenInfo): PrivySimulationToken {
+function normalizeToken(token: RawTokenInfo): ExecutionSimulationToken {
   return {
     address: token.contract_address
       ? normalizeAddress(token.contract_address)
@@ -194,7 +201,7 @@ function normalizeToken(token: RawTokenInfo): PrivySimulationToken {
   };
 }
 
-function unknownToken(address: string): PrivySimulationToken {
+function unknownToken(address: string): ExecutionSimulationToken {
   return {
     address: normalizeAddress(address),
     symbol: 'UNKNOWN',
@@ -209,16 +216,16 @@ function hashMaterial(value: unknown): `0x${string}` {
 }
 
 function emptyCalls(
-  calls: PrivyPrepareSendCallsRequest['calls'],
-): PrivySimulationCall[] {
+  calls: TenderlySimulationCall[],
+): ExecutionSimulationCall[] {
   return calls.map((call, index) => skippedCall(call, index, false));
 }
 
 function skippedCall(
-  call: PrivyPrepareSendCallsRequest['calls'][number],
+  call: TenderlySimulationCall,
   index: number,
   contractVerified: boolean,
-): PrivySimulationCall {
+): ExecutionSimulationCall {
   return {
     index,
     to: normalizeAddress(call.to),
@@ -237,7 +244,7 @@ function unavailableReview(
   reason: string,
 ): TenderlySimulationReview {
   const calls = emptyCalls(input.calls);
-  const warnings: PrivySimulationWarning[] = [];
+  const warnings: ExecutionSimulationWarning[] = [];
   return {
     status: 'unavailable',
     unavailableReason: reason,
@@ -258,7 +265,7 @@ function unavailableReview(
 }
 
 function methodFromCall(
-  call: PrivyPrepareSendCallsRequest['calls'][number],
+  call: TenderlySimulationCall,
   tenderlyMethod: string | null | undefined,
 ): string | null {
   const trimmed = tenderlyMethod?.trim();
@@ -275,7 +282,7 @@ function methodFromCall(
 }
 
 function decodeApproval(
-  call: PrivyPrepareSendCallsRequest['calls'][number],
+  call: TenderlySimulationCall,
 ): { spender: string; amount: bigint } | null {
   try {
     const decoded = decodeFunctionData({
@@ -318,7 +325,7 @@ function normalizeReview(
     string,
     z.infer<typeof RawContractSchema>
   >();
-  const tokenByAddress = new Map<string, PrivySimulationToken>();
+  const tokenByAddress = new Map<string, ExecutionSimulationToken>();
 
   for (const result of results) {
     for (const rawContract of result.contracts) {
@@ -351,7 +358,7 @@ function normalizeReview(
     }
   }
 
-  const calls: PrivySimulationCall[] = input.calls.map((call, index) => {
+  const calls: ExecutionSimulationCall[] = input.calls.map((call, index) => {
     const result = results[index];
     const target = normalizeAddress(call.to);
     const rawContract = contractsByAddress.get(target);
@@ -382,7 +389,7 @@ function normalizeReview(
     };
   });
 
-  const assetChanges: PrivySimulationAssetChange[] = [];
+  const assetChanges: ExecutionSimulationAssetChange[] = [];
   for (const [callIndex, result] of results.entries()) {
     for (const rawChange of result.transaction.transaction_info.asset_changes ??
       []) {
@@ -415,7 +422,7 @@ function normalizeReview(
     );
   }
 
-  const approvals: PrivySimulationApproval[] = [];
+  const approvals: ExecutionSimulationApproval[] = [];
   for (const [callIndex, result] of results.entries()) {
     const exposureChanges =
       result.transaction.transaction_info.exposure_changes ?? [];
@@ -464,7 +471,7 @@ function normalizeReview(
     }
   }
 
-  const contracts: PrivySimulationContract[] = Array.from(
+  const contracts: ExecutionSimulationContract[] = Array.from(
     new Set(input.calls.map((call) => normalizeAddress(call.to))),
   ).map((address) => {
     const rawContract = contractsByAddress.get(address);
@@ -478,8 +485,8 @@ function normalizeReview(
     };
   });
 
-  const warnings: PrivySimulationWarning[] = [];
-  const approvalsByCall = new Map<number, PrivySimulationApproval[]>();
+  const warnings: ExecutionSimulationWarning[] = [];
+  const approvalsByCall = new Map<number, ExecutionSimulationApproval[]>();
   for (const approval of approvals) {
     const existing = approvalsByCall.get(approval.callIndex) ?? [];
     existing.push(approval);

@@ -3,6 +3,7 @@ import {
   type AtomicBatchExecutionDeps,
   useAtomicBatchExecution,
 } from '@core/hooks/wallet/useAtomicBatchExecution';
+import { computeReviewedBatchFingerprint } from '@core/lib/wallet/reviewedBatchFingerprint';
 import type { WalletAtomicBatchResult } from '@core/types';
 import { act, renderHook, type RenderHookResult } from '@testing-library/react';
 import type {
@@ -29,6 +30,7 @@ vi.mock('@core/utils', () => ({
 const WALLET_ADDRESS = '0x2222222222222222222222222222222222222222';
 const SPENDER = '0x9999999999999999999999999999999999999999' as const;
 const RISK_HASH = `0x${'ab'.repeat(32)}`;
+const SIMULATION_FINGERPRINT = `0x${'cd'.repeat(32)}`;
 
 function tx(overrides: Partial<PreparedTransaction> = {}): PreparedTransaction {
   return {
@@ -40,6 +42,11 @@ function tx(overrides: Partial<PreparedTransaction> = {}): PreparedTransaction {
     ...overrides,
   };
 }
+
+const BATCH_FINGERPRINT = computeReviewedBatchFingerprint({
+  chainId: 8453,
+  transactions: [tx()],
+});
 
 function preview(
   overrides: Record<string, unknown> = {},
@@ -55,6 +62,7 @@ function preview(
     },
     authorizationPayload: 'aGVsbG8=',
     approvals: [],
+    simulationFingerprint: SIMULATION_FINGERPRINT,
     riskHash: RISK_HASH,
     ...overrides,
   } as unknown as PrivyPrepareSendCallsResponse;
@@ -231,6 +239,128 @@ describe('executeAtomicBatch', () => {
         'Privy EOA EIP-7702 atomic batch preparation failed: HTTP 503',
       );
     });
+  });
+});
+
+describe('executeReviewedBatch', () => {
+  it('blocks a failed or unavailable review before preparing or prompting', async () => {
+    const deps = makeDeps();
+    const hook = renderExecutionHook(deps);
+
+    let result: Awaited<
+      ReturnType<typeof hook.result.current.executeReviewedBatch>
+    >;
+    await act(async () => {
+      result = await hook.result.current.executeReviewedBatch({
+        transactions: [tx()],
+        chainId: 8453,
+        expectedWalletAddress: WALLET_ADDRESS,
+        expectedBatchFingerprint: BATCH_FINGERPRINT,
+        expiresAt: Date.now() + 60_000,
+        executionAllowed: false,
+        expectedSimulationFingerprint: SIMULATION_FINGERPRINT,
+        expectedRiskHash: RISK_HASH,
+        requiresRiskAcknowledgement: false,
+      });
+    });
+
+    expect(result).toMatchObject({ status: 'blocked', code: 'REVIEW_BLOCKED' });
+    expect(deps.ensureChain).not.toHaveBeenCalled();
+    expect(mocks.preparePrivyAtomicBatch).not.toHaveBeenCalled();
+    expect(deps.signPreviewTypedData).not.toHaveBeenCalled();
+  });
+
+  it('matches both review hashes before signing and submits headlessly', async () => {
+    const deps = makeDeps();
+    const hook = renderExecutionHook(deps);
+
+    let result: Awaited<
+      ReturnType<typeof hook.result.current.executeReviewedBatch>
+    >;
+    await act(async () => {
+      result = await hook.result.current.executeReviewedBatch({
+        transactions: [tx()],
+        chainId: 8453,
+        expectedWalletAddress: WALLET_ADDRESS,
+        expectedBatchFingerprint: BATCH_FINGERPRINT,
+        expiresAt: Date.now() + 60_000,
+        executionAllowed: true,
+        expectedSimulationFingerprint: SIMULATION_FINGERPRINT,
+        expectedRiskHash: RISK_HASH,
+        requiresRiskAcknowledgement: false,
+      });
+    });
+
+    expect(result!).toMatchObject({ status: 'submitted', callsId: 'txn-1' });
+    expect(deps.signPreviewTypedData).toHaveBeenCalledTimes(1);
+    expect(deps.generateAuthorizationSignature).toHaveBeenCalledTimes(1);
+    expect(mocks.sendPrivyAtomicBatch).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.simulationPreview).toBeNull();
+  });
+
+  it('returns review-changed without signing when the prepared fingerprint drifts', async () => {
+    const deps = makeDeps();
+    const hook = renderExecutionHook(deps);
+    mocks.preparePrivyAtomicBatch.mockResolvedValueOnce(
+      preview({ simulationFingerprint: `0x${'ef'.repeat(32)}` }),
+    );
+
+    let result: Awaited<
+      ReturnType<typeof hook.result.current.executeReviewedBatch>
+    >;
+    await act(async () => {
+      result = await hook.result.current.executeReviewedBatch({
+        transactions: [tx()],
+        chainId: 8453,
+        expectedWalletAddress: WALLET_ADDRESS,
+        expectedBatchFingerprint: BATCH_FINGERPRINT,
+        expiresAt: Date.now() + 60_000,
+        executionAllowed: true,
+        expectedSimulationFingerprint: SIMULATION_FINGERPRINT,
+        expectedRiskHash: RISK_HASH,
+        requiresRiskAcknowledgement: false,
+      });
+    });
+
+    expect(result).toMatchObject({ status: 'review-changed' });
+    expect(deps.signPreviewTypedData).not.toHaveBeenCalled();
+    expect(deps.generateAuthorizationSignature).not.toHaveBeenCalled();
+    expect(mocks.sendPrivyAtomicBatch).not.toHaveBeenCalled();
+  });
+
+  it('surfaces server-side drift without attempting a second broadcast', async () => {
+    const deps = makeDeps();
+    const hook = renderExecutionHook(deps);
+    mocks.sendPrivyAtomicBatch.mockResolvedValueOnce({
+      status: 'review',
+      preview: preview({
+        previewId: 'preview-2',
+        simulationFingerprint: `0x${'ef'.repeat(32)}`,
+      }),
+    });
+
+    let result: Awaited<
+      ReturnType<typeof hook.result.current.executeReviewedBatch>
+    >;
+    await act(async () => {
+      result = await hook.result.current.executeReviewedBatch({
+        transactions: [tx()],
+        chainId: 8453,
+        expectedWalletAddress: WALLET_ADDRESS,
+        expectedBatchFingerprint: BATCH_FINGERPRINT,
+        expiresAt: Date.now() + 60_000,
+        executionAllowed: true,
+        expectedSimulationFingerprint: SIMULATION_FINGERPRINT,
+        expectedRiskHash: RISK_HASH,
+        requiresRiskAcknowledgement: false,
+      });
+    });
+
+    expect(result).toMatchObject({
+      status: 'review-changed',
+      reason: 'server-review-changed',
+    });
+    expect(mocks.sendPrivyAtomicBatch).toHaveBeenCalledTimes(1);
   });
 });
 

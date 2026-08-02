@@ -1,15 +1,18 @@
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
 import { Redirect, useRouter } from 'expo-router';
 import { Check, Circle, LoaderCircle, X } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
+import type { DepositReviewGroup } from '@zapengine/types/api';
 
 import { StepHeader } from '@/components/invest/StepHeader';
 import { WizardDoneCard } from '@/components/invest/WizardDoneCard';
+import { SimulationReviewBody } from '@/components/invest/simulation/SimulationReviewBody';
 import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
-import { useInvest } from '@/integration/useInvest';
+import { useInvest, useInvestDepositReview } from '@/integration/useInvest';
 import {
   type InvestExecutionWizardStep,
   useInvestExecution,
@@ -119,14 +122,56 @@ function ctaLabel(
   return step.label;
 }
 
+function reviewIsBlocked(
+  review: DepositReviewGroup | undefined,
+  nowMs = Date.now(),
+) {
+  return Boolean(
+    review &&
+    (review.blocked ||
+      !review.executionAllowed ||
+      review.expiresAt <= nowMs ||
+      review.status === 'failed' ||
+      review.status === 'unavailable'),
+  );
+}
+
 export function InvestProgressScreen() {
   const router = useRouter();
   const wallet = useWalletProvider();
   const { amountUsd, scope } = useInvest();
-  const { wizard, pending, mode, startFromDraft, advance, retry, reset } =
-    useInvestExecution();
+  const review = useInvestDepositReview();
+  const {
+    wizard,
+    pending,
+    mode,
+    startFromDraft,
+    advance,
+    retry,
+    reset,
+    reviewedSubmission,
+    reviewedProgress,
+    reviewedQueue,
+    updateReviewedQueueEntry,
+    submitNextReviewedBatch,
+  } = useInvestExecution();
+  const [checkpointPending, setCheckpointPending] = useState(false);
+  const [checkpointError, setCheckpointError] = useState<string | null>(null);
+  const [checkpointAcknowledged, setCheckpointAcknowledged] = useState(false);
+  const [checkpointNow, setCheckpointNow] = useState(() => Date.now());
 
-  if (wizard.status === 'idle' && !pending && !wizard.error) {
+  useEffect(() => {
+    if (reviewedProgress?.phase !== 'checkpoint') return;
+    const timer = setInterval(() => setCheckpointNow(Date.now()), 1_000);
+    return () => clearInterval(timer);
+  }, [reviewedProgress?.phase]);
+
+  if (
+    wizard.status === 'idle' &&
+    !pending &&
+    !wizard.error &&
+    !reviewedSubmission
+  ) {
     return <Redirect href="/invest/amount" />;
   }
 
@@ -136,15 +181,154 @@ export function InvestProgressScreen() {
   const shouldStartPlan = planUnavailable || currentStep?.kind === 'prepare';
   const shouldRetryPlan = shouldStartPlan && Boolean(wizard.error);
   const needsWalletRecovery = wizard.recovery === 'wallet-delegation';
+  const reviewedOnly = Boolean(reviewedSubmission && wizard.status === 'idle');
+  const reviewedComplete = reviewedProgress?.phase === 'complete';
+  const reviewedCheckpoint = reviewedProgress?.phase === 'checkpoint';
+  const reviewedFailed = reviewedProgress?.phase === 'failed';
+  const reviewedMultiple = (reviewedProgress?.groupCount ?? 1) > 1;
+  const reviewedCanExit =
+    reviewedOnly &&
+    (reviewedProgress?.phase === 'submitted' ||
+      reviewedProgress?.phase === 'complete');
+  const nextQueuedReview =
+    reviewedProgress && reviewedQueue[reviewedProgress.groupIndex + 1];
+  const nextReviewIndex = reviewedProgress
+    ? reviewedProgress.groupIndex + 1
+    : -1;
+  const nextReviewNeedsAcknowledgement = Boolean(
+    nextQueuedReview?.review.requiresRiskAcknowledgement,
+  );
+  const nextReviewBlocked = reviewIsBlocked(
+    nextQueuedReview?.review,
+    checkpointNow,
+  );
+
+  const refreshNextQueuedReview = async () => {
+    const fresh = await review.refresh();
+    return {
+      fresh,
+      freshGroup: fresh?.reviews[nextQueuedReview?.review.groupId ?? ''],
+    };
+  };
+  const updateCheckpointQueue = (
+    plan: NonNullable<typeof review.plan>,
+    freshGroup: DepositReviewGroup,
+  ) => {
+    updateReviewedQueueEntry({
+      index: nextReviewIndex,
+      plan,
+      review: freshGroup,
+    });
+    setCheckpointAcknowledged(false);
+  };
+
+  const runCheckpointAction = async (action: () => Promise<void>) => {
+    setCheckpointPending(true);
+    setCheckpointError(null);
+    try {
+      await action();
+    } catch (error: unknown) {
+      setCheckpointError(
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setCheckpointPending(false);
+    }
+  };
+
+  const confirmNextReviewedBatch = async () => {
+    if (!nextQueuedReview || checkpointPending) return;
+    if (nextReviewNeedsAcknowledgement && !checkpointAcknowledged) {
+      setCheckpointError(
+        'Acknowledge the Arbitrum review warning before signing.',
+      );
+      return;
+    }
+    await runCheckpointAction(async () => {
+      const { fresh, freshGroup } = await refreshNextQueuedReview();
+      const queuedGroup = nextQueuedReview.review;
+      const drifted =
+        !fresh ||
+        !freshGroup ||
+        freshGroup.groupFingerprint !== queuedGroup.groupFingerprint ||
+        freshGroup.expectedSimulationFingerprint !==
+          queuedGroup.expectedSimulationFingerprint ||
+        freshGroup.expectedRiskHash !== queuedGroup.expectedRiskHash ||
+        freshGroup.batchFingerprint !== queuedGroup.batchFingerprint;
+      if (drifted) {
+        setCheckpointError(
+          'The Arbitrum review changed. Review the updated evidence and confirm again.',
+        );
+        if (fresh && freshGroup && fresh.plan && nextReviewIndex >= 0) {
+          updateCheckpointQueue(fresh.plan, freshGroup);
+        }
+        return;
+      }
+      if (!freshGroup || !fresh.plan) {
+        throw new Error('The Arbitrum review is unavailable.');
+      }
+      if (reviewIsBlocked(freshGroup)) {
+        updateCheckpointQueue(fresh.plan, freshGroup);
+        setCheckpointError(
+          'The Arbitrum review is blocked or expired. Refresh it before signing.',
+        );
+        return;
+      }
+      const result = await submitNextReviewedBatch({
+        plan: fresh.plan,
+        review: freshGroup,
+        ...(checkpointAcknowledged
+          ? { acknowledgedRiskHash: freshGroup.expectedRiskHash }
+          : {}),
+      });
+      if (result.status !== 'submitted') {
+        setCheckpointError(result.reason);
+      }
+    });
+  };
+
+  const refreshCheckpointReview = async () => {
+    if (!nextQueuedReview || checkpointPending) return;
+    await runCheckpointAction(async () => {
+      const { fresh, freshGroup } = await refreshNextQueuedReview();
+      if (!fresh || !freshGroup || !fresh.plan) {
+        throw new Error('The Arbitrum review is unavailable.');
+      }
+      updateCheckpointQueue(fresh.plan, freshGroup);
+      if (reviewIsBlocked(freshGroup)) {
+        setCheckpointError(
+          'Tenderly could not clear this review yet. Try refreshing again later.',
+        );
+      }
+    });
+  };
 
   return (
     <ScreenScrollView>
       <StepHeader
-        title={isDone ? 'Complete' : 'Guided execution'}
+        title={
+          reviewedOnly
+            ? reviewedComplete
+              ? 'Complete'
+              : 'Reviewed execution'
+            : isDone
+              ? 'Complete'
+              : 'Guided execution'
+        }
         step={
-          isDone
-            ? 'Done'
-            : `${wizard.currentIndex + 1} / ${wizard.steps.length}`
+          reviewedOnly
+            ? reviewedComplete
+              ? 'Done'
+              : reviewedCheckpoint
+                ? 'Checkpoint'
+                : reviewedFailed
+                  ? 'Needs attention'
+                  : 'Submitted'
+            : isDone
+              ? 'Done'
+              : wizard.steps.length > 0
+                ? `${wizard.currentIndex + 1} / ${wizard.steps.length}`
+                : 'Preparing'
         }
       />
       <View className="px-5 pt-6">
@@ -152,10 +336,114 @@ export function InvestProgressScreen() {
           {isDone ? 'Investment complete' : 'One action at a time'}
         </Text>
         <Text className="mt-2 text-[12px] leading-[18px] text-ink-dim">
-          {mode === 'strategy'
-            ? 'Each successful wallet action unlocks the next. Confirmed transactions are never submitted again on retry.'
-            : 'Submit one wallet batch, then verify that the protocol position increased. A submitted batch is never sent again on retry.'}
+          {reviewedOnly
+            ? reviewedCheckpoint
+              ? 'The Base batch was accepted. Review and confirm the Arbitrum batch below; no batch will be submitted twice.'
+              : reviewedFailed
+                ? 'The reviewed batch status reported a failure. Do not retry the wallet batch; return to the route to create a fresh review.'
+                : reviewedComplete
+                  ? reviewedMultiple
+                    ? 'Both reviewed batches were accepted. Position settlement is not marked complete here; no batch will be submitted twice.'
+                    : 'The reviewed batch was accepted. Position settlement is not marked complete here; no batch will be submitted twice.'
+                  : 'Your reviewed wallet batch was accepted. No batch will be submitted twice.'
+            : mode === 'strategy'
+              ? 'Each successful wallet action unlocks the next. Confirmed transactions are never submitted again on retry.'
+              : 'Submit one wallet batch, then verify that the protocol position increased. A submitted batch is never sent again on retry.'}
         </Text>
+
+        {reviewedSubmission ? (
+          <View className="mt-5 rounded-[18px] border border-line bg-[rgba(255,255,255,.02)] px-4 py-4">
+            <Text className="font-sans-semibold text-[13.5px] text-ink">
+              {reviewedComplete
+                ? reviewedMultiple
+                  ? 'Reviewed batches accepted'
+                  : 'Reviewed batch accepted'
+                : 'Batch accepted'}{' '}
+              · {reviewedSubmission.groupId}
+            </Text>
+            <Text className="mt-1 text-[11px] leading-[16px] text-ink-dim">
+              Calls {reviewedSubmission.callsId.slice(0, 14)}… submitted on{' '}
+              {reviewedSubmission.chainId === 8453 ? 'Base' : 'Arbitrum'}.
+            </Text>
+            {reviewedCheckpoint ? (
+              <>
+                {nextQueuedReview ? (
+                  <View className="mt-4">
+                    <SimulationReviewBody
+                      review={nextQueuedReview.review}
+                      acknowledged={checkpointAcknowledged}
+                      disabled={checkpointPending || nextReviewBlocked}
+                      onAcknowledgedChange={setCheckpointAcknowledged}
+                    />
+                  </View>
+                ) : null}
+                {checkpointError ? (
+                  <Text
+                    accessibilityRole="alert"
+                    className="mt-2 text-[10.5px] leading-4 text-error"
+                  >
+                    {checkpointError}
+                  </Text>
+                ) : null}
+                <PrimaryButton
+                  className="mt-4"
+                  disabled={pending || checkpointPending || nextReviewBlocked}
+                  onPress={() => void confirmNextReviewedBatch()}
+                >
+                  {checkpointPending ? 'Confirming…' : 'Confirm Arbitrum batch'}
+                </PrimaryButton>
+                {nextReviewBlocked ? (
+                  <PrimaryButton
+                    className="mt-3"
+                    variant="secondary"
+                    disabled={pending || checkpointPending}
+                    onPress={() => void refreshCheckpointReview()}
+                  >
+                    Refresh review
+                  </PrimaryButton>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <Text
+                  accessibilityRole={reviewedFailed ? 'alert' : undefined}
+                  className="mt-3 text-[10.5px] leading-4 text-ink-faint"
+                >
+                  {reviewedFailed
+                    ? (reviewedProgress?.statusNote ??
+                      'The reviewed batch failed.')
+                    : (reviewedProgress?.statusNote ??
+                      (reviewedComplete
+                        ? 'All required wallet batches were accepted. Position settlement remains pending.'
+                        : 'Batch status is unavailable; it was not resubmitted.'))}
+                </Text>
+                {reviewedFailed ? (
+                  <PrimaryButton
+                    className="mt-4"
+                    variant="secondary"
+                    onPress={() => {
+                      reset();
+                      router.replace('/invest/route');
+                    }}
+                  >
+                    Create fresh review
+                  </PrimaryButton>
+                ) : reviewedCanExit ? (
+                  <PrimaryButton
+                    className="mt-4"
+                    variant="secondary"
+                    onPress={() => {
+                      reset();
+                      router.replace('/home');
+                    }}
+                  >
+                    Done
+                  </PrimaryButton>
+                ) : null}
+              </>
+            )}
+          </View>
+        ) : null}
 
         {wizard.error ? (
           <View className="mt-5">
@@ -204,7 +492,7 @@ export function InvestProgressScreen() {
           </View>
         ) : null}
 
-        {wizard.steps.length === 0 && !wizard.error ? (
+        {wizard.steps.length === 0 && !wizard.error && !reviewedOnly ? (
           <View className="mt-5 gap-3">
             <SkeletonBlock className="h-[52px] rounded-2xl" />
             <SkeletonBlock className="h-[52px] rounded-2xl" />
@@ -235,7 +523,7 @@ export function InvestProgressScreen() {
           </View>
         ) : null}
 
-        {!isDone && !needsWalletRecovery ? (
+        {!isDone && !needsWalletRecovery && !reviewedOnly ? (
           <PrimaryButton
             className="mt-5"
             disabled={pending || (!currentStep && !shouldStartPlan)}

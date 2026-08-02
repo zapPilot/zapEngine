@@ -575,6 +575,11 @@ export type StrategyChainExecutionGroup = z.infer<
 export type MockBridgeCheckpoint = z.infer<typeof MockBridgeCheckpointSchema>;
 export type StrategyDepositPlan = z.infer<typeof StrategyDepositPlanSchema>;
 export type PlanOrchestrationDepositPlan = DepositPlan | StrategyDepositPlan;
+
+export const PlanOrchestrationDepositPlanSchema = z.union([
+  DepositPlanSchema,
+  StrategyDepositPlanSchema,
+]);
 export type ChainSplit = z.infer<typeof ChainSplitSchema>;
 export type DepositRequest = z.infer<typeof DepositRequestSchema>;
 export type PlanOrchestrationDepositRequest = z.infer<

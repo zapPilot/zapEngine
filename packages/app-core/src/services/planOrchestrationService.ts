@@ -4,6 +4,10 @@ import {
   DepositPlanSchema,
   type PlanOrchestrationDepositRequest,
   PlanOrchestrationDepositRequestSchema,
+  type PlanOrchestrationDepositReviewRequest,
+  PlanOrchestrationDepositReviewRequestSchema,
+  type PlanOrchestrationDepositReviewResponse,
+  PlanOrchestrationDepositReviewResponseSchema,
   type PlanOrchestrationWithdrawRequest,
   PlanOrchestrationWithdrawRequestSchema,
   type StrategyDepositPlan,
@@ -38,6 +42,23 @@ async function postDepositPlan(
   request: Exclude<PlanOrchestrationDepositRequest, { kind: 'strategy' }>,
 ): Promise<DepositPlan> {
   return postDepositPlanRequest(request, DepositPlanSchema);
+}
+
+/**
+ * Build the authoritative deposit plan and its wallet-neutral Tenderly review
+ * in one request. The review endpoint is intentionally separate from the
+ * legacy plan endpoint so existing callers retain their response shape.
+ */
+export async function getDepositReview(
+  request: PlanOrchestrationDepositReviewRequest,
+): Promise<PlanOrchestrationDepositReviewResponse> {
+  const body = PlanOrchestrationDepositReviewRequestSchema.parse(request);
+  const response = await httpUtils.accountApi.post<unknown>(
+    '/plan-orchestration/deposit/review',
+    body,
+    PLAN_REQUEST_CONFIG,
+  );
+  return PlanOrchestrationDepositReviewResponseSchema.parse(response);
 }
 
 async function postStrategyDepositPlan(

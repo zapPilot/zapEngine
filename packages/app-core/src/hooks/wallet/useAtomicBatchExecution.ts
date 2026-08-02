@@ -11,12 +11,17 @@ import {
   WALLET_NOT_CONNECTED_ERROR,
 } from '@core/lib/wallet/privyAtomicBatch';
 import {
+  checkReviewedBatchGuards,
+  useDeduplicatedReviewedExecution,
+} from '@core/lib/wallet/reviewedBatchExecution';
+import {
   preparePrivyAtomicBatch,
   sendPrivyAtomicBatch,
 } from '@core/services/privyWalletService';
 import type {
   WalletAtomicBatchExecutor,
   WalletAtomicBatchResult,
+  WalletReviewedBatchExecutor,
   WalletTypedData,
 } from '@core/types';
 import { walletLogger } from '@core/utils';
@@ -32,6 +37,10 @@ export type PrivyBatchExecutionPhase =
   | 'signingIntent'
   | 'authorizingBatch'
   | 'sendingBatch';
+
+const PRIVY_ACCESS_TOKEN_ERROR =
+  'Privy user access token is invalid or expired. Please re-login.';
+const REVIEW_CHANGED_STATUS = 'review-changed' as const;
 
 /**
  * Platform primitives the batch flow needs but must not import directly —
@@ -55,6 +64,11 @@ export interface AtomicBatchExecutionDeps {
 
 export interface AtomicBatchExecution {
   executeAtomicBatch: WalletAtomicBatchExecutor;
+  /**
+   * Execute an already-reviewed batch without opening the legacy preview UI.
+   * This is the headless path used by the unified invest review screen.
+   */
+  executeReviewedBatch: WalletReviewedBatchExecutor;
   simulationPreview: PrivyPrepareSendCallsResponse | null;
   confirmBatchExecution: (acknowledgedRiskHash?: string) => Promise<void>;
   retryBatchSimulation: () => Promise<void>;
@@ -120,6 +134,162 @@ export function useAtomicBatchExecution(
     batch: PrivyPrepareSendCallsRequest;
   } | null>(null);
 
+  const executePrivyReviewedBatch = useCallback<WalletReviewedBatchExecutor>(
+    async (input) => {
+      const guard = checkReviewedBatchGuards(input, walletAddress);
+      if (!guard.ok) {
+        return guard.result;
+      }
+      const connectedAddress = guard.connectedAddress;
+
+      let chain: ReturnType<typeof getPrivyAtomicBatchChain>;
+      try {
+        chain = getPrivyAtomicBatchChain(input.chainId);
+        await ensureChain(chain.id);
+      } catch (error: unknown) {
+        return {
+          status: 'blocked',
+          code: 'CHAIN_UNAVAILABLE',
+          reason: errorMessage(error),
+        };
+      }
+
+      const walletId = resolveWalletId();
+      if (!walletId) {
+        return {
+          status: 'blocked',
+          code: 'WALLET_ID_UNAVAILABLE',
+          reason: 'Privy wallet resource id is unavailable',
+        };
+      }
+
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        return {
+          status: 'blocked',
+          code: 'ACCESS_TOKEN_EXPIRED',
+          reason: PRIVY_ACCESS_TOKEN_ERROR,
+        };
+      }
+
+      const batch: PrivyPrepareSendCallsRequest = {
+        walletId,
+        walletAddress: connectedAddress,
+        chainId: chain.id as 8453 | 42161,
+        calls: input.transactions.map(toWalletSendCall),
+        idempotencyKey: createIdempotencyKey(),
+      };
+
+      const preview = await preparePrivyAtomicBatch(batch, accessToken);
+      if (preview.status === 'failed') {
+        return {
+          status: 'blocked',
+          code: 'SIMULATION_FAILED',
+          reason: preview.failureReason,
+        };
+      }
+      if (preview.status === 'unavailable') {
+        return {
+          status: 'blocked',
+          code: 'SIMULATION_UNAVAILABLE',
+          reason: preview.unavailableReason,
+        };
+      }
+      if (
+        typeof preview.simulationFingerprint === 'string' &&
+        preview.simulationFingerprint.toLowerCase() !==
+          input.expectedSimulationFingerprint.toLowerCase()
+      ) {
+        return {
+          status: REVIEW_CHANGED_STATUS,
+          reason: 'simulation-fingerprint-mismatch',
+          simulationFingerprint: preview.simulationFingerprint,
+          ...(typeof preview.riskHash === 'string'
+            ? { riskHash: preview.riskHash }
+            : {}),
+        };
+      }
+      if (
+        typeof preview.riskHash === 'string' &&
+        preview.riskHash.toLowerCase() !== input.expectedRiskHash.toLowerCase()
+      ) {
+        return {
+          status: REVIEW_CHANGED_STATUS,
+          reason: 'risk-hash-mismatch',
+          ...(typeof preview.simulationFingerprint === 'string'
+            ? { simulationFingerprint: preview.simulationFingerprint }
+            : {}),
+          riskHash: preview.riskHash,
+        };
+      }
+
+      const userSignature = await signPreviewTypedData(
+        toWalletTypedData(preview.typedDataPayload),
+      );
+      const { signature: authorizationSignature } =
+        await generateAuthorizationSignature(
+          decodeBase64(preview.authorizationPayload),
+        );
+
+      // The user may take long enough to sign that the prepare token expires;
+      // reacquire immediately before the confirm request, as the legacy
+      // confirmation path does, and never retry a consumed preview.
+      const executeAccessToken = await getAccessToken();
+      if (!executeAccessToken) {
+        return {
+          status: 'blocked',
+          code: 'ACCESS_TOKEN_EXPIRED',
+          reason: PRIVY_ACCESS_TOKEN_ERROR,
+        };
+      }
+
+      const result = await sendPrivyAtomicBatch(
+        {
+          previewId: preview.previewId,
+          userSignature,
+          authorizationSignature,
+          ...(input.acknowledgedRiskHash
+            ? { acknowledgedRiskHash: input.acknowledgedRiskHash }
+            : {}),
+        },
+        executeAccessToken,
+      );
+
+      if (result.status === 'review') {
+        return {
+          status: REVIEW_CHANGED_STATUS,
+          reason: 'server-review-changed',
+          ...(typeof result.preview.simulationFingerprint === 'string'
+            ? { simulationFingerprint: result.preview.simulationFingerprint }
+            : {}),
+          ...(typeof result.preview.riskHash === 'string'
+            ? { riskHash: result.preview.riskHash }
+            : {}),
+        };
+      }
+
+      return {
+        status: 'submitted',
+        callsId: result.transactionId,
+        ...(result.transactionHash
+          ? { transactionHash: result.transactionHash as Hash }
+          : {}),
+      };
+    },
+    [
+      ensureChain,
+      generateAuthorizationSignature,
+      getAccessToken,
+      resolveWalletId,
+      signPreviewTypedData,
+      walletAddress,
+    ],
+  );
+
+  const executeReviewedBatch = useDeduplicatedReviewedExecution(
+    executePrivyReviewedBatch,
+  );
+
   const executeAtomicBatch = useCallback<WalletAtomicBatchExecutor>(
     async (transactions, chainId) => {
       if (!walletAddress) {
@@ -162,9 +332,7 @@ export function useAtomicBatchExecution(
 
       const prepareAccessToken = await getAccessToken();
       if (!prepareAccessToken) {
-        throw new Error(
-          'Privy user access token is invalid or expired. Please re-login.',
-        );
+        throw new Error(PRIVY_ACCESS_TOKEN_ERROR);
       }
 
       // 1. Prepare batch and simulation
@@ -201,9 +369,7 @@ export function useAtomicBatchExecution(
     try {
       const accessToken = await getAccessToken();
       if (!accessToken) {
-        throw new Error(
-          'Privy user access token is invalid or expired. Please re-login.',
-        );
+        throw new Error(PRIVY_ACCESS_TOKEN_ERROR);
       }
       const preview = await preparePrivyAtomicBatch(pending.batch, accessToken);
       pending.preview = preview;
@@ -267,9 +433,7 @@ export function useAtomicBatchExecution(
       try {
         const accessToken = await getAccessToken();
         if (!accessToken) {
-          throw new Error(
-            'Privy user access token is invalid or expired. Please re-login.',
-          );
+          throw new Error(PRIVY_ACCESS_TOKEN_ERROR);
         }
         const preview = await preparePrivyAtomicBatch(
           updatedBatch,
@@ -328,9 +492,7 @@ export function useAtomicBatchExecution(
 
         const executeAccessToken = await getAccessToken();
         if (!executeAccessToken) {
-          throw new Error(
-            'Privy user access token is invalid or expired. Please re-login.',
-          );
+          throw new Error(PRIVY_ACCESS_TOKEN_ERROR);
         }
 
         // 3. Post to confirm endpoint
@@ -400,6 +562,7 @@ export function useAtomicBatchExecution(
 
   return {
     executeAtomicBatch,
+    executeReviewedBatch,
     simulationPreview,
     confirmBatchExecution,
     retryBatchSimulation,

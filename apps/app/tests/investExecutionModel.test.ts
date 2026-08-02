@@ -145,14 +145,14 @@ describe('resolveInvestExecutionCapability', () => {
     ).toBe('unsupported-wallet');
   });
 
-  it('keeps strategy execution ready without a single-chain batch mode', () => {
+  it('requires an atomic-capable wallet for the strategy batch too', () => {
     expect(
       resolveInvestExecutionCapability({
         isConnected: true,
         executionMode: undefined,
         scope: 'both',
       }),
-    ).toBe('ready');
+    ).toBe('unsupported-wallet');
   });
 
   it.each(['atomic-batch', 'eip7702'] as const)(

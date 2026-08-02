@@ -29,6 +29,7 @@ import {
   createPrivyWalletExecutionService,
   type PrivyWalletExecutionService,
 } from './services/privy-wallet-execution.service';
+import { createTenderlySimulationService } from './services/tenderly-simulation.service';
 import { createWalletBindingChallengeService } from './services/wallet-binding-challenge.service';
 import { UsersService } from './users/users.service';
 
@@ -123,6 +124,17 @@ export function createContainer(
     required: env.PLAN_SIMULATION_REQUIRED,
     mode: env.PLAN_SIMULATION_MODE,
   });
+  const tenderlySimulationService = createTenderlySimulationService({
+    ...(env.TENDERLY_ACCOUNT_SLUG
+      ? { accountSlug: env.TENDERLY_ACCOUNT_SLUG }
+      : {}),
+    ...(env.TENDERLY_PROJECT_SLUG
+      ? { projectSlug: env.TENDERLY_PROJECT_SLUG }
+      : {}),
+    ...(env.TENDERLY_ACCESS_TOKEN
+      ? { accessToken: env.TENDERLY_ACCESS_TOKEN }
+      : {}),
+  });
   if (env.PLAN_SIMULATION_MODE === 'off' && !planSimulation.tenderly) {
     new Logger('plan-orchestration').warn(
       'Plan simulation disabled via PLAN_SIMULATION_MODE=off — deposit plans are not Tenderly-simulated',
@@ -144,7 +156,12 @@ export function createContainer(
     ...(env.HYPERLIQUID_NETWORK
       ? { hyperliquid: { network: env.HYPERLIQUID_NETWORK } }
       : {}),
-    simulation: planSimulation,
+    simulation: {
+      ...planSimulation,
+      ...(planSimulation.tenderly
+        ? { reviewService: tenderlySimulationService }
+        : {}),
+    },
   });
   const privyWalletExecutionService = createPrivyWalletExecutionService({
     ...(env.PRIVY_APP_ID ? { appId: env.PRIVY_APP_ID } : {}),
@@ -158,6 +175,7 @@ export function createContainer(
     ...(env.TENDERLY_ACCESS_TOKEN
       ? { tenderlyAccessToken: env.TENDERLY_ACCESS_TOKEN }
       : {}),
+    tenderlySimulationService,
   });
 
   jobProcessorService.registerProcessor(weeklyReportProcessor);

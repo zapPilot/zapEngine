@@ -1,6 +1,11 @@
 import { getWagmiConfig } from '@core/config/wagmi';
 import { isWalletConnectEnabled } from '@core/lib/env/walletConnect';
 import { isApprovedWalletConnector } from '@core/lib/wallet/approvedWallets';
+import { submitPreparedTransactionsWithEIP7702 } from '@core/lib/wallet/executeDepositPlan';
+import {
+  checkReviewedBatchGuards,
+  useDeduplicatedReviewedExecution,
+} from '@core/lib/wallet/reviewedBatchExecution';
 import {
   buildWalletAccount,
   buildWalletChain,
@@ -10,9 +15,13 @@ import type {
   ConnectedWalletClient,
   WalletConnectorOption,
   WalletProviderInterface,
+  WalletReviewedBatchExecutor,
+  WalletReviewedBatchStatus,
+  WalletReviewedBatchStatusExecutor,
   WalletTypedData,
 } from '@core/types';
 import { walletLogger } from '@core/utils';
+import { waitForEIP7702Confirmation } from '@zapengine/intent-engine';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { formatUnits } from 'viem';
 import {
@@ -396,6 +405,81 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
     [address, chain?.id, switchChainAsync],
   );
 
+  const executeExternalReviewedBatch = useCallback<WalletReviewedBatchExecutor>(
+    async (input) => {
+      const guard = checkReviewedBatchGuards(input, address);
+      if (!guard.ok) {
+        return guard.result;
+      }
+
+      try {
+        const walletClient = await getActiveWalletClient(input.chainId);
+        const result = await submitPreparedTransactionsWithEIP7702({
+          transactions: input.transactions,
+          walletClient,
+          chainId: input.chainId,
+        });
+        return {
+          status: 'submitted',
+          callsId: result.callsId,
+        };
+      } catch (error: unknown) {
+        const reason = error instanceof Error ? error.message : String(error);
+        const lowerReason = reason.toLowerCase();
+        if (
+          lowerReason.includes('eip-7702') ||
+          lowerReason.includes('wallet_sendcalls') ||
+          lowerReason.includes('atomic') ||
+          lowerReason.includes('delegat') ||
+          lowerReason.includes('no account') ||
+          lowerReason.includes('wallet client')
+        ) {
+          return {
+            status: 'blocked',
+            code: 'EIP7702_UNAVAILABLE',
+            reason,
+          };
+        }
+        throw error;
+      }
+    },
+    [address, getActiveWalletClient],
+  );
+
+  const executeReviewedBatch = useDeduplicatedReviewedExecution(
+    executeExternalReviewedBatch,
+  );
+
+  const waitForReviewedBatch = useCallback<WalletReviewedBatchStatusExecutor>(
+    async ({ callsId, chainId }): Promise<WalletReviewedBatchStatus> => {
+      try {
+        const walletClient = await getActiveWalletClient(chainId);
+        const confirmation = await waitForEIP7702Confirmation(
+          callsId,
+          walletClient,
+        );
+        if (confirmation.status === 'success') {
+          return {
+            status: 'confirmed',
+            ...(confirmation.transactionHash
+              ? { transactionHash: confirmation.transactionHash }
+              : {}),
+          };
+        }
+        return {
+          status: 'failed',
+          reason: `EIP-7702 bundle ${callsId} failed on-chain`,
+        };
+      } catch (error: unknown) {
+        return {
+          status: 'unknown',
+          reason: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+    [getActiveWalletClient],
+  );
+
   const backend = useMemo<WalletProviderInterface>(
     () => ({
       account: walletAccount,
@@ -403,6 +487,8 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
       switchChain: handleSwitchChain,
       sendTransaction,
       getWalletClient: getActiveWalletClient,
+      executeReviewedBatch,
+      waitForReviewedBatch,
       connect: handleConnect,
       disconnect: handleDisconnect,
       isConnecting: isConnectingState,
@@ -423,6 +509,8 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
       handleSwitchChain,
       sendTransaction,
       getActiveWalletClient,
+      executeReviewedBatch,
+      waitForReviewedBatch,
       handleConnect,
       handleDisconnect,
       isConnectingState,

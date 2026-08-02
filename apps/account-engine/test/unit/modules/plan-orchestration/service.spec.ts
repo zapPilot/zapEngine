@@ -4,6 +4,8 @@ import {
   decodeFunctionData,
   encodeFunctionData,
   erc20Abi,
+  keccak256,
+  toBytes,
 } from 'viem';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -388,6 +390,124 @@ describe('plan-orchestration service', () => {
     ]);
   });
 
+  it('builds one rich review without running the pass/fail simulation twice', async () => {
+    const composeDeposit = vi.fn().mockResolvedValue({
+      legs: [],
+      approvals: [],
+      calls: [],
+      totalGasUsd: '0',
+      sourceChainId: 8453,
+    } satisfies DepositPlan);
+    const simulateBundle = vi.fn().mockResolvedValue({
+      status: 'passed',
+      chainId: 8453,
+      walletAddress: USER,
+      calls: [],
+      assetChanges: [],
+      approvals: [],
+      contracts: [],
+      warnings: [],
+      blockNumber: null,
+      callGas: '0',
+      simulationIds: ['sim-1'],
+      shareUrls: [],
+      simulationFingerprint: `0x${'11'.repeat(32)}`,
+      riskHash: `0x${'22'.repeat(32)}`,
+    });
+    const bundleGate = vi.fn();
+    const service = createPlanOrchestrationService({
+      intentEngine: {
+        buildGmxV2Supply: vi.fn(),
+        buildGmxV2Withdraw: vi.fn(),
+        buildWithdrawSwap: vi.fn(),
+      },
+      adapter: {} as never,
+      publicClients: {},
+      composeDeposit,
+      simulation: {
+        adapter: { simulateBundle: bundleGate },
+        mode: 'enforce',
+        reviewService: { simulateBundle },
+      },
+    });
+
+    const result = await service.buildDepositReview!({
+      kind: 'invest',
+      userAddress: USER,
+      fromToken: BASE_USDC,
+      fromAmount: '1000',
+      sourceChainId: 8453,
+    });
+
+    expect(composeDeposit).toHaveBeenCalledTimes(1);
+    expect(bundleGate).not.toHaveBeenCalled();
+    expect(simulateBundle).toHaveBeenCalledTimes(1);
+    expect(result.reviews['chain-8453']).toMatchObject({
+      status: 'passed',
+      blocked: false,
+      executionAllowed: true,
+      batchFingerprint: expect.stringMatching(/^0x[0-9a-f]{64}$/),
+    });
+  });
+
+  it('returns Tenderly failures as blocked review data', async () => {
+    const composeDeposit = vi.fn().mockResolvedValue({
+      legs: [],
+      approvals: [],
+      calls: [],
+      totalGasUsd: '0',
+      sourceChainId: 8453,
+    } satisfies DepositPlan);
+    const service = createPlanOrchestrationService({
+      intentEngine: {
+        buildGmxV2Supply: vi.fn(),
+        buildGmxV2Withdraw: vi.fn(),
+        buildWithdrawSwap: vi.fn(),
+      },
+      adapter: {} as never,
+      publicClients: {},
+      composeDeposit,
+      simulation: {
+        adapter: { simulateBundle: vi.fn() },
+        mode: 'enforce',
+        reviewService: {
+          simulateBundle: vi.fn().mockResolvedValue({
+            status: 'failed',
+            chainId: 8453,
+            walletAddress: USER,
+            calls: [],
+            assetChanges: [],
+            approvals: [],
+            contracts: [],
+            warnings: [],
+            blockNumber: null,
+            callGas: '0',
+            simulationIds: ['sim-failed'],
+            shareUrls: [],
+            simulationFingerprint: `0x${'33'.repeat(32)}`,
+            riskHash: `0x${'44'.repeat(32)}`,
+            failureReason: 'reverted',
+          }),
+        },
+      },
+    });
+
+    const result = await service.buildDepositReview!({
+      kind: 'invest',
+      userAddress: USER,
+      fromToken: BASE_USDC,
+      fromAmount: '1000',
+      sourceChainId: 8453,
+    });
+
+    expect(result.reviews['chain-8453']).toMatchObject({
+      status: 'failed',
+      blocked: true,
+      executionAllowed: false,
+      failureReason: 'reverted',
+    });
+  });
+
   it('delegates Invest deposits to composeDeposit and validates the returned DepositPlan', async () => {
     const composeDeposit = vi.fn().mockResolvedValue({
       legs: [
@@ -711,5 +831,179 @@ describe('plan-orchestration service', () => {
     });
     expect(plan.approvals).toEqual([]);
     expect(plan.calls).toHaveLength(1);
+  });
+
+  it('reviews both strategy execution groups with one rich call per chain', async () => {
+    const buildSupply = vi.fn().mockImplementation(({ fromAmount }) => ({
+      transaction: {
+        to: '0x7777777777777777777777777777777777777777',
+        data: '0x1234',
+        value: '0',
+        chainId: 8453,
+        gasLimit: '150000',
+        meta: { intentType: 'SUPPLY' },
+      },
+      estimate: {
+        fromAmount,
+        toAmount: fromAmount,
+        toAmountMin: fromAmount,
+        gasCostUsd: '0.03',
+        executionDuration: 12,
+      },
+    }));
+    const buildGmxV2Supply = vi.fn().mockImplementation(({ marketKey }) => ({
+      approvals: [
+        {
+          to: USDC,
+          data: approveData(GMX_ROUTER, 1000n),
+          value: '0',
+          chainId: 42161,
+          gasLimit: '60000',
+          meta: { intentType: 'APPROVAL' },
+        },
+      ],
+      steps: [
+        {
+          to: EXCHANGE_ROUTER,
+          data: marketKey === 'btc-usdc' ? '0x1234' : '0x5678',
+          value: '1000000000000000',
+          chainId: 42161,
+          gasLimit: '1200000',
+          meta: { intentType: 'SUPPLY' },
+        },
+      ],
+      executionFeeWei: '1000000000000000',
+      estimatedMarketTokens: '1000',
+      minMarketTokens: '900',
+      market: {
+        key: marketKey,
+        name: marketKey,
+        collateralToken: USDC,
+        marketToken: GM_TOKEN,
+      },
+    }));
+    const getTokenPrice = vi
+      .fn()
+      .mockImplementation((_chainId: number, tokenAddress: string) =>
+        Promise.resolve(
+          tokenAddress.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase()
+            ? {
+                address: tokenAddress,
+                symbol: 'ETH',
+                decimals: 18,
+                priceUSD: '3000',
+              }
+            : {
+                address: tokenAddress,
+                symbol: 'USDC',
+                decimals: 6,
+                priceUSD: '1',
+              },
+        ),
+      );
+    const readContract = vi.fn().mockResolvedValue(0n);
+    const getGasPrice = vi.fn().mockResolvedValue(100_000_000n);
+    const simulateBundle = vi
+      .fn()
+      .mockImplementation(
+        async ({
+          chainId,
+          walletAddress,
+          calls,
+        }: {
+          chainId: 8453 | 42161;
+          walletAddress: string;
+          calls: { to: string; data?: string; value?: string }[];
+        }) => ({
+          status: 'passed' as const,
+          chainId,
+          walletAddress,
+          calls: calls.map((call, index) => ({
+            index,
+            to: call.to,
+            data: call.data ?? '0x',
+            value: BigInt(call.value ?? '0').toString(),
+            method: null,
+            status: 'succeeded' as const,
+            gasUsed: '21000',
+            error: null,
+            contractVerified: true,
+          })),
+          assetChanges: [],
+          approvals: [],
+          contracts: [],
+          warnings: [],
+          blockNumber: null,
+          callGas: '0',
+          simulationIds: [`sim-${chainId}`],
+          shareUrls: [],
+          simulationFingerprint: `0x${'11'.repeat(32)}`,
+          riskHash: `0x${'22'.repeat(32)}`,
+        }),
+      );
+    const bundleGate = vi.fn();
+    const service = createPlanOrchestrationService({
+      intentEngine: {
+        buildSupply,
+        buildGmxV2Supply,
+        getTokenPrice,
+        buildGmxV2Withdraw: vi.fn(),
+        buildWithdrawSwap: vi.fn(),
+      },
+      adapter: {} as never,
+      publicClients: {
+        8453: { readContract, getGasPrice },
+        42161: { readContract, getGasPrice },
+      } as never,
+      simulation: {
+        adapter: { simulateBundle: bundleGate },
+        mode: 'enforce',
+        reviewService: { simulateBundle },
+      },
+    });
+
+    const result = await service.buildDepositReview!({
+      kind: 'strategy',
+      strategyId: 'zap-morpho-gmx-v1',
+      userAddress: USER,
+      totalUsd6: '100000000',
+      fundingSources: [
+        { chainId: 8453, fromToken: BASE_USDC },
+        { chainId: 42161, fromToken: USDC },
+      ],
+    });
+
+    expect(bundleGate).not.toHaveBeenCalled();
+    expect(simulateBundle).toHaveBeenCalledTimes(2);
+    expect(simulateBundle.mock.calls.map(([input]) => input.chainId)).toEqual([
+      8453, 42161,
+    ]);
+    if (!('executionGroups' in result.plan)) {
+      throw new Error('Expected a strategy plan with execution groups');
+    }
+    for (const group of result.plan.executionGroups) {
+      const transactions = [...group.approvals, ...group.calls];
+      const expectedBatchFingerprint = keccak256(
+        toBytes(
+          JSON.stringify({
+            chainId: group.chainId,
+            transactions: transactions.map((transaction) => ({
+              chainId: transaction.chainId,
+              to: transaction.to.toLowerCase(),
+              data: transaction.data,
+              value: BigInt(transaction.value).toString(),
+            })),
+          }),
+        ),
+      );
+      expect(result.reviews[group.id]?.batchFingerprint).toBe(
+        expectedBatchFingerprint,
+      );
+      expect(result.reviews[group.id]).toMatchObject({
+        groupId: group.id,
+        status: 'passed',
+        blocked: false,
+      });
+    }
   });
 });

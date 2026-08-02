@@ -2,6 +2,7 @@ import { zValidator } from '@hono/zod-validator';
 import { PlanSafetyViolationError } from '@zapengine/intent-engine';
 import {
   PlanOrchestrationDepositRequestSchema,
+  PlanOrchestrationDepositReviewRequestSchema,
   PlanOrchestrationWithdrawRequestSchema,
 } from '@zapengine/types/api';
 import { type Context, Hono } from 'hono';
@@ -59,6 +60,21 @@ export function createPlanOrchestrationRoutes(
     (c) => {
       const body = c.req.valid('json');
       return handlePlanRequest(c, () => service.buildDeposit(body));
+    },
+  );
+
+  app.post(
+    '/deposit/review',
+    zValidator('json', PlanOrchestrationDepositReviewRequestSchema),
+    (c) => {
+      const body = c.req.valid('json');
+      if (!service.buildDepositReview) {
+        return c.json(
+          { message: 'Deposit review is not configured' },
+          { status: 503 },
+        );
+      }
+      return handlePlanRequest(c, () => service.buildDepositReview!(body));
     },
   );
 

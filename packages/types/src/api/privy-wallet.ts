@@ -1,6 +1,17 @@
 import { z } from 'zod';
 
 import { WALLET_ADDRESS_REGEX } from '../shared/wallet.js';
+import {
+  SimulationApprovalSchema,
+  SimulationAssetChangeSchema,
+  SimulationBytes32Schema,
+  SimulationCallSchema,
+  SimulationContractSchema,
+  SimulationReviewEvidenceShape,
+  SimulationTokenSchema,
+  SimulationWarningCodeSchema,
+  SimulationWarningSchema,
+} from './simulation-review.js';
 
 const HexDataSchema = z
   .string()
@@ -10,7 +21,7 @@ const HexDataSchema = z
 const HexQuantitySchema = z
   .string()
   .regex(/^0x[0-9a-fA-F]+$/, 'value must be a hex quantity');
-const Bytes32Schema = z.string().regex(/^0x[0-9a-fA-F]{64}$/);
+const Bytes32Schema = SimulationBytes32Schema;
 
 export const PrivyAtomicBatchCallSchema = z.object({
   to: z.string().regex(WALLET_ADDRESS_REGEX, 'Invalid call target address'),
@@ -48,99 +59,18 @@ export const PrivyAtomicBatchResponseSchema = z.object({
 export const PrivyPrepareSendCallsRequestSchema =
   PrivyAtomicBatchPayloadSchema.extend({});
 
-const DecimalIntegerSchema = z.string().regex(/^\d+$/);
-const DecimalAmountSchema = z.string().regex(/^\d+(?:\.\d+)?$/);
-
-export const PrivySimulationTokenSchema = z
-  .object({
-    address: z.string().regex(WALLET_ADDRESS_REGEX).nullable(),
-    symbol: z.string().min(1),
-    name: z.string().min(1),
-    decimals: z.number().int().min(0).max(255),
-    logoUrl: z.url().nullable(),
-  })
-  .strict();
-
-export const PrivySimulationCallSchema = z
-  .object({
-    index: z.number().int().nonnegative(),
-    to: z.string().regex(WALLET_ADDRESS_REGEX),
-    data: HexDataSchema,
-    value: DecimalIntegerSchema,
-    method: z.string().min(1).nullable(),
-    status: z.enum(['succeeded', 'failed', 'skipped']),
-    gasUsed: DecimalIntegerSchema.nullable(),
-    error: z.string().min(1).nullable(),
-    contractVerified: z.boolean(),
-  })
-  .strict();
-
-export const PrivySimulationAssetChangeSchema = z
-  .object({
-    callIndex: z.number().int().nonnegative(),
-    direction: z.enum(['in', 'out']),
-    type: z.string().min(1),
-    from: z.string().regex(WALLET_ADDRESS_REGEX).nullable(),
-    to: z.string().regex(WALLET_ADDRESS_REGEX).nullable(),
-    token: PrivySimulationTokenSchema,
-    rawAmount: DecimalIntegerSchema,
-    amount: DecimalAmountSchema,
-  })
-  .strict();
-
-export const PrivySimulationApprovalSchema = z
-  .object({
-    callIndex: z.number().int().nonnegative(),
-    owner: z.string().regex(WALLET_ADDRESS_REGEX),
-    spender: z.string().regex(WALLET_ADDRESS_REGEX),
-    token: PrivySimulationTokenSchema,
-    rawAmount: DecimalIntegerSchema,
-    amount: DecimalAmountSchema,
-    unlimited: z.boolean(),
-    simulatedSpendRaw: DecimalIntegerSchema,
-    exceedsSimulatedSpend: z.boolean(),
-  })
-  .strict();
-
-export const PrivySimulationContractSchema = z
-  .object({
-    address: z.string().regex(WALLET_ADDRESS_REGEX),
-    name: z.string().min(1).nullable(),
-    verified: z.boolean(),
-    callIndexes: z.array(z.number().int().nonnegative()),
-  })
-  .strict();
-
-export const PrivySimulationWarningCodeSchema = z.enum([
-  'UNVERIFIED_CONTRACT',
-  'UNDECODED_METHOD',
-  'UNLIMITED_APPROVAL',
-  'APPROVAL_EXCEEDS_SIMULATED_SPEND',
-]);
-
-export const PrivySimulationWarningSchema = z
-  .object({
-    code: PrivySimulationWarningCodeSchema,
-    message: z.string().min(1),
-    callIndex: z.number().int().nonnegative().optional(),
-    address: z.string().regex(WALLET_ADDRESS_REGEX).optional(),
-  })
-  .strict();
+export const PrivySimulationTokenSchema = SimulationTokenSchema;
+export const PrivySimulationCallSchema = SimulationCallSchema;
+export const PrivySimulationAssetChangeSchema = SimulationAssetChangeSchema;
+export const PrivySimulationApprovalSchema = SimulationApprovalSchema;
+export const PrivySimulationContractSchema = SimulationContractSchema;
+export const PrivySimulationWarningCodeSchema = SimulationWarningCodeSchema;
+export const PrivySimulationWarningSchema = SimulationWarningSchema;
 
 const PrivySimulationReviewEvidenceShape = {
+  ...SimulationReviewEvidenceShape,
   chainId: z.union([z.literal(8453), z.literal(42161)]),
-  walletAddress: z.string().regex(WALLET_ADDRESS_REGEX),
   calls: z.array(PrivySimulationCallSchema).min(1),
-  assetChanges: z.array(PrivySimulationAssetChangeSchema),
-  approvals: z.array(PrivySimulationApprovalSchema),
-  contracts: z.array(PrivySimulationContractSchema),
-  warnings: z.array(PrivySimulationWarningSchema),
-  blockNumber: z.number().int().nonnegative().nullable(),
-  callGas: DecimalIntegerSchema,
-  simulationIds: z.array(z.string().min(1)),
-  shareUrls: z.array(z.url()),
-  simulationFingerprint: Bytes32Schema,
-  riskHash: Bytes32Schema,
 };
 
 const PrivySimulationSigningShape = {
