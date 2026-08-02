@@ -5,7 +5,20 @@ export default defineKnipConfig(
     entry: [
       'babel.config.js',
       'metro.config.js',
+      // knip resolves file references written as `new URL('…', import.meta.url)`
+      // but not the `node scripts/<file>` invocations in package.json scripts,
+      // so every script entry point has to be declared. A pattern that stops
+      // matching becomes a config hint, which `--treat-config-hints-as-errors`
+      // turns into a failure — so a deleted script cannot leave a stale entry.
+      'scripts/build-e2e-web.mjs',
+      'scripts/check-web-native-leaks.mjs',
+      'scripts/eas.mjs',
+      'scripts/install-playwright.mjs',
+      'scripts/ios-archive.mjs',
+      'scripts/ios-release-smoke.mjs',
       'scripts/serve-web.mjs',
+      'scripts/submit-latest-production.mjs',
+      'scripts/sync-ios-native.mjs',
       // expo-router discovers route files by convention; knip cannot trace them.
       'src/app/**/*.{ts,tsx}',
       // Metro resolves platform suffixes (.web) at bundle time, not through

@@ -1,0 +1,114 @@
+name: Release mobile
+
+# Manual only. EAS remote versioning increments versionCode/buildNumber on every
+# build attempt — including failed ones — so a push-triggered release would burn
+# store version numbers on each merge.
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to release
+        required: true
+        default: android
+        type: choice
+        options:
+          - android
+          - ios
+          - both
+      mode:
+        description: Build a new binary, submit the latest existing one, or both
+        required: true
+        default: build-and-submit
+        type: choice
+        options:
+          - build-and-submit
+          - build-only
+          - submit-only
+
+permissions:
+  contents: read
+
+# A single global slot, never cancelled. Two concurrent releases would each burn
+# a version number, and both would race for "the latest finished production
+# store build" that the submit wrapper resolves.
+concurrency:
+  group: release-mobile
+  cancel-in-progress: false
+
+jobs:
+  # Local equivalent:
+  # `pnpm turbo run type-check lint test build --filter=@zapengine/app`
+  gate:
+    if: inputs.mode != 'submit-only'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-workspace
+        with:
+          uv: 'false'
+
+      - name: Run app workspace gate
+        run: pnpm turbo run type-check lint test build --filter=@zapengine/app
+
+      - name: Check formatting
+        run: pnpm --filter @zapengine/app format:check
+
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      platforms: ${{ steps.resolve.outputs.platforms }}
+    steps:
+      - id: resolve
+        env:
+          PLATFORM: ${{ inputs.platform }}
+        run: |
+          case "$PLATFORM" in
+            both) platforms='["android","ios"]' ;;
+            android | ios) platforms="[\"$PLATFORM\"]" ;;
+            *) echo "error: unsupported platform '$PLATFORM'" >&2; exit 1 ;;
+          esac
+          echo "platforms=$platforms" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: [gate, resolve]
+    # `gate` is skipped in submit-only mode, which `success()` would treat as a
+    # reason not to run.
+    if: |
+      always()
+      && needs.resolve.result == 'success'
+      && contains(fromJSON('["success", "skipped"]'), needs.gate.result)
+    runs-on: ubuntu-latest
+    # EAS queue time is outside this workflow's control and the runner only polls
+    # while waiting. A timeout here does not cancel the build on EAS: rerun with
+    # `mode: submit-only` to ship a binary whose build outlived its runner.
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(needs.resolve.outputs.platforms) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-workspace
+        with:
+          uv: 'false'
+
+      # No local package build: `eas build` uploads the project and runs
+      # `eas-build-post-install` on EAS, and app.config.ts imports no workspace
+      # package.
+      - name: Build on EAS
+        if: inputs.mode != 'submit-only'
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          PLATFORM: ${{ matrix.platform }}
+        run: pnpm --filter @zapengine/app "$PLATFORM:release"
+
+      - name: Submit the latest production build
+        if: inputs.mode != 'build-only'
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          PLATFORM: ${{ matrix.platform }}
+        run: pnpm --filter @zapengine/app "$PLATFORM:submit"

@@ -51,6 +51,23 @@ pnpm turbo run test:ios:release-smoke --filter=@zapengine/app
 When commands invoke `tsx` through package builds, run them with the repo
 Corepack pnpm shim so the root `packageManager` is honored.
 
+## Store releases
+
+Runbooks live in [docs/android-release.md](./docs/android-release.md) and
+[docs/ios-release.md](./docs/ios-release.md). Do not restate them here. Four
+invariants are easy to break without noticing:
+
+- `scripts/eas.mjs` owns the only pinned EAS CLI version and the `CI` →
+  `--non-interactive` rule. Never write `eas-cli@<version>` anywhere else.
+- `autoIncrement` consumes a store version number on every build attempt,
+  including failures. That is why `release-mobile.yml` is `workflow_dispatch`
+  only and holds a single global, never-cancelled concurrency slot.
+- Submission is filtered to the production/store/finished build and submitted by
+  ID. An unfiltered `eas submit --latest` can pick an internal-distribution
+  build that the store then shadows.
+- Android submits to the closed testing `alpha` track. Widening the audience is a
+  Play Console action, never a repository or CI change.
+
 ## Native builds and stale `packages/*/dist`
 
 Xcode's "Bundle React Native code and images" phase runs `expo export:embed`
