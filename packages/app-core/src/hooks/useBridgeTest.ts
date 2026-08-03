@@ -291,6 +291,7 @@ export function useBridgeTest() {
           toChain: request.toChainId,
           signal: controller.signal,
         });
+        if (controller.signal.aborted) return;
         const destinationTxHash = bridgeStatus.receiving?.txHash ?? null;
 
         if (
@@ -308,6 +309,7 @@ export function useBridgeTest() {
             expectedUsd6: BigInt(quote.estimate.toAmountMin),
             signal: controller.signal,
           });
+          if (controller.signal.aborted) return;
         }
 
         setState((current) => ({
