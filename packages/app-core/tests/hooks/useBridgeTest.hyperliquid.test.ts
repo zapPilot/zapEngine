@@ -9,6 +9,8 @@ const HYPERCORE_USDC = '0x0000000000000000000000000000000000000000';
 const ROUTER = '0x2222222222222222222222222222222222222222';
 const SOURCE_HASH = `0x${'1'.repeat(64)}`;
 const DESTINATION_HASH = `0x${'2'.repeat(64)}`;
+const SECOND_SOURCE_HASH = `0x${'3'.repeat(64)}`;
+const SECOND_DESTINATION_HASH = `0x${'4'.repeat(64)}`;
 
 const mocks = vi.hoisted(() => ({
   useWalletProvider: vi.fn(),
@@ -186,5 +188,60 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
     expect(result.current.error).toBeNull();
     expect(result.current.sourceTxHash).toBeNull();
     expect(result.current.destinationTxHash).toBeNull();
+  });
+
+  it('keeps the second execution result when the first arrival poll rejects later', async () => {
+    let rejectFirstArrival!: (error: Error) => void;
+    mocks.sendTransaction
+      .mockResolvedValueOnce(SOURCE_HASH)
+      .mockResolvedValueOnce(SECOND_SOURCE_HASH);
+    mocks.waitForBridgeCompletion
+      .mockResolvedValueOnce({
+        status: 'DONE',
+        receiving: { txHash: DESTINATION_HASH, chainId: 1337 },
+      })
+      .mockResolvedValueOnce({
+        status: 'DONE',
+        receiving: { txHash: SECOND_DESTINATION_HASH, chainId: 1337 },
+      });
+    mocks.waitForPerpUsdcArrival
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectFirstArrival = reject;
+          }),
+      )
+      .mockResolvedValueOnce(undefined);
+    const { result } = renderHook(() => useBridgeTest());
+    let firstExecution!: Promise<void>;
+
+    await act(async () => {
+      firstExecution = result.current.execute(request);
+      await vi.waitFor(() => {
+        expect(mocks.waitForPerpUsdcArrival).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    const firstSignal = mocks.waitForPerpUsdcArrival.mock.calls[0]?.[0]
+      .signal as AbortSignal;
+
+    await act(async () => {
+      await result.current.execute(request);
+    });
+
+    expect(firstSignal.aborted).toBe(true);
+    expect(result.current.status).toBe('completed');
+    expect(result.current.sourceTxHash).toBe(SECOND_SOURCE_HASH);
+    expect(result.current.destinationTxHash).toBe(SECOND_DESTINATION_HASH);
+
+    await act(async () => {
+      rejectFirstArrival(new Error('Stale first execution failed.'));
+      await firstExecution;
+    });
+
+    expect(result.current.status).toBe('completed');
+    expect(result.current.error).toBeNull();
+    expect(result.current.sourceTxHash).toBe(SECOND_SOURCE_HASH);
+    expect(result.current.destinationTxHash).toBe(SECOND_DESTINATION_HASH);
   });
 });
