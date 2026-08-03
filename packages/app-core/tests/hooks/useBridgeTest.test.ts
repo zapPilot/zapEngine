@@ -149,6 +149,24 @@ describe('useBridgeTest', () => {
     expect(result.current.destinationTxHash).toBe(DESTINATION_HASH);
   });
 
+  it('blocks wallet interaction when the USDC balance is insufficient', async () => {
+    mocks.readContract.mockResolvedValue(9_999_999n);
+    const { result } = renderHook(() => useBridgeTest());
+
+    await act(async () => {
+      await result.current.execute(request);
+    });
+
+    expect(result.current.status).toBe('failed');
+    expect(result.current.error).toBe(
+      'USDC balance is too low for this bridge amount.',
+    );
+    expect(mocks.estimateGas).not.toHaveBeenCalled();
+    expect(mocks.switchChain).not.toHaveBeenCalled();
+    expect(mocks.sendTransaction).not.toHaveBeenCalled();
+    expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
+  });
+
   it('rejects Hyperliquid as a source before requesting a quote', async () => {
     const { result } = renderHook(() => useBridgeTest());
 
