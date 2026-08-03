@@ -167,6 +167,25 @@ describe('useBridgeTest', () => {
     expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
   });
 
+  it('blocks wallet interaction when native gas is insufficient', async () => {
+    mocks.getBalance.mockResolvedValue(99_999_999_999_999n);
+    const { result } = renderHook(() => useBridgeTest());
+
+    await act(async () => {
+      await result.current.execute(request);
+    });
+
+    expect(mocks.estimateGas).toHaveBeenCalledTimes(1);
+    expect(mocks.getGasPrice).toHaveBeenCalledTimes(1);
+    expect(result.current.status).toBe('failed');
+    expect(result.current.error).toBe(
+      'ETH balance is too low to pay bridge and approval gas.',
+    );
+    expect(mocks.switchChain).not.toHaveBeenCalled();
+    expect(mocks.sendTransaction).not.toHaveBeenCalled();
+    expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
+  });
+
   it('rejects Hyperliquid as a source before requesting a quote', async () => {
     const { result } = renderHook(() => useBridgeTest());
 
