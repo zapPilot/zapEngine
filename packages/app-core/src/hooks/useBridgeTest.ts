@@ -283,6 +283,7 @@ export function useBridgeTest() {
         if (sourceReceipt.status !== 'success') {
           throw new Error('Bridge source transaction reverted.');
         }
+        if (controller.signal.aborted) return;
 
         setState((current) => ({ ...current, status: 'bridging' }));
         const bridgeStatus = await waitForBridgeCompletion({
