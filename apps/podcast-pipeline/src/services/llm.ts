@@ -45,6 +45,9 @@ const DEFAULT_PROMPT_PATH = join(
   'prompts',
   'script-system-prompt.txt',
 );
+const SCRIPT_GENERATION_MAX_ATTEMPTS = 2;
+const SCRIPT_GENERATION_RETRY_DELAY_MS = 2_000;
+const RETRYABLE_OPENROUTER_STATUS = new Set([408, 409, 429]);
 
 function resolvePromptPath(): string {
   const envPath = process.env['SCRIPT_PROMPT_PATH'];
@@ -157,6 +160,13 @@ interface OpenRouterDeadline {
   cleanup: () => void;
 }
 
+class OpenRouterTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`OpenRouter request timed out after ${timeoutMs}ms`);
+    this.name = 'OpenRouterTimeoutError';
+  }
+}
+
 function createOpenRouterDeadline(
   externalSignal: AbortSignal | undefined,
   timeoutMs: number,
@@ -175,9 +185,7 @@ function createOpenRouterDeadline(
   }
 
   const timeout = setTimeout(() => {
-    controller.abort(
-      new Error(`OpenRouter request timed out after ${timeoutMs}ms`),
-    );
+    controller.abort(new OpenRouterTimeoutError(timeoutMs));
   }, timeoutMs);
   timeout.unref();
 
@@ -285,6 +293,68 @@ export function completionMetadata(
   };
 }
 
+function isRetryableOpenRouterError(error: unknown): boolean {
+  if (error instanceof OpenRouterTimeoutError) {
+    return true;
+  }
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const status = (error as { status?: unknown }).status;
+  if (typeof status === 'number') {
+    return RETRYABLE_OPENROUTER_STATUS.has(status) || status >= 500;
+  }
+
+  const name = (error as { name?: unknown }).name;
+  return name === 'APIConnectionError' || name === 'APITimeoutError';
+}
+
+function openRouterErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function waitForScriptRetry(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, SCRIPT_GENERATION_RETRY_DELAY_MS);
+  });
+}
+
+async function createScriptCompletionWithRetry(
+  openai: OpenAI,
+  params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
+  thinkingModel: string | null,
+): Promise<OpenRouterChatCompletion> {
+  for (let attempt = 1; attempt <= SCRIPT_GENERATION_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await createOpenRouterChatCompletion(
+        openai,
+        params,
+        thinkingModel,
+      );
+    } catch (error) {
+      const shouldRetry =
+        attempt < SCRIPT_GENERATION_MAX_ATTEMPTS &&
+        isRetryableOpenRouterError(error);
+      if (!shouldRetry) {
+        throw error;
+      }
+
+      logIngestEvent('llm:retry', {
+        operation: 'generateScript',
+        model: params.model,
+        attempt,
+        nextAttempt: attempt + 1,
+        delayMs: SCRIPT_GENERATION_RETRY_DELAY_MS,
+        error: openRouterErrorMessage(error),
+      });
+      await waitForScriptRetry();
+    }
+  }
+
+  throw new Error('OpenRouter script generation retry loop exhausted');
+}
+
 export async function generateScriptWithLLM(
   title: string,
   text: string,
@@ -293,7 +363,7 @@ export async function generateScriptWithLLM(
   const system = getSystemPrompt();
   const user = buildUserMessage(title, text);
 
-  const completion = await createOpenRouterChatCompletion(
+  const completion = await createScriptCompletionWithRetry(
     openai,
     {
       model,
