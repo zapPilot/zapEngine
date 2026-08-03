@@ -238,6 +238,23 @@ describe('useBridgeTest', () => {
     expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
   });
 
+  it('exposes LI.FI completion polling failures after source submission', async () => {
+    mocks.waitForBridgeCompletion.mockRejectedValue(
+      new Error('LI.FI completion polling timed out.'),
+    );
+    const { result } = renderHook(() => useBridgeTest());
+
+    await act(async () => {
+      await result.current.execute(request);
+    });
+
+    expect(mocks.waitForBridgeCompletion).toHaveBeenCalledTimes(1);
+    expect(result.current.sourceTxHash).toBe(SOURCE_HASH);
+    expect(result.current.destinationTxHash).toBeNull();
+    expect(result.current.status).toBe('failed');
+    expect(result.current.error).toBe('LI.FI completion polling timed out.');
+  });
+
   it('rejects Hyperliquid as a source before requesting a quote', async () => {
     const { result } = renderHook(() => useBridgeTest());
 
