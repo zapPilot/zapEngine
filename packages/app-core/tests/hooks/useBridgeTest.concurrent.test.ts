@@ -154,4 +154,54 @@ describe('useBridgeTest concurrent execution isolation', () => {
     expect(result.current.sourceTxHash).toBe(SECOND_SOURCE_HASH);
     expect(result.current.destinationTxHash).toBe(SECOND_DESTINATION_HASH);
   });
+
+  it('keeps reset state when an aborted LI.FI poll resolves successfully', async () => {
+    let resolvePoll!: (value: {
+      status: 'DONE';
+      receiving: { txHash: string; chainId: number };
+    }) => void;
+    mocks.sendTransaction.mockResolvedValue(FIRST_SOURCE_HASH);
+    mocks.waitForBridgeCompletion.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePoll = resolve;
+        }),
+    );
+
+    const { result } = renderHook(() => useBridgeTest());
+    let execution!: Promise<void>;
+
+    await act(async () => {
+      execution = result.current.execute(request);
+      await vi.waitFor(() => {
+        expect(mocks.waitForBridgeCompletion).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    const signal = mocks.waitForBridgeCompletion.mock.calls[0]?.[0]
+      .signal as AbortSignal;
+
+    act(() => {
+      result.current.reset();
+    });
+
+    expect(signal.aborted).toBe(true);
+    expect(result.current.status).toBe('idle');
+    expect(result.current.sourceTxHash).toBeNull();
+    expect(result.current.destinationTxHash).toBeNull();
+
+    await act(async () => {
+      resolvePoll({
+        status: 'DONE',
+        receiving: { txHash: SECOND_DESTINATION_HASH, chainId: 1337 },
+      });
+      await execution;
+    });
+
+    expect(mocks.waitForPerpUsdcArrival).not.toHaveBeenCalled();
+    expect(result.current.status).toBe('idle');
+    expect(result.current.error).toBeNull();
+    expect(result.current.sourceTxHash).toBeNull();
+    expect(result.current.destinationTxHash).toBeNull();
+  });
 });
