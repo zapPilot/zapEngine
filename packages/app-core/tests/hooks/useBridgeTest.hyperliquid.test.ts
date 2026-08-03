@@ -108,6 +108,23 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
     });
   });
 
+  it('blocks wallet interaction when the destination baseline is unavailable', async () => {
+    mocks.getPerpUsdcBalance.mockRejectedValue(
+      new Error('Unable to load Hyperliquid balance.'),
+    );
+    const { result } = renderHook(() => useBridgeTest());
+
+    await act(async () => {
+      await result.current.execute(request);
+    });
+
+    expect(result.current.status).toBe('failed');
+    expect(result.current.error).toBe('Unable to load Hyperliquid balance.');
+    expect(mocks.sendTransaction).not.toHaveBeenCalled();
+    expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
+    expect(mocks.waitForPerpUsdcArrival).not.toHaveBeenCalled();
+  });
+
   it('preserves the receiving hash and exposes destination arrival failure', async () => {
     mocks.waitForPerpUsdcArrival.mockRejectedValue(
       new Error('Hyperliquid USDC arrival timed out.'),
