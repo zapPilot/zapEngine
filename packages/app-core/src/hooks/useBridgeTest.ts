@@ -258,6 +258,7 @@ export function useBridgeTest() {
           if (approvalReceipt.status !== 'success') {
             throw new Error('USDC approval transaction reverted.');
           }
+          if (controller.signal.aborted) return;
         }
 
         setState((current) => ({
