@@ -3,12 +3,12 @@ import {
   reviewedBatchKey,
   runDeduplicatedReviewedExecution,
 } from '@core/lib/wallet/reviewedBatchExecution';
+import { computeReviewedBatchFingerprint } from '@core/lib/wallet/reviewedBatchFingerprint';
 import type {
   WalletReviewedBatchInput,
   WalletReviewedBatchResult,
 } from '@core/types';
 import type { PreparedTransaction } from '@zapengine/types/api';
-import { computeReviewedBatchFingerprint } from '@core/lib/wallet/reviewedBatchFingerprint';
 import { describe, expect, it, vi } from 'vitest';
 
 const WALLET_ADDRESS = '0x2222222222222222222222222222222222222222';
@@ -168,10 +168,12 @@ describe('checkReviewedBatchGuards', () => {
 
 describe('reviewedBatchKey', () => {
   it('is stable across re-renders and case-insensitive for addresses', () => {
-    const a = reviewedBatchKey(input());
-    const b = reviewedBatchKey(
-      input({ expectedWalletAddress: WALLET_ADDRESS.toUpperCase() }),
-    );
+    const review = input();
+    const a = reviewedBatchKey(review);
+    const b = reviewedBatchKey({
+      ...review,
+      expectedWalletAddress: WALLET_ADDRESS.toUpperCase(),
+    });
     expect(a).toBe(b);
   });
 

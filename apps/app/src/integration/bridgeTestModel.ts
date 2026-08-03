@@ -5,8 +5,6 @@ import {
 } from '@zapengine/app-core/constants/bridgeChains';
 import type { Address } from 'viem';
 
-import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
-
 export interface BridgeChainOption {
   chainId: number;
   label: string;
@@ -73,15 +71,20 @@ export function bridgeChain(chainId: number): BridgeChainOption {
   return chain;
 }
 
-export function bridgeUsdcBalance(
-  rows: readonly ChainTokenBalanceRow[],
-  chainId: number,
-): ChainTokenBalanceRow | null {
-  return (
-    rows.find(
-      (row) => row.chainId === chainId && row.token.symbol === 'USDC',
-    ) ?? null
-  );
+export function bridgeBalanceQueryKey(params: {
+  address: string | null;
+  chainId: number;
+  tokenAddress: string;
+  kind: 'token' | 'gas';
+}): readonly [string, string, string, string, number, string] {
+  return [
+    'bridge-test',
+    'balance',
+    params.kind,
+    params.address ?? 'no-account',
+    params.chainId,
+    params.tokenAddress.toLowerCase(),
+  ] as const;
 }
 
 export function normalizeUsdcInput(value: string): string {
