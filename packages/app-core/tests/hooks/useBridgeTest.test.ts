@@ -7,6 +7,8 @@ const USER = '0x1111111111111111111111111111111111111111';
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const ARBITRUM_USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831';
 const ROUTER = '0x2222222222222222222222222222222222222222';
+const SPENDER = '0x3333333333333333333333333333333333333333';
+const APPROVAL_HASH = `0x${'0'.repeat(64)}`;
 const SOURCE_HASH = `0x${'1'.repeat(64)}`;
 const DESTINATION_HASH = `0x${'2'.repeat(64)}`;
 
@@ -147,6 +149,110 @@ describe('useBridgeTest', () => {
     );
     expect(result.current.status).toBe('completed');
     expect(result.current.destinationTxHash).toBe(DESTINATION_HASH);
+  });
+
+  it('blocks wallet interaction when the USDC balance is insufficient', async () => {
+    mocks.readContract.mockResolvedValue(9_999_999n);
+    const { result } = renderHook(() => useBridgeTest());
+
+    await act(async () => {
+      await result.current.execute(request);
+    });
+
+    expect(result.current.status).toBe('failed');
+    expect(result.current.error).toBe(
+      'USDC balance is too low for this bridge amount.',
+    );
+    expect(mocks.estimateGas).not.toHaveBeenCalled();
+    expect(mocks.switchChain).not.toHaveBeenCalled();
+    expect(mocks.sendTransaction).not.toHaveBeenCalled();
+    expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
+  });
+
+  it('blocks wallet interaction when native gas is insufficient', async () => {
+    mocks.getBalance.mockResolvedValue(99_999_999_999_999n);
+    const { result } = renderHook(() => useBridgeTest());
+
+    await act(async () => {
+      await result.current.execute(request);
+    });
+
+    expect(mocks.estimateGas).toHaveBeenCalledTimes(1);
+    expect(mocks.getGasPrice).toHaveBeenCalledTimes(1);
+    expect(result.current.status).toBe('failed');
+    expect(result.current.error).toBe(
+      'ETH balance is too low to pay bridge and approval gas.',
+    );
+    expect(mocks.switchChain).not.toHaveBeenCalled();
+    expect(mocks.sendTransaction).not.toHaveBeenCalled();
+    expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
+  });
+
+  it('stops when the USDC approval transaction reverts', async () => {
+    mocks.buildBridge.mockResolvedValue({
+      ...quote,
+      approval: {
+        tokenAddress: BASE_USDC,
+        spenderAddress: SPENDER,
+        amount: request.fromAmount,
+      },
+    });
+    mocks.needsApproval.mockResolvedValue(true);
+    mocks.buildApproveTx.mockReturnValue({
+      to: BASE_USDC,
+      data: '0x5678',
+      chainId: 8453,
+    });
+    mocks.sendTransaction.mockResolvedValue(APPROVAL_HASH);
+    mocks.waitForTransactionReceipt.mockResolvedValue({ status: 'reverted' });
+    const { result } = renderHook(() => useBridgeTest());
+
+    await act(async () => {
+      await result.current.execute(request);
+    });
+
+    expect(mocks.sendTransaction).toHaveBeenCalledTimes(1);
+    expect(mocks.sendTransaction).toHaveBeenCalledWith({
+      to: BASE_USDC,
+      data: '0x5678',
+      value: 0n,
+      chainId: 8453,
+    });
+    expect(result.current.status).toBe('failed');
+    expect(result.current.error).toBe('USDC approval transaction reverted.');
+    expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
+  });
+
+  it('stops when the bridge source transaction reverts', async () => {
+    mocks.waitForTransactionReceipt.mockResolvedValue({ status: 'reverted' });
+    const { result } = renderHook(() => useBridgeTest());
+
+    await act(async () => {
+      await result.current.execute(request);
+    });
+
+    expect(mocks.sendTransaction).toHaveBeenCalledTimes(1);
+    expect(result.current.sourceTxHash).toBe(SOURCE_HASH);
+    expect(result.current.status).toBe('failed');
+    expect(result.current.error).toBe('Bridge source transaction reverted.');
+    expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
+  });
+
+  it('exposes LI.FI completion polling failures after source submission', async () => {
+    mocks.waitForBridgeCompletion.mockRejectedValue(
+      new Error('LI.FI completion polling timed out.'),
+    );
+    const { result } = renderHook(() => useBridgeTest());
+
+    await act(async () => {
+      await result.current.execute(request);
+    });
+
+    expect(mocks.waitForBridgeCompletion).toHaveBeenCalledTimes(1);
+    expect(result.current.sourceTxHash).toBe(SOURCE_HASH);
+    expect(result.current.destinationTxHash).toBeNull();
+    expect(result.current.status).toBe('failed');
+    expect(result.current.error).toBe('LI.FI completion polling timed out.');
   });
 
   it('rejects Hyperliquid as a source before requesting a quote', async () => {
