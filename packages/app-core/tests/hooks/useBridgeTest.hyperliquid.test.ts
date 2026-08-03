@@ -148,4 +148,43 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
     expect(result.current.status).toBe('failed');
     expect(result.current.error).toBe('Hyperliquid USDC arrival timed out.');
   });
+
+  it('keeps reset state when an aborted arrival poll rejects later', async () => {
+    let rejectArrival!: (error: Error) => void;
+    mocks.waitForPerpUsdcArrival.mockImplementation(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectArrival = reject;
+        }),
+    );
+    const { result } = renderHook(() => useBridgeTest());
+    let execution!: Promise<void>;
+
+    await act(async () => {
+      execution = result.current.execute(request);
+      await vi.waitFor(() => {
+        expect(mocks.waitForPerpUsdcArrival).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    const arrivalSignal = mocks.waitForPerpUsdcArrival.mock.calls[0]?.[0]
+      .signal as AbortSignal;
+
+    act(() => {
+      result.current.reset();
+    });
+
+    expect(arrivalSignal.aborted).toBe(true);
+    expect(result.current.status).toBe('idle');
+
+    await act(async () => {
+      rejectArrival(new Error('Stale arrival poll failed.'));
+      await execution;
+    });
+
+    expect(result.current.status).toBe('idle');
+    expect(result.current.error).toBeNull();
+    expect(result.current.sourceTxHash).toBeNull();
+    expect(result.current.destinationTxHash).toBeNull();
+  });
 });
