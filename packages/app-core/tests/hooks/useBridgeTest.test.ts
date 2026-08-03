@@ -223,6 +223,21 @@ describe('useBridgeTest', () => {
     expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
   });
 
+  it('stops when the bridge source transaction reverts', async () => {
+    mocks.waitForTransactionReceipt.mockResolvedValue({ status: 'reverted' });
+    const { result } = renderHook(() => useBridgeTest());
+
+    await act(async () => {
+      await result.current.execute(request);
+    });
+
+    expect(mocks.sendTransaction).toHaveBeenCalledTimes(1);
+    expect(result.current.sourceTxHash).toBe(SOURCE_HASH);
+    expect(result.current.status).toBe('failed');
+    expect(result.current.error).toBe('Bridge source transaction reverted.');
+    expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
+  });
+
   it('rejects Hyperliquid as a source before requesting a quote', async () => {
     const { result } = renderHook(() => useBridgeTest());
 
