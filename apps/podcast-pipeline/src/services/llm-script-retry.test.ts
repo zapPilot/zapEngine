@@ -54,7 +54,8 @@ function timeoutUntilAborted(signal: AbortSignal): Promise<never> {
   return new Promise((_resolve, reject) => {
     signal.addEventListener(
       'abort',
-      () => reject(new DOMException('This operation was aborted', 'AbortError')),
+      () =>
+        reject(new DOMException('This operation was aborted', 'AbortError')),
       { once: true },
     );
   });

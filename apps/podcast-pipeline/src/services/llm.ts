@@ -315,8 +315,8 @@ function openRouterErrorMessage(error: unknown): string {
 }
 
 async function waitForScriptRetry(): Promise<void> {
-  await new Promise<void>((resolveRetry) => {
-    setTimeout(resolveRetry, SCRIPT_GENERATION_RETRY_DELAY_MS);
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, SCRIPT_GENERATION_RETRY_DELAY_MS);
   });
 }
 
@@ -325,11 +325,7 @@ async function createScriptCompletionWithRetry(
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
   thinkingModel: string | null,
 ): Promise<OpenRouterChatCompletion> {
-  for (
-    let attempt = 1;
-    attempt <= SCRIPT_GENERATION_MAX_ATTEMPTS;
-    attempt++
-  ) {
+  for (let attempt = 1; attempt <= SCRIPT_GENERATION_MAX_ATTEMPTS; attempt++) {
     try {
       return await createOpenRouterChatCompletion(
         openai,
