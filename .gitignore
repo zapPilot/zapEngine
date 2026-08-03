@@ -70,6 +70,8 @@ apps/*/playwright-report/
 .todos/
 plan.md
 .opencode/goals/
+# Temporary Superpowers plans/specs are local working artifacts, not repo docs.
+docs/superpowers/
 
 # Git
 .worktrees

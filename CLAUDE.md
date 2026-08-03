@@ -1,8 +1,6 @@
 See @README.md for project overview and @package.json for root scripts.
 
-> **Start here:** new to the repo or hunting for a doc? Use
-> [docs/onboarding.md](docs/onboarding.md) (per-role reading order) and
-> [docs/README.md](docs/README.md) (full doc map).
+> **Start here:** use [docs/README.md](docs/README.md) for the compact document map.
 
 # Build order
 

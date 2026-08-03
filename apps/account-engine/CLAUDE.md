@@ -10,7 +10,7 @@ Two clients exist — use the right one:
 # Gotchas
 
 - Swagger is removed. Do not reintroduce documentation-only endpoints.
-- `src/modules/ledger/` is an append-only substrate whose producers are not built yet. It is intentionally absent from `container.ts` — do not register it there just to make it "look used" (its spec already keeps the deadcode gate satisfied). Wire it only when a real signal/decision/plan/execution producer needs it. Status: `docs/product-strategy/status-map.md`, "Append-only ledger".
+- `src/modules/ledger/` is an append-only substrate whose producers are not built yet. It is intentionally absent from `container.ts` — do not register it there just to make it "look used" (its spec already keeps the deadcode gate satisfied). Wire it only when a real signal/decision/plan/execution producer needs it; track that work in GitHub Issues rather than a status Markdown file.
 - `ADMIN_API_KEY` is the canonical auth for job routes. `API_KEY` is still accepted as a legacy fallback.
 - Tests hit the Hono app directly via `app.request(...)` — no Nest test harness or module metadata.
 - `tsconfig.json` intentionally overrides `lib` to add `DOM`/`DOM.Iterable` on top of the `@zapengine/tsconfig/node.json` (ES2022-only) preset — load-bearing for undici `fetch`/`Response.json()` typing in `alpha-etl-http.service.ts` (without it, strict mode flags TS18046). Do not "align with the shared preset"; the real fix is typing the `response.json()` payloads first, then dropping DOM.
