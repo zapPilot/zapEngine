@@ -214,6 +214,7 @@ export function useBridgeTest() {
               },
             })
           : false;
+        if (controller.signal.aborted) return;
 
         await assertFundingAndEstimateGas({
           request,
