@@ -118,6 +118,47 @@ describe('useBridgeTest reset during approval receipt', () => {
     mocks.sendTransaction.mockResolvedValue(APPROVAL_HASH);
   });
 
+  it('does not continue after approval lookup resolves following reset', async () => {
+    let resolveApproval!: (needed: boolean) => void;
+    mocks.needsApproval.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveApproval = resolve;
+        }),
+    );
+
+    const { result } = renderHook(() => useBridgeTest());
+    let execution!: Promise<void>;
+
+    await act(async () => {
+      execution = result.current.execute(request);
+      await vi.waitFor(() => {
+        expect(mocks.needsApproval).toHaveBeenCalledOnce();
+      });
+    });
+
+    act(() => {
+      result.current.reset();
+    });
+
+    await act(async () => {
+      resolveApproval(true);
+      await execution;
+    });
+
+    expect(mocks.readContract).not.toHaveBeenCalled();
+    expect(mocks.switchChain).not.toHaveBeenCalled();
+    expect(mocks.sendTransaction).not.toHaveBeenCalled();
+    expect(mocks.sendPreparedTransaction).not.toHaveBeenCalled();
+    expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
+    expect(result.current.status).toBe('idle');
+    expect(result.current.error).toBeNull();
+    expect(result.current.quote).toBeNull();
+    expect(result.current.sourceTxHash).toBeNull();
+    expect(result.current.destinationTxHash).toBeNull();
+    expect(result.current.lifiScanUrl).toBeNull();
+  });
+
   it('does not submit the bridge when approval succeeds after reset', async () => {
     let resolveReceipt!: (receipt: { status: 'success' }) => void;
     mocks.waitForTransactionReceipt.mockImplementation(
