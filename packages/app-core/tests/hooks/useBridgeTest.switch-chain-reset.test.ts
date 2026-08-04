@@ -145,4 +145,41 @@ describe('useBridgeTest reset during chain switch', () => {
     expect(result.current.destinationTxHash).toBeNull();
     expect(result.current.lifiScanUrl).toBeNull();
   });
+
+  it('stops after a stale successful chain switch resolves following reset', async () => {
+    let resolveSwitch!: () => void;
+    mocks.switchChain.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSwitch = resolve;
+        }),
+    );
+
+    const { result } = renderHook(() => useBridgeTest());
+    let execution!: Promise<void>;
+
+    await act(async () => {
+      execution = result.current.execute(request);
+      await vi.waitFor(() => {
+        expect(mocks.switchChain).toHaveBeenCalledWith(8453);
+      });
+    });
+
+    act(() => {
+      result.current.reset();
+    });
+
+    await act(async () => {
+      resolveSwitch();
+      await execution;
+    });
+
+    expect(mocks.sendPreparedTransaction).not.toHaveBeenCalled();
+    expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
+    expect(result.current.status).toBe('idle');
+    expect(result.current.error).toBeNull();
+    expect(result.current.sourceTxHash).toBeNull();
+    expect(result.current.destinationTxHash).toBeNull();
+    expect(result.current.lifiScanUrl).toBeNull();
+  });
 });
