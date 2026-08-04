@@ -224,6 +224,7 @@ export function useBridgeTest() {
 
         if (wallet.chain?.id !== request.fromChainId) {
           await wallet.switchChain(request.fromChainId);
+          if (controller.signal.aborted) return;
         }
 
         let hyperliquidBaseline: bigint | null = null;
