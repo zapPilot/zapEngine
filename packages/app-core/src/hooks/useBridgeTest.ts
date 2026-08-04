@@ -221,6 +221,7 @@ export function useBridgeTest() {
           userAddress,
           includeApproval: approvalNeeded,
         });
+        if (controller.signal.aborted) return;
 
         if (wallet.chain?.id !== request.fromChainId) {
           await wallet.switchChain(request.fromChainId);
