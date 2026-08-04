@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   closeSync,
+  createWriteStream,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -54,6 +55,70 @@ function runLogged(
     throw new Error(`${command} ${args.join(' ')} failed; see ${logPath}`);
   }
   return result;
+}
+
+function runLoggedStreaming(
+  command,
+  args,
+  {
+    cwd = appRoot,
+    env = process.env,
+    logPath,
+    allowFailure = false,
+    heartbeatLabel = command,
+  } = {},
+) {
+  mkdirSync(dirname(logPath), { recursive: true });
+  const logStream = createWriteStream(logPath, { flags: 'a' });
+  const startedAt = Date.now();
+
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn(command, args, {
+      cwd,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let settled = false;
+
+    const heartbeat = setInterval(() => {
+      const elapsedMinutes = Math.max(
+        1,
+        Math.floor((Date.now() - startedAt) / 60_000),
+      );
+      console.log(`${heartbeatLabel} is still running (${elapsedMinutes}m)...`);
+    }, 60_000);
+
+    function finish(error, result) {
+      if (settled) return;
+      settled = true;
+      clearInterval(heartbeat);
+      logStream.end(() => {
+        if (error) rejectPromise(error);
+        else resolvePromise(result);
+      });
+    }
+
+    child.stdout.on('data', (chunk) => {
+      logStream.write(chunk);
+      process.stdout.write(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      logStream.write(chunk);
+      process.stderr.write(chunk);
+    });
+    child.on('error', (error) => finish(error));
+    child.on('close', (status, signal) => {
+      const result = { status, signal };
+      if (!allowFailure && status !== 0) {
+        finish(
+          new Error(`${command} ${args.join(' ')} failed; see ${logPath}`),
+          result,
+        );
+        return;
+      }
+      finish(undefined, result);
+    });
+  });
 }
 
 function runtimeVersion(runtime) {
@@ -183,7 +248,7 @@ async function main() {
     console.log(
       '3/4 Building the real Release app with embedded JavaScript...',
     );
-    runLogged(
+    await runLoggedStreaming(
       'xcodebuild',
       [
         '-workspace',
@@ -206,7 +271,10 @@ async function main() {
         'CODE_SIGNING_ALLOWED=NO',
         'build',
       ],
-      { logPath: xcodebuildLog },
+      {
+        logPath: xcodebuildLog,
+        heartbeatLabel: 'iOS Release xcodebuild',
+      },
     );
 
     const appPath = findBuiltApp(derivedDataPath);
