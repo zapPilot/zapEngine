@@ -258,6 +258,7 @@ export function useBridgeTest() {
           if (approvalReceipt.status !== 'success') {
             throw new Error('USDC approval transaction reverted.');
           }
+          if (controller.signal.aborted) return;
         }
 
         setState((current) => ({
@@ -283,6 +284,7 @@ export function useBridgeTest() {
         if (sourceReceipt.status !== 'success') {
           throw new Error('Bridge source transaction reverted.');
         }
+        if (controller.signal.aborted) return;
 
         setState((current) => ({ ...current, status: 'bridging' }));
         const bridgeStatus = await waitForBridgeCompletion({
@@ -291,6 +293,7 @@ export function useBridgeTest() {
           toChain: request.toChainId,
           signal: controller.signal,
         });
+        if (controller.signal.aborted) return;
         const destinationTxHash = bridgeStatus.receiving?.txHash ?? null;
 
         if (
@@ -308,6 +311,7 @@ export function useBridgeTest() {
             expectedUsd6: BigInt(quote.estimate.toAmountMin),
             signal: controller.signal,
           });
+          if (controller.signal.aborted) return;
         }
 
         setState((current) => ({
