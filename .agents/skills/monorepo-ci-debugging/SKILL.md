@@ -81,6 +81,12 @@ gh run view <run-id> --log-failed
 Fix the whole batch of red jobs, then push once. Do not push after every tiny fix
 just to let CI reveal the next failure.
 
+## iOS Release smoke
+
+For cancelled or timed-out `ios-release-smoke` runs without a compiler/test
+error, follow [IOS_RELEASE_SMOKE.md](./IOS_RELEASE_SMOKE.md) before changing app
+code. Local parity uses `--log-order=stream` so native progress stays visible.
+
 ## Evidence & completion rules
 
 - Evidence is the **latest completed run** on the target ref (or `gh pr checks`
