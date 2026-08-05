@@ -234,6 +234,7 @@ export function useBridgeTest() {
           hyperliquidBaseline = (
             await getPerpUsdcBalance({ user: userAddress })
           ).withdrawableUsd6;
+          if (controller.signal.aborted) return;
         }
 
         if (approvalNeeded && quote.approval) {
