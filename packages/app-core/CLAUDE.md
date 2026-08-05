@@ -46,6 +46,15 @@ web-only subpaths via `no-restricted-imports`.
 - New env keys keep the `VITE_` prefix — native hosts map their
   `EXPO_PUBLIC_*` values onto the `VITE_` keys in their bootstrap file.
 
+## Bridge reset concurrency
+
+`useBridgeTest.reset()` is authoritative: stale async work must not restore
+status, hashes, quote, or errors after reset. For every new awaited external
+boundary in the bridge flow, check the current abort signal before continuing or
+publishing state; aborted errors are swallowed. Regression tests must pause that
+promise, reset, then resolve and reject it, asserting no downstream calls and a
+fully cleared `idle` state.
+
 ## Adding a web-only module
 
 If a new module genuinely needs the DOM or a web-only library, add it to
