@@ -220,4 +220,46 @@ describe('useBridgeTest reset during chain switch', () => {
     expect(result.current.destinationTxHash).toBeNull();
     expect(result.current.lifiScanUrl).toBeNull();
   });
+
+  it('stops after Hyperliquid baseline lookup finishes following reset', async () => {
+    let resolveBaseline!: (balance: { withdrawableUsd6: bigint }) => void;
+    mocks.switchChain.mockResolvedValue(undefined);
+    mocks.getPerpUsdcBalance.mockImplementation(
+      () =>
+        new Promise<{ withdrawableUsd6: bigint }>((resolve) => {
+          resolveBaseline = resolve;
+        }),
+    );
+
+    const { result } = renderHook(() => useBridgeTest());
+    let execution!: Promise<void>;
+    const hyperliquidRequest = { ...request, toChainId: 1337 } as const;
+
+    await act(async () => {
+      execution = result.current.execute(hyperliquidRequest);
+      await vi.waitFor(() => {
+        expect(mocks.getPerpUsdcBalance).toHaveBeenCalledWith({ user: USER });
+      });
+    });
+
+    act(() => {
+      result.current.reset();
+    });
+
+    await act(async () => {
+      resolveBaseline({ withdrawableUsd6: 5000000n });
+      await execution;
+    });
+
+    expect(mocks.sendTransaction).not.toHaveBeenCalled();
+    expect(mocks.sendPreparedTransaction).not.toHaveBeenCalled();
+    expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
+    expect(mocks.waitForPerpUsdcArrival).not.toHaveBeenCalled();
+    expect(result.current.status).toBe('idle');
+    expect(result.current.error).toBeNull();
+    expect(result.current.quote).toBeNull();
+    expect(result.current.sourceTxHash).toBeNull();
+    expect(result.current.destinationTxHash).toBeNull();
+    expect(result.current.lifiScanUrl).toBeNull();
+  });
 });
