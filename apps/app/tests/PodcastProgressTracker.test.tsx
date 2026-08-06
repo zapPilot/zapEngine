@@ -188,6 +188,36 @@ describe('PodcastProgressTracker persistence lifecycle', () => {
   });
 });
 
+describe('PodcastProgressTracker completion', () => {
+  it('marks an episode completed only after its final section finishes', () => {
+    const sections = [
+      { kind: 'main' as const, hlsUrl: episode.hlsUrl },
+      {
+        kind: 'classroom' as const,
+        hlsUrl: 'https://example.com/classroom.m3u8',
+      },
+    ];
+
+    player = makePlayer({
+      currentTime: 298,
+      duration: 300,
+      currentSection: 'main',
+      sections,
+    });
+    renderTracker();
+    expect(progressContext.markListened).not.toHaveBeenCalled();
+
+    player = makePlayer({
+      currentTime: 88,
+      duration: 90,
+      currentSection: 'classroom',
+      sections,
+    });
+    renderTracker();
+    expect(progressContext.markListened).toHaveBeenCalledWith('episode', true);
+  });
+});
+
 describe('PodcastProgressTracker resume', () => {
   it('waits for hydration before resuming the main section', () => {
     progressContext = {
