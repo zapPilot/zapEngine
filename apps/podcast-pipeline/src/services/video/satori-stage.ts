@@ -7,8 +7,6 @@ import type { ResolvedSlideAsset } from './assets.js';
 import {
   LANDSCAPE_OUTPUT_HEIGHT,
   LANDSCAPE_OUTPUT_WIDTH,
-  PORTRAIT_OUTPUT_HEIGHT,
-  PORTRAIT_OUTPUT_WIDTH,
   RASTER_SCALE,
   type Slide,
 } from './manifest.js';
@@ -16,6 +14,8 @@ import { videoAssetPaths } from './runtime-assets.js';
 import {
   type BrandFrameContent,
   type OutroContent,
+  PORTRAIT_TEMPLATE_HEIGHT,
+  PORTRAIT_TEMPLATE_WIDTH,
   renderBrandFrameElement,
   renderOutroElement,
   renderSlideElement,
@@ -24,10 +24,15 @@ import {
 // Slides keep the frozen landscape canvas that stored v1/v2 templates were
 // designed for; the portrait brand frame and outro card are the only stage
 // kinds rendered at the 9:16 canvas.
+export interface PortraitRasterOutput {
+  width: number;
+  height: number;
+}
+
 export type SatoriStageInput =
   | { kind?: 'slide'; slide: Slide; asset: ResolvedSlideAsset }
-  | { kind: 'frame'; frame: BrandFrameContent }
-  | { kind: 'outro'; outro: OutroContent };
+  | { kind: 'frame'; frame: BrandFrameContent; output: PortraitRasterOutput }
+  | { kind: 'outro'; outro: OutroContent; output: PortraitRasterOutput };
 
 function fontArrayBuffer(buffer: Buffer): ArrayBuffer {
   return Uint8Array.from(buffer).buffer;
@@ -101,15 +106,15 @@ async function stageElementAndSize(
   if (input.kind === 'frame') {
     return {
       element: renderBrandFrameElement(input.frame, logoDataUri),
-      width: PORTRAIT_OUTPUT_WIDTH * RASTER_SCALE,
-      height: PORTRAIT_OUTPUT_HEIGHT * RASTER_SCALE,
+      width: PORTRAIT_TEMPLATE_WIDTH,
+      height: PORTRAIT_TEMPLATE_HEIGHT,
     };
   }
   if (input.kind === 'outro') {
     return {
       element: renderOutroElement(input.outro, logoDataUri),
-      width: PORTRAIT_OUTPUT_WIDTH * RASTER_SCALE,
-      height: PORTRAIT_OUTPUT_HEIGHT * RASTER_SCALE,
+      width: PORTRAIT_TEMPLATE_WIDTH,
+      height: PORTRAIT_TEMPLATE_HEIGHT,
     };
   }
   const asset = await materializeAssetDataUri(input.asset);

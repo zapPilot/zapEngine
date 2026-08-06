@@ -6,7 +6,7 @@ import type { ImageCandidate } from '../../types.js';
 const BING_IMAGES_SEARCH_ENDPOINT = 'https://www.bing.com/images/search';
 const DEFAULT_RESULT_COUNT = 35;
 const MAX_RESULT_COUNT = 150;
-// aspect-square favors sources that survive the near-square 1080x960 media
+// aspect-square favors sources that survive the near-square 720x640 media
 // window crop of the vertical news layout.
 const BING_IMAGE_QUALITY_FILTERS =
   '+filterui:imagesize-large+filterui:aspect-square+filterui:photo-photo';

@@ -22,9 +22,10 @@ afterEach(async () => {
 });
 
 describe('runSharpScaleStage', () => {
-  it('halves a 2x master to its output size and keeps the alpha channel', async () => {
+  it('resizes a portrait master to the explicit output size and keeps alpha', async () => {
     const directory = await createTestDirectory();
     const masterPath = join(directory, 'master.png');
+    const inputPath = join(directory, 'scale.json');
     const outputPath = join(directory, 'output.png');
     await sharp({
       create: {
@@ -37,7 +38,12 @@ describe('runSharpScaleStage', () => {
       .png()
       .toFile(masterPath);
 
-    await runSharpScaleStage(masterPath, outputPath);
+    await writeFile(
+      inputPath,
+      JSON.stringify({ imagePath: masterPath, width: 216, height: 384 }),
+      'utf8',
+    );
+    await runSharpScaleStage(inputPath, outputPath);
 
     const metadata = await sharp(outputPath).metadata();
     expect(metadata.width).toBe(216);
@@ -47,12 +53,18 @@ describe('runSharpScaleStage', () => {
     expect(stats.channels[3]?.max).toBe(0);
   });
 
-  it('rejects a master whose dimensions cannot be read', async () => {
+  it('rejects a scale request whose source image cannot be decoded', async () => {
     const directory = await createTestDirectory();
     const bogusPath = join(directory, 'bogus.png');
+    const inputPath = join(directory, 'scale.json');
     await writeFile(bogusPath, 'not a png', 'utf8');
+    await writeFile(
+      inputPath,
+      JSON.stringify({ imagePath: bogusPath, width: 216, height: 384 }),
+      'utf8',
+    );
     await expect(
-      runSharpScaleStage(bogusPath, join(directory, 'out.png')),
+      runSharpScaleStage(inputPath, join(directory, 'out.png')),
     ).rejects.toThrow();
   });
 });

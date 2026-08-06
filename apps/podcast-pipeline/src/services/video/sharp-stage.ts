@@ -2,55 +2,79 @@ import { readFile } from 'node:fs/promises';
 
 import sharp from 'sharp';
 
-import {
-  LANDSCAPE_OUTPUT_HEIGHT,
-  LANDSCAPE_OUTPUT_WIDTH,
-  RASTER_SCALE,
-} from './manifest.js';
+import { LANDSCAPE_OUTPUT_HEIGHT, LANDSCAPE_OUTPUT_WIDTH } from './manifest.js';
 
 function configureSharp(): void {
   sharp.cache(false);
   sharp.concurrency(1);
 }
 
-// The plain sharp stage serves only legacy landscape slide rasters; portrait
-// cards go through runSharpScaleStage below.
-export async function runSharpStage(
-  inputPath: string,
-  outputPath: string,
-): Promise<void> {
+async function resizeImageToPng(input: {
+  imagePath: string;
+  outputPath: string;
+  width: number;
+  height: number;
+  position?: string;
+}): Promise<void> {
   configureSharp();
-  await sharp(inputPath, { failOn: 'error' })
-    .resize(LANDSCAPE_OUTPUT_WIDTH, LANDSCAPE_OUTPUT_HEIGHT, {
-      fit: 'fill',
+  const image = sharp(input.imagePath, {
+    failOn: 'error',
+    animated: false,
+  });
+  if (input.position) image.rotate();
+  await image
+    .resize(input.width, input.height, {
+      fit: input.position ? 'cover' : 'fill',
+      ...(input.position ? { position: input.position } : {}),
       kernel: sharp.kernel.lanczos3,
     })
     .png({ compressionLevel: 9, adaptiveFiltering: true })
-    .toFile(outputPath);
+    .toFile(input.outputPath);
 }
 
-// Downscales a satori/resvg master to its 1x output size, derived from the
-// master's own dimensions so portrait and landscape masters both work. PNG
-// output keeps the alpha channel — the brand frame relies on its transparent
+async function readResizeInput<T extends SharpScaleStageInput>(
+  inputPath: string,
+  label: string,
+): Promise<T> {
+  const input = JSON.parse(await readFile(inputPath, 'utf8')) as T;
+  if (!input.imagePath || !input.width || !input.height) {
+    throw new Error(`${label} input is missing imagePath or size`);
+  }
+  return input;
+}
+
+// The plain sharp stage serves only legacy landscape slide rasters; portrait
+// cards go through runSharpScaleStage below.
+export function runSharpStage(
+  inputPath: string,
+  outputPath: string,
+): Promise<void> {
+  return resizeImageToPng({
+    imagePath: inputPath,
+    outputPath,
+    width: LANDSCAPE_OUTPUT_WIDTH,
+    height: LANDSCAPE_OUTPUT_HEIGHT,
+  });
+}
+
+export interface SharpScaleStageInput {
+  imagePath: string;
+  width: number;
+  height: number;
+}
+
+// Downscales a fixed portrait design master to the manifest's explicit output
+// size. PNG output keeps alpha — the brand frame relies on its transparent
 // media window.
 export async function runSharpScaleStage(
   inputPath: string,
   outputPath: string,
 ): Promise<void> {
-  configureSharp();
-  const image = sharp(inputPath, { failOn: 'error' });
-  const metadata = await image.metadata();
-  if (!metadata.width || !metadata.height) {
-    throw new Error('Sharp scale stage could not read master dimensions');
-  }
-  await image
-    .resize(
-      Math.round(metadata.width / RASTER_SCALE),
-      Math.round(metadata.height / RASTER_SCALE),
-      { fit: 'fill', kernel: sharp.kernel.lanczos3 },
-    )
-    .png({ compressionLevel: 9, adaptiveFiltering: true })
-    .toFile(outputPath);
+  const input = await readResizeInput<SharpScaleStageInput>(
+    inputPath,
+    'Sharp scale stage',
+  );
+  await resizeImageToPng({ ...input, outputPath });
 }
 
 export interface SharpCropStageInput {
@@ -70,20 +94,13 @@ export async function runSharpCropStage(
   inputPath: string,
   outputPath: string,
 ): Promise<void> {
-  configureSharp();
-  const input = JSON.parse(
-    await readFile(inputPath, 'utf8'),
-  ) as SharpCropStageInput;
-  if (!input.imagePath || !input.width || !input.height) {
-    throw new Error('Sharp crop stage input is missing imagePath or size');
-  }
-  await sharp(input.imagePath, { failOn: 'error', animated: false })
-    .rotate()
-    .resize(input.width, input.height, {
-      fit: 'cover',
-      position: cropPositions[input.position] ?? 'centre',
-      kernel: sharp.kernel.lanczos3,
-    })
-    .png({ compressionLevel: 9, adaptiveFiltering: true })
-    .toFile(outputPath);
+  const input = await readResizeInput<SharpCropStageInput>(
+    inputPath,
+    'Sharp crop stage',
+  );
+  await resizeImageToPng({
+    ...input,
+    outputPath,
+    position: cropPositions[input.position] ?? 'centre',
+  });
 }

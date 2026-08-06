@@ -2,19 +2,19 @@ import { tokens } from '@zapengine/design-tokens/tokens';
 import type { CSSProperties, ReactElement } from 'react';
 
 import type { ResolvedSlideAsset } from './assets.js';
-import {
-  MEDIA_WINDOW,
-  PORTRAIT_OUTPUT_HEIGHT,
-  PORTRAIT_OUTPUT_WIDTH,
-  RASTER_SCALE,
-  type Slide,
-  type SlideSource,
-} from './manifest.js';
+import type { Slide, SlideSource } from './manifest.js';
 
 const canvasWidth = 3_840;
 const canvasHeight = 2_160;
-const portraitCanvasWidth = PORTRAIT_OUTPUT_WIDTH * RASTER_SCALE;
-const portraitCanvasHeight = PORTRAIT_OUTPUT_HEIGHT * RASTER_SCALE;
+// Keep the portrait design space frozen at the original v3 master size. The
+// isolated Sharp stage scales this master to either stored v3 (1080p) or new
+// v4 (720p) output dimensions without changing the layout proportions.
+export const PORTRAIT_TEMPLATE_WIDTH = 2_160;
+export const PORTRAIT_TEMPLATE_HEIGHT = 3_840;
+const portraitCanvasWidth = PORTRAIT_TEMPLATE_WIDTH;
+const portraitCanvasHeight = PORTRAIT_TEMPLATE_HEIGHT;
+const portraitMediaTop = 1_240;
+const portraitMediaBottom = 3_160;
 const sans = 'Noto Sans TC';
 const mono = 'JetBrains Mono';
 
@@ -794,8 +794,8 @@ function BrandFrameTemplate({
   frame: BrandFrameContent;
   logoDataUri: string;
 }>): ReactElement {
-  const topBandHeight = MEDIA_WINDOW.y * RASTER_SCALE;
-  const bottomBandTop = (MEDIA_WINDOW.y + MEDIA_WINDOW.height) * RASTER_SCALE;
+  const topBandHeight = portraitMediaTop;
+  const bottomBandTop = portraitMediaBottom;
 
   return (
     <div

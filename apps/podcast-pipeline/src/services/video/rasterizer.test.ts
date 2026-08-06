@@ -120,24 +120,30 @@ describe('portrait card rasterization', () => {
       output: join(directory, 'out', 'frame.png'),
     };
     const frame = { kicker: '鏈上快訊', titleLines: ['世界盃最賺錢的生意'] };
+    const output = { width: 720, height: 1280 };
     const calls: string[] = [];
+    let satoriPayload: unknown;
     const runStage = vi.fn(
-      async (stage: string, input: string, output: string) => {
-        calls.push(`${stage}:${input}->${output}`);
-        await writeFile(output, stage, 'utf8');
+      async (stage: string, input: string, stageOutput: string) => {
+        if (stage === 'satori') {
+          satoriPayload = JSON.parse(await readFile(input, 'utf8'));
+        }
+        calls.push(`${stage}:${input}->${stageOutput}`);
+        await writeFile(stageOutput, stage, 'utf8');
       },
     );
 
-    await rasterizeBrandFrame(frame, paths, { runStage });
+    await rasterizeBrandFrame(frame, output, paths, { runStage });
 
+    expect(satoriPayload).toEqual({ kind: 'frame', frame, output });
     expect(JSON.parse(await readFile(paths.input, 'utf8'))).toEqual({
-      kind: 'frame',
-      frame,
+      imagePath: paths.master,
+      ...output,
     });
     expect(calls).toEqual([
       `satori:${paths.input}->${paths.svg}`,
       `resvg:${paths.svg}->${paths.master}`,
-      `sharp-scale:${paths.master}->${paths.output}`,
+      `sharp-scale:${paths.input}->${paths.output}`,
     ]);
   });
 
@@ -150,16 +156,22 @@ describe('portrait card rasterization', () => {
       output: join(directory, 'out', 'outro.png'),
     };
     const outro = { title: 'From Fed to Chain', callToAction: '訂閱・分享' };
+    const output = { width: 720, height: 1280 };
     const stages: string[] = [];
-    const runStage = vi.fn(async (stage: string) => {
+    let satoriPayload: unknown;
+    const runStage = vi.fn(async (stage: string, input: string) => {
+      if (stage === 'satori') {
+        satoriPayload = JSON.parse(await readFile(input, 'utf8'));
+      }
       stages.push(stage);
     });
 
-    await rasterizeOutro(outro, paths, { runStage });
+    await rasterizeOutro(outro, output, paths, { runStage });
 
+    expect(satoriPayload).toEqual({ kind: 'outro', outro, output });
     expect(JSON.parse(await readFile(paths.input, 'utf8'))).toEqual({
-      kind: 'outro',
-      outro,
+      imagePath: paths.master,
+      ...output,
     });
     expect(stages).toEqual(['satori', 'resvg', 'sharp-scale']);
   });

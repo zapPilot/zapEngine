@@ -560,9 +560,13 @@ describe('shared visual plan and locale manifest materialization', () => {
       audioSource: '/audio/en.m4a',
     });
 
-    expect(manifest.schemaVersion).toBe('podcast-slide-video.v3');
+    expect(manifest.schemaVersion).toBe('podcast-slide-video.v4');
     expect(manifest.rendererVersion).toBe(TRUSTED_RENDERER_VERSION);
-    expect(manifest.clip).toMatchObject({ width: 1080, height: 1920 });
+    expect(manifest.clip).toMatchObject({
+      width: 720,
+      height: 1280,
+      fps: 24,
+    });
     expect(manifest.audio.narrationDurationMs).toBe(20_000);
     expect(manifest.clip.durationMs).toBe(20_000 + OUTRO_TAIL_MS);
     expect(manifest.headline.titleLines).toEqual(['Markets']);
@@ -595,12 +599,12 @@ describe('shared visual plan and locale manifest materialization', () => {
     const timing: CanonicalAudioTiming = {
       durationMs: 10_000,
       sentences: [
-        { sentence: sentences[0]!, startMs: 0, endMs: 100 },
-        { sentence: sentences[1]!, startMs: 100, endMs: 10_000 },
+        { sentence: sentences[0]!, startMs: 0, endMs: 125 },
+        { sentence: sentences[1]!, startMs: 125, endMs: 10_000 },
       ],
       captions: [
-        { startMs: 0, endMs: 100, text: 'Brief.' },
-        { startMs: 100, endMs: 10_000, text: 'Markets changed.' },
+        { startMs: 0, endMs: 125, text: 'Brief.' },
+        { startMs: 125, endMs: 10_000, text: 'Markets changed.' },
       ],
       silences: [],
     };
@@ -634,7 +638,7 @@ describe('shared visual plan and locale manifest materialization', () => {
       audioSource: '/audio/en.m4a',
     });
 
-    expect(manifest.clip.transitionMs).toBe(67);
+    expect(manifest.clip.transitionMs).toBe(83);
   });
 
   it('throws when scene alignment count mismatches visual plan scenes', () => {

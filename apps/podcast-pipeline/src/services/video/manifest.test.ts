@@ -102,7 +102,7 @@ function createImageManifest(): ImageVideoManifest {
 
 function createVerticalManifest(): VerticalVideoManifest {
   return parseVerticalVideoManifest({
-    schemaVersion: 'podcast-slide-video.v3',
+    schemaVersion: 'podcast-slide-video.v4',
     rendererVersion: 'satori-resvg-v4',
     episode: {
       id: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
@@ -113,12 +113,12 @@ function createVerticalManifest(): VerticalVideoManifest {
     clip: {
       startMs: 0,
       durationMs: 90_000 + OUTRO_TAIL_MS,
-      width: 1080,
-      height: 1920,
-      fps: 30,
-      transitionMs: 200,
+      width: 720,
+      height: 1280,
+      fps: 24,
+      transitionMs: 208,
     },
-    mediaWindow: { x: 0, y: 620, width: 1080, height: 960 },
+    mediaWindow: { x: 0, y: 413, width: 720, height: 640 },
     headline: {
       kicker: '鏈上快訊',
       titleLines: ['世界盃最賺錢的生意'],
@@ -165,26 +165,44 @@ function createVerticalManifest(): VerticalVideoManifest {
   });
 }
 
-describe('vertical news video manifest (v3)', () => {
-  it('parses a portrait manifest with headline, bgm, and outro tail', () => {
+describe('vertical news video manifest (v4)', () => {
+  it('parses a 720p/24fps portrait manifest with headline, bgm, and outro tail', () => {
     const manifest = createVerticalManifest();
-    expect(manifest.schemaVersion).toBe('podcast-slide-video.v3');
-    expect(manifest.clip).toMatchObject({ width: 1080, height: 1920 });
+    expect(manifest.schemaVersion).toBe('podcast-slide-video.v4');
+    expect(manifest.clip).toMatchObject({ width: 720, height: 1280, fps: 24 });
     expect(manifest.clip.durationMs).toBe(
       manifest.audio.narrationDurationMs + OUTRO_TAIL_MS,
     );
     expect(manifest.mediaWindow).toEqual({
       x: 0,
-      y: 620,
-      width: 1080,
-      height: 960,
+      y: 413,
+      width: 720,
+      height: 640,
     });
     expect(parseSlideVideoManifest(manifest)).toMatchObject({
-      schemaVersion: 'podcast-slide-video.v3',
+      schemaVersion: 'podcast-slide-video.v4',
     });
   });
 
-  it('rejects landscape clip dimensions on a v3 manifest', () => {
+  it('still parses stored v3 portrait manifests', () => {
+    const current = createVerticalManifest();
+    const legacy = parseVerticalVideoManifest({
+      ...current,
+      schemaVersion: 'podcast-slide-video.v3',
+      clip: {
+        ...current.clip,
+        width: 1080,
+        height: 1920,
+        fps: 30,
+        transitionMs: 200,
+      },
+      mediaWindow: { x: 0, y: 620, width: 1080, height: 960 },
+    });
+    expect(legacy.schemaVersion).toBe('podcast-slide-video.v3');
+    expect(legacy.clip).toMatchObject({ width: 1080, height: 1920, fps: 30 });
+  });
+
+  it('rejects landscape clip dimensions on a v4 manifest', () => {
     const manifest = structuredClone(createVerticalManifest()) as unknown as {
       clip: { width: number; height: number };
     };

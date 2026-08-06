@@ -324,18 +324,18 @@ function createVerticalManifest(): VerticalVideoManifest {
     { schemaVersion: 'podcast-slide-video.v2' }
   >;
   return {
-    schemaVersion: 'podcast-slide-video.v3',
+    schemaVersion: 'podcast-slide-video.v4',
     rendererVersion: 'satori-resvg-v4',
     episode: base.episode,
     clip: {
       startMs: 0,
       durationMs: 17_800,
-      width: 1080,
-      height: 1920,
-      fps: 30,
-      transitionMs: 200,
+      width: 720,
+      height: 1280,
+      fps: 24,
+      transitionMs: 208,
     },
-    mediaWindow: { x: 0, y: 620, width: 1080, height: 960 },
+    mediaWindow: { x: 0, y: 413, width: 720, height: 640 },
     headline: {
       kicker: '鏈上快訊',
       titleLines: ['美國高溫下電網拉響紅色警報'],
@@ -382,12 +382,18 @@ describe('renderSlideVideo (vertical news manifests)', () => {
       await writeFile(cardPaths.output, body, 'utf8');
     };
     const rasterizeFrame = vi.fn(
-      async (_frame: unknown, cardPaths: { output: string }) =>
-        writeCard(cardPaths, 'brand-frame'),
+      async (
+        _frame: unknown,
+        _output: { width: number; height: number },
+        cardPaths: { output: string },
+      ) => writeCard(cardPaths, 'brand-frame'),
     );
     const rasterizeOutroCard = vi.fn(
-      async (_outro: unknown, cardPaths: { output: string }) =>
-        writeCard(cardPaths, 'outro-card'),
+      async (
+        _outro: unknown,
+        _output: { width: number; height: number },
+        cardPaths: { output: string },
+      ) => writeCard(cardPaths, 'outro-card'),
     );
     const composeThumbnail = vi.fn(
       async (input: Parameters<typeof composeVerticalThumbnail>[0]) => {
@@ -422,8 +428,8 @@ describe('renderSlideVideo (vertical news manifests)', () => {
     expect(cropMedia).toHaveBeenCalledTimes(3);
     const firstCrop = cropMedia.mock.calls[0]?.[0];
     expect(firstCrop).toMatchObject({
-      width: 1080,
-      height: 960,
+      width: 720,
+      height: 640,
       position: 'center',
     });
     expect(firstCrop?.imagePath.endsWith('scene-01.jpg')).toBe(true);
@@ -435,12 +441,20 @@ describe('renderSlideVideo (vertical news manifests)', () => {
       title: 'From Fed to Chain',
       callToAction: '訂閱・分享・留言',
     });
+    expect(rasterizeFrame.mock.calls[0]?.[1]).toEqual({
+      width: 720,
+      height: 1280,
+    });
+    expect(rasterizeOutroCard.mock.calls[0]?.[1]).toEqual({
+      width: 720,
+      height: 1280,
+    });
     expect(composeThumbnail.mock.calls[0]?.[0]).toMatchObject({
       mediaPath: result.slideOutputPaths[0],
       framePath: result.framePath,
-      window: { x: 0, y: 620, width: 1080, height: 960 },
-      width: 1080,
-      height: 1920,
+      window: { x: 0, y: 413, width: 720, height: 640 },
+      width: 720,
+      height: 1280,
     });
     expect(renderVerticalVideo).toHaveBeenCalledOnce();
     expect(renderVerticalVideo.mock.calls[0]?.[0]).toMatchObject({
@@ -455,10 +469,10 @@ describe('renderSlideVideo (vertical news manifests)', () => {
         'music/bgm-02.mp3',
       ),
     ).toBe(true);
-    expect(renderedFilter).toContain('pad=1080:1920:0:620');
+    expect(renderedFilter).toContain('pad=720:1280:0:413');
     expect(renderedFilter).toContain('sidechaincompress=');
     expect(await readFile(result.subtitlePath, 'utf8')).toContain(
-      'PlayResX: 1080',
+      'PlayResX: 720',
     );
     expect(result.slideMasterPaths).toEqual([]);
     expect(progress).toEqual([

@@ -540,7 +540,7 @@ function loopedImageInputs(paths: readonly string[], fps: number): string[] {
 }
 
 // Ken Burns stills plus burned-in captions gain almost nothing from x264's
-// slower presets, and `slow` is what stalled production: a 1080x1920 render on
+// slower presets, and `slow` is what stalled production: a portrait render on
 // a throttled shared vCPU encoded at 0.004x realtime before the OOM killer took
 // ffmpeg. `veryfast` at crf 20 is visually equivalent on this material.
 const X264_PRESET = 'veryfast';

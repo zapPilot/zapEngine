@@ -7,7 +7,7 @@ import { abortError, throwIfAborted } from './abort.js';
 import type { ResolvedSlideAsset } from './assets.js';
 import type { Slide } from './manifest.js';
 import type { RasterStage } from './raster-stage-entry.js';
-import type { SatoriStageInput } from './satori-stage.js';
+import type { PortraitRasterOutput, SatoriStageInput } from './satori-stage.js';
 import type { SharpCropStageInput } from './sharp-stage.js';
 import type { BrandFrameContent, OutroContent } from './templates.js';
 
@@ -119,12 +119,11 @@ async function writeStageInputFile(
   await writeFile(inputPath, JSON.stringify(payload), 'utf8');
 }
 
-async function runRasterStages(
+async function renderSatoriMaster(
   stageInput: SatoriStageInput,
   paths: CardRasterPaths,
   options: RasterizeOptions,
-  finalStage: RasterStage,
-): Promise<void> {
+): Promise<RunStage> {
   const runStage = options.runStage ?? runRasterStage;
   throwIfAborted(options.signal);
   await writeStageInputFile(paths.input, stageInput, [
@@ -133,6 +132,16 @@ async function runRasterStages(
   ]);
   await runStage('satori', paths.input, paths.svg, options.signal);
   await runStage('resvg', paths.svg, paths.master, options.signal);
+  return runStage;
+}
+
+async function runRasterStages(
+  stageInput: SatoriStageInput,
+  paths: CardRasterPaths,
+  options: RasterizeOptions,
+  finalStage: RasterStage,
+): Promise<void> {
+  const runStage = await renderSatoriMaster(stageInput, paths, options);
   await runStage(finalStage, paths.master, paths.output, options.signal);
 }
 
@@ -149,31 +158,48 @@ export async function rasterizeSlide(
   await runRasterStages({ slide, asset }, paths, options, 'sharp');
 }
 
-function rasterizePortraitCard(
+async function rasterizePortraitCard(
   stageInput: Extract<SatoriStageInput, { kind: 'frame' | 'outro' }>,
   paths: CardRasterPaths,
   options: RasterizeOptions,
 ): Promise<void> {
-  // sharp-scale keeps the alpha channel; the brand frame's transparent media
-  // window must survive down to the ffmpeg overlay input.
-  return runRasterStages(stageInput, paths, options, 'sharp-scale');
+  const runStage = await renderSatoriMaster(stageInput, paths, options);
+  // The fixed 2160x3840 design master is resized explicitly so stored v3 and
+  // new v4 manifests can retain their own output contracts.
+  await writeStageInputFile(
+    paths.input,
+    {
+      imagePath: paths.master,
+      width: stageInput.output.width,
+      height: stageInput.output.height,
+    },
+    [paths.output],
+  );
+  await runStage('sharp-scale', paths.input, paths.output, options.signal);
 }
 
+/* jscpd:ignore-start -- symmetric typed adapters preserve distinct frame/outro APIs */
 export function rasterizeBrandFrame(
   frame: BrandFrameContent,
+  output: PortraitRasterOutput,
   paths: CardRasterPaths,
   options: RasterizeOptions = {},
 ): Promise<void> {
-  return rasterizePortraitCard({ kind: 'frame', frame }, paths, options);
+  const input = { kind: 'frame' as const, frame, output };
+  return rasterizePortraitCard(input, paths, options);
 }
 
 export function rasterizeOutro(
   outro: OutroContent,
+  output: PortraitRasterOutput,
   paths: CardRasterPaths,
   options: RasterizeOptions = {},
 ): Promise<void> {
-  return rasterizePortraitCard({ kind: 'outro', outro }, paths, options);
+  const input = { kind: 'outro' as const, outro, output };
+  return rasterizePortraitCard(input, paths, options);
 }
+
+/* jscpd:ignore-end */
 
 export async function cropMediaImage(
   crop: SharpCropStageInput,

@@ -804,7 +804,7 @@ describe('createVideoWorker', () => {
 
     worker.start();
     expect(logger.info).toHaveBeenCalledWith(
-      '[video-worker] started lease_owner=host-1:42:uuid visual_version=podcast-image-visual-plan.v3',
+      '[video-worker] started lease_owner=host-1:42:uuid visual_version=podcast-image-visual-plan.v4',
     );
     await worker.stop();
   });

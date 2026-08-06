@@ -21,10 +21,10 @@ import {
   renderVerticalSlideVideo,
 } from './ffmpeg-video.js';
 import {
+  isVerticalVideoManifest,
   parseSlideVideoManifest,
   type Slide,
   type SlideVideoManifest,
-  VERTICAL_VIDEO_SCHEMA_VERSION,
   type VerticalVideoManifest,
 } from './manifest.js';
 import {
@@ -34,7 +34,11 @@ import {
   rasterizeSlide,
 } from './rasterizer.js';
 import { bgmTrackPath, videoAssetPaths } from './runtime-assets.js';
-import { createAssSubtitles, PORTRAIT_SUBTITLE_LAYOUT } from './subtitles.js';
+import { createAssSubtitles, portraitSubtitleLayoutFor } from './subtitles.js';
+import {
+  PORTRAIT_TEMPLATE_HEIGHT,
+  PORTRAIT_TEMPLATE_WIDTH,
+} from './templates.js';
 
 type ResolvedImageAsset = Extract<ResolvedSlideAsset, { kind: 'image' }>;
 
@@ -130,6 +134,9 @@ function renderReportMarkdown(
   manifestHash: string,
   assets: { slide: Slide; asset: ResolvedImageAsset }[],
 ): string {
+  const masterSize = isVerticalVideoManifest(manifest)
+    ? `${PORTRAIT_TEMPLATE_WIDTH}×${PORTRAIT_TEMPLATE_HEIGHT}`
+    : `${manifest.clip.width * 2}×${manifest.clip.height * 2}`;
   const assetRows = assets.map(({ slide, asset }) => {
     const result = `${asset.width}×${asset.height} ${asset.layout}`;
     return `| ${slide.id} | ${slide.template} | ${result} |`;
@@ -140,7 +147,7 @@ function renderReportMarkdown(
     `- Renderer: \`${manifest.rendererVersion}\``,
     `- Manifest SHA-256: \`${manifestHash}\``,
     `- Canvas: ${manifest.clip.width}×${manifest.clip.height} at ${manifest.clip.fps} fps`,
-    `- Master raster: ${manifest.clip.width * 2}×${manifest.clip.height * 2}`,
+    `- Master raster: ${masterSize}`,
     `- Duration: ${(manifest.clip.durationMs / 1_000).toFixed(3)} seconds`,
     `- Slides: ${manifest.slides.length}`,
     '- Raster memory isolation: Satori, Resvg, and Sharp execute in separate child processes.',
@@ -208,7 +215,12 @@ export async function renderSlideVideo(
     .digest('hex');
   const workDirectory = await mkdtemp(join(tmpdir(), 'podcast-slide-video-'));
   const mastersDirectory = join(options.outputDirectory, 'slides', 'master');
-  const outputsDirectory = join(options.outputDirectory, 'slides', '1080p');
+  const vertical = isVerticalVideoManifest(manifest);
+  const outputsDirectory = join(
+    options.outputDirectory,
+    'slides',
+    vertical ? `${manifest.clip.width}x${manifest.clip.height}` : '1080p',
+  );
   const storyboardPath = join(options.outputDirectory, 'storyboard.json');
   const subtitlePath = join(options.outputDirectory, 'captions.ass');
   const sourcesPath = join(options.outputDirectory, 'sources.md');
@@ -224,21 +236,20 @@ export async function renderSlideVideo(
   ]);
 
   try {
-    const isVertical = manifest.schemaVersion === VERTICAL_VIDEO_SCHEMA_VERSION;
     await Promise.all([
       writeFile(storyboardPath, canonicalManifest, 'utf8'),
       writeFile(
         subtitlePath,
         createAssSubtitles(
           manifest.captions,
-          isVertical ? PORTRAIT_SUBTITLE_LAYOUT : undefined,
+          vertical ? portraitSubtitleLayoutFor(manifest) : undefined,
         ),
         'utf8',
       ),
       writeFile(sourcesPath, sourceListMarkdown(manifest), 'utf8'),
     ]);
 
-    if (manifest.schemaVersion === VERTICAL_VIDEO_SCHEMA_VERSION) {
+    if (vertical) {
       return await renderVerticalNewsVideo({
         manifest,
         manifestHash,
@@ -426,8 +437,13 @@ async function renderVerticalNewsVideo(context: {
   });
   const framePath = join(options.outputDirectory, 'frame.png');
   const outroPath = join(options.outputDirectory, 'outro.png');
+  const portraitOutput = {
+    width: manifest.clip.width,
+    height: manifest.clip.height,
+  };
   await dependencies.rasterizeFrame(
     manifest.headline,
+    portraitOutput,
     {
       input: join(context.workDirectory, 'frame.json'),
       svg: join(context.workDirectory, 'frame.svg'),
@@ -438,6 +454,7 @@ async function renderVerticalNewsVideo(context: {
   );
   await dependencies.rasterizeOutroCard(
     { title: manifest.outro.title, callToAction: manifest.outro.callToAction },
+    portraitOutput,
     {
       input: join(context.workDirectory, 'outro.json'),
       svg: join(context.workDirectory, 'outro.svg'),

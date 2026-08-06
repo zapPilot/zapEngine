@@ -23,9 +23,7 @@ export const LANDSCAPE_SUBTITLE_LAYOUT: SubtitleLayout = {
   maxLineUnits: MAX_LINE_UNITS,
 };
 
-// Sized for the 1080x1920 news layout: captions sit inside the bottom band
-// (y 1580-1920) below the media window.
-export const PORTRAIT_SUBTITLE_LAYOUT: SubtitleLayout = {
+const LEGACY_PORTRAIT_SUBTITLE_LAYOUT: SubtitleLayout = {
   playResX: 1080,
   playResY: 1920,
   fontSize: 56,
@@ -33,6 +31,25 @@ export const PORTRAIT_SUBTITLE_LAYOUT: SubtitleLayout = {
   marginV: 132,
   maxLineUnits: 17,
 };
+
+// Sized for the 720x1280 v4 news layout: captions remain in the bottom band
+// below the 720x640 media window.
+export const PORTRAIT_SUBTITLE_LAYOUT: SubtitleLayout = {
+  playResX: 720,
+  playResY: 1280,
+  fontSize: 38,
+  marginX: 36,
+  marginV: 88,
+  maxLineUnits: 17,
+};
+
+export function portraitSubtitleLayoutFor(
+  manifest: Pick<SlideVideoManifest, 'clip'>,
+): SubtitleLayout {
+  return manifest.clip.width === 1080 && manifest.clip.height === 1920
+    ? LEGACY_PORTRAIT_SUBTITLE_LAYOUT
+    : PORTRAIT_SUBTITLE_LAYOUT;
+}
 
 export function wrapSubtitle(
   text: string,

@@ -41,7 +41,7 @@ describe('podcast video audio analysis', () => {
     ).resolves.toEqual([{ startMs: 1_250, endMs: 1_750 }]);
   });
 
-  it('weights sentences, uses nearby silences, and snaps captions to 30fps', () => {
+  it('weights sentences, uses nearby silences, and snaps captions to 24fps', () => {
     const timing = buildWeightedCaptionTiming({
       script:
         '第一句比較短。第二句包含比較多的內容，用來測試字數權重。第三句收尾。',
@@ -55,8 +55,8 @@ describe('podcast video audio analysis', () => {
     expect(timing.captions[0]?.startMs).toBe(0);
     expect(timing.captions.at(-1)?.endMs).toBe(12_000);
     for (const caption of timing.captions) {
-      const startFrame = (caption.startMs * 30) / 1_000;
-      const endFrame = (caption.endMs * 30) / 1_000;
+      const startFrame = (caption.startMs * 24) / 1_000;
+      const endFrame = (caption.endMs * 24) / 1_000;
       expect(Math.abs(startFrame - Math.round(startFrame))).toBeLessThan(0.02);
       expect(Math.abs(endFrame - Math.round(endFrame))).toBeLessThan(0.02);
     }
@@ -71,7 +71,7 @@ describe('podcast video audio analysis', () => {
     for (const caption of timing.captions) {
       expect(caption.endMs).toBeGreaterThan(caption.startMs);
       for (const value of [caption.startMs, caption.endMs]) {
-        const nearestFrameMs = (Math.round((value * 30) / 1_000) * 1_000) / 30;
+        const nearestFrameMs = (Math.round((value * 24) / 1_000) * 1_000) / 24;
         expect(Math.abs(nearestFrameMs - value)).toBeLessThanOrEqual(0.51);
       }
     }

@@ -344,7 +344,7 @@ export function renderEpisodeSharePage(
 }
 
 // Renderer versions v1-v3 are the closed set of historical 16:9 renders;
-// every later renderer version produces the 1080x1920 vertical news layout.
+// every later renderer version produces the current portrait news layout.
 const LANDSCAPE_RENDERER_URL_SEGMENTS = [
   '/video/satori-resvg-v1/',
   '/video/satori-resvg-v2/',

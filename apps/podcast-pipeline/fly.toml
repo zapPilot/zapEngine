@@ -4,7 +4,10 @@
 #
 
 app = 'from-fed-to-chain-api'
-primary_region = 'nrt'
+# IAD is materially cheaper than NRT for both shared and performance Machines.
+# The pipeline is queue-driven and stores media in R2/Supabase, so it does not
+# require Tokyo-local compute latency.
+primary_region = 'iad'
 kill_signal = 'SIGINT'
 kill_timeout = '30s'
 
@@ -64,17 +67,18 @@ kill_timeout = '30s'
   processes = ['app']
 
 # Video rendering needs a dedicated CPU. A shared vCPU has a baseline of 1/16 of
-# a core, and once the burst balance is spent x264 collapses — a production
-# render was measured at speed=0.00434x, i.e. 25 minutes of wall clock for 6.6
-# seconds of video, which no lease can outlast.
+# a core, and once the burst balance is spent x264 collapses. New renders use
+# 720x1280 at 24fps, but performance CPU remains until production telemetry
+# proves a smaller shape is cheaper per completed video.
 #
 # The renderer also keeps dozens of decoded image inputs plus the xfade graph
 # alive during the final pass, so peak memory scales with scene count (roughly
 # one scene per 10s of narration). ffmpeg was OOM-killed at 1.73 GB against the
 # old 2 GB limit, and that figure is a floor on the true peak, not the peak.
 #
-# The size stays generous because on-demand billing already removes the 24/7
-# cost; trimming it would trade a small saving for the OOM this limit fixed.
+# Keep 4 GB during the 720p rollout. `video:render-metrics` logs cgroup peak
+# memory so performance-1x / 2 GB can be evaluated by completed-video cost
+# rather than hourly price alone.
 [[vm]]
   size = 'performance-2x'
   memory = '4gb'

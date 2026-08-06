@@ -30,11 +30,12 @@ const LIVENESS_INTERVAL_MS = 300_000;
 /**
  * How long the queue must stay empty before an on-demand render machine exits.
  *
- * Six minutes outlasts the longest retry backoff the claim RPCs hand out
- * (`next_attempt_at = now() + interval '5 minutes'`), so a job waiting on its
- * third attempt does not cost an extra stop/start cycle.
+ * Ninety seconds allows a freshly enqueued sibling job to become claimable,
+ * but does not keep a performance CPU running through the database's five-
+ * minute retry backoff. The always-on app reconciler wakes the machine again
+ * when `next_attempt_at` arrives.
  */
-const IDLE_SHUTDOWN_MS = 360_000;
+const IDLE_SHUTDOWN_MS = 90_000;
 
 export interface VideoWorkerProcessOptions {
   createWorker?: (options: CreateVideoWorkerOptions) => EpisodeVideoWorker;

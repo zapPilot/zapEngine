@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -131,6 +131,7 @@ export function createEpisodeVideoProcessor(
         EPISODE_VIDEO_RENDER_TIMEOUT_MS,
         `Video render exceeded ${Math.round(EPISODE_VIDEO_RENDER_TIMEOUT_MS / 60_000)}m`,
       );
+      const renderStartedAt = Date.now();
       const rendered = await dependencies
         .render({
           manifestPath,
@@ -147,6 +148,28 @@ export function createEpisodeVideoProcessor(
             );
             context.reportProgress(renderEventProgress(event));
           },
+        })
+        .then(async (result) => {
+          await logRenderMetrics(dependencies.logger, {
+            run: context.runId,
+            episode: source.episodeId,
+            language: source.languageCode,
+            status: 'completed',
+            wallMs: Date.now() - renderStartedAt,
+            durationMs: generated.manifest.clip.durationMs,
+          });
+          return result;
+        })
+        .catch(async (error: unknown) => {
+          await logRenderMetrics(dependencies.logger, {
+            run: context.runId,
+            episode: source.episodeId,
+            language: source.languageCode,
+            status: 'failed',
+            wallMs: Date.now() - renderStartedAt,
+            durationMs: generated.manifest.clip.durationMs,
+          });
+          throw error;
         })
         .finally(() => {
           renderDeadline.dispose();
@@ -236,6 +259,56 @@ function logLocaleVideoEvent(
     .map(([key, value]) => `${key}=${value}`)
     .join(' ');
   logger.info(`[video-worker] ${event} ${details}`);
+}
+
+async function readCgroupBytes(
+  paths: readonly string[],
+): Promise<number | null> {
+  for (const path of paths) {
+    try {
+      const value = Number((await readFile(path, 'utf8')).trim());
+      if (Number.isFinite(value) && value >= 0) return value;
+    } catch {
+      // Local development and non-Linux hosts do not expose cgroup files.
+    }
+  }
+  return null;
+}
+
+function bytesToMb(bytes: number): number {
+  return Math.round((bytes / 1024 / 1024) * 10) / 10;
+}
+
+async function logRenderMetrics(
+  logger: Pick<Console, 'info'>,
+  fields: {
+    run: string;
+    episode: string;
+    language: string;
+    status: 'completed' | 'failed';
+    wallMs: number;
+    durationMs: number;
+  },
+): Promise<void> {
+  const [cgroupCurrent, cgroupPeak] = await Promise.all([
+    readCgroupBytes([
+      '/sys/fs/cgroup/memory.current',
+      '/sys/fs/cgroup/memory/memory.usage_in_bytes',
+    ]),
+    readCgroupBytes([
+      '/sys/fs/cgroup/memory.peak',
+      '/sys/fs/cgroup/memory/memory.max_usage_in_bytes',
+    ]),
+  ]);
+  logLocaleVideoEvent(logger, 'video:render-metrics', {
+    ...fields,
+    realtime: (fields.durationMs / Math.max(fields.wallMs, 1)).toFixed(3),
+    processRssMb: bytesToMb(process.memoryUsage().rss),
+    ...(cgroupCurrent === null
+      ? {}
+      : { cgroupCurrentMb: bytesToMb(cgroupCurrent) }),
+    ...(cgroupPeak === null ? {} : { cgroupPeakMb: bytesToMb(cgroupPeak) }),
+  });
 }
 
 export const processEpisodeVideoJob = createEpisodeVideoProcessor();

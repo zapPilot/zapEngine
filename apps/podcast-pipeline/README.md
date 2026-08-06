@@ -46,7 +46,7 @@ Candidates must pass HTTPS/SSRF, download timeout, format, size, pixel-dimension
 
 Once the shared visual checkpoint completes, `zh-Hant`, `ja`, and `en` each use their own main HLS duration, sentence timing, subtitles, and audio to render a progressive MP4. The canonical scene IDs and images are shared, while semantic alignment maps every translated sentence continuously onto those scenes. Classroom HLS is an ingest-readiness check for the canonical localization only and is never used as video audio.
 
-Renders are **1080x1920 vertical news videos** (`podcast-slide-video.v3`, renderer `satori-resvg-v4`): a persistent brand frame (logo, localized kicker, headline card from the episode title) over a 1080x960 media window that plays the searched images with Ken Burns motion, narration-synced captions in the bottom band, a bundled BGM bed ducked under narration (`assets/video/music`, see its README for licensing), and a ~2.8 s outro card while the music tails out. Stored `v1`/`v2` landscape manifests keep parsing; resubmitting an episode URL revives the visual/render jobs at the new versions and writes to new R2 prefixes without touching old artifacts.
+Renders are **720x1280 vertical news videos at 24fps** (`podcast-slide-video.v4`, renderer `satori-resvg-v4`): a persistent brand frame (logo, localized kicker, headline card from the episode title) over a 720x640 media window that plays the searched images with Ken Burns motion, narration-synced captions in the bottom band, a bundled BGM bed ducked under narration (`assets/video/music`, see its README for licensing), and a ~2.8 s outro card while the music tails out. Stored `v1`/`v2` landscape and `v3` 1080x1920 manifests keep parsing; resubmitting an episode URL revives the visual/render jobs at the new version and writes to new R2 prefixes without touching old artifacts.
 
 Local renders need an ffmpeg >= 4.4 built with libass (`VIDEO_FFMPEG_PATH=$(which ffmpeg)`); the capability check names anything missing — note some Homebrew builds ship without libass.
 
@@ -88,7 +88,7 @@ longest step of a render.
 [/ingest] step:done run=abcd1234 name=generateScript elapsedMs=8421 rssMb=241
 ```
 
-`rssMb` is the API process's resident set size at that moment, carried on `step:waiting`, `step:done` and `run:done`. `fly logs | grep rssMb` is how the `app` machine's memory limit gets sized from measured peaks — the current 2 GB dates from when ffmpeg still shared this process, not from anything ingest itself needs.
+`rssMb` is the API process's resident set size at that moment, carried on `step:waiting`, `step:done` and `run:done`. `fly logs | grep rssMb` is how the `app` machine's memory limit gets sized from measured peaks. The API currently runs with 512 MB because FFmpeg is isolated in the render process.
 
 Background video logs use the same short-run convention and expose only safe operational metadata:
 
@@ -136,16 +136,16 @@ The webhook returns a fast 200 ack, then runs ingest in the background. Fly keep
 
 ## Deployment
 
-Fly.io via the zapEngine deploy registry. The Fly app name remains `from-fed-to-chain-api`.
+Fly.io via the zapEngine deploy registry. The Fly app name remains `from-fed-to-chain-api`. Both process groups are placed in `iad`, where the current shared and performance Machine rates are lower than `nrt`; queue and object-storage boundaries make the extra network latency acceptable for this background pipeline.
 
 Two process groups, because video rendering and the HTTP service cannot share a CPU:
 
 | Group    | Command               | Machine                 | Serves HTTP | Lifecycle          |
 | -------- | --------------------- | ----------------------- | ----------- | ------------------ |
-| `app`    | `node dist/index.js`  | `shared-cpu-1x` / 2 GB  | yes         | always on          |
-| `render` | `node dist/worker.js` | `performance-2x` / 8 GB | no          | on demand (opt-in) |
+| `app`    | `node dist/index.js`  | `shared-cpu-1x` / 512 MB | yes         | always on          |
+| `render` | `node dist/worker.js` | `performance-2x` / 4 GB  | no          | on demand (opt-in) |
 
-A shared vCPU has a baseline of 1/16 of a core, and once its burst balance is spent x264 collapses — a co-located render was measured at `speed=0.00434x` while starving `/health` past its 5 s timeout, which took the only instance out of the proxy pool. The `render` group therefore gets dedicated CPUs, and peak render memory scales with scene count (roughly one scene per 10 s of narration), so it gets 8 GB.
+A shared vCPU has a baseline of 1/16 of a core, and once its burst balance is spent x264 collapses — a co-located render was measured at `speed=0.00434x` while starving `/health` past its 5 s timeout, which took the only instance out of the proxy pool. The `render` group therefore keeps dedicated CPUs. New 720p renders log wall time, realtime factor, process RSS, and cgroup peak memory as `video:render-metrics`; the group stays at 4 GB until those measurements prove a smaller Machine is cheaper per completed video.
 
 The `render` group has no service and no health check; `[video-worker] alive` every five minutes is the liveness signal in `fly logs`. If a render machine dies, the 10-minute DB lease expires and the job is reclaimed on the next poll.
 
@@ -153,7 +153,7 @@ The `render` group has no service and no health check; `[video-worker] alive` ev
 
 Having no service also means Fly Proxy cannot auto-stop the `render` group, and a dedicated-CPU machine idling 24/7 is where nearly all of this app's hosting cost went. So the two groups split the job between them:
 
-- The worker exits `0` after six minutes of an empty queue. Under `[[restart]] policy = 'on-failure'` (fly.toml) that leaves the machine `stopped` — billed for storage only. Six minutes outlasts the longest retry backoff the claim RPCs hand out, so a job waiting on its third attempt does not pay for an extra stop/start cycle.
+- The worker exits `0` after 90 seconds of an empty queue. Under `[[restart]] policy = 'on-failure'` (fly.toml) that leaves the machine `stopped` — billed for storage only. It no longer keeps a performance CPU running through the five-minute retry backoff; the always-on app reconciler starts it again when `next_attempt_at` becomes claimable.
 - The always-on `app` process polls every 30 s for work the render group could actually claim and starts a stopped machine through the Machines API (`http://_api.internal:4280`, never leaving the private network). See `src/services/render-capacity.ts`.
 
 Provision the API token once — `fly tokens deploy` defaults to a 20-minute expiry, so the expiry must be given explicitly or waking silently stops working. The non-secret feature flag is already committed in `fly.toml`:

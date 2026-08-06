@@ -116,18 +116,18 @@ function createManifest(): SlideVideoManifest {
 function createVerticalManifest(): VerticalVideoManifest {
   const base = createManifest();
   return {
-    schemaVersion: 'podcast-slide-video.v3',
+    schemaVersion: 'podcast-slide-video.v4',
     rendererVersion: 'satori-resvg-v4',
     episode: base.episode,
     clip: {
       startMs: 0,
       durationMs: 17_800,
-      width: 1080,
-      height: 1920,
-      fps: 30,
-      transitionMs: 200,
+      width: 720,
+      height: 1280,
+      fps: 24,
+      transitionMs: 208,
     },
-    mediaWindow: { x: 0, y: 620, width: 1080, height: 960 },
+    mediaWindow: { x: 0, y: 413, width: 720, height: 640 },
     headline: { kicker: '鏈上快訊', titleLines: ['世界盃最賺錢的生意'] },
     audio: {
       sourceUrl: 'https://cdn.example.test/audio.m4a',
@@ -152,13 +152,13 @@ describe('vertical news FFmpeg composition', () => {
       '/render/fonts',
     );
 
-    expect(filter).toContain('scale=1080:960:');
-    expect(filter).toContain('s=1080x960');
+    expect(filter).toContain('scale=720:640:');
+    expect(filter).toContain('s=720x640');
     expect(filter).toContain(
-      'xfade=transition=fade:duration=0.2:offset=3.800000[x1]',
+      'xfade=transition=fade:duration=0.208:offset=3.791667[x1]',
     );
     expect(filter).toContain(
-      'trim=end_frame=534,settb=expr=1/30,setpts=N,pad=1080:1920:0:620:color=0x101014[canvas]',
+      'trim=end_frame=427,settb=expr=1/24,setpts=N,pad=720:1280:0:413:color=0x101014[canvas]',
     );
     expect(filter).toContain('[3:v]format=rgba[frame]');
     expect(filter).toContain('[canvas][frame]overlay=0:0:format=auto[framed]');
@@ -230,7 +230,7 @@ describe('vertical news FFmpeg composition', () => {
     expect(args).toEqual(
       expect.arrayContaining([
         '-frames:v',
-        '534',
+        '427',
         '-t',
         '17.8',
         '-c:v',

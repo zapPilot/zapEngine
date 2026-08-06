@@ -87,10 +87,10 @@ describe('createAssSubtitles', () => {
       PORTRAIT_SUBTITLE_LAYOUT,
     );
 
-    expect(ass).toContain('PlayResX: 1080');
-    expect(ass).toContain('PlayResY: 1920');
-    expect(ass).toContain('Style: Subtitle,Noto Sans CJK TC,56,');
-    expect(ass).toContain(',2,54,54,132,1');
+    expect(ass).toContain('PlayResX: 720');
+    expect(ass).toContain('PlayResY: 1280');
+    expect(ass).toContain('Style: Subtitle,Noto Sans CJK TC,38,');
+    expect(ass).toContain(',2,36,36,88,1');
   });
 
   it('wraps at the portrait unit budget when the layout narrows the line', () => {

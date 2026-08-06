@@ -545,12 +545,13 @@ describe('vertical brand frame and outro templates', () => {
     expect(componentName(outroElement)).toBe('OutroTemplate');
   });
 
-  it('rasterizes the brand frame at 1080x1920 with a transparent media window', async () => {
+  it('rasterizes the brand frame at 720x1280 with a transparent media window', async () => {
     temporaryDirectory = await mkdtemp(join(tmpdir(), 'brand-frame-raster-'));
     const inputPath = join(temporaryDirectory, 'frame.json');
     const svgPath = join(temporaryDirectory, 'frame.svg');
     const masterPath = join(temporaryDirectory, 'frame-master.png');
     const outputPath = join(temporaryDirectory, 'frame.png');
+    const scaleInputPath = join(temporaryDirectory, 'frame-scale.json');
 
     await writeFile(
       inputPath,
@@ -560,6 +561,7 @@ describe('vertical brand frame and outro templates', () => {
           kicker: '鏈上快訊',
           titleLines: ['世界盃最賺錢的生意', '暴漲三百倍'],
         },
+        output: { width: 720, height: 1280 },
       }),
       'utf8',
     );
@@ -570,56 +572,68 @@ describe('vertical brand frame and outro templates', () => {
     expect(svg).toContain('height="3840"');
 
     await runResvgStage(svgPath, masterPath);
-    await runSharpScaleStage(masterPath, outputPath);
+    await writeFile(
+      scaleInputPath,
+      JSON.stringify({ imagePath: masterPath, width: 720, height: 1280 }),
+      'utf8',
+    );
+    await runSharpScaleStage(scaleInputPath, outputPath);
     await expect(sharp(outputPath).metadata()).resolves.toMatchObject({
       format: 'png',
-      width: 1_080,
-      height: 1_920,
+      width: 720,
+      height: 1280,
     });
 
     // sharp's stats() reads the ORIGINAL input, ignoring chained operations —
     // materialize each extracted region to a buffer before measuring alpha.
     const regionStats = async (top: number, height: number) => {
       const region = await sharp(outputPath)
-        .extract({ left: 0, top, width: 1_080, height })
+        .extract({ left: 0, top, width: 720, height })
         .png()
         .toBuffer();
       return sharp(region).stats();
     };
 
-    const mediaWindow = await regionStats(640, 920);
+    const mediaWindow = await regionStats(427, 613);
     expect(mediaWindow.channels[3]?.max).toBe(0);
 
-    const topBand = await regionStats(0, 600);
+    const topBand = await regionStats(0, 400);
     expect(topBand.channels[3]?.min).toBe(255);
 
-    const bottomBand = await regionStats(1_600, 320);
+    const bottomBand = await regionStats(1_067, 200);
     expect(bottomBand.channels[3]?.min).toBe(255);
   }, 120_000);
 
-  it('rasterizes the outro card fully opaque at 1080x1920', async () => {
+  it('rasterizes the outro card fully opaque at 720x1280', async () => {
     temporaryDirectory = await mkdtemp(join(tmpdir(), 'outro-raster-'));
     const inputPath = join(temporaryDirectory, 'outro.json');
     const svgPath = join(temporaryDirectory, 'outro.svg');
     const masterPath = join(temporaryDirectory, 'outro-master.png');
     const outputPath = join(temporaryDirectory, 'outro.png');
+    const scaleInputPath = join(temporaryDirectory, 'outro-scale.json');
 
     await writeFile(
       inputPath,
       JSON.stringify({
         kind: 'outro',
         outro: { title: 'From Fed to Chain', callToAction: '訂閱・分享・留言' },
+        output: { width: 720, height: 1280 },
       }),
       'utf8',
     );
     await runSatoriStage(inputPath, svgPath);
     await runResvgStage(svgPath, masterPath);
-    await runSharpScaleStage(masterPath, outputPath);
+    await writeFile(
+      scaleInputPath,
+      JSON.stringify({ imagePath: masterPath, width: 720, height: 1280 }),
+      'utf8',
+    );
+    await runSharpScaleStage(scaleInputPath, outputPath);
 
     await expect(sharp(outputPath).metadata()).resolves.toMatchObject({
       format: 'png',
-      width: 1_080,
-      height: 1_920,
+      width: 720,
+      height: 1280,
     });
     const stats = await sharp(outputPath).stats();
     const alpha = stats.channels[3];

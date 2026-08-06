@@ -6,7 +6,7 @@ import { performStockImageSearch } from './stock-image-search.js';
 const PEXELS_SEARCH_ENDPOINT = 'https://api.pexels.com/v1/search';
 const DEFAULT_RESULT_COUNT = 40;
 const MAX_RESULT_COUNT = 80;
-// large2x renditions are capped at 1880px wide — plenty for the 1080-wide
+// large2x renditions are capped at 1880px wide — plenty for the 720-wide
 // media window while keeping downloads far below the acquisition size limits.
 const LARGE2X_MAX_WIDTH = 1_880;
 
