@@ -30,6 +30,9 @@
         "applicationId": "com.fromfedtochain.app",
         "track": "alpha",
         "releaseStatus": "completed"
+      },
+      "ios": {
+        "ascAppId": "6788190113"
       }
     }
   }
