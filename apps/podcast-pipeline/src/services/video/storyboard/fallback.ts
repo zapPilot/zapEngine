@@ -1050,6 +1050,176 @@ function deterministicSearchIntents(
   return ['editorial concept'];
 }
 
+const RELATION_SIGNALS = [
+  '導致',
+  '导致',
+  '造成',
+  '使得',
+  '推動',
+  '推动',
+  '流向',
+  '流入',
+  '流出',
+  '轉移',
+  '转移',
+  '經由',
+  '经由',
+  '依賴',
+  '依赖',
+  '透過',
+  '通过',
+  '降低',
+  '下降',
+  '上升',
+  '增加',
+  '減少',
+  '减少',
+  '停止',
+  '放慢',
+  '加速',
+  'because',
+  'lead to',
+  'leads to',
+  'cause',
+  'causes',
+  'result in',
+  'results in',
+  'flow to',
+  'flow from',
+  'through',
+  'depend on',
+  'depends on',
+  'reduce',
+  'reduces',
+  'increase',
+  'increases',
+  'slow',
+  'slows',
+  'stop',
+  'stops',
+] as const;
+const EVENT_SIGNALS = [
+  '宣布',
+  '發布',
+  '发布',
+  '推出',
+  '收購',
+  '收购',
+  '任命',
+  '會議',
+  '会议',
+  '演講',
+  '演讲',
+  '訪問',
+  '访问',
+  '開幕',
+  '开幕',
+  'launch',
+  'launched',
+  'announce',
+  'announced',
+  'release',
+  'released',
+  'acquire',
+  'acquired',
+  'appoint',
+  'appointed',
+  'conference',
+  'speech',
+  'interview',
+] as const;
+const INSTITUTION_SIGNALS = [
+  'federal reserve',
+  'fed',
+  'ethereum',
+  'bitcoin',
+  'sec',
+  '央行',
+  '聯準會',
+  '联准会',
+  '公司',
+  '銀行',
+  '银行',
+  '基金會',
+  '基金会',
+  '協議',
+  '协议',
+  'inc.',
+  'corp.',
+  'foundation',
+  'protocol',
+] as const;
+
+function containsAnySignal(value: string, signals: readonly string[]): boolean {
+  const normalized = value.toLocaleLowerCase('en-US');
+  return signals.some((signal) => normalized.includes(signal));
+}
+
+function groundedLabel(value: string, fallback: string): string {
+  const phrase = selectKeywordPhrases(value, 1)[0]?.trim();
+  return (phrase || fallback).slice(0, 80);
+}
+
+function deterministicVisual(
+  title: string,
+  evidence: string,
+  numericEvidence = evidence,
+): StoryboardDraftScene['visual'] {
+  const numeric = Array.from(
+    numericEvidence.matchAll(NUMERIC_TOKEN_PATTERN),
+    (match) => match[0],
+  );
+  const hasRelation = containsAnySignal(evidence, RELATION_SIGNALS);
+  const hasEvent = containsAnySignal(evidence, EVENT_SIGNALS);
+  const hasInstitution = containsAnySignal(evidence, INSTITUTION_SIGNALS);
+
+  if (numeric.length > 0 && !hasRelation) {
+    const value = numeric[0]!;
+    const label = groundedLabel(
+      evidence.replace(value, ' '),
+      groundedLabel(title, 'Key metric'),
+    );
+    return { kind: 'dataCard', value, label };
+  }
+
+  if (hasRelation || (!hasEvent && !hasInstitution)) {
+    const labels = selectKeywordPhrases(
+      groundedNumericText(evidence, numericEvidence, ' '),
+      3,
+    );
+    const effectiveLabels =
+      labels.length >= 2
+        ? labels.slice(0, 3)
+        : [groundedLabel(title, 'Context'), groundedLabel(evidence, 'Outcome')];
+    const nodes = effectiveLabels.map((label, index) => ({
+      id: `node-${index + 1}`,
+      label: label.slice(0, 80),
+    }));
+    return {
+      kind: 'diagram',
+      layout: nodes.length > 1 ? 'flow' : 'entityCard',
+      nodes,
+      edges: nodes.slice(1).map((node, index) => ({
+        from: nodes[index]!.id,
+        to: node.id,
+      })),
+    };
+  }
+
+  const entities = selectKeywordPhrases(
+    groundedNumericText(evidence, numericEvidence, ' '),
+    3,
+  );
+  return {
+    kind: 'photo',
+    searchIntents: deterministicSearchIntents(title, evidence, numericEvidence),
+    mustShowEntities: (entities.length > 0
+      ? entities
+      : [groundedLabel(title, 'documented event')]
+    ).slice(0, 4),
+  };
+}
+
 function sentenceGroups<T extends { text: string }>(
   sentences: readonly T[],
   groupCount: number,
@@ -1225,7 +1395,7 @@ export function createDeterministicStoryboard(input: {
       sceneId: stableSceneId(index),
       startSentenceId: first.id,
       endSentenceId: last.id,
-      imageSearchIntent: deterministicSearchIntents(
+      visual: deterministicVisual(
         searchTitle,
         searchEvidence,
         canonicalEvidence,
@@ -1236,7 +1406,7 @@ export function createDeterministicStoryboard(input: {
   return { scenes };
 }
 
-const DETERMINISTIC_STORYBOARD_MODEL = 'deterministic-v1';
+const DETERMINISTIC_STORYBOARD_MODEL = 'deterministic-hybrid-v1';
 
 export function createDeterministicStoryboardProvider(
   searchContext: Partial<DeterministicStoryboardSearchContext> = {},

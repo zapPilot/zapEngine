@@ -5,7 +5,7 @@ import {
   createEpisodeVideoManifest,
 } from './episode-video.js';
 import type { SceneAlignmentProvider } from './scene-alignment.js';
-import type { ImageVisualPlan } from './storyboard/visual-plan.js';
+import type { HybridVisualPlan } from './storyboard/visual-plan.js';
 
 vi.mock('./audio-analysis.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./audio-analysis.js')>();
@@ -37,8 +37,8 @@ describe('createEpisodeVideoManifest', () => {
       durationMs: 90_000,
     });
 
-    expect(result.manifest.schemaVersion).toBe('podcast-slide-video.v3');
-    expect(result.manifest.rendererVersion).toBe('satori-resvg-v4');
+    expect(result.manifest.schemaVersion).toBe('podcast-slide-video.v4');
+    expect(result.manifest.rendererVersion).toBe('satori-resvg-v5');
     expect(result.manifest.audio.narrationDurationMs).toBe(90_000);
     expect(result.manifest.headline.kicker).toBe('鏈上快訊');
     expect(result.manifestHash).toMatch(/^[a-f\d]{64}$/);
@@ -170,9 +170,9 @@ describe('analyzeEpisodeAudio', () => {
   });
 });
 
-function visualPlan(sceneCount: number): ImageVisualPlan {
+function visualPlan(sceneCount: number): HybridVisualPlan {
   return {
-    schemaVersion: 'podcast-image-visual-plan.v1',
+    schemaVersion: 'podcast-hybrid-visual-plan.v1',
     scenes: Array.from({ length: sceneCount }, (_, index) => {
       const id = String(index + 1).padStart(2, '0');
       const sentenceId = `s${String(index + 1).padStart(4, '0')}`;
@@ -181,7 +181,12 @@ function visualPlan(sceneCount: number): ImageVisualPlan {
         sceneId: `scene-${id}`,
         startSentenceId: sentenceId,
         endSentenceId: sentenceId,
-        imageSearchIntent: [`visual ${id}`],
+        visual: {
+          kind: 'photo',
+          searchIntents: [`visual ${id}`],
+          mustShowEntities: [`entity ${id}`],
+        },
+        actualKind: 'photo',
         sources: [
           {
             id: sourceId,

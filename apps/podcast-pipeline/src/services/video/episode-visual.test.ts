@@ -2,14 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildEpisodeVisualPayload,
+  EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION,
   hashEpisodeVisualSelection,
   parseEpisodeVisualPayload,
 } from './episode-visual.js';
 import type { StoryboardGenerationResult } from './storyboard/orchestrator.js';
-import type { PlannedVisualImage } from './visual-asset-planner.js';
-
-const episodeId = '00000000-0000-4000-8000-000000000001';
-const localizationId = '00000000-0000-4000-8000-000000000002';
+import type {
+  PlannedVisualImage,
+  PlannedVisualScene,
+} from './visual-asset-planner.js';
 
 const storyboard: StoryboardGenerationResult = {
   draft: {
@@ -18,132 +19,127 @@ const storyboard: StoryboardGenerationResult = {
         sceneId: 'scene-01',
         startSentenceId: 's0001',
         endSentenceId: 's0001',
-        imageSearchIntent: ['control room'],
+        visual: {
+          kind: 'photo',
+          searchIntents: ['Coinbase product launch'],
+          mustShowEntities: ['Coinbase'],
+        },
       },
       {
         sceneId: 'scene-02',
         startSentenceId: 's0002',
         endSentenceId: 's0002',
-        imageSearchIntent: ['power grid'],
+        visual: {
+          kind: 'diagram',
+          layout: 'flow',
+          nodes: [
+            { id: 'policy', label: '政策' },
+            { id: 'liquidity', label: '流動性' },
+          ],
+          edges: [{ from: 'policy', to: 'liquidity' }],
+        },
       },
       {
         sceneId: 'scene-03',
         startSentenceId: 's0003',
         endSentenceId: 's0003',
-        imageSearchIntent: ['research lab'],
+        visual: { kind: 'dataCard', value: '5%', label: '利率' },
       },
     ],
   },
   effectiveProvider: 'deterministic',
   requestedProvider: 'deterministic',
-  model: 'deterministic-v1',
+  model: 'deterministic-hybrid-v1',
   usedFallback: false,
   attempts: [],
   totalUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
 };
 
-const assets: PlannedVisualImage[] = [
-  {
-    assetId: 'image-01',
-    path: '/work/image-01',
-    contentType: 'image/jpeg',
-    sha256: 'a'.repeat(64),
-    perceptualHash: '0'.repeat(16),
-    width: 2400,
-    height: 1350,
-    originalImageUrl: 'https://images.example.test/a.jpg',
-    sourcePageUrl: 'https://publisher.example.test/a',
-    provider: 'article',
-    license: 'unknown',
-  },
-  {
-    assetId: 'image-02',
-    path: '/work/image-02',
-    contentType: 'image/webp',
-    sha256: 'b'.repeat(64),
-    perceptualHash: 'f'.repeat(16),
-    width: 2400,
-    height: 1600,
-    originalImageUrl: 'https://images.example.test/b.webp',
-    sourcePageUrl: 'https://publisher.example.test/b',
-    provider: 'bing',
-    license: 'unknown',
-  },
+const image: PlannedVisualImage = {
+  assetId: 'image-01',
+  path: '/work/image-01.jpg',
+  contentType: 'image/jpeg',
+  sha256: 'a'.repeat(64),
+  perceptualHash: 'b'.repeat(16),
+  width: 1600,
+  height: 900,
+  originalImageUrl: 'https://images.example.com/coinbase.jpg',
+  sourcePageUrl: 'https://publisher.example.com/coinbase',
+  provider: 'article',
+  license: 'unknown',
+};
+
+const selectedScenes: PlannedVisualScene[] = [
+  { sceneId: 'scene-01', assetId: 'image-01' },
 ];
 
 describe('episode visual payload', () => {
-  it('materializes image-only scenes with shared immutable R2 assets', () => {
-    const selectedScenes = [
-      { sceneId: 'scene-01', assetId: 'image-01' },
-      { sceneId: 'scene-02', assetId: 'image-02' },
-      { sceneId: 'scene-03', assetId: 'image-01' },
-    ];
+  it('stores a mixed hybrid plan with assets only for photo scenes', () => {
     const visualHash = hashEpisodeVisualSelection({
-      visualVersion: 'image-only-v1',
-      episodeId,
-      canonicalLocalizationId: localizationId,
+      visualVersion: 'hybrid-v1',
+      episodeId: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
+      canonicalLocalizationId: '56b21422-1a38-4917-957e-b23223c0396c',
       scenes: storyboard.draft.scenes,
       selectedScenes,
-      assets,
+      assets: [image],
     });
-
     const payload = buildEpisodeVisualPayload({
-      visualVersion: 'image-only-v1',
+      visualVersion: 'hybrid-v1',
       visualHash,
-      episodeId,
-      canonicalLocalizationId: localizationId,
-      manifestUrl:
-        'https://cdn.example.test/episodes/episode/visual-manifest.json',
+      episodeId: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
+      canonicalLocalizationId: '56b21422-1a38-4917-957e-b23223c0396c',
+      manifestUrl: 'https://cdn.example.com/visual-manifest.json',
       storyboard,
       selectedScenes,
-      assets,
+      assets: [image],
       r2ImageUrls: {
-        'image-01': 'https://cdn.example.test/visuals/image-01.jpg',
-        'image-02': 'https://cdn.example.test/visuals/image-02.webp',
+        'image-01': 'https://cdn.example.com/visuals/image-01.jpg',
       },
     });
 
-    expect(payload.visualPlan.scenes).toHaveLength(3);
-    expect(payload.visualPlan.scenes[0]?.asset.url).toBe(
-      payload.visualPlan.scenes[2]?.asset.url,
-    );
-    expect(
-      payload.visualPlan.scenes.every(
-        (scene) => scene.asset.kind === 'remoteImage',
-      ),
-    ).toBe(true);
-    expect(JSON.stringify(payload.visualPlan)).not.toMatch(
-      /headline|subheadline|quote|facts|excerpt/,
-    );
-    expect(parseEpisodeVisualPayload(payload)).toEqual(payload);
+    expect(payload.schemaVersion).toBe(EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION);
+    expect(payload.visualPlan.scenes.map((scene) => scene.actualKind)).toEqual([
+      'photo',
+      'diagram',
+      'dataCard',
+    ]);
+    const photo = payload.visualPlan.scenes[0];
+    expect(photo?.actualKind).toBe('photo');
+    if (photo?.actualKind === 'photo') {
+      expect(photo.asset.url).toContain('image-01.jpg');
+    }
+    expect(payload.assets).toHaveLength(1);
+    expect(() => parseEpisodeVisualPayload(payload)).not.toThrow();
   });
 
-  it('includes source selection in the immutable visual hash', () => {
-    const base = {
-      visualVersion: 'image-only-v1',
-      episodeId,
-      canonicalLocalizationId: localizationId,
+  it('records an explicit diagram fallback when a photo cannot be grounded', () => {
+    const visualHash = hashEpisodeVisualSelection({
+      visualVersion: 'hybrid-v1',
+      episodeId: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
+      canonicalLocalizationId: '56b21422-1a38-4917-957e-b23223c0396c',
       scenes: storyboard.draft.scenes,
-      selectedScenes: [
-        { sceneId: 'scene-01', assetId: 'image-01' },
-        { sceneId: 'scene-02', assetId: 'image-02' },
-        { sceneId: 'scene-03', assetId: 'image-01' },
-      ],
-      assets,
-    };
-    const first = hashEpisodeVisualSelection(base);
-    const second = hashEpisodeVisualSelection({
-      ...base,
-      assets: [
-        {
-          ...assets[0]!,
-          originalImageUrl: 'https://images.example.test/replacement.jpg',
-        },
-        assets[1]!,
-      ],
+      selectedScenes: [],
+      assets: [],
+      failures: [{ sceneId: 'scene-01', reason: 'no-grounded-photo' }],
+    });
+    const payload = buildEpisodeVisualPayload({
+      visualVersion: 'hybrid-v1',
+      visualHash,
+      episodeId: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
+      canonicalLocalizationId: '56b21422-1a38-4917-957e-b23223c0396c',
+      manifestUrl: 'https://cdn.example.com/visual-manifest.json',
+      storyboard,
+      selectedScenes: [],
+      failures: [{ sceneId: 'scene-01', reason: 'no-grounded-photo' }],
+      assets: [],
+      r2ImageUrls: {},
     });
 
-    expect(first).toMatch(/^[a-f\d]{64}$/);
-    expect(second).not.toBe(first);
+    expect(payload.assets).toEqual([]);
+    expect(payload.visualPlan.scenes[0]).toMatchObject({
+      actualKind: 'diagram',
+      fallbackFrom: 'photo',
+      fallbackReason: 'no-grounded-photo',
+    });
   });
 });

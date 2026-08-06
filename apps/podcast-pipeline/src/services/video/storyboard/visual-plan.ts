@@ -1,9 +1,15 @@
 import { z } from 'zod';
 
-import { MAX_STORYBOARD_SLIDES, type StoryboardDraft } from './draft.js';
+import {
+  dataCardVisualSchema,
+  diagramVisualSchema,
+  MAX_STORYBOARD_SLIDES,
+  photoVisualSchema,
+  type StoryboardDraft,
+} from './draft.js';
 
-export const IMAGE_VISUAL_PLAN_VERSION =
-  'podcast-image-visual-plan.v1' as const;
+export const HYBRID_VISUAL_PLAN_VERSION =
+  'podcast-hybrid-visual-plan.v1' as const;
 
 export const sourceLicenseSchema = z.enum([
   'brand-generated',
@@ -41,12 +47,17 @@ export const remoteImageAssetSchema = z
   })
   .strict();
 
-export const materializedVisualSceneSchema = z
+const commonSceneShape = {
+  sceneId: z.string().regex(/^scene-\d{2}$/),
+  startSentenceId: z.string().regex(/^s\d{4}$/),
+  endSentenceId: z.string().regex(/^s\d{4}$/),
+};
+
+export const materializedPhotoSceneSchema = z
   .object({
-    sceneId: z.string().regex(/^scene-\d{2}$/),
-    startSentenceId: z.string().regex(/^s\d{4}$/),
-    endSentenceId: z.string().regex(/^s\d{4}$/),
-    imageSearchIntent: z.array(z.string().min(2).max(80)).min(1).max(3),
+    ...commonSceneShape,
+    visual: photoVisualSchema,
+    actualKind: z.literal('photo'),
     sources: z.array(visualSourceSchema).min(1),
     asset: remoteImageAssetSchema,
   })
@@ -61,9 +72,36 @@ export const materializedVisualSceneSchema = z
     }
   });
 
-export const imageVisualPlanSchema = z
+export const materializedDiagramSceneSchema = z
   .object({
-    schemaVersion: z.literal(IMAGE_VISUAL_PLAN_VERSION),
+    ...commonSceneShape,
+    visual: diagramVisualSchema,
+    actualKind: z.literal('diagram'),
+    fallbackFrom: z.literal('photo').optional(),
+    fallbackReason: z.string().min(1).max(120).optional(),
+  })
+  .strict();
+
+export const materializedDataCardSceneSchema = z
+  .object({
+    ...commonSceneShape,
+    visual: dataCardVisualSchema,
+    actualKind: z.literal('dataCard'),
+  })
+  .strict();
+
+export const materializedVisualSceneSchema = z.discriminatedUnion(
+  'actualKind',
+  [
+    materializedPhotoSceneSchema,
+    materializedDiagramSceneSchema,
+    materializedDataCardSceneSchema,
+  ],
+);
+
+export const hybridVisualPlanSchema = z
+  .object({
+    schemaVersion: z.literal(HYBRID_VISUAL_PLAN_VERSION),
     scenes: z
       .array(materializedVisualSceneSchema)
       .min(1)
@@ -104,13 +142,18 @@ export const imageVisualPlanSchema = z
 
 export type VisualSource = z.infer<typeof visualSourceSchema>;
 export type RemoteImageAssetInput = z.input<typeof remoteImageAssetSchema>;
+export type HybridVisualPlan = z.infer<typeof hybridVisualPlanSchema>;
+export type MaterializedVisualScene = HybridVisualPlan['scenes'][number];
 
-export type ImageVisualPlan = z.infer<typeof imageVisualPlanSchema>;
-
-export interface MaterializedSceneAsset {
+export interface MaterializedPhotoAsset {
   sceneId: string;
   sources: VisualSource[];
   asset: RemoteImageAssetInput;
+}
+
+export interface PhotoMaterializationFallback {
+  sceneId: string;
+  reason: string;
 }
 
 export function stableSceneId(index: number): string {
@@ -122,41 +165,74 @@ export function stableSceneId(index: number): string {
   return `scene-${String(index + 1).padStart(2, '0')}`;
 }
 
-export function parseImageVisualPlan(input: unknown): ImageVisualPlan {
-  return imageVisualPlanSchema.parse(input);
+export function parseHybridVisualPlan(input: unknown): HybridVisualPlan {
+  return hybridVisualPlanSchema.parse(input);
 }
 
-export function materializeImageVisualPlan(input: {
-  draft: StoryboardDraft;
-  sceneAssets: readonly MaterializedSceneAsset[];
-}): ImageVisualPlan {
-  if (input.sceneAssets.length !== input.draft.scenes.length) {
-    throw new Error(
-      `Expected ${input.draft.scenes.length} materialized scene assets, received ${input.sceneAssets.length}`,
-    );
+function photoFallbackDiagram(
+  scene: StoryboardDraft['scenes'][number],
+  reason: string,
+): MaterializedVisualScene {
+  if (scene.visual.kind !== 'photo') {
+    throw new Error(`Scene ${scene.sceneId} is not a photo scene`);
   }
+  const nodes = scene.visual.mustShowEntities.map((label, index) => ({
+    id: `entity-${index + 1}`,
+    label,
+  }));
+  return {
+    sceneId: scene.sceneId,
+    startSentenceId: scene.startSentenceId,
+    endSentenceId: scene.endSentenceId,
+    actualKind: 'diagram',
+    fallbackFrom: 'photo',
+    fallbackReason: reason,
+    visual: {
+      kind: 'diagram',
+      layout: 'entityCard',
+      nodes,
+      edges: [],
+    },
+  };
+}
 
-  const sceneAssetById = new Map(
-    input.sceneAssets.map(
-      (sceneAsset) => [sceneAsset.sceneId, sceneAsset] as const,
+export function materializeHybridVisualPlan(input: {
+  draft: StoryboardDraft;
+  photoAssets: readonly MaterializedPhotoAsset[];
+  photoFallbacks?: readonly PhotoMaterializationFallback[];
+}): HybridVisualPlan {
+  const photoAssetById = new Map(
+    input.photoAssets.map((asset) => [asset.sceneId, asset] as const),
+  );
+  const fallbackById = new Map(
+    (input.photoFallbacks ?? []).map(
+      (fallback) => [fallback.sceneId, fallback] as const,
     ),
   );
-  if (sceneAssetById.size !== input.sceneAssets.length) {
-    throw new Error('Materialized scene assets contain duplicate scene IDs');
-  }
 
-  return parseImageVisualPlan({
-    schemaVersion: IMAGE_VISUAL_PLAN_VERSION,
+  return parseHybridVisualPlan({
+    schemaVersion: HYBRID_VISUAL_PLAN_VERSION,
     scenes: input.draft.scenes.map((scene) => {
-      const sceneAsset = sceneAssetById.get(scene.sceneId);
-      if (!sceneAsset) {
-        throw new Error(`Materialized image is missing for ${scene.sceneId}`);
+      if (scene.visual.kind === 'diagram') {
+        return { ...scene, actualKind: 'diagram' as const };
       }
-      return {
-        ...scene,
-        sources: sceneAsset.sources,
-        asset: sceneAsset.asset,
-      };
+      if (scene.visual.kind === 'dataCard') {
+        return { ...scene, actualKind: 'dataCard' as const };
+      }
+      const photoAsset = photoAssetById.get(scene.sceneId);
+      if (photoAsset) {
+        return {
+          ...scene,
+          actualKind: 'photo' as const,
+          sources: photoAsset.sources,
+          asset: photoAsset.asset,
+        };
+      }
+      const fallback = fallbackById.get(scene.sceneId);
+      return photoFallbackDiagram(
+        scene,
+        fallback?.reason ?? 'no-grounded-photo',
+      );
     }),
   });
 }

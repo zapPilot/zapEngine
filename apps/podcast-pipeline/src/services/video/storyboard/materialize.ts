@@ -17,14 +17,27 @@ import {
 } from '../manifest.js';
 import { pickBgmTrack } from '../runtime-assets.js';
 import type { SceneSentenceAlignment } from '../scene-alignment.js';
-import { type ImageVisualPlan, parseImageVisualPlan } from './visual-plan.js';
+import {
+  type HybridVisualPlan,
+  parseHybridVisualPlan,
+  type VisualSource,
+} from './visual-plan.js';
 
-export const TRUSTED_RENDERER_VERSION = 'satori-resvg-v4' as const;
+export const TRUSTED_RENDERER_VERSION = 'satori-resvg-v5' as const;
 export const BGM_MIX_GAIN_DB = -21;
 const PREFERRED_TRANSITION_MS = 200;
 
+const GENERATED_SOURCE: VisualSource = {
+  id: 'zap-pilot-generated',
+  label: 'Zap Pilot deterministic explainer',
+  url: null,
+  attribution: 'Generated from the canonical episode script',
+  license: 'brand-generated',
+  licenseUrl: null,
+};
+
 export interface MaterializeLocaleVideoManifestInput {
-  visualPlan: ImageVisualPlan;
+  visualPlan: HybridVisualPlan;
   timing: CanonicalAudioTiming;
   sceneAlignment: readonly SceneSentenceAlignment[];
   episode: {
@@ -39,7 +52,7 @@ export interface MaterializeLocaleVideoManifestInput {
 export function materializeLocaleVideoManifest(
   input: MaterializeLocaleVideoManifestInput,
 ): VerticalVideoManifest {
-  const visualPlan = parseImageVisualPlan(input.visualPlan);
+  const visualPlan = parseHybridVisualPlan(input.visualPlan);
   if (input.sceneAlignment.length !== visualPlan.scenes.length) {
     throw new Error(
       `Expected ${visualPlan.scenes.length} aligned scenes, received ${input.sceneAlignment.length}`,
@@ -84,13 +97,46 @@ export function materializeLocaleVideoManifest(
       );
     }
 
-    return {
+    const timing = {
       id: scene.sceneId,
       startMs: start.startMs,
       endMs: end.endMs,
-      template: 'image' as const,
-      sources: scene.sources,
-      asset: scene.asset,
+    };
+    if (scene.actualKind === 'photo') {
+      return {
+        ...timing,
+        template: 'image' as const,
+        sources: scene.sources,
+        asset: scene.asset,
+      };
+    }
+    if (scene.actualKind === 'dataCard') {
+      return {
+        ...timing,
+        template: 'dataCard' as const,
+        sources: [GENERATED_SOURCE],
+        asset: { kind: 'none' as const },
+        value: scene.visual.value,
+        ...(scene.visual.unit ? { unit: scene.visual.unit } : {}),
+        label: scene.visual.label,
+        ...(scene.visual.secondaryValue
+          ? { secondaryValue: scene.visual.secondaryValue }
+          : {}),
+        ...(scene.visual.secondaryLabel
+          ? { secondaryLabel: scene.visual.secondaryLabel }
+          : {}),
+      };
+    }
+    return {
+      ...timing,
+      template: 'diagram' as const,
+      sources: [GENERATED_SOURCE],
+      asset: { kind: 'none' as const },
+      layout: scene.visual.layout,
+      nodes: scene.visual.nodes,
+      edges: scene.visual.edges,
+      ...(scene.fallbackFrom ? { fallbackFrom: scene.fallbackFrom } : {}),
+      ...(scene.fallbackReason ? { fallbackReason: scene.fallbackReason } : {}),
     };
   });
 

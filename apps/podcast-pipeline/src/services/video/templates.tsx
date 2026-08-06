@@ -1,5 +1,5 @@
 import { tokens } from '@zapengine/design-tokens/tokens';
-import type { CSSProperties, ReactElement } from 'react';
+import type { CSSProperties, ReactElement, ReactNode } from 'react';
 
 import type { ResolvedSlideAsset } from './assets.js';
 import {
@@ -15,6 +15,8 @@ const canvasWidth = 3_840;
 const canvasHeight = 2_160;
 const portraitCanvasWidth = PORTRAIT_OUTPUT_WIDTH * RASTER_SCALE;
 const portraitCanvasHeight = PORTRAIT_OUTPUT_HEIGHT * RASTER_SCALE;
+const mediaCanvasWidth = MEDIA_WINDOW.width * RASTER_SCALE;
+const mediaCanvasHeight = MEDIA_WINDOW.height * RASTER_SCALE;
 const sans = 'Noto Sans TC';
 const mono = 'JetBrains Mono';
 
@@ -745,6 +747,231 @@ function SourceQuoteTemplate({
   );
 }
 
+function HybridMediaRoot({
+  children,
+}: Readonly<{ children: ReactNode }>): ReactElement {
+  return (
+    <div
+      style={{
+        width: mediaCanvasWidth,
+        height: mediaCanvasHeight,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+        overflow: 'hidden',
+        padding: 96,
+        backgroundImage: `linear-gradient(145deg, ${colors.surface} 0%, ${colors.bg} 72%)`,
+        color: colors.ink,
+        fontFamily: sans,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function DiagramTemplate({
+  slide,
+}: Readonly<{
+  slide: Extract<Slide, { template: 'diagram' }>;
+}>): ReactElement {
+  const isVertical = slide.layout === 'layers' || slide.layout === 'timeline';
+  return (
+    <HybridMediaRoot>
+      <div
+        style={{
+          display: 'flex',
+          position: 'absolute',
+          top: 64,
+          left: 80,
+          color: colors.accent,
+          fontFamily: mono,
+          fontSize: 30,
+          fontWeight: 700,
+          letterSpacing: 4,
+        }}
+      >
+        {slide.fallbackFrom ? 'GROUNDED FALLBACK' : slide.layout.toUpperCase()}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: isVertical ? 'column' : 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: isVertical ? 34 : 28,
+          width: '100%',
+        }}
+      >
+        {slide.nodes.map((node, index) => (
+          <div
+            key={node.id}
+            style={{
+              display: 'flex',
+              flexDirection: isVertical ? 'row' : 'column',
+              alignItems: 'center',
+              gap: 24,
+            }}
+          >
+            {index > 0 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  color: colors.accent,
+                  fontFamily: mono,
+                  fontSize: 58,
+                  fontWeight: 700,
+                  transform: isVertical ? 'rotate(90deg)' : undefined,
+                }}
+              >
+                →
+              </div>
+            ) : null}
+            <div
+              style={{
+                width: isVertical ? 1_520 : 520,
+                minHeight: isVertical ? 170 : 360,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 42,
+                border: `3px solid ${colors.line}`,
+                borderRadius: 28,
+                backgroundColor: colors.elevated,
+                textAlign: 'center',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  fontSize: isVertical ? 58 : 52,
+                  fontWeight: 700,
+                  lineHeight: 1.25,
+                }}
+              >
+                {node.label}
+              </div>
+              {node.detail ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    marginTop: 20,
+                    color: colors.inkDim,
+                    fontSize: 34,
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {node.detail}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+      {slide.fallbackReason ? (
+        <div
+          style={{
+            display: 'flex',
+            position: 'absolute',
+            bottom: 48,
+            color: colors.inkFaint,
+            fontFamily: mono,
+            fontSize: 24,
+          }}
+        >
+          {slide.fallbackReason}
+        </div>
+      ) : null}
+    </HybridMediaRoot>
+  );
+}
+
+function DataCardTemplate({
+  slide,
+}: Readonly<{
+  slide: Extract<Slide, { template: 'dataCard' }>;
+}>): ReactElement {
+  return (
+    <HybridMediaRoot>
+      <div
+        style={{
+          display: 'flex',
+          color: colors.accent,
+          fontFamily: mono,
+          fontSize: 34,
+          fontWeight: 700,
+          letterSpacing: 5,
+        }}
+      >
+        KEY METRIC
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          marginTop: 54,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            fontFamily: mono,
+            fontSize: 250,
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          {slide.value}
+        </div>
+        {slide.unit ? (
+          <div
+            style={{
+              display: 'flex',
+              marginLeft: 28,
+              color: colors.inkDim,
+              fontSize: 72,
+              fontWeight: 700,
+            }}
+          >
+            {slide.unit}
+          </div>
+        ) : null}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          maxWidth: 1_700,
+          marginTop: 54,
+          fontSize: 64,
+          fontWeight: 700,
+          lineHeight: 1.35,
+          textAlign: 'center',
+        }}
+      >
+        {slide.label}
+      </div>
+      {slide.secondaryValue && slide.secondaryLabel ? (
+        <div
+          style={{
+            display: 'flex',
+            marginTop: 52,
+            padding: '24px 40px',
+            border: `2px solid ${colors.line}`,
+            borderRadius: 18,
+            color: colors.inkDim,
+            fontSize: 38,
+          }}
+        >
+          {slide.secondaryValue}&nbsp;·&nbsp;{slide.secondaryLabel}
+        </div>
+      ) : null}
+    </HybridMediaRoot>
+  );
+}
+
 function ImageTemplate({
   slide,
   asset,
@@ -983,6 +1210,10 @@ export function renderSlideElement(
       return (
         <ImageTemplate slide={slide} asset={asset} logoDataUri={logoDataUri} />
       );
+    case 'diagram':
+      return <DiagramTemplate slide={slide} />;
+    case 'dataCard':
+      return <DataCardTemplate slide={slide} />;
     case 'cover':
       return <CoverTemplate slide={slide} logoDataUri={logoDataUri} />;
     case 'photoFact':

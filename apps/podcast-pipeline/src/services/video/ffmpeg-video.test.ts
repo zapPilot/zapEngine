@@ -116,7 +116,7 @@ function createManifest(): SlideVideoManifest {
 function createVerticalManifest(): VerticalVideoManifest {
   const base = createManifest();
   return {
-    schemaVersion: 'podcast-slide-video.v3',
+    schemaVersion: 'podcast-slide-video.v4',
     rendererVersion: 'satori-resvg-v4',
     episode: base.episode,
     clip: {

@@ -435,20 +435,25 @@ function generatedManifest(manifestHash: string) {
 
 function visualManifest(): Record<string, unknown> {
   return {
-    schemaVersion: 'podcast-episode-visual.v1',
+    schemaVersion: 'podcast-episode-visual.v2',
     visualVersion: EPISODE_VIDEO_VISUAL_VERSION,
     visualHash,
     episodeId,
     canonicalLocalizationId: localizationId,
     manifestUrl: 'https://cdn.example.com/visual-manifest.json',
     visualPlan: {
-      schemaVersion: 'podcast-image-visual-plan.v1',
+      schemaVersion: 'podcast-hybrid-visual-plan.v1',
       scenes: [
         {
           sceneId: 'scene-01',
           startSentenceId: 's0001',
           endSentenceId: 's0001',
-          imageSearchIntent: ['canonical visual'],
+          visual: {
+            kind: 'photo',
+            searchIntents: ['canonical visual'],
+            mustShowEntities: ['canonical visual'],
+          },
+          actualKind: 'photo',
           sources: [
             {
               id: 'image-01-source',
@@ -488,7 +493,7 @@ function visualManifest(): Record<string, unknown> {
     provenance: {
       storyboardProvider: 'deterministic',
       storyboardModel: 'deterministic-v1',
-      storyboardPromptVersion: 'image-storyboard-v2',
+      storyboardPromptVersion: 'hybrid-storyboard-v1',
       usedFallback: false,
     },
   };

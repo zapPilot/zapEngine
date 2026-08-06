@@ -102,7 +102,7 @@ function createImageManifest(): ImageVideoManifest {
 
 function createVerticalManifest(): VerticalVideoManifest {
   return parseVerticalVideoManifest({
-    schemaVersion: 'podcast-slide-video.v3',
+    schemaVersion: 'podcast-slide-video.v4',
     rendererVersion: 'satori-resvg-v4',
     episode: {
       id: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
@@ -165,10 +165,10 @@ function createVerticalManifest(): VerticalVideoManifest {
   });
 }
 
-describe('vertical news video manifest (v3)', () => {
+describe('vertical news video manifest (v4)', () => {
   it('parses a portrait manifest with headline, bgm, and outro tail', () => {
     const manifest = createVerticalManifest();
-    expect(manifest.schemaVersion).toBe('podcast-slide-video.v3');
+    expect(manifest.schemaVersion).toBe('podcast-slide-video.v4');
     expect(manifest.clip).toMatchObject({ width: 1080, height: 1920 });
     expect(manifest.clip.durationMs).toBe(
       manifest.audio.narrationDurationMs + OUTRO_TAIL_MS,
@@ -180,11 +180,11 @@ describe('vertical news video manifest (v3)', () => {
       height: 960,
     });
     expect(parseSlideVideoManifest(manifest)).toMatchObject({
-      schemaVersion: 'podcast-slide-video.v3',
+      schemaVersion: 'podcast-slide-video.v4',
     });
   });
 
-  it('rejects landscape clip dimensions on a v3 manifest', () => {
+  it('rejects landscape clip dimensions on a v4 manifest', () => {
     const manifest = structuredClone(createVerticalManifest()) as unknown as {
       clip: { width: number; height: number };
     };

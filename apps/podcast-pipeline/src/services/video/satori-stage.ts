@@ -26,6 +26,7 @@ import {
 // kinds rendered at the 9:16 canvas.
 export type SatoriStageInput =
   | { kind?: 'slide'; slide: Slide; asset: ResolvedSlideAsset }
+  | { kind: 'media'; slide: Slide; asset: ResolvedSlideAsset }
   | { kind: 'frame'; frame: BrandFrameContent }
   | { kind: 'outro'; outro: OutroContent };
 
@@ -113,6 +114,13 @@ async function stageElementAndSize(
     };
   }
   const asset = await materializeAssetDataUri(input.asset);
+  if (input.kind === 'media') {
+    return {
+      element: renderSlideElement(input.slide, asset, logoDataUri),
+      width: 1080 * RASTER_SCALE,
+      height: 960 * RASTER_SCALE,
+    };
+  }
   return {
     element: renderSlideElement(input.slide, asset, logoDataUri),
     width: LANDSCAPE_OUTPUT_WIDTH * RASTER_SCALE,

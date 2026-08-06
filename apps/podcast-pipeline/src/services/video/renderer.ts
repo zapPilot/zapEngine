@@ -30,6 +30,7 @@ import {
 import {
   cropMediaImage,
   rasterizeBrandFrame,
+  rasterizeMediaCard,
   rasterizeOutro,
   rasterizeSlide,
 } from './rasterizer.js';
@@ -87,6 +88,7 @@ interface RenderDependencies {
   rasterizeFrame: typeof rasterizeBrandFrame;
   rasterizeOutroCard: typeof rasterizeOutro;
   cropMedia: typeof cropMediaImage;
+  rasterizeMedia: typeof rasterizeMediaCard;
   renderVerticalVideo: typeof renderVerticalSlideVideo;
   composeThumbnail: typeof composeVerticalThumbnail;
 }
@@ -98,6 +100,7 @@ const defaultDependencies: RenderDependencies = {
   rasterizeFrame: rasterizeBrandFrame,
   rasterizeOutroCard: rasterizeOutro,
   cropMedia: cropMediaImage,
+  rasterizeMedia: rasterizeMediaCard,
   renderVerticalVideo: renderVerticalSlideVideo,
   composeThumbnail: composeVerticalThumbnail,
 };
@@ -385,33 +388,49 @@ async function renderVerticalNewsVideo(context: {
       sceneIndex: index + 1,
       sceneCount: manifest.slides.length,
     });
-    const asset = await dependencies.resolveAsset(slide, {
-      workingDirectory: context.assetDirectory,
-      signal: options.signal,
-    });
-    if (asset.kind !== 'image') {
-      throw new Error(
-        `Scene ${slide.id} requires a remote image: ${asset.reason}`,
-      );
-    }
-    if (!asset.filePath) {
-      throw new Error(`Scene ${slide.id} media was not materialized to disk`);
-    }
-    assetResults.push({ slide, asset });
     const outputPath = join(
       context.outputsDirectory,
       numberedSlideFilename(index),
     );
     slideOutputPaths.push(outputPath);
-    await dependencies.cropMedia(
+    if (slide.template === 'image') {
+      // jscpd:ignore-start — vertical media resolution intentionally mirrors
+      // the legacy landscape path while producing a different raster shape.
+      const asset = await dependencies.resolveAsset(slide, {
+        workingDirectory: context.assetDirectory,
+        signal: options.signal,
+      });
+      if (asset.kind !== 'image') {
+        throw new Error(
+          `Scene ${slide.id} requires a remote image: ${asset.reason}`,
+        );
+      }
+      if (!asset.filePath) {
+        throw new Error(`Scene ${slide.id} media was not materialized to disk`);
+      }
+      assetResults.push({ slide, asset });
+      await dependencies.cropMedia(
+        {
+          imagePath: asset.filePath,
+          width: manifest.mediaWindow.width,
+          height: manifest.mediaWindow.height,
+          position: asset.position,
+        },
+        {
+          input: join(context.workDirectory, `${slide.id}-crop.json`),
+          output: outputPath,
+        },
+        { signal: options.signal },
+      );
+      // jscpd:ignore-end
+      continue;
+    }
+    await dependencies.rasterizeMedia(
+      slide,
       {
-        imagePath: asset.filePath,
-        width: manifest.mediaWindow.width,
-        height: manifest.mediaWindow.height,
-        position: asset.position,
-      },
-      {
-        input: join(context.workDirectory, `${slide.id}-crop.json`),
+        input: join(context.workDirectory, `${slide.id}-media.json`),
+        svg: join(context.workDirectory, `${slide.id}-media.svg`),
+        master: join(context.workDirectory, `${slide.id}-media-master.png`),
         output: outputPath,
       },
       { signal: options.signal },

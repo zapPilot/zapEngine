@@ -24,7 +24,6 @@ export interface VisualAssetScene {
 
 export type VisualImageProvider = 'article' | ImageSearchProvider['origin'];
 export type VisualSelectionMode = 'strict' | 'resilient';
-export type VisualReuseKind = 'non-consecutive' | 'consecutive';
 
 const PROVIDER_LICENSES = {
   article: 'unknown',
@@ -54,9 +53,15 @@ export interface PlannedVisualScene {
   assetId: string;
 }
 
+export interface VisualAssetFailure {
+  sceneId: string;
+  reason: string;
+}
+
 export interface VisualAssetPlan {
   assets: PlannedVisualImage[];
   scenes: PlannedVisualScene[];
+  failures: VisualAssetFailure[];
 }
 
 export interface VisualAssetProgress {
@@ -67,10 +72,9 @@ export interface VisualAssetProgress {
   candidateCount?: number;
   rejectedCandidateCount?: number;
   rejectionSummary?: string;
-  provider?: VisualImageProvider | 'reuse';
+  provider?: VisualImageProvider;
   assetId?: string;
   sourceHostname?: string;
-  reuseKind?: VisualReuseKind;
   elapsedMs: number;
 }
 
@@ -99,13 +103,13 @@ interface VisualAssetPlannerState {
   attemptedUrls: Set<string>;
   assets: PlannedVisualImage[];
   scenes: PlannedVisualScene[];
+  failures: VisualAssetFailure[];
 }
 
 interface SelectedVisualImage {
   asset: PlannedVisualImage;
   provider: VisualAssetProgress['provider'];
   rejections: CandidateRejections;
-  reuseKind?: VisualReuseKind;
 }
 
 interface SearchedVisualImage {
@@ -151,6 +155,7 @@ export async function planVisualAssets(
     attemptedUrls: new Set<string>(),
     assets: [],
     scenes: [],
+    failures: [],
   };
 
   for (const [sceneIndex, scene] of input.scenes.entries()) {
@@ -159,7 +164,14 @@ export async function planVisualAssets(
     const selected = await selectImageForScene(state, scene, sceneIndex);
 
     if (!selected) {
-      throw new Error(`Visual scene ${scene.sceneId} has no usable image`);
+      if (state.mode === 'strict') {
+        throw new Error(`Visual scene ${scene.sceneId} has no usable image`);
+      }
+      state.failures.push({
+        sceneId: scene.sceneId,
+        reason: 'no-grounded-photo',
+      });
+      continue;
     }
 
     state.scenes.push({
@@ -175,7 +187,6 @@ export async function planVisualAssets(
       provider: selected.provider,
       assetId: selected.asset.assetId,
       ...(sourceHostname ? { sourceHostname } : {}),
-      ...(selected.reuseKind ? { reuseKind: selected.reuseKind } : {}),
       ...(selected.rejections.total > 0
         ? {
             rejectedCandidateCount: selected.rejections.total,
@@ -186,7 +197,11 @@ export async function planVisualAssets(
     });
   }
 
-  return { assets: state.assets, scenes: state.scenes };
+  return {
+    assets: state.assets,
+    scenes: state.scenes,
+    failures: state.failures,
+  };
 }
 
 async function selectImageForScene(
@@ -214,54 +229,21 @@ async function selectImageForScene(
     };
   }
 
-  // Strict mode keeps provider failures loud so callers can diagnose a broken
-  // search integration. Production uses resilient mode and may reuse an
-  // existing image instead of dropping the entire video.
+  // Strict mode keeps provider failures loud for diagnostics. Production uses
+  // resilient mode and records a modality fallback instead of reusing an
+  // unrelated image.
   if (state.mode === 'strict' && searched.failures.length > 0) {
     throw visualSearchFailure(scene.sceneId, searched.failures, rejections);
   }
-
-  const previousAssetId = state.scenes.at(-1)?.assetId;
-  const previousAsset = previousAssetId
-    ? (state.assets.find((asset) => asset.assetId === previousAssetId) ?? null)
-    : null;
-  const nonConsecutiveReusable =
-    [...state.assets]
-      .reverse()
-      .find((asset) => asset.assetId !== previousAssetId) ?? null;
-
-  if (nonConsecutiveReusable) {
-    if (state.mode === 'resilient') {
-      recordSearchFailures(rejections, searched.failures);
-    }
-    return {
-      asset: nonConsecutiveReusable,
-      provider: 'reuse',
-      reuseKind: 'non-consecutive',
-      rejections,
-    };
-  }
-
-  if (state.mode === 'resilient' && previousAsset) {
+  if (state.mode === 'resilient') {
     recordSearchFailures(rejections, searched.failures);
-    return {
-      asset: previousAsset,
-      provider: 'reuse',
-      reuseKind: 'consecutive',
-      rejections,
-    };
+    return null;
   }
-
   if (searched.failures.length > 0) {
     throw visualSearchFailure(scene.sceneId, searched.failures, rejections);
   }
   if (rejections.total > 0) {
     throw candidateExhaustionFailure(scene.sceneId, rejections);
-  }
-  if (previousAsset) {
-    throw new Error(
-      `Visual scene ${scene.sceneId} cannot reuse the immediately preceding image`,
-    );
   }
   return null;
 }

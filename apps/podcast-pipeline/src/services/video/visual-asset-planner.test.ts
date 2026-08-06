@@ -179,7 +179,7 @@ describe('planVisualAssets', () => {
     expect(result.assets[0]?.originalImageUrl).toBe(photograph.imageUrl);
   });
 
-  it('uses Bing after article images and only reuses non-consecutively', async () => {
+  it('uses Bing after article images and records a fallback instead of reusing', async () => {
     const article = candidate('article-a');
     const searched = {
       ...candidate('search-b', 'bing'),
@@ -191,13 +191,14 @@ describe('planVisualAssets', () => {
     const searchImages = vi
       .fn()
       .mockResolvedValueOnce([searched])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValue([]);
     const progress = vi.fn();
 
     const result = await planVisualAssets({
       scenes,
       articleImages: [article],
       workingDirectory: '/work/visual-assets',
+      selectionMode: 'resilient',
       onProgress: progress,
       dependencies: {
         acquireImage,
@@ -212,15 +213,13 @@ describe('planVisualAssets', () => {
     expect(result.scenes).toEqual([
       { sceneId: 'scene-01', assetId: 'image-01' },
       { sceneId: 'scene-02', assetId: 'image-02' },
-      { sceneId: 'scene-03', assetId: 'image-01' },
     ]);
     expect(result.assets).toHaveLength(2);
-    expect(progress).toHaveBeenCalledWith(
-      expect.objectContaining({
-        phase: 'assets',
-        sceneId: 'scene-03',
-        provider: 'reuse',
-      }),
+    expect(result.failures).toEqual([
+      { sceneId: 'scene-03', reason: 'no-grounded-photo' },
+    ]);
+    expect(progress).not.toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'reuse' }),
     );
   });
 
@@ -480,13 +479,14 @@ describe('planVisualAssets', () => {
     ).rejects.toBe(leaseError);
   });
 
-  it('uses a non-consecutive image when every query has zero results', async () => {
+  it('does not reuse a non-consecutive image when every query has zero results', async () => {
     const searchImages = vi.fn().mockResolvedValue([]);
 
     const result = await planVisualAssets({
       scenes,
       articleImages: [candidate('article-a'), candidate('article-b')],
       workingDirectory: '/work/visual-assets',
+      selectionMode: 'resilient',
       dependencies: {
         acquireImage: vi
           .fn()
@@ -500,11 +500,11 @@ describe('planVisualAssets', () => {
       },
     });
 
-    expect(result.scenes.at(-1)).toEqual({
-      sceneId: 'scene-03',
-      assetId: 'image-01',
-    });
-    expect(searchImages).toHaveBeenCalledOnce();
+    expect(result.scenes).toHaveLength(2);
+    expect(result.failures).toEqual([
+      { sceneId: 'scene-03', reason: 'no-grounded-photo' },
+    ]);
+    expect(searchImages).toHaveBeenCalledTimes(2);
   });
 
   it('does not hide a provider failure behind reusable article assets', async () => {
@@ -575,9 +575,7 @@ describe('planVisualAssets', () => {
           fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
         },
       }),
-    ).rejects.toThrow(
-      'Visual scene scene-02 cannot reuse the immediately preceding image',
-    );
+    ).rejects.toThrow('Visual scene scene-02 has no usable image');
   });
 
   it('prefers license-clean providers and records photographer provenance', async () => {

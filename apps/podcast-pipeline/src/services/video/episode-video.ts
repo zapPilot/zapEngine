@@ -15,8 +15,8 @@ import {
 } from './scene-alignment.js';
 import { materializeLocaleVideoManifest } from './storyboard/materialize.js';
 import {
-  type ImageVisualPlan,
-  parseImageVisualPlan,
+  type HybridVisualPlan,
+  parseHybridVisualPlan,
 } from './storyboard/visual-plan.js';
 
 export const SCENE_ALIGNMENT_PROMPT_VERSION =
@@ -57,7 +57,7 @@ export async function createEpisodeVideoManifest(input: {
   title: string;
   script: string;
   canonicalScript: string;
-  visualPlan: ImageVisualPlan;
+  visualPlan: HybridVisualPlan;
   storyboardProvider: string;
   storyboardModel: string | null;
   hlsUrl: string;
@@ -68,7 +68,7 @@ export async function createEpisodeVideoManifest(input: {
   alignmentProvider?: SceneAlignmentProvider;
 }): Promise<EpisodeVideoManifestResult> {
   assertMainNarrationAudioSource(input.hlsUrl);
-  const visualPlan = parseImageVisualPlan(input.visualPlan);
+  const visualPlan = parseHybridVisualPlan(input.visualPlan);
   const timing = buildWeightedCaptionTiming({
     script: input.script,
     durationMs: input.durationMs,

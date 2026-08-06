@@ -308,13 +308,21 @@ function storyboard() {
           sceneId: 'scene-01',
           startSentenceId: 's0001',
           endSentenceId: 's0001',
-          imageSearchIntent: ['first subject'],
+          visual: {
+            kind: 'photo',
+            searchIntents: ['first subject'],
+            mustShowEntities: ['first subject'],
+          },
         },
         {
           sceneId: 'scene-02',
           startSentenceId: 's0002',
           endSentenceId: 's0002',
-          imageSearchIntent: ['second subject'],
+          visual: {
+            kind: 'photo',
+            searchIntents: ['second subject'],
+            mustShowEntities: ['second subject'],
+          },
         },
       ],
     },
@@ -333,6 +341,7 @@ function assetPlan() {
       { sceneId: 'scene-01', assetId: 'image-01' },
       { sceneId: 'scene-02', assetId: 'image-02' },
     ],
+    failures: [],
     assets: [
       {
         assetId: 'image-01',

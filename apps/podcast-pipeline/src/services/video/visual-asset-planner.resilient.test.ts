@@ -5,7 +5,6 @@ import type { AcquiredRemoteImage } from './assets.js';
 import type { ImageSearchProvider } from './image-search-provider.js';
 import {
   planVisualAssets,
-  type VisualAssetProgress,
   type VisualAssetScene,
 } from './visual-asset-planner.js';
 
@@ -45,15 +44,12 @@ const twoScenes: VisualAssetScene[] = [
 ];
 
 describe('planVisualAssets resilient selection', () => {
-  it('uses the immediately preceding image as the final production fallback', async () => {
-    const progress: VisualAssetProgress[] = [];
-
+  it('records an explicit failure instead of reusing the preceding image', async () => {
     const result = await planVisualAssets({
       scenes: twoScenes,
       articleImages: [candidate('article-a')],
       workingDirectory: '/work/visual-assets',
       selectionMode: 'resilient',
-      onProgress: (event) => progress.push(event),
       dependencies: {
         acquireImage: vi.fn().mockResolvedValue(acquired('article-a')),
         searchProviders: [bingProvider(vi.fn().mockResolvedValue([]))],
@@ -64,21 +60,13 @@ describe('planVisualAssets resilient selection', () => {
     expect(result.assets).toHaveLength(1);
     expect(result.scenes).toEqual([
       { sceneId: 'scene-01', assetId: 'image-01' },
-      { sceneId: 'scene-02', assetId: 'image-01' },
     ]);
-    expect(progress).toContainEqual(
-      expect.objectContaining({
-        phase: 'assets',
-        sceneId: 'scene-02',
-        provider: 'reuse',
-        reuseKind: 'consecutive',
-        assetId: 'image-01',
-        sourceHostname: 'publisher.example.test',
-      }),
-    );
+    expect(result.failures).toEqual([
+      { sceneId: 'scene-02', reason: 'no-grounded-photo' },
+    ]);
   });
 
-  it('tries a broader official-event query before reusing an image', async () => {
+  it('tries a broader official-event query before falling back', async () => {
     const searched = {
       ...candidate('ethereum-validator-conference', 'bing'),
       altText: 'Ethereum validator conference event',
@@ -122,6 +110,7 @@ describe('planVisualAssets resilient selection', () => {
       sceneId: 'scene-02',
       assetId: 'image-02',
     });
+    expect(result.failures).toEqual([]);
   });
 
   it('prefers editorial Bing results and drops obvious synthetic artwork', async () => {
@@ -161,7 +150,6 @@ describe('planVisualAssets resilient selection', () => {
       selectionMode: 'resilient',
       dependencies: {
         acquireImage,
-        // Deliberately put stock first; resilient mode must reorder providers.
         searchProviders: [
           { origin: 'pexels', search: pexelsSearch },
           bingProvider(bingSearch),
@@ -171,7 +159,6 @@ describe('planVisualAssets resilient selection', () => {
     });
 
     expect(pexelsSearch).not.toHaveBeenCalled();
-    expect(acquireImage).toHaveBeenCalledOnce();
     expect(acquireImage).toHaveBeenCalledWith(
       editorial.imageUrl,
       expect.any(Object),
@@ -179,8 +166,7 @@ describe('planVisualAssets resilient selection', () => {
     expect(result.assets[0]?.sourcePageUrl).toBe(editorial.sourceUrl);
   });
 
-  it('records provider failures and still completes from an existing image', async () => {
-    const progress: VisualAssetProgress[] = [];
+  it('turns provider failure into a modality failure without image reuse', async () => {
     const search = vi
       .fn()
       .mockRejectedValueOnce(new Error('Bing Images search failed: 503'))
@@ -191,7 +177,6 @@ describe('planVisualAssets resilient selection', () => {
       articleImages: [candidate('article-a')],
       workingDirectory: '/work/visual-assets',
       selectionMode: 'resilient',
-      onProgress: (event) => progress.push(event),
       dependencies: {
         acquireImage: vi.fn().mockResolvedValue(acquired('article-a')),
         searchProviders: [bingProvider(search)],
@@ -199,16 +184,9 @@ describe('planVisualAssets resilient selection', () => {
       },
     });
 
-    expect(result.scenes[1]?.assetId).toBe('image-01');
-    expect(progress).toContainEqual(
-      expect.objectContaining({
-        phase: 'assets',
-        sceneId: 'scene-02',
-        provider: 'reuse',
-        reuseKind: 'consecutive',
-        rejectedCandidateCount: 1,
-        rejectionSummary: 'search-provider-failure:1',
-      }),
-    );
+    expect(result.scenes).toHaveLength(1);
+    expect(result.failures).toEqual([
+      { sceneId: 'scene-02', reason: 'no-grounded-photo' },
+    ]);
   });
 });

@@ -175,6 +175,24 @@ export function rasterizeOutro(
   return rasterizePortraitCard({ kind: 'outro', outro }, paths, options);
 }
 
+export function rasterizeMediaCard(
+  slide: Slide,
+  paths: CardRasterPaths,
+  options: RasterizeOptions = {},
+): Promise<void> {
+  const asset: ResolvedSlideAsset = {
+    kind: 'fallback',
+    reason: 'deterministic visual',
+    source: slide.sources[0] ?? null,
+  };
+  return runRasterStages(
+    { kind: 'media', slide, asset },
+    paths,
+    options,
+    'sharp-scale',
+  );
+}
+
 export async function cropMediaImage(
   crop: SharpCropStageInput,
   paths: { input: string; output: string },

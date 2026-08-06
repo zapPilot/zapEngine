@@ -4,19 +4,20 @@ import { z } from 'zod';
 
 import type { StoryboardGenerationResult } from './storyboard/orchestrator.js';
 import {
-  type ImageVisualPlan,
-  imageVisualPlanSchema,
-  materializeImageVisualPlan,
+  type HybridVisualPlan,
+  hybridVisualPlanSchema,
+  materializeHybridVisualPlan,
 } from './storyboard/visual-plan.js';
 import type {
   PlannedVisualImage,
   PlannedVisualScene,
+  VisualAssetFailure,
 } from './visual-asset-planner.js';
 
 export const EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION =
-  'podcast-episode-visual.v1' as const;
+  'podcast-episode-visual.v2' as const;
 export const EPISODE_VISUAL_STORYBOARD_PROMPT_VERSION =
-  'image-storyboard-v2' as const;
+  'hybrid-storyboard-v1' as const;
 
 const visualAssetMetadataSchema = z
   .object({
@@ -49,8 +50,8 @@ export const episodeVisualPayloadSchema = z
     episodeId: z.string().uuid(),
     canonicalLocalizationId: z.string().uuid(),
     manifestUrl: z.string().url(),
-    visualPlan: imageVisualPlanSchema,
-    assets: z.array(visualAssetMetadataSchema).min(1),
+    visualPlan: hybridVisualPlanSchema,
+    assets: z.array(visualAssetMetadataSchema),
     provenance: z
       .object({
         storyboardProvider: z.string().min(1),
@@ -75,6 +76,7 @@ export const episodeVisualPayloadSchema = z
       });
     }
     for (const [index, scene] of payload.visualPlan.scenes.entries()) {
+      if (scene.actualKind !== 'photo') continue;
       const asset = assetsByUrl.get(scene.asset.url);
       if (asset?.sha256 !== scene.asset.sha256) {
         context.addIssue({
@@ -98,14 +100,10 @@ export function hashEpisodeVisualSelection(input: {
   visualVersion: string;
   episodeId: string;
   canonicalLocalizationId: string;
-  scenes: readonly {
-    sceneId: string;
-    startSentenceId: string;
-    endSentenceId: string;
-    imageSearchIntent: readonly string[];
-  }[];
+  scenes: StoryboardGenerationResult['draft']['scenes'];
   selectedScenes: readonly PlannedVisualScene[];
   assets: readonly PlannedVisualImage[];
+  failures?: readonly VisualAssetFailure[];
 }): string {
   const hashInput = {
     visualVersion: input.visualVersion,
@@ -113,6 +111,7 @@ export function hashEpisodeVisualSelection(input: {
     canonicalLocalizationId: input.canonicalLocalizationId,
     scenes: input.scenes,
     selectedScenes: input.selectedScenes,
+    failures: input.failures ?? [],
     assets: input.assets.map((asset) => ({
       assetId: asset.assetId,
       contentType: asset.contentType,
@@ -137,6 +136,7 @@ export function buildEpisodeVisualPayload(input: {
   manifestUrl: string;
   storyboard: StoryboardGenerationResult;
   selectedScenes: readonly PlannedVisualScene[];
+  failures?: readonly VisualAssetFailure[];
   assets: readonly PlannedVisualImage[];
   r2ImageUrls: Readonly<Record<string, string>>;
 }): EpisodeVisualPayload {
@@ -148,38 +148,40 @@ export function buildEpisodeVisualPayload(input: {
       (scene) => [scene.sceneId, scene.assetId] as const,
     ),
   );
-  const visualPlan: ImageVisualPlan = materializeImageVisualPlan({
+  const visualPlan: HybridVisualPlan = materializeHybridVisualPlan({
     draft: input.storyboard.draft,
-    sceneAssets: input.storyboard.draft.scenes.map((scene, index) => {
+    photoAssets: input.storyboard.draft.scenes.flatMap((scene, index) => {
+      if (scene.visual.kind !== 'photo') return [];
       const assetId = sceneAssetById.get(scene.sceneId);
       const asset = assetId ? assetById.get(assetId) : undefined;
       const r2Url = assetId ? input.r2ImageUrls[assetId] : undefined;
-      if (!assetId || !asset || !r2Url) {
-        throw new Error(`Visual image is missing for ${scene.sceneId}`);
-      }
+      if (!assetId || !asset || !r2Url) return [];
       const sourceId = `${assetId}-source`;
-      return {
-        sceneId: scene.sceneId,
-        sources: [
-          {
-            id: sourceId,
-            label: sourceLabel(asset.sourcePageUrl),
-            url: asset.sourcePageUrl,
-            attribution: assetAttribution(asset),
-            license: asset.license,
-            licenseUrl: STOCK_LICENSE_URLS[asset.license] ?? null,
+      return [
+        {
+          sceneId: scene.sceneId,
+          sources: [
+            {
+              id: sourceId,
+              label: sourceLabel(asset.sourcePageUrl),
+              url: asset.sourcePageUrl,
+              attribution: assetAttribution(asset),
+              license: asset.license,
+              licenseUrl: STOCK_LICENSE_URLS[asset.license] ?? null,
+            },
+          ],
+          asset: {
+            kind: 'remoteImage' as const,
+            sourceId,
+            url: r2Url,
+            sha256: asset.sha256,
+            layout: 'fullBleed' as const,
+            position: (['center', 'top', 'bottom'] as const)[index % 3],
           },
-        ],
-        asset: {
-          kind: 'remoteImage' as const,
-          sourceId,
-          url: r2Url,
-          sha256: asset.sha256,
-          layout: 'fullBleed' as const,
-          position: (['center', 'top', 'bottom'] as const)[index % 3],
         },
-      };
+      ];
     }),
+    photoFallbacks: input.failures ?? [],
   });
 
   return parseEpisodeVisualPayload({

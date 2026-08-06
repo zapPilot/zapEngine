@@ -12,7 +12,7 @@ const LEGACY_VIDEO_SCHEMA_VERSION = 'podcast-slide-video.v1' as const;
 const IMAGE_VIDEO_SCHEMA_VERSION = 'podcast-slide-video.v2' as const;
 // The version producers stamp on freshly generated manifests; parsers keep
 // accepting every version above so stored renders stay readable.
-export const VERTICAL_VIDEO_SCHEMA_VERSION = 'podcast-slide-video.v3' as const;
+export const VERTICAL_VIDEO_SCHEMA_VERSION = 'podcast-slide-video.v4' as const;
 // Landscape dimensions are frozen for stored v1/v2 manifests; portrait is the
 // 9:16 news layout every new render uses.
 export const LANDSCAPE_OUTPUT_WIDTH = 1920 as const;
@@ -144,6 +144,69 @@ const imageSlideSchema = z
     asset: remoteImageAssetSchema,
   })
   .strict();
+
+// jscpd:ignore-start — renderer manifest mirrors the independently validated
+// storyboard payload so stored artifacts remain self-contained.
+const diagramSlideSchema = z
+  .object({
+    ...commonSlideShape,
+    template: z.literal('diagram'),
+    asset: noAssetSchema,
+    layout: z.enum([
+      'flow',
+      'comparison',
+      'timeline',
+      'layers',
+      'systemMap',
+      'entityCard',
+    ]),
+    nodes: z
+      .array(
+        z
+          .object({
+            id: z.string().regex(/^[a-z][a-z\d-]{0,31}$/),
+            label: z.string().min(1).max(80),
+            detail: z.string().min(1).max(96).optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(6),
+    edges: z
+      .array(
+        z
+          .object({
+            from: z.string().regex(/^[a-z][a-z\d-]{0,31}$/),
+            to: z.string().regex(/^[a-z][a-z\d-]{0,31}$/),
+            label: z.string().min(1).max(48).optional(),
+          })
+          .strict(),
+      )
+      .max(8),
+    fallbackFrom: z.literal('photo').optional(),
+    fallbackReason: z.string().min(1).max(120).optional(),
+  })
+  .strict();
+
+const dataCardSlideSchema = z
+  .object({
+    ...commonSlideShape,
+    template: z.literal('dataCard'),
+    asset: noAssetSchema,
+    value: z.string().min(1).max(24),
+    unit: z.string().min(1).max(24).optional(),
+    label: z.string().min(1).max(96),
+    secondaryValue: z.string().min(1).max(24).optional(),
+    secondaryLabel: z.string().min(1).max(96).optional(),
+  })
+  .strict();
+
+// jscpd:ignore-end
+const hybridVerticalSlideSchema = z.discriminatedUnion('template', [
+  imageSlideSchema,
+  diagramSlideSchema,
+  dataCardSlideSchema,
+]);
 
 const captionSchema = z
   .object({
@@ -541,7 +604,7 @@ const verticalVideoManifestSchema = z
     audio: verticalAudioSchema,
     bgm: bgmSchema,
     outro: outroSchema,
-    slides: z.array(imageSlideSchema).min(1).max(64),
+    slides: z.array(hybridVerticalSlideSchema).min(1).max(64),
     captions: z.array(captionSchema).min(1),
   })
   .strict()

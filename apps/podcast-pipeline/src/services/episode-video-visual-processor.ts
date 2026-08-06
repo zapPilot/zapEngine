@@ -114,32 +114,45 @@ export function createEpisodeVideoVisualProcessor(
         elapsedMs: Date.now() - searchStartedAt,
       });
 
-      const assetPlan = await dependencies.planAssets({
-        scenes: storyboard.draft.scenes,
-        articleImages: article.images ?? [],
-        workingDirectory: join(outputDirectory, 'images'),
-        selectionMode: 'resilient',
-        signal: context.signal,
-        onProgress: (progress) => {
-          logPlannerProgress(
-            dependencies.logger,
-            context.runId,
-            source.episodeId,
-            progress,
-          );
-          // Only 'assets' advances the number. A scene can be searched several
-          // times before one candidate passes validation, so driving the bar
-          // from 'search' would make it jitter back and forth.
-          if (progress.phase === 'assets') {
-            context.reportProgress(
-              visualStageProgress(
-                'selecting-images',
-                progress.sceneIndex / progress.sceneCount,
-              ),
-            );
-          }
-        },
-      });
+      const photoScenes = storyboard.draft.scenes.flatMap((scene) =>
+        scene.visual.kind === 'photo'
+          ? [
+              {
+                sceneId: scene.sceneId,
+                imageSearchIntent: scene.visual.searchIntents,
+              },
+            ]
+          : [],
+      );
+      const assetPlan =
+        photoScenes.length === 0
+          ? { assets: [], scenes: [], failures: [] }
+          : await dependencies.planAssets({
+              scenes: photoScenes,
+              articleImages: article.images ?? [],
+              workingDirectory: join(outputDirectory, 'images'),
+              selectionMode: 'resilient',
+              signal: context.signal,
+              onProgress: (progress) => {
+                logPlannerProgress(
+                  dependencies.logger,
+                  context.runId,
+                  source.episodeId,
+                  progress,
+                );
+                // Only 'assets' advances the number. A scene can be searched several
+                // times before one candidate passes validation, so driving the bar
+                // from 'search' would make it jitter back and forth.
+                if (progress.phase === 'assets') {
+                  context.reportProgress(
+                    visualStageProgress(
+                      'selecting-images',
+                      progress.sceneIndex / progress.sceneCount,
+                    ),
+                  );
+                }
+              },
+            });
       const visualHash = hashEpisodeVisualSelection({
         visualVersion: job.visual_version,
         episodeId: source.episodeId,
@@ -147,6 +160,7 @@ export function createEpisodeVideoVisualProcessor(
         scenes: storyboard.draft.scenes,
         selectedScenes: assetPlan.scenes,
         assets: assetPlan.assets,
+        failures: assetPlan.failures,
       });
       const manifestPath = join(outputDirectory, 'visual-manifest.json');
       const sourceManifest = createSourceVisualManifest({
@@ -193,6 +207,7 @@ export function createEpisodeVideoVisualProcessor(
         manifestUrl: uploaded.manifestUrl,
         storyboard,
         selectedScenes: assetPlan.scenes,
+        failures: assetPlan.failures,
         assets: assetPlan.assets,
         r2ImageUrls: uploaded.imageUrls,
       });
@@ -288,6 +303,9 @@ function createSourceVisualManifest(input: {
         assetId: input.assetPlan.scenes.find(
           (selection) => selection.sceneId === scene.sceneId,
         )?.assetId,
+        fallbackReason: input.assetPlan.failures.find(
+          (failure) => failure.sceneId === scene.sceneId,
+        )?.reason,
       })),
     },
     assets: input.assetPlan.assets.map((asset) => ({
@@ -322,7 +340,6 @@ function logPlannerProgress(
     provider: progress.provider,
     assetId: progress.assetId,
     sourceHostname: progress.sourceHostname,
-    reuseKind: progress.reuseKind,
     candidateCount: progress.candidateCount,
     rejectedCandidateCount: progress.rejectedCandidateCount,
     rejectionSummary: progress.rejectionSummary,

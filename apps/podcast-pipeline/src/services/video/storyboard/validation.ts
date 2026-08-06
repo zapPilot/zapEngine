@@ -177,28 +177,28 @@ export function validateStoryboardDraft(
     );
     if (!rangeText) return;
 
-    const combinedIntent = scene.imageSearchIntent.join('\n');
+    const visualText = JSON.stringify(scene.visual);
     if (
-      combinedIntent.includes('\uFFFD') ||
-      containsDisallowedControlCharacters(combinedIntent)
+      visualText.includes('\uFFFD') ||
+      containsDisallowedControlCharacters(visualText)
     ) {
       addIssue(
         issues,
-        'intent.invalid_unicode',
-        ['scenes', sceneIndex, 'imageSearchIntent'],
-        'Image search intent contains replacement or control characters',
+        'visual.invalid_unicode',
+        ['scenes', sceneIndex, 'visual'],
+        'Visual plan contains replacement or control characters',
       );
     }
 
     const normalizedEvidence = normalizeNumericToken(rangeText);
-    for (const token of numericTokens(combinedIntent)) {
+    for (const token of numericTokens(visualText)) {
       const normalized = normalizeNumericToken(token);
       if (normalized && !normalizedEvidence.includes(normalized)) {
         addIssue(
           issues,
-          'intent.ungrounded_number',
-          ['scenes', sceneIndex, 'imageSearchIntent'],
-          `Numeric search claim ${token} is not present in the canonical sentence range`,
+          'visual.ungrounded_number',
+          ['scenes', sceneIndex, 'visual'],
+          `Numeric visual claim ${token} is not present in the canonical sentence range`,
         );
       }
     }
