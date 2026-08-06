@@ -214,6 +214,7 @@ export function useBridgeTest() {
               },
             })
           : false;
+        if (controller.signal.aborted) return;
 
         await assertFundingAndEstimateGas({
           request,
@@ -221,9 +222,11 @@ export function useBridgeTest() {
           userAddress,
           includeApproval: approvalNeeded,
         });
+        if (controller.signal.aborted) return;
 
         if (wallet.chain?.id !== request.fromChainId) {
           await wallet.switchChain(request.fromChainId);
+          if (controller.signal.aborted) return;
         }
 
         let hyperliquidBaseline: bigint | null = null;
@@ -231,6 +234,7 @@ export function useBridgeTest() {
           hyperliquidBaseline = (
             await getPerpUsdcBalance({ user: userAddress })
           ).withdrawableUsd6;
+          if (controller.signal.aborted) return;
         }
 
         if (approvalNeeded && quote.approval) {
