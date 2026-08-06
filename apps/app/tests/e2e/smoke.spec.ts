@@ -147,6 +147,10 @@ const PRIMARY_ROUTES = [
 
 const ERROR_PAGE_PATTERN =
   /Something went wrong|Unhandled|ErrorBoundary|Page not found/i;
+type MediaSessionProbeWindow = Window & {
+  __mediaSessionActions?: string[];
+};
+
 const AUTH_REQUIRED_ROUTES = new Set(['/strategy', '/activity', '/account']);
 const APP_BOOT_TIMEOUT = 45_000;
 const EPISODE_MEDIA_TAB_LABELS = ['Story', 'Classroom', 'Video'] as const;
@@ -376,6 +380,46 @@ test('renders the web app shell and primary routes without page errors', async (
   });
 
   expect(pageErrors).toEqual([]);
+});
+
+test('registers headset transport actions with the media session', async ({
+  page,
+}) => {
+  // The handlers install once when the player provider mounts, and the Media
+  // Session API exposes no getter for them, so the registrations have to be
+  // recorded before the bundle runs.
+  await page.addInitScript(() => {
+    const actions: string[] = [];
+    (window as MediaSessionProbeWindow).__mediaSessionActions = actions;
+
+    const { mediaSession } = navigator;
+    const setActionHandler = mediaSession.setActionHandler.bind(mediaSession);
+    mediaSession.setActionHandler = (action, handler) => {
+      if (handler !== null) actions.push(action);
+      setActionHandler(action, handler);
+    };
+  });
+
+  await routePodcastFeed(page);
+  await page.goto('/podcast');
+  await expect(page).toHaveURL(/\/podcast$/, { timeout: APP_BOOT_TIMEOUT });
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () => (window as MediaSessionProbeWindow).__mediaSessionActions ?? [],
+        ),
+      { timeout: APP_BOOT_TIMEOUT },
+    )
+    .toEqual([
+      'play',
+      'pause',
+      'seekbackward',
+      'seekforward',
+      'nexttrack',
+      'previoustrack',
+    ]);
 });
 
 test('episode media tabs stay fixed before playback at mobile and web widths', async ({

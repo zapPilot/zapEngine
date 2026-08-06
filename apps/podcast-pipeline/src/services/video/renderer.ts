@@ -17,6 +17,7 @@ import { type ResolvedSlideAsset, resolveSlideAsset } from './assets.js';
 import {
   buildStaticSlideFilter,
   buildVerticalSlideFilter,
+  MEDIA_MOTION_SUPERSAMPLE,
   renderStaticSlideVideo,
   renderVerticalSlideVideo,
 } from './ffmpeg-video.js';
@@ -68,6 +69,14 @@ export async function composeVerticalThumbnail(
   input: VerticalThumbnailInput,
 ): Promise<void> {
   sharp.cache(false);
+  // Media crops arrive supersampled for zoompan; a raw composite would
+  // overflow the output-size canvas, so the media comes back down first.
+  const media = await sharp(input.mediaPath)
+    .resize(input.window.width, input.window.height, {
+      kernel: sharp.kernel.lanczos3,
+    })
+    .png()
+    .toBuffer();
   await sharp({
     create: {
       width: input.width,
@@ -77,11 +86,26 @@ export async function composeVerticalThumbnail(
     },
   })
     .composite([
-      { input: input.mediaPath, left: input.window.x, top: input.window.y },
+      { input: media, left: input.window.x, top: input.window.y },
       { input: input.framePath, left: 0, top: 0 },
     ])
     .png({ compressionLevel: 9, adaptiveFiltering: true })
     .toFile(input.outputPath);
+}
+
+// Runs after the encode: the supersampled crops exist only for zoompan, while
+// the stored slide artifacts keep their window-size contract (and 1/16th of
+// the bytes) in R2.
+export async function downscaleMediaToWindow(
+  mediaPath: string,
+  window: VerticalVideoManifest['mediaWindow'],
+): Promise<void> {
+  sharp.cache(false);
+  const media = await sharp(mediaPath)
+    .resize(window.width, window.height, { kernel: sharp.kernel.lanczos3 })
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
+  await writeFile(mediaPath, media);
 }
 
 interface RenderDependencies {
@@ -93,6 +117,7 @@ interface RenderDependencies {
   cropMedia: typeof cropMediaImage;
   renderVerticalVideo: typeof renderVerticalSlideVideo;
   composeThumbnail: typeof composeVerticalThumbnail;
+  downscaleMedia: typeof downscaleMediaToWindow;
 }
 
 const defaultDependencies: RenderDependencies = {
@@ -104,6 +129,7 @@ const defaultDependencies: RenderDependencies = {
   cropMedia: cropMediaImage,
   renderVerticalVideo: renderVerticalSlideVideo,
   composeThumbnail: composeVerticalThumbnail,
+  downscaleMedia: downscaleMediaToWindow,
 };
 
 function sourceListMarkdown(manifest: SlideVideoManifest): string {
@@ -417,8 +443,8 @@ async function renderVerticalNewsVideo(context: {
     await dependencies.cropMedia(
       {
         imagePath: asset.filePath,
-        width: manifest.mediaWindow.width,
-        height: manifest.mediaWindow.height,
+        width: manifest.mediaWindow.width * MEDIA_MOTION_SUPERSAMPLE,
+        height: manifest.mediaWindow.height * MEDIA_MOTION_SUPERSAMPLE,
         position: asset.position,
       },
       {
@@ -510,6 +536,11 @@ async function renderVerticalNewsVideo(context: {
       'Encoding vertical news video',
     ),
   });
+
+  for (const path of slideOutputPaths) {
+    throwIfAborted(options.signal);
+    await dependencies.downscaleMedia(path, manifest.mediaWindow);
+  }
 
   return {
     previewPath: context.paths.previewPath,

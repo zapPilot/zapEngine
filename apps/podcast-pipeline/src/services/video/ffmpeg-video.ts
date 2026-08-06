@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 import { path as bundledFfmpegPath } from '@ffmpeg-installer/ffmpeg';
 
@@ -342,25 +343,53 @@ function escapeFilterPath(path: string): string {
     .replaceAll("'", "\\'");
 }
 
+// zoompan quantizes x/y and the crop size to integer pixels of its INPUT, so a
+// pan across a window-sized input advances ~0.3px per frame and rounds into a
+// visible stair-step. Media crops are therefore supplied at this multiple of
+// the media window and zoompan's own `s=` performs the final downscale.
+export const MEDIA_MOTION_SUPERSAMPLE = 4 as const;
+// Zoom grows with scene length instead of being a fixed total, so short and
+// long scenes move at the same perceived speed; the cap keeps 13s+ scenes calm.
+const KEN_BURNS_ZOOM_RATE_PER_SECOND = 0.014;
+const KEN_BURNS_MAX_EXTRA_ZOOM = 0.18;
+// Pans hold a constant zoom and translate along one axis only: ramping zoom
+// and position together doubles zoompan's rounding sources and reads as wobble.
+const KEN_BURNS_PAN_ZOOM = 1.15;
+
 export type KenBurnsPan =
-  | 'center'
+  | 'zoomIn'
+  | 'zoomOut'
   | 'leftToRight'
   | 'rightToLeft'
   | 'topToBottom';
 
-export function kenBurnsPanForScene(index: number): KenBurnsPan {
-  const motions: readonly KenBurnsPan[] = [
-    'center',
-    'leftToRight',
-    'rightToLeft',
-    'topToBottom',
-  ];
-  return motions[index % motions.length] ?? 'center';
+// Zooms interleave with pans so xfade neighbors differ in motion character.
+const KEN_BURNS_MOTIONS: readonly KenBurnsPan[] = [
+  'zoomIn',
+  'leftToRight',
+  'zoomOut',
+  'rightToLeft',
+  'topToBottom',
+];
+
+// Same deterministic-variety pattern as pickBgmTrack: every locale of one
+// episode shares a motion order, while different episodes start elsewhere in
+// the rotation.
+export function kenBurnsSeedForEpisode(episodeId: string): number {
+  const digest = createHash('sha256').update(episodeId).digest();
+  return (digest[0] ?? 0) % KEN_BURNS_MOTIONS.length;
+}
+
+export function kenBurnsPanForScene(index: number, seed = 0): KenBurnsPan {
+  return (
+    KEN_BURNS_MOTIONS[(index + seed) % KEN_BURNS_MOTIONS.length] ?? 'zoomIn'
+  );
 }
 
 function kenBurnsFilter(
   slide: SlideVideoManifest['slides'][number],
   index: number,
+  seed: number,
   fps: number,
   width: number,
   height: number,
@@ -371,26 +400,36 @@ function kenBurnsFilter(
   );
   const finalFrame = durationFrames - 1;
   const progress = `min(on/${finalFrame}\\,1)`;
-  const zoom = `1+0.05*${progress}`;
-  const centerX = '(iw-iw/zoom)/2';
-  const centerY = '(ih-ih/zoom)/2';
-  const motion = kenBurnsPanForScene(index);
+  // Smoothstep easing (3P²−2P³): velocity is zero at both endpoints, so
+  // motion never pops across an xfade boundary.
+  const eased = `pow(${progress}\\,2)*(3-2*${progress})`;
+  const extraZoom = Math.min(
+    (KEN_BURNS_ZOOM_RATE_PER_SECOND * (slide.endMs - slide.startMs)) / 1_000,
+    KEN_BURNS_MAX_EXTRA_ZOOM,
+  ).toFixed(4);
 
-  let x = centerX;
-  let y = centerY;
-  if (slide.asset.kind === 'remoteImage') {
-    if (slide.asset.position === 'top') y = '0';
-    if (slide.asset.position === 'bottom') y = 'ih-ih/zoom';
-  }
+  const position =
+    slide.asset.kind === 'remoteImage' ? slide.asset.position : 'center';
+  let motion = kenBurnsPanForScene(index, seed);
+  // A crop pinned to its top or bottom edge cannot pan vertically, and a
+  // constant-zoom topToBottom there would be a static frame.
+  if (motion === 'topToBottom' && position !== 'center') motion = 'zoomIn';
+  const isPan = motion !== 'zoomIn' && motion !== 'zoomOut';
+
+  let zoom = `1+${extraZoom}*${eased}`;
+  if (motion === 'zoomOut') zoom = `1+${extraZoom}*(1-${eased})`;
+  if (isPan) zoom = String(KEN_BURNS_PAN_ZOOM);
+
+  let x = '(iw-iw/zoom)/2';
+  let y = '(ih-ih/zoom)/2';
+  if (position === 'top') y = '0';
+  if (position === 'bottom') y = 'ih-ih/zoom';
   if (motion === 'leftToRight') {
-    x = `(iw-iw/zoom)*${progress}`;
+    x = `(iw-iw/zoom)*${eased}`;
   } else if (motion === 'rightToLeft') {
-    x = `(iw-iw/zoom)*(1-${progress})`;
-  } else if (
-    motion === 'topToBottom' &&
-    (slide.asset.kind !== 'remoteImage' || slide.asset.position === 'center')
-  ) {
-    y = `(ih-ih/zoom)*${progress}`;
+    x = `(iw-iw/zoom)*(1-${eased})`;
+  } else if (motion === 'topToBottom') {
+    y = `(ih-ih/zoom)*${eased}`;
   }
 
   return `zoompan=z='${zoom}':x='${x}':y='${y}':d=1:s=${width}x${height}:fps=${fps}`;
@@ -398,23 +437,33 @@ function kenBurnsFilter(
 
 function slideSceneFilters(
   slides: SlideVideoManifest['slides'],
+  seed: number,
   fps: number,
   width: number,
   height: number,
+  supersample: number,
 ): string[] {
   return slides.map(
     (slide, index) =>
-      `[${index}:v]fps=${fps},scale=${width}:${height}:flags=lanczos+accurate_rnd:in_range=pc:out_range=tv:out_color_matrix=bt709,${kenBurnsFilter(slide, index, fps, width, height)},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`,
+      `[${index}:v]fps=${fps},scale=${width * supersample}:${height * supersample}:flags=lanczos+accurate_rnd:in_range=pc:out_range=tv:out_color_matrix=bt709,${kenBurnsFilter(slide, index, seed, fps, width, height)},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`,
   );
 }
 
 function sceneChain(
-  manifest: Pick<SlideVideoManifest, 'slides' | 'clip'>,
+  manifest: Pick<SlideVideoManifest, 'slides' | 'clip' | 'episode'>,
   width: number,
   height: number,
+  supersample: number,
 ): { filters: string[]; priorLabel: string } {
   const fps = manifest.clip.fps;
-  const filters = slideSceneFilters(manifest.slides, fps, width, height);
+  const filters = slideSceneFilters(
+    manifest.slides,
+    kenBurnsSeedForEpisode(manifest.episode.id),
+    fps,
+    width,
+    height,
+    supersample,
+  );
   const priorLabel = appendXfadeChain(
     filters,
     manifest.slides,
@@ -452,10 +501,13 @@ export function buildStaticSlideFilter(
 ): string {
   const fps = manifest.clip.fps;
   const totalFrames = Math.round((manifest.clip.durationMs * fps) / 1_000);
+  // Legacy landscape rasters already arrive at output size; only vertical
+  // media crops are supersampled for motion.
   const { filters, priorLabel } = sceneChain(
     manifest,
     manifest.clip.width,
     manifest.clip.height,
+    1,
   );
 
   filters.push(
@@ -496,6 +548,7 @@ export function buildVerticalSlideFilter(
     manifest,
     window.width,
     window.height,
+    MEDIA_MOTION_SUPERSAMPLE,
   );
 
   filters.push(

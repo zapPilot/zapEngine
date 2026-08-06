@@ -1,0 +1,61 @@
+diff --git a/ios/NowPlayingManager.swift b/ios/NowPlayingManager.swift
+index c276c5c918c8f8d1921f3507dc3cd42e172e5493..9df0a2965d374b550d66dbaa83b8b7e6b7d7cc20 100644
+--- a/ios/NowPlayingManager.swift
++++ b/ios/NowPlayingManager.swift
+@@ -25,6 +25,10 @@ class NowPlayingManager: VideoPlayerObserverDelegate {
+   private var playbackPositionTarget: Any?
+   private var updateNowPlayingTask: Task<(), Never>?
+ 
++  private var ownsNowPlayingTargets: Bool {
++    playTarget != nil
++  }
++
+   init() {
+     let commandCenter = MPRemoteCommandCenter.shared()
+ 
+@@ -50,7 +54,11 @@ class NowPlayingManager: VideoPlayerObserverDelegate {
+       setMostRecentInteractionPlayer(player: newPlayer?.ref)
+     }
+ 
+-    if players.allObjects.isEmpty {
++    // A player that never opted into `showNowPlayingNotification` was never registered
++    // here, so `players` is empty on its deinit and this branch would tear down state
++    // this manager does not own — wiping another module's (expo-audio's) lock-screen
++    // controls and Now Playing entry, both of which are process-wide singletons.
++    if players.allObjects.isEmpty && ownsNowPlayingTargets {
+       let commandCenter = MPRemoteCommandCenter.shared()
+ 
+       removeNowPlayingTargets(commandCenter: commandCenter)
+@@ -240,11 +248,27 @@ class NowPlayingManager: VideoPlayerObserverDelegate {
+   private func removeNowPlayingTargets(commandCenter: MPRemoteCommandCenter) {
+     // Use the main queue to avoid race conditions with adding the targets (see comment in `addNowPlayingTargets`)
+     DispatchQueue.main.async { [weak self] in
+-      commandCenter.playCommand.removeTarget(self?.playTarget)
+-      commandCenter.pauseCommand.removeTarget(self?.pauseTarget)
+-      commandCenter.skipForwardCommand.removeTarget(self?.skipForwardTarget)
+-      commandCenter.skipBackwardCommand.removeTarget(self?.skipBackwardTarget)
+-      commandCenter.changePlaybackPositionCommand.removeTarget(self?.playbackPositionTarget)
++      guard let self else {
++        return
++      }
++      // `removeTarget(nil)` drops EVERY handler registered on the shared command center,
++      // including handlers other modules own, so only remove targets we actually added.
++      let ownedTargets: [(MPRemoteCommand, Any?)] = [
++        (commandCenter.playCommand, playTarget),
++        (commandCenter.pauseCommand, pauseTarget),
++        (commandCenter.skipForwardCommand, skipForwardTarget),
++        (commandCenter.skipBackwardCommand, skipBackwardTarget),
++        (commandCenter.changePlaybackPositionCommand, playbackPositionTarget)
++      ]
++      for (command, target) in ownedTargets where target != nil {
++        command.removeTarget(target)
++      }
++
++      playTarget = nil
++      pauseTarget = nil
++      skipForwardTarget = nil
++      skipBackwardTarget = nil
++      playbackPositionTarget = nil
+     }
+   }
+ 

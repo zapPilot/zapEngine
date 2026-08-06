@@ -1,3 +1,4 @@
+import type { AudioLockScreenOptions, AudioPlayer } from 'expo-audio';
 import {
   setAudioModeAsync,
   useAudioPlayer,
@@ -7,6 +8,12 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { PodcastEpisode } from '@/integration/podcastFeed';
+import type { PodcastRemoteCommandHandlers } from '@/integration/podcastMediaSession';
+import {
+  buildPodcastMediaMetadata,
+  IDLE_REMOTE_COMMAND_HANDLERS,
+  resolvePodcastRemoteCommand,
+} from '@/integration/podcastMediaSession';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 import type { PendingPodcastPlaybackHandoff } from '@/integration/podcastPlayerShared';
 import {
@@ -28,6 +35,39 @@ import { usePodcastPlayerQueue } from '@/integration/usePodcastPlayerQueue';
 import { usePodcastSpeedPreferences } from '@/hooks/usePodcastSpeedPreferences';
 // jscpd:ignore-end
 
+/**
+ * `showNextTrack` / `showPreviousTrack` and the `lockScreenRemoteCommand` event
+ * both come from this repo's expo-audio patch
+ * (`patches/expo-audio@57.0.0.patch`); SDK 57's own typings predate them.
+ *
+ * The track buttons stay lit at both queue edges. Skipping past an edge is
+ * already a no-op in `usePodcastPlayerQueue`, and keeping them static avoids
+ * re-arming the whole lock-screen session every time the queue index moves.
+ */
+const LOCK_SCREEN_OPTIONS: AudioLockScreenOptions & {
+  showNextTrack: boolean;
+  showPreviousTrack: boolean;
+} = {
+  showSeekForward: true,
+  showSeekBackward: true,
+  showNextTrack: true,
+  showPreviousTrack: true,
+};
+
+function subscribeToRemoteCommands(
+  player: AudioPlayer,
+  listener: (payload: unknown) => void,
+): { remove: () => void } {
+  return (
+    player as unknown as {
+      addListener: (
+        eventName: string,
+        listener: (payload: unknown) => void,
+      ) => { remove: () => void };
+    }
+  ).addListener('lockScreenRemoteCommand', listener);
+}
+
 export function usePodcastPlayer(): PodcastPlayer {
   const audioPlayer = useAudioPlayer(null, {
     updateInterval: 500,
@@ -44,6 +84,9 @@ export function usePodcastPlayer(): PodcastPlayer {
   const [handoffRevision, setHandoffRevision] = useState(0);
   const finishConsumedRef = useRef(false);
   const lockScreenActiveRef = useRef(false);
+  const remoteCommandRef = useRef<PodcastRemoteCommandHandlers>(
+    IDLE_REMOTE_COMMAND_HANDLERS,
+  );
 
   const sections = useMemo(
     () => (nowPlaying === null ? [] : buildPlaybackSections(nowPlaying)),
@@ -71,21 +114,12 @@ export function usePodcastPlayer(): PodcastPlayer {
   // main->classroom transition survives the screen being off.
   useEffect(() => {
     if (nowPlaying === null) return;
-    const metadata = {
-      title:
-        currentSection === 'classroom'
-          ? `${nowPlaying.title} — Language Classroom`
-          : nowPlaying.title,
-      artist: 'From Fed to Chain',
-    };
+    const metadata = buildPodcastMediaMetadata(nowPlaying, currentSection);
     if (lockScreenActiveRef.current) {
       audioPlayer.updateLockScreenMetadata(metadata);
     } else {
       lockScreenActiveRef.current = true;
-      audioPlayer.setActiveForLockScreen(true, metadata, {
-        showSeekForward: true,
-        showSeekBackward: true,
-      });
+      audioPlayer.setActiveForLockScreen(true, metadata, LOCK_SCREEN_OPTIONS);
     }
   }, [audioPlayer, nowPlaying, currentSection]);
 
@@ -210,6 +244,26 @@ export function usePodcastPlayer(): PodcastPlayer {
     playEpisodeSection,
     toggleCurrentPlayback,
   });
+
+  useEffect(() => {
+    remoteCommandRef.current = {
+      nextTrack: queueState.skipToNextEpisode,
+      previousTrack: queueState.skipToPreviousEpisode,
+    };
+  }, [queueState]);
+
+  // Headset next/previous track. An expo-audio player has no notion of tracks —
+  // the queue and the main->classroom section pair live here in JS — so the
+  // patched native module hands the command back instead of acting on it. The
+  // subscription reads through a ref so it survives queue changes intact.
+  useEffect(() => {
+    const subscription = subscribeToRemoteCommands(audioPlayer, (payload) => {
+      const command = resolvePodcastRemoteCommand(payload);
+      if (command === null) return;
+      remoteCommandRef.current[command]();
+    });
+    return () => subscription.remove();
+  }, [audioPlayer]);
 
   useEffect(() => {
     const handoff = pendingHandoffRef.current;

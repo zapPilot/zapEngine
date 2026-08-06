@@ -10,6 +10,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { resolveSlideAsset } from './assets.js';
@@ -24,8 +25,9 @@ import type {
 } from './manifest.js';
 import type { cropMediaImage, rasterizeSlide } from './rasterizer.js';
 import {
-  type composeVerticalThumbnail,
+  composeVerticalThumbnail,
   describeRenderedVideo,
+  downscaleMediaToWindow,
   outputDirectoryLabel,
   renderSlideVideo,
 } from './renderer.js';
@@ -400,6 +402,7 @@ describe('renderSlideVideo (vertical news manifests)', () => {
         await writeFile(input.outputPath, 'thumbnail', 'utf8');
       },
     );
+    const downscaleMedia = vi.fn<typeof downscaleMediaToWindow>(async () => {});
     const renderVerticalVideo = vi.fn(
       async (videoOptions: Parameters<typeof renderVerticalSlideVideo>[0]) => {
         renderedFilter = await readFile(videoOptions.filterScriptPath, 'utf8');
@@ -419,6 +422,7 @@ describe('renderSlideVideo (vertical news manifests)', () => {
         rasterizeFrame,
         rasterizeOutroCard,
         composeThumbnail,
+        downscaleMedia,
         renderVerticalVideo,
       },
     });
@@ -427,9 +431,10 @@ describe('renderSlideVideo (vertical news manifests)', () => {
     expect(renderVideo).not.toHaveBeenCalled();
     expect(cropMedia).toHaveBeenCalledTimes(3);
     const firstCrop = cropMedia.mock.calls[0]?.[0];
+    // Crops are supersampled so zoompan motion stays sub-pixel smooth.
     expect(firstCrop).toMatchObject({
-      width: 720,
-      height: 640,
+      width: 2_880,
+      height: 2_560,
       position: 'center',
     });
     expect(firstCrop?.imagePath.endsWith('scene-01.jpg')).toBe(true);
@@ -469,6 +474,20 @@ describe('renderSlideVideo (vertical news manifests)', () => {
         'music/bgm-02.mp3',
       ),
     ).toBe(true);
+    expect(downscaleMedia).toHaveBeenCalledTimes(3);
+    expect(downscaleMedia.mock.calls.map(([path]) => path)).toEqual(
+      result.slideOutputPaths,
+    );
+    expect(downscaleMedia.mock.calls[0]?.[1]).toEqual({
+      x: 0,
+      y: 413,
+      width: 720,
+      height: 640,
+    });
+    // The supersampled crops must feed the encoder before they are shrunk.
+    expect(renderVerticalVideo.mock.invocationCallOrder[0]).toBeLessThan(
+      downscaleMedia.mock.invocationCallOrder[0] ?? 0,
+    );
     expect(renderedFilter).toContain('pad=720:1280:0:413');
     expect(renderedFilter).toContain('sidechaincompress=');
     expect(await readFile(result.subtitlePath, 'utf8')).toContain(
@@ -504,6 +523,76 @@ describe('renderSlideVideo (vertical news manifests)', () => {
         },
       }),
     ).rejects.toThrow('Scene scene-01 media was not materialized to disk');
+  });
+});
+
+describe('vertical media post-processing', () => {
+  it('composes the thumbnail from a supersampled media crop', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'renderer-thumbnail-'));
+    temporaryRoots.push(root);
+    const mediaPath = join(root, 'media.png');
+    const framePath = join(root, 'frame.png');
+    const outputPath = join(root, 'thumbnail.png');
+    await sharp({
+      create: {
+        width: 2_880,
+        height: 2_560,
+        channels: 3,
+        background: '#3355ff',
+      },
+    })
+      .png()
+      .toFile(mediaPath);
+    await sharp({
+      create: {
+        width: 720,
+        height: 1_280,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .png()
+      .toFile(framePath);
+
+    await composeVerticalThumbnail({
+      mediaPath,
+      framePath,
+      window: { x: 0, y: 413, width: 720, height: 640 },
+      width: 720,
+      height: 1_280,
+      outputPath,
+    });
+
+    const metadata = await sharp(outputPath).metadata();
+    expect(metadata.width).toBe(720);
+    expect(metadata.height).toBe(1_280);
+  });
+
+  it('downscales a supersampled media crop back to the window size', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'renderer-downscale-'));
+    temporaryRoots.push(root);
+    const mediaPath = join(root, 'slide-01.png');
+    await sharp({
+      create: {
+        width: 2_880,
+        height: 2_560,
+        channels: 3,
+        background: '#101014',
+      },
+    })
+      .png()
+      .toFile(mediaPath);
+
+    await downscaleMediaToWindow(mediaPath, {
+      x: 0,
+      y: 413,
+      width: 720,
+      height: 640,
+    });
+
+    const metadata = await sharp(mediaPath).metadata();
+    expect(metadata.width).toBe(720);
+    expect(metadata.height).toBe(640);
   });
 });
 

@@ -2,6 +2,13 @@ import HLS from 'hls.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { PodcastEpisode } from '@/integration/podcastFeed';
+import type { PodcastRemoteCommandHandlers } from '@/integration/podcastMediaSession';
+import {
+  buildMediaSessionPositionState,
+  buildPodcastMediaMetadata,
+  IDLE_REMOTE_COMMAND_HANDLERS,
+  registerPodcastMediaSessionHandlers,
+} from '@/integration/podcastMediaSession';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 import type { PendingPodcastPlaybackHandoff } from '@/integration/podcastPlayerShared';
 import {
@@ -35,6 +42,9 @@ export function usePodcastPlayer(): PodcastPlayer {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hlsRef = useRef<HLS | null>(null);
   const onEndedRef = useRef<() => void>(() => undefined);
+  const remoteCommandRef = useRef<PodcastRemoteCommandHandlers>(
+    IDLE_REMOTE_COMMAND_HANDLERS,
+  );
   const pendingHandoffRef = useRef<PendingPodcastPlaybackHandoff | null>(null);
   const handoffIdRef = useRef(0);
   const [nowPlaying, setNowPlaying] = useState<PodcastEpisode | null>(null);
@@ -126,36 +136,34 @@ export function usePodcastPlayer(): PodcastPlayer {
   }, [completePendingHandoff]);
 
   // Media Session API: lock-screen / notification controls for mobile web.
-  // Handlers read the audio element lazily, so they register once.
+  // Handlers read the audio element and the queue lazily through refs, so they
+  // register once and survive queue changes.
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) {
       return;
     }
-    const { mediaSession } = navigator;
-    mediaSession.setActionHandler('play', () => {
-      void audioRef.current?.play();
+    return registerPodcastMediaSessionHandlers(navigator.mediaSession, {
+      play: () => {
+        void audioRef.current?.play();
+      },
+      pause: () => {
+        audioRef.current?.pause();
+      },
+      seekBackward: () => {
+        const audio = audioRef.current;
+        if (audio !== null) {
+          audio.currentTime = Math.max(0, audio.currentTime - 15);
+        }
+      },
+      seekForward: () => {
+        const audio = audioRef.current;
+        if (audio !== null && audio.duration > 0) {
+          audio.currentTime = Math.min(audio.duration, audio.currentTime + 30);
+        }
+      },
+      nextTrack: () => remoteCommandRef.current.nextTrack(),
+      previousTrack: () => remoteCommandRef.current.previousTrack(),
     });
-    mediaSession.setActionHandler('pause', () => {
-      audioRef.current?.pause();
-    });
-    mediaSession.setActionHandler('seekbackward', () => {
-      const audio = audioRef.current;
-      if (audio !== null) {
-        audio.currentTime = Math.max(0, audio.currentTime - 15);
-      }
-    });
-    mediaSession.setActionHandler('seekforward', () => {
-      const audio = audioRef.current;
-      if (audio !== null && audio.duration > 0) {
-        audio.currentTime = Math.min(audio.duration, audio.currentTime + 30);
-      }
-    });
-    return () => {
-      mediaSession.setActionHandler('play', null);
-      mediaSession.setActionHandler('pause', null);
-      mediaSession.setActionHandler('seekbackward', null);
-      mediaSession.setActionHandler('seekforward', null);
-    };
   }, []);
 
   useEffect(() => {
@@ -170,12 +178,12 @@ export function usePodcastPlayer(): PodcastPlayer {
       navigator.mediaSession.metadata = null;
       return;
     }
+    const metadata = buildPodcastMediaMetadata(nowPlaying, currentSection);
     navigator.mediaSession.metadata = new MediaMetadata({
-      title:
-        currentSection === 'classroom'
-          ? `${nowPlaying.title} — Language Classroom`
-          : nowPlaying.title,
-      artist: 'From Fed to Chain',
+      title: metadata.title,
+      artist: metadata.artist,
+      artwork:
+        metadata.artworkUrl === undefined ? [] : [{ src: metadata.artworkUrl }],
     });
   }, [nowPlaying, currentSection]);
 
@@ -327,6 +335,13 @@ export function usePodcastPlayer(): PodcastPlayer {
   // unheard" queue plays through without skipping the classroom section. The
   // 'ended' event is edge-triggered, so no dedupe latch is needed here.
   useEffect(() => {
+    remoteCommandRef.current = {
+      nextTrack: queueState.skipToNextEpisode,
+      previousTrack: queueState.skipToPreviousEpisode,
+    };
+  }, [queueState]);
+
+  useEffect(() => {
     onEndedRef.current = () => {
       const action = resolveFinishedPlayback({
         sections,
@@ -393,6 +408,35 @@ export function usePodcastPlayer(): PodcastPlayer {
       audio.playbackRate = speed;
     }
   }, [nowPlaying, speed]);
+
+  // Position state is what draws the scrubber and elapsed time on a mobile-web
+  // lock screen. The user agent advances the position itself from `playbackRate`,
+  // so this only has to run when the timeline jumps or changes shape — pushing it
+  // on every `timeupdate` would be several needless calls per second.
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (
+      audio === null ||
+      typeof navigator === 'undefined' ||
+      !('mediaSession' in navigator)
+    ) {
+      return;
+    }
+
+    const { mediaSession } = navigator;
+    const syncPositionState = () => {
+      const state = buildMediaSessionPositionState(
+        audio.currentTime,
+        audio.duration,
+        audio.playbackRate,
+      );
+      mediaSession.setPositionState(state ?? undefined);
+    };
+
+    syncPositionState();
+    audio.addEventListener('seeked', syncPositionState);
+    return () => audio.removeEventListener('seeked', syncPositionState);
+  }, [duration, isPlaying, speed]);
 
   const pause = useCallback(() => {
     cancelPendingHandoff();

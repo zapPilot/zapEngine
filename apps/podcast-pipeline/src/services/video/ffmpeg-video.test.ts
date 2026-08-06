@@ -8,6 +8,7 @@ import {
   buildVerticalSlideFilter,
   createFfmpegEncodeProgressReader,
   kenBurnsPanForScene,
+  kenBurnsSeedForEpisode,
   parseFfmpegProgressOutTimeUs,
   renderStaticSlideVideo,
   renderVerticalSlideVideo,
@@ -152,7 +153,10 @@ describe('vertical news FFmpeg composition', () => {
       '/render/fonts',
     );
 
-    expect(filter).toContain('scale=720:640:');
+    // Media inputs are supersampled crops; zoompan's own `s=` brings each
+    // scene back down to the window, keeping motion sub-pixel smooth.
+    expect(filter).toContain('scale=2880:2560:');
+    expect(filter).not.toContain('scale=720:640');
     expect(filter).toContain('s=720x640');
     expect(filter).toContain(
       'xfade=transition=fade:duration=0.208:offset=3.791667[x1]',
@@ -345,6 +349,62 @@ describe('vertical news FFmpeg composition', () => {
   });
 });
 
+describe('Ken Burns motion', () => {
+  it('derives a stable per-episode seed inside the motion rotation', () => {
+    const episodeId = '9ee737b4-c3d3-4f88-9837-ccc7fc20704e';
+    expect(kenBurnsSeedForEpisode(episodeId)).toBe(3);
+    expect(kenBurnsSeedForEpisode(episodeId)).toBe(
+      kenBurnsSeedForEpisode(episodeId),
+    );
+    for (const other of ['episode-a', 'episode-b', 'episode-c']) {
+      const seed = kenBurnsSeedForEpisode(other);
+      expect(Number.isInteger(seed)).toBe(true);
+      expect(seed).toBeGreaterThanOrEqual(0);
+      expect(seed).toBeLessThan(5);
+    }
+  });
+
+  it('falls back to an eased zoom when a pinned crop lands on the vertical pan', () => {
+    const manifest = createVerticalManifest();
+    // Seed 3 puts the rightToLeft pan on scene 0 and topToBottom on scene 1.
+    const [first, second] = manifest.slides;
+    if (!first || !second) throw new Error('Vertical manifest needs 3 slides');
+    first.asset.position = 'bottom';
+    second.asset.position = 'top';
+
+    const filter = buildVerticalSlideFilter(
+      manifest,
+      '/render/captions.ass',
+      '/render/fonts',
+    );
+
+    // Scene 0 pans horizontally with its bottom edge pinned.
+    expect(filter).toContain(
+      "x='(iw-iw/zoom)*(1-pow(min(on/95\\,1)\\,2)*(3-2*min(on/95\\,1)))':y='ih-ih/zoom'",
+    );
+    // Scene 1 cannot pan vertically while pinned to the top, so it zooms in.
+    expect(filter).toContain(
+      "z='1+0.0840*pow(min(on/143\\,1)\\,2)*(3-2*min(on/143\\,1))':x='(iw-iw/zoom)/2':y='0'",
+    );
+  });
+
+  it('caps the zoom travel on long scenes', () => {
+    const manifest = createVerticalManifest();
+    const lastSlide = manifest.slides[2];
+    if (!lastSlide) throw new Error('Vertical manifest needs 3 slides');
+    // A 20s scene at 0.014/s would reach 0.28 without the cap.
+    lastSlide.endMs = 30_000;
+
+    const filter = buildVerticalSlideFilter(
+      manifest,
+      '/render/captions.ass',
+      '/render/fonts',
+    );
+
+    expect(filter).toContain("z='1+0.1800*");
+  });
+});
+
 describe('ffmpeg encode progress', () => {
   it('reads out_time_ms as microseconds, matching ffmpeg despite the key name', () => {
     // A long-standing ffmpeg misnomer: out_time_ms carries microseconds. Reading
@@ -438,19 +498,33 @@ describe('static slide FFmpeg composition', () => {
     expect(filter).toContain("fontsdir='/render/fonts'");
     expect(filter.match(/xfade=/g)).toHaveLength(2);
     expect(filter.match(/zoompan=/g)).toHaveLength(3);
-    expect(filter).toContain("z='1+0.05*min(on/119\\,1)'");
-    expect(filter).toContain('(iw-iw/zoom)*min(on/179\\,1)');
-    expect(filter).toContain('(iw-iw/zoom)*(1-min(on/149\\,1))');
+    // Legacy landscape rasters already arrive at output size — no supersampling.
+    expect(filter).toContain('scale=1920:1080:');
+    // The test episode id seeds the rotation at 3, so the three scenes run
+    // rightToLeft, topToBottom, then zoomIn.
+    expect(filter).toContain(
+      "z='1.15':x='(iw-iw/zoom)*(1-pow(min(on/119\\,1)\\,2)*(3-2*min(on/119\\,1)))'",
+    );
+    expect(filter).toContain(
+      "y='(ih-ih/zoom)*pow(min(on/179\\,1)\\,2)*(3-2*min(on/179\\,1))'",
+    );
+    expect(filter).toContain(
+      "z='1+0.0700*pow(min(on/149\\,1)\\,2)*(3-2*min(on/149\\,1))'",
+    );
+    // Pans hold a constant zoom; only zoom scenes carry an eased z expression.
+    expect(filter.match(/z='1\.15'/g)).toHaveLength(2);
     expect(filter).not.toMatch(/rotate|gblur|boxblur/i);
     expect(
-      Array.from({ length: 5 }, (_, index) => kenBurnsPanForScene(index)),
+      Array.from({ length: 6 }, (_, index) => kenBurnsPanForScene(index)),
     ).toEqual([
-      'center',
+      'zoomIn',
       'leftToRight',
+      'zoomOut',
       'rightToLeft',
       'topToBottom',
-      'center',
+      'zoomIn',
     ]);
+    expect(kenBurnsPanForScene(0, 3)).toBe('rightToLeft');
   });
 
   it('builds 1080p H.264 High 4.1 and AAC still-image encoding args', () => {

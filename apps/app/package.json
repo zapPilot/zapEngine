@@ -4,6 +4,15 @@
   "private": true,
   "license": "UNLICENSED",
   "main": "entrypoint.js",
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": [
+          "expo-audio"
+        ]
+      }
+    }
+  },
   "scripts": {
     "dev": "expo start --dev-client --port 8081",
     "dev:web": "expo start --web --port 8081",

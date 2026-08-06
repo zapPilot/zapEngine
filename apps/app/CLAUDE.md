@@ -107,3 +107,23 @@ generated lockfiles, so two equally stale files are not proof that
 - CI runs `test:ios:release-smoke` on `macos-26` for app/native-related changes.
   It clean-prebuilds, installs Pods, builds Release, installs it in a simulator,
   and proves the process survives cold start.
+
+## Patched Expo modules and the Android prebuilt trap
+
+`patches/expo-audio@57.0.0.patch` and `patches/expo-video@57.0.1.patch` add
+lock-screen behaviour SDK 57 does not ship: headset next/previous track, and a
+guard stopping expo-video's teardown from wiping expo-audio's process-wide
+remote commands. Both are Swift/Kotlin patches, so the JS gates cannot see them.
+
+The trap is that the two platforms consume an Expo module differently. iOS
+builds every module from source, so a Swift patch takes effect as soon as Pods
+are reinstalled. **Android prefers a prebuilt AAR** shipped in the package's
+`local-maven-repo`, and silently ignores `android/src` — a Kotlin patch there is
+dead code with no error anywhere. `expo-audio` is therefore pinned to a source
+build via `expo.autolinking.android.buildFromSource` in `package.json`; removing
+that entry does not break the build, it just quietly reverts the Android fix.
+
+Gradle prints which mode each module uses: `[📦] expo-audio` means the prebuilt
+AAR, a bare `expo-audio` means source. Verify a Kotlin patch with
+`./gradlew :expo-audio:compileReleaseKotlin`, which only resolves if the module
+is a source project at all.

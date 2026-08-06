@@ -92,4 +92,6 @@ overrides:
   ws@>=8.0.0 <8.21.0: '>=8.21.0'
 
 patchedDependencies:
+  expo-audio@57.0.0: patches/expo-audio@57.0.0.patch
+  expo-video@57.0.1: patches/expo-video@57.0.1.patch
   minimatch@3.1.5: patches/minimatch@3.1.5.patch
