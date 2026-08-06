@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { ChevronDown, Info } from 'lucide-react-native';
+import { Info } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
@@ -9,9 +9,11 @@ import {
 } from '@/components/connect/connectCopy';
 import { BridgeTestPanel } from '@/components/invest/BridgeTestPanel';
 import { ChainTokenSelectorSheet } from '@/components/invest/ChainTokenSelectorSheet';
+import { FundingSourceCard } from '@/components/invest/FundingSourceCard';
+import { QuickAmountChips } from '@/components/invest/QuickAmountChips';
 import { StepHeader } from '@/components/invest/StepHeader';
 import { StepProgress } from '@/components/invest/StepProgress';
-import { TokenIcon } from '@/components/token/TokenIcon';
+import { SwapArrowDivider } from '@/components/invest/SwapArrowDivider';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { Tap } from '@/components/ui/Tap';
@@ -19,7 +21,6 @@ import {
   ARBITRUM_DEPOSIT_TOKENS,
   BASE_DEPOSIT_TOKENS,
   DEFAULT_ARBITRUM_FUNDING_TOKEN,
-  type DesktopDepositToken,
 } from '@/integration/depositTokens';
 import {
   amountInputToUsd6,
@@ -30,121 +31,17 @@ import {
   maxUsdAmountInput,
   minimumDepositUsd6ForScope,
   normalizeAmountInput,
+  quickAmountUsdInput,
   requiredChainUnavailableForScope,
   spendableUsdForFundingToken,
   strategyMaxTotalUsd,
 } from '@/integration/investAmountModel';
 import { useAccount } from '@/integration/useAccount';
 import { type InvestScope, useInvest } from '@/integration/useInvest';
-import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
 import { useWalletAssets } from '@/integration/walletTokens';
-import { formatTokenBalance, formatUsd } from '@/lib/format';
+import { formatUsd } from '@/lib/format';
 
 type FundingBalanceState = 'loading' | 'unavailable' | 'loaded';
-
-interface FundingSourceInputProps {
-  chainLabel: string;
-  allocation: string;
-  protocol: string;
-  token: DesktopDepositToken;
-  tokenAmount: number | null;
-  hasAmount: boolean;
-  allocatedUsd: number;
-  balance: ChainTokenBalanceRow | null;
-  balanceState: FundingBalanceState;
-  onSelect: (() => void) | undefined;
-}
-
-function formattedTokenAmount(
-  value: number | null,
-  token: DesktopDepositToken,
-  hasAmount: boolean,
-): string {
-  if (!hasAmount) return '0';
-  if (value === null) return '—';
-  return value.toLocaleString('en-US', {
-    maximumFractionDigits: token.symbol === 'ETH' ? 6 : 2,
-  });
-}
-
-function FundingSourceInput({
-  chainLabel,
-  allocation,
-  protocol,
-  token,
-  tokenAmount,
-  hasAmount,
-  allocatedUsd,
-  balance,
-  balanceState,
-  onSelect,
-}: FundingSourceInputProps) {
-  const tokenPill = (
-    <>
-      <TokenIcon glyph={token.glyph} bg={token.iconBg} size={28} alt="" />
-      <Text className="font-sans-semibold text-[13px] text-ink">
-        {token.symbol}
-      </Text>
-    </>
-  );
-
-  return (
-    <View className="rounded-[18px] border border-line bg-[#171719] px-4 py-3.5">
-      <View className="flex-row items-start justify-between">
-        <View>
-          <View className="flex-row items-center gap-2">
-            <Text className="font-sans-semibold text-[12px] text-ink">
-              {chainLabel}
-            </Text>
-            <View className="rounded-full bg-[rgba(212,197,163,.1)] px-2 py-0.5">
-              <Text className="font-mono text-[8.5px] text-accent">
-                {allocation}
-              </Text>
-            </View>
-          </View>
-          <Text className="mt-1 text-[11px] text-ink-dim">{protocol}</Text>
-        </View>
-        <Text className="font-mono text-[10px] text-ink-dim">
-          Balance{' '}
-          {formatTokenBalance(balance?.balance, token.symbol, balanceState)}
-        </Text>
-      </View>
-
-      <View className="mt-4 flex-row items-center justify-between gap-3">
-        <View className="min-w-0 flex-1">
-          <Text
-            className="font-sans-semibold text-[28px] leading-[32px] text-ink"
-            numberOfLines={1}
-            adjustsFontSizeToFit
-          >
-            {formattedTokenAmount(tokenAmount, token, hasAmount)}
-          </Text>
-          <Text className="mt-1 font-mono text-[10px] text-ink-dim">
-            Target allocation {formatUsd(allocatedUsd)}
-          </Text>
-        </View>
-        {onSelect ? (
-          <Tap
-            accessibilityRole="button"
-            accessibilityLabel={`Select ${chainLabel} funding token`}
-            className="flex-row items-center gap-2 rounded-full border border-line bg-[#242427] py-2 pl-2 pr-3"
-            onPress={onSelect}
-          >
-            {tokenPill}
-            <ChevronDown size={15} color="#a1a1aa" />
-          </Tap>
-        ) : (
-          <View
-            accessibilityLabel={`${chainLabel} funding token ${token.symbol}`}
-            className="flex-row items-center gap-2 rounded-full border border-line bg-[#242427] py-2 pl-2 pr-3"
-          >
-            {tokenPill}
-          </View>
-        )}
-      </View>
-    </View>
-  );
-}
 
 type InvestAmountTab = InvestScope | 'bridge';
 
@@ -180,7 +77,6 @@ function fundingBalanceState({
 interface AmountNotice {
   message: string;
   className: string;
-  style?: { color: string };
 }
 
 function amountNotice({
@@ -204,7 +100,7 @@ function amountNotice({
 }): AmountNotice | null {
   if (belowMinimum) {
     return {
-      className: 'mt-2.5 px-1 text-[11px] text-danger',
+      className: 'mt-2.5 px-1 text-[11px] text-error',
       message: isBaseOnly
         ? 'Enter at least $0.01 to test the Base Morpho deposit.'
         : isBoth
@@ -214,7 +110,7 @@ function amountNotice({
   }
   if (exceedsBalance) {
     return {
-      className: 'mt-2.5 px-1 text-[11px] text-danger',
+      className: 'mt-2.5 px-1 text-[11px] text-error',
       message: isBoth
         ? 'This amount exceeds the available balance on at least one chain.'
         : `This amount exceeds the available ${activeChainLabel} balance.`,
@@ -222,8 +118,7 @@ function amountNotice({
   }
   if (requiredChainUnavailable) {
     return {
-      className: 'mt-2.5 px-1 text-[11px]',
-      style: { color: '#ef7474' },
+      className: 'mt-2.5 px-1 text-[11px] text-error',
       message: isBoth
         ? 'Base or Arbitrum balances are unavailable. Retry to continue.'
         : `${activeChainLabel} balances are unavailable. Retry to continue.`,
@@ -427,6 +322,19 @@ export function InvestAmountScreen() {
     !exceedsBalance &&
     hasStrategyCapacity &&
     hasExecutableFundingAmount;
+  const quickAmountsDisabled =
+    !account.isConnected ||
+    maxTotalUsd === null ||
+    maxUsd6 <= 0n ||
+    balances.isLoading ||
+    requiredChainUnavailable;
+  const availableLabel = balances.isLoading
+    ? 'Loading balances…'
+    : requiredChainUnavailable || !account.isConnected
+      ? 'Available —'
+      : maxTotalUsd === null
+        ? 'Available — · USD price unavailable'
+        : `Available ${formatUsd(maxTotalUsd)}`;
 
   const handlePrimaryAction = () => {
     if (!account.isConnected) {
@@ -479,10 +387,10 @@ export function InvestAmountScreen() {
       <ScreenScrollView>
         <StepHeader title="Invest" step="Bridge test" />
         <View className="px-5 pt-5">
-          <Text className="font-sans-semibold text-[22px] text-ink">
+          <Text className="font-serif text-[28px] leading-[32px] text-ink">
             Bridge USDC
           </Text>
-          <Text className="mt-1.5 text-[12px] leading-[18px] text-ink-dim">
+          <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
             Test canonical USDC transfers through LI.FI without entering a
             strategy.
           </Text>
@@ -499,10 +407,10 @@ export function InvestAmountScreen() {
         <StepHeader title="Invest" step="Step 1 of 2" />
         <StepProgress current={1} />
         <View className="px-5 pt-5">
-          <Text className="font-sans-semibold text-[22px] text-ink">
+          <Text className="font-serif text-[28px] leading-[32px] text-ink">
             Deposit into strategy
           </Text>
-          <Text className="mt-1.5 text-[12px] leading-[18px] text-ink-dim">
+          <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
             {isBoth
               ? 'Choose one funding token on each destination chain.'
               : isBaseOnly
@@ -512,137 +420,87 @@ export function InvestAmountScreen() {
 
           <InvestScopeToggle value={activeTab} onChange={handleTabChange} />
 
-          <View className="mt-4 rounded-[22px] border border-line bg-[#111113] p-3">
-            <View className="px-1 pb-3 pt-1">
-              <View className="flex-row items-center justify-between">
-                <Text className="text-[11px] text-ink-dim">You deposit</Text>
-                <Tap
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    isBoth
-                      ? 'Use maximum strategy deposit supported by both chains'
-                      : `Use maximum deposit supported on ${activeChainLabel}`
-                  }
-                  accessibilityState={{
-                    disabled:
-                      !account.isConnected ||
-                      maxTotalUsd === null ||
-                      maxUsd6 <= 0n ||
-                      balances.isLoading ||
-                      requiredChainUnavailable,
-                  }}
-                  className="min-h-11 justify-center"
-                  disabled={
-                    !account.isConnected ||
-                    maxTotalUsd === null ||
-                    maxUsd6 <= 0n ||
-                    balances.isLoading ||
-                    requiredChainUnavailable
-                  }
-                  hitSlop={8}
-                  onPress={() => invest.setAmountInput(maxAmountInput)}
-                >
-                  <Text
-                    className="font-mono text-[10.5px] text-ink-dim"
-                    style={
-                      maxUsd6 <= 0n ||
-                      maxTotalUsd === null ||
-                      balances.isLoading ||
-                      requiredChainUnavailable
-                        ? { opacity: 0.5 }
-                        : undefined
-                    }
-                  >
-                    {balances.isLoading
-                      ? 'Loading balances…'
-                      : requiredChainUnavailable || !account.isConnected
-                        ? 'Available —'
-                        : maxTotalUsd === null
-                          ? 'Available — · USD price unavailable'
-                          : `Available ${formatUsd(maxTotalUsd)} · `}
-                    {!balances.isLoading &&
-                    !requiredChainUnavailable &&
-                    account.isConnected &&
-                    maxTotalUsd !== null ? (
-                      <Text className="text-accent">
-                        {isBoth ? 'STRATEGY MAX' : 'CHAIN MAX'}
-                      </Text>
-                    ) : null}
-                  </Text>
-                </Tap>
-              </View>
-              <View className="mt-2 flex-row items-center">
-                <Text className="mr-2 font-sans-semibold text-[30px] text-ink-faint">
-                  $
+          <View className="mt-4 rounded-[22px] border border-line bg-[#111113] p-4">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-[11px] text-ink-dim">You deposit</Text>
+              <Text className="font-mono text-[10.5px] text-ink-dim">
+                {availableLabel}
+              </Text>
+            </View>
+            <View className="mt-2 flex-row items-center">
+              <Text className="mr-2 font-sans-semibold text-[30px] text-ink-faint">
+                $
+              </Text>
+              <TextInput
+                accessibilityLabel="Total deposit in US dollars"
+                className="min-w-0 flex-1 font-sans-semibold text-[42px] leading-[48px] text-ink"
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor="#52525b"
+                selectionColor="#d4c5a3"
+                value={invest.amountInput}
+                onChangeText={(value) =>
+                  invest.setAmountInput(normalizeAmountInput(value))
+                }
+              />
+              <View className="rounded-full bg-[#242427] px-3 py-2">
+                <Text className="font-sans-semibold text-[12px] text-ink-dim">
+                  USD
                 </Text>
-                <TextInput
-                  accessibilityLabel="Total deposit in US dollars"
-                  className="min-w-0 flex-1 font-sans-semibold text-[42px] leading-[48px] text-ink"
-                  keyboardType="decimal-pad"
-                  placeholder="0"
-                  placeholderTextColor="#52525b"
-                  selectionColor="#d4c5a3"
-                  value={invest.amountInput}
-                  onChangeText={(value) =>
-                    invest.setAmountInput(normalizeAmountInput(value))
-                  }
-                />
-                <View className="rounded-full bg-[#242427] px-3 py-2">
-                  <Text className="font-sans-semibold text-[12px] text-ink-dim">
-                    USD
-                  </Text>
-                </View>
               </View>
             </View>
+            <QuickAmountChips
+              disabled={quickAmountsDisabled}
+              maxAccessibilityLabel={
+                isBoth
+                  ? 'Use maximum strategy deposit supported by both chains'
+                  : `Use maximum deposit supported on ${activeChainLabel}`
+              }
+              onSelect={(bps) =>
+                invest.setAmountInput(quickAmountUsdInput(maxTotalUsd, bps))
+              }
+            />
+          </View>
 
-            {isBoth ? (
-              <View className="my-1 flex-row items-center gap-2 px-1">
-                <View className="h-px flex-1 bg-line" />
-                <Text className="font-mono text-[8.5px] uppercase tracking-[.7px] text-ink-faint">
-                  40 / 60 split
-                </Text>
-                <View className="h-px flex-1 bg-line" />
-              </View>
+          <SwapArrowDivider />
+
+          <View className="gap-2">
+            {invest.scope !== 'arbitrum' ? (
+              <FundingSourceCard
+                chainLabel="Base"
+                allocation={isBoth ? '40%' : '100%'}
+                protocol="Morpho · Moonwell USDC"
+                token={invest.baseFundingToken}
+                tokenAmount={baseTokenAmount}
+                hasAmount={amountUsd !== null}
+                allocatedUsd={(amountUsd ?? 0) * (isBoth ? 0.4 : 1)}
+                balance={baseBalance}
+                balanceState={baseBalanceState}
+                onSelectToken={() => setSelector('base')}
+              />
             ) : null}
-
-            <View className="mt-1 gap-2">
-              {invest.scope !== 'arbitrum' ? (
-                <FundingSourceInput
-                  chainLabel="Base"
-                  allocation={isBoth ? '40%' : '100%'}
-                  protocol="Morpho · Moonwell USDC"
-                  token={invest.baseFundingToken}
-                  tokenAmount={baseTokenAmount}
-                  hasAmount={amountUsd !== null}
-                  allocatedUsd={(amountUsd ?? 0) * (isBoth ? 0.4 : 1)}
-                  balance={baseBalance}
-                  balanceState={baseBalanceState}
-                  onSelect={() => setSelector('base')}
-                />
-              ) : null}
-              {invest.scope !== 'base' ? (
-                <FundingSourceInput
-                  chainLabel="Arbitrum"
-                  allocation={isBoth ? '60%' : '100%'}
-                  protocol={
-                    isBoth ? 'GMX · BTC/USDC + ETH/USDC' : 'GMX · BTC/USDC'
-                  }
-                  token={activeArbitrumFundingToken}
-                  tokenAmount={arbitrumTokenAmount}
-                  hasAmount={amountUsd !== null}
-                  allocatedUsd={(amountUsd ?? 0) * (isBoth ? 0.6 : 1)}
-                  balance={arbitrumBalance}
-                  balanceState={arbitrumBalanceState}
-                  onSelect={isBoth ? () => setSelector('arbitrum') : undefined}
-                />
-              ) : null}
-            </View>
+            {invest.scope !== 'base' ? (
+              <FundingSourceCard
+                chainLabel="Arbitrum"
+                allocation={isBoth ? '60%' : '100%'}
+                protocol={
+                  isBoth ? 'GMX · BTC/USDC + ETH/USDC' : 'GMX · BTC/USDC'
+                }
+                token={activeArbitrumFundingToken}
+                tokenAmount={arbitrumTokenAmount}
+                hasAmount={amountUsd !== null}
+                allocatedUsd={(amountUsd ?? 0) * (isBoth ? 0.6 : 1)}
+                balance={arbitrumBalance}
+                balanceState={arbitrumBalanceState}
+                onSelectToken={
+                  isBoth ? () => setSelector('arbitrum') : undefined
+                }
+              />
+            ) : null}
           </View>
 
           {notice === null ? null : (
-            <Text className={notice.className} style={notice.style}>
-              {notice.message}
-            </Text>
+            <Text className={notice.className}>{notice.message}</Text>
           )}
 
           {isBoth ? (

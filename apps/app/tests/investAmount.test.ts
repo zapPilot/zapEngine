@@ -10,6 +10,7 @@ import {
   minimumDepositUsd6ForScope,
   MIN_STRATEGY_DEPOSIT_USD6,
   normalizeAmountInput,
+  quickAmountUsdInput,
   requiredChainUnavailableForScope,
   singleChainFromAmount,
   spendableUsdForFundingToken,
@@ -70,6 +71,18 @@ describe('Invest amount helpers', () => {
     expect(maxUsdAmountInput(0.0069999999)).toBe('0.006999');
     expect(maxUsdAmountInput(12.3456789)).toBe('12.345678');
     expect(maxUsdAmountInput(0.0000009)).toBe('');
+  });
+
+  it('derives quick-amount chip values from capacity without overspending', () => {
+    expect(quickAmountUsdInput(null, 10_000)).toBe('');
+    expect(quickAmountUsdInput(0, 5_000)).toBe('');
+    expect(quickAmountUsdInput(100, 2_500)).toBe('25');
+    expect(quickAmountUsdInput(100, 7_500)).toBe('75');
+    expect(quickAmountUsdInput(1_234.5678912, 5_000)).toBe('617.283945');
+    expect(quickAmountUsdInput(12.3456789, 10_000)).toBe(
+      maxUsdAmountInput(12.3456789),
+    );
+    expect(quickAmountUsdInput(100_000, 10_000)).toBe('100,000');
   });
 
   it('converts USD input to exact 6-decimal base units', () => {

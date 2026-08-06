@@ -102,6 +102,15 @@ export function usdcInputToBaseUnits(value: string): string {
   return `${match[1]!}${fraction}`.replace(/^0+(?=\d)/u, '') || '0';
 }
 
+/** Integer floor of a basis-point share of a base-unit amount. */
+export function percentOfBaseUnits(
+  baseUnits: string | null,
+  bps: number,
+): string {
+  const scaled = (BigInt(baseUnits ?? '0') * BigInt(bps)) / 10_000n;
+  return scaled > 0n ? scaled.toString() : '0';
+}
+
 export function baseUnitsToUsdcInput(value: string): string {
   const normalized = BigInt(value || '0')
     .toString()

@@ -85,6 +85,16 @@ export function maxUsdAmountInput(value: number): string {
   );
 }
 
+/** Grouped USD input for a basis-point share of the wallet capacity. */
+export function quickAmountUsdInput(
+  maxTotalUsd: number | null,
+  bps: number,
+): string {
+  if (maxTotalUsd === null) return '';
+  if (bps >= 10_000) return maxUsdAmountInput(maxTotalUsd);
+  return maxUsdAmountInput((maxTotalUsd * bps) / 10_000);
+}
+
 export function amountUsdFromInput(groupedAmount: string): number | null {
   const value = parseAmount(groupedAmount);
   return value > 0 ? value : null;

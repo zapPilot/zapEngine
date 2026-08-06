@@ -9,15 +9,20 @@ import { useEffect, useMemo, useState } from 'react';
 import { Linking, Text, TextInput, View } from 'react-native';
 import { formatUnits, parseUnits } from 'viem';
 
+import { QuickAmountChips } from '@/components/invest/QuickAmountChips';
+import { SwapArrowDivider } from '@/components/invest/SwapArrowDivider';
+import { TokenSelectorPill } from '@/components/invest/TokenSelectorPill';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Tap } from '@/components/ui/Tap';
 import {
   baseUnitsToUsdcInput,
   bridgeBalanceQueryKey,
   bridgeChain,
+  type BridgeChainOption,
   bridgeDestinationChains,
   BRIDGE_SOURCE_CHAINS,
   normalizeUsdcInput,
+  percentOfBaseUnits,
   usdcInputToBaseUnits,
 } from '@/integration/bridgeTestModel';
 import { useAccount } from '@/integration/useAccount';
@@ -75,6 +80,56 @@ function ChainPill({
         {label}
       </Text>
     </Tap>
+  );
+}
+
+function ChainPillRow({
+  options,
+  selectedChainId,
+  onSelect,
+  wrap = false,
+  accessibilityLabel,
+}: {
+  options: readonly BridgeChainOption[];
+  selectedChainId: number;
+  onSelect: (chainId: number) => void;
+  wrap?: boolean;
+  accessibilityLabel: string;
+}) {
+  return (
+    <View
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="radiogroup"
+      className={wrap ? 'mt-2 flex-row flex-wrap gap-2' : 'mt-2 flex-row gap-2'}
+    >
+      {options.map((chain) =>
+        wrap ? (
+          <View key={chain.chainId} className="min-w-[30%] flex-1">
+            <ChainPill
+              label={chain.label}
+              selected={chain.chainId === selectedChainId}
+              onPress={() => onSelect(chain.chainId)}
+            />
+          </View>
+        ) : (
+          <ChainPill
+            key={chain.chainId}
+            label={chain.label}
+            selected={chain.chainId === selectedChainId}
+            onPress={() => onSelect(chain.chainId)}
+          />
+        ),
+      )}
+    </View>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View className="flex-row justify-between">
+      <Text className="text-[11px] text-ink-dim">{label}</Text>
+      <Text className="font-mono text-[11px] text-ink">{value}</Text>
+    </View>
   );
 }
 
@@ -182,6 +237,19 @@ export function BridgeTestPanel() {
     }
   }
 
+  const canSwap = destination.canSource && source.canDestination;
+
+  function swapDirection(): void {
+    if (!canSwap) return;
+    setSourceChainId(destinationChainId);
+    setDestinationChainId(sourceChainId);
+  }
+
+  const quickAmountsDisabled =
+    sourceBalanceBaseUnits === null ||
+    sourceUsdcBalance.isLoading ||
+    sourceUsdcBalance.isError;
+
   const canExecute =
     account.isConnected &&
     bridge.status === 'ready' &&
@@ -230,67 +298,20 @@ export function BridgeTestPanel() {
   }
 
   return (
-    <View className="mt-4 gap-4">
+    <View className="mt-4">
       <View className="rounded-[22px] border border-line bg-[#111113] p-4">
-        <Text className="font-sans-semibold text-[15px] text-ink">From</Text>
-        <View accessibilityRole="radiogroup" className="mt-2 flex-row gap-2">
-          {BRIDGE_SOURCE_CHAINS.map((chain) => (
-            <ChainPill
-              key={chain.chainId}
-              label={chain.label}
-              selected={chain.chainId === sourceChainId}
-              onPress={() => selectSource(chain.chainId)}
-            />
-          ))}
-        </View>
+        <Text className="text-[11px] text-ink-dim">From</Text>
+        <ChainPillRow
+          options={BRIDGE_SOURCE_CHAINS}
+          selectedChainId={sourceChainId}
+          onSelect={selectSource}
+          accessibilityLabel="Source chain"
+        />
 
-        <Text className="mt-4 font-sans-semibold text-[15px] text-ink">To</Text>
-        <View
-          accessibilityRole="radiogroup"
-          className="mt-2 flex-row flex-wrap gap-2"
-        >
-          {destinations.map((chain) => (
-            <View key={chain.chainId} className="min-w-[30%] flex-1">
-              <ChainPill
-                label={chain.label}
-                selected={chain.chainId === destinationChainId}
-                onPress={() => setDestinationChainId(chain.chainId)}
-              />
-            </View>
-          ))}
-        </View>
-
-        <View className="mt-5 flex-row items-center justify-between">
-          <Text className="text-[11px] text-ink-dim">USDC amount</Text>
-          <Tap
-            accessibilityRole="button"
-            className="min-h-8 justify-center"
-            disabled={
-              sourceBalanceBaseUnits === null ||
-              sourceUsdcBalance.isLoading ||
-              sourceUsdcBalance.isError
-            }
-            onPress={() =>
-              setAmountInput(
-                baseUnitsToUsdcInput(sourceBalanceBaseUnits ?? '0'),
-              )
-            }
-          >
-            <Text className="font-mono text-[10px] text-accent">
-              Balance{' '}
-              {sourceUsdcBalance.isLoading
-                ? 'Loading…'
-                : sourceUsdcBalance.isError
-                  ? 'Unavailable'
-                  : (sourceUsdcBalance.data?.balance ?? '0')}{' '}
-              USDC · MAX
-            </Text>
-          </Tap>
-        </View>
-        <View className="mt-2 flex-row items-center rounded-[16px] border border-line bg-[#171719] px-4">
+        <View className="mt-4 flex-row items-center justify-between gap-3">
           <TextInput
             accessibilityLabel="USDC bridge amount"
-            className="min-w-0 flex-1 py-4 font-sans-semibold text-[30px] text-ink"
+            className="min-w-0 flex-1 font-sans-semibold text-[34px] leading-[40px] text-ink"
             keyboardType="decimal-pad"
             placeholder="0"
             placeholderTextColor="#52525b"
@@ -298,75 +319,129 @@ export function BridgeTestPanel() {
             value={amountInput}
             onChangeText={(value) => setAmountInput(normalizeUsdcInput(value))}
           />
-          <Text className="font-sans-semibold text-[13px] text-ink-dim">
-            USDC
+          <TokenSelectorPill
+            symbol="USDC"
+            glyph="$"
+            iconBg="#2775ca"
+            accessibilityLabel="Bridge token USDC"
+          />
+        </View>
+        <View className="mt-2 flex-row items-center justify-between">
+          <Text className="font-mono text-[10px] text-ink-dim">
+            ≈ {formatUsd(amountInput)}
+          </Text>
+          <Text className="font-mono text-[10px] text-ink-dim">
+            Balance:{' '}
+            {sourceUsdcBalance.isLoading
+              ? 'Loading…'
+              : sourceUsdcBalance.isError
+                ? 'Unavailable'
+                : `${sourceUsdcBalance.data?.balance ?? '0'} USDC`}
           </Text>
         </View>
+        <QuickAmountChips
+          disabled={quickAmountsDisabled}
+          maxAccessibilityLabel={`Use maximum ${source.label} USDC balance`}
+          onSelect={(bps) =>
+            setAmountInput(
+              baseUnitsToUsdcInput(
+                percentOfBaseUnits(sourceBalanceBaseUnits, bps),
+              ),
+            )
+          }
+        />
 
         {exceedsBalance ? (
-          <Text className="mt-2 text-[11px] text-danger">
+          <Text className="mt-2 text-[11px] text-error">
             This amount exceeds your {source.label} USDC balance.
           </Text>
         ) : sourceUsdcBalance.isError ? (
-          <Text className="mt-2 text-[11px] text-danger">
+          <Text className="mt-2 text-[11px] text-error">
             Unable to load {source.label} USDC balance.
           </Text>
         ) : !hasGas && account.isConnected && !sourceEthBalance.isLoading ? (
-          <Text className="mt-2 text-[11px] text-danger">
+          <Text className="mt-2 text-[11px] text-error">
             Add ETH on {source.label} to pay network gas.
           </Text>
         ) : null}
       </View>
 
+      <SwapArrowDivider
+        onPress={swapDirection}
+        disabled={!canSwap}
+        accessibilityLabel="Swap source and destination chains"
+      />
+
       <View className="rounded-[22px] border border-line bg-[#111113] p-4">
+        <Text className="text-[11px] text-ink-dim">To</Text>
+        <ChainPillRow
+          wrap
+          options={destinations}
+          selectedChainId={destinationChainId}
+          onSelect={setDestinationChainId}
+          accessibilityLabel="Destination chain"
+        />
+
+        <View className="mt-4 flex-row items-center justify-between gap-3">
+          <Text
+            className={`min-w-0 flex-1 font-sans-semibold text-[34px] leading-[40px] ${
+              bridge.quote ? 'text-ink' : 'text-ink-faint'
+            }`}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          >
+            {bridge.quote
+              ? formatUnits(BigInt(bridge.quote.estimate.toAmount), 6)
+              : '0'}
+          </Text>
+          <TokenSelectorPill
+            symbol="USDC"
+            glyph="$"
+            iconBg="#2775ca"
+            accessibilityLabel={`Receive USDC on ${destination.label}`}
+          />
+        </View>
+      </View>
+
+      <View className="mt-3 rounded-[18px] border border-line bg-[#111113] px-4 py-3">
         <View className="flex-row items-center justify-between">
-          <Text className="font-sans-semibold text-[15px] text-ink">Route</Text>
+          <Text className="text-[11px] text-ink-dim">Route</Text>
           <Text className="font-mono text-[10px] uppercase text-ink-dim">
             {bridge.quote?.estimate.tool ?? 'LI.FI'}
           </Text>
         </View>
 
         {bridge.quote ? (
-          <View className="mt-3 gap-2">
-            <View className="flex-row justify-between">
-              <Text className="text-[11px] text-ink-dim">Expected</Text>
-              <Text className="font-mono text-[11px] text-ink">
-                {formatUnits(BigInt(bridge.quote.estimate.toAmount), 6)} USDC
-              </Text>
-            </View>
-            <View className="flex-row justify-between">
-              <Text className="text-[11px] text-ink-dim">Minimum</Text>
-              <Text className="font-mono text-[11px] text-ink">
-                {formatUnits(BigInt(bridge.quote.estimate.toAmountMin), 6)} USDC
-              </Text>
-            </View>
-            <View className="flex-row justify-between">
-              <Text className="text-[11px] text-ink-dim">Bridge fee</Text>
-              <Text className="font-mono text-[11px] text-ink">
-                {formatUsd(bridge.quote.estimate.feeCostUsd)}
-              </Text>
-            </View>
-            <View className="flex-row justify-between">
-              <Text className="text-[11px] text-ink-dim">Network gas</Text>
-              <Text className="font-mono text-[11px] text-ink">
-                {formatUsd(bridge.quote.estimate.gasCostUsd)}
-              </Text>
-            </View>
-            <View className="flex-row justify-between">
-              <Text className="text-[11px] text-ink-dim">Estimated time</Text>
-              <Text className="font-mono text-[11px] text-ink">
-                {formatDuration(bridge.quote.estimate.executionDuration)}
-              </Text>
-            </View>
+          <View className="mt-2 gap-1.5">
+            <SummaryRow
+              label="Expected"
+              value={`${formatUnits(BigInt(bridge.quote.estimate.toAmount), 6)} USDC`}
+            />
+            <SummaryRow
+              label="Minimum"
+              value={`${formatUnits(BigInt(bridge.quote.estimate.toAmountMin), 6)} USDC`}
+            />
+            <SummaryRow
+              label="Bridge fee"
+              value={formatUsd(bridge.quote.estimate.feeCostUsd)}
+            />
+            <SummaryRow
+              label="Network gas"
+              value={formatUsd(bridge.quote.estimate.gasCostUsd)}
+            />
+            <SummaryRow
+              label="Estimated time"
+              value={formatDuration(bridge.quote.estimate.executionDuration)}
+            />
           </View>
         ) : (
-          <Text className="mt-3 text-[11px] leading-[17px] text-ink-dim">
+          <Text className="mt-2 text-[11px] leading-[17px] text-ink-dim">
             {bridge.error ?? STATUS_LABELS[bridge.status]}
           </Text>
         )}
 
         {bridge.error && bridge.quote ? (
-          <Text className="mt-3 text-[11px] leading-[17px] text-danger">
+          <Text className="mt-2 text-[11px] leading-[17px] text-error">
             {bridge.error}
           </Text>
         ) : null}
@@ -386,6 +461,7 @@ export function BridgeTestPanel() {
       </View>
 
       <PrimaryButton
+        className="mt-4"
         disabled={
           account.isConnecting ||
           (account.isConnected && bridge.status !== 'completed' && !canExecute)
@@ -394,7 +470,7 @@ export function BridgeTestPanel() {
       >
         {primaryLabel}
       </PrimaryButton>
-      <Text className="px-2 text-center text-[10px] leading-[15px] text-ink-faint">
+      <Text className="mt-3 px-2 text-center text-[10px] leading-[15px] text-ink-faint">
         Test-only flow. It bridges canonical USDC and does not deposit into a
         strategy or HLP vault.
       </Text>

@@ -5,6 +5,7 @@ import {
   BRIDGE_CHAIN_OPTIONS,
   BRIDGE_SOURCE_CHAINS,
   normalizeUsdcInput,
+  percentOfBaseUnits,
   usdcInputToBaseUnits,
 } from '@/integration/bridgeTestModel';
 import { describe, expect, it } from 'vitest';
@@ -35,6 +36,17 @@ describe('bridgeTestModel', () => {
     expect(usdcInputToBaseUnits('0.000001')).toBe('1');
     expect(usdcInputToBaseUnits('invalid')).toBe('0');
     expect(baseUnitsToUsdcInput('10250000')).toBe('10.25');
+  });
+
+  it('floors quick-amount percentages in exact base units', () => {
+    expect(percentOfBaseUnits('1000000', 2_500)).toBe('250000');
+    expect(percentOfBaseUnits('3', 5_000)).toBe('1');
+    expect(percentOfBaseUnits('1', 2_500)).toBe('0');
+    expect(percentOfBaseUnits(null, 10_000)).toBe('0');
+    expect(percentOfBaseUnits('10250000', 10_000)).toBe('10250000');
+    expect(baseUnitsToUsdcInput(percentOfBaseUnits('10250000', 5_000))).toBe(
+      '5.125',
+    );
   });
 
   it('scopes live balance queries by wallet, chain, token, and purpose', () => {
