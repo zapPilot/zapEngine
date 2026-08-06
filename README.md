@@ -117,7 +117,7 @@ never killed.
 
 All apps — including analytics-engine — run via `pnpm <script>`. Python scripts wrap `uv run` under the hood; the CLI is uniform. The default `pnpm dev` includes analytics-engine so backtesting and analytics pages work out of the box. Use `pnpm dev lite` only when you are not touching those pages.
 
-For build, test, lint, and type-check commands see [CLAUDE.md](./CLAUDE.md#per-app-tooling).
+For development and verification commands, see [CONTRIBUTING.md](./CONTRIBUTING.md). Repository-wide engineering principles live in [AGENTS.md](./AGENTS.md).
 
 ## Turbo Remote Cache (optional)
 

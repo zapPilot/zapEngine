@@ -1,4 +1,4 @@
-See @../../CLAUDE.md for monorepo development guidelines.
+See @../AGENTS.md for shared application guidelines.
 
 # Mobile V2 Guardrails
 

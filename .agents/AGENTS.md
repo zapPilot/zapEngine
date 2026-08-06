@@ -6,8 +6,8 @@ Keep it small: skills are operational guardrails, not long-form documentation.
 ## Default rule
 
 Do **not** create or expand a skill unless it prevents a repeated agent failure.
-Most task-specific knowledge belongs in the code, tests, README, CLAUDE.md, or the
-PR description instead.
+Most task-specific knowledge belongs in the code, tests, README, the nearest
+scoped instruction file, or the PR description instead.
 
 A good skill captures:
 

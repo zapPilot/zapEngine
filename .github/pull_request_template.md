@@ -23,7 +23,7 @@
 
 ## Checklist
 
-- [ ] Followed conventions in the relevant `CLAUDE.md` files
+- [ ] Followed conventions in the relevant scoped instruction files
 - [ ] Updated `.env.example` if added env-var references
 - [ ] If touching strategy or signal code: ran `pnpm --filter @zapengine/analytics-engine test:strategy-snapshot:fast`
 - [ ] If touching cross-service contracts: confirmed `pnpm contracts check` covers the change

@@ -1,4 +1,4 @@
-See @../../../CLAUDE.md and the repo root [Architecture planes](../../../../../CLAUDE.md#architecture-planes).
+See @../../../CLAUDE.md and [Architecture planes](../../../../../docs/architecture/planes.md).
 
 # plan-orchestration (module)
 

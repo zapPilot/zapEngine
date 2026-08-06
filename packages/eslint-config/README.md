@@ -91,4 +91,4 @@ Before merging a preset change, run lint across at least one affected workspace 
 - `eslint` ^9 (host app provides)
 - `eslint-config-next` ^15 (only required when consuming `./next`)
 
-See [CLAUDE.md](../../CLAUDE.md) for monorepo development guidelines.
+See [packages/AGENTS.md](../AGENTS.md) for shared package guidelines.

@@ -47,4 +47,4 @@ pnpm dev         # tsc --watch (codegen runs once on entry)
 pnpm clean       # rm -rf dist
 ```
 
-See [CLAUDE.md](../../CLAUDE.md) for monorepo development guidelines.
+See [packages/AGENTS.md](../AGENTS.md) for shared package guidelines.

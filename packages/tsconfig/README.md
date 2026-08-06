@@ -8,7 +8,7 @@ Shared TypeScript compiler-config presets. Every TypeScript workspace extends on
 | ------------ | ------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------ |
 | `base.json`  | Foundation (extended by `node` and `react`) | n/a (no module set)  | (extended internally; not consumed directly)                                                           |
 | `node.json`  | Node libraries and services (emit + types)  | `NodeNext`           | `apps/{account-engine, alpha-etl, podcast-pipeline}`, `packages/{design-tokens, intent-engine, types}` |
-| `react.json` | React 19 + bundler-driven apps              | `ESNext` / `Bundler` | `apps/{desktop, landing-page}`                                                                        |
+| `react.json` | React 19 + bundler-driven apps              | `ESNext` / `Bundler` | `apps/{desktop, landing-page}`                                                                         |
 
 `base.json` enforces strict mode plus the stricter-than-default flags `noUncheckedIndexedAccess`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, and `noFallthroughCasesInSwitch`. All presets inherit these.
 
@@ -39,4 +39,4 @@ Shared TypeScript compiler-config presets. Every TypeScript workspace extends on
 
 `react.json` uses `module: ESNext` + `moduleResolution: Bundler` because Vite (desktop) and Next.js (landing-page) handle module resolution themselves; using `NodeNext` would force `.js` extensions in TS imports. `node.json` keeps `NodeNext` because `tsc` is the only resolver for Node services and packages that emit to disk.
 
-See [CLAUDE.md](../../CLAUDE.md) for monorepo development guidelines.
+See [packages/AGENTS.md](../AGENTS.md) for shared package guidelines.

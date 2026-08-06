@@ -151,4 +151,4 @@ interface IntentEngineConfig {
 pnpm build
 ```
 
-See [CLAUDE.md](../../CLAUDE.md) for monorepo development guidelines.
+See [packages/AGENTS.md](../AGENTS.md) for shared package guidelines.

@@ -1,4 +1,4 @@
-See @../../CLAUDE.md for monorepo development guidelines, and the package [README](./README.md) for the subpath layout table.
+See @../AGENTS.md for shared package guidelines, and the package [README](./README.md) for the subpath layout table.
 
 # Package-Specific Constraints
 

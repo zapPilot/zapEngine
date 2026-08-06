@@ -1,8 +1,8 @@
 # Contributing to zapEngine
 
-This monorepo uses `pnpm`, Turbo, TypeScript, and Python/FastAPI services. Start with the root `CLAUDE.md` for project context, then read any app-level `CLAUDE.md` in the area you are changing. `AGENTS.md` and `GEMINI.md` are compatibility symlinks to the same root guidance.
+This monorepo uses `pnpm`, Turbo, TypeScript, and Python/FastAPI services. Start with root [AGENTS.md](./AGENTS.md), then read the nearest scoped instruction file in the area you are changing. `CLAUDE.md` and `GEMINI.md` exist only as compatibility entry points.
 
-## Daily Workflow
+## Daily workflow
 
 Install dependencies from the repository root:
 
@@ -16,71 +16,101 @@ Run the usual development stack:
 pnpm dev
 ```
 
-Run the local quality gate before opening a PR:
-
-```bash
-pnpm verify
-```
-
-The pre-commit hook runs the same local gate through Turbo. For focused workspace checks, prefer root Turbo commands such as:
+For focused workspace tasks, use Turbo so internal package dependencies build first:
 
 ```bash
 pnpm turbo run format lint:fix type-check deadcode dup:check test --filter=<workspace>
 ```
 
-For `analytics-engine`, include `sql:audit service-reachability pylint:duplicate-check` when you need the full local service gate.
+Do not replace that with direct filtered `type-check`, `lint`, or `test` commands when the workspace consumes internal packages.
 
-## AI Assistant Onboarding
+For `analytics-engine`, include `sql:audit`, `service-reachability`, and `pylint:duplicate-check` when you need the full local service gate.
 
-See [CLAUDE.md](./CLAUDE.md) for AI-assistant context. Read the relevant app-level `CLAUDE.md` before changing app-specific code; for backtesting work, the canonical home is [apps/analytics-engine/src/services/backtesting/CLAUDE.md](./apps/analytics-engine/src/services/backtesting/CLAUDE.md).
+## Verification hierarchy
 
-## Adding An Env Var
+| Command | Scope | Use |
+| --- | --- | --- |
+| `pnpm verify changed` | Committed, staged, and working-tree changes | Inner edit loop |
+| `pnpm verify branch` | `origin/main...HEAD` | Before push or PR |
+| `pnpm verify parallel` | Full repository, parallel | Fast full local gate |
+| `pnpm verify ci` | Full repository, sequential and fail-fast | Diagnose CI failure order |
 
-1. Add the key to root `.env.example` with a short comment explaining its purpose.
-2. Reference the variable with the local convention:
-   - Node or server-side TypeScript: `process.env.X` or `process.env['X']`
-   - Vite frontend code: `import.meta.env.X` for client-exposed variables
+All `pnpm verify` modes require a non-shallow clone. Run `git fetch --unshallow origin` first when necessary.
+
+### Edit loop
+
+1. Make the smallest coherent change.
+2. Run `pnpm verify changed`.
+3. When it fails, inspect `.ai-verify/result.json` and the referenced log under `.ai-verify/logs/`.
+4. Fix only failures related to the current change.
+5. Repeat until green.
+6. Run `pnpm verify branch` before pushing.
+
+Do not use `pnpm verify ci` as the normal edit loop; it is intentionally slower and sequential.
+
+CI remains authoritative. GitHub splits the core checks into independently rerunnable jobs and runs security, coverage, dead-env, Docker, and deployment checks separately.
+
+## Pre-commit
+
+Pre-commit keeps checks fast: frozen-lockfile installation, repository drift checks, and staged ESLint/Prettier checks. It does not replace the branch or full verification gates.
+
+## Adding an environment variable
+
+1. Add the key to root `.env.example` with a short purpose comment.
+2. Use the local runtime convention:
+   - Node or server TypeScript: `process.env.X` or `process.env['X']`
+   - Vite client code: `import.meta.env.X` for exposed values
    - Python: `os.getenv("X")`, `os.environ["X"]`, or `os.environ.get("X")`
-3. If production needs the variable, add it to the relevant deployment system such as `apps/*/fly.toml` or Vercel project env settings.
+3. Add production configuration to the relevant deployment system.
 4. Run:
 
 ```bash
 bash scripts/check-dead-env.sh
 ```
 
-The env checker validates both directions: declared variables must be used, and static code references must be declared. Fly config drift is reported as a warning.
+The checker validates both declared-but-unused and referenced-but-undeclared variables. Fly configuration drift is reported as a warning.
 
-## Adding An HTTP Route
+## Adding an HTTP route
 
-1. Add the route in the service router or controller file.
-2. Keep service/API logic in plain functions under `src/services/`; do not introduce classes for service logic.
-3. If another service or frontend consumes the response, add a Zod schema under `packages/types/src/api/` and the matching analytics Pydantic model where applicable.
+1. Add the route in the service router or controller.
+2. Keep service/API logic in plain functions under `src/services/`.
+3. When another service or frontend consumes the response, add the Zod schema under `packages/types/src/api/` and the matching analytics Pydantic model where applicable.
 4. Run:
 
 ```bash
 pnpm contracts check
 ```
 
-Use Zod v4 imports and APIs. Do not add Swagger/OpenAPI scaffolding unless the task calls for it.
+Use Zod v4. Do not add Swagger/OpenAPI scaffolding unless the task requires it.
 
-## Adding An App Or Package
+## Adding an app or package
 
 1. Add the workspace to `pnpm-workspace.yaml` when needed.
-2. Include the standard package scripts: `build`, `dev`, `test`, `test:ci`, `lint`, `type-check`, `format`, `format:check`, and `security:audit` where applicable.
-3. Confirm Turbo tasks fit the existing pipeline in `turbo.json`.
-4. Internal packages under `packages/*` are built by `pnpm build packages`, which is already wired into `verify`, `verify ci`, and `contracts check`.
-5. Add a `README.md` (stack + setup) and a focused `CLAUDE.md`. Keep `CLAUDE.md` **high-signal**: a `See @README.md …` pointer plus only app-specific gotchas / architecture boundaries — cross-cutting conventions belong in root [CLAUDE.md](./CLAUDE.md) (see [Common Gotchas](#common-gotchas)), not duplicated per app. Length should match how many real gotchas exist; don't pad to a fixed size.
+2. Provide the common scripts that apply: `build`, `dev`, `test`, `test:ci`, `lint`, `type-check`, `format`, `format:check`, and `security:audit`.
+3. Confirm the task graph in `turbo.json`.
+4. Add a concise `README.md` for setup and a focused scoped instruction file only for real architecture boundaries or recurring traps.
+5. Keep cross-cutting app rules in [apps/AGENTS.md](./apps/AGENTS.md), package rules in [packages/AGENTS.md](./packages/AGENTS.md), and repository-wide principles in root [AGENTS.md](./AGENTS.md).
 
-## Common Gotchas
+Do not duplicate configuration that is already enforced by code, tests, or checked-in tooling.
 
-Cross-cutting conventions (Python/uv, ESLint flat config, path aliases, read-only analytics DB, dual Supabase clients, frontend `test:unit` vs `test`) live in root [CLAUDE.md](./CLAUDE.md). App-specific gotchas (e.g. `alpha-etl` Vitest mocks, `macro_fear_greed` field name) live in each app's `CLAUDE.md`.
+## Python setup
 
-## Strategy Iteration
+`analytics-engine` requires Python 3.11+ and `uv`. Do not use `pip` for project dependencies.
 
-Backtesting strategy and signal code has its own guidance in `apps/analytics-engine/src/services/backtesting/CLAUDE.md`. If a PR intentionally changes strategy behavior, run:
+First-time setup:
+
+```bash
+pnpm --filter @zapengine/analytics-engine run build
+```
+
+Add dependencies with `uv add`. Type checking is strict and functions require annotations.
+
+## Strategy iteration
+
+Backtesting guidance lives beside the code in `apps/analytics-engine/src/services/backtesting/CLAUDE.md`. For intentional strategy behavior changes, run:
 
 ```bash
 pnpm --filter @zapengine/analytics-engine test:strategy-snapshot:fast
 ```
 
-Only refresh the checked-in snapshot after an intentional behavior change.
+Refresh the checked-in snapshot only after an intentional behavior change.

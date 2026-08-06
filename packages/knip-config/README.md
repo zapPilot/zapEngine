@@ -44,4 +44,4 @@ The result is consumed by `knip` via `pnpm deadcode` / `pnpm deadcode:fix` in ea
 - **Adding a workspace package that's a dev-only tool**: add it to `ignoreDependencies` here so every consumer benefits
 - **Changing default knip behavior**: edit `baseConfig` here rather than duplicating overrides in each `knip.ts`
 
-See [CLAUDE.md](../../CLAUDE.md) for monorepo development guidelines.
+See [packages/AGENTS.md](../AGENTS.md) for shared package guidelines.

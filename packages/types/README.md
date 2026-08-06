@@ -41,4 +41,4 @@ import { StrategyPreset, DepositRequest } from '@zapengine/types';
 pnpm build
 ```
 
-See [CLAUDE.md § Build order](../../CLAUDE.md#build-order) — direct `pnpm --filter @zapengine/types type-check` requires `pnpm build packages` first.
+See [packages/AGENTS.md](../AGENTS.md) — direct `pnpm --filter @zapengine/types type-check` can bypass Turbo's build order; prefer a Turbo-filtered task.

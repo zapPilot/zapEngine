@@ -3,7 +3,7 @@
 Keep repository documentation small and operational. The source-of-truth order is:
 
 1. Code, tests, schemas, and checked-in configuration
-2. The nearest `CLAUDE.md` / `AGENTS.md`
+2. The nearest scoped instruction file; root `AGENTS.md` is canonical and root `CLAUDE.md` is a compatibility entry point
 3. Architecture decisions and operational runbooks
 4. GitHub Issues for unfinished work
 
@@ -12,9 +12,10 @@ Do not use Markdown files as a long-lived TODO system.
 ## Start here
 
 - [README.md](../README.md) — product overview, repository layout, setup, and common commands
-- [CLAUDE.md](../CLAUDE.md) — build rules, architecture boundaries, and verification workflow
-- [CONTRIBUTING.md](../CONTRIBUTING.md) — daily development workflow
-- The app or package's own `README.md` and `CLAUDE.md`
+- [AGENTS.md](../AGENTS.md) — repository-wide engineering principles
+- [CONTRIBUTING.md](../CONTRIBUTING.md) — daily development and verification workflow
+- [architecture planes](./architecture/planes.md) — durable cross-service boundaries
+- The app or package's own `README.md` and nearest scoped instruction file
 
 ## Shared docs
 
@@ -28,7 +29,7 @@ Deeper implementation docs live beside the code under `apps/*/docs/` or `package
 ## Documentation rules
 
 - Do not commit temporary implementation plans or generated Superpowers specs. `docs/superpowers/` is ignored.
-- Do not duplicate commands or invariants already covered by a scoped `CLAUDE.md`.
+- Do not duplicate commands or invariants already covered by a scoped instruction file.
 - A document must describe current behavior, a durable decision, or a recovery procedure.
 - Move actionable work to GitHub Issues. Avoid unchecked task lists in docs.
 - Delete or reduce a document once code and tests express the same information.
