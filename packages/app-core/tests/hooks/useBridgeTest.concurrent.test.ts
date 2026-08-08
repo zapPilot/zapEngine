@@ -204,4 +204,50 @@ describe('useBridgeTest concurrent execution isolation', () => {
     expect(result.current.sourceTxHash).toBeNull();
     expect(result.current.destinationTxHash).toBeNull();
   });
+
+  it('keeps reset state when an aborted LI.FI poll rejects later', async () => {
+    let rejectPoll!: (error: Error) => void;
+    mocks.sendTransaction.mockResolvedValue(FIRST_SOURCE_HASH);
+    mocks.waitForBridgeCompletion.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectPoll = reject;
+        }),
+    );
+
+    const { result } = renderHook(() => useBridgeTest());
+    let execution!: Promise<void>;
+
+    await act(async () => {
+      execution = result.current.execute(request);
+      await vi.waitFor(() => {
+        expect(mocks.waitForBridgeCompletion).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    const signal = mocks.waitForBridgeCompletion.mock.calls[0]?.[0]
+      .signal as AbortSignal;
+
+    act(() => {
+      result.current.reset();
+    });
+
+    expect(signal.aborted).toBe(true);
+    expect(result.current.status).toBe('idle');
+    expect(result.current.sourceTxHash).toBeNull();
+    expect(result.current.destinationTxHash).toBeNull();
+
+    await act(async () => {
+      rejectPoll(new Error('Stale LI.FI poll rejected after reset.'));
+      await execution;
+    });
+
+    expect(mocks.waitForPerpUsdcArrival).not.toHaveBeenCalled();
+    expect(result.current.status).toBe('idle');
+    expect(result.current.error).toBeNull();
+    expect(result.current.quote).toBeNull();
+    expect(result.current.sourceTxHash).toBeNull();
+    expect(result.current.destinationTxHash).toBeNull();
+    expect(result.current.lifiScanUrl).toBeNull();
+  });
 });
