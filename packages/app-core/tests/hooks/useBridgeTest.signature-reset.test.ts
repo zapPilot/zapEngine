@@ -7,6 +7,8 @@ const USER = '0x1111111111111111111111111111111111111111';
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const ARBITRUM_USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831';
 const ROUTER = '0x2222222222222222222222222222222222222222';
+const SOURCE_HASH =
+  '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
 const mocks = vi.hoisted(() => ({
   useWalletProvider: vi.fn(),
@@ -133,6 +135,47 @@ describe('useBridgeTest reset during wallet signature', () => {
 
     await act(async () => {
       rejectSignature(new Error('User rejected stale bridge signature.'));
+      await execution;
+    });
+
+    expect(mocks.waitForTransactionReceipt).not.toHaveBeenCalled();
+    expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
+    expect(mocks.waitForPerpUsdcArrival).not.toHaveBeenCalled();
+    expect(result.current.status).toBe('idle');
+    expect(result.current.error).toBeNull();
+    expect(result.current.quote).toBeNull();
+    expect(result.current.sourceTxHash).toBeNull();
+    expect(result.current.destinationTxHash).toBeNull();
+    expect(result.current.lifiScanUrl).toBeNull();
+  });
+
+  it('ignores a stale wallet-signature success after reset', async () => {
+    let resolveSignature!: (hash: typeof SOURCE_HASH) => void;
+    mocks.sendPreparedTransaction.mockImplementation(
+      () =>
+        new Promise<typeof SOURCE_HASH>((resolve) => {
+          resolveSignature = resolve;
+        }),
+    );
+
+    const { result } = renderHook(() => useBridgeTest());
+    let execution!: Promise<void>;
+
+    await act(async () => {
+      execution = result.current.execute(request);
+      await vi.waitFor(() => {
+        expect(mocks.sendPreparedTransaction).toHaveBeenCalledOnce();
+      });
+    });
+
+    expect(result.current.status).toBe('awaitingBridgeSignature');
+
+    act(() => {
+      result.current.reset();
+    });
+
+    await act(async () => {
+      resolveSignature(SOURCE_HASH);
       await execution;
     });
 
