@@ -223,4 +223,70 @@ describe('useInvestStrategy concurrent executions', () => {
       { chainId: 8453, kind: 'second', status: 'pending' },
     ]);
   });
+
+  it('ignores a stale bridge failure after a newer invest run completes', async () => {
+    const firstPlan = plan('bridge');
+    const secondPlan = plan('second');
+    mocks.loadBaseInvestPlan
+      .mockResolvedValueOnce({ userAddress: USER, plan: firstPlan })
+      .mockResolvedValueOnce({ userAddress: USER, plan: secondPlan });
+
+    let rejectBridge!: (error: Error) => void;
+    mocks.waitForBridgeCompletion.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectBridge = reject;
+        }),
+    );
+    mocks.executeDepositPlanWithWallet
+      .mockImplementationOnce(
+        async (params: {
+          onCallConfirmed: (index: number, tx: unknown, hash: Hash) => void;
+        }) => {
+          params.onCallConfirmed(0, {}, OLD_HASH);
+          return { kind: 'sequential', hashes: [OLD_HASH] };
+        },
+      )
+      .mockResolvedValueOnce({ kind: 'sequential', hashes: [NEW_HASH] });
+
+    const { result } = renderHook(() => useInvestStrategy());
+
+    await act(async () => {
+      await result.current.run({
+        fromToken: TOKEN,
+        fromAmount: '1000000',
+      });
+      await vi.waitFor(() => {
+        expect(mocks.waitForBridgeCompletion).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    await act(async () => {
+      await result.current.run({
+        fromToken: TOKEN,
+        fromAmount: '2000000',
+      });
+    });
+
+    expect(result.current.pending).toBe(false);
+    expect(result.current.tier).toBe('sequential');
+    expect(result.current.lastTxHash).toBe(NEW_HASH);
+    expect(result.current.lastPlan).toBe(secondPlan);
+    expect(result.current.legs).toEqual([
+      { chainId: 8453, kind: 'second', status: 'pending' },
+    ]);
+
+    await act(async () => {
+      rejectBridge(new Error('stale bridge failure'));
+      await Promise.resolve();
+    });
+
+    expect(result.current.pending).toBe(false);
+    expect(result.current.tier).toBe('sequential');
+    expect(result.current.lastTxHash).toBe(NEW_HASH);
+    expect(result.current.lastPlan).toBe(secondPlan);
+    expect(result.current.legs).toEqual([
+      { chainId: 8453, kind: 'second', status: 'pending' },
+    ]);
+  });
 });
