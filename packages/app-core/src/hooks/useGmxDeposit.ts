@@ -15,7 +15,7 @@ import {
   type GmxV2MarketKey,
 } from '@zapengine/intent-engine';
 import type { DepositPlan, PreparedTransaction } from '@zapengine/types/api';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { type Address, erc20Abi, formatUnits, type Hash } from 'viem';
 import { arbitrum } from 'viem/chains';
 
@@ -118,6 +118,7 @@ export function useGmxDeposit() {
     useWalletProvider();
   const { state, actions } = useDepositExecutionState();
   const [steps, setSteps] = useState<GmxDepositStepProgress[]>([]);
+  const runIdRef = useRef(0);
 
   const updateStep = useCallback(
     (index: number, patch: Partial<GmxDepositStepProgress>) => {
@@ -144,15 +145,28 @@ export function useGmxDeposit() {
   );
 
   const run = useCallback(
-    ({ marketKey, amount }: RunGmxDepositInput): Promise<GmxDepositResult> =>
-      actions.run(
+    ({ marketKey, amount }: RunGmxDepositInput): Promise<GmxDepositResult> => {
+      const runId = ++runIdRef.current;
+      const isCurrentRun = () => runId === runIdRef.current;
+      const assertCurrentRun = () => {
+        if (!isCurrentRun()) {
+          throw new DOMException(
+            'Superseded by a newer GMX deposit run',
+            'AbortError',
+          );
+        }
+      };
+
+      return actions.run(
         async () => {
           setSteps([]);
 
           const userAddress = requireUserAddress(account?.address);
           await ensureChain(chain?.id, arbitrum.id, switchChain);
+          assertCurrentRun();
 
           const walletClient = await getWalletClient(arbitrum.id);
+          assertCurrentRun();
           const effectiveAddress = walletClientAddress(
             walletClient,
             userAddress,
@@ -170,6 +184,7 @@ export function useGmxDeposit() {
             address: effectiveAddress,
             amount: parsedAmount,
           });
+          assertCurrentRun();
 
           const plan = await getGmxDepositPlan({
             kind: 'gmx-v2',
@@ -177,6 +192,7 @@ export function useGmxDeposit() {
             amount,
             userAddress: effectiveAddress,
           });
+          assertCurrentRun();
           actions.setLastPlan(plan);
           setSteps(initialSteps(plan));
 
@@ -186,25 +202,31 @@ export function useGmxDeposit() {
             chainId: arbitrum.id,
             ...(executeAtomicBatch ? { executeAtomicBatch } : {}),
             onBundleSubmitted: (callsId) => {
+              if (!isCurrentRun()) return;
               actions.markBundleSubmitted(callsId);
               markAllSteps('submitted');
             },
             onBundleConfirmed: (transactionHash) => {
+              if (!isCurrentRun()) return;
               actions.markBundleConfirmed(transactionHash);
               markAllSteps('confirmed', transactionHash);
             },
             onApprovalSubmitted: (index) => {
+              if (!isCurrentRun()) return;
               updateStep(index, { status: 'submitted' });
             },
             onApprovalConfirmed: (index, _tx, hash) => {
+              if (!isCurrentRun()) return;
               updateStep(index, { status: 'confirmed', txHash: hash });
             },
             onCallSubmitted: (index) => {
+              if (!isCurrentRun()) return;
               updateStep(plan.approvals.length + index, {
                 status: 'submitted',
               });
             },
             onCallConfirmed: (index, _tx, hash) => {
+              if (!isCurrentRun()) return;
               updateStep(plan.approvals.length + index, {
                 status: 'confirmed',
                 txHash: hash,
@@ -212,10 +234,13 @@ export function useGmxDeposit() {
             },
           });
 
-          return actions.applyExecutionResult(execution);
+          return isCurrentRun()
+            ? actions.applyExecutionResult(execution)
+            : execution;
         },
         (error) => gmxDepositLogger.error('[gmx-deposit] failed:', error),
-      ),
+      );
+    },
     [
       account?.address,
       chain?.id,

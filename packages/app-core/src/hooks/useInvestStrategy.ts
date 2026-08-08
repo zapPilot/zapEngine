@@ -6,7 +6,7 @@ import { useWalletProvider } from '@core/providers/walletContext';
 import { waitForBridgeCompletion } from '@core/services/intentClient';
 import { logger } from '@core/utils/logger';
 import type { DepositLeg, DepositPlan } from '@zapengine/types/api';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { Address, Hash } from 'viem';
 import { base } from 'viem/chains';
 
@@ -59,6 +59,7 @@ export function useInvestStrategy() {
   const { state, actions } = useDepositExecutionState();
   const [legs, setLegs] = useState<InvestLegProgress[]>([]);
   const { ref: abortRef, renew: renewAbort } = useAbortControllerRef();
+  const runIdRef = useRef(0);
 
   const updateLeg = useCallback(
     (index: number, patch: Partial<InvestLegProgress>) => {
@@ -72,8 +73,13 @@ export function useInvestStrategy() {
   );
 
   const pollBridgeStatus = useCallback(
-    async (leg: DepositLeg, sourceTxHash: Hash, index: number) => {
-      if (leg.kind !== 'bridge') return;
+    async (
+      leg: DepositLeg,
+      sourceTxHash: Hash,
+      index: number,
+      runId: number,
+    ) => {
+      if (leg.kind !== 'bridge' || runId !== runIdRef.current) return;
 
       updateLeg(index, { status: 'bridgePending', sourceTxHash });
 
@@ -84,6 +90,7 @@ export function useInvestStrategy() {
           toChain: leg.chainId,
           ...(abortRef.current ? { signal: abortRef.current.signal } : {}),
         });
+        if (runId !== runIdRef.current) return;
         updateLeg(index, {
           status: 'destinationConfirmed',
           ...(status.receiving?.txHash
@@ -91,7 +98,7 @@ export function useInvestStrategy() {
             : {}),
         });
       } catch (error) {
-        if (isAbortError(error)) return;
+        if (isAbortError(error) || runId !== runIdRef.current) return;
         investStrategyLogger.error(
           '[invest-strategy] bridge status failed:',
           error,
@@ -111,8 +118,11 @@ export function useInvestStrategy() {
       fromToken,
       fromAmount,
       sourceChainId = base.id,
-    }: RunInvestStrategyInput): Promise<InvestStrategyResult> =>
-      actions.run(
+    }: RunInvestStrategyInput): Promise<InvestStrategyResult> => {
+      const runId = ++runIdRef.current;
+      const isCurrentRun = () => runId === runIdRef.current;
+
+      return actions.run(
         async () => {
           setLegs([]);
           renewAbort();
@@ -127,6 +137,12 @@ export function useInvestStrategy() {
             { account, chain, switchChain },
             { fromAmount, fromToken },
           );
+          if (!isCurrentRun()) {
+            throw new DOMException(
+              'Superseded by a newer invest run',
+              'AbortError',
+            );
+          }
           actions.setLastPlan(plan);
           setLegs(legProgress(plan, 'pending'));
 
@@ -136,38 +152,48 @@ export function useInvestStrategy() {
             getWalletClient,
             ...(executeAtomicBatch ? { executeAtomicBatch } : {}),
             onBundleSubmitted: (callsId) => {
+              if (!isCurrentRun()) return;
               investStrategyLogger.info('[invest-strategy] executing EIP-7702');
               actions.markBundleSubmitted(callsId);
               markAllCallsSubmitted(plan);
             },
             onBundleConfirmed: (transactionHash) => {
+              if (!isCurrentRun()) return;
               actions.markBundleConfirmed(transactionHash);
             },
             onCallSubmitted: (index) => {
+              if (!isCurrentRun()) return;
               updateLeg(index, { status: 'submitted' });
             },
             onCallConfirmed: (index, _tx, hash) => {
+              if (!isCurrentRun()) return;
               updateLeg(index, {
                 status: 'sourceConfirmed',
                 sourceTxHash: hash,
               });
               const leg = plan.legs[index];
               if (leg?.kind === 'bridge') {
-                void pollBridgeStatus(leg, hash, index);
+                void pollBridgeStatus(leg, hash, index, runId);
               }
             },
           });
 
-          if (execution.kind === 'sequential') {
+          if (execution.kind === 'sequential' && isCurrentRun()) {
             investStrategyLogger.info(
               '[invest-strategy] executing sequentially',
             );
           }
-          return actions.applyExecutionResult(execution);
+          return isCurrentRun()
+            ? actions.applyExecutionResult(execution)
+            : execution;
         },
-        (error) =>
-          investStrategyLogger.error('[invest-strategy] failed:', error),
-      ),
+        (error) => {
+          if (!isAbortError(error)) {
+            investStrategyLogger.error('[invest-strategy] failed:', error);
+          }
+        },
+      );
+    },
     [
       account,
       chain,

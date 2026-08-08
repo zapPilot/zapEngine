@@ -274,6 +274,7 @@ export function useBridgeTest() {
           wallet,
           quote.transaction,
         );
+        if (controller.signal.aborted) return;
         const lifiScanUrl = `https://scan.li.fi/tx/${sourceTxHash}`;
         setState((current) => ({
           ...current,
