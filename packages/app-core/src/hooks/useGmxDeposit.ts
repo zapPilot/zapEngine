@@ -148,6 +148,14 @@ export function useGmxDeposit() {
     ({ marketKey, amount }: RunGmxDepositInput): Promise<GmxDepositResult> => {
       const runId = ++runIdRef.current;
       const isCurrentRun = () => runId === runIdRef.current;
+      const assertCurrentRun = () => {
+        if (!isCurrentRun()) {
+          throw new DOMException(
+            'Superseded by a newer GMX deposit run',
+            'AbortError',
+          );
+        }
+      };
 
       return actions.run(
         async () => {
@@ -155,8 +163,10 @@ export function useGmxDeposit() {
 
           const userAddress = requireUserAddress(account?.address);
           await ensureChain(chain?.id, arbitrum.id, switchChain);
+          assertCurrentRun();
 
           const walletClient = await getWalletClient(arbitrum.id);
+          assertCurrentRun();
           const effectiveAddress = walletClientAddress(
             walletClient,
             userAddress,
@@ -174,6 +184,7 @@ export function useGmxDeposit() {
             address: effectiveAddress,
             amount: parsedAmount,
           });
+          assertCurrentRun();
 
           const plan = await getGmxDepositPlan({
             kind: 'gmx-v2',
@@ -181,12 +192,7 @@ export function useGmxDeposit() {
             amount,
             userAddress: effectiveAddress,
           });
-          if (!isCurrentRun()) {
-            throw new DOMException(
-              'Superseded by a newer GMX deposit run',
-              'AbortError',
-            );
-          }
+          assertCurrentRun();
           actions.setLastPlan(plan);
           setSteps(initialSteps(plan));
 
