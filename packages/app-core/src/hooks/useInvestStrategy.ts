@@ -138,7 +138,10 @@ export function useInvestStrategy() {
             { fromAmount, fromToken },
           );
           if (!isCurrentRun()) {
-            throw new DOMException('Superseded by a newer invest run', 'AbortError');
+            throw new DOMException(
+              'Superseded by a newer invest run',
+              'AbortError',
+            );
           }
           actions.setLastPlan(plan);
           setLegs(legProgress(plan, 'pending'));
