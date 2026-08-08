@@ -152,4 +152,64 @@ describe('useGmxDeposit concurrent executions', () => {
       { index: 0, label: 'GMX deposit', status: 'pending' },
     ]);
   });
+
+  it('does not execute a stale plan after a newer deposit starts', async () => {
+    const firstPlan = plan('FIRST_GMX_DEPOSIT');
+    const secondPlan = plan('SECOND_GMX_DEPOSIT');
+    let resolveFirstPlan!: (plan: DepositPlan) => void;
+
+    mocks.getGmxDepositPlan
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstPlan = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(secondPlan);
+    mocks.executeDepositPlan.mockResolvedValue({
+      kind: 'sequential',
+      hashes: [NEW_HASH],
+    });
+
+    const { result } = renderHook(() => useGmxDeposit());
+    let firstRun!: Promise<unknown>;
+
+    await act(async () => {
+      firstRun = result.current.run({
+        marketKey: 'btc-usdc',
+        amount: '1000000',
+      });
+      await vi.waitFor(() => {
+        expect(mocks.getGmxDepositPlan).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    await act(async () => {
+      await result.current.run({
+        marketKey: 'eth-usdc',
+        amount: '2000000',
+      });
+    });
+
+    expect(mocks.executeDepositPlan).toHaveBeenCalledTimes(1);
+    expect(mocks.executeDepositPlan.mock.calls[0]?.[0]?.plan).toBe(secondPlan);
+    expect(result.current.pending).toBe(false);
+    expect(result.current.tier).toBe('sequential');
+    expect(result.current.lastTxHash).toBe(NEW_HASH);
+    expect(result.current.lastPlan).toBe(secondPlan);
+
+    await act(async () => {
+      resolveFirstPlan(firstPlan);
+      await expect(firstRun).rejects.toMatchObject({ name: 'AbortError' });
+    });
+
+    expect(mocks.executeDepositPlan).toHaveBeenCalledTimes(1);
+    expect(result.current.pending).toBe(false);
+    expect(result.current.tier).toBe('sequential');
+    expect(result.current.lastTxHash).toBe(NEW_HASH);
+    expect(result.current.lastPlan).toBe(secondPlan);
+    expect(result.current.steps).toEqual([
+      { index: 0, label: 'GMX deposit', status: 'pending' },
+    ]);
+  });
 });
