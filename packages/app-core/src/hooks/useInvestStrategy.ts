@@ -137,10 +137,11 @@ export function useInvestStrategy() {
             { account, chain, switchChain },
             { fromAmount, fromToken },
           );
-          if (isCurrentRun()) {
-            actions.setLastPlan(plan);
-            setLegs(legProgress(plan, 'pending'));
+          if (!isCurrentRun()) {
+            throw new DOMException('Superseded by a newer invest run', 'AbortError');
           }
+          actions.setLastPlan(plan);
+          setLegs(legProgress(plan, 'pending'));
 
           const execution = await executeDepositPlanWithWallet({
             plan,
@@ -183,8 +184,11 @@ export function useInvestStrategy() {
             ? actions.applyExecutionResult(execution)
             : execution;
         },
-        (error) =>
-          investStrategyLogger.error('[invest-strategy] failed:', error),
+        (error) => {
+          if (!isAbortError(error)) {
+            investStrategyLogger.error('[invest-strategy] failed:', error);
+          }
+        },
       );
     },
     [
