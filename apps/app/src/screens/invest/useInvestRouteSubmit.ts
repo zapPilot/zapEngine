@@ -32,9 +32,6 @@ export function useInvestRouteSubmit({
   const [launchRequested, setLaunchRequested] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [reviewNow, setReviewNow] = useState(() => Date.now());
-  const [acknowledgedRiskHashes, setAcknowledgedRiskHashes] = useState<
-    Record<string, string>
-  >({});
 
   const reviewGroups = review.reviewGroups;
   const reviewExpiryKey = reviewGroups
@@ -47,21 +44,10 @@ export function useInvestRouteSubmit({
     return () => clearInterval(timer);
   }, [reviewExpiryKey, reviewGroupCount]);
 
-  const firstReviewForGate =
-    reviewGroups.find((group) => group.groupId === 'base-morpho') ??
-    reviewGroups[0];
-  const reviewBlocked =
-    reviewGroups.some(
-      (group) =>
-        group.blocked ||
-        !group.executionAllowed ||
-        group.expiresAt <= reviewNow,
-    ) ||
-    Boolean(
-      firstReviewForGate?.requiresRiskAcknowledgement &&
-      acknowledgedRiskHashes[firstReviewForGate.groupId] !==
-        firstReviewForGate.expectedRiskHash,
-    );
+  const reviewBlocked = reviewGroups.some(
+    (group) =>
+      group.blocked || !group.executionAllowed || group.expiresAt <= reviewNow,
+  );
   const reviewNotReadyForSend =
     capability === 'ready' &&
     (review.isLoading ||
@@ -69,22 +55,6 @@ export function useInvestRouteSubmit({
       !review.reviewHasAllGroups ||
       reviewBlocked);
   const reviewExecutionLocked = reviewedProgress !== null;
-
-  const toggleAcknowledgment = (
-    groupId: string,
-    expectedRiskHash: string,
-    acknowledged: boolean,
-  ) => {
-    setAcknowledgedRiskHashes((current) => {
-      const next = { ...current };
-      if (acknowledged) {
-        next[groupId] = expectedRiskHash;
-      } else {
-        delete next[groupId];
-      }
-      return next;
-    });
-  };
 
   const dismissSubmissionError = () => {
     setSubmissionError(null);
@@ -126,10 +96,7 @@ export function useInvestRouteSubmit({
           (group) =>
             !group.blocked &&
             group.executionAllowed &&
-            group.expiresAt > Date.now() &&
-            (group.groupId !== firstReview?.groupId ||
-              !group.requiresRiskAcknowledgement ||
-              acknowledgedRiskHashes[group.groupId] === group.expectedRiskHash),
+            group.expiresAt > Date.now(),
         );
       if (!displayed || !firstReview || !displayedGroupsSafe) {
         setSubmissionError(
@@ -144,9 +111,7 @@ export function useInvestRouteSubmit({
           plan: displayed.plan,
           review: group,
         })),
-        ...(firstReview.requiresRiskAcknowledgement &&
-        acknowledgedRiskHashes[firstReview.groupId] ===
-          firstReview.expectedRiskHash
+        ...(firstReview.requiresRiskAcknowledgement
           ? { acknowledgedRiskHash: firstReview.expectedRiskHash }
           : {}),
       });
@@ -197,8 +162,6 @@ export function useInvestRouteSubmit({
     reviewBlocked,
     reviewNotReadyForSend,
     reviewExecutionLocked,
-    acknowledgedRiskHashes,
-    toggleAcknowledgment,
     submissionError,
     dismissSubmissionError,
   };
