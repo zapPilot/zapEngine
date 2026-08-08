@@ -190,6 +190,48 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
     expect(result.current.destinationTxHash).toBeNull();
   });
 
+  it('keeps reset state when an aborted arrival poll resolves later', async () => {
+    let resolveArrival!: () => void;
+    mocks.waitForPerpUsdcArrival.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveArrival = resolve;
+        }),
+    );
+    const { result } = renderHook(() => useBridgeTest());
+    let execution!: Promise<void>;
+
+    await act(async () => {
+      execution = result.current.execute(request);
+      await vi.waitFor(() => {
+        expect(mocks.waitForPerpUsdcArrival).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    const arrivalSignal = mocks.waitForPerpUsdcArrival.mock.calls[0]?.[0]
+      .signal as AbortSignal;
+
+    act(() => {
+      result.current.reset();
+    });
+
+    expect(arrivalSignal.aborted).toBe(true);
+    expect(result.current.status).toBe('idle');
+    expect(result.current.quote).toBeNull();
+
+    await act(async () => {
+      resolveArrival();
+      await execution;
+    });
+
+    expect(result.current.status).toBe('idle');
+    expect(result.current.error).toBeNull();
+    expect(result.current.quote).toBeNull();
+    expect(result.current.sourceTxHash).toBeNull();
+    expect(result.current.destinationTxHash).toBeNull();
+    expect(result.current.lifiScanUrl).toBeNull();
+  });
+
   it('keeps the second execution result when the first arrival poll rejects later', async () => {
     let rejectFirstArrival!: (error: Error) => void;
     mocks.sendTransaction
