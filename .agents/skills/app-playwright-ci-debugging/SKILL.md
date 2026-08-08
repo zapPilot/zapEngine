@@ -1,151 +1,89 @@
 ---
 name: app-playwright-ci-debugging
 description: >-
-  Use when `apps/app` Playwright e2e tests fail in CI or local runs, especially
-  Expo web export startup, `PLAYWRIGHT_PORT` / `PLAYWRIGHT_BASE_URL` mismatch,
-  route-smoke assertions, a `Privy config is missing` screen, Metro env-cache
-  poisoning, auth navigation drift, ErrorBoundary smoke checks, old
-  `apps/mobile-v2` references, or product code added to the frontend build shim.
+  Use when `apps/app` Playwright e2e fails, especially Expo web export startup,
+  Privy config screens, Metro env-cache poisoning, port/base-URL mismatch, route
+  smoke drift, or auth navigation mismatch.
 ---
 
 # App Playwright CI debugging
 
-## Core principle
+## Core rule
 
-**Test the current Expo web app shell on the same port CI uses; do not resurrect
-retired mobile paths, put product code in the frontend shim, or weaken the e2e
-gate to hide slow startup.**
+`apps/app` owns the Expo web app and Playwright tests. `apps/frontend` is only a
+build shim; do not put product code or tests there, and do not resurrect retired
+mobile paths.
 
-`apps/app` is the current Expo web app. `apps/mobile-v2` has been retired.
-`apps/frontend` remains only as a build shim that delegates the web export to
-`apps/app`; do not add tests or product code to either path.
+Start with the named Playwright log plus `error-context.md` / trace before
+changing app code or timeouts.
 
-## Where the signal already is
-
-Playwright failures usually surface under the core CI verify loop. Start from the
-named failing spec or the `.ai-verify/logs/` file produced by `pnpm verify ci` /
-`pnpm verify changed`.
-
-Useful narrow commands:
+## Narrow commands
 
 ```bash
 cd apps/app && pnpm run test:e2e
 cd apps/app && PLAYWRIGHT_PORT=3100 pnpm exec playwright test tests/e2e/smoke.spec.ts
 ```
 
-Run `test:e2e` once before the raw Playwright command so the checked, E2E-specific
-export exists.
+Run `test:e2e` before raw Playwright so the checked E2E export exists.
 
-## Port and web-server rules
+## Expo export, env, and Metro cache
 
-Keep the e2e script and Playwright web server in sync:
+`EXPO_PUBLIC_*` is compiled into the static Expo bundle. Env on Playwright's
+static web-server process cannot repair a bundle built without it.
 
-- If `test:e2e` builds the Expo web export first, `webServer.command` should serve
-  the existing export rather than rebuild it.
-- The server must bind to `PLAYWRIGHT_PORT`, and `PLAYWRIGHT_BASE_URL` must
-  resolve to that server.
-- Avoid hard-coded ports in one side of the setup.
-- Expo web export and static-server startup can be slow in CI. Prefer a
-  conservative Playwright `webServer.timeout` over skipping or deleting the gate.
-
-## Expo env and Metro cache rules
-
-`EXPO_PUBLIC_*` values are compiled into the static web export. Environment
-variables on Playwright's static `webServer` process cannot repair a bundle that
-was built without them.
-
-The root build can export `apps/app` through the `apps/frontend` compatibility
-shim before E2E runs. That env-less export warms Metro's transform cache. A later
-export with E2E Privy placeholders can reuse the stale transforms unless its
-bundler cache is cleared.
+The root build may export through the `apps/frontend` shim first and warm Metro
+with env-less transforms. The later E2E export can then reuse stale output.
 
 - Build E2E only through `apps/app/scripts/build-e2e-web.mjs`.
-- Keep Expo's `--clear` flag and the compiled-placeholder verification together.
-- Treat a fast rebuild after an earlier env-less export as evidence to inspect
-  the bundle, not proof that the new env was compiled.
-- Do not move build-time env into `playwright.config.ts`; its web server only
-  serves `dist/web`.
+- Keep Expo `--clear` and compiled-placeholder verification together.
+- A suspiciously fast rebuild after an env-less export is a reason to inspect the
+  bundle, not proof that the E2E env was compiled.
+- Keep `PLAYWRIGHT_PORT`, `PLAYWRIGHT_BASE_URL`, and `webServer.command` aligned;
+  serve the existing E2E export rather than rebuilding it in `webServer.command`.
 
-## App boot and hydration failures
+## Boot failure classification
 
-When both the root redirect and a direct route fail before any app control is
-visible, treat them as one app-boot failure rather than two locator bugs.
+When multiple tests fail before the first stable app control, treat them as one
+boot failure rather than independent locator failures.
 
-- Read each failure's `error-context.md` before changing timeouts or locators. If
-  its DOM contains `Privy config is missing`, fix the compiled export; routing
-  and later media assertions have not run.
-- If the artifact has no text log, use `error-context.md`, screenshots, and the
-  Playwright trace together; the config screen proves compiled config is absent,
-  while the preceding build log and export duration confirm the cache mechanism.
-- Compare adjacent CI runs before changing product routing. A later pass with no
-  relevant app diff is evidence against a route contract change, but it can be
-  an env-sensitive cache hit rather than generic runner timing. Compare export
-  durations and verify compiled config before classifying hydration as flaky.
-- Use a dedicated boot timeout for the first stable shell/control; keep normal
-  interaction assertions strict after the app is visible.
-- Retain Playwright traces and failure screenshots in CI, and upload
-  `apps/app/playwright-report` plus `apps/app/test-results` on failure.
-- Do not add `window` fallbacks to shared Expo route files. Shared routes also run
-  on native, and browser navigation still cannot help when React never mounts.
+- `Privy config is missing` in `error-context.md` means the compiled export is
+  wrong; routing and later assertions have not run.
+- Use `error-context.md`, screenshots, traces, browser console, and page errors
+  before increasing startup timeouts.
+- Compare adjacent CI runs and export durations before calling hydration flaky.
+- A dedicated first-boot timeout is fine; keep post-boot interactions strict.
+- Preserve CI uploads of `apps/app/playwright-report` and `apps/app/test-results`.
+- Do not add browser-only `window` recovery to shared Expo route files.
 
-## Route-smoke assertion rules
+## Route and auth smoke rules
 
-For route-smoke specs, avoid mutable product-copy assertions such as balances,
-marketing labels, `$`, or `%`.
+Route smoke should assert stable app health, not mutable product data:
 
-Prefer stable checks:
+- expected URL / route;
+- stable shell or root control;
+- no ErrorBoundary text;
+- no not-found state for a valid route.
 
-- route URL is correct;
-- a stable app shell/root is visible;
-- app ErrorBoundary text is absent;
-- not-found text is absent when the route should exist.
-
-This keeps smoke tests focused on routing and app health instead of copy or market
-data.
-
-## Auth navigation alignment
-
-When touching `BottomTabBar`, `AuthenticatedRoute`, `nativePrivyLogin`, or app tab
-route constants, update implementation and `tests/e2e/smoke.spec.ts` together.
-
-Before merging, choose and verify exactly one locked-tab behavior:
-
-- guest stays on the current route and the connect flow opens; or
-- guest navigates to the locked route and sees the sign-in gate.
-
-Do not merge a PR where `BottomTabBar` implements one behavior while the smoke
-spec asserts the other. A PR body saying “new CI will validate” is not enough;
-wait for the final GitHub Actions run on the PR head to pass.
+When changing `BottomTabBar`, `AuthenticatedRoute`, `nativePrivyLogin`, or tab
+route constants, update `tests/e2e/smoke.spec.ts` in the same change. Pick one
+locked-tab behavior and make implementation and test agree: either stay on the
+current route while connect opens, or navigate to the locked route and show its
+sign-in gate.
 
 ## Fix workflow
 
-1. Read the named Playwright log and artifact `error-context.md` first.
-2. If multiple tests stop before the first app control, classify one shared boot
-   failure instead of editing each test.
-3. For `Privy config is missing`, inspect whether an env-less web export ran
-   earlier, then run `pnpm run test:e2e`; do not touch routing or later assertions.
-4. For another startup timeout, verify `webServer.command`, port, config screen,
-   browser console, and page errors before increasing timeouts.
-5. If post-boot assertions fail, replace mutable copy checks with stable
-   route/shell/error checks.
-6. For auth-tab failures, compare the `BottomTabBar` inaccessible-tab branch with
-   the locked-tab step in `tests/e2e/smoke.spec.ts` before changing either side.
-7. Run the app e2e command, then return to **monorepo-ci-debugging** for widened
-   verification if root/shared files changed.
-
-## Rationalizations — STOP
-
-| Excuse                                                            | Reality                                                                        |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| "The old frontend path is where e2e used to live."                | `apps/frontend` is a build shim; `apps/app` owns the Playwright tests.         |
-| "Startup is flaky, so skip the e2e gate."                         | Preserve the gate; add boot-specific waiting and failure artifacts.            |
-| "A balance or APR string proves the page loaded."                 | Route smoke should not depend on mutable product copy or market data.          |
-| "The app built locally, so Playwright port config is fine."       | Build success does not prove `PLAYWRIGHT_PORT` / `PLAYWRIGHT_BASE_URL` parity. |
-| "The implementation fix is obvious; CI can validate after merge." | Route-smoke expectations must match the auth navigation model before merge.    |
-| "A browser redirect fallback will fix CI hydration."              | It only runs after React mounts and is unsafe in a shared native route.        |
-| "The Playwright web server has the env, so the app does too."     | Static Expo config was compiled earlier; serving env cannot rewrite it.        |
-| "Reorder the later video assertions to fix both failed tests."    | If both tests show the config screen, neither reached the video assertions.    |
-| "Drop `--clear` because a warm Metro build is faster."            | Env-less transforms can silently restore the config screen in E2E.             |
+1. Read the failing Playwright log and `error-context.md`.
+2. If several tests stop before app boot, diagnose the shared boot/export issue.
+3. For missing Privy config, inspect prior env-less exports and rerun
+   `pnpm run test:e2e`; do not edit later route/media assertions.
+4. For other startup failures, verify server command, port/base URL, config
+   screen, console, and page errors before changing timeouts.
+5. For post-boot smoke failures, prefer stable route/shell/error assertions over
+   balances, APR, marketing copy, `$`, or `%`.
+6. For auth-tab failures, compare the inaccessible-tab implementation and smoke
+   expectation directly.
+7. Run `cd apps/app && pnpm run test:e2e`, then return to
+   **monorepo-ci-debugging** if root/shared files changed.
 
 ## Verification
 
@@ -153,5 +91,5 @@ wait for the final GitHub Actions run on the PR head to pass.
 cd apps/app && pnpm run test:e2e
 ```
 
-If the PR changes root config, shared packages, env, or CI wiring, also follow
+If the change touches root config, shared packages, env, or CI wiring, widen via
 **monorepo-ci-debugging** before handoff.
