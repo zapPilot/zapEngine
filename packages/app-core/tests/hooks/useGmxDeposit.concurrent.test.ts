@@ -6,8 +6,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Hash } from 'viem';
 
 const USER = '0x1111111111111111111111111111111111111111';
-const OLD_HASH = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' as Hash;
-const NEW_HASH = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' as Hash;
+const OLD_HASH =
+  '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' as Hash;
+const NEW_HASH =
+  '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' as Hash;
+
+type Eip7702Result = {
+  kind: 'eip7702';
+  callsId: string;
+  transactionHash: Hash;
+};
 
 const mocks = vi.hoisted(() => ({
   useWalletProvider: vi.fn(),
@@ -77,15 +85,11 @@ describe('useGmxDeposit concurrent executions', () => {
       .mockResolvedValueOnce(secondPlan);
 
     let firstBundleSubmitted!: (callsId: string) => void;
-    let resolveFirst!: (result: {
-      kind: 'eip7702';
-      callsId: string;
-      transactionHash: Hash;
-    }) => void;
+    let resolveFirst!: (result: Eip7702Result) => void;
     mocks.executeDepositPlan
       .mockImplementationOnce(
         (params: { onBundleSubmitted: (callsId: string) => void }) =>
-          new Promise((resolve) => {
+          new Promise<Eip7702Result>((resolve) => {
             firstBundleSubmitted = params.onBundleSubmitted;
             resolveFirst = resolve;
           }),
@@ -96,14 +100,20 @@ describe('useGmxDeposit concurrent executions', () => {
     let firstRun!: Promise<unknown>;
 
     await act(async () => {
-      firstRun = result.current.run({ marketKey: 'btc-usdc', amount: '1000000' });
+      firstRun = result.current.run({
+        marketKey: 'btc-usdc',
+        amount: '1000000',
+      });
       await vi.waitFor(() => {
         expect(mocks.executeDepositPlan).toHaveBeenCalledTimes(1);
       });
     });
 
     await act(async () => {
-      await result.current.run({ marketKey: 'eth-usdc', amount: '2000000' });
+      await result.current.run({
+        marketKey: 'eth-usdc',
+        amount: '2000000',
+      });
     });
 
     expect(result.current.pending).toBe(false);
