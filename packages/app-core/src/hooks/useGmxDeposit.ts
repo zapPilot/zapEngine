@@ -181,10 +181,14 @@ export function useGmxDeposit() {
             amount,
             userAddress: effectiveAddress,
           });
-          if (isCurrentRun()) {
-            actions.setLastPlan(plan);
-            setSteps(initialSteps(plan));
+          if (!isCurrentRun()) {
+            throw new DOMException(
+              'Superseded by a newer GMX deposit run',
+              'AbortError',
+            );
           }
+          actions.setLastPlan(plan);
+          setSteps(initialSteps(plan));
 
           const execution = await executeDepositPlan({
             plan,
