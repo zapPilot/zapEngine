@@ -247,7 +247,7 @@ function SingleChainSummary({
             value={
               isBase
                 ? `${tokenAmountLabel(fromAmount, token)} · 100%`
-                : 'BTC/BTC · BTC/USDC · 50% each'
+                : 'BTC/BTC · ETH/ETH · BTC/USDC · ETH/USDC · 25% each'
             }
             divider
           />

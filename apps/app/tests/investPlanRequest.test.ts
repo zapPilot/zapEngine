@@ -64,7 +64,7 @@ describe('Invest deposit plan requests', () => {
     });
   });
 
-  it('preserves the selected Arbitrum token for the two-pool GMX basket', () => {
+  it('preserves the selected Arbitrum token for the four-pool GMX basket', () => {
     const selectedToken = ARBITRUM_DEPOSIT_TOKENS[1];
     const request = buildInvestDepositPlanRequest({
       userAddress: USER_ADDRESS,

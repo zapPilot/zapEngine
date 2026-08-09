@@ -712,7 +712,7 @@ describe('plan-orchestration service', () => {
     });
   });
 
-  it('splits the Arbitrum GMX basket across the two BTC markets', async () => {
+  it('splits the Arbitrum GMX basket across all four markets', async () => {
     const { service, buildGmxV2Supply } = makeService(0n);
 
     const plan = await service.buildDeposit({
@@ -728,12 +728,19 @@ describe('plan-orchestration service', () => {
         input.fromAmount,
       ]),
     ).toEqual([
-      ['btc-btc', '5001'],
-      ['btc-usdc', '5002'],
+      ['btc-btc', '2500'],
+      ['eth-eth', '2500'],
+      ['btc-usdc', '2500'],
+      ['eth-usdc', '2503'],
     ]);
-    expect(plan.legs.map((leg) => leg.fromAmount)).toEqual(['5001', '5002']);
-    expect(plan.legs).toHaveLength(2);
-    expect(plan.calls).toHaveLength(2);
+    expect(plan.legs.map((leg) => leg.fromAmount)).toEqual([
+      '2500',
+      '2500',
+      '2500',
+      '2503',
+    ]);
+    expect(plan.legs).toHaveLength(4);
+    expect(plan.calls).toHaveLength(4);
     expect(plan.approvals).toHaveLength(1);
     expect(plan.sourceChainId).toBe(42161);
   });
