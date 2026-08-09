@@ -413,6 +413,9 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
       }
 
       try {
+        if (chain?.id !== input.chainId) {
+          await switchChainAsync({ chainId: input.chainId });
+        }
         const walletClient = await getActiveWalletClient(input.chainId);
         const result = await submitPreparedTransactionsWithEIP7702({
           transactions: input.transactions,
@@ -443,7 +446,7 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
         throw error;
       }
     },
-    [address, getActiveWalletClient],
+    [address, chain?.id, getActiveWalletClient, switchChainAsync],
   );
 
   const executeReviewedBatch = useDeduplicatedReviewedExecution(

@@ -123,12 +123,61 @@ describe('useWagmiWalletBackend', () => {
       }),
     ).resolves.toEqual({ status: 'submitted', callsId: 'calls-1' });
 
+    expect(mocks.switchChainAsync).not.toHaveBeenCalled();
     expect(mocks.getWalletClient).toHaveBeenCalledWith({}, { chainId: 8453 });
     expect(mocks.submitPreparedTransactionsWithEIP7702).toHaveBeenCalledWith({
       transactions,
       walletClient,
       chainId: 8453,
     });
+  });
+
+  it('switches to the reviewed batch chain before resolving the wallet client', async () => {
+    const transactions: PreparedTransaction[] = [
+      {
+        to: '0x2222222222222222222222222222222222222222',
+        data: '0x',
+        value: '0',
+        chainId: 42161,
+        meta: { intentType: 'supply' },
+      },
+    ];
+    mocks.connection = {
+      address: '0x1111111111111111111111111111111111111111',
+      isConnected: true,
+      isConnecting: false,
+      chain: { id: 8453, name: 'Base' },
+    };
+    mocks.switchChainAsync.mockResolvedValue(undefined);
+    const walletClient = { account: { address: mocks.connection.address } };
+    mocks.getWalletClient.mockResolvedValue(walletClient);
+    mocks.submitPreparedTransactionsWithEIP7702.mockResolvedValue({
+      callsId: 'calls-arbitrum',
+    });
+    const { result } = renderHook(() => useWagmiWalletBackend());
+
+    await expect(
+      result.current.backend.executeReviewedBatch?.({
+        transactions,
+        chainId: 42161,
+        expectedWalletAddress: '0x1111111111111111111111111111111111111111',
+        expectedBatchFingerprint: computeReviewedBatchFingerprint({
+          chainId: 42161,
+          transactions,
+        }),
+        expiresAt: Date.now() + 60_000,
+        executionAllowed: true,
+        expectedSimulationFingerprint: `0x${'ab'.repeat(32)}`,
+        expectedRiskHash: `0x${'cd'.repeat(32)}`,
+        requiresRiskAcknowledgement: false,
+      }),
+    ).resolves.toEqual({ status: 'submitted', callsId: 'calls-arbitrum' });
+
+    expect(mocks.switchChainAsync).toHaveBeenCalledWith({ chainId: 42161 });
+    expect(mocks.getWalletClient).toHaveBeenCalledWith({}, { chainId: 42161 });
+    expect(mocks.switchChainAsync.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.getWalletClient.mock.invocationCallOrder[0]!,
+    );
   });
 
   it('blocks a failed or unavailable review before resolving a wallet client', async () => {
