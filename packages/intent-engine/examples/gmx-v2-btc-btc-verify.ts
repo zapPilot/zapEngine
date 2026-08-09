@@ -20,7 +20,14 @@
  * feed into the Tenderly simulation, plus the swapped collateral floor.
  */
 
-import { decodeFunctionData, getAddress, type Hex } from 'viem';
+import {
+  createPublicClient,
+  decodeFunctionData,
+  getAddress,
+  http,
+  type Hex,
+} from 'viem';
+import { arbitrum } from 'viem/chains';
 
 import {
   createIntentEngine,
@@ -88,12 +95,19 @@ async function main() {
     `Building ${MARKET} plan: ${AMOUNT} USDC for ${EOA} (live LI.FI call if collateral != USDC)…`,
   );
 
-  const plan = await engine.buildGmxV2Supply({
-    marketKey: MARKET,
-    fromToken: GMX_V2_TOKENS.USDC.address,
-    fromAmount: AMOUNT,
-    userAddress: EOA,
+  const publicClient = createPublicClient({
+    chain: arbitrum,
+    transport: http(),
   });
+  const plan = await engine.buildGmxV2Supply(
+    {
+      marketKey: MARKET,
+      fromToken: GMX_V2_TOKENS.USDC.address,
+      fromAmount: AMOUNT,
+      userAddress: EOA,
+    },
+    publicClient,
+  );
 
   // The ordered batch the frontend submits via wallet_sendCalls.
   const batch = [...plan.approvals, ...plan.steps];

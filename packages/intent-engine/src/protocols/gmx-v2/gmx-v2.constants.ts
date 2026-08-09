@@ -116,6 +116,12 @@ export const GMX_V2_MARKETS = {
 
 export const GMX_V2_EXECUTION_FEE_WEI = '1000000000000000';
 
+export const GMX_V2_ORACLE_URLS = [
+  'https://arbitrum-api.gmxinfra.io/prices/tickers',
+  'https://arbitrum-api-fallback.gmxinfra.io/prices/tickers',
+  'https://arbitrum-api-fallback.gmxinfra2.io/prices/tickers',
+] as const;
+
 export const GMX_V2_GAS_ESTIMATES = {
   approve: '60000',
   multicall: '1200000',
@@ -143,6 +149,63 @@ function payableFunctionAbi<
     outputs: [],
   } as const;
 }
+
+export const GMX_V2_READER_ABI = [
+  {
+    name: 'getDepositAmountOut',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'dataStore', type: ADDRESS },
+      {
+        name: 'market',
+        type: 'tuple',
+        components: [
+          { name: 'marketToken', type: ADDRESS },
+          { name: 'indexToken', type: ADDRESS },
+          { name: 'longToken', type: ADDRESS },
+          { name: 'shortToken', type: ADDRESS },
+        ],
+      },
+      {
+        name: 'prices',
+        type: 'tuple',
+        components: [
+          {
+            name: 'indexTokenPrice',
+            type: 'tuple',
+            components: [
+              { name: 'min', type: UINT256 },
+              { name: 'max', type: UINT256 },
+            ],
+          },
+          {
+            name: 'longTokenPrice',
+            type: 'tuple',
+            components: [
+              { name: 'min', type: UINT256 },
+              { name: 'max', type: UINT256 },
+            ],
+          },
+          {
+            name: 'shortTokenPrice',
+            type: 'tuple',
+            components: [
+              { name: 'min', type: UINT256 },
+              { name: 'max', type: UINT256 },
+            ],
+          },
+        ],
+      },
+      { name: 'longTokenAmount', type: UINT256 },
+      { name: 'shortTokenAmount', type: UINT256 },
+      { name: 'uiFeeReceiver', type: ADDRESS },
+      { name: 'swapPricingType', type: 'uint8' },
+      { name: 'includeVirtualInventoryImpact', type: 'bool' },
+    ],
+    outputs: [{ name: 'marketTokensOut', type: UINT256 }],
+  },
+] as const;
 
 export const GMX_V2_EXCHANGE_ROUTER_ABI = [
   {

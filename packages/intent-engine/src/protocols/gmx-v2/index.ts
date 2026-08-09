@@ -7,6 +7,8 @@ export {
   GMX_V2_FUNDING_TOKENS,
   GMX_V2_GAS_ESTIMATES,
   GMX_V2_MARKETS,
+  GMX_V2_ORACLE_URLS,
+  GMX_V2_READER_ABI,
   GMX_V2_TOKENS,
   type GmxV2FundedSide,
   type GmxV2Market,

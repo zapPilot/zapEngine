@@ -638,12 +638,15 @@ describe('plan-orchestration service', () => {
       userAddress: USER,
     });
 
-    expect(buildGmxV2Supply).toHaveBeenCalledWith({
-      marketKey: 'eth-usdc',
-      fromToken: USDT,
-      fromAmount: '1000',
-      userAddress: USER,
-    });
+    expect(buildGmxV2Supply).toHaveBeenCalledWith(
+      {
+        marketKey: 'eth-usdc',
+        fromToken: USDT,
+        fromAmount: '1000',
+        userAddress: USER,
+      },
+      expect.any(Object),
+    );
     expect(readContract).toHaveBeenCalled();
     expect(plan.approvals).toEqual([]);
     expect(plan.calls).toEqual(gmxPlan.steps);

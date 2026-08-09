@@ -482,10 +482,17 @@ async function buildStrategyAllocationPlans(params: {
   userAddress: Address;
   intentEngine: PlanOrchestrationServiceDeps['intentEngine'];
   baseClient: PublicClient;
+  arbitrumClient: PublicClient;
   morphoVault: Address;
 }) {
-  const { funding, userAddress, intentEngine, baseClient, morphoVault } =
-    params;
+  const {
+    funding,
+    userAddress,
+    intentEngine,
+    baseClient,
+    arbitrumClient,
+    morphoVault,
+  } = params;
   const [basePlan, btcPlan, ethPlan] = await Promise.all([
     buildBaseMorphoAllocation({
       baseSource: funding.baseSource,
@@ -495,18 +502,24 @@ async function buildStrategyAllocationPlans(params: {
       baseClient,
       morphoVault,
     }),
-    intentEngine.buildGmxV2Supply({
-      marketKey: 'btc-usdc',
-      fromToken: funding.arbitrumSource.fromToken as Address,
-      fromAmount: funding.btcAmount,
-      userAddress,
-    }),
-    intentEngine.buildGmxV2Supply({
-      marketKey: 'eth-usdc',
-      fromToken: funding.arbitrumSource.fromToken as Address,
-      fromAmount: funding.ethAmount,
-      userAddress,
-    }),
+    intentEngine.buildGmxV2Supply(
+      {
+        marketKey: 'btc-usdc',
+        fromToken: funding.arbitrumSource.fromToken as Address,
+        fromAmount: funding.btcAmount,
+        userAddress,
+      },
+      arbitrumClient,
+    ),
+    intentEngine.buildGmxV2Supply(
+      {
+        marketKey: 'eth-usdc',
+        fromToken: funding.arbitrumSource.fromToken as Address,
+        fromAmount: funding.ethAmount,
+        userAddress,
+      },
+      arbitrumClient,
+    ),
   ]);
 
   return { basePlan, btcPlan, ethPlan };
@@ -702,6 +715,7 @@ async function buildStrategyDeposit(params: {
     userAddress,
     intentEngine,
     baseClient,
+    arbitrumClient,
     morphoVault,
   });
   const execution = await buildStrategyExecutionGroups({
@@ -1043,12 +1057,15 @@ export function createPlanOrchestrationService({
       GMX_V2_ARBITRUM_CHAIN_ID,
     );
     const userAddress = request.userAddress as Address;
-    const gmxPlan = await intentEngine.buildGmxV2Supply({
-      marketKey: request.marketKey,
-      fromToken: request.fromToken as Address,
-      fromAmount: request.amount,
-      userAddress,
-    });
+    const gmxPlan = await intentEngine.buildGmxV2Supply(
+      {
+        marketKey: request.marketKey,
+        fromToken: request.fromToken as Address,
+        fromAmount: request.amount,
+        userAddress,
+      },
+      publicClient,
+    );
     const approvals = await filterNeededApprovals({
       approvals: gmxPlan.approvals,
       owner: userAddress,

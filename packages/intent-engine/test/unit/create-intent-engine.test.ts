@@ -123,10 +123,12 @@ describe('createIntentEngine factory', () => {
     const { buildGmxV2SupplyTx } =
       await import('../../src/builders/gmx-v2-supply.builder.js');
     const intent = { type: 'GMX_V2_SUPPLY' } as never;
-    await engine.buildGmxV2Supply(intent);
+    const publicClient = {} as never;
+    await engine.buildGmxV2Supply(intent, publicClient);
     expect(vi.mocked(buildGmxV2SupplyTx)).toHaveBeenCalledWith(
       intent,
       engine.lifi,
+      publicClient,
     );
   });
 

@@ -5,10 +5,12 @@ import {
   getAddress,
   type Address,
   type Hex,
+  type PublicClient,
 } from 'viem';
 
+import type { GmxV2PricingAdapter } from '../../src/adapters/gmx-v2-pricing.adapter.js';
 import type { LiFiAdapter } from '../../src/adapters/lifi.adapter.js';
-import { buildGmxV2SupplyTx } from '../../src/builders/gmx-v2-supply.builder.js';
+import { buildGmxV2SupplyTx as buildGmxV2SupplyTxRaw } from '../../src/builders/gmx-v2-supply.builder.js';
 import {
   GMX_V2_ADDRESSES,
   GMX_V2_ARBITRUM_CHAIN_ID,
@@ -29,6 +31,18 @@ const LIFI_TX_TARGET = '0x3333333333333333333333333333333333333333' as Address;
 const USDC_AMOUNT = '1000000';
 const SWAPPED_MIN = '12345';
 const NATIVE_ETH = GMX_V2_TOKENS.ETH.address;
+const PUBLIC_CLIENT = {} as PublicClient;
+const GMX_READER_OUTPUT = 500000000000000000n;
+
+function buildGmxV2SupplyTx(
+  input: Parameters<typeof buildGmxV2SupplyTxRaw>[0],
+  adapter: LiFiAdapter,
+) {
+  const pricingAdapter: GmxV2PricingAdapter = {
+    getDepositAmountOut: vi.fn().mockResolvedValue(GMX_READER_OUTPUT),
+  };
+  return buildGmxV2SupplyTxRaw(input, adapter, PUBLIC_CLIENT, pricingAdapter);
+}
 
 function makeSwapQuote(params: {
   fromToken: Address;

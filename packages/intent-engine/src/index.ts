@@ -252,6 +252,7 @@ export interface IntentEngine {
   /** Build a GMX v2 GM market supply plan for the dev-only Arbitrum path */
   buildGmxV2Supply(
     intent: BuildGmxV2SupplyTxInput,
+    publicClient: PublicClient,
   ): Promise<BuiltGmxV2SupplyPlan>;
 
   /** Build a GMX v2 GM market withdrawal plan for the dev-only Arbitrum path */
@@ -333,8 +334,11 @@ export function createIntentEngine(config: IntentEngineConfig): IntentEngine {
       return buildRotateTx(intent, lifiAdapter, publicClient);
     },
 
-    async buildGmxV2Supply(intent: BuildGmxV2SupplyTxInput) {
-      return buildGmxV2SupplyTx(intent, lifiAdapter);
+    async buildGmxV2Supply(
+      intent: BuildGmxV2SupplyTxInput,
+      publicClient: PublicClient,
+    ) {
+      return buildGmxV2SupplyTx(intent, lifiAdapter, publicClient);
     },
 
     async buildGmxV2Withdraw(intent: BuildGmxV2WithdrawTxInput) {

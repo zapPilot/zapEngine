@@ -1,5 +1,9 @@
-import { getAddress, type Address } from 'viem';
+import { getAddress, type Address, type PublicClient } from 'viem';
 
+import {
+  GmxV2ReaderPricingAdapter,
+  type GmxV2PricingAdapter,
+} from '../adapters/gmx-v2-pricing.adapter.js';
 import type { LiFiAdapter } from '../adapters/lifi.adapter.js';
 import {
   encodeGmxV2CreateDepositMulticall,
@@ -44,54 +48,21 @@ export interface GmxV2SupplyPlan {
   market: GmxV2Market;
 }
 
-const PRICE_SCALE = 10n ** 18n;
 const MAX_DEPOSIT_SLIPPAGE_BPS = GMX_V2_DEFAULT_DEPOSIT_SLIPPAGE_BPS;
 
-function decimalToScaledInteger(value: string): bigint {
-  const match = /^(\d+)(?:\.(\d+))?$/u.exec(value.trim());
-  if (!match) {
-    throw new Error(`Invalid GMX token price: ${value}`);
-  }
-
-  const fraction = (match[2] ?? '').slice(0, 18).padEnd(18, '0');
-  return BigInt(match[1]!) * PRICE_SCALE + BigInt(fraction || '0');
-}
-
-function validateTokenDecimals(decimals: number): bigint {
-  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36) {
-    throw new Error(`Invalid GMX token decimals: ${decimals}`);
-  }
-  return 10n ** BigInt(decimals);
-}
-
-function quotedMarketTokenAmounts(params: {
-  collateralAmount: bigint;
-  collateralDecimals: number;
-  collateralPriceUsd: string;
-  marketTokenDecimals: number;
-  marketTokenPriceUsd: string;
-  slippageBps: number;
-}): { estimated: bigint; minimum: bigint } {
-  const collateralPrice = decimalToScaledInteger(params.collateralPriceUsd);
-  const marketTokenPrice = decimalToScaledInteger(params.marketTokenPriceUsd);
-  if (collateralPrice <= 0n || marketTokenPrice <= 0n) {
-    throw new Error('GMX token prices must be greater than zero');
-  }
-
-  const estimated =
-    (params.collateralAmount *
-      collateralPrice *
-      validateTokenDecimals(params.marketTokenDecimals)) /
-    (validateTokenDecimals(params.collateralDecimals) * marketTokenPrice);
-  const slippageMultiplier = 10_000n - BigInt(params.slippageBps);
-  const minimum = (estimated * slippageMultiplier + 9_999n) / 10_000n;
-
-  if (minimum <= 0n || minimum >= estimated) {
+function applyDepositSlippage(
+  estimatedMarketTokens: bigint,
+  slippageBps: number,
+): bigint {
+  const slippageMultiplier = 10_000n - BigInt(slippageBps);
+  const minimum =
+    (estimatedMarketTokens * slippageMultiplier + 9_999n) / 10_000n;
+  if (minimum <= 0n || minimum >= estimatedMarketTokens) {
     throw new Error(
       'GMX deposit amount is too small to retain a GM-token slippage buffer',
     );
   }
-  return { estimated, minimum };
+  return minimum;
 }
 
 function depositSlippageBps(value: number | undefined): number {
@@ -196,6 +167,8 @@ function buildDepositStep(params: {
 export async function buildGmxV2SupplyTx(
   input: BuildGmxV2SupplyTxInput,
   adapter: LiFiAdapter,
+  publicClient: PublicClient,
+  pricingAdapter: GmxV2PricingAdapter = new GmxV2ReaderPricingAdapter(),
 ): Promise<GmxV2SupplyPlan> {
   validatePositiveAmount(
     input.fromAmount,
@@ -265,18 +238,16 @@ export async function buildGmxV2SupplyTx(
     }
   }
 
-  const [collateralToken, marketToken] = await Promise.all([
-    adapter.getTokenPrice(GMX_V2_ARBITRUM_CHAIN_ID, market.collateralToken),
-    adapter.getTokenPrice(GMX_V2_ARBITRUM_CHAIN_ID, market.marketToken),
-  ]);
-  const marketTokenQuote = quotedMarketTokenAmounts({
-    collateralAmount: BigInt(collateralAmount),
-    collateralDecimals: collateralToken.decimals,
-    collateralPriceUsd: collateralToken.priceUSD,
-    marketTokenDecimals: marketToken.decimals,
-    marketTokenPriceUsd: marketToken.priceUSD,
-    slippageBps,
+  const sideAmounts = depositSideAmounts(market, BigInt(collateralAmount));
+  const estimatedMarketTokens = await pricingAdapter.getDepositAmountOut({
+    publicClient,
+    market,
+    ...sideAmounts,
   });
+  const minMarketTokens = applyDepositSlippage(
+    estimatedMarketTokens,
+    slippageBps,
+  );
 
   approvals.push(
     createApprovalTx({
@@ -291,8 +262,8 @@ export async function buildGmxV2SupplyTx(
       market,
       receiver: input.userAddress,
       collateralAmount,
-      estimatedMarketTokens: marketTokenQuote.estimated.toString(),
-      minMarketTokens: marketTokenQuote.minimum.toString(),
+      estimatedMarketTokens: estimatedMarketTokens.toString(),
+      minMarketTokens: minMarketTokens.toString(),
     }),
   );
 
@@ -302,8 +273,8 @@ export async function buildGmxV2SupplyTx(
     approvals,
     steps,
     executionFeeWei: GMX_V2_EXECUTION_FEE_WEI,
-    estimatedMarketTokens: marketTokenQuote.estimated.toString(),
-    minMarketTokens: marketTokenQuote.minimum.toString(),
+    estimatedMarketTokens: estimatedMarketTokens.toString(),
+    minMarketTokens: minMarketTokens.toString(),
     market,
   };
 }
