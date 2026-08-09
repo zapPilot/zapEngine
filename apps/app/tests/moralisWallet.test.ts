@@ -10,6 +10,8 @@ import {
   type MoralisWalletTokenBalancesResponse,
   normalizeWalletAddressList,
 } from '@/integration/moralisWallet';
+import { DEFAULT_ARBITRUM_FUNDING_TOKEN } from '@/integration/depositTokens';
+import { balanceForFundingToken } from '@/integration/investAmountModel';
 
 function balances(
   chain: MoralisChainKey,
@@ -197,6 +199,44 @@ describe('Moralis desktop wallet mapping', () => {
       { id: '8453:USDC', balanceBaseUnits: '12345678' },
       { id: '42161:USDC', balanceBaseUnits: '7000001' },
     ]);
+  });
+
+  it('preserves canonical Arbitrum USDC for the invest funding lookup', () => {
+    const rows = buildChainTokenBalanceRows(
+      buildDesktopWalletAssets([
+        balances('arbitrum', [
+          {
+            symbol: 'USDC',
+            name: 'USD Coin',
+            token_address: '0xaf88d065e77c8cc2239327c5edb3a432268e5831',
+            balance_formatted: '40.767807',
+            usd_value: 40.767807,
+          },
+          {
+            symbol: 'USDC',
+            name: 'Bridged USD Coin',
+            token_address: '0xff970a61a04b1ca14834a43f5de4533ebddb5cc8',
+            balance_formatted: '999',
+            usd_value: 999,
+          },
+        ]),
+      ]),
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(
+      balanceForFundingToken(rows, DEFAULT_ARBITRUM_FUNDING_TOKEN),
+    ).toEqual(
+      expect.objectContaining({
+        chainId: 42161,
+        tokenAddress: '0xaf88d065e77c8cc2239327c5edb3a432268e5831',
+        balance: '40.767807',
+        balanceBaseUnits: '40767807',
+        usdValue: 40.767807,
+        usdPrice: 1,
+        token: expect.objectContaining({ symbol: 'USDC' }),
+      }),
+    );
   });
 
   it('filters spoofed same-symbol token addresses and non-native ETH rows', () => {
