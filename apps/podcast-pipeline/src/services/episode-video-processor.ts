@@ -34,6 +34,8 @@ interface EpisodeVideoProcessorDependencies {
   makeTemporaryDirectory: (prefix: string) => Promise<string>;
   writeManifest: typeof writeFile;
   removeDirectory: typeof rm;
+  readCgroupMemory: () => Promise<number | null>;
+  memorySampleIntervalMs: number;
   logger: Pick<Console, 'info'>;
 }
 
@@ -45,6 +47,8 @@ const defaultDependencies: EpisodeVideoProcessorDependencies = {
   makeTemporaryDirectory: mkdtemp,
   writeManifest: writeFile,
   removeDirectory: rm,
+  readCgroupMemory: readCgroupCurrentBytes,
+  memorySampleIntervalMs: 250,
   logger: console,
 };
 
@@ -132,8 +136,15 @@ export function createEpisodeVideoProcessor(
         `Video render exceeded ${Math.round(EPISODE_VIDEO_RENDER_TIMEOUT_MS / 60_000)}m`,
       );
       const renderStartedAt = Date.now();
-      const rendered = await dependencies
-        .render({
+      const memorySampler = await startCgroupMemorySampler(
+        dependencies.readCgroupMemory,
+        dependencies.memorySampleIntervalMs,
+      );
+      renderDeadline.signal.throwIfAborted();
+      let renderStatus: 'completed' | 'failed' = 'failed';
+      let rendered: Awaited<ReturnType<typeof renderSlideVideo>>;
+      try {
+        rendered = await dependencies.render({
           manifestPath,
           outputDirectory,
           audioSource: source.hlsUrl,
@@ -148,32 +159,22 @@ export function createEpisodeVideoProcessor(
             );
             context.reportProgress(renderEventProgress(event));
           },
-        })
-        .then(async (result) => {
-          await logRenderMetrics(dependencies.logger, {
-            run: context.runId,
-            episode: source.episodeId,
-            language: source.languageCode,
-            status: 'completed',
-            wallMs: Date.now() - renderStartedAt,
-            durationMs: generated.manifest.clip.durationMs,
-          });
-          return result;
-        })
-        .catch(async (error: unknown) => {
-          await logRenderMetrics(dependencies.logger, {
-            run: context.runId,
-            episode: source.episodeId,
-            language: source.languageCode,
-            status: 'failed',
-            wallMs: Date.now() - renderStartedAt,
-            durationMs: generated.manifest.clip.durationMs,
-          });
-          throw error;
-        })
-        .finally(() => {
-          renderDeadline.dispose();
         });
+        renderStatus = 'completed';
+      } finally {
+        const observedPeakBytes = await memorySampler.stop();
+        await logRenderMetrics(dependencies.logger, {
+          run: context.runId,
+          episode: source.episodeId,
+          language: source.languageCode,
+          status: renderStatus,
+          wallMs: Date.now() - renderStartedAt,
+          durationMs: generated.manifest.clip.durationMs,
+          observedPeakBytes,
+          currentBytes: await dependencies.readCgroupMemory(),
+        });
+        renderDeadline.dispose();
+      }
       if (rendered.manifestHash !== generated.manifestHash) {
         throw new Error('Rendered manifest hash differs from persisted hash');
       }
@@ -261,10 +262,11 @@ function logLocaleVideoEvent(
   logger.info(`[video-worker] ${event} ${details}`);
 }
 
-async function readCgroupBytes(
-  paths: readonly string[],
-): Promise<number | null> {
-  for (const path of paths) {
+async function readCgroupCurrentBytes(): Promise<number | null> {
+  for (const path of [
+    '/sys/fs/cgroup/memory.current',
+    '/sys/fs/cgroup/memory/memory.usage_in_bytes',
+  ]) {
     try {
       const value = Number((await readFile(path, 'utf8')).trim());
       if (Number.isFinite(value) && value >= 0) return value;
@@ -273,6 +275,32 @@ async function readCgroupBytes(
     }
   }
   return null;
+}
+
+async function startCgroupMemorySampler(
+  readCurrent: () => Promise<number | null>,
+  intervalMs: number,
+): Promise<{ stop: () => Promise<number | null> }> {
+  const first = await readCurrent();
+  if (first === null) return { stop: async () => null };
+
+  let peak = first;
+  const sample = async () => {
+    const current = await readCurrent();
+    if (current !== null) peak = Math.max(peak, current);
+  };
+  const timer = setInterval(() => {
+    void sample();
+  }, intervalMs);
+  timer.unref?.();
+
+  return {
+    stop: async () => {
+      clearInterval(timer);
+      await sample();
+      return peak;
+    },
+  };
 }
 
 function bytesToMb(bytes: number): number {
@@ -288,26 +316,21 @@ async function logRenderMetrics(
     status: 'completed' | 'failed';
     wallMs: number;
     durationMs: number;
+    observedPeakBytes: number | null;
+    currentBytes: number | null;
   },
 ): Promise<void> {
-  const [cgroupCurrent, cgroupPeak] = await Promise.all([
-    readCgroupBytes([
-      '/sys/fs/cgroup/memory.current',
-      '/sys/fs/cgroup/memory/memory.usage_in_bytes',
-    ]),
-    readCgroupBytes([
-      '/sys/fs/cgroup/memory.peak',
-      '/sys/fs/cgroup/memory/memory.max_usage_in_bytes',
-    ]),
-  ]);
+  const { observedPeakBytes, currentBytes, ...eventFields } = fields;
   logLocaleVideoEvent(logger, 'video:render-metrics', {
-    ...fields,
+    ...eventFields,
     realtime: (fields.durationMs / Math.max(fields.wallMs, 1)).toFixed(3),
-    processRssMb: bytesToMb(process.memoryUsage().rss),
-    ...(cgroupCurrent === null
+    nodeRssMb: bytesToMb(process.memoryUsage().rss),
+    ...(currentBytes === null
       ? {}
-      : { cgroupCurrentMb: bytesToMb(cgroupCurrent) }),
-    ...(cgroupPeak === null ? {} : { cgroupPeakMb: bytesToMb(cgroupPeak) }),
+      : { cgroupCurrentMb: bytesToMb(currentBytes) }),
+    ...(observedPeakBytes === null
+      ? {}
+      : { cgroupPeakObservedMb: bytesToMb(observedPeakBytes) }),
   });
 }
 

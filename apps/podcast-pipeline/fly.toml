@@ -71,14 +71,13 @@ kill_timeout = '30s'
 # 720x1280 at 24fps, but performance CPU remains until production telemetry
 # proves a smaller shape is cheaper per completed video.
 #
-# The renderer also keeps dozens of decoded image inputs plus the xfade graph
-# alive during the final pass, so peak memory scales with scene count (roughly
-# one scene per 10s of narration). ffmpeg was OOM-killed at 1.73 GB against the
-# old 2 GB limit, and that figure is a floor on the true peak, not the peak.
-#
-# Keep 4 GB during the 720p rollout. `video:render-metrics` logs cgroup peak
-# memory so performance-1x / 2 GB can be evaluated by completed-video cost
-# rather than hourly price alone.
+# The renderer used to keep every supersampled scene image alive in one giant
+# xfade graph; a production 54-scene render drove ffmpeg to ~3.6 GiB RSS and was
+# OOM-killed on this 4 GB Machine. Portrait renders now encode at most eight
+# supersampled scenes at a time, then compose those 720x640 chunk videos in a
+# small final pass. `video:render-metrics` samples cgroup memory every 250 ms and
+# reports `cgroupPeakObservedMb`, so 4 GB stays in place until production data
+# proves a smaller memory or CPU shape is safe and cheaper per completed video.
 [[vm]]
   size = 'performance-2x'
   memory = '4gb'

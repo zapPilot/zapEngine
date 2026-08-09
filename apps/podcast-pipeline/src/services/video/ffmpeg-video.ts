@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { rm } from 'node:fs/promises';
 
 import { path as bundledFfmpegPath } from '@ffmpeg-installer/ffmpeg';
 
@@ -25,7 +26,6 @@ const STREAMED_OUTPUT_TAIL_LIMIT = 8_000;
 
 interface SlideVideoRenderOptionsBase {
   audioSource: string;
-  filterScriptPath: string;
   outputPath: string;
   signal?: AbortSignal;
   /** Fraction 0..1 of the encode, from ffmpeg's own output clock. */
@@ -35,6 +35,7 @@ interface SlideVideoRenderOptionsBase {
 export interface StaticSlideVideoOptions extends SlideVideoRenderOptionsBase {
   manifest: SlideVideoManifest;
   slidePaths: string[];
+  filterScriptPath: string;
 }
 
 export interface VerticalSlideVideoOptions extends SlideVideoRenderOptionsBase {
@@ -43,6 +44,8 @@ export interface VerticalSlideVideoOptions extends SlideVideoRenderOptionsBase {
   framePath: string;
   outroPath: string;
   bgmPath: string;
+  subtitlePath: string;
+  fontsDirectory: string;
 }
 
 export function resolveVideoFfmpegPath(): string {
@@ -348,6 +351,11 @@ function escapeFilterPath(path: string): string {
 // visible stair-step. Media crops are therefore supplied at this multiple of
 // the media window and zoompan's own `s=` performs the final downscale.
 export const MEDIA_MOTION_SUPERSAMPLE = 4 as const;
+// Supersampled portrait images are the dominant ffmpeg memory consumer. Keep
+// only a small bounded set of them alive at once, then compose those 720x640
+// chunk videos in the final pass. This turns peak memory from O(scene count)
+// into O(chunk size) without dropping the Ken Burns supersampling quality.
+export const VERTICAL_MEDIA_CHUNK_SIZE = 8 as const;
 // Zoom grows with scene length instead of being a fixed total, so short and
 // long scenes move at the same perceived speed; the cap keeps 13s+ scenes calm.
 const KEN_BURNS_ZOOM_RATE_PER_SECOND = 0.014;
@@ -442,10 +450,11 @@ function slideSceneFilters(
   width: number,
   height: number,
   supersample: number,
+  indexOffset = 0,
 ): string[] {
   return slides.map(
     (slide, index) =>
-      `[${index}:v]fps=${fps},scale=${width * supersample}:${height * supersample}:flags=lanczos+accurate_rnd:in_range=pc:out_range=tv:out_color_matrix=bt709,${kenBurnsFilter(slide, index, seed, fps, width, height)},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`,
+      `[${index}:v]fps=${fps},scale=${width * supersample}:${height * supersample}:flags=lanczos+accurate_rnd:in_range=pc:out_range=tv:out_color_matrix=bt709,${kenBurnsFilter(slide, index + indexOffset, seed, fps, width, height)},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`,
   );
 }
 
@@ -454,6 +463,7 @@ function sceneChain(
   width: number,
   height: number,
   supersample: number,
+  indexOffset = 0,
 ): { filters: string[]; priorLabel: string } {
   const fps = manifest.clip.fps;
   const filters = slideSceneFilters(
@@ -463,6 +473,7 @@ function sceneChain(
     width,
     height,
     supersample,
+    indexOffset,
   );
   const priorLabel = appendXfadeChain(
     filters,
@@ -521,38 +532,97 @@ export function buildStaticSlideFilter(
   return filters.join(';\n');
 }
 
+export interface VerticalMediaChunk {
+  startIndex: number;
+  endIndex: number;
+  startMs: number;
+  endMs: number;
+  durationMs: number;
+}
+
+export function planVerticalMediaChunks(
+  manifest: VerticalVideoManifest,
+  chunkSize = VERTICAL_MEDIA_CHUNK_SIZE,
+): VerticalMediaChunk[] {
+  if (!Number.isInteger(chunkSize) || chunkSize <= 0) {
+    throw new Error(`Vertical media chunk size must be a positive integer`);
+  }
+  const chunks: VerticalMediaChunk[] = [];
+  for (
+    let startIndex = 0;
+    startIndex < manifest.slides.length;
+    startIndex += chunkSize
+  ) {
+    const endIndex = Math.min(startIndex + chunkSize, manifest.slides.length);
+    const first = manifest.slides[startIndex];
+    const last = manifest.slides[endIndex - 1];
+    if (!first || !last) continue;
+    chunks.push({
+      startIndex,
+      endIndex,
+      startMs: first.startMs,
+      endMs: last.endMs,
+      durationMs: last.endMs - first.startMs,
+    });
+  }
+  return chunks;
+}
+
+export function buildVerticalMediaChunkFilter(
+  manifest: VerticalVideoManifest,
+  chunk: VerticalMediaChunk,
+): string {
+  const slides = manifest.slides
+    .slice(chunk.startIndex, chunk.endIndex)
+    .map((slide) => ({
+      ...slide,
+      startMs: slide.startMs - chunk.startMs,
+      endMs: slide.endMs - chunk.startMs,
+    }));
+  if (slides.length === 0) {
+    throw new Error('Vertical media chunk cannot be empty');
+  }
+
+  const fps = manifest.clip.fps;
+  const { filters, priorLabel } = sceneChain(
+    { slides, clip: manifest.clip, episode: manifest.episode },
+    manifest.mediaWindow.width,
+    manifest.mediaWindow.height,
+    MEDIA_MOTION_SUPERSAMPLE,
+    chunk.startIndex,
+  );
+  const totalFrames = Math.round((chunk.durationMs * fps) / 1_000);
+  filters.push(
+    `[${priorLabel}]fps=${fps},tpad=stop_mode=clone:stop_duration=${manifest.clip.transitionMs / 1_000},trim=end_frame=${totalFrames},settb=expr=1/${fps},setpts=N,format=yuv420p[vout]`,
+  );
+  return filters.join(';\n');
+}
+
 const OUTRO_FADE_IN_SECONDS = 0.4;
 const BGM_FADE_OUT_SECONDS = 0.9;
 const BGM_DUCK_SIDECHAIN =
   'sidechaincompress=threshold=0.02:ratio=12:attack=25:release=450';
 
-export function buildVerticalSlideFilter(
+function appendVerticalPresentationFilters(
+  filters: string[],
   manifest: VerticalVideoManifest,
   subtitlePath: string,
   fontsDirectory: string,
-): string {
+  mediaLabel: string,
+  frameInputIndex: number,
+): void {
   const fps = manifest.clip.fps;
   const window = manifest.mediaWindow;
   const totalFrames = Math.round((manifest.clip.durationMs * fps) / 1_000);
   const totalSeconds = manifest.clip.durationMs / 1_000;
   const narrationSeconds = manifest.audio.narrationDurationMs / 1_000;
   const totalSamples = Math.round((manifest.clip.durationMs / 1_000) * 48_000);
-  const frameInputIndex = manifest.slides.length;
   const outroInputIndex = frameInputIndex + 1;
   const narrationInputIndex = frameInputIndex + 2;
   const bgmInputIndex = frameInputIndex + 3;
 
-  // Media scenes render at window resolution, so the Ken Burns motion never
-  // touches the brand frame layered on top of the padded canvas.
-  const { filters, priorLabel } = sceneChain(
-    manifest,
-    window.width,
-    window.height,
-    MEDIA_MOTION_SUPERSAMPLE,
-  );
-
   filters.push(
-    `[${priorLabel}]fps=${fps},trim=end_frame=${totalFrames},settb=expr=1/${fps},setpts=N,pad=${manifest.clip.width}:${manifest.clip.height}:${window.x}:${window.y}:color=0x101014[canvas]`,
+    `[${mediaLabel}]fps=${fps},tpad=stop_mode=clone:stop_duration=${totalSeconds},trim=end_frame=${totalFrames},settb=expr=1/${fps},setpts=N,pad=${manifest.clip.width}:${manifest.clip.height}:${window.x}:${window.y}:color=0x101014[canvas]`,
   );
   filters.push(`[${frameInputIndex}:v]format=rgba[frame]`);
   filters.push(`[canvas][frame]overlay=0:0:format=auto[framed]`);
@@ -578,6 +648,66 @@ export function buildVerticalSlideFilter(
   filters.push(
     `[nar_mix][bgm_duck]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,afade=t=out:st=${(totalSeconds - BGM_FADE_OUT_SECONDS).toFixed(3)}:d=${BGM_FADE_OUT_SECONDS},atrim=end_sample=${totalSamples},asetpts=N/SR/TB[aout]`,
   );
+}
+
+export function buildVerticalSlideFilter(
+  manifest: VerticalVideoManifest,
+  subtitlePath: string,
+  fontsDirectory: string,
+): string {
+  const { filters, priorLabel } = sceneChain(
+    manifest,
+    manifest.mediaWindow.width,
+    manifest.mediaWindow.height,
+    MEDIA_MOTION_SUPERSAMPLE,
+  );
+  appendVerticalPresentationFilters(
+    filters,
+    manifest,
+    subtitlePath,
+    fontsDirectory,
+    priorLabel,
+    manifest.slides.length,
+  );
+  return filters.join(';\n');
+}
+
+export function buildVerticalChunkedFinalFilter(
+  manifest: VerticalVideoManifest,
+  chunks: readonly VerticalMediaChunk[],
+  subtitlePath: string,
+  fontsDirectory: string,
+): string {
+  if (chunks.length === 0) {
+    throw new Error('Vertical render needs at least one media chunk');
+  }
+  const fps = manifest.clip.fps;
+  const transitionFrames = Math.round(
+    (manifest.clip.transitionMs * fps) / 1_000,
+  );
+  const filters = chunks.map(
+    (_chunk, index) =>
+      `[${index}:v]fps=${fps},setsar=1,format=yuv420p,settb=expr=1/${fps},setpts=N[c${index}]`,
+  );
+  let priorLabel = 'c0';
+  chunks.slice(1).forEach((chunk, offsetIndex) => {
+    const index = offsetIndex + 1;
+    const startFrame = Math.round((chunk.startMs * fps) / 1_000);
+    const transitionOffset = (startFrame - transitionFrames) / fps;
+    const outputLabel = `cx${index}`;
+    filters.push(
+      `[${priorLabel}][c${index}]xfade=transition=fade:duration=${manifest.clip.transitionMs / 1_000}:offset=${transitionOffset.toFixed(6)}[${outputLabel}]`,
+    );
+    priorLabel = outputLabel;
+  });
+  appendVerticalPresentationFilters(
+    filters,
+    manifest,
+    subtitlePath,
+    fontsDirectory,
+    priorLabel,
+    chunks.length,
+  );
   return filters.join(';\n');
 }
 
@@ -598,6 +728,42 @@ function loopedImageInputs(paths: readonly string[], fps: number): string[] {
 // ffmpeg. `veryfast` at crf 20 is visually equivalent on this material.
 const X264_PRESET = 'veryfast';
 const X264_CRF = '20';
+const INTERMEDIATE_X264_CRF = '18';
+
+function videoCodecArgs(fps: number, crf: string): string[] {
+  return [
+    '-c:v',
+    'libx264',
+    '-preset',
+    X264_PRESET,
+    '-crf',
+    crf,
+    '-tune',
+    'stillimage',
+    '-profile:v',
+    'high',
+    '-level:v',
+    '4.1',
+    '-pix_fmt',
+    'yuv420p',
+    '-r',
+    String(fps),
+    '-g',
+    '60',
+    '-keyint_min',
+    '60',
+    '-sc_threshold',
+    '0',
+    '-colorspace',
+    'bt709',
+    '-color_primaries',
+    'bt709',
+    '-color_trc',
+    'bt709',
+    '-color_range',
+    'tv',
+  ];
+}
 
 function encoderOutputArgs(input: {
   fps: number;
@@ -618,36 +784,7 @@ function encoderOutputArgs(input: {
     '-t',
     String(input.durationSeconds),
     '-shortest',
-    '-c:v',
-    'libx264',
-    '-preset',
-    X264_PRESET,
-    '-crf',
-    X264_CRF,
-    '-tune',
-    'stillimage',
-    '-profile:v',
-    'high',
-    '-level:v',
-    '4.1',
-    '-pix_fmt',
-    'yuv420p',
-    '-r',
-    String(input.fps),
-    '-g',
-    '60',
-    '-keyint_min',
-    '60',
-    '-sc_threshold',
-    '0',
-    '-colorspace',
-    'bt709',
-    '-color_primaries',
-    'bt709',
-    '-color_trc',
-    'bt709',
-    '-color_range',
-    'tv',
+    ...videoCodecArgs(input.fps, X264_CRF),
     '-c:a',
     'aac',
     '-b:a',
@@ -660,14 +797,7 @@ function encoderOutputArgs(input: {
   ];
 }
 
-function renderArgs(input: {
-  fps: number;
-  durationMs: number;
-  imagePaths: readonly string[];
-  audioInputArgs: readonly string[];
-  filterScriptPath: string;
-  outputPath: string;
-}): string[] {
+function streamedRenderPrefix(): string[] {
   return [
     '-y',
     HIDE_BANNER_FLAG,
@@ -679,6 +809,19 @@ function renderArgs(input: {
     // Both are kept: the first for `fly logs`, the second to drive the bar.
     '-progress',
     'pipe:1',
+  ];
+}
+
+function renderArgs(input: {
+  fps: number;
+  durationMs: number;
+  imagePaths: readonly string[];
+  audioInputArgs: readonly string[];
+  filterScriptPath: string;
+  outputPath: string;
+}): string[] {
+  return [
+    ...streamedRenderPrefix(),
     ...loopedImageInputs(input.imagePaths, input.fps),
     ...input.audioInputArgs,
     ...encoderOutputArgs({
@@ -704,35 +847,92 @@ export function buildStaticSlideFfmpegArgs(
   });
 }
 
-export function buildVerticalFfmpegArgs(
+export function buildVerticalMediaChunkFfmpegArgs(
   options: VerticalSlideVideoOptions,
+  chunk: VerticalMediaChunk,
+  outputPath: string,
 ): string[] {
   const { manifest } = options;
-  if (options.mediaPaths.length !== manifest.slides.length) {
+  const mediaPaths = options.mediaPaths.slice(chunk.startIndex, chunk.endIndex);
+  const expected = chunk.endIndex - chunk.startIndex;
+  if (mediaPaths.length !== expected) {
     throw new Error(
-      `Vertical render needs ${manifest.slides.length} media inputs, received ${options.mediaPaths.length}`,
+      `Vertical media chunk needs ${expected} inputs, received ${mediaPaths.length}`,
     );
   }
-  return renderArgs({
-    fps: manifest.clip.fps,
-    durationMs: manifest.clip.durationMs,
-    imagePaths: [...options.mediaPaths, options.framePath, options.outroPath],
-    // The BGM track loops for as long as the mix needs it; atrim in the
-    // filtergraph bounds the audible length.
-    audioInputArgs: [
-      '-i',
-      options.audioSource,
-      '-stream_loop',
-      '-1',
-      '-i',
-      options.bgmPath,
-    ],
-    filterScriptPath: options.filterScriptPath,
-    outputPath: options.outputPath,
-  });
+  return [
+    ...streamedRenderPrefix(),
+    ...loopedImageInputs(mediaPaths, manifest.clip.fps),
+    '-filter_complex',
+    buildVerticalMediaChunkFilter(manifest, chunk),
+    '-map',
+    '[vout]',
+    '-frames:v',
+    String(Math.round((chunk.durationMs * manifest.clip.fps) / 1_000)),
+    '-t',
+    String(chunk.durationMs / 1_000),
+    ...videoCodecArgs(manifest.clip.fps, INTERMEDIATE_X264_CRF),
+    '-an',
+    '-movflags',
+    '+faststart',
+    outputPath,
+  ];
 }
 
-async function renderWithFfmpeg(
+export function buildVerticalChunkedFinalFfmpegArgs(
+  options: VerticalSlideVideoOptions,
+  chunks: readonly VerticalMediaChunk[],
+  chunkPaths: readonly string[],
+): string[] {
+  if (chunks.length !== chunkPaths.length) {
+    throw new Error(
+      `Vertical render planned ${chunks.length} chunks but received ${chunkPaths.length} chunk files`,
+    );
+  }
+  const { manifest } = options;
+  return [
+    ...streamedRenderPrefix(),
+    ...chunkPaths.flatMap((path) => ['-i', path]),
+    ...loopedImageInputs(
+      [options.framePath, options.outroPath],
+      manifest.clip.fps,
+    ),
+    '-i',
+    options.audioSource,
+    '-stream_loop',
+    '-1',
+    '-i',
+    options.bgmPath,
+    '-filter_complex',
+    buildVerticalChunkedFinalFilter(
+      manifest,
+      chunks,
+      options.subtitlePath,
+      options.fontsDirectory,
+    ),
+    '-map',
+    '[vout]',
+    '-map',
+    '[aout]',
+    '-frames:v',
+    String(Math.round((manifest.clip.durationMs * manifest.clip.fps) / 1_000)),
+    '-t',
+    String(manifest.clip.durationMs / 1_000),
+    '-shortest',
+    ...videoCodecArgs(manifest.clip.fps, X264_CRF),
+    '-c:a',
+    'aac',
+    '-b:a',
+    '128k',
+    '-ar',
+    '48000',
+    '-movflags',
+    '+faststart',
+    options.outputPath,
+  ];
+}
+
+async function runRenderPass(
   args: string[],
   signal: AbortSignal | undefined,
   ffmpegPath: string,
@@ -742,7 +942,6 @@ async function renderWithFfmpeg(
     onFraction: (fraction: number) => void;
   },
 ): Promise<void> {
-  await assertVideoFfmpegCapabilities(ffmpegPath, processRunner, signal);
   await invokeProcessRunner(
     processRunner,
     ffmpegPath,
@@ -756,6 +955,20 @@ async function renderWithFfmpeg(
         )
       : undefined,
   );
+}
+
+async function renderWithFfmpeg(
+  args: string[],
+  signal: AbortSignal | undefined,
+  ffmpegPath: string,
+  processRunner: VideoProcessRunner,
+  encode?: {
+    totalDurationMs: number;
+    onFraction: (fraction: number) => void;
+  },
+): Promise<void> {
+  await assertVideoFfmpegCapabilities(ffmpegPath, processRunner, signal);
+  await runRenderPass(args, signal, ffmpegPath, processRunner, encode);
 }
 
 function encodeProgressOptions(
@@ -791,11 +1004,69 @@ export async function renderVerticalSlideVideo(
   processRunner: VideoProcessRunner = runProcess,
 ): Promise<void> {
   throwIfAborted(options.signal);
-  await renderWithFfmpeg(
-    buildVerticalFfmpegArgs(options),
-    options.signal,
+  if (options.mediaPaths.length !== options.manifest.slides.length) {
+    throw new Error(
+      `Vertical render needs ${options.manifest.slides.length} media inputs, received ${options.mediaPaths.length}`,
+    );
+  }
+
+  const chunks = planVerticalMediaChunks(options.manifest);
+  const chunkPaths = chunks.map(
+    (_chunk, index) =>
+      `${options.outputPath}.media-chunk-${String(index + 1).padStart(2, '0')}.mp4`,
+  );
+  await assertVideoFfmpegCapabilities(
     ffmpegPath,
     processRunner,
-    encodeProgressOptions(options),
+    options.signal,
   );
+
+  const chunkProgressWeight = 0.75;
+  try {
+    for (const [index, chunk] of chunks.entries()) {
+      throwIfAborted(options.signal);
+      await runRenderPass(
+        buildVerticalMediaChunkFfmpegArgs(options, chunk, chunkPaths[index]!),
+        options.signal,
+        ffmpegPath,
+        processRunner,
+        options.onEncodeProgress
+          ? {
+              totalDurationMs: chunk.durationMs,
+              onFraction: (fraction) =>
+                options.onEncodeProgress?.(
+                  ((index + fraction) / chunks.length) * chunkProgressWeight,
+                ),
+            }
+          : undefined,
+      );
+    }
+
+    await runRenderPass(
+      buildVerticalChunkedFinalFfmpegArgs(options, chunks, chunkPaths),
+      options.signal,
+      ffmpegPath,
+      processRunner,
+      options.onEncodeProgress
+        ? {
+            totalDurationMs: options.manifest.clip.durationMs,
+            onFraction: (fraction) =>
+              options.onEncodeProgress?.(
+                chunkProgressWeight + fraction * (1 - chunkProgressWeight),
+              ),
+          }
+        : undefined,
+    );
+  } finally {
+    await Promise.all(chunkPaths.map(removeIntermediateFile));
+  }
+}
+
+async function removeIntermediateFile(path: string): Promise<void> {
+  try {
+    await rm(path, { force: true });
+  } catch {
+    // The whole render directory is removed by the caller. Cleanup here is a
+    // best-effort fast path so successful local renders do not leave chunks.
+  }
 }

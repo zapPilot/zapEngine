@@ -366,7 +366,6 @@ describe('renderSlideVideo (vertical news manifests)', () => {
     await writeFile(manifestPath, JSON.stringify(createVerticalManifest()));
 
     const progress: string[] = [];
-    let renderedFilter = '';
     const resolveAsset = vi.fn(async (slide: Slide) => resolvedImage(slide));
     const rasterize = vi.fn();
     const renderVideo = vi.fn();
@@ -405,7 +404,6 @@ describe('renderSlideVideo (vertical news manifests)', () => {
     const downscaleMedia = vi.fn<typeof downscaleMediaToWindow>(async () => {});
     const renderVerticalVideo = vi.fn(
       async (videoOptions: Parameters<typeof renderVerticalSlideVideo>[0]) => {
-        renderedFilter = await readFile(videoOptions.filterScriptPath, 'utf8');
         await writeFile(videoOptions.outputPath, 'mock-vertical-mp4', 'utf8');
       },
     );
@@ -467,6 +465,8 @@ describe('renderSlideVideo (vertical news manifests)', () => {
       framePath: result.framePath,
       outroPath: result.outroPath,
       audioSource: 'https://cdn.example.test/narration.m4a',
+      subtitlePath: result.subtitlePath,
+      fontsDirectory: expect.stringContaining('assets/video/fonts'),
       outputPath: result.previewPath,
     });
     expect(
@@ -488,8 +488,6 @@ describe('renderSlideVideo (vertical news manifests)', () => {
     expect(renderVerticalVideo.mock.invocationCallOrder[0]).toBeLessThan(
       downscaleMedia.mock.invocationCallOrder[0] ?? 0,
     );
-    expect(renderedFilter).toContain('pad=720:1280:0:413');
-    expect(renderedFilter).toContain('sidechaincompress=');
     expect(await readFile(result.subtitlePath, 'utf8')).toContain(
       'PlayResX: 720',
     );

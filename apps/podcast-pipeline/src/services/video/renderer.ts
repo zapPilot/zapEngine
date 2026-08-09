@@ -16,7 +16,6 @@ import { throwIfAborted } from './abort.js';
 import { type ResolvedSlideAsset, resolveSlideAsset } from './assets.js';
 import {
   buildStaticSlideFilter,
-  buildVerticalSlideFilter,
   MEDIA_MOTION_SUPERSAMPLE,
   renderStaticSlideVideo,
   renderVerticalSlideVideo,
@@ -503,16 +502,6 @@ async function renderVerticalNewsVideo(context: {
     height: manifest.clip.height,
     outputPath: context.paths.thumbnailPath,
   });
-  await writeFile(
-    context.filterScriptPath,
-    buildVerticalSlideFilter(
-      manifest,
-      context.paths.subtitlePath,
-      videoAssetPaths.fontsDirectory,
-    ),
-    'utf8',
-  );
-
   options.onProgress?.({
     message: 'Encoding vertical news video',
     phase: 'encode',
@@ -525,12 +514,13 @@ async function renderVerticalNewsVideo(context: {
     outroPath,
     audioSource: options.audioSource ?? manifest.audio.sourceUrl,
     bgmPath: bgmTrackPath(manifest.bgm.trackId),
-    filterScriptPath: context.filterScriptPath,
+    subtitlePath: context.paths.subtitlePath,
+    fontsDirectory: videoAssetPaths.fontsDirectory,
     outputPath: context.paths.previewPath,
     signal: options.signal,
-    // This single ffmpeg call is the longest step of a render — minutes to tens
-    // of minutes — so without its own progress the bar would freeze right where
-    // the user is most likely to be watching it.
+    // Chunk renders and the final composition report one monotonic aggregate
+    // fraction, so the user still sees continuous progress across the bounded-
+    // memory multi-pass encode.
     onEncodeProgress: encodeProgressReporter(
       options.onProgress,
       'Encoding vertical news video',

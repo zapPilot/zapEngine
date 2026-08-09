@@ -237,6 +237,47 @@ describe('createEpisodeVideoProcessor', () => {
     expect(lines).toContain(`${prefix} phase=encoding percent=42`);
   });
 
+  it('logs the highest cgroup memory observed across the render lifetime', async () => {
+    const logger = { info: vi.fn() };
+    const mib = 1024 * 1024;
+    const readCgroupMemory = vi
+      .fn()
+      .mockResolvedValueOnce(100 * mib)
+      .mockResolvedValueOnce(300 * mib)
+      .mockResolvedValueOnce(120 * mib);
+    const processJob = createEpisodeVideoProcessor({
+      analyzeAudio: vi
+        .fn()
+        .mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      createManifest: vi
+        .fn()
+        .mockResolvedValue(generatedManifest('manifest-hash')),
+      render: vi.fn().mockResolvedValue(renderedArtifacts('manifest-hash')),
+      upload: vi.fn().mockResolvedValue(uploadedArtifacts()),
+      makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
+      writeManifest: vi.fn().mockResolvedValue(undefined),
+      removeDirectory: vi.fn().mockResolvedValue(undefined),
+      readCgroupMemory,
+      memorySampleIntervalMs: 60_000,
+      logger,
+    });
+
+    await processJob(job(), source(), {
+      signal: new AbortController().signal,
+      runId: 'run12345',
+      saveManifest: vi.fn().mockResolvedValue(undefined),
+      reportProgress: vi.fn(),
+    });
+
+    const metricsLine = logger.info.mock.calls
+      .map(([line]) => String(line))
+      .find((line) => line.includes('video:render-metrics'));
+    expect(metricsLine).toContain('status=completed');
+    expect(metricsLine).toContain('cgroupCurrentMb=120');
+    expect(metricsLine).toContain('cgroupPeakObservedMb=300');
+    expect(metricsLine).toContain('nodeRssMb=');
+  });
+
   it('rejects when the rendered manifest hash diverges from the persisted hash', async () => {
     const processJob = createEpisodeVideoProcessor({
       analyzeAudio: vi.fn().mockResolvedValue({

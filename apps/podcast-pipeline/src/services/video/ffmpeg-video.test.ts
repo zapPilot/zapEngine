@@ -4,16 +4,19 @@ import {
   assertVideoFfmpegCapabilities,
   buildStaticSlideFfmpegArgs,
   buildStaticSlideFilter,
-  buildVerticalFfmpegArgs,
+  buildVerticalChunkedFinalFfmpegArgs,
+  buildVerticalMediaChunkFfmpegArgs,
   buildVerticalSlideFilter,
   createFfmpegEncodeProgressReader,
   kenBurnsPanForScene,
   kenBurnsSeedForEpisode,
   parseFfmpegProgressOutTimeUs,
+  planVerticalMediaChunks,
   renderStaticSlideVideo,
   renderVerticalSlideVideo,
   resolveVideoFfmpegPath,
   runProcess,
+  VERTICAL_MEDIA_CHUNK_SIZE,
   type VerticalSlideVideoOptions,
   type VideoProcessResult,
   type VideoProcessRunner,
@@ -31,7 +34,8 @@ function verticalRenderOptions(): VerticalSlideVideoOptions {
     outroPath: '/m/outro.png',
     audioSource: '/audio/narration.m4a',
     bgmPath: '/music/bgm-02.mp3',
-    filterScriptPath: '/filter.txt',
+    subtitlePath: '/render/captions.ass',
+    fontsDirectory: '/render/fonts',
     outputPath: '/output/news.mp4',
   };
 }
@@ -162,7 +166,7 @@ describe('vertical news FFmpeg composition', () => {
       'xfade=transition=fade:duration=0.208:offset=3.791667[x1]',
     );
     expect(filter).toContain(
-      'trim=end_frame=427,settb=expr=1/24,setpts=N,pad=720:1280:0:413:color=0x101014[canvas]',
+      'tpad=stop_mode=clone:stop_duration=17.8,trim=end_frame=427,settb=expr=1/24,setpts=N,pad=720:1280:0:413:color=0x101014[canvas]',
     );
     expect(filter).toContain('[3:v]format=rgba[frame]');
     expect(filter).toContain('[canvas][frame]overlay=0:0:format=auto[framed]');
@@ -200,97 +204,90 @@ describe('vertical news FFmpeg composition', () => {
     );
   });
 
-  it('orders inputs as media, frame, outro, narration, then looping BGM', () => {
+  it('bounds supersampled media inputs to eight scenes per chunk', () => {
     const manifest = createVerticalManifest();
-    const args = buildVerticalFfmpegArgs({
-      manifest,
-      mediaPaths: ['/m/01.png', '/m/02.png', '/m/03.png'],
-      framePath: '/m/frame.png',
-      outroPath: '/m/outro.png',
-      audioSource: '/audio/narration.m4a',
-      bgmPath: '/music/bgm-02.mp3',
-      filterScriptPath: '/filter.txt',
-      outputPath: '/output/news.mp4',
-    });
+    const prototype = manifest.slides[0]!;
+    manifest.slides = Array.from({ length: 17 }, (_value, index) => ({
+      ...prototype,
+      id: `scene-${String(index + 1).padStart(2, '0')}`,
+      startMs: index * 1_000,
+      endMs: (index + 1) * 1_000,
+      asset: {
+        ...prototype.asset,
+        url: `https://images.example.test/scene-${index + 1}.jpg`,
+      },
+    }));
+    const chunks = planVerticalMediaChunks(manifest);
 
+    expect(VERTICAL_MEDIA_CHUNK_SIZE).toBe(8);
+    expect(chunks.map((chunk) => chunk.endIndex - chunk.startIndex)).toEqual([
+      8, 8, 1,
+    ]);
+  });
+
+  it('feeds only chunk videos into the final portrait composition', () => {
+    const options = verticalRenderOptions();
+    const chunks = planVerticalMediaChunks(options.manifest);
+    const chunkPaths = ['/work/media-chunk-01.mp4'];
+    const args = buildVerticalChunkedFinalFfmpegArgs(
+      options,
+      chunks,
+      chunkPaths,
+    );
     const inputPaths = args
       .map((value, index) => (args[index - 1] === '-i' ? value : null))
       .filter((value): value is string => value !== null);
+
     expect(inputPaths).toEqual([
-      '/m/01.png',
-      '/m/02.png',
-      '/m/03.png',
+      '/work/media-chunk-01.mp4',
       '/m/frame.png',
       '/m/outro.png',
       '/audio/narration.m4a',
       '/music/bgm-02.mp3',
     ]);
-    const bgmInputIndex = args.indexOf('/music/bgm-02.mp3');
-    expect(args.slice(bgmInputIndex - 3, bgmInputIndex)).toEqual([
-      '-stream_loop',
-      '-1',
-      '-i',
-    ]);
-    expect(args).toEqual(
-      expect.arrayContaining([
-        '-frames:v',
-        '427',
-        '-t',
-        '17.8',
-        '-c:v',
-        'libx264',
-        '-movflags',
-        '+faststart',
-      ]),
-    );
+    expect(inputPaths).not.toContain('/m/01.png');
     expect(args.at(-1)).toBe('/output/news.mp4');
   });
 
-  it('rejects a media list that does not match the manifest slides', () => {
-    expect(() =>
-      buildVerticalFfmpegArgs({
-        manifest: createVerticalManifest(),
-        mediaPaths: ['/m/01.png'],
-        framePath: '/m/frame.png',
-        outroPath: '/m/outro.png',
-        audioSource: '/audio/narration.m4a',
-        bgmPath: '/music/bgm-02.mp3',
-        filterScriptPath: '/filter.txt',
-        outputPath: '/output/news.mp4',
-      }),
-    ).toThrow('Vertical render needs 3 media inputs, received 1');
-  });
-
-  it('checks capabilities before invoking the vertical render', async () => {
-    const processRunner = vi
-      .fn()
-      .mockResolvedValueOnce({ stdout: CAPABLE_FILTER_LIST, stderr: '' })
-      .mockResolvedValueOnce({ stdout: 'libx264 aac', stderr: '' })
-      .mockResolvedValueOnce({ stdout: 'normalize', stderr: '' })
-      .mockResolvedValueOnce({ stdout: '', stderr: '' });
-    const options = {
-      manifest: createVerticalManifest(),
-      mediaPaths: ['/m/01.png', '/m/02.png', '/m/03.png'],
-      framePath: '/m/frame.png',
-      outroPath: '/m/outro.png',
-      audioSource: '/audio/narration.m4a',
-      bgmPath: '/music/bgm-02.mp3',
-      filterScriptPath: '/filter.txt',
-      outputPath: '/output/news.mp4',
-    };
+  it('renders one bounded media pass plus one final pass after capability checks', async () => {
+    const processRunner = vi.fn(capabilityAwareRunner);
+    const options = verticalRenderOptions();
+    const chunks = planVerticalMediaChunks(options.manifest);
+    const chunkPath = '/output/news.mp4.media-chunk-01.mp4';
 
     await renderVerticalSlideVideo(options, '/opt/ffmpeg', processRunner);
 
-    expect(processRunner).toHaveBeenCalledTimes(4);
+    expect(processRunner).toHaveBeenCalledTimes(5);
     expect(processRunner.mock.calls[3]).toEqual([
       '/opt/ffmpeg',
-      buildVerticalFfmpegArgs(options),
+      buildVerticalMediaChunkFfmpegArgs(options, chunks[0]!, chunkPath),
+      true,
+    ]);
+    expect(processRunner.mock.calls[4]).toEqual([
+      '/opt/ffmpeg',
+      buildVerticalChunkedFinalFfmpegArgs(options, chunks, [chunkPath]),
       true,
     ]);
   });
 
-  it('asks ffmpeg for machine-readable progress on both render paths', () => {
-    const verticalArgs = buildVerticalFfmpegArgs(verticalRenderOptions());
+  it('rejects a media list that does not match the manifest slides', async () => {
+    const options = verticalRenderOptions();
+    await expect(
+      renderVerticalSlideVideo(
+        { ...options, mediaPaths: ['/m/01.png'] },
+        '/opt/ffmpeg',
+        vi.fn(capabilityAwareRunner),
+      ),
+    ).rejects.toThrow('Vertical render needs 3 media inputs, received 1');
+  });
+
+  it('asks ffmpeg for machine-readable progress on every render pass', () => {
+    const options = verticalRenderOptions();
+    const chunks = planVerticalMediaChunks(options.manifest);
+    const verticalArgs = [
+      buildVerticalMediaChunkFfmpegArgs(options, chunks[0]!, '/work/chunk.mp4'),
+      buildVerticalChunkedFinalFfmpegArgs(options, chunks, ['/work/chunk.mp4']),
+    ];
     const staticArgs = buildStaticSlideFfmpegArgs({
       manifest: createManifest(),
       slidePaths: ['/slides/slide-01.png'],
@@ -299,22 +296,20 @@ describe('vertical news FFmpeg composition', () => {
       outputPath: '/output/slides.mp4',
     });
 
-    for (const args of [verticalArgs, staticArgs]) {
+    for (const args of [...verticalArgs, staticArgs]) {
       expect(args).toContain('-progress');
       expect(args[args.indexOf('-progress') + 1]).toBe('pipe:1');
-      // -stats stays: it is what a human reads in `fly logs`.
       expect(args).toContain('-stats');
     }
   });
 
-  it('forwards a stdout line reader only when encode progress is wanted', async () => {
+  it('forwards stdout readers to both chunk and final passes only when progress is wanted', async () => {
     const processRunner = vi.fn(capabilityAwareRunner);
     const options = verticalRenderOptions();
 
     await renderVerticalSlideVideo(options, '/opt/ffmpeg', processRunner);
-    // Without onEncodeProgress the runner keeps its historical 3-argument shape,
-    // which existing injected doubles assert on exactly.
     expect(processRunner.mock.calls[3]).toHaveLength(3);
+    expect(processRunner.mock.calls[4]).toHaveLength(3);
 
     processRunner.mockClear();
     await renderVerticalSlideVideo(
@@ -322,16 +317,14 @@ describe('vertical news FFmpeg composition', () => {
       '/opt/ffmpeg',
       processRunner,
     );
-    const renderCall = processRunner.mock.calls[3];
-    expect(renderCall).toHaveLength(5);
-    expect(typeof renderCall?.[4]).toBe('function');
+    expect(processRunner.mock.calls[3]).toHaveLength(5);
+    expect(processRunner.mock.calls[4]).toHaveLength(5);
   });
 
-  it('drives the encode callback from the reader it hands to the runner', async () => {
+  it('reports monotonic aggregate progress across chunk and final passes', async () => {
     const onEncodeProgress = vi.fn();
     const processRunner = vi.fn<VideoProcessRunner>(
       (executable, args, _streamStdio, _signal, onStdoutLine) => {
-        // Replay what ffmpeg writes to `-progress pipe:1`.
         onStdoutLine?.('out_time_us=8900000');
         onStdoutLine?.('progress=end');
         return capabilityAwareRunner(executable, args);
@@ -344,8 +337,10 @@ describe('vertical news FFmpeg composition', () => {
       processRunner,
     );
 
-    // createVerticalManifest's clip runs 17.8s, so 8.9s of output is halfway.
-    expect(onEncodeProgress.mock.calls).toEqual([[0.5], [1]]);
+    const fractions = onEncodeProgress.mock.calls.map(([fraction]) => fraction);
+    expect(fractions).toHaveLength(4);
+    expect(fractions[0]).toBeCloseTo(0.445);
+    expect(fractions.slice(1)).toEqual([0.75, 0.875, 1]);
   });
 });
 
