@@ -15,11 +15,37 @@ export interface TelegramMessagePayload {
   };
 }
 
+export interface TelegramCallbackQueryPayload {
+  id?: unknown;
+  data?: unknown;
+  from?: {
+    id?: unknown;
+  };
+  message?: TelegramMessagePayload;
+}
+
+interface TelegramInlineKeyboardMarkup {
+  inline_keyboard: {
+    text: string;
+    callback_data: string;
+  }[][];
+}
+
+interface TelegramSendMessageOptions {
+  replyMarkup?: TelegramInlineKeyboardMarkup;
+}
+
 export const TELEGRAM_HELP_TEXT =
   '貼一個文章 URL，我會幫你產生新一集 podcast。\n支援任何 Mozilla Readability 能讀的網站（含 panews.io）。';
 export const TELEGRAM_NO_URL_TEXT = '請貼一個 http(s) 文章網址';
 export const TELEGRAM_INFLIGHT_TEXT = '這個 URL 已在處理中，完成後我會通知你。';
 export const TELEGRAM_START_TEXT = '收到，開始處理文章。';
+export const TELEGRAM_RETRY_CALLBACK_DATA = 'retry_ingest';
+export const TELEGRAM_RETRY_REPLY_MARKUP: TelegramInlineKeyboardMarkup = {
+  inline_keyboard: [
+    [{ text: '🔄 Retry', callback_data: TELEGRAM_RETRY_CALLBACK_DATA }],
+  ],
+};
 const DEFAULT_EPISODE_SHARE_BASE_URL = 'https://from-fed-to-chain-api.fly.dev';
 
 export function buildEpisodeShareUrl(episodeId: string): string {
@@ -81,6 +107,7 @@ export function buildTelegramRenderWakeFailedMessage(detail: string): string {
 export async function sendMessage(
   chatId: TelegramChatId,
   text: string,
+  options: TelegramSendMessageOptions = {},
 ): Promise<void> {
   const token = getTelegramBotToken();
   const response = await fetch(
@@ -93,6 +120,7 @@ export async function sendMessage(
       body: JSON.stringify({
         chat_id: chatId,
         text,
+        ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
       }),
     },
   );
@@ -142,8 +170,47 @@ export function isTelegramHelpCommand(text: string): boolean {
   );
 }
 
-export function buildTelegramFailureMessage(error: unknown): string {
-  return `❌ 失敗 ${publicTelegramErrorMessage(error)}`;
+export function buildTelegramFailureMessage(
+  error: unknown,
+  url?: string,
+): string {
+  return [
+    `❌ 失敗 ${publicTelegramErrorMessage(error)}`,
+    ...(url ? [`URL: ${url}`] : []),
+  ].join('\n');
+}
+
+export function getTelegramCallbackQuery(
+  update: unknown,
+): TelegramCallbackQueryPayload | null {
+  if (!isRecord(update)) {
+    return null;
+  }
+
+  const callbackQuery = update['callback_query'];
+  if (!isRecord(callbackQuery)) {
+    return null;
+  }
+
+  const message = callbackQuery['message'];
+  return {
+    id: callbackQuery['id'],
+    data: callbackQuery['data'],
+    from: isRecord(callbackQuery['from'])
+      ? { id: callbackQuery['from']['id'] }
+      : undefined,
+    message: isRecord(message)
+      ? {
+          text: message['text'],
+          from: isRecord(message['from'])
+            ? { id: message['from']['id'] }
+            : undefined,
+          chat: isRecord(message['chat'])
+            ? { id: message['chat']['id'] }
+            : undefined,
+        }
+      : undefined,
+  };
 }
 
 export function getTelegramMessage(
@@ -168,12 +235,45 @@ export function getTelegramMessage(
 export async function sendTelegramNotification(
   chatId: TelegramChatId,
   text: string,
+  options: TelegramSendMessageOptions = {},
 ): Promise<void> {
   try {
-    await sendMessage(chatId, text);
+    await sendMessage(chatId, text, options);
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     console.error('[/telegram/webhook] sendMessage failed:', {
+      message: err.message,
+    });
+  }
+}
+
+export async function answerTelegramCallbackQuery(
+  callbackQueryId: string,
+  text: string,
+): Promise<void> {
+  const token = getTelegramBotToken();
+  try {
+    const response = await fetch(
+      `https://api.telegram.org/bot${token}/answerCallbackQuery`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          callback_query_id: callbackQueryId,
+          text,
+        }),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Telegram answerCallbackQuery failed: ${response.status}`,
+      );
+    }
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error('[/telegram/webhook] answerCallbackQuery failed:', {
       message: err.message,
     });
   }

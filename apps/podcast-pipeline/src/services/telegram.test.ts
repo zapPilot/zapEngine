@@ -7,6 +7,7 @@ import {
   buildTelegramVideoCompletedMessage,
   buildTelegramVideoFailedMessage,
   extractUrlFromMessage,
+  getTelegramCallbackQuery,
   getTelegramMessage,
   isAllowedUser,
   sendMessage,
@@ -40,6 +41,29 @@ describe('sendMessage', () => {
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ chat_id: 123, text: 'hello' }),
+      }),
+    );
+  });
+
+  it('can attach an inline keyboard', async () => {
+    await sendMessage(123, 'failed', {
+      replyMarkup: {
+        inline_keyboard: [[{ text: 'Retry', callback_data: 'retry_ingest' }]],
+      },
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.telegram.org/botbot-token/sendMessage',
+      expect.objectContaining({
+        body: JSON.stringify({
+          chat_id: 123,
+          text: 'failed',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: 'Retry', callback_data: 'retry_ingest' }],
+            ],
+          },
+        }),
       }),
     );
   });
@@ -147,6 +171,37 @@ describe('isAllowedUser', () => {
   });
 });
 
+describe('getTelegramCallbackQuery', () => {
+  it('extracts callback metadata and the source message', () => {
+    expect(
+      getTelegramCallbackQuery({
+        callback_query: {
+          id: 'cb-1',
+          data: 'retry_ingest',
+          from: { id: 123 },
+          message: {
+            text: '❌ failed\nURL: https://example.com/article',
+            chat: { id: 456 },
+          },
+        },
+      }),
+    ).toEqual({
+      id: 'cb-1',
+      data: 'retry_ingest',
+      from: { id: 123 },
+      message: {
+        text: '❌ failed\nURL: https://example.com/article',
+        from: undefined,
+        chat: { id: 456 },
+      },
+    });
+  });
+
+  it('returns null when no callback query is present', () => {
+    expect(getTelegramCallbackQuery({ update_id: 1 })).toBeNull();
+  });
+});
+
 describe('getTelegramMessage', () => {
   it('returns null for non-record updates and updates without a message', () => {
     expect(getTelegramMessage('not-an-object')).toBeNull();
@@ -221,6 +276,17 @@ describe('buildTelegramFailureMessage', () => {
   it('formats a non-Error value via String()', () => {
     expect(buildTelegramFailureMessage('plain failure')).toBe(
       '❌ 失敗 plain failure',
+    );
+  });
+
+  it('includes the source URL when provided', () => {
+    expect(
+      buildTelegramFailureMessage(
+        new Error('[step:generateScript] timeout'),
+        'https://example.com/article',
+      ),
+    ).toBe(
+      '❌ 失敗 [step:generateScript] timeout\nURL: https://example.com/article',
     );
   });
 

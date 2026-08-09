@@ -8,6 +8,7 @@ import {
   type EpisodeVideoLifecycle,
   sendTelegramNotification,
   TELEGRAM_INFLIGHT_TEXT,
+  TELEGRAM_RETRY_REPLY_MARKUP,
   TELEGRAM_START_TEXT,
   type TelegramChatId,
 } from './telegram.js';
@@ -65,7 +66,8 @@ export function createTelegramIngestQueue(): TelegramIngestQueue {
     } catch (error) {
       await sendTelegramNotification(
         inflight.latestChatId,
-        buildTelegramFailureMessage(error),
+        buildTelegramFailureMessage(error, url),
+        { replyMarkup: TELEGRAM_RETRY_REPLY_MARKUP },
       );
     }
   }
