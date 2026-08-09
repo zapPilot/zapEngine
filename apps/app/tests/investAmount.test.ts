@@ -90,7 +90,7 @@ describe('Invest amount helpers', () => {
     expect(amountInputToUsd6('0.000001')).toBe('1');
   });
 
-  it('uses the Base Morpho floor only for Base-only deposits', () => {
+  it('uses scope-specific minimum deposit floors', () => {
     expect(
       BigInt(amountInputToUsd6('0.009999')) >=
         minimumDepositUsd6ForScope('base'),
@@ -99,22 +99,19 @@ describe('Invest amount helpers', () => {
       BigInt(amountInputToUsd6('0.01')) >= minimumDepositUsd6ForScope('base'),
     ).toBe(true);
     expect(
+      BigInt(amountInputToUsd6('0.999999')) >=
+        minimumDepositUsd6ForScope('arbitrum'),
+    ).toBe(false);
+    expect(
+      BigInt(amountInputToUsd6('1')) >= minimumDepositUsd6ForScope('arbitrum'),
+    ).toBe(true);
+    expect(
       BigInt(amountInputToUsd6('9.999999')) >=
         minimumDepositUsd6ForScope('both'),
     ).toBe(false);
-    expect(
-      BigInt(amountInputToUsd6('9.999999')) >=
-        minimumDepositUsd6ForScope('arbitrum'),
-    ).toBe(false);
     expect(minimumDepositUsd6ForScope('both')).toBe(MIN_STRATEGY_DEPOSIT_USD6);
-    expect(minimumDepositUsd6ForScope('arbitrum')).toBe(
-      MIN_STRATEGY_DEPOSIT_USD6,
-    );
     expect(
       BigInt(amountInputToUsd6('10')) >= minimumDepositUsd6ForScope('both'),
-    ).toBe(true);
-    expect(
-      BigInt(amountInputToUsd6('10')) >= minimumDepositUsd6ForScope('arbitrum'),
     ).toBe(true);
   });
 

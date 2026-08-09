@@ -26,12 +26,13 @@ export type SingleChainFundingDraft =
 // Shared with the strategy request schema for flows that include GMX legs.
 export const MIN_STRATEGY_DEPOSIT_USD6 = STRATEGY_MIN_DEPOSIT_USD6;
 const MIN_BASE_MORPHO_DEPOSIT_USD6 = 10_000n;
+const MIN_ARBITRUM_GMX_DEPOSIT_USD6 = 1_000_000n;
 const USD_INPUT_DECIMALS = 6;
 
 export function minimumDepositUsd6ForScope(scope: InvestScope): bigint {
-  return scope === 'base'
-    ? MIN_BASE_MORPHO_DEPOSIT_USD6
-    : MIN_STRATEGY_DEPOSIT_USD6;
+  if (scope === 'base') return MIN_BASE_MORPHO_DEPOSIT_USD6;
+  if (scope === 'arbitrum') return MIN_ARBITRUM_GMX_DEPOSIT_USD6;
+  return MIN_STRATEGY_DEPOSIT_USD6;
 }
 
 /** Parse the grouped display amount (e.g. "1,000.50") to a number. */
