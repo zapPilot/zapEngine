@@ -232,7 +232,7 @@ function SingleChainSummary({
       ? singleChainFundingDraft.fromAmount
       : plan?.legs[0]?.fromAmount;
   const actionLabel = isBase ? 'Base actions' : 'Arbitrum actions';
-  const allocationLabel = isBase ? 'Base · Morpho' : 'Arbitrum · GMX BTC';
+  const allocationLabel = isBase ? 'Base · Morpho' : 'Arbitrum · GMX 4 pools';
   const fundingLabel = isBase ? 'Base funding' : 'Arbitrum funding';
   const transactionCount =
     (plan?.approvals.length ?? 0) + (plan?.calls.length ?? 0);
@@ -244,7 +244,11 @@ function SingleChainSummary({
           <InfoRow label="Total" value={formatUsd(amountUsd)} divider />
           <InfoRow
             label={allocationLabel}
-            value={`${tokenAmountLabel(fromAmount, token)} · 100%`}
+            value={
+              isBase
+                ? `${tokenAmountLabel(fromAmount, token)} · 100%`
+                : 'BTC/BTC · BTC/USDC · 50% each'
+            }
             divider
           />
         </>

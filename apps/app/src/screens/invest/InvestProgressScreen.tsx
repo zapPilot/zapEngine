@@ -131,8 +131,7 @@ function reviewIsBlocked(
     (review.blocked ||
       !review.executionAllowed ||
       review.expiresAt <= nowMs ||
-      review.status === 'failed' ||
-      review.status === 'unavailable'),
+      review.status === 'failed'),
   );
 }
 

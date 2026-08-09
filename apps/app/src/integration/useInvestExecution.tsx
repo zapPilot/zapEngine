@@ -234,9 +234,6 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
         singleChainFundingDraft.chainId,
         singleChainFundingDraft.fromToken,
         singleChainFundingDraft.fromAmount,
-        singleChainFundingDraft.scope === 'arbitrum'
-          ? singleChainFundingDraft.marketKey
-          : '',
       ].join(':')
     : 'none';
   const executionDraftKey = [

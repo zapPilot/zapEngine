@@ -512,6 +512,12 @@ export const PlanOrchestrationDepositRequestSchema = z
       userAddress: AddressSchema,
     }),
     z.object({
+      kind: z.literal('gmx-v2-basket'),
+      fromToken: AddressSchema,
+      amount: decimalStringSchema,
+      userAddress: AddressSchema,
+    }),
+    z.object({
       kind: z.literal('strategy'),
       strategyId: z.literal(STRATEGY_DEPOSIT_ID),
       userAddress: AddressSchema,
@@ -553,7 +559,7 @@ export const PlanOrchestrationDepositRequestSchema = z
       return;
     }
 
-    if (value.kind === 'gmx-v2') {
+    if (value.kind === 'gmx-v2' || value.kind === 'gmx-v2-basket') {
       if (
         !STRATEGY_ARBITRUM_FUNDING_TOKENS.has(value.fromToken.toLowerCase())
       ) {

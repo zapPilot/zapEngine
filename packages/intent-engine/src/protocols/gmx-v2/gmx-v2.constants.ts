@@ -71,6 +71,11 @@ export interface GmxV2Market {
 
 export type GmxV2MarketKey = 'btc-btc' | 'eth-eth' | 'btc-usdc' | 'eth-usdc';
 
+export const GMX_V2_BASKET_MARKET_KEYS = [
+  'btc-btc',
+  'btc-usdc',
+] as const satisfies readonly GmxV2MarketKey[];
+
 export const GMX_V2_MARKETS = {
   'btc-usdc': {
     key: 'btc-usdc',

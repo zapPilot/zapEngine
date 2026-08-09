@@ -176,9 +176,8 @@ export function buildInvestDepositPlanRequest({
     };
   }
   return {
-    kind: 'gmx-v2',
+    kind: 'gmx-v2-basket',
     userAddress,
-    marketKey: singleChainFundingDraft.marketKey,
     fromToken: singleChainFundingDraft.fromToken,
     amount: singleChainFundingDraft.fromAmount,
   };
@@ -206,6 +205,9 @@ export function buildInvestDepositPlanPreviewKey(
       request.fromToken,
       request.fromAmount,
     ];
+  }
+  if (request.kind === 'gmx-v2-basket') {
+    return [scope, 42161, request.fromToken, request.amount, request.kind];
   }
   return [scope, 42161, request.fromToken, request.amount, request.marketKey];
 }

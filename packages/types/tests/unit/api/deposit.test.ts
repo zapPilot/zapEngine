@@ -331,6 +331,17 @@ describe('PlanOrchestrationDepositRequestSchema (discriminated union)', () => {
     ).toBe(true);
   });
 
+  it('accepts the two-pool Arbitrum GMX basket request', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse({
+        kind: 'gmx-v2-basket',
+        fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+        amount: '1000000',
+        userAddress: USER,
+      }).success,
+    ).toBe(true);
+  });
+
   it('rejects gmx-v2 with an unknown marketKey', () => {
     expect(
       PlanOrchestrationDepositRequestSchema.safeParse({
@@ -343,21 +354,24 @@ describe('PlanOrchestrationDepositRequestSchema (discriminated union)', () => {
     ).toBe(false);
   });
 
-  it('rejects an unsupported GMX funding token', () => {
-    const result = PlanOrchestrationDepositRequestSchema.safeParse({
-      kind: 'gmx-v2',
-      marketKey: 'btc-usdc',
-      fromToken: BASE_USDC_ADDRESS,
-      amount: '1000000',
-      userAddress: USER,
-    });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(
-        result.error.issues.some((issue) => issue.path.includes('fromToken')),
-      ).toBe(true);
-    }
-  });
+  it.each(['gmx-v2', 'gmx-v2-basket'] as const)(
+    'rejects an unsupported GMX funding token for %s',
+    (kind) => {
+      const result = PlanOrchestrationDepositRequestSchema.safeParse({
+        kind,
+        ...(kind === 'gmx-v2' ? { marketKey: 'btc-usdc' } : {}),
+        fromToken: BASE_USDC_ADDRESS,
+        amount: '1000000',
+        userAddress: USER,
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(
+          result.error.issues.some((issue) => issue.path.includes('fromToken')),
+        ).toBe(true);
+      }
+    },
+  );
 
   it('rejects a Base-chain token on a different source chain', () => {
     const result = PlanOrchestrationDepositRequestSchema.safeParse({

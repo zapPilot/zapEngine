@@ -64,7 +64,7 @@ describe('Invest deposit plan requests', () => {
     });
   });
 
-  it('preserves the selected Arbitrum token for the BTC/USDC market', () => {
+  it('preserves the selected Arbitrum token for the two-pool GMX basket', () => {
     const selectedToken = ARBITRUM_DEPOSIT_TOKENS[1];
     const request = buildInvestDepositPlanRequest({
       userAddress: USER_ADDRESS,
@@ -77,14 +77,12 @@ describe('Invest deposit plan requests', () => {
         chainId: 42161,
         fromToken: selectedToken.depositAddress,
         fromAmount: '10000000',
-        marketKey: 'btc-usdc',
       },
     });
 
     expect(request).toEqual({
-      kind: 'gmx-v2',
+      kind: 'gmx-v2-basket',
       userAddress: USER_ADDRESS,
-      marketKey: 'btc-usdc',
       fromToken: selectedToken.depositAddress,
       amount: '10000000',
     });
@@ -124,7 +122,7 @@ describe('Invest deposit plan requests', () => {
     },
   );
 
-  it('partitions preview cache keys by scope, token, market, and exact amount', () => {
+  it('partitions preview cache keys by scope, token, basket kind, and exact amount', () => {
     const baseRequest = buildInvestDepositPlanRequest({
       userAddress: USER_ADDRESS,
       scope: 'base',
@@ -149,7 +147,6 @@ describe('Invest deposit plan requests', () => {
         chainId: 42161,
         fromToken: DEFAULT_ARBITRUM_FUNDING_TOKEN.depositAddress,
         fromAmount: '10000000',
-        marketKey: 'btc-usdc',
       },
     });
 
@@ -165,7 +162,7 @@ describe('Invest deposit plan requests', () => {
       DEFAULT_ARBITRUM_FUNDING_TOKEN.depositAddress,
     );
     expect(arbitrumKey).toContain('10000000');
-    expect(arbitrumKey).toContain('btc-usdc');
+    expect(arbitrumKey).toContain('gmx-v2-basket');
     expect(baseKey).not.toEqual(arbitrumKey);
   });
 });
