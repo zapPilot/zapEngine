@@ -108,7 +108,7 @@ function videoLocalizations(): EpisodeLocalizationRow[] {
 }
 
 describe('performMultilingualIngestAndEnqueueVideo', () => {
-  it('enqueues one shared visual and all three localization videos after audio completes', async () => {
+  it('enqueues one shared visual and only the canonical zh-Hant video after multilingual audio completes', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const performIngest = vi.fn().mockResolvedValue({
       episode: episodeListResponse(listRow({ language_code: 'ja' })),
@@ -162,12 +162,8 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
       ),
       telegramChatId: '123',
     });
-    expect(enqueueVideo.mock.calls).toEqual([
-      [localizations[0]!.id, '123'],
-      [localizations[1]!.id, null],
-      [localizations[2]!.id, null],
-    ]);
-    expect(result.videoJobs).toHaveLength(3);
+    expect(enqueueVideo.mock.calls).toEqual([[localizations[0]!.id, '123']]);
+    expect(result.videoJobs).toHaveLength(1);
     expect(result.videoJob?.episode_localization_id).toBe(localizations[0]!.id);
     expect(result.visualJob?.status).toBe('queued');
     expect(result.videoEnqueueError).toBeNull();
@@ -176,8 +172,6 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
       visual: null,
       videosByLocalizationId: {
         [localizations[0]!.id]: null,
-        [localizations[1]!.id]: null,
-        [localizations[2]!.id]: null,
       },
     });
     expect(log.mock.calls.map(([message]) => String(message))).toEqual(
@@ -368,8 +362,6 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
       visual: priorError,
       videosByLocalizationId: {
         [localizations[0]!.id]: 'render failed',
-        [localizations[1]!.id]: null,
-        [localizations[2]!.id]: null,
       },
     });
   });
@@ -453,9 +445,10 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
     // A render in flight holds the coordinator for minutes; the progress
     // re-POST must not queue behind it.
     expect(runIngest).not.toHaveBeenCalled();
-    expect(enqueueVideo).toHaveBeenCalledTimes(3);
+    expect(enqueueVideo).toHaveBeenCalledTimes(1);
+    expect(enqueueVideo).toHaveBeenCalledWith(localizations[0]!.id, null);
     expect(result.videoEnqueueError).toBeNull();
-    expect(result.videoJobs).toHaveLength(3);
+    expect(result.videoJobs).toHaveLength(1);
   });
 
   it('waits for the heavy-work queue when any localization still needs work', async () => {

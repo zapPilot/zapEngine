@@ -147,13 +147,9 @@ export async function performMultilingualIngestAndEnqueueVideo(
           const priorVisualJob = await dependencies.findVisualJob(
             ingest.episode.id,
           );
-          const priorVideoJobs = new Map<string, EpisodeVideoJobRow | null>();
-          for (const localization of renderableLocalizations) {
-            priorVideoJobs.set(
-              localization.id,
-              await dependencies.findVideoJob(localization.id),
-            );
-          }
+          const priorVideoJob = await dependencies.findVideoJob(
+            canonicalLocalization.id,
+          );
           const visualJob = await dependencies.enqueueVisual(
             ingest.episode.id,
             {
@@ -165,19 +161,15 @@ export async function performMultilingualIngestAndEnqueueVideo(
               telegramChatId: normalizedTelegramChatId,
             },
           );
-          const videoJobs: EpisodeVideoJobRow[] = [];
-          for (const [
-            index,
-            localization,
-          ] of renderableLocalizations.entries()) {
-            videoJobs.push(
-              await dependencies.enqueueVideo(
-                localization.id,
-                index === 0 ? normalizedTelegramChatId : null,
-              ),
-            );
-          }
-          const videoJob = videoJobs[0] ?? null;
+          // Audio remains multilingual, but social video is intentionally
+          // rendered only for the canonical Traditional Chinese localization.
+          // The shared visual checkpoint can still use the English script for
+          // search grounding without paying for duplicate ja/en encodes.
+          const videoJob = await dependencies.enqueueVideo(
+            canonicalLocalization.id,
+            normalizedTelegramChatId,
+          );
+          const videoJobs = [videoJob];
           logIngestEvent('video:enqueue:done', {
             elapsedMs: Date.now() - enqueueStartedAt,
             episodeId: ingest.episode.id,
@@ -195,15 +187,12 @@ export async function performMultilingualIngestAndEnqueueVideo(
                 priorVisualJob?.last_error,
                 visualJob.last_error,
               ),
-              videosByLocalizationId: Object.fromEntries(
-                videoJobs.map((job) => [
-                  job.episode_localization_id,
-                  erasedByReset(
-                    priorVideoJobs.get(job.episode_localization_id)?.last_error,
-                    job.last_error,
-                  ),
-                ]),
-              ),
+              videosByLocalizationId: {
+                [videoJob.episode_localization_id]: erasedByReset(
+                  priorVideoJob?.last_error,
+                  videoJob.last_error,
+                ),
+              },
             },
           };
         } catch (error) {

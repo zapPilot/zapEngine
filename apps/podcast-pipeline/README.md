@@ -33,7 +33,7 @@ Scene alignment for `ja` and `en` is selected independently with `VIDEO_ALIGNMEN
 
 ## Vertical news video (image-only, multilingual)
 
-After all three audio localizations complete, ingest idempotently enqueues one episode-scoped visual job and three localization render jobs. The visual job creates a shared, image-only storyboard, mirrors selected images to R2, and records source-page/original-image provenance (license + photographer for stock providers). It never stores a text-card fallback.
+After all three audio localizations complete, ingest idempotently enqueues one episode-scoped visual job and one canonical `zh-Hant` localization render job. Japanese and English audio remain fully generated for the app, but their duplicate social-video encodes are intentionally skipped to reduce render compute. The visual job creates a shared, image-only storyboard, mirrors selected images to R2, and records source-page/original-image provenance (license + photographer for stock providers). It never stores a text-card fallback.
 
 Images are tried in this order:
 
@@ -44,7 +44,7 @@ Images are tried in this order:
 
 Candidates must pass HTTPS/SSRF, download timeout, format, size, pixel-dimension, animation, SHA-256, and perceptual-hash checks. Bing HTML is an unofficial interface: zero parseable results or a markup change fails the visual checkpoint explicitly. Bing images are retained as `license: unknown`; that fallback path does not claim usage rights.
 
-Once the shared visual checkpoint completes, `zh-Hant`, `ja`, and `en` each use their own main HLS duration, sentence timing, subtitles, and audio to render a progressive MP4. The canonical scene IDs and images are shared, while semantic alignment maps every translated sentence continuously onto those scenes. Classroom HLS is an ingest-readiness check for the canonical localization only and is never used as video audio.
+Once the shared visual checkpoint completes, only `zh-Hant` uses its main HLS duration, sentence timing, subtitles, and audio to render a progressive MP4. The visual checkpoint still uses the canonical and English scripts for search grounding, so multilingual ingest remains unchanged. Classroom HLS is an ingest-readiness check for the canonical localization only and is never used as video audio.
 
 Renders are **720x1280 vertical news videos at 24fps** (`podcast-slide-video.v4`, renderer `satori-resvg-v4`): a persistent brand frame (logo, localized kicker, headline card from the episode title) over a 720x640 media window that plays the searched images with Ken Burns motion, narration-synced captions in the bottom band, a bundled BGM bed ducked under narration (`assets/video/music`, see its README for licensing), and a ~2.8 s outro card while the music tails out. Stored `v1`/`v2` landscape and `v3` 1080x1920 manifests keep parsing; resubmitting an episode URL revives the visual/render jobs at the new version and writes to new R2 prefixes without touching old artifacts.
 

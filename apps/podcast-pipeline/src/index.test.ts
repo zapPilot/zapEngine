@@ -1066,8 +1066,6 @@ describe('POST /ingest pipeline', () => {
     expect(mockEnqueueEpisodeVideoVisualJob).toHaveBeenCalledTimes(1);
     expect(mockEnqueueEpisodeVideoJob.mock.calls).toEqual([
       [canonicalLocalization.id, null],
-      [jaLocalization.id, null],
-      [enLocalization.id, null],
     ]);
     expect(mockScrapeArticle).not.toHaveBeenCalled();
     expect(mockConvertArticleToZhTW).not.toHaveBeenCalled();
