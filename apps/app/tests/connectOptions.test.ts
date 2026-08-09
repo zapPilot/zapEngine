@@ -14,12 +14,12 @@ function connector(
 }
 
 describe('approvedWalletOptions', () => {
-  it('keeps approved wallets in Rabby, Ambire, OKX, MetaMask order', () => {
+  it('keeps approved wallets in Ambire, OKX, MetaMask order and excludes Rabby', () => {
     const result = approvedWalletOptions([
       connector({ id: 'io.metamask', name: 'MetaMask' }),
       connector({ id: 'com.okex.wallet', name: 'OKX Wallet' }),
       connector({ id: 'com.ambire', name: 'Ambire Wallet', recommended: true }),
-      connector({ id: 'io.rabby', name: 'Rabby Wallet', recommended: true }),
+      connector({ id: 'io.rabby', name: 'Rabby Wallet', recommended: false }),
       connector({
         id: 'walletConnect',
         name: 'WalletConnect',
@@ -27,7 +27,6 @@ describe('approvedWalletOptions', () => {
       }),
     ]);
     expect(result.map((option) => option.name)).toEqual([
-      'Rabby Wallet',
       'Ambire Wallet',
       'OKX Wallet',
       'MetaMask',

@@ -197,7 +197,7 @@ describe('WalletProvider (unified)', () => {
     expect(rendered.value.login.isPickerOpen).toBe(true);
 
     await act(async () => {
-      await rendered.value.login.connectInjected('io.rabby');
+      await rendered.value.login.connectInjected('com.ambire');
     });
 
     expect(rendered.value.login.isPickerOpen).toBe(false);
@@ -212,7 +212,7 @@ describe('WalletProvider (unified)', () => {
       rendered.value.login.openPicker();
     });
     await act(async () => {
-      await rendered.value.login.connectInjected('io.rabby');
+      await rendered.value.login.connectInjected('com.ambire');
     });
 
     expect(rendered.value.login.isPickerOpen).toBe(true);

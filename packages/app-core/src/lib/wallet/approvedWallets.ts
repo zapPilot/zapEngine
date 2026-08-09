@@ -16,7 +16,6 @@ export interface ApprovedWallet {
  * a defensive secondary signal.
  */
 export const APPROVED_WALLETS: readonly ApprovedWallet[] = [
-  { rdns: 'io.rabby', nameNeedle: 'rabby', label: 'Rabby' },
   { rdns: 'com.ambire', nameNeedle: 'ambire', label: 'Ambire' },
   { rdns: 'com.okex.wallet', nameNeedle: 'okx', label: 'OKX Wallet' },
   { rdns: 'io.metamask', nameNeedle: 'metamask', label: 'MetaMask' },

@@ -170,12 +170,12 @@ describe('useWagmiWalletBackend', () => {
     expect(mocks.submitPreparedTransactionsWithEIP7702).not.toHaveBeenCalled();
   });
 
-  it('maps discovered connectors, flags all approved wallets as recommended, and drops the generic injected fallback once a specific wallet is found', () => {
+  it('maps discovered connectors, flags approved wallets as recommended, and drops the generic injected fallback once a specific wallet is found', () => {
     mocks.connectors = [
       { id: 'injected', name: 'Injected', type: 'injected' },
       {
-        id: 'io.rabby',
-        name: 'Rabby Wallet',
+        id: 'app.phantom',
+        name: 'Phantom',
         icon: 'data:image/png;base64,x',
         type: 'injected',
       },
@@ -192,13 +192,15 @@ describe('useWagmiWalletBackend', () => {
     const ids = result.current.connectors.map((option) => option.id);
     expect(ids).not.toContain('injected');
     expect(ids).toEqual([
-      'io.rabby',
+      'app.phantom',
       'com.ambire',
       'io.metamask',
       'com.okex.wallet',
     ]);
 
-    const rabby = result.current.connectors.find((o) => o.id === 'io.rabby');
+    const phantom = result.current.connectors.find(
+      (o) => o.id === 'app.phantom',
+    );
     const ambire = result.current.connectors.find((o) => o.id === 'com.ambire');
     const metamask = result.current.connectors.find(
       (o) => o.id === 'io.metamask',
@@ -206,8 +208,8 @@ describe('useWagmiWalletBackend', () => {
     const okx = result.current.connectors.find(
       (o) => o.id === 'com.okex.wallet',
     );
-    expect(rabby).toMatchObject({
-      recommended: true,
+    expect(phantom).toMatchObject({
+      recommended: false,
       type: 'injected',
       icon: 'data:image/png;base64,x',
     });
@@ -241,8 +243,8 @@ describe('useWagmiWalletBackend', () => {
 
   it('connectInjected connects the matching connector by id', async () => {
     const connector = {
-      id: 'io.rabby',
-      name: 'Rabby Wallet',
+      id: 'com.ambire',
+      name: 'Ambire Wallet',
       type: 'injected',
     };
     mocks.connectors = [connector];
@@ -250,7 +252,7 @@ describe('useWagmiWalletBackend', () => {
     const { result } = renderHook(() => useWagmiWalletBackend());
 
     await act(async () => {
-      await result.current.connectInjected('io.rabby');
+      await result.current.connectInjected('com.ambire');
     });
 
     expect(mocks.connectAsync).toHaveBeenCalledWith({ connector });
@@ -262,7 +264,7 @@ describe('useWagmiWalletBackend', () => {
     const { result } = renderHook(() => useWagmiWalletBackend());
 
     await act(async () => {
-      await result.current.connectInjected('io.rabby');
+      await result.current.connectInjected('com.ambire');
     });
 
     expect(mocks.connectAsync).not.toHaveBeenCalled();
@@ -271,9 +273,9 @@ describe('useWagmiWalletBackend', () => {
 
   it('treats an already-connected active connector as a successful no-op', async () => {
     const connector = {
-      id: 'io.rabby',
-      uid: 'io.rabby-1',
-      name: 'Rabby Wallet',
+      id: 'com.ambire',
+      uid: 'com.ambire-1',
+      name: 'Ambire Wallet',
       type: 'injected',
     };
     mocks.connectors = [connector];
@@ -288,7 +290,7 @@ describe('useWagmiWalletBackend', () => {
     const { result } = renderHook(() => useWagmiWalletBackend());
 
     await act(async () => {
-      await expect(result.current.connectInjected('io.rabby')).resolves.toBe(
+      await expect(result.current.connectInjected('com.ambire')).resolves.toBe(
         true,
       );
     });
@@ -299,9 +301,9 @@ describe('useWagmiWalletBackend', () => {
 
   it('treats a named ConnectorAlreadyConnectedError as benign without logging', async () => {
     const connector = {
-      id: 'io.rabby',
-      uid: 'io.rabby-1',
-      name: 'Rabby Wallet',
+      id: 'com.ambire',
+      uid: 'com.ambire-1',
+      name: 'Ambire Wallet',
       type: 'injected',
     };
     mocks.connectors = [connector];
@@ -313,7 +315,7 @@ describe('useWagmiWalletBackend', () => {
     const { result } = renderHook(() => useWagmiWalletBackend());
 
     await act(async () => {
-      await expect(result.current.connectInjected('io.rabby')).resolves.toBe(
+      await expect(result.current.connectInjected('com.ambire')).resolves.toBe(
         true,
       );
     });
@@ -325,9 +327,9 @@ describe('useWagmiWalletBackend', () => {
 
   it('keeps ordinary connector errors visible as CONNECT_ERROR', async () => {
     const connector = {
-      id: 'io.rabby',
-      uid: 'io.rabby-1',
-      name: 'Rabby Wallet',
+      id: 'com.ambire',
+      uid: 'com.ambire-1',
+      name: 'Ambire Wallet',
       type: 'injected',
     };
     mocks.connectors = [connector];
@@ -335,7 +337,7 @@ describe('useWagmiWalletBackend', () => {
     const { result } = renderHook(() => useWagmiWalletBackend());
 
     await act(async () => {
-      await expect(result.current.connectInjected('io.rabby')).resolves.toBe(
+      await expect(result.current.connectInjected('com.ambire')).resolves.toBe(
         false,
       );
     });
@@ -350,9 +352,9 @@ describe('useWagmiWalletBackend', () => {
 
   it('reports reconnecting as busy and does not start a manual connect', async () => {
     const connector = {
-      id: 'io.rabby',
-      uid: 'io.rabby-1',
-      name: 'Rabby Wallet',
+      id: 'com.ambire',
+      uid: 'com.ambire-1',
+      name: 'Ambire Wallet',
       type: 'injected',
     };
     mocks.connectors = [connector];
@@ -368,7 +370,7 @@ describe('useWagmiWalletBackend', () => {
 
     expect(result.current.backend.isConnecting).toBe(true);
     await act(async () => {
-      await expect(result.current.connectInjected('io.rabby')).resolves.toBe(
+      await expect(result.current.connectInjected('com.ambire')).resolves.toBe(
         false,
       );
     });
@@ -377,9 +379,9 @@ describe('useWagmiWalletBackend', () => {
 
   it('deduplicates deferred connect calls while the SDK promise is pending', async () => {
     const connector = {
-      id: 'io.rabby',
-      uid: 'io.rabby-1',
-      name: 'Rabby Wallet',
+      id: 'com.ambire',
+      uid: 'com.ambire-1',
+      name: 'Ambire Wallet',
       type: 'injected',
     };
     mocks.connectors = [connector];
@@ -395,8 +397,8 @@ describe('useWagmiWalletBackend', () => {
     let first: Promise<boolean>;
     let second: Promise<boolean>;
     await act(async () => {
-      first = result.current.connectInjected('io.rabby');
-      second = result.current.connectInjected('io.rabby');
+      first = result.current.connectInjected('com.ambire');
+      second = result.current.connectInjected('com.ambire');
       expect(mocks.connectAsync).toHaveBeenCalledTimes(1);
       resolveConnect?.();
       await expect(first).resolves.toBe(true);
@@ -406,7 +408,7 @@ describe('useWagmiWalletBackend', () => {
 
   it('the default connect() asks the user to choose when multiple wallets are detected, and connects the sole one otherwise', async () => {
     mocks.connectors = [
-      { id: 'io.rabby', name: 'Rabby Wallet', type: 'injected' },
+      { id: 'com.ambire', name: 'Ambire Wallet', type: 'injected' },
       { id: 'io.metamask', name: 'MetaMask', type: 'injected' },
     ];
     const { result: multi } = renderHook(() => useWagmiWalletBackend());
@@ -418,7 +420,7 @@ describe('useWagmiWalletBackend', () => {
     });
 
     vi.clearAllMocks();
-    const solo = { id: 'io.rabby', name: 'Rabby Wallet', type: 'injected' };
+    const solo = { id: 'com.ambire', name: 'Ambire Wallet', type: 'injected' };
     mocks.connectors = [solo];
     mocks.connectAsync.mockResolvedValue(undefined);
     const { result: single } = renderHook(() => useWagmiWalletBackend());

@@ -13,8 +13,8 @@ const stubValue: WalletLoginContextValue = {
   closePicker: () => {},
   connectors: [
     {
-      id: 'io.rabby',
-      name: 'Rabby Wallet',
+      id: 'com.ambire',
+      name: 'Ambire Wallet',
       recommended: true,
       type: 'injected',
     },
@@ -38,7 +38,7 @@ describe('walletLoginContext', () => {
         <ShowFirstConnectorName />
       </WalletLoginProvider>,
     );
-    expect(html).toContain('Rabby Wallet');
+    expect(html).toContain('Ambire Wallet');
   });
 
   it('throws when useWalletLogin is used outside a provider', () => {

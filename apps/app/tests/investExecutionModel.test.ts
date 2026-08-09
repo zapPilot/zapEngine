@@ -106,7 +106,7 @@ describe('resolveDepositExecutionCapability', () => {
     ).toBe('ready');
   });
 
-  it('is ready for the wagmi EIP-7702 path (external wallet, e.g. Rabby/Ambire)', () => {
+  it('is ready for the wagmi EIP-7702 path (external wallet, e.g. Ambire/MetaMask)', () => {
     expect(
       resolveDepositExecutionCapability({
         isConnected: true,

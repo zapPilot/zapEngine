@@ -7,15 +7,13 @@ import { describe, expect, it } from 'vitest';
 
 describe('approvedWallets', () => {
   it('formats the product-facing wallet list', () => {
-    expect(formatApprovedWalletList()).toBe(
-      'Rabby, Ambire, OKX Wallet, or MetaMask',
-    );
+    expect(formatApprovedWalletList()).toBe('Ambire, OKX Wallet, or MetaMask');
   });
 
   it('matches approved wallets by rdns or display name', () => {
     expect(
       isApprovedWalletConnector({
-        id: 'io.rabby',
+        id: 'com.ambire',
         name: 'Browser Wallet',
       }),
     ).toBe(true);
@@ -25,6 +23,15 @@ describe('approvedWallets', () => {
         name: 'Ambire Browser Extension',
       }),
     ).toBe(true);
+  });
+
+  it('rejects Rabby because it cannot execute the required wallet batch API', () => {
+    expect(
+      isApprovedWalletConnector({
+        id: 'io.rabby',
+        name: 'Rabby Wallet',
+      }),
+    ).toBe(false);
   });
 
   it('approves OKX and MetaMask while rejecting unapproved wallets', () => {
@@ -50,22 +57,21 @@ describe('approvedWallets', () => {
 
   it('ranks approved wallets in product display order and unknowns last', () => {
     const ranks = [
-      approvedWalletRank({ id: 'io.rabby', name: 'Rabby Wallet' }),
       approvedWalletRank({ id: 'com.ambire', name: 'Ambire Wallet' }),
       approvedWalletRank({ id: 'com.okex.wallet', name: 'OKX Wallet' }),
       approvedWalletRank({ id: 'io.metamask', name: 'MetaMask' }),
       approvedWalletRank({ id: 'app.phantom', name: 'Phantom' }),
     ];
 
-    expect(ranks).toEqual([0, 1, 2, 3, 4]);
+    expect(ranks).toEqual([0, 1, 2, 3]);
   });
 
   it('uses the connector name before the defensive rdns match', () => {
     expect(
       approvedWalletRank({
-        id: 'io.rabby',
+        id: 'app.phantom',
         name: 'MetaMask',
       }),
-    ).toBe(3);
+    ).toBe(2);
   });
 });
