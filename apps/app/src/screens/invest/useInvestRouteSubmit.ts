@@ -37,7 +37,6 @@ export function useInvestRouteSubmit({
   >({});
 
   const reviewGroups = review.reviewGroups;
-  const reviewGroupKeys = review.reviewGroupKeys;
   const reviewExpiryKey = reviewGroups
     .map((group) => `${group.groupId}:${group.expiresAt}`)
     .join('|');
@@ -112,21 +111,18 @@ export function useInvestRouteSubmit({
     setLaunchRequested(true);
     setSubmissionError(null);
     try {
+      // Submit the exact response the user reviewed. Re-fetching here rebuilds
+      // live-price / live-quote plans and can change token amounts or calldata
+      // even though the user changed nothing. The review already binds this
+      // exact batch with an expiry plus wallet, batch, simulation and risk
+      // hashes; the wallet executor re-checks those guards before signing.
       const displayed = review.review;
-      const fresh = await review.refresh();
-      const displayedGroups = displayed?.reviews ?? {};
-      const freshGroups = reviewGroupKeys
-        .map((key) => fresh?.reviews[key])
-        .filter((group): group is NonNullable<typeof group> => Boolean(group));
       const firstReview =
-        freshGroups.find((group) => group.groupId === 'base-morpho') ??
-        freshGroups[0];
-      const displayedFirst = firstReview
-        ? displayedGroups[firstReview.groupId]
-        : undefined;
-      const freshGroupsSafe =
-        freshGroups.length === reviewGroupKeys.length &&
-        freshGroups.every(
+        reviewGroups.find((group) => group.groupId === 'base-morpho') ??
+        reviewGroups[0];
+      const displayedGroupsSafe =
+        Boolean(displayed && firstReview && review.reviewHasAllGroups) &&
+        reviewGroups.every(
           (group) =>
             !group.blocked &&
             group.executionAllowed &&
@@ -135,54 +131,17 @@ export function useInvestRouteSubmit({
               !group.requiresRiskAcknowledgement ||
               acknowledgedRiskHashes[group.groupId] === group.expectedRiskHash),
         );
-      const anyGroupDrift = reviewGroupKeys.some((key) => {
-        const before = displayedGroups[key];
-        const after = fresh?.reviews[key];
-        return (
-          !before ||
-          !after ||
-          before.groupFingerprint !== after.groupFingerprint ||
-          before.batchFingerprint !== after.batchFingerprint ||
-          before.expectedSimulationFingerprint !==
-            after.expectedSimulationFingerprint ||
-          before.expectedRiskHash !== after.expectedRiskHash
-        );
-      });
-      const drifted =
-        !fresh ||
-        !review.plan ||
-        !firstReview ||
-        !displayed ||
-        fresh.planFingerprint !== displayed.planFingerprint ||
-        !displayedFirst ||
-        displayedFirst.groupFingerprint !== firstReview.groupFingerprint ||
-        displayedFirst.expectedSimulationFingerprint !==
-          firstReview.expectedSimulationFingerprint ||
-        displayedFirst.expectedRiskHash !== firstReview.expectedRiskHash ||
-        displayedFirst.batchFingerprint !== firstReview.batchFingerprint ||
-        anyGroupDrift ||
-        !freshGroupsSafe;
-      if (drifted) {
+      if (!displayed || !firstReview || !displayedGroupsSafe) {
         setSubmissionError(
-          'The review changed while you were deciding. Review the updated Tenderly evidence and confirm again.',
+          'The reviewed batch is no longer ready to submit. Refresh the Tenderly review and confirm again.',
         );
-        if (
-          firstReview &&
-          displayedFirst?.expectedRiskHash !== firstReview.expectedRiskHash
-        ) {
-          setAcknowledgedRiskHashes((current) => {
-            const next = { ...current };
-            delete next[firstReview.groupId];
-            return next;
-          });
-        }
         return;
       }
       const result = await submitReviewedBatch({
-        plan: fresh.plan,
+        plan: displayed.plan,
         review: firstReview,
-        queue: freshGroups.map((group) => ({
-          plan: fresh.plan,
+        queue: reviewGroups.map((group) => ({
+          plan: displayed.plan,
           review: group,
         })),
         ...(firstReview.requiresRiskAcknowledgement &&
