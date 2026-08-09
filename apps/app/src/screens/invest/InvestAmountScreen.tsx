@@ -8,8 +8,7 @@ import {
   CONNECTING_LABEL,
 } from '@/components/connect/connectCopy';
 import { BridgeTestPanel } from '@/components/invest/BridgeTestPanel';
-import { ChainTokenSelectorSheet } from '@/components/invest/ChainTokenSelectorSheet';
-import { FundingSourceCard } from '@/components/invest/FundingSourceCard';
+import { FundingSourceSelector } from '@/components/invest/FundingSourceSelector';
 import { QuickAmountChips } from '@/components/invest/QuickAmountChips';
 import { StepHeader } from '@/components/invest/StepHeader';
 import { StepProgress } from '@/components/invest/StepProgress';
@@ -20,7 +19,6 @@ import { Tap } from '@/components/ui/Tap';
 import {
   ARBITRUM_DEPOSIT_TOKENS,
   BASE_DEPOSIT_TOKENS,
-  DEFAULT_ARBITRUM_FUNDING_TOKEN,
 } from '@/integration/depositTokens';
 import {
   amountInputToUsd6,
@@ -105,7 +103,7 @@ function amountNotice({
         ? 'Enter at least $0.01 to test the Base Morpho deposit.'
         : isBoth
           ? 'Enter at least $10 to deposit into the strategy.'
-          : 'Enter at least $10 — GMX keeper fees make smaller deposits uneconomical.',
+          : 'Enter at least $1 — GMX keeper fees make smaller deposits uneconomical.',
     };
   }
   if (exceedsBalance) {
@@ -195,14 +193,10 @@ export function InvestAmountScreen() {
   const invest = useInvest();
   const balances = useWalletAssets(account.address);
   const [activeTab, setActiveTab] = useState<InvestAmountTab>(invest.scope);
-  const [selector, setSelector] = useState<'base' | 'arbitrum' | null>(null);
   const isBoth = invest.scope === 'both';
   const isBaseOnly = invest.scope === 'base';
   const activeChainLabel = isBaseOnly ? 'Base' : 'Arbitrum';
-  const activeArbitrumFundingToken =
-    invest.scope === 'arbitrum'
-      ? DEFAULT_ARBITRUM_FUNDING_TOKEN
-      : invest.arbitrumFundingToken;
+  const activeArbitrumFundingToken = invest.arbitrumFundingToken;
   const amountUsd = amountUsdFromInput(invest.amountInput);
   const baseBalance = balanceForFundingToken(
     balances.chainRows,
@@ -305,8 +299,12 @@ export function InvestAmountScreen() {
         totalUsd6: invest.totalUsd6,
         baseFundingToken: invest.baseFundingToken,
         baseUsdPrice: baseBalance?.usdPrice ?? null,
+        arbitrumFundingToken: activeArbitrumFundingToken,
+        arbitrumUsdPrice: arbitrumBalance?.usdPrice ?? null,
       }),
     [
+      activeArbitrumFundingToken,
+      arbitrumBalance?.usdPrice,
       baseBalance?.usdPrice,
       invest.baseFundingToken,
       invest.scope,
@@ -375,7 +373,6 @@ export function InvestAmountScreen() {
   });
 
   function handleTabChange(tab: InvestAmountTab): void {
-    setSelector(null);
     setActiveTab(tab);
     if (tab !== 'bridge') {
       invest.setScope(tab);
@@ -415,7 +412,7 @@ export function InvestAmountScreen() {
               ? 'Choose one funding token on each destination chain.'
               : isBaseOnly
                 ? 'Test one Base funding token with Morpho Moonwell.'
-                : 'Test canonical Arbitrum USDC with GMX BTC/USDC.'}
+                : 'Choose an Arbitrum funding token for GMX BTC/USDC.'}
           </Text>
 
           <InvestScopeToggle value={activeTab} onChange={handleTabChange} />
@@ -466,35 +463,37 @@ export function InvestAmountScreen() {
 
           <View className="gap-2">
             {invest.scope !== 'arbitrum' ? (
-              <FundingSourceCard
+              <FundingSourceSelector
                 chainLabel="Base"
                 allocation={isBoth ? '40%' : '100%'}
                 protocol="Morpho · Moonwell USDC"
+                tokens={BASE_DEPOSIT_TOKENS}
                 token={invest.baseFundingToken}
                 tokenAmount={baseTokenAmount}
                 hasAmount={amountUsd !== null}
                 allocatedUsd={(amountUsd ?? 0) * (isBoth ? 0.4 : 1)}
                 balance={baseBalance}
                 balanceState={baseBalanceState}
-                onSelectToken={() => setSelector('base')}
+                rows={balances.chainRows}
+                onSelectToken={invest.setBaseFundingToken}
               />
             ) : null}
             {invest.scope !== 'base' ? (
-              <FundingSourceCard
+              <FundingSourceSelector
                 chainLabel="Arbitrum"
                 allocation={isBoth ? '60%' : '100%'}
                 protocol={
                   isBoth ? 'GMX · BTC/USDC + ETH/USDC' : 'GMX · BTC/USDC'
                 }
+                tokens={ARBITRUM_DEPOSIT_TOKENS}
                 token={activeArbitrumFundingToken}
                 tokenAmount={arbitrumTokenAmount}
                 hasAmount={amountUsd !== null}
                 allocatedUsd={(amountUsd ?? 0) * (isBoth ? 0.6 : 1)}
                 balance={arbitrumBalance}
                 balanceState={arbitrumBalanceState}
-                onSelectToken={
-                  isBoth ? () => setSelector('arbitrum') : undefined
-                }
+                rows={balances.chainRows}
+                onSelectToken={invest.setArbitrumFundingToken}
               />
             ) : null}
           </View>
@@ -533,27 +532,6 @@ export function InvestAmountScreen() {
           </Tap>
         </View>
       </ScreenScrollView>
-
-      <ChainTokenSelectorSheet
-        visible={selector === 'base'}
-        chainLabel="Base"
-        tokens={BASE_DEPOSIT_TOKENS}
-        rows={balances.chainRows}
-        balanceState={baseBalanceState}
-        selected={invest.baseFundingToken}
-        onSelect={invest.setBaseFundingToken}
-        onClose={() => setSelector(null)}
-      />
-      <ChainTokenSelectorSheet
-        visible={isBoth && selector === 'arbitrum'}
-        chainLabel="Arbitrum"
-        tokens={ARBITRUM_DEPOSIT_TOKENS}
-        rows={balances.chainRows}
-        balanceState={arbitrumBalanceState}
-        selected={invest.arbitrumFundingToken}
-        onSelect={invest.setArbitrumFundingToken}
-        onClose={() => setSelector(null)}
-      />
     </>
   );
 }

@@ -179,6 +179,7 @@ export function buildInvestDepositPlanRequest({
     kind: 'gmx-v2',
     userAddress,
     marketKey: singleChainFundingDraft.marketKey,
+    fromToken: singleChainFundingDraft.fromToken,
     amount: singleChainFundingDraft.fromAmount,
   };
 }
@@ -206,13 +207,7 @@ export function buildInvestDepositPlanPreviewKey(
       request.fromAmount,
     ];
   }
-  return [
-    scope,
-    42161,
-    DEFAULT_ARBITRUM_FUNDING_TOKEN.depositAddress,
-    request.amount,
-    request.marketKey,
-  ];
+  return [scope, 42161, request.fromToken, request.amount, request.marketKey];
 }
 
 /**

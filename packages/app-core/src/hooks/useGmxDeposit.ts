@@ -174,6 +174,7 @@ export function useGmxDeposit() {
           const plan = await getGmxDepositPlan({
             kind: 'gmx-v2',
             marketKey,
+            fromToken: GMX_V2_TOKENS.USDC.address,
             amount,
             userAddress: effectiveAddress,
           });

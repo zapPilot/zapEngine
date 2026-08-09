@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ARBITRUM_DEPOSIT_TOKENS,
   DEFAULT_ARBITRUM_FUNDING_TOKEN,
   DEFAULT_BASE_FUNDING_TOKEN,
 } from '@/integration/depositTokens';
@@ -63,17 +64,18 @@ describe('Invest deposit plan requests', () => {
     });
   });
 
-  it('fixes Arbitrum single-chain requests to the BTC/USDC market', () => {
+  it('preserves the selected Arbitrum token for the BTC/USDC market', () => {
+    const selectedToken = ARBITRUM_DEPOSIT_TOKENS[1];
     const request = buildInvestDepositPlanRequest({
       userAddress: USER_ADDRESS,
       scope: 'arbitrum',
       totalUsd6: '10000000',
       baseFundingToken: DEFAULT_BASE_FUNDING_TOKEN,
-      arbitrumFundingToken: DEFAULT_ARBITRUM_FUNDING_TOKEN,
+      arbitrumFundingToken: selectedToken,
       singleChainFundingDraft: {
         scope: 'arbitrum',
         chainId: 42161,
-        fromToken: DEFAULT_ARBITRUM_FUNDING_TOKEN.depositAddress,
+        fromToken: selectedToken.depositAddress,
         fromAmount: '10000000',
         marketKey: 'btc-usdc',
       },
@@ -83,6 +85,7 @@ describe('Invest deposit plan requests', () => {
       kind: 'gmx-v2',
       userAddress: USER_ADDRESS,
       marketKey: 'btc-usdc',
+      fromToken: selectedToken.depositAddress,
       amount: '10000000',
     });
   });

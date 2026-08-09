@@ -1,10 +1,7 @@
 import { STRATEGY_MIN_DEPOSIT_USD6 } from '@zapengine/types/api';
 
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
-import {
-  DEFAULT_ARBITRUM_FUNDING_TOKEN,
-  type DesktopDepositToken,
-} from '@/integration/depositTokens';
+import type { DesktopDepositToken } from '@/integration/depositTokens';
 
 export type InvestScope = 'both' | 'base' | 'arbitrum';
 
@@ -199,7 +196,10 @@ export function singleChainFromAmount(params: {
   const totalUsd6 = BigInt(params.totalUsd6);
   if (totalUsd6 <= 0n) return null;
 
-  if (params.token.symbol === 'USDC' && params.token.decimals === 6) {
+  if (
+    (params.token.symbol === 'USDC' || params.token.symbol === 'USDT') &&
+    params.token.decimals === 6
+  ) {
     return totalUsd6.toString();
   }
   if (params.token.symbol !== 'ETH' || params.token.decimals !== 18) {
@@ -229,21 +229,23 @@ export function buildSingleChainFundingDraft(params: {
   totalUsd6: string;
   baseFundingToken: DesktopDepositToken;
   baseUsdPrice: number | null;
+  arbitrumFundingToken: DesktopDepositToken;
+  arbitrumUsdPrice: number | null;
 }): SingleChainFundingDraft | null {
   if (params.scope === 'both') return null;
 
   if (params.scope === 'arbitrum') {
     const fromAmount = singleChainFromAmount({
       totalUsd6: params.totalUsd6,
-      token: DEFAULT_ARBITRUM_FUNDING_TOKEN,
-      usdPrice: 1,
+      token: params.arbitrumFundingToken,
+      usdPrice: params.arbitrumUsdPrice,
     });
     return fromAmount === null
       ? null
       : {
           scope: 'arbitrum',
           chainId: 42161,
-          fromToken: DEFAULT_ARBITRUM_FUNDING_TOKEN.depositAddress,
+          fromToken: params.arbitrumFundingToken.depositAddress,
           fromAmount,
           marketKey: 'btc-usdc',
         };

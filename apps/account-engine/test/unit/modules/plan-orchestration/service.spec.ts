@@ -13,6 +13,7 @@ import { createPlanOrchestrationService } from '../../../../src/modules/plan-orc
 
 const USER = '0x1111111111111111111111111111111111111111' as Address;
 const USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831' as Address;
+const USDT = '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9' as Address;
 const GMX_ROUTER = '0x7452c558d45f8afC8c83dAe62C3f8A5BE19c71f6' as Address;
 const EXCHANGE_ROUTER = '0x1C3fa76e6E1088bCE750f23a5BFcffa1efEF6A41' as Address;
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as Address;
@@ -626,19 +627,20 @@ describe('plan-orchestration service', () => {
     expect(input.sourceChainId).toBe(42161);
   });
 
-  it('skips GMX approval when Arbitrum allowance covers the exact collateral amount', async () => {
+  it('forwards the selected GMX funding token and skips covered collateral approval', async () => {
     const { service, readContract, buildGmxV2Supply } = makeService(1000n);
 
     const plan = await service.buildDeposit({
       kind: 'gmx-v2',
       marketKey: 'eth-usdc',
+      fromToken: USDT,
       amount: '1000',
       userAddress: USER,
     });
 
     expect(buildGmxV2Supply).toHaveBeenCalledWith({
       marketKey: 'eth-usdc',
-      fromToken: USDC,
+      fromToken: USDT,
       fromAmount: '1000',
       userAddress: USER,
     });
@@ -671,6 +673,7 @@ describe('plan-orchestration service', () => {
     const plan = await service.buildDeposit({
       kind: 'gmx-v2',
       marketKey: 'eth-usdc',
+      fromToken: USDC,
       amount: '1000',
       userAddress: USER,
     });

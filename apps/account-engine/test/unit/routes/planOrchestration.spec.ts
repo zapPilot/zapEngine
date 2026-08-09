@@ -12,6 +12,7 @@ import {
 } from '../../../src/modules/plan-orchestration/service';
 
 const USER = '0x1111111111111111111111111111111111111111';
+const ARBITRUM_USDC = '0xaf88d065e77c8cc2239327c5edb3a432268e5831';
 
 const plan: DepositPlan = {
   legs: [],
@@ -55,6 +56,7 @@ describe('POST /plan-orchestration/deposit', () => {
         body: JSON.stringify({
           kind: 'gmx-v2',
           marketKey: 'eth-usdc',
+          fromToken: ARBITRUM_USDC,
           amount: '1000',
           userAddress: USER,
         }),
@@ -66,6 +68,7 @@ describe('POST /plan-orchestration/deposit', () => {
     expect(service.buildDeposit).toHaveBeenCalledWith({
       kind: 'gmx-v2',
       marketKey: 'eth-usdc',
+      fromToken: ARBITRUM_USDC,
       amount: '1000',
       userAddress: USER,
     });
@@ -207,6 +210,7 @@ describe('POST /plan-orchestration/deposit', () => {
         body: JSON.stringify({
           kind: 'gmx-v2',
           marketKey: 'not-a-market',
+          fromToken: ARBITRUM_USDC,
           amount: '1000',
           userAddress: USER,
         }),

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { act, renderHook } from '@testing-library/react';
 import { useSingleChainDepositWizard } from '@core/hooks/useSingleChainDepositWizard';
+import { act, renderHook } from '@testing-library/react';
 import {
   type DepositPlan,
   NATIVE_TOKEN_ADDRESS,
@@ -12,6 +12,7 @@ const USER = '0x1111111111111111111111111111111111111111';
 const OTHER_USER = '0x2222222222222222222222222222222222222222';
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const ARBITRUM_USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831';
+const ARBITRUM_USDT = '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9';
 const MORPHO_VAULT = '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A';
 const GMX_MARKET = '0x47c031236e19d024b42f8AE6780E44A573170703';
 
@@ -68,6 +69,7 @@ const gmxRequest: Exclude<
 > = {
   kind: 'gmx-v2',
   marketKey: 'btc-usdc',
+  fromToken: ARBITRUM_USDC,
   amount: '10000000',
   userAddress: USER,
 };
@@ -400,6 +402,24 @@ describe('useSingleChainDepositWizard', () => {
     expect(result.current.wizard.error).toContain('Funding balance too low');
   });
 
+  it('checks the selected GMX ERC-20 funding token before submission', async () => {
+    wallet.chain.id = 42161;
+    mocks.getDepositPlan.mockResolvedValue(gmxPlan);
+    mocks.readContract.mockResolvedValue(9_999_999n);
+    const { result } = renderHook(() => useSingleChainDepositWizard());
+
+    await act(async () => {
+      await result.current.start({ ...gmxRequest, fromToken: ARBITRUM_USDT });
+      await result.current.advance();
+    });
+
+    expect(mocks.readContract).toHaveBeenCalledWith(
+      expect.objectContaining({ address: ARBITRUM_USDT }),
+    );
+    expect(mocks.executeDepositPlanWithWallet).not.toHaveBeenCalled();
+    expect(result.current.wizard.error).toContain('Funding balance too low');
+  });
+
   it('blocks a low native gas balance before a GMX wallet submission', async () => {
     wallet.chain.id = 42161;
     mocks.getDepositPlan.mockResolvedValue(gmxPlan);
@@ -415,6 +435,26 @@ describe('useSingleChainDepositWizard', () => {
     expect(mocks.executeDepositPlanWithWallet).not.toHaveBeenCalled();
     expect(result.current.wizard.steps[1]?.status).toBe('failed');
     expect(result.current.wizard.error).toContain('ETH balance too low');
+  });
+
+  it('treats selected native ETH as the GMX funding token', async () => {
+    wallet.chain.id = 42161;
+    mocks.getDepositPlan.mockResolvedValue(gmxPlan);
+    mocks.getBalance.mockResolvedValue(10_499_999_999_999_999n);
+    const { result } = renderHook(() => useSingleChainDepositWizard());
+
+    await act(async () => {
+      await result.current.start({
+        ...gmxRequest,
+        fromToken: NATIVE_TOKEN_ADDRESS,
+        amount: '10000000000000000',
+      });
+      await result.current.advance();
+    });
+
+    expect(mocks.readContract).not.toHaveBeenCalled();
+    expect(mocks.executeDepositPlanWithWallet).not.toHaveBeenCalled();
+    expect(result.current.wizard.error).toContain('Native balance too low');
   });
 
   it('reserves gas in addition to the exact Base ETH funding amount', async () => {

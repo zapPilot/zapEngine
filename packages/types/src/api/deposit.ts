@@ -507,6 +507,7 @@ export const PlanOrchestrationDepositRequestSchema = z
     z.object({
       kind: z.literal('gmx-v2'),
       marketKey: z.enum(['btc-btc', 'eth-eth', 'btc-usdc', 'eth-usdc']),
+      fromToken: AddressSchema,
       amount: decimalStringSchema,
       userAddress: AddressSchema,
     }),
@@ -552,11 +553,23 @@ export const PlanOrchestrationDepositRequestSchema = z
       return;
     }
 
-    if (value.kind !== 'invest') {
+    if (value.kind === 'gmx-v2') {
+      if (
+        !STRATEGY_ARBITRUM_FUNDING_TOKENS.has(value.fromToken.toLowerCase())
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          message:
+            'GMX v2 funding must be canonical Arbitrum USDC, USDT, or native ETH',
+          path: ['fromToken'],
+        });
+      }
       return;
     }
 
-    addInvestDepositValidationIssues(value, ctx);
+    if (value.kind === 'invest') {
+      addInvestDepositValidationIssues(value, ctx);
+    }
   });
 
 export type PreparedTransaction = z.infer<typeof PreparedTransactionSchema>;

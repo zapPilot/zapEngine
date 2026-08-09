@@ -54,6 +54,7 @@ export function useDepositPlanPreview({
           kind: 'gmx-v2',
           userAddress,
           marketKey: depositPath.marketKey,
+          fromToken,
           amount: fromAmount,
         });
       }

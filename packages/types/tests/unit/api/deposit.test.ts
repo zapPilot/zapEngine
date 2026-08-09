@@ -6,6 +6,7 @@ import {
   BASE_USDC_ADDRESS,
   ChainSplitSchema,
   DEPOSIT_USDC_ADDRESSES,
+  DEPOSIT_USDT_ADDRESSES,
   DepositFollowUpSchema,
   DepositLegSchema,
   DepositPlanSchema,
@@ -314,12 +315,16 @@ describe('PlanOrchestrationDepositRequestSchema (discriminated union)', () => {
     ).toBe(true);
   });
 
-  it('accepts a gmx-v2 request without applying Base-only check', () => {
-    // gmx-v2 path skips the addBaseDepositValidationIssues branch
+  it.each([
+    DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+    DEPOSIT_USDT_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+    NATIVE_TOKEN_ADDRESS,
+  ])('accepts a supported Arbitrum GMX funding token %s', (fromToken) => {
     expect(
       PlanOrchestrationDepositRequestSchema.safeParse({
         kind: 'gmx-v2',
         marketKey: 'btc-usdc',
+        fromToken,
         amount: '1000000',
         userAddress: USER,
       }).success,
@@ -331,10 +336,27 @@ describe('PlanOrchestrationDepositRequestSchema (discriminated union)', () => {
       PlanOrchestrationDepositRequestSchema.safeParse({
         kind: 'gmx-v2',
         marketKey: 'doge-usdc',
+        fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
         amount: '1000000',
         userAddress: USER,
       }).success,
     ).toBe(false);
+  });
+
+  it('rejects an unsupported GMX funding token', () => {
+    const result = PlanOrchestrationDepositRequestSchema.safeParse({
+      kind: 'gmx-v2',
+      marketKey: 'btc-usdc',
+      fromToken: BASE_USDC_ADDRESS,
+      amount: '1000000',
+      userAddress: USER,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some((issue) => issue.path.includes('fromToken')),
+      ).toBe(true);
+    }
   });
 
   it('rejects a Base-chain token on a different source chain', () => {

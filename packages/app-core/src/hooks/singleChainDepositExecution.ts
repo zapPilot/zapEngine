@@ -1,10 +1,6 @@
 import { pollUntil } from '@core/lib/polling';
 import { getPublicClient } from '@core/services/intentClient';
-import {
-  GMX_V2_MARKETS,
-  GMX_V2_TOKENS,
-  MORPHO_VAULTS,
-} from '@zapengine/intent-engine';
+import { GMX_V2_MARKETS, MORPHO_VAULTS } from '@zapengine/intent-engine';
 import { type DepositPlan, NATIVE_TOKEN_ADDRESS } from '@zapengine/types/api';
 import {
   type Address,
@@ -90,10 +86,7 @@ export async function assertSingleChainPreflight(params: {
   const chainId = requestChainId(params.request);
   const publicClient = getPublicClient(chainId);
   const callsValue = transactionValue(params.plan);
-  const fundingToken =
-    params.request.kind === 'invest'
-      ? (params.request.fromToken as Address)
-      : GMX_V2_TOKENS.USDC.address;
+  const fundingToken = params.request.fromToken as Address;
   const fundingAmount = BigInt(
     params.request.kind === 'invest'
       ? params.request.fromAmount

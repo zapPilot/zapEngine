@@ -7,7 +7,6 @@ import {
   composeDeposit,
   GMX_V2_ARBITRUM_CHAIN_ID,
   GMX_V2_GAS_ESTIMATES,
-  GMX_V2_TOKENS,
   type IntentEngine,
   type LiFiAdapter,
   MORPHO_VAULTS,
@@ -1046,7 +1045,7 @@ export function createPlanOrchestrationService({
     const userAddress = request.userAddress as Address;
     const gmxPlan = await intentEngine.buildGmxV2Supply({
       marketKey: request.marketKey,
-      fromToken: GMX_V2_TOKENS.USDC.address,
+      fromToken: request.fromToken as Address,
       fromAmount: request.amount,
       userAddress,
     });

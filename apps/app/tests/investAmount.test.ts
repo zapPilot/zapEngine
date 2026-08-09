@@ -230,6 +230,8 @@ describe('Invest amount helpers', () => {
         totalUsd6: '10000000',
         baseFundingToken: BASE_DEPOSIT_TOKENS[1],
         baseUsdPrice: 2_000,
+        arbitrumFundingToken: DEFAULT_ARBITRUM_FUNDING_TOKEN,
+        arbitrumUsdPrice: null,
       }),
     ).toEqual({
       scope: 'base',
@@ -243,6 +245,8 @@ describe('Invest amount helpers', () => {
         totalUsd6: '10000000',
         baseFundingToken: BASE_DEPOSIT_TOKENS[1],
         baseUsdPrice: null,
+        arbitrumFundingToken: DEFAULT_ARBITRUM_FUNDING_TOKEN,
+        arbitrumUsdPrice: 1,
       }),
     ).toEqual({
       scope: 'arbitrum',
@@ -257,7 +261,45 @@ describe('Invest amount helpers', () => {
         totalUsd6: '10000000',
         baseFundingToken: BASE_DEPOSIT_TOKENS[0],
         baseUsdPrice: 1,
+        arbitrumFundingToken: DEFAULT_ARBITRUM_FUNDING_TOKEN,
+        arbitrumUsdPrice: 1,
       }),
     ).toBeNull();
+  });
+
+  it('preserves the selected Arbitrum token in frozen single-chain drafts', () => {
+    expect(
+      buildSingleChainFundingDraft({
+        scope: 'arbitrum',
+        totalUsd6: '10000000',
+        baseFundingToken: BASE_DEPOSIT_TOKENS[0],
+        baseUsdPrice: 1,
+        arbitrumFundingToken: ARBITRUM_DEPOSIT_TOKENS[1],
+        arbitrumUsdPrice: 1,
+      }),
+    ).toEqual({
+      scope: 'arbitrum',
+      chainId: 42161,
+      fromToken: ARBITRUM_DEPOSIT_TOKENS[1].depositAddress,
+      fromAmount: '10000000',
+      marketKey: 'btc-usdc',
+    });
+
+    expect(
+      buildSingleChainFundingDraft({
+        scope: 'arbitrum',
+        totalUsd6: '10000000',
+        baseFundingToken: BASE_DEPOSIT_TOKENS[0],
+        baseUsdPrice: 1,
+        arbitrumFundingToken: ARBITRUM_DEPOSIT_TOKENS[2],
+        arbitrumUsdPrice: 2_000,
+      }),
+    ).toEqual({
+      scope: 'arbitrum',
+      chainId: 42161,
+      fromToken: ARBITRUM_DEPOSIT_TOKENS[2].depositAddress,
+      fromAmount: '5000000000000000',
+      marketKey: 'btc-usdc',
+    });
   });
 });
