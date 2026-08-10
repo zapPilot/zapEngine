@@ -130,7 +130,7 @@ describe('simulation verdicts', () => {
           warnings: [{ code: 'UNLIMITED_APPROVAL', message: 'Unlimited' }],
         }),
       ),
-    ).toEqual({ label: 'Review 1 warning', tone: 'warning' });
+    ).toEqual({ label: 'Simulation ready', tone: 'success' });
     expect(verdictMeta('failed')).toEqual({
       label: 'Simulation failed',
       tone: 'error',
@@ -189,7 +189,6 @@ describe('confirmGate', () => {
       options: {
         nowMs: NOW_MS,
         busy: false,
-        warningAcknowledged: false,
       },
       expected: { canConfirm: true, expired: false, reason: null },
     },
@@ -199,7 +198,6 @@ describe('confirmGate', () => {
       options: {
         nowMs: NOW_MS,
         busy: false,
-        warningAcknowledged: false,
       },
       expected: {
         canConfirm: false,
@@ -216,7 +214,6 @@ describe('confirmGate', () => {
       options: {
         nowMs: NOW_MS,
         busy: false,
-        warningAcknowledged: false,
       },
       expected: {
         canConfirm: false,
@@ -230,12 +227,11 @@ describe('confirmGate', () => {
       options: {
         nowMs: NOW_MS,
         busy: true,
-        warningAcknowledged: false,
       },
       expected: { canConfirm: false, expired: false, reason: 'busy' },
     },
     {
-      name: 'warning not acknowledged',
+      name: 'warning',
       value: preview({
         status: 'warning',
         warnings: [{ code: 'UNLIMITED_APPROVAL', message: 'Unlimited' }],
@@ -243,24 +239,6 @@ describe('confirmGate', () => {
       options: {
         nowMs: NOW_MS,
         busy: false,
-        warningAcknowledged: false,
-      },
-      expected: {
-        canConfirm: false,
-        expired: false,
-        reason: 'warning-acknowledgement-required',
-      },
-    },
-    {
-      name: 'warning acknowledged',
-      value: preview({
-        status: 'warning',
-        warnings: [{ code: 'UNLIMITED_APPROVAL', message: 'Unlimited' }],
-      }),
-      options: {
-        nowMs: NOW_MS,
-        busy: false,
-        warningAcknowledged: true,
       },
       expected: { canConfirm: true, expired: false, reason: null },
     },
@@ -273,14 +251,12 @@ describe('confirmGate', () => {
       confirmGate(preview({ expiresAt: NOW_MS + 10_001 }), {
         nowMs: NOW_MS,
         busy: false,
-        warningAcknowledged: false,
       }),
     ).toEqual({ canConfirm: true, expired: false, reason: null });
     expect(
       confirmGate(preview({ expiresAt: NOW_MS + 10_000 }), {
         nowMs: NOW_MS,
         busy: false,
-        warningAcknowledged: false,
       }),
     ).toEqual({
       canConfirm: false,

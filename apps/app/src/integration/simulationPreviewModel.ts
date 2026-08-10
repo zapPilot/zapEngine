@@ -9,7 +9,7 @@ import type {
 
 export const PREVIEW_EXPIRY_MARGIN_MS = 10_000;
 
-export type SimulationVerdictTone = 'success' | 'warning' | 'error' | 'neutral';
+export type SimulationVerdictTone = 'success' | 'error' | 'neutral';
 
 export interface SimulationVerdictMeta {
   label: string;
@@ -19,8 +19,7 @@ export interface SimulationVerdictMeta {
 export type ConfirmGateReason =
   | 'simulation-blocked'
   | 'preview-expired'
-  | 'busy'
-  | 'warning-acknowledgement-required';
+  | 'busy';
 
 export interface SimulationConfirmGate {
   canConfirm: boolean;
@@ -47,16 +46,8 @@ export function verdictMeta(
   switch (status) {
     case 'passed':
       return { label: 'All checks passed', tone: 'success' };
-    case 'warning': {
-      if (typeof previewOrStatus === 'string') {
-        return { label: 'Review warnings', tone: 'warning' };
-      }
-      const count = previewOrStatus.warnings.length;
-      return {
-        label: `Review ${count} ${count === 1 ? 'warning' : 'warnings'}`,
-        tone: 'warning',
-      };
-    }
+    case 'warning':
+      return { label: 'Simulation ready', tone: 'success' };
     case 'failed':
       return { label: 'Simulation failed', tone: 'error' };
     case 'unavailable':
@@ -138,11 +129,9 @@ export function confirmGate(
   {
     nowMs,
     busy,
-    warningAcknowledged,
   }: {
     nowMs: number;
     busy: boolean;
-    warningAcknowledged: boolean;
   },
 ): SimulationConfirmGate {
   if (preview.status === 'failed' || preview.status === 'unavailable') {
@@ -159,13 +148,6 @@ export function confirmGate(
   }
   if (busy) {
     return { canConfirm: false, expired: false, reason: 'busy' };
-  }
-  if (preview.status === 'warning' && !warningAcknowledged) {
-    return {
-      canConfirm: false,
-      expired: false,
-      reason: 'warning-acknowledgement-required',
-    };
   }
   return { canConfirm: true, expired: false, reason: null };
 }

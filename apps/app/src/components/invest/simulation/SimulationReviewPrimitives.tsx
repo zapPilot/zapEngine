@@ -5,14 +5,12 @@ import type { SimulationVerdictTone } from '@/integration/simulationPreviewModel
 
 export const VERDICT_CLASSES: Record<SimulationVerdictTone, string> = {
   success: 'border-success/30 bg-success/10',
-  warning: 'border-accent/30 bg-accent-soft',
   error: 'border-error/30 bg-error/10',
   neutral: 'border-line-hi bg-surface-elevated',
 };
 
 export const VERDICT_TEXT_CLASSES: Record<SimulationVerdictTone, string> = {
   success: 'text-success',
-  warning: 'text-accent',
   error: 'text-error',
   neutral: 'text-ink-dim',
 };

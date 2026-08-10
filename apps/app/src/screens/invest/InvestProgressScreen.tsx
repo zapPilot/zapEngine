@@ -156,7 +156,6 @@ export function InvestProgressScreen() {
   } = useInvestExecution();
   const [checkpointPending, setCheckpointPending] = useState(false);
   const [checkpointError, setCheckpointError] = useState<string | null>(null);
-  const [checkpointAcknowledged, setCheckpointAcknowledged] = useState(false);
   const [checkpointNow, setCheckpointNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -194,9 +193,6 @@ export function InvestProgressScreen() {
   const nextReviewIndex = reviewedProgress
     ? reviewedProgress.groupIndex + 1
     : -1;
-  const nextReviewNeedsAcknowledgement = Boolean(
-    nextQueuedReview?.review.requiresRiskAcknowledgement,
-  );
   const nextReviewBlocked = reviewIsBlocked(
     nextQueuedReview?.review,
     checkpointNow,
@@ -218,7 +214,6 @@ export function InvestProgressScreen() {
       plan,
       review: freshGroup,
     });
-    setCheckpointAcknowledged(false);
   };
 
   const runCheckpointAction = async (action: () => Promise<void>) => {
@@ -237,12 +232,6 @@ export function InvestProgressScreen() {
 
   const confirmNextReviewedBatch = async () => {
     if (!nextQueuedReview || checkpointPending) return;
-    if (nextReviewNeedsAcknowledgement && !checkpointAcknowledged) {
-      setCheckpointError(
-        'Acknowledge the Arbitrum review warning before signing.',
-      );
-      return;
-    }
     await runCheckpointAction(async () => {
       const { fresh, freshGroup } = await refreshNextQueuedReview();
       const queuedGroup = nextQueuedReview.review;
@@ -276,7 +265,7 @@ export function InvestProgressScreen() {
       const result = await submitNextReviewedBatch({
         plan: fresh.plan,
         review: freshGroup,
-        ...(checkpointAcknowledged
+        ...(freshGroup.requiresRiskAcknowledgement
           ? { acknowledgedRiskHash: freshGroup.expectedRiskHash }
           : {}),
       });
@@ -368,12 +357,7 @@ export function InvestProgressScreen() {
               <>
                 {nextQueuedReview ? (
                   <View className="mt-4">
-                    <SimulationReviewBody
-                      review={nextQueuedReview.review}
-                      acknowledged={checkpointAcknowledged}
-                      disabled={checkpointPending || nextReviewBlocked}
-                      onAcknowledgedChange={setCheckpointAcknowledged}
-                    />
+                    <SimulationReviewBody review={nextQueuedReview.review} />
                   </View>
                 ) : null}
                 {checkpointError ? (

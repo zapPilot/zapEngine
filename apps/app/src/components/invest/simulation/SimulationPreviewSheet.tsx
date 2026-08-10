@@ -1,7 +1,6 @@
 import type { SimulationPreviewRenderProps } from '@zapengine/app-core/hooks/wallet/useAtomicBatchExecution';
 import {
   Activity,
-  AlertTriangle,
   Check,
   Clock3,
   CloudOff,
@@ -19,7 +18,6 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  Switch,
   Text,
   View,
 } from 'react-native';
@@ -62,7 +60,6 @@ export {
 
 function VerdictIcon({ tone }: { tone: SimulationVerdictTone }) {
   if (tone === 'success') return <ShieldCheck size={14} color="#7ad88f" />;
-  if (tone === 'warning') return <AlertTriangle size={14} color="#d4c5a3" />;
   if (tone === 'error') return <XCircle size={14} color="#ff6f61" />;
   return <CloudOff size={14} color="#a1a1aa" />;
 }
@@ -75,63 +72,6 @@ function BlockingBanner({
   reason: string;
 }) {
   return <SimulationBlockingBanner failed={failed} reason={reason} />;
-}
-
-function WarningReview({
-  warnings,
-  acknowledged,
-  disabled,
-  onAcknowledgedChange,
-}: {
-  warnings: SimulationPreviewRenderProps['previewData']['warnings'];
-  acknowledged: boolean;
-  disabled: boolean;
-  onAcknowledgedChange: (acknowledged: boolean) => void;
-}) {
-  return (
-    <View className="rounded-2xl border border-accent/30 bg-accent-soft p-4">
-      <View className="flex-row items-center gap-2">
-        <AlertTriangle size={16} color="#d4c5a3" />
-        <Text className="font-sans-semibold text-[12px] text-accent">
-          Review before signing
-        </Text>
-      </View>
-      <View className="mt-3 gap-2.5">
-        {warnings.map((warning, index) => (
-          <View
-            key={`${warning.code}-${warning.callIndex ?? 'batch'}-${index}`}
-            className="flex-row items-start gap-2"
-          >
-            <View className="mt-[6px] h-1.5 w-1.5 rounded-full bg-accent" />
-            <View className="min-w-0 flex-1">
-              <Text className="text-[11px] leading-[17px] text-ink">
-                {warning.message}
-              </Text>
-              {warning.callIndex === undefined ? null : (
-                <Text className="mt-0.5 font-mono text-[8.5px] text-ink-faint">
-                  Call {warning.callIndex + 1}
-                </Text>
-              )}
-            </View>
-          </View>
-        ))}
-      </View>
-      <View className="mt-4 flex-row items-center gap-3 border-t border-accent/20 pt-3">
-        <Switch
-          accessibilityLabel="Acknowledge simulation warnings"
-          disabled={disabled}
-          ios_backgroundColor="#3f3f46"
-          trackColor={{ false: '#3f3f46', true: '#81765d' }}
-          thumbColor={acknowledged ? '#d4c5a3' : '#a1a1aa'}
-          value={acknowledged}
-          onValueChange={onAcknowledgedChange}
-        />
-        <Text className="min-w-0 flex-1 text-[10.5px] leading-4 text-ink-dim">
-          I understand these risks and want to continue.
-        </Text>
-      </View>
-    </View>
-  );
 }
 
 function TenderlyEvidence({
@@ -257,7 +197,6 @@ export function SimulationPreviewSheet({
   const [riskReview, setRiskReview] = useState(() => ({
     simulationFingerprint: previewData.simulationFingerprint,
     riskHash: previewData.riskHash,
-    acknowledged: false,
     changed: false,
   }));
   const reduceMotion = useReducedMotion();
@@ -269,10 +208,6 @@ export function SimulationPreviewSheet({
     setRiskReview({
       simulationFingerprint: previewData.simulationFingerprint,
       riskHash: previewData.riskHash,
-      acknowledged:
-        riskReview.riskHash === previewData.riskHash
-          ? riskReview.acknowledged
-          : false,
       changed: true,
     });
   }
@@ -280,13 +215,9 @@ export function SimulationPreviewSheet({
   const signable =
     previewData.status === 'passed' || previewData.status === 'warning';
   const busy = isSigningAndSending || isRetryingSimulation;
-  const warningAcknowledged =
-    previewData.status !== 'warning' ||
-    (riskReview.riskHash === previewData.riskHash && riskReview.acknowledged);
   const gate = confirmGate(previewData, {
     nowMs,
     busy,
-    warningAcknowledged,
   });
 
   useEffect(() => {
@@ -420,24 +351,6 @@ export function SimulationPreviewSheet({
                 <SectionLabel>Net flow</SectionLabel>
                 <SimulationAssetRows outgoing={outgoing} incoming={incoming} />
               </View>
-
-              {previewData.status === 'warning' ? (
-                <View>
-                  <SectionLabel>Warnings</SectionLabel>
-                  <WarningReview
-                    warnings={previewData.warnings}
-                    acknowledged={warningAcknowledged}
-                    disabled={busy}
-                    onAcknowledgedChange={(acknowledged) =>
-                      setRiskReview((current) => ({
-                        ...current,
-                        riskHash: previewData.riskHash,
-                        acknowledged,
-                      }))
-                    }
-                  />
-                </View>
-              ) : null}
 
               {previewData.approvals.length > 0 ? (
                 <View>

@@ -3,13 +3,12 @@ import type {
   ExecutionSimulationReview,
 } from '@zapengine/types/api';
 import {
-  AlertTriangle,
   CloudOff,
   ExternalLink,
   ShieldCheck,
   XCircle,
 } from 'lucide-react-native';
-import { Linking, Switch, Text, View } from 'react-native';
+import { Linking, Text, View } from 'react-native';
 
 import { SimulationAssetRows } from '@/components/invest/simulation/SimulationAssetRows';
 import { SimulationCallList } from '@/components/invest/simulation/SimulationCallList';
@@ -37,10 +36,7 @@ function verdict(review: ExecutionSimulationReview): {
     case 'passed':
       return { label: 'All checks passed', tone: 'success' };
     case 'warning':
-      return {
-        label: `Review ${review.warnings.length} ${review.warnings.length === 1 ? 'warning' : 'warnings'}`,
-        tone: 'warning',
-      };
+      return { label: 'Simulation ready', tone: 'success' };
     case 'failed':
       return { label: 'Simulation failed', tone: 'error' };
     case 'unavailable':
@@ -118,9 +114,6 @@ function BlockingBanner({ review }: { review: DepositReviewGroup }) {
 
 export interface SimulationReviewBodyProps {
   review: DepositReviewGroup;
-  acknowledged: boolean;
-  disabled?: boolean;
-  onAcknowledgedChange?: (acknowledged: boolean) => void;
 }
 
 /**
@@ -128,15 +121,9 @@ export interface SimulationReviewBodyProps {
  * deliberately independent from the legacy Privy preview's signing envelope
  * so both Privy and external wallets render the same evidence in Step 2.
  */
-export function SimulationReviewBody({
-  review,
-  acknowledged,
-  disabled = false,
-  onAcknowledgedChange,
-}: SimulationReviewBodyProps) {
+export function SimulationReviewBody({ review }: SimulationReviewBodyProps) {
   const meta = verdict(review);
   const { incoming, outgoing } = partitionAssetChanges(review.assetChanges);
-  const showWarning = review.status === 'warning' && review.warnings.length > 0;
   const evidenceTone =
     review.status === 'failed'
       ? { background: 'bg-error/10', color: '#ff6f61' }
@@ -152,8 +139,6 @@ export function SimulationReviewBody({
         >
           {meta.tone === 'success' ? (
             <ShieldCheck size={14} color="#7ad88f" />
-          ) : meta.tone === 'warning' ? (
-            <AlertTriangle size={14} color="#d4c5a3" />
           ) : meta.tone === 'error' ? (
             <XCircle size={14} color="#ff6f61" />
           ) : (
@@ -189,47 +174,6 @@ export function SimulationReviewBody({
         <SectionLabel>Net flow</SectionLabel>
         <SimulationAssetRows outgoing={outgoing} incoming={incoming} />
       </View>
-
-      {showWarning ? (
-        <View>
-          <SectionLabel>Warnings</SectionLabel>
-          <View className="rounded-2xl border border-accent/30 bg-accent-soft p-4">
-            <View className="flex-row items-center gap-2">
-              <AlertTriangle size={16} color="#d4c5a3" />
-              <Text className="font-sans-semibold text-[12px] text-accent">
-                Review before signing
-              </Text>
-            </View>
-            <View className="mt-3 gap-2.5">
-              {review.warnings.map((warning, index) => (
-                <View
-                  key={`${warning.code}-${warning.callIndex ?? 'batch'}-${index}`}
-                  className="flex-row items-start gap-2"
-                >
-                  <View className="mt-[6px] h-1.5 w-1.5 rounded-full bg-accent" />
-                  <Text className="min-w-0 flex-1 text-[11px] leading-[17px] text-ink">
-                    {warning.message}
-                  </Text>
-                </View>
-              ))}
-            </View>
-            <View className="mt-4 flex-row items-center gap-3 border-t border-accent/20 pt-3">
-              <Switch
-                accessibilityLabel="Acknowledge simulation warnings"
-                disabled={disabled || !onAcknowledgedChange}
-                ios_backgroundColor="#3f3f46"
-                trackColor={{ false: '#3f3f46', true: '#81765d' }}
-                thumbColor={acknowledged ? '#d4c5a3' : '#a1a1aa'}
-                value={acknowledged}
-                onValueChange={(value) => onAcknowledgedChange?.(value)}
-              />
-              <Text className="min-w-0 flex-1 text-[10.5px] leading-4 text-ink-dim">
-                I understand these risks and want to continue.
-              </Text>
-            </View>
-          </View>
-        </View>
-      ) : null}
 
       {review.approvals.length > 0 ? (
         <View>
