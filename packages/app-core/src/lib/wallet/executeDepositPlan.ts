@@ -1,3 +1,7 @@
+import {
+  type ApprovedWalletBrand,
+  approvedWalletLabel,
+} from '@core/lib/wallet/approvedWallets';
 import { intentEngine } from '@core/services/intentClient';
 import type {
   WalletAtomicBatchExecutor,
@@ -28,6 +32,7 @@ export type ExecutablePlan = Pick<DepositPlan, 'approvals' | 'calls'>;
 export interface ExecuteDepositPlanInput {
   plan: ExecutablePlan;
   walletClient?: WalletClient;
+  externalWalletBrand?: ApprovedWalletBrand;
   chainId: number;
   executeAtomicBatch?: WalletAtomicBatchExecutor;
   onBundleSubmitted?: (callsId: string) => void;
@@ -72,21 +77,78 @@ function formatDelegation(delegation: EIP7702DelegationInspection): string {
 }
 
 export class EIP7702WalletRecoveryError extends Error {
-  readonly code = 'EIP7702_WALLET_RECOVERY';
+  readonly code = 'EIP7702_DELEGATION_MISMATCH';
   readonly originalWalletLabel?: string;
 
-  constructor(delegation: EIP7702DelegationInspection) {
+  constructor(
+    delegation: EIP7702DelegationInspection,
+    options: {
+      activeWalletBrand?: ApprovedWalletBrand;
+      reason?: 'inspection-failed' | 'unknown-active-wallet';
+    } = {},
+  ) {
     const reconnectTarget =
       delegation.kind === 'delegated' && delegation.walletLabel
         ? delegation.walletLabel
         : 'the wallet that originally enabled Smart Account features';
-    super(
-      `The connected wallet could not execute this atomic batch with the account's current EIP-7702 delegation. Try again to let the current wallet update or repair the account. If it still fails, reconnect with ${reconnectTarget}.`,
-    );
+    const activeWalletLabel = options.activeWalletBrand
+      ? approvedWalletLabel(options.activeWalletBrand)
+      : null;
+    const message =
+      options.reason === 'inspection-failed'
+        ? "Zap Pilot could not verify this account's EIP-7702 delegation on the target chain. The batch was not submitted."
+        : options.reason === 'unknown-active-wallet'
+          ? 'Zap Pilot could not identify the active browser wallet for EIP-7702 execution. Reconnect with an approved wallet before submitting.'
+          : delegation.kind === 'delegated' &&
+              delegation.walletBrand &&
+              activeWalletLabel
+            ? `The connected wallet is ${activeWalletLabel}, but this account's EIP-7702 delegation is owned by ${reconnectTarget}. Reconnect with ${reconnectTarget} to repair or clear the delegation before submitting.`
+            : `The connected wallet cannot safely execute this account's current EIP-7702 delegation. Reconnect with ${reconnectTarget} before submitting.`;
+    super(message);
     this.name = 'EIP7702WalletRecoveryError';
     if (delegation.kind === 'delegated' && delegation.walletLabel) {
       this.originalWalletLabel = delegation.walletLabel;
     }
+  }
+}
+
+/**
+ * Fail closed before `wallet_sendCalls` when the active wallet does not own
+ * the execution ABI currently delegated to the EOA on the target chain.
+ */
+export async function assertEIP7702DelegationCompatibility({
+  address,
+  chainId,
+  activeWalletBrand,
+}: {
+  address: Address;
+  chainId: number;
+  activeWalletBrand: ApprovedWalletBrand | undefined;
+}): Promise<void> {
+  if (!activeWalletBrand) {
+    throw new EIP7702WalletRecoveryError(
+      { kind: 'notDelegated' },
+      { reason: 'unknown-active-wallet' },
+    );
+  }
+
+  let delegation: EIP7702DelegationInspection;
+  try {
+    delegation = await inspectDelegation({ address, chainId });
+  } catch {
+    throw new EIP7702WalletRecoveryError(
+      { kind: 'notDelegated' },
+      { activeWalletBrand, reason: 'inspection-failed' },
+    );
+  }
+
+  if (delegation.kind === 'notDelegated') {
+    return;
+  }
+  if (!delegation.walletBrand || delegation.walletBrand !== activeWalletBrand) {
+    throw new EIP7702WalletRecoveryError(delegation, {
+      activeWalletBrand,
+    });
   }
 }
 
@@ -240,6 +302,7 @@ export async function submitPreparedTransactionsWithEIP7702({
 export async function executeDepositPlan({
   plan,
   walletClient,
+  externalWalletBrand,
   chainId,
   executeAtomicBatch,
   onBundleSubmitted,
@@ -268,9 +331,12 @@ export async function executeDepositPlan({
 
   const walletAddress = getWalletAddress(walletClient);
 
-  // Do not pre-gate execution by implementation address. The connected wallet
-  // is authoritative for whether it can execute, upgrade, or migrate this EOA;
-  // the local delegation registry is used only after failure for diagnostics.
+  await assertEIP7702DelegationCompatibility({
+    address: walletAddress,
+    chainId,
+    activeWalletBrand: externalWalletBrand,
+  });
+
   const result = await intentEngine.executeWithEIP7702(
     transactions,
     walletClient,

@@ -134,11 +134,7 @@ export function InvestRouteScreen() {
     handleConfirm,
     ctaLabel,
     ctaDisabled,
-    pending,
-    launchRequested,
     reviewNow,
-    acknowledgedRiskHashes,
-    toggleAcknowledgment,
     submissionError,
     dismissSubmissionError,
   } = useInvestRouteSubmit({ review, capability, hasPlanForScope });
@@ -311,21 +307,7 @@ export function InvestRouteScreen() {
               ) : null}
               {review.reviewGroups.map((group) => (
                 <Card key={group.groupId} className="p-4">
-                  <SimulationReviewBody
-                    review={group}
-                    acknowledged={
-                      acknowledgedRiskHashes[group.groupId] ===
-                      group.expectedRiskHash
-                    }
-                    disabled={pending || launchRequested}
-                    onAcknowledgedChange={(acknowledged) =>
-                      toggleAcknowledgment(
-                        group.groupId,
-                        group.expectedRiskHash,
-                        acknowledged,
-                      )
-                    }
-                  />
+                  <SimulationReviewBody review={group} />
                 </Card>
               ))}
             </View>

@@ -181,6 +181,13 @@ describe('vertical news FFmpeg composition', () => {
     );
     // The brand frame must never pass through zoompan — one zoompan per scene.
     expect(filter.match(/zoompan=/g)).toHaveLength(3);
+    // Each still is decoded once. zoompan emits the scene's nominal frames,
+    // transition tail, and two safety frames from that single input frame.
+    expect(filter).toContain(':d=103:');
+    expect(filter).toContain(':d=151:');
+    expect(filter).toContain(':d=127:');
+    expect(filter).not.toContain(':d=1:');
+    expect(filter).not.toContain('[0:v]fps=24,scale=');
   });
 
   it('pads narration through the outro tail and ducks the BGM under it', () => {
@@ -246,7 +253,52 @@ describe('vertical news FFmpeg composition', () => {
       '/music/bgm-02.mp3',
     ]);
     expect(inputPaths).not.toContain('/m/01.png');
+    expect(args.filter((argument) => argument === '-loop')).toHaveLength(1);
+    expect(args.filter((argument) => argument === '-framerate')).toHaveLength(
+      1,
+    );
+    expect(
+      args.slice(
+        args.indexOf(options.framePath) - 1,
+        args.indexOf(options.framePath) + 1,
+      ),
+    ).toEqual(['-i', options.framePath]);
+    expect(
+      args.slice(
+        args.indexOf(options.outroPath) - 5,
+        args.indexOf(options.outroPath) + 1,
+      ),
+    ).toEqual([
+      '-loop',
+      '1',
+      '-framerate',
+      String(options.manifest.clip.fps),
+      '-i',
+      options.outroPath,
+    ]);
     expect(args.at(-1)).toBe('/output/news.mp4');
+  });
+
+  it('uses plain still inputs for every media chunk scene', () => {
+    const options = verticalRenderOptions();
+    const chunk = planVerticalMediaChunks(options.manifest)[0];
+    if (!chunk) throw new Error('Vertical manifest needs a media chunk');
+
+    const args = buildVerticalMediaChunkFfmpegArgs(
+      options,
+      chunk,
+      '/work/chunk.mp4',
+    );
+
+    expect(args.filter((argument) => argument === '-loop')).toHaveLength(0);
+    expect(args.filter((argument) => argument === '-framerate')).toHaveLength(
+      0,
+    );
+    expect(
+      args
+        .map((value, index) => (args[index - 1] === '-i' ? value : null))
+        .filter((value): value is string => value !== null),
+    ).toEqual(options.mediaPaths);
   });
 
   it('renders one bounded media pass plus one final pass after capability checks', async () => {
@@ -279,6 +331,26 @@ describe('vertical news FFmpeg composition', () => {
         vi.fn(capabilityAwareRunner),
       ),
     ).rejects.toThrow('Vertical render needs 3 media inputs, received 1');
+  });
+
+  it('returns separate wall times for chunk and final encoding', async () => {
+    const now = vi
+      .spyOn(Date, 'now')
+      .mockReturnValueOnce(1_000)
+      .mockReturnValueOnce(1_375)
+      .mockReturnValueOnce(2_000)
+      .mockReturnValueOnce(2_125);
+    try {
+      await expect(
+        renderVerticalSlideVideo(
+          verticalRenderOptions(),
+          '/opt/ffmpeg',
+          vi.fn(capabilityAwareRunner),
+        ),
+      ).resolves.toEqual({ chunkEncodeMs: 375, finalEncodeMs: 125 });
+    } finally {
+      now.mockRestore();
+    }
   });
 
   it('asks ffmpeg for machine-readable progress on every render pass', () => {
@@ -463,6 +535,22 @@ describe('ffmpeg encode progress', () => {
     expect(fractions).toEqual([1]);
   });
 
+  it('does not report completion when ffmpeg ends while aborting', () => {
+    const fractions: number[] = [];
+    const controller = new AbortController();
+    const read = createFfmpegEncodeProgressReader(
+      100_000,
+      (fraction) => fractions.push(fraction),
+      controller.signal,
+    );
+
+    read('out_time_us=25000000');
+    controller.abort();
+    read('progress=end');
+
+    expect(fractions).toEqual([0.25]);
+  });
+
   it('stays silent when the clip duration is unusable', () => {
     const onFraction = vi.fn();
     const read = createFfmpegEncodeProgressReader(0, onFraction);
@@ -531,9 +619,9 @@ describe('static slide FFmpeg composition', () => {
       outputPath: '/output/preview.mp4',
     });
 
-    expect(args.filter((argument) => argument === '-loop')).toHaveLength(3);
+    expect(args.filter((argument) => argument === '-loop')).toHaveLength(0);
     expect(args.filter((argument) => argument === '-framerate')).toHaveLength(
-      3,
+      0,
     );
     expect(args).toEqual(
       expect.arrayContaining([

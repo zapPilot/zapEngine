@@ -52,23 +52,29 @@ vi.mock('@zapengine/intent-engine', () => ({
 }));
 
 const quote = {
-  transaction: {
-    to: ROUTER,
-    data: '0x1234',
-    value: '0',
-    chainId: 8453,
-    gasLimit: '100000',
-    meta: { intentType: 'BRIDGE' },
-  },
-  estimate: {
-    fromAmount: '10000000',
-    toAmount: '9950000',
-    toAmountMin: '9900000',
-    gasCostUsd: '0.01',
-    feeCostUsd: '0.04',
-    executionDuration: 60,
-    tool: 'across',
-  },
+  provider: 'lifi',
+  fromChainId: 8453,
+  toChainId: 1337,
+  fromToken: BASE_USDC,
+  toToken: HYPERCORE_USDC,
+  fromAmount: '10000000',
+  toAmount: '9950000',
+  toAmountMin: '9900000',
+  feeUsd: '0.04',
+  gasUsd: '0.01',
+  estimatedDurationSec: 60,
+  approvals: [],
+  calls: [
+    {
+      to: ROUTER,
+      data: '0x1234',
+      value: '0',
+      chainId: 8453,
+      gasLimit: '100000',
+      meta: { intentType: 'BRIDGE' },
+    },
+  ],
+  providerData: {},
 };
 
 const request = {
@@ -102,11 +108,14 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
       getGasPrice: mocks.getGasPrice,
       waitForTransactionReceipt: mocks.waitForTransactionReceipt,
     });
-    mocks.getPerpUsdcBalance.mockResolvedValue({ withdrawableUsd6: 5_000_000n });
+    mocks.getPerpUsdcBalance.mockResolvedValue({
+      withdrawableUsd6: 5_000_000n,
+    });
     mocks.sendTransaction.mockResolvedValue(SOURCE_HASH);
     mocks.waitForBridgeCompletion.mockResolvedValue({
-      status: 'DONE',
-      receiving: { txHash: DESTINATION_HASH, chainId: 1337 },
+      status: 'settled',
+      sourceTxHash: SOURCE_HASH,
+      destinationTxHash: DESTINATION_HASH,
     });
   });
 
@@ -197,12 +206,14 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
       .mockResolvedValueOnce(SECOND_SOURCE_HASH);
     mocks.waitForBridgeCompletion
       .mockResolvedValueOnce({
-        status: 'DONE',
-        receiving: { txHash: DESTINATION_HASH, chainId: 1337 },
+        status: 'settled',
+        sourceTxHash: SOURCE_HASH,
+        destinationTxHash: DESTINATION_HASH,
       })
       .mockResolvedValueOnce({
-        status: 'DONE',
-        receiving: { txHash: SECOND_DESTINATION_HASH, chainId: 1337 },
+        status: 'settled',
+        sourceTxHash: SECOND_SOURCE_HASH,
+        destinationTxHash: SECOND_DESTINATION_HASH,
       });
     mocks.waitForPerpUsdcArrival
       .mockImplementationOnce(

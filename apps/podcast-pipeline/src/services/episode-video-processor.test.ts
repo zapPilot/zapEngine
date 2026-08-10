@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createEpisodeVideoProcessor,
-  EPISODE_VIDEO_RENDER_TIMEOUT_MS,
+  EPISODE_VIDEO_RENDER_TIMEOUT_CAP_MS,
+  EPISODE_VIDEO_RENDER_TIMEOUT_FLOOR_MS,
+  renderTimeoutMsFor,
 } from './episode-video-processor.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
@@ -13,6 +15,24 @@ import {
 const episodeId = '00000000-0000-4000-8000-000000000001';
 const localizationId = '00000000-0000-4000-8000-000000000002';
 const visualHash = 'a'.repeat(64);
+
+describe('renderTimeoutMsFor', () => {
+  it('clamps short episodes to the 40 minute floor', () => {
+    expect(renderTimeoutMsFor(92_800)).toBe(
+      EPISODE_VIDEO_RENDER_TIMEOUT_FLOOR_MS,
+    );
+  });
+
+  it('allows four times the clip duration between the limits', () => {
+    expect(renderTimeoutMsFor(1_000_000)).toBe(4_000_000);
+  });
+
+  it('clamps long episodes to the 90 minute cap', () => {
+    expect(renderTimeoutMsFor(2_000_000)).toBe(
+      EPISODE_VIDEO_RENDER_TIMEOUT_CAP_MS,
+    );
+  });
+});
 
 describe('createEpisodeVideoProcessor', () => {
   function renderedArtifacts(manifestHash: string) {
@@ -25,6 +45,10 @@ describe('createEpisodeVideoProcessor', () => {
       manifestHash,
       slideMasterPaths: [],
       slideOutputPaths: ['/work/slides/slide-01.png'],
+      mediaMs: 1_100,
+      chunkEncodeMs: 2_200,
+      finalEncodeMs: 3_300,
+      downscaleMs: 400,
     };
   }
 
@@ -45,6 +69,14 @@ describe('createEpisodeVideoProcessor', () => {
     const saveManifest = vi.fn().mockImplementation(async () => {
       calls.push('save');
     });
+    const downloadNarration = vi.fn().mockResolvedValue(undefined);
+    const analyzeAudio = vi.fn().mockResolvedValue({
+      durationMs: 90_000,
+      silences: [{ startMs: 1_000, endMs: 1_200 }],
+    });
+    const createManifest = vi
+      .fn()
+      .mockResolvedValue(generatedManifest('manifest-hash'));
     const render = vi.fn().mockImplementation(async () => {
       calls.push('render');
       return {
@@ -56,6 +88,10 @@ describe('createEpisodeVideoProcessor', () => {
         manifestHash: 'manifest-hash',
         slideMasterPaths: [],
         slideOutputPaths: ['/work/slides/slide-01.png'],
+        mediaMs: 1_100,
+        chunkEncodeMs: 2_200,
+        finalEncodeMs: 3_300,
+        downscaleMs: 400,
       };
     });
     const upload = vi.fn().mockImplementation(async () => {
@@ -71,13 +107,9 @@ describe('createEpisodeVideoProcessor', () => {
     });
     const removeDirectory = vi.fn().mockResolvedValue(undefined);
     const processJob = createEpisodeVideoProcessor({
-      analyzeAudio: vi.fn().mockResolvedValue({
-        durationMs: 90_000,
-        silences: [{ startMs: 1_000, endMs: 1_200 }],
-      }),
-      createManifest: vi
-        .fn()
-        .mockResolvedValue(generatedManifest('manifest-hash')),
+      downloadNarration,
+      analyzeAudio,
+      createManifest,
       render,
       upload,
       makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
@@ -100,12 +132,23 @@ describe('createEpisodeVideoProcessor', () => {
         storyboardPromptVersion: 'semantic-scene-alignment-v1',
       }),
     );
+    expect(downloadNarration).toHaveBeenCalledWith(
+      source().hlsUrl,
+      '/work/narration.m4a',
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(analyzeAudio).toHaveBeenCalledWith('/work/narration.m4a', {
+      signal,
+    });
+    expect(createManifest).toHaveBeenCalledWith(
+      expect.objectContaining({ hlsUrl: source().hlsUrl }),
+    );
     // The render runs on a signal derived from the job's, so it can also be cut
     // short by its own deadline; the upload keeps the job signal.
     expect(render).toHaveBeenCalledWith(
       expect.objectContaining({
         signal: expect.any(AbortSignal),
-        audioSource: source().hlsUrl,
+        audioSource: '/work/narration.m4a',
       }),
     );
     expect(upload).toHaveBeenCalledWith(
@@ -153,6 +196,7 @@ describe('createEpisodeVideoProcessor', () => {
       return renderedArtifacts('manifest-hash');
     });
     const processJob = createEpisodeVideoProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi
         .fn()
         .mockResolvedValue({ durationMs: 90_000, silences: [] }),
@@ -208,6 +252,7 @@ describe('createEpisodeVideoProcessor', () => {
       return renderedArtifacts('manifest-hash');
     });
     const processJob = createEpisodeVideoProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi
         .fn()
         .mockResolvedValue({ durationMs: 90_000, silences: [] }),
@@ -246,6 +291,7 @@ describe('createEpisodeVideoProcessor', () => {
       .mockResolvedValueOnce(300 * mib)
       .mockResolvedValueOnce(120 * mib);
     const processJob = createEpisodeVideoProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi
         .fn()
         .mockResolvedValue({ durationMs: 90_000, silences: [] }),
@@ -273,6 +319,11 @@ describe('createEpisodeVideoProcessor', () => {
       .map(([line]) => String(line))
       .find((line) => line.includes('video:render-metrics'));
     expect(metricsLine).toContain('status=completed');
+    expect(metricsLine).toContain('narrationDownloadMs=');
+    expect(metricsLine).toContain('mediaMs=1100');
+    expect(metricsLine).toContain('chunkEncodeMs=2200');
+    expect(metricsLine).toContain('finalEncodeMs=3300');
+    expect(metricsLine).toContain('downscaleMs=400');
     expect(metricsLine).toContain('cgroupCurrentMb=120');
     expect(metricsLine).toContain('cgroupPeakObservedMb=300');
     expect(metricsLine).toContain('nodeRssMb=');
@@ -280,6 +331,7 @@ describe('createEpisodeVideoProcessor', () => {
 
   it('rejects when the rendered manifest hash diverges from the persisted hash', async () => {
     const processJob = createEpisodeVideoProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi.fn().mockResolvedValue({
         durationMs: 60_000,
         silences: [],
@@ -296,6 +348,10 @@ describe('createEpisodeVideoProcessor', () => {
         manifestHash: 'rendered-hash-differs',
         slideMasterPaths: [],
         slideOutputPaths: [],
+        mediaMs: 1_100,
+        chunkEncodeMs: 2_200,
+        finalEncodeMs: 3_300,
+        downscaleMs: 400,
       }),
       upload: vi.fn(),
       makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
@@ -328,6 +384,7 @@ describe('createEpisodeVideoProcessor', () => {
         });
       });
       const processJob = createEpisodeVideoProcessor({
+        downloadNarration: vi.fn().mockResolvedValue(undefined),
         analyzeAudio: vi
           .fn()
           .mockResolvedValue({ durationMs: 90_000, silences: [] }),
@@ -351,7 +408,7 @@ describe('createEpisodeVideoProcessor', () => {
 
       // A hung ffmpeg keeps renewing its lease, and the render process group has
       // no health check to notice, so the deadline is the only backstop.
-      await vi.advanceTimersByTimeAsync(EPISODE_VIDEO_RENDER_TIMEOUT_MS);
+      await vi.advanceTimersByTimeAsync(renderTimeoutMsFor(92_800));
       await expect(settled).resolves.toMatchObject({
         message: 'Video render exceeded 40m',
       });
@@ -362,9 +419,133 @@ describe('createEpisodeVideoProcessor', () => {
     }
   });
 
+  it('fails a stalled narration download after five minutes and cleans up', async () => {
+    vi.useFakeTimers();
+    try {
+      const removeDirectory = vi.fn().mockResolvedValue(undefined);
+      const analyzeAudio = vi.fn();
+      const downloadNarration = vi.fn(
+        (
+          _audioSource: string,
+          _outputPath: string,
+          options?: { signal?: AbortSignal },
+        ) => {
+          const signal = options?.signal;
+          if (!signal) throw new Error('Expected download deadline signal');
+          return new Promise<never>((_resolve, reject) => {
+            signal.addEventListener(
+              'abort',
+              () => reject(abortReason(signal)),
+              { once: true },
+            );
+          });
+        },
+      );
+      const processJob = createEpisodeVideoProcessor({
+        downloadNarration,
+        analyzeAudio,
+        makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
+        removeDirectory,
+      });
+
+      const settled = processJob(job(), source(), {
+        signal: new AbortController().signal,
+        runId: 'run12345',
+        saveManifest: vi.fn(),
+        reportProgress: vi.fn(),
+      }).catch((error: unknown) => error);
+
+      await vi.advanceTimersByTimeAsync(300_000);
+      await expect(settled).resolves.toMatchObject({
+        message: 'Narration download exceeded 5m',
+      });
+      expect(analyzeAudio).not.toHaveBeenCalled();
+      expect(removeDirectory).toHaveBeenCalledWith('/work', {
+        recursive: true,
+        force: true,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cleans up the downloaded narration when audio analysis fails', async () => {
+    const removeDirectory = vi.fn().mockResolvedValue(undefined);
+    const createManifest = vi.fn();
+    const render = vi.fn();
+    const processJob = createEpisodeVideoProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
+      analyzeAudio: vi.fn().mockRejectedValue(new Error('ffprobe failed')),
+      createManifest,
+      render,
+      makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
+      removeDirectory,
+    });
+
+    await expect(
+      processJob(job(), source(), {
+        signal: new AbortController().signal,
+        runId: 'run12345',
+        saveManifest: vi.fn(),
+        reportProgress: vi.fn(),
+      }),
+    ).rejects.toThrow('ffprobe failed');
+
+    expect(createManifest).not.toHaveBeenCalled();
+    expect(render).not.toHaveBeenCalled();
+    expect(removeDirectory).toHaveBeenCalledWith('/work', {
+      recursive: true,
+      force: true,
+    });
+  });
+
+  it('stops the memory sampler when the job aborts during initialization', async () => {
+    let resolveInitialMemory: ((value: number) => void) | undefined;
+    const readCgroupMemory = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<number>((resolve) => {
+            resolveInitialMemory = resolve;
+          }),
+      )
+      .mockResolvedValue(100);
+    const render = vi.fn();
+    const processJob = createEpisodeVideoProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
+      analyzeAudio: vi
+        .fn()
+        .mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      createManifest: vi.fn().mockResolvedValue(generatedManifest('hash')),
+      render,
+      makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
+      writeManifest: vi.fn().mockResolvedValue(undefined),
+      removeDirectory: vi.fn().mockResolvedValue(undefined),
+      readCgroupMemory,
+    });
+    const controller = new AbortController();
+    const settled = processJob(job(), source(), {
+      signal: controller.signal,
+      runId: 'run12345',
+      saveManifest: vi.fn().mockResolvedValue(undefined),
+      reportProgress: vi.fn(),
+    });
+
+    await vi.waitFor(() => expect(readCgroupMemory).toHaveBeenCalledOnce());
+    controller.abort(new Error('job cancelled'));
+    if (!resolveInitialMemory) throw new Error('Memory sampler did not start');
+    resolveInitialMemory(100);
+
+    await expect(settled).rejects.toThrow('job cancelled');
+    expect(render).not.toHaveBeenCalled();
+    // Initial sample + stop's final sample + the metrics current sample.
+    expect(readCgroupMemory).toHaveBeenCalledTimes(3);
+  });
+
   it('cleans up the render directory after upload failure', async () => {
     const removeDirectory = vi.fn().mockResolvedValue(undefined);
     const processJob = createEpisodeVideoProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi.fn().mockResolvedValue({
         durationMs: 90_000,
         silences: [],
@@ -379,6 +560,10 @@ describe('createEpisodeVideoProcessor', () => {
         manifestHash: 'hash',
         slideMasterPaths: [],
         slideOutputPaths: [],
+        mediaMs: 1_100,
+        chunkEncodeMs: 2_200,
+        finalEncodeMs: 3_300,
+        downscaleMs: 400,
       }),
       upload: vi.fn().mockRejectedValue(new Error('R2 unavailable')),
       makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),

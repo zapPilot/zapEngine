@@ -451,6 +451,48 @@ describe('plan-orchestration service', () => {
     });
   });
 
+  it('keeps Tenderly timeouts visible but executable', async () => {
+    const composeDeposit = vi.fn().mockResolvedValue({
+      legs: [],
+      approvals: [],
+      calls: [],
+      totalGasUsd: '0',
+      sourceChainId: 8453,
+    } satisfies DepositPlan);
+    const service = createPlanOrchestrationService({
+      intentEngine: {
+        buildGmxV2Supply: vi.fn(),
+        buildGmxV2Withdraw: vi.fn(),
+        buildWithdrawSwap: vi.fn(),
+      },
+      adapter: {} as never,
+      publicClients: {},
+      composeDeposit,
+      simulation: {
+        adapter: { simulateBundle: vi.fn() },
+        mode: 'enforce',
+        reviewService: {
+          simulateBundle: vi.fn().mockRejectedValue(new Error('timed out')),
+        },
+      },
+    });
+
+    const result = await service.buildDepositReview!({
+      kind: 'invest',
+      userAddress: USER,
+      fromToken: BASE_USDC,
+      fromAmount: '1000',
+      sourceChainId: 8453,
+    });
+
+    expect(result.reviews['chain-8453']).toMatchObject({
+      status: 'unavailable',
+      blocked: false,
+      executionAllowed: true,
+      unavailableReason: 'Tenderly simulation unavailable: timed out',
+    });
+  });
+
   it('returns Tenderly failures as blocked review data', async () => {
     const composeDeposit = vi.fn().mockResolvedValue({
       legs: [],
@@ -668,6 +710,39 @@ describe('plan-orchestration service', () => {
       totalGasUsd: '0.24',
       sourceChainId: 42161,
     });
+  });
+
+  it('splits the Arbitrum GMX basket across all four markets', async () => {
+    const { service, buildGmxV2Supply } = makeService(0n);
+
+    const plan = await service.buildDeposit({
+      kind: 'gmx-v2-basket',
+      fromToken: USDC,
+      amount: '10003',
+      userAddress: USER,
+    });
+
+    expect(
+      buildGmxV2Supply.mock.calls.map(([input]) => [
+        input.marketKey,
+        input.fromAmount,
+      ]),
+    ).toEqual([
+      ['btc-btc', '2500'],
+      ['eth-eth', '2500'],
+      ['btc-usdc', '2500'],
+      ['eth-usdc', '2503'],
+    ]);
+    expect(plan.legs.map((leg) => leg.fromAmount)).toEqual([
+      '2500',
+      '2500',
+      '2500',
+      '2503',
+    ]);
+    expect(plan.legs).toHaveLength(4);
+    expect(plan.calls).toHaveLength(4);
+    expect(plan.approvals).toHaveLength(1);
+    expect(plan.sourceChainId).toBe(42161);
   });
 
   it('adds exact GMX approval when Arbitrum allowance is insufficient', async () => {

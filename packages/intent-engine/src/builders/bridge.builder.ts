@@ -1,7 +1,7 @@
 import type { Address, Hex } from 'viem';
 
-import type { LiFiAdapter } from '../adapters/lifi.adapter.js';
-import type { TransactionQuote } from '../types/transaction.types.js';
+import type { BridgeRouter } from '../bridges/bridge-router.js';
+import type { BridgeQuote, BridgeSelection } from '../bridges/bridge.types.js';
 
 export interface BridgeIntentInput {
   fromChainId: number;
@@ -17,21 +17,31 @@ export interface BridgeIntentInput {
   };
 }
 
-export async function buildBridgeTx(
-  intent: BridgeIntentInput,
-  adapter: LiFiAdapter,
-): Promise<TransactionQuote> {
+function requestFromIntent(intent: BridgeIntentInput) {
   if (intent.destinationCall) {
     throw new Error('Destination contract calls are out of scope for v1');
   }
-
-  return adapter.getQuote({
-    fromChain: intent.fromChainId,
-    toChain: intent.toChainId,
+  return {
+    fromChainId: intent.fromChainId,
+    toChainId: intent.toChainId,
     fromToken: intent.fromToken,
     toToken: intent.toToken,
     fromAmount: intent.fromAmount,
-    fromAddress: intent.userAddress,
-    toAddress: intent.userAddress,
-  });
+    sender: intent.userAddress,
+    recipient: intent.userAddress,
+  };
+}
+
+export async function quoteBridge(
+  intent: BridgeIntentInput,
+  router: BridgeRouter,
+): Promise<BridgeSelection> {
+  return router.quote(requestFromIntent(intent));
+}
+
+export async function buildBridgeTx(
+  intent: BridgeIntentInput,
+  router: BridgeRouter,
+): Promise<BridgeQuote> {
+  return (await quoteBridge(intent, router)).selected;
 }

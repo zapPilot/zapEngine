@@ -444,7 +444,7 @@ describe('plan safety gate', () => {
     );
   });
 
-  it('maps an unavailable bundle simulation to 503 in enforce mode', async () => {
+  it('allows submission when bundle simulation is unavailable in enforce mode', async () => {
     const simulateBundle = vi
       .fn()
       .mockResolvedValue({ status: 'unavailable', reason: 'timeout' });
@@ -457,7 +457,8 @@ describe('plan safety gate', () => {
       investRequest(),
     );
 
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(200);
+    expect(simulateBundle).toHaveBeenCalled();
   });
 
   it('does not call the simulation adapter in off mode', async () => {

@@ -51,24 +51,30 @@ vi.mock('@zapengine/intent-engine', () => ({
   buildApproveTx: mocks.buildApproveTx,
 }));
 
+const bridgeCall = {
+  to: ROUTER,
+  data: '0x1234',
+  value: '0',
+  chainId: 8453,
+  gasLimit: '100000',
+  meta: { intentType: 'BRIDGE' },
+};
+
 const quote = {
-  transaction: {
-    to: ROUTER,
-    data: '0x1234',
-    value: '0',
-    chainId: 8453,
-    gasLimit: '100000',
-    meta: { intentType: 'BRIDGE' },
-  },
-  estimate: {
-    fromAmount: '10000000',
-    toAmount: '9950000',
-    toAmountMin: '9900000',
-    gasCostUsd: '0.01',
-    feeCostUsd: '0.04',
-    executionDuration: 60,
-    tool: 'across',
-  },
+  provider: 'across',
+  fromChainId: 8453,
+  toChainId: 42161,
+  fromToken: BASE_USDC,
+  toToken: ARBITRUM_USDC,
+  fromAmount: '10000000',
+  toAmount: '9950000',
+  toAmountMin: '9900000',
+  feeUsd: '0.04',
+  gasUsd: '0.01',
+  estimatedDurationSec: 60,
+  approvals: [],
+  calls: [bridgeCall],
+  providerData: {},
 };
 
 const request = {
@@ -104,8 +110,9 @@ describe('useBridgeTest', () => {
     });
     mocks.sendTransaction.mockResolvedValue(SOURCE_HASH);
     mocks.waitForBridgeCompletion.mockResolvedValue({
-      status: 'DONE',
-      receiving: { txHash: DESTINATION_HASH, chainId: 42161 },
+      status: 'settled',
+      sourceTxHash: SOURCE_HASH,
+      destinationTxHash: DESTINATION_HASH,
     });
   });
 
@@ -121,17 +128,16 @@ describe('useBridgeTest', () => {
       userAddress: USER,
     });
     expect(result.current.status).toBe('ready');
-    expect(result.current.quote?.estimate.tool).toBe('across');
+    expect(result.current.quote?.provider).toBe('across');
   });
 
-  it('executes the bridge and waits for LI.FI destination completion', async () => {
+  it('executes the bridge and waits for provider-neutral destination completion', async () => {
     const { result } = renderHook(() => useBridgeTest());
 
     await act(async () => {
       await result.current.execute(request);
     });
 
-    expect(mocks.needsApproval).not.toHaveBeenCalled();
     expect(mocks.sendTransaction).toHaveBeenCalledTimes(1);
     expect(mocks.sendTransaction).toHaveBeenCalledWith({
       to: ROUTER,
@@ -142,6 +148,7 @@ describe('useBridgeTest', () => {
     });
     expect(mocks.waitForBridgeCompletion).toHaveBeenCalledWith(
       expect.objectContaining({
+        provider: 'across',
         txHash: SOURCE_HASH,
         fromChain: 8453,
         toChain: 42161,
@@ -191,17 +198,15 @@ describe('useBridgeTest', () => {
   it('stops when the USDC approval transaction reverts', async () => {
     mocks.buildBridge.mockResolvedValue({
       ...quote,
-      approval: {
-        tokenAddress: BASE_USDC,
-        spenderAddress: SPENDER,
-        amount: request.fromAmount,
-      },
-    });
-    mocks.needsApproval.mockResolvedValue(true);
-    mocks.buildApproveTx.mockReturnValue({
-      to: BASE_USDC,
-      data: '0x5678',
-      chainId: 8453,
+      approvals: [
+        {
+          to: BASE_USDC,
+          data: '0x5678',
+          value: '0',
+          chainId: 8453,
+          meta: { intentType: 'BRIDGE_APPROVAL' },
+        },
+      ],
     });
     mocks.sendTransaction.mockResolvedValue(APPROVAL_HASH);
     mocks.waitForTransactionReceipt.mockResolvedValue({ status: 'reverted' });
@@ -219,7 +224,7 @@ describe('useBridgeTest', () => {
       chainId: 8453,
     });
     expect(result.current.status).toBe('failed');
-    expect(result.current.error).toBe('USDC approval transaction reverted.');
+    expect(result.current.error).toBe('Bridge approval transaction reverted.');
     expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
   });
 
@@ -238,9 +243,9 @@ describe('useBridgeTest', () => {
     expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
   });
 
-  it('exposes LI.FI completion polling failures after source submission', async () => {
+  it('exposes provider completion polling failures after source submission', async () => {
     mocks.waitForBridgeCompletion.mockRejectedValue(
-      new Error('LI.FI completion polling timed out.'),
+      new Error('Bridge completion polling timed out.'),
     );
     const { result } = renderHook(() => useBridgeTest());
 
@@ -252,7 +257,7 @@ describe('useBridgeTest', () => {
     expect(result.current.sourceTxHash).toBe(SOURCE_HASH);
     expect(result.current.destinationTxHash).toBeNull();
     expect(result.current.status).toBe('failed');
-    expect(result.current.error).toBe('LI.FI completion polling timed out.');
+    expect(result.current.error).toBe('Bridge completion polling timed out.');
   });
 
   it('rejects Hyperliquid as a source before requesting a quote', async () => {

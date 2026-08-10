@@ -98,8 +98,14 @@ export function planRequest(
  * Instantiate once per panel — each call owns its own pending/steps state.
  */
 export function useWithdraw() {
-  const { account, chain, executeAtomicBatch, getWalletClient, switchChain } =
-    useWalletProvider();
+  const {
+    account,
+    chain,
+    executeAtomicBatch,
+    externalWalletBrand,
+    getWalletClient,
+    switchChain,
+  } = useWalletProvider();
   const { state, actions } = useDepositExecutionState<WithdrawPlan>();
   const [steps, setSteps] = useState<WithdrawStepProgress[]>([]);
 
@@ -146,6 +152,7 @@ export function useWithdraw() {
             plan,
             walletClient,
             chainId,
+            ...(externalWalletBrand ? { externalWalletBrand } : {}),
             ...(executeAtomicBatch ? { executeAtomicBatch } : {}),
             onBundleSubmitted: (callsId) => {
               actions.markBundleSubmitted(callsId);
@@ -182,6 +189,7 @@ export function useWithdraw() {
       account?.address,
       chain?.id,
       executeAtomicBatch,
+      externalWalletBrand,
       getWalletClient,
       switchChain,
       markAllSteps,

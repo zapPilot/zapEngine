@@ -3,7 +3,10 @@ import {
   requireUserAddress,
   useDepositExecutionState,
 } from '@core/hooks/useDepositExecutionState';
-import { executeDepositPlan } from '@core/lib/wallet/executeDepositPlan';
+import {
+  assertEIP7702DelegationCompatibility,
+  executeDepositPlan,
+} from '@core/lib/wallet/executeDepositPlan';
 import { useWalletProvider } from '@core/providers/walletContext';
 import { getPublicClient } from '@core/services/intentClient';
 import { getGmxDepositPlan } from '@core/services/planOrchestrationService';
@@ -114,8 +117,14 @@ export function initialSteps(plan: DepositPlan): GmxDepositStepProgress[] {
 }
 
 export function useGmxDeposit() {
-  const { account, chain, executeAtomicBatch, getWalletClient, switchChain } =
-    useWalletProvider();
+  const {
+    account,
+    chain,
+    executeAtomicBatch,
+    externalWalletBrand,
+    getWalletClient,
+    switchChain,
+  } = useWalletProvider();
   const { state, actions } = useDepositExecutionState();
   const [steps, setSteps] = useState<GmxDepositStepProgress[]>([]);
 
@@ -152,6 +161,14 @@ export function useGmxDeposit() {
           const userAddress = requireUserAddress(account?.address);
           await ensureChain(chain?.id, arbitrum.id, switchChain);
 
+          if (!executeAtomicBatch) {
+            await assertEIP7702DelegationCompatibility({
+              address: userAddress,
+              chainId: arbitrum.id,
+              activeWalletBrand: externalWalletBrand,
+            });
+          }
+
           const walletClient = await getWalletClient(arbitrum.id);
           const effectiveAddress = walletClientAddress(
             walletClient,
@@ -185,6 +202,7 @@ export function useGmxDeposit() {
             plan,
             walletClient,
             chainId: arbitrum.id,
+            ...(externalWalletBrand ? { externalWalletBrand } : {}),
             ...(executeAtomicBatch ? { executeAtomicBatch } : {}),
             onBundleSubmitted: (callsId) => {
               actions.markBundleSubmitted(callsId);
@@ -221,6 +239,7 @@ export function useGmxDeposit() {
       account?.address,
       chain?.id,
       executeAtomicBatch,
+      externalWalletBrand,
       getWalletClient,
       switchChain,
       markAllSteps,

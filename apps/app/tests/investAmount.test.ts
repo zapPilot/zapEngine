@@ -253,7 +253,6 @@ describe('Invest amount helpers', () => {
       chainId: 42161,
       fromToken: DEFAULT_ARBITRUM_FUNDING_TOKEN.depositAddress,
       fromAmount: '10000000',
-      marketKey: 'btc-usdc',
     });
     expect(
       buildSingleChainFundingDraft({
@@ -282,7 +281,6 @@ describe('Invest amount helpers', () => {
       chainId: 42161,
       fromToken: ARBITRUM_DEPOSIT_TOKENS[1].depositAddress,
       fromAmount: '10000000',
-      marketKey: 'btc-usdc',
     });
 
     expect(
@@ -299,7 +297,6 @@ describe('Invest amount helpers', () => {
       chainId: 42161,
       fromToken: ARBITRUM_DEPOSIT_TOKENS[2].depositAddress,
       fromAmount: '5000000000000000',
-      marketKey: 'btc-usdc',
     });
   });
 });

@@ -1,7 +1,14 @@
 import { getWagmiConfig } from '@core/config/wagmi';
 import { isWalletConnectEnabled } from '@core/lib/env/walletConnect';
-import { isApprovedWalletConnector } from '@core/lib/wallet/approvedWallets';
-import { submitPreparedTransactionsWithEIP7702 } from '@core/lib/wallet/executeDepositPlan';
+import {
+  approvedWalletBrand,
+  isApprovedWalletConnector,
+} from '@core/lib/wallet/approvedWallets';
+import {
+  assertEIP7702DelegationCompatibility,
+  isEIP7702WalletRecoveryError,
+  submitPreparedTransactionsWithEIP7702,
+} from '@core/lib/wallet/executeDepositPlan';
 import {
   checkReviewedBatchGuards,
   useDeduplicatedReviewedExecution,
@@ -146,6 +153,9 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
     () => toConnectorOptions(connectors),
     [connectors],
   );
+  const externalWalletBrand = activeConnector
+    ? (approvedWalletBrand(activeConnector) ?? undefined)
+    : undefined;
 
   const walletList = useMemo(() => {
     if (!address) return [];
@@ -416,6 +426,11 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
         if (chain?.id !== input.chainId) {
           await switchChainAsync({ chainId: input.chainId });
         }
+        await assertEIP7702DelegationCompatibility({
+          address: guard.connectedAddress as `0x${string}`,
+          chainId: input.chainId,
+          activeWalletBrand: externalWalletBrand,
+        });
         const walletClient = await getActiveWalletClient(input.chainId);
         const result = await submitPreparedTransactionsWithEIP7702({
           transactions: input.transactions,
@@ -427,6 +442,13 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
           callsId: result.callsId,
         };
       } catch (error: unknown) {
+        if (isEIP7702WalletRecoveryError(error)) {
+          return {
+            status: 'blocked',
+            code: error.code,
+            reason: error.message,
+          };
+        }
         const reason = error instanceof Error ? error.message : String(error);
         const lowerReason = reason.toLowerCase();
         if (
@@ -446,7 +468,13 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
         throw error;
       }
     },
-    [address, chain?.id, getActiveWalletClient, switchChainAsync],
+    [
+      address,
+      chain?.id,
+      externalWalletBrand,
+      getActiveWalletClient,
+      switchChainAsync,
+    ],
   );
 
   const executeReviewedBatch = useDeduplicatedReviewedExecution(
@@ -485,6 +513,7 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
 
   const backend = useMemo<WalletProviderInterface>(
     () => ({
+      ...(externalWalletBrand ? { externalWalletBrand } : {}),
       account: walletAccount,
       chain: walletChain,
       switchChain: handleSwitchChain,
@@ -508,6 +537,7 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
     }),
     [
       walletAccount,
+      externalWalletBrand,
       walletChain,
       handleSwitchChain,
       sendTransaction,

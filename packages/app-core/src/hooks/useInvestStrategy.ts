@@ -4,6 +4,7 @@ import { executeDepositPlanWithWallet } from '@core/lib/wallet/executeDepositPla
 import { loadBaseInvestPlan } from '@core/lib/wallet/loadBaseInvestPlan';
 import { useWalletProvider } from '@core/providers/walletContext';
 import { waitForBridgeCompletion } from '@core/services/intentClient';
+import type { BridgeProviderId } from '@zapengine/intent-engine';
 import { logger } from '@core/utils/logger';
 import type { DepositLeg, DepositPlan } from '@zapengine/types/api';
 import { useCallback, useState } from 'react';
@@ -54,8 +55,14 @@ function isAbortError(error: unknown): boolean {
 }
 
 export function useInvestStrategy() {
-  const { account, chain, executeAtomicBatch, getWalletClient, switchChain } =
-    useWalletProvider();
+  const {
+    account,
+    chain,
+    executeAtomicBatch,
+    externalWalletBrand,
+    getWalletClient,
+    switchChain,
+  } = useWalletProvider();
   const { state, actions } = useDepositExecutionState();
   const [legs, setLegs] = useState<InvestLegProgress[]>([]);
   const { ref: abortRef, renew: renewAbort } = useAbortControllerRef();
@@ -78,7 +85,9 @@ export function useInvestStrategy() {
       updateLeg(index, { status: 'bridgePending', sourceTxHash });
 
       try {
+        if (!leg.bridge) throw new Error('Bridge leg is missing its provider');
         const status = await waitForBridgeCompletion({
+          provider: leg.bridge as BridgeProviderId,
           txHash: sourceTxHash,
           fromChain: base.id,
           toChain: leg.chainId,
@@ -86,8 +95,8 @@ export function useInvestStrategy() {
         });
         updateLeg(index, {
           status: 'destinationConfirmed',
-          ...(status.receiving?.txHash
-            ? { destinationTxHash: status.receiving.txHash }
+          ...(status.destinationTxHash
+            ? { destinationTxHash: status.destinationTxHash }
             : {}),
         });
       } catch (error) {
@@ -134,6 +143,7 @@ export function useInvestStrategy() {
             plan,
             chainId: sourceChainId,
             getWalletClient,
+            ...(externalWalletBrand ? { externalWalletBrand } : {}),
             ...(executeAtomicBatch ? { executeAtomicBatch } : {}),
             onBundleSubmitted: (callsId) => {
               investStrategyLogger.info('[invest-strategy] executing EIP-7702');
@@ -172,6 +182,7 @@ export function useInvestStrategy() {
       account,
       chain,
       executeAtomicBatch,
+      externalWalletBrand,
       getWalletClient,
       switchChain,
       markAllCallsSubmitted,

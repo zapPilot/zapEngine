@@ -1,10 +1,28 @@
-import { pollUntil } from '@core/lib/polling';
-import { createIntentEngine } from '@zapengine/intent-engine';
+import { getRuntimeEnv } from '@core/lib/env/runtimeEnv';
+import {
+  createIntentEngine,
+  type BridgeProviderId,
+  type BridgeQuote,
+  type BridgeSettlement,
+} from '@zapengine/intent-engine';
 import { createPublicClient, type Hash, http, type PublicClient } from 'viem';
 import { arbitrum, base, mainnet } from 'viem/chains';
 
 export const intentEngine = createIntentEngine({
   lifi: { integrator: 'zap-pilot-frontend' },
+  bridges: {
+    eco: { dAppId: 'zap-pilot-frontend' },
+    across: {
+      get apiKey() {
+        return getRuntimeEnv('VITE_ACROSS_API_KEY');
+      },
+      get integratorId() {
+        return (
+          getRuntimeEnv('VITE_ACROSS_INTEGRATOR_ID') ?? 'zap-pilot-frontend'
+        );
+      },
+    },
+  },
 });
 
 const publicClients: Record<number, unknown> = {
@@ -30,105 +48,38 @@ export function getPublicClient(chainId: number): PublicClient {
   return client as PublicClient;
 }
 
-export interface BridgeStatus {
-  status: string;
-  substatus?: string;
-  receiving?: {
-    txHash?: Hash;
-    chainId?: number;
-  };
-}
-
-export async function getBridgeStatus({
-  txHash,
-  fromChain,
-  toChain,
-  signal,
-}: {
-  txHash: Hash;
-  fromChain: number;
-  toChain: number;
-  signal?: AbortSignal;
-}): Promise<BridgeStatus> {
-  const params = new URLSearchParams({
-    txHash,
-    fromChain: fromChain.toString(),
-    toChain: toChain.toString(),
-  });
-  const response = await fetch(
-    `https://li.quest/v1/status?${params}`,
-    signal ? { signal } : undefined,
-  );
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch LI.FI bridge status: ${response.status}`);
-  }
-
-  return (await response.json()) as BridgeStatus;
-}
-
 export class BridgeFailedError extends Error {
-  readonly substatus?: string;
-  readonly lifiScanUrl: string;
-
-  constructor(params: { txHash: Hash; status: BridgeStatus }) {
-    const scanUrl = `https://scan.li.fi/tx/${params.txHash}`;
-    super(
-      `Bridge transfer ${params.status.status}${
-        params.status.substatus ? ` (${params.status.substatus})` : ''
-      } — inspect ${scanUrl}`,
-    );
+  constructor(readonly settlement: BridgeSettlement) {
+    super(`Bridge transfer failed on ${settlement.sourceTxHash}`);
     this.name = 'BridgeFailedError';
-    if (params.status.substatus !== undefined) {
-      this.substatus = params.status.substatus;
-    }
-    this.lifiScanUrl = scanUrl;
   }
 }
 
-// LI.FI /status values: NOT_FOUND and PENDING are transient (NOT_FOUND is
-// normal in the first minutes after submission); DONE / FAILED / INVALID are
-// terminal.
-const TERMINAL_BRIDGE_STATUSES = new Set(['DONE', 'FAILED', 'INVALID']);
-
-/**
- * Poll LI.FI until the bridge transfer reaches a terminal status. Resolves on
- * DONE; throws BridgeFailedError on FAILED/INVALID; transient fetch errors are
- * retried with backoff by pollUntil.
- */
 export async function waitForBridgeCompletion({
+  provider,
   txHash,
   fromChain,
   toChain,
+  quote,
   signal,
-  onStatus,
 }: {
+  provider: BridgeProviderId;
   txHash: Hash;
   fromChain: number;
   toChain: number;
+  quote?: BridgeQuote;
   signal?: AbortSignal;
-  onStatus?: (status: BridgeStatus) => void;
-}): Promise<BridgeStatus> {
-  const status = await pollUntil<BridgeStatus>({
-    fn: () =>
-      getBridgeStatus({
-        txHash,
-        fromChain,
-        toChain,
-        ...(signal ? { signal } : {}),
-      }),
-    shouldStop: (value) => TERMINAL_BRIDGE_STATUSES.has(value.status),
+}): Promise<BridgeSettlement> {
+  const settlement = await intentEngine.waitForBridgeCompletion({
+    provider,
+    sourceTxHash: txHash,
+    fromChainId: fromChain,
+    toChainId: toChain,
+    ...(quote ? { quote } : {}),
     ...(signal ? { signal } : {}),
-    onAttempt: (value) => {
-      if (value) {
-        onStatus?.(value);
-      }
-    },
   });
-
-  if (status.status !== 'DONE') {
-    throw new BridgeFailedError({ txHash, status });
+  if (settlement.status === 'failed') {
+    throw new BridgeFailedError(settlement);
   }
-
-  return status;
+  return settlement;
 }

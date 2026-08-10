@@ -1,3 +1,4 @@
+import type { ApprovedWalletBrand } from '@core/lib/wallet/approvedWallets';
 import type { PreparedTransaction } from '@zapengine/types/api';
 import type { Account, Chain, Hash, Hex, Transport, WalletClient } from 'viem';
 
@@ -103,6 +104,8 @@ export interface WalletTypedData {
 }
 
 export interface WalletProviderInterface {
+  /** Stable brand of the active external wallet; absent for Privy/native. */
+  readonly externalWalletBrand?: ApprovedWalletBrand;
   account: {
     address: string;
     isConnected: boolean;

@@ -17,7 +17,6 @@ export type SingleChainFundingDraft =
       chainId: 42161;
       fromToken: `0x${string}`;
       fromAmount: string;
-      marketKey: 'btc-usdc';
     };
 
 // Shared with the strategy request schema for flows that include GMX legs.
@@ -247,7 +246,6 @@ export function buildSingleChainFundingDraft(params: {
           chainId: 42161,
           fromToken: params.arbitrumFundingToken.depositAddress,
           fromAmount,
-          marketKey: 'btc-usdc',
         };
   }
 

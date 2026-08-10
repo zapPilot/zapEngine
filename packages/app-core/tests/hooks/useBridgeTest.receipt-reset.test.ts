@@ -49,23 +49,29 @@ vi.mock('@zapengine/intent-engine', () => ({
 }));
 
 const quote = {
-  transaction: {
-    to: ROUTER,
-    data: '0x1234',
-    value: '0',
-    chainId: 8453,
-    gasLimit: '100000',
-    meta: { intentType: 'BRIDGE' },
-  },
-  estimate: {
-    fromAmount: '10000000',
-    toAmount: '9950000',
-    toAmountMin: '9900000',
-    gasCostUsd: '0.01',
-    feeCostUsd: '0.04',
-    executionDuration: 60,
-    tool: 'across',
-  },
+  provider: 'across',
+  fromChainId: 8453,
+  toChainId: 42161,
+  fromToken: BASE_USDC,
+  toToken: ARBITRUM_USDC,
+  fromAmount: '10000000',
+  toAmount: '9950000',
+  toAmountMin: '9900000',
+  feeUsd: '0.04',
+  gasUsd: '0.01',
+  estimatedDurationSec: 60,
+  approvals: [],
+  calls: [
+    {
+      to: ROUTER,
+      data: '0x1234',
+      value: '0',
+      chainId: 8453,
+      gasLimit: '100000',
+      meta: { intentType: 'BRIDGE' },
+    },
+  ],
+  providerData: {},
 };
 
 const request = {
@@ -180,6 +186,5 @@ describe('useBridgeTest reset during source receipt', () => {
     expect(result.current.error).toBeNull();
     expect(result.current.sourceTxHash).toBeNull();
     expect(result.current.destinationTxHash).toBeNull();
-    expect(result.current.lifiScanUrl).toBeNull();
   });
 });

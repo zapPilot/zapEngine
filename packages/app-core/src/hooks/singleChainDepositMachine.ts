@@ -94,7 +94,9 @@ export function requestChainId(request: SingleChainDepositRequest): number {
 }
 
 function requestProtocolLabel(request: SingleChainDepositRequest): string {
-  return request.kind === 'invest' ? 'Morpho Moonwell' : 'GMX BTC/USDC';
+  if (request.kind === 'invest') return 'Morpho Moonwell';
+  if (request.kind === 'gmx-v2-basket') return 'GMX 4-pool basket';
+  return `GMX ${request.marketKey.toUpperCase().replace('-', '/')}`;
 }
 
 function createSteps(
@@ -128,7 +130,9 @@ function createSteps(
       detail:
         request.kind === 'invest'
           ? 'Wait for Moonwell USDC vault shares to increase.'
-          : 'Wait for GMX BTC/USDC market tokens to settle.',
+          : request.kind === 'gmx-v2-basket'
+            ? 'Wait for all four GMX market-token balances to increase.'
+            : 'Wait for the GMX market-token balance to increase.',
       chainId,
       status: 'locked',
     },

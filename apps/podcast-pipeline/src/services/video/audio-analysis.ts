@@ -71,6 +71,25 @@ export function assertMainNarrationAudioSource(audioSource: string): void {
   }
 }
 
+export async function downloadNarrationAudio(
+  audioSource: string,
+  outputPath: string,
+  options: {
+    ffmpegPath?: string;
+    processRunner?: VideoProcessRunner;
+    signal?: AbortSignal;
+  } = {},
+): Promise<void> {
+  assertMainNarrationAudioSource(audioSource);
+  throwIfAborted(options.signal);
+  await invokeRunner(
+    options.processRunner ?? runProcess,
+    options.ffmpegPath ?? resolveVideoFfmpegPath(),
+    ['-y', '-i', audioSource, '-map', '0:a:0', '-c', 'copy', outputPath],
+    options.signal,
+  );
+}
+
 export async function probeAudioDurationMs(
   audioSource: string,
   options: {

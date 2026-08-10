@@ -6,6 +6,7 @@ import {
   type BundleSimulationAdapter,
   composeDeposit,
   GMX_V2_ARBITRUM_CHAIN_ID,
+  GMX_V2_BASKET_MARKET_KEYS,
   GMX_V2_GAS_ESTIMATES,
   type IntentEngine,
   type LiFiAdapter,
@@ -53,10 +54,7 @@ import {
   tokenAmountFromUsd,
   transactionGasUnits,
 } from './decimal';
-import {
-  PlanSimulationFailedError,
-  PlanSimulationUnavailableError,
-} from './errors';
+import { PlanSimulationFailedError } from './errors';
 import type { DepositPublicClients } from './publicClients';
 
 export interface PlanOrchestrationService {
@@ -260,9 +258,9 @@ async function assertPlanSafety(params: {
   if (result.status === 'failed') {
     throw new PlanSimulationFailedError(result.reason);
   }
-  if (result.status === 'unavailable') {
-    throw new PlanSimulationUnavailableError(result.reason);
-  }
+  // Tenderly availability is advisory. A timeout / provider outage must not
+  // prevent the wallet from submitting an otherwise-valid plan. Explicit
+  // simulation failures remain a hard block above.
 }
 
 async function finalizePlan<
@@ -302,6 +300,22 @@ async function getChainGasPricing(params: {
   return { gasPriceWei, nativePriceUsd: nativeToken.priceUSD };
 }
 
+function splitGmxBasketAmount(amount: string): string[] {
+  const total = BigInt(amount);
+  const poolCount = BigInt(GMX_V2_BASKET_MARKET_KEYS.length);
+  const share = total / poolCount;
+  if (share <= 0n) {
+    throw new Error(
+      `GMX basket deposit amount is too small to split ${poolCount.toString()} ways`,
+    );
+  }
+  return GMX_V2_BASKET_MARKET_KEYS.map((_, index) =>
+    index === GMX_V2_BASKET_MARKET_KEYS.length - 1
+      ? (total - share * BigInt(index)).toString()
+      : share.toString(),
+  );
+}
+
 function mergeApprovalTransactions(
   approvals: readonly PreparedTransaction[],
 ): PreparedTransaction[] {
@@ -333,6 +347,81 @@ function mergeApprovalTransactions(
       ...(gasLimit ? { gasLimit } : {}),
     }),
   );
+}
+
+type GmxV2BasketDepositRequest = Extract<
+  PlanOrchestrationDepositRequest,
+  { kind: 'gmx-v2-basket' }
+>;
+
+async function buildGmxV2BasketDeposit(params: {
+  request: GmxV2BasketDepositRequest;
+  intentEngine: PlanOrchestrationServiceDeps['intentEngine'];
+  publicClients: DepositPublicClients;
+  simulation: PlanSimulationDeps | undefined;
+}): Promise<DepositPlan> {
+  const { request, intentEngine, publicClients, simulation } = params;
+  const publicClient = publicClientFor(publicClients, GMX_V2_ARBITRUM_CHAIN_ID);
+  const userAddress = request.userAddress as Address;
+  const amounts = splitGmxBasketAmount(request.amount);
+  const plans = await Promise.all(
+    GMX_V2_BASKET_MARKET_KEYS.map((marketKey, index) =>
+      intentEngine.buildGmxV2Supply(
+        {
+          marketKey,
+          fromToken: request.fromToken as Address,
+          fromAmount: amounts[index]!,
+          userAddress,
+        },
+        publicClient,
+      ),
+    ),
+  );
+  const approvals = await filterNeededApprovals({
+    approvals: mergeApprovalTransactions(
+      plans.flatMap((plan) => plan.approvals),
+    ),
+    owner: userAddress,
+    publicClient,
+  });
+  const gasPricing = await getChainGasPricing({
+    intentEngine,
+    publicClient,
+    chainId: GMX_V2_ARBITRUM_CHAIN_ID,
+  });
+  const sharedApprovalGas = transactionGasUnits(approvals);
+  const approvalGasPerPlan = sharedApprovalGas / 4n;
+  const approvalGasRemainder = sharedApprovalGas % 4n;
+  const gasUsdByPlan = plans.map((plan, index) =>
+    gasUsdFromUnits({
+      gasUnits:
+        transactionGasUnits(plan.steps) +
+        approvalGasPerPlan +
+        (BigInt(index) < approvalGasRemainder ? 1n : 0n),
+      ...gasPricing,
+    }),
+  );
+  const parsed = DepositPlanSchema.parse({
+    legs: plans.map((plan, index) => ({
+      chainId: GMX_V2_ARBITRUM_CHAIN_ID,
+      kind: 'supply',
+      protocol: 'gmx-v2',
+      toToken: plan.market.marketToken,
+      fromAmount: amounts[index]!,
+      toAmountMin: plan.minMarketTokens,
+      gasUsd: gasUsdByPlan[index]!,
+      durationSec: 60,
+    })),
+    approvals,
+    calls: plans.flatMap((plan) => plan.steps),
+    totalGasUsd: sumGasUsd(gasUsdByPlan),
+    sourceChainId: GMX_V2_ARBITRUM_CHAIN_ID,
+  });
+
+  return finalizePlan(parsed, {
+    userAddress: request.userAddress,
+    simulation,
+  });
 }
 
 type StrategyAllocationId = StrategyDepositPlan['allocations'][number]['id'];
@@ -948,8 +1037,7 @@ async function buildDepositReviewResponse(params: {
           }
         }
 
-        const blocked =
-          review.status === 'failed' || review.status === 'unavailable';
+        const blocked = review.status === 'failed';
         const batchFingerprint = reviewFingerprint({
           chainId: group.chainId,
           transactions: [...group.approvals, ...group.calls].map((call) => ({
@@ -1045,6 +1133,15 @@ export function createPlanOrchestrationService({
 
     if (request.kind === 'strategy') {
       return buildStrategyDeposit({
+        request,
+        intentEngine,
+        publicClients,
+        simulation: simulationForSafety,
+      });
+    }
+
+    if (request.kind === 'gmx-v2-basket') {
+      return buildGmxV2BasketDeposit({
         request,
         intentEngine,
         publicClients,

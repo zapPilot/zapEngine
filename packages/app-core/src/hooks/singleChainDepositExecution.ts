@@ -1,6 +1,10 @@
 import { pollUntil } from '@core/lib/polling';
 import { getPublicClient } from '@core/services/intentClient';
-import { GMX_V2_MARKETS, MORPHO_VAULTS } from '@zapengine/intent-engine';
+import {
+  GMX_V2_BASKET_MARKET_KEYS,
+  GMX_V2_MARKETS,
+  MORPHO_VAULTS,
+} from '@zapengine/intent-engine';
 import { type DepositPlan, NATIVE_TOKEN_ADDRESS } from '@zapengine/types/api';
 import {
   type Address,
@@ -129,22 +133,52 @@ export async function assertSingleChainPreflight(params: {
   }
 }
 
-function positionToken(request: SingleChainDepositRequest): Address {
-  return request.kind === 'invest'
-    ? MORPHO_VAULTS[base.id].MOONWELL_USDC
-    : GMX_V2_MARKETS[request.marketKey].marketToken;
+function positionTokens(request: SingleChainDepositRequest): Address[] {
+  if (request.kind === 'invest') {
+    return [MORPHO_VAULTS[base.id].MOONWELL_USDC];
+  }
+  if (request.kind === 'gmx-v2-basket') {
+    return GMX_V2_BASKET_MARKET_KEYS.map(
+      (marketKey) => GMX_V2_MARKETS[marketKey].marketToken,
+    );
+  }
+  return [GMX_V2_MARKETS[request.marketKey].marketToken];
+}
+
+const UINT256_BITS = 256n;
+const UINT256_MASK = (1n << UINT256_BITS) - 1n;
+
+function packPositionBalances(balances: readonly bigint[]): bigint {
+  return balances.reduce(
+    (packed, balance, index) =>
+      packed + (balance << (BigInt(index) * UINT256_BITS)),
+    0n,
+  );
+}
+
+function unpackPositionBalances(packed: bigint, count: number): bigint[] {
+  return Array.from(
+    { length: count },
+    (_, index) => (packed >> (BigInt(index) * UINT256_BITS)) & UINT256_MASK,
+  );
 }
 
 export async function readSingleChainPositionBalance(
   request: SingleChainDepositRequest,
   address: Address,
 ): Promise<bigint> {
-  return getPublicClient(requestChainId(request)).readContract({
-    address: positionToken(request),
-    abi: erc20Abi,
-    functionName: 'balanceOf',
-    args: [address],
-  });
+  const publicClient = getPublicClient(requestChainId(request));
+  const balances = await Promise.all(
+    positionTokens(request).map((positionToken) =>
+      publicClient.readContract({
+        address: positionToken,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [address],
+      }),
+    ),
+  );
+  return packPositionBalances(balances);
 }
 
 export async function waitForSingleChainPositionIncrease(params: {
@@ -152,9 +186,17 @@ export async function waitForSingleChainPositionIncrease(params: {
   address: Address;
   baseline: bigint;
 }): Promise<void> {
+  const positionCount = positionTokens(params.request).length;
+  const baselineBalances = unpackPositionBalances(
+    params.baseline,
+    positionCount,
+  );
   await pollUntil({
     fn: () => readSingleChainPositionBalance(params.request, params.address),
-    shouldStop: (balance) => balance > params.baseline,
+    shouldStop: (packedBalance) =>
+      unpackPositionBalances(packedBalance, positionCount).every(
+        (balance, index) => balance > baselineBalances[index]!,
+      ),
     intervalMs: 4_000,
     timeoutMs: params.request.kind === 'invest' ? 90_000 : 5 * 60_000,
   });
