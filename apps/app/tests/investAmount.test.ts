@@ -6,6 +6,7 @@ import {
   buildSingleChainFundingDraft,
   buildStrategyFundingOptions,
   fundingTokenAmountFromUsd,
+  fundingTokenUsdValueFromInput,
   maxUsdAmountInput,
   minimumDepositUsd6ForScope,
   MIN_STRATEGY_DEPOSIT_USD6,
@@ -88,6 +89,19 @@ describe('Invest amount helpers', () => {
   it('converts USD input to exact 6-decimal base units', () => {
     expect(amountInputToUsd6('1,234.5678919')).toBe('1234567891');
     expect(amountInputToUsd6('0.000001')).toBe('1');
+  });
+
+  it('values single-chain token input in USD before applying deposit floors', () => {
+    const baseEth = row(8453, 'ETH', 2_000, '1000000000000000000', 2_000);
+    expect(
+      fundingTokenUsdValueFromInput('0.001', BASE_DEPOSIT_TOKENS[1], baseEth),
+    ).toBe(2);
+    expect(
+      fundingTokenUsdValueFromInput('1.25', BASE_DEPOSIT_TOKENS[0], null),
+    ).toBe(1.25);
+    expect(
+      fundingTokenUsdValueFromInput('0.001', BASE_DEPOSIT_TOKENS[1], null),
+    ).toBeNull();
   });
 
   it('uses scope-specific minimum deposit floors', () => {

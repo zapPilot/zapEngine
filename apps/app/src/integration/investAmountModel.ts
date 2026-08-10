@@ -97,6 +97,24 @@ export function amountUsdFromInput(groupedAmount: string): number | null {
   return value > 0 ? value : null;
 }
 
+/** Convert a selected funding-token amount into its current USD value. */
+export function fundingTokenUsdValueFromInput(
+  groupedAmount: string,
+  token: DesktopDepositToken,
+  row: ChainTokenBalanceRow | null,
+): number | null {
+  const tokenAmount = parseAmount(groupedAmount);
+  if (tokenAmount <= 0) return null;
+
+  const price =
+    row?.usdPrice ??
+    (token.symbol === 'USDC' || token.symbol === 'USDT' ? 1 : null);
+  if (price === null || !Number.isFinite(price) || price <= 0) return null;
+
+  const usdValue = tokenAmount * price;
+  return Number.isFinite(usdValue) && usdValue > 0 ? usdValue : null;
+}
+
 /** Convert a user-entered USD decimal to an exact 6-decimal integer string. */
 export function amountInputToUsd6(groupedAmount: string): string {
   const cleaned = groupedAmount.replace(/,/gu, '');

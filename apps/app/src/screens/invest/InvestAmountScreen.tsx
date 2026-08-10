@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { Info } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
 import {
@@ -29,6 +29,7 @@ import {
   balanceForFundingToken,
   buildSingleChainFundingDraft,
   fundingTokenAmountFromUsd,
+  fundingTokenUsdValueFromInput,
   maxUsdAmountInput,
   minimumDepositUsd6ForScope,
   normalizeAmountInput,
@@ -199,6 +200,7 @@ export function InvestAmountScreen() {
   const [singleChainTokenSelector, setSingleChainTokenSelector] = useState<
     'base' | 'arbitrum' | null
   >(null);
+  const [singleChainAmountInput, setSingleChainAmountInput] = useState('');
   const isBoth = invest.scope === 'both';
   const isBaseOnly = invest.scope === 'base';
   const activeChainLabel = isBaseOnly ? 'Base' : 'Arbitrum';
@@ -209,7 +211,6 @@ export function InvestAmountScreen() {
   const activeFundingTokens = isBaseOnly
     ? BASE_DEPOSIT_TOKENS
     : ARBITRUM_DEPOSIT_TOKENS;
-  const amountUsd = amountUsdFromInput(invest.amountInput);
   const baseBalance = balanceForFundingToken(
     balances.chainRows,
     invest.baseFundingToken,
@@ -218,31 +219,43 @@ export function InvestAmountScreen() {
     balances.chainRows,
     activeArbitrumFundingToken,
   );
-  const maxTotalUsd = useMemo(() => {
-    if (invest.scope === 'base') {
-      return spendableUsdForFundingToken(baseBalance, invest.baseFundingToken);
-    }
-    if (invest.scope === 'arbitrum') {
-      return spendableUsdForFundingToken(
-        arbitrumBalance,
-        activeArbitrumFundingToken,
-      );
-    }
-    return strategyMaxTotalUsd({
-      base: { token: invest.baseFundingToken, balance: baseBalance },
-      arbitrum: {
-        token: activeArbitrumFundingToken,
-        balance: arbitrumBalance,
-      },
-    });
-  }, [
-    activeArbitrumFundingToken,
-    arbitrumBalance,
-    baseBalance,
-    invest.baseFundingToken,
-    invest.scope,
-  ]);
-  const amountUsd6 = BigInt(invest.totalUsd6);
+  const activeFundingBalance = isBaseOnly ? baseBalance : arbitrumBalance;
+  const singleChainAmountUsd = fundingTokenUsdValueFromInput(
+    singleChainAmountInput,
+    activeFundingToken,
+    activeFundingBalance,
+  );
+  const amountUsd = isBoth
+    ? amountUsdFromInput(invest.amountInput)
+    : singleChainAmountUsd;
+  const resolvedAmountInput = isBoth
+    ? invest.amountInput
+    : amountUsd === null
+      ? ''
+      : maxUsdAmountInput(amountUsd);
+  const resolvedTotalUsd6 = amountInputToUsd6(resolvedAmountInput);
+
+  useEffect(() => {
+    if (isBoth || invest.amountInput === resolvedAmountInput) return;
+    invest.setAmountInput(resolvedAmountInput);
+  }, [isBoth, invest, resolvedAmountInput]);
+
+  const maxTotalUsd =
+    invest.scope === 'base'
+      ? spendableUsdForFundingToken(baseBalance, invest.baseFundingToken)
+      : invest.scope === 'arbitrum'
+        ? spendableUsdForFundingToken(
+            arbitrumBalance,
+            activeArbitrumFundingToken,
+          )
+        : strategyMaxTotalUsd({
+            base: { token: invest.baseFundingToken, balance: baseBalance },
+            arbitrum: {
+              token: activeArbitrumFundingToken,
+              balance: arbitrumBalance,
+            },
+          });
+  const amountUsd6 = BigInt(resolvedTotalUsd6);
   const maxAmountInput =
     maxTotalUsd === null ? '' : maxUsdAmountInput(maxTotalUsd);
   const maxUsd6 = BigInt(amountInputToUsd6(maxAmountInput));
@@ -304,25 +317,14 @@ export function InvestAmountScreen() {
     activeHasBalance;
   const hasStrategyCapacity =
     maxTotalUsd === null ? activeHasBalance : maxUsd6 > 0n;
-  const singleChainFundingDraft = useMemo(
-    () =>
-      buildSingleChainFundingDraft({
-        scope: invest.scope,
-        totalUsd6: invest.totalUsd6,
-        baseFundingToken: invest.baseFundingToken,
-        baseUsdPrice: baseBalance?.usdPrice ?? null,
-        arbitrumFundingToken: activeArbitrumFundingToken,
-        arbitrumUsdPrice: arbitrumBalance?.usdPrice ?? null,
-      }),
-    [
-      activeArbitrumFundingToken,
-      arbitrumBalance?.usdPrice,
-      baseBalance?.usdPrice,
-      invest.baseFundingToken,
-      invest.scope,
-      invest.totalUsd6,
-    ],
-  );
+  const singleChainFundingDraft = buildSingleChainFundingDraft({
+    scope: invest.scope,
+    totalUsd6: resolvedTotalUsd6,
+    baseFundingToken: invest.baseFundingToken,
+    baseUsdPrice: baseBalance?.usdPrice ?? null,
+    arbitrumFundingToken: activeArbitrumFundingToken,
+    arbitrumUsdPrice: arbitrumBalance?.usdPrice ?? null,
+  });
   const hasExecutableFundingAmount = isBoth || singleChainFundingDraft !== null;
   const canReview =
     account.isConnected &&
@@ -345,6 +347,47 @@ export function InvestAmountScreen() {
       : maxTotalUsd === null
         ? 'Available — · USD price unavailable'
         : `Available ${formatUsd(maxTotalUsd)}`;
+
+  const setSingleChainDepositInput = (value: string) => {
+    const normalized = normalizeAmountInput(value);
+    setSingleChainAmountInput(normalized);
+    const usdValue = fundingTokenUsdValueFromInput(
+      normalized,
+      activeFundingToken,
+      activeFundingBalance,
+    );
+    invest.setAmountInput(usdValue === null ? '' : maxUsdAmountInput(usdValue));
+  };
+
+  const handleQuickAmount = (bps: number) => {
+    const usdInput = quickAmountUsdInput(maxTotalUsd, bps);
+    if (isBoth) {
+      invest.setAmountInput(usdInput);
+      return;
+    }
+
+    const usdValue = amountUsdFromInput(usdInput);
+    const tokenAmount = fundingTokenAmountFromUsd(
+      usdValue,
+      10_000,
+      activeFundingToken,
+      activeFundingBalance,
+    );
+    setSingleChainAmountInput(
+      tokenAmount === null ? '' : maxUsdAmountInput(tokenAmount),
+    );
+    invest.setAmountInput(usdInput);
+  };
+
+  const handleSingleChainTokenSelect = (token: typeof activeFundingToken) => {
+    setSingleChainAmountInput('');
+    invest.setAmountInput('');
+    if (isBaseOnly) {
+      invest.setBaseFundingToken(token);
+      return;
+    }
+    invest.setArbitrumFundingToken(token);
+  };
 
   const handlePrimaryAction = () => {
     if (!account.isConnected) {
@@ -386,6 +429,10 @@ export function InvestAmountScreen() {
 
   function handleTabChange(tab: InvestAmountTab): void {
     setSingleChainTokenSelector(null);
+    if (tab !== activeTab) {
+      setSingleChainAmountInput('');
+      invest.setAmountInput('');
+    }
     setActiveTab(tab);
     if (tab !== 'bridge') {
       invest.setScope(tab);
@@ -438,20 +485,30 @@ export function InvestAmountScreen() {
               </Text>
             </View>
             <View className="mt-2 flex-row items-center">
-              <Text className="mr-2 font-sans-semibold text-[30px] text-ink-faint">
-                $
-              </Text>
+              {isBoth ? (
+                <Text className="mr-2 font-sans-semibold text-[30px] text-ink-faint">
+                  $
+                </Text>
+              ) : null}
               <TextInput
-                accessibilityLabel="Total deposit in US dollars"
+                accessibilityLabel={
+                  isBoth
+                    ? 'Total deposit in US dollars'
+                    : `Deposit amount in ${activeFundingToken.symbol}`
+                }
                 className="min-w-0 flex-1 font-sans-semibold text-[42px] leading-[48px] text-ink"
                 keyboardType="decimal-pad"
                 placeholder="0"
                 placeholderTextColor="#52525b"
                 selectionColor="#d4c5a3"
-                value={invest.amountInput}
-                onChangeText={(value) =>
-                  invest.setAmountInput(normalizeAmountInput(value))
-                }
+                value={isBoth ? invest.amountInput : singleChainAmountInput}
+                onChangeText={(value) => {
+                  if (isBoth) {
+                    invest.setAmountInput(normalizeAmountInput(value));
+                    return;
+                  }
+                  setSingleChainDepositInput(value);
+                }}
               />
               {isBoth ? (
                 <View className="rounded-full bg-[#242427] px-3 py-2">
@@ -473,6 +530,13 @@ export function InvestAmountScreen() {
                 />
               )}
             </View>
+            {!isBoth && singleChainAmountInput !== '' ? (
+              <Text className="mt-1 font-mono text-[11px] text-ink-dim">
+                {amountUsd === null
+                  ? 'USD value unavailable'
+                  : `≈ ${formatUsd(amountUsd)}`}
+              </Text>
+            ) : null}
             <QuickAmountChips
               disabled={quickAmountsDisabled}
               maxAccessibilityLabel={
@@ -480,9 +544,7 @@ export function InvestAmountScreen() {
                   ? 'Use maximum strategy deposit supported by both chains'
                   : `Use maximum deposit supported on ${activeChainLabel}`
               }
-              onSelect={(bps) =>
-                invest.setAmountInput(quickAmountUsdInput(maxTotalUsd, bps))
-              }
+              onSelect={handleQuickAmount}
             />
           </View>
 
@@ -595,11 +657,7 @@ export function InvestAmountScreen() {
         rows={balances.chainRows}
         balanceState={isBaseOnly ? baseBalanceState : arbitrumBalanceState}
         selected={activeFundingToken}
-        onSelect={
-          isBaseOnly
-            ? invest.setBaseFundingToken
-            : invest.setArbitrumFundingToken
-        }
+        onSelect={handleSingleChainTokenSelect}
         onClose={() => setSingleChainTokenSelector(null)}
       />
     </>
