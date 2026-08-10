@@ -2,111 +2,120 @@ import {
   BridgeFailedError,
   waitForBridgeCompletion,
 } from '@core/services/intentClient';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const TX_HASH =
   '0xabc0000000000000000000000000000000000000000000000000000000000001';
-const DEST_HASH =
-  '0xdef0000000000000000000000000000000000000000000000000000000000002';
 
-const mocks = vi.hoisted(() => ({
-  waitForBridgeCompletion: vi.fn(),
-}));
-
-vi.mock('@zapengine/intent-engine', () => ({
-  createIntentEngine: () => ({
-    waitForBridgeCompletion: mocks.waitForBridgeCompletion,
-  }),
-}));
+function statusResponse(body: unknown, ok = true): Response {
+  return {
+    ok,
+    status: ok ? 200 : 429,
+    json: async () => body,
+  } as Response;
+}
 
 describe('waitForBridgeCompletion', () => {
+  const fetchMock = vi.fn();
+
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.useFakeTimers();
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
   });
 
-  it('delegates tracking to the selected bridge provider', async () => {
-    mocks.waitForBridgeCompletion.mockResolvedValue({
-      status: 'settled',
-      sourceTxHash: TX_HASH,
-      destinationTxHash: DEST_HASH,
-    });
-
-    await expect(
-      waitForBridgeCompletion({
-        provider: 'eco',
-        txHash: TX_HASH,
-        fromChain: 8453,
-        toChain: 42161,
-      }),
-    ).resolves.toEqual({
-      status: 'settled',
-      sourceTxHash: TX_HASH,
-      destinationTxHash: DEST_HASH,
-    });
-
-    expect(mocks.waitForBridgeCompletion).toHaveBeenCalledWith({
-      provider: 'eco',
-      sourceTxHash: TX_HASH,
-      fromChainId: 8453,
-      toChainId: 42161,
-    });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
-  it('normalizes a provider failure into BridgeFailedError', async () => {
-    mocks.waitForBridgeCompletion.mockResolvedValue({
-      status: 'failed',
-      sourceTxHash: TX_HASH,
-    });
+  it('polls through PENDING/NOT_FOUND and resolves on DONE', async () => {
+    fetchMock
+      .mockResolvedValueOnce(statusResponse({ status: 'NOT_FOUND' }))
+      .mockResolvedValueOnce(statusResponse({ status: 'PENDING' }))
+      .mockResolvedValueOnce(
+        statusResponse({
+          status: 'DONE',
+          receiving: { txHash: '0xdest', chainId: 1337 },
+        }),
+      );
+    const seen: string[] = [];
 
-    await expect(
-      waitForBridgeCompletion({
-        provider: 'across',
-        txHash: TX_HASH,
-        fromChain: 8453,
-        toChain: 42161,
-      }),
-    ).rejects.toBeInstanceOf(BridgeFailedError);
-  });
-
-  it('forwards quote and abort signal to provider tracking', async () => {
-    const controller = new AbortController();
-    const quote = {
-      provider: 'lifi' as const,
-      fromChainId: 8453,
-      toChainId: 1337,
-      fromToken: '0x1111111111111111111111111111111111111111' as const,
-      toToken: '0x2222222222222222222222222222222222222222' as const,
-      fromAmount: '1000000',
-      toAmount: '999000',
-      toAmountMin: '990000',
-      feeUsd: '0.001',
-      gasUsd: '0.01',
-      estimatedDurationSec: 3,
-      approvals: [],
-      calls: [],
-      providerData: {},
-    };
-    mocks.waitForBridgeCompletion.mockResolvedValue({
-      status: 'settled',
-      sourceTxHash: TX_HASH,
-    });
-
-    await waitForBridgeCompletion({
-      provider: 'lifi',
+    const promise = waitForBridgeCompletion({
       txHash: TX_HASH,
       fromChain: 8453,
       toChain: 1337,
-      quote,
-      signal: controller.signal,
+      onStatus: (status) => seen.push(status.status),
     });
 
-    expect(mocks.waitForBridgeCompletion).toHaveBeenCalledWith({
-      provider: 'lifi',
-      sourceTxHash: TX_HASH,
-      fromChainId: 8453,
-      toChainId: 1337,
-      quote,
+    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    await expect(promise).resolves.toEqual({
+      status: 'DONE',
+      receiving: { txHash: '0xdest', chainId: 1337 },
+    });
+    expect(seen).toEqual(['NOT_FOUND', 'PENDING', 'DONE']);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(`txHash=${TX_HASH}`);
+  });
+
+  it('throws BridgeFailedError with the LI.FI scan link on FAILED', async () => {
+    fetchMock.mockResolvedValueOnce(
+      statusResponse({ status: 'FAILED', substatus: 'SLIPPAGE_EXCEEDED' }),
+    );
+
+    await expect(
+      waitForBridgeCompletion({
+        txHash: TX_HASH,
+        fromChain: 8453,
+        toChain: 1,
+      }),
+    ).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof BridgeFailedError &&
+        error.substatus === 'SLIPPAGE_EXCEEDED' &&
+        error.lifiScanUrl === `https://scan.li.fi/tx/${TX_HASH}` &&
+        error.message.includes('FAILED'),
+    );
+  });
+
+  it('treats HTTP failures as transient and keeps polling', async () => {
+    fetchMock
+      .mockResolvedValueOnce(statusResponse(null, false))
+      .mockResolvedValueOnce(statusResponse({ status: 'DONE' }));
+
+    const promise = waitForBridgeCompletion({
+      txHash: TX_HASH,
+      fromChain: 8453,
+      toChain: 42161,
+    });
+
+    // Error path backs off (5s * 1.5 = 7.5s).
+    await vi.advanceTimersByTimeAsync(7_500);
+
+    await expect(promise).resolves.toEqual({ status: 'DONE' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops polling when the abort signal fires', async () => {
+    const controller = new AbortController();
+    fetchMock.mockResolvedValue(statusResponse({ status: 'PENDING' }));
+
+    const promise = waitForBridgeCompletion({
+      txHash: TX_HASH,
+      fromChain: 8453,
+      toChain: 1,
       signal: controller.signal,
     });
+    const assertion = expect(promise).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof DOMException && error.name === 'AbortError',
+    );
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    controller.abort();
+    await assertion;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

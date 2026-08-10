@@ -140,6 +140,9 @@ export class LiFiAdapter {
         fromAddress: params.fromAddress,
         toAddress: params.toAddress ?? params.fromAddress,
         slippage: (params.slippageBps ?? 50) / 10000,
+        ...(params.fromChain !== params.toChain
+          ? { preferBridges: ['eco'] }
+          : {}),
       };
       const quote = await getLiFiQuote(request);
       return this.mapQuoteToTransaction(

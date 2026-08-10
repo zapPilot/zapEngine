@@ -5,7 +5,6 @@ import type {
   BridgeSelection,
 } from './bridge.types.js';
 
-const ECO_TIE_BREAK_USD = 0.01;
 const USDC_DECIMALS = 6;
 
 export class BridgeQuoteUnavailableError extends Error {
@@ -96,5 +95,3 @@ export class BridgeRouter {
     return provider;
   }
 }
-
-export { ECO_TIE_BREAK_USD };

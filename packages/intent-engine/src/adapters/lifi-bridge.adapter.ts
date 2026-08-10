@@ -1,23 +1,11 @@
 import type { Hash } from 'viem';
 
 import { buildApproveTx } from '../approvals/erc20Approval.js';
-import {
-  bridgeSettlement,
-  isCanonicalBaseArbitrumUsdc,
-  pollBridgeStatus,
-  quoteIdentity,
-  signalOptions,
-  type BridgeProvider,
-  type BridgeQuote,
-  type BridgeQuoteRequest,
-  type BridgeSettlement,
-  type BridgeTrackingInput,
-  type FetchLike,
-} from '../bridges/bridge-runtime.js';
+import * as BridgeRuntime from '../bridges/bridge-runtime.js';
 import type { LiFiAdapter } from './lifi.adapter.js';
 
 export interface LiFiBridgeAdapterConfig {
-  fetch?: FetchLike;
+  fetch?: BridgeRuntime.FetchLike;
   statusBaseUrl?: string;
 }
 
@@ -27,9 +15,9 @@ interface LiFiStatus {
   receiving?: { txHash?: Hash };
 }
 
-export class LiFiBridgeAdapter implements BridgeProvider {
+export class LiFiBridgeAdapter implements BridgeRuntime.BridgeProvider {
   readonly id = 'lifi' as const;
-  private readonly fetcher: FetchLike;
+  private readonly fetcher: BridgeRuntime.FetchLike;
 
   constructor(
     private readonly lifi: LiFiAdapter,
@@ -38,11 +26,13 @@ export class LiFiBridgeAdapter implements BridgeProvider {
     this.fetcher = config.fetch ?? fetch;
   }
 
-  supports(request: BridgeQuoteRequest): boolean {
-    return !isCanonicalBaseArbitrumUsdc(request);
+  supports(request: BridgeRuntime.BridgeQuoteRequest): boolean {
+    return !BridgeRuntime.isCanonicalBaseArbitrumUsdc(request);
   }
 
-  async quote(request: BridgeQuoteRequest): Promise<BridgeQuote> {
+  async quote(
+    request: BridgeRuntime.BridgeQuoteRequest,
+  ): Promise<BridgeRuntime.BridgeQuote> {
     const quote = await this.lifi.getQuote({
       fromChain: request.fromChainId,
       toChain: request.toChainId,
@@ -55,7 +45,7 @@ export class LiFiBridgeAdapter implements BridgeProvider {
     });
     return {
       provider: this.id,
-      ...quoteIdentity(request),
+      ...BridgeRuntime.quoteIdentity(request),
       fromAmount: quote.estimate.fromAmount,
       toAmount: quote.estimate.toAmount,
       toAmountMin: quote.estimate.toAmountMin,
@@ -79,8 +69,8 @@ export class LiFiBridgeAdapter implements BridgeProvider {
   }
 
   async waitForCompletion(
-    input: BridgeTrackingInput,
-  ): Promise<BridgeSettlement> {
+    input: BridgeRuntime.BridgeTrackingInput,
+  ): Promise<BridgeRuntime.BridgeSettlement> {
     const fromChainId = input.quote?.fromChainId ?? input.fromChainId;
     const toChainId = input.quote?.toChainId ?? input.toChainId;
     if (!fromChainId || !toChainId) {
@@ -96,19 +86,19 @@ export class LiFiBridgeAdapter implements BridgeProvider {
       });
       const response = await this.fetcher(
         `${this.config.statusBaseUrl ?? 'https://li.quest/v1'}/status?${params}`,
-        signalOptions(input.signal),
+        BridgeRuntime.signalOptions(input.signal),
       );
       if (!response.ok)
         throw new Error(`LI.FI status failed: ${response.status}`);
       return (await response.json()) as LiFiStatus;
     };
-    const status = await pollBridgeStatus({
+    const status = await BridgeRuntime.pollBridgeStatus({
       fetchStatus,
       isTerminal: (value) =>
         ['DONE', 'FAILED', 'INVALID'].includes(value.status),
-      ...signalOptions(input.signal),
+      ...BridgeRuntime.signalOptions(input.signal),
     });
-    return bridgeSettlement({
+    return BridgeRuntime.bridgeSettlement({
       status: status.status === 'DONE' ? 'settled' : 'failed',
       sourceTxHash: input.sourceTxHash,
       destinationTxHash: status.receiving?.txHash,

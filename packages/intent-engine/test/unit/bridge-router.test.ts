@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Address } from 'viem';
 
+import { LiFiBridgeAdapter } from '../../src/adapters/lifi-bridge.adapter.js';
 import type { BridgeProvider } from '../../src/bridges/bridge-provider.js';
 import {
   BridgeQuoteUnavailableError,
@@ -67,6 +68,18 @@ function provider(
 }
 
 describe('BridgeRouter', () => {
+  it('keeps the dormant LI.FI provider outside canonical Base-Arbitrum USDC', () => {
+    const adapter = new LiFiBridgeAdapter({} as never);
+    expect(
+      adapter.supports({
+        ...request,
+        fromToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+        toToken: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+      }),
+    ).toBe(false);
+    expect(adapter.supports(request)).toBe(true);
+  });
+
   it('selects the highest effective output after source gas', async () => {
     const router = new BridgeRouter([
       provider('eco', quote('eco', '100000000', '0.02', 7)),

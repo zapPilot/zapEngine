@@ -11,6 +11,7 @@ const SOURCE_HASH = `0x${'1'.repeat(64)}`;
 
 const mocks = vi.hoisted(() => ({
   useWalletProvider: vi.fn(),
+  executeDepositPlanWithWallet: vi.fn(),
   buildBridge: vi.fn(),
   needsApproval: vi.fn(),
   buildApproveTx: vi.fn(),
@@ -22,26 +23,25 @@ const mocks = vi.hoisted(() => ({
   estimateGas: vi.fn(),
   getBalance: vi.fn(),
   getGasPrice: vi.fn(),
-  waitForTransactionReceipt: vi.fn(),
   switchChain: vi.fn(),
-  sendTransaction: vi.fn(),
+  getWalletClient: vi.fn(),
 }));
 
 vi.mock('@core/providers/walletContext', () => ({
   useWalletProvider: mocks.useWalletProvider,
 }));
-
+vi.mock('@core/lib/wallet/executeDepositPlan', () => ({
+  executeDepositPlanWithWallet: mocks.executeDepositPlanWithWallet,
+}));
 vi.mock('@core/services/intentClient', () => ({
   intentEngine: { buildBridge: mocks.buildBridge },
   getPublicClient: mocks.getPublicClient,
   waitForBridgeCompletion: mocks.waitForBridgeCompletion,
 }));
-
 vi.mock('@core/services/hyperliquidService', () => ({
   getPerpUsdcBalance: mocks.getPerpUsdcBalance,
   waitForPerpUsdcArrival: mocks.waitForPerpUsdcArrival,
 }));
-
 vi.mock('@zapengine/intent-engine', () => ({
   HYPERCORE_CHAIN_ID: 1337,
   needsApproval: mocks.needsApproval,
@@ -49,29 +49,23 @@ vi.mock('@zapengine/intent-engine', () => ({
 }));
 
 const quote = {
-  provider: 'across',
-  fromChainId: 8453,
-  toChainId: 42161,
-  fromToken: BASE_USDC,
-  toToken: ARBITRUM_USDC,
-  fromAmount: '10000000',
-  toAmount: '9950000',
-  toAmountMin: '9900000',
-  feeUsd: '0.04',
-  gasUsd: '0.01',
-  estimatedDurationSec: 60,
-  approvals: [],
-  calls: [
-    {
-      to: ROUTER,
-      data: '0x1234',
-      value: '0',
-      chainId: 8453,
-      gasLimit: '100000',
-      meta: { intentType: 'BRIDGE' },
-    },
-  ],
-  providerData: {},
+  transaction: {
+    to: ROUTER,
+    data: '0x1234',
+    value: '0',
+    chainId: 8453,
+    gasLimit: '100000',
+    meta: { intentType: 'BRIDGE' },
+  },
+  estimate: {
+    fromAmount: '10000000',
+    toAmount: '9950000',
+    toAmountMin: '9900000',
+    gasCostUsd: '0.01',
+    feeCostUsd: '0.04',
+    executionDuration: 60,
+    tool: 'eco',
+  },
 };
 
 const request = {
@@ -82,14 +76,15 @@ const request = {
   fromAmount: '10000000',
 } as const;
 
-describe('useBridgeTest reset during source receipt', () => {
+describe('useBridgeTest reset during atomic source confirmation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.useWalletProvider.mockReturnValue({
       account: { address: USER },
       chain: { id: 8453 },
       switchChain: mocks.switchChain,
-      sendTransaction: mocks.sendTransaction,
+      getWalletClient: mocks.getWalletClient,
+      executionMode: 'eip7702',
     });
     mocks.buildBridge.mockResolvedValue(quote);
     mocks.needsApproval.mockResolvedValue(false);
@@ -102,45 +97,30 @@ describe('useBridgeTest reset during source receipt', () => {
       estimateGas: mocks.estimateGas,
       getBalance: mocks.getBalance,
       getGasPrice: mocks.getGasPrice,
-      waitForTransactionReceipt: mocks.waitForTransactionReceipt,
     });
-    mocks.sendTransaction.mockResolvedValue(SOURCE_HASH);
   });
 
-  it('ignores a stale receipt failure after reset', async () => {
-    let rejectReceipt!: (error: Error) => void;
-    mocks.waitForTransactionReceipt.mockImplementation(
+  it('ignores a stale atomic execution rejection after reset', async () => {
+    let rejectAtomic!: (error: Error) => void;
+    mocks.executeDepositPlanWithWallet.mockImplementation(
       () =>
         new Promise((_resolve, reject) => {
-          rejectReceipt = reject;
+          rejectAtomic = reject;
         }),
     );
 
     const { result } = renderHook(() => useBridgeTest());
     let execution!: Promise<void>;
-
     await act(async () => {
       execution = result.current.execute(request);
-      await vi.waitFor(() => {
-        expect(mocks.waitForTransactionReceipt).toHaveBeenCalledWith({
-          hash: SOURCE_HASH,
-        });
-      });
+      await vi.waitFor(() =>
+        expect(mocks.executeDepositPlanWithWallet).toHaveBeenCalledOnce(),
+      );
     });
 
-    expect(result.current.status).toBe('sourceSubmitted');
-    expect(result.current.sourceTxHash).toBe(SOURCE_HASH);
-
-    act(() => {
-      result.current.reset();
-    });
-
-    expect(result.current.status).toBe('idle');
-    expect(result.current.sourceTxHash).toBeNull();
-    expect(result.current.destinationTxHash).toBeNull();
-
+    act(() => result.current.reset());
     await act(async () => {
-      rejectReceipt(new Error('Stale source receipt lookup failed.'));
+      rejectAtomic(new Error('Stale atomic batch failed.'));
       await execution;
     });
 
@@ -148,36 +128,37 @@ describe('useBridgeTest reset during source receipt', () => {
     expect(result.current.status).toBe('idle');
     expect(result.current.error).toBeNull();
     expect(result.current.sourceTxHash).toBeNull();
-    expect(result.current.destinationTxHash).toBeNull();
   });
 
-  it('ignores a stale receipt success after reset', async () => {
-    let resolveReceipt!: (receipt: { status: 'success' }) => void;
-    mocks.waitForTransactionReceipt.mockImplementation(
+  it('ignores a stale atomic execution success after reset', async () => {
+    let resolveAtomic!: (value: {
+      kind: 'eip7702';
+      callsId: string;
+      transactionHash: string;
+    }) => void;
+    mocks.executeDepositPlanWithWallet.mockImplementation(
       () =>
         new Promise((resolve) => {
-          resolveReceipt = resolve;
+          resolveAtomic = resolve;
         }),
     );
 
     const { result } = renderHook(() => useBridgeTest());
     let execution!: Promise<void>;
-
     await act(async () => {
       execution = result.current.execute(request);
-      await vi.waitFor(() => {
-        expect(mocks.waitForTransactionReceipt).toHaveBeenCalledWith({
-          hash: SOURCE_HASH,
-        });
-      });
+      await vi.waitFor(() =>
+        expect(mocks.executeDepositPlanWithWallet).toHaveBeenCalledOnce(),
+      );
     });
 
-    act(() => {
-      result.current.reset();
-    });
-
+    act(() => result.current.reset());
     await act(async () => {
-      resolveReceipt({ status: 'success' });
+      resolveAtomic({
+        kind: 'eip7702',
+        callsId: 'calls-1',
+        transactionHash: SOURCE_HASH,
+      });
       await execution;
     });
 
@@ -185,6 +166,6 @@ describe('useBridgeTest reset during source receipt', () => {
     expect(result.current.status).toBe('idle');
     expect(result.current.error).toBeNull();
     expect(result.current.sourceTxHash).toBeNull();
-    expect(result.current.destinationTxHash).toBeNull();
+    expect(result.current.lifiScanUrl).toBeNull();
   });
 });

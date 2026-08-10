@@ -43,12 +43,6 @@ export {
   LiFiAdapter,
   type LiFiAdapterConfig,
   type LiFiTokenInfo,
-  AcrossBridgeAdapter,
-  type AcrossBridgeConfig,
-  EcoBridgeAdapter,
-  type EcoBridgeConfig,
-  LiFiBridgeAdapter,
-  type LiFiBridgeAdapterConfig,
   type SimulationAdapter,
   type BundleSimulationAdapter,
   type BundleSimulationRequest,
@@ -90,18 +84,6 @@ export {
   type ApprovalRequirement,
 } from './approvals/erc20Approval.js';
 export { composeDeposit } from './strategies/composeDeposit.js';
-export {
-  BridgeRouter,
-  BridgeQuoteUnavailableError,
-} from './bridges/bridge-router.js';
-export type { BridgeProvider } from './bridges/bridge-provider.js';
-export type {
-  BridgeProviderId,
-  BridgeQuote,
-  BridgeQuoteRequest,
-  BridgeSelection,
-  BridgeSettlement,
-} from './bridges/bridge.types.js';
 
 // Protocol constants
 export {
@@ -165,28 +147,13 @@ export {
 // Factory Function
 // =============================================================================
 
-import type { Hash, PublicClient, WalletClient } from 'viem';
+import type { PublicClient, WalletClient } from 'viem';
 
 import {
   LiFiAdapter,
   type LiFiAdapterConfig,
   type LiFiTokenInfo,
 } from './adapters/lifi.adapter.js';
-import {
-  AcrossBridgeAdapter,
-  type AcrossBridgeConfig,
-} from './adapters/across-bridge.adapter.js';
-import {
-  EcoBridgeAdapter,
-  type EcoBridgeConfig,
-} from './adapters/eco-bridge.adapter.js';
-import { LiFiBridgeAdapter } from './adapters/lifi-bridge.adapter.js';
-import { BridgeRouter } from './bridges/bridge-router.js';
-import type {
-  BridgeProviderId,
-  BridgeQuote,
-  BridgeSettlement,
-} from './bridges/bridge.types.js';
 import {
   NoopSimulationAdapter,
   type SimulationAdapter,
@@ -237,12 +204,8 @@ import type {
  * Configuration for creating an IntentEngine instance
  */
 export interface IntentEngineConfig {
-  /** LI.FI remains the swap / unsupported-route adapter. */
+  /** LI.FI adapter configuration */
   lifi: LiFiAdapterConfig;
-  bridges?: {
-    eco?: EcoBridgeConfig;
-    across?: AcrossBridgeConfig;
-  };
   /** Optional simulation adapter (defaults to NoopSimulationAdapter) */
   simulation?: SimulationAdapter;
 }
@@ -259,18 +222,8 @@ export interface IntentEngine {
   /** Build a swap transaction */
   buildSwap(intent: SwapIntentInput): Promise<TransactionQuote>;
 
-  /** Build the best provider-neutral bridge quote. */
-  buildBridge(intent: BridgeIntentInput): Promise<BridgeQuote>;
-
-  /** Track a bridge using the provider that produced the selected quote. */
-  waitForBridgeCompletion(input: {
-    provider: BridgeProviderId;
-    sourceTxHash: Hash;
-    fromChainId: number;
-    toChainId: number;
-    quote?: BridgeQuote;
-    signal?: AbortSignal;
-  }): Promise<BridgeSettlement>;
+  /** Build a cross-chain bridge transaction */
+  buildBridge(intent: BridgeIntentInput): Promise<TransactionQuote>;
 
   /** Build a supply (deposit) transaction (requires a PublicClient to read vault.asset()) */
   buildSupply(
@@ -350,15 +303,6 @@ export interface IntentEngine {
 export function createIntentEngine(config: IntentEngineConfig): IntentEngine {
   const lifiAdapter = new LiFiAdapter(config.lifi);
   const simulationAdapter = config.simulation ?? new NoopSimulationAdapter();
-  const bridgeRouter = new BridgeRouter([
-    new EcoBridgeAdapter(
-      config.bridges?.eco ?? { dAppId: config.lifi.integrator },
-    ),
-    new AcrossBridgeAdapter(
-      config.bridges?.across ?? { integratorId: config.lifi.integrator },
-    ),
-    new LiFiBridgeAdapter(lifiAdapter),
-  ]);
 
   return {
     lifi: lifiAdapter,
@@ -369,17 +313,7 @@ export function createIntentEngine(config: IntentEngineConfig): IntentEngine {
     },
 
     async buildBridge(intent: BridgeIntentInput) {
-      return buildBridgeTx(intent, bridgeRouter);
-    },
-
-    async waitForBridgeCompletion(input) {
-      return bridgeRouter.getProvider(input.provider).waitForCompletion({
-        sourceTxHash: input.sourceTxHash,
-        fromChainId: input.fromChainId,
-        toChainId: input.toChainId,
-        ...(input.quote ? { quote: input.quote } : {}),
-        ...(input.signal ? { signal: input.signal } : {}),
-      });
+      return buildBridgeTx(intent, lifiAdapter);
     },
 
     async buildSupply(intent: SupplyIntentInput, publicClient: PublicClient) {

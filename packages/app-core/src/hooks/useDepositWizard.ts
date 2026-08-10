@@ -23,7 +23,6 @@ import {
   waitForPerpUsdcArrival,
 } from '@core/services/hyperliquidService';
 import { waitForBridgeCompletion } from '@core/services/intentClient';
-import type { BridgeProviderId } from '@zapengine/intent-engine';
 import { logger } from '@core/utils/logger';
 import type {
   DepositPlan,
@@ -117,21 +116,18 @@ export function useDepositWizard() {
       });
 
       try {
-        const leg = params.plan.legs[params.legIndex]!;
-        if (!leg.bridge) throw new Error('Bridge leg is missing its provider');
         const bridgeStatus = await waitForBridgeCompletion({
-          provider: leg.bridge as BridgeProviderId,
           txHash: params.sourceTxHash,
           fromChain: params.plan.sourceChainId,
-          toChain: leg.chainId,
+          toChain: params.plan.legs[params.legIndex]!.chainId,
           signal: params.signal,
         });
         dispatch({
           type: 'BRIDGE_UPDATE',
           legIndex: params.legIndex,
           status: 'destinationConfirmed',
-          ...(bridgeStatus.destinationTxHash
-            ? { destinationTxHash: bridgeStatus.destinationTxHash }
+          ...(bridgeStatus.receiving?.txHash
+            ? { destinationTxHash: bridgeStatus.receiving.txHash }
             : {}),
         });
       } catch (error) {
@@ -217,13 +213,13 @@ export function useDepositWizard() {
               if (transactionHash) {
                 startBridgeWatchers(transactionHash);
               } else if (plan.legs.some((leg) => leg.kind === 'bridge')) {
-                // Without the containing tx hash no provider can track the
+                // Without the containing tx hash LI.FI cannot track the
                 // transfer — surface it instead of spinning forever.
                 dispatch({
                   type: 'STAGE_FAILED',
                   stage: 'bridging',
                   message:
-                    'Wallet did not report the batch transaction hash, so bridge tracking could not start.',
+                    'Wallet did not report the batch transaction hash; track the bridge on scan.li.fi manually.',
                 });
               }
             },

@@ -306,6 +306,51 @@ describe('LiFiAdapter', () => {
   });
 
   describe('getQuote', () => {
+    it('prefers Eco for cross-chain quotes without restricting fallback bridges', async () => {
+      vi.mocked(lifiSdk.getQuote).mockResolvedValue({
+        id: 'quote-eco',
+        type: 'lifi',
+        tool: 'eco',
+        action: {
+          fromChainId: 8453,
+          toChainId: 42161,
+          fromToken: { address: '0x1', symbol: 'USDC', decimals: 6 },
+          toToken: { address: '0x2', symbol: 'USDC', decimals: 6 },
+          fromAmount: '10000000',
+        },
+        estimate: {
+          fromAmount: '10000000',
+          toAmount: '9990000',
+          toAmountMin: '9940050',
+        },
+        transactionRequest: {
+          to: '0x0000000000000000000000000000000000000def',
+          data: '0xdeadbeef',
+          value: '0x0',
+        },
+      } as unknown as never);
+
+      await adapter.getQuote({
+        fromChain: 8453,
+        toChain: 42161,
+        fromToken: '0x0000000000000000000000000000000000000001',
+        toToken: '0x0000000000000000000000000000000000000002',
+        fromAmount: '10000000',
+        fromAddress: '0x000000000000000000000000000000000000abcd',
+      });
+
+      expect(lifiSdk.getQuote).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fromChain: 8453,
+          toChain: 42161,
+          preferBridges: ['eco'],
+        }),
+      );
+      expect(lifiSdk.getQuote).not.toHaveBeenCalledWith(
+        expect.objectContaining({ allowBridges: expect.anything() }),
+      );
+    });
+
     it('can request a LI.FI Earn vault quote with exact source amount', async () => {
       const mockQuote = {
         id: 'quote-earn',

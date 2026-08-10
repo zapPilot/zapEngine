@@ -1,5 +1,5 @@
 import { extractErrorMessage } from '@core/lib/errors';
-import { sendPreparedTransaction } from '@core/lib/wallet/sendPreparedTransaction';
+import { executeDepositPlanWithWallet } from '@core/lib/wallet/executeDepositPlan';
 import { useWalletProvider } from '@core/providers/walletContext';
 import {
   getPerpUsdcBalance,
@@ -10,7 +10,12 @@ import {
   intentEngine,
   waitForBridgeCompletion,
 } from '@core/services/intentClient';
-import { HYPERCORE_CHAIN_ID, type BridgeQuote } from '@zapengine/intent-engine';
+import {
+  buildApproveTx,
+  HYPERCORE_CHAIN_ID,
+  needsApproval,
+  type TransactionQuote,
+} from '@zapengine/intent-engine';
 import { useCallback, useRef, useState } from 'react';
 import { type Address, erc20Abi, getAddress, type Hash } from 'viem';
 
@@ -36,9 +41,10 @@ export interface BridgeTestRequest {
 
 export interface BridgeTestState {
   status: BridgeTestStatus;
-  quote: BridgeQuote | null;
+  quote: TransactionQuote | null;
   sourceTxHash: Hash | null;
   destinationTxHash: Hash | null;
+  lifiScanUrl: string | null;
   error: string | null;
 }
 
@@ -47,6 +53,7 @@ const INITIAL_STATE: BridgeTestState = {
   quote: null,
   sourceTxHash: null,
   destinationTxHash: null,
+  lifiScanUrl: null,
   error: null,
 };
 
@@ -65,7 +72,7 @@ function assertRequest(request: BridgeTestRequest): void {
 async function buildFreshQuote(
   request: BridgeTestRequest,
   userAddress: Address,
-): Promise<BridgeQuote> {
+): Promise<TransactionQuote> {
   assertRequest(request);
   return intentEngine.buildBridge({
     fromChainId: request.fromChainId,
@@ -79,8 +86,9 @@ async function buildFreshQuote(
 
 async function assertFundingAndEstimateGas(params: {
   request: BridgeTestRequest;
-  quote: BridgeQuote;
+  quote: TransactionQuote;
   userAddress: Address;
+  includeApproval: boolean;
 }): Promise<void> {
   const publicClient = getPublicClient(params.request.fromChainId);
   const tokenBalance = await publicClient.readContract({
@@ -93,23 +101,42 @@ async function assertFundingAndEstimateGas(params: {
     throw new Error('USDC balance is too low for this bridge amount.');
   }
 
-  let totalGas = 0n;
-  let totalValue = 0n;
-  for (const tx of [...params.quote.approvals, ...params.quote.calls]) {
+  const bridgeTx = params.quote.transaction;
+  // A bridge simulation can legitimately revert before its required ERC20
+  // approval has been mined. In that state, use LI.FI's quoted gas limit for
+  // the funding preflight instead of simulating an impossible transaction.
+  let totalGas =
+    params.includeApproval && params.quote.approval
+      ? BigInt(bridgeTx.gasLimit ?? '0')
+      : await publicClient.estimateGas({
+          account: params.userAddress,
+          to: bridgeTx.to as Address,
+          data: bridgeTx.data as `0x${string}`,
+          value: BigInt(bridgeTx.value),
+        });
+
+  if (params.includeApproval && params.quote.approval) {
+    const approvalTx = buildApproveTx({
+      token: params.quote.approval.tokenAddress,
+      spender: params.quote.approval.spenderAddress,
+      amount: params.quote.approval.amount,
+      chainId: params.request.fromChainId,
+      intentType: 'BRIDGE_APPROVAL',
+    });
     totalGas += await publicClient.estimateGas({
       account: params.userAddress,
-      to: tx.to as Address,
-      data: tx.data as `0x${string}`,
-      value: BigInt(tx.value),
+      to: approvalTx.to as Address,
+      data: approvalTx.data as `0x${string}`,
+      value: 0n,
     });
-    totalValue += BigInt(tx.value);
   }
 
   const [nativeBalance, gasPrice] = await Promise.all([
     publicClient.getBalance({ address: params.userAddress }),
     publicClient.getGasPrice(),
   ]);
-  if (nativeBalance < totalValue + totalGas * gasPrice) {
+  const requiredNative = BigInt(bridgeTx.value) + totalGas * gasPrice;
+  if (nativeBalance < requiredNative) {
     throw new Error('ETH balance is too low to pay bridge and approval gas.');
   }
 }
@@ -121,7 +148,7 @@ export function useBridgeTest() {
   const abortRef = useRef<AbortController | null>(null);
 
   const prepare = useCallback(
-    async (request: BridgeTestRequest): Promise<BridgeQuote | null> => {
+    async (request: BridgeTestRequest): Promise<TransactionQuote | null> => {
       const requestId = ++quoteRequestId.current;
       const address = wallet.account?.address;
       if (!address) {
@@ -166,17 +193,40 @@ export function useBridgeTest() {
   const execute = useCallback(
     async (request: BridgeTestRequest): Promise<void> => {
       const address = wallet.account?.address;
-      if (!address) throw new Error('Connect a wallet before bridging.');
+      if (!address) {
+        throw new Error('Connect a wallet before bridging.');
+      }
       const userAddress = getAddress(address);
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
-      setState({ ...INITIAL_STATE, status: 'quoting' });
+
+      setState({
+        ...INITIAL_STATE,
+        status: 'quoting',
+      });
 
       try {
         const quote = await buildFreshQuote(request, userAddress);
+        const approvalNeeded = quote.approval
+          ? await needsApproval({
+              publicClient: getPublicClient(request.fromChainId),
+              owner: userAddress,
+              requirement: {
+                tokenAddress: quote.approval.tokenAddress,
+                spenderAddress: quote.approval.spenderAddress,
+                amount: BigInt(quote.approval.amount),
+              },
+            })
+          : false;
         if (controller.signal.aborted) return;
-        await assertFundingAndEstimateGas({ request, quote, userAddress });
+
+        await assertFundingAndEstimateGas({
+          request,
+          quote,
+          userAddress,
+          includeApproval: approvalNeeded,
+        });
         if (controller.signal.aborted) return;
 
         if (wallet.chain?.id !== request.fromChainId) {
@@ -192,62 +242,74 @@ export function useBridgeTest() {
           if (controller.signal.aborted) return;
         }
 
-        if (quote.approvals.length > 0) {
-          setState((current) => ({
-            ...current,
-            status: 'awaitingApproval',
-            quote,
-          }));
-          for (const approvalTx of quote.approvals) {
-            const approvalHash = await sendPreparedTransaction(
-              wallet,
-              approvalTx,
-            );
-            const approvalReceipt = await getPublicClient(
-              request.fromChainId,
-            ).waitForTransactionReceipt({ hash: approvalHash });
-            if (approvalReceipt.status !== 'success') {
-              throw new Error('Bridge approval transaction reverted.');
-            }
-            if (controller.signal.aborted) return;
-          }
+        if (!wallet.executionMode) {
+          throw new Error(
+            'Connected wallet does not support atomic EIP-5792 / EIP-7702 bridge execution.',
+          );
         }
+
+        const approvalTx =
+          approvalNeeded && quote.approval
+            ? buildApproveTx({
+                token: quote.approval.tokenAddress,
+                spender: quote.approval.spenderAddress,
+                amount: quote.approval.amount,
+                chainId: request.fromChainId,
+                intentType: 'BRIDGE_APPROVAL',
+              })
+            : null;
 
         setState((current) => ({
           ...current,
           status: 'awaitingBridgeSignature',
           quote,
         }));
-        let sourceTxHash: Hash | null = null;
-        for (const call of quote.calls) {
-          sourceTxHash = await sendPreparedTransaction(wallet, call);
-          setState((current) => ({
-            ...current,
-            status: 'sourceSubmitted',
-            sourceTxHash,
-          }));
-          const sourceReceipt = await getPublicClient(
-            request.fromChainId,
-          ).waitForTransactionReceipt({ hash: sourceTxHash });
-          if (sourceReceipt.status !== 'success') {
-            throw new Error('Bridge source transaction reverted.');
-          }
-          if (controller.signal.aborted) return;
+
+        const execution = await executeDepositPlanWithWallet({
+          plan: {
+            approvals: approvalTx ? [approvalTx] : [],
+            calls: [quote.transaction],
+          },
+          chainId: request.fromChainId,
+          getWalletClient: wallet.getWalletClient,
+          ...(wallet.externalWalletBrand
+            ? { externalWalletBrand: wallet.externalWalletBrand }
+            : {}),
+          ...(wallet.executeAtomicBatch
+            ? { executeAtomicBatch: wallet.executeAtomicBatch }
+            : {}),
+        });
+        if (controller.signal.aborted) return;
+
+        if (execution.kind !== 'eip7702') {
+          throw new Error(
+            'Bridge batch did not use atomic EIP-7702 execution.',
+          );
         }
-        if (!sourceTxHash)
-          throw new Error('Bridge quote returned no source call.');
+        const sourceTxHash = execution.transactionHash;
+        if (!sourceTxHash) {
+          throw new Error(
+            'Atomic bridge batch was submitted, but the wallet did not report its transaction hash for LI.FI tracking.',
+          );
+        }
+
+        const lifiScanUrl = `https://scan.li.fi/tx/${sourceTxHash}`;
+        setState((current) => ({
+          ...current,
+          status: 'sourceSubmitted',
+          sourceTxHash,
+          lifiScanUrl,
+        }));
 
         setState((current) => ({ ...current, status: 'bridging' }));
-        const settlement = await waitForBridgeCompletion({
-          provider: quote.provider,
+        const bridgeStatus = await waitForBridgeCompletion({
           txHash: sourceTxHash,
           fromChain: request.fromChainId,
           toChain: request.toChainId,
-          quote,
           signal: controller.signal,
         });
         if (controller.signal.aborted) return;
-        const destinationTxHash = settlement.destinationTxHash ?? null;
+        const destinationTxHash = bridgeStatus.receiving?.txHash ?? null;
 
         if (
           request.toChainId === HYPERCORE_CHAIN_ID &&
@@ -261,7 +323,7 @@ export function useBridgeTest() {
           await waitForPerpUsdcArrival({
             user: userAddress,
             baselineUsd6: hyperliquidBaseline,
-            expectedUsd6: BigInt(quote.toAmountMin),
+            expectedUsd6: BigInt(quote.estimate.toAmountMin),
             signal: controller.signal,
           });
           if (controller.signal.aborted) return;

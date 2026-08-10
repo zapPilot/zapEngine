@@ -8,8 +8,6 @@ import {
 import { type Address, type PublicClient } from 'viem';
 
 import type { LiFiAdapter } from '../adapters/lifi.adapter.js';
-import type { BridgeRouter } from '../bridges/bridge-router.js';
-import type { BridgeQuote } from '../bridges/bridge.types.js';
 import {
   buildApproveTx,
   needsApproval,
@@ -58,7 +56,6 @@ export interface ComposeDepositInput {
 
 export interface ComposeDepositDeps {
   adapter: LiFiAdapter;
-  bridgeRouter: BridgeRouter;
   publicClients: Record<number, PublicClient>;
   hyperliquidNetwork?: HyperliquidNetwork;
 }
@@ -155,23 +152,37 @@ function splitAmounts(
   });
 }
 
+function bridgeName(route: unknown): string | undefined {
+  if (
+    typeof route === 'object' &&
+    route !== null &&
+    'tool' in route &&
+    typeof route.tool === 'string'
+  ) {
+    return route.tool;
+  }
+
+  return undefined;
+}
+
 function bridgeLegFromQuote(params: {
   chainId: number;
   toToken: Address;
   fromAmount: string;
-  quote: BridgeQuote;
+  quote: TransactionQuote;
   protocol?: string;
 }): DepositLeg {
+  const bridge = bridgeName(params.quote.route);
   return {
     chainId: params.chainId,
     kind: 'bridge',
     ...(params.protocol ? { protocol: params.protocol } : {}),
     toToken: params.toToken,
     fromAmount: params.fromAmount,
-    toAmountMin: params.quote.toAmountMin,
-    bridge: params.quote.provider,
-    gasUsd: params.quote.gasUsd,
-    durationSec: params.quote.estimatedDurationSec,
+    toAmountMin: params.quote.estimate.toAmountMin,
+    ...(bridge ? { bridge } : {}),
+    gasUsd: params.quote.estimate.gasCostUsd,
+    durationSec: params.quote.estimate.executionDuration,
   };
 }
 
@@ -238,8 +249,6 @@ export async function composeDeposit(
   const calls: PreparedTransaction[] = [];
   const followUps: DepositFollowUp[] = [];
   const quotes: TransactionQuote[] = [];
-  const bridgeQuotes: BridgeQuote[] = [];
-  const bridgeApprovals: PreparedTransaction[] = [];
   const approvalRequirements = new Map<string, ApprovalRequirement>();
 
   for (const allocation of allocations) {
@@ -307,20 +316,20 @@ export async function composeDeposit(
           fromAmount: allocation.amount,
           userAddress: input.userAddress,
         },
-        deps.bridgeRouter,
+        deps.adapter,
       );
 
       // Checked against the quoted output (6-decimal perp USDC) rather than
       // the allocation, which may be denominated in a different source token.
-      if (BigInt(quote.toAmountMin) < BigInt(HLP_MIN_DEPOSIT_USD)) {
+      if (BigInt(quote.estimate.toAmountMin) < BigInt(HLP_MIN_DEPOSIT_USD)) {
         throw new Error(
-          `HLP allocation is below the vault minimum of ${HLP_MIN_DEPOSIT_USD} perp USDC base units (quoted ${quote.toAmountMin})`,
+          `HLP allocation is below the vault minimum of ${HLP_MIN_DEPOSIT_USD} perp USDC base units (quoted ${quote.estimate.toAmountMin})`,
         );
       }
 
-      bridgeQuotes.push(quote);
-      calls.push(...quote.calls);
-      bridgeApprovals.push(...quote.approvals);
+      quotes.push(quote);
+      calls.push(quote.transaction);
+      addApprovalRequirement(approvalRequirements, quote.approval);
       legs.push(
         bridgeLegFromQuote({
           chainId: HYPERCORE_CHAIN_ID,
@@ -333,7 +342,7 @@ export async function composeDeposit(
       followUps.push(
         buildHlpDepositFollowUp({
           afterLegIndex: legs.length - 1,
-          expectedUsd: quote.toAmountMin,
+          expectedUsd: quote.estimate.toAmountMin,
           ...(deps.hyperliquidNetwork
             ? { network: deps.hyperliquidNetwork }
             : {}),
@@ -358,12 +367,12 @@ export async function composeDeposit(
         fromAmount: allocation.amount,
         userAddress: input.userAddress,
       },
-      deps.bridgeRouter,
+      deps.adapter,
     );
 
-    bridgeQuotes.push(quote);
-    calls.push(...quote.calls);
-    bridgeApprovals.push(...quote.approvals);
+    quotes.push(quote);
+    calls.push(quote.transaction);
+    addApprovalRequirement(approvalRequirements, quote.approval);
     legs.push(
       bridgeLegFromQuote({
         chainId: allocation.chainId,
@@ -374,7 +383,7 @@ export async function composeDeposit(
     );
   }
 
-  const approvals: PreparedTransaction[] = [...bridgeApprovals];
+  const approvals: PreparedTransaction[] = [];
   for (const requirement of approvalRequirements.values()) {
     if (
       await needsApproval({
@@ -399,10 +408,7 @@ export async function composeDeposit(
     approvals,
     calls,
     ...(followUps.length > 0 ? { followUps } : {}),
-    totalGasUsd: (
-      Number(totalGasUsd(quotes)) +
-      bridgeQuotes.reduce((sum, quote) => sum + Number(quote.gasUsd), 0)
-    ).toString(),
+    totalGasUsd: totalGasUsd(quotes),
     sourceChainId: input.sourceChainId,
   });
 }

@@ -4,7 +4,6 @@ import { executeDepositPlanWithWallet } from '@core/lib/wallet/executeDepositPla
 import { loadBaseInvestPlan } from '@core/lib/wallet/loadBaseInvestPlan';
 import { useWalletProvider } from '@core/providers/walletContext';
 import { waitForBridgeCompletion } from '@core/services/intentClient';
-import type { BridgeProviderId } from '@zapengine/intent-engine';
 import { logger } from '@core/utils/logger';
 import type { DepositLeg, DepositPlan } from '@zapengine/types/api';
 import { useCallback, useState } from 'react';
@@ -85,9 +84,7 @@ export function useInvestStrategy() {
       updateLeg(index, { status: 'bridgePending', sourceTxHash });
 
       try {
-        if (!leg.bridge) throw new Error('Bridge leg is missing its provider');
         const status = await waitForBridgeCompletion({
-          provider: leg.bridge as BridgeProviderId,
           txHash: sourceTxHash,
           fromChain: base.id,
           toChain: leg.chainId,
@@ -95,8 +92,8 @@ export function useInvestStrategy() {
         });
         updateLeg(index, {
           status: 'destinationConfirmed',
-          ...(status.destinationTxHash
-            ? { destinationTxHash: status.destinationTxHash }
+          ...(status.receiving?.txHash
+            ? { destinationTxHash: status.receiving.txHash }
             : {}),
         });
       } catch (error) {

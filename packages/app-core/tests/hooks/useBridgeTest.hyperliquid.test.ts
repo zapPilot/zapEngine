@@ -14,6 +14,7 @@ const SECOND_DESTINATION_HASH = `0x${'4'.repeat(64)}`;
 
 const mocks = vi.hoisted(() => ({
   useWalletProvider: vi.fn(),
+  executeDepositPlanWithWallet: vi.fn(),
   buildBridge: vi.fn(),
   needsApproval: vi.fn(),
   buildApproveTx: vi.fn(),
@@ -28,10 +29,15 @@ const mocks = vi.hoisted(() => ({
   waitForTransactionReceipt: vi.fn(),
   switchChain: vi.fn(),
   sendTransaction: vi.fn(),
+  getWalletClient: vi.fn(),
 }));
 
 vi.mock('@core/providers/walletContext', () => ({
   useWalletProvider: mocks.useWalletProvider,
+}));
+
+vi.mock('@core/lib/wallet/executeDepositPlan', () => ({
+  executeDepositPlanWithWallet: mocks.executeDepositPlanWithWallet,
 }));
 
 vi.mock('@core/services/intentClient', () => ({
@@ -52,29 +58,23 @@ vi.mock('@zapengine/intent-engine', () => ({
 }));
 
 const quote = {
-  provider: 'lifi',
-  fromChainId: 8453,
-  toChainId: 1337,
-  fromToken: BASE_USDC,
-  toToken: HYPERCORE_USDC,
-  fromAmount: '10000000',
-  toAmount: '9950000',
-  toAmountMin: '9900000',
-  feeUsd: '0.04',
-  gasUsd: '0.01',
-  estimatedDurationSec: 60,
-  approvals: [],
-  calls: [
-    {
-      to: ROUTER,
-      data: '0x1234',
-      value: '0',
-      chainId: 8453,
-      gasLimit: '100000',
-      meta: { intentType: 'BRIDGE' },
-    },
-  ],
-  providerData: {},
+  transaction: {
+    to: ROUTER,
+    data: '0x1234',
+    value: '0',
+    chainId: 8453,
+    gasLimit: '100000',
+    meta: { intentType: 'BRIDGE' },
+  },
+  estimate: {
+    fromAmount: '10000000',
+    toAmount: '9950000',
+    toAmountMin: '9900000',
+    gasCostUsd: '0.01',
+    feeCostUsd: '0.04',
+    executionDuration: 60,
+    tool: 'across',
+  },
 };
 
 const request = {
@@ -93,6 +93,8 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
       chain: { id: 8453 },
       switchChain: mocks.switchChain,
       sendTransaction: mocks.sendTransaction,
+      getWalletClient: mocks.getWalletClient,
+      executionMode: 'eip7702',
     });
     mocks.buildBridge.mockResolvedValue(quote);
     mocks.needsApproval.mockResolvedValue(false);
@@ -111,11 +113,14 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
     mocks.getPerpUsdcBalance.mockResolvedValue({
       withdrawableUsd6: 5_000_000n,
     });
-    mocks.sendTransaction.mockResolvedValue(SOURCE_HASH);
+    mocks.executeDepositPlanWithWallet.mockResolvedValue({
+      kind: 'eip7702',
+      callsId: 'calls-1',
+      transactionHash: SOURCE_HASH,
+    });
     mocks.waitForBridgeCompletion.mockResolvedValue({
-      status: 'settled',
-      sourceTxHash: SOURCE_HASH,
-      destinationTxHash: DESTINATION_HASH,
+      status: 'DONE',
+      receiving: { txHash: DESTINATION_HASH, chainId: 1337 },
     });
   });
 
@@ -201,19 +206,25 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
 
   it('keeps the second execution result when the first arrival poll rejects later', async () => {
     let rejectFirstArrival!: (error: Error) => void;
-    mocks.sendTransaction
-      .mockResolvedValueOnce(SOURCE_HASH)
-      .mockResolvedValueOnce(SECOND_SOURCE_HASH);
-    mocks.waitForBridgeCompletion
+    mocks.executeDepositPlanWithWallet
       .mockResolvedValueOnce({
-        status: 'settled',
-        sourceTxHash: SOURCE_HASH,
-        destinationTxHash: DESTINATION_HASH,
+        kind: 'eip7702',
+        callsId: 'first-calls',
+        transactionHash: SOURCE_HASH,
       })
       .mockResolvedValueOnce({
-        status: 'settled',
-        sourceTxHash: SECOND_SOURCE_HASH,
-        destinationTxHash: SECOND_DESTINATION_HASH,
+        kind: 'eip7702',
+        callsId: 'second-calls',
+        transactionHash: SECOND_SOURCE_HASH,
+      });
+    mocks.waitForBridgeCompletion
+      .mockResolvedValueOnce({
+        status: 'DONE',
+        receiving: { txHash: DESTINATION_HASH, chainId: 1337 },
+      })
+      .mockResolvedValueOnce({
+        status: 'DONE',
+        receiving: { txHash: SECOND_DESTINATION_HASH, chainId: 1337 },
       });
     mocks.waitForPerpUsdcArrival
       .mockImplementationOnce(
