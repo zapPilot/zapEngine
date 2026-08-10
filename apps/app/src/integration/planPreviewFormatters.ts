@@ -1,3 +1,6 @@
+import type { PreparedTransaction } from '@zapengine/types/api';
+import { formatEther } from 'viem';
+
 interface ChainDisplay {
   label: string;
   color: string;
@@ -21,6 +24,34 @@ export function chainDisplay(chainId: number | undefined): ChainDisplay {
       color: '#6f6a5f',
     }
   );
+}
+
+export function gmxExecutionFeeWei(
+  calls: readonly PreparedTransaction[] | undefined,
+): bigint | null {
+  if (!calls) return null;
+
+  return calls.reduce((total, transaction) => {
+    const route = transaction.meta.route;
+    if (typeof route !== 'object' || route === null || Array.isArray(route)) {
+      return total;
+    }
+    const executionFeeWei = (route as Record<string, unknown>).executionFeeWei;
+    if (
+      typeof executionFeeWei !== 'string' ||
+      !/^\d+$/u.test(executionFeeWei)
+    ) {
+      return total;
+    }
+    return total + BigInt(executionFeeWei);
+  }, 0n);
+}
+
+export function formatGmxExecutionFee(
+  calls: readonly PreparedTransaction[] | undefined,
+): string {
+  const executionFee = gmxExecutionFeeWei(calls);
+  return executionFee === null ? '—' : `${formatEther(executionFee)} ETH total`;
 }
 
 export function formatPlanGas(totalGasUsd: string | undefined): string {

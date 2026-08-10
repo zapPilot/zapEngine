@@ -1,4 +1,6 @@
+import { GMX_V2_BASKET_EXECUTION_FEE_WEI } from '@zapengine/app-core/gmxFees';
 import { STRATEGY_MIN_DEPOSIT_USD6 } from '@zapengine/types/api';
+import { parseUnits } from 'viem';
 
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
 import type { DesktopDepositToken } from '@/integration/depositTokens';
@@ -24,6 +26,26 @@ export const MIN_STRATEGY_DEPOSIT_USD6 = STRATEGY_MIN_DEPOSIT_USD6;
 const MIN_BASE_MORPHO_DEPOSIT_USD6 = 10_000n;
 const MIN_ARBITRUM_GMX_DEPOSIT_USD6 = 1_000_000n;
 const USD_INPUT_DECIMALS = 6;
+export const ARBITRUM_GMX_BASKET_EXECUTION_FEE_WEI =
+  GMX_V2_BASKET_EXECUTION_FEE_WEI;
+
+export function nativeGmxBasketBudgetTooSmall(
+  groupedAmount: string,
+  token: DesktopDepositToken,
+): boolean {
+  if (token.chainId !== 42161 || token.symbol !== 'ETH') return false;
+  const cleaned = groupedAmount.replace(/,/gu, '');
+  if (!/^\d+(?:\.\d*)?$/u.test(cleaned)) return false;
+
+  try {
+    return (
+      parseUnits(cleaned, token.decimals) <=
+      ARBITRUM_GMX_BASKET_EXECUTION_FEE_WEI
+    );
+  } catch {
+    return false;
+  }
+}
 
 export function minimumDepositUsd6ForScope(scope: InvestScope): bigint {
   if (scope === 'base') return MIN_BASE_MORPHO_DEPOSIT_USD6;

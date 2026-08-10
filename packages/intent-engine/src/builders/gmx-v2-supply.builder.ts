@@ -14,6 +14,7 @@ import {
   GMX_V2_FUNDING_TOKENS,
   GMX_V2_GAS_ESTIMATES,
   GMX_V2_MARKETS,
+  GMX_V2_TOKENS,
   type GmxV2Market,
   type GmxV2MarketKey,
 } from '../protocols/gmx-v2/index.js';
@@ -101,44 +102,81 @@ function parseStep(tx: PreparedTransaction): PreparedTransaction {
   return PreparedTransactionSchema.parse(tx);
 }
 
+function marketTokenMatches(token: Address, candidate: Address): boolean {
+  return normalizeAddress(token) === normalizeAddress(candidate);
+}
+
+function directCollateralToken(
+  market: GmxV2Market,
+  fromToken: Address,
+): Address | null {
+  if (
+    marketTokenMatches(fromToken, GMX_V2_TOKENS.ETH.address) &&
+    (marketTokenMatches(market.longToken, GMX_V2_TOKENS.WETH.address) ||
+      marketTokenMatches(market.shortToken, GMX_V2_TOKENS.WETH.address))
+  ) {
+    return GMX_V2_TOKENS.WETH.address;
+  }
+  if (marketTokenMatches(fromToken, market.longToken)) {
+    return market.longToken;
+  }
+  if (marketTokenMatches(fromToken, market.shortToken)) {
+    return market.shortToken;
+  }
+  return null;
+}
+
 function depositSideAmounts(
   market: GmxV2Market,
+  collateralToken: Address,
   amount: bigint,
 ): { longTokenAmount: bigint; shortTokenAmount: bigint } {
   // Single-collateral GM markets (longToken === shortToken, e.g. GM BTC/BTC
   // [WBTC.b-WBTC.b]) reject a deposit funded on only one side: the GMX
   // ExchangeRouter reverts before the DepositHandler even runs. They must be
   // funded on BOTH sides — half long, half short — which makes the multicall
-  // emit two `sendTokens`, exactly as the GMX UI does. Verified against a real
-  // on-chain GM BTC/BTC deposit and a Tenderly Arbitrum fork: a single
-  // `sendTokens` reverts, the 50/50 split succeeds. See
+  // emit two transfers, exactly as the GMX UI does. Verified against a real
+  // on-chain GM BTC/BTC deposit and a Tenderly Arbitrum fork. See
   // docs/gmx-v2-implementation-notes.md (Gate 1).
   if (
     normalizeAddress(market.longToken) === normalizeAddress(market.shortToken)
   ) {
+    if (!marketTokenMatches(collateralToken, market.longToken)) {
+      throw new Error(
+        'GMX single-collateral deposit token must match the pool token',
+      );
+    }
     const longTokenAmount = amount / 2n;
     return { longTokenAmount, shortTokenAmount: amount - longTokenAmount };
   }
 
-  return {
-    longTokenAmount: market.fundedSide === 'long' ? amount : 0n,
-    shortTokenAmount: market.fundedSide === 'short' ? amount : 0n,
-  };
+  if (marketTokenMatches(collateralToken, market.longToken)) {
+    return { longTokenAmount: amount, shortTokenAmount: 0n };
+  }
+  if (marketTokenMatches(collateralToken, market.shortToken)) {
+    return { longTokenAmount: 0n, shortTokenAmount: amount };
+  }
+  throw new Error(
+    'GMX deposit token must match the market long or short token',
+  );
 }
 
 function buildDepositStep(params: {
   market: GmxV2Market;
   receiver: Address;
+  collateralToken: Address;
   collateralAmount: string;
   estimatedMarketTokens: string;
   minMarketTokens: string;
+  useNativeWntCollateral: boolean;
 }): PreparedTransaction {
   const amount = BigInt(params.collateralAmount);
   const multicall = encodeGmxV2CreateDepositMulticall({
     receiver: params.receiver,
     market: params.market,
-    ...depositSideAmounts(params.market, amount),
+    ...depositSideAmounts(params.market, params.collateralToken, amount),
     minMarketTokens: BigInt(params.minMarketTokens),
+    useNativeWntCollateral: params.useNativeWntCollateral,
   });
 
   return PreparedTransactionSchema.parse({
@@ -155,6 +193,7 @@ function buildDepositStep(params: {
         tool: 'gmx-v2-direct',
         marketKey: params.market.key,
         asyncSettlement: true,
+        executionFeeWei: GMX_V2_EXECUTION_FEE_WEI,
         estimate: {
           toAmount: params.estimatedMarketTokens,
           toAmountMin: params.minMarketTokens,
@@ -183,23 +222,26 @@ export async function buildGmxV2SupplyTx(
   );
   if (!supportedFundingToken) {
     throw new Error(
-      'GMX v2 funding token must be canonical Arbitrum USDC, USDT, or native ETH',
+      'GMX v2 funding token must be canonical Arbitrum USDC, USDT, native ETH, or WETH',
     );
   }
   const slippageBps = depositSlippageBps(input.slippageBps);
   const approvals: PreparedTransaction[] = [];
   const steps: PreparedTransaction[] = [];
   let collateralAmount = input.fromAmount;
+  const directCollateral = directCollateralToken(market, normalizedFromToken);
+  const collateralToken = directCollateral ?? market.collateralToken;
+  const useNativeWntCollateral =
+    directCollateral !== null &&
+    marketTokenMatches(normalizedFromToken, GMX_V2_TOKENS.ETH.address) &&
+    marketTokenMatches(collateralToken, GMX_V2_TOKENS.WETH.address);
 
-  if (
-    normalizeAddress(market.collateralToken) !==
-    normalizeAddress(normalizedFromToken)
-  ) {
+  if (directCollateral === null) {
     const swapQuote = await adapter.getSwapQuote({
       fromChain: GMX_V2_ARBITRUM_CHAIN_ID,
       toChain: GMX_V2_ARBITRUM_CHAIN_ID,
       fromToken: normalizedFromToken,
-      toToken: market.collateralToken,
+      toToken: collateralToken,
       fromAmount: input.fromAmount,
       fromAddress: input.userAddress,
       toAddress: input.userAddress,
@@ -238,7 +280,11 @@ export async function buildGmxV2SupplyTx(
     }
   }
 
-  const sideAmounts = depositSideAmounts(market, BigInt(collateralAmount));
+  const sideAmounts = depositSideAmounts(
+    market,
+    collateralToken,
+    BigInt(collateralAmount),
+  );
   const estimatedMarketTokens = await pricingAdapter.getDepositAmountOut({
     publicClient,
     market,
@@ -249,21 +295,25 @@ export async function buildGmxV2SupplyTx(
     slippageBps,
   );
 
-  approvals.push(
-    createApprovalTx({
-      tokenAddress: market.collateralToken,
-      spenderAddress: GMX_V2_ADDRESSES.router,
-      amount: collateralAmount,
-    }),
-  );
+  if (!useNativeWntCollateral) {
+    approvals.push(
+      createApprovalTx({
+        tokenAddress: collateralToken,
+        spenderAddress: GMX_V2_ADDRESSES.router,
+        amount: collateralAmount,
+      }),
+    );
+  }
 
   steps.push(
     buildDepositStep({
       market,
       receiver: input.userAddress,
+      collateralToken,
       collateralAmount,
       estimatedMarketTokens: estimatedMarketTokens.toString(),
       minMarketTokens: minMarketTokens.toString(),
+      useNativeWntCollateral,
     }),
   );
 

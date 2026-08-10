@@ -4,6 +4,7 @@ import {
   GMX_V2_ADDRESSES,
   GMX_V2_EXCHANGE_ROUTER_ABI,
   GMX_V2_EXECUTION_FEE_WEI,
+  GMX_V2_TOKENS,
   type GmxV2Market,
 } from './gmx-v2.constants.js';
 
@@ -33,6 +34,8 @@ export interface GmxV2CreateDepositMulticallParams {
   shortTokenAmount: bigint;
   executionFee?: bigint;
   minMarketTokens: bigint;
+  /** Fund WETH collateral by wrapping native ETH inside ExchangeRouter. */
+  useNativeWntCollateral?: boolean;
 }
 
 export interface GmxV2CreateWithdrawalParams {
@@ -123,26 +126,29 @@ export function encodeGmxV2CreateDepositMulticall(
   const calls: Hex[] = [
     encodeGmxV2SendWnt(GMX_V2_ADDRESSES.depositVault, executionFee),
   ];
+  let value = executionFee;
 
-  if (params.longTokenAmount > 0n) {
-    calls.push(
-      encodeGmxV2SendTokens(
-        params.market.longToken,
-        GMX_V2_ADDRESSES.depositVault,
-        params.longTokenAmount,
-      ),
-    );
-  }
+  const appendCollateral = (token: Address, amount: bigint) => {
+    if (amount <= 0n) {
+      return;
+    }
 
-  if (params.shortTokenAmount > 0n) {
+    if (params.useNativeWntCollateral) {
+      if (token.toLowerCase() !== GMX_V2_TOKENS.WETH.address.toLowerCase()) {
+        throw new Error('Native GMX collateral can only fund WETH');
+      }
+      calls.push(encodeGmxV2SendWnt(GMX_V2_ADDRESSES.depositVault, amount));
+      value += amount;
+      return;
+    }
+
     calls.push(
-      encodeGmxV2SendTokens(
-        params.market.shortToken,
-        GMX_V2_ADDRESSES.depositVault,
-        params.shortTokenAmount,
-      ),
+      encodeGmxV2SendTokens(token, GMX_V2_ADDRESSES.depositVault, amount),
     );
-  }
+  };
+
+  appendCollateral(params.market.longToken, params.longTokenAmount);
+  appendCollateral(params.market.shortToken, params.shortTokenAmount);
 
   calls.push(
     encodeGmxV2CreateDeposit({
@@ -161,7 +167,7 @@ export function encodeGmxV2CreateDepositMulticall(
       functionName: 'multicall',
       args: [calls],
     }),
-    value: executionFee.toString(10),
+    value: value.toString(10),
   };
 }
 

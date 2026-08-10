@@ -745,6 +745,57 @@ describe('plan-orchestration service', () => {
     expect(plan.sourceChainId).toBe(42161);
   });
 
+  it('treats native ETH basket amount as the total budget including four keeper fees', async () => {
+    const { service, buildGmxV2Supply } = makeService(0n);
+
+    await service.buildDeposit({
+      kind: 'gmx-v2-basket',
+      fromToken: NATIVE_TOKEN_ADDRESS,
+      amount: '9000000000000000',
+      userAddress: USER,
+    });
+
+    expect(
+      buildGmxV2Supply.mock.calls.map(([input]) => input.fromAmount),
+    ).toEqual([
+      '1250000000000000',
+      '1250000000000000',
+      '1250000000000000',
+      '1250000000000000',
+    ]);
+  });
+
+  it('rejects native ETH basket budgets that do not exceed keeper fees', async () => {
+    const { service, buildGmxV2Supply } = makeService(0n);
+
+    await expect(
+      service.buildDeposit({
+        kind: 'gmx-v2-basket',
+        fromToken: NATIVE_TOKEN_ADDRESS,
+        amount: '4000000000000000',
+        userAddress: USER,
+      }),
+    ).rejects.toThrow('must exceed 0.004 ETH');
+    expect(buildGmxV2Supply).not.toHaveBeenCalled();
+  });
+
+  it('reserves one keeper fee from a direct native ETH GMX budget', async () => {
+    const { service, buildGmxV2Supply } = makeService(0n);
+
+    await service.buildDeposit({
+      kind: 'gmx-v2',
+      marketKey: 'eth-usdc',
+      fromToken: NATIVE_TOKEN_ADDRESS,
+      amount: '3000000000000000',
+      userAddress: USER,
+    });
+
+    expect(buildGmxV2Supply).toHaveBeenCalledWith(
+      expect.objectContaining({ fromAmount: '2000000000000000' }),
+      expect.any(Object),
+    );
+  });
+
   it('adds exact GMX approval when Arbitrum allowance is insufficient', async () => {
     const { service } = makeService(999n);
 

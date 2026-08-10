@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { Info } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
+import { formatEther } from 'viem';
 
 import {
   CONNECT_WALLET_CTA,
@@ -24,6 +25,7 @@ import {
   BASE_DEPOSIT_TOKENS,
 } from '@/integration/depositTokens';
 import {
+  ARBITRUM_GMX_BASKET_EXECUTION_FEE_WEI,
   amountInputToUsd6,
   amountUsdFromInput,
   balanceForFundingToken,
@@ -32,6 +34,7 @@ import {
   fundingTokenUsdValueFromInput,
   maxUsdAmountInput,
   minimumDepositUsd6ForScope,
+  nativeGmxBasketBudgetTooSmall,
   normalizeAmountInput,
   quickAmountUsdInput,
   requiredChainUnavailableForScope,
@@ -46,6 +49,10 @@ import { formatUsd } from '@/lib/format';
 type FundingBalanceState = 'loading' | 'unavailable' | 'loaded';
 
 type InvestAmountTab = InvestScope | 'bridge';
+
+const GMX_BASKET_EXECUTION_FEE_LABEL = `${formatEther(
+  ARBITRUM_GMX_BASKET_EXECUTION_FEE_WEI,
+)} ETH`;
 
 const INVEST_SCOPE_OPTIONS: readonly {
   value: InvestAmountTab;
@@ -82,6 +89,7 @@ interface AmountNotice {
 }
 
 function amountNotice({
+  nativeGmxBudgetTooSmall,
   belowMinimum,
   exceedsBalance,
   requiredChainUnavailable,
@@ -91,6 +99,7 @@ function amountNotice({
   isBaseOnly,
   activeChainLabel,
 }: {
+  nativeGmxBudgetTooSmall: boolean;
   belowMinimum: boolean;
   exceedsBalance: boolean;
   requiredChainUnavailable: boolean;
@@ -100,6 +109,12 @@ function amountNotice({
   isBaseOnly: boolean;
   activeChainLabel: string;
 }): AmountNotice | null {
+  if (nativeGmxBudgetTooSmall) {
+    return {
+      className: 'mt-2.5 px-1 text-[11px] text-error',
+      message: `Enter more than ${GMX_BASKET_EXECUTION_FEE_LABEL} — the four GMX keeper fees are included in your ETH amount.`,
+    };
+  }
   if (belowMinimum) {
     return {
       className: 'mt-2.5 px-1 text-[11px] text-error',
@@ -262,6 +277,12 @@ export function InvestAmountScreen() {
   const hasExactAmount = amountUsd6 > 0n;
   const minimumDepositUsd6 = minimumDepositUsd6ForScope(invest.scope);
   const belowMinimum = hasExactAmount && amountUsd6 < minimumDepositUsd6;
+  const nativeGmxBudgetTooSmall =
+    invest.scope === 'arbitrum' &&
+    nativeGmxBasketBudgetTooSmall(
+      singleChainAmountInput,
+      activeArbitrumFundingToken,
+    );
   const exceedsBalance =
     maxTotalUsd !== null && hasExactAmount && amountUsd6 > maxUsd6;
   const baseUnavailable =
@@ -331,6 +352,7 @@ export function InvestAmountScreen() {
     !requiredChainUnavailable &&
     !balances.isLoading &&
     amountUsd6 >= minimumDepositUsd6 &&
+    !nativeGmxBudgetTooSmall &&
     !exceedsBalance &&
     hasStrategyCapacity &&
     hasExecutableFundingAmount;
@@ -416,6 +438,7 @@ export function InvestAmountScreen() {
         ? 'Loading balances…'
         : 'Review deposit';
   const notice = amountNotice({
+    nativeGmxBudgetTooSmall,
     belowMinimum,
     exceedsBalance,
     requiredChainUnavailable,
@@ -535,6 +558,14 @@ export function InvestAmountScreen() {
                 {amountUsd === null
                   ? 'USD value unavailable'
                   : `≈ ${formatUsd(amountUsd)}`}
+              </Text>
+            ) : null}
+            {invest.scope === 'arbitrum' &&
+            activeArbitrumFundingToken.symbol === 'ETH' ? (
+              <Text className="mt-1 text-[11px] leading-[16px] text-ink-dim">
+                Your ETH amount is the total wallet budget.{' '}
+                {GMX_BASKET_EXECUTION_FEE_LABEL} is reserved for four GMX keeper
+                fees; the remainder is invested.
               </Text>
             ) : null}
             <QuickAmountChips

@@ -82,11 +82,39 @@ function transactionValue(plan: DepositPlan): bigint {
   );
 }
 
+export function assertNativeGmxSpendWithinRequestedAmount(params: {
+  request: SingleChainDepositRequest;
+  plan: DepositPlan;
+}): void {
+  if (
+    params.request.kind !== 'gmx-v2' &&
+    params.request.kind !== 'gmx-v2-basket'
+  ) {
+    return;
+  }
+  if (
+    params.request.fromToken.toLowerCase() !==
+    NATIVE_TOKEN_ADDRESS.toLowerCase()
+  ) {
+    return;
+  }
+
+  const requestedAmount = BigInt(params.request.amount);
+  const plannedValue = transactionValue(params.plan);
+  if (plannedValue > requestedAmount) {
+    throw new Error(
+      `Prepared GMX plan would spend ${formatEther(plannedValue)} ETH, exceeding the requested ${formatEther(requestedAmount)} ETH budget.`,
+    );
+  }
+}
+
 export async function assertSingleChainPreflight(params: {
   request: SingleChainDepositRequest;
   plan: DepositPlan;
   address: Address;
 }): Promise<void> {
+  assertNativeGmxSpendWithinRequestedAmount(params);
+
   const chainId = requestChainId(params.request);
   const publicClient = getPublicClient(chainId);
   const callsValue = transactionValue(params.plan);

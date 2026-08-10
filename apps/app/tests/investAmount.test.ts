@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ARBITRUM_GMX_BASKET_EXECUTION_FEE_WEI,
   amountInputToUsd6,
   amountUsdFromInput,
   buildSingleChainFundingDraft,
@@ -10,6 +11,7 @@ import {
   maxUsdAmountInput,
   minimumDepositUsd6ForScope,
   MIN_STRATEGY_DEPOSIT_USD6,
+  nativeGmxBasketBudgetTooSmall,
   normalizeAmountInput,
   quickAmountUsdInput,
   requiredChainUnavailableForScope,
@@ -102,6 +104,17 @@ describe('Invest amount helpers', () => {
     expect(
       fundingTokenUsdValueFromInput('0.001', BASE_DEPOSIT_TOKENS[1], null),
     ).toBeNull();
+  });
+
+  it('treats native ETH as a total GMX basket budget including keeper fees', () => {
+    const arbitrumEth = ARBITRUM_DEPOSIT_TOKENS[2];
+    expect(ARBITRUM_GMX_BASKET_EXECUTION_FEE_WEI).toBe(4000000000000000n);
+    expect(nativeGmxBasketBudgetTooSmall('0.001', arbitrumEth)).toBe(true);
+    expect(nativeGmxBasketBudgetTooSmall('0.004', arbitrumEth)).toBe(true);
+    expect(nativeGmxBasketBudgetTooSmall('0.004001', arbitrumEth)).toBe(false);
+    expect(nativeGmxBasketBudgetTooSmall('1', ARBITRUM_DEPOSIT_TOKENS[0])).toBe(
+      false,
+    );
   });
 
   it('uses scope-specific minimum deposit floors', () => {

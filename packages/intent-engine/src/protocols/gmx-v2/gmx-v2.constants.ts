@@ -51,6 +51,7 @@ export const GMX_V2_FUNDING_TOKENS = [
   GMX_V2_TOKENS.USDC.address,
   GMX_V2_TOKENS.USDT.address,
   GMX_V2_TOKENS.ETH.address,
+  GMX_V2_TOKENS.WETH.address,
 ] as const satisfies readonly Address[];
 
 /** One-percent protection for the asynchronous GM-token mint quote. */

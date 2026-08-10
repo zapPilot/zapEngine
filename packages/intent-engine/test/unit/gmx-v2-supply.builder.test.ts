@@ -186,6 +186,23 @@ function decodeMulticallSendTokensList(
     .map((d) => d.args as readonly [Address, Address, bigint]);
 }
 
+function decodeMulticallSendWntList(
+  data: Hex,
+): ReadonlyArray<readonly [Address, bigint]> {
+  const decoded = decodeFunctionData({
+    abi: GMX_V2_EXCHANGE_ROUTER_ABI,
+    data,
+  });
+  expect(decoded.functionName).toBe('multicall');
+  const calls = decoded.args[0] as Hex[];
+  return calls
+    .map((call) =>
+      decodeFunctionData({ abi: GMX_V2_EXCHANGE_ROUTER_ABI, data: call }),
+    )
+    .filter((d) => d.functionName === 'sendWnt')
+    .map((d) => d.args as readonly [Address, bigint]);
+}
+
 function decodeMulticallMinMarketTokens(data: Hex): bigint {
   const decoded = decodeFunctionData({
     abi: GMX_V2_EXCHANGE_ROUTER_ABI,
@@ -234,6 +251,10 @@ describe('buildGmxV2SupplyTx', () => {
       const deposit = plan.steps[0]!;
       expect(deposit.to).toBe(GMX_V2_ADDRESSES.exchangeRouter);
       expect(deposit.value).toBe(GMX_V2_EXECUTION_FEE_WEI);
+      expect(deposit.meta.route).toMatchObject({
+        marketKey,
+        executionFeeWei: GMX_V2_EXECUTION_FEE_WEI,
+      });
       expect(plan.estimatedMarketTokens).toBe('500000000000000000');
       expect(plan.minMarketTokens).toBe('495000000000000000');
       expect(decodeMulticallMinMarketTokens(deposit.data as Hex)).toBe(
@@ -337,17 +358,73 @@ describe('buildGmxV2SupplyTx', () => {
     },
   );
 
+  it('uses native ETH directly for the WETH side of eth-usdc', async () => {
+    const { adapter, getSwapQuote } = makeAdapter();
+    const fromAmount = '1000000000000000';
+
+    const plan = await buildGmxV2SupplyTx(
+      {
+        marketKey: 'eth-usdc',
+        fromToken: NATIVE_ETH,
+        fromAmount,
+        userAddress: USER,
+      },
+      adapter,
+    );
+
+    expect(getSwapQuote).not.toHaveBeenCalled();
+    expect(plan.approvals).toHaveLength(0);
+    expect(plan.steps).toHaveLength(1);
+    expect(plan.steps[0]!.value).toBe(
+      (BigInt(fromAmount) + BigInt(GMX_V2_EXECUTION_FEE_WEI)).toString(),
+    );
+    expect(
+      decodeMulticallSendTokensList(plan.steps[0]!.data as Hex),
+    ).toHaveLength(0);
+    expect(decodeMulticallSendWntList(plan.steps[0]!.data as Hex)).toEqual([
+      [GMX_V2_ADDRESSES.depositVault, BigInt(GMX_V2_EXECUTION_FEE_WEI)],
+      [GMX_V2_ADDRESSES.depositVault, BigInt(fromAmount)],
+    ]);
+  });
+
+  it('uses WETH directly for the WETH side of eth-usdc', async () => {
+    const { adapter, getSwapQuote } = makeAdapter();
+
+    const plan = await buildGmxV2SupplyTx(
+      {
+        marketKey: 'eth-usdc',
+        fromToken: GMX_V2_TOKENS.WETH.address,
+        fromAmount: USDC_AMOUNT,
+        userAddress: USER,
+      },
+      adapter,
+    );
+
+    expect(getSwapQuote).not.toHaveBeenCalled();
+    expect(plan.approvals).toHaveLength(1);
+    expect(plan.approvals[0]!.to).toBe(GMX_V2_TOKENS.WETH.address);
+    const sends = decodeMulticallSendTokensList(plan.steps[0]!.data as Hex);
+    expect(sends).toEqual([
+      [
+        GMX_V2_TOKENS.WETH.address,
+        GMX_V2_ADDRESSES.depositVault,
+        BigInt(USDC_AMOUNT),
+      ],
+    ]);
+  });
+
   it.each([
     ['USDT', GMX_V2_TOKENS.USDT.address],
     ['native ETH', NATIVE_ETH],
+    ['WETH', GMX_V2_TOKENS.WETH.address],
   ] as const)(
-    'swaps canonical %s funding to USDC before the GMX deposit',
+    'swaps unmatched %s funding to USDC for btc-usdc',
     async (_label, fromToken) => {
       const { adapter, getSwapQuote } = makeAdapter();
 
       const plan = await buildGmxV2SupplyTx(
         {
-          marketKey: 'eth-usdc',
+          marketKey: 'btc-usdc',
           fromToken: getAddress(fromToken),
           fromAmount: USDC_AMOUNT,
           userAddress: USER,
@@ -367,7 +444,6 @@ describe('buildGmxV2SupplyTx', () => {
         'SWAP',
         'SUPPLY',
       ]);
-      expect(plan.approvals).toHaveLength(fromToken === NATIVE_ETH ? 1 : 2);
       expect(plan.minMarketTokens).not.toBe(SWAPPED_MIN);
       expect(
         decodeMulticallMinMarketTokens(plan.steps.at(-1)!.data as Hex),
@@ -375,20 +451,82 @@ describe('buildGmxV2SupplyTx', () => {
     },
   );
 
-  it('does not emit a source-token approval for native ETH funding', async () => {
-    const { adapter } = makeAdapter();
-    const plan = await buildGmxV2SupplyTx(
+  it('swaps unmatched USDT funding to USDC for eth-usdc', async () => {
+    const { adapter, getSwapQuote } = makeAdapter();
+
+    await buildGmxV2SupplyTx(
       {
         marketKey: 'eth-usdc',
-        fromToken: NATIVE_ETH,
+        fromToken: GMX_V2_TOKENS.USDT.address,
         fromAmount: USDC_AMOUNT,
         userAddress: USER,
       },
       adapter,
     );
 
+    expect(getSwapQuote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromToken: getAddress(GMX_V2_TOKENS.USDT.address),
+        toToken: GMX_V2_TOKENS.USDC.address,
+      }),
+    );
+  });
+
+  it('uses native ETH directly for eth-eth without LiFi or a WETH approval', async () => {
+    const { adapter, getSwapQuote } = makeAdapter();
+    const fromAmount = '1000000000000000';
+
+    const plan = await buildGmxV2SupplyTx(
+      {
+        marketKey: 'eth-eth',
+        fromToken: NATIVE_ETH,
+        fromAmount,
+        userAddress: USER,
+      },
+      adapter,
+    );
+
+    expect(getSwapQuote).not.toHaveBeenCalled();
+    expect(plan.approvals).toHaveLength(0);
+    expect(plan.steps).toHaveLength(1);
+
+    const deposit = plan.steps[0]!;
+    expect(deposit.value).toBe(
+      (BigInt(fromAmount) + BigInt(GMX_V2_EXECUTION_FEE_WEI)).toString(),
+    );
+    expect(decodeMulticallSendTokensList(deposit.data as Hex)).toHaveLength(0);
+
+    const sendWntCalls = decodeMulticallSendWntList(deposit.data as Hex);
+    expect(sendWntCalls).toEqual([
+      [GMX_V2_ADDRESSES.depositVault, BigInt(GMX_V2_EXECUTION_FEE_WEI)],
+      [GMX_V2_ADDRESSES.depositVault, BigInt(fromAmount) / 2n],
+      [
+        GMX_V2_ADDRESSES.depositVault,
+        BigInt(fromAmount) - BigInt(fromAmount) / 2n,
+      ],
+    ]);
+  });
+
+  it('treats WETH as normal ERC-20 collateral for eth-eth', async () => {
+    const { adapter, getSwapQuote } = makeAdapter();
+
+    const plan = await buildGmxV2SupplyTx(
+      {
+        marketKey: 'eth-eth',
+        fromToken: GMX_V2_TOKENS.WETH.address,
+        fromAmount: USDC_AMOUNT,
+        userAddress: USER,
+      },
+      adapter,
+    );
+
+    expect(getSwapQuote).not.toHaveBeenCalled();
     expect(plan.approvals).toHaveLength(1);
-    expect(plan.approvals[0]!.to).toBe(GMX_V2_TOKENS.USDC.address);
+    expect(plan.approvals[0]!.to).toBe(GMX_V2_TOKENS.WETH.address);
+    expect(plan.steps[0]!.value).toBe(GMX_V2_EXECUTION_FEE_WEI);
+    expect(
+      decodeMulticallSendTokensList(plan.steps[0]!.data as Hex),
+    ).toHaveLength(2);
   });
 
   it('rejects non-canonical Arbitrum funding tokens before quoting', async () => {
@@ -398,13 +536,13 @@ describe('buildGmxV2SupplyTx', () => {
       buildGmxV2SupplyTx(
         {
           marketKey: 'eth-usdc',
-          fromToken: GMX_V2_TOKENS.WETH.address,
+          fromToken: '0x4444444444444444444444444444444444444444',
           fromAmount: USDC_AMOUNT,
           userAddress: USER,
         },
         adapter,
       ),
-    ).rejects.toThrow('canonical Arbitrum USDC, USDT, or native ETH');
+    ).rejects.toThrow('canonical Arbitrum USDC, USDT, native ETH, or WETH');
     expect(getSwapQuote).not.toHaveBeenCalled();
   });
 

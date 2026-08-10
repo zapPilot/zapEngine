@@ -5,7 +5,7 @@ import {
   type StrategyDepositPlan,
   SUPPORTED_DEPOSIT_CHAINS,
 } from '@zapengine/types/api';
-import { formatEther, formatUnits } from 'viem';
+import { formatUnits } from 'viem';
 
 import { Card } from '@/components/ui/Card';
 import { InfoRow } from '@/components/ui/InfoRow';
@@ -17,7 +17,10 @@ import type {
   InvestScope,
   SingleChainFundingDraft,
 } from '@/integration/useInvest';
-import { formatPlanGas } from '@/integration/planPreviewFormatters';
+import {
+  formatGmxExecutionFee,
+  formatPlanGas,
+} from '@/integration/planPreviewFormatters';
 import { formatUsd } from '@/lib/format';
 
 interface StrategyPlanSummaryProps {
@@ -107,19 +110,6 @@ function strategyTransactionCount(
   );
 }
 
-function executionFeeLabel(
-  calls: readonly PreparedTransaction[] | undefined,
-): string {
-  if (!calls) return '—';
-  const executionFee = calls.reduce((total, transaction) => {
-    const route = transaction.meta.route;
-    const isGmxDeposit =
-      typeof route === 'object' && route !== null && 'marketKey' in route;
-    return isGmxDeposit ? total + BigInt(transaction.value) : total;
-  }, 0n);
-  return `${formatEther(executionFee)} ETH total`;
-}
-
 function StrategySummary({
   variant,
   plan,
@@ -203,7 +193,7 @@ function StrategySummary({
       <InfoRow label="Gas" value={formatPlanGas(plan?.totalGasUsd)} divider />
       <InfoRow
         label="GMX execution fee"
-        value={executionFeeLabel(arbitrumGroup?.calls)}
+        value={formatGmxExecutionFee(arbitrumGroup?.calls)}
         divider={variant === 'confirm'}
       />
       {/* jscpd:ignore-start -- strategy and single-chain summaries intentionally share the same confirmation row shape */}
@@ -274,7 +264,7 @@ function SingleChainSummary({
       {!isBase ? (
         <InfoRow
           label="GMX execution fee"
-          value={executionFeeLabel(plan?.calls)}
+          value={formatGmxExecutionFee(plan?.calls)}
           divider={variant === 'confirm'}
         />
       ) : null}

@@ -7,6 +7,7 @@ import {
   composeDeposit,
   GMX_V2_ARBITRUM_CHAIN_ID,
   GMX_V2_BASKET_MARKET_KEYS,
+  GMX_V2_EXECUTION_FEE_WEI,
   GMX_V2_GAS_ESTIMATES,
   type IntentEngine,
   type LiFiAdapter,
@@ -39,6 +40,7 @@ import {
   type Address,
   decodeFunctionData,
   erc20Abi,
+  formatEther,
   keccak256,
   type PublicClient,
   toBytes,
@@ -300,6 +302,26 @@ async function getChainGasPricing(params: {
   return { gasPriceWei, nativePriceUsd: nativeToken.priceUSD };
 }
 
+function gmxCollateralBudget(params: {
+  amount: string;
+  fromToken: string;
+  orderCount: number;
+}): string {
+  if (params.fromToken.toLowerCase() !== NATIVE_TOKEN_ADDRESS.toLowerCase()) {
+    return params.amount;
+  }
+
+  const totalBudget = BigInt(params.amount);
+  const executionFees =
+    BigInt(GMX_V2_EXECUTION_FEE_WEI) * BigInt(params.orderCount);
+  if (totalBudget <= executionFees) {
+    throw new Error(
+      `Native ETH GMX amount must exceed ${formatEther(executionFees)} ETH because keeper execution fees are included in the entered amount.`,
+    );
+  }
+  return (totalBudget - executionFees).toString();
+}
+
 function splitGmxBasketAmount(amount: string): string[] {
   const total = BigInt(amount);
   const poolCount = BigInt(GMX_V2_BASKET_MARKET_KEYS.length);
@@ -363,7 +385,12 @@ async function buildGmxV2BasketDeposit(params: {
   const { request, intentEngine, publicClients, simulation } = params;
   const publicClient = publicClientFor(publicClients, GMX_V2_ARBITRUM_CHAIN_ID);
   const userAddress = request.userAddress as Address;
-  const amounts = splitGmxBasketAmount(request.amount);
+  const collateralBudget = gmxCollateralBudget({
+    amount: request.amount,
+    fromToken: request.fromToken,
+    orderCount: GMX_V2_BASKET_MARKET_KEYS.length,
+  });
+  const amounts = splitGmxBasketAmount(collateralBudget);
   const plans = await Promise.all(
     GMX_V2_BASKET_MARKET_KEYS.map((marketKey, index) =>
       intentEngine.buildGmxV2Supply(
@@ -1154,11 +1181,16 @@ export function createPlanOrchestrationService({
       GMX_V2_ARBITRUM_CHAIN_ID,
     );
     const userAddress = request.userAddress as Address;
+    const collateralBudget = gmxCollateralBudget({
+      amount: request.amount,
+      fromToken: request.fromToken,
+      orderCount: 1,
+    });
     const gmxPlan = await intentEngine.buildGmxV2Supply(
       {
         marketKey: request.marketKey,
         fromToken: request.fromToken as Address,
-        fromAmount: request.amount,
+        fromAmount: collateralBudget,
         userAddress,
       },
       publicClient,
@@ -1186,7 +1218,7 @@ export function createPlanOrchestrationService({
             kind: 'supply',
             protocol: 'gmx-v2',
             toToken: gmxPlan.market.marketToken,
-            fromAmount: request.amount,
+            fromAmount: collateralBudget,
             toAmountMin: gmxPlan.minMarketTokens,
             gasUsd,
             durationSec: 60,
