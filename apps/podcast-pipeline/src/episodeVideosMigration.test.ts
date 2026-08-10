@@ -31,6 +31,9 @@ const migration022 = readRepoFile(
 const migration023 = readRepoFile(
   'apps/podcast-pipeline/supabase/migrations/023_add_video_progress.sql',
 );
+const migration024 = readRepoFile(
+  'apps/podcast-pipeline/supabase/migrations/024_batch_language_classroom_refresh.sql',
+);
 const localizationRpcNames = [
   'enqueue_episode_video',
   'claim_episode_video',
@@ -687,6 +690,39 @@ describe('episode video progress schema', () => {
       }
     },
   );
+
+  it.each([
+    ['schema.sql', schema],
+    ['migration 024', migration024],
+  ])(
+    'batches language-classroom denormalization per statement in %s',
+    (_name, sql) => {
+      expect(sql).toMatch(
+        /create trigger trg_language_classrooms_after_insert[\s\S]+?referencing new table as new_rows[\s\S]+?for each statement/i,
+      );
+      expect(sql).toMatch(
+        /create trigger trg_language_classrooms_after_update[\s\S]+?referencing old table as old_rows new table as new_rows[\s\S]+?for each statement/i,
+      );
+      expect(sql).toMatch(
+        /create trigger trg_language_classrooms_after_delete[\s\S]+?referencing old table as old_rows[\s\S]+?for each statement/i,
+      );
+      expect(sql).not.toMatch(
+        /create trigger trg_language_classrooms_after_insert_update[\s\S]+?for each row/i,
+      );
+      expect(sql).toMatch(
+        /is distinct from desired\.language_classrooms_jsonb/i,
+      );
+    },
+  );
+
+  it('drops redundant classroom indexes in migration 024', () => {
+    expect(migration024).toMatch(
+      /drop index if exists from_fed_to_chain\.idx_language_classrooms_localization/i,
+    );
+    expect(migration024).toMatch(
+      /drop index if exists from_fed_to_chain\.idx_language_classrooms_episode_localization_id_target/i,
+    );
+  });
 
   it('does not widen the render-capacity work probe field lists', () => {
     // evaluatePendingRenderWork mirrors the claim RPCs' WHERE clauses, which
