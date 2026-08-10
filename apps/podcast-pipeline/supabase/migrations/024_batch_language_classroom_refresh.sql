@@ -1,5 +1,13 @@
 begin;
 
+-- Every drop/create trigger and drop index below queues for ACCESS EXCLUSIVE
+-- on language_classrooms. While queued, every later reader and writer of the
+-- table waits behind this transaction, so an ingest already holding row locks
+-- would turn an unbounded wait here into a site-wide stall. Fail fast and
+-- retry instead.
+set local lock_timeout = '5s';
+set local statement_timeout = '2min';
+
 -- Migration 024: batch the denormalized language-classroom refresh.
 --
 -- Migration 014 used AFTER ROW triggers. A multi-row classroom upsert therefore
@@ -14,10 +22,16 @@ begin;
 -- final aggregate, and the second skips the parent UPDATE because the JSON is
 -- already identical.
 
--- Remove the row-level implementation before replacing it.
+-- Remove the row-level implementation before replacing it. The last two names
+-- are this migration's own triggers: the lock_timeout above makes retries
+-- routine, so a re-run must also start from a clean slate.
 drop trigger if exists trg_language_classrooms_after_delete
   on from_fed_to_chain.language_classrooms;
 drop trigger if exists trg_language_classrooms_after_insert_update
+  on from_fed_to_chain.language_classrooms;
+drop trigger if exists trg_language_classrooms_after_insert
+  on from_fed_to_chain.language_classrooms;
+drop trigger if exists trg_language_classrooms_after_update
   on from_fed_to_chain.language_classrooms;
 
 drop function if exists from_fed_to_chain_private.sync_language_classrooms_jsonb();

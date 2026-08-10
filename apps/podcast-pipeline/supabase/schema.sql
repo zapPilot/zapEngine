@@ -420,6 +420,13 @@ begin
 end;
 $$;
 
+drop trigger if exists trg_language_classrooms_after_insert
+  on from_fed_to_chain.language_classrooms;
+drop trigger if exists trg_language_classrooms_after_update
+  on from_fed_to_chain.language_classrooms;
+drop trigger if exists trg_language_classrooms_after_delete
+  on from_fed_to_chain.language_classrooms;
+
 create trigger trg_language_classrooms_after_insert
   after insert on from_fed_to_chain.language_classrooms
   referencing new table as new_rows

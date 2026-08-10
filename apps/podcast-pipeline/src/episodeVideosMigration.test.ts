@@ -715,6 +715,11 @@ describe('episode video progress schema', () => {
     },
   );
 
+  it('bounds migration 024 lock waits so a busy classroom table cannot convoy production', () => {
+    expect(migration024).toMatch(/set local lock_timeout = '5s';/i);
+    expect(migration024).toMatch(/set local statement_timeout = '2min';/i);
+  });
+
   it('drops redundant classroom indexes in migration 024', () => {
     expect(migration024).toMatch(
       /drop index if exists from_fed_to_chain\.idx_language_classrooms_localization/i,
