@@ -1,3 +1,4 @@
+import type { ApprovedWalletBrand } from '@core/lib/wallet/approvedWallets';
 import { getPublicClient } from '@core/services/intentClient';
 import { type Address, getAddress, type Hex } from 'viem';
 
@@ -19,7 +20,9 @@ export type EIP7702DelegationInspection =
       kind: 'delegated';
       implementation: Address;
       label: string;
-      /** Optional diagnostic hint only; never use it as an execution allowlist. */
+      /** Wallet implementation that owns the delegated execution ABI. */
+      walletBrand?: ApprovedWalletBrand;
+      /** Product-facing recovery label. */
       walletLabel?: string;
     };
 
@@ -32,23 +35,28 @@ const DELEGATE_METADATA: Record<
   string,
   {
     label: string;
+    walletBrand: ApprovedWalletBrand;
     walletLabel: string;
   }
 > = {
   [EIP7702_DELEGATES.ambire.toLowerCase()]: {
     label: 'Ambire EIP-7702 Delegator',
+    walletBrand: 'ambire',
     walletLabel: 'Ambire Wallet',
   },
   [EIP7702_DELEGATES.okx.toLowerCase()]: {
     label: 'OKX SmartWalletEntry',
+    walletBrand: 'okx',
     walletLabel: 'OKX Wallet',
   },
   [EIP7702_DELEGATES.okxLegacy.toLowerCase()]: {
     label: 'OKX EIP-7702 Delegator (legacy)',
+    walletBrand: 'okx',
     walletLabel: 'OKX Wallet',
   },
   [EIP7702_DELEGATES.metamask.toLowerCase()]: {
     label: 'MetaMask EIP-7702 Delegator',
+    walletBrand: 'metamask',
     walletLabel: 'MetaMask',
   },
 };
@@ -102,6 +110,7 @@ export async function inspectDelegation({
     kind: 'delegated',
     implementation,
     label: metadata.label,
+    walletBrand: metadata.walletBrand,
     walletLabel: metadata.walletLabel,
   };
 }

@@ -15,6 +15,10 @@ async function resizeImageToPng(input: {
   width: number;
   height: number;
   position?: string;
+  pngOptions?: {
+    compressionLevel: number;
+    adaptiveFiltering: boolean;
+  };
 }): Promise<void> {
   configureSharp();
   const image = sharp(input.imagePath, {
@@ -28,7 +32,12 @@ async function resizeImageToPng(input: {
       ...(input.position ? { position: input.position } : {}),
       kernel: sharp.kernel.lanczos3,
     })
-    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .png(
+      input.pngOptions ?? {
+        compressionLevel: 9,
+        adaptiveFiltering: true,
+      },
+    )
     .toFile(input.outputPath);
 }
 
@@ -102,5 +111,9 @@ export async function runSharpCropStage(
     ...input,
     outputPath,
     position: cropPositions[input.position] ?? 'centre',
+    pngOptions: {
+      compressionLevel: 1,
+      adaptiveFiltering: false,
+    },
   });
 }

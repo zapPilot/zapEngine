@@ -196,11 +196,16 @@ export function parseFfmpegProgressOutTimeUs(line: string): number | null {
 export function createFfmpegEncodeProgressReader(
   totalDurationMs: number,
   onFraction: (fraction: number) => void,
+  signal?: AbortSignal,
 ): (line: string) => void {
   const totalUs = totalDurationMs * 1_000;
   let highWaterMark = 0;
   return (line) => {
     if (line.trim() === 'progress=end') {
+      // SIGTERM lets ffmpeg flush and emit progress=end while the requested
+      // encode is still incomplete. Do not turn that graceful abort into a
+      // false 100% report.
+      if (signal?.aborted) return;
       // A fast encode can have its last out_time sample already reach the end,
       // in which case the end marker would emit a duplicate 1.
       if (highWaterMark >= 1) return;
@@ -360,6 +365,7 @@ export const VERTICAL_MEDIA_CHUNK_SIZE = 8 as const;
 // long scenes move at the same perceived speed; the cap keeps 13s+ scenes calm.
 const KEN_BURNS_ZOOM_RATE_PER_SECOND = 0.014;
 const KEN_BURNS_MAX_EXTRA_ZOOM = 0.18;
+const KEN_BURNS_HOLD_SAFETY_FRAMES = 2;
 // Pans hold a constant zoom and translate along one axis only: ramping zoom
 // and position together doubles zoompan's rounding sources and reads as wobble.
 const KEN_BURNS_PAN_ZOOM = 1.15;
@@ -401,6 +407,7 @@ function kenBurnsFilter(
   fps: number,
   width: number,
   height: number,
+  holdFrames: number,
 ): string {
   const durationFrames = Math.max(
     2,
@@ -440,7 +447,7 @@ function kenBurnsFilter(
     y = `(ih-ih/zoom)*${eased}`;
   }
 
-  return `zoompan=z='${zoom}':x='${x}':y='${y}':d=1:s=${width}x${height}:fps=${fps}`;
+  return `zoompan=z='${zoom}':x='${x}':y='${y}':d=${durationFrames + holdFrames}:s=${width}x${height}:fps=${fps}`;
 }
 
 function slideSceneFilters(
@@ -450,11 +457,14 @@ function slideSceneFilters(
   width: number,
   height: number,
   supersample: number,
+  transitionMs: number,
   indexOffset = 0,
 ): string[] {
+  const holdFrames =
+    Math.round((transitionMs * fps) / 1_000) + KEN_BURNS_HOLD_SAFETY_FRAMES;
   return slides.map(
     (slide, index) =>
-      `[${index}:v]fps=${fps},scale=${width * supersample}:${height * supersample}:flags=lanczos+accurate_rnd:in_range=pc:out_range=tv:out_color_matrix=bt709,${kenBurnsFilter(slide, index + indexOffset, seed, fps, width, height)},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`,
+      `[${index}:v]scale=${width * supersample}:${height * supersample}:flags=lanczos+accurate_rnd:in_range=pc:out_range=tv:out_color_matrix=bt709,${kenBurnsFilter(slide, index + indexOffset, seed, fps, width, height, holdFrames)},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`,
   );
 }
 
@@ -473,6 +483,7 @@ function sceneChain(
     width,
     height,
     supersample,
+    manifest.clip.transitionMs,
     indexOffset,
   );
   const priorLabel = appendXfadeChain(
@@ -722,6 +733,10 @@ function loopedImageInputs(paths: readonly string[], fps: number): string[] {
   ]);
 }
 
+function stillImageInputs(paths: readonly string[]): string[] {
+  return paths.flatMap((path) => ['-i', path]);
+}
+
 // Ken Burns stills plus burned-in captions gain almost nothing from x264's
 // slower presets, and `slow` is what stalled production: a portrait render on
 // a throttled shared vCPU encoded at 0.004x realtime before the OOM killer took
@@ -822,7 +837,7 @@ function renderArgs(input: {
 }): string[] {
   return [
     ...streamedRenderPrefix(),
-    ...loopedImageInputs(input.imagePaths, input.fps),
+    ...stillImageInputs(input.imagePaths),
     ...input.audioInputArgs,
     ...encoderOutputArgs({
       fps: input.fps,
@@ -862,7 +877,7 @@ export function buildVerticalMediaChunkFfmpegArgs(
   }
   return [
     ...streamedRenderPrefix(),
-    ...loopedImageInputs(mediaPaths, manifest.clip.fps),
+    ...stillImageInputs(mediaPaths),
     '-filter_complex',
     buildVerticalMediaChunkFilter(manifest, chunk),
     '-map',
@@ -893,10 +908,8 @@ export function buildVerticalChunkedFinalFfmpegArgs(
   return [
     ...streamedRenderPrefix(),
     ...chunkPaths.flatMap((path) => ['-i', path]),
-    ...loopedImageInputs(
-      [options.framePath, options.outroPath],
-      manifest.clip.fps,
-    ),
+    ...stillImageInputs([options.framePath]),
+    ...loopedImageInputs([options.outroPath], manifest.clip.fps),
     '-i',
     options.audioSource,
     '-stream_loop',
@@ -952,6 +965,7 @@ async function runRenderPass(
       ? createFfmpegEncodeProgressReader(
           encode.totalDurationMs,
           encode.onFraction,
+          signal,
         )
       : undefined,
   );
@@ -1002,7 +1016,7 @@ export async function renderVerticalSlideVideo(
   options: VerticalSlideVideoOptions,
   ffmpegPath = resolveVideoFfmpegPath(),
   processRunner: VideoProcessRunner = runProcess,
-): Promise<void> {
+): Promise<{ chunkEncodeMs: number; finalEncodeMs: number }> {
   throwIfAborted(options.signal);
   if (options.mediaPaths.length !== options.manifest.slides.length) {
     throw new Error(
@@ -1023,6 +1037,7 @@ export async function renderVerticalSlideVideo(
 
   const chunkProgressWeight = 0.75;
   try {
+    const chunkEncodeStartedAtMs = Date.now();
     for (const [index, chunk] of chunks.entries()) {
       throwIfAborted(options.signal);
       await runRenderPass(
@@ -1041,7 +1056,9 @@ export async function renderVerticalSlideVideo(
           : undefined,
       );
     }
+    const chunkEncodeMs = Date.now() - chunkEncodeStartedAtMs;
 
+    const finalEncodeStartedAtMs = Date.now();
     await runRenderPass(
       buildVerticalChunkedFinalFfmpegArgs(options, chunks, chunkPaths),
       options.signal,
@@ -1057,6 +1074,8 @@ export async function renderVerticalSlideVideo(
           }
         : undefined,
     );
+    const finalEncodeMs = Date.now() - finalEncodeStartedAtMs;
+    return { chunkEncodeMs, finalEncodeMs };
   } finally {
     await Promise.all(chunkPaths.map(removeIntermediateFile));
   }

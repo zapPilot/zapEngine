@@ -7,7 +7,6 @@ const USER = '0x1111111111111111111111111111111111111111';
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const ARBITRUM_USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831';
 const ROUTER = '0x2222222222222222222222222222222222222222';
-const SPENDER = '0x3333333333333333333333333333333333333333';
 const APPROVAL_HASH = `0x${'1'.repeat(64)}`;
 
 const mocks = vi.hoisted(() => ({
@@ -55,28 +54,37 @@ vi.mock('@zapengine/intent-engine', () => ({
 }));
 
 const quote = {
-  transaction: {
-    to: ROUTER,
-    data: '0x1234',
-    value: '0',
-    chainId: 8453,
-    gasLimit: '100000',
-    meta: { intentType: 'BRIDGE' },
-  },
-  approval: {
-    tokenAddress: BASE_USDC,
-    spenderAddress: SPENDER,
-    amount: '10000000',
-  },
-  estimate: {
-    fromAmount: '10000000',
-    toAmount: '9950000',
-    toAmountMin: '9900000',
-    gasCostUsd: '0.01',
-    feeCostUsd: '0.04',
-    executionDuration: 60,
-    tool: 'across',
-  },
+  provider: 'across',
+  fromChainId: 8453,
+  toChainId: 42161,
+  fromToken: BASE_USDC,
+  toToken: ARBITRUM_USDC,
+  fromAmount: '10000000',
+  toAmount: '9950000',
+  toAmountMin: '9900000',
+  feeUsd: '0.04',
+  gasUsd: '0.01',
+  estimatedDurationSec: 60,
+  approvals: [
+    {
+      to: BASE_USDC,
+      data: '0x5678',
+      value: '0',
+      chainId: 8453,
+      meta: { intentType: 'BRIDGE_APPROVAL' },
+    },
+  ],
+  calls: [
+    {
+      to: ROUTER,
+      data: '0x1234',
+      value: '0',
+      chainId: 8453,
+      gasLimit: '100000',
+      meta: { intentType: 'BRIDGE' },
+    },
+  ],
+  providerData: {},
 };
 
 const request = {
@@ -115,48 +123,7 @@ describe('useBridgeTest reset during approval receipt', () => {
       getGasPrice: mocks.getGasPrice,
       waitForTransactionReceipt: mocks.waitForTransactionReceipt,
     });
-    mocks.sendTransaction.mockResolvedValue(APPROVAL_HASH);
-  });
-
-  it('does not continue after approval lookup resolves following reset', async () => {
-    let resolveApproval!: (needed: boolean) => void;
-    mocks.needsApproval.mockImplementation(
-      () =>
-        new Promise<boolean>((resolve) => {
-          resolveApproval = resolve;
-        }),
-    );
-
-    const { result } = renderHook(() => useBridgeTest());
-    let execution!: Promise<void>;
-
-    await act(async () => {
-      execution = result.current.execute(request);
-      await vi.waitFor(() => {
-        expect(mocks.needsApproval).toHaveBeenCalledOnce();
-      });
-    });
-
-    act(() => {
-      result.current.reset();
-    });
-
-    await act(async () => {
-      resolveApproval(true);
-      await execution;
-    });
-
-    expect(mocks.readContract).not.toHaveBeenCalled();
-    expect(mocks.switchChain).not.toHaveBeenCalled();
-    expect(mocks.sendTransaction).not.toHaveBeenCalled();
-    expect(mocks.sendPreparedTransaction).not.toHaveBeenCalled();
-    expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
-    expect(result.current.status).toBe('idle');
-    expect(result.current.error).toBeNull();
-    expect(result.current.quote).toBeNull();
-    expect(result.current.sourceTxHash).toBeNull();
-    expect(result.current.destinationTxHash).toBeNull();
-    expect(result.current.lifiScanUrl).toBeNull();
+    mocks.sendPreparedTransaction.mockResolvedValue(APPROVAL_HASH);
   });
 
   it('does not submit the bridge when approval succeeds after reset', async () => {
@@ -194,12 +161,11 @@ describe('useBridgeTest reset during approval receipt', () => {
       await execution;
     });
 
-    expect(mocks.sendPreparedTransaction).not.toHaveBeenCalled();
+    expect(mocks.sendPreparedTransaction).toHaveBeenCalledTimes(1);
     expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
     expect(result.current.status).toBe('idle');
     expect(result.current.error).toBeNull();
     expect(result.current.sourceTxHash).toBeNull();
     expect(result.current.destinationTxHash).toBeNull();
-    expect(result.current.lifiScanUrl).toBeNull();
   });
 });

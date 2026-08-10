@@ -4,6 +4,7 @@ import {
   assertMainNarrationAudioSource,
   buildWeightedCaptionTiming,
   detectAudioSilences,
+  downloadNarrationAudio,
   parseSilenceDetection,
   probeAudioDurationMs,
   splitCaptionText,
@@ -100,5 +101,67 @@ describe('podcast video audio analysis', () => {
     expect(() =>
       assertMainNarrationAudioSource('/local/audio.m4a'),
     ).not.toThrow();
+  });
+
+  it('downloads the main narration with a lossless audio remux', async () => {
+    const processRunner = vi.fn().mockResolvedValue({ stdout: '', stderr: '' });
+
+    await downloadNarrationAudio(
+      'https://cdn.example.com/episodes/e/localizations/zh-Hant/main/playlist.m3u8',
+      '/work/narration.m4a',
+      { ffmpegPath: '/opt/ffmpeg', processRunner },
+    );
+
+    expect(processRunner).toHaveBeenCalledOnce();
+    expect(processRunner).toHaveBeenCalledWith('/opt/ffmpeg', [
+      '-y',
+      '-i',
+      'https://cdn.example.com/episodes/e/localizations/zh-Hant/main/playlist.m3u8',
+      '-map',
+      '0:a:0',
+      '-c',
+      'copy',
+      '/work/narration.m4a',
+    ]);
+  });
+
+  it('forwards the abort signal through the process runner contract', async () => {
+    const processRunner = vi.fn().mockResolvedValue({ stdout: '', stderr: '' });
+    const controller = new AbortController();
+
+    await downloadNarrationAudio('/local/audio.m4a', '/work/narration.m4a', {
+      ffmpegPath: '/opt/ffmpeg',
+      processRunner,
+      signal: controller.signal,
+    });
+
+    expect(processRunner).toHaveBeenCalledWith(
+      '/opt/ffmpeg',
+      [
+        '-y',
+        '-i',
+        '/local/audio.m4a',
+        '-map',
+        '0:a:0',
+        '-c',
+        'copy',
+        '/work/narration.m4a',
+      ],
+      false,
+      controller.signal,
+    );
+  });
+
+  it('rejects classroom narration before starting ffmpeg', async () => {
+    const processRunner = vi.fn().mockResolvedValue({ stdout: '', stderr: '' });
+
+    await expect(
+      downloadNarrationAudio(
+        'https://cdn.example.com/episodes/e/localizations/zh-Hant/classroom/playlist.m3u8',
+        '/work/narration.m4a',
+        { processRunner },
+      ),
+    ).rejects.toThrow('not classroom audio');
+    expect(processRunner).not.toHaveBeenCalled();
   });
 });

@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { decodeFunctionData, erc20Abi, type Address } from 'viem';
 
 import type { LiFiAdapter } from '../../src/adapters/lifi.adapter.js';
+import type { BridgeRouter } from '../../src/bridges/bridge-router.js';
+import type { BridgeQuoteRequest } from '../../src/bridges/bridge.types.js';
 import { MORPHO_VAULT_ABI } from '../../src/protocols/morpho/morpho.constants.js';
 import { composeDeposit } from '../../src/strategies/composeDeposit.js';
 import type { TransactionQuote } from '../../src/types/transaction.types.js';
@@ -134,8 +136,40 @@ function makeAdapter() {
         ),
     );
 
+  const bridgeRouter = {
+    quote: vi.fn().mockImplementation(async (request: BridgeQuoteRequest) => {
+      const legacy = await getQuote({
+        fromToken: request.fromToken,
+        toToken: request.toToken,
+        toChain: request.toChainId,
+        fromAmount: request.fromAmount,
+        intentType: 'BRIDGE',
+      });
+      return {
+        selected: {
+          provider: request.toChainId === 1 ? 'across' : 'lifi',
+          fromChainId: request.fromChainId,
+          toChainId: request.toChainId,
+          fromToken: request.fromToken,
+          toToken: request.toToken,
+          fromAmount: legacy.estimate.fromAmount,
+          toAmount: legacy.estimate.toAmount,
+          toAmountMin: legacy.estimate.toAmountMin,
+          feeUsd: legacy.estimate.feeCostUsd ?? '0',
+          gasUsd: legacy.estimate.gasCostUsd,
+          estimatedDurationSec: legacy.estimate.executionDuration,
+          approvals: [],
+          calls: [legacy.transaction],
+          providerData: legacy.route,
+        },
+        alternatives: [],
+      };
+    }),
+  } as unknown as BridgeRouter;
+
   return {
     adapter: { getContractCallQuote, getQuote } as unknown as LiFiAdapter,
+    bridgeRouter,
     getContractCallQuote,
     getQuote,
   };
@@ -315,7 +349,7 @@ describe('composeDeposit', () => {
   });
 
   it('assigns rounding dust to the final leg so split amounts sum exactly', async () => {
-    const { adapter } = makeAdapter();
+    const { adapter, bridgeRouter } = makeAdapter();
     const { publicClients } = makePublicClients();
 
     const plan = await composeDeposit(
@@ -330,7 +364,7 @@ describe('composeDeposit', () => {
           42161: 0.2,
         },
       },
-      { adapter, publicClients: publicClients as never },
+      { adapter, bridgeRouter, publicClients: publicClients as never },
     );
 
     expect(plan.legs.map((leg) => leg.fromAmount)).toEqual([
@@ -348,7 +382,7 @@ describe('composeDeposit', () => {
       chainId: 42161,
       kind: 'bridge',
       toToken: ARBITRUM_USDC,
-      bridge: 'relaydepository',
+      bridge: 'lifi',
     });
     expect(
       plan.legs.reduce((sum, leg) => sum + BigInt(leg.fromAmount), 0n),
@@ -391,7 +425,7 @@ describe('composeDeposit', () => {
   });
 
   it('emits a HyperCore bridge leg plus an HLP follow-up for a 70/30 split', async () => {
-    const { adapter, getQuote } = makeAdapter();
+    const { adapter, bridgeRouter, getQuote } = makeAdapter();
     const { publicClients } = makePublicClients();
 
     const plan = await composeDeposit(
@@ -402,7 +436,7 @@ describe('composeDeposit', () => {
         userAddress: USER,
         split: { 8453: 0.7, 1337: 0.3 },
       },
-      { adapter, publicClients: publicClients as never },
+      { adapter, bridgeRouter, publicClients: publicClients as never },
     );
 
     expect(plan.legs).toHaveLength(2);
@@ -414,7 +448,7 @@ describe('composeDeposit', () => {
       protocol: 'hyperliquid',
       toToken: ARBITRUM_USDC, // LI.FI's perps-USDC token id on 1337
       fromAmount: '30000000',
-      bridge: 'relaydepository',
+      bridge: 'lifi',
     });
     expect(getQuote).toHaveBeenCalledWith(
       expect.objectContaining({ toChain: 1337, toToken: ARBITRUM_USDC }),
@@ -432,7 +466,7 @@ describe('composeDeposit', () => {
   });
 
   it('supports a HyperCore-only split with no source supply leg', async () => {
-    const { adapter } = makeAdapter();
+    const { adapter, bridgeRouter } = makeAdapter();
     const { publicClients } = makePublicClients();
 
     const plan = await composeDeposit(
@@ -443,7 +477,7 @@ describe('composeDeposit', () => {
         userAddress: USER,
         split: { 1337: 1 },
       },
-      { adapter, publicClients: publicClients as never },
+      { adapter, bridgeRouter, publicClients: publicClients as never },
     );
 
     expect(plan.legs).toHaveLength(1);
@@ -452,7 +486,7 @@ describe('composeDeposit', () => {
   });
 
   it('propagates the testnet network into the HLP follow-up descriptor', async () => {
-    const { adapter } = makeAdapter();
+    const { adapter, bridgeRouter } = makeAdapter();
     const { publicClients } = makePublicClients();
 
     const plan = await composeDeposit(
@@ -465,6 +499,7 @@ describe('composeDeposit', () => {
       },
       {
         adapter,
+        bridgeRouter,
         publicClients: publicClients as never,
         hyperliquidNetwork: 'testnet',
       },
@@ -493,7 +528,7 @@ describe('composeDeposit', () => {
   });
 
   it('rejects an HLP allocation whose quoted output is below the vault minimum', async () => {
-    const { adapter } = makeAdapter();
+    const { adapter, bridgeRouter } = makeAdapter();
     const { publicClients } = makePublicClients();
 
     await expect(
@@ -505,7 +540,7 @@ describe('composeDeposit', () => {
           userAddress: USER,
           split: { 8453: 0.7, 1337: 0.3 }, // 3 USDC to HLP < 5 USDC minimum
         },
-        { adapter, publicClients: publicClients as never },
+        { adapter, bridgeRouter, publicClients: publicClients as never },
       ),
     ).rejects.toThrow('HLP allocation is below the vault minimum');
   });

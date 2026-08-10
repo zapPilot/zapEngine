@@ -51,23 +51,29 @@ vi.mock('@zapengine/intent-engine', () => ({
 }));
 
 const quote = {
-  transaction: {
-    to: ROUTER,
-    data: '0x1234',
-    value: '0',
-    chainId: 8453,
-    gasLimit: '100000',
-    meta: { intentType: 'BRIDGE' },
-  },
-  estimate: {
-    fromAmount: '10000000',
-    toAmount: '9950000',
-    toAmountMin: '9900000',
-    gasCostUsd: '0.01',
-    feeCostUsd: '0.04',
-    executionDuration: 60,
-    tool: 'across',
-  },
+  provider: 'lifi',
+  fromChainId: 8453,
+  toChainId: 1337,
+  fromToken: BASE_USDC,
+  toToken: HYPERCORE_USDC,
+  fromAmount: '10000000',
+  toAmount: '9950000',
+  toAmountMin: '9900000',
+  feeUsd: '0.04',
+  gasUsd: '0.01',
+  estimatedDurationSec: 60,
+  approvals: [],
+  calls: [
+    {
+      to: ROUTER,
+      data: '0x1234',
+      value: '0',
+      chainId: 8453,
+      gasLimit: '100000',
+      meta: { intentType: 'BRIDGE' },
+    },
+  ],
+  providerData: {},
 };
 
 const request = {
@@ -101,11 +107,13 @@ describe('useBridgeTest concurrent execution isolation', () => {
       getGasPrice: mocks.getGasPrice,
       waitForTransactionReceipt: mocks.waitForTransactionReceipt,
     });
-    mocks.getPerpUsdcBalance.mockResolvedValue({ withdrawableUsd6: 5_000_000n });
+    mocks.getPerpUsdcBalance.mockResolvedValue({
+      withdrawableUsd6: 5_000_000n,
+    });
     mocks.waitForPerpUsdcArrival.mockResolvedValue(undefined);
   });
 
-  it('keeps the second result when the first LI.FI poll rejects after being aborted', async () => {
+  it('keeps the second result when the first provider poll rejects after being aborted', async () => {
     let rejectFirstPoll!: (error: Error) => void;
     mocks.sendTransaction
       .mockResolvedValueOnce(FIRST_SOURCE_HASH)
@@ -118,8 +126,9 @@ describe('useBridgeTest concurrent execution isolation', () => {
           }),
       )
       .mockResolvedValueOnce({
-        status: 'DONE',
-        receiving: { txHash: SECOND_DESTINATION_HASH, chainId: 1337 },
+        status: 'settled',
+        sourceTxHash: SECOND_SOURCE_HASH,
+        destinationTxHash: SECOND_DESTINATION_HASH,
       });
 
     const { result } = renderHook(() => useBridgeTest());
@@ -145,7 +154,7 @@ describe('useBridgeTest concurrent execution isolation', () => {
     expect(result.current.destinationTxHash).toBe(SECOND_DESTINATION_HASH);
 
     await act(async () => {
-      rejectFirstPoll(new Error('Stale LI.FI poll failed.'));
+      rejectFirstPoll(new Error('Stale provider poll failed.'));
       await firstExecution;
     });
 
@@ -155,10 +164,11 @@ describe('useBridgeTest concurrent execution isolation', () => {
     expect(result.current.destinationTxHash).toBe(SECOND_DESTINATION_HASH);
   });
 
-  it('keeps reset state when an aborted LI.FI poll resolves successfully', async () => {
+  it('keeps reset state when an aborted provider poll resolves successfully', async () => {
     let resolvePoll!: (value: {
-      status: 'DONE';
-      receiving: { txHash: string; chainId: number };
+      status: 'settled';
+      sourceTxHash: string;
+      destinationTxHash: string;
     }) => void;
     mocks.sendTransaction.mockResolvedValue(FIRST_SOURCE_HASH);
     mocks.waitForBridgeCompletion.mockImplementation(
@@ -192,8 +202,9 @@ describe('useBridgeTest concurrent execution isolation', () => {
 
     await act(async () => {
       resolvePoll({
-        status: 'DONE',
-        receiving: { txHash: SECOND_DESTINATION_HASH, chainId: 1337 },
+        status: 'settled',
+        sourceTxHash: FIRST_SOURCE_HASH,
+        destinationTxHash: SECOND_DESTINATION_HASH,
       });
       await execution;
     });

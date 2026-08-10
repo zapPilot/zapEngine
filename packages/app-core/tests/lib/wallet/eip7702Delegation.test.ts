@@ -42,7 +42,41 @@ describe('inspectDelegation', () => {
         kind: 'delegated',
         implementation,
         label,
+        walletBrand: 'okx',
         walletLabel: 'OKX Wallet',
+      });
+    },
+  );
+
+  it.each([
+    [
+      EIP7702_DELEGATES.ambire,
+      'Ambire EIP-7702 Delegator',
+      'ambire',
+      'Ambire Wallet',
+    ],
+    [
+      EIP7702_DELEGATES.metamask,
+      'MetaMask EIP-7702 Delegator',
+      'metamask',
+      'MetaMask',
+    ],
+  ] as const)(
+    'maps %s to its wallet owner brand',
+    async (implementation, label, walletBrand, walletLabel) => {
+      mocks.getCode.mockResolvedValue(delegationCode(implementation));
+
+      await expect(
+        inspectDelegation({
+          address: '0x1111111111111111111111111111111111111111',
+          chainId: 42161,
+        }),
+      ).resolves.toEqual({
+        kind: 'delegated',
+        implementation,
+        label,
+        walletBrand,
+        walletLabel,
       });
     },
   );

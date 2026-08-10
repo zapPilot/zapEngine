@@ -1,6 +1,10 @@
 export { buildSwapTx } from './swap.builder.js';
 export { buildSupplyTx } from './supply.builder.js';
-export { buildBridgeTx, type BridgeIntentInput } from './bridge.builder.js';
+export {
+  buildBridgeTx,
+  quoteBridge,
+  type BridgeIntentInput,
+} from './bridge.builder.js';
 export { buildWithdrawTx } from './withdraw.builder.js';
 export {
   buildWithdrawSwapTx,

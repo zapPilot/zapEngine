@@ -12,13 +12,16 @@ const mocks = vi.hoisted(() => ({
   signMessageAsync: vi.fn(),
   signTypedDataAsync: vi.fn(),
   getWalletClient: vi.fn(),
+  assertEIP7702DelegationCompatibility: vi.fn(),
   submitPreparedTransactionsWithEIP7702: vi.fn(),
   connection: {
     address: undefined as string | undefined,
     isConnected: false,
     isConnecting: false,
     isReconnecting: false,
-    connector: undefined as { uid?: string } | undefined,
+    connector: undefined as
+      | { id: string; name: string; type: string; uid?: string }
+      | undefined,
     chain: undefined as { id: number; name: string } | undefined,
   },
   connectors: [] as { id: string; name: string; icon?: string; type: string }[],
@@ -48,6 +51,12 @@ vi.mock('@core/config/wagmi', () => ({
 }));
 
 vi.mock('@core/lib/wallet/executeDepositPlan', () => ({
+  assertEIP7702DelegationCompatibility:
+    mocks.assertEIP7702DelegationCompatibility,
+  isEIP7702WalletRecoveryError: (error: unknown) =>
+    error instanceof Error &&
+    'code' in error &&
+    error.code === 'EIP7702_DELEGATION_MISMATCH',
   submitPreparedTransactionsWithEIP7702:
     mocks.submitPreparedTransactionsWithEIP7702,
 }));
@@ -64,6 +73,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.connectAsync.mockReset();
   mocks.connectAsync.mockResolvedValue(undefined);
+  mocks.assertEIP7702DelegationCompatibility
+    .mockReset()
+    .mockResolvedValue(undefined);
   mocks.connection = {
     address: undefined,
     isConnected: false,
@@ -97,6 +109,12 @@ describe('useWagmiWalletBackend', () => {
       address: '0x1111111111111111111111111111111111111111',
       isConnected: true,
       isConnecting: false,
+      isReconnecting: false,
+      connector: {
+        id: 'com.okex.wallet',
+        name: 'OKX Wallet',
+        type: 'injected',
+      },
       chain: { id: 8453, name: 'Base' },
     };
     const walletClient = { account: { address: mocks.connection.address } };
@@ -124,6 +142,11 @@ describe('useWagmiWalletBackend', () => {
     ).resolves.toEqual({ status: 'submitted', callsId: 'calls-1' });
 
     expect(mocks.switchChainAsync).not.toHaveBeenCalled();
+    expect(mocks.assertEIP7702DelegationCompatibility).toHaveBeenCalledWith({
+      address: '0x1111111111111111111111111111111111111111',
+      chainId: 8453,
+      activeWalletBrand: 'okx',
+    });
     expect(mocks.getWalletClient).toHaveBeenCalledWith({}, { chainId: 8453 });
     expect(mocks.submitPreparedTransactionsWithEIP7702).toHaveBeenCalledWith({
       transactions,
@@ -146,6 +169,12 @@ describe('useWagmiWalletBackend', () => {
       address: '0x1111111111111111111111111111111111111111',
       isConnected: true,
       isConnecting: false,
+      isReconnecting: false,
+      connector: {
+        id: 'com.okex.wallet',
+        name: 'OKX Wallet',
+        type: 'injected',
+      },
       chain: { id: 8453, name: 'Base' },
     };
     mocks.switchChainAsync.mockResolvedValue(undefined);
@@ -176,8 +205,67 @@ describe('useWagmiWalletBackend', () => {
     expect(mocks.switchChainAsync).toHaveBeenCalledWith({ chainId: 42161 });
     expect(mocks.getWalletClient).toHaveBeenCalledWith({}, { chainId: 42161 });
     expect(mocks.switchChainAsync.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.getWalletClient.mock.invocationCallOrder[0]!,
+      mocks.assertEIP7702DelegationCompatibility.mock.invocationCallOrder[0]!,
     );
+    expect(
+      mocks.assertEIP7702DelegationCompatibility.mock.invocationCallOrder[0],
+    ).toBeLessThan(mocks.getWalletClient.mock.invocationCallOrder[0]!);
+  });
+
+  it('blocks OKX with an Ambire delegation before resolving or sending the reviewed batch', async () => {
+    const transactions: PreparedTransaction[] = [
+      {
+        to: '0x1C3fC96BB7A14a93707D02C521f2C3B0e1bF6A41',
+        data: '0x3f707e6b',
+        value: '0',
+        chainId: 42161,
+        meta: { intentType: 'deposit' },
+      },
+    ];
+    mocks.connection = {
+      address: '0x806686442aF382B627818D08dA93c96C2Fb0a981',
+      isConnected: true,
+      isConnecting: false,
+      isReconnecting: false,
+      connector: {
+        id: 'com.okex.wallet',
+        name: 'OKX Wallet',
+        type: 'injected',
+      },
+      chain: { id: 42161, name: 'Arbitrum One' },
+    };
+    mocks.assertEIP7702DelegationCompatibility.mockRejectedValue(
+      Object.assign(
+        new Error(
+          "The connected wallet is OKX Wallet, but this account's EIP-7702 delegation is owned by Ambire Wallet.",
+        ),
+        { code: 'EIP7702_DELEGATION_MISMATCH' },
+      ),
+    );
+    const { result } = renderHook(() => useWagmiWalletBackend());
+
+    await expect(
+      result.current.backend.executeReviewedBatch?.({
+        transactions,
+        chainId: 42161,
+        expectedWalletAddress: '0x806686442aF382B627818D08dA93c96C2Fb0a981',
+        expectedBatchFingerprint: computeReviewedBatchFingerprint({
+          chainId: 42161,
+          transactions,
+        }),
+        expiresAt: Date.now() + 60_000,
+        executionAllowed: true,
+        expectedSimulationFingerprint: `0x${'ab'.repeat(32)}`,
+        expectedRiskHash: `0x${'cd'.repeat(32)}`,
+        requiresRiskAcknowledgement: false,
+      }),
+    ).resolves.toMatchObject({
+      status: 'blocked',
+      code: 'EIP7702_DELEGATION_MISMATCH',
+    });
+
+    expect(mocks.getWalletClient).not.toHaveBeenCalled();
+    expect(mocks.submitPreparedTransactionsWithEIP7702).not.toHaveBeenCalled();
   });
 
   it('blocks a failed or unavailable review before resolving a wallet client', async () => {

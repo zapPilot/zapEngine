@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { uploadVideoArtifactsToR2 } from './storage.js';
 import { combineAbortSignalWithTimeout } from './video/abort.js';
+import { downloadNarrationAudio } from './video/audio-analysis.js';
 import {
   analyzeEpisodeAudio,
   createEpisodeVideoManifest,
@@ -22,11 +23,25 @@ import type { ProcessEpisodeVideoJob } from './video-worker.js';
 // A wedged ffmpeg would keep renewing its lease forever, and the render process
 // group has no HTTP service and therefore no Fly health check to notice. Bound
 // the encode so the job fails with a legible reason instead of holding the lease.
-export const EPISODE_VIDEO_RENDER_TIMEOUT_MS = 2_400_000;
+export const EPISODE_VIDEO_RENDER_TIMEOUT_FLOOR_MS = 2_400_000;
+export const EPISODE_VIDEO_RENDER_TIMEOUT_CAP_MS = 5_400_000;
+const RENDER_TIMEOUT_DURATION_MULTIPLIER = 4;
+const NARRATION_DOWNLOAD_TIMEOUT_MS = 300_000;
+
+export function renderTimeoutMsFor(clipDurationMs: number): number {
+  return Math.min(
+    EPISODE_VIDEO_RENDER_TIMEOUT_CAP_MS,
+    Math.max(
+      EPISODE_VIDEO_RENDER_TIMEOUT_FLOOR_MS,
+      clipDurationMs * RENDER_TIMEOUT_DURATION_MULTIPLIER,
+    ),
+  );
+}
 
 /* jscpd:ignore-start -- dependency injection factory pattern, irreducible by design */
 
 interface EpisodeVideoProcessorDependencies {
+  downloadNarration: typeof downloadNarrationAudio;
   analyzeAudio: typeof analyzeEpisodeAudio;
   createManifest: typeof createEpisodeVideoManifest;
   render: typeof renderSlideVideo;
@@ -40,6 +55,7 @@ interface EpisodeVideoProcessorDependencies {
 }
 
 const defaultDependencies: EpisodeVideoProcessorDependencies = {
+  downloadNarration: downloadNarrationAudio,
   analyzeAudio: analyzeEpisodeAudio,
   createManifest: createEpisodeVideoManifest,
   render: renderSlideVideo,
@@ -73,81 +89,106 @@ export function createEpisodeVideoProcessor(
       );
     }
 
-    context.reportProgress(renderStageProgress('analyzing-audio', 0));
-    const analysis = await dependencies.analyzeAudio(source.hlsUrl, {
-      signal: context.signal,
-    });
-    context.reportProgress(renderStageProgress('analyzing-audio'));
-    const alignmentStartedAt = Date.now();
-    logLocaleVideoEvent(dependencies.logger, 'video:alignment', {
-      run: context.runId,
-      episode: source.episodeId,
-      language: source.languageCode,
-      phase: 'start',
-    });
-    const generated = await dependencies.createManifest({
-      episodeId: source.episodeId,
-      localizationId: source.localizationId,
-      languageCode: source.languageCode,
-      title: source.title,
-      script: source.script,
-      canonicalScript: source.canonicalScript,
-      visualPlan: visual.visualPlan,
-      storyboardProvider: visual.provenance.storyboardProvider,
-      storyboardModel: visual.provenance.storyboardModel,
-      hlsUrl: source.hlsUrl,
-      durationMs: analysis.durationMs,
-      silences: analysis.silences,
-      signal: context.signal,
-    });
-    logLocaleVideoEvent(dependencies.logger, 'video:alignment', {
-      run: context.runId,
-      episode: source.episodeId,
-      language: source.languageCode,
-      phase: 'done',
-      elapsedMs: Date.now() - alignmentStartedAt,
-    });
-    context.reportProgress(renderStageProgress('aligning-script'));
-
-    await context.saveManifest({
-      manifest: JSON.parse(generated.manifestJson) as Record<string, unknown>,
-      manifestHash: generated.manifestHash,
-      rendererVersion: generated.provenance.rendererVersion,
-      storyboardProvider: generated.provenance.storyboardProvider,
-      storyboardModel: generated.provenance.storyboardModel,
-      storyboardPromptVersion: generated.provenance.promptVersion,
-      scriptHash: generated.scriptHash,
-    });
-
     const outputDirectory = await dependencies.makeTemporaryDirectory(
       join(tmpdir(), 'episode-video-worker-'),
     );
+    const narrationPath = join(outputDirectory, 'narration.m4a');
     const manifestPath = join(outputDirectory, 'manifest-input.json');
     try {
+      context.reportProgress(renderStageProgress('analyzing-audio', 0));
+      const narrationDownloadStartedAt = Date.now();
+      const downloadDeadline = combineAbortSignalWithTimeout(
+        context.signal,
+        NARRATION_DOWNLOAD_TIMEOUT_MS,
+        'Narration download exceeded 5m',
+      );
+      let narrationDownloadMs: number;
+      try {
+        downloadDeadline.signal.throwIfAborted();
+        await dependencies.downloadNarration(source.hlsUrl, narrationPath, {
+          signal: downloadDeadline.signal,
+        });
+      } finally {
+        narrationDownloadMs = Date.now() - narrationDownloadStartedAt;
+        downloadDeadline.dispose();
+      }
+
+      const analysis = await dependencies.analyzeAudio(narrationPath, {
+        signal: context.signal,
+      });
+      context.reportProgress(renderStageProgress('analyzing-audio'));
+      const alignmentStartedAt = Date.now();
+      logLocaleVideoEvent(dependencies.logger, 'video:alignment', {
+        run: context.runId,
+        episode: source.episodeId,
+        language: source.languageCode,
+        phase: 'start',
+      });
+      const generated = await dependencies.createManifest({
+        episodeId: source.episodeId,
+        localizationId: source.localizationId,
+        languageCode: source.languageCode,
+        title: source.title,
+        script: source.script,
+        canonicalScript: source.canonicalScript,
+        visualPlan: visual.visualPlan,
+        storyboardProvider: visual.provenance.storyboardProvider,
+        storyboardModel: visual.provenance.storyboardModel,
+        hlsUrl: source.hlsUrl,
+        durationMs: analysis.durationMs,
+        silences: analysis.silences,
+        signal: context.signal,
+      });
+      logLocaleVideoEvent(dependencies.logger, 'video:alignment', {
+        run: context.runId,
+        episode: source.episodeId,
+        language: source.languageCode,
+        phase: 'done',
+        elapsedMs: Date.now() - alignmentStartedAt,
+      });
+      context.reportProgress(renderStageProgress('aligning-script'));
+
+      await context.saveManifest({
+        manifest: JSON.parse(generated.manifestJson) as Record<string, unknown>,
+        manifestHash: generated.manifestHash,
+        rendererVersion: generated.provenance.rendererVersion,
+        storyboardProvider: generated.provenance.storyboardProvider,
+        storyboardModel: generated.provenance.storyboardModel,
+        storyboardPromptVersion: generated.provenance.promptVersion,
+        scriptHash: generated.scriptHash,
+      });
+
       await dependencies.writeManifest(
         manifestPath,
         generated.manifestJson,
         'utf8',
       );
       context.signal.throwIfAborted();
+      const renderTimeoutMs = renderTimeoutMsFor(
+        generated.manifest.clip.durationMs,
+      );
       const renderDeadline = combineAbortSignalWithTimeout(
         context.signal,
-        EPISODE_VIDEO_RENDER_TIMEOUT_MS,
-        `Video render exceeded ${Math.round(EPISODE_VIDEO_RENDER_TIMEOUT_MS / 60_000)}m`,
+        renderTimeoutMs,
+        `Video render exceeded ${Math.round(renderTimeoutMs / 60_000)}m`,
       );
       const renderStartedAt = Date.now();
-      const memorySampler = await startCgroupMemorySampler(
-        dependencies.readCgroupMemory,
-        dependencies.memorySampleIntervalMs,
-      );
-      renderDeadline.signal.throwIfAborted();
+      let memorySampler: Awaited<
+        ReturnType<typeof startCgroupMemorySampler>
+      > | null = null;
       let renderStatus: 'completed' | 'failed' = 'failed';
-      let rendered: Awaited<ReturnType<typeof renderSlideVideo>>;
+      let rendered: Awaited<ReturnType<typeof renderSlideVideo>> | null = null;
       try {
+        renderDeadline.signal.throwIfAborted();
+        memorySampler = await startCgroupMemorySampler(
+          dependencies.readCgroupMemory,
+          dependencies.memorySampleIntervalMs,
+        );
+        renderDeadline.signal.throwIfAborted();
         rendered = await dependencies.render({
           manifestPath,
           outputDirectory,
-          audioSource: source.hlsUrl,
+          audioSource: narrationPath,
           signal: renderDeadline.signal,
           onProgress: (event) => {
             logRenderProgress(
@@ -162,18 +203,34 @@ export function createEpisodeVideoProcessor(
         });
         renderStatus = 'completed';
       } finally {
-        const observedPeakBytes = await memorySampler.stop();
-        await logRenderMetrics(dependencies.logger, {
-          run: context.runId,
-          episode: source.episodeId,
-          language: source.languageCode,
-          status: renderStatus,
-          wallMs: Date.now() - renderStartedAt,
-          durationMs: generated.manifest.clip.durationMs,
-          observedPeakBytes,
-          currentBytes: await dependencies.readCgroupMemory(),
-        });
-        renderDeadline.dispose();
+        try {
+          const observedPeakBytes =
+            memorySampler === null ? null : await memorySampler.stop();
+          await logRenderMetrics(dependencies.logger, {
+            run: context.runId,
+            episode: source.episodeId,
+            language: source.languageCode,
+            status: renderStatus,
+            wallMs: Date.now() - renderStartedAt,
+            durationMs: generated.manifest.clip.durationMs,
+            narrationDownloadMs,
+            ...(rendered === null
+              ? {}
+              : {
+                  mediaMs: rendered.mediaMs,
+                  chunkEncodeMs: rendered.chunkEncodeMs,
+                  finalEncodeMs: rendered.finalEncodeMs,
+                  downscaleMs: rendered.downscaleMs,
+                }),
+            observedPeakBytes,
+            currentBytes: await dependencies.readCgroupMemory(),
+          });
+        } finally {
+          renderDeadline.dispose();
+        }
+      }
+      if (rendered === null) {
+        throw new Error('Video renderer returned no artifacts');
       }
       if (rendered.manifestHash !== generated.manifestHash) {
         throw new Error('Rendered manifest hash differs from persisted hash');
@@ -316,13 +373,30 @@ async function logRenderMetrics(
     status: 'completed' | 'failed';
     wallMs: number;
     durationMs: number;
+    narrationDownloadMs: number;
+    mediaMs?: number;
+    chunkEncodeMs?: number;
+    finalEncodeMs?: number;
+    downscaleMs?: number;
     observedPeakBytes: number | null;
     currentBytes: number | null;
   },
 ): Promise<void> {
-  const { observedPeakBytes, currentBytes, ...eventFields } = fields;
+  const {
+    observedPeakBytes,
+    currentBytes,
+    mediaMs,
+    chunkEncodeMs,
+    finalEncodeMs,
+    downscaleMs,
+    ...eventFields
+  } = fields;
   logLocaleVideoEvent(logger, 'video:render-metrics', {
     ...eventFields,
+    ...(mediaMs === undefined ? {} : { mediaMs }),
+    ...(chunkEncodeMs === undefined ? {} : { chunkEncodeMs }),
+    ...(finalEncodeMs === undefined ? {} : { finalEncodeMs }),
+    ...(downscaleMs === undefined ? {} : { downscaleMs }),
     realtime: (fields.durationMs / Math.max(fields.wallMs, 1)).toFixed(3),
     nodeRssMb: bytesToMb(process.memoryUsage().rss),
     ...(currentBytes === null

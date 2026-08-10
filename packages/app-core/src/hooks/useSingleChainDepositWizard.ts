@@ -140,6 +140,9 @@ export function useSingleChainDepositWizard(): SingleChainDepositWizard {
           plan: refreshedPlan,
           chainId,
           getWalletClient: activeWallet.getWalletClient,
+          ...(activeWallet.externalWalletBrand
+            ? { externalWalletBrand: activeWallet.externalWalletBrand }
+            : {}),
           ...(activeWallet.executeAtomicBatch
             ? { executeAtomicBatch: activeWallet.executeAtomicBatch }
             : {}),

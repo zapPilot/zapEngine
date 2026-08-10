@@ -191,6 +191,12 @@ describe('renderSlideVideo', () => {
     ).toEqual(['slide-01.png', 'slide-02.png', 'slide-03.png']);
     expect(await readFile(result.thumbnailPath, 'utf8')).toBe('1080p:scene-01');
     expect(await readFile(result.previewPath, 'utf8')).toBe('mock-mp4');
+    expect(result).toMatchObject({
+      mediaMs: expect.any(Number),
+      chunkEncodeMs: 0,
+      finalEncodeMs: expect.any(Number),
+      downscaleMs: 0,
+    });
     expect(renderedFilter).toContain('xfade=transition=fade');
     expect(renderedFilter).toContain('zoompan=');
     expect(renderedFilter).not.toMatch(/gblur|boxblur/i);
@@ -364,6 +370,11 @@ describe('renderSlideVideo (vertical news manifests)', () => {
     const manifestPath = join(root, 'manifest.json');
     const outputDirectory = join(root, 'rendered');
     await writeFile(manifestPath, JSON.stringify(createVerticalManifest()));
+    vi.spyOn(Date, 'now')
+      .mockReturnValueOnce(1_000)
+      .mockReturnValueOnce(1_250)
+      .mockReturnValueOnce(5_000)
+      .mockReturnValueOnce(5_700);
 
     const progress: string[] = [];
     const resolveAsset = vi.fn(async (slide: Slide) => resolvedImage(slide));
@@ -405,6 +416,7 @@ describe('renderSlideVideo (vertical news manifests)', () => {
     const renderVerticalVideo = vi.fn(
       async (videoOptions: Parameters<typeof renderVerticalSlideVideo>[0]) => {
         await writeFile(videoOptions.outputPath, 'mock-vertical-mp4', 'utf8');
+        return { chunkEncodeMs: 1_200, finalEncodeMs: 3_400 };
       },
     );
 
@@ -492,6 +504,12 @@ describe('renderSlideVideo (vertical news manifests)', () => {
       'PlayResX: 720',
     );
     expect(result.slideMasterPaths).toEqual([]);
+    expect(result).toMatchObject({
+      mediaMs: 250,
+      chunkEncodeMs: 1_200,
+      finalEncodeMs: 3_400,
+      downscaleMs: 700,
+    });
     expect(progress).toEqual([
       'Preparing media 1/3: scene-01',
       'Preparing media 2/3: scene-02',
@@ -610,6 +628,10 @@ describe('render result descriptions', () => {
         manifestHash: 'abc123',
         slideMasterPaths: ['/out/slides/master/slide-01.png'],
         slideOutputPaths: ['/out/slides/1080p/slide-01.png'],
+        mediaMs: 10,
+        chunkEncodeMs: 20,
+        finalEncodeMs: 30,
+        downscaleMs: 40,
       }),
     ).toBe(
       [

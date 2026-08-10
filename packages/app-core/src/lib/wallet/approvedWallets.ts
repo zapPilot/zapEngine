@@ -1,4 +1,6 @@
 export interface ApprovedWallet {
+  /** Stable execution identity used for EIP-7702 delegation checks. */
+  brand: ApprovedWalletBrand;
   /** EIP-6963 reverse-DNS identifier. */
   rdns: string;
   /** Lowercase substring used to match the connector display name. */
@@ -6,6 +8,8 @@ export interface ApprovedWallet {
   /** Product-facing brand name. */
   label: string;
 }
+
+export type ApprovedWalletBrand = 'ambire' | 'okx' | 'metamask';
 
 /**
  * Wallets verified against Zap Pilot's supported chains, in display order.
@@ -16,10 +20,39 @@ export interface ApprovedWallet {
  * a defensive secondary signal.
  */
 export const APPROVED_WALLETS: readonly ApprovedWallet[] = [
-  { rdns: 'com.ambire', nameNeedle: 'ambire', label: 'Ambire' },
-  { rdns: 'com.okex.wallet', nameNeedle: 'okx', label: 'OKX Wallet' },
-  { rdns: 'io.metamask', nameNeedle: 'metamask', label: 'MetaMask' },
+  {
+    brand: 'ambire',
+    rdns: 'com.ambire',
+    nameNeedle: 'ambire',
+    label: 'Ambire',
+  },
+  {
+    brand: 'okx',
+    rdns: 'com.okex.wallet',
+    nameNeedle: 'okx',
+    label: 'OKX Wallet',
+  },
+  {
+    brand: 'metamask',
+    rdns: 'io.metamask',
+    nameNeedle: 'metamask',
+    label: 'MetaMask',
+  },
 ];
+
+export function approvedWalletBrand(connector: {
+  id: string;
+  name: string;
+}): ApprovedWalletBrand | null {
+  const rank = approvedWalletRank(connector);
+  return APPROVED_WALLETS[rank]?.brand ?? null;
+}
+
+export function approvedWalletLabel(brand: ApprovedWalletBrand): string {
+  return (
+    APPROVED_WALLETS.find((wallet) => wallet.brand === brand)?.label ?? brand
+  );
+}
 
 export function approvedWalletRank(connector: {
   id: string;

@@ -53,6 +53,10 @@ export interface RenderedSlideVideo {
   slideOutputPaths: string[];
   framePath?: string;
   outroPath?: string;
+  mediaMs: number;
+  chunkEncodeMs: number;
+  finalEncodeMs: number;
+  downscaleMs: number;
 }
 
 export interface VerticalThumbnailInput {
@@ -301,6 +305,7 @@ export async function renderSlideVideo(
     }[] = [];
     const slideMasterPaths: string[] = [];
     const slideOutputPaths: string[] = [];
+    const mediaStartedAt = Date.now();
 
     for (const [index, slide] of manifest.slides.entries()) {
       throwIfAborted(options.signal);
@@ -338,6 +343,7 @@ export async function renderSlideVideo(
         { signal: options.signal },
       );
     }
+    const mediaMs = Date.now() - mediaStartedAt;
 
     await writeFile(
       reportPath,
@@ -362,6 +368,7 @@ export async function renderSlideVideo(
       phase: 'encode',
     });
     throwIfAborted(options.signal);
+    const finalEncodeStartedAt = Date.now();
     await dependencies.renderVideo({
       onEncodeProgress: encodeProgressReporter(
         options.onProgress,
@@ -374,6 +381,7 @@ export async function renderSlideVideo(
       outputPath: previewPath,
       signal: options.signal,
     });
+    const finalEncodeMs = Date.now() - finalEncodeStartedAt;
 
     return {
       previewPath,
@@ -384,6 +392,10 @@ export async function renderSlideVideo(
       manifestHash,
       slideMasterPaths,
       slideOutputPaths,
+      mediaMs,
+      chunkEncodeMs: 0,
+      finalEncodeMs,
+      downscaleMs: 0,
     };
   } finally {
     await rm(workDirectory, { recursive: true, force: true });
@@ -411,6 +423,7 @@ async function renderVerticalNewsVideo(context: {
   const { manifest, options, dependencies } = context;
   const assetResults: { slide: Slide; asset: ResolvedImageAsset }[] = [];
   const slideOutputPaths: string[] = [];
+  const mediaStartedAt = Date.now();
 
   for (const [index, slide] of manifest.slides.entries()) {
     throwIfAborted(options.signal);
@@ -453,6 +466,7 @@ async function renderVerticalNewsVideo(context: {
       { signal: options.signal },
     );
   }
+  const mediaMs = Date.now() - mediaStartedAt;
   const firstMediaPath = slideOutputPaths[0];
   if (!firstMediaPath) throw new Error('Renderer produced no media images');
 
@@ -507,7 +521,7 @@ async function renderVerticalNewsVideo(context: {
     phase: 'encode',
   });
   throwIfAborted(options.signal);
-  await dependencies.renderVerticalVideo({
+  const encodeMetrics = await dependencies.renderVerticalVideo({
     manifest,
     mediaPaths: slideOutputPaths,
     framePath,
@@ -527,10 +541,12 @@ async function renderVerticalNewsVideo(context: {
     ),
   });
 
+  const downscaleStartedAt = Date.now();
   for (const path of slideOutputPaths) {
     throwIfAborted(options.signal);
     await dependencies.downscaleMedia(path, manifest.mediaWindow);
   }
+  const downscaleMs = Date.now() - downscaleStartedAt;
 
   return {
     previewPath: context.paths.previewPath,
@@ -543,6 +559,10 @@ async function renderVerticalNewsVideo(context: {
     slideOutputPaths,
     framePath,
     outroPath,
+    mediaMs,
+    chunkEncodeMs: encodeMetrics.chunkEncodeMs,
+    finalEncodeMs: encodeMetrics.finalEncodeMs,
+    downscaleMs,
   };
 }
 

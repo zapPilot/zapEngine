@@ -1,4 +1,5 @@
 import {
+  approvedWalletBrand,
   approvedWalletRank,
   formatApprovedWalletList,
   isApprovedWalletConnector,
@@ -23,6 +24,21 @@ describe('approvedWallets', () => {
         name: 'Ambire Browser Extension',
       }),
     ).toBe(true);
+  });
+
+  it('resolves a stable execution brand from connector identity', () => {
+    expect(
+      approvedWalletBrand({ id: 'com.ambire', name: 'Browser Wallet' }),
+    ).toBe('ambire');
+    expect(
+      approvedWalletBrand({ id: 'com.okex.wallet', name: 'OKX Wallet' }),
+    ).toBe('okx');
+    expect(approvedWalletBrand({ id: 'io.metamask', name: 'MetaMask' })).toBe(
+      'metamask',
+    );
+    expect(
+      approvedWalletBrand({ id: 'app.phantom', name: 'Phantom' }),
+    ).toBeNull();
   });
 
   it('rejects Rabby because it cannot execute the required wallet batch API', () => {
