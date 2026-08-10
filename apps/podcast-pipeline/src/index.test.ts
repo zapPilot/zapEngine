@@ -4,8 +4,10 @@ import {
   classroomLesson,
   classroomRow,
   createDeferred,
+  episodeFeedResponse,
   episodeListResponse,
   episodeRow,
+  feedRow,
   listRow,
   localizationResponse,
   localizationRow,
@@ -35,7 +37,7 @@ const {
   mockInsertEpisode,
   mockInsertEpisodeLocalization,
   mockInvalidateEpisodeSearchCache,
-  mockListEpisodesPaged,
+  mockListEpisodeFeedPaged,
   mockListEpisodeVideoSummariesByLocalizationIds,
   mockListEpisodeLocalizationsByEpisodeId,
   mockListLanguageClassroomsByLocalizationId,
@@ -70,7 +72,7 @@ const {
   mockInsertEpisode: vi.fn(),
   mockInsertEpisodeLocalization: vi.fn(),
   mockInvalidateEpisodeSearchCache: vi.fn(),
-  mockListEpisodesPaged: vi.fn(),
+  mockListEpisodeFeedPaged: vi.fn(),
   mockListEpisodeVideoSummariesByLocalizationIds: vi
     .fn()
     .mockResolvedValue(new Map()),
@@ -110,7 +112,7 @@ vi.mock('./services/db.js', async (importOriginal) => ({
   findEpisodeLocalizationByEpisodeId: mockFindEpisodeLocalizationByEpisodeId,
   insertEpisode: mockInsertEpisode,
   insertEpisodeLocalization: mockInsertEpisodeLocalization,
-  listEpisodesPaged: mockListEpisodesPaged,
+  listEpisodeFeedPaged: mockListEpisodeFeedPaged,
   listEpisodeVideoSummariesByLocalizationIds:
     mockListEpisodeVideoSummariesByLocalizationIds,
   listEpisodeLocalizationsByEpisodeId: mockListEpisodeLocalizationsByEpisodeId,
@@ -1652,22 +1654,13 @@ describe('GET /episodes', () => {
       t: '2024-01-01T00:00:00.000Z',
       i: raw,
     }));
-    mockListEpisodesPaged.mockResolvedValue({ rows: [], nextCursor: null });
+    mockListEpisodeFeedPaged.mockResolvedValue({ rows: [], nextCursor: null });
     mockListLanguageClassroomsByLocalizationIds.mockResolvedValue(new Map());
   });
 
-  it('returns a paginated localization response for zh-Hant', async () => {
-    const row = listRow({
-      language_classrooms: [
-        {
-          sourceLanguageCode: 'zh-Hant',
-          targetLanguageCode: 'ja',
-          oneLiner: 'この記事は市場流動性を説明します。',
-          keywords: [],
-        },
-      ],
-    });
-    mockListEpisodesPaged.mockResolvedValue({
+  it('returns a paginated feed response for zh-Hant', async () => {
+    const row = feedRow();
+    mockListEpisodeFeedPaged.mockResolvedValue({
       rows: [row],
       nextCursor: 'next-cursor',
     });
@@ -1676,35 +1669,16 @@ describe('GET /episodes', () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(mockListEpisodesPaged).toHaveBeenCalledWith(5, null, 'zh-Hant');
+    expect(mockListEpisodeFeedPaged).toHaveBeenCalledWith(5, null, 'zh-Hant');
     expect(body).toEqual({
-      items: [
-        {
-          ...episodeListResponse(row),
-          languageClassrooms: [
-            {
-              sourceLanguageCode: 'zh-Hant',
-              targetLanguageCode: 'ja',
-              oneLiner: 'この記事は市場流動性を説明します。',
-              keywords: [],
-            },
-          ],
-        },
-      ],
+      items: [episodeFeedResponse(row)],
       nextCursor: 'next-cursor',
     });
   });
 
-  it('uses row classrooms directly without fallback', async () => {
-    const row = listRow({
-      language_classrooms: [
-        classroomLesson({
-          targetLanguageCode: 'en',
-          oneLiner: 'This article explains liquidity.',
-        }),
-      ],
-    });
-    mockListEpisodesPaged.mockResolvedValue({
+  it('omits script and language classrooms from the feed payload', async () => {
+    const row = feedRow();
+    mockListEpisodeFeedPaged.mockResolvedValue({
       rows: [row],
       nextCursor: null,
     });
@@ -1713,19 +1687,16 @@ describe('GET /episodes', () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(mockListEpisodesPaged).toHaveBeenCalledWith(20, null, 'zh-Hant');
-    expect(body.items[0].languageClassrooms).toEqual([
-      {
-        sourceLanguageCode: 'zh-Hant',
-        targetLanguageCode: 'en',
-        oneLiner: 'This article explains liquidity.',
-        keywords: [],
-      },
-    ]);
+    expect(mockListEpisodeFeedPaged).toHaveBeenCalledWith(20, null, 'zh-Hant');
+    expect(body.items[0]).not.toHaveProperty('script');
+    expect(body.items[0]).not.toHaveProperty('languageClassrooms');
+    expect(body.items[0].audioTracks[0].classroomHlsUrl).toBe(
+      row.classroom_hls_url,
+    );
   });
 
   it('hydrates feed video fields with one batch query', async () => {
-    const row = listRow();
+    const row = feedRow();
     const video = {
       url: 'https://cdn.example.com/video.mp4',
       thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
@@ -1735,7 +1706,10 @@ describe('GET /episodes', () => {
       status: 'completed' as const,
       updatedAt: '2026-07-24T00:00:00.000Z',
     };
-    mockListEpisodesPaged.mockResolvedValue({ rows: [row], nextCursor: null });
+    mockListEpisodeFeedPaged.mockResolvedValue({
+      rows: [row],
+      nextCursor: null,
+    });
     mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(
       new Map([
         [
@@ -1791,12 +1765,15 @@ describe('GET /episodes', () => {
   });
 
   it('returns a processing generation status while the video is unavailable', async () => {
-    const row = listRow();
+    const row = feedRow();
     const videoGeneration = {
       status: 'processing' as const,
       updatedAt: '2026-07-24T00:00:00.000Z',
     };
-    mockListEpisodesPaged.mockResolvedValue({ rows: [row], nextCursor: null });
+    mockListEpisodeFeedPaged.mockResolvedValue({
+      rows: [row],
+      nextCursor: null,
+    });
     mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(
       new Map([
         [
@@ -1819,8 +1796,11 @@ describe('GET /episodes', () => {
   });
 
   it('redacts internal video failure details from the public feed', async () => {
-    const row = listRow();
-    mockListEpisodesPaged.mockResolvedValue({ rows: [row], nextCursor: null });
+    const row = feedRow();
+    mockListEpisodeFeedPaged.mockResolvedValue({
+      rows: [row],
+      nextCursor: null,
+    });
     mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(
       new Map([
         [
@@ -1850,7 +1830,7 @@ describe('GET /episodes', () => {
     const response = await app.request('/episodes?limit=abc');
 
     expect(response.status).toBe(400);
-    expect(mockListEpisodesPaged).not.toHaveBeenCalled();
+    expect(mockListEpisodeFeedPaged).not.toHaveBeenCalled();
   });
 
   it('returns 400 for an invalid cursor', async () => {
@@ -1861,14 +1841,14 @@ describe('GET /episodes', () => {
     const response = await app.request('/episodes?cursor=garbage');
 
     expect(response.status).toBe(400);
-    expect(mockListEpisodesPaged).not.toHaveBeenCalled();
+    expect(mockListEpisodeFeedPaged).not.toHaveBeenCalled();
   });
 
   it('returns 400 for unsupported language codes', async () => {
     const response = await app.request('/episodes?language=fr');
 
     expect(response.status).toBe(400);
-    expect(mockListEpisodesPaged).not.toHaveBeenCalled();
+    expect(mockListEpisodeFeedPaged).not.toHaveBeenCalled();
   });
 });
 
@@ -2227,7 +2207,9 @@ describe('app error handling', () => {
   it('returns a production 500 body for non-HTTP errors', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    mockListEpisodesPaged.mockRejectedValue(new Error('database unavailable'));
+    mockListEpisodeFeedPaged.mockRejectedValue(
+      new Error('database unavailable'),
+    );
 
     const response = await app.request('/episodes');
     const body = await response.json();
@@ -2239,7 +2221,7 @@ describe('app error handling', () => {
   it('includes Error causes in development error responses', async () => {
     vi.stubEnv('NODE_ENV', 'development');
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    mockListEpisodesPaged.mockRejectedValue(
+    mockListEpisodeFeedPaged.mockRejectedValue(
       new Error('outer failure', { cause: new Error('inner failure') }),
     );
 

@@ -91,6 +91,15 @@ export interface EpisodeListRow extends EpisodeLocalizationProjection {
   language_classrooms: LanguageClassroomLesson[];
 }
 
+// The feed never serves the full script or classroom lessons: episode detail
+// refetches them, and 31 rows of TOASTed text per page was enough to push the
+// view past PostgREST's statement timeout. like_count is unreferenced too,
+// which lets Postgres drop the view's likes aggregate join entirely.
+export type EpisodeFeedRow = Omit<
+  EpisodeListRow,
+  'script' | 'language_classrooms' | 'like_count'
+>;
+
 export interface EpisodeAudioTrackResponse {
   languageCode: string;
   title: string;
@@ -175,6 +184,11 @@ export interface EpisodeResponse {
   videoGeneration: EpisodeVideoGenerationSummary | null;
   languageClassrooms: LanguageClassroomLesson[];
 }
+
+export type EpisodeFeedResponse = Omit<
+  EpisodeResponse,
+  'script' | 'languageClassrooms'
+>;
 
 export type EpisodeSearchMatchSource = 'title' | 'script';
 

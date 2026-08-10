@@ -1,4 +1,6 @@
 import type {
+  EpisodeFeedResponse,
+  EpisodeFeedRow,
   EpisodeListRow,
   EpisodeLocalizationRow,
   EpisodeResponse,
@@ -41,11 +43,7 @@ export function localizationResponse(
   };
 }
 
-export function episodeListResponse(row: EpisodeListRow): EpisodeResponse {
-  const languageClassrooms = Array.isArray(row.language_classrooms)
-    ? row.language_classrooms
-    : [];
-
+export function episodeFeedResponse(row: EpisodeFeedRow): EpisodeFeedResponse {
   return {
     id: row.episode_id,
     localizationId: row.localization_id,
@@ -62,13 +60,23 @@ export function episodeListResponse(row: EpisodeListRow): EpisodeResponse {
     ],
     createdAt: row.created_at,
     listened: row.listened,
-    script: row.script,
     llmModel: row.llm_model,
     llmThinkingModel: row.llm_thinking_model,
     llmProvider: row.llm_provider,
     status: row.status,
     video: null,
     videoGeneration: null,
+  };
+}
+
+export function episodeListResponse(row: EpisodeListRow): EpisodeResponse {
+  const languageClassrooms = Array.isArray(row.language_classrooms)
+    ? row.language_classrooms
+    : [];
+
+  return {
+    ...episodeFeedResponse(row),
+    script: row.script,
     languageClassrooms,
   };
 }
@@ -159,6 +167,27 @@ export function listRow(
     listened: false,
     like_count: 0,
     language_classrooms: [],
+    ...overrides,
+  };
+}
+
+export function feedRow(
+  overrides: Partial<EpisodeFeedRow> = {},
+): EpisodeFeedRow {
+  return {
+    id: episodeRow().id,
+    episode_id: episodeRow().id,
+    localization_id: localizationRow().id,
+    title: 'Localization title',
+    language_code: 'zh-Hant',
+    hls_url: 'https://cdn.example.com/playlist.m3u8',
+    classroom_hls_url: 'https://cdn.example.com/classroom/playlist.m3u8',
+    llm_model: 'model',
+    llm_thinking_model: null,
+    llm_provider: 'provider',
+    status: 'completed',
+    created_at: FIXED_TIMESTAMP,
+    listened: false,
     ...overrides,
   };
 }

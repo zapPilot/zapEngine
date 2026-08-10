@@ -5,6 +5,7 @@ import { getRuntimeEnv } from '@zapengine/app-core/lib/env/runtimeEnv';
 import {
   CONTENT_LANGUAGE_OPTIONS,
   DEFAULT_CONTENT_LANGUAGE_CODE,
+  type ContentLanguageCode,
 } from '@/config/contentLanguages';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
@@ -330,20 +331,25 @@ export function mergePodcastEpisodeVideo(
   if (feedEpisode === null) return detailEpisode;
   if (detailEpisode === null) return feedEpisode;
 
-  if (
-    isVideoGenerationNewer(
-      feedEpisode.videoGeneration,
-      detailEpisode.videoGeneration,
-    )
-  ) {
-    return feedEpisode;
-  }
+  const feedVideoIsNewer = isVideoGenerationNewer(
+    feedEpisode.videoGeneration,
+    detailEpisode.videoGeneration,
+  );
 
   return {
     ...feedEpisode,
-    video: detailEpisode.video ?? feedEpisode.video,
-    videoGeneration:
-      detailEpisode.videoGeneration ?? feedEpisode.videoGeneration,
+    // The feed intentionally omits these heavier detail-only fields. Once the
+    // detail request completes it becomes authoritative for them, while the
+    // feed remains authoritative for list state such as `listened`.
+    script: detailEpisode.script,
+    languageClassrooms: detailEpisode.languageClassrooms,
+    likeCount: detailEpisode.likeCount,
+    video: feedVideoIsNewer
+      ? feedEpisode.video
+      : (detailEpisode.video ?? feedEpisode.video),
+    videoGeneration: feedVideoIsNewer
+      ? feedEpisode.videoGeneration
+      : (detailEpisode.videoGeneration ?? feedEpisode.videoGeneration),
   };
 }
 
@@ -665,32 +671,47 @@ export function usePodcastEpisode(
 }
 
 export interface PodcastEpisodesByLanguage {
+  /** Only languages whose feed has actually been fetched appear as keys. */
   byLanguage: Record<string, PodcastEpisode[]>;
   isLoading: boolean;
   isError: boolean;
 }
 
 /**
- * Fetches every content language's feed in parallel so the language dropdown
- * can show each language's completion percentage. Each language keeps its own
- * React Query cache entry (same key as {@link usePodcastEpisodes}).
+ * Fetches the selected language's feed eagerly; the other content languages
+ * only fetch once `includeAllLanguages` turns true (the language dropdown
+ * opening), because their sole consumer is the dropdown's completion
+ * percentages. Each language keeps its own React Query cache entry (same key
+ * as {@link usePodcastEpisodes}), and `isLoading`/`isError` track the selected
+ * language only so a dropdown-triggered fetch never skeletons the list.
  */
-export function usePodcastEpisodesAllLanguages(): PodcastEpisodesByLanguage {
+export function usePodcastEpisodesByLanguage(
+  selectedLanguageCode: ContentLanguageCode,
+  includeAllLanguages: boolean,
+): PodcastEpisodesByLanguage {
   const results = useQueries({
-    queries: CONTENT_LANGUAGE_OPTIONS.map((option) =>
-      podcastEpisodesQueryOptions(option.code),
-    ),
+    queries: CONTENT_LANGUAGE_OPTIONS.map((option) => ({
+      ...podcastEpisodesQueryOptions(option.code),
+      enabled: includeAllLanguages || option.code === selectedLanguageCode,
+    })),
   });
 
   const byLanguage: Record<string, PodcastEpisode[]> = {};
+  let selectedResult: (typeof results)[number] | undefined;
   CONTENT_LANGUAGE_OPTIONS.forEach((option, index) => {
-    byLanguage[option.code] = results[index]?.data ?? [];
+    const result = results[index];
+    if (option.code === selectedLanguageCode) {
+      selectedResult = result;
+    }
+    if (result?.data !== undefined) {
+      byLanguage[option.code] = result.data;
+    }
   });
 
   return {
     byLanguage,
-    isLoading: results.some((result) => result.isLoading),
-    isError: results.length > 0 && results.every((result) => result.isError),
+    isLoading: selectedResult?.isLoading ?? false,
+    isError: selectedResult?.isError ?? false,
   };
 }
 

@@ -29,7 +29,7 @@ import {
   isPodcastSearchQueryValid,
   normalisePodcastSearchQuery,
   usePodcastEpisodeSearch,
-  usePodcastEpisodesAllLanguages,
+  usePodcastEpisodesByLanguage,
 } from '@/integration/podcastFeed';
 import type {
   PodcastEpisode,
@@ -199,8 +199,14 @@ export function PodcastScreen() {
   const [direction, setDirection] = useState<EpisodeSortDirection>('newest');
   const [visibleListened, setVisibleListened] = useState(LISTENED_PAGE_SIZE);
   const [confirmMarkAll, setConfirmMarkAll] = useState(false);
+  // The non-selected languages only feed the dropdown's completion
+  // percentages, so their requests wait until the dropdown first opens.
+  const [allLanguagesRequested, setAllLanguagesRequested] = useState(false);
 
-  const feedQuery = usePodcastEpisodesAllLanguages();
+  const feedQuery = usePodcastEpisodesByLanguage(
+    languageCode,
+    allLanguagesRequested,
+  );
   const searchQueryResult = usePodcastEpisodeSearch(debouncedSearchQuery);
 
   const normalisedSearchQuery = normalisePodcastSearchQuery(searchQuery);
@@ -233,12 +239,17 @@ export function PodcastScreen() {
       Record<ContentLanguageCode, PodcastCompletionSummary>
     > = {};
     for (const option of CONTENT_LANGUAGE_OPTIONS) {
+      // An unfetched language stays undefined so the dropdown renders its
+      // existing "no percentage" state instead of a misleading 0%.
+      if (feedQuery.byLanguage[option.code] === undefined) {
+        continue;
+      }
       summaries[option.code] = summarisePodcastCompletion(
         mergedByLanguage[option.code] ?? [],
       );
     }
     return summaries;
-  }, [mergedByLanguage]);
+  }, [feedQuery.byLanguage, mergedByLanguage]);
 
   const allLocalizationIds = useMemo(
     () =>
@@ -454,6 +465,7 @@ export function PodcastScreen() {
           left={
             <PodcastLanguageDropdown
               completionByLanguage={visibleCompletionByLanguage}
+              onOpen={() => setAllLanguagesRequested(true)}
             />
           }
           right={

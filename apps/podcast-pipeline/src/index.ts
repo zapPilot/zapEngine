@@ -28,11 +28,12 @@ import {
   DEFAULT_LIMIT,
   findEpisodeListRowByLocalizationId,
   findEpisodeLocalizationByEpisodeId,
+  listEpisodeFeedPaged,
   listEpisodeLocalizationsByEpisodeId,
-  listEpisodesPaged,
   listEpisodeVideoSummariesByLocalizationIds,
   listLanguageClassroomsByLocalizationId,
   markEpisodeListened,
+  toEpisodeFeedResponse,
   toEpisodeResponse,
   toEpisodeResponseFromLocalization,
 } from './services/db.js';
@@ -333,7 +334,7 @@ export function createApp(): Hono {
       }
     }
 
-    const { rows, nextCursor } = await listEpisodesPaged(
+    const { rows, nextCursor } = await listEpisodeFeedPaged(
       limit,
       cursor,
       languageCode,
@@ -344,9 +345,8 @@ export function createApp(): Hono {
     return c.json({
       items: rows.map((row) => {
         const summary = videoSummaries.get(row.localization_id);
-        return toEpisodeResponse(
+        return toEpisodeFeedResponse(
           row,
-          row.language_classrooms,
           summary?.video ?? null,
           summary?.videoGeneration ?? null,
         );

@@ -5,6 +5,8 @@ import {
 import { isRecord } from '../lib/typeGuards.js';
 import type {
   Article,
+  EpisodeFeedResponse,
+  EpisodeFeedRow,
   EpisodeListRow,
   EpisodeLocalizationRow,
   EpisodeResponse,
@@ -167,12 +169,11 @@ export function toEpisodeResponseFromLocalization(
   );
 }
 
-export function toEpisodeResponseWithClassrooms(
-  row: EpisodeListRow,
-  languageClassrooms: LanguageClassroomRow[] | LanguageClassroomLesson[],
+export function toEpisodeFeedResponse(
+  row: EpisodeFeedRow,
   video: EpisodeVideoResponse | null = null,
   videoGeneration: EpisodeVideoGenerationSummary | null = null,
-): EpisodeResponse {
+): EpisodeFeedResponse {
   return {
     id: row.episode_id,
     localizationId: row.localization_id,
@@ -189,13 +190,24 @@ export function toEpisodeResponseWithClassrooms(
     ],
     createdAt: row.created_at,
     listened: row.listened,
-    script: row.script,
     llmModel: row.llm_model,
     llmThinkingModel: row.llm_thinking_model,
     llmProvider: row.llm_provider,
     status: row.status,
     video,
     videoGeneration,
+  };
+}
+
+export function toEpisodeResponseWithClassrooms(
+  row: EpisodeListRow,
+  languageClassrooms: LanguageClassroomRow[] | LanguageClassroomLesson[],
+  video: EpisodeVideoResponse | null = null,
+  videoGeneration: EpisodeVideoGenerationSummary | null = null,
+): EpisodeResponse {
+  return {
+    ...toEpisodeFeedResponse(row, video, videoGeneration),
+    script: row.script,
     languageClassrooms: languageClassrooms.map(toLanguageClassroomLesson),
   };
 }
@@ -331,16 +343,51 @@ export function decodeCursor(raw: string): Cursor {
   return obj;
 }
 
+// Everything the feed responds with, and nothing TOASTed: script and
+// language_classrooms_jsonb stay out so the view query never detoasts them,
+// and like_count stays out so Postgres can eliminate the likes aggregate join.
+const EPISODE_FEED_COLUMNS =
+  'id,episode_id,localization_id,title,language_code,hls_url,classroom_hls_url,llm_model,llm_thinking_model,llm_provider,status,created_at,listened';
+
 export async function listEpisodesPaged(
   limit: number,
   cursor: Cursor | null,
   languageCode?: string,
 ): Promise<{ rows: EpisodeListRow[]; nextCursor: string | null }> {
+  return pageEpisodesWithStats<EpisodeListRow>(
+    '*',
+    limit,
+    cursor,
+    languageCode,
+  );
+}
+
+export async function listEpisodeFeedPaged(
+  limit: number,
+  cursor: Cursor | null,
+  languageCode?: string,
+): Promise<{ rows: EpisodeFeedRow[]; nextCursor: string | null }> {
+  return pageEpisodesWithStats<EpisodeFeedRow>(
+    EPISODE_FEED_COLUMNS,
+    limit,
+    cursor,
+    languageCode,
+  );
+}
+
+async function pageEpisodesWithStats<
+  Row extends { created_at: string; id: string },
+>(
+  columns: string,
+  limit: number,
+  cursor: Cursor | null,
+  languageCode?: string,
+): Promise<{ rows: Row[]; nextCursor: string | null }> {
   const lim = Math.min(Math.max(limit | 0, 1), MAX_LIMIT);
 
   let q = getSupabase()
     .from('episodes_with_stats')
-    .select('*')
+    .select(columns)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
     .limit(lim + 1);
@@ -355,7 +402,7 @@ export async function listEpisodesPaged(
     );
   }
 
-  const { data, error } = await q.returns<EpisodeListRow[]>();
+  const { data, error } = await q.returns<Row[]>();
   if (error) throwSupabaseError(error);
 
   const all = data ?? [];

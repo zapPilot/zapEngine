@@ -374,6 +374,16 @@ describe('podcast feed client', () => {
     const detailEpisode = parsePodcastEpisode(
       episode({
         title: 'Detail title',
+        script: 'Detail transcript.',
+        likeCount: 7,
+        languageClassrooms: [
+          {
+            sourceLanguageCode: 'zh-Hant',
+            targetLanguageCode: 'ja',
+            oneLiner: 'Detail classroom.',
+            keywords: [],
+          },
+        ],
         video: {
           url: 'https://cdn.example.com/video.mp4',
           thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
@@ -391,6 +401,11 @@ describe('podcast feed client', () => {
     expect(mergePodcastEpisodeVideo(null, null)).toBeNull();
     expect(mergePodcastEpisodeVideo(feedEpisode, detailEpisode)).toMatchObject({
       title: 'Feed title',
+      script: 'Detail transcript.',
+      likeCount: 7,
+      languageClassrooms: [
+        expect.objectContaining({ oneLiner: 'Detail classroom.' }),
+      ],
       video: detailEpisode.video,
       videoGeneration: detailEpisode.videoGeneration,
     });
