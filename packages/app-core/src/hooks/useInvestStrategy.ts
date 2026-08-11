@@ -55,14 +55,7 @@ function isAbortError(error: unknown): boolean {
 }
 
 export function useInvestStrategy() {
-  const {
-    account,
-    chain,
-    executeAtomicBatch,
-    externalWalletBrand,
-    getWalletClient,
-    switchChain,
-  } = useWalletProvider();
+  const wallet = useWalletProvider();
   const { state, actions } = useDepositExecutionState();
   const [legs, setLegs] = useState<InvestLegProgress[]>([]);
   const { ref: abortRef, renew: renewAbort } = useAbortControllerRef();
@@ -142,10 +135,15 @@ export function useInvestStrategy() {
             );
           }
 
-          const { plan } = await loadBaseInvestPlan(
-            { account, chain, switchChain },
+          const planResult = await loadBaseInvestPlan(
+            {
+              account: wallet.account,
+              chain: wallet.chain,
+              switchChain: wallet.switchChain,
+            },
             { fromAmount, fromToken },
           );
+          const plan = planResult.plan;
           if (!isCurrentRun()) {
             throw new DOMException(
               'Superseded by a newer invest run',
@@ -155,12 +153,19 @@ export function useInvestStrategy() {
           actions.setLastPlan(plan);
           setLegs(legProgress(plan, 'pending'));
 
+          const walletExecution = {
+            getWalletClient: wallet.getWalletClient,
+            ...(wallet.externalWalletBrand
+              ? { externalWalletBrand: wallet.externalWalletBrand }
+              : {}),
+            ...(wallet.executeAtomicBatch
+              ? { executeAtomicBatch: wallet.executeAtomicBatch }
+              : {}),
+          };
           const execution = await executeDepositPlanWithWallet({
             plan,
             chainId: sourceChainId,
-            getWalletClient,
-            ...(externalWalletBrand ? { externalWalletBrand } : {}),
-            ...(executeAtomicBatch ? { executeAtomicBatch } : {}),
+            ...walletExecution,
             onBundleSubmitted: (callsId) => {
               if (!isCurrentRun()) return;
               investStrategyLogger.info('[invest-strategy] executing EIP-7702');
@@ -205,12 +210,12 @@ export function useInvestStrategy() {
       );
     },
     [
-      account,
-      chain,
-      executeAtomicBatch,
-      externalWalletBrand,
-      getWalletClient,
-      switchChain,
+      wallet.account,
+      wallet.chain,
+      wallet.executeAtomicBatch,
+      wallet.externalWalletBrand,
+      wallet.getWalletClient,
+      wallet.switchChain,
       markAllCallsSubmitted,
       pollBridgeStatus,
       renewAbort,

@@ -49,7 +49,9 @@ describe('bridge runtime helpers', () => {
         }),
       ),
     ).toBe(true);
-    expect(isCanonicalBaseArbitrumUsdc(request({ toChainId: 1 }))).toBe(false);
+    expect(
+      isCanonicalBaseArbitrumUsdc(request({ toChainId: 1 })),
+    ).toBe(false);
     expect(
       isCanonicalBaseArbitrumUsdc(request({ fromToken: OTHER })),
     ).toBe(false);

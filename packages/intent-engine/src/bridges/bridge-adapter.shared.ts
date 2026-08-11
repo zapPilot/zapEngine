@@ -94,9 +94,9 @@ export function signalOptions(
   return signal ? { signal } : {};
 }
 
-export abstract class CanonicalBridgeProvider<TStatus>
-  implements BridgeProvider
-{
+export abstract class CanonicalBridgeProvider<
+  TStatus,
+> implements BridgeProvider {
   abstract readonly id: BridgeQuote['provider'];
 
   supports(request: BridgeQuoteRequest): boolean {

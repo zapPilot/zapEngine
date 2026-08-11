@@ -138,11 +138,7 @@ export class AcrossBridgeAdapter extends BridgeRuntime.CanonicalBridgeProvider<A
     input: BridgeRuntime.BridgeTrackingInput,
   ): Promise<AcrossStatusResponse> {
     const params = new URLSearchParams({ depositTxnRef: input.sourceTxHash });
-    const response = await this.request(
-      'deposit/status',
-      params,
-      input.signal,
-    );
+    const response = await this.request('deposit/status', params, input.signal);
     if (!response.ok) {
       throw new Error(`Across status failed: ${response.status}`);
     }

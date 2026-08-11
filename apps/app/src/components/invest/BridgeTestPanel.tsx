@@ -389,9 +389,7 @@ export function BridgeTestPanel() {
             numberOfLines={1}
             adjustsFontSizeToFit
           >
-            {bridge.quote
-              ? formatUnits(BigInt(bridge.quote.toAmount), 6)
-              : '0'}
+            {bridge.quote ? formatUnits(BigInt(bridge.quote.toAmount), 6) : '0'}
           </Text>
           <TokenSelectorPill
             symbol="USDC"
@@ -420,8 +418,14 @@ export function BridgeTestPanel() {
               label="Minimum"
               value={`${formatUnits(BigInt(bridge.quote.toAmountMin), 6)} USDC`}
             />
-            <SummaryRow label="Bridge fee" value={formatUsd(bridge.quote.feeUsd)} />
-            <SummaryRow label="Network gas" value={formatUsd(bridge.quote.gasUsd)} />
+            <SummaryRow
+              label="Bridge fee"
+              value={formatUsd(bridge.quote.feeUsd)}
+            />
+            <SummaryRow
+              label="Network gas"
+              value={formatUsd(bridge.quote.gasUsd)}
+            />
             <SummaryRow
               label="Estimated time"
               value={formatDuration(bridge.quote.estimatedDurationSec)}
