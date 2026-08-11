@@ -15,6 +15,13 @@ const X_SESSION = 'zap-social-x';
 const REDNOTE_SESSION = 'zap-social-rednote';
 const DEFAULT_COMMAND_TIMEOUT_MS = 130_000;
 
+const REDNOTE_VIDEO_INPUT_SELECTORS = [
+  'input[type="file"][accept*="video"]',
+  'input[type="file"][accept*=".mp4"]',
+  'input[type="file"][accept*=".mov"]',
+  'input[type="file"]',
+] as const;
+
 const REDNOTE_TITLE_SELECTORS = [
   '[contenteditable="true"][placeholder*="标题"]',
   'input[placeholder*="标题"]',
@@ -132,15 +139,28 @@ async function publishX(
         '0',
       ]),
     );
-    await xStep('confirm_success', () =>
-      browser(X_SESSION, [
+    await xStep('confirm_success', async () => {
+      await browser(X_SESSION, [
         'wait',
         'selector',
         '[role="alert"], [data-testid="toast"]',
         '--timeout',
         '20000',
-      ]),
-    );
+      ]);
+      const evidence = await browser(X_SESSION, [
+        'get',
+        'text',
+        '[role="alert"], [data-testid="toast"]',
+        '--nth',
+        '0',
+      ]);
+      if (/failed|error|try again|失敗|失败|エラー/i.test(evidence)) {
+        throw new Error(`X reported a publish error: ${evidence}`);
+      }
+      if (!/sent|posted|送信|ポスト|已发送|已发布|已發佈/i.test(evidence)) {
+        throw new Error(`Could not verify X publish success from toast: ${evidence}`);
+      }
+    });
 
     const url = await findXStatusUrl().catch(() => undefined);
     return {
@@ -163,16 +183,8 @@ async function publishRednote(
       browser(REDNOTE_SESSION, ['open', REDNOTE_VIDEO_URL]),
     );
 
-    const videoInput =
-      'input[type="file"][accept*="video"], input[type="file"][accept*=".mp4"], input[type="file"][accept*=".mov"], input[type="file"]';
-    await rednoteStep('wait_upload_input', () =>
-      browser(REDNOTE_SESSION, [
-        'wait',
-        'selector',
-        videoInput,
-        '--timeout',
-        '20000',
-      ]),
+    const videoInput = await rednoteStep('wait_upload_input', () =>
+      waitForAnySelector(REDNOTE_SESSION, REDNOTE_VIDEO_INPUT_SELECTORS, 20_000),
     );
 
     log('[rednote] Uploading video');
@@ -215,14 +227,23 @@ async function publishRednote(
     });
 
     await rednoteStep('confirm_success', async () => {
-      const successText = await browser(REDNOTE_SESSION, [
+      const simplified = await browser(REDNOTE_SESSION, [
         'wait',
         'text',
         '发布成功',
         '--timeout',
-        '30000',
+        '15000',
       ]).catch(() => null);
-      if (successText !== null) return successText;
+      if (simplified !== null) return simplified;
+
+      const traditional = await browser(REDNOTE_SESSION, [
+        'wait',
+        'text',
+        '發布成功',
+        '--timeout',
+        '15000',
+      ]).catch(() => null);
+      if (traditional !== null) return traditional;
 
       const currentUrl = await browser(REDNOTE_SESSION, ['get', 'url']);
       if (currentUrl.includes('/publish/publish')) {
