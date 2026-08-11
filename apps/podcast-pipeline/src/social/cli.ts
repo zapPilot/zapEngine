@@ -50,7 +50,9 @@ interface ReviewSelection {
 }
 
 type ReviewAction =
-  | { action: 'quit' | 'regenerate' | 'edit' }
+  | { action: 'quit' }
+  | { action: 'regenerate' }
+  | { action: 'edit' }
   | { action: 'publish'; platforms: SocialPlatform[] };
 
 export async function runSocialCli(args: string[]): Promise<void> {
@@ -214,8 +216,9 @@ async function reviewSocialCopy(input: {
       console.log(`[ai] Generated copy using ${regenerated.model}`);
       continue;
     }
-
-    return { copy, platforms: review.platforms };
+    if (review.action === 'publish') {
+      return { copy, platforms: review.platforms };
+    }
   }
 }
 
@@ -250,9 +253,7 @@ async function handleExistingState(
   const pending = requestedPlatforms.filter(
     (platform) => !published.includes(platform),
   );
-  const names = pending.map((platform) =>
-    platform === 'x' ? 'X' : 'Rednote',
-  );
+  const names = pending.map((platform) => (platform === 'x' ? 'X' : 'Rednote'));
   const answer = (await promptLine(`Retry ${names.join(' + ')}? [y/N] `))
     .trim()
     .toLowerCase();
