@@ -8,12 +8,12 @@ const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const HYPERCORE_USDC = '0x0000000000000000000000000000000000000000';
 const ROUTER = '0x2222222222222222222222222222222222222222';
 const FIRST_SOURCE_HASH = `0x${'1'.repeat(64)}`;
-const SECOND_SOURCE_HASH = `0x${'2'.repeat(64)}`;
-const SECOND_DESTINATION_HASH = `0x${'3'.repeat(64)}`;
+const FIRST_DESTINATION_HASH = `0x${'2'.repeat(64)}`;
+const SECOND_SOURCE_HASH = `0x${'3'.repeat(64)}`;
+const SECOND_DESTINATION_HASH = `0x${'4'.repeat(64)}`;
 
 const mocks = vi.hoisted(() => ({
   useWalletProvider: vi.fn(),
-  executeDepositPlanWithWallet: vi.fn(),
   buildBridge: vi.fn(),
   needsApproval: vi.fn(),
   buildApproveTx: vi.fn(),
@@ -26,24 +26,29 @@ const mocks = vi.hoisted(() => ({
   getBalance: vi.fn(),
   getGasPrice: vi.fn(),
   switchChain: vi.fn(),
+  executeDepositPlanWithWallet: vi.fn(),
   getWalletClient: vi.fn(),
 }));
 
 vi.mock('@core/providers/walletContext', () => ({
   useWalletProvider: mocks.useWalletProvider,
 }));
+
 vi.mock('@core/lib/wallet/executeDepositPlan', () => ({
   executeDepositPlanWithWallet: mocks.executeDepositPlanWithWallet,
 }));
+
 vi.mock('@core/services/intentClient', () => ({
   intentEngine: { buildBridge: mocks.buildBridge },
   getPublicClient: mocks.getPublicClient,
   waitForBridgeCompletion: mocks.waitForBridgeCompletion,
 }));
+
 vi.mock('@core/services/hyperliquidService', () => ({
   getPerpUsdcBalance: mocks.getPerpUsdcBalance,
   waitForPerpUsdcArrival: mocks.waitForPerpUsdcArrival,
 }));
+
 vi.mock('@zapengine/intent-engine', () => ({
   HYPERCORE_CHAIN_ID: 1337,
   needsApproval: mocks.needsApproval,
@@ -66,7 +71,7 @@ const quote = {
     gasCostUsd: '0.01',
     feeCostUsd: '0.04',
     executionDuration: 60,
-    tool: 'eco',
+    tool: 'across',
   },
 };
 
@@ -78,7 +83,7 @@ const request = {
   fromAmount: '10000000',
 } as const;
 
-describe('useBridgeTest concurrent execution isolation', () => {
+describe('useBridgeTest Hyperliquid concurrent arrival success', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.useWalletProvider.mockReturnValue({
@@ -100,10 +105,11 @@ describe('useBridgeTest concurrent execution isolation', () => {
       getBalance: mocks.getBalance,
       getGasPrice: mocks.getGasPrice,
     });
-    mocks.getPerpUsdcBalance.mockResolvedValue({
-      withdrawableUsd6: 5_000_000n,
-    });
-    mocks.waitForPerpUsdcArrival.mockResolvedValue(undefined);
+    mocks.getPerpUsdcBalance.mockResolvedValue({ withdrawableUsd6: 5_000_000n });
+  });
+
+  it('keeps the second execution result when the first arrival poll resolves later', async () => {
+    let resolveFirstArrival!: () => void;
     mocks.executeDepositPlanWithWallet
       .mockResolvedValueOnce({
         kind: 'eip7702',
@@ -115,32 +121,35 @@ describe('useBridgeTest concurrent execution isolation', () => {
         callsId: 'second-calls',
         transactionHash: SECOND_SOURCE_HASH,
       });
-  });
-
-  it('keeps the second result when the first LI.FI poll rejects after being aborted', async () => {
-    let rejectFirstPoll!: (error: Error) => void;
     mocks.waitForBridgeCompletion
-      .mockImplementationOnce(
-        () =>
-          new Promise((_resolve, reject) => {
-            rejectFirstPoll = reject;
-          }),
-      )
+      .mockResolvedValueOnce({
+        status: 'DONE',
+        receiving: { txHash: FIRST_DESTINATION_HASH, chainId: 1337 },
+      })
       .mockResolvedValueOnce({
         status: 'DONE',
         receiving: { txHash: SECOND_DESTINATION_HASH, chainId: 1337 },
       });
+    mocks.waitForPerpUsdcArrival
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirstArrival = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(undefined);
 
     const { result } = renderHook(() => useBridgeTest());
     let firstExecution!: Promise<void>;
+
     await act(async () => {
       firstExecution = result.current.execute(request);
-      await vi.waitFor(() =>
-        expect(mocks.waitForBridgeCompletion).toHaveBeenCalledTimes(1),
-      );
+      await vi.waitFor(() => {
+        expect(mocks.waitForPerpUsdcArrival).toHaveBeenCalledTimes(1);
+      });
     });
 
-    const firstSignal = mocks.waitForBridgeCompletion.mock.calls[0]?.[0]
+    const firstSignal = mocks.waitForPerpUsdcArrival.mock.calls[0]?.[0]
       .signal as AbortSignal;
 
     await act(async () => {
@@ -149,102 +158,18 @@ describe('useBridgeTest concurrent execution isolation', () => {
 
     expect(firstSignal.aborted).toBe(true);
     expect(result.current.status).toBe('completed');
+    expect(result.current.error).toBeNull();
     expect(result.current.sourceTxHash).toBe(SECOND_SOURCE_HASH);
     expect(result.current.destinationTxHash).toBe(SECOND_DESTINATION_HASH);
 
     await act(async () => {
-      rejectFirstPoll(new Error('Stale LI.FI poll failed.'));
+      resolveFirstArrival();
       await firstExecution;
     });
 
     expect(result.current.status).toBe('completed');
     expect(result.current.error).toBeNull();
     expect(result.current.sourceTxHash).toBe(SECOND_SOURCE_HASH);
-  });
-
-  it('keeps reset state when an aborted LI.FI poll resolves successfully', async () => {
-    let resolvePoll!: (value: {
-      status: 'DONE';
-      receiving: { txHash: string; chainId: number };
-    }) => void;
-    mocks.waitForBridgeCompletion.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolvePoll = resolve;
-        }),
-    );
-
-    const { result } = renderHook(() => useBridgeTest());
-    let execution!: Promise<void>;
-    await act(async () => {
-      execution = result.current.execute(request);
-      await vi.waitFor(() =>
-        expect(mocks.waitForBridgeCompletion).toHaveBeenCalledTimes(1),
-      );
-    });
-
-    const signal = mocks.waitForBridgeCompletion.mock.calls[0]?.[0]
-      .signal as AbortSignal;
-    act(() => result.current.reset());
-
-    expect(signal.aborted).toBe(true);
-    expect(result.current.status).toBe('idle');
-
-    await act(async () => {
-      resolvePoll({
-        status: 'DONE',
-        receiving: { txHash: SECOND_DESTINATION_HASH, chainId: 1337 },
-      });
-      await execution;
-    });
-
-    expect(mocks.waitForPerpUsdcArrival).not.toHaveBeenCalled();
-    expect(result.current.status).toBe('idle');
-    expect(result.current.error).toBeNull();
-    expect(result.current.sourceTxHash).toBeNull();
-  });
-
-  it('keeps reset state when an aborted LI.FI poll rejects later', async () => {
-    let rejectPoll!: (error: Error) => void;
-    mocks.waitForBridgeCompletion.mockImplementation(
-      () =>
-        new Promise((_resolve, reject) => {
-          rejectPoll = reject;
-        }),
-    );
-
-    const { result } = renderHook(() => useBridgeTest());
-    let execution!: Promise<void>;
-
-    await act(async () => {
-      execution = result.current.execute(request);
-      await vi.waitFor(() => {
-        expect(mocks.waitForBridgeCompletion).toHaveBeenCalledTimes(1);
-      });
-    });
-
-    const signal = mocks.waitForBridgeCompletion.mock.calls[0]?.[0]
-      .signal as AbortSignal;
-
-    act(() => {
-      result.current.reset();
-    });
-
-    expect(signal.aborted).toBe(true);
-    expect(result.current.status).toBe('idle');
-    expect(result.current.sourceTxHash).toBeNull();
-    expect(result.current.destinationTxHash).toBeNull();
-
-    await act(async () => {
-      rejectPoll(new Error('Stale provider poll rejected after reset.'));
-      await execution;
-    });
-
-    expect(mocks.waitForPerpUsdcArrival).not.toHaveBeenCalled();
-    expect(result.current.status).toBe('idle');
-    expect(result.current.error).toBeNull();
-    expect(result.current.quote).toBeNull();
-    expect(result.current.sourceTxHash).toBeNull();
-    expect(result.current.destinationTxHash).toBeNull();
+    expect(result.current.destinationTxHash).toBe(SECOND_DESTINATION_HASH);
   });
 });

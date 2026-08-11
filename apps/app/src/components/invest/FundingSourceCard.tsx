@@ -5,7 +5,7 @@ import type { DesktopDepositToken } from '@/integration/depositTokens';
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
 import { formatTokenBalance, formatUsd } from '@/lib/format';
 
-interface FundingSourceCardProps {
+export interface FundingSourceCardProps {
   chainLabel: string;
   allocation: string;
   protocol: string;

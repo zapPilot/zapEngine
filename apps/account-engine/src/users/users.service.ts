@@ -82,33 +82,13 @@ export class UsersService extends BaseService {
           : `Wallet ${wallet} already exists for user ${result.user_id}`,
       );
 
-      let etlJob: EtlJobResponse | undefined;
-
-      // For new users: update last_activity_at and auto-trigger ETL
-      // (ActivityTrackerInterceptor can't track /connect-wallet since userId isn't in the request)
-      if (result.is_new_user) {
-        await this.updateWhere(
-          'users',
-          { last_activity_at: new Date().toISOString() },
-          { id: result.user_id },
-          { entityName: 'User', useServiceRole: true },
-        );
-
-        // The RPC just created (user_id, wallet) atomically, so we can skip
-        // the validateUserExists/validateWalletOwnership re-reads that the
-        // public triggerWalletDataFetch performs. Call the inner directly.
-        etlJob = await this.executeWalletDataFetch(result.user_id, wallet);
-        if (etlJob.job_id) {
-          this.logger.log(`Auto-triggered ETL: job ${etlJob.job_id}`);
-        } else {
-          this.logger.warn(`Failed to auto-trigger ETL: ${etlJob.message}`);
-        }
-      }
-
-      return {
-        ...result,
-        etl_job: etlJob,
-      };
+      // Intentionally keep wallet connection as a cheap identity bootstrap.
+      // Do NOT auto-trigger Alpha/DeBank ETL here: during the current deposit
+      // development phase, a newly connected wallet should be able to create
+      // its account and use live wallet/deposit flows without paying for a
+      // portfolio import. Portfolio features can explicitly call
+      // triggerWalletDataFetch when we choose to enable that phase again.
+      return result;
     }, 'connect wallet');
   }
 
@@ -466,10 +446,9 @@ export class UsersService extends BaseService {
   }
 
   /**
-   * Internal: call the alpha-etl webhook without re-validating the
-   * user/wallet. Use only when the caller has just created or owns the
-   * (userId, walletAddress) pair — e.g. inside `connectWallet` right after
-   * the RPC that creates them.
+   * Internal: call the alpha-etl webhook after the caller has established that
+   * the user owns the wallet. The public triggerWalletDataFetch method performs
+   * those validation reads before entering this helper.
    */
   private async executeWalletDataFetch(
     userId: string,

@@ -88,8 +88,9 @@ export class LiFiBridgeAdapter implements BridgeRuntime.BridgeProvider {
         `${this.config.statusBaseUrl ?? 'https://li.quest/v1'}/status?${params}`,
         BridgeRuntime.signalOptions(input.signal),
       );
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(`LI.FI status failed: ${response.status}`);
+      }
       return (await response.json()) as LiFiStatus;
     };
     const status = await BridgeRuntime.pollBridgeStatus({
