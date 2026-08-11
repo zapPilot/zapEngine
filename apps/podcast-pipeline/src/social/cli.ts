@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import dotenv from 'dotenv';
 
@@ -28,7 +28,7 @@ const REPO_ROOT = resolve(
 );
 dotenv.config({ path: resolve(REPO_ROOT, '.env') });
 
-interface CliOptions {
+export interface SocialCliOptions {
   episodeId: string;
   dryRun: boolean;
   force: boolean;
@@ -38,8 +38,8 @@ interface CliOptions {
 
 type ReviewAction = 'publish' | 'regenerate' | 'edit' | 'quit';
 
-async function main(): Promise<void> {
-  const options = parseCliOptions(process.argv.slice(2));
+export async function runSocialCli(args: string[]): Promise<void> {
+  const options = parseCliOptions(args);
   const requestedPlatforms: SocialPlatform[] = options.platform
     ? [options.platform]
     : ['x', 'rednote'];
@@ -125,12 +125,7 @@ async function main(): Promise<void> {
   }
 }
 
-export function parseCliOptions(args: string[]): CliOptions {
-  if (args.includes('--help') || args.includes('-h')) {
-    printHelp();
-    process.exit(0);
-  }
-
+export function parseCliOptions(args: string[]): SocialCliOptions {
   let episodeId: string | undefined;
   let dryRun = false;
   let force = false;
@@ -139,6 +134,7 @@ export function parseCliOptions(args: string[]): CliOptions {
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
+    if (!arg) continue;
     if (arg === '--dry-run') {
       dryRun = true;
       continue;
@@ -165,6 +161,9 @@ export function parseCliOptions(args: string[]): CliOptions {
       platform = value;
       continue;
     }
+    if (arg === '--help' || arg === '-h') {
+      throw new Error('Usage: pnpm social:publish <episode-id> [--dry-run] [--platform x|rednote] [--lang zh] [--force]');
+    }
     if (arg.startsWith('--')) {
       throw new Error(`Unknown option: ${arg}`);
     }
@@ -182,7 +181,7 @@ export function parseCliOptions(args: string[]): CliOptions {
 }
 
 async function handleExistingState(
-  options: CliOptions,
+  options: SocialCliOptions,
   requestedPlatforms: SocialPlatform[],
 ): Promise<boolean> {
   const state = await readPublishState();
@@ -310,11 +309,14 @@ function formatBytes(value: number): string {
   return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function printHelp(): void {
-  console.log(`Usage: pnpm social:publish <episode-id> [options]\n\nOptions:\n  --dry-run                  Fetch, download, generate and preview only\n  --platform x|rednote       Publish only one platform\n  --lang zh                  Chinese video (MVP only)\n  --force                    Allow re-publishing an already published platform\n  -h, --help                 Show this help`);
+const invokedPath = process.argv[1]
+  ? pathToFileURL(resolve(process.argv[1])).href
+  : null;
+if (invokedPath === import.meta.url) {
+  try {
+    await runSocialCli(process.argv.slice(2));
+  } catch (error: unknown) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
 }
-
-void main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-});
