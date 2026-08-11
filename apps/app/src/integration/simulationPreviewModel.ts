@@ -1,10 +1,13 @@
 import type { PrivyBatchExecutionPhase } from '@zapengine/app-core/hooks/wallet/useAtomicBatchExecution';
 import type {
+  PlanOrchestrationDepositPlan,
   PrivyPrepareSendCallsResponse,
   PrivySimulationApproval,
   PrivySimulationAssetChange,
   PrivySimulationCall,
   PrivySimulationContract,
+  StrategyAllocation,
+  StrategyDepositPlan,
 } from '@zapengine/types/api';
 
 export const PREVIEW_EXPIRY_MARGIN_MS = 10_000;
@@ -110,6 +113,106 @@ export function resolveAddressTarget(
   contracts: readonly PrivySimulationContract[],
 ): string {
   return verifiedContractName(address, contracts) ?? formatAddress(address);
+}
+
+/**
+ * Resolves the human-facing counterparty for one asset movement: the
+ * recipient for an outgoing transfer, the sender for an incoming one.
+ */
+export function resolveAssetCounterparty(
+  change: Pick<PrivySimulationAssetChange, 'direction' | 'from' | 'to'>,
+  contracts: readonly PrivySimulationContract[],
+): string {
+  const address = change.direction === 'out' ? change.to : change.from;
+  return address ? resolveAddressTarget(address, contracts) : 'Unknown';
+}
+
+export interface RouteProtocolContext {
+  id: string;
+  label: string;
+  badge: string;
+}
+
+/** Display label for a single-chain plan's lone protocol when its legs carry
+ * no market-specific token to disambiguate (e.g. a plain Morpho supply). */
+const SINGLE_CHAIN_PROTOCOL_LABELS: Record<string, string> = {
+  morpho: 'Morpho Moonwell USDC',
+};
+
+/**
+ * The Arbitrum single-chain funding path always builds a GMX v2 "basket"
+ * across all four markets (see intent-engine's `GMX_V2_MARKETS`), so a plain
+ * per-protocol label would collapse four distinct allocations into one. This
+ * is a presentation-only lookup by the leg's destination market token — the
+ * client does not depend on intent-engine or rebuild the plan.
+ */
+const GMX_V2_BASKET_MARKET_LABELS: Record<string, string> = {
+  '0x47c031236e19d024b42f8ae6780e44a573170703': 'GMX BTC/USDC',
+  '0x70d95587d40a2caf56bd97485ab3eec10bee6336': 'GMX ETH/USDC',
+  '0x7c11f78ce78768518d743e81fdfa2f860c6b9a77': 'GMX BTC/BTC',
+  '0x450bb6774dd8a756274e0ab4107953259d2ac541': 'GMX ETH/ETH',
+};
+
+function isStrategyDepositPlan(
+  plan: PlanOrchestrationDepositPlan | undefined,
+): plan is StrategyDepositPlan {
+  return Boolean(plan && 'executionGroups' in plan);
+}
+
+/** Formats a numerator/denominator base-unit ratio as a percent with at most
+ * one decimal place, e.g. 2501/10000 -> "25.0%", 3333/10000 -> "33.3%". */
+function formatSharePercent(numerator: bigint, denominator: bigint): string {
+  if (denominator <= 0n) return '0%';
+  const tenths = (numerator * 1000n) / denominator;
+  const whole = tenths / 10n;
+  const fraction = tenths % 10n;
+  return fraction === 0n ? `${whole}%` : `${whole}.${fraction}%`;
+}
+
+/**
+ * Builds the protocol/allocation chips for one chain review group. A single
+ * EIP-7702 bundle can move funds through more than one protocol allocation
+ * (e.g. the Arbitrum leg supplies both GMX BTC/USDC and ETH/USDC), so each
+ * allocation gets its own chip rather than being collapsed into one label.
+ */
+export function resolveRouteProtocols(
+  plan: PlanOrchestrationDepositPlan | undefined,
+  groupId: string,
+): RouteProtocolContext[] {
+  if (isStrategyDepositPlan(plan)) {
+    const group = plan.executionGroups.find(
+      (candidate) => candidate.id === groupId,
+    );
+    if (!group) return [];
+    return group.allocationIds
+      .map((allocationId) =>
+        plan.allocations.find((allocation) => allocation.id === allocationId),
+      )
+      .filter((allocation): allocation is StrategyAllocation =>
+        Boolean(allocation),
+      )
+      .map((allocation) => ({
+        id: allocation.id,
+        label: allocation.label,
+        badge: `${allocation.weightBps / 100}%`,
+      }));
+  }
+  const legs = (plan?.legs ?? []).filter(
+    (leg): leg is typeof leg & { protocol: string } => Boolean(leg.protocol),
+  );
+  if (legs.length === 0) return [];
+  const totalFromAmount = legs.reduce(
+    (sum, leg) => sum + BigInt(leg.fromAmount),
+    0n,
+  );
+  return legs.map((leg, index) => ({
+    id: `${leg.protocol}-${leg.toToken.toLowerCase()}-${index}`,
+    label:
+      GMX_V2_BASKET_MARKET_LABELS[leg.toToken.toLowerCase()] ??
+      SINGLE_CHAIN_PROTOCOL_LABELS[leg.protocol] ??
+      titleCase(leg.protocol),
+    badge: formatSharePercent(BigInt(leg.fromAmount), totalFromAmount),
+  }));
 }
 
 export function approvalForCall(

@@ -1,9 +1,15 @@
 import type {
+  DepositPlan,
   PrivyPrepareSendCallsResponse,
   PrivySimulationApproval,
   PrivySimulationAssetChange,
   PrivySimulationCall,
   PrivySimulationContract,
+  StrategyDepositPlan,
+} from '@zapengine/types/api';
+import {
+  STRATEGY_DEPOSIT_ID,
+  SUPPORTED_DEPOSIT_CHAINS,
 } from '@zapengine/types/api';
 import { describe, expect, it } from 'vitest';
 
@@ -19,7 +25,9 @@ import {
   getBlockingReason,
   partitionAssetChanges,
   resolveAddressTarget,
+  resolveAssetCounterparty,
   resolveCallTarget,
+  resolveRouteProtocols,
   signingActionLabel,
   simulationChainLabel,
   titleCase,
@@ -88,6 +96,147 @@ const contracts: PrivySimulationContract[] = [
     callIndexes: [0],
   },
 ];
+
+const STRATEGY_PLAN: StrategyDepositPlan = {
+  kind: 'strategy',
+  strategyId: STRATEGY_DEPOSIT_ID,
+  totalUsd6: '100000000',
+  allocations: [
+    {
+      id: 'morpho-base-usdc',
+      label: 'Morpho Moonwell USDC',
+      weightBps: 4000,
+      chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
+      protocol: 'morpho',
+      fromToken: TOKEN,
+      fromAmount: '40000000',
+      toToken: TOKEN,
+      toAmountMin: '39000000',
+      gasUsd: '0.10',
+      durationSec: 5,
+    },
+    {
+      id: 'gmx-btc-usdc',
+      label: 'GMX BTC/USDC',
+      weightBps: 3000,
+      chainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+      protocol: 'gmx-v2',
+      marketKey: 'btc-usdc',
+      fromToken: TOKEN,
+      fromAmount: '30000000',
+      toToken: TOKEN,
+      toAmountMin: '29000000',
+      gasUsd: '0.10',
+      durationSec: 5,
+    },
+    {
+      id: 'gmx-eth-usdc',
+      label: 'GMX ETH/USDC',
+      weightBps: 3000,
+      chainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+      protocol: 'gmx-v2',
+      marketKey: 'eth-usdc',
+      fromToken: TOKEN,
+      fromAmount: '30000000',
+      toToken: TOKEN,
+      toAmountMin: '29000000',
+      gasUsd: '0.10',
+      durationSec: 5,
+    },
+  ],
+  executionGroups: [
+    {
+      id: 'base-morpho',
+      chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
+      fromToken: TOKEN,
+      fromAmount: '40000000',
+      approvals: [],
+      calls: [],
+      allocationIds: ['morpho-base-usdc'],
+      gasUsd: '0.10',
+    },
+    {
+      id: 'arbitrum-gmx',
+      chainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+      fromToken: TOKEN,
+      fromAmount: '60000000',
+      approvals: [],
+      calls: [],
+      allocationIds: ['gmx-btc-usdc', 'gmx-eth-usdc'],
+      gasUsd: '0.20',
+    },
+  ],
+  checkpoints: [
+    {
+      kind: 'mock-bridge',
+      id: 'base-to-arbitrum',
+      fromChainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
+      toChainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+      afterGroupId: 'base-morpho',
+      beforeGroupId: 'arbitrum-gmx',
+      amountUsd6: '60000000',
+      disclosure: 'Bridges Base proceeds to Arbitrum before GMX supply.',
+    },
+  ],
+  totalGasUsd: '0.30',
+};
+
+/** Minimal single-chain deposit plan with one leg carrying the given protocol
+ * (omitted entirely, not `undefined`, when the scenario needs no protocol). */
+function singleChainPlan(protocol?: string): DepositPlan {
+  return {
+    legs: [
+      {
+        chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
+        kind: 'supply',
+        toToken: TOKEN,
+        fromAmount: '1000000',
+        toAmountMin: '990000',
+        gasUsd: '0.05',
+        durationSec: 5,
+        ...(protocol ? { protocol } : {}),
+      },
+    ],
+    approvals: [],
+    calls: [],
+    totalGasUsd: '0.05',
+    sourceChainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
+  };
+}
+
+// Real GMX v2 market token addresses (intent-engine's GMX_V2_MARKETS) — the
+// Arbitrum single-chain funding path always builds a basket across all four.
+const GMX_BTC_USDC_MARKET = '0x47c031236e19d024b42f8AE6780E44A573170703';
+const GMX_ETH_USDC_MARKET = '0x70d95587d40A2caf56bd97485aB3Eec10Bee6336';
+const GMX_BTC_BTC_MARKET = '0x7C11F78Ce78768518D743E81Fdfa2F860C6b9A77';
+const GMX_ETH_ETH_MARKET = '0x450bb6774Dd8a756274E0ab4107953259d2ac541';
+
+/** A single-chain deposit plan shaped like the real Arbitrum GMX v2 basket:
+ * one leg per market, each funded by its own share of the total amount. */
+function gmxBasketPlan(fromAmounts: readonly string[]): DepositPlan {
+  const markets = [
+    GMX_BTC_BTC_MARKET,
+    GMX_ETH_ETH_MARKET,
+    GMX_BTC_USDC_MARKET,
+    GMX_ETH_USDC_MARKET,
+  ];
+  return {
+    legs: markets.map((toToken, index) => ({
+      chainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+      kind: 'supply',
+      protocol: 'gmx-v2',
+      toToken,
+      fromAmount: fromAmounts[index]!,
+      toAmountMin: '0',
+      gasUsd: '0.10',
+      durationSec: 60,
+    })),
+    approvals: [],
+    calls: [],
+    totalGasUsd: '0.40',
+    sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+  };
+}
 
 function preview(
   overrides: Record<string, unknown> = {},
@@ -291,5 +440,133 @@ describe('simulation preview formatting', () => {
     expect(simulationChainLabel(8453)).toBe('Base');
     expect(simulationChainLabel(42161)).toBe('Arbitrum');
     expect(titleCase('depositFor')).toBe('Deposit For');
+  });
+});
+
+describe('resolveRouteProtocols', () => {
+  it('returns one chip per allocation for a multi-allocation execution group', () => {
+    expect(resolveRouteProtocols(STRATEGY_PLAN, 'arbitrum-gmx')).toEqual([
+      { id: 'gmx-btc-usdc', label: 'GMX BTC/USDC', badge: '30%' },
+      { id: 'gmx-eth-usdc', label: 'GMX ETH/USDC', badge: '30%' },
+    ]);
+  });
+
+  it('returns a single chip for a single-allocation execution group', () => {
+    expect(resolveRouteProtocols(STRATEGY_PLAN, 'base-morpho')).toEqual([
+      { id: 'morpho-base-usdc', label: 'Morpho Moonwell USDC', badge: '40%' },
+    ]);
+  });
+
+  it('returns no chips when the groupId does not match any execution group', () => {
+    expect(resolveRouteProtocols(STRATEGY_PLAN, 'unknown-group')).toEqual([]);
+  });
+
+  it('resolves the display label for a single-leg single-chain protocol', () => {
+    expect(resolveRouteProtocols(singleChainPlan('morpho'), 'n/a')).toEqual([
+      {
+        id: `morpho-${TOKEN.toLowerCase()}-0`,
+        label: 'Morpho Moonwell USDC',
+        badge: '100%',
+      },
+    ]);
+  });
+
+  it('falls back to titleCase for an unrecognized single-chain protocol', () => {
+    expect(
+      resolveRouteProtocols(singleChainPlan('made-up-protocol'), 'n/a'),
+    ).toEqual([
+      {
+        id: `made-up-protocol-${TOKEN.toLowerCase()}-0`,
+        label: 'Made up protocol',
+        badge: '100%',
+      },
+    ]);
+  });
+
+  it('returns one chip per market for the Arbitrum GMX v2 basket instead of collapsing to one', () => {
+    const plan = gmxBasketPlan(['2500', '2500', '2500', '2500']);
+    expect(resolveRouteProtocols(plan, 'n/a')).toEqual([
+      {
+        id: `gmx-v2-${GMX_BTC_BTC_MARKET.toLowerCase()}-0`,
+        label: 'GMX BTC/BTC',
+        badge: '25%',
+      },
+      {
+        id: `gmx-v2-${GMX_ETH_ETH_MARKET.toLowerCase()}-1`,
+        label: 'GMX ETH/ETH',
+        badge: '25%',
+      },
+      {
+        id: `gmx-v2-${GMX_BTC_USDC_MARKET.toLowerCase()}-2`,
+        label: 'GMX BTC/USDC',
+        badge: '25%',
+      },
+      {
+        id: `gmx-v2-${GMX_ETH_USDC_MARKET.toLowerCase()}-3`,
+        label: 'GMX ETH/USDC',
+        badge: '25%',
+      },
+    ]);
+  });
+
+  it('shares the badge percentage proportionally when the basket splits unevenly', () => {
+    const plan = gmxBasketPlan(['2501', '2500', '2500', '2499']);
+    const badges = resolveRouteProtocols(plan, 'n/a').map((chip) => chip.badge);
+    expect(badges).toEqual(['25%', '25%', '25%', '24.9%']);
+  });
+
+  it('returns no chips when the plan is undefined or no leg carries a protocol', () => {
+    expect(resolveRouteProtocols(undefined, 'n/a')).toEqual([]);
+    expect(resolveRouteProtocols(singleChainPlan(), 'n/a')).toEqual([]);
+  });
+});
+
+describe('resolveAssetCounterparty', () => {
+  it('resolves an outgoing change via the recipient (to)', () => {
+    expect(resolveAssetCounterparty(outgoing, contracts)).toBe(
+      'Verified Vault',
+    );
+  });
+
+  it('resolves an incoming change via the sender (from)', () => {
+    expect(resolveAssetCounterparty(incoming, contracts)).toBe(
+      'Verified Vault',
+    );
+  });
+
+  it('falls back to a formatted short address when the counterparty is unverified', () => {
+    const outgoingToWallet: PrivySimulationAssetChange = {
+      ...outgoing,
+      to: WALLET,
+    };
+    expect(resolveAssetCounterparty(outgoingToWallet, contracts)).toBe(
+      '0x1111...1111',
+    );
+
+    const incomingFromWallet: PrivySimulationAssetChange = {
+      ...incoming,
+      from: WALLET,
+    };
+    expect(resolveAssetCounterparty(incomingFromWallet, contracts)).toBe(
+      '0x1111...1111',
+    );
+  });
+
+  it('returns Unknown when the relevant address is null', () => {
+    const outgoingWithoutRecipient: PrivySimulationAssetChange = {
+      ...outgoing,
+      to: null,
+    };
+    expect(resolveAssetCounterparty(outgoingWithoutRecipient, contracts)).toBe(
+      'Unknown',
+    );
+
+    const incomingWithoutSender: PrivySimulationAssetChange = {
+      ...incoming,
+      from: null,
+    };
+    expect(resolveAssetCounterparty(incomingWithoutSender, contracts)).toBe(
+      'Unknown',
+    );
   });
 });

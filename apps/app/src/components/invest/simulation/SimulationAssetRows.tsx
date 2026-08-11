@@ -1,63 +1,29 @@
 import type { PrivySimulationAssetChange } from '@zapengine/types/api';
-import { ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
-import { useState } from 'react';
-import { Image, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
-import { compactTokenAmount } from '@/integration/simulationPreviewModel';
+import {
+  SimulationAssetAmountRow,
+  SimulationDirectionalSection,
+} from '@/components/invest/simulation/SimulationFlowPrimitives';
 
-function TokenMark({ change }: { change: PrivySimulationAssetChange }) {
-  const [imageFailed, setImageFailed] = useState(false);
-  const logoUrl = change.token.logoUrl;
-
-  return (
-    <View className="h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-surface-elevated">
-      {logoUrl && !imageFailed ? (
-        <Image
-          accessibilityIgnoresInvertColors
-          source={{ uri: logoUrl }}
-          style={{ width: 36, height: 36 }}
-          onError={() => setImageFailed(true)}
-        />
-      ) : (
-        <Text className="font-sans-bold text-[13px] text-ink">
-          {change.token.symbol.slice(0, 1).toUpperCase()}
-        </Text>
-      )}
-    </View>
-  );
-}
-
+// jscpd:ignore-start -- this wiring around the shared SimulationAssetAmountRow
+// / SimulationDirectionalSection primitives is intentionally the same shape as
+// SimulationFlowRows.tsx's AssetRow/AssetSection: this file is the legacy
+// Privy preview's row (no counterparty, no call-index), while the other is the
+// unified route review's row (counterparty + call-index). Merging them would
+// force one screen's content shape onto the other.
 function AssetRow({ change }: { change: PrivySimulationAssetChange }) {
-  const outgoing = change.direction === 'out';
-  const sign = outgoing ? '−' : '+';
-
   return (
-    <View className="flex-row items-center gap-3 border-t border-line px-4 py-3 first:border-t-0">
-      <TokenMark change={change} />
-      <View className="min-w-0 flex-1">
-        <Text
-          className="font-sans-semibold text-[13px] text-ink"
-          numberOfLines={1}
-        >
-          {change.token.symbol}
-        </Text>
+    <SimulationAssetAmountRow
+      token={change.token}
+      subtitle={
         <Text className="mt-0.5 text-[11px] text-ink-faint" numberOfLines={1}>
           {change.token.name}
         </Text>
-      </View>
-      <Text
-        className={
-          outgoing
-            ? 'max-w-[56%] font-mono-semibold text-[13px] text-error'
-            : 'max-w-[56%] font-mono-semibold text-[13px] text-success'
-        }
-        numberOfLines={1}
-      >
-        {sign}
-        {compactTokenAmount(change.rawAmount, change.token.decimals)}{' '}
-        {change.token.symbol}
-      </Text>
-    </View>
+      }
+      direction={change.direction}
+      rawAmount={change.rawAmount}
+    />
   );
 }
 
@@ -70,30 +36,18 @@ function FlowSide({
   direction: 'out' | 'in';
   changes: readonly PrivySimulationAssetChange[];
 }) {
-  const Icon = direction === 'out' ? ArrowUpRight : ArrowDownLeft;
-  const iconColor = direction === 'out' ? '#ff6f61' : '#7ad88f';
-
   return (
-    <View>
-      <View className="flex-row items-center gap-2 px-4 pb-1 pt-4">
-        <Icon size={14} color={iconColor} />
-        <Text className="font-mono-semibold text-[9px] uppercase tracking-[.8px] text-ink-faint">
-          {label}
-        </Text>
-      </View>
-      {changes.length > 0 ? (
-        changes.map((change, index) => (
-          <AssetRow
-            key={`${direction}-${change.callIndex}-${change.token.address ?? change.token.symbol}-${index}`}
-            change={change}
-          />
-        ))
-      ) : (
-        <Text className="px-4 py-3 text-[12px] text-ink-faint">
-          No assets detected
-        </Text>
+    <SimulationDirectionalSection
+      label={label}
+      direction={direction}
+      items={changes}
+      renderItem={(change, index) => (
+        <AssetRow
+          key={`${direction}-${change.callIndex}-${change.token.address ?? change.token.symbol}-${index}`}
+          change={change}
+        />
       )}
-    </View>
+    />
   );
 }
 
@@ -112,3 +66,4 @@ export function SimulationAssetRows({
     </View>
   );
 }
+// jscpd:ignore-end
