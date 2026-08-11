@@ -41,7 +41,10 @@ describe('buildSocialEpisode', () => {
       buildSocialEpisode({
         episode,
         localization,
-        video: { status: 'processing', mp4_url: 'https://cdn.example/video.mp4' },
+        video: {
+          status: 'processing',
+          mp4_url: 'https://cdn.example/video.mp4',
+        },
       }),
     ).toThrow('No completed zh video found for episode episode-1');
   });
@@ -51,7 +54,10 @@ describe('buildSocialEpisode', () => {
       buildSocialEpisode({
         episode,
         localization: { ...localization, script: ' ' },
-        video: { status: 'completed', mp4_url: 'https://cdn.example/video.mp4' },
+        video: {
+          status: 'completed',
+          mp4_url: 'https://cdn.example/video.mp4',
+        },
       }),
     ).toThrow('has no completed zh transcript');
   });
