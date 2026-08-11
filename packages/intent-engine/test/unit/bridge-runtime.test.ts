@@ -17,12 +17,14 @@ const OTHER = '0x2222222222222222222222222222222222222222' as Address;
 const SOURCE_HASH = `0x${'1'.repeat(64)}` as Hash;
 const DEST_HASH = `0x${'2'.repeat(64)}` as Hash;
 
-function request(overrides: Partial<{
-  fromChainId: number;
-  toChainId: number;
-  fromToken: Address;
-  toToken: Address;
-}> = {}) {
+function request(
+  overrides: Partial<{
+    fromChainId: number;
+    toChainId: number;
+    fromToken: Address;
+    toToken: Address;
+  }> = {},
+) {
   return {
     fromChainId: overrides.fromChainId ?? 8453,
     toChainId: overrides.toChainId ?? 42161,
@@ -48,8 +50,12 @@ describe('bridge runtime helpers', () => {
       ),
     ).toBe(true);
     expect(isCanonicalBaseArbitrumUsdc(request({ toChainId: 1 }))).toBe(false);
-    expect(isCanonicalBaseArbitrumUsdc(request({ fromToken: OTHER }))).toBe(false);
-    expect(isCanonicalBaseArbitrumUsdc(request({ toToken: OTHER }))).toBe(false);
+    expect(
+      isCanonicalBaseArbitrumUsdc(request({ fromToken: OTHER })),
+    ).toBe(false);
+    expect(
+      isCanonicalBaseArbitrumUsdc(request({ toToken: OTHER })),
+    ).toBe(false);
   });
 
   it('normalizes provider statuses across every settlement group', () => {
