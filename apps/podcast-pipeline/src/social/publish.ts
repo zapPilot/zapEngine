@@ -28,7 +28,7 @@ export async function publishSocialPlatforms(input: {
   statePath?: string;
   onLog?: (message: string) => void;
 }): Promise<PublishPlatformOutcome[]> {
-  const log = input.onLog ?? (() => undefined);
+  const log = input.onLog ?? (() => void 0);
   const outcomes: PublishPlatformOutcome[] = [];
 
   for (const platform of input.platforms) {
@@ -41,7 +41,11 @@ export async function publishSocialPlatforms(input: {
     );
     if (existing && !input.force) {
       log(`[${platform}] already published — skipping.`);
-      outcomes.push({ platform, status: 'skipped', url: existing.url });
+      outcomes.push({
+        platform,
+        status: 'skipped',
+        ...(existing.url ? { url: existing.url } : {}),
+      });
       continue;
     }
 
@@ -77,7 +81,8 @@ export async function publishSocialPlatforms(input: {
         ...(result.url ? { url: result.url } : {}),
       });
     } catch (error) {
-      const normalized = error instanceof Error ? error : new Error(String(error));
+      const normalized =
+        error instanceof Error ? error : new Error(String(error));
       log(`[${platform}] ✗ ${normalized.message}`);
       outcomes.push({ platform, status: 'failed', error: normalized });
     }
