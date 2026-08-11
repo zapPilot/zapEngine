@@ -10,12 +10,7 @@ import {
   intentEngine,
   waitForBridgeCompletion,
 } from '@core/services/intentClient';
-import {
-  buildApproveTx,
-  HYPERCORE_CHAIN_ID,
-  needsApproval,
-  type TransactionQuote,
-} from '@zapengine/intent-engine';
+import { type BridgeQuote, HYPERCORE_CHAIN_ID } from '@zapengine/intent-engine';
 import { useCallback, useRef, useState } from 'react';
 import { type Address, erc20Abi, getAddress, type Hash } from 'viem';
 
@@ -41,10 +36,9 @@ export interface BridgeTestRequest {
 
 export interface BridgeTestState {
   status: BridgeTestStatus;
-  quote: TransactionQuote | null;
+  quote: BridgeQuote | null;
   sourceTxHash: Hash | null;
   destinationTxHash: Hash | null;
-  lifiScanUrl: string | null;
   error: string | null;
 }
 
@@ -53,7 +47,6 @@ const INITIAL_STATE: BridgeTestState = {
   quote: null,
   sourceTxHash: null,
   destinationTxHash: null,
-  lifiScanUrl: null,
   error: null,
 };
 
@@ -72,7 +65,7 @@ function assertRequest(request: BridgeTestRequest): void {
 async function buildFreshQuote(
   request: BridgeTestRequest,
   userAddress: Address,
-): Promise<TransactionQuote> {
+): Promise<BridgeQuote> {
   assertRequest(request);
   return intentEngine.buildBridge({
     fromChainId: request.fromChainId,
@@ -86,9 +79,8 @@ async function buildFreshQuote(
 
 async function assertFundingAndEstimateGas(params: {
   request: BridgeTestRequest;
-  quote: TransactionQuote;
+  quote: BridgeQuote;
   userAddress: Address;
-  includeApproval: boolean;
 }): Promise<void> {
   const publicClient = getPublicClient(params.request.fromChainId);
   const tokenBalance = await publicClient.readContract({
@@ -101,37 +93,23 @@ async function assertFundingAndEstimateGas(params: {
     throw new Error('USDC balance is too low for this bridge amount.');
   }
 
-  const bridgeTx = params.quote.transaction;
-  const bridgeGas = await publicClient.estimateGas({
-    account: params.userAddress,
-    to: bridgeTx.to as Address,
-    data: bridgeTx.data as `0x${string}`,
-    value: BigInt(bridgeTx.value),
-  });
-  let totalGas = bridgeGas;
-
-  if (params.includeApproval && params.quote.approval) {
-    const approvalTx = buildApproveTx({
-      token: params.quote.approval.tokenAddress,
-      spender: params.quote.approval.spenderAddress,
-      amount: params.quote.approval.amount,
-      chainId: params.request.fromChainId,
-      intentType: 'BRIDGE_APPROVAL',
-    });
+  let totalGas = 0n;
+  let totalValue = 0n;
+  for (const tx of [...params.quote.approvals, ...params.quote.calls]) {
     totalGas += await publicClient.estimateGas({
       account: params.userAddress,
-      to: approvalTx.to as Address,
-      data: approvalTx.data as `0x${string}`,
-      value: 0n,
+      to: tx.to as Address,
+      data: tx.data as `0x${string}`,
+      value: BigInt(tx.value),
     });
+    totalValue += BigInt(tx.value);
   }
 
   const [nativeBalance, gasPrice] = await Promise.all([
     publicClient.getBalance({ address: params.userAddress }),
     publicClient.getGasPrice(),
   ]);
-  const requiredNative = BigInt(bridgeTx.value) + totalGas * gasPrice;
-  if (nativeBalance < requiredNative) {
+  if (nativeBalance < totalValue + totalGas * gasPrice) {
     throw new Error('ETH balance is too low to pay bridge and approval gas.');
   }
 }
@@ -143,7 +121,7 @@ export function useBridgeTest() {
   const abortRef = useRef<AbortController | null>(null);
 
   const prepare = useCallback(
-    async (request: BridgeTestRequest): Promise<TransactionQuote | null> => {
+    async (request: BridgeTestRequest): Promise<BridgeQuote | null> => {
       const requestId = ++quoteRequestId.current;
       const address = wallet.account?.address;
       if (!address) {
@@ -188,40 +166,17 @@ export function useBridgeTest() {
   const execute = useCallback(
     async (request: BridgeTestRequest): Promise<void> => {
       const address = wallet.account?.address;
-      if (!address) {
-        throw new Error('Connect a wallet before bridging.');
-      }
+      if (!address) throw new Error('Connect a wallet before bridging.');
       const userAddress = getAddress(address);
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
-
-      setState({
-        ...INITIAL_STATE,
-        status: 'quoting',
-      });
+      setState({ ...INITIAL_STATE, status: 'quoting' });
 
       try {
         const quote = await buildFreshQuote(request, userAddress);
-        const approvalNeeded = quote.approval
-          ? await needsApproval({
-              publicClient: getPublicClient(request.fromChainId),
-              owner: userAddress,
-              requirement: {
-                tokenAddress: quote.approval.tokenAddress,
-                spenderAddress: quote.approval.spenderAddress,
-                amount: BigInt(quote.approval.amount),
-              },
-            })
-          : false;
         if (controller.signal.aborted) return;
-
-        await assertFundingAndEstimateGas({
-          request,
-          quote,
-          userAddress,
-          includeApproval: approvalNeeded,
-        });
+        await assertFundingAndEstimateGas({ request, quote, userAddress });
         if (controller.signal.aborted) return;
 
         if (wallet.chain?.id !== request.fromChainId) {
@@ -237,32 +192,25 @@ export function useBridgeTest() {
           if (controller.signal.aborted) return;
         }
 
-        if (approvalNeeded && quote.approval) {
+        if (quote.approvals.length > 0) {
           setState((current) => ({
             ...current,
             status: 'awaitingApproval',
             quote,
           }));
-          const approvalTx = buildApproveTx({
-            token: quote.approval.tokenAddress,
-            spender: quote.approval.spenderAddress,
-            amount: quote.approval.amount,
-            chainId: request.fromChainId,
-            intentType: 'BRIDGE_APPROVAL',
-          });
-          const approvalHash = await wallet.sendTransaction({
-            to: approvalTx.to as Address,
-            data: approvalTx.data as `0x${string}`,
-            value: 0n,
-            chainId: approvalTx.chainId,
-          });
-          const approvalReceipt = await getPublicClient(
-            request.fromChainId,
-          ).waitForTransactionReceipt({ hash: approvalHash });
-          if (approvalReceipt.status !== 'success') {
-            throw new Error('USDC approval transaction reverted.');
+          for (const approvalTx of quote.approvals) {
+            const approvalHash = await sendPreparedTransaction(
+              wallet,
+              approvalTx,
+            );
+            const approvalReceipt = await getPublicClient(
+              request.fromChainId,
+            ).waitForTransactionReceipt({ hash: approvalHash });
+            if (approvalReceipt.status !== 'success') {
+              throw new Error('Bridge approval transaction reverted.');
+            }
+            if (controller.signal.aborted) return;
           }
-          if (controller.signal.aborted) return;
         }
 
         setState((current) => ({
@@ -270,36 +218,37 @@ export function useBridgeTest() {
           status: 'awaitingBridgeSignature',
           quote,
         }));
-        const sourceTxHash = await sendPreparedTransaction(
-          wallet,
-          quote.transaction,
-        );
-        if (controller.signal.aborted) return;
-        const lifiScanUrl = `https://scan.li.fi/tx/${sourceTxHash}`;
-        setState((current) => ({
-          ...current,
-          status: 'sourceSubmitted',
-          sourceTxHash,
-          lifiScanUrl,
-        }));
-
-        const sourceReceipt = await getPublicClient(
-          request.fromChainId,
-        ).waitForTransactionReceipt({ hash: sourceTxHash });
-        if (sourceReceipt.status !== 'success') {
-          throw new Error('Bridge source transaction reverted.');
+        let sourceTxHash: Hash | null = null;
+        for (const call of quote.calls) {
+          sourceTxHash = await sendPreparedTransaction(wallet, call);
+          if (controller.signal.aborted) return;
+          setState((current) => ({
+            ...current,
+            status: 'sourceSubmitted',
+            sourceTxHash,
+          }));
+          const sourceReceipt = await getPublicClient(
+            request.fromChainId,
+          ).waitForTransactionReceipt({ hash: sourceTxHash });
+          if (sourceReceipt.status !== 'success') {
+            throw new Error('Bridge source transaction reverted.');
+          }
+          if (controller.signal.aborted) return;
         }
-        if (controller.signal.aborted) return;
+        if (!sourceTxHash)
+          throw new Error('Bridge quote returned no source call.');
 
         setState((current) => ({ ...current, status: 'bridging' }));
-        const bridgeStatus = await waitForBridgeCompletion({
+        const settlement = await waitForBridgeCompletion({
+          provider: quote.provider,
           txHash: sourceTxHash,
           fromChain: request.fromChainId,
           toChain: request.toChainId,
+          quote,
           signal: controller.signal,
         });
         if (controller.signal.aborted) return;
-        const destinationTxHash = bridgeStatus.receiving?.txHash ?? null;
+        const destinationTxHash = settlement.destinationTxHash ?? null;
 
         if (
           request.toChainId === HYPERCORE_CHAIN_ID &&
@@ -313,7 +262,7 @@ export function useBridgeTest() {
           await waitForPerpUsdcArrival({
             user: userAddress,
             baselineUsd6: hyperliquidBaseline,
-            expectedUsd6: BigInt(quote.estimate.toAmountMin),
+            expectedUsd6: BigInt(quote.toAmountMin),
             signal: controller.signal,
           });
           if (controller.signal.aborted) return;
