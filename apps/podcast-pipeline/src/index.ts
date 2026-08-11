@@ -136,6 +136,28 @@ function emptyTelegramResponse(c: Context): Response {
   return c.body(null, 200);
 }
 
+type EpisodeRow = NonNullable<Awaited<ReturnType<typeof findEpisodeById>>>;
+
+async function loadEpisodeLocalizationResponse(
+  episode: EpisodeRow,
+  localization: EpisodeLocalizationRow,
+) {
+  const classrooms = await listLanguageClassroomsByLocalizationId(
+    localization.id,
+  );
+  const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds([
+    localization.id,
+  ]);
+  const videoSummary = videoSummaries.get(localization.id);
+  return toEpisodeResponseFromLocalization(
+    episode,
+    localization,
+    classrooms,
+    videoSummary?.video ?? null,
+    videoSummary?.videoGeneration ?? null,
+  );
+}
+
 export function createApp(): Hono {
   const app = new Hono();
   const telegramIngestQueue = createTelegramIngestQueue();
@@ -435,22 +457,7 @@ export function createApp(): Hono {
       });
     }
 
-    const classrooms = await listLanguageClassroomsByLocalizationId(
-      localization.id,
-    );
-    const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds([
-      localization.id,
-    ]);
-    const videoSummary = videoSummaries.get(localization.id);
-    return c.json(
-      toEpisodeResponseFromLocalization(
-        episode,
-        localization,
-        classrooms,
-        videoSummary?.video ?? null,
-        videoSummary?.videoGeneration ?? null,
-      ),
-    );
+    return c.json(await loadEpisodeLocalizationResponse(episode, localization));
   });
 
   app.post('/episodes/:id/listened', async (c) => {
@@ -471,22 +478,7 @@ export function createApp(): Hono {
       });
     }
 
-    const classrooms = await listLanguageClassroomsByLocalizationId(
-      localization.id,
-    );
-    const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds([
-      localization.id,
-    ]);
-    const videoSummary = videoSummaries.get(localization.id);
-    return c.json(
-      toEpisodeResponseFromLocalization(
-        episode,
-        localization,
-        classrooms,
-        videoSummary?.video ?? null,
-        videoSummary?.videoGeneration ?? null,
-      ),
-    );
+    return c.json(await loadEpisodeLocalizationResponse(episode, localization));
   });
 
   app.onError(handleAppError);
