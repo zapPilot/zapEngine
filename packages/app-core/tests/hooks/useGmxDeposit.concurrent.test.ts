@@ -215,4 +215,69 @@ describe('useGmxDeposit concurrent executions', () => {
       { index: 0, label: 'GMX deposit', status: 'pending' },
     ]);
   });
+
+  it('stops a stale run after delegation compatibility resolves', async () => {
+    const secondPlan = plan('SECOND_GMX_DEPOSIT');
+    let resolveFirstDelegation!: () => void;
+
+    mocks.assertEIP7702DelegationCompatibility
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirstDelegation = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(undefined);
+    mocks.getGmxDepositPlan.mockResolvedValue(secondPlan);
+    mocks.executeDepositPlan.mockResolvedValue({
+      kind: 'sequential',
+      hashes: [NEW_HASH],
+    });
+
+    const { result } = renderHook(() => useGmxDeposit());
+    let firstRun!: Promise<unknown>;
+
+    await act(async () => {
+      firstRun = result.current.run({
+        marketKey: 'btc-usdc',
+        amount: '1000000',
+      });
+      await vi.waitFor(() => {
+        expect(
+          mocks.assertEIP7702DelegationCompatibility,
+        ).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    await act(async () => {
+      await result.current.run({
+        marketKey: 'eth-usdc',
+        amount: '2000000',
+      });
+    });
+
+    expect(mocks.assertEIP7702DelegationCompatibility).toHaveBeenCalledTimes(2);
+    expect(mocks.getWalletClient).toHaveBeenCalledTimes(1);
+    expect(mocks.readContract).toHaveBeenCalledTimes(1);
+    expect(mocks.getBalance).toHaveBeenCalledTimes(1);
+    expect(mocks.getGmxDepositPlan).toHaveBeenCalledTimes(1);
+    expect(mocks.executeDepositPlan).toHaveBeenCalledTimes(1);
+    expect(result.current.lastPlan).toBe(secondPlan);
+    expect(result.current.lastTxHash).toBe(NEW_HASH);
+
+    await act(async () => {
+      resolveFirstDelegation();
+      await expect(firstRun).rejects.toMatchObject({ name: 'AbortError' });
+    });
+
+    expect(mocks.getWalletClient).toHaveBeenCalledTimes(1);
+    expect(mocks.readContract).toHaveBeenCalledTimes(1);
+    expect(mocks.getBalance).toHaveBeenCalledTimes(1);
+    expect(mocks.getGmxDepositPlan).toHaveBeenCalledTimes(1);
+    expect(mocks.executeDepositPlan).toHaveBeenCalledTimes(1);
+    expect(result.current.pending).toBe(false);
+    expect(result.current.tier).toBe('sequential');
+    expect(result.current.lastTxHash).toBe(NEW_HASH);
+    expect(result.current.lastPlan).toBe(secondPlan);
+  });
 });
