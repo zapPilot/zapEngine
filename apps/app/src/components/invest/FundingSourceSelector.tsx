@@ -1,21 +1,16 @@
 import { useState } from 'react';
 
 import { ChainTokenSelectorSheet } from '@/components/invest/ChainTokenSelectorSheet';
-import { FundingSourceCard } from '@/components/invest/FundingSourceCard';
+import {
+  FundingSourceCard,
+  type FundingSourceCardProps,
+} from '@/components/invest/FundingSourceCard';
 import type { DesktopDepositToken } from '@/integration/depositTokens';
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
 
-interface FundingSourceSelectorProps {
-  chainLabel: string;
-  allocation: string;
-  protocol: string;
+interface FundingSourceSelectorProps
+  extends Omit<FundingSourceCardProps, 'onSelectToken'> {
   tokens: readonly DesktopDepositToken[];
-  token: DesktopDepositToken;
-  tokenAmount: number | null;
-  hasAmount: boolean;
-  allocatedUsd: number;
-  balance: ChainTokenBalanceRow | null;
-  balanceState: 'loading' | 'unavailable' | 'loaded';
   rows: readonly ChainTokenBalanceRow[];
   onSelectToken: (token: DesktopDepositToken) => void;
 }
