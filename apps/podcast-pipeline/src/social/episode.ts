@@ -94,7 +94,7 @@ export async function getSocialEpisode(
     .maybeSingle<LocalizationProjection>();
 
   if (localizationError) throw localizationError;
-  if (!localization || localization.status !== 'completed') {
+  if (localization?.status !== 'completed') {
     throw new Error(
       `No completed zh localization found for episode ${episodeId}. Social publishing aborted.`,
     );
