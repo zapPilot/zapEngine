@@ -1,9 +1,9 @@
 import { getRuntimeEnv } from '@core/lib/env/runtimeEnv';
 import {
-  createIntentEngine,
   type BridgeProviderId,
   type BridgeQuote,
   type BridgeSettlement,
+  createIntentEngine,
 } from '@zapengine/intent-engine';
 import { createPublicClient, type Hash, http, type PublicClient } from 'viem';
 import { arbitrum, base, mainnet } from 'viem/chains';
