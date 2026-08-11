@@ -4,6 +4,11 @@ import * as BridgeRuntime from '../bridges/bridge-runtime.js';
 import type { PreparedTransaction } from '../types/transaction.types.js';
 
 const DEFAULT_ACROSS_API = 'https://app.across.to/api';
+const ACROSS_STATUS_GROUPS = {
+  filled: ['filled', 'success'],
+  settled: ['settled'],
+  failed: ['failed', 'expired', 'refunded'],
+} as const;
 
 export interface AcrossBridgeConfig {
   apiKey?: string | undefined;
@@ -57,21 +62,34 @@ function prepared(
   };
 }
 
-function statusKind(
-  status: string | undefined,
-): BridgeRuntime.BridgeSettlement['status'] {
-  return BridgeRuntime.normalizeBridgeStatus(status, {
-    filled: ['filled', 'success'],
-    settled: ['settled'],
-    failed: ['failed', 'expired', 'refunded'],
-  });
+function headers(apiKey: string | undefined): Record<string, string> {
+  return {
+    Accept: 'application/json',
+    ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+  };
 }
 
 export class AcrossBridgeAdapter extends BridgeRuntime.CanonicalBridgeProvider<AcrossStatusResponse> {
   readonly id = 'across' as const;
+  private readonly fetcher: BridgeRuntime.FetchLike;
 
   constructor(private readonly config: AcrossBridgeConfig) {
     super();
+    this.fetcher = config.fetch ?? fetch;
+  }
+
+  private request(
+    path: string,
+    params: URLSearchParams,
+    signal?: AbortSignal,
+  ): Promise<Response> {
+    return this.fetcher(
+      `${this.config.baseUrl ?? DEFAULT_ACROSS_API}/${path}?${params}`,
+      {
+        headers: headers(this.config.apiKey),
+        ...BridgeRuntime.signalOptions(signal),
+      },
+    );
   }
 
   async quote(
@@ -88,14 +106,7 @@ export class AcrossBridgeAdapter extends BridgeRuntime.CanonicalBridgeProvider<A
       recipient: request.recipient,
       integratorId: this.config.integratorId,
     });
-    const headers: Record<string, string> = { Accept: 'application/json' };
-    if (this.config.apiKey) {
-      headers['Authorization'] = `Bearer ${this.config.apiKey}`;
-    }
-    const response = await (this.config.fetch ?? fetch)(
-      `${this.config.baseUrl ?? DEFAULT_ACROSS_API}/swap/approval?${params}`,
-      { headers },
-    );
+    const response = await this.request('swap/approval', params);
     if (!response.ok) {
       throw new Error(`Across quote failed: ${response.status}`);
     }
@@ -127,13 +138,10 @@ export class AcrossBridgeAdapter extends BridgeRuntime.CanonicalBridgeProvider<A
     input: BridgeRuntime.BridgeTrackingInput,
   ): Promise<AcrossStatusResponse> {
     const params = new URLSearchParams({ depositTxnRef: input.sourceTxHash });
-    const headers: Record<string, string> = { Accept: 'application/json' };
-    if (this.config.apiKey) {
-      headers['Authorization'] = `Bearer ${this.config.apiKey}`;
-    }
-    const response = await (this.config.fetch ?? fetch)(
-      `${this.config.baseUrl ?? DEFAULT_ACROSS_API}/deposit/status?${params}`,
-      { headers, ...BridgeRuntime.signalOptions(input.signal) },
+    const response = await this.request(
+      'deposit/status',
+      params,
+      input.signal,
     );
     if (!response.ok) {
       throw new Error(`Across status failed: ${response.status}`);
@@ -144,7 +152,10 @@ export class AcrossBridgeAdapter extends BridgeRuntime.CanonicalBridgeProvider<A
   protected settlementStatus(
     value: AcrossStatusResponse,
   ): BridgeRuntime.BridgeSettlement['status'] {
-    return statusKind(value.status);
+    return BridgeRuntime.normalizeBridgeStatus(
+      value.status,
+      ACROSS_STATUS_GROUPS,
+    );
   }
 
   protected destinationTxHash(value: AcrossStatusResponse): Hash | undefined {
