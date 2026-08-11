@@ -205,4 +205,72 @@ describe('useGmxDeposit stale setup work', () => {
     expect(result.current.lastPlan).toBe(currentPlan);
     expect(result.current.lastTxHash).toBe(NEW_HASH);
   });
+
+  it('does not continue planning or execution when an older balance preflight resolves late', async () => {
+    mocks.switchChain.mockResolvedValue(undefined);
+    mocks.useWalletProvider.mockReturnValue({
+      account: { address: USER },
+      chain: { id: 42161 },
+      executeAtomicBatch: undefined,
+      getWalletClient: mocks.getWalletClient,
+      switchChain: mocks.switchChain,
+    });
+
+    let resolveFirstReadContract!: (balance: bigint) => void;
+    mocks.readContract
+      .mockImplementationOnce(
+        () =>
+          new Promise<bigint>((resolve) => {
+            resolveFirstReadContract = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(10_000_000n);
+
+    const currentPlan = plan('CURRENT_GMX_DEPOSIT');
+    mocks.getGmxDepositPlan.mockResolvedValue(currentPlan);
+    mocks.executeDepositPlan.mockResolvedValue({
+      kind: 'sequential',
+      hashes: [NEW_HASH],
+    });
+
+    const { result } = renderHook(() => useGmxDeposit());
+    let firstRun!: Promise<unknown>;
+
+    await act(async () => {
+      firstRun = result.current.run({
+        marketKey: 'btc-usdc',
+        amount: '1000000',
+      });
+      await vi.waitFor(() => {
+        expect(mocks.readContract).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    await act(async () => {
+      await result.current.run({
+        marketKey: 'eth-usdc',
+        amount: '2000000',
+      });
+    });
+
+    expect(mocks.getWalletClient).toHaveBeenCalledTimes(2);
+    expect(mocks.readContract).toHaveBeenCalledTimes(2);
+    expect(mocks.getBalance).toHaveBeenCalledTimes(2);
+    expect(mocks.getGmxDepositPlan).toHaveBeenCalledTimes(1);
+    expect(mocks.executeDepositPlan).toHaveBeenCalledTimes(1);
+    expect(result.current.lastPlan).toBe(currentPlan);
+    expect(result.current.lastTxHash).toBe(NEW_HASH);
+
+    await act(async () => {
+      resolveFirstReadContract(10_000_000n);
+      await expect(firstRun).rejects.toMatchObject({ name: 'AbortError' });
+    });
+
+    expect(mocks.getGmxDepositPlan).toHaveBeenCalledTimes(1);
+    expect(mocks.executeDepositPlan).toHaveBeenCalledTimes(1);
+    expect(result.current.pending).toBe(false);
+    expect(result.current.tier).toBe('sequential');
+    expect(result.current.lastPlan).toBe(currentPlan);
+    expect(result.current.lastTxHash).toBe(NEW_HASH);
+  });
 });
