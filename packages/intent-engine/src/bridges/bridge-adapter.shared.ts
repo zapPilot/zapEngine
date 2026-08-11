@@ -1,6 +1,8 @@
 import type { Hash } from 'viem';
 
 import { SUPPORTED_CHAINS, USDC_ADDRESS } from '../registry/chains.js';
+import type { BridgeProvider } from './bridge-provider.js';
+import { pollBridgeStatus } from './poll-bridge-status.js';
 import type {
   BridgeQuote,
   BridgeQuoteRequest,
@@ -26,7 +28,9 @@ export function isCanonicalBaseArbitrumUsdc(
   const arbitrumToBase =
     request.fromChainId === SUPPORTED_CHAINS.ARBITRUM &&
     request.toChainId === SUPPORTED_CHAINS.BASE;
-  if (!baseToArbitrum && !arbitrumToBase) return false;
+  if (!baseToArbitrum && !arbitrumToBase) {
+    return false;
+  }
 
   return (
     request.fromToken.toLowerCase() ===
@@ -56,9 +60,15 @@ export function normalizeBridgeStatus(
   },
 ): BridgeSettlement['status'] {
   const value = status?.toLowerCase();
-  if (value && groups.filled?.includes(value)) return 'filled';
-  if (value && groups.settled?.includes(value)) return 'settled';
-  if (value && groups.failed.includes(value)) return 'failed';
+  if (value && groups.filled?.includes(value)) {
+    return 'filled';
+  }
+  if (value && groups.settled?.includes(value)) {
+    return 'settled';
+  }
+  if (value && groups.failed.includes(value)) {
+    return 'failed';
+  }
   return 'pending';
 }
 
@@ -82,4 +92,41 @@ export function signalOptions(
   signal: AbortSignal | undefined,
 ): { signal: AbortSignal } | Record<string, never> {
   return signal ? { signal } : {};
+}
+
+export abstract class CanonicalBridgeProvider<TStatus>
+  implements BridgeProvider
+{
+  abstract readonly id: BridgeQuote['provider'];
+
+  supports(request: BridgeQuoteRequest): boolean {
+    return isCanonicalBaseArbitrumUsdc(request);
+  }
+
+  abstract quote(request: BridgeQuoteRequest): Promise<BridgeQuote>;
+
+  protected abstract fetchStatus(input: BridgeTrackingInput): Promise<TStatus>;
+
+  protected abstract settlementStatus(
+    value: TStatus,
+  ): BridgeSettlement['status'];
+
+  protected abstract destinationTxHash(value: TStatus): Hash | undefined;
+
+  async waitForCompletion(
+    input: BridgeTrackingInput,
+  ): Promise<BridgeSettlement> {
+    const payload = await pollBridgeStatus({
+      fetchStatus: () => this.fetchStatus(input),
+      isTerminal: (value) => this.settlementStatus(value) !== 'pending',
+      ...signalOptions(input.signal),
+    });
+
+    return bridgeSettlement({
+      status: this.settlementStatus(payload),
+      sourceTxHash: input.sourceTxHash,
+      destinationTxHash: this.destinationTxHash(payload),
+      providerData: payload,
+    });
+  }
 }
