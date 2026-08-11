@@ -52,7 +52,7 @@ The CLI prints the X and Rednote drafts before any publish action:
 [a] Publish all  [x] X only  [r] Rednote only  [g] Regenerate  [e] Edit  [q] Quit
 ```
 
-`g` accepts optional feedback for the next OpenRouter generation. `e` opens the generated JSON in `$EDITOR` (default `vi`) and validates it again before it can be published.
+`g` accepts optional feedback for the next OpenRouter generation. `e` opens the generated JSON in `vi` and validates it again before it can be published.
 
 ## Duplicate and partial failure behavior
 
