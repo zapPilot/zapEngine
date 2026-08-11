@@ -9,6 +9,7 @@ export default defineKnipConfig({
   entry: [
     'src/index.ts',
     'src/worker.ts',
+    'src/social/cli.ts',
     'src/services/video/cli.ts',
     'src/services/video/r2-playback-canary.ts',
     'src/services/video/storyboard/smoke-cli.ts',
