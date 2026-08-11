@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { access } from 'node:fs/promises';
 
 import type {
   BrowserPublisher,
@@ -14,6 +15,10 @@ const REDNOTE_VIDEO_URL =
 const X_SESSION = 'zap-social-x';
 const REDNOTE_SESSION = 'zap-social-rednote';
 const DEFAULT_COMMAND_TIMEOUT_MS = 130_000;
+const OPENCLI_CANDIDATES = [
+  '/opt/homebrew/bin/opencli',
+  '/usr/local/bin/opencli',
+] as const;
 
 const REDNOTE_VIDEO_INPUT_SELECTORS = [
   'input[type="file"][accept*="video"]',
@@ -41,6 +46,8 @@ const REDNOTE_BODY_SELECTORS = [
   '.editor-content [contenteditable="true"]',
 ] as const;
 
+let cachedOpenCliBinary: string | null = null;
+
 export class OpenCliPublishError extends Error {
   constructor(
     readonly platform: SocialPlatform,
@@ -59,7 +66,7 @@ export class OpenCliPublishError extends Error {
 export function createOpenCliBrowserPublisher(input?: {
   onLog?: (message: string) => void;
 }): BrowserPublisher {
-  const log = input?.onLog ?? (() => undefined);
+  const log = input?.onLog ?? (() => void 0);
 
   return {
     async publishX(payload) {
@@ -81,7 +88,9 @@ async function publishX(
 ): Promise<PublishResult> {
   try {
     log('[x] Opening publisher');
-    await xStep('open_compose', () => browser(X_SESSION, ['open', X_COMPOSE_URL]));
+    await xStep('open_compose', () =>
+      browser(X_SESSION, ['open', X_COMPOSE_URL]),
+    );
     await xStep('wait_composer', () =>
       browser(X_SESSION, [
         'wait',
@@ -158,18 +167,16 @@ async function publishX(
         throw new Error(`X reported a publish error: ${evidence}`);
       }
       if (!/sent|posted|送信|ポスト|已发送|已发布|已發佈/i.test(evidence)) {
-        throw new Error(`Could not verify X publish success from toast: ${evidence}`);
+        throw new Error(
+          `Could not verify X publish success from toast: ${evidence}`,
+        );
       }
     });
 
-    const url = await findXStatusUrl().catch(() => undefined);
-    return {
-      status: 'published',
-      publishedAt: new Date().toISOString(),
-      ...(url ? { url } : {}),
-    };
+    const url = await findXStatusUrl().catch(() => null);
+    return publishedResult(url);
   } finally {
-    await browser(X_SESSION, ['close']).catch(() => undefined);
+    await browser(X_SESSION, ['close']).catch(() => null);
   }
 }
 
@@ -184,7 +191,11 @@ async function publishRednote(
     );
 
     const videoInput = await rednoteStep('wait_upload_input', () =>
-      waitForAnySelector(REDNOTE_SESSION, REDNOTE_VIDEO_INPUT_SELECTORS, 20_000),
+      waitForAnySelector(
+        REDNOTE_SESSION,
+        REDNOTE_VIDEO_INPUT_SELECTORS,
+        20_000,
+      ),
     );
 
     log('[rednote] Uploading video');
@@ -223,7 +234,12 @@ async function publishRednote(
         '发布',
       ]).catch(() => null);
       if (semantic !== null) return semantic;
-      return browser(REDNOTE_SESSION, ['click', 'xhs-publish-btn', '--nth', '0']);
+      return browser(REDNOTE_SESSION, [
+        'click',
+        'xhs-publish-btn',
+        '--nth',
+        '0',
+      ]);
     });
 
     await rednoteStep('confirm_success', async () => {
@@ -254,17 +270,22 @@ async function publishRednote(
 
     const currentUrl = (await browser(REDNOTE_SESSION, ['get', 'url'])).trim();
     const url =
-      /^https:\/\//.test(currentUrl) && !currentUrl.includes('/publish/publish')
+      currentUrl.startsWith('https://') &&
+      !currentUrl.includes('/publish/publish')
         ? currentUrl
-        : undefined;
-    return {
-      status: 'published',
-      publishedAt: new Date().toISOString(),
-      ...(url ? { url } : {}),
-    };
+        : null;
+    return publishedResult(url);
   } finally {
-    await browser(REDNOTE_SESSION, ['close']).catch(() => undefined);
+    await browser(REDNOTE_SESSION, ['close']).catch(() => null);
   }
+}
+
+function publishedResult(url: string | null): PublishResult {
+  return {
+    status: 'published',
+    publishedAt: new Date().toISOString(),
+    ...(url ? { url } : {}),
+  };
 }
 
 async function xStep<T>(step: string, operation: () => Promise<T>): Promise<T> {
@@ -304,10 +325,12 @@ async function waitForAnySelector(
       if (matched !== null) return selector;
     }
   }
-  throw new Error(`None of the expected selectors appeared: ${selectors.join(', ')}`);
+  throw new Error(
+    `None of the expected selectors appeared: ${selectors.join(', ')}`,
+  );
 }
 
-async function findXStatusUrl(): Promise<string | undefined> {
+async function findXStatusUrl(): Promise<string | null> {
   const raw = await browser(X_SESSION, [
     'find',
     '--css',
@@ -316,18 +339,17 @@ async function findXStatusUrl(): Promise<string | undefined> {
     '5',
   ]);
   const href = findHref(JSON.parse(raw) as unknown);
-  if (!href) return undefined;
-  return new URL(href, 'https://x.com').href;
+  return href ? new URL(href, 'https://x.com').href : null;
 }
 
-function findHref(value: unknown): string | undefined {
+function findHref(value: unknown): string | null {
   if (typeof value === 'string' && /\/status\/\d+/.test(value)) return value;
   if (Array.isArray(value)) {
     for (const item of value) {
       const found = findHref(item);
       if (found) return found;
     }
-    return undefined;
+    return null;
   }
   if (value && typeof value === 'object') {
     for (const item of Object.values(value as Record<string, unknown>)) {
@@ -335,7 +357,7 @@ function findHref(value: unknown): string | undefined {
       if (found) return found;
     }
   }
-  return undefined;
+  return null;
 }
 
 function browser(
@@ -346,10 +368,11 @@ function browser(
   return runOpenCli(['browser', session, ...args], timeoutMs);
 }
 
-function runOpenCli(args: string[], timeoutMs: number): Promise<string> {
+async function runOpenCli(args: string[], timeoutMs: number): Promise<string> {
+  const binary = await resolveOpenCliBinary();
   return new Promise((resolve, reject) => {
     execFile(
-      'opencli',
+      binary,
       args,
       {
         encoding: 'utf8',
@@ -361,11 +384,31 @@ function runOpenCli(args: string[], timeoutMs: number): Promise<string> {
           const detail = [stderr.trim(), stdout.trim(), error.message]
             .filter(Boolean)
             .join('\n');
-          reject(new Error(detail || 'OpenCLI command failed.', { cause: error }));
+          reject(
+            new Error(detail || 'OpenCLI command failed.', { cause: error }),
+          );
           return;
         }
         resolve(stdout.trim());
       },
     );
   });
+}
+
+async function resolveOpenCliBinary(): Promise<string> {
+  if (cachedOpenCliBinary) return cachedOpenCliBinary;
+
+  for (const candidate of OPENCLI_CANDIDATES) {
+    const exists = await access(candidate)
+      .then(() => true)
+      .catch(() => false);
+    if (exists) {
+      cachedOpenCliBinary = candidate;
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    `OpenCLI executable not found. Expected one of: ${OPENCLI_CANDIDATES.join(', ')}`,
+  );
 }
