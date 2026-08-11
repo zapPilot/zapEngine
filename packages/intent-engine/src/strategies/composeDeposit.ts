@@ -33,9 +33,6 @@ import {
 import { getVaultForBucket } from '../registry/vaults.js';
 import type { TransactionQuote } from '../types/transaction.types.js';
 
-// Built-in fallback only — the production split is injected by
-// plan-orchestration (DEPOSIT_DEFAULT_SPLIT env), which is the no-deploy
-// rollback lever while cross-chain routes are being proven out.
 const DEFAULT_SPLIT: ChainSplit = {
   [SUPPORTED_CHAINS.BASE]: 1.0,
 };
@@ -203,8 +200,6 @@ function resolveSplit(input: ComposeDepositInput): ChainSplit {
     (isBaseSource ? DEFAULT_SPLIT : { [input.sourceChainId]: 1 });
 
   if (!isBaseSource) {
-    // Non-Base sources exist only for destination re-quotes (bridge landed →
-    // re-plan with the received amount); re-bridging from them is not allowed.
     const foreignLeg = Object.entries(split).find(
       ([chainId, weight]) =>
         (weight ?? 0) > 0 && Number(chainId) !== input.sourceChainId,
@@ -235,7 +230,10 @@ export async function composeDeposit(
     input.sourceChainId,
   );
   const bridgeRouter =
-    deps.bridgeRouter ?? new BridgeRouter([new LiFiBridgeAdapter(deps.adapter)]);
+    deps.bridgeRouter ??
+    new BridgeRouter([
+      new LiFiBridgeAdapter(deps.adapter, { allowCanonical: true }),
+    ]);
   const allocations = splitAmounts(input.fromAmount, resolveSplit(input));
   const legs: DepositLeg[] = [];
   const calls: PreparedTransaction[] = [];
@@ -313,8 +311,6 @@ export async function composeDeposit(
         bridgeRouter,
       );
 
-      // Checked against the quoted output (6-decimal perp USDC) rather than
-      // the allocation, which may be denominated in a different source token.
       if (BigInt(quote.toAmountMin) < BigInt(HLP_MIN_DEPOSIT_USD)) {
         throw new Error(
           `HLP allocation is below the vault minimum of ${HLP_MIN_DEPOSIT_USD} perp USDC base units (quoted ${quote.toAmountMin})`,
