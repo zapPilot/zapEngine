@@ -59,6 +59,9 @@ export const episodeVisualPayloadSchema = z
           EPISODE_VISUAL_STORYBOARD_PROMPT_VERSION,
         ),
         usedFallback: z.boolean(),
+        // Null means every scene kept its deterministic search intent, so a
+        // payload can never imply a model that shaped nothing.
+        searchIntentModel: z.string().min(1).nullable(),
       })
       .strict(),
   })
@@ -136,6 +139,7 @@ export function buildEpisodeVisualPayload(input: {
   canonicalLocalizationId: string;
   manifestUrl: string;
   storyboard: StoryboardGenerationResult;
+  searchIntentModel: string | null;
   selectedScenes: readonly PlannedVisualScene[];
   assets: readonly PlannedVisualImage[];
   r2ImageUrls: Readonly<Record<string, string>>;
@@ -218,6 +222,7 @@ export function buildEpisodeVisualPayload(input: {
       storyboardModel: input.storyboard.model,
       storyboardPromptVersion: EPISODE_VISUAL_STORYBOARD_PROMPT_VERSION,
       usedFallback: input.storyboard.usedFallback,
+      searchIntentModel: input.searchIntentModel,
     },
   });
 }

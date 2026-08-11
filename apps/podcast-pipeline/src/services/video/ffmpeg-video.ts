@@ -579,6 +579,38 @@ export function planVerticalMediaChunks(
   return chunks;
 }
 
+/**
+ * Frames one media chunk must hold past its own nominal span.
+ *
+ * The final pass crossfades chunks on the absolute timeline, so the stream
+ * accumulated up to chunk k has to reach `offset_k + transitionFrames`. A chunk
+ * cut exactly at its own duration leaves that stream one transition short: the
+ * xfade A side hits EOF, every chunk from the third onward is dropped, and the
+ * media window freezes on one frame for the rest of the video while captions,
+ * narration and BGM keep playing. Each scene already carries the same hold
+ * inside a chunk (see `slideSceneFilters`); the chunk layer owes it too.
+ */
+function verticalChunkHoldFrames(clip: VerticalVideoManifest['clip']): number {
+  return (
+    Math.round((clip.transitionMs * clip.fps) / 1_000) +
+    KEN_BURNS_HOLD_SAFETY_FRAMES
+  );
+}
+
+/**
+ * Length of one chunk's intermediate MP4. The filter's `trim` and the encoder's
+ * `-frames:v`/`-t` all read it here so they cannot drift apart.
+ */
+function verticalMediaChunkFrameCount(
+  manifest: VerticalVideoManifest,
+  chunk: VerticalMediaChunk,
+): number {
+  return (
+    Math.round((chunk.durationMs * manifest.clip.fps) / 1_000) +
+    verticalChunkHoldFrames(manifest.clip)
+  );
+}
+
 export function buildVerticalMediaChunkFilter(
   manifest: VerticalVideoManifest,
   chunk: VerticalMediaChunk,
@@ -602,9 +634,12 @@ export function buildVerticalMediaChunkFilter(
     MEDIA_MOTION_SUPERSAMPLE,
     chunk.startIndex,
   );
-  const totalFrames = Math.round((chunk.durationMs * fps) / 1_000);
+  const totalFrames = verticalMediaChunkFrameCount(manifest, chunk);
+  // The scene chain already ends on the last scene's own hold, so tpad only
+  // covers the frame that per-scene and per-chunk rounding can disagree on.
+  const holdSeconds = verticalChunkHoldFrames(manifest.clip) / fps;
   filters.push(
-    `[${priorLabel}]fps=${fps},tpad=stop_mode=clone:stop_duration=${manifest.clip.transitionMs / 1_000},trim=end_frame=${totalFrames},settb=expr=1/${fps},setpts=N,format=yuv420p[vout]`,
+    `[${priorLabel}]fps=${fps},tpad=stop_mode=clone:stop_duration=${holdSeconds.toFixed(6)},trim=end_frame=${totalFrames},settb=expr=1/${fps},setpts=N,format=yuv420p[vout]`,
   );
   return filters.join(';\n');
 }
@@ -875,6 +910,7 @@ export function buildVerticalMediaChunkFfmpegArgs(
       `Vertical media chunk needs ${expected} inputs, received ${mediaPaths.length}`,
     );
   }
+  const chunkFrames = verticalMediaChunkFrameCount(manifest, chunk);
   return [
     ...streamedRenderPrefix(),
     ...stillImageInputs(mediaPaths),
@@ -883,9 +919,9 @@ export function buildVerticalMediaChunkFfmpegArgs(
     '-map',
     '[vout]',
     '-frames:v',
-    String(Math.round((chunk.durationMs * manifest.clip.fps) / 1_000)),
+    String(chunkFrames),
     '-t',
-    String(chunk.durationMs / 1_000),
+    (chunkFrames / manifest.clip.fps).toFixed(6),
     ...videoCodecArgs(manifest.clip.fps, INTERMEDIATE_X264_CRF),
     '-an',
     '-movflags',

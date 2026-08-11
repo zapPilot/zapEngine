@@ -2,15 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createDeferred } from '../__fixtures__/index-test.js';
 import { createHeavyWorkCoordinator } from './heavy-work.js';
-import type {
-  EpisodeVideoCompletion,
-  EpisodeVideoJobRow,
-  EpisodeVideoSource,
-  EpisodeVideoVisualCompletion,
-  EpisodeVideoVisualJobRow,
-  EpisodeVideoVisualSource,
-  VideoJobRepository,
-  VisualJobRepository,
+import {
+  EPISODE_VIDEO_VISUAL_VERSION,
+  type EpisodeVideoCompletion,
+  type EpisodeVideoJobRow,
+  type EpisodeVideoSource,
+  type EpisodeVideoVisualCompletion,
+  type EpisodeVideoVisualJobRow,
+  type EpisodeVideoVisualSource,
+  type VideoJobRepository,
+  type VisualJobRepository,
 } from './video-jobs.js';
 import {
   createVideoWorker as createVideoWorkerImplementation,
@@ -804,7 +805,7 @@ describe('createVideoWorker', () => {
 
     worker.start();
     expect(logger.info).toHaveBeenCalledWith(
-      '[video-worker] started lease_owner=host-1:42:uuid visual_version=podcast-image-visual-plan.v4',
+      `[video-worker] started lease_owner=host-1:42:uuid visual_version=${EPISODE_VIDEO_VISUAL_VERSION}`,
     );
     await worker.stop();
   });

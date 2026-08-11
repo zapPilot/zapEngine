@@ -22,6 +22,7 @@ import {
   type StoryboardGenerationResult,
 } from './video/storyboard/orchestrator.js';
 import type { StoryboardProvider } from './video/storyboard/provider.js';
+import { enrichStoryboardSearchIntents } from './video/storyboard/search-intents.js';
 import {
   planVisualAssets,
   type VisualAssetProgress,
@@ -47,6 +48,7 @@ export type ProcessEpisodeVideoVisualJob = (
 interface EpisodeVideoVisualProcessorDependencies {
   analyzeAudio: typeof analyzeEpisodeAudio;
   generateStoryboard: typeof generateVisualStoryboard;
+  enrichSearchIntents: typeof enrichStoryboardSearchIntents;
   scrape: typeof scrapeArticle;
   planAssets: typeof planVisualAssets;
   upload: typeof uploadEpisodeVisualAssetsToR2;
@@ -59,6 +61,7 @@ interface EpisodeVideoVisualProcessorDependencies {
 const defaultDependencies: EpisodeVideoVisualProcessorDependencies = {
   analyzeAudio: analyzeEpisodeAudio,
   generateStoryboard: generateVisualStoryboard,
+  enrichSearchIntents: enrichStoryboardSearchIntents,
   scrape: scrapeArticle,
   planAssets: planVisualAssets,
   upload: uploadEpisodeVisualAssetsToR2,
@@ -86,13 +89,36 @@ export function createEpisodeVideoVisualProcessor(
         signal: context.signal,
       });
       context.reportProgress(visualStageProgress('analyzing-audio'));
-      const storyboard = await dependencies.generateStoryboard({
+      const generated = await dependencies.generateStoryboard({
         title: source.title,
         script: source.script,
         searchTitle: source.englishTitle,
         searchScript: source.englishScript,
         durationMs: analysis.durationMs,
         signal: context.signal,
+      });
+      // The storyboard keeps the scene split and timing; only its search
+      // intents are rewritten, so a failed enrichment costs relevance and
+      // never the checkpoint.
+      const intents = await dependencies.enrichSearchIntents(
+        {
+          draft: generated.draft,
+          title: source.title,
+          ...(source.englishTitle ? { searchTitle: source.englishTitle } : {}),
+          script: source.script,
+          ...(source.englishScript
+            ? { searchScript: source.englishScript }
+            : {}),
+          durationMs: analysis.durationMs,
+        },
+        { signal: context.signal },
+      );
+      const storyboard = { ...generated, draft: intents.draft };
+      logVisualProgress(dependencies.logger, 'visual:intents', {
+        run: context.runId,
+        episode: source.episodeId,
+        enriched: `${intents.enrichedSceneCount}/${storyboard.draft.scenes.length}`,
+        model: intents.model ?? 'deterministic',
       });
 
       context.reportProgress(visualStageProgress('planning-scenes'));
@@ -192,6 +218,7 @@ export function createEpisodeVideoVisualProcessor(
         canonicalLocalizationId: source.canonicalLocalizationId,
         manifestUrl: uploaded.manifestUrl,
         storyboard,
+        searchIntentModel: intents.model,
         selectedScenes: assetPlan.scenes,
         assets: assetPlan.assets,
         r2ImageUrls: uploaded.imageUrls,

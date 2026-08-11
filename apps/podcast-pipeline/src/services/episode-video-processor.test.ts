@@ -716,6 +716,7 @@ function visualManifest(): Record<string, unknown> {
       storyboardModel: 'deterministic-v1',
       storyboardPromptVersion: 'image-storyboard-v2',
       usedFallback: false,
+      searchIntentModel: 'openrouter/free',
     },
   };
 }

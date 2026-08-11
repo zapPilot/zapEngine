@@ -5,7 +5,9 @@ import {
   buildStaticSlideFfmpegArgs,
   buildStaticSlideFilter,
   buildVerticalChunkedFinalFfmpegArgs,
+  buildVerticalChunkedFinalFilter,
   buildVerticalMediaChunkFfmpegArgs,
+  buildVerticalMediaChunkFilter,
   buildVerticalSlideFilter,
   createFfmpegEncodeProgressReader,
   kenBurnsPanForScene,
@@ -17,6 +19,7 @@ import {
   resolveVideoFfmpegPath,
   runProcess,
   VERTICAL_MEDIA_CHUNK_SIZE,
+  type VerticalMediaChunk,
   type VerticalSlideVideoOptions,
   type VideoProcessResult,
   type VideoProcessRunner,
@@ -149,6 +152,66 @@ function createVerticalManifest(): VerticalVideoManifest {
   };
 }
 
+/**
+ * A narration long enough to need three media chunks — the shape production
+ * renders take and the only one where the final crossfade chain can starve.
+ * Scene lengths are deliberately uneven so per-scene and per-chunk frame
+ * rounding disagree somewhere.
+ */
+function createLongVerticalManifest(slideCount: number): VerticalVideoManifest {
+  const manifest = createVerticalManifest();
+  const prototype = manifest.slides[0]!;
+  let startMs = 0;
+  manifest.slides = Array.from({ length: slideCount }, (_value, index) => {
+    const durationMs = 9_000 + (index % 5) * 700;
+    const slide = {
+      ...prototype,
+      id: `scene-${String(index + 1).padStart(2, '0')}`,
+      startMs,
+      endMs: startMs + durationMs,
+      asset: {
+        ...prototype.asset,
+        url: `https://images.example.test/scene-${index + 1}.jpg`,
+      },
+    };
+    startMs += durationMs;
+    return slide;
+  });
+  const narrationDurationMs = startMs;
+  manifest.audio = { ...manifest.audio, narrationDurationMs };
+  manifest.clip = { ...manifest.clip, durationMs: narrationDurationMs + 2_800 };
+  manifest.outro = { ...manifest.outro, startMs: narrationDurationMs };
+  manifest.captions = [
+    { startMs: 0, endMs: narrationDurationMs, text: '字幕' },
+  ];
+  return manifest;
+}
+
+function longVerticalRenderOptions(
+  manifest: VerticalVideoManifest,
+): VerticalSlideVideoOptions {
+  return {
+    ...verticalRenderOptions(),
+    manifest,
+    mediaPaths: manifest.slides.map(
+      (_slide, index) => `/m/${String(index + 1).padStart(2, '0')}.png`,
+    ),
+  };
+}
+
+/** Frames the generated chunk graph actually emits, read back from its trim. */
+function chunkOutputFrames(
+  manifest: VerticalVideoManifest,
+  chunk: VerticalMediaChunk,
+): number {
+  const filter = buildVerticalMediaChunkFilter(manifest, chunk);
+  const match = /trim=end_frame=(\d+)/.exec(filter);
+  if (!match?.[1]) {
+    throw new Error('Media chunk filter must trim to an exact frame count');
+  }
+  return Number(match[1]);
+}
+
 describe('vertical news FFmpeg composition', () => {
   it('renders scenes at window resolution and layers frame, outro, and captions', () => {
     const filter = buildVerticalSlideFilter(
@@ -230,6 +293,82 @@ describe('vertical news FFmpeg composition', () => {
     expect(chunks.map((chunk) => chunk.endIndex - chunk.startIndex)).toEqual([
       8, 8, 1,
     ]);
+  });
+
+  it('holds every media chunk past its own span, in the filter and the encoder', () => {
+    const manifest = createLongVerticalManifest(20);
+    const options = longVerticalRenderOptions(manifest);
+    const chunks = planVerticalMediaChunks(manifest);
+    const fps = manifest.clip.fps;
+    const transitionFrames = Math.round(
+      (manifest.clip.transitionMs * fps) / 1_000,
+    );
+
+    expect(chunks).toHaveLength(3);
+    for (const chunk of chunks) {
+      // The transition handed to the next chunk plus the two safety frames each
+      // scene already carries. Trimming to the nominal span is what froze the
+      // media window from the third chunk onward.
+      const expectedFrames =
+        Math.round((chunk.durationMs * fps) / 1_000) + transitionFrames + 2;
+      const args = buildVerticalMediaChunkFfmpegArgs(
+        options,
+        chunk,
+        '/work/chunk.mp4',
+      );
+
+      expect(chunkOutputFrames(manifest, chunk)).toBe(expectedFrames);
+      expect(args[args.indexOf('-frames:v') + 1]).toBe(String(expectedFrames));
+      // A `-t` left on the nominal duration would stop the encode early and
+      // starve the crossfade even with the filter padded.
+      expect(Number(args[args.indexOf('-t') + 1])).toBeCloseTo(
+        expectedFrames / fps,
+        6,
+      );
+    }
+  });
+
+  it('keeps every final crossfade inside the stream accumulated before it', () => {
+    const manifest = createLongVerticalManifest(20);
+    const chunks = planVerticalMediaChunks(manifest);
+    const fps = manifest.clip.fps;
+    const transitionFrames = Math.round(
+      (manifest.clip.transitionMs * fps) / 1_000,
+    );
+    const filter = buildVerticalChunkedFinalFilter(
+      manifest,
+      chunks,
+      '/render/captions.ass',
+      '/render/fonts',
+    );
+    const offsets = Array.from(
+      filter.matchAll(
+        /xfade=transition=fade:duration=[\d.]+:offset=([\d.]+)\[cx\d+\]/g,
+      ),
+      (match) => Math.round(Number(match[1]) * fps),
+    );
+
+    expect(offsets).toHaveLength(chunks.length - 1);
+
+    let accumulated = chunkOutputFrames(manifest, chunks[0]!);
+    offsets.forEach((offset, index) => {
+      const chunk = chunks[index + 1]!;
+      // xfade reads its A side through offset+duration, and each xfade shortens
+      // the accumulated stream by one transition. Falling short here is exactly
+      // the freeze: ffmpeg drops this chunk and every chunk after it.
+      expect(offset + transitionFrames).toBeLessThanOrEqual(accumulated);
+      // Offsets stay on the absolute timeline. Captions, narration and BGM are
+      // mixed against it, so a cumulative offset would drift the media instead.
+      expect(offset).toBe(
+        Math.round((chunk.startMs * fps) / 1_000) - transitionFrames,
+      );
+      accumulated = offset + chunkOutputFrames(manifest, chunk);
+    });
+    // The composed media still outlasts the clip, so the presentation pass trims
+    // rather than clone-padding its way to the end.
+    expect(accumulated).toBeGreaterThanOrEqual(
+      Math.round((manifest.audio.narrationDurationMs * fps) / 1_000),
+    );
   });
 
   it('feeds only chunk videos into the final portrait composition', () => {
