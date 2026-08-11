@@ -29,21 +29,24 @@ function request() {
 }
 
 describe('LiFiBridgeAdapter', () => {
-  it('only handles canonical Base/Arbitrum USDC when explicitly allowed', () => {
-    const canonicalRequest = {
-      ...request(),
-      toChainId: 42161,
-      toToken: ARB_USDC,
-    };
-    const adapter = new LiFiBridgeAdapter({} as never);
-    const fallbackAdapter = new LiFiBridgeAdapter({} as never, {
-      allowCanonical: true,
-    });
+  it(
+    'only handles canonical Base/Arbitrum USDC when explicitly allowed',
+    () => {
+      const canonicalRequest = {
+        ...request(),
+        toChainId: 42161,
+        toToken: ARB_USDC,
+      };
+      const adapter = new LiFiBridgeAdapter({} as never);
+      const fallbackAdapter = new LiFiBridgeAdapter({} as never, {
+        allowCanonical: true,
+      });
 
-    expect(adapter.supports(request())).toBe(true);
-    expect(adapter.supports(canonicalRequest)).toBe(false);
-    expect(fallbackAdapter.supports(canonicalRequest)).toBe(true);
-  });
+      expect(adapter.supports(request())).toBe(true);
+      expect(adapter.supports(canonicalRequest)).toBe(false);
+      expect(fallbackAdapter.supports(canonicalRequest)).toBe(true);
+    },
+  );
 
   it('normalizes a LI.FI quote with an approval', async () => {
     const getQuote = vi.fn().mockResolvedValue({
