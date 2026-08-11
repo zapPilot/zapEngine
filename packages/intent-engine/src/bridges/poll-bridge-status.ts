@@ -10,7 +10,9 @@ export async function pollBridgeStatus<T>(params: {
       throw new DOMException('Bridge status polling aborted', 'AbortError');
     }
     const status = await params.fetchStatus();
-    if (params.isTerminal(status)) return status;
+    if (params.isTerminal(status)) {
+      return status;
+    }
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(resolve, intervalMs);
       params.signal?.addEventListener(

@@ -4,8 +4,8 @@ import { executeDepositPlanWithWallet } from '@core/lib/wallet/executeDepositPla
 import { loadBaseInvestPlan } from '@core/lib/wallet/loadBaseInvestPlan';
 import { useWalletProvider } from '@core/providers/walletContext';
 import { waitForBridgeCompletion } from '@core/services/intentClient';
-import type { BridgeProviderId } from '@zapengine/intent-engine';
 import { logger } from '@core/utils/logger';
+import type { BridgeProviderId } from '@zapengine/intent-engine';
 import type { DepositLeg, DepositPlan } from '@zapengine/types/api';
 import { useCallback, useState } from 'react';
 import type { Address, Hash } from 'viem';

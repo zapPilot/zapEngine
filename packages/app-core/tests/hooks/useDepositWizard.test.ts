@@ -72,7 +72,7 @@ const plan: DepositPlan = {
       toToken: HYPERCORE_USDC,
       fromAmount: '30000000',
       toAmountMin: '29000000',
-      bridge: 'relaydepository',
+      bridge: 'lifi',
       gasUsd: '0.01',
       durationSec: 2,
     },
@@ -144,8 +144,10 @@ describe('useDepositWizard', () => {
       },
     );
     mocks.waitForBridgeCompletion.mockResolvedValue({
-      status: 'DONE',
-      receiving: { txHash: '0xdest' },
+      status: 'settled',
+      sourceTxHash: '0xsource',
+      destinationTxHash: '0xdest',
+      providerData: {},
     });
     mocks.waitForPerpUsdcArrival.mockResolvedValue({
       arrivedUsd6: 29_500_000n,
@@ -170,13 +172,13 @@ describe('useDepositWizard', () => {
       fromAmount: '100000000',
       sourceChainId: 8453,
     });
-    // Baseline read BEFORE execution, against the plan's api url.
     expect(mocks.getPerpUsdcBalance).toHaveBeenCalledWith({
       user: USER,
       apiUrl: 'https://api.hyperliquid.xyz',
     });
     expect(mocks.waitForBridgeCompletion).toHaveBeenCalledWith(
       expect.objectContaining({
+        provider: 'lifi',
         txHash: '0xsource',
         fromChain: 8453,
         toChain: 1337,
@@ -201,8 +203,8 @@ describe('useDepositWizard', () => {
 
   it('submits the HLP vaultTransfer with the arrived amount and confirms via equity', async () => {
     mocks.getVaultEquity
-      .mockResolvedValueOnce(null) // before submit
-      .mockResolvedValueOnce({ equityUsd6: 29_400_000n }); // confirmation poll
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ equityUsd6: 29_400_000n });
 
     const { result } = renderHook(() => useDepositWizard());
     await act(async () => {
@@ -219,7 +221,6 @@ describe('useDepositWizard', () => {
       await result.current.runHlpDeposit();
     });
 
-    // Signature-only path: wallet client fetched without a chain switch.
     expect(mocks.getWalletClient).toHaveBeenCalledWith();
     expect(mocks.submitVaultDeposit).toHaveBeenCalledWith({
       walletClient: mocks.walletClient,
@@ -287,7 +288,9 @@ describe('useDepositWizard', () => {
       });
     });
 
-    expect(result.current.wizard.error?.message).toMatch(/scan\.li\.fi/);
+    expect(result.current.wizard.error?.message).toBe(
+      'Wallet did not report the batch transaction hash, so bridge tracking could not start.',
+    );
     expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
   });
 

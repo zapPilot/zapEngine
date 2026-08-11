@@ -10,7 +10,7 @@ import {
   intentEngine,
   waitForBridgeCompletion,
 } from '@core/services/intentClient';
-import { HYPERCORE_CHAIN_ID, type BridgeQuote } from '@zapengine/intent-engine';
+import { type BridgeQuote, HYPERCORE_CHAIN_ID } from '@zapengine/intent-engine';
 import { useCallback, useRef, useState } from 'react';
 import { type Address, erc20Abi, getAddress, type Hash } from 'viem';
 

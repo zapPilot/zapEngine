@@ -19,6 +19,7 @@ import type { LiFiAdapter } from './lifi.adapter.js';
 export interface LiFiBridgeAdapterConfig {
   fetch?: FetchLike;
   statusBaseUrl?: string;
+  allowCanonical?: boolean;
 }
 
 interface LiFiStatus {
@@ -39,7 +40,10 @@ export class LiFiBridgeAdapter implements BridgeProvider {
   }
 
   supports(request: BridgeQuoteRequest): boolean {
-    return !isCanonicalBaseArbitrumUsdc(request);
+    return (
+      this.config.allowCanonical === true ||
+      !isCanonicalBaseArbitrumUsdc(request)
+    );
   }
 
   async quote(request: BridgeQuoteRequest): Promise<BridgeQuote> {
@@ -98,8 +102,9 @@ export class LiFiBridgeAdapter implements BridgeProvider {
         `${this.config.statusBaseUrl ?? 'https://li.quest/v1'}/status?${params}`,
         signalOptions(input.signal),
       );
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(`LI.FI status failed: ${response.status}`);
+      }
       return (await response.json()) as LiFiStatus;
     };
     const status = await pollBridgeStatus({

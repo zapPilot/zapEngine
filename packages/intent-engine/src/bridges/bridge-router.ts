@@ -5,7 +5,7 @@ import type {
   BridgeSelection,
 } from './bridge.types.js';
 
-const ECO_TIE_BREAK_USD = 0.01;
+const ECO_TIE_BREAK_MICROS = 10_000n;
 const USDC_DECIMALS = 6;
 
 export class BridgeQuoteUnavailableError extends Error {
@@ -30,19 +30,24 @@ function decimalToMicros(value: string): bigint {
 }
 
 function effectiveValueMicros(quote: BridgeQuote): bigint {
-  // Canonical routes are USDC -> USDC, so destination base units can be
-  // compared directly to source-chain gas expressed in USD.
   return BigInt(quote.toAmount) - decimalToMicros(quote.gasUsd);
 }
 
 function compareQuotes(a: BridgeQuote, b: BridgeQuote): number {
   const delta = effectiveValueMicros(a) - effectiveValueMicros(b);
-  const tie = 10_000n; // $0.01 in 6-decimal USDC base units.
-  if (delta > tie) return -1;
-  if (delta < -tie) return 1;
+  if (delta > ECO_TIE_BREAK_MICROS) {
+    return -1;
+  }
+  if (delta < -ECO_TIE_BREAK_MICROS) {
+    return 1;
+  }
 
-  if (a.provider === 'eco' && b.provider !== 'eco') return -1;
-  if (b.provider === 'eco' && a.provider !== 'eco') return 1;
+  if (a.provider === 'eco' && b.provider !== 'eco') {
+    return -1;
+  }
+  if (b.provider === 'eco' && a.provider !== 'eco') {
+    return 1;
+  }
 
   return a.estimatedDurationSec - b.estimatedDurationSec;
 }
@@ -96,5 +101,3 @@ export class BridgeRouter {
     return provider;
   }
 }
-
-export { ECO_TIE_BREAK_USD };
