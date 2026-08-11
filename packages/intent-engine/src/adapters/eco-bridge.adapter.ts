@@ -92,13 +92,17 @@ const portalAbi = [
 ] as const;
 
 function feeToUsd(fees: EcoFee[] | undefined): string {
-  if (!Array.isArray(fees)) return '0';
+  if (!Array.isArray(fees)) {
+    return '0';
+  }
   const micros = fees.reduce((sum, fee) => {
     if (fee.token?.symbol && fee.token.symbol.toUpperCase() !== 'USDC') {
       return sum;
     }
     const decimals = fee.token?.decimals ?? 6;
-    if (decimals === 6) return sum + BigInt(fee.amount);
+    if (decimals === 6) {
+      return sum + BigInt(fee.amount);
+    }
     if (decimals > 6) {
       return sum + BigInt(fee.amount) / 10n ** BigInt(decimals - 6);
     }
@@ -107,7 +111,7 @@ function feeToUsd(fees: EcoFee[] | undefined): string {
   return `${micros / 1_000_000n}.${(micros % 1_000_000n).toString().padStart(6, '0')}`;
 }
 
-function settlementStatus(
+function statusKind(
   status: string | undefined,
 ): BridgeRuntime.BridgeSettlement['status'] {
   return BridgeRuntime.normalizeBridgeStatus(status, {
@@ -117,16 +121,13 @@ function settlementStatus(
   });
 }
 
-export class EcoBridgeAdapter implements BridgeRuntime.BridgeProvider {
+export class EcoBridgeAdapter extends BridgeRuntime.CanonicalBridgeProvider<EcoStatusResponse> {
   readonly id = 'eco' as const;
   private readonly fetcher: BridgeRuntime.FetchLike;
 
   constructor(private readonly config: EcoBridgeConfig) {
+    super();
     this.fetcher = config.fetch ?? fetch;
-  }
-
-  supports(request: BridgeRuntime.BridgeQuoteRequest): boolean {
-    return BridgeRuntime.isCanonicalBaseArbitrumUsdc(request);
   }
 
   async quote(
@@ -156,13 +157,17 @@ export class EcoBridgeAdapter implements BridgeRuntime.BridgeProvider {
         }),
       },
     );
-    if (!response.ok) throw new Error(`Eco quote failed: ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`Eco quote failed: ${response.status}`);
+    }
     const payload = (await response.json()) as EcoQuoteResponse;
     const selected = payload.data?.find(
       (item) =>
         item.quoteData.quoteResponse.intentExecutionType === 'SELF_PUBLISH',
     );
-    if (!selected) throw new Error('Eco returned no SELF_PUBLISH quote');
+    if (!selected) {
+      throw new Error('Eco returned no SELF_PUBLISH quote');
+    }
 
     const quote = selected.quoteData.quoteResponse;
     const contracts = selected.quoteData.contracts;
@@ -221,39 +226,34 @@ export class EcoBridgeAdapter implements BridgeRuntime.BridgeProvider {
     };
   }
 
-  async waitForCompletion(
+  protected async fetchStatus(
     input: BridgeRuntime.BridgeTrackingInput,
-  ): Promise<BridgeRuntime.BridgeSettlement> {
-    const fetchStatus = async (): Promise<EcoStatusResponse> => {
-      const response = await this.fetcher(
-        `${this.config.baseUrl ?? DEFAULT_ECO_API}/intents/intentStatus`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-          body: JSON.stringify({ intentCreatedHash: input.sourceTxHash }),
-          ...BridgeRuntime.signalOptions(input.signal),
+  ): Promise<EcoStatusResponse> {
+    const response = await this.fetcher(
+      `${this.config.baseUrl ?? DEFAULT_ECO_API}/intents/intentStatus`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
         },
-      );
-      if (!response.ok) {
-        throw new Error(`Eco status failed: ${response.status}`);
-      }
-      return (await response.json()) as EcoStatusResponse;
-    };
-    const payload = await BridgeRuntime.pollBridgeStatus({
-      fetchStatus,
-      isTerminal: (value) =>
-        settlementStatus(value.data?.status?.status) !== 'pending',
-      ...BridgeRuntime.signalOptions(input.signal),
-    });
-    const status = settlementStatus(payload.data?.status?.status);
-    return BridgeRuntime.bridgeSettlement({
-      status,
-      sourceTxHash: input.sourceTxHash,
-      destinationTxHash: payload.data?.fulfillment?.transactionHash,
-      providerData: payload,
-    });
+        body: JSON.stringify({ intentCreatedHash: input.sourceTxHash }),
+        ...BridgeRuntime.signalOptions(input.signal),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`Eco status failed: ${response.status}`);
+    }
+    return (await response.json()) as EcoStatusResponse;
+  }
+
+  protected settlementStatus(
+    value: EcoStatusResponse,
+  ): BridgeRuntime.BridgeSettlement['status'] {
+    return statusKind(value.data?.status?.status);
+  }
+
+  protected destinationTxHash(value: EcoStatusResponse): Hash | undefined {
+    return value.data?.fulfillment?.transactionHash;
   }
 }
