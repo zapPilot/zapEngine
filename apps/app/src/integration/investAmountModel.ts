@@ -119,6 +119,17 @@ export function amountUsdFromInput(groupedAmount: string): number | null {
   return value > 0 ? value : null;
 }
 
+// Stablecoins are worth $1 when the balance row carries no quote of its own.
+function usableUsdPrice(
+  token: DesktopDepositToken,
+  row: ChainTokenBalanceRow | null,
+): number | null {
+  const price =
+    row?.usdPrice ??
+    (token.symbol === 'USDC' || token.symbol === 'USDT' ? 1 : null);
+  return price !== null && Number.isFinite(price) && price > 0 ? price : null;
+}
+
 /** Convert a selected funding-token amount into its current USD value. */
 export function fundingTokenUsdValueFromInput(
   groupedAmount: string,
@@ -128,10 +139,8 @@ export function fundingTokenUsdValueFromInput(
   const tokenAmount = parseAmount(groupedAmount);
   if (tokenAmount <= 0) return null;
 
-  const price =
-    row?.usdPrice ??
-    (token.symbol === 'USDC' || token.symbol === 'USDT' ? 1 : null);
-  if (price === null || !Number.isFinite(price) || price <= 0) return null;
+  const price = usableUsdPrice(token, row);
+  if (price === null) return null;
 
   const usdValue = tokenAmount * price;
   return Number.isFinite(usdValue) && usdValue > 0 ? usdValue : null;
@@ -316,10 +325,8 @@ export function fundingTokenAmountFromUsd(
 ): number | null {
   if (totalUsd === null || totalUsd <= 0 || allocationBps <= 0) return null;
 
-  const price =
-    row?.usdPrice ??
-    (token.symbol === 'USDC' || token.symbol === 'USDT' ? 1 : null);
-  if (price === null || !Number.isFinite(price) || price <= 0) return null;
+  const price = usableUsdPrice(token, row);
+  if (price === null) return null;
 
   return (totalUsd * allocationBps) / 10_000 / price;
 }
