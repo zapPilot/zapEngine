@@ -23,8 +23,8 @@ import {
   waitForPerpUsdcArrival,
 } from '@core/services/hyperliquidService';
 import { waitForBridgeCompletion } from '@core/services/intentClient';
-import type { BridgeProviderId } from '@zapengine/intent-engine';
 import { logger } from '@core/utils/logger';
+import type { BridgeProviderId } from '@zapengine/intent-engine';
 import type {
   DepositPlan,
   HyperliquidVaultDepositStep,
