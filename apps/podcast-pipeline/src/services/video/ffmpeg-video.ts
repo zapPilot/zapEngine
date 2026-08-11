@@ -696,28 +696,6 @@ function appendVerticalPresentationFilters(
   );
 }
 
-export function buildVerticalSlideFilter(
-  manifest: VerticalVideoManifest,
-  subtitlePath: string,
-  fontsDirectory: string,
-): string {
-  const { filters, priorLabel } = sceneChain(
-    manifest,
-    manifest.mediaWindow.width,
-    manifest.mediaWindow.height,
-    MEDIA_MOTION_SUPERSAMPLE,
-  );
-  appendVerticalPresentationFilters(
-    filters,
-    manifest,
-    subtitlePath,
-    fontsDirectory,
-    priorLabel,
-    manifest.slides.length,
-  );
-  return filters.join(';\n');
-}
-
 export function buildVerticalChunkedFinalFilter(
   manifest: VerticalVideoManifest,
   chunks: readonly VerticalMediaChunk[],
