@@ -626,7 +626,7 @@ test('complete video stays lazy and falls back to Story after an error', async (
   );
   await videoTab.click();
   await videoRequest;
-  expect(videoRequestCount).toBe(1);
+  await expect.poll(() => videoRequestCount).toBe(1);
   await expect(page.locator('video')).toHaveCount(1);
   await expect(videoTab).toHaveAttribute('aria-selected', 'true');
 

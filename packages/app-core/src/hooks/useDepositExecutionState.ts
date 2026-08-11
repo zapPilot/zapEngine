@@ -4,7 +4,7 @@ import type {
   DepositPlanExecutionResult,
 } from '@core/lib/wallet/executeDepositPlan';
 import type { DepositPlan } from '@zapengine/types/api';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { Address, Hash } from 'viem';
 
 /**
@@ -79,12 +79,14 @@ export function useDepositExecutionState<TPlan = DepositPlan>(): {
   const [lastTxHashes, setLastTxHashes] = useState<Hash[]>([]);
   const [lastCallsId, setLastCallsId] = useState<string | null>(null);
   const [lastPlan, setLastPlan] = useState<TPlan | null>(null);
+  const runIdRef = useRef(0);
 
   const run = useCallback(
     async <T>(
       execute: () => Promise<T>,
       onError: (error: unknown) => void,
     ): Promise<T> => {
+      const runId = ++runIdRef.current;
       setPending(true);
       setLastError(null);
       setTier(null);
@@ -97,10 +99,14 @@ export function useDepositExecutionState<TPlan = DepositPlan>(): {
         return await execute();
       } catch (error) {
         onError(error);
-        setLastError(error);
+        if (runId === runIdRef.current) {
+          setLastError(error);
+        }
         throw error;
       } finally {
-        setPending(false);
+        if (runId === runIdRef.current) {
+          setPending(false);
+        }
       }
     },
     [],

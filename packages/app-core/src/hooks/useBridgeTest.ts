@@ -221,6 +221,7 @@ export function useBridgeTest() {
         let sourceTxHash: Hash | null = null;
         for (const call of quote.calls) {
           sourceTxHash = await sendPreparedTransaction(wallet, call);
+          if (controller.signal.aborted) return;
           setState((current) => ({
             ...current,
             status: 'sourceSubmitted',
