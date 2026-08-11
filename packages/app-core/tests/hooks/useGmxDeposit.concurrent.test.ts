@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   useWalletProvider: vi.fn(),
   getPublicClient: vi.fn(),
   getGmxDepositPlan: vi.fn(),
+  assertEIP7702DelegationCompatibility: vi.fn(),
   executeDepositPlan: vi.fn(),
   readContract: vi.fn(),
   getBalance: vi.fn(),
@@ -41,6 +42,8 @@ vi.mock('@core/services/planOrchestrationService', () => ({
 }));
 
 vi.mock('@core/lib/wallet/executeDepositPlan', () => ({
+  assertEIP7702DelegationCompatibility:
+    mocks.assertEIP7702DelegationCompatibility,
   executeDepositPlan: mocks.executeDepositPlan,
 }));
 
