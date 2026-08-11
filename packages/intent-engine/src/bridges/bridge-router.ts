@@ -35,11 +35,19 @@ function effectiveValueMicros(quote: BridgeQuote): bigint {
 
 function compareQuotes(a: BridgeQuote, b: BridgeQuote): number {
   const delta = effectiveValueMicros(a) - effectiveValueMicros(b);
-  if (delta > ECO_TIE_BREAK_MICROS) return -1;
-  if (delta < -ECO_TIE_BREAK_MICROS) return 1;
+  if (delta > ECO_TIE_BREAK_MICROS) {
+    return -1;
+  }
+  if (delta < -ECO_TIE_BREAK_MICROS) {
+    return 1;
+  }
 
-  if (a.provider === 'eco' && b.provider !== 'eco') return -1;
-  if (b.provider === 'eco' && a.provider !== 'eco') return 1;
+  if (a.provider === 'eco' && b.provider !== 'eco') {
+    return -1;
+  }
+  if (b.provider === 'eco' && a.provider !== 'eco') {
+    return 1;
+  }
 
   return a.estimatedDurationSec - b.estimatedDurationSec;
 }
