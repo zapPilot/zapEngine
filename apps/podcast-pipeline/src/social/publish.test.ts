@@ -8,6 +8,7 @@ import { publishSocialPlatforms } from './publish.js';
 import { getPublishedPlatform, readPublishState } from './state.js';
 import type { BrowserPublisher, GeneratedSocialCopy } from './types.js';
 
+const VIDEO_PATH = '/fixtures/video.mp4';
 const copy: GeneratedSocialCopy = {
   hook: 'hook',
   x: { text: 'x copy' },
@@ -44,7 +45,7 @@ describe('publishSocialPlatforms', () => {
       platforms: ['x', 'rednote'],
       force: false,
       copy,
-      videoPath: '/tmp/video.mp4',
+      videoPath: VIDEO_PATH,
       publisher,
       statePath: path,
     });
@@ -55,7 +56,9 @@ describe('publishSocialPlatforms', () => {
     ]);
     const state = await readPublishState(path);
     expect(getPublishedPlatform(state, 'episode-1', 'zh', 'x')).toBeDefined();
-    expect(getPublishedPlatform(state, 'episode-1', 'zh', 'rednote')).toBeDefined();
+    expect(
+      getPublishedPlatform(state, 'episode-1', 'zh', 'rednote'),
+    ).toBeDefined();
   });
 
   it('keeps X success when Rednote fails and skips X on retry', async () => {
@@ -74,7 +77,7 @@ describe('publishSocialPlatforms', () => {
       platforms: ['x', 'rednote'],
       force: false,
       copy,
-      videoPath: '/tmp/video.mp4',
+      videoPath: VIDEO_PATH,
       publisher: firstPublisher,
       statePath: path,
     });
@@ -93,7 +96,7 @@ describe('publishSocialPlatforms', () => {
       platforms: ['x', 'rednote'],
       force: false,
       copy,
-      videoPath: '/tmp/video.mp4',
+      videoPath: VIDEO_PATH,
       publisher: retryPublisher,
       statePath: path,
     });
@@ -119,14 +122,19 @@ describe('publishSocialPlatforms', () => {
       platforms: ['x', 'rednote'],
       force: false,
       copy,
-      videoPath: '/tmp/video.mp4',
+      videoPath: VIDEO_PATH,
       publisher,
       statePath: path,
     });
 
-    expect(outcomes.map((item) => item.status)).toEqual(['failed', 'published']);
+    expect(outcomes.map((item) => item.status)).toEqual([
+      'failed',
+      'published',
+    ]);
     const state = await readPublishState(path);
     expect(getPublishedPlatform(state, 'episode-1', 'zh', 'x')).toBeUndefined();
-    expect(getPublishedPlatform(state, 'episode-1', 'zh', 'rednote')).toBeDefined();
+    expect(
+      getPublishedPlatform(state, 'episode-1', 'zh', 'rednote'),
+    ).toBeDefined();
   });
 });
