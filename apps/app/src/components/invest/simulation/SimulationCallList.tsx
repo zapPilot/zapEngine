@@ -9,7 +9,7 @@ import {
   CircleDashed,
   XCircle,
 } from 'lucide-react-native';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { Tap } from '@/components/ui/Tap';
@@ -31,7 +31,8 @@ function StatusIcon({ status }: { status: PrivySimulationCall['status'] }) {
   return <CircleDashed size={17} color="#71717a" />;
 }
 
-function CallRow({
+/** Shared with SimulationTenderlyEvidence, which owns its own outer toggle. */
+export function SimulationCallRow({
   call,
   contracts,
   approvals,
@@ -100,6 +101,55 @@ function CallRow({
   );
 }
 
+/** Shared with SimulationTenderlyEvidence, which owns its own expand state. */
+export function SimulationCollapseToggle({
+  expanded,
+  onToggle,
+  expandedLabel,
+  collapsedLabel,
+  title,
+  subtitle,
+  icon,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+  expandedLabel: string;
+  collapsedLabel: string;
+  title: string;
+  subtitle: string;
+  icon?: ReactNode;
+}) {
+  return (
+    <Tap
+      accessibilityLabel={expanded ? expandedLabel : collapsedLabel}
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+      className="flex-row items-center gap-3 px-4 py-3.5"
+      onPress={onToggle}
+    >
+      {icon}
+      <View className="min-w-0 flex-1">
+        <Text
+          className="font-sans-semibold text-[12px] text-ink"
+          numberOfLines={1}
+        >
+          {title}
+        </Text>
+        <Text className="mt-0.5 text-[10px] text-ink-faint" numberOfLines={1}>
+          {subtitle}
+        </Text>
+      </View>
+      <ChevronDown
+        size={17}
+        color="#a1a1aa"
+        style={{
+          transform: [{ rotate: expanded ? '180deg' : '0deg' }],
+        }}
+      />
+    </Tap>
+  );
+}
+
 export function SimulationCallList({
   calls,
   contracts,
@@ -113,38 +163,18 @@ export function SimulationCallList({
 
   return (
     <View className="overflow-hidden rounded-2xl border border-line bg-surface">
-      <Tap
-        accessibilityLabel={
-          expanded
-            ? 'Hide transaction call details'
-            : 'Show transaction call details'
-        }
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
-        className="flex-row items-center justify-between gap-3 px-4 py-3.5"
-        onPress={() => setExpanded((value) => !value)}
-      >
-        <View className="min-w-0 flex-1">
-          <Text className="font-sans-semibold text-[12px] text-ink">
-            Call details
-          </Text>
-          <Text className="mt-0.5 text-[10px] text-ink-faint">
-            {calls.length} {calls.length === 1 ? 'call' : 'calls'} executed in
-            order
-          </Text>
-        </View>
-        <ChevronDown
-          size={17}
-          color="#a1a1aa"
-          style={{
-            transform: [{ rotate: expanded ? '180deg' : '0deg' }],
-          }}
-        />
-      </Tap>
+      <SimulationCollapseToggle
+        expanded={expanded}
+        onToggle={() => setExpanded((value) => !value)}
+        expandedLabel="Hide transaction call details"
+        collapsedLabel="Show transaction call details"
+        title="Call details"
+        subtitle={`${calls.length} ${calls.length === 1 ? 'call' : 'calls'} executed in order`}
+      />
       {expanded ? (
         <View className="border-t border-line">
           {calls.map((call) => (
-            <CallRow
+            <SimulationCallRow
               key={call.index}
               call={call}
               contracts={contracts}

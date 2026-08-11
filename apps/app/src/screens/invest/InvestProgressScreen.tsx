@@ -17,6 +17,7 @@ import {
   type InvestExecutionWizardStep,
   useInvestExecution,
 } from '@/integration/useInvestExecution';
+import { resolveRouteProtocols } from '@/integration/simulationPreviewModel';
 import { formatUsd } from '@/lib/format';
 
 function StepIcon({ step }: { step: InvestExecutionWizardStep }) {
@@ -357,7 +358,13 @@ export function InvestProgressScreen() {
               <>
                 {nextQueuedReview ? (
                   <View className="mt-4">
-                    <SimulationReviewBody review={nextQueuedReview.review} />
+                    <SimulationReviewBody
+                      review={nextQueuedReview.review}
+                      protocols={resolveRouteProtocols(
+                        nextQueuedReview.plan,
+                        nextQueuedReview.review.groupId,
+                      )}
+                    />
                   </View>
                 ) : null}
                 {checkpointError ? (

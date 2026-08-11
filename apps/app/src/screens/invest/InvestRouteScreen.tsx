@@ -17,8 +17,8 @@ import { Tap } from '@/components/ui/Tap';
 import { useInvest, useInvestDepositReview } from '@/integration/useInvest';
 import type { DepositExecutionCapability } from '@/integration/investExecutionModel';
 import { useInvestExecution } from '@/integration/useInvestExecution';
+import { resolveRouteProtocols } from '@/integration/simulationPreviewModel';
 import { useInvestRouteSubmit } from './useInvestRouteSubmit';
-import { formatUsd } from '@/lib/format';
 
 const CAPABILITY_NOTICE = {
   'unsupported-wallet': {
@@ -66,65 +66,12 @@ function capabilityNotice(
   return null;
 }
 
-function RailNode({
-  title,
-  badge,
-  body,
-  tone = 'chain',
-}: {
-  title: string;
-  badge: string;
-  body: string;
-  tone?: 'chain' | 'mock';
-}) {
-  const color = tone === 'mock' ? '#d7bd70' : '#d4c5a3';
-  return (
-    <View className="flex-row gap-3">
-      <View className="items-center">
-        <View
-          className="h-8 w-8 items-center justify-center rounded-full border"
-          style={{ borderColor: `${color}66`, backgroundColor: `${color}14` }}
-        >
-          <View
-            className="h-2 w-2 rounded-full"
-            style={{ backgroundColor: color }}
-          />
-        </View>
-        <View className="h-8 w-px bg-[rgba(212,197,163,.22)]" />
-      </View>
-      <View className="flex-1 pb-5 pt-0.5">
-        <View className="flex-row items-center gap-2">
-          <Text className="font-sans-semibold text-[14px] text-ink">
-            {title}
-          </Text>
-          <Text
-            className="rounded-full px-2 py-0.5 font-mono text-[8px] uppercase tracking-[.5px]"
-            style={{ color, backgroundColor: `${color}12` }}
-          >
-            {badge}
-          </Text>
-        </View>
-        <Text className="mt-1 text-[11.5px] leading-[17px] text-ink-dim">
-          {body}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
 export function InvestRouteScreen() {
   const invest = useInvest();
   const review = useInvestDepositReview();
   const { capability } = useInvestExecution();
   const isBoth = invest.scope === 'both';
   const hasPlanForScope = isDepositPlanForScope(review.plan, invest.scope);
-  const routeDescription =
-    invest.scope === 'base'
-      ? `${formatUsd(review.amountUsd)} on Base into Morpho Moonwell.`
-      : invest.scope === 'arbitrum'
-        ? `${formatUsd(review.amountUsd)} on Arbitrum into GMX BTC/USDC.`
-        : `${formatUsd(review.amountUsd)} across Morpho and two GMX markets.`;
-
   const notice = capabilityNotice(
     capability,
     invest.scope,
@@ -147,102 +94,6 @@ export function InvestRouteScreen() {
         <Text className="font-serif text-[28px] leading-[32px] text-ink">
           Preview route
         </Text>
-        <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
-          {routeDescription}
-        </Text>
-
-        <StrategyPlanSummary
-          variant="confirm"
-          plan={review.plan}
-          amountUsd={review.amountUsd}
-          scope={invest.scope}
-          singleChainFundingDraft={invest.singleChainFundingDraft}
-          baseToken={invest.baseFundingToken}
-          arbitrumToken={invest.arbitrumFundingToken}
-        />
-
-        <Card className="mt-4 px-4 pb-1 pt-4">
-          {review.isLoading ? (
-            <View className="gap-3 pb-4">
-              <SkeletonBlock className="h-[68px] w-full rounded-xl" />
-              {isBoth ? (
-                <>
-                  <SkeletonBlock className="h-[68px] w-full rounded-xl" />
-                  <SkeletonBlock className="h-[68px] w-full rounded-xl" />
-                </>
-              ) : null}
-            </View>
-          ) : hasPlanForScope ? (
-            isBoth ? (
-              <>
-                <RailNode
-                  title="Morpho Moonwell USDC"
-                  badge="Base · 40%"
-                  body={`${invest.baseFundingToken.symbol} funding with separate approval, same-chain swap when needed, and vault deposit confirmations.`}
-                />
-                <RailNode
-                  title="Mock bridge checkpoint"
-                  badge="No transaction"
-                  tone="mock"
-                  body="No assets move between chains. The next group rechecks the wallet's real Arbitrum balance."
-                />
-                <RailNode
-                  title="GMX BTC/USDC + ETH/USDC"
-                  badge="Arbitrum · 30/30"
-                  body={`${invest.arbitrumFundingToken.symbol} funding with separate approvals, same-chain USDC swaps when needed, and two asynchronous GMX deposits.`}
-                />
-              </>
-            ) : invest.scope === 'base' ? (
-              <RailNode
-                title="Morpho Moonwell USDC"
-                badge="Base · 100%"
-                body={
-                  invest.baseFundingToken.symbol === 'ETH'
-                    ? 'ETH funding in one wallet batch with a same-chain USDC swap and Morpho vault supply.'
-                    : 'USDC funding in one wallet batch with approval when required and a Morpho vault supply.'
-                }
-              />
-            ) : (
-              <RailNode
-                title="GMX BTC/USDC"
-                badge="Arbitrum · 100%"
-                body="USDC funding in one wallet batch with approval when required and asynchronous GMX settlement."
-              />
-            )
-          ) : (
-            <View className="pb-4">
-              <Text className="font-sans-semibold text-[14px] text-ink">
-                {review.isError ? 'Route unavailable' : 'Route preview pending'}
-              </Text>
-              <Text className="mt-2 text-[12px] leading-[18px] text-ink-dim">
-                {review.isError
-                  ? 'The live quote could not be prepared.'
-                  : 'Connect a wallet and enter an amount to fetch the live plan.'}
-              </Text>
-              {review.isError && review.errorMessage ? (
-                <Text className="mt-2 text-[11.5px] leading-[17px] text-[#ef9292]">
-                  {review.errorMessage}
-                </Text>
-              ) : null}
-              {review.isError ? (
-                <Tap
-                  accessibilityRole="button"
-                  accessibilityLabel="Retry route preview"
-                  className="mt-3 self-start rounded-full border px-3 py-1.5"
-                  style={{
-                    borderColor: 'rgba(212,197,163,.22)',
-                    backgroundColor: 'rgba(212,197,163,.07)',
-                  }}
-                  onPress={review.retry}
-                >
-                  <Text className="font-sans-semibold text-[11px] text-accent">
-                    Retry
-                  </Text>
-                </Tap>
-              ) : null}
-            </View>
-          )}
-        </Card>
 
         <View className="mt-5">
           <Text className="mb-2.5 font-mono-semibold text-[9px] uppercase tracking-[.8px] text-ink-faint">
@@ -307,7 +158,13 @@ export function InvestRouteScreen() {
               ) : null}
               {review.reviewGroups.map((group) => (
                 <Card key={group.groupId} className="p-4">
-                  <SimulationReviewBody review={group} />
+                  <SimulationReviewBody
+                    review={group}
+                    protocols={resolveRouteProtocols(
+                      review.plan,
+                      group.groupId,
+                    )}
+                  />
                 </Card>
               ))}
             </View>
@@ -360,6 +217,16 @@ export function InvestRouteScreen() {
             </Tap>
           </View>
         ) : null}
+
+        <StrategyPlanSummary
+          variant="confirm"
+          plan={review.plan}
+          amountUsd={review.amountUsd}
+          scope={invest.scope}
+          singleChainFundingDraft={invest.singleChainFundingDraft}
+          baseToken={invest.baseFundingToken}
+          arbitrumToken={invest.arbitrumFundingToken}
+        />
 
         <PrimaryButton
           className="mt-5"
