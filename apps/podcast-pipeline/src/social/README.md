@@ -1,6 +1,6 @@
 # Social Publisher MVP
 
-Local-only social publishing for completed podcast episodes. It fetches the canonical `zh-Hant` episode assets from Supabase, downloads the completed MP4 to `/tmp/zap-pilot-social`, generates platform-native copy through OpenRouter, requires human review, then drives the logged-in Chrome session through OpenCLI.
+Local-only social publishing for completed podcast episodes. It fetches the canonical `zh-Hant` episode assets from Supabase, downloads the completed MP4 to `/tmp/zap-pilot-social`, generates platform-native copy through OpenRouter's free router, requires human review, then drives the logged-in Chrome session through OpenCLI.
 
 It is deliberately not deployed with the podcast service and does not add Telegram callbacks, polling, scheduling, analytics, a social jobs table, or server-side workers.
 
@@ -12,12 +12,6 @@ The repository root `.env` must contain the existing podcast credentials:
 OPENROUTER_API_KEY=...
 SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
-```
-
-Optional:
-
-```bash
-SOCIAL_OPENROUTER_MODEL=openrouter/free
 ```
 
 Install OpenCLI on the Mac, connect its Chrome extension, log into X and Xiaohongshu in that Chrome profile, then verify:
