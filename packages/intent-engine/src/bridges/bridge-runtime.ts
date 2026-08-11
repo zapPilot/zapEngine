@@ -1,5 +1,6 @@
 export {
   bridgeSettlement,
+  CanonicalBridgeProvider,
   isCanonicalBaseArbitrumUsdc,
   normalizeBridgeStatus,
   quoteIdentity,
