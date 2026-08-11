@@ -49,15 +49,13 @@ describe('bridge runtime helpers', () => {
         }),
       ),
     ).toBe(true);
-    expect(
-      isCanonicalBaseArbitrumUsdc(request({ toChainId: 1 })),
-    ).toBe(false);
-    expect(
-      isCanonicalBaseArbitrumUsdc(request({ fromToken: OTHER })),
-    ).toBe(false);
-    expect(
-      isCanonicalBaseArbitrumUsdc(request({ toToken: OTHER })),
-    ).toBe(false);
+    expect(isCanonicalBaseArbitrumUsdc(request({ toChainId: 1 }))).toBe(false);
+    expect(isCanonicalBaseArbitrumUsdc(request({ fromToken: OTHER }))).toBe(
+      false,
+    );
+    expect(isCanonicalBaseArbitrumUsdc(request({ toToken: OTHER }))).toBe(
+      false,
+    );
   });
 
   it('normalizes provider statuses across every settlement group', () => {
