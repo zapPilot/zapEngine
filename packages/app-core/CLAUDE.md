@@ -55,6 +55,15 @@ publishing state; aborted errors are swallowed. Regression tests must pause that
 promise, reset, then resolve and reject it, asserting no downstream calls and a
 fully cleared `idle` state.
 
+## Reviewed batch execution
+
+Treat the reviewed batch as an immutable execution snapshot. After the user has
+reviewed it, callers must submit that exact plan/transactions; do not refresh or
+replan inside the submit handler. Expiry, wallet, batch, simulation, and risk
+fingerprints are the freshness guard — stale review means block and require a new
+review. Before resolving a wallet client or sending calls, switch to the reviewed
+batch `chainId`; the wallet's currently selected chain is not authoritative.
+
 ## Adding a web-only module
 
 If a new module genuinely needs the DOM or a web-only library, add it to
