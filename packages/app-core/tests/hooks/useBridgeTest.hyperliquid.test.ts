@@ -15,8 +15,6 @@ const SECOND_DESTINATION_HASH = `0x${'4'.repeat(64)}`;
 const mocks = vi.hoisted(() => ({
   useWalletProvider: vi.fn(),
   buildBridge: vi.fn(),
-  needsApproval: vi.fn(),
-  buildApproveTx: vi.fn(),
   getPublicClient: vi.fn(),
   waitForBridgeCompletion: vi.fn(),
   getPerpUsdcBalance: vi.fn(),
@@ -47,8 +45,6 @@ vi.mock('@core/services/hyperliquidService', () => ({
 
 vi.mock('@zapengine/intent-engine', () => ({
   HYPERCORE_CHAIN_ID: 1337,
-  needsApproval: mocks.needsApproval,
-  buildApproveTx: mocks.buildApproveTx,
 }));
 
 const quote = {
@@ -95,7 +91,6 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
       sendTransaction: mocks.sendTransaction,
     });
     mocks.buildBridge.mockResolvedValue(quote);
-    mocks.needsApproval.mockResolvedValue(false);
     mocks.readContract.mockResolvedValue(100000000n);
     mocks.estimateGas.mockResolvedValue(100000n);
     mocks.getBalance.mockResolvedValue(10n ** 18n);
@@ -195,6 +190,47 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
 
     expect(result.current.status).toBe('idle');
     expect(result.current.error).toBeNull();
+    expect(result.current.sourceTxHash).toBeNull();
+    expect(result.current.destinationTxHash).toBeNull();
+  });
+
+  it('keeps reset state when an aborted arrival poll resolves later', async () => {
+    let resolveArrival!: () => void;
+    mocks.waitForPerpUsdcArrival.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveArrival = resolve;
+        }),
+    );
+    const { result } = renderHook(() => useBridgeTest());
+    let execution!: Promise<void>;
+
+    await act(async () => {
+      execution = result.current.execute(request);
+      await vi.waitFor(() => {
+        expect(mocks.waitForPerpUsdcArrival).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    const arrivalSignal = mocks.waitForPerpUsdcArrival.mock.calls[0]?.[0]
+      .signal as AbortSignal;
+
+    act(() => {
+      result.current.reset();
+    });
+
+    expect(arrivalSignal.aborted).toBe(true);
+    expect(result.current.status).toBe('idle');
+    expect(result.current.quote).toBeNull();
+
+    await act(async () => {
+      resolveArrival();
+      await execution;
+    });
+
+    expect(result.current.status).toBe('idle');
+    expect(result.current.error).toBeNull();
+    expect(result.current.quote).toBeNull();
     expect(result.current.sourceTxHash).toBeNull();
     expect(result.current.destinationTxHash).toBeNull();
   });
