@@ -1,6 +1,6 @@
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 
 import type {
   PlatformPublishState,
@@ -18,10 +18,12 @@ export const DEFAULT_SOCIAL_STATE_PATH = join(
 export async function readPublishState(
   path = DEFAULT_SOCIAL_STATE_PATH,
 ): Promise<SocialPublishState> {
-  const raw = await readFile(path, 'utf8').catch((error: NodeJS.ErrnoException) => {
-    if (error.code === 'ENOENT') return '{}';
-    throw error;
-  });
+  const raw = await readFile(path, 'utf8').catch(
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return '{}';
+      throw error;
+    },
+  );
   const parsed = JSON.parse(raw) as unknown;
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error(`Invalid social publisher state at ${path}.`);
