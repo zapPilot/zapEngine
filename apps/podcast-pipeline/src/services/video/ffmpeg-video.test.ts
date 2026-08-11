@@ -18,6 +18,7 @@ import {
   resolveVideoFfmpegPath,
   runProcess,
   VERTICAL_MEDIA_CHUNK_SIZE,
+  type VerticalMediaChunk,
   type VerticalSlideVideoOptions,
   type VideoProcessResult,
   type VideoProcessRunner,
@@ -150,14 +151,65 @@ function createVerticalManifest(): VerticalVideoManifest {
   };
 }
 
-/** The 3-slide test manifest always plans into exactly one media chunk. */
-function verticalChunkFilter(manifest: VerticalVideoManifest): string {
+/**
+ * A narration long enough to need three media chunks — the shape production
+ * renders take and the only one where the final crossfade chain can starve.
+ * Scene lengths are deliberately uneven so per-scene and per-chunk frame
+ * rounding disagree somewhere.
+ */
+function createLongVerticalManifest(slideCount: number): VerticalVideoManifest {
+  const manifest = createVerticalManifest();
+  const prototype = manifest.slides[0]!;
+  let startMs = 0;
+  manifest.slides = Array.from({ length: slideCount }, (_value, index) => {
+    const durationMs = 9_000 + (index % 5) * 700;
+    const slide = {
+      ...prototype,
+      id: `scene-${String(index + 1).padStart(2, '0')}`,
+      startMs,
+      endMs: startMs + durationMs,
+      asset: {
+        ...prototype.asset,
+        url: `https://images.example.test/scene-${index + 1}.jpg`,
+      },
+    };
+    startMs += durationMs;
+    return slide;
+  });
+  const narrationDurationMs = startMs;
+  manifest.audio = { ...manifest.audio, narrationDurationMs };
+  manifest.clip = { ...manifest.clip, durationMs: narrationDurationMs + 2_800 };
+  manifest.outro = { ...manifest.outro, startMs: narrationDurationMs };
+  manifest.captions = [
+    { startMs: 0, endMs: narrationDurationMs, text: '字幕' },
+  ];
+  return manifest;
+}
+
+function longVerticalRenderOptions(
+  manifest: VerticalVideoManifest,
+): VerticalSlideVideoOptions {
+  return {
+    ...verticalRenderOptions(),
+    manifest,
+    mediaPaths: manifest.slides.map(
+      (_slide, index) => `/m/${String(index + 1).padStart(2, '0')}.png`,
+    ),
+  };
+}
+
+/**
+ * The scene layer of the render. A 3-slide manifest fits one chunk, so this one
+ * graph carries every per-scene filter the renderer builds.
+ */
+function soleChunkFilter(manifest: VerticalVideoManifest): string {
   const chunk = planVerticalMediaChunks(manifest)[0];
   if (!chunk) throw new Error('Vertical manifest needs a media chunk');
   return buildVerticalMediaChunkFilter(manifest, chunk);
 }
 
-function verticalFinalFilter(manifest: VerticalVideoManifest): string {
+/** The presentation layer: chunk videos in, finished portrait clip out. */
+function finalCompositionFilter(manifest: VerticalVideoManifest): string {
   return buildVerticalChunkedFinalFilter(
     manifest,
     planVerticalMediaChunks(manifest),
@@ -166,9 +218,22 @@ function verticalFinalFilter(manifest: VerticalVideoManifest): string {
   );
 }
 
+/** Frames the generated chunk graph actually emits, read back from its trim. */
+function chunkOutputFrames(
+  manifest: VerticalVideoManifest,
+  chunk: VerticalMediaChunk,
+): number {
+  const filter = buildVerticalMediaChunkFilter(manifest, chunk);
+  const match = /trim=end_frame=(\d+)/.exec(filter);
+  if (!match?.[1]) {
+    throw new Error('Media chunk filter must trim to an exact frame count');
+  }
+  return Number(match[1]);
+}
+
 describe('vertical news FFmpeg composition', () => {
-  it('renders chunk scenes at window resolution with supersampled motion', () => {
-    const filter = verticalChunkFilter(createVerticalManifest());
+  it('renders every scene at window resolution with supersampled motion', () => {
+    const filter = soleChunkFilter(createVerticalManifest());
 
     // Media inputs are supersampled crops; zoompan's own `s=` brings each
     // scene back down to the window, keeping motion sub-pixel smooth.
@@ -178,7 +243,7 @@ describe('vertical news FFmpeg composition', () => {
     expect(filter).toContain(
       'xfade=transition=fade:duration=0.208:offset=3.791667[x1]',
     );
-    // One zoompan per scene, and nothing else in the chunk pass.
+    // One zoompan per scene, and nothing else in the graph pans or zooms.
     expect(filter.match(/zoompan=/g)).toHaveLength(3);
     // Each still is decoded once. zoompan emits the scene's nominal frames,
     // transition tail, and two safety frames from that single input frame.
@@ -189,12 +254,14 @@ describe('vertical news FFmpeg composition', () => {
     expect(filter).not.toContain('[0:v]fps=24,scale=');
   });
 
-  it('layers frame, outro, and captions over the chunk composition', () => {
-    const filter = verticalFinalFilter(createVerticalManifest());
+  it('layers the brand frame, outro, and captions over the chunk videos', () => {
+    const filter = finalCompositionFilter(createVerticalManifest());
 
     expect(filter).toContain(
       'tpad=stop_mode=clone:stop_duration=17.8,trim=end_frame=427,settb=expr=1/24,setpts=N,pad=720:1280:0:413:color=0x101014[canvas]',
     );
+    // Chunk videos occupy the leading inputs, so the brand assets start after
+    // them: one chunk here means frame 1, outro 2, narration 3, BGM 4.
     expect(filter).toContain('[1:v]format=rgba[frame]');
     expect(filter).toContain('[canvas][frame]overlay=0:0:format=auto[framed]');
     expect(filter).toContain(
@@ -206,13 +273,13 @@ describe('vertical news FFmpeg composition', () => {
     expect(filter).toContain(
       "[branded]ass=filename='/render/captions.ass':fontsdir='/render/fonts',format=yuv420p[vout]",
     );
-    // Scene motion is already baked into the chunk videos, so neither the brand
-    // frame nor the outro may pass through zoompan.
+    // The brand frame must never pass through zoompan; the media it sits over
+    // was already animated one pass earlier.
     expect(filter).not.toContain('zoompan=');
   });
 
   it('pads narration through the outro tail and ducks the BGM under it', () => {
-    const filter = verticalFinalFilter(createVerticalManifest());
+    const filter = finalCompositionFilter(createVerticalManifest());
 
     expect(filter).toContain(
       '[3:a]aresample=sample_rate=48000:async=1:first_pts=0,aformat=channel_layouts=stereo,apad=whole_dur=17.8,atrim=end_sample=854400,asetpts=N/SR/TB,asplit=2[nar_mix][nar_key]',
@@ -247,6 +314,82 @@ describe('vertical news FFmpeg composition', () => {
     expect(chunks.map((chunk) => chunk.endIndex - chunk.startIndex)).toEqual([
       8, 8, 1,
     ]);
+  });
+
+  it('holds every media chunk past its own span, in the filter and the encoder', () => {
+    const manifest = createLongVerticalManifest(20);
+    const options = longVerticalRenderOptions(manifest);
+    const chunks = planVerticalMediaChunks(manifest);
+    const fps = manifest.clip.fps;
+    const transitionFrames = Math.round(
+      (manifest.clip.transitionMs * fps) / 1_000,
+    );
+
+    expect(chunks).toHaveLength(3);
+    for (const chunk of chunks) {
+      // The transition handed to the next chunk plus the two safety frames each
+      // scene already carries. Trimming to the nominal span is what froze the
+      // media window from the third chunk onward.
+      const expectedFrames =
+        Math.round((chunk.durationMs * fps) / 1_000) + transitionFrames + 2;
+      const args = buildVerticalMediaChunkFfmpegArgs(
+        options,
+        chunk,
+        '/work/chunk.mp4',
+      );
+
+      expect(chunkOutputFrames(manifest, chunk)).toBe(expectedFrames);
+      expect(args[args.indexOf('-frames:v') + 1]).toBe(String(expectedFrames));
+      // A `-t` left on the nominal duration would stop the encode early and
+      // starve the crossfade even with the filter padded.
+      expect(Number(args[args.indexOf('-t') + 1])).toBeCloseTo(
+        expectedFrames / fps,
+        6,
+      );
+    }
+  });
+
+  it('keeps every final crossfade inside the stream accumulated before it', () => {
+    const manifest = createLongVerticalManifest(20);
+    const chunks = planVerticalMediaChunks(manifest);
+    const fps = manifest.clip.fps;
+    const transitionFrames = Math.round(
+      (manifest.clip.transitionMs * fps) / 1_000,
+    );
+    const filter = buildVerticalChunkedFinalFilter(
+      manifest,
+      chunks,
+      '/render/captions.ass',
+      '/render/fonts',
+    );
+    const offsets = Array.from(
+      filter.matchAll(
+        /xfade=transition=fade:duration=[\d.]+:offset=([\d.]+)\[cx\d+\]/g,
+      ),
+      (match) => Math.round(Number(match[1]) * fps),
+    );
+
+    expect(offsets).toHaveLength(chunks.length - 1);
+
+    let accumulated = chunkOutputFrames(manifest, chunks[0]!);
+    offsets.forEach((offset, index) => {
+      const chunk = chunks[index + 1]!;
+      // xfade reads its A side through offset+duration, and each xfade shortens
+      // the accumulated stream by one transition. Falling short here is exactly
+      // the freeze: ffmpeg drops this chunk and every chunk after it.
+      expect(offset + transitionFrames).toBeLessThanOrEqual(accumulated);
+      // Offsets stay on the absolute timeline. Captions, narration and BGM are
+      // mixed against it, so a cumulative offset would drift the media instead.
+      expect(offset).toBe(
+        Math.round((chunk.startMs * fps) / 1_000) - transitionFrames,
+      );
+      accumulated = offset + chunkOutputFrames(manifest, chunk);
+    });
+    // The composed media still outlasts the clip, so the presentation pass trims
+    // rather than clone-padding its way to the end.
+    expect(accumulated).toBeGreaterThanOrEqual(
+      Math.round((manifest.audio.narrationDurationMs * fps) / 1_000),
+    );
   });
 
   it('feeds only chunk videos into the final portrait composition', () => {
@@ -456,7 +599,7 @@ describe('Ken Burns motion', () => {
     first.asset.position = 'bottom';
     second.asset.position = 'top';
 
-    const filter = verticalChunkFilter(manifest);
+    const filter = soleChunkFilter(manifest);
 
     // Scene 0 pans horizontally with its bottom edge pinned.
     expect(filter).toContain(
@@ -475,7 +618,7 @@ describe('Ken Burns motion', () => {
     // A 20s scene at 0.014/s would reach 0.28 without the cap.
     lastSlide.endMs = 30_000;
 
-    const filter = verticalChunkFilter(manifest);
+    const filter = soleChunkFilter(manifest);
 
     expect(filter).toContain("z='1+0.1800*");
   });

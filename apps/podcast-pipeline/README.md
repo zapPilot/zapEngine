@@ -39,18 +39,43 @@ Scene alignment for `ja` and `en` is selected independently with `VIDEO_ALIGNMEN
 
 After all three audio localizations complete, ingest idempotently enqueues one episode-scoped visual job and one canonical `zh-Hant` localization render job. Japanese and English audio remain fully generated for the app, but their duplicate social-video encodes are intentionally skipped to reduce render compute. The visual job creates a shared, image-only storyboard, mirrors selected images to R2, and records source-page/original-image provenance (license + photographer for stock providers). It never stores a text-card fallback.
 
-Images are tried in this order:
+What each scene searches for is written by an LLM, not by a keyword table. The
+deterministic storyboard still owns the scene split and timing — it is what makes
+a 64-scene episode resumable — but its search intents are a small table of canned
+photographic subjects, so every finance or crypto scene asked for the same
+`blockchain developers office photo`. After the storyboard is built,
+`src/services/video/storyboard/search-intents.ts` sends the scenes to OpenRouter
+(`LLM_MODEL`) in batches with both the canonical and English sentences, and
+replaces each scene's intents with 1-3 concrete English subjects: the
+institution, person, place, object, or event that scene is actually about.
+
+That pass is best effort and can never fail a visual job. A batch that errors,
+comes back in the wrong shape, or claims a number absent from its own sentences
+keeps its deterministic intents (the same numeric grounding rule
+`validateStoryboardDraft` applies), and an unset `OPENROUTER_API_KEY` skips
+enrichment entirely. `visual:intents enriched=N/M model=...` reports how much of
+an episode was rewritten, and the completed payload records the model in
+`provenance.searchIntentModel` — `null` there means the episode ran on
+deterministic intents.
+
+Images are tried in this order per scene (`selectionMode: 'resilient'`, what
+production uses):
 
 1. `og:image`, article/figure images, lazy-load attributes, and the largest `srcset` candidate from the source article.
-2. Pexels then Pixabay photo search (`orientation=square`, SafeSearch) when `PEXELS_API_KEY` / `PIXABAY_API_KEY` are set — these are license-clean sources and record `license: pexels` / `license: pixabay` plus photographer attribution.
-3. Bing Images HTML with strict SafeSearch as the zero-config fallback.
-4. A non-consecutive reuse of an already validated image when a scene search cannot produce a new one.
+2. Bing Images HTML with strict SafeSearch. It goes first deliberately: a news product wants the editorial photo of the event, and the candidate ranking rewards wire/official domains and penalizes generic stock alt text. Bing images are retained as `license: unknown`; that path does not claim usage rights.
+3. Pexels then Pixabay photo search (`orientation=square`, SafeSearch) when `PEXELS_API_KEY` / `PIXABAY_API_KEY` are set — license-clean sources that record `license: pexels` / `license: pixabay` plus photographer attribution, and that catch the scenes Bing cannot fill.
+4. Each provider is queried with the scene's own intents first, then with relaxed variants of them.
+5. A non-consecutive reuse of an already validated image when no search can produce a new one, and only then a consecutive one.
 
-Candidates must pass HTTPS/SSRF, download timeout, format, size, pixel-dimension, animation, SHA-256, and perceptual-hash checks. Bing HTML is an unofficial interface: zero parseable results or a markup change fails the visual checkpoint explicitly. Bing images are retained as `license: unknown`; that fallback path does not claim usage rights.
+`selectionMode: 'strict'` (tests and the storyboard smoke CLI) instead queries the
+providers in declaration order — Pexels, Pixabay, Bing — and raises search
+failures rather than reusing an image.
+
+Candidates must pass HTTPS/SSRF, download timeout, format, size, pixel-dimension, animation, SHA-256, and perceptual-hash checks. Bing HTML is an unofficial interface: zero parseable results or a markup change raises `BingImagesProviderError`, which fails the checkpoint outright under `strict` and degrades to the next provider (then to reuse) under `resilient`. Either way the failure is reported in the `visual:search` log line, never swallowed.
 
 Once the shared visual checkpoint completes, only `zh-Hant` uses its main HLS duration, sentence timing, subtitles, and audio to render a progressive MP4. The visual checkpoint still uses the canonical and English scripts for search grounding, so multilingual ingest remains unchanged. Classroom HLS is an ingest-readiness check for the canonical localization only and is never used as video audio.
 
-Renders are **720x1280 vertical news videos at 24fps** (`podcast-slide-video.v4`, renderer `satori-resvg-v4`): a persistent brand frame (logo, localized kicker, headline card from the episode title) over a 720x640 media window that plays the searched images with Ken Burns motion, narration-synced captions in the bottom band, a bundled BGM bed ducked under narration (`assets/video/music`, see its README for licensing), and a ~2.8 s outro card while the music tails out. Portrait media encoding is bounded-memory: at most eight supersampled scene images are opened by one ffmpeg process, each batch becomes a 720x640 intermediate MP4, and the final pass crossfades those small chunk videos while adding the frame, captions, narration, BGM, and outro. Stored `v1`/`v2` landscape and `v3` 1080x1920 manifests keep parsing; resubmitting an episode URL revives the visual/render jobs at the new version and writes to new R2 prefixes without touching old artifacts.
+Renders are **720x1280 vertical news videos at 24fps** (`podcast-slide-video.v4`, renderer `satori-resvg-v4`): a persistent brand frame (logo, localized kicker, headline card from the episode title) over a 720x640 media window that plays the searched images with Ken Burns motion, narration-synced captions in the bottom band, a bundled BGM bed ducked under narration (`assets/video/music`, see its README for licensing), and a ~2.8 s outro card while the music tails out. Portrait media encoding is bounded-memory: at most eight supersampled scene images are opened by one ffmpeg process, each batch becomes a 720x640 intermediate MP4, and the final pass crossfades those small chunk videos while adding the frame, captions, narration, BGM, and outro. Each chunk is encoded one transition (plus two safety frames) longer than its own span, because those final crossfades sit on the absolute timeline: a chunk trimmed to its exact duration leaves the accumulated stream one transition short of the next `xfade` offset, ffmpeg drops that chunk and every chunk after it, and the media window freezes on a single frame for the rest of the video while captions and narration keep playing. `ffmpeg-video.test.ts` asserts that invariant over a three-chunk manifest. Stored `v1`/`v2` landscape and `v3` 1080x1920 manifests keep parsing; resubmitting an episode URL revives the visual/render jobs at the new version and writes to new R2 prefixes without touching old artifacts.
 
 Local renders need an ffmpeg >= 4.4 built with libass (`VIDEO_FFMPEG_PATH=$(which ffmpeg)`); the capability check names anything missing — note some Homebrew builds ship without libass.
 
@@ -144,8 +169,8 @@ Fly.io via the zapEngine deploy registry. The Fly app name remains `from-fed-to-
 
 Two process groups, because video rendering and the HTTP service cannot share a CPU:
 
-| Group    | Command               | Machine                 | Serves HTTP | Lifecycle          |
-| -------- | --------------------- | ----------------------- | ----------- | ------------------ |
+| Group    | Command               | Machine                  | Serves HTTP | Lifecycle          |
+| -------- | --------------------- | ------------------------ | ----------- | ------------------ |
 | `app`    | `node dist/index.js`  | `shared-cpu-1x` / 512 MB | yes         | always on          |
 | `render` | `node dist/worker.js` | `performance-2x` / 4 GB  | no          | on demand (opt-in) |
 

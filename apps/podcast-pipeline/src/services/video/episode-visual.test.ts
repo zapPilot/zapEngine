@@ -95,6 +95,7 @@ describe('episode visual payload', () => {
       manifestUrl:
         'https://cdn.example.test/episodes/episode/visual-manifest.json',
       storyboard,
+      searchIntentModel: 'openrouter/free',
       selectedScenes,
       assets,
       r2ImageUrls: {
@@ -116,6 +117,9 @@ describe('episode visual payload', () => {
       /headline|subheadline|quote|facts|excerpt/,
     );
     expect(parseEpisodeVisualPayload(payload)).toEqual(payload);
+    // Which model wrote the search intents is provenance, not decoration: it is
+    // the only record of why a completed episode's images look the way they do.
+    expect(payload.provenance.searchIntentModel).toBe('openrouter/free');
   });
 
   it('includes source selection in the immutable visual hash', () => {

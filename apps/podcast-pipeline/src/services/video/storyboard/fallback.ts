@@ -1,5 +1,9 @@
 import { speakingUnits } from '../text-units.js';
-import type { StoryboardDraft, StoryboardDraftScene } from './draft.js';
+import {
+  MAX_SEARCH_INTENT_CHARACTERS,
+  type StoryboardDraft,
+  type StoryboardDraftScene,
+} from './draft.js';
 import type {
   StoryboardProvider,
   StoryboardProviderRequest,
@@ -393,7 +397,6 @@ const SEARCH_NOISE_WORDS = new Set([
 
 const MAX_KEYWORD_PHRASE_CHARACTERS = 32;
 const MAX_KEYWORD_PHRASE_WORDS = 6;
-const MAX_SEARCH_INTENT_CHARACTERS = 80;
 
 interface PhotographicConcept {
   signals: readonly string[];
@@ -1112,7 +1115,13 @@ function searchTextUnits(script: string, groupCount: number): SearchTextUnit[] {
   );
 }
 
-function balancedSearchEvidenceGroups(
+/**
+ * Splits the English search script into one weight-balanced slice per scene.
+ * The canonical and English scripts are not sentence-aligned, so this is the
+ * only mapping available; the LLM enrichment pass reuses it so it reads the
+ * same English span the deterministic intents were built from.
+ */
+export function balancedSearchEvidenceGroups(
   script: string,
   groupCount: number,
 ): string[] | null {

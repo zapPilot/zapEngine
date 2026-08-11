@@ -15,6 +15,19 @@ import {
 const episodeId = '00000000-0000-4000-8000-000000000001';
 const localizationId = '00000000-0000-4000-8000-000000000002';
 
+/**
+ * The outcome of an enrichment that could not reach OpenRouter. Injected rather
+ * than left to the real dependency so no unit test ever depends on whether the
+ * machine running it happens to have an API key.
+ */
+function keepDeterministicIntents() {
+  return vi.fn(async (request: { draft: unknown }) => ({
+    draft: request.draft as never,
+    model: null,
+    enrichedSceneCount: 0,
+  }));
+}
+
 describe('createEpisodeVideoVisualProcessor', () => {
   it('creates one shared image-only checkpoint and mirrors assets to R2', async () => {
     const calls: string[] = [];
@@ -47,6 +60,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
         silences: [],
       }),
       generateStoryboard,
+      enrichSearchIntents: keepDeterministicIntents(),
       scrape,
       planAssets: vi.fn().mockResolvedValue(assetPlan()),
       upload,
@@ -129,6 +143,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
         .fn()
         .mockResolvedValue({ durationMs: 90_000, silences: [] }),
       generateStoryboard: vi.fn().mockResolvedValue(storyboard()),
+      enrichSearchIntents: keepDeterministicIntents(),
       scrape: vi.fn().mockResolvedValue({
         text: 'source text',
         images: [articleCandidate()],
@@ -196,6 +211,85 @@ describe('createEpisodeVideoVisualProcessor', () => {
     ]);
   });
 
+  it('searches with the enriched intents and records the model that wrote them', async () => {
+    const jobContext = context();
+    const reportProgress = vi.mocked(jobContext.reportProgress);
+    const planAssets = vi.fn().mockResolvedValue(assetPlan());
+    const logger = { info: vi.fn() };
+    const enrichSearchIntents = vi.fn(async () => ({
+      draft: {
+        scenes: storyboard().draft.scenes.map((scene, index) => ({
+          ...scene,
+          imageSearchIntent: [`bank of japan press room ${index}`],
+        })),
+      },
+      model: 'openrouter/free',
+      enrichedSceneCount: 2,
+    }));
+    const processor = createEpisodeVideoVisualProcessor({
+      analyzeAudio: vi
+        .fn()
+        .mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      generateStoryboard: vi.fn().mockResolvedValue(storyboard()),
+      enrichSearchIntents,
+      scrape: vi.fn().mockResolvedValue({
+        text: 'source text',
+        images: [articleCandidate()],
+      }),
+      planAssets,
+      upload: vi.fn().mockResolvedValue({
+        manifestUrl:
+          'https://cdn.example.test/episodes/e/visuals/v/hash/visual-manifest.json',
+        imageUrls: {
+          'image-01': 'https://cdn.example.test/visuals/image-01.jpg',
+          'image-02': 'https://cdn.example.test/visuals/image-02.webp',
+        },
+        r2Prefix: 'episodes/e/visuals/v/hash',
+      }),
+      makeTemporaryDirectory: vi.fn().mockResolvedValue('/work/visual'),
+      writeManifest: vi.fn().mockResolvedValue(undefined),
+      removeDirectory: vi.fn().mockResolvedValue(undefined),
+      logger,
+    });
+
+    const result = await processor(job(), source(), jobContext);
+
+    expect(enrichSearchIntents).toHaveBeenCalledWith(
+      {
+        draft: storyboard().draft,
+        title: source().title,
+        searchTitle: source().englishTitle,
+        script: source().script,
+        searchScript: source().englishScript,
+        durationMs: 90_000,
+      },
+      { signal: expect.any(AbortSignal) },
+    );
+    // The point of the whole pass: image search must run on the rewritten
+    // intents, not the canned ones the storyboard arrived with.
+    expect(
+      planAssets.mock.calls[0]?.[0].scenes.map(
+        (scene: { imageSearchIntent: string[] }) => scene.imageSearchIntent,
+      ),
+    ).toEqual([['bank of japan press room 0'], ['bank of japan press room 1']]);
+    expect(result.visualPayload['provenance']).toEqual(
+      expect.objectContaining({ searchIntentModel: 'openrouter/free' }),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'visual:intents run=run12345 episode=00000000-0000-4000-8000-000000000001 enriched=2/2 model=openrouter/free',
+      ),
+    );
+    // Enrichment shares the storyboard's slice of the bar; it must not add a
+    // step of its own or the percentages stop meaning anything.
+    expect(reportProgress.mock.calls.map(([update]) => update)).toEqual([
+      { percent: 0, stage: 'analyzing-audio' },
+      { percent: 5, stage: 'analyzing-audio' },
+      { percent: 15, stage: 'planning-scenes' },
+      { percent: 90, stage: 'uploading-visuals' },
+    ]);
+  });
+
   it('rejects a stale source hash without scraping or searching', async () => {
     const scrape = vi.fn();
     const processor = createEpisodeVideoVisualProcessor({ scrape });
@@ -231,6 +325,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
         silences: [],
       }),
       generateStoryboard: vi.fn().mockResolvedValue(storyboard()),
+      enrichSearchIntents: keepDeterministicIntents(),
       scrape: vi.fn().mockResolvedValue({
         title: 'Source article',
         text: 'source text',
