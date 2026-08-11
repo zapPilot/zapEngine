@@ -33,7 +33,9 @@ describe('social publish state', () => {
     expect(getPublishedPlatform(state, 'episode-1', 'zh', 'x')?.url).toBe(
       'https://x.com/example/status/1',
     );
-    expect(getPublishedPlatform(state, 'episode-1', 'zh', 'rednote')).toBeUndefined();
+    expect(
+      getPublishedPlatform(state, 'episode-1', 'zh', 'rednote'),
+    ).toBeUndefined();
 
     await markPlatformPublished({
       episodeId: 'episode-1',
@@ -48,6 +50,8 @@ describe('social publish state', () => {
 
     state = await readPublishState(path);
     expect(getPublishedPlatform(state, 'episode-1', 'zh', 'x')).toBeDefined();
-    expect(getPublishedPlatform(state, 'episode-1', 'zh', 'rednote')).toBeDefined();
+    expect(
+      getPublishedPlatform(state, 'episode-1', 'zh', 'rednote'),
+    ).toBeDefined();
   });
 });
