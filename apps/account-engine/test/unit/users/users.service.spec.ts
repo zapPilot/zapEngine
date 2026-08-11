@@ -100,16 +100,11 @@ describe('UsersService', () => {
   // connectWallet
   // -----------------------------------------------------------------------
   describe('connectWallet', () => {
-    it('creates new user and triggers ETL', async () => {
-      const { service, dbMock } = createMocks();
+    it('creates a new user without triggering portfolio ETL', async () => {
+      const { service, dbMock, alphaEtlHttpService } = createMocks();
       dbMock.mock.rpc.mockResolvedValue({
         user_id: 'user-1',
         is_new_user: true,
-      });
-      // updateWhere for last_activity_at (uses serviceRole)
-      dbMock.serviceRole.queryBuilder.single.mockResolvedValue({
-        data: { id: 'user-1' },
-        error: null,
       });
 
       const result = await service.connectWallet(
@@ -118,8 +113,9 @@ describe('UsersService', () => {
 
       expect(result.user_id).toBe('user-1');
       expect(result.is_new_user).toBe(true);
-      expect(result.etl_job).toBeDefined();
-      expect(result.etl_job?.job_id).toBe('etl-1');
+      expect(result.etl_job).toBeUndefined();
+      expect(alphaEtlHttpService.healthPing).not.toHaveBeenCalled();
+      expect(alphaEtlHttpService.triggerWalletFetch).not.toHaveBeenCalled();
     });
 
     it('returns existing user without triggering ETL', async () => {
@@ -138,15 +134,11 @@ describe('UsersService', () => {
       expect(alphaEtlHttpService.triggerWalletFetch).not.toHaveBeenCalled();
     });
 
-    it('handles ETL failure gracefully for new user', async () => {
+    it('keeps account bootstrap independent from ETL availability', async () => {
       const { service, dbMock, alphaEtlHttpService } = createMocks();
       dbMock.mock.rpc.mockResolvedValue({
         user_id: 'user-1',
         is_new_user: true,
-      });
-      dbMock.serviceRole.queryBuilder.single.mockResolvedValue({
-        data: { id: 'user-1' },
-        error: null,
       });
       alphaEtlHttpService.triggerWalletFetch.mockRejectedValue(
         new Error('ETL down'),
@@ -156,10 +148,9 @@ describe('UsersService', () => {
         '0x1234567890abcdef1234567890abcdef12345678',
       );
 
-      expect(result.etl_job?.status).toBe('error');
-      // Underlying message from triggerWalletDataFetch's webhook-failure path —
-      // previously rewritten by a now-removed outer try/catch in connectWallet.
-      expect(result.etl_job?.message).toBe('Failed to queue ETL job');
+      expect(result.user_id).toBe('user-1');
+      expect(result.etl_job).toBeUndefined();
+      expect(alphaEtlHttpService.triggerWalletFetch).not.toHaveBeenCalled();
     });
 
     it('wraps RPC failure in ServiceLayerException', async () => {
