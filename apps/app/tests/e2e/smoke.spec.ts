@@ -25,6 +25,31 @@ const PODCAST_FIXTURE = {
   nextCursor: null,
 };
 
+const PODCAST_FIXTURE_EN = {
+  items: [
+    {
+      id: 'episode-1',
+      localizationId: 'episode-1-en',
+      title: 'E2E Fed to Chain briefing (EN)',
+      languageCode: 'en',
+      hlsUrl: 'https://media.example.test/episode-1-en/playlist.m3u8',
+      createdAt: '2026-07-01T00:00:00.000Z',
+      listened: false,
+      video: null,
+      audioTracks: [
+        {
+          languageCode: 'en',
+          title: 'E2E Fed to Chain briefing (EN)',
+          hlsUrl: 'https://media.example.test/episode-1-en/playlist.m3u8',
+          classroomHlsUrl:
+            'https://media.example.test/episode-1-en/classroom.m3u8',
+        },
+      ],
+    },
+  ],
+  nextCursor: null,
+};
+
 const GENERATING_PODCAST_EPISODE = {
   id: 'episode-3',
   localizationId: 'episode-3-zh-Hant',
@@ -160,6 +185,20 @@ async function routePodcastFeed(page: Page): Promise<void> {
     await route.fulfill({
       contentType: 'application/json',
       body: JSON.stringify(PODCAST_FIXTURE),
+    });
+  });
+}
+
+async function routePodcastFeedByLanguage(page: Page): Promise<void> {
+  await page.route('**/episodes?**', async (route) => {
+    const requestedLanguage = new URL(route.request().url()).searchParams.get(
+      'language',
+    );
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(
+        requestedLanguage === 'en' ? PODCAST_FIXTURE_EN : PODCAST_FIXTURE,
+      ),
     });
   });
 }
@@ -460,6 +499,61 @@ test('audio-only episode keeps Video selectable with an unavailable state', asyn
   await expect(videoTab).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText('Video isn’t available yet')).toBeVisible();
   await expect(page.locator('video')).toHaveCount(0);
+});
+
+test('back button from a deep-linked episode returns to the podcast list', async ({
+  page,
+}) => {
+  await routePodcastFeed(page);
+  await page.goto('/podcast/episode-1-zh-Hant?lang=zh-Hant');
+  await expect(
+    page.getByRole('tab', { name: 'Story', exact: true }),
+  ).toBeVisible({ timeout: APP_BOOT_TIMEOUT });
+
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+
+  await expect(page).toHaveURL(/\/podcast$/);
+});
+
+test('choosing a language on the episode detail screen switches the displayed localization', async ({
+  page,
+}) => {
+  await routePodcastFeedByLanguage(page);
+
+  // Land on zh-Hant deliberately through the UI (rather than relying on the
+  // browser's default locale, which the sandboxed test runner resolves to
+  // "en") so the feed request and the detail route's `?lang=` agree from the
+  // start, matching how a real user would already be on this screen before
+  // touching the language picker.
+  await page.goto('/podcast');
+  await expect(page).toHaveURL(/\/podcast$/, { timeout: APP_BOOT_TIMEOUT });
+  await page.getByRole('button', { name: 'Choose app language' }).click();
+  await page.getByRole('button', { name: /繁體中文/ }).click();
+
+  await page
+    .getByRole('button', { name: '開啟「E2E Fed to Chain briefing」' })
+    .first()
+    .click();
+  await expect(page).toHaveURL(/\/podcast\/episode-1-zh-Hant\?lang=zh-Hant$/, {
+    timeout: APP_BOOT_TIMEOUT,
+  });
+  await expect(
+    page.getByRole('tab', { name: 'Story', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText('E2E Fed to Chain briefing (EN)')).toHaveCount(0);
+
+  await page.getByRole('button', { name: '選擇 App 語言' }).click();
+  await page.getByRole('button', { name: /^English$/ }).click();
+
+  await expect(page).toHaveURL(/\/podcast\/episode-1\?lang=en$/);
+  // Scoped to the hero card's title style: the same title text is also
+  // rendered (currently hidden) inside the media player's Video tab panel,
+  // so a bare getByText would hit a strict-mode violation.
+  await expect(
+    page.locator('div[class*="text-[25px]"]', {
+      hasText: 'E2E Fed to Chain briefing (EN)',
+    }),
+  ).toBeVisible();
 });
 
 test('processing video generation shows a live generating state', async ({

@@ -5,8 +5,9 @@ import {
   buildStaticSlideFfmpegArgs,
   buildStaticSlideFilter,
   buildVerticalChunkedFinalFfmpegArgs,
+  buildVerticalChunkedFinalFilter,
   buildVerticalMediaChunkFfmpegArgs,
-  buildVerticalSlideFilter,
+  buildVerticalMediaChunkFilter,
   createFfmpegEncodeProgressReader,
   kenBurnsPanForScene,
   kenBurnsSeedForEpisode,
@@ -149,13 +150,25 @@ function createVerticalManifest(): VerticalVideoManifest {
   };
 }
 
+/** The 3-slide test manifest always plans into exactly one media chunk. */
+function verticalChunkFilter(manifest: VerticalVideoManifest): string {
+  const chunk = planVerticalMediaChunks(manifest)[0];
+  if (!chunk) throw new Error('Vertical manifest needs a media chunk');
+  return buildVerticalMediaChunkFilter(manifest, chunk);
+}
+
+function verticalFinalFilter(manifest: VerticalVideoManifest): string {
+  return buildVerticalChunkedFinalFilter(
+    manifest,
+    planVerticalMediaChunks(manifest),
+    '/render/captions.ass',
+    '/render/fonts',
+  );
+}
+
 describe('vertical news FFmpeg composition', () => {
-  it('renders scenes at window resolution and layers frame, outro, and captions', () => {
-    const filter = buildVerticalSlideFilter(
-      createVerticalManifest(),
-      '/render/captions.ass',
-      '/render/fonts',
-    );
+  it('renders chunk scenes at window resolution with supersampled motion', () => {
+    const filter = verticalChunkFilter(createVerticalManifest());
 
     // Media inputs are supersampled crops; zoompan's own `s=` brings each
     // scene back down to the window, keeping motion sub-pixel smooth.
@@ -165,21 +178,7 @@ describe('vertical news FFmpeg composition', () => {
     expect(filter).toContain(
       'xfade=transition=fade:duration=0.208:offset=3.791667[x1]',
     );
-    expect(filter).toContain(
-      'tpad=stop_mode=clone:stop_duration=17.8,trim=end_frame=427,settb=expr=1/24,setpts=N,pad=720:1280:0:413:color=0x101014[canvas]',
-    );
-    expect(filter).toContain('[3:v]format=rgba[frame]');
-    expect(filter).toContain('[canvas][frame]overlay=0:0:format=auto[framed]');
-    expect(filter).toContain(
-      '[4:v]format=rgba,fade=t=in:st=15:d=0.4:alpha=1[outro]',
-    );
-    expect(filter).toContain(
-      "[framed][outro]overlay=0:0:format=auto:enable='gte(t,15)'[branded]",
-    );
-    expect(filter).toContain(
-      "[branded]ass=filename='/render/captions.ass':fontsdir='/render/fonts',format=yuv420p[vout]",
-    );
-    // The brand frame must never pass through zoompan — one zoompan per scene.
+    // One zoompan per scene, and nothing else in the chunk pass.
     expect(filter.match(/zoompan=/g)).toHaveLength(3);
     // Each still is decoded once. zoompan emits the scene's nominal frames,
     // transition tail, and two safety frames from that single input frame.
@@ -190,18 +189,36 @@ describe('vertical news FFmpeg composition', () => {
     expect(filter).not.toContain('[0:v]fps=24,scale=');
   });
 
-  it('pads narration through the outro tail and ducks the BGM under it', () => {
-    const filter = buildVerticalSlideFilter(
-      createVerticalManifest(),
-      '/render/captions.ass',
-      '/render/fonts',
-    );
+  it('layers frame, outro, and captions over the chunk composition', () => {
+    const filter = verticalFinalFilter(createVerticalManifest());
 
     expect(filter).toContain(
-      '[5:a]aresample=sample_rate=48000:async=1:first_pts=0,aformat=channel_layouts=stereo,apad=whole_dur=17.8,atrim=end_sample=854400,asetpts=N/SR/TB,asplit=2[nar_mix][nar_key]',
+      'tpad=stop_mode=clone:stop_duration=17.8,trim=end_frame=427,settb=expr=1/24,setpts=N,pad=720:1280:0:413:color=0x101014[canvas]',
+    );
+    expect(filter).toContain('[1:v]format=rgba[frame]');
+    expect(filter).toContain('[canvas][frame]overlay=0:0:format=auto[framed]');
+    expect(filter).toContain(
+      '[2:v]format=rgba,fade=t=in:st=15:d=0.4:alpha=1[outro]',
     );
     expect(filter).toContain(
-      '[6:a]aresample=sample_rate=48000,aformat=channel_layouts=stereo,volume=-21dB,atrim=end_sample=854400,asetpts=N/SR/TB[bgm_lvl]',
+      "[framed][outro]overlay=0:0:format=auto:enable='gte(t,15)'[branded]",
+    );
+    expect(filter).toContain(
+      "[branded]ass=filename='/render/captions.ass':fontsdir='/render/fonts',format=yuv420p[vout]",
+    );
+    // Scene motion is already baked into the chunk videos, so neither the brand
+    // frame nor the outro may pass through zoompan.
+    expect(filter).not.toContain('zoompan=');
+  });
+
+  it('pads narration through the outro tail and ducks the BGM under it', () => {
+    const filter = verticalFinalFilter(createVerticalManifest());
+
+    expect(filter).toContain(
+      '[3:a]aresample=sample_rate=48000:async=1:first_pts=0,aformat=channel_layouts=stereo,apad=whole_dur=17.8,atrim=end_sample=854400,asetpts=N/SR/TB,asplit=2[nar_mix][nar_key]',
+    );
+    expect(filter).toContain(
+      '[4:a]aresample=sample_rate=48000,aformat=channel_layouts=stereo,volume=-21dB,atrim=end_sample=854400,asetpts=N/SR/TB[bgm_lvl]',
     );
     expect(filter).toContain(
       '[bgm_lvl][nar_key]sidechaincompress=threshold=0.02:ratio=12:attack=25:release=450[bgm_duck]',
@@ -439,11 +456,7 @@ describe('Ken Burns motion', () => {
     first.asset.position = 'bottom';
     second.asset.position = 'top';
 
-    const filter = buildVerticalSlideFilter(
-      manifest,
-      '/render/captions.ass',
-      '/render/fonts',
-    );
+    const filter = verticalChunkFilter(manifest);
 
     // Scene 0 pans horizontally with its bottom edge pinned.
     expect(filter).toContain(
@@ -462,11 +475,7 @@ describe('Ken Burns motion', () => {
     // A 20s scene at 0.014/s would reach 0.28 without the cap.
     lastSlide.endMs = 30_000;
 
-    const filter = buildVerticalSlideFilter(
-      manifest,
-      '/render/captions.ass',
-      '/render/fonts',
-    );
+    const filter = verticalChunkFilter(manifest);
 
     expect(filter).toContain("z='1+0.1800*");
   });

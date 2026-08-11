@@ -45,6 +45,7 @@ import { usePodcastPlayer } from '@/providers/PodcastPlayerProvider';
 import { useEpisodeProgress } from '@/providers/PodcastProgressProvider';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
+import type { ContentLanguageCode } from '@/config/contentLanguages';
 
 function episodeParamToString(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? '';
@@ -54,9 +55,11 @@ function episodeParamToString(value: string | string[] | undefined): string {
 function EpisodeDetailHeader({
   episode,
   onBack,
+  onLanguageSelected,
 }: {
   episode: PodcastEpisode;
   onBack: () => void;
+  onLanguageSelected: (code: ContentLanguageCode) => void;
 }) {
   const shareEpisode = () => {
     const shareUrl = getPodcastEpisodeShareUrl(episode);
@@ -73,7 +76,7 @@ function EpisodeDetailHeader({
         <PodcastIconButton label="Back" onPress={onBack}>
           <ChevronLeft size={20} strokeWidth={2} color="#d4c5a3" />
         </PodcastIconButton>
-        <PodcastLanguageDropdown />
+        <PodcastLanguageDropdown onLanguageSelected={onLanguageSelected} />
       </View>
       <Text className="min-w-0 flex-1 px-3 text-center font-sans-semibold text-[14px] text-ink">
         Podcast
@@ -292,6 +295,13 @@ export function EpisodeDetailScreen() {
     language?: string | string[];
   }>();
   const router = useRouter();
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/podcast');
+    }
+  };
   const insets = useSafeAreaInsets();
   const { languageCode: selectedLanguageCode } = useContentLanguage();
   const [activeVideoClock, setActiveVideoClock] =
@@ -345,7 +355,7 @@ export function EpisodeDetailScreen() {
         style={{ paddingTop: Math.max(insets.top, 12) }}
       >
         <View className="flex-row items-center px-5 pb-3">
-          <PodcastIconButton label="Back" onPress={() => router.back()}>
+          <PodcastIconButton label="Back" onPress={goBack}>
             <ChevronLeft size={20} strokeWidth={2} color="#d4c5a3" />
           </PodcastIconButton>
         </View>
@@ -369,10 +379,21 @@ export function EpisodeDetailScreen() {
     );
   }
 
+  const handleLanguageSelected = (code: ContentLanguageCode) => {
+    if (code === routeLanguageCode) return;
+    router.replace(
+      `/podcast/${encodeURIComponent(episode.id)}?lang=${encodeURIComponent(code)}`,
+    );
+  };
+
   return (
     <View className="flex-1 bg-bg">
       <ScreenScrollView bottomPadding={36}>
-        <EpisodeDetailHeader episode={episode} onBack={() => router.back()} />
+        <EpisodeDetailHeader
+          episode={episode}
+          onBack={goBack}
+          onLanguageSelected={handleLanguageSelected}
+        />
         <EpisodeHeroCard episode={episode} />
         <EpisodeMediaPlayer
           key={episode.localizationId}

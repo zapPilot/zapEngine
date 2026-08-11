@@ -16,6 +16,10 @@ Hono API service for From Fed to Chain. Turns article URLs into multilingual pod
 
 Routes include `/health`, `/ingest`, `/telegram/webhook`, `/episodes`,
 `/episodes/search`, `/episodes/:localizationId`, and `/episodes/:id/listened`.
+`GET /episodes/:localizationId` also accepts a canonical episode `id` with
+`?language=` as a fallback when the path segment isn't a known localization
+id, so a client can resolve "this episode, in a different language" without
+already knowing that language's localization id.
 
 ## Environment
 

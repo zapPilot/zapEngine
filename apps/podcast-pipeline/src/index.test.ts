@@ -26,6 +26,7 @@ const {
   mockDecodeCursor,
   mockEnqueueEpisodeVideoJob,
   mockEnqueueEpisodeVideoVisualJob,
+  mockFindEpisodeById,
   mockFindEpisodeBySourceUrl,
   mockFindEpisodeListRowByLocalizationId,
   mockFindEpisodeLocalizationByEpisodeId,
@@ -61,6 +62,7 @@ const {
   mockDecodeCursor: vi.fn(),
   mockEnqueueEpisodeVideoJob: vi.fn(),
   mockEnqueueEpisodeVideoVisualJob: vi.fn(),
+  mockFindEpisodeById: vi.fn(),
   mockFindEpisodeBySourceUrl: vi.fn(),
   mockFindEpisodeListRowByLocalizationId: vi.fn(),
   mockFindEpisodeLocalizationByEpisodeId: vi.fn(),
@@ -107,6 +109,7 @@ vi.mock('./services/db.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./services/db.js')>()),
   DEFAULT_LIMIT: 20,
   decodeCursor: mockDecodeCursor,
+  findEpisodeById: mockFindEpisodeById,
   findEpisodeBySourceUrl: mockFindEpisodeBySourceUrl,
   findEpisodeListRowByLocalizationId: mockFindEpisodeListRowByLocalizationId,
   findEpisodeLocalizationByEpisodeId: mockFindEpisodeLocalizationByEpisodeId,
@@ -2075,7 +2078,7 @@ describe('GET /episodes/:localizationId', () => {
     });
   });
 
-  it('returns 404 for a missing localization', async () => {
+  it('returns 404 for a missing localization with no language fallback requested', async () => {
     mockFindEpisodeListRowByLocalizationId.mockResolvedValue(null);
     const localizationId = '00000000-0000-4000-8000-000000009999';
 
@@ -2085,6 +2088,7 @@ describe('GET /episodes/:localizationId', () => {
     expect(
       mockListEpisodeVideoSummariesByLocalizationIds,
     ).not.toHaveBeenCalled();
+    expect(mockFindEpisodeById).not.toHaveBeenCalled();
   });
 
   it('rejects malformed localization ids before querying Supabase', async () => {
@@ -2092,6 +2096,60 @@ describe('GET /episodes/:localizationId', () => {
 
     expect(response.status).toBe(404);
     expect(mockFindEpisodeListRowByLocalizationId).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the canonical episode id and ?language= when the path segment is not a localization id', async () => {
+    const episode = episodeRow();
+    const localization = localizationRow({
+      id: '00000000-0000-4000-8000-000000000102',
+      language_code: 'en',
+      title: 'Localization title (EN)',
+    });
+    mockFindEpisodeListRowByLocalizationId.mockResolvedValue(null);
+    mockFindEpisodeById.mockResolvedValue(episode);
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localization);
+    mockListLanguageClassroomsByLocalizationId.mockResolvedValue([
+      classroomRow(),
+    ]);
+
+    const response = await app.request(`/episodes/${episode.id}?language=en`);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mockFindEpisodeById).toHaveBeenCalledWith(episode.id);
+    expect(mockFindEpisodeLocalizationByEpisodeId).toHaveBeenCalledWith(
+      episode.id,
+      'en',
+    );
+    expect(body).toEqual({
+      ...localizationResponse(episode, localization, [classroomLesson()]),
+      video: null,
+      videoGeneration: null,
+    });
+  });
+
+  it('returns 404 when the canonical episode id also cannot be resolved', async () => {
+    mockFindEpisodeListRowByLocalizationId.mockResolvedValue(null);
+    mockFindEpisodeById.mockResolvedValue(null);
+
+    const response = await app.request(
+      `/episodes/${episodeRow().id}?language=en`,
+    );
+
+    expect(response.status).toBe(404);
+    expect(mockFindEpisodeLocalizationByEpisodeId).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the canonical episode resolves but has no localization for that language', async () => {
+    mockFindEpisodeListRowByLocalizationId.mockResolvedValue(null);
+    mockFindEpisodeById.mockResolvedValue(episodeRow());
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(null);
+
+    const response = await app.request(
+      `/episodes/${episodeRow().id}?language=ja`,
+    );
+
+    expect(response.status).toBe(404);
   });
 });
 

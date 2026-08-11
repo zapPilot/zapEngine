@@ -246,6 +246,20 @@ export async function findEpisodeBySourceUrl(
   return data;
 }
 
+export async function findEpisodeById(id: string): Promise<EpisodeRow | null> {
+  const { data, error } = await getSupabase()
+    .from('episodes')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle<EpisodeRow>();
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  return data;
+}
+
 export async function findEpisodeLocalizationByEpisodeId(
   episodeId: string,
   languageCode: string,

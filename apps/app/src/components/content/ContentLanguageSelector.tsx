@@ -17,6 +17,7 @@ export type PodcastCompletionByLanguage = Readonly<
 
 interface ContentLanguageOptionRowsProps {
   onSelect?: () => void;
+  onLanguageSelected?: ((code: ContentLanguageCode) => void) | undefined;
   completionByLanguage?: PodcastCompletionByLanguage | undefined;
 }
 
@@ -29,12 +30,14 @@ export function getContentLanguageBadge(languageCode: string): string {
 
 export function ContentLanguageOptionRows({
   onSelect,
+  onLanguageSelected,
   completionByLanguage,
 }: ContentLanguageOptionRowsProps) {
   const { languageCode, setLanguageCode, t } = useContentLanguage();
 
   const selectLanguage = (code: ContentLanguageCode) => {
     setLanguageCode(code);
+    onLanguageSelected?.(code);
     onSelect?.();
   };
 
@@ -122,9 +125,11 @@ const FALLBACK_ANCHOR: DropdownAnchor = { top: 96, left: 20 };
 export function PodcastLanguageDropdown({
   completionByLanguage,
   onOpen,
+  onLanguageSelected,
 }: {
   completionByLanguage?: PodcastCompletionByLanguage | undefined;
   onOpen?: (() => void) | undefined;
+  onLanguageSelected?: ((code: ContentLanguageCode) => void) | undefined;
 } = {}) {
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<DropdownAnchor>(FALLBACK_ANCHOR);
@@ -224,6 +229,7 @@ export function PodcastLanguageDropdown({
           <ContentLanguageOptionRows
             completionByLanguage={completionByLanguage}
             onSelect={() => setOpen(false)}
+            onLanguageSelected={onLanguageSelected}
           />
         </View>
       </Modal>

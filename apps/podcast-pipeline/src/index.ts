@@ -26,6 +26,7 @@ import {
   type Cursor,
   decodeCursor,
   DEFAULT_LIMIT,
+  findEpisodeById,
   findEpisodeListRowByLocalizationId,
   findEpisodeLocalizationByEpisodeId,
   listEpisodeFeedPaged,
@@ -398,20 +399,54 @@ export function createApp(): Hono {
     }
 
     const row = await findEpisodeListRowByLocalizationId(localizationId);
-    if (!row) {
+    if (row) {
+      const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds([
+        localizationId,
+      ]);
+      const videoSummary = videoSummaries.get(localizationId);
+      return c.json(
+        toEpisodeResponse(
+          row,
+          row.language_classrooms,
+          videoSummary?.video ?? null,
+          videoSummary?.videoGeneration ?? null,
+        ),
+      );
+    }
+
+    // Not a localization id: the client may be asking for a different
+    // language of the same canonical episode after switching the app
+    // language, so retry treating :localizationId as the canonical episode
+    // id, disambiguated by ?language=.
+    const languageCode = c.req.query('language');
+    if (!languageCode) {
       throw new HTTPException(404, {
         message: 'Episode localization not found',
       });
     }
 
+    const episode = await findEpisodeById(localizationId);
+    const localization = episode
+      ? await findEpisodeLocalizationByEpisodeId(episode.id, languageCode)
+      : null;
+    if (!episode || !localization) {
+      throw new HTTPException(404, {
+        message: 'Episode localization not found',
+      });
+    }
+
+    const classrooms = await listLanguageClassroomsByLocalizationId(
+      localization.id,
+    );
     const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds([
-      localizationId,
+      localization.id,
     ]);
-    const videoSummary = videoSummaries.get(localizationId);
+    const videoSummary = videoSummaries.get(localization.id);
     return c.json(
-      toEpisodeResponse(
-        row,
-        row.language_classrooms,
+      toEpisodeResponseFromLocalization(
+        episode,
+        localization,
+        classrooms,
         videoSummary?.video ?? null,
         videoSummary?.videoGeneration ?? null,
       ),
