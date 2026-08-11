@@ -7,8 +7,9 @@ import {
 } from '@zapengine/types/api';
 import { type Address, type PublicClient } from 'viem';
 
+import { LiFiBridgeAdapter } from '../adapters/lifi-bridge.adapter.js';
 import type { LiFiAdapter } from '../adapters/lifi.adapter.js';
-import type { BridgeRouter } from '../bridges/bridge-router.js';
+import { BridgeRouter } from '../bridges/bridge-router.js';
 import type { BridgeQuote } from '../bridges/bridge.types.js';
 import {
   buildApproveTx,
@@ -58,7 +59,7 @@ export interface ComposeDepositInput {
 
 export interface ComposeDepositDeps {
   adapter: LiFiAdapter;
-  bridgeRouter: BridgeRouter;
+  bridgeRouter?: BridgeRouter;
   publicClients: Record<number, PublicClient>;
   hyperliquidNetwork?: HyperliquidNetwork;
 }
@@ -233,6 +234,8 @@ export async function composeDeposit(
     deps.publicClients,
     input.sourceChainId,
   );
+  const bridgeRouter =
+    deps.bridgeRouter ?? new BridgeRouter([new LiFiBridgeAdapter(deps.adapter)]);
   const allocations = splitAmounts(input.fromAmount, resolveSplit(input));
   const legs: DepositLeg[] = [];
   const calls: PreparedTransaction[] = [];
@@ -307,7 +310,7 @@ export async function composeDeposit(
           fromAmount: allocation.amount,
           userAddress: input.userAddress,
         },
-        deps.bridgeRouter,
+        bridgeRouter,
       );
 
       // Checked against the quoted output (6-decimal perp USDC) rather than
@@ -358,7 +361,7 @@ export async function composeDeposit(
         fromAmount: allocation.amount,
         userAddress: input.userAddress,
       },
-      deps.bridgeRouter,
+      bridgeRouter,
     );
 
     bridgeQuotes.push(quote);
