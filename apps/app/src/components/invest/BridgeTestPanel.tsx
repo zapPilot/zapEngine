@@ -4,9 +4,8 @@ import {
   getOnChainTokenBalance,
   NATIVE_TOKEN_ADDRESS,
 } from '@zapengine/app-core/services';
-import { ExternalLink } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { Linking, Text, TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 import { formatUnits, parseUnits } from 'viem';
 
 import { QuickAmountChips } from '@/components/invest/QuickAmountChips';
@@ -391,7 +390,7 @@ export function BridgeTestPanel() {
             adjustsFontSizeToFit
           >
             {bridge.quote
-              ? formatUnits(BigInt(bridge.quote.estimate.toAmount), 6)
+              ? formatUnits(BigInt(bridge.quote.toAmount), 6)
               : '0'}
           </Text>
           <TokenSelectorPill
@@ -407,7 +406,7 @@ export function BridgeTestPanel() {
         <View className="flex-row items-center justify-between">
           <Text className="text-[11px] text-ink-dim">Route</Text>
           <Text className="font-mono text-[10px] uppercase text-ink-dim">
-            {bridge.quote?.estimate.tool ?? 'LI.FI'}
+            {bridge.quote?.provider ?? '—'}
           </Text>
         </View>
 
@@ -415,23 +414,17 @@ export function BridgeTestPanel() {
           <View className="mt-2 gap-1.5">
             <SummaryRow
               label="Expected"
-              value={`${formatUnits(BigInt(bridge.quote.estimate.toAmount), 6)} USDC`}
+              value={`${formatUnits(BigInt(bridge.quote.toAmount), 6)} USDC`}
             />
             <SummaryRow
               label="Minimum"
-              value={`${formatUnits(BigInt(bridge.quote.estimate.toAmountMin), 6)} USDC`}
+              value={`${formatUnits(BigInt(bridge.quote.toAmountMin), 6)} USDC`}
             />
-            <SummaryRow
-              label="Bridge fee"
-              value={formatUsd(bridge.quote.estimate.feeCostUsd)}
-            />
-            <SummaryRow
-              label="Network gas"
-              value={formatUsd(bridge.quote.estimate.gasCostUsd)}
-            />
+            <SummaryRow label="Bridge fee" value={formatUsd(bridge.quote.feeUsd)} />
+            <SummaryRow label="Network gas" value={formatUsd(bridge.quote.gasUsd)} />
             <SummaryRow
               label="Estimated time"
-              value={formatDuration(bridge.quote.estimate.executionDuration)}
+              value={formatDuration(bridge.quote.estimatedDurationSec)}
             />
           </View>
         ) : (
@@ -444,19 +437,6 @@ export function BridgeTestPanel() {
           <Text className="mt-2 text-[11px] leading-[17px] text-error">
             {bridge.error}
           </Text>
-        ) : null}
-
-        {bridge.lifiScanUrl ? (
-          <Tap
-            accessibilityRole="link"
-            className="mt-3 min-h-11 flex-row items-center gap-2"
-            onPress={() => void Linking.openURL(bridge.lifiScanUrl!)}
-          >
-            <ExternalLink size={14} color="#d4c5a3" />
-            <Text className="text-[11px] text-accent underline">
-              Track on LI.FI Scan
-            </Text>
-          </Tap>
         ) : null}
       </View>
 
