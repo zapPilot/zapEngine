@@ -51,7 +51,7 @@ export async function generateSocialCopy(input: {
     readSkill('rednote.md'),
   ]);
   const config = getOpenRouterConfig({
-    model: process.env['SOCIAL_OPENROUTER_MODEL']?.trim() || SOCIAL_MODEL,
+    model: SOCIAL_MODEL,
     thinkingModel: null,
   });
 
