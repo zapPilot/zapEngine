@@ -275,11 +275,10 @@ async function editCopy(
   const path = join(directory, `episode-${safeEpisodeId}-copy.json`);
   await writeFile(path, `${JSON.stringify(copy, null, 2)}\n`, 'utf8');
 
-  const editor = process.env['EDITOR']?.trim() || 'vi';
-  const result = spawnSync(editor, [path], { stdio: 'inherit' });
+  const result = spawnSync('vi', [path], { stdio: 'inherit' });
   if (result.error) throw result.error;
   if (result.status !== 0) {
-    throw new Error(`${editor} exited with status ${result.status}.`);
+    throw new Error(`vi exited with status ${result.status}.`);
   }
 
   const raw = await readFile(path, 'utf8');
