@@ -4,6 +4,11 @@ import { buildApproveTx } from '../approvals/erc20Approval.js';
 import * as BridgeRuntime from '../bridges/bridge-runtime.js';
 
 const DEFAULT_ECO_API = 'https://quotes.eco.com/api/v3';
+const ECO_STATUS_GROUPS = {
+  filled: ['fulfilled', 'filled'],
+  settled: ['settled', 'complete', 'completed'],
+  failed: ['failed', 'refunded', 'expired'],
+} as const;
 
 export interface EcoBridgeConfig {
   dAppId: string;
@@ -109,16 +114,6 @@ function feeToUsd(fees: EcoFee[] | undefined): string {
     return sum + BigInt(fee.amount) * 10n ** BigInt(6 - decimals);
   }, 0n);
   return `${micros / 1_000_000n}.${(micros % 1_000_000n).toString().padStart(6, '0')}`;
-}
-
-function statusKind(
-  status: string | undefined,
-): BridgeRuntime.BridgeSettlement['status'] {
-  return BridgeRuntime.normalizeBridgeStatus(status, {
-    filled: ['fulfilled', 'filled'],
-    settled: ['settled', 'complete', 'completed'],
-    failed: ['failed', 'refunded', 'expired'],
-  });
 }
 
 export class EcoBridgeAdapter extends BridgeRuntime.CanonicalBridgeProvider<EcoStatusResponse> {
@@ -250,7 +245,10 @@ export class EcoBridgeAdapter extends BridgeRuntime.CanonicalBridgeProvider<EcoS
   protected settlementStatus(
     value: EcoStatusResponse,
   ): BridgeRuntime.BridgeSettlement['status'] {
-    return statusKind(value.data?.status?.status);
+    return BridgeRuntime.normalizeBridgeStatus(
+      value.data?.status?.status,
+      ECO_STATUS_GROUPS,
+    );
   }
 
   protected destinationTxHash(value: EcoStatusResponse): Hash | undefined {
