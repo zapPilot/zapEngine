@@ -58,7 +58,7 @@ function AssetRow({ asset, divider }: { asset: HomeAsset; divider: boolean }) {
           : null
       }
     >
-      <TokenIcon glyph={asset.glyph} bg={asset.iconBg} alt={asset.symbol} />
+      <TokenIcon symbol={asset.symbol} alt={asset.symbol} />
       <View className="min-w-0 flex-1">
         <View className="flex-row items-baseline gap-[7px]">
           <Text className="font-sans-semibold text-[14.5px] text-ink">

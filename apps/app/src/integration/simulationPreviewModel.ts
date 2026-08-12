@@ -1,4 +1,9 @@
 import type { PrivyBatchExecutionPhase } from '@zapengine/app-core/hooks/wallet/useAtomicBatchExecution';
+import {
+  CHAIN_BRAND,
+  type ChainBrandKey,
+  chainBrandKeyForChainId,
+} from '@zapengine/brand-assets';
 import type {
   PlanOrchestrationDepositPlan,
   PrivyPrepareSendCallsResponse,
@@ -130,6 +135,8 @@ export function resolveAssetCounterparty(
 
 export interface RouteProtocolContext {
   id: string;
+  /** Raw protocol id, resolved to a venue mark by `ProtocolIcon`. */
+  protocol: string;
   label: string;
   badge: string;
 }
@@ -194,6 +201,7 @@ export function resolveRouteProtocols(
       )
       .map((allocation) => ({
         id: allocation.id,
+        protocol: allocation.protocol,
         label: allocation.label,
         badge: `${allocation.weightBps / 100}%`,
       }));
@@ -208,6 +216,7 @@ export function resolveRouteProtocols(
   );
   return legs.map((leg, index) => ({
     id: `${leg.protocol}-${leg.toToken.toLowerCase()}-${index}`,
+    protocol: leg.protocol,
     label:
       GMX_V2_BASKET_MARKET_LABELS[leg.toToken.toLowerCase()] ??
       SINGLE_CHAIN_PROTOCOL_LABELS[leg.protocol] ??
@@ -354,7 +363,11 @@ export function titleCase(value: string | null): string {
 }
 
 export function simulationChainLabel(chainId: number): string {
-  if (chainId === 8453) return 'Base';
-  if (chainId === 42161) return 'Arbitrum';
-  return `Chain ${chainId}`;
+  const chainKey = chainBrandKeyForChainId(chainId);
+  return chainKey ? CHAIN_BRAND[chainKey].label : `Chain ${chainId}`;
+}
+
+/** Undefined for a chain with no registered mark; render the label alone. */
+export function simulationChainKey(chainId: number): ChainBrandKey | undefined {
+  return chainBrandKeyForChainId(chainId);
 }

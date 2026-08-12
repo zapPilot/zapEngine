@@ -205,8 +205,18 @@ function unavailableReview(
 // Two allocations from the same Arbitrum GMX execution group, each keeping
 // its own chip rather than being merged into a single label.
 const GMX_PROTOCOLS: RouteProtocolContext[] = [
-  { id: 'alloc-btc', label: 'GMX BTC/USDC', badge: '60%' },
-  { id: 'alloc-eth', label: 'GMX ETH/USDC', badge: '40%' },
+  {
+    id: 'alloc-btc',
+    protocol: 'gmx-v2',
+    label: 'GMX BTC/USDC',
+    badge: '60%',
+  },
+  {
+    id: 'alloc-eth',
+    protocol: 'gmx-v2',
+    label: 'GMX ETH/USDC',
+    badge: '40%',
+  },
 ];
 
 let container: HTMLDivElement;

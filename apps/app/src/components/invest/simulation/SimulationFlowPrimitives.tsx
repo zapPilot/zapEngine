@@ -1,34 +1,27 @@
 import type { PrivySimulationToken } from '@zapengine/types/api';
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
-import { type ReactNode, useState } from 'react';
-import { Image, Text, View } from 'react-native';
+import type { ReactNode } from 'react';
+import { Text, View } from 'react-native';
 
+import { TokenIcon } from '@/components/token/TokenIcon';
 import { compactTokenAmount } from '@/integration/simulationPreviewModel';
 
-/** Shared row icon: the token logo when available, else its initial letter. */
+/**
+ * Shared row icon. Simulation payloads name arbitrary tokens, including GM
+ * market tokens with no committed mark, so this delegates the whole
+ * committed-mark / remote-logo / initial chain to `TokenIcon`.
+ */
 export function SimulationTokenMark({
   token,
 }: {
   token: PrivySimulationToken;
 }) {
-  const [imageFailed, setImageFailed] = useState(false);
-  const logoUrl = token.logoUrl;
-
   return (
-    <View className="h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-surface-elevated">
-      {logoUrl && !imageFailed ? (
-        <Image
-          accessibilityIgnoresInvertColors
-          source={{ uri: logoUrl }}
-          style={{ width: 36, height: 36 }}
-          onError={() => setImageFailed(true)}
-        />
-      ) : (
-        <Text className="font-sans-bold text-[13px] text-ink">
-          {token.symbol.slice(0, 1).toUpperCase()}
-        </Text>
-      )}
-    </View>
+    <TokenIcon
+      symbol={token.symbol}
+      size={36}
+      {...(token.logoUrl && { remoteLogoUrl: token.logoUrl })}
+    />
   );
 }
 

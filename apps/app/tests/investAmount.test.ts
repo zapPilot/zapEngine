@@ -48,9 +48,6 @@ function row(
     token: {
       symbol,
       name: symbol,
-      iconBg: '#000000',
-      glyph: '$',
-      iconSrc: '',
     },
   };
 }

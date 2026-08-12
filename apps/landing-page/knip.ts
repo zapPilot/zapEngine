@@ -6,6 +6,9 @@ export default defineKnipConfig({
   ignoreDependencies: [
     'postcss',
     'eslint-config-next',
+    // Only ever imported through the `./assets/*` subpath, which resolves to a
+    // PNG rather than a module, so Knip never credits the dependency as used.
+    '@zapengine/brand-assets',
     // Used from src/app/globals.css via @import; Knip does not resolve CSS
     // package imports as dependency usage.
     '@zapengine/design-tokens',

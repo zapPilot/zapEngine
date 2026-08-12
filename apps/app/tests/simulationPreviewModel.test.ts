@@ -453,14 +453,29 @@ describe('simulation preview formatting', () => {
 describe('resolveRouteProtocols', () => {
   it('returns one chip per allocation for a multi-allocation execution group', () => {
     expect(resolveRouteProtocols(STRATEGY_PLAN, 'arbitrum-gmx')).toEqual([
-      { id: 'gmx-btc-usdc', label: 'GMX BTC/USDC', badge: '30%' },
-      { id: 'gmx-eth-usdc', label: 'GMX ETH/USDC', badge: '30%' },
+      {
+        id: 'gmx-btc-usdc',
+        protocol: 'gmx-v2',
+        label: 'GMX BTC/USDC',
+        badge: '30%',
+      },
+      {
+        id: 'gmx-eth-usdc',
+        protocol: 'gmx-v2',
+        label: 'GMX ETH/USDC',
+        badge: '30%',
+      },
     ]);
   });
 
   it('returns a single chip for a single-allocation execution group', () => {
     expect(resolveRouteProtocols(STRATEGY_PLAN, 'base-morpho')).toEqual([
-      { id: 'morpho-base-usdc', label: 'Morpho Moonwell USDC', badge: '40%' },
+      {
+        id: 'morpho-base-usdc',
+        protocol: 'morpho',
+        label: 'Morpho Moonwell USDC',
+        badge: '40%',
+      },
     ]);
   });
 
@@ -472,6 +487,7 @@ describe('resolveRouteProtocols', () => {
     expect(resolveRouteProtocols(singleChainPlan('morpho'), 'n/a')).toEqual([
       {
         id: `morpho-${TOKEN.toLowerCase()}-0`,
+        protocol: 'morpho',
         label: 'Morpho Moonwell USDC',
         badge: '100%',
       },
@@ -484,6 +500,7 @@ describe('resolveRouteProtocols', () => {
     ).toEqual([
       {
         id: `made-up-protocol-${TOKEN.toLowerCase()}-0`,
+        protocol: 'made-up-protocol',
         label: 'Made up protocol',
         badge: '100%',
       },
@@ -495,21 +512,25 @@ describe('resolveRouteProtocols', () => {
     expect(resolveRouteProtocols(plan, 'n/a')).toEqual([
       {
         id: `gmx-v2-${GMX_BTC_BTC_MARKET.toLowerCase()}-0`,
+        protocol: 'gmx-v2',
         label: 'GMX BTC/BTC',
         badge: '25%',
       },
       {
         id: `gmx-v2-${GMX_ETH_ETH_MARKET.toLowerCase()}-1`,
+        protocol: 'gmx-v2',
         label: 'GMX ETH/ETH',
         badge: '25%',
       },
       {
         id: `gmx-v2-${GMX_BTC_USDC_MARKET.toLowerCase()}-2`,
+        protocol: 'gmx-v2',
         label: 'GMX BTC/USDC',
         badge: '25%',
       },
       {
         id: `gmx-v2-${GMX_ETH_USDC_MARKET.toLowerCase()}-3`,
+        protocol: 'gmx-v2',
         label: 'GMX ETH/USDC',
         badge: '25%',
       },

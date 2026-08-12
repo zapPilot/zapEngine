@@ -1,29 +1,26 @@
+import {
+  CHAIN_BRAND,
+  type ChainBrandKey,
+  chainBrandKeyForChainId,
+} from '@zapengine/brand-assets';
 import type { PreparedTransaction } from '@zapengine/types/api';
 import { formatEther } from 'viem';
 
 interface ChainDisplay {
   label: string;
-  color: string;
+  /** Undefined for a chain with no registered mark; render text only. */
+  chainKey: ChainBrandKey | undefined;
 }
 
-const CHAINS_BY_ID: Record<number, ChainDisplay> = {
-  1: { label: 'Ethereum', color: '#6f7691' },
-  8453: { label: 'Base', color: '#2151f5' },
-  42161: { label: 'Arbitrum', color: '#28a0f0' },
-  // HyperCore — bridge destination only, never a wallet-connectable chain.
-  1337: { label: 'Hyperliquid', color: '#97fce4' },
-};
-
 export function chainDisplay(chainId: number | undefined): ChainDisplay {
-  if (!chainId) {
-    return { label: 'Unknown', color: '#6f6a5f' };
+  const chainKey = chainId ? chainBrandKeyForChainId(chainId) : undefined;
+  if (chainKey) {
+    return { label: CHAIN_BRAND[chainKey].label, chainKey };
   }
-  return (
-    CHAINS_BY_ID[chainId] ?? {
-      label: `Chain ${chainId}`,
-      color: '#6f6a5f',
-    }
-  );
+  return {
+    label: chainId ? `Chain ${chainId}` : 'Unknown',
+    chainKey: undefined,
+  };
 }
 
 export function gmxExecutionFeeWei(

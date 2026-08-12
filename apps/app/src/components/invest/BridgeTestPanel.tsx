@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useBridgeTest } from '@zapengine/app-core/hooks/useBridgeTest';
+import { chainBrandKeyForChainId } from '@zapengine/brand-assets';
 import {
   getOnChainTokenBalance,
   NATIVE_TOKEN_ADDRESS,
@@ -12,6 +13,7 @@ import { formatUnits, parseUnits } from 'viem';
 import { QuickAmountChips } from '@/components/invest/QuickAmountChips';
 import { SwapArrowDivider } from '@/components/invest/SwapArrowDivider';
 import { TokenSelectorPill } from '@/components/invest/TokenSelectorPill';
+import { ChainMark } from '@/components/token/ChainMark';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Tap } from '@/components/ui/Tap';
 import {
@@ -51,19 +53,24 @@ function formatDuration(seconds: number): string {
 }
 
 function ChainPill({
+  chainId,
   label,
   selected,
   onPress,
 }: {
+  chainId: number;
   label: string;
   selected: boolean;
   onPress: () => void;
 }) {
+  const chainKey = chainBrandKeyForChainId(chainId);
+
   return (
     <Tap
       accessibilityRole="radio"
+      accessibilityLabel={label}
       accessibilityState={{ checked: selected }}
-      className="min-h-11 flex-1 items-center justify-center rounded-xl border px-2"
+      className="min-h-11 flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border px-2"
       style={
         selected
           ? {
@@ -74,8 +81,10 @@ function ChainPill({
       }
       onPress={onPress}
     >
+      {chainKey ? <ChainMark chainKey={chainKey} size={15} /> : null}
       <Text
         className={`text-center font-sans-semibold text-[11px] ${selected ? 'text-accent' : 'text-ink-dim'}`}
+        numberOfLines={1}
       >
         {label}
       </Text>
@@ -106,6 +115,7 @@ function ChainPillRow({
         wrap ? (
           <View key={chain.chainId} className="min-w-[30%] flex-1">
             <ChainPill
+              chainId={chain.chainId}
               label={chain.label}
               selected={chain.chainId === selectedChainId}
               onPress={() => onSelect(chain.chainId)}
@@ -114,6 +124,7 @@ function ChainPillRow({
         ) : (
           <ChainPill
             key={chain.chainId}
+            chainId={chain.chainId}
             label={chain.label}
             selected={chain.chainId === selectedChainId}
             onPress={() => onSelect(chain.chainId)}
@@ -143,6 +154,8 @@ export function BridgeTestPanel() {
 
   const source = bridgeChain(sourceChainId);
   const destination = bridgeChain(destinationChainId);
+  const sourceChainKey = chainBrandKeyForChainId(sourceChainId);
+  const destinationChainKey = chainBrandKeyForChainId(destinationChainId);
   const destinations = useMemo(
     () => bridgeDestinationChains(sourceChainId),
     [sourceChainId],
@@ -321,9 +334,8 @@ export function BridgeTestPanel() {
           />
           <TokenSelectorPill
             symbol="USDC"
-            glyph="$"
-            iconBg="#2775ca"
-            accessibilityLabel="Bridge token USDC"
+            accessibilityLabel={`Bridge token USDC on ${source.label}`}
+            {...(sourceChainKey && { chainKey: sourceChainKey })}
           />
         </View>
         <View className="mt-2 flex-row items-center justify-between">
@@ -396,9 +408,8 @@ export function BridgeTestPanel() {
           </Text>
           <TokenSelectorPill
             symbol="USDC"
-            glyph="$"
-            iconBg="#2775ca"
             accessibilityLabel={`Receive USDC on ${destination.label}`}
+            {...(destinationChainKey && { chainKey: destinationChainKey })}
           />
         </View>
       </View>

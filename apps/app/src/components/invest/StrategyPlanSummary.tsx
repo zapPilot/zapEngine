@@ -1,3 +1,4 @@
+import { type ChainBrandKey } from '@zapengine/brand-assets';
 import {
   type DepositPlan,
   type PlanOrchestrationDepositPlan,
@@ -7,6 +8,8 @@ import {
 } from '@zapengine/types/api';
 import { formatUnits } from 'viem';
 
+import { ChainMark } from '@/components/token/ChainMark';
+import { ProtocolIcon } from '@/components/token/ProtocolIcon';
 import { Card } from '@/components/ui/Card';
 import { InfoRow } from '@/components/ui/InfoRow';
 import {
@@ -31,6 +34,26 @@ interface StrategyPlanSummaryProps {
   singleChainFundingDraft: SingleChainFundingDraft | null;
   baseToken: DesktopDepositToken;
   arbitrumToken: DesktopDepositToken;
+}
+
+/**
+ * Row marks for a summary line. The chain mark is labelled because the row text
+ * no longer names the chain; the venue mark is not, because the text beside it
+ * already names the protocol and market.
+ */
+function RowMarks({
+  chainKey,
+  protocol,
+}: {
+  chainKey: ChainBrandKey;
+  protocol?: string;
+}) {
+  return (
+    <>
+      <ChainMark chainKey={chainKey} size={15} labelled />
+      {protocol ? <ProtocolIcon protocol={protocol} size={18} /> : null}
+    </>
+  );
 }
 
 function isStrategyDepositPlan(
@@ -142,17 +165,20 @@ function StrategySummary({
         <>
           <InfoRow label="Total" value={formatUsd(amountUsd)} divider />
           <InfoRow
-            label="Base · Morpho"
+            icon={<RowMarks chainKey="base" protocol="morpho" />}
+            label="Morpho"
             value={`${tokenAmountLabel(baseGroup?.fromAmount, baseToken)} · 40%`}
             divider
           />
           <InfoRow
-            label="Arbitrum · GMX BTC"
+            icon={<RowMarks chainKey="arbitrum" protocol="gmx-v2" />}
+            label="GMX BTC"
             value={`${tokenAmountLabel(btcAllocation?.fromAmount, arbitrumToken)} · 30%`}
             divider
           />
           <InfoRow
-            label="Arbitrum · GMX ETH"
+            icon={<RowMarks chainKey="arbitrum" protocol="gmx-v2" />}
+            label="GMX ETH"
             value={`${tokenAmountLabel(ethAllocation?.fromAmount, arbitrumToken)} · 30%`}
             divider
           />
@@ -160,12 +186,14 @@ function StrategySummary({
       ) : (
         <>
           <InfoRow
-            label="Base funding"
+            icon={<RowMarks chainKey="base" />}
+            label="Funding"
             value={`${tokenAmountLabel(baseGroup?.fromAmount, baseToken)} · 40%`}
             divider
           />
           <InfoRow
-            label="Arbitrum funding"
+            icon={<RowMarks chainKey="arbitrum" />}
+            label="Funding"
             value={`${tokenAmountLabel(arbitrumGroup?.fromAmount, arbitrumToken)} · 60%`}
             divider
           />
@@ -173,12 +201,14 @@ function StrategySummary({
       )}
       {/* jscpd:ignore-end */}
       <InfoRow
-        label="Base actions"
+        icon={<RowMarks chainKey="base" />}
+        label="Actions"
         value={transactionActionLabel(baseGroup?.approvals, baseGroup?.calls)}
         divider
       />
       <InfoRow
-        label="Arbitrum actions"
+        icon={<RowMarks chainKey="arbitrum" />}
+        label="Actions"
         value={transactionActionLabel(
           arbitrumGroup?.approvals,
           arbitrumGroup?.calls,
@@ -221,9 +251,9 @@ function SingleChainSummary({
     singleChainFundingDraft?.scope === scope
       ? singleChainFundingDraft.fromAmount
       : plan?.legs[0]?.fromAmount;
-  const actionLabel = isBase ? 'Base actions' : 'Arbitrum actions';
-  const allocationLabel = isBase ? 'Base · Morpho' : 'Arbitrum · GMX 4 pools';
-  const fundingLabel = isBase ? 'Base funding' : 'Arbitrum funding';
+  const chainKey: ChainBrandKey = isBase ? 'base' : 'arbitrum';
+  const protocol = isBase ? 'morpho' : 'gmx-v2';
+  const allocationLabel = isBase ? 'Morpho' : 'GMX 4 pools';
   const transactionCount =
     (plan?.approvals.length ?? 0) + (plan?.calls.length ?? 0);
 
@@ -233,6 +263,7 @@ function SingleChainSummary({
         <>
           <InfoRow label="Total" value={formatUsd(amountUsd)} divider />
           <InfoRow
+            icon={<RowMarks chainKey={chainKey} protocol={protocol} />}
             label={allocationLabel}
             value={
               isBase
@@ -244,14 +275,16 @@ function SingleChainSummary({
         </>
       ) : (
         <InfoRow
-          label={fundingLabel}
+          icon={<RowMarks chainKey={chainKey} />}
+          label="Funding"
           value={`${tokenAmountLabel(fromAmount, token)} · 100%`}
           divider
         />
       )}
       {/* jscpd:ignore-end */}
       <InfoRow
-        label={actionLabel}
+        icon={<RowMarks chainKey={chainKey} />}
+        label="Actions"
         value={transactionActionLabel(plan?.approvals, plan?.calls)}
         divider
       />

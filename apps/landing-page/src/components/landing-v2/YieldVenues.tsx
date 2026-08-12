@@ -1,29 +1,33 @@
+import gmxV2Mark from '@zapengine/brand-assets/assets/protocols/gmx-v2.png';
+import hyperliquidMark from '@zapengine/brand-assets/assets/protocols/hyperliquid.png';
+import morphoMark from '@zapengine/brand-assets/assets/protocols/morpho.png';
+import ondoMark from '@zapengine/brand-assets/assets/protocols/ondo.png';
 import Image from 'next/image';
 
 const VENUES = [
   {
-    icon: '/protocols/ondo.webp',
+    icon: ondoMark,
     name: 'Ondo',
     tag: 'Tokenized S&P500',
     accent: true,
     body: 'The equity pillar the engine trades into when risk is rewarded.',
   },
   {
-    icon: '/protocols/gmx-v2.webp',
+    icon: gmxV2Mark,
     name: 'GMX v2',
     tag: 'BTC/ETH parking',
     accent: false,
     body: 'Where idle BTC/ETH can earn baseline yield while the regime stays risk-on.',
   },
   {
-    icon: '/protocols/morpho.webp',
+    icon: morphoMark,
     name: 'Morpho',
     tag: 'Stablecoin parking',
     accent: false,
     body: 'Curated lending vaults where defensive stablecoins can park during risk-off regimes.',
   },
   {
-    icon: '/protocols/hyperliquid.webp',
+    icon: hyperliquidMark,
     name: 'Hyperliquid',
     tag: 'Stablecoin parking',
     accent: false,
