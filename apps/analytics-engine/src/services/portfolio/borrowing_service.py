@@ -14,23 +14,21 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from src.core.utils import parse_iso_datetime
 from src.models.borrowing import (
     BorrowingPosition,
     BorrowingPositionsResponse,
     TokenDetail,
 )
 from src.models.portfolio import BorrowingRiskMetrics, BorrowingSummary
-from src.services.interfaces import (
-    BorrowingServiceProtocol,
-    CanonicalSnapshotServiceProtocol,
-    QueryServiceProtocol,
-)
+from src.services.portfolio.canonical_snapshot_service import CanonicalSnapshotService
 from src.services.shared.query_names import QUERY_NAMES
+from src.services.shared.query_service import QueryService
 
 logger = logging.getLogger(__name__)
 
 
-class BorrowingService(BorrowingServiceProtocol):
+class BorrowingService:
     """
     Unified service for all borrowing analytics.
 
@@ -67,8 +65,8 @@ class BorrowingService(BorrowingServiceProtocol):
     def __init__(
         self,
         db: Session,
-        query_service: QueryServiceProtocol,
-        canonical_snapshot_service: CanonicalSnapshotServiceProtocol | None = None,
+        query_service: QueryService,
+        canonical_snapshot_service: CanonicalSnapshotService | None = None,
     ):
         """
         Initialize BorrowingService.
@@ -272,7 +270,7 @@ class BorrowingService(BorrowingServiceProtocol):
             # Date parsing
             updated_at = row.get("last_updated")
             if isinstance(updated_at, str):
-                updated_at = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+                updated_at = parse_iso_datetime(updated_at)
             elif not isinstance(updated_at, datetime):
                 updated_at = datetime.now(UTC)
 

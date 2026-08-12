@@ -4,12 +4,6 @@ import type {
 } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
 import { describe, expect, it } from 'vitest';
 
-import { SUPPORTED_DEPOSIT_CHAINS } from '@zapengine/types/api';
-
-import {
-  DEFAULT_DEPOSIT_PATH,
-  type GmxV2DepositPath,
-} from '@/integration/depositPaths';
 import {
   buildWizardStartInput,
   canSubmitHlpDeposit,
@@ -21,67 +15,24 @@ import {
 } from '@/integration/investExecutionModel';
 
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`;
-const GMX_PATH: GmxV2DepositPath = {
-  kind: 'gmx-v2',
-  id: 'gmx-v2-btc-btc',
-  chainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
-  marketKey: 'btc-btc',
-  marketLabel: 'BTC/BTC',
-};
 
 describe('buildWizardStartInput', () => {
-  it('maps a base-invest draft onto the wizard start input', () => {
+  it('maps an invest draft onto the wizard start input', () => {
     expect(
       buildWizardStartInput({
-        depositPath: DEFAULT_DEPOSIT_PATH,
         fromToken: BASE_USDC,
         fromAmount: '100000000',
       }),
     ).toEqual({ fromToken: BASE_USDC, fromAmount: '100000000' });
   });
-
-  it('returns null for GMX paths and empty amounts', () => {
-    expect(
-      buildWizardStartInput({
-        depositPath: GMX_PATH,
-        fromToken: BASE_USDC,
-        fromAmount: '100000000',
-      }),
-    ).toBeNull();
-    expect(
-      buildWizardStartInput({
-        depositPath: DEFAULT_DEPOSIT_PATH,
-        fromToken: BASE_USDC,
-        fromAmount: '0',
-      }),
-    ).toBeNull();
-    expect(
-      buildWizardStartInput({
-        depositPath: DEFAULT_DEPOSIT_PATH,
-        fromToken: BASE_USDC,
-        fromAmount: '',
-      }),
-    ).toBeNull();
-  });
 });
 
 describe('resolveDepositExecutionCapability', () => {
-  it('flags the GMX path as unsupported regardless of wallet state', () => {
-    expect(
-      resolveDepositExecutionCapability({
-        isConnected: true,
-        executionMode: 'atomic-batch',
-        depositPath: GMX_PATH,
-      }),
-    ).toBe('unsupported-path');
-  });
-
   it('asks for a wallet before judging execution support', () => {
     expect(
       resolveDepositExecutionCapability({
         isConnected: false,
         executionMode: undefined,
-        depositPath: DEFAULT_DEPOSIT_PATH,
       }),
     ).toBe('connect-wallet');
   });
@@ -91,7 +42,6 @@ describe('resolveDepositExecutionCapability', () => {
       resolveDepositExecutionCapability({
         isConnected: true,
         executionMode: undefined,
-        depositPath: DEFAULT_DEPOSIT_PATH,
       }),
     ).toBe('unsupported-wallet');
   });
@@ -101,7 +51,6 @@ describe('resolveDepositExecutionCapability', () => {
       resolveDepositExecutionCapability({
         isConnected: true,
         executionMode: 'atomic-batch',
-        depositPath: DEFAULT_DEPOSIT_PATH,
       }),
     ).toBe('ready');
   });
@@ -111,7 +60,6 @@ describe('resolveDepositExecutionCapability', () => {
       resolveDepositExecutionCapability({
         isConnected: true,
         executionMode: 'eip7702',
-        depositPath: DEFAULT_DEPOSIT_PATH,
       }),
     ).toBe('ready');
   });

@@ -1,4 +1,7 @@
-export { decodeProtocolMethod } from './contractLabels';
+export {
+  decodeProtocolMethod,
+  resolveProtocolContractName,
+} from './contractLabels';
 export {
   createPlanOrchestrationModule,
   parseDepositDefaultSplit,

@@ -9,6 +9,7 @@ import {
   type AtomicBatchExecution,
   useAtomicBatchExecution,
 } from '@zapengine/app-core/hooks/wallet/useAtomicBatchExecution';
+import { WALLET_NOT_CONNECTED_ERROR } from '@zapengine/app-core/lib/wallet/privyAtomicBatch';
 import { WalletProviderBase } from '@zapengine/app-core/providers/walletContext';
 import {
   buildWalletAccount,
@@ -50,8 +51,6 @@ import {
   loginWithPrivy,
   NATIVE_PRIVY_PROVIDER_CONFIG,
 } from '@/integration/nativePrivyLogin';
-
-const WALLET_NOT_CONNECTED_ERROR = 'No Privy embedded wallet connected';
 
 interface WalletProviderProps {
   children: ReactNode;

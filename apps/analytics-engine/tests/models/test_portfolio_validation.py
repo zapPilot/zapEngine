@@ -11,7 +11,6 @@ import pytest
 from pydantic import ValidationError
 
 from src.models.portfolio import (
-    BorrowingRiskMetrics,
     BorrowingSummary,
     CategoryAllocation,
     PortfolioAllocation,
@@ -679,25 +678,3 @@ class TestBorrowingSummaryValidation:
         assert summary.critical_count == 0
         assert summary.warning_count == 0
         assert summary.healthy_count == 0
-
-
-class TestBorrowingRiskMetricsValidation:
-    """Tests for BorrowingRiskMetrics backward-compatible aliases."""
-
-    def test_health_rate_alias_returns_worst_health_rate(self):
-        """The deprecated `health_rate` alias should map to `worst_health_rate`."""
-        metrics = BorrowingRiskMetrics(
-            has_leverage=True,
-            worst_health_rate=1.52,
-            overall_health_status="WARNING",
-            critical_position_count=1,
-            warning_position_count=2,
-            leverage_ratio=2.0,
-            collateral_value_usd=10000.0,
-            debt_value_usd=5000.0,
-            liquidation_threshold=1.5,
-            protocol_source="portfolio-aggregate",
-            position_count=3,
-        )
-
-        assert metrics.health_rate == metrics.worst_health_rate

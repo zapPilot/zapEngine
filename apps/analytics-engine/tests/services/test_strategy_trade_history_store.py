@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
-from datetime import date
+from datetime import date, datetime
 from uuid import UUID
 
 import pytest
@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from src.services.strategy.strategy_trade_history_store import (
     SeedStrategyTradeHistoryStore,
     StrategyTradeHistoryStore,
+    _coerce_trade_date,
 )
 
 
@@ -86,3 +87,16 @@ def test_trade_history_store_lists_dates_with_filters(db_session: Session) -> No
 def test_seed_trade_history_store_returns_empty_list() -> None:
     store = SeedStrategyTradeHistoryStore()
     assert store.list_trade_dates(UUID(int=1)) == []
+
+
+@pytest.mark.parametrize(
+    "value",
+    [datetime(2025, 1, 3, 12, 30), "2025-01-03T12:30:00Z"],
+)
+def test_coerce_trade_date_preserves_datetime_inputs(value: object) -> None:
+    assert _coerce_trade_date(value) == date(2025, 1, 3)
+
+
+def test_coerce_trade_date_preserves_error_wrapper() -> None:
+    with pytest.raises(ValueError, match="Unsupported trade_date value"):
+        _coerce_trade_date(object())

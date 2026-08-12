@@ -1,3 +1,4 @@
+import { formatPercent } from '@/lib/formatPercent';
 import strategySnapshot from './strategy-snapshot.json';
 
 const BACKTEST_STRATEGY_ID = strategySnapshot.default_strategy_id;
@@ -41,10 +42,6 @@ export interface BacktestSnapshot {
   tradeCount: string;
 }
 
-export function formatMetricPercent(value: number): string {
-  return `${value.toFixed(2)}%`;
-}
-
 export function formatRatio(value: number): string {
   return value.toFixed(2);
 }
@@ -76,8 +73,14 @@ export function getBacktestSnapshot(): BacktestSnapshot {
       calmarRatio: strategy.calmar_ratio,
       tradeCount: strategy.trade_count,
     },
-    roiPercent: formatMetricPercent(strategy.roi_percent),
-    maxDrawdownPercent: formatMetricPercent(strategy.max_drawdown_percent),
+    roiPercent: formatPercent(strategy.roi_percent, {
+      scale: 1,
+      signed: false,
+    }),
+    maxDrawdownPercent: formatPercent(strategy.max_drawdown_percent, {
+      scale: 1,
+      signed: false,
+    }),
     sharpeRatio: formatRatio(strategy.sharpe_ratio),
     calmarRatio: formatRatio(strategy.calmar_ratio),
     tradeCount: String(strategy.trade_count),

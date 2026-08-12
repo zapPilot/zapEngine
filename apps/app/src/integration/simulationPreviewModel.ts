@@ -1,5 +1,9 @@
 import type { PrivyBatchExecutionPhase } from '@zapengine/app-core/hooks/wallet/useAtomicBatchExecution';
 import {
+  formatAddress as formatWalletAddress,
+  formatCompactTokenAmount,
+} from '@zapengine/app-core/utils';
+import {
   CHAIN_BRAND,
   type ChainBrandKey,
   chainBrandKeyForChainId,
@@ -141,23 +145,9 @@ export interface RouteProtocolContext {
 }
 
 /** Display label for a single-chain plan's lone protocol when its legs carry
- * no market-specific token to disambiguate (e.g. a plain Morpho supply). */
+ * no more specific server-provided label (e.g. a plain Morpho supply). */
 const SINGLE_CHAIN_PROTOCOL_LABELS: Record<string, string> = {
   morpho: 'Morpho Moonwell USDC',
-};
-
-/**
- * The Arbitrum single-chain funding path always builds a GMX v2 "basket"
- * across all four markets (see intent-engine's `GMX_V2_MARKETS`), so a plain
- * per-protocol label would collapse four distinct allocations into one. This
- * is a presentation-only lookup by the leg's destination market token — the
- * client does not depend on intent-engine or rebuild the plan.
- */
-const GMX_V2_BASKET_MARKET_LABELS: Record<string, string> = {
-  '0x47c031236e19d024b42f8ae6780e44a573170703': 'GMX BTC/USDC',
-  '0x70d95587d40a2caf56bd97485ab3eec10bee6336': 'GMX ETH/USDC',
-  '0x7c11f78ce78768518d743e81fdfa2f860c6b9a77': 'GMX BTC/BTC',
-  '0x450bb6774dd8a756274e0ab4107953259d2ac541': 'GMX ETH/ETH',
 };
 
 function isStrategyDepositPlan(
@@ -217,7 +207,7 @@ export function resolveRouteProtocols(
     id: `${leg.protocol}-${leg.toToken.toLowerCase()}-${index}`,
     protocol: leg.protocol,
     label:
-      GMX_V2_BASKET_MARKET_LABELS[leg.toToken.toLowerCase()] ??
+      leg.label ??
       SINGLE_CHAIN_PROTOCOL_LABELS[leg.protocol] ??
       titleCase(leg.protocol),
     badge: formatSharePercent(BigInt(leg.fromAmount), totalFromAmount),
@@ -284,9 +274,7 @@ export function confirmRiskHash(
 }
 
 export function formatAddress(address: string | null | undefined): string {
-  if (!address) return 'Unknown';
-  if (address.length <= 12) return address;
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  return formatWalletAddress(address) || 'Unknown';
 }
 
 /** Formats a raw integer token amount without floating-point conversion. */
@@ -308,21 +296,7 @@ export function compactTokenAmount(
   rawAmount: string,
   decimals: number,
 ): string {
-  const exact = formatTokenAmount(rawAmount, decimals);
-  const negative = exact.startsWith('-');
-  const unsigned = negative ? exact.slice(1) : exact;
-  const [integer = '0', fraction] = unsigned.split('.');
-  if (!fraction) return exact;
-
-  const firstSignificant = fraction.search(/[1-9]/);
-  const visibleFractionLength =
-    integer === '0' && firstSignificant >= 0 ? firstSignificant + 6 : 6;
-  const visibleFraction = fraction
-    .slice(0, visibleFractionLength)
-    .replace(/0+$/, '');
-  return `${negative ? '-' : ''}${integer}${
-    visibleFraction ? `.${visibleFraction}` : ''
-  }`;
+  return formatCompactTokenAmount(rawAmount, decimals);
 }
 
 export function formatInteger(value: string | number | null): string {

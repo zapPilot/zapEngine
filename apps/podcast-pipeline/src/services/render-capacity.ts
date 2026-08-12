@@ -1,6 +1,6 @@
 import type { FlyMachinesClient } from './fly-machines.js';
 import {
-  createPipelineSupabaseClient,
+  getPipelineSupabase,
   type PipelineSupabaseClient,
 } from './supabase-client.js';
 import {
@@ -140,21 +140,23 @@ export function createRenderWorkProbe(
 ): RenderWorkProbe {
   return {
     async loadSnapshot(): Promise<RenderWorkSnapshot> {
-      const supabase = client ?? getSupabase();
-      const videos = await selectRows<VideoWorkRow>(
-        supabase
-          .from('episode_videos')
-          .select(VIDEO_WORK_FIELDS)
-          .in('status', ACTIVE_JOB_STATUSES)
-          .returns<VideoWorkRow[]>(),
-      );
-      const visuals = await selectRows<VisualWorkRow>(
-        supabase
-          .from('episode_video_visuals')
-          .select(VISUAL_WORK_FIELDS)
-          .in('status', ACTIVE_JOB_STATUSES)
-          .returns<VisualWorkRow[]>(),
-      );
+      const supabase = client ?? getPipelineSupabase();
+      const [videos, visuals] = await Promise.all([
+        selectRows<VideoWorkRow>(
+          supabase
+            .from('episode_videos')
+            .select(VIDEO_WORK_FIELDS)
+            .in('status', ACTIVE_JOB_STATUSES)
+            .returns<VideoWorkRow[]>(),
+        ),
+        selectRows<VisualWorkRow>(
+          supabase
+            .from('episode_video_visuals')
+            .select(VISUAL_WORK_FIELDS)
+            .in('status', ACTIVE_JOB_STATUSES)
+            .returns<VisualWorkRow[]>(),
+        ),
+      ]);
 
       // A queued render job is only claimable once its episode's visual row is
       // completed, and a completed row is excluded by the status filter above.
@@ -473,11 +475,4 @@ async function selectRows<T>(
 
 function normalizeError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
-}
-
-let defaultClient: PipelineSupabaseClient | null = null;
-
-function getSupabase(): PipelineSupabaseClient {
-  defaultClient ??= createPipelineSupabaseClient();
-  return defaultClient;
 }

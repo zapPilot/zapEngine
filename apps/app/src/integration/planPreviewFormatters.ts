@@ -6,6 +6,8 @@ import {
 import type { PreparedTransaction } from '@zapengine/types/api';
 import { formatEther } from 'viem';
 
+import { formatUsd } from '@/lib/format';
+
 interface ChainDisplay {
   label: string;
   /** Undefined for a chain with no registered mark; render text only. */
@@ -56,10 +58,5 @@ export function formatPlanGas(totalGasUsd: string | undefined): string {
   if (!Number.isFinite(gas)) {
     return '—';
   }
-  return `≈ ${gas.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  return `≈ ${formatUsd(gas)}`;
 }

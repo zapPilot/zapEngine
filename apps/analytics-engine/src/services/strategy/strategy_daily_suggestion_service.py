@@ -68,19 +68,21 @@ from src.services.strategy.strategy_config_store import (
 )
 from src.services.strategy.strategy_trade_history_store import (
     SeedStrategyTradeHistoryStore,
+    StrategyTradeHistoryStore,
 )
 
 if TYPE_CHECKING:
-    from src.services.interfaces import (
-        CanonicalSnapshotServiceProtocol,
-        LandingPageServiceProtocol,
-        MacroFearGreedDatabaseServiceProtocol,
-        RegimeTrackingServiceProtocol,
-        SentimentDatabaseServiceProtocol,
-        StrategyTradeHistoryStoreProtocol,
-        TokenPriceServiceProtocol,
+    from src.services.market.macro_fear_greed_service import (
+        MacroFearGreedDatabaseService,
     )
-    from src.services.interfaces.market import StockPriceServiceProtocol
+    from src.services.market.regime_tracking_service import RegimeTrackingService
+    from src.services.market.sentiment_database_service import SentimentDatabaseService
+    from src.services.market.stock_price_service import StockPriceService
+    from src.services.market.token_price_service import TokenPriceService
+    from src.services.portfolio.canonical_snapshot_service import (
+        CanonicalSnapshotService,
+    )
+    from src.services.portfolio.landing_page_service import LandingPageService
 
 logger = logging.getLogger(__name__)
 DEFAULT_REGIME_HISTORY_DAYS = 30
@@ -110,29 +112,31 @@ class _DailySuggestionMarketData:
 
 
 class StrategyDailySuggestionService:
-    landing_page_service: LandingPageServiceProtocol
-    regime_tracking_service: RegimeTrackingServiceProtocol
-    sentiment_service: SentimentDatabaseServiceProtocol
-    token_price_service: TokenPriceServiceProtocol
-    stock_price_service: StockPriceServiceProtocol | None
-    macro_fear_greed_service: MacroFearGreedDatabaseServiceProtocol | None
-    canonical_snapshot_service: CanonicalSnapshotServiceProtocol | None
+    landing_page_service: LandingPageService
+    regime_tracking_service: RegimeTrackingService
+    sentiment_service: SentimentDatabaseService
+    token_price_service: TokenPriceService
+    stock_price_service: StockPriceService | None
+    macro_fear_greed_service: MacroFearGreedDatabaseService | None
+    canonical_snapshot_service: CanonicalSnapshotService | None
     strategy_config_store: StrategyConfigStore | SeedStrategyConfigStore
-    trade_history_store: StrategyTradeHistoryStoreProtocol
+    trade_history_store: StrategyTradeHistoryStore | SeedStrategyTradeHistoryStore
     composition_catalog: CompositionCatalog
 
     def __init__(
         self,
-        landing_page_service: LandingPageServiceProtocol,
-        regime_tracking_service: RegimeTrackingServiceProtocol,
-        sentiment_service: SentimentDatabaseServiceProtocol,
-        token_price_service: TokenPriceServiceProtocol,
-        canonical_snapshot_service: CanonicalSnapshotServiceProtocol | None = None,
+        landing_page_service: LandingPageService,
+        regime_tracking_service: RegimeTrackingService,
+        sentiment_service: SentimentDatabaseService,
+        token_price_service: TokenPriceService,
+        canonical_snapshot_service: CanonicalSnapshotService | None = None,
         strategy_config_store: StrategyConfigStore | None = None,
-        trade_history_store: StrategyTradeHistoryStoreProtocol | None = None,
+        trade_history_store: StrategyTradeHistoryStore
+        | SeedStrategyTradeHistoryStore
+        | None = None,
         composition_catalog: CompositionCatalog | None = None,
-        stock_price_service: StockPriceServiceProtocol | None = None,
-        macro_fear_greed_service: MacroFearGreedDatabaseServiceProtocol | None = None,
+        stock_price_service: StockPriceService | None = None,
+        macro_fear_greed_service: MacroFearGreedDatabaseService | None = None,
     ) -> None:
         self.landing_page_service = landing_page_service
         self.regime_tracking_service = regime_tracking_service

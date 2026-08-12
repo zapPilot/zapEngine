@@ -10,6 +10,7 @@ from uuid import uuid4
 import pytest
 
 from src.core.exceptions import CrossServiceConsistencyError
+from src.models.analytics_responses import SnapshotInfo
 from src.models.portfolio import PortfolioResponse
 from src.models.portfolio_snapshot import (
     PortfolioSnapshot,
@@ -44,9 +45,10 @@ def landing_page_service(
 ) -> LandingPageService:
     roi_calculator = MagicMock()
     canonical_snapshot_service = MagicMock()
-    canonical_snapshot_service.get_snapshot_date.return_value = date(2025, 1, 1)
-    canonical_snapshot_service.get_snapshot_info.return_value = (
-        None  # Return None so isinstance() check fails gracefully
+    canonical_snapshot_service.get_snapshot_info.return_value = SnapshotInfo(
+        snapshot_date=date(2025, 1, 1),
+        wallet_count=1,
+        last_updated=None,
     )
     from src.models.portfolio import BorrowingSummary
 
@@ -118,6 +120,22 @@ class TestLandingPageServiceInitialization:
 
 class TestGetLandingPageData:
     """Tests for get_landing_page_data orchestration."""
+
+    def test_resolves_snapshot_from_info_without_date_lookup(
+        self, landing_page_service
+    ) -> None:
+        user_id = uuid4()
+
+        snapshot_date, snapshot_info = landing_page_service._resolve_canonical_snapshot(
+            user_id
+        )
+
+        assert snapshot_date == date(2025, 1, 1)
+        assert snapshot_info is not None
+        landing_page_service.canonical_snapshot_service.get_snapshot_info.assert_called_once_with(
+            user_id
+        )
+        landing_page_service.canonical_snapshot_service.get_snapshot_date.assert_not_called()
 
     def test_returns_empty_response_when_snapshot_missing(
         self, landing_page_service, mock_snapshot_service

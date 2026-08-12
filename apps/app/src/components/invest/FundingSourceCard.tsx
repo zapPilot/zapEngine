@@ -6,7 +6,11 @@ import { ChainMark } from '@/components/token/ChainMark';
 import { ProtocolIcon } from '@/components/token/ProtocolIcon';
 import type { DesktopDepositToken } from '@/integration/depositTokens';
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
-import { formatTokenBalance, formatUsd } from '@/lib/format';
+import {
+  formatTokenBalance,
+  formatUsd,
+  tokenAmountFractionDigits,
+} from '@/lib/format';
 
 export interface FundingSourceCardProps {
   chainKey: ChainBrandKey;
@@ -32,7 +36,7 @@ function formattedTokenAmount(
   if (!hasAmount) return '0';
   if (value === null) return '—';
   return value.toLocaleString('en-US', {
-    maximumFractionDigits: token.symbol === 'ETH' ? 6 : 2,
+    maximumFractionDigits: tokenAmountFractionDigits(token.symbol, 'funding'),
   });
 }
 

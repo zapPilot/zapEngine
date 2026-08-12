@@ -434,11 +434,13 @@ export class UsersService extends BaseService {
         `Triggering wallet data fetch for user ${userId}, wallet ${walletAddress}`,
       );
 
-      await this.userValidationService.validateUserExists(userId);
-      await this.userValidationService.validateWalletOwnership(
-        walletAddress,
-        userId,
-      );
+      await Promise.all([
+        this.userValidationService.validateUserExists(userId),
+        this.userValidationService.validateWalletOwnership(
+          walletAddress,
+          userId,
+        ),
+      ]);
 
       this.logger.log(`Validation passed. Calling alpha-etl webhook...`);
       return this.executeWalletDataFetch(userId, walletAddress);
@@ -457,13 +459,7 @@ export class UsersService extends BaseService {
     const walletPreview = truncateForLog(walletAddress);
 
     try {
-      const healthPassed = await this.alphaEtlHttpService.healthPing();
-
-      if (!healthPassed) {
-        this.logger.warn(
-          'Alpha-ETL health check failed, proceeding with webhook anyway',
-        );
-      }
+      void this.wakeAlphaEtl();
 
       const webhookResult = await this.alphaEtlHttpService.triggerWalletFetch(
         userId,
@@ -613,5 +609,21 @@ export class UsersService extends BaseService {
       message,
       rate_limited: false,
     };
+  }
+
+  private async wakeAlphaEtl(): Promise<void> {
+    try {
+      const healthPassed = await this.alphaEtlHttpService.healthPing();
+      if (!healthPassed) {
+        this.logger.warn(
+          'Alpha-ETL health check failed, proceeding with webhook anyway',
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        'Alpha-ETL health check failed, proceeding with webhook anyway',
+        { error: getErrorMessage(error) },
+      );
+    }
   }
 }

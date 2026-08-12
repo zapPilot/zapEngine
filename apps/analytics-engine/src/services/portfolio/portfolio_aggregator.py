@@ -18,7 +18,6 @@ from src.core.financial_utils import (
     safe_int,
 )
 from src.models.portfolio import CategoryAllocation
-from src.services.interfaces import PortfolioAggregatorProtocol
 from src.services.shared.value_objects import (
     WalletAggregate,
     WalletCategoryBreakdown,
@@ -26,7 +25,7 @@ from src.services.shared.value_objects import (
 )
 
 
-class PortfolioAggregator(PortfolioAggregatorProtocol):
+class PortfolioAggregator:
     """Service for aggregating portfolio data from multiple sources."""
 
     def aggregate_categories(

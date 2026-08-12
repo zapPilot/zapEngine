@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { WALLET_ADDRESS_REGEX } from '@zapengine/types';
 import type { Address } from 'viem';
 
 import { CHAIN_IDS, TOKENS, type ChainId } from '../types/chain.types.js';
@@ -11,8 +12,6 @@ import {
   HYPERCORE_PERPS_USDC,
 } from './hyperliquid/index.js';
 import { MORPHO_VAULTS } from './morpho/morpho.constants.js';
-
-const addressRegex = /^0x[a-fA-F0-9]{40}$/;
 
 export const ProtocolIdSchema = z.enum(['morpho', 'gmx-v2', 'hyperliquid']);
 export type ProtocolId = z.infer<typeof ProtocolIdSchema>;
@@ -29,8 +28,8 @@ export type ProtocolCapability = z.infer<typeof ProtocolCapabilitySchema>;
 export const VaultMetaSchema = z.object({
   protocol: ProtocolIdSchema,
   chainId: z.number(),
-  vaultAddress: z.string().regex(addressRegex),
-  assetAddress: z.string().regex(addressRegex),
+  vaultAddress: z.string().regex(WALLET_ADDRESS_REGEX),
+  assetAddress: z.string().regex(WALLET_ADDRESS_REGEX),
   assetSymbol: z.string(),
   name: z.string(),
   capabilities: z.array(ProtocolCapabilitySchema).min(1),
@@ -164,7 +163,7 @@ function normalizeAddress(address: string): string {
 }
 
 function matchesAsset(vault: VaultMeta, asset: string): boolean {
-  if (addressRegex.test(asset)) {
+  if (WALLET_ADDRESS_REGEX.test(asset)) {
     return normalizeAddress(vault.assetAddress) === normalizeAddress(asset);
   }
 

@@ -25,10 +25,6 @@ const CAPABILITY_NOTICE = {
     title: 'Wallet execution unavailable',
     body: 'This wallet cannot submit the guided transactions.',
   },
-  'unsupported-path': {
-    title: 'Strategy route unavailable',
-    body: 'Return to the amount step and choose supported funding tokens.',
-  },
 } as const;
 
 function connectWalletBody(
@@ -62,7 +58,6 @@ function capabilityNotice(
           : 'Use Privy or an Ambire EIP-7702 wallet to submit this batch.',
     };
   }
-  if (capability === 'unsupported-path') return CAPABILITY_NOTICE[capability];
   return null;
 }
 

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import date, datetime
+from datetime import date
 from typing import Any, Protocol
+
+from src.core.utils import normalize_date
 
 
 class Coercer(Protocol):
@@ -20,16 +22,8 @@ def normalize_regime_label(label: str) -> str:
 
 def coerce_to_date(raw: object) -> date | None:
     """Coerce a datetime, date, or ISO-8601 string to a date object."""
-    if isinstance(raw, datetime):
-        return raw.date()
-    if isinstance(raw, date):
-        return raw
-    if isinstance(raw, str):
-        try:
-            return date.fromisoformat(raw[:10])
-        except ValueError:
-            return None
-    return None
+    value = raw[:10] if isinstance(raw, str) else raw
+    return normalize_date(value, nullable=True)
 
 
 def coerce_int(value: Any, *, field_name: str) -> int:

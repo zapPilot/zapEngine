@@ -56,26 +56,14 @@ describe('createDepositPublicClients', () => {
     expect(http).toHaveBeenCalledWith('https://arb1.arbitrum.io/rpc');
   });
 
-  it('prefers RPC_URL_<CHAIN> over the legacy <CHAIN>_RPC_URL alias', () => {
+  it('uses the configured RPC_URL_<CHAIN>', () => {
     const config = makeConfig({
       RPC_URL_ETHEREUM: 'https://primary-eth',
-      ETHEREUM_RPC_URL: 'https://legacy-eth',
     });
 
     createDepositPublicClients(config as unknown as ConfigService);
 
     expect(http).toHaveBeenCalledWith('https://primary-eth');
-    expect(http).not.toHaveBeenCalledWith('https://legacy-eth');
-  });
-
-  it('falls back to legacy <CHAIN>_RPC_URL when primary key is unset', () => {
-    const config = makeConfig({
-      BASE_RPC_URL: 'https://legacy-base',
-    });
-
-    createDepositPublicClients(config as unknown as ConfigService);
-
-    expect(http).toHaveBeenCalledWith('https://legacy-base');
   });
 
   it('passes the correct viem chain object to createPublicClient per slot', () => {

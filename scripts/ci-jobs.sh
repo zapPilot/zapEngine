@@ -53,17 +53,5 @@ core_ci_job_command() {
 }
 
 core_ci_job_log() {
-  case "$1" in
-    format)    echo "format.log" ;;
-    repo)      echo "repo.log" ;;
-    contracts) echo "contracts.log" ;;
-    type-check) echo "type-check.log" ;;
-    lint)      echo "lint.log" ;;
-    test)      echo "test.log" ;;
-    e2e)       echo "e2e.log" ;;
-    deadcode)  echo "deadcode.log" ;;
-    dup)       echo "dup.log" ;;
-    analytics) echo "analytics.log" ;;
-    *) return 1 ;;
-  esac
+  echo "$1.log"
 }

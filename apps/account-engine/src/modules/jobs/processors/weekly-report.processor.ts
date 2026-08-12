@@ -5,7 +5,7 @@ import {
   isFiniteNumber,
   percentChange,
 } from '../../../common/utils';
-import { AnalyticsClientService } from '../../notifications/analytics-client.service';
+import { AnalyticsClientService } from '../../notifications/analytics-client/client';
 import { ChartService } from '../../notifications/chart.service';
 import { EmailService } from '../../notifications/email.service';
 import { ReportUnsubscribeTokenService } from '../../notifications/report-unsubscribe-token.service';
@@ -352,17 +352,7 @@ export class WeeklyReportProcessor implements JobProcessor {
    * Get users with wallets, applying filters
    */
   private async getUsersWithWallets(userIds?: string[]) {
-    const allUsersWithWallets =
-      await this.supabaseUserService.getReportRecipientsWithWallets();
-
-    // Apply additional user ID filter if provided
-    if (userIds && userIds.length > 0) {
-      return allUsersWithWallets.filter((entry) =>
-        userIds.includes(entry.user.id),
-      );
-    }
-
-    return allUsersWithWallets;
+    return this.supabaseUserService.getReportRecipientsWithWallets(userIds);
   }
 
   private createSuccessWithPersistedMetadata(
@@ -431,7 +421,7 @@ export class WeeklyReportProcessor implements JobProcessor {
     }
 
     // Single authoritative percent-change formula lives in `percentChange`;
-    // both this code path and the ROI window in analytics-client.service.ts
+    // both this code path and the ROI window in analytics-client/client.ts
     // route through it so the two cannot diverge.
     const pct = percentChange(latestPoint.usdValue, baselinePoint.usdValue);
     if (pct === null) {

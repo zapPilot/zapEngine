@@ -14,6 +14,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from src.core.exceptions import CrossServiceConsistencyError
+from src.models.analytics_responses import SnapshotInfo
 from src.models.portfolio_snapshot import CategoryTotals, PortfolioSnapshot
 from src.services.portfolio.landing_page_service import LandingPageService
 from src.services.shared.value_objects import WalletAggregate, WalletCategoryBreakdown
@@ -42,7 +43,11 @@ def _create_service(db_session: Session) -> tuple[LandingPageService, MagicMock]
     snapshot_service = MagicMock()
     pool_service = MagicMock()
     canonical_snapshot_service = MagicMock()
-    canonical_snapshot_service.get_snapshot_date.return_value = date(2025, 1, 1)
+    canonical_snapshot_service.get_snapshot_info.return_value = SnapshotInfo(
+        snapshot_date=date(2025, 1, 1),
+        wallet_count=1,
+        last_updated=None,
+    )
     borrowing_service = MagicMock()
     borrowing_service.get_borrowing_summary.return_value = (
         create_default_borrowing_summary()

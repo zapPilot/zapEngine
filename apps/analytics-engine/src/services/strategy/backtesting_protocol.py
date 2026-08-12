@@ -1,17 +1,14 @@
-"""Backtesting service protocol definitions."""
+"""Backtesting service protocol used by FastAPI dependency wiring."""
 
 from __future__ import annotations
 
 from typing import Protocol
 
-from src.models.backtesting import (
-    BacktestCompareRequestV3,
-    BacktestResponse,
-)
+from src.models.backtesting import BacktestCompareRequestV3, BacktestResponse
 
 
 class BacktestingServiceProtocol(Protocol):
-    """Protocol for backtesting services."""
+    """Protocol for the deliberately lazy-loaded backtesting service."""
 
     async def run_compare_v3(
         self, request: BacktestCompareRequestV3

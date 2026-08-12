@@ -5,6 +5,6 @@
 
 export const WALLET_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 
-export function isWalletAddress(value: unknown): value is string {
+export function isWalletAddress(value: unknown): value is `0x${string}` {
   return typeof value === 'string' && WALLET_ADDRESS_REGEX.test(value);
 }

@@ -30,9 +30,6 @@
 **/.env
 **/.env.*
 
-apps/frontend/dist
-apps/frontend
-
 apps/account-engine/__mocks__
 apps/account-engine/test
 apps/alpha-etl/scripts

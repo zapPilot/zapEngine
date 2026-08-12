@@ -20,7 +20,7 @@ Files are currently flat. Regardless of layout, new code must pick the right **l
 | `email.service.ts`                  | channel  | Gmail SMTP transport (uses `EMAIL_USER` + `EMAIL_APP_PASSWORD`)            |
 | `template.service.ts`               | formatter| Email / Telegram template rendering                                        |
 | `chart.service.ts`                  | formatter| Chart image rendering for email attachments                                |
-| `analytics-client.service.ts`       | channel  | HTTP client to analytics-engine                                            |
+| `analytics-client/client.ts`        | channel  | HTTP client to analytics-engine                                            |
 | `supabase-user.service.ts`          | channel  | User lookup (anon-key Supabase client)                                     |
 | `admin-notification.service.ts`     | orch     | Wraps `telegram-notification` for ops-only alerts (job failure, etc.)      |
 | `errors/`                           | shared   | Typed errors thrown by the module                                          |
@@ -39,7 +39,7 @@ Files are currently flat. Regardless of layout, new code must pick the right **l
 - Telegram envs are namespaced: `TELEGRAM_*` here, `PIPELINE_TELEGRAM_*` for podcast-pipeline. **Do not share or rename** — they are separate bots.
 - Email failures must not block the request — wrap in `try/catch` and emit an admin notification.
 - Chart rendering (`chart.service.ts`) uses a canvas-like in-memory renderer; do not introduce headless-Chromium for this.
-- `analytics-client.service.ts` is already the largest file here — do not add more responsibilities to it; put new mapping logic in separate files.
+- `analytics-client/client.ts` is already the largest file here — do not add more responsibilities to it; put new mapping logic in separate files.
 
 ## Gotchas
 

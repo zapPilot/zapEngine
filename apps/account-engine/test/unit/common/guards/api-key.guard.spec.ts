@@ -4,16 +4,9 @@ import {
 } from '../../../../src/common/guards/api-key.guard';
 
 describe('API key guard helpers', () => {
-  it('prefers ADMIN_API_KEY and falls back to API_KEY', () => {
-    expect(
-      resolveAdminApiKey({
-        ADMIN_API_KEY: 'admin-secret',
-        API_KEY: 'legacy-secret',
-      }),
-    ).toBe('admin-secret');
-
-    expect(resolveAdminApiKey({ API_KEY: 'legacy-secret' })).toBe(
-      'legacy-secret',
+  it('resolves ADMIN_API_KEY', () => {
+    expect(resolveAdminApiKey({ ADMIN_API_KEY: 'admin-secret' })).toBe(
+      'admin-secret',
     );
   });
 
@@ -49,7 +42,7 @@ describe('API key guard helpers', () => {
   });
 
   it('rejects when server has no ADMIN_API_KEY configured', async () => {
-    const middleware = requireApiKey({}); // no ADMIN_API_KEY, no API_KEY
+    const middleware = requireApiKey({});
 
     await expect(
       middleware(

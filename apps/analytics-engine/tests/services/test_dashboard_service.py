@@ -13,13 +13,11 @@ import pytest
 
 from src.models.dashboard import DashboardTimeRanges
 from src.services.analytics.dashboard_service import DashboardService
-from src.services.interfaces import (
-    CanonicalSnapshotServiceProtocol,
-    DrawdownAnalysisServiceProtocol,
-    RiskMetricsServiceProtocol,
-    RollingAnalyticsServiceProtocol,
-    TrendAnalysisServiceProtocol,
-)
+from src.services.analytics.drawdown_analysis_service import DrawdownAnalysisService
+from src.services.analytics.risk_metrics_service import RiskMetricsService
+from src.services.analytics.rolling_analytics_service import RollingAnalyticsService
+from src.services.analytics.trend_analysis_service import TrendAnalysisService
+from src.services.portfolio.canonical_snapshot_service import CanonicalSnapshotService
 
 
 @pytest.fixture
@@ -31,7 +29,7 @@ def sample_user_id() -> UUID:
 @pytest.fixture
 def mock_trend_service():
     """Mock TrendAnalysisService."""
-    mock = Mock(spec=TrendAnalysisServiceProtocol)
+    mock = Mock(spec=TrendAnalysisService)
     mock.get_portfolio_trend = AsyncMock()
     mock.get_portfolio_trend.return_value = {
         "user_id": "test-user",
@@ -45,7 +43,7 @@ def mock_trend_service():
 @pytest.fixture
 def mock_drawdown_service():
     """Mock DrawdownAnalysisService."""
-    mock = Mock(spec=DrawdownAnalysisServiceProtocol)
+    mock = Mock(spec=DrawdownAnalysisService)
     mock.get_enhanced_drawdown_analysis.return_value = {
         "drawdown_series": [{"date": "2023-01-01", "drawdown_pct": -5.0}],
         "peak_values": [{"date": "2023-01-01", "peak": 1000.0}],
@@ -60,7 +58,7 @@ def mock_drawdown_service():
 @pytest.fixture
 def mock_risk_service():
     """Mock RiskMetricsService."""
-    mock = Mock(spec=RiskMetricsServiceProtocol)
+    mock = Mock(spec=RiskMetricsService)
     mock.calculate_portfolio_volatility.return_value = {
         "volatility_daily": 0.01,
         "volatility_annualized": 0.15,
@@ -77,7 +75,7 @@ def mock_risk_service():
 @pytest.fixture
 def mock_rolling_service():
     """Mock RollingAnalyticsService."""
-    mock = Mock(spec=RollingAnalyticsServiceProtocol)
+    mock = Mock(spec=RollingAnalyticsService)
     mock.get_rolling_sharpe_analysis.return_value = {
         "rolling_sharpe": [{"date": "2023-01-01", "sharpe": 1.2}],
         "reliability": "moderate",
@@ -92,7 +90,7 @@ def mock_rolling_service():
 @pytest.fixture
 def mock_canonical_snapshot_service():
     """Mock CanonicalSnapshotService."""
-    mock = Mock(spec=CanonicalSnapshotServiceProtocol)
+    mock = Mock(spec=CanonicalSnapshotService)
     mock.get_snapshot_date.return_value = date(2025, 1, 1)
     return mock
 

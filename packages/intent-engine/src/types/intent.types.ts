@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { WALLET_ADDRESS_REGEX } from '@zapengine/types';
+
 import { ProtocolIdSchema } from '../protocols/registry.js';
 
 // Supported chains in POC
@@ -7,13 +9,12 @@ export const SUPPORTED_CHAIN_IDS = [1, 8453] as const;
 export type SupportedChainId = (typeof SUPPORTED_CHAIN_IDS)[number];
 
 // Base intent schema (common fields)
-const addressRegex = /^0x[a-fA-F0-9]{40}$/;
 const weiStringRegex = /^\d+$/;
 
 function addressField(message?: string) {
   return message
-    ? z.string().regex(addressRegex, message)
-    : z.string().regex(addressRegex);
+    ? z.string().regex(WALLET_ADDRESS_REGEX, message)
+    : z.string().regex(WALLET_ADDRESS_REGEX);
 }
 
 function positiveWeiString(message: string) {

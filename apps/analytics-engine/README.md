@@ -19,7 +19,7 @@ Grouped under `/api/v2`:
 
 - `portfolio/{user_id}/landing` — unified landing-page payload
 - `analytics/{user_id}/trend` · `yield/daily` · `dashboard`
-- `market/sentiment` · `sentiment/history` · `regime/history` · `sentiment/health`
+- `market/sentiment` · `regime/history` · `sentiment/health`
 
 Interactive docs at `/docs`.
 

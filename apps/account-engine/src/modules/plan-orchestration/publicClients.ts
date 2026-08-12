@@ -9,15 +9,10 @@ export type DepositPublicClients = ComposeDepositDeps['publicClients'];
 
 function getRpcUrl(
   configService: Pick<ConfigService, 'get'>,
-  primaryKey: string,
-  fallbackKey: string,
-  fallbackUrl: string,
+  key: string,
+  defaultUrl: string,
 ): string {
-  return (
-    configService.get<string>(primaryKey) ??
-    configService.get<string>(fallbackKey) ??
-    fallbackUrl
-  );
+  return configService.get<string>(key) ?? defaultUrl;
 }
 
 export function createDepositPublicClients(
@@ -30,7 +25,6 @@ export function createDepositPublicClients(
         getRpcUrl(
           configService,
           'RPC_URL_ETHEREUM',
-          'ETHEREUM_RPC_URL',
           'https://ethereum-rpc.publicnode.com',
         ),
       ),
@@ -38,12 +32,7 @@ export function createDepositPublicClients(
     [base.id]: createPublicClient({
       chain: base,
       transport: http(
-        getRpcUrl(
-          configService,
-          'RPC_URL_BASE',
-          'BASE_RPC_URL',
-          'https://mainnet.base.org',
-        ),
+        getRpcUrl(configService, 'RPC_URL_BASE', 'https://mainnet.base.org'),
       ),
     }) as DepositPublicClients[number],
     [arbitrum.id]: createPublicClient({
@@ -52,7 +41,6 @@ export function createDepositPublicClients(
         getRpcUrl(
           configService,
           'RPC_URL_ARBITRUM',
-          'ARBITRUM_RPC_URL',
           'https://arb1.arbitrum.io/rpc',
         ),
       ),

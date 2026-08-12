@@ -81,6 +81,5 @@ async function postWithdrawPlan(
 }
 
 export const getDepositPlan = postDepositPlan;
-export const getGmxDepositPlan = postDepositPlan;
 export const getStrategyDepositPlan = postStrategyDepositPlan;
 export const getWithdrawPlan = postWithdrawPlan;

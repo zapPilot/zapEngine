@@ -18,7 +18,6 @@ from src.api.routers import (
     borrowing,
     market,
     v2_analytics,
-    v2_pools,
     v2_portfolio,
     v3_strategy,
 )
@@ -173,7 +172,6 @@ app.add_middleware(
 
 # API routers - V2 endpoints only
 app.include_router(v2_analytics.router, prefix="/api")
-app.include_router(v2_pools.router, prefix="/api")
 app.include_router(v2_portfolio.router, prefix="/api")
 app.include_router(borrowing.router, prefix="/api")
 app.include_router(market.router, prefix="/api/v2")

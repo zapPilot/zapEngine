@@ -7,16 +7,22 @@ import {
   ChainSplitSchema,
   DEPOSIT_USDC_ADDRESSES,
   DEPOSIT_USDT_ADDRESSES,
+  DestinationReplanStepSchema,
   DepositFollowUpSchema,
   DepositLegSchema,
   DepositPlanSchema,
   DepositRequestSchema,
+  FollowUpAmountSchema,
   HexDataSchema,
   HYPERCORE_CHAIN_ID,
   HyperliquidVaultDepositStepSchema,
+  MockBridgeCheckpointSchema,
   NATIVE_TOKEN_ADDRESS,
+  PlanOrchestrationDepositPlanSchema,
   PlanOrchestrationDepositRequestSchema,
   PreparedTransactionSchema,
+  StrategyAllocationSchema,
+  StrategyChainExecutionGroupSchema,
   StrategyDepositPlanSchema,
   STRATEGY_DEPOSIT_ID,
   SUPPORTED_DEPOSIT_CHAINS,
@@ -107,6 +113,7 @@ describe('DepositLegSchema', () => {
     const result = DepositLegSchema.safeParse({
       chainId: 8453,
       kind: 'supply',
+      label: 'Morpho Moonwell USDC',
       toToken: VAULT,
       fromAmount: '1000000',
       toAmountMin: '990000',
@@ -114,6 +121,9 @@ describe('DepositLegSchema', () => {
       durationSec: 12,
     });
     expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.label).toBe('Morpho Moonwell USDC');
+    }
   });
 
   it('rejects an unsupported leg kind', () => {
@@ -247,6 +257,36 @@ describe('PlanOrchestrationDepositRequestSchema (discriminated union)', () => {
         ],
       }).success,
     ).toBe(true);
+  });
+
+  it('rejects a strategy request with a noncanonical funding token', () => {
+    const result = PlanOrchestrationDepositRequestSchema.safeParse({
+      kind: 'strategy',
+      strategyId: STRATEGY_DEPOSIT_ID,
+      userAddress: USER,
+      totalUsd6: '100000000',
+      fundingSources: [
+        {
+          chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
+          fromToken: VAULT,
+        },
+        {
+          chainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+          fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some(
+          (issue) =>
+            issue.path.join('.') === 'fundingSources.0.fromToken' &&
+            issue.message.includes('canonical USDC'),
+        ),
+      ).toBe(true);
+    }
   });
 
   it('enforces the $10 strategy minimum at the exact boundary', () => {
@@ -467,28 +507,134 @@ describe('PlanOrchestrationDepositRequestSchema (discriminated union)', () => {
   });
 });
 
+describe('StrategyAllocationSchema', () => {
+  const allocation = {
+    id: 'morpho-base-usdc',
+    label: 'Morpho Base USDC',
+    weightBps: 4000,
+    chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
+    protocol: 'morpho',
+    fromToken: BASE_USDC_ADDRESS,
+    fromAmount: '40000000',
+    toToken: VAULT,
+    toAmountMin: '39000000',
+    gasUsd: '0.20',
+    durationSec: 30,
+  };
+
+  it('accepts an allocation without an optional market key', () => {
+    expect(StrategyAllocationSchema.safeParse(allocation).success).toBe(true);
+  });
+
+  it('accepts the maximum permitted basis-point weight', () => {
+    expect(
+      StrategyAllocationSchema.safeParse({
+        ...allocation,
+        weightBps: 10_000,
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects zero basis points', () => {
+    expect(
+      StrategyAllocationSchema.safeParse({ ...allocation, weightBps: 0 })
+        .success,
+    ).toBe(false);
+  });
+
+  it('rejects a weight above 10,000 basis points', () => {
+    expect(
+      StrategyAllocationSchema.safeParse({ ...allocation, weightBps: 10_001 })
+        .success,
+    ).toBe(false);
+  });
+});
+
+describe('StrategyChainExecutionGroupSchema', () => {
+  const group = {
+    id: 'base-morpho',
+    chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
+    fromToken: BASE_USDC_ADDRESS,
+    fromAmount: '40000000',
+    approvals: [],
+    calls: [],
+    allocationIds: ['morpho-base-usdc'],
+    gasUsd: '0.20',
+  };
+
+  it('accepts a group with at least one allocation', () => {
+    expect(StrategyChainExecutionGroupSchema.safeParse(group).success).toBe(
+      true,
+    );
+  });
+
+  it('rejects a group with no allocations', () => {
+    expect(
+      StrategyChainExecutionGroupSchema.safeParse({
+        ...group,
+        allocationIds: [],
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe('MockBridgeCheckpointSchema', () => {
+  const checkpoint = {
+    kind: 'mock-bridge',
+    id: 'base-to-arbitrum',
+    fromChainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
+    toChainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+    afterGroupId: 'base-morpho',
+    beforeGroupId: 'arbitrum-gmx',
+    amountUsd6: '60000000',
+    disclosure: 'Mock only; no funds move.',
+  };
+
+  it('accepts the fixed Base-to-Arbitrum checkpoint', () => {
+    expect(MockBridgeCheckpointSchema.safeParse(checkpoint).success).toBe(true);
+  });
+
+  it('rejects a checkpoint with a different route id', () => {
+    expect(
+      MockBridgeCheckpointSchema.safeParse({
+        ...checkpoint,
+        id: 'arbitrum-to-base',
+      }).success,
+    ).toBe(false);
+  });
+});
+
 describe('StrategyDepositPlanSchema', () => {
-  it('accepts the fixed 40/30/30 plan with a declarative checkpoint', () => {
-    const allocation = (params: {
-      id: 'morpho-base-usdc' | 'gmx-btc-usdc' | 'gmx-eth-usdc';
-      weightBps: number;
-      chainId: 8453 | 42161;
-      protocol: 'morpho' | 'gmx-v2';
-      marketKey?: 'btc-usdc' | 'eth-usdc';
-    }) => ({
-      ...params,
-      label: params.id,
-      fromToken:
-        params.chainId === 8453
-          ? BASE_USDC_ADDRESS
-          : DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
-      fromAmount: String(params.weightBps),
-      toToken: VAULT,
-      toAmountMin: String(params.weightBps),
-      gasUsd: '0',
-      durationSec: 60,
-    });
-    const plan = {
+  const transaction = (chainId: number, intentType: string) => ({
+    to: VAULT,
+    data: '0x',
+    value: '0',
+    chainId,
+    meta: { intentType },
+  });
+
+  const allocation = (params: {
+    id: 'morpho-base-usdc' | 'gmx-btc-usdc' | 'gmx-eth-usdc';
+    weightBps: number;
+    chainId: 8453 | 42161;
+    protocol: 'morpho' | 'gmx-v2';
+    marketKey?: 'btc-usdc' | 'eth-usdc';
+  }) => ({
+    ...params,
+    label: params.id,
+    fromToken:
+      params.chainId === 8453
+        ? BASE_USDC_ADDRESS
+        : DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+    fromAmount: String(params.weightBps),
+    toToken: VAULT,
+    toAmountMin: String(params.weightBps),
+    gasUsd: '0',
+    durationSec: 60,
+  });
+
+  const validPlan = () =>
+    ({
       kind: 'strategy',
       strategyId: STRATEGY_DEPOSIT_ID,
       totalUsd6: '100000000',
@@ -521,15 +667,7 @@ describe('StrategyDepositPlanSchema', () => {
           fromToken: BASE_USDC_ADDRESS,
           fromAmount: '40000000',
           approvals: [],
-          calls: [
-            {
-              to: VAULT,
-              data: '0x',
-              value: '0',
-              chainId: 8453,
-              meta: { intentType: 'SUPPLY' },
-            },
-          ],
+          calls: [transaction(8453, 'SUPPLY')],
           allocationIds: ['morpho-base-usdc'],
           gasUsd: '0',
         },
@@ -539,22 +677,7 @@ describe('StrategyDepositPlanSchema', () => {
           fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
           fromAmount: '60000000',
           approvals: [],
-          calls: [
-            {
-              to: VAULT,
-              data: '0x',
-              value: '0',
-              chainId: 42161,
-              meta: { intentType: 'SUPPLY' },
-            },
-            {
-              to: VAULT,
-              data: '0x',
-              value: '0',
-              chainId: 42161,
-              meta: { intentType: 'SUPPLY' },
-            },
-          ],
+          calls: [transaction(42161, 'SUPPLY'), transaction(42161, 'SUPPLY')],
           allocationIds: ['gmx-btc-usdc', 'gmx-eth-usdc'],
           gasUsd: '0',
         },
@@ -572,11 +695,14 @@ describe('StrategyDepositPlanSchema', () => {
         },
       ],
       totalGasUsd: '0',
-    };
-    const result = StrategyDepositPlanSchema.safeParse(plan);
+    }) as const;
 
-    expect(result.success).toBe(true);
+  it('accepts the fixed 40/30/30 plan with a declarative checkpoint', () => {
+    expect(StrategyDepositPlanSchema.safeParse(validPlan()).success).toBe(true);
+  });
 
+  it('accepts native Base funding when swap precedes supply', () => {
+    const plan = validPlan();
     const nativeBasePlan = {
       ...plan,
       allocations: plan.allocations.map((entry, index) =>
@@ -587,31 +713,80 @@ describe('StrategyDepositPlanSchema', () => {
           ? {
               ...group,
               fromToken: NATIVE_TOKEN_ADDRESS,
-              calls: [
-                {
-                  to: VAULT,
-                  data: '0x',
-                  value: '40000000000000000',
-                  chainId: 8453,
-                  meta: { intentType: 'SWAP' },
-                },
-                ...group.calls,
-              ],
+              calls: [transaction(8453, 'SWAP'), ...group.calls],
             }
           : group,
       ),
     };
+
     expect(StrategyDepositPlanSchema.safeParse(nativeBasePlan).success).toBe(
       true,
     );
+  });
+
+  it('rejects native Base funding without the required swap', () => {
+    const plan = validPlan();
+    const nativeBasePlan = {
+      ...plan,
+      allocations: plan.allocations.map((entry, index) =>
+        index === 0 ? { ...entry, fromToken: NATIVE_TOKEN_ADDRESS } : entry,
+      ),
+      executionGroups: plan.executionGroups.map((group, index) =>
+        index === 0
+          ? {
+              ...group,
+              fromToken: NATIVE_TOKEN_ADDRESS,
+            }
+          : group,
+      ),
+    };
+
+    expect(StrategyDepositPlanSchema.safeParse(nativeBasePlan).success).toBe(
+      false,
+    );
+  });
+
+  it('rejects duplicate strategy allocations', () => {
+    const plan = validPlan();
+
     expect(
       StrategyDepositPlanSchema.safeParse({
-        ...nativeBasePlan,
-        executionGroups: nativeBasePlan.executionGroups.map((group, index) =>
-          index === 0 ? { ...group, calls: group.calls.slice(1) } : group,
+        ...plan,
+        allocations: [
+          plan.allocations[0],
+          { ...plan.allocations[0] },
+          plan.allocations[2],
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an allocation whose weight differs from the fixed split', () => {
+    const plan = validPlan();
+
+    expect(
+      StrategyDepositPlanSchema.safeParse({
+        ...plan,
+        allocations: plan.allocations.map((entry, index) =>
+          index === 0 ? { ...entry, weightBps: 3999 } : entry,
         ),
       }).success,
     ).toBe(false);
+  });
+
+  it('rejects a missing execution group', () => {
+    const plan = validPlan();
+
+    expect(
+      StrategyDepositPlanSchema.safeParse({
+        ...plan,
+        executionGroups: plan.executionGroups.slice(0, 1),
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects reversed execution groups', () => {
+    const plan = validPlan();
 
     expect(
       StrategyDepositPlanSchema.safeParse({
@@ -619,6 +794,11 @@ describe('StrategyDepositPlanSchema', () => {
         executionGroups: [...plan.executionGroups].reverse(),
       }).success,
     ).toBe(false);
+  });
+
+  it('rejects a transaction on a chain different from its group', () => {
+    const plan = validPlan();
+
     expect(
       StrategyDepositPlanSchema.safeParse({
         ...plan,
@@ -626,17 +806,87 @@ describe('StrategyDepositPlanSchema', () => {
           index === 0
             ? {
                 ...group,
+                calls: [transaction(42161, 'SUPPLY')],
+              }
+            : group,
+        ),
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an unsupported Base funding token', () => {
+    const plan = validPlan();
+
+    expect(
+      StrategyDepositPlanSchema.safeParse({
+        ...plan,
+        executionGroups: plan.executionGroups.map((group, index) =>
+          index === 0 ? { ...group, fromToken: VAULT } : group,
+        ),
+      }).success,
+    ).toBe(false);
+  });
+
+  it('accepts Arbitrum USDT funding with swap and supply pairs', () => {
+    const plan = validPlan();
+    const arbitrumUsdt =
+      DEPOSIT_USDT_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM];
+    const usdtPlan = {
+      ...plan,
+      allocations: plan.allocations.map((entry, index) =>
+        index > 0 ? { ...entry, fromToken: arbitrumUsdt } : entry,
+      ),
+      executionGroups: plan.executionGroups.map((group, index) =>
+        index === 1
+          ? {
+              ...group,
+              fromToken: arbitrumUsdt,
+              calls: [
+                transaction(42161, 'SWAP'),
+                transaction(42161, 'SUPPLY'),
+                transaction(42161, 'SWAP'),
+                transaction(42161, 'SUPPLY'),
+              ],
+            }
+          : group,
+      ),
+    };
+
+    expect(StrategyDepositPlanSchema.safeParse(usdtPlan).success).toBe(true);
+  });
+
+  it('rejects an unsupported Arbitrum funding token', () => {
+    const plan = validPlan();
+
+    expect(
+      StrategyDepositPlanSchema.safeParse({
+        ...plan,
+        executionGroups: plan.executionGroups.map((group, index) =>
+          index === 1
+            ? {
+                ...group,
+                fromToken: VAULT,
                 calls: [
-                  {
-                    to: VAULT,
-                    data: '0x',
-                    value: '0',
-                    chainId: 42161,
-                    meta: { intentType: 'SUPPLY' },
-                  },
+                  transaction(42161, 'SWAP'),
+                  transaction(42161, 'SUPPLY'),
+                  transaction(42161, 'SWAP'),
+                  transaction(42161, 'SUPPLY'),
                 ],
               }
             : group,
+        ),
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an incomplete Arbitrum call sequence', () => {
+    const plan = validPlan();
+
+    expect(
+      StrategyDepositPlanSchema.safeParse({
+        ...plan,
+        executionGroups: plan.executionGroups.map((group, index) =>
+          index === 1 ? { ...group, calls: [group.calls[0]] } : group,
         ),
       }).success,
     ).toBe(false);
@@ -688,10 +938,13 @@ describe('Deposit follow-up schemas', () => {
   });
 
   it('accepts a fixed-amount variant', () => {
+    const fixedAmount = { source: 'fixed', amount: '2500000' };
+
+    expect(FollowUpAmountSchema.safeParse(fixedAmount).success).toBe(true);
     expect(
       HyperliquidVaultDepositStepSchema.safeParse({
         ...hlpStep,
-        amount: { source: 'fixed', amount: '2500000' },
+        amount: fixedAmount,
       }).success,
     ).toBe(true);
   });
@@ -706,20 +959,23 @@ describe('Deposit follow-up schemas', () => {
   });
 
   it('discriminates follow-up kinds and rejects unknown ones', () => {
+    const destinationStep = {
+      kind: 'destination-replan',
+      chainId: 42161,
+      afterLegIndex: 0,
+      amount: { source: 'bridge-output', legIndex: 0 },
+      replanRequest: {
+        kind: 'invest',
+        fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+        sourceChainId: 42161,
+      },
+    };
+
     expect(DepositFollowUpSchema.safeParse(hlpStep).success).toBe(true);
-    expect(
-      DepositFollowUpSchema.safeParse({
-        kind: 'destination-replan',
-        chainId: 42161,
-        afterLegIndex: 0,
-        amount: { source: 'bridge-output', legIndex: 0 },
-        replanRequest: {
-          kind: 'invest',
-          fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
-          sourceChainId: 42161,
-        },
-      }).success,
-    ).toBe(true);
+    expect(DestinationReplanStepSchema.safeParse(destinationStep).success).toBe(
+      true,
+    );
+    expect(DepositFollowUpSchema.safeParse(destinationStep).success).toBe(true);
     expect(
       DepositFollowUpSchema.safeParse({ ...hlpStep, kind: 'unknown-step' })
         .success,
@@ -735,6 +991,9 @@ describe('Deposit follow-up schemas', () => {
       sourceChainId: 8453,
     };
     expect(DepositPlanSchema.safeParse(basePlan).success).toBe(true);
+    expect(PlanOrchestrationDepositPlanSchema.safeParse(basePlan).success).toBe(
+      true,
+    );
     expect(
       DepositPlanSchema.safeParse({ ...basePlan, followUps: [hlpStep] })
         .success,

@@ -10,7 +10,7 @@ import { JobQueueService } from './modules/jobs/job-queue.service';
 import { DailySuggestionProcessor } from './modules/jobs/processors/daily-suggestion.processor';
 import { WeeklyReportProcessor } from './modules/jobs/processors/weekly-report.processor';
 import { AdminNotificationService } from './modules/notifications/admin-notification.service';
-import { AnalyticsClientService } from './modules/notifications/analytics-client.service';
+import { AnalyticsClientService } from './modules/notifications/analytics-client/client';
 import { ChartService } from './modules/notifications/chart.service';
 import { EmailService } from './modules/notifications/email.service';
 import { ReportUnsubscribeTokenService } from './modules/notifications/report-unsubscribe-token.service';
@@ -25,6 +25,7 @@ import {
   parseDepositDefaultSplit,
   type PlanOrchestrationService,
   planSimulationConfigFromEnv,
+  resolveProtocolContractName,
 } from './modules/plan-orchestration';
 import {
   createPrivyWalletExecutionService,
@@ -141,6 +142,7 @@ export function createContainer(
     // or their warnings — and with them the risk hash the client compares
     // before signing — would differ.
     decodeProtocolMethod,
+    resolveContractName: resolveProtocolContractName,
   });
   if (env.PLAN_SIMULATION_MODE === 'off' && !planSimulation.tenderly) {
     new Logger('plan-orchestration').warn(

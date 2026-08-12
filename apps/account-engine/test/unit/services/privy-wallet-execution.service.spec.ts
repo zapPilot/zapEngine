@@ -200,7 +200,7 @@ describe('PrivyWalletExecutionService', () => {
     });
   });
 
-  it('rejects a confirm request for an already consumed preview', async () => {
+  it('removes a preview after it is consumed', async () => {
     const service = createService();
     const prepared = await service.prepareSendCalls(batch, accessToken);
     if (prepared.status !== 'passed')
@@ -214,7 +214,7 @@ describe('PrivyWalletExecutionService', () => {
       service.confirmSendCalls(confirmRequest(prepared.previewId), accessToken),
     ).rejects.toMatchObject({
       statusCode: 400,
-      message: 'Simulation preview has already been consumed',
+      message: 'Simulation preview not found',
     });
   });
 
@@ -236,6 +236,61 @@ describe('PrivyWalletExecutionService', () => {
       ).rejects.toMatchObject({
         statusCode: 400,
         message: 'Simulation preview has expired',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('starts the preview lifetime after Privy preparation completes', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-12T00:00:00.000Z'));
+    try {
+      const client = createClient();
+      vi.mocked(client.prepareSendCalls).mockImplementationOnce(async () => {
+        vi.advanceTimersByTime(60_000);
+        return {
+          authorizationPayload: 'base64-authorization-payload',
+          requestExpiry: 1_800_000_000_000,
+        };
+      });
+
+      const prepared = await createService(client).prepareSendCalls(
+        batch,
+        accessToken,
+      );
+      if (prepared.status !== 'passed') {
+        throw new Error('Expected passed preview');
+      }
+
+      expect(prepared.expiresAt).toBe(
+        new Date('2026-08-12T00:06:00.000Z').getTime(),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('sweeps expired previews when preparing a new preview', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = createService();
+      const expired = await service.prepareSendCalls(batch, accessToken);
+      if (expired.status !== 'passed') {
+        throw new Error('Expected passed preview');
+      }
+
+      vi.advanceTimersByTime(5 * 60 * 1000 + 1);
+      await service.prepareSendCalls(batch, accessToken);
+
+      await expect(
+        service.confirmSendCalls(
+          confirmRequest(expired.previewId),
+          accessToken,
+        ),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'Simulation preview not found',
       });
     } finally {
       vi.useRealTimers();

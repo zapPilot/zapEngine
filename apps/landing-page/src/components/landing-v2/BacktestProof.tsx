@@ -1,12 +1,8 @@
 import { formatPercentagePoint, getBacktestSnapshot } from '@/data/snapshot';
 import strategySnapshot from '@/data/strategy-snapshot.json';
+import { formatPercent } from '@/lib/formatPercent';
 
 const MINUS = '\u2212';
-
-function signedPercent(value: number): string {
-  const sign = value < 0 ? MINUS : '+';
-  return `${sign}${Math.abs(value).toFixed(2)}%`;
-}
 
 function displayRatio(value: number): string {
   if (value < 0) {
@@ -25,12 +21,15 @@ const METRICS = [
   {
     label: 'ROI vs DCA',
     value: ROI_VS_DCA_PP,
-    sub: `${signedPercent(SNAPSHOT.raw.roiPercent)} vs ${signedPercent(DCA.roi_percent)}`,
+    sub: `${formatPercent(SNAPSHOT.raw.roiPercent, { scale: 1, signed: 'unicode' })} vs ${formatPercent(DCA.roi_percent, { scale: 1, signed: 'unicode' })}`,
     tone: 'accent',
   },
   {
     label: 'Strategy ROI',
-    value: signedPercent(SNAPSHOT.raw.roiPercent),
+    value: formatPercent(SNAPSHOT.raw.roiPercent, {
+      scale: 1,
+      signed: 'unicode',
+    }),
     sub: `${SNAPSHOT.windowDays}-day window`,
     tone: 'default',
   },
@@ -48,8 +47,11 @@ const METRICS = [
   },
   {
     label: 'Max drawdown',
-    value: signedPercent(SNAPSHOT.raw.maxDrawdownPercent),
-    sub: `vs DCA: ${signedPercent(DCA.max_drawdown_percent)}`,
+    value: formatPercent(SNAPSHOT.raw.maxDrawdownPercent, {
+      scale: 1,
+      signed: 'unicode',
+    }),
+    sub: `vs DCA: ${formatPercent(DCA.max_drawdown_percent, { scale: 1, signed: 'unicode' })}`,
     tone: 'good',
   },
 ];
@@ -63,15 +65,27 @@ const METRIC_VALUE_CLASS: Record<string, string> = {
 const TABLE_ROWS = [
   {
     strategy: SNAPSHOT.displayName,
-    roi: signedPercent(SNAPSHOT.raw.roiPercent),
-    maxDrawdown: signedPercent(SNAPSHOT.raw.maxDrawdownPercent),
+    roi: formatPercent(SNAPSHOT.raw.roiPercent, {
+      scale: 1,
+      signed: 'unicode',
+    }),
+    maxDrawdown: formatPercent(SNAPSHOT.raw.maxDrawdownPercent, {
+      scale: 1,
+      signed: 'unicode',
+    }),
     trades: `${SNAPSHOT.raw.tradeCount}`,
     highlighted: true,
   },
   {
     strategy: DCA.display_name,
-    roi: signedPercent(DCA.roi_percent),
-    maxDrawdown: signedPercent(DCA.max_drawdown_percent),
+    roi: formatPercent(DCA.roi_percent, {
+      scale: 1,
+      signed: 'unicode',
+    }),
+    maxDrawdown: formatPercent(DCA.max_drawdown_percent, {
+      scale: 1,
+      signed: 'unicode',
+    }),
     trades: `${DCA.trade_count}`,
     highlighted: false,
   },

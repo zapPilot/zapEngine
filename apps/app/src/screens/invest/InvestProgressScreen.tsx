@@ -1,4 +1,5 @@
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
+import { extractErrorMessage } from '@zapengine/app-core/lib/errors';
 import { CHAIN_BRAND, chainBrandKeyForChainId } from '@zapengine/brand-assets';
 import { Redirect, useRouter } from 'expo-router';
 import { Check, Circle, LoaderCircle, X } from 'lucide-react-native';
@@ -230,9 +231,7 @@ export function InvestProgressScreen() {
     try {
       await action();
     } catch (error: unknown) {
-      setCheckpointError(
-        error instanceof Error ? error.message : String(error),
-      );
+      setCheckpointError(extractErrorMessage(error, String(error)));
     } finally {
       setCheckpointPending(false);
     }

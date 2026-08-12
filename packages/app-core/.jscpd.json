@@ -9,9 +9,7 @@
     "**/dist/**",
     "**/coverage/**",
     "src/config/chains/definitions.ts",
-    "src/hooks/wallet/usePrivyWalletBackend.ts",
-    "src/hooks/useGmxDeposit.ts",
-    "src/hooks/useWithdraw.ts"
+    "src/hooks/wallet/usePrivyWalletBackend.ts"
   ],
   "ignorePattern": [
     "import\\s.*from\\s.*",

@@ -1,9 +1,34 @@
 /** Display formatters for the desktop UI (demo + live phases share these). */
 
+import { formatAddress, formatCurrency } from '@zapengine/app-core/utils';
+
+export type TokenAmountDisplayContext =
+  | 'funding'
+  | 'wallet-summary'
+  | 'wallet-activity';
+
+const TOKEN_AMOUNT_FRACTION_DIGITS: Record<
+  TokenAmountDisplayContext,
+  { default: number; symbols: Readonly<Record<string, number>> }
+> = {
+  funding: { default: 2, symbols: { ETH: 6 } },
+  'wallet-summary': { default: 5, symbols: { USDC: 2, USDT: 2 } },
+  'wallet-activity': {
+    default: 6,
+    symbols: { USDC: 2, USDT: 2, WBTC: 8, CBBTC: 8 },
+  },
+};
+
+export function tokenAmountFractionDigits(
+  symbol: string,
+  context: TokenAmountDisplayContext,
+): number {
+  const config = TOKEN_AMOUNT_FRACTION_DIGITS[context];
+  return config.symbols[symbol] ?? config.default;
+}
+
 export function formatUsd(value: number, decimals = 2): string {
-  return value.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  return formatCurrency(value, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
@@ -19,6 +44,10 @@ export function splitUsd(value: number): { whole: string; fraction: string } {
 export function formatSignedPct(value: number, decimals = 1): string {
   const sign = value > 0 ? '+' : value < 0 ? '−' : '';
   return `${sign}${Math.abs(value).toFixed(decimals)}%`;
+}
+
+export function formatPct(value: number, decimals = 1): string {
+  return `${Math.abs(value).toFixed(decimals)}%`;
 }
 
 export function formatSignedUsd(value: number, decimals = 2): string {
@@ -37,7 +66,7 @@ export function formatTokenBalance(
   const parsed = Number.parseFloat(balance ?? '0');
   const value = Number.isFinite(parsed) ? parsed : 0;
   return `${value.toLocaleString('en-US', {
-    maximumFractionDigits: symbol === 'ETH' ? 6 : 2,
+    maximumFractionDigits: tokenAmountFractionDigits(symbol, 'funding'),
   })} ${symbol}`;
 }
 
@@ -46,8 +75,8 @@ export function truncateAddress(
   prefix = 6,
   suffix = 4,
 ): string {
-  if (address.length <= prefix + suffix + 1) {
-    return address;
-  }
-  return `${address.slice(0, prefix)}…${address.slice(-suffix)}`;
+  return formatAddress(address, {
+    prefixLength: prefix,
+    suffixLength: suffix,
+  });
 }

@@ -16,9 +16,8 @@ Business logic layer between FastAPI routers (`src/api/`) and SQL queries (`src/
 | `strategy/`         | Strategy suggestion service (per-user allocation suggestion)                                          |
 | `transformers/`     | Pure record-shape transformations (DB row → API model)                                                |
 | `query_builders/`   | Composable SQL fragment builders (not raw queries — those live in `src/queries/sql/`)                 |
-| `interfaces/`       | Protocols / Abstract base classes for dependency injection                                            |
 | `shared/`           | Cross-cutting helpers (date windowing, decimal helpers, currency)                                     |
-| `dependencies.py`   | FastAPI dependency-injection wiring (513 LOC)                                                         |
+| `dependencies.py`   | FastAPI dependency-injection wiring                                                                   |
 | `exceptions.py`     | Service-layer typed exceptions                                                                        |
 | `yield_return_service.py` | Yield return computation (loose file — candidate for `analytics/` move)                          |
 
@@ -47,7 +46,7 @@ If none fit, propose a new sub-package before dropping a loose file at the `serv
 
 ## Gotchas
 
-- `dependencies.py` (513 LOC) is the FastAPI DI wiring. If you add a new service class, register it here.
+- `dependencies.py` is the FastAPI DI wiring. If you add a new service class, register it here.
 - The 10 largest service files (event_runner.py 1278L, decision_policy.py 729L, etc.) carry section maps as docstring TOCs — use them when navigating; Wave 3.4 added these but did **not** refactor internals.
 - `yield_return_service.py` is a loose file; if you touch it, consider moving into `analytics/` and updating imports.
 - Local pg containers will fail the snapshot gate because they lack `alpha_raw.*` series — point `DATABASE_READ_ONLY_URL` at the Supabase read-only replica.

@@ -14,7 +14,6 @@ import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { DEFAULT_BASE_FUNDING_TOKEN } from '@/integration/depositTokens';
-import { DEFAULT_DEPOSIT_PATH } from '@/integration/depositPaths';
 import {
   amountInputToUsd6,
   amountUsdFromInput,
@@ -54,12 +53,10 @@ export function LegacyHyperliquidScreen() {
     fromAmount,
     sourceChainId: 8453,
     amountUsd: amountUsd ?? 0,
-    depositPath: DEFAULT_DEPOSIT_PATH,
   });
   const capability = resolveDepositExecutionCapability({
     isConnected: wallet.isConnected,
     executionMode: wallet.executionMode,
-    depositPath: DEFAULT_DEPOSIT_PATH,
   });
   const isConfigure = wizard.stage === 'configure' && wizard.plan === null;
   const rows = wizardLegRows(wizard.legs, 8453);

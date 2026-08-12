@@ -6,12 +6,12 @@ import logging
 from datetime import date
 from typing import Any
 
-from src.services.interfaces.market import MacroFearGreedDatabaseServiceProtocol
+from src.services.market.macro_fear_greed_service import MacroFearGreedDatabaseService
 
 
 def resolve_macro_fear_greed_history(
     *,
-    macro_fear_greed_service: MacroFearGreedDatabaseServiceProtocol | None,
+    macro_fear_greed_service: MacroFearGreedDatabaseService | None,
     start_date: date,
     end_date: date,
     logger: logging.Logger,

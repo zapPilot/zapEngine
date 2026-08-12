@@ -21,14 +21,13 @@ from src.core.cache_service import analytics_cache
 from src.core.constants import CALENDAR_DAYS_PER_YEAR
 from src.core.financial_utils import calculate_percentage, safe_float, safe_int
 from src.core.utils import normalize_date
-from src.services.interfaces import (
+from src.services.portfolio.roi_types import (
     PortfolioROIComputed,
-    QueryServiceProtocol,
     RecommendedROIPeriod,
-    ROICalculatorProtocol,
     ROIWindowData,
 )
 from src.services.shared.query_names import QUERY_NAMES
+from src.services.shared.query_service import QueryService
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +55,12 @@ DEFAULT_RECOMMENDED_PERIOD: RecommendedROIPeriod = (
 )
 
 
-class ROICalculator(ROICalculatorProtocol):
+class ROICalculator:
     """Service for computing portfolio ROI from historical snapshots."""
 
     CACHE_VERSION = "v1"
 
-    def __init__(self, query_service: QueryServiceProtocol):
+    def __init__(self, query_service: QueryService):
         self.query_service = query_service
 
     def compute_portfolio_roi(
@@ -71,7 +70,7 @@ class ROICalculator(ROICalculatorProtocol):
         *,
         current_snapshot_date: date | None = None,
     ) -> PortfolioROIComputed:
-        """See ROICalculatorProtocol.compute_portfolio_roi."""
+        """Compute portfolio ROI from historical snapshots."""
         # Build cache key (include snapshot_date for proper cache isolation)
         if current_snapshot_date is None:
             logger.warning(

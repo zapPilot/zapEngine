@@ -683,31 +683,6 @@ async def build_multi_protocol_snapshot(
     return snapshot_id
 
 
-@pytest.fixture
-def assert_endpoint_consistency():
-    """
-    Fixture providing consistency assertion helpers.
-
-    Returns helper functions for validating data consistency between endpoints.
-    Import consistency validators from helpers module for detailed assertions.
-    """
-    from tests.integration.helpers.consistency_validators import (
-        assert_chain_breakdown_consistency,
-        assert_pool_lists_match,
-        assert_protocol_breakdown_consistency,
-        assert_token_signature_distinct,
-        assert_total_values_match,
-    )
-
-    return {
-        "assert_total_values_match": assert_total_values_match,
-        "assert_pool_lists_match": assert_pool_lists_match,
-        "assert_protocol_breakdown_consistency": assert_protocol_breakdown_consistency,
-        "assert_chain_breakdown_consistency": assert_chain_breakdown_consistency,
-        "assert_token_signature_distinct": assert_token_signature_distinct,
-    }
-
-
 @pytest.fixture(scope="session", autouse=True)
 async def ensure_incremental_rollups_exist(request: pytest.FixtureRequest):
     """

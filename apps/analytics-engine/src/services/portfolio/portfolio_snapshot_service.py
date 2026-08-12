@@ -18,9 +18,10 @@ from src.models.portfolio_snapshot import (
     PortfolioSnapshot,
     WalletTrendOverride,
 )
-from src.services.interfaces import QueryServiceProtocol, TrendAnalysisServiceProtocol
+from src.services.analytics.trend_analysis_service import TrendAnalysisService
 from src.services.shared.base_analytics_service import BaseAnalyticsService
 from src.services.shared.query_names import QUERY_NAMES
+from src.services.shared.query_service import QueryService
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +34,8 @@ class PortfolioSnapshotService(BaseAnalyticsService):
     def __init__(
         self,
         db: Session,
-        query_service: QueryServiceProtocol,
-        trend_service: TrendAnalysisServiceProtocol,
+        query_service: QueryService,
+        trend_service: TrendAnalysisService,
     ) -> None:
         super().__init__(db, query_service, context=None)
         if trend_service is None:

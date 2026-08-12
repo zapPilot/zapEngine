@@ -1,5 +1,5 @@
 import { Logger } from '../../../common/logger';
-import { AnalyticsClientService } from '../../notifications/analytics-client.service';
+import { AnalyticsClientService } from '../../notifications/analytics-client/client';
 import { DailySuggestionData } from '../../notifications/interfaces/daily-suggestion.interface';
 import { TelegramService } from '../../notifications/telegram.service';
 import {

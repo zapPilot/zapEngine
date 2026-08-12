@@ -6,7 +6,7 @@ Reads a compare-v3 JSON dump and prints:
 3. Days where target_allocation (DMA-gate output) shows spy>0 (SPY signaling buy)
 
 Usage:
-python scripts/spy_summary.py /path/to/compare_response.json [--strategy-id ID]
+uv run python -m scripts.spy_summary /path/to/compare_response.json [--strategy-id ID]
 """
 
 from __future__ import annotations
@@ -18,13 +18,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-
-def _safe_float(value: Any) -> float | None:
-    try:
-        result = float(value)
-    except (TypeError, ValueError):
-        return None
-    return result
+from scripts._compare_common import _safe_float
 
 
 def summarize(payload: dict[str, Any], strategy_id: str) -> None:

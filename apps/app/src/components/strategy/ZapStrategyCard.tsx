@@ -14,7 +14,7 @@ import { Tap } from '@/components/ui/Tap';
 import { ZapLogo } from '@/components/ui/ZapLogo';
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
 import type { MoralisChainKey } from '@/integration/moralisWallet';
-import { formatUsd } from '@/lib/format';
+import { formatUsd, tokenAmountFractionDigits } from '@/lib/format';
 
 export interface ZapStrategyCardData {
   estApyLabel: string;
@@ -45,8 +45,10 @@ function compactBalance(row: ChainTokenBalanceRow): string {
   const amount = Number.parseFloat(row.balance);
   if (!Number.isFinite(amount)) return `0 ${row.token.symbol}`;
   return `${amount.toLocaleString('en-US', {
-    maximumFractionDigits:
-      row.token.symbol === 'USDC' || row.token.symbol === 'USDT' ? 2 : 5,
+    maximumFractionDigits: tokenAmountFractionDigits(
+      row.token.symbol,
+      'wallet-summary',
+    ),
   })} ${row.token.symbol}`;
 }
 

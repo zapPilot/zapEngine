@@ -59,7 +59,6 @@ type SignablePreview = Extract<
 interface PreviewRecord {
   request: PrivyPrepareSendCallsRequest;
   preview: SignablePreview;
-  consumed: boolean;
   nonce: number;
 }
 
@@ -426,6 +425,13 @@ export function createPrivyWalletExecutionService(config: {
       { status: 'passed' | 'warning' }
     >;
   }): Promise<SignablePreview> {
+    const now = Date.now();
+    for (const [previewId, record] of previews) {
+      if (now > record.preview.expiresAt) {
+        previews.delete(previewId);
+      }
+    }
+
     const walletKey = input.request.walletAddress.toLowerCase();
     const nonce = walletNonces.get(walletKey) ?? 0;
     const { batchHash, callsHash } = buildRequestHashes(input.request);
@@ -454,7 +460,6 @@ export function createPrivyWalletExecutionService(config: {
     previews.set(previewId, {
       request: input.request,
       preview,
-      consumed: false,
       nonce,
     });
     logger.log('Prepared Privy sendCalls simulation preview', {
@@ -492,13 +497,8 @@ export function createPrivyWalletExecutionService(config: {
       if (!record) {
         throw new BadRequestException('Simulation preview not found');
       }
-      if (record.consumed) {
-        throw new BadRequestException(
-          'Simulation preview has already been consumed',
-        );
-      }
       if (Date.now() > record.preview.expiresAt) {
-        record.consumed = true;
+        previews.delete(request.previewId);
         throw new BadRequestException('Simulation preview has expired');
       }
       if (
@@ -532,13 +532,13 @@ export function createPrivyWalletExecutionService(config: {
       const walletKey = record.request.walletAddress.toLowerCase();
       const currentNonce = walletNonces.get(walletKey) ?? 0;
       if (record.nonce !== currentNonce) {
-        record.consumed = true;
+        previews.delete(request.previewId);
         throw new BadRequestException(
           'Signature nonce does not match current wallet nonce',
         );
       }
 
-      record.consumed = true;
+      previews.delete(request.previewId);
       const refreshed = await tenderlySimulationService.simulateBundle({
         chainId: record.request.chainId,
         walletAddress: record.request.walletAddress,

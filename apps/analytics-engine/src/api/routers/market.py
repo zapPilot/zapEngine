@@ -20,7 +20,6 @@ from src.services.dependencies import (
     MarketDashboardServiceDep,
     MarketSentimentServiceDep,
     RegimeTrackingServiceDep,
-    SentimentDatabaseServiceDep,
     TokenPriceServiceDep,
 )
 
@@ -184,63 +183,6 @@ def get_market_sentiment_health(
         MarketSentimentHealthResponse: Service health and cache status
     """
     return sentiment_service.get_health_status()
-
-
-@router.get(
-    "/sentiment/history",
-    response_model=list[MarketSentimentResponse],
-    responses={
-        200: {
-            "description": "Historical sentiment data from database",
-            "content": {
-                "application/json": {
-                    "example": [
-                        {
-                            "value": 45,
-                            "status": "Fear",
-                            "timestamp": "2025-11-20T12:00:00.000Z",
-                            "source": "alternative.me",
-                            "cached": True,
-                        },
-                        {
-                            "value": 48,
-                            "status": "Neutral",
-                            "timestamp": "2025-11-20T11:50:00.000Z",
-                            "source": "alternative.me",
-                            "cached": True,
-                        },
-                    ]
-                }
-            },
-        },
-    },
-)
-async def get_sentiment_history(
-    response: Response,
-    db_service: SentimentDatabaseServiceDep,
-    hours: int = Query(
-        default=24,
-        ge=1,
-        le=168,
-        description="Hours of history to retrieve (max 7 days)",
-    ),
-) -> list[MarketSentimentResponse]:
-    """
-    Get historical sentiment data from database.
-
-    Returns sentiment snapshots collected by alpha-etl over the specified time range.
-    Data is collected every 10 minutes, providing granular sentiment history.
-
-    Args:
-        hours: Number of hours of history to retrieve (1-168, default: 24)
-
-    Returns:
-        list[MarketSentimentResponse]: List of historical sentiment snapshots
-                                       in descending order (most recent first)
-    """
-    history = await db_service.get_sentiment_history(hours=hours)
-    _apply_market_cache_headers(response, max_age=3600, stale_revalidate=7200)
-    return history
 
 
 @router.get(

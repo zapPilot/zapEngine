@@ -202,8 +202,6 @@ function singleChainPlan(protocol?: string): DepositPlan {
   };
 }
 
-// Real GMX v2 market token addresses (intent-engine's GMX_V2_MARKETS) — the
-// Arbitrum single-chain funding path always builds a basket across all four.
 const GMX_BTC_USDC_MARKET = '0x47c031236e19d024b42f8AE6780E44A573170703';
 const GMX_ETH_USDC_MARKET = '0x70d95587d40A2caf56bd97485aB3Eec10Bee6336';
 const GMX_BTC_BTC_MARKET = '0x7C11F78Ce78768518D743E81Fdfa2F860C6b9A77';
@@ -213,16 +211,17 @@ const GMX_ETH_ETH_MARKET = '0x450bb6774Dd8a756274E0ab4107953259d2ac541';
  * one leg per market, each funded by its own share of the total amount. */
 function gmxBasketPlan(fromAmounts: readonly string[]): DepositPlan {
   const markets = [
-    GMX_BTC_BTC_MARKET,
-    GMX_ETH_ETH_MARKET,
-    GMX_BTC_USDC_MARKET,
-    GMX_ETH_USDC_MARKET,
+    { toToken: GMX_BTC_BTC_MARKET, label: 'GMX BTC/BTC' },
+    { toToken: GMX_ETH_ETH_MARKET, label: 'GMX ETH/ETH' },
+    { toToken: GMX_BTC_USDC_MARKET, label: 'GMX BTC/USDC' },
+    { toToken: GMX_ETH_USDC_MARKET, label: 'GMX ETH/USDC' },
   ];
   return {
-    legs: markets.map((toToken, index) => ({
+    legs: markets.map(({ toToken, label }, index) => ({
       chainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
       kind: 'supply',
       protocol: 'gmx-v2',
+      label,
       toToken,
       fromAmount: fromAmounts[index]!,
       toAmountMin: '0',
@@ -321,9 +320,9 @@ describe('simulation evidence helpers', () => {
 
   it('falls back to the short address when the review carries no name', () => {
     expect(resolveCallTarget(call, [{ ...contracts[0]!, name: null }])).toBe(
-      '0x3333...3333',
+      '0x3333…3333',
     );
-    expect(resolveAddressTarget(TARGET, [])).toBe('0x3333...3333');
+    expect(resolveAddressTarget(TARGET, [])).toBe('0x3333…3333');
   });
 
   it('finds the approval attached to a call index', () => {
@@ -425,7 +424,7 @@ describe('simulation preview formatting', () => {
   });
 
   it('formats addresses, integer evidence, and millisecond countdowns', () => {
-    expect(formatAddress(WALLET)).toBe('0x1111...1111');
+    expect(formatAddress(WALLET)).toBe('0x1111…1111');
     expect(formatAddress(null)).toBe('Unknown');
     expect(formatInteger('1234567')).toBe('1,234,567');
     expect(formatCountdown(NOW_MS + 70_000, NOW_MS)).toBe('1m 0s');
@@ -563,7 +562,7 @@ describe('resolveAssetCounterparty', () => {
       to: WALLET,
     };
     expect(resolveAssetCounterparty(outgoingToWallet, contracts)).toBe(
-      '0x1111...1111',
+      '0x1111…1111',
     );
 
     const incomingFromWallet: PrivySimulationAssetChange = {
@@ -571,7 +570,7 @@ describe('resolveAssetCounterparty', () => {
       from: WALLET,
     };
     expect(resolveAssetCounterparty(incomingFromWallet, contracts)).toBe(
-      '0x1111...1111',
+      '0x1111…1111',
     );
   });
 

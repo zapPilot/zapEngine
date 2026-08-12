@@ -698,6 +698,7 @@ describe('plan-orchestration service', () => {
           chainId: 42161,
           kind: 'supply',
           protocol: 'gmx-v2',
+          label: 'GMX ETH/USDC',
           toToken: GM_TOKEN,
           fromAmount: '1000',
           toAmountMin: '900',
@@ -738,6 +739,12 @@ describe('plan-orchestration service', () => {
       '2500',
       '2500',
       '2503',
+    ]);
+    expect(plan.legs.map((leg) => leg.label)).toEqual([
+      'GMX BTC/BTC',
+      'GMX ETH/ETH',
+      'GMX BTC/USDC',
+      'GMX ETH/USDC',
     ]);
     expect(plan.legs).toHaveLength(4);
     expect(plan.calls).toHaveLength(4);

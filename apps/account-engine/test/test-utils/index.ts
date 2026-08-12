@@ -187,7 +187,6 @@ export function createMockConfigService(
     SUPABASE_ANON_KEY: 'test-anon-key',
     SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
     ADMIN_API_KEY: 'test-admin-key',
-    API_KEY: 'test-api-key',
     TELEGRAM_BOT_TOKEN: 'test-bot-token',
     TELEGRAM_BOT_NAME: 'test_bot',
     TELEGRAM_WEBHOOK_SECRET: 'test-webhook-secret',
@@ -196,7 +195,6 @@ export function createMockConfigService(
     ALPHA_ETL_WEBHOOK_SECRET: 'test-etl-secret',
     LIFI_INTEGRATOR: 'zapengine-test',
     LIFI_API_KEY: 'test-lifi-key',
-    BASE_RPC_URL: 'https://mainnet.base.org',
     EMAIL_HOST: 'smtp.test.com',
     EMAIL_USER: 'test@test.com',
     // eslint-disable-next-line sonarjs/no-hardcoded-passwords

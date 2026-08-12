@@ -14,7 +14,7 @@ import type {
 } from '@zapengine/app-core/types/strategy';
 
 import { type MetricTone } from '@/data/demo';
-import { formatUsd } from '@/lib/format';
+import { formatPct, formatSignedPct, formatUsd } from '@/lib/format';
 
 const DCA_CLASSIC_STRATEGY_ID = 'dca_classic';
 const DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID = 'dma_fgi_portfolio_rules';
@@ -57,14 +57,14 @@ function signedPct(value: number | undefined | null): string {
   if (typeof value !== 'number') {
     return '—';
   }
-  return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
+  return formatSignedPct(value);
 }
 
 function unsignedPct(value: number | undefined | null): string {
   if (typeof value !== 'number') {
     return '—';
   }
-  return `${Math.abs(value).toFixed(1)}%`;
+  return formatPct(value);
 }
 
 function numberMetric(value: number | undefined | null): string {

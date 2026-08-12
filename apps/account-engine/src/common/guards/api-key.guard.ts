@@ -4,14 +4,10 @@ import { UnauthorizedException } from '../http';
 
 interface ApiKeyEnv {
   ADMIN_API_KEY?: string;
-  API_KEY?: string;
 }
 
-/**
- * Resolve the configured admin API key, preferring ADMIN_API_KEY with API_KEY fallback.
- */
 export function resolveAdminApiKey(env: ApiKeyEnv): string | undefined {
-  return env.ADMIN_API_KEY ?? env.API_KEY;
+  return env.ADMIN_API_KEY;
 }
 
 export function requireApiKey(env: ApiKeyEnv): MiddlewareHandler {

@@ -22,7 +22,6 @@ DEPENDENCIES_PATH = SRC_DIR / "services" / "dependencies.py"
 API_DIR = SRC_DIR / "api"
 
 SERVICE_MODULE_EXCLUDE_PREFIXES = {
-    "src.services.interfaces",
     "src.services.backtesting",
     "src.services.aggregators",
     "src.services.query_builders",

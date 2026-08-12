@@ -1,6 +1,6 @@
 import { ServiceLayerException } from '../../../../src/common/exceptions';
 import { DatabaseService } from '../../../../src/database/database.service';
-import { AnalyticsClientService } from '../../../../src/modules/notifications/analytics-client.service';
+import { AnalyticsClientService } from '../../../../src/modules/notifications/analytics-client/client';
 import { SupabaseUserService } from '../../../../src/modules/notifications/supabase-user.service';
 import { createMockDatabaseService } from '../../../test-utils';
 
@@ -62,6 +62,21 @@ describe('SupabaseUserService', () => {
       const result = await service.getReportRecipientsWithWallets();
       expect(result).toHaveLength(1);
       expect(result[0]?.wallets).toEqual(['0xaaa', '0xbbb']);
+    });
+
+    it('pushes a user ID filter into the database query', async () => {
+      const { service, dbMock } = createMocks();
+      dbMock.serviceRole.queryBuilder.mockResolvedThen({
+        data: [],
+        error: null,
+      });
+
+      await service.getReportRecipientsWithWallets(['u-1', 'u-2']);
+
+      expect(dbMock.serviceRole.queryBuilder.in).toHaveBeenCalledWith('id', [
+        'u-1',
+        'u-2',
+      ]);
     });
 
     it('returns empty when no users match', async () => {

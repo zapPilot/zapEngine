@@ -19,11 +19,12 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from src.models.analytics_responses import SnapshotInfo
 from src.services.analytics.dashboard_service import DashboardService
 from src.services.portfolio.canonical_snapshot_service import CanonicalSnapshotService
 from src.services.portfolio.landing_page_service import LandingPageService
 from src.services.shared.value_objects import WalletAggregate
-from tests.integration.conftest import refresh_mv_session
+from tests.integration.conftest import build_gmx_v2_position, refresh_mv_session
 
 
 @pytest.fixture
@@ -82,7 +83,11 @@ class TestLandingPageSnapshotConsistency:
         mock_cache.get.return_value = None  # Cache miss
 
         mock_canonical_service = MagicMock()
-        mock_canonical_service.get_snapshot_date.return_value = snapshot_date
+        mock_canonical_service.get_snapshot_info.return_value = SnapshotInfo(
+            snapshot_date=snapshot_date,
+            wallet_count=1,
+            last_updated=None,
+        )
 
         mock_portfolio_service = MagicMock()
         mock_portfolio_service.get_portfolio_snapshot.return_value = (
@@ -113,7 +118,7 @@ class TestLandingPageSnapshotConsistency:
 
         # Assert
         # Verify canonical snapshot service was called
-        mock_canonical_service.get_snapshot_date.assert_called_once_with(user_id)
+        mock_canonical_service.get_snapshot_info.assert_called_once_with(user_id)
 
         # Since portfolio snapshot was None, other services shouldn't be called
         # But if there was data, they would all receive the same snapshot_date
@@ -131,7 +136,11 @@ class TestLandingPageSnapshotConsistency:
         mock_cache.get.return_value = None  # Cache miss
 
         mock_canonical_service = MagicMock()
-        mock_canonical_service.get_snapshot_date.return_value = snapshot_date
+        mock_canonical_service.get_snapshot_info.return_value = SnapshotInfo(
+            snapshot_date=snapshot_date,
+            wallet_count=1,
+            last_updated=None,
+        )
 
         # Mock portfolio snapshot with minimal data
         mock_snapshot = MagicMock()
@@ -195,7 +204,7 @@ class TestLandingPageSnapshotConsistency:
 
         # Assert
         # Canonical snapshot called once
-        mock_canonical_service.get_snapshot_date.assert_called_once_with(user_id)
+        mock_canonical_service.get_snapshot_info.assert_called_once_with(user_id)
 
         # Portfolio snapshot received canonical date
         mock_portfolio_service.get_portfolio_snapshot.assert_called_once()
@@ -554,6 +563,11 @@ class TestETLRetryScenarios:
         assert landing_response.status_code == 200, landing_response.text
         landing_data = landing_response.json()
         assert abs(float(landing_data["total_net_usd"]) - 200.0) < 0.01
+        pool_details = landing_data["pool_details"]
+        assert len(pool_details) == 1
+        assert abs(float(pool_details[0]["asset_usd_value"]) - 200.0) < 0.01
+        assert pool_details[0]["pool_symbols"] == ["USDC"]
+        assert len(pool_details[0]["snapshot_ids"]) == 1
 
         # Trend latest day should also reflect 200
         trend_response = await integration_client.get(
@@ -578,6 +592,89 @@ class TestETLRetryScenarios:
         assert dashboard_values, "Expected dashboard trend daily values"
         dashboard_latest = max(dashboard_values, key=lambda row: row["date"])
         assert abs(float(dashboard_latest["total_value_usd"]) - 200.0) < 0.01
+
+    @pytest.mark.asyncio
+    async def test_landing_groups_cross_wallet_positions_by_token_signature(
+        self,
+        integration_db_session,
+        integration_client,
+    ):
+        user_id = str(uuid4())
+        address_base = user_id.replace("-", "")
+        wallet_a = f"0x{address_base}{'a' * 8}"
+        wallet_b = f"0x{address_base}{'b' * 8}"
+        snapshot_time = datetime.now(UTC) - timedelta(days=1)
+
+        await integration_db_session.execute(
+            text(
+                """
+                INSERT INTO users (id, email, is_active, created_at, updated_at)
+                VALUES (:user_id, :email, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """
+            ),
+            {"user_id": user_id, "email": f"gmx-landing-{user_id}@example.com"},
+        )
+        await integration_db_session.execute(
+            text(
+                """
+                INSERT INTO user_crypto_wallets (
+                    id, user_id, wallet, label, created_at, updated_at
+                ) VALUES
+                    (:wallet_a_id, :user_id, :wallet_a, 'Wallet A', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                    (:wallet_b_id, :user_id, :wallet_b, 'Wallet B', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """
+            ),
+            {
+                "wallet_a_id": str(uuid4()),
+                "wallet_b_id": str(uuid4()),
+                "user_id": user_id,
+                "wallet_a": wallet_a,
+                "wallet_b": wallet_b,
+            },
+        )
+
+        snapshot_ids_by_symbol: dict[str, list[str]] = {}
+        for wallet, symbol, amount, price, usd_value in (
+            (wallet_a, "WBTC", "0.01", "100000", 1000.0),
+            (wallet_b, "WBTC", "0.02", "100000", 2000.0),
+            (wallet_a, "WETH", "1", "2500", 2500.0),
+            (wallet_b, "SOL", "10", "150", 1500.0),
+        ):
+            snapshot_id = await build_gmx_v2_position(
+                integration_db_session,
+                user_id,
+                wallet,
+                symbol,
+                amount,
+                price,
+                usd_value,
+                snapshot_time,
+            )
+            snapshot_ids_by_symbol.setdefault(symbol, []).append(snapshot_id)
+        await integration_db_session.commit()
+        await refresh_mv_session(integration_db_session)
+
+        response = await integration_client.get(f"/api/v2/portfolio/{user_id}/landing")
+        assert response.status_code == 200, response.text
+        landing_data = response.json()
+        pools_by_symbols = {
+            tuple(pool["pool_symbols"]): pool for pool in landing_data["pool_details"]
+        }
+
+        assert set(pools_by_symbols) == {("WBTC",), ("WETH",), ("SOL",)}
+        assert (
+            abs(float(pools_by_symbols[("WBTC",)]["asset_usd_value"]) - 3000.0) < 0.01
+        )
+        assert set(pools_by_symbols[("WBTC",)]["snapshot_ids"]) == set(
+            snapshot_ids_by_symbol["WBTC"]
+        )
+        assert (
+            abs(float(pools_by_symbols[("WETH",)]["asset_usd_value"]) - 2500.0) < 0.01
+        )
+        assert abs(float(pools_by_symbols[("SOL",)]["asset_usd_value"]) - 1500.0) < 0.01
+        assert landing_data["positions"] == 3
+        assert landing_data["protocols"] == 1
+        assert landing_data["chains"] == 1
 
     @pytest.mark.asyncio
     async def test_bundle_ignores_wallets_without_snapshots(

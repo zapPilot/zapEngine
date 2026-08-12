@@ -16,7 +16,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy.orm import Session
 
-from src.models.analytics_responses import PeriodInfo
+from src.models.analytics_responses import PeriodInfo, SnapshotInfo
 from src.models.portfolio import BorrowingSummary, PortfolioResponse
 from src.services.portfolio.landing_page_service import LandingPageService
 
@@ -59,7 +59,11 @@ class TestCrossEndpointUserIDConsistency:
         snapshot_service = MagicMock()
         pool_service = MagicMock()
         canonical_snapshot_service = MagicMock()
-        canonical_snapshot_service.get_snapshot_date.return_value = date(2025, 1, 1)
+        canonical_snapshot_service.get_snapshot_info.return_value = SnapshotInfo(
+            snapshot_date=date(2025, 1, 1),
+            wallet_count=1,
+            last_updated=None,
+        )
         borrowing_service = MagicMock()
         borrowing_service.calculate_borrowing_risk.return_value = None
 

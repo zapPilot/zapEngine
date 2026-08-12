@@ -2,6 +2,7 @@ import { rm } from 'node:fs/promises';
 
 import sharp from 'sharp';
 
+import { errorMessage } from '../../lib/errorMessage.js';
 import type { ImageCandidate } from '../../types.js';
 import {
   type AcquiredRemoteImage,
@@ -587,7 +588,7 @@ function formatCandidateRejectionDetails(
 }
 
 function safeCandidateRejectionCause(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   const httpStatus = /\bHTTP\s+(\d{3})\b/i.exec(message)?.[1];
   if (httpStatus) return `http-${httpStatus}`;
   if (/timed?\s*out|timeout/i.test(message)) return 'timeout';

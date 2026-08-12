@@ -1,5 +1,6 @@
 import { getWagmiConfig } from '@core/config/wagmi';
 import { isWalletConnectEnabled } from '@core/lib/env/walletConnect';
+import { extractErrorMessage } from '@core/lib/errors';
 import {
   approvedWalletBrand,
   isApprovedWalletConnector,
@@ -449,7 +450,7 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
             reason: error.message,
           };
         }
-        const reason = error instanceof Error ? error.message : String(error);
+        const reason = extractErrorMessage(error, String(error));
         const lowerReason = reason.toLowerCase();
         if (
           lowerReason.includes('eip-7702') ||
@@ -504,7 +505,7 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
       } catch (error: unknown) {
         return {
           status: 'unknown',
-          reason: error instanceof Error ? error.message : String(error),
+          reason: extractErrorMessage(error, String(error)),
         };
       }
     },

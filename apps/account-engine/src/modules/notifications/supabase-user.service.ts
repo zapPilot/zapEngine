@@ -1,7 +1,7 @@
 import { ServiceLayerException } from '../../common/exceptions';
 import { BaseService } from '../../database/base.service';
 import { DatabaseService } from '../../database/database.service';
-import { AnalyticsClientService } from './analytics-client.service';
+import { AnalyticsClientService } from './analytics-client/client';
 import { DailyTrendDataPoint } from './interfaces/portfolio-trend.interface';
 
 export interface ReportRecipient {
@@ -56,10 +56,10 @@ export class SupabaseUserService extends BaseService {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }
 
-  async getReportRecipientsWithWallets(): Promise<
-    ReportRecipientWithWallets[]
-  > {
-    const recipients = await this.fetchReportRecipients();
+  async getReportRecipientsWithWallets(
+    userIds?: string[],
+  ): Promise<ReportRecipientWithWallets[]> {
+    const recipients = await this.fetchReportRecipients({ userIds });
     const result = this.mapRecipientsWithWallets(recipients);
     this.logger.log(`Found ${result.length} weekly report recipients`);
     return result;
@@ -91,6 +91,7 @@ export class SupabaseUserService extends BaseService {
 
   private async fetchReportRecipients(filters?: {
     userId?: string;
+    userIds?: string[];
   }): Promise<ReportRecipientRecord[]> {
     let query = this.serviceRoleSupabase
       .from('users')
@@ -106,6 +107,8 @@ export class SupabaseUserService extends BaseService {
 
     if (filters?.userId) {
       query = query.eq('id', filters.userId);
+    } else if (filters?.userIds && filters.userIds.length > 0) {
+      query = query.in('id', filters.userIds);
     }
 
     const {

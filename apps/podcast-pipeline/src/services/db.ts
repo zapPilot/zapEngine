@@ -2,7 +2,6 @@ import {
   normalizeLanguageClassroomKeywords,
   normalizeLanguageClassroomLesson,
 } from '../lib/languageClassroom.js';
-import { isRecord } from '../lib/typeGuards.js';
 import type {
   Article,
   EpisodeFeedResponse,
@@ -24,15 +23,13 @@ import type {
   PublishedEpisodeCatalog,
 } from '../types.js';
 import {
-  createPipelineSupabaseClient,
-  type PipelineSupabaseClient,
+  getPipelineSupabase as getSupabase,
+  throwSupabaseError,
 } from './supabase-client.js';
 import {
   composeEpisodeVideoProgress,
   type EpisodeVideoProgressJobState,
 } from './video-progress.js';
-
-let client: PipelineSupabaseClient | null = null;
 
 interface EpisodeVideoStatusProjection {
   episode_localization_id: string;
@@ -85,44 +82,6 @@ const LOCALIZATION_UPDATE_COLUMNS: Record<
   ttsLanguageCode: 'tts_language_code',
   ttsVoiceName: 'tts_voice_name',
 };
-
-function getSupabase(): PipelineSupabaseClient {
-  client ??= createPipelineSupabaseClient();
-
-  return client;
-}
-
-function throwSupabaseError(error: unknown): never {
-  if (error instanceof Error) {
-    throw error;
-  }
-
-  const normalized = new Error(formatSupabaseError(error), { cause: error });
-  (normalized as { supabaseError?: unknown }).supabaseError = error;
-  throw normalized;
-}
-
-function formatSupabaseError(error: unknown): string {
-  if (!isRecord(error)) {
-    return String(error);
-  }
-
-  const code = readOptionalString(error['code']);
-  const message =
-    readOptionalString(error['message']) ?? 'Supabase request failed';
-  const details = readOptionalString(error['details']);
-  const hint = readOptionalString(error['hint']);
-  const parts = [code ? `[${code}] ${message}` : message];
-
-  if (details) parts.push(`Details: ${details}`);
-  if (hint) parts.push(`Hint: ${hint}`);
-
-  return parts.join(' ');
-}
-
-function readOptionalString(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null;
-}
 
 export function toEpisodeResponse(
   row: EpisodeListRow,

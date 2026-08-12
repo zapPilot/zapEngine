@@ -1,9 +1,10 @@
+import { getChainName } from '@core/constants/chains';
 import type {
   DepositPlan,
   PlanOrchestrationDepositRequest,
 } from '@zapengine/types/api';
 import type { Hash } from 'viem';
-import { arbitrum, base } from 'viem/chains';
+import { arbitrum } from 'viem/chains';
 
 const STEP_ID = {
   preparePlan: 'prepare-plan',
@@ -103,7 +104,7 @@ function createSteps(
   request: SingleChainDepositRequest,
 ): SingleChainDepositWizardStep[] {
   const chainId = requestChainId(request);
-  const chainName = chainId === base.id ? 'Base' : 'Arbitrum';
+  const chainName = getChainName(chainId);
   const protocol = requestProtocolLabel(request);
 
   return [

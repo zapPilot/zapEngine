@@ -22,10 +22,8 @@ import { loadLocale, saveLocale } from '@/storage/localeStorage';
 
 interface ContentLanguageContextValue {
   languageCode: ContentLanguageCode;
-  locale: ContentLanguageCode;
   isHydrated: boolean;
   setLanguageCode: (code: ContentLanguageCode) => void;
-  setLocale: (code: ContentLanguageCode) => void;
   t: (key: TranslationKey, params?: TranslationParams) => string;
 }
 
@@ -103,10 +101,8 @@ export function ContentLanguageProvider({
   const value = useMemo(
     () => ({
       languageCode,
-      locale: languageCode,
       isHydrated,
       setLanguageCode,
-      setLocale: setLanguageCode,
       t,
     }),
     [isHydrated, languageCode, setLanguageCode, t],

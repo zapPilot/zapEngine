@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy.orm import Session
 
-from src.services.interfaces import QueryServiceProtocol
+from src.services.shared.query_service import QueryService
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def mock_db_session() -> MagicMock:
 @pytest.fixture
 def mock_query_service() -> MagicMock:
     """Return a fresh query-service mock with empty-query defaults."""
-    service = MagicMock(spec=QueryServiceProtocol)
+    service = MagicMock(spec=QueryService)
     service.execute_query.return_value = []
     service.execute_query_one.return_value = None
     return service

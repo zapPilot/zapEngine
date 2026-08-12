@@ -1,7 +1,7 @@
 import { JobType } from '../../../../../src/modules/jobs/interfaces/job.interface';
 import { JobQueueService } from '../../../../../src/modules/jobs/job-queue.service';
 import { WeeklyReportProcessor } from '../../../../../src/modules/jobs/processors/weekly-report.processor';
-import { AnalyticsClientService } from '../../../../../src/modules/notifications/analytics-client.service';
+import { AnalyticsClientService } from '../../../../../src/modules/notifications/analytics-client/client';
 import { ChartService } from '../../../../../src/modules/notifications/chart.service';
 import { EmailService } from '../../../../../src/modules/notifications/email.service';
 import { PortfolioNotFoundError } from '../../../../../src/modules/notifications/errors/portfolio-not-found.error';
@@ -145,10 +145,6 @@ describe('WeeklyReportProcessor', () => {
           user: { id: 'u-1', email: 'a@b.com' },
           wallets: ['0x1'],
         },
-        {
-          user: { id: 'u-2', email: 'c@d.com' },
-          wallets: ['0x2'],
-        },
       ]);
 
       const job = createPendingJob({
@@ -160,6 +156,9 @@ describe('WeeklyReportProcessor', () => {
 
       expect(result.success).toBe(true);
       expect(jobQueueService.createJob).toHaveBeenCalledTimes(1);
+      expect(
+        supabaseUserService.getReportRecipientsWithWallets,
+      ).toHaveBeenCalledWith(['u-1']);
     });
 
     it('validates email service before processing', async () => {

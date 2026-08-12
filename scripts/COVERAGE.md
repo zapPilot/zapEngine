@@ -29,7 +29,7 @@ database URLs.
 - analytics-engine emits pytest-cov Cobertura at `coverage.xml`; the aggregator
   also accepts `htmlcov/coverage.xml` as a fallback.
 
-A complete sweep contains 11 workspaces:
+A complete sweep contains 12 workspaces:
 
 ```text
 apps/account-engine
@@ -40,6 +40,7 @@ apps/desktop
 apps/landing-page
 apps/podcast-pipeline
 packages/app-core
+packages/brand-assets
 packages/design-tokens
 packages/intent-engine
 packages/types
@@ -49,7 +50,7 @@ After a full run, verify completeness with:
 
 ```bash
 pnpm exec tsx scripts/coverage-summary.ts
-jq '.workspaces | length' coverage/summary.json # 11
+jq '.workspaces | length' coverage/summary.json # 12
 ```
 
 ## CI behavior
@@ -66,7 +67,7 @@ pnpm exec tsx scripts/coverage-summary.ts
 
 The first command validates the aggregation and regression scripts. The Turbo
 run enforces the absolute workspace floors below. The final command creates the
-11-workspace aggregate. CI uploads `coverage/summary.json` for 30 days and
+12-workspace aggregate. CI uploads `coverage/summary.json` for 30 days and
 per-workspace HTML reports for seven days.
 
 `scripts/coverage-regression.ts` is not part of the CI job. Baseline drift alone
@@ -85,6 +86,7 @@ comparison is useful.
 | `apps/landing-page`      | 50         | 45       | 55        | 50    |
 | `apps/podcast-pipeline`  | 91         | 80       | 92        | 92    |
 | `packages/app-core`      | 53         | 42       | 46        | 54    |
+| `packages/brand-assets`  | 95         | 90       | 100       | 95    |
 | `packages/design-tokens` | —          | —        | —         | —     |
 | `packages/intent-engine` | 90         | 85       | 90        | 90    |
 | `packages/types`         | 90         | 85       | 90        | 90    |

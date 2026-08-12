@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { errorMessage } from '../lib/errorMessage.js';
 import {
   DEFAULT_LANGUAGE_CODE,
   type EpisodeLocalizationRow,
@@ -80,11 +81,9 @@ export async function performMultilingualIngest(
               });
               return result;
             } catch (error) {
-              const err =
-                error instanceof Error ? error : new Error(String(error));
               logIngestEvent('localization:failed', {
                 elapsedMs: Date.now() - startedAt,
-                error: err.message,
+                error: errorMessage(error),
               });
               throw error;
             }

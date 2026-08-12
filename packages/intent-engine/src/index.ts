@@ -369,25 +369,3 @@ export function createIntentEngine(config: IntentEngineConfig): IntentEngine {
     },
   };
 }
-
-// =============================================================================
-// Runtime markers for TypeScript interfaces (erased at compile time)
-// =============================================================================
-
-/**
- * Runtime marker for IntentEngineConfig interface type
- * Use `typeof IntentEngineConfig` for the TypeScript type
- */
-export const IntentEngineConfig = 'IntentEngineConfig';
-
-/**
- * Runtime marker for IntentEngine interface type
- * Use `typeof IntentEngine` for the TypeScript type
- */
-export const IntentEngine = 'IntentEngine';
-
-/**
- * Runtime marker for ExecutionStrategy type
- * Use `typeof ExecutionStrategy` for the TypeScript type
- */
-export const ExecutionStrategyType = 'ExecutionStrategy';

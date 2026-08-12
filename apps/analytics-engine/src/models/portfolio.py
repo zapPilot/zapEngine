@@ -13,7 +13,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    computed_field,
     field_validator,
     model_validator,
 )
@@ -353,13 +352,6 @@ class BorrowingRiskMetrics(BaseModel):
     position_count: int = Field(
         ge=1, description="Number of leveraged positions (estimated for MVP)"
     )
-
-    # DEPRECATED: backward-compat alias derived from worst_health_rate
-    @computed_field(return_type=Float4dpRounded)  # type: ignore[prop-decorator]
-    @property
-    def health_rate(self) -> Float4dpRounded:
-        """Portfolio health rate (DEPRECATED - use worst_health_rate)."""
-        return self.worst_health_rate
 
     # Rounding handled by custom Annotated types
 

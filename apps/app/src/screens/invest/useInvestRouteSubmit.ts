@@ -1,6 +1,8 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 
+import { extractErrorMessage } from '@zapengine/app-core/lib/errors';
+
 import {
   CONNECT_WALLET_CTA,
   CONNECTING_LABEL,
@@ -122,9 +124,7 @@ export function useInvestRouteSubmit({
       setSubmissionError(result.reason);
       if (result.status === 'review-changed') void review.refresh();
     } catch (error: unknown) {
-      setSubmissionError(
-        error instanceof Error ? error.message : String(error),
-      );
+      setSubmissionError(extractErrorMessage(error, String(error)));
     } finally {
       setLaunchRequested(false);
     }
@@ -149,8 +149,7 @@ export function useInvestRouteSubmit({
         review.amountUsd <= 0 ||
         !hasPlanForScope ||
         reviewNotReadyForSend ||
-        capability === 'unsupported-wallet' ||
-        capability === 'unsupported-path';
+        capability === 'unsupported-wallet';
 
   return {
     handleConfirm,

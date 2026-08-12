@@ -238,7 +238,7 @@ describe('PrivyWalletExecutionService review lifecycle', () => {
     expect(client.sendCalls).toHaveBeenCalledTimes(1);
   });
 
-  it('returns a replacement review and consumes the old preview when material state changes', async () => {
+  it('returns a replacement review and removes the old preview when material state changes', async () => {
     const client = createClient();
     const changed = warningReview({
       simulationFingerprint: CHANGED_FINGERPRINT,
@@ -275,7 +275,7 @@ describe('PrivyWalletExecutionService review lifecycle', () => {
     await expect(
       service.confirmSendCalls(confirmRequest(prepared.previewId), accessToken),
     ).rejects.toMatchObject({
-      message: 'Simulation preview has already been consumed',
+      message: 'Simulation preview not found',
     });
   });
 
@@ -339,7 +339,7 @@ describe('PrivyWalletExecutionService review lifecycle', () => {
     });
   });
 
-  it('consumes a stale nonce preview without advancing the nonce again', async () => {
+  it('removes a stale nonce preview without advancing the nonce again', async () => {
     const service = createPrivyWalletExecutionService({
       client: createClient(),
       tenderlySimulationService: createSimulationService(
@@ -366,7 +366,7 @@ describe('PrivyWalletExecutionService review lifecycle', () => {
     await expect(
       service.confirmSendCalls(confirmRequest(stale.previewId), accessToken),
     ).rejects.toMatchObject({
-      message: 'Simulation preview has already been consumed',
+      message: 'Simulation preview not found',
     });
   });
 });

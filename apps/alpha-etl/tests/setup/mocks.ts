@@ -29,3 +29,11 @@ export function mockEnv(overrides?: Record<string, unknown>) {
     },
   };
 }
+
+export function mockWalletAddressMask() {
+  return {
+    maskWalletAddress: vi.fn(
+      (address: string) => `${address.slice(0, 6)}...${address.slice(-4)}`,
+    ),
+  };
+}
