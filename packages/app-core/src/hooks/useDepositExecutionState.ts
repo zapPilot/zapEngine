@@ -60,9 +60,9 @@ export interface DepositExecutionActions<TPlan = DepositPlan> {
 
 /**
  * Shared state machine for deposit-style execution hooks
- * (`useGmxDeposit`, `useInvestStrategy`). Owns the common
- * pending/error/tier/tx-hash/plan state plus the lifecycle helpers; the
- * concrete hooks layer their own progress model (steps vs legs) on top.
+ * such as `useInvestStrategy`. Owns the common pending/error/tier/tx-hash/plan
+ * state plus the lifecycle helpers; concrete hooks layer their own progress
+ * model on top.
  *
  * Returns `{ state, actions }` so consumers spread `state` into their
  * public surface and depend on the single stable `actions` reference,

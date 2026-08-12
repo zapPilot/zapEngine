@@ -149,8 +149,7 @@ export function useInvestRouteSubmit({
         review.amountUsd <= 0 ||
         !hasPlanForScope ||
         reviewNotReadyForSend ||
-        capability === 'unsupported-wallet' ||
-        capability === 'unsupported-path';
+        capability === 'unsupported-wallet';
 
   return {
     handleConfirm,

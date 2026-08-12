@@ -107,7 +107,6 @@ export {
 export {
   getDepositPlan,
   getDepositReview,
-  getGmxDepositPlan,
   getStrategyDepositPlan,
   getWithdrawPlan,
 } from './planOrchestrationService';

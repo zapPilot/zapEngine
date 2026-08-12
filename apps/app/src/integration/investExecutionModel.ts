@@ -12,10 +12,6 @@ import type {
 import { formatUsd6 } from '@zapengine/app-core/lib/wallet/usd6';
 import type { ChainBrandKey } from '@zapengine/brand-assets';
 
-import {
-  type DesktopDepositPath,
-  isGmxDepositPath,
-} from '@/integration/depositPaths';
 import type { InvestScope } from '@/integration/investAmountModel';
 import { chainDisplay } from '@/integration/planPreviewFormatters';
 
@@ -23,22 +19,16 @@ import { chainDisplay } from '@/integration/planPreviewFormatters';
 export type DepositExecutionCapability =
   | 'ready'
   | 'connect-wallet'
-  | 'unsupported-wallet'
-  | 'unsupported-path';
+  | 'unsupported-wallet';
 
 export function resolveDepositExecutionCapability({
   isConnected,
   executionMode,
-  depositPath,
 }: {
   isConnected: boolean;
   /** `WalletProviderInterface.executionMode`; undefined when the active backend cannot execute a deposit plan. */
   executionMode: 'atomic-batch' | 'eip7702' | undefined;
-  depositPath: DesktopDepositPath;
 }): DepositExecutionCapability {
-  if (isGmxDepositPath(depositPath)) {
-    return 'unsupported-path';
-  }
   if (!isConnected) {
     return 'connect-wallet';
   }
@@ -68,22 +58,11 @@ export function resolveInvestExecutionCapability({
   return 'ready';
 }
 
-/**
- * Maps the invest draft onto the wizard's start input. Returns null when the
- * draft cannot be executed by the wizard (GMX path, empty amount) so callers
- * can gate instead of firing a doomed request.
- */
+/** Maps an invest draft onto the wizard's start input. */
 export function buildWizardStartInput(draft: {
-  depositPath: DesktopDepositPath;
   fromToken: `0x${string}`;
   fromAmount: string;
-}): StartDepositWizardInput | null {
-  if (isGmxDepositPath(draft.depositPath)) {
-    return null;
-  }
-  if (!draft.fromAmount || draft.fromAmount === '0') {
-    return null;
-  }
+}): StartDepositWizardInput {
   return { fromToken: draft.fromToken, fromAmount: draft.fromAmount };
 }
 
