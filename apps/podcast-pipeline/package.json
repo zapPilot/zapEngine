@@ -14,6 +14,7 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
     "dev:worker": "tsx watch src/worker.ts",
+    "social:publish": "tsx src/social/cli.ts",
     "video:render": "tsx src/services/video/cli.ts",
     "video:storyboard:smoke": "tsx src/services/video/storyboard/smoke-cli.ts",
     "video:r2-canary": "tsx src/services/video/r2-playback-canary.ts",
