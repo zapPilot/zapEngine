@@ -297,17 +297,11 @@ class LandingPageService(CacheKeyMixin):
     ) -> tuple[date | None, SnapshotInfo | None]:
         """Resolve canonical snapshot date and optional snapshot metadata."""
         with _timed("canonical snapshot info lookup"):
-            snapshot_date = self.canonical_snapshot_service.get_snapshot_date(user_id)
             snapshot_info = self.canonical_snapshot_service.get_snapshot_info(user_id)
 
         if isinstance(snapshot_info, SnapshotInfo):
-            snapshot_date = snapshot_info.snapshot_date
-        else:
-            snapshot_info = None
-            if not isinstance(snapshot_date, date):
-                snapshot_date = None
-
-        return snapshot_date, snapshot_info
+            return snapshot_info.snapshot_date, snapshot_info
+        return None, None
 
     def _get_cached_landing_response(
         self,

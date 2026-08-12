@@ -89,9 +89,9 @@ def _header_line(*, payload: dict[str, Any], strategy_id: str) -> str:
 
 def _metrics_line(summary: dict[str, Any]) -> str:
     return (
-        f"ROI: {_format_pct(summary.get('roi_percent'))}  "
+        f"ROI: {_format_percent_value(summary.get('roi_percent'))}  "
         f"Calmar: {_format_float(summary.get('calmar_ratio'))}  "
-        f"MaxDD: {_format_pct(summary.get('max_drawdown_percent'))}  "
+        f"MaxDD: {_format_percent_value(summary.get('max_drawdown_percent'))}  "
         f"Trades: {_format_int(summary.get('trade_count'))}"
     )
 
@@ -135,7 +135,7 @@ def _rule_lines(
         executed_count = executed.get(rule, 0)
         held = count - executed_count
         suffix = (
-            f"{_format_pct(pnl_by_rule[rule])} next-day"
+            f"{_format_percent_value(pnl_by_rule[rule])} next-day"
             if rule in pnl_by_rule
             else "held"
             if executed_count == 0
@@ -237,7 +237,7 @@ def _diff_line(
     )
 
 
-def _format_pct(value: Any) -> str:
+def _format_percent_value(value: Any) -> str:
     if not isinstance(value, int | float):
         return "n/a"
     return f"{float(value):+.2f}%"

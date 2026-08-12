@@ -81,6 +81,10 @@ def test_coerce_to_date_accepts_datetime() -> None:
     assert coerce_to_date(datetime(2025, 1, 1, 12, tzinfo=UTC)) == date(2025, 1, 1)
 
 
+def test_coerce_to_date_preserves_timestamp_slice() -> None:
+    assert coerce_to_date("2025-01-01T12:34:56Z") == date(2025, 1, 1)
+
+
 def test_coerce_int_rejects_bool() -> None:
     with pytest.raises(ValueError, match="must be an integer"):
         coerce_int(True, field_name="x")

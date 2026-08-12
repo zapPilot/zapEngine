@@ -71,6 +71,11 @@ class TestCoerceDmaSnapshotDate:
         result = coerce_dma_snapshot_date("2024-03-15")
         assert result == date(2024, 3, 15)
 
+    def test_datetime_str_input_raises(self):
+        """Datetime strings remain invalid without an explicit date slice."""
+        with pytest.raises(ValueError, match="Invalid snapshot_date in DMA row"):
+            coerce_dma_snapshot_date("2024-03-15T10:30:00Z")
+
     def test_date_input_returns_same(self):
         """date input passes through unchanged."""
         d = date(2024, 3, 15)
@@ -79,7 +84,7 @@ class TestCoerceDmaSnapshotDate:
 
     def test_invalid_type_raises(self):
         """Invalid type raises ValueError."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid snapshot_date in DMA row"):
             coerce_dma_snapshot_date(20240315)
 
 

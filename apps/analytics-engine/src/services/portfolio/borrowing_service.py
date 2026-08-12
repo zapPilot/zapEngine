@@ -14,6 +14,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from src.core.utils import parse_iso_datetime
 from src.models.borrowing import (
     BorrowingPosition,
     BorrowingPositionsResponse,
@@ -272,7 +273,7 @@ class BorrowingService(BorrowingServiceProtocol):
             # Date parsing
             updated_at = row.get("last_updated")
             if isinstance(updated_at, str):
-                updated_at = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+                updated_at = parse_iso_datetime(updated_at)
             elif not isinstance(updated_at, datetime):
                 updated_at = datetime.now(UTC)
 

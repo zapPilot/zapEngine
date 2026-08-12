@@ -6,6 +6,7 @@ import logging
 from datetime import UTC, date, datetime
 from typing import Any, TypedDict, cast
 
+from src.core.utils import normalize_date, parse_iso_datetime
 from src.services.market.query_backed_service import QueryBackedMarketService
 from src.services.shared.query_names import QUERY_NAMES
 
@@ -25,13 +26,13 @@ class MacroFearGreedDatabaseService(QueryBackedMarketService):
 
     @staticmethod
     def _coerce_snapshot_date(raw_date: object) -> date:
-        if isinstance(raw_date, datetime):
-            return raw_date.date()
-        if isinstance(raw_date, date):
-            return raw_date
-        if isinstance(raw_date, str):
-            return date.fromisoformat(raw_date[:10])
-        raise ValueError(f"Invalid macro FGI snapshot_date: {raw_date!r}")
+        value = raw_date[:10] if isinstance(raw_date, str) else raw_date
+        try:
+            snapshot_date = normalize_date(value)
+        except ValueError as exc:
+            raise ValueError(f"Invalid macro FGI snapshot_date: {raw_date!r}") from exc
+        assert snapshot_date is not None
+        return snapshot_date
 
     @staticmethod
     def _coerce_updated_at(raw_value: object) -> str:
@@ -41,11 +42,7 @@ class MacroFearGreedDatabaseService(QueryBackedMarketService):
                 value = value.replace(tzinfo=UTC)
             return value.astimezone(UTC).isoformat()
         if isinstance(raw_value, str):
-            return (
-                datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
-                .astimezone(UTC)
-                .isoformat()
-            )
+            return parse_iso_datetime(raw_value).astimezone(UTC).isoformat()
         raise ValueError(f"Invalid macro FGI provider_updated_at: {raw_value!r}")
 
     @classmethod

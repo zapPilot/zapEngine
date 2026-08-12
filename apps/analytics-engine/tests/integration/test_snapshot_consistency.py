@@ -19,6 +19,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from src.models.analytics_responses import SnapshotInfo
 from src.services.analytics.dashboard_service import DashboardService
 from src.services.portfolio.canonical_snapshot_service import CanonicalSnapshotService
 from src.services.portfolio.landing_page_service import LandingPageService
@@ -82,7 +83,11 @@ class TestLandingPageSnapshotConsistency:
         mock_cache.get.return_value = None  # Cache miss
 
         mock_canonical_service = MagicMock()
-        mock_canonical_service.get_snapshot_date.return_value = snapshot_date
+        mock_canonical_service.get_snapshot_info.return_value = SnapshotInfo(
+            snapshot_date=snapshot_date,
+            wallet_count=1,
+            last_updated=None,
+        )
 
         mock_portfolio_service = MagicMock()
         mock_portfolio_service.get_portfolio_snapshot.return_value = (
@@ -113,7 +118,7 @@ class TestLandingPageSnapshotConsistency:
 
         # Assert
         # Verify canonical snapshot service was called
-        mock_canonical_service.get_snapshot_date.assert_called_once_with(user_id)
+        mock_canonical_service.get_snapshot_info.assert_called_once_with(user_id)
 
         # Since portfolio snapshot was None, other services shouldn't be called
         # But if there was data, they would all receive the same snapshot_date
@@ -131,7 +136,11 @@ class TestLandingPageSnapshotConsistency:
         mock_cache.get.return_value = None  # Cache miss
 
         mock_canonical_service = MagicMock()
-        mock_canonical_service.get_snapshot_date.return_value = snapshot_date
+        mock_canonical_service.get_snapshot_info.return_value = SnapshotInfo(
+            snapshot_date=snapshot_date,
+            wallet_count=1,
+            last_updated=None,
+        )
 
         # Mock portfolio snapshot with minimal data
         mock_snapshot = MagicMock()
@@ -195,7 +204,7 @@ class TestLandingPageSnapshotConsistency:
 
         # Assert
         # Canonical snapshot called once
-        mock_canonical_service.get_snapshot_date.assert_called_once_with(user_id)
+        mock_canonical_service.get_snapshot_info.assert_called_once_with(user_id)
 
         # Portfolio snapshot received canonical date
         mock_portfolio_service.get_portfolio_snapshot.assert_called_once()

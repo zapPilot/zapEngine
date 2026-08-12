@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError as PydanticValidationError
 
 from src.core.exceptions import CrossServiceConsistencyError, ValidationError
+from src.models.analytics_responses import SnapshotInfo
 from src.models.market_sentiment import MarketSentimentResponse
 from src.models.portfolio_snapshot import PortfolioSnapshot
 from src.services.market.market_sentiment_service import (
@@ -32,7 +33,13 @@ class TestLandingPageServiceCoverageGap:
                 get_pool_performance=Mock(return_value=[])
             ),
             "canonical_snapshot_service": Mock(
-                get_snapshot_date=Mock(return_value=date(2025, 1, 1))
+                get_snapshot_info=Mock(
+                    return_value=SnapshotInfo(
+                        snapshot_date=date(2025, 1, 1),
+                        wallet_count=1,
+                        last_updated=None,
+                    )
+                )
             ),
             "borrowing_service": Mock(
                 get_borrowing_summary=Mock(

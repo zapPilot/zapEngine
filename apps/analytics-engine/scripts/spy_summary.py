@@ -18,13 +18,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-
-def _safe_float(value: Any) -> float | None:
-    try:
-        result = float(value)
-    except (TypeError, ValueError):
-        return None
-    return result
+from scripts._compare_common import _safe_float
 
 
 def summarize(payload: dict[str, Any], strategy_id: str) -> None:

@@ -21,7 +21,7 @@ from src.services.dependencies import (
     get_wallet_service,
 )
 from src.services.interfaces import WalletServiceProtocol
-from src.utils.wallet_validation import validate_wallet_format
+from src.utils.wallet_validation import ETH_ADDRESS_PATTERN, validate_wallet_format
 
 router = APIRouter(prefix="/v2/analytics", tags=["Analytics V2"])
 
@@ -31,14 +31,14 @@ _WALLET_ADDRESS_DESCRIPTION = (
 )
 WalletAddressQuery = Annotated[
     str | None,
-    Query(description=_WALLET_ADDRESS_DESCRIPTION, pattern=r"^0x[a-fA-F0-9]{40}$"),
+    Query(description=_WALLET_ADDRESS_DESCRIPTION, pattern=ETH_ADDRESS_PATTERN),
 ]
 WalletAddressCamelQuery = Annotated[
     str | None,
     Query(
         alias="walletAddress",
         description="Optional wallet filter (camelCase alias).",
-        pattern=r"^0x[a-fA-F0-9]{40}$",
+        pattern=ETH_ADDRESS_PATTERN,
     ),
 ]
 

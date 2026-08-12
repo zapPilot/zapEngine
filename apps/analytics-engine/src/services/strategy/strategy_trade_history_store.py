@@ -3,25 +3,26 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import date, datetime
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from src.core.utils import normalize_date
 from src.services.strategy._db_introspection import table_exists
 
 _TABLE_NAME = "strategy_trade_history"
 
 
 def _coerce_trade_date(value: object) -> date:
-    if isinstance(value, date) and not isinstance(value, datetime):
-        return value
-    if isinstance(value, datetime):
-        return value.date()
-    if isinstance(value, str):
-        return date.fromisoformat(value[:10])
-    raise ValueError("Unsupported trade_date value")
+    raw_date = value[:10] if isinstance(value, str) else value
+    try:
+        trade_date = normalize_date(raw_date)
+    except ValueError as exc:
+        raise ValueError("Unsupported trade_date value") from exc
+    assert trade_date is not None
+    return trade_date
 
 
 class StrategyTradeHistoryStore:
