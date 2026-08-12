@@ -147,7 +147,7 @@ def _calculate_aggregation_stats(self, data: list[dict[str, Any]]) -> dict[str, 
 
 - Keep service files under 400 lines when possible
 - Extract complex logic into separate utility classes or helper methods
-- Use protocol-based interfaces for dependency injection
+- Type dependency-injected services with their concrete implementation unless multiple implementations require a shared protocol
 
 ### Test Files
 
