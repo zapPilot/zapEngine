@@ -9,6 +9,8 @@ import { getPublishedPlatform, readPublishState } from './state.js';
 import type { BrowserPublisher, GeneratedSocialCopy } from './types.js';
 
 const VIDEO_PATH = '/fixtures/video.mp4';
+const EPISODE_URL =
+  'https://from-fed-to-chain-api.fly.dev/e/123e4567-e89b-42d3-a456-426614174000?lang=zh-Hant';
 const copy: GeneratedSocialCopy = {
   hook: 'hook',
   x: { text: 'x copy' },
@@ -45,6 +47,7 @@ describe('publishSocialPlatforms', () => {
       platforms: ['x', 'rednote'],
       force: false,
       copy,
+      episodeUrl: EPISODE_URL,
       videoPath: VIDEO_PATH,
       publisher,
       statePath: path,
@@ -54,6 +57,10 @@ describe('publishSocialPlatforms', () => {
       'published',
       'published',
     ]);
+    expect(publisher.publishX).toHaveBeenCalledWith({
+      text: copy.x.text,
+      episodeUrl: EPISODE_URL,
+    });
     const state = await readPublishState(path);
     expect(getPublishedPlatform(state, 'episode-1', 'zh', 'x')).toBeDefined();
     expect(
@@ -77,6 +84,7 @@ describe('publishSocialPlatforms', () => {
       platforms: ['x', 'rednote'],
       force: false,
       copy,
+      episodeUrl: EPISODE_URL,
       videoPath: VIDEO_PATH,
       publisher: firstPublisher,
       statePath: path,
@@ -96,6 +104,7 @@ describe('publishSocialPlatforms', () => {
       platforms: ['x', 'rednote'],
       force: false,
       copy,
+      episodeUrl: EPISODE_URL,
       videoPath: VIDEO_PATH,
       publisher: retryPublisher,
       statePath: path,
@@ -122,6 +131,7 @@ describe('publishSocialPlatforms', () => {
       platforms: ['x', 'rednote'],
       force: false,
       copy,
+      episodeUrl: EPISODE_URL,
       videoPath: VIDEO_PATH,
       publisher,
       statePath: path,

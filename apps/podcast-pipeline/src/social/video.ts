@@ -1,6 +1,10 @@
-import { mkdir, rename, stat, writeFile } from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
+import { mkdir, rename, stat, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 
 const SOCIAL_TEMP_DIR = join(tmpdir(), 'zap-pilot-social');
 
@@ -33,15 +37,25 @@ export async function prepareSocialVideo(input: {
       `Failed to download social video (${response.status} ${response.statusText}).`,
     );
   }
-
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (bytes.length === 0) {
+  if (!response.body) {
     throw new Error('Downloaded social video is empty.');
   }
 
   const temporaryPath = `${outputPath}.tmp-${process.pid}`;
-  await writeFile(temporaryPath, bytes);
-  await rename(temporaryPath, outputPath);
+  try {
+    await pipeline(
+      Readable.fromWeb(response.body as NodeReadableStream),
+      createWriteStream(temporaryPath),
+    );
+    const downloaded = await stat(temporaryPath);
+    if (downloaded.size === 0) {
+      throw new Error('Downloaded social video is empty.');
+    }
+    await rename(temporaryPath, outputPath);
 
-  return { path: outputPath, sizeBytes: bytes.length, reused: false };
+    return { path: outputPath, sizeBytes: downloaded.size, reused: false };
+  } catch (error) {
+    await unlink(temporaryPath).catch(() => null);
+    throw error;
+  }
 }

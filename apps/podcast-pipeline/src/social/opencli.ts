@@ -9,10 +9,8 @@ import type {
   XPublishInput,
 } from './types.js';
 
-const X_COMPOSE_URL = 'https://x.com/compose/post';
 const REDNOTE_VIDEO_URL =
   'https://creator.xiaohongshu.com/publish/publish?source=official&from=tab_switch&target=video';
-const X_SESSION = 'zap-social-x';
 const REDNOTE_SESSION = 'zap-social-rednote';
 const DEFAULT_COMMAND_TIMEOUT_MS = 130_000;
 const OPENCLI_CANDIDATES = [
@@ -78,106 +76,51 @@ export function createOpenCliBrowserPublisher(input?: {
   };
 }
 
-export async function assertOpenCliReady(): Promise<void> {
-  await runOpenCli(['doctor'], 45_000);
+export async function assertOpenCliReady(
+  platforms: readonly SocialPlatform[],
+): Promise<void> {
+  for (const platform of new Set(platforms)) {
+    const adapter = platform === 'x' ? 'twitter' : 'rednote';
+    try {
+      const raw = await runOpenCli([adapter, 'whoami', '-f', 'json'], 45_000);
+      const row = parseOpenCliJsonRow(raw, `${adapter} whoami`);
+      if (row['logged_in'] !== true) {
+        throw new Error(`${adapter} reported logged_in=false.`);
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `OpenCLI ${adapter} session is not ready. Run \`opencli ${adapter} login\` and try again.\n${detail}`,
+        { cause: error },
+      );
+    }
+  }
 }
 
 async function publishX(
   input: XPublishInput,
   log: (message: string) => void,
 ): Promise<PublishResult> {
-  try {
-    log('[x] Opening publisher');
-    await xStep('open_compose', () =>
-      browser(X_SESSION, ['open', X_COMPOSE_URL]),
+  log('[x] Publishing copy and episode link');
+  return xStep('post', async () => {
+    const text = `${input.text.trim()}\n\n${input.episodeUrl}`;
+    const raw = await runOpenCli(
+      ['twitter', 'post', text, '-f', 'json'],
+      DEFAULT_COMMAND_TIMEOUT_MS,
     );
-    await xStep('wait_composer', () =>
-      browser(X_SESSION, [
-        'wait',
-        'selector',
-        '[data-testid="tweetTextarea_0"]',
-        '--timeout',
-        '20000',
-      ]),
-    );
+    const row = parseOpenCliJsonRow(raw, 'twitter post');
+    const status = row['status'];
+    const succeeded =
+      status === true ||
+      (typeof status === 'string' &&
+        /^(?:ok|posted|published|success|succeeded)$/i.test(status.trim()));
+    if (!succeeded) {
+      const message = stringField(row, 'message') ?? 'unknown status';
+      throw new Error(`Twitter post was not confirmed: ${message}`);
+    }
 
-    log('[x] Filling copy');
-    await xStep('fill_copy', () =>
-      browser(X_SESSION, [
-        'fill',
-        '[data-testid="tweetTextarea_0"]',
-        input.text,
-      ]),
-    );
-
-    log('[x] Uploading video');
-    await xStep('upload_video', () =>
-      browser(
-        X_SESSION,
-        [
-          'upload',
-          'input[type="file"][data-testid="fileInput"]',
-          input.videoPath,
-        ],
-        DEFAULT_COMMAND_TIMEOUT_MS,
-      ),
-    );
-    await xStep('wait_video_ready', async () => {
-      await browser(X_SESSION, [
-        'wait',
-        'selector',
-        'video',
-        '--timeout',
-        '120000',
-      ]);
-      await browser(X_SESSION, [
-        'wait',
-        'selector',
-        '[data-testid="tweetButtonInline"]:not([aria-disabled="true"]):not([disabled]), [data-testid="tweetButton"]:not([aria-disabled="true"]):not([disabled])',
-        '--timeout',
-        '120000',
-      ]);
-    });
-
-    log('[x] Publishing');
-    await xStep('publish', () =>
-      browser(X_SESSION, [
-        'click',
-        '[data-testid="tweetButtonInline"]:not([aria-disabled="true"]):not([disabled]), [data-testid="tweetButton"]:not([aria-disabled="true"]):not([disabled])',
-        '--nth',
-        '0',
-      ]),
-    );
-    await xStep('confirm_success', async () => {
-      await browser(X_SESSION, [
-        'wait',
-        'selector',
-        '[role="alert"], [data-testid="toast"]',
-        '--timeout',
-        '20000',
-      ]);
-      const evidence = await browser(X_SESSION, [
-        'get',
-        'text',
-        '[role="alert"], [data-testid="toast"]',
-        '--nth',
-        '0',
-      ]);
-      if (/failed|error|try again|失敗|失败|エラー/i.test(evidence)) {
-        throw new Error(`X reported a publish error: ${evidence}`);
-      }
-      if (!/sent|posted|送信|ポスト|已发送|已发布|已發佈/i.test(evidence)) {
-        throw new Error(
-          `Could not verify X publish success from toast: ${evidence}`,
-        );
-      }
-    });
-
-    const url = await findXStatusUrl().catch(() => null);
-    return publishedResult(url);
-  } finally {
-    await browser(X_SESSION, ['close']).catch(() => null);
-  }
+    return publishedResult(twitterPostUrl(row));
+  });
 }
 
 async function publishRednote(
@@ -242,39 +185,12 @@ async function publishRednote(
       ]);
     });
 
-    await rednoteStep('confirm_success', async () => {
-      const simplified = await browser(REDNOTE_SESSION, [
-        'wait',
-        'text',
-        '发布成功',
-        '--timeout',
-        '15000',
-      ]).catch(() => null);
-      if (simplified !== null) return simplified;
-
-      const traditional = await browser(REDNOTE_SESSION, [
-        'wait',
-        'text',
-        '發布成功',
-        '--timeout',
-        '15000',
-      ]).catch(() => null);
-      if (traditional !== null) return traditional;
-
-      const currentUrl = await browser(REDNOTE_SESSION, ['get', 'url']);
-      if (currentUrl.includes('/publish/publish')) {
-        throw new Error('Publish page did not reach a success state.');
-      }
-      return currentUrl;
-    });
+    await rednoteStep('confirm_success', () =>
+      waitForRednotePublishSuccess(30_000),
+    );
 
     const currentUrl = (await browser(REDNOTE_SESSION, ['get', 'url'])).trim();
-    const url =
-      currentUrl.startsWith('https://') &&
-      !currentUrl.includes('/publish/publish')
-        ? currentUrl
-        : null;
-    return publishedResult(url);
+    return publishedResult(rednotePublicPostUrl(currentUrl));
   } finally {
     await browser(REDNOTE_SESSION, ['close']).catch(() => null);
   }
@@ -320,7 +236,7 @@ async function waitForAnySelector(
         'selector',
         selector,
         '--timeout',
-        '1000',
+        '3000',
       ]).catch(() => null);
       if (matched !== null) return selector;
     }
@@ -330,34 +246,102 @@ async function waitForAnySelector(
   );
 }
 
-async function findXStatusUrl(): Promise<string | null> {
-  const raw = await browser(X_SESSION, [
-    'find',
-    '--css',
-    '[role="alert"] a[href*="/status/"], [data-testid="toast"] a[href*="/status/"]',
-    '--limit',
-    '5',
-  ]);
-  const href = findHref(JSON.parse(raw) as unknown);
-  return href ? new URL(href, 'https://x.com').href : null;
+function twitterPostUrl(row: Record<string, unknown>): string | null {
+  const rawUrl = stringField(row, 'url');
+  if (rawUrl) {
+    try {
+      const url = new URL(rawUrl);
+      if (
+        url.protocol === 'https:' &&
+        (url.hostname === 'x.com' || url.hostname === 'twitter.com') &&
+        /\/status\/\d+/.test(url.pathname)
+      ) {
+        return url.href;
+      }
+    } catch {
+      // Fall back to the returned post id below.
+    }
+  }
+
+  const id = stringField(row, 'id');
+  return id && /^\d+$/.test(id) ? `https://x.com/i/status/${id}` : null;
 }
 
-function findHref(value: unknown): string | null {
-  if (typeof value === 'string' && /\/status\/\d+/.test(value)) return value;
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = findHref(item);
-      if (found) return found;
-    }
+function rednotePublicPostUrl(rawUrl: string): string | null {
+  try {
+    const url = new URL(rawUrl);
+    const publicHost =
+      url.hostname === 'xiaohongshu.com' ||
+      url.hostname.endsWith('.xiaohongshu.com');
+    const publicPath = /^\/(?:explore|discovery\/item)\/[^/]+\/?$/.test(
+      url.pathname,
+    );
+    return url.protocol === 'https:' && publicHost && publicPath
+      ? url.href
+      : null;
+  } catch {
     return null;
   }
-  if (value && typeof value === 'object') {
-    for (const item of Object.values(value as Record<string, unknown>)) {
-      const found = findHref(item);
-      if (found) return found;
+}
+
+async function waitForRednotePublishSuccess(
+  totalTimeoutMs: number,
+): Promise<void> {
+  const deadline = Date.now() + totalTimeoutMs;
+  while (Date.now() < deadline) {
+    const pageText = await browser(REDNOTE_SESSION, [
+      'get',
+      'text',
+      'body',
+    ]).catch(() => '');
+    if (/发布成功|發布成功/u.test(pageText)) return;
+    if (
+      /发布失败|發布失敗|發佈失敗|publish failed|error publishing/iu.test(
+        pageText,
+      )
+    ) {
+      throw new Error('Rednote reported a publish failure.');
     }
+    const currentUrl = await browser(REDNOTE_SESSION, ['get', 'url']).catch(
+      () => '',
+    );
+    if (rednotePublicPostUrl(currentUrl.trim())) return;
+    await delay(750);
   }
-  return null;
+
+  throw new Error('Rednote did not show an explicit publish-success state.');
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function parseOpenCliJsonRow(
+  raw: string,
+  context: string,
+): Record<string, unknown> {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw) as unknown;
+  } catch (error) {
+    throw new Error(`OpenCLI ${context} returned invalid JSON.`, {
+      cause: error,
+    });
+  }
+
+  const row = Array.isArray(value) ? value[0] : value;
+  if (!row || typeof row !== 'object' || Array.isArray(row)) {
+    throw new Error(`OpenCLI ${context} returned no result row.`);
+  }
+  return row as Record<string, unknown>;
+}
+
+function stringField(
+  row: Record<string, unknown>,
+  field: string,
+): string | null {
+  const value = row[field];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function browser(

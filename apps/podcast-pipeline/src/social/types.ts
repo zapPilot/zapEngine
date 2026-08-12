@@ -9,6 +9,7 @@ export interface SocialEpisode {
   transcript: string;
   publishedAt: string;
   episodeUrl: string;
+  videoDurationSeconds: number;
   videos: {
     zh?: string;
     ja?: string;
@@ -30,7 +31,7 @@ export interface GeneratedSocialCopy {
 
 export interface XPublishInput {
   text: string;
-  videoPath: string;
+  episodeUrl: string;
 }
 
 export interface RednotePublishInput {

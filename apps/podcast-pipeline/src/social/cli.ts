@@ -9,7 +9,7 @@ import { parseArgs } from 'node:util';
 import dotenv from 'dotenv';
 
 import { generateSocialCopy, parseGeneratedSocialCopy } from './copy.js';
-import { getSocialEpisode } from './episode.js';
+import { getSocialEpisode, parseSocialEpisodeId } from './episode.js';
 import {
   assertOpenCliReady,
   createOpenCliBrowserPublisher,
@@ -21,8 +21,9 @@ import type {
   SocialEpisode,
   SocialLanguage,
   SocialPlatform,
+  SocialPublishState,
 } from './types.js';
-import { prepareSocialVideo } from './video.js';
+import { type PreparedVideo, prepareSocialVideo } from './video.js';
 
 const REPO_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -32,7 +33,7 @@ const REPO_ROOT = resolve(
   '..',
 );
 const USAGE =
-  'Usage: pnpm social:publish <episode-id> [--dry-run] [--platform x|rednote] [--lang zh] [--force]';
+  'Usage: pnpm social:publish <episode-uuid-or-share-url> [--dry-run] [--platform x|rednote] [--lang zh] [--force]';
 
 dotenv.config({ path: resolve(REPO_ROOT, '.env') });
 
@@ -60,23 +61,25 @@ export async function runSocialCli(args: string[]): Promise<void> {
   const requestedPlatforms: SocialPlatform[] = options.platform
     ? [options.platform]
     : ['x', 'rednote'];
+  let platforms = requestedPlatforms;
 
   if (!options.dryRun && !options.force) {
-    const shouldContinue = await handleExistingState(
+    const pendingPlatforms = await handleExistingState(
       options,
       requestedPlatforms,
     );
-    if (!shouldContinue) return;
+    if (!pendingPlatforms) return;
+    platforms = pendingPlatforms;
   }
 
-  const { episode, videoPath } = await loadSocialAssets(options);
+  const { episode, video } = await loadSocialAssets(options, platforms);
 
   console.log('Generating social copy...');
   const generated = await generateSocialCopy({ episode });
   console.log(`[ai] Generated copy using ${generated.model}`);
 
   if (options.dryRun) {
-    printPreview(generated.copy, videoPath);
+    printPreview(generated.copy, episode, video);
     console.log(
       '\nDry run complete. Browser was not opened and nothing was published.',
     );
@@ -87,12 +90,21 @@ export async function runSocialCli(args: string[]): Promise<void> {
     episode,
     episodeId: options.episodeId,
     initialCopy: generated.copy,
-    requestedPlatforms,
-    videoPath,
+    requestedPlatforms: platforms,
+    video,
   });
   if (!review) return;
 
-  await assertOpenCliReady();
+  if (
+    review.platforms.includes('rednote') &&
+    episode.videoDurationSeconds > 900
+  ) {
+    console.warn(
+      `⚠ Rednote video is ${formatDuration(episode.videoDurationSeconds)}, above the platform's general 15-minute limit. Publishing will still be attempted.`,
+    );
+  }
+
+  await assertOpenCliReady(review.platforms);
   const publisher = createOpenCliBrowserPublisher({
     onLog: (message) => console.log(message),
   });
@@ -102,7 +114,8 @@ export async function runSocialCli(args: string[]): Promise<void> {
     platforms: review.platforms,
     force: options.force,
     copy: review.copy,
-    videoPath,
+    episodeUrl: episode.episodeUrl,
+    ...(video ? { videoPath: video.path } : {}),
     publisher,
     onLog: (message) => console.log(message),
   });
@@ -151,7 +164,7 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
   }
 
   return {
-    episodeId: positionals[0].trim(),
+    episodeId: parseSocialEpisodeId(positionals[0]),
     dryRun: values['dry-run'],
     force: values.force,
     language: 'zh',
@@ -159,14 +172,19 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
   };
 }
 
-async function loadSocialAssets(options: SocialCliOptions): Promise<{
+async function loadSocialAssets(
+  options: SocialCliOptions,
+  requestedPlatforms: readonly SocialPlatform[],
+): Promise<{
   episode: SocialEpisode;
-  videoPath: string;
+  video?: PreparedVideo;
 }> {
   console.log(`Fetching episode ${options.episodeId}...`);
   const episode = await getSocialEpisode(options.episodeId, options.language);
   console.log('✓ metadata');
   console.log('✓ transcript');
+
+  if (!requestedPlatforms.includes('rednote')) return { episode };
 
   const videoUrl = episode.videos.zh;
   if (!videoUrl) {
@@ -175,16 +193,16 @@ async function loadSocialAssets(options: SocialCliOptions): Promise<{
     );
   }
 
-  const preparedVideo = await prepareSocialVideo({
+  const video = await prepareSocialVideo({
     episodeId: options.episodeId,
     language: options.language,
     url: videoUrl,
   });
   console.log(
-    `✓ zh video (${formatBytes(preparedVideo.sizeBytes)}${preparedVideo.reused ? ', cached' : ''})`,
+    `✓ zh video (${formatDuration(episode.videoDurationSeconds)}, ${formatBytes(video.sizeBytes)}${video.reused ? ', cached' : ''})`,
   );
 
-  return { episode, videoPath: preparedVideo.path };
+  return { episode, video };
 }
 
 async function reviewSocialCopy(input: {
@@ -192,12 +210,12 @@ async function reviewSocialCopy(input: {
   episodeId: string;
   initialCopy: GeneratedSocialCopy;
   requestedPlatforms: SocialPlatform[];
-  videoPath: string;
+  video?: PreparedVideo;
 }): Promise<ReviewSelection | null> {
   let copy = input.initialCopy;
 
   while (true) {
-    printPreview(copy, input.videoPath);
+    printPreview(copy, input.episode, input.video);
     const review = await askReviewAction(input.requestedPlatforms);
 
     if (review.action === 'quit') return null;
@@ -225,12 +243,15 @@ async function reviewSocialCopy(input: {
 async function handleExistingState(
   options: SocialCliOptions,
   requestedPlatforms: SocialPlatform[],
-): Promise<boolean> {
+): Promise<SocialPlatform[] | null> {
   const state = await readPublishState();
-  const published = requestedPlatforms.filter((platform) =>
-    getPublishedPlatform(state, options.episodeId, options.language, platform),
+  const pending = findPendingPlatforms(
+    state,
+    options.episodeId,
+    options.language,
+    requestedPlatforms,
   );
-  if (published.length === 0) return true;
+  if (pending.length === requestedPlatforms.length) return requestedPlatforms;
 
   console.log(`⚠ Episode ${options.episodeId} was already published:`);
   for (const platform of requestedPlatforms) {
@@ -245,32 +266,49 @@ async function handleExistingState(
     );
   }
 
-  if (published.length === requestedPlatforms.length) {
+  if (pending.length === 0) {
     console.log('Use --force to publish again.');
-    return false;
+    return null;
   }
 
-  const pending = requestedPlatforms.filter(
-    (platform) => !published.includes(platform),
-  );
   const names = pending.map((platform) => (platform === 'x' ? 'X' : 'Rednote'));
   const answer = (await promptLine(`Retry ${names.join(' + ')}? [y/N] `))
     .trim()
     .toLowerCase();
-  return answer === 'y' || answer === 'yes';
+  return answer === 'y' || answer === 'yes' ? pending : null;
 }
 
-function printPreview(copy: GeneratedSocialCopy, videoPath: string): void {
+export function findPendingPlatforms(
+  state: SocialPublishState,
+  episodeId: string,
+  language: SocialLanguage,
+  requestedPlatforms: readonly SocialPlatform[],
+): SocialPlatform[] {
+  return requestedPlatforms.filter(
+    (platform) => !getPublishedPlatform(state, episodeId, language, platform),
+  );
+}
+
+function printPreview(
+  copy: GeneratedSocialCopy,
+  episode: SocialEpisode,
+  video?: PreparedVideo,
+): void {
   const divider = '────────────────────────';
   console.log(`\n${divider}\nX\n${divider}`);
-  console.log(copy.x.text);
-  console.log(`🎬 video: ${videoPath}`);
+  console.log(`${copy.x.text}\n\n${episode.episodeUrl}`);
   console.log(`${divider}\nREDNOTE\n${divider}`);
   console.log('標題：');
   console.log(copy.rednote.title);
   console.log('正文：');
   console.log(copy.rednote.body);
   console.log(copy.rednote.hashtags.map((tag) => `#${tag}`).join(' '));
+  const cacheSuffix = video?.reused ? ', cached' : '';
+  console.log(
+    video
+      ? `🎬 video: ${formatDuration(episode.videoDurationSeconds)}, ${formatBytes(video.sizeBytes)}${cacheSuffix}\n${video.path}`
+      : `🎬 video: ${formatDuration(episode.videoDurationSeconds)} (not downloaded for X-only publishing)`,
+  );
   console.log(divider);
 }
 
@@ -316,10 +354,11 @@ async function editCopy(
   const path = join(directory, `episode-${safeEpisodeId}-copy.json`);
   await writeFile(path, `${JSON.stringify(copy, null, 2)}\n`, 'utf8');
 
-  const result = spawnSync('/usr/bin/vi', [path], { stdio: 'inherit' });
+  const editor = process.env['EDITOR'] ?? 'vi';
+  const result = spawnSync(editor, [path], { stdio: 'inherit' });
   if (result.error) throw result.error;
   if (result.status !== 0) {
-    throw new Error(`vi exited with status ${result.status}.`);
+    throw new Error(`${editor} exited with status ${result.status}.`);
   }
 
   const raw = await readFile(path, 'utf8');
@@ -353,6 +392,13 @@ async function promptLine(message: string): Promise<string> {
 function formatBytes(value: number): string {
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
   return `${(value / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatDuration(value: number): string {
+  const seconds = Math.max(0, Math.round(value));
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return `${minutes}m ${remainder.toString().padStart(2, '0')}s`;
 }
 
 const invokedPath = process.argv[1]

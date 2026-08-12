@@ -45,6 +45,7 @@ declare -a EXCLUDED_BUILTINS=(
   "TZ"
   "LANG"
   "TERM"
+  "EDITOR"
   "DEBUG"
   "DEV"
   "MODE"
@@ -57,7 +58,7 @@ is_excluded_builtin() {
   local var="$1"
 
   case "$var" in
-    NODE_ENV | CI | PATH | HOME | USER | PWD | PORT | TZ | LANG | TERM | DEBUG | DEV | MODE | PROD | SSR | npm_*)
+    NODE_ENV | CI | PATH | HOME | USER | PWD | PORT | TZ | LANG | TERM | EDITOR | DEBUG | DEV | MODE | PROD | SSR | npm_*)
       return 0
       ;;
   esac

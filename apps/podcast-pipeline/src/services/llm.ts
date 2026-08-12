@@ -525,7 +525,7 @@ function parseJsonObject(
   return parsed as Record<string, unknown>;
 }
 
-function stripJsonFence(trimmed: string): string {
+export function stripJsonFence(trimmed: string): string {
   if (!trimmed.startsWith('```')) return trimmed;
 
   const firstLineEnd = trimmed.indexOf('\n');

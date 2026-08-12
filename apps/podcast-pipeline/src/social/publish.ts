@@ -23,7 +23,8 @@ export async function publishSocialPlatforms(input: {
   platforms: SocialPlatform[];
   force: boolean;
   copy: GeneratedSocialCopy;
-  videoPath: string;
+  episodeUrl: string;
+  videoPath?: string;
   publisher: BrowserPublisher;
   statePath?: string;
   onLog?: (message: string) => void;
@@ -54,14 +55,9 @@ export async function publishSocialPlatforms(input: {
         platform === 'x'
           ? await input.publisher.publishX({
               text: input.copy.x.text,
-              videoPath: input.videoPath,
+              episodeUrl: input.episodeUrl,
             })
-          : await input.publisher.publishRednote({
-              title: input.copy.rednote.title,
-              body: input.copy.rednote.body,
-              hashtags: input.copy.rednote.hashtags,
-              videoPath: input.videoPath,
-            });
+          : await publishRednote(input);
 
       await markPlatformPublished({
         episodeId: input.episodeId,
@@ -89,4 +85,20 @@ export async function publishSocialPlatforms(input: {
   }
 
   return outcomes;
+}
+
+async function publishRednote(input: {
+  copy: GeneratedSocialCopy;
+  videoPath?: string;
+  publisher: BrowserPublisher;
+}) {
+  if (!input.videoPath) {
+    throw new Error('Rednote publishing requires a prepared video.');
+  }
+  return input.publisher.publishRednote({
+    title: input.copy.rednote.title,
+    body: input.copy.rednote.body,
+    hashtags: input.copy.rednote.hashtags,
+    videoPath: input.videoPath,
+  });
 }

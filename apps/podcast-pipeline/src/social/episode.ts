@@ -1,4 +1,10 @@
-import { createPipelineSupabaseClient } from '../services/supabase-client.js';
+import {
+  findEpisodeById,
+  findEpisodeLocalizationByEpisodeId,
+  listEpisodeVideoSummariesByLocalizationIds,
+} from '../services/db.js';
+import { isEpisodeId } from '../services/request-validation.js';
+import { buildEpisodeShareUrl } from '../services/telegram.js';
 import type { SocialEpisode, SocialLanguage } from './types.js';
 
 interface EpisodeProjection {
@@ -19,12 +25,36 @@ interface LocalizationProjection {
 }
 
 interface VideoProjection {
-  status: string;
-  mp4_url: string | null;
+  url: string;
+  thumbnailUrl: string;
+  durationSeconds: number;
 }
 
-const SHARE_BASE_URL = 'https://from-fed-to-chain-api.fly.dev';
 const CANONICAL_LANGUAGE_CODE = 'zh-Hant';
+
+export function parseSocialEpisodeId(value: string): string {
+  const normalized = value.trim();
+  if (isEpisodeId(normalized)) return normalized.toLowerCase();
+
+  try {
+    const url = new URL(normalized);
+    const match = /\/e\/([^/]+)\/?$/.exec(url.pathname);
+    const episodeId = match?.[1] ? decodeURIComponent(match[1]) : '';
+
+    if (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      isEpisodeId(episodeId)
+    ) {
+      return episodeId.toLowerCase();
+    }
+  } catch {
+    // The shared validation error below covers malformed URLs and path escapes.
+  }
+
+  throw new Error(
+    'Invalid episode input. Expected a bare UUID or a share URL with an /e/<uuid> path.',
+  );
+}
 
 export function toPrimaryLanguageCode(language: SocialLanguage): string {
   if (language !== 'zh') {
@@ -45,9 +75,16 @@ export function buildSocialEpisode(input: {
     );
   }
 
-  const videoUrl =
-    input.video?.status === 'completed' ? input.video.mp4_url?.trim() : '';
-  if (!videoUrl) {
+  const videoUrl = input.video?.url.trim();
+  const thumbnailUrl = input.video?.thumbnailUrl.trim();
+  const videoDurationSeconds = input.video?.durationSeconds;
+  if (
+    !videoUrl ||
+    !thumbnailUrl ||
+    typeof videoDurationSeconds !== 'number' ||
+    !Number.isFinite(videoDurationSeconds) ||
+    videoDurationSeconds <= 0
+  ) {
     throw new Error(
       `No completed zh video found for episode ${input.episode.id}. Social publishing aborted.`,
     );
@@ -63,7 +100,8 @@ export function buildSocialEpisode(input: {
     summary: summarize(summarySource),
     transcript,
     publishedAt: input.episode.created_at,
-    episodeUrl: `${SHARE_BASE_URL}/e/${encodeURIComponent(input.episode.id)}?lang=${encodeURIComponent(CANONICAL_LANGUAGE_CODE)}`,
+    episodeUrl: buildEpisodeShareUrl(input.episode.id),
+    videoDurationSeconds,
     videos: { zh: videoUrl },
   };
 }
@@ -73,42 +111,26 @@ export async function getSocialEpisode(
   language: SocialLanguage = 'zh',
 ): Promise<SocialEpisode> {
   const languageCode = toPrimaryLanguageCode(language);
-  const supabase = createPipelineSupabaseClient();
-
-  const { data: episode, error: episodeError } = await supabase
-    .from('episodes')
-    .select('id, source_url, source_title, created_at')
-    .eq('id', episodeId)
-    .maybeSingle<EpisodeProjection>();
-
-  if (episodeError) throw episodeError;
+  const episode = await findEpisodeById(episodeId);
   if (!episode) {
     throw new Error(`Episode ${episodeId} not found.`);
   }
 
-  const { data: localization, error: localizationError } = await supabase
-    .from('episode_localizations')
-    .select('id, episode_id, language_code, title, raw_text, script, status')
-    .eq('episode_id', episodeId)
-    .eq('language_code', languageCode)
-    .maybeSingle<LocalizationProjection>();
-
-  if (localizationError) throw localizationError;
+  const localization = await findEpisodeLocalizationByEpisodeId(
+    episodeId,
+    languageCode,
+  );
   if (localization?.status !== 'completed') {
     throw new Error(
       `No completed zh localization found for episode ${episodeId}. Social publishing aborted.`,
     );
   }
 
-  const { data: video, error: videoError } = await supabase
-    .from('episode_videos')
-    .select('status, mp4_url')
-    .eq('episode_localization_id', localization.id)
-    .maybeSingle<VideoProjection>();
+  const video = (
+    await listEpisodeVideoSummariesByLocalizationIds([localization.id])
+  ).get(localization.id)?.video;
 
-  if (videoError) throw videoError;
-
-  return buildSocialEpisode({ episode, localization, video });
+  return buildSocialEpisode({ episode, localization, video: video ?? null });
 }
 
 function summarize(value: string): string {
