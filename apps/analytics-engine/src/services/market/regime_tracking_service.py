@@ -30,7 +30,7 @@ from src.models.regime_tracking import (
     RegimeTransition,
     format_duration_human_readable,
 )
-from src.services.interfaces import QueryServiceProtocol
+from src.services.shared.query_service import QueryService
 
 logger = logging.getLogger(__name__)
 
@@ -64,9 +64,7 @@ class RegimeTrackingService:
     - Duration calculations for "time in regime" display
     """
 
-    def __init__(
-        self, db: Session, query_service: QueryServiceProtocol | None = None
-    ) -> None:
+    def __init__(self, db: Session, query_service: QueryService | None = None) -> None:
         """
         Initialize with database session and optional query service.
         # pylint: disable=duplicate-code

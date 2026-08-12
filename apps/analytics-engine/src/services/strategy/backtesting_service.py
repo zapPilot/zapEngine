@@ -46,12 +46,12 @@ from src.services.strategy.strategy_config_store import (
 )
 
 if TYPE_CHECKING:  # pragma: no cover
-    from src.services.interfaces import (
-        MacroFearGreedDatabaseServiceProtocol,
-        SentimentDatabaseServiceProtocol,
-        TokenPriceServiceProtocol,
+    from src.services.market.macro_fear_greed_service import (
+        MacroFearGreedDatabaseService,
     )
-    from src.services.interfaces.market import StockPriceServiceProtocol
+    from src.services.market.sentiment_database_service import SentimentDatabaseService
+    from src.services.market.stock_price_service import StockPriceService
+    from src.services.market.token_price_service import TokenPriceService
 
 logger = logging.getLogger(__name__)
 
@@ -436,12 +436,12 @@ class BacktestingService:
     def __init__(
         self,
         db: Session,
-        token_price_service: TokenPriceServiceProtocol,
-        sentiment_service: SentimentDatabaseServiceProtocol,
+        token_price_service: TokenPriceService,
+        sentiment_service: SentimentDatabaseService,
         strategy_config_store: StrategyConfigStore | None = None,
         composition_catalog: CompositionCatalog | None = None,
-        stock_price_service: StockPriceServiceProtocol | None = None,
-        macro_fear_greed_service: MacroFearGreedDatabaseServiceProtocol | None = None,
+        stock_price_service: StockPriceService | None = None,
+        macro_fear_greed_service: MacroFearGreedDatabaseService | None = None,
     ):
         self.data_provider = BacktestDataProvider(
             token_price_service=token_price_service,

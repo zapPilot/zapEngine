@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from src.services.interfaces import QueryServiceProtocol
+from src.services.shared.query_service import QueryService
 
 
 class QueryBackedMarketService:
@@ -13,7 +13,7 @@ class QueryBackedMarketService:
     def __init__(
         self,
         db: Session,
-        query_service: QueryServiceProtocol | None = None,
+        query_service: QueryService | None = None,
     ) -> None:
         self.db = db
         if query_service is None:

@@ -20,18 +20,14 @@ from src.core.exceptions import DatabaseError, ValidationError
 from src.services.aggregators.pool_performance_aggregator import (
     PoolPerformanceAggregator,
 )
-from src.services.interfaces import (
-    PoolPerformanceAggregatorProtocol,
-    PoolPerformanceServiceProtocol,
-    QueryServiceProtocol,
-)
 from src.services.shared.base_analytics_service import BaseAnalyticsService
 from src.services.shared.query_names import QUERY_NAMES
+from src.services.shared.query_service import QueryService
 
 logger = logging.getLogger(__name__)
 
 
-class PoolPerformanceService(BaseAnalyticsService, PoolPerformanceServiceProtocol):
+class PoolPerformanceService(BaseAnalyticsService):
     """Service for retrieving pool performance metrics.
 
     Note: APR data has been removed for performance optimization (5-10s latency reduction).
@@ -42,8 +38,8 @@ class PoolPerformanceService(BaseAnalyticsService, PoolPerformanceServiceProtoco
     def __init__(
         self,
         db: Session,
-        query_service: QueryServiceProtocol,
-        aggregator: PoolPerformanceAggregatorProtocol | None = None,
+        query_service: QueryService,
+        aggregator: PoolPerformanceAggregator | None = None,
     ) -> None:
         if query_service is None:
             raise ValueError("Query service is required")
@@ -61,7 +57,7 @@ class PoolPerformanceService(BaseAnalyticsService, PoolPerformanceServiceProtoco
         limit: int | None = None,
         min_value_usd: float = 0.0,
     ) -> list[dict[str, Any]]:
-        """See PoolPerformanceServiceProtocol.get_pool_performance"""
+        """Return pool performance metrics for a user."""
         logger.info(
             "Fetching pool performance for user %s (snapshot_date=%s, limit=%s, min_value=%.2f)",
             user_id,

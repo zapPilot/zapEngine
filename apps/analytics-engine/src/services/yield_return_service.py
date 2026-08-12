@@ -24,18 +24,18 @@ from src.models.yield_returns import (
 )
 from src.services.aggregators.yield_return_aggregator import YieldReturnAggregator
 from src.services.analytics.analytics_context import PortfolioAnalyticsContext
-from src.services.interfaces import QueryServiceProtocol, YieldReturnServiceProtocol
 from src.services.shared.base_analytics_service import BaseAnalyticsService
 from src.services.shared.query_names import QUERY_NAMES
+from src.services.shared.query_service import QueryService
 
 
-class YieldReturnService(BaseAnalyticsService, YieldReturnServiceProtocol):
+class YieldReturnService(BaseAnalyticsService):
     """Service responsible for Yield Return computations."""
 
     def __init__(
         self,
         db: Session,
-        query_service: QueryServiceProtocol,
+        query_service: QueryService,
         context: PortfolioAnalyticsContext,
     ) -> None:
         super().__init__(db, query_service, context)
@@ -51,7 +51,7 @@ class YieldReturnService(BaseAnalyticsService, YieldReturnServiceProtocol):
         protocols: list[str] | None = None,
         chains: list[str] | None = None,
     ) -> YieldReturnsResponse:
-        """See YieldReturnServiceProtocol.get_daily_yield_returns"""
+        """Return daily yield data for the requested filters."""
         wallet_key, ttl_hours = self._wallet_cache_config(wallet_address)
         cache_key = self._cache_key(
             "daily_yield_returns",

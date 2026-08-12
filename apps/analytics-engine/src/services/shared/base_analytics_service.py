@@ -17,8 +17,8 @@ from src.core.config import settings
 from src.core.constants import CACHE_TTL_BUNDLE_HOURS, CACHE_TTL_WALLET_HOURS
 from src.core.utils import row_to_dict
 from src.services.analytics.analytics_context import PortfolioAnalyticsContext
-from src.services.interfaces import QueryServiceProtocol
 from src.services.shared.query_names import QUERY_NAMES
+from src.services.shared.query_service import QueryService
 
 CacheT = TypeVar("CacheT")
 
@@ -73,7 +73,7 @@ class BaseAnalyticsService(CacheKeyMixin):
     def __init__(
         self,
         db: Session,
-        query_service: QueryServiceProtocol,
+        query_service: QueryService,
         context: PortfolioAnalyticsContext | None = None,
     ) -> None:
         self.db = db

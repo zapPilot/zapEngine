@@ -17,16 +17,13 @@ from sqlalchemy.orm import Session
 
 from src.core.cache_service import analytics_cache
 from src.models.analytics_responses import SnapshotInfo
-from src.services.interfaces import (
-    CanonicalSnapshotServiceProtocol,
-    QueryServiceProtocol,
-)
 from src.services.shared.query_names import QUERY_NAMES
+from src.services.shared.query_service import QueryService
 
 logger = logging.getLogger(__name__)
 
 
-class CanonicalSnapshotService(CanonicalSnapshotServiceProtocol):
+class CanonicalSnapshotService:
     """
     Single source of truth for snapshot date selection.
 
@@ -53,7 +50,7 @@ class CanonicalSnapshotService(CanonicalSnapshotServiceProtocol):
     # Cache TTL for snapshot date queries (5 minutes for recency)
     SNAPSHOT_DATE_CACHE_TTL_HOURS = 5 / 60  # 5 minutes in hours
 
-    def __init__(self, db: Session, query_service: QueryServiceProtocol) -> None:
+    def __init__(self, db: Session, query_service: QueryService) -> None:
         """
         Initialize CanonicalSnapshotService.
 
@@ -67,7 +64,7 @@ class CanonicalSnapshotService(CanonicalSnapshotServiceProtocol):
     def get_snapshot_info(
         self, user_id: UUID, wallet_address: str | None = None
     ) -> SnapshotInfo | None:
-        """See CanonicalSnapshotServiceProtocol.get_snapshot_info."""
+        """Return canonical snapshot metadata for a user."""
         # Build cache key
         wallet_key = wallet_address or "bundle"
         cache_key = analytics_cache.build_key(
@@ -151,7 +148,7 @@ class CanonicalSnapshotService(CanonicalSnapshotServiceProtocol):
     def get_snapshot_date_range(
         self, user_id: UUID, days: int, wallet_address: str | None = None
     ) -> tuple[date, date]:
-        """See CanonicalSnapshotServiceProtocol.get_snapshot_date_range."""
+        """Return the canonical snapshot date range for a user."""
         latest_date = self.get_snapshot_date(user_id, wallet_address)
         if latest_date is None:
             raise ValueError(f"No snapshot data exists for user_id={user_id}")
@@ -178,7 +175,7 @@ class CanonicalSnapshotService(CanonicalSnapshotServiceProtocol):
         snapshot_date: date,
         expected_wallet_count: int | None = None,
     ) -> dict[str, Any]:
-        """See CanonicalSnapshotServiceProtocol.validate_snapshot_consistency."""
+        """Validate snapshot consistency for a user and date."""
         # Query for this specific date (re-run the canonical query with date filter)
         # For now, this is a simplified version - full validation would require
         # additional SQL queries to check each wallet individually

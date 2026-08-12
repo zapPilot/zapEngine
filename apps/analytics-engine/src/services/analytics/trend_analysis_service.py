@@ -20,7 +20,6 @@ from src.models.analytics_responses import (
     PeriodInfo,
     PortfolioTrendResponse,
 )
-from src.services.interfaces import TrendAnalysisServiceProtocol
 from src.services.shared.base_analytics_service import (
     BaseAnalyticsService,
     TimeRangeQueryPayload,
@@ -59,7 +58,7 @@ def _log_trend_cache_stats(
     )
 
 
-class TrendAnalysisService(BaseAnalyticsService, TrendAnalysisServiceProtocol):
+class TrendAnalysisService(BaseAnalyticsService):
     """Service for portfolio trend analysis and historical data aggregation."""
 
     _transformer_cls: ClassVar[type[CategoryDataTransformer]] = CategoryDataTransformer
@@ -152,7 +151,7 @@ class TrendAnalysisService(BaseAnalyticsService, TrendAnalysisServiceProtocol):
         limit: int = 100,
         snapshot_date: date | datetime | None = None,
     ) -> PortfolioTrendResponse:
-        """See TrendAnalysisServiceProtocol.get_portfolio_trend"""
+        """Return portfolio trend data for the requested period."""
         start_time = datetime.now(UTC)
 
         anchor_date: date | None = None

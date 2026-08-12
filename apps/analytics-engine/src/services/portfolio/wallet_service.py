@@ -8,8 +8,8 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from src.services.interfaces import QueryServiceProtocol
 from src.services.shared.query_names import QUERY_NAMES
+from src.services.shared.query_service import QueryService
 from src.services.shared.value_objects import (
     WalletAggregate,
     create_empty_category_breakdown,
@@ -45,7 +45,7 @@ class WalletService:
     Provides business logic for wallet data processing.
     """
 
-    def __init__(self, query_service: QueryServiceProtocol):
+    def __init__(self, query_service: QueryService):
         """
         Initializes the WalletService with a query service dependency.
 

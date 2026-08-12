@@ -22,22 +22,17 @@ from src.core.financial_utils import calculate_percentage_rounded
 from src.models.analytics_responses import SnapshotInfo
 from src.models.portfolio import PortfolioResponse
 from src.models.portfolio_snapshot import WalletTrendOverride
-from src.services.interfaces import (
-    BorrowingServiceProtocol,
-    CanonicalSnapshotServiceProtocol,
-    PoolPerformanceServiceProtocol,
-    PortfolioAggregatorProtocol,
-    PortfolioResponseBuilderProtocol,
-    PortfolioROIComputed,
-    PortfolioSnapshotServiceProtocol,
-    QueryServiceProtocol,
-    ROICalculatorProtocol,
-    WalletServiceProtocol,
-)
+from src.services.portfolio.borrowing_service import BorrowingService
+from src.services.portfolio.canonical_snapshot_service import CanonicalSnapshotService
+from src.services.portfolio.pool_performance_service import PoolPerformanceService
 from src.services.portfolio.portfolio_aggregator import PortfolioAggregator
 from src.services.portfolio.portfolio_response_builder import PortfolioResponseBuilder
+from src.services.portfolio.portfolio_snapshot_service import PortfolioSnapshotService
 from src.services.portfolio.roi_calculator import ROICalculator
+from src.services.portfolio.roi_types import PortfolioROIComputed
+from src.services.portfolio.wallet_service import WalletService
 from src.services.shared.base_analytics_service import CacheKeyMixin
+from src.services.shared.query_service import QueryService
 from src.services.shared.value_objects import WalletAggregate, WalletCategoryBreakdown
 
 logger = logging.getLogger(__name__)
@@ -91,15 +86,15 @@ class LandingPageService(CacheKeyMixin):
     def __init__(
         self,
         db: Session,
-        wallet_service: WalletServiceProtocol,
-        query_service: QueryServiceProtocol,
-        roi_calculator: ROICalculatorProtocol | None = None,
-        portfolio_aggregator: PortfolioAggregatorProtocol | None = None,
-        response_builder: PortfolioResponseBuilderProtocol | None = None,
-        portfolio_snapshot_service: PortfolioSnapshotServiceProtocol | None = None,
-        pool_performance_service: PoolPerformanceServiceProtocol | None = None,
-        canonical_snapshot_service: CanonicalSnapshotServiceProtocol | None = None,
-        borrowing_service: BorrowingServiceProtocol | None = None,
+        wallet_service: WalletService,
+        query_service: QueryService,
+        roi_calculator: ROICalculator | None = None,
+        portfolio_aggregator: PortfolioAggregator | None = None,
+        response_builder: PortfolioResponseBuilder | None = None,
+        portfolio_snapshot_service: PortfolioSnapshotService | None = None,
+        pool_performance_service: PoolPerformanceService | None = None,
+        canonical_snapshot_service: CanonicalSnapshotService | None = None,
+        borrowing_service: BorrowingService | None = None,
     ) -> None:
         self.db = self._require_dependency(db, "Database session is required")
         self.wallet_service = self._require_dependency(

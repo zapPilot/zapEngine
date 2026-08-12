@@ -23,13 +23,11 @@ from pydantic import BaseModel
 
 from src.core.cache_service import analytics_cache
 from src.models.dashboard import DashboardTimeRanges
-from src.services.interfaces import (
-    CanonicalSnapshotServiceProtocol,
-    DrawdownAnalysisServiceProtocol,
-    RiskMetricsServiceProtocol,
-    RollingAnalyticsServiceProtocol,
-    TrendAnalysisServiceProtocol,
-)
+from src.services.analytics.drawdown_analysis_service import DrawdownAnalysisService
+from src.services.analytics.risk_metrics_service import RiskMetricsService
+from src.services.analytics.rolling_analytics_service import RollingAnalyticsService
+from src.services.analytics.trend_analysis_service import TrendAnalysisService
+from src.services.portfolio.canonical_snapshot_service import CanonicalSnapshotService
 from src.services.shared.base_analytics_service import CacheKeyMixin
 
 logger = logging.getLogger(__name__)
@@ -136,11 +134,11 @@ class DashboardService(CacheKeyMixin):
 
     def __init__(
         self,
-        trend_service: TrendAnalysisServiceProtocol,
-        risk_service: RiskMetricsServiceProtocol,
-        drawdown_service: DrawdownAnalysisServiceProtocol,
-        rolling_service: RollingAnalyticsServiceProtocol,
-        canonical_snapshot_service: CanonicalSnapshotServiceProtocol,
+        trend_service: TrendAnalysisService,
+        risk_service: RiskMetricsService,
+        drawdown_service: DrawdownAnalysisService,
+        rolling_service: RollingAnalyticsService,
+        canonical_snapshot_service: CanonicalSnapshotService,
     ):
         """
         Initialize dashboard service with all analytics dependencies.

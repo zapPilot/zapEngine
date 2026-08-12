@@ -24,14 +24,12 @@ from src.models.portfolio import (
     ROIData,
     WalletTokenSummary,
 )
-from src.services.interfaces import (
-    PortfolioAggregatorProtocol,
-    PortfolioROIComputed,
-)
+from src.services.portfolio.portfolio_aggregator import PortfolioAggregator
 from src.services.portfolio.roi_calculator import (
     DEFAULT_RECOMMENDED_PERIOD,
     ROI_PERIODS,
 )
+from src.services.portfolio.roi_types import PortfolioROIComputed
 from src.services.shared.value_objects import WalletAggregate
 
 logger = logging.getLogger(__name__)
@@ -50,7 +48,7 @@ class FinancialMetrics:
 class PortfolioResponseBuilder:
     """Service for building PortfolioResponse objects from aggregated data"""
 
-    def __init__(self, portfolio_aggregator: PortfolioAggregatorProtocol):
+    def __init__(self, portfolio_aggregator: PortfolioAggregator):
         """Initialize with portfolio aggregator dependency"""
         self.portfolio_aggregator = portfolio_aggregator
 

@@ -20,7 +20,7 @@ from src.services.dependencies import (
     YieldReturnServiceDep,
     get_wallet_service,
 )
-from src.services.interfaces import WalletServiceProtocol
+from src.services.portfolio.wallet_service import WalletService
 from src.utils.wallet_validation import ETH_ADDRESS_PATTERN, validate_wallet_format
 
 router = APIRouter(prefix="/v2/analytics", tags=["Analytics V2"])
@@ -137,7 +137,7 @@ async def get_dashboard_v2(
     wallet_address: WalletAddressQuery = None,
     wallet_address_camel: WalletAddressCamelQuery = None,
     db: Session = Depends(get_db),
-    wallet_service: WalletServiceProtocol = Depends(get_wallet_service),
+    wallet_service: WalletService = Depends(get_wallet_service),
 ) -> dict[str, Any]:
     """Return aggregated dashboard data with flexible metric selection."""
 

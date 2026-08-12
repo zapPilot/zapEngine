@@ -16,7 +16,7 @@ from src.services.dependencies import (
     BorrowingServiceDep,
     get_canonical_snapshot_service,
 )
-from src.services.interfaces import CanonicalSnapshotServiceProtocol
+from src.services.portfolio.canonical_snapshot_service import CanonicalSnapshotService
 
 router = APIRouter(prefix="/v2/analytics", tags=["Borrowing"])
 
@@ -26,7 +26,7 @@ def get_borrowing_positions(
     response: Response,
     borrowing_service: BorrowingServiceDep,
     user_id: UUID = Path(..., description="User ID"),
-    canonical_snapshot_service: CanonicalSnapshotServiceProtocol = Depends(
+    canonical_snapshot_service: CanonicalSnapshotService = Depends(
         get_canonical_snapshot_service
     ),
 ) -> BorrowingPositionsResponse:

@@ -21,17 +21,14 @@ from src.models.borrowing import (
     TokenDetail,
 )
 from src.models.portfolio import BorrowingRiskMetrics, BorrowingSummary
-from src.services.interfaces import (
-    BorrowingServiceProtocol,
-    CanonicalSnapshotServiceProtocol,
-    QueryServiceProtocol,
-)
+from src.services.portfolio.canonical_snapshot_service import CanonicalSnapshotService
 from src.services.shared.query_names import QUERY_NAMES
+from src.services.shared.query_service import QueryService
 
 logger = logging.getLogger(__name__)
 
 
-class BorrowingService(BorrowingServiceProtocol):
+class BorrowingService:
     """
     Unified service for all borrowing analytics.
 
@@ -68,8 +65,8 @@ class BorrowingService(BorrowingServiceProtocol):
     def __init__(
         self,
         db: Session,
-        query_service: QueryServiceProtocol,
-        canonical_snapshot_service: CanonicalSnapshotServiceProtocol | None = None,
+        query_service: QueryService,
+        canonical_snapshot_service: CanonicalSnapshotService | None = None,
     ):
         """
         Initialize BorrowingService.

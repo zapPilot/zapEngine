@@ -23,7 +23,7 @@ import httpx
 from fastapi import HTTPException
 
 if TYPE_CHECKING:  # pragma: no cover
-    from src.services.interfaces import SentimentDatabaseServiceProtocol
+    from src.services.market.sentiment_database_service import SentimentDatabaseService
 
 from src.core.cache_service import analytics_cache
 from src.core.config import settings
@@ -88,7 +88,7 @@ class MarketSentimentService:
     def __init__(
         self,
         config: MarketSentimentConfig | None = None,
-        db_service: "SentimentDatabaseServiceProtocol | None" = None,
+        db_service: "SentimentDatabaseService | None" = None,
         use_database: bool = True,
     ) -> None:
         """

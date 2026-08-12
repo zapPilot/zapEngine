@@ -26,11 +26,11 @@ from src.services.backtesting.features import (
 from src.services.backtesting.utils import coerce_to_date
 
 if TYPE_CHECKING:  # pragma: no cover
-    from src.services.interfaces.market import (
+    from src.services.market.stock_price_service import (
         StockPriceDmaPoint,
-        StockPriceServiceProtocol,
-        TokenPriceServiceProtocol,
+        StockPriceService,
     )
+    from src.services.market.token_price_service import TokenPriceService
 
 SUPPORTED_PRICE_FEATURES = frozenset(
     {DMA_200_FEATURE, ETH_DMA_200_FEATURE, SPY_DMA_200_FEATURE}
@@ -48,7 +48,7 @@ SPY_FORWARD_FILL_SEED_DAYS = 7
 def _load_eth_usd_features(
     feature_history: dict[str, dict[date, Any]],
     *,
-    token_price_service: TokenPriceServiceProtocol,
+    token_price_service: TokenPriceService,
     days: int,
     start_date: date,
     end_date: date,
@@ -69,13 +69,13 @@ def _load_eth_usd_features(
 
 def resolve_price_feature_history(
     *,
-    token_price_service: TokenPriceServiceProtocol,
+    token_price_service: TokenPriceService,
     token_symbol: str,
     start_date: date,
     end_date: date,
     market_data_requirements: MarketDataRequirements | None = None,
     required_price_features: Collection[str] | None = None,
-    stock_price_service: StockPriceServiceProtocol | None = None,
+    stock_price_service: StockPriceService | None = None,
 ) -> dict[str, dict[date, Any]]:
     declared_requirements = market_data_requirements or MarketDataRequirements()
     requested_features = frozenset(
@@ -219,7 +219,7 @@ def resolve_price_feature_history(
 
 def _load_spy_dma_history(
     *,
-    stock_price_service: StockPriceServiceProtocol,
+    stock_price_service: StockPriceService,
     start_date: date,
     end_date: date,
 ) -> tuple[dict[date, StockPriceDmaPoint], date]:
@@ -304,7 +304,7 @@ def _filter_to_date_range(
 
 def _load_token_price_history(
     *,
-    token_price_service: TokenPriceServiceProtocol,
+    token_price_service: TokenPriceService,
     token_symbol: str,
     days: int,
     start_date: date,
