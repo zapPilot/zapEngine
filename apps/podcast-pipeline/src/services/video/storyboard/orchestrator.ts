@@ -1,3 +1,4 @@
+import { errorMessage } from '../../../lib/errorMessage.js';
 import { throwIfAborted } from '../abort.js';
 import type { StoryboardDraft } from './draft.js';
 import { createDeterministicStoryboard } from './fallback.js';
@@ -43,7 +44,7 @@ function providerErrorIssue(error: unknown): StoryboardValidationIssue {
   return {
     code: 'provider.response',
     path: [],
-    message: error instanceof Error ? error.message : String(error),
+    message: errorMessage(error),
   };
 }
 

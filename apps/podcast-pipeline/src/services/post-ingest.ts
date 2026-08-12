@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { errorMessage } from '../lib/errorMessage.js';
 import {
   DEFAULT_LANGUAGE_CODE,
   type EpisodeLocalizationRow,
@@ -197,7 +198,7 @@ export async function performMultilingualIngestAndEnqueueVideo(
           };
         } catch (error) {
           const videoEnqueueError =
-            error instanceof Error ? error : new Error(String(error));
+            error instanceof Error ? error : new Error(errorMessage(error));
           console.error(
             '[post-ingest] video enqueue failed; audio remains available',
             {
@@ -245,10 +246,9 @@ export async function performMultilingualIngestAndEnqueueVideo(
       });
       return result;
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
       logIngestEvent('run:failed', {
         elapsedMs: Date.now() - startedAt,
-        error: err.message,
+        error: errorMessage(error),
       });
       throw error;
     }

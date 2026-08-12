@@ -1,4 +1,5 @@
 import { runWithDeadline } from '../../lib/deadline.js';
+import { errorMessage } from '../../lib/errorMessage.js';
 import type { ImageCandidate } from '../../types.js';
 
 export const STOCK_IMAGE_FETCH_TIMEOUT_MS = 15_000;
@@ -52,8 +53,4 @@ export async function performStockImageSearch(input: {
       { cause: error },
     );
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

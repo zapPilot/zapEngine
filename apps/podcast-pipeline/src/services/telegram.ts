@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 
 import { getTelegramBotToken, trimTrailingSlash } from '../lib/env.js';
+import { errorMessage } from '../lib/errorMessage.js';
 import { isRecord } from '../lib/typeGuards.js';
 
 export type TelegramChatId = number | string;
@@ -240,9 +241,8 @@ export async function sendTelegramNotification(
   try {
     await sendMessage(chatId, text, options);
   } catch (error) {
-    const err = error instanceof Error ? error : new Error(String(error));
     console.error('[/telegram/webhook] sendMessage failed:', {
-      message: err.message,
+      message: errorMessage(error),
     });
   }
 }
@@ -272,9 +272,8 @@ export async function answerTelegramCallbackQuery(
       );
     }
   } catch (error) {
-    const err = error instanceof Error ? error : new Error(String(error));
     console.error('[/telegram/webhook] answerCallbackQuery failed:', {
-      message: err.message,
+      message: errorMessage(error),
     });
   }
 }
@@ -307,7 +306,7 @@ function trimTrailingMessagePunctuation(value: string): string {
 }
 
 function publicTelegramErrorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   const firstLine = message.split(/\r?\n/, 1)[0]?.trim() || 'Unknown error';
   return firstLine.length > 500 ? `${firstLine.slice(0, 497)}...` : firstLine;
 }

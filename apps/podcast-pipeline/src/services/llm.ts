@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import OpenAI from 'openai';
 
+import { errorMessage } from '../lib/errorMessage.js';
 import { normalizeLanguageClassroomLesson } from '../lib/languageClassroom.js';
 import type {
   LanguageClassroomLanguageCode,
@@ -310,10 +311,6 @@ function isRetryableOpenRouterError(error: unknown): boolean {
   return name === 'APIConnectionError' || name === 'APITimeoutError';
 }
 
-function openRouterErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 async function waitForScriptRetry(): Promise<void> {
   await new Promise<void>((resolve) => {
     setTimeout(resolve, SCRIPT_GENERATION_RETRY_DELAY_MS);
@@ -346,7 +343,7 @@ async function createScriptCompletionWithRetry(
         attempt,
         nextAttempt: attempt + 1,
         delayMs: SCRIPT_GENERATION_RETRY_DELAY_MS,
-        error: openRouterErrorMessage(error),
+        error: errorMessage(error),
       });
       await waitForScriptRetry();
     }

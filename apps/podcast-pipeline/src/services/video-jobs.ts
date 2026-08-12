@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto';
 
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import {
-  createPipelineSupabaseClient,
+  getPipelineSupabase,
   type PipelineSupabaseClient,
+  throwSupabaseError,
 } from './supabase-client.js';
 import type { EpisodeVideoProgressUpdate } from './video-progress.js';
 
@@ -229,7 +230,6 @@ export interface VideoJobRepository {
   markFailureNotified(episodeLocalizationId: string): Promise<boolean>;
 }
 
-let defaultClient: PipelineSupabaseClient | null = null;
 let defaultRepository: VideoJobRepository | null = null;
 let defaultVisualRepository: VisualJobRepository | null = null;
 
@@ -512,12 +512,14 @@ export function createVideoJobRepository(
 }
 
 export function getVideoVisualJobRepository(): VisualJobRepository {
-  defaultVisualRepository ??= createVideoVisualJobRepository(getSupabase());
+  defaultVisualRepository ??= createVideoVisualJobRepository(
+    getPipelineSupabase(),
+  );
   return defaultVisualRepository;
 }
 
 export function getVideoJobRepository(): VideoJobRepository {
-  defaultRepository ??= createVideoJobRepository(getSupabase());
+  defaultRepository ??= createVideoJobRepository(getPipelineSupabase());
   return defaultRepository;
 }
 
@@ -739,21 +741,4 @@ async function callBooleanRpc(
   const { data, error } = await supabase.rpc(name, parameters);
   if (error) throwSupabaseError(error);
   return data === true;
-}
-
-function getSupabase(): PipelineSupabaseClient {
-  defaultClient ??= createPipelineSupabaseClient();
-  return defaultClient;
-}
-
-function throwSupabaseError(error: unknown): never {
-  if (error instanceof Error) throw error;
-  const message =
-    typeof error === 'object' &&
-    error !== null &&
-    'message' in error &&
-    typeof error.message === 'string'
-      ? error.message
-      : 'Supabase video job request failed';
-  throw new Error(message, { cause: error });
 }

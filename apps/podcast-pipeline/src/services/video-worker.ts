@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 
+import { errorMessage } from '../lib/errorMessage.js';
 import {
   type HeavyWorkCoordinator,
   heavyWorkCoordinator,
@@ -714,8 +715,7 @@ function formatSeconds(milliseconds: number): string {
 }
 
 function videoJobErrorMessage(error: unknown): string {
-  const normalized = normalizeError(error);
-  return normalized.message.slice(0, 4_000);
+  return errorMessage(error).slice(0, 4_000);
 }
 
 function normalizeError(error: unknown): Error {

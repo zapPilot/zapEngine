@@ -1,6 +1,6 @@
 import type { FlyMachinesClient } from './fly-machines.js';
 import {
-  createPipelineSupabaseClient,
+  getPipelineSupabase,
   type PipelineSupabaseClient,
 } from './supabase-client.js';
 import {
@@ -140,7 +140,7 @@ export function createRenderWorkProbe(
 ): RenderWorkProbe {
   return {
     async loadSnapshot(): Promise<RenderWorkSnapshot> {
-      const supabase = client ?? getSupabase();
+      const supabase = client ?? getPipelineSupabase();
       const videos = await selectRows<VideoWorkRow>(
         supabase
           .from('episode_videos')
@@ -473,11 +473,4 @@ async function selectRows<T>(
 
 function normalizeError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
-}
-
-let defaultClient: PipelineSupabaseClient | null = null;
-
-function getSupabase(): PipelineSupabaseClient {
-  defaultClient ??= createPipelineSupabaseClient();
-  return defaultClient;
 }

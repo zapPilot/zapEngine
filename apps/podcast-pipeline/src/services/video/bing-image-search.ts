@@ -1,6 +1,7 @@
 import { JSDOM } from 'jsdom';
 
 import { runWithDeadline } from '../../lib/deadline.js';
+import { errorMessage } from '../../lib/errorMessage.js';
 import type { ImageCandidate } from '../../types.js';
 
 const BING_IMAGES_SEARCH_ENDPOINT = 'https://www.bing.com/images/search';
@@ -253,9 +254,6 @@ export async function searchBingImages(
       BING_IMAGES_FETCH_TIMEOUT_MS,
       'Bing Images search',
     );
-    /* jscpd:ignore-start — same error-normalization tail as the JSON stock
-       providers, but the HTML scrape keeps its own deadline/parse flow, so
-       only this catch block coincides */
   } catch (error) {
     if (options.signal?.aborted) throw error;
     if (error instanceof BingImagesProviderError) throw error;
@@ -265,8 +263,3 @@ export async function searchBingImages(
     );
   }
 }
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-/* jscpd:ignore-end */

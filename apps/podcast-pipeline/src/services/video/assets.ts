@@ -18,6 +18,7 @@ import { Readable } from 'node:stream';
 
 import sharp from 'sharp';
 
+import { errorMessage } from '../../lib/errorMessage.js';
 import {
   abortError,
   combineAbortSignalWithTimeout,
@@ -160,10 +161,9 @@ async function resolveBundledMap(slide: Slide): Promise<ResolvedSlideAsset> {
       source,
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
     return {
       kind: 'fallback',
-      reason: `Bundled map unavailable: ${message}`,
+      reason: `Bundled map unavailable: ${errorMessage(error)}`,
       source,
     };
   }
@@ -690,10 +690,9 @@ async function resolveRemoteImage(
     };
   } catch (error) {
     if (options.signal?.aborted) throw abortError(options.signal);
-    const message = error instanceof Error ? error.message : String(error);
     return {
       kind: 'fallback',
-      reason: `Image fallback: ${message}`,
+      reason: `Image fallback: ${errorMessage(error)}`,
       source,
     };
   } finally {
