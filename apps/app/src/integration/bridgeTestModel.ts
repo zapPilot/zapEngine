@@ -1,8 +1,8 @@
 import {
-  HYPERCORE_CHAIN_ID,
   HYPERCORE_PERPS_USDC,
   USDC_ADDRESS,
 } from '@zapengine/app-core/constants/bridgeChains';
+import { CHAIN_BRAND } from '@zapengine/brand-assets';
 import type { Address } from 'viem';
 
 export interface BridgeChainOption {
@@ -16,32 +16,32 @@ export interface BridgeChainOption {
 
 export const BRIDGE_CHAIN_OPTIONS: readonly BridgeChainOption[] = [
   {
-    chainId: 1,
-    label: 'Ethereum',
-    usdcAddress: USDC_ADDRESS[1]!,
+    chainId: CHAIN_BRAND.ethereum.chainId,
+    label: CHAIN_BRAND.ethereum.label,
+    usdcAddress: USDC_ADDRESS[CHAIN_BRAND.ethereum.chainId]!,
     usdcDecimals: 6,
     canSource: true,
     canDestination: true,
   },
   {
-    chainId: 42161,
-    label: 'Arbitrum',
-    usdcAddress: USDC_ADDRESS[42161]!,
+    chainId: CHAIN_BRAND.arbitrum.chainId,
+    label: CHAIN_BRAND.arbitrum.label,
+    usdcAddress: USDC_ADDRESS[CHAIN_BRAND.arbitrum.chainId]!,
     usdcDecimals: 6,
     canSource: true,
     canDestination: true,
   },
   {
-    chainId: 8453,
-    label: 'Base',
-    usdcAddress: USDC_ADDRESS[8453]!,
+    chainId: CHAIN_BRAND.base.chainId,
+    label: CHAIN_BRAND.base.label,
+    usdcAddress: USDC_ADDRESS[CHAIN_BRAND.base.chainId]!,
     usdcDecimals: 6,
     canSource: true,
     canDestination: true,
   },
   {
-    chainId: HYPERCORE_CHAIN_ID,
-    label: 'Hyperliquid',
+    chainId: CHAIN_BRAND.hyperliquid.chainId,
+    label: CHAIN_BRAND.hyperliquid.label,
     usdcAddress: HYPERCORE_PERPS_USDC,
     usdcDecimals: 6,
     canSource: false,

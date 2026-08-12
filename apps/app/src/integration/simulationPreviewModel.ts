@@ -1,5 +1,9 @@
 import type { PrivyBatchExecutionPhase } from '@zapengine/app-core/hooks/wallet/useAtomicBatchExecution';
 import {
+  formatAddress as formatWalletAddress,
+  formatCompactTokenAmount,
+} from '@zapengine/app-core/utils';
+import {
   CHAIN_BRAND,
   type ChainBrandKey,
   chainBrandKeyForChainId,
@@ -284,9 +288,7 @@ export function confirmRiskHash(
 }
 
 export function formatAddress(address: string | null | undefined): string {
-  if (!address) return 'Unknown';
-  if (address.length <= 12) return address;
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  return formatWalletAddress(address) || 'Unknown';
 }
 
 /** Formats a raw integer token amount without floating-point conversion. */
@@ -308,21 +310,7 @@ export function compactTokenAmount(
   rawAmount: string,
   decimals: number,
 ): string {
-  const exact = formatTokenAmount(rawAmount, decimals);
-  const negative = exact.startsWith('-');
-  const unsigned = negative ? exact.slice(1) : exact;
-  const [integer = '0', fraction] = unsigned.split('.');
-  if (!fraction) return exact;
-
-  const firstSignificant = fraction.search(/[1-9]/);
-  const visibleFractionLength =
-    integer === '0' && firstSignificant >= 0 ? firstSignificant + 6 : 6;
-  const visibleFraction = fraction
-    .slice(0, visibleFractionLength)
-    .replace(/0+$/, '');
-  return `${negative ? '-' : ''}${integer}${
-    visibleFraction ? `.${visibleFraction}` : ''
-  }`;
+  return formatCompactTokenAmount(rawAmount, decimals);
 }
 
 export function formatInteger(value: string | number | null): string {

@@ -1,3 +1,6 @@
+import { CHAIN_BRAND } from '@zapengine/brand-assets';
+import { isWalletAddress } from '@zapengine/types';
+
 import type { ChainKey } from '@/data/demo';
 import type {
   DesktopWalletAsset,
@@ -5,9 +8,21 @@ import type {
 } from '@/integration/walletTokens';
 
 export const SEND_CHAIN_OPTIONS = [
-  { key: 'ethereum', label: 'Ethereum', chainId: 1 },
-  { key: 'base', label: 'Base', chainId: 8453 },
-  { key: 'arbitrum', label: 'Arbitrum', chainId: 42161 },
+  {
+    key: 'ethereum',
+    label: CHAIN_BRAND.ethereum.label,
+    chainId: CHAIN_BRAND.ethereum.chainId,
+  },
+  {
+    key: 'base',
+    label: CHAIN_BRAND.base.label,
+    chainId: CHAIN_BRAND.base.chainId,
+  },
+  {
+    key: 'arbitrum',
+    label: CHAIN_BRAND.arbitrum.label,
+    chainId: CHAIN_BRAND.arbitrum.chainId,
+  },
 ] as const satisfies readonly {
   key: ChainKey;
   label: string;
@@ -15,17 +30,12 @@ export const SEND_CHAIN_OPTIONS = [
 }[];
 
 const TRANSFER_SELECTOR = 'a9059cbb';
-const WALLET_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 
 export interface SendTransactionRequest {
   to: `0x${string}`;
   data?: `0x${string}`;
   value?: bigint;
   chainId: number;
-}
-
-export function isWalletAddress(value: string): value is `0x${string}` {
-  return WALLET_ADDRESS_REGEX.test(value.trim());
 }
 
 export function parseTokenAmountToBaseUnits(
@@ -84,7 +94,8 @@ export function buildSendTransactionRequest({
   holding: DesktopWalletAssetHolding;
   recipient: string;
 }): SendTransactionRequest {
-  if (!isWalletAddress(recipient)) {
+  const normalizedRecipient = recipient.trim();
+  if (!isWalletAddress(normalizedRecipient)) {
     throw new Error('Enter a valid recipient wallet address.');
   }
 
@@ -93,7 +104,7 @@ export function buildSendTransactionRequest({
     throw new Error('Enter a valid amount.');
   }
 
-  const to = recipient.trim() as `0x${string}`;
+  const to = normalizedRecipient;
 
   if (asset.symbol === 'ETH' && holding.tokenAddress === null) {
     return {

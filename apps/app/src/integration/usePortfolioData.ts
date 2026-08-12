@@ -10,7 +10,7 @@ import {
   mapDailyValuesToSparkline,
   sumYieldReturns,
 } from '@/integration/portfolioMetrics';
-import { formatSignedPct, formatUsd } from '@/lib/format';
+import { formatPct, formatSignedPct, formatUsd } from '@/lib/format';
 
 interface Metric {
   label: string;
@@ -108,12 +108,7 @@ function pctMetric(label: string, pct: number | null): Metric {
 }
 
 function positivePctMetric(label: string, pct: number | null): Metric {
-  return numberMetric(
-    label,
-    pct,
-    (value) => `${Math.abs(value).toFixed(1)}%`,
-    'accent',
-  );
+  return numberMetric(label, pct, formatPct, 'accent');
 }
 
 function unavailablePortfolioData(): PortfolioViewData {
@@ -239,7 +234,7 @@ export function usePortfolioData(
   const volatilityMetric = numberMetric(
     'Volatility',
     lastVolatilityPct,
-    (value) => `${Math.abs(value).toFixed(1)}%`,
+    formatPct,
   );
   const sharpeMetric = numberMetric(
     'Sharpe',

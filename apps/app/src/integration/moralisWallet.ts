@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { TOKEN_BRAND } from '@zapengine/brand-assets';
+import { CHAIN_BRAND, TOKEN_BRAND } from '@zapengine/brand-assets';
 import {
   getMoralisWalletHistory,
   getSupportedMoralisWalletSymbol,
@@ -23,6 +23,7 @@ import {
   BASE_DEPOSIT_TOKENS,
   type DesktopDepositToken,
 } from '@/integration/depositTokens';
+import { formatUsd, tokenAmountFractionDigits } from '@/lib/format';
 
 export type MoralisChainKey = MoralisWalletChain;
 
@@ -46,13 +47,23 @@ const WALLET_HISTORY_LIMIT = 10;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 const MORALIS_WALLET_CHAINS = [
-  { moralis: 'eth', desktop: 'ethereum', label: 'Ethereum', chainId: 1 },
-  { moralis: 'base', desktop: 'base', label: 'Base', chainId: 8453 },
+  {
+    moralis: 'eth',
+    desktop: 'ethereum',
+    label: CHAIN_BRAND.ethereum.label,
+    chainId: CHAIN_BRAND.ethereum.chainId,
+  },
+  {
+    moralis: 'base',
+    desktop: 'base',
+    label: CHAIN_BRAND.base.label,
+    chainId: CHAIN_BRAND.base.chainId,
+  },
   {
     moralis: 'arbitrum',
     desktop: 'arbitrum',
-    label: 'Arbitrum',
-    chainId: 42161,
+    label: CHAIN_BRAND.arbitrum.label,
+    chainId: CHAIN_BRAND.arbitrum.chainId,
   },
 ] as const satisfies readonly ChainConfig[];
 
@@ -255,8 +266,10 @@ function numberFrom(value: string | number | null | undefined): number | null {
 }
 
 function formatAmount(amount: number, symbol: SupportedWalletSymbol): string {
-  const maximumFractionDigits =
-    symbol === 'USDC' || symbol === 'USDT' ? 2 : symbol.includes('BTC') ? 8 : 6;
+  const maximumFractionDigits = tokenAmountFractionDigits(
+    symbol,
+    'wallet-activity',
+  );
   const amountLabel = amount.toLocaleString('en-US', {
     maximumFractionDigits,
   });
@@ -270,12 +283,8 @@ function formatUsdAmount(
   if (typeof value !== 'number') {
     return undefined;
   }
-  const abs = Math.abs(value).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
   const sign = kind === 'withdraw' ? '−' : '+';
-  return `${sign}$${abs}`;
+  return `${sign}${formatUsd(Math.abs(value))}`;
 }
 
 function usdPriceFor(amount: number, usdValue: number | null): number | null {

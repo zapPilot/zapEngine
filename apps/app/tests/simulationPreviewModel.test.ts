@@ -321,9 +321,9 @@ describe('simulation evidence helpers', () => {
 
   it('falls back to the short address when the review carries no name', () => {
     expect(resolveCallTarget(call, [{ ...contracts[0]!, name: null }])).toBe(
-      '0x3333...3333',
+      '0x3333…3333',
     );
-    expect(resolveAddressTarget(TARGET, [])).toBe('0x3333...3333');
+    expect(resolveAddressTarget(TARGET, [])).toBe('0x3333…3333');
   });
 
   it('finds the approval attached to a call index', () => {
@@ -425,7 +425,7 @@ describe('simulation preview formatting', () => {
   });
 
   it('formats addresses, integer evidence, and millisecond countdowns', () => {
-    expect(formatAddress(WALLET)).toBe('0x1111...1111');
+    expect(formatAddress(WALLET)).toBe('0x1111…1111');
     expect(formatAddress(null)).toBe('Unknown');
     expect(formatInteger('1234567')).toBe('1,234,567');
     expect(formatCountdown(NOW_MS + 70_000, NOW_MS)).toBe('1m 0s');
@@ -563,7 +563,7 @@ describe('resolveAssetCounterparty', () => {
       to: WALLET,
     };
     expect(resolveAssetCounterparty(outgoingToWallet, contracts)).toBe(
-      '0x1111...1111',
+      '0x1111…1111',
     );
 
     const incomingFromWallet: PrivySimulationAssetChange = {
@@ -571,7 +571,7 @@ describe('resolveAssetCounterparty', () => {
       from: WALLET,
     };
     expect(resolveAssetCounterparty(incomingFromWallet, contracts)).toBe(
-      '0x1111...1111',
+      '0x1111…1111',
     );
   });
 

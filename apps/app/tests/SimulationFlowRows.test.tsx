@@ -157,7 +157,7 @@ describe('SimulationFlowRows', () => {
       contracts: [],
     });
 
-    const shortened = `${SPENDER.slice(0, 6)}...${SPENDER.slice(-4)}`;
+    const shortened = `${SPENDER.slice(0, 6)}…${SPENDER.slice(-4)}`;
     expect(container.textContent ?? '').toContain(`to ${shortened}`);
   });
 
@@ -243,7 +243,7 @@ describe('SimulationFlowRows', () => {
       contracts: [],
     });
 
-    const shortened = `${RECIPIENT.slice(0, 6)}...${RECIPIENT.slice(-4)}`;
+    const shortened = `${RECIPIENT.slice(0, 6)}…${RECIPIENT.slice(-4)}`;
     expect(container.textContent ?? '').toContain(`to ${shortened}`);
   });
 

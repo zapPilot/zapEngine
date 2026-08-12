@@ -176,7 +176,7 @@ describe('SimulationTenderlyEvidence', () => {
     expect(container.textContent).toContain('Call gas');
     expect(container.textContent).toContain('210,000');
     expect(container.textContent).toContain('Deposit For');
-    expect(container.textContent).toContain('0x3333...3333');
+    expect(container.textContent).toContain('0x3333…3333');
   });
 
   it('shows "Simulation failed" for a failed review', async () => {

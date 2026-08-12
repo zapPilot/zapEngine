@@ -10,11 +10,7 @@ const REPO_ROOT_ENV = path.resolve(configDir, '../../../../.env');
 config({ path: REPO_ROOT_ENV, quiet: true });
 
 function parsePort(defaultValue: string) {
-  return z
-    .string()
-    .default(defaultValue)
-    .transform(Number)
-    .pipe(z.number().int().min(1).max(65535));
+  return z.string().default(defaultValue).pipe(portSchema);
 }
 
 function parseOptionalPort() {
