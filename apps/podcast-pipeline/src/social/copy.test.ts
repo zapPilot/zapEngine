@@ -14,6 +14,7 @@ vi.mock('../services/llm.js', async (importOriginal) => ({
 
 import {
   generateSocialCopy,
+  latinLetterRatio,
   parseGeneratedSocialCopy,
   weightedTweetLength,
 } from './copy.js';
@@ -22,7 +23,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   llmMocks.getOpenRouterConfig.mockReturnValue({
     openai: llmMocks.openai,
-    model: 'openrouter/free',
+    model: 'deepseek/deepseek-v4-flash',
     thinkingModel: null,
     timeoutMs: 120_000,
   });
@@ -30,12 +31,12 @@ beforeEach(() => {
 
 function socialCopyJson(xText: string): string {
   return JSON.stringify({
-    hook: 'hook',
+    hook: '重點',
     x: { text: xText },
     rednote: {
-      title: 'title',
-      body: 'body',
-      hashtags: ['a', 'b', 'c'],
+      title: '標題',
+      body: '正文內容',
+      hashtags: ['以太坊', '美聯儲', '投資'],
     },
   });
 }
@@ -49,6 +50,22 @@ describe('weightedTweetLength', () => {
     expect(weightedTweetLength('link https://example.com/a/long/path')).toBe(
       28,
     );
+  });
+});
+
+describe('latinLetterRatio', () => {
+  it('ignores whitespace and counts only Latin letters', () => {
+    expect(latinLetterRatio('ETH 上漲')).toBeCloseTo(3 / 5);
+  });
+
+  it('stays low for Traditional Chinese copy carrying ticker terms', () => {
+    expect(
+      latinLetterRatio('EIP-8363 來了，驗證者淨收益歸零，DeFi 地基在鬆。'),
+    ).toBeLessThan(0.35);
+  });
+
+  it('returns zero for empty input', () => {
+    expect(latinLetterRatio('   ')).toBe(0);
   });
 });
 
@@ -73,14 +90,17 @@ describe('generateSocialCopy', () => {
       }),
     ).resolves.toMatchObject({
       copy: { x: { text: '有效文案' } },
-      model: 'openrouter/free',
+      model: 'deepseek/deepseek-v4-flash',
     });
 
+    expect(llmMocks.getOpenRouterConfig).toHaveBeenCalledWith({
+      thinkingModel: null,
+    });
     expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(2);
     expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenNthCalledWith(
       1,
       llmMocks.openai,
-      expect.objectContaining({ model: 'openrouter/free' }),
+      expect.objectContaining({ model: 'deepseek/deepseek-v4-flash' }),
       null,
     );
     const retryRequest =
@@ -119,6 +139,18 @@ describe('parseGeneratedSocialCopy', () => {
     expect(() => parseGeneratedSocialCopy('{bad json')).toThrow();
   });
 
+  // Regression: DeepInfra answered json_object mode with this envelope.
+  it('accepts a payload nested as a fenced string under an arbitrary key', () => {
+    const copy = parseGeneratedSocialCopy(
+      JSON.stringify({
+        'stable diff': 'ok',
+        text: `\`\`\`json\n${socialCopyJson('巢狀文案')}\n\`\`\``,
+      }),
+    );
+
+    expect(copy.x.text).toBe('巢狀文案');
+  });
+
   it('accepts JSON wrapped in a markdown fence', () => {
     const copy = parseGeneratedSocialCopy(
       `\`\`\`json\n${socialCopyJson('短文案')}\n\`\`\``,
@@ -145,6 +177,79 @@ describe('parseGeneratedSocialCopy', () => {
         socialCopyJson('重點在這裡 https://example.com/episode'),
       ),
     ).toThrow(/X text must not contain a URL/);
+  });
+
+  // Regression: this exact copy reached X in mixed Simplified/Traditional form.
+  it('converts Simplified Chinese in X text to Traditional', () => {
+    expect(
+      parseGeneratedSocialCopy(
+        socialCopyJson(
+          '以太坊提出EIP-8363提案：当质押率达50%时燃烧所有收益，迫使驗證者轉型。',
+        ),
+      ).x.text,
+    ).toBe(
+      '以太坊提出EIP-8363提案：當質押率達50%時燃燒所有收益，迫使驗證者轉型。',
+    );
+  });
+
+  it('converts Simplified Chinese in Rednote hashtags', () => {
+    expect(
+      parseGeneratedSocialCopy(
+        JSON.stringify({
+          hook: '重點',
+          x: { text: '有效文案' },
+          rednote: {
+            title: '標題',
+            body: '正文內容',
+            hashtags: ['以太坊', '质押', '加密货币'],
+          },
+        }),
+      ).rednote.hashtags,
+    ).toEqual(['以太坊', '質押', '加密貨幣']);
+  });
+
+  it('normalizes wording to the Taiwan phrase set', () => {
+    expect(
+      parseGeneratedSocialCopy(socialCopyJson('以太坊社區在台灣的討論')).x.text,
+    ).toBe('以太坊社群在臺灣的討論');
+  });
+
+  it('measures the Rednote title after conversion', () => {
+    expect(() =>
+      parseGeneratedSocialCopy(
+        JSON.stringify({
+          hook: '重點',
+          x: { text: '有效文案' },
+          rednote: {
+            title: '這個標題實在太長了根本塞不進小紅書的欄位裡面',
+            body: '正文內容',
+            hashtags: ['以太坊', '質押', '投資'],
+          },
+        }),
+      ),
+    ).toThrow(/Rednote title is 22 characters; the maximum is 20/);
+  });
+
+  it('rejects accented Latin letters drifting in from another language', () => {
+    expect(() =>
+      parseGeneratedSocialCopy(socialCopyJson('質押收益歸零，código 全燒。')),
+    ).toThrow(/must not contain accented Latin letters/);
+  });
+
+  it('rejects copy that is mostly Latin letters', () => {
+    expect(() =>
+      parseGeneratedSocialCopy(
+        JSON.stringify({
+          hook: '重點',
+          x: { text: 'staking burn' },
+          rednote: {
+            title: 'qual Poo 燃換 LE?',
+            body: 'ekom buscando 燃燒',
+            hashtags: ['以太坊', '質押', '投資'],
+          },
+        }),
+      ),
+    ).toThrow(/Latin letters; the maximum is 35%/);
   });
 
   it('rejects a missing Rednote title', () => {

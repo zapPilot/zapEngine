@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  assertOpenCliReady: vi.fn(),
+  assertXSessionReady: vi.fn(),
   closeReadline: vi.fn(),
-  createOpenCliBrowserPublisher: vi.fn(),
+  createOpenCliXPublisher: vi.fn(),
+  createPlaywrightRednotePublisher: vi.fn(),
   createReadlineInterface: vi.fn(),
   generateSocialCopy: vi.fn(),
   getSocialEpisode: vi.fn(),
@@ -31,8 +32,12 @@ vi.mock('./episode.js', async (importOriginal) => ({
 }));
 
 vi.mock('./opencli.js', () => ({
-  assertOpenCliReady: mocks.assertOpenCliReady,
-  createOpenCliBrowserPublisher: mocks.createOpenCliBrowserPublisher,
+  assertXSessionReady: mocks.assertXSessionReady,
+  createOpenCliXPublisher: mocks.createOpenCliXPublisher,
+}));
+
+vi.mock('./rednote-playwright.js', () => ({
+  createPlaywrightRednotePublisher: mocks.createPlaywrightRednotePublisher,
 }));
 
 vi.mock('./publish.js', () => ({
@@ -150,13 +155,13 @@ beforeEach(() => {
   mocks.getSocialEpisode.mockResolvedValue(episode);
   mocks.generateSocialCopy.mockResolvedValue({
     copy,
-    model: 'openrouter/free',
+    model: 'deepseek/deepseek-v4-flash',
   });
   mocks.prepareSocialVideo.mockResolvedValue(VIDEO);
   mocks.readPublishState.mockResolvedValue({});
-  mocks.assertOpenCliReady.mockResolvedValue(undefined);
-  mocks.createOpenCliBrowserPublisher.mockReturnValue({
-    publishX: mocks.publishX,
+  mocks.assertXSessionReady.mockResolvedValue(undefined);
+  mocks.createOpenCliXPublisher.mockReturnValue({ publishX: mocks.publishX });
+  mocks.createPlaywrightRednotePublisher.mockReturnValue({
     publishRednote: mocks.publishRednote,
   });
   mocks.publishSocialPlatforms.mockResolvedValue([]);
@@ -324,8 +329,9 @@ describe('runSocialCli', () => {
     await runSocialCli([EPISODE_ID, '--dry-run']);
 
     expect(mocks.readPublishState).not.toHaveBeenCalled();
-    expect(mocks.assertOpenCliReady).not.toHaveBeenCalled();
-    expect(mocks.createOpenCliBrowserPublisher).not.toHaveBeenCalled();
+    expect(mocks.assertXSessionReady).not.toHaveBeenCalled();
+    expect(mocks.createOpenCliXPublisher).not.toHaveBeenCalled();
+    expect(mocks.createPlaywrightRednotePublisher).not.toHaveBeenCalled();
     expect(mocks.publishSocialPlatforms).not.toHaveBeenCalled();
   });
 
@@ -374,7 +380,7 @@ describe('runSocialCli', () => {
     await runSocialCli([EPISODE_ID]);
 
     expect(mocks.prepareSocialVideo).not.toHaveBeenCalled();
-    expect(mocks.assertOpenCliReady).toHaveBeenCalledWith(['x']);
+    expect(mocks.assertXSessionReady).toHaveBeenCalledOnce();
     expect(mocks.publishSocialPlatforms).toHaveBeenCalledWith(
       expect.objectContaining({
         episodeId: EPISODE_ID,
@@ -393,7 +399,8 @@ describe('runSocialCli', () => {
     await runSocialCli([EPISODE_ID]);
 
     expect(mocks.prepareSocialVideo).toHaveBeenCalledOnce();
-    expect(mocks.assertOpenCliReady).toHaveBeenCalledWith(['rednote']);
+    // Rednote runs on its own Chrome profile, so the X adapter is never probed.
+    expect(mocks.assertXSessionReady).not.toHaveBeenCalled();
     expect(mocks.publishSocialPlatforms).toHaveBeenCalledWith(
       expect.objectContaining({
         platforms: ['rednote'],
@@ -424,7 +431,7 @@ describe('runSocialCli', () => {
     await runSocialCli([EPISODE_ID, '--platform', 'x']);
 
     expect(mocks.generateSocialCopy).toHaveBeenCalledOnce();
-    expect(mocks.assertOpenCliReady).not.toHaveBeenCalled();
+    expect(mocks.assertXSessionReady).not.toHaveBeenCalled();
     expect(mocks.publishSocialPlatforms).not.toHaveBeenCalled();
   });
 
@@ -483,13 +490,13 @@ describe('runSocialCli', () => {
   });
 
   it('propagates readiness failure before creating a publisher', async () => {
-    mocks.assertOpenCliReady.mockRejectedValue(new Error('X is logged out'));
+    mocks.assertXSessionReady.mockRejectedValue(new Error('X is logged out'));
     enableInteractiveReview('x');
 
     await expect(runSocialCli([EPISODE_ID, '--platform', 'x'])).rejects.toThrow(
       'X is logged out',
     );
-    expect(mocks.createOpenCliBrowserPublisher).not.toHaveBeenCalled();
+    expect(mocks.createOpenCliXPublisher).not.toHaveBeenCalled();
     expect(mocks.publishSocialPlatforms).not.toHaveBeenCalled();
   });
 

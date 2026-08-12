@@ -16,6 +16,7 @@
     "security": "bash scripts/security.sh",
     "coverage": "bash scripts/coverage.sh",
     "social:publish": "pnpm --filter @zapengine/podcast-pipeline social:publish",
+    "social:rednote-login": "pnpm --filter @zapengine/podcast-pipeline social:rednote-login",
     "track-record:generate": "tsx scripts/track-record/generate-daily-snapshot.ts",
     "track-record:publish": "tsx scripts/track-record/publish-daily-snapshot.ts",
     "track-record:verify": "tsx scripts/track-record/verify-track-record.ts",

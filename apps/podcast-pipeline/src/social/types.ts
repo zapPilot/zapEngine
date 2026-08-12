@@ -47,10 +47,17 @@ export interface PublishResult {
   publishedAt: string;
 }
 
-export interface BrowserPublisher {
+// X and Rednote are driven by different automation stacks (OpenCLI adapter vs
+// Playwright), so each side is its own interface and the CLI composes them.
+export interface XPublisher {
   publishX(input: XPublishInput): Promise<PublishResult>;
+}
+
+export interface RednotePublisher {
   publishRednote(input: RednotePublishInput): Promise<PublishResult>;
 }
+
+export type BrowserPublisher = XPublisher & RednotePublisher;
 
 export interface PlatformPublishState {
   published: true;

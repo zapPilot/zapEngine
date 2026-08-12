@@ -10,13 +10,12 @@ import dotenv from 'dotenv';
 
 import { generateSocialCopy, parseGeneratedSocialCopy } from './copy.js';
 import { getSocialEpisode, parseSocialEpisodeId } from './episode.js';
-import {
-  assertOpenCliReady,
-  createOpenCliBrowserPublisher,
-} from './opencli.js';
+import { assertXSessionReady, createOpenCliXPublisher } from './opencli.js';
 import { publishSocialPlatforms } from './publish.js';
+import { createPlaywrightRednotePublisher } from './rednote-playwright.js';
 import { getPublishedPlatform, readPublishState } from './state.js';
 import type {
+  BrowserPublisher,
   GeneratedSocialCopy,
   SocialEpisode,
   SocialLanguage,
@@ -104,10 +103,14 @@ export async function runSocialCli(args: string[]): Promise<void> {
     );
   }
 
-  await assertOpenCliReady(review.platforms);
-  const publisher = createOpenCliBrowserPublisher({
-    onLog: (message) => console.log(message),
-  });
+  const onLog = (message: string): void => {
+    console.log(message);
+  };
+  if (review.platforms.includes('x')) await assertXSessionReady();
+  const publisher: BrowserPublisher = {
+    ...createOpenCliXPublisher({ onLog }),
+    ...createPlaywrightRednotePublisher({ onLog }),
+  };
   const outcomes = await publishSocialPlatforms({
     episodeId: options.episodeId,
     language: options.language,
@@ -117,7 +120,7 @@ export async function runSocialCli(args: string[]): Promise<void> {
     episodeUrl: episode.episodeUrl,
     ...(video ? { videoPath: video.path } : {}),
     publisher,
-    onLog: (message) => console.log(message),
+    onLog,
   });
 
   const failed = outcomes.filter((outcome) => outcome.status === 'failed');

@@ -7,12 +7,18 @@ import {
   getOpenRouterConfig,
   stripJsonFence,
 } from '../services/llm.js';
+import { convertTextToZhTW } from '../services/opencc.js';
 import type { GeneratedSocialCopy, SocialEpisode } from './types.js';
 
 const X_TEXT_MAX_WEIGHTED_LENGTH = 250;
 const X_URL_WEIGHT = 23;
 const URL_PATTERN = /https?:\/\/[^\s]+/giu;
 const SINGLE_URL_PATTERN = /https?:\/\/[^\s]+/iu;
+// Loose on purpose: ETH/DeFi/EIP-style terms are legitimate and inflate the
+// ratio of a short title, so this only catches wholesale language drift.
+const MAX_LATIN_LETTER_RATIO = 0.35;
+const ACCENTED_LATIN_PATTERN = /[À-ɏ]/u;
+const LATIN_LETTER_PATTERN = /[A-Za-z]/gu;
 
 export function weightedTweetLength(value: string): number {
   let length = 0;
@@ -49,47 +55,116 @@ function isCjkCharacter(character: string): boolean {
   );
 }
 
-const XTextSchema = z
+export function latinLetterRatio(value: string): number {
+  const visible = value.replace(/\s/gu, '');
+  if (visible.length === 0) return 0;
+  return (visible.match(LATIN_LETTER_PATTERN)?.length ?? 0) / visible.length;
+}
+
+// A model can answer in Simplified Chinese, so every published field is
+// normalized through OpenCC before it is measured or shown for review.
+const TraditionalChineseLine = z
   .string()
   .trim()
   .min(1)
-  .superRefine((text, context) => {
-    if (SINGLE_URL_PATTERN.test(text)) {
-      context.addIssue({
-        code: 'custom',
-        message:
-          'X text must not contain a URL; the episode share URL is appended automatically.',
-      });
-    }
+  .transform(convertTextToZhTW)
+  .superRefine(addAccentedLatinIssue);
 
-    const weightedLength = weightedTweetLength(text);
-    if (weightedLength <= X_TEXT_MAX_WEIGHTED_LENGTH) return;
+// OpenCC only rewrites Chinese, so a model that drifts into another language
+// still needs rejecting.
+function addAccentedLatinIssue(value: string, context: z.RefinementCtx): void {
+  const accented = ACCENTED_LATIN_PATTERN.exec(value);
+  if (!accented) return;
+
+  context.addIssue({
+    code: 'custom',
+    message: `Copy must not contain accented Latin letters (found "${accented[0]}").`,
+  });
+}
+
+const XTextSchema = TraditionalChineseLine.superRefine((text, context) => {
+  if (SINGLE_URL_PATTERN.test(text)) {
+    context.addIssue({
+      code: 'custom',
+      message:
+        'X text must not contain a URL; the episode share URL is appended automatically.',
+    });
+  }
+
+  const weightedLength = weightedTweetLength(text);
+  if (weightedLength <= X_TEXT_MAX_WEIGHTED_LENGTH) return;
+
+  context.addIssue({
+    code: 'custom',
+    message: `X text is ${weightedLength} weighted units; the maximum is ${X_TEXT_MAX_WEIGHTED_LENGTH}.`,
+  });
+});
+
+const REDNOTE_TITLE_MAX_CHARACTERS = 20;
+
+const GeneratedSocialCopySchema = z
+  .object({
+    hook: z.string().trim().min(1),
+    x: z.object({
+      text: XTextSchema,
+    }),
+    rednote: z.object({
+      title: TraditionalChineseLine.superRefine((title, context) => {
+        const length = Array.from(title).length;
+        if (length <= REDNOTE_TITLE_MAX_CHARACTERS) return;
+
+        context.addIssue({
+          code: 'custom',
+          message: `Rednote title is ${length} characters; the maximum is ${REDNOTE_TITLE_MAX_CHARACTERS}.`,
+        });
+      }),
+      body: TraditionalChineseLine,
+      hashtags: z.array(TraditionalChineseLine).min(3).max(5),
+    }),
+  })
+  .superRefine((copy, context) => {
+    const combined = [
+      copy.x.text,
+      copy.rednote.title,
+      copy.rednote.body,
+      ...copy.rednote.hashtags,
+    ].join('\n');
+    const ratio = latinLetterRatio(combined);
+    if (ratio <= MAX_LATIN_LETTER_RATIO) return;
 
     context.addIssue({
       code: 'custom',
-      message: `X text is ${weightedLength} weighted units; the maximum is ${X_TEXT_MAX_WEIGHTED_LENGTH}.`,
+      message: `Copy is ${Math.round(ratio * 100)}% Latin letters; the maximum is ${Math.round(MAX_LATIN_LETTER_RATIO * 100)}%.`,
     });
   });
 
-const GeneratedSocialCopySchema = z.object({
-  hook: z.string().trim().min(1),
-  x: z.object({
-    text: XTextSchema,
-  }),
-  rednote: z.object({
-    title: z.string().trim().min(1).max(20),
-    body: z.string().trim().min(1),
-    hashtags: z.array(z.string().trim().min(1)).min(3).max(5),
-  }),
-});
-
-const SOCIAL_MODEL = 'openrouter/free';
-const MAX_ATTEMPTS = 2;
+// Three, not two: a provider that answers with a nested or truncated payload is
+// common enough that two attempts left the CLI failing outright.
+const MAX_ATTEMPTS = 3;
 const SOCIAL_PROMPT_ROOT = new URL('../../prompts/social/', import.meta.url);
+
+// Providers behind the same model id disagree about json_object mode: some
+// answer with the requested object, others nest it as a fenced string under an
+// arbitrary key (observed: {"stable diff":"ok","text":"```json…"}).
+function unwrapNestedPayload(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const record = value as Record<string, unknown>;
+  if ('x' in record || 'rednote' in record) return value;
+
+  for (const nested of Object.values(record)) {
+    if (typeof nested !== 'string') continue;
+    try {
+      return JSON.parse(stripJsonFence(nested.trim()));
+    } catch {
+      continue;
+    }
+  }
+  return value;
+}
 
 export function parseGeneratedSocialCopy(raw: string): GeneratedSocialCopy {
   const parsed = GeneratedSocialCopySchema.parse(
-    JSON.parse(stripJsonFence(raw.trim())),
+    unwrapNestedPayload(JSON.parse(stripJsonFence(raw.trim()))),
   );
   return {
     ...parsed,
@@ -109,10 +184,9 @@ export async function generateSocialCopy(input: {
     readPrompt('x.md'),
     readPrompt('rednote.md'),
   ]);
-  const config = getOpenRouterConfig({
-    model: SOCIAL_MODEL,
-    thinkingModel: null,
-  });
+  // Social copy is published verbatim, so it runs on the pipeline's configured
+  // LLM_MODEL rather than a free router that silently swaps models per request.
+  const config = getOpenRouterConfig({ thinkingModel: null });
 
   let lastError: unknown;
   let retryReason: string | undefined;
@@ -145,16 +219,20 @@ export async function generateSocialCopy(input: {
         throw new Error('OpenRouter returned empty social copy.');
       }
 
-      return { copy: parseGeneratedSocialCopy(content), model: config.model };
+      return {
+        copy: parseGeneratedSocialCopy(content),
+        model: completion.model ?? config.model,
+      };
     } catch (error) {
       lastError = error;
       retryReason = describeValidationFailure(error);
     }
   }
 
-  throw new Error('OpenRouter returned invalid social copy twice.', {
-    cause: lastError,
-  });
+  throw new Error(
+    `OpenRouter returned invalid social copy ${MAX_ATTEMPTS} times. Last failure: ${retryReason ?? 'unknown'}`,
+    { cause: lastError },
+  );
 }
 
 async function readPrompt(filename: string): Promise<string> {
