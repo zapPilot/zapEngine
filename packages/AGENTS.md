@@ -18,7 +18,6 @@ Use `pnpm build packages` only when a raw script bypasses Turbo or when all pack
 
 - Keep packages focused and framework-independent unless the package exists for a specific runtime.
 - Depend downward only; do not introduce app-to-package cycles or package knowledge of app identity and persistence concerns.
-- Prefer existing project dependencies before adding a package or implementing a local substitute.
 - Public wire-contract schemas and types belong in `@zapengine/types`.
 - Transaction intent normalization belongs in `@zapengine/intent-engine`; analytics and identity knowledge do not.
 
