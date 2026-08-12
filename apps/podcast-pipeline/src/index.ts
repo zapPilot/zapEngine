@@ -90,6 +90,7 @@ import {
 import {
   DEFAULT_LANGUAGE_CODE,
   type EpisodeLocalizationRow,
+  type EpisodeRow,
   SUPPORTED_PRIMARY_LANGUAGE_CODES,
 } from './types.js';
 
@@ -134,6 +135,39 @@ function toIngestLocalizationSummaries(
 
 function emptyTelegramResponse(c: Context): Response {
   return c.body(null, 200);
+}
+
+async function respondEpisodeLocalization(
+  c: Context,
+  episode: EpisodeRow,
+  languageCode: string,
+): Promise<Response> {
+  const localization = await findEpisodeLocalizationByEpisodeId(
+    episode.id,
+    languageCode,
+  );
+  if (!localization) {
+    throw new HTTPException(404, {
+      message: 'Episode localization not found',
+    });
+  }
+
+  const classrooms = await listLanguageClassroomsByLocalizationId(
+    localization.id,
+  );
+  const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds([
+    localization.id,
+  ]);
+  const videoSummary = videoSummaries.get(localization.id);
+  return c.json(
+    toEpisodeResponseFromLocalization(
+      episode,
+      localization,
+      classrooms,
+      videoSummary?.video ?? null,
+      videoSummary?.videoGeneration ?? null,
+    ),
+  );
 }
 
 export function createApp(): Hono {
@@ -426,31 +460,13 @@ export function createApp(): Hono {
     }
 
     const episode = await findEpisodeById(localizationId);
-    const localization = episode
-      ? await findEpisodeLocalizationByEpisodeId(episode.id, languageCode)
-      : null;
-    if (!episode || !localization) {
+    if (!episode) {
       throw new HTTPException(404, {
         message: 'Episode localization not found',
       });
     }
 
-    const classrooms = await listLanguageClassroomsByLocalizationId(
-      localization.id,
-    );
-    const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds([
-      localization.id,
-    ]);
-    const videoSummary = videoSummaries.get(localization.id);
-    return c.json(
-      toEpisodeResponseFromLocalization(
-        episode,
-        localization,
-        classrooms,
-        videoSummary?.video ?? null,
-        videoSummary?.videoGeneration ?? null,
-      ),
-    );
+    return respondEpisodeLocalization(c, episode, languageCode);
   });
 
   app.post('/episodes/:id/listened', async (c) => {
@@ -461,32 +477,7 @@ export function createApp(): Hono {
       throw new HTTPException(404, { message: 'Episode not found' });
     }
 
-    const localization = await findEpisodeLocalizationByEpisodeId(
-      episode.id,
-      languageCode,
-    );
-    if (!localization) {
-      throw new HTTPException(404, {
-        message: 'Episode localization not found',
-      });
-    }
-
-    const classrooms = await listLanguageClassroomsByLocalizationId(
-      localization.id,
-    );
-    const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds([
-      localization.id,
-    ]);
-    const videoSummary = videoSummaries.get(localization.id);
-    return c.json(
-      toEpisodeResponseFromLocalization(
-        episode,
-        localization,
-        classrooms,
-        videoSummary?.video ?? null,
-        videoSummary?.videoGeneration ?? null,
-      ),
-    );
+    return respondEpisodeLocalization(c, episode, languageCode);
   });
 
   app.onError(handleAppError);

@@ -58,6 +58,11 @@ const TENDERLY_API_URL = 'https://api.tenderly.co/api/v1';
 const DEFAULT_TIMEOUT_MS = 30_000;
 const CALL_GAS_LIMIT = 8_000_000;
 
+const SimulatedCallStatus = z.object({
+  status: z.union([z.boolean(), z.number()]),
+  error_message: z.string().optional().nullable(),
+});
+
 // When a bundled call is invalid rather than reverting (e.g. the wallet cannot
 // cover value + gas), Tenderly halts and returns a stub entry with a null
 // transaction and the reason on simulation.error_message.
@@ -66,19 +71,8 @@ const ResultsSchema = z.object({
     .array(
       z
         .object({
-          transaction: z
-            .object({
-              status: z.union([z.boolean(), z.number()]),
-              error_message: z.string().optional().nullable(),
-            })
-            .loose()
-            .nullable(),
-          simulation: z
-            .object({
-              status: z.union([z.boolean(), z.number()]),
-              error_message: z.string().optional().nullable(),
-            })
-            .loose(),
+          transaction: SimulatedCallStatus.loose().nullable(),
+          simulation: SimulatedCallStatus.loose(),
         })
         .loose(),
     )
