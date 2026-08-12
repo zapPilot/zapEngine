@@ -1,3 +1,8 @@
+import {
+  CANONICAL_TOKEN_ADDRESSES,
+  NATIVE_TOKEN_ADDRESS,
+  TOKEN_METADATA,
+} from '@zapengine/types/shared';
 import type { Address } from 'viem';
 
 export const GMX_V2_ARBITRUM_CHAIN_ID = 42161;
@@ -13,29 +18,29 @@ export const GMX_V2_ADDRESSES = {
 
 export const GMX_V2_TOKENS = {
   USDC: {
-    address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+    address: CANONICAL_TOKEN_ADDRESSES[42161].USDC,
     symbol: 'USDC',
-    decimals: 6,
+    decimals: TOKEN_METADATA.USDC.decimals,
   },
   USDT: {
-    address: '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9',
+    address: CANONICAL_TOKEN_ADDRESSES[42161].USDT,
     symbol: 'USDT',
-    decimals: 6,
+    decimals: TOKEN_METADATA.USDT.decimals,
   },
   ETH: {
-    address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+    address: NATIVE_TOKEN_ADDRESS,
     symbol: 'ETH',
-    decimals: 18,
+    decimals: TOKEN_METADATA.ETH.decimals,
   },
   WETH: {
-    address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
+    address: CANONICAL_TOKEN_ADDRESSES[42161].WETH,
     symbol: 'WETH',
-    decimals: 18,
+    decimals: TOKEN_METADATA.WETH.decimals,
   },
   WBTC_B: {
-    address: '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f',
+    address: CANONICAL_TOKEN_ADDRESSES[42161].WBTC,
     symbol: 'WBTC.b',
-    decimals: 8,
+    decimals: TOKEN_METADATA.WBTC.decimals,
   },
 } as const satisfies Record<
   string,

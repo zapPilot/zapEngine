@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
+import {
+  CANONICAL_TOKEN_ADDRESSES,
+  NATIVE_TOKEN_ADDRESS,
+} from '../shared/tokens.js';
 import { WALLET_ADDRESS_REGEX } from '../shared/wallet.js';
+
+export { NATIVE_TOKEN_ADDRESS } from '../shared/tokens.js';
 
 export const SUPPORTED_DEPOSIT_CHAINS = {
   ETHEREUM: 1,
@@ -25,25 +31,19 @@ export const STRATEGY_DEPOSIT_ID = 'zap-morpho-gmx-v1' as const;
  * is uneconomical. Shared by the request schema and the app's amount screen.
  */
 export const STRATEGY_MIN_DEPOSIT_USD6 = 10_000_000n;
-export const BASE_USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-export const NATIVE_TOKEN_ADDRESS =
-  '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+export const BASE_USDC_ADDRESS = CANONICAL_TOKEN_ADDRESSES[8453].USDC;
 
 /** Canonical USDC per supported source chain, for request validation. */
 export const DEPOSIT_USDC_ADDRESSES: Record<number, string> = {
-  [SUPPORTED_DEPOSIT_CHAINS.ETHEREUM]:
-    '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+  [SUPPORTED_DEPOSIT_CHAINS.ETHEREUM]: CANONICAL_TOKEN_ADDRESSES[1].USDC,
   [SUPPORTED_DEPOSIT_CHAINS.BASE]: BASE_USDC_ADDRESS,
-  [SUPPORTED_DEPOSIT_CHAINS.ARBITRUM]:
-    '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+  [SUPPORTED_DEPOSIT_CHAINS.ARBITRUM]: CANONICAL_TOKEN_ADDRESSES[42161].USDC,
 };
 
 /** Canonical USDT on chains where the wallet catalog currently supports it. */
 export const DEPOSIT_USDT_ADDRESSES: Partial<Record<number, string>> = {
-  [SUPPORTED_DEPOSIT_CHAINS.ETHEREUM]:
-    '0xdac17f958d2ee523a2206206994597c13d831ec7',
-  [SUPPORTED_DEPOSIT_CHAINS.ARBITRUM]:
-    '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9',
+  [SUPPORTED_DEPOSIT_CHAINS.ETHEREUM]: CANONICAL_TOKEN_ADDRESSES[1].USDT,
+  [SUPPORTED_DEPOSIT_CHAINS.ARBITRUM]: CANONICAL_TOKEN_ADDRESSES[42161].USDT,
 };
 
 const decimalStringSchema = z.string().regex(/^\d+$/, {

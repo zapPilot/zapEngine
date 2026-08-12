@@ -3,5 +3,12 @@
 // — this barrel exists for backward compatibility.
 export * from './api/index.js';
 export * from './etl/index.js';
-export * from './shared/index.js';
+export {
+  CANONICAL_TOKEN_ADDRESSES,
+  type CanonicalTokenSymbol,
+  portSchema,
+  TOKEN_METADATA,
+  WALLET_ADDRESS_REGEX,
+  isWalletAddress,
+} from './shared/index.js';
 export * from './strategy/index.js';
