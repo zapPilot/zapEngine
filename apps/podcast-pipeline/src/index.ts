@@ -140,8 +140,18 @@ type EpisodeRow = NonNullable<Awaited<ReturnType<typeof findEpisodeById>>>;
 
 async function loadEpisodeLocalizationResponse(
   episode: EpisodeRow,
-  localization: EpisodeLocalizationRow,
+  languageCode: string,
 ) {
+  const localization = await findEpisodeLocalizationByEpisodeId(
+    episode.id,
+    languageCode,
+  );
+  if (!localization) {
+    throw new HTTPException(404, {
+      message: 'Episode localization not found',
+    });
+  }
+
   const classrooms = await listLanguageClassroomsByLocalizationId(
     localization.id,
   );
@@ -452,37 +462,13 @@ export function createApp(): Hono {
     }
 
     const episode = await findEpisodeById(localizationId);
-    const localization = episode
-      ? await findEpisodeLocalizationByEpisodeId(episode.id, languageCode)
-      : null;
-    if (!episode || !localization) {
-      throw new HTTPException(404, {
-        message: 'Episode localization not found',
-      });
-    }
-
-    return c.json(await loadEpisodeLocalizationResponse(episode, localization));
-  });
-
-  app.post('/episodes/:id/listened', async (c) => {
-    const languageCode = parsePrimaryLanguageCode(c.req.query('language'));
-    const episode = await markEpisodeListened(c.req.param('id'));
-
     if (!episode) {
-      throw new HTTPException(404, { message: 'Episode not found' });
-    }
-
-    const localization = await findEpisodeLocalizationByEpisodeId(
-      episode.id,
-      languageCode,
-    );
-    if (!localization) {
       throw new HTTPException(404, {
         message: 'Episode localization not found',
       });
     }
 
-    return c.json(await loadEpisodeLocalizationResponse(episode, localization));
+    return c.json(await loadEpisodeLocalizationResponse(episode, languageCode));
   });
 
   app.onError(handleAppError);
