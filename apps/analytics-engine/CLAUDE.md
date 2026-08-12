@@ -34,7 +34,7 @@ In CI, `DATABASE_READ_ONLY_URL` is a GitHub Actions secret pointing at the Supab
 
 # Strategy iteration
 
-When working on backtesting strategies (anything under `src/services/backtesting/`), see [src/services/backtesting/CLAUDE.md](./src/services/backtesting/CLAUDE.md) for the iteration log, attribution conventions, and strategy-related commands.
+When working on backtesting strategies (anything under `src/services/backtesting/`), see [src/services/backtesting/AGENTS.md](./src/services/backtesting/AGENTS.md) for scoped strategy guardrails, then follow its links to the iteration playbook and operator commands.
 
 Do not duplicate strategy iteration content here — that file is the canonical home.
 

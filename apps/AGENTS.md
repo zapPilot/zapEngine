@@ -16,7 +16,7 @@ All apps expose the common root script surface where applicable: `dev`, `build`,
 
 ## Shared implementation rules
 
-- Keep service and API logic in plain functions under `src/services/`; do not introduce classes for service logic.
+- Follow the existing service style in each app; do not introduce a new service paradigm in unrelated work. New TypeScript server apps should prefer plain functions under `src/services/` unless a scoped `AGENTS.md` documents a different architecture.
 - Use ES modules.
 - Use Zod v4 APIs and imports.
 - Keep app-specific architecture and operational traps in the nearest scoped instruction file rather than duplicating them here.
