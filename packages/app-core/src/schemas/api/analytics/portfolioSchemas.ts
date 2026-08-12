@@ -49,7 +49,6 @@ const poolDetailSchema = z.object({
 
 const riskMetricsSchema = z.object({
   has_leverage: z.boolean(),
-  health_rate: z.number().positive(),
   leverage_ratio: z.number().positive(),
   collateral_value_usd: z.number().nonnegative(),
   debt_value_usd: z.number().nonnegative(),
