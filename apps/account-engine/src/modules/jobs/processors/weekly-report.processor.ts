@@ -352,17 +352,7 @@ export class WeeklyReportProcessor implements JobProcessor {
    * Get users with wallets, applying filters
    */
   private async getUsersWithWallets(userIds?: string[]) {
-    const allUsersWithWallets =
-      await this.supabaseUserService.getReportRecipientsWithWallets();
-
-    // Apply additional user ID filter if provided
-    if (userIds && userIds.length > 0) {
-      return allUsersWithWallets.filter((entry) =>
-        userIds.includes(entry.user.id),
-      );
-    }
-
-    return allUsersWithWallets;
+    return this.supabaseUserService.getReportRecipientsWithWallets(userIds);
   }
 
   private createSuccessWithPersistedMetadata(

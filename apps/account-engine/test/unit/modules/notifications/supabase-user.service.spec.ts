@@ -64,6 +64,21 @@ describe('SupabaseUserService', () => {
       expect(result[0]?.wallets).toEqual(['0xaaa', '0xbbb']);
     });
 
+    it('pushes a user ID filter into the database query', async () => {
+      const { service, dbMock } = createMocks();
+      dbMock.serviceRole.queryBuilder.mockResolvedThen({
+        data: [],
+        error: null,
+      });
+
+      await service.getReportRecipientsWithWallets(['u-1', 'u-2']);
+
+      expect(dbMock.serviceRole.queryBuilder.in).toHaveBeenCalledWith('id', [
+        'u-1',
+        'u-2',
+      ]);
+    });
+
     it('returns empty when no users match', async () => {
       const { service, dbMock } = createMocks();
       dbMock.serviceRole.queryBuilder.mockResolvedThen({

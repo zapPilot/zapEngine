@@ -145,10 +145,6 @@ describe('WeeklyReportProcessor', () => {
           user: { id: 'u-1', email: 'a@b.com' },
           wallets: ['0x1'],
         },
-        {
-          user: { id: 'u-2', email: 'c@d.com' },
-          wallets: ['0x2'],
-        },
       ]);
 
       const job = createPendingJob({
@@ -160,6 +156,9 @@ describe('WeeklyReportProcessor', () => {
 
       expect(result.success).toBe(true);
       expect(jobQueueService.createJob).toHaveBeenCalledTimes(1);
+      expect(
+        supabaseUserService.getReportRecipientsWithWallets,
+      ).toHaveBeenCalledWith(['u-1']);
     });
 
     it('validates email service before processing', async () => {
