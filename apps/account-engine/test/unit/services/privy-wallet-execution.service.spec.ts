@@ -242,6 +242,35 @@ describe('PrivyWalletExecutionService', () => {
     }
   });
 
+  it('starts the preview lifetime after Privy preparation completes', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-12T00:00:00.000Z'));
+    try {
+      const client = createClient();
+      vi.mocked(client.prepareSendCalls).mockImplementationOnce(async () => {
+        vi.advanceTimersByTime(60_000);
+        return {
+          authorizationPayload: 'base64-authorization-payload',
+          requestExpiry: 1_800_000_000_000,
+        };
+      });
+
+      const prepared = await createService(client).prepareSendCalls(
+        batch,
+        accessToken,
+      );
+      if (prepared.status !== 'passed') {
+        throw new Error('Expected passed preview');
+      }
+
+      expect(prepared.expiresAt).toBe(
+        new Date('2026-08-12T00:06:00.000Z').getTime(),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('sweeps expired previews when preparing a new preview', async () => {
     vi.useFakeTimers();
     try {

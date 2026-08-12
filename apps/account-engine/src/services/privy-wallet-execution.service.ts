@@ -452,7 +452,7 @@ export function createPrivyWalletExecutionService(config: {
       previewId,
       batchHash,
       typedDataPayload,
-      expiresAt: now + PREVIEW_EXPIRY_MS,
+      expiresAt: Date.now() + PREVIEW_EXPIRY_MS,
       authorizationPayload: privyPreparation.authorizationPayload,
       requestExpiry: privyPreparation.requestExpiry,
     };
