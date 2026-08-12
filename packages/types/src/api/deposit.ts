@@ -79,6 +79,7 @@ export const DepositLegSchema = z.object({
   chainId: z.number().int().positive(),
   kind: z.enum(['supply', 'bridge']),
   protocol: z.string().optional(),
+  label: z.string().optional(),
   toToken: AddressSchema,
   fromAmount: decimalStringSchema,
   toAmountMin: decimalStringSchema,

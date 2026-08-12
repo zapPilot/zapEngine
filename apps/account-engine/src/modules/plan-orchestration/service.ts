@@ -9,6 +9,7 @@ import {
   GMX_V2_BASKET_MARKET_KEYS,
   GMX_V2_EXECUTION_FEE_WEI,
   GMX_V2_GAS_ESTIMATES,
+  type GmxV2MarketKey,
   type IntentEngine,
   type LiFiAdapter,
   MORPHO_VAULTS,
@@ -338,6 +339,10 @@ function splitGmxBasketAmount(amount: string): string[] {
   );
 }
 
+function gmxMarketLabel(marketKey: GmxV2MarketKey): string {
+  return `GMX ${marketKey.toUpperCase().replace('-', '/')}`;
+}
+
 function mergeApprovalTransactions(
   approvals: readonly PreparedTransaction[],
 ): PreparedTransaction[] {
@@ -433,6 +438,7 @@ async function buildGmxV2BasketDeposit(params: {
       chainId: GMX_V2_ARBITRUM_CHAIN_ID,
       kind: 'supply',
       protocol: 'gmx-v2',
+      label: gmxMarketLabel(GMX_V2_BASKET_MARKET_KEYS[index]!),
       toToken: plan.market.marketToken,
       fromAmount: amounts[index]!,
       toAmountMin: plan.minMarketTokens,
@@ -878,7 +884,7 @@ async function buildStrategyDeposit(params: {
       },
       {
         id: 'gmx-btc-usdc',
-        label: 'GMX BTC/USDC',
+        label: gmxMarketLabel('btc-usdc'),
         weightBps: 3_000,
         chainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
         protocol: 'gmx-v2',
@@ -892,7 +898,7 @@ async function buildStrategyDeposit(params: {
       },
       {
         id: 'gmx-eth-usdc',
-        label: 'GMX ETH/USDC',
+        label: gmxMarketLabel('eth-usdc'),
         weightBps: 3_000,
         chainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
         protocol: 'gmx-v2',
@@ -1216,6 +1222,7 @@ export function createPlanOrchestrationService({
             chainId: GMX_V2_ARBITRUM_CHAIN_ID,
             kind: 'supply',
             protocol: 'gmx-v2',
+            label: gmxMarketLabel(request.marketKey),
             toToken: gmxPlan.market.marketToken,
             fromAmount: collateralBudget,
             toAmountMin: gmxPlan.minMarketTokens,

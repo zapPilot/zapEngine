@@ -107,6 +107,7 @@ describe('DepositLegSchema', () => {
     const result = DepositLegSchema.safeParse({
       chainId: 8453,
       kind: 'supply',
+      label: 'Morpho Moonwell USDC',
       toToken: VAULT,
       fromAmount: '1000000',
       toAmountMin: '990000',
@@ -114,6 +115,9 @@ describe('DepositLegSchema', () => {
       durationSec: 12,
     });
     expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.label).toBe('Morpho Moonwell USDC');
+    }
   });
 
   it('rejects an unsupported leg kind', () => {
