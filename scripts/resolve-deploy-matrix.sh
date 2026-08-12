@@ -52,7 +52,7 @@ if [ "${EVENT_NAME:-}" = "workflow_dispatch" ]; then
       ;;
   esac
 else
-  # paths-filter emits outputs.changes as a JSON array like ["frontend","alpha-etl"].
+  # paths-filter emits outputs.changes as a JSON array like ["account-engine","alpha-etl"].
   # Default to [] when not provided.
   changes="${PATHS_CHANGES:-[]}"
 fi

@@ -10,9 +10,8 @@ description: >-
 
 ## Core rule
 
-`apps/app` owns the Expo web app and Playwright tests. `apps/frontend` is only a
-build shim; do not put product code or tests there, and do not resurrect retired
-mobile paths.
+`apps/app` owns the Expo web app, its Vercel build, and Playwright tests. Do not
+resurrect retired mobile paths or add a second deployment shim.
 
 Start with the named Playwright log plus `error-context.md` / trace before
 changing app code or timeouts.
@@ -31,8 +30,8 @@ Run `test:e2e` before raw Playwright so the checked E2E export exists.
 `EXPO_PUBLIC_*` is compiled into the static Expo bundle. Env on Playwright's
 static web-server process cannot repair a bundle built without it.
 
-The root build may export through the `apps/frontend` shim first and warm Metro
-with env-less transforms. The later E2E export can then reuse stale output.
+An earlier env-less export can warm Metro with transforms that the later E2E
+export then reuses.
 
 - Build E2E only through `apps/app/scripts/build-e2e-web.mjs`.
 - Keep Expo `--clear` and compiled-placeholder verification together.
