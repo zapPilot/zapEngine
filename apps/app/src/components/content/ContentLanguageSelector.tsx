@@ -124,11 +124,9 @@ const FALLBACK_ANCHOR: DropdownAnchor = { top: 96, left: 20 };
 
 export function PodcastLanguageDropdown({
   completionByLanguage,
-  onOpen,
   onLanguageSelected,
 }: {
   completionByLanguage?: PodcastCompletionByLanguage | undefined;
-  onOpen?: (() => void) | undefined;
   onLanguageSelected?: ((code: ContentLanguageCode) => void) | undefined;
 } = {}) {
   const [open, setOpen] = useState(false);
@@ -157,7 +155,6 @@ export function PodcastLanguageDropdown({
           });
 
   const openMenu = () => {
-    onOpen?.();
     const node = triggerRef.current;
     if (node === null) {
       setAnchor(FALLBACK_ANCHOR);

@@ -69,22 +69,19 @@ export function selectPlayUnheardTarget(
 }
 
 /**
- * Restricts the podcast list to the selected language (the header dropdown is
- * the single language selector) and splits it into the 未聽 / 已聽完 sections.
+ * Splits the selected-language feed into the 未聽 / 已聽完 sections.
  */
 export function selectPodcastLists(
-  episodesByLanguage: Readonly<Record<string, readonly PodcastEpisode[]>>,
-  languageCode: string,
+  episodes: readonly PodcastEpisode[],
   direction: EpisodeSortDirection,
 ): PodcastListSelection {
-  const pool = episodesByLanguage[languageCode] ?? [];
   return {
     unheard: sortEpisodes(
-      pool.filter((episode) => !episode.listened),
+      episodes.filter((episode) => !episode.listened),
       direction,
     ),
     listened: sortEpisodes(
-      pool.filter((episode) => episode.listened),
+      episodes.filter((episode) => episode.listened),
       'newest',
     ),
   };

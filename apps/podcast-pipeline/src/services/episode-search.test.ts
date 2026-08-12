@@ -257,7 +257,6 @@ function row(overrides: Partial<EpisodeListRow> = {}): EpisodeListRow {
     llm_provider: overrides.llm_provider ?? null,
     status: overrides.status ?? 'completed',
     created_at: overrides.created_at ?? '2026-06-01T00:00:00.000Z',
-    listened: overrides.listened ?? false,
     like_count: overrides.like_count ?? 0,
     language_classrooms: overrides.language_classrooms ?? [],
   };

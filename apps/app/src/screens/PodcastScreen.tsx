@@ -28,8 +28,9 @@ import {
 import {
   isPodcastSearchQueryValid,
   normalisePodcastSearchQuery,
+  usePodcastCatalog,
   usePodcastEpisodeSearch,
-  usePodcastEpisodesByLanguage,
+  usePodcastEpisodes,
 } from '@/integration/podcastFeed';
 import type {
   PodcastEpisode,
@@ -38,7 +39,7 @@ import type {
 import {
   mergeEpisodeProgress,
   type PodcastCompletionSummary,
-  summarisePodcastCompletion,
+  summariseCatalogCompletion,
 } from '@/integration/podcastProgress';
 import { cn } from '@/lib/cn';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
@@ -191,7 +192,11 @@ export function PodcastScreen() {
   const router = useRouter();
   const player = usePodcastPlayer();
   const { languageCode, t } = useContentLanguage();
-  const { progress, markAllListened } = useEpisodeProgress();
+  const {
+    progress,
+    isHydrated: progressIsHydrated,
+    markAllListened,
+  } = useEpisodeProgress();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchExpanded, setSearchExpanded] = useState(false);
@@ -199,14 +204,9 @@ export function PodcastScreen() {
   const [direction, setDirection] = useState<EpisodeSortDirection>('newest');
   const [visibleListened, setVisibleListened] = useState(LISTENED_PAGE_SIZE);
   const [confirmMarkAll, setConfirmMarkAll] = useState(false);
-  // The non-selected languages only feed the dropdown's completion
-  // percentages, so their requests wait until the dropdown first opens.
-  const [allLanguagesRequested, setAllLanguagesRequested] = useState(false);
 
-  const feedQuery = usePodcastEpisodesByLanguage(
-    languageCode,
-    allLanguagesRequested,
-  );
+  const feedQuery = usePodcastEpisodes();
+  const catalogQuery = usePodcastCatalog();
   const searchQueryResult = usePodcastEpisodeSearch(debouncedSearchQuery);
 
   const normalisedSearchQuery = normalisePodcastSearchQuery(searchQuery);
@@ -215,58 +215,54 @@ export function PodcastScreen() {
     searchActive && debouncedSearchQuery.trim() !== normalisedSearchQuery;
   const searchResults = searchQueryResult.data ?? EMPTY_SEARCH_RESULTS;
 
-  // Merge device-local progress onto each language's feed.
-  const mergedByLanguage = useMemo(() => {
-    const result: Record<string, PodcastEpisode[]> = {};
-    for (const option of CONTENT_LANGUAGE_OPTIONS) {
-      result[option.code] = (feedQuery.byLanguage[option.code] ?? []).map(
-        (episode) => mergeEpisodeProgress(episode, progress),
-      );
-    }
-    return result;
-  }, [feedQuery.byLanguage, progress]);
+  const mergedEpisodes = useMemo(
+    () =>
+      (feedQuery.data ?? []).map((episode) =>
+        mergeEpisodeProgress(episode, progress),
+      ),
+    [feedQuery.data, progress],
+  );
 
   // Selected-language lists: unheard follows the direction toggle,
   // listened is always newest-first. The language dropdown is the single
   // language selector, so the list below only ever shows one language.
   const { unheard: unheardEpisodes, listened: listenedEpisodes } = useMemo(
-    () => selectPodcastLists(mergedByLanguage, languageCode, direction),
-    [mergedByLanguage, languageCode, direction],
+    () => selectPodcastLists(mergedEpisodes, direction),
+    [direction, mergedEpisodes],
   );
 
-  const completionByLanguage = useMemo<PodcastCompletionByLanguage>(() => {
+  const completionByLanguage = useMemo<
+    PodcastCompletionByLanguage | undefined
+  >(() => {
+    if (!progressIsHydrated || catalogQuery.data === undefined) {
+      return undefined;
+    }
     const summaries: Partial<
       Record<ContentLanguageCode, PodcastCompletionSummary>
     > = {};
     for (const option of CONTENT_LANGUAGE_OPTIONS) {
-      // An unfetched language stays undefined so the dropdown renders its
-      // existing "no percentage" state instead of a misleading 0%.
-      if (feedQuery.byLanguage[option.code] === undefined) {
-        continue;
-      }
-      summaries[option.code] = summarisePodcastCompletion(
-        mergedByLanguage[option.code] ?? [],
-      );
+      const catalogIds = catalogQuery.data.languages[option.code];
+      if (catalogIds === undefined) continue;
+      summaries[option.code] = summariseCatalogCompletion(catalogIds, progress);
     }
     return summaries;
-  }, [feedQuery.byLanguage, mergedByLanguage]);
+  }, [catalogQuery.data, progress, progressIsHydrated]);
 
-  const allLocalizationIds = useMemo(
-    () =>
-      CONTENT_LANGUAGE_OPTIONS.flatMap((option) =>
-        (mergedByLanguage[option.code] ?? []).map(
-          (episode) => episode.localizationId,
-        ),
-      ),
-    [mergedByLanguage],
+  const selectedLocalizationIds = useMemo(
+    () => [
+      ...new Set([
+        ...(catalogQuery.data?.languages[languageCode] ?? []),
+        ...mergedEpisodes.map((episode) => episode.localizationId),
+      ]),
+    ],
+    [catalogQuery.data, languageCode, mergedEpisodes],
   );
 
   // "Play unheard" target + queue, prioritising the selected language
   // (mirrors the mobile `playSmart`: in-progress → unplayed → all completed).
   const playback = useMemo(
-    () =>
-      selectPlayUnheardTarget(mergedByLanguage[languageCode] ?? [], direction),
-    [mergedByLanguage, languageCode, direction],
+    () => selectPlayUnheardTarget(mergedEpisodes, direction),
+    [direction, mergedEpisodes],
   );
 
   const playbackTarget = playback.target;
@@ -275,10 +271,12 @@ export function PodcastScreen() {
     playbackTarget !== null &&
     player.nowPlaying?.localizationId === playbackTarget.localizationId;
 
-  const listLoading = searchActive
-    ? (searchQueryResult.isLoading || searchPending) &&
-      searchResults.length === 0
-    : feedQuery.isLoading;
+  const listLoading =
+    !progressIsHydrated ||
+    (searchActive
+      ? (searchQueryResult.isPending || searchPending) &&
+        searchResults.length === 0
+      : feedQuery.isPending);
   const listError = searchActive
     ? searchQueryResult.isError
     : feedQuery.isError;
@@ -286,9 +284,11 @@ export function PodcastScreen() {
   const hasAnyEpisode =
     unheardEpisodes.length > 0 || listenedEpisodes.length > 0;
   const visibleCompletionByLanguage =
-    feedQuery.isLoading || feedQuery.isError
+    completionByLanguage ??
+    (progressIsHydrated && catalogQuery.isError
       ? EMPTY_COMPLETION_BY_LANGUAGE
-      : completionByLanguage;
+      : undefined);
+  const markAllReady = progressIsHydrated && !catalogQuery.isPending;
 
   const cancelSearch = () => {
     setSearchQuery('');
@@ -359,7 +359,9 @@ export function PodcastScreen() {
           />
         );
       }
-      const searchEpisodes = searchResults.map((result) => result.episode);
+      const searchEpisodes = searchResults.map((result) =>
+        mergeEpisodeProgress(result.episode, progress),
+      );
       return (
         <View className="px-5">
           {renderRows(searchEpisodes, searchEpisodes, (_episode, index) => (
@@ -436,15 +438,18 @@ export function PodcastScreen() {
           <Tap
             accessibilityRole="button"
             accessibilityLabel={t('podcast.markAllListened')}
+            accessibilityState={{ disabled: !markAllReady }}
+            disabled={!markAllReady}
             onPress={() => {
+              if (!markAllReady) return;
               if (confirmMarkAll) {
-                markAllListened(allLocalizationIds);
+                markAllListened(selectedLocalizationIds);
                 setConfirmMarkAll(false);
               } else {
                 setConfirmMarkAll(true);
               }
             }}
-            className="px-3 py-1"
+            className={cn('px-3 py-1', !markAllReady && 'opacity-40')}
           >
             <Text className="font-mono text-[10px] text-ink-faint">
               {confirmMarkAll
@@ -465,7 +470,6 @@ export function PodcastScreen() {
           left={
             <PodcastLanguageDropdown
               completionByLanguage={visibleCompletionByLanguage}
-              onOpen={() => setAllLanguagesRequested(true)}
             />
           }
           right={

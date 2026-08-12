@@ -9,10 +9,14 @@ import {
 import { useEpisodeProgress } from '@/providers/PodcastProgressProvider';
 import { usePodcastPlayer } from '@/providers/PodcastPlayerProvider';
 
-/** Seconds from the end at which an episode is finalized as "listened". */
-const COMPLETION_THRESHOLD_SECONDS = 2;
+/** Do not overwrite active playback with a saved resume after this point. */
+const RESUME_OVERWRITE_PROTECTION_SECONDS = 2;
 /** Persist the resume position at most once per this many seconds of playback. */
 const POSITION_PERSIST_INTERVAL_SECONDS = 10;
+
+function completionThresholdSeconds(duration: number): number {
+  return Math.min(30, Math.max(2, duration * 0.05));
+}
 
 interface PlaybackSnapshot {
   localizationId: string;
@@ -120,7 +124,7 @@ export function PodcastProgressTracker(): null {
     if (
       isLastSection &&
       duration > 0 &&
-      duration - currentTime <= COMPLETION_THRESHOLD_SECONDS &&
+      duration - currentTime <= completionThresholdSeconds(duration) &&
       !finalizedRef.current.has(localizationId)
     ) {
       finalizedRef.current.add(localizationId);
@@ -169,7 +173,7 @@ export function PodcastProgressTracker(): null {
       saved.listened ||
       saved.lastPositionSeconds <= PODCAST_IN_PROGRESS_MIN_SECONDS ||
       duration <= 0 ||
-      currentTime >= COMPLETION_THRESHOLD_SECONDS ||
+      currentTime >= RESUME_OVERWRITE_PROTECTION_SECONDS ||
       currentSection !== 'main'
     ) {
       return;

@@ -23,7 +23,7 @@ import {
   listEpisodeVideoSummariesByLocalizationIds,
   listLanguageClassroomsByLocalizationId,
   listLanguageClassroomsByLocalizationIds,
-  markEpisodeListened,
+  listPublishedEpisodeCatalog,
   toEpisodeResponse,
   toEpisodeResponseFromLocalization,
   toLanguageClassroomLesson,
@@ -64,6 +64,7 @@ function makeQuery() {
   const query = {
     select: vi.fn(() => query),
     eq: vi.fn(() => query),
+    gt: vi.fn(() => query),
     in: vi.fn(() => query),
     order: vi.fn(() => query),
     limit: vi.fn(() => query),
@@ -133,7 +134,6 @@ describe('toEpisodeResponse', () => {
         },
       ],
       createdAt: row.created_at,
-      listened: false,
       script: row.script,
       llmModel: row.llm_model,
       llmThinkingModel: row.llm_thinking_model,
@@ -181,7 +181,6 @@ describe('toEpisodeResponse', () => {
         },
       ],
       createdAt: episode.created_at,
-      listened: true,
       script: localization.script,
       llmModel: localization.llm_model,
       llmThinkingModel: localization.llm_thinking_model,
@@ -459,6 +458,81 @@ describe('episode source and localization lookup', () => {
   });
 });
 
+describe('listPublishedEpisodeCatalog', () => {
+  it('returns the fixed empty catalog after a single page', async () => {
+    state.query!.returns.mockResolvedValue({ data: [], error: null });
+
+    await expect(listPublishedEpisodeCatalog()).resolves.toEqual({
+      'zh-Hant': [],
+      ja: [],
+      en: [],
+    });
+    expect(mockFrom).toHaveBeenCalledWith('episodes_with_stats');
+    expect(state.query!.select).toHaveBeenCalledWith(
+      'localization_id,language_code',
+    );
+    expect(state.query!.order).toHaveBeenCalledWith('localization_id', {
+      ascending: true,
+    });
+    expect(state.query!.limit).toHaveBeenCalledWith(1_000);
+    expect(state.query!.gt).not.toHaveBeenCalled();
+  });
+
+  it('groups localization ids under the three supported language keys', async () => {
+    state.query!.returns.mockResolvedValue({
+      data: [
+        { localization_id: 'localization-1', language_code: 'zh-Hant' },
+        { localization_id: 'localization-2', language_code: 'ja' },
+        { localization_id: 'localization-3', language_code: 'en' },
+        { localization_id: 'localization-4', language_code: 'fr' },
+      ],
+      error: null,
+    });
+
+    await expect(listPublishedEpisodeCatalog()).resolves.toEqual({
+      'zh-Hant': ['localization-1'],
+      ja: ['localization-2'],
+      en: ['localization-3'],
+    });
+  });
+
+  it('continues from the last localization id after a full page', async () => {
+    const firstPage = Array.from({ length: 1_000 }, (_, index) => ({
+      localization_id: `localization-${String(index).padStart(4, '0')}`,
+      language_code: 'en',
+    }));
+    const finalRow = {
+      localization_id: 'localization-1000',
+      language_code: 'ja',
+    };
+    state
+      .query!.returns.mockResolvedValueOnce({ data: firstPage, error: null })
+      .mockResolvedValueOnce({ data: [finalRow], error: null });
+
+    const catalog = await listPublishedEpisodeCatalog();
+
+    expect(catalog.en).toEqual(firstPage.map((row) => row.localization_id));
+    expect(catalog.ja).toEqual([finalRow.localization_id]);
+    expect(mockFrom).toHaveBeenCalledTimes(2);
+    expect(state.query!.gt).toHaveBeenCalledOnce();
+    expect(state.query!.gt).toHaveBeenCalledWith(
+      'localization_id',
+      firstPage[999]!.localization_id,
+    );
+  });
+
+  it('throws Supabase errors from catalog listing', async () => {
+    state.query!.returns.mockResolvedValue({
+      data: null,
+      error: new Error('catalog failed'),
+    });
+
+    await expect(listPublishedEpisodeCatalog()).rejects.toThrow(
+      'catalog failed',
+    );
+  });
+});
+
 describe('cursor helpers', () => {
   it('round-trips a cursor', () => {
     const cursor = {
@@ -607,7 +681,7 @@ describe('listEpisodeFeedPaged', () => {
 
     expect(mockFrom).toHaveBeenCalledWith('episodes_with_stats');
     expect(state.query!.select).toHaveBeenCalledWith(
-      'id,episode_id,localization_id,title,language_code,hls_url,classroom_hls_url,llm_model,llm_thinking_model,llm_provider,status,created_at,listened',
+      'id,episode_id,localization_id,title,language_code,hls_url,classroom_hls_url,llm_model,llm_thinking_model,llm_provider,status,created_at',
     );
     expect(state.query!.eq).toHaveBeenCalledWith('language_code', 'zh-Hant');
   });
@@ -1328,28 +1402,6 @@ describe('language classrooms', () => {
 });
 
 describe('updates', () => {
-  it('marks an episode listened on the source episode row', async () => {
-    const row = episodeRow({ listened: true });
-    state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
-
-    const result = await markEpisodeListened(row.id);
-
-    expect(mockFrom).toHaveBeenCalledWith('episodes');
-    expect(state.query!.update).toHaveBeenCalledWith({ listened: true });
-    expect(result).toEqual(row);
-  });
-
-  it('throws Supabase errors when marking listened fails', async () => {
-    state.query!.maybeSingle.mockResolvedValue({
-      data: null,
-      error: new Error('mark listened failed'),
-    });
-
-    await expect(markEpisodeListened('episode-1')).rejects.toThrow(
-      'mark listened failed',
-    );
-  });
-
   it('updates localized article content', async () => {
     const row = localizationRow({
       title: '軟體更新',

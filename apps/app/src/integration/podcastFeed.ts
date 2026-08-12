@@ -1,5 +1,5 @@
 /** From Fed to Chain podcast feed client (podcast-pipeline `/episodes` API). */
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { getRuntimeEnv } from '@zapengine/app-core/lib/env/runtimeEnv';
 
 import {
@@ -100,6 +100,14 @@ export interface PodcastEpisodeSearchResult {
   snippet: string | null;
 }
 
+export type PodcastCatalogLanguages = Partial<
+  Record<ContentLanguageCode, string[]>
+>;
+
+export interface PodcastCatalog {
+  languages: PodcastCatalogLanguages;
+}
+
 interface PodcastFeedPage {
   items: unknown[];
   nextCursor: string | null;
@@ -150,16 +158,6 @@ function readNumber(
   const value =
     record[camelKey] ?? (snakeKey === undefined ? undefined : record[snakeKey]);
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
-}
-
-function readBoolean(
-  record: Record<string, unknown>,
-  camelKey: string,
-  snakeKey?: string,
-): boolean {
-  const value =
-    record[camelKey] ?? (snakeKey === undefined ? undefined : record[snakeKey]);
-  return value === true;
 }
 
 function readArray(record: Record<string, unknown>, keys: string[]): unknown[] {
@@ -340,7 +338,7 @@ export function mergePodcastEpisodeVideo(
     ...feedEpisode,
     // The feed intentionally omits these heavier detail-only fields. Once the
     // detail request completes it becomes authoritative for them, while the
-    // feed remains authoritative for list state such as `listened`.
+    // feed remains authoritative for the lightweight list fields.
     script: detailEpisode.script,
     languageClassrooms: detailEpisode.languageClassrooms,
     likeCount: detailEpisode.likeCount,
@@ -487,7 +485,7 @@ export function parsePodcastEpisode(rawEpisode: unknown): PodcastEpisode {
       languageCode.trim() === '' ? DEFAULT_CONTENT_LANGUAGE_CODE : languageCode,
     hlsUrl,
     createdAt: readString(rawEpisode, 'createdAt', 'created_at'),
-    listened: readBoolean(rawEpisode, 'listened'),
+    listened: false,
     likeCount: readNumber(rawEpisode, 'likeCount', 'like_count'),
     script: readNullableString(rawEpisode, 'script'),
     video: parsePodcastEpisodeVideo(rawEpisode['video']),
@@ -503,11 +501,7 @@ export function parsePodcastEpisode(rawEpisode: unknown): PodcastEpisode {
       .filter(
         (lesson): lesson is PodcastLanguageClassroomLesson => lesson !== null,
       ),
-    lastPositionSeconds: readNumber(
-      rawEpisode,
-      'lastPositionSeconds',
-      'last_position_seconds',
-    ),
+    lastPositionSeconds: 0,
   };
 }
 
@@ -578,6 +572,34 @@ export async function fetchPodcastEpisodes(
     .filter((episode) => episode.hlsUrl !== '');
 }
 
+function parsePodcastCatalog(rawCatalog: unknown): PodcastCatalog {
+  const languages: PodcastCatalogLanguages = {};
+  if (!isRecord(rawCatalog) || !isRecord(rawCatalog['languages'])) {
+    return { languages };
+  }
+
+  for (const option of CONTENT_LANGUAGE_OPTIONS) {
+    const ids = rawCatalog['languages'][option.code];
+    if (
+      Array.isArray(ids) &&
+      ids.every((id): id is string => typeof id === 'string')
+    ) {
+      languages[option.code] = ids;
+    }
+  }
+
+  return { languages };
+}
+
+export async function fetchPodcastCatalog(
+  fetchImpl: typeof fetch = fetch,
+): Promise<PodcastCatalog> {
+  const url = new URL(`${getPodcastApiUrl()}/episodes/catalog`);
+  return parsePodcastCatalog(
+    await fetchPodcastJson<unknown>(url, fetchImpl, 'Podcast catalog'),
+  );
+}
+
 export async function fetchPodcastEpisodeSearchResults(
   query: string,
   fetchImpl: typeof fetch = fetch,
@@ -629,17 +651,22 @@ export function findPodcastEpisodeById(
 }
 
 export function usePodcastEpisodes() {
-  const { languageCode } = useContentLanguage();
+  const { isHydrated, languageCode } = useContentLanguage();
 
-  return useQuery(podcastEpisodesQueryOptions(languageCode));
-}
-
-function podcastEpisodesQueryOptions(languageCode: string) {
-  return {
+  return useQuery({
     queryKey: ['desktop', 'podcast', 'episodes', languageCode],
     queryFn: () => fetchPodcastEpisodes(fetch, languageCode),
+    enabled: isHydrated,
     staleTime: 5 * 60 * 1000,
-  } as const;
+  });
+}
+
+export function usePodcastCatalog() {
+  return useQuery({
+    queryKey: ['desktop', 'podcast', 'episodes', 'catalog'],
+    queryFn: () => fetchPodcastCatalog(fetch),
+    staleTime: 30 * 60 * 1000,
+  });
 }
 
 export function usePodcastEpisode(
@@ -648,6 +675,8 @@ export function usePodcastEpisode(
   enabled = true,
   pendingFeedVideoGeneration: PodcastEpisodeVideoGeneration | null = null,
 ) {
+  const { isHydrated } = useContentLanguage();
+
   return useQuery({
     queryKey: [
       'desktop',
@@ -658,7 +687,7 @@ export function usePodcastEpisode(
       localizationId,
     ],
     queryFn: () => fetchPodcastEpisode(localizationId, fetch, languageCode),
-    enabled: enabled && localizationId.trim() !== '',
+    enabled: isHydrated && enabled && localizationId.trim() !== '',
     refetchInterval: (query) =>
       podcastVideoRefetchInterval(
         query.state.data,
@@ -670,53 +699,8 @@ export function usePodcastEpisode(
   });
 }
 
-export interface PodcastEpisodesByLanguage {
-  /** Only languages whose feed has actually been fetched appear as keys. */
-  byLanguage: Record<string, PodcastEpisode[]>;
-  isLoading: boolean;
-  isError: boolean;
-}
-
-/**
- * Fetches the selected language's feed eagerly; the other content languages
- * only fetch once `includeAllLanguages` turns true (the language dropdown
- * opening), because their sole consumer is the dropdown's completion
- * percentages. Each language keeps its own React Query cache entry (same key
- * as {@link usePodcastEpisodes}), and `isLoading`/`isError` track the selected
- * language only so a dropdown-triggered fetch never skeletons the list.
- */
-export function usePodcastEpisodesByLanguage(
-  selectedLanguageCode: ContentLanguageCode,
-  includeAllLanguages: boolean,
-): PodcastEpisodesByLanguage {
-  const results = useQueries({
-    queries: CONTENT_LANGUAGE_OPTIONS.map((option) => ({
-      ...podcastEpisodesQueryOptions(option.code),
-      enabled: includeAllLanguages || option.code === selectedLanguageCode,
-    })),
-  });
-
-  const byLanguage: Record<string, PodcastEpisode[]> = {};
-  let selectedResult: (typeof results)[number] | undefined;
-  CONTENT_LANGUAGE_OPTIONS.forEach((option, index) => {
-    const result = results[index];
-    if (option.code === selectedLanguageCode) {
-      selectedResult = result;
-    }
-    if (result?.data !== undefined) {
-      byLanguage[option.code] = result.data;
-    }
-  });
-
-  return {
-    byLanguage,
-    isLoading: selectedResult?.isLoading ?? false,
-    isError: selectedResult?.isError ?? false,
-  };
-}
-
 export function usePodcastEpisodeSearch(query: string) {
-  const { languageCode } = useContentLanguage();
+  const { isHydrated, languageCode } = useContentLanguage();
   const normalisedQuery = normalisePodcastSearchQuery(query);
   const enabled = isPodcastSearchQueryValid(normalisedQuery);
 
@@ -731,7 +715,7 @@ export function usePodcastEpisodeSearch(query: string) {
     ],
     queryFn: () =>
       fetchPodcastEpisodeSearchResults(normalisedQuery, fetch, languageCode),
-    enabled,
+    enabled: isHydrated && enabled,
     staleTime: 60 * 1000,
   });
 }

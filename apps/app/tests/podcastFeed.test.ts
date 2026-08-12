@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  fetchPodcastCatalog,
   fetchPodcastEpisode,
   fetchPodcastEpisodeSearchResults,
   fetchPodcastEpisodes,
@@ -95,11 +96,50 @@ describe('podcast feed client', () => {
     );
   });
 
+  it('requests the catalog and accepts only known language string arrays', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        languages: {
+          en: ['loc-en-1', 'loc-en-2'],
+          'zh-Hant': 'loc-zh-1',
+          ja: ['loc-ja-1', 2],
+          fr: ['loc-fr-1'],
+        },
+      }),
+    );
+
+    const catalog = await fetchPodcastCatalog(fetchMock);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const url = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect(url.pathname).toBe('/episodes/catalog');
+    expect(catalog).toEqual({
+      languages: { en: ['loc-en-1', 'loc-en-2'] },
+    });
+  });
+
+  it('degrades a malformed catalog payload to an empty language map', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ languages: null }));
+
+    await expect(fetchPodcastCatalog(fetchMock)).resolves.toEqual({
+      languages: {},
+    });
+  });
+
+  it('throws on a non-200 catalog response', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 503 } as Response);
+
+    await expect(fetchPodcastCatalog(fetchMock)).rejects.toThrow(
+      'Podcast catalog request failed: 503',
+    );
+  });
+
   it('parses detail fields from camelCase episode responses', () => {
     const parsed = parsePodcastEpisode(
       episode({
         script: 'Paragraph one. Paragraph two.',
         likeCount: 7,
+        listened: true,
         lastPositionSeconds: 42,
         video: {
           url: 'https://cdn.example.com/video.mp4',
@@ -140,7 +180,8 @@ describe('podcast feed client', () => {
 
     expect(parsed.script).toBe('Paragraph one. Paragraph two.');
     expect(parsed.likeCount).toBe(7);
-    expect(parsed.lastPositionSeconds).toBe(42);
+    expect(parsed.listened).toBe(false);
+    expect(parsed.lastPositionSeconds).toBe(0);
     expect(parsed.video).toEqual({
       url: 'https://cdn.example.com/video.mp4',
       thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
@@ -203,6 +244,8 @@ describe('podcast feed client', () => {
     });
 
     expect(parsed.localizationId).toBe('ep-2');
+    expect(parsed.listened).toBe(false);
+    expect(parsed.lastPositionSeconds).toBe(0);
     expect(parsed.audioTracks[0]?.title).toBe('en');
     expect(parsed.languageClassrooms[0]?.targetLanguageCode).toBe('zh-Hant');
     expect(parsed.video?.thumbnailUrl).toBe(

@@ -315,7 +315,7 @@ export function EpisodeDetailScreen() {
     selectedLanguageCode;
   const feedQuery = usePodcastEpisodes();
   const player = usePodcastPlayer();
-  const { progress } = useEpisodeProgress();
+  const { progress, isHydrated: progressIsHydrated } = useEpisodeProgress();
   const feedEpisodes = feedQuery.data ?? [];
   const feedEpisode = findPodcastEpisodeById(feedEpisodes, routeEpisodeId);
   const isFeedVideoGenerationPending =
@@ -326,7 +326,7 @@ export function EpisodeDetailScreen() {
   const detailQuery = usePodcastEpisode(
     feedEpisode?.localizationId ?? routeEpisodeId,
     feedEpisode?.languageCode ?? routeLanguageCode,
-    !feedQuery.isLoading,
+    !feedQuery.isPending,
     pendingFeedVideoGeneration,
   );
   const rawEpisode = mergePodcastEpisodeVideo(
@@ -338,7 +338,9 @@ export function EpisodeDetailScreen() {
   const episodes =
     feedEpisodes.length > 0 ? feedEpisodes : episode === null ? [] : [episode];
   const isLoading =
-    feedQuery.isLoading || (feedEpisode === null && detailQuery.isLoading);
+    !progressIsHydrated ||
+    feedQuery.isPending ||
+    (feedEpisode === null && detailQuery.isPending);
   const isError =
     feedEpisode === null && feedQuery.isError && detailQuery.isError;
 

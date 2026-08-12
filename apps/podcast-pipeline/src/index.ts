@@ -33,7 +33,7 @@ import {
   listEpisodeLocalizationsByEpisodeId,
   listEpisodeVideoSummariesByLocalizationIds,
   listLanguageClassroomsByLocalizationId,
-  markEpisodeListened,
+  listPublishedEpisodeCatalog,
   toEpisodeFeedResponse,
   toEpisodeResponse,
   toEpisodeResponseFromLocalization,
@@ -378,6 +378,10 @@ export function createApp(): Hono {
     return c.json({ items });
   });
 
+  app.get('/episodes/catalog', async (c) => {
+    return c.json({ languages: await listPublishedEpisodeCatalog() });
+  });
+
   app.get('/episodes/:episodeId/videos', async (c) => {
     requireAdminAuthorization(c.req.header('authorization'));
     const episodeId = c.req.param('episodeId');
@@ -430,42 +434,6 @@ export function createApp(): Hono {
       ? await findEpisodeLocalizationByEpisodeId(episode.id, languageCode)
       : null;
     if (!episode || !localization) {
-      throw new HTTPException(404, {
-        message: 'Episode localization not found',
-      });
-    }
-
-    const classrooms = await listLanguageClassroomsByLocalizationId(
-      localization.id,
-    );
-    const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds([
-      localization.id,
-    ]);
-    const videoSummary = videoSummaries.get(localization.id);
-    return c.json(
-      toEpisodeResponseFromLocalization(
-        episode,
-        localization,
-        classrooms,
-        videoSummary?.video ?? null,
-        videoSummary?.videoGeneration ?? null,
-      ),
-    );
-  });
-
-  app.post('/episodes/:id/listened', async (c) => {
-    const languageCode = parsePrimaryLanguageCode(c.req.query('language'));
-    const episode = await markEpisodeListened(c.req.param('id'));
-
-    if (!episode) {
-      throw new HTTPException(404, { message: 'Episode not found' });
-    }
-
-    const localization = await findEpisodeLocalizationByEpisodeId(
-      episode.id,
-      languageCode,
-    );
-    if (!localization) {
       throw new HTTPException(404, {
         message: 'Episode localization not found',
       });

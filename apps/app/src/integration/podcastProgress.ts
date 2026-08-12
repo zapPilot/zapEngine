@@ -22,7 +22,7 @@ export type PodcastProgressMap = Record<string, PodcastEpisodeProgress>;
 
 export type EpisodePlaybackStatus = 'unplayed' | 'inProgress' | 'completed';
 
-/** Completed-episode progress for one language's currently available feed. */
+/** Completed-episode progress for one language's full catalog. */
 export interface PodcastCompletionSummary {
   completed: number;
   total: number;
@@ -46,17 +46,15 @@ export function resolveEpisodeStatus(
   return 'unplayed';
 }
 
-/**
- * Summarizes completed episodes without treating a saved resume position as a
- * completion. The feed currently exposes a finite page, so callers should
- * describe this as progress through the available episodes rather than a
- * lifetime catalog percentage.
- */
-export function summarisePodcastCompletion(
-  episodes: readonly Pick<PodcastEpisode, 'listened'>[],
+/** Summarizes locally completed episodes from one language's full catalog. */
+export function summariseCatalogCompletion(
+  catalogIds: readonly string[],
+  progress: PodcastProgressMap,
 ): PodcastCompletionSummary {
-  const total = episodes.length;
-  const completed = episodes.filter((episode) => episode.listened).length;
+  const total = catalogIds.length;
+  const completed = catalogIds.filter(
+    (localizationId) => progress[localizationId]?.listened === true,
+  ).length;
   return {
     completed,
     total,
@@ -70,21 +68,17 @@ export function summarisePodcastCompletion(
 }
 
 /**
- * Overlays device-local progress onto a server episode; local wins, matching
- * the mobile `hydrateUserState` merge (`listened: server || local`).
+ * Overlays device-local progress onto a server episode. The server response is
+ * catalog data only; listening state is exclusively device-local.
  */
 export function mergeEpisodeProgress(
   episode: PodcastEpisode,
   progress: PodcastProgressMap,
 ): PodcastEpisode {
   const local = progress[episode.localizationId];
-  if (local === undefined) return episode;
   return {
     ...episode,
-    listened: episode.listened || local.listened,
-    lastPositionSeconds:
-      local.lastPositionSeconds > 0
-        ? local.lastPositionSeconds
-        : episode.lastPositionSeconds,
+    listened: local?.listened ?? false,
+    lastPositionSeconds: local?.lastPositionSeconds ?? 0,
   };
 }

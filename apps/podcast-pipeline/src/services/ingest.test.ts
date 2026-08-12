@@ -2083,7 +2083,6 @@ function localizationResponse(
       },
     ],
     createdAt: episode.created_at,
-    listened: episode.listened,
     script: localization.script,
     llmModel: localization.llm_model,
     llmThinkingModel: localization.llm_thinking_model,

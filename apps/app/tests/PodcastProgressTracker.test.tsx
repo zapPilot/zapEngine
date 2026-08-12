@@ -216,6 +216,16 @@ describe('PodcastProgressTracker completion', () => {
     renderTracker();
     expect(progressContext.markListened).toHaveBeenCalledWith('episode', true);
   });
+
+  it('completes a long episode at the capped thirty-second threshold', () => {
+    player = makePlayer({ currentTime: 3569, duration: 3600 });
+    renderTracker();
+    expect(progressContext.markListened).not.toHaveBeenCalled();
+
+    player = makePlayer({ currentTime: 3570, duration: 3600 });
+    renderTracker();
+    expect(progressContext.markListened).toHaveBeenCalledWith('episode', true);
+  });
 });
 
 describe('PodcastProgressTracker resume', () => {
@@ -266,6 +276,24 @@ describe('PodcastProgressTracker resume', () => {
         episode: { listened: true, lastPositionSeconds: 120 },
       },
     };
+    renderTracker();
+    expect(player.seek).not.toHaveBeenCalled();
+  });
+
+  it('keeps the resume overwrite protection at exactly two seconds', () => {
+    progressContext = {
+      ...progressContext,
+      progress: {
+        episode: { listened: false, lastPositionSeconds: 120 },
+      },
+    };
+    player = makePlayer({ currentTime: 1.999 });
+    renderTracker();
+    expect(player.seek).toHaveBeenCalledWith(120);
+
+    act(() => root.unmount());
+    root = createRoot(container);
+    player = makePlayer({ currentTime: 2 });
     renderTracker();
     expect(player.seek).not.toHaveBeenCalled();
   });

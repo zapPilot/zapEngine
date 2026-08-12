@@ -15,7 +15,10 @@ Hono API service for From Fed to Chain. Turns article URLs into multilingual pod
 ## HTTP Surface
 
 Routes include `/health`, `/ingest`, `/telegram/webhook`, `/episodes`,
-`/episodes/search`, `/episodes/:localizationId`, and `/episodes/:id/listened`.
+`/episodes/search`, `/episodes/catalog`, and `/episodes/:localizationId`.
+`GET /episodes/catalog` returns every published localization id grouped under
+the fixed `zh-Hant`, `ja`, and `en` language keys in a `{ languages: ... }`
+response.
 `GET /episodes/:localizationId` also accepts a canonical episode `id` with
 `?language=` as a fallback when the path segment isn't a known localization
 id, so a client can resolve "this episode, in a different language" without

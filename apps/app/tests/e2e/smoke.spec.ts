@@ -9,7 +9,6 @@ const PODCAST_FIXTURE = {
       languageCode: 'zh-Hant',
       hlsUrl: 'https://media.example.test/episode-1/playlist.m3u8',
       createdAt: '2026-07-01T00:00:00.000Z',
-      listened: false,
       video: null,
       audioTracks: [
         {
@@ -34,7 +33,6 @@ const PODCAST_FIXTURE_EN = {
       languageCode: 'en',
       hlsUrl: 'https://media.example.test/episode-1-en/playlist.m3u8',
       createdAt: '2026-07-01T00:00:00.000Z',
-      listened: false,
       video: null,
       audioTracks: [
         {
@@ -50,6 +48,14 @@ const PODCAST_FIXTURE_EN = {
   nextCursor: null,
 };
 
+const PODCAST_CATALOG_FIXTURE = {
+  languages: {
+    en: ['episode-1-en'],
+    'zh-Hant': ['episode-1-zh-Hant'],
+    ja: ['episode-1-ja'],
+  },
+};
+
 const GENERATING_PODCAST_EPISODE = {
   id: 'episode-3',
   localizationId: 'episode-3-zh-Hant',
@@ -57,7 +63,6 @@ const GENERATING_PODCAST_EPISODE = {
   languageCode: 'zh-Hant',
   hlsUrl: 'https://media.example.test/episode-3/playlist.m3u8',
   createdAt: '2026-07-03T00:00:00.000Z',
-  listened: false,
   video: null,
   videoGeneration: {
     status: 'processing',
@@ -122,7 +127,6 @@ const VIDEO_PODCAST_FIXTURE = {
       languageCode: 'zh-Hant',
       hlsUrl: 'https://media.example.test/episode-2/playlist.m3u8',
       createdAt: '2026-07-02T00:00:00.000Z',
-      listened: false,
       audioTracks: [
         {
           languageCode: 'zh-Hant',
@@ -180,7 +184,17 @@ const AUTH_REQUIRED_ROUTES = new Set(['/strategy', '/activity', '/account']);
 const APP_BOOT_TIMEOUT = 45_000;
 const EPISODE_MEDIA_TAB_LABELS = ['Story', 'Classroom', 'Video'] as const;
 
+async function routePodcastCatalog(page: Page): Promise<void> {
+  await page.route('**/episodes/catalog*', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(PODCAST_CATALOG_FIXTURE),
+    });
+  });
+}
+
 async function routePodcastFeed(page: Page): Promise<void> {
+  await routePodcastCatalog(page);
   await page.route('**/episodes?**', async (route) => {
     await route.fulfill({
       contentType: 'application/json',
@@ -190,6 +204,7 @@ async function routePodcastFeed(page: Page): Promise<void> {
 }
 
 async function routePodcastFeedByLanguage(page: Page): Promise<void> {
+  await routePodcastCatalog(page);
   await page.route('**/episodes?**', async (route) => {
     const requestedLanguage = new URL(route.request().url()).searchParams.get(
       'language',
@@ -204,6 +219,7 @@ async function routePodcastFeedByLanguage(page: Page): Promise<void> {
 }
 
 async function routeGeneratingPodcastFeed(page: Page): Promise<void> {
+  await routePodcastCatalog(page);
   await page.route('**/episodes?**', async (route) => {
     await route.fulfill({
       contentType: 'application/json',
@@ -687,6 +703,7 @@ test('complete video stays lazy and falls back to Story after an error', async (
   const holdVideoResponse = new Promise<void>((resolve) => {
     releaseVideoResponse = resolve;
   });
+  await routePodcastCatalog(page);
   await page.route('**/episodes?**', async (route) => {
     await route.fulfill({
       contentType: 'application/json',

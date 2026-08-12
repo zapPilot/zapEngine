@@ -86,10 +86,14 @@ export interface EpisodeListRow extends EpisodeLocalizationProjection {
   id: string;
   episode_id: string;
   localization_id: string;
-  listened: boolean;
   like_count: number;
   language_classrooms: LanguageClassroomLesson[];
 }
+
+export type PublishedEpisodeCatalog = Record<
+  (typeof SUPPORTED_PRIMARY_LANGUAGE_CODES)[number],
+  string[]
+>;
 
 // The feed never serves the full script or classroom lessons: episode detail
 // refetches them, and 31 rows of TOASTed text per page was enough to push the
@@ -174,7 +178,6 @@ export interface EpisodeResponse {
   hlsUrl: string;
   audioTracks: EpisodeAudioTrackResponse[];
   createdAt: string;
-  listened: boolean;
   script: string | null;
   llmModel: string | null;
   llmThinkingModel: string | null;
