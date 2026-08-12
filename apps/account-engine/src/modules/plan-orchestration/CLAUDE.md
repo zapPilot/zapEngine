@@ -17,7 +17,7 @@ Bounded composition module — **not** an engine — sitting between analytics-e
 
 ## Dependency rules
 
-- **Allowed deps**: `@zapengine/intent-engine`, `@zapengine/types`, analytics-engine HTTP client (in `services/analytics-client.service.ts`)
+- **Allowed deps**: `@zapengine/intent-engine`, `@zapengine/types`, and the analytics-engine HTTP client
 - **Forbidden**: identity/persistence concerns (auth, sessions, user DB) — those live elsewhere in account-engine. plan-orchestration is the composition layer, not the identity layer.
 - **One authoritative path**: the deposit/rotate plan is computed **only** here. Frontend calls this endpoint; it never recomputes the plan locally against a shared contract.
 

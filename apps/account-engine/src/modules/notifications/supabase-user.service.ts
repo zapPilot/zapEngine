@@ -1,7 +1,7 @@
 import { ServiceLayerException } from '../../common/exceptions';
 import { BaseService } from '../../database/base.service';
 import { DatabaseService } from '../../database/database.service';
-import { AnalyticsClientService } from './analytics-client.service';
+import { AnalyticsClientService } from './analytics-client/client';
 import { DailyTrendDataPoint } from './interfaces/portfolio-trend.interface';
 
 export interface ReportRecipient {

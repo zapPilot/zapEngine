@@ -10,7 +10,7 @@ import { JobQueueService } from './modules/jobs/job-queue.service';
 import { DailySuggestionProcessor } from './modules/jobs/processors/daily-suggestion.processor';
 import { WeeklyReportProcessor } from './modules/jobs/processors/weekly-report.processor';
 import { AdminNotificationService } from './modules/notifications/admin-notification.service';
-import { AnalyticsClientService } from './modules/notifications/analytics-client.service';
+import { AnalyticsClientService } from './modules/notifications/analytics-client/client';
 import { ChartService } from './modules/notifications/chart.service';
 import { EmailService } from './modules/notifications/email.service';
 import { ReportUnsubscribeTokenService } from './modules/notifications/report-unsubscribe-token.service';

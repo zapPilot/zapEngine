@@ -1,7 +1,7 @@
 import { JobType } from '../../../../../src/modules/jobs/interfaces/job.interface';
 import { JobQueueService } from '../../../../../src/modules/jobs/job-queue.service';
 import { WeeklyReportProcessor } from '../../../../../src/modules/jobs/processors/weekly-report.processor';
-import { AnalyticsClientService } from '../../../../../src/modules/notifications/analytics-client.service';
+import { AnalyticsClientService } from '../../../../../src/modules/notifications/analytics-client/client';
 import { ChartService } from '../../../../../src/modules/notifications/chart.service';
 import { EmailService } from '../../../../../src/modules/notifications/email.service';
 import { PortfolioNotFoundError } from '../../../../../src/modules/notifications/errors/portfolio-not-found.error';

@@ -1,6 +1,6 @@
 import { ServiceLayerException } from '../../../../src/common/exceptions';
 import { DatabaseService } from '../../../../src/database/database.service';
-import { AnalyticsClientService } from '../../../../src/modules/notifications/analytics-client.service';
+import { AnalyticsClientService } from '../../../../src/modules/notifications/analytics-client/client';
 import { SupabaseUserService } from '../../../../src/modules/notifications/supabase-user.service';
 import { createMockDatabaseService } from '../../../test-utils';
 
