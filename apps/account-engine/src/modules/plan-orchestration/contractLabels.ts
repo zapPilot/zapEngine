@@ -1,5 +1,10 @@
-import { GMX_V2_ADDRESSES } from '@zapengine/intent-engine';
+import {
+  GMX_V2_ADDRESSES,
+  GMX_V2_EXCHANGE_ROUTER_ABI,
+  MORPHO_VAULT_ABI,
+} from '@zapengine/intent-engine';
 import type { ExecutionSimulationContract } from '@zapengine/types/api';
+import { decodeFunctionData } from 'viem';
 
 /**
  * Display names for the routing contracts a plan calls directly. Tokens and
@@ -29,4 +34,32 @@ export function withProtocolContractNames(
             PROTOCOL_CONTRACT_NAMES.get(contract.address.toLowerCase()) ?? null,
         },
   );
+}
+
+/**
+ * ABIs for the non-ERC20 calldata this module builds. Selectors are matched
+ * across all of them rather than per target address, because vault addresses
+ * come from the registry and differ per market while the ABIs do not.
+ */
+const PROTOCOL_ABIS: readonly (readonly unknown[])[] = [
+  MORPHO_VAULT_ABI,
+  GMX_V2_EXCHANGE_ROUTER_ABI,
+];
+
+/**
+ * Names the function a plan's calldata invokes. Tenderly's 'quick' simulations
+ * carry no decoded method, so this is the only name source for vault and router
+ * calls. Returns null for calldata this module did not encode — LI.FI's swap
+ * and bridge selectors come from the quote rather than an ABI we own, so those
+ * calls stay undecoded and keep their UNDECODED_METHOD warning.
+ */
+export function decodeProtocolMethod(data: `0x${string}`): string | null {
+  for (const abi of PROTOCOL_ABIS) {
+    try {
+      return decodeFunctionData({ abi, data }).functionName;
+    } catch {
+      // Selector belongs to another protocol, or to none of ours.
+    }
+  }
+  return null;
 }

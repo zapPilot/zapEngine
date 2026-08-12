@@ -1,3 +1,4 @@
+export { decodeProtocolMethod } from './contractLabels';
 export {
   createPlanOrchestrationModule,
   parseDepositDefaultSplit,

@@ -32,7 +32,7 @@ function contract(
     partialToken?: boolean;
   } = {},
 ) {
-  let tokenData: typeof tokenInfo | undefined;
+  let tokenData: typeof tokenInfo | typeof partialTokenInfo | undefined;
   if (options.token) tokenData = tokenInfo;
   else if (options.partialToken) tokenData = partialTokenInfo;
 
@@ -522,6 +522,104 @@ describe('TenderlySimulationService', () => {
       'APPROVAL_EXCEEDS_SIMULATED_SPEND',
       'UNDECODED_METHOD',
     ]);
+  });
+
+  it('names non-ERC20 calls through the injected decoder and drops their warning', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-vault',
+            to: TARGET,
+            method: '',
+            contracts: [contract(TARGET)],
+          }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const decodeProtocolMethod = vi.fn().mockReturnValue('deposit');
+    const service = createTenderlySimulationService({
+      accountSlug: 'account-slug',
+      projectSlug: 'project-slug',
+      accessToken: 'secret-token',
+      fetchFn,
+      decodeProtocolMethod,
+    });
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TARGET, data: '0x1234' }],
+    });
+
+    expect(decodeProtocolMethod).toHaveBeenCalledWith('0x1234');
+    expect(result.calls[0]?.method).toBe('deposit');
+    expect(result.warnings.map((warning) => warning.code)).not.toContain(
+      'UNDECODED_METHOD',
+    );
+  });
+
+  it('keeps the ERC-20 decode ahead of the injected decoder', async () => {
+    const approveData = encodeFunctionData({
+      abi: erc20Abi,
+      functionName: 'approve',
+      args: [SPENDER, 1n],
+    });
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({ id: 'sim-approve', to: TOKEN, method: '' }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const decodeProtocolMethod = vi.fn().mockReturnValue('deposit');
+    const service = createTenderlySimulationService({
+      accountSlug: 'account-slug',
+      projectSlug: 'project-slug',
+      accessToken: 'secret-token',
+      fetchFn,
+      decodeProtocolMethod,
+    });
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TOKEN, data: approveData }],
+    });
+
+    expect(result.calls[0]?.method).toBe('approve');
+    expect(decodeProtocolMethod).not.toHaveBeenCalled();
+  });
+
+  it('warns UNDECODED_METHOD when the injected decoder does not know the selector', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({ id: 'sim-lifi', to: TARGET, method: '' }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const service = createTenderlySimulationService({
+      accountSlug: 'account-slug',
+      projectSlug: 'project-slug',
+      accessToken: 'secret-token',
+      fetchFn,
+      decodeProtocolMethod: () => null,
+    });
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TARGET, data: '0x1234' }],
+    });
+
+    expect(result.calls[0]?.method).toBeNull();
+    expect(result.warnings.map((warning) => warning.code)).toContain(
+      'UNDECODED_METHOD',
+    );
   });
 
   it('fingerprints only material results, not block, gas, IDs, or share links', async () => {

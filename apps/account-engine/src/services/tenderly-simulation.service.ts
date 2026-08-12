@@ -159,6 +159,16 @@ export interface TenderlySimulationService {
   }): Promise<TenderlySimulationReview>;
 }
 
+/**
+ * Names the function calldata invokes when the ERC-20 ABI cannot. Injected by
+ * the composition root from the module that owns the protocol ABIs, keeping
+ * protocol knowledge out of the identity plane. One instance of this service
+ * backs both the review rail and the execution-preview rail, so a single
+ * decoder is what keeps their warnings — and therefore the risk hash the client
+ * compares before signing — identical.
+ */
+type SimulationMethodDecoder = (data: `0x${string}`) => string | null;
+
 /** A wallet-neutral call accepted by the rich Tenderly normalizer. */
 export interface TenderlySimulationCall {
   to: string;
@@ -227,21 +237,27 @@ function hashMaterial(value: unknown): `0x${string}` {
 
 function emptyCalls(
   calls: TenderlySimulationCall[],
+  decodeProtocolMethod: SimulationMethodDecoder | undefined,
 ): ExecutionSimulationCall[] {
-  return calls.map((call, index) => skippedCall(call, index, false));
+  return calls.map((call, index) =>
+    skippedCall(call, index, false, decodeProtocolMethod),
+  );
 }
 
 function skippedCall(
   call: TenderlySimulationCall,
   index: number,
   contractVerified: boolean,
+  decodeProtocolMethod: SimulationMethodDecoder | undefined,
 ): ExecutionSimulationCall {
   return {
     index,
     to: normalizeAddress(call.to),
     data: call.data ?? '0x',
     value: BigInt(call.value ?? '0x0').toString(),
-    method: null,
+    // A call Tenderly never reached is still nameable: the method is decoded
+    // from the calldata we built, not reported by the simulation.
+    method: methodFromCall(call, null, decodeProtocolMethod),
     status: 'skipped',
     gasUsed: null,
     error: null,
@@ -252,8 +268,9 @@ function skippedCall(
 function unavailableReview(
   input: Parameters<TenderlySimulationService['simulateBundle']>[0],
   reason: string,
+  decodeProtocolMethod: SimulationMethodDecoder | undefined,
 ): TenderlySimulationReview {
-  const calls = emptyCalls(input.calls);
+  const calls = emptyCalls(input.calls, decodeProtocolMethod);
   const warnings: ExecutionSimulationWarning[] = [];
   return {
     status: 'unavailable',
@@ -274,20 +291,22 @@ function unavailableReview(
   };
 }
 
+// 'quick' simulations report no decoded method (transaction.method and
+// simulation.method are both null), so every name below comes from decoding the
+// calldata we sent ourselves.
 function methodFromCall(
   call: TenderlySimulationCall,
   tenderlyMethod: string | null | undefined,
+  decodeProtocolMethod: SimulationMethodDecoder | undefined,
 ): string | null {
   const trimmed = tenderlyMethod?.trim();
   if (trimmed) return trimmed;
 
+  const data = (call.data ?? '0x') as `0x${string}`;
   try {
-    return decodeFunctionData({
-      abi: erc20Abi,
-      data: (call.data ?? '0x') as `0x${string}`,
-    }).functionName;
+    return decodeFunctionData({ abi: erc20Abi, data }).functionName;
   } catch {
-    return null;
+    return decodeProtocolMethod?.(data) ?? null;
   }
 }
 
@@ -388,6 +407,7 @@ function normalizeReview(
   input: Parameters<TenderlySimulationService['simulateBundle']>[0],
   results: RawSimulationResult[],
   shareUrls: string[],
+  decodeProtocolMethod: SimulationMethodDecoder | undefined,
 ): TenderlySimulationReview {
   const walletAddress = normalizeAddress(input.walletAddress);
   const { contractsByAddress, tokenByAddress, tokenNameByAddress } =
@@ -402,6 +422,7 @@ function normalizeReview(
         call,
         index,
         Boolean(rawContract && contractIsVerified(rawContract)),
+        decodeProtocolMethod,
       );
     }
 
@@ -416,6 +437,7 @@ function normalizeReview(
       method: methodFromCall(
         call,
         result.transaction?.method ?? result.simulation.method,
+        decodeProtocolMethod,
       ),
       status: succeeded ? 'succeeded' : 'failed',
       gasUsed: integerString(
@@ -627,6 +649,7 @@ export function createTenderlySimulationService(config: {
   accessToken?: string;
   fetchFn?: typeof fetch;
   logger?: TenderlyLogger;
+  decodeProtocolMethod?: SimulationMethodDecoder;
 }): TenderlySimulationService {
   const fetchFn = config.fetchFn ?? fetch;
   const logger = config.logger ?? new Logger('TenderlySimulation');
@@ -652,6 +675,7 @@ export function createTenderlySimulationService(config: {
         return unavailableReview(
           input,
           'Tenderly simulation is not configured',
+          config.decodeProtocolMethod,
         );
       }
 
@@ -702,6 +726,7 @@ export function createTenderlySimulationService(config: {
           error instanceof DOMException && error.name === 'AbortError'
             ? 'Tenderly simulation timed out'
             : `Tenderly simulation unavailable: ${getErrorMessage(error)}`,
+          config.decodeProtocolMethod,
         );
       }
 
@@ -709,6 +734,7 @@ export function createTenderlySimulationService(config: {
         return unavailableReview(
           input,
           `Tenderly simulation returned HTTP ${response.status}`,
+          config.decodeProtocolMethod,
         );
       }
 
@@ -735,6 +761,7 @@ export function createTenderlySimulationService(config: {
         return unavailableReview(
           input,
           'Tenderly returned malformed simulation data',
+          config.decodeProtocolMethod,
         );
       }
 
@@ -768,7 +795,12 @@ export function createTenderlySimulationService(config: {
         )
       ).filter((url): url is string => url !== null);
 
-      return normalizeReview(input, parsed.simulation_results, shareUrls);
+      return normalizeReview(
+        input,
+        parsed.simulation_results,
+        shareUrls,
+        config.decodeProtocolMethod,
+      );
     },
   };
 }
