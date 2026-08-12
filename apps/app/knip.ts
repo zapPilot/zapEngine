@@ -7,15 +7,6 @@ export default defineKnipConfig(
       'metro.config.js',
       // Launched by playwright.config.ts as a webServer command.
       'scripts/serve-web.mjs',
-      // Invoked as `node scripts/<name>.mjs` from this package's own scripts.
-      // Knip does not trace a custom package.json script to the file it runs.
-      'scripts/build-e2e-web.mjs',
-      'scripts/check-web-native-leaks.mjs',
-      'scripts/eas.mjs',
-      'scripts/ios-archive.mjs',
-      'scripts/ios-release-smoke.mjs',
-      'scripts/submit-latest-production.mjs',
-      'scripts/sync-ios-native.mjs',
       // expo-router discovers route files by convention; knip cannot trace them.
       'src/app/**/*.{ts,tsx}',
       // Metro resolves platform suffixes at bundle time, not through imports
