@@ -6,7 +6,11 @@ export * from './etl/index.js';
 export {
   CANONICAL_TOKEN_ADDRESSES,
   type CanonicalTokenSymbol,
+  type MarketDataFreshness,
+  MarketDataFreshnessSchema,
   portSchema,
+  type StaleFeatureInfo,
+  StaleFeatureInfoSchema,
   TOKEN_METADATA,
   WALLET_ADDRESS_REGEX,
   isWalletAddress,

@@ -576,9 +576,7 @@ export const PlanOrchestrationDepositRequestSchema = z
       return;
     }
 
-    if (value.kind === 'invest') {
-      addInvestDepositValidationIssues(value, ctx);
-    }
+    addInvestDepositValidationIssues(value, ctx);
   });
 
 export type PreparedTransaction = z.infer<typeof PreparedTransactionSchema>;
