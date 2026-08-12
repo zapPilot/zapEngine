@@ -4,6 +4,7 @@ import {
   useDepositExecutionState,
 } from '@core/hooks/useDepositExecutionState';
 import { extractErrorMessage } from '@core/lib/errors';
+import { isAbortError } from '@core/lib/http';
 import { pollUntil } from '@core/lib/polling';
 import {
   depositWizardReducer,
@@ -37,10 +38,6 @@ export interface StartDepositWizardInput {
 }
 
 const wizardLogger = logger.createContextLogger('DepositWizard');
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError';
-}
 
 /**
  * Drives the step 1/2/3/4 deposit wizard: one EIP-7702 batch on Base

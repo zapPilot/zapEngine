@@ -1,3 +1,4 @@
+import { extractErrorMessage } from '@core/lib/errors';
 import { computeReviewedBatchFingerprint } from '@core/lib/wallet/reviewedBatchFingerprint';
 import type {
   WalletReviewedBatchExecutor,
@@ -127,7 +128,7 @@ export function checkReviewedBatchGuards(
       result: {
         status: 'blocked',
         code: 'INVALID_REVIEWED_BATCH',
-        reason: error instanceof Error ? error.message : String(error),
+        reason: extractErrorMessage(error, String(error)),
       },
     };
   }

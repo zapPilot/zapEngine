@@ -16,10 +16,12 @@
 
 export {
   calculateDataFreshness,
+  type CompactTokenAmountOptions,
   type DataFreshness,
   formatAddress,
   formatChartAxisDate,
   formatChartDate,
+  formatCompactTokenAmount,
   formatCurrency,
   formatCurrencyAxis,
   formatNumber,

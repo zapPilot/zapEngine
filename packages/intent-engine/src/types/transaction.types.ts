@@ -1,9 +1,11 @@
 import { z } from 'zod';
+
+import { WALLET_ADDRESS_REGEX } from '@zapengine/types';
 import type { Address, Hash, TransactionReceipt } from 'viem';
 
 // Prepared transaction ready to be signed and sent
 export const PreparedTransactionSchema = z.object({
-  to: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  to: z.string().regex(WALLET_ADDRESS_REGEX),
   data: z.string().startsWith('0x'),
   value: z.string().regex(/^\d+$/),
   chainId: z.number(),

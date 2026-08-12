@@ -4,6 +4,7 @@
  */
 
 // Configuration
+export { createTimeoutController, isAbortError } from './abortControl';
 export { API_ENDPOINTS } from './config';
 
 // Errors

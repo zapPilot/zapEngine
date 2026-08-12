@@ -1,5 +1,6 @@
 import { useAbortControllerRef } from '@core/hooks/useAbortControllerRef';
 import { useDepositExecutionState } from '@core/hooks/useDepositExecutionState';
+import { isAbortError } from '@core/lib/http';
 import { executeDepositPlanWithWallet } from '@core/lib/wallet/executeDepositPlan';
 import { loadBaseInvestPlan } from '@core/lib/wallet/loadBaseInvestPlan';
 import { useWalletProvider } from '@core/providers/walletContext';
@@ -47,10 +48,6 @@ function legProgress(
     kind: leg.kind,
     status,
   }));
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError';
 }
 
 export function useInvestStrategy() {

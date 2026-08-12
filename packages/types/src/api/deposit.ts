@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { WALLET_ADDRESS_REGEX } from '../shared/wallet.js';
+
 export const SUPPORTED_DEPOSIT_CHAINS = {
   ETHEREUM: 1,
   BASE: 8453,
@@ -48,7 +50,7 @@ const decimalStringSchema = z.string().regex(/^\d+$/, {
   message: 'Expected a base-unit integer string',
 });
 
-export const AddressSchema = z.string().regex(/^0x[a-fA-F0-9]{40}$/, {
+export const AddressSchema = z.string().regex(WALLET_ADDRESS_REGEX, {
   message: 'Expected an EVM address',
 });
 

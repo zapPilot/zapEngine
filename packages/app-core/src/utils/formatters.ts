@@ -29,6 +29,10 @@ export {
   formatRelativeTime,
   type FreshnessState,
 } from './formatting/freshness';
+export {
+  type CompactTokenAmountOptions,
+  formatCompactTokenAmount,
+} from './formatting/tokenAmount';
 
 // =============================================================================
 // UNIFIED API

@@ -1,10 +1,15 @@
+import { getChainName } from '@core/constants/chains';
+import {
+  formatAddress,
+  formatCompactTokenAmount,
+} from '@core/utils/formatters';
 import {
   DEPOSIT_USDC_ADDRESSES,
   DEPOSIT_USDT_ADDRESSES,
   type PreparedTransaction,
   type StrategyDepositPlan,
 } from '@zapengine/types/api';
-import { decodeFunctionData, erc20Abi, formatUnits, type Hash } from 'viem';
+import { decodeFunctionData, erc20Abi, type Hash } from 'viem';
 
 export type StrategyWizardStepKind =
   | 'switch-chain'
@@ -80,21 +85,6 @@ function tokenDisplay(address: string, chainId: number): TokenDisplay {
   return { symbol: 'token', decimals: 18 };
 }
 
-function compactUnits(value: bigint, decimals: number): string {
-  const [whole = '0', fraction = ''] = formatUnits(value, decimals).split('.');
-  const truncated = fraction.slice(0, 6);
-  let end = truncated.length;
-  while (end > 0 && truncated[end - 1] === '0') {
-    end -= 1;
-  }
-  const compactFraction = truncated.slice(0, end);
-  return compactFraction ? `${whole}.${compactFraction}` : whole;
-}
-
-function shortAddress(address: string): string {
-  return `${address.slice(0, 6)}…${address.slice(-4)}`;
-}
-
 function allocationLabel(route: unknown): string | null {
   if (typeof route !== 'object' || route === null) return null;
   const id = (route as { strategyAllocationId?: unknown }).strategyAllocationId;
@@ -145,7 +135,9 @@ function approvalDetails(
             : 'same-chain swaps';
       return {
         label: `Approve ${token.symbol}`,
-        detail: `${compactUnits(amount, token.decimals)} ${token.symbol} · ${purpose} · ${shortAddress(spender)}`,
+        detail: `${formatCompactTokenAmount(amount, token.decimals, {
+          fractionPrecision: 'decimal-places',
+        })} ${token.symbol} · ${purpose} · ${formatAddress(spender)}`,
       };
     }
   } catch {
@@ -153,7 +145,7 @@ function approvalDetails(
   }
   return {
     label: `Approve ${token.symbol}`,
-    detail: `${groupId === 'base-morpho' ? 'Morpho' : 'Arbitrum'} · ${shortAddress(tx.to)}`,
+    detail: `${groupId === 'base-morpho' ? 'Morpho' : 'Arbitrum'} · ${formatAddress(tx.to)}`,
   };
 }
 
@@ -224,7 +216,7 @@ export function strategyWizardSteps(
       groupId: group.id,
       chainId: group.chainId,
       kind: 'switch-chain',
-      label: `Switch to ${group.chainId === 8453 ? 'Base' : 'Arbitrum'}`,
+      label: `Switch to ${getChainName(group.chainId)}`,
       detail: 'Refresh quote and run balance preflight',
       status: 'locked',
     });

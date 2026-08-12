@@ -16,7 +16,7 @@ export function formatAddress(
   {
     prefixLength = 6,
     suffixLength = 4,
-    ellipsis = '...',
+    ellipsis = '…',
   }: AddressFormatOptions = {},
 ): string {
   if (!address || typeof address !== 'string') {
