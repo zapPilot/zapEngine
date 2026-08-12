@@ -1,8 +1,10 @@
+import { CHAIN_BRAND, type ChainBrandKey } from '@zapengine/brand-assets';
 import { Check, Search, X } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Modal, Pressable, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ChainMark } from '@/components/token/ChainMark';
 import { TokenIcon } from '@/components/token/TokenIcon';
 import { Tap } from '@/components/ui/Tap';
 import type { DesktopDepositToken } from '@/integration/depositTokens';
@@ -15,7 +17,7 @@ import { formatTokenBalance, formatUsd } from '@/lib/format';
 
 interface ChainTokenSelectorSheetProps {
   visible: boolean;
-  chainLabel: string;
+  chainKey: ChainBrandKey;
   tokens: readonly DesktopDepositToken[];
   rows: readonly ChainTokenBalanceRow[];
   balanceState: 'loading' | 'unavailable' | 'loaded';
@@ -37,7 +39,7 @@ function balanceLabel(
 
 export function ChainTokenSelectorSheet({
   visible,
-  chainLabel,
+  chainKey,
   tokens,
   rows,
   balanceState,
@@ -46,6 +48,7 @@ export function ChainTokenSelectorSheet({
   onClose,
 }: ChainTokenSelectorSheetProps) {
   const insets = useSafeAreaInsets();
+  const chainLabel = CHAIN_BRAND[chainKey].label;
   const [search, setSearch] = useState('');
   const options = useMemo(
     () => buildStrategyFundingOptions(tokens, rows, search),
@@ -85,9 +88,12 @@ export function ChainTokenSelectorSheet({
               <Text className="font-serif text-[24px] text-ink">
                 Select token
               </Text>
-              <Text className="mt-1 font-mono text-[10px] uppercase tracking-[.8px] text-accent">
-                {chainLabel} funding source
-              </Text>
+              <View className="mt-1 flex-row items-center gap-1.5">
+                <ChainMark chainKey={chainKey} size={13} />
+                <Text className="font-mono text-[10px] uppercase tracking-[.8px] text-accent">
+                  {chainLabel} funding source
+                </Text>
+              </View>
             </View>
             <Tap
               accessibilityLabel="Close token selector"
@@ -126,7 +132,7 @@ export function ChainTokenSelectorSheet({
               return (
                 <Tap
                   key={`${option.token.chainId}:${option.token.symbol}`}
-                  accessibilityLabel={`${option.token.symbol}, ${option.token.name}, ${balanceLabel(option, balanceState)}`}
+                  accessibilityLabel={`${option.token.symbol}, ${option.token.name} on ${chainLabel}, ${balanceLabel(option, balanceState)}`}
                   accessibilityRole="button"
                   accessibilityState={{ selected: isSelected }}
                   className="flex-row items-center gap-3 rounded-[15px] border border-line bg-[rgba(255,255,255,.025)] px-3 py-3"
@@ -136,22 +142,20 @@ export function ChainTokenSelectorSheet({
                   }}
                 >
                   <TokenIcon
-                    glyph={option.token.glyph}
-                    bg={option.token.iconBg}
+                    symbol={option.token.symbol}
+                    chainKey={option.token.chainKey}
                     size={38}
                     alt=""
                   />
                   <View className="min-w-0 flex-1">
-                    <View className="flex-row items-center gap-2">
-                      <Text className="font-sans-semibold text-[14px] text-ink">
-                        {option.token.symbol}
-                      </Text>
-                      <Text className="text-[11px] text-ink-dim">
-                        {option.token.name}
-                      </Text>
-                    </View>
-                    <Text className="mt-1 font-mono text-[9px] uppercase tracking-[.55px] text-accent">
-                      {option.token.chainLabel}
+                    <Text className="font-sans-semibold text-[14px] text-ink">
+                      {option.token.symbol}
+                    </Text>
+                    <Text
+                      className="mt-1 text-[11px] text-ink-dim"
+                      numberOfLines={1}
+                    >
+                      {option.token.name}
                     </Text>
                   </View>
                   {isSelected ? <Check size={16} color="#d4c5a3" /> : null}

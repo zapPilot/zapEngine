@@ -35,7 +35,6 @@ const MAINNET_CHAINS: BaseChainConfig[] = [
       default: { name: 'Arbiscan', url: 'https://arbiscan.io' },
       etherscan: { name: 'Arbiscan', url: 'https://arbiscan.io' },
     },
-    iconUrl: '/chainPicturesWebp/arbitrum.webp',
     nativeCurrency: {
       name: 'Ether',
       symbol: 'ETH',
@@ -67,7 +66,6 @@ const MAINNET_CHAINS: BaseChainConfig[] = [
       default: { name: 'Basescan', url: 'https://basescan.org' },
       etherscan: { name: 'Basescan', url: 'https://basescan.org' },
     },
-    iconUrl: '/chainPicturesWebp/base.webp',
     nativeCurrency: {
       name: 'Ether',
       symbol: 'ETH',
@@ -102,7 +100,6 @@ const MAINNET_CHAINS: BaseChainConfig[] = [
       default: { name: 'Etherscan', url: 'https://optimistic.etherscan.io' },
       etherscan: { name: 'Etherscan', url: 'https://optimistic.etherscan.io' },
     },
-    iconUrl: '/chainPicturesWebp/optimism.webp',
     nativeCurrency: {
       name: 'Ether',
       symbol: 'ETH',

@@ -1,4 +1,5 @@
 import { GMX_V2_BASKET_EXECUTION_FEE_WEI } from '@zapengine/app-core/gmxFees';
+import { CHAIN_BRAND } from '@zapengine/brand-assets';
 import { STRATEGY_MIN_DEPOSIT_USD6 } from '@zapengine/types/api';
 import { parseUnits } from 'viem';
 
@@ -180,7 +181,7 @@ export function buildStrategyFundingOptions(
   const query = search.trim().toLowerCase();
   return tokens
     .filter((token) =>
-      `${token.symbol} ${token.name} ${token.chainLabel}`
+      `${token.symbol} ${token.name} ${CHAIN_BRAND[token.chainKey].label}`
         .toLowerCase()
         .includes(query),
     )

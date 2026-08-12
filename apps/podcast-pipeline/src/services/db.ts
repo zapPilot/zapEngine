@@ -21,6 +21,7 @@ import type {
   NewEpisode,
   NewEpisodeLocalization,
   NewLanguageClassroom,
+  PublishedEpisodeCatalog,
 } from '../types.js';
 import {
   createPipelineSupabaseClient,
@@ -159,7 +160,6 @@ export function toEpisodeResponseFromLocalization(
       llm_provider: localization.llm_provider,
       status: localization.status,
       created_at: episode.created_at,
-      listened: episode.listened,
       like_count: 0,
       language_classrooms: [],
     },
@@ -189,7 +189,6 @@ export function toEpisodeFeedResponse(
       },
     ],
     createdAt: row.created_at,
-    listened: row.listened,
     llmModel: row.llm_model,
     llmThinkingModel: row.llm_thinking_model,
     llmProvider: row.llm_provider,
@@ -329,6 +328,51 @@ export async function listEpisodes(): Promise<EpisodeListRow[]> {
   return data ?? [];
 }
 
+interface PublishedEpisodeCatalogRow {
+  localization_id: string;
+  language_code: string;
+}
+
+const EPISODE_CATALOG_PAGE_SIZE = 1_000;
+// Revisit response pagination or compression at tens of thousands of episodes.
+
+export async function listPublishedEpisodeCatalog(): Promise<PublishedEpisodeCatalog> {
+  const catalog: PublishedEpisodeCatalog = {
+    'zh-Hant': [],
+    ja: [],
+    en: [],
+  };
+  let lastLocalizationId: string | null = null;
+
+  for (;;) {
+    let query = getSupabase()
+      .from('episodes_with_stats')
+      .select('localization_id,language_code')
+      .order('localization_id', { ascending: true })
+      .limit(EPISODE_CATALOG_PAGE_SIZE);
+
+    if (lastLocalizationId !== null) {
+      query = query.gt('localization_id', lastLocalizationId);
+    }
+
+    const { data, error } = await query.returns<PublishedEpisodeCatalogRow[]>();
+    if (error) throwSupabaseError(error);
+
+    const rows = data ?? [];
+    for (const row of rows) {
+      switch (row.language_code) {
+        case 'zh-Hant':
+        case 'ja':
+        case 'en':
+          catalog[row.language_code].push(row.localization_id);
+      }
+    }
+
+    if (rows.length < EPISODE_CATALOG_PAGE_SIZE) return catalog;
+    lastLocalizationId = rows[rows.length - 1]!.localization_id;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Cursor pagination
 // ---------------------------------------------------------------------------
@@ -361,7 +405,7 @@ export function decodeCursor(raw: string): Cursor {
 // language_classrooms_jsonb stay out so the view query never detoasts them,
 // and like_count stays out so Postgres can eliminate the likes aggregate join.
 const EPISODE_FEED_COLUMNS =
-  'id,episode_id,localization_id,title,language_code,hls_url,classroom_hls_url,llm_model,llm_thinking_model,llm_provider,status,created_at,listened';
+  'id,episode_id,localization_id,title,language_code,hls_url,classroom_hls_url,llm_model,llm_thinking_model,llm_provider,status,created_at';
 
 export async function listEpisodesPaged(
   limit: number,
@@ -658,24 +702,6 @@ export async function upsertLanguageClassrooms(
   return normalizeLanguageClassroomRows(data);
 }
 
-async function updateEpisodeFields(
-  id: string,
-  fields: Record<string, unknown>,
-): Promise<EpisodeRow | null> {
-  const { data, error } = await getSupabase()
-    .from('episodes')
-    .update(fields)
-    .eq('id', id)
-    .select('*')
-    .maybeSingle<EpisodeRow>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data;
-}
-
 async function updateLocalizationFields(
   id: string,
   fields: Record<string, unknown>,
@@ -692,12 +718,6 @@ async function updateLocalizationFields(
   }
 
   return data;
-}
-
-export async function markEpisodeListened(
-  id: string,
-): Promise<EpisodeRow | null> {
-  return updateEpisodeFields(id, { listened: true });
 }
 
 export async function updateEpisodeLocalizationArticleContent(

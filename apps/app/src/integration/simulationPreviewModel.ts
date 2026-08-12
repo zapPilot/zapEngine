@@ -1,4 +1,9 @@
 import type { PrivyBatchExecutionPhase } from '@zapengine/app-core/hooks/wallet/useAtomicBatchExecution';
+import {
+  CHAIN_BRAND,
+  type ChainBrandKey,
+  chainBrandKeyForChainId,
+} from '@zapengine/brand-assets';
 import type {
   PlanOrchestrationDepositPlan,
   PrivyPrepareSendCallsResponse,
@@ -84,13 +89,12 @@ export function partitionAssetChanges(
   return { incoming, outgoing };
 }
 
-function verifiedContractName(
+function contractName(
   address: string,
   contracts: readonly PrivySimulationContract[],
 ): string | null {
   const contract = contracts.find(
     (candidate) =>
-      candidate.verified &&
       candidate.name !== null &&
       candidate.address.toLowerCase() === address.toLowerCase(),
   );
@@ -98,21 +102,22 @@ function verifiedContractName(
 }
 
 /**
- * Uses a verified Tenderly contract name when one is available. Unverified
- * names are deliberately not elevated above the raw address.
+ * Uses the review's contract name when one is available. A name only ever
+ * comes from the target's own on-chain `name()` or from our protocol registry,
+ * never from a self-reported label, so it is trustworthy on its own.
  */
 export function resolveCallTarget(
   call: Pick<PrivySimulationCall, 'to'>,
   contracts: readonly PrivySimulationContract[],
 ): string {
-  return verifiedContractName(call.to, contracts) ?? formatAddress(call.to);
+  return contractName(call.to, contracts) ?? formatAddress(call.to);
 }
 
 export function resolveAddressTarget(
   address: string,
   contracts: readonly PrivySimulationContract[],
 ): string {
-  return verifiedContractName(address, contracts) ?? formatAddress(address);
+  return contractName(address, contracts) ?? formatAddress(address);
 }
 
 /**
@@ -129,6 +134,8 @@ export function resolveAssetCounterparty(
 
 export interface RouteProtocolContext {
   id: string;
+  /** Raw protocol id, resolved to a venue mark by `ProtocolIcon`. */
+  protocol: string;
   label: string;
   badge: string;
 }
@@ -193,6 +200,7 @@ export function resolveRouteProtocols(
       )
       .map((allocation) => ({
         id: allocation.id,
+        protocol: allocation.protocol,
         label: allocation.label,
         badge: `${allocation.weightBps / 100}%`,
       }));
@@ -207,6 +215,7 @@ export function resolveRouteProtocols(
   );
   return legs.map((leg, index) => ({
     id: `${leg.protocol}-${leg.toToken.toLowerCase()}-${index}`,
+    protocol: leg.protocol,
     label:
       GMX_V2_BASKET_MARKET_LABELS[leg.toToken.toLowerCase()] ??
       SINGLE_CHAIN_PROTOCOL_LABELS[leg.protocol] ??
@@ -353,7 +362,11 @@ export function titleCase(value: string | null): string {
 }
 
 export function simulationChainLabel(chainId: number): string {
-  if (chainId === 8453) return 'Base';
-  if (chainId === 42161) return 'Arbitrum';
-  return `Chain ${chainId}`;
+  const chainKey = chainBrandKeyForChainId(chainId);
+  return chainKey ? CHAIN_BRAND[chainKey].label : `Chain ${chainId}`;
+}
+
+/** Undefined for a chain with no registered mark; render the label alone. */
+export function simulationChainKey(chainId: number): ChainBrandKey | undefined {
+  return chainBrandKeyForChainId(chainId);
 }

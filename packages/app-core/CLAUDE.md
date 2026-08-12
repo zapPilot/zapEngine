@@ -46,14 +46,15 @@ web-only subpaths via `no-restricted-imports`.
 - New env keys keep the `VITE_` prefix — native hosts map their
   `EXPO_PUBLIC_*` values onto the `VITE_` keys in their bootstrap file.
 
-## Bridge reset concurrency
+## Execution hook concurrency
 
-`useBridgeTest.reset()` is authoritative: stale async work must not restore
-status, hashes, quote, or errors after reset. For every new awaited external
-boundary in the bridge flow, check the current abort signal before continuing or
-publishing state; aborted errors are swallowed. Regression tests must pause that
-promise, reset, then resolve and reject it, asserting no downstream calls and a
-fully cleared `idle` state.
+Latest-run/reset authority applies across app-core execution hooks, not only the
+bridge flow. After **every awaited external boundary** in `useBridgeTest`,
+`useGmxDeposit`, `useInvestStrategy`, or similar hooks, re-check the current
+abort/run token before any downstream call or state publish. Stale work must not
+restore status, hashes, plans, quotes, tiers, or errors. Regression tests should
+pause the awaited boundary, supersede/reset the run, then resolve and reject it;
+assert no downstream work and that only the newest run's state survives.
 
 ## Reviewed batch execution
 

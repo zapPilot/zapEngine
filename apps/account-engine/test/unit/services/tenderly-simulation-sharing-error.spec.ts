@@ -28,13 +28,7 @@ function simulationResponse(id: string): Response {
             block_number: 123,
             method: 'execute',
           },
-          contracts: [
-            {
-              address: TARGET,
-              contract_name: 'Target',
-              verified_by: 'tenderly',
-            },
-          ],
+          contracts: [{ address: TARGET, contract_name: 'Target' }],
         },
       ],
     }),

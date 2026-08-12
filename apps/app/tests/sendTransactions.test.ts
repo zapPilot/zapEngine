@@ -13,7 +13,6 @@ const RECIPIENT = '0x1111111111111111111111111111111111111111';
 const usdcAsset: DesktopWalletAsset = {
   amountLabel: '42.5 USDC',
   chains: ['ethereum', 'base'],
-  glyph: '$',
   holdings: [
     {
       chain: 'ethereum',
@@ -32,7 +31,6 @@ const usdcAsset: DesktopWalletAsset = {
       usdValue: 30,
     },
   ],
-  iconBg: '#2775ca',
   name: 'USD Coin',
   rawAmount: 42.5,
   symbol: 'USDC',
@@ -43,7 +41,6 @@ const usdcAsset: DesktopWalletAsset = {
 const ethAsset: DesktopWalletAsset = {
   amountLabel: '0.5 ETH',
   chains: ['base'],
-  glyph: 'Ξ',
   holdings: [
     {
       chain: 'base',
@@ -54,7 +51,6 @@ const ethAsset: DesktopWalletAsset = {
       usdValue: 1500,
     },
   ],
-  iconBg: '#2a2a30',
   name: 'Ethereum',
   rawAmount: 0.5,
   symbol: 'ETH',

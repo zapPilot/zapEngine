@@ -6,27 +6,12 @@
 
 export type ChainKey = 'ethereum' | 'arbitrum' | 'base';
 
-export interface ChainMeta {
-  key: ChainKey;
-  label: string;
-  color: string;
-}
-
-export const CHAINS: Record<ChainKey, ChainMeta> = {
-  ethereum: { key: 'ethereum', label: 'Ethereum', color: '#6f7691' },
-  arbitrum: { key: 'arbitrum', label: 'Arbitrum', color: '#28a0f0' },
-  base: { key: 'base', label: 'Base', color: '#2151f5' },
-};
-
 export interface DemoAsset {
   symbol: string;
   name: string;
   usdValue: number | null;
   amountLabel: string;
   chains: ChainKey[];
-  /** Icon background + glyph used by TokenIcon. */
-  iconBg: string;
-  glyph: string;
 }
 
 export interface DemoData {
@@ -107,10 +92,6 @@ export interface ActivityGroup {
   events: ActivityEvent[];
 }
 
-const usdcIcon = { iconBg: '#2775ca', glyph: '$' };
-const ethIcon = { iconBg: '#2a2a30', glyph: 'Ξ' };
-const wbtcIcon = { iconBg: '#f7931a', glyph: '₿' };
-
 export const DEMO: DemoData = {
   account: {
     label: 'Main Wallet',
@@ -131,7 +112,6 @@ export const DEMO: DemoData = {
         usdValue: 12_480.5,
         amountLabel: '12,480.50',
         chains: ['base', 'arbitrum', 'ethereum'],
-        ...usdcIcon,
       },
       {
         symbol: 'ETH',
@@ -139,7 +119,6 @@ export const DEMO: DemoData = {
         usdValue: 9_420.0,
         amountLabel: '2.60 ETH',
         chains: ['ethereum', 'base', 'arbitrum'],
-        ...ethIcon,
       },
       {
         symbol: 'WBTC',
@@ -147,7 +126,6 @@ export const DEMO: DemoData = {
         usdValue: 2_915.1,
         amountLabel: '0.030 WBTC',
         chains: ['arbitrum', 'ethereum'],
-        ...wbtcIcon,
       },
     ],
   },

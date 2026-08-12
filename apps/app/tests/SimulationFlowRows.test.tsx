@@ -78,7 +78,6 @@ function createContract(
   return {
     address: SPENDER,
     name: 'Router',
-    verified: true,
     callIndexes: [0],
     ...overrides,
   };
@@ -141,22 +140,18 @@ describe('SimulationFlowRows', () => {
     expect(container.textContent ?? '').not.toContain('You approve');
   });
 
-  it('resolves the spender to a verified contract name when one matches', async () => {
+  it('resolves the spender to its contract name when one matches', async () => {
     await render({
       approvals: [createApproval({ spender: SPENDER })],
       contracts: [
-        createContract({
-          address: SPENDER.toUpperCase(),
-          verified: true,
-          name: 'Router',
-        }),
+        createContract({ address: SPENDER.toUpperCase(), name: 'Router' }),
       ],
     });
 
     expect(container.textContent ?? '').toContain('to Router');
   });
 
-  it('falls back to a shortened address when no verified contract matches', async () => {
+  it('falls back to a shortened address when no contract matches', async () => {
     await render({
       approvals: [createApproval({ spender: SPENDER })],
       contracts: [],
@@ -224,23 +219,19 @@ describe('SimulationFlowRows', () => {
     expect(text).toContain('Call 2');
   });
 
-  it('labels outgoing rows with the "to" counterparty resolved to a verified name', async () => {
+  it('labels outgoing rows with the "to" counterparty resolved to its name', async () => {
     await render({
       outgoing: [createAssetChange({ direction: 'out', to: RECIPIENT })],
-      contracts: [
-        createContract({ address: RECIPIENT, verified: true, name: 'Vault' }),
-      ],
+      contracts: [createContract({ address: RECIPIENT, name: 'Vault' })],
     });
 
     expect(container.textContent ?? '').toContain('to Vault');
   });
 
-  it('labels incoming rows with the "from" counterparty resolved to a verified name', async () => {
+  it('labels incoming rows with the "from" counterparty resolved to its name', async () => {
     await render({
       incoming: [createAssetChange({ direction: 'in', from: SENDER })],
-      contracts: [
-        createContract({ address: SENDER, verified: true, name: 'Vault' }),
-      ],
+      contracts: [createContract({ address: SENDER, name: 'Vault' })],
     });
 
     expect(container.textContent ?? '').toContain('from Vault');

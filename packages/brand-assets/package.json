@@ -1,0 +1,54 @@
+{
+  "name": "@zapengine/brand-assets",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./assets/*": "./assets/*"
+  },
+  "files": [
+    "dist",
+    "assets"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "clean": "rm -rf dist",
+    "rasterize": "node scripts/rasterize.mjs",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.mjs\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.mjs\"",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:ci": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "deadcode": "knip",
+    "deadcode:fix": "knip --fix",
+    "dup:check": "node ../../scripts/lint/run-jscpd.mjs src"
+  },
+  "devDependencies": {
+    "@zapengine/eslint-config": "workspace:*",
+    "@zapengine/knip-config": "workspace:*",
+    "@zapengine/tsconfig": "workspace:*",
+    "@resvg/resvg-js": "2.6.2",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "knip": "catalog:",
+    "prettier": "catalog:",
+    "sharp": "0.34.5",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}

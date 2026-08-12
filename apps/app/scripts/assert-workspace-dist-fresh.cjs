@@ -7,6 +7,7 @@ const path = require('node:path');
 // anything pointing at the real cause.
 const DIST_BACKED_PACKAGES = [
   'app-core',
+  'brand-assets',
   'types',
   'intent-engine',
   'design-tokens',

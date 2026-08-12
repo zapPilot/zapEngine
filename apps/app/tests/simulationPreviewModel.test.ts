@@ -49,7 +49,6 @@ const call: PrivySimulationCall = {
   status: 'succeeded',
   gasUsed: '21000',
   error: null,
-  contractVerified: true,
 };
 
 const outgoing: PrivySimulationAssetChange = {
@@ -92,7 +91,6 @@ const contracts: PrivySimulationContract[] = [
   {
     address: TARGET,
     name: 'Verified Vault',
-    verified: true,
     callIndexes: [0],
   },
 ];
@@ -316,12 +314,16 @@ describe('simulation evidence helpers', () => {
     });
   });
 
-  it('uses only verified contract names for call and spender labels', () => {
+  it('uses contract names for call and spender labels', () => {
     expect(resolveCallTarget(call, contracts)).toBe('Verified Vault');
     expect(resolveAddressTarget(TARGET, contracts)).toBe('Verified Vault');
-    expect(
-      resolveCallTarget(call, [{ ...contracts[0]!, verified: false }]),
-    ).toBe('0x3333...3333');
+  });
+
+  it('falls back to the short address when the review carries no name', () => {
+    expect(resolveCallTarget(call, [{ ...contracts[0]!, name: null }])).toBe(
+      '0x3333...3333',
+    );
+    expect(resolveAddressTarget(TARGET, [])).toBe('0x3333...3333');
   });
 
   it('finds the approval attached to a call index', () => {
@@ -446,14 +448,29 @@ describe('simulation preview formatting', () => {
 describe('resolveRouteProtocols', () => {
   it('returns one chip per allocation for a multi-allocation execution group', () => {
     expect(resolveRouteProtocols(STRATEGY_PLAN, 'arbitrum-gmx')).toEqual([
-      { id: 'gmx-btc-usdc', label: 'GMX BTC/USDC', badge: '30%' },
-      { id: 'gmx-eth-usdc', label: 'GMX ETH/USDC', badge: '30%' },
+      {
+        id: 'gmx-btc-usdc',
+        protocol: 'gmx-v2',
+        label: 'GMX BTC/USDC',
+        badge: '30%',
+      },
+      {
+        id: 'gmx-eth-usdc',
+        protocol: 'gmx-v2',
+        label: 'GMX ETH/USDC',
+        badge: '30%',
+      },
     ]);
   });
 
   it('returns a single chip for a single-allocation execution group', () => {
     expect(resolveRouteProtocols(STRATEGY_PLAN, 'base-morpho')).toEqual([
-      { id: 'morpho-base-usdc', label: 'Morpho Moonwell USDC', badge: '40%' },
+      {
+        id: 'morpho-base-usdc',
+        protocol: 'morpho',
+        label: 'Morpho Moonwell USDC',
+        badge: '40%',
+      },
     ]);
   });
 
@@ -465,6 +482,7 @@ describe('resolveRouteProtocols', () => {
     expect(resolveRouteProtocols(singleChainPlan('morpho'), 'n/a')).toEqual([
       {
         id: `morpho-${TOKEN.toLowerCase()}-0`,
+        protocol: 'morpho',
         label: 'Morpho Moonwell USDC',
         badge: '100%',
       },
@@ -477,6 +495,7 @@ describe('resolveRouteProtocols', () => {
     ).toEqual([
       {
         id: `made-up-protocol-${TOKEN.toLowerCase()}-0`,
+        protocol: 'made-up-protocol',
         label: 'Made up protocol',
         badge: '100%',
       },
@@ -488,21 +507,25 @@ describe('resolveRouteProtocols', () => {
     expect(resolveRouteProtocols(plan, 'n/a')).toEqual([
       {
         id: `gmx-v2-${GMX_BTC_BTC_MARKET.toLowerCase()}-0`,
+        protocol: 'gmx-v2',
         label: 'GMX BTC/BTC',
         badge: '25%',
       },
       {
         id: `gmx-v2-${GMX_ETH_ETH_MARKET.toLowerCase()}-1`,
+        protocol: 'gmx-v2',
         label: 'GMX ETH/ETH',
         badge: '25%',
       },
       {
         id: `gmx-v2-${GMX_BTC_USDC_MARKET.toLowerCase()}-2`,
+        protocol: 'gmx-v2',
         label: 'GMX BTC/USDC',
         badge: '25%',
       },
       {
         id: `gmx-v2-${GMX_ETH_USDC_MARKET.toLowerCase()}-3`,
+        protocol: 'gmx-v2',
         label: 'GMX ETH/USDC',
         badge: '25%',
       },
@@ -534,7 +557,7 @@ describe('resolveAssetCounterparty', () => {
     );
   });
 
-  it('falls back to a formatted short address when the counterparty is unverified', () => {
+  it('falls back to a formatted short address when no contract matches the counterparty', () => {
     const outgoingToWallet: PrivySimulationAssetChange = {
       ...outgoing,
       to: WALLET,

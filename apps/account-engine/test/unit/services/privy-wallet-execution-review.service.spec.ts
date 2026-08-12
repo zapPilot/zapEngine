@@ -63,14 +63,11 @@ function review(
         status: 'succeeded',
         gasUsed: '21000',
         error: null,
-        contractVerified: true,
       },
     ],
     assetChanges: [],
     approvals: [],
-    contracts: [
-      { address: TARGET, name: 'Target', verified: true, callIndexes: [0] },
-    ],
+    contracts: [{ address: TARGET, name: 'Target', callIndexes: [0] }],
     warnings: [],
     blockNumber: 123,
     callGas: '21000',
@@ -87,8 +84,8 @@ function warningReview(
 ): TenderlySimulationReview {
   const warnings: PrivySimulationWarning[] = [
     {
-      code: 'UNVERIFIED_CONTRACT',
-      message: 'Target is unverified',
+      code: 'UNDECODED_METHOD',
+      message: 'Call 1 method could not be decoded',
       callIndex: 0,
       address: TARGET,
     },

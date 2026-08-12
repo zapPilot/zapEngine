@@ -1,3 +1,4 @@
+import type { ChainBrandKey } from '@zapengine/brand-assets';
 import { ChevronDown } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
@@ -6,8 +7,8 @@ import { Tap } from '@/components/ui/Tap';
 
 interface TokenSelectorPillProps {
   symbol: string;
-  glyph: string;
-  iconBg: string;
+  /** Adds the chain badge, so the pill names the asset and its network at once. */
+  chainKey?: ChainBrandKey;
   accessibilityLabel: string;
   onPress?: (() => void) | undefined;
 }
@@ -17,14 +18,18 @@ const PILL_CLASS =
 
 export function TokenSelectorPill({
   symbol,
-  glyph,
-  iconBg,
+  chainKey,
   accessibilityLabel,
   onPress,
 }: TokenSelectorPillProps) {
   const content = (
     <>
-      <TokenIcon glyph={glyph} bg={iconBg} size={28} alt="" />
+      <TokenIcon
+        symbol={symbol}
+        size={28}
+        alt=""
+        {...(chainKey && { chainKey })}
+      />
       <Text className="font-sans-semibold text-[13px] text-ink">{symbol}</Text>
     </>
   );

@@ -33,7 +33,7 @@ import {
   listEpisodeLocalizationsByEpisodeId,
   listEpisodeVideoSummariesByLocalizationIds,
   listLanguageClassroomsByLocalizationId,
-  markEpisodeListened,
+  listPublishedEpisodeCatalog,
   toEpisodeFeedResponse,
   toEpisodeResponse,
   toEpisodeResponseFromLocalization,
@@ -398,6 +398,10 @@ export function createApp(): Hono {
       };
     });
     return c.json({ items });
+  });
+
+  app.get('/episodes/catalog', async (c) => {
+    return c.json({ languages: await listPublishedEpisodeCatalog() });
   });
 
   app.get('/episodes/:episodeId/videos', async (c) => {

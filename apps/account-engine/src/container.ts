@@ -21,6 +21,7 @@ import { TemplateService } from './modules/notifications/template.service';
 import {
   createDepositPublicClients,
   createPlanOrchestrationModule,
+  decodeProtocolMethod,
   parseDepositDefaultSplit,
   type PlanOrchestrationService,
   planSimulationConfigFromEnv,
@@ -134,6 +135,12 @@ export function createContainer(
     ...(env.TENDERLY_ACCESS_TOKEN
       ? { accessToken: env.TENDERLY_ACCESS_TOKEN }
       : {}),
+    // The routing ABIs live in plan-orchestration, the only module allowed to
+    // know protocols. Sharing one instance is load-bearing too: the review rail
+    // and the execution-preview rail below must decode the same method names,
+    // or their warnings — and with them the risk hash the client compares
+    // before signing — would differ.
+    decodeProtocolMethod,
   });
   if (env.PLAN_SIMULATION_MODE === 'off' && !planSimulation.tenderly) {
     new Logger('plan-orchestration').warn(

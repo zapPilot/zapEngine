@@ -26,21 +26,16 @@ const partialTokenInfo = {
 
 function contract(
   address: string,
-  options: {
-    verified?: boolean;
-    token?: boolean;
-    partialToken?: boolean;
-  } = {},
+  options: { token?: boolean; partialToken?: boolean } = {},
 ) {
+  let tokenData: typeof tokenInfo | typeof partialTokenInfo | undefined;
+  if (options.token) tokenData = tokenInfo;
+  else if (options.partialToken) tokenData = partialTokenInfo;
+
   return {
     address,
     contract_name: options.token || options.partialToken ? 'Token' : 'Target',
-    verified_by: options.verified === false ? '' : 'tenderly',
-    ...(options.token
-      ? { token_data: tokenInfo }
-      : options.partialToken
-        ? { token_data: partialTokenInfo }
-        : {}),
+    ...(tokenData ? { token_data: tokenData } : {}),
   };
 }
 
@@ -241,7 +236,7 @@ describe('TenderlySimulationService', () => {
               gas: 8_000_000,
               save: true,
               save_if_fails: true,
-              simulation_type: 'full',
+              simulation_type: 'quick',
             },
           ],
         }),
@@ -281,7 +276,7 @@ describe('TenderlySimulationService', () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
-  it('aborts the core simulation after ten seconds', async () => {
+  it('aborts the core simulation after thirty seconds', async () => {
     vi.useFakeTimers();
     const fetchFn = vi.fn((_url: string, init?: RequestInit) => {
       return new Promise<Response>((_resolve, reject) => {
@@ -297,12 +292,60 @@ describe('TenderlySimulationService', () => {
       walletAddress: WALLET,
       calls: [{ to: TARGET }],
     });
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(30_000);
 
     await expect(pending).resolves.toMatchObject({
       status: 'unavailable',
       unavailableReason: 'Tenderly simulation timed out',
     });
+  });
+
+  it('reports a halted invalid call as failed using the stub simulation reason', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({ id: 'sim-ok' }),
+          {
+            transaction: null,
+            simulation: {
+              id: '',
+              status: false,
+              gas_used: 0,
+              block_number: null,
+              error_message:
+                'agent call: insufficient funds for gas * price + value: address have 0 want 1000000000000000: invalid transaction simulation',
+            },
+            contracts: [],
+          },
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 42161,
+      walletAddress: WALLET,
+      calls: [
+        { to: TARGET, data: '0x1234' },
+        { to: TARGET, data: '0x5678' },
+        { to: TARGET, data: '0x9abc' },
+      ],
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result).toMatchObject({
+      failureReason: expect.stringContaining('insufficient funds for gas'),
+    });
+    expect(result.calls.map((call) => call.status)).toEqual([
+      'succeeded',
+      'failed',
+      'skipped',
+    ]);
+    expect(result.simulationIds).toEqual(['sim-ok']);
+    expect(result.shareUrls).toEqual([
+      'https://www.tdly.co/shared/simulation/sim-ok',
+    ]);
   });
 
   it('rejects malformed Tenderly data instead of treating it as success', async () => {
@@ -429,7 +472,7 @@ describe('TenderlySimulationService', () => {
                 amount: '0.00000000000000005',
               },
             ],
-            contracts: [contract(TOKEN, { verified: false, token: true })],
+            contracts: [contract(TOKEN, { token: true })],
           }),
           simulationResult({
             id: 'sim-unknown',
@@ -469,11 +512,108 @@ describe('TenderlySimulationService', () => {
       }),
     ]);
     expect(result.warnings.map((warning) => warning.code)).toEqual([
-      'UNVERIFIED_CONTRACT',
       'UNLIMITED_APPROVAL',
       'APPROVAL_EXCEEDS_SIMULATED_SPEND',
       'UNDECODED_METHOD',
     ]);
+  });
+
+  it('names non-ERC20 calls through the injected decoder and drops their warning', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-vault',
+            to: TARGET,
+            method: '',
+            contracts: [contract(TARGET)],
+          }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const decodeProtocolMethod = vi.fn().mockReturnValue('deposit');
+    const service = createTenderlySimulationService({
+      accountSlug: 'account-slug',
+      projectSlug: 'project-slug',
+      accessToken: 'secret-token',
+      fetchFn,
+      decodeProtocolMethod,
+    });
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TARGET, data: '0x1234' }],
+    });
+
+    expect(decodeProtocolMethod).toHaveBeenCalledWith('0x1234');
+    expect(result.calls[0]?.method).toBe('deposit');
+    expect(result.warnings.map((warning) => warning.code)).not.toContain(
+      'UNDECODED_METHOD',
+    );
+  });
+
+  it('keeps the ERC-20 decode ahead of the injected decoder', async () => {
+    const approveData = encodeFunctionData({
+      abi: erc20Abi,
+      functionName: 'approve',
+      args: [SPENDER, 1n],
+    });
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({ id: 'sim-approve', to: TOKEN, method: '' }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const decodeProtocolMethod = vi.fn().mockReturnValue('deposit');
+    const service = createTenderlySimulationService({
+      accountSlug: 'account-slug',
+      projectSlug: 'project-slug',
+      accessToken: 'secret-token',
+      fetchFn,
+      decodeProtocolMethod,
+    });
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TOKEN, data: approveData }],
+    });
+
+    expect(result.calls[0]?.method).toBe('approve');
+    expect(decodeProtocolMethod).not.toHaveBeenCalled();
+  });
+
+  it('warns UNDECODED_METHOD when the injected decoder does not know the selector', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({ id: 'sim-lifi', to: TARGET, method: '' }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const service = createTenderlySimulationService({
+      accountSlug: 'account-slug',
+      projectSlug: 'project-slug',
+      accessToken: 'secret-token',
+      fetchFn,
+      decodeProtocolMethod: () => null,
+    });
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TARGET, data: '0x1234' }],
+    });
+
+    expect(result.calls[0]?.method).toBeNull();
+    expect(result.warnings.map((warning) => warning.code)).toContain(
+      'UNDECODED_METHOD',
+    );
   });
 
   it('fingerprints only material results, not block, gas, IDs, or share links', async () => {
@@ -590,6 +730,92 @@ describe('TenderlySimulationService', () => {
 
     expect(result.contracts[0]).toMatchObject({ address: TOKEN });
     expect(result.status).toBe('passed');
+  });
+
+  it('names call targets from token metadata when quick returns no contracts', async () => {
+    const vaultInfo = {
+      standard: 'ERC20',
+      type: 'Fungible',
+      contract_address: TARGET,
+      symbol: 'sparkUSDC',
+      name: 'Spark USDC Vault',
+      decimals: 18,
+    };
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-quick',
+            to: TARGET,
+            contracts: [],
+            assetChanges: [
+              {
+                token_info: tokenInfo,
+                type: 'Transfer',
+                from: WALLET,
+                to: TARGET,
+                raw_amount: '10',
+              },
+              {
+                token_info: vaultInfo,
+                type: 'Mint',
+                to: WALLET,
+                raw_amount: '9',
+              },
+            ],
+          }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TARGET }],
+    });
+
+    expect(result.contracts).toEqual([
+      {
+        address: TARGET,
+        name: 'Spark USDC Vault',
+        callIndexes: [0],
+      },
+    ]);
+  });
+
+  it('leaves a contract unnamed when its token metadata carries no name', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-nameless',
+            to: TOKEN,
+            contracts: [],
+            assetChanges: [
+              {
+                token_info: partialTokenInfo,
+                type: 'Transfer',
+                from: WALLET,
+                to: TARGET,
+                raw_amount: '10',
+              },
+            ],
+          }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TOKEN }],
+    });
+
+    expect(result.contracts[0]).toMatchObject({ address: TOKEN, name: null });
   });
 
   it('derives approvals from exposure_changes instead of calldata decode', async () => {

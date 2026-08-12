@@ -102,6 +102,33 @@ describe('createTenderlyBundleSimulationAdapter', () => {
     });
   });
 
+  it('returns failed with the stub reason when Tenderly halts on an invalid call', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      okResponse({
+        simulation_results: [
+          passedResult(),
+          {
+            transaction: null,
+            simulation: {
+              status: false,
+              error_message:
+                'agent call: insufficient funds for gas * price + value',
+            },
+          },
+        ],
+      }),
+    );
+    const adapter = createTenderlyBundleSimulationAdapter({
+      ...CONFIG,
+      fetchFn,
+    });
+
+    await expect(adapter.simulateBundle(REQUEST)).resolves.toEqual({
+      status: 'failed',
+      reason: 'agent call: insufficient funds for gas * price + value',
+    });
+  });
+
   it('returns unavailable on a non-2xx response', async () => {
     const fetchFn = vi
       .fn()

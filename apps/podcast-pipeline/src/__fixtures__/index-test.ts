@@ -31,7 +31,6 @@ export function localizationResponse(
       },
     ],
     createdAt: episode.created_at,
-    listened: episode.listened,
     script: localization.script,
     llmModel: localization.llm_model,
     llmThinkingModel: localization.llm_thinking_model,
@@ -59,7 +58,6 @@ export function episodeFeedResponse(row: EpisodeFeedRow): EpisodeFeedResponse {
       },
     ],
     createdAt: row.created_at,
-    listened: row.listened,
     llmModel: row.llm_model,
     llmThinkingModel: row.llm_thinking_model,
     llmProvider: row.llm_provider,
@@ -164,7 +162,6 @@ export function listRow(
     llm_provider: 'provider',
     status,
     created_at: FIXED_TIMESTAMP,
-    listened: false,
     like_count: 0,
     language_classrooms: [],
     ...overrides,
@@ -187,7 +184,6 @@ export function feedRow(
     llm_provider: 'provider',
     status: 'completed',
     created_at: FIXED_TIMESTAMP,
-    listened: false,
     ...overrides,
   };
 }

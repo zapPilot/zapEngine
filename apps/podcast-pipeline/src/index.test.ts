@@ -39,12 +39,12 @@ const {
   mockInsertEpisodeLocalization,
   mockInvalidateEpisodeSearchCache,
   mockListEpisodeFeedPaged,
+  mockListPublishedEpisodeCatalog,
   mockListEpisodeVideoSummariesByLocalizationIds,
   mockListEpisodeLocalizationsByEpisodeId,
   mockListLanguageClassroomsByLocalizationId,
   mockListLanguageClassroomsByLocalizationIds,
   mockLoadEpisodeVideoGeneration,
-  mockMarkEpisodeListened,
   mockScrapeArticle,
   mockServe,
   mockSynthesizeClassroomAudio,
@@ -75,6 +75,7 @@ const {
   mockInsertEpisodeLocalization: vi.fn(),
   mockInvalidateEpisodeSearchCache: vi.fn(),
   mockListEpisodeFeedPaged: vi.fn(),
+  mockListPublishedEpisodeCatalog: vi.fn(),
   mockListEpisodeVideoSummariesByLocalizationIds: vi
     .fn()
     .mockResolvedValue(new Map()),
@@ -82,7 +83,6 @@ const {
   mockListLanguageClassroomsByLocalizationId: vi.fn(),
   mockListLanguageClassroomsByLocalizationIds: vi.fn(),
   mockLoadEpisodeVideoGeneration: vi.fn(),
-  mockMarkEpisodeListened: vi.fn(),
   mockScrapeArticle: vi.fn(),
   mockServe: vi.fn(
     (_options: unknown, callback?: (info: { port: number }) => void) => {
@@ -116,6 +116,7 @@ vi.mock('./services/db.js', async (importOriginal) => ({
   insertEpisode: mockInsertEpisode,
   insertEpisodeLocalization: mockInsertEpisodeLocalization,
   listEpisodeFeedPaged: mockListEpisodeFeedPaged,
+  listPublishedEpisodeCatalog: mockListPublishedEpisodeCatalog,
   listEpisodeVideoSummariesByLocalizationIds:
     mockListEpisodeVideoSummariesByLocalizationIds,
   listEpisodeLocalizationsByEpisodeId: mockListEpisodeLocalizationsByEpisodeId,
@@ -123,7 +124,6 @@ vi.mock('./services/db.js', async (importOriginal) => ({
     mockListLanguageClassroomsByLocalizationId,
   listLanguageClassroomsByLocalizationIds:
     mockListLanguageClassroomsByLocalizationIds,
-  markEpisodeListened: mockMarkEpisodeListened,
   toEpisodeResponse: (
     row: EpisodeListRow,
     languageClassrooms?: import('./types.js').LanguageClassroomRow[],
@@ -1960,6 +1960,47 @@ describe('GET /episodes/search', () => {
   });
 });
 
+describe('GET /episodes/catalog', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns published localization ids grouped by language', async () => {
+    const catalog = {
+      'zh-Hant': ['00000000-0000-4000-8000-000000000101'],
+      ja: ['00000000-0000-4000-8000-000000000102'],
+      en: ['00000000-0000-4000-8000-000000000103'],
+    };
+    mockListPublishedEpisodeCatalog.mockResolvedValue(catalog);
+
+    const response = await app.request('/episodes/catalog');
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ languages: catalog });
+    expect(mockListPublishedEpisodeCatalog).toHaveBeenCalledOnce();
+    expect(mockFindEpisodeListRowByLocalizationId).not.toHaveBeenCalled();
+  });
+
+  it('keeps all three language keys when the catalog is empty', async () => {
+    mockListPublishedEpisodeCatalog.mockResolvedValue({
+      'zh-Hant': [],
+      ja: [],
+      en: [],
+    });
+
+    const response = await app.request('/episodes/catalog');
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      languages: {
+        'zh-Hant': [],
+        ja: [],
+        en: [],
+      },
+    });
+  });
+});
+
 describe('GET /episodes/:episodeId/videos', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -2150,104 +2191,6 @@ describe('GET /episodes/:localizationId', () => {
     );
 
     expect(response.status).toBe(404);
-  });
-});
-
-describe('POST /episodes/:id/listened', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockMarkEpisodeListened.mockResolvedValue(episodeRow({ listened: true }));
-    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localizationRow());
-    mockListLanguageClassroomsByLocalizationId.mockResolvedValue([
-      classroomRow(),
-    ]);
-  });
-
-  it('marks the source episode listened and returns the requested localization', async () => {
-    const response = await app.request(
-      `/episodes/${episodeRow().id}/listened`,
-      {
-        method: 'POST',
-      },
-    );
-    const body = (await response.json()) as EpisodeResponse;
-
-    expect(response.status).toBe(200);
-    expect(mockMarkEpisodeListened).toHaveBeenCalledWith(episodeRow().id);
-    expect(mockFindEpisodeLocalizationByEpisodeId).toHaveBeenCalledWith(
-      episodeRow().id,
-      'zh-Hant',
-    );
-    expect(body.listened).toBe(true);
-    expect(body.localizationId).toBe(localizationRow().id);
-  });
-
-  it('returns the localization completed video after marking listened', async () => {
-    const localization = localizationRow();
-    const video = {
-      url: 'https://cdn.example.com/video.mp4',
-      thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
-      durationSeconds: 90,
-    };
-    const videoGeneration = {
-      status: 'completed' as const,
-      updatedAt: '2026-07-24T00:00:00.000Z',
-    };
-    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localization);
-    mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(
-      new Map([
-        [
-          localization.id,
-          {
-            video,
-            videoGeneration,
-          },
-        ],
-      ]),
-    );
-
-    const response = await app.request(
-      `/episodes/${episodeRow().id}/listened`,
-      {
-        method: 'POST',
-      },
-    );
-    const body = await response.json();
-
-    expect(body.video).toEqual(video);
-    expect(body.videoGeneration).toEqual(videoGeneration);
-  });
-
-  it('returns 404 when the episode cannot be marked listened', async () => {
-    mockMarkEpisodeListened.mockResolvedValue(null);
-
-    const response = await app.request(
-      `/episodes/${episodeRow().id}/listened`,
-      {
-        method: 'POST',
-      },
-    );
-
-    expect(response.status).toBe(404);
-    expect(mockFindEpisodeLocalizationByEpisodeId).not.toHaveBeenCalled();
-  });
-
-  it('returns 404 when the requested localization is missing', async () => {
-    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(null);
-
-    const response = await app.request(
-      `/episodes/${episodeRow().id}/listened?language=en`,
-      {
-        method: 'POST',
-      },
-    );
-
-    expect(response.status).toBe(404);
-    expect(mockMarkEpisodeListened).toHaveBeenCalledWith(episodeRow().id);
-    expect(mockFindEpisodeLocalizationByEpisodeId).toHaveBeenCalledWith(
-      episodeRow().id,
-      'en',
-    );
   });
 });
 

@@ -10,6 +10,7 @@ import type {
   WizardLegStatus,
 } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
 import { formatUsd6 } from '@zapengine/app-core/lib/wallet/usd6';
+import type { ChainBrandKey } from '@zapengine/brand-assets';
 
 import {
   type DesktopDepositPath,
@@ -91,8 +92,7 @@ export type WizardLegTone = 'neutral' | 'success' | 'error';
 export interface WizardLegRow {
   id: string;
   title: string;
-  chainLabel: string;
-  dotColor: string;
+  chainKey: ChainBrandKey | undefined;
   statusLabel: string;
   statusTone: WizardLegTone;
   sourceTxUrl: string | null;
@@ -126,8 +126,7 @@ export function wizardLegRows(
     return {
       id: `${leg.kind}-${leg.chainId}-${index}`,
       title: leg.protocol ? `${action} · ${leg.protocol}` : action,
-      chainLabel: chain.label,
-      dotColor: chain.color,
+      chainKey: chain.chainKey,
       statusLabel: status.label,
       statusTone: status.tone,
       sourceTxUrl: leg.sourceTxHash

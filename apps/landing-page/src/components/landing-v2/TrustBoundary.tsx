@@ -1,3 +1,6 @@
+import btcMark from '@zapengine/brand-assets/assets/tokens/btc.png';
+import ethMark from '@zapengine/brand-assets/assets/tokens/eth.png';
+import usdcMark from '@zapengine/brand-assets/assets/tokens/usdc.png';
 import Image from 'next/image';
 
 const GUARANTEES = [
@@ -21,19 +24,19 @@ const GUARANTEES = [
 
 const BUNDLE_STEPS = [
   {
-    icon: '/btc.webp',
+    icon: btcMark,
     label: 'Sell 0.021 WBTC',
     amount: '\u2212$2,040',
     positive: false,
   },
   {
-    icon: '/eth.webp',
+    icon: ethMark,
     label: 'Sell 0.58 ETH',
     amount: '\u2212$2,105',
     positive: false,
   },
   {
-    icon: '/usdc.webp',
+    icon: usdcMark,
     label: 'Buy 4,145 USDC',
     amount: '+$4,145',
     positive: true,

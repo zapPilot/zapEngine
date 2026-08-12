@@ -53,9 +53,14 @@ export interface TenderlyBundleConfig {
 }
 
 const TENDERLY_API_URL = 'https://api.tenderly.co/api/v1';
-const DEFAULT_TIMEOUT_MS = 10_000;
+// Heavy bundles (e.g. the GMX basket's ~8 full-decode simulations) routinely
+// exceed 10s; keep this aligned with the rich review rail's simulate budget.
+const DEFAULT_TIMEOUT_MS = 30_000;
 const CALL_GAS_LIMIT = 8_000_000;
 
+// When a bundled call is invalid rather than reverting (e.g. the wallet cannot
+// cover value + gas), Tenderly halts and returns a stub entry with a null
+// transaction and the reason on simulation.error_message.
 const ResultsSchema = z.object({
   simulation_results: z
     .array(
@@ -66,9 +71,13 @@ const ResultsSchema = z.object({
               status: z.union([z.boolean(), z.number()]),
               error_message: z.string().optional().nullable(),
             })
-            .loose(),
+            .loose()
+            .nullable(),
           simulation: z
-            .object({ status: z.union([z.boolean(), z.number()]) })
+            .object({
+              status: z.union([z.boolean(), z.number()]),
+              error_message: z.string().optional().nullable(),
+            })
             .loose(),
         })
         .loose(),
@@ -111,7 +120,9 @@ export function createTenderlyBundleSimulationAdapter(
               gas: CALL_GAS_LIMIT,
               save: false,
               save_if_fails: false,
-              simulation_type: 'full',
+              // The gate only reads per-call statuses; 'full' traces reach
+              // >100MB on heavy bundles and would exhaust the 256MB host.
+              simulation_type: 'quick',
             })),
           }),
         });
@@ -145,13 +156,15 @@ export function createTenderlyBundleSimulationAdapter(
       // Tenderly stops after the first reverting call, so fewer results than
       // calls is only acceptable when the last returned result is the revert.
       const failed = results.simulation_results.find(
-        (result) => !(result.transaction.status && result.simulation.status),
+        (result) => !(result.transaction?.status && result.simulation.status),
       );
       if (failed) {
         return {
           status: 'failed',
           reason:
-            failed.transaction.error_message?.trim() || 'Simulation reverted',
+            failed.transaction?.error_message?.trim() ||
+            failed.simulation.error_message?.trim() ||
+            'Simulation reverted',
         };
       }
       if (results.simulation_results.length < request.calls.length) {

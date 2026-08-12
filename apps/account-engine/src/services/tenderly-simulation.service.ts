@@ -20,7 +20,11 @@ import { Logger } from '../common/logger';
 import { getErrorMessage } from '../common/utils';
 
 const TENDERLY_API_URL = 'https://api.tenderly.co/api/v1';
-const TENDERLY_TIMEOUT_MS = 10_000;
+// Heavy bundles (GMX basket: up to ~8 full-decode simulations) routinely
+// exceed 10s. Share links stay on a short budget because they are best-effort
+// and the whole review must fit the client's 60s request window.
+const TENDERLY_SIMULATE_TIMEOUT_MS = 30_000;
+const TENDERLY_SHARE_TIMEOUT_MS = 10_000;
 const TENDERLY_CALL_GAS_LIMIT = 8_000_000;
 const ADDRESS_REGEX = /^0x[0-9a-fA-F]{40}$/;
 
@@ -67,15 +71,25 @@ const RawExposureChangeSchema = z
   })
   .passthrough();
 
+// No bytecode-verification signal is read here on purpose. 'quick' simulations
+// omit `contracts` entirely, and this Tenderly project reports an empty
+// `verified_by` even on 'full' — which the 256MB production instance cannot
+// parse anyway. Treating that silence as "unverified" flagged every call in
+// every review. Verification would have to come from a dedicated source, and
+// only the service may derive it: warnings are hashed into `riskHash`, which a
+// second rail recomputes and the client compares before signing.
 const RawContractSchema = z
   .object({
     address: z.string().regex(ADDRESS_REGEX),
     contract_name: z.string().optional().nullable(),
-    verified_by: z.string().optional().nullable(),
     token_data: RawTokenInfoSchema.optional(),
   })
   .passthrough();
 
+// When a bundled call is invalid rather than reverting (e.g. the wallet cannot
+// cover value + gas), Tenderly halts and returns a stub entry: transaction is
+// null, simulation.id is empty, block_number is null, and the reason lives on
+// simulation.error_message.
 const RawSimulationResultSchema = z
   .object({
     transaction: z
@@ -97,14 +111,16 @@ const RawSimulationResultSchema = z
           })
           .passthrough(),
       })
-      .passthrough(),
+      .passthrough()
+      .nullable(),
     simulation: z
       .object({
-        id: z.string().min(1),
+        id: z.string(),
         status: z.union([z.boolean(), z.number()]),
         gas_used: RawIntegerSchema,
-        block_number: z.number().int().nonnegative(),
+        block_number: z.number().int().nonnegative().nullable(),
         method: z.string().optional().nullable(),
+        error_message: z.string().optional().nullable(),
       })
       .passthrough(),
     contracts: z.array(RawContractSchema).default([]),
@@ -148,6 +164,16 @@ export interface TenderlySimulationService {
     calls: TenderlySimulationCall[];
   }): Promise<TenderlySimulationReview>;
 }
+
+/**
+ * Names the function calldata invokes when the ERC-20 ABI cannot. Injected by
+ * the composition root from the module that owns the protocol ABIs, keeping
+ * protocol knowledge out of the identity plane. One instance of this service
+ * backs both the review rail and the execution-preview rail, so a single
+ * decoder is what keeps their warnings — and therefore the risk hash the client
+ * compares before signing — identical.
+ */
+type SimulationMethodDecoder = (data: `0x${string}`) => string | null;
 
 /** A wallet-neutral call accepted by the rich Tenderly normalizer. */
 export interface TenderlySimulationCall {
@@ -215,35 +241,33 @@ function hashMaterial(value: unknown): `0x${string}` {
   return keccak256(toBytes(JSON.stringify(value)));
 }
 
-function emptyCalls(
-  calls: TenderlySimulationCall[],
-): ExecutionSimulationCall[] {
-  return calls.map((call, index) => skippedCall(call, index, false));
-}
-
 function skippedCall(
   call: TenderlySimulationCall,
   index: number,
-  contractVerified: boolean,
+  decodeProtocolMethod: SimulationMethodDecoder | undefined,
 ): ExecutionSimulationCall {
   return {
     index,
     to: normalizeAddress(call.to),
     data: call.data ?? '0x',
     value: BigInt(call.value ?? '0x0').toString(),
-    method: null,
+    // A call Tenderly never reached is still nameable: the method is decoded
+    // from the calldata we built, not reported by the simulation.
+    method: methodFromCall(call, null, decodeProtocolMethod),
     status: 'skipped',
     gasUsed: null,
     error: null,
-    contractVerified,
   };
 }
 
 function unavailableReview(
   input: Parameters<TenderlySimulationService['simulateBundle']>[0],
   reason: string,
+  decodeProtocolMethod: SimulationMethodDecoder | undefined,
 ): TenderlySimulationReview {
-  const calls = emptyCalls(input.calls);
+  const calls = input.calls.map((call, index) =>
+    skippedCall(call, index, decodeProtocolMethod),
+  );
   const warnings: ExecutionSimulationWarning[] = [];
   return {
     status: 'unavailable',
@@ -264,20 +288,22 @@ function unavailableReview(
   };
 }
 
+// 'quick' simulations report no decoded method (transaction.method and
+// simulation.method are both null), so every name below comes from decoding the
+// calldata we sent ourselves.
 function methodFromCall(
   call: TenderlySimulationCall,
   tenderlyMethod: string | null | undefined,
+  decodeProtocolMethod: SimulationMethodDecoder | undefined,
 ): string | null {
   const trimmed = tenderlyMethod?.trim();
   if (trimmed) return trimmed;
 
+  const data = (call.data ?? '0x') as `0x${string}`;
   try {
-    return decodeFunctionData({
-      abi: erc20Abi,
-      data: (call.data ?? '0x') as `0x${string}`,
-    }).functionName;
+    return decodeFunctionData({ abi: erc20Abi, data }).functionName;
   } catch {
-    return null;
+    return decodeProtocolMethod?.(data) ?? null;
   }
 }
 
@@ -297,12 +323,6 @@ function decodeApproval(
   }
 }
 
-function contractIsVerified(
-  contract: z.infer<typeof RawContractSchema>,
-): boolean {
-  return Boolean(contract.verified_by?.trim());
-}
-
 function walletDirection(
   from: string | null,
   to: string | null,
@@ -313,64 +333,85 @@ function walletDirection(
   return null;
 }
 
+interface ReviewIndex {
+  /** Tenderly's own label per contract, when it reports one. */
+  contractNameByAddress: Map<string, string>;
+  tokenByAddress: Map<string, ExecutionSimulationToken>;
+  /**
+   * On-chain `name()` per token contract. Kept apart from `tokenByAddress`
+   * because `normalizeToken` substitutes a placeholder for nameless tokens,
+   * and a placeholder must never be shown as a contract's display name.
+   */
+  tokenNameByAddress: Map<string, string>;
+}
+
+function indexReview(results: RawSimulationResult[]): ReviewIndex {
+  const contractNameByAddress = new Map<string, string>();
+  const tokenByAddress = new Map<string, ExecutionSimulationToken>();
+  const tokenNameByAddress = new Map<string, string>();
+
+  const rememberToken = (address: string, rawToken: RawTokenInfo) => {
+    tokenByAddress.set(address, normalizeToken(rawToken));
+    const name = rawToken.name?.trim();
+    if (name) tokenNameByAddress.set(address, name);
+  };
+
+  for (const result of results) {
+    for (const rawContract of result.contracts) {
+      const address = normalizeAddress(rawContract.address);
+      const name = rawContract.contract_name?.trim();
+      if (name && !contractNameByAddress.has(address)) {
+        contractNameByAddress.set(address, name);
+      }
+      if (rawContract.token_data) {
+        rememberToken(address, rawContract.token_data);
+      }
+    }
+    for (const rawChange of result.transaction?.transaction_info
+      .asset_changes ?? []) {
+      if (rawChange.token_info.contract_address) {
+        rememberToken(
+          normalizeAddress(rawChange.token_info.contract_address),
+          rawChange.token_info,
+        );
+      }
+    }
+    for (const exposure of result.transaction?.transaction_info
+      .exposure_changes ?? []) {
+      if (exposure.token_info.contract_address) {
+        rememberToken(
+          normalizeAddress(exposure.token_info.contract_address),
+          exposure.token_info,
+        );
+      }
+    }
+  }
+
+  return { contractNameByAddress, tokenByAddress, tokenNameByAddress };
+}
+
 // This pipeline derives calls, assets, approvals, and warnings from shared evidence.
 // eslint-disable-next-line sonarjs/cognitive-complexity
 function normalizeReview(
   input: Parameters<TenderlySimulationService['simulateBundle']>[0],
   results: RawSimulationResult[],
   shareUrls: string[],
+  decodeProtocolMethod: SimulationMethodDecoder | undefined,
 ): TenderlySimulationReview {
   const walletAddress = normalizeAddress(input.walletAddress);
-  const contractsByAddress = new Map<
-    string,
-    z.infer<typeof RawContractSchema>
-  >();
-  const tokenByAddress = new Map<string, ExecutionSimulationToken>();
-
-  for (const result of results) {
-    for (const rawContract of result.contracts) {
-      const address = normalizeAddress(rawContract.address);
-      const existing = contractsByAddress.get(address);
-      if (!existing || contractIsVerified(rawContract)) {
-        contractsByAddress.set(address, rawContract);
-      }
-      if (rawContract.token_data) {
-        tokenByAddress.set(address, normalizeToken(rawContract.token_data));
-      }
-    }
-    for (const rawChange of result.transaction.transaction_info.asset_changes ??
-      []) {
-      if (rawChange.token_info.contract_address) {
-        tokenByAddress.set(
-          normalizeAddress(rawChange.token_info.contract_address),
-          normalizeToken(rawChange.token_info),
-        );
-      }
-    }
-    for (const exposure of result.transaction.transaction_info
-      .exposure_changes ?? []) {
-      if (exposure.token_info.contract_address) {
-        tokenByAddress.set(
-          normalizeAddress(exposure.token_info.contract_address),
-          normalizeToken(exposure.token_info),
-        );
-      }
-    }
-  }
+  const { contractNameByAddress, tokenByAddress, tokenNameByAddress } =
+    indexReview(results);
 
   const calls: ExecutionSimulationCall[] = input.calls.map((call, index) => {
     const result = results[index];
     const target = normalizeAddress(call.to);
-    const rawContract = contractsByAddress.get(target);
     if (!result) {
-      return skippedCall(
-        call,
-        index,
-        Boolean(rawContract && contractIsVerified(rawContract)),
-      );
+      return skippedCall(call, index, decodeProtocolMethod);
     }
 
-    const succeeded = result.transaction.status && result.simulation.status;
+    const succeeded = Boolean(
+      result.transaction?.status && result.simulation.status,
+    );
     return {
       index,
       to: target,
@@ -378,21 +419,25 @@ function normalizeReview(
       value: BigInt(call.value ?? '0x0').toString(),
       method: methodFromCall(
         call,
-        result.transaction.method ?? result.simulation.method,
+        result.transaction?.method ?? result.simulation.method,
+        decodeProtocolMethod,
       ),
       status: succeeded ? 'succeeded' : 'failed',
-      gasUsed: integerString(result.transaction.gas_used),
+      gasUsed: integerString(
+        result.transaction?.gas_used ?? result.simulation.gas_used,
+      ),
       error: succeeded
         ? null
-        : result.transaction.error_message?.trim() || 'Simulation reverted',
-      contractVerified: Boolean(rawContract && contractIsVerified(rawContract)),
+        : result.transaction?.error_message?.trim() ||
+          result.simulation.error_message?.trim() ||
+          'Simulation reverted',
     };
   });
 
   const assetChanges: ExecutionSimulationAssetChange[] = [];
   for (const [callIndex, result] of results.entries()) {
-    for (const rawChange of result.transaction.transaction_info.asset_changes ??
-      []) {
+    for (const rawChange of result.transaction?.transaction_info
+      .asset_changes ?? []) {
       const from = rawChange.from ? normalizeAddress(rawChange.from) : null;
       const to = rawChange.to ? normalizeAddress(rawChange.to) : null;
       if (from === walletAddress && to === walletAddress) continue;
@@ -425,7 +470,7 @@ function normalizeReview(
   const approvals: ExecutionSimulationApproval[] = [];
   for (const [callIndex, result] of results.entries()) {
     const exposureChanges =
-      result.transaction.transaction_info.exposure_changes ?? [];
+      result.transaction?.transaction_info.exposure_changes ?? [];
     if (exposureChanges.length > 0) {
       for (const exposure of exposureChanges) {
         const tokenAddress = normalizeAddress(
@@ -473,17 +518,20 @@ function normalizeReview(
 
   const contracts: ExecutionSimulationContract[] = Array.from(
     new Set(input.calls.map((call) => normalizeAddress(call.to))),
-  ).map((address) => {
-    const rawContract = contractsByAddress.get(address);
-    return {
-      address,
-      name: rawContract?.contract_name?.trim() || null,
-      verified: Boolean(rawContract && contractIsVerified(rawContract)),
-      callIndexes: calls
-        .filter((call) => call.to === address)
-        .map((call) => call.index),
-    };
-  });
+  ).map((address) => ({
+    address,
+    // 'quick' simulations return no contract metadata at all, so the token
+    // registry Tenderly attaches to asset/exposure changes is the only
+    // remaining name source. It reports the target's own on-chain `name()`,
+    // which covers every token and ERC-4626 vault the bundle touches.
+    name:
+      contractNameByAddress.get(address) ??
+      tokenNameByAddress.get(address) ??
+      null,
+    callIndexes: calls
+      .filter((call) => call.to === address)
+      .map((call) => call.index),
+  }));
 
   const warnings: ExecutionSimulationWarning[] = [];
   const approvalsByCall = new Map<number, ExecutionSimulationApproval[]>();
@@ -493,14 +541,6 @@ function normalizeReview(
     approvalsByCall.set(approval.callIndex, existing);
   }
   for (const call of calls) {
-    if (!call.contractVerified) {
-      warnings.push({
-        code: 'UNVERIFIED_CONTRACT',
-        message: `Call ${call.index + 1} targets an unverified contract`,
-        callIndex: call.index,
-        address: call.to,
-      });
-    }
     const callApprovals = approvalsByCall.get(call.index) ?? [];
     for (const approval of callApprovals) {
       if (approval.unlimited) {
@@ -543,15 +583,22 @@ function normalizeReview(
     approvals,
     contracts,
     warnings,
-    blockNumber: results[0]?.transaction.block_number ?? null,
+    blockNumber: results[0]?.transaction?.block_number ?? null,
     callGas: results
       .reduce(
         (total, result) =>
-          total + BigInt(integerString(result.transaction.gas_used)),
+          total +
+          BigInt(
+            integerString(
+              result.transaction?.gas_used ?? result.simulation.gas_used,
+            ),
+          ),
         0n,
       )
       .toString(),
-    simulationIds: results.map((result) => result.simulation.id),
+    simulationIds: results
+      .map((result) => result.simulation.id)
+      .filter((id) => id.length > 0),
     shareUrls,
     simulationFingerprint: hashMaterial(material),
     riskHash: hashMaterial(warnings),
@@ -572,6 +619,7 @@ export function createTenderlySimulationService(config: {
   accessToken?: string;
   fetchFn?: typeof fetch;
   logger?: TenderlyLogger;
+  decodeProtocolMethod?: SimulationMethodDecoder;
 }): TenderlySimulationService {
   const fetchFn = config.fetchFn ?? fetch;
   const logger = config.logger ?? new Logger('TenderlySimulation');
@@ -579,9 +627,10 @@ export function createTenderlySimulationService(config: {
   async function fetchWithTimeout(
     url: string,
     init: RequestInit,
+    timeoutMs: number,
   ): Promise<Response> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TENDERLY_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       return await fetchFn(url, { ...init, signal: controller.signal });
     } finally {
@@ -596,6 +645,7 @@ export function createTenderlySimulationService(config: {
         return unavailableReview(
           input,
           'Tenderly simulation is not configured',
+          config.decodeProtocolMethod,
         );
       }
 
@@ -606,30 +656,47 @@ export function createTenderlySimulationService(config: {
       };
 
       let response: Response;
+      const startedAt = Date.now();
       try {
-        response = await fetchWithTimeout(`${baseUrl}/simulate-bundle`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            simulations: input.calls.map((call) => ({
-              network_id: input.chainId.toString(),
-              from: input.walletAddress,
-              to: call.to,
-              input: call.data ?? '0x',
-              value: BigInt(call.value ?? '0x0').toString(),
-              gas: TENDERLY_CALL_GAS_LIMIT,
-              save: true,
-              save_if_fails: true,
-              simulation_type: 'full',
-            })),
-          }),
-        });
+        response = await fetchWithTimeout(
+          `${baseUrl}/simulate-bundle`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              simulations: input.calls.map((call) => ({
+                network_id: input.chainId.toString(),
+                from: input.walletAddress,
+                to: call.to,
+                input: call.data ?? '0x',
+                value: BigInt(call.value ?? '0x0').toString(),
+                gas: TENDERLY_CALL_GAS_LIMIT,
+                save: true,
+                save_if_fails: true,
+                // 'quick' keeps everything the normalizer consumes (statuses,
+                // asset/exposure changes, simulation ids). 'full'/'abi' only
+                // add per-call traces and contract metadata, which reach
+                // >100MB on GMX basket bundles — more than the 256MB
+                // production instance can parse.
+                simulation_type: 'quick',
+              })),
+            }),
+          },
+          TENDERLY_SIMULATE_TIMEOUT_MS,
+        );
       } catch (error) {
+        logger.warn('Tenderly simulate-bundle failed', {
+          chainId: input.chainId,
+          callCount: input.calls.length,
+          durationMs: Date.now() - startedAt,
+          error: getErrorMessage(error),
+        });
         return unavailableReview(
           input,
           error instanceof DOMException && error.name === 'AbortError'
             ? 'Tenderly simulation timed out'
             : `Tenderly simulation unavailable: ${getErrorMessage(error)}`,
+          config.decodeProtocolMethod,
         );
       }
 
@@ -637,6 +704,7 @@ export function createTenderlySimulationService(config: {
         return unavailableReview(
           input,
           `Tenderly simulation returned HTTP ${response.status}`,
+          config.decodeProtocolMethod,
         );
       }
 
@@ -648,7 +716,7 @@ export function createTenderlySimulationService(config: {
         const stoppedAfterFailure =
           results.length < input.calls.length &&
           lastResult !== undefined &&
-          !(lastResult.transaction.status && lastResult.simulation.status);
+          !(lastResult.transaction?.status && lastResult.simulation.status);
         if (
           results.length > input.calls.length ||
           (results.length < input.calls.length && !stoppedAfterFailure)
@@ -663,6 +731,7 @@ export function createTenderlySimulationService(config: {
         return unavailableReview(
           input,
           'Tenderly returned malformed simulation data',
+          config.decodeProtocolMethod,
         );
       }
 
@@ -670,10 +739,12 @@ export function createTenderlySimulationService(config: {
         await Promise.all(
           parsed.simulation_results.map(async (result) => {
             const simulationId = result.simulation.id;
+            if (!simulationId) return null;
             try {
               const shareResponse = await fetchWithTimeout(
                 `${baseUrl}/simulations/${simulationId}/share`,
                 { method: 'POST', headers },
+                TENDERLY_SHARE_TIMEOUT_MS,
               );
               if (!shareResponse.ok) {
                 logger.warn('Tenderly simulation sharing failed', {
@@ -694,7 +765,12 @@ export function createTenderlySimulationService(config: {
         )
       ).filter((url): url is string => url !== null);
 
-      return normalizeReview(input, parsed.simulation_results, shareUrls);
+      return normalizeReview(
+        input,
+        parsed.simulation_results,
+        shareUrls,
+        config.decodeProtocolMethod,
+      );
     },
   };
 }

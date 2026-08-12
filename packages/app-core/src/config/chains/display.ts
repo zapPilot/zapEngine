@@ -13,7 +13,6 @@ export { HYPERCORE_CHAIN_ID };
 export interface DisplayChainInfo {
   id: number;
   name: string;
-  iconUrl?: string;
   explorer: {
     name: string;
     txUrl: (hash: string) => string;
@@ -27,7 +26,6 @@ function evmDisplayChains(): DisplayChainInfo[] {
     return {
       id: chain.id,
       name: chain.name,
-      ...(chain.iconUrl ? { iconUrl: chain.iconUrl } : {}),
       explorer: {
         name: chain.blockExplorers.default.name,
         txUrl: (hash: string) => `${explorerBase}/tx/${hash}`,
@@ -40,7 +38,6 @@ function evmDisplayChains(): DisplayChainInfo[] {
 const HYPERCORE_DISPLAY_CHAIN: DisplayChainInfo = {
   id: HYPERCORE_CHAIN_ID,
   name: 'Hyperliquid',
-  iconUrl: '/protocols/hyperliquid.webp',
   explorer: {
     name: 'Hyperliquid Explorer',
     txUrl: (hash: string) => `https://app.hyperliquid.xyz/explorer/tx/${hash}`,

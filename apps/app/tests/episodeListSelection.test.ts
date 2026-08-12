@@ -7,53 +7,35 @@ import {
 import { createPodcastEpisode } from './support/podcastEpisode';
 
 describe('selectPodcastLists', () => {
-  const byLanguage = {
-    'zh-Hant': [
-      createPodcastEpisode({
-        id: 'zh-old-unheard',
-        createdAt: '2026-07-01T00:00:00.000Z',
-        languageCode: 'zh-Hant',
-        listened: false,
-      }),
-      createPodcastEpisode({
-        id: 'zh-new-unheard',
-        createdAt: '2026-07-10T00:00:00.000Z',
-        languageCode: 'zh-Hant',
-        listened: false,
-      }),
-      createPodcastEpisode({
-        id: 'zh-old-listened',
-        createdAt: '2026-07-02T00:00:00.000Z',
-        languageCode: 'zh-Hant',
-        listened: true,
-      }),
-      createPodcastEpisode({
-        id: 'zh-new-listened',
-        createdAt: '2026-07-12T00:00:00.000Z',
-        languageCode: 'zh-Hant',
-        listened: true,
-      }),
-    ],
-    en: [
-      createPodcastEpisode({
-        id: 'en-unheard',
-        createdAt: '2026-07-15T00:00:00.000Z',
-        languageCode: 'en',
-        listened: false,
-      }),
-    ],
-    ja: [
-      createPodcastEpisode({
-        id: 'ja-listened',
-        createdAt: '2026-07-05T00:00:00.000Z',
-        languageCode: 'ja',
-        listened: true,
-      }),
-    ],
-  };
+  const episodes = [
+    createPodcastEpisode({
+      id: 'zh-old-unheard',
+      createdAt: '2026-07-01T00:00:00.000Z',
+      languageCode: 'zh-Hant',
+      listened: false,
+    }),
+    createPodcastEpisode({
+      id: 'zh-new-unheard',
+      createdAt: '2026-07-10T00:00:00.000Z',
+      languageCode: 'zh-Hant',
+      listened: false,
+    }),
+    createPodcastEpisode({
+      id: 'zh-old-listened',
+      createdAt: '2026-07-02T00:00:00.000Z',
+      languageCode: 'zh-Hant',
+      listened: true,
+    }),
+    createPodcastEpisode({
+      id: 'zh-new-listened',
+      createdAt: '2026-07-12T00:00:00.000Z',
+      languageCode: 'zh-Hant',
+      listened: true,
+    }),
+  ];
 
-  it('returns only the selected language episodes in both sections', () => {
-    const result = selectPodcastLists(byLanguage, 'zh-Hant', 'newest');
+  it('splits the selected-language feed into both sections', () => {
+    const result = selectPodcastLists(episodes, 'newest');
     expect(result.unheard.map((e) => e.id)).toEqual([
       'zh-new-unheard',
       'zh-old-unheard',
@@ -65,13 +47,13 @@ describe('selectPodcastLists', () => {
   });
 
   it('excludes listened episodes from unheard and follows direction', () => {
-    const newest = selectPodcastLists(byLanguage, 'zh-Hant', 'newest');
+    const newest = selectPodcastLists(episodes, 'newest');
     expect(newest.unheard.map((e) => e.id)).toEqual([
       'zh-new-unheard',
       'zh-old-unheard',
     ]);
 
-    const oldest = selectPodcastLists(byLanguage, 'zh-Hant', 'oldest');
+    const oldest = selectPodcastLists(episodes, 'oldest');
     expect(oldest.unheard.map((e) => e.id)).toEqual([
       'zh-old-unheard',
       'zh-new-unheard',
@@ -79,15 +61,15 @@ describe('selectPodcastLists', () => {
   });
 
   it('keeps listened newest-first even when direction is oldest', () => {
-    const result = selectPodcastLists(byLanguage, 'zh-Hant', 'oldest');
+    const result = selectPodcastLists(episodes, 'oldest');
     expect(result.listened.map((e) => e.id)).toEqual([
       'zh-new-listened',
       'zh-old-listened',
     ]);
   });
 
-  it('returns empty lists for an unknown language code', () => {
-    const result = selectPodcastLists(byLanguage, 'fr', 'newest');
+  it('returns empty lists for an empty feed', () => {
+    const result = selectPodcastLists([], 'newest');
     expect(result.unheard).toEqual([]);
     expect(result.listened).toEqual([]);
   });
