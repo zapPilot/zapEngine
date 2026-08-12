@@ -25,6 +25,7 @@ import {
   parseDepositDefaultSplit,
   type PlanOrchestrationService,
   planSimulationConfigFromEnv,
+  resolveProtocolContractName,
 } from './modules/plan-orchestration';
 import {
   createPrivyWalletExecutionService,
@@ -141,6 +142,7 @@ export function createContainer(
     // or their warnings — and with them the risk hash the client compares
     // before signing — would differ.
     decodeProtocolMethod,
+    resolveContractName: resolveProtocolContractName,
   });
   if (env.PLAN_SIMULATION_MODE === 'off' && !planSimulation.tenderly) {
     new Logger('plan-orchestration').warn(

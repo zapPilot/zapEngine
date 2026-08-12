@@ -818,6 +818,44 @@ describe('TenderlySimulationService', () => {
     expect(result.contracts[0]).toMatchObject({ address: TOKEN, name: null });
   });
 
+  it('uses the injected resolver after Tenderly and token metadata', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-protocol-name',
+            to: TARGET,
+            contracts: [],
+          }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const resolveContractName = vi.fn().mockReturnValue('Protocol Router');
+    const service = createTenderlySimulationService({
+      accountSlug: 'account-slug',
+      projectSlug: 'project-slug',
+      accessToken: 'secret-token',
+      fetchFn,
+      resolveContractName,
+    });
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TARGET }],
+    });
+
+    expect(resolveContractName).toHaveBeenCalledWith(TARGET);
+    expect(result.contracts).toEqual([
+      {
+        address: TARGET,
+        name: 'Protocol Router',
+        callIndexes: [0],
+      },
+    ]);
+  });
+
   it('derives approvals from exposure_changes instead of calldata decode', async () => {
     const approveData = encodeFunctionData({
       abi: erc20Abi,

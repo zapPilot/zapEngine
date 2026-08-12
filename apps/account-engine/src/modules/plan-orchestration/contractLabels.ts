@@ -3,7 +3,6 @@ import {
   GMX_V2_EXCHANGE_ROUTER_ABI,
   MORPHO_VAULT_ABI,
 } from '@zapengine/intent-engine';
-import type { ExecutionSimulationContract } from '@zapengine/types/api';
 import { decodeFunctionData } from 'viem';
 
 /**
@@ -21,19 +20,9 @@ const PROTOCOL_CONTRACT_NAMES = new Map<string, string>([
   ['0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae', 'LI.FI Diamond'],
 ]);
 
-/** Names the contracts Tenderly could not name, leaving existing names intact. */
-export function withProtocolContractNames(
-  contracts: readonly ExecutionSimulationContract[],
-): ExecutionSimulationContract[] {
-  return contracts.map((contract) =>
-    contract.name
-      ? contract
-      : {
-          ...contract,
-          name:
-            PROTOCOL_CONTRACT_NAMES.get(contract.address.toLowerCase()) ?? null,
-        },
-  );
+/** Names routing contracts that Tenderly and token metadata cannot identify. */
+export function resolveProtocolContractName(address: string): string | null {
+  return PROTOCOL_CONTRACT_NAMES.get(address.toLowerCase()) ?? null;
 }
 
 /**

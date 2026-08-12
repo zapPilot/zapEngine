@@ -174,6 +174,7 @@ export interface TenderlySimulationService {
  * compares before signing — identical.
  */
 type SimulationMethodDecoder = (data: `0x${string}`) => string | null;
+type SimulationContractNameResolver = (address: string) => string | null;
 
 /** A wallet-neutral call accepted by the rich Tenderly normalizer. */
 export interface TenderlySimulationCall {
@@ -397,6 +398,7 @@ function normalizeReview(
   results: RawSimulationResult[],
   shareUrls: string[],
   decodeProtocolMethod: SimulationMethodDecoder | undefined,
+  resolveContractName: SimulationContractNameResolver | undefined,
 ): TenderlySimulationReview {
   const walletAddress = normalizeAddress(input.walletAddress);
   const { contractNameByAddress, tokenByAddress, tokenNameByAddress } =
@@ -516,22 +518,28 @@ function normalizeReview(
     }
   }
 
+  const callIndexesByAddress = new Map<string, number[]>();
+  for (const call of calls) {
+    const callIndexes = callIndexesByAddress.get(call.to) ?? [];
+    callIndexes.push(call.index);
+    callIndexesByAddress.set(call.to, callIndexes);
+  }
   const contracts: ExecutionSimulationContract[] = Array.from(
-    new Set(input.calls.map((call) => normalizeAddress(call.to))),
-  ).map((address) => ({
-    address,
-    // 'quick' simulations return no contract metadata at all, so the token
-    // registry Tenderly attaches to asset/exposure changes is the only
-    // remaining name source. It reports the target's own on-chain `name()`,
-    // which covers every token and ERC-4626 vault the bundle touches.
-    name:
-      contractNameByAddress.get(address) ??
-      tokenNameByAddress.get(address) ??
-      null,
-    callIndexes: calls
-      .filter((call) => call.to === address)
-      .map((call) => call.index),
-  }));
+    callIndexesByAddress,
+    ([address, callIndexes]) => ({
+      address,
+      // 'quick' simulations return no contract metadata at all, so the token
+      // registry Tenderly attaches to asset/exposure changes is the only
+      // remaining name source. It reports the target's own on-chain `name()`,
+      // which covers every token and ERC-4626 vault the bundle touches.
+      name:
+        contractNameByAddress.get(address) ??
+        tokenNameByAddress.get(address) ??
+        resolveContractName?.(address) ??
+        null,
+      callIndexes,
+    }),
+  );
 
   const warnings: ExecutionSimulationWarning[] = [];
   const approvalsByCall = new Map<number, ExecutionSimulationApproval[]>();
@@ -620,6 +628,7 @@ export function createTenderlySimulationService(config: {
   fetchFn?: typeof fetch;
   logger?: TenderlyLogger;
   decodeProtocolMethod?: SimulationMethodDecoder;
+  resolveContractName?: SimulationContractNameResolver;
 }): TenderlySimulationService {
   const fetchFn = config.fetchFn ?? fetch;
   const logger = config.logger ?? new Logger('TenderlySimulation');
@@ -770,6 +779,7 @@ export function createTenderlySimulationService(config: {
         parsed.simulation_results,
         shareUrls,
         config.decodeProtocolMethod,
+        config.resolveContractName,
       );
     },
   };

@@ -5,58 +5,37 @@ import {
   GMX_V2_ADDRESSES,
   GMX_V2_MARKETS,
 } from '@zapengine/intent-engine';
-import type { ExecutionSimulationContract } from '@zapengine/types/api';
 import { describe, expect, it } from 'vitest';
 
 import {
   decodeProtocolMethod,
-  withProtocolContractNames,
+  resolveProtocolContractName,
 } from '../../../../src/modules/plan-orchestration/contractLabels';
 
 const WALLET = '0x1111111111111111111111111111111111111111';
 
-function contract(
-  address: string,
-  name: string | null = null,
-): ExecutionSimulationContract {
-  return { address, name, callIndexes: [0] };
-}
-
-describe('withProtocolContractNames', () => {
+describe('resolveProtocolContractName', () => {
   it('names the GMX exchange router and the LI.FI diamond', () => {
-    const result = withProtocolContractNames([
-      contract(GMX_V2_ADDRESSES.exchangeRouter.toLowerCase()),
-      contract('0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae'),
-    ]);
-
-    expect(result.map((entry) => entry.name)).toEqual([
-      'GMX Exchange Router',
-      'LI.FI Diamond',
-    ]);
+    expect(
+      resolveProtocolContractName(
+        GMX_V2_ADDRESSES.exchangeRouter.toLowerCase(),
+      ),
+    ).toBe('GMX Exchange Router');
+    expect(
+      resolveProtocolContractName('0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae'),
+    ).toBe('LI.FI Diamond');
   });
 
   it('matches regardless of address casing', () => {
-    const [named] = withProtocolContractNames([
-      contract(GMX_V2_ADDRESSES.exchangeRouter),
-    ]);
-
-    expect(named?.name).toBe('GMX Exchange Router');
-  });
-
-  it('keeps a name Tenderly already resolved', () => {
-    const [named] = withProtocolContractNames([
-      contract(GMX_V2_ADDRESSES.exchangeRouter, 'Spark USDC Vault'),
-    ]);
-
-    expect(named?.name).toBe('Spark USDC Vault');
+    expect(resolveProtocolContractName(GMX_V2_ADDRESSES.exchangeRouter)).toBe(
+      'GMX Exchange Router',
+    );
   });
 
   it('leaves unknown contracts unnamed', () => {
-    const [unknown] = withProtocolContractNames([
-      contract('0x4444444444444444444444444444444444444444'),
-    ]);
-
-    expect(unknown?.name).toBeNull();
+    expect(
+      resolveProtocolContractName('0x4444444444444444444444444444444444444444'),
+    ).toBeNull();
   });
 });
 
