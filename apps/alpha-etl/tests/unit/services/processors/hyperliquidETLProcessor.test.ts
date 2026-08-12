@@ -65,11 +65,10 @@ vi.mock("../../../../src/utils/logger.js", async () => {
   return mockLogger();
 });
 
-vi.mock("../../../../src/utils/mask.js", () => ({
-  maskWalletAddress: vi.fn(
-    (address: string) => `${address.slice(0, 6)}...${address.slice(-4)}`,
-  ),
-}));
+vi.mock("../../../../src/utils/mask.js", async () => {
+  const { mockWalletAddressMask } = await import("../../../setup/mocks.js");
+  return mockWalletAddressMask();
+});
 
 vi.mock("../../../../src/modules/hyperliquid/fetcher.js", () => ({
   HyperliquidFetcher: class MockHyperliquidFetcher {

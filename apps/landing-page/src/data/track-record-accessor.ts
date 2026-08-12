@@ -15,6 +15,7 @@ import {
   IPFS_GATEWAYS,
   ipfsGatewayUrl,
 } from '@/config/track-record';
+import { formatPercent } from '@/lib/formatPercent';
 
 const GATEWAY_TIMEOUT_MS = 8_000;
 
@@ -116,15 +117,6 @@ function computeRollingVolatility(returns: number[], window: number): number[] {
   return volatilities;
 }
 
-function formatPercent(value: number): string {
-  return `${(value * 100).toFixed(2)}%`;
-}
-
-function formatPercentSigned(value: number): string {
-  const sign = value >= 0 ? '+' : '';
-  return `${sign}${(value * 100).toFixed(2)}%`;
-}
-
 function computePerformanceSummary(
   snapshots: DailySnapshot[],
 ): PerformanceSummary {
@@ -223,16 +215,22 @@ function computePerformanceSummary(
     endDate: last.date,
     startNav: firstNav.toFixed(2),
     endNav: lastNav.toFixed(2),
-    cumulativeReturn: formatPercentSigned(cumulativeReturn),
-    annualizedReturn: formatPercentSigned(annualizedReturn),
-    maxDrawdown: formatPercent(-maxDrawdown),
+    cumulativeReturn: formatPercent(cumulativeReturn, {
+      scale: 100,
+      signed: 'ascii',
+    }),
+    annualizedReturn: formatPercent(annualizedReturn, {
+      scale: 100,
+      signed: 'ascii',
+    }),
+    maxDrawdown: formatPercent(maxDrawdown, { scale: -100, signed: false }),
     maxDrawdownDate,
-    volatility30d: formatPercent(avgVol30d),
+    volatility30d: formatPercent(avgVol30d, { scale: 100, signed: false }),
     sharpe,
     sortino,
-    bestDay: formatPercentSigned(bestDay),
+    bestDay: formatPercent(bestDay, { scale: 100, signed: 'ascii' }),
     bestDayDate,
-    worstDay: formatPercentSigned(worstDay),
+    worstDay: formatPercent(worstDay, { scale: 100, signed: 'ascii' }),
     worstDayDate,
     timeUnderwater: `${underwaterDays} days`,
   };

@@ -1,8 +1,5 @@
-import {
-  formatMetricPercent,
-  formatPercentagePoint,
-  getBacktestSnapshot,
-} from '@/data/snapshot';
+import { formatPercentagePoint, getBacktestSnapshot } from '@/data/snapshot';
+import { formatPercent } from '@/lib/formatPercent';
 
 const BACKTEST_SNAPSHOT = getBacktestSnapshot();
 const DCA_CLASSIC_BASELINE = {
@@ -49,8 +46,9 @@ export const MESSAGES = {
       {
         label: 'ROI vs DCA',
         value: ROI_VS_DCA_PP,
-        sublabel: `${BACKTEST_SNAPSHOT.roiPercent} strategy vs ${formatMetricPercent(
+        sublabel: `${BACKTEST_SNAPSHOT.roiPercent} strategy vs ${formatPercent(
           DCA_CLASSIC_BASELINE.roiPercent,
+          { scale: 1, signed: false },
         )} DCA`,
       },
       {
@@ -71,8 +69,9 @@ export const MESSAGES = {
       {
         label: 'Max Drawdown',
         value: BACKTEST_SNAPSHOT.maxDrawdownPercent,
-        sublabel: `vs DCA: ${formatMetricPercent(
+        sublabel: `vs DCA: ${formatPercent(
           DCA_CLASSIC_BASELINE.maxDrawdownPercent,
+          { scale: 1, signed: false },
         )}`,
       },
     ],
@@ -85,10 +84,14 @@ export const MESSAGES = {
       },
       {
         label: 'DCA Classic',
-        roi: formatMetricPercent(DCA_CLASSIC_BASELINE.roiPercent),
-        maxDrawdown: formatMetricPercent(
-          DCA_CLASSIC_BASELINE.maxDrawdownPercent,
-        ),
+        roi: formatPercent(DCA_CLASSIC_BASELINE.roiPercent, {
+          scale: 1,
+          signed: false,
+        }),
+        maxDrawdown: formatPercent(DCA_CLASSIC_BASELINE.maxDrawdownPercent, {
+          scale: 1,
+          signed: false,
+        }),
         trades: String(DCA_CLASSIC_BASELINE.tradeCount),
       },
     ],

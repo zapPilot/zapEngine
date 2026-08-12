@@ -14,11 +14,10 @@ vi.mock("../../../../src/utils/logger.js", async () => {
 });
 
 // Mock the mask utility
-vi.mock("../../../../src/utils/mask.js", () => ({
-  maskWalletAddress: vi.fn(
-    (address: string) => `${address.slice(0, 6)}...${address.slice(-4)}`,
-  ),
-}));
+vi.mock("../../../../src/utils/mask.js", async () => {
+  const { mockWalletAddressMask } = await import("../../../setup/mocks.js");
+  return mockWalletAddressMask();
+});
 
 describe("WalletBalanceTransformer", () => {
   let transformer: WalletBalanceTransformer;

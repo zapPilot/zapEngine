@@ -21,6 +21,7 @@ import equityCurveRaw from '@/data/equity-curve.json';
 import type { AllocationWeights } from '@/data/track-record-allocations';
 import { demoDailyAllocations } from '@/data/track-record-allocations';
 import { demoStrategyEventDates } from '@/data/track-record-events';
+import { formatPercent } from '@/lib/formatPercent';
 
 const STRATEGY_ID = 'dma_fgi_portfolio_rules';
 const STRATEGY_VERSION = 'v1';
@@ -103,11 +104,6 @@ const equityCurve = equityCurveRaw as {
 
 function seriesById(id: string): CurvePoint[] {
   return equityCurve.series.find((s) => s.id === id)?.values ?? [];
-}
-
-function signed(value: number): string {
-  const sign = value >= 0 ? '+' : '';
-  return `${sign}${value.toFixed(2)}%`;
 }
 
 /** Deterministic 0x + 64 hex from a seed (no Math.random → stable across renders). */
@@ -205,8 +201,14 @@ function buildEntries(): SnapshotHistoryEntry[] {
       previousCid: i === 0 ? null : cidFor(i - 1),
       nav: { usd: navUsd.toFixed(2) },
       performance: {
-        dailyReturn: signed(dailyReturn),
-        cumulativeReturn: signed(cumulativeReturn),
+        dailyReturn: formatPercent(dailyReturn, {
+          scale: 1,
+          signed: 'ascii',
+        }),
+        cumulativeReturn: formatPercent(cumulativeReturn, {
+          scale: 1,
+          signed: 'ascii',
+        }),
         maxDrawdown: `${drawdown.toFixed(2)}%`,
       },
       positions: positionsForNav(navUsd, DAILY_ALLOCATIONS[i]),
@@ -226,7 +228,13 @@ function buildEntries(): SnapshotHistoryEntry[] {
           ]
         : [],
       benchmarks: [
-        { name: 'DCA Classic', cumulativeReturn: signed(dcaCumulative) },
+        {
+          name: 'DCA Classic',
+          cumulativeReturn: formatPercent(dcaCumulative, {
+            scale: 1,
+            signed: 'ascii',
+          }),
+        },
       ],
     };
 

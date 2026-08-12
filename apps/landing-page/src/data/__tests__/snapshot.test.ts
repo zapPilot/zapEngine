@@ -1,23 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import {
-  formatMetricPercent,
   formatPercentagePoint,
   formatRatio,
   getBacktestSnapshot,
 } from '../snapshot';
+import { formatPercent } from '@/lib/formatPercent';
 
 describe('snapshot formatters', () => {
-  describe('formatMetricPercent', () => {
+  describe('formatPercent', () => {
     it('formats positive values with percent sign', () => {
-      expect(formatMetricPercent(71.7135)).toBe('71.71%');
+      expect(formatPercent(71.7135, { scale: 1, signed: false })).toBe(
+        '71.71%',
+      );
     });
 
     it('formats negative values with sign preserved', () => {
-      expect(formatMetricPercent(-9.3248)).toBe('-9.32%');
+      expect(formatPercent(-9.3248, { scale: 1, signed: false })).toBe(
+        '-9.32%',
+      );
     });
 
     it('rounds to two decimals using JavaScript fixed-point behavior', () => {
-      expect(formatMetricPercent(1.005)).toBe('1.00%');
+      expect(formatPercent(1.005, { scale: 1, signed: false })).toBe('1.00%');
+    });
+
+    it('supports fraction scaling and both signed styles', () => {
+      expect(formatPercent(0.1, { scale: 100, signed: 'ascii' })).toBe(
+        '+10.00%',
+      );
+      expect(formatPercent(-0.1, { scale: 100, signed: 'unicode' })).toBe(
+        '−10.00%',
+      );
     });
   });
 
