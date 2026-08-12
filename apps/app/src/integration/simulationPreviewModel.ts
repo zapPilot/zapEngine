@@ -84,13 +84,12 @@ export function partitionAssetChanges(
   return { incoming, outgoing };
 }
 
-function verifiedContractName(
+function contractName(
   address: string,
   contracts: readonly PrivySimulationContract[],
 ): string | null {
   const contract = contracts.find(
     (candidate) =>
-      candidate.verified &&
       candidate.name !== null &&
       candidate.address.toLowerCase() === address.toLowerCase(),
   );
@@ -98,21 +97,23 @@ function verifiedContractName(
 }
 
 /**
- * Uses a verified Tenderly contract name when one is available. Unverified
- * names are deliberately not elevated above the raw address.
+ * Uses the review's contract name when one is available. A name only ever
+ * comes from the target's own on-chain `name()` or from our protocol registry,
+ * never from a self-reported label, so it does not need Tenderly verification
+ * to be trustworthy — `verified` stays a separate bytecode-provenance signal.
  */
 export function resolveCallTarget(
   call: Pick<PrivySimulationCall, 'to'>,
   contracts: readonly PrivySimulationContract[],
 ): string {
-  return verifiedContractName(call.to, contracts) ?? formatAddress(call.to);
+  return contractName(call.to, contracts) ?? formatAddress(call.to);
 }
 
 export function resolveAddressTarget(
   address: string,
   contracts: readonly PrivySimulationContract[],
 ): string {
-  return verifiedContractName(address, contracts) ?? formatAddress(address);
+  return contractName(address, contracts) ?? formatAddress(address);
 }
 
 /**

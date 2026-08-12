@@ -20,7 +20,11 @@ import { Logger } from '../common/logger';
 import { getErrorMessage } from '../common/utils';
 
 const TENDERLY_API_URL = 'https://api.tenderly.co/api/v1';
-const TENDERLY_TIMEOUT_MS = 10_000;
+// Heavy bundles (GMX basket: up to ~8 full-decode simulations) routinely
+// exceed 10s. Share links stay on a short budget because they are best-effort
+// and the whole review must fit the client's 60s request window.
+const TENDERLY_SIMULATE_TIMEOUT_MS = 30_000;
+const TENDERLY_SHARE_TIMEOUT_MS = 10_000;
 const TENDERLY_CALL_GAS_LIMIT = 8_000_000;
 const ADDRESS_REGEX = /^0x[0-9a-fA-F]{40}$/;
 
@@ -76,6 +80,10 @@ const RawContractSchema = z
   })
   .passthrough();
 
+// When a bundled call is invalid rather than reverting (e.g. the wallet cannot
+// cover value + gas), Tenderly halts and returns a stub entry: transaction is
+// null, simulation.id is empty, block_number is null, and the reason lives on
+// simulation.error_message.
 const RawSimulationResultSchema = z
   .object({
     transaction: z
@@ -97,14 +105,16 @@ const RawSimulationResultSchema = z
           })
           .passthrough(),
       })
-      .passthrough(),
+      .passthrough()
+      .nullable(),
     simulation: z
       .object({
-        id: z.string().min(1),
+        id: z.string(),
         status: z.union([z.boolean(), z.number()]),
         gas_used: RawIntegerSchema,
-        block_number: z.number().int().nonnegative(),
+        block_number: z.number().int().nonnegative().nullable(),
         method: z.string().optional().nullable(),
+        error_message: z.string().optional().nullable(),
       })
       .passthrough(),
     contracts: z.array(RawContractSchema).default([]),
@@ -313,19 +323,30 @@ function walletDirection(
   return null;
 }
 
-// This pipeline derives calls, assets, approvals, and warnings from shared evidence.
-// eslint-disable-next-line sonarjs/cognitive-complexity
-function normalizeReview(
-  input: Parameters<TenderlySimulationService['simulateBundle']>[0],
-  results: RawSimulationResult[],
-  shareUrls: string[],
-): TenderlySimulationReview {
-  const walletAddress = normalizeAddress(input.walletAddress);
+interface ReviewIndex {
+  contractsByAddress: Map<string, z.infer<typeof RawContractSchema>>;
+  tokenByAddress: Map<string, ExecutionSimulationToken>;
+  /**
+   * On-chain `name()` per token contract. Kept apart from `tokenByAddress`
+   * because `normalizeToken` substitutes a placeholder for nameless tokens,
+   * and a placeholder must never be shown as a contract's display name.
+   */
+  tokenNameByAddress: Map<string, string>;
+}
+
+function indexReview(results: RawSimulationResult[]): ReviewIndex {
   const contractsByAddress = new Map<
     string,
     z.infer<typeof RawContractSchema>
   >();
   const tokenByAddress = new Map<string, ExecutionSimulationToken>();
+  const tokenNameByAddress = new Map<string, string>();
+
+  const rememberToken = (address: string, rawToken: RawTokenInfo) => {
+    tokenByAddress.set(address, normalizeToken(rawToken));
+    const name = rawToken.name?.trim();
+    if (name) tokenNameByAddress.set(address, name);
+  };
 
   for (const result of results) {
     for (const rawContract of result.contracts) {
@@ -335,28 +356,42 @@ function normalizeReview(
         contractsByAddress.set(address, rawContract);
       }
       if (rawContract.token_data) {
-        tokenByAddress.set(address, normalizeToken(rawContract.token_data));
+        rememberToken(address, rawContract.token_data);
       }
     }
-    for (const rawChange of result.transaction.transaction_info.asset_changes ??
-      []) {
+    for (const rawChange of result.transaction?.transaction_info
+      .asset_changes ?? []) {
       if (rawChange.token_info.contract_address) {
-        tokenByAddress.set(
+        rememberToken(
           normalizeAddress(rawChange.token_info.contract_address),
-          normalizeToken(rawChange.token_info),
+          rawChange.token_info,
         );
       }
     }
-    for (const exposure of result.transaction.transaction_info
+    for (const exposure of result.transaction?.transaction_info
       .exposure_changes ?? []) {
       if (exposure.token_info.contract_address) {
-        tokenByAddress.set(
+        rememberToken(
           normalizeAddress(exposure.token_info.contract_address),
-          normalizeToken(exposure.token_info),
+          exposure.token_info,
         );
       }
     }
   }
+
+  return { contractsByAddress, tokenByAddress, tokenNameByAddress };
+}
+
+// This pipeline derives calls, assets, approvals, and warnings from shared evidence.
+// eslint-disable-next-line sonarjs/cognitive-complexity
+function normalizeReview(
+  input: Parameters<TenderlySimulationService['simulateBundle']>[0],
+  results: RawSimulationResult[],
+  shareUrls: string[],
+): TenderlySimulationReview {
+  const walletAddress = normalizeAddress(input.walletAddress);
+  const { contractsByAddress, tokenByAddress, tokenNameByAddress } =
+    indexReview(results);
 
   const calls: ExecutionSimulationCall[] = input.calls.map((call, index) => {
     const result = results[index];
@@ -370,7 +405,9 @@ function normalizeReview(
       );
     }
 
-    const succeeded = result.transaction.status && result.simulation.status;
+    const succeeded = Boolean(
+      result.transaction?.status && result.simulation.status,
+    );
     return {
       index,
       to: target,
@@ -378,21 +415,25 @@ function normalizeReview(
       value: BigInt(call.value ?? '0x0').toString(),
       method: methodFromCall(
         call,
-        result.transaction.method ?? result.simulation.method,
+        result.transaction?.method ?? result.simulation.method,
       ),
       status: succeeded ? 'succeeded' : 'failed',
-      gasUsed: integerString(result.transaction.gas_used),
+      gasUsed: integerString(
+        result.transaction?.gas_used ?? result.simulation.gas_used,
+      ),
       error: succeeded
         ? null
-        : result.transaction.error_message?.trim() || 'Simulation reverted',
+        : result.transaction?.error_message?.trim() ||
+          result.simulation.error_message?.trim() ||
+          'Simulation reverted',
       contractVerified: Boolean(rawContract && contractIsVerified(rawContract)),
     };
   });
 
   const assetChanges: ExecutionSimulationAssetChange[] = [];
   for (const [callIndex, result] of results.entries()) {
-    for (const rawChange of result.transaction.transaction_info.asset_changes ??
-      []) {
+    for (const rawChange of result.transaction?.transaction_info
+      .asset_changes ?? []) {
       const from = rawChange.from ? normalizeAddress(rawChange.from) : null;
       const to = rawChange.to ? normalizeAddress(rawChange.to) : null;
       if (from === walletAddress && to === walletAddress) continue;
@@ -425,7 +466,7 @@ function normalizeReview(
   const approvals: ExecutionSimulationApproval[] = [];
   for (const [callIndex, result] of results.entries()) {
     const exposureChanges =
-      result.transaction.transaction_info.exposure_changes ?? [];
+      result.transaction?.transaction_info.exposure_changes ?? [];
     if (exposureChanges.length > 0) {
       for (const exposure of exposureChanges) {
         const tokenAddress = normalizeAddress(
@@ -477,7 +518,14 @@ function normalizeReview(
     const rawContract = contractsByAddress.get(address);
     return {
       address,
-      name: rawContract?.contract_name?.trim() || null,
+      // 'quick' simulations return no contract metadata at all, so the token
+      // registry Tenderly attaches to asset/exposure changes is the only
+      // remaining name source. It reports the target's own on-chain `name()`,
+      // which covers every token and ERC-4626 vault the bundle touches.
+      name:
+        rawContract?.contract_name?.trim() ||
+        tokenNameByAddress.get(address) ||
+        null,
       verified: Boolean(rawContract && contractIsVerified(rawContract)),
       callIndexes: calls
         .filter((call) => call.to === address)
@@ -543,15 +591,22 @@ function normalizeReview(
     approvals,
     contracts,
     warnings,
-    blockNumber: results[0]?.transaction.block_number ?? null,
+    blockNumber: results[0]?.transaction?.block_number ?? null,
     callGas: results
       .reduce(
         (total, result) =>
-          total + BigInt(integerString(result.transaction.gas_used)),
+          total +
+          BigInt(
+            integerString(
+              result.transaction?.gas_used ?? result.simulation.gas_used,
+            ),
+          ),
         0n,
       )
       .toString(),
-    simulationIds: results.map((result) => result.simulation.id),
+    simulationIds: results
+      .map((result) => result.simulation.id)
+      .filter((id) => id.length > 0),
     shareUrls,
     simulationFingerprint: hashMaterial(material),
     riskHash: hashMaterial(warnings),
@@ -579,9 +634,10 @@ export function createTenderlySimulationService(config: {
   async function fetchWithTimeout(
     url: string,
     init: RequestInit,
+    timeoutMs: number,
   ): Promise<Response> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TENDERLY_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       return await fetchFn(url, { ...init, signal: controller.signal });
     } finally {
@@ -606,25 +662,41 @@ export function createTenderlySimulationService(config: {
       };
 
       let response: Response;
+      const startedAt = Date.now();
       try {
-        response = await fetchWithTimeout(`${baseUrl}/simulate-bundle`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            simulations: input.calls.map((call) => ({
-              network_id: input.chainId.toString(),
-              from: input.walletAddress,
-              to: call.to,
-              input: call.data ?? '0x',
-              value: BigInt(call.value ?? '0x0').toString(),
-              gas: TENDERLY_CALL_GAS_LIMIT,
-              save: true,
-              save_if_fails: true,
-              simulation_type: 'full',
-            })),
-          }),
-        });
+        response = await fetchWithTimeout(
+          `${baseUrl}/simulate-bundle`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              simulations: input.calls.map((call) => ({
+                network_id: input.chainId.toString(),
+                from: input.walletAddress,
+                to: call.to,
+                input: call.data ?? '0x',
+                value: BigInt(call.value ?? '0x0').toString(),
+                gas: TENDERLY_CALL_GAS_LIMIT,
+                save: true,
+                save_if_fails: true,
+                // 'quick' keeps everything the normalizer consumes (statuses,
+                // asset/exposure changes, simulation ids). 'full'/'abi' only
+                // add per-call traces and contract metadata, which reach
+                // >100MB on GMX basket bundles — more than the 256MB
+                // production instance can parse.
+                simulation_type: 'quick',
+              })),
+            }),
+          },
+          TENDERLY_SIMULATE_TIMEOUT_MS,
+        );
       } catch (error) {
+        logger.warn('Tenderly simulate-bundle failed', {
+          chainId: input.chainId,
+          callCount: input.calls.length,
+          durationMs: Date.now() - startedAt,
+          error: getErrorMessage(error),
+        });
         return unavailableReview(
           input,
           error instanceof DOMException && error.name === 'AbortError'
@@ -648,7 +720,7 @@ export function createTenderlySimulationService(config: {
         const stoppedAfterFailure =
           results.length < input.calls.length &&
           lastResult !== undefined &&
-          !(lastResult.transaction.status && lastResult.simulation.status);
+          !(lastResult.transaction?.status && lastResult.simulation.status);
         if (
           results.length > input.calls.length ||
           (results.length < input.calls.length && !stoppedAfterFailure)
@@ -670,10 +742,12 @@ export function createTenderlySimulationService(config: {
         await Promise.all(
           parsed.simulation_results.map(async (result) => {
             const simulationId = result.simulation.id;
+            if (!simulationId) return null;
             try {
               const shareResponse = await fetchWithTimeout(
                 `${baseUrl}/simulations/${simulationId}/share`,
                 { method: 'POST', headers },
+                TENDERLY_SHARE_TIMEOUT_MS,
               );
               if (!shareResponse.ok) {
                 logger.warn('Tenderly simulation sharing failed', {

@@ -8,6 +8,11 @@ import {
   PrivyPrepareSendCallsResponseSchema,
 } from '@zapengine/types/api';
 
+// Prepare/confirm re-run the Tenderly bundle simulation server-side, so they
+// outlast the default request budget; retrying would double the simulation
+// load and only delay the real error.
+const EXECUTION_REQUEST_CONFIG = { timeout: 60_000, retries: 0 } as const;
+
 export async function preparePrivyAtomicBatch(
   request: PrivyPrepareSendCallsRequest,
   accessToken: string,
@@ -16,8 +21,8 @@ export async function preparePrivyAtomicBatch(
     '/wallet-execution/privy/prepare-send-calls',
     request,
     {
+      ...EXECUTION_REQUEST_CONFIG,
       headers: { Authorization: `Bearer ${accessToken}` },
-      retries: 0,
     },
   );
 
@@ -32,8 +37,8 @@ export async function sendPrivyAtomicBatch(
     '/wallet-execution/privy/confirm-send-calls',
     request,
     {
+      ...EXECUTION_REQUEST_CONFIG,
       headers: { Authorization: `Bearer ${accessToken}` },
-      retries: 0,
     },
   );
 

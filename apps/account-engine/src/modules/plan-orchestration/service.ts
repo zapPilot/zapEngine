@@ -50,6 +50,7 @@ import type {
   TenderlySimulationReview,
   TenderlySimulationService,
 } from '../../services/tenderly-simulation.service';
+import { withProtocolContractNames } from './contractLabels';
 import {
   gasUsdFromUnits,
   sumGasUsd,
@@ -1085,6 +1086,7 @@ async function buildDepositReviewResponse(params: {
           group.id,
           {
             ...review,
+            contracts: withProtocolContractNames(review.contracts),
             groupId: group.id,
             groupFingerprint,
             batchFingerprint,

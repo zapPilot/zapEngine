@@ -316,12 +316,19 @@ describe('simulation evidence helpers', () => {
     });
   });
 
-  it('uses only verified contract names for call and spender labels', () => {
+  it('uses contract names for call and spender labels regardless of Tenderly verification', () => {
     expect(resolveCallTarget(call, contracts)).toBe('Verified Vault');
     expect(resolveAddressTarget(TARGET, contracts)).toBe('Verified Vault');
     expect(
       resolveCallTarget(call, [{ ...contracts[0]!, verified: false }]),
-    ).toBe('0x3333...3333');
+    ).toBe('Verified Vault');
+  });
+
+  it('falls back to the short address when the review carries no name', () => {
+    expect(resolveCallTarget(call, [{ ...contracts[0]!, name: null }])).toBe(
+      '0x3333...3333',
+    );
+    expect(resolveAddressTarget(TARGET, [])).toBe('0x3333...3333');
   });
 
   it('finds the approval attached to a call index', () => {
@@ -534,7 +541,7 @@ describe('resolveAssetCounterparty', () => {
     );
   });
 
-  it('falls back to a formatted short address when the counterparty is unverified', () => {
+  it('falls back to a formatted short address when no contract matches the counterparty', () => {
     const outgoingToWallet: PrivySimulationAssetChange = {
       ...outgoing,
       to: WALLET,
