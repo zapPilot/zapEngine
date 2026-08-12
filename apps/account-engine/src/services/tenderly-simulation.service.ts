@@ -71,11 +71,17 @@ const RawExposureChangeSchema = z
   })
   .passthrough();
 
+// No bytecode-verification signal is read here on purpose. 'quick' simulations
+// omit `contracts` entirely, and this Tenderly project reports an empty
+// `verified_by` even on 'full' — which the 256MB production instance cannot
+// parse anyway. Treating that silence as "unverified" flagged every call in
+// every review. Verification would have to come from a dedicated source, and
+// only the service may derive it: warnings are hashed into `riskHash`, which a
+// second rail recomputes and the client compares before signing.
 const RawContractSchema = z
   .object({
     address: z.string().regex(ADDRESS_REGEX),
     contract_name: z.string().optional().nullable(),
-    verified_by: z.string().optional().nullable(),
     token_data: RawTokenInfoSchema.optional(),
   })
   .passthrough();
@@ -235,19 +241,9 @@ function hashMaterial(value: unknown): `0x${string}` {
   return keccak256(toBytes(JSON.stringify(value)));
 }
 
-function emptyCalls(
-  calls: TenderlySimulationCall[],
-  decodeProtocolMethod: SimulationMethodDecoder | undefined,
-): ExecutionSimulationCall[] {
-  return calls.map((call, index) =>
-    skippedCall(call, index, false, decodeProtocolMethod),
-  );
-}
-
 function skippedCall(
   call: TenderlySimulationCall,
   index: number,
-  contractVerified: boolean,
   decodeProtocolMethod: SimulationMethodDecoder | undefined,
 ): ExecutionSimulationCall {
   return {
@@ -261,7 +257,6 @@ function skippedCall(
     status: 'skipped',
     gasUsed: null,
     error: null,
-    contractVerified,
   };
 }
 
@@ -270,7 +265,9 @@ function unavailableReview(
   reason: string,
   decodeProtocolMethod: SimulationMethodDecoder | undefined,
 ): TenderlySimulationReview {
-  const calls = emptyCalls(input.calls, decodeProtocolMethod);
+  const calls = input.calls.map((call, index) =>
+    skippedCall(call, index, decodeProtocolMethod),
+  );
   const warnings: ExecutionSimulationWarning[] = [];
   return {
     status: 'unavailable',
@@ -326,12 +323,6 @@ function decodeApproval(
   }
 }
 
-function contractIsVerified(
-  contract: z.infer<typeof RawContractSchema>,
-): boolean {
-  return Boolean(contract.verified_by?.trim());
-}
-
 function walletDirection(
   from: string | null,
   to: string | null,
@@ -343,7 +334,8 @@ function walletDirection(
 }
 
 interface ReviewIndex {
-  contractsByAddress: Map<string, z.infer<typeof RawContractSchema>>;
+  /** Tenderly's own label per contract, when it reports one. */
+  contractNameByAddress: Map<string, string>;
   tokenByAddress: Map<string, ExecutionSimulationToken>;
   /**
    * On-chain `name()` per token contract. Kept apart from `tokenByAddress`
@@ -354,10 +346,7 @@ interface ReviewIndex {
 }
 
 function indexReview(results: RawSimulationResult[]): ReviewIndex {
-  const contractsByAddress = new Map<
-    string,
-    z.infer<typeof RawContractSchema>
-  >();
+  const contractNameByAddress = new Map<string, string>();
   const tokenByAddress = new Map<string, ExecutionSimulationToken>();
   const tokenNameByAddress = new Map<string, string>();
 
@@ -370,9 +359,9 @@ function indexReview(results: RawSimulationResult[]): ReviewIndex {
   for (const result of results) {
     for (const rawContract of result.contracts) {
       const address = normalizeAddress(rawContract.address);
-      const existing = contractsByAddress.get(address);
-      if (!existing || contractIsVerified(rawContract)) {
-        contractsByAddress.set(address, rawContract);
+      const name = rawContract.contract_name?.trim();
+      if (name && !contractNameByAddress.has(address)) {
+        contractNameByAddress.set(address, name);
       }
       if (rawContract.token_data) {
         rememberToken(address, rawContract.token_data);
@@ -398,7 +387,7 @@ function indexReview(results: RawSimulationResult[]): ReviewIndex {
     }
   }
 
-  return { contractsByAddress, tokenByAddress, tokenNameByAddress };
+  return { contractNameByAddress, tokenByAddress, tokenNameByAddress };
 }
 
 // This pipeline derives calls, assets, approvals, and warnings from shared evidence.
@@ -410,20 +399,14 @@ function normalizeReview(
   decodeProtocolMethod: SimulationMethodDecoder | undefined,
 ): TenderlySimulationReview {
   const walletAddress = normalizeAddress(input.walletAddress);
-  const { contractsByAddress, tokenByAddress, tokenNameByAddress } =
+  const { contractNameByAddress, tokenByAddress, tokenNameByAddress } =
     indexReview(results);
 
   const calls: ExecutionSimulationCall[] = input.calls.map((call, index) => {
     const result = results[index];
     const target = normalizeAddress(call.to);
-    const rawContract = contractsByAddress.get(target);
     if (!result) {
-      return skippedCall(
-        call,
-        index,
-        Boolean(rawContract && contractIsVerified(rawContract)),
-        decodeProtocolMethod,
-      );
+      return skippedCall(call, index, decodeProtocolMethod);
     }
 
     const succeeded = Boolean(
@@ -448,7 +431,6 @@ function normalizeReview(
         : result.transaction?.error_message?.trim() ||
           result.simulation.error_message?.trim() ||
           'Simulation reverted',
-      contractVerified: Boolean(rawContract && contractIsVerified(rawContract)),
     };
   });
 
@@ -536,24 +518,20 @@ function normalizeReview(
 
   const contracts: ExecutionSimulationContract[] = Array.from(
     new Set(input.calls.map((call) => normalizeAddress(call.to))),
-  ).map((address) => {
-    const rawContract = contractsByAddress.get(address);
-    return {
-      address,
-      // 'quick' simulations return no contract metadata at all, so the token
-      // registry Tenderly attaches to asset/exposure changes is the only
-      // remaining name source. It reports the target's own on-chain `name()`,
-      // which covers every token and ERC-4626 vault the bundle touches.
-      name:
-        rawContract?.contract_name?.trim() ||
-        tokenNameByAddress.get(address) ||
-        null,
-      verified: Boolean(rawContract && contractIsVerified(rawContract)),
-      callIndexes: calls
-        .filter((call) => call.to === address)
-        .map((call) => call.index),
-    };
-  });
+  ).map((address) => ({
+    address,
+    // 'quick' simulations return no contract metadata at all, so the token
+    // registry Tenderly attaches to asset/exposure changes is the only
+    // remaining name source. It reports the target's own on-chain `name()`,
+    // which covers every token and ERC-4626 vault the bundle touches.
+    name:
+      contractNameByAddress.get(address) ??
+      tokenNameByAddress.get(address) ??
+      null,
+    callIndexes: calls
+      .filter((call) => call.to === address)
+      .map((call) => call.index),
+  }));
 
   const warnings: ExecutionSimulationWarning[] = [];
   const approvalsByCall = new Map<number, ExecutionSimulationApproval[]>();
@@ -563,14 +541,6 @@ function normalizeReview(
     approvalsByCall.set(approval.callIndex, existing);
   }
   for (const call of calls) {
-    if (!call.contractVerified) {
-      warnings.push({
-        code: 'UNVERIFIED_CONTRACT',
-        message: `Call ${call.index + 1} targets an unverified contract`,
-        callIndex: call.index,
-        address: call.to,
-      });
-    }
     const callApprovals = approvalsByCall.get(call.index) ?? [];
     for (const approval of callApprovals) {
       if (approval.unlimited) {

@@ -123,7 +123,6 @@ function contract(
   return {
     address: address('4'),
     name: 'Router Contract',
-    verified: true,
     callIndexes: [0],
     ...overrides,
   };

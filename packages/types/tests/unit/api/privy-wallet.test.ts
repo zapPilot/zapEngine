@@ -43,7 +43,6 @@ const reviewEvidence = {
       status: 'succeeded',
       gasUsed: '21000',
       error: null,
-      contractVerified: true,
     },
   ],
   assetChanges: [],
@@ -52,7 +51,6 @@ const reviewEvidence = {
     {
       address: USER,
       name: 'Example',
-      verified: true,
       callIndexes: [0],
     },
   ],
@@ -295,8 +293,8 @@ describe('PrivyPrepareSendCallsResponseSchema', () => {
         status === 'warning'
           ? [
               {
-                code: 'UNVERIFIED_CONTRACT',
-                message: 'Contract is not verified',
+                code: 'UNDECODED_METHOD',
+                message: 'Call 1 method could not be decoded',
                 callIndex: 0,
                 address: USER,
               },

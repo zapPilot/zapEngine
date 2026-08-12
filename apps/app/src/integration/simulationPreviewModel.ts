@@ -104,8 +104,7 @@ function contractName(
 /**
  * Uses the review's contract name when one is available. A name only ever
  * comes from the target's own on-chain `name()` or from our protocol registry,
- * never from a self-reported label, so it does not need Tenderly verification
- * to be trustworthy — `verified` stays a separate bytecode-provenance signal.
+ * never from a self-reported label, so it is trustworthy on its own.
  */
 export function resolveCallTarget(
   call: Pick<PrivySimulationCall, 'to'>,

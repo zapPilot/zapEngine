@@ -70,7 +70,6 @@ describe('TenderlySimulationService fetch errors', () => {
           value: '2',
           status: 'skipped',
           gasUsed: null,
-          contractVerified: false,
         }),
       ],
       shareUrls: [],

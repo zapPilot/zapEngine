@@ -49,7 +49,6 @@ const call: PrivySimulationCall = {
   status: 'succeeded',
   gasUsed: '21000',
   error: null,
-  contractVerified: true,
 };
 
 const outgoing: PrivySimulationAssetChange = {
@@ -92,7 +91,6 @@ const contracts: PrivySimulationContract[] = [
   {
     address: TARGET,
     name: 'Verified Vault',
-    verified: true,
     callIndexes: [0],
   },
 ];
@@ -316,12 +314,9 @@ describe('simulation evidence helpers', () => {
     });
   });
 
-  it('uses contract names for call and spender labels regardless of Tenderly verification', () => {
+  it('uses contract names for call and spender labels', () => {
     expect(resolveCallTarget(call, contracts)).toBe('Verified Vault');
     expect(resolveAddressTarget(TARGET, contracts)).toBe('Verified Vault');
-    expect(
-      resolveCallTarget(call, [{ ...contracts[0]!, verified: false }]),
-    ).toBe('Verified Vault');
   });
 
   it('falls back to the short address when the review carries no name', () => {

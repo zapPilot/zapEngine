@@ -1059,7 +1059,6 @@ describe('plan-orchestration service', () => {
             status: 'succeeded' as const,
             gasUsed: '21000',
             error: null,
-            contractVerified: true,
           })),
           assetChanges: [],
           approvals: [],

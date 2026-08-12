@@ -26,11 +26,7 @@ const partialTokenInfo = {
 
 function contract(
   address: string,
-  options: {
-    verified?: boolean;
-    token?: boolean;
-    partialToken?: boolean;
-  } = {},
+  options: { token?: boolean; partialToken?: boolean } = {},
 ) {
   let tokenData: typeof tokenInfo | typeof partialTokenInfo | undefined;
   if (options.token) tokenData = tokenInfo;
@@ -39,7 +35,6 @@ function contract(
   return {
     address,
     contract_name: options.token || options.partialToken ? 'Token' : 'Target',
-    verified_by: options.verified === false ? '' : 'tenderly',
     ...(tokenData ? { token_data: tokenData } : {}),
   };
 }
@@ -477,7 +472,7 @@ describe('TenderlySimulationService', () => {
                 amount: '0.00000000000000005',
               },
             ],
-            contracts: [contract(TOKEN, { verified: false, token: true })],
+            contracts: [contract(TOKEN, { token: true })],
           }),
           simulationResult({
             id: 'sim-unknown',
@@ -517,7 +512,6 @@ describe('TenderlySimulationService', () => {
       }),
     ]);
     expect(result.warnings.map((warning) => warning.code)).toEqual([
-      'UNVERIFIED_CONTRACT',
       'UNLIMITED_APPROVAL',
       'APPROVAL_EXCEEDS_SIMULATED_SPEND',
       'UNDECODED_METHOD',
@@ -786,7 +780,6 @@ describe('TenderlySimulationService', () => {
       {
         address: TARGET,
         name: 'Spark USDC Vault',
-        verified: false,
         callIndexes: [0],
       },
     ]);

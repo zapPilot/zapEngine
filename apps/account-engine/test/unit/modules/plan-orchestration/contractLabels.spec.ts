@@ -19,7 +19,7 @@ function contract(
   address: string,
   name: string | null = null,
 ): ExecutionSimulationContract {
-  return { address, name, verified: false, callIndexes: [0] };
+  return { address, name, callIndexes: [0] };
 }
 
 describe('withProtocolContractNames', () => {

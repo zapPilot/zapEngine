@@ -29,7 +29,6 @@ export const SimulationCallSchema = z
     status: z.enum(['succeeded', 'failed', 'skipped']),
     gasUsed: SimulationDecimalIntegerSchema.nullable(),
     error: z.string().min(1).nullable(),
-    contractVerified: z.boolean(),
   })
   .strict();
 
@@ -64,13 +63,11 @@ export const SimulationContractSchema = z
   .object({
     address: AddressSchema,
     name: z.string().min(1).nullable(),
-    verified: z.boolean(),
     callIndexes: z.array(z.number().int().nonnegative()),
   })
   .strict();
 
 export const SimulationWarningCodeSchema = z.enum([
-  'UNVERIFIED_CONTRACT',
   'UNDECODED_METHOD',
   'UNLIMITED_APPROVAL',
   'APPROVAL_EXCEEDS_SIMULATED_SPEND',

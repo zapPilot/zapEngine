@@ -62,7 +62,6 @@ function createCall(
     status: 'succeeded',
     gasUsed: '21000',
     error: null,
-    contractVerified: true,
     ...overrides,
   };
 }

@@ -982,7 +982,6 @@ function unavailableExecutionReview(params: {
       status: 'skipped' as const,
       gasUsed: null,
       error: null,
-      contractVerified: false,
     }),
   );
   const warnings: [] = [];

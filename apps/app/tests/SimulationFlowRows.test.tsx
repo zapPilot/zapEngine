@@ -78,7 +78,6 @@ function createContract(
   return {
     address: SPENDER,
     name: 'Router',
-    verified: true,
     callIndexes: [0],
     ...overrides,
   };
@@ -145,11 +144,7 @@ describe('SimulationFlowRows', () => {
     await render({
       approvals: [createApproval({ spender: SPENDER })],
       contracts: [
-        createContract({
-          address: SPENDER.toUpperCase(),
-          verified: false,
-          name: 'Router',
-        }),
+        createContract({ address: SPENDER.toUpperCase(), name: 'Router' }),
       ],
     });
 
@@ -227,9 +222,7 @@ describe('SimulationFlowRows', () => {
   it('labels outgoing rows with the "to" counterparty resolved to its name', async () => {
     await render({
       outgoing: [createAssetChange({ direction: 'out', to: RECIPIENT })],
-      contracts: [
-        createContract({ address: RECIPIENT, verified: false, name: 'Vault' }),
-      ],
+      contracts: [createContract({ address: RECIPIENT, name: 'Vault' })],
     });
 
     expect(container.textContent ?? '').toContain('to Vault');
@@ -238,9 +231,7 @@ describe('SimulationFlowRows', () => {
   it('labels incoming rows with the "from" counterparty resolved to its name', async () => {
     await render({
       incoming: [createAssetChange({ direction: 'in', from: SENDER })],
-      contracts: [
-        createContract({ address: SENDER, verified: false, name: 'Vault' }),
-      ],
+      contracts: [createContract({ address: SENDER, name: 'Vault' })],
     });
 
     expect(container.textContent ?? '').toContain('from Vault');

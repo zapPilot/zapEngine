@@ -58,7 +58,6 @@ function simulationService(): TenderlySimulationService {
           status: 'succeeded',
           gasUsed: '21000',
           error: null,
-          contractVerified: true,
         },
       ],
       assetChanges: [],
@@ -67,7 +66,6 @@ function simulationService(): TenderlySimulationService {
         {
           address: batch.calls[0]!.to,
           name: 'Target',
-          verified: true,
           callIndexes: [0],
         },
       ],
