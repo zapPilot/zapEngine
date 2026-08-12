@@ -23,9 +23,10 @@ interface FundingSourceSelectorProps extends Omit<
  * accidentally rendering a non-interactive funding token.
  */
 export function FundingSourceSelector({
-  chainLabel,
+  chainKey,
   allocation,
   protocol,
+  venue,
   tokens,
   token,
   tokenAmount,
@@ -41,9 +42,10 @@ export function FundingSourceSelector({
   return (
     <>
       <FundingSourceCard
-        chainLabel={chainLabel}
+        chainKey={chainKey}
         allocation={allocation}
         protocol={protocol}
+        venue={venue}
         token={token}
         tokenAmount={tokenAmount}
         hasAmount={hasAmount}
@@ -54,7 +56,7 @@ export function FundingSourceSelector({
       />
       <ChainTokenSelectorSheet
         visible={isOpen}
-        chainLabel={chainLabel}
+        chainKey={chainKey}
         tokens={tokens}
         rows={rows}
         balanceState={balanceState}

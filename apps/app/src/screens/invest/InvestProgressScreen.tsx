@@ -1,4 +1,5 @@
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
+import { CHAIN_BRAND, chainBrandKeyForChainId } from '@zapengine/brand-assets';
 import { Redirect, useRouter } from 'expo-router';
 import { Check, Circle, LoaderCircle, X } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
@@ -158,6 +159,12 @@ export function InvestProgressScreen() {
   const [checkpointPending, setCheckpointPending] = useState(false);
   const [checkpointError, setCheckpointError] = useState<string | null>(null);
   const [checkpointNow, setCheckpointNow] = useState(() => Date.now());
+  const submittedChainKey = reviewedSubmission
+    ? chainBrandKeyForChainId(reviewedSubmission.chainId)
+    : undefined;
+  const submittedChainLabel = submittedChainKey
+    ? CHAIN_BRAND[submittedChainKey].label
+    : `chain ${reviewedSubmission?.chainId ?? '—'}`;
 
   useEffect(() => {
     if (reviewedProgress?.phase !== 'checkpoint') return;
@@ -352,7 +359,7 @@ export function InvestProgressScreen() {
             </Text>
             <Text className="mt-1 text-[11px] leading-[16px] text-ink-dim">
               Calls {reviewedSubmission.callsId.slice(0, 14)}… submitted on{' '}
-              {reviewedSubmission.chainId === 8453 ? 'Base' : 'Arbitrum'}.
+              {submittedChainLabel}.
             </Text>
             {reviewedCheckpoint ? (
               <>

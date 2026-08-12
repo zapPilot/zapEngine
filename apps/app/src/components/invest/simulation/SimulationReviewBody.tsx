@@ -7,8 +7,11 @@ import {
   SimulationBlockingBanner,
 } from '@/components/invest/simulation/SimulationReviewPrimitives';
 import { SimulationTenderlyEvidence } from '@/components/invest/simulation/SimulationTenderlyEvidence';
+import { ChainMark } from '@/components/token/ChainMark';
+import { ProtocolIcon } from '@/components/token/ProtocolIcon';
 import {
   partitionAssetChanges,
+  simulationChainKey,
   simulationChainLabel,
   type RouteProtocolContext,
 } from '@/integration/simulationPreviewModel';
@@ -26,7 +29,8 @@ function BlockingBanner({ review }: { review: DepositReviewGroup }) {
 
 function ProtocolChip({ protocol }: { protocol: RouteProtocolContext }) {
   return (
-    <View className="flex-row items-center gap-1.5 rounded-full border border-line px-3 py-1.5">
+    <View className="flex-row items-center gap-1.5 rounded-full border border-line py-1 pl-1 pr-3">
+      <ProtocolIcon protocol={protocol.protocol} size={20} />
       <Text
         className="font-sans-medium text-[10.5px] text-ink"
         numberOfLines={1}
@@ -56,15 +60,16 @@ export function SimulationReviewBody({
   protocols,
 }: SimulationReviewBodyProps) {
   const { incoming, outgoing } = partitionAssetChanges(review.assetChanges);
+  const chainKey = simulationChainKey(review.chainId);
 
   return (
     <View className="gap-5">
       <View className="flex-row flex-wrap items-center gap-2">
-        <View className="flex-row items-center gap-2 rounded-full border border-line px-3 py-1.5">
+        <View className="flex-row items-center gap-2 rounded-full border border-line py-1 pl-1.5 pr-3">
+          {chainKey ? <ChainMark chainKey={chainKey} size={17} /> : null}
           <Text className="font-sans-medium text-[10.5px] text-ink">
             {simulationChainLabel(review.chainId)}
           </Text>
-          <View className="h-2 w-2 rounded-full bg-usd" />
         </View>
         {protocols.map((protocol) => (
           <ProtocolChip key={protocol.id} protocol={protocol} />

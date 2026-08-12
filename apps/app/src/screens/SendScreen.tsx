@@ -21,11 +21,7 @@ import { useAccount } from '@/integration/useAccount';
 import { useWalletAssets } from '@/integration/walletTokens';
 import { formatUsd } from '@/lib/format';
 
-const SEND_FALLBACK_TOKEN = {
-  glyph: '$',
-  iconBg: '#2775ca',
-  symbol: 'USDC',
-} as const;
+const SEND_FALLBACK_TOKEN_SYMBOL = 'USDC';
 
 export function SendScreen() {
   const params = useLocalSearchParams<{ token?: string }>();
@@ -71,8 +67,7 @@ export function SendScreen() {
           {selectedAsset ? (
             <View className="flex-row items-center gap-3">
               <TokenIcon
-                glyph={selectedAsset.glyph}
-                bg={selectedAsset.iconBg}
+                symbol={selectedAsset.symbol}
                 alt={selectedAsset.symbol}
               />
               <View className="flex-1">
@@ -90,9 +85,8 @@ export function SendScreen() {
           ) : (
             <View className="flex-row items-center gap-3">
               <TokenIcon
-                glyph={SEND_FALLBACK_TOKEN.glyph}
-                bg={SEND_FALLBACK_TOKEN.iconBg}
-                alt={SEND_FALLBACK_TOKEN.symbol}
+                symbol={SEND_FALLBACK_TOKEN_SYMBOL}
+                alt={SEND_FALLBACK_TOKEN_SYMBOL}
               />
               <Text className="font-sans-semibold text-[15px] text-ink">
                 No tokens found

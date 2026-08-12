@@ -542,8 +542,7 @@ export function InvestAmountScreen() {
               ) : (
                 <TokenSelectorPill
                   symbol={activeFundingToken.symbol}
-                  glyph={activeFundingToken.glyph}
-                  iconBg={activeFundingToken.iconBg}
+                  chainKey={activeFundingToken.chainKey}
                   accessibilityLabel={`Select ${activeChainLabel} funding token`}
                   onPress={() =>
                     setSingleChainTokenSelector(
@@ -585,9 +584,10 @@ export function InvestAmountScreen() {
             {invest.scope !== 'arbitrum' ? (
               isBoth ? (
                 <FundingSourceSelector
-                  chainLabel="Base"
+                  chainKey="base"
                   allocation="40%"
-                  protocol="Morpho · Moonwell USDC"
+                  protocol="morpho"
+                  venue="Moonwell USDC"
                   tokens={BASE_DEPOSIT_TOKENS}
                   token={invest.baseFundingToken}
                   tokenAmount={baseTokenAmount}
@@ -600,9 +600,10 @@ export function InvestAmountScreen() {
                 />
               ) : (
                 <FundingSourceCard
-                  chainLabel="Base"
+                  chainKey="base"
                   allocation="100%"
-                  protocol="Morpho · Moonwell USDC"
+                  protocol="morpho"
+                  venue="Moonwell USDC"
                   token={invest.baseFundingToken}
                   tokenAmount={baseTokenAmount}
                   hasAmount={amountUsd !== null}
@@ -616,9 +617,10 @@ export function InvestAmountScreen() {
             {invest.scope !== 'base' ? (
               isBoth ? (
                 <FundingSourceSelector
-                  chainLabel="Arbitrum"
+                  chainKey="arbitrum"
                   allocation="60%"
-                  protocol="GMX · BTC/USDC + ETH/USDC"
+                  protocol="gmx-v2"
+                  venue="BTC/USDC + ETH/USDC"
                   tokens={ARBITRUM_DEPOSIT_TOKENS}
                   token={activeArbitrumFundingToken}
                   tokenAmount={arbitrumTokenAmount}
@@ -631,9 +633,10 @@ export function InvestAmountScreen() {
                 />
               ) : (
                 <FundingSourceCard
-                  chainLabel="Arbitrum"
+                  chainKey="arbitrum"
                   allocation="100%"
-                  protocol="GMX · BTC/BTC + ETH/ETH + BTC/USDC + ETH/USDC"
+                  protocol="gmx-v2"
+                  venue="4 GM pools"
                   token={activeArbitrumFundingToken}
                   tokenAmount={arbitrumTokenAmount}
                   hasAmount={amountUsd !== null}
@@ -683,7 +686,7 @@ export function InvestAmountScreen() {
 
       <ChainTokenSelectorSheet
         visible={!isBoth && singleChainTokenSelector !== null}
-        chainLabel={activeChainLabel}
+        chainKey={activeFundingToken.chainKey}
         tokens={activeFundingTokens}
         rows={balances.chainRows}
         balanceState={isBaseOnly ? baseBalanceState : arbitrumBalanceState}

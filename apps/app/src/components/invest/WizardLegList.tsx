@@ -1,5 +1,6 @@
 import { Linking, Text, View } from 'react-native';
 
+import { ChainMark } from '@/components/token/ChainMark';
 import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { Tap } from '@/components/ui/Tap';
@@ -28,10 +29,9 @@ export function WizardLegList({ rows }: { rows: WizardLegRow[] }) {
           className={index > 0 ? 'mt-3 border-t border-line pt-3' : ''}
         >
           <View className="flex-row items-center gap-2.5">
-            <View
-              className="h-2 w-2 rounded-full"
-              style={{ backgroundColor: row.dotColor }}
-            />
+            {row.chainKey ? (
+              <ChainMark chainKey={row.chainKey} size={16} labelled />
+            ) : null}
             <Text className="flex-1 text-[13.5px] text-ink">{row.title}</Text>
             <Pill className={TONE_CLASSES[row.statusTone]}>
               {row.statusLabel}

@@ -362,6 +362,9 @@ importers:
       '@zapengine/app-core':
         specifier: workspace:*
         version: link:../../packages/app-core
+      '@zapengine/brand-assets':
+        specifier: workspace:*
+        version: link:../../packages/brand-assets
       '@zapengine/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
@@ -591,6 +594,9 @@ importers:
       '@next/third-parties':
         specifier: ^15.3.4
         version: 15.5.19(next@15.5.22(@babel/core@7.29.7)(@playwright/test@1.60.0)(@types/node@22.19.21)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)
+      '@zapengine/brand-assets':
+        specifier: workspace:*
+        version: link:../../packages/brand-assets
       '@zapengine/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -876,6 +882,42 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 4.1.8(@types/node@22.19.21)(@vitest/coverage-v8@4.1.8)(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@5.0.10))(vite@7.3.5(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  packages/brand-assets:
+    devDependencies:
+      '@resvg/resvg-js':
+        specifier: 2.6.2
+        version: 2.6.2
+      '@vitest/coverage-v8':
+        specifier: 'catalog:'
+        version: 4.1.8(vitest@4.1.8)
+      '@zapengine/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@zapengine/knip-config':
+        specifier: workspace:*
+        version: link:../knip-config
+      '@zapengine/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      eslint:
+        specifier: 'catalog:'
+        version: 9.39.4(jiti@2.7.0)
+      knip:
+        specifier: 'catalog:'
+        version: 5.88.1(@types/node@26.1.1)(typescript@5.9.3)
+      prettier:
+        specifier: 'catalog:'
+        version: 3.8.4
+      sharp:
+        specifier: '>=0.35.0'
+        version: 0.35.3(@types/node@26.1.1)
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.8(@types/node@26.1.1)(@vitest/coverage-v8@4.1.8)(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))(vite@7.3.5(@types/node@26.1.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/design-tokens:
     devDependencies:
@@ -28075,6 +28117,39 @@ snapshots:
       '@img/sharp-win32-ia32': 0.35.3
       '@img/sharp-win32-x64': 0.35.3
       '@types/node': 22.19.21
+
+  sharp@0.35.3(@types/node@26.1.1):
+    dependencies:
+      '@img/colour': 1.1.0
+      detect-libc: 2.1.2
+      semver: 7.8.5
+    optionalDependencies:
+      '@img/sharp-darwin-arm64': 0.35.3
+      '@img/sharp-darwin-x64': 0.35.3
+      '@img/sharp-freebsd-wasm32': 0.35.3
+      '@img/sharp-libvips-darwin-arm64': 1.3.2
+      '@img/sharp-libvips-darwin-x64': 1.3.2
+      '@img/sharp-libvips-linux-arm': 1.3.2
+      '@img/sharp-libvips-linux-arm64': 1.3.2
+      '@img/sharp-libvips-linux-ppc64': 1.3.2
+      '@img/sharp-libvips-linux-riscv64': 1.3.2
+      '@img/sharp-libvips-linux-s390x': 1.3.2
+      '@img/sharp-libvips-linux-x64': 1.3.2
+      '@img/sharp-libvips-linuxmusl-arm64': 1.3.2
+      '@img/sharp-libvips-linuxmusl-x64': 1.3.2
+      '@img/sharp-linux-arm': 0.35.3
+      '@img/sharp-linux-arm64': 0.35.3
+      '@img/sharp-linux-ppc64': 0.35.3
+      '@img/sharp-linux-riscv64': 0.35.3
+      '@img/sharp-linux-s390x': 0.35.3
+      '@img/sharp-linux-x64': 0.35.3
+      '@img/sharp-linuxmusl-arm64': 0.35.3
+      '@img/sharp-linuxmusl-x64': 0.35.3
+      '@img/sharp-webcontainers-wasm32': 0.35.3
+      '@img/sharp-win32-arm64': 0.35.3
+      '@img/sharp-win32-ia32': 0.35.3
+      '@img/sharp-win32-x64': 0.35.3
+      '@types/node': 26.1.1
 
   shebang-command@2.0.0:
     dependencies:

@@ -1,14 +1,20 @@
+import { CHAIN_BRAND, type ChainBrandKey } from '@zapengine/brand-assets';
 import { Text, View } from 'react-native';
 
 import { TokenSelectorPill } from '@/components/invest/TokenSelectorPill';
+import { ChainMark } from '@/components/token/ChainMark';
+import { ProtocolIcon } from '@/components/token/ProtocolIcon';
 import type { DesktopDepositToken } from '@/integration/depositTokens';
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
 import { formatTokenBalance, formatUsd } from '@/lib/format';
 
 export interface FundingSourceCardProps {
-  chainLabel: string;
+  chainKey: ChainBrandKey;
   allocation: string;
+  /** Protocol id behind the venue mark, e.g. `morpho`. */
   protocol: string;
+  /** What inside the protocol the money lands in, e.g. `Moonwell USDC`. */
+  venue: string;
   token: DesktopDepositToken;
   tokenAmount: number | null;
   hasAmount: boolean;
@@ -31,9 +37,10 @@ function formattedTokenAmount(
 }
 
 export function FundingSourceCard({
-  chainLabel,
+  chainKey,
   allocation,
   protocol,
+  venue,
   token,
   tokenAmount,
   hasAmount,
@@ -42,9 +49,12 @@ export function FundingSourceCard({
   balanceState,
   onSelectToken,
 }: FundingSourceCardProps) {
+  const chainLabel = CHAIN_BRAND[chainKey].label;
+
   return (
     <View className="rounded-[22px] border border-line bg-[#111113] p-4">
       <View className="flex-row items-center gap-2">
+        <ChainMark chainKey={chainKey} size={16} />
         <Text className="font-sans-semibold text-[12px] text-ink">
           {chainLabel}
         </Text>
@@ -53,12 +63,17 @@ export function FundingSourceCard({
             {allocation}
           </Text>
         </View>
-        <Text
-          className="min-w-0 flex-1 text-right text-[11px] text-ink-dim"
-          numberOfLines={1}
-        >
-          {protocol}
-        </Text>
+        {/* The mark carries the protocol; the text keeps the market that a
+            mark alone cannot disambiguate. */}
+        <View className="min-w-0 flex-1 flex-row items-center justify-end gap-1.5">
+          <ProtocolIcon protocol={protocol} size={20} labelled />
+          <Text
+            className="min-w-0 shrink text-[11px] text-ink-dim"
+            numberOfLines={1}
+          >
+            {venue}
+          </Text>
+        </View>
       </View>
 
       <View className="mt-3 flex-row items-center justify-between gap-3">
@@ -71,8 +86,7 @@ export function FundingSourceCard({
         </Text>
         <TokenSelectorPill
           symbol={token.symbol}
-          glyph={token.glyph}
-          iconBg={token.iconBg}
+          chainKey={chainKey}
           accessibilityLabel={
             onSelectToken
               ? `Select ${chainLabel} funding token`

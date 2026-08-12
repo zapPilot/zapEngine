@@ -30,9 +30,6 @@ export interface BaseChainConfig {
     etherscan?: { name: string; url: string };
   };
 
-  /** Chain icon/logo URL */
-  iconUrl?: string;
-
   /** Native currency details */
   nativeCurrency: {
     name: string;

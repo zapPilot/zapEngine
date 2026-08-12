@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { TOKEN_BRAND } from '@zapengine/brand-assets';
 import {
   getMoralisWalletHistory,
   getSupportedMoralisWalletSymbol,
@@ -55,23 +56,9 @@ const MORALIS_WALLET_CHAINS = [
   },
 ] as const satisfies readonly ChainConfig[];
 
-const TOKEN_META: Record<
-  SupportedWalletSymbol,
-  { name: string; iconBg: string; glyph: string }
-> = {
-  USDC: { name: 'USD Coin', iconBg: '#2775ca', glyph: '$' },
-  USDT: { name: 'Tether USD', iconBg: '#26a17b', glyph: '₮' },
-  ETH: { name: 'Ethereum', iconBg: '#2a2a30', glyph: 'Ξ' },
-  WETH: { name: 'Wrapped Ether', iconBg: '#627eea', glyph: 'Ξ' },
-  WBTC: { name: 'Wrapped Bitcoin', iconBg: '#f7931a', glyph: '₿' },
-  CBBTC: { name: 'Coinbase Wrapped BTC', iconBg: '#0052ff', glyph: '₿' },
-};
-
-function tokenIconSrcFor(symbol: SupportedWalletSymbol): string {
-  if (symbol === 'CBBTC') {
-    return '/tokens/wbtc.svg';
-  }
-  return `/tokens/${symbol.toLowerCase()}.svg`;
+/** Fallback name for a balance the indexer returned without one. */
+function tokenBrandName(symbol: SupportedWalletSymbol): string {
+  return TOKEN_BRAND[symbol].label;
 }
 
 const CHAIN_BY_MORALIS = new Map(
@@ -85,7 +72,6 @@ export interface DesktopWalletAsset extends DemoAsset {
   symbol: SupportedWalletSymbol;
   rawAmount: number;
   usdPrice: number | null;
-  iconSrc?: string;
   holdings: DesktopWalletAssetHolding[];
 }
 
@@ -116,9 +102,6 @@ export interface ChainTokenBalanceRow {
   token: {
     symbol: SupportedWalletSymbol;
     name: string;
-    iconBg: string;
-    glyph: string;
-    iconSrc: string;
   };
 }
 
@@ -126,8 +109,6 @@ export interface InvestableBalanceRow {
   token: {
     symbol: SupportedWalletSymbol;
     name: string;
-    iconBg: string;
-    glyph: string;
   };
   chains: DesktopChainKey[];
   depositToken: DesktopDepositToken | null;
@@ -352,7 +333,6 @@ function aggregateChainBalance(
     return;
   }
 
-  const meta = TOKEN_META[symbol];
   const definition = getSupportedWalletTokenDefinition(symbol);
   const tokenAddress =
     typeof balance.token_address === 'string' && balance.token_address.trim()
@@ -394,7 +374,7 @@ function aggregateChainBalance(
       name:
         typeof balance.name === 'string' && balance.name.trim()
           ? balance.name.trim()
-          : meta.name,
+          : tokenBrandName(symbol),
     });
   }
 }
@@ -409,7 +389,6 @@ export function buildChainTokenBalanceRows(
           (candidate) => candidate.chainId === holding.chainId,
         );
         const holdingAmount = numberFrom(holding.balance) ?? 0;
-        const meta = TOKEN_META[asset.symbol];
         return {
           id: `${holding.chainId}:${asset.symbol}`,
           chain: holding.chain,
@@ -428,10 +407,7 @@ export function buildChainTokenBalanceRows(
           usdPrice: usdPriceFor(holdingAmount, holding.usdValue),
           token: {
             symbol: asset.symbol,
-            name: asset.name || meta.name,
-            iconBg: asset.iconBg,
-            glyph: asset.glyph,
-            iconSrc: asset.iconSrc ?? tokenIconSrcFor(asset.symbol),
+            name: asset.name || tokenBrandName(asset.symbol),
           },
         } satisfies ChainTokenBalanceRow;
       }),
@@ -465,7 +441,6 @@ export function buildDesktopWalletAssets(
 
   return Array.from(grouped.entries())
     .map(([symbol, entry]) => {
-      const meta = TOKEN_META[symbol];
       const usdValue = entry.usdValue > 0 ? entry.usdValue : null;
       return {
         symbol,
@@ -479,9 +454,6 @@ export function buildDesktopWalletAssets(
             (holding): holding is DesktopWalletAssetHolding =>
               holding !== undefined,
           ),
-        iconBg: meta.iconBg,
-        glyph: meta.glyph,
-        iconSrc: tokenIconSrcFor(symbol),
         rawAmount: entry.amount,
         usdPrice: usdPriceFor(entry.amount, usdValue),
       };
@@ -505,13 +477,10 @@ export function buildInvestableBalanceRows(
 ): InvestableBalanceRow[] {
   return assets.map((asset) => {
     const depositToken = depositTokenFor(asset);
-    const meta = TOKEN_META[asset.symbol];
     return {
       token: {
         symbol: asset.symbol,
-        name: asset.name || meta.name,
-        iconBg: asset.iconBg,
-        glyph: asset.glyph,
+        name: asset.name || tokenBrandName(asset.symbol),
       },
       chains: asset.chains,
       depositToken,
