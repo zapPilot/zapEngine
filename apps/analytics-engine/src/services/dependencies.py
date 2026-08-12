@@ -463,17 +463,11 @@ RollingAnalyticsServiceDep = Annotated[
 YieldReturnServiceDep = Annotated[
     YieldReturnServiceProtocol, Depends(get_yield_return_service)
 ]
-PoolPerformanceServiceDep = Annotated[
-    PoolPerformanceServiceProtocol, Depends(get_pool_performance_service)
-]
 PortfolioSnapshotServiceDep = Annotated[
     PortfolioSnapshotServiceProtocol, Depends(get_portfolio_snapshot_service)
 ]
 MarketSentimentServiceDep = Annotated[
     MarketSentimentServiceProtocol, Depends(get_market_sentiment_service)
-]
-SentimentDatabaseServiceDep = Annotated[
-    SentimentDatabaseServiceProtocol, Depends(get_sentiment_database_service)
 ]
 TokenPriceServiceDep = Annotated[
     TokenPriceServiceProtocol, Depends(get_token_price_service)

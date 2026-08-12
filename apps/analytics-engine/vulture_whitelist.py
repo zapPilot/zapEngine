@@ -172,7 +172,6 @@ _.get_snapshot_date_range  # unused method (src/services/interfaces/snapshot.py:
 _.get_snapshot_count  # unused method (src/services/market/token_price_service.py:228)
 _.validate_origins  # unused method (src/core/config.py:363)
 get_market_sentiment_health  # unused function (src/api/routers/market.py:128)
-get_pool_performance_v2  # unused function (src/api/routers/v2_pools.py:16)
 _.validate_snapshot_consistency  # unused method (src/services/interfaces/snapshot.py:79)
 _.validate_snapshot_consistency  # unused method (src/services/portfolio/canonical_snapshot_service.py:168)
 _.get_wallet_token_summary  # unused method (src/services/portfolio/wallet_service.py:64)
