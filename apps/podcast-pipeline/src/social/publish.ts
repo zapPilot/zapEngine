@@ -6,7 +6,6 @@ import {
 import type {
   BrowserPublisher,
   GeneratedSocialCopy,
-  SocialLanguage,
   SocialPlatform,
 } from './types.js';
 
@@ -19,7 +18,6 @@ export interface PublishPlatformOutcome {
 
 export async function publishSocialPlatforms(input: {
   episodeId: string;
-  language: SocialLanguage;
   platforms: SocialPlatform[];
   force: boolean;
   copy: GeneratedSocialCopy;
@@ -34,12 +32,7 @@ export async function publishSocialPlatforms(input: {
 
   for (const platform of input.platforms) {
     const state = await readPublishState(input.statePath);
-    const existing = getPublishedPlatform(
-      state,
-      input.episodeId,
-      input.language,
-      platform,
-    );
+    const existing = getPublishedPlatform(state, input.episodeId, platform);
     if (existing && !input.force) {
       log(`[${platform}] already published — skipping.`);
       outcomes.push({
@@ -61,7 +54,6 @@ export async function publishSocialPlatforms(input: {
 
       await markPlatformPublished({
         episodeId: input.episodeId,
-        language: input.language,
         platform,
         result: {
           published: true,

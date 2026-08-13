@@ -38,7 +38,6 @@ describe('prepareSocialVideo', () => {
 
     const prepared = await prepareSocialVideo({
       episodeId: EPISODE_ID,
-      language: 'zh',
       url: 'https://media.example.com/video.mp4',
     });
 
@@ -58,7 +57,6 @@ describe('prepareSocialVideo', () => {
     await expect(
       prepareSocialVideo({
         episodeId: EPISODE_ID,
-        language: 'zh',
         url: 'https://media.example.com/video.mp4',
       }),
     ).rejects.toThrow('Downloaded social video is empty.');
@@ -81,7 +79,6 @@ describe('prepareSocialVideo', () => {
     await expect(
       prepareSocialVideo({
         episodeId: EPISODE_ID,
-        language: 'zh',
         url: 'https://media.example.com/video.mp4',
       }),
     ).rejects.toThrow('stream failed');

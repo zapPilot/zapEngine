@@ -43,7 +43,6 @@ describe('publishSocialPlatforms', () => {
 
     const outcomes = await publishSocialPlatforms({
       episodeId: 'episode-1',
-      language: 'zh',
       platforms: ['x', 'rednote'],
       force: false,
       copy,
@@ -62,10 +61,8 @@ describe('publishSocialPlatforms', () => {
       episodeUrl: EPISODE_URL,
     });
     const state = await readPublishState(path);
-    expect(getPublishedPlatform(state, 'episode-1', 'zh', 'x')).toBeDefined();
-    expect(
-      getPublishedPlatform(state, 'episode-1', 'zh', 'rednote'),
-    ).toBeDefined();
+    expect(getPublishedPlatform(state, 'episode-1', 'x')).toBeDefined();
+    expect(getPublishedPlatform(state, 'episode-1', 'rednote')).toBeDefined();
   });
 
   it('keeps X success when Rednote fails and skips X on retry', async () => {
@@ -80,7 +77,6 @@ describe('publishSocialPlatforms', () => {
 
     const first = await publishSocialPlatforms({
       episodeId: 'episode-1',
-      language: 'zh',
       platforms: ['x', 'rednote'],
       force: false,
       copy,
@@ -100,7 +96,6 @@ describe('publishSocialPlatforms', () => {
     };
     const retry = await publishSocialPlatforms({
       episodeId: 'episode-1',
-      language: 'zh',
       platforms: ['x', 'rednote'],
       force: false,
       copy,
@@ -127,7 +122,6 @@ describe('publishSocialPlatforms', () => {
 
     const outcomes = await publishSocialPlatforms({
       episodeId: 'episode-1',
-      language: 'zh',
       platforms: ['x', 'rednote'],
       force: false,
       copy,
@@ -142,9 +136,7 @@ describe('publishSocialPlatforms', () => {
       'published',
     ]);
     const state = await readPublishState(path);
-    expect(getPublishedPlatform(state, 'episode-1', 'zh', 'x')).toBeUndefined();
-    expect(
-      getPublishedPlatform(state, 'episode-1', 'zh', 'rednote'),
-    ).toBeDefined();
+    expect(getPublishedPlatform(state, 'episode-1', 'x')).toBeUndefined();
+    expect(getPublishedPlatform(state, 'episode-1', 'rednote')).toBeDefined();
   });
 });
