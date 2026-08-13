@@ -38,7 +38,7 @@ def _build_backtest_http_error(error: Exception) -> HTTPException:
         "param schemas and curated default params."
     ),
 )
-async def list_backtesting_strategies_v3() -> BacktestStrategyCatalogResponseV3:
+def list_backtesting_strategies_v3() -> BacktestStrategyCatalogResponseV3:
     return build_strategy_catalog_response()
 
 

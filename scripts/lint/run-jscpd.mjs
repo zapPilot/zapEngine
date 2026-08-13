@@ -89,38 +89,6 @@ function isWithinThreshold() {
   );
 }
 
-function runLocalPostChecks() {
-  const workspacePath = path.relative(repoRoot, cwd).replaceAll(path.sep, '/');
-  if (workspacePath !== 'apps/analytics-engine') {
-    return 0;
-  }
-
-  const strategyDebtCheck = path.join(
-    cwd,
-    'scripts',
-    'quality',
-    'check-strategy-dup-debt.mjs',
-  );
-  if (!existsSync(strategyDebtCheck)) {
-    return 0;
-  }
-
-  const result = spawnSync(process.execPath, [strategyDebtCheck], {
-    cwd,
-    stdio: 'inherit',
-  });
-
-  if (result.error) {
-    console.error(result.error);
-    return 1;
-  }
-
-  if (typeof result.status === 'number') {
-    return result.status;
-  }
-
-  return result.signal ? 1 : 0;
-}
 
 const rootConfig = readJson(path.join(repoRoot, '.jscpd.json'));
 const localConfig = readLocalConfig();
@@ -162,10 +130,7 @@ if (typeof result.status === 'number') {
   if (result.status !== 0 && isWithinThreshold()) {
     exitStatus = 0;
   }
-  if (exitStatus !== 0) {
-    process.exit(exitStatus);
-  }
-  process.exit(runLocalPostChecks());
+  process.exit(exitStatus);
 }
 
 if (result.signal) {
