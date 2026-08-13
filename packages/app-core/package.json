@@ -106,10 +106,6 @@
       "types": "./dist/lib/bundle/index.d.ts",
       "import": "./dist/lib/bundle/index.js"
     },
-    "./lib/ui": {
-      "types": "./dist/lib/ui/index.d.ts",
-      "import": "./dist/lib/ui/index.js"
-    },
     "./providers/walletContext": {
       "types": "./dist/providers/walletContext.d.ts",
       "import": "./dist/providers/walletContext.js"

@@ -30,6 +30,14 @@ describe('wallet manager utils', () => {
     });
   });
 
+  it('yields an empty anonymous identity when neither id is known', () => {
+    expect(getWalletManagerIdentity(undefined, undefined)).toEqual({
+      realUserId: '',
+      viewingUserId: '',
+      isOwnerView: false,
+    });
+  });
+
   it('keeps anonymous views non-owner even when a url user exists', () => {
     expect(getWalletManagerIdentity('shared-user', undefined)).toEqual({
       realUserId: '',

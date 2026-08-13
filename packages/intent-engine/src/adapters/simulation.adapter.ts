@@ -1,25 +1,6 @@
 import { z } from 'zod';
 
-import type {
-  PreparedTransaction,
-  SimulationResult,
-} from '../types/transaction.types.js';
-
-/**
- * Interface for transaction simulation adapters
- */
-export interface SimulationAdapter {
-  simulate(tx: PreparedTransaction): Promise<SimulationResult>;
-}
-
-/**
- * No-op simulation adapter for environments without simulation
- */
-export class NoopSimulationAdapter implements SimulationAdapter {
-  async simulate(_tx: PreparedTransaction): Promise<SimulationResult> {
-    return { success: true };
-  }
-}
+import type { PreparedTransaction } from '../types/transaction.types.js';
 
 // ---------------------------------------------------------------------------
 // Bundle simulation — the fail-closed gate contract used by
