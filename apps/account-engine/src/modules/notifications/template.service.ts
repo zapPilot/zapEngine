@@ -17,6 +17,8 @@ export interface EmailMetrics {
   weeklyPnLPercentage?: number;
 }
 
+const PLACEHOLDER_PATTERN = /\{\{(\w+)\}\}/g;
+
 export class TemplateService {
   private readonly logger = new Logger(TemplateService.name);
   private readonly templatesPath = path.join(process.cwd(), 'templates');
@@ -112,18 +114,23 @@ export class TemplateService {
   }
 
   /**
-   * Replace template placeholders with actual values
+   * Replace template placeholders with actual values.
+   *
+   * One pass over the template instead of one compiled RegExp and one full
+   * scan per variable. The callback form also stops `$&`-style sequences in a
+   * value (a wallet address, a formatted amount) from being read as replacement
+   * patterns, and stops one value's text from being re-scanned for another
+   * placeholder. Unknown placeholders are left untouched, as before.
    */
   private interpolateTemplate(
     template: string,
     variables: Record<string, string>,
   ): string {
-    let result = template;
-    for (const [key, value] of Object.entries(variables)) {
-      const regex = new RegExp(`{{${key}}}`, 'g');
-      result = result.replace(regex, value);
-    }
-    return result;
+    return template.replace(PLACEHOLDER_PATTERN, (match, key: string) =>
+      Object.prototype.hasOwnProperty.call(variables, key)
+        ? (variables[key] ?? match)
+        : match,
+    );
   }
 
   generateReportHTML(
