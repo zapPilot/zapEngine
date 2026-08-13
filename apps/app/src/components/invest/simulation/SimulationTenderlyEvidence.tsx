@@ -1,18 +1,17 @@
 import type { DepositReviewGroup } from '@zapengine/types/api';
-import { ExternalLink } from 'lucide-react-native';
 import { useState } from 'react';
-import { Linking, Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import {
   SimulationCallRow,
   SimulationCollapseToggle,
 } from '@/components/invest/simulation/SimulationCallList';
-import { Tap } from '@/components/ui/Tap';
-import { TenderlyLogo } from '@/components/ui/TenderlyLogo';
 import {
-  formatInteger,
-  simulationChainLabel,
-} from '@/integration/simulationPreviewModel';
+  SimulationEvidenceStats,
+  SimulationShareLinks,
+} from '@/components/invest/simulation/SimulationReviewPrimitives';
+import { TenderlyLogo } from '@/components/ui/TenderlyLogo';
+import { simulationChainLabel } from '@/integration/simulationPreviewModel';
 
 function evidenceStatus(review: DepositReviewGroup): {
   label: string;
@@ -62,50 +61,16 @@ export function SimulationTenderlyEvidence({
               approvals={review.approvals}
             />
           ))}
-          <View className="flex-row gap-4 border-t border-line px-4 py-4">
-            <View className="flex-1">
-              <Text className="font-mono-semibold text-[8px] uppercase tracking-[.6px] text-ink-faint">
-                Block
-              </Text>
-              <Text className="mt-1 font-mono text-[10px] text-ink-dim">
-                {review.blockNumber?.toLocaleString('en-US') ?? 'Unavailable'}
-              </Text>
-            </View>
-            <View className="flex-1">
-              <Text className="font-mono-semibold text-[8px] uppercase tracking-[.6px] text-ink-faint">
-                Call gas
-              </Text>
-              <Text className="mt-1 font-mono text-[10px] text-ink-dim">
-                {formatInteger(review.callGas)}
-              </Text>
-            </View>
-          </View>
-          {review.shareUrls.length > 0 ? (
-            <View className="gap-2 border-t border-line px-4 py-4">
-              <Text className="font-mono-semibold text-[8px] uppercase tracking-[.6px] text-ink-faint">
-                Public simulation results
-              </Text>
-              <View className="flex-row flex-wrap gap-2">
-                {review.shareUrls.map((url, index) => (
-                  <Tap
-                    key={`${url}-${index}`}
-                    accessibilityLabel={`View simulation ${index + 1} on Tenderly`}
-                    accessibilityRole="link"
-                    className="min-h-9 max-w-full flex-row items-center gap-2 rounded-xl border border-line-hi bg-bg px-3"
-                    onPress={() => void Linking.openURL(url)}
-                  >
-                    <ExternalLink size={13} color="#d4c5a3" />
-                    <Text
-                      className="max-w-[230px] font-sans-semibold text-[10px] text-accent"
-                      numberOfLines={1}
-                    >
-                      Result {index + 1} · Tenderly
-                    </Text>
-                  </Tap>
-                ))}
-              </View>
-            </View>
-          ) : null}
+          <SimulationEvidenceStats
+            blockNumber={review.blockNumber}
+            callGas={review.callGas}
+            className="flex-row gap-4 border-t border-line px-4 py-4"
+          />
+          <SimulationShareLinks
+            shareUrls={review.shareUrls}
+            label={(index) => `Result ${index + 1} · Tenderly`}
+            className="gap-2 border-t border-line px-4 py-4"
+          />
         </View>
       ) : null}
     </View>

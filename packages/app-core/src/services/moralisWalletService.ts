@@ -3,8 +3,6 @@ import { z } from 'zod';
 
 import {
   getSupportedWalletTokenSymbol,
-  SUPPORTED_WALLET_TOKEN_ADDRESSES_BY_CHAIN,
-  supportedWalletTokenAddresses,
   type SupportedWalletTokenSymbol,
   WALLET_TOKEN_CHAINS,
   type WalletTokenChain,
@@ -19,25 +17,7 @@ export type MoralisWalletChain = WalletTokenChain;
 
 export type MoralisSupportedWalletSymbol = SupportedWalletTokenSymbol;
 
-export const MORALIS_SUPPORTED_TOKEN_ADDRESSES_BY_CHAIN =
-  SUPPORTED_WALLET_TOKEN_ADDRESSES_BY_CHAIN;
-
 const stringOrNumberSchema = z.union([z.string(), z.number()]).nullish();
-
-const walletTokenBalanceSchema = z.looseObject({
-  symbol: z.string().nullish(),
-  name: z.string().nullish(),
-  token_address: z.string().nullish(),
-  native_token: z.boolean().nullish(),
-  balance_formatted: stringOrNumberSchema,
-  usd_value: stringOrNumberSchema,
-  usd_price: stringOrNumberSchema,
-  possible_spam: z.boolean().nullish(),
-});
-
-const walletTokenBalancesResponseSchema = z.looseObject({
-  result: z.array(walletTokenBalanceSchema).default([]),
-});
 
 const walletTransferSchema = z.looseObject({
   token_symbol: z.string().nullish(),
@@ -63,13 +43,25 @@ const walletHistoryResponseSchema = z.looseObject({
   cursor: z.string().nullable().optional(),
 });
 
-export type MoralisWalletTokenBalance = z.infer<
-  typeof walletTokenBalanceSchema
->;
+/**
+ * Wallet token-balance row shape shared by the balance mappers. Alchemy is the
+ * only producer now that the Moralis balance fallback is gone, so this is a
+ * plain structural type — nothing parses it at a wire boundary.
+ */
+export interface MoralisWalletTokenBalance {
+  symbol?: string | null | undefined;
+  name?: string | null | undefined;
+  token_address?: string | null | undefined;
+  native_token?: boolean | null | undefined;
+  balance_formatted?: string | number | null | undefined;
+  usd_value?: string | number | null | undefined;
+  usd_price?: string | number | null | undefined;
+  possible_spam?: boolean | null | undefined;
+}
 
-export type MoralisWalletTokenBalancesResponse = z.infer<
-  typeof walletTokenBalancesResponseSchema
->;
+export interface MoralisWalletTokenBalancesResponse {
+  result: MoralisWalletTokenBalance[];
+}
 
 export type MoralisWalletTransfer = z.infer<typeof walletTransferSchema>;
 
@@ -80,11 +72,6 @@ export type MoralisWalletHistoryEvent = z.infer<
 export type MoralisWalletHistoryResponse = z.infer<
   typeof walletHistoryResponseSchema
 >;
-
-export interface MoralisChainBalances {
-  chain: MoralisWalletChain;
-  response: MoralisWalletTokenBalancesResponse;
-}
 
 export interface MoralisChainHistory {
   chain: MoralisWalletChain;
@@ -135,33 +122,6 @@ async function fetchMoralisJson<T>(
   return schema.parse(await response.json());
 }
 
-async function getMoralisWalletTokenBalancesForChain(
-  address: string,
-  chain: MoralisWalletChain,
-): Promise<MoralisChainBalances> {
-  const response = await fetchMoralisJson(
-    `/wallets/${address}/tokens`,
-    {
-      chain,
-      exclude_native: 'false',
-      exclude_spam: 'true',
-      exclude_unverified_contracts: 'true',
-      token_addresses: supportedWalletTokenAddresses(chain).join(','),
-    },
-    walletTokenBalancesResponseSchema,
-  );
-
-  return {
-    chain,
-    response: {
-      ...response,
-      result: response.result.filter(
-        (balance) => getSupportedMoralisWalletSymbol(chain, balance) !== null,
-      ),
-    },
-  };
-}
-
 async function getMoralisWalletHistoryForChain(
   address: string,
   chain: MoralisWalletChain,
@@ -173,16 +133,6 @@ async function getMoralisWalletHistoryForChain(
     walletHistoryResponseSchema,
   );
   return { chain, response };
-}
-
-export function getMoralisWalletTokenBalances(
-  address: string,
-): Promise<MoralisChainBalances[]> {
-  return Promise.all(
-    MORALIS_WALLET_CHAINS.map((chain) =>
-      getMoralisWalletTokenBalancesForChain(address, chain),
-    ),
-  );
 }
 
 export function getMoralisWalletHistory(

@@ -122,14 +122,11 @@ export {
   waitForPerpUsdcArrival,
 } from './hyperliquidService';
 
-// Moralis wallet POC (desktop/web clients; proxy before production)
+// Moralis wallet history POC (desktop/web clients; proxy before production)
 export {
   getMoralisWalletHistory,
-  getMoralisWalletTokenBalances,
   getSupportedMoralisWalletSymbol,
-  MORALIS_SUPPORTED_TOKEN_ADDRESSES_BY_CHAIN,
   MORALIS_WALLET_CHAINS,
-  type MoralisChainBalances,
   type MoralisChainHistory,
   type MoralisSupportedWalletSymbol,
   type MoralisWalletChain,
