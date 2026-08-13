@@ -41,6 +41,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build workspace packages
+        run: pnpm build packages
+
       - name: Read previous CID
         run: |
           previous_cid="$(node -e "const meta=require('./apps/landing-page/public/track-record-meta.json'); process.stdout.write(meta.latestSnapshotCid || '')")"
