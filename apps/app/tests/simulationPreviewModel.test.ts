@@ -11,6 +11,7 @@ import {
   STRATEGY_DEPOSIT_ID,
   SUPPORTED_DEPOSIT_CHAINS,
 } from '@zapengine/types/api';
+import { formatTokenBaseUnits } from '@zapengine/app-core/utils';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -18,10 +19,9 @@ import {
   compactTokenAmount,
   confirmGate,
   confirmRiskHash,
-  formatAddress,
+  formatAddressOrUnknown,
   formatCountdown,
   formatInteger,
-  formatTokenAmount,
   getBlockingReason,
   partitionAssetChanges,
   resolveAddressTarget,
@@ -418,14 +418,14 @@ describe('confirmGate', () => {
 
 describe('simulation preview formatting', () => {
   it('formats exact and compact token values without floating-point loss', () => {
-    expect(formatTokenAmount('1234500000000000000', 18)).toBe('1.2345');
+    expect(formatTokenBaseUnits('1234500000000000000', 18)).toBe('1.2345');
     expect(compactTokenAmount('9360528111924722', 18)).toBe('0.00936052');
-    expect(formatTokenAmount('42', 0)).toBe('42');
+    expect(formatTokenBaseUnits('42', 0)).toBe('42');
   });
 
   it('formats addresses, integer evidence, and millisecond countdowns', () => {
-    expect(formatAddress(WALLET)).toBe('0x1111…1111');
-    expect(formatAddress(null)).toBe('Unknown');
+    expect(formatAddressOrUnknown(WALLET)).toBe('0x1111…1111');
+    expect(formatAddressOrUnknown(null)).toBe('Unknown');
     expect(formatInteger('1234567')).toBe('1,234,567');
     expect(formatCountdown(NOW_MS + 70_000, NOW_MS)).toBe('1m 0s');
     expect(formatCountdown(NOW_MS + 10_000, NOW_MS)).toBe('Expired');

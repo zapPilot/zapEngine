@@ -2,6 +2,7 @@ import {
   HYPERCORE_PERPS_USDC,
   USDC_ADDRESS,
 } from '@zapengine/app-core/constants/bridgeChains';
+import { parseBaseUnits } from '@zapengine/app-core/lib/wallet/usd6';
 import { CHAIN_BRAND } from '@zapengine/brand-assets';
 import type { Address } from 'viem';
 
@@ -96,10 +97,8 @@ export function normalizeUsdcInput(value: string): string {
 }
 
 export function usdcInputToBaseUnits(value: string): string {
-  const match = /^(\d+)(?:\.(\d{0,6}))?$/u.exec(value.trim());
-  if (!match) return '0';
-  const fraction = (match[2] ?? '').padEnd(6, '0');
-  return `${match[1]!}${fraction}`.replace(/^0+(?=\d)/u, '') || '0';
+  const parsed = parseBaseUnits(value.trim(), { allowEmptyFraction: true });
+  return (parsed ?? 0n).toString();
 }
 
 /** Integer floor of a basis-point share of a base-unit amount. */

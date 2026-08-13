@@ -28,6 +28,7 @@ export {
   formatRelativeTime,
   formatSentiment,
   formatters,
+  formatTokenBaseUnits,
   type FreshnessState,
 } from './formatters';
 

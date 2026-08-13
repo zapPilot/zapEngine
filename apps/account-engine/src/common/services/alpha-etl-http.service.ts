@@ -1,4 +1,5 @@
 import { type EtlJobStatus, EtlJobStatusSchema } from '@zapengine/types/etl';
+import { sleep } from '@zapengine/types/shared';
 
 import { ConfigService } from '../../config/config.service';
 import { ServiceLayerException } from '../exceptions';
@@ -210,7 +211,7 @@ export class AlphaEtlHttpService {
     this.logger.log(
       `Retrying ${options.label.toLowerCase()} after ${options.retryDelayMs}ms delay...`,
     );
-    await new Promise((resolve) => setTimeout(resolve, options.retryDelayMs));
+    await sleep(options.retryDelayMs);
 
     try {
       return await fetch(url, init);

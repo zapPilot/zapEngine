@@ -3,7 +3,6 @@ import {
   atomicBatchSummary,
   createIdempotencyKey,
   decodeBase64,
-  errorMessage,
   getPrivyAtomicBatchChain,
   toWalletSendCall,
   toWalletTypedData,
@@ -155,12 +154,5 @@ describe('createIdempotencyKey', () => {
     const second = createIdempotencyKey();
     expect(first).not.toBe('');
     expect(first).not.toBe(second);
-  });
-});
-
-describe('errorMessage', () => {
-  it('unwraps Error instances and stringifies the rest', () => {
-    expect(errorMessage(new Error('boom'))).toBe('boom');
-    expect(errorMessage('plain')).toBe('plain');
   });
 });

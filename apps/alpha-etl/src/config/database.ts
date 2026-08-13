@@ -1,7 +1,7 @@
+import { sleep } from '@zapengine/types/shared';
 import { Pool, type PoolClient } from 'pg';
 
 import { logger } from '../utils/logger.js';
-import { sleep } from '../utils/sleep.js';
 import { env } from './environment.js';
 
 // ============================================================================

@@ -38,7 +38,7 @@ import { useReducedMotion } from '@/components/ui/useReducedMotion';
 import {
   confirmGate,
   confirmRiskHash,
-  formatAddress,
+  formatAddressOrUnknown,
   formatCountdown,
   formatInteger,
   getBlockingReason,
@@ -271,7 +271,7 @@ export function SimulationPreviewSheet({
                   Transaction review
                 </Text>
                 <Text className="mt-0.5 font-mono text-[10px] text-ink-dim">
-                  {formatAddress(previewData.walletAddress)}
+                  {formatAddressOrUnknown(previewData.walletAddress)}
                 </Text>
               </View>
             </View>

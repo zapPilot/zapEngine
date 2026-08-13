@@ -15,6 +15,7 @@ import type {
   PrivyPrepareSendCallsRequest,
   PrivyPrepareSendCallsResponse,
 } from '@zapengine/types/api';
+import { sleep } from '@zapengine/types/shared';
 import { keccak256, toBytes, verifyTypedData } from 'viem';
 
 import {
@@ -187,10 +188,6 @@ function createPrivyClientAdapter(
       };
     },
   };
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function waitForPrivyTransactionHash({

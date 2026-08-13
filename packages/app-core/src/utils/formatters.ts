@@ -32,6 +32,7 @@ export {
 export {
   type CompactTokenAmountOptions,
   formatCompactTokenAmount,
+  formatTokenBaseUnits,
 } from './formatting/tokenAmount';
 
 // =============================================================================

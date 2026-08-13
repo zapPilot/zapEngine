@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, TypeAlias
@@ -29,6 +30,18 @@ from src.models.strategy import DailySuggestionResponse  # noqa: E402
 from src.models.strategy_config import (  # noqa: E402
     StrategyConfigsResponse,
     StrategyPreset,
+)
+from src.utils.wallet_validation import ETH_ADDRESS_PATTERN  # noqa: E402
+
+# The wallet-address regex is a wire contract too: analytics-engine rejects at
+# the edge with ETH_ADDRESS_PATTERN, every TypeScript caller validates with
+# WALLET_ADDRESS_REGEX, and a drift between them silently changes which
+# addresses reach the API. There is no Pydantic/Zod model to diff, so compare
+# the two literals directly.
+TS_WALLET_REGEX_SOURCE = ROOT / "packages" / "types" / "src" / "shared" / "wallet.ts"
+TS_WALLET_REGEX_DECLARATION = re.compile(
+    r"^export const WALLET_ADDRESS_REGEX = /(?P<pattern>.+)/;$",
+    re.MULTILINE,
 )
 
 PYDANTIC_MODELS = {
@@ -163,12 +176,9 @@ def _normalize(value: Json, defs: dict[str, Any] | None = None) -> Json:
             continue
         if key in {"maximum", "minimum"} and abs(float(entry)) == 9007199254740991:
             continue
-        if (
-            key == "properties"
-            and _is_json_value_additional_properties(
-                value.get("additionalProperties"),
-                defs,
-            )
+        if key == "properties" and _is_json_value_additional_properties(
+            value.get("additionalProperties"),
+            defs,
         ):
             continue
         normalized[key] = _normalize(entry, defs)
@@ -200,8 +210,36 @@ def _print_diff(name: str, expected: Json, actual: Json) -> None:
     print(json.dumps(actual, indent=2, sort_keys=True), file=sys.stderr)
 
 
+def _check_wallet_address_regex_parity() -> bool:
+    """True when the TS and Python wallet-address regexes are byte-identical."""
+    source = TS_WALLET_REGEX_SOURCE.read_text(encoding="utf-8")
+    match = TS_WALLET_REGEX_DECLARATION.search(source)
+    if match is None:
+        print(
+            "Contract parity failed for wallet_address_regex: could not find "
+            f"`export const WALLET_ADDRESS_REGEX = /.../;` in {TS_WALLET_REGEX_SOURCE}",
+            file=sys.stderr,
+        )
+        return False
+
+    ts_pattern = match.group("pattern")
+    if ts_pattern != ETH_ADDRESS_PATTERN.pattern:
+        print("Contract parity failed for wallet_address_regex", file=sys.stderr)
+        print(f"--- typescript WALLET_ADDRESS_REGEX\n{ts_pattern}", file=sys.stderr)
+        print(
+            f"--- python ETH_ADDRESS_PATTERN\n{ETH_ADDRESS_PATTERN.pattern}",
+            file=sys.stderr,
+        )
+        return False
+
+    return True
+
+
 def main() -> int:
     failures = 0
+
+    if not _check_wallet_address_regex_parity():
+        failures += 1
 
     for name, model in PYDANTIC_MODELS.items():
         zod_schema = _normalize_schema(_read_snapshot(name))

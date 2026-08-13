@@ -4,7 +4,7 @@ import { JOB_CONFIG } from '../../common/constants';
 import { ServiceLayerException } from '../../common/exceptions';
 import { HttpStatus } from '../../common/http';
 import { Logger } from '../../common/logger';
-import { calculateBackoffDelay } from '../../common/utils';
+import { calculateJitteredBackoffDelay } from '../../common/utils';
 import {
   CreateJobOptions,
   Job,
@@ -209,7 +209,7 @@ export class JobQueueService {
     const newRetryCount = currentJob.retryCount + 1;
 
     // Schedule retry with exponential backoff (calculateDelay expects milliseconds)
-    const retryDelayMs = calculateBackoffDelay(
+    const retryDelayMs = calculateJitteredBackoffDelay(
       newRetryCount,
       currentJob.retryDelaySeconds * 1000,
     );

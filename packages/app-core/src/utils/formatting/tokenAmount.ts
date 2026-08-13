@@ -21,7 +21,11 @@ function firstSignificantDigit(value: string): number {
   return -1;
 }
 
-function formatTokenBaseUnits(
+/**
+ * Renders an integer base-unit amount as an exact decimal string, with no
+ * floating-point conversion and no precision cap.
+ */
+export function formatTokenBaseUnits(
   rawAmount: string | bigint,
   decimals: number,
 ): string {
