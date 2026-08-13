@@ -17,9 +17,9 @@
     "coverage": "bash scripts/coverage.sh",
     "social:publish": "pnpm --filter @zapengine/podcast-pipeline social:publish",
     "social:rednote-login": "pnpm --filter @zapengine/podcast-pipeline social:rednote-login",
-    "track-record:generate": "tsx scripts/track-record/generate-daily-snapshot.ts",
-    "track-record:publish": "tsx scripts/track-record/publish-daily-snapshot.ts",
-    "track-record:verify": "tsx scripts/track-record/verify-track-record.ts",
+    "track-record:generate": "tsx --tsconfig apps/landing-page/tsconfig.json scripts/track-record/generate-daily-snapshot.ts",
+    "track-record:publish": "tsx --tsconfig apps/landing-page/tsconfig.json scripts/track-record/publish-daily-snapshot.ts",
+    "track-record:verify": "tsx --tsconfig apps/landing-page/tsconfig.json scripts/track-record/verify-track-record.ts",
     "clean": "turbo run clean && rm -rf node_modules",
     "prepare": "husky"
   },
