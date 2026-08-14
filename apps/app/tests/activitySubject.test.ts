@@ -28,7 +28,7 @@ describe('selectVisitedBundleUserId', () => {
 });
 
 describe('selectActivityAddressInput', () => {
-  it('uses the first own bundle wallet when viewing the own bundle', () => {
+  it('uses every own bundle wallet when viewing the own bundle', () => {
     expect(
       selectActivityAddressInput({
         isOwnBundle: true,
@@ -36,7 +36,7 @@ describe('selectActivityAddressInput', () => {
         ownAddress: '0xconnected',
         visitedWalletAddresses: [],
       }),
-    ).toBe('0xowned1');
+    ).toEqual(['0xowned1', '0xowned2']);
   });
 
   it('falls back to the connected address when the own bundle is empty', () => {
@@ -47,7 +47,7 @@ describe('selectActivityAddressInput', () => {
         ownAddress: '0xconnected',
         visitedWalletAddresses: [],
       }),
-    ).toBe('0xconnected');
+    ).toEqual(['0xconnected']);
   });
 
   it('returns null when own has no wallet and no connected address', () => {
@@ -61,7 +61,7 @@ describe('selectActivityAddressInput', () => {
     ).toBeNull();
   });
 
-  it('uses the first visited wallet when viewing a visited bundle', () => {
+  it('uses every visited wallet when viewing a visited bundle', () => {
     expect(
       selectActivityAddressInput({
         isOwnBundle: false,
@@ -69,7 +69,7 @@ describe('selectActivityAddressInput', () => {
         ownAddress: '0xconnected',
         visitedWalletAddresses: ['0xvisited1', '0xvisited2'],
       }),
-    ).toBe('0xvisited1');
+    ).toEqual(['0xvisited1', '0xvisited2']);
   });
 
   it('returns null while the visited wallets are still loading', () => {

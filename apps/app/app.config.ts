@@ -42,7 +42,18 @@ export function resolveExpoAlchemyApiKey(
   );
 }
 
+export function resolveExpoMoralisApiKey(
+  env: Record<string, string | undefined>,
+): string {
+  return (
+    env.EXPO_PUBLIC_MORALIS_API_KEY?.trim() ||
+    env.VITE_MORALIS_API_KEY?.trim() ||
+    ''
+  );
+}
+
 process.env.EXPO_PUBLIC_ALCHEMY_API_KEY = resolveExpoAlchemyApiKey(process.env);
+process.env.EXPO_PUBLIC_MORALIS_API_KEY = resolveExpoMoralisApiKey(process.env);
 
 const appScheme = 'zappilotv2';
 

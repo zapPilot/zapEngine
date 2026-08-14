@@ -288,8 +288,8 @@ describe('Moralis desktop wallet mapping', () => {
     ]);
   });
 
-  it('maps the first page of wallet history into top-ten activity groups', () => {
-    const groups = buildActivityGroupsFromMoralisHistory(
+  it('maps wallet history into net-delta groups with a category summary', () => {
+    const { groups, summary } = buildActivityGroupsFromMoralisHistory(
       [
         history('base', [
           {
@@ -301,7 +301,7 @@ describe('Moralis desktop wallet mapping', () => {
             erc20_transfers: [
               {
                 token_symbol: 'USDC',
-                token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+                address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
                 direction: 'receive',
                 value_formatted: '50',
                 value_usd: '50',
@@ -343,9 +343,13 @@ describe('Moralis desktop wallet mapping', () => {
             kind: 'deposit',
             title: 'Received 50 USDC',
             amountLabel: '+$50.00',
+            amountTone: 'positive',
             status: 'Completed',
-            meta: 'USDC · Base',
-            time: '02:00',
+            meta: 'Base',
+            time: '1h',
+            category: 'stable',
+            chain: 'base',
+            tokenSymbol: 'USDC',
           }),
         ],
       },
@@ -357,16 +361,190 @@ describe('Moralis desktop wallet mapping', () => {
             kind: 'withdraw',
             title: 'Sent 0.01 ETH',
             amountLabel: '−$30.00',
-            meta: 'ETH · Arbitrum',
-            time: 'Thu',
+            amountTone: 'negative',
+            meta: 'Arbitrum',
+            time: '3d',
+            category: 'eth',
+            chain: 'arbitrum',
           }),
         ],
       },
     ]);
+
+    expect(summary).toEqual([
+      expect.objectContaining({ category: 'stable', usdNet: 50, share: 0.5 }),
+      expect.objectContaining({ category: 'eth', usdNet: -30, share: 0.5 }),
+    ]);
+  });
+
+  it('dedupes transactions surfaced once per involved bundle wallet', () => {
+    const event = {
+      hash: '0xshared',
+      block_timestamp: '2026-06-28T02:00:00.000Z',
+      receipt_status: '1',
+      erc20_transfers: [
+        {
+          token_symbol: 'USDC',
+          address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+          direction: 'receive',
+          value_formatted: '50',
+        },
+      ],
+    };
+
+    const { groups } = buildActivityGroupsFromMoralisHistory(
+      [history('base', [event]), history('base', [event])],
+      {
+        limit: 10,
+        nowMs: Date.parse('2026-06-28T03:00:00.000Z'),
+        timeZone: 'UTC',
+      },
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.events).toHaveLength(1);
+  });
+
+  it('maps before dedupe so a later valid wallet perspective is retained', () => {
+    const invalidPerspective = {
+      hash: '0xshared',
+      block_timestamp: '2026-06-28T02:00:00.000Z',
+      receipt_status: '1',
+      erc20_transfers: [
+        {
+          token_symbol: 'USDC',
+          address: '0x0000000000000000000000000000000000000001',
+          direction: 'receive',
+          value_formatted: '50',
+        },
+      ],
+    };
+    const validPerspective = {
+      ...invalidPerspective,
+      erc20_transfers: [
+        {
+          token_symbol: 'USDC',
+          address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+          direction: 'receive',
+          value_formatted: '50',
+        },
+      ],
+    };
+
+    const { groups } = buildActivityGroupsFromMoralisHistory(
+      [
+        history('base', [invalidPerspective]),
+        history('base', [validPerspective]),
+      ],
+      {
+        limit: 10,
+        nowMs: Date.parse('2026-06-28T03:00:00.000Z'),
+      },
+    );
+
+    expect(groups[0]?.events).toEqual([
+      expect.objectContaining({ id: 'base-0xshared', category: 'stable' }),
+    ]);
+  });
+
+  it('keeps the same hash when it appears on different chains', () => {
+    const shared = {
+      hash: '0xshared',
+      block_timestamp: '2026-06-28T02:00:00.000Z',
+      receipt_status: '1',
+    };
+    const { groups } = buildActivityGroupsFromMoralisHistory(
+      [
+        history('base', [
+          {
+            ...shared,
+            erc20_transfers: [
+              {
+                token_symbol: 'USDC',
+                address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+                direction: 'receive',
+                value_formatted: '50',
+              },
+            ],
+          },
+        ]),
+        history('arbitrum', [
+          {
+            ...shared,
+            native_transfers: [
+              {
+                direction: 'receive',
+                value_formatted: '0.01',
+              },
+            ],
+          },
+        ]),
+      ],
+      {
+        limit: 10,
+        nowMs: Date.parse('2026-06-28T03:00:00.000Z'),
+      },
+    );
+
+    expect(groups[0]?.events.map((event) => event.id)).toEqual([
+      'base-0xshared',
+      'arbitrum-0xshared',
+    ]);
+  });
+
+  it('collapses same-chain bursts into one logical event', () => {
+    const burstEvent = (hash: string, minute: number) => ({
+      hash,
+      block_timestamp: `2026-06-28T02:0${minute}:00.000Z`,
+      receipt_status: '1',
+      erc20_transfers: [
+        {
+          token_symbol: 'USDC',
+          address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+          direction: 'send',
+          value_formatted: '100',
+        },
+        {
+          token_symbol: 'CBBTC',
+          address: '0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf',
+          direction: 'receive',
+          value_formatted: '0.001',
+        },
+      ],
+    });
+
+    const { groups } = buildActivityGroupsFromMoralisHistory(
+      [
+        history('base', [
+          burstEvent('0xa', 3),
+          burstEvent('0xb', 2),
+          burstEvent('0xc', 1),
+        ]),
+      ],
+      {
+        limit: 10,
+        nowMs: Date.parse('2026-06-28T03:00:00.000Z'),
+        timeZone: 'UTC',
+      },
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.events).toEqual([
+      expect.objectContaining({
+        id: 'base-burst-0xa',
+        kind: 'rebalance',
+        title: 'Rebalanced portfolio',
+        txCount: 3,
+        meta: 'Base · 3 transactions',
+        status: 'Completed',
+        category: 'btc',
+        tokenSymbol: 'CBBTC',
+      }),
+    ]);
   });
 
   it('marks only explicit non-success receipt statuses as failed', () => {
-    const groups = buildActivityGroupsFromMoralisHistory(
+    const { groups } = buildActivityGroupsFromMoralisHistory(
       [
         history('base', [
           {
@@ -378,8 +556,9 @@ describe('Moralis desktop wallet mapping', () => {
             erc20_transfers: [
               {
                 token_symbol: 'USDC',
-                token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+                address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
                 direction: 'receive',
+                value_formatted: '10',
                 value_usd: '10',
               },
             ],
@@ -393,8 +572,9 @@ describe('Moralis desktop wallet mapping', () => {
             erc20_transfers: [
               {
                 token_symbol: 'USDC',
-                token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+                address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
                 direction: 'receive',
+                value_formatted: '5',
                 value_usd: '5',
               },
             ],
