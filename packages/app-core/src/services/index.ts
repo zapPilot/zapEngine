@@ -125,15 +125,11 @@ export {
 // Moralis wallet history POC (desktop/web clients; proxy before production)
 export {
   getMoralisWalletHistory,
-  getSupportedMoralisWalletSymbol,
   MORALIS_WALLET_CHAINS,
   type MoralisChainHistory,
-  type MoralisSupportedWalletSymbol,
   type MoralisWalletChain,
   type MoralisWalletHistoryEvent,
   type MoralisWalletHistoryResponse,
-  type MoralisWalletTokenBalance,
-  type MoralisWalletTokenBalancesResponse,
   type MoralisWalletTransfer,
 } from './moralisWalletService';
 

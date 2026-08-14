@@ -7,7 +7,7 @@ import {
   buildInvestableBalanceRows,
   type MoralisChainKey,
   type MoralisWalletHistoryResponse,
-  type MoralisWalletTokenBalancesResponse,
+  type WalletTokenBalancesResponse,
   normalizeWalletAddressList,
 } from '@/integration/moralisWallet';
 import { DEFAULT_ARBITRUM_FUNDING_TOKEN } from '@/integration/depositTokens';
@@ -15,7 +15,7 @@ import { balanceForFundingToken } from '@/integration/investAmountModel';
 
 function balances(
   chain: MoralisChainKey,
-  result: MoralisWalletTokenBalancesResponse['result'],
+  result: WalletTokenBalancesResponse['result'],
 ) {
   return { chain, response: { result } };
 }

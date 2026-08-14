@@ -2,8 +2,6 @@ import { getRuntimeEnv } from '@core/lib/env/runtimeEnv';
 import { z } from 'zod';
 
 import {
-  getSupportedWalletTokenSymbol,
-  type SupportedWalletTokenSymbol,
   WALLET_TOKEN_CHAINS,
   type WalletTokenChain,
 } from './walletTokenCatalog';
@@ -14,8 +12,6 @@ const DEFAULT_HISTORY_LIMIT = 10;
 export const MORALIS_WALLET_CHAINS = WALLET_TOKEN_CHAINS;
 
 export type MoralisWalletChain = WalletTokenChain;
-
-export type MoralisSupportedWalletSymbol = SupportedWalletTokenSymbol;
 
 const stringOrNumberSchema = z.union([z.string(), z.number()]).nullish();
 
@@ -43,26 +39,6 @@ const walletHistoryResponseSchema = z.looseObject({
   cursor: z.string().nullable().optional(),
 });
 
-/**
- * Wallet token-balance row shape shared by the balance mappers. Alchemy is the
- * only producer now that the Moralis balance fallback is gone, so this is a
- * plain structural type — nothing parses it at a wire boundary.
- */
-export interface MoralisWalletTokenBalance {
-  symbol?: string | null | undefined;
-  name?: string | null | undefined;
-  token_address?: string | null | undefined;
-  native_token?: boolean | null | undefined;
-  balance_formatted?: string | number | null | undefined;
-  usd_value?: string | number | null | undefined;
-  usd_price?: string | number | null | undefined;
-  possible_spam?: boolean | null | undefined;
-}
-
-export interface MoralisWalletTokenBalancesResponse {
-  result: MoralisWalletTokenBalance[];
-}
-
 export type MoralisWalletTransfer = z.infer<typeof walletTransferSchema>;
 
 export type MoralisWalletHistoryEvent = z.infer<
@@ -76,16 +52,6 @@ export type MoralisWalletHistoryResponse = z.infer<
 export interface MoralisChainHistory {
   chain: MoralisWalletChain;
   response: MoralisWalletHistoryResponse;
-}
-
-export function getSupportedMoralisWalletSymbol(
-  chain: MoralisWalletChain,
-  candidate: Pick<
-    MoralisWalletTokenBalance,
-    'native_token' | 'symbol' | 'token_address'
-  >,
-): MoralisSupportedWalletSymbol | null {
-  return getSupportedWalletTokenSymbol(chain, candidate);
 }
 
 function moralisApiKey(): string {

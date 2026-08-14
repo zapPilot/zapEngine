@@ -2,14 +2,13 @@ import { useQuery } from '@tanstack/react-query';
 import { CHAIN_BRAND, TOKEN_BRAND } from '@zapengine/brand-assets';
 import {
   getMoralisWalletHistory,
-  getSupportedMoralisWalletSymbol,
+  getSupportedWalletTokenSymbol,
   getSupportedWalletTokenDefinition,
   type MoralisChainHistory,
-  type MoralisSupportedWalletSymbol,
   type MoralisWalletChain,
   type MoralisWalletHistoryEvent,
-  type MoralisWalletTokenBalance,
   type MoralisWalletTransfer,
+  type SupportedWalletTokenSymbol,
 } from '@zapengine/app-core/services';
 import { parseBaseUnits } from '@zapengine/app-core/lib/wallet/usd6';
 import { formatTokenBaseUnits } from '@zapengine/app-core/utils';
@@ -29,12 +28,9 @@ import { formatUsd, tokenAmountFractionDigits } from '@/lib/format';
 
 export type MoralisChainKey = MoralisWalletChain;
 
-export type {
-  MoralisWalletHistoryResponse,
-  MoralisWalletTokenBalancesResponse,
-} from '@zapengine/app-core/services';
+export type { MoralisWalletHistoryResponse } from '@zapengine/app-core/services';
 
-type SupportedWalletSymbol = MoralisSupportedWalletSymbol;
+type SupportedWalletSymbol = SupportedWalletTokenSymbol;
 
 type DesktopChainKey = DemoAsset['chains'][number];
 
@@ -149,7 +145,7 @@ function buildHookStatus(
   },
   enabled: boolean,
 ): Pick<
-  UseMoralisWalletAssetsResult,
+  UseWalletAssetsResult,
   'isConnected' | 'isLoading' | 'isError' | 'error'
 > {
   return {
@@ -169,7 +165,7 @@ export function buildWalletAssetsResult(
     refetch?: (() => Promise<unknown>) | undefined;
   },
   enabled: boolean,
-): UseMoralisWalletAssetsResult {
+): UseWalletAssetsResult {
   const rows = query.data?.rows ?? [];
   const liveValues = rows
     .map((row) => row.usdValue)
@@ -189,7 +185,7 @@ export function buildWalletAssetsResult(
   };
 }
 
-export interface UseMoralisWalletAssetsResult {
+export interface UseWalletAssetsResult {
   assets: DesktopWalletAsset[];
   rows: InvestableBalanceRow[];
   chainRows: ChainTokenBalanceRow[];
@@ -222,16 +218,19 @@ export type WalletAddressInput =
   | undefined
   | readonly (string | null | undefined)[];
 
-export type WalletTokenBalanceLike = Pick<
-  MoralisWalletTokenBalance,
-  | 'balance_formatted'
-  | 'name'
-  | 'native_token'
-  | 'possible_spam'
-  | 'symbol'
-  | 'token_address'
-  | 'usd_value'
->;
+export interface WalletTokenBalanceLike {
+  balance_formatted?: string | number | null | undefined;
+  name?: string | null | undefined;
+  native_token?: boolean | null | undefined;
+  possible_spam?: boolean | null | undefined;
+  symbol?: string | null | undefined;
+  token_address?: string | null | undefined;
+  usd_value?: string | number | null | undefined;
+}
+
+export interface WalletTokenBalancesResponse {
+  result: WalletTokenBalanceLike[];
+}
 
 export interface WalletChainBalancesLike {
   chain: MoralisChainKey;
@@ -317,7 +316,7 @@ function aggregateChainBalance(
   chainConfig: (typeof MORALIS_WALLET_CHAINS)[number],
   balance: WalletTokenBalanceLike,
 ): void {
-  const symbol = getSupportedMoralisWalletSymbol(chainConfig.moralis, balance);
+  const symbol = getSupportedWalletTokenSymbol(chainConfig.moralis, balance);
   if (!symbol) {
     return;
   }
@@ -600,7 +599,7 @@ function firstSupportedTransfer(
   event: MoralisWalletHistoryEvent,
 ): SupportedActivityTransfer | null {
   for (const transfer of event.erc20_transfers ?? []) {
-    const symbol = getSupportedMoralisWalletSymbol(chain, {
+    const symbol = getSupportedWalletTokenSymbol(chain, {
       symbol: transfer.token_symbol,
       token_address: transfer.token_address,
       native_token: false,
@@ -611,7 +610,7 @@ function firstSupportedTransfer(
   }
 
   for (const transfer of event.native_transfers ?? []) {
-    const symbol = getSupportedMoralisWalletSymbol(chain, {
+    const symbol = getSupportedWalletTokenSymbol(chain, {
       symbol: transfer.token_symbol ?? 'ETH',
       token_address: transfer.token_address,
       native_token: true,

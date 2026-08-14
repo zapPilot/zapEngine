@@ -11,7 +11,7 @@ import {
   type ChainTokenBalanceRow,
   type InvestableBalanceRow,
   normalizeWalletAddressList,
-  type UseMoralisWalletAssetsResult,
+  type UseWalletAssetsResult,
   type WalletAddressInput,
 } from '@/integration/moralisWallet';
 
@@ -20,13 +20,13 @@ export type {
   DesktopWalletAssetHolding,
   ChainTokenBalanceRow,
   InvestableBalanceRow,
-  UseMoralisWalletAssetsResult as UseWalletAssetsResult,
+  UseWalletAssetsResult,
   WalletAddressInput,
 };
 
 export function useWalletAssets(
   addressInput: WalletAddressInput,
-): UseMoralisWalletAssetsResult {
+): UseWalletAssetsResult {
   const walletAddresses = normalizeWalletAddressList(addressInput);
   const enabled = walletAddresses.length > 0;
   const query = useQuery({
