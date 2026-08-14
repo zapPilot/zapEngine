@@ -1,0 +1,73 @@
+name: Backtest Refresh
+
+# Rolls the committed backtest artifacts (analytics-engine snapshot fixture +
+# landing-page strategy-snapshot.json / equity-curve.json) forward to UTC
+# yesterday, so the landing page shows an up-to-date backtest window until the
+# live wallet track record takes over. PR CI keeps validating reproducibility
+# against whatever reference_date the committed fixture carries.
+
+on:
+  schedule:
+    # 01:30 UTC — after the upstream ETL has landed yesterday's data, and
+    # offset from track-record-snapshot (00:00) to avoid concurrent pushes.
+    - cron: '30 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backtest-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_READ_ONLY: 'true'
+      DATABASE_READ_ONLY_URL: ${{ secrets.DATABASE_READ_ONLY_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-workspace
+
+      - name: Resolve reference date (UTC yesterday)
+        run: echo "REFERENCE_DATE=$(date -u -d yesterday +%F)" >> "$GITHUB_ENV"
+
+      - name: Regenerate backtest snapshot and landing curve
+        working-directory: apps/analytics-engine
+        run: |
+          uv sync --locked
+          uv run python scripts/attribution/sweep_production_window.py \
+            --update-snapshot --in-process \
+            --reference-date "$REFERENCE_DATE" \
+            --no-progress
+
+      - name: Sync landing strategy snapshot
+        run: pnpm lint snapshot-sync --fix
+
+      - name: Verify curve reaches the reference date
+        run: |
+          last_date="$(node -e "const c=require('./apps/landing-page/src/data/equity-curve.json'); const v=c.series[0].values; process.stdout.write(v[v.length-1].date)")"
+          if [ "$last_date" != "$REFERENCE_DATE" ]; then
+            echo "equity-curve.json ends at $last_date, expected $REFERENCE_DATE — stale upstream data or missing DATABASE_READ_ONLY_URL; refusing to publish." >&2
+            exit 1
+          fi
+
+      - name: Commit refreshed backtest artifacts
+        run: |
+          files=(
+            apps/analytics-engine/tests/fixtures/strategy_performance_snapshot_500d.json
+            apps/landing-page/src/data/strategy-snapshot.json
+            apps/landing-page/src/data/equity-curve.json
+          )
+          if git diff --quiet -- "${files[@]}"; then
+            echo "No backtest artifact changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "${files[@]}"
+          git commit -m "Refresh rolling backtest snapshot to $REFERENCE_DATE"
+          git push

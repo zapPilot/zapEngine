@@ -1,5 +1,5 @@
 import { PITCH_ASK } from '@/config/pitch';
-import { TrustStrip } from '@/components/landing/TrustStrip';
+import { TrustStrip } from './TrustStrip';
 import { PitchSlide } from './PitchSlide';
 
 /**

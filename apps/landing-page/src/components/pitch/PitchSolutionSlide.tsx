@@ -1,4 +1,4 @@
-import { HowItWorks } from '@/components/landing/HowItWorks';
+import { HowItWorks } from './HowItWorks';
 import { PitchSlide } from './PitchSlide';
 
 /**
