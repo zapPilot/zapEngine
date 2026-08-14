@@ -1,4 +1,4 @@
-import { BacktestProof } from '@/components/landing/BacktestProof';
+import { BacktestProof } from './BacktestProof';
 import { PitchSlide } from './PitchSlide';
 
 /**

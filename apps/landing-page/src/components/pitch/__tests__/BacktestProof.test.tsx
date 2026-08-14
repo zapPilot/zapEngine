@@ -34,9 +34,9 @@ describe('BacktestProof', () => {
 
       expect(screen.getByText('ROI vs DCA')).toBeInTheDocument();
       expect(screen.getByText('Strategy ROI')).toBeInTheDocument();
-      expect(screen.getByText('Calmar Ratio')).toBeInTheDocument();
-      expect(screen.getByText('Sharpe Ratio')).toBeInTheDocument();
-      expect(screen.getByText('Max Drawdown')).toBeInTheDocument();
+      expect(screen.getByText('Calmar ratio')).toBeInTheDocument();
+      expect(screen.getByText('Sharpe ratio')).toBeInTheDocument();
+      expect(screen.getByText('Max drawdown')).toBeInTheDocument();
     });
 
     it('renders stat values', () => {

@@ -599,8 +599,6 @@ def main() -> None:
         else bool(args.exclude_deprecated)
     )
     if args.in_process:
-        if args.update_snapshot:
-            parser.error("--in-process cannot be combined with --update-snapshot")
         # Skip gracefully when DATABASE_READ_ONLY_URL is not configured.
         # The strategy snapshot requires production read-only data; without it
         # the app cannot start because create_engine rejects the placeholder URL.

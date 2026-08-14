@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useTrackRecord } from '@/hooks/useTrackRecord';
 import { TrackRecordNav } from '@/components/track-record/TrackRecordNav';
-import { BrandMark } from '@/components/landing/BrandMark';
+import { BrandMark } from '@/components/BrandMark';
 import { MOCK_LATEST_CID } from '@/data/mock-track-record';
 
 export default function TrackRecordLayout({

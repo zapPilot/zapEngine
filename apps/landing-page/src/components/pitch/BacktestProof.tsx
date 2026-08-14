@@ -187,7 +187,7 @@ export function BacktestProof() {
 
         <figcaption>
           Indexed to 100. Shaded band marks the observed max-drawdown range
-          across the pinned window.
+          across the backtest window.
         </figcaption>
       </figure>
 

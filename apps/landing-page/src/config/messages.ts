@@ -1,17 +1,9 @@
-import { formatPercentagePoint, getBacktestSnapshot } from '@/data/snapshot';
-import { formatPercent } from '@/lib/formatPercent';
-
-const BACKTEST_SNAPSHOT = getBacktestSnapshot();
-const DCA_CLASSIC_BASELINE = {
-  roiPercent: -14.36,
-  maxDrawdownPercent: -43.02,
-  calmarRatio: -0.25,
-  sharpeRatio: -0.17,
-  tradeCount: 500,
-} as const;
-const ROI_VS_DCA_PP = formatPercentagePoint(
-  BACKTEST_SNAPSHOT.raw.roiPercent - DCA_CLASSIC_BASELINE.roiPercent,
-);
+import {
+  backtestDisclaimer,
+  backtestSubtitle,
+  buildBacktestStats,
+  buildComparisonRows,
+} from '@/data/backtest-stats';
 
 export const MESSAGES = {
   // Common / Brand info
@@ -41,61 +33,10 @@ export const MESSAGES = {
   // Backtest proof section
   backtest: {
     title: 'Trades drove the return.',
-    subtitle: `${BACKTEST_SNAPSHOT.windowDays}-day strategy snapshot pinned to ${BACKTEST_SNAPSHOT.referenceDate}. ${BACKTEST_SNAPSHOT.displayName} vs DCA Classic, daily signal evaluation, ${BACKTEST_SNAPSHOT.tradeCount} executed trades.`,
-    stats: [
-      {
-        label: 'ROI vs DCA',
-        value: ROI_VS_DCA_PP,
-        sublabel: `${BACKTEST_SNAPSHOT.roiPercent} strategy vs ${formatPercent(
-          DCA_CLASSIC_BASELINE.roiPercent,
-          { scale: 1, signed: false },
-        )} DCA`,
-      },
-      {
-        label: 'Strategy ROI',
-        value: BACKTEST_SNAPSHOT.roiPercent,
-        sublabel: `${BACKTEST_SNAPSHOT.windowDays}-day window`,
-      },
-      {
-        label: 'Calmar Ratio',
-        value: BACKTEST_SNAPSHOT.calmarRatio,
-        sublabel: `vs DCA: ${DCA_CLASSIC_BASELINE.calmarRatio}`,
-      },
-      {
-        label: 'Sharpe Ratio',
-        value: BACKTEST_SNAPSHOT.sharpeRatio,
-        sublabel: `vs DCA: ${DCA_CLASSIC_BASELINE.sharpeRatio}`,
-      },
-      {
-        label: 'Max Drawdown',
-        value: BACKTEST_SNAPSHOT.maxDrawdownPercent,
-        sublabel: `vs DCA: ${formatPercent(
-          DCA_CLASSIC_BASELINE.maxDrawdownPercent,
-          { scale: 1, signed: false },
-        )}`,
-      },
-    ],
-    comparison: [
-      {
-        label: 'Strategy',
-        roi: BACKTEST_SNAPSHOT.roiPercent,
-        maxDrawdown: BACKTEST_SNAPSHOT.maxDrawdownPercent,
-        trades: BACKTEST_SNAPSHOT.tradeCount,
-      },
-      {
-        label: 'DCA Classic',
-        roi: formatPercent(DCA_CLASSIC_BASELINE.roiPercent, {
-          scale: 1,
-          signed: false,
-        }),
-        maxDrawdown: formatPercent(DCA_CLASSIC_BASELINE.maxDrawdownPercent, {
-          scale: 1,
-          signed: false,
-        }),
-        trades: String(DCA_CLASSIC_BASELINE.tradeCount),
-      },
-    ],
-    disclaimer: `Past performance does not guarantee future results. Backtest window: ${BACKTEST_SNAPSHOT.windowStart} to ${BACKTEST_SNAPSHOT.windowEnd}, reference date pinned to ${BACKTEST_SNAPSHOT.referenceDate}.`,
+    subtitle: backtestSubtitle(),
+    stats: buildBacktestStats(),
+    comparison: buildComparisonRows(),
+    disclaimer: backtestDisclaimer(),
     ctaText: 'Read methodology',
     ctaLink: '/docs#backtest',
   },
