@@ -15,11 +15,20 @@ interface PackageAndUploadHlsInput {
 export async function packageAndUploadHls(
   input: PackageAndUploadHlsInput,
 ): Promise<HlsUploadResult> {
-  const { files } = await step(input.generateStepName, () =>
+  const generatedHls = await step(input.generateStepName, () =>
     generateHls(input.audio),
   );
 
-  return step(input.uploadStepName, () =>
-    uploadHlsToR2(files, input.episodeId, input.languageCode, input.section),
-  );
+  try {
+    return await step(input.uploadStepName, () =>
+      uploadHlsToR2(
+        generatedHls.files,
+        input.episodeId,
+        input.languageCode,
+        input.section,
+      ),
+    );
+  } finally {
+    await generatedHls.cleanup();
+  }
 }
