@@ -89,7 +89,6 @@ function isWithinThreshold() {
   );
 }
 
-
 const rootConfig = readJson(path.join(repoRoot, '.jscpd.json'));
 const localConfig = readLocalConfig();
 const scanPaths = process.argv.slice(2);

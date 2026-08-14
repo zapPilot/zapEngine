@@ -6,6 +6,8 @@ all analytics services with graceful error handling and caching.
 """
 
 from datetime import date
+from threading import Lock, get_ident
+from time import sleep
 from unittest.mock import AsyncMock, Mock
 from uuid import UUID, uuid4
 
@@ -366,6 +368,43 @@ class TestGetPortfolioDashboard:
         # Verify services were called twice (different cache keys)
         assert dashboard_service.trend_service.get_portfolio_trend.call_count == 2
 
+    async def test_sync_service_calls_remain_serial(
+        self,
+        dashboard_service,
+        sample_user_id,
+        mock_risk_service,
+        mock_drawdown_service,
+        mock_rolling_service,
+    ):
+        active_calls = 0
+        max_active_calls = 0
+        lock = Lock()
+
+        def tracked_result(*_args, **_kwargs):
+            nonlocal active_calls, max_active_calls
+            with lock:
+                active_calls += 1
+                max_active_calls = max(max_active_calls, active_calls)
+            sleep(0.005)
+            with lock:
+                active_calls -= 1
+            return {}
+
+        for method in (
+            mock_risk_service.calculate_portfolio_volatility,
+            mock_risk_service.calculate_sharpe_ratio,
+            mock_risk_service.calculate_max_drawdown,
+            mock_drawdown_service.get_enhanced_drawdown_analysis,
+            mock_drawdown_service.get_underwater_recovery_analysis,
+            mock_rolling_service.get_rolling_sharpe_analysis,
+            mock_rolling_service.get_rolling_volatility_analysis,
+        ):
+            method.side_effect = tracked_result
+
+        await dashboard_service.get_portfolio_dashboard(sample_user_id)
+
+        assert max_active_calls == 1
+
     async def test_different_users_have_separate_cache_entries(self, dashboard_service):
         """Test that different users don't share cache entries."""
         user1 = uuid4()
@@ -397,6 +436,16 @@ class TestSafeCallErrorHandling:
         assert result["success"] is True
         assert result["data"] == [1, 2, 3]
         assert "error" not in result
+
+    async def test_sync_service_call_runs_off_the_event_loop(self, dashboard_service):
+        event_loop_thread = get_ident()
+
+        def fetcher():
+            return {"worker_thread": get_ident()}
+
+        result = await dashboard_service._safe_call("test_service", fetcher)
+
+        assert result["worker_thread"] != event_loop_thread
 
     async def test_value_error_handling(self, dashboard_service):
         """Test _safe_call handles ValueError gracefully."""

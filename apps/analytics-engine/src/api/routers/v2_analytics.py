@@ -7,6 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from src.api.cache_headers import apply_analytics_cache_headers
 from src.core.database import get_db
@@ -146,9 +147,13 @@ async def get_dashboard_v2(
         wallet_address=wallet_address,
         wallet_address_camel=wallet_address_camel,
     )
-    if validated_wallet and not wallet_service.verify_wallet_ownership(
-        db, user_id, validated_wallet
-    ):
+    owns_wallet = not validated_wallet or await run_in_threadpool(
+        wallet_service.verify_wallet_ownership,
+        db,
+        user_id,
+        validated_wallet,
+    )
+    if not owns_wallet:
         raise HTTPException(
             status_code=403,
             detail="Wallet address does not belong to the specified user",
