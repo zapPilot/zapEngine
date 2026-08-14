@@ -238,7 +238,7 @@ def get_market_sentiment_health(
         500: _database_error_response("Failed to fetch regime history"),
     },
 )
-async def get_regime_history(
+def get_regime_history(
     response: Response,
     regime_service: RegimeTrackingServiceDep,
     limit: int = Query(
@@ -338,7 +338,7 @@ async def get_regime_history(
         500: _database_error_response("Failed to fetch token price history"),
     },
 )
-async def get_token_price_history(
+def get_token_price_history(
     response: Response,
     token_price_service: TokenPriceServiceDep,
     days: int = Query(
@@ -406,7 +406,7 @@ async def get_token_price_history(
         },
     },
 )
-async def get_market_dashboard(
+def get_market_dashboard(
     response: Response,
     dashboard_service: MarketDashboardServiceDep,
     days: int = Query(

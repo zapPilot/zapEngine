@@ -8,7 +8,9 @@ if [ "${1:-}" = "audit" ]; then
   # pnpm 10 uses npm audit endpoints that the registry has retired.
   # Keep the workspace package manager unchanged while running audit with the
   # first pnpm major that uses npm's supported bulk advisory endpoint.
-  pnpm dlx pnpm@11.4.0 --pm-on-fail=ignore audit --audit-level=moderate
+  # 11.4.0 had an unbounded path-walk regression (pnpm#12086) and 11.5.1-11.8.x
+  # a quadratic walk on cyclic graphs (pnpm#12212); 11.9.0+ walks in linear time.
+  pnpm dlx pnpm@11.21.0 --pm-on-fail=ignore audit --audit-level=moderate
   exec turbo run security:audit
 fi
 

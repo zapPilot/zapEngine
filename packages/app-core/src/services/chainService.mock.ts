@@ -10,8 +10,8 @@
  * @future Replace with real chain service when backend is ready
  */
 
-import { delay } from '@core/lib/http/retry';
 import type { ChainData } from '@core/types/domain/transaction';
+import { sleep } from '@zapengine/types/shared';
 
 const MOCK_CHAIN_DATA: ChainData[] = [
   {
@@ -38,13 +38,13 @@ const MOCK_CHAIN_DATA: ChainData[] = [
 ];
 
 export async function getSupportedChains(): Promise<ChainData[]> {
-  await delay(120);
+  await sleep(120);
   return MOCK_CHAIN_DATA;
 }
 
 export async function getChainById(
   chainId: number,
 ): Promise<ChainData | undefined> {
-  await delay(120);
+  await sleep(120);
   return MOCK_CHAIN_DATA.find((chain) => chain.chainId === chainId);
 }

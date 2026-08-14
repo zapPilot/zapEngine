@@ -41,7 +41,7 @@ router = APIRouter(prefix="/v3/strategy", tags=["Strategy"])
     response_model=StrategyConfigsResponse,
     summary="Get strategy catalog, public presets, and backtest defaults",
 )
-async def get_strategy_configs(
+def get_strategy_configs(
     strategy_config_store: StrategyConfigStore = Depends(get_strategy_config_store),
 ) -> StrategyConfigsResponse:
     try:
@@ -61,7 +61,7 @@ async def get_strategy_configs(
         "when DATABASE_READ_ONLY=true."
     ),
 )
-async def list_saved_strategy_configs(
+def list_saved_strategy_configs(
     service: StrategyConfigManagementServiceDep,
 ) -> SavedStrategyConfigListResponse:
     return SavedStrategyConfigListResponse(configs=service.list_configs())
@@ -72,7 +72,7 @@ async def list_saved_strategy_configs(
     response_model=SavedStrategyConfigResponse,
     summary="Get one global saved strategy config (admin, unauthenticated)",
 )
-async def get_saved_strategy_config(
+def get_saved_strategy_config(
     config_id: str,
     service: StrategyConfigManagementServiceDep,
 ) -> SavedStrategyConfigResponse:
@@ -87,7 +87,7 @@ async def get_saved_strategy_config(
     response_model=SavedStrategyConfigResponse,
     summary="Create a global saved strategy config (admin, unauthenticated)",
 )
-async def create_saved_strategy_config(
+def create_saved_strategy_config(
     request: CreateSavedStrategyConfigRequest,
     service: StrategyConfigManagementServiceDep,
 ) -> SavedStrategyConfigResponse:
@@ -112,7 +112,7 @@ async def create_saved_strategy_config(
     response_model=SavedStrategyConfigResponse,
     summary="Update a global saved strategy config (admin, unauthenticated)",
 )
-async def update_saved_strategy_config(
+def update_saved_strategy_config(
     config_id: str,
     request: UpdateSavedStrategyConfigRequest,
     service: StrategyConfigManagementServiceDep,
@@ -144,7 +144,7 @@ async def update_saved_strategy_config(
     response_model=SavedStrategyConfigResponse,
     summary="Promote a global saved strategy config to default (admin, unauthenticated)",
 )
-async def set_default_saved_strategy_config(
+def set_default_saved_strategy_config(
     config_id: str,
     service: StrategyConfigManagementServiceDep,
 ) -> SavedStrategyConfigResponse:
@@ -174,7 +174,7 @@ async def set_default_saved_strategy_config(
     response_model=DailySuggestionResponse,
     summary="Get daily DMA-first strategy suggestion",
 )
-async def get_daily_suggestion(
+def get_daily_suggestion(
     user_id: UUID,
     service: StrategyDailySuggestionServiceDep,
     config_id: str | None = Query(

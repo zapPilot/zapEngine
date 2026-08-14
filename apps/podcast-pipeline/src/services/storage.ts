@@ -98,18 +98,24 @@ export async function uploadHlsToR2(
   const r2 = getR2Client();
   const Bucket = getBucket();
 
-  await Promise.all(
-    files.map(({ name, data, contentType }) =>
+  const uploads = await Promise.allSettled(
+    files.map(({ name, path, contentType }) =>
       r2.send(
         new PutObjectCommand({
           Bucket,
           Key: `${prefix}/${name}`,
-          Body: data,
+          Body: createReadStream(path),
           ContentType: contentType,
         }),
       ),
     ),
   );
+  const failedUpload = uploads.find(
+    (upload): upload is PromiseRejectedResult => upload.status === 'rejected',
+  );
+  if (failedUpload) {
+    throw failedUpload.reason;
+  }
 
   return {
     hlsUrl: `${getPublicBase()}/${prefix}/playlist.m3u8`,

@@ -82,6 +82,7 @@ export interface OpenRouterConfig {
 }
 
 export const DEFAULT_OPENROUTER_TIMEOUT_MS = 120_000;
+const openRouterClientCache = new Map<string, OpenAI>();
 
 export function getOpenRouterTimeoutMs(
   value: string | undefined = process.env['OPENROUTER_TIMEOUT_MS'],
@@ -112,13 +113,17 @@ export function getOpenRouterConfig(overrides?: {
       ? overrides.thinkingModel
       : process.env['LLM_THINKING_MODEL'] || null;
   const timeoutMs = getOpenRouterTimeoutMs();
-
-  const openai = new OpenAI({
-    apiKey,
-    baseURL,
-    timeout: timeoutMs,
-    maxRetries: 0,
-  });
+  const clientKey = JSON.stringify([apiKey, baseURL, model, timeoutMs]);
+  let openai = openRouterClientCache.get(clientKey);
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey,
+      baseURL,
+      timeout: timeoutMs,
+      maxRetries: 0,
+    });
+    openRouterClientCache.set(clientKey, openai);
+  }
 
   return { openai, model, thinkingModel, timeoutMs };
 }

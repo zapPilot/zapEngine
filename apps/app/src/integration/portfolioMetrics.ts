@@ -1,3 +1,5 @@
+import { isFiniteNumber } from '@zapengine/types/shared';
+
 export interface DailyValuePoint {
   date?: string;
   total_value_usd?: number;
@@ -10,10 +12,6 @@ export interface YieldReturnPoint {
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
 
 function sortedDailyValues(
   dailyValues: DailyValuePoint[] | undefined,

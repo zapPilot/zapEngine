@@ -1,7 +1,8 @@
+import type { Dirent } from 'node:fs';
+
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
-interface FfmpegMock {
-  setFfmpegPath: Mock;
+interface FfmpegCommandMock {
   audioCodec: Mock;
   audioBitrate: Mock;
   format: Mock;
@@ -9,326 +10,190 @@ interface FfmpegMock {
   output: Mock;
   on: Mock;
   run: Mock;
-  input: Mock;
-  complexFilter: Mock;
-  mockReturnThis: () => FfmpegMock;
-  [key: string]: Mock | ((...args: unknown[]) => FfmpegMock);
 }
 
-const createFfmpegMock = (): FfmpegMock => ({
-  setFfmpegPath: vi.fn().mockReturnThis(),
-  audioCodec: vi.fn().mockReturnThis(),
-  audioBitrate: vi.fn().mockReturnThis(),
-  format: vi.fn().mockReturnThis(),
-  outputOptions: vi.fn().mockReturnThis(),
-  output: vi.fn().mockReturnThis(),
-  on: vi.fn().mockImplementation((_event: string, cb: () => void) => {
-    queueMicrotask(cb);
-    return vi.mocked(createFfmpegMock());
-  }),
-  run: vi.fn(),
-  input: vi.fn().mockReturnThis(),
-  complexFilter: vi.fn().mockReturnThis(),
-  mockReturnThis(this: FfmpegMock) {
-    return this;
-  },
-});
-
-vi.mock('fluent-ffmpeg', () => ({
-  default: Object.assign(
-    vi.fn().mockImplementation(() => createFfmpegMock()),
-    { setFfmpegPath: vi.fn() },
-  ),
+const fsMocks = vi.hoisted(() => ({
+  mkdir: vi.fn(),
+  readdir: vi.fn(),
+  rm: vi.fn(),
+  writeFile: vi.fn(),
 }));
 
-vi.mock('@ffmpeg-installer/ffmpeg', () => ({
-  path: '/usr/bin/ffmpeg',
+const ffmpegMocks = vi.hoisted(() => ({
+  ffmpeg: vi.fn(),
 }));
 
-vi.mock('node:fs', async () => {
-  const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
-  return {
-    ...actual,
-    writeFileSync: vi.fn(),
-    readFileSync: vi.fn().mockReturnValue(Buffer.alloc(0)),
-    readdirSync: vi.fn().mockReturnValue([]),
-    statSync: vi.fn().mockReturnValue({ isFile: () => true }),
-    unlinkSync: vi.fn(),
-    mkdirSync: vi.fn(),
-    rmdirSync: vi.fn(),
-  };
-});
+vi.mock('node:fs/promises', () => fsMocks);
 
-vi.mock('os', () => ({
-  tmpdir: vi.fn().mockReturnValue('/tmp'),
+vi.mock('node:os', () => ({
+  tmpdir: vi.fn().mockReturnValue('/var/folders/test-cache'),
 }));
 
-vi.mock('node:path', () => ({
-  join: (...args: string[]) => args.join('/'),
-  default: { join: (...args: string[]) => args.join('/') },
-}));
-
-vi.mock('crypto', () => ({
+vi.mock('node:crypto', () => ({
   randomUUID: vi.fn().mockReturnValue('mock-uuid-123'),
 }));
 
-describe('generateHls', { timeout: 10000 }, () => {
-  beforeEach(async () => {
-    const { readdirSync, readFileSync, statSync } = await import('node:fs');
-    vi.mocked(readdirSync).mockReturnValue([]);
-    vi.mocked(readFileSync).mockReturnValue(Buffer.alloc(0));
-    vi.mocked(statSync).mockReturnValue({
-      isFile: () => true,
-    } as unknown as ReturnType<typeof statSync>);
-  });
+vi.mock('../lib/ffmpeg.js', () => ({
+  ffmpeg: ffmpegMocks.ffmpeg,
+}));
 
-  it('cleans up temp files in finally block on success', async () => {
-    const { default: ffmpeg } = await import('fluent-ffmpeg');
-    const { unlinkSync, rmdirSync, readdirSync } = await import('node:fs');
-
-    vi.mocked(readdirSync).mockReturnValue([
-      'playlist.m3u8',
-      'seg1.ts',
-      'seg2.ts',
-    ] as unknown as ReturnType<typeof readdirSync>);
-
-    const mockFfmpeg = vi.mocked(ffmpeg);
-    mockFfmpeg.mockImplementation(
-      () => createFfmpegMock() as unknown as ReturnType<typeof ffmpeg>,
-    );
-
-    const { generateHls } = await import('./hls.js');
-    await generateHls(Buffer.alloc(100));
-
-    expect(vi.mocked(unlinkSync).mock.calls.length).toBeGreaterThan(0);
-    expect(vi.mocked(rmdirSync).mock.calls.length).toBeGreaterThan(0);
-  });
-
-  it('handles non-standard file extensions in getContentType default case', async () => {
-    const { default: ffmpeg } = await import('fluent-ffmpeg');
-    const { readdirSync, readFileSync } = await import('node:fs');
-
-    vi.mocked(readdirSync).mockReturnValue([
-      'playlist.m3u8',
-      'seg1.ts',
-      'extra.json',
-      'data.bin',
-    ] as unknown as ReturnType<typeof readdirSync>);
-    vi.mocked(readFileSync).mockReturnValue(Buffer.alloc(0));
-
-    const mockFfmpeg = vi.mocked(ffmpeg);
-    mockFfmpeg.mockImplementation(
-      () => createFfmpegMock() as unknown as ReturnType<typeof ffmpeg>,
-    );
-
-    const { generateHls } = await import('./hls.js');
-    const result = await generateHls(Buffer.alloc(100));
-
-    const extraJson = result.files.find((f) => f.name === 'extra.json');
-    const dataBin = result.files.find((f) => f.name === 'data.bin');
-    expect(extraJson?.contentType).toBe('application/octet-stream');
-    expect(dataBin?.contentType).toBe('application/octet-stream');
-  });
-
-  it('skips directory entries while collecting generated HLS files', async () => {
-    const { default: ffmpeg } = await import('fluent-ffmpeg');
-    const { readdirSync, statSync } = await import('node:fs');
-
-    vi.mocked(readdirSync).mockReturnValue([
-      'playlist.m3u8',
-      'segments',
-      'seg1.ts',
-    ] as unknown as ReturnType<typeof readdirSync>);
-    vi.mocked(statSync).mockImplementation(((filePath: string) => ({
-      isFile: () => !filePath.endsWith('/segments'),
-    })) as unknown as typeof statSync);
-
-    const mockFfmpeg = vi.mocked(ffmpeg);
-    mockFfmpeg.mockImplementation(
-      () => createFfmpegMock() as unknown as ReturnType<typeof ffmpeg>,
-    );
-
-    const { generateHls } = await import('./hls.js');
-    const result = await generateHls(Buffer.alloc(100));
-
-    expect(result.files.map((file) => file.name)).toEqual([
-      'playlist.m3u8',
-      'seg1.ts',
-    ]);
-  });
-
-  it('cleans up temp files in finally block when readdirSync throws', async () => {
-    const { unlinkSync, rmdirSync, readdirSync } = await import('node:fs');
-    vi.mocked(readdirSync).mockImplementation(() => {
-      throw new Error('readdir error');
+function createFfmpegMock(error?: Error): FfmpegCommandMock {
+  const callbacks = new Map<string, (...args: unknown[]) => void>();
+  const command = {} as FfmpegCommandMock;
+  command.audioCodec = vi.fn(() => command);
+  command.audioBitrate = vi.fn(() => command);
+  command.format = vi.fn(() => command);
+  command.outputOptions = vi.fn(() => command);
+  command.output = vi.fn(() => command);
+  command.on = vi.fn(
+    (event: string, callback: (...args: unknown[]) => void) => {
+      callbacks.set(event, callback);
+      return command;
+    },
+  );
+  command.run = vi.fn(() => {
+    queueMicrotask(() => {
+      if (error) {
+        callbacks.get('error')?.(error);
+      } else {
+        callbacks.get('end')?.();
+      }
     });
+  });
+  return command;
+}
 
-    const { default: ffmpeg } = await import('fluent-ffmpeg');
-    const mockFfmpeg = vi.mocked(ffmpeg);
-    mockFfmpeg.mockImplementation(
-      () => createFfmpegMock() as unknown as ReturnType<typeof ffmpeg>,
-    );
+function fileEntry(name: string): Dirent {
+  return {
+    name,
+    isFile: () => true,
+  } as Dirent;
+}
 
-    const { generateHls } = await import('./hls.js');
-    await expect(generateHls(Buffer.alloc(100))).rejects.toThrow();
+function directoryEntry(name: string): Dirent {
+  return {
+    name,
+    isFile: () => false,
+  } as Dirent;
+}
 
-    expect(vi.mocked(unlinkSync).mock.calls.length).toBeGreaterThan(0);
-    expect(vi.mocked(rmdirSync).mock.calls.length).toBeGreaterThan(0);
+describe('generateHls', () => {
+  beforeEach(() => {
+    fsMocks.mkdir.mockReset().mockResolvedValue(undefined);
+    fsMocks.readdir
+      .mockReset()
+      .mockResolvedValue([fileEntry('playlist.m3u8'), fileEntry('seg1.ts')]);
+    fsMocks.rm.mockReset().mockResolvedValue(undefined);
+    fsMocks.writeFile.mockReset().mockResolvedValue(undefined);
+    ffmpegMocks.ffmpeg.mockReset().mockImplementation(() => createFfmpegMock());
   });
 
-  it('throws when no files are generated', async () => {
-    const { default: ffmpeg } = await import('fluent-ffmpeg');
-    const mockFfmpeg = vi.mocked(ffmpeg);
-    mockFfmpeg.mockImplementation(
-      () => createFfmpegMock() as unknown as ReturnType<typeof ffmpeg>,
-    );
+  it('returns generated file paths and keeps them until explicit cleanup', async () => {
+    fsMocks.readdir.mockResolvedValue([
+      fileEntry('playlist.m3u8'),
+      fileEntry('seg1.ts'),
+      fileEntry('extra.json'),
+      directoryEntry('segments'),
+    ]);
 
     const { generateHls } = await import('./hls.js');
+    const audio = Buffer.alloc(100);
+    const result = await generateHls(audio);
+
+    expect(fsMocks.mkdir).toHaveBeenCalledWith(
+      '/var/folders/test-cache/hls_mock-uuid-123',
+      { recursive: true },
+    );
+    expect(fsMocks.writeFile).toHaveBeenCalledWith(
+      '/var/folders/test-cache/hls_mock-uuid-123/input.mp3',
+      audio,
+    );
+    expect(fsMocks.readdir).toHaveBeenCalledWith(
+      '/var/folders/test-cache/hls_mock-uuid-123',
+      { withFileTypes: true },
+    );
+    expect(result.files).toEqual([
+      {
+        name: 'playlist.m3u8',
+        path: '/var/folders/test-cache/hls_mock-uuid-123/playlist.m3u8',
+        contentType: 'application/vnd.apple.mpegurl',
+      },
+      {
+        name: 'seg1.ts',
+        path: '/var/folders/test-cache/hls_mock-uuid-123/seg1.ts',
+        contentType: 'video/mp2t',
+      },
+      {
+        name: 'extra.json',
+        path: '/var/folders/test-cache/hls_mock-uuid-123/extra.json',
+        contentType: 'application/octet-stream',
+      },
+    ]);
+    expect(result.playlistKey).toBe('playlist.m3u8');
+    expect(fsMocks.rm).not.toHaveBeenCalled();
+
+    await result.cleanup();
+
+    expect(fsMocks.rm).toHaveBeenCalledWith(
+      '/var/folders/test-cache/hls_mock-uuid-123',
+      {
+        recursive: true,
+        force: true,
+      },
+    );
+  });
+
+  it('cleans up and throws when no files are generated', async () => {
+    fsMocks.readdir.mockResolvedValue([]);
+
+    const { generateHls } = await import('./hls.js');
+
     await expect(generateHls(Buffer.alloc(100))).rejects.toThrow(
       'No HLS files were generated',
     );
+    expect(fsMocks.rm).toHaveBeenCalledTimes(1);
   });
 
-  it('throws when playlist file is not generated', async () => {
-    const { readdirSync } = await import('node:fs');
-    vi.mocked(readdirSync).mockReturnValue([
-      'seg1.ts',
-      'seg2.ts',
-    ] as unknown as ReturnType<typeof readdirSync>);
-
-    const { default: ffmpeg } = await import('fluent-ffmpeg');
-    const mockFfmpeg = vi.mocked(ffmpeg);
-    mockFfmpeg.mockImplementation(
-      () => createFfmpegMock() as unknown as ReturnType<typeof ffmpeg>,
-    );
+  it('cleans up and throws when the playlist is missing', async () => {
+    fsMocks.readdir.mockResolvedValue([
+      fileEntry('seg1.ts'),
+      fileEntry('seg2.ts'),
+    ]);
 
     const { generateHls } = await import('./hls.js');
+
     await expect(generateHls(Buffer.alloc(100))).rejects.toThrow(
       'Playlist file was not generated',
     );
+    expect(fsMocks.rm).toHaveBeenCalledTimes(1);
   });
 
-  it('handles error when unlinkSync throws in finally block cleanup', async () => {
-    const { default: ffmpeg } = await import('fluent-ffmpeg');
-    const { unlinkSync, readdirSync } = await import('node:fs');
-
-    vi.mocked(readdirSync).mockReturnValue([
-      'playlist.m3u8',
-      'seg1.ts',
-    ] as unknown as ReturnType<typeof readdirSync>);
-    vi.mocked(unlinkSync).mockImplementation(() => {
-      throw new Error('unlink failed');
-    });
-
-    const mockFfmpeg = vi.mocked(ffmpeg);
-    mockFfmpeg.mockImplementation(
-      () => createFfmpegMock() as unknown as ReturnType<typeof ffmpeg>,
-    );
+  it('cleans up when reading generated entries fails', async () => {
+    const error = new Error('readdir error');
+    fsMocks.readdir.mockRejectedValue(error);
 
     const { generateHls } = await import('./hls.js');
-    const result = await generateHls(Buffer.alloc(100));
-    expect(result.files.length).toBeGreaterThan(0);
-    expect(vi.mocked(unlinkSync).mock.calls.length).toBeGreaterThan(0);
+
+    await expect(generateHls(Buffer.alloc(100))).rejects.toBe(error);
+    expect(fsMocks.rm).toHaveBeenCalledTimes(1);
   });
 
-  it('handles error when rmdirSync throws in finally block cleanup', async () => {
-    const { default: ffmpeg } = await import('fluent-ffmpeg');
-    const { rmdirSync, readdirSync } = await import('node:fs');
-
-    vi.mocked(readdirSync).mockReturnValue([
-      'playlist.m3u8',
-      'seg1.ts',
-    ] as unknown as ReturnType<typeof readdirSync>);
-    vi.mocked(rmdirSync).mockImplementation(() => {
-      throw new Error('rmdir failed');
-    });
-
-    const mockFfmpeg = vi.mocked(ffmpeg);
-    mockFfmpeg.mockImplementation(
-      () => createFfmpegMock() as unknown as ReturnType<typeof ffmpeg>,
-    );
+  it('cleans up when ffmpeg fails', async () => {
+    const error = new Error('ffmpeg error');
+    ffmpegMocks.ffmpeg.mockImplementationOnce(() => createFfmpegMock(error));
 
     const { generateHls } = await import('./hls.js');
-    const result = await generateHls(Buffer.alloc(100));
-    expect(result.files.length).toBeGreaterThan(0);
+
+    await expect(generateHls(Buffer.alloc(100))).rejects.toBe(error);
+    expect(fsMocks.rm).toHaveBeenCalledTimes(1);
+    expect(fsMocks.readdir).not.toHaveBeenCalled();
   });
 
-  it('swallows error when unlinkSync throws in finally block loop', async () => {
-    const { default: ffmpeg } = await import('fluent-ffmpeg');
-    const { unlinkSync, readdirSync } = await import('node:fs');
-
-    vi.mocked(readdirSync).mockReturnValue([
-      'playlist.m3u8',
-      'seg1.ts',
-    ] as unknown as ReturnType<typeof readdirSync>);
-
-    const mockFfmpeg = vi.mocked(ffmpeg);
-    mockFfmpeg.mockImplementation(
-      () => createFfmpegMock() as unknown as ReturnType<typeof ffmpeg>,
-    );
-
-    let unlinkCallCount = 0;
-    vi.mocked(unlinkSync).mockImplementation(() => {
-      unlinkCallCount++;
-      if (unlinkCallCount <= 2) {
-        throw new Error('unlink error');
-      }
-    });
-
+  it('preserves a successful result when cleanup itself fails', async () => {
     const { generateHls } = await import('./hls.js');
     const result = await generateHls(Buffer.alloc(100));
-    expect(result.files.length).toBeGreaterThan(0);
-  });
+    fsMocks.rm.mockRejectedValueOnce(new Error('cleanup failed'));
 
-  it('swallows error when rmdirSync throws in finally block', async () => {
-    const { default: ffmpeg } = await import('fluent-ffmpeg');
-    const { unlinkSync, rmdirSync, readdirSync } = await import('node:fs');
-
-    vi.mocked(readdirSync).mockReturnValue([
-      'playlist.m3u8',
-      'seg1.ts',
-    ] as unknown as ReturnType<typeof readdirSync>);
-
-    const mockFfmpeg = vi.mocked(ffmpeg);
-    mockFfmpeg.mockImplementation(
-      () => createFfmpegMock() as unknown as ReturnType<typeof ffmpeg>,
-    );
-
-    vi.mocked(unlinkSync).mockImplementation(() => {
-      // noop - success
-    });
-    vi.mocked(rmdirSync).mockImplementation(() => {
-      throw new Error('rmdir error');
-    });
-
-    const { generateHls } = await import('./hls.js');
-    const result = await generateHls(Buffer.alloc(100));
-    expect(result.files.length).toBeGreaterThan(0);
-  });
-
-  it('swallows outer catch when both unlinkSync and rmdirSync throw', async () => {
-    const { default: ffmpeg } = await import('fluent-ffmpeg');
-    const { unlinkSync, rmdirSync, readdirSync } = await import('node:fs');
-
-    vi.mocked(readdirSync).mockReturnValue([
-      'playlist.m3u8',
-      'seg1.ts',
-    ] as unknown as ReturnType<typeof readdirSync>);
-
-    const mockFfmpeg = vi.mocked(ffmpeg);
-    mockFfmpeg.mockImplementation(
-      () => createFfmpegMock() as unknown as ReturnType<typeof ffmpeg>,
-    );
-
-    vi.mocked(unlinkSync).mockImplementation(() => {
-      throw new Error('unlink error');
-    });
-    vi.mocked(rmdirSync).mockImplementation(() => {
-      throw new Error('rmdir error');
-    });
-
-    const { generateHls } = await import('./hls.js');
-    const result = await generateHls(Buffer.alloc(100));
-    expect(result.files.length).toBeGreaterThan(0);
+    await expect(result.cleanup()).resolves.toBeUndefined();
   });
 });

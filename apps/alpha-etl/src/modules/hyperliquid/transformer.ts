@@ -1,3 +1,5 @@
+import { isFiniteNumber } from '@zapengine/types/shared';
+
 import { transformBatchWithLogging } from '../../core/transformers/baseTransformer.js';
 import type {
   HyperliquidVaultAprSnapshotInsert,
@@ -6,10 +8,7 @@ import type {
 import { resolveSnapshotTime } from '../../utils/dateUtils.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
-import {
-  isFiniteNumber,
-  toFiniteNumberOrNull,
-} from '../../utils/numberUtils.js';
+import { toFiniteNumberOrNull } from '../../utils/numberUtils.js';
 import type {
   VaultAprData,
   VaultDetailsResponse,

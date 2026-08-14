@@ -37,7 +37,6 @@ export async function ensureLocalizationCompleted(
   localization: EpisodeLocalizationRow;
   classroomRows: LanguageClassroomRow[];
 }> {
-  let classroomRows: LanguageClassroomRow[] | null = null;
   const mainAudioReady = isMainAudioReady(localization);
   const classroomAudioReady = isClassroomAudioReady(localization, languageCode);
 
@@ -51,13 +50,13 @@ export async function ensureLocalizationCompleted(
     );
   }
 
-  if (!mainAudioReady || !classroomAudioReady) {
-    classroomRows = await ensureLanguageClassroomsAndRecordCost(
-      localization,
-      languageCode,
-      costBreakdown,
-    );
+  const classroomRows = await ensureLanguageClassroomsAndRecordCost(
+    localization,
+    languageCode,
+    costBreakdown,
+  );
 
+  if (!mainAudioReady || !classroomAudioReady) {
     const uploadedMain = mainAudioReady
       ? null
       : await synthesizeAndUploadMainAudio(
@@ -130,21 +129,9 @@ export async function ensureLocalizationCompleted(
     );
     localization = completedLocalization;
   } else if (localization.status !== 'completed') {
-    classroomRows = await ensureLanguageClassroomsAndRecordCost(
-      localization,
-      languageCode,
-      costBreakdown,
-    );
     localization = await markLocalizationCompleted(localization, languageCode);
-  }
-
-  if (!classroomRows) {
+  } else {
     logIngestSkip('localization audio already ready');
-    classroomRows = await ensureLanguageClassroomsAndRecordCost(
-      localization,
-      languageCode,
-      costBreakdown,
-    );
   }
 
   return { localization, classroomRows };
@@ -335,27 +322,13 @@ async function synthesizeAndUploadClassroomAudio(
 
   const classroomAudios = await synthesizeClassroomAudios(
     episodeId,
-    languageCode,
     classroomRows,
   );
   costBreakdown.push(...classroomAudios.cost);
   const classroomAudio = await combineClassroomAudio(
     classroomAudios.audioBuffers,
-    {
-      episodeId,
-      localizationId: localization.id,
-      languageCode,
-    },
+    languageCode,
   );
-
-  if (!classroomAudio) {
-    if (isLanguageClassroomAudioRequired(languageCode)) {
-      throw new Error(
-        `Language classroom audio was not produced for ${languageCode}`,
-      );
-    }
-    return null;
-  }
 
   return packageAndUploadHls({
     audio: classroomAudio,
@@ -398,9 +371,12 @@ async function packageMainHls(
   });
 }
 
+/**
+ * Only reached for languages whose classroom audio is required, so a lesson
+ * that yields no audio fails the ingest rather than shrinking the section.
+ */
 async function synthesizeClassroomAudios(
   episodeId: string,
-  languageCode: LanguageClassroomLanguageCode,
   classrooms: LanguageClassroomRow[],
 ): Promise<{ audioBuffers: Buffer[]; cost: UsageCostLine[] }> {
   const audioBuffers: Buffer[] = [];
@@ -412,59 +388,34 @@ async function synthesizeClassroomAudios(
       { episodeId },
     );
     cost.push(...result.cost);
-    if (result.audio) {
-      audioBuffers.push(result.audio);
-      continue;
-    }
-
-    if (isLanguageClassroomAudioRequired(languageCode)) {
+    if (!result.audio) {
       throw new Error(
         `Language classroom audio synthesis failed for ${classroom.target_language_code}`,
       );
     }
+    audioBuffers.push(result.audio);
   }
 
   return { audioBuffers, cost };
 }
 
+/**
+ * Only reached for languages whose classroom audio is required, so an empty
+ * buffer list and a failed concat both fail the ingest.
+ */
 async function combineClassroomAudio(
   classroomAudios: Buffer[],
-  context: {
-    episodeId: string;
-    localizationId: string;
-    languageCode: LanguageClassroomLanguageCode;
-  },
-): Promise<Buffer | null> {
+  languageCode: LanguageClassroomLanguageCode,
+): Promise<Buffer> {
   if (classroomAudios.length === 0) {
-    if (isLanguageClassroomAudioRequired(context.languageCode)) {
-      throw new Error(
-        `Language classroom audio buffers are missing for ${context.languageCode}`,
-      );
-    }
-    return null;
-  }
-
-  if (isLanguageClassroomAudioRequired(context.languageCode)) {
-    return step('concatEpisodeClassroomAudio', () =>
-      concatMp3Buffers(classroomAudios),
+    throw new Error(
+      `Language classroom audio buffers are missing for ${languageCode}`,
     );
   }
 
-  try {
-    return await step('concatEpisodeClassroomAudio', () =>
-      concatMp3Buffers(classroomAudios),
-    );
-  } catch (error) {
-    /* v8 ignore next -- @preserve */
-    const err = error instanceof Error ? error : new Error(String(error));
-    console.error('[/ingest] classroom audio concat failed:', {
-      ...context,
-      message: err.message,
-      stack: err.stack,
-      cause: err.cause,
-    });
-    return null;
-  }
+  return step('concatEpisodeClassroomAudio', () =>
+    concatMp3Buffers(classroomAudios),
+  );
 }
 
 async function ensureLanguageClassrooms(

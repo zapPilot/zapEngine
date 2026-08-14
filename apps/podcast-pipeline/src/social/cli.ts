@@ -18,7 +18,6 @@ import type {
   BrowserPublisher,
   GeneratedSocialCopy,
   SocialEpisode,
-  SocialLanguage,
   SocialPlatform,
   SocialPublishState,
 } from './types.js';
@@ -32,7 +31,7 @@ const REPO_ROOT = resolve(
   '..',
 );
 const USAGE =
-  'Usage: pnpm social:publish <episode-uuid-or-share-url> [--dry-run] [--platform x|rednote] [--lang zh] [--force]';
+  'Usage: pnpm social:publish <episode-uuid-or-share-url> [--dry-run] [--platform x|rednote] [--force]';
 
 dotenv.config({ path: resolve(REPO_ROOT, '.env') });
 
@@ -40,7 +39,6 @@ export interface SocialCliOptions {
   episodeId: string;
   dryRun: boolean;
   force: boolean;
-  language: SocialLanguage;
   platform?: SocialPlatform;
 }
 
@@ -113,7 +111,6 @@ export async function runSocialCli(args: string[]): Promise<void> {
   };
   const outcomes = await publishSocialPlatforms({
     episodeId: options.episodeId,
-    language: options.language,
     platforms: review.platforms,
     force: options.force,
     copy: review.copy,
@@ -144,7 +141,6 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
       'dry-run': { type: 'boolean', default: false },
       force: { type: 'boolean', default: false },
       help: { type: 'boolean', short: 'h', default: false },
-      lang: { type: 'string', default: 'zh' },
       platform: { type: 'string' },
     },
   });
@@ -152,11 +148,6 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
   if (values.help) throw new Error(USAGE);
   if (positionals.length !== 1 || !positionals[0]?.trim()) {
     throw new Error(USAGE);
-  }
-  if (values.lang !== 'zh') {
-    throw new Error(
-      'MVP only supports --lang zh. No language fallback is allowed.',
-    );
   }
   if (
     values.platform !== undefined &&
@@ -170,7 +161,6 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
     episodeId: parseSocialEpisodeId(positionals[0]),
     dryRun: values['dry-run'],
     force: values.force,
-    language: 'zh',
     ...(values.platform ? { platform: values.platform } : {}),
   };
 }
@@ -183,7 +173,7 @@ async function loadSocialAssets(
   video?: PreparedVideo;
 }> {
   console.log(`Fetching episode ${options.episodeId}...`);
-  const episode = await getSocialEpisode(options.episodeId, options.language);
+  const episode = await getSocialEpisode(options.episodeId);
   console.log('✓ metadata');
   console.log('✓ transcript');
 
@@ -198,7 +188,6 @@ async function loadSocialAssets(
 
   const video = await prepareSocialVideo({
     episodeId: options.episodeId,
-    language: options.language,
     url: videoUrl,
   });
   console.log(
@@ -251,19 +240,13 @@ async function handleExistingState(
   const pending = findPendingPlatforms(
     state,
     options.episodeId,
-    options.language,
     requestedPlatforms,
   );
   if (pending.length === requestedPlatforms.length) return requestedPlatforms;
 
   console.log(`⚠ Episode ${options.episodeId} was already published:`);
   for (const platform of requestedPlatforms) {
-    const existing = getPublishedPlatform(
-      state,
-      options.episodeId,
-      options.language,
-      platform,
-    );
+    const existing = getPublishedPlatform(state, options.episodeId, platform);
     console.log(
       `${platform === 'x' ? 'X' : 'Rednote'}       ${existing ? '✓' : 'pending'}`,
     );
@@ -284,11 +267,10 @@ async function handleExistingState(
 export function findPendingPlatforms(
   state: SocialPublishState,
   episodeId: string,
-  language: SocialLanguage,
   requestedPlatforms: readonly SocialPlatform[],
 ): SocialPlatform[] {
   return requestedPlatforms.filter(
-    (platform) => !getPublishedPlatform(state, episodeId, language, platform),
+    (platform) => !getPublishedPlatform(state, episodeId, platform),
   );
 }
 

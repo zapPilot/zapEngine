@@ -6,6 +6,7 @@ import {
   type StrategyDepositPlan,
   SUPPORTED_DEPOSIT_CHAINS,
 } from '@zapengine/types/api';
+import type { ReactNode } from 'react';
 import { formatUnits } from 'viem';
 
 import { ChainMark } from '@/components/token/ChainMark';
@@ -133,6 +134,48 @@ function strategyTransactionCount(
   );
 }
 
+interface AllocationRow {
+  icon?: ReactNode;
+  label: string;
+  value: string;
+}
+
+/**
+ * The allocation block both summaries open with: a Total line on the confirm
+ * step, then one row per destination (confirm) or per funding leg (route).
+ * Only the row data differs between the strategy and single-chain summaries.
+ */
+function AllocationRows({
+  variant,
+  amountUsd,
+  confirmRows,
+  routeRows,
+}: {
+  variant: StrategyPlanSummaryProps['variant'];
+  amountUsd: number;
+  confirmRows: AllocationRow[];
+  routeRows: AllocationRow[];
+}) {
+  const isConfirm = variant === 'confirm';
+
+  return (
+    <>
+      {isConfirm ? (
+        <InfoRow label="Total" value={formatUsd(amountUsd)} divider />
+      ) : null}
+      {(isConfirm ? confirmRows : routeRows).map((row, index) => (
+        <InfoRow
+          key={`${row.label}-${index}`}
+          icon={row.icon}
+          label={row.label}
+          value={row.value}
+          divider
+        />
+      ))}
+    </>
+  );
+}
+
 function StrategySummary({
   variant,
   plan,
@@ -160,46 +203,39 @@ function StrategySummary({
 
   return (
     <>
-      {/* jscpd:ignore-start -- strategy and single-chain summaries intentionally share the same confirmation row shape */}
-      {variant === 'confirm' ? (
-        <>
-          <InfoRow label="Total" value={formatUsd(amountUsd)} divider />
-          <InfoRow
-            icon={<RowMarks chainKey="base" protocol="morpho" />}
-            label="Morpho"
-            value={`${tokenAmountLabel(baseGroup?.fromAmount, baseToken)} · 40%`}
-            divider
-          />
-          <InfoRow
-            icon={<RowMarks chainKey="arbitrum" protocol="gmx-v2" />}
-            label="GMX BTC"
-            value={`${tokenAmountLabel(btcAllocation?.fromAmount, arbitrumToken)} · 30%`}
-            divider
-          />
-          <InfoRow
-            icon={<RowMarks chainKey="arbitrum" protocol="gmx-v2" />}
-            label="GMX ETH"
-            value={`${tokenAmountLabel(ethAllocation?.fromAmount, arbitrumToken)} · 30%`}
-            divider
-          />
-        </>
-      ) : (
-        <>
-          <InfoRow
-            icon={<RowMarks chainKey="base" />}
-            label="Funding"
-            value={`${tokenAmountLabel(baseGroup?.fromAmount, baseToken)} · 40%`}
-            divider
-          />
-          <InfoRow
-            icon={<RowMarks chainKey="arbitrum" />}
-            label="Funding"
-            value={`${tokenAmountLabel(arbitrumGroup?.fromAmount, arbitrumToken)} · 60%`}
-            divider
-          />
-        </>
-      )}
-      {/* jscpd:ignore-end */}
+      <AllocationRows
+        variant={variant}
+        amountUsd={amountUsd}
+        confirmRows={[
+          {
+            icon: <RowMarks chainKey="base" protocol="morpho" />,
+            label: 'Morpho',
+            value: `${tokenAmountLabel(baseGroup?.fromAmount, baseToken)} · 40%`,
+          },
+          {
+            icon: <RowMarks chainKey="arbitrum" protocol="gmx-v2" />,
+            label: 'GMX BTC',
+            value: `${tokenAmountLabel(btcAllocation?.fromAmount, arbitrumToken)} · 30%`,
+          },
+          {
+            icon: <RowMarks chainKey="arbitrum" protocol="gmx-v2" />,
+            label: 'GMX ETH',
+            value: `${tokenAmountLabel(ethAllocation?.fromAmount, arbitrumToken)} · 30%`,
+          },
+        ]}
+        routeRows={[
+          {
+            icon: <RowMarks chainKey="base" />,
+            label: 'Funding',
+            value: `${tokenAmountLabel(baseGroup?.fromAmount, baseToken)} · 40%`,
+          },
+          {
+            icon: <RowMarks chainKey="arbitrum" />,
+            label: 'Funding',
+            value: `${tokenAmountLabel(arbitrumGroup?.fromAmount, arbitrumToken)} · 60%`,
+          },
+        ]}
+      />
       <InfoRow
         icon={<RowMarks chainKey="base" />}
         label="Actions"
@@ -226,7 +262,6 @@ function StrategySummary({
         value={formatGmxExecutionFee(arbitrumGroup?.calls)}
         divider={variant === 'confirm'}
       />
-      {/* jscpd:ignore-start -- strategy and single-chain summaries intentionally share the same confirmation row shape */}
       {variant === 'confirm' ? (
         <InfoRow label="Settlement" value="Up to 5 minutes" />
       ) : null}
@@ -259,29 +294,26 @@ function SingleChainSummary({
 
   return (
     <>
-      {variant === 'confirm' ? (
-        <>
-          <InfoRow label="Total" value={formatUsd(amountUsd)} divider />
-          <InfoRow
-            icon={<RowMarks chainKey={chainKey} protocol={protocol} />}
-            label={allocationLabel}
-            value={
-              isBase
-                ? `${tokenAmountLabel(fromAmount, token)} · 100%`
-                : 'BTC/BTC · ETH/ETH · BTC/USDC · ETH/USDC · 25% each'
-            }
-            divider
-          />
-        </>
-      ) : (
-        <InfoRow
-          icon={<RowMarks chainKey={chainKey} />}
-          label="Funding"
-          value={`${tokenAmountLabel(fromAmount, token)} · 100%`}
-          divider
-        />
-      )}
-      {/* jscpd:ignore-end */}
+      <AllocationRows
+        variant={variant}
+        amountUsd={amountUsd}
+        confirmRows={[
+          {
+            icon: <RowMarks chainKey={chainKey} protocol={protocol} />,
+            label: allocationLabel,
+            value: isBase
+              ? `${tokenAmountLabel(fromAmount, token)} · 100%`
+              : 'BTC/BTC · ETH/ETH · BTC/USDC · ETH/USDC · 25% each',
+          },
+        ]}
+        routeRows={[
+          {
+            icon: <RowMarks chainKey={chainKey} />,
+            label: 'Funding',
+            value: `${tokenAmountLabel(fromAmount, token)} · 100%`,
+          },
+        ]}
+      />
       <InfoRow
         icon={<RowMarks chainKey={chainKey} />}
         label="Actions"

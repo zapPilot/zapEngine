@@ -1,9 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getRuntimeEnv } from '@zapengine/app-core/lib/env/runtimeEnv';
-import {
-  getAlchemyWalletBalancesSnapshot,
-  getMoralisWalletTokenBalances,
-} from '@zapengine/app-core/services';
+import { getAlchemyWalletBalancesSnapshot } from '@zapengine/app-core/services';
 
 import {
   buildDesktopWalletAssets,
@@ -14,79 +10,34 @@ import {
   type DesktopWalletAssetHolding,
   type ChainTokenBalanceRow,
   type InvestableBalanceRow,
-  type MoralisChainKey,
   normalizeWalletAddressList,
-  type UseMoralisWalletAssetsResult,
+  type UseWalletAssetsResult,
   type WalletAddressInput,
-  type WalletChainBalancesLike,
 } from '@/integration/moralisWallet';
-
-export type WalletTokenProviderId = 'alchemy' | 'moralis';
 
 export type {
   DesktopWalletAsset,
   DesktopWalletAssetHolding,
   ChainTokenBalanceRow,
   InvestableBalanceRow,
-  UseMoralisWalletAssetsResult as UseWalletAssetsResult,
+  UseWalletAssetsResult,
   WalletAddressInput,
 };
 
-interface WalletTokenProvider {
-  id: WalletTokenProviderId;
-  getTokenBalances: (address: string) => Promise<WalletTokenProviderSnapshot>;
-}
-
-interface WalletTokenProviderSnapshot {
-  balances: WalletChainBalancesLike[];
-  failedChains: MoralisChainKey[];
-}
-
-const ALCHEMY_WALLET_TOKEN_PROVIDER: WalletTokenProvider = {
-  id: 'alchemy',
-  getTokenBalances: async (address) => {
-    const snapshot = await getAlchemyWalletBalancesSnapshot(address);
-    return {
-      balances: snapshot.balances,
-      failedChains: snapshot.failedChains,
-    };
-  },
-};
-
-const MORALIS_WALLET_TOKEN_PROVIDER: WalletTokenProvider = {
-  id: 'moralis',
-  getTokenBalances: async (address) => ({
-    balances: await getMoralisWalletTokenBalances(address),
-    failedChains: [],
-  }),
-};
-
-export function resolveWalletTokenProvider(): WalletTokenProviderId {
-  const provider = getRuntimeEnv('VITE_DESKTOP_WALLET_PROVIDER')
-    ?.trim()
-    .toLowerCase();
-  return provider === 'moralis' ? 'moralis' : 'alchemy';
-}
-
-function getWalletTokenProvider(): WalletTokenProvider {
-  return resolveWalletTokenProvider() === 'moralis'
-    ? MORALIS_WALLET_TOKEN_PROVIDER
-    : ALCHEMY_WALLET_TOKEN_PROVIDER;
-}
-
 export function useWalletAssets(
   addressInput: WalletAddressInput,
-): UseMoralisWalletAssetsResult {
-  const provider = getWalletTokenProvider();
+): UseWalletAssetsResult {
   const walletAddresses = normalizeWalletAddressList(addressInput);
   const enabled = walletAddresses.length > 0;
   const query = useQuery({
-    queryKey: ['desktop', provider.id, 'wallet-assets', walletAddresses],
+    queryKey: ['desktop', 'alchemy', 'wallet-assets', walletAddresses],
     enabled,
     staleTime: 60 * 1000,
     queryFn: async () => {
       const snapshots = await Promise.all(
-        walletAddresses.map((address) => provider.getTokenBalances(address)),
+        walletAddresses.map((address) =>
+          getAlchemyWalletBalancesSnapshot(address),
+        ),
       );
       const responses = snapshots.flatMap((snapshot) => snapshot.balances);
       const assets = buildDesktopWalletAssets(responses);

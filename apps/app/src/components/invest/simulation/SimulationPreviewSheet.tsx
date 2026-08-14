@@ -4,7 +4,6 @@ import {
   Check,
   Clock3,
   CloudOff,
-  ExternalLink,
   RefreshCw,
   ShieldCheck,
   Wallet,
@@ -14,7 +13,6 @@ import {
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -29,6 +27,8 @@ import { SimulationCallList } from '@/components/invest/simulation/SimulationCal
 import {
   SectionLabel,
   SimulationBlockingBanner,
+  SimulationEvidenceStats,
+  SimulationShareLinks,
   VERDICT_CLASSES,
   VERDICT_TEXT_CLASSES,
 } from '@/components/invest/simulation/SimulationReviewPrimitives';
@@ -38,9 +38,8 @@ import { useReducedMotion } from '@/components/ui/useReducedMotion';
 import {
   confirmGate,
   confirmRiskHash,
-  formatAddress,
+  formatAddressOrUnknown,
   formatCountdown,
-  formatInteger,
   getBlockingReason,
   partitionAssetChanges,
   signingActionLabel,
@@ -62,16 +61,6 @@ function VerdictIcon({ tone }: { tone: SimulationVerdictTone }) {
   if (tone === 'success') return <ShieldCheck size={14} color="#7ad88f" />;
   if (tone === 'error') return <XCircle size={14} color="#ff6f61" />;
   return <CloudOff size={14} color="#a1a1aa" />;
-}
-
-function BlockingBanner({
-  failed,
-  reason,
-}: {
-  failed: boolean;
-  reason: string;
-}) {
-  return <SimulationBlockingBanner failed={failed} reason={reason} />;
 }
 
 function TenderlyEvidence({
@@ -98,52 +87,16 @@ function TenderlyEvidence({
       </View>
 
       <View className="gap-3 px-4 py-4">
-        <View className="flex-row gap-4">
-          <View className="flex-1">
-            <Text className="font-mono-semibold text-[8px] uppercase tracking-[.6px] text-ink-faint">
-              Block
-            </Text>
-            <Text className="mt-1 font-mono text-[10px] text-ink-dim">
-              {preview.blockNumber?.toLocaleString('en-US') ?? 'Unavailable'}
-            </Text>
-          </View>
-          <View className="flex-1">
-            <Text className="font-mono-semibold text-[8px] uppercase tracking-[.6px] text-ink-faint">
-              Call gas
-            </Text>
-            <Text className="mt-1 font-mono text-[10px] text-ink-dim">
-              {formatInteger(preview.callGas)}
-            </Text>
-          </View>
-        </View>
-
-        {preview.shareUrls.length > 0 ? (
-          <View className="gap-2 border-t border-line pt-3">
-            <Text className="font-mono-semibold text-[8px] uppercase tracking-[.6px] text-ink-faint">
-              Public simulation results
-            </Text>
-            <View className="flex-row flex-wrap gap-2">
-              {preview.shareUrls.map((url, index) => (
-                <Tap
-                  key={`${url}-${index}`}
-                  accessibilityLabel={`View simulation ${index + 1} on Tenderly`}
-                  accessibilityRole="link"
-                  className="min-h-9 max-w-full flex-row items-center gap-2 rounded-xl border border-line-hi bg-bg px-3"
-                  onPress={() => void Linking.openURL(url)}
-                >
-                  <ExternalLink size={13} color="#d4c5a3" />
-                  <Text
-                    className="max-w-[230px] font-sans-semibold text-[10px] text-accent"
-                    numberOfLines={1}
-                  >
-                    Step {index + 1} ·{' '}
-                    {titleCase(preview.calls[index]?.method ?? null)}
-                  </Text>
-                </Tap>
-              ))}
-            </View>
-          </View>
-        ) : null}
+        <SimulationEvidenceStats
+          blockNumber={preview.blockNumber}
+          callGas={preview.callGas}
+        />
+        <SimulationShareLinks
+          shareUrls={preview.shareUrls}
+          label={(index) =>
+            `Step ${index + 1} · ${titleCase(preview.calls[index]?.method ?? null)}`
+          }
+        />
       </View>
     </View>
   );
@@ -271,7 +224,7 @@ export function SimulationPreviewSheet({
                   Transaction review
                 </Text>
                 <Text className="mt-0.5 font-mono text-[10px] text-ink-dim">
-                  {formatAddress(previewData.walletAddress)}
+                  {formatAddressOrUnknown(previewData.walletAddress)}
                 </Text>
               </View>
             </View>
@@ -323,7 +276,7 @@ export function SimulationPreviewSheet({
               </View>
 
               {blockingReason ? (
-                <BlockingBanner
+                <SimulationBlockingBanner
                   failed={previewData.status === 'failed'}
                   reason={blockingReason}
                 />

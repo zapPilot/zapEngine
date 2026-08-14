@@ -29,6 +29,11 @@ Use this checklist for any rule, priority, or saved-config behavior change in
    pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_production_window.py \
      --update-snapshot
    ```
+   The fixture's `reference_date` rolls forward daily via
+   `.github/workflows/backtest-refresh.yml`; a manual run without
+   `--reference-date` re-cuts at the fixture's current date, so iteration
+   diffs stay apples-to-apples. Pass `--reference-date` explicitly only when
+   you intend to move the window.
 6. Prepend an `ITERATION_LOG.md` entry using the template below.
 
 ## Log Template

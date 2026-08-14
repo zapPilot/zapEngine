@@ -5,6 +5,9 @@ import { useTrackRecord } from '@/hooks/useTrackRecord';
 import { MetricsRow } from '@/components/track-record/MetricsRow';
 import { NavCurveChart } from '@/components/track-record/NavCurveChart';
 import { Section } from '@/components/primitives/Section';
+import equityCurve from '@/data/equity-curve.json';
+
+const BACKTEST_WINDOW = equityCurve.window;
 
 export default function TrackRecordPage() {
   const state = useTrackRecord();
@@ -66,10 +69,12 @@ export default function TrackRecordPage() {
         <Section kicker="Backtest" title="Historical performance">
           <p className="no-live-notice">
             No live snapshots yet. The chart below shows backtested performance
-            from {snapshots.length > 0 ? snapshots[0]!.date : '2024-12-02'} to{' '}
+            from{' '}
+            {snapshots.length > 0 ? snapshots[0]!.date : BACKTEST_WINDOW.start}{' '}
+            to{' '}
             {snapshots.length > 0
               ? snapshots[snapshots.length - 1]!.date
-              : '2026-04-15'}
+              : BACKTEST_WINDOW.end}
             .
           </p>
           {snapshots.length > 0 && (
@@ -110,9 +115,10 @@ export default function TrackRecordPage() {
       <section className="backtest-vs-live">
         <h3>Backtest vs Live</h3>
         <p>
-          Backtest covers 500 days (2024-12-02 → 2026-04-15). Live tracking
-          began after first IPFS snapshot. Live results include actual gas
-          costs, slippage, and protocol fees. Backtest uses estimated costs.
+          Backtest covers {BACKTEST_WINDOW.days} days ({BACKTEST_WINDOW.start} →{' '}
+          {BACKTEST_WINDOW.end}). Live tracking began after first IPFS snapshot.
+          Live results include actual gas costs, slippage, and protocol fees.
+          Backtest uses estimated costs.
         </p>
         <p>
           <Link href="/docs/track-record/dma-fgi-portfolio-rules-v1">

@@ -4,8 +4,8 @@ import {
   type AllocationCategoryKey,
 } from '@zapengine/app-core/lib/domain/allocationCategories';
 import {
-  getSupportedMoralisWalletSymbol,
-  type MoralisSupportedWalletSymbol,
+  getSupportedWalletTokenSymbol,
+  type SupportedWalletTokenSymbol,
   type MoralisWalletChain,
   type MoralisWalletHistoryEvent,
   type MoralisWalletTransfer,
@@ -34,7 +34,7 @@ export interface ActivityChainContext {
 }
 
 export interface ActivitySymbolDelta {
-  symbol: MoralisSupportedWalletSymbol;
+  symbol: SupportedWalletTokenSymbol;
   amount: number;
   usd: number | null;
 }
@@ -93,7 +93,7 @@ function mapTransfer(
     return null;
   }
 
-  const symbol = getSupportedMoralisWalletSymbol(chain, {
+  const symbol = getSupportedWalletTokenSymbol(chain, {
     symbol: transfer.token_symbol ?? (nativeToken ? 'ETH' : null),
     token_address: nativeToken ? null : transferTokenAddress(transfer),
     native_token: nativeToken,
@@ -143,7 +143,7 @@ function addKnownUsd(a: number | null, b: number | null): number | null {
 function aggregateSymbolDeltas(
   deltas: readonly ActivitySymbolDelta[],
 ): ActivitySymbolDelta[] {
-  const bySymbol = new Map<MoralisSupportedWalletSymbol, ActivitySymbolDelta>();
+  const bySymbol = new Map<SupportedWalletTokenSymbol, ActivitySymbolDelta>();
   for (const delta of deltas) {
     const existing = bySymbol.get(delta.symbol);
     if (existing) {

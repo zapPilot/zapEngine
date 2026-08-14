@@ -1,95 +1,18 @@
-import { formatPercentagePoint, getBacktestSnapshot } from '@/data/snapshot';
-import strategySnapshot from '@/data/strategy-snapshot.json';
-import { formatPercent } from '@/lib/formatPercent';
+import {
+  backtestDisclaimer,
+  backtestSubtitle,
+  buildBacktestStats,
+  buildComparisonRows,
+} from '@/data/backtest-stats';
 
-const MINUS = '\u2212';
-
-function displayRatio(value: number): string {
-  if (value < 0) {
-    return `${MINUS}${Math.abs(value).toFixed(2)}`;
-  }
-  return value.toFixed(2);
-}
-
-const SNAPSHOT = getBacktestSnapshot();
-const DCA = strategySnapshot.strategies.dca_classic;
-const ROI_VS_DCA_PP = formatPercentagePoint(
-  SNAPSHOT.raw.roiPercent - DCA.roi_percent,
-);
-
-const METRICS = [
-  {
-    label: 'ROI vs DCA',
-    value: ROI_VS_DCA_PP,
-    sub: `${formatPercent(SNAPSHOT.raw.roiPercent, { scale: 1, signed: 'unicode' })} vs ${formatPercent(DCA.roi_percent, { scale: 1, signed: 'unicode' })}`,
-    tone: 'accent',
-  },
-  {
-    label: 'Strategy ROI',
-    value: formatPercent(SNAPSHOT.raw.roiPercent, {
-      scale: 1,
-      signed: 'unicode',
-    }),
-    sub: `${SNAPSHOT.windowDays}-day window`,
-    tone: 'default',
-  },
-  {
-    label: 'Calmar ratio',
-    value: displayRatio(SNAPSHOT.raw.calmarRatio),
-    sub: `vs DCA: ${displayRatio(DCA.calmar_ratio)}`,
-    tone: 'default',
-  },
-  {
-    label: 'Sharpe ratio',
-    value: displayRatio(SNAPSHOT.raw.sharpeRatio),
-    sub: `vs DCA: ${displayRatio(DCA.sharpe_ratio)}`,
-    tone: 'default',
-  },
-  {
-    label: 'Max drawdown',
-    value: formatPercent(SNAPSHOT.raw.maxDrawdownPercent, {
-      scale: 1,
-      signed: 'unicode',
-    }),
-    sub: `vs DCA: ${formatPercent(DCA.max_drawdown_percent, { scale: 1, signed: 'unicode' })}`,
-    tone: 'good',
-  },
-];
+const METRICS = buildBacktestStats();
+const TABLE_ROWS = buildComparisonRows();
 
 const METRIC_VALUE_CLASS: Record<string, string> = {
   accent: 'zp-metric-value zp-metric-value-accent',
   good: 'zp-metric-value zp-metric-value-good',
   default: 'zp-metric-value',
 };
-
-const TABLE_ROWS = [
-  {
-    strategy: SNAPSHOT.displayName,
-    roi: formatPercent(SNAPSHOT.raw.roiPercent, {
-      scale: 1,
-      signed: 'unicode',
-    }),
-    maxDrawdown: formatPercent(SNAPSHOT.raw.maxDrawdownPercent, {
-      scale: 1,
-      signed: 'unicode',
-    }),
-    trades: `${SNAPSHOT.raw.tradeCount}`,
-    highlighted: true,
-  },
-  {
-    strategy: DCA.display_name,
-    roi: formatPercent(DCA.roi_percent, {
-      scale: 1,
-      signed: 'unicode',
-    }),
-    maxDrawdown: formatPercent(DCA.max_drawdown_percent, {
-      scale: 1,
-      signed: 'unicode',
-    }),
-    trades: `${DCA.trade_count}`,
-    highlighted: false,
-  },
-];
 
 export function BacktestProof() {
   return (
@@ -102,10 +25,7 @@ export function BacktestProof() {
         <p className="zp-kicker">Backtest proof</p>
         <h2 className="zp-h2">Trades drove the return.</h2>
         <p className="zp-lede">
-          {SNAPSHOT.windowDays}-day strategy snapshot pinned to{' '}
-          {SNAPSHOT.referenceDate}. {SNAPSHOT.displayName} vs {DCA.display_name}
-          , daily signal evaluation, {SNAPSHOT.raw.tradeCount} executed trades.
-          Yield is not the strategy — the trades are.
+          {backtestSubtitle()} Yield is not the strategy — the trades are.
         </p>
         <div className="zp-metrics">
           {METRICS.map((metric) => (
@@ -116,7 +36,7 @@ export function BacktestProof() {
               >
                 {metric.value}
               </p>
-              <p className="zp-metric-sub">{metric.sub}</p>
+              <p className="zp-metric-sub">{metric.sublabel}</p>
             </div>
           ))}
         </div>
@@ -129,7 +49,7 @@ export function BacktestProof() {
           </div>
           {TABLE_ROWS.map((row) => (
             <div
-              key={row.strategy}
+              key={row.label}
               className={
                 row.highlighted
                   ? 'zp-table-row'
@@ -139,7 +59,7 @@ export function BacktestProof() {
               <span
                 className={row.highlighted ? 'zp-table-strategy' : undefined}
               >
-                {row.strategy}
+                {row.label}
               </span>
               <span className="zp-table-num">{row.roi}</span>
               <span className="zp-table-num">{row.maxDrawdown}</span>
@@ -147,11 +67,7 @@ export function BacktestProof() {
             </div>
           ))}
         </div>
-        <p className="zp-footnote">
-          Past performance does not guarantee future results. Backtest window:{' '}
-          {SNAPSHOT.windowStart} to {SNAPSHOT.windowEnd}, reference date pinned
-          to {SNAPSHOT.referenceDate}.
-        </p>
+        <p className="zp-footnote">{backtestDisclaimer()}</p>
       </div>
     </section>
   );

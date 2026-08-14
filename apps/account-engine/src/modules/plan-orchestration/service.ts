@@ -154,35 +154,39 @@ function approvalRequirementFromTx(
   };
 }
 
+/**
+ * Each allowance read is an independent RPC round trip, so they are issued
+ * together; the surviving approvals keep their input order.
+ */
 async function filterNeededApprovals(params: {
   approvals: PreparedTransaction[];
   owner: Address;
   publicClient: PublicClient;
 }): Promise<PreparedTransaction[]> {
-  const neededApprovals: PreparedTransaction[] = [];
-
-  for (const approval of params.approvals) {
-    const requirement = approvalRequirementFromTx(approval);
-    if (
-      await needsApproval({
+  const evaluated = await Promise.all(
+    params.approvals.map(async (approval) => {
+      const requirement = approvalRequirementFromTx(approval);
+      const needed = await needsApproval({
         publicClient: params.publicClient,
         owner: params.owner,
         requirement,
-      })
-    ) {
-      neededApprovals.push(
-        buildApproveTx({
-          token: requirement.tokenAddress,
-          spender: requirement.spenderAddress,
-          amount: requirement.amount.toString(),
-          chainId: approval.chainId,
-          gasLimit: approval.gasLimit ?? GMX_V2_GAS_ESTIMATES.approve,
-        }),
-      );
-    }
-  }
+      });
 
-  return neededApprovals;
+      return needed
+        ? buildApproveTx({
+            token: requirement.tokenAddress,
+            spender: requirement.spenderAddress,
+            amount: requirement.amount.toString(),
+            chainId: approval.chainId,
+            gasLimit: approval.gasLimit ?? GMX_V2_GAS_ESTIMATES.approve,
+          })
+        : null;
+    }),
+  );
+
+  return evaluated.filter(
+    (approval): approval is PreparedTransaction => approval !== null,
+  );
 }
 
 // The Morpho withdraw-swap plan surfaces a single LiFi approval as a
@@ -679,21 +683,23 @@ async function buildStrategyExecutionGroups(params: {
   ].filter(
     (transaction): transaction is PreparedTransaction => transaction !== null,
   );
-  const baseApprovals = await filterNeededApprovals({
-    approvals: mergeApprovalTransactions(baseApprovalCandidates),
-    owner: userAddress,
-    publicClient: baseClient,
-  });
-
   const mergedArbitrumApprovals = mergeApprovalTransactions([
     ...btcPlan.approvals,
     ...ethPlan.approvals,
   ]);
-  const arbitrumApprovals = await filterNeededApprovals({
-    approvals: mergedArbitrumApprovals,
-    owner: userAddress,
-    publicClient: arbitrumClient,
-  });
+  // Two chains, two independent RPC endpoints.
+  const [baseApprovals, arbitrumApprovals] = await Promise.all([
+    filterNeededApprovals({
+      approvals: mergeApprovalTransactions(baseApprovalCandidates),
+      owner: userAddress,
+      publicClient: baseClient,
+    }),
+    filterNeededApprovals({
+      approvals: mergedArbitrumApprovals,
+      owner: userAddress,
+      publicClient: arbitrumClient,
+    }),
+  ]);
   const baseCalls = [
     ...(baseSwapQuote
       ? [withStrategyAllocation(baseSwapQuote.transaction, 'morpho-base-usdc')]

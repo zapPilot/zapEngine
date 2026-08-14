@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
 import { MarketDashboardResponseSchema } from '../../packages/types/src/api/marketDashboard.js';
+import { WALLET_ADDRESS_REGEX } from '../../packages/types/src/shared/wallet.js';
 import {
   AssetAllocationSchema,
   BacktestRequestSchema,
@@ -52,8 +53,8 @@ function sortJson(value: unknown): unknown {
 async function main(): Promise<void> {
   await mkdir(SNAPSHOT_DIR, { recursive: true });
 
-  await Promise.all(
-    Object.entries(SNAPSHOT_SCHEMAS).map(async ([name, schema]) => {
+  await Promise.all([
+    ...Object.entries(SNAPSHOT_SCHEMAS).map(async ([name, schema]) => {
       const jsonSchema = z.toJSONSchema(schema);
       const snapshotPath = path.join(SNAPSHOT_DIR, `${name}.json`);
       await writeFile(
@@ -62,7 +63,12 @@ async function main(): Promise<void> {
         'utf8',
       );
     }),
-  );
+    writeFile(
+      path.join(SNAPSHOT_DIR, 'wallet_address_regex.json'),
+      `${JSON.stringify({ pattern: WALLET_ADDRESS_REGEX.source }, null, 2)}\n`,
+      'utf8',
+    ),
+  ]);
 }
 
 main().catch((error: unknown) => {

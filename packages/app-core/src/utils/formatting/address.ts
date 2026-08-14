@@ -1,3 +1,5 @@
+import { shortenAddress } from '@zapengine/types/shared';
+
 export interface AddressFormatOptions {
   prefixLength?: number;
   suffixLength?: number;
@@ -28,9 +30,9 @@ export function formatAddress(
     return '';
   }
 
-  if (normalized.length <= prefixLength + suffixLength) {
-    return normalized;
-  }
-
-  return `${normalized.slice(0, prefixLength)}${ellipsis}${normalized.slice(-suffixLength)}`;
+  return shortenAddress(normalized, {
+    head: prefixLength,
+    tail: suffixLength,
+    ellipsis,
+  });
 }

@@ -1,5 +1,10 @@
 export type SocialPlatform = 'x' | 'rednote';
-export type SocialLanguage = 'zh';
+
+/**
+ * Publishing is canonical-Chinese only. The key stays in the on-disk state so
+ * existing published records keep matching and are not re-posted.
+ */
+export const SOCIAL_STATE_LANGUAGE_KEY = 'zh';
 
 export interface SocialEpisode {
   id: string;
@@ -72,5 +77,5 @@ export interface LanguagePublishState {
 
 export type SocialPublishState = Record<
   string,
-  Partial<Record<SocialLanguage, LanguagePublishState>>
+  Partial<Record<typeof SOCIAL_STATE_LANGUAGE_KEY, LanguagePublishState>>
 >;

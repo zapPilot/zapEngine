@@ -1,4 +1,4 @@
-import { Pillars } from '@/components/landing/Pillars';
+import { Pillars } from './Pillars';
 import { PitchSlide } from './PitchSlide';
 
 /**

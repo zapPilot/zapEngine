@@ -10,7 +10,6 @@
 // shared concept set. A previous regression narrowed the prompt to the title
 // alone and rewrote its unit test in the same diff — these assertions plus the
 // independent scripts/check-classroom-contract.mjs gate exist to stop a repeat.
-import type OpenAI from 'openai';
 import {
   afterEach,
   beforeEach,
@@ -23,25 +22,24 @@ import {
 
 import { generateLanguageClassroomsWithLLM } from './llm.js';
 
+const openAiMocks = vi.hoisted(() => ({
+  create: vi.fn(),
+}));
+
 vi.mock('openai', () => ({
   default: vi.fn().mockImplementation(function () {
     return {
-      chat: { completions: { create: vi.fn() } },
+      chat: { completions: { create: openAiMocks.create } },
     };
   }),
 }));
 
 vi.mock('./ingest/step.js', () => ({ logIngestEvent: vi.fn() }));
 
-const createMockOpenAI = (createMock: Mock): unknown => ({
-  chat: { completions: { create: createMock } },
-});
-
-async function mockOpenAIModule(createMock: Mock): Promise<void> {
-  const openai = (await import('openai')).default;
-  vi.mocked(openai).mockImplementation(function () {
-    return createMockOpenAI(createMock) as OpenAI;
-  });
+function mockOpenAIModule(createMock: Mock): void {
+  openAiMocks.create.mockImplementation((...args: unknown[]) =>
+    createMock(...args),
+  );
 }
 
 function keyword(term: string, meaning: string) {
@@ -111,7 +109,7 @@ describe('language classroom content contract (strict)', () => {
         }),
       ),
     );
-    await mockOpenAIModule(createMock);
+    mockOpenAIModule(createMock);
 
     await generateLanguageClassroomsWithLLM(groundedInput);
 
@@ -142,7 +140,7 @@ describe('language classroom content contract (strict)', () => {
         }),
       ),
     );
-    await mockOpenAIModule(createMock);
+    mockOpenAIModule(createMock);
 
     await generateLanguageClassroomsWithLLM(groundedInput);
 
@@ -169,7 +167,7 @@ describe('language classroom content contract (strict)', () => {
         }),
       ),
     );
-    await mockOpenAIModule(createMock);
+    mockOpenAIModule(createMock);
 
     const result = await generateLanguageClassroomsWithLLM({
       ...groundedInput,
@@ -187,7 +185,7 @@ describe('language classroom content contract (strict)', () => {
         }),
       ),
     );
-    await mockOpenAIModule(createMock);
+    mockOpenAIModule(createMock);
 
     await expect(
       generateLanguageClassroomsWithLLM({
@@ -221,7 +219,7 @@ describe('language classroom content contract (strict)', () => {
         }),
       ),
     );
-    await mockOpenAIModule(createMock);
+    mockOpenAIModule(createMock);
 
     const result = await generateLanguageClassroomsWithLLM(groundedInput);
 

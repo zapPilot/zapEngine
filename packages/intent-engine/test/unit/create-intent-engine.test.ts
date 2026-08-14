@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PreparedTransaction } from '@zapengine/types/api';
-import {
-  createIntentEngine,
-  LiFiAdapter,
-  NoopSimulationAdapter,
-} from '../../src/index.js';
+import { createIntentEngine, LiFiAdapter } from '../../src/index.js';
 
 vi.mock('@lifi/sdk', () => ({
   createConfig: vi.fn(),
@@ -55,17 +51,6 @@ const MOCK_TX: PreparedTransaction = {
 describe('createIntentEngine factory', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it('creates an engine with a custom simulation adapter', () => {
-    const simulation = new NoopSimulationAdapter();
-    const engine = createIntentEngine({ lifi: LIFI_CONFIG, simulation });
-    expect(engine.simulation).toBe(simulation);
-  });
-
-  it('creates an engine with a default NoopSimulationAdapter when not provided', () => {
-    const engine = createIntentEngine({ lifi: LIFI_CONFIG });
-    expect(engine.simulation).toBeInstanceOf(NoopSimulationAdapter);
   });
 
   it('exposes the LiFiAdapter on .lifi', () => {
@@ -132,15 +117,6 @@ describe('createIntentEngine factory', () => {
     );
   });
 
-  it('simulateTx delegates to the simulation adapter', async () => {
-    const simulation = {
-      simulate: vi.fn().mockResolvedValue({ success: true }),
-    };
-    const engine = createIntentEngine({ lifi: LIFI_CONFIG, simulation });
-    await engine.simulateTx(MOCK_TX);
-    expect(simulation.simulate).toHaveBeenCalledWith(MOCK_TX);
-  });
-
   it('getTokenPrice delegates to lifiAdapter.getTokenPrice', async () => {
     const engine = createIntentEngine({ lifi: LIFI_CONFIG });
     const mockTokenInfo = {
@@ -176,6 +152,14 @@ describe('createIntentEngine factory', () => {
     expect(vi.mocked(executeWithEIP7702)).toHaveBeenCalledWith(
       [MOCK_TX],
       wallet,
+      undefined,
+    );
+
+    await engine.executeWithEIP7702([MOCK_TX], wallet, { chainId: 8453 });
+    expect(vi.mocked(executeWithEIP7702)).toHaveBeenCalledWith(
+      [MOCK_TX],
+      wallet,
+      { chainId: 8453 },
     );
   });
 });

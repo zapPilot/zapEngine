@@ -65,7 +65,7 @@ import type {
 const EPISODE_ID = '123e4567-e89b-42d3-a456-426614174000';
 const EPISODE_URL = `https://from-fed-to-chain-api.fly.dev/e/${EPISODE_ID}?lang=zh-Hant`;
 const USAGE =
-  'Usage: pnpm social:publish <episode-uuid-or-share-url> [--dry-run] [--platform x|rednote] [--lang zh] [--force]';
+  'Usage: pnpm social:publish <episode-uuid-or-share-url> [--dry-run] [--platform x|rednote] [--force]';
 const PUBLISHED: PlatformPublishState = {
   published: true,
   publishedAt: '2026-08-11T00:00:00.000Z',
@@ -182,7 +182,6 @@ describe('parseCliOptions', () => {
       episodeId: EPISODE_ID,
       dryRun: false,
       force: false,
-      language: 'zh',
     });
   });
 
@@ -192,8 +191,6 @@ describe('parseCliOptions', () => {
         EPISODE_URL,
         '--dry-run',
         '--force',
-        '--lang',
-        'zh',
         '--platform',
         'rednote',
       ]),
@@ -201,7 +198,6 @@ describe('parseCliOptions', () => {
       episodeId: EPISODE_ID,
       dryRun: true,
       force: true,
-      language: 'zh',
       platform: 'rednote',
     });
   });
@@ -238,15 +234,9 @@ describe('parseCliOptions', () => {
     expect(() => parseCliOptions(['-h'])).toThrow(USAGE);
   });
 
-  it('rejects an unsupported language', () => {
+  it('rejects --lang: publishing is canonical Chinese only', () => {
     expect(() => parseCliOptions([EPISODE_ID, '--lang', 'ja'])).toThrow(
-      'MVP only supports --lang zh. No language fallback is allowed.',
-    );
-  });
-
-  it('rejects a case-variant language', () => {
-    expect(() => parseCliOptions([EPISODE_ID, '--lang', 'ZH'])).toThrow(
-      'MVP only supports --lang zh. No language fallback is allowed.',
+      "Unknown option '--lang'",
     );
   });
 
@@ -289,7 +279,7 @@ describe('runSocialCli', () => {
   it('does not download video for an X-only dry run', async () => {
     await runSocialCli([EPISODE_ID, '--dry-run', '--platform', 'x']);
 
-    expect(mocks.getSocialEpisode).toHaveBeenCalledWith(EPISODE_ID, 'zh');
+    expect(mocks.getSocialEpisode).toHaveBeenCalledWith(EPISODE_ID);
     expect(mocks.prepareSocialVideo).not.toHaveBeenCalled();
     expect(console.log).toHaveBeenCalledWith(
       `${copy.x.text}\n\n${episode.episodeUrl}`,
@@ -304,7 +294,6 @@ describe('runSocialCli', () => {
 
     expect(mocks.prepareSocialVideo).toHaveBeenCalledWith({
       episodeId: EPISODE_ID,
-      language: 'zh',
       url: episode.videos.zh,
     });
     expect(console.log).toHaveBeenCalledWith(
@@ -507,7 +496,6 @@ describe('runSocialCli', () => {
 
     expect(mocks.publishSocialPlatforms).toHaveBeenCalledWith({
       episodeId: EPISODE_ID,
-      language: 'zh',
       platforms: ['x'],
       force: false,
       copy,
@@ -560,18 +548,19 @@ describe('runSocialCli', () => {
 
 describe('findPendingPlatforms', () => {
   it('returns all requested platforms when state is empty', () => {
-    expect(
-      findPendingPlatforms({}, EPISODE_ID, 'zh', ['x', 'rednote']),
-    ).toEqual(['x', 'rednote']);
+    expect(findPendingPlatforms({}, EPISODE_ID, ['x', 'rednote'])).toEqual([
+      'x',
+      'rednote',
+    ]);
   });
 
   it('returns an empty list when no platforms are requested', () => {
-    expect(findPendingPlatforms({}, EPISODE_ID, 'zh', [])).toEqual([]);
+    expect(findPendingPlatforms({}, EPISODE_ID, [])).toEqual([]);
   });
 
   it('removes a completed Rednote platform while preserving order', () => {
     expect(
-      findPendingPlatforms(publishedState(['rednote']), EPISODE_ID, 'zh', [
+      findPendingPlatforms(publishedState(['rednote']), EPISODE_ID, [
         'x',
         'rednote',
       ]),
@@ -580,16 +569,13 @@ describe('findPendingPlatforms', () => {
 
   it('removes a completed X platform while preserving order', () => {
     expect(
-      findPendingPlatforms(publishedState(['x']), EPISODE_ID, 'zh', [
-        'x',
-        'rednote',
-      ]),
+      findPendingPlatforms(publishedState(['x']), EPISODE_ID, ['x', 'rednote']),
     ).toEqual(['rednote']);
   });
 
   it('returns no pending platforms when all requested platforms are complete', () => {
     expect(
-      findPendingPlatforms(publishedState(['x', 'rednote']), EPISODE_ID, 'zh', [
+      findPendingPlatforms(publishedState(['x', 'rednote']), EPISODE_ID, [
         'x',
         'rednote',
       ]),
@@ -601,7 +587,6 @@ describe('findPendingPlatforms', () => {
       findPendingPlatforms(
         publishedState(['x', 'rednote'], 'another-episode'),
         EPISODE_ID,
-        'zh',
         ['x', 'rednote'],
       ),
     ).toEqual(['x', 'rednote']);

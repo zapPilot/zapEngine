@@ -30,6 +30,7 @@ from src.models.strategy_config import (  # noqa: E402
     StrategyConfigsResponse,
     StrategyPreset,
 )
+from src.utils.wallet_validation import ETH_ADDRESS_PATTERN  # noqa: E402
 
 PYDANTIC_MODELS = {
     "asset_allocation": AssetAllocation,
@@ -163,12 +164,9 @@ def _normalize(value: Json, defs: dict[str, Any] | None = None) -> Json:
             continue
         if key in {"maximum", "minimum"} and abs(float(entry)) == 9007199254740991:
             continue
-        if (
-            key == "properties"
-            and _is_json_value_additional_properties(
-                value.get("additionalProperties"),
-                defs,
-            )
+        if key == "properties" and _is_json_value_additional_properties(
+            value.get("additionalProperties"),
+            defs,
         ):
             continue
         normalized[key] = _normalize(entry, defs)
@@ -200,8 +198,35 @@ def _print_diff(name: str, expected: Json, actual: Json) -> None:
     print(json.dumps(actual, indent=2, sort_keys=True), file=sys.stderr)
 
 
+def _check_wallet_address_regex_parity() -> bool:
+    """True when the exported TS and Python wallet regexes are identical."""
+    snapshot = _read_snapshot("wallet_address_regex")
+    if not isinstance(snapshot, dict) or not isinstance(snapshot.get("pattern"), str):
+        print(
+            "Contract parity failed for wallet_address_regex: snapshot must "
+            "contain a string pattern",
+            file=sys.stderr,
+        )
+        return False
+
+    ts_pattern = snapshot["pattern"]
+    if ts_pattern != ETH_ADDRESS_PATTERN.pattern:
+        print("Contract parity failed for wallet_address_regex", file=sys.stderr)
+        print(f"--- typescript WALLET_ADDRESS_REGEX\n{ts_pattern}", file=sys.stderr)
+        print(
+            f"--- python ETH_ADDRESS_PATTERN\n{ETH_ADDRESS_PATTERN.pattern}",
+            file=sys.stderr,
+        )
+        return False
+
+    return True
+
+
 def main() -> int:
     failures = 0
+
+    if not _check_wallet_address_regex_parity():
+        failures += 1
 
     for name, model in PYDANTIC_MODELS.items():
         zod_schema = _normalize_schema(_read_snapshot(name))

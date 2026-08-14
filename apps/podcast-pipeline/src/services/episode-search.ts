@@ -22,8 +22,27 @@ interface RankedEpisodeSearchResult {
   score: number;
 }
 
+/**
+ * A script normalized with NFKC plus a Unicode-property scrub is by far the
+ * most expensive part of a search, and it does not depend on the query — so it
+ * is computed once per corpus load and reused for the cache's whole TTL.
+ */
+interface PreparedSegment {
+  text: string;
+  normalized: string;
+  compact: string;
+}
+
+interface PreparedEpisode {
+  row: EpisodeListRow;
+  normalizedTitle: string;
+  compactTitle: string;
+  normalizedScript: string;
+  segments: PreparedSegment[];
+}
+
 interface SearchCorpus {
-  rows: EpisodeListRow[];
+  episodes: PreparedEpisode[];
   expiresAt: number;
 }
 
@@ -58,39 +77,39 @@ export function createEpisodeSearchService(
   const loadPage = options.loadPage ?? listEpisodesPaged;
   const now = options.now ?? Date.now;
   const cache = new Map<string, SearchCorpus>();
-  const inflight = new Map<string, Promise<EpisodeListRow[]>>();
+  const inflight = new Map<string, Promise<PreparedEpisode[]>>();
   let generation = 0;
 
-  async function loadCorpus(languageCode: string): Promise<EpisodeListRow[]> {
-    const rows: EpisodeListRow[] = [];
+  async function loadCorpus(languageCode: string): Promise<PreparedEpisode[]> {
+    const episodes: PreparedEpisode[] = [];
     let cursor: Cursor | null = null;
 
     do {
       const page = await loadPage(CORPUS_PAGE_SIZE, cursor, languageCode);
-      rows.push(...page.rows);
+      for (const row of page.rows) episodes.push(prepareEpisode(row));
       cursor = page.nextCursor ? decodeCursor(page.nextCursor) : null;
     } while (cursor);
 
-    return rows;
+    return episodes;
   }
 
   async function loadAndCacheCorpus(
     languageCode: string,
     requestGeneration: number,
-  ): Promise<EpisodeListRow[]> {
-    const rows = await loadCorpus(languageCode);
+  ): Promise<PreparedEpisode[]> {
+    const episodes = await loadCorpus(languageCode);
     if (requestGeneration === generation) {
       cache.set(languageCode, {
-        rows,
+        episodes,
         expiresAt: now() + CACHE_TTL_MS,
       });
     }
-    return rows;
+    return episodes;
   }
 
-  async function getCorpus(languageCode: string): Promise<EpisodeListRow[]> {
+  async function getCorpus(languageCode: string): Promise<PreparedEpisode[]> {
     const cached = cache.get(languageCode);
-    if (cached && cached.expiresAt > now()) return cached.rows;
+    if (cached && cached.expiresAt > now()) return cached.episodes;
 
     const pending = inflight.get(languageCode);
     if (pending) return pending;
@@ -108,8 +127,8 @@ export function createEpisodeSearchService(
 
   return {
     async search(query, languageCode, limit) {
-      const rows = await getCorpus(languageCode);
-      return rankEpisodeSearchResults(rows, query, limit).map((result) => ({
+      const episodes = await getCorpus(languageCode);
+      return rankPreparedEpisodes(episodes, query, limit).map((result) => ({
         episode: toEpisodeResponse(result.row),
         matchSource: result.matchSource,
         snippet: result.snippet,
@@ -142,32 +161,68 @@ export function rankEpisodeSearchResults(
   rawQuery: string,
   limit: number,
 ): RankedEpisodeSearchResult[] {
+  return rankPreparedEpisodes(rows.map(prepareEpisode), rawQuery, limit);
+}
+
+function prepareEpisode(row: EpisodeListRow): PreparedEpisode {
+  const normalizedTitle = normalizeSearchText(row.title);
+  const script = row.script;
+
+  return {
+    row,
+    normalizedTitle,
+    compactTitle: compactSearchText(normalizedTitle),
+    normalizedScript: script ? normalizeSearchText(script) : '',
+    segments: script
+      ? splitScriptSegments(script).map((text) => {
+          const normalized = normalizeSearchText(text);
+          return { text, normalized, compact: compactSearchText(normalized) };
+        })
+      : [],
+  };
+}
+
+function rankPreparedEpisodes(
+  episodes: PreparedEpisode[],
+  rawQuery: string,
+  limit: number,
+): RankedEpisodeSearchResult[] {
   const query = normalizeSearchText(rawQuery);
   const compactQuery = compactSearchText(query);
   if (!compactQuery) return [];
 
-  return rows
-    .map((row) => rankRow(row, query, compactQuery))
+  return episodes
+    .map((episode) => rankRow(episode, query, compactQuery))
     .filter((result): result is RankedEpisodeSearchResult => result !== null)
     .sort(compareRankedResults)
     .slice(0, limit);
 }
 
 function rankRow(
-  row: EpisodeListRow,
+  episode: PreparedEpisode,
   query: string,
   compactQuery: string,
 ): RankedEpisodeSearchResult | null {
-  const titleMatch = scoreField(row.title, query, compactQuery, 'title');
-  const scriptMatch = scoreScript(row.script, query, compactQuery);
+  const titleMatch = scoreText(
+    episode.normalizedTitle,
+    episode.compactTitle,
+    query,
+    compactQuery,
+    'title',
+  );
+  const scriptMatch = scoreScript(episode, query, compactQuery);
   const selected = selectBestMatch(titleMatch, scriptMatch);
 
   if (!selected) return null;
 
   return {
-    row,
+    row: episode.row,
     matchSource: selected.source,
-    snippet: snippetForMatch(row.script, selected.source, selected.match),
+    snippet: snippetForMatch(
+      episode.row.script,
+      selected.source,
+      selected.match,
+    ),
     score: selected.match.score,
   };
 }
@@ -192,39 +247,45 @@ function snippetForMatch(
 }
 
 function scoreScript(
-  script: string | null,
+  episode: PreparedEpisode,
   query: string,
   compactQuery: string,
 ): FieldMatch | null {
+  const script = episode.row.script;
   if (!script?.trim()) return null;
 
-  const normalizedScript = normalizeSearchText(script);
-  if (normalizedScript.includes(query)) {
+  if (episode.normalizedScript.includes(query)) {
     return {
       score: 700,
-      segment: closestScriptSegment(script, query, compactQuery),
+      segment: closestScriptSegment(episode, script, query, compactQuery),
     };
   }
 
   if (Array.from(compactQuery).length <= 2) return null;
 
   let best: FieldMatch | null = null;
-  for (const segment of splitScriptSegments(script)) {
-    const match = scoreField(segment, query, compactQuery, 'script');
+  for (const segment of episode.segments) {
+    const match = scoreText(
+      segment.normalized,
+      segment.compact,
+      query,
+      compactQuery,
+      'script',
+    );
     if (match && (!best || match.score > best.score)) {
-      best = { ...match, segment };
+      best = { ...match, segment: segment.text };
     }
   }
   return best;
 }
 
-function scoreField(
-  value: string,
+function scoreText(
+  normalizedValue: string,
+  compactValue: string,
   query: string,
   compactQuery: string,
   source: EpisodeSearchMatchSource,
 ): FieldMatch | null {
-  const normalizedValue = normalizeSearchText(value);
   if (!normalizedValue) return null;
 
   if (normalizedValue === query) {
@@ -240,10 +301,7 @@ function scoreField(
   const queryLength = Array.from(compactQuery).length;
   if (queryLength <= 2) return null;
 
-  const similarity = ngramCoverage(
-    compactQuery,
-    compactSearchText(normalizedValue),
-  );
+  const similarity = ngramCoverage(compactQuery, compactValue);
   const threshold = fuzzyThreshold(source, queryLength);
   if (similarity < threshold) return null;
 
@@ -314,25 +372,27 @@ function firstScriptParagraph(script: string | null): string | null {
 }
 
 function closestScriptSegment(
+  episode: PreparedEpisode,
   script: string,
   query: string,
   compactQuery: string,
 ): string {
-  const segments = splitScriptSegments(script);
-  return (
-    segments.find((segment) => normalizeSearchText(segment).includes(query)) ??
-    segments.reduce((best, segment) => {
-      const bestScore = ngramCoverage(
-        compactQuery,
-        compactSearchText(normalizeSearchText(best)),
-      );
-      const score = ngramCoverage(
-        compactQuery,
-        compactSearchText(normalizeSearchText(segment)),
-      );
-      return score > bestScore ? segment : best;
-    }, segments[0] ?? script)
-  );
+  const segments = episode.segments;
+  const exact = segments.find((segment) => segment.normalized.includes(query));
+  if (exact) return exact.text;
+
+  let best = segments[0];
+  if (!best) return script;
+
+  let bestScore = ngramCoverage(compactQuery, best.compact);
+  for (const segment of segments.slice(1)) {
+    const score = ngramCoverage(compactQuery, segment.compact);
+    if (score > bestScore) {
+      best = segment;
+      bestScore = score;
+    }
+  }
+  return best.text;
 }
 
 function splitScriptSegments(script: string): string[] {

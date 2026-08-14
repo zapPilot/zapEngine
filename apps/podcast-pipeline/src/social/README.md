@@ -72,14 +72,11 @@ pnpm social:publish <uuid-or-share-url> --dry-run
 pnpm social:publish <uuid-or-share-url> --platform x
 pnpm social:publish <uuid-or-share-url> --platform rednote
 
-# Chinese canonical localization (the only MVP language)
-pnpm social:publish <uuid-or-share-url> --lang zh
-
 # Explicitly allow a duplicate publish
 pnpm social:publish <uuid-or-share-url> --force
 ```
 
-`--lang zh` maps only to `zh-Hant`. Missing or incomplete Chinese localization/video data is a hard failure; the tool never falls back to Japanese or English.
+Publishing always uses the canonical `zh-Hant` localization — there is no language flag. Missing or incomplete Chinese localization/video data is a hard failure; the tool never falls back to Japanese or English.
 
 ## Copy and review
 

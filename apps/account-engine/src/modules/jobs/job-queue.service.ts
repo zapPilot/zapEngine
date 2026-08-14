@@ -4,7 +4,7 @@ import { JOB_CONFIG } from '../../common/constants';
 import { ServiceLayerException } from '../../common/exceptions';
 import { HttpStatus } from '../../common/http';
 import { Logger } from '../../common/logger';
-import { calculateBackoffDelay } from '../../common/utils';
+import { calculateJitteredBackoffDelay } from '../../common/utils';
 import {
   CreateJobOptions,
   Job,
@@ -80,13 +80,22 @@ export class JobQueueService {
    */
   getNextJob(): Job | null {
     const now = new Date();
-    const pendingJobs = Array.from(this.jobs.values())
-      .filter(
-        (job) => job.status === JobStatus.PENDING && job.scheduledAt <= now,
-      )
-      .sort((a, b) => this.compareJobsByPriorityAndSchedule(a, b));
+    // The poll loop calls this every few seconds for every processor, and only
+    // the winner is ever used — so scan for the minimum instead of copying,
+    // filtering, and sorting the whole map each time.
+    let next: Job | null = null;
 
-    return pendingJobs[0] ?? null;
+    for (const job of this.jobs.values()) {
+      if (job.status !== JobStatus.PENDING || job.scheduledAt > now) continue;
+      if (
+        next === null ||
+        this.compareJobsByPriorityAndSchedule(job, next) < 0
+      ) {
+        next = job;
+      }
+    }
+
+    return next;
   }
 
   /**
@@ -209,7 +218,7 @@ export class JobQueueService {
     const newRetryCount = currentJob.retryCount + 1;
 
     // Schedule retry with exponential backoff (calculateDelay expects milliseconds)
-    const retryDelayMs = calculateBackoffDelay(
+    const retryDelayMs = calculateJitteredBackoffDelay(
       newRetryCount,
       currentJob.retryDelaySeconds * 1000,
     );

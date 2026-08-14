@@ -114,14 +114,14 @@ export function resolveCallTarget(
   call: Pick<PrivySimulationCall, 'to'>,
   contracts: readonly PrivySimulationContract[],
 ): string {
-  return contractName(call.to, contracts) ?? formatAddress(call.to);
+  return contractName(call.to, contracts) ?? formatAddressOrUnknown(call.to);
 }
 
 export function resolveAddressTarget(
   address: string,
   contracts: readonly PrivySimulationContract[],
 ): string {
-  return contractName(address, contracts) ?? formatAddress(address);
+  return contractName(address, contracts) ?? formatAddressOrUnknown(address);
 }
 
 /**
@@ -273,19 +273,10 @@ export function confirmRiskHash(
   return preview.status === 'warning' ? preview.riskHash : undefined;
 }
 
-export function formatAddress(address: string | null | undefined): string {
+export function formatAddressOrUnknown(
+  address: string | null | undefined,
+): string {
   return formatWalletAddress(address) || 'Unknown';
-}
-
-/** Formats a raw integer token amount without floating-point conversion. */
-export function formatTokenAmount(rawAmount: string, decimals: number): string {
-  const negative = rawAmount.startsWith('-');
-  const digits = negative ? rawAmount.slice(1) : rawAmount;
-  const padded = digits.padStart(decimals + 1, '0');
-  const integer = decimals === 0 ? padded : padded.slice(0, -decimals);
-  const fractionRaw = decimals === 0 ? '' : padded.slice(-decimals);
-  const fraction = fractionRaw.replace(/0+$/, '');
-  return `${negative ? '-' : ''}${integer}${fraction ? `.${fraction}` : ''}`;
 }
 
 /**

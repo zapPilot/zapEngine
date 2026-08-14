@@ -1,7 +1,11 @@
-import { CloudOff, XCircle } from 'lucide-react-native';
-import { Text, View } from 'react-native';
+import { CloudOff, ExternalLink, XCircle } from 'lucide-react-native';
+import { Linking, Text, View } from 'react-native';
 
-import type { SimulationVerdictTone } from '@/integration/simulationPreviewModel';
+import { Tap } from '@/components/ui/Tap';
+import {
+  formatInteger,
+  type SimulationVerdictTone,
+} from '@/integration/simulationPreviewModel';
 
 export const VERDICT_CLASSES: Record<SimulationVerdictTone, string> = {
   success: 'border-success/30 bg-success/10',
@@ -65,6 +69,83 @@ export function SimulationBlockingBanner({
         >
           {reason}
         </Text>
+      </View>
+    </View>
+  );
+}
+
+/** The block-number / call-gas pair both Tenderly evidence blocks report. */
+export function SimulationEvidenceStats({
+  blockNumber,
+  callGas,
+  className = 'flex-row gap-4',
+}: {
+  blockNumber: number | null | undefined;
+  callGas: string | number | null;
+  className?: string;
+}) {
+  return (
+    <View className={className}>
+      <View className="flex-1">
+        <Text className="font-mono-semibold text-[8px] uppercase tracking-[.6px] text-ink-faint">
+          Block
+        </Text>
+        <Text className="mt-1 font-mono text-[10px] text-ink-dim">
+          {blockNumber?.toLocaleString('en-US') ?? 'Unavailable'}
+        </Text>
+      </View>
+      <View className="flex-1">
+        <Text className="font-mono-semibold text-[8px] uppercase tracking-[.6px] text-ink-faint">
+          Call gas
+        </Text>
+        <Text className="mt-1 font-mono text-[10px] text-ink-dim">
+          {formatInteger(callGas)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Public Tenderly share links. `label` differs per surface — the route review
+ * numbers results, the Privy preview names the step's method.
+ */
+export function SimulationShareLinks({
+  shareUrls,
+  label,
+  className = 'gap-2 border-t border-line pt-3',
+}: {
+  shareUrls: readonly string[];
+  label: (index: number) => string;
+  className?: string;
+}) {
+  if (shareUrls.length === 0) {
+    return null;
+  }
+
+  return (
+    <View className={className}>
+      <Text className="font-mono-semibold text-[8px] uppercase tracking-[.6px] text-ink-faint">
+        Public simulation results
+      </Text>
+      <View className="flex-row flex-wrap gap-2">
+        {shareUrls.map((url, index) => (
+          <Tap
+            key={`${url}-${index}`}
+            accessibilityLabel={`View simulation ${index + 1} on Tenderly`}
+            accessibilityRole="link"
+            className="min-h-9 max-w-full flex-row items-center gap-2 rounded-xl border border-line-hi bg-bg px-3"
+            onPress={() => void Linking.openURL(url)}
+          >
+            <ExternalLink size={13} color="#d4c5a3" />
+            <Text
+              className="max-w-[230px] font-sans-semibold text-[10px] text-accent"
+              numberOfLines={1}
+            >
+              {label(index)}
+            </Text>
+          </Tap>
+        ))}
       </View>
     </View>
   );

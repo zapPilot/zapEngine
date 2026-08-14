@@ -2,10 +2,6 @@ import { getRuntimeEnv } from '@core/lib/env/runtimeEnv';
 import { z } from 'zod';
 
 import {
-  getSupportedWalletTokenSymbol,
-  SUPPORTED_WALLET_TOKEN_ADDRESSES_BY_CHAIN,
-  supportedWalletTokenAddresses,
-  type SupportedWalletTokenSymbol,
   WALLET_TOKEN_CHAINS,
   type WalletTokenChain,
 } from './walletTokenCatalog';
@@ -17,27 +13,7 @@ export const MORALIS_WALLET_CHAINS = WALLET_TOKEN_CHAINS;
 
 export type MoralisWalletChain = WalletTokenChain;
 
-export type MoralisSupportedWalletSymbol = SupportedWalletTokenSymbol;
-
-export const MORALIS_SUPPORTED_TOKEN_ADDRESSES_BY_CHAIN =
-  SUPPORTED_WALLET_TOKEN_ADDRESSES_BY_CHAIN;
-
 const stringOrNumberSchema = z.union([z.string(), z.number()]).nullish();
-
-const walletTokenBalanceSchema = z.looseObject({
-  symbol: z.string().nullish(),
-  name: z.string().nullish(),
-  token_address: z.string().nullish(),
-  native_token: z.boolean().nullish(),
-  balance_formatted: stringOrNumberSchema,
-  usd_value: stringOrNumberSchema,
-  usd_price: stringOrNumberSchema,
-  possible_spam: z.boolean().nullish(),
-});
-
-const walletTokenBalancesResponseSchema = z.looseObject({
-  result: z.array(walletTokenBalanceSchema).default([]),
-});
 
 const walletTransferSchema = z.looseObject({
   token_symbol: z.string().nullish(),
@@ -63,14 +39,6 @@ const walletHistoryResponseSchema = z.looseObject({
   cursor: z.string().nullable().optional(),
 });
 
-export type MoralisWalletTokenBalance = z.infer<
-  typeof walletTokenBalanceSchema
->;
-
-export type MoralisWalletTokenBalancesResponse = z.infer<
-  typeof walletTokenBalancesResponseSchema
->;
-
 export type MoralisWalletTransfer = z.infer<typeof walletTransferSchema>;
 
 export type MoralisWalletHistoryEvent = z.infer<
@@ -81,24 +49,9 @@ export type MoralisWalletHistoryResponse = z.infer<
   typeof walletHistoryResponseSchema
 >;
 
-export interface MoralisChainBalances {
-  chain: MoralisWalletChain;
-  response: MoralisWalletTokenBalancesResponse;
-}
-
 export interface MoralisChainHistory {
   chain: MoralisWalletChain;
   response: MoralisWalletHistoryResponse;
-}
-
-export function getSupportedMoralisWalletSymbol(
-  chain: MoralisWalletChain,
-  candidate: Pick<
-    MoralisWalletTokenBalance,
-    'native_token' | 'symbol' | 'token_address'
-  >,
-): MoralisSupportedWalletSymbol | null {
-  return getSupportedWalletTokenSymbol(chain, candidate);
 }
 
 function moralisApiKey(): string {
@@ -135,33 +88,6 @@ async function fetchMoralisJson<T>(
   return schema.parse(await response.json());
 }
 
-async function getMoralisWalletTokenBalancesForChain(
-  address: string,
-  chain: MoralisWalletChain,
-): Promise<MoralisChainBalances> {
-  const response = await fetchMoralisJson(
-    `/wallets/${address}/tokens`,
-    {
-      chain,
-      exclude_native: 'false',
-      exclude_spam: 'true',
-      exclude_unverified_contracts: 'true',
-      token_addresses: supportedWalletTokenAddresses(chain).join(','),
-    },
-    walletTokenBalancesResponseSchema,
-  );
-
-  return {
-    chain,
-    response: {
-      ...response,
-      result: response.result.filter(
-        (balance) => getSupportedMoralisWalletSymbol(chain, balance) !== null,
-      ),
-    },
-  };
-}
-
 async function getMoralisWalletHistoryForChain(
   address: string,
   chain: MoralisWalletChain,
@@ -173,16 +99,6 @@ async function getMoralisWalletHistoryForChain(
     walletHistoryResponseSchema,
   );
   return { chain, response };
-}
-
-export function getMoralisWalletTokenBalances(
-  address: string,
-): Promise<MoralisChainBalances[]> {
-  return Promise.all(
-    MORALIS_WALLET_CHAINS.map((chain) =>
-      getMoralisWalletTokenBalancesForChain(address, chain),
-    ),
-  );
 }
 
 export function getMoralisWalletHistory(

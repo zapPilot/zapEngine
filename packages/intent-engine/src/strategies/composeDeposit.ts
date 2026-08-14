@@ -383,25 +383,29 @@ export async function composeDeposit(
     );
   }
 
-  const approvals: PreparedTransaction[] = [];
-  for (const requirement of approvalRequirements.values()) {
-    if (
-      await needsApproval({
+  // Each allowance read is an independent RPC round trip; issue them together
+  // and keep the requirement order in the surviving approvals.
+  const evaluatedApprovals = await Promise.all(
+    [...approvalRequirements.values()].map(async (requirement) => {
+      const needed = await needsApproval({
         publicClient: sourceClient,
         owner: input.userAddress,
         requirement,
-      })
-    ) {
-      approvals.push(
-        buildApproveTx({
-          token: requirement.tokenAddress,
-          spender: requirement.spenderAddress,
-          amount: requirement.amount.toString(),
-          chainId: input.sourceChainId,
-        }),
-      );
-    }
-  }
+      });
+
+      return needed
+        ? buildApproveTx({
+            token: requirement.tokenAddress,
+            spender: requirement.spenderAddress,
+            amount: requirement.amount.toString(),
+            chainId: input.sourceChainId,
+          })
+        : null;
+    }),
+  );
+  const approvals = evaluatedApprovals.filter(
+    (approval): approval is PreparedTransaction => approval !== null,
+  );
 
   return DepositPlanSchema.parse({
     legs,

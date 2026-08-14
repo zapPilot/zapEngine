@@ -18,11 +18,16 @@ import {
   DEFAULT_OPENROUTER_TIMEOUT_MS,
   generateLanguageClassroomsWithLLM,
   generateScriptWithLLM,
+  getOpenRouterConfig,
   getOpenRouterTimeoutMs,
 } from './llm.js';
 
 const ingestMocks = vi.hoisted(() => ({
   logIngestEvent: vi.fn(),
+}));
+
+const openAiMocks = vi.hoisted(() => ({
+  create: vi.fn(),
 }));
 
 const createMockOpenAI = (createMock: Mock): unknown => {
@@ -36,9 +41,9 @@ const createMockOpenAI = (createMock: Mock): unknown => {
 };
 
 function mockOpenAIClient(createMock: Mock): void {
-  vi.mocked(OpenAI).mockImplementation(function () {
-    return createMockOpenAI(createMock) as OpenAI;
-  });
+  openAiMocks.create.mockImplementation((...args: unknown[]) =>
+    createMock(...args),
+  );
 }
 
 vi.mock('node:fs', async () => {
@@ -60,7 +65,7 @@ vi.mock('openai', () => {
       return {
         chat: {
           completions: {
-            create: vi.fn(),
+            create: openAiMocks.create,
           },
         },
       };
@@ -90,6 +95,48 @@ describe('getOpenRouterTimeoutMs', () => {
       expect(getOpenRouterTimeoutMs(value)).toBe(DEFAULT_OPENROUTER_TIMEOUT_MS);
     },
   );
+});
+
+describe('getOpenRouterConfig', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('reuses the client for identical settings and separates relevant settings', () => {
+    vi.stubEnv('OPENROUTER_API_KEY', 'memo-api-key');
+    vi.stubEnv('OPENROUTER_BASE_URL', 'https://memo.openrouter.test/v1');
+    vi.stubEnv('OPENROUTER_TIMEOUT_MS', '30000');
+    vi.stubEnv('LLM_MODEL', 'memo/model');
+    vi.stubEnv('LLM_THINKING_MODEL', 'memo/thinking-model');
+    vi.mocked(OpenAI).mockClear();
+
+    const original = getOpenRouterConfig();
+    const repeated = getOpenRouterConfig();
+    const withoutThinking = getOpenRouterConfig({ thinkingModel: null });
+
+    expect(repeated.openai).toBe(original.openai);
+    expect(withoutThinking.openai).toBe(original.openai);
+    expect(withoutThinking.thinkingModel).toBeNull();
+    expect(OpenAI).toHaveBeenCalledTimes(1);
+
+    vi.stubEnv('OPENROUTER_BASE_URL', 'https://other.openrouter.test/v1');
+    const baseUrlChanged = getOpenRouterConfig();
+    vi.stubEnv('OPENROUTER_BASE_URL', 'https://memo.openrouter.test/v1');
+    const modelChanged = getOpenRouterConfig({ model: 'memo/other-model' });
+    vi.stubEnv('OPENROUTER_TIMEOUT_MS', '45000');
+    const timeoutChanged = getOpenRouterConfig();
+    vi.stubEnv('OPENROUTER_TIMEOUT_MS', '30000');
+    vi.stubEnv('OPENROUTER_API_KEY', 'other-memo-api-key');
+    const apiKeyChanged = getOpenRouterConfig();
+
+    expect(baseUrlChanged.openai).not.toBe(original.openai);
+    expect(modelChanged.openai).not.toBe(original.openai);
+    expect(modelChanged.model).toBe('memo/other-model');
+    expect(modelChanged.thinkingModel).toBe('memo/thinking-model');
+    expect(timeoutChanged.openai).not.toBe(original.openai);
+    expect(apiKeyChanged.openai).not.toBe(original.openai);
+    expect(OpenAI).toHaveBeenCalledTimes(5);
+  });
 });
 
 describe('createOpenRouterChatCompletion', () => {

@@ -339,6 +339,73 @@ describe('PrivyWalletExecutionService review lifecycle', () => {
     });
   });
 
+  it('retains replay-relevant nonces and evicts them after all previews expire', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-14T00:00:00.000Z'));
+    try {
+      const service = createPrivyWalletExecutionService({
+        client: createClient(),
+        tenderlySimulationService: createSimulationService(
+          review(),
+          review(),
+          review(),
+          review(),
+          review(),
+        ),
+      });
+      const first = await service.prepareSendCalls(batch, accessToken);
+      vi.advanceTimersByTime(60_000);
+      const sibling = await service.prepareSendCalls(batch, accessToken);
+      if (first.status !== 'passed' || sibling.status !== 'passed') {
+        throw new Error('Expected passed previews');
+      }
+      expect(first.typedDataPayload).toMatchObject({ message: { nonce: 0 } });
+      expect(sibling.typedDataPayload).toMatchObject({ message: { nonce: 0 } });
+
+      await service.confirmSendCalls(
+        confirmRequest(first.previewId),
+        accessToken,
+      );
+      await expect(
+        service.confirmSendCalls(confirmRequest(first.previewId), accessToken),
+      ).rejects.toMatchObject({ message: 'Simulation preview not found' });
+
+      vi.advanceTimersByTime(4 * 60 * 1000 + 1);
+      const retained = await service.prepareSendCalls(batch, accessToken);
+      if (retained.status !== 'passed') {
+        throw new Error('Expected passed preview');
+      }
+      expect(retained.typedDataPayload).toMatchObject({
+        message: { nonce: 1 },
+      });
+      await expect(
+        service.confirmSendCalls(
+          confirmRequest(sibling.previewId),
+          accessToken,
+        ),
+      ).rejects.toMatchObject({
+        message: 'Signature nonce does not match current wallet nonce',
+      });
+
+      vi.advanceTimersByTime(5 * 60 * 1000 + 1);
+      const afterCleanup = await service.prepareSendCalls(batch, accessToken);
+      if (afterCleanup.status !== 'passed') {
+        throw new Error('Expected passed preview');
+      }
+      expect(afterCleanup.typedDataPayload).toMatchObject({
+        message: { nonce: 0 },
+      });
+      await expect(
+        service.confirmSendCalls(
+          confirmRequest(retained.previewId),
+          accessToken,
+        ),
+      ).rejects.toMatchObject({ message: 'Simulation preview not found' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('removes a stale nonce preview without advancing the nonce again', async () => {
     const service = createPrivyWalletExecutionService({
       client: createClient(),

@@ -2,13 +2,14 @@ import { useQuery } from '@tanstack/react-query';
 import { CHAIN_BRAND, TOKEN_BRAND } from '@zapengine/brand-assets';
 import {
   getMoralisWalletHistory,
-  getSupportedMoralisWalletSymbol,
+  getSupportedWalletTokenSymbol,
   getSupportedWalletTokenDefinition,
   type MoralisChainHistory,
-  type MoralisSupportedWalletSymbol,
   type MoralisWalletChain,
-  type MoralisWalletTokenBalance,
+  type SupportedWalletTokenSymbol,
 } from '@zapengine/app-core/services';
+import { parseBaseUnits } from '@zapengine/app-core/lib/wallet/usd6';
+import { formatTokenBaseUnits } from '@zapengine/app-core/utils';
 
 import {
   type ActivityCategoryFlow,
@@ -29,12 +30,9 @@ import { formatTokenAmount, numberFrom } from '@/lib/format';
 
 export type MoralisChainKey = MoralisWalletChain;
 
-export type {
-  MoralisWalletHistoryResponse,
-  MoralisWalletTokenBalancesResponse,
-} from '@zapengine/app-core/services';
+export type { MoralisWalletHistoryResponse } from '@zapengine/app-core/services';
 
-type SupportedWalletSymbol = MoralisSupportedWalletSymbol;
+type SupportedWalletSymbol = SupportedWalletTokenSymbol;
 
 type DesktopChainKey = DemoAsset['chains'][number];
 
@@ -152,7 +150,7 @@ function buildHookStatus(
   },
   enabled: boolean,
 ): Pick<
-  UseMoralisWalletAssetsResult,
+  UseWalletAssetsResult,
   'isConnected' | 'isLoading' | 'isError' | 'error'
 > {
   return {
@@ -172,7 +170,7 @@ export function buildWalletAssetsResult(
     refetch?: (() => Promise<unknown>) | undefined;
   },
   enabled: boolean,
-): UseMoralisWalletAssetsResult {
+): UseWalletAssetsResult {
   const rows = query.data?.rows ?? [];
   const liveValues = rows
     .map((row) => row.usdValue)
@@ -200,7 +198,7 @@ export interface MoralisHookStatus {
   refetch: () => Promise<unknown>;
 }
 
-export interface UseMoralisWalletAssetsResult extends MoralisHookStatus {
+export interface UseWalletAssetsResult extends MoralisHookStatus {
   assets: DesktopWalletAsset[];
   rows: InvestableBalanceRow[];
   chainRows: ChainTokenBalanceRow[];
@@ -228,16 +226,19 @@ export type WalletAddressInput =
   | undefined
   | readonly (string | null | undefined)[];
 
-export type WalletTokenBalanceLike = Pick<
-  MoralisWalletTokenBalance,
-  | 'balance_formatted'
-  | 'name'
-  | 'native_token'
-  | 'possible_spam'
-  | 'symbol'
-  | 'token_address'
-  | 'usd_value'
->;
+export interface WalletTokenBalanceLike {
+  balance_formatted?: string | number | null | undefined;
+  name?: string | null | undefined;
+  native_token?: boolean | null | undefined;
+  possible_spam?: boolean | null | undefined;
+  symbol?: string | null | undefined;
+  token_address?: string | null | undefined;
+  usd_value?: string | number | null | undefined;
+}
+
+export interface WalletTokenBalancesResponse {
+  result: WalletTokenBalanceLike[];
+}
 
 export interface WalletChainBalancesLike {
   chain: MoralisChainKey;
@@ -269,22 +270,6 @@ function usdPriceFor(amount: number, usdValue: number | null): number | null {
   return usdValue / amount;
 }
 
-function decimalToBaseUnits(value: string, decimals: number): bigint {
-  const match = /^(\d+)(?:\.(\d+))?$/.exec(value.trim());
-  if (!match) return 0n;
-  const fraction = (match[2] ?? '').slice(0, decimals).padEnd(decimals, '0');
-  return BigInt(match[1]!) * 10n ** BigInt(decimals) + BigInt(fraction || '0');
-}
-
-function baseUnitsToDecimal(value: bigint, decimals: number): string {
-  if (decimals === 0) return value.toString();
-  const scale = 10n ** BigInt(decimals);
-  const whole = value / scale;
-  const fraction = (value % scale).toString().padStart(decimals, '0');
-  const trimmed = fraction.replace(/0+$/u, '');
-  return trimmed ? `${whole}.${trimmed}` : whole.toString();
-}
-
 interface WalletAggregationEntry {
   amount: number;
   usdValue: number;
@@ -306,7 +291,7 @@ function aggregateChainBalance(
   chainConfig: (typeof MORALIS_WALLET_CHAINS)[number],
   balance: WalletTokenBalanceLike,
 ): void {
-  const symbol = getSupportedMoralisWalletSymbol(chainConfig.moralis, balance);
+  const symbol = getSupportedWalletTokenSymbol(chainConfig.moralis, balance);
   if (!symbol) {
     return;
   }
@@ -324,10 +309,11 @@ function aggregateChainBalance(
       : null;
   const existing = grouped.get(symbol);
   const existingHolding = existing?.holdings.get(chainConfig.desktop);
-  const baseUnits = decimalToBaseUnits(
-    String(balance.balance_formatted ?? '0'),
-    definition.decimals,
-  );
+  const baseUnits =
+    parseBaseUnits(String(balance.balance_formatted ?? '0').trim(), {
+      decimals: definition.decimals,
+      truncateExcessFraction: true,
+    }) ?? 0n;
   const balanceBaseUnits =
     BigInt(existingHolding?.balanceBaseUnits ?? '0') + baseUnits;
   const holdingUsdValue =
@@ -339,7 +325,7 @@ function aggregateChainBalance(
     chainId: chainConfig.chainId,
     tokenAddress,
     decimals: definition.decimals,
-    balance: baseUnitsToDecimal(balanceBaseUnits, definition.decimals),
+    balance: formatTokenBaseUnits(balanceBaseUnits, definition.decimals),
     balanceBaseUnits: balanceBaseUnits.toString(),
     rawAmount: (existingHolding?.rawAmount ?? 0) + amount,
     usdValue: holdingUsdValue,
@@ -383,9 +369,11 @@ export function buildChainTokenBalanceRows(
           balance: holding.balance ?? String(holding.rawAmount),
           balanceBaseUnits:
             holding.balanceBaseUnits ??
-            decimalToBaseUnits(
-              String(holding.rawAmount),
-              holding.decimals,
+            (
+              parseBaseUnits(String(holding.rawAmount).trim(), {
+                decimals: holding.decimals,
+                truncateExcessFraction: true,
+              }) ?? 0n
             ).toString(),
           usdValue: holding.usdValue,
           usdPrice: usdPriceFor(holdingAmount, holding.usdValue),
@@ -575,7 +563,6 @@ export function useMoralisWalletHistory(
 ): UseMoralisWalletHistoryResult {
   const walletAddresses = normalizeWalletAddressList(addressInput);
   const enabled = walletAddresses.length > 0;
-  // jscpd:ignore-start
   const query = useQuery({
     queryKey: ['desktop', 'moralis', 'wallet-history', walletAddresses],
     enabled,
@@ -595,7 +582,6 @@ export function useMoralisWalletHistory(
       });
     },
   });
-  // jscpd:ignore-end
 
   return {
     groups: query.data?.groups ?? [],

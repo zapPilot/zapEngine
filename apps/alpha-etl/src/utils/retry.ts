@@ -1,5 +1,6 @@
+import { sleep } from '@zapengine/types/shared';
+
 import { logger } from './logger.js';
-import { sleep } from './sleep.js';
 
 export interface RetryOptions {
   maxAttempts?: number;

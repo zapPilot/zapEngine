@@ -60,7 +60,7 @@ export interface DepositExecutionActions<TPlan = DepositPlan> {
 
 /**
  * Shared state machine for deposit-style execution hooks
- * such as `useInvestStrategy`. Owns the common pending/error/tier/tx-hash/plan
+ * such as `useDepositWizard`. Owns the common pending/error/tier/tx-hash/plan
  * state plus the lifecycle helpers; concrete hooks layer their own progress
  * model on top.
  *

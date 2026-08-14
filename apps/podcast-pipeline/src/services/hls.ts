@@ -1,13 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import {
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  rmdirSync,
-  statSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -15,13 +7,14 @@ import { ffmpeg } from '../lib/ffmpeg.js';
 
 export interface HlsFile {
   name: string;
-  data: Buffer;
+  path: string;
   contentType: string;
 }
 
 export interface HlsResult {
   files: HlsFile[];
   playlistKey: string;
+  cleanup: () => Promise<void>;
 }
 
 function getContentType(filename: string): string {
@@ -36,15 +29,21 @@ function getContentType(filename: string): string {
 
 export async function generateHls(mp3Buffer: Buffer): Promise<HlsResult> {
   const tempDir = path.join(tmpdir(), `hls_${randomUUID()}`);
-  mkdirSync(tempDir, { recursive: true });
   const inputFile = path.join(tempDir, 'input.mp3');
   const outputName = 'playlist.m3u8';
   const segmentPattern = path.join(tempDir, 'seg%d.ts');
-  let generatedEntries: string[] | null = null;
-
-  writeFileSync(inputFile, mp3Buffer);
+  const cleanup = async (): Promise<void> => {
+    try {
+      await rm(tempDir, { recursive: true, force: true });
+    } catch {
+      /* ignore cleanup errors */
+    }
+  };
 
   try {
+    await mkdir(tempDir, { recursive: true });
+    await writeFile(inputFile, mp3Buffer);
+
     await new Promise<void>((resolve, reject) => {
       ffmpeg(inputFile)
         .audioCodec('aac')
@@ -61,57 +60,30 @@ export async function generateHls(mp3Buffer: Buffer): Promise<HlsResult> {
         .run();
     });
 
-    const entries = readdirSync(tempDir);
-    generatedEntries = entries;
-    const files: HlsFile[] = [];
-    let playlistGenerated = false;
-
-    for (const entry of entries) {
-      const filePath = path.join(tempDir, entry);
-      const stat = statSync(filePath);
-      if (!stat.isFile()) continue;
-
-      if (entry === outputName) {
-        playlistGenerated = true;
-      }
-
-      const data = readFileSync(filePath);
-      files.push({
-        name: entry,
-        data,
-        contentType: getContentType(entry),
-      });
-    }
+    const entries = await readdir(tempDir, { withFileTypes: true });
+    const files = entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => ({
+        name: entry.name,
+        path: path.join(tempDir, entry.name),
+        contentType: getContentType(entry.name),
+      }));
 
     if (files.length === 0) {
       throw new Error('No HLS files were generated');
     }
 
-    if (!playlistGenerated) {
+    if (!files.some((file) => file.name === outputName)) {
       throw new Error('Playlist file was not generated');
     }
 
     return {
       files,
       playlistKey: outputName,
+      cleanup,
     };
-  } finally {
-    try {
-      const entries = generatedEntries ?? readdirSync(tempDir);
-      for (const entry of entries) {
-        try {
-          unlinkSync(path.join(tempDir, entry));
-        } catch {
-          /* ignore */
-        }
-      }
-      try {
-        rmdirSync(tempDir);
-      } catch {
-        /* ignore */
-      }
-    } catch {
-      /* ignore cleanup errors */
-    }
+  } catch (error) {
+    await cleanup();
+    throw error;
   }
 }

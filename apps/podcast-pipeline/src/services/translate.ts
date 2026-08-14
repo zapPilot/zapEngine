@@ -37,94 +37,74 @@ export async function translateCanonicalScript({
   script,
   targetLanguageCode,
 }: TranslateCanonicalScriptOptions): Promise<TranslateCanonicalScriptResult> {
-  if (title.length > 0 || script.length > 0) {
-    try {
-      return await translateCanonicalScriptWithOpenRouter({
-        title,
-        script,
-        targetLanguageCode,
-      });
-    } catch {
-      // Fall back to Google Translate for transient OpenRouter/model issues.
-    }
-  }
-
-  const [translatedTitle, translatedScript] = await Promise.all([
-    translateText(title, targetLanguageCode),
-    translateText(script, targetLanguageCode),
-  ]);
-
-  return {
-    title: translatedTitle.text,
-    script: translatedScript.text,
-    cost: [
-      buildGoogleTranslateCostLine(
-        translatedTitle.charCount + translatedScript.charCount,
-        targetLanguageCode,
-      ),
-    ],
-  };
+  const { fields, cost } = await translateFields(
+    { title, script },
+    targetLanguageCode,
+  );
+  return { title: fields.title, script: fields.script, cost };
 }
 
 export async function translateChineseText(
   text: string,
   targetLanguageCode: SecondaryLanguageCode,
 ): Promise<{ text: string; cost: UsageCostLine[] }> {
-  if (text.length > 0) {
+  const { fields, cost } = await translateFields({ text }, targetLanguageCode);
+  return { text: fields.text, cost };
+}
+
+/**
+ * Translate a set of named fields in one request, OpenRouter first. A provider
+ * response that is missing, blank, or chatter for any field rejects the whole
+ * set and the caller falls back to Google Translate, which is billed on the
+ * source characters that actually went through it.
+ */
+async function translateFields<K extends string>(
+  fields: Record<K, string>,
+  targetLanguageCode: SecondaryLanguageCode,
+): Promise<{ fields: Record<K, string>; cost: UsageCostLine[] }> {
+  const entries = Object.entries(fields) as [K, string][];
+
+  if (entries.some(([, value]) => value.length > 0)) {
     try {
-      return await translateChineseTextWithOpenRouter(text, targetLanguageCode);
+      return await translateFieldsWithOpenRouter(fields, targetLanguageCode);
     } catch {
       // Fall back to Google Translate for transient OpenRouter/model issues.
     }
   }
 
-  const result = await translateText(text, targetLanguageCode);
-
-  return {
-    text: result.text,
-    cost: [buildGoogleTranslateCostLine(result.charCount, targetLanguageCode)],
-  };
-}
-
-async function translateCanonicalScriptWithOpenRouter({
-  title,
-  script,
-  targetLanguageCode,
-}: TranslateCanonicalScriptOptions): Promise<TranslateCanonicalScriptResult> {
-  const { completion, model } = await createTranslationCompletion(
-    targetLanguageCode,
-    JSON.stringify({ title, script }),
-    {
-      title: '...',
-      script: '...',
-    },
+  const translated = await Promise.all(
+    entries.map(([, value]) => translateText(value, targetLanguageCode)),
   );
-  const payload = parseTranslationJson(completion);
 
   return {
-    title: readTranslatedField(payload, 'title', title),
-    script: readTranslatedField(payload, 'script', script),
+    fields: Object.fromEntries(
+      entries.map(([key], index) => [key, translated[index]!.text]),
+    ) as Record<K, string>,
     cost: [
-      buildOpenRouterTranslateCostLine(completion, model, targetLanguageCode),
+      buildGoogleTranslateCostLine(
+        translated.reduce((total, result) => total + result.charCount, 0),
+        targetLanguageCode,
+      ),
     ],
   };
 }
 
-async function translateChineseTextWithOpenRouter(
-  text: string,
+async function translateFieldsWithOpenRouter<K extends string>(
+  fields: Record<K, string>,
   targetLanguageCode: SecondaryLanguageCode,
-): Promise<{ text: string; cost: UsageCostLine[] }> {
+): Promise<{ fields: Record<K, string>; cost: UsageCostLine[] }> {
+  const keys = Object.keys(fields) as K[];
   const { completion, model } = await createTranslationCompletion(
     targetLanguageCode,
-    JSON.stringify({ text }),
-    {
-      text: '...',
-    },
+    JSON.stringify(fields),
+    Object.fromEntries(keys.map((key) => [key, '...'])),
   );
   const payload = parseTranslationJson(completion);
 
   return {
-    text: readTranslatedField(payload, 'text', text),
+    fields: Object.fromEntries(
+      keys.map((key) => [key, readTranslatedField(payload, key, fields[key])]),
+    ) as Record<K, string>,
     cost: [
       buildOpenRouterTranslateCostLine(completion, model, targetLanguageCode),
     ],

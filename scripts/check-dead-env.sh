@@ -7,13 +7,13 @@
 #
 # Supports all apps in this monorepo:
 #   - TypeScript / Node.js  (account-engine, alpha-etl, podcast-pipeline)
-#   - Vite / React          (frontend)
+#   - Expo / React Native   (app)
 #   - Next.js               (landing-page)
 #   - Python / Pydantic     (analytics-engine)
 #
 # Usage:
 #   bash scripts/check-dead-env.sh            # check all apps
-#   bash scripts/check-dead-env.sh frontend   # check specific app only
+#   bash scripts/check-dead-env.sh app        # check specific app only
 
 set -euo pipefail
 
