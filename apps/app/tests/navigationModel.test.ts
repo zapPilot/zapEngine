@@ -23,13 +23,14 @@ describe('app tab navigation', () => {
     ]);
   });
 
-  it('lets guests open only Home and Podcast', () => {
+  it('lets guests open Home, Podcast, and Activity', () => {
     expect(APP_TAB_NAMES.filter((tab) => isTabAccessible(tab, false))).toEqual([
       'home',
       'podcast',
+      'activity',
     ]);
     expect(APP_TAB_NAMES.filter((tab) => !isTabAccessible(tab, false))).toEqual(
-      ['strategy', 'activity', 'account'],
+      ['strategy', 'account'],
     );
   });
 

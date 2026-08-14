@@ -180,7 +180,7 @@ type MediaSessionProbeWindow = Window & {
   __mediaSessionActions?: string[];
 };
 
-const AUTH_REQUIRED_ROUTES = new Set(['/strategy', '/activity', '/account']);
+const AUTH_REQUIRED_ROUTES = new Set(['/strategy', '/account']);
 const APP_BOOT_TIMEOUT = 45_000;
 const EPISODE_MEDIA_TAB_LABELS = ['Story', 'Classroom', 'Video'] as const;
 
@@ -304,7 +304,9 @@ test('renders the web app shell and primary routes without page errors', async (
       timeout: APP_BOOT_TIMEOUT,
     });
 
-    const tabs = page.getByRole('tab');
+    const tabs = page
+      .getByRole('tablist', { name: 'App tabs' })
+      .getByRole('tab');
     await expect(tabs).toHaveCount(5);
     await expect(tabs).toHaveText([
       'Home',
@@ -396,7 +398,7 @@ test('renders the web app shell and primary routes without page errors', async (
   });
 
   await test.step('locked tabs start sign-in without leaving the guest route', async () => {
-    for (const label of ['Strategy', 'Activity', 'Account'] as const) {
+    for (const label of ['Strategy', 'Account'] as const) {
       await page.goto('/podcast');
       await page.getByRole('tab', { name: label }).click();
       await expect(page).toHaveURL(/\/podcast$/);
