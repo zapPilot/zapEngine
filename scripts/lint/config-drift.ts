@@ -134,7 +134,7 @@ function main() {
       issues.push({
         type: 'tsconfig_inline_tests',
         file: rel,
-        issue: 'includes test/**/* inline (consider tsconfig.test.json like frontend)',
+        issue: 'includes test/**/* inline (consider a dedicated tsconfig.test.json)',
         severity: 'LOW',
       });
     }

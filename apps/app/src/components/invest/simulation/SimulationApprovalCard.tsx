@@ -1,3 +1,4 @@
+import { formatTokenBaseUnits } from '@zapengine/app-core/utils';
 import type {
   PrivySimulationApproval,
   PrivySimulationContract,
@@ -9,8 +10,7 @@ import { Text, TextInput, View } from 'react-native';
 import { Tap } from '@/components/ui/Tap';
 import {
   compactTokenAmount,
-  formatAddress,
-  formatTokenAmount,
+  formatAddressOrUnknown,
   resolveAddressTarget,
 } from '@/integration/simulationPreviewModel';
 
@@ -32,7 +32,7 @@ export function SimulationApprovalCard({
   const [applying, setApplying] = useState(false);
 
   const spenderLabel = resolveAddressTarget(approval.spender, contracts);
-  const spenderAddress = formatAddress(approval.spender);
+  const spenderAddress = formatAddressOrUnknown(approval.spender);
   const hasVerifiedName = spenderLabel !== spenderAddress;
   const isBusy = disabled || applying;
   const amountLabel = approval.unlimited
@@ -159,7 +159,7 @@ export function SimulationApprovalCard({
             className="mt-1 font-mono text-[11px] text-ink"
             numberOfLines={1}
           >
-            {formatTokenAmount(
+            {formatTokenBaseUnits(
               approval.simulatedSpendRaw,
               approval.token.decimals,
             )}{' '}

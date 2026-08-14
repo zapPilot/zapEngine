@@ -1,4 +1,5 @@
 import { pollUntil } from '@core/lib/polling';
+import { parseBaseUnits } from '@core/lib/wallet/usd6';
 import type { Address, WalletClient } from 'viem';
 import { z } from 'zod';
 
@@ -28,12 +29,11 @@ const vaultEquitiesSchema = z.array(
  * truncated (the API itself reports 6).
  */
 export function usdStringToUsd6(value: string): bigint {
-  const match = /^(\d+)(?:\.(\d+))?$/.exec(value);
-  if (!match) {
+  const parsed = parseBaseUnits(value, { truncateExcessFraction: true });
+  if (parsed === null) {
     throw new Error(`Invalid USD amount: ${value}`);
   }
-  const fraction = (match[2] ?? '').slice(0, 6).padEnd(6, '0');
-  return BigInt(match[1] ?? '0') * 1_000_000n + BigInt(fraction);
+  return parsed;
 }
 
 async function postInfo(params: {

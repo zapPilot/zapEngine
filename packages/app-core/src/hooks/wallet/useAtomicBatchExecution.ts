@@ -1,9 +1,9 @@
+import { extractErrorMessage } from '@core/lib/errors';
 import {
   assertSameChainTransactions,
   atomicBatchSummary,
   createIdempotencyKey,
   decodeBase64,
-  errorMessage,
   getPrivyAtomicBatchChain,
   summarizeTransaction,
   toWalletSendCall,
@@ -150,7 +150,7 @@ export function useAtomicBatchExecution(
         return {
           status: 'blocked',
           code: 'CHAIN_UNAVAILABLE',
-          reason: errorMessage(error),
+          reason: extractErrorMessage(error, String(error)),
         };
       }
 
@@ -341,7 +341,7 @@ export function useAtomicBatchExecution(
         prepareAccessToken,
       ).catch((error: unknown) => {
         throw new Error(
-          `Privy EOA EIP-7702 atomic batch preparation failed: ${errorMessage(error)}`,
+          `Privy EOA EIP-7702 atomic batch preparation failed: ${extractErrorMessage(error, String(error))}`,
         );
       });
 
@@ -375,7 +375,7 @@ export function useAtomicBatchExecution(
       pending.preview = preview;
       setSimulationPreview(preview);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : errorMessage(err);
+      const message = extractErrorMessage(err, String(err));
       setRetryError(message);
     } finally {
       setIsRetryingSimulation(false);
@@ -443,7 +443,7 @@ export function useAtomicBatchExecution(
         pending.preview = preview;
         setSimulationPreview(preview);
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : errorMessage(err);
+        const message = extractErrorMessage(err, String(err));
         setRetryError(message);
         throw err;
       } finally {
@@ -531,7 +531,9 @@ export function useAtomicBatchExecution(
       } catch (err: unknown) {
         walletLogger.error('[privy.confirmBatchExecution] failed:', err);
         pending.reject(
-          err instanceof Error ? err : new Error(errorMessage(err)),
+          err instanceof Error
+            ? err
+            : new Error(extractErrorMessage(err, String(err))),
         );
       } finally {
         setIsSigningAndSending(false);

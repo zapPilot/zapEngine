@@ -43,13 +43,11 @@ export {
   LiFiAdapter,
   type LiFiAdapterConfig,
   type LiFiTokenInfo,
-  type SimulationAdapter,
   type BundleSimulationAdapter,
   type BundleSimulationRequest,
   type BundleSimulationResult,
   type TenderlyBundleConfig,
   createTenderlyBundleSimulationAdapter,
-  NoopSimulationAdapter,
 } from './adapters/index.js';
 
 // Plan-safety validators (Simulation plane)
@@ -154,10 +152,6 @@ import {
   type LiFiAdapterConfig,
   type LiFiTokenInfo,
 } from './adapters/lifi.adapter.js';
-import {
-  NoopSimulationAdapter,
-  type SimulationAdapter,
-} from './adapters/simulation.adapter.js';
 import { buildSwapTx } from './builders/swap.builder.js';
 import {
   buildBridgeTx,
@@ -196,7 +190,6 @@ import type {
   PreparedTransaction,
   TransactionQuote,
   RotateTransactionPlan,
-  SimulationResult,
   ExecutionResult,
 } from './types/transaction.types.js';
 
@@ -206,8 +199,6 @@ import type {
 export interface IntentEngineConfig {
   /** LI.FI adapter configuration */
   lifi: LiFiAdapterConfig;
-  /** Optional simulation adapter (defaults to NoopSimulationAdapter) */
-  simulation?: SimulationAdapter;
 }
 
 /**
@@ -216,8 +207,6 @@ export interface IntentEngineConfig {
 export interface IntentEngine {
   /** LI.FI adapter for direct access */
   readonly lifi: LiFiAdapter;
-  /** Simulation adapter for direct access */
-  readonly simulation: SimulationAdapter;
 
   /** Build a swap transaction */
   buildSwap(intent: SwapIntentInput): Promise<TransactionQuote>;
@@ -261,9 +250,6 @@ export interface IntentEngine {
     intent: BuildGmxV2WithdrawTxInput,
   ): Promise<BuiltGmxV2WithdrawPlan>;
 
-  /** Simulate a transaction before execution */
-  simulateTx(tx: PreparedTransaction): Promise<SimulationResult>;
-
   /** Determine best execution strategy for a wallet on a given chain */
   getExecutionStrategy(
     wallet?: WalletClient,
@@ -302,11 +288,9 @@ export interface IntentEngine {
  */
 export function createIntentEngine(config: IntentEngineConfig): IntentEngine {
   const lifiAdapter = new LiFiAdapter(config.lifi);
-  const simulationAdapter = config.simulation ?? new NoopSimulationAdapter();
 
   return {
     lifi: lifiAdapter,
-    simulation: simulationAdapter,
 
     async buildSwap(intent: SwapIntentInput) {
       return buildSwapTx(intent, lifiAdapter);
@@ -346,10 +330,6 @@ export function createIntentEngine(config: IntentEngineConfig): IntentEngine {
       return buildGmxV2WithdrawTx(intent);
     },
 
-    async simulateTx(tx: PreparedTransaction) {
-      return simulationAdapter.simulate(tx);
-    },
-
     async getExecutionStrategy(wallet?: WalletClient, chainId?: number) {
       return determineExecutionStrategy(wallet, chainId);
     },
@@ -363,9 +343,7 @@ export function createIntentEngine(config: IntentEngineConfig): IntentEngine {
       wallet: WalletClient,
       options?: { chainId?: number },
     ) {
-      return options
-        ? executeWithEIP7702(txs, wallet, options)
-        : executeWithEIP7702(txs, wallet);
+      return executeWithEIP7702(txs, wallet, options);
     },
   };
 }

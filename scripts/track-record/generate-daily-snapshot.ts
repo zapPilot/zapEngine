@@ -16,8 +16,10 @@ import {
   formatUnits,
   getAddress,
   http,
+  type PublicClient,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+import { fetchFromIpfs } from './ipfs.js';
 
 interface TrackedToken {
   chainId: number;
@@ -39,11 +41,6 @@ interface PriceOracleResponse {
 }
 
 const NATIVE_TOKEN_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
-const IPFS_GATEWAYS = [
-  'https://ipfs.io/ipfs',
-  'https://cloudflare-ipfs.com/ipfs',
-  'https://dweb.link/ipfs',
-] as const;
 
 function parseArgs(): { out?: string } {
   const outIndex = process.argv.indexOf('--out');
@@ -158,12 +155,20 @@ async function fetchPriceOracle(): Promise<PriceOracleResponse> {
   return (await res.json()) as PriceOracleResponse;
 }
 
+// Reuse one public client and transport for every tracked token on a chain.
+const clientsByChainId = new Map<number, PublicClient>();
+
 function getClient(chainId: number, rpcUrls: Map<number, string>) {
+  const cached = clientsByChainId.get(chainId);
+  if (cached) return cached;
+
   const rpcUrl = rpcUrls.get(chainId);
   if (!rpcUrl) throw new Error(`Missing RPC URL for chain ${chainId}`);
-  return createPublicClient({
+  const client = createPublicClient({
     transport: http(rpcUrl),
-  });
+  }) as PublicClient;
+  clientsByChainId.set(chainId, client);
+  return client;
 }
 
 async function readTokenAmount(
@@ -172,21 +177,20 @@ async function readTokenAmount(
   rpcUrls: Map<number, string>,
 ): Promise<string> {
   const client = getClient(token.chainId, rpcUrls);
-  let total = 0n;
-
-  for (const walletAddress of walletAddresses) {
-    if (!token.address) {
-      total += await client.getBalance({ address: walletAddress });
-      continue;
-    }
-
-    total += (await client.readContract({
-      address: token.address,
-      abi: erc20Abi,
-      functionName: 'balanceOf',
-      args: [walletAddress],
-    } as never)) as bigint;
-  }
+  // One balance read per wallet, all independent; the sum is order-agnostic.
+  const balances = await Promise.all(
+    walletAddresses.map((walletAddress) =>
+      token.address
+        ? (client.readContract({
+            address: token.address,
+            abi: erc20Abi,
+            functionName: 'balanceOf',
+            args: [walletAddress],
+          } as never) as Promise<bigint>)
+        : client.getBalance({ address: walletAddress }),
+    ),
+  );
+  const total = balances.reduce((sum, balance) => sum + balance, 0n);
 
   if (!token.address) return formatEther(total);
   const decimals =
@@ -212,17 +216,6 @@ function formatPercent(value: number): string {
 
 function formatDrawdown(value: number): string {
   return `${(value * 100).toFixed(2)}%`;
-}
-
-async function fetchFromIpfs(cid: string): Promise<unknown> {
-  for (const gateway of IPFS_GATEWAYS) {
-    const res = await fetch(`${gateway}/${cid}`, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(12_000),
-    }).catch(() => null);
-    if (res?.ok) return res.json();
-  }
-  throw new Error(`All IPFS gateways failed for previous CID: ${cid}`);
 }
 
 async function fetchNavHistoryFromPreviousCid(

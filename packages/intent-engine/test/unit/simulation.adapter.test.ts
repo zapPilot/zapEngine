@@ -1,28 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import {
-  createTenderlyBundleSimulationAdapter,
-  NoopSimulationAdapter,
-} from '../../src/adapters/simulation.adapter.js';
-import type { PreparedTransaction } from '../../src/types/transaction.types.js';
-
-describe('NoopSimulationAdapter', () => {
-  it('should return success true', async () => {
-    const mockTx: PreparedTransaction = {
-      to: '0x123',
-      data: '0xdata',
-      value: '0',
-      chainId: 1,
-      meta: {
-        intentType: 'SWAP',
-        estimatedGas: '50000',
-      },
-    };
-    const adapter = new NoopSimulationAdapter();
-    const result = await adapter.simulate(mockTx);
-
-    expect(result).toEqual({ success: true });
-  });
-});
+import { createTenderlyBundleSimulationAdapter } from '../../src/adapters/simulation.adapter.js';
 
 describe('createTenderlyBundleSimulationAdapter', () => {
   const CONFIG = {

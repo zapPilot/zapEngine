@@ -246,11 +246,12 @@ describe('performIngest failure paths', () => {
       files: [
         {
           name: 'playlist.m3u8',
-          data: Buffer.from('hls'),
+          path: '/render/hls/playlist.m3u8',
           contentType: 'application/vnd.apple.mpegurl',
         },
       ],
       playlistKey: 'playlist.m3u8',
+      cleanup: vi.fn().mockResolvedValue(undefined),
     });
     mockUploadHlsToR2.mockImplementation(
       (_files, episodeId: string, languageCode: string, section: string) =>

@@ -1,7 +1,7 @@
 import { AccountServiceError } from '@core/lib/errors';
 import { httpUtils } from '@core/lib/http';
 import { createServiceCaller } from '@core/lib/http/createServiceCaller';
-import { createServiceError } from '@core/lib/http/serviceErrorUtils';
+import { createServiceError } from '@core/lib/http/serviceErrorFactory';
 import {
   type AddWalletResponse,
   type ConnectWalletResponse,

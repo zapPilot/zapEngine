@@ -16,15 +16,11 @@ export interface PreparedVideo {
 
 export async function prepareSocialVideo(input: {
   episodeId: string;
-  language: 'zh';
   url: string;
 }): Promise<PreparedVideo> {
   await mkdir(SOCIAL_TEMP_DIR, { recursive: true });
   const safeEpisodeId = input.episodeId.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const outputPath = join(
-    SOCIAL_TEMP_DIR,
-    `episode-${safeEpisodeId}-${input.language}.mp4`,
-  );
+  const outputPath = join(SOCIAL_TEMP_DIR, `episode-${safeEpisodeId}-zh.mp4`);
 
   const existing = await stat(outputPath).catch(() => null);
   if (existing?.isFile() && existing.size > 0) {

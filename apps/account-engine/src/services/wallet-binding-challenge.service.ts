@@ -41,7 +41,16 @@ export function createWalletBindingChallengeService(): WalletBindingChallengeSer
   return {
     issueChallenge(userId, wallet) {
       const nonce = randomBytes(32).toString('hex');
-      const expiresAtMs = Date.now() + CHALLENGE_TTL_MS;
+      const issuedAtMs = Date.now();
+      // A challenge that is issued and never verified is otherwise kept for the
+      // life of the process. verifyChallenge already rejects an expired record,
+      // so dropping it here is not observable.
+      for (const [key, record] of challenges) {
+        if (issuedAtMs > record.expiresAtMs) {
+          challenges.delete(key);
+        }
+      }
+      const expiresAtMs = issuedAtMs + CHALLENGE_TTL_MS;
       const expiresAt = new Date(expiresAtMs).toISOString();
       const message = [
         'ZapPilot wallet ownership proof',

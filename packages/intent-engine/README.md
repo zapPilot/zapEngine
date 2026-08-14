@@ -34,8 +34,6 @@ Creates an `IntentEngine` instance configured for intent building and execution.
 interface IntentEngineConfig {
   /** LI.FI adapter configuration */
   lifi: LiFiAdapterConfig;
-  /** Optional simulation adapter (defaults to NoopSimulationAdapter) */
-  simulation?: SimulationAdapter;
 }
 ```
 
@@ -47,7 +45,6 @@ interface IntentEngineConfig {
 | `buildSupply(intent, publicClient)`       | Build a supply (deposit) transaction       |
 | `buildWithdraw(intent)`                   | Build a withdraw transaction               |
 | `buildRotate(intent, publicClient)`       | Build a rotate transaction plan            |
-| `simulateTx(tx)`                          | Simulate a transaction before execution    |
 | `getExecutionStrategy(wallet?, chainId?)` | Determine best execution strategy          |
 | `executeWithEIP7702(txs, wallet)`         | Execute batched transactions with EIP-7702 |
 
@@ -90,14 +87,13 @@ interface IntentEngineConfig {
 
 ### Adapters
 
-| Export                      | Description                               |
-| --------------------------- | ----------------------------------------- |
-| `LiFiAdapter`               | LI.FI integration adapter                 |
-| `LiFiAdapterConfig`         | LI.FI adapter configuration               |
-| `SimulationAdapter`         | Simulation interface                      |
-| `TenderlySimulationAdapter` | Tenderly simulation for pre-flight checks |
-| `NoopSimulationAdapter`     | Default no-op simulation (passthrough)    |
-| `TenderlyConfig`            | Tenderly configuration                    |
+| Export                                  | Description                                  |
+| --------------------------------------- | -------------------------------------------- |
+| `LiFiAdapter`                           | LI.FI integration adapter                    |
+| `LiFiAdapterConfig`                     | LI.FI adapter configuration                  |
+| `BundleSimulationAdapter`               | Fail-closed bundle simulation gate interface |
+| `createTenderlyBundleSimulationAdapter` | Tenderly-backed `BundleSimulationAdapter`    |
+| `TenderlyBundleConfig`                  | Tenderly bundle simulation configuration     |
 
 ### Execution (EIP-7702)
 

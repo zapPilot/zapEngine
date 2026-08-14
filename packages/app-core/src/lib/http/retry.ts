@@ -15,11 +15,6 @@ function shouldRetry(error: unknown): boolean {
   );
 }
 
-// Delay helper for exponential backoff
-export function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export function calculateBackoffDelay(
   baseDelay: number,
   attempt: number,

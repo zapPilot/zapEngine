@@ -10,7 +10,6 @@
  * @future Replace with real transaction service when backend is ready
  */
 
-import { delay } from '@core/lib/http/retry';
 import type {
   AllocationBreakdown,
   TransactionFormData,
@@ -18,13 +17,14 @@ import type {
   TransactionToken,
 } from '@core/types/domain/transaction';
 import { clamp } from '@core/utils/mathUtils';
+import { sleep } from '@zapengine/types/shared';
 
 async function simulateBasicTransaction(
   type: TransactionResult['type'],
   data: TransactionFormData,
   message: string,
 ): Promise<TransactionResult> {
-  await delay(1100);
+  await sleep(1100);
 
   return {
     type,
@@ -126,7 +126,7 @@ function createTxHash(): string {
 export async function getSupportedTokens(
   chainId: number,
 ): Promise<TransactionToken[]> {
-  await delay(120);
+  await sleep(120);
   return MOCK_TOKENS.filter((token) => token.chainId === chainId);
 }
 
@@ -134,7 +134,7 @@ export async function getTokenBalance(
   chainId: number,
   tokenAddress: string,
 ): Promise<{ balance: string; usdValue: number }> {
-  await delay(150);
+  await sleep(150);
   const key = `${chainId}:${tokenAddress}`;
   return (
     MOCK_TOKEN_BALANCES[key] ?? {
@@ -169,7 +169,7 @@ export async function simulateRebalance(
   currentAllocation: AllocationBreakdown,
   targetAllocation: AllocationBreakdown,
 ): Promise<TransactionResult> {
-  await delay(900);
+  await sleep(900);
 
   const projected = computeProjectedAllocation(
     intensity,

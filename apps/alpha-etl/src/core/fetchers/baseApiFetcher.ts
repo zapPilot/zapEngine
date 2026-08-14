@@ -1,8 +1,9 @@
+import { sleep } from '@zapengine/types/shared';
+
 import { RATE_LIMITS } from '../../config/constants.js';
 import { APIError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import { withRetry } from '../../utils/retry.js';
-import { sleep } from '../../utils/sleep.js';
 
 export interface RequestStats {
   requestCount: number;

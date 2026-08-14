@@ -1,11 +1,9 @@
-import { isWalletAddress } from '../validation/wallet-address.util';
+import {
+  shortenAddress,
+  type ShortenAddressOptions,
+} from '@zapengine/types/shared';
 
-export interface FormatShortWalletAddressOptions {
-  /** Characters from the start of the address (including `0x`). Default 6. */
-  head?: number;
-  /** Characters from the end of the address. Default 4. */
-  tail?: number;
-}
+import { isWalletAddress } from '../validation/wallet-address.util';
 
 /**
  * Formats a wallet address to a shortened display format (default 0x1234...abcd).
@@ -15,15 +13,13 @@ export interface FormatShortWalletAddressOptions {
  */
 export function formatShortWalletAddress(
   address: string,
-  options?: FormatShortWalletAddressOptions,
+  options?: ShortenAddressOptions,
 ): string {
   if (!isWalletAddress(address)) {
     return address;
   }
 
-  const head = options?.head ?? 6;
-  const tail = options?.tail ?? 4;
-  return `${address.slice(0, head)}...${address.slice(-tail)}`;
+  return shortenAddress(address, options);
 }
 
 /**

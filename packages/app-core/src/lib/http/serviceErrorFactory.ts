@@ -2,23 +2,9 @@ import { resolveErrorMessage } from '@core/lib/errors/errorFactory';
 import { ServiceError } from '@core/lib/errors/ServiceError';
 
 /**
- * Standard API error response structure.
- */
-export interface ApiErrorResponse {
-  message?: string;
-  status?: number;
-  response?: {
-    status?: number;
-    data?: unknown;
-  };
-  code?: string;
-  details?: Record<string, unknown>;
-}
-
-/**
  * Function type for enhancing error messages based on status codes.
  */
-export type MessageEnhancer = (status: number, message: string) => string;
+type MessageEnhancer = (status: number, message: string) => string;
 
 type ErrorData = Record<string, unknown>;
 
@@ -37,16 +23,6 @@ function getResponseData(errorData: ErrorData): ErrorData | undefined {
   }
 
   return response as ErrorData;
-}
-
-/**
- * Type guard for plain object / Error-like API responses.
- *
- * @param error - Raw error value
- * @returns Whether the value is object-like
- */
-export function isApiErrorResponse(error: unknown): error is ApiErrorResponse {
-  return error !== null && typeof error === 'object';
 }
 
 function resolveStatus(errorData: ErrorData): number {

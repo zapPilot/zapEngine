@@ -42,8 +42,6 @@ import {
   invalidateEpisodeSearchCache,
   searchEpisodes,
 } from './services/episode-search.js';
-import { processEpisodeVideoJob } from './services/episode-video-processor.js';
-import { processEpisodeVideoVisualJob } from './services/episode-video-visual-processor.js';
 import { handleAppError } from './services/error-response.js';
 import { createFlyMachinesClient } from './services/fly-machines.js';
 import { performMultilingualIngestAndEnqueueVideo } from './services/post-ingest.js';
@@ -152,11 +150,9 @@ async function loadEpisodeLocalizationResponse(
     });
   }
 
-  const classrooms = await listLanguageClassroomsByLocalizationId(
-    localization.id,
-  );
-  const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds([
-    localization.id,
+  const [classrooms, videoSummaries] = await Promise.all([
+    listLanguageClassroomsByLocalizationId(localization.id),
+    listEpisodeVideoSummariesByLocalizationIds([localization.id]),
   ]);
   const videoSummary = videoSummaries.get(localization.id);
   return toEpisodeResponseFromLocalization(
@@ -492,15 +488,33 @@ export interface BootstrapOptions {
   renderCapacity?: RenderCapacityReconciler | null;
 }
 
+/**
+ * The render graph (sharp, ffmpeg bindings) is loaded only when a job actually
+ * runs. The `render` process group imports the processors statically in
+ * src/worker.ts; the always-on API group must not carry that memory just
+ * because a single-process setup could opt into `startVideoWorker`.
+ */
+const loadProcessEpisodeVideoJob: ProcessEpisodeVideoJob = async (...args) =>
+  (
+    await import('./services/episode-video-processor.js')
+  ).processEpisodeVideoJob(...args);
+
+const loadProcessEpisodeVideoVisualJob: ProcessEpisodeVideoVisualJob = async (
+  ...args
+) =>
+  (
+    await import('./services/episode-video-visual-processor.js')
+  ).processEpisodeVideoVisualJob(...args);
+
 export function bootstrap(options: BootstrapOptions = {}) {
   const app = options.app ?? createApp();
   const videoWorker =
     options.videoWorker ??
     (options.startVideoWorker === true
       ? createVideoWorker({
-          processJob: options.processVideoJob ?? processEpisodeVideoJob,
+          processJob: options.processVideoJob ?? loadProcessEpisodeVideoJob,
           processVisualJob:
-            options.processVideoVisualJob ?? processEpisodeVideoVisualJob,
+            options.processVideoVisualJob ?? loadProcessEpisodeVideoVisualJob,
         })
       : null);
   const renderCapacity =

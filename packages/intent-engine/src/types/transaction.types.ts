@@ -61,20 +61,6 @@ export interface RotateTransactionPlan {
   strategy?: 'eip7702' | 'sequential';
 }
 
-// Simulation result (for Tenderly or similar)
-export interface SimulationResult {
-  success: boolean;
-  gasUsed?: string;
-  error?: string;
-  logs?: unknown[];
-  stateChanges?: Array<{
-    address: Address;
-    key: string;
-    before: string;
-    after: string;
-  }>;
-}
-
 // Execution result
 // For EIP-5792 batches, `callsId` is returned and can be resolved to a
 // tx hash / receipt via `waitForEIP7702Confirmation`.

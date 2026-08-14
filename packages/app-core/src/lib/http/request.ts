@@ -3,6 +3,8 @@
  * Main request execution logic with retry support
  */
 
+import { sleep } from '@zapengine/types/shared';
+
 import { createTimeoutController, isAbortError } from './abortControl';
 import {
   hasHeaders,
@@ -21,7 +23,7 @@ import {
   TimeoutError,
   toError,
 } from './errors';
-import { calculateBackoffDelay, delay, shouldAttemptRetry } from './retry';
+import { calculateBackoffDelay, shouldAttemptRetry } from './retry';
 
 function createRequestConfig(config: HttpRequestConfig): RequestInit {
   const { method = 'GET', headers = {}, body } = config;
@@ -119,7 +121,7 @@ export async function httpRequest<T = unknown>(
         break;
       }
 
-      await delay(calculateBackoffDelay(retryDelay, attempt));
+      await sleep(calculateBackoffDelay(retryDelay, attempt));
     } finally {
       cleanup();
     }

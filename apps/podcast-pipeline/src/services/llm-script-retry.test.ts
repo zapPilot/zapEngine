@@ -13,6 +13,10 @@ const ingestMocks = vi.hoisted(() => ({
   logIngestEvent: vi.fn(),
 }));
 
+const openAiMocks = vi.hoisted(() => ({
+  create: vi.fn(),
+}));
+
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
   return {
@@ -22,7 +26,15 @@ vi.mock('node:fs', async () => {
 });
 
 vi.mock('openai', () => ({
-  default: vi.fn(),
+  default: vi.fn().mockImplementation(function () {
+    return {
+      chat: {
+        completions: {
+          create: openAiMocks.create,
+        },
+      },
+    };
+  }),
 }));
 
 vi.mock('./ingest/step.js', () => ingestMocks);
@@ -30,15 +42,9 @@ vi.mock('./ingest/step.js', () => ingestMocks);
 import { generateScriptWithLLM } from './llm.js';
 
 function mockOpenAIClient(createMock: Mock): void {
-  vi.mocked(OpenAI).mockImplementation(function () {
-    return {
-      chat: {
-        completions: {
-          create: createMock,
-        },
-      },
-    } as unknown as OpenAI;
-  });
+  openAiMocks.create.mockImplementation((...args: unknown[]) =>
+    createMock(...args),
+  );
 }
 
 function successfulCompletion(): unknown {
@@ -68,7 +74,8 @@ describe('generateScriptWithLLM retries', () => {
     vi.stubEnv('OPENROUTER_TIMEOUT_MS', '25');
     vi.stubEnv('LLM_MODEL', 'test/model');
     vi.stubEnv('LLM_THINKING_MODEL', '');
-    vi.mocked(OpenAI).mockReset();
+    vi.mocked(OpenAI).mockClear();
+    openAiMocks.create.mockReset();
     ingestMocks.logIngestEvent.mockReset();
   });
 

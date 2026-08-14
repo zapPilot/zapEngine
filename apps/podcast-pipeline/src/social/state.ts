@@ -2,11 +2,11 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import type {
-  PlatformPublishState,
-  SocialLanguage,
-  SocialPlatform,
-  SocialPublishState,
+import {
+  type PlatformPublishState,
+  SOCIAL_STATE_LANGUAGE_KEY,
+  type SocialPlatform,
+  type SocialPublishState,
 } from './types.js';
 
 export const DEFAULT_SOCIAL_STATE_PATH = join(
@@ -34,15 +34,13 @@ export async function readPublishState(
 export function getPublishedPlatform(
   state: SocialPublishState,
   episodeId: string,
-  language: SocialLanguage,
   platform: SocialPlatform,
 ): PlatformPublishState | undefined {
-  return state[episodeId]?.[language]?.[platform];
+  return state[episodeId]?.[SOCIAL_STATE_LANGUAGE_KEY]?.[platform];
 }
 
 export async function markPlatformPublished(input: {
   episodeId: string;
-  language: SocialLanguage;
   platform: SocialPlatform;
   result: PlatformPublishState;
   path?: string;
@@ -50,11 +48,11 @@ export async function markPlatformPublished(input: {
   const path = input.path ?? DEFAULT_SOCIAL_STATE_PATH;
   const state = await readPublishState(path);
   const episodeState = state[input.episodeId] ?? {};
-  const languageState = episodeState[input.language] ?? {};
+  const languageState = episodeState[SOCIAL_STATE_LANGUAGE_KEY] ?? {};
 
   state[input.episodeId] = {
     ...episodeState,
-    [input.language]: {
+    [SOCIAL_STATE_LANGUAGE_KEY]: {
       ...languageState,
       [input.platform]: input.result,
     },

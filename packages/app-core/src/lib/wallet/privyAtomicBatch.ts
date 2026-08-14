@@ -70,13 +70,6 @@ export function atomicBatchSummary(transactions: PreparedTransaction[]) {
   return { approvals };
 }
 
-export function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return String(error);
-}
-
 /** Standard base64 alphabet position for a char code, or -1 when invalid. */
 function base64Index(code: number): number {
   if (code >= 65 && code <= 90) return code - 65; // A-Z

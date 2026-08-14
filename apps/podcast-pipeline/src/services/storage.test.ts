@@ -1,4 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createReadStream } from 'node:fs';
+
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('node:fs', async () => {
   const { Readable } = await import('node:stream');
@@ -63,22 +66,20 @@ import {
 } from './storage.js';
 
 beforeEach(() => {
-  mockSend.mockClear();
-  mockUploadAbort.mockClear();
-  mockUploadDone.mockClear();
+  mockSend.mockReset().mockResolvedValue({});
+  mockUploadAbort.mockReset().mockResolvedValue(undefined);
+  mockUploadDone.mockReset().mockResolvedValue({});
   mockUploadConstructor.mockClear();
+  vi.mocked(createReadStream).mockClear();
+  vi.mocked(PutObjectCommand).mockClear();
 });
 
 describe('uploadHlsToR2', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('uploads files with correct URL format', async () => {
+  it('streams files from disk with the correct URL format', async () => {
     const files: HlsFile[] = [
       {
         name: 'playlist.m3u8',
-        data: Buffer.alloc(50),
+        path: '/render/hls/playlist.m3u8',
         contentType: 'application/vnd.apple.mpegurl',
       },
     ];
@@ -90,7 +91,64 @@ describe('uploadHlsToR2', () => {
         'https://cdn.example.com/episodes/test-id/localizations/zh-Hant/main/playlist.m3u8',
       r2Prefix: 'episodes/test-id/localizations/zh-Hant/main',
     });
-    expect(mockSend).toHaveBeenCalled();
+    expect(createReadStream).toHaveBeenCalledWith('/render/hls/playlist.m3u8');
+    expect(PutObjectCommand).toHaveBeenCalledWith({
+      Bucket: 'test-bucket',
+      Key: 'episodes/test-id/localizations/zh-Hant/main/playlist.m3u8',
+      Body: vi.mocked(createReadStream).mock.results[0]?.value,
+      ContentType: 'application/vnd.apple.mpegurl',
+    });
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits for every in-flight stream upload before rejecting', async () => {
+    const uploadError = new Error('playlist upload failed');
+    let finishSegmentUpload!: () => void;
+    mockSend.mockRejectedValueOnce(uploadError).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishSegmentUpload = () => resolve({});
+        }),
+    );
+
+    const pending = uploadHlsToR2(
+      [
+        {
+          name: 'playlist.m3u8',
+          path: '/render/hls/playlist.m3u8',
+          contentType: 'application/vnd.apple.mpegurl',
+        },
+        {
+          name: 'seg1.ts',
+          path: '/render/hls/seg1.ts',
+          contentType: 'video/mp2t',
+        },
+      ],
+      'test-id',
+      'zh-Hant',
+      'classroom',
+    );
+    let settled = false;
+    void pending.then(
+      () => {
+        settled = true;
+        return undefined;
+      },
+      () => {
+        settled = true;
+        return undefined;
+      },
+    );
+
+    await vi.waitFor(() => expect(mockSend).toHaveBeenCalledTimes(2));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    finishSegmentUpload();
+
+    await expect(pending).rejects.toBe(uploadError);
+    expect(createReadStream).toHaveBeenCalledWith('/render/hls/playlist.m3u8');
+    expect(createReadStream).toHaveBeenCalledWith('/render/hls/seg1.ts');
   });
 });
 

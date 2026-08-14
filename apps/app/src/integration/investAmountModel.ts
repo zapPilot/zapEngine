@@ -1,4 +1,5 @@
 import { GMX_V2_BASKET_EXECUTION_FEE_WEI } from '@zapengine/app-core/gmxFees';
+import { parseBaseUnits } from '@zapengine/app-core/lib/wallet/usd6';
 import { CHAIN_BRAND } from '@zapengine/brand-assets';
 import { STRATEGY_MIN_DEPOSIT_USD6 } from '@zapengine/types/api';
 import { parseUnits } from 'viem';
@@ -149,11 +150,11 @@ export function fundingTokenUsdValueFromInput(
 
 /** Convert a user-entered USD decimal to an exact 6-decimal integer string. */
 export function amountInputToUsd6(groupedAmount: string): string {
-  const cleaned = groupedAmount.replace(/,/gu, '');
-  const match = /^(\d+)(?:\.(\d*))?$/u.exec(cleaned);
-  if (!match) return '0';
-  const fraction = (match[2] ?? '').slice(0, 6).padEnd(6, '0');
-  return `${match[1]!}${fraction}`.replace(/^0+(?=\d)/u, '') || '0';
+  const parsed = parseBaseUnits(groupedAmount.replace(/,/gu, ''), {
+    truncateExcessFraction: true,
+    allowEmptyFraction: true,
+  });
+  return (parsed ?? 0n).toString();
 }
 
 export interface StrategyFundingOption {

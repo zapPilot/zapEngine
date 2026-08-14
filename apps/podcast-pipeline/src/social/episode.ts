@@ -5,7 +5,7 @@ import {
 } from '../services/db.js';
 import { isEpisodeId } from '../services/request-validation.js';
 import { buildEpisodeShareUrl } from '../services/telegram.js';
-import type { SocialEpisode, SocialLanguage } from './types.js';
+import type { SocialEpisode } from './types.js';
 
 interface EpisodeProjection {
   id: string;
@@ -56,13 +56,6 @@ export function parseSocialEpisodeId(value: string): string {
   );
 }
 
-export function toPrimaryLanguageCode(language: SocialLanguage): string {
-  if (language !== 'zh') {
-    throw new Error(`Unsupported social language: ${language}`);
-  }
-  return CANONICAL_LANGUAGE_CODE;
-}
-
 export function buildSocialEpisode(input: {
   episode: EpisodeProjection;
   localization: LocalizationProjection;
@@ -108,9 +101,8 @@ export function buildSocialEpisode(input: {
 
 export async function getSocialEpisode(
   episodeId: string,
-  language: SocialLanguage = 'zh',
 ): Promise<SocialEpisode> {
-  const languageCode = toPrimaryLanguageCode(language);
+  const languageCode = CANONICAL_LANGUAGE_CODE;
   const episode = await findEpisodeById(episodeId);
   if (!episode) {
     throw new Error(`Episode ${episodeId} not found.`);

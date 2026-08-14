@@ -5,11 +5,11 @@
  * transformations of raw JSON payloads into account-engine domain types.
  */
 
+import { isFiniteNumber } from '@zapengine/types/shared';
 import { DailySuggestionResponseSchema } from '@zapengine/types/strategy';
 
 import { ServiceLayerException } from '../../../common/exceptions';
 import { HttpStatus } from '../../../common/http';
-import { isFiniteNumber } from '../../../common/utils';
 import { DailySuggestionData } from '../interfaces/daily-suggestion.interface';
 import {
   PortfolioResponse,

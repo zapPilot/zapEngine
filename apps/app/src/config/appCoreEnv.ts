@@ -22,9 +22,6 @@ export function buildAppCoreEnvSource(
       process.env.EXPO_PUBLIC_ALCHEMY_API_KEY || extra.alchemyApiKey,
     VITE_MORALIS_API_KEY: process.env.EXPO_PUBLIC_MORALIS_API_KEY,
     VITE_PODCAST_API_URL: process.env.EXPO_PUBLIC_PODCAST_API_URL,
-    // Key name kept: app-core's wallet-token provider switch reads it on
-    // desktop and native alike.
-    VITE_DESKTOP_WALLET_PROVIDER: process.env.EXPO_PUBLIC_WALLET_TOKEN_PROVIDER,
     VITE_PRIVY_CLIENT_ID: process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID,
     VITE_WALLETCONNECT_PROJECT_ID:
       process.env.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID,

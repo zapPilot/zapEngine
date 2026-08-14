@@ -1,6 +1,4 @@
-export function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
+import { isFiniteNumber } from '@zapengine/types/shared';
 
 export function toFiniteNumberOrNull(value: unknown): number | null {
   return isFiniteNumber(value) ? value : null;

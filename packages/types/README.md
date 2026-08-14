@@ -8,8 +8,8 @@ Types are partitioned by concern. **Prefer subpath imports** so an app pulls in 
 
 | Subpath                     | What lives here                                                               | Typical consumers                                   |
 | --------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------- |
-| `@zapengine/types/strategy` | Strategy presets, allocations, buckets, backtesting, suggestions, JSON shapes | analytics-engine ↔ frontend / account-engine        |
-| `@zapengine/types/api`      | HTTP contracts (deposit, market dashboard) shared between FE and BE           | account-engine, frontend, landing-page              |
+| `@zapengine/types/strategy` | Strategy presets, allocations, buckets, backtesting, suggestions, JSON shapes | analytics-engine ↔ app-core / account-engine        |
+| `@zapengine/types/api`      | HTTP contracts (deposit, market dashboard) shared between FE and BE           | account-engine, app-core, intent-engine, alpha-etl  |
 | `@zapengine/types/etl`      | ETL pipeline DTOs and job status shapes                                       | alpha-etl, account-engine                           |
 | `@zapengine/types/shared`   | Cross-domain primitives (market freshness, wallet)                            | All apps                                            |
 | `@zapengine/types`          | **Backward-compat barrel** — re-exports everything                            | Legacy import sites; new code should pick a subpath |

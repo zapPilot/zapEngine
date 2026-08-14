@@ -20,6 +20,7 @@ from typing import Any, cast
 from uuid import UUID
 
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from src.core.cache_service import analytics_cache
 from src.models.dashboard import DashboardTimeRanges
@@ -194,7 +195,7 @@ class DashboardService(CacheKeyMixin):
             *time_ranges.to_cache_key_parts(),
         )
 
-        cached = analytics_cache.get(cache_key)
+        cached = await run_in_threadpool(analytics_cache.get, cache_key)
         if cached is not None:
             logger.debug(
                 "Dashboard cache hit",
@@ -202,8 +203,10 @@ class DashboardService(CacheKeyMixin):
             )
             return cast(dict[str, Any], cached)
 
-        snapshot_date = self.canonical_snapshot_service.get_snapshot_date(
-            user_id, wallet_address
+        snapshot_date = await run_in_threadpool(
+            self.canonical_snapshot_service.get_snapshot_date,
+            user_id,
+            wallet_address,
         )
         if snapshot_date is None:
             logger.warning(
@@ -227,6 +230,8 @@ class DashboardService(CacheKeyMixin):
             "parameters": time_ranges.model_dump(),
         }
 
+        # Keep service calls serialized because the injected services share one
+        # SQLAlchemy Session; only move each blocking call off the event loop.
         for metric in normalized_metrics:
             await self._add_dashboard_section(
                 dashboard=dashboard,
@@ -245,7 +250,12 @@ class DashboardService(CacheKeyMixin):
         # Store only fully successful dashboards. Partial failures are useful
         # responses, but caching them can keep transient service errors alive.
         if dashboard["_metadata"]["error_count"] == 0:
-            analytics_cache.set(cache_key, dashboard, ttl=timedelta(hours=ttl_hours))
+            await run_in_threadpool(
+                analytics_cache.set,
+                cache_key,
+                dashboard,
+                ttl=timedelta(hours=ttl_hours),
+            )
         else:
             logger.info(
                 "Dashboard partial failure not cached",
@@ -346,7 +356,7 @@ class DashboardService(CacheKeyMixin):
             Service result as dict or error payload
         """
         try:
-            result = fetcher()
+            result = await run_in_threadpool(fetcher)
             if inspect.isawaitable(result):
                 result = await result
 

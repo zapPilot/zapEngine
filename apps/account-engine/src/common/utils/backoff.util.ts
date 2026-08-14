@@ -13,7 +13,7 @@ const MAX_RETRY_DELAY_MS = 3_600_000;
  * @param baseDelay - Base delay in milliseconds
  * @returns Delay in milliseconds with jitter applied
  */
-export function calculateBackoffDelay(
+export function calculateJitteredBackoffDelay(
   attempt: number,
   baseDelay: number,
 ): number {

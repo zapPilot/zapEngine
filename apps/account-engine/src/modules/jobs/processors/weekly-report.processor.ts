@@ -1,10 +1,8 @@
+import { isFiniteNumber } from '@zapengine/types/shared';
+
 import { EMAIL_CONFIG } from '../../../common/constants';
 import { Logger } from '../../../common/logger';
-import {
-  getErrorMessage,
-  isFiniteNumber,
-  percentChange,
-} from '../../../common/utils';
+import { getErrorMessage, percentChange } from '../../../common/utils';
 import { AnalyticsClientService } from '../../notifications/analytics-client/client';
 import { ChartService } from '../../notifications/chart.service';
 import { EmailService } from '../../notifications/email.service';
