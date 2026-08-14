@@ -71,6 +71,8 @@ export function BottomTabBar({
 
   return (
     <View
+      accessibilityRole="tablist"
+      accessibilityLabel={t('tabs.bar')}
       className="flex-row shrink-0 border-t border-line px-1.5 pt-3"
       style={{
         backgroundColor: 'rgba(10,10,10,.85)',

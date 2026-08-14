@@ -22,6 +22,7 @@ export const en = {
   'tabs.activity': 'Activity',
   'tabs.account': 'Account',
   'tabs.signInHint': 'Open this tab to continue with Privy',
+  'tabs.bar': 'App tabs',
   'language.title': 'Language',
   'language.description':
     'Changes the app interface and podcast language. Listening history is preserved.',
@@ -220,6 +221,7 @@ export const zhHant = {
   'tabs.activity': '活動',
   'tabs.account': '帳戶',
   'tabs.signInHint': '開啟此分頁並透過 Privy 繼續',
+  'tabs.bar': '應用程式分頁',
   'language.title': '語言',
   'language.description': '同步切換 App 介面與 Podcast 語言，收聽紀錄會保留。',
   'language.choose': '選擇 App 語言',
@@ -405,6 +407,7 @@ export const ja = {
   'tabs.activity': 'アクティビティ',
   'tabs.account': 'アカウント',
   'tabs.signInHint': 'このタブを開き、Privyで続行します',
+  'tabs.bar': 'アプリのタブ',
   'language.title': '言語',
   'language.description':
     'アプリの表示言語とポッドキャストの言語を同時に切り替えます。再生履歴は保持されます。',
