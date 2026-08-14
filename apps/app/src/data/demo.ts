@@ -4,6 +4,8 @@
  * when no clean source exists.
  */
 
+import type { AllocationCategoryKey } from '@zapengine/app-core/lib/domain/allocationCategories';
+
 export type ChainKey = 'ethereum' | 'arbitrum' | 'base';
 
 export interface DemoAsset {
@@ -53,6 +55,7 @@ export interface DemoData {
     allocation: { label: string; pct: number; color: string }[];
     lastRebalancedLabel: string;
   };
+  activitySummary: ActivityCategoryFlow[];
   activity: ActivityGroup[];
 }
 
@@ -73,6 +76,21 @@ export interface ActivityStep {
   done: boolean;
 }
 
+/** Net movement of one allocation category inside an activity event. */
+export interface ActivityCategoryDelta {
+  category: AllocationCategoryKey;
+  /** Net USD when the indexer priced the transfers; token-only otherwise. */
+  usdNet: number | null;
+  /** Pre-composed token-denominated label, e.g. `+5.25 USDC · −0.002 WBTC`. */
+  label: string;
+}
+
+/** Per-category net flow across the loaded feed, for the summary card. */
+export interface ActivityCategoryFlow extends ActivityCategoryDelta {
+  /** Share (0..1) of feed events touching this category. */
+  share: number;
+}
+
 export interface ActivityEvent {
   id: string;
   kind: ActivityKind;
@@ -82,9 +100,15 @@ export interface ActivityEvent {
   status: ActivityStatus;
   meta: string;
   time: string;
+  /** Dominant allocation category — drives the row's category accent. */
+  category?: AllocationCategoryKey;
+  categoryDeltas?: ActivityCategoryDelta[];
+  /** Number of on-chain transactions collapsed into this event. */
+  txCount?: number;
+  chain?: ChainKey;
+  /** Primary token, used for the row's compound token/chain mark. */
+  tokenSymbol?: string;
   steps?: ActivityStep[];
-  /** Legacy flag kept so older activity rows can still be typed if reintroduced. */
-  demoOnly?: boolean;
 }
 
 export interface ActivityGroup {
@@ -183,15 +207,103 @@ export const DEMO: DemoData = {
     lastRebalancedLabel:
       'Auto-managed by Zap Strategy · last rebalanced 2 days ago',
   },
-  activity: [],
+  activitySummary: [
+    { category: 'btc', usdNet: 1240, label: '+0.0107 CBBTC', share: 0.2 },
+    { category: 'stable', usdNet: 460, label: '+460 USDC', share: 0.6 },
+    { category: 'eth', usdNet: -150, label: '−0.045 ETH', share: 0.2 },
+  ],
+  activity: [
+    {
+      label: 'Today',
+      events: [
+        {
+          id: 'demo-rebalance-burst',
+          kind: 'rebalance',
+          title: 'Rebalanced portfolio',
+          amountLabel: '+$1,240.00',
+          amountTone: 'positive',
+          status: 'Completed',
+          meta: 'Arbitrum · 32 transactions',
+          time: '4m',
+          category: 'btc',
+          categoryDeltas: [
+            { category: 'btc', usdNet: 1240, label: '+0.0107 CBBTC' },
+            { category: 'stable', usdNet: -1240, label: '−1,240 USDC' },
+          ],
+          txCount: 32,
+          chain: 'arbitrum',
+          tokenSymbol: 'CBBTC',
+        },
+        {
+          id: 'demo-deposit',
+          kind: 'deposit',
+          title: 'Received USDC',
+          amountLabel: '+$2,500.00',
+          amountTone: 'positive',
+          status: 'Completed',
+          meta: 'Base',
+          time: '1h',
+          category: 'stable',
+          categoryDeltas: [
+            { category: 'stable', usdNet: 2500, label: '+2,500 USDC' },
+          ],
+          chain: 'base',
+          tokenSymbol: 'USDC',
+        },
+      ],
+    },
+    {
+      label: 'This week',
+      events: [
+        {
+          id: 'demo-failed-send',
+          kind: 'withdraw',
+          title: 'Sent ETH',
+          amountLabel: '−$150.00',
+          amountTone: 'negative',
+          status: 'Failed',
+          meta: 'Arbitrum',
+          time: '3d',
+          category: 'eth',
+          categoryDeltas: [
+            { category: 'eth', usdNet: -150, label: '−0.045 ETH' },
+          ],
+          chain: 'arbitrum',
+          tokenSymbol: 'ETH',
+        },
+      ],
+    },
+    {
+      label: 'Earlier',
+      events: [
+        {
+          id: 'demo-withdraw',
+          kind: 'withdraw',
+          title: 'Sent USDC',
+          amountLabel: '−$800.00',
+          amountTone: 'negative',
+          status: 'Completed',
+          meta: 'Base',
+          time: '2w',
+          category: 'stable',
+          categoryDeltas: [
+            { category: 'stable', usdNet: -800, label: '−800 USDC' },
+          ],
+          chain: 'base',
+          tokenSymbol: 'USDC',
+        },
+      ],
+    },
+  ],
 };
+
+export type ActivityFilter = 'All' | AllocationCategoryKey;
 
 export const ACTIVITY_FILTERS = [
   'All',
-  'Deposits',
-  'Withdrawals',
-  'Rebalances',
-  'Yield',
-] as const;
-
-export type ActivityFilter = (typeof ACTIVITY_FILTERS)[number];
+  'btc',
+  'eth',
+  'spy',
+  'stable',
+  'alt',
+] as const satisfies readonly ActivityFilter[];

@@ -1,53 +1,53 @@
+import { ALLOCATION_CATEGORIES } from '@zapengine/app-core/lib/domain/allocationCategories';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 
+import { ActivityRow } from '@/components/activity/ActivityRow';
+import { CategoryFlowCard } from '@/components/activity/CategoryFlowCard';
 import { Card } from '@/components/ui/Card';
-import { Pill } from '@/components/ui/Pill';
+import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { RangeTabs } from '@/components/ui/RangeTabs';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
-import {
-  ACTIVITY_FILTERS,
-  type ActivityEvent,
-  type ActivityFilter,
-  DEMO,
-} from '@/data/demo';
+import { ACTIVITY_FILTERS, type ActivityFilter, DEMO } from '@/data/demo';
+import { filterActivityGroups } from '@/integration/activityEventModel';
 import { useAccount } from '@/integration/useAccount';
-import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 import { useActivityData } from '@/integration/useActivityData';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
-function ActivityRow({ event }: { event: ActivityEvent }) {
+const GROUP_LABEL_KEY = {
+  Today: 'activity.group.today',
+  'This week': 'activity.group.week',
+  Earlier: 'activity.group.earlier',
+} as const;
+
+function isKnownGroupLabel(
+  label: string,
+): label is keyof typeof GROUP_LABEL_KEY {
+  return label in GROUP_LABEL_KEY;
+}
+
+function ActivitySkeleton() {
   return (
-    <View className="border-b border-line py-3 last:border-b-0">
-      <View className="flex-row items-start justify-between gap-3">
-        <View className="flex-1">
-          <Text className="font-sans-semibold text-[14px] text-ink">
-            {event.title}
-          </Text>
-          <Text className="mt-1 text-[12px] text-ink-dim">{event.meta}</Text>
-        </View>
-        <View className="items-end">
-          {event.amountLabel ? (
-            <Text className="font-mono-semibold text-[13px] text-accent">
-              {event.amountLabel}
-            </Text>
-          ) : null}
-          <Text className="mt-1 font-mono text-[10px] text-ink-faint">
-            {event.time}
-          </Text>
-        </View>
-      </View>
-      <View className="mt-2 flex-row items-center justify-between">
-        <Pill className="border border-line bg-[rgba(255,255,255,.04)]">
-          {event.status}
-        </Pill>
-        <Text className="font-mono text-[10px] uppercase tracking-[0.8px] text-ink-faint">
-          {event.kind}
-        </Text>
-      </View>
-    </View>
+    <>
+      <Card className="p-4">
+        <SkeletonBlock className="h-3 w-24" />
+        <SkeletonBlock className="mt-3 h-[6px] w-full rounded-pill" />
+        <SkeletonBlock className="mt-4 h-4 w-full" />
+        <SkeletonBlock className="mt-2 h-4 w-2/3" />
+      </Card>
+      <Card className="mt-5 p-4">
+        <SkeletonBlock className="h-5 w-40" />
+        <SkeletonBlock className="mt-3 h-4 w-full" />
+        <SkeletonBlock className="mt-2 h-4 w-3/4" />
+      </Card>
+    </>
   );
+}
+
+function activityFilterLabel(filter: ActivityFilter, allLabel: string): string {
+  return filter === 'All' ? allLabel : ALLOCATION_CATEGORIES[filter].shortLabel;
 }
 
 export function ActivityScreen() {
@@ -60,49 +60,88 @@ export function ActivityScreen() {
     ownWalletAddresses: account.walletAddresses,
     ownAddress: account.address,
   });
-  const groups = account.isConnected
-    ? (activity.data?.groups ?? [])
-    : DEMO.activity;
+
+  const isLive = account.isConnected;
+  const groups = isLive ? (activity.data?.groups ?? []) : DEMO.activity;
+  const summary = isLive
+    ? (activity.data?.summary ?? [])
+    : DEMO.activitySummary;
+  const isLoading = isLive && activity.isLoading;
+  const isError = isLive && !isLoading && activity.isError;
+  const filteredGroups = filterActivityGroups(groups, filter);
 
   return (
     <ScreenScrollView>
       <ScreenHeader title={t('activity.title')} />
-      <View className="px-5 pt-4">
-        <RangeTabs
-          options={ACTIVITY_FILTERS}
-          value={filter}
-          onChange={(value) => setFilter(value as ActivityFilter)}
-        />
+      <View className="pl-5 pt-2">
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerClassName="pr-5"
+        >
+          <RangeTabs
+            options={ACTIVITY_FILTERS}
+            value={filter}
+            comfortable
+            accessibilityLabel={t('activity.categoryFilter')}
+            optionLabel={(option) =>
+              activityFilterLabel(option as ActivityFilter, t('activity.all'))
+            }
+            onChange={(value) => setFilter(value as ActivityFilter)}
+          />
+        </ScrollView>
       </View>
       <View className="px-5 pt-5">
-        {activity.isLoading && account.isConnected ? (
-          <Card className="p-4">
-            <SkeletonBlock className="h-5 w-40" />
-            <SkeletonBlock className="mt-3 h-4 w-full" />
-            <SkeletonBlock className="mt-2 h-4 w-3/4" />
-          </Card>
-        ) : groups.length > 0 ? (
-          groups.map((group) => (
-            <View key={group.label} className="mb-5">
-              <Text className="mb-2 font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">
-                {group.label}
-              </Text>
-              <Card className="px-4">
-                {group.events.map((event) => (
-                  <ActivityRow key={event.id} event={event} />
-                ))}
-              </Card>
-            </View>
-          ))
+        {isLoading ? (
+          <ActivitySkeleton />
+        ) : isError ? (
+          <InlineErrorCard
+            title={t('activity.error')}
+            body={t('activity.errorMessage')}
+            action={{
+              label: t('activity.retry'),
+              onPress: activity.refetch,
+            }}
+          />
         ) : (
-          <Card className="p-5">
-            <Text className="font-sans-semibold text-[15px] text-ink">
-              {t('activity.noActivity')}
-            </Text>
-            <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
-              {t('activity.noActivityMessage')}
-            </Text>
-          </Card>
+          <>
+            <CategoryFlowCard
+              className="mb-5"
+              flows={summary}
+              label={`${t('activity.netFlow')} · ${t('activity.recent')}`}
+            />
+            {filteredGroups.length > 0 ? (
+              filteredGroups.map((group) => (
+                <View key={group.label} className="mb-5">
+                  <Text className="mb-2 font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">
+                    {isKnownGroupLabel(group.label)
+                      ? t(GROUP_LABEL_KEY[group.label])
+                      : group.label}
+                  </Text>
+                  <Card className="px-4">
+                    {group.events.map((event) => (
+                      <ActivityRow
+                        key={event.id}
+                        event={event}
+                        failedLabel={t('activity.failed')}
+                      />
+                    ))}
+                  </Card>
+                </View>
+              ))
+            ) : (
+              <Card className="p-5">
+                <Text className="font-sans-semibold text-[15px] text-ink">
+                  {t('activity.noActivity')}
+                </Text>
+                <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
+                  {groups.length > 0
+                    ? t('activity.noCategoryActivity')
+                    : t('activity.noActivityMessage')}
+                </Text>
+              </Card>
+            )}
+          </>
         )}
       </View>
     </ScreenScrollView>

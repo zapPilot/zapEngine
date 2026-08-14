@@ -4,7 +4,10 @@ import { getConfig } from 'expo/config';
 import { compileModsAsync } from 'expo/config-plugins';
 import { describe, expect, it } from 'vitest';
 
-import appConfig, { resolveExpoAlchemyApiKey } from '../app.config';
+import appConfig, {
+  resolveExpoAlchemyApiKey,
+  resolveExpoMoralisApiKey,
+} from '../app.config';
 
 function pluginName(plugin: unknown): unknown {
   return Array.isArray(plugin) ? plugin[0] : plugin;
@@ -91,6 +94,22 @@ describe('Android store identity', () => {
         VITE_ALCHEMY_API_KEY: 'vite-key',
       }),
     ).toBe('vite-key');
+  });
+
+  it('prefers Expo Moralis config and falls back to the local Vite key', () => {
+    expect(
+      resolveExpoMoralisApiKey({
+        EXPO_PUBLIC_MORALIS_API_KEY: 'expo-key',
+        VITE_MORALIS_API_KEY: 'vite-key',
+      }),
+    ).toBe('expo-key');
+    expect(
+      resolveExpoMoralisApiKey({
+        EXPO_PUBLIC_MORALIS_API_KEY: '',
+        VITE_MORALIS_API_KEY: 'vite-key',
+      }),
+    ).toBe('vite-key');
+    expect(resolveExpoMoralisApiKey({})).toBe('');
   });
 });
 

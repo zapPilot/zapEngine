@@ -16,19 +16,24 @@ export function selectVisitedBundleUserId(input: {
 }
 
 /**
- * The wallet address feeding the activity history: the own bundle's first
- * wallet (falling back to the connected EOA) when viewing your own bundle, or
- * the visited bundle's first wallet otherwise. Returns null while a visited
- * bundle's wallets are still loading so the history query stays disabled.
+ * The wallet addresses feeding the activity history: every wallet in the own
+ * bundle (falling back to the connected EOA) when viewing your own bundle, or
+ * the visited bundle's wallets otherwise. Returns null when no address is
+ * available so the history query stays disabled.
  */
 export function selectActivityAddressInput(input: {
   isOwnBundle: boolean;
   ownWalletAddresses: string[];
   ownAddress: string | null;
   visitedWalletAddresses: string[];
-}): string | null {
+}): string[] | null {
   if (input.isOwnBundle) {
-    return input.ownWalletAddresses[0] ?? input.ownAddress;
+    if (input.ownWalletAddresses.length > 0) {
+      return input.ownWalletAddresses;
+    }
+    return input.ownAddress ? [input.ownAddress] : null;
   }
-  return input.visitedWalletAddresses[0] ?? null;
+  return input.visitedWalletAddresses.length > 0
+    ? input.visitedWalletAddresses
+    : null;
 }

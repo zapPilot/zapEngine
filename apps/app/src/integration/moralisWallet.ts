@@ -7,23 +7,25 @@ import {
   type MoralisChainHistory,
   type MoralisSupportedWalletSymbol,
   type MoralisWalletChain,
-  type MoralisWalletHistoryEvent,
   type MoralisWalletTokenBalance,
-  type MoralisWalletTransfer,
 } from '@zapengine/app-core/services';
 
 import {
-  type ActivityEvent,
+  type ActivityCategoryFlow,
   type ActivityGroup,
-  type ActivityKind,
   type DemoAsset,
-  type MetricTone,
 } from '@/data/demo';
+import {
+  collapseBursts,
+  mapMoralisEvent,
+  summarizeCategoryFlows,
+  type MappedActivityEvent,
+} from '@/integration/activityEventModel';
 import {
   BASE_DEPOSIT_TOKENS,
   type DesktopDepositToken,
 } from '@/integration/depositTokens';
-import { formatUsd, tokenAmountFractionDigits } from '@/lib/format';
+import { formatTokenAmount, numberFrom } from '@/lib/format';
 
 export type MoralisChainKey = MoralisWalletChain;
 
@@ -43,7 +45,10 @@ interface ChainConfig {
   chainId: number;
 }
 
-const WALLET_HISTORY_LIMIT = 10;
+/** Raw transactions fetched per chain per wallet before semantic filtering. */
+const MORALIS_HISTORY_FETCH_LIMIT = 50;
+/** Logical events shown in the feed after dedupe and burst collapsing. */
+const ACTIVITY_DISPLAY_LIMIT = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 const MORALIS_WALLET_CHAINS = [
@@ -187,12 +192,7 @@ export function buildWalletAssetsResult(
   };
 }
 
-export interface UseMoralisWalletAssetsResult {
-  assets: DesktopWalletAsset[];
-  rows: InvestableBalanceRow[];
-  chainRows: ChainTokenBalanceRow[];
-  failedChains: MoralisChainKey[];
-  totalUsdValue: number | null;
+export interface MoralisHookStatus {
   isConnected: boolean;
   isLoading: boolean;
   isError: boolean;
@@ -200,13 +200,21 @@ export interface UseMoralisWalletAssetsResult {
   refetch: () => Promise<unknown>;
 }
 
-export interface UseMoralisWalletHistoryResult {
-  groups: ActivityGroup[];
-  isConnected: boolean;
-  isLoading: boolean;
-  isError: boolean;
-  error: Error | null;
+export interface UseMoralisWalletAssetsResult extends MoralisHookStatus {
+  assets: DesktopWalletAsset[];
+  rows: InvestableBalanceRow[];
+  chainRows: ChainTokenBalanceRow[];
+  failedChains: MoralisChainKey[];
+  totalUsdValue: number | null;
 }
+
+export interface ActivityHistoryData {
+  groups: ActivityGroup[];
+  summary: ActivityCategoryFlow[];
+}
+
+export interface UseMoralisWalletHistoryResult
+  extends ActivityHistoryData, MoralisHookStatus {}
 
 export interface ActivityHistoryOptions {
   limit: number;
@@ -252,39 +260,6 @@ export function normalizeWalletAddressList(
   }
 
   return Array.from(seen);
-}
-
-function numberFrom(value: string | number | null | undefined): number | null {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null;
-  }
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function formatAmount(amount: number, symbol: SupportedWalletSymbol): string {
-  const maximumFractionDigits = tokenAmountFractionDigits(
-    symbol,
-    'wallet-activity',
-  );
-  const amountLabel = amount.toLocaleString('en-US', {
-    maximumFractionDigits,
-  });
-  return `${amountLabel} ${symbol}`;
-}
-
-function formatUsdAmount(
-  value: number | null,
-  kind: ActivityKind,
-): string | undefined {
-  if (typeof value !== 'number') {
-    return undefined;
-  }
-  const sign = kind === 'withdraw' ? '−' : '+';
-  return `${sign}${formatUsd(Math.abs(value))}`;
 }
 
 function usdPriceFor(amount: number, usdValue: number | null): number | null {
@@ -455,7 +430,7 @@ export function buildDesktopWalletAssets(
         symbol,
         name: entry.name,
         usdValue,
-        amountLabel: formatAmount(entry.amount, symbol),
+        amountLabel: formatTokenAmount(entry.amount, symbol, 'wallet-activity'),
         chains: sortChains(Array.from(entry.chains)),
         holdings: sortChains(Array.from(entry.holdings.keys()))
           .map((chain) => entry.holdings.get(chain))
@@ -504,18 +479,15 @@ export function buildInvestableBalanceRows(
   });
 }
 
-function bucketForDate(
-  dateStr: string | null | undefined,
-  nowMs: number,
-): ActivityGroup['label'] {
-  if (!dateStr) {
+export const ACTIVITY_BUCKETS = ['Today', 'This week', 'Earlier'] as const;
+
+export type ActivityBucket = (typeof ACTIVITY_BUCKETS)[number];
+
+function bucketForTimestamp(timestamp: number, nowMs: number): ActivityBucket {
+  if (timestamp <= 0) {
     return 'Earlier';
   }
-  const ts = Date.parse(dateStr);
-  if (Number.isNaN(ts)) {
-    return 'Earlier';
-  }
-  const diffDays = Math.floor((nowMs - ts) / MS_PER_DAY);
+  const diffDays = Math.floor((nowMs - timestamp) / MS_PER_DAY);
   if (diffDays <= 0) {
     return 'Today';
   }
@@ -525,216 +497,77 @@ function bucketForDate(
   return 'Earlier';
 }
 
-function dateFormatOptions(
-  options: Intl.DateTimeFormatOptions,
-  timeZone: string | undefined,
-): Intl.DateTimeFormatOptions {
-  return timeZone ? { ...options, timeZone } : options;
-}
-
-function timeLabel(
-  dateStr: string | null | undefined,
-  nowMs: number,
-  timeZone: string | undefined,
-): string {
-  if (!dateStr) {
+function timeLabel(timestamp: number, nowMs: number): string {
+  if (timestamp <= 0) {
     return '—';
   }
-  const ts = Date.parse(dateStr);
-  if (Number.isNaN(ts)) {
-    return dateStr;
+  const elapsedMs = Math.max(0, nowMs - timestamp);
+  const elapsedMinutes = Math.floor(elapsedMs / (60 * 1000));
+  if (elapsedMinutes < 1) {
+    return 'now';
   }
-  const d = new Date(ts);
-  const diffDays = Math.floor((nowMs - ts) / MS_PER_DAY);
-  if (diffDays <= 0) {
-    return d.toLocaleTimeString(
-      'en-US',
-      dateFormatOptions(
-        { hour: '2-digit', minute: '2-digit', hour12: false },
-        timeZone,
-      ),
-    );
+  if (elapsedMinutes < 60) {
+    return `${elapsedMinutes}m`;
   }
-  if (diffDays < 7) {
-    return d.toLocaleDateString(
-      'en-US',
-      dateFormatOptions({ weekday: 'short' }, timeZone),
-    );
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) {
+    return `${elapsedHours}h`;
   }
-  return d.toLocaleDateString(
-    'en-US',
-    dateFormatOptions({ month: 'short', day: 'numeric' }, timeZone),
-  );
-}
-
-function eventKindFrom(
-  event: MoralisWalletHistoryEvent,
-  transfer: MoralisWalletTransfer | null,
-): ActivityKind {
-  const direction = transfer?.direction?.toLowerCase() ?? '';
-  const category = event.category?.toLowerCase() ?? '';
-  if (
-    direction.includes('receive') ||
-    direction === 'in' ||
-    category.includes('receive') ||
-    category.includes('deposit')
-  ) {
-    return 'deposit';
+  const elapsedDays = Math.floor(elapsedHours / 24);
+  if (elapsedDays < 7) {
+    return `${elapsedDays}d`;
   }
-  if (
-    direction.includes('send') ||
-    direction === 'out' ||
-    category.includes('send') ||
-    category.includes('withdraw')
-  ) {
-    return 'withdraw';
+  if (elapsedDays < 30) {
+    return `${Math.floor(elapsedDays / 7)}w`;
   }
-  if (category.includes('swap') || category.includes('token')) {
-    return 'rebalance';
+  if (elapsedDays < 365) {
+    return `${Math.floor(elapsedDays / 30)}mo`;
   }
-  return 'strategy-update';
-}
-
-function successfulStatus(
-  status: MoralisWalletHistoryEvent['receipt_status'],
-): boolean {
-  return status == null || status === true || status === '1' || status === 1;
-}
-
-interface SupportedActivityTransfer {
-  transfer: MoralisWalletTransfer;
-  symbol: SupportedWalletSymbol;
-}
-
-function firstSupportedTransfer(
-  chain: MoralisChainKey,
-  event: MoralisWalletHistoryEvent,
-): SupportedActivityTransfer | null {
-  for (const transfer of event.erc20_transfers ?? []) {
-    const symbol = getSupportedMoralisWalletSymbol(chain, {
-      symbol: transfer.token_symbol,
-      token_address: transfer.token_address,
-      native_token: false,
-    });
-    if (symbol) {
-      return { transfer, symbol };
-    }
-  }
-
-  for (const transfer of event.native_transfers ?? []) {
-    const symbol = getSupportedMoralisWalletSymbol(chain, {
-      symbol: transfer.token_symbol ?? 'ETH',
-      token_address: transfer.token_address,
-      native_token: true,
-    });
-    if (symbol) {
-      return { transfer, symbol };
-    }
-  }
-
-  return null;
-}
-
-function fallbackTitle(kind: ActivityKind, symbol: string | undefined): string {
-  if (kind === 'deposit') {
-    return symbol ? `Received ${symbol}` : 'Received assets';
-  }
-  if (kind === 'withdraw') {
-    return symbol ? `Sent ${symbol}` : 'Sent assets';
-  }
-  if (kind === 'rebalance') {
-    return 'Token activity';
-  }
-  return 'Wallet activity';
-}
-
-function activityEventFromMoralis(
-  chain: MoralisChainKey,
-  event: MoralisWalletHistoryEvent,
-): ActivityEvent | null {
-  const chainConfig = CHAIN_BY_MORALIS.get(chain);
-  if (!chainConfig) {
-    return null;
-  }
-
-  const supported = firstSupportedTransfer(chain, event);
-  if (!supported) {
-    return null;
-  }
-
-  const { transfer, symbol } = supported;
-  const kind = eventKindFrom(event, transfer);
-  const usdValue =
-    numberFrom(transfer?.value_usd) ?? numberFrom(transfer?.total_usd);
-  const amountLabel = formatUsdAmount(usdValue, kind);
-  const amountTone: MetricTone =
-    kind === 'deposit'
-      ? 'positive'
-      : kind === 'withdraw'
-        ? 'negative'
-        : 'neutral';
-  const title =
-    event.summary?.trim() || fallbackTitle(kind, symbol ?? undefined);
-  const meta = symbol
-    ? `${symbol} · ${chainConfig.label}`
-    : `Wallet · ${chainConfig.label}`;
-
-  return {
-    id: `${chain}-${event.hash}`,
-    kind,
-    title,
-    ...(amountLabel ? { amountLabel, amountTone } : {}),
-    status: successfulStatus(event.receipt_status) ? 'Completed' : 'Failed',
-    meta,
-    time: '',
-  };
+  return `${Math.floor(elapsedDays / 365)}y`;
 }
 
 export function buildActivityGroupsFromMoralisHistory(
   chainHistories: MoralisChainHistory[],
   options: ActivityHistoryOptions,
-): ActivityGroup[] {
+): ActivityHistoryData {
   const nowMs = options.nowMs ?? Date.now();
-  const bucketed = chainHistories.flatMap(({ chain, response }) =>
-    (response.result ?? [])
-      .map((event) => {
-        const activity = activityEventFromMoralis(chain, event);
-        if (!activity) {
-          return null;
-        }
-        const timestamp = Date.parse(event.block_timestamp ?? '');
-        return {
-          timestamp: Number.isNaN(timestamp) ? 0 : timestamp,
-          bucket: bucketForDate(event.block_timestamp, nowMs),
-          event: {
-            ...activity,
-            time: timeLabel(event.block_timestamp, nowMs, options.timeZone),
-          },
-        };
-      })
-      .filter(
-        (
-          value,
-        ): value is {
-          timestamp: number;
-          bucket: ActivityGroup['label'];
-          event: ActivityEvent;
-        } => value !== null,
-      ),
-  );
 
-  const limited = bucketed
-    .toSorted((a, b) => b.timestamp - a.timestamp)
-    .slice(0, options.limit);
+  const seen = new Set<string>();
+  const mapped: MappedActivityEvent[] = [];
+  for (const { chain, response } of chainHistories) {
+    const context = CHAIN_BY_MORALIS.get(chain);
+    if (!context) {
+      continue;
+    }
+    for (const event of response.result ?? []) {
+      const activity = mapMoralisEvent(context, event);
+      if (!activity) {
+        continue;
+      }
+      const dedupeKey = `${chain}:${event.hash}`;
+      if (seen.has(dedupeKey)) {
+        continue;
+      }
+      seen.add(dedupeKey);
+      mapped.push(activity);
+    }
+  }
 
-  return ['Today', 'This week', 'Earlier']
-    .map((label) => ({
-      label,
-      events: limited
-        .filter((entry) => entry.bucket === label)
-        .map((entry) => entry.event),
-    }))
-    .filter((group) => group.events.length > 0);
+  const collapsed = collapseBursts(
+    mapped.toSorted((a, b) => b.timestamp - a.timestamp),
+  ).slice(0, options.limit);
+
+  const groups = ACTIVITY_BUCKETS.map((label) => ({
+    label,
+    events: collapsed
+      .filter((event) => bucketForTimestamp(event.timestamp, nowMs) === label)
+      .map((event) => ({
+        ...event,
+        time: timeLabel(event.timestamp, nowMs),
+      })),
+  })).filter((group) => group.events.length > 0);
+
+  return { groups, summary: summarizeCategoryFlows(collapsed) };
 }
 
 export function useMoralisWalletHistory(
@@ -752,20 +585,22 @@ export function useMoralisWalletHistory(
         await Promise.all(
           walletAddresses.map((address) =>
             getMoralisWalletHistory(address, {
-              limit: WALLET_HISTORY_LIMIT,
+              limit: MORALIS_HISTORY_FETCH_LIMIT,
             }),
           ),
         )
       ).flat();
       return buildActivityGroupsFromMoralisHistory(responses, {
-        limit: WALLET_HISTORY_LIMIT,
+        limit: ACTIVITY_DISPLAY_LIMIT,
       });
     },
   });
   // jscpd:ignore-end
 
   return {
-    groups: query.data ?? [],
+    groups: query.data?.groups ?? [],
+    summary: query.data?.summary ?? [],
     ...buildHookStatus(query, enabled),
+    refetch: query.refetch,
   };
 }

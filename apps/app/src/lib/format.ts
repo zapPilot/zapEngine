@@ -34,6 +34,40 @@ export function formatUsd(value: number, decimals = 2): string {
   });
 }
 
+/** Lenient numeric parse for indexer payloads that mix numbers and strings. */
+export function numberFrom(
+  value: string | number | null | undefined,
+): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+export function formatTokenAmount(
+  amount: number,
+  symbol: string,
+  context: TokenAmountDisplayContext,
+): string {
+  const amountLabel = amount.toLocaleString('en-US', {
+    maximumFractionDigits: tokenAmountFractionDigits(symbol, context),
+  });
+  return `${amountLabel} ${symbol}`;
+}
+
+export function formatSignedTokenAmount(
+  amount: number,
+  symbol: string,
+  context: TokenAmountDisplayContext,
+): string {
+  const sign = amount >= 0 ? '+' : '−';
+  return `${sign}${formatTokenAmount(Math.abs(amount), symbol, context)}`;
+}
+
 /** Split a USD amount into a whole part and a `.dd` fraction for the
  * serif-display treatment used across the design (dimmed decimals). */
 export function splitUsd(value: number): { whole: string; fraction: string } {

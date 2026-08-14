@@ -7,6 +7,9 @@ interface RangeTabsProps {
   options: readonly string[];
   value: string;
   onChange?: (value: string) => void;
+  optionLabel?: (value: string) => string;
+  accessibilityLabel?: string;
+  comfortable?: boolean;
   className?: string;
 }
 
@@ -15,18 +18,29 @@ export function RangeTabs({
   options,
   value,
   onChange,
+  optionLabel,
+  accessibilityLabel,
+  comfortable = false,
   className,
 }: RangeTabsProps) {
   return (
-    <View className={cn('flex-row gap-1', className)}>
+    <View
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="tablist"
+      className={cn('flex-row gap-1', className)}
+    >
       {options.map((opt) => {
         const active = opt === value;
         return (
           <Tap
             key={opt}
+            accessibilityLabel={optionLabel?.(opt) ?? opt}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
             onPress={() => onChange?.(opt)}
             className={cn(
-              'rounded-full px-[11px] py-[5px]',
+              'items-center justify-center rounded-full px-[11px]',
+              comfortable ? 'min-h-11 min-w-11' : 'py-[5px]',
               active && 'bg-accent-soft',
             )}
           >
@@ -36,7 +50,7 @@ export function RangeTabs({
                 active ? 'text-accent' : 'text-ink-faint',
               )}
             >
-              {opt}
+              {optionLabel?.(opt) ?? opt}
             </Text>
           </Tap>
         );

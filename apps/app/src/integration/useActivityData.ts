@@ -1,6 +1,6 @@
 import { useUserWallets } from '@zapengine/app-core/hooks/queries/wallet/useUserWallets';
 
-import type { ActivityGroup } from '@/data/demo';
+import type { ActivityCategoryFlow, ActivityGroup } from '@/data/demo';
 import {
   selectActivityAddressInput,
   selectVisitedBundleUserId,
@@ -9,6 +9,7 @@ import { useMoralisWalletHistory } from '@/integration/moralisWallet';
 
 export interface ActivityData {
   groups: ActivityGroup[];
+  summary: ActivityCategoryFlow[];
 }
 
 /**
@@ -26,6 +27,7 @@ interface UseActivityDataResult {
   data: ActivityData | null;
   isLoading: boolean;
   isError: boolean;
+  refetch: () => void;
 }
 
 export function useActivityData(
@@ -40,19 +42,26 @@ export function useActivityData(
     (row) => row.wallet,
   );
 
-  const address = selectActivityAddressInput({
+  const addresses = selectActivityAddressInput({
     isOwnBundle: subject.isOwnBundle,
     ownWalletAddresses: subject.ownWalletAddresses,
     ownAddress: subject.ownAddress,
     visitedWalletAddresses,
   });
 
-  const history = useMoralisWalletHistory(address);
+  const history = useMoralisWalletHistory(addresses);
 
   return {
-    data: { groups: history.groups },
+    data: { groups: history.groups, summary: history.summary },
     isLoading:
       history.isLoading || (visitedUserId !== null && visitedWallets.isLoading),
-    isError: history.isError || visitedWallets.isError,
+    isError:
+      history.isError || (visitedUserId !== null && visitedWallets.isError),
+    refetch: () => {
+      if (visitedUserId !== null) {
+        void visitedWallets.refetch();
+      }
+      void history.refetch();
+    },
   };
 }
