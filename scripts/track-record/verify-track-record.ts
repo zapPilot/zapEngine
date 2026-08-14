@@ -1,6 +1,5 @@
 #!/usr/bin/env tsx
 
-import { readFile } from 'node:fs/promises';
 import type {
   DailySnapshot,
   TrackRecordMeta,
@@ -15,49 +14,12 @@ import {
   verifySignature,
 } from '../../apps/landing-page/src/data/track-record-accessor';
 import type { SnapshotHistoryEntry } from '../../apps/landing-page/src/data/track-record-accessor';
+import { fetchFromIpfs, fetchJson } from './ipfs.js';
 
 const DEFAULT_META_URL = 'https://zap-pilot.org/track-record-meta.json';
-const IPFS_GATEWAYS = [
-  'https://ipfs.io/ipfs',
-  'https://cloudflare-ipfs.com/ipfs',
-  'https://dweb.link/ipfs',
-] as const;
 
 const PERCENT_TOLERANCE = 0.02;
 const RATIO_TOLERANCE = 0.02;
-
-async function fetchJson(url: string, timeoutMs: number): Promise<unknown> {
-  if (url.startsWith('file://')) {
-    return JSON.parse(await readFile(new URL(url), 'utf8'));
-  }
-
-  const res = await fetch(url, {
-    headers: { Accept: 'application/json' },
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
-
-  const text = await res.text();
-  try {
-    return JSON.parse(text);
-  } catch (err) {
-    throw new Error(
-      `Invalid JSON from ${url}: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-}
-
-async function fetchFromIpfs(cid: string): Promise<unknown> {
-  for (const gateway of IPFS_GATEWAYS) {
-    const url = `${gateway}/${cid}`;
-    try {
-      return await fetchJson(url, 12_000);
-    } catch {
-      // Try the next gateway.
-    }
-  }
-  throw new Error(`All IPFS gateways failed for CID: ${cid}`);
-}
 
 async function fetchMeta(): Promise<TrackRecordMeta> {
   const metaUrl = process.env['TRACK_RECORD_META_URL'] ?? DEFAULT_META_URL;
