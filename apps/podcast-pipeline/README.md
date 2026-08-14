@@ -188,13 +188,15 @@ Having no service also means Fly Proxy cannot auto-stop the `render` group, and 
 - The worker exits `0` after 90 seconds of an empty queue. Under `[[restart]] policy = 'on-failure'` (fly.toml) that leaves the machine `stopped` — billed for storage only. It no longer keeps a performance CPU running through the five-minute retry backoff; the always-on app reconciler starts it again when `next_attempt_at` becomes claimable.
 - The always-on `app` process polls every 30 s for work the render group could actually claim and starts a stopped machine through the Machines API (`http://_api.internal:4280`, never leaving the private network). See `src/services/render-capacity.ts`.
 
-Provision the API token once — `fly tokens deploy` defaults to a 20-minute expiry, so the expiry must be given explicitly or waking silently stops working. The non-secret feature flag is already committed in `fly.toml`:
+Provision the API token once, at the 20-year maximum. Expiry is the failure mode that costs money rather than raising an error: an expired token silently returns the app to an always-on performance Machine, so this token is deliberately the longest-lived credential in the deployment. The non-secret feature flag is already committed in `fly.toml`:
 
 ```bash
 fly secrets set \
-  PIPELINE_FLY_API_TOKEN="$(fly tokens create deploy --expiry 8760h -a from-fed-to-chain-api)" \
+  PIPELINE_FLY_API_TOKEN="$(fly tokens create deploy --expiry 175200h --name pipeline-render-on-demand -a from-fed-to-chain-api)" \
   -a from-fed-to-chain-api
 ```
+
+`--name` keeps this token distinguishable in `fly tokens list` from the deploy tokens CI uses; without it every row reads `flyctl deploy token` and none can be rotated or revoked with confidence.
 
 Both process groups evaluate the same gate, so they cannot disagree: if the token is absent or expired, the worker goes back to running forever while `app` stops touching the Machines API. `fly secrets unset PIPELINE_FLY_API_TOKEN -a from-fed-to-chain-api` is therefore an emergency rollback that favors availability over cost.
 
