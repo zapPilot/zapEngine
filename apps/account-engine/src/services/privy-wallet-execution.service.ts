@@ -63,6 +63,11 @@ interface PreviewRecord {
   nonce: number;
 }
 
+interface WalletNonceState {
+  nextNonce: number;
+  retainUntil: number;
+}
+
 interface PrivyTransactionSnapshot {
   status: string;
   transaction_hash: string | null;
@@ -371,7 +376,37 @@ export function createPrivyWalletExecutionService(config: {
         : {}),
     });
   const previews = new Map<string, PreviewRecord>();
-  const walletNonces = new Map<string, number>();
+  const walletNonces = new Map<string, WalletNonceState>();
+
+  function sweepExpiredPreviewsAndWalletNonces(now: number): void {
+    const liveWallets = new Set<string>();
+
+    for (const [previewId, record] of previews) {
+      if (now > record.preview.expiresAt) {
+        previews.delete(previewId);
+      } else {
+        liveWallets.add(record.request.walletAddress.toLowerCase());
+      }
+    }
+
+    for (const [walletKey, state] of walletNonces) {
+      if (now > state.retainUntil && !liveWallets.has(walletKey)) {
+        walletNonces.delete(walletKey);
+      }
+    }
+  }
+
+  function retainWalletNonce(
+    walletKey: string,
+    nextNonce: number,
+    retainUntil: number,
+  ): void {
+    const current = walletNonces.get(walletKey);
+    walletNonces.set(walletKey, {
+      nextNonce: Math.max(current?.nextNonce ?? nextNonce, nextNonce),
+      retainUntil: Math.max(current?.retainUntil ?? retainUntil, retainUntil),
+    });
+  }
 
   async function verifyWalletOwnership(
     request: { walletId: string; walletAddress: string },
@@ -422,15 +457,10 @@ export function createPrivyWalletExecutionService(config: {
       { status: 'passed' | 'warning' }
     >;
   }): Promise<SignablePreview> {
-    const now = Date.now();
-    for (const [previewId, record] of previews) {
-      if (now > record.preview.expiresAt) {
-        previews.delete(previewId);
-      }
-    }
+    sweepExpiredPreviewsAndWalletNonces(Date.now());
 
     const walletKey = input.request.walletAddress.toLowerCase();
-    const nonce = walletNonces.get(walletKey) ?? 0;
+    const nonce = walletNonces.get(walletKey)?.nextNonce ?? 0;
     const { batchHash, callsHash } = buildRequestHashes(input.request);
     const typedDataPayload = buildTypedDataPayload({
       request: input.request,
@@ -459,6 +489,7 @@ export function createPrivyWalletExecutionService(config: {
       preview,
       nonce,
     });
+    retainWalletNonce(walletKey, nonce, preview.expiresAt);
     logger.log('Prepared Privy sendCalls simulation preview', {
       userId: input.authenticated.userId,
       walletId: input.request.walletId,
@@ -490,14 +521,18 @@ export function createPrivyWalletExecutionService(config: {
     },
 
     async confirmSendCalls(request, accessToken) {
+      const now = Date.now();
       const record = previews.get(request.previewId);
       if (!record) {
+        sweepExpiredPreviewsAndWalletNonces(now);
         throw new BadRequestException('Simulation preview not found');
       }
-      if (Date.now() > record.preview.expiresAt) {
+      if (now > record.preview.expiresAt) {
         previews.delete(request.previewId);
+        sweepExpiredPreviewsAndWalletNonces(now);
         throw new BadRequestException('Simulation preview has expired');
       }
+      sweepExpiredPreviewsAndWalletNonces(now);
       if (
         record.preview.status === 'warning' &&
         request.acknowledgedRiskHash?.toLowerCase() !==
@@ -527,7 +562,7 @@ export function createPrivyWalletExecutionService(config: {
       }
 
       const walletKey = record.request.walletAddress.toLowerCase();
-      const currentNonce = walletNonces.get(walletKey) ?? 0;
+      const currentNonce = walletNonces.get(walletKey)?.nextNonce ?? 0;
       if (record.nonce !== currentNonce) {
         previews.delete(request.previewId);
         throw new BadRequestException(
@@ -577,7 +612,11 @@ export function createPrivyWalletExecutionService(config: {
           },
           authorizationContext,
         );
-        walletNonces.set(walletKey, currentNonce + 1);
+        retainWalletNonce(
+          walletKey,
+          currentNonce + 1,
+          record.preview.expiresAt,
+        );
         return { status: 'submitted', ...result };
       } catch (error) {
         if (isPrivyUserJwtError(error)) {
