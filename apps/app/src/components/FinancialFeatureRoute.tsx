@@ -1,13 +1,11 @@
-import { ExternalLink, LockKeyhole } from 'lucide-react-native';
+import { LockKeyhole } from 'lucide-react-native';
 import type { ReactElement, ReactNode } from 'react';
-import { Linking, Platform, Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 
+import { OpenZapPilotWebButton } from '@/components/OpenZapPilotWebButton';
 import { Card } from '@/components/ui/Card';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
-
-const ZAP_PILOT_WEB_URL = 'https://v2.zap-pilot.org';
 
 export function FinancialFeatureRoute({
   children,
@@ -35,15 +33,7 @@ export function FinancialFeatureRoute({
             This feature is not available in the iOS app. Open the web app to
             use the full Zap Pilot experience.
           </Text>
-          <PrimaryButton
-            className="mt-5 w-full"
-            onPress={() => void Linking.openURL(ZAP_PILOT_WEB_URL)}
-          >
-            <Text className="font-sans-semibold text-[14px] text-[#0a0a0a]">
-              Open Zap Pilot Web
-            </Text>
-            <ExternalLink size={15} strokeWidth={1.8} color="#0a0a0a" />
-          </PrimaryButton>
+          <OpenZapPilotWebButton className="mt-5 w-full" />
         </Card>
       </View>
     </ScreenScrollView>
