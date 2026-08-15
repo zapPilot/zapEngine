@@ -7,11 +7,10 @@ import {
   User,
 } from 'lucide-react-native';
 import type { ComponentType, ReactElement } from 'react';
-import { Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui/Tap';
-import { APP_RUNTIME } from '@/config/appRuntime';
 import {
   isTabAccessible,
   type AppTabName,
@@ -86,7 +85,7 @@ export function BottomTabBar({
 
         const active = state.index === index;
         const accessible =
-          APP_RUNTIME === 'native' ||
+          Platform.OS === 'ios' ||
           isTabAccessible(route.name as AppTabName, account.isConnected);
         const color = active ? tokens.color.accent : tokens.color['ink-faint'];
         const Icon = tab.Icon;
