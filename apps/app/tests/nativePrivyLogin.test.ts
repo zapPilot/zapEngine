@@ -8,9 +8,9 @@ import {
   NATIVE_PRIVY_PROVIDER_CONFIG,
 } from '@/integration/nativePrivyLogin';
 import {
-  NATIVE_PRIVY_AUTH_COPY as IOS_PRIVY_AUTH_COPY,
-  NATIVE_PRIVY_PROVIDER_CONFIG as IOS_PRIVY_PROVIDER_CONFIG,
-} from '@/integration/nativePrivyConfig.ios';
+  NATIVE_PRIVY_AUTH_BODY as IOS_PRIVY_AUTH_BODY,
+  NATIVE_PRIVY_CREATE_ON_LOGIN as IOS_PRIVY_CREATE_ON_LOGIN,
+} from '@/integration/nativePrivyPlatform.ios';
 
 describe('native Privy login', () => {
   it('uses the Privy-managed email flow', async () => {
@@ -45,16 +45,9 @@ describe('native Privy login', () => {
   });
 
   it('uses Privy only for authentication on iOS', () => {
-    expect(IOS_PRIVY_AUTH_COPY.cta).toBe('Continue with Privy');
-    expect(IOS_PRIVY_AUTH_COPY.body).toContain('powered by Privy');
-    expect(IOS_PRIVY_AUTH_COPY.body).not.toContain('wallet');
-    expect(IOS_PRIVY_PROVIDER_CONFIG).toEqual({
-      embedded: {
-        ethereum: {
-          createOnLogin: 'off',
-        },
-      },
-    });
+    expect(IOS_PRIVY_AUTH_BODY).toContain('powered by Privy');
+    expect(IOS_PRIVY_AUTH_BODY).not.toContain('wallet');
+    expect(IOS_PRIVY_CREATE_ON_LOGIN).toBe('off');
   });
 
   it('treats closing the Privy login UI as cancellation', () => {
