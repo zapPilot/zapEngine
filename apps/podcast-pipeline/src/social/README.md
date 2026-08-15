@@ -83,11 +83,12 @@ After authorization, the CLI verifies the token and permissions through Meta's t
 
 ## The normal run
 
-The public workflow has two commands. Run login whenever a platform session needs attention, then publish a completed episode:
+The public workflow has three commands. Run login whenever a platform session needs attention, publish a completed episode, then record that post's numbers whenever you check them:
 
 ```bash
 pnpm social:login
 pnpm social:publish '<share-url>'
+pnpm social:metrics '<share-url>' --platform x --views 1200 --likes 18
 ```
 
 Copy the share URL from Telegram when an episode is done. The publish command generates a preview and waits for `a` / `x` / `t` / `r` at the review prompt. Use `--dry-run` when a non-publishing preview is useful. This is a plain Node CLI — it does not depend on Claude Code, opencode, or any agent; Playwright is a library inside the same process. The review prompt reads the keyboard, so run it in a terminal. An agent driving it unattended needs a real pty (`expect`); a plain pipe trips the TTY check.
@@ -165,7 +166,24 @@ If telemetry alone fails, local state still prevents a duplicate; the CLI exits 
 
 An abrupt process exit has two distinct recovery windows. If it exits after remote success but before local state, the live post can have no duplicate guard, database row, or printed recovery payload, so a blind rerun risks a duplicate. If it exits after local state succeeds but before telemetry completes, reruns will skip the post while its database row may be silently missing. This local CLI deliberately has no transactional outbox: after an unexplained interruption, verify the platform account and inspect both `social-publisher.json` and `social_posts` before deciding whether to repair or rerun.
 
-Migration 025 also creates the append-only `social_post_metrics` snapshot table, but this phase has no metrics producer. Manual metrics entry, collection, analysis, dashboards, and prompt optimization remain follow-up work.
+## Metrics entry
+
+`social:metrics` appends one `from_fed_to_chain.social_post_metrics` snapshot per run, from numbers read off each platform's own analytics page. There is no scraper; every value is typed by hand.
+
+```bash
+pnpm social:metrics '<share-url>' --platform x \
+  --views 1200 --likes 18 --comments 2 --shares 1 --profile-visits 9
+```
+
+The positional input accepts the same bare UUID or share URL as `social:publish`, and `--platform` selects which of that episode's posts the snapshot belongs to. The table deliberately allows an episode to be published to the same platform more than once; when that has happened the command refuses to guess and lists the candidate ids for `--post-id`.
+
+The available metrics are `--views`, `--impressions`, `--likes`, `--comments`, `--shares`, `--saves`, `--profile-visits`, and `--followers-gained`. Pass only the ones that platform actually reports. An omitted metric is stored as `NULL`, which stays distinguishable from a measured `0` — the analysis reading these rows must be able to tell "the platform does not expose this" from "nobody did this". A run with no metrics at all is rejected rather than writing an empty snapshot.
+
+`--followers-gained` is a net delta and may be negative, which needs the equals form (`--followers-gained=-3`); Node's argument parser reads a dash-leading value as another flag. Every other metric must be a non-negative whole number.
+
+`age_hours` is computed from the stored `published_at` rather than entered, so repeated snapshots of the same post stay comparable. Because the row is append-only, taking a second reading later is a normal second run, not a correction — nothing is overwritten.
+
+Reading these rows back — analysis, weekly reports, dashboards, automated collection, and prompt optimization — remains follow-up work.
 
 ## Local smoke test
 

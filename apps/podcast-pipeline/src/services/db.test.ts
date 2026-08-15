@@ -8,16 +8,18 @@ import {
   listRow,
   localizationRow,
 } from '../__fixtures__/index-test.js';
-import type { NewSocialPost } from '../types.js';
+import type { NewSocialPost, NewSocialPostMetric } from '../types.js';
 import {
   decodeCursor,
   encodeCursor,
   findEpisodeBySourceUrl,
   findEpisodeListRowByLocalizationId,
   findEpisodeLocalizationByEpisodeId,
+  getSocialPostById,
   insertEpisode,
   insertEpisodeLocalization,
   insertSocialPost,
+  insertSocialPostMetric,
   listEpisodeFeedPaged,
   listEpisodeLocalizationsByEpisodeId,
   listEpisodes,
@@ -26,10 +28,12 @@ import {
   listLanguageClassroomsByLocalizationId,
   listLanguageClassroomsByLocalizationIds,
   listPublishedEpisodeCatalog,
+  listSocialPostsByEpisode,
   toEpisodeResponse,
   toEpisodeResponseFromLocalization,
   toLanguageClassroomLesson,
   toSocialPostInsertPayload,
+  toSocialPostMetricInsertPayload,
   updateEpisodeLocalizationArticleContent,
   updateEpisodeLocalizationStatus,
   upsertLanguageClassrooms,
@@ -1305,6 +1309,80 @@ describe('social post telemetry', () => {
 
     await expect(insertSocialPost(newPost)).rejects.toThrow(
       'insert social post failed',
+    );
+  });
+
+  it('lists one episode-platform pair newest first', async () => {
+    const rows = [{ id: 'social-post-2' }, { id: 'social-post-1' }];
+    state.query!.returns.mockResolvedValue({ data: rows, error: null });
+
+    await expect(
+      listSocialPostsByEpisode('episode-1', 'threads'),
+    ).resolves.toEqual(rows);
+    expect(mockFrom).toHaveBeenCalledWith('social_posts');
+    expect(state.query!.eq).toHaveBeenCalledWith('episode_id', 'episode-1');
+    expect(state.query!.eq).toHaveBeenCalledWith('platform', 'threads');
+    expect(state.query!.order).toHaveBeenCalledWith('published_at', {
+      ascending: false,
+    });
+  });
+
+  it('returns null when no social post carries the requested id', async () => {
+    await expect(getSocialPostById('social-post-9')).resolves.toBeNull();
+    expect(state.query!.eq).toHaveBeenCalledWith('id', 'social-post-9');
+  });
+});
+
+describe('social post metrics', () => {
+  const newMetric: NewSocialPostMetric = {
+    socialPostId: 'social-post-1',
+    capturedAt: '2026-08-16T02:00:00.000Z',
+    ageHours: 24,
+    views: 1200,
+    impressions: null,
+    likes: 18,
+    comments: 0,
+    shares: null,
+    saves: null,
+    profileVisits: 9,
+    followersGained: -1,
+  };
+
+  it('maps and inserts a metrics snapshot using database column names', async () => {
+    const payload = {
+      social_post_id: 'social-post-1',
+      captured_at: '2026-08-16T02:00:00.000Z',
+      age_hours: 24,
+      views: 1200,
+      impressions: null,
+      likes: 18,
+      comments: 0,
+      shares: null,
+      saves: null,
+      profile_visits: 9,
+      followers_gained: -1,
+    };
+    const row = {
+      id: 'social-post-metric-1',
+      ...payload,
+      created_at: '2026-08-16T02:00:01.000Z',
+    };
+    state.query!.single.mockResolvedValue({ data: row, error: null });
+
+    expect(toSocialPostMetricInsertPayload(newMetric)).toEqual(payload);
+    await expect(insertSocialPostMetric(newMetric)).resolves.toEqual(row);
+    expect(mockFrom).toHaveBeenCalledWith('social_post_metrics');
+    expect(state.query!.insert).toHaveBeenCalledWith(payload);
+  });
+
+  it('throws a Supabase error when the metrics insert fails', async () => {
+    state.query!.single.mockResolvedValue({
+      data: null,
+      error: new Error('insert social post metric failed'),
+    });
+
+    await expect(insertSocialPostMetric(newMetric)).rejects.toThrow(
+      'insert social post metric failed',
     );
   });
 });

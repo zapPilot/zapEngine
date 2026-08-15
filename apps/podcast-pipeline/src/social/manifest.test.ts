@@ -32,4 +32,19 @@ describe('social command manifest contract', () => {
     expect(rootScripts).not.toHaveProperty('social:rednote-login');
     expect(workspaceScripts).not.toHaveProperty('social:rednote-login');
   });
+
+  it('exposes the metrics entry command at both manifest layers', () => {
+    const rootScripts =
+      readManifest(resolve(repoRoot, 'package.json')).scripts ?? {};
+    const workspaceScripts =
+      readManifest(resolve(repoRoot, 'apps/podcast-pipeline/package.json'))
+        .scripts ?? {};
+
+    expect(rootScripts['social:metrics']).toBe(
+      'pnpm --filter @zapengine/podcast-pipeline social:metrics',
+    );
+    expect(workspaceScripts['social:metrics']).toBe(
+      'tsx src/social/metrics.ts',
+    );
+  });
 });

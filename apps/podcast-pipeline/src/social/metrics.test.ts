@@ -1,0 +1,360 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import type { NewSocialPostMetric, SocialPostRow } from '../types.js';
+import {
+  buildSocialPostMetric,
+  formatMetricsSummary,
+  parseMetricsCliOptions,
+  runSocialMetricsCli,
+  selectSocialPost,
+  type SocialMetricCounts,
+} from './metrics.js';
+
+const EPISODE_ID = '123e4567-e89b-42d3-a456-426614174000';
+const OTHER_EPISODE_ID = '123e4567-e89b-42d3-a456-4266141740ff';
+const POST_ID = '00000000-0000-4000-8000-000000000001';
+
+function post(input?: Partial<SocialPostRow>): SocialPostRow {
+  return {
+    id: POST_ID,
+    episode_id: EPISODE_ID,
+    platform: 'x',
+    post_url: 'https://x.com/zap/status/1',
+    platform_post_id: '1',
+    published_at: '2026-08-14T00:00:00.000Z',
+    topic: 'macro',
+    hook_type: 'question',
+    generated_title: null,
+    published_title: null,
+    generated_body: 'AI 文案',
+    published_body: '實際發出的文案',
+    hashtags: [],
+    video_duration_sec: null,
+    content_features: {
+      containsQuestion: true,
+      containsNumber: false,
+      titleChars: null,
+      bodyChars: 8,
+      hashtagCount: 0,
+    },
+    llm_model: 'openrouter/model-v1',
+    created_at: '2026-08-14T00:00:00.000Z',
+    updated_at: '2026-08-14T00:00:00.000Z',
+    ...input,
+  };
+}
+
+const NO_COUNTS: SocialMetricCounts = {
+  views: null,
+  impressions: null,
+  likes: null,
+  comments: null,
+  shares: null,
+  saves: null,
+  profileVisits: null,
+  followersGained: null,
+};
+
+describe('parseMetricsCliOptions', () => {
+  it('parses an episode id, platform, and the metrics that were supplied', () => {
+    const options = parseMetricsCliOptions([
+      EPISODE_ID,
+      '--platform',
+      'x',
+      '--views',
+      '1200',
+      '--likes',
+      '18',
+      '--comments',
+      '0',
+    ]);
+
+    expect(options).toEqual({
+      episodeId: EPISODE_ID,
+      platform: 'x',
+      counts: {
+        ...NO_COUNTS,
+        views: 1200,
+        likes: 18,
+        comments: 0,
+      },
+    });
+  });
+
+  it('accepts a share URL in place of the bare episode id', () => {
+    const options = parseMetricsCliOptions([
+      `https://from-fed-to-chain-api.fly.dev/e/${EPISODE_ID}?lang=zh-Hant`,
+      '--platform',
+      'rednote',
+      '--saves',
+      '7',
+    ]);
+
+    expect(options.episodeId).toBe(EPISODE_ID);
+    expect(options.platform).toBe('rednote');
+    expect(options.counts.saves).toBe(7);
+  });
+
+  it('keeps an omitted metric null so it stays distinct from a measured zero', () => {
+    const options = parseMetricsCliOptions([
+      EPISODE_ID,
+      '--platform',
+      'threads',
+      '--likes',
+      '0',
+    ]);
+
+    expect(options.counts.likes).toBe(0);
+    expect(options.counts.views).toBeNull();
+    expect(options.counts.saves).toBeNull();
+  });
+
+  it('allows a negative followers delta but no other negative metric', () => {
+    // parseArgs treats a dash-leading value as another option unless the equals
+    // form is used, so that is the syntax the usage text documents.
+    const options = parseMetricsCliOptions([
+      EPISODE_ID,
+      '--platform',
+      'x',
+      '--followers-gained=-3',
+    ]);
+    expect(options.counts.followersGained).toBe(-3);
+
+    expect(() =>
+      parseMetricsCliOptions([EPISODE_ID, '--platform', 'x', '--views=-1']),
+    ).toThrow(/--views cannot be negative/);
+  });
+
+  it('carries --post-id through when disambiguation is needed', () => {
+    const options = parseMetricsCliOptions([
+      EPISODE_ID,
+      '--platform',
+      'x',
+      '--post-id',
+      ` ${POST_ID} `,
+      '--views',
+      '5',
+    ]);
+
+    expect(options.postId).toBe(POST_ID);
+  });
+
+  it.each([
+    [[EPISODE_ID, '--views', '5'], /--platform is required/],
+    [[EPISODE_ID, '--platform', 'mastodon', '--views', '5'], /--platform must/],
+    [['--platform', 'x', '--views', '5'], /Usage: pnpm social:metrics/],
+    [[EPISODE_ID, '--platform', 'x'], /No metrics given/],
+    [
+      [EPISODE_ID, '--platform', 'x', '--likes', '2.5'],
+      /--likes must be a whole number/,
+    ],
+    [
+      [EPISODE_ID, '--platform', 'x', '--likes', 'many'],
+      /--likes must be a whole number/,
+    ],
+    [
+      [EPISODE_ID, '--platform', 'x', '--post-id', '', '--views', '5'],
+      /--post-id cannot be empty/,
+    ],
+    [
+      [EPISODE_ID, '--platform', 'x', '--views', '99999999999999999999'],
+      /--views is out of range/,
+    ],
+    [
+      [EPISODE_ID, '--platform', 'x', '--reposts', '5'],
+      /Unknown option '--reposts'/,
+    ],
+  ])('rejects %j', (args, expected) => {
+    expect(() => parseMetricsCliOptions(args)).toThrow(expected);
+  });
+});
+
+describe('selectSocialPost', () => {
+  it('returns the only recorded post for that platform', () => {
+    const only = post();
+    expect(
+      selectSocialPost([only], { episodeId: EPISODE_ID, platform: 'x' }),
+    ).toBe(only);
+  });
+
+  it('explains that nothing was published when no row exists', () => {
+    expect(() =>
+      selectSocialPost([], { episodeId: EPISODE_ID, platform: 'threads' }),
+    ).toThrow(/No Threads post is recorded for episode/);
+  });
+
+  it('refuses to guess between reposts and names the candidate ids', () => {
+    const second = post({
+      id: '00000000-0000-4000-8000-000000000002',
+      published_at: '2026-08-15T00:00:00.000Z',
+    });
+
+    expect(() =>
+      selectSocialPost([second, post()], {
+        episodeId: EPISODE_ID,
+        platform: 'x',
+      }),
+    ).toThrow(/has 2 X posts. Choose one with --post-id/);
+    expect(() =>
+      selectSocialPost([second, post()], {
+        episodeId: EPISODE_ID,
+        platform: 'x',
+      }),
+    ).toThrow(new RegExp(second.id));
+  });
+});
+
+describe('buildSocialPostMetric', () => {
+  it('computes age in hours from the post publish time', () => {
+    const metric = buildSocialPostMetric({
+      post: post({ published_at: '2026-08-14T00:00:00.000Z' }),
+      capturedAt: new Date('2026-08-15T02:30:00.000Z'),
+      counts: { ...NO_COUNTS, views: 900 },
+    });
+
+    expect(metric).toEqual({
+      socialPostId: POST_ID,
+      capturedAt: '2026-08-15T02:30:00.000Z',
+      ageHours: 26.5,
+      ...NO_COUNTS,
+      views: 900,
+    });
+  });
+
+  it('rounds age to two decimals', () => {
+    const metric = buildSocialPostMetric({
+      post: post({ published_at: '2026-08-14T00:00:00.000Z' }),
+      capturedAt: new Date('2026-08-14T00:01:00.000Z'),
+      counts: { ...NO_COUNTS, views: 1 },
+    });
+
+    expect(metric.ageHours).toBe(0.02);
+  });
+
+  it('clamps clock skew to zero so a valid snapshot is never rejected', () => {
+    const metric = buildSocialPostMetric({
+      post: post({ published_at: '2026-08-15T00:00:02.000Z' }),
+      capturedAt: new Date('2026-08-15T00:00:00.000Z'),
+      counts: { ...NO_COUNTS, views: 1 },
+    });
+
+    expect(metric.ageHours).toBe(0);
+  });
+
+  it('fails loudly on an unreadable published_at', () => {
+    expect(() =>
+      buildSocialPostMetric({
+        post: post({ published_at: 'not-a-timestamp' }),
+        capturedAt: new Date('2026-08-15T00:00:00.000Z'),
+        counts: { ...NO_COUNTS, views: 1 },
+      }),
+    ).toThrow(/unreadable published_at/);
+  });
+});
+
+describe('formatMetricsSummary', () => {
+  it('reports only the metrics that were recorded', () => {
+    const metric: NewSocialPostMetric = {
+      socialPostId: POST_ID,
+      capturedAt: '2026-08-15T02:30:00.000Z',
+      ageHours: 26.5,
+      ...NO_COUNTS,
+      views: 900,
+      profileVisits: 12,
+    };
+
+    const summary = formatMetricsSummary(post(), metric);
+
+    expect(summary).toContain('X metrics at 26.5h after publish');
+    expect(summary).toContain(POST_ID);
+    expect(summary).toContain('views 900');
+    expect(summary).toContain('profile visits 12');
+    expect(summary).not.toContain('likes');
+  });
+});
+
+describe('runSocialMetricsCli', () => {
+  function dependencies(overrides?: {
+    posts?: SocialPostRow[];
+    lookup?: SocialPostRow | null;
+  }) {
+    return {
+      listPosts: vi.fn().mockResolvedValue(overrides?.posts ?? [post()]),
+      getPost: vi.fn().mockResolvedValue(overrides?.lookup ?? null),
+      insertMetric: vi.fn().mockResolvedValue({ id: 'metric-1' }),
+      now: () => new Date('2026-08-15T02:30:00.000Z'),
+      log: vi.fn(),
+    };
+  }
+
+  it('records a snapshot against the episode post for that platform', async () => {
+    const deps = dependencies();
+
+    await runSocialMetricsCli(
+      [EPISODE_ID, '--platform', 'x', '--views', '900', '--likes', '18'],
+      deps,
+    );
+
+    expect(deps.listPosts).toHaveBeenCalledWith(EPISODE_ID, 'x');
+    expect(deps.getPost).not.toHaveBeenCalled();
+    expect(deps.insertMetric).toHaveBeenCalledWith({
+      socialPostId: POST_ID,
+      capturedAt: '2026-08-15T02:30:00.000Z',
+      ageHours: 26.5,
+      ...NO_COUNTS,
+      views: 900,
+      likes: 18,
+    });
+    expect(deps.log).toHaveBeenCalledWith(expect.stringContaining('views 900'));
+  });
+
+  it('looks the post up directly when --post-id is given', async () => {
+    const deps = dependencies({ lookup: post() });
+
+    await runSocialMetricsCli(
+      [EPISODE_ID, '--platform', 'x', '--post-id', POST_ID, '--views', '5'],
+      deps,
+    );
+
+    expect(deps.getPost).toHaveBeenCalledWith(POST_ID);
+    expect(deps.listPosts).not.toHaveBeenCalled();
+    expect(deps.insertMetric).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['a missing post', { lookup: null }, /No social post found with id/],
+    [
+      'a post from another episode',
+      { lookup: post({ episode_id: OTHER_EPISODE_ID }) },
+      /belongs to episode/,
+    ],
+    [
+      'a post from another platform',
+      { lookup: post({ platform: 'threads' as const }) },
+      /is a Threads post, not X/,
+    ],
+  ])('refuses to record against %s', async (_name, overrides, expected) => {
+    const deps = dependencies(overrides);
+
+    await expect(
+      runSocialMetricsCli(
+        [EPISODE_ID, '--platform', 'x', '--post-id', POST_ID, '--views', '5'],
+        deps,
+      ),
+    ).rejects.toThrow(expected);
+    expect(deps.insertMetric).not.toHaveBeenCalled();
+  });
+
+  it('does not swallow an insert failure', async () => {
+    const deps = dependencies();
+    deps.insertMetric.mockRejectedValue(new Error('duplicate key'));
+
+    await expect(
+      runSocialMetricsCli(
+        [EPISODE_ID, '--platform', 'x', '--views', '5'],
+        deps,
+      ),
+    ).rejects.toThrow('duplicate key');
+    expect(deps.log).not.toHaveBeenCalled();
+  });
+});

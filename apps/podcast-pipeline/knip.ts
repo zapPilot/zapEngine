@@ -11,6 +11,7 @@ export default defineKnipConfig({
     'src/worker.ts',
     'src/social/cli.ts',
     'src/social/login.ts',
+    'src/social/metrics.ts',
     'src/services/video/cli.ts',
     'src/services/video/r2-playback-canary.ts',
     'src/services/video/storyboard/smoke-cli.ts',

@@ -8,10 +8,10 @@ import { parseArgs } from 'node:util';
 
 import dotenv from 'dotenv';
 
+import { parsePlatformOption, requireEpisodeArgument } from './cli-args.js';
 import { generateSocialCopy, parseGeneratedSocialCopy } from './copy.js';
-import { getSocialEpisode, parseSocialEpisodeId } from './episode.js';
+import { getSocialEpisode } from './episode.js';
 import {
-  isSocialPlatform,
   platformLabel,
   requiresVideo,
   SOCIAL_PLATFORM_CONFIG,
@@ -193,21 +193,15 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
     },
   });
 
-  if (values.help) throw new Error(USAGE);
-  if (positionals.length !== 1 || !positionals[0]?.trim()) {
-    throw new Error(USAGE);
-  }
-  if (values.platform !== undefined && !isSocialPlatform(values.platform)) {
-    throw new Error(
-      `--platform must be one of: ${SOCIAL_PLATFORMS.join(', ')}.`,
-    );
-  }
+  const episodeId = requireEpisodeArgument(values.help, positionals, USAGE);
 
   return {
-    episodeId: parseSocialEpisodeId(positionals[0]),
+    episodeId,
     dryRun: values['dry-run'],
     force: values.force,
-    ...(values.platform ? { platform: values.platform } : {}),
+    ...(values.platform !== undefined
+      ? { platform: parsePlatformOption(values.platform) }
+      : {}),
   };
 }
 

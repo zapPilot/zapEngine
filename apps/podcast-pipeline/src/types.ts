@@ -298,3 +298,24 @@ export interface SocialPostMetricRow {
   followers_gained: number | null;
   created_at: string;
 }
+
+// jscpd:ignore-start — the same metric columns in the app's camelCase naming.
+// Both spellings are load-bearing: the row type pins the DDL column list in
+// socialPostsMigration.test.ts, and the insert type follows the camelCase
+// `New*` convention every other writer in db.ts uses. Factoring out the fields
+// whose two spellings happen to match would split one table across two
+// declarations for no reader's benefit.
+export interface NewSocialPostMetric {
+  socialPostId: string;
+  capturedAt: string;
+  ageHours: number;
+  views: number | null;
+  impressions: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  saves: number | null;
+  profileVisits: number | null;
+  followersGained: number | null;
+}
+// jscpd:ignore-end

@@ -17,6 +17,7 @@
     "coverage": "bash scripts/coverage.sh",
     "social:publish": "pnpm --filter @zapengine/podcast-pipeline social:publish",
     "social:login": "pnpm --filter @zapengine/podcast-pipeline social:login",
+    "social:metrics": "pnpm --filter @zapengine/podcast-pipeline social:metrics",
     "track-record:generate": "tsx --tsconfig apps/landing-page/tsconfig.json scripts/track-record/generate-daily-snapshot.ts",
     "track-record:publish": "tsx --tsconfig apps/landing-page/tsconfig.json scripts/track-record/publish-daily-snapshot.ts",
     "track-record:verify": "tsx --tsconfig apps/landing-page/tsconfig.json scripts/track-record/verify-track-record.ts",

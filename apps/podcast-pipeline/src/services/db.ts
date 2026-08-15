@@ -2,6 +2,7 @@ import {
   normalizeLanguageClassroomKeywords,
   normalizeLanguageClassroomLesson,
 } from '../lib/languageClassroom.js';
+import type { SocialPlatform } from '../social/platforms.js';
 import type {
   Article,
   EpisodeFeedResponse,
@@ -21,7 +22,9 @@ import type {
   NewEpisodeLocalization,
   NewLanguageClassroom,
   NewSocialPost,
+  NewSocialPostMetric,
   PublishedEpisodeCatalog,
+  SocialPostMetricRow,
   SocialPostRow,
 } from '../types.js';
 import {
@@ -612,6 +615,75 @@ export async function insertSocialPost(
     .insert(toSocialPostInsertPayload(post))
     .select('*')
     .single<SocialPostRow>();
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  return data;
+}
+
+export async function listSocialPostsByEpisode(
+  episodeId: string,
+  platform: SocialPlatform,
+): Promise<SocialPostRow[]> {
+  const { data, error } = await getSupabase()
+    .from('social_posts')
+    .select('*')
+    .eq('episode_id', episodeId)
+    .eq('platform', platform)
+    .order('published_at', { ascending: false })
+    .returns<SocialPostRow[]>();
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  return data ?? [];
+}
+
+export async function getSocialPostById(
+  id: string,
+): Promise<SocialPostRow | null> {
+  const { data, error } = await getSupabase()
+    .from('social_posts')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle<SocialPostRow>();
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  return data;
+}
+
+export function toSocialPostMetricInsertPayload(
+  metric: NewSocialPostMetric,
+): Record<string, unknown> {
+  return {
+    social_post_id: metric.socialPostId,
+    captured_at: metric.capturedAt,
+    age_hours: metric.ageHours,
+    views: metric.views,
+    impressions: metric.impressions,
+    likes: metric.likes,
+    comments: metric.comments,
+    shares: metric.shares,
+    saves: metric.saves,
+    profile_visits: metric.profileVisits,
+    followers_gained: metric.followersGained,
+  };
+}
+
+export async function insertSocialPostMetric(
+  metric: NewSocialPostMetric,
+): Promise<SocialPostMetricRow> {
+  const { data, error } = await getSupabase()
+    .from('social_post_metrics')
+    .insert(toSocialPostMetricInsertPayload(metric))
+    .select('*')
+    .single<SocialPostMetricRow>();
 
   if (error) {
     throwSupabaseError(error);
