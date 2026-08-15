@@ -8,7 +8,7 @@ export const ZAP_PILOT_WEB_URL = 'https://v2.zap-pilot.org';
 export function OpenZapPilotWebButton({ className }: { className?: string }) {
   return (
     <PrimaryButton
-      className={className}
+      {...(className === undefined ? {} : { className })}
       onPress={() => void Linking.openURL(ZAP_PILOT_WEB_URL)}
     >
       <Text className="font-sans-semibold text-[14px] text-[#0a0a0a]">
