@@ -11,6 +11,7 @@ import { Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui/Tap';
+import { APP_RUNTIME } from '@/config/appRuntime';
 import {
   isTabAccessible,
   type AppTabName,
@@ -84,10 +85,9 @@ export function BottomTabBar({
         if (!tab) return null;
 
         const active = state.index === index;
-        const accessible = isTabAccessible(
-          route.name as AppTabName,
-          account.isConnected,
-        );
+        const accessible =
+          APP_RUNTIME === 'native' ||
+          isTabAccessible(route.name as AppTabName, account.isConnected);
         const color = active ? tokens.color.accent : tokens.color['ink-faint'];
         const Icon = tab.Icon;
         const label = t(tab.labelKey);
