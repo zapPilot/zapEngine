@@ -1,14 +1,12 @@
 import { usePrivy } from '@privy-io/expo';
-import { ExternalLink } from 'lucide-react-native';
-import { Linking, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { ContentLanguageOptionRows } from '@/components/content/ContentLanguageSelector';
+import { OpenZapPilotWebButton } from '@/components/OpenZapPilotWebButton';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
-
-const ZAP_PILOT_WEB_URL = 'https://v2.zap-pilot.org';
 
 export function AccountScreen() {
   const { logout } = usePrivy();
@@ -46,15 +44,7 @@ export function AccountScreen() {
           <Text className="mt-1 text-[12.5px] leading-5 text-ink-dim">
             Additional Zap Pilot features are available in the web app.
           </Text>
-          <PrimaryButton
-            className="mt-4"
-            onPress={() => void Linking.openURL(ZAP_PILOT_WEB_URL)}
-          >
-            <Text className="font-sans-semibold text-[14px] text-[#0a0a0a]">
-              Open Zap Pilot Web
-            </Text>
-            <ExternalLink size={15} strokeWidth={1.8} color="#0a0a0a" />
-          </PrimaryButton>
+          <OpenZapPilotWebButton className="mt-4" />
         </Card>
 
         <PrimaryButton
