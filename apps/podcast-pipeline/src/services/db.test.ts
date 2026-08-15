@@ -8,6 +8,7 @@ import {
   listRow,
   localizationRow,
 } from '../__fixtures__/index-test.js';
+import type { NewSocialPost } from '../types.js';
 import {
   decodeCursor,
   encodeCursor,
@@ -16,6 +17,7 @@ import {
   findEpisodeLocalizationByEpisodeId,
   insertEpisode,
   insertEpisodeLocalization,
+  insertSocialPost,
   listEpisodeFeedPaged,
   listEpisodeLocalizationsByEpisodeId,
   listEpisodes,
@@ -27,6 +29,7 @@ import {
   toEpisodeResponse,
   toEpisodeResponseFromLocalization,
   toLanguageClassroomLesson,
+  toSocialPostInsertPayload,
   updateEpisodeLocalizationArticleContent,
   updateEpisodeLocalizationStatus,
   upsertLanguageClassrooms,
@@ -1234,6 +1237,75 @@ describe('insertEpisode and insertEpisodeLocalization', () => {
     ).rejects.toMatchObject({
       message: 'plain string failure',
     });
+  });
+});
+
+describe('social post telemetry', () => {
+  const newPost: NewSocialPost = {
+    episodeId: 'episode-1',
+    platform: 'threads',
+    postUrl: null,
+    platformPostId: 'threads-post-1',
+    publishedAt: '2026-08-15T02:00:00.000Z',
+    topic: 'technology',
+    hookType: 'question',
+    generatedTitle: null,
+    publishedTitle: null,
+    generatedBody: 'AI 原稿',
+    publishedBody: '人工確認後的實發稿',
+    hashtags: [],
+    videoDurationSec: null,
+    contentFeatures: {
+      containsQuestion: true,
+      containsNumber: false,
+      titleChars: null,
+      bodyChars: 9,
+      hashtagCount: 0,
+    },
+    llmModel: 'test/model',
+  };
+
+  it('maps and inserts a social post using database column names', async () => {
+    const payload = {
+      episode_id: 'episode-1',
+      platform: 'threads',
+      post_url: null,
+      platform_post_id: 'threads-post-1',
+      published_at: '2026-08-15T02:00:00.000Z',
+      topic: 'technology',
+      hook_type: 'question',
+      generated_title: null,
+      published_title: null,
+      generated_body: 'AI 原稿',
+      published_body: '人工確認後的實發稿',
+      hashtags: [],
+      video_duration_sec: null,
+      content_features: newPost.contentFeatures,
+      llm_model: 'test/model',
+    };
+    const row = {
+      id: 'social-post-1',
+      ...payload,
+      created_at: '2026-08-15T02:00:01.000Z',
+      updated_at: '2026-08-15T02:00:01.000Z',
+    };
+    state.query!.single.mockResolvedValue({ data: row, error: null });
+
+    expect(toSocialPostInsertPayload(newPost)).toEqual(payload);
+    await expect(insertSocialPost(newPost)).resolves.toEqual(row);
+    expect(mockFrom).toHaveBeenCalledWith('social_posts');
+    expect(state.query!.insert).toHaveBeenCalledWith(payload);
+  });
+
+  it('throws a Supabase error when social post persistence fails', async () => {
+    state.query!.single.mockResolvedValue({
+      data: null,
+      error: new Error('insert social post failed'),
+    });
+
+    await expect(insertSocialPost(newPost)).rejects.toThrow(
+      'insert social post failed',
+    );
   });
 });
 

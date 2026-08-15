@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { access } from 'node:fs/promises';
 
 import { SocialPublishError } from './publish-error.js';
@@ -23,6 +23,16 @@ export function createOpenCliXPublisher(input?: {
   };
 }
 
+export async function isXSessionReady(): Promise<boolean> {
+  try {
+    const raw = await runOpenCli(['twitter', 'whoami', '-f', 'json'], 45_000);
+    const row = parseOpenCliJsonRow(raw, 'twitter whoami');
+    return row['logged_in'] === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function assertXSessionReady(): Promise<void> {
   try {
     const raw = await runOpenCli(['twitter', 'whoami', '-f', 'json'], 45_000);
@@ -33,10 +43,31 @@ export async function assertXSessionReady(): Promise<void> {
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `OpenCLI twitter session is not ready. Run \`opencli twitter login\` and try again.\n${detail}`,
+      `OpenCLI twitter session is not ready. Run \`pnpm social:login\` and try again.\n${detail}`,
       { cause: error },
     );
   }
+}
+
+export async function runXLogin(): Promise<void> {
+  const binary = await resolveOpenCliBinary();
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(binary, ['twitter', 'login'], { stdio: 'inherit' });
+    child.once('error', reject);
+    child.once('exit', (code, signal) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(
+        new Error(
+          signal
+            ? `OpenCLI twitter login terminated by ${signal}.`
+            : `OpenCLI twitter login exited with code ${code ?? 'unknown'}.`,
+        ),
+      );
+    });
+  });
 }
 
 // The episode video is never uploaded here: a non-Premium account caps video at
@@ -64,11 +95,11 @@ async function publishX(
       throw new Error(`Twitter post was not confirmed: ${message}`);
     }
 
-    const url = twitterPostUrl(row);
+    const identity = twitterPostIdentity(row);
     return {
       status: 'published',
       publishedAt: new Date().toISOString(),
-      ...(url ? { url } : {}),
+      ...identity,
     };
   });
 }
@@ -81,17 +112,21 @@ async function xStep<T>(step: string, operation: () => Promise<T>): Promise<T> {
   }
 }
 
-function twitterPostUrl(row: Record<string, unknown>): string | null {
+function twitterPostIdentity(row: Record<string, unknown>): {
+  url?: string;
+  postId?: string;
+} {
   const rawUrl = stringField(row, 'url');
   if (rawUrl) {
     try {
       const url = new URL(rawUrl);
+      const statusMatch = /\/status\/(\d+)(?:\/|$)/u.exec(url.pathname);
       if (
         url.protocol === 'https:' &&
         (url.hostname === 'x.com' || url.hostname === 'twitter.com') &&
-        /\/status\/\d+/.test(url.pathname)
+        statusMatch?.[1]
       ) {
-        return url.href;
+        return { url: url.href, postId: statusMatch[1] };
       }
     } catch {
       // Fall back to the returned post id below.
@@ -99,7 +134,9 @@ function twitterPostUrl(row: Record<string, unknown>): string | null {
   }
 
   const id = stringField(row, 'id');
-  return id && /^\d+$/.test(id) ? `https://x.com/i/status/${id}` : null;
+  return id && /^\d+$/.test(id)
+    ? { url: `https://x.com/i/status/${id}`, postId: id }
+    : {};
 }
 
 function parseOpenCliJsonRow(

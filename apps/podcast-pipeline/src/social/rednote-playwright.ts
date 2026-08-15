@@ -67,7 +67,7 @@ async function publish(
   await step('check_login', async () => {
     if (await isPublisherReady(page)) return;
     throw new Error(
-      'Rednote is not logged in for the publisher profile. Run `pnpm social:rednote-login` first.',
+      'Rednote is not logged in for the publisher profile. Run `pnpm social:login` first.',
     );
   });
 

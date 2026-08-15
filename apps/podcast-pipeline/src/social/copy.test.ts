@@ -31,7 +31,8 @@ beforeEach(() => {
 
 function socialCopyJson(xText: string): string {
   return JSON.stringify({
-    hook: '重點',
+    topic: 'macro',
+    hookType: 'question',
     x: { text: xText },
     rednote: {
       title: '標題',
@@ -111,6 +112,44 @@ describe('generateSocialCopy', () => {
     expect(retryRequest?.messages[0]?.content).toContain(
       'X text must not contain a URL',
     );
+    expect(retryRequest?.messages[0]?.content).toContain(
+      'Allowed topic values: macro, btc, eth, defi, stablecoin, traditional_finance, portfolio, market_event, technology.',
+    );
+    expect(retryRequest?.messages[0]?.content).toContain(
+      'Allowed hookType values: question, contrarian, surprising_number, breaking_event, explainer, prediction, risk_warning, comparison.',
+    );
+  });
+
+  it('retries an unknown taxonomy value with the validation feedback', async () => {
+    const invalid = JSON.parse(socialCopyJson('第一版文案')) as Record<
+      string,
+      unknown
+    >;
+    invalid['topic'] = 'regulation';
+    llmMocks.createOpenRouterChatCompletion
+      .mockResolvedValueOnce(socialCompletion(JSON.stringify(invalid)))
+      .mockResolvedValueOnce(socialCompletion(socialCopyJson('修正版文案')));
+
+    await expect(
+      generateSocialCopy({
+        episode: {
+          id: '123e4567-e89b-12d3-a456-426614174000',
+          title: 'Episode title',
+          summary: 'Episode summary',
+          transcript: 'Episode transcript',
+          publishedAt: '2026-08-12T00:00:00.000Z',
+          episodeUrl: 'https://example.com/e/episode',
+          videoDurationSeconds: 180,
+          videos: { zh: 'https://example.com/video.mp4' },
+        },
+      }),
+    ).resolves.toMatchObject({ copy: { x: { text: '修正版文案' } } });
+
+    const retryRequest =
+      llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1];
+    expect(retryRequest?.messages.at(-1)?.content).toContain(
+      'topic: Invalid option',
+    );
   });
 });
 
@@ -122,7 +161,8 @@ describe('parseGeneratedSocialCopy', () => {
   it('accepts valid structured copy and strips hashtag prefixes', () => {
     const copy = parseGeneratedSocialCopy(
       JSON.stringify({
-        hook: '真正被重新定價的可能是 Fed',
+        topic: 'eth',
+        hookType: 'contrarian',
         x: { text: 'ETH 這波可能不是在交易 crypto narrative。' },
         rednote: {
           title: 'ETH到底在漲什麼？',
@@ -137,6 +177,35 @@ describe('parseGeneratedSocialCopy', () => {
 
   it('rejects invalid JSON', () => {
     expect(() => parseGeneratedSocialCopy('{bad json')).toThrow();
+  });
+
+  it('rejects missing or unknown taxonomy values', () => {
+    const withoutTopic = JSON.parse(socialCopyJson('有效文案')) as Record<
+      string,
+      unknown
+    >;
+    delete withoutTopic['topic'];
+    expect(() =>
+      parseGeneratedSocialCopy(JSON.stringify(withoutTopic)),
+    ).toThrow();
+
+    const unknownTopic = JSON.parse(socialCopyJson('有效文案')) as Record<
+      string,
+      unknown
+    >;
+    unknownTopic['topic'] = 'regulation';
+    expect(() =>
+      parseGeneratedSocialCopy(JSON.stringify(unknownTopic)),
+    ).toThrow(/topic/);
+
+    const withoutHookType = JSON.parse(socialCopyJson('有效文案')) as Record<
+      string,
+      unknown
+    >;
+    delete withoutHookType['hookType'];
+    expect(() =>
+      parseGeneratedSocialCopy(JSON.stringify(withoutHookType)),
+    ).toThrow();
   });
 
   // Regression: DeepInfra answered json_object mode with this envelope.
@@ -196,7 +265,8 @@ describe('parseGeneratedSocialCopy', () => {
     expect(
       parseGeneratedSocialCopy(
         JSON.stringify({
-          hook: '重點',
+          topic: 'eth',
+          hookType: 'explainer',
           x: { text: '有效文案' },
           rednote: {
             title: '標題',
@@ -218,7 +288,8 @@ describe('parseGeneratedSocialCopy', () => {
     expect(() =>
       parseGeneratedSocialCopy(
         JSON.stringify({
-          hook: '重點',
+          topic: 'eth',
+          hookType: 'question',
           x: { text: '有效文案' },
           rednote: {
             title: '這個標題實在太長了根本塞不進小紅書的欄位裡面',
@@ -240,7 +311,8 @@ describe('parseGeneratedSocialCopy', () => {
     expect(() =>
       parseGeneratedSocialCopy(
         JSON.stringify({
-          hook: '重點',
+          topic: 'eth',
+          hookType: 'risk_warning',
           x: { text: 'staking burn' },
           rednote: {
             title: 'qual Poo 燃換 LE?',
@@ -256,7 +328,8 @@ describe('parseGeneratedSocialCopy', () => {
     expect(() =>
       parseGeneratedSocialCopy(
         JSON.stringify({
-          hook: 'hook',
+          topic: 'eth',
+          hookType: 'explainer',
           x: { text: 'x copy' },
           rednote: { body: 'body', hashtags: ['a', 'b', 'c'] },
         }),
@@ -268,7 +341,8 @@ describe('parseGeneratedSocialCopy', () => {
     expect(() =>
       parseGeneratedSocialCopy(
         JSON.stringify({
-          hook: 'hook',
+          topic: 'eth',
+          hookType: 'explainer',
           x: { text: '' },
           rednote: { title: 'title', body: 'body', hashtags: ['a', 'b', 'c'] },
         }),

@@ -2,132 +2,160 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+type Rename = typeof import('node:fs/promises').rename;
+
+const fsMocks = vi.hoisted(() => ({
+  rename: vi.fn(),
+}));
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const original = await importOriginal<typeof import('node:fs/promises')>();
+  return {
+    ...original,
+    rename: (...args: Parameters<Rename>) =>
+      fsMocks.rename(original.rename, ...args),
+  };
+});
 
 import { publishSocialPlatforms } from './publish.js';
+import type { PublishedSocialPost } from './record.js';
 import { getPublishedPlatform, readPublishState } from './state.js';
-import type { BrowserPublisher, GeneratedSocialCopy } from './types.js';
-
-const VIDEO_PATH = '/fixtures/video.mp4';
-const EPISODE_URL =
-  'https://from-fed-to-chain-api.fly.dev/e/123e4567-e89b-42d3-a456-426614174000?lang=zh-Hant';
-const copy: GeneratedSocialCopy = {
-  hook: 'hook',
-  x: { text: 'x copy' },
-  rednote: {
-    title: '小紅書標題',
-    body: '小紅書正文',
-    hashtags: ['以太坊', '美聯儲', '投資'],
-  },
-};
+import type { PublishResult, SocialPublishJob } from './types.js';
 
 async function statePath(): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), 'social-publish-'));
   return join(directory, 'state.json');
 }
 
+function success(at: string, url?: string): PublishResult {
+  return {
+    status: 'published',
+    publishedAt: at,
+    ...(url ? { url } : {}),
+  };
+}
+
+function job(
+  platform: SocialPublishJob['platform'],
+  publish: SocialPublishJob['publish'],
+): SocialPublishJob {
+  return { platform, publish };
+}
+
+beforeEach(() => {
+  fsMocks.rename.mockReset();
+  fsMocks.rename.mockImplementation(
+    (rename: Rename, ...args: Parameters<Rename>) => rename(...args),
+  );
+});
+
 describe('publishSocialPlatforms', () => {
-  it('records both successful platforms', async () => {
+  it('records every successful job', async () => {
     const path = await statePath();
-    const publisher: BrowserPublisher = {
-      publishX: vi.fn().mockResolvedValue({
-        status: 'published',
-        publishedAt: '2026-08-11T00:00:00.000Z',
-        url: 'https://x.com/example/status/1',
-      }),
-      publishRednote: vi.fn().mockResolvedValue({
-        status: 'published',
-        publishedAt: '2026-08-11T00:01:00.000Z',
-      }),
-    };
+    const persistPublished = vi.fn(async (published: PublishedSocialPost) => {
+      const state = await readPublishState(path);
+      expect(
+        getPublishedPlatform(state, 'episode-1', published.platform),
+      ).toBeDefined();
+    });
+    const jobs = [
+      job(
+        'x',
+        vi
+          .fn()
+          .mockResolvedValue(
+            success('2026-08-11T00:00:00.000Z', 'https://x.com/status/1'),
+          ),
+      ),
+      job(
+        'threads',
+        vi.fn().mockResolvedValue(success('2026-08-11T00:01:00.000Z')),
+      ),
+      job(
+        'rednote',
+        vi.fn().mockResolvedValue(success('2026-08-11T00:02:00.000Z')),
+      ),
+    ];
 
     const outcomes = await publishSocialPlatforms({
       episodeId: 'episode-1',
-      platforms: ['x', 'rednote'],
+      jobs,
       force: false,
-      copy,
-      episodeUrl: EPISODE_URL,
-      videoPath: VIDEO_PATH,
-      publisher,
       statePath: path,
+      persistPublished,
     });
 
     expect(outcomes.map((item) => item.status)).toEqual([
       'published',
       'published',
+      'published',
     ]);
-    expect(publisher.publishX).toHaveBeenCalledWith({
-      text: copy.x.text,
-      episodeUrl: EPISODE_URL,
-    });
     const state = await readPublishState(path);
     expect(getPublishedPlatform(state, 'episode-1', 'x')).toBeDefined();
+    expect(getPublishedPlatform(state, 'episode-1', 'threads')).toBeDefined();
     expect(getPublishedPlatform(state, 'episode-1', 'rednote')).toBeDefined();
+    expect(persistPublished).toHaveBeenCalledTimes(3);
+    expect(persistPublished).toHaveBeenNthCalledWith(1, {
+      platform: 'x',
+      result: success('2026-08-11T00:00:00.000Z', 'https://x.com/status/1'),
+    });
   });
 
-  it('keeps X success when Rednote fails and skips X on retry', async () => {
+  it('keeps successful jobs and skips them on retry', async () => {
     const path = await statePath();
-    const firstPublisher: BrowserPublisher = {
-      publishX: vi.fn().mockResolvedValue({
-        status: 'published',
-        publishedAt: '2026-08-11T00:00:00.000Z',
-      }),
-      publishRednote: vi.fn().mockRejectedValue(new Error('upload failed')),
-    };
+    const firstPublishX = vi
+      .fn()
+      .mockResolvedValue(success('2026-08-11T00:00:00.000Z'));
+    const firstPublishThreads = vi
+      .fn()
+      .mockRejectedValue(new Error('API failed'));
 
     const first = await publishSocialPlatforms({
       episodeId: 'episode-1',
-      platforms: ['x', 'rednote'],
+      jobs: [job('x', firstPublishX), job('threads', firstPublishThreads)],
       force: false,
-      copy,
-      episodeUrl: EPISODE_URL,
-      videoPath: VIDEO_PATH,
-      publisher: firstPublisher,
       statePath: path,
     });
     expect(first.map((item) => item.status)).toEqual(['published', 'failed']);
 
-    const retryPublisher: BrowserPublisher = {
-      publishX: vi.fn().mockRejectedValue(new Error('must not be called')),
-      publishRednote: vi.fn().mockResolvedValue({
-        status: 'published',
-        publishedAt: '2026-08-11T00:02:00.000Z',
-      }),
-    };
+    const retryPublishX = vi.fn().mockRejectedValue(new Error('must not run'));
+    const retryPublishThreads = vi
+      .fn()
+      .mockResolvedValue(success('2026-08-11T00:03:00.000Z'));
+    const persistPublished = vi.fn().mockResolvedValue(undefined);
     const retry = await publishSocialPlatforms({
       episodeId: 'episode-1',
-      platforms: ['x', 'rednote'],
+      jobs: [job('x', retryPublishX), job('threads', retryPublishThreads)],
       force: false,
-      copy,
-      episodeUrl: EPISODE_URL,
-      videoPath: VIDEO_PATH,
-      publisher: retryPublisher,
       statePath: path,
+      persistPublished,
     });
 
     expect(retry.map((item) => item.status)).toEqual(['skipped', 'published']);
-    expect(retryPublisher.publishX).not.toHaveBeenCalled();
-    expect(retryPublisher.publishRednote).toHaveBeenCalledOnce();
+    expect(retryPublishX).not.toHaveBeenCalled();
+    expect(retryPublishThreads).toHaveBeenCalledOnce();
+    expect(persistPublished).toHaveBeenCalledOnce();
+    expect(persistPublished).toHaveBeenCalledWith({
+      platform: 'threads',
+      result: success('2026-08-11T00:03:00.000Z'),
+    });
   });
 
-  it('continues to Rednote when X fails', async () => {
+  it('continues to later jobs after a failure', async () => {
     const path = await statePath();
-    const publisher: BrowserPublisher = {
-      publishX: vi.fn().mockRejectedValue(new Error('X failed')),
-      publishRednote: vi.fn().mockResolvedValue({
-        status: 'published',
-        publishedAt: '2026-08-11T00:03:00.000Z',
-      }),
-    };
+    const publishRednote = vi
+      .fn()
+      .mockResolvedValue(success('2026-08-11T00:04:00.000Z'));
 
     const outcomes = await publishSocialPlatforms({
       episodeId: 'episode-1',
-      platforms: ['x', 'rednote'],
+      jobs: [
+        job('threads', vi.fn().mockRejectedValue(new Error('Threads failed'))),
+        job('rednote', publishRednote),
+      ],
       force: false,
-      copy,
-      episodeUrl: EPISODE_URL,
-      videoPath: VIDEO_PATH,
-      publisher,
       statePath: path,
     });
 
@@ -135,8 +163,143 @@ describe('publishSocialPlatforms', () => {
       'failed',
       'published',
     ]);
+    expect(publishRednote).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the post published locally and continues after telemetry persistence fails', async () => {
+    const path = await statePath();
+    const recordFailure = new Error('database insert failed');
+    const persistPublished = vi
+      .fn()
+      .mockRejectedValueOnce(recordFailure)
+      .mockResolvedValueOnce(undefined);
+    const onLog = vi.fn();
+
+    const outcomes = await publishSocialPlatforms({
+      episodeId: 'episode-1',
+      jobs: [
+        job(
+          'x',
+          vi
+            .fn()
+            .mockResolvedValue(
+              success('2026-08-11T00:00:00.000Z', 'https://x.com/status/1'),
+            ),
+        ),
+        job(
+          'threads',
+          vi.fn().mockResolvedValue(success('2026-08-11T00:01:00.000Z')),
+        ),
+      ],
+      force: false,
+      statePath: path,
+      persistPublished,
+      onLog,
+    });
+
+    expect(outcomes).toEqual([
+      {
+        platform: 'x',
+        status: 'published',
+        url: 'https://x.com/status/1',
+        recordError: recordFailure,
+      },
+      { platform: 'threads', status: 'published' },
+    ]);
+    expect(persistPublished).toHaveBeenCalledTimes(2);
+    const state = await readPublishState(path);
+    expect(getPublishedPlatform(state, 'episode-1', 'x')).toBeDefined();
+    expect(getPublishedPlatform(state, 'episode-1', 'threads')).toBeDefined();
+    expect(onLog).toHaveBeenCalledWith(
+      '[x] ⚠ Published remotely, but telemetry recording failed: database insert failed',
+    );
+  });
+
+  it('reports a published post, persists telemetry, and continues when local state fails', async () => {
+    const path = await statePath();
+    const stateFailure = new Error('rename denied');
+    fsMocks.rename.mockRejectedValueOnce(stateFailure);
+    const persistPublished = vi.fn().mockResolvedValue(undefined);
+    const publishThreads = vi
+      .fn()
+      .mockResolvedValue(success('2026-08-11T00:01:00.000Z'));
+    const onLog = vi.fn();
+
+    const outcomes = await publishSocialPlatforms({
+      episodeId: 'episode-1',
+      jobs: [
+        job(
+          'x',
+          vi
+            .fn()
+            .mockResolvedValue(
+              success('2026-08-11T00:00:00.000Z', 'https://x.com/status/1'),
+            ),
+        ),
+        job('threads', publishThreads),
+      ],
+      force: false,
+      statePath: path,
+      persistPublished,
+      onLog,
+    });
+
+    expect(outcomes).toEqual([
+      {
+        platform: 'x',
+        status: 'published',
+        url: 'https://x.com/status/1',
+        stateError: stateFailure,
+      },
+      { platform: 'threads', status: 'published' },
+    ]);
+    expect(persistPublished).toHaveBeenCalledTimes(2);
+    expect(publishThreads).toHaveBeenCalledOnce();
     const state = await readPublishState(path);
     expect(getPublishedPlatform(state, 'episode-1', 'x')).toBeUndefined();
-    expect(getPublishedPlatform(state, 'episode-1', 'rednote')).toBeDefined();
+    expect(getPublishedPlatform(state, 'episode-1', 'threads')).toBeDefined();
+    expect(onLog).toHaveBeenCalledWith(
+      '[x] ⚠ Published remotely, but local duplicate state was not saved: rename denied',
+    );
+  });
+
+  it('preserves both state and telemetry errors while continuing later platforms', async () => {
+    const path = await statePath();
+    const stateFailure = new Error('state write failed');
+    const recordFailure = new Error('telemetry insert failed');
+    fsMocks.rename.mockRejectedValueOnce(stateFailure);
+    const persistPublished = vi
+      .fn()
+      .mockRejectedValueOnce(recordFailure)
+      .mockResolvedValueOnce(undefined);
+    const publishRednote = vi
+      .fn()
+      .mockResolvedValue(success('2026-08-11T00:02:00.000Z'));
+
+    const outcomes = await publishSocialPlatforms({
+      episodeId: 'episode-1',
+      jobs: [
+        job(
+          'threads',
+          vi.fn().mockResolvedValue(success('2026-08-11T00:01:00.000Z')),
+        ),
+        job('rednote', publishRednote),
+      ],
+      force: false,
+      statePath: path,
+      persistPublished,
+    });
+
+    expect(outcomes).toEqual([
+      {
+        platform: 'threads',
+        status: 'published',
+        stateError: stateFailure,
+        recordError: recordFailure,
+      },
+      { platform: 'rednote', status: 'published' },
+    ]);
+    expect(persistPublished).toHaveBeenCalledTimes(2);
+    expect(publishRednote).toHaveBeenCalledOnce();
   });
 });

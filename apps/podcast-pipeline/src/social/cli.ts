@@ -10,12 +10,21 @@ import dotenv from 'dotenv';
 
 import { generateSocialCopy, parseGeneratedSocialCopy } from './copy.js';
 import { getSocialEpisode, parseSocialEpisodeId } from './episode.js';
-import { assertXSessionReady, createOpenCliXPublisher } from './opencli.js';
-import { publishSocialPlatforms } from './publish.js';
-import { createPlaywrightRednotePublisher } from './rednote-playwright.js';
+import {
+  isSocialPlatform,
+  platformLabel,
+  requiresVideo,
+  SOCIAL_PLATFORM_CONFIG,
+  SOCIAL_PLATFORMS,
+} from './platforms.js';
+import {
+  type PublishPlatformOutcome,
+  publishSocialPlatforms,
+} from './publish.js';
+import { createSocialPublishJobs } from './publishers.js';
+import { createSocialPostPersister } from './record.js';
 import { getPublishedPlatform, readPublishState } from './state.js';
 import type {
-  BrowserPublisher,
   GeneratedSocialCopy,
   SocialEpisode,
   SocialPlatform,
@@ -30,8 +39,8 @@ const REPO_ROOT = resolve(
   '..',
   '..',
 );
-const USAGE =
-  'Usage: pnpm social:publish <episode-uuid-or-share-url> [--dry-run] [--platform x|rednote] [--force]';
+const PLATFORM_USAGE = SOCIAL_PLATFORMS.join('|');
+const USAGE = `Usage: pnpm social:publish <episode-uuid-or-share-url> [--dry-run] [--platform ${PLATFORM_USAGE}] [--force]`;
 
 dotenv.config({ path: resolve(REPO_ROOT, '.env') });
 
@@ -44,6 +53,8 @@ export interface SocialCliOptions {
 
 interface ReviewSelection {
   copy: GeneratedSocialCopy;
+  generatedCopy: GeneratedSocialCopy;
+  model: string;
   platforms: SocialPlatform[];
 }
 
@@ -57,7 +68,7 @@ export async function runSocialCli(args: string[]): Promise<void> {
   const options = parseCliOptions(args);
   const requestedPlatforms: SocialPlatform[] = options.platform
     ? [options.platform]
-    : ['x', 'rednote'];
+    : [...SOCIAL_PLATFORMS];
   let platforms = requestedPlatforms;
 
   if (!options.dryRun && !options.force) {
@@ -87,6 +98,7 @@ export async function runSocialCli(args: string[]): Promise<void> {
     episode,
     episodeId: options.episodeId,
     initialCopy: generated.copy,
+    initialModel: generated.model,
     requestedPlatforms: platforms,
     video,
   });
@@ -104,32 +116,68 @@ export async function runSocialCli(args: string[]): Promise<void> {
   const onLog = (message: string): void => {
     console.log(message);
   };
-  if (review.platforms.includes('x')) await assertXSessionReady();
-  const publisher: BrowserPublisher = {
-    ...createOpenCliXPublisher({ onLog }),
-    ...createPlaywrightRednotePublisher({ onLog }),
-  };
-  const outcomes = await publishSocialPlatforms({
-    episodeId: options.episodeId,
+  const jobs = await createSocialPublishJobs({
     platforms: review.platforms,
-    force: options.force,
     copy: review.copy,
     episodeUrl: episode.episodeUrl,
     ...(video ? { videoPath: video.path } : {}),
-    publisher,
+    onLog,
+  });
+  const persistPublished = createSocialPostPersister({
+    episodeId: options.episodeId,
+    snapshot: {
+      generated: review.generatedCopy,
+      published: review.copy,
+      model: review.model,
+    },
+    videoDurationSeconds: episode.videoDurationSeconds,
+    onError: (message) => console.error(message),
+  });
+  const outcomes = await publishSocialPlatforms({
+    episodeId: options.episodeId,
+    jobs,
+    force: options.force,
+    persistPublished,
     onLog,
   });
 
+  reportPublishOutcomes(outcomes);
+}
+
+function reportPublishOutcomes(
+  outcomes: readonly PublishPlatformOutcome[],
+): void {
   const failed = outcomes.filter((outcome) => outcome.status === 'failed');
-  if (failed.length === 0) {
+  const stateFailures = outcomes.filter((outcome) => outcome.stateError);
+  const recordFailures = outcomes.filter((outcome) => outcome.recordError);
+  if (
+    failed.length === 0 &&
+    stateFailures.length === 0 &&
+    recordFailures.length === 0
+  ) {
     console.log('Done.');
     return;
   }
 
   process.exitCode = 1;
-  console.error(
-    `Done with ${failed.length} failed platform${failed.length === 1 ? '' : 's'}. Successful platforms were saved and will be skipped next time.`,
-  );
+  if (failed.length > 0) {
+    console.error(
+      `Done with ${failed.length} failed platform${failed.length === 1 ? '' : 's'}. Successfully published platforms with saved local state will be skipped next time.`,
+    );
+  }
+  if (stateFailures.length > 0) {
+    const subject =
+      stateFailures.length === 1 ? 'That post is' : 'Those posts are';
+    const object = stateFailures.length === 1 ? 'it' : 'them';
+    console.error(
+      `Done with ${stateFailures.length} local duplicate-state failure${stateFailures.length === 1 ? '' : 's'}. ${subject} live, but ~/.zap-pilot/social-publisher.json was NOT saved for ${object}. Verify the platform post and repair the local state before rerunning, or the CLI may publish a duplicate.`,
+    );
+  }
+  if (recordFailures.length > 0) {
+    console.error(
+      `Done with ${recordFailures.length} telemetry record failure${recordFailures.length === 1 ? '' : 's'}. The affected posts are live; use the payload above to restore each missing row.`,
+    );
+  }
 }
 
 export function parseCliOptions(args: string[]): SocialCliOptions {
@@ -149,12 +197,10 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
   if (positionals.length !== 1 || !positionals[0]?.trim()) {
     throw new Error(USAGE);
   }
-  if (
-    values.platform !== undefined &&
-    values.platform !== 'x' &&
-    values.platform !== 'rednote'
-  ) {
-    throw new Error('--platform must be x or rednote.');
+  if (values.platform !== undefined && !isSocialPlatform(values.platform)) {
+    throw new Error(
+      `--platform must be one of: ${SOCIAL_PLATFORMS.join(', ')}.`,
+    );
   }
 
   return {
@@ -177,7 +223,7 @@ async function loadSocialAssets(
   console.log('✓ metadata');
   console.log('✓ transcript');
 
-  if (!requestedPlatforms.includes('rednote')) return { episode };
+  if (!requiresVideo(requestedPlatforms)) return { episode };
 
   const videoUrl = episode.videos.zh;
   if (!videoUrl) {
@@ -201,10 +247,13 @@ async function reviewSocialCopy(input: {
   episode: SocialEpisode;
   episodeId: string;
   initialCopy: GeneratedSocialCopy;
+  initialModel: string;
   requestedPlatforms: SocialPlatform[];
   video?: PreparedVideo;
 }): Promise<ReviewSelection | null> {
   let copy = input.initialCopy;
+  let generatedCopy = input.initialCopy;
+  let model = input.initialModel;
 
   while (true) {
     printPreview(copy, input.episode, input.video);
@@ -223,11 +272,13 @@ async function reviewSocialCopy(input: {
         feedback,
       });
       copy = regenerated.copy;
+      generatedCopy = regenerated.copy;
+      model = regenerated.model;
       console.log(`[ai] Generated copy using ${regenerated.model}`);
       continue;
     }
     if (review.action === 'publish') {
-      return { copy, platforms: review.platforms };
+      return { copy, generatedCopy, model, platforms: review.platforms };
     }
   }
 }
@@ -248,7 +299,7 @@ async function handleExistingState(
   for (const platform of requestedPlatforms) {
     const existing = getPublishedPlatform(state, options.episodeId, platform);
     console.log(
-      `${platform === 'x' ? 'X' : 'Rednote'}       ${existing ? '✓' : 'pending'}`,
+      `${platformLabel(platform)}       ${existing ? '✓' : 'pending'}`,
     );
   }
 
@@ -257,7 +308,7 @@ async function handleExistingState(
     return null;
   }
 
-  const names = pending.map((platform) => (platform === 'x' ? 'X' : 'Rednote'));
+  const names = pending.map(platformLabel);
   const answer = (await promptLine(`Retry ${names.join(' + ')}? [y/N] `))
     .trim()
     .toLowerCase();
@@ -280,8 +331,12 @@ function printPreview(
   video?: PreparedVideo,
 ): void {
   const divider = '────────────────────────';
+  console.log(`\nTaxonomy: ${copy.topic} / ${copy.hookType}`);
   console.log(`\n${divider}\nX\n${divider}`);
   console.log(`${copy.x.text}\n\n${episode.episodeUrl}`);
+  console.log(`${divider}\nTHREADS\n${divider}`);
+  console.log(copy.x.text);
+  console.log(`🔗 ${episode.episodeUrl}`);
   console.log(`${divider}\nREDNOTE\n${divider}`);
   console.log('標題：');
   console.log(copy.rednote.title);
@@ -292,7 +347,7 @@ function printPreview(
   console.log(
     video
       ? `🎬 video: ${formatDuration(episode.videoDurationSeconds)}, ${formatBytes(video.sizeBytes)}${cacheSuffix}\n${video.path}`
-      : `🎬 video: ${formatDuration(episode.videoDurationSeconds)} (not downloaded for X-only publishing)`,
+      : `🎬 video: ${formatDuration(episode.videoDurationSeconds)} (not downloaded; selected platforms do not require video)`,
   );
   console.log(divider);
 }
@@ -300,11 +355,13 @@ function printPreview(
 async function askReviewAction(
   requestedPlatforms: SocialPlatform[],
 ): Promise<ReviewAction> {
-  const all = requestedPlatforms.length === 2;
+  const all = requestedPlatforms.length > 1;
   const options = [
     ...(all ? ['[a] Publish all'] : []),
-    ...(requestedPlatforms.includes('x') ? ['[x] X only'] : []),
-    ...(requestedPlatforms.includes('rednote') ? ['[r] Rednote only'] : []),
+    ...requestedPlatforms.map(
+      (platform) =>
+        `[${SOCIAL_PLATFORM_CONFIG[platform].reviewShortcut}] ${SOCIAL_PLATFORM_CONFIG[platform].label} only`,
+    ),
     '[g] Regenerate',
     '[e] Edit',
     '[q] Quit',
@@ -317,14 +374,12 @@ async function askReviewAction(
     if (answer === 'g') return { action: 'regenerate' };
     if (answer === 'e') return { action: 'edit' };
     if (answer === 'a' && all) {
-      return { action: 'publish', platforms: ['x', 'rednote'] };
+      return { action: 'publish', platforms: requestedPlatforms };
     }
-    if (answer === 'x' && requestedPlatforms.includes('x')) {
-      return { action: 'publish', platforms: ['x'] };
-    }
-    if (answer === 'r' && requestedPlatforms.includes('rednote')) {
-      return { action: 'publish', platforms: ['rednote'] };
-    }
+    const selected = requestedPlatforms.find(
+      (platform) => SOCIAL_PLATFORM_CONFIG[platform].reviewShortcut === answer,
+    );
+    if (selected) return { action: 'publish', platforms: [selected] };
     console.log('Unknown choice.');
   }
 }

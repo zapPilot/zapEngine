@@ -1,4 +1,10 @@
 import type { EpisodeVideoProgressStage } from './services/video-progress.js';
+import type {
+  SocialContentFeatures,
+  SocialHookType,
+  SocialPlatform,
+  SocialTopic,
+} from './social/types.js';
 
 export type ImageCandidateOrigin =
   | 'openGraph'
@@ -236,4 +242,59 @@ export interface NewLanguageClassroom {
   llmModel: string;
   llmThinkingModel: string | null;
   llmProvider: string;
+}
+
+export interface SocialPostRow {
+  id: string;
+  episode_id: string;
+  platform: SocialPlatform;
+  post_url: string | null;
+  platform_post_id: string | null;
+  published_at: string;
+  topic: SocialTopic;
+  hook_type: SocialHookType;
+  generated_title: string | null;
+  published_title: string | null;
+  generated_body: string;
+  published_body: string;
+  hashtags: string[];
+  video_duration_sec: number | null;
+  content_features: SocialContentFeatures;
+  llm_model: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NewSocialPost {
+  episodeId: string;
+  platform: SocialPlatform;
+  postUrl: string | null;
+  platformPostId: string | null;
+  publishedAt: string;
+  topic: SocialTopic;
+  hookType: SocialHookType;
+  generatedTitle: string | null;
+  publishedTitle: string | null;
+  generatedBody: string;
+  publishedBody: string;
+  hashtags: string[];
+  videoDurationSec: number | null;
+  contentFeatures: SocialContentFeatures;
+  llmModel: string | null;
+}
+
+export interface SocialPostMetricRow {
+  id: string;
+  social_post_id: string;
+  captured_at: string;
+  age_hours: number;
+  views: number | null;
+  impressions: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  saves: number | null;
+  profile_visits: number | null;
+  followers_gained: number | null;
+  created_at: string;
 }

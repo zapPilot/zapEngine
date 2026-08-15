@@ -9,6 +9,14 @@ import {
 } from './rednote-browser.js';
 
 const LOGIN_TIMEOUT_MS = 300_000;
+const SESSION_CHECK_TIMEOUT_MS = 8_000;
+
+export async function isRednoteSessionReady(): Promise<boolean> {
+  return withRednotePublishPage(
+    (page) => isPublisherReady(page, SESSION_CHECK_TIMEOUT_MS),
+    { headless: true },
+  );
+}
 
 export async function runRednoteLogin(
   log: (message: string) => void = console.log,

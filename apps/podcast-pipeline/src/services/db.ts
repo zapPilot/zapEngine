@@ -20,7 +20,9 @@ import type {
   NewEpisode,
   NewEpisodeLocalization,
   NewLanguageClassroom,
+  NewSocialPost,
   PublishedEpisodeCatalog,
+  SocialPostRow,
 } from '../types.js';
 import {
   getPipelineSupabase as getSupabase,
@@ -572,6 +574,44 @@ export async function insertEpisode(episode: NewEpisode): Promise<EpisodeRow> {
     })
     .select('*')
     .single<EpisodeRow>();
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  return data;
+}
+
+export function toSocialPostInsertPayload(
+  post: NewSocialPost,
+): Record<string, unknown> {
+  return {
+    episode_id: post.episodeId,
+    platform: post.platform,
+    post_url: post.postUrl,
+    platform_post_id: post.platformPostId,
+    published_at: post.publishedAt,
+    topic: post.topic,
+    hook_type: post.hookType,
+    generated_title: post.generatedTitle,
+    published_title: post.publishedTitle,
+    generated_body: post.generatedBody,
+    published_body: post.publishedBody,
+    hashtags: post.hashtags,
+    video_duration_sec: post.videoDurationSec,
+    content_features: post.contentFeatures,
+    llm_model: post.llmModel,
+  };
+}
+
+export async function insertSocialPost(
+  post: NewSocialPost,
+): Promise<SocialPostRow> {
+  const { data, error } = await getSupabase()
+    .from('social_posts')
+    .insert(toSocialPostInsertPayload(post))
+    .select('*')
+    .single<SocialPostRow>();
 
   if (error) {
     throwSupabaseError(error);

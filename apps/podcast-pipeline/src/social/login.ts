@@ -1,0 +1,88 @@
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+import dotenv from 'dotenv';
+
+import { isXSessionReady, runXLogin } from './opencli.js';
+import { isRednoteSessionReady, runRednoteLogin } from './rednote-login.js';
+import { ensureThreadsSession } from './threads-auth.js';
+
+const REPO_ROOT = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..',
+  '..',
+);
+
+dotenv.config({ path: resolve(REPO_ROOT, '.env') });
+
+export async function runSocialLogin(
+  log: (message: string) => void = console.log,
+): Promise<void> {
+  const failures: string[] = [];
+
+  log('Checking social sessions...');
+
+  if (await isXSessionReady()) {
+    log('✓ X');
+  } else {
+    log('• X is not logged in. Starting OpenCLI login...');
+    try {
+      await runXLogin();
+      if (!(await isXSessionReady())) {
+        throw new Error(
+          'OpenCLI login finished but X is still not authenticated.',
+        );
+      }
+      log('✓ X');
+    } catch (error) {
+      failures.push('X');
+      log(`✗ X: ${errorMessage(error)}`);
+    }
+  }
+
+  try {
+    const { profile } = await ensureThreadsSession();
+    log(`✓ Threads @${profile.username}`);
+  } catch (error) {
+    failures.push('Threads');
+    log(`✗ Threads: ${errorMessage(error)}`);
+  }
+
+  try {
+    if (await isRednoteSessionReady()) {
+      log('✓ Rednote');
+    } else {
+      log('• Rednote is not logged in. Opening Chrome...');
+      await runRednoteLogin(log);
+    }
+  } catch (error) {
+    failures.push('Rednote');
+    log(`✗ Rednote: ${errorMessage(error)}`);
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`Social login incomplete: ${failures.join(', ')}.`);
+  }
+
+  log('All social platforms are ready.');
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+// jscpd:ignore-start — CLI direct-invocation check, same pattern as social/cli.ts
+const invokedPath = process.argv[1]
+  ? pathToFileURL(resolve(process.argv[1])).href
+  : null;
+if (invokedPath === import.meta.url) {
+  try {
+    await runSocialLogin();
+  } catch (error: unknown) {
+    console.error(errorMessage(error));
+    process.exitCode = 1;
+  }
+}
+// jscpd:ignore-end

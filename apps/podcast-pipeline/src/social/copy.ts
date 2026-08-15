@@ -8,7 +8,12 @@ import {
   stripJsonFence,
 } from '../services/llm.js';
 import { convertTextToZhTW } from '../services/opencc.js';
-import type { GeneratedSocialCopy, SocialEpisode } from './types.js';
+import {
+  type GeneratedSocialCopy,
+  SOCIAL_HOOK_TYPES,
+  SOCIAL_TOPICS,
+  type SocialEpisode,
+} from './types.js';
 
 const X_TEXT_MAX_WEIGHTED_LENGTH = 250;
 const X_URL_WEIGHT = 23;
@@ -104,7 +109,8 @@ const REDNOTE_TITLE_MAX_CHARACTERS = 20;
 
 const GeneratedSocialCopySchema = z
   .object({
-    hook: z.string().trim().min(1),
+    topic: z.enum(SOCIAL_TOPICS),
+    hookType: z.enum(SOCIAL_HOOK_TYPES),
     x: z.object({
       text: XTextSchema,
     }),
@@ -244,7 +250,7 @@ function buildSystemPrompt(
   xRules: string,
   rednoteRules: string,
 ): string {
-  return `${commonRules}\n\n## X rules\n${xRules}\n\n## Rednote rules\n${rednoteRules}\n\nReturn JSON only with exactly this shape:\n{\n  "hook": "...",\n  "x": { "text": "..." },\n  "rednote": {\n    "title": "...",\n    "body": "...",\n    "hashtags": ["tag without #", "..."]\n  }\n}\n\nAll copy must be Traditional Chinese. X text must not contain a URL; the episode share URL is appended by the publisher. Rednote title must be at most 20 characters. Hashtags must contain 3 to 5 items without the # prefix.`;
+  return `${commonRules}\n\n## X rules\n${xRules}\n\n## Rednote rules\n${rednoteRules}\n\nReturn JSON only with exactly this shape:\n{\n  "topic": "one allowed topic",\n  "hookType": "one allowed hook type",\n  "x": { "text": "..." },\n  "rednote": {\n    "title": "...",\n    "body": "...",\n    "hashtags": ["tag without #", "..."]\n  }\n}\n\nAllowed topic values: ${SOCIAL_TOPICS.join(', ')}.\nAllowed hookType values: ${SOCIAL_HOOK_TYPES.join(', ')}.\n\nAll copy must be Traditional Chinese. X text must not contain a URL; the episode share URL is appended by the publisher. Rednote title must be at most 20 characters. Hashtags must contain 3 to 5 items without the # prefix.`;
 }
 
 function buildEpisodePrompt(

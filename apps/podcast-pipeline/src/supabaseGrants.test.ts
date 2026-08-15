@@ -58,6 +58,17 @@ describe('Supabase user_episode_state grants', () => {
     expect(effectiveTablePrivileges(migrations, 'users')).toEqual([]);
   });
 
+  it.each(['social_posts', 'social_post_metrics'])(
+    'keeps %s service-role-only after all grants and revokes are applied',
+    (table) => {
+      const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
+      const migrations = readSortedMigrations().join('\n');
+
+      expect(effectiveTablePrivileges(schema, table)).toEqual([]);
+      expect(effectiveTablePrivileges(migrations, table)).toEqual([]);
+    },
+  );
+
   it('keeps delete revoked on user_episode_state', () => {
     const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
     const migrations = readSortedMigrations().join('\n');
@@ -430,28 +441,41 @@ function expectMobileSignInRpcPrivileges(
 }
 
 function effectiveTablePrivileges(sql: string, table: string): string[] {
-  const privileges = new Set<string>();
+  const privilegesByRole = new Map(
+    ['public', 'anon', 'authenticated'].map((role) => [
+      role,
+      new Set<string>(),
+    ]),
+  );
   const pattern = new RegExp(
-    `\\b(grant|revoke)\\s+([a-z,\\s]+?)\\s+on\\s+from_fed_to_chain\\.${table}\\s+(?:to|from)\\s+anon,\\s*authenticated\\s*;`,
+    `\\b(grant|revoke)\\s+([a-z,\\s]+?)\\s+on\\s+(?:table\\s+)?from_fed_to_chain\\.${table}\\s+(?:to|from)\\s+([^;]+);`,
     'gi',
   );
 
   for (const match of sql.matchAll(pattern)) {
     const action = match[1]!.toLowerCase();
-    const granted = tablePrivileges(match[2]!);
+    const statementPrivileges = tablePrivileges(match[2]!);
+    const roles = splitColumns(match[3]!).filter((role) =>
+      privilegesByRole.has(role),
+    );
 
-    if (action === 'grant') {
-      for (const privilege of granted) {
-        privileges.add(privilege);
-      }
-    } else {
-      for (const privilege of granted) {
-        privileges.delete(privilege);
+    for (const role of roles) {
+      const rolePrivileges = privilegesByRole.get(role)!;
+      for (const privilege of statementPrivileges) {
+        if (action === 'grant') {
+          rolePrivileges.add(privilege);
+        } else {
+          rolePrivileges.delete(privilege);
+        }
       }
     }
   }
 
-  return [...privileges].sort();
+  return [
+    ...new Set(
+      [...privilegesByRole.values()].flatMap((privileges) => [...privileges]),
+    ),
+  ].sort();
 }
 
 function latestFunctionDefinition(

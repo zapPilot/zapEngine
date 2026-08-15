@@ -97,7 +97,7 @@ describe('assertXSessionReady', () => {
     installCliResponder(() => cliOutput(response));
 
     await expect(assertXSessionReady()).rejects.toThrow(
-      'OpenCLI twitter session is not ready. Run `opencli twitter login` and try again.\ntwitter reported logged_in=false.',
+      'OpenCLI twitter session is not ready. Run `pnpm social:login` and try again.\ntwitter reported logged_in=false.',
     );
   });
 
@@ -152,6 +152,7 @@ describe('createOpenCliXPublisher', () => {
       status: 'published',
       publishedAt: FIXED_TIME.toISOString(),
       url: 'https://x.com/fromfedtochain/status/12345',
+      postId: '12345',
     });
     expect(commandCalls()).toEqual([
       ['twitter', 'post', `測試貼文\n\n${EPISODE_URL}`, '-f', 'json'],
@@ -195,6 +196,7 @@ describe('createOpenCliXPublisher', () => {
       }),
     ).resolves.toMatchObject({
       url: 'https://twitter.com/fromfedtochain/status/67890?ref=cli',
+      postId: '67890',
     });
   });
 
@@ -230,6 +232,7 @@ describe('createOpenCliXPublisher', () => {
       }),
     ).resolves.toMatchObject({
       url: 'https://x.com/i/status/987654321',
+      postId: '987654321',
     });
   });
 

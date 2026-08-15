@@ -1,19 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  assertXSessionReady: vi.fn(),
   closeReadline: vi.fn(),
-  createOpenCliXPublisher: vi.fn(),
-  createPlaywrightRednotePublisher: vi.fn(),
+  createSocialPublishJobs: vi.fn(),
+  createSocialPostPersister: vi.fn(),
   createReadlineInterface: vi.fn(),
   generateSocialCopy: vi.fn(),
   getSocialEpisode: vi.fn(),
+  persistPublished: vi.fn(),
   prepareSocialVideo: vi.fn(),
-  publishRednote: vi.fn(),
   publishSocialPlatforms: vi.fn(),
-  publishX: vi.fn(),
   question: vi.fn(),
+  readFile: vi.fn(),
   readPublishState: vi.fn(),
+  spawnSync: vi.fn(),
+}));
+
+vi.mock('node:child_process', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:child_process')>()),
+  spawnSync: mocks.spawnSync,
+}));
+
+vi.mock('node:fs/promises', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:fs/promises')>()),
+  readFile: mocks.readFile,
 }));
 
 vi.mock('node:readline/promises', async (importOriginal) => ({
@@ -31,17 +41,16 @@ vi.mock('./episode.js', async (importOriginal) => ({
   getSocialEpisode: mocks.getSocialEpisode,
 }));
 
-vi.mock('./opencli.js', () => ({
-  assertXSessionReady: mocks.assertXSessionReady,
-  createOpenCliXPublisher: mocks.createOpenCliXPublisher,
-}));
-
-vi.mock('./rednote-playwright.js', () => ({
-  createPlaywrightRednotePublisher: mocks.createPlaywrightRednotePublisher,
-}));
-
 vi.mock('./publish.js', () => ({
   publishSocialPlatforms: mocks.publishSocialPlatforms,
+}));
+
+vi.mock('./publishers.js', () => ({
+  createSocialPublishJobs: mocks.createSocialPublishJobs,
+}));
+
+vi.mock('./record.js', () => ({
+  createSocialPostPersister: mocks.createSocialPostPersister,
 }));
 
 vi.mock('./state.js', async (importOriginal) => ({
@@ -65,7 +74,7 @@ import type {
 const EPISODE_ID = '123e4567-e89b-42d3-a456-426614174000';
 const EPISODE_URL = `https://from-fed-to-chain-api.fly.dev/e/${EPISODE_ID}?lang=zh-Hant`;
 const USAGE =
-  'Usage: pnpm social:publish <episode-uuid-or-share-url> [--dry-run] [--platform x|rednote] [--force]';
+  'Usage: pnpm social:publish <episode-uuid-or-share-url> [--dry-run] [--platform x|threads|rednote] [--force]';
 const PUBLISHED: PlatformPublishState = {
   published: true,
   publishedAt: '2026-08-11T00:00:00.000Z',
@@ -86,7 +95,8 @@ const episode: SocialEpisode = {
   videos: { zh: 'https://cdn.example.com/video.mp4' },
 };
 const copy: GeneratedSocialCopy = {
-  hook: 'hook',
+  topic: 'macro',
+  hookType: 'question',
   x: { text: 'X copy' },
   rednote: {
     title: '小紅書標題',
@@ -158,12 +168,14 @@ beforeEach(() => {
     model: 'deepseek/deepseek-v4-flash',
   });
   mocks.prepareSocialVideo.mockResolvedValue(VIDEO);
+  mocks.readFile.mockResolvedValue(`${JSON.stringify(copy)}\n`);
   mocks.readPublishState.mockResolvedValue({});
-  mocks.assertXSessionReady.mockResolvedValue(undefined);
-  mocks.createOpenCliXPublisher.mockReturnValue({ publishX: mocks.publishX });
-  mocks.createPlaywrightRednotePublisher.mockReturnValue({
-    publishRednote: mocks.publishRednote,
-  });
+  mocks.createSocialPublishJobs.mockImplementation(
+    async (input: { platforms: readonly SocialPlatform[] }) =>
+      input.platforms.map((platform) => ({ platform, publish: vi.fn() })),
+  );
+  mocks.createSocialPostPersister.mockReturnValue(mocks.persistPublished);
+  mocks.spawnSync.mockReturnValue({ status: 0 });
   mocks.publishSocialPlatforms.mockResolvedValue([]);
   process.exitCode = undefined;
 });
@@ -242,26 +254,32 @@ describe('parseCliOptions', () => {
 
   it('rejects an empty platform value', () => {
     expect(() => parseCliOptions([EPISODE_ID, '--platform', ''])).toThrow(
-      '--platform must be x or rednote.',
+      '--platform must be one of: x, threads, rednote.',
     );
   });
 
   it('rejects the obsolete twitter platform name', () => {
     expect(() =>
       parseCliOptions([EPISODE_ID, '--platform', 'twitter']),
-    ).toThrow('--platform must be x or rednote.');
+    ).toThrow('--platform must be one of: x, threads, rednote.');
+  });
+
+  it('rejects inherited object keys as platform names', () => {
+    expect(() =>
+      parseCliOptions([EPISODE_ID, '--platform', 'constructor']),
+    ).toThrow('--platform must be one of: x, threads, rednote.');
   });
 
   it('rejects an uppercase X platform', () => {
     expect(() => parseCliOptions([EPISODE_ID, '--platform', 'X'])).toThrow(
-      '--platform must be x or rednote.',
+      '--platform must be one of: x, threads, rednote.',
     );
   });
 
   it('rejects an uppercase Rednote platform', () => {
     expect(() =>
       parseCliOptions([EPISODE_ID, '--platform', 'REDNOTE']),
-    ).toThrow('--platform must be x or rednote.');
+    ).toThrow('--platform must be one of: x, threads, rednote.');
   });
 
   it('rejects an unknown option', () => {
@@ -284,8 +302,9 @@ describe('runSocialCli', () => {
     expect(console.log).toHaveBeenCalledWith(
       `${copy.x.text}\n\n${episode.episodeUrl}`,
     );
+    expect(console.log).toHaveBeenCalledWith('\nTaxonomy: macro / question');
     expect(console.log).toHaveBeenCalledWith(
-      '🎬 video: 10m 00s (not downloaded for X-only publishing)',
+      '🎬 video: 10m 00s (not downloaded; selected platforms do not require video)',
     );
   });
 
@@ -318,9 +337,8 @@ describe('runSocialCli', () => {
     await runSocialCli([EPISODE_ID, '--dry-run']);
 
     expect(mocks.readPublishState).not.toHaveBeenCalled();
-    expect(mocks.assertXSessionReady).not.toHaveBeenCalled();
-    expect(mocks.createOpenCliXPublisher).not.toHaveBeenCalled();
-    expect(mocks.createPlaywrightRednotePublisher).not.toHaveBeenCalled();
+    expect(mocks.createSocialPublishJobs).not.toHaveBeenCalled();
+    expect(mocks.createSocialPostPersister).not.toHaveBeenCalled();
     expect(mocks.publishSocialPlatforms).not.toHaveBeenCalled();
   });
 
@@ -340,7 +358,9 @@ describe('runSocialCli', () => {
   });
 
   it('returns before asset loading when every requested platform is complete', async () => {
-    mocks.readPublishState.mockResolvedValue(publishedState(['x', 'rednote']));
+    mocks.readPublishState.mockResolvedValue(
+      publishedState(['x', 'threads', 'rednote']),
+    );
 
     await runSocialCli([EPISODE_ID]);
 
@@ -357,43 +377,54 @@ describe('runSocialCli', () => {
 
     await runSocialCli([EPISODE_ID]);
 
-    expect(mocks.question).toHaveBeenCalledWith('Retry X? [y/N] ');
+    expect(mocks.question).toHaveBeenCalledWith('Retry X + Threads? [y/N] ');
     expect(mocks.getSocialEpisode).not.toHaveBeenCalled();
     expect(mocks.publishSocialPlatforms).not.toHaveBeenCalled();
   });
 
   it('carries only pending X through asset loading, readiness, and publishing', async () => {
-    mocks.readPublishState.mockResolvedValue(publishedState(['rednote']));
+    mocks.readPublishState.mockResolvedValue(
+      publishedState(['threads', 'rednote']),
+    );
     enableInteractiveReview('yes', 'x');
 
     await runSocialCli([EPISODE_ID]);
 
     expect(mocks.prepareSocialVideo).not.toHaveBeenCalled();
-    expect(mocks.assertXSessionReady).toHaveBeenCalledOnce();
+    expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platforms: ['x'],
+        copy,
+        episodeUrl: EPISODE_URL,
+      }),
+    );
+    expect(mocks.createSocialPublishJobs.mock.calls[0]?.[0]).not.toHaveProperty(
+      'videoPath',
+    );
     expect(mocks.publishSocialPlatforms).toHaveBeenCalledWith(
       expect.objectContaining({
         episodeId: EPISODE_ID,
-        platforms: ['x'],
+        jobs: [expect.objectContaining({ platform: 'x' })],
       }),
-    );
-    expect(mocks.publishSocialPlatforms.mock.calls[0]?.[0]).not.toHaveProperty(
-      'videoPath',
     );
   });
 
   it('carries only pending Rednote through video preparation and publishing', async () => {
-    mocks.readPublishState.mockResolvedValue(publishedState(['x']));
+    mocks.readPublishState.mockResolvedValue(publishedState(['x', 'threads']));
     enableInteractiveReview('y', 'r');
 
     await runSocialCli([EPISODE_ID]);
 
     expect(mocks.prepareSocialVideo).toHaveBeenCalledOnce();
-    // Rednote runs on its own Chrome profile, so the X adapter is never probed.
-    expect(mocks.assertXSessionReady).not.toHaveBeenCalled();
-    expect(mocks.publishSocialPlatforms).toHaveBeenCalledWith(
+    expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
       expect.objectContaining({
         platforms: ['rednote'],
         videoPath: VIDEO.path,
+      }),
+    );
+    expect(mocks.publishSocialPlatforms).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobs: [expect.objectContaining({ platform: 'rednote' })],
       }),
     );
   });
@@ -405,11 +436,20 @@ describe('runSocialCli', () => {
 
     expect(mocks.readPublishState).not.toHaveBeenCalled();
     expect(mocks.prepareSocialVideo).toHaveBeenCalledOnce();
+    expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platforms: ['x', 'threads', 'rednote'],
+        videoPath: VIDEO.path,
+      }),
+    );
     expect(mocks.publishSocialPlatforms).toHaveBeenCalledWith(
       expect.objectContaining({
         force: true,
-        platforms: ['x', 'rednote'],
-        videoPath: VIDEO.path,
+        jobs: [
+          expect.objectContaining({ platform: 'x' }),
+          expect.objectContaining({ platform: 'threads' }),
+          expect.objectContaining({ platform: 'rednote' }),
+        ],
       }),
     );
   });
@@ -420,7 +460,7 @@ describe('runSocialCli', () => {
     await runSocialCli([EPISODE_ID, '--platform', 'x']);
 
     expect(mocks.generateSocialCopy).toHaveBeenCalledOnce();
-    expect(mocks.assertXSessionReady).not.toHaveBeenCalled();
+    expect(mocks.createSocialPublishJobs).not.toHaveBeenCalled();
     expect(mocks.publishSocialPlatforms).not.toHaveBeenCalled();
   });
 
@@ -441,9 +481,50 @@ describe('runSocialCli', () => {
       episode,
       feedback: '聚焦市場影響',
     });
-    expect(mocks.publishSocialPlatforms).toHaveBeenCalledWith(
-      expect.objectContaining({ copy: revisedCopy, platforms: ['x'] }),
+    expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platforms: ['x'],
+        copy: revisedCopy,
+        episodeUrl: EPISODE_URL,
+      }),
     );
+    expect(mocks.createSocialPostPersister).toHaveBeenCalledWith({
+      episodeId: EPISODE_ID,
+      snapshot: {
+        generated: revisedCopy,
+        published: revisedCopy,
+        model: 'second-model',
+      },
+      videoDurationSeconds: episode.videoDurationSeconds,
+      onError: expect.any(Function),
+    });
+  });
+
+  it('keeps the last AI snapshot separate from editor changes', async () => {
+    const editedCopy: GeneratedSocialCopy = {
+      ...copy,
+      topic: 'market_event',
+      hookType: 'breaking_event',
+      x: { text: '人工編輯後的短文案' },
+    };
+    mocks.readFile.mockResolvedValueOnce(`${JSON.stringify(editedCopy)}\n`);
+    enableInteractiveReview('e', 'x');
+
+    await runSocialCli([EPISODE_ID, '--platform', 'x']);
+
+    expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
+      expect.objectContaining({ copy: editedCopy }),
+    );
+    expect(mocks.createSocialPostPersister).toHaveBeenCalledWith({
+      episodeId: EPISODE_ID,
+      snapshot: {
+        generated: copy,
+        published: editedCopy,
+        model: 'deepseek/deepseek-v4-flash',
+      },
+      videoDurationSeconds: episode.videoDurationSeconds,
+      onError: expect.any(Function),
+    });
   });
 
   it('reports an unknown review choice and continues prompting', async () => {
@@ -478,14 +559,15 @@ describe('runSocialCli', () => {
     expect(mocks.publishSocialPlatforms).toHaveBeenCalledOnce();
   });
 
-  it('propagates readiness failure before creating a publisher', async () => {
-    mocks.assertXSessionReady.mockRejectedValue(new Error('X is logged out'));
+  it('propagates publisher preparation failure before publishing', async () => {
+    mocks.createSocialPublishJobs.mockRejectedValue(
+      new Error('X is logged out'),
+    );
     enableInteractiveReview('x');
 
     await expect(runSocialCli([EPISODE_ID, '--platform', 'x'])).rejects.toThrow(
       'X is logged out',
     );
-    expect(mocks.createOpenCliXPublisher).not.toHaveBeenCalled();
     expect(mocks.publishSocialPlatforms).not.toHaveBeenCalled();
   });
 
@@ -494,16 +576,18 @@ describe('runSocialCli', () => {
 
     await runSocialCli([EPISODE_ID, '--platform', 'x']);
 
-    expect(mocks.publishSocialPlatforms).toHaveBeenCalledWith({
-      episodeId: EPISODE_ID,
+    expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith({
       platforms: ['x'],
-      force: false,
       copy,
       episodeUrl: EPISODE_URL,
-      publisher: {
-        publishX: mocks.publishX,
-        publishRednote: mocks.publishRednote,
-      },
+      videoPath: undefined,
+      onLog: expect.any(Function),
+    });
+    expect(mocks.publishSocialPlatforms).toHaveBeenCalledWith({
+      episodeId: EPISODE_ID,
+      jobs: [expect.objectContaining({ platform: 'x' })],
+      force: false,
+      persistPublished: mocks.persistPublished,
       onLog: expect.any(Function),
     });
     const onLog = mocks.publishSocialPlatforms.mock.calls[0]?.[0].onLog;
@@ -522,7 +606,7 @@ describe('runSocialCli', () => {
 
     expect(process.exitCode).toBe(1);
     expect(console.error).toHaveBeenCalledWith(
-      'Done with 1 failed platform. Successful platforms were saved and will be skipped next time.',
+      'Done with 1 failed platform. Successfully published platforms with saved local state will be skipped next time.',
     );
   });
 
@@ -541,8 +625,78 @@ describe('runSocialCli', () => {
 
     expect(process.exitCode).toBe(1);
     expect(console.error).toHaveBeenCalledWith(
-      'Done with 2 failed platforms. Successful platforms were saved and will be skipped next time.',
+      'Done with 2 failed platforms. Successfully published platforms with saved local state will be skipped next time.',
     );
+  });
+
+  it('distinguishes telemetry failure from platform publish failure', async () => {
+    mocks.publishSocialPlatforms.mockResolvedValue([
+      {
+        platform: 'threads',
+        status: 'published',
+        recordError: new Error('database failed'),
+      },
+    ]);
+    enableInteractiveReview('t');
+
+    await runSocialCli([EPISODE_ID, '--platform', 'threads']);
+
+    expect(process.exitCode).toBe(1);
+    expect(console.error).toHaveBeenCalledWith(
+      'Done with 1 telemetry record failure. The affected posts are live; use the payload above to restore each missing row.',
+    );
+    expect(console.error).not.toHaveBeenCalledWith(
+      expect.stringContaining('failed platform'),
+    );
+  });
+
+  it('warns that the local duplicate guard must be repaired after a state failure', async () => {
+    mocks.publishSocialPlatforms.mockResolvedValue([
+      {
+        platform: 'x',
+        status: 'published',
+        stateError: new Error('state write failed'),
+      },
+    ]);
+    enableInteractiveReview('x');
+
+    await runSocialCli([EPISODE_ID, '--platform', 'x']);
+
+    expect(process.exitCode).toBe(1);
+    expect(console.error).toHaveBeenCalledWith(
+      'Done with 1 local duplicate-state failure. That post is live, but ~/.zap-pilot/social-publisher.json was NOT saved for it. Verify the platform post and repair the local state before rerunning, or the CLI may publish a duplicate.',
+    );
+    expect(console.error).not.toHaveBeenCalledWith(
+      expect.stringContaining('failed platform'),
+    );
+  });
+
+  it('reports state and telemetry recovery independently when both writes fail', async () => {
+    mocks.publishSocialPlatforms.mockResolvedValue([
+      {
+        platform: 'threads',
+        status: 'published',
+        stateError: new Error('state write failed'),
+        recordError: new Error('database failed'),
+      },
+    ]);
+    enableInteractiveReview('t');
+
+    await runSocialCli([EPISODE_ID, '--platform', 'threads']);
+
+    expect(process.exitCode).toBe(1);
+    expect(console.error).toHaveBeenCalledWith(
+      'Done with 1 local duplicate-state failure. That post is live, but ~/.zap-pilot/social-publisher.json was NOT saved for it. Verify the platform post and repair the local state before rerunning, or the CLI may publish a duplicate.',
+    );
+    expect(console.error).toHaveBeenCalledWith(
+      'Done with 1 telemetry record failure. The affected posts are live; use the payload above to restore each missing row.',
+    );
+    const messages = vi
+      .mocked(console.error)
+      .mock.calls.flat()
+      .map(String)
+      .join('\n');
+    expect(messages).not.toContain('saved locally');
   });
 });
 

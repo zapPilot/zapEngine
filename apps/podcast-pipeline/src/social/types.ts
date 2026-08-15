@@ -1,10 +1,47 @@
-export type SocialPlatform = 'x' | 'rednote';
+import type { SocialPlatform } from './platforms.js';
+
+export type { SocialPlatform } from './platforms.js';
 
 /**
  * Publishing is canonical-Chinese only. The key stays in the on-disk state so
  * existing published records keep matching and are not re-posted.
  */
 export const SOCIAL_STATE_LANGUAGE_KEY = 'zh';
+
+export const SOCIAL_TOPICS = [
+  'macro',
+  'btc',
+  'eth',
+  'defi',
+  'stablecoin',
+  'traditional_finance',
+  'portfolio',
+  'market_event',
+  'technology',
+] as const;
+
+export type SocialTopic = (typeof SOCIAL_TOPICS)[number];
+
+export const SOCIAL_HOOK_TYPES = [
+  'question',
+  'contrarian',
+  'surprising_number',
+  'breaking_event',
+  'explainer',
+  'prediction',
+  'risk_warning',
+  'comparison',
+] as const;
+
+export type SocialHookType = (typeof SOCIAL_HOOK_TYPES)[number];
+
+export interface SocialContentFeatures {
+  containsQuestion: boolean;
+  containsNumber: boolean;
+  titleChars: number | null;
+  bodyChars: number;
+  hashtagCount: number;
+}
 
 export interface SocialEpisode {
   id: string;
@@ -23,7 +60,8 @@ export interface SocialEpisode {
 }
 
 export interface GeneratedSocialCopy {
-  hook: string;
+  topic: SocialTopic;
+  hookType: SocialHookType;
   x: {
     text: string;
   };
@@ -39,6 +77,11 @@ export interface XPublishInput {
   episodeUrl: string;
 }
 
+export interface ThreadsPublishInput {
+  text: string;
+  episodeUrl: string;
+}
+
 export interface RednotePublishInput {
   title: string;
   body: string;
@@ -49,20 +92,26 @@ export interface RednotePublishInput {
 export interface PublishResult {
   status: 'published';
   url?: string;
+  postId?: string;
   publishedAt: string;
 }
 
-// X and Rednote are driven by different automation stacks (OpenCLI adapter vs
-// Playwright), so each side is its own interface and the CLI composes them.
 export interface XPublisher {
   publishX(input: XPublishInput): Promise<PublishResult>;
+}
+
+export interface ThreadsPublisher {
+  publishThreads(input: ThreadsPublishInput): Promise<PublishResult>;
 }
 
 export interface RednotePublisher {
   publishRednote(input: RednotePublishInput): Promise<PublishResult>;
 }
 
-export type BrowserPublisher = XPublisher & RednotePublisher;
+export interface SocialPublishJob {
+  platform: SocialPlatform;
+  publish(): Promise<PublishResult>;
+}
 
 export interface PlatformPublishState {
   published: true;
@@ -70,10 +119,9 @@ export interface PlatformPublishState {
   url?: string;
 }
 
-export interface LanguagePublishState {
-  x?: PlatformPublishState;
-  rednote?: PlatformPublishState;
-}
+export type LanguagePublishState = Partial<
+  Record<SocialPlatform, PlatformPublishState>
+>;
 
 export type SocialPublishState = Record<
   string,

@@ -1,12 +1,13 @@
+import type { PublishedSocialPost } from './record.js';
 import {
   getPublishedPlatform,
   markPlatformPublished,
   readPublishState,
 } from './state.js';
 import type {
-  BrowserPublisher,
-  GeneratedSocialCopy,
+  PublishResult,
   SocialPlatform,
+  SocialPublishJob,
 } from './types.js';
 
 export interface PublishPlatformOutcome {
@@ -14,23 +15,23 @@ export interface PublishPlatformOutcome {
   status: 'published' | 'skipped' | 'failed';
   url?: string;
   error?: Error;
+  stateError?: Error;
+  recordError?: Error;
 }
 
 export async function publishSocialPlatforms(input: {
   episodeId: string;
-  platforms: SocialPlatform[];
+  jobs: readonly SocialPublishJob[];
   force: boolean;
-  copy: GeneratedSocialCopy;
-  episodeUrl: string;
-  videoPath?: string;
-  publisher: BrowserPublisher;
   statePath?: string;
+  persistPublished?: (published: PublishedSocialPost) => Promise<void>;
   onLog?: (message: string) => void;
 }): Promise<PublishPlatformOutcome[]> {
   const log = input.onLog ?? (() => void 0);
   const outcomes: PublishPlatformOutcome[] = [];
 
-  for (const platform of input.platforms) {
+  for (const job of input.jobs) {
+    const platform = job.platform;
     const state = await readPublishState(input.statePath);
     const existing = getPublishedPlatform(state, input.episodeId, platform);
     if (existing && !input.force) {
@@ -43,54 +44,89 @@ export async function publishSocialPlatforms(input: {
       continue;
     }
 
+    let result: PublishResult;
     try {
-      const result =
-        platform === 'x'
-          ? await input.publisher.publishX({
-              text: input.copy.x.text,
-              episodeUrl: input.episodeUrl,
-            })
-          : await publishRednote(input);
-
-      await markPlatformPublished({
-        episodeId: input.episodeId,
-        platform,
-        result: {
-          published: true,
-          publishedAt: result.publishedAt,
-          ...(result.url ? { url: result.url } : {}),
-        },
-        path: input.statePath,
-      });
-      log(`[${platform}] ✓ ${result.url ?? 'Published'}`);
-      outcomes.push({
-        platform,
-        status: 'published',
-        ...(result.url ? { url: result.url } : {}),
-      });
+      result = await job.publish();
     } catch (error) {
-      const normalized =
-        error instanceof Error ? error : new Error(String(error));
+      const normalized = normalizeError(error);
       log(`[${platform}] ✗ ${normalized.message}`);
       outcomes.push({ platform, status: 'failed', error: normalized });
+      continue;
     }
+
+    const stateError = await savePublishedState({
+      save: () =>
+        markPlatformPublished({
+          episodeId: input.episodeId,
+          platform,
+          result: {
+            published: true,
+            publishedAt: result.publishedAt,
+            ...(result.url ? { url: result.url } : {}),
+          },
+          path: input.statePath,
+        }),
+      platform,
+      log,
+    });
+
+    const recordError = await persistPublishedPost({
+      persistPublished: input.persistPublished,
+      published: { platform, result },
+      log,
+    });
+
+    log(`[${platform}] ✓ ${result.url ?? 'Published'}`);
+    outcomes.push({
+      platform,
+      status: 'published',
+      ...(result.url ? { url: result.url } : {}),
+      ...(stateError ? { stateError } : {}),
+      ...(recordError ? { recordError } : {}),
+    });
   }
 
   return outcomes;
 }
 
-async function publishRednote(input: {
-  copy: GeneratedSocialCopy;
-  videoPath?: string;
-  publisher: BrowserPublisher;
-}) {
-  if (!input.videoPath) {
-    throw new Error('Rednote publishing requires a prepared video.');
+async function savePublishedState(input: {
+  save: () => Promise<void>;
+  platform: SocialPlatform;
+  log: (message: string) => void;
+}): Promise<Error | undefined> {
+  try {
+    await input.save();
+    return undefined;
+  } catch (error) {
+    const normalized = normalizeError(error);
+    input.log(
+      `[${input.platform}] ⚠ Published remotely, but local duplicate state was not saved: ${normalized.message}`,
+    );
+    return normalized;
   }
-  return input.publisher.publishRednote({
-    title: input.copy.rednote.title,
-    body: input.copy.rednote.body,
-    hashtags: input.copy.rednote.hashtags,
-    videoPath: input.videoPath,
-  });
+}
+
+async function persistPublishedPost(input: {
+  persistPublished:
+    | ((published: PublishedSocialPost) => Promise<void>)
+    | undefined;
+  published: PublishedSocialPost;
+  log: (message: string) => void;
+}): Promise<Error | undefined> {
+  if (!input.persistPublished) return undefined;
+
+  try {
+    await input.persistPublished(input.published);
+    return undefined;
+  } catch (error) {
+    const normalized = normalizeError(error);
+    input.log(
+      `[${input.published.platform}] ⚠ Published remotely, but telemetry recording failed: ${normalized.message}`,
+    );
+    return normalized;
+  }
+}
+
+function normalizeError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }

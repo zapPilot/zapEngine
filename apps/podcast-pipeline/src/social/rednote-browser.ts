@@ -23,6 +23,7 @@ const PROFILE_DIRECTORY = join(
 // upload input — not the URL — is what proves the session is authenticated.
 const UPLOAD_INPUT_SELECTOR = 'input.upload-input';
 const READY_TIMEOUT_MS = 20_000;
+const NAVIGATION_RETRY_DELAY_MS = 750;
 
 // The submit control is a custom element whose buttons live in a CLOSED shadow
 // root, where no selector can reach them. Reopening every shadow root at
@@ -39,21 +40,44 @@ const FORCE_OPEN_SHADOW_ROOTS = `
 
 export async function withRednotePublishPage<T>(
   run: (page: Page) => Promise<T>,
+  options: { headless?: boolean } = {},
 ): Promise<T> {
   const context = await chromium.launchPersistentContext(PROFILE_DIRECTORY, {
     channel: 'chrome',
-    headless: false,
+    headless: options.headless ?? false,
     viewport: { width: 1440, height: 900 },
   });
   await context.addInitScript({ content: FORCE_OPEN_SHADOW_ROOTS });
 
   try {
     const page = context.pages()[0] ?? (await context.newPage());
-    await page.goto(PUBLISH_URL, { waitUntil: 'domcontentloaded' });
+    await navigateToRednotePublishPage(page);
     return await run(page);
   } finally {
     await context.close();
   }
+}
+
+export async function navigateToRednotePublishPage(
+  page: Pick<Page, 'goto'>,
+  retryDelayMs: number = NAVIGATION_RETRY_DELAY_MS,
+): Promise<void> {
+  try {
+    await page.goto(PUBLISH_URL, { waitUntil: 'domcontentloaded' });
+  } catch (error) {
+    if (!isTransientNavigationError(error)) {
+      throw error;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+    await page.goto(PUBLISH_URL, { waitUntil: 'domcontentloaded' });
+  }
+}
+
+function isTransientNavigationError(error: unknown): boolean {
+  return (
+    error instanceof Error && error.message.includes('net::ERR_NETWORK_CHANGED')
+  );
 }
 
 export async function waitForPublisherReady(
