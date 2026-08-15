@@ -656,3 +656,78 @@ describe('Threads OAuth and secure session', () => {
     );
   });
 });
+
+describe('Threads Tester access token', () => {
+  it('adopts THREADS_ACCESS_TOKEN without OAuth or redirect configuration', async () => {
+    const sessionPath = await createSessionPath();
+    const openBrowser = vi.fn(async () => undefined);
+    const waitForAuthorizationCode = vi.fn(async () => 'unused-code');
+    const fetchImpl = vi.fn<typeof fetch>(async (request, init) => {
+      const url = request as URL;
+      switch (url.pathname) {
+        case '/debug_token':
+          return validDebugResponse(NOW + 55 * DAY_MS);
+        case '/me':
+          return jsonResponse({ id: 'user-1', username: 'zap' });
+        default:
+          throw new Error(
+            `Unexpected request: ${init?.method ?? 'GET'} ${url.pathname}`,
+          );
+      }
+    });
+
+    const result = await ensureThreadsSession({
+      sessionPath,
+      env: { THREADS_ACCESS_TOKEN: 'tester-token' },
+      apiBaseUrl: 'https://graph.threads.test',
+      fetchImpl,
+      now: () => NOW,
+      openBrowser,
+      waitForAuthorizationCode,
+    });
+
+    expect(waitForAuthorizationCode).not.toHaveBeenCalled();
+    expect(openBrowser).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      session: {
+        version: 1,
+        accessToken: 'tester-token',
+        expiresAt: NOW + 55 * DAY_MS,
+        userId: 'user-1',
+        username: 'zap',
+      },
+      profile: { id: 'user-1', username: 'zap' },
+    });
+    await expect(readThreadsSession({ sessionPath })).resolves.toEqual(
+      result.session,
+    );
+  });
+
+  it('rejects a Tester token that is missing threads_content_publish', async () => {
+    const sessionPath = await createSessionPath();
+    const fetchImpl = vi.fn<typeof fetch>(async (request) => {
+      const url = request as URL;
+      if (url.pathname === '/debug_token') {
+        return jsonResponse({
+          data: {
+            is_valid: true,
+            expires_at: Math.floor((NOW + 55 * DAY_MS) / 1_000),
+            scopes: ['threads_basic'],
+          },
+        });
+      }
+      throw new Error(`Unexpected request: ${url.pathname}`);
+    });
+
+    await expect(
+      ensureThreadsSession({
+        sessionPath,
+        env: { THREADS_ACCESS_TOKEN: 'tester-token' },
+        apiBaseUrl: 'https://graph.threads.test',
+        fetchImpl,
+        now: () => NOW,
+      }),
+    ).rejects.toThrow('threads_content_publish');
+    await expect(readThreadsSession({ sessionPath })).resolves.toBeNull();
+  });
+});
