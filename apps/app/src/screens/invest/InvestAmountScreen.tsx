@@ -4,10 +4,8 @@ import { useEffect, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 import { formatEther } from 'viem';
 
-import {
-  CONNECT_WALLET_CTA,
-  CONNECTING_LABEL,
-} from '@/components/connect/connectCopy';
+import { CONNECT_WALLET_CTA } from '@/components/connect/connectCopy';
+import { CONNECTING_LABEL } from '@/components/connect/connectGateCopy';
 import { BridgeTestPanel } from '@/components/invest/BridgeTestPanel';
 import { ChainTokenSelectorSheet } from '@/components/invest/ChainTokenSelectorSheet';
 import { FundingSourceCard } from '@/components/invest/FundingSourceCard';

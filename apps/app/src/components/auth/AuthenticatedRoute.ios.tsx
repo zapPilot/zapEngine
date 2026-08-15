@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { ConnectGateCard } from '@/components/connect/ConnectGateCard';
-import { CONNECT_GATE_COPY } from '@/components/connect/connectCopy';
+import { CONNECT_GATE_COPY } from '@/components/connect/connectGateCopy';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import {
   isPrivyLoginCancellation,

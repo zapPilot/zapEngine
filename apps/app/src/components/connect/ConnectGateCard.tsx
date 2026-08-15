@@ -4,7 +4,7 @@ import { Platform, Text, View } from 'react-native';
 import {
   CONNECT_GATE_COPY,
   CONNECTING_LABEL,
-} from '@/components/connect/connectCopy';
+} from '@/components/connect/connectGateCopy';
 import { Card } from '@/components/ui/Card';
 import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';

@@ -3,10 +3,8 @@ import { useEffect, useState } from 'react';
 
 import { extractErrorMessage } from '@zapengine/app-core/lib/errors';
 
-import {
-  CONNECT_WALLET_CTA,
-  CONNECTING_LABEL,
-} from '@/components/connect/connectCopy';
+import { CONNECT_WALLET_CTA } from '@/components/connect/connectCopy';
+import { CONNECTING_LABEL } from '@/components/connect/connectGateCopy';
 import type { DepositExecutionCapability } from '@/integration/investExecutionModel';
 import { useAccount } from '@/integration/useAccount';
 import { useInvestDepositReview } from '@/integration/useInvest';

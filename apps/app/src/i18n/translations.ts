@@ -40,6 +40,13 @@ export const en = {
   'account.unavailableTitle': 'Account unavailable',
   'account.unavailableBody':
     'Your wallet is connected, but Zap Pilot couldn’t load your account. Retry to continue.',
+  'account.settingsTitle': 'Settings',
+  'account.iosAuthBody':
+    'Signed in with Privy. The iOS app uses Privy only for account authentication.',
+  'account.webFeaturesTitle': 'Zap Pilot Web',
+  'account.webFeaturesBody':
+    'Additional Zap Pilot features are available in the web app.',
+  'account.signOut': 'Sign out',
   'podcast.title': 'Podcast',
   'podcast.searchEpisodes': 'Search podcast episodes',
   'podcast.clearSearch': 'Clear podcast search',
@@ -237,6 +244,11 @@ export const zhHant = {
   'account.unavailableTitle': '帳戶暫時無法使用',
   'account.unavailableBody':
     '錢包已連線，但 Zap Pilot 無法載入帳戶資料。請重試以繼續。',
+  'account.settingsTitle': '設定',
+  'account.iosAuthBody': '已透過 Privy 登入，iOS 版僅使用 Privy 進行帳戶驗證。',
+  'account.webFeaturesTitle': 'Zap Pilot 網頁版',
+  'account.webFeaturesBody': '更多 Zap Pilot 功能可在網頁版使用。',
+  'account.signOut': '登出',
   'podcast.title': 'Podcast',
   'podcast.searchEpisodes': '搜尋 Podcast 節目',
   'podcast.clearSearch': '清除 Podcast 搜尋',
@@ -425,6 +437,13 @@ export const ja = {
   'account.unavailableTitle': 'アカウントを利用できません',
   'account.unavailableBody':
     'ウォレットは接続されていますが、Zap Pilot がアカウント情報を読み込めませんでした。再試行してください。',
+  'account.settingsTitle': '設定',
+  'account.iosAuthBody':
+    'Privyでサインイン中です。iOS版ではPrivyをアカウント認証のみに使用します。',
+  'account.webFeaturesTitle': 'Zap Pilot ウェブ版',
+  'account.webFeaturesBody':
+    'その他のZap Pilot機能はウェブ版でご利用いただけます。',
+  'account.signOut': 'サインアウト',
   'podcast.title': 'ポッドキャスト',
   'podcast.searchEpisodes': 'ポッドキャストを検索',
   'podcast.clearSearch': '検索内容を消去',

@@ -55,6 +55,31 @@ export function resolveExpoMoralisApiKey(
 process.env.EXPO_PUBLIC_ALCHEMY_API_KEY = resolveExpoAlchemyApiKey(process.env);
 process.env.EXPO_PUBLIC_MORALIS_API_KEY = resolveExpoMoralisApiKey(process.env);
 
+/**
+ * expo-dev-client wires a local-network dev-server launcher into the app
+ * (NSLocalNetworkUsageDescription, NSBonjourServices, an ATS exception for
+ * localhost:8081). That plugin has no place in a production store build.
+ */
+export function shouldEnableDevClientPlugin(
+  env: Record<string, string | undefined>,
+): boolean {
+  return env.EAS_BUILD_PROFILE !== 'production';
+}
+
+const devClientPlugin: [string, Record<string, unknown>] = [
+  'expo-dev-client',
+  {
+    android: {
+      launchMode: 'most-recent',
+      defaultLaunchURL: 'http://10.0.2.2:8081',
+    },
+    ios: {
+      launchMode: 'most-recent',
+      defaultLaunchURL: 'http://localhost:8081',
+    },
+  },
+];
+
 const appScheme = 'zappilotv2';
 
 const config: ExpoConfig = {
@@ -70,6 +95,21 @@ const config: ExpoConfig = {
     bundleIdentifier: 'com.zapengine.zappilot.dev',
     supportsTablet: false,
     icon: './assets/brand/icon.png',
+    config: {
+      usesNonExemptEncryption: false,
+    },
+    privacyManifests: {
+      NSPrivacyCollectedDataTypes: [
+        {
+          NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypeEmailAddress',
+          NSPrivacyCollectedDataTypeLinked: true,
+          NSPrivacyCollectedDataTypeTracking: false,
+          NSPrivacyCollectedDataTypePurposes: [
+            'NSPrivacyCollectedDataTypePurposeAppFunctionality',
+          ],
+        },
+      ],
+    },
   },
   android: {
     package: 'com.fromfedtochain.app',
@@ -93,21 +133,15 @@ const config: ExpoConfig = {
         },
       },
     ],
+    ...(shouldEnableDevClientPlugin(process.env) ? [devClientPlugin] : []),
+    'expo-router',
     [
-      'expo-dev-client',
+      'expo-secure-store',
       {
-        android: {
-          launchMode: 'most-recent',
-          defaultLaunchURL: 'http://10.0.2.2:8081',
-        },
-        ios: {
-          launchMode: 'most-recent',
-          defaultLaunchURL: 'http://localhost:8081',
-        },
+        faceIDPermission:
+          'Use Face ID to unlock your signed-in Zap Pilot session on this device.',
       },
     ],
-    'expo-router',
-    'expo-secure-store',
     [
       // Background audio + lock-screen controls for podcast playback. This is an
       // audio-playback-only app, so recording/microphone permissions are

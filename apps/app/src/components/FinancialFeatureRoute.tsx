@@ -30,8 +30,7 @@ export function FinancialFeatureRoute({
             Available on Zap Pilot Web
           </Text>
           <Text className="mt-2 text-center text-[12.5px] leading-5 text-ink-dim">
-            This feature is not available in the iOS app. Open the web app to
-            use the full Zap Pilot experience.
+            This feature is available in the Zap Pilot web app.
           </Text>
           <OpenZapPilotWebButton className="mt-5 w-full" />
         </Card>

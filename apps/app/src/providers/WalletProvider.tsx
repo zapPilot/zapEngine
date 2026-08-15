@@ -1,5 +1,4 @@
 import {
-  PrivyProvider,
   useAuthorizationSignature,
   useEmbeddedEthereumWallet,
   usePrivy,
@@ -49,7 +48,6 @@ import {
 import {
   isPrivyLoginCancellation,
   loginWithPrivy,
-  NATIVE_PRIVY_PROVIDER_CONFIG,
 } from '@/integration/nativePrivyLogin';
 
 interface WalletProviderProps {
@@ -83,31 +81,6 @@ function getErrorMessage(error: unknown): string {
     return error.message;
   }
   return String(error);
-}
-
-export function MobilePrivyProvider({
-  appId,
-  clientId,
-  supportedChains,
-  children,
-}: {
-  appId: string;
-  clientId: string;
-  supportedChains: NonNullable<
-    React.ComponentProps<typeof PrivyProvider>['supportedChains']
-  >;
-  children: ReactNode;
-}): ReactElement {
-  return (
-    <PrivyProvider
-      appId={appId}
-      clientId={clientId}
-      supportedChains={supportedChains}
-      config={NATIVE_PRIVY_PROVIDER_CONFIG}
-    >
-      {children}
-    </PrivyProvider>
-  );
 }
 
 export function WalletProvider({
