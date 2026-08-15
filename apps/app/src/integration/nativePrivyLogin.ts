@@ -1,7 +1,21 @@
-export {
-  NATIVE_PRIVY_AUTH_COPY,
-  NATIVE_PRIVY_PROVIDER_CONFIG,
-} from '@/integration/nativePrivyConfig';
+import {
+  NATIVE_PRIVY_AUTH_BODY,
+  NATIVE_PRIVY_CREATE_ON_LOGIN,
+} from '@/integration/nativePrivyPlatform';
+
+export const NATIVE_PRIVY_AUTH_COPY = {
+  body: NATIVE_PRIVY_AUTH_BODY,
+  cta: 'Continue with Privy',
+  hint: 'Opens Privy email sign-in',
+} as const;
+
+export const NATIVE_PRIVY_PROVIDER_CONFIG = {
+  embedded: {
+    ethereum: {
+      createOnLogin: NATIVE_PRIVY_CREATE_ON_LOGIN,
+    },
+  },
+} as const;
 
 export function getNativePrivyLoginConfig(): { loginMethods: ['email'] } {
   return { loginMethods: ['email'] };
