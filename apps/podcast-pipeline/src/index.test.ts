@@ -698,6 +698,7 @@ describe('POST /ingest pipeline', () => {
       }),
     );
     mockGenerateScriptWithLLM.mockResolvedValue({
+      title: '市場流動性正在重新定價',
       script: 'Generated script',
       model: 'test-model',
       thinkingModel: null,
@@ -709,7 +710,10 @@ describe('POST /ingest pipeline', () => {
         if (status === 'script_generated') {
           return Promise.resolve(
             localizationRow({
-              title: '軟體更新',
+              title:
+                typeof data?.['title'] === 'string'
+                  ? data['title']
+                  : '軟體更新',
               raw_text: '滑鼠和腳踏車市場',
               hls_url: '',
               script: 'Generated script',
@@ -738,7 +742,7 @@ describe('POST /ingest pipeline', () => {
         if (status === 'completed') {
           return Promise.resolve(
             localizationRow({
-              title: '軟體更新',
+              title: '市場流動性正在重新定價',
               raw_text: '滑鼠和腳踏車市場',
               script: 'Generated script',
               hls_url:
@@ -845,6 +849,14 @@ describe('POST /ingest pipeline', () => {
         rawText: '滑鼠和腳踏車市場',
       }),
     );
+    expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
+      localizationRow().id,
+      'script_generated',
+      expect.objectContaining({
+        title: '市場流動性正在重新定價',
+        script: 'Generated script',
+      }),
+    );
     expect(mockUploadHlsToR2).toHaveBeenCalledWith(
       expect.any(Array),
       episodeRow().id,
@@ -865,6 +877,7 @@ describe('POST /ingest pipeline', () => {
     );
     expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
       expect.objectContaining({
+        title: '市場流動性正在重新定價',
         articleText: '滑鼠和腳踏車市場',
         script: 'Generated script',
         sourceLanguageCode: 'zh-Hant',
@@ -2301,6 +2314,7 @@ function configureFreshTelegramIngest(): void {
     },
   );
   mockGenerateScriptWithLLM.mockResolvedValue({
+    title: null,
     script: 'Generated script',
     model: 'test-model',
     thinkingModel: null,

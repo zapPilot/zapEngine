@@ -10,16 +10,29 @@ const PROMPT_PATH = resolve(
   '../../prompts/script-system-prompt.txt',
 );
 
-describe('script system prompt opening contract', () => {
-  it('requires the exact opening before any other generated content', () => {
+describe('script system prompt output contract', () => {
+  it('requires JSON with an editorial title and a directly readable script', () => {
     const prompt = readFileSync(PROMPT_PATH, 'utf8');
 
-    expect(prompt).toContain(`輸出的第一句必須逐字為：「${EXPECTED_OPENING}」`);
     expect(prompt).toContain(
-      '第一個字必須是「各」，首句之前不得輸出任何內容。',
+      '{"title":"編輯後標題","script":"一篇完整、可直接朗讀的 Podcast 講稿"}',
+    );
+    expect(prompt).toContain('將來源標題改寫成 15–35 個中文字的編輯標題');
+    expect(prompt).toContain('不得照抄來源標題');
+    expect(prompt).toContain('必須保留原文的事實、人名、協議名稱與數字');
+    expect(prompt).toContain('不得新增原文沒有的結論');
+    expect(prompt).toContain('禁止公關腔、誇大與 clickbait');
+    expect(prompt).toContain(
+      `script 欄位的第一句必須逐字為：「${EXPECTED_OPENING}」`,
     );
     expect(prompt).toContain(
-      '不得輸出確認語、任務說明、標題、時間碼、Markdown 或分隔線。',
+      'script 欄位的第一個字必須是「各」，首句之前不得輸出任何內容。',
+    );
+    expect(prompt).toContain(
+      'script 欄位不得輸出確認語、任務說明、標題、時間碼、Markdown 或分隔線。',
+    );
+    expect(prompt).toContain(
+      'JSON 物件之外不得輸出任何內容，不得使用 Markdown code fence、註解或額外欄位。',
     );
   });
 });

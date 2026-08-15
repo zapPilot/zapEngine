@@ -144,6 +144,7 @@ describe('performIngest failure paths', () => {
       }),
     );
     mockGenerateScriptWithLLM.mockResolvedValue({
+      title: null,
       script: 'Generated script',
       model: 'test-model',
       thinkingModel: null,
@@ -355,6 +356,7 @@ describe('performIngest failure paths', () => {
     const originalScript =
       'First paragraph.\n\n---\n\nKeep inline --- punctuation.';
     mockGenerateScriptWithLLM.mockResolvedValue({
+      title: null,
       script: originalScript,
       model: 'test-model',
       thinkingModel: null,
@@ -1360,6 +1362,16 @@ describe('performIngest failure paths', () => {
   it('generates every supported localization in order and returns the requested language', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const localizations = new Map<string, EpisodeLocalizationRow>();
+    const editorialTitle = '市場流動性正在重新定價';
+
+    mockGenerateScriptWithLLM.mockResolvedValue({
+      title: editorialTitle,
+      script: 'Generated script',
+      model: 'test-model',
+      thinkingModel: null,
+      provider: 'test-provider',
+      costUsd: 0.00001,
+    });
 
     mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
     mockFindEpisodeLocalizationByEpisodeId.mockImplementation(
@@ -1441,6 +1453,7 @@ describe('performIngest failure paths', () => {
         const [languageCode, row] = entry;
         const update = updates as {
           hlsUrl?: string;
+          title?: string;
           script?: string;
           r2Prefix?: string | null;
           llmModel?: string;
@@ -1454,6 +1467,7 @@ describe('performIngest failure paths', () => {
         const next = localizationRow({
           ...row,
           status,
+          title: update.title ?? row.title,
           hls_url: update.hlsUrl ?? row.hls_url,
           script: update.script ?? row.script,
           r2_prefix:
@@ -1494,12 +1508,12 @@ describe('performIngest failure paths', () => {
     expect(result.episode.languageCode).toBe('en');
     expect(mockGenerateScriptWithLLM).toHaveBeenCalledTimes(1);
     expect(mockTranslateCanonicalScript).toHaveBeenCalledWith({
-      title: '軟體更新',
+      title: editorialTitle,
       script: 'Generated script',
       targetLanguageCode: 'ja',
     });
     expect(mockTranslateCanonicalScript).toHaveBeenCalledWith({
-      title: '軟體更新',
+      title: editorialTitle,
       script: 'Generated script',
       targetLanguageCode: 'en',
     });

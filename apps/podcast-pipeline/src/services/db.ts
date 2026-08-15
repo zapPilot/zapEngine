@@ -54,6 +54,7 @@ interface EpisodeVideoVisualStatusProjection {
 type LocalizationStatusUpdates = Partial<
   Pick<
     NewEpisodeLocalization,
+    | 'title'
     | 'script'
     | 'llmModel'
     | 'llmThinkingModel'
@@ -71,6 +72,7 @@ const LOCALIZATION_UPDATE_COLUMNS: Record<
   keyof LocalizationStatusUpdates,
   string
 > = {
+  title: 'title',
   script: 'script',
   llmModel: 'llm_model',
   llmThinkingModel: 'llm_thinking_model',

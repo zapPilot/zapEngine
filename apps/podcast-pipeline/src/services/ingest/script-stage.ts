@@ -188,6 +188,7 @@ async function ensureLocalizationScript(input: {
       'updateEpisodeLocalizationStatus:script_generated',
       () =>
         updateEpisodeLocalizationStatus(localization!.id, 'script_generated', {
+          ...(generated.title === null ? {} : { title: generated.title }),
           script: generated.script,
           llmModel: generated.model,
           llmThinkingModel: generated.thinkingModel,
@@ -228,6 +229,8 @@ async function persistScrapedLocalization(
     );
   }
 
+  // A pending canonical localization is intentionally refreshed from source.
+  // This same run regenerates and persists its editorial title before advancing.
   return step('updateEpisodeLocalizationStatus:scraped', async () => {
     await updateEpisodeLocalizationArticleContent(localization.id, article);
     return updateEpisodeLocalizationStatus(localization.id, 'scraped', {

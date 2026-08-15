@@ -1468,6 +1468,10 @@ describe('updates', () => {
         tts_voice_name: 'cmn-TW-Wavenet-A',
       }),
     );
+    const updateCalls = state.query!.update.mock.calls as unknown as [
+      [Record<string, unknown>],
+    ];
+    expect(updateCalls[0][0]).not.toHaveProperty('title');
   });
 
   it('fails closed without retrying when PostgREST has a stale classroom media schema', async () => {
@@ -1526,7 +1530,7 @@ describe('updates', () => {
     expect(state.query!.update).toHaveBeenCalledTimes(1);
   });
 
-  it('updates localized script metadata fields', async () => {
+  it('updates the editorial title with localized script metadata fields', async () => {
     const row = localizationRow({
       status: 'script_generated',
       classroom_hls_url: null,
@@ -1534,6 +1538,7 @@ describe('updates', () => {
     state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
 
     await updateEpisodeLocalizationStatus(row.id, 'script_generated', {
+      title: '真正影響市場的不是價格，而是流動性',
       script: 'Generated script',
       llmModel: 'model',
       llmThinkingModel: 'thinking-model',
@@ -1543,6 +1548,7 @@ describe('updates', () => {
     expect(state.query!.update).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'script_generated',
+        title: '真正影響市場的不是價格，而是流動性',
         script: 'Generated script',
         llm_model: 'model',
         llm_thinking_model: 'thinking-model',

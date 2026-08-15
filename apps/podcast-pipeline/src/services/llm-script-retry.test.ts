@@ -49,7 +49,16 @@ function mockOpenAIClient(createMock: Mock): void {
 
 function successfulCompletion(): unknown {
   return {
-    choices: [{ message: { content: 'Generated script' } }],
+    choices: [
+      {
+        message: {
+          content: JSON.stringify({
+            title: '市場流動性正在重新定價',
+            script: 'Generated script',
+          }),
+        },
+      },
+    ],
     provider: 'test-provider',
     model: 'test/model',
     usage: { cost: 0.01 },
@@ -106,6 +115,7 @@ describe('generateScriptWithLLM retries', () => {
 
     const resultPromise = generateScriptWithLLM('Title', 'Article');
     const resultAssertion = expect(resultPromise).resolves.toEqual({
+      title: '市場流動性正在重新定價',
       script: 'Generated script',
       model: 'test/model',
       thinkingModel: null,

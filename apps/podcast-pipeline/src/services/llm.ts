@@ -11,8 +11,10 @@ import type {
   LanguageClassroomLesson,
 } from '../types.js';
 import { logIngestEvent } from './ingest/step.js';
+import { convertTextToZhTW } from './opencc.js';
 
 export interface ScriptResult {
+  title: string | null;
   script: string;
   model: string;
   thinkingModel: string | null;
@@ -48,7 +50,30 @@ const DEFAULT_PROMPT_PATH = join(
 );
 const SCRIPT_GENERATION_MAX_ATTEMPTS = 2;
 const SCRIPT_GENERATION_RETRY_DELAY_MS = 2_000;
+const SCRIPT_PAYLOAD_MAX_ATTEMPTS = 2;
 const RETRYABLE_OPENROUTER_STATUS = new Set([408, 409, 429]);
+
+type ScriptTitleFallbackReason =
+  | 'invalid_title'
+  | 'missing_title'
+  | 'plain_text_response';
+
+interface ParsedScriptPayload {
+  title: string | null;
+  script: string;
+  titleFallbackReason: ScriptTitleFallbackReason | null;
+}
+
+class ScriptPayloadValidationError extends Error {
+  constructor(
+    message: string,
+    readonly reason: 'invalid_json' | 'missing_script',
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = 'ScriptPayloadValidationError';
+  }
+}
 
 function resolvePromptPath(): string {
   const envPath = process.env['SCRIPT_PROMPT_PATH'];
@@ -72,6 +97,98 @@ function getSystemPrompt(): string {
 
 export function buildUserMessage(title: string, text: string): string {
   return `標題：${title}\n\n內容：\n${text}`;
+}
+
+function buildScriptPayloadRetryMessage(
+  title: string,
+  text: string,
+  reason: ScriptPayloadValidationError['reason'],
+): string {
+  return `${buildUserMessage(title, text)}\n\n修正要求：上一個回應未符合 JSON 輸出契約（${reason}）。只輸出可解析的 JSON 物件，且 title 與 script 都必須是非空字串。`;
+}
+
+export function normalizeEditorialTitle(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+
+  let normalized = value.trim();
+  const quotePairs: readonly (readonly [string, string])[] = [
+    ['"', '"'],
+    ["'", "'"],
+    ['‘', '’'],
+    ['“', '”'],
+    ['「', '」'],
+    ['『', '』'],
+  ];
+  let strippedQuotes = true;
+  while (strippedQuotes && normalized.length >= 2) {
+    strippedQuotes = false;
+    for (const [opening, closing] of quotePairs) {
+      if (normalized.startsWith(opening) && normalized.endsWith(closing)) {
+        normalized = normalized.slice(opening.length, -closing.length).trim();
+        strippedQuotes = true;
+        break;
+      }
+    }
+  }
+
+  if (
+    /[\r\n]/u.test(normalized) ||
+    /^(?:#{1,6}(?:\s|$)|[-*+]\s|>\s?|`|[*_]{1,2}\S|~~)/u.test(normalized)
+  ) {
+    return null;
+  }
+
+  const characterCount = [...normalized].length;
+  if (characterCount < 4 || characterCount > 60) return null;
+
+  return convertTextToZhTW(normalized);
+}
+
+function parseScriptPayload(content: string): ParsedScriptPayload {
+  if (!content.trim()) {
+    throw new Error('LLM returned empty script content');
+  }
+
+  const stripped = stripJsonFence(content.trim());
+  if (!stripped.startsWith('{')) {
+    return {
+      title: null,
+      script: content,
+      titleFallbackReason: 'plain_text_response',
+    };
+  }
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = parseJsonObject(stripped, 'Script response');
+  } catch (error) {
+    throw new ScriptPayloadValidationError(
+      'LLM returned invalid script JSON content',
+      'invalid_json',
+      { cause: error },
+    );
+  }
+
+  const script = payload['script'];
+  if (typeof script !== 'string' || !script.trim()) {
+    throw new ScriptPayloadValidationError(
+      'LLM returned empty script content',
+      'missing_script',
+    );
+  }
+
+  const rawTitle = payload['title'];
+  const title = normalizeEditorialTitle(rawTitle);
+  let titleFallbackReason: ScriptTitleFallbackReason | null = null;
+  if (title === null) {
+    titleFallbackReason =
+      typeof rawTitle === 'string' ? 'invalid_title' : 'missing_title';
+  }
+  return {
+    title,
+    script,
+    titleFallbackReason,
+  };
 }
 
 export interface OpenRouterConfig {
@@ -363,27 +480,58 @@ export async function generateScriptWithLLM(
 ): Promise<ScriptResult> {
   const { openai, model, thinkingModel } = getOpenRouterConfig();
   const system = getSystemPrompt();
-  const user = buildUserMessage(title, text);
+  let retryReason: ScriptPayloadValidationError['reason'] | null = null;
+  let costUsd = 0;
 
-  const completion = await createScriptCompletionWithRetry(
-    openai,
-    {
-      model,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-      temperature: 0.7,
-    },
-    thinkingModel,
-  );
+  for (let attempt = 1; attempt <= SCRIPT_PAYLOAD_MAX_ATTEMPTS; attempt += 1) {
+    const completion = await createScriptCompletionWithRetry(
+      openai,
+      {
+        model,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: system },
+          {
+            role: 'user',
+            content:
+              retryReason === null
+                ? buildUserMessage(title, text)
+                : buildScriptPayloadRetryMessage(title, text, retryReason),
+          },
+        ],
+        temperature: 0.7,
+      },
+      thinkingModel,
+    );
 
-  const script = completion.choices[0]?.message?.content || '';
-  if (!script.trim()) {
-    throw new Error('LLM returned empty script content');
+    const metadata = completionMetadata(completion, model, thinkingModel);
+    costUsd += metadata.costUsd;
+    const content = completion.choices[0]?.message?.content || '';
+    try {
+      const parsed = parseScriptPayload(content);
+      if (parsed.titleFallbackReason !== null) {
+        logIngestEvent('llm:title-fallback', {
+          reason: parsed.titleFallbackReason,
+        });
+      }
+      return {
+        title: parsed.title,
+        script: parsed.script,
+        ...metadata,
+        costUsd,
+      };
+    } catch (error) {
+      if (
+        !(error instanceof ScriptPayloadValidationError) ||
+        attempt === SCRIPT_PAYLOAD_MAX_ATTEMPTS
+      ) {
+        throw error;
+      }
+      retryReason = error.reason;
+    }
   }
 
-  return { script, ...completionMetadata(completion, model, thinkingModel) };
+  throw new Error('OpenRouter script payload retry loop exhausted');
 }
 
 export function buildLanguageClassroomUserMessage(
