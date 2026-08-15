@@ -1,5 +1,5 @@
 export const NATIVE_PRIVY_AUTH_COPY = {
-  body: 'Continue with email. Authentication is powered by Privy.',
+  body: 'Continue with email. Authentication and your embedded wallet are powered by Privy.',
   cta: 'Continue with Privy',
   hint: 'Opens Privy email sign-in',
 } as const;
@@ -7,7 +7,7 @@ export const NATIVE_PRIVY_AUTH_COPY = {
 export const NATIVE_PRIVY_PROVIDER_CONFIG = {
   embedded: {
     ethereum: {
-      createOnLogin: 'off',
+      createOnLogin: 'users-without-wallets',
     },
   },
 } as const;
@@ -18,7 +18,11 @@ export function getNativePrivyLoginConfig(): { loginMethods: ['email'] } {
 
 type PrivyLogin = (config: { loginMethods: ['email'] }) => Promise<unknown>;
 
-/** Opens Privy's managed login UI for native account authentication. */
+/**
+ * Opens Privy's managed login UI. Embedded-wallet creation stays with
+ * PrivyProvider's createOnLogin policy so a successful login cannot race a
+ * second manual wallet-creation request.
+ */
 export async function loginWithPrivy(login: PrivyLogin): Promise<void> {
   await login(getNativePrivyLoginConfig());
 }
