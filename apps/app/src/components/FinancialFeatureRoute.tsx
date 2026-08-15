@@ -1,8 +1,7 @@
 import { ExternalLink, LockKeyhole } from 'lucide-react-native';
 import type { ReactElement, ReactNode } from 'react';
-import { Linking, Text, View } from 'react-native';
+import { Linking, Platform, Text, View } from 'react-native';
 
-import { APP_RUNTIME } from '@/config/appRuntime';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
@@ -17,7 +16,7 @@ export function FinancialFeatureRoute({
   children: ReactNode;
   title: string;
 }): ReactElement {
-  if (APP_RUNTIME !== 'native') {
+  if (Platform.OS !== 'ios') {
     return <>{children}</>;
   }
 
