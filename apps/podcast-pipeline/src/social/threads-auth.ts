@@ -360,7 +360,13 @@ export async function waitForThreadsAuthorizationCode(
 async function authorizeThreadsSession(
   options: ThreadsAuthOptions,
 ): Promise<ReadyThreadsSession> {
-  const config = readOAuthConfig(options.env ?? process.env);
+  const env = options.env ?? process.env;
+  const providedToken = env['THREADS_ACCESS_TOKEN']?.trim();
+  if (providedToken) {
+    return adoptThreadsAccessToken(providedToken, options);
+  }
+
+  const config = readOAuthConfig(env);
   const state = (options.createState ?? createSecureState)();
   if (!state.trim()) {
     throw new Error('Threads OAuth state generation returned an empty value.');
@@ -412,6 +418,27 @@ async function authorizeThreadsSession(
       now + longToken.expiresInSeconds * 1_000,
       validated.expiresAt,
     ),
+    userId: validated.profile.id,
+    username: validated.profile.username,
+  };
+  await writeThreadsSession(session, {
+    sessionPath: options.sessionPath ?? DEFAULT_THREADS_SESSION_PATH,
+  });
+  return { session, profile: validated.profile };
+}
+
+// Threads Tester tokens are issued directly by the App Dashboard, so there is
+// no authorization code to exchange and no redirect URI to register.
+async function adoptThreadsAccessToken(
+  accessToken: string,
+  options: ThreadsAuthOptions,
+): Promise<ReadyThreadsSession> {
+  const now = options.now?.() ?? Date.now();
+  const validated = await validateThreadsToken(accessToken, options, now);
+  const session: ThreadsSession = {
+    version: 1,
+    accessToken,
+    expiresAt: validated.expiresAt,
     userId: validated.profile.id,
     username: validated.profile.username,
   };

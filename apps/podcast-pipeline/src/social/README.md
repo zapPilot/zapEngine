@@ -22,7 +22,7 @@ This tool is not deployed with the podcast service. It does not add Telegram cal
 
 ## Prerequisites
 
-The repository root `.env` must contain the existing podcast credentials plus the Meta Threads app and local HTTPS callback configuration:
+The repository root `.env` must contain the existing podcast credentials plus the Meta Threads app configuration:
 
 ```bash
 OPENROUTER_API_KEY=...
@@ -30,26 +30,27 @@ SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
 THREADS_APP_ID=...
 THREADS_APP_SECRET=...
-THREADS_REDIRECT_URI=https://threads-local.test:8443/callback
-THREADS_TLS_CERT_PATH=/absolute/path/to/threads-local.test.pem
-THREADS_TLS_KEY_PATH=/absolute/path/to/threads-local.test-key.pem
+THREADS_ACCESS_TOKEN=...
 ```
 
-Do not set `THREADS_ACCESS_TOKEN`. `social:login` obtains and refreshes the user token through Meta OAuth, then stores the long-lived session outside the repository at `~/.zap-pilot/threads-session.json` with file mode `0600`. The token is never written to `.env` or printed.
+`THREADS_APP_ID` and `THREADS_APP_SECRET` are the **Threads** credentials in App settings → Basic, not the Meta app id and secret shown above them on the same page.
 
-### One-time Threads OAuth setup
+`THREADS_ACCESS_TOKEN` is the long-lived Threads Tester token issued by the App Dashboard's **User Token Generator**. `social:login` validates it through Meta's token debugger — both required permissions and its expiry — then stores the session outside the repository at `~/.zap-pilot/threads-session.json` with file mode `0600`. The token is never printed.
+
+### One-time Threads setup
 
 1. In [Meta for Developers](https://developers.facebook.com/apps/), create an app with the **Threads API** use case.
-2. Add the Threads account that will publish as an app tester, then sign in as that account and accept the tester invitation. Development-mode OAuth will reject an invited tester until the invitation is accepted.
-3. Enable the `threads_basic` and `threads_content_publish` permissions. Add this exact OAuth redirect URI to the app:
+2. Under the use case's **Permissions and features**, add `threads_content_publish` (`threads_basic` is granted with the use case).
+3. Add the publishing account under App roles → Roles → **More → Threads Testers**, then accept the invitation as that account in Threads under Settings → Account → **Website permissions**. The account stays `Pending` and cannot generate a token until the invitation is accepted.
+4. In the use case's **Settings**, use **User Token Generator** to generate a token for that account and put it in the repository root `.env` as `THREADS_ACCESS_TOKEN`. Do not commit it.
 
-   ```text
-   https://threads-local.test:8443/callback
-   ```
+### OAuth instead of a Tester token
 
-   The scheme, hostname, port, path, and lack of a trailing slash must match `THREADS_REDIRECT_URI` exactly.
+Leaving `THREADS_ACCESS_TOKEN` unset makes `social:login` run the OAuth authorization flow, which additionally needs `THREADS_REDIRECT_URI`, `THREADS_TLS_CERT_PATH`, and `THREADS_TLS_KEY_PATH`, plus a redirect callback URL registered on the Meta app that matches `THREADS_REDIRECT_URI` exactly — scheme, hostname, port, path, and no trailing slash. The App Dashboard's Threads settings form does not currently persist one: it omits the field from its save request and that request returns 404, so this flow is unusable until Meta fixes it.
 
-4. Install [mkcert](https://github.com/FiloSottile/mkcert), trust its local CA once, and create a certificate for the callback hostname. For example:
+The local HTTPS callback then needs:
+
+1. [mkcert](https://github.com/FiloSottile/mkcert) installed, its local CA trusted once, and a certificate for the callback hostname. For example:
 
    ```bash
    brew install mkcert
@@ -61,25 +62,25 @@ Do not set `THREADS_ACCESS_TOKEN`. `social:login` obtains and refreshes the user
      threads-local.test
    ```
 
-5. Add this hostname mapping to `/etc/hosts` (editing that file requires administrator access):
+2. This hostname mapping in `/etc/hosts` (editing that file requires administrator access):
 
    ```text
    127.0.0.1 threads-local.test
    ```
 
-6. Put the Meta app values, the exact redirect URI, and the **absolute** certificate/key paths in the repository root `.env`. Do not commit the app secret or TLS private key.
+3. The exact redirect URI and the **absolute** certificate/key paths in the repository root `.env`. Do not commit the TLS private key.
 
 Meta requires an HTTPS redirect and does not support `localhost` as the redirect hostname. The CLI validates this setup and explains missing configuration, but deliberately does not create a Meta app, edit `/etc/hosts`, install a local CA, or generate certificates.
 
-**X** uses OpenCLI, **Threads** uses Meta OAuth, and **Rednote** uses a dedicated Chrome profile at `~/.zap-pilot/rednote-chrome-profile`. After OpenCLI is installed and its Chrome extension is connected, use one command for all session checks:
+**X** uses OpenCLI, **Threads** uses the Threads HTTP API, and **Rednote** uses a dedicated Chrome profile at `~/.zap-pilot/rednote-chrome-profile`. After OpenCLI is installed and its Chrome extension is connected, use one command for all session checks:
 
 ```bash
 pnpm social:login
 ```
 
-The command skips platforms that are already ready. If X is logged out it starts `opencli twitter login`; if Rednote is logged out it opens the creator page and waits for login. For Threads it validates the saved token and both required permissions, refreshes a token within seven days of expiry, and otherwise opens `https://www.threads.com/oauth/authorize` to reauthorize. The local callback accepts only the configured path and matching OAuth `state`, and stops waiting after five minutes.
+The command skips platforms that are already ready. If X is logged out it starts `opencli twitter login`; if Rednote is logged out it opens the creator page and waits for login. For Threads it validates the saved token and both required permissions, and refreshes a token within seven days of expiry. When no usable session exists it adopts `THREADS_ACCESS_TOKEN`, or falls back to OAuth when that variable is unset — the local callback then accepts only the configured path and matching OAuth `state`, and stops waiting after five minutes.
 
-After authorization, the CLI verifies the token and permissions through Meta's token debugger, then resolves the account through `/me`. A token that can read the profile but lacks `threads_content_publish` is not reported as ready.
+Either way the CLI verifies the token and permissions through Meta's token debugger, then resolves the account through `/me`. A token that can read the profile but lacks `threads_content_publish` is not reported as ready.
 
 ## The normal run
 
