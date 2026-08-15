@@ -10,10 +10,10 @@ import {
 import {
   NATIVE_PRIVY_AUTH_COPY as IOS_PRIVY_AUTH_COPY,
   NATIVE_PRIVY_PROVIDER_CONFIG as IOS_PRIVY_PROVIDER_CONFIG,
-} from '@/integration/nativePrivyLogin.ios';
+} from '@/integration/nativePrivyConfig.ios';
 
 describe('native Privy login', () => {
-  it('uses the Privy-managed email flow without creating another wallet', async () => {
+  it('uses the Privy-managed email flow', async () => {
     const login = vi.fn().mockResolvedValue({ user: { id: 'privy-user' } });
 
     await loginWithPrivy(login);
