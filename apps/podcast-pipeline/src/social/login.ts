@@ -4,9 +4,15 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import dotenv from 'dotenv';
 
 import { isRednoteSessionReady, runRednoteLogin } from './rednote-login.js';
-import { ensureThreadsSession } from './threads-auth.js';
+import {
+  ensureThreadsSession,
+  THREADS_INSIGHTS_SCOPE,
+} from './threads-auth.js';
 import { isXSessionReady, runXLogin } from './x-playwright.js';
-import { ensureYouTubeSession } from './youtube-auth.js';
+import {
+  ensureYouTubeSession,
+  YOUTUBE_ANALYTICS_SCOPE,
+} from './youtube-auth.js';
 
 const REPO_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -44,7 +50,9 @@ export async function runSocialLogin(
   }
 
   try {
-    const { profile } = await ensureThreadsSession();
+    const { profile } = await ensureThreadsSession({
+      additionalScopes: [THREADS_INSIGHTS_SCOPE],
+    });
     log(`✓ Threads @${profile.username}`);
   } catch (error) {
     failures.push('Threads');
@@ -52,7 +60,9 @@ export async function runSocialLogin(
   }
 
   try {
-    await ensureYouTubeSession();
+    await ensureYouTubeSession({
+      additionalScopes: [YOUTUBE_ANALYTICS_SCOPE],
+    });
     log('✓ YouTube');
   } catch (error) {
     failures.push('YouTube');

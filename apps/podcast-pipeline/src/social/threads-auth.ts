@@ -25,6 +25,7 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const DEFAULT_CALLBACK_TIMEOUT_MS = 5 * 60_000;
 const REFRESH_WINDOW_MS = 7 * 24 * 60 * 60_000;
 const REQUIRED_SCOPES = ['threads_basic', 'threads_content_publish'] as const;
+export const THREADS_INSIGHTS_SCOPE = 'threads_manage_insights';
 
 export const DEFAULT_THREADS_SESSION_PATH = join(
   homedir(),
@@ -77,6 +78,7 @@ export interface ThreadsAuthOptions {
   createState?: () => string;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
+  additionalScopes?: readonly string[];
   now?: () => number;
   openBrowser?: (url: string) => Promise<void>;
   sessionPath?: string;
@@ -130,11 +132,12 @@ export function buildThreadsAuthorizationUrl(input: {
   appId: string;
   redirectUri: string;
   state: string;
+  scopes?: readonly string[];
 }): string {
   const url = new URL(AUTHORIZE_URL);
   url.searchParams.set('client_id', input.appId);
   url.searchParams.set('redirect_uri', input.redirectUri);
-  url.searchParams.set('scope', REQUIRED_SCOPES.join(','));
+  url.searchParams.set('scope', (input.scopes ?? REQUIRED_SCOPES).join(','));
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('state', input.state);
   return url.href;
@@ -376,6 +379,7 @@ async function authorizeThreadsSession(
     appId: config.appId,
     redirectUri: config.redirectUri,
     state,
+    scopes: requiredScopes(options),
   });
   const waitForCode =
     options.waitForAuthorizationCode ?? waitForThreadsAuthorizationCode;
@@ -579,7 +583,7 @@ async function validateThreadsToken(
   ) {
     throw new Error('Threads API returned an invalid token scope response.');
   }
-  const missingScopes = REQUIRED_SCOPES.filter(
+  const missingScopes = requiredScopes(options).filter(
     (required) => !scopes.includes(required),
   );
   if (missingScopes.length > 0) {
@@ -594,6 +598,12 @@ async function validateThreadsToken(
     fetchImpl,
   });
   return { expiresAt: expiresAtSeconds * 1_000, profile };
+}
+
+function requiredScopes(options: ThreadsAuthOptions): string[] {
+  return [
+    ...new Set([...REQUIRED_SCOPES, ...(options.additionalScopes ?? [])]),
+  ];
 }
 
 function parseLongLivedToken(

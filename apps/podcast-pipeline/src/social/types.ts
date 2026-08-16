@@ -41,6 +41,8 @@ export interface SocialContentFeatures {
   titleChars: number | null;
   bodyChars: number;
   hashtagCount: number;
+  /** True when a missing telemetry row was reconstructed from the live platform. */
+  telemetryRecovered?: boolean;
 }
 
 export interface SocialEpisode {

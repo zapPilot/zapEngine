@@ -21,10 +21,13 @@ vi.mock('./rednote-login.js', () => ({
 
 vi.mock('./threads-auth.js', () => ({
   ensureThreadsSession: mocks.ensureThreadsSession,
+  THREADS_INSIGHTS_SCOPE: 'threads_manage_insights',
 }));
 
 vi.mock('./youtube-auth.js', () => ({
   ensureYouTubeSession: mocks.ensureYouTubeSession,
+  YOUTUBE_ANALYTICS_SCOPE:
+    'https://www.googleapis.com/auth/yt-analytics.readonly',
 }));
 
 import { runSocialLogin } from './login.js';

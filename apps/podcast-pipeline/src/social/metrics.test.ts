@@ -303,9 +303,14 @@ describe('runSocialMetricsCli', () => {
         '--views',
         '1',
       ]);
-      expect(dbMocks.listSocialPostsByEpisode).toHaveBeenCalledWith(EPISODE_ID, 'x');
+      expect(dbMocks.listSocialPostsByEpisode).toHaveBeenCalledWith(
+        EPISODE_ID,
+        'x',
+      );
       expect(dbMocks.insertSocialPostMetric).toHaveBeenCalledOnce();
-      expect(log).toHaveBeenCalledWith(expect.stringContaining('Recorded X metrics'));
+      expect(log).toHaveBeenCalledWith(
+        expect.stringContaining('Recorded X metrics'),
+      );
     } finally {
       log.mockRestore();
     }
@@ -393,5 +398,76 @@ describe('runSocialMetricsCli', () => {
       ),
     ).rejects.toThrow('duplicate key');
     expect(deps.log).not.toHaveBeenCalled();
+  });
+
+  it('collects recent posts automatically when no arguments are given', async () => {
+    const recent = post({ published_at: '2026-08-14T00:00:00.000Z' });
+    const listRecentPosts = vi.fn().mockResolvedValue([recent]);
+    const insertMetric = vi.fn().mockResolvedValue({ id: 'metric-auto' });
+    const log = vi.fn();
+    const collectX = vi.fn().mockResolvedValue({
+      ...NO_COUNTS,
+      views: 321,
+      likes: 9,
+    });
+
+    await runSocialMetricsCli([], {
+      listRecentPosts,
+      insertMetric,
+      now: () => new Date('2026-08-16T00:00:00.000Z'),
+      log,
+      collectors: {
+        x: collectX,
+        threads: vi.fn(),
+        rednote: vi.fn(),
+        youtube: vi.fn(),
+      },
+    });
+
+    expect(listRecentPosts).toHaveBeenCalledWith('2026-08-09T00:00:00.000Z');
+    expect(collectX).toHaveBeenCalledWith(recent);
+    expect(insertMetric).toHaveBeenCalledWith(
+      expect.objectContaining({
+        socialPostId: POST_ID,
+        capturedAt: '2026-08-16T00:00:00.000Z',
+        views: 321,
+        likes: 9,
+      }),
+    );
+    expect(log).toHaveBeenCalledWith(
+      'Social metrics complete: 1 snapshot recorded.',
+    );
+  });
+
+  it('continues collecting other posts when one platform fails', async () => {
+    const xPost = post();
+    const threadsPost = post({
+      id: '00000000-0000-4000-8000-000000000002',
+      platform: 'threads',
+      platform_post_id: 'threads-1',
+    });
+    const insertMetric = vi.fn().mockResolvedValue({ id: 'metric-auto' });
+    const log = vi.fn();
+
+    await runSocialMetricsCli([], {
+      listRecentPosts: vi.fn().mockResolvedValue([threadsPost, xPost]),
+      insertMetric,
+      now: () => new Date('2026-08-16T00:00:00.000Z'),
+      log,
+      collectors: {
+        x: vi.fn().mockResolvedValue({ ...NO_COUNTS, views: 10 }),
+        threads: vi.fn().mockRejectedValue(new Error('permission missing')),
+        rednote: vi.fn(),
+        youtube: vi.fn(),
+      },
+    });
+
+    expect(insertMetric).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('permission missing'),
+    );
+    expect(log).toHaveBeenCalledWith(
+      'Social metrics complete: 1 snapshot recorded, 1 failed.',
+    );
   });
 });

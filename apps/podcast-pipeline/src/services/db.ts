@@ -642,6 +642,42 @@ export async function listSocialPostsByEpisode(
   return data ?? [];
 }
 
+export async function listRecentSocialPosts(
+  publishedSince: string,
+): Promise<SocialPostRow[]> {
+  const { data, error } = await getSupabase()
+    .from('social_posts')
+    .select('*')
+    .gte('published_at', publishedSince)
+    .order('published_at', { ascending: false })
+    .returns<SocialPostRow[]>();
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  return data ?? [];
+}
+
+export async function updateSocialPostIdentity(input: {
+  id: string;
+  platformPostId: string;
+  postUrl?: string | null;
+}): Promise<void> {
+  const { error } = await getSupabase()
+    .from('social_posts')
+    .update({
+      platform_post_id: input.platformPostId,
+      ...(input.postUrl !== undefined ? { post_url: input.postUrl } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', input.id);
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+}
+
 export async function getSocialPostById(
   id: string,
 ): Promise<SocialPostRow | null> {

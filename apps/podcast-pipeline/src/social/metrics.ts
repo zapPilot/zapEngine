@@ -7,11 +7,15 @@ import dotenv from 'dotenv';
 import {
   getSocialPostById,
   insertSocialPostMetric,
+  listRecentSocialPosts,
   listSocialPostsByEpisode,
+  updateSocialPostIdentity,
 } from '../services/db.js';
 import type { NewSocialPostMetric, SocialPostRow } from '../types.js';
 import { parsePlatformOption, requireEpisodeArgument } from './cli-args.js';
+import { createMetricCollectors } from './metric-collectors.js';
 import { platformLabel, SOCIAL_PLATFORMS } from './platforms.js';
+import { reconcileRecentSocialPosts } from './reconcile.js';
 import type { SocialPlatform } from './types.js';
 
 const REPO_ROOT = resolve(
@@ -21,12 +25,13 @@ const REPO_ROOT = resolve(
   '..',
   '..',
 );
-const USAGE = `Usage: pnpm social:metrics <episode-uuid-or-share-url> --platform ${SOCIAL_PLATFORMS.join('|')} [--post-id <uuid>] [--views N] [--impressions N] [--likes N] [--comments N] [--shares N] [--saves N] [--profile-visits N] [--followers-gained N]
+const AUTO_WINDOW_DAYS = 7;
+const USAGE = `Usage: pnpm social:metrics
+  pnpm social:metrics <episode-uuid-or-share-url> --platform ${SOCIAL_PLATFORMS.join('|')} [--post-id <uuid>] [--views N] [--impressions N] [--likes N] [--comments N] [--shares N] [--saves N] [--profile-visits N] [--followers-gained N]
 
-Every metric is optional; omit the ones the platform does not report. An omitted
-metric is stored as NULL, which stays distinguishable from a measured zero.
---followers-gained is a net delta and may be negative, which needs the equals
-form: --followers-gained=-3.`;
+With no arguments, metrics are collected automatically for social posts published
+in the last ${AUTO_WINDOW_DAYS} days. The explicit form remains available for manual recovery.
+Every manual metric is optional; omitted values are stored as NULL.`;
 
 dotenv.config({ path: resolve(REPO_ROOT, '.env') });
 
@@ -55,8 +60,12 @@ export interface SocialMetricsCliOptions {
 
 export interface SocialMetricsCliDependencies {
   listPosts?: typeof listSocialPostsByEpisode;
+  listRecentPosts?: typeof listRecentSocialPosts;
   getPost?: typeof getSocialPostById;
   insertMetric?: typeof insertSocialPostMetric;
+  updateIdentity?: typeof updateSocialPostIdentity;
+  collectors?: ReturnType<typeof createMetricCollectors>;
+  reconcileRecentPosts?: typeof reconcileRecentSocialPosts;
   now?: () => Date;
   log?: (message: string) => void;
 }
@@ -70,6 +79,19 @@ export async function runSocialMetricsCli(
   const insertMetric = dependencies.insertMetric ?? insertSocialPostMetric;
   const now = dependencies.now ?? (() => new Date());
   const log = dependencies.log ?? console.log;
+
+  if (args.length === 0) {
+    await runAutomaticSocialMetricsCollector({
+      now,
+      log,
+      listRecentPosts: dependencies.listRecentPosts,
+      insertMetric,
+      updateIdentity: dependencies.updateIdentity,
+      collectors: dependencies.collectors,
+      reconcileRecentPosts: dependencies.reconcileRecentPosts,
+    });
+    return;
+  }
 
   const options = parseMetricsCliOptions(args);
   const post = options.postId
@@ -87,6 +109,73 @@ export async function runSocialMetricsCli(
 
   await insertMetric(metric);
   log(formatMetricsSummary(post, metric));
+}
+
+export async function runAutomaticSocialMetricsCollector(input: {
+  now: () => Date;
+  log: (message: string) => void;
+  listRecentPosts?: typeof listRecentSocialPosts;
+  insertMetric: typeof insertSocialPostMetric;
+  updateIdentity?: typeof updateSocialPostIdentity;
+  collectors?: ReturnType<typeof createMetricCollectors>;
+  reconcileRecentPosts?: typeof reconcileRecentSocialPosts;
+}): Promise<void> {
+  const capturedAt = input.now();
+  const cutoff = new Date(
+    capturedAt.getTime() - AUTO_WINDOW_DAYS * 24 * 60 * 60 * 1_000,
+  ).toISOString();
+  const listedPosts = await (input.listRecentPosts ?? listRecentSocialPosts)(
+    cutoff,
+  );
+  const posts = input.reconcileRecentPosts
+    ? await input.reconcileRecentPosts({
+        posts: listedPosts,
+        publishedSince: cutoff,
+        log: input.log,
+      })
+    : listedPosts;
+  const updateIdentity = input.updateIdentity ?? updateSocialPostIdentity;
+  const collectors =
+    input.collectors ??
+    createMetricCollectors({
+      onRednoteIdentity: async ({ post, platformPostId, postUrl }) => {
+        await updateIdentity({ id: post.id, platformPostId, postUrl });
+      },
+    });
+
+  if (posts.length === 0) {
+    input.log(
+      `No social posts published in the last ${AUTO_WINDOW_DAYS} days.`,
+    );
+    return;
+  }
+
+  let recorded = 0;
+  let failed = 0;
+  for (const post of posts) {
+    try {
+      const counts = await collectors[post.platform](post);
+      if (Object.values(counts).every((value) => value === null)) {
+        input.log(
+          `- ${platformLabel(post.platform)} ${post.id}: no metrics available yet.`,
+        );
+        continue;
+      }
+      const metric = buildSocialPostMetric({ post, capturedAt, counts });
+      await input.insertMetric(metric);
+      input.log(formatMetricsSummary(post, metric));
+      recorded += 1;
+    } catch (error) {
+      failed += 1;
+      input.log(
+        `✗ ${platformLabel(post.platform)} ${post.id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  input.log(
+    `Social metrics complete: ${recorded} snapshot${recorded === 1 ? '' : 's'} recorded${failed ? `, ${failed} failed` : ''}.`,
+  );
 }
 
 export function parseMetricsCliOptions(
@@ -266,7 +355,9 @@ const invokedPath = process.argv[1]
   : null;
 if (invokedPath === import.meta.url) {
   try {
-    await runSocialMetricsCli(process.argv.slice(2));
+    await runSocialMetricsCli(process.argv.slice(2), {
+      reconcileRecentPosts: reconcileRecentSocialPosts,
+    });
   } catch (error: unknown) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

@@ -20,6 +20,8 @@ import {
 const AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const YOUTUBE_UPLOAD_SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
+export const YOUTUBE_ANALYTICS_SCOPE =
+  'https://www.googleapis.com/auth/yt-analytics.readonly';
 const DEFAULT_CALLBACK_TIMEOUT_MS = 5 * 60_000;
 const REFRESH_WINDOW_MS = 5 * 60_000;
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -58,6 +60,7 @@ export interface YouTubeAuthOptions {
   createState?: () => string;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
+  additionalScopes?: readonly string[];
   now?: () => number;
   openBrowser?: (url: string) => Promise<void>;
   sessionPath?: string;
@@ -79,12 +82,16 @@ export function buildYouTubeAuthorizationUrl(input: {
   clientId: string;
   redirectUri: string;
   state: string;
+  scopes?: readonly string[];
 }): string {
   const url = new URL(AUTHORIZE_URL);
   url.searchParams.set('client_id', input.clientId);
   url.searchParams.set('redirect_uri', input.redirectUri);
   url.searchParams.set('response_type', 'code');
-  url.searchParams.set('scope', YOUTUBE_UPLOAD_SCOPE);
+  url.searchParams.set(
+    'scope',
+    (input.scopes ?? [YOUTUBE_UPLOAD_SCOPE]).join(' '),
+  );
   url.searchParams.set('access_type', 'offline');
   url.searchParams.set('prompt', 'consent');
   url.searchParams.set('state', input.state);
@@ -149,6 +156,8 @@ export async function assertYouTubeSessionReady(
       'YouTube is not logged in. Run `pnpm social:login` first.',
     );
   }
+
+  assertRequiredScopes(session.scope, options);
 
   const now = options.now?.() ?? Date.now();
   if (session.expiresAt - now > REFRESH_WINDOW_MS) return session;
@@ -283,6 +292,7 @@ async function authorizeYouTubeSession(
         clientId: config.clientId,
         redirectUri: callbackUrl,
         state,
+        scopes: requiredScopes(options),
       });
       await openBrowser(authorizationUrl);
     },
@@ -310,9 +320,9 @@ async function authorizeYouTubeSession(
     accessToken: token.accessToken,
     refreshToken: token.refreshToken,
     expiresAt: now + token.expiresInSeconds * 1_000,
-    scope: token.scope ?? YOUTUBE_UPLOAD_SCOPE,
+    scope: token.scope ?? requiredScopes(options).join(' '),
   };
-  assertUploadScope(session.scope);
+  assertRequiredScopes(session.scope, options);
   await writeYouTubeSession(session, { sessionPath: options.sessionPath });
   return session;
 }
@@ -340,7 +350,7 @@ async function refreshYouTubeSession(
     expiresAt: now + token.expiresInSeconds * 1_000,
     scope: token.scope ?? session.scope,
   };
-  assertUploadScope(updated.scope);
+  assertRequiredScopes(updated.scope, options);
   await writeYouTubeSession(updated, { sessionPath: options.sessionPath });
   return updated;
 }
@@ -435,6 +445,28 @@ function assertUploadScope(scope: string): void {
   if (!scopes.has(YOUTUBE_UPLOAD_SCOPE)) {
     throw new YouTubeSessionInvalidError(
       'The YouTube session does not include the youtube.upload scope. Run `pnpm social:login` to reconnect it.',
+    );
+  }
+}
+
+function requiredScopes(options: YouTubeAuthOptions): string[] {
+  return [
+    ...new Set([YOUTUBE_UPLOAD_SCOPE, ...(options.additionalScopes ?? [])]),
+  ];
+}
+
+function assertRequiredScopes(
+  scope: string,
+  options: YouTubeAuthOptions,
+): void {
+  assertUploadScope(scope);
+  const scopes = new Set(scope.split(/\s+/u));
+  const missing = requiredScopes(options).filter(
+    (required) => !scopes.has(required),
+  );
+  if (missing.length > 0) {
+    throw new YouTubeSessionInvalidError(
+      `The YouTube session is missing required scopes: ${missing.join(', ')}. Run \`pnpm social:login\` to reconnect it.`,
     );
   }
 }
