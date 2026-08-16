@@ -12,26 +12,11 @@ const HEADLINE_KICKERS: Record<'zh-Hant' | 'ja' | 'en', string> = {
   en: 'CHAIN BRIEF',
 };
 
-export const OUTRO_TITLE = 'From Fed to Chain';
-
-const OUTRO_CALLS_TO_ACTION: Record<'zh-Hant' | 'ja' | 'en', string> = {
-  'zh-Hant': '訂閱・分享・留言',
-  ja: 'フォロー・シェア・コメント',
-  en: 'FOLLOW · SHARE · COMMENT',
-};
-
 export function headlineKickerFor(languageCode: string): string {
   if (languageCode === 'zh-Hant' || languageCode === 'ja') {
     return HEADLINE_KICKERS[languageCode];
   }
   return HEADLINE_KICKERS.en;
-}
-
-export function outroCallToActionFor(languageCode: string): string {
-  if (languageCode === 'zh-Hant' || languageCode === 'ja') {
-    return OUTRO_CALLS_TO_ACTION[languageCode];
-  }
-  return OUTRO_CALLS_TO_ACTION.en;
 }
 
 // Latin words stay whole so wrapping never splits inside a word; CJK glyphs

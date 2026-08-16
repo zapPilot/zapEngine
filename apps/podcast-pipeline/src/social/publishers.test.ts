@@ -1,18 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  assertXSessionReady: vi.fn(),
-  createOpenCliXPublisher: vi.fn(),
   createPlaywrightRednotePublisher: vi.fn(),
+  createPlaywrightXPublisher: vi.fn(),
   createThreadsPublisher: vi.fn(),
   publishRednote: vi.fn(),
   publishThreads: vi.fn(),
   publishX: vi.fn(),
 }));
 
-vi.mock('./opencli.js', () => ({
-  assertXSessionReady: mocks.assertXSessionReady,
-  createOpenCliXPublisher: mocks.createOpenCliXPublisher,
+vi.mock('./x-playwright.js', () => ({
+  createPlaywrightXPublisher: mocks.createPlaywrightXPublisher,
 }));
 
 vi.mock('./rednote-playwright.js', () => ({
@@ -26,8 +24,9 @@ vi.mock('./threads.js', () => ({
 import { createSocialPublishJobs } from './publishers.js';
 import type { GeneratedSocialCopy } from './types.js';
 
-const EPISODE_URL = 'https://example.com/e/episode-1';
+const VIDEO_URL = 'https://media.example.com/episode-1.mp4';
 const VIDEO_PATH = '/fixtures/episode-1.mp4';
+const X_VIDEO_PATH = '/fixtures/episode-1-x.mp4';
 const PUBLISHED = {
   status: 'published',
   publishedAt: '2026-08-15T00:00:00.000Z',
@@ -45,11 +44,12 @@ const copy: GeneratedSocialCopy = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.assertXSessionReady.mockResolvedValue(undefined);
   mocks.publishX.mockResolvedValue(PUBLISHED);
   mocks.publishThreads.mockResolvedValue(PUBLISHED);
   mocks.publishRednote.mockResolvedValue(PUBLISHED);
-  mocks.createOpenCliXPublisher.mockReturnValue({ publishX: mocks.publishX });
+  mocks.createPlaywrightXPublisher.mockReturnValue({
+    publishX: mocks.publishX,
+  });
   mocks.createThreadsPublisher.mockReturnValue({
     publishThreads: mocks.publishThreads,
   });
@@ -59,60 +59,54 @@ beforeEach(() => {
 });
 
 describe('createSocialPublishJobs', () => {
-  it('builds jobs in requested order and preflights X inside its job', async () => {
+  it('builds Threads and X jobs with their native video transports', async () => {
     const jobs = await createSocialPublishJobs({
       platforms: ['threads', 'x'],
       copy,
-      episodeUrl: EPISODE_URL,
+      videoUrl: VIDEO_URL,
+      xVideoPath: X_VIDEO_PATH,
     });
 
-    expect(mocks.assertXSessionReady).not.toHaveBeenCalled();
     expect(jobs.map((job) => job.platform)).toEqual(['threads', 'x']);
-
     await jobs[0]?.publish();
-    expect(mocks.assertXSessionReady).not.toHaveBeenCalled();
     await jobs[1]?.publish();
-    expect(mocks.assertXSessionReady).toHaveBeenCalledOnce();
+
     expect(mocks.publishThreads).toHaveBeenCalledWith({
       text: copy.x.text,
-      episodeUrl: EPISODE_URL,
+      videoUrl: VIDEO_URL,
     });
     expect(mocks.publishX).toHaveBeenCalledWith({
       text: copy.x.text,
-      episodeUrl: EPISODE_URL,
+      videoPath: X_VIDEO_PATH,
     });
   });
 
-  it('does not probe X when X is not selected', async () => {
+  it('does not instantiate X when X is not selected', async () => {
     await createSocialPublishJobs({
       platforms: ['threads'],
       copy,
-      episodeUrl: EPISODE_URL,
+      videoUrl: VIDEO_URL,
     });
 
-    expect(mocks.assertXSessionReady).not.toHaveBeenCalled();
-    expect(mocks.createOpenCliXPublisher).not.toHaveBeenCalled();
+    expect(mocks.createPlaywrightXPublisher).not.toHaveBeenCalled();
   });
 
-  it('keeps later platform jobs runnable when X readiness fails', async () => {
-    mocks.assertXSessionReady.mockRejectedValue(new Error('X is logged out'));
-    const jobs = await createSocialPublishJobs({
-      platforms: ['x', 'threads'],
-      copy,
-      episodeUrl: EPISODE_URL,
-    });
-
-    await expect(jobs[0]?.publish()).rejects.toThrow('X is logged out');
-    await expect(jobs[1]?.publish()).resolves.toEqual(PUBLISHED);
-    expect(mocks.publishX).not.toHaveBeenCalled();
-    expect(mocks.publishThreads).toHaveBeenCalledOnce();
+  it('rejects X before publishing when no teaser is prepared', async () => {
+    await expect(
+      createSocialPublishJobs({
+        platforms: ['x'],
+        copy,
+        videoUrl: VIDEO_URL,
+      }),
+    ).rejects.toThrow('X publishing requires a prepared teaser video.');
+    expect(mocks.createPlaywrightXPublisher).not.toHaveBeenCalled();
   });
 
-  it('builds Rednote with the prepared video', async () => {
+  it('builds Rednote with the prepared full video', async () => {
     const [job] = await createSocialPublishJobs({
       platforms: ['rednote'],
       copy,
-      episodeUrl: EPISODE_URL,
+      videoUrl: VIDEO_URL,
       videoPath: VIDEO_PATH,
     });
 
@@ -130,7 +124,7 @@ describe('createSocialPublishJobs', () => {
       createSocialPublishJobs({
         platforms: ['rednote'],
         copy,
-        episodeUrl: EPISODE_URL,
+        videoUrl: VIDEO_URL,
       }),
     ).rejects.toThrow('Rednote publishing requires a prepared video.');
 

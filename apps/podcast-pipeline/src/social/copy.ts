@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 import { z } from 'zod';
 
+import { SOCIAL_BRAND_CTA } from '../brand/cta.js';
 import {
   createOpenRouterChatCompletion,
   getOpenRouterConfig,
@@ -15,7 +16,7 @@ import {
   type SocialEpisode,
 } from './types.js';
 
-const X_TEXT_MAX_WEIGHTED_LENGTH = 250;
+const X_TOTAL_MAX_WEIGHTED_LENGTH = 280;
 const X_URL_WEIGHT = 23;
 const URL_PATTERN = /https?:\/\/[^\s]+/giu;
 const SINGLE_URL_PATTERN = /https?:\/\/[^\s]+/iu;
@@ -60,6 +61,9 @@ function isCjkCharacter(character: string): boolean {
   );
 }
 
+const X_TEXT_MAX_WEIGHTED_LENGTH =
+  X_TOTAL_MAX_WEIGHTED_LENGTH - weightedTweetLength(`\n\n${SOCIAL_BRAND_CTA}`);
+
 export function latinLetterRatio(value: string): number {
   const visible = value.replace(/\s/gu, '');
   if (visible.length === 0) return 0;
@@ -92,7 +96,7 @@ const XTextSchema = TraditionalChineseLine.superRefine((text, context) => {
     context.addIssue({
       code: 'custom',
       message:
-        'X text must not contain a URL; the episode share URL is appended automatically.',
+        'X text must not contain a URL; the fixed Zap Pilot CTA is appended automatically.',
     });
   }
 
@@ -101,7 +105,7 @@ const XTextSchema = TraditionalChineseLine.superRefine((text, context) => {
 
   context.addIssue({
     code: 'custom',
-    message: `X text is ${weightedLength} weighted units; the maximum is ${X_TEXT_MAX_WEIGHTED_LENGTH}.`,
+    message: `X text is ${weightedLength} weighted units; the maximum is ${X_TEXT_MAX_WEIGHTED_LENGTH}. The fixed CTA must still fit X's ${X_TOTAL_MAX_WEIGHTED_LENGTH}-unit limit.`,
   });
 });
 
@@ -111,9 +115,7 @@ const GeneratedSocialCopySchema = z
   .object({
     topic: z.enum(SOCIAL_TOPICS),
     hookType: z.enum(SOCIAL_HOOK_TYPES),
-    x: z.object({
-      text: XTextSchema,
-    }),
+    x: z.object({ text: XTextSchema }),
     rednote: z.object({
       title: TraditionalChineseLine.superRefine((title, context) => {
         const length = Array.from(title).length;
@@ -250,7 +252,7 @@ function buildSystemPrompt(
   xRules: string,
   rednoteRules: string,
 ): string {
-  return `${commonRules}\n\n## X rules\n${xRules}\n\n## Rednote rules\n${rednoteRules}\n\nReturn JSON only with exactly this shape:\n{\n  "topic": "one allowed topic",\n  "hookType": "one allowed hook type",\n  "x": { "text": "..." },\n  "rednote": {\n    "title": "...",\n    "body": "...",\n    "hashtags": ["tag without #", "..."]\n  }\n}\n\nAllowed topic values: ${SOCIAL_TOPICS.join(', ')}.\nAllowed hookType values: ${SOCIAL_HOOK_TYPES.join(', ')}.\n\nAll copy must be Traditional Chinese. X text must not contain a URL; the episode share URL is appended by the publisher. Rednote title must be at most 20 characters. Hashtags must contain 3 to 5 items without the # prefix.`;
+  return `${commonRules}\n\n## X rules\n${xRules}\n\n## Rednote rules\n${rednoteRules}\n\nReturn JSON only with exactly this shape:\n{\n  "topic": "one allowed topic",\n  "hookType": "one allowed hook type",\n  "x": { "text": "..." },\n  "rednote": {\n    "title": "...",\n    "body": "...",\n    "hashtags": ["tag without #", "..."]\n  }\n}\n\nAllowed topic values: ${SOCIAL_TOPICS.join(', ')}.\nAllowed hookType values: ${SOCIAL_HOOK_TYPES.join(', ')}.\n\nAll copy must be Traditional Chinese. X text must not contain a URL or closing CTA; the fixed Zap Pilot website CTA is appended by the publisher. Rednote title must be at most 20 characters. Hashtags must contain 3 to 5 items without the # prefix.`;
 }
 
 function buildEpisodePrompt(

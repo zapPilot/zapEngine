@@ -74,12 +74,12 @@ export interface GeneratedSocialCopy {
 
 export interface XPublishInput {
   text: string;
-  episodeUrl: string;
+  videoPath: string;
 }
 
 export interface ThreadsPublishInput {
   text: string;
-  episodeUrl: string;
+  videoUrl: string;
 }
 
 export interface RednotePublishInput {
