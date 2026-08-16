@@ -121,6 +121,15 @@ describe('bootstrap', () => {
     expect(stop).toHaveBeenCalledTimes(1);
   });
 
+  it('creates the default Hono app when bootstrap is called without an app', async () => {
+    const { bootstrap } = await import('./index.js');
+    const handle = bootstrap({ renderCapacity: null });
+
+    expect(handle.app).toBeDefined();
+    expect(handle.videoWorker).toBeNull();
+    await handle.shutdown();
+  });
+
   it('does not render video by default — the render Fly process group owns that', async () => {
     const { bootstrap } = await import('./index.js');
     const { createVideoWorker } = await import('./services/video-worker.js');
@@ -165,6 +174,22 @@ describe('bootstrap', () => {
 
     await handle.shutdown('SIGTERM');
     expect(renderCapacity.stop).toHaveBeenCalled();
+  });
+
+  it('uses lazy default processors when the render worker is enabled without overrides', async () => {
+    const { bootstrap } = await import('./index.js');
+    const { createVideoWorker } = await import('./services/video-worker.js');
+    const handle = bootstrap({
+      app: { fetch: vi.fn() } as unknown as Hono,
+      startVideoWorker: true,
+      renderCapacity: null,
+    });
+
+    expect(createVideoWorker).toHaveBeenCalledWith({
+      processJob: expect.any(Function),
+      processVisualJob: expect.any(Function),
+    });
+    await handle.shutdown();
   });
 
   it('wires both the shared visual and localization processors into the worker', async () => {

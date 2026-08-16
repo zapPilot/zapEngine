@@ -89,6 +89,27 @@ describe('startVideoWorkerProcess', () => {
     expect(logger.info).toHaveBeenCalledTimes(2);
   });
 
+  it('uses the default console logger when none is injected', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const { handle } = makeHarness({ logger: undefined });
+
+    expect(info).toHaveBeenCalledWith(expect.stringContaining('[video-worker]'));
+    await handle.shutdown('logger test');
+    info.mockRestore();
+  });
+
+  it('explains when configured on-demand mode is explicitly disabled by the caller', async () => {
+    vi.stubEnv('PIPELINE_RENDER_ON_DEMAND', 'true');
+    vi.stubEnv('PIPELINE_FLY_API_TOKEN', 'test-token');
+    vi.stubEnv('FLY_APP_NAME', 'podcast-test');
+    const { logger } = makeHarness({ onDemand: false });
+
+    expect(logger.info).toHaveBeenCalledWith(
+      '[video-worker] always-on: disabled by caller',
+    );
+    vi.unstubAllEnvs();
+  });
+
   it('stays alive on an empty queue when on-demand mode is off', async () => {
     vi.useFakeTimers();
     const { exit, videoWorker, poll, logger } = makeHarness({

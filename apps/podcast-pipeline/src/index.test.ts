@@ -1464,6 +1464,95 @@ describe('POST /telegram/webhook', () => {
     );
   });
 
+  it('ignores retry callbacks from disallowed users or unrelated callback actions', async () => {
+    for (const callbackQuery of [
+      {
+        id: 'callback-disallowed',
+        data: 'retry_ingest',
+        from: { id: 99999 },
+        message: {
+          chat: { id: 67890 },
+          text: 'URL: https://example.com/article',
+        },
+      },
+      {
+        id: 'callback-other-action',
+        data: 'other_action',
+        from: { id: 12345 },
+        message: {
+          chat: { id: 67890 },
+          text: 'URL: https://example.com/article',
+        },
+      },
+    ]) {
+      const response = await postTelegramUpdate({
+        update_id: 1,
+        callback_query: callbackQuery,
+      });
+      expect(response.status).toBe(200);
+    }
+    expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
+  });
+
+  it('ignores retry callbacks whose required fields have invalid shapes', async () => {
+    const response = await postTelegramUpdate({
+      update_id: 1,
+      callback_query: {
+        id: 'callback-invalid-chat',
+        data: 'retry_ingest',
+        from: { id: 12345 },
+        message: {
+          chat: { id: { nested: true } },
+          text: 'URL: https://example.com/article',
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
+  });
+
+  it('accepts a string chat id on a valid retry callback', async () => {
+    const response = await postTelegramUpdate({
+      update_id: 1,
+      callback_query: {
+        id: 'callback-string-chat',
+        data: 'retry_ingest',
+        from: { id: 12345 },
+        message: {
+          chat: { id: '67890' },
+          text: 'URL: https://example.com/article',
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() =>
+      expect(mockFindEpisodeBySourceUrl).toHaveBeenCalledWith(
+        'https://example.com/article',
+      ),
+    );
+  });
+
+  it('answers a retry callback whose failure message no longer contains a source URL', async () => {
+    const response = await postTelegramUpdate({
+      update_id: 1,
+      callback_query: {
+        id: 'callback-no-url',
+        data: 'retry_ingest',
+        from: { id: 12345 },
+        message: {
+          chat: { id: 67890 },
+          text: '❌ 失敗，但沒有 URL 欄位',
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(1));
+    expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
+  });
+
   it('prompts when the message does not contain an http URL', async () => {
     const response = await postTelegramUpdate(
       telegramUpdate({ text: 'hello' }),
@@ -2160,6 +2249,26 @@ describe('GET /episodes/:localizationId', () => {
       video,
       videoGeneration,
     });
+  });
+
+  it('defaults a missing generation summary to null even when a video summary row exists', async () => {
+    const row = listRow();
+    const video = {
+      url: 'https://cdn.example.com/video.mp4',
+      thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
+      durationSeconds: 90,
+    };
+    mockFindEpisodeListRowByLocalizationId.mockResolvedValue(row);
+    mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(
+      new Map([[row.localization_id, { video } as never]]),
+    );
+
+    const response = await app.request(`/episodes/${row.localization_id}`);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.video).toEqual(video);
+    expect(body.videoGeneration).toBeNull();
   });
 
   it('returns 404 for a missing localization with no language fallback requested', async () => {

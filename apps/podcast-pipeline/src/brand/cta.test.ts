@@ -16,6 +16,7 @@ describe('Zap Pilot brand CTA', () => {
     expect(appendBrandCta('市場更新')).toBe(
       '市場更新\n\n官網 https://www.zap-pilot.org',
     );
+    expect(appendBrandCta('   ')).toBe('官網 https://www.zap-pilot.org');
   });
 
   it('localizes the video headline while preserving the same destination', () => {
