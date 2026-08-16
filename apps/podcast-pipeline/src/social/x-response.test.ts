@@ -62,6 +62,7 @@ describe('X CreateTweet response parsing', () => {
     expect(
       extractCreatedTweetId({ errors: [{ message: 'failed' }] }),
     ).toBeNull();
+    expect(extractCreatedTweetId([])).toBeNull();
     expect(extractCreatedTweetId(null)).toBeNull();
   });
 });
