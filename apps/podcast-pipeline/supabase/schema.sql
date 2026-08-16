@@ -249,8 +249,8 @@ create table if not exists from_fed_to_chain.social_posts (
   -- Hashtags as actually published. Only Rednote has a hashtag field; inline
   -- X hashtags live inside the body text.
   hashtags text[] not null default '{}',
-  -- Set only when the post itself carried the video (Rednote). X and Threads
-  -- publish a link whose target page has the video, so they stay null.
+  -- Duration of the media actually delivered to the platform. Rednote always
+  -- carries video; X and Threads allow NULL for legacy/text-only rows.
   video_duration_sec double precision,
   content_features jsonb not null default '{}'::jsonb,
   llm_model text,
@@ -288,7 +288,10 @@ create table if not exists from_fed_to_chain.social_posts (
     )
     or (
       platform <> 'rednote'
-      and video_duration_sec is null
+      and (
+        video_duration_sec is null
+        or video_duration_sec > 0
+      )
     )
   )
 );

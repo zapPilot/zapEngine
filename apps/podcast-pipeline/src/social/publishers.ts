@@ -1,44 +1,56 @@
-import { assertXSessionReady, createOpenCliXPublisher } from './opencli.js';
 import { createPlaywrightRednotePublisher } from './rednote-playwright.js';
 import { createThreadsPublisher } from './threads.js';
+import { prepareThreadsVideoUrl } from './threads-video.js';
 import type {
   GeneratedSocialCopy,
   SocialPlatform,
   SocialPublishJob,
 } from './types.js';
+import { createPlaywrightXPublisher } from './x-playwright.js';
 
 export async function createSocialPublishJobs(input: {
   platforms: readonly SocialPlatform[];
   copy: GeneratedSocialCopy;
-  episodeUrl: string;
+  videoUrl: string;
   videoPath?: string;
+  xVideoPath?: string;
   onLog?: (message: string) => void;
 }): Promise<SocialPublishJob[]> {
   const jobs: SocialPublishJob[] = [];
   for (const platform of input.platforms) {
     switch (platform) {
       case 'x': {
-        const publisher = createOpenCliXPublisher({ onLog: input.onLog });
+        const videoPath = input.xVideoPath;
+        if (!videoPath) {
+          throw new Error('X publishing requires a prepared teaser video.');
+        }
+        const publisher = createPlaywrightXPublisher({ onLog: input.onLog });
         jobs.push({
           platform,
-          publish: async () => {
-            await assertXSessionReady();
-            return publisher.publishX({
+          publish: () =>
+            publisher.publishX({
               text: input.copy.x.text,
-              episodeUrl: input.episodeUrl,
-            });
-          },
+              videoPath,
+            }),
         });
         break;
       }
       case 'threads': {
-        const publisher = createThreadsPublisher({ onLog: input.onLog });
+        const publisher = createThreadsPublisher({
+          onLog: input.onLog,
+          prepareVideoUrl: (videoUrl) =>
+            prepareThreadsVideoUrl(videoUrl, {
+              ...(input.xVideoPath
+                ? { preparedVideoPath: input.xVideoPath }
+                : {}),
+            }),
+        });
         jobs.push({
           platform,
           publish: () =>
             publisher.publishThreads({
               text: input.copy.x.text,
-              episodeUrl: input.episodeUrl,
+              videoUrl: input.videoUrl,
             }),
         });
         break;

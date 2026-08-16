@@ -1,10 +1,6 @@
+import { videoBrandCtaFor } from '../../../brand/cta.js';
 import type { CanonicalAudioTiming } from '../audio-analysis.js';
-import {
-  headlineKickerFor,
-  OUTRO_TITLE,
-  outroCallToActionFor,
-  wrapHeadlineTitle,
-} from '../headline.js';
+import { headlineKickerFor, wrapHeadlineTitle } from '../headline.js';
 import {
   MEDIA_WINDOW,
   OUTPUT_FPS,
@@ -103,6 +99,7 @@ export function materializeLocaleVideoManifest(
     OUTPUT_FPS,
     PREFERRED_TRANSITION_MS,
   );
+  const outro = videoBrandCtaFor(input.episode.languageCode);
 
   return parseVerticalVideoManifest({
     schemaVersion: VERTICAL_VIDEO_SCHEMA_VERSION,
@@ -128,8 +125,7 @@ export function materializeLocaleVideoManifest(
     bgm: { trackId: pickBgmTrack(input.episode.id), gainDb: BGM_MIX_GAIN_DB },
     outro: {
       startMs: input.timing.durationMs,
-      title: OUTRO_TITLE,
-      callToAction: outroCallToActionFor(input.episode.languageCode),
+      ...outro,
     },
     slides,
     captions: input.timing.captions,

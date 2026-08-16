@@ -6,6 +6,7 @@ import type {
   SocialContentFeatures,
   SocialPlatform,
 } from './types.js';
+import { xTeaserDurationSeconds } from './video.js';
 
 const QUESTION_PATTERN = /[?？]/u;
 const NUMBER_PATTERN = /[0-9０-９]/u;
@@ -42,11 +43,13 @@ export function buildSocialPostRecord(input: {
   result: PublishResult;
   snapshot: SocialCopySnapshot;
   videoDurationSeconds: number;
+  xVideoDurationSeconds?: number;
 }): NewSocialPost {
   const projection = projectPlatformCopy(
     input.platform,
     input.snapshot,
     input.videoDurationSeconds,
+    input.xVideoDurationSeconds,
   );
 
   return {
@@ -64,13 +67,11 @@ export function buildSocialPostRecord(input: {
     publishedBody: projection.publishedBody,
     hashtags: projection.hashtags,
     videoDurationSec: projection.videoDurationSec,
-    contentFeatures: {
-      ...buildContentFeatures({
-        title: projection.publishedTitle,
-        body: projection.publishedBody,
-        hashtags: projection.hashtags,
-      }),
-    },
+    contentFeatures: buildContentFeatures({
+      title: projection.publishedTitle,
+      body: projection.publishedBody,
+      hashtags: projection.hashtags,
+    }),
     llmModel: input.snapshot.model,
   };
 }
@@ -79,6 +80,7 @@ export function createSocialPostPersister(input: {
   episodeId: string;
   snapshot: SocialCopySnapshot;
   videoDurationSeconds: number;
+  xVideoDurationSeconds?: number;
   insert?: (post: NewSocialPost) => Promise<SocialPostRow>;
   onError?: (message: string) => void;
 }): (published: PublishedSocialPost) => Promise<void> {
@@ -92,6 +94,9 @@ export function createSocialPostPersister(input: {
       result,
       snapshot: input.snapshot,
       videoDurationSeconds: input.videoDurationSeconds,
+      ...(input.xVideoDurationSeconds !== undefined
+        ? { xVideoDurationSeconds: input.xVideoDurationSeconds }
+        : {}),
     });
 
     try {
@@ -110,6 +115,7 @@ function projectPlatformCopy(
   platform: SocialPlatform,
   snapshot: SocialCopySnapshot,
   videoDurationSeconds: number,
+  xVideoDurationSeconds?: number,
 ) {
   if (platform === 'rednote') {
     return {
@@ -122,12 +128,16 @@ function projectPlatformCopy(
     };
   }
 
+  const teaserDuration = xTeaserDurationSeconds(videoDurationSeconds);
   return {
     generatedTitle: null,
     publishedTitle: null,
     generatedBody: snapshot.generated.x.text,
     publishedBody: snapshot.published.x.text,
     hashtags: [],
-    videoDurationSec: null,
+    videoDurationSec:
+      platform === 'x'
+        ? (xVideoDurationSeconds ?? teaserDuration)
+        : teaserDuration,
   };
 }
