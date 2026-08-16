@@ -197,7 +197,9 @@ async function publishedTweetIdentity(
 
   const postId = extractCreatedTweetId(body);
   if (!postId) {
-    throw new Error('X CreateTweet response did not contain the created post id.');
+    throw new Error(
+      'X CreateTweet response did not contain the created post id.',
+    );
   }
 
   return {

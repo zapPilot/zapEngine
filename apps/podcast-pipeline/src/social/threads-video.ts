@@ -186,6 +186,7 @@ async function isNonemptyFile(path: string): Promise<boolean> {
   return Boolean(file?.isFile() && file.size > 0);
 }
 
+// jscpd:ignore-start — URL validation intentionally mirrors the API boundary guard in threads.ts.
 function requirePublicHttpsUrl(rawValue: string): URL {
   let url: URL;
   try {
@@ -200,7 +201,9 @@ function requirePublicHttpsUrl(rawValue: string): URL {
   }
   return url;
 }
+// jscpd:ignore-end
 
+// jscpd:ignore-start — keep the small social upload boundary local instead of coupling it to video storage manifests.
 async function uploadVideoToR2(input: {
   path: string;
   key: string;
@@ -229,5 +232,6 @@ async function uploadVideoToR2(input: {
   });
   await upload.done();
 }
+// jscpd:ignore-end
 
 export { THREADS_TEASER_SECONDS };

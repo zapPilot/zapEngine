@@ -44,6 +44,8 @@ describe('X CreateTweet success detection', () => {
       }),
     ).toBe('987654321');
     expect(extractCreatedTweetId({ rest_id: 'not-an-id' })).toBeNull();
-    expect(extractCreatedTweetId({ errors: [{ message: 'failed' }] })).toBeNull();
+    expect(
+      extractCreatedTweetId({ errors: [{ message: 'failed' }] }),
+    ).toBeNull();
   });
 });

@@ -30,7 +30,9 @@ describe('prepareThreadsVideoUrl', () => {
     const directory = await tempDirectory();
     const teaserPath = join(directory, 'x-teaser.mp4');
     await writeFile(teaserPath, 'video');
-    const uploadVideo = vi.fn(async () => undefined);
+    const uploadVideo = vi.fn(
+      async (_input: { path: string; key: string }) => undefined,
+    );
 
     const url = await prepareThreadsVideoUrl(
       'https://media.example.com/episodes/episode-1/video.mp4',
@@ -43,13 +45,12 @@ describe('prepareThreadsVideoUrl', () => {
     );
 
     expect(uploadVideo).toHaveBeenCalledTimes(1);
-    expect(uploadVideo.mock.calls[0]?.[0]).toMatchObject({ path: teaserPath });
-    expect(uploadVideo.mock.calls[0]?.[0].key).toMatch(
+    const uploaded = uploadVideo.mock.calls[0]?.[0];
+    expect(uploaded).toMatchObject({ path: teaserPath });
+    expect(uploaded?.key).toMatch(
       /^social\/threads\/[a-f0-9]{24}\/v1\/video\.mp4$/,
     );
-    expect(url).toBe(
-      `https://cdn.example.com/${uploadVideo.mock.calls[0]?.[0].key}`,
-    );
+    expect(url).toBe(`https://cdn.example.com/${uploaded?.key}`);
   });
 
   it('downloads and renders a bounded teaser when Threads is published without X', async () => {
@@ -60,7 +61,9 @@ describe('prepareThreadsVideoUrl', () => {
       await writeFile(outputPath, 'rendered');
       return { stdout: '', stderr: '' };
     });
-    const uploadVideo = vi.fn(async () => undefined);
+    const uploadVideo = vi.fn(
+      async (_input: { path: string; key: string }) => undefined,
+    );
     const fetchImpl = vi.fn(
       async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 }),
     );
@@ -69,7 +72,7 @@ describe('prepareThreadsVideoUrl', () => {
       'https://media.example.com/episodes/episode-2/video.mp4',
       {
         tempDir: directory,
-        fetchImpl: fetchImpl as typeof fetch,
+        fetchImpl,
         processRunner,
         ffmpegPath: '/fake/ffmpeg',
         uploadVideo,
@@ -80,7 +83,7 @@ describe('prepareThreadsVideoUrl', () => {
       'https://media.example.com/episodes/episode-2/video.mp4',
       {
         tempDir: directory,
-        fetchImpl: fetchImpl as typeof fetch,
+        fetchImpl,
         processRunner,
         ffmpegPath: '/fake/ffmpeg',
         uploadVideo,
