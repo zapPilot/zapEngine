@@ -115,6 +115,109 @@ describe('YouTube publisher', () => {
       /YOUTUBE_PUBLISH_FAILED[\s\S]+Step: create_upload_session[\s\S]+quota exceeded/u,
     );
   });
+
+  it('fails the upload-session step when Google omits the resumable location', async () => {
+    const videoPath = await fixtureVideo();
+    const publisher = createYouTubePublisher({
+      fetchImpl: vi.fn<typeof fetch>(
+        async () => new Response(null, { status: 200 }),
+      ),
+    });
+
+    await expect(
+      publisher.publishYouTube({
+        title: '市場更新',
+        description: '今天的市場重點',
+        videoPath,
+        privacyStatus: 'public',
+      }),
+    ).rejects.toThrow(
+      /YOUTUBE_PUBLISH_FAILED[\s\S]+Step: create_upload_session[\s\S]+did not return a resumable upload URL/u,
+    );
+  });
+
+  it('names video-upload failures and preserves plain-text API errors', async () => {
+    const videoPath = await fixtureVideo();
+    const onLog = vi.fn();
+    let requestCount = 0;
+    const publisher = createYouTubePublisher({
+      onLog,
+      fetchImpl: vi.fn<typeof fetch>(async () => {
+        requestCount += 1;
+        if (requestCount === 1) {
+          return new Response(null, {
+            status: 200,
+            headers: { location: 'https://upload.example/session-2' },
+          });
+        }
+        return new Response('upstream upload failed', { status: 503 });
+      }),
+    });
+
+    await expect(
+      publisher.publishYouTube({
+        title: '市場更新',
+        description: '今天的市場重點',
+        videoPath,
+        privacyStatus: 'public',
+      }),
+    ).rejects.toThrow(
+      /YOUTUBE_PUBLISH_FAILED[\s\S]+Step: upload_video[\s\S]+YouTube API 503: upstream upload failed/u,
+    );
+    expect(onLog).toHaveBeenCalledWith('[youtube] Uploading video');
+  });
+
+  it('rejects a successful upload response that has no video id', async () => {
+    const videoPath = await fixtureVideo();
+    let requestCount = 0;
+    const publisher = createYouTubePublisher({
+      fetchImpl: vi.fn<typeof fetch>(async () => {
+        requestCount += 1;
+        if (requestCount === 1) {
+          return new Response(null, {
+            status: 200,
+            headers: { location: 'https://upload.example/session-3' },
+          });
+        }
+        return new Response(JSON.stringify({ id: '   ' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }),
+    });
+
+    await expect(
+      publisher.publishYouTube({
+        title: '市場更新',
+        description: '今天的市場重點',
+        videoPath,
+        privacyStatus: 'public',
+      }),
+    ).rejects.toThrow(
+      /YOUTUBE_PUBLISH_FAILED[\s\S]+Step: upload_video[\s\S]+did not include a video id/u,
+    );
+  });
+
+  it('uses the generic HTTP failure when the API body is empty', async () => {
+    const videoPath = await fixtureVideo();
+    const publisher = createYouTubePublisher({
+      fetchImpl: vi.fn<typeof fetch>(
+        async () =>
+          new Response(null, {
+            status: 500,
+          }),
+      ),
+    });
+
+    await expect(
+      publisher.publishYouTube({
+        title: '市場更新',
+        description: '今天的市場重點',
+        videoPath,
+        privacyStatus: 'public',
+      }),
+    ).rejects.toThrow('YouTube API request failed with HTTP 500');
+  });
 });
 
 async function fixtureVideo(): Promise<string> {

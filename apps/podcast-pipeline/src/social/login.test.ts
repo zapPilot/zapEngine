@@ -112,4 +112,50 @@ describe('runSocialLogin', () => {
       '✗ X: X login finished but the publisher is still not authenticated.',
     );
   });
+
+  it('reports a YouTube failure and still checks Rednote', async () => {
+    const log = vi.fn();
+    mocks.ensureYouTubeSession.mockRejectedValue(new Error('OAuth revoked'));
+
+    await expect(runSocialLogin(log)).rejects.toThrow(
+      'Social login incomplete: YouTube.',
+    );
+
+    expect(mocks.isRednoteSessionReady).toHaveBeenCalledOnce();
+    expect(log).toHaveBeenCalledWith('✗ YouTube: OAuth revoked');
+    expect(log).toHaveBeenCalledWith('✓ Rednote');
+  });
+
+  it('reports a Rednote login failure without hiding earlier platform success', async () => {
+    const log = vi.fn();
+    mocks.isRednoteSessionReady.mockResolvedValue(false);
+    mocks.runRednoteLogin.mockRejectedValue(new Error('Chrome closed'));
+
+    await expect(runSocialLogin(log)).rejects.toThrow(
+      'Social login incomplete: Rednote.',
+    );
+
+    expect(log).toHaveBeenCalledWith('✓ X');
+    expect(log).toHaveBeenCalledWith('✓ Threads @zap');
+    expect(log).toHaveBeenCalledWith('✓ YouTube');
+    expect(log).toHaveBeenCalledWith('✗ Rednote: Chrome closed');
+  });
+
+  it('aggregates independent failures and renders non-Error reasons', async () => {
+    const log = vi.fn();
+    mocks.isXSessionReady.mockResolvedValue(false);
+    mocks.runXLogin.mockRejectedValue('browser unavailable');
+    mocks.ensureThreadsSession.mockRejectedValue(new Error('threads down'));
+    mocks.ensureYouTubeSession.mockRejectedValue(new Error('youtube down'));
+    mocks.isRednoteSessionReady.mockRejectedValue(new Error('rednote down'));
+
+    await expect(runSocialLogin(log)).rejects.toThrow(
+      'Social login incomplete: X, Threads, YouTube, Rednote.',
+    );
+
+    expect(log).toHaveBeenCalledWith('✗ X: browser unavailable');
+    expect(log).toHaveBeenCalledWith('✗ Threads: threads down');
+    expect(log).toHaveBeenCalledWith('✗ YouTube: youtube down');
+    expect(log).toHaveBeenCalledWith('✗ Rednote: rednote down');
+  });
 });

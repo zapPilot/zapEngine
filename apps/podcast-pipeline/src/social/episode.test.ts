@@ -126,9 +126,87 @@ describe('buildSocialEpisode', () => {
       }),
     ).toThrow('has no completed zh transcript');
   });
+
+  it('bounds long social summaries without truncating the transcript', () => {
+    const longText = `摘要 ${'市場 '.repeat(400)}`;
+    const result = buildSocialEpisode({
+      episode,
+      localization: {
+        ...localization,
+        raw_text: longText,
+        script: `完整講稿 ${'內容 '.repeat(300)}`,
+      },
+      video: {
+        url: 'https://cdn.example/video.mp4',
+        thumbnailUrl: 'https://cdn.example/thumbnail.jpg',
+        durationSeconds: 173,
+      },
+    });
+
+    expect(result.summary).toHaveLength(800);
+    expect(result.summary.endsWith('...')).toBe(true);
+    expect(result.transcript.length).toBeGreaterThan(800);
+  });
 });
 
 describe('getSocialEpisode', () => {
+  it('fails when the episode does not exist', async () => {
+    await expect(getSocialEpisode(EPISODE_ID)).rejects.toThrow(
+      `Episode ${EPISODE_ID} not found.`,
+    );
+    expect(dbMocks.findEpisodeLocalizationByEpisodeId).not.toHaveBeenCalled();
+  });
+
+  it('fails when the canonical localization is not completed', async () => {
+    dbMocks.findEpisodeById.mockResolvedValue({
+      id: EPISODE_ID,
+      source_url: 'https://example.com/article',
+      source_title: 'Source title',
+      created_at: '2026-08-11T00:00:00.000Z',
+      listened: false,
+    });
+    dbMocks.findEpisodeLocalizationByEpisodeId.mockResolvedValue({
+      id: 'localization-1',
+      episode_id: EPISODE_ID,
+      language_code: 'zh-Hant',
+      title: '真正的標題',
+      raw_text: '來源文章內容',
+      script: '完整 podcast 講稿',
+      status: 'audio_generated',
+    });
+
+    await expect(getSocialEpisode(EPISODE_ID)).rejects.toThrow(
+      `No completed zh localization found for episode ${EPISODE_ID}`,
+    );
+    expect(
+      dbMocks.listEpisodeVideoSummariesByLocalizationIds,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when a completed localization has no completed video summary', async () => {
+    const localizationId = '996ff642-9a48-4b73-a1e2-a61f40668960';
+    dbMocks.findEpisodeById.mockResolvedValue({
+      id: EPISODE_ID,
+      source_url: 'https://example.com/article',
+      source_title: 'Source title',
+      created_at: '2026-08-11T00:00:00.000Z',
+      listened: false,
+    });
+    dbMocks.findEpisodeLocalizationByEpisodeId.mockResolvedValue({
+      id: localizationId,
+      episode_id: EPISODE_ID,
+      language_code: 'zh-Hant',
+      title: '真正的標題',
+      raw_text: '來源文章內容',
+      script: '完整 podcast 講稿',
+      status: 'completed',
+    });
+
+    await expect(getSocialEpisode(EPISODE_ID)).rejects.toThrow(
+      `No completed zh video found for episode ${EPISODE_ID}`,
+    );
+  });
+
   it('composes the existing DB helpers into the social episode', async () => {
     const localizationId = '996ff642-9a48-4b73-a1e2-a61f40668960';
     dbMocks.findEpisodeById.mockResolvedValue({

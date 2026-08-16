@@ -1,4 +1,4 @@
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -47,5 +47,23 @@ describe('social publish state', () => {
     state = await readPublishState(path);
     expect(getPublishedPlatform(state, 'episode-1', 'x')).toBeDefined();
     expect(getPublishedPlatform(state, 'episode-1', 'rednote')).toBeDefined();
+  });
+
+  it('rejects non-object persisted state', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'social-state-invalid-'));
+    const path = join(directory, 'state.json');
+    await writeFile(path, '[]', 'utf8');
+
+    await expect(readPublishState(path)).rejects.toThrow(
+      `Invalid social publisher state at ${path}.`,
+    );
+  });
+
+  it('surfaces malformed JSON instead of silently resetting publish history', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'social-state-malformed-'));
+    const path = join(directory, 'state.json');
+    await writeFile(path, '{broken', 'utf8');
+
+    await expect(readPublishState(path)).rejects.toBeInstanceOf(SyntaxError);
   });
 });

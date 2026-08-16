@@ -109,4 +109,76 @@ describe('prepareThreadsVideoUrl', () => {
       }),
     ).rejects.toThrow('valid public HTTPS URL');
   });
+
+  it('rejects malformed source URLs before touching the network', async () => {
+    await expect(
+      prepareThreadsVideoUrl('not a url', {
+        publicBaseUrl: 'https://cdn.example.com',
+        uploadVideo: async () => undefined,
+      }),
+    ).rejects.toThrow('valid public HTTPS URL');
+  });
+
+  it('fails when a reused prepared teaser is missing or empty', async () => {
+    const directory = await tempDirectory();
+    const emptyPath = join(directory, 'empty.mp4');
+    await writeFile(emptyPath, '');
+
+    await expect(
+      prepareThreadsVideoUrl(
+        'https://media.example.com/episodes/episode-empty/video.mp4',
+        {
+          preparedVideoPath: emptyPath,
+          tempDir: directory,
+          uploadVideo: async () => undefined,
+          publicBaseUrl: 'https://cdn.example.com',
+        },
+      ),
+    ).rejects.toThrow('Threads teaser video is missing or empty');
+  });
+
+  it('reports source download failures before invoking ffmpeg', async () => {
+    const directory = await tempDirectory();
+    const processRunner = vi.fn();
+
+    await expect(
+      prepareThreadsVideoUrl(
+        'https://media.example.com/episodes/episode-download/video.mp4',
+        {
+          tempDir: directory,
+          fetchImpl: vi.fn(async () => new Response(null, { status: 502 })),
+          processRunner,
+          ffmpegPath: '/fake/ffmpeg',
+          uploadVideo: async () => undefined,
+          publicBaseUrl: 'https://cdn.example.com',
+        },
+      ),
+    ).rejects.toThrow('Threads teaser source download failed: HTTP 502');
+
+    expect(processRunner).not.toHaveBeenCalled();
+  });
+
+  it('fails closed and cleans up when ffmpeg produces no teaser output', async () => {
+    const directory = await tempDirectory();
+    const processRunner = vi.fn(async () => ({ stdout: '', stderr: '' }));
+
+    await expect(
+      prepareThreadsVideoUrl(
+        'https://media.example.com/episodes/episode-render/video.mp4',
+        {
+          tempDir: directory,
+          fetchImpl: vi.fn(
+            async () =>
+              new Response(new Uint8Array([1, 2, 3]), { status: 200 }),
+          ),
+          processRunner,
+          ffmpegPath: '/fake/ffmpeg',
+          uploadVideo: async () => undefined,
+          publicBaseUrl: 'https://cdn.example.com',
+        },
+      ),
+    ).rejects.toThrow('Threads teaser video is missing or empty');
+
+    expect(processRunner).toHaveBeenCalledOnce();
+  });
 });
