@@ -701,6 +701,9 @@ export function toSocialPostMetricInsertPayload(
     social_post_id: metric.socialPostId,
     captured_at: metric.capturedAt,
     age_hours: metric.ageHours,
+    ...(metric.measurementWindow
+      ? { measurement_window: metric.measurementWindow }
+      : {}),
     views: metric.views,
     impressions: metric.impressions,
     likes: metric.likes,

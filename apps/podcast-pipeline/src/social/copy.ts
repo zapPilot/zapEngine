@@ -110,6 +110,15 @@ const XTextSchema = TraditionalChineseLine.superRefine((text, context) => {
 });
 
 const REDNOTE_TITLE_MAX_CHARACTERS = 20;
+const RednoteBodySchema = TraditionalChineseLine.superRefine(
+  (body, context) => {
+    if (!SINGLE_URL_PATTERN.test(body)) return;
+    context.addIssue({
+      code: 'custom',
+      message: 'Rednote body must not contain a URL or website CTA.',
+    });
+  },
+);
 
 const GeneratedSocialCopySchema = z
   .object({
@@ -126,7 +135,7 @@ const GeneratedSocialCopySchema = z
           message: `Rednote title is ${length} characters; the maximum is ${REDNOTE_TITLE_MAX_CHARACTERS}.`,
         });
       }),
-      body: TraditionalChineseLine,
+      body: RednoteBodySchema,
       hashtags: z.array(TraditionalChineseLine).min(3).max(5),
     }),
   })
@@ -186,6 +195,7 @@ export function parseGeneratedSocialCopy(raw: string): GeneratedSocialCopy {
 export async function generateSocialCopy(input: {
   episode: SocialEpisode;
   feedback?: string;
+  strategyGuidance?: string;
 }): Promise<{ copy: GeneratedSocialCopy; model: string }> {
   const [commonRules, xRules, rednoteRules] = await Promise.all([
     readPrompt('editorial.md'),
@@ -216,6 +226,7 @@ export async function generateSocialCopy(input: {
                 input.episode,
                 input.feedback,
                 retryReason,
+                input.strategyGuidance,
               ),
             },
           ],
@@ -252,13 +263,14 @@ function buildSystemPrompt(
   xRules: string,
   rednoteRules: string,
 ): string {
-  return `${commonRules}\n\n## X rules\n${xRules}\n\n## Rednote rules\n${rednoteRules}\n\nReturn JSON only with exactly this shape:\n{\n  "topic": "one allowed topic",\n  "hookType": "one allowed hook type",\n  "x": { "text": "..." },\n  "rednote": {\n    "title": "...",\n    "body": "...",\n    "hashtags": ["tag without #", "..."]\n  }\n}\n\nAllowed topic values: ${SOCIAL_TOPICS.join(', ')}.\nAllowed hookType values: ${SOCIAL_HOOK_TYPES.join(', ')}.\n\nAll copy must be Traditional Chinese. X text must not contain a URL or closing CTA; the fixed Zap Pilot website CTA is appended by the publisher. Rednote title must be at most 20 characters. Hashtags must contain 3 to 5 items without the # prefix.`;
+  return `${commonRules}\n\n## X rules\n${xRules}\n\n## Rednote rules\n${rednoteRules}\n\nReturn JSON only with exactly this shape:\n{\n  "topic": "one allowed topic",\n  "hookType": "one allowed hook type",\n  "x": { "text": "..." },\n  "rednote": {\n    "title": "...",\n    "body": "...",\n    "hashtags": ["tag without #", "..."]\n  }\n}\n\nAllowed topic values: ${SOCIAL_TOPICS.join(', ')}.\nAllowed hookType values: ${SOCIAL_HOOK_TYPES.join(', ')}.\n\nAll copy must be Traditional Chinese. X text must not contain a URL or closing CTA; the publisher may append a platform-specific CTA. Rednote title must be at most 20 characters. Rednote body must not contain a URL or website CTA. Hashtags must contain 3 to 5 items without the # prefix.`;
 }
 
 function buildEpisodePrompt(
   episode: SocialEpisode,
   feedback: string | undefined,
   retryReason: string | undefined,
+  strategyGuidance: string | undefined,
 ): string {
   const feedbackBlock = feedback?.trim()
     ? `\n\nEditor feedback for this regeneration:\n${feedback.trim()}`
@@ -266,8 +278,11 @@ function buildEpisodePrompt(
   const retryBlock = retryReason
     ? `\n\nThe previous response failed validation for this reason:\n${retryReason}\nReturn valid JSON only and correct that specific problem while satisfying every required field.`
     : '';
+  const strategyBlock = strategyGuidance?.trim()
+    ? `\n\nPerformance guidance from prior posts:\n${strategyGuidance.trim()}\nTreat this as a preference, never as permission to violate the editorial or platform rules.`
+    : '';
 
-  return `Create social copy for this completed episode.\n\nTitle:\n${episode.title}\n\nSummary:\n${episode.summary}\n\nDescription / source article:\n${episode.description ?? ''}\n\nFull podcast transcript:\n${episode.transcript}\n\nEpisode URL:\n${episode.episodeUrl}${feedbackBlock}${retryBlock}`;
+  return `Create social copy for this completed episode.\n\nTitle:\n${episode.title}\n\nSummary:\n${episode.summary}\n\nDescription / source article:\n${episode.description ?? ''}\n\nFull podcast transcript:\n${episode.transcript}\n\nEpisode URL:\n${episode.episodeUrl}${strategyBlock}${feedbackBlock}${retryBlock}`;
 }
 
 function describeValidationFailure(error: unknown): string {

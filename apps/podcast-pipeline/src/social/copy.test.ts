@@ -158,8 +158,9 @@ describe('generateSocialCopy', () => {
 
     expect(result.model).toBe('provider/served-model');
     expect(
-      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages.at(-1)
-        ?.content,
+      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages.at(
+        -1,
+      )?.content,
     ).toContain('Editor feedback for this regeneration:\n更有衝擊力');
   });
 
@@ -181,8 +182,9 @@ describe('generateSocialCopy', () => {
       feedback: '   ',
     });
     expect(
-      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages.at(-1)
-        ?.content,
+      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages.at(
+        -1,
+      )?.content,
     ).not.toContain('Editor feedback');
   });
 
@@ -242,8 +244,9 @@ describe('generateSocialCopy', () => {
       }),
     ).resolves.toMatchObject({ copy: { x: { text: '恢復文案' } } });
     expect(
-      llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1]?.messages.at(-1)
-        ?.content,
+      llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1]?.messages.at(
+        -1,
+      )?.content,
     ).toContain('provider offline');
   });
 
@@ -374,12 +377,20 @@ describe('parseGeneratedSocialCopy', () => {
     ).toThrow(/252 weighted units.*maximum is 250/);
   });
 
-  it('rejects an X URL because the publisher appends the share URL', () => {
+  it('rejects an X URL because the publisher owns platform CTA policy', () => {
     expect(() =>
       parseGeneratedSocialCopy(
         socialCopyJson('重點在這裡 https://example.com/episode'),
       ),
     ).toThrow(/X text must not contain a URL/);
+  });
+
+  it('rejects Rednote URLs so off-platform promotion cannot bypass policy', () => {
+    const payload = JSON.parse(socialCopyJson('有效文案'));
+    payload.rednote.body = '正文 https://www.zap-pilot.org';
+    expect(() => parseGeneratedSocialCopy(JSON.stringify(payload))).toThrow(
+      /Rednote body must not contain a URL or website CTA/,
+    );
   });
 
   // Regression: this exact copy reached X in mixed Simplified/Traditional form.

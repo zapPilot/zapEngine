@@ -8,13 +8,15 @@ import { parseArgs } from 'node:util';
 
 import dotenv from 'dotenv';
 
-import { appendBrandCta, ZAP_PILOT_SITE_URL } from '../brand/cta.js';
+import { ZAP_PILOT_SITE_URL } from '../brand/cta.js';
 import { OUTRO_TAIL_MS } from '../services/video/manifest.js';
 import { parsePlatformOption, requireEpisodeArgument } from './cli-args.js';
 import { generateSocialCopy, parseGeneratedSocialCopy } from './copy.js';
 import { getSocialEpisode } from './episode.js';
 import {
+  applyPlatformCta,
   platformLabel,
+  requiresLocalTeaser,
   requiresLocalVideo,
   SOCIAL_PLATFORM_CONFIG,
   SOCIAL_PLATFORMS,
@@ -79,7 +81,13 @@ type ReviewAction =
   | { action: 'edit' }
   | { action: 'publish'; platforms: SocialPlatform[] };
 
-export async function runSocialCli(args: string[]): Promise<void> {
+export async function runSocialCli(
+  args: string[],
+  runtime: {
+    strategyGuidance?: string;
+    setExitCodeOnFailure?: boolean;
+  } = {},
+): Promise<PublishPlatformOutcome[]> {
   const options = parseCliOptions(args);
   const requestedPlatforms: SocialPlatform[] = options.platform
     ? [options.platform]
@@ -91,7 +99,7 @@ export async function runSocialCli(args: string[]): Promise<void> {
       options,
       requestedPlatforms,
     );
-    if (!pendingPlatforms) return;
+    if (!pendingPlatforms) return [];
     platforms = pendingPlatforms;
   }
 
@@ -99,15 +107,20 @@ export async function runSocialCli(args: string[]): Promise<void> {
   const { episode, video, xVideo } = assets;
 
   console.log('Generating social copy...');
-  const generated = await generateSocialCopy({ episode });
+  const generated = await generateSocialCopy({
+    episode,
+    ...(runtime.strategyGuidance
+      ? { strategyGuidance: runtime.strategyGuidance }
+      : {}),
+  });
   console.log(`[ai] Generated copy using ${generated.model}`);
 
   if (options.dryRun) {
-    printPreview(withBrandCta(generated.copy), assets);
+    printPreview(generated.copy, assets);
     console.log(
       '\nDry run complete. Browser was not opened and nothing was published.',
     );
-    return;
+    return [];
   }
 
   const review = options.yes
@@ -126,7 +139,7 @@ export async function runSocialCli(args: string[]): Promise<void> {
         video,
         xVideo,
       });
-  if (!review) return;
+  if (!review) return [];
 
   if (
     review.platforms.includes('rednote') &&
@@ -138,7 +151,7 @@ export async function runSocialCli(args: string[]): Promise<void> {
   }
 
   const videoUrl = requireCanonicalVideoUrl(episode);
-  const publishedCopy = withBrandCta(review.copy);
+  const publishedCopy = review.copy;
   const youtubeMetadata = buildYouTubeMetadata(episode);
   const onLog = (message: string): void => console.log(message);
   const jobs = await createSocialPublishJobs({
@@ -170,11 +183,13 @@ export async function runSocialCli(args: string[]): Promise<void> {
     onLog,
   });
 
-  reportPublishOutcomes(outcomes);
+  reportPublishOutcomes(outcomes, runtime.setExitCodeOnFailure ?? true);
+  return outcomes;
 }
 
 function reportPublishOutcomes(
   outcomes: readonly PublishPlatformOutcome[],
+  setExitCodeOnFailure: boolean,
 ): void {
   const failed = outcomes.filter((outcome) => outcome.status === 'failed');
   const stateFailures = outcomes.filter((outcome) => outcome.stateError);
@@ -188,7 +203,7 @@ function reportPublishOutcomes(
     return;
   }
 
-  process.exitCode = 1;
+  if (setExitCodeOnFailure) process.exitCode = 1;
   if (failed.length > 0) {
     console.error(
       `Done with ${failed.length} failed platform${failed.length === 1 ? '' : 's'}. Successfully published platforms with saved local state will be skipped next time.`,
@@ -254,7 +269,7 @@ async function loadSocialAssets(
     `✓ zh video (${formatDuration(episode.videoDurationSeconds)}, ${formatBytes(video.sizeBytes)}${video.reused ? ', cached' : ''})`,
   );
 
-  if (!requestedPlatforms.includes('x')) return { episode, video };
+  if (!requiresLocalTeaser(requestedPlatforms)) return { episode, video };
 
   const xVideo = await prepareXTeaserVideo({
     episodeId: options.episodeId,
@@ -281,7 +296,7 @@ async function reviewSocialCopy(input: {
   let model = input.initialModel;
 
   while (true) {
-    printPreview(withBrandCta(copy), {
+    printPreview(copy, {
       episode: input.episode,
       video: input.video,
       xVideo: input.xVideo,
@@ -353,7 +368,7 @@ function autoApproveSocialCopy(input: {
   platforms: SocialPlatform[];
   assets: SocialAssets;
 }): ReviewSelection {
-  printPreview(withBrandCta(input.copy), input.assets);
+  printPreview(input.copy, input.assets);
   console.log(
     `Auto-approved ${input.platforms.map(platformLabel).join(' + ')} with --yes.`,
   );
@@ -375,30 +390,19 @@ export function findPendingPlatforms(
   );
 }
 
-export function withBrandCta(copy: GeneratedSocialCopy): GeneratedSocialCopy {
-  return {
-    ...copy,
-    x: { text: appendBrandCta(copy.x.text) },
-    rednote: {
-      ...copy.rednote,
-      body: appendBrandCta(copy.rednote.body),
-    },
-  };
-}
-
 function printPreview(copy: GeneratedSocialCopy, assets: SocialAssets): void {
   const { episode, video, xVideo } = assets;
   const divider = '────────────────────────';
   console.log(`\nTaxonomy: ${copy.topic} / ${copy.hookType}`);
   console.log(`\n${divider}\nX\n${divider}`);
-  console.log(copy.x.text);
+  console.log(applyPlatformCta('x', copy.x.text));
   console.log(
     xVideo
       ? `🎬 teaser: ${formatDuration(xVideoDuration(episode.videoDurationSeconds))}, ${formatBytes(xVideo.sizeBytes)}\n${xVideo.path}`
       : '🎬 teaser: not prepared for this platform selection',
   );
   console.log(`${divider}\nTHREADS\n${divider}`);
-  console.log(copy.x.text);
+  console.log(applyPlatformCta('threads', copy.x.text));
   console.log(`🎬 native video: ${requireCanonicalVideoUrl(episode)}`);
   console.log(`${divider}\nYOUTUBE\n${divider}`);
   const youtubeMetadata = buildYouTubeMetadata(episode);
@@ -409,7 +413,7 @@ function printPreview(copy: GeneratedSocialCopy, assets: SocialAssets): void {
   console.log('標題：');
   console.log(copy.rednote.title);
   console.log('正文：');
-  console.log(copy.rednote.body);
+  console.log(applyPlatformCta('rednote', copy.rednote.body));
   console.log(copy.rednote.hashtags.map((tag) => `#${tag}`).join(' '));
   console.log(formatVideoPreview(video, episode.videoDurationSeconds));
   console.log(divider);
@@ -503,10 +507,11 @@ export function buildYouTubeMetadata(episode: SocialEpisode): {
     0,
     4500,
   );
-  return {
-    title,
-    description: `${summary}\n\n更多市場洞察與工具：${ZAP_PILOT_SITE_URL}`,
-  };
+  const description =
+    SOCIAL_PLATFORM_CONFIG.youtube.ctaMode === 'brand'
+      ? `${summary}\n\n更多市場洞察與工具：${ZAP_PILOT_SITE_URL}`
+      : summary;
+  return { title, description };
 }
 
 function xVideoDuration(fullDurationSeconds: number): number {

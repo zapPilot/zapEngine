@@ -1,5 +1,6 @@
 import { insertSocialPost, toSocialPostInsertPayload } from '../services/db.js';
 import type { NewSocialPost, SocialPostRow } from '../types.js';
+import { applyPlatformCta, platformVideoMode } from './platforms.js';
 import type {
   GeneratedSocialCopy,
   PublishResult,
@@ -130,7 +131,10 @@ function projectPlatformCopy(
       generatedTitle: snapshot.generated.rednote.title,
       publishedTitle: snapshot.published.rednote.title,
       generatedBody: snapshot.generated.rednote.body,
-      publishedBody: snapshot.published.rednote.body,
+      publishedBody: applyPlatformCta(
+        'rednote',
+        snapshot.published.rednote.body,
+      ),
       hashtags: [...snapshot.published.rednote.hashtags],
       videoDurationSec: videoDurationSeconds,
     };
@@ -151,15 +155,19 @@ function projectPlatformCopy(
   }
 
   const teaserDuration = xTeaserDurationSeconds(videoDurationSeconds);
+  let publishedVideoDuration = teaserDuration;
+  if (platformVideoMode(platform) === 'full') {
+    publishedVideoDuration = videoDurationSeconds;
+  } else if (platform === 'x') {
+    publishedVideoDuration = xVideoDurationSeconds ?? teaserDuration;
+  }
+
   return {
     generatedTitle: null,
     publishedTitle: null,
     generatedBody: snapshot.generated.x.text,
-    publishedBody: snapshot.published.x.text,
+    publishedBody: applyPlatformCta(platform, snapshot.published.x.text),
     hashtags: [],
-    videoDurationSec:
-      platform === 'x'
-        ? (xVideoDurationSeconds ?? teaserDuration)
-        : teaserDuration,
+    videoDurationSec: publishedVideoDuration,
   };
 }

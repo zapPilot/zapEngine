@@ -41,7 +41,7 @@ dotenv.config({ path: resolve(REPO_ROOT, '.env') });
 
 export type SocialMetricCounts = Omit<
   NewSocialPostMetric,
-  'socialPostId' | 'capturedAt' | 'ageHours' | 'details'
+  'socialPostId' | 'capturedAt' | 'ageHours' | 'measurementWindow' | 'details'
 >;
 
 const METRIC_LABELS: Record<keyof SocialMetricCounts, string> = {
@@ -285,6 +285,7 @@ export function buildSocialPostMetric(input: {
   capturedAt: Date;
   counts: SocialMetricCounts;
   details?: SocialPostMetricDetails;
+  measurementWindow?: NewSocialPostMetric['measurementWindow'];
 }): NewSocialPostMetric {
   const publishedAt = new Date(input.post.published_at);
   if (Number.isNaN(publishedAt.getTime())) {
@@ -301,6 +302,9 @@ export function buildSocialPostMetric(input: {
     // The column is checked as >= 0, so clock skew between this machine and the
     // platform timestamp must not reject an otherwise valid snapshot.
     ageHours: Math.round(Math.max(0, elapsedHours) * 100) / 100,
+    ...(input.measurementWindow
+      ? { measurementWindow: input.measurementWindow }
+      : {}),
     ...input.counts,
     ...(input.details ? { details: input.details } : {}),
   };

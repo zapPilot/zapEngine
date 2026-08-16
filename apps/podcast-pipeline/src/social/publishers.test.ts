@@ -90,11 +90,11 @@ describe('createSocialPublishJobs', () => {
     await jobs[1]?.publish();
 
     expect(mocks.publishThreads).toHaveBeenCalledWith({
-      text: copy.x.text,
+      text: `${copy.x.text}\n\n官網 https://www.zap-pilot.org`,
       videoUrl: VIDEO_URL,
     });
     expect(mocks.publishX).toHaveBeenCalledWith({
-      text: copy.x.text,
+      text: `${copy.x.text}\n\n官網 https://www.zap-pilot.org`,
       videoPath: X_VIDEO_PATH,
     });
   });
@@ -106,8 +106,8 @@ describe('createSocialPublishJobs', () => {
       videoUrl: VIDEO_URL,
       xVideoPath: X_VIDEO_PATH,
     });
-    const withTeaser = mocks.createThreadsPublisher.mock.calls[0]?.[0]
-      ?.prepareVideoUrl;
+    const withTeaser =
+      mocks.createThreadsPublisher.mock.calls[0]?.[0]?.prepareVideoUrl;
     await expect(withTeaser?.(VIDEO_URL)).resolves.toEqual(expect.any(String));
 
     vi.clearAllMocks();
@@ -119,9 +119,11 @@ describe('createSocialPublishJobs', () => {
       copy,
       videoUrl: VIDEO_URL,
     });
-    const withoutTeaser = mocks.createThreadsPublisher.mock.calls[0]?.[0]
-      ?.prepareVideoUrl;
-    await expect(withoutTeaser?.(VIDEO_URL)).resolves.toEqual(expect.any(String));
+    const withoutTeaser =
+      mocks.createThreadsPublisher.mock.calls[0]?.[0]?.prepareVideoUrl;
+    await expect(withoutTeaser?.(VIDEO_URL)).resolves.toEqual(
+      expect.any(String),
+    );
   });
 
   it('does not instantiate X when X is not selected', async () => {
@@ -200,7 +202,7 @@ describe('createSocialPublishJobs', () => {
     );
   });
 
-  it('builds Rednote with the prepared full video', async () => {
+  it('builds Rednote with the prepared full video and no off-platform CTA', async () => {
     const [job] = await createSocialPublishJobs({
       platforms: ['rednote'],
       copy,

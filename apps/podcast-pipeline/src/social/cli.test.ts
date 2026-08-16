@@ -59,7 +59,6 @@ import {
   findPendingPlatforms,
   parseCliOptions,
   runSocialCli,
-  withBrandCta,
 } from './cli.js';
 import type {
   GeneratedSocialCopy,
@@ -222,20 +221,6 @@ describe('parseCliOptions', () => {
   });
 });
 
-describe('fixed brand CTA', () => {
-  it('appends the same immutable destination to X/Threads and Rednote copy', () => {
-    expect(withBrandCta(copy)).toEqual({
-      ...copy,
-      x: { text: `X copy\n\n${CTA}` },
-      rednote: {
-        ...copy.rednote,
-        body: `小紅書正文\n\n${CTA}`,
-      },
-    });
-    expect(copy.x.text).toBe('X copy');
-  });
-});
-
 describe('runSocialCli media preparation', () => {
   it('downloads the full video and creates a teaser for X-only', async () => {
     await runSocialCli([EPISODE_ID, '--dry-run', '--platform', 'x']);
@@ -332,18 +317,14 @@ describe('runSocialCli publishing', () => {
         videoUrl: VIDEO_URL,
         videoPath: VIDEO.path,
         xVideoPath: X_VIDEO.path,
-        copy: expect.objectContaining({
-          x: { text: `X copy\n\n${CTA}` },
-        }),
+        copy,
       }),
     );
     expect(mocks.createSocialPostPersister).toHaveBeenCalledWith(
       expect.objectContaining({
         snapshot: expect.objectContaining({
           generated: copy,
-          published: expect.objectContaining({
-            x: { text: `X copy\n\n${CTA}` },
-          }),
+          published: copy,
         }),
       }),
     );
@@ -469,22 +450,38 @@ describe('runSocialCli publishing', () => {
       videoDurationSeconds: 901,
     });
     await runSocialCli([EPISODE_ID, '--yes', '--platform', 'rednote']);
-    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('15-minute'));
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('15-minute'),
+    );
     expect(mocks.publishSocialPlatforms).toHaveBeenCalledOnce();
   });
 
   it('rejects interactive review when stdin is not a TTY', async () => {
-    const stdinDescriptor = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
-    const stdoutDescriptor = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
-    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: false });
-    Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
+    const stdinDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdin,
+      'isTTY',
+    );
+    const stdoutDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      'isTTY',
+    );
+    Object.defineProperty(process.stdin, 'isTTY', {
+      configurable: true,
+      value: false,
+    });
+    Object.defineProperty(process.stdout, 'isTTY', {
+      configurable: true,
+      value: true,
+    });
     try {
       await expect(
         runSocialCli([EPISODE_ID, '--platform', 'threads']),
       ).rejects.toThrow('Interactive review requires a TTY');
     } finally {
-      if (stdinDescriptor) Object.defineProperty(process.stdin, 'isTTY', stdinDescriptor);
-      if (stdoutDescriptor) Object.defineProperty(process.stdout, 'isTTY', stdoutDescriptor);
+      if (stdinDescriptor)
+        Object.defineProperty(process.stdin, 'isTTY', stdinDescriptor);
+      if (stdoutDescriptor)
+        Object.defineProperty(process.stdout, 'isTTY', stdoutDescriptor);
     }
   });
 
@@ -570,7 +567,11 @@ describe('runSocialCli publishing', () => {
   it('reports plural platform failures without inventing state or telemetry failures', async () => {
     mocks.publishSocialPlatforms.mockResolvedValue([
       { platform: 'x', status: 'failed', error: new Error('x failed') },
-      { platform: 'threads', status: 'failed', error: new Error('threads failed') },
+      {
+        platform: 'threads',
+        status: 'failed',
+        error: new Error('threads failed'),
+      },
     ]);
 
     await runSocialCli([EPISODE_ID, '--yes']);
@@ -635,7 +636,9 @@ describe('runSocialCli publishing', () => {
     ]);
     await runSocialCli([EPISODE_ID, '--yes', '--platform', 'threads']);
     expect(console.error).toHaveBeenCalledWith(
-      expect.stringContaining('1 local duplicate-state failure. That post is live'),
+      expect.stringContaining(
+        '1 local duplicate-state failure. That post is live',
+      ),
     );
     expect(console.error).toHaveBeenCalledWith(
       expect.stringContaining('1 telemetry record failure.'),

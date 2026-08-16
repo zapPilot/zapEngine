@@ -15,8 +15,9 @@ The intended operating model is deliberately simple:
 6. local duplicate state and `social_posts` telemetry are written only after a
    platform confirms success.
 
-This is not a server-side scheduler. Publishing remains a local/manual trigger
-so browser sessions and human review stay outside Fly workers.
+Publishing still stays on the local Mac so browser sessions remain outside Fly
+workers. Manual `social:publish` remains available, while `social:daemon` can run
+unattended and use Supabase as its durable queue/strategy state.
 
 ## Canonical command
 
@@ -24,6 +25,7 @@ Run from the repository root:
 
 ```bash
 pnpm --filter @zapengine/podcast-pipeline social:login
+pnpm --filter @zapengine/podcast-pipeline social:daemon
 pnpm --filter @zapengine/podcast-pipeline social:publish '<episode-uuid-or-share-url>' --dry-run
 pnpm --filter @zapengine/podcast-pipeline social:publish '<episode-uuid-or-share-url>'
 pnpm --filter @zapengine/podcast-pipeline social:publish '<episode-uuid-or-share-url>' --yes --platform threads
@@ -49,6 +51,20 @@ pnpm social:publish '<episode>' --yes
 pnpm social:publish '<episode>' --yes --platform threads
 pnpm social:publish '<episode>' --force
 ```
+
+Before the first daemon run, apply Supabase migration
+`029_add_social_daemon.sql`. The daemon records its first-start timestamp and only
+discovers canonical videos completed at or after that durable anchor, so enabling
+it does not backfill old episodes. Jobs created after that point survive Mac
+restarts and are claimed with an expiring owner lease.
+
+The daemon polls once per minute. It spreads new episodes across per-platform JST
+publish windows, runs one due publish job at a time, records metric snapshots in
+the current `1h` / `6h` / `24h` / `72h` / `7d` age bucket, and periodically
+refreshes versioned strategy preferences from standardized 24-hour performance.
+Missed early metric buckets are never backfilled with later data. Strategy
+versions are read at publish time, so updated preferences do not require a
+process restart.
 
 `--yes` accepts the generated copy without opening the interactive review prompt.
 It is intended for unattended agent/E2E runs. If an episode was only partially
@@ -186,9 +202,23 @@ Rednote continues to download the canonical Chinese MP4 locally and upload the
 full video through Playwright. The CLI warns when a video is above the general
 15-minute limit but still lets the platform make the final decision.
 
-## Shared Zap Pilot CTA
+## Platform publishing policy
 
-Fixed acquisition branding lives in one module:
+Per-platform CTA and video-release policy lives in `src/social/platforms.ts`.
+The current policy is:
+
+| Platform | Text CTA | Video mode |
+| --- | --- | --- |
+| X | Zap Pilot website | teaser |
+| Threads | Zap Pilot website | teaser |
+| Rednote | none | full |
+| YouTube | Zap Pilot website | full |
+
+Rednote deliberately forbids website URLs/off-platform CTA in generated copy as
+well as disabling the fixed CTA at publish time, so a model response cannot
+accidentally reintroduce the review-triggering website promotion.
+
+Fixed acquisition branding itself lives in one module:
 
 ```text
 src/brand/cta.ts
@@ -203,23 +233,21 @@ ZAP_PILOT_SITE_URL = 'https://www.zap-pilot.org'
 
 ### Text ending
 
-The LLM must not generate a URL or closing CTA. Review/edit works on the raw
-copy, then the orchestration layer appends this immutable ending immediately
-before preview/publish:
+The LLM does not own platform CTA. Review/edit works on the raw copy, then the
+orchestration layer applies the configured ending immediately before
+preview/publish:
 
 ```text
 官網 https://www.zap-pilot.org
 ```
 
-It is applied to:
+It is currently applied to X and Threads. Rednote has `ctaMode: 'none'` and is
+published without any website CTA. YouTube keeps its existing website line in
+the description while `ctaMode: 'brand'` is enabled.
 
-- X copy;
-- Threads copy (currently the reviewed short-copy projection shared with X);
-- Rednote body.
-
-Keeping the CTA outside the editable/LLM payload ensures regenerate or `$EDITOR`
-cannot accidentally remove the acquisition destination. Telemetry still stores
-both the raw generated snapshot and the actual branded published snapshot.
+Keeping CTA policy outside the editable/LLM payload lets each platform opt in or
+out independently. Telemetry projects the platform-specific published body from
+the same reviewed raw copy.
 
 X copy validation reserves the fixed suffix inside the normal 280 weighted-unit
 limit. The generated copy retains its existing 250-unit budget; the two
@@ -252,14 +280,16 @@ The text CTA is unaffected and uses the current destination immediately.
 
 | Platform | Local MP4 required | Published media |
 | --- | --- | --- |
-| X | yes | full MP4 if <= 140s, otherwise teaser |
-| Threads | no | public canonical full-video URL |
+| X | yes | teaser (full MP4 only when already <= 140s) |
+| Threads | no | teaser prepared from the canonical public URL |
 | Rednote | yes | local canonical full MP4 |
 | YouTube | yes | local canonical full MP4 |
 
-When publishing all platforms, the canonical MP4 is downloaded at most once and
-X derives its teaser from that local file, YouTube reuses the same full local
-file, and Threads continues using the public URL directly.
+When publishing all platforms, the canonical MP4 is downloaded at most once. X
+derives the reusable teaser from that local file, Threads can reuse the same
+teaser through its public R2 upload, and Rednote/YouTube reuse the full local
+file. Changing `videoMode` in `platforms.ts` switches the release policy without
+changing each publisher's business rules.
 
 ## Human review
 

@@ -303,6 +303,7 @@ export interface SocialPostMetricRow {
   social_post_id: string;
   captured_at: string;
   age_hours: number;
+  measurement_window?: '1h' | '6h' | '24h' | '72h' | '7d' | null;
   views: number | null;
   impressions: number | null;
   likes: number | null;
@@ -325,6 +326,7 @@ export interface NewSocialPostMetric {
   socialPostId: string;
   capturedAt: string;
   ageHours: number;
+  measurementWindow?: '1h' | '6h' | '24h' | '72h' | '7d';
   views: number | null;
   impressions: number | null;
   likes: number | null;
