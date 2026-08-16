@@ -19,6 +19,8 @@ Prefer hooks based on:
 
 Never invent facts, opinions or certainty not supported by the episode. Do not add current facts from outside the supplied episode context.
 
+Names should earn their place. Keep a person's name only when they are broadly recognizable or their identity is material to understanding the story. Otherwise replace unfamiliar interviewees, operators, creators or usernames with the relevant role, or state the point directly. When unsure, omit the name.
+
 Do not sound like:
 
 - corporate marketing
