@@ -203,6 +203,32 @@ describe('Fish Audio TTS provider', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
+  it('normalizes non-Error request failures before retrying', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockRejectedValueOnce('socket string failure')
+      .mockResolvedValueOnce(
+        streamResponse([new Uint8Array([0x49, 0x44, 0x33, 0x04])]),
+      );
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    await expect(
+      synthesize('retry string error', {
+        languageCode: 'en',
+        usage: 'main',
+        config: {
+          provider: 'fish-audio',
+          modelId: 'custom-reference-id',
+          engine: 's2-pro',
+        },
+      }),
+    ).resolves.toMatchObject({
+      audio: Buffer.from([0x49, 0x44, 0x33, 0x04]),
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
   it('does not retry non-transient Fish Audio errors', async () => {
     const mockFetch = vi
       .fn()
@@ -659,6 +685,40 @@ describe('Fish Audio TTS provider', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
+  it('falls back from an invalid retry-after header to the configured retry delay', async () => {
+    vi.stubEnv('FISH_AUDIO_RETRY_DELAY_MS', '0');
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Object.assign(errorResponse(429, '', 'rate limit'), {
+          headers: {
+            get: (header: string) =>
+              header === 'retry-after' ? 'not-a-number' : null,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        streamResponse([new Uint8Array([0x49, 0x44, 0x33, 0x04])]),
+      );
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    await expect(
+      synthesize('invalid retry after', {
+        languageCode: 'en',
+        usage: 'main',
+        config: {
+          provider: 'fish-audio',
+          modelId: 'custom-reference-id',
+          engine: 's2-pro',
+        },
+      }),
+    ).resolves.toMatchObject({
+      audio: Buffer.from([0x49, 0x44, 0x33, 0x04]),
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
   it('uses env-based retry delay when retry-after header is missing', async () => {
     vi.stubEnv('FISH_AUDIO_RETRY_DELAY_MS', '0');
     const mockFetch = vi
@@ -707,6 +767,31 @@ describe('Fish Audio TTS provider', () => {
 
     expect(result.audio).toEqual(Buffer.from([0x49, 0x44, 0x33, 0x04]));
     expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses request-size and inter-request-delay defaults when env vars are absent', async () => {
+    vi.unstubAllEnvs();
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(
+        streamResponse([new Uint8Array([0x49, 0x44, 0x33, 0x04])]),
+      );
+    vi.stubGlobal('fetch', mockFetch);
+
+    await expect(
+      synthesize('default request settings', {
+        languageCode: 'en',
+        usage: 'main',
+        config: {
+          provider: 'fish-audio',
+          modelId: 'custom-reference-id',
+          engine: 's2-pro',
+        },
+      }),
+    ).resolves.toMatchObject({
+      audio: Buffer.from([0x49, 0x44, 0x33, 0x04]),
+    });
   });
 
   it('uses default request timeout when env var is invalid', async () => {

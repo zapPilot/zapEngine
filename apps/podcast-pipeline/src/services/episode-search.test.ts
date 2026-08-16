@@ -20,6 +20,12 @@ vi.mock('./db.js', async (importOriginal) => {
 });
 
 describe('rankEpisodeSearchResults', () => {
+  it('returns no results for punctuation-only queries and empty titles', () => {
+    expect(
+      rankEpisodeSearchResults([row({ title: '', script: null })], '--- !!!', 20),
+    ).toEqual([]);
+  });
+
   it('finds exact fragments in Traditional Chinese and Japanese', () => {
     const rows = [
       row({
@@ -40,6 +46,34 @@ describe('rankEpisodeSearchResults', () => {
     ]);
   });
 
+  it('covers exact, prefix, and contains scoring for title and script matches', () => {
+    const exactTitle = row({ id: 'exact-title', title: 'alpha', script: null });
+    const prefixTitle = row({ id: 'prefix-title', title: 'alpha beta', script: null });
+    const containsTitle = row({ id: 'contains-title', title: 'zero alpha beta', script: null });
+    const scriptExact = row({ id: 'script-exact', title: 'other', script: 'alpha' });
+    const scriptPrefix = row({ id: 'script-prefix', title: 'other', script: 'alpha beta.' });
+    const scriptContains = row({ id: 'script-contains', title: 'other', script: 'zero alpha beta.' });
+
+    const result = rankEpisodeSearchResults(
+      [containsTitle, scriptContains, prefixTitle, scriptPrefix, exactTitle, scriptExact],
+      'alpha',
+      20,
+    );
+
+    expect(result.slice(0, 3).map((item) => item.row.id)).toEqual([
+      'exact-title',
+      'prefix-title',
+      'contains-title',
+    ]);
+    expect(
+      new Set(
+        result
+          .filter((item) => item.matchSource === 'script')
+          .map((item) => item.row.id),
+      ),
+    ).toEqual(new Set(['script-exact', 'script-prefix', 'script-contains']));
+  });
+
   it('normalizes English case and punctuation', () => {
     const result = rankEpisodeSearchResults(
       [
@@ -53,6 +87,20 @@ describe('rankEpisodeSearchResults', () => {
     );
 
     expect(result).toEqual([expect.objectContaining({ matchSource: 'title' })]);
+  });
+
+  it('covers short and long fuzzy thresholds for title and script', () => {
+    const shortRows = [
+      row({ id: 'short-title', title: 'ab xx bc xx cd', script: null }),
+      row({ id: 'short-script', title: 'unrelated', script: 'ab xx bc xx cd.' }),
+    ];
+    const longRows = [
+      row({ id: 'long-title', title: 'abcde zz fghi', script: null }),
+      row({ id: 'long-script', title: 'unrelated', script: 'abcdefg x ghi.' }),
+    ];
+
+    expect(rankEpisodeSearchResults(shortRows, 'abcd', 20)).not.toEqual([]);
+    expect(rankEpisodeSearchResults(longRows, 'abcdefghi', 20)).not.toEqual([]);
   });
 
   it('tolerates a small English spelling error', () => {
@@ -123,6 +171,43 @@ describe('rankEpisodeSearchResults', () => {
     expect(result).toEqual([]);
   });
 
+  it('uses null title snippets when a title match has no script', () => {
+    const result = rankEpisodeSearchResults(
+      [row({ title: 'Bitcoin custody', script: null })],
+      'bitcoin',
+      20,
+    );
+    expect(result[0]?.snippet).toBeNull();
+  });
+
+  it('handles an empty normalized title by matching the script instead', () => {
+    const result = rankEpisodeSearchResults(
+      [row({ title: '', script: 'Liquidity conditions changed.' })],
+      'liquidity',
+      20,
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.matchSource).toBe('script');
+  });
+
+  it('keeps the first equally strong fuzzy script segment instead of replacing it', () => {
+    const result = rankEpisodeSearchResults(
+      [
+        row({
+          title: 'Weekly notes',
+          script: 'Liquiditx conditions changed. Liquiditx markets reacted.',
+        }),
+      ],
+      'liquidity',
+      20,
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.matchSource).toBe('script');
+    expect(result[0]?.snippet).toContain('Liquiditx conditions changed');
+  });
+
   it('filters unrelated rows and handles null scripts', () => {
     const result = rankEpisodeSearchResults(
       [row({ title: 'Bitcoin custody', script: null })],
@@ -131,6 +216,46 @@ describe('rankEpisodeSearchResults', () => {
     );
 
     expect(result).toEqual([]);
+  });
+
+  it('chooses the strongest fuzzy script segment and can let script beat a weaker title match', () => {
+    const result = rankEpisodeSearchResults(
+      [
+        row({
+          id: 'script-wins',
+          title: 'liquidityz',
+          script: 'weak opening liquidityx. much closer liquidityy liquidity.',
+        }),
+      ],
+      'liquidity',
+      20,
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.snippet).toContain('liquidity');
+  });
+
+  it('orders equal scores by date and then id', () => {
+    const old = row({
+      id: 'a',
+      title: 'same title',
+      created_at: '2026-01-01T00:00:00.000Z',
+    });
+    const newerA = row({
+      id: 'a-new',
+      title: 'same title',
+      created_at: '2026-06-01T00:00:00.000Z',
+    });
+    const newerZ = row({
+      id: 'z-new',
+      title: 'same title',
+      created_at: '2026-06-01T00:00:00.000Z',
+    });
+    expect(
+      rankEpisodeSearchResults([old, newerA, newerZ], 'same title', 20).map(
+        (item) => item.row.id,
+      ),
+    ).toEqual(['z-new', 'a-new', 'a']);
   });
 
   it('uses ngram fallback when query spans across script segments', () => {
@@ -192,6 +317,37 @@ describe('EpisodeSearchService', () => {
 
     await Promise.all([first, second]);
     expect(loadPage).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cache an in-flight corpus invalidated before it resolves', async () => {
+    let resolveFirst: ((value: { rows: EpisodeListRow[]; nextCursor: null }) => void) | undefined;
+    const loadPage = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ rows: EpisodeListRow[]; nextCursor: null }>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockResolvedValue({
+        rows: [row({ id: 'fresh', title: 'Liquidity fresh' })],
+        nextCursor: null,
+      });
+    const service = createEpisodeSearchService({ loadPage, now: () => 1_000 });
+
+    const staleSearch = service.search('liquidity', 'en', 20);
+    await vi.waitFor(() => expect(loadPage).toHaveBeenCalledOnce());
+    service.invalidate();
+    const freshSearch = service.search('liquidity', 'en', 20);
+    resolveFirst?.({
+      rows: [row({ id: 'stale', title: 'Liquidity stale' })],
+      nextCursor: null,
+    });
+
+    expect((await staleSearch)[0]?.episode.id).toBe('stale');
+    expect((await freshSearch)[0]?.episode.id).toBe('fresh');
+    await service.search('liquidity', 'en', 20);
+    expect(loadPage).toHaveBeenCalledTimes(2);
   });
 
   it('loads every page and invalidates all language caches', async () => {

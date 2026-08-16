@@ -6,6 +6,7 @@ import {
   getRequiredEnv,
   getTelegramBotToken,
   getTelegramWebhookSecret,
+  readRenderOnDemandConfig,
   trimTrailingSlash,
 } from './env.js';
 
@@ -99,6 +100,51 @@ describe('pipeline Telegram env helpers', () => {
     vi.stubEnv('TELEGRAM_ALLOWED_USER_IDS', '999');
 
     expect(getAllowedTelegramUserIds()).toEqual(new Set(['123', '456']));
+  });
+});
+
+describe('readRenderOnDemandConfig', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it.each([undefined, '0', 'false', 'yes'])('disables on-demand render for flag %s', (flag) => {
+    if (flag === undefined) delete process.env['PIPELINE_RENDER_ON_DEMAND'];
+    else vi.stubEnv('PIPELINE_RENDER_ON_DEMAND', flag);
+    expect(readRenderOnDemandConfig()).toEqual({
+      enabled: false,
+      reason: 'PIPELINE_RENDER_ON_DEMAND is not set',
+    });
+  });
+
+  it('requires a Fly API token when on-demand render is enabled', () => {
+    vi.stubEnv('PIPELINE_RENDER_ON_DEMAND', ' true ');
+    vi.stubEnv('PIPELINE_FLY_API_TOKEN', '   ');
+    expect(readRenderOnDemandConfig()).toEqual({
+      enabled: false,
+      reason: 'PIPELINE_FLY_API_TOKEN is empty',
+    });
+  });
+
+  it('requires a Fly app name after the token is present', () => {
+    vi.stubEnv('PIPELINE_RENDER_ON_DEMAND', '1');
+    vi.stubEnv('PIPELINE_FLY_API_TOKEN', ' token ');
+    vi.stubEnv('FLY_APP_NAME', '');
+    expect(readRenderOnDemandConfig()).toEqual({
+      enabled: false,
+      reason: 'FLY_APP_NAME is empty',
+    });
+  });
+
+  it('returns trimmed wake credentials when fully configured', () => {
+    vi.stubEnv('PIPELINE_RENDER_ON_DEMAND', 'TRUE');
+    vi.stubEnv('PIPELINE_FLY_API_TOKEN', ' token ');
+    vi.stubEnv('FLY_APP_NAME', ' podcast-app ');
+    expect(readRenderOnDemandConfig()).toEqual({
+      enabled: true,
+      appName: 'podcast-app',
+      token: 'token',
+    });
   });
 });
 

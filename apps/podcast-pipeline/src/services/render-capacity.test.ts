@@ -302,6 +302,17 @@ function makeReconciler(input: {
 const QUEUED_VISUAL = snapshot({ visuals: [visualRow()] });
 
 describe('createRenderCapacityReconciler', () => {
+  it('constructs default probe, notifier, logger, and poll interval lazily', () => {
+    expect(() =>
+      createRenderCapacityReconciler({
+        machines: {
+          listMachines: vi.fn(),
+          startMachine: vi.fn(),
+        },
+      }),
+    ).not.toThrow();
+  });
+
   it('never touches the Fly API when nothing is claimable', async () => {
     const { reconciler, listMachines, startMachine } = makeReconciler({});
 
@@ -357,6 +368,16 @@ describe('createRenderCapacityReconciler', () => {
 
     await expect(reconciler.runOnce()).resolves.toBe('render-running');
     expect(startMachine).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the first render machine when none is explicitly wakeable', async () => {
+    const { reconciler, startMachine } = makeReconciler({
+      pending: QUEUED_VISUAL,
+      machines: [machine({ id: 'machine-created', state: 'created' })],
+    });
+
+    await expect(reconciler.runOnce()).resolves.toBe('started');
+    expect(startMachine).toHaveBeenCalledWith('machine-created');
   });
 
   it('wakes a suspended machine too', async () => {
@@ -435,6 +456,21 @@ describe('createRenderCapacityReconciler', () => {
     );
   });
 
+  it('normalizes non-Error start-machine failures', async () => {
+    const { reconciler, logger } = makeReconciler({
+      pending: QUEUED_VISUAL,
+      startMachine: async () => {
+        throw 'machine unavailable';
+      },
+    });
+
+    await expect(reconciler.runOnce()).resolves.toBe('error');
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Fly Machines API call failed'),
+      expect.objectContaining({ message: 'machine unavailable' }),
+    );
+  });
+
   it('warns once after consecutive Fly API failures', async () => {
     const { reconciler, notify, logger } = makeReconciler({
       pending: snapshot({ visuals: [visualRow({ telegram_chat_id: '42' })] }),
@@ -493,6 +529,60 @@ describe('createRenderCapacityReconciler', () => {
     );
   });
 
+  it('ignores repeated starts and refuses to restart after stop', async () => {
+    vi.useFakeTimers();
+    try {
+      const { reconciler, loadSnapshot } = makeReconciler({});
+      reconciler.start();
+      reconciler.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(loadSnapshot).toHaveBeenCalledTimes(1);
+
+      reconciler.stop();
+      reconciler.start();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(loadSnapshot).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('catches unexpected poll errors without leaving the polling guard stuck', async () => {
+    vi.useFakeTimers();
+    try {
+      const logger = {
+        info: vi
+          .fn()
+          .mockImplementationOnce(() => undefined)
+          .mockImplementationOnce(() => {
+            throw new Error('logging failed');
+          }),
+        error: vi.fn(),
+      };
+      const reconciler = createRenderCapacityReconciler({
+        machines: {
+          listMachines: vi.fn(async () => [machine()]),
+          startMachine: vi.fn(async () => undefined),
+        },
+        probe: { loadSnapshot: vi.fn(async () => QUEUED_VISUAL) },
+        notify: vi.fn(async () => undefined),
+        logger,
+        pollIntervalMs: 10,
+      });
+
+      reconciler.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(logger.error).toHaveBeenCalledWith(
+        '[render-capacity] poll failed',
+        expect.objectContaining({ message: 'logging failed' }),
+      );
+      await vi.advanceTimersByTimeAsync(10);
+      reconciler.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('polls on an interval and stops cleanly', async () => {
     vi.useFakeTimers();
     try {
@@ -519,17 +609,26 @@ interface RecordedQuery {
   filters: unknown[][];
 }
 
-function makeSupabase(rowsByCall: unknown[][]) {
+function makeSupabase(
+  rowsByCall: unknown[][],
+  errorsByCall: unknown[] = [],
+  nullDataCalls: number[] = [],
+) {
   const calls: RecordedQuery[] = [];
   let index = 0;
   const from = vi.fn((table: string) => {
+    const callIndex = index;
     const rows = rowsByCall[index] ?? [];
+    const error = errorsByCall[index] ?? null;
     index += 1;
     const filters: unknown[][] = [];
     calls.push({ table, filters });
     const query: Record<string, unknown> = {
       then: (resolve: (value: unknown) => unknown) =>
-        Promise.resolve({ data: rows, error: null }).then(resolve),
+        Promise.resolve({
+          data: nullDataCalls.includes(callIndex) ? null : rows,
+          error,
+        }).then(resolve),
     };
     for (const name of ['select', 'in', 'returns']) {
       query[name] = vi.fn((...args: unknown[]) => {
@@ -586,5 +685,30 @@ describe('createRenderWorkProbe', () => {
     await createRenderWorkProbe(supabase).loadSnapshot();
 
     expect(calls).toHaveLength(2);
+  });
+
+  it('treats null Supabase data as an empty row set', async () => {
+    const { supabase } = makeSupabase([[], []], [], [0, 1]);
+    await expect(createRenderWorkProbe(supabase).loadSnapshot()).resolves.toMatchObject({
+      videos: [],
+      visuals: [],
+    });
+  });
+
+  it('propagates Error, structured, and message-less Supabase failures', async () => {
+    for (const error of [
+      new Error('database offline'),
+      { message: 'structured failure' },
+      {},
+    ]) {
+      const { supabase } = makeSupabase([[], []], [error]);
+      await expect(createRenderWorkProbe(supabase).loadSnapshot()).rejects.toThrow(
+        error instanceof Error
+          ? 'database offline'
+          : 'message' in error
+            ? 'structured failure'
+            : 'Supabase render work query failed',
+      );
+    }
   });
 });

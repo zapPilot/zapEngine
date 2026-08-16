@@ -47,6 +47,25 @@ describe('createHeavyWorkCoordinator', () => {
     await expect(runningIngest).resolves.toBe('audio');
   });
 
+  it('wraps a non-Error abort reason while an ingest waits for video', async () => {
+    const coordinator = createHeavyWorkCoordinator();
+    const video = createDeferred<void>();
+    const runningVideo = coordinator.tryRunVideo(() => video.promise);
+    const controller = new AbortController();
+    const ingestWork = vi.fn();
+    const runningIngest = coordinator.runIngest(ingestWork, controller.signal);
+
+    controller.abort('shutdown string');
+    await expect(runningIngest).rejects.toMatchObject({
+      message: 'Aborted while waiting for video idle',
+      cause: 'shutdown string',
+    });
+    expect(ingestWork).not.toHaveBeenCalled();
+
+    video.resolve();
+    await runningVideo;
+  });
+
   it('aborts an ingest waiting for video without running it', async () => {
     const coordinator = createHeavyWorkCoordinator();
     const video = createDeferred<void>();

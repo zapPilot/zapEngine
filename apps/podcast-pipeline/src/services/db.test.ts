@@ -12,6 +12,7 @@ import type { NewSocialPost, NewSocialPostMetric } from '../types.js';
 import {
   decodeCursor,
   encodeCursor,
+  findEpisodeById,
   findEpisodeBySourceUrl,
   findEpisodeListRowByLocalizationId,
   findEpisodeLocalizationByEpisodeId,
@@ -365,6 +366,20 @@ describe('episode source and localization lookup', () => {
     ).rejects.toThrow('lookup failed');
   });
 
+  it('finds an episode directly by id and surfaces lookup errors', async () => {
+    const row = episodeRow();
+    state.query!.maybeSingle.mockResolvedValueOnce({ data: row, error: null });
+    await expect(findEpisodeById(row.id)).resolves.toEqual(row);
+
+    state.query!.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: new Error('episode id lookup failed'),
+    });
+    await expect(findEpisodeById('episode-1')).rejects.toThrow(
+      'episode id lookup failed',
+    );
+  });
+
   it('finds an episode localization by episode id and language', async () => {
     const row = localizationRow({ classroom_hls_url: null });
     state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
@@ -439,6 +454,13 @@ describe('episode source and localization lookup', () => {
     ).rejects.toThrow('localization list failed');
   });
 
+  it('normalizes null localization-list data to an empty array', async () => {
+    state.query!.returns.mockResolvedValue({ data: null, error: null });
+    await expect(
+      listEpisodeLocalizationsByEpisodeId('episode-1', ['en']),
+    ).resolves.toEqual([]);
+  });
+
   it('finds a completed feed row by localization id', async () => {
     const row = listRow({ classroom_hls_url: null });
     state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
@@ -466,6 +488,15 @@ describe('episode source and localization lookup', () => {
 });
 
 describe('listPublishedEpisodeCatalog', () => {
+  it('treats null catalog page data as an empty final page', async () => {
+    state.query!.returns.mockResolvedValue({ data: null, error: null });
+    await expect(listPublishedEpisodeCatalog()).resolves.toEqual({
+      'zh-Hant': [],
+      ja: [],
+      en: [],
+    });
+  });
+
   it('returns the fixed empty catalog after a single page', async () => {
     state.query!.returns.mockResolvedValue({ data: [], error: null });
 
@@ -859,6 +890,53 @@ describe('listEpisodeVideoSummariesByLocalizationIds', () => {
       listEpisodeVideoSummariesByLocalizationIds([]),
     ).resolves.toEqual(new Map());
     expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('treats null video-summary data as an empty batch', async () => {
+    state.query!.returns.mockResolvedValue({ data: null, error: null });
+    await expect(
+      listEpisodeVideoSummariesByLocalizationIds(['loc-1']),
+    ).resolves.toEqual(new Map());
+  });
+
+  it('throws visual progress errors and ignores non-public visual rows', async () => {
+    state.queryByTable['episode_videos'] = makeQuery();
+    state.queryByTable['episode_videos'].returns.mockResolvedValue({
+      data: [videoRow({ status: 'queued' })],
+      error: null,
+    });
+    state.queryByTable['episode_video_visuals'] = makeQuery();
+    state.queryByTable['episode_video_visuals'].returns.mockResolvedValueOnce({
+      data: null,
+      error: new Error('visual progress lookup failed'),
+    });
+    await expect(
+      listEpisodeVideoSummariesByLocalizationIds(['loc-1']),
+    ).rejects.toThrow('visual progress lookup failed');
+
+    state.queryByTable['episode_video_visuals'].returns.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+    await expect(
+      listEpisodeVideoSummariesByLocalizationIds(['loc-1']),
+    ).resolves.toBeInstanceOf(Map);
+
+    state.queryByTable['episode_video_visuals'].returns.mockResolvedValueOnce({
+      data: [
+        {
+          episode_id: 'episode-loc-1',
+          status: 'rendering',
+          progress_percent: 10,
+          progress_stage: 'future-stage',
+          updated_at: null,
+        },
+      ],
+      error: null,
+    });
+    await expect(
+      listEpisodeVideoSummariesByLocalizationIds(['loc-1']),
+    ).resolves.toBeInstanceOf(Map);
   });
 
   it('throws video-summary lookup errors', async () => {
@@ -1327,9 +1405,33 @@ describe('social post telemetry', () => {
     });
   });
 
-  it('returns null when no social post carries the requested id', async () => {
+  it('normalizes null social-post lists and surfaces list errors', async () => {
+    state.query!.returns.mockResolvedValueOnce({ data: null, error: null });
+    await expect(
+      listSocialPostsByEpisode('episode-1', 'threads'),
+    ).resolves.toEqual([]);
+
+    state.query!.returns.mockResolvedValueOnce({
+      data: null,
+      error: new Error('social post list failed'),
+    });
+    await expect(
+      listSocialPostsByEpisode('episode-1', 'threads'),
+    ).rejects.toThrow('social post list failed');
+  });
+
+  it('returns null for a missing social post id and surfaces lookup errors', async () => {
+    state.query!.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
     await expect(getSocialPostById('social-post-9')).resolves.toBeNull();
     expect(state.query!.eq).toHaveBeenCalledWith('id', 'social-post-9');
+
+    state.query!.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: new Error('social post lookup failed'),
+    });
+    await expect(getSocialPostById('social-post-9')).rejects.toThrow(
+      'social post lookup failed',
+    );
   });
 });
 

@@ -312,6 +312,27 @@ describe('uploadEpisodeVisualAssetsToR2', () => {
         ],
       }),
     ).rejects.toThrow('Invalid video artifact visual scene id');
+
+    await expect(
+      uploadEpisodeVisualAssetsToR2({
+        episodeId: 'episode-1',
+        visualVersion: 'image-slideshow-v1',
+        visualHash: 'visual-hash',
+        manifestPath: '/render/visual-manifest.json',
+        images: [
+          {
+            sceneId: 'scene-01',
+            path: '/render/scene-a.image',
+            contentType: 'image/png',
+          },
+          {
+            sceneId: 'scene-01',
+            path: '/render/scene-b.image',
+            contentType: 'image/png',
+          },
+        ],
+      }),
+    ).rejects.toThrow('Duplicate visual scene id: scene-01');
     expect(mockSend).not.toHaveBeenCalled();
   });
 });

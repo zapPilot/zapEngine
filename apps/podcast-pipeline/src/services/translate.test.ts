@@ -137,6 +137,50 @@ describe('translateChineseText', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ['non-object JSON', JSON.stringify(['Translated text'])],
+    ['empty translated field', JSON.stringify({ text: '   ' })],
+  ])('falls back to Google for %s from OpenRouter', async (_label, content) => {
+    mockOpenRouterCompletion(content);
+    mockGoogleTranslation('Google translated text');
+
+    const result = await translateChineseText('滑鼠和腳踏車市場', 'en');
+    expect(result.text).toBe('Google translated text');
+    expect(result.cost[0]?.provider).toBe('google');
+  });
+
+  it('falls back when OpenRouter returns no completion choice', async () => {
+    mocks.createOpenRouterChatCompletion.mockResolvedValueOnce({ choices: [] });
+    mockGoogleTranslation('Google translated text');
+
+    await expect(
+      translateChineseText('滑鼠和腳踏車市場', 'en'),
+    ).resolves.toMatchObject({ text: 'Google translated text' });
+  });
+
+  it('uses configured model and zero-cost defaults when completion metadata is absent', async () => {
+    mocks.createOpenRouterChatCompletion.mockResolvedValueOnce({
+      choices: [{ message: { content: JSON.stringify({ text: 'Translated text' }) } }],
+      provider: '',
+      model: '',
+    });
+
+    await expect(
+      translateChineseText('滑鼠和腳踏車市場', 'en'),
+    ).resolves.toEqual({
+      text: 'Translated text',
+      cost: [
+        {
+          category: 'translate',
+          label: 'Translation en',
+          provider: 'openrouter',
+          model: 'openrouter/free',
+          costUsd: 0,
+        },
+      ],
+    });
+  });
+
   it('preserves empty text without calling any API', async () => {
     const result = await translateChineseText('', 'ja');
 

@@ -1,12 +1,139 @@
 import { readFile } from 'node:fs/promises';
 
+import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { scrapeArticle } from './scrape.js';
+import { extractArticleImageCandidates, scrapeArticle } from './scrape.js';
 
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual('node:fs');
   return { ...actual };
+});
+
+describe('extractArticleImageCandidates', () => {
+  it('fails closed for invalid sources and non-document inputs', () => {
+    const dom = new JSDOM('<article><img src="/image.jpg"></article>');
+
+    expect(
+      extractArticleImageCandidates(dom.window.document, 'javascript:alert(1)'),
+    ).toEqual([]);
+    expect(
+      extractArticleImageCandidates(
+        {} as Document,
+        'https://publisher.example/article',
+      ),
+    ).toEqual([]);
+  });
+
+  it('covers srcset descriptor variants and lazy-image fallbacks', () => {
+    const dom = new JSDOM(`
+      <article>
+        <img data-srcset=", /zero.jpg 0w, /small.jpg 400w, /large.jpg 1200w, /medium.jpg 800w" alt="Width candidate" />
+        <img data-lazy-srcset="/one.jpg 1x, /two.jpg 2x, /one-half.jpg 1.5x" data-width="640" data-height="480" />
+        <img data-original-srcset="/zero-density.jpg 0x, /plain.jpg nonsense" />
+        <img srcset="/descriptorless.jpg" />
+        <img data-src="/lazy.jpg" width="0" data-width="320" height="-1" data-height="240" />
+        <img data-lazy-src="/lazy-2.jpg" />
+        <img data-original="/original.jpg" />
+        <img data-url="/data-url.jpg" />
+        <img src="/plain-src.jpg" />
+        <img src="ftp://example.com/not-http.jpg" />
+        <img src="https://user:pass@example.com/credentialed.jpg" />
+        <img src="http://[invalid" />
+      </article>
+      <figure>
+        <img src="/figure.jpg" alt="   " />
+        <figcaption> Figure caption </figcaption>
+      </figure>
+    `);
+
+    const candidates = extractArticleImageCandidates(
+      dom.window.document,
+      'https://publisher.example/news/story#fragment',
+    );
+
+    expect(candidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          imageUrl: 'https://publisher.example/large.jpg',
+          altText: 'Width candidate',
+          width: 1200,
+        }),
+        expect.objectContaining({
+          imageUrl: 'https://publisher.example/two.jpg',
+          width: 640,
+          height: 480,
+        }),
+        expect.objectContaining({
+          imageUrl: 'https://publisher.example/plain.jpg',
+        }),
+        expect.objectContaining({
+          imageUrl: 'https://publisher.example/descriptorless.jpg',
+        }),
+        expect.objectContaining({
+          imageUrl: 'https://publisher.example/lazy.jpg',
+          width: 320,
+          height: 240,
+        }),
+        expect.objectContaining({
+          imageUrl: 'https://publisher.example/figure.jpg',
+          origin: 'figure',
+          altText: 'Figure caption',
+        }),
+      ]),
+    );
+    expect(candidates).toHaveLength(10);
+  });
+
+  it('handles OpenGraph ordering, secure URLs, metadata, and deduplication', () => {
+    const dom = new JSDOM(`
+      <head>
+        <meta property="og:image:width" content="999" />
+        <meta property="og:image:secure_url" content="/secure-first.jpg" />
+        <meta property="og:image:width" content="0" />
+        <meta property="og:image:height" content="720" />
+        <meta property="og:image:alt" content="Secure first" />
+        <meta property="og:image" />
+        <meta name="og:image" content="/duplicate.jpg#old" />
+        <meta property="og:image:secure_url" content="https://cdn.example/duplicate.jpg#new" />
+        <meta property="og:image:width" content="1600" />
+        <meta property="og:image:height" content="900" />
+        <meta property="og:image:alt" content="" />
+        <meta property="og:image:url" content="ftp://example.com/nope.jpg" />
+        <meta property="og:image:secure_url" content="javascript:alert(1)" />
+      </head>
+      <body>
+        <article>
+          <img src="https://cdn.example/duplicate.jpg" alt="Article alt" width="1920" height="1080" />
+          <img src="/secure-first.jpg" alt="Duplicate alt" width="1280" height="800" />
+        </article>
+      </body>
+    `);
+
+    const candidates = extractArticleImageCandidates(
+      dom.window.document,
+      'https://publisher.example/story',
+    );
+
+    expect(candidates).toEqual([
+      {
+        imageUrl: 'https://publisher.example/secure-first.jpg',
+        sourceUrl: 'https://publisher.example/story',
+        origin: 'openGraph',
+        altText: 'Secure first',
+        height: 720,
+        width: 1280,
+      },
+      {
+        imageUrl: 'https://cdn.example/duplicate.jpg',
+        sourceUrl: 'https://publisher.example/story',
+        origin: 'openGraph',
+        width: 1600,
+        height: 900,
+        altText: 'Article alt',
+      },
+    ]);
+  });
 });
 
 describe('scrapeArticle', () => {

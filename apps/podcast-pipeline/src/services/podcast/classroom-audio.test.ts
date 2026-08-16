@@ -136,6 +136,27 @@ describe('synthesizeClassroomAudio', () => {
     );
   });
 
+  it('unwraps a nested Error cause and supports omitted episode context', async () => {
+    const consoleSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const cause = new Error('provider root cause');
+    mockTextToSpeech.mockRejectedValue(new Error('step wrapper', { cause }));
+
+    await expect(synthesizeClassroomAudio(classroomLesson())).resolves.toEqual({
+      audio: null,
+      cost: [],
+    });
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[classroom-audio] synthesis failed:',
+      expect.objectContaining({
+        episodeId: undefined,
+        message: 'step wrapper',
+        cause,
+      }),
+    );
+  });
+
   it('handles non-Error thrown values when synthesizing', async () => {
     const consoleSpy = vi
       .spyOn(console, 'error')

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  answerTelegramCallbackQuery,
   buildEpisodeShareUrl,
   buildTelegramAudioReadyMessage,
   buildTelegramFailureMessage,
@@ -11,6 +12,7 @@ import {
   getTelegramCallbackQuery,
   getTelegramMessage,
   isAllowedUser,
+  isTelegramHelpCommand,
   sendMessage,
   sendTelegramNotification,
   verifySecret,
@@ -198,6 +200,16 @@ describe('isAllowedUser', () => {
   });
 });
 
+describe('isTelegramHelpCommand', () => {
+  it.each(['/start', '/help', '/start@ZapPilotBot', '/HELP@ZapPilotBot'])('accepts %s', (command) => {
+    expect(isTelegramHelpCommand(`${command} extra words`)).toBe(true);
+  });
+
+  it.each(['hello', '/status', ''])('rejects %j', (text) => {
+    expect(isTelegramHelpCommand(text)).toBe(false);
+  });
+});
+
 describe('getTelegramCallbackQuery', () => {
   it('extracts callback metadata and the source message', () => {
     expect(
@@ -225,7 +237,60 @@ describe('getTelegramCallbackQuery', () => {
   });
 
   it('returns null when no callback query is present', () => {
+    expect(getTelegramCallbackQuery('not-an-object')).toBeNull();
     expect(getTelegramCallbackQuery({ update_id: 1 })).toBeNull();
+  });
+
+  it('keeps optional callback actors/message records optional', () => {
+    expect(
+      getTelegramCallbackQuery({
+        callback_query: {
+          id: 'cb-2',
+          data: 'retry',
+          from: null,
+          message: {
+            text: 'retry me',
+            from: { id: 77 },
+            chat: null,
+          },
+        },
+      }),
+    ).toEqual({
+      id: 'cb-2',
+      data: 'retry',
+      from: undefined,
+      message: {
+        text: 'retry me',
+        from: { id: 77 },
+        chat: undefined,
+      },
+    });
+    expect(
+      getTelegramCallbackQuery({
+        callback_query: { id: 'cb-3', data: 'retry', message: null },
+      })?.message,
+    ).toBeUndefined();
+  });
+});
+
+describe('answerTelegramCallbackQuery', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('logs Telegram API failures instead of throwing from webhook handling', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(null, { status: 500 })),
+    );
+
+    await expect(answerTelegramCallbackQuery('cb-1', 'failed')).resolves.toBeUndefined();
+    expect(error).toHaveBeenCalledWith(
+      '[/telegram/webhook] answerCallbackQuery failed:',
+      expect.objectContaining({ message: 'Telegram answerCallbackQuery failed: 500' }),
+    );
   });
 });
 
