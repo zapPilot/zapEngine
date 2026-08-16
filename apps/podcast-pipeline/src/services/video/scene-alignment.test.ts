@@ -38,25 +38,41 @@ const scenes: VisualSceneAnchor[] = [
 describe('scene alignment', () => {
   it('handles proportional alignment boundary validation', () => {
     expect(proportionalSceneAlignment([], [], [])).toEqual([]);
-    expect(() => proportionalSceneAlignment(scenes, [], ['s0001', 's0002'])).toThrow(
-      'non-empty sentences',
-    );
+    expect(() =>
+      proportionalSceneAlignment(scenes, [], ['s0001', 's0002']),
+    ).toThrow('non-empty sentences');
     expect(() => proportionalSceneAlignment(scenes, ['s0001'], [])).toThrow(
       'non-empty sentences',
     );
     expect(() =>
-      proportionalSceneAlignment(scenes, ['s0001', 's0002', 's0003'], ['s0001']),
+      proportionalSceneAlignment(
+        scenes,
+        ['s0001', 's0002', 's0003'],
+        ['s0001'],
+      ),
     ).toThrow('at least one localized sentence per scene');
     expect(() =>
       proportionalSceneAlignment(
-        [{ sceneId: 'scene-01', startSentenceId: 's0001', endSentenceId: 's9999' }],
+        [
+          {
+            sceneId: 'scene-01',
+            startSentenceId: 's0001',
+            endSentenceId: 's9999',
+          },
+        ],
         ['s0001'],
         ['s0001'],
       ),
     ).toThrow('unknown canonical sentence');
     expect(() =>
       proportionalSceneAlignment(
-        [{ sceneId: 'scene-01', startSentenceId: 's0001', endSentenceId: 's0001' }],
+        [
+          {
+            sceneId: 'scene-01',
+            startSentenceId: 's0001',
+            endSentenceId: 's0001',
+          },
+        ],
         ['s0001'],
         [''],
       ),
@@ -100,7 +116,11 @@ describe('scene alignment', () => {
           localizedScript: 'Localized.',
           languageCode: 'en',
           scenes: [
-            { sceneId: 'scene-01', startSentenceId: 's9999', endSentenceId: 's9999' },
+            {
+              sceneId: 'scene-01',
+              startSentenceId: 's9999',
+              endSentenceId: 's9999',
+            },
           ],
         },
         { provider },
@@ -219,10 +239,22 @@ describe('scene alignment', () => {
 
   it('accepts top-level array alignment payloads', () => {
     expect(
-      validateSceneAlignment(scenes, ['s0001', 's0002', 's0003'], [
-        { sceneId: 'scene-01', startSentenceId: 's0001', endSentenceId: 's0001' },
-        { sceneId: 'scene-02', startSentenceId: 's0002', endSentenceId: 's0003' },
-      ]),
+      validateSceneAlignment(
+        scenes,
+        ['s0001', 's0002', 's0003'],
+        [
+          {
+            sceneId: 'scene-01',
+            startSentenceId: 's0001',
+            endSentenceId: 's0001',
+          },
+          {
+            sceneId: 'scene-02',
+            startSentenceId: 's0002',
+            endSentenceId: 's0003',
+          },
+        ],
+      ),
     ).toHaveLength(2);
   });
 
@@ -232,18 +264,32 @@ describe('scene alignment', () => {
       {
         scenes: [
           { sceneId: '', startSentenceId: 's0001', endSentenceId: 's0001' },
-          { sceneId: 'scene-02', startSentenceId: 's0002', endSentenceId: 's0003' },
+          {
+            sceneId: 'scene-02',
+            startSentenceId: 's0002',
+            endSentenceId: 's0003',
+          },
         ],
       },
       {
         scenes: [
-          { sceneId: 'scene-01', startSentenceId: 's9999', endSentenceId: 's0001' },
-          { sceneId: 'scene-02', startSentenceId: 's0002', endSentenceId: 's0003' },
+          {
+            sceneId: 'scene-01',
+            startSentenceId: 's9999',
+            endSentenceId: 's0001',
+          },
+          {
+            sceneId: 'scene-02',
+            startSentenceId: 's0002',
+            endSentenceId: 's0003',
+          },
         ],
       },
       null,
     ]) {
-      expect(() => validateSceneAlignment(scenes, ['s0001', 's0002', 's0003'], raw)).toThrow();
+      expect(() =>
+        validateSceneAlignment(scenes, ['s0001', 's0002', 's0003'], raw),
+      ).toThrow();
     }
   });
 
@@ -282,16 +328,34 @@ describe('scene alignment', () => {
   it('requires localized ids when validating either compact or full payloads', () => {
     expect(() =>
       validateSceneAlignment(
-        [{ sceneId: 'scene-01', startSentenceId: 's0001', endSentenceId: 's0001' }],
+        [
+          {
+            sceneId: 'scene-01',
+            startSentenceId: 's0001',
+            endSentenceId: 's0001',
+          },
+        ],
         [],
         { endSentenceIds: ['s0001'] },
       ),
     ).toThrow('requires localized sentences');
     expect(() =>
       validateSceneAlignment(
-        [{ sceneId: 'scene-01', startSentenceId: 's0001', endSentenceId: 's0001' }],
+        [
+          {
+            sceneId: 'scene-01',
+            startSentenceId: 's0001',
+            endSentenceId: 's0001',
+          },
+        ],
         [],
-        [{ sceneId: 'scene-01', startSentenceId: 's0001', endSentenceId: 's0001' }],
+        [
+          {
+            sceneId: 'scene-01',
+            startSentenceId: 's0001',
+            endSentenceId: 's0001',
+          },
+        ],
       ),
     ).toThrow('requires localized sentences');
   });
@@ -341,8 +405,16 @@ describe('scene alignment', () => {
   it('NVIDIA provider handles wrapped JSON, missing JSON, no signal, and API-key validation', async () => {
     const create = vi
       .fn()
-      .mockResolvedValueOnce({ choices: [{ message: { content: 'prefix {"endSentenceIds":["s0001"]} suffix' } }] })
-      .mockResolvedValueOnce({ choices: [{ message: { content: 'no object here' } }] });
+      .mockResolvedValueOnce({
+        choices: [
+          {
+            message: { content: 'prefix {"endSentenceIds":["s0001"]} suffix' },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: 'no object here' } }],
+      });
     const provider = createNvidiaSceneAlignmentProvider({
       client: { chat: { completions: { create } } } as never,
     });
@@ -351,16 +423,25 @@ describe('scene alignment', () => {
       localizedSentences: 's0001\tLocalized.',
       languageCode: 'en' as const,
     };
-    await expect(provider.align(request)).resolves.toEqual({ endSentenceIds: ['s0001'] });
+    await expect(provider.align(request)).resolves.toEqual({
+      endSentenceIds: ['s0001'],
+    });
     expect(create.mock.calls[0]?.[1]).toBeUndefined();
-    await expect(provider.align(request)).rejects.toThrow('invalid JSON content');
+    await expect(provider.align(request)).rejects.toThrow(
+      'invalid JSON content',
+    );
 
     const previousKey = process.env['NVIDIA_API_KEY'];
     delete process.env['NVIDIA_API_KEY'];
     try {
-      expect(() => createNvidiaSceneAlignmentProvider()).toThrow('NVIDIA_API_KEY not set');
+      expect(() => createNvidiaSceneAlignmentProvider()).toThrow(
+        'NVIDIA_API_KEY not set',
+      );
       expect(() =>
-        createNvidiaSceneAlignmentProvider({ apiKey: 'key', baseURL: 'https://example.test/v1' }),
+        createNvidiaSceneAlignmentProvider({
+          apiKey: 'key',
+          baseURL: 'https://example.test/v1',
+        }),
       ).not.toThrow();
     } finally {
       if (previousKey === undefined) delete process.env['NVIDIA_API_KEY'];
@@ -408,9 +489,11 @@ describe('scene alignment', () => {
         'Unsupported VIDEO_ALIGNMENT_PROVIDER: other',
       );
     } finally {
-      if (previous === undefined) delete process.env['VIDEO_ALIGNMENT_PROVIDER'];
+      if (previous === undefined)
+        delete process.env['VIDEO_ALIGNMENT_PROVIDER'];
       else process.env['VIDEO_ALIGNMENT_PROVIDER'] = previous;
-      if (previousModel === undefined) delete process.env['VIDEO_ALIGNMENT_MODEL'];
+      if (previousModel === undefined)
+        delete process.env['VIDEO_ALIGNMENT_MODEL'];
       else process.env['VIDEO_ALIGNMENT_MODEL'] = previousModel;
     }
   });
@@ -428,7 +511,9 @@ describe('scene alignment', () => {
         model: 'resolved-model',
       });
       llmMocks.createOpenRouterChatCompletion
-        .mockResolvedValueOnce({ choices: [{ message: { content: '{"endSentenceIds":["s0001"]}' } }] })
+        .mockResolvedValueOnce({
+          choices: [{ message: { content: '{"endSentenceIds":["s0001"]}' } }],
+        })
         .mockResolvedValueOnce({ choices: [] });
       const provider = createOpenRouterSceneAlignmentProvider();
       const request = {
@@ -436,19 +521,27 @@ describe('scene alignment', () => {
         localizedSentences: 's0001\tLocalized.',
         languageCode: 'en' as const,
       };
-      await expect(provider.align(request)).resolves.toEqual({ endSentenceIds: ['s0001'] });
+      await expect(provider.align(request)).resolves.toEqual({
+        endSentenceIds: ['s0001'],
+      });
       expect(llmMocks.getOpenRouterConfig).toHaveBeenCalledWith({
         model: 'llm-fallback',
         thinkingModel: null,
       });
-      expect(llmMocks.createOpenRouterChatCompletion.mock.calls.at(-2)?.[3]).toBeUndefined();
-      await expect(provider.align(request)).rejects.toThrow('invalid JSON content');
+      expect(
+        llmMocks.createOpenRouterChatCompletion.mock.calls.at(-2)?.[3],
+      ).toBeUndefined();
+      await expect(provider.align(request)).rejects.toThrow(
+        'invalid JSON content',
+      );
     } finally {
-      if (previousVideoModel === undefined) delete process.env['VIDEO_ALIGNMENT_MODEL'];
+      if (previousVideoModel === undefined)
+        delete process.env['VIDEO_ALIGNMENT_MODEL'];
       else process.env['VIDEO_ALIGNMENT_MODEL'] = previousVideoModel;
       if (previousLlmModel === undefined) delete process.env['LLM_MODEL'];
       else process.env['LLM_MODEL'] = previousLlmModel;
-      if (previousTranslationModel === undefined) delete process.env['TRANSLATION_LLM_MODEL'];
+      if (previousTranslationModel === undefined)
+        delete process.env['TRANSLATION_LLM_MODEL'];
       else process.env['TRANSLATION_LLM_MODEL'] = previousTranslationModel;
     }
   });

@@ -545,25 +545,25 @@ describe('createEpisodeVideoProcessor', () => {
   it('rejects a localization job that no longer matches its visual checkpoint', async () => {
     const processJob = createEpisodeVideoProcessor();
     await expect(
-      processJob(
-        { ...job(), visual_hash: 'b'.repeat(64) },
-        source(),
-        {
-          signal: new AbortController().signal,
-          runId: 'run12345',
-          saveManifest: vi.fn(),
-          reportProgress: vi.fn(),
-        },
-      ),
+      processJob({ ...job(), visual_hash: 'b'.repeat(64) }, source(), {
+        signal: new AbortController().signal,
+        runId: 'run12345',
+        saveManifest: vi.fn(),
+        reportProgress: vi.fn(),
+      }),
     ).rejects.toThrow('does not match its completed visual checkpoint');
   });
 
   it('fails closed when the renderer returns no artifacts', async () => {
     const processJob = createEpisodeVideoProcessor({
       downloadNarration: vi.fn().mockResolvedValue(undefined),
-      analyzeAudio: vi.fn().mockResolvedValue({ durationMs: 90_000, silences: [] }),
-      createManifest: vi.fn().mockResolvedValue(generatedManifest('manifest-hash')),
-      render: vi.fn().mockResolvedValue(null as never),
+      analyzeAudio: vi
+        .fn()
+        .mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      createManifest: vi
+        .fn()
+        .mockResolvedValue(generatedManifest('manifest-hash')),
+      render: vi.fn().mockResolvedValue(null),
       upload: vi.fn(),
       makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
       writeManifest: vi.fn().mockResolvedValue(undefined),
@@ -595,8 +595,12 @@ describe('createEpisodeVideoProcessor', () => {
     });
     const processJob = createEpisodeVideoProcessor({
       downloadNarration: vi.fn().mockResolvedValue(undefined),
-      analyzeAudio: vi.fn().mockResolvedValue({ durationMs: 90_000, silences: [] }),
-      createManifest: vi.fn().mockResolvedValue(generatedManifest('manifest-hash')),
+      analyzeAudio: vi
+        .fn()
+        .mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      createManifest: vi
+        .fn()
+        .mockResolvedValue(generatedManifest('manifest-hash')),
       render,
       upload: vi.fn().mockResolvedValue(uploadedArtifacts()),
       makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
@@ -613,8 +617,14 @@ describe('createEpisodeVideoProcessor', () => {
       reportProgress,
     });
 
-    expect(reportProgress).toHaveBeenCalledWith({ percent: 35, stage: 'encoding' });
-    expect(reportProgress).toHaveBeenCalledWith({ percent: 15, stage: 'preparing-media' });
+    expect(reportProgress).toHaveBeenCalledWith({
+      percent: 35,
+      stage: 'encoding',
+    });
+    expect(reportProgress).toHaveBeenCalledWith({
+      percent: 15,
+      stage: 'preparing-media',
+    });
   });
 
   it('still logs metrics when memory sampler initialization fails', async () => {
@@ -625,8 +635,12 @@ describe('createEpisodeVideoProcessor', () => {
     const render = vi.fn();
     const processJob = createEpisodeVideoProcessor({
       downloadNarration: vi.fn().mockResolvedValue(undefined),
-      analyzeAudio: vi.fn().mockResolvedValue({ durationMs: 90_000, silences: [] }),
-      createManifest: vi.fn().mockResolvedValue(generatedManifest('manifest-hash')),
+      analyzeAudio: vi
+        .fn()
+        .mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      createManifest: vi
+        .fn()
+        .mockResolvedValue(generatedManifest('manifest-hash')),
       render,
       makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
       writeManifest: vi.fn().mockResolvedValue(undefined),

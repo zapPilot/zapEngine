@@ -137,13 +137,15 @@ describe('template branch behavior', () => {
       sources: [source],
       asset: { kind: 'none' },
     };
-    executeElementTree(
-      renderSlideElement(
-        cover,
-        { kind: 'fallback', reason: 'fallback', source: null },
-        LOGO_DATA_URI,
+    expect(() =>
+      executeElementTree(
+        renderSlideElement(
+          cover,
+          { kind: 'fallback', reason: 'fallback', source: null },
+          LOGO_DATA_URI,
+        ),
       ),
-    );
+    ).not.toThrow();
 
     for (const subheadline of ['', 'Optional detail']) {
       const photoFact: Extract<Slide, { template: 'photoFact' }> = {
@@ -158,18 +160,20 @@ describe('template branch behavior', () => {
         sources: [source],
         asset: { kind: 'none' },
       };
-      executeElementTree(
-        renderSlideElement(
-          photoFact,
-          subheadline
-            ? { ...imageAsset, layout: 'framed', position: 'top' }
-            : { kind: 'fallback', reason: 'No image', source: null },
-          LOGO_DATA_URI,
+      expect(() =>
+        executeElementTree(
+          renderSlideElement(
+            photoFact,
+            subheadline
+              ? { ...imageAsset, layout: 'framed', position: 'top' }
+              : { kind: 'fallback', reason: 'No image', source: null },
+            LOGO_DATA_URI,
+          ),
         ),
-      );
+      ).not.toThrow();
     }
 
-    const statisticVariants: Array<Extract<Slide, { template: 'statistic' }>> = [
+    const statisticVariants: Extract<Slide, { template: 'statistic' }>[] = [
       {
         id: 'stat-full',
         startMs: 0,
@@ -210,13 +214,15 @@ describe('template branch behavior', () => {
       },
     ];
     for (const statistic of statisticVariants) {
-      executeElementTree(
-        renderSlideElement(
-          statistic,
-          { kind: 'fallback', reason: 'Statistic', source },
-          LOGO_DATA_URI,
+      expect(() =>
+        executeElementTree(
+          renderSlideElement(
+            statistic,
+            { kind: 'fallback', reason: 'Statistic', source },
+            LOGO_DATA_URI,
+          ),
         ),
-      );
+      ).not.toThrow();
     }
 
     for (const context of ['', 'Quote context']) {
@@ -232,27 +238,33 @@ describe('template branch behavior', () => {
         sources: [source],
         asset: { kind: 'none' },
       };
-      executeElementTree(
-        renderSlideElement(
-          quote,
-          { ...imageAsset, layout: 'fullBleed', position: 'bottom' },
-          LOGO_DATA_URI,
+      expect(() =>
+        executeElementTree(
+          renderSlideElement(
+            quote,
+            { ...imageAsset, layout: 'fullBleed', position: 'bottom' },
+            LOGO_DATA_URI,
+          ),
         ),
-      );
+      ).not.toThrow();
     }
 
-    executeElementTree(
-      renderBrandFrameElement(
-        { kicker: 'KICKER', titleLines: ['First', 'Second'] },
-        LOGO_DATA_URI,
+    expect(() =>
+      executeElementTree(
+        renderBrandFrameElement(
+          { kicker: 'KICKER', titleLines: ['First', 'Second'] },
+          LOGO_DATA_URI,
+        ),
       ),
-    );
-    executeElementTree(
-      renderOutroElement(
-        { title: 'Outro title', callToAction: 'Visit Zap Pilot' },
-        LOGO_DATA_URI,
+    ).not.toThrow();
+    expect(() =>
+      executeElementTree(
+        renderOutroElement(
+          { title: 'Outro title', callToAction: 'Visit Zap Pilot' },
+          LOGO_DATA_URI,
+        ),
       ),
-    );
+    ).not.toThrow();
   });
 
   it('fails when a rendered template has no primary source or an image has no data URI', () => {

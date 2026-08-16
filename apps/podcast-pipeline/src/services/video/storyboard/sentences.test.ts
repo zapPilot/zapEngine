@@ -37,12 +37,9 @@ describe('splitCanonicalSentences', () => {
 
   it('recognizes hard terminators and includes trailing quote/bracket closers', () => {
     const script = '第一句！」「 第二句？） Third;] Fourth；』';
-    expect(splitCanonicalSentences(script).map((sentence) => sentence.text)).toEqual([
-      '第一句！」',
-      '「 第二句？）',
-      'Third;]',
-      'Fourth；』',
-    ]);
+    expect(
+      splitCanonicalSentences(script).map((sentence) => sentence.text),
+    ).toEqual(['第一句！」', '「 第二句？）', 'Third;]', 'Fourth；』']);
   });
 
   it('splits LF, CR, and CRLF while trimming blank whitespace-only ranges', () => {
@@ -68,15 +65,21 @@ describe('canonical sentence helpers', () => {
   const sentences = splitCanonicalSentences(script);
 
   it('returns exact text for a valid inclusive sentence range', () => {
-    expect(canonicalSentenceRangeText(script, sentences, 's0001', 's0002')).toBe(
-      'First. Second.',
-    );
+    expect(
+      canonicalSentenceRangeText(script, sentences, 's0001', 's0002'),
+    ).toBe('First. Second.');
   });
 
   it('returns null for unknown or reversed ranges', () => {
-    expect(canonicalSentenceRangeText(script, sentences, 's9999', 's0002')).toBeNull();
-    expect(canonicalSentenceRangeText(script, sentences, 's0001', 's9999')).toBeNull();
-    expect(canonicalSentenceRangeText(script, sentences, 's0003', 's0001')).toBeNull();
+    expect(
+      canonicalSentenceRangeText(script, sentences, 's9999', 's0002'),
+    ).toBeNull();
+    expect(
+      canonicalSentenceRangeText(script, sentences, 's0001', 's9999'),
+    ).toBeNull();
+    expect(
+      canonicalSentenceRangeText(script, sentences, 's0003', 's0001'),
+    ).toBeNull();
   });
 
   it('formats canonical sentence ids and text for prompts', () => {

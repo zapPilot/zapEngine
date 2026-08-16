@@ -110,9 +110,14 @@ describe('publishSocialPlatforms', () => {
       jobs: [
         job(
           'x',
-          vi.fn().mockResolvedValue(
-            success('2026-08-11T00:00:00.000Z', 'https://x.com/status/skip-me'),
-          ),
+          vi
+            .fn()
+            .mockResolvedValue(
+              success(
+                '2026-08-11T00:00:00.000Z',
+                'https://x.com/status/skip-me',
+              ),
+            ),
         ),
       ],
       force: false,
@@ -232,7 +237,10 @@ describe('publishSocialPlatforms', () => {
     const outcomes = await publishSocialPlatforms({
       episodeId: 'episode-string-error',
       jobs: [
-        job('threads', vi.fn().mockResolvedValue(success('2026-08-11T00:01:00.000Z'))),
+        job(
+          'threads',
+          vi.fn().mockResolvedValue(success('2026-08-11T00:01:00.000Z')),
+        ),
       ],
       force: false,
       statePath: path,
@@ -243,7 +251,9 @@ describe('publishSocialPlatforms', () => {
     expect(outcomes[0]).toMatchObject({
       platform: 'threads',
       status: 'published',
-      recordError: expect.objectContaining({ message: 'database string failure' }),
+      recordError: expect.objectContaining({
+        message: 'database string failure',
+      }),
     });
     expect(onLog).toHaveBeenCalledWith(
       '[threads] ⚠ Published remotely, but telemetry recording failed: database string failure',

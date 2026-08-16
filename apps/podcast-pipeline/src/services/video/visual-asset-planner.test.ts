@@ -472,7 +472,9 @@ describe('planVisualAssets', () => {
       .mockRejectedValueOnce(new Error('Image download timed out'))
       .mockRejectedValueOnce(new Error('unsupported raster content type'))
       .mockRejectedValueOnce(new Error('animated image is not supported'))
-      .mockRejectedValueOnce(new Error('Image exceeds the 25 MiB download limit'))
+      .mockRejectedValueOnce(
+        new Error('Image exceeds the 25 MiB download limit'),
+      )
       .mockRejectedValueOnce(new Error('private or reserved IP'))
       .mockRejectedValueOnce(new Error('redirect limit exceeded'))
       .mockRejectedValueOnce(new Error('getaddrinfo ENOTFOUND images.test'))
@@ -482,7 +484,9 @@ describe('planVisualAssets', () => {
 
     await expect(
       planVisualAssets({
-        scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['target subject'] }],
+        scenes: [
+          { sceneId: 'scene-01', imageSearchIntent: ['target subject'] },
+        ],
         workingDirectory: '/work/visual-assets',
         dependencies: {
           acquireImage,
@@ -654,7 +658,9 @@ describe('planVisualAssets', () => {
 
     await expect(
       planVisualAssets({
-        scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['target subject'] }],
+        scenes: [
+          { sceneId: 'scene-01', imageSearchIntent: ['target subject'] },
+        ],
         workingDirectory: '/work/visual-assets',
         signal: controller.signal,
         dependencies: {

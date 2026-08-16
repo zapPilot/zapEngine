@@ -90,7 +90,9 @@ describe('validateImageCandidate', () => {
     );
 
     expect(
-      validateImageCandidate(candidate({ width: undefined, height: undefined })),
+      validateImageCandidate(
+        candidate({ width: undefined, height: undefined }),
+      ),
     ).toMatchObject({ valid: true, issues: [] });
   });
 
@@ -119,13 +121,16 @@ describe('validateImageCandidate', () => {
   });
 
   it('reports every active dimension quality failure independently', () => {
-    const result = validateImageCandidate(candidate({ width: 500, height: 300 }), {
-      minWidth: 600,
-      minHeight: 400,
-      minLongEdge: 700,
-      minShortEdge: 350,
-      minAspectRatio: 2,
-    });
+    const result = validateImageCandidate(
+      candidate({ width: 500, height: 300 }),
+      {
+        minWidth: 600,
+        minHeight: 400,
+        minLongEdge: 700,
+        minShortEdge: 350,
+        minAspectRatio: 2,
+      },
+    );
     expect(result.issues.map((issue) => issue.code)).toEqual(
       expect.arrayContaining([
         'image-too-narrow',
@@ -136,9 +141,12 @@ describe('validateImageCandidate', () => {
       ]),
     );
 
-    const tooWide = validateImageCandidate(candidate({ width: 2000, height: 500 }), {
-      maxAspectRatio: 3,
-    });
+    const tooWide = validateImageCandidate(
+      candidate({ width: 2000, height: 500 }),
+      {
+        maxAspectRatio: 3,
+      },
+    );
     expect(tooWide.issues.map((issue) => issue.code)).toContain(
       'aspect-ratio-out-of-range',
     );
@@ -178,7 +186,8 @@ describe('filterImageCandidates', () => {
       imageUrl: 'https://media.example.test/image.jpg#duplicate',
     });
     expect(
-      partitionImageCandidates([first, duplicate], { deduplicate: false }).accepted,
+      partitionImageCandidates([first, duplicate], { deduplicate: false })
+        .accepted,
     ).toEqual([first, duplicate]);
   });
 

@@ -302,7 +302,10 @@ describe('episode visual payload', () => {
         episodeId,
         canonicalLocalizationId: localizationId,
         manifestUrl: 'https://cdn.example.test/manifest.json',
-        storyboard: { ...storyboard, draft: { scenes: [storyboard.draft.scenes[0]!] } },
+        storyboard: {
+          ...storyboard,
+          draft: { scenes: [storyboard.draft.scenes[0]!] },
+        },
         searchIntentModel: null,
         selectedScenes: [{ sceneId: 'scene-01', assetId: 'image-01' }],
         assets: [malformed],

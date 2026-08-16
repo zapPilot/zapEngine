@@ -207,7 +207,9 @@ describe('storyboard search intent enrichment', () => {
       })),
     }));
 
-    await expect(enrichStoryboardSearchIntents(request, { provider })).resolves.toEqual({
+    await expect(
+      enrichStoryboardSearchIntents(request, { provider }),
+    ).resolves.toEqual({
       draft: request.draft,
       model: null,
       enrichedSceneCount: 0,
@@ -255,7 +257,9 @@ describe('storyboard search intent enrichment', () => {
     };
     const provider = stubProvider(suggestSubjects);
 
-    await expect(enrichStoryboardSearchIntents(request, { provider })).resolves.toEqual({
+    await expect(
+      enrichStoryboardSearchIntents(request, { provider }),
+    ).resolves.toEqual({
       draft: request.draft,
       model: null,
       enrichedSceneCount: 0,
@@ -329,7 +333,13 @@ describe('storyboard search intent enrichment', () => {
         sceneId: scene.sceneId,
         imageSearchIntent:
           index === 0
-            ? ['日本銀行總裁記者會', '12', 'a', 42, `${'long phrase '.repeat(10)}`]
+            ? [
+                '日本銀行總裁記者會',
+                '12',
+                'a',
+                42,
+                `${'long phrase '.repeat(10)}`,
+              ]
             : [
                 'Cargo Port At Sunrise',
                 'cargo port at sunrise',

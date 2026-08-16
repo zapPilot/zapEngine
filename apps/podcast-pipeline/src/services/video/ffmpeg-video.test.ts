@@ -1053,7 +1053,12 @@ describe('FFmpeg process utilities', () => {
     const controller = new AbortController();
     controller.abort(new Error('already cancelled'));
     await expect(
-      runProcess(process.execPath, ['-e', 'process.exit(0)'], false, controller.signal),
+      runProcess(
+        process.execPath,
+        ['-e', 'process.exit(0)'],
+        false,
+        controller.signal,
+      ),
     ).rejects.toThrow('already cancelled');
   });
 

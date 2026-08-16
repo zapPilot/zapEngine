@@ -281,6 +281,7 @@ describe('Threads HTTPS callback', () => {
     const harness = createCallbackHarness();
     const options = callbackOptions(harness);
     options.onReady = vi.fn(async () => {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- deliberately a non-Error throw, the subject under test
       throw 'browser failed';
     });
 
@@ -372,7 +373,9 @@ describe('Threads OAuth and secure session', () => {
     );
     vi.stubGlobal('fetch', fetchImpl);
 
-    await expect(getThreadsProfile({ accessToken: 'token-default' })).resolves.toEqual({
+    await expect(
+      getThreadsProfile({ accessToken: 'token-default' }),
+    ).resolves.toEqual({
       id: 'user-default',
       username: 'default-user',
     });
@@ -390,7 +393,9 @@ describe('Threads OAuth and secure session', () => {
       .mockResolvedValueOnce(jsonResponse({ id: 'user-1', username: 'zap' }));
     vi.stubGlobal('fetch', fetchImpl);
 
-    await expect(assertThreadsSessionReady({ sessionPath })).resolves.toMatchObject({
+    await expect(
+      assertThreadsSessionReady({ sessionPath }),
+    ).resolves.toMatchObject({
       profile: { id: 'user-1', username: 'zap' },
     });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
@@ -403,7 +408,9 @@ describe('Threads OAuth and secure session', () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(validDebugResponse(now + 30 * DAY_MS))
-      .mockResolvedValueOnce(jsonResponse({ id: 'env-user', username: 'env-zap' }));
+      .mockResolvedValueOnce(
+        jsonResponse({ id: 'env-user', username: 'env-zap' }),
+      );
     vi.stubGlobal('fetch', fetchImpl);
 
     const ready = await ensureThreadsSession({ sessionPath });
@@ -434,13 +441,21 @@ describe('Threads OAuth and secure session', () => {
         const fetchImpl = vi.fn<typeof fetch>(async (request) => {
           const url = request as URL;
           if (url.pathname === '/oauth/access_token') {
-            return jsonResponse({ access_token: 'short-token', user_id: 'user-1' });
+            return jsonResponse({
+              access_token: 'short-token',
+              user_id: 'user-1',
+            });
           }
           if (url.pathname === '/access_token') {
-            return jsonResponse({ access_token: 'long-token', expires_in: 60 * 24 * 60 * 60 });
+            return jsonResponse({
+              access_token: 'long-token',
+              expires_in: 60 * 24 * 60 * 60,
+            });
           }
-          if (url.pathname === '/debug_token') return validDebugResponse(NOW + 30 * DAY_MS);
-          if (url.pathname === '/me') return jsonResponse({ id: 'user-1', username: 'zap' });
+          if (url.pathname === '/debug_token')
+            return validDebugResponse(NOW + 30 * DAY_MS);
+          if (url.pathname === '/me')
+            return jsonResponse({ id: 'user-1', username: 'zap' });
           throw new Error(`Unexpected ${url.pathname}`);
         });
 
@@ -498,12 +513,14 @@ describe('Threads OAuth and secure session', () => {
       getThreadsProfile({
         accessToken,
         apiBaseUrl: 'https://graph.threads.test',
-        fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(
-          jsonResponse(
-            { error: { message: `token ${accessToken} was rejected` } },
-            401,
+        fetchImpl: vi
+          .fn<typeof fetch>()
+          .mockResolvedValue(
+            jsonResponse(
+              { error: { message: `token ${accessToken} was rejected` } },
+              401,
+            ),
           ),
-        ),
       }),
     ).rejects.toThrow('token [REDACTED] was rejected');
   });
@@ -650,10 +667,15 @@ describe('Threads OAuth and secure session', () => {
     const fetchImpl = vi.fn<typeof fetch>(async (request) => {
       const url = request as URL;
       if (url.pathname === '/refresh_access_token') {
-        return jsonResponse({ access_token: 'refreshed-token', expires_in: 60 * 24 * 60 * 60 });
+        return jsonResponse({
+          access_token: 'refreshed-token',
+          expires_in: 60 * 24 * 60 * 60,
+        });
       }
-      if (url.pathname === '/debug_token') return validDebugResponse(NOW + 30 * DAY_MS);
-      if (url.pathname === '/me') return jsonResponse({ id: 'user-1', username: 'zap' });
+      if (url.pathname === '/debug_token')
+        return validDebugResponse(NOW + 30 * DAY_MS);
+      if (url.pathname === '/me')
+        return jsonResponse({ id: 'user-1', username: 'zap' });
       throw new Error(`Unexpected request: ${url.pathname}`);
     });
     vi.stubGlobal('fetch', fetchImpl);
@@ -725,9 +747,7 @@ describe('Threads OAuth and secure session', () => {
       const fetchImpl = vi
         .fn<typeof fetch>()
         .mockResolvedValueOnce(validDebugResponse(NOW + 30 * DAY_MS))
-        .mockResolvedValueOnce(
-          jsonResponse({ id: 'user-1', username: 'zap' }),
-        );
+        .mockResolvedValueOnce(jsonResponse({ id: 'user-1', username: 'zap' }));
 
       const ready = await assertThreadsSessionReady({
         sessionPath,
@@ -815,19 +835,25 @@ describe('Threads OAuth and secure session', () => {
     await expect(
       assertThreadsSessionReady({
         sessionPath,
-        fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(
-          jsonResponse({ error: { message: 'forbidden' } }, 403),
-        ),
+        fetchImpl: vi
+          .fn<typeof fetch>()
+          .mockResolvedValue(
+            jsonResponse({ error: { message: 'forbidden' } }, 403),
+          ),
         now: () => NOW,
       }),
-    ).rejects.toThrow('The saved Threads session was rejected: Threads API 403');
+    ).rejects.toThrow(
+      'The saved Threads session was rejected: Threads API 403',
+    );
 
     await expect(
       assertThreadsSessionReady({
         sessionPath,
-        fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(
-          jsonResponse({ error: { message: 'upstream down' } }, 500),
-        ),
+        fetchImpl: vi
+          .fn<typeof fetch>()
+          .mockResolvedValue(
+            jsonResponse({ error: { message: 'upstream down' } }, 500),
+          ),
         now: () => NOW,
       }),
     ).rejects.toThrow('Threads API 500: upstream down');
@@ -914,7 +940,9 @@ describe('Threads OAuth and secure session', () => {
     const sessionPath = await createSessionPath();
     const fetchImpl = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(jsonResponse({ access_token: 'short-token', user_id: 'user-1' }))
+      .mockResolvedValueOnce(
+        jsonResponse({ access_token: 'short-token', user_id: 'user-1' }),
+      )
       .mockResolvedValueOnce(jsonResponse(null));
 
     await expect(
@@ -938,12 +966,16 @@ describe('Threads OAuth and secure session', () => {
         return jsonResponse({ access_token: 'short-token', user_id: 'user-1' });
       }
       if (url.pathname === '/access_token') {
-        return jsonResponse({ access_token: 'long-token', expires_in: 60 * 24 * 60 * 60 });
+        return jsonResponse({
+          access_token: 'long-token',
+          expires_in: 60 * 24 * 60 * 60,
+        });
       }
       if (url.pathname === '/debug_token') {
         return validDebugResponse(Date.now() + 30 * DAY_MS);
       }
-      if (url.pathname === '/me') return jsonResponse({ id: 'user-1', username: 'zap' });
+      if (url.pathname === '/me')
+        return jsonResponse({ id: 'user-1', username: 'zap' });
       throw new Error(`Unexpected request: ${url.pathname}`);
     });
     vi.stubGlobal('fetch', fetchImpl);
@@ -1097,7 +1129,9 @@ describe('Threads OAuth and secure session', () => {
   it('propagates non-ENOENT session read failures', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'threads-auth-directory-'));
     temporaryDirectories.push(directory);
-    await expect(readThreadsSession({ sessionPath: directory })).rejects.toThrow();
+    await expect(
+      readThreadsSession({ sessionPath: directory }),
+    ).rejects.toThrow();
   });
 
   it('validates OAuth configuration and redirect URI constraints', async () => {

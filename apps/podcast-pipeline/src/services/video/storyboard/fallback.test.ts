@@ -20,8 +20,12 @@ function storyboard(input: {
     script: input.script,
     durationMs: input.durationMs ?? Math.max(9_000, sentences.length * 10_000),
     sentences,
-    ...(input.searchTitle === undefined ? {} : { searchTitle: input.searchTitle }),
-    ...(input.searchScript === undefined ? {} : { searchScript: input.searchScript }),
+    ...(input.searchTitle === undefined
+      ? {}
+      : { searchTitle: input.searchTitle }),
+    ...(input.searchScript === undefined
+      ? {}
+      : { searchScript: input.searchScript }),
   });
 }
 
@@ -95,7 +99,8 @@ describe('createDeterministicStoryboard', () => {
   it('uses the generic editorial-photo fallback when no photographic concept matches', () => {
     const result = storyboard({
       title: 'Obscure marmalade ledger',
-      script: 'Marmalade ledger entries changed. Citrus jars moved between shelves.',
+      script:
+        'Marmalade ledger entries changed. Citrus jars moved between shelves.',
       durationMs: 20_000,
     });
 
@@ -159,14 +164,15 @@ describe('createDeterministicStoryboard', () => {
     const result = storyboard({
       title: 'Stablecoin payments',
       searchTitle: '   ',
-      script: 'Stablecoin payment terminals appeared in stores. Merchants tested checkout systems.',
+      script:
+        'Stablecoin payment terminals appeared in stores. Merchants tested checkout systems.',
       searchScript: '   ',
       durationMs: 20_000,
     });
 
-    expect(result.scenes.every((scene) => scene.imageSearchIntent.length > 0)).toBe(
-      true,
-    );
+    expect(
+      result.scenes.every((scene) => scene.imageSearchIntent.length > 0),
+    ).toBe(true);
   });
 
   it('balances uneven canonical sentences across allowed scene counts', () => {

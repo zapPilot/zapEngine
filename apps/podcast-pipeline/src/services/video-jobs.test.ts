@@ -386,7 +386,10 @@ describe('createVideoJobRepository', () => {
     const episodeError = makeSupabase();
     episodeError.query.maybeSingle
       .mockResolvedValueOnce({ data: localizationRow(), error: null })
-      .mockResolvedValueOnce({ data: null, error: { message: 'episode query failed' } });
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: 'episode query failed' },
+      });
     await expect(
       createVideoJobRepository(episodeError as never).loadSource('loc'),
     ).rejects.toThrow('episode query failed');
@@ -395,7 +398,10 @@ describe('createVideoJobRepository', () => {
     visualError.query.maybeSingle
       .mockResolvedValueOnce({ data: localizationRow(), error: null })
       .mockResolvedValueOnce({ data: episodeRow(), error: null })
-      .mockResolvedValueOnce({ data: null, error: { message: 'visual query failed' } });
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: 'visual query failed' },
+      });
     await expect(
       createVideoJobRepository(visualError as never).loadSource('loc'),
     ).rejects.toThrow('visual query failed');
@@ -481,7 +487,10 @@ describe('createVideoJobRepository', () => {
       'reap rpc down',
     );
 
-    supabase.rpc.mockResolvedValueOnce({ data: { unexpected: true }, error: null });
+    supabase.rpc.mockResolvedValueOnce({
+      data: { unexpected: true },
+      error: null,
+    });
     await expect(repository.reapFailedNotifications()).resolves.toEqual([]);
 
     supabase.query.maybeSingle.mockResolvedValueOnce({
@@ -650,11 +659,16 @@ describe('createVideoVisualJobRepository', () => {
       error: { message: 'canonical localization query failed' },
     });
     await expect(
-      createVideoVisualJobRepository(queryError as never).loadSource('episode-1'),
+      createVideoVisualJobRepository(queryError as never).loadSource(
+        'episode-1',
+      ),
     ).rejects.toThrow('canonical localization query failed');
 
     const missing = makeSupabase();
-    missing.query.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    missing.query.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
     await expect(
       createVideoVisualJobRepository(missing as never).loadSource('episode-1'),
     ).rejects.toThrow('Canonical video localization not found');

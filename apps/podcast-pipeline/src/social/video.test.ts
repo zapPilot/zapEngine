@@ -8,9 +8,9 @@ import {
   prepareSocialVideo,
   prepareXTeaserVideo,
   socialVideoCacheIdentity,
-  xTeaserDurationSeconds,
   X_TEASER_CONTENT_SECONDS,
   X_VIDEO_LIMIT_SECONDS,
+  xTeaserDurationSeconds,
 } from './video.js';
 
 const EPISODE_ID = `video-stream-test-${process.pid}`;
@@ -151,7 +151,10 @@ describe('prepareSocialVideo', () => {
 
   it('replaces an empty cache entry and sanitizes unsafe episode ids', async () => {
     await writeFile(OUTPUT_PATH, '');
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('replacement')));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('replacement')),
+    );
     const prepared = await prepareSocialVideo({
       episodeId: `${EPISODE_ID}/unsafe:id`,
       url: VIDEO_URL,

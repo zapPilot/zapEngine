@@ -976,13 +976,17 @@ describe('createVideoWorker', () => {
 
   it('returns failed and logs unknown status when visualRepository.fail itself throws', async () => {
     const visualRepository = makeVisualRepository(visualJob());
-    vi.mocked(visualRepository.fail).mockRejectedValue(new Error('visual release rpc down'));
+    vi.mocked(visualRepository.fail).mockRejectedValue(
+      new Error('visual release rpc down'),
+    );
     const logger = { info: vi.fn(), error: vi.fn() };
     const worker = createVideoWorker({
       repository: makeRepository(null),
       visualRepository,
       processJob: vi.fn(),
-      processVisualJob: vi.fn().mockRejectedValue(new Error('visual render exploded')),
+      processVisualJob: vi
+        .fn()
+        .mockRejectedValue(new Error('visual render exploded')),
       logger,
       leaseOwner: 'worker-1',
     });
@@ -1106,7 +1110,9 @@ describe('createVideoWorker', () => {
 
   it('normalizes non-Error reap failures before logging them', async () => {
     const repository = makeRepository(null);
-    vi.mocked(repository.reapFailedNotifications).mockRejectedValue('reap string failure');
+    vi.mocked(repository.reapFailedNotifications).mockRejectedValue(
+      'reap string failure',
+    );
     const logger = { info: vi.fn(), error: vi.fn() };
     const worker = createVideoWorker({
       repository,

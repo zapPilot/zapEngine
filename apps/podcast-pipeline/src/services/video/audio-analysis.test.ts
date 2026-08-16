@@ -109,7 +109,9 @@ describe('podcast video audio analysis', () => {
 
   it('uses configured ffmpeg paths for download and silence detection without explicit overrides', async () => {
     vi.stubEnv('VIDEO_FFMPEG_PATH', ' /custom/ffmpeg ');
-    const downloadRunner = vi.fn().mockResolvedValue({ stdout: '', stderr: '' });
+    const downloadRunner = vi
+      .fn()
+      .mockResolvedValue({ stdout: '', stderr: '' });
     await downloadNarrationAudio('/local/audio.m4a', '/work/audio.m4a', {
       processRunner: downloadRunner,
     });
@@ -196,6 +198,7 @@ describe('podcast video audio analysis', () => {
 
   it('prefers punctuation as a caption break once a long chunk exceeds the budget', () => {
     const chunks = splitCaptionText(
+      // eslint-disable-next-line no-secrets/no-secrets -- synthetic alphabet fixture, not a secret
       'abcdefghijklmnopqrst,uvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
     );
     expect(chunks.length).toBeGreaterThan(1);

@@ -16,6 +16,8 @@ import {
 } from './assets.js';
 import type { Slide, SlideSource } from './manifest.js';
 
+// Hardcoded IP literals are the subject under test here, not a deployment risk.
+/* eslint-disable sonarjs/no-hardcoded-ip */
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
@@ -362,7 +364,9 @@ describe('resolveSlideAsset', () => {
       dataUri: undefined,
       filePath: join(directory, 'pjm-map.svg'),
     });
-    expect((await stat(join(directory, 'pjm-map.svg'))).size).toBeGreaterThan(0);
+    expect((await stat(join(directory, 'pjm-map.svg'))).size).toBeGreaterThan(
+      0,
+    );
 
     const buffer = await sharp({
       create: {
@@ -390,7 +394,9 @@ describe('resolveSlideAsset', () => {
       filePath: join(directory, 'remote-image.image'),
     });
     expect(remote).not.toHaveProperty('dataUri');
-    expect(await readFile(join(directory, 'remote-image.image'))).toEqual(buffer);
+    expect(await readFile(join(directory, 'remote-image.image'))).toEqual(
+      buffer,
+    );
   });
 
   it('uses null source for source-free editorial slides', async () => {
@@ -422,8 +428,6 @@ describe('resolveSlideAsset', () => {
   });
 });
 
-// Hardcoded IP literals are the subject under test here, not a deployment risk.
-/* eslint-disable sonarjs/no-hardcoded-ip */
 describe('DNS pinning', () => {
   async function pngBuffer(): Promise<Buffer> {
     return sharp({
@@ -526,7 +530,8 @@ describe('DNS pinning', () => {
         { fetchImage, resolveHost: testCase.resolveHost },
       );
       expect(result).toMatchObject({ kind: 'fallback' });
-      if (result.kind === 'fallback') expect(result.reason).toContain(testCase.message);
+      if (result.kind === 'fallback')
+        expect(result.reason).toContain(testCase.message);
     }
     expect(fetchImage).not.toHaveBeenCalled();
   });
