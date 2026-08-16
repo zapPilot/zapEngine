@@ -1,5 +1,6 @@
 import { createPlaywrightRednotePublisher } from './rednote-playwright.js';
 import { createThreadsPublisher } from './threads.js';
+import { prepareThreadsVideoUrl } from './threads-video.js';
 import type {
   GeneratedSocialCopy,
   SocialPlatform,
@@ -35,7 +36,15 @@ export async function createSocialPublishJobs(input: {
         break;
       }
       case 'threads': {
-        const publisher = createThreadsPublisher({ onLog: input.onLog });
+        const publisher = createThreadsPublisher({
+          onLog: input.onLog,
+          prepareVideoUrl: (videoUrl) =>
+            prepareThreadsVideoUrl(videoUrl, {
+              ...(input.xVideoPath
+                ? { preparedVideoPath: input.xVideoPath }
+                : {}),
+            }),
+        });
         jobs.push({
           platform,
           publish: () =>

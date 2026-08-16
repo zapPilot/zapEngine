@@ -16,10 +16,11 @@ export { getThreadsProfile, type ThreadsProfile } from './threads-auth.js';
 
 const DEFAULT_API_BASE_URL = 'https://graph.threads.net';
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
-const DEFAULT_STATUS_POLL_INTERVAL_MS = 1_000;
-const DEFAULT_STATUS_POLL_ATTEMPTS = 60;
+const DEFAULT_STATUS_POLL_INTERVAL_MS = 5_000;
+const DEFAULT_STATUS_POLL_ATTEMPTS = 120;
 
 type Sleep = (delayMs: number) => Promise<void>;
+type PrepareVideoUrl = (videoUrl: string) => Promise<string>;
 
 export function createThreadsPublisher(input?: {
   accessToken?: string;
@@ -30,6 +31,7 @@ export function createThreadsPublisher(input?: {
   sleep?: Sleep;
   statusPollIntervalMs?: number;
   statusPollAttempts?: number;
+  prepareVideoUrl?: PrepareVideoUrl;
 }): ThreadsPublisher {
   const apiBaseUrl = input?.apiBaseUrl ?? DEFAULT_API_BASE_URL;
   const fetchImpl = input?.fetchImpl ?? fetch;
@@ -41,6 +43,8 @@ export function createThreadsPublisher(input?: {
     input?.statusPollIntervalMs ?? DEFAULT_STATUS_POLL_INTERVAL_MS;
   const statusPollAttempts =
     input?.statusPollAttempts ?? DEFAULT_STATUS_POLL_ATTEMPTS;
+  const prepareVideoUrl =
+    input?.prepareVideoUrl ?? (async (videoUrl: string) => videoUrl);
   const getAccessToken =
     input?.getAccessToken ??
     (input?.accessToken !== undefined
@@ -74,6 +78,7 @@ export function createThreadsPublisher(input?: {
         sleep,
         statusPollIntervalMs,
         statusPollAttempts,
+        prepareVideoUrl,
       });
     },
   };
@@ -89,9 +94,17 @@ async function publishThreads(
     sleep: Sleep;
     statusPollIntervalMs: number;
     statusPollAttempts: number;
+    prepareVideoUrl: PrepareVideoUrl;
   },
 ): Promise<PublishResult> {
-  const videoUrl = requirePublicVideoUrl(input.videoUrl);
+  const canonicalVideoUrl = requirePublicVideoUrl(input.videoUrl);
+  context.log('[threads] Preparing platform-safe teaser video');
+  const videoUrl = requirePublicVideoUrl(
+    await threadsStep('prepare_video', () =>
+      context.prepareVideoUrl(canonicalVideoUrl),
+    ),
+  );
+
   context.log('[threads] Creating native video container');
   const created = await threadsStep('create_video', () =>
     requestThreadsApi(
