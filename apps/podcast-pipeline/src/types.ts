@@ -298,43 +298,33 @@ export interface SocialPostMetricDetails {
   platformMetrics?: Record<string, number | string | boolean | null>;
 }
 
-export interface SocialPostMetricRow {
-  id: string;
-  social_post_id: string;
-  captured_at: string;
-  age_hours: number;
-  measurement_window?: '1h' | '6h' | '24h' | '72h' | '7d' | null;
+export interface SocialPostMetricCounters {
   views: number | null;
   impressions: number | null;
   likes: number | null;
   comments: number | null;
   shares: number | null;
   saves: number | null;
+}
+
+export interface SocialPostMetricRow extends SocialPostMetricCounters {
+  id: string;
+  social_post_id: string;
+  captured_at: string;
+  age_hours: number;
+  measurement_window?: '1h' | '6h' | '24h' | '72h' | '7d' | null;
   profile_visits: number | null;
   followers_gained: number | null;
   details: SocialPostMetricDetails;
   created_at: string;
 }
 
-// jscpd:ignore-start — the same metric columns in the app's camelCase naming.
-// Both spellings are load-bearing: the row type pins the DDL column list in
-// socialPostsMigration.test.ts, and the insert type follows the camelCase
-// `New*` convention every other writer in db.ts uses. Factoring out the fields
-// whose two spellings happen to match would split one table across two
-// declarations for no reader's benefit.
-export interface NewSocialPostMetric {
+export interface NewSocialPostMetric extends SocialPostMetricCounters {
   socialPostId: string;
   capturedAt: string;
   ageHours: number;
   measurementWindow?: '1h' | '6h' | '24h' | '72h' | '7d';
-  views: number | null;
-  impressions: number | null;
-  likes: number | null;
-  comments: number | null;
-  shares: number | null;
-  saves: number | null;
   profileVisits: number | null;
   followersGained: number | null;
   details?: SocialPostMetricDetails;
 }
-// jscpd:ignore-end

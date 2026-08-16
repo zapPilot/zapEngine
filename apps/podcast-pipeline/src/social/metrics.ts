@@ -1,9 +1,10 @@
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import dotenv from 'dotenv';
 
+import { runWhenInvokedDirectly } from '../lib/direct-invocation.js';
 import {
   getSocialPostById,
   insertSocialPostMetric,
@@ -17,7 +18,10 @@ import type {
   SocialPostRow,
 } from '../types.js';
 import { parsePlatformOption, requireEpisodeArgument } from './cli-args.js';
-import { createMetricCollectors } from './metric-collectors.js';
+import {
+  createMetricCollectors,
+  type SocialMetricCollector,
+} from './metric-collectors.js';
 import { platformLabel, SOCIAL_PLATFORMS } from './platforms.js';
 import { reconcileRecentSocialPosts } from './reconcile.js';
 import type { SocialPlatform } from './types.js';
@@ -58,6 +62,30 @@ const METRIC_LABELS: Record<keyof SocialMetricCounts, string> = {
 export type CollectedSocialMetrics = SocialMetricCounts & {
   details?: SocialPostMetricDetails;
 };
+
+export function splitCollectedMetrics(collected: CollectedSocialMetrics): {
+  counts: SocialMetricCounts;
+  details: SocialPostMetricDetails | undefined;
+  empty: boolean;
+} {
+  const { details, ...counts } = collected;
+  const empty =
+    Object.values(counts).every((value) => value === null) &&
+    (!details || Object.keys(details).length === 0);
+  return { counts, details, empty };
+}
+
+export async function collectAndSplitMetrics(
+  post: SocialPostRow,
+  collectors: Record<SocialPlatform, SocialMetricCollector>,
+): Promise<
+  | { counts: SocialMetricCounts; details: SocialPostMetricDetails | undefined }
+  | undefined
+> {
+  const collected = await collectors[post.platform](post);
+  const { counts, details, empty } = splitCollectedMetrics(collected);
+  return empty ? undefined : { counts, details };
+}
 
 export interface SocialMetricsCliOptions {
   episodeId: string;
@@ -162,12 +190,8 @@ export async function runAutomaticSocialMetricsCollector(input: {
   let failed = 0;
   for (const post of posts) {
     try {
-      const collected = await collectors[post.platform](post);
-      const { details, ...counts } = collected;
-      if (
-        Object.values(counts).every((value) => value === null) &&
-        (!details || Object.keys(details).length === 0)
-      ) {
+      const collected = await collectAndSplitMetrics(post, collectors);
+      if (!collected) {
         input.log(
           `- ${platformLabel(post.platform)} ${post.id}: no metrics available yet.`,
         );
@@ -176,8 +200,8 @@ export async function runAutomaticSocialMetricsCollector(input: {
       const metric = buildSocialPostMetric({
         post,
         capturedAt,
-        counts,
-        details,
+        counts: collected.counts,
+        details: collected.details,
       });
       await input.insertMetric(metric);
       input.log(formatMetricsSummary(post, metric));
@@ -372,18 +396,8 @@ function parseCount(
   return value;
 }
 
-// jscpd:ignore-start — CLI direct-invocation check, same pattern as social/cli.ts
-const invokedPath = process.argv[1]
-  ? pathToFileURL(resolve(process.argv[1])).href
-  : null;
-if (invokedPath === import.meta.url) {
-  try {
-    await runSocialMetricsCli(process.argv.slice(2), {
-      reconcileRecentPosts: reconcileRecentSocialPosts,
-    });
-  } catch (error: unknown) {
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exitCode = 1;
-  }
-}
-// jscpd:ignore-end
+await runWhenInvokedDirectly(import.meta.url, () =>
+  runSocialMetricsCli(process.argv.slice(2), {
+    reconcileRecentPosts: reconcileRecentSocialPosts,
+  }),
+);

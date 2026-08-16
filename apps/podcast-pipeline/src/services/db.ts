@@ -3,6 +3,7 @@ import {
   normalizeLanguageClassroomLesson,
 } from '../lib/languageClassroom.js';
 import type { SocialPlatform } from '../social/platforms.js';
+import { toMetricCounters } from '../social/social-performance.js';
 import type {
   Article,
   EpisodeFeedResponse,
@@ -623,15 +624,16 @@ export async function insertSocialPost(
   return data;
 }
 
-export async function listSocialPostsByEpisode(
-  episodeId: string,
-  platform: SocialPlatform,
+type SocialPostsQuery = ReturnType<
+  ReturnType<ReturnType<typeof getSupabase>['from']>['select']
+>;
+
+async function listSocialPostsWhere(
+  applyFilter: (query: SocialPostsQuery) => SocialPostsQuery,
 ): Promise<SocialPostRow[]> {
-  const { data, error } = await getSupabase()
-    .from('social_posts')
-    .select('*')
-    .eq('episode_id', episodeId)
-    .eq('platform', platform)
+  const { data, error } = await applyFilter(
+    getSupabase().from('social_posts').select('*'),
+  )
     .order('published_at', { ascending: false })
     .returns<SocialPostRow[]>();
 
@@ -642,21 +644,21 @@ export async function listSocialPostsByEpisode(
   return data ?? [];
 }
 
+export async function listSocialPostsByEpisode(
+  episodeId: string,
+  platform: SocialPlatform,
+): Promise<SocialPostRow[]> {
+  return listSocialPostsWhere((query) =>
+    query.eq('episode_id', episodeId).eq('platform', platform),
+  );
+}
+
 export async function listRecentSocialPosts(
   publishedSince: string,
 ): Promise<SocialPostRow[]> {
-  const { data, error } = await getSupabase()
-    .from('social_posts')
-    .select('*')
-    .gte('published_at', publishedSince)
-    .order('published_at', { ascending: false })
-    .returns<SocialPostRow[]>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data ?? [];
+  return listSocialPostsWhere((query) =>
+    query.gte('published_at', publishedSince),
+  );
 }
 
 export async function updateSocialPostIdentity(input: {
@@ -704,12 +706,7 @@ export function toSocialPostMetricInsertPayload(
     ...(metric.measurementWindow
       ? { measurement_window: metric.measurementWindow }
       : {}),
-    views: metric.views,
-    impressions: metric.impressions,
-    likes: metric.likes,
-    comments: metric.comments,
-    shares: metric.shares,
-    saves: metric.saves,
+    ...toMetricCounters(metric),
     profile_visits: metric.profileVisits,
     followers_gained: metric.followersGained,
     details: metric.details ?? {},

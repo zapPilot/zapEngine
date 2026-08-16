@@ -46,6 +46,16 @@ const EMPTY_COUNTS: SocialMetricCounts = {
   followersGained: null,
 };
 
+async function fetchJson(
+  fetchImpl: typeof fetch,
+  url: string | URL,
+  init?: RequestInit,
+): Promise<{ response: Response; payload: unknown }> {
+  const response = await fetchImpl(url, init);
+  const payload = (await response.json().catch(() => null)) as unknown;
+  return { response, payload };
+}
+
 export function createMetricCollectors(input?: {
   fetchImpl?: typeof fetch;
   onRednoteIdentity?: (input: {
@@ -79,10 +89,9 @@ export async function collectThreadsMetrics(
   url.searchParams.set('metric', 'views,likes,replies,reposts,quotes,shares');
   url.searchParams.set('access_token', session.accessToken);
 
-  const response = await fetchImpl(url, {
+  const { response, payload } = await fetchJson(fetchImpl, url, {
     signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
   });
-  const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
     throw new Error(`Threads insights failed with HTTP ${response.status}.`);
   }
@@ -122,11 +131,14 @@ export async function collectYouTubeMetrics(
   const dataUrl = new URL(YOUTUBE_DATA_API);
   dataUrl.searchParams.set('part', 'statistics');
   dataUrl.searchParams.set('id', videoId);
-  const dataResponse = await fetchImpl(dataUrl, {
-    headers: { authorization: `Bearer ${session.accessToken}` },
-    signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
-  });
-  const dataPayload = (await dataResponse.json().catch(() => null)) as unknown;
+  const { response: dataResponse, payload: dataPayload } = await fetchJson(
+    fetchImpl,
+    dataUrl,
+    {
+      headers: { authorization: `Bearer ${session.accessToken}` },
+      signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
+    },
+  );
   if (!dataResponse.ok) {
     throw new Error(
       `YouTube statistics failed with HTTP ${dataResponse.status}.`,
@@ -625,11 +637,10 @@ async function queryYouTubeAnalytics(input: {
   url.searchParams.set('filters', `video==${input.videoId}`);
   if (input.dimensions) url.searchParams.set('dimensions', input.dimensions);
 
-  const response = await input.fetchImpl(url, {
+  const { response, payload } = await fetchJson(input.fetchImpl, url, {
     headers: { authorization: `Bearer ${input.accessToken}` },
     signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
   });
-  const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok)
     throw new Error(`YouTube Analytics failed with HTTP ${response.status}.`);
   if (!isRecord(payload) || !Array.isArray(payload['rows'])) {
