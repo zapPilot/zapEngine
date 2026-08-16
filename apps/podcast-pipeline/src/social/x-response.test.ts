@@ -59,7 +59,9 @@ describe('X CreateTweet response parsing', () => {
 
   it('fails closed for malformed or unsuccessful response shapes', () => {
     expect(extractCreatedTweetId({ rest_id: 'not-an-id' })).toBeNull();
-    expect(extractCreatedTweetId({ errors: [{ message: 'failed' }] })).toBeNull();
+    expect(
+      extractCreatedTweetId({ errors: [{ message: 'failed' }] }),
+    ).toBeNull();
     expect(extractCreatedTweetId(null)).toBeNull();
   });
 });
