@@ -4,9 +4,11 @@ const mocks = vi.hoisted(() => ({
   createPlaywrightRednotePublisher: vi.fn(),
   createPlaywrightXPublisher: vi.fn(),
   createThreadsPublisher: vi.fn(),
+  createYouTubePublisher: vi.fn(),
   publishRednote: vi.fn(),
   publishThreads: vi.fn(),
   publishX: vi.fn(),
+  publishYouTube: vi.fn(),
 }));
 
 vi.mock('./x-playwright.js', () => ({
@@ -19,6 +21,10 @@ vi.mock('./rednote-playwright.js', () => ({
 
 vi.mock('./threads.js', () => ({
   createThreadsPublisher: mocks.createThreadsPublisher,
+}));
+
+vi.mock('./youtube.js', () => ({
+  createYouTubePublisher: mocks.createYouTubePublisher,
 }));
 
 import { createSocialPublishJobs } from './publishers.js';
@@ -47,6 +53,7 @@ beforeEach(() => {
   mocks.publishX.mockResolvedValue(PUBLISHED);
   mocks.publishThreads.mockResolvedValue(PUBLISHED);
   mocks.publishRednote.mockResolvedValue(PUBLISHED);
+  mocks.publishYouTube.mockResolvedValue(PUBLISHED);
   mocks.createPlaywrightXPublisher.mockReturnValue({
     publishX: mocks.publishX,
   });
@@ -55,6 +62,9 @@ beforeEach(() => {
   });
   mocks.createPlaywrightRednotePublisher.mockReturnValue({
     publishRednote: mocks.publishRednote,
+  });
+  mocks.createYouTubePublisher.mockReturnValue({
+    publishYouTube: mocks.publishYouTube,
   });
 });
 
@@ -100,6 +110,48 @@ describe('createSocialPublishJobs', () => {
       }),
     ).rejects.toThrow('X publishing requires a prepared teaser video.');
     expect(mocks.createPlaywrightXPublisher).not.toHaveBeenCalled();
+  });
+
+  it('builds YouTube with the prepared full video and metadata', async () => {
+    const [job] = await createSocialPublishJobs({
+      platforms: ['youtube'],
+      copy,
+      videoUrl: VIDEO_URL,
+      videoPath: VIDEO_PATH,
+      youtubeTitle: '市場更新',
+      youtubeDescription: '完整說明',
+    });
+
+    await job?.publish();
+    expect(mocks.publishYouTube).toHaveBeenCalledWith({
+      title: '市場更新',
+      description: '完整說明',
+      videoPath: VIDEO_PATH,
+      privacyStatus: 'public',
+    });
+  });
+
+  it('rejects YouTube before publishing when video or metadata is missing', async () => {
+    await expect(
+      createSocialPublishJobs({
+        platforms: ['youtube'],
+        copy,
+        videoUrl: VIDEO_URL,
+        youtubeTitle: '市場更新',
+        youtubeDescription: '完整說明',
+      }),
+    ).rejects.toThrow('YouTube publishing requires a prepared video.');
+
+    await expect(
+      createSocialPublishJobs({
+        platforms: ['youtube'],
+        copy,
+        videoUrl: VIDEO_URL,
+        videoPath: VIDEO_PATH,
+      }),
+    ).rejects.toThrow(
+      'YouTube publishing requires title and description metadata.',
+    );
   });
 
   it('builds Rednote with the prepared full video', async () => {

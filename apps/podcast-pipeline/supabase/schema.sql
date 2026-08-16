@@ -230,7 +230,8 @@ create table if not exists from_fed_to_chain.social_posts (
   episode_id uuid not null
     references from_fed_to_chain.episodes(id) on delete cascade,
   platform text not null
-    check (platform in ('x', 'threads', 'rednote')),
+    constraint social_posts_platform_check
+    check (platform in ('x', 'threads', 'rednote', 'youtube')),
   post_url text,
   platform_post_id text,
   published_at timestamptz not null,
@@ -267,12 +268,12 @@ create table if not exists from_fed_to_chain.social_posts (
   ),
   constraint social_posts_title_matches_platform check (
     (
-      platform = 'rednote'
+      platform in ('rednote', 'youtube')
       and nullif(btrim(generated_title), '') is not null
       and nullif(btrim(published_title), '') is not null
     )
     or (
-      platform <> 'rednote'
+      platform not in ('rednote', 'youtube')
       and generated_title is null
       and published_title is null
     )
@@ -282,12 +283,12 @@ create table if not exists from_fed_to_chain.social_posts (
   ),
   constraint social_posts_video_matches_platform check (
     (
-      platform = 'rednote'
+      platform in ('rednote', 'youtube')
       and video_duration_sec is not null
       and video_duration_sec > 0
     )
     or (
-      platform <> 'rednote'
+      platform not in ('rednote', 'youtube')
       and (
         video_duration_sec is null
         or video_duration_sec > 0

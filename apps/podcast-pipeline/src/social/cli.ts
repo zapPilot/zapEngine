@@ -8,7 +8,7 @@ import { parseArgs } from 'node:util';
 
 import dotenv from 'dotenv';
 
-import { appendBrandCta } from '../brand/cta.js';
+import { appendBrandCta, ZAP_PILOT_SITE_URL } from '../brand/cta.js';
 import { OUTRO_TAIL_MS } from '../services/video/manifest.js';
 import { parsePlatformOption, requireEpisodeArgument } from './cli-args.js';
 import { generateSocialCopy, parseGeneratedSocialCopy } from './copy.js';
@@ -48,7 +48,7 @@ const REPO_ROOT = resolve(
   '..',
 );
 const PLATFORM_USAGE = SOCIAL_PLATFORMS.join('|');
-const USAGE = `Usage: pnpm social:publish <episode-uuid-or-share-url> [--dry-run] [--platform ${PLATFORM_USAGE}] [--force]`;
+const USAGE = `Usage: pnpm social:publish <episode-uuid-or-share-url> [--dry-run] [--yes] [--platform ${PLATFORM_USAGE}] [--force]`;
 
 dotenv.config({ path: resolve(REPO_ROOT, '.env') });
 
@@ -56,6 +56,7 @@ export interface SocialCliOptions {
   episodeId: string;
   dryRun: boolean;
   force: boolean;
+  yes: boolean;
   platform?: SocialPlatform;
 }
 
@@ -109,15 +110,22 @@ export async function runSocialCli(args: string[]): Promise<void> {
     return;
   }
 
-  const review = await reviewSocialCopy({
-    episode,
-    episodeId: options.episodeId,
-    initialCopy: generated.copy,
-    initialModel: generated.model,
-    requestedPlatforms: platforms,
-    video,
-    xVideo,
-  });
+  const review = options.yes
+    ? autoApproveSocialCopy({
+        copy: generated.copy,
+        model: generated.model,
+        platforms,
+        assets,
+      })
+    : await reviewSocialCopy({
+        episode,
+        episodeId: options.episodeId,
+        initialCopy: generated.copy,
+        initialModel: generated.model,
+        requestedPlatforms: platforms,
+        video,
+        xVideo,
+      });
   if (!review) return;
 
   if (
@@ -131,11 +139,14 @@ export async function runSocialCli(args: string[]): Promise<void> {
 
   const videoUrl = requireCanonicalVideoUrl(episode);
   const publishedCopy = withBrandCta(review.copy);
+  const youtubeMetadata = buildYouTubeMetadata(episode);
   const onLog = (message: string): void => console.log(message);
   const jobs = await createSocialPublishJobs({
     platforms: review.platforms,
     copy: publishedCopy,
     videoUrl,
+    youtubeTitle: youtubeMetadata.title,
+    youtubeDescription: youtubeMetadata.description,
     ...(video ? { videoPath: video.path } : {}),
     ...(xVideo ? { xVideoPath: xVideo.path } : {}),
     onLog,
@@ -148,6 +159,7 @@ export async function runSocialCli(args: string[]): Promise<void> {
       model: review.model,
     },
     videoDurationSeconds: episode.videoDurationSeconds,
+    youtubeMetadata,
     onError: (message) => console.error(message),
   });
   const outcomes = await publishSocialPlatforms({
@@ -205,6 +217,7 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
     options: {
       'dry-run': { type: 'boolean', default: false },
       force: { type: 'boolean', default: false },
+      yes: { type: 'boolean', short: 'y', default: false },
       help: { type: 'boolean', short: 'h', default: false },
       platform: { type: 'string' },
     },
@@ -215,6 +228,7 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
     episodeId,
     dryRun: values['dry-run'],
     force: values.force,
+    yes: values.yes,
     ...(values.platform !== undefined
       ? { platform: parsePlatformOption(values.platform) }
       : {}),
@@ -322,10 +336,33 @@ async function handleExistingState(
   }
 
   const names = pending.map(platformLabel);
+  if (options.yes) {
+    console.log(`Retrying pending platforms: ${names.join(' + ')}`);
+    return pending;
+  }
+
   const answer = (await promptLine(`Retry ${names.join(' + ')}? [y/N] `))
     .trim()
     .toLowerCase();
   return answer === 'y' || answer === 'yes' ? pending : null;
+}
+
+function autoApproveSocialCopy(input: {
+  copy: GeneratedSocialCopy;
+  model: string;
+  platforms: SocialPlatform[];
+  assets: SocialAssets;
+}): ReviewSelection {
+  printPreview(withBrandCta(input.copy), input.assets);
+  console.log(
+    `Auto-approved ${input.platforms.map(platformLabel).join(' + ')} with --yes.`,
+  );
+  return {
+    copy: input.copy,
+    generatedCopy: input.copy,
+    model: input.model,
+    platforms: input.platforms,
+  };
 }
 
 export function findPendingPlatforms(
@@ -363,18 +400,28 @@ function printPreview(copy: GeneratedSocialCopy, assets: SocialAssets): void {
   console.log(`${divider}\nTHREADS\n${divider}`);
   console.log(copy.x.text);
   console.log(`🎬 native video: ${requireCanonicalVideoUrl(episode)}`);
+  console.log(`${divider}\nYOUTUBE\n${divider}`);
+  const youtubeMetadata = buildYouTubeMetadata(episode);
+  console.log(youtubeMetadata.title);
+  console.log(youtubeMetadata.description);
+  console.log(formatVideoPreview(video, episode.videoDurationSeconds));
   console.log(`${divider}\nREDNOTE\n${divider}`);
   console.log('標題：');
   console.log(copy.rednote.title);
   console.log('正文：');
   console.log(copy.rednote.body);
   console.log(copy.rednote.hashtags.map((tag) => `#${tag}`).join(' '));
-  console.log(
-    video
-      ? `🎬 video: ${formatDuration(episode.videoDurationSeconds)}, ${formatBytes(video.sizeBytes)}\n${video.path}`
-      : `🎬 video: ${formatDuration(episode.videoDurationSeconds)} (remote only / not downloaded)`,
-  );
+  console.log(formatVideoPreview(video, episode.videoDurationSeconds));
   console.log(divider);
+}
+
+function formatVideoPreview(
+  video: PreparedVideo | undefined,
+  durationSeconds: number,
+): string {
+  return video
+    ? `🎬 video: ${formatDuration(durationSeconds)}, ${formatBytes(video.sizeBytes)}\n${video.path}`
+    : `🎬 video: ${formatDuration(durationSeconds)} (remote only / not downloaded)`;
 }
 
 async function askReviewAction(
@@ -445,6 +492,21 @@ function requireCanonicalVideoUrl(episode: SocialEpisode): string {
     );
   }
   return videoUrl;
+}
+
+export function buildYouTubeMetadata(episode: SocialEpisode): {
+  title: string;
+  description: string;
+} {
+  const title = Array.from(episode.title.trim()).slice(0, 100).join('');
+  const summary = (episode.description?.trim() || episode.summary.trim()).slice(
+    0,
+    4500,
+  );
+  return {
+    title,
+    description: `${summary}\n\n更多市場洞察與工具：${ZAP_PILOT_SITE_URL}`,
+  };
 }
 
 function xVideoDuration(fullDurationSeconds: number): number {

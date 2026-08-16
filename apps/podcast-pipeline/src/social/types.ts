@@ -89,6 +89,16 @@ export interface RednotePublishInput {
   videoPath: string;
 }
 
+export interface YouTubeMetadata {
+  title: string;
+  description: string;
+}
+
+export interface YouTubePublishInput extends YouTubeMetadata {
+  videoPath: string;
+  privacyStatus: 'private' | 'unlisted' | 'public';
+}
+
 export interface PublishResult {
   status: 'published';
   url?: string;
@@ -106,6 +116,10 @@ export interface ThreadsPublisher {
 
 export interface RednotePublisher {
   publishRednote(input: RednotePublishInput): Promise<PublishResult>;
+}
+
+export interface YouTubePublisher {
+  publishYouTube(input: YouTubePublishInput): Promise<PublishResult>;
 }
 
 export interface SocialPublishJob {

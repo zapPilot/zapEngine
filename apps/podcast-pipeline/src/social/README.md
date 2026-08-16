@@ -1,8 +1,8 @@
 # Social publishing
 
 `src/social` is the local, human-reviewed publisher for completed canonical
-Chinese podcast episodes. It publishes native media to X, Threads, and Rednote,
-then records the published copy and telemetry for later iteration.
+Chinese podcast episodes. It publishes native media to X, Threads, Rednote, and
+YouTube, then records the published copy and telemetry for later iteration.
 
 The intended operating model is deliberately simple:
 
@@ -26,6 +26,7 @@ Run from the repository root:
 pnpm --filter @zapengine/podcast-pipeline social:login
 pnpm --filter @zapengine/podcast-pipeline social:publish '<episode-uuid-or-share-url>' --dry-run
 pnpm --filter @zapengine/podcast-pipeline social:publish '<episode-uuid-or-share-url>'
+pnpm --filter @zapengine/podcast-pipeline social:publish '<episode-uuid-or-share-url>' --yes --platform threads
 ```
 
 Or from `apps/podcast-pipeline`:
@@ -34,6 +35,7 @@ Or from `apps/podcast-pipeline`:
 pnpm social:login
 pnpm social:publish '<episode-uuid-or-share-url>' --dry-run
 pnpm social:publish '<episode-uuid-or-share-url>'
+pnpm social:publish '<episode-uuid-or-share-url>' --yes --platform threads
 ```
 
 Useful selectors:
@@ -42,15 +44,28 @@ Useful selectors:
 pnpm social:publish '<episode>' --platform x
 pnpm social:publish '<episode>' --platform threads
 pnpm social:publish '<episode>' --platform rednote
+pnpm social:publish '<episode>' --platform youtube
+pnpm social:publish '<episode>' --yes
+pnpm social:publish '<episode>' --yes --platform threads
 pnpm social:publish '<episode>' --force
 ```
+
+`--yes` accepts the generated copy without opening the interactive review prompt.
+It is intended for unattended agent/E2E runs. If an episode was only partially
+published, `--yes` retries only platforms without saved local state. It does
+**not** bypass duplicate protection.
+
+`--dry-run` is the safe preflight: it fetches the episode, prepares required
+local media, runs FFmpeg where applicable, and generates the LLM copy, but stops
+before platform publishing, local publish-state writes, and `social_posts`
+telemetry writes.
 
 `--force` bypasses the local duplicate-publish guard. Use it only after checking
 the platform itself, because it can intentionally create a second post.
 
 ## Login and persistent sessions
 
-`pnpm social:login` is the only supported login entry point. It checks all three
+`pnpm social:login` is the only supported login entry point. It checks all four
 platforms and only opens a login flow for sessions that are missing or invalid.
 
 ### X
@@ -76,6 +91,27 @@ Threads uses the Meta Threads API and the secure local Threads session. The
 current development setup can adopt the configured Threads Tester access token;
 `social:login` validates the token against the Threads profile before treating
 the session as ready.
+
+### YouTube
+
+YouTube uses the Google OAuth Desktop App flow with the least-privilege
+`youtube.upload` scope. Configure `YOUTUBE_CLIENT_ID` and
+`YOUTUBE_CLIENT_SECRET` in the repository root `.env`. The callback uses a
+localhost loopback port selected at login time, and the resulting refresh token
+is stored outside the repository at:
+
+```text
+~/.zap-pilot/youtube-session.json
+```
+
+The upload transport uses the YouTube Data API resumable-upload endpoint and
+publishes the existing canonical `zh-Hant` MP4 as one public video. It does not
+render a second YouTube-specific video and does not attempt multi-language audio.
+
+Google may force uploads from an unaudited YouTube Data API project to remain
+private even when the request asks for `public`. If the first smoke upload stays
+private, verify the Google Cloud project's YouTube API audit status rather than
+adding a publisher workaround.
 
 ### Rednote
 
@@ -219,10 +255,11 @@ The text CTA is unaffected and uses the current destination immediately.
 | X | yes | full MP4 if <= 140s, otherwise teaser |
 | Threads | no | public canonical full-video URL |
 | Rednote | yes | local canonical full MP4 |
+| YouTube | yes | local canonical full MP4 |
 
 When publishing all platforms, the canonical MP4 is downloaded at most once and
-X derives its teaser from that local file. Threads continues using the public
-URL directly.
+X derives its teaser from that local file, YouTube reuses the same full local
+file, and Threads continues using the public URL directly.
 
 ## Human review
 
@@ -234,6 +271,7 @@ will be used. Review actions are:
 [x] X only
 [t] Threads only
 [r] Rednote only
+[y] YouTube only
 [g] regenerate
 [e] edit JSON in $EDITOR
 [q] quit
@@ -276,7 +314,8 @@ Media duration semantics:
 - X: full duration when <= 140 seconds, otherwise the approximately 132.8-second
   teaser duration;
 - Threads: canonical full-video duration;
-- Rednote: canonical full-video duration.
+- Rednote: canonical full-video duration;
+- YouTube: canonical full-video duration.
 
 This distinction matters for later platform-performance analysis; X teaser posts
 must not be mislabeled as having published the full episode length.
@@ -293,6 +332,7 @@ The publisher is fail-closed per platform:
 - X requires a prepared local teaser/full MP4;
 - Threads requires a public HTTPS video URL and a finished Meta container;
 - Rednote requires a prepared local full MP4;
+- YouTube requires a valid Google OAuth session and prepared local full MP4;
 - platform success is never inferred merely because a browser click occurred;
 - duplicate-state and telemetry failures are reported separately from the
   platform publish result.
@@ -316,6 +356,7 @@ Then test platforms independently:
 pnpm social:publish '<episode>' --platform x
 pnpm social:publish '<episode>' --platform threads
 pnpm social:publish '<episode>' --platform rednote
+pnpm social:publish '<episode>' --platform youtube
 ```
 
 Verify:
@@ -324,6 +365,7 @@ Verify:
   source outro;
 - Threads shows native video rather than an episode link card;
 - Rednote still uploads the complete video;
+- YouTube uploads the complete Chinese video and returns a watch URL/video id;
 - every text post ends at `https://www.zap-pilot.org`;
 - newly rendered videos end at `www.zap-pilot.org`;
 - `social_posts.video_duration_sec` matches the media actually sent.
@@ -339,6 +381,7 @@ without rewriting the publishing stack:
 - `x-playwright.ts`: X upload transport;
 - `threads.ts`: Threads API transport;
 - `rednote-playwright.ts`: Rednote browser transport;
+- `youtube-auth.ts` / `youtube.ts`: YouTube OAuth and API upload transport;
 - `record.ts` / `metrics.ts`: learning loop and measurement.
 
 A future smart teaser can replace the current `first 130 seconds` selector using

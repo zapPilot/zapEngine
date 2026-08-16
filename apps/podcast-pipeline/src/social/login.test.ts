@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   ensureThreadsSession: vi.fn(),
+  ensureYouTubeSession: vi.fn(),
   isRednoteSessionReady: vi.fn(),
   isXSessionReady: vi.fn(),
   runRednoteLogin: vi.fn(),
@@ -22,6 +23,10 @@ vi.mock('./threads-auth.js', () => ({
   ensureThreadsSession: mocks.ensureThreadsSession,
 }));
 
+vi.mock('./youtube-auth.js', () => ({
+  ensureYouTubeSession: mocks.ensureYouTubeSession,
+}));
+
 import { runSocialLogin } from './login.js';
 
 beforeEach(() => {
@@ -37,6 +42,13 @@ beforeEach(() => {
     },
     profile: { id: 'threads-1', username: 'zap' },
   });
+  mocks.ensureYouTubeSession.mockResolvedValue({
+    version: 1,
+    accessToken: 'youtube-token',
+    refreshToken: 'youtube-refresh',
+    expiresAt: Date.now() + 60_000,
+    scope: 'https://www.googleapis.com/auth/youtube.upload',
+  });
   mocks.isRednoteSessionReady.mockResolvedValue(true);
 });
 
@@ -50,6 +62,7 @@ describe('runSocialLogin', () => {
       'Checking social sessions...',
       '✓ X',
       '✓ Threads @zap',
+      '✓ YouTube',
       '✓ Rednote',
       'All social platforms are ready.',
     ]);

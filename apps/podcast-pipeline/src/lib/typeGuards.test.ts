@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isRecord } from './typeGuards.js';
+import { isPlainRecord, isRecord, nonemptyString } from './typeGuards.js';
 
 describe('isRecord', () => {
   it('returns true for plain objects', () => {
@@ -20,5 +20,20 @@ describe('isRecord', () => {
     // Arrays are objects in JS — the guard intentionally accepts them
     // (matches existing call sites that index by string key).
     expect(isRecord([])).toBe(true);
+  });
+});
+
+describe('isPlainRecord', () => {
+  it('rejects arrays while accepting plain objects', () => {
+    expect(isPlainRecord({ a: 1 })).toBe(true);
+    expect(isPlainRecord([])).toBe(false);
+  });
+});
+
+describe('nonemptyString', () => {
+  it('returns trimmed non-empty strings only', () => {
+    expect(nonemptyString('  value  ')).toBe('value');
+    expect(nonemptyString('   ')).toBeUndefined();
+    expect(nonemptyString(42)).toBeUndefined();
   });
 });

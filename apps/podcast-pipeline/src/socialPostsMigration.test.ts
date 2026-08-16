@@ -52,9 +52,13 @@ describe('social publishing telemetry schema', () => {
     (_name, sql) => {
       const posts = tableDefinition(sql, 'social_posts');
       const normalized = normalizeSql(posts);
-      const platformValues = SOCIAL_PLATFORMS.map(
-        (platform) => `'${platform}'`,
-      ).join(', ');
+      const platforms =
+        _name === 'schema.sql'
+          ? SOCIAL_PLATFORMS
+          : SOCIAL_PLATFORMS.filter((platform) => platform !== 'youtube');
+      const platformValues = platforms
+        .map((platform) => `'${platform}'`)
+        .join(', ');
 
       expect(posts).toMatch(
         /episode_id uuid not null[\s\S]+?references from_fed_to_chain\.episodes\(id\) on delete cascade/i,
@@ -82,14 +86,14 @@ describe('social publishing telemetry schema', () => {
         /constraint social_posts_features_is_object check\s*\(\s*jsonb_typeof\(content_features\) = 'object'/i,
       );
       expect(posts).toMatch(
-        /constraint social_posts_title_matches_platform check[\s\S]+?platform = 'rednote'[\s\S]+?generated_title[\s\S]+?published_title[\s\S]+?platform <> 'rednote'[\s\S]+?generated_title is null[\s\S]+?published_title is null/i,
+        /constraint social_posts_title_matches_platform check[\s\S]+?platform (?:= 'rednote'|in \('rednote', 'youtube'\))[\s\S]+?generated_title[\s\S]+?published_title[\s\S]+?platform (?:<> 'rednote'|not in \('rednote', 'youtube'\))[\s\S]+?generated_title is null[\s\S]+?published_title is null/i,
       );
       expect(posts).toMatch(
         /constraint social_posts_hashtags_match_platform check\s*\(\s*platform = 'rednote' or hashtags = '\{\}'/i,
       );
       expect(posts).toMatch(/video_duration_sec double precision/i);
       expect(posts).toMatch(
-        /constraint social_posts_video_matches_platform check[\s\S]+?platform = 'rednote'[\s\S]+?video_duration_sec is not null[\s\S]+?video_duration_sec > 0[\s\S]+?platform <> 'rednote'[\s\S]+?video_duration_sec is null/i,
+        /constraint social_posts_video_matches_platform check[\s\S]+?platform (?:= 'rednote'|in \('rednote', 'youtube'\))[\s\S]+?video_duration_sec is not null[\s\S]+?video_duration_sec > 0[\s\S]+?platform (?:<> 'rednote'|not in \('rednote', 'youtube'\))[\s\S]+?video_duration_sec is null/i,
       );
       expect(posts).not.toMatch(/\bcategory\b/i);
     },

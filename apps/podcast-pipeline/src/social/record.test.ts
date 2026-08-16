@@ -111,6 +111,35 @@ describe('buildSocialPostRecord', () => {
     });
   });
 
+  it('projects YouTube metadata and full video duration', () => {
+    expect(
+      buildSocialPostRecord({
+        episodeId: 'episode-1',
+        platform: 'youtube',
+        result: result({
+          url: 'https://www.youtube.com/watch?v=video-1',
+          postId: 'video-1',
+        }),
+        snapshot,
+        videoDurationSeconds: 321,
+        youtubeMetadata: {
+          title: '市場更新',
+          description: '完整說明',
+        },
+      }),
+    ).toMatchObject({
+      platform: 'youtube',
+      postUrl: 'https://www.youtube.com/watch?v=video-1',
+      platformPostId: 'video-1',
+      generatedTitle: '市場更新',
+      publishedTitle: '市場更新',
+      generatedBody: '完整說明',
+      publishedBody: '完整說明',
+      hashtags: [],
+      videoDurationSec: 321,
+    });
+  });
+
   it('projects Rednote titles, hashtags, and full video duration', () => {
     expect(
       buildSocialPostRecord({

@@ -166,6 +166,34 @@ describe('publishSocialPlatforms', () => {
     expect(publishRednote).toHaveBeenCalledOnce();
   });
 
+  it('publishes X independently when YouTube fails first', async () => {
+    const path = await statePath();
+    const publishX = vi
+      .fn()
+      .mockResolvedValue(
+        success('2026-08-11T00:05:00.000Z', 'https://x.com/status/2'),
+      );
+
+    const outcomes = await publishSocialPlatforms({
+      episodeId: 'episode-1',
+      jobs: [
+        job('youtube', vi.fn().mockRejectedValue(new Error('YouTube failed'))),
+        job('x', publishX),
+      ],
+      force: false,
+      statePath: path,
+    });
+
+    expect(outcomes.map((item) => item.status)).toEqual([
+      'failed',
+      'published',
+    ]);
+    expect(publishX).toHaveBeenCalledOnce();
+    expect(
+      getPublishedPlatform(await readPublishState(path), 'episode-1', 'x'),
+    ).toMatchObject({ url: 'https://x.com/status/2' });
+  });
+
   it('keeps the post published locally and continues after telemetry persistence fails', async () => {
     const path = await statePath();
     const recordFailure = new Error('database insert failed');

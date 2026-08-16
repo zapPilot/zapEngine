@@ -14,6 +14,11 @@ export const SOCIAL_PLATFORM_CONFIG = {
     reviewShortcut: 'r',
     requiresLocalVideo: true,
   },
+  youtube: {
+    label: 'YouTube',
+    reviewShortcut: 'y',
+    requiresLocalVideo: true,
+  },
 } as const;
 
 export type SocialPlatform = keyof typeof SOCIAL_PLATFORM_CONFIG;

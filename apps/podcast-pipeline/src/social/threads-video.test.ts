@@ -95,6 +95,7 @@ describe('prepareThreadsVideoUrl', () => {
     expect(args).toContain('-sseof');
     expect(args).toContain('-2.8');
     expect(args).toContain(String(THREADS_TEASER_SECONDS));
+    expect(args.at(-1)).toMatch(/\.tmp-\d+\.mp4$/);
     expect(args.join(' ')).toContain('trim=start=0:end=130');
     expect(args.join(' ')).toContain('trim=start=0:end=2.8');
     expect(uploadVideo).toHaveBeenCalledTimes(2);

@@ -15,19 +15,21 @@ const migration = fs.readFileSync(
   ),
   'utf8',
 );
-const nativeVideoConstraint =
+const migration026Constraint =
   /constraint social_posts_video_matches_platform check[\s\S]+?platform = 'rednote'[\s\S]+?video_duration_sec is not null[\s\S]+?video_duration_sec > 0[\s\S]+?platform <> 'rednote'[\s\S]+?video_duration_sec is null[\s\S]+?or video_duration_sec > 0/i;
+const currentConstraint =
+  /constraint social_posts_video_matches_platform check[\s\S]+?platform in \('rednote', 'youtube'\)[\s\S]+?video_duration_sec is not null[\s\S]+?video_duration_sec > 0[\s\S]+?platform not in \('rednote', 'youtube'\)[\s\S]+?video_duration_sec is null[\s\S]+?or video_duration_sec > 0/i;
 
 describe('migration 026 native-video telemetry', () => {
   it('keeps Rednote strict while permitting positive X and Threads durations', () => {
     expect(migration).toMatch(
       /drop constraint if exists social_posts_video_matches_platform/i,
     );
-    expect(migration).toMatch(nativeVideoConstraint);
+    expect(migration).toMatch(migration026Constraint);
   });
 
   it('keeps the consolidated schema on the post-026 constraint', () => {
-    expect(schema).toMatch(nativeVideoConstraint);
+    expect(schema).toMatch(currentConstraint);
   });
 
   it('bounds locks and reloads the PostgREST schema cache', () => {

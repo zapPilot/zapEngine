@@ -5,6 +5,7 @@ import type {
   PublishResult,
   SocialContentFeatures,
   SocialPlatform,
+  YouTubeMetadata,
 } from './types.js';
 import { xTeaserDurationSeconds } from './video.js';
 
@@ -44,12 +45,14 @@ export function buildSocialPostRecord(input: {
   snapshot: SocialCopySnapshot;
   videoDurationSeconds: number;
   xVideoDurationSeconds?: number;
+  youtubeMetadata?: YouTubeMetadata;
 }): NewSocialPost {
   const projection = projectPlatformCopy(
     input.platform,
     input.snapshot,
     input.videoDurationSeconds,
     input.xVideoDurationSeconds,
+    input.youtubeMetadata,
   );
 
   return {
@@ -81,6 +84,7 @@ export function createSocialPostPersister(input: {
   snapshot: SocialCopySnapshot;
   videoDurationSeconds: number;
   xVideoDurationSeconds?: number;
+  youtubeMetadata?: YouTubeMetadata;
   insert?: (post: NewSocialPost) => Promise<SocialPostRow>;
   onError?: (message: string) => void;
 }): (published: PublishedSocialPost) => Promise<void> {
@@ -96,6 +100,9 @@ export function createSocialPostPersister(input: {
       videoDurationSeconds: input.videoDurationSeconds,
       ...(input.xVideoDurationSeconds !== undefined
         ? { xVideoDurationSeconds: input.xVideoDurationSeconds }
+        : {}),
+      ...(input.youtubeMetadata
+        ? { youtubeMetadata: input.youtubeMetadata }
         : {}),
     });
 
@@ -116,6 +123,7 @@ function projectPlatformCopy(
   snapshot: SocialCopySnapshot,
   videoDurationSeconds: number,
   xVideoDurationSeconds?: number,
+  youtubeMetadata?: YouTubeMetadata,
 ) {
   if (platform === 'rednote') {
     return {
@@ -124,6 +132,20 @@ function projectPlatformCopy(
       generatedBody: snapshot.generated.rednote.body,
       publishedBody: snapshot.published.rednote.body,
       hashtags: [...snapshot.published.rednote.hashtags],
+      videoDurationSec: videoDurationSeconds,
+    };
+  }
+
+  if (platform === 'youtube') {
+    if (!youtubeMetadata) {
+      throw new Error('YouTube telemetry requires published metadata.');
+    }
+    return {
+      generatedTitle: youtubeMetadata.title,
+      publishedTitle: youtubeMetadata.title,
+      generatedBody: youtubeMetadata.description,
+      publishedBody: youtubeMetadata.description,
+      hashtags: [],
       videoDurationSec: videoDurationSeconds,
     };
   }

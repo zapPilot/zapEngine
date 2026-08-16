@@ -173,6 +173,7 @@ describe('parseCliOptions', () => {
       episodeId: EPISODE_ID,
       dryRun: false,
       force: false,
+      yes: false,
     });
   });
 
@@ -183,6 +184,19 @@ describe('parseCliOptions', () => {
       episodeId: EPISODE_ID,
       dryRun: true,
       force: false,
+      yes: false,
+      platform: 'threads',
+    });
+  });
+
+  it('parses unattended approval', () => {
+    expect(
+      parseCliOptions([EPISODE_ID, '--yes', '--platform', 'threads']),
+    ).toEqual({
+      episodeId: EPISODE_ID,
+      dryRun: false,
+      force: false,
+      yes: true,
       platform: 'threads',
     });
   });
@@ -191,7 +205,7 @@ describe('parseCliOptions', () => {
     expect(() => parseCliOptions([EPISODE_ID, '--lang', 'ja'])).toThrow();
     expect(() =>
       parseCliOptions([EPISODE_ID, '--platform', 'twitter']),
-    ).toThrow('--platform must be one of: x, threads, rednote.');
+    ).toThrow('--platform must be one of: x, threads, rednote, youtube.');
   });
 });
 
@@ -234,6 +248,16 @@ describe('runSocialCli media preparation', () => {
     expect(mocks.prepareSocialVideo).not.toHaveBeenCalled();
     expect(mocks.prepareXTeaserVideo).not.toHaveBeenCalled();
     expect(console.log).toHaveBeenCalledWith(`🎬 native video: ${VIDEO_URL}`);
+  });
+
+  it('downloads the full video for YouTube but does not create an X teaser', async () => {
+    await runSocialCli([EPISODE_ID, '--dry-run', '--platform', 'youtube']);
+
+    expect(mocks.prepareSocialVideo).toHaveBeenCalledOnce();
+    expect(mocks.prepareXTeaserVideo).not.toHaveBeenCalled();
+    expect(console.log).toHaveBeenCalledWith(
+      `🎬 video: 10m 00s, 5.0 MB\n${VIDEO.path}`,
+    );
   });
 
   it('downloads the full video for Rednote but does not create an X teaser', async () => {
@@ -286,6 +310,27 @@ describe('runSocialCli publishing', () => {
     );
   });
 
+  it('publishes YouTube with deterministic episode metadata', async () => {
+    enableInteractiveReview('y');
+    await runSocialCli([EPISODE_ID, '--platform', 'youtube']);
+
+    expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platforms: ['youtube'],
+        videoPath: VIDEO.path,
+        youtubeTitle: episode.title,
+        youtubeDescription: expect.stringContaining(
+          'https://www.zap-pilot.org',
+        ),
+      }),
+    );
+    expect(mocks.createSocialPostPersister).toHaveBeenCalledWith(
+      expect.objectContaining({
+        youtubeMetadata: expect.objectContaining({ title: episode.title }),
+      }),
+    );
+  });
+
   it('publishes Threads without preparing a local file', async () => {
     enableInteractiveReview('t');
     await runSocialCli([EPISODE_ID, '--platform', 'threads']);
@@ -302,6 +347,34 @@ describe('runSocialCli publishing', () => {
     expect(input).not.toHaveProperty('xVideoPath');
   });
 
+  it('publishes without a TTY when --yes is provided', async () => {
+    await runSocialCli([EPISODE_ID, '--yes', '--platform', 'threads']);
+
+    expect(mocks.createReadlineInterface).not.toHaveBeenCalled();
+    expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
+      expect.objectContaining({ platforms: ['threads'] }),
+    );
+    expect(mocks.publishSocialPlatforms).toHaveBeenCalledOnce();
+  });
+
+  it('automatically retries only pending platforms with --yes', async () => {
+    const published: PlatformPublishState = {
+      published: true,
+      publishedAt: '2026-08-11T00:00:00.000Z',
+    };
+    const state: SocialPublishState = {
+      [EPISODE_ID]: { zh: { x: published } },
+    };
+    mocks.readPublishState.mockResolvedValue(state);
+
+    await runSocialCli([EPISODE_ID, '--yes']);
+
+    expect(mocks.createReadlineInterface).not.toHaveBeenCalled();
+    expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
+      expect.objectContaining({ platforms: ['threads', 'rednote', 'youtube'] }),
+    );
+  });
+
   it('skips all asset work when all requested platforms were already published', async () => {
     const published: PlatformPublishState = {
       published: true,
@@ -309,7 +382,12 @@ describe('runSocialCli publishing', () => {
     };
     const state: SocialPublishState = {
       [EPISODE_ID]: {
-        zh: { x: published, threads: published, rednote: published },
+        zh: {
+          x: published,
+          threads: published,
+          rednote: published,
+          youtube: published,
+        },
       },
     };
     mocks.readPublishState.mockResolvedValue(state);

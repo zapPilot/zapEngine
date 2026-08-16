@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { isRednoteSessionReady, runRednoteLogin } from './rednote-login.js';
 import { ensureThreadsSession } from './threads-auth.js';
 import { isXSessionReady, runXLogin } from './x-playwright.js';
+import { ensureYouTubeSession } from './youtube-auth.js';
 
 const REPO_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -48,6 +49,14 @@ export async function runSocialLogin(
   } catch (error) {
     failures.push('Threads');
     log(`✗ Threads: ${errorMessage(error)}`);
+  }
+
+  try {
+    await ensureYouTubeSession();
+    log('✓ YouTube');
+  } catch (error) {
+    failures.push('YouTube');
+    log(`✗ YouTube: ${errorMessage(error)}`);
   }
 
   try {

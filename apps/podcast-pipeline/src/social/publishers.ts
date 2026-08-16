@@ -7,6 +7,7 @@ import type {
   SocialPublishJob,
 } from './types.js';
 import { createPlaywrightXPublisher } from './x-playwright.js';
+import { createYouTubePublisher } from './youtube.js';
 
 export async function createSocialPublishJobs(input: {
   platforms: readonly SocialPlatform[];
@@ -14,6 +15,8 @@ export async function createSocialPublishJobs(input: {
   videoUrl: string;
   videoPath?: string;
   xVideoPath?: string;
+  youtubeTitle?: string;
+  youtubeDescription?: string;
   onLog?: (message: string) => void;
 }): Promise<SocialPublishJob[]> {
   const jobs: SocialPublishJob[] = [];
@@ -51,6 +54,31 @@ export async function createSocialPublishJobs(input: {
             publisher.publishThreads({
               text: input.copy.x.text,
               videoUrl: input.videoUrl,
+            }),
+        });
+        break;
+      }
+      case 'youtube': {
+        const videoPath = input.videoPath;
+        if (!videoPath) {
+          throw new Error('YouTube publishing requires a prepared video.');
+        }
+        const title = input.youtubeTitle?.trim();
+        const description = input.youtubeDescription?.trim();
+        if (!title || !description) {
+          throw new Error(
+            'YouTube publishing requires title and description metadata.',
+          );
+        }
+        const publisher = createYouTubePublisher({ onLog: input.onLog });
+        jobs.push({
+          platform,
+          publish: () =>
+            publisher.publishYouTube({
+              title,
+              description,
+              videoPath,
+              privacyStatus: 'public',
             }),
         });
         break;

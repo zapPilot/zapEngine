@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir, rename, stat, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
@@ -162,7 +162,11 @@ async function writeAtomicFile(
   outputPath: string,
   write: (temporaryPath: string) => Promise<void>,
 ): Promise<void> {
-  const temporaryPath = `${outputPath}.tmp-${process.pid}`;
+  const extension = extname(outputPath);
+  const basePath = extension
+    ? outputPath.slice(0, -extension.length)
+    : outputPath;
+  const temporaryPath = `${basePath}.tmp-${process.pid}${extension}`;
   try {
     await write(temporaryPath);
     await requireNonemptyFile(temporaryPath);
