@@ -81,6 +81,75 @@ describe('validateImageCandidate', () => {
     expect(result.issues.map((issue) => issue.code)).toContain(code);
   });
 
+  it('rejects credential-bearing image URLs and allows omitted dimensions when no quality policy needs them', () => {
+    const credentialed = validateImageCandidate(
+      candidate({ imageUrl: 'https://user:pass@media.example.test/image.jpg' }),
+    );
+    expect(credentialed.issues.map((issue) => issue.code)).toContain(
+      'invalid-image-url',
+    );
+
+    expect(
+      validateImageCandidate(candidate({ width: undefined, height: undefined })),
+    ).toMatchObject({ valid: true, issues: [] });
+  });
+
+  it('rejects malformed image URLs and invalid numeric dimensions', () => {
+    const invalidUrl = validateImageCandidate(
+      candidate({ imageUrl: 'not a url' }),
+    );
+    expect(invalidUrl.issues.map((issue) => issue.code)).toContain(
+      'invalid-image-url',
+    );
+
+    const invalidDimensions = validateImageCandidate(
+      candidate({ width: 1200.5, height: -1 }),
+    );
+    expect(invalidDimensions.issues.map((issue) => issue.code)).toContain(
+      'invalid-dimensions',
+    );
+  });
+
+  it('accepts extensionless images and normalizes empty custom blocked extensions', () => {
+    const result = validateImageCandidate(
+      candidate({ imageUrl: 'https://media.example.test/image' }),
+      { blockedExtensions: ['   '] },
+    );
+    expect(result.valid).toBe(true);
+  });
+
+  it('reports every active dimension quality failure independently', () => {
+    const result = validateImageCandidate(candidate({ width: 500, height: 300 }), {
+      minWidth: 600,
+      minHeight: 400,
+      minLongEdge: 700,
+      minShortEdge: 350,
+      minAspectRatio: 2,
+    });
+    expect(result.issues.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining([
+        'image-too-narrow',
+        'image-too-short',
+        'image-long-edge-too-small',
+        'image-short-edge-too-small',
+        'aspect-ratio-out-of-range',
+      ]),
+    );
+
+    const tooWide = validateImageCandidate(candidate({ width: 2000, height: 500 }), {
+      maxAspectRatio: 3,
+    });
+    expect(tooWide.issues.map((issue) => issue.code)).toContain(
+      'aspect-ratio-out-of-range',
+    );
+  });
+
+  it('allows a candidate when an explicit origin allowlist contains it', () => {
+    expect(
+      validateImageCandidate(candidate(), { allowedOrigins: ['bing'] }).valid,
+    ).toBe(true);
+  });
+
   it('supports planner-owned hostname, extension, and origin blocks', () => {
     const result = validateImageCandidate(
       candidate({
@@ -103,6 +172,16 @@ describe('validateImageCandidate', () => {
 });
 
 describe('filterImageCandidates', () => {
+  it('can explicitly preserve duplicate candidates when deduplication is disabled', () => {
+    const first = candidate();
+    const duplicate = candidate({
+      imageUrl: 'https://media.example.test/image.jpg#duplicate',
+    });
+    expect(
+      partitionImageCandidates([first, duplicate], { deduplicate: false }).accepted,
+    ).toEqual([first, duplicate]);
+  });
+
   it('preserves candidate order while filtering invalid and duplicate URLs', () => {
     const first = candidate();
     const duplicate = candidate({

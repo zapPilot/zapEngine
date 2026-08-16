@@ -3,8 +3,23 @@ import { describe, expect, it } from 'vitest';
 import {
   createAssSubtitles,
   PORTRAIT_SUBTITLE_LAYOUT,
+  portraitSubtitleLayoutFor,
   wrapSubtitle,
 } from './subtitles.js';
+
+describe('portraitSubtitleLayoutFor', () => {
+  it('keeps the legacy 1080x1920 caption geometry only for stored v3 portrait manifests', () => {
+    expect(
+      portraitSubtitleLayoutFor({ clip: { width: 1080, height: 1920 } as never }),
+    ).toMatchObject({ playResX: 1080, playResY: 1920 });
+    expect(
+      portraitSubtitleLayoutFor({ clip: { width: 1080, height: 1280 } as never }),
+    ).toBe(PORTRAIT_SUBTITLE_LAYOUT);
+    expect(
+      portraitSubtitleLayoutFor({ clip: { width: 720, height: 1280 } as never }),
+    ).toBe(PORTRAIT_SUBTITLE_LAYOUT);
+  });
+});
 
 describe('wrapSubtitle', () => {
   it('keeps short text and exact-width Traditional Chinese on one line', () => {

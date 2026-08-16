@@ -12,6 +12,7 @@ import {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 async function fixtureHtml(): Promise<string> {
@@ -77,12 +78,44 @@ describe('parseBingImagesHtml', () => {
     ]);
   });
 
+  it('merges duplicate metadata and skips empty, primitive, credentialed, and malformed records', () => {
+    const html = `
+      <a class="iusc" m=""></a>
+      <a class="iusc" m="[]"></a>
+      <a class="iusc" m="{bad"></a>
+      <a class="iusc" m='{"murl":"https://user:pass@media.example.test/secret.jpg","purl":"https://publisher.example.test/article"}'></a>
+      <a class="iusc" m='{"murl":"https://media.example.test/shared.jpg","purl":"https://publisher.example.test/article","t":"   ","ow":0,"oh":0}'></a>
+      <a class="iusc" m='{"murl":"https://media.example.test/shared.jpg","purl":"https://publisher.example.test/article","desc":" Added description ","w":"1920","height":"1080"}'></a>
+    `;
+
+    expect(parseBingImagesHtml(html)).toEqual([
+      {
+        imageUrl: 'https://media.example.test/shared.jpg',
+        sourceUrl: 'https://publisher.example.test/article',
+        origin: 'bing',
+        altText: 'Added description',
+        width: 1920,
+        height: 1080,
+      },
+    ]);
+  });
+
   it('returns an empty list for markup without Bing image result anchors', () => {
     expect(parseBingImagesHtml('<p>No image results</p>')).toEqual([]);
   });
 });
 
 describe('searchBingImages', () => {
+  it('uses global fetch when no fetch implementation is injected', async () => {
+    const fetchHtml = vi.fn<typeof fetch>(
+      async () => new Response(await fixtureHtml(), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchHtml);
+
+    await expect(searchBingImages('global fetch test')).resolves.toHaveLength(2);
+    expect(fetchHtml).toHaveBeenCalledOnce();
+  });
+
   it('acquires and parses HTML through an injected fetch without an API key', async () => {
     const fetchHtml = vi.fn<FetchBingImagesHtml>(
       async () =>
@@ -152,6 +185,19 @@ describe('searchBingImages', () => {
     await expect(
       searchBingImages('grid reliability', { fetchHtml }),
     ).rejects.toThrow('Bing Images search returned no parseable image results');
+  });
+
+  it('does not mistake a no-results selector with unrelated text for a zero-results page', async () => {
+    const fetchHtml = vi.fn<FetchBingImagesHtml>(
+      async () =>
+        new Response(
+          '<div id="mmComponent_no_results">Try a different search</div>',
+          { status: 200 },
+        ),
+    );
+    await expect(
+      searchBingImages('narrow query', { fetchHtml }),
+    ).rejects.toThrow('returned no parseable image results');
   });
 
   it('returns an empty candidate list for an explicit zero-results page', async () => {

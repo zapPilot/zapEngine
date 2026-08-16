@@ -56,6 +56,42 @@ afterEach(() => {
 });
 
 describe('rasterizeSlide', () => {
+  it('accepts an options object with an injected runner', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'rasterizer-options-test-'));
+    const slide = createSlide();
+    const paths = {
+      input: join(directory, 'slide.json'),
+      svg: join(directory, 'slide.svg'),
+      master: join(directory, 'master.png'),
+      output: join(directory, 'output.png'),
+    };
+    const runStage = vi.fn().mockResolvedValue(undefined);
+
+    await rasterizeSlide(slide, createAsset(slide), paths, { runStage });
+
+    expect(runStage).toHaveBeenCalledTimes(3);
+  });
+
+  it('uses the real stage wrapper by default while the child process is mocked', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'rasterizer-default-test-'));
+    const slide = createSlide();
+    const paths = {
+      input: join(directory, 'slide.json'),
+      svg: join(directory, 'slide.svg'),
+      master: join(directory, 'master.png'),
+      output: join(directory, 'output.png'),
+    };
+    spawnMock.mockImplementation(() => {
+      const child = new EventEmitter();
+      queueMicrotask(() => child.emit('exit', 0, null));
+      return child;
+    });
+
+    await rasterizeSlide(slide, createAsset(slide), paths);
+
+    expect(spawnMock).toHaveBeenCalledTimes(3);
+  });
+
   it('writes the stage input and invokes isolated stages in strict order', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'rasterizer-test-'));
     const slide = createSlide();
@@ -178,6 +214,24 @@ describe('portrait card rasterization', () => {
 });
 
 describe('cropMediaImage', () => {
+  it('uses runRasterStage by default', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'rasterizer-crop-default-'));
+    const child = new EventEmitter();
+    spawnMock.mockReturnValue(child);
+    const promise = cropMediaImage(
+      {
+        imagePath: join(directory, 'source.png'),
+        width: 100,
+        height: 100,
+        position: 'center',
+      },
+      { input: join(directory, 'crop.json'), output: join(directory, 'out.png') },
+    );
+    await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledOnce());
+    child.emit('exit', 0, null);
+    await promise;
+  });
+
   it('writes the crop parameters and runs only the sharp-crop stage', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'rasterizer-crop-test-'));
     const paths = {
@@ -260,6 +314,51 @@ describe('runRasterStage', () => {
     await expect(signalPromise).rejects.toThrow(
       'Raster satori stage failed (signal SIGKILL)',
     );
+  });
+
+  it('rejects immediately on abort when the child exposes no kill method', async () => {
+    const child = new EventEmitter();
+    spawnMock.mockReturnValue(child);
+    const controller = new AbortController();
+    const promise = runRasterStage(
+      'satori',
+      join(tmpdir(), 'in.json'),
+      join(tmpdir(), 'out.svg'),
+      controller.signal,
+    );
+
+    controller.abort(new Error('cancelled without kill'));
+    await expect(promise).rejects.toThrow('cancelled without kill');
+    child.emit('exit', 0, null);
+  });
+
+  it('normalizes a child startup error after an abort into the abort reason', async () => {
+    const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
+    spawnMock.mockReturnValue(child);
+    const controller = new AbortController();
+    const promise = runRasterStage(
+      'resvg',
+      join(tmpdir(), 'in.svg'),
+      join(tmpdir(), 'out.png'),
+      controller.signal,
+    );
+
+    controller.abort(new Error('lease revoked'));
+    child.emit('error', new Error('spawn failed after abort'));
+    await expect(promise).rejects.toThrow('lease revoked');
+  });
+
+  it('ignores a later error after a successful exit has already settled', async () => {
+    const child = new EventEmitter();
+    spawnMock.mockReturnValue(child);
+    const promise = runRasterStage(
+      'satori',
+      join(tmpdir(), 'in.json'),
+      join(tmpdir(), 'out.svg'),
+    );
+    child.emit('exit', 0, null);
+    child.emit('error', new Error('too late'));
+    await expect(promise).resolves.toBeUndefined();
   });
 
   it('kills a running stage with SIGTERM then SIGKILL when aborted', async () => {

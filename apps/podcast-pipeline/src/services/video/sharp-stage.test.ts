@@ -103,6 +103,39 @@ describe('runSharpCropStage', () => {
     expect(metadata.height).toBe(96);
   });
 
+  it('falls back to center for an unknown crop position from persisted input', async () => {
+    const directory = await createTestDirectory();
+    const imagePath = join(directory, 'source.png');
+    const cropInputPath = join(directory, 'crop-unknown-position.json');
+    const outputPath = join(directory, 'crop-unknown-position.png');
+    await sharp({
+      create: {
+        width: 400,
+        height: 100,
+        channels: 3,
+        background: { r: 40, g: 80, b: 120 },
+      },
+    })
+      .png()
+      .toFile(imagePath);
+    await writeFile(
+      cropInputPath,
+      JSON.stringify({
+        imagePath,
+        width: 108,
+        height: 96,
+        position: 'future-position',
+      }),
+      'utf8',
+    );
+
+    await runSharpCropStage(cropInputPath, outputPath);
+    await expect(sharp(outputPath).metadata()).resolves.toMatchObject({
+      width: 108,
+      height: 96,
+    });
+  });
+
   it('rejects crop inputs that are missing the image path or size', async () => {
     const directory = await createTestDirectory();
     const cropInputPath = join(directory, 'crop.json');

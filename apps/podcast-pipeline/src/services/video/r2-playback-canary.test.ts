@@ -39,6 +39,32 @@ describe('assertR2PlaybackReady', () => {
     );
   });
 
+  it('uses the default origin and global fetch when no transport is injected', async () => {
+    const fetchRange = vi.fn().mockResolvedValue(
+      new Response(null, {
+        status: 206,
+        headers: {
+          'access-control-allow-origin': '*',
+          'content-range': 'bytes 0-1/*',
+        },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchRange);
+    try {
+      await expect(
+        assertR2PlaybackReady('https://media.example.com/video.mp4'),
+      ).resolves.toMatchObject({ corsOrigin: '*', contentRange: 'bytes 0-1/*' });
+      expect(fetchRange).toHaveBeenCalledWith(
+        'https://media.example.com/video.mp4',
+        expect.objectContaining({
+          headers: { Origin: 'https://zappilot.ai', Range: 'bytes=0-1' },
+        }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it.each([
     [
       'full response',
@@ -83,5 +109,11 @@ describe('runR2PlaybackCanaryCli', () => {
     await expect(runR2PlaybackCanaryCli([])).rejects.toThrow(
       'Usage: video:r2-canary',
     );
+    await expect(
+      runR2PlaybackCanaryCli([
+        'https://media.example.com/video.mp4',
+        'unexpected-extra',
+      ]),
+    ).rejects.toThrow('Usage: video:r2-canary');
   });
 });

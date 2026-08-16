@@ -105,6 +105,22 @@ describe('searchPexelsImages', () => {
     expect(candidates[0]).not.toHaveProperty('altText');
   });
 
+  it('omits blank photographer metadata and can use global fetch', async () => {
+    const fetchJson = vi.fn().mockResolvedValue(
+      jsonResponse({
+        photos: [pexelsPhoto({ photographer: null, photographer_url: '   ' })],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchJson);
+    try {
+      const [candidate] = await searchPexelsImages('world cup', API_KEY);
+      expect(candidate).not.toHaveProperty('photographer');
+      expect(candidate).not.toHaveProperty('photographerUrl');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('returns an empty list for an empty result set', async () => {
     const fetchJson = vi.fn().mockResolvedValue(jsonResponse({ photos: [] }));
     await expect(

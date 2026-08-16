@@ -382,6 +382,25 @@ describe('createVideoJobRepository', () => {
     ).rejects.toThrow('visuals are not complete');
   });
 
+  it('surfaces episode and completed-visual query errors', async () => {
+    const episodeError = makeSupabase();
+    episodeError.query.maybeSingle
+      .mockResolvedValueOnce({ data: localizationRow(), error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: 'episode query failed' } });
+    await expect(
+      createVideoJobRepository(episodeError as never).loadSource('loc'),
+    ).rejects.toThrow('episode query failed');
+
+    const visualError = makeSupabase();
+    visualError.query.maybeSingle
+      .mockResolvedValueOnce({ data: localizationRow(), error: null })
+      .mockResolvedValueOnce({ data: episodeRow(), error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: 'visual query failed' } });
+    await expect(
+      createVideoJobRepository(visualError as never).loadSource('loc'),
+    ).rejects.toThrow('visual query failed');
+  });
+
   it('surfaces lookup errors and missing localization, episode, or visual rows', async () => {
     const localizationError = makeSupabase();
     localizationError.query.maybeSingle.mockResolvedValueOnce({
@@ -433,6 +452,44 @@ describe('createVideoJobRepository', () => {
     });
     await expect(repository.claim('worker-1')).rejects.toThrow(
       'database unavailable',
+    );
+  });
+
+  it('handles empty/error lifecycle RPCs and find failures', async () => {
+    const supabase = makeSupabase();
+    const repository = createVideoJobRepository(supabase as never);
+
+    supabase.rpc.mockResolvedValueOnce({ data: [], error: null });
+    await expect(repository.claim('worker-1')).resolves.toBeNull();
+
+    supabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'progress rpc down' },
+    });
+    await expect(
+      repository.reportProgress('localization-1', 'worker-1', {
+        percent: 50,
+        stage: 'encoding',
+      }),
+    ).rejects.toThrow('progress rpc down');
+
+    supabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'reap rpc down' },
+    });
+    await expect(repository.reapFailedNotifications()).rejects.toThrow(
+      'reap rpc down',
+    );
+
+    supabase.rpc.mockResolvedValueOnce({ data: { unexpected: true }, error: null });
+    await expect(repository.reapFailedNotifications()).resolves.toEqual([]);
+
+    supabase.query.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'find localization failed' },
+    });
+    await expect(repository.find('loc-1')).rejects.toThrow(
+      'find localization failed',
     );
   });
 
@@ -586,6 +643,23 @@ describe('createVideoVisualJobRepository', () => {
     expect(supabase.query.eq).toHaveBeenCalledWith('language_code', 'en');
   });
 
+  it('surfaces canonical visual localization query errors and missing rows', async () => {
+    const queryError = makeSupabase();
+    queryError.query.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'canonical localization query failed' },
+    });
+    await expect(
+      createVideoVisualJobRepository(queryError as never).loadSource('episode-1'),
+    ).rejects.toThrow('canonical localization query failed');
+
+    const missing = makeSupabase();
+    missing.query.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    await expect(
+      createVideoVisualJobRepository(missing as never).loadSource('episode-1'),
+    ).rejects.toThrow('Canonical video localization not found');
+  });
+
   it('rejects English search context without completed main audio', async () => {
     const supabase = makeSupabase();
     supabase.query.maybeSingle
@@ -598,6 +672,22 @@ describe('createVideoVisualJobRepository', () => {
     await expect(
       createVideoVisualJobRepository(supabase as never).loadSource('episode-1'),
     ).rejects.toThrow('not renderable');
+  });
+
+  it('surfaces visual find errors and empty claim rows', async () => {
+    const supabase = makeSupabase();
+    const repository = createVideoVisualJobRepository(supabase as never);
+
+    supabase.rpc.mockResolvedValueOnce({ data: [], error: null });
+    await expect(repository.claim('visual-worker')).resolves.toBeNull();
+
+    supabase.query.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'find visual failed' },
+    });
+    await expect(repository.find('episode-1')).rejects.toThrow(
+      'find visual failed',
+    );
   });
 
   it('finds visual jobs and reports missing enqueue rows', async () => {

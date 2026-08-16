@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createEpisodeVideoVisualProcessor,
+  generateVisualStoryboard,
   VISUAL_ARTICLE_SCRAPE_TIMEOUT_MS,
 } from './episode-video-visual-processor.js';
 import {
@@ -290,6 +291,62 @@ describe('createEpisodeVideoVisualProcessor', () => {
     ]);
   });
 
+  it('handles sources without English search metadata or article images', async () => {
+    const bareSource: EpisodeVideoVisualSource = {
+      ...source(),
+      englishTitle: '',
+      englishScript: '',
+    };
+    const bareJob: EpisodeVideoVisualJobRow = {
+      ...job(),
+      source_hash: hashEpisodeVideoVisualSource(
+        bareSource.script,
+        bareSource.englishScript,
+      ),
+    };
+    const generateStoryboard = vi.fn().mockResolvedValue(storyboard());
+    const enrichSearchIntents = keepDeterministicIntents();
+    const planAssets = vi.fn().mockResolvedValue(assetPlan());
+    const processor = createEpisodeVideoVisualProcessor({
+      analyzeAudio: vi.fn().mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      generateStoryboard,
+      enrichSearchIntents,
+      scrape: vi.fn().mockResolvedValue({ title: 'Source article', text: 'body' }),
+      planAssets,
+      upload: vi.fn().mockResolvedValue({
+        manifestUrl: 'https://cdn.example.test/manifest.json',
+        imageUrls: {
+          'image-01': 'https://cdn.example.test/visuals/image-01.jpg',
+          'image-02': 'https://cdn.example.test/visuals/image-02.webp',
+        },
+        r2Prefix: 'episodes/e/visuals/v/hash',
+      }),
+      makeTemporaryDirectory: vi.fn().mockResolvedValue('/work/visual'),
+      writeManifest: vi.fn().mockResolvedValue(undefined),
+      removeDirectory: vi.fn().mockResolvedValue(undefined),
+      logger: { info: vi.fn() },
+    });
+
+    await processor(bareJob, bareSource, context());
+
+    expect(generateStoryboard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        searchTitle: '',
+        searchScript: '',
+      }),
+    );
+    expect(enrichSearchIntents).toHaveBeenCalledWith(
+      {
+        draft: storyboard().draft,
+        title: bareSource.title,
+        script: bareSource.script,
+        durationMs: 90_000,
+      },
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(planAssets.mock.calls[0]?.[0].articleImages).toEqual([]);
+  });
+
   it('rejects a stale source hash without scraping or searching', async () => {
     const scrape = vi.fn();
     const processor = createEpisodeVideoVisualProcessor({ scrape });
@@ -315,6 +372,57 @@ describe('createEpisodeVideoVisualProcessor', () => {
       'Unsupported episode visual version: podcast-image-visual-plan.v2',
     );
     expect(scrape).not.toHaveBeenCalled();
+  });
+
+  it('generateVisualStoryboard supports explicit and default deterministic providers', async () => {
+    const explicitProvider = {
+      name: 'explicit',
+      model: 'explicit-model',
+      generate: vi.fn(async () => ({
+        draft: storyboard().draft,
+        model: 'explicit-model',
+        usage: null,
+      })),
+    };
+    const controller = new AbortController();
+
+    const explicit = await generateVisualStoryboard({
+      title: 'Title',
+      script: '第一句。第二句。',
+      durationMs: 20_000,
+      signal: controller.signal,
+      provider: explicitProvider,
+    });
+    expect(explicit.effectiveProvider).toBe('explicit');
+    expect(explicitProvider.generate).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ signal: controller.signal }),
+    );
+
+    const previous = process.env['VIDEO_STORYBOARD_PROVIDER'];
+    try {
+      delete process.env['VIDEO_STORYBOARD_PROVIDER'];
+      const deterministic = await generateVisualStoryboard({
+        title: 'Title',
+        script: '第一句。第二句。',
+        searchTitle: ' English title ',
+        searchScript: 'First sentence. Second sentence.',
+        durationMs: 20_000,
+      });
+      expect(deterministic.effectiveProvider).toBe('deterministic');
+
+      process.env['VIDEO_STORYBOARD_PROVIDER'] = 'unsupported';
+      await expect(
+        generateVisualStoryboard({
+          title: 'Title',
+          script: '第一句。第二句。',
+          durationMs: 20_000,
+        }),
+      ).rejects.toThrow('Unsupported VIDEO_STORYBOARD_PROVIDER: unsupported');
+    } finally {
+      if (previous === undefined) delete process.env['VIDEO_STORYBOARD_PROVIDER'];
+      else process.env['VIDEO_STORYBOARD_PROVIDER'] = previous;
+    }
   });
 
   it('cleans up its temporary images after an R2 upload failure', async () => {

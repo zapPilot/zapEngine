@@ -227,6 +227,44 @@ describe('renderSlideVideo', () => {
     });
   });
 
+  it('renders source markdown for label-only links and linked licenses', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'renderer-source-markdown-'));
+    temporaryRoots.push(root);
+    const manifestPath = join(root, 'manifest.json');
+    const outputDirectory = join(root, 'rendered');
+    const manifest = createManifest();
+    const source = manifest.slides[0]!.sources[0]!;
+    source.url = null;
+    source.license = 'pexels';
+    source.licenseUrl = 'https://www.pexels.com/license/';
+    await writeFile(manifestPath, JSON.stringify(manifest), 'utf8');
+
+    const result = await renderSlideVideo({
+      manifestPath,
+      outputDirectory,
+      dependencies: {
+        resolveAsset: async (slide: Slide) => resolvedImage(slide),
+        rasterize: async (slide, _asset, slidePaths) => {
+          await Promise.all([
+            mkdir(dirname(slidePaths.master), { recursive: true }),
+            mkdir(dirname(slidePaths.output), { recursive: true }),
+          ]);
+          await writeFile(slidePaths.master, `master:${slide.id}`, 'utf8');
+          await writeFile(slidePaths.output, `output:${slide.id}`, 'utf8');
+        },
+        renderVideo: async (options) => {
+          await writeFile(options.outputPath, 'video', 'utf8');
+        },
+      },
+    });
+
+    const sources = await readFile(result.sourcesPath, 'utf8');
+    expect(sources).toContain(`- ${source.label}`);
+    expect(sources).toContain(
+      'License: [pexels](https://www.pexels.com/license/)',
+    );
+  });
+
   it('uses manifest audio by default and removes its work directory on failure', async () => {
     const paths = await makeRenderPaths();
     let isolatedWorkDirectory = '';
@@ -517,6 +555,31 @@ describe('renderSlideVideo (vertical news manifests)', () => {
       'Rendering brand frame and outro card',
       'Encoding vertical news video',
     ]);
+  });
+
+  it('fails closed when vertical media resolves to a fallback card', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'renderer-vertical-fallback-'));
+    temporaryRoots.push(root);
+    const manifestPath = join(root, 'manifest.json');
+    await writeFile(manifestPath, JSON.stringify(createVerticalManifest()));
+
+    await expect(
+      renderSlideVideo({
+        manifestPath,
+        outputDirectory: join(root, 'rendered'),
+        dependencies: {
+          resolveAsset: async (slide: Slide) => ({
+            kind: 'fallback',
+            reason: 'remote download failed',
+            source: slide.sources[0] ?? null,
+          }),
+          cropMedia: vi.fn(),
+          renderVerticalVideo: vi.fn(),
+        },
+      }),
+    ).rejects.toThrow(
+      'Scene scene-01 requires a remote image: remote download failed',
+    );
   });
 
   it('fails closed when the resolved media has no file on disk', async () => {

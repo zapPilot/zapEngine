@@ -122,6 +122,195 @@ describe('episode visual payload', () => {
     expect(payload.provenance.searchIntentModel).toBe('openrouter/free');
   });
 
+  it('materializes stock attribution and optional photographer metadata', () => {
+    const stockAssets: PlannedVisualImage[] = [
+      {
+        ...assets[0]!,
+        assetId: 'image-01',
+        provider: 'pexels',
+        license: 'pexels',
+        photographer: 'Ada Lens',
+        photographerUrl: 'https://www.pexels.com/@ada-lens',
+      },
+      {
+        ...assets[1]!,
+        assetId: 'image-02',
+        provider: 'pixabay',
+        license: 'pixabay',
+      },
+    ];
+    const selectedScenes = [
+      { sceneId: 'scene-01', assetId: 'image-01' },
+      { sceneId: 'scene-02', assetId: 'image-02' },
+      { sceneId: 'scene-03', assetId: 'image-01' },
+    ];
+    const payload = buildEpisodeVisualPayload({
+      visualVersion: 'image-only-v1',
+      visualHash: hashEpisodeVisualSelection({
+        visualVersion: 'image-only-v1',
+        episodeId,
+        canonicalLocalizationId: localizationId,
+        scenes: storyboard.draft.scenes,
+        selectedScenes,
+        assets: stockAssets,
+      }),
+      episodeId,
+      canonicalLocalizationId: localizationId,
+      manifestUrl: 'https://cdn.example.test/manifest.json',
+      storyboard,
+      searchIntentModel: null,
+      selectedScenes,
+      assets: stockAssets,
+      r2ImageUrls: {
+        'image-01': 'https://cdn.example.test/image-01.jpg',
+        'image-02': 'https://cdn.example.test/image-02.webp',
+      },
+    });
+
+    expect(payload.assets[0]).toMatchObject({
+      photographer: 'Ada Lens',
+      photographerUrl: 'https://www.pexels.com/@ada-lens',
+    });
+    expect(payload.visualPlan.scenes[0]?.sources[0]).toMatchObject({
+      attribution: 'Photo by Ada Lens · Pexels',
+      licenseUrl: 'https://www.pexels.com/license/',
+    });
+    expect(payload.visualPlan.scenes[1]?.sources[0]).toMatchObject({
+      attribution: 'Photo · Pixabay',
+      licenseUrl: 'https://pixabay.com/service/license-summary/',
+    });
+  });
+
+  it('fails closed when scene selection, local assets, or uploaded URLs are missing', () => {
+    const base = {
+      visualVersion: 'image-only-v1',
+      visualHash: 'a'.repeat(64),
+      episodeId,
+      canonicalLocalizationId: localizationId,
+      manifestUrl: 'https://cdn.example.test/manifest.json',
+      storyboard,
+      searchIntentModel: null,
+      assets,
+      r2ImageUrls: {
+        'image-01': 'https://cdn.example.test/image-01.jpg',
+        'image-02': 'https://cdn.example.test/image-02.webp',
+      },
+    };
+
+    expect(() =>
+      buildEpisodeVisualPayload({
+        ...base,
+        selectedScenes: [
+          { sceneId: 'scene-01', assetId: 'image-01' },
+          { sceneId: 'scene-02', assetId: 'image-02' },
+        ],
+      }),
+    ).toThrow('Visual image is missing for scene-03');
+
+    expect(() =>
+      buildEpisodeVisualPayload({
+        ...base,
+        selectedScenes: storyboard.draft.scenes.map((scene) => ({
+          sceneId: scene.sceneId,
+          assetId: 'image-99',
+        })),
+      }),
+    ).toThrow('Visual image is missing for scene-01');
+
+    expect(() =>
+      buildEpisodeVisualPayload({
+        ...base,
+        selectedScenes: storyboard.draft.scenes.map((scene) => ({
+          sceneId: scene.sceneId,
+          assetId: 'image-01',
+        })),
+        r2ImageUrls: {},
+      }),
+    ).toThrow('Visual image is missing for scene-01');
+
+    expect(() =>
+      buildEpisodeVisualPayload({
+        ...base,
+        selectedScenes: storyboard.draft.scenes.map((scene) => ({
+          sceneId: scene.sceneId,
+          assetId: 'image-01',
+        })),
+        r2ImageUrls: { 'image-01': 'https://cdn.example.test/image-01.jpg' },
+        assets: [assets[0]!, assets[1]!],
+      }),
+    ).toThrow('Uploaded image URL is missing for image-02');
+  });
+
+  it('rejects duplicate uploaded URLs and visual-plan references that do not match metadata', () => {
+    const selectedScenes = storyboard.draft.scenes.map((scene) => ({
+      sceneId: scene.sceneId,
+      assetId: scene.sceneId === 'scene-02' ? 'image-02' : 'image-01',
+    }));
+    const valid = buildEpisodeVisualPayload({
+      visualVersion: 'image-only-v1',
+      visualHash: 'b'.repeat(64),
+      episodeId,
+      canonicalLocalizationId: localizationId,
+      manifestUrl: 'https://cdn.example.test/manifest.json',
+      storyboard,
+      searchIntentModel: null,
+      selectedScenes,
+      assets,
+      r2ImageUrls: {
+        'image-01': 'https://cdn.example.test/image-01.jpg',
+        'image-02': 'https://cdn.example.test/image-02.webp',
+      },
+    });
+
+    expect(() =>
+      parseEpisodeVisualPayload({
+        ...valid,
+        assets: valid.assets.map((asset) => ({
+          ...asset,
+          r2Url: 'https://cdn.example.test/same.jpg',
+        })),
+      }),
+    ).toThrow('Visual assets must use unique R2 URLs');
+
+    expect(() =>
+      parseEpisodeVisualPayload({
+        ...valid,
+        visualPlan: {
+          ...valid.visualPlan,
+          scenes: valid.visualPlan.scenes.map((scene, index) =>
+            index === 0
+              ? {
+                  ...scene,
+                  asset: { ...scene.asset, sha256: 'f'.repeat(64) },
+                }
+              : scene,
+          ),
+        },
+      }),
+    ).toThrow('references an unknown visual asset');
+  });
+
+  it('uses a safe attribution label even when an upstream source URL is malformed', () => {
+    const malformed: PlannedVisualImage = {
+      ...assets[0]!,
+      sourcePageUrl: 'not a url',
+    };
+    expect(() =>
+      buildEpisodeVisualPayload({
+        visualVersion: 'image-only-v1',
+        visualHash: 'c'.repeat(64),
+        episodeId,
+        canonicalLocalizationId: localizationId,
+        manifestUrl: 'https://cdn.example.test/manifest.json',
+        storyboard: { ...storyboard, draft: { scenes: [storyboard.draft.scenes[0]!] } },
+        searchIntentModel: null,
+        selectedScenes: [{ sceneId: 'scene-01', assetId: 'image-01' }],
+        assets: [malformed],
+        r2ImageUrls: { 'image-01': 'https://cdn.example.test/image-01.jpg' },
+      }),
+    ).toThrow();
+  });
+
   it('includes source selection in the immutable visual hash', () => {
     const base = {
       visualVersion: 'image-only-v1',

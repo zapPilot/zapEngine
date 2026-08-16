@@ -106,6 +106,52 @@ describe('createEpisodeVideoManifest', () => {
     ).toContain('First sentence');
   });
 
+  it('passes explicit silence intervals into caption timing', async () => {
+    const script = '第一句。第二句。';
+    const result = await createEpisodeVideoManifest({
+      episodeId: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
+      localizationId: '56b21422-1a38-4917-957e-b23223c0396c',
+      languageCode: 'zh-Hant',
+      title: '有停頓的集數',
+      script,
+      canonicalScript: script,
+      visualPlan: visualPlan(2),
+      storyboardProvider: 'deterministic',
+      storyboardModel: null,
+      hlsUrl:
+        'https://cdn.example.com/episodes/e/localizations/zh-Hant/main/playlist.m3u8',
+      durationMs: 24_000,
+      silences: [{ startMs: 11_900, endMs: 12_100 }],
+    });
+    expect(result.manifest.captions).toHaveLength(2);
+  });
+
+  it('takes the configured-provider path when no alignment provider is injected', async () => {
+    const previous = process.env['VIDEO_ALIGNMENT_PROVIDER'];
+    process.env['VIDEO_ALIGNMENT_PROVIDER'] = 'unsupported-for-test';
+    try {
+      await expect(
+        createEpisodeVideoManifest({
+          episodeId: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
+          localizationId: '56b21422-1a38-4917-957e-b23223c0396c',
+          languageCode: 'en',
+          title: 'English episode',
+          script: 'First sentence. Second sentence.',
+          canonicalScript: '第一段。第二段。',
+          visualPlan: visualPlan(2),
+          storyboardProvider: 'deterministic',
+          storyboardModel: null,
+          hlsUrl:
+            'https://cdn.example.com/episodes/e/localizations/en/main/playlist.m3u8',
+          durationMs: 24_000,
+        }),
+      ).rejects.toThrow('Unsupported VIDEO_ALIGNMENT_PROVIDER');
+    } finally {
+      if (previous === undefined) delete process.env['VIDEO_ALIGNMENT_PROVIDER'];
+      else process.env['VIDEO_ALIGNMENT_PROVIDER'] = previous;
+    }
+  });
+
   it('uses proportional timing when semantic alignment is invalid', async () => {
     const alignmentProvider = {
       align: vi.fn().mockResolvedValue({
@@ -147,6 +193,16 @@ describe('createEpisodeVideoManifest', () => {
 });
 
 describe('analyzeEpisodeAudio', () => {
+  it('forwards cancellation through audio analysis', async () => {
+    const controller = new AbortController();
+    await expect(
+      analyzeEpisodeAudio(
+        'https://cdn.example.com/episodes/e/localizations/en/main/playlist.m3u8',
+        { signal: controller.signal },
+      ),
+    ).resolves.toEqual({ durationMs: 90_000, silences: [] });
+  });
+
   it('resolves duration and silences from a valid main HLS URL', async () => {
     await expect(
       analyzeEpisodeAudio(

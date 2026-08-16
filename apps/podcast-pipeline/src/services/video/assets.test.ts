@@ -1,9 +1,13 @@
 import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import sharp from 'sharp';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  acquireRemoteImage,
   createPinnedLookup,
   type FetchImage,
   isPublicIpAddress,
@@ -11,6 +15,23 @@ import {
   resolveSlideAsset,
 } from './assets.js';
 import type { Slide, SlideSource } from './manifest.js';
+
+const temporaryDirectories: string[] = [];
+
+afterEach(async () => {
+  vi.useRealTimers();
+  await Promise.all(
+    temporaryDirectories
+      .splice(0)
+      .map((directory) => rm(directory, { recursive: true, force: true })),
+  );
+});
+
+async function tempDirectory(): Promise<string> {
+  const directory = await mkdtemp(join(tmpdir(), 'assets-test-'));
+  temporaryDirectories.push(directory);
+  return directory;
+}
 
 const openSource: SlideSource = {
   id: 'open-image',
@@ -47,6 +68,7 @@ function remoteImageSlide(options: {
   imageHash: string;
   layout?: 'fullBleed' | 'framed';
   sourceId?: string;
+  url?: string;
 }): Extract<Slide, { template: 'photoFact' }> {
   return {
     id: 'remote-image',
@@ -60,7 +82,7 @@ function remoteImageSlide(options: {
     asset: {
       kind: 'remoteImage',
       sourceId: options.sourceId ?? openSource.id,
-      url: 'https://example.test/image.png',
+      url: options.url ?? 'https://example.test/image.png',
       sha256: options.imageHash,
       layout: options.layout ?? 'framed',
       position: 'center',
@@ -330,6 +352,65 @@ describe('resolveSlideAsset', () => {
     expect(svg).toContain('class="pa"');
   });
 
+  it('writes bundled maps and remote images to a caller-owned working directory', async () => {
+    const directory = await tempDirectory();
+    const map = await resolveSlideAsset(bundledMapSlide(), {
+      workingDirectory: directory,
+    });
+    expect(map).toMatchObject({
+      kind: 'image',
+      dataUri: undefined,
+      filePath: join(directory, 'pjm-map.svg'),
+    });
+    expect((await stat(join(directory, 'pjm-map.svg'))).size).toBeGreaterThan(0);
+
+    const buffer = await sharp({
+      create: {
+        width: 800,
+        height: 450,
+        channels: 3,
+        background: '#d4c5a3',
+      },
+    })
+      .png()
+      .toBuffer();
+    const remote = await resolveSlideAsset(
+      remoteImageSlide({
+        imageHash: hash(buffer),
+        url: 'https://example.test/image',
+      }),
+      {
+        workingDirectory: directory,
+        fetchImage: async () => imageResponse(buffer),
+        resolveHost: async () => ['8.8.8.8'],
+      },
+    );
+    expect(remote).toMatchObject({
+      kind: 'image',
+      filePath: join(directory, 'remote-image.image'),
+    });
+    expect(remote).not.toHaveProperty('dataUri');
+    expect(await readFile(join(directory, 'remote-image.image'))).toEqual(buffer);
+  });
+
+  it('uses null source for source-free editorial slides', async () => {
+    const slide: Extract<Slide, { template: 'cover' }> = {
+      id: 'cover-empty',
+      startMs: 0,
+      endMs: 1_000,
+      template: 'cover',
+      kicker: 'NEWS',
+      headline: 'No source',
+      subheadline: '',
+      sources: [],
+      asset: { kind: 'none' },
+    };
+    await expect(resolveSlideAsset(slide)).resolves.toMatchObject({
+      kind: 'fallback',
+      source: null,
+    });
+  });
+
   it('falls back when bundled-map attribution is missing', async () => {
     await expect(
       resolveSlideAsset(bundledMapSlide('missing-source')),
@@ -409,6 +490,114 @@ describe('DNS pinning', () => {
     );
   });
 
+  it('rejects unsafe remote URL boundaries before fetching', async () => {
+    const fetchImage = vi.fn<FetchImage>();
+    const cases = [
+      {
+        url: 'http://example.test/image.png',
+        resolveHost: async () => ['8.8.8.8'],
+        message: 'must use HTTPS',
+      },
+      {
+        url: 'https://user:pass@example.test/image.png',
+        resolveHost: async () => ['8.8.8.8'],
+        message: 'must not contain credentials',
+      },
+      {
+        url: 'https://example.test/image.png',
+        resolveHost: async () => [],
+        message: 'private or reserved IP',
+      },
+      {
+        url: 'https://example.test/image.png',
+        resolveHost: async () => ['8.8.8.8', '127.0.0.1'],
+        message: 'private or reserved IP',
+      },
+      {
+        url: 'https://127.0.0.1/image.png',
+        resolveHost: async () => ['8.8.8.8'],
+        message: 'private or reserved IP',
+      },
+    ];
+
+    for (const testCase of cases) {
+      const result = await resolveSlideAsset(
+        remoteImageSlide({ imageHash: '0'.repeat(64), url: testCase.url }),
+        { fetchImage, resolveHost: testCase.resolveHost },
+      );
+      expect(result).toMatchObject({ kind: 'fallback' });
+      if (result.kind === 'fallback') expect(result.reason).toContain(testCase.message);
+    }
+    expect(fetchImage).not.toHaveBeenCalled();
+  });
+
+  it('pins a public literal IP without performing DNS resolution', async () => {
+    const buffer = await pngBuffer();
+    const resolveHost = vi.fn(async () => ['127.0.0.1']);
+    const fetchImage = vi.fn(async () => imageResponse(buffer));
+    const result = await resolveSlideAsset(
+      remoteImageSlide({
+        imageHash: hash(buffer),
+        url: 'https://8.8.8.8/image.png',
+      }),
+      { fetchImage, resolveHost },
+    );
+
+    expect(result).toMatchObject({ kind: 'image' });
+    expect(resolveHost).not.toHaveBeenCalled();
+    expect(fetchImage).toHaveBeenCalledWith(
+      'https://8.8.8.8/image.png',
+      expect.objectContaining({ pinnedAddresses: ['8.8.8.8'] }),
+    );
+  });
+
+  it('fails closed when DNS resolution is aborted', async () => {
+    const controller = new AbortController();
+    const leaseError = new Error('lease lost');
+    const resolveHost = vi.fn(
+      async () =>
+        new Promise<string[]>(() => {
+          // Intentionally unresolved; abort must win the race.
+        }),
+    );
+    const result = resolveSlideAsset(
+      remoteImageSlide({ imageHash: '0'.repeat(64) }),
+      {
+        fetchImage: vi.fn(),
+        resolveHost,
+        signal: controller.signal,
+      },
+    );
+    await vi.waitFor(() => expect(resolveHost).toHaveBeenCalledOnce());
+    controller.abort(leaseError);
+    await expect(result).rejects.toThrow('lease lost');
+  });
+
+  it('enforces the redirect limit and cancels redirect bodies', async () => {
+    const cancel = vi.fn(async () => undefined);
+    const redirectResponse = (): Response => {
+      const response = new Response('redirect', {
+        status: 302,
+        headers: { location: '/next.png' },
+      });
+      Object.defineProperty(response.body, 'cancel', { value: cancel });
+      return response;
+    };
+    const fetchImage = vi.fn(async () => redirectResponse());
+
+    const result = await resolveSlideAsset(
+      remoteImageSlide({ imageHash: '0'.repeat(64) }),
+      { fetchImage, resolveHost: async () => ['8.8.8.8'] },
+    );
+
+    expect(result).toMatchObject({ kind: 'fallback' });
+    if (result.kind === 'fallback') {
+      expect(result.reason).toContain('3-redirect limit');
+    }
+    expect(fetchImage).toHaveBeenCalledTimes(4);
+    expect(cancel).toHaveBeenCalledTimes(4);
+  });
+
   it('createPinnedLookup answers with the validated addresses, never DNS', () => {
     const lookup = createPinnedLookup([
       '93.184.216.34',
@@ -425,6 +614,11 @@ describe('DNS pinning', () => {
       { address: '93.184.216.34', family: 4 },
       { address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 },
     ]);
+
+    const empty = createPinnedLookup([]);
+    const missing = vi.fn();
+    empty('example.test', {}, missing);
+    expect(missing.mock.calls[0]?.[0]).toBeInstanceOf(Error);
   });
 
   it('pinnedFetchImage refuses to connect without pre-validated addresses', async () => {
@@ -436,6 +630,107 @@ describe('DNS pinning', () => {
         pinnedAddresses: [],
       }),
     ).rejects.toThrow(/pinned/i);
+  });
+});
+
+describe('acquireRemoteImage', () => {
+  it('rejects unsafe filenames before creating output', async () => {
+    const directory = await tempDirectory();
+    await expect(
+      acquireRemoteImage('https://example.test/image.png', {
+        workingDirectory: directory,
+        filename: '../escape',
+        fetchImage: vi.fn(),
+        resolveHost: async () => ['8.8.8.8'],
+      }),
+    ).rejects.toThrow('unsafe characters');
+  });
+
+  it('accepts image/jpg, defaults to framed layout, and handles missing content-length', async () => {
+    const directory = await tempDirectory();
+    const buffer = await sharp({
+      create: {
+        width: 800,
+        height: 450,
+        channels: 3,
+        background: '#ffffff',
+      },
+    })
+      .jpeg()
+      .toBuffer();
+    const result = await acquireRemoteImage('https://example.test/photo.jpg', {
+      workingDirectory: directory,
+      filename: 'photo',
+      fetchImage: async () =>
+        new Response(Uint8Array.from(buffer), {
+          status: 200,
+          headers: { 'content-type': 'image/jpg; charset=binary' },
+        }),
+      resolveHost: async () => ['8.8.8.8'],
+    });
+
+    expect(result).toMatchObject({
+      contentType: 'image/jpeg',
+      width: 800,
+      height: 450,
+      sha256: hash(buffer),
+    });
+    expect((await stat(result.path)).size).toBe(buffer.length);
+  });
+
+  it('removes downloaded files when decoded format or dimensions are unsafe', async () => {
+    const directory = await tempDirectory();
+    const png = await sharp({
+      create: { width: 800, height: 450, channels: 3, background: '#fff' },
+    })
+      .png()
+      .toBuffer();
+    await expect(
+      acquireRemoteImage('https://example.test/mismatch.jpg', {
+        workingDirectory: directory,
+        filename: 'mismatch',
+        fetchImage: async () =>
+          imageResponse(png, { contentType: 'image/jpeg' }),
+        resolveHost: async () => ['8.8.8.8'],
+      }),
+    ).rejects.toThrow('content type does not match decoded format');
+    await expect(stat(join(directory, 'mismatch.image'))).rejects.toThrow();
+
+    const wide = await sharp({
+      create: {
+        width: 16_385,
+        height: 1,
+        channels: 3,
+        background: '#fff',
+      },
+    })
+      .png()
+      .toBuffer();
+    await expect(
+      acquireRemoteImage('https://example.test/wide.png', {
+        workingDirectory: directory,
+        filename: 'wide',
+        fetchImage: async () => imageResponse(wide),
+        resolveHost: async () => ['8.8.8.8'],
+      }),
+    ).rejects.toThrow('safe pixel-dimension limit');
+    await expect(stat(join(directory, 'wide.image'))).rejects.toThrow();
+  });
+
+  it('rejects successful HTTP responses with no body', async () => {
+    const directory = await tempDirectory();
+    await expect(
+      acquireRemoteImage('https://example.test/empty.png', {
+        workingDirectory: directory,
+        filename: 'empty',
+        fetchImage: async () =>
+          new Response(null, {
+            status: 200,
+            headers: { 'content-type': 'image/png' },
+          }),
+        resolveHost: async () => ['8.8.8.8'],
+      }),
+    ).rejects.toThrow('Image response body is empty');
   });
 });
 
@@ -454,7 +749,49 @@ describe('isPublicIpAddress', () => {
       '192.168.1.1',
       '169.254.169.254',
       '100.64.0.1',
+      '100.127.255.255',
+      '192.0.0.1',
+      '198.18.0.1',
+      '198.19.255.255',
+      '198.51.100.1',
+      '203.0.113.1',
+      '224.0.0.1',
+      '255.255.255.255',
       '0.0.0.0',
+    ]) {
+      expect(isPublicIpAddress(address)).toBe(false);
+    }
+  });
+
+  it('accepts public boundary neighbors and mapped public IPv6', () => {
+    for (const address of [
+      '100.63.255.255',
+      '100.128.0.1',
+      '172.15.255.255',
+      '172.32.0.1',
+      '192.167.255.255',
+      '198.17.255.255',
+      '198.20.0.1',
+      '::ffff:8.8.8.8',
+      '::8.8.8.8',
+      '2001:4860:4860::8888',
+      '2001:4860:4860:0:0:0:0:8888',
+    ]) {
+      expect(isPublicIpAddress(address)).toBe(true);
+    }
+    expect(isPublicIpAddress('not-an-ip')).toBe(false);
+  });
+
+  it('rejects every reserved IPv6 routing family and mapped private IPv4', () => {
+    for (const address of [
+      'fc00::1',
+      'fd12:3456::1',
+      'fe80::1',
+      'ff02::1',
+      '2001:db8::1',
+      '2002::1',
+      '64:ff9b::808:808',
+      '::192.168.1.1',
     ]) {
       expect(isPublicIpAddress(address)).toBe(false);
     }

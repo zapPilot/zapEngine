@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { ReactElement } from 'react';
+import { isValidElement, type ReactElement } from 'react';
 import sharp from 'sharp';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -109,6 +109,185 @@ function componentName(element: ReactElement): string {
     ? ((element.type as { name?: string }).name ?? '')
     : '';
 }
+
+function executeElementTree(node: unknown): void {
+  if (Array.isArray(node)) {
+    for (const child of node) executeElementTree(child);
+    return;
+  }
+  if (!isValidElement(node)) return;
+  if (typeof node.type === 'function') {
+    const component = node.type as unknown as (props: unknown) => unknown;
+    executeElementTree(component(node.props));
+    return;
+  }
+  executeElementTree((node.props as { children?: unknown }).children);
+}
+
+describe('template branch behavior', () => {
+  it('executes nested legacy components for optional copy and asset variants', () => {
+    const cover: Extract<Slide, { template: 'cover' }> = {
+      id: 'cover-tree',
+      startMs: 0,
+      endMs: 1_000,
+      template: 'cover',
+      kicker: 'KICKER',
+      headline: 'Headline',
+      subheadline: 'Subheadline',
+      sources: [source],
+      asset: { kind: 'none' },
+    };
+    executeElementTree(
+      renderSlideElement(
+        cover,
+        { kind: 'fallback', reason: 'fallback', source: null },
+        LOGO_DATA_URI,
+      ),
+    );
+
+    for (const subheadline of ['', 'Optional detail']) {
+      const photoFact: Extract<Slide, { template: 'photoFact' }> = {
+        id: `photo-${subheadline || 'empty'}`,
+        startMs: 0,
+        endMs: 1_000,
+        template: 'photoFact',
+        eyebrow: 'FACT',
+        headline: 'Headline',
+        subheadline,
+        facts: ['One', 'Two'],
+        sources: [source],
+        asset: { kind: 'none' },
+      };
+      executeElementTree(
+        renderSlideElement(
+          photoFact,
+          subheadline
+            ? { ...imageAsset, layout: 'framed', position: 'top' }
+            : { kind: 'fallback', reason: 'No image', source: null },
+          LOGO_DATA_URI,
+        ),
+      );
+    }
+
+    const statisticVariants: Array<Extract<Slide, { template: 'statistic' }>> = [
+      {
+        id: 'stat-full',
+        startMs: 0,
+        endMs: 1_000,
+        template: 'statistic',
+        eyebrow: 'FULL',
+        value: '42',
+        unit: '%',
+        label: 'Metric',
+        context: 'Context',
+        secondaryValue: '21',
+        secondaryLabel: 'Secondary',
+        sources: [source],
+        asset: { kind: 'none' },
+      },
+      {
+        id: 'stat-minimal',
+        startMs: 0,
+        endMs: 1_000,
+        template: 'statistic',
+        eyebrow: 'MIN',
+        value: '42',
+        label: 'Metric',
+        sources: [source],
+        asset: { kind: 'none' },
+      },
+      {
+        id: 'stat-half-secondary',
+        startMs: 0,
+        endMs: 1_000,
+        template: 'statistic',
+        eyebrow: 'HALF',
+        value: '42',
+        label: 'Metric',
+        secondaryValue: '21',
+        sources: [source],
+        asset: { kind: 'none' },
+      },
+    ];
+    for (const statistic of statisticVariants) {
+      executeElementTree(
+        renderSlideElement(
+          statistic,
+          { kind: 'fallback', reason: 'Statistic', source },
+          LOGO_DATA_URI,
+        ),
+      );
+    }
+
+    for (const context of ['', 'Quote context']) {
+      const quote: Extract<Slide, { template: 'sourceQuote' }> = {
+        id: `quote-${context || 'empty'}`,
+        startMs: 0,
+        endMs: 1_000,
+        template: 'sourceQuote',
+        eyebrow: 'QUOTE',
+        quote: 'Quoted text',
+        context,
+        citation: 'Source',
+        sources: [source],
+        asset: { kind: 'none' },
+      };
+      executeElementTree(
+        renderSlideElement(
+          quote,
+          { ...imageAsset, layout: 'fullBleed', position: 'bottom' },
+          LOGO_DATA_URI,
+        ),
+      );
+    }
+
+    executeElementTree(
+      renderBrandFrameElement(
+        { kicker: 'KICKER', titleLines: ['First', 'Second'] },
+        LOGO_DATA_URI,
+      ),
+    );
+    executeElementTree(
+      renderOutroElement(
+        { title: 'Outro title', callToAction: 'Visit Zap Pilot' },
+        LOGO_DATA_URI,
+      ),
+    );
+  });
+
+  it('fails when a rendered template has no primary source or an image has no data URI', () => {
+    const sourceLess: Extract<Slide, { template: 'cover' }> = {
+      id: 'source-less',
+      startMs: 0,
+      endMs: 1_000,
+      template: 'cover',
+      kicker: 'K',
+      headline: 'H',
+      subheadline: 'S',
+      sources: [],
+      asset: { kind: 'none' },
+    };
+    expect(() =>
+      executeElementTree(
+        renderSlideElement(
+          sourceLess,
+          { kind: 'fallback', reason: 'none', source: null },
+          LOGO_DATA_URI,
+        ),
+      ),
+    ).toThrow('missing its primary source');
+
+    expect(() =>
+      executeElementTree(
+        renderSlideElement(
+          slide,
+          { ...imageAsset, dataUri: '' },
+          LOGO_DATA_URI,
+        ),
+      ),
+    ).toThrow('requires a resolved remote image');
+  });
+});
 
 describe('legacy cover slide template', () => {
   it('renders the cover layout with no sourced image asset', () => {

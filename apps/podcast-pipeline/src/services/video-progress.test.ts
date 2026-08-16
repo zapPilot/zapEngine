@@ -171,6 +171,19 @@ describe('composeEpisodeVideoProgress', () => {
     });
   });
 
+  it('reports the queued floor when the render exists before any visual row', () => {
+    expect(
+      composeEpisodeVideoProgress({
+        render: jobState({ status: 'queued', updatedAt: '2026-07-30T09:00:00Z' }),
+        visual: null,
+      }),
+    ).toEqual({
+      progressPercent: 2,
+      stage: null,
+      updatedAt: '2026-07-30T09:00:00Z',
+    });
+  });
+
   it('reports the queued floor, not zero, while both jobs wait for a machine', () => {
     expect(
       composeEpisodeVideoProgress({
@@ -249,6 +262,30 @@ describe('composeEpisodeVideoProgress', () => {
           progressPercent: 52,
           progressStage: 'selecting-images',
           updatedAt: '2026-07-30T09:30:00Z',
+        }),
+      }).updatedAt,
+    ).toBe('2026-07-30T09:30:00Z');
+  });
+
+  it('keeps the render timestamp when the visual timestamp is invalid or older', () => {
+    expect(
+      composeEpisodeVideoProgress({
+        render: jobState({ status: 'queued', updatedAt: '2026-07-30T09:30:00Z' }),
+        visual: jobState({
+          status: 'processing',
+          progressPercent: 52,
+          updatedAt: 'not-a-date',
+        }),
+      }).updatedAt,
+    ).toBe('2026-07-30T09:30:00Z');
+
+    expect(
+      composeEpisodeVideoProgress({
+        render: jobState({ status: 'queued', updatedAt: '2026-07-30T09:30:00Z' }),
+        visual: jobState({
+          status: 'processing',
+          progressPercent: 52,
+          updatedAt: '2026-07-30T09:00:00Z',
         }),
       }).updatedAt,
     ).toBe('2026-07-30T09:30:00Z');

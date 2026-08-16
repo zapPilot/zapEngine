@@ -363,17 +363,22 @@ describe('createVideoWorker', () => {
     await expect(running).resolves.toBe('completed');
   });
 
-  it('completes the render when progress reporting throws', async () => {
+  it('completes the render when progress reporting throws and logs that outage only once', async () => {
     vi.useFakeTimers();
     const repository = makeRepository();
     vi.mocked(repository.reportProgress).mockRejectedValue(
       new Error('progress RPC unavailable'),
     );
+    const logger = { info: vi.fn(), error: vi.fn() };
     const processJob: ProcessEpisodeVideoJob = vi.fn(
       (_job, _source, context) =>
         new Promise<EpisodeVideoCompletion>((resolve) => {
-          context.reportProgress({ percent: 61, stage: 'encoding' });
-          setTimeout(() => resolve(completion), 15_000);
+          context.reportProgress({ percent: 41, stage: 'encoding' });
+          setTimeout(
+            () => context.reportProgress({ percent: 61, stage: 'encoding' }),
+            11_000,
+          );
+          setTimeout(() => resolve(completion), 25_000);
         }),
     );
     const worker = createVideoWorker({
@@ -381,13 +386,20 @@ describe('createVideoWorker', () => {
       processJob,
       leaseOwner: 'worker-1',
       progressFlushIntervalMs: 10_000,
+      logger,
     });
 
     const running = worker.runOnce();
-    await vi.advanceTimersByTimeAsync(20_000);
+    await vi.advanceTimersByTimeAsync(30_000);
     // Progress is cosmetic: a broken progress RPC must never cost a render.
     await expect(running).resolves.toBe('completed');
     expect(repository.fail).not.toHaveBeenCalled();
+    expect(repository.reportProgress).toHaveBeenCalledTimes(2);
+    expect(
+      logger.error.mock.calls.filter(([message]) =>
+        String(message).includes('progress reporting unavailable'),
+      ),
+    ).toHaveLength(1);
   });
 
   it('does not treat a false progress report as a lost lease', async () => {
@@ -903,6 +915,23 @@ describe('createVideoWorker', () => {
     );
   });
 
+  it('skips completion notification when the latest job has no Telegram chat', async () => {
+    const repository = makeRepository();
+    vi.mocked(repository.find).mockResolvedValue(
+      job({ telegram_chat_id: null }),
+    );
+    const notify = vi.fn();
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn().mockResolvedValue(completion),
+      notify,
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('completed');
+    expect(notify).not.toHaveBeenCalled();
+  });
+
   it('continues without notification when latest job lookup throws', async () => {
     const repository = makeRepository();
     vi.mocked(repository.find).mockRejectedValue(
@@ -943,6 +972,26 @@ describe('createVideoWorker', () => {
         entry.msg.includes('completed job notification lookup failed'),
       ),
     ).toBe(true);
+  });
+
+  it('returns failed and logs unknown status when visualRepository.fail itself throws', async () => {
+    const visualRepository = makeVisualRepository(visualJob());
+    vi.mocked(visualRepository.fail).mockRejectedValue(new Error('visual release rpc down'));
+    const logger = { info: vi.fn(), error: vi.fn() };
+    const worker = createVideoWorker({
+      repository: makeRepository(null),
+      visualRepository,
+      processJob: vi.fn(),
+      processVisualJob: vi.fn().mockRejectedValue(new Error('visual render exploded')),
+      logger,
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('failed');
+    expect(logger.error).toHaveBeenCalledWith(
+      '[video-worker] visual:failed',
+      expect.objectContaining({ status: 'unknown' }),
+    );
   });
 
   it('returns failed and logs when repository.fail itself throws', async () => {
@@ -1053,6 +1102,25 @@ describe('createVideoWorker', () => {
       }),
     ).toBe(true);
     await worker.stop();
+  });
+
+  it('normalizes non-Error reap failures before logging them', async () => {
+    const repository = makeRepository(null);
+    vi.mocked(repository.reapFailedNotifications).mockRejectedValue('reap string failure');
+    const logger = { info: vi.fn(), error: vi.fn() };
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn(),
+      notify: vi.fn(),
+      logger,
+      leaseOwner: 'worker-1',
+    });
+
+    await worker.runOnce();
+    expect(logger.error).toHaveBeenCalledWith(
+      '[video-worker] failed to reap video failure notifications',
+      expect.objectContaining({ message: 'reap string failure' }),
+    );
   });
 
   it('logs when the reapFailedNotifications sweep itself errors', async () => {
@@ -1188,7 +1256,30 @@ describe('createVideoWorker', () => {
     );
   });
 
-  it('returns stopped when stop() runs while no active poll exists', async () => {
+  it('a second stop waits for the already-active poll instead of returning early', async () => {
+    const repository = makeRepository(null);
+    const claim = createDeferred<EpisodeVideoJobRow | null>();
+    vi.mocked(repository.claim).mockReturnValue(claim.promise);
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn(),
+      leaseOwner: 'worker-1',
+    });
+
+    const running = worker.runOnce();
+    await vi.waitFor(() => expect(repository.claim).toHaveBeenCalled());
+    const firstStop = worker.stop(new Error('first stop'));
+    const secondStop = worker.stop(new Error('second stop'));
+    claim.resolve(null);
+
+    await expect(Promise.all([firstStop, secondStop])).resolves.toEqual([
+      undefined,
+      undefined,
+    ]);
+    await expect(running).resolves.toBe('empty');
+  });
+
+  it('returns stopped after shutdown and allows repeated stop calls with no active poll', async () => {
     vi.useFakeTimers();
     const repository = makeRepository(null);
     const worker = createVideoWorker({
@@ -1200,5 +1291,33 @@ describe('createVideoWorker', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(repository.claim).toHaveBeenCalledTimes(1);
     await worker.stop();
+    await expect(worker.runOnce()).resolves.toBe('stopped');
+    await expect(worker.stop()).resolves.toBeUndefined();
+  });
+
+  it('creates a safe default lease owner when one is not injected', async () => {
+    const repository = makeRepository(null);
+    const visualRepository = makeVisualRepository(null);
+    const worker = createVideoWorkerImplementation({
+      repository,
+      visualRepository,
+      coordinator: {
+        tryRunVideo: vi.fn(async (operation) => ({
+          acquired: true as const,
+          value: await operation(),
+        })),
+      } as never,
+      processJob: vi.fn(),
+      processVisualJob: vi.fn(),
+      notify: vi.fn(),
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('empty');
+    expect(visualRepository.claim).toHaveBeenCalledWith(
+      expect.stringMatching(/^.+:\d+:[0-9a-f-]{36}$/u),
+    );
+    expect(repository.claim).toHaveBeenCalledWith(
+      expect.stringMatching(/^.+:\d+:[0-9a-f-]{36}$/u),
+    );
   });
 });

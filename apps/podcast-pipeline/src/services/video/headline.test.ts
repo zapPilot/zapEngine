@@ -45,6 +45,12 @@ describe('wrapHeadlineTitle', () => {
     }
   });
 
+  it('preserves whitespace separators between CJK runs without a pending Latin token', () => {
+    expect(
+      wrapHeadlineTitle('比特幣 市場', { maxUnitsPerLine: 20, maxLines: 2 }),
+    ).toEqual(['比特幣 市場']);
+  });
+
   it('wraps mixed CJK and Latin titles without breaking words', () => {
     const lines = wrapHeadlineTitle('比特幣ETF通過後的連鎖效應與市場衝擊');
     expect(lines.every((line) => !line.includes('ET F'))).toBe(true);

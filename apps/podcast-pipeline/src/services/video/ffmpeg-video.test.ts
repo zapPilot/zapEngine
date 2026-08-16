@@ -316,6 +316,64 @@ describe('vertical news FFmpeg composition', () => {
     ]);
   });
 
+  it('rejects invalid media chunk sizes and safely skips sparse slide holes', () => {
+    const manifest = createVerticalManifest();
+    expect(() => planVerticalMediaChunks(manifest, 0)).toThrow(
+      'chunk size must be a positive integer',
+    );
+    expect(() => planVerticalMediaChunks(manifest, 1.5)).toThrow(
+      'chunk size must be a positive integer',
+    );
+
+    const sparse = createVerticalManifest();
+    sparse.slides = new Array(1) as VerticalVideoManifest['slides'];
+    expect(planVerticalMediaChunks(sparse, 1)).toEqual([]);
+  });
+
+  it('fails closed on empty or mismatched vertical chunk plans', () => {
+    const manifest = createVerticalManifest();
+    const options = verticalRenderOptions();
+    const emptyChunk: VerticalMediaChunk = {
+      startIndex: 0,
+      endIndex: 0,
+      startMs: 0,
+      endMs: 0,
+      durationMs: 0,
+    };
+
+    expect(() => buildVerticalMediaChunkFilter(manifest, emptyChunk)).toThrow(
+      'Vertical media chunk cannot be empty',
+    );
+    expect(() =>
+      buildVerticalChunkedFinalFilter(
+        manifest,
+        [],
+        '/render/captions.ass',
+        '/render/fonts',
+      ),
+    ).toThrow('needs at least one media chunk');
+
+    const oversizedChunk: VerticalMediaChunk = {
+      startIndex: 0,
+      endIndex: 4,
+      startMs: 0,
+      endMs: 10_000,
+      durationMs: 10_000,
+    };
+    expect(() =>
+      buildVerticalMediaChunkFfmpegArgs(
+        options,
+        oversizedChunk,
+        '/work/chunk.mp4',
+      ),
+    ).toThrow('needs 4 inputs, received 3');
+
+    const chunks = planVerticalMediaChunks(options.manifest);
+    expect(() =>
+      buildVerticalChunkedFinalFfmpegArgs(options, chunks, []),
+    ).toThrow('planned 1 chunks but received 0 chunk files');
+  });
+
   it('holds every media chunk past its own span, in the filter and the encoder', () => {
     const manifest = createLongVerticalManifest(20);
     const options = longVerticalRenderOptions(manifest);
@@ -904,6 +962,18 @@ describe('static slide FFmpeg composition', () => {
 });
 
 describe('FFmpeg process utilities', () => {
+  it('falls back to the bundled FFmpeg path when the env override is blank', () => {
+    const original = process.env['VIDEO_FFMPEG_PATH'];
+    process.env['VIDEO_FFMPEG_PATH'] = '   ';
+    try {
+      expect(resolveVideoFfmpegPath()).toEqual(expect.any(String));
+      expect(resolveVideoFfmpegPath()).not.toBe('');
+    } finally {
+      if (original === undefined) delete process.env['VIDEO_FFMPEG_PATH'];
+      else process.env['VIDEO_FFMPEG_PATH'] = original;
+    }
+  });
+
   it('honors a trimmed VIDEO_FFMPEG_PATH override', () => {
     const original = process.env['VIDEO_FFMPEG_PATH'];
     process.env['VIDEO_FFMPEG_PATH'] = '  /custom/ffmpeg  ';
@@ -922,6 +992,87 @@ describe('FFmpeg process utilities', () => {
         "process.stdout.write('out'); process.stderr.write('err')",
       ]),
     ).resolves.toEqual({ stdout: 'out', stderr: 'err' });
+  });
+
+  it('streams bounded output and emits complete stdout progress lines', async () => {
+    const lines: string[] = [];
+    const stderrWrite = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation(() => true);
+    try {
+      const result = await runProcess(
+        process.execPath,
+        [
+          '-e',
+          [
+            "process.stdout.write('out_time_us=1000\\npartial');",
+            "setTimeout(() => process.stdout.write('_line\\nout_time_us=2000\\n'), 5);",
+            "process.stderr.write('rendering\\n');",
+          ].join(' '),
+        ],
+        true,
+        undefined,
+        (line) => lines.push(line),
+      );
+
+      expect(lines).toEqual([
+        'out_time_us=1000',
+        'partial_line',
+        'out_time_us=2000',
+      ]);
+      expect(result.stdout).toContain('partial_line');
+      expect(result.stderr).toContain('rendering');
+      expect(stderrWrite).toHaveBeenCalled();
+    } finally {
+      stderrWrite.mockRestore();
+    }
+  });
+
+  it('bounds retained streamed output to the diagnostic tail', async () => {
+    const result = await runProcess(
+      process.execPath,
+      ['-e', "process.stdout.write('x'.repeat(12000));"],
+      true,
+    );
+    expect(result.stdout).toHaveLength(8_000);
+  });
+
+  it('terminates a running child when the abort signal fires', async () => {
+    const controller = new AbortController();
+    const promise = runProcess(
+      process.execPath,
+      ['-e', 'setInterval(() => {}, 1000)'],
+      false,
+      controller.signal,
+    );
+    setTimeout(() => controller.abort(new Error('render lease lost')), 20);
+    await expect(promise).rejects.toThrow('render lease lost');
+  });
+
+  it('detects an already-aborted signal before spawning', async () => {
+    const controller = new AbortController();
+    controller.abort(new Error('already cancelled'));
+    await expect(
+      runProcess(process.execPath, ['-e', 'process.exit(0)'], false, controller.signal),
+    ).rejects.toThrow('already cancelled');
+  });
+
+  it('reports SIGKILL as likely out of memory', async () => {
+    await expect(
+      runProcess(process.execPath, [
+        '-e',
+        "process.stderr.write('memory pressure'); process.kill(process.pid, 'SIGKILL')",
+      ]),
+    ).rejects.toThrow(/signal SIGKILL, likely out of memory.*memory pressure/u);
+  });
+
+  it('uses the last non-blank stderr line as the headline while retaining the full tail', async () => {
+    await expect(
+      runProcess(process.execPath, [
+        '-e',
+        "process.stderr.write('first\\rprogress\\r\\nlast\\n'); process.exit(7)",
+      ]),
+    ).rejects.toThrow(/failed \(exit 7\): last\nfirst\rprogress\r\nlast/u);
   });
 
   it('rejects with exit details and stderr from a failed process', async () => {

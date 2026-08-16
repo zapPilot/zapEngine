@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assertMainNarrationAudioSource,
@@ -9,6 +9,10 @@ import {
   probeAudioDurationMs,
   splitCaptionText,
 } from './audio-analysis.js';
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe('podcast video audio analysis', () => {
   it('parses ffprobe duration and FFmpeg silence intervals', async () => {
@@ -40,6 +44,104 @@ describe('podcast video audio analysis', () => {
         processRunner: silenceRunner,
       }),
     ).resolves.toEqual([{ startMs: 1_250, endMs: 1_750 }]);
+  });
+
+  it('resolves ffprobe from explicit env, ffmpeg sibling, and default path', async () => {
+    const runner = vi.fn().mockResolvedValue({
+      stdout: JSON.stringify({ format: { duration: 2 } }),
+      stderr: '',
+    });
+
+    vi.stubEnv('VIDEO_FFPROBE_PATH', ' /custom/ffprobe ');
+    await probeAudioDurationMs('/audio.m4a', { processRunner: runner });
+    expect(runner.mock.calls.at(-1)?.[0]).toBe('/custom/ffprobe');
+
+    vi.stubEnv('VIDEO_FFPROBE_PATH', '');
+    vi.stubEnv('VIDEO_FFMPEG_PATH', '/opt/media/ffmpeg');
+    await probeAudioDurationMs('/audio.m4a', { processRunner: runner });
+    expect(runner.mock.calls.at(-1)?.[0]).toBe('/opt/media/ffprobe');
+
+    vi.stubEnv('VIDEO_FFMPEG_PATH', '');
+    await probeAudioDurationMs('/audio.m4a', { processRunner: runner });
+    expect(runner.mock.calls.at(-1)?.[0]).toBe('ffprobe');
+  });
+
+  it('accepts numeric ffprobe duration and rejects malformed or non-positive values', async () => {
+    await expect(
+      probeAudioDurationMs('/audio.m4a', {
+        processRunner: vi.fn().mockResolvedValue({
+          stdout: JSON.stringify({ format: { duration: 1.25 } }),
+          stderr: '',
+        }),
+      }),
+    ).resolves.toBe(1_250);
+
+    for (const stdout of [
+      '{bad',
+      '{}',
+      JSON.stringify({ format: {} }),
+      JSON.stringify({ format: { duration: 'nope' } }),
+      JSON.stringify({ format: { duration: 0 } }),
+      JSON.stringify({ format: { duration: -1 } }),
+      JSON.stringify({ format: { duration: Number.POSITIVE_INFINITY } }),
+    ]) {
+      await expect(
+        probeAudioDurationMs('/audio.m4a', {
+          processRunner: vi.fn().mockResolvedValue({ stdout, stderr: '' }),
+        }),
+      ).rejects.toThrow(/ffprobe/u);
+    }
+  });
+
+  it('parses end-only and ignores reversed or non-finite silence intervals', () => {
+    expect(
+      parseSilenceDetection(
+        [
+          'silence_end: 2.5',
+          'silence_start: 4.0',
+          'silence_end: 3.0',
+          'silence_start: ..',
+          'silence_end: ..',
+        ].join('\n'),
+      ),
+    ).toEqual([{ startMs: 2_500, endMs: 2_500 }]);
+  });
+
+  it('uses configured ffmpeg paths for download and silence detection without explicit overrides', async () => {
+    vi.stubEnv('VIDEO_FFMPEG_PATH', ' /custom/ffmpeg ');
+    const downloadRunner = vi.fn().mockResolvedValue({ stdout: '', stderr: '' });
+    await downloadNarrationAudio('/local/audio.m4a', '/work/audio.m4a', {
+      processRunner: downloadRunner,
+    });
+    expect(downloadRunner.mock.calls[0]?.[0]).toBe('/custom/ffmpeg');
+
+    const silenceRunner = vi.fn().mockResolvedValue({ stdout: '', stderr: '' });
+    await detectAudioSilences('/local/audio.m4a', {
+      processRunner: silenceRunner,
+    });
+    expect(silenceRunner.mock.calls[0]?.[0]).toBe('/custom/ffmpeg');
+  });
+
+  it('forwards an abort signal through probe and silence detection runners', async () => {
+    const controller = new AbortController();
+    const probeRunner = vi.fn().mockResolvedValue({
+      stdout: JSON.stringify({ format: { duration: '1' } }),
+      stderr: '',
+    });
+    await probeAudioDurationMs('/audio.m4a', {
+      ffprobePath: '/probe',
+      processRunner: probeRunner,
+      signal: controller.signal,
+    });
+    expect(probeRunner.mock.calls[0]?.[3]).toBe(controller.signal);
+
+    const silenceRunner = vi.fn().mockResolvedValue({ stdout: '', stderr: '' });
+    await detectAudioSilences('/audio.m4a', {
+      ffmpegPath: '/ffmpeg',
+      processRunner: silenceRunner,
+      signal: controller.signal,
+    });
+    expect(silenceRunner.mock.calls[0]?.[3]).toBe(controller.signal);
   });
 
   it('weights sentences, uses nearby silences, and snaps captions to 24fps', () => {
@@ -79,6 +181,27 @@ describe('podcast video audio analysis', () => {
     expect(timing.captions.at(-1)?.endMs).toBe(timing.durationMs);
   });
 
+  it('ignores silence candidates outside legal sentence boundaries', () => {
+    const timing = buildWeightedCaptionTiming({
+      script: 'First sentence has some words. Second sentence also has words.',
+      durationMs: 4_000,
+      silences: [
+        { startMs: 0, endMs: 10 },
+        { startMs: 3_990, endMs: 4_000 },
+      ],
+    });
+    expect(timing.sentences[0]?.endMs).toBeGreaterThan(10);
+    expect(timing.sentences[0]?.endMs).toBeLessThan(3_990);
+  });
+
+  it('prefers punctuation as a caption break once a long chunk exceeds the budget', () => {
+    const chunks = splitCaptionText(
+      'abcdefghijklmnopqrst,uvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+    );
+    expect(chunks.length).toBeGreaterThan(1);
+    expect(chunks[0]).toBe('abcdefghijklmnopqrst,');
+  });
+
   it('splits long captions within the two-line safe-area budget', () => {
     const chunks = splitCaptionText(
       '這是一段非常長的繁體中文字幕，必須在合理的位置切開，避免任何單一字幕超出兩行安全範圍。',
@@ -87,6 +210,12 @@ describe('podcast video audio analysis', () => {
     expect(chunks.join('')).toBe(
       '這是一段非常長的繁體中文字幕，必須在合理的位置切開，避免任何單一字幕超出兩行安全範圍。',
     );
+  });
+
+  it('rejects an empty canonical script before timing captions', () => {
+    expect(() =>
+      buildWeightedCaptionTiming({ script: '   \n ', durationMs: 1_000 }),
+    ).toThrow('does not contain any sentences');
   });
 
   it('rejects classroom and non-main remote audio sources', () => {

@@ -179,6 +179,48 @@ describe('planVisualAssets resilient selection', () => {
     expect(result.assets[0]?.sourcePageUrl).toBe(editorial.sourceUrl);
   });
 
+  it('prefers a non-consecutive reusable image and records provider failures', async () => {
+    const progress: VisualAssetProgress[] = [];
+    const search = vi.fn().mockRejectedValue(new Error('provider offline'));
+
+    const result = await planVisualAssets({
+      scenes: [
+        ...twoScenes,
+        { sceneId: 'scene-03', imageSearchIntent: ['third subject'] },
+      ],
+      articleImages: [candidate('article-a'), candidate('article-b')],
+      workingDirectory: '/work/visual-assets',
+      selectionMode: 'resilient',
+      onProgress: (event) => progress.push(event),
+      dependencies: {
+        acquireImage: vi
+          .fn()
+          .mockResolvedValueOnce(acquired('article-a'))
+          .mockResolvedValueOnce(acquired('article-b')),
+        searchProviders: [bingProvider(search)],
+        fingerprintImage: vi
+          .fn()
+          .mockResolvedValueOnce('0000000000000000')
+          .mockResolvedValueOnce('ffffffffffffffff'),
+      },
+    });
+
+    expect(result.scenes[2]).toEqual({
+      sceneId: 'scene-03',
+      assetId: 'image-01',
+    });
+    expect(progress).toContainEqual(
+      expect.objectContaining({
+        phase: 'assets',
+        sceneId: 'scene-03',
+        provider: 'reuse',
+        reuseKind: 'non-consecutive',
+        rejectedCandidateCount: expect.any(Number),
+        rejectionSummary: expect.stringContaining('search-provider-failure'),
+      }),
+    );
+  });
+
   it('records provider failures and still completes from an existing image', async () => {
     const progress: VisualAssetProgress[] = [];
     const search = vi

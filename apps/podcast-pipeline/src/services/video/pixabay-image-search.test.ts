@@ -99,6 +99,21 @@ describe('searchPixabayImages', () => {
     });
   });
 
+  it('keeps small renditions unscaled and can use global fetch', async () => {
+    const fetchJson = vi.fn().mockResolvedValue(
+      jsonResponse({
+        hits: [pixabayHit({ imageWidth: 1000, imageHeight: 800 })],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchJson);
+    try {
+      const [candidate] = await searchPixabayImages('world cup', API_KEY);
+      expect(candidate).toMatchObject({ width: 1000, height: 800 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('skips malformed hits and returns an empty list for zero results', async () => {
     const mixed = vi.fn().mockResolvedValue(
       jsonResponse({

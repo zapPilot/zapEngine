@@ -542,6 +542,109 @@ describe('createEpisodeVideoProcessor', () => {
     expect(readCgroupMemory).toHaveBeenCalledTimes(3);
   });
 
+  it('rejects a localization job that no longer matches its visual checkpoint', async () => {
+    const processJob = createEpisodeVideoProcessor();
+    await expect(
+      processJob(
+        { ...job(), visual_hash: 'b'.repeat(64) },
+        source(),
+        {
+          signal: new AbortController().signal,
+          runId: 'run12345',
+          saveManifest: vi.fn(),
+          reportProgress: vi.fn(),
+        },
+      ),
+    ).rejects.toThrow('does not match its completed visual checkpoint');
+  });
+
+  it('fails closed when the renderer returns no artifacts', async () => {
+    const processJob = createEpisodeVideoProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
+      analyzeAudio: vi.fn().mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      createManifest: vi.fn().mockResolvedValue(generatedManifest('manifest-hash')),
+      render: vi.fn().mockResolvedValue(null as never),
+      upload: vi.fn(),
+      makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
+      writeManifest: vi.fn().mockResolvedValue(undefined),
+      removeDirectory: vi.fn().mockResolvedValue(undefined),
+      readCgroupMemory: vi.fn().mockResolvedValue(null),
+    });
+
+    await expect(
+      processJob(job(), source(), {
+        signal: new AbortController().signal,
+        runId: 'run12345',
+        saveManifest: vi.fn().mockResolvedValue(undefined),
+        reportProgress: vi.fn(),
+      }),
+    ).rejects.toThrow('Video renderer returned no artifacts');
+  });
+
+  it('uses zero progress defaults and ignores a missing follow-up memory sample', async () => {
+    const reportProgress = vi.fn();
+    const readCgroupMemory = vi
+      .fn()
+      .mockResolvedValueOnce(100)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    const render = vi.fn().mockImplementation(async (options) => {
+      options.onProgress?.({ message: 'encoding', phase: 'encode' });
+      options.onProgress?.({ message: 'media', phase: 'media' });
+      return renderedArtifacts('manifest-hash');
+    });
+    const processJob = createEpisodeVideoProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
+      analyzeAudio: vi.fn().mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      createManifest: vi.fn().mockResolvedValue(generatedManifest('manifest-hash')),
+      render,
+      upload: vi.fn().mockResolvedValue(uploadedArtifacts()),
+      makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
+      writeManifest: vi.fn().mockResolvedValue(undefined),
+      removeDirectory: vi.fn().mockResolvedValue(undefined),
+      readCgroupMemory,
+      memorySampleIntervalMs: 60_000,
+    });
+
+    await processJob(job(), source(), {
+      signal: new AbortController().signal,
+      runId: 'run12345',
+      saveManifest: vi.fn().mockResolvedValue(undefined),
+      reportProgress,
+    });
+
+    expect(reportProgress).toHaveBeenCalledWith({ percent: 35, stage: 'encoding' });
+    expect(reportProgress).toHaveBeenCalledWith({ percent: 15, stage: 'preparing-media' });
+  });
+
+  it('still logs metrics when memory sampler initialization fails', async () => {
+    const readCgroupMemory = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('cgroup read failed'))
+      .mockResolvedValueOnce(null);
+    const render = vi.fn();
+    const processJob = createEpisodeVideoProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
+      analyzeAudio: vi.fn().mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      createManifest: vi.fn().mockResolvedValue(generatedManifest('manifest-hash')),
+      render,
+      makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
+      writeManifest: vi.fn().mockResolvedValue(undefined),
+      removeDirectory: vi.fn().mockResolvedValue(undefined),
+      readCgroupMemory,
+    });
+
+    await expect(
+      processJob(job(), source(), {
+        signal: new AbortController().signal,
+        runId: 'run12345',
+        saveManifest: vi.fn().mockResolvedValue(undefined),
+        reportProgress: vi.fn(),
+      }),
+    ).rejects.toThrow('cgroup read failed');
+    expect(render).not.toHaveBeenCalled();
+  });
+
   it('cleans up the render directory after upload failure', async () => {
     const removeDirectory = vi.fn().mockResolvedValue(undefined);
     const processJob = createEpisodeVideoProcessor({

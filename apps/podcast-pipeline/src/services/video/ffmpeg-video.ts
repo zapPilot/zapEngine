@@ -553,7 +553,7 @@ export interface VerticalMediaChunk {
 
 export function planVerticalMediaChunks(
   manifest: VerticalVideoManifest,
-  chunkSize = VERTICAL_MEDIA_CHUNK_SIZE,
+  chunkSize: number = VERTICAL_MEDIA_CHUNK_SIZE,
 ): VerticalMediaChunk[] {
   if (!Number.isInteger(chunkSize) || chunkSize <= 0) {
     throw new Error(`Vertical media chunk size must be a positive integer`);

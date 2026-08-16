@@ -45,6 +45,20 @@ function acquired(id: string): AcquiredRemoteImage {
 }
 
 describe('planVisualAssets', () => {
+  it('rejects an empty scene list', async () => {
+    await expect(
+      planVisualAssets({
+        scenes: [],
+        workingDirectory: '/work/visual-assets',
+        dependencies: {
+          acquireImage: vi.fn(),
+          searchProviders: [],
+          fingerprintImage: vi.fn(),
+        },
+      }),
+    ).rejects.toThrow('requires at least one scene');
+  });
+
   it('uses qualified article images before invoking Bing search', async () => {
     const acquireImage = vi.fn(async (url: string) =>
       acquired(new URL(url).pathname.split('/').at(-1)!.replace('.jpg', '')),
@@ -74,6 +88,36 @@ describe('planVisualAssets', () => {
       'article',
       'article',
     ]);
+  });
+
+  it('continues after rejected article candidates and deduplicates canonical URLs', async () => {
+    const first = {
+      ...candidate('same-a'),
+      imageUrl: 'https://images.example.test/same.jpg#first',
+    };
+    const duplicate = {
+      ...candidate('same-b'),
+      imageUrl: 'https://images.example.test/same.jpg#second',
+    };
+    const usable = candidate('usable-article');
+    const acquireImage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('temporary decode failure'))
+      .mockResolvedValueOnce(acquired('usable-article'));
+
+    const result = await planVisualAssets({
+      scenes: scenes.slice(0, 1),
+      articleImages: [first, duplicate, usable],
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage,
+        searchProviders: bingProviders(vi.fn()),
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(acquireImage).toHaveBeenCalledTimes(2);
+    expect(result.assets[0]?.originalImageUrl).toBe(usable.imageUrl);
   });
 
   it('excludes thumbnail-like article URLs before downloading candidates', async () => {
@@ -405,6 +449,241 @@ describe('planVisualAssets', () => {
 
     expect(acquireImage).toHaveBeenCalledTimes(2);
     expect(result.assets[0]?.originalImageUrl).toBe(usable.imageUrl);
+  });
+
+  it('classifies acquisition failures without leaking candidate details', async () => {
+    const searched = [
+      'timeout',
+      'format',
+      'animated',
+      'size',
+      'safety',
+      'redirect',
+      'dns',
+      'network',
+      'decode',
+      'empty',
+    ].map((id) => ({
+      ...candidate(id, 'bing'),
+      altText: 'target subject',
+    }));
+    const acquireImage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Image download timed out'))
+      .mockRejectedValueOnce(new Error('unsupported raster content type'))
+      .mockRejectedValueOnce(new Error('animated image is not supported'))
+      .mockRejectedValueOnce(new Error('Image exceeds the 25 MiB download limit'))
+      .mockRejectedValueOnce(new Error('private or reserved IP'))
+      .mockRejectedValueOnce(new Error('redirect limit exceeded'))
+      .mockRejectedValueOnce(new Error('getaddrinfo ENOTFOUND images.test'))
+      .mockRejectedValueOnce(new Error('ECONNRESET network failure'))
+      .mockRejectedValueOnce(new Error('corrupt image decode failed'))
+      .mockResolvedValueOnce(null);
+
+    await expect(
+      planVisualAssets({
+        scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['target subject'] }],
+        workingDirectory: '/work/visual-assets',
+        dependencies: {
+          acquireImage,
+          searchProviders: bingProviders(vi.fn().mockResolvedValue(searched)),
+          fingerprintImage: vi.fn(),
+        },
+      }),
+    ).rejects.toThrow(
+      'animated-image:1,decode:1,dns:1,empty-acquisition:1,network:1,redirect:1,safety-policy:1,size-limit:1,timeout:1,unsupported-format:1',
+    );
+  });
+
+  it('rejects exact and perceptual duplicate images before selecting a unique candidate', async () => {
+    const article = candidate('article-a');
+    const searched = ['same-sha', 'same-phash', 'unique'].map((id) => ({
+      ...candidate(id, 'bing'),
+      altText: 'second subject',
+    }));
+    const articleAsset = acquired('article-a');
+    const sameSha = { ...acquired('same-sha'), sha256: articleAsset.sha256 };
+    const samePhash = acquired('same-phash');
+    const unique = acquired('unique');
+    const acquireImage = vi
+      .fn()
+      .mockResolvedValueOnce(articleAsset)
+      .mockResolvedValueOnce(sameSha)
+      .mockResolvedValueOnce(samePhash)
+      .mockResolvedValueOnce(unique);
+    const fingerprintImage = vi
+      .fn()
+      .mockResolvedValueOnce('0000000000000000')
+      .mockResolvedValueOnce('ffffffffffffffff')
+      .mockResolvedValueOnce('0000000000000001')
+      .mockResolvedValueOnce('ffffffffffffffff');
+
+    const result = await planVisualAssets({
+      scenes: scenes.slice(0, 2),
+      articleImages: [article],
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage,
+        searchProviders: bingProviders(vi.fn().mockResolvedValue(searched)),
+        fingerprintImage,
+      },
+    });
+
+    expect(result.assets).toHaveLength(2);
+    expect(result.assets[1]?.originalImageUrl).toBe(searched[2]?.imageUrl);
+    expect(acquireImage).toHaveBeenCalledTimes(4);
+  });
+
+  it('exercises ranking branches for formats, dimensions, intent exceptions, penalties, and malformed percent encoding', async () => {
+    const rankedCandidates: ImageCandidate[] = [
+      {
+        ...candidate('education-children', 'bing'),
+        imageUrl: 'https://images.example.test/education-children.webp',
+        altText: 'children classroom education target 2026',
+        width: 1000,
+        height: 1000,
+      },
+      {
+        ...candidate('history-archive', 'bing'),
+        imageUrl: 'https://images.example.test/history-archive.png',
+        altText: 'historical archive target 2026',
+        width: 1800,
+        height: 1000,
+      },
+      {
+        ...candidate('portrait', 'bing'),
+        imageUrl: 'https://images.example.test/portrait',
+        altText: 'target 2026 portrait',
+        width: 600,
+        height: 1000,
+      },
+      {
+        ...candidate('no-dimensions', 'bing'),
+        altText: 'target 2026 no dimensions',
+        width: undefined,
+        height: undefined,
+      },
+      {
+        ...candidate('children-penalty', 'bing'),
+        altText: 'target 2026 children classroom',
+      },
+      {
+        ...candidate('history-penalty', 'bing'),
+        altText: 'target 2026 vintage historical archive',
+      },
+      {
+        ...candidate('cover-penalty', 'bing'),
+        altText: 'target 2026 explained versus comparison',
+      },
+      {
+        ...candidate('source-penalty', 'bing'),
+        altText: 'target 2026 source',
+        sourceUrl: 'https://medium.com/target/story',
+      },
+      {
+        ...candidate('stock-penalty', 'bing'),
+        altText: 'target 2026 business team handshake',
+      },
+      {
+        ...candidate('encoded', 'bing'),
+        imageUrl: 'https://images.example.test/target%zz.jpg',
+        sourceUrl: 'https://reuters.com/target%zz/story',
+        altText: 'target 2026 official event',
+        width: 2200,
+        height: 1400,
+      },
+    ];
+    const acquireImage = vi.fn().mockResolvedValue(acquired('ranked'));
+
+    const result = await planVisualAssets({
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          imageSearchIntent: ['education history target 2026'],
+        },
+      ],
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage,
+        searchProviders: bingProviders(
+          vi.fn().mockResolvedValue(rankedCandidates),
+        ),
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(result.assets).toHaveLength(1);
+    expect(acquireImage).toHaveBeenCalledOnce();
+  });
+
+  it('handles an empty-token query and preserves provider order ties in resilient mode', async () => {
+    const firstBing = vi.fn().mockResolvedValue([]);
+    const secondBing = vi.fn().mockResolvedValue([
+      {
+        ...candidate('fallback-photo', 'bing'),
+        altText: 'fallback photograph',
+      },
+    ]);
+
+    const result = await planVisualAssets({
+      scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['---'] }],
+      workingDirectory: '/work/visual-assets',
+      selectionMode: 'resilient',
+      dependencies: {
+        acquireImage: vi.fn().mockResolvedValue(acquired('fallback-photo')),
+        searchProviders: [
+          { origin: 'bing', search: firstBing },
+          { origin: 'bing', search: secondBing },
+        ],
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(firstBing).toHaveBeenCalledOnce();
+    expect(secondBing).toHaveBeenCalledOnce();
+    expect(result.assets).toHaveLength(1);
+  });
+
+  it('propagates search cancellation instead of normalizing it as a provider failure', async () => {
+    const controller = new AbortController();
+    const leaseError = new Error('search lease lost');
+    const search = vi.fn(async () => {
+      controller.abort(leaseError);
+      throw leaseError;
+    });
+
+    await expect(
+      planVisualAssets({
+        scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['target subject'] }],
+        workingDirectory: '/work/visual-assets',
+        signal: controller.signal,
+        dependencies: {
+          acquireImage: vi.fn(),
+          searchProviders: bingProviders(search),
+          fingerprintImage: vi.fn(),
+        },
+      }),
+    ).rejects.toBe(leaseError);
+  });
+
+  it('surfaces non-Error provider failures in resilient mode when nothing can be reused', async () => {
+    await expect(
+      planVisualAssets({
+        scenes: [
+          {
+            sceneId: 'scene-01',
+            imageSearchIntent: ['developers team people'],
+          },
+        ],
+        workingDirectory: '/work/visual-assets',
+        selectionMode: 'resilient',
+        dependencies: {
+          acquireImage: vi.fn(),
+          searchProviders: bingProviders(vi.fn().mockRejectedValue('offline')),
+          fingerprintImage: vi.fn(),
+        },
+      }),
+    ).rejects.toThrow('Visual image search failed for scene scene-01: offline');
   });
 
   it('reports safe aggregate causes when every candidate is rejected', async () => {
