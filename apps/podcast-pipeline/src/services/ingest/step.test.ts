@@ -89,6 +89,21 @@ describe('step', () => {
     expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('normalizes non-Error failures and omits absent AWS metadata', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await expect(step('plainFailure', async () => Promise.reject('boom'))).rejects.toMatchObject({
+      message: '[step:plainFailure] boom',
+      cause: expect.objectContaining({ message: 'boom' }),
+    });
+    expect(log.mock.calls[0]?.[0]).toBe(
+      '[/ingest] step:start name=plainFailure',
+    );
+    expect(log.mock.calls[1]?.[0]).toMatch(
+      /^\[\/ingest\] step:failed name=plainFailure elapsedMs=\d+ error=boom$/,
+    );
+  });
+
   it('logs failure while preserving the original cause and AWS metadata', async () => {
     vi.useFakeTimers();
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -121,6 +136,15 @@ describe('step', () => {
 describe('ingest step log context', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('omits undefined event fields and emits no suffix for empty details', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    logIngestEvent('empty');
+    logIngestEvent('partial', { ignored: undefined, kept: 'yes' });
+
+    expect(log).toHaveBeenNthCalledWith(1, '[/ingest] empty');
+    expect(log).toHaveBeenNthCalledWith(2, '[/ingest] partial kept=yes');
   });
 
   it('merges nested contexts and exposes flat event logs', async () => {
