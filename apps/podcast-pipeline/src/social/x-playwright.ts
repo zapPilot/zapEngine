@@ -1,7 +1,12 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { chromium, type Locator, type Page } from 'playwright-core';
+import {
+  chromium,
+  type Locator,
+  type Page,
+  type Response as PlaywrightResponse,
+} from 'playwright-core';
 
 import { SocialPublishError } from './publish-error.js';
 import type { PublishResult, XPublisher, XPublishInput } from './types.js';
@@ -81,7 +86,16 @@ async function publish(
   input: XPublishInput,
   log: (message: string) => void,
 ): Promise<PublishResult> {
-  await xStep('check_login', () => waitForComposer(page, READY_TIMEOUT_MS));
+  await xStep('check_login', async () => {
+    try {
+      await waitForComposer(page, READY_TIMEOUT_MS);
+    } catch (error) {
+      throw new Error(
+        'X composer is unavailable. Run `pnpm social:login` and retry.',
+        { cause: error },
+      );
+    }
+  });
 
   log('[x] Filling copy and uploading teaser video');
   await xStep('fill_copy', () =>
@@ -93,14 +107,22 @@ async function publish(
   await xStep('wait_upload_complete', () => waitForUploadReady(page));
 
   log('[x] Publishing native video');
-  await xStep('publish', async () => {
+  const response = await xStep('publish', async () => {
     const button = await findActionablePostButton(page);
     if (!button) throw new Error('X post button is disabled or not visible.');
+    const responsePromise = page.waitForResponse(
+      (candidate) =>
+        candidate.request().method() === 'POST' &&
+        isCreateTweetResponseUrl(candidate.url()),
+      { timeout: SUCCESS_TIMEOUT_MS },
+    );
     await button.click();
+    return responsePromise;
   });
-  await xStep('confirm_success', () => waitForPublishSuccess(page));
+  const identity = await xStep('confirm_success', () =>
+    publishedTweetIdentity(response),
+  );
 
-  const identity = postIdentity(page.url());
   return {
     status: 'published',
     publishedAt: new Date().toISOString(),
@@ -155,45 +177,101 @@ async function findActionablePostButton(
   throw new Error('X post button is disabled or not visible.');
 }
 
-async function waitForPublishSuccess(page: Page): Promise<void> {
+async function publishedTweetIdentity(
+  response: PlaywrightResponse,
+): Promise<{ url: string; postId: string }> {
+  if (!response.ok()) {
+    throw new Error(
+      `X CreateTweet request failed with HTTP ${response.status()}.`,
+    );
+  }
+
+  let body: unknown;
   try {
-    await Promise.any([
-      page
-        .locator('[role="alert"]')
-        .filter({ hasText: /sent|posted|published/i })
-        .first()
-        .waitFor({ state: 'visible', timeout: SUCCESS_TIMEOUT_MS }),
-      page.waitForURL((url) => /\/status\/\d+\/?$/.test(url.pathname), {
-        timeout: SUCCESS_TIMEOUT_MS,
-      }),
-      page.waitForURL(
-        (url) =>
-          url.hostname === 'x.com' && !url.pathname.startsWith('/compose/'),
-        { timeout: SUCCESS_TIMEOUT_MS },
-      ),
-    ]);
+    body = await response.json();
   } catch (error) {
-    throw new Error('X did not confirm that the post was published.', {
+    throw new Error('X CreateTweet returned an unreadable response.', {
       cause: error,
     });
   }
+
+  const postId = extractCreatedTweetId(body);
+  if (!postId) {
+    throw new Error('X CreateTweet response did not contain the created post id.');
+  }
+
+  return {
+    url: `https://x.com/i/web/status/${postId}`,
+    postId,
+  };
 }
 
-function postIdentity(rawUrl: string): { url?: string; postId?: string } {
+export function isCreateTweetResponseUrl(rawUrl: string): boolean {
   try {
     const url = new URL(rawUrl);
-    const match = /\/status\/(\d+)(?:\/|$)/u.exec(url.pathname);
-    if (
-      url.protocol === 'https:' &&
+    return (
       (url.hostname === 'x.com' || url.hostname === 'twitter.com') &&
-      match?.[1]
-    ) {
-      return { url: url.href, postId: match[1] };
-    }
+      /\/CreateTweet(?:\/|$)/u.test(url.pathname)
+    );
   } catch {
-    // The success confirmation above is authoritative; URL identity is optional.
+    return false;
   }
-  return {};
+}
+
+export function extractCreatedTweetId(value: unknown): string | null {
+  const targeted = nestedValue(value, [
+    'data',
+    'create_tweet',
+    'tweet_results',
+    'result',
+    'rest_id',
+  ]);
+  if (nonemptyDigits(targeted)) return targeted;
+  return findRestId(value, 0);
+}
+
+function nestedValue(value: unknown, path: readonly string[]): unknown {
+  let current = value;
+  for (const key of path) {
+    if (!isRecord(current)) return undefined;
+    current = current[key];
+  }
+  return current;
+}
+
+function findRestId(value: unknown, depth: number): string | null {
+  if (depth > 8) return null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const match = findRestId(item, depth + 1);
+      if (match) return match;
+    }
+    return null;
+  }
+  if (!isRecord(value)) return null;
+  if (nonemptyDigits(value['rest_id'])) return value['rest_id'];
+
+  const preferredKeys = [
+    'data',
+    'create_tweet',
+    'tweet_results',
+    'result',
+    'tweet',
+  ];
+  for (const key of preferredKeys) {
+    if (!(key in value)) continue;
+    const match = findRestId(value[key], depth + 1);
+    if (match) return match;
+  }
+  return null;
+}
+
+function nonemptyDigits(value: unknown): value is string {
+  return typeof value === 'string' && /^\d+$/u.test(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 async function xStep<T>(step: string, operation: () => Promise<T>): Promise<T> {

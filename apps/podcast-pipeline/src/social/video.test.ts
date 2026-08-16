@@ -7,15 +7,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   prepareSocialVideo,
   prepareXTeaserVideo,
+  socialVideoCacheIdentity,
   X_TEASER_CONTENT_SECONDS,
   X_VIDEO_LIMIT_SECONDS,
 } from './video.js';
 
 const EPISODE_ID = `video-stream-test-${process.pid}`;
 const DIRECTORY = join(tmpdir(), 'zap-pilot-social');
-const OUTPUT_PATH = join(DIRECTORY, `episode-${EPISODE_ID}-zh.mp4`);
+const VIDEO_URL = 'https://media.example.com/video.mp4';
+const SECOND_VIDEO_URL = 'https://media.example.com/video-v2.mp4';
+const OUTPUT_PATH = join(
+  DIRECTORY,
+  `episode-${EPISODE_ID}-${socialVideoCacheIdentity(VIDEO_URL)}-zh.mp4`,
+);
+const SECOND_OUTPUT_PATH = join(
+  DIRECTORY,
+  `episode-${EPISODE_ID}-${socialVideoCacheIdentity(SECOND_VIDEO_URL)}-zh.mp4`,
+);
 const TEMPORARY_PATH = `${OUTPUT_PATH}.tmp-${process.pid}`;
-const X_OUTPUT_PATH = join(DIRECTORY, `episode-${EPISODE_ID}-x-v1.mp4`);
+const SECOND_TEMPORARY_PATH = `${SECOND_OUTPUT_PATH}.tmp-${process.pid}`;
+const X_OUTPUT_PATH = join(
+  DIRECTORY,
+  `episode-${EPISODE_ID}-x-${socialVideoCacheIdentity(OUTPUT_PATH)}-v1.mp4`,
+);
 const X_TEMPORARY_PATH = `${X_OUTPUT_PATH}.tmp-${process.pid}.mp4`;
 
 async function fileExists(path: string): Promise<boolean> {
@@ -34,21 +48,23 @@ afterEach(async () => {
   vi.unstubAllGlobals();
   await Promise.all([
     unlink(OUTPUT_PATH).catch(() => undefined),
+    unlink(SECOND_OUTPUT_PATH).catch(() => undefined),
     unlink(TEMPORARY_PATH).catch(() => undefined),
+    unlink(SECOND_TEMPORARY_PATH).catch(() => undefined),
     unlink(X_OUTPUT_PATH).catch(() => undefined),
     unlink(X_TEMPORARY_PATH).catch(() => undefined),
   ]);
 });
 
 describe('prepareSocialVideo', () => {
-  it('streams the response body to an atomically renamed file', async () => {
+  it('streams the response body to an atomically renamed source-keyed file', async () => {
     const response = new Response('streamed-video');
     const arrayBuffer = vi.spyOn(response, 'arrayBuffer');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
 
     const prepared = await prepareSocialVideo({
       episodeId: EPISODE_ID,
-      url: 'https://media.example.com/video.mp4',
+      url: VIDEO_URL,
     });
 
     expect(prepared).toEqual({
@@ -61,13 +77,36 @@ describe('prepareSocialVideo', () => {
     expect(await fileExists(TEMPORARY_PATH)).toBe(false);
   });
 
+  it('uses a new cache entry when the canonical video URL changes', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(new Response('first-video'))
+        .mockResolvedValueOnce(new Response('second-video')),
+    );
+
+    const first = await prepareSocialVideo({
+      episodeId: EPISODE_ID,
+      url: VIDEO_URL,
+    });
+    const second = await prepareSocialVideo({
+      episodeId: EPISODE_ID,
+      url: SECOND_VIDEO_URL,
+    });
+
+    expect(first.path).not.toBe(second.path);
+    expect(second.path).toBe(SECOND_OUTPUT_PATH);
+    expect(await readFile(SECOND_OUTPUT_PATH, 'utf8')).toBe('second-video');
+  });
+
   it('fails closed when a successful response has no body', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null)));
 
     await expect(
       prepareSocialVideo({
         episodeId: EPISODE_ID,
-        url: 'https://media.example.com/video.mp4',
+        url: VIDEO_URL,
       }),
     ).rejects.toThrow('Downloaded social video is empty.');
     expect(await fileExists(OUTPUT_PATH)).toBe(false);
@@ -88,7 +127,7 @@ describe('prepareSocialVideo', () => {
     await expect(
       prepareSocialVideo({
         episodeId: EPISODE_ID,
-        url: 'https://media.example.com/video.mp4',
+        url: VIDEO_URL,
       }),
     ).rejects.toThrow('stream failed');
     expect(await fileExists(TEMPORARY_PATH)).toBe(false);

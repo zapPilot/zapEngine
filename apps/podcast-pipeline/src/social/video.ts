@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { mkdir, rename, stat, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -29,13 +30,21 @@ export function xTeaserDurationSeconds(fullDurationSeconds: number): number {
   return X_TEASER_CONTENT_SECONDS + OUTRO_TAIL_MS / 1_000;
 }
 
+export function socialVideoCacheIdentity(value: string): string {
+  return createHash('sha256').update(value).digest('hex').slice(0, 12);
+}
+
 export async function prepareSocialVideo(input: {
   episodeId: string;
   url: string;
 }): Promise<PreparedVideo> {
   await mkdir(SOCIAL_TEMP_DIR, { recursive: true });
   const safeEpisodeId = safeId(input.episodeId);
-  const outputPath = join(SOCIAL_TEMP_DIR, `episode-${safeEpisodeId}-zh.mp4`);
+  const sourceIdentity = socialVideoCacheIdentity(input.url);
+  const outputPath = join(
+    SOCIAL_TEMP_DIR,
+    `episode-${safeEpisodeId}-${sourceIdentity}-zh.mp4`,
+  );
   const cached = await reusablePreparedVideo(outputPath);
   if (cached) return cached;
 
@@ -79,9 +88,10 @@ export async function prepareXTeaserVideo(input: {
   }
 
   await mkdir(SOCIAL_TEMP_DIR, { recursive: true });
+  const sourceIdentity = socialVideoCacheIdentity(input.sourcePath);
   const outputPath = join(
     SOCIAL_TEMP_DIR,
-    `episode-${safeId(input.episodeId)}-x-${BRAND_CTA_VERSION}.mp4`,
+    `episode-${safeId(input.episodeId)}-x-${sourceIdentity}-${BRAND_CTA_VERSION}.mp4`,
   );
   const cached = await reusablePreparedVideo(outputPath);
   if (cached) return cached;
