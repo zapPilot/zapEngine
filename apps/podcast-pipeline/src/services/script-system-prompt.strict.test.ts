@@ -19,7 +19,9 @@ describe('script system prompt output contract', () => {
     );
     expect(prompt).toContain('將來源標題改寫成 15–35 個中文字的編輯標題');
     expect(prompt).toContain('不得照抄來源標題');
-    expect(prompt).toContain('必須保留原文的事實、人名、協議名稱與數字');
+    expect(prompt).toContain(
+      '不得捏造或篡改必要的專名與數字；只有對標題核心有資訊價值的實體才需要保留。',
+    );
     expect(prompt).toContain('不得新增原文沒有的結論');
     expect(prompt).toContain('禁止公關腔、誇大與 clickbait');
     expect(prompt).toContain(

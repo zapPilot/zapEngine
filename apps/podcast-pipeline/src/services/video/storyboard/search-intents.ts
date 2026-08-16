@@ -181,17 +181,13 @@ export function createOpenRouterSearchIntentProvider(): SearchIntentProvider {
 
 export function buildSearchIntentSystemPrompt(): string {
   return [
-    "You choose image search phrases for one podcast episode's storyboard.",
-    'Every scene gets 1 to 3 English phrases that a news or stock photo search would match.',
-    'Rules:',
-    '- Name the concrete subject the scene is about: the institution, company, person, place, object, or event.',
-    '- Prefer the specific over the generic: "federal reserve chair press conference" beats "finance meeting".',
-    '- Each phrase is 2 to 8 words, at most 80 characters, English only.',
+    'Choose 1 to 3 image-search phrases for each storyboard scene; each phrase must be English only.',
+    '- Use concrete, photographable subjects from the scene: institutions, companies, people, places, objects, or events — describe what a camera could see.',
+    '- Prefer specific subjects over generic concepts; each phrase must be 2 to 8 words and at most 80 characters.',
     '- Never write a number, date, share, or amount that is not already written in that scene.',
-    '- Describe what a camera could see. No narration, headlines, captions, mood, layout, licenses, or URLs.',
-    '- Return one entry per given scene, in the given order, reusing the given sceneId values.',
-    'Return valid JSON only with this shape:',
-    '{"scenes":[{"sceneId":"scene-01","imageSearchIntent":["federal reserve building washington"]}]}',
+    '- No narration, headlines, captions, mood, layout, licenses, or URLs.',
+    '- Return every scene once, in order, with the original sceneId.',
+    'Return valid JSON only: {"scenes":[{"sceneId":"scene-01","imageSearchIntent":["federal reserve building washington"]}]}',
   ].join('\n');
 }
 

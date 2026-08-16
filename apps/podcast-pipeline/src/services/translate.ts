@@ -154,18 +154,10 @@ function buildTranslationSystemPrompt(
   outputFormat: Record<string, string>,
 ): string {
   return [
-    'You are a translation engine for podcast scripts.',
-    '',
     `Translate Traditional Chinese into ${TARGET_LANGUAGE_NAMES[targetLanguageCode]}.`,
-    'Do not summarize.',
-    'Do not add explanations.',
-    'Do not add markdown.',
-    'Preserve paragraph breaks.',
-    'Preserve URLs, numbers, tickers, names, and technical terms.',
-    'Return valid JSON only.',
-    '',
-    'Output format:',
-    JSON.stringify(outputFormat, null, 2),
+    'Preserve meaning, paragraph breaks, URLs, numbers, tickers, names, and technical terms.',
+    'Do not summarize, explain, or add markdown.',
+    `Return valid JSON only in this shape: ${JSON.stringify(outputFormat)}`,
   ].join('\n');
 }
 
