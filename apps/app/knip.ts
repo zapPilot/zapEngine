@@ -13,6 +13,7 @@ export default defineKnipConfig(
       // that knip can trace from the opposite platform graph.
       'src/**/*.web.{ts,tsx}',
       'src/**/*.native.{ts,tsx}',
+      'src/**/*.ios.{ts,tsx}',
       'tests/**/*.test.ts',
       'tests/e2e/**/*.spec.ts',
     ],

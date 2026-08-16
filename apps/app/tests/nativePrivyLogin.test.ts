@@ -7,9 +7,13 @@ import {
   NATIVE_PRIVY_AUTH_COPY,
   NATIVE_PRIVY_PROVIDER_CONFIG,
 } from '@/integration/nativePrivyLogin';
+import {
+  NATIVE_PRIVY_AUTH_BODY as IOS_PRIVY_AUTH_BODY,
+  NATIVE_PRIVY_CREATE_ON_LOGIN as IOS_PRIVY_CREATE_ON_LOGIN,
+} from '@/integration/nativePrivyPlatform.ios';
 
 describe('native Privy login', () => {
-  it('uses the Privy-managed email flow without creating another wallet', async () => {
+  it('uses the Privy-managed email flow', async () => {
     const login = vi.fn().mockResolvedValue({ user: { id: 'privy-user' } });
 
     await loginWithPrivy(login);
@@ -28,14 +32,9 @@ describe('native Privy login', () => {
     expect(login).toHaveBeenCalledWith({ loginMethods: ['email'] });
   });
 
-  it('identifies Privy clearly in the native authentication UI', () => {
+  it('keeps the existing Android embedded-wallet behavior', () => {
     expect(getNativePrivyLoginConfig()).toEqual({ loginMethods: ['email'] });
-    expect(NATIVE_PRIVY_AUTH_COPY.cta).toBe('Continue with Privy');
-    expect(NATIVE_PRIVY_AUTH_COPY.body).toContain('powered by Privy');
-    expect(NATIVE_PRIVY_AUTH_COPY.hint).toBe('Opens Privy email sign-in');
-  });
-
-  it('delegates embedded-wallet creation to Privy after login', () => {
+    expect(NATIVE_PRIVY_AUTH_COPY.body).toContain('embedded wallet');
     expect(NATIVE_PRIVY_PROVIDER_CONFIG).toEqual({
       embedded: {
         ethereum: {
@@ -43,6 +42,12 @@ describe('native Privy login', () => {
         },
       },
     });
+  });
+
+  it('uses Privy only for authentication on iOS', () => {
+    expect(IOS_PRIVY_AUTH_BODY).toContain('powered by Privy');
+    expect(IOS_PRIVY_AUTH_BODY).not.toContain('wallet');
+    expect(IOS_PRIVY_CREATE_ON_LOGIN).toBe('off');
   });
 
   it('treats closing the Privy login UI as cancellation', () => {

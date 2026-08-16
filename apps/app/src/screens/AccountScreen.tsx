@@ -8,8 +8,8 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
 import { Tap } from '@/components/ui/Tap';
+import { LanguageSettingsCard } from '@/components/account/LanguageSettingsCard';
 import { TelegramCard } from '@/components/account/TelegramCard';
-import { ContentLanguageOptionRows } from '@/components/content/ContentLanguageSelector';
 import { DEMO } from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
 import { truncateAddress } from '@/lib/format';
@@ -44,17 +44,7 @@ export function AccountScreen() {
             </View>
           </Card>
         </Tap>
-        <Card className="mt-4 p-5">
-          <Text className="font-sans-semibold text-[15px] text-ink">
-            {t('language.title')}
-          </Text>
-          <Text className="mt-1 text-[12.5px] leading-5 text-ink-dim">
-            {t('language.description')}
-          </Text>
-          <View className="mt-3">
-            <ContentLanguageOptionRows />
-          </View>
-        </Card>
+        <LanguageSettingsCard />
         <TelegramCard />
         <View className="mt-4">
           <NonCustodialCard

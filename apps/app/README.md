@@ -3,6 +3,12 @@
 Universal Expo React Native workspace for Zap Pilot across iOS, Android, and web.
 The Electron desktop shell packages this app's static web export.
 
+The iOS App Store build ships podcast-only: `FinancialFeatureRoute` and a set
+of `.ios.tsx`/`.ios.ts` platform splits keep the wallet, invest, and send
+surfaces (and their imports) out of the iOS app and bundle, because App Store
+Guideline 3.1.5(b)(i) blocks wallet functionality for a personal developer
+account without a legal entity. Android and web keep the full DeFi feature set.
+
 ## Runtime
 
 This app uses Expo development builds via `expo-dev-client`; it is not intended
@@ -166,3 +172,8 @@ export served by `node scripts/serve-web.mjs --port 3100 --build-if-missing`.
 Cold start, demo tabs, Privy login, live portfolio, range tabs, invest three-step
 signing flow, activity, send validation, account copy/disconnect, podcast
 play/pause/seek, and deep link `zappilotv2://home`.
+
+On iOS this checklist only applies to podcast play/pause/seek, cold start, deep
+link, and the Privy email sign-in/sign-out on the Account tab — Home, Strategy,
+and Activity show the web-upsell card instead of live data, and invest/send/
+wallet flows do not exist in the iOS build (see the podcast-only note above).

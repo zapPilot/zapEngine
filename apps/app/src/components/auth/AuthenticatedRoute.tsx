@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { Platform, View } from 'react-native';
 
 import { ConnectGateCard } from '@/components/connect/ConnectGateCard';
-import { CONNECT_GATE_COPY } from '@/components/connect/connectCopy';
+import { CONNECT_GATE_COPY } from '@/components/connect/connectGateCopy';
 import { AccountUnavailableCard } from '@/components/home/DemoConnectOverlay';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { useAccount } from '@/integration/useAccount';

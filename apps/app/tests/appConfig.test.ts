@@ -2,11 +2,12 @@ import path from 'node:path';
 
 import { getConfig } from 'expo/config';
 import { compileModsAsync } from 'expo/config-plugins';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import appConfig, {
   resolveExpoAlchemyApiKey,
   resolveExpoMoralisApiKey,
+  shouldEnableDevClientPlugin,
 } from '../app.config';
 
 function pluginName(plugin: unknown): unknown {
@@ -110,6 +111,51 @@ describe('Android store identity', () => {
       }),
     ).toBe('vite-key');
     expect(resolveExpoMoralisApiKey({})).toBe('');
+  });
+});
+
+describe('App Store submission config', () => {
+  it('enables the dev-client plugin outside of the production build profile', () => {
+    expect(shouldEnableDevClientPlugin({})).toBe(true);
+    expect(shouldEnableDevClientPlugin({ EAS_BUILD_PROFILE: 'preview' })).toBe(
+      true,
+    );
+  });
+
+  it('disables the dev-client plugin for the production build profile', () => {
+    expect(
+      shouldEnableDevClientPlugin({ EAS_BUILD_PROFILE: 'production' }),
+    ).toBe(false);
+  });
+
+  it('omits expo-dev-client from the plugin list for a production build', async () => {
+    vi.resetModules();
+    process.env.EAS_BUILD_PROFILE = 'production';
+    try {
+      const { default: productionConfig } = await import('../app.config');
+      const names = (productionConfig.plugins ?? []).map(pluginName);
+      expect(names).not.toContain('expo-dev-client');
+    } finally {
+      delete process.env.EAS_BUILD_PROFILE;
+      vi.resetModules();
+    }
+  });
+
+  it('declares no export-compliance encryption to avoid manual App Store review', () => {
+    expect(appConfig.ios?.config?.usesNonExemptEncryption).toBe(false);
+  });
+
+  it('declares collected email data to match the Privy auth flow', () => {
+    const collectedTypes =
+      appConfig.ios?.privacyManifests?.NSPrivacyCollectedDataTypes ?? [];
+    expect(collectedTypes).toContainEqual({
+      NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypeEmailAddress',
+      NSPrivacyCollectedDataTypeLinked: true,
+      NSPrivacyCollectedDataTypeTracking: false,
+      NSPrivacyCollectedDataTypePurposes: [
+        'NSPrivacyCollectedDataTypePurposeAppFunctionality',
+      ],
+    });
   });
 });
 

@@ -11,11 +11,8 @@ import { Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui/Tap';
-import {
-  isTabAccessible,
-  type AppTabName,
-} from '@/integration/navigationModel';
-import { useAccount } from '@/integration/useAccount';
+import type { AppTabName } from '@/integration/navigationModel';
+import { useTabAccess } from '@/integration/useTabAccess';
 import type { TranslationKey } from '@/i18n/translations';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
@@ -66,7 +63,7 @@ export function BottomTabBar({
   navigation,
 }: BottomTabBarProps): ReactElement {
   const insets = useSafeAreaInsets();
-  const account = useAccount();
+  const tabAccess = useTabAccess();
   const { t } = useContentLanguage();
 
   return (
@@ -84,10 +81,7 @@ export function BottomTabBar({
         if (!tab) return null;
 
         const active = state.index === index;
-        const accessible = isTabAccessible(
-          route.name as AppTabName,
-          account.isConnected,
-        );
+        const accessible = tabAccess.isAccessible(route.name as AppTabName);
         const color = active ? tokens.color.accent : tokens.color['ink-faint'];
         const Icon = tab.Icon;
         const label = t(tab.labelKey);
@@ -103,7 +97,7 @@ export function BottomTabBar({
             className="flex-1 items-center gap-1.5"
             onPress={async () => {
               if (!accessible) {
-                await account.connect();
+                await tabAccess.connect();
                 return;
               }
 
