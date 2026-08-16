@@ -1,4 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const dbMocks = vi.hoisted(() => ({ insertSocialPost: vi.fn() }));
+
+vi.mock('../services/db.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/db.js')>()),
+  insertSocialPost: dbMocks.insertSocialPost,
+}));
 
 import { toSocialPostInsertPayload } from '../services/db.js';
 import type { NewSocialPost, SocialPostRow } from '../types.js';
@@ -30,6 +37,10 @@ const published: GeneratedSocialCopy = {
     hashtags: ['總經', '利率', '市場事件'],
   },
 };
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
 const snapshot: SocialCopySnapshot = {
   generated,
   published,
@@ -111,6 +122,18 @@ describe('buildSocialPostRecord', () => {
     });
   });
 
+  it('requires YouTube metadata for telemetry projection', () => {
+    expect(() =>
+      buildSocialPostRecord({
+        episodeId: 'episode-1',
+        platform: 'youtube',
+        result: result(),
+        snapshot,
+        videoDurationSeconds: 321,
+      }),
+    ).toThrow('YouTube telemetry requires published metadata');
+  });
+
   it('projects YouTube metadata and full video duration', () => {
     expect(
       buildSocialPostRecord({
@@ -162,6 +185,70 @@ describe('buildSocialPostRecord', () => {
 });
 
 describe('createSocialPostPersister', () => {
+  it('uses the default database writer and error logger when not injected', async () => {
+    dbMocks.insertSocialPost.mockResolvedValue({ id: 'social-post-default' });
+    const persist = createSocialPostPersister({
+      episodeId: 'episode-1',
+      snapshot,
+      videoDurationSeconds: 321,
+      xVideoDurationSeconds: 130,
+      youtubeMetadata: { title: 'YT title', description: 'YT body' },
+    });
+
+    await persist({ platform: 'x', result: result() });
+    expect(dbMocks.insertSocialPost).toHaveBeenCalledWith(
+      expect.objectContaining({ videoDurationSec: 130 }),
+    );
+  });
+
+  it('omits optional projection inputs when they are absent', async () => {
+    const insert = vi.fn().mockResolvedValue({ id: 'social-post-optional' });
+    const persist = createSocialPostPersister({
+      episodeId: 'episode-1',
+      snapshot,
+      videoDurationSeconds: 100,
+      insert,
+    });
+    await persist({ platform: 'threads', result: result() });
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({ platform: 'threads', videoDurationSec: 100 }),
+    );
+  });
+
+  it('passes optional YouTube metadata into the persisted projection', async () => {
+    const insert = vi.fn().mockResolvedValue({ id: 'social-post-youtube' });
+    const persist = createSocialPostPersister({
+      episodeId: 'episode-1',
+      snapshot,
+      videoDurationSeconds: 321,
+      youtubeMetadata: { title: 'YT title', description: 'YT body' },
+      insert,
+    });
+    await persist({ platform: 'youtube', result: result() });
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        generatedTitle: 'YT title',
+        generatedBody: 'YT body',
+      }),
+    );
+  });
+
+  it('normalizes non-Error insertion failures in the recovery log', async () => {
+    const insert = vi.fn().mockRejectedValue('db offline');
+    const onError = vi.fn();
+    const persist = createSocialPostPersister({
+      episodeId: 'episode-1',
+      snapshot,
+      videoDurationSeconds: 321,
+      insert,
+      onError,
+    });
+    await expect(
+      persist({ platform: 'threads', result: result() }),
+    ).rejects.toBe('db offline');
+    expect(onError).toHaveBeenCalledWith(expect.stringContaining('db offline'));
+  });
+
   it('passes native-video duration metadata to the database writer', async () => {
     const insert = vi
       .fn<(post: NewSocialPost) => Promise<SocialPostRow>>()

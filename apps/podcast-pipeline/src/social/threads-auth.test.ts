@@ -1,13 +1,22 @@
+import { EventEmitter } from 'node:events';
 import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const processMocks = vi.hoisted(() => ({ spawn: vi.fn() }));
+
+vi.mock('node:child_process', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:child_process')>()),
+  spawn: processMocks.spawn,
+}));
+
 import {
   assertThreadsSessionReady,
   buildThreadsAuthorizationUrl,
   ensureThreadsSession,
+  getThreadsProfile,
   readThreadsSession,
   type ThreadsCallbackServerOptions,
   type ThreadsSession,
@@ -27,6 +36,9 @@ const TEST_ENV = {
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  processMocks.spawn.mockReset();
   await Promise.all(
     temporaryDirectories
       .splice(0)
@@ -73,7 +85,7 @@ type CreateCallbackServer = NonNullable<
 >;
 type CallbackListener = Parameters<CreateCallbackServer>[1];
 
-function createCallbackHarness(): {
+function createCallbackHarness(listening = true): {
   close: ReturnType<typeof vi.fn>;
   createServerImpl: CreateCallbackServer;
   dispatch: (
@@ -88,7 +100,7 @@ function createCallbackHarness(): {
   let listener: CallbackListener | undefined;
   const close = vi.fn();
   const server = {
-    listening: true,
+    listening,
     close,
     listen: vi.fn((_port: number, _host: string, onListening: () => void) => {
       onListening();
@@ -154,6 +166,25 @@ describe('Threads authorization URL', () => {
 });
 
 describe('Threads HTTPS callback', () => {
+  it('uses the default HTTPS port and ignores duplicate callbacks after settling', async () => {
+    const harness = createCallbackHarness(false);
+    const options = callbackOptions(harness);
+    options.redirectUri = 'https://threads-local.test/callback';
+    const result = waitForThreadsAuthorizationCode(options);
+    await vi.waitFor(() => expect(harness.listen).toHaveBeenCalledOnce());
+
+    harness.dispatch('/callback?code=first&state=csrf-state');
+    await expect(result).resolves.toBe('first');
+    harness.dispatch('/callback?code=second&state=csrf-state');
+
+    expect(harness.listen).toHaveBeenCalledWith(
+      443,
+      '127.0.0.1',
+      expect.any(Function),
+    );
+    expect(harness.close).not.toHaveBeenCalled();
+  });
+
   it('binds to loopback and accepts only the configured callback path', async () => {
     const harness = createCallbackHarness();
     const options = callbackOptions(harness);
@@ -205,6 +236,60 @@ describe('Threads HTTPS callback', () => {
     );
   });
 
+  it('rejects non-GET requests, missing codes, and provider fallback errors', async () => {
+    const methodHarness = createCallbackHarness();
+    const methodResult = waitForThreadsAuthorizationCode(
+      callbackOptions(methodHarness),
+    );
+    await vi.waitFor(() => expect(methodHarness.listen).toHaveBeenCalledOnce());
+    const methodResponse = methodHarness.dispatch('/callback', 'POST');
+    expect(methodResponse.writeHead).toHaveBeenCalledWith(
+      405,
+      expect.any(Object),
+    );
+    methodHarness.dispatch('/callback?state=csrf-state');
+    await expect(methodResult).rejects.toThrow(
+      'Threads authorization callback did not include a code.',
+    );
+
+    const reasonHarness = createCallbackHarness();
+    const reasonResult = waitForThreadsAuthorizationCode(
+      callbackOptions(reasonHarness),
+    );
+    await vi.waitFor(() => expect(reasonHarness.listen).toHaveBeenCalledOnce());
+    reasonHarness.dispatch(
+      '/callback?error=access_denied&error_reason=cancelled&state=csrf-state',
+    );
+    await expect(reasonResult).rejects.toThrow(
+      'Threads authorization was rejected: cancelled',
+    );
+
+    const fallbackHarness = createCallbackHarness();
+    const fallbackResult = waitForThreadsAuthorizationCode(
+      callbackOptions(fallbackHarness),
+    );
+    await vi.waitFor(() =>
+      expect(fallbackHarness.listen).toHaveBeenCalledOnce(),
+    );
+    fallbackHarness.dispatch('/callback?error=access_denied&state=csrf-state');
+    await expect(fallbackResult).rejects.toThrow(
+      'Threads authorization was rejected: access_denied',
+    );
+  });
+
+  it('propagates readiness failures including non-Error values', async () => {
+    const harness = createCallbackHarness();
+    const options = callbackOptions(harness);
+    options.onReady = vi.fn(async () => {
+      throw 'browser failed';
+    });
+
+    await expect(waitForThreadsAuthorizationCode(options)).rejects.toThrow(
+      'browser failed',
+    );
+    expect(harness.close).toHaveBeenCalledOnce();
+  });
+
   it('closes the callback server after the configured timeout', async () => {
     const harness = createCallbackHarness();
     let expire: (() => void) | undefined;
@@ -223,9 +308,206 @@ describe('Threads HTTPS callback', () => {
     );
     expect(harness.close).toHaveBeenCalledOnce();
   });
+
+  it('uses the real TLS file reader when only the server is injected', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'threads-callback-tls-'));
+    temporaryDirectories.push(directory);
+    const certPath = join(directory, 'cert.pem');
+    const keyPath = join(directory, 'key.pem');
+    await writeFile(certPath, 'cert-bytes');
+    await writeFile(keyPath, 'key-bytes');
+    const harness = createCallbackHarness();
+    const options = callbackOptions(harness);
+    options.tlsCertPath = certPath;
+    options.tlsKeyPath = keyPath;
+    delete options.readFileImpl;
+
+    const result = waitForThreadsAuthorizationCode(options);
+    await vi.waitFor(() => expect(harness.listen).toHaveBeenCalledOnce());
+    harness.dispatch('/callback?code=authorization-code&state=csrf-state');
+
+    await expect(result).resolves.toBe('authorization-code');
+  });
+
+  it('treats a missing request URL as the server root', async () => {
+    const harness = createCallbackHarness();
+    const result = waitForThreadsAuthorizationCode(callbackOptions(harness));
+    await vi.waitFor(() => expect(harness.listen).toHaveBeenCalledOnce());
+
+    const missingUrl = harness.dispatch(undefined as never);
+    expect(missingUrl.writeHead).toHaveBeenCalledWith(404, expect.any(Object));
+    harness.dispatch('/callback?code=authorization-code&state=csrf-state');
+
+    await expect(result).resolves.toBe('authorization-code');
+  });
+
+  it('rejects a server error that occurs before the timeout is installed', async () => {
+    let errorListener: ((error: Error) => void) | undefined;
+    const server = {
+      listening: false,
+      close: vi.fn(),
+      once: vi.fn((event: string, listener: (error: Error) => void) => {
+        if (event === 'error') errorListener = listener;
+        return server;
+      }),
+      listen: vi.fn(() => {
+        errorListener?.(new Error('bind failed'));
+        return server;
+      }),
+    };
+    const options = callbackOptions(createCallbackHarness());
+    options.createServerImpl = vi.fn(() => server as never);
+
+    await expect(waitForThreadsAuthorizationCode(options)).rejects.toThrow(
+      'bind failed',
+    );
+    expect(server.close).not.toHaveBeenCalled();
+  });
 });
 
 describe('Threads OAuth and secure session', () => {
+  it('uses the default API base and global fetch for profile lookup', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ id: 'user-default', username: 'default-user' }),
+    );
+    vi.stubGlobal('fetch', fetchImpl);
+
+    await expect(getThreadsProfile({ accessToken: 'token-default' })).resolves.toEqual({
+      id: 'user-default',
+      username: 'default-user',
+    });
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain('graph.threads.net');
+  });
+
+  it('uses the real clock and default API/fetch paths for a valid saved session', async () => {
+    const sessionPath = await createSessionPath();
+    const now = Date.now();
+    const stored = session({ expiresAt: now + 30 * DAY_MS });
+    await writeThreadsSession(stored, { sessionPath });
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(validDebugResponse(now + 30 * DAY_MS))
+      .mockResolvedValueOnce(jsonResponse({ id: 'user-1', username: 'zap' }));
+    vi.stubGlobal('fetch', fetchImpl);
+
+    await expect(assertThreadsSessionReady({ sessionPath })).resolves.toMatchObject({
+      profile: { id: 'user-1', username: 'zap' },
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('adopts a tester token from process env using default runtime dependencies', async () => {
+    const sessionPath = await createSessionPath();
+    vi.stubEnv('THREADS_ACCESS_TOKEN', 'env-tester-token');
+    const now = Date.now();
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(validDebugResponse(now + 30 * DAY_MS))
+      .mockResolvedValueOnce(jsonResponse({ id: 'env-user', username: 'env-zap' }));
+    vi.stubGlobal('fetch', fetchImpl);
+
+    const ready = await ensureThreadsSession({ sessionPath });
+    expect(ready).toMatchObject({
+      session: { accessToken: 'env-tester-token' },
+      profile: { id: 'env-user', username: 'env-zap' },
+    });
+  });
+
+  it('uses platform browser commands when no opener is injected', async () => {
+    const originalPlatform = process.platform;
+    try {
+      for (const [platform, executable] of [
+        ['darwin', 'open'],
+        ['win32', 'rundll32.exe'],
+        ['linux', 'xdg-open'],
+      ] as const) {
+        Object.defineProperty(process, 'platform', {
+          configurable: true,
+          value: platform,
+        });
+        processMocks.spawn.mockImplementationOnce(() => {
+          const child = Object.assign(new EventEmitter(), { unref: vi.fn() });
+          queueMicrotask(() => child.emit('spawn'));
+          return child;
+        });
+        const sessionPath = await createSessionPath();
+        const fetchImpl = vi.fn<typeof fetch>(async (request) => {
+          const url = request as URL;
+          if (url.pathname === '/oauth/access_token') {
+            return jsonResponse({ access_token: 'short-token', user_id: 'user-1' });
+          }
+          if (url.pathname === '/access_token') {
+            return jsonResponse({ access_token: 'long-token', expires_in: 60 * 24 * 60 * 60 });
+          }
+          if (url.pathname === '/debug_token') return validDebugResponse(NOW + 30 * DAY_MS);
+          if (url.pathname === '/me') return jsonResponse({ id: 'user-1', username: 'zap' });
+          throw new Error(`Unexpected ${url.pathname}`);
+        });
+
+        await ensureThreadsSession({
+          sessionPath,
+          env: TEST_ENV,
+          apiBaseUrl: 'https://graph.threads.test',
+          fetchImpl,
+          now: () => NOW,
+          createState: () => `state-${platform}`,
+          waitForAuthorizationCode: async (input) => {
+            await input.onReady();
+            return `code-${platform}`;
+          },
+        });
+        expect(processMocks.spawn).toHaveBeenLastCalledWith(
+          executable,
+          expect.any(Array),
+          expect.objectContaining({ detached: true, stdio: 'ignore' }),
+        );
+      }
+    } finally {
+      Object.defineProperty(process, 'platform', {
+        configurable: true,
+        value: originalPlatform,
+      });
+    }
+  });
+
+  it('rejects empty profile tokens and malformed profile responses', async () => {
+    await expect(getThreadsProfile({ accessToken: '   ' })).rejects.toThrow(
+      'A Threads access token is required.',
+    );
+
+    for (const [body, message] of [
+      [null, 'invalid profile response'],
+      [{ username: 'zap' }, 'profile response has no id'],
+      [{ id: 'user-1' }, 'profile response has no username'],
+    ] as const) {
+      await expect(
+        getThreadsProfile({
+          accessToken: 'token',
+          apiBaseUrl: 'https://graph.threads.test',
+          fetchImpl: vi
+            .fn<typeof fetch>()
+            .mockResolvedValue(jsonResponse(body)),
+        }),
+      ).rejects.toThrow(message);
+    }
+  });
+
+  it('redacts access tokens from API errors', async () => {
+    const accessToken = 'super-secret-token';
+    await expect(
+      getThreadsProfile({
+        accessToken,
+        apiBaseUrl: 'https://graph.threads.test',
+        fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(
+          jsonResponse(
+            { error: { message: `token ${accessToken} was rejected` } },
+            401,
+          ),
+        ),
+      }),
+    ).rejects.toThrow('token [REDACTED] was rejected');
+  });
+
   it('exchanges the code, validates the long-lived token, and persists it securely', async () => {
     const sessionPath = await createSessionPath();
     const openBrowser = vi.fn<(url: string) => Promise<void>>(
@@ -360,6 +642,27 @@ describe('Threads OAuth and secure session', () => {
     );
   });
 
+  it('uses global fetch for a refresh when no fetch implementation is injected', async () => {
+    const sessionPath = await createSessionPath();
+    await writeThreadsSession(session({ expiresAt: NOW + 6 * DAY_MS }), {
+      sessionPath,
+    });
+    const fetchImpl = vi.fn<typeof fetch>(async (request) => {
+      const url = request as URL;
+      if (url.pathname === '/refresh_access_token') {
+        return jsonResponse({ access_token: 'refreshed-token', expires_in: 60 * 24 * 60 * 60 });
+      }
+      if (url.pathname === '/debug_token') return validDebugResponse(NOW + 30 * DAY_MS);
+      if (url.pathname === '/me') return jsonResponse({ id: 'user-1', username: 'zap' });
+      throw new Error(`Unexpected request: ${url.pathname}`);
+    });
+    vi.stubGlobal('fetch', fetchImpl);
+
+    await expect(
+      assertThreadsSessionReady({ sessionPath, now: () => NOW }),
+    ).resolves.toMatchObject({ session: { accessToken: 'refreshed-token' } });
+  });
+
   it('keeps a token outside the refresh window and only validates it', async () => {
     const sessionPath = await createSessionPath();
     await writeThreadsSession(session(), { sessionPath });
@@ -408,6 +711,35 @@ describe('Threads OAuth and secure session', () => {
     });
     expect(openBrowser).not.toHaveBeenCalled();
     expect(waitForAuthorizationCode).not.toHaveBeenCalled();
+  });
+
+  it('rewrites stored identity metadata when validation returns newer values', async () => {
+    for (const overrides of [
+      { expiresAt: NOW + 40 * DAY_MS },
+      { userId: 'old-user' },
+      { username: 'old-name' },
+    ]) {
+      const sessionPath = await createSessionPath();
+      const stored = session(overrides);
+      await writeThreadsSession(stored, { sessionPath });
+      const fetchImpl = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(validDebugResponse(NOW + 30 * DAY_MS))
+        .mockResolvedValueOnce(
+          jsonResponse({ id: 'user-1', username: 'zap' }),
+        );
+
+      const ready = await assertThreadsSessionReady({
+        sessionPath,
+        fetchImpl,
+        now: () => NOW,
+      });
+
+      expect(ready.session).toEqual(session());
+      await expect(readThreadsSession({ sessionPath })).resolves.toEqual(
+        session(),
+      );
+    }
   });
 
   it('rejects an expired saved session before making an API request', async () => {
@@ -474,6 +806,31 @@ describe('Threads OAuth and secure session', () => {
     expect(result.session.accessToken).toBe('long-token');
     expect(waitForAuthorizationCode).toHaveBeenCalledOnce();
     expect(openBrowser).toHaveBeenCalledOnce();
+  });
+
+  it('wraps authorization-class API failures but preserves server failures', async () => {
+    const sessionPath = await createSessionPath();
+    await writeThreadsSession(session(), { sessionPath });
+
+    await expect(
+      assertThreadsSessionReady({
+        sessionPath,
+        fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(
+          jsonResponse({ error: { message: 'forbidden' } }, 403),
+        ),
+        now: () => NOW,
+      }),
+    ).rejects.toThrow('The saved Threads session was rejected: Threads API 403');
+
+    await expect(
+      assertThreadsSessionReady({
+        sessionPath,
+        fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(
+          jsonResponse({ error: { message: 'upstream down' } }, 500),
+        ),
+        now: () => NOW,
+      }),
+    ).rejects.toThrow('Threads API 500: upstream down');
   });
 
   it('does not open OAuth for a malformed token debugger response', async () => {
@@ -553,6 +910,56 @@ describe('Threads OAuth and secure session', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  it('rejects a non-object long-lived token response', async () => {
+    const sessionPath = await createSessionPath();
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'short-token', user_id: 'user-1' }))
+      .mockResolvedValueOnce(jsonResponse(null));
+
+    await expect(
+      ensureThreadsSession({
+        sessionPath,
+        env: TEST_ENV,
+        fetchImpl,
+        now: () => NOW,
+        createState: () => 'state',
+        openBrowser: vi.fn(async () => undefined),
+        waitForAuthorizationCode: vi.fn(async () => 'code'),
+      }),
+    ).rejects.toThrow('invalid long-lived token exchange response');
+  });
+
+  it('uses default OAuth API, fetch, and clock dependencies safely when globals are stubbed', async () => {
+    const sessionPath = await createSessionPath();
+    const fetchImpl = vi.fn<typeof fetch>(async (request) => {
+      const url = request as URL;
+      if (url.pathname === '/oauth/access_token') {
+        return jsonResponse({ access_token: 'short-token', user_id: 'user-1' });
+      }
+      if (url.pathname === '/access_token') {
+        return jsonResponse({ access_token: 'long-token', expires_in: 60 * 24 * 60 * 60 });
+      }
+      if (url.pathname === '/debug_token') {
+        return validDebugResponse(Date.now() + 30 * DAY_MS);
+      }
+      if (url.pathname === '/me') return jsonResponse({ id: 'user-1', username: 'zap' });
+      throw new Error(`Unexpected request: ${url.pathname}`);
+    });
+    vi.stubGlobal('fetch', fetchImpl);
+
+    await expect(
+      ensureThreadsSession({
+        sessionPath,
+        env: TEST_ENV,
+        createState: () => 'state',
+        openBrowser: vi.fn(async () => undefined),
+        waitForAuthorizationCode: vi.fn(async () => 'code'),
+      }),
+    ).resolves.toMatchObject({ session: { accessToken: 'long-token' } });
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain('graph.threads.net');
+  });
+
   it('does not reauthorize when a refresh response is malformed', async () => {
     const sessionPath = await createSessionPath();
     await writeThreadsSession(session({ expiresAt: NOW + 6 * DAY_MS }), {
@@ -608,6 +1015,28 @@ describe('Threads OAuth and secure session', () => {
       message: 'access token is expired',
     },
     {
+      label: 'a non-numeric expiration',
+      body: {
+        data: {
+          is_valid: true,
+          expires_at: 'tomorrow',
+          scopes: ['threads_basic', 'threads_content_publish'],
+        },
+      },
+      message: 'access token is expired',
+    },
+    {
+      label: 'a non-string scope entry',
+      body: {
+        data: {
+          is_valid: true,
+          expires_at: Math.floor((NOW + DAY_MS) / 1_000),
+          scopes: ['threads_basic', 123],
+        },
+      },
+      message: 'invalid token scope response',
+    },
+    {
       label: 'a missing publish scope',
       body: {
         data: {
@@ -640,6 +1069,74 @@ describe('Threads OAuth and secure session', () => {
         now: () => NOW,
       }),
     ).rejects.toThrow(message);
+  });
+
+  it('rejects non-object and individually malformed stored sessions', async () => {
+    const invalidValues: unknown[] = [
+      null,
+      [],
+      { ...session(), version: 2 },
+      { ...session(), accessToken: ' ' },
+      { ...session(), expiresAt: 'soon' },
+      { ...session(), expiresAt: Number.NaN },
+      { ...session(), expiresAt: 0 },
+      { ...session(), userId: '' },
+      { ...session(), username: '' },
+    ];
+
+    for (const value of invalidValues) {
+      const sessionPath = await createSessionPath();
+      await mkdir(join(sessionPath, '..'), { recursive: true });
+      await writeFile(sessionPath, JSON.stringify(value), 'utf8');
+      await expect(readThreadsSession({ sessionPath })).rejects.toThrow(
+        'Invalid Threads session',
+      );
+    }
+  });
+
+  it('propagates non-ENOENT session read failures', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'threads-auth-directory-'));
+    temporaryDirectories.push(directory);
+    await expect(readThreadsSession({ sessionPath: directory })).rejects.toThrow();
+  });
+
+  it('validates OAuth configuration and redirect URI constraints', async () => {
+    const sessionPath = await createSessionPath();
+    const base = {
+      sessionPath,
+      fetchImpl: vi.fn<typeof fetch>(),
+      createState: () => 'state',
+      waitForAuthorizationCode: vi.fn(async () => 'code'),
+      openBrowser: vi.fn(async () => undefined),
+    };
+
+    await expect(ensureThreadsSession({ ...base, env: {} })).rejects.toThrow(
+      'THREADS_APP_ID is not configured',
+    );
+
+    for (const [redirectUri, message] of [
+      ['not a url', 'must be a valid HTTPS URL'],
+      ['http://threads-local.test/callback', 'must use HTTPS'],
+      ['https://localhost/callback', 'custom hostname'],
+      ['https://127.0.0.1/callback', 'custom hostname'],
+      ['https://threads-local.test/callback?x=1', 'must not contain query'],
+      ['https://threads-local.test/callback#frag', 'must not contain query'],
+    ] as const) {
+      await expect(
+        ensureThreadsSession({
+          ...base,
+          env: { ...TEST_ENV, THREADS_REDIRECT_URI: redirectUri },
+        }),
+      ).rejects.toThrow(message);
+    }
+
+    await expect(
+      ensureThreadsSession({
+        ...base,
+        env: TEST_ENV,
+        createState: () => '   ',
+      }),
+    ).rejects.toThrow('Threads OAuth state generation returned an empty value');
   });
 
   it('rejects a malformed stored session instead of exposing its fields', async () => {

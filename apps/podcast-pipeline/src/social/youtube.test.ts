@@ -28,6 +28,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.unstubAllGlobals();
   await Promise.all(
     directories
       .splice(0)
@@ -36,6 +37,34 @@ afterEach(async () => {
 });
 
 describe('YouTube publisher', () => {
+  it('uses global fetch and the real clock when no options are injected', async () => {
+    const videoPath = await fixtureVideo();
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 200,
+          headers: { location: 'https://upload.example/default-session' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 'yt-default' }), { status: 200 }),
+      );
+    vi.stubGlobal('fetch', fetchImpl);
+    const publisher = createYouTubePublisher();
+
+    const result = await publisher.publishYouTube({
+      title: '市場更新',
+      description: '今天的市場重點',
+      videoPath,
+      privacyStatus: 'public',
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(result.postId).toBe('yt-default');
+    expect(Number.isNaN(Date.parse(result.publishedAt))).toBe(false);
+  });
+
   it('creates a public zh-Hant resumable upload and returns the watch URL', async () => {
     const videoPath = await fixtureVideo();
     const requests: { url: string; init: RequestInit }[] = [];
@@ -196,6 +225,24 @@ describe('YouTube publisher', () => {
     ).rejects.toThrow(
       /YOUTUBE_PUBLISH_FAILED[\s\S]+Step: upload_video[\s\S]+did not include a video id/u,
     );
+  });
+
+  it('uses the generic HTTP failure for valid JSON that has no structured error', async () => {
+    const videoPath = await fixtureVideo();
+    const publisher = createYouTubePublisher({
+      fetchImpl: vi.fn<typeof fetch>(
+        async () => new Response('null', { status: 500 }),
+      ),
+    });
+
+    await expect(
+      publisher.publishYouTube({
+        title: '市場更新',
+        description: '今天的市場重點',
+        videoPath,
+        privacyStatus: 'public',
+      }),
+    ).rejects.toThrow('YouTube API request failed with HTTP 500');
   });
 
   it('uses the generic HTTP failure when the API body is empty', async () => {

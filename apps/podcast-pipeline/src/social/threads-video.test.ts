@@ -1,4 +1,5 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdtemp, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -180,5 +181,35 @@ describe('prepareThreadsVideoUrl', () => {
     ).rejects.toThrow('Threads teaser video is missing or empty');
 
     expect(processRunner).toHaveBeenCalledOnce();
+  });
+
+  it('uses default temp/fetch/ffmpeg/public-base dependencies without invoking them when cached files exist', async () => {
+    const sourceUrl = `https://media.example.com/defaults-${process.pid}.mp4`;
+    const sourceHash = createHash('sha256')
+      .update(sourceUrl)
+      .digest('hex')
+      .slice(0, 24);
+    const directory = join(tmpdir(), 'zap-pilot-social');
+    const sourcePath = join(directory, `threads-${sourceHash}-source.mp4`);
+    const teaserPath = join(directory, `threads-${sourceHash}-v1.mp4`);
+    await writeFile(sourcePath, 'source');
+    await writeFile(teaserPath, 'teaser');
+    vi.stubEnv('R2_PUBLIC_BASE_URL', 'https://cdn-default.example.com/');
+    const uploadVideo = vi.fn<UploadVideo>().mockResolvedValue(undefined);
+
+    try {
+      const result = await prepareThreadsVideoUrl(sourceUrl, { uploadVideo });
+      expect(result).toMatch(
+        /^https:\/\/cdn-default\.example\.com\/social\/threads\/[^/]+\/v1\/video\.mp4$/,
+      );
+      expect(uploadVideo).toHaveBeenCalledWith(
+        expect.objectContaining({ path: teaserPath }),
+      );
+    } finally {
+      await Promise.all([
+        unlink(sourcePath).catch(() => undefined),
+        unlink(teaserPath).catch(() => undefined),
+      ]);
+    }
   });
 });

@@ -55,6 +55,7 @@ vi.mock('./video.js', () => ({
 }));
 
 import {
+  buildYouTubeMetadata,
   findPendingPlatforms,
   parseCliOptions,
   runSocialCli,
@@ -134,8 +135,12 @@ function restoreProperty(
   }
 }
 
+let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
 beforeEach(() => {
-  vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  consoleErrorSpy = vi
+    .spyOn(console, 'error')
+    .mockImplementation(() => undefined);
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   mocks.createReadlineInterface.mockReturnValue({
@@ -187,6 +192,14 @@ describe('parseCliOptions', () => {
       yes: false,
       platform: 'threads',
     });
+  });
+
+  it('parses force and help/missing argument errors', () => {
+    expect(parseCliOptions([EPISODE_ID, '--force'])).toMatchObject({
+      force: true,
+    });
+    expect(() => parseCliOptions(['--help'])).toThrow(/Usage:/);
+    expect(() => parseCliOptions([])).toThrow(/Usage:/);
   });
 
   it('parses unattended approval', () => {
@@ -257,6 +270,32 @@ describe('runSocialCli media preparation', () => {
     expect(mocks.prepareXTeaserVideo).not.toHaveBeenCalled();
     expect(console.log).toHaveBeenCalledWith(
       `🎬 video: 10m 00s, 5.0 MB\n${VIDEO.path}`,
+    );
+  });
+
+  it('formats cached videos, short X videos, and KB-sized assets', async () => {
+    mocks.getSocialEpisode.mockResolvedValue({
+      ...episode,
+      videoDurationSeconds: 90,
+    });
+    mocks.prepareSocialVideo.mockResolvedValue({
+      ...VIDEO,
+      sizeBytes: 512 * 1024,
+      reused: true,
+    });
+    mocks.prepareXTeaserVideo.mockResolvedValue({
+      ...X_VIDEO,
+      sizeBytes: 256 * 1024,
+      reused: true,
+    });
+
+    await runSocialCli([EPISODE_ID, '--dry-run', '--platform', 'x']);
+
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('✓ zh video (1m 30s, 512.0 KB, cached)'),
+    );
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('✓ X video (1m 30s, 256.0 KB, cached/reused)'),
     );
   });
 
@@ -347,6 +386,108 @@ describe('runSocialCli publishing', () => {
     expect(input).not.toHaveProperty('xVideoPath');
   });
 
+  it('quits interactive review without publishing', async () => {
+    enableInteractiveReview('q');
+    await runSocialCli([EPISODE_ID, '--platform', 'threads']);
+    expect(mocks.createSocialPublishJobs).not.toHaveBeenCalled();
+  });
+
+  it('edits generated copy through EDITOR and returns to review', async () => {
+    const previousEditor = process.env['EDITOR'];
+    process.env['EDITOR'] = '/usr/bin/true';
+    try {
+      enableInteractiveReview('e', 't');
+      await runSocialCli([EPISODE_ID, '--platform', 'threads']);
+      expect(mocks.createSocialPostPersister).toHaveBeenCalledOnce();
+      expect(mocks.publishSocialPlatforms).toHaveBeenCalledOnce();
+    } finally {
+      if (previousEditor === undefined) delete process.env['EDITOR'];
+      else process.env['EDITOR'] = previousEditor;
+    }
+  });
+
+  it('surfaces editor spawn and non-zero exit failures', async () => {
+    const previousEditor = process.env['EDITOR'];
+    try {
+      process.env['EDITOR'] = '/definitely/missing/editor';
+      enableInteractiveReview('e');
+      await expect(
+        runSocialCli([EPISODE_ID, '--platform', 'threads']),
+      ).rejects.toThrow();
+
+      process.env['EDITOR'] = '/usr/bin/false';
+      enableInteractiveReview('e');
+      await expect(
+        runSocialCli([EPISODE_ID, '--platform', 'threads']),
+      ).rejects.toThrow('exited with status');
+    } finally {
+      if (previousEditor === undefined) delete process.env['EDITOR'];
+      else process.env['EDITOR'] = previousEditor;
+    }
+  });
+
+  it('regenerates with feedback and can recover from an unknown review choice', async () => {
+    const regenerated: GeneratedSocialCopy = {
+      ...copy,
+      x: { text: 'Regenerated X copy' },
+    };
+    mocks.generateSocialCopy
+      .mockResolvedValueOnce({ copy, model: 'model-1' })
+      .mockResolvedValueOnce({ copy: regenerated, model: 'model-2' });
+    enableInteractiveReview('g', 'make it sharper', 'unknown', 't');
+
+    await runSocialCli([EPISODE_ID, '--platform', 'threads']);
+
+    expect(mocks.generateSocialCopy).toHaveBeenNthCalledWith(2, {
+      episode,
+      feedback: 'make it sharper',
+    });
+    expect(console.log).toHaveBeenCalledWith('Unknown choice.');
+    expect(mocks.createSocialPostPersister).toHaveBeenCalledWith(
+      expect.objectContaining({
+        snapshot: expect.objectContaining({
+          generated: regenerated,
+          model: 'model-2',
+        }),
+      }),
+    );
+  });
+
+  it('publishes all reviewed platforms with the all shortcut', async () => {
+    enableInteractiveReview('a');
+    await runSocialCli([EPISODE_ID]);
+    expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platforms: ['x', 'threads', 'rednote', 'youtube'],
+      }),
+    );
+  });
+
+  it('warns but still publishes Rednote videos above 15 minutes', async () => {
+    mocks.getSocialEpisode.mockResolvedValue({
+      ...episode,
+      videoDurationSeconds: 901,
+    });
+    await runSocialCli([EPISODE_ID, '--yes', '--platform', 'rednote']);
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('15-minute'));
+    expect(mocks.publishSocialPlatforms).toHaveBeenCalledOnce();
+  });
+
+  it('rejects interactive review when stdin is not a TTY', async () => {
+    const stdinDescriptor = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
+    const stdoutDescriptor = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: false });
+    Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
+    try {
+      await expect(
+        runSocialCli([EPISODE_ID, '--platform', 'threads']),
+      ).rejects.toThrow('Interactive review requires a TTY');
+    } finally {
+      if (stdinDescriptor) Object.defineProperty(process.stdin, 'isTTY', stdinDescriptor);
+      if (stdoutDescriptor) Object.defineProperty(process.stdout, 'isTTY', stdoutDescriptor);
+    }
+  });
+
   it('publishes without a TTY when --yes is provided', async () => {
     await runSocialCli([EPISODE_ID, '--yes', '--platform', 'threads']);
 
@@ -355,6 +496,38 @@ describe('runSocialCli publishing', () => {
       expect.objectContaining({ platforms: ['threads'] }),
     );
     expect(mocks.publishSocialPlatforms).toHaveBeenCalledOnce();
+  });
+
+  it('prompts before retrying pending platforms and accepts yes', async () => {
+    const published: PlatformPublishState = {
+      published: true,
+      publishedAt: '2026-08-11T00:00:00.000Z',
+    };
+    mocks.readPublishState.mockResolvedValue({
+      [EPISODE_ID]: { zh: { x: published } },
+    });
+    enableInteractiveReview('yes', 'a');
+
+    await runSocialCli([EPISODE_ID]);
+
+    expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
+      expect.objectContaining({ platforms: ['threads', 'rednote', 'youtube'] }),
+    );
+  });
+
+  it('stops when retrying pending platforms is declined', async () => {
+    const published: PlatformPublishState = {
+      published: true,
+      publishedAt: '2026-08-11T00:00:00.000Z',
+    };
+    mocks.readPublishState.mockResolvedValue({
+      [EPISODE_ID]: { zh: { x: published } },
+    });
+    enableInteractiveReview('n');
+
+    await runSocialCli([EPISODE_ID]);
+
+    expect(mocks.getSocialEpisode).not.toHaveBeenCalled();
   });
 
   it('automatically retries only pending platforms with --yes', async () => {
@@ -372,6 +545,100 @@ describe('runSocialCli publishing', () => {
     expect(mocks.createReadlineInterface).not.toHaveBeenCalled();
     expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
       expect.objectContaining({ platforms: ['threads', 'rednote', 'youtube'] }),
+    );
+  });
+
+  it('force bypasses saved duplicate state', async () => {
+    mocks.readPublishState.mockResolvedValue({
+      [EPISODE_ID]: {
+        zh: {
+          threads: { published: true, publishedAt: '2026-08-11T00:00:00.000Z' },
+        },
+      },
+    });
+    await runSocialCli([
+      EPISODE_ID,
+      '--yes',
+      '--force',
+      '--platform',
+      'threads',
+    ]);
+    expect(mocks.readPublishState).not.toHaveBeenCalled();
+    expect(mocks.publishSocialPlatforms).toHaveBeenCalledOnce();
+  });
+
+  it('reports plural platform failures without inventing state or telemetry failures', async () => {
+    mocks.publishSocialPlatforms.mockResolvedValue([
+      { platform: 'x', status: 'failed', error: new Error('x failed') },
+      { platform: 'threads', status: 'failed', error: new Error('threads failed') },
+    ]);
+
+    await runSocialCli([EPISODE_ID, '--yes']);
+
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('2 failed platforms.'),
+    );
+    expect(
+      consoleErrorSpy.mock.calls.some(([message]: unknown[]) =>
+        String(message).includes('duplicate-state failure'),
+      ),
+    ).toBe(false);
+    expect(
+      consoleErrorSpy.mock.calls.some(([message]: unknown[]) =>
+        String(message).includes('telemetry record failure'),
+      ),
+    ).toBe(false);
+  });
+
+  it('reports publish, local-state, and telemetry failures in singular and plural forms', async () => {
+    mocks.publishSocialPlatforms.mockResolvedValue([
+      { platform: 'x', status: 'failed', error: new Error('x failed') },
+      {
+        platform: 'threads',
+        status: 'published',
+        result: { status: 'published', publishedAt: '2026-08-11T00:00:00Z' },
+        stateError: new Error('state failed'),
+        recordError: new Error('record failed'),
+      },
+      {
+        platform: 'rednote',
+        status: 'published',
+        result: { status: 'published', publishedAt: '2026-08-11T00:00:00Z' },
+        stateError: new Error('state failed 2'),
+        recordError: new Error('record failed 2'),
+      },
+    ]);
+
+    await runSocialCli([EPISODE_ID, '--yes']);
+
+    expect(process.exitCode).toBe(1);
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('1 failed platform.'),
+    );
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('2 local duplicate-state failures'),
+    );
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('2 telemetry record failures'),
+    );
+  });
+
+  it('reports singular local-state and telemetry failures', async () => {
+    mocks.publishSocialPlatforms.mockResolvedValue([
+      {
+        platform: 'threads',
+        status: 'published',
+        result: { status: 'published', publishedAt: '2026-08-11T00:00:00Z' },
+        stateError: new Error('state failed'),
+        recordError: new Error('record failed'),
+      },
+    ]);
+    await runSocialCli([EPISODE_ID, '--yes', '--platform', 'threads']);
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('1 local duplicate-state failure. That post is live'),
+    );
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('1 telemetry record failure.'),
     );
   });
 
@@ -397,6 +664,27 @@ describe('runSocialCli publishing', () => {
     expect(mocks.getSocialEpisode).not.toHaveBeenCalled();
     expect(mocks.generateSocialCopy).not.toHaveBeenCalled();
     expect(mocks.publishSocialPlatforms).not.toHaveBeenCalled();
+  });
+});
+
+describe('YouTube metadata', () => {
+  it('truncates titles and descriptions and falls back to summary', () => {
+    const metadata = buildYouTubeMetadata({
+      ...episode,
+      title: `  ${'界'.repeat(120)}  `,
+      description: '   ',
+      summary: 'S'.repeat(5_000),
+    });
+    expect(Array.from(metadata.title)).toHaveLength(100);
+    expect(metadata.description.startsWith('S'.repeat(4_500))).toBe(true);
+    expect(metadata.description).toContain('https://www.zap-pilot.org');
+  });
+
+  it('prefers a trimmed description over summary', () => {
+    expect(
+      buildYouTubeMetadata({ ...episode, description: '  Description  ' })
+        .description,
+    ).toContain('Description');
   });
 });
 

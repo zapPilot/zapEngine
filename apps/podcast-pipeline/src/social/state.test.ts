@@ -59,6 +59,22 @@ describe('social publish state', () => {
     );
   });
 
+  it('rejects null and primitive persisted state', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'social-state-primitives-'));
+    const path = join(directory, 'state.json');
+    for (const raw of ['null', '123', '"text"']) {
+      await writeFile(path, raw, 'utf8');
+      await expect(readPublishState(path)).rejects.toThrow(
+        `Invalid social publisher state at ${path}.`,
+      );
+    }
+  });
+
+  it('propagates non-ENOENT read failures', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'social-state-directory-'));
+    await expect(readPublishState(directory)).rejects.toThrow();
+  });
+
   it('surfaces malformed JSON instead of silently resetting publish history', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'social-state-malformed-'));
     const path = join(directory, 'state.json');

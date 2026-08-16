@@ -57,6 +57,18 @@ describe('X CreateTweet response parsing', () => {
     ).toBe('222333444');
   });
 
+  it('fails closed after exploring present preferred keys that contain no tweet id', () => {
+    expect(extractCreatedTweetId({ data: { result: { ignored: true } } })).toBeNull();
+  });
+
+  it('caps recursive fallback scanning at the defensive depth limit', () => {
+    let nested: unknown = { ignored: true };
+    for (let index = 0; index < 10; index += 1) {
+      nested = { data: nested };
+    }
+    expect(extractCreatedTweetId(nested)).toBeNull();
+  });
+
   it('fails closed for malformed or unsuccessful response shapes', () => {
     expect(extractCreatedTweetId({ rest_id: 'not-an-id' })).toBeNull();
     expect(

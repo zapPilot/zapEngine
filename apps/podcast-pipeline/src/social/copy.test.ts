@@ -47,6 +47,21 @@ describe('weightedTweetLength', () => {
     expect(weightedTweetLength('Fed 看 ETH 🚀')).toBe(12);
   });
 
+  it('counts representative characters from every supported CJK range as double width', () => {
+    const characters = [
+      '\u1100',
+      '\u2e80',
+      '\u4e00',
+      '\ua960',
+      '\uac00',
+      '\uf900',
+      '\ufe30',
+      '\uff00',
+      String.fromCodePoint(0x20000),
+    ].join('');
+    expect(weightedTweetLength(characters)).toBe(18);
+  });
+
   it('counts a URL as the fixed 23 units used by X', () => {
     expect(weightedTweetLength('link https://example.com/a/long/path')).toBe(
       28,
@@ -118,6 +133,118 @@ describe('generateSocialCopy', () => {
     expect(retryRequest?.messages[0]?.content).toContain(
       'Allowed hookType values: question, contrarian, surprising_number, breaking_event, explainer, prediction, risk_warning, comparison.',
     );
+  });
+
+  it('uses editor feedback and the provider-reported model when present', async () => {
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValue({
+      ...socialCompletion(socialCopyJson('有回饋的文案')),
+      model: 'provider/served-model',
+    });
+
+    const result = await generateSocialCopy({
+      episode: {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        title: 'Episode title',
+        summary: 'Episode summary',
+        description: 'Episode description',
+        transcript: 'Episode transcript',
+        publishedAt: '2026-08-12T00:00:00.000Z',
+        episodeUrl: 'https://example.com/e/episode',
+        videoDurationSeconds: 180,
+        videos: { zh: 'https://example.com/video.mp4' },
+      },
+      feedback: '  更有衝擊力  ',
+    });
+
+    expect(result.model).toBe('provider/served-model');
+    expect(
+      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages.at(-1)
+        ?.content,
+    ).toContain('Editor feedback for this regeneration:\n更有衝擊力');
+  });
+
+  it('omits an editor-feedback block for whitespace-only feedback', async () => {
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
+      socialCompletion(socialCopyJson('有效文案')),
+    );
+    await generateSocialCopy({
+      episode: {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        title: 'Episode title',
+        summary: 'Episode summary',
+        transcript: 'Episode transcript',
+        publishedAt: '2026-08-12T00:00:00.000Z',
+        episodeUrl: 'https://example.com/e/episode',
+        videoDurationSeconds: 180,
+        videos: { zh: 'https://example.com/video.mp4' },
+      },
+      feedback: '   ',
+    });
+    expect(
+      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages.at(-1)
+        ?.content,
+    ).not.toContain('Editor feedback');
+  });
+
+  it('retries SyntaxError, empty completion, root Zod issue, and non-Error provider failures', async () => {
+    const mostlyLatin = JSON.stringify({
+      topic: 'eth',
+      hookType: 'risk_warning',
+      x: { text: 'staking burn' },
+      rednote: {
+        title: 'qual Poo 燃換 LE?',
+        body: 'ekom buscando 燃燒',
+        hashtags: ['以太坊', '質押', '投資'],
+      },
+    });
+    llmMocks.createOpenRouterChatCompletion
+      .mockResolvedValueOnce(socialCompletion('{bad json'))
+      .mockResolvedValueOnce({ choices: [{ message: { content: '   ' } }] })
+      .mockResolvedValueOnce(socialCompletion(mostlyLatin));
+
+    await expect(
+      generateSocialCopy({
+        episode: {
+          id: '123e4567-e89b-12d3-a456-426614174000',
+          title: 'Episode title',
+          summary: 'Episode summary',
+          transcript: 'Episode transcript',
+          publishedAt: '2026-08-12T00:00:00.000Z',
+          episodeUrl: 'https://example.com/e/episode',
+          videoDurationSeconds: 180,
+          videos: { zh: 'https://example.com/video.mp4' },
+        },
+      }),
+    ).rejects.toThrow(/invalid social copy 3 times/u);
+
+    const prompts = llmMocks.createOpenRouterChatCompletion.mock.calls.map(
+      (call) => call[1]?.messages.at(-1)?.content ?? '',
+    );
+    expect(prompts[1]).toContain('Invalid JSON:');
+    expect(prompts[2]).toContain('OpenRouter returned empty social copy');
+
+    llmMocks.createOpenRouterChatCompletion
+      .mockReset()
+      .mockRejectedValueOnce('provider offline')
+      .mockResolvedValueOnce(socialCompletion(socialCopyJson('恢復文案')));
+    await expect(
+      generateSocialCopy({
+        episode: {
+          id: '123e4567-e89b-12d3-a456-426614174000',
+          title: 'Episode title',
+          summary: 'Episode summary',
+          transcript: 'Episode transcript',
+          publishedAt: '2026-08-12T00:00:00.000Z',
+          episodeUrl: 'https://example.com/e/episode',
+          videoDurationSeconds: 180,
+          videos: { zh: 'https://example.com/video.mp4' },
+        },
+      }),
+    ).resolves.toMatchObject({ copy: { x: { text: '恢復文案' } } });
+    expect(
+      llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1]?.messages.at(-1)
+        ?.content,
+    ).toContain('provider offline');
   });
 
   it('retries an unknown taxonomy value with the validation feedback', async () => {
@@ -208,10 +335,17 @@ describe('parseGeneratedSocialCopy', () => {
     ).toThrow();
   });
 
+  it('rejects primitive and array JSON payloads before schema parsing', () => {
+    for (const raw of ['null', '123', '[]', '"text"']) {
+      expect(() => parseGeneratedSocialCopy(raw)).toThrow();
+    }
+  });
+
   // Regression: DeepInfra answered json_object mode with this envelope.
   it('accepts a payload nested as a fenced string under an arbitrary key', () => {
     const copy = parseGeneratedSocialCopy(
       JSON.stringify({
+        ignored: 42,
         'stable diff': 'ok',
         text: `\`\`\`json\n${socialCopyJson('巢狀文案')}\n\`\`\``,
       }),

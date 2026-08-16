@@ -1,4 +1,17 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const dbMocks = vi.hoisted(() => ({
+  getSocialPostById: vi.fn(),
+  insertSocialPostMetric: vi.fn(),
+  listSocialPostsByEpisode: vi.fn(),
+}));
+
+vi.mock('../services/db.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/db.js')>()),
+  getSocialPostById: dbMocks.getSocialPostById,
+  insertSocialPostMetric: dbMocks.insertSocialPostMetric,
+  listSocialPostsByEpisode: dbMocks.listSocialPostsByEpisode,
+}));
 
 import type { NewSocialPostMetric, SocialPostRow } from '../types.js';
 import {
@@ -43,6 +56,10 @@ function post(input?: Partial<SocialPostRow>): SocialPostRow {
     ...input,
   };
 }
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 const NO_COUNTS: SocialMetricCounts = {
   views: null,
@@ -274,6 +291,26 @@ describe('formatMetricsSummary', () => {
 });
 
 describe('runSocialMetricsCli', () => {
+  it('uses the production dependencies and default clock/logger when none are injected', async () => {
+    dbMocks.listSocialPostsByEpisode.mockResolvedValue([post()]);
+    dbMocks.insertSocialPostMetric.mockResolvedValue({ id: 'metric-default' });
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      await runSocialMetricsCli([
+        EPISODE_ID,
+        '--platform',
+        'x',
+        '--views',
+        '1',
+      ]);
+      expect(dbMocks.listSocialPostsByEpisode).toHaveBeenCalledWith(EPISODE_ID, 'x');
+      expect(dbMocks.insertSocialPostMetric).toHaveBeenCalledOnce();
+      expect(log).toHaveBeenCalledWith(expect.stringContaining('Recorded X metrics'));
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   function dependencies(overrides?: {
     posts?: SocialPostRow[];
     lookup?: SocialPostRow | null;

@@ -103,6 +103,38 @@ describe('publishSocialPlatforms', () => {
     });
   });
 
+  it('includes the stored URL when skipping an already-published platform', async () => {
+    const path = await statePath();
+    await publishSocialPlatforms({
+      episodeId: 'episode-url',
+      jobs: [
+        job(
+          'x',
+          vi.fn().mockResolvedValue(
+            success('2026-08-11T00:00:00.000Z', 'https://x.com/status/skip-me'),
+          ),
+        ),
+      ],
+      force: false,
+      statePath: path,
+    });
+
+    await expect(
+      publishSocialPlatforms({
+        episodeId: 'episode-url',
+        jobs: [job('x', vi.fn().mockRejectedValue(new Error('must not run')))],
+        force: false,
+        statePath: path,
+      }),
+    ).resolves.toEqual([
+      {
+        platform: 'x',
+        status: 'skipped',
+        url: 'https://x.com/status/skip-me',
+      },
+    ]);
+  });
+
   it('keeps successful jobs and skips them on retry', async () => {
     const path = await statePath();
     const firstPublishX = vi
@@ -192,6 +224,30 @@ describe('publishSocialPlatforms', () => {
     expect(
       getPublishedPlatform(await readPublishState(path), 'episode-1', 'x'),
     ).toMatchObject({ url: 'https://x.com/status/2' });
+  });
+
+  it('normalizes non-Error telemetry failures while keeping the post published', async () => {
+    const path = await statePath();
+    const onLog = vi.fn();
+    const outcomes = await publishSocialPlatforms({
+      episodeId: 'episode-string-error',
+      jobs: [
+        job('threads', vi.fn().mockResolvedValue(success('2026-08-11T00:01:00.000Z'))),
+      ],
+      force: false,
+      statePath: path,
+      persistPublished: vi.fn().mockRejectedValue('database string failure'),
+      onLog,
+    });
+
+    expect(outcomes[0]).toMatchObject({
+      platform: 'threads',
+      status: 'published',
+      recordError: expect.objectContaining({ message: 'database string failure' }),
+    });
+    expect(onLog).toHaveBeenCalledWith(
+      '[threads] ⚠ Published remotely, but telemetry recording failed: database string failure',
+    );
   });
 
   it('keeps the post published locally and continues after telemetry persistence fails', async () => {

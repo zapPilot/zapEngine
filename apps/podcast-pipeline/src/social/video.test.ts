@@ -8,6 +8,7 @@ import {
   prepareSocialVideo,
   prepareXTeaserVideo,
   socialVideoCacheIdentity,
+  xTeaserDurationSeconds,
   X_TEASER_CONTENT_SECONDS,
   X_VIDEO_LIMIT_SECONDS,
 } from './video.js';
@@ -56,7 +57,39 @@ afterEach(async () => {
   ]);
 });
 
+describe('video helpers', () => {
+  it('computes teaser duration on both sides of the X limit and stable cache identities', () => {
+    expect(xTeaserDurationSeconds(120)).toBe(120);
+    expect(xTeaserDurationSeconds(X_VIDEO_LIMIT_SECONDS)).toBe(
+      X_VIDEO_LIMIT_SECONDS,
+    );
+    expect(xTeaserDurationSeconds(600)).toBeCloseTo(132.8);
+    expect(socialVideoCacheIdentity(VIDEO_URL)).toHaveLength(12);
+    expect(socialVideoCacheIdentity(VIDEO_URL)).toBe(
+      socialVideoCacheIdentity(VIDEO_URL),
+    );
+    expect(socialVideoCacheIdentity(VIDEO_URL)).not.toBe(
+      socialVideoCacheIdentity(SECOND_VIDEO_URL),
+    );
+  });
+});
+
 describe('prepareSocialVideo', () => {
+  it('reuses a non-empty cached download without touching the network', async () => {
+    await writeFile(OUTPUT_PATH, 'cached-video');
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      prepareSocialVideo({ episodeId: EPISODE_ID, url: VIDEO_URL }),
+    ).resolves.toEqual({
+      path: OUTPUT_PATH,
+      sizeBytes: 12,
+      reused: true,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('streams the response body to an atomically renamed source-keyed file', async () => {
     const response = new Response('streamed-video');
     const arrayBuffer = vi.spyOn(response, 'arrayBuffer');
@@ -100,6 +133,33 @@ describe('prepareSocialVideo', () => {
     expect(await readFile(SECOND_OUTPUT_PATH, 'utf8')).toBe('second-video');
   });
 
+  it('rejects unsuccessful downloads with status context', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('nope', {
+          status: 503,
+          statusText: 'Service Unavailable',
+        }),
+      ),
+    );
+
+    await expect(
+      prepareSocialVideo({ episodeId: EPISODE_ID, url: VIDEO_URL }),
+    ).rejects.toThrow('503 Service Unavailable');
+  });
+
+  it('replaces an empty cache entry and sanitizes unsafe episode ids', async () => {
+    await writeFile(OUTPUT_PATH, '');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('replacement')));
+    const prepared = await prepareSocialVideo({
+      episodeId: `${EPISODE_ID}/unsafe:id`,
+      url: VIDEO_URL,
+    });
+    expect(prepared.path).toContain('unsafe_id');
+    await unlink(prepared.path).catch(() => undefined);
+  });
+
   it('fails closed when a successful response has no body', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null)));
 
@@ -135,6 +195,27 @@ describe('prepareSocialVideo', () => {
 });
 
 describe('prepareXTeaserVideo', () => {
+  it('rejects directories and empty files as teaser sources', async () => {
+    await expect(
+      prepareXTeaserVideo({
+        episodeId: EPISODE_ID,
+        sourcePath: DIRECTORY,
+        durationSeconds: 600,
+        processRunner: vi.fn(),
+      }),
+    ).rejects.toThrow('missing or empty');
+
+    await writeFile(OUTPUT_PATH, '');
+    await expect(
+      prepareXTeaserVideo({
+        episodeId: EPISODE_ID,
+        sourcePath: OUTPUT_PATH,
+        durationSeconds: 600,
+        processRunner: vi.fn(),
+      }),
+    ).rejects.toThrow('missing or empty');
+  });
+
   it('reuses the source when it already fits the free X video limit', async () => {
     await writeFile(OUTPUT_PATH, 'short-video');
     const processRunner = vi.fn();
@@ -149,6 +230,26 @@ describe('prepareXTeaserVideo', () => {
     ).resolves.toEqual({
       path: OUTPUT_PATH,
       sizeBytes: 11,
+      reused: true,
+    });
+    expect(processRunner).not.toHaveBeenCalled();
+  });
+
+  it('reuses an existing non-empty teaser cache for long videos', async () => {
+    await writeFile(OUTPUT_PATH, 'full-video');
+    await writeFile(X_OUTPUT_PATH, 'cached-teaser');
+    const processRunner = vi.fn();
+
+    await expect(
+      prepareXTeaserVideo({
+        episodeId: EPISODE_ID,
+        sourcePath: OUTPUT_PATH,
+        durationSeconds: 600,
+        processRunner,
+      }),
+    ).resolves.toEqual({
+      path: X_OUTPUT_PATH,
+      sizeBytes: 13,
       reused: true,
     });
     expect(processRunner).not.toHaveBeenCalled();
@@ -185,6 +286,53 @@ describe('prepareXTeaserVideo', () => {
     expect(filter).toContain('trim=start=597.200');
     expect(filter).toContain('concat=n=2:v=1:a=1');
     expect(await readFile(X_OUTPUT_PATH, 'utf8')).toBe('teaser');
+    expect(await fileExists(X_TEMPORARY_PATH)).toBe(false);
+  });
+
+  it('uses the resolved ffmpeg path when no override is supplied', async () => {
+    await writeFile(OUTPUT_PATH, 'full-video');
+    const processRunner = vi.fn(async (_binary: string, args: string[]) => {
+      await writeFile(args.at(-1)!, 'teaser');
+      return { stdout: '', stderr: '' };
+    });
+
+    await prepareXTeaserVideo({
+      episodeId: EPISODE_ID,
+      sourcePath: OUTPUT_PATH,
+      durationSeconds: 600,
+      processRunner,
+    });
+    expect(processRunner.mock.calls[0]?.[0]).toEqual(expect.any(String));
+  });
+
+  it('removes empty or partial teaser output when rendering fails', async () => {
+    await writeFile(OUTPUT_PATH, 'full-video');
+    await expect(
+      prepareXTeaserVideo({
+        episodeId: EPISODE_ID,
+        sourcePath: OUTPUT_PATH,
+        durationSeconds: 600,
+        ffmpegPath: '/test/ffmpeg',
+        processRunner: async (_binary, args) => {
+          await writeFile(args.at(-1)!, '');
+          return { stdout: '', stderr: '' };
+        },
+      }),
+    ).rejects.toThrow('Rendered X teaser video is empty');
+    expect(await fileExists(X_TEMPORARY_PATH)).toBe(false);
+
+    await expect(
+      prepareXTeaserVideo({
+        episodeId: EPISODE_ID,
+        sourcePath: OUTPUT_PATH,
+        durationSeconds: 600,
+        ffmpegPath: '/test/ffmpeg',
+        processRunner: async (_binary, args) => {
+          await writeFile(args.at(-1)!, 'partial');
+          throw new Error('ffmpeg failed');
+        },
+      }),
+    ).rejects.toThrow('ffmpeg failed');
     expect(await fileExists(X_TEMPORARY_PATH)).toBe(false);
   });
 });

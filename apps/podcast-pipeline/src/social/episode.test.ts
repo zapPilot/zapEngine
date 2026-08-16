@@ -53,6 +53,12 @@ describe('parseSocialEpisodeId', () => {
     ).toBe(EPISODE_ID);
   });
 
+  it('rejects well-formed URLs without an episode path', () => {
+    expect(() =>
+      parseSocialEpisodeId('https://from-fed-to-chain-api.fly.dev/episodes'),
+    ).toThrow('Expected a bare UUID or a share URL with an /e/<uuid> path');
+  });
+
   it('rejects inputs that are neither accepted form', () => {
     expect(() => parseSocialEpisodeId('not-an-episode')).toThrow(
       'Expected a bare UUID or a share URL with an /e/<uuid> path',
@@ -113,7 +119,47 @@ describe('buildSocialEpisode', () => {
     ).toThrow(`No completed zh video found for episode ${EPISODE_ID}`);
   });
 
-  it('fails when the transcript is empty', () => {
+  it('falls back to transcript summary and source title when optional localization fields are missing', () => {
+    const result = buildSocialEpisode({
+      episode: { ...episode, source_title: 'Fallback source title' },
+      localization: { ...localization, title: ' ', raw_text: null },
+      video: {
+        url: 'https://cdn.example/video.mp4',
+        thumbnailUrl: 'https://cdn.example/thumbnail.jpg',
+        durationSeconds: 173,
+      },
+    });
+    expect(result.title).toBe('Fallback source title');
+    expect(result.description).toBeUndefined();
+    expect(result.summary).toBe('完整 podcast 講稿');
+  });
+
+  it('allows an empty source title fallback without inventing a title', () => {
+    const result = buildSocialEpisode({
+      episode: { ...episode, source_title: null },
+      localization: { ...localization, title: ' ', raw_text: null },
+      video: {
+        url: 'https://cdn.example/video.mp4',
+        thumbnailUrl: 'https://cdn.example/thumbnail.jpg',
+        durationSeconds: 173,
+      },
+    });
+    expect(result.title).toBe('');
+  });
+
+  it('fails when the transcript is null or empty', () => {
+    expect(() =>
+      buildSocialEpisode({
+        episode,
+        localization: { ...localization, script: null },
+        video: {
+          url: 'https://cdn.example/video.mp4',
+          thumbnailUrl: 'https://cdn.example/thumbnail.jpg',
+          durationSeconds: 173,
+        },
+      }),
+    ).toThrow('has no completed zh transcript');
+
     expect(() =>
       buildSocialEpisode({
         episode,

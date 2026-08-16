@@ -1,8 +1,16 @@
+import { EventEmitter } from 'node:events';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const processMocks = vi.hoisted(() => ({ spawn: vi.fn() }));
+
+vi.mock('node:child_process', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:child_process')>()),
+  spawn: processMocks.spawn,
+}));
 
 import {
   assertYouTubeSessionReady,
@@ -18,6 +26,9 @@ const UPLOAD_SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
 const directories: string[] = [];
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  processMocks.spawn.mockReset();
   await Promise.all(
     directories
       .splice(0)
@@ -135,6 +146,223 @@ describe('YouTube OAuth', () => {
     await expect(readYouTubeSession({ sessionPath: path })).rejects.toThrow(
       'Invalid YouTube session',
     );
+
+    for (const value of [
+      null,
+      [],
+      { version: 2, accessToken: 'a', refreshToken: 'r', expiresAt: 1, scope: UPLOAD_SCOPE },
+      { version: 1, accessToken: 'a', refreshToken: '', expiresAt: 1, scope: UPLOAD_SCOPE },
+      { version: 1, accessToken: 'a', refreshToken: 'r', expiresAt: 0, scope: UPLOAD_SCOPE },
+      { version: 1, accessToken: 'a', refreshToken: 'r', expiresAt: Number.NaN, scope: UPLOAD_SCOPE },
+      { version: 1, accessToken: 'a', refreshToken: 'r', expiresAt: 1, scope: '' },
+    ]) {
+      await writeFile(path, JSON.stringify(value), 'utf8');
+      await expect(readYouTubeSession({ sessionPath: path })).rejects.toThrow(
+        'Invalid YouTube session',
+      );
+    }
+  });
+
+  it('propagates non-ENOENT session read failures and reports missing login', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'zap-youtube-directory-'));
+    directories.push(directory);
+    await expect(readYouTubeSession({ sessionPath: directory })).rejects.toThrow();
+
+    const path = join(directory, 'missing.json');
+    await expect(
+      assertYouTubeSessionReady({ sessionPath: path }),
+    ).rejects.toThrow('YouTube is not logged in');
+  });
+
+  it('uses the real clock for a fresh stored session', async () => {
+    const path = await sessionPath();
+    const session: YouTubeSession = {
+      version: 1,
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      expiresAt: Date.now() + 60 * 60_000,
+      scope: UPLOAD_SCOPE,
+    };
+    await writeYouTubeSession(session, { sessionPath: path });
+    await expect(assertYouTubeSessionReady({ sessionPath: path })).resolves.toEqual(
+      session,
+    );
+  });
+
+  it('rethrows ordinary refresh configuration failures instead of starting OAuth', async () => {
+    const path = await sessionPath();
+    await writeYouTubeSession(
+      {
+        version: 1,
+        accessToken: 'access-old',
+        refreshToken: 'refresh-old',
+        expiresAt: 1_100_000,
+        scope: UPLOAD_SCOPE,
+      },
+      { sessionPath: path },
+    );
+
+    await expect(
+      ensureYouTubeSession({ sessionPath: path, now: () => 1_000_000, env: {} }),
+    ).rejects.toThrow('YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET are not configured');
+  });
+
+  it('uses process env, secure state, global fetch, and the real clock during authorization', async () => {
+    const path = await sessionPath();
+    vi.stubEnv('YOUTUBE_CLIENT_ID', 'env-client');
+    vi.stubEnv('YOUTUBE_CLIENT_SECRET', 'env-secret');
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      new Response(
+        JSON.stringify({
+          access_token: 'global-access',
+          refresh_token: 'global-refresh',
+          expires_in: 3600,
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchImpl);
+    const waiter = vi.fn(async (input) => {
+      expect(input.expectedState).toMatch(/^[A-Za-z0-9_-]+$/u);
+      return { code: 'code-env', redirectUri: 'http://127.0.0.1:54321' };
+    });
+
+    const result = await ensureYouTubeSession({
+      sessionPath: path,
+      waitForAuthorizationCode: waiter,
+    });
+
+    expect(result).toMatchObject({
+      accessToken: 'global-access',
+      refreshToken: 'global-refresh',
+      scope: UPLOAD_SCOPE,
+    });
+    expect(result.expiresAt).toBeGreaterThan(Date.now());
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it('uses process env and global fetch during token refresh', async () => {
+    const path = await sessionPath();
+    vi.stubEnv('YOUTUBE_CLIENT_ID', 'env-client');
+    vi.stubEnv('YOUTUBE_CLIENT_SECRET', 'env-secret');
+    await writeYouTubeSession(
+      {
+        version: 1,
+        accessToken: 'old',
+        refreshToken: 'refresh',
+        expiresAt: 1_100_000,
+        scope: UPLOAD_SCOPE,
+      },
+      { sessionPath: path },
+    );
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      new Response(
+        JSON.stringify({ access_token: 'new', expires_in: 3600 }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchImpl);
+
+    await expect(
+      assertYouTubeSessionReady({ sessionPath: path, now: () => 1_000_000 }),
+    ).resolves.toMatchObject({ accessToken: 'new' });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it('uses the built-in loopback waiter when one is not injected', async () => {
+    const path = await sessionPath();
+    const tokenFetch = vi.fn<typeof fetch>(async () =>
+      new Response(
+        JSON.stringify({
+          access_token: 'access-loopback',
+          refresh_token: 'refresh-loopback',
+          expires_in: 3600,
+          scope: UPLOAD_SCOPE,
+        }),
+        { status: 200 },
+      ),
+    );
+    const openBrowser = vi.fn(async (authorizationUrl: string) => {
+      const url = new URL(authorizationUrl);
+      const redirectUri = url.searchParams.get('redirect_uri')!;
+      const state = url.searchParams.get('state')!;
+      const response = await fetch(
+        `${redirectUri}/?state=${encodeURIComponent(state)}&code=loopback-code`,
+      );
+      expect(response.status).toBe(200);
+    });
+
+    await expect(
+      ensureYouTubeSession({
+        env: {
+          YOUTUBE_CLIENT_ID: 'client-id',
+          YOUTUBE_CLIENT_SECRET: 'client-secret',
+        },
+        createState: () => 'loopback-state',
+        fetchImpl: tokenFetch,
+        openBrowser,
+        sessionPath: path,
+        callbackTimeoutMs: 2_000,
+      }),
+    ).resolves.toMatchObject({ accessToken: 'access-loopback' });
+    expect(openBrowser).toHaveBeenCalledOnce();
+  });
+
+  it('uses platform browser commands when no browser opener is injected', async () => {
+    const originalPlatform = process.platform;
+    try {
+      for (const [platform, executable] of [
+        ['darwin', 'open'],
+        ['win32', 'rundll32.exe'],
+        ['linux', 'xdg-open'],
+      ] as const) {
+        Object.defineProperty(process, 'platform', {
+          configurable: true,
+          value: platform,
+        });
+        processMocks.spawn.mockImplementationOnce(() => {
+          const child = Object.assign(new EventEmitter(), { unref: vi.fn() });
+          queueMicrotask(() => child.emit('spawn'));
+          return child;
+        });
+        const path = await sessionPath();
+        await ensureYouTubeSession({
+          env: {
+            YOUTUBE_CLIENT_ID: 'client-id',
+            YOUTUBE_CLIENT_SECRET: 'client-secret',
+          },
+          createState: () => `state-${platform}`,
+          fetchImpl: async () =>
+            new Response(
+              JSON.stringify({
+                access_token: `access-${platform}`,
+                refresh_token: `refresh-${platform}`,
+                expires_in: 3600,
+                scope: UPLOAD_SCOPE,
+              }),
+              { status: 200 },
+            ),
+          sessionPath: path,
+          waitForAuthorizationCode: async (input) => {
+            await input.onReady('http://127.0.0.1:54321');
+            return {
+              code: `code-${platform}`,
+              redirectUri: 'http://127.0.0.1:54321',
+            };
+          },
+        });
+        expect(processMocks.spawn).toHaveBeenLastCalledWith(
+          executable,
+          expect.any(Array),
+          expect.objectContaining({ detached: true, stdio: 'ignore' }),
+        );
+      }
+    } finally {
+      Object.defineProperty(process, 'platform', {
+        configurable: true,
+        value: originalPlatform,
+      });
+    }
   });
 
   it('refreshes an expiring session and keeps the existing refresh token', async () => {
@@ -183,6 +411,40 @@ describe('YouTube OAuth', () => {
     );
   });
 
+  it('accepts replacement refresh token and scope from refresh responses', async () => {
+    const path = await sessionPath();
+    await writeYouTubeSession(
+      {
+        version: 1,
+        accessToken: 'access-old',
+        refreshToken: 'refresh-old',
+        expiresAt: 1_100_000,
+        scope: UPLOAD_SCOPE,
+      },
+      { sessionPath: path },
+    );
+    const session = await assertYouTubeSessionReady({
+      env: {
+        YOUTUBE_CLIENT_ID: 'client-id',
+        YOUTUBE_CLIENT_SECRET: 'client-secret',
+      },
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            access_token: 'access-new',
+            refresh_token: 'refresh-new',
+            expires_in: 3600,
+            scope: `${UPLOAD_SCOPE} openid`,
+          }),
+          { status: 200 },
+        ),
+      now: () => 1_000_000,
+      sessionPath: path,
+    });
+    expect(session.refreshToken).toBe('refresh-new');
+    expect(session.scope).toContain('openid');
+  });
+
   it('turns a rejected refresh token into a reconnect error', async () => {
     const path = await sessionPath();
     await writeYouTubeSession(
@@ -218,6 +480,47 @@ describe('YouTube OAuth', () => {
     );
   });
 
+  it('preserves non-authorization refresh failures and formats OAuth error variants', async () => {
+    const makePath = async (): Promise<string> => {
+      const path = await sessionPath();
+      await writeYouTubeSession(
+        {
+          version: 1,
+          accessToken: 'access-old',
+          refreshToken: 'refresh-old',
+          expiresAt: 1_100_000,
+          scope: UPLOAD_SCOPE,
+        },
+        { sessionPath: path },
+      );
+      return path;
+    };
+
+    for (const [body, expected] of [
+      [{ error_description: 'service unavailable' }, 'Google OAuth 500: service unavailable'],
+      [{ error: 'server_error' }, 'Google OAuth 500: server_error'],
+      ['plain failure', 'Google OAuth request failed with HTTP 500'],
+      ['', 'Google OAuth request failed with HTTP 500'],
+    ] as const) {
+      const path = await makePath();
+      await expect(
+        assertYouTubeSessionReady({
+          env: {
+            YOUTUBE_CLIENT_ID: 'client-id',
+            YOUTUBE_CLIENT_SECRET: 'client-secret',
+          },
+          fetchImpl: async () =>
+            new Response(
+              typeof body === 'string' ? body : JSON.stringify(body),
+              { status: 500 },
+            ),
+          now: () => 1_000_000,
+          sessionPath: path,
+        }),
+      ).rejects.toThrow(expected);
+    }
+  });
+
   it('validates OAuth configuration, generated state, token shape, and upload scope', async () => {
     const path = await sessionPath();
     const waiter = vi.fn(async () => ({
@@ -233,6 +536,12 @@ describe('YouTube OAuth', () => {
     ).rejects.toThrow(
       'YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET are not configured',
     );
+    await expect(
+      ensureYouTubeSession({
+        env: { YOUTUBE_CLIENT_ID: 'client-id' },
+        sessionPath: path,
+      }),
+    ).rejects.toThrow('YOUTUBE_CLIENT_SECRET is not configured');
 
     await expect(
       ensureYouTubeSession({
@@ -319,6 +628,29 @@ describe('YouTube OAuth', () => {
         waitForAuthorizationCode: waiter,
       }),
     ).rejects.toThrow('does not include the youtube.upload scope');
+
+    const successPath = await sessionPath();
+    await expect(
+      ensureYouTubeSession({
+        env: {
+          YOUTUBE_CLIENT_ID: 'client-id',
+          YOUTUBE_CLIENT_SECRET: 'client-secret',
+        },
+        createState: () => 'state-2',
+        fetchImpl: async () =>
+          new Response(
+            JSON.stringify({
+              access_token: 'access-default-scope',
+              refresh_token: 'refresh-default-scope',
+              expires_in: 3600,
+            }),
+            { status: 200 },
+          ),
+        now: () => 5_000,
+        sessionPath: successPath,
+        waitForAuthorizationCode: waiter,
+      }),
+    ).resolves.toMatchObject({ scope: UPLOAD_SCOPE });
   });
 
   it('accepts a valid loopback callback after ignoring unrelated requests', async () => {
@@ -378,6 +710,28 @@ describe('YouTube OAuth', () => {
         },
       }),
     ).rejects.toThrow('YouTube OAuth callback did not include a code');
+  });
+
+  it('times out when no loopback callback arrives', async () => {
+    await expect(
+      waitForYouTubeAuthorizationCode({
+        expectedState: 'state-1',
+        timeoutMs: 10,
+        onReady: async () => undefined,
+      }),
+    ).rejects.toThrow('Timed out waiting for YouTube authorization');
+  });
+
+  it('normalizes non-Error callback setup failures', async () => {
+    await expect(
+      waitForYouTubeAuthorizationCode({
+        expectedState: 'state-1',
+        timeoutMs: 2_000,
+        onReady: async () => {
+          throw 'browser string failure';
+        },
+      }),
+    ).rejects.toThrow('browser string failure');
   });
 
   it('propagates callback setup failures', async () => {

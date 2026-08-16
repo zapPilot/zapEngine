@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   publishThreads: vi.fn(),
   publishX: vi.fn(),
   publishYouTube: vi.fn(),
+  prepareThreadsVideoUrl: vi.fn(),
 }));
 
 vi.mock('./x-playwright.js', () => ({
@@ -25,6 +26,10 @@ vi.mock('./threads.js', () => ({
 
 vi.mock('./youtube.js', () => ({
   createYouTubePublisher: mocks.createYouTubePublisher,
+}));
+
+vi.mock('./threads-video.js', () => ({
+  prepareThreadsVideoUrl: mocks.prepareThreadsVideoUrl,
 }));
 
 import { createSocialPublishJobs } from './publishers.js';
@@ -66,6 +71,9 @@ beforeEach(() => {
   mocks.createYouTubePublisher.mockReturnValue({
     publishYouTube: mocks.publishYouTube,
   });
+  mocks.prepareThreadsVideoUrl.mockResolvedValue(
+    'https://cdn.example.com/threads.mp4',
+  );
 });
 
 describe('createSocialPublishJobs', () => {
@@ -89,6 +97,31 @@ describe('createSocialPublishJobs', () => {
       text: copy.x.text,
       videoPath: X_VIDEO_PATH,
     });
+  });
+
+  it('prepares Threads video with and without a reusable X teaser', async () => {
+    await createSocialPublishJobs({
+      platforms: ['threads'],
+      copy,
+      videoUrl: VIDEO_URL,
+      xVideoPath: X_VIDEO_PATH,
+    });
+    const withTeaser = mocks.createThreadsPublisher.mock.calls[0]?.[0]
+      ?.prepareVideoUrl;
+    await expect(withTeaser?.(VIDEO_URL)).resolves.toEqual(expect.any(String));
+
+    vi.clearAllMocks();
+    mocks.createThreadsPublisher.mockReturnValue({
+      publishThreads: mocks.publishThreads,
+    });
+    await createSocialPublishJobs({
+      platforms: ['threads'],
+      copy,
+      videoUrl: VIDEO_URL,
+    });
+    const withoutTeaser = mocks.createThreadsPublisher.mock.calls[0]?.[0]
+      ?.prepareVideoUrl;
+    await expect(withoutTeaser?.(VIDEO_URL)).resolves.toEqual(expect.any(String));
   });
 
   it('does not instantiate X when X is not selected', async () => {
@@ -152,6 +185,19 @@ describe('createSocialPublishJobs', () => {
     ).rejects.toThrow(
       'YouTube publishing requires title and description metadata.',
     );
+
+    await expect(
+      createSocialPublishJobs({
+        platforms: ['youtube'],
+        copy,
+        videoUrl: VIDEO_URL,
+        videoPath: VIDEO_PATH,
+        youtubeTitle: '  valid title  ',
+        youtubeDescription: '   ',
+      }),
+    ).rejects.toThrow(
+      'YouTube publishing requires title and description metadata.',
+    );
   });
 
   it('builds Rednote with the prepared full video', async () => {
@@ -169,6 +215,16 @@ describe('createSocialPublishJobs', () => {
       hashtags: copy.rednote.hashtags,
       videoPath: VIDEO_PATH,
     });
+  });
+
+  it('rejects unsupported platform values at the exhaustive boundary', async () => {
+    await expect(
+      createSocialPublishJobs({
+        platforms: ['mastodon' as never],
+        copy,
+        videoUrl: VIDEO_URL,
+      }),
+    ).rejects.toThrow('Unsupported social platform: mastodon');
   });
 
   it('rejects Rednote before publishing when no video is prepared', async () => {
