@@ -411,20 +411,15 @@ async function authorizeThreadsSession(
     options,
     now,
   );
-  const session: ThreadsSession = {
-    version: 1,
+  return persistValidatedSession({
     accessToken: longToken.accessToken,
     expiresAt: Math.min(
       now + longToken.expiresInSeconds * 1_000,
       validated.expiresAt,
     ),
-    userId: validated.profile.id,
-    username: validated.profile.username,
-  };
-  await writeThreadsSession(session, {
-    sessionPath: options.sessionPath ?? DEFAULT_THREADS_SESSION_PATH,
+    options,
+    validated,
   });
-  return { session, profile: validated.profile };
 }
 
 // Threads Tester tokens are issued directly by the App Dashboard, so there is
@@ -435,17 +430,31 @@ async function adoptThreadsAccessToken(
 ): Promise<ReadyThreadsSession> {
   const now = options.now?.() ?? Date.now();
   const validated = await validateThreadsToken(accessToken, options, now);
-  const session: ThreadsSession = {
-    version: 1,
+  return persistValidatedSession({
     accessToken,
     expiresAt: validated.expiresAt,
-    userId: validated.profile.id,
-    username: validated.profile.username,
+    options,
+    validated,
+  });
+}
+
+async function persistValidatedSession(input: {
+  accessToken: string;
+  expiresAt: number;
+  options: ThreadsAuthOptions;
+  validated: Awaited<ReturnType<typeof validateThreadsToken>>;
+}): Promise<ReadyThreadsSession> {
+  const session: ThreadsSession = {
+    version: 1,
+    accessToken: input.accessToken,
+    expiresAt: input.expiresAt,
+    userId: input.validated.profile.id,
+    username: input.validated.profile.username,
   };
   await writeThreadsSession(session, {
-    sessionPath: options.sessionPath ?? DEFAULT_THREADS_SESSION_PATH,
+    sessionPath: input.options.sessionPath ?? DEFAULT_THREADS_SESSION_PATH,
   });
-  return { session, profile: validated.profile };
+  return { session, profile: input.validated.profile };
 }
 
 async function refreshLongLivedToken(
