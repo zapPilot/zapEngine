@@ -35,6 +35,7 @@ import {
 import {
   IMAGE_VISUAL_PLAN_VERSION,
   materializeImageVisualPlan,
+  parseImageVisualPlan,
   stableSceneId,
 } from './visual-plan.js';
 
@@ -346,6 +347,59 @@ describe('image-only storyboard validation and fallback', () => {
 });
 
 describe('storyboard provider orchestration', () => {
+  it('rejects an empty canonical script before calling the provider', async () => {
+    const provider: StoryboardProvider = {
+      name: 'fixture',
+      model: 'fixture-v1',
+      generate: vi.fn(),
+    };
+    await expect(
+      generateStoryboard({
+        title: 'Empty',
+        script: '   ',
+        durationMs: 1_000,
+        provider,
+      }),
+    ).rejects.toThrow('does not contain any sentences');
+    expect(provider.generate).not.toHaveBeenCalled();
+  });
+
+  it('forwards a live abort signal to the provider', async () => {
+    const controller = new AbortController();
+    const provider = createDeterministicStoryboardProvider();
+    const generate = vi.spyOn(provider, 'generate');
+    await generateStoryboard({
+      title: '市場流動性觀察',
+      script,
+      durationMs: 90_000,
+      provider,
+      signal: controller.signal,
+    });
+    expect(generate.mock.calls[0]?.[1]).toEqual({ signal: controller.signal });
+  });
+
+  it('rethrows provider failures when the signal becomes aborted', async () => {
+    const controller = new AbortController();
+    const failure = new Error('lease lost');
+    const provider: StoryboardProvider = {
+      name: 'fixture',
+      model: 'fixture-v1',
+      generate: vi.fn(async () => {
+        controller.abort(failure);
+        throw failure;
+      }),
+    };
+    await expect(
+      generateStoryboard({
+        title: '市場流動性觀察',
+        script,
+        durationMs: 90_000,
+        provider,
+        signal: controller.signal,
+      }),
+    ).rejects.toBe(failure);
+  });
+
   it('repairs once, then falls back deterministically after invalid responses', async () => {
     const repairOptions: (StoryboardProviderOptions | undefined)[] = [];
     const provider: StoryboardProvider = {
@@ -449,6 +503,50 @@ describe('NVIDIA storyboard provider', () => {
 });
 
 describe('shared visual plan and locale manifest materialization', () => {
+  it('rejects broken source references, unstable ids, sentence gaps, and reversed ranges', () => {
+    const validScene = {
+      sceneId: 'scene-01',
+      startSentenceId: 's0001',
+      endSentenceId: 's0001',
+      imageSearchIntent: ['market trading floor'],
+      sources: [sceneSource('scene-01')],
+      asset: sceneAsset('scene-01'),
+    };
+
+    expect(() =>
+      parseImageVisualPlan({
+        schemaVersion: IMAGE_VISUAL_PLAN_VERSION,
+        scenes: [
+          {
+            ...validScene,
+            asset: { ...validScene.asset, sourceId: 'missing-source' },
+          },
+        ],
+      }),
+    ).toThrow('is missing from scene sources');
+
+    expect(() =>
+      parseImageVisualPlan({
+        schemaVersion: IMAGE_VISUAL_PLAN_VERSION,
+        scenes: [{ ...validScene, sceneId: 'scene-02' }],
+      }),
+    ).toThrow('must use stable ID scene-01');
+
+    expect(() =>
+      parseImageVisualPlan({
+        schemaVersion: IMAGE_VISUAL_PLAN_VERSION,
+        scenes: [{ ...validScene, startSentenceId: 's0002', endSentenceId: 's0002' }],
+      }),
+    ).toThrow('must start at s0001');
+
+    expect(() =>
+      parseImageVisualPlan({
+        schemaVersion: IMAGE_VISUAL_PLAN_VERSION,
+        scenes: [{ ...validScene, startSentenceId: 's0001', endSentenceId: 's0000' }],
+      }),
+    ).toThrow('reversed sentence range');
+  });
+
   it('requires one remote image per scene and preserves its provenance', () => {
     const draft: StoryboardDraft = {
       scenes: [

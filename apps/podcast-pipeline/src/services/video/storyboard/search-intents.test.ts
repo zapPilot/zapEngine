@@ -126,6 +126,29 @@ describe('storyboard search intent enrichment', () => {
     }
   });
 
+  it('falls back to the original title and omits English evidence when translations are absent', async () => {
+    const provider = stubProvider(suggestSubjects);
+    const request = enrichmentRequest();
+    delete request.searchScript;
+    request.searchTitle = '   ';
+
+    await enrichStoryboardSearchIntents(request, { provider });
+
+    const first = provider.suggest.mock.calls[0]?.[0];
+    expect(first?.title).toBe(TITLE);
+    expect(first?.scenes[0]).not.toHaveProperty('searchText');
+  });
+
+  it('forwards a live abort signal to provider batches', async () => {
+    const provider = stubProvider(suggestSubjects);
+    const controller = new AbortController();
+    await enrichStoryboardSearchIntents(enrichmentRequest(), {
+      provider,
+      signal: controller.signal,
+    });
+    expect(provider.suggest.mock.calls[0]?.[0].signal).toBe(controller.signal);
+  });
+
   it('keeps the deterministic intents of a batch whose request fails', async () => {
     const warn = silenceWarnings();
     const request = enrichmentRequest();
@@ -175,6 +198,71 @@ describe('storyboard search intent enrichment', () => {
     }
   });
 
+  it('returns unchanged when every generated intent is ungrounded', async () => {
+    const request = enrichmentRequest();
+    const provider = stubProvider((batch) => ({
+      scenes: batch.scenes.map((scene) => ({
+        sceneId: scene.sceneId,
+        imageSearchIntent: ['imaginary market 999999 volume'],
+      })),
+    }));
+
+    await expect(enrichStoryboardSearchIntents(request, { provider })).resolves.toEqual({
+      draft: request.draft,
+      model: null,
+      enrichedSceneCount: 0,
+    });
+  });
+
+  it('falls back when grounded enrichment makes an already-invalid draft fail validation', async () => {
+    const warn = silenceWarnings();
+    const request = enrichmentRequest();
+    request.draft = {
+      scenes: request.draft.scenes.map((scene, index) => ({
+        ...scene,
+        sceneId: index === 0 ? 'scene-99' : scene.sceneId,
+      })),
+    };
+    const provider = stubProvider((batch) => ({
+      scenes: batch.scenes.map((scene) => ({
+        sceneId: scene.sceneId,
+        imageSearchIntent: ['bank building exterior'],
+      })),
+    }));
+
+    try {
+      const result = await enrichStoryboardSearchIntents(request, { provider });
+      expect(result).toEqual({
+        draft: request.draft,
+        model: null,
+        enrichedSceneCount: 0,
+      });
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('validation failed'),
+        expect.any(Error),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('skips enrichment when a draft scene does not map to canonical sentences', async () => {
+    const request = enrichmentRequest();
+    request.draft = {
+      scenes: request.draft.scenes.map((scene, index) =>
+        index === 0 ? { ...scene, startSentenceId: 's9999' } : scene,
+      ),
+    };
+    const provider = stubProvider(suggestSubjects);
+
+    await expect(enrichStoryboardSearchIntents(request, { provider })).resolves.toEqual({
+      draft: request.draft,
+      model: null,
+      enrichedSceneCount: 0,
+    });
+    expect(provider.suggest).not.toHaveBeenCalled();
+  });
+
   it('drops an ungrounded number and keeps the rest of the scene', async () => {
     const request = enrichmentRequest();
     const provider = stubProvider((batch) => ({
@@ -196,6 +284,44 @@ describe('storyboard search intent enrichment', () => {
     ]);
   });
 
+  it('ignores non-array intent fields while enriching the other scenes', async () => {
+    const request = enrichmentRequest();
+    const provider = stubProvider((batch) => ({
+      scenes: batch.scenes.map((scene, index) => ({
+        sceneId: scene.sceneId,
+        imageSearchIntent:
+          index === 0 ? { invalid: true } : ['cargo port at sunrise'],
+      })),
+    }));
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+    expect(result.draft.scenes[0]?.imageSearchIntent).toEqual(
+      request.draft.scenes[0]?.imageSearchIntent,
+    );
+    expect(result.enrichedSceneCount).toBe(
+      request.draft.scenes.length - provider.suggest.mock.calls.length,
+    );
+  });
+
+  it('rejects a same-length response whose scene entry is invalid', async () => {
+    const warn = silenceWarnings();
+    const request = enrichmentRequest();
+    const provider = stubProvider((batch) => ({
+      scenes: batch.scenes.map((scene, index) =>
+        index === 0
+          ? 'not-an-object'
+          : { sceneId: scene.sceneId, imageSearchIntent: ['cargo port'] },
+      ),
+    }));
+    try {
+      const result = await enrichStoryboardSearchIntents(request, { provider });
+      expect(result.enrichedSceneCount).toBe(0);
+      expect(warn).toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it('rejects non-English, malformed, and duplicate phrases', async () => {
     const request = enrichmentRequest();
     const provider = stubProvider((batch) => ({
@@ -203,7 +329,7 @@ describe('storyboard search intent enrichment', () => {
         sceneId: scene.sceneId,
         imageSearchIntent:
           index === 0
-            ? ['日本銀行總裁記者會', 'a', 42, `${'long phrase '.repeat(10)}`]
+            ? ['日本銀行總裁記者會', '12', 'a', 42, `${'long phrase '.repeat(10)}`]
             : [
                 'Cargo Port At Sunrise',
                 'cargo port at sunrise',
