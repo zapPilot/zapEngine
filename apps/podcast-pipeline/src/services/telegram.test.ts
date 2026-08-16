@@ -6,6 +6,7 @@ import {
   buildTelegramFailureMessage,
   buildTelegramVideoCompletedMessage,
   buildTelegramVideoFailedMessage,
+  extractFailureSourceUrl,
   extractUrlFromMessage,
   getTelegramCallbackQuery,
   getTelegramMessage,
@@ -155,6 +156,32 @@ describe('extractUrlFromMessage', () => {
 
   it('returns null when a message does not contain an article URL', () => {
     expect(extractUrlFromMessage('no url here')).toBeNull();
+  });
+});
+
+describe('extractFailureSourceUrl', () => {
+  it('uses the explicit source URL line instead of URLs embedded in an error', () => {
+    expect(
+      extractFailureSourceUrl(
+        '❌ 失敗 [step:uploadMainHlsToR2] Please look at https://www.cloudflarestatus.com for issues or contact customer support.\nURL: https://publisher.example.com/article',
+      ),
+    ).toBe('https://publisher.example.com/article');
+  });
+
+  it('fails closed when the failure message has no explicit source URL line', () => {
+    expect(
+      extractFailureSourceUrl(
+        '❌ 失敗 Please look at https://www.cloudflarestatus.com for issues',
+      ),
+    ).toBeNull();
+  });
+
+  it('uses the final explicit URL line if error text contains a misleading URL label', () => {
+    expect(
+      extractFailureSourceUrl(
+        '❌ 失敗 provider said:\nURL: https://status.example.com\nURL: https://publisher.example.com/article',
+      ),
+    ).toBe('https://publisher.example.com/article');
   });
 });
 

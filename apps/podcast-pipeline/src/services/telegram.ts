@@ -161,6 +161,19 @@ export function extractUrlFromMessage(text: string): string | null {
   return null;
 }
 
+export function extractFailureSourceUrl(text: string): string | null {
+  let sourceUrl: string | null = null;
+
+  for (const line of text.split(/\r?\n/)) {
+    const match = /^URL:\s*(https?:\/\/\S+)\s*$/i.exec(line.trim());
+    if (match?.[1]) {
+      sourceUrl = trimTrailingMessagePunctuation(match[1]);
+    }
+  }
+
+  return sourceUrl;
+}
+
 export function isTelegramHelpCommand(text: string): boolean {
   const command = text.split(/\s+/, 1)[0]?.toLowerCase();
   return (

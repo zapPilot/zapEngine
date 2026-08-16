@@ -1435,6 +1435,35 @@ describe('POST /telegram/webhook', () => {
     expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
   });
 
+  it('retries the explicit source URL instead of a URL embedded in the failure error', async () => {
+    const response = await postTelegramUpdate({
+      update_id: 1,
+      callback_query: {
+        id: 'callback-1',
+        data: 'retry_ingest',
+        from: { id: 12345 },
+        message: {
+          message_id: 2,
+          chat: { id: 67890 },
+          text: [
+            '❌ 失敗 [step:uploadMainHlsToR2] Please look at https://www.cloudflarestatus.com for issues or contact customer support.',
+            'URL: https://example.com/article',
+          ].join('\n'),
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() =>
+      expect(mockFindEpisodeBySourceUrl).toHaveBeenCalledWith(
+        'https://example.com/article',
+      ),
+    );
+    expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalledWith(
+      'https://www.cloudflarestatus.com',
+    );
+  });
+
   it('prompts when the message does not contain an http URL', async () => {
     const response = await postTelegramUpdate(
       telegramUpdate({ text: 'hello' }),

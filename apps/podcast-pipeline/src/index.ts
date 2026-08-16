@@ -64,6 +64,7 @@ import {
 } from './services/share-page.js';
 import {
   answerTelegramCallbackQuery,
+  extractFailureSourceUrl,
   extractUrlFromMessage,
   getTelegramCallbackQuery,
   getTelegramMessage,
@@ -283,7 +284,7 @@ export function createApp(): Hono {
         return emptyTelegramResponse(c);
       }
 
-      const retryUrl = extractUrlFromMessage(callbackText);
+      const retryUrl = extractFailureSourceUrl(callbackText);
       if (!retryUrl) {
         void answerTelegramCallbackQuery(callbackId, '找不到原始 URL');
         return emptyTelegramResponse(c);
