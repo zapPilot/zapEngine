@@ -145,7 +145,9 @@ export async function prepareXTeaserVideo(input: {
   }
 }
 
-async function reusablePreparedVideo(path: string): Promise<PreparedVideo | null> {
+async function reusablePreparedVideo(
+  path: string,
+): Promise<PreparedVideo | null> {
   const file = await stat(path).catch(() => null);
   if (!file?.isFile() || file.size <= 0) return null;
   return { path, sizeBytes: file.size, reused: true };
