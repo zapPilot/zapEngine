@@ -50,20 +50,17 @@ export async function prepareSocialVideo(input: {
   }
 
   const temporaryPath = `${outputPath}.tmp-${process.pid}`;
-  try {
-    await pipeline(
-      Readable.fromWeb(response.body as NodeReadableStream),
-      createWriteStream(temporaryPath),
-    );
-    return await commitPreparedVideo({
-      emptyMessage: 'Downloaded social video is empty.',
-      outputPath,
-      temporaryPath,
-    });
-  } catch (error) {
-    await unlink(temporaryPath).catch(() => null);
-    throw error;
-  }
+  return prepareAtomicVideo({
+    temporaryPath,
+    outputPath,
+    emptyMessage: 'Downloaded social video is empty.',
+    write: async () => {
+      await pipeline(
+        Readable.fromWeb(response.body as NodeReadableStream),
+        createWriteStream(temporaryPath),
+      );
+    },
+  });
 }
 
 export async function prepareXTeaserVideo(input: {
@@ -104,45 +101,42 @@ export async function prepareXTeaserVideo(input: {
   const temporaryPath = `${outputPath}.tmp-${process.pid}.mp4`;
   const processRunner = input.processRunner ?? runProcess;
 
-  try {
-    await processRunner(input.ffmpegPath ?? resolveVideoFfmpegPath(), [
-      '-hide_banner',
-      '-loglevel',
-      'error',
-      '-i',
-      input.sourcePath,
-      '-filter_complex',
-      filter,
-      '-map',
-      '[v]',
-      '-map',
-      '[a]',
-      '-c:v',
-      'libx264',
-      '-preset',
-      'veryfast',
-      '-crf',
-      '23',
-      '-pix_fmt',
-      'yuv420p',
-      '-c:a',
-      'aac',
-      '-b:a',
-      '128k',
-      '-movflags',
-      '+faststart',
-      '-y',
-      temporaryPath,
-    ]);
-    return await commitPreparedVideo({
-      emptyMessage: 'Rendered X teaser video is empty.',
-      outputPath,
-      temporaryPath,
-    });
-  } catch (error) {
-    await unlink(temporaryPath).catch(() => null);
-    throw error;
-  }
+  return prepareAtomicVideo({
+    temporaryPath,
+    outputPath,
+    emptyMessage: 'Rendered X teaser video is empty.',
+    write: async () => {
+      await processRunner(input.ffmpegPath ?? resolveVideoFfmpegPath(), [
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-i',
+        input.sourcePath,
+        '-filter_complex',
+        filter,
+        '-map',
+        '[v]',
+        '-map',
+        '[a]',
+        '-c:v',
+        'libx264',
+        '-preset',
+        'veryfast',
+        '-crf',
+        '23',
+        '-pix_fmt',
+        'yuv420p',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '128k',
+        '-movflags',
+        '+faststart',
+        '-y',
+        temporaryPath,
+      ]);
+    },
+  });
 }
 
 async function reusablePreparedVideo(
@@ -153,15 +147,22 @@ async function reusablePreparedVideo(
   return { path, sizeBytes: file.size, reused: true };
 }
 
-async function commitPreparedVideo(input: {
+async function prepareAtomicVideo(input: {
   temporaryPath: string;
   outputPath: string;
   emptyMessage: string;
+  write: () => Promise<void>;
 }): Promise<PreparedVideo> {
-  const file = await stat(input.temporaryPath);
-  if (file.size === 0) throw new Error(input.emptyMessage);
-  await rename(input.temporaryPath, input.outputPath);
-  return { path: input.outputPath, sizeBytes: file.size, reused: false };
+  try {
+    await input.write();
+    const file = await stat(input.temporaryPath);
+    if (file.size === 0) throw new Error(input.emptyMessage);
+    await rename(input.temporaryPath, input.outputPath);
+    return { path: input.outputPath, sizeBytes: file.size, reused: false };
+  } catch (error) {
+    await unlink(input.temporaryPath).catch(() => null);
+    throw error;
+  }
 }
 
 function safeId(value: string): string {
