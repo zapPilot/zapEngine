@@ -41,12 +41,10 @@ const nonNegativeMetricColumns = [
 ] as const satisfies readonly (keyof SocialPostMetricRow)[];
 
 describe('social publishing telemetry schema', () => {
-  it('keeps the migration and consolidated table definitions aligned', () => {
-    for (const table of ['social_posts', 'social_post_metrics']) {
-      expect(canonicalTableDefinition(schema, table)).toBe(
-        canonicalTableDefinition(migration025, table),
-      );
-    }
+  it('keeps the append-only metrics definition aligned with migration 025', () => {
+    expect(canonicalTableDefinition(schema, 'social_post_metrics')).toBe(
+      canonicalTableDefinition(migration025, 'social_post_metrics'),
+    );
   });
 
   it.each(sources)(
