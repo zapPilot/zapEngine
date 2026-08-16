@@ -3,21 +3,28 @@ import { describe, expect, it } from 'vitest';
 import {
   extractCreatedTweetId,
   isCreateTweetResponseUrl,
-} from './x-playwright.js';
+} from './x-response.js';
 
-describe('X CreateTweet success detection', () => {
-  it('matches the GraphQL CreateTweet endpoint but not unrelated X navigation', () => {
+describe('X CreateTweet response parsing', () => {
+  it('matches only GraphQL CreateTweet endpoints on X hosts', () => {
     expect(
       isCreateTweetResponseUrl(
         'https://x.com/i/api/graphql/abc123/CreateTweet?variables=%7B%7D',
       ),
     ).toBe(true);
+    expect(
+      isCreateTweetResponseUrl(
+        'https://twitter.com/i/api/graphql/abc123/CreateTweet',
+      ),
+    ).toBe(true);
     expect(isCreateTweetResponseUrl('https://x.com/home')).toBe(false);
-    expect(isCreateTweetResponseUrl('https://x.com/i/flow/login')).toBe(false);
+    expect(isCreateTweetResponseUrl('https://example.com/CreateTweet')).toBe(
+      false,
+    );
     expect(isCreateTweetResponseUrl('not-a-url')).toBe(false);
   });
 
-  it('extracts the created tweet id from the normal CreateTweet response shape', () => {
+  it('extracts the normal CreateTweet rest_id', () => {
     expect(
       extractCreatedTweetId({
         data: {
@@ -31,7 +38,7 @@ describe('X CreateTweet success detection', () => {
     ).toBe('1234567890123456789');
   });
 
-  it('supports nested result variants but rejects non-numeric ids', () => {
+  it('supports nested tweet variants and arrays', () => {
     expect(
       extractCreatedTweetId({
         data: {
@@ -43,9 +50,16 @@ describe('X CreateTweet success detection', () => {
         },
       }),
     ).toBe('987654321');
-    expect(extractCreatedTweetId({ rest_id: 'not-an-id' })).toBeNull();
     expect(
-      extractCreatedTweetId({ errors: [{ message: 'failed' }] }),
-    ).toBeNull();
+      extractCreatedTweetId({
+        data: [{ ignored: true }, { tweet: { rest_id: '222333444' } }],
+      }),
+    ).toBe('222333444');
+  });
+
+  it('fails closed for malformed or unsuccessful response shapes', () => {
+    expect(extractCreatedTweetId({ rest_id: 'not-an-id' })).toBeNull();
+    expect(extractCreatedTweetId({ errors: [{ message: 'failed' }] })).toBeNull();
+    expect(extractCreatedTweetId(null)).toBeNull();
   });
 });
