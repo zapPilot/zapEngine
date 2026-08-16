@@ -3,9 +3,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import dotenv from 'dotenv';
 
-import { isXSessionReady, runXLogin } from './opencli.js';
 import { isRednoteSessionReady, runRednoteLogin } from './rednote-login.js';
 import { ensureThreadsSession } from './threads-auth.js';
+import { isXSessionReady, runXLogin } from './x-playwright.js';
 
 const REPO_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -27,12 +27,12 @@ export async function runSocialLogin(
   if (await isXSessionReady()) {
     log('✓ X');
   } else {
-    log('• X is not logged in. Starting OpenCLI login...');
+    log('• X is not logged in. Opening Chrome...');
     try {
-      await runXLogin();
+      await runXLogin(log);
       if (!(await isXSessionReady())) {
         throw new Error(
-          'OpenCLI login finished but X is still not authenticated.',
+          'X login finished but the publisher is still not authenticated.',
         );
       }
       log('✓ X');

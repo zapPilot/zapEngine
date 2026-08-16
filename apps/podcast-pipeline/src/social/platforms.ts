@@ -2,17 +2,17 @@ export const SOCIAL_PLATFORM_CONFIG = {
   x: {
     label: 'X',
     reviewShortcut: 'x',
-    requiresVideo: false,
+    requiresLocalVideo: true,
   },
   threads: {
     label: 'Threads',
     reviewShortcut: 't',
-    requiresVideo: false,
+    requiresLocalVideo: false,
   },
   rednote: {
     label: 'Rednote',
     reviewShortcut: 'r',
-    requiresVideo: true,
+    requiresLocalVideo: true,
   },
 } as const;
 
@@ -30,8 +30,10 @@ export function platformLabel(platform: SocialPlatform): string {
   return SOCIAL_PLATFORM_CONFIG[platform].label;
 }
 
-export function requiresVideo(platforms: readonly SocialPlatform[]): boolean {
+export function requiresLocalVideo(
+  platforms: readonly SocialPlatform[],
+): boolean {
   return platforms.some(
-    (platform) => SOCIAL_PLATFORM_CONFIG[platform].requiresVideo,
+    (platform) => SOCIAL_PLATFORM_CONFIG[platform].requiresLocalVideo,
   );
 }

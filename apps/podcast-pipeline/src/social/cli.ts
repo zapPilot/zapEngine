@@ -8,12 +8,14 @@ import { parseArgs } from 'node:util';
 
 import dotenv from 'dotenv';
 
+import { appendBrandCta } from '../brand/cta.js';
+import { OUTRO_TAIL_MS } from '../services/video/manifest.js';
 import { parsePlatformOption, requireEpisodeArgument } from './cli-args.js';
 import { generateSocialCopy, parseGeneratedSocialCopy } from './copy.js';
 import { getSocialEpisode } from './episode.js';
 import {
   platformLabel,
-  requiresVideo,
+  requiresLocalVideo,
   SOCIAL_PLATFORM_CONFIG,
   SOCIAL_PLATFORMS,
 } from './platforms.js';
@@ -30,7 +32,13 @@ import type {
   SocialPlatform,
   SocialPublishState,
 } from './types.js';
-import { type PreparedVideo, prepareSocialVideo } from './video.js';
+import {
+  type PreparedVideo,
+  prepareSocialVideo,
+  prepareXTeaserVideo,
+  X_TEASER_CONTENT_SECONDS,
+  X_VIDEO_LIMIT_SECONDS,
+} from './video.js';
 
 const REPO_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -49,6 +57,12 @@ export interface SocialCliOptions {
   dryRun: boolean;
   force: boolean;
   platform?: SocialPlatform;
+}
+
+interface SocialAssets {
+  episode: SocialEpisode;
+  video?: PreparedVideo;
+  xVideo?: PreparedVideo;
 }
 
 interface ReviewSelection {
@@ -80,14 +94,15 @@ export async function runSocialCli(args: string[]): Promise<void> {
     platforms = pendingPlatforms;
   }
 
-  const { episode, video } = await loadSocialAssets(options, platforms);
+  const assets = await loadSocialAssets(options, platforms);
+  const { episode, video, xVideo } = assets;
 
   console.log('Generating social copy...');
   const generated = await generateSocialCopy({ episode });
   console.log(`[ai] Generated copy using ${generated.model}`);
 
   if (options.dryRun) {
-    printPreview(generated.copy, episode, video);
+    printPreview(withBrandCta(generated.copy), assets);
     console.log(
       '\nDry run complete. Browser was not opened and nothing was published.',
     );
@@ -101,6 +116,7 @@ export async function runSocialCli(args: string[]): Promise<void> {
     initialModel: generated.model,
     requestedPlatforms: platforms,
     video,
+    xVideo,
   });
   if (!review) return;
 
@@ -113,21 +129,22 @@ export async function runSocialCli(args: string[]): Promise<void> {
     );
   }
 
-  const onLog = (message: string): void => {
-    console.log(message);
-  };
+  const videoUrl = requireCanonicalVideoUrl(episode);
+  const publishedCopy = withBrandCta(review.copy);
+  const onLog = (message: string): void => console.log(message);
   const jobs = await createSocialPublishJobs({
     platforms: review.platforms,
-    copy: review.copy,
-    episodeUrl: episode.episodeUrl,
+    copy: publishedCopy,
+    videoUrl,
     ...(video ? { videoPath: video.path } : {}),
+    ...(xVideo ? { xVideoPath: xVideo.path } : {}),
     onLog,
   });
   const persistPublished = createSocialPostPersister({
     episodeId: options.episodeId,
     snapshot: {
       generated: review.generatedCopy,
-      published: review.copy,
+      published: publishedCopy,
       model: review.model,
     },
     videoDurationSeconds: episode.videoDurationSeconds,
@@ -194,7 +211,6 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
   });
 
   const episodeId = requireEpisodeArgument(values.help, positionals, USAGE);
-
   return {
     episodeId,
     dryRun: values['dry-run'],
@@ -208,33 +224,33 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
 async function loadSocialAssets(
   options: SocialCliOptions,
   requestedPlatforms: readonly SocialPlatform[],
-): Promise<{
-  episode: SocialEpisode;
-  video?: PreparedVideo;
-}> {
+): Promise<SocialAssets> {
   console.log(`Fetching episode ${options.episodeId}...`);
   const episode = await getSocialEpisode(options.episodeId);
   console.log('✓ metadata');
   console.log('✓ transcript');
 
-  if (!requiresVideo(requestedPlatforms)) return { episode };
-
-  const videoUrl = episode.videos.zh;
-  if (!videoUrl) {
-    throw new Error(
-      `No completed zh video found for episode ${options.episodeId}. Social publishing aborted.`,
-    );
-  }
+  if (!requiresLocalVideo(requestedPlatforms)) return { episode };
 
   const video = await prepareSocialVideo({
     episodeId: options.episodeId,
-    url: videoUrl,
+    url: requireCanonicalVideoUrl(episode),
   });
   console.log(
     `✓ zh video (${formatDuration(episode.videoDurationSeconds)}, ${formatBytes(video.sizeBytes)}${video.reused ? ', cached' : ''})`,
   );
 
-  return { episode, video };
+  if (!requestedPlatforms.includes('x')) return { episode, video };
+
+  const xVideo = await prepareXTeaserVideo({
+    episodeId: options.episodeId,
+    sourcePath: video.path,
+    durationSeconds: episode.videoDurationSeconds,
+  });
+  console.log(
+    `✓ X video (${formatDuration(xVideoDuration(episode.videoDurationSeconds))}, ${formatBytes(xVideo.sizeBytes)}${xVideo.reused ? ', cached/reused' : ''})`,
+  );
+  return { episode, video, xVideo };
 }
 
 async function reviewSocialCopy(input: {
@@ -244,13 +260,18 @@ async function reviewSocialCopy(input: {
   initialModel: string;
   requestedPlatforms: SocialPlatform[];
   video?: PreparedVideo;
+  xVideo?: PreparedVideo;
 }): Promise<ReviewSelection | null> {
   let copy = input.initialCopy;
   let generatedCopy = input.initialCopy;
   let model = input.initialModel;
 
   while (true) {
-    printPreview(copy, input.episode, input.video);
+    printPreview(withBrandCta(copy), {
+      episode: input.episode,
+      video: input.video,
+      xVideo: input.xVideo,
+    });
     const review = await askReviewAction(input.requestedPlatforms);
 
     if (review.action === 'quit') return null;
@@ -271,9 +292,7 @@ async function reviewSocialCopy(input: {
       console.log(`[ai] Generated copy using ${regenerated.model}`);
       continue;
     }
-    if (review.action === 'publish') {
-      return { copy, generatedCopy, model, platforms: review.platforms };
-    }
+    return { copy, generatedCopy, model, platforms: review.platforms };
   }
 }
 
@@ -319,29 +338,41 @@ export function findPendingPlatforms(
   );
 }
 
-function printPreview(
-  copy: GeneratedSocialCopy,
-  episode: SocialEpisode,
-  video?: PreparedVideo,
-): void {
+export function withBrandCta(copy: GeneratedSocialCopy): GeneratedSocialCopy {
+  return {
+    ...copy,
+    x: { text: appendBrandCta(copy.x.text) },
+    rednote: {
+      ...copy.rednote,
+      body: appendBrandCta(copy.rednote.body),
+    },
+  };
+}
+
+function printPreview(copy: GeneratedSocialCopy, assets: SocialAssets): void {
+  const { episode, video, xVideo } = assets;
   const divider = '────────────────────────';
   console.log(`\nTaxonomy: ${copy.topic} / ${copy.hookType}`);
   console.log(`\n${divider}\nX\n${divider}`);
-  console.log(`${copy.x.text}\n\n${episode.episodeUrl}`);
+  console.log(copy.x.text);
+  console.log(
+    xVideo
+      ? `🎬 teaser: ${formatDuration(xVideoDuration(episode.videoDurationSeconds))}, ${formatBytes(xVideo.sizeBytes)}\n${xVideo.path}`
+      : '🎬 teaser: not prepared for this platform selection',
+  );
   console.log(`${divider}\nTHREADS\n${divider}`);
   console.log(copy.x.text);
-  console.log(`🔗 ${episode.episodeUrl}`);
+  console.log(`🎬 native video: ${requireCanonicalVideoUrl(episode)}`);
   console.log(`${divider}\nREDNOTE\n${divider}`);
   console.log('標題：');
   console.log(copy.rednote.title);
   console.log('正文：');
   console.log(copy.rednote.body);
   console.log(copy.rednote.hashtags.map((tag) => `#${tag}`).join(' '));
-  const cacheSuffix = video?.reused ? ', cached' : '';
   console.log(
     video
-      ? `🎬 video: ${formatDuration(episode.videoDurationSeconds)}, ${formatBytes(video.sizeBytes)}${cacheSuffix}\n${video.path}`
-      : `🎬 video: ${formatDuration(episode.videoDurationSeconds)} (not downloaded; selected platforms do not require video)`,
+      ? `🎬 video: ${formatDuration(episode.videoDurationSeconds)}, ${formatBytes(video.sizeBytes)}\n${video.path}`
+      : `🎬 video: ${formatDuration(episode.videoDurationSeconds)} (remote only / not downloaded)`,
   );
   console.log(divider);
 }
@@ -404,6 +435,21 @@ async function editCopy(
       { cause: error },
     );
   }
+}
+
+function requireCanonicalVideoUrl(episode: SocialEpisode): string {
+  const videoUrl = episode.videos.zh?.trim();
+  if (!videoUrl) {
+    throw new Error(
+      `No completed zh video found for episode ${episode.id}. Social publishing aborted.`,
+    );
+  }
+  return videoUrl;
+}
+
+function xVideoDuration(fullDurationSeconds: number): number {
+  if (fullDurationSeconds <= X_VIDEO_LIMIT_SECONDS) return fullDurationSeconds;
+  return X_TEASER_CONTENT_SECONDS + OUTRO_TAIL_MS / 1_000;
 }
 
 async function promptLine(message: string): Promise<string> {

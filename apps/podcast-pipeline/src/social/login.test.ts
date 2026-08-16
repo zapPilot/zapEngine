@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   runXLogin: vi.fn(),
 }));
 
-vi.mock('./opencli.js', () => ({
+vi.mock('./x-playwright.js', () => ({
   isXSessionReady: mocks.isXSessionReady,
   runXLogin: mocks.runXLogin,
 }));
@@ -35,10 +35,7 @@ beforeEach(() => {
       username: 'zap',
       expiresAt: Date.now() + 60_000,
     },
-    profile: {
-      id: 'threads-1',
-      username: 'zap',
-    },
+    profile: { id: 'threads-1', username: 'zap' },
   });
   mocks.isRednoteSessionReady.mockResolvedValue(true);
 });
@@ -46,9 +43,7 @@ beforeEach(() => {
 describe('runSocialLogin', () => {
   it('only reports already-ready platforms without opening login flows', async () => {
     const log = vi.fn();
-
     await runSocialLogin(log);
-
     expect(mocks.runXLogin).not.toHaveBeenCalled();
     expect(mocks.runRednoteLogin).not.toHaveBeenCalled();
     expect(log.mock.calls.map(([message]) => message)).toEqual([
@@ -69,11 +64,9 @@ describe('runSocialLogin', () => {
 
     await runSocialLogin(log);
 
-    expect(mocks.runXLogin).toHaveBeenCalledOnce();
+    expect(mocks.runXLogin).toHaveBeenCalledWith(log);
     expect(mocks.runRednoteLogin).toHaveBeenCalledWith(log);
-    expect(log).toHaveBeenCalledWith(
-      '• X is not logged in. Starting OpenCLI login...',
-    );
+    expect(log).toHaveBeenCalledWith('• X is not logged in. Opening Chrome...');
     expect(log).toHaveBeenCalledWith(
       '• Rednote is not logged in. Opening Chrome...',
     );
@@ -88,7 +81,6 @@ describe('runSocialLogin', () => {
     await expect(runSocialLogin(log)).rejects.toThrow(
       'Social login incomplete: Threads.',
     );
-
     expect(mocks.isRednoteSessionReady).toHaveBeenCalledOnce();
     expect(log).toHaveBeenCalledWith(
       '✗ Threads: Threads API 401: Invalid OAuth access token.',
@@ -102,10 +94,9 @@ describe('runSocialLogin', () => {
     await expect(runSocialLogin(log)).rejects.toThrow(
       'Social login incomplete: X.',
     );
-
-    expect(mocks.runXLogin).toHaveBeenCalledOnce();
+    expect(mocks.runXLogin).toHaveBeenCalledWith(log);
     expect(log).toHaveBeenCalledWith(
-      '✗ X: OpenCLI login finished but X is still not authenticated.',
+      '✗ X: X login finished but the publisher is still not authenticated.',
     );
   });
 });
