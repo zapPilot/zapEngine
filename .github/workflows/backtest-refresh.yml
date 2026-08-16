@@ -47,6 +47,12 @@ jobs:
       - name: Sync landing strategy snapshot
         run: pnpm lint snapshot-sync --fix
 
+      - name: Format landing backtest artifacts
+        run: |
+          pnpm --filter @zapengine/landing-page exec prettier --write \
+            src/data/strategy-snapshot.json \
+            src/data/equity-curve.json
+
       - name: Verify curve reaches the reference date
         run: |
           last_date="$(node -e "const c=require('./apps/landing-page/src/data/equity-curve.json'); const v=c.series[0].values; process.stdout.write(v[v.length-1].date)")"
