@@ -128,6 +128,7 @@ function projectPlatformCopy(
     };
   }
 
+  const teaserDuration = xTeaserDurationSeconds(videoDurationSeconds);
   return {
     generatedTitle: null,
     publishedTitle: null,
@@ -136,8 +137,7 @@ function projectPlatformCopy(
     hashtags: [],
     videoDurationSec:
       platform === 'x'
-        ? (xVideoDurationSeconds ??
-          xTeaserDurationSeconds(videoDurationSeconds))
-        : videoDurationSeconds,
+        ? (xVideoDurationSeconds ?? teaserDuration)
+        : teaserDuration,
   };
 }

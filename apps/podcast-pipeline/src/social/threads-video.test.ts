@@ -13,9 +13,9 @@ const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    temporaryDirectories.splice(0).map((directory) =>
-      rm(directory, { recursive: true, force: true }),
-    ),
+    temporaryDirectories
+      .splice(0)
+      .map((directory) => rm(directory, { recursive: true, force: true })),
   );
 });
 
@@ -61,8 +61,8 @@ describe('prepareThreadsVideoUrl', () => {
       return { stdout: '', stderr: '' };
     });
     const uploadVideo = vi.fn(async () => undefined);
-    const fetchImpl = vi.fn(async () =>
-      new Response(new Uint8Array([1, 2, 3]), { status: 200 }),
+    const fetchImpl = vi.fn(
+      async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 }),
     );
 
     const first = await prepareThreadsVideoUrl(

@@ -93,7 +93,7 @@ describe('buildSocialPostRecord', () => {
     ).toBe(133);
   });
 
-  it('records the full native video duration for Threads', () => {
+  it('records the platform-safe teaser duration for Threads', () => {
     expect(
       buildSocialPostRecord({
         episodeId: 'episode-1',
@@ -105,7 +105,7 @@ describe('buildSocialPostRecord', () => {
     ).toMatchObject({
       platform: 'threads',
       platformPostId: 'thread-1',
-      videoDurationSec: 321,
+      videoDurationSec: 132.8,
       generatedTitle: null,
       publishedTitle: null,
     });

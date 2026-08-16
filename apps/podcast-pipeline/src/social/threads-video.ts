@@ -84,7 +84,10 @@ async function prepareTeaserFromRemoteSource(input: {
   processRunner: VideoProcessRunner;
   ffmpegPath: string;
 }): Promise<string> {
-  const sourcePath = join(input.tempDir, `threads-${input.sourceHash}-source.mp4`);
+  const sourcePath = join(
+    input.tempDir,
+    `threads-${input.sourceHash}-source.mp4`,
+  );
   if (!(await isNonemptyFile(sourcePath))) {
     const response = await input.fetchImpl(input.sourceUrl);
     if (!response.ok || !response.body) {
