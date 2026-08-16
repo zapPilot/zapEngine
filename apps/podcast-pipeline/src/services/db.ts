@@ -3,29 +3,30 @@ import {
   normalizeLanguageClassroomLesson,
 } from '../lib/languageClassroom.js';
 import type { SocialPlatform } from '../social/platforms.js';
-import type {
-  Article,
-  EpisodeFeedResponse,
-  EpisodeFeedRow,
-  EpisodeListRow,
-  EpisodeLocalizationRow,
-  EpisodeResponse,
-  EpisodeRow,
-  EpisodeStatus,
-  EpisodeVideoGenerationPublicStatus,
-  EpisodeVideoGenerationSummary,
-  EpisodeVideoResponse,
-  LanguageClassroomKeyword,
-  LanguageClassroomLesson,
-  LanguageClassroomRow,
-  NewEpisode,
-  NewEpisodeLocalization,
-  NewLanguageClassroom,
-  NewSocialPost,
-  NewSocialPostMetric,
-  PublishedEpisodeCatalog,
-  SocialPostMetricRow,
-  SocialPostRow,
+import {
+  type Article,
+  type EpisodeFeedResponse,
+  type EpisodeFeedRow,
+  type EpisodeListRow,
+  type EpisodeLocalizationRow,
+  type EpisodeResponse,
+  type EpisodeRow,
+  type EpisodeStatus,
+  type EpisodeVideoGenerationPublicStatus,
+  type EpisodeVideoGenerationSummary,
+  type EpisodeVideoResponse,
+  type LanguageClassroomKeyword,
+  type LanguageClassroomLesson,
+  type LanguageClassroomRow,
+  type NewEpisode,
+  type NewEpisodeLocalization,
+  type NewLanguageClassroom,
+  type NewSocialPost,
+  type NewSocialPostMetric,
+  type PublishedEpisodeCatalog,
+  type SocialPostMetricRow,
+  type SocialPostRow,
+  toSocialMetricCounters,
 } from '../types.js';
 import {
   getPipelineSupabase as getSupabase,
@@ -623,15 +624,16 @@ export async function insertSocialPost(
   return data;
 }
 
-export async function listSocialPostsByEpisode(
-  episodeId: string,
-  platform: SocialPlatform,
+type SocialPostsQuery = ReturnType<
+  ReturnType<ReturnType<typeof getSupabase>['from']>['select']
+>;
+
+async function listSocialPosts(
+  filters: (query: SocialPostsQuery) => SocialPostsQuery,
 ): Promise<SocialPostRow[]> {
-  const { data, error } = await getSupabase()
-    .from('social_posts')
-    .select('*')
-    .eq('episode_id', episodeId)
-    .eq('platform', platform)
+  const { data, error } = await filters(
+    getSupabase().from('social_posts').select('*'),
+  )
     .order('published_at', { ascending: false })
     .returns<SocialPostRow[]>();
 
@@ -642,21 +644,19 @@ export async function listSocialPostsByEpisode(
   return data ?? [];
 }
 
+export async function listSocialPostsByEpisode(
+  episodeId: string,
+  platform: SocialPlatform,
+): Promise<SocialPostRow[]> {
+  return listSocialPosts((query) =>
+    query.eq('episode_id', episodeId).eq('platform', platform),
+  );
+}
+
 export async function listRecentSocialPosts(
   publishedSince: string,
 ): Promise<SocialPostRow[]> {
-  const { data, error } = await getSupabase()
-    .from('social_posts')
-    .select('*')
-    .gte('published_at', publishedSince)
-    .order('published_at', { ascending: false })
-    .returns<SocialPostRow[]>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data ?? [];
+  return listSocialPosts((query) => query.gte('published_at', publishedSince));
 }
 
 export async function updateSocialPostIdentity(input: {
@@ -704,12 +704,7 @@ export function toSocialPostMetricInsertPayload(
     ...(metric.measurementWindow
       ? { measurement_window: metric.measurementWindow }
       : {}),
-    views: metric.views,
-    impressions: metric.impressions,
-    likes: metric.likes,
-    comments: metric.comments,
-    shares: metric.shares,
-    saves: metric.saves,
+    ...toSocialMetricCounters(metric),
     profile_visits: metric.profileVisits,
     followers_gained: metric.followersGained,
     details: metric.details ?? {},

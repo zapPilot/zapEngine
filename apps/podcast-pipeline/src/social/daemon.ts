@@ -1,6 +1,6 @@
 import { hostname } from 'node:os';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 import dotenv from 'dotenv';
 
@@ -25,8 +25,9 @@ import {
   listSocialPublishCandidates,
   type SocialMetricWindowLabel,
 } from './daemon-store.js';
+import { runWhenDirectlyInvoked } from './entrypoint.js';
 import { createMetricCollectors } from './metric-collectors.js';
-import { buildSocialPostMetric } from './metrics.js';
+import { buildSocialPostMetric, collectMetricsOrNull } from './metrics.js';
 import { SOCIAL_PLATFORMS, type SocialPlatform } from './platforms.js';
 import {
   activeStrategyMap,
@@ -263,20 +264,17 @@ export async function collectDueMetricWindows(
     if (!window) continue;
 
     try {
-      const collected = await collectors[post.platform](post);
-      const { details, ...counts } = collected;
-      if (
-        Object.values(counts).every((value) => value === null) &&
-        (!details || Object.keys(details).length === 0)
-      ) {
-        continue;
-      }
+      const collected = await collectMetricsOrNull(
+        collectors[post.platform],
+        post,
+      );
+      if (!collected) continue;
       await insertSocialPostMetric(
         buildSocialPostMetric({
           post,
           capturedAt: now,
-          counts,
-          details,
+          counts: collected.counts,
+          details: collected.details,
           measurementWindow: window.label,
         }),
       );
@@ -329,9 +327,4 @@ function defaultSleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-const invokedPath = process.argv[1]
-  ? pathToFileURL(resolve(process.argv[1])).href
-  : null;
-if (invokedPath === import.meta.url) {
-  await runSocialDaemon();
-}
+await runWhenDirectlyInvoked(import.meta.url, runSocialDaemon);

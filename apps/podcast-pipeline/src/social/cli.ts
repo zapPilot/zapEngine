@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import dotenv from 'dotenv';
@@ -12,6 +12,7 @@ import { ZAP_PILOT_SITE_URL } from '../brand/cta.js';
 import { OUTRO_TAIL_MS } from '../services/video/manifest.js';
 import { parsePlatformOption, requireEpisodeArgument } from './cli-args.js';
 import { generateSocialCopy, parseGeneratedSocialCopy } from './copy.js';
+import { runWhenDirectlyInvoked } from './entrypoint.js';
 import { getSocialEpisode } from './episode.js';
 import {
   applyPlatformCta,
@@ -548,14 +549,6 @@ function formatDuration(value: number): string {
   return `${minutes}m ${remainder.toString().padStart(2, '0')}s`;
 }
 
-const invokedPath = process.argv[1]
-  ? pathToFileURL(resolve(process.argv[1])).href
-  : null;
-if (invokedPath === import.meta.url) {
-  try {
-    await runSocialCli(process.argv.slice(2));
-  } catch (error: unknown) {
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exitCode = 1;
-  }
-}
+await runWhenDirectlyInvoked(import.meta.url, () =>
+  runSocialCli(process.argv.slice(2)),
+);

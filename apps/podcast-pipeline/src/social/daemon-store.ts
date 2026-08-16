@@ -156,6 +156,22 @@ export async function claimSocialPublishJob(input: {
   return rows[0] ?? null;
 }
 
+async function updateSocialPublishJob(
+  jobId: string,
+  owner: string,
+  update: Record<string, unknown>,
+): Promise<void> {
+  const { data, error } = await getPipelineSupabase()
+    .from('social_publish_jobs')
+    .update(update)
+    .eq('id', jobId)
+    .eq('lease_owner', owner)
+    .select('id')
+    .maybeSingle<{ id: string }>();
+  if (error) throwSupabaseError(error);
+  if (!data) throw new Error(`Social publish job ${jobId} lease was lost.`);
+}
+
 export async function completeSocialPublishJob(input: {
   jobId: string;
   owner: string;
@@ -163,24 +179,15 @@ export async function completeSocialPublishJob(input: {
   socialPostId?: string | null;
 }): Promise<void> {
   const completedAt = input.completedAt.toISOString();
-  const { data, error } = await getPipelineSupabase()
-    .from('social_publish_jobs')
-    .update({
-      status: 'completed',
-      completed_at: completedAt,
-      social_post_id: input.socialPostId ?? null,
-      lease_owner: null,
-      lease_expires_at: null,
-      last_error: null,
-      updated_at: completedAt,
-    })
-    .eq('id', input.jobId)
-    .eq('lease_owner', input.owner)
-    .select('id')
-    .maybeSingle<{ id: string }>();
-  if (error) throwSupabaseError(error);
-  if (!data)
-    throw new Error(`Social publish job ${input.jobId} lease was lost.`);
+  await updateSocialPublishJob(input.jobId, input.owner, {
+    status: 'completed',
+    completed_at: completedAt,
+    social_post_id: input.socialPostId ?? null,
+    lease_owner: null,
+    lease_expires_at: null,
+    last_error: null,
+    updated_at: completedAt,
+  });
 }
 
 export async function failSocialPublishJob(input: {
@@ -193,23 +200,14 @@ export async function failSocialPublishJob(input: {
   const nextAttemptAt = new Date(
     input.now.getTime() + publishRetryDelayMs(input.attemptCount),
   ).toISOString();
-  const { data, error } = await getPipelineSupabase()
-    .from('social_publish_jobs')
-    .update({
-      status: 'failed',
-      next_attempt_at: nextAttemptAt,
-      lease_owner: null,
-      lease_expires_at: null,
-      last_error: input.error.slice(0, 4_000),
-      updated_at: input.now.toISOString(),
-    })
-    .eq('id', input.jobId)
-    .eq('lease_owner', input.owner)
-    .select('id')
-    .maybeSingle<{ id: string }>();
-  if (error) throwSupabaseError(error);
-  if (!data)
-    throw new Error(`Social publish job ${input.jobId} lease was lost.`);
+  await updateSocialPublishJob(input.jobId, input.owner, {
+    status: 'failed',
+    next_attempt_at: nextAttemptAt,
+    lease_owner: null,
+    lease_expires_at: null,
+    last_error: input.error.slice(0, 4_000),
+    updated_at: input.now.toISOString(),
+  });
 }
 
 export function publishRetryDelayMs(attemptCount: number): number {
