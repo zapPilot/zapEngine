@@ -283,6 +283,21 @@ export interface NewSocialPost {
   llmModel: string | null;
 }
 
+export interface SocialAudienceDemographics {
+  gender?: Record<string, number>;
+  age?: Record<string, number>;
+}
+
+export interface SocialPostMetricDetails {
+  engagedViews?: number;
+  coverCtr?: number;
+  fiveSecondRetentionRate?: number;
+  averageViewDurationSec?: number;
+  averageViewPercentage?: number;
+  audienceDemographics?: SocialAudienceDemographics;
+  platformMetrics?: Record<string, number | string | boolean | null>;
+}
+
 export interface SocialPostMetricRow {
   id: string;
   social_post_id: string;
@@ -296,6 +311,7 @@ export interface SocialPostMetricRow {
   saves: number | null;
   profile_visits: number | null;
   followers_gained: number | null;
+  details: SocialPostMetricDetails;
   created_at: string;
 }
 
@@ -317,5 +333,6 @@ export interface NewSocialPostMetric {
   saves: number | null;
   profileVisits: number | null;
   followersGained: number | null;
+  details?: SocialPostMetricDetails;
 }
 // jscpd:ignore-end

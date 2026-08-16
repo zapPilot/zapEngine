@@ -43,6 +43,10 @@ export interface SocialContentFeatures {
   hashtagCount: number;
   /** True when a missing telemetry row was reconstructed from the live platform. */
   telemetryRecovered?: boolean;
+  /** Optional immutable technical media score produced by render inspection. */
+  mediaQuality?: {
+    score: number;
+  };
 }
 
 export interface SocialEpisode {

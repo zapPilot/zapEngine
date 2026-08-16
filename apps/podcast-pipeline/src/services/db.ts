@@ -709,7 +709,25 @@ export function toSocialPostMetricInsertPayload(
     saves: metric.saves,
     profile_visits: metric.profileVisits,
     followers_gained: metric.followersGained,
+    details: metric.details ?? {},
   };
+}
+
+export async function listSocialPostMetrics(
+  capturedSince: string,
+): Promise<SocialPostMetricRow[]> {
+  const { data, error } = await getSupabase()
+    .from('social_post_metrics')
+    .select('*')
+    .gte('captured_at', capturedSince)
+    .order('captured_at', { ascending: false })
+    .returns<SocialPostMetricRow[]>();
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  return data ?? [];
 }
 
 export async function insertSocialPostMetric(

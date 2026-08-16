@@ -1463,6 +1463,7 @@ describe('social post metrics', () => {
       saves: null,
       profile_visits: 9,
       followers_gained: -1,
+      details: {},
     };
     const row = {
       id: 'social-post-metric-1',

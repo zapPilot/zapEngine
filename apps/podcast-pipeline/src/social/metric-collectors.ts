@@ -1,8 +1,8 @@
 import { chromium, type Page } from 'playwright-core';
 
 import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
-import type { SocialPostRow } from '../types.js';
-import type { SocialMetricCounts } from './metrics.js';
+import type { SocialPostMetricDetails, SocialPostRow } from '../types.js';
+import type { CollectedSocialMetrics, SocialMetricCounts } from './metrics.js';
 import { PROFILE_DIRECTORY as REDNOTE_PROFILE_DIRECTORY } from './rednote-browser.js';
 import {
   assertThreadsSessionReady,
@@ -24,7 +24,7 @@ const BROWSER_TIMEOUT_MS = 30_000;
 
 export type SocialMetricCollector = (
   post: SocialPostRow,
-) => Promise<SocialMetricCounts>;
+) => Promise<CollectedSocialMetrics>;
 
 export interface RecoveredPublishedPost {
   platformPostId: string;
@@ -113,7 +113,7 @@ export async function collectThreadsMetrics(
 export async function collectYouTubeMetrics(
   post: SocialPostRow,
   fetchImpl: typeof fetch = fetch,
-): Promise<SocialMetricCounts> {
+): Promise<CollectedSocialMetrics> {
   const videoId = requirePlatformPostId(post);
   const session = await assertYouTubeSessionReady({
     fetchImpl,
@@ -134,9 +134,14 @@ export async function collectYouTubeMetrics(
   }
   const statistics = extractYouTubeStatistics(dataPayload, videoId);
 
-  let analytics: { shares: number | null; subscribersGained: number | null } = {
+  let analytics: {
+    shares: number | null;
+    subscribersGained: number | null;
+    details: SocialPostMetricDetails;
+  } = {
     shares: null,
     subscribersGained: null,
+    details: {},
   };
   try {
     analytics = await fetchYouTubeAnalytics(
@@ -157,6 +162,7 @@ export async function collectYouTubeMetrics(
     comments: statistics.comments,
     shares: analytics.shares,
     followersGained: analytics.subscribersGained,
+    details: analytics.details,
   };
 }
 
@@ -534,33 +540,157 @@ async function fetchYouTubeAnalytics(
   videoId: string,
   accessToken: string,
   fetchImpl: typeof fetch,
-): Promise<{ shares: number | null; subscribersGained: number | null }> {
+): Promise<{
+  shares: number | null;
+  subscribersGained: number | null;
+  details: SocialPostMetricDetails;
+}> {
+  const summary = await queryYouTubeAnalytics({
+    post,
+    videoId,
+    accessToken,
+    fetchImpl,
+    metrics:
+      'shares,subscribersGained,engagedViews,averageViewDuration,averageViewPercentage',
+  });
+  const row = firstAnalyticsRow(summary);
+  const details: SocialPostMetricDetails = {};
+  if (row) {
+    const engagedViews = numeric(row[2]);
+    const averageViewDurationSec = numeric(row[3]);
+    const averageViewPercentage = numeric(row[4]);
+    if (engagedViews !== null) details.engagedViews = engagedViews;
+    if (averageViewDurationSec !== null)
+      details.averageViewDurationSec = averageViewDurationSec;
+    if (averageViewPercentage !== null)
+      details.averageViewPercentage = averageViewPercentage / 100;
+  }
+
+  try {
+    const demographics = await queryYouTubeAnalytics({
+      post,
+      videoId,
+      accessToken,
+      fetchImpl,
+      metrics: 'viewerPercentage',
+      dimensions: 'ageGroup,gender',
+    });
+    const parsed = parseYouTubeDemographics(demographics);
+    if (parsed) details.audienceDemographics = parsed;
+  } catch {
+    // Demographic reports are privacy-thresholded and can be unavailable for
+    // small audiences. Keep the snapshot useful without fabricating zeros.
+  }
+
+  try {
+    const retention = await queryYouTubeAnalytics({
+      post,
+      videoId,
+      accessToken,
+      fetchImpl,
+      metrics: 'audienceWatchRatio',
+      dimensions: 'elapsedVideoTimeRatio',
+    });
+    const fiveSecondRetentionRate = findRetentionAtSeconds(
+      retention,
+      5,
+      post.video_duration_sec,
+    );
+    if (fiveSecondRetentionRate !== null)
+      details.fiveSecondRetentionRate = fiveSecondRetentionRate;
+  } catch {
+    // Audience-retention reports can lag behind public counters.
+  }
+
+  return {
+    shares: row ? numeric(row[0]) : null,
+    subscribersGained: row ? numeric(row[1]) : null,
+    details,
+  };
+}
+
+async function queryYouTubeAnalytics(input: {
+  post: SocialPostRow;
+  videoId: string;
+  accessToken: string;
+  fetchImpl: typeof fetch;
+  metrics: string;
+  dimensions?: string;
+}): Promise<unknown> {
   const url = new URL(YOUTUBE_ANALYTICS_API);
   url.searchParams.set('ids', 'channel==MINE');
-  url.searchParams.set('startDate', post.published_at.slice(0, 10));
+  url.searchParams.set('startDate', input.post.published_at.slice(0, 10));
   url.searchParams.set('endDate', new Date().toISOString().slice(0, 10));
-  url.searchParams.set('metrics', 'shares,subscribersGained');
-  url.searchParams.set('filters', `video==${videoId}`);
-  const response = await fetchImpl(url, {
-    headers: { authorization: `Bearer ${accessToken}` },
+  url.searchParams.set('metrics', input.metrics);
+  url.searchParams.set('filters', `video==${input.videoId}`);
+  if (input.dimensions) url.searchParams.set('dimensions', input.dimensions);
+
+  const response = await input.fetchImpl(url, {
+    headers: { authorization: `Bearer ${input.accessToken}` },
     signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
   });
   const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok)
     throw new Error(`YouTube Analytics failed with HTTP ${response.status}.`);
+  if (!isRecord(payload) || !Array.isArray(payload['rows'])) {
+    throw new Error('YouTube Analytics returned an invalid response.');
+  }
+  return payload;
+}
+
+function firstAnalyticsRow(payload: unknown): unknown[] | null {
+  if (!isRecord(payload) || !Array.isArray(payload['rows'])) return null;
+  const row = payload['rows'][0];
+  return Array.isArray(row) ? row : null;
+}
+
+export function parseYouTubeDemographics(
+  payload: unknown,
+): SocialPostMetricDetails['audienceDemographics'] | null {
+  if (!isRecord(payload) || !Array.isArray(payload['rows'])) return null;
+  const gender: Record<string, number> = {};
+  const age: Record<string, number> = {};
+  let found = false;
+  for (const row of payload['rows']) {
+    if (!Array.isArray(row) || row.length < 3) continue;
+    const ageGroup = typeof row[0] === 'string' ? row[0] : null;
+    const genderKey = typeof row[1] === 'string' ? row[1] : null;
+    const percentage = numeric(row[2]);
+    if (!ageGroup || !genderKey || percentage === null) continue;
+    const fraction = percentage / 100;
+    age[ageGroup] =
+      Math.round(((age[ageGroup] ?? 0) + fraction) * 1_000_000) / 1_000_000;
+    gender[genderKey] =
+      Math.round(((gender[genderKey] ?? 0) + fraction) * 1_000_000) / 1_000_000;
+    found = true;
+  }
+  return found ? { age, gender } : null;
+}
+
+export function findRetentionAtSeconds(
+  payload: unknown,
+  seconds: number,
+  durationSeconds: number | null,
+): number | null {
   if (
     !isRecord(payload) ||
     !Array.isArray(payload['rows']) ||
-    payload['rows'].length === 0
+    durationSeconds === null ||
+    durationSeconds <= 0
   ) {
-    return { shares: null, subscribersGained: null };
+    return null;
   }
-  const row = payload['rows'][0];
-  if (!Array.isArray(row)) return { shares: null, subscribersGained: null };
-  return {
-    shares: numeric(row[0]),
-    subscribersGained: numeric(row[1]),
-  };
+  const targetRatio = Math.min(1, Math.max(0, seconds / durationSeconds));
+  let best: { distance: number; value: number } | null = null;
+  for (const row of payload['rows']) {
+    if (!Array.isArray(row) || row.length < 2) continue;
+    const ratio = numeric(row[0]);
+    const value = numeric(row[1]);
+    if (ratio === null || value === null) continue;
+    const distance = Math.abs(ratio - targetRatio);
+    if (!best || distance < best.distance) best = { distance, value };
+  }
+  return best?.value ?? null;
 }
 
 function extractYouTubeStatistics(payload: unknown, videoId: string) {

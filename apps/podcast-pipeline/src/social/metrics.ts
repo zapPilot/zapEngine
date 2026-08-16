@@ -11,7 +11,11 @@ import {
   listSocialPostsByEpisode,
   updateSocialPostIdentity,
 } from '../services/db.js';
-import type { NewSocialPostMetric, SocialPostRow } from '../types.js';
+import type {
+  NewSocialPostMetric,
+  SocialPostMetricDetails,
+  SocialPostRow,
+} from '../types.js';
 import { parsePlatformOption, requireEpisodeArgument } from './cli-args.js';
 import { createMetricCollectors } from './metric-collectors.js';
 import { platformLabel, SOCIAL_PLATFORMS } from './platforms.js';
@@ -37,7 +41,7 @@ dotenv.config({ path: resolve(REPO_ROOT, '.env') });
 
 export type SocialMetricCounts = Omit<
   NewSocialPostMetric,
-  'socialPostId' | 'capturedAt' | 'ageHours'
+  'socialPostId' | 'capturedAt' | 'ageHours' | 'details'
 >;
 
 const METRIC_LABELS: Record<keyof SocialMetricCounts, string> = {
@@ -49,6 +53,10 @@ const METRIC_LABELS: Record<keyof SocialMetricCounts, string> = {
   saves: 'saves',
   profileVisits: 'profile visits',
   followersGained: 'followers gained',
+};
+
+export type CollectedSocialMetrics = SocialMetricCounts & {
+  details?: SocialPostMetricDetails;
 };
 
 export interface SocialMetricsCliOptions {
@@ -154,14 +162,23 @@ export async function runAutomaticSocialMetricsCollector(input: {
   let failed = 0;
   for (const post of posts) {
     try {
-      const counts = await collectors[post.platform](post);
-      if (Object.values(counts).every((value) => value === null)) {
+      const collected = await collectors[post.platform](post);
+      const { details, ...counts } = collected;
+      if (
+        Object.values(counts).every((value) => value === null) &&
+        (!details || Object.keys(details).length === 0)
+      ) {
         input.log(
           `- ${platformLabel(post.platform)} ${post.id}: no metrics available yet.`,
         );
         continue;
       }
-      const metric = buildSocialPostMetric({ post, capturedAt, counts });
+      const metric = buildSocialPostMetric({
+        post,
+        capturedAt,
+        counts,
+        details,
+      });
       await input.insertMetric(metric);
       input.log(formatMetricsSummary(post, metric));
       recorded += 1;
@@ -267,6 +284,7 @@ export function buildSocialPostMetric(input: {
   post: SocialPostRow;
   capturedAt: Date;
   counts: SocialMetricCounts;
+  details?: SocialPostMetricDetails;
 }): NewSocialPostMetric {
   const publishedAt = new Date(input.post.published_at);
   if (Number.isNaN(publishedAt.getTime())) {
@@ -284,6 +302,7 @@ export function buildSocialPostMetric(input: {
     // platform timestamp must not reject an otherwise valid snapshot.
     ageHours: Math.round(Math.max(0, elapsedHours) * 100) / 100,
     ...input.counts,
+    ...(input.details ? { details: input.details } : {}),
   };
 }
 

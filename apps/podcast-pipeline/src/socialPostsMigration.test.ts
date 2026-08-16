@@ -11,6 +11,9 @@ const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
 const migration025 = readRepoFile(
   'apps/podcast-pipeline/supabase/migrations/025_add_social_posts.sql',
 );
+const migration028 = readRepoFile(
+  'apps/podcast-pipeline/supabase/migrations/028_add_social_metric_details.sql',
+);
 const sources = [
   ['schema.sql', schema],
   ['migration 025', migration025],
@@ -41,10 +44,33 @@ const nonNegativeMetricColumns = [
 ] as const satisfies readonly (keyof SocialPostMetricRow)[];
 
 describe('social publishing telemetry schema', () => {
-  it('keeps the append-only metrics definition aligned with migration 025', () => {
-    expect(canonicalTableDefinition(schema, 'social_post_metrics')).toBe(
-      canonicalTableDefinition(migration025, 'social_post_metrics'),
+  it('keeps migration 025 as the append-only metrics baseline and applies details in migration 028', () => {
+    const baseline = canonicalTableDefinition(
+      migration025,
+      'social_post_metrics',
     );
+    for (const column of [
+      'social_post_id',
+      'captured_at',
+      'age_hours',
+      'views',
+      'impressions',
+      'likes',
+      'comments',
+      'shares',
+      'saves',
+      'profile_visits',
+      'followers_gained',
+    ]) {
+      expect(baseline).toMatch(new RegExp(`\\b${column}\\b`, 'i'));
+    }
+    expect(migration028).toMatch(
+      /add column if not exists details jsonb not null default '\{\}'::jsonb/i,
+    );
+    expect(migration028).toMatch(
+      /constraint social_post_metrics_details_is_object check\s*\(\s*jsonb_typeof\(details\) = 'object'/i,
+    );
+    expect(schema).toMatch(/details jsonb not null default '\{\}'::jsonb/i);
   });
 
   it.each(sources)(
@@ -134,6 +160,11 @@ describe('social publishing telemetry schema', () => {
       }
       expect(metrics).toMatch(/followers_gained integer/i);
       expect(metrics).not.toMatch(/followers_gained integer\s+check/i);
+      if (_name === 'schema.sql') {
+        expect(metrics).toMatch(
+          /details jsonb not null default '\{\}'::jsonb/i,
+        );
+      }
       expect(sql).toMatch(
         /create index(?: if not exists)? idx_social_post_metrics_post_captured\s+on from_fed_to_chain\.social_post_metrics \(social_post_id, captured_at\)/i,
       );

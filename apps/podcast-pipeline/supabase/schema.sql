@@ -314,7 +314,11 @@ create table if not exists from_fed_to_chain.social_post_metrics (
   profile_visits integer check (profile_visits >= 0),
   -- Net delta, so it may be negative.
   followers_gained integer,
-  created_at timestamptz not null default now()
+  details jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  constraint social_post_metrics_details_is_object check (
+    jsonb_typeof(details) = 'object'
+  )
 );
 
 create index if not exists idx_episode_localizations_language_created

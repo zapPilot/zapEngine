@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   extractRednoteNoteId,
   extractXPostId,
+  findRetentionAtSeconds,
   parseClockDurationSeconds,
   parseFirstMetricNumber,
   parseMetricNumber,
   parseRednoteEditorText,
+  parseYouTubeDemographics,
 } from './metric-collectors.js';
 
 describe('metric collector parsing', () => {
@@ -48,6 +50,39 @@ describe('metric collector parsing', () => {
       body: '第一段\n\n第二段',
       hashtags: ['Manus', 'Meta', 'AI創業', '創業故事', '大模型'],
     });
+  });
+
+  it('normalizes YouTube demographics into fractional audience shares', () => {
+    expect(
+      parseYouTubeDemographics({
+        rows: [
+          ['age25-34', 'male', 40],
+          ['age25-34', 'female', 25],
+          ['age35-44', 'male', 20],
+          ['age35-44', 'female', 15],
+        ],
+      }),
+    ).toEqual({
+      age: { 'age25-34': 0.65, 'age35-44': 0.35 },
+      gender: { male: 0.6, female: 0.4 },
+    });
+  });
+
+  it('selects the audience-retention bucket nearest five seconds', () => {
+    expect(
+      findRetentionAtSeconds(
+        {
+          rows: [
+            [0, 1],
+            [0.04, 0.82],
+            [0.08, 0.71],
+          ],
+        },
+        5,
+        120,
+      ),
+    ).toBe(0.82);
+    expect(findRetentionAtSeconds({ rows: [] }, 5, null)).toBeNull();
   });
 
   it('extracts the Rednote note id from Creator Studio impression metadata', () => {
