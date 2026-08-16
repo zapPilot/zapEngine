@@ -106,8 +106,8 @@ describe('createSocialPublishJobs', () => {
       videoUrl: VIDEO_URL,
       xVideoPath: X_VIDEO_PATH,
     });
-    const withTeaser = mocks.createThreadsPublisher.mock.calls[0]?.[0]
-      ?.prepareVideoUrl;
+    const withTeaser =
+      mocks.createThreadsPublisher.mock.calls[0]?.[0]?.prepareVideoUrl;
     await expect(withTeaser?.(VIDEO_URL)).resolves.toEqual(expect.any(String));
 
     vi.clearAllMocks();
@@ -119,9 +119,11 @@ describe('createSocialPublishJobs', () => {
       copy,
       videoUrl: VIDEO_URL,
     });
-    const withoutTeaser = mocks.createThreadsPublisher.mock.calls[0]?.[0]
-      ?.prepareVideoUrl;
-    await expect(withoutTeaser?.(VIDEO_URL)).resolves.toEqual(expect.any(String));
+    const withoutTeaser =
+      mocks.createThreadsPublisher.mock.calls[0]?.[0]?.prepareVideoUrl;
+    await expect(withoutTeaser?.(VIDEO_URL)).resolves.toEqual(
+      expect.any(String),
+    );
   });
 
   it('does not instantiate X when X is not selected', async () => {

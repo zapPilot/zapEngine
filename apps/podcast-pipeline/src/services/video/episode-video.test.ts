@@ -147,7 +147,8 @@ describe('createEpisodeVideoManifest', () => {
         }),
       ).rejects.toThrow('Unsupported VIDEO_ALIGNMENT_PROVIDER');
     } finally {
-      if (previous === undefined) delete process.env['VIDEO_ALIGNMENT_PROVIDER'];
+      if (previous === undefined)
+        delete process.env['VIDEO_ALIGNMENT_PROVIDER'];
       else process.env['VIDEO_ALIGNMENT_PROVIDER'] = previous;
     }
   });

@@ -22,7 +22,11 @@ vi.mock('./db.js', async (importOriginal) => {
 describe('rankEpisodeSearchResults', () => {
   it('returns no results for punctuation-only queries and empty titles', () => {
     expect(
-      rankEpisodeSearchResults([row({ title: '', script: null })], '--- !!!', 20),
+      rankEpisodeSearchResults(
+        [row({ title: '', script: null })],
+        '--- !!!',
+        20,
+      ),
     ).toEqual([]);
   });
 
@@ -48,14 +52,41 @@ describe('rankEpisodeSearchResults', () => {
 
   it('covers exact, prefix, and contains scoring for title and script matches', () => {
     const exactTitle = row({ id: 'exact-title', title: 'alpha', script: null });
-    const prefixTitle = row({ id: 'prefix-title', title: 'alpha beta', script: null });
-    const containsTitle = row({ id: 'contains-title', title: 'zero alpha beta', script: null });
-    const scriptExact = row({ id: 'script-exact', title: 'other', script: 'alpha' });
-    const scriptPrefix = row({ id: 'script-prefix', title: 'other', script: 'alpha beta.' });
-    const scriptContains = row({ id: 'script-contains', title: 'other', script: 'zero alpha beta.' });
+    const prefixTitle = row({
+      id: 'prefix-title',
+      title: 'alpha beta',
+      script: null,
+    });
+    const containsTitle = row({
+      id: 'contains-title',
+      title: 'zero alpha beta',
+      script: null,
+    });
+    const scriptExact = row({
+      id: 'script-exact',
+      title: 'other',
+      script: 'alpha',
+    });
+    const scriptPrefix = row({
+      id: 'script-prefix',
+      title: 'other',
+      script: 'alpha beta.',
+    });
+    const scriptContains = row({
+      id: 'script-contains',
+      title: 'other',
+      script: 'zero alpha beta.',
+    });
 
     const result = rankEpisodeSearchResults(
-      [containsTitle, scriptContains, prefixTitle, scriptPrefix, exactTitle, scriptExact],
+      [
+        containsTitle,
+        scriptContains,
+        prefixTitle,
+        scriptPrefix,
+        exactTitle,
+        scriptExact,
+      ],
       'alpha',
       20,
     );
@@ -92,7 +123,11 @@ describe('rankEpisodeSearchResults', () => {
   it('covers short and long fuzzy thresholds for title and script', () => {
     const shortRows = [
       row({ id: 'short-title', title: 'ab xx bc xx cd', script: null }),
-      row({ id: 'short-script', title: 'unrelated', script: 'ab xx bc xx cd.' }),
+      row({
+        id: 'short-script',
+        title: 'unrelated',
+        script: 'ab xx bc xx cd.',
+      }),
     ];
     const longRows = [
       row({ id: 'long-title', title: 'abcde zz fghi', script: null }),
@@ -320,14 +355,18 @@ describe('EpisodeSearchService', () => {
   });
 
   it('does not cache an in-flight corpus invalidated before it resolves', async () => {
-    let resolveFirst: ((value: { rows: EpisodeListRow[]; nextCursor: null }) => void) | undefined;
+    let resolveFirst:
+      | ((value: { rows: EpisodeListRow[]; nextCursor: null }) => void)
+      | undefined;
     const loadPage = vi
       .fn()
       .mockImplementationOnce(
         () =>
-          new Promise<{ rows: EpisodeListRow[]; nextCursor: null }>((resolve) => {
-            resolveFirst = resolve;
-          }),
+          new Promise<{ rows: EpisodeListRow[]; nextCursor: null }>(
+            (resolve) => {
+              resolveFirst = resolve;
+            },
+          ),
       )
       .mockResolvedValue({
         rows: [row({ id: 'fresh', title: 'Liquidity fresh' })],

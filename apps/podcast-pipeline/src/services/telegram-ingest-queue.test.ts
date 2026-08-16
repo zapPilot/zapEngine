@@ -4,8 +4,9 @@ const mocks = vi.hoisted(() => ({
   perform: vi.fn(),
   invalidate: vi.fn(),
   send: vi.fn(),
-  audioReady: vi.fn((_summary: unknown, _episodeId: string, lifecycle: string) =>
-    `ready:${lifecycle}`,
+  audioReady: vi.fn(
+    (_summary: unknown, _episodeId: string, lifecycle: string) =>
+      `ready:${lifecycle}`,
   ),
   failure: vi.fn((_error: unknown, url: string) => `failed:${url}`),
   summary: vi.fn(() => ({ total: 1 })),
@@ -43,16 +44,19 @@ describe('Telegram ingest queue', () => {
     ['queued', { status: 'queued' }],
     ['completed', { status: 'completed' }],
     ['unavailable', null],
-  ] as const)('reports %s video lifecycle after ingest', async (expected, videoJob) => {
-    mocks.perform.mockResolvedValueOnce({ ingest: ingestResult(), videoJob });
-    const queue = createTelegramIngestQueue();
-    queue.enqueue('chat-1', `https://example.test/${expected}`, 'zh-Hant');
+  ] as const)(
+    'reports %s video lifecycle after ingest',
+    async (expected, videoJob) => {
+      mocks.perform.mockResolvedValueOnce({ ingest: ingestResult(), videoJob });
+      const queue = createTelegramIngestQueue();
+      queue.enqueue('chat-1', `https://example.test/${expected}`, 'zh-Hant');
 
-    await vi.waitFor(() =>
-      expect(mocks.send).toHaveBeenCalledWith('chat-1', `ready:${expected}`),
-    );
-    expect(mocks.invalidate).toHaveBeenCalledOnce();
-  });
+      await vi.waitFor(() =>
+        expect(mocks.send).toHaveBeenCalledWith('chat-1', `ready:${expected}`),
+      );
+      expect(mocks.invalidate).toHaveBeenCalledOnce();
+    },
+  );
 
   it('routes ingest failures to a retryable Telegram message', async () => {
     mocks.perform.mockRejectedValueOnce(new Error('ingest failed'));
@@ -69,8 +73,10 @@ describe('Telegram ingest queue', () => {
   });
 
   it('coalesces duplicate URLs and sends completion to the latest chat', async () => {
-    let resolve!: (value: unknown) => void;
-    mocks.perform.mockReturnValueOnce(new Promise((next) => (resolve = next)));
+    let resolvePromise!: (value: unknown) => void;
+    mocks.perform.mockReturnValueOnce(
+      new Promise((resolve) => (resolvePromise = resolve)),
+    );
     const queue = createTelegramIngestQueue();
     queue.enqueue('chat-old', 'https://example.test/same', 'zh-Hant');
     queue.enqueue('chat-new', 'https://example.test/same', 'zh-Hant');
@@ -78,7 +84,7 @@ describe('Telegram ingest queue', () => {
     await vi.waitFor(() =>
       expect(mocks.send).toHaveBeenCalledWith('chat-new', 'inflight'),
     );
-    resolve({ ingest: ingestResult(), videoJob: { status: 'queued' } });
+    resolvePromise({ ingest: ingestResult(), videoJob: { status: 'queued' } });
     await vi.waitFor(() =>
       expect(mocks.send).toHaveBeenCalledWith('chat-new', 'ready:queued'),
     );

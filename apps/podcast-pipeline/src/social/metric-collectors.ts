@@ -46,6 +46,23 @@ const EMPTY_COUNTS: SocialMetricCounts = {
   followersGained: null,
 };
 
+async function fetchJson(
+  url: URL,
+  fetchImpl: typeof fetch,
+  label: string,
+  init?: RequestInit,
+): Promise<unknown> {
+  const response = await fetchImpl(url, {
+    signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
+    ...init,
+  });
+  const payload = (await response.json().catch(() => null)) as unknown;
+  if (!response.ok) {
+    throw new Error(`${label} failed with HTTP ${response.status}.`);
+  }
+  return payload;
+}
+
 export function createMetricCollectors(input?: {
   fetchImpl?: typeof fetch;
   onRednoteIdentity?: (input: {
@@ -79,13 +96,7 @@ export async function collectThreadsMetrics(
   url.searchParams.set('metric', 'views,likes,replies,reposts,quotes,shares');
   url.searchParams.set('access_token', session.accessToken);
 
-  const response = await fetchImpl(url, {
-    signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
-  });
-  const payload = (await response.json().catch(() => null)) as unknown;
-  if (!response.ok) {
-    throw new Error(`Threads insights failed with HTTP ${response.status}.`);
-  }
+  const payload = await fetchJson(url, fetchImpl, 'Threads insights');
   if (!isRecord(payload) || !Array.isArray(payload['data'])) {
     throw new Error('Threads insights returned an invalid response.');
   }
@@ -122,16 +133,12 @@ export async function collectYouTubeMetrics(
   const dataUrl = new URL(YOUTUBE_DATA_API);
   dataUrl.searchParams.set('part', 'statistics');
   dataUrl.searchParams.set('id', videoId);
-  const dataResponse = await fetchImpl(dataUrl, {
-    headers: { authorization: `Bearer ${session.accessToken}` },
-    signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
-  });
-  const dataPayload = (await dataResponse.json().catch(() => null)) as unknown;
-  if (!dataResponse.ok) {
-    throw new Error(
-      `YouTube statistics failed with HTTP ${dataResponse.status}.`,
-    );
-  }
+  const dataPayload = await fetchJson(
+    dataUrl,
+    fetchImpl,
+    'YouTube statistics',
+    { headers: { authorization: `Bearer ${session.accessToken}` } },
+  );
   const statistics = extractYouTubeStatistics(dataPayload, videoId);
 
   let analytics: { shares: number | null; subscribersGained: number | null } = {
@@ -541,13 +548,9 @@ async function fetchYouTubeAnalytics(
   url.searchParams.set('endDate', new Date().toISOString().slice(0, 10));
   url.searchParams.set('metrics', 'shares,subscribersGained');
   url.searchParams.set('filters', `video==${videoId}`);
-  const response = await fetchImpl(url, {
+  const payload = await fetchJson(url, fetchImpl, 'YouTube Analytics', {
     headers: { authorization: `Bearer ${accessToken}` },
-    signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
   });
-  const payload = (await response.json().catch(() => null)) as unknown;
-  if (!response.ok)
-    throw new Error(`YouTube Analytics failed with HTTP ${response.status}.`);
   if (
     !isRecord(payload) ||
     !Array.isArray(payload['rows']) ||

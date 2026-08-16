@@ -92,7 +92,10 @@ describe('step', () => {
   it('normalizes non-Error failures and omits absent AWS metadata', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    await expect(step('plainFailure', async () => Promise.reject('boom'))).rejects.toMatchObject({
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- deliberately a non-Error rejection, the subject under test
+      step('plainFailure', async () => Promise.reject('boom')),
+    ).rejects.toMatchObject({
       message: '[step:plainFailure] boom',
       cause: expect.objectContaining({ message: 'boom' }),
     });

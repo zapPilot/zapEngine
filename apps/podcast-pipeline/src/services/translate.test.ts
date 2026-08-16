@@ -160,7 +160,9 @@ describe('translateChineseText', () => {
 
   it('uses configured model and zero-cost defaults when completion metadata is absent', async () => {
     mocks.createOpenRouterChatCompletion.mockResolvedValueOnce({
-      choices: [{ message: { content: JSON.stringify({ text: 'Translated text' }) } }],
+      choices: [
+        { message: { content: JSON.stringify({ text: 'Translated text' }) } },
+      ],
       provider: '',
       model: '',
     });

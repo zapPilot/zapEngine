@@ -535,14 +535,18 @@ describe('shared visual plan and locale manifest materialization', () => {
     expect(() =>
       parseImageVisualPlan({
         schemaVersion: IMAGE_VISUAL_PLAN_VERSION,
-        scenes: [{ ...validScene, startSentenceId: 's0002', endSentenceId: 's0002' }],
+        scenes: [
+          { ...validScene, startSentenceId: 's0002', endSentenceId: 's0002' },
+        ],
       }),
     ).toThrow('must start at s0001');
 
     expect(() =>
       parseImageVisualPlan({
         schemaVersion: IMAGE_VISUAL_PLAN_VERSION,
-        scenes: [{ ...validScene, startSentenceId: 's0001', endSentenceId: 's0000' }],
+        scenes: [
+          { ...validScene, startSentenceId: 's0001', endSentenceId: 's0000' },
+        ],
       }),
     ).toThrow('reversed sentence range');
   });

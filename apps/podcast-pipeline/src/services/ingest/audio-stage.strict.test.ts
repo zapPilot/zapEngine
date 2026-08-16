@@ -759,9 +759,13 @@ describe('strict language classroom audio integrity', () => {
   });
 
   it('fails when final completion persistence returns null or the wrong status', async () => {
-    const run = async (completedValue: ReturnType<typeof localizationRow> | null) => {
+    const run = async (
+      completedValue: ReturnType<typeof localizationRow> | null,
+    ) => {
       vi.clearAllMocks();
-      mockListLanguageClassroomsByLocalizationId.mockResolvedValue(classroomRows);
+      mockListLanguageClassroomsByLocalizationId.mockResolvedValue(
+        classroomRows,
+      );
       mockTextToSpeech.mockResolvedValue({
         audio: Buffer.from('main-audio'),
         cost: [],

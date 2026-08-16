@@ -158,8 +158,9 @@ describe('generateSocialCopy', () => {
 
     expect(result.model).toBe('provider/served-model');
     expect(
-      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages.at(-1)
-        ?.content,
+      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages.at(
+        -1,
+      )?.content,
     ).toContain('Editor feedback for this regeneration:\n更有衝擊力');
   });
 
@@ -181,8 +182,9 @@ describe('generateSocialCopy', () => {
       feedback: '   ',
     });
     expect(
-      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages.at(-1)
-        ?.content,
+      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages.at(
+        -1,
+      )?.content,
     ).not.toContain('Editor feedback');
   });
 
@@ -242,8 +244,9 @@ describe('generateSocialCopy', () => {
       }),
     ).resolves.toMatchObject({ copy: { x: { text: '恢復文案' } } });
     expect(
-      llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1]?.messages.at(-1)
-        ?.content,
+      llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1]?.messages.at(
+        -1,
+      )?.content,
     ).toContain('provider offline');
   });
 

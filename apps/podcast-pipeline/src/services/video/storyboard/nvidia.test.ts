@@ -37,7 +37,8 @@ const originalBaseUrl = process.env['NVIDIA_BASE_URL'];
 afterEach(() => {
   if (originalApiKey === undefined) delete process.env['NVIDIA_API_KEY'];
   else process.env['NVIDIA_API_KEY'] = originalApiKey;
-  if (originalModel === undefined) delete process.env['NVIDIA_STORYBOARD_MODEL'];
+  if (originalModel === undefined)
+    delete process.env['NVIDIA_STORYBOARD_MODEL'];
   else process.env['NVIDIA_STORYBOARD_MODEL'] = originalModel;
   if (originalBaseUrl === undefined) delete process.env['NVIDIA_BASE_URL'];
   else process.env['NVIDIA_BASE_URL'] = originalBaseUrl;
@@ -54,7 +55,10 @@ function clientReturning(input: {
   } | null;
 }) {
   const create = vi.fn().mockResolvedValue({
-    choices: input.content === undefined ? [] : [{ message: { content: input.content } }],
+    choices:
+      input.content === undefined
+        ? []
+        : [{ message: { content: input.content } }],
     model: input.model ?? '',
     usage: input.usage ?? null,
   });
@@ -76,7 +80,11 @@ describe('NVIDIA storyboard prompts', () => {
   it('includes repair issues with both nested and root paths', () => {
     const prompt = buildNvidiaStoryboardUserPrompt(request, {
       repairIssues: [
-        { code: 'scenes.sceneId.missing', path: ['scenes', 0, 'sceneId'], message: 'wrong id' },
+        {
+          code: 'scenes.sceneId.missing',
+          path: ['scenes', 0, 'sceneId'],
+          message: 'wrong id',
+        },
         { code: 'root.invalid', path: [], message: 'invalid root' },
       ],
     });
@@ -131,7 +139,9 @@ describe('NVIDIA storyboard provider', () => {
     for (const content of ['', '{bad', '```']) {
       const { client } = clientReturning({ content });
       const provider = createNvidiaStoryboardProvider({ client });
-      await expect(provider.generate(request)).rejects.toThrow(/NVIDIA returned/);
+      await expect(provider.generate(request)).rejects.toThrow(
+        /NVIDIA returned/,
+      );
     }
 
     const { client } = clientReturning({ content: undefined });

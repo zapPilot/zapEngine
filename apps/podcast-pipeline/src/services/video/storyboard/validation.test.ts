@@ -7,7 +7,8 @@ import {
   validateStoryboardDraft,
 } from './validation.js';
 
-const script = 'Revenue was $1,200 in 2025. Growth reached 15%. Final sentence.';
+const script =
+  'Revenue was $1,200 in 2025. Growth reached 15%. Final sentence.';
 const sentences = [
   {
     id: 's0001',
@@ -98,9 +99,7 @@ describe('validateStoryboardDraft', () => {
   it('reports scene count, unstable ids, coverage gaps, unicode, and ungrounded numbers together', () => {
     const result = validateStoryboardDraft(
       {
-        scenes: [
-          scene('scene-02', 's0002', 's0002', ['Growth 999%\uFFFD']),
-        ],
+        scenes: [scene('scene-02', 's0002', 's0002', ['Growth 999%\uFFFD'])],
       },
       context,
     );
@@ -129,7 +128,10 @@ describe('validateStoryboardDraft', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.issues.map((issue) => issue.code)).toEqual(
-        expect.arrayContaining(['sentences.unknown_start', 'sentences.unknown_end']),
+        expect.arrayContaining([
+          'sentences.unknown_start',
+          'sentences.unknown_end',
+        ]),
       );
     }
   });
@@ -178,7 +180,9 @@ describe('validateStoryboardDraft', () => {
     );
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.issues.some((issue) => issue.code === 'scenes.count')).toBe(true);
+      expect(result.issues.some((issue) => issue.code === 'scenes.count')).toBe(
+        true,
+      );
     }
   });
 });

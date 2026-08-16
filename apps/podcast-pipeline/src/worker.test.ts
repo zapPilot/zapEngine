@@ -93,7 +93,9 @@ describe('startVideoWorkerProcess', () => {
     const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const { handle } = makeHarness({ logger: undefined });
 
-    expect(info).toHaveBeenCalledWith(expect.stringContaining('[video-worker]'));
+    expect(info).toHaveBeenCalledWith(
+      expect.stringContaining('[video-worker]'),
+    );
     await handle.shutdown('logger test');
     info.mockRestore();
   });

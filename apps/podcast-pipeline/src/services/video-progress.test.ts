@@ -174,7 +174,10 @@ describe('composeEpisodeVideoProgress', () => {
   it('reports the queued floor when the render exists before any visual row', () => {
     expect(
       composeEpisodeVideoProgress({
-        render: jobState({ status: 'queued', updatedAt: '2026-07-30T09:00:00Z' }),
+        render: jobState({
+          status: 'queued',
+          updatedAt: '2026-07-30T09:00:00Z',
+        }),
         visual: null,
       }),
     ).toEqual({
@@ -270,7 +273,10 @@ describe('composeEpisodeVideoProgress', () => {
   it('keeps the render timestamp when the visual timestamp is invalid or older', () => {
     expect(
       composeEpisodeVideoProgress({
-        render: jobState({ status: 'queued', updatedAt: '2026-07-30T09:30:00Z' }),
+        render: jobState({
+          status: 'queued',
+          updatedAt: '2026-07-30T09:30:00Z',
+        }),
         visual: jobState({
           status: 'processing',
           progressPercent: 52,
@@ -281,7 +287,10 @@ describe('composeEpisodeVideoProgress', () => {
 
     expect(
       composeEpisodeVideoProgress({
-        render: jobState({ status: 'queued', updatedAt: '2026-07-30T09:30:00Z' }),
+        render: jobState({
+          status: 'queued',
+          updatedAt: '2026-07-30T09:30:00Z',
+        }),
         visual: jobState({
           status: 'processing',
           progressPercent: 52,

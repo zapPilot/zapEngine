@@ -53,7 +53,10 @@ describe('assertR2PlaybackReady', () => {
     try {
       await expect(
         assertR2PlaybackReady('https://media.example.com/video.mp4'),
-      ).resolves.toMatchObject({ corsOrigin: '*', contentRange: 'bytes 0-1/*' });
+      ).resolves.toMatchObject({
+        corsOrigin: '*',
+        contentRange: 'bytes 0-1/*',
+      });
       expect(fetchRange).toHaveBeenCalledWith(
         'https://media.example.com/video.mp4',
         expect.objectContaining({

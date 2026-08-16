@@ -333,7 +333,9 @@ describe('createThreadsPublisher', () => {
   ])('rejects %s', async (_label, creationBody, message) => {
     const publisher = createThreadsPublisher({
       accessToken: 'token-1',
-      fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(creationBody)),
+      fetchImpl: vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(jsonResponse(creationBody)),
     });
     await expect(
       publisher.publishThreads({ text: 'copy', videoUrl: VIDEO_URL }),
@@ -426,19 +428,22 @@ describe('createThreadsPublisher', () => {
     ).rejects.toThrow('did not finish after 1 status checks');
   });
 
-  it.each(['QUEUED', 'PENDING'])('rejects unexpected container status %s', async (status) => {
-    const publisher = createThreadsPublisher({
-      accessToken: 'token-1',
-      fetchImpl: vi
-        .fn<typeof fetch>()
-        .mockResolvedValueOnce(jsonResponse({ id: 'container-1' }))
-        .mockResolvedValueOnce(jsonResponse({ status })),
-    });
+  it.each(['QUEUED', 'PENDING'])(
+    'rejects unexpected container status %s',
+    async (status) => {
+      const publisher = createThreadsPublisher({
+        accessToken: 'token-1',
+        fetchImpl: vi
+          .fn<typeof fetch>()
+          .mockResolvedValueOnce(jsonResponse({ id: 'container-1' }))
+          .mockResolvedValueOnce(jsonResponse({ status })),
+      });
 
-    await expect(
-      publisher.publishThreads({ text: 'copy', videoUrl: VIDEO_URL }),
-    ).rejects.toThrow(`unexpected status ${status}`);
-  });
+      await expect(
+        publisher.publishThreads({ text: 'copy', videoUrl: VIDEO_URL }),
+      ).rejects.toThrow(`unexpected status ${status}`);
+    },
+  );
 
   it('reports an expired container even without an API detail', async () => {
     const publisher = createThreadsPublisher({
@@ -460,7 +465,9 @@ describe('createThreadsPublisher', () => {
   ])('rejects $0', async (_label, createBody, message) => {
     const publisher = createThreadsPublisher({
       accessToken: 'token-1',
-      fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(createBody)),
+      fetchImpl: vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(jsonResponse(createBody)),
     });
 
     await expect(

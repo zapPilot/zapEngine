@@ -108,14 +108,17 @@ describe('readRenderOnDemandConfig', () => {
     vi.unstubAllEnvs();
   });
 
-  it.each([undefined, '0', 'false', 'yes'])('disables on-demand render for flag %s', (flag) => {
-    if (flag === undefined) delete process.env['PIPELINE_RENDER_ON_DEMAND'];
-    else vi.stubEnv('PIPELINE_RENDER_ON_DEMAND', flag);
-    expect(readRenderOnDemandConfig()).toEqual({
-      enabled: false,
-      reason: 'PIPELINE_RENDER_ON_DEMAND is not set',
-    });
-  });
+  it.each([undefined, '0', 'false', 'yes'])(
+    'disables on-demand render for flag %s',
+    (flag) => {
+      if (flag === undefined) delete process.env['PIPELINE_RENDER_ON_DEMAND'];
+      else vi.stubEnv('PIPELINE_RENDER_ON_DEMAND', flag);
+      expect(readRenderOnDemandConfig()).toEqual({
+        enabled: false,
+        reason: 'PIPELINE_RENDER_ON_DEMAND is not set',
+      });
+    },
+  );
 
   it('requires a Fly API token when on-demand render is enabled', () => {
     vi.stubEnv('PIPELINE_RENDER_ON_DEMAND', ' true ');

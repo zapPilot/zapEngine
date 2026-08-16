@@ -112,7 +112,9 @@ describe('searchBingImages', () => {
     );
     vi.stubGlobal('fetch', fetchHtml);
 
-    await expect(searchBingImages('global fetch test')).resolves.toHaveLength(2);
+    await expect(searchBingImages('global fetch test')).resolves.toHaveLength(
+      2,
+    );
     expect(fetchHtml).toHaveBeenCalledOnce();
   });
 

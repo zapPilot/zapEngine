@@ -623,15 +623,12 @@ export async function insertSocialPost(
   return data;
 }
 
-export async function listSocialPostsByEpisode(
-  episodeId: string,
-  platform: SocialPlatform,
+async function listSocialPosts(
+  query: ReturnType<
+    ReturnType<ReturnType<typeof getSupabase>['from']>['select']
+  >,
 ): Promise<SocialPostRow[]> {
-  const { data, error } = await getSupabase()
-    .from('social_posts')
-    .select('*')
-    .eq('episode_id', episodeId)
-    .eq('platform', platform)
+  const { data, error } = await query
     .order('published_at', { ascending: false })
     .returns<SocialPostRow[]>();
 
@@ -642,21 +639,28 @@ export async function listSocialPostsByEpisode(
   return data ?? [];
 }
 
+export async function listSocialPostsByEpisode(
+  episodeId: string,
+  platform: SocialPlatform,
+): Promise<SocialPostRow[]> {
+  return listSocialPosts(
+    getSupabase()
+      .from('social_posts')
+      .select('*')
+      .eq('episode_id', episodeId)
+      .eq('platform', platform),
+  );
+}
+
 export async function listRecentSocialPosts(
   publishedSince: string,
 ): Promise<SocialPostRow[]> {
-  const { data, error } = await getSupabase()
-    .from('social_posts')
-    .select('*')
-    .gte('published_at', publishedSince)
-    .order('published_at', { ascending: false })
-    .returns<SocialPostRow[]>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data ?? [];
+  return listSocialPosts(
+    getSupabase()
+      .from('social_posts')
+      .select('*')
+      .gte('published_at', publishedSince),
+  );
 }
 
 export async function updateSocialPostIdentity(input: {

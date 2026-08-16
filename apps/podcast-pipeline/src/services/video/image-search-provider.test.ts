@@ -6,9 +6,15 @@ const searchMocks = vi.hoisted(() => ({
   pixabay: vi.fn(),
 }));
 
-vi.mock('./bing-image-search.js', () => ({ searchBingImages: searchMocks.bing }));
-vi.mock('./pexels-image-search.js', () => ({ searchPexelsImages: searchMocks.pexels }));
-vi.mock('./pixabay-image-search.js', () => ({ searchPixabayImages: searchMocks.pixabay }));
+vi.mock('./bing-image-search.js', () => ({
+  searchBingImages: searchMocks.bing,
+}));
+vi.mock('./pexels-image-search.js', () => ({
+  searchPexelsImages: searchMocks.pexels,
+}));
+vi.mock('./pixabay-image-search.js', () => ({
+  searchPixabayImages: searchMocks.pixabay,
+}));
 
 import { defaultImageSearchProviders } from './image-search-provider.js';
 
@@ -46,7 +52,10 @@ describe('defaultImageSearchProviders', () => {
     const controller = new AbortController();
 
     await providers[0]!.search('query');
-    await providers[1]!.search('query', { count: 7, signal: controller.signal });
+    await providers[1]!.search('query', {
+      count: 7,
+      signal: controller.signal,
+    });
     await providers[2]!.search('query');
 
     expect(searchMocks.pexels).toHaveBeenCalledWith('query', 'pexels-key', {});
@@ -60,11 +69,9 @@ describe('defaultImageSearchProviders', () => {
   it('uses process env by default', () => {
     vi.stubEnv('PEXELS_API_KEY', 'env-pexels');
     vi.stubEnv('PIXABAY_API_KEY', 'env-pixabay');
-    expect(defaultImageSearchProviders().map((provider) => provider.origin)).toEqual([
-      'pexels',
-      'pixabay',
-      'bing',
-    ]);
+    expect(
+      defaultImageSearchProviders().map((provider) => provider.origin),
+    ).toEqual(['pexels', 'pixabay', 'bing']);
   });
 
   it('treats blank keys as unconfigured', () => {

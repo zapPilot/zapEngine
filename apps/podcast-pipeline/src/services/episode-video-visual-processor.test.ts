@@ -308,10 +308,14 @@ describe('createEpisodeVideoVisualProcessor', () => {
     const enrichSearchIntents = keepDeterministicIntents();
     const planAssets = vi.fn().mockResolvedValue(assetPlan());
     const processor = createEpisodeVideoVisualProcessor({
-      analyzeAudio: vi.fn().mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      analyzeAudio: vi
+        .fn()
+        .mockResolvedValue({ durationMs: 90_000, silences: [] }),
       generateStoryboard,
       enrichSearchIntents,
-      scrape: vi.fn().mockResolvedValue({ title: 'Source article', text: 'body' }),
+      scrape: vi
+        .fn()
+        .mockResolvedValue({ title: 'Source article', text: 'body' }),
       planAssets,
       upload: vi.fn().mockResolvedValue({
         manifestUrl: 'https://cdn.example.test/manifest.json',
@@ -420,7 +424,8 @@ describe('createEpisodeVideoVisualProcessor', () => {
         }),
       ).rejects.toThrow('Unsupported VIDEO_STORYBOARD_PROVIDER: unsupported');
     } finally {
-      if (previous === undefined) delete process.env['VIDEO_STORYBOARD_PROVIDER'];
+      if (previous === undefined)
+        delete process.env['VIDEO_STORYBOARD_PROVIDER'];
       else process.env['VIDEO_STORYBOARD_PROVIDER'] = previous;
     }
   });

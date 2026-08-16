@@ -150,11 +150,41 @@ describe('YouTube OAuth', () => {
     for (const value of [
       null,
       [],
-      { version: 2, accessToken: 'a', refreshToken: 'r', expiresAt: 1, scope: UPLOAD_SCOPE },
-      { version: 1, accessToken: 'a', refreshToken: '', expiresAt: 1, scope: UPLOAD_SCOPE },
-      { version: 1, accessToken: 'a', refreshToken: 'r', expiresAt: 0, scope: UPLOAD_SCOPE },
-      { version: 1, accessToken: 'a', refreshToken: 'r', expiresAt: Number.NaN, scope: UPLOAD_SCOPE },
-      { version: 1, accessToken: 'a', refreshToken: 'r', expiresAt: 1, scope: '' },
+      {
+        version: 2,
+        accessToken: 'a',
+        refreshToken: 'r',
+        expiresAt: 1,
+        scope: UPLOAD_SCOPE,
+      },
+      {
+        version: 1,
+        accessToken: 'a',
+        refreshToken: '',
+        expiresAt: 1,
+        scope: UPLOAD_SCOPE,
+      },
+      {
+        version: 1,
+        accessToken: 'a',
+        refreshToken: 'r',
+        expiresAt: 0,
+        scope: UPLOAD_SCOPE,
+      },
+      {
+        version: 1,
+        accessToken: 'a',
+        refreshToken: 'r',
+        expiresAt: Number.NaN,
+        scope: UPLOAD_SCOPE,
+      },
+      {
+        version: 1,
+        accessToken: 'a',
+        refreshToken: 'r',
+        expiresAt: 1,
+        scope: '',
+      },
     ]) {
       await writeFile(path, JSON.stringify(value), 'utf8');
       await expect(readYouTubeSession({ sessionPath: path })).rejects.toThrow(
@@ -166,7 +196,9 @@ describe('YouTube OAuth', () => {
   it('propagates non-ENOENT session read failures and reports missing login', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'zap-youtube-directory-'));
     directories.push(directory);
-    await expect(readYouTubeSession({ sessionPath: directory })).rejects.toThrow();
+    await expect(
+      readYouTubeSession({ sessionPath: directory }),
+    ).rejects.toThrow();
 
     const path = join(directory, 'missing.json');
     await expect(
@@ -184,9 +216,9 @@ describe('YouTube OAuth', () => {
       scope: UPLOAD_SCOPE,
     };
     await writeYouTubeSession(session, { sessionPath: path });
-    await expect(assertYouTubeSessionReady({ sessionPath: path })).resolves.toEqual(
-      session,
-    );
+    await expect(
+      assertYouTubeSessionReady({ sessionPath: path }),
+    ).resolves.toEqual(session);
   });
 
   it('rethrows ordinary refresh configuration failures instead of starting OAuth', async () => {
@@ -203,23 +235,30 @@ describe('YouTube OAuth', () => {
     );
 
     await expect(
-      ensureYouTubeSession({ sessionPath: path, now: () => 1_000_000, env: {} }),
-    ).rejects.toThrow('YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET are not configured');
+      ensureYouTubeSession({
+        sessionPath: path,
+        now: () => 1_000_000,
+        env: {},
+      }),
+    ).rejects.toThrow(
+      'YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET are not configured',
+    );
   });
 
   it('uses process env, secure state, global fetch, and the real clock during authorization', async () => {
     const path = await sessionPath();
     vi.stubEnv('YOUTUBE_CLIENT_ID', 'env-client');
     vi.stubEnv('YOUTUBE_CLIENT_SECRET', 'env-secret');
-    const fetchImpl = vi.fn<typeof fetch>(async () =>
-      new Response(
-        JSON.stringify({
-          access_token: 'global-access',
-          refresh_token: 'global-refresh',
-          expires_in: 3600,
-        }),
-        { status: 200 },
-      ),
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            access_token: 'global-access',
+            refresh_token: 'global-refresh',
+            expires_in: 3600,
+          }),
+          { status: 200 },
+        ),
     );
     vi.stubGlobal('fetch', fetchImpl);
     const waiter = vi.fn(async (input) => {
@@ -255,11 +294,12 @@ describe('YouTube OAuth', () => {
       },
       { sessionPath: path },
     );
-    const fetchImpl = vi.fn<typeof fetch>(async () =>
-      new Response(
-        JSON.stringify({ access_token: 'new', expires_in: 3600 }),
-        { status: 200 },
-      ),
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({ access_token: 'new', expires_in: 3600 }),
+          { status: 200 },
+        ),
     );
     vi.stubGlobal('fetch', fetchImpl);
 
@@ -271,16 +311,17 @@ describe('YouTube OAuth', () => {
 
   it('uses the built-in loopback waiter when one is not injected', async () => {
     const path = await sessionPath();
-    const tokenFetch = vi.fn<typeof fetch>(async () =>
-      new Response(
-        JSON.stringify({
-          access_token: 'access-loopback',
-          refresh_token: 'refresh-loopback',
-          expires_in: 3600,
-          scope: UPLOAD_SCOPE,
-        }),
-        { status: 200 },
-      ),
+    const tokenFetch = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            access_token: 'access-loopback',
+            refresh_token: 'refresh-loopback',
+            expires_in: 3600,
+            scope: UPLOAD_SCOPE,
+          }),
+          { status: 200 },
+        ),
     );
     const openBrowser = vi.fn(async (authorizationUrl: string) => {
       const url = new URL(authorizationUrl);
@@ -497,7 +538,10 @@ describe('YouTube OAuth', () => {
     };
 
     for (const [body, expected] of [
-      [{ error_description: 'service unavailable' }, 'Google OAuth 500: service unavailable'],
+      [
+        { error_description: 'service unavailable' },
+        'Google OAuth 500: service unavailable',
+      ],
       [{ error: 'server_error' }, 'Google OAuth 500: server_error'],
       ['plain failure', 'Google OAuth request failed with HTTP 500'],
       ['', 'Google OAuth request failed with HTTP 500'],
@@ -728,6 +772,7 @@ describe('YouTube OAuth', () => {
         expectedState: 'state-1',
         timeoutMs: 2_000,
         onReady: async () => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- deliberately a non-Error throw, the subject under test
           throw 'browser string failure';
         },
       }),

@@ -58,7 +58,9 @@ describe('X CreateTweet response parsing', () => {
   });
 
   it('fails closed after exploring present preferred keys that contain no tweet id', () => {
-    expect(extractCreatedTweetId({ data: { result: { ignored: true } } })).toBeNull();
+    expect(
+      extractCreatedTweetId({ data: { result: { ignored: true } } }),
+    ).toBeNull();
   });
 
   it('caps recursive fallback scanning at the defensive depth limit', () => {

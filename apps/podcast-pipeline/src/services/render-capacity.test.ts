@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { isRecord } from '../lib/typeGuards.js';
 import type { FlyMachinesClient, FlyMachineSummary } from './fly-machines.js';
 import {
   createRenderCapacityReconciler,
@@ -460,6 +461,7 @@ describe('createRenderCapacityReconciler', () => {
     const { reconciler, logger } = makeReconciler({
       pending: QUEUED_VISUAL,
       startMachine: async () => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- deliberately a non-Error throw, the subject under test
         throw 'machine unavailable';
       },
     });
@@ -641,6 +643,12 @@ function makeSupabase(
   return { supabase: { from } as never, calls };
 }
 
+function expectedProbeFailureMessage(error: unknown): string {
+  if (error instanceof Error) return 'database offline';
+  if (isRecord(error) && 'message' in error) return 'structured failure';
+  return 'Supabase render work query failed';
+}
+
 describe('createRenderWorkProbe', () => {
   it('loads active rows from both job tables', async () => {
     const { supabase, calls } = makeSupabase([[videoRow()], [visualRow()]]);
@@ -689,7 +697,9 @@ describe('createRenderWorkProbe', () => {
 
   it('treats null Supabase data as an empty row set', async () => {
     const { supabase } = makeSupabase([[], []], [], [0, 1]);
-    await expect(createRenderWorkProbe(supabase).loadSnapshot()).resolves.toMatchObject({
+    await expect(
+      createRenderWorkProbe(supabase).loadSnapshot(),
+    ).resolves.toMatchObject({
       videos: [],
       visuals: [],
     });
@@ -702,13 +712,10 @@ describe('createRenderWorkProbe', () => {
       {},
     ]) {
       const { supabase } = makeSupabase([[], []], [error]);
-      await expect(createRenderWorkProbe(supabase).loadSnapshot()).rejects.toThrow(
-        error instanceof Error
-          ? 'database offline'
-          : 'message' in error
-            ? 'structured failure'
-            : 'Supabase render work query failed',
-      );
+      const expectedMessage = expectedProbeFailureMessage(error);
+      await expect(
+        createRenderWorkProbe(supabase).loadSnapshot(),
+      ).rejects.toThrow(expectedMessage);
     }
   });
 });

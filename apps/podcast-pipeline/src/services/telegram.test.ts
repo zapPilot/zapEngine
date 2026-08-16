@@ -201,9 +201,12 @@ describe('isAllowedUser', () => {
 });
 
 describe('isTelegramHelpCommand', () => {
-  it.each(['/start', '/help', '/start@ZapPilotBot', '/HELP@ZapPilotBot'])('accepts %s', (command) => {
-    expect(isTelegramHelpCommand(`${command} extra words`)).toBe(true);
-  });
+  it.each(['/start', '/help', '/start@ZapPilotBot', '/HELP@ZapPilotBot'])(
+    'accepts %s',
+    (command) => {
+      expect(isTelegramHelpCommand(`${command} extra words`)).toBe(true);
+    },
+  );
 
   it.each(['hello', '/status', ''])('rejects %j', (text) => {
     expect(isTelegramHelpCommand(text)).toBe(false);
@@ -280,16 +283,22 @@ describe('answerTelegramCallbackQuery', () => {
   });
 
   it('logs Telegram API failures instead of throwing from webhook handling', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const error = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(new Response(null, { status: 500 })),
     );
 
-    await expect(answerTelegramCallbackQuery('cb-1', 'failed')).resolves.toBeUndefined();
+    await expect(
+      answerTelegramCallbackQuery('cb-1', 'failed'),
+    ).resolves.toBeUndefined();
     expect(error).toHaveBeenCalledWith(
       '[/telegram/webhook] answerCallbackQuery failed:',
-      expect.objectContaining({ message: 'Telegram answerCallbackQuery failed: 500' }),
+      expect.objectContaining({
+        message: 'Telegram answerCallbackQuery failed: 500',
+      }),
     );
   });
 });

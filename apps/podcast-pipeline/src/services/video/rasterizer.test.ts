@@ -225,7 +225,10 @@ describe('cropMediaImage', () => {
         height: 100,
         position: 'center',
       },
-      { input: join(directory, 'crop.json'), output: join(directory, 'out.png') },
+      {
+        input: join(directory, 'crop.json'),
+        output: join(directory, 'out.png'),
+      },
     );
     await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledOnce());
     child.emit('exit', 0, null);
