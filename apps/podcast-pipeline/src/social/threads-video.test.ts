@@ -10,6 +10,7 @@ import {
 } from './threads-video.js';
 
 const temporaryDirectories: string[] = [];
+type UploadVideo = (input: { path: string; key: string }) => Promise<void>;
 
 afterEach(async () => {
   await Promise.all(
@@ -30,9 +31,7 @@ describe('prepareThreadsVideoUrl', () => {
     const directory = await tempDirectory();
     const teaserPath = join(directory, 'x-teaser.mp4');
     await writeFile(teaserPath, 'video');
-    const uploadVideo = vi.fn(
-      async (_input: { path: string; key: string }) => undefined,
-    );
+    const uploadVideo = vi.fn<UploadVideo>().mockResolvedValue(undefined);
 
     const url = await prepareThreadsVideoUrl(
       'https://media.example.com/episodes/episode-1/video.mp4',
@@ -61,9 +60,7 @@ describe('prepareThreadsVideoUrl', () => {
       await writeFile(outputPath, 'rendered');
       return { stdout: '', stderr: '' };
     });
-    const uploadVideo = vi.fn(
-      async (_input: { path: string; key: string }) => undefined,
-    );
+    const uploadVideo = vi.fn<UploadVideo>().mockResolvedValue(undefined);
     const fetchImpl = vi.fn(
       async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 }),
     );
