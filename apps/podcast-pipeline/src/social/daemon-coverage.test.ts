@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
     .mockResolvedValue('2026-08-16T08:00:00.000Z'),
   failSocialPublishJob: vi.fn(),
   getActiveSocialStrategies: vi.fn().mockResolvedValue([]),
-  getSocialQueueSnapshot: vi.fn(),
   getSocialStrategyById: vi.fn().mockResolvedValue(null),
   latestScheduledSocialJobs: vi.fn().mockResolvedValue({}),
   listDueMetricPosts: vi.fn().mockResolvedValue([]),
@@ -35,7 +34,6 @@ vi.mock('./daemon-store.js', () => ({
   ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
   failSocialPublishJob: mocks.failSocialPublishJob,
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
-  getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   getSocialStrategyById: mocks.getSocialStrategyById,
   latestScheduledSocialJobs: mocks.latestScheduledSocialJobs,
   listDueMetricPosts: mocks.listDueMetricPosts,
@@ -63,69 +61,33 @@ const NOW = new Date('2026-08-16T10:00:00.000Z');
 
 class StopDaemon extends Error {}
 
-describe('social daemon queue summary coverage', () => {
-  it('formats singular queues, fallback titles, invalid dates, and near/far publish times', async () => {
-    mocks.getSocialQueueSnapshot.mockResolvedValue({
-      pendingCount: 1,
-      episodeQueue: [
-        {
-          episodeId: 'episode-fallback-title',
-          title: null,
-          nextAt: 'not-a-date',
-        },
-      ],
-      nextByPlatform: {
-        x: {
-          episodeId: 'episode-x',
-          title:
-            'A very long social article title that should be truncated for compact daemon logs',
-          nextAt: '2026-08-16T10:30:00.000Z',
-          status: 'queued',
-        },
-        threads: {
-          episodeId: 'episode-threads',
-          title: '',
-          nextAt: '2026-08-16T12:00:00.000Z',
-          status: 'retrying',
-        },
-        rednote: {
-          episodeId: 'episode-rednote',
-          title: 'Short title',
-          nextAt: '2026-08-16T12:05:00.000Z',
-          status: 'queued',
-        },
-        youtube: {
-          episodeId: 'episode-youtube',
-          title: 'Already due',
-          nextAt: 'invalid',
-          status: 'queued',
-        },
-      },
-    });
+describe('social daemon loop coverage', () => {
+  it('logs a complete idle tick, refreshes strategy, and sleeps for one minute', async () => {
     const log = vi.fn();
+    const sleep = vi.fn(async (milliseconds: number) => {
+      expect(milliseconds).toBe(60_000);
+      throw new StopDaemon('stop after one tick');
+    });
 
     await expect(
       runSocialDaemon({
         now: () => NOW,
         log,
-        sleep: async () => {
-          throw new StopDaemon('stop after one tick');
-        },
+        sleep,
       }),
     ).rejects.toBeInstanceOf(StopDaemon);
 
     const messages = log.mock.calls.map(([message]) => String(message));
     expect(messages).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('1 publish job pending across 1 article.'),
-        expect.stringContaining('“episode-fallback-title”'),
-        expect.stringContaining('first publish not-a-date (due now)'),
-        expect.stringContaining('in 30m'),
-        expect.stringContaining('in 2h'),
-        expect.stringContaining('in 2h 5m'),
-        expect.stringContaining('at invalid (due now'),
+        expect.stringContaining(
+          'discovery begins at 2026-08-16T08:00:00.000Z',
+        ),
+        '[social-daemon] checking discovery, publishing, metrics, and strategy...',
+        '[social-daemon] check complete; next check in 60s.',
       ]),
     );
-    expect(messages.some((message) => message.includes('…'))).toBe(true);
+    expect(mocks.refreshSocialStrategies).toHaveBeenCalledTimes(1);
+    expect(sleep).toHaveBeenCalledTimes(1);
   });
 });
