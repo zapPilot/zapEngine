@@ -170,17 +170,23 @@ The X transport itself is `x-playwright.ts`: it fills reviewed copy, uploads the
 local MP4 through the file input, waits until the post button is actionable,
 publishes, and confirms navigation/success before returning `published`.
 
-### Threads: native full video
+### Threads: native teaser video
 
-Threads publishes the canonical public `videos.zh` URL as native video. It does
-not need to download the MP4 locally.
+Threads publishes a platform-safe teaser rather than the canonical full podcast
+MP4. When X already prepared the teaser, Threads reuses that artifact; otherwise
+Threads can download the canonical source, render the same deterministic teaser,
+and upload it to R2 itself. The Meta container always receives the resulting
+public HTTPS teaser URL.
 
 The API lifecycle is:
 
 ```text
+prepare/reuse teaser
+  -> upload teaser to R2 when needed
+
 POST /me/threads
   media_type=VIDEO
-  video_url=<public HTTPS MP4>
+  video_url=<public HTTPS teaser MP4>
   text=<reviewed branded copy>
 
 GET /<creation_id>?fields=id,status,error_message
@@ -191,9 +197,9 @@ POST /me/threads_publish
 ```
 
 `ERROR`, `EXPIRED`, invalid HTTPS URLs, unexpected container states, and polling
-timeouts fail closed with a named `SocialPublishError` step. The API response,
-not a local guessed duration limit, remains the authority on whether Meta can
-process the media.
+timeouts fail closed with a named `SocialPublishError` step. Do not regress to
+sending the canonical full MP4 directly: that flow previously reached Meta
+processing and returned `ERROR: UNKNOWN`.
 
 ### Rednote: native full video
 
