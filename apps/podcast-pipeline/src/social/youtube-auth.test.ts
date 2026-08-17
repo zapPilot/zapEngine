@@ -55,6 +55,28 @@ describe('YouTube OAuth', () => {
     expect(url.searchParams.get('state')).toBe('state-1');
   });
 
+  it('rejects a stored session that is missing an explicitly required extra scope', async () => {
+    const path = await sessionPath();
+    await writeYouTubeSession(
+      {
+        version: 1,
+        accessToken: 'access',
+        refreshToken: 'refresh',
+        expiresAt: 2_000_000,
+        scope: UPLOAD_SCOPE,
+      },
+      { sessionPath: path },
+    );
+
+    await expect(
+      assertYouTubeSessionReady({
+        sessionPath: path,
+        now: () => 1_000_000,
+        additionalScopes: ['openid'],
+      }),
+    ).rejects.toThrow('missing required scopes: openid');
+  });
+
   it('reuses an unexpired stored session without opening OAuth', async () => {
     const path = await sessionPath();
     const session: YouTubeSession = {

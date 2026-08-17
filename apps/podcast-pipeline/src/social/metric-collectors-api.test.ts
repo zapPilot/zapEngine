@@ -246,6 +246,61 @@ describe('YouTube metric collection', () => {
     });
   });
 
+  it('keeps public counters when Analytics returns a malformed success payload', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        json({
+          items: [
+            {
+              id: 'video-1',
+              statistics: {
+                viewCount: '12',
+                likeCount: '2',
+                commentCount: '1',
+              },
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(json({ rows: 'malformed' }));
+
+    await expect(
+      collectYouTubeMetrics(post('youtube', 'video-1'), fetchImpl),
+    ).resolves.toMatchObject({
+      views: 12,
+      likes: 2,
+      comments: 1,
+      shares: null,
+      details: {},
+    });
+  });
+
+  it('rejects malformed successful analytics payloads instead of inventing metrics', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        json({
+          items: [
+            {
+              id: 'video-1',
+              statistics: { viewCount: '12', likeCount: '2' },
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(json({ rows: 'wrong-shape' }));
+
+    await expect(
+      collectYouTubeMetrics(post('youtube', 'video-1'), fetchImpl),
+    ).resolves.toMatchObject({
+      views: 12,
+      likes: 2,
+      comments: null,
+      details: {},
+    });
+  });
+
   it('handles empty analytics rows without inventing detail values', async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()

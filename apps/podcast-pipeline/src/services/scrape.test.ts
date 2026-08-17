@@ -85,6 +85,42 @@ describe('extractArticleImageCandidates', () => {
     expect(candidates).toHaveLength(10);
   });
 
+  it('skips empty srcsets and fills missing metadata from a duplicate image', () => {
+    const dom = new JSDOM(`
+      <head>
+        <meta property="og:image" content="/same.jpg" />
+        <meta property="og:image:width" content="not-a-width" />
+        <meta property="og:image:height" content="not-a-height" />
+      </head>
+      <body>
+        <article>
+          <img srcset=", ," src="/fallback.jpg" />
+          <img src="/same.jpg" width="1280" height="720" />
+        </article>
+      </body>
+    `);
+
+    const candidates = extractArticleImageCandidates(
+      dom.window.document,
+      'https://publisher.example/story',
+    );
+
+    expect(candidates).toEqual([
+      {
+        imageUrl: 'https://publisher.example/same.jpg',
+        sourceUrl: 'https://publisher.example/story',
+        origin: 'openGraph',
+        width: 1280,
+        height: 720,
+      },
+      {
+        imageUrl: 'https://publisher.example/fallback.jpg',
+        sourceUrl: 'https://publisher.example/story',
+        origin: 'article',
+      },
+    ]);
+  });
+
   it('handles OpenGraph ordering, secure URLs, metadata, and deduplication', () => {
     const dom = new JSDOM(`
       <head>

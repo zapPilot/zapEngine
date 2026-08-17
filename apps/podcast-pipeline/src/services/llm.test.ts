@@ -187,6 +187,72 @@ describe('createOpenRouterChatCompletion', () => {
     expect(requestSignal.reason).toBe(abortReason);
   });
 
+  it('handles structured message parts when measuring request and response content', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: [
+              null,
+              { type: 'text', text: 'answer' },
+              { type: 'image' },
+            ],
+          },
+        },
+      ],
+      model: 'test/model',
+    });
+    const openai = createMockOpenAI(mockCreate) as OpenAI;
+
+    await expect(
+      createOpenRouterChatCompletion(
+        openai,
+        {
+          model: 'test/model',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: 'prompt' },
+                {
+                  type: 'image_url',
+                  image_url: { url: 'https://example.test/image.png' },
+                },
+              ],
+            } as never,
+          ],
+        },
+        null,
+      ),
+    ).resolves.toMatchObject({ model: 'test/model' });
+  });
+
+  it('propagates an already-aborted external signal through the request deadline', async () => {
+    const controller = new AbortController();
+    const abortReason = new Error('already lost lease');
+    controller.abort(abortReason);
+    const mockCreate = vi.fn(
+      (_request: unknown, options?: { signal?: AbortSignal }) => {
+        expect(options?.signal?.aborted).toBe(true);
+        expect(options?.signal?.reason).toBe(abortReason);
+        return Promise.reject(abortReason);
+      },
+    );
+    const openai = createMockOpenAI(mockCreate) as OpenAI;
+
+    await expect(
+      createOpenRouterChatCompletion(
+        openai,
+        {
+          model: 'test/model',
+          messages: [{ role: 'user', content: 'align scenes' }],
+        },
+        null,
+        { signal: controller.signal },
+      ),
+    ).rejects.toBe(abortReason);
+  });
+
   it('enforces the configured timeout with an explicit request deadline', async () => {
     vi.useFakeTimers();
     vi.stubEnv('OPENROUTER_TIMEOUT_MS', '25');
@@ -584,6 +650,24 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
     expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
       'llm:title-fallback',
       { reason: 'plain_text_response' },
+    );
+  });
+
+  it('keeps the script and records a missing-title fallback when JSON omits the title', async () => {
+    ingestMocks.logIngestEvent.mockClear();
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ script: 'Script' }) } }],
+      provider: 'Cloudflare',
+      model: 'test/model',
+    });
+    mockOpenAIClient(mockCreate);
+
+    const result = await generateScriptWithLLM('Title', 'Text');
+
+    expect(result).toMatchObject({ title: null, script: 'Script' });
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:title-fallback',
+      { reason: 'missing_title' },
     );
   });
 

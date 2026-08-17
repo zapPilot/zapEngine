@@ -530,6 +530,50 @@ describe('createRenderCapacityReconciler', () => {
     );
   });
 
+  it('can stop cleanly before polling has ever started', () => {
+    const { reconciler, loadSnapshot } = makeReconciler({});
+
+    reconciler.stop();
+    reconciler.start();
+
+    expect(loadSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('does not overlap interval ticks while a previous poll is still running', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveSnapshot!: (value: RenderWorkSnapshot) => void;
+      const loadSnapshot = vi.fn(
+        () =>
+          new Promise<RenderWorkSnapshot>((resolve) => {
+            resolveSnapshot = resolve;
+          }),
+      );
+      const reconciler = createRenderCapacityReconciler({
+        machines: {
+          listMachines: vi.fn(async () => []),
+          startMachine: vi.fn(async () => undefined),
+        },
+        probe: { loadSnapshot },
+        notify: vi.fn(async () => undefined),
+        logger: { info: vi.fn(), error: vi.fn() },
+        pollIntervalMs: 10,
+      });
+
+      reconciler.start();
+      await vi.advanceTimersByTimeAsync(10);
+      expect(loadSnapshot).toHaveBeenCalledTimes(1);
+
+      resolveSnapshot(snapshot({}));
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(10);
+      expect(loadSnapshot).toHaveBeenCalledTimes(2);
+      reconciler.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('ignores repeated starts and refuses to restart after stop', async () => {
     vi.useFakeTimers();
     try {

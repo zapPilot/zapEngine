@@ -164,6 +164,16 @@ describe('generateScriptWithLLM retries', () => {
     expect(mockCreate).toHaveBeenCalledTimes(2);
   });
 
+  it('does not retry primitive provider failures', async () => {
+    const mockCreate = vi.fn().mockRejectedValue('provider exploded');
+    mockOpenAIClient(mockCreate);
+
+    await expect(generateScriptWithLLM('Title', 'Article')).rejects.toBe(
+      'provider exploded',
+    );
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+  });
+
   it('does not retry a non-retryable provider error', async () => {
     const providerError = Object.assign(new Error('invalid request'), {
       status: 400,

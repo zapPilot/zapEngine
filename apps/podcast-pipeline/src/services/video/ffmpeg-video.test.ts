@@ -551,6 +551,20 @@ describe('vertical news FFmpeg composition', () => {
     ).rejects.toThrow('Vertical render needs 3 media inputs, received 1');
   });
 
+  it('forwards a render abort signal even when progress callbacks are disabled', async () => {
+    const processRunner = vi.fn(capabilityAwareRunner);
+    const controller = new AbortController();
+
+    await renderVerticalSlideVideo(
+      { ...verticalRenderOptions(), signal: controller.signal },
+      '/opt/ffmpeg',
+      processRunner,
+    );
+
+    expect(processRunner.mock.calls[3]?.[3]).toBe(controller.signal);
+    expect(processRunner.mock.calls[4]?.[3]).toBe(controller.signal);
+  });
+
   it('returns separate wall times for chunk and final encoding', async () => {
     const now = vi
       .spyOn(Date, 'now')
@@ -1078,6 +1092,12 @@ describe('FFmpeg process utilities', () => {
         "process.stderr.write('first\\rprogress\\r\\nlast\\n'); process.exit(7)",
       ]),
     ).rejects.toThrow(/failed \(exit 7\): last\nfirst\rprogress\r\nlast/u);
+  });
+
+  it('reports an exit failure even when the process writes no diagnostics', async () => {
+    await expect(
+      runProcess(process.execPath, ['-e', 'process.exit(7)']),
+    ).rejects.toThrow(/failed \(exit 7\)$/u);
   });
 
   it('rejects with exit details and stderr from a failed process', async () => {

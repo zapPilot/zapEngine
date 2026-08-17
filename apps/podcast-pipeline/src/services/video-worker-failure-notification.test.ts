@@ -77,6 +77,47 @@ describe('video worker failure notification retry', () => {
     );
   });
 
+  it('stops a failure-notification sweep before sending the next reaped failure', async () => {
+    const repository = makeRepository();
+    const secondFailure = {
+      ...failedNotification,
+      episodeLocalizationId: 'localization-2',
+      episodeId: 'episode-2',
+    };
+    vi.mocked(repository.reapFailedNotifications).mockResolvedValue([
+      failedNotification,
+      secondFailure,
+    ]);
+    let releaseFirstNotification!: () => void;
+    const notify = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseFirstNotification = resolve;
+        }),
+    );
+    const worker = createVideoWorker({
+      repository,
+      visualRepository: makeVisualRepository(),
+      processJob: vi.fn(),
+      processVisualJob: vi.fn(),
+      notify,
+      logger: { info: vi.fn(), error: vi.fn() },
+      leaseOwner: 'worker-1',
+    });
+
+    const poll = worker.runOnce();
+    await vi.waitFor(() => expect(notify).toHaveBeenCalledTimes(1));
+    const stopping = worker.stop(
+      new Error('shutdown during notification sweep'),
+    );
+    releaseFirstNotification();
+
+    await expect(poll).resolves.toBe('stopped');
+    await stopping;
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(repository.markFailureNotified).toHaveBeenCalledTimes(1);
+  });
+
   it('continues polling jobs when the failure notification sweep cannot read the database', async () => {
     const repository = makeRepository();
     const visualRepository = makeVisualRepository();

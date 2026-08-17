@@ -369,6 +369,39 @@ describe('social telemetry reconciliation', () => {
     );
   });
 
+  it('normalizes non-Error inspection failures while continuing reconciliation', async () => {
+    const state: SocialPublishState = {
+      broken: {
+        zh: {
+          rednote: {
+            published: true,
+            publishedAt: '2026-08-16T02:00:00.000Z',
+          },
+        },
+      },
+    };
+    const log = vi.fn();
+    const inspectRednote = vi.fn().mockRejectedValue({
+      toString: () => 'browser unavailable',
+    });
+
+    await expect(
+      reconcileRecentSocialPosts({
+        posts: [],
+        publishedSince: '2026-08-10T00:00:00.000Z',
+        log,
+        dependencies: {
+          readState: async () => state,
+          inspectRednote,
+        },
+      }),
+    ).resolves.toEqual([]);
+
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('browser unavailable'),
+    );
+  });
+
   it('marks X without URL or discoverable profile as unresolved', async () => {
     const state: SocialPublishState = {
       orphan: {

@@ -308,6 +308,23 @@ describe('rankEpisodeSearchResults', () => {
     expect(result[0]?.matchSource).toBe('script');
     expect(result[0]?.snippet).toBeTruthy();
   });
+
+  it('chooses a later segment when it has stronger ngram coverage for a cross-boundary match', () => {
+    const result = rankEpisodeSearchResults(
+      [
+        row({
+          title: 'Weekly notes',
+          script: 'The marker is x. Abcdef conditions changed materially.',
+        }),
+      ],
+      'x abcdef',
+      20,
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.matchSource).toBe('script');
+    expect(result[0]?.snippet).toContain('Abcdef conditions');
+  });
 });
 
 describe('EpisodeSearchService', () => {

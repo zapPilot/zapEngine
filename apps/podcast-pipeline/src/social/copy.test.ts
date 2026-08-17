@@ -135,6 +135,32 @@ describe('generateSocialCopy', () => {
     );
   });
 
+  it('includes learned strategy guidance in the generation prompt when provided', async () => {
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
+      socialCompletion(socialCopyJson('策略文案')),
+    );
+
+    await generateSocialCopy({
+      episode: {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        title: 'Episode title',
+        summary: 'Episode summary',
+        transcript: 'Episode transcript',
+        publishedAt: '2026-08-12T00:00:00.000Z',
+        episodeUrl: 'https://example.com/e/episode',
+        videoDurationSeconds: 180,
+        videos: { zh: 'https://example.com/video.mp4' },
+      },
+      strategyGuidance: '  Prefer a contrarian hook and #AI.  ',
+    });
+
+    expect(
+      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages.at(
+        -1,
+      )?.content,
+    ).toContain('Prefer a contrarian hook and #AI.');
+  });
+
   it('uses editor feedback and the provider-reported model when present', async () => {
     llmMocks.createOpenRouterChatCompletion.mockResolvedValue({
       ...socialCompletion(socialCopyJson('有回饋的文案')),

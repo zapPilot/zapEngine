@@ -504,20 +504,25 @@ describe('runSocialMetricsCli', () => {
       id: '00000000-0000-4000-8000-000000000003',
       platform_post_id: '3',
     });
-    const failed = post({
+    const emptyDetails = post({
       id: '00000000-0000-4000-8000-000000000004',
-      platform: 'threads',
       platform_post_id: '4',
+    });
+    const failed = post({
+      id: '00000000-0000-4000-8000-000000000005',
+      platform: 'threads',
+      platform_post_id: '5',
     });
     const reconcileRecentPosts = vi
       .fn()
-      .mockResolvedValue([first, second, empty, failed]);
+      .mockResolvedValue([first, second, empty, emptyDetails, failed]);
     const insertMetric = vi.fn().mockResolvedValue({});
     const collectX = vi
       .fn()
       .mockResolvedValueOnce({ ...NO_COUNTS, views: 10 })
       .mockResolvedValueOnce({ ...NO_COUNTS, views: 20 })
-      .mockResolvedValueOnce({ ...NO_COUNTS });
+      .mockResolvedValueOnce({ ...NO_COUNTS })
+      .mockResolvedValueOnce({ ...NO_COUNTS, details: {} });
 
     await runAutomaticSocialMetricsCollector({
       now: () => new Date('2026-08-16T00:00:00.000Z'),

@@ -312,6 +312,36 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
     });
   });
 
+  it('normalizes non-Error enqueue failures without failing the completed audio ingest', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const result = await performMultilingualIngestAndEnqueueVideo(
+      'https://example.com/article',
+      'ja',
+      {
+        dependencies: {
+          coordinator: createHeavyWorkCoordinator(),
+          findEpisode: vi.fn().mockResolvedValue(null),
+          performIngest: vi.fn().mockResolvedValue({
+            episode: episodeListResponse(listRow({ language_code: 'ja' })),
+            statusCode: 201,
+            costUsd: 0,
+            costDetails: buildUsageCostDetails([]),
+          }),
+          listLocalizations: vi.fn().mockResolvedValue(videoLocalizations()),
+          enqueueVisual: vi.fn().mockRejectedValue('supabase unavailable'),
+          enqueueVideo: vi.fn(),
+          findVisualJob: vi.fn().mockResolvedValue(null),
+          findVideoJob: vi.fn().mockResolvedValue(null),
+        },
+      },
+    );
+
+    expect(result.videoEnqueueError).toBeInstanceOf(Error);
+    expect(result.videoEnqueueError?.message).toBe('supabase unavailable');
+    expect(result.ingest.statusCode).toBe(201);
+  });
+
   it('surfaces errors wiped by the self-healing re-enqueue', async () => {
     const localizations = videoLocalizations();
     const canonical = localizations[0]!;

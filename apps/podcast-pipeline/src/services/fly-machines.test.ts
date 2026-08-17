@@ -22,6 +22,22 @@ function makeClient(fetchImpl: typeof fetch) {
 }
 
 describe('createFlyMachinesClient', () => {
+  it('uses global fetch when no transport is injected', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse([]));
+    vi.stubGlobal('fetch', fetchImpl);
+    try {
+      const client = createFlyMachinesClient({
+        appName: 'from-fed-to-chain-api',
+        token: 'fly-token',
+      });
+
+      await expect(client.listMachines()).resolves.toEqual([]);
+      expect(fetchImpl).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('lists machines from the internal API with a bearer token', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse([

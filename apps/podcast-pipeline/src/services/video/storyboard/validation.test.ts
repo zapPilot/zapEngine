@@ -155,6 +155,29 @@ describe('validateStoryboardDraft', () => {
     }
   });
 
+  it('handles a canonical sentence whose offsets produce an empty range without crashing', () => {
+    const result = validateStoryboardDraft(
+      {
+        scenes: [scene('scene-01', 's0001', 's0001', ['No numeric claim'])],
+      },
+      {
+        script: '',
+        sentences: [
+          {
+            id: 's0001',
+            index: 0,
+            text: 'Defensive empty range',
+            startOffset: 0,
+            endOffset: 0,
+          },
+        ],
+        durationMs: 1_000,
+      },
+    );
+
+    expect(result).toMatchObject({ success: true, issues: [] });
+  });
+
   it('reports too many scenes for the available sentence count', () => {
     const oneSentence = {
       script: 'Only one.',

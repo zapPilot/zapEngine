@@ -120,6 +120,41 @@ describe('planVisualAssets', () => {
     expect(result.assets[0]?.originalImageUrl).toBe(usable.imageUrl);
   });
 
+  it('rejects invalid and cross-provider duplicate URLs before acquiring a fallback', async () => {
+    const repeated = { ...candidate('repeated'), altText: 'first subject' };
+    const fallback = {
+      ...candidate('fallback', 'bing'),
+      altText: 'first subject',
+    };
+    const acquireImage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('article decode failed'))
+      .mockResolvedValueOnce(acquired('fallback'));
+    const search = vi.fn().mockResolvedValue([
+      {
+        ...candidate('invalid', 'bing'),
+        imageUrl: 'javascript:alert(1)',
+        altText: 'first subject',
+      },
+      { ...repeated, origin: 'bing' as const },
+      fallback,
+    ]);
+
+    const result = await planVisualAssets({
+      scenes: scenes.slice(0, 1),
+      articleImages: [repeated],
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage,
+        searchProviders: bingProviders(search),
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(acquireImage).toHaveBeenCalledTimes(2);
+    expect(result.assets[0]?.originalImageUrl).toBe(fallback.imageUrl);
+  });
+
   it('excludes thumbnail-like article URLs before downloading candidates', async () => {
     const thumbnail = {
       ...candidate('story-thumbnail'),
@@ -618,6 +653,37 @@ describe('planVisualAssets', () => {
 
     expect(result.assets).toHaveLength(1);
     expect(acquireImage).toHaveBeenCalledOnce();
+  });
+
+  it('penalizes education and historical imagery when the intent does not ask for it', async () => {
+    const search = vi.fn().mockResolvedValue([
+      {
+        ...candidate('children', 'bing'),
+        altText: 'children classroom education target',
+      },
+      {
+        ...candidate('archive', 'bing'),
+        altText: 'historical archive vintage target',
+      },
+      {
+        ...candidate('neutral', 'bing'),
+        altText: 'target official event',
+        sourceUrl: 'not a url',
+      },
+    ]);
+
+    const result = await planVisualAssets({
+      scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['target event'] }],
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage: vi.fn().mockResolvedValue(acquired('neutral')),
+        searchProviders: bingProviders(search),
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(result.assets).toHaveLength(1);
+    expect(result.assets[0]?.sourceHostname).toBeUndefined();
   });
 
   it('handles an empty-token query and preserves provider order ties in resilient mode', async () => {

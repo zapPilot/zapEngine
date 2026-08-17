@@ -108,6 +108,30 @@ describe('assertR2PlaybackReady', () => {
 });
 
 describe('runR2PlaybackCanaryCli', () => {
+  it('runs the canary for exactly one valid URL', async () => {
+    const fetchRange = vi.fn().mockResolvedValue(
+      new Response(null, {
+        status: 206,
+        headers: {
+          'access-control-allow-origin': '*',
+          'content-range': 'bytes 0-1/10',
+        },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchRange);
+    const log = vi.fn();
+    try {
+      await expect(
+        runR2PlaybackCanaryCli(['https://media.example.com/video.mp4'], log),
+      ).resolves.toBeUndefined();
+      expect(log).toHaveBeenCalledWith(
+        'R2 playback ready: 206 bytes 0-1/10 CORS=*',
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('requires exactly one URL', async () => {
     await expect(runR2PlaybackCanaryCli([])).rejects.toThrow(
       'Usage: video:r2-canary',

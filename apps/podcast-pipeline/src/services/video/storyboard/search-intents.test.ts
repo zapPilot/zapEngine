@@ -446,6 +446,27 @@ describe('OpenRouter search intent provider', () => {
     expect(JSON.stringify(params['messages'])).toContain('englishSentences');
   });
 
+  it('passes an abort signal through to the OpenRouter request', async () => {
+    mockCompletion(
+      '{"scenes":[{"sceneId":"scene-01","imageSearchIntent":["cargo port"]}]}',
+    );
+    const controller = new AbortController();
+    const provider = createOpenRouterSearchIntentProvider();
+
+    await provider.suggest({
+      title: SEARCH_TITLE,
+      scenes: [{ sceneId: 'scene-01', text: '第一段。' }],
+      signal: controller.signal,
+    });
+
+    expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      null,
+      { signal: controller.signal },
+    );
+  });
+
   it('rejects empty and malformed completions so the batch falls back', async () => {
     mockCompletion('   ');
     const provider = createOpenRouterSearchIntentProvider();
@@ -457,6 +478,13 @@ describe('OpenRouter search intent provider', () => {
     await expect(provider.suggest(request)).rejects.toThrow(
       'Search intents returned empty content',
     );
+
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValueOnce({
+      choices: [{ message: { content: null } }],
+    });
+    await expect(
+      createOpenRouterSearchIntentProvider().suggest(request),
+    ).rejects.toThrow('Search intents returned empty content');
 
     mockCompletion('not json');
     await expect(

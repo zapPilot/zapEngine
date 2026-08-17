@@ -183,6 +183,19 @@ describe('podcast video audio analysis', () => {
     expect(timing.captions.at(-1)?.endMs).toBe(timing.durationMs);
   });
 
+  it('keeps the nearest valid silence when a later candidate is farther away', () => {
+    const timing = buildWeightedCaptionTiming({
+      script: 'First sentence has some words. Second sentence also has words.',
+      durationMs: 4_000,
+      silences: [
+        { startMs: 1_850, endMs: 1_950 },
+        { startMs: 900, endMs: 1_000 },
+      ],
+    });
+
+    expect(timing.sentences[0]?.endMs).toBe(1_917);
+  });
+
   it('ignores silence candidates outside legal sentence boundaries', () => {
     const timing = buildWeightedCaptionTiming({
       script: 'First sentence has some words. Second sentence also has words.',
