@@ -1,4 +1,6 @@
 import type { SocialPostMetricRow, SocialPostRow } from '../types.js';
+import { metricRowToCounts } from './metric-columns.js';
+import type { SocialMetricCounts } from './metrics.js';
 import type { SocialPlatform } from './types.js';
 
 export const SOCIAL_METRIC_WINDOWS = ['latest', '24h', '72h', '7d'] as const;
@@ -13,7 +15,7 @@ const WINDOW_TARGET_HOURS: Record<
   '7d': 168,
 };
 
-export interface SocialPostPerformance {
+export interface SocialPostPerformance extends SocialMetricCounts {
   postId: string;
   episodeId: string;
   platform: SocialPlatform;
@@ -21,12 +23,6 @@ export interface SocialPostPerformance {
   publishedAt: string;
   ageHours: number;
   title: string | null;
-  views: number | null;
-  impressions: number | null;
-  likes: number | null;
-  comments: number | null;
-  shares: number | null;
-  saves: number | null;
   engagements: number | null;
   engagementRate: number | null;
   engagementRateBasis: 'impressions' | 'views' | null;
@@ -140,12 +136,7 @@ function toPostPerformance(
     publishedAt: post.published_at,
     ageHours: metric.age_hours,
     title: post.published_title,
-    views: metric.views,
-    impressions: metric.impressions,
-    likes: metric.likes,
-    comments: metric.comments,
-    shares: metric.shares,
-    saves: metric.saves,
+    ...metricRowToCounts(metric),
     engagements,
     engagementRate:
       engagements !== null && denominator !== null && denominator > 0

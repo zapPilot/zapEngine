@@ -79,13 +79,7 @@ export async function collectThreadsMetrics(
   url.searchParams.set('metric', 'views,likes,replies,reposts,quotes,shares');
   url.searchParams.set('access_token', session.accessToken);
 
-  const response = await fetchImpl(url, {
-    signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
-  });
-  const payload = (await response.json().catch(() => null)) as unknown;
-  if (!response.ok) {
-    throw new Error(`Threads insights failed with HTTP ${response.status}.`);
-  }
+  const payload = await fetchWithTimeout(fetchImpl, url, 'Threads insights');
   if (!isRecord(payload) || !Array.isArray(payload['data'])) {
     throw new Error('Threads insights returned an invalid response.');
   }
@@ -625,15 +619,31 @@ async function queryYouTubeAnalytics(input: {
   url.searchParams.set('filters', `video==${input.videoId}`);
   if (input.dimensions) url.searchParams.set('dimensions', input.dimensions);
 
-  const response = await input.fetchImpl(url, {
-    headers: { authorization: `Bearer ${input.accessToken}` },
+  const payload = await fetchWithTimeout(
+    input.fetchImpl,
+    url,
+    'YouTube Analytics',
+    { headers: { authorization: `Bearer ${input.accessToken}` } },
+  );
+  if (!isRecord(payload) || !Array.isArray(payload['rows'])) {
+    throw new Error('YouTube Analytics returned an invalid response.');
+  }
+  return payload;
+}
+
+async function fetchWithTimeout(
+  fetchImpl: typeof fetch,
+  url: URL,
+  label: string,
+  init?: RequestInit,
+): Promise<unknown> {
+  const response = await fetchImpl(url, {
+    ...init,
     signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
   });
   const payload = (await response.json().catch(() => null)) as unknown;
-  if (!response.ok)
-    throw new Error(`YouTube Analytics failed with HTTP ${response.status}.`);
-  if (!isRecord(payload) || !Array.isArray(payload['rows'])) {
-    throw new Error('YouTube Analytics returned an invalid response.');
+  if (!response.ok) {
+    throw new Error(`${label} failed with HTTP ${response.status}.`);
   }
   return payload;
 }

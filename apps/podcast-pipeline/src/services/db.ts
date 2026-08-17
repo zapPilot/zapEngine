@@ -1,7 +1,10 @@
+import type { PostgrestFilterBuilder } from '@supabase/supabase-js';
+
 import {
   normalizeLanguageClassroomKeywords,
   normalizeLanguageClassroomLesson,
 } from '../lib/languageClassroom.js';
+import { metricCountsToColumns } from '../social/metric-columns.js';
 import type { SocialPlatform } from '../social/platforms.js';
 import type {
   Article,
@@ -627,28 +630,34 @@ export async function listSocialPostsByEpisode(
   episodeId: string,
   platform: SocialPlatform,
 ): Promise<SocialPostRow[]> {
-  const { data, error } = await getSupabase()
-    .from('social_posts')
-    .select('*')
-    .eq('episode_id', episodeId)
-    .eq('platform', platform)
-    .order('published_at', { ascending: false })
-    .returns<SocialPostRow[]>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data ?? [];
+  return listSocialPosts((query) =>
+    query.eq('episode_id', episodeId).eq('platform', platform),
+  );
 }
 
 export async function listRecentSocialPosts(
   publishedSince: string,
 ): Promise<SocialPostRow[]> {
-  const { data, error } = await getSupabase()
-    .from('social_posts')
-    .select('*')
-    .gte('published_at', publishedSince)
+  return listSocialPosts((query) => query.gte('published_at', publishedSince));
+}
+
+type SocialPostsFilterQuery = PostgrestFilterBuilder<
+  any,
+  any,
+  any,
+  any[],
+  'social_posts',
+  unknown,
+  'GET',
+  false
+>;
+
+async function listSocialPosts(
+  filters: (query: SocialPostsFilterQuery) => SocialPostsFilterQuery,
+): Promise<SocialPostRow[]> {
+  const { data, error } = await filters(
+    getSupabase().from('social_posts').select('*'),
+  )
     .order('published_at', { ascending: false })
     .returns<SocialPostRow[]>();
 
@@ -704,14 +713,7 @@ export function toSocialPostMetricInsertPayload(
     ...(metric.measurementWindow
       ? { measurement_window: metric.measurementWindow }
       : {}),
-    views: metric.views,
-    impressions: metric.impressions,
-    likes: metric.likes,
-    comments: metric.comments,
-    shares: metric.shares,
-    saves: metric.saves,
-    profile_visits: metric.profileVisits,
-    followers_gained: metric.followersGained,
+    ...metricCountsToColumns(metric),
     details: metric.details ?? {},
   };
 }

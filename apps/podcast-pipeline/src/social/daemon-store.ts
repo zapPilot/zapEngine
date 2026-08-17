@@ -163,9 +163,10 @@ export async function completeSocialPublishJob(input: {
   socialPostId?: string | null;
 }): Promise<void> {
   const completedAt = input.completedAt.toISOString();
-  const { data, error } = await getPipelineSupabase()
-    .from('social_publish_jobs')
-    .update({
+  await finalizeSocialPublishJob({
+    jobId: input.jobId,
+    owner: input.owner,
+    patch: {
       status: 'completed',
       completed_at: completedAt,
       social_post_id: input.socialPostId ?? null,
@@ -173,14 +174,8 @@ export async function completeSocialPublishJob(input: {
       lease_expires_at: null,
       last_error: null,
       updated_at: completedAt,
-    })
-    .eq('id', input.jobId)
-    .eq('lease_owner', input.owner)
-    .select('id')
-    .maybeSingle<{ id: string }>();
-  if (error) throwSupabaseError(error);
-  if (!data)
-    throw new Error(`Social publish job ${input.jobId} lease was lost.`);
+    },
+  });
 }
 
 export async function failSocialPublishJob(input: {
@@ -193,16 +188,28 @@ export async function failSocialPublishJob(input: {
   const nextAttemptAt = new Date(
     input.now.getTime() + publishRetryDelayMs(input.attemptCount),
   ).toISOString();
-  const { data, error } = await getPipelineSupabase()
-    .from('social_publish_jobs')
-    .update({
+  await finalizeSocialPublishJob({
+    jobId: input.jobId,
+    owner: input.owner,
+    patch: {
       status: 'failed',
       next_attempt_at: nextAttemptAt,
       lease_owner: null,
       lease_expires_at: null,
       last_error: input.error.slice(0, 4_000),
       updated_at: input.now.toISOString(),
-    })
+    },
+  });
+}
+
+async function finalizeSocialPublishJob(input: {
+  jobId: string;
+  owner: string;
+  patch: Record<string, unknown>;
+}): Promise<void> {
+  const { data, error } = await getPipelineSupabase()
+    .from('social_publish_jobs')
+    .update(input.patch)
     .eq('id', input.jobId)
     .eq('lease_owner', input.owner)
     .select('id')
