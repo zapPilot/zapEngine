@@ -3,14 +3,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const dbMocks = vi.hoisted(() => ({
   getSocialPostById: vi.fn(),
   insertSocialPostMetric: vi.fn(),
+  listRecentSocialPosts: vi.fn(),
   listSocialPostsByEpisode: vi.fn(),
+  updateSocialPostIdentity: vi.fn(),
 }));
 
 vi.mock('../services/db.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/db.js')>()),
   getSocialPostById: dbMocks.getSocialPostById,
   insertSocialPostMetric: dbMocks.insertSocialPostMetric,
+  listRecentSocialPosts: dbMocks.listRecentSocialPosts,
   listSocialPostsByEpisode: dbMocks.listSocialPostsByEpisode,
+  updateSocialPostIdentity: dbMocks.updateSocialPostIdentity,
 }));
 
 import type { NewSocialPostMetric, SocialPostRow } from '../types.js';
@@ -18,6 +22,7 @@ import {
   buildSocialPostMetric,
   formatMetricsSummary,
   parseMetricsCliOptions,
+  runAutomaticSocialMetricsCollector,
   runSocialMetricsCli,
   selectSocialPost,
   type SocialMetricCounts,
@@ -258,6 +263,20 @@ describe('buildSocialPostMetric', () => {
     expect(metric.ageHours).toBe(0);
   });
 
+  it('includes standardized window and detail metadata only when supplied', () => {
+    const built = buildSocialPostMetric({
+      post: post(),
+      capturedAt: new Date('2026-08-15T00:00:00.000Z'),
+      counts: { ...NO_COUNTS, views: 3 },
+      measurementWindow: '24h',
+      details: { fiveSecondRetentionRate: 0.5 },
+    });
+    expect(built).toMatchObject({
+      measurementWindow: '24h',
+      details: { fiveSecondRetentionRate: 0.5 },
+    });
+  });
+
   it('fails loudly on an unreadable published_at', () => {
     expect(() =>
       buildSocialPostMetric({
@@ -291,6 +310,24 @@ describe('formatMetricsSummary', () => {
 });
 
 describe('runSocialMetricsCli', () => {
+  it('uses the automatic collector default dependencies without touching external services when there are no posts', async () => {
+    dbMocks.listRecentSocialPosts.mockResolvedValue([]);
+    const log = vi.fn();
+
+    await runAutomaticSocialMetricsCollector({
+      now: () => new Date('2026-08-16T00:00:00.000Z'),
+      log,
+      insertMetric: vi.fn(),
+    });
+
+    expect(dbMocks.listRecentSocialPosts).toHaveBeenCalledWith(
+      '2026-08-09T00:00:00.000Z',
+    );
+    expect(log).toHaveBeenCalledWith(
+      'No social posts published in the last 7 days.',
+    );
+  });
+
   it('uses the production dependencies and default clock/logger when none are injected', async () => {
     dbMocks.listSocialPostsByEpisode.mockResolvedValue([post()]);
     dbMocks.insertSocialPostMetric.mockResolvedValue({ id: 'metric-default' });
@@ -436,6 +473,74 @@ describe('runSocialMetricsCli', () => {
     );
     expect(log).toHaveBeenCalledWith(
       'Social metrics complete: 1 snapshot recorded.',
+    );
+  });
+
+  it('handles no posts, reconciliation, empty snapshots, plural success, and non-Error failures', async () => {
+    const log = vi.fn();
+    await runAutomaticSocialMetricsCollector({
+      now: () => new Date('2026-08-16T00:00:00.000Z'),
+      log,
+      listRecentPosts: vi.fn().mockResolvedValue([]),
+      insertMetric: vi.fn(),
+      collectors: {
+        x: vi.fn(),
+        threads: vi.fn(),
+        rednote: vi.fn(),
+        youtube: vi.fn(),
+      },
+    });
+    expect(log).toHaveBeenCalledWith(
+      'No social posts published in the last 7 days.',
+    );
+
+    log.mockClear();
+    const first = post({ id: POST_ID });
+    const second = post({
+      id: '00000000-0000-4000-8000-000000000002',
+      platform_post_id: '2',
+    });
+    const empty = post({
+      id: '00000000-0000-4000-8000-000000000003',
+      platform_post_id: '3',
+    });
+    const failed = post({
+      id: '00000000-0000-4000-8000-000000000004',
+      platform: 'threads',
+      platform_post_id: '4',
+    });
+    const reconcileRecentPosts = vi
+      .fn()
+      .mockResolvedValue([first, second, empty, failed]);
+    const insertMetric = vi.fn().mockResolvedValue({});
+    const collectX = vi
+      .fn()
+      .mockResolvedValueOnce({ ...NO_COUNTS, views: 10 })
+      .mockResolvedValueOnce({ ...NO_COUNTS, views: 20 })
+      .mockResolvedValueOnce({ ...NO_COUNTS });
+
+    await runAutomaticSocialMetricsCollector({
+      now: () => new Date('2026-08-16T00:00:00.000Z'),
+      log,
+      listRecentPosts: vi.fn().mockResolvedValue([first]),
+      reconcileRecentPosts,
+      insertMetric,
+      collectors: {
+        x: collectX,
+        threads: vi.fn().mockRejectedValue('plain failure'),
+        rednote: vi.fn(),
+        youtube: vi.fn(),
+      },
+    });
+
+    expect(reconcileRecentPosts).toHaveBeenCalledOnce();
+    expect(insertMetric).toHaveBeenCalledTimes(2);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('no metrics available yet'),
+    );
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('plain failure'));
+    expect(log).toHaveBeenCalledWith(
+      'Social metrics complete: 2 snapshots recorded, 1 failed.',
     );
   });
 

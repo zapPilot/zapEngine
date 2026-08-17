@@ -29,6 +29,8 @@ import {
   listLanguageClassroomsByLocalizationId,
   listLanguageClassroomsByLocalizationIds,
   listPublishedEpisodeCatalog,
+  listRecentSocialPosts,
+  listSocialPostMetrics,
   listSocialPostsByEpisode,
   toEpisodeResponse,
   toEpisodeResponseFromLocalization,
@@ -37,6 +39,7 @@ import {
   toSocialPostMetricInsertPayload,
   updateEpisodeLocalizationArticleContent,
   updateEpisodeLocalizationStatus,
+  updateSocialPostIdentity,
   upsertLanguageClassrooms,
 } from './db.js';
 
@@ -73,6 +76,7 @@ function makeQuery() {
     select: vi.fn(() => query),
     eq: vi.fn(() => query),
     gt: vi.fn(() => query),
+    gte: vi.fn(() => query),
     in: vi.fn(() => query),
     order: vi.fn(() => query),
     limit: vi.fn(() => query),
@@ -1420,6 +1424,72 @@ describe('social post telemetry', () => {
     ).rejects.toThrow('social post list failed');
   });
 
+  it('lists recent social posts, normalizes null data, and surfaces lookup errors', async () => {
+    const rows = [{ id: 'social-post-2' }, { id: 'social-post-1' }];
+    state.query!.returns.mockResolvedValueOnce({ data: rows, error: null });
+    await expect(
+      listRecentSocialPosts('2026-08-10T00:00:00.000Z'),
+    ).resolves.toEqual(rows);
+    expect(state.query!.gte).toHaveBeenCalledWith(
+      'published_at',
+      '2026-08-10T00:00:00.000Z',
+    );
+
+    state.query!.returns.mockResolvedValueOnce({ data: null, error: null });
+    await expect(
+      listRecentSocialPosts('2026-08-10T00:00:00.000Z'),
+    ).resolves.toEqual([]);
+
+    state.query!.returns.mockResolvedValueOnce({
+      data: null,
+      error: new Error('recent social post lookup failed'),
+    });
+    await expect(
+      listRecentSocialPosts('2026-08-10T00:00:00.000Z'),
+    ).rejects.toThrow('recent social post lookup failed');
+  });
+
+  it('updates recovered social identity with or without a post URL and surfaces errors', async () => {
+    state.query!.eq.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    } as never);
+    await expect(
+      updateSocialPostIdentity({ id: 'post-1', platformPostId: 'platform-1' }),
+    ).resolves.toBeUndefined();
+    expect(state.query!.update).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ post_url: expect.anything() }),
+    );
+
+    state.query!.eq.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    } as never);
+    await updateSocialPostIdentity({
+      id: 'post-1',
+      platformPostId: 'platform-2',
+      postUrl: null,
+    });
+    expect(state.query!.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        platform_post_id: 'platform-2',
+        post_url: null,
+      }),
+    );
+
+    state.query!.eq.mockResolvedValueOnce({
+      data: null,
+      error: new Error('identity update failed'),
+    } as never);
+    await expect(
+      updateSocialPostIdentity({
+        id: 'post-1',
+        platformPostId: 'platform-3',
+        postUrl: 'https://example.test/post-3',
+      }),
+    ).rejects.toThrow('identity update failed');
+  });
+
   it('returns null for a missing social post id and surfaces lookup errors', async () => {
     state.query!.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
     await expect(getSocialPostById('social-post-9')).resolves.toBeNull();
@@ -1476,6 +1546,44 @@ describe('social post metrics', () => {
     await expect(insertSocialPostMetric(newMetric)).resolves.toEqual(row);
     expect(mockFrom).toHaveBeenCalledWith('social_post_metrics');
     expect(state.query!.insert).toHaveBeenCalledWith(payload);
+  });
+
+  it('includes standardized window and details in metric insert payloads', () => {
+    expect(
+      toSocialPostMetricInsertPayload({
+        ...newMetric,
+        measurementWindow: '24h',
+        details: { fiveSecondRetentionRate: 0.5 },
+      }),
+    ).toMatchObject({
+      measurement_window: '24h',
+      details: { fiveSecondRetentionRate: 0.5 },
+    });
+  });
+
+  it('lists recent metric snapshots, normalizes null data, and surfaces errors', async () => {
+    const rows = [{ id: 'metric-2' }, { id: 'metric-1' }];
+    state.query!.returns.mockResolvedValueOnce({ data: rows, error: null });
+    await expect(
+      listSocialPostMetrics('2026-08-10T00:00:00.000Z'),
+    ).resolves.toEqual(rows);
+    expect(state.query!.gte).toHaveBeenCalledWith(
+      'captured_at',
+      '2026-08-10T00:00:00.000Z',
+    );
+
+    state.query!.returns.mockResolvedValueOnce({ data: null, error: null });
+    await expect(
+      listSocialPostMetrics('2026-08-10T00:00:00.000Z'),
+    ).resolves.toEqual([]);
+
+    state.query!.returns.mockResolvedValueOnce({
+      data: null,
+      error: new Error('social metric lookup failed'),
+    });
+    await expect(
+      listSocialPostMetrics('2026-08-10T00:00:00.000Z'),
+    ).rejects.toThrow('social metric lookup failed');
   });
 
   it('throws a Supabase error when the metrics insert fails', async () => {

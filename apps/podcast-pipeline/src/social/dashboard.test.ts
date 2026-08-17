@@ -54,6 +54,21 @@ describe('social dashboard', () => {
     expect(await response.text()).toContain('Social Performance');
   });
 
+  it('uses the default clock when only data sources are injected', async () => {
+    const app = createSocialDashboardApp({
+      listPosts: vi.fn().mockResolvedValue([]),
+      listMetrics: vi.fn().mockResolvedValue([]),
+    });
+
+    const response = await app.request('/api/social-performance');
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      window: 'latest',
+      generatedAt: expect.any(String),
+      episodes: [],
+    });
+  });
+
   it('returns normalized performance JSON for a requested window', async () => {
     const listPosts = vi.fn().mockResolvedValue([post]);
     const listMetrics = vi.fn().mockResolvedValue([metric]);

@@ -143,4 +143,134 @@ describe('social performance normalization', () => {
       engagementRateBasis: 'views',
     });
   });
+
+  it('groups multiple platform rows per episode, ignores posts without metrics, and sums only known counters', () => {
+    const posts = [
+      post({ id: 'post-1', episode_id: 'episode-1', platform: 'youtube' }),
+      post({
+        id: 'post-2',
+        episode_id: 'episode-1',
+        platform: 'rednote',
+        published_title: null,
+        published_body: 'Body fallback\nsecond line',
+      }),
+      post({ id: 'post-without-metric', episode_id: 'episode-2' }),
+    ];
+    const metrics = [
+      metric({ id: 'm1', social_post_id: 'post-1', age_hours: 24, views: 100 }),
+      metric({
+        id: 'm1-newer',
+        social_post_id: 'post-1',
+        age_hours: 25,
+        views: 120,
+        captured_at: '2026-08-16T01:00:00.000Z',
+      }),
+      metric({
+        id: 'm2',
+        social_post_id: 'post-2',
+        age_hours: 30,
+        views: null,
+        impressions: null,
+      }),
+    ];
+
+    const result = buildSocialPerformance({ posts, metrics, window: 'latest' });
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      episodeId: 'episode-1',
+      title: 'Published title',
+      totalViews: 120,
+      platforms: [
+        expect.objectContaining({ postId: 'post-2', ageHours: 30 }),
+        expect.objectContaining({ postId: 'post-1', ageHours: 25 }),
+      ],
+    });
+  });
+
+  it('returns null engagement math when every counter and denominator is unavailable', () => {
+    const result = buildSocialPerformance({
+      posts: [
+        post({
+          published_title: null,
+          published_body: 'Fallback body title\nsecond line',
+          content_features: {
+            containsQuestion: false,
+            containsNumber: false,
+            titleChars: null,
+            bodyChars: 19,
+            hashtagCount: 0,
+          },
+        }),
+      ],
+      metrics: [
+        metric({
+          views: null,
+          impressions: null,
+          likes: null,
+          comments: null,
+          shares: null,
+          saves: null,
+        }),
+      ],
+      window: '24h',
+    });
+
+    expect(result[0]).toMatchObject({
+      title: 'Fallback body title',
+      totalViews: null,
+      totalImpressions: null,
+    });
+    expect(result[0]?.platforms[0]).toMatchObject({
+      engagements: null,
+      engagementRate: null,
+      engagementRateBasis: null,
+      technicalQualityScore: null,
+    });
+  });
+
+  it('uses Untitled episode when neither title nor body can name the episode', () => {
+    const result = buildSocialPerformance({
+      posts: [post({ published_title: null, published_body: '   ' })],
+      metrics: [metric()],
+      window: 'latest',
+    });
+    expect(result[0]?.title).toBe('Untitled episode');
+  });
+
+  it('sorts episodes with unknown totals behind known views and compares unknown totals safely', () => {
+    const posts = [
+      post({
+        id: 'known',
+        episode_id: 'known-episode',
+        published_title: 'Known',
+      }),
+      post({ id: 'unknown-a', episode_id: 'unknown-a', published_title: 'A' }),
+      post({ id: 'unknown-b', episode_id: 'unknown-b', published_title: 'B' }),
+    ];
+    const metrics = [
+      metric({ id: 'known-m', social_post_id: 'known', views: 10 }),
+      metric({
+        id: 'unknown-a-m',
+        social_post_id: 'unknown-a',
+        views: null,
+        impressions: null,
+      }),
+      metric({
+        id: 'unknown-b-m',
+        social_post_id: 'unknown-b',
+        views: null,
+        impressions: null,
+      }),
+    ];
+
+    expect(
+      buildSocialPerformance({ posts, metrics, window: 'latest' }).map(
+        (row) => row.episodeId,
+      ),
+    ).toEqual(['known-episode', 'unknown-a', 'unknown-b']);
+  });
+
+  it('returns null when selecting from an empty metric set', () => {
+    expect(selectMetricSnapshot([], 'latest')).toBeNull();
+  });
 });

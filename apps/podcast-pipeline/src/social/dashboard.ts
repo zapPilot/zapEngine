@@ -112,7 +112,7 @@ async function load(){
   try {
     const res=await fetch('/api/social-performance?window='+encodeURIComponent(selected)); if(!res.ok) throw new Error('HTTP '+res.status); const data=await res.json();
     status.textContent='30-day dataset · '+data.window+' snapshot · updated '+new Date(data.generatedAt).toLocaleString(); content.replaceChildren();
-    if(!data.episodes.length){content.append(el('div','empty','No social metric snapshots yet. Run pnpm social:metrics first.'));return;}
+    if(!data.episodes.length){content.append(el('div','empty','No social metric snapshots yet. Keep pnpm social:daemon running.'));return;}
     data.episodes.forEach(ep=>{
       const card=el('section','episode'); const head=el('div','episode-head'); const left=el('div'); left.append(el('div','episode-title',ep.title),el('div','muted',ep.episodeId)); head.append(left,el('div','totals','Views '+fmt(ep.totalViews)+' · Impressions '+fmt(ep.totalImpressions))); card.append(head);
       const scroll=el('div','scroll'), table=el('table'), thead=el('thead'), hr=el('tr'); ['Platform','Views','Impressions','ER','5s retention','Avg watch','Avg viewed','Cover CTR','Quality','Audience'].forEach(x=>hr.append(el('th','',x))); thead.append(hr); table.append(thead); const tbody=el('tbody');

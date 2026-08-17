@@ -234,6 +234,146 @@ describe('social daemon store', () => {
     expect(publishRetryDelayMs(99)).toBe(6 * 60 * 60_000);
   });
 
+  it('covers null rows and every Supabase failure boundary without fabricating state', async () => {
+    const now = new Date('2026-08-16T10:00:00.000Z');
+
+    queue({ data: null, error: new Error('daemon read failed') });
+    await expect(ensureSocialDaemonStart(now)).rejects.toThrow(
+      'daemon read failed',
+    );
+
+    queue(
+      { data: null, error: null },
+      { data: null, error: new Error('daemon upsert failed') },
+    );
+    await expect(ensureSocialDaemonStart(now)).rejects.toThrow(
+      'daemon upsert failed',
+    );
+
+    queue(
+      { data: null, error: null },
+      { data: { first_started_at: '2026-08-16T10:00:00.000Z' }, error: null },
+    );
+    await expect(ensureSocialDaemonStart(now)).resolves.toBe(
+      '2026-08-16T10:00:00.000Z',
+    );
+
+    queue(
+      { data: null, error: null },
+      { data: null, error: null },
+      { data: null, error: new Error('daemon race read failed') },
+    );
+    await expect(ensureSocialDaemonStart(now)).rejects.toThrow(
+      'daemon race read failed',
+    );
+
+    queue({ data: null, error: null });
+    await expect(
+      listSocialPublishCandidates('2026-08-01T00:00:00Z'),
+    ).resolves.toEqual([]);
+    queue({ data: null, error: new Error('enqueue failed') });
+    await expect(
+      enqueueSocialPublishJob({
+        episodeId: 'episode-1',
+        platform: 'x',
+        scheduledAt: now.toISOString(),
+      }),
+    ).rejects.toThrow('enqueue failed');
+
+    queue({ data: null, error: new Error('schedule lookup failed') });
+    await expect(latestScheduledSocialJobs()).rejects.toThrow(
+      'schedule lookup failed',
+    );
+    queue({ data: null, error: null });
+    await expect(latestScheduledSocialJobs()).resolves.toEqual({});
+
+    queue({ data: null, error: null });
+    await expect(
+      claimSocialPublishJob({ owner: 'mac:1', now }),
+    ).resolves.toBeNull();
+
+    queue({ data: null, error: new Error('lease update failed') });
+    await expect(
+      completeSocialPublishJob({
+        jobId: 'job-1',
+        owner: 'mac:1',
+        completedAt: now,
+      }),
+    ).rejects.toThrow('lease update failed');
+
+    queue({ data: null, error: new Error('active lookup failed') });
+    await expect(getActiveSocialStrategies()).rejects.toThrow(
+      'active lookup failed',
+    );
+    queue({ data: null, error: null });
+    await expect(getActiveSocialStrategies()).resolves.toEqual([]);
+
+    queue({ data: null, error: new Error('strategy lookup failed') });
+    await expect(getSocialStrategyById('strategy-1')).rejects.toThrow(
+      'strategy lookup failed',
+    );
+
+    queue({ data: null, error: new Error('learning posts failed') });
+    await expect(
+      listLearningSocialPosts('2026-08-01T00:00:00Z'),
+    ).rejects.toThrow('learning posts failed');
+    queue({ data: null, error: null });
+    await expect(
+      listLearningSocialPosts('2026-08-01T00:00:00Z'),
+    ).resolves.toEqual([]);
+
+    queue({ data: null, error: new Error('learning metrics failed') });
+    await expect(
+      listLearningSocialMetrics('2026-08-01T00:00:00Z'),
+    ).rejects.toThrow('learning metrics failed');
+    queue({ data: null, error: null });
+    await expect(
+      listLearningSocialMetrics('2026-08-01T00:00:00Z'),
+    ).resolves.toEqual([]);
+
+    queue({ data: null, error: new Error('metric windows failed') });
+    await expect(listMetricWindowsForPosts(['post-1'])).rejects.toThrow(
+      'metric windows failed',
+    );
+    queue({ data: null, error: null });
+    await expect(listMetricWindowsForPosts(['post-1'])).resolves.toEqual([]);
+  });
+
+  it('surfaces each activation-stage error and starts versioning at one', async () => {
+    const input = {
+      platform: 'x' as const,
+      config: { publishHoursJst: [12, 19] },
+      basedOnSamples: 8,
+      now: new Date('2026-08-16T10:00:00Z'),
+    };
+
+    queue({ data: null, error: new Error('version lookup failed') });
+    await expect(activateSocialStrategy(input)).rejects.toThrow(
+      'version lookup failed',
+    );
+
+    queue(
+      { data: null, error: null },
+      { data: null, error: new Error('deactivate failed') },
+    );
+    await expect(activateSocialStrategy(input)).rejects.toThrow(
+      'deactivate failed',
+    );
+
+    queue(
+      { data: [], error: null },
+      { data: null, error: null },
+      { data: null, error: new Error('insert strategy failed') },
+    );
+    await expect(activateSocialStrategy(input)).rejects.toThrow(
+      'insert strategy failed',
+    );
+    const insertCall = mocks.calls.find((call) => call.method === 'insert');
+    expect(insertCall?.args[0]).toEqual(
+      expect.objectContaining({ version: 1 }),
+    );
+  });
+
   it('reads and activates versioned strategies while surfacing Supabase errors', async () => {
     const strategy = {
       id: 'strategy-1',

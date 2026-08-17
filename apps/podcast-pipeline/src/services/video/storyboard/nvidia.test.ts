@@ -161,6 +161,15 @@ describe('NVIDIA storyboard provider', () => {
     );
   });
 
+  it('builds real clients from environment and default base URL configuration without sending a request', () => {
+    process.env['NVIDIA_API_KEY'] = ' env-key ';
+    process.env['NVIDIA_BASE_URL'] = ' https://nvidia-env.example/v1 ';
+    expect(() => createNvidiaStoryboardProvider()).not.toThrow();
+
+    delete process.env['NVIDIA_BASE_URL'];
+    expect(() => createNvidiaStoryboardProvider()).not.toThrow();
+  });
+
   it('requires an API key when a real client must be created', () => {
     delete process.env['NVIDIA_API_KEY'];
     expect(() => createNvidiaStoryboardProvider()).toThrow(

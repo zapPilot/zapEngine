@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   claimSocialPublishJob: vi.fn(),
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn(),
+  ensureSocialDaemonStart: vi.fn(),
   failSocialPublishJob: vi.fn(),
   getActiveSocialStrategies: vi.fn(),
   getSocialStrategyById: vi.fn(),
@@ -24,7 +25,7 @@ vi.mock('./daemon-store.js', () => ({
   claimSocialPublishJob: mocks.claimSocialPublishJob,
   completeSocialPublishJob: mocks.completeSocialPublishJob,
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
-  ensureSocialDaemonStart: vi.fn(),
+  ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
   failSocialPublishJob: mocks.failSocialPublishJob,
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialStrategyById: mocks.getSocialStrategyById,
@@ -53,6 +54,7 @@ import type { SocialPostRow } from '../types.js';
 import {
   collectDueMetricWindows,
   earliestDueWindow,
+  runSocialDaemon,
   runSocialDaemonTick,
 } from './daemon.js';
 
@@ -89,6 +91,27 @@ function socialPost(input: Partial<SocialPostRow> = {}): SocialPostRow {
   };
 }
 
+function publishJob(input: Record<string, unknown> = {}) {
+  return {
+    id: 'job-1',
+    episode_id: EPISODE_ID,
+    platform: 'x',
+    status: 'processing',
+    scheduled_at: '2026-08-16T09:05:00.000Z',
+    next_attempt_at: '2026-08-16T09:05:00.000Z',
+    strategy_version_id: null,
+    social_post_id: null,
+    attempt_count: 1,
+    lease_owner: 'owner',
+    lease_expires_at: '2026-08-16T10:15:00.000Z',
+    last_error: null,
+    completed_at: null,
+    created_at: '2026-08-16T09:00:00.000Z',
+    updated_at: '2026-08-16T10:00:00.000Z',
+    ...input,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
@@ -98,6 +121,7 @@ beforeEach(() => {
   mocks.listDueMetricPosts.mockResolvedValue([]);
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);
   mocks.enqueueSocialPublishJob.mockResolvedValue(true);
+  mocks.ensureSocialDaemonStart.mockResolvedValue('2026-08-16T08:00:00.000Z');
   mocks.getSocialStrategyById.mockResolvedValue(null);
   mocks.createMetricCollectors.mockReturnValue({
     x: mocks.collectX,
@@ -237,5 +261,294 @@ describe('social daemon', () => {
         new Set(),
       ),
     ).toBeNull();
+    expect(
+      earliestDueWindow(
+        socialPost({ published_at: '2026-08-16T09:30:00.000Z' }),
+        NOW,
+        new Set(),
+      ),
+    ).toBeNull();
+  });
+
+  it('runs repeated daemon ticks, refreshes only when due, and stops when injected sleep rejects', async () => {
+    const oneHourLater = new Date(NOW.getTime() + 60 * 60_000);
+    const now = vi
+      .fn()
+      .mockReturnValueOnce(NOW)
+      .mockReturnValueOnce(NOW)
+      .mockReturnValueOnce(oneHourLater);
+    const sleep = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('stop-loop'));
+    const log = vi.fn();
+
+    await expect(runSocialDaemon({ now, sleep, log })).rejects.toThrow(
+      'stop-loop',
+    );
+
+    expect(mocks.ensureSocialDaemonStart).toHaveBeenCalledWith(NOW);
+    expect(sleep).toHaveBeenNthCalledWith(1, 60_000);
+    expect(sleep).toHaveBeenNthCalledWith(2, 60_000);
+    expect(mocks.refreshSocialStrategies).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('[social-daemon] started as'),
+    );
+  });
+
+  it('supports the default daemon dependencies up to the first sleep boundary', async () => {
+    const timeout = vi.spyOn(global, 'setTimeout').mockImplementation(() => {
+      throw new Error('stop-default-sleep');
+    });
+    const consoleLog = vi
+      .spyOn(console, 'log')
+      .mockImplementation(() => undefined);
+    try {
+      await expect(runSocialDaemon()).rejects.toThrow('stop-default-sleep');
+    } finally {
+      timeout.mockRestore();
+      consoleLog.mockRestore();
+    }
+  });
+
+  it('uses active strategy schedules, skips invalid candidates, and keeps rolling slots only for inserted jobs', async () => {
+    mocks.listSocialPublishCandidates.mockResolvedValue([
+      { episode_id: 'bad', ready_at: 'not-a-date' },
+      { episode_id: EPISODE_ID, ready_at: '2026-08-16T11:00:00.000Z' },
+    ]);
+    mocks.getActiveSocialStrategies.mockResolvedValue([
+      {
+        id: 'strategy-x',
+        platform: 'x',
+        version: 2,
+        config: { publishHoursJst: [19] },
+        based_on_samples: 5,
+        active: true,
+        activated_at: '2026-08-16T08:00:00.000Z',
+        created_at: '2026-08-16T08:00:00.000Z',
+      },
+    ]);
+    mocks.latestScheduledSocialJobs.mockResolvedValue({
+      x: '2026-08-16T10:05:00.000Z',
+    });
+    mocks.enqueueSocialPublishJob.mockImplementation(
+      async (input) => input.platform !== 'threads',
+    );
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-16T08:00:00.000Z',
+    });
+
+    expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(4);
+    const calls = mocks.enqueueSocialPublishJob.mock.calls.map(
+      ([input]) => input,
+    );
+    expect(calls.find((input) => input.platform === 'x')).toMatchObject({
+      strategyVersionId: 'strategy-x',
+    });
+    expect(calls.find((input) => input.platform === 'threads')).toMatchObject({
+      strategyVersionId: null,
+    });
+  });
+
+  it('passes learned guidance into publishing and fails on state or record persistence errors', async () => {
+    for (const field of ['stateError', 'recordError'] as const) {
+      vi.clearAllMocks();
+      mocks.listSocialPublishCandidates.mockResolvedValue([]);
+      mocks.getActiveSocialStrategies.mockResolvedValue([]);
+      mocks.latestScheduledSocialJobs.mockResolvedValue({});
+      mocks.listDueMetricPosts.mockResolvedValue([]);
+      mocks.claimSocialPublishJob.mockResolvedValue(
+        publishJob({ strategy_version_id: 'strategy-1' }),
+      );
+      mocks.getSocialStrategyById.mockResolvedValue({
+        id: 'strategy-1',
+        platform: 'x',
+        version: 1,
+        config: { preferredHookTypes: ['question'] },
+        based_on_samples: 5,
+        active: true,
+        activated_at: NOW.toISOString(),
+        created_at: NOW.toISOString(),
+      });
+      mocks.runSocialCli.mockResolvedValue([
+        {
+          platform: 'x',
+          status: 'published',
+          url: 'https://x.com/zap/status/1',
+          [field]: new Error(`${field} failed`),
+        },
+      ]);
+
+      await runSocialDaemonTick({
+        now: NOW,
+        firstStartedAt: '2026-08-16T08:00:00.000Z',
+      });
+
+      expect(mocks.runSocialCli).toHaveBeenCalledWith(
+        [EPISODE_ID, '--yes', '--platform', 'x'],
+        expect.objectContaining({
+          strategyGuidance: expect.stringContaining('question'),
+          setExitCodeOnFailure: false,
+        }),
+      );
+      expect(mocks.failSocialPublishJob).toHaveBeenCalledWith(
+        expect.objectContaining({ error: `${field} failed` }),
+      );
+    }
+  });
+
+  it('fails cleanly when publish outcome or telemetry row is missing and normalizes non-Error failures', async () => {
+    const scenarios = [
+      {
+        outcomes: [],
+        posts: [socialPost()],
+        expected: 'x did not publish.',
+      },
+      {
+        outcomes: [
+          {
+            platform: 'x',
+            status: 'published',
+            url: 'https://x.com/zap/status/1',
+          },
+        ],
+        posts: [],
+        expected: 'publish completed but no social_posts row was recorded',
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      vi.clearAllMocks();
+      mocks.listSocialPublishCandidates.mockResolvedValue([]);
+      mocks.getActiveSocialStrategies.mockResolvedValue([]);
+      mocks.latestScheduledSocialJobs.mockResolvedValue({});
+      mocks.listDueMetricPosts.mockResolvedValue([]);
+      mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
+      mocks.runSocialCli.mockResolvedValue(scenario.outcomes);
+      mocks.listSocialPostsByEpisode.mockResolvedValue(scenario.posts);
+
+      await runSocialDaemonTick({
+        now: NOW,
+        firstStartedAt: '2026-08-16T08:00:00.000Z',
+      });
+      expect(mocks.failSocialPublishJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.stringContaining(scenario.expected),
+        }),
+      );
+    }
+
+    vi.clearAllMocks();
+    mocks.listSocialPublishCandidates.mockResolvedValue([]);
+    mocks.getActiveSocialStrategies.mockResolvedValue([]);
+    mocks.latestScheduledSocialJobs.mockResolvedValue({});
+    mocks.listDueMetricPosts.mockResolvedValue([]);
+    mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
+    mocks.runSocialCli.mockRejectedValue('plain publish failure');
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-16T08:00:00.000Z',
+    });
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledWith(
+      expect.objectContaining({ error: 'plain publish failure' }),
+    );
+  });
+
+  it('skips unavailable metric snapshots, logs collector failures, and ignores null recorded windows', async () => {
+    const tooYoung = socialPost({
+      id: 'post-young',
+      published_at: '2026-08-16T09:30:00.000Z',
+    });
+    const empty = socialPost({ id: 'post-empty' });
+    const errorPost = socialPost({ id: 'post-error' });
+    const stringErrorPost = socialPost({ id: 'post-string-error' });
+    mocks.listDueMetricPosts.mockResolvedValue([
+      tooYoung,
+      empty,
+      errorPost,
+      stringErrorPost,
+    ]);
+    mocks.listMetricWindowsForPosts.mockResolvedValue([
+      { social_post_id: 'ignored', measurement_window: null },
+    ]);
+    mocks.collectX
+      .mockResolvedValueOnce({
+        views: null,
+        impressions: null,
+        likes: null,
+        comments: null,
+        shares: null,
+        saves: null,
+        profileVisits: null,
+        followersGained: null,
+      })
+      .mockRejectedValueOnce(new Error('collector exploded'))
+      .mockRejectedValueOnce('string collector failure');
+    const log = vi.fn();
+
+    await expect(collectDueMetricWindows(NOW, log)).resolves.toBe(0);
+    expect(mocks.insertSocialPostMetric).not.toHaveBeenCalled();
+    expect(log.mock.calls.map(([line]) => String(line))).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('collector exploded'),
+        expect.stringContaining('string collector failure'),
+      ]),
+    );
+  });
+
+  it('persists a Rednote identity discovered by the collector callback', async () => {
+    const post = socialPost({
+      id: 'rednote-post',
+      platform: 'rednote',
+      platform_post_id: null,
+      post_url: null,
+      published_at: '2026-08-16T09:30:00.000Z',
+    });
+    mocks.listDueMetricPosts.mockResolvedValue([post]);
+
+    await collectDueMetricWindows(NOW);
+    const options = mocks.createMetricCollectors.mock.calls[0]?.[0];
+    await options.onRednoteIdentity({
+      post,
+      platformPostId: 'note-1',
+      postUrl: 'https://www.xiaohongshu.com/explore/note-1',
+    });
+
+    expect(mocks.updateSocialPostIdentity).toHaveBeenCalledWith({
+      id: 'rednote-post',
+      platformPostId: 'note-1',
+      postUrl: 'https://www.xiaohongshu.com/explore/note-1',
+    });
+  });
+
+  it('isolates discover, publish, metric, and strategy failures so one subsystem cannot stop a tick', async () => {
+    mocks.listSocialPublishCandidates.mockRejectedValue(
+      new Error('discover down'),
+    );
+    mocks.claimSocialPublishJob.mockRejectedValue('publish down');
+    mocks.listDueMetricPosts.mockRejectedValue(new Error('metrics down'));
+    mocks.refreshSocialStrategies.mockRejectedValue('strategy down');
+    const log = vi.fn();
+
+    await expect(
+      runSocialDaemonTick({
+        now: NOW,
+        firstStartedAt: '2026-08-16T08:00:00.000Z',
+        log,
+        refreshStrategy: true,
+      }),
+    ).resolves.toBeUndefined();
+
+    const messages = log.mock.calls.map(([line]) => String(line));
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('discover failed: discover down'),
+        expect.stringContaining('publish failed: publish down'),
+        expect.stringContaining('metrics failed: metrics down'),
+        expect.stringContaining('strategy failed: strategy down'),
+      ]),
+    );
   });
 });

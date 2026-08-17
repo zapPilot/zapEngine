@@ -89,6 +89,16 @@ describe('startVideoWorkerProcess', () => {
     expect(logger.info).toHaveBeenCalledTimes(2);
   });
 
+  it('creates the default process-exit callback without invoking it in always-on mode', async () => {
+    const { handle, videoWorker } = makeHarness({
+      exit: undefined,
+      onDemand: false,
+    });
+
+    expect(videoWorker.start).toHaveBeenCalledOnce();
+    await handle.shutdown('default exit callback test');
+  });
+
   it('uses the default console logger when none is injected', async () => {
     const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const { handle } = makeHarness({ logger: undefined });

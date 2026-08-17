@@ -1,0 +1,722 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { SocialPostRow } from '../types.js';
+
+const browser = vi.hoisted(() => ({
+  launchPersistentContext: vi.fn(),
+}));
+
+vi.mock('playwright-core', () => ({
+  chromium: { launchPersistentContext: browser.launchPersistentContext },
+}));
+vi.mock('./x-playwright.js', () => ({
+  PROFILE_DIRECTORY: join(tmpdir(), 'x-profile'),
+}));
+vi.mock('./rednote-browser.js', () => ({
+  PROFILE_DIRECTORY: join(tmpdir(), 'rednote-profile'),
+}));
+vi.mock('./threads-auth.js', () => ({
+  THREADS_INSIGHTS_SCOPE: 'threads_manage_insights',
+  assertThreadsSessionReady: vi.fn(),
+}));
+vi.mock('./youtube-auth.js', () => ({
+  YOUTUBE_ANALYTICS_SCOPE: 'yt-analytics',
+  assertYouTubeSessionReady: vi.fn(),
+}));
+
+import {
+  collectRednoteMetrics,
+  collectXMetrics,
+  createMetricCollectors,
+  inspectRednotePublishedPost,
+  inspectXPublishedPost,
+  inspectXPublishedPostAt,
+} from './metric-collectors.js';
+
+function post(
+  platform: SocialPostRow['platform'],
+  overrides: Partial<SocialPostRow> = {},
+): SocialPostRow {
+  return {
+    id: `${platform}-post-1`,
+    episode_id: 'episode-1',
+    platform,
+    post_url: platform === 'x' ? 'https://x.com/zap/status/1234567890' : null,
+    platform_post_id: platform === 'x' ? '1234567890' : null,
+    published_at: '2026-08-16T02:00:00.000Z',
+    topic: 'macro',
+    hook_type: 'question',
+    generated_title: platform === 'rednote' ? '生成標題' : null,
+    published_title: platform === 'rednote' ? '發佈標題' : null,
+    generated_body: 'generated',
+    published_body: 'published',
+    hashtags: [],
+    video_duration_sec: 120,
+    content_features: {
+      containsQuestion: true,
+      containsNumber: false,
+      titleChars: platform === 'rednote' ? 4 : null,
+      bodyChars: 9,
+      hashtagCount: 0,
+    },
+    llm_model: 'model',
+    created_at: '2026-08-16T02:00:00.000Z',
+    updated_at: '2026-08-16T02:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function promiseMethod<T>(value: T) {
+  return vi.fn().mockResolvedValue(value);
+}
+
+function metricLocator(input: { aria?: string | null; text?: string } = {}) {
+  const leaf = {
+    getAttribute: promiseMethod(input.aria ?? null),
+    innerText: promiseMethod(input.text ?? ''),
+  };
+  return { first: () => leaf };
+}
+
+function xArticle(
+  input: {
+    body?: string;
+    href?: string | null;
+    datetime?: string | null;
+    comments?: { aria?: string | null; text?: string };
+    reposts?: { aria?: string | null; text?: string };
+    likes?: { aria?: string | null; text?: string };
+    views?: { aria?: string | null; text?: string };
+  } = {},
+) {
+  const body = input.body ?? 'X published body';
+  return {
+    waitFor: promiseMethod(undefined),
+    locator: vi.fn((selector: string) => {
+      if (selector === '[data-testid="reply"]')
+        return metricLocator(input.comments);
+      if (selector === '[data-testid="retweet"]')
+        return metricLocator(input.reposts);
+      if (selector === '[data-testid="like"]')
+        return metricLocator(input.likes);
+      if (selector === 'a[href$="/analytics"]')
+        return metricLocator(input.views);
+      if (selector === '[data-testid="tweetText"]') {
+        return { first: () => ({ innerText: promiseMethod(body) }) };
+      }
+      if (selector === 'time') {
+        return {
+          first: () => ({
+            getAttribute: promiseMethod(input.datetime ?? null),
+          }),
+        };
+      }
+      if (selector === 'a[href*="/status/"]') {
+        return {
+          first: () => ({ getAttribute: promiseMethod(input.href ?? null) }),
+        };
+      }
+      throw new Error(`unexpected X selector ${selector}`);
+    }),
+  };
+}
+
+function xPage(articles: ReturnType<typeof xArticle>[]) {
+  const collection = {
+    first: () => articles[0]!,
+    count: promiseMethod(articles.length),
+    nth: (index: number) => articles[index]!,
+  };
+  return {
+    goto: promiseMethod(undefined),
+    locator: vi.fn((selector: string) => {
+      if (selector === 'article[data-testid="tweet"]') return collection;
+      throw new Error(`unexpected page selector ${selector}`);
+    }),
+  };
+}
+
+interface RednoteCardInput {
+  noteId?: string | null;
+  time?: string | null;
+  title?: string | null;
+  duration?: string | null;
+  stats?: (string | null)[];
+  searchText?: string;
+  impressionRaw?: string | null;
+}
+
+function noteImpression(noteId: string): string {
+  return JSON.stringify({
+    noteTarget: { type: 'NoteTarget', value: { noteId } },
+  });
+}
+
+function rednoteCard(input: RednoteCardInput = {}) {
+  let impression: string | null;
+  if (input.impressionRaw !== undefined) {
+    impression = input.impressionRaw;
+  } else if (input.noteId) {
+    impression = noteImpression(input.noteId);
+  } else {
+    impression = null;
+  }
+  const card = {
+    __searchText: input.searchText ?? input.title ?? '',
+    waitFor: promiseMethod(undefined),
+    getAttribute: promiseMethod(impression),
+    locator: vi.fn((selector: string) => {
+      if (selector === '.note-card__time') {
+        return { textContent: promiseMethod(input.time ?? null) };
+      }
+      if (selector === '.note-card__title') {
+        return {
+          textContent: promiseMethod(
+            input.title === undefined ? '' : input.title,
+          ),
+        };
+      }
+      if (selector === '.play_time') {
+        return { textContent: promiseMethod(input.duration ?? null) };
+      }
+      if (selector === '.note-card__stat') {
+        return {
+          evaluateAll: vi.fn(
+            async (
+              mapNodes: (nodes: { textContent: string | null }[]) => string[],
+            ) =>
+              mapNodes(
+                (input.stats ?? []).map((textContent) => ({ textContent })),
+              ),
+          ),
+        };
+      }
+      throw new Error(`unexpected card selector ${selector}`);
+    }),
+  };
+  return card;
+}
+
+function cardCollection(cards: ReturnType<typeof rednoteCard>[]) {
+  const make = (subset: ReturnType<typeof rednoteCard>[]) => ({
+    first: () => subset[0]!,
+    count: promiseMethod(subset.length),
+    nth: (index: number) => subset[index]!,
+    filter: ({ hasText }: { hasText: string }) =>
+      make(subset.filter((card) => card.__searchText.includes(hasText))),
+  });
+  return make(cards);
+}
+
+function rednotePage(input: {
+  cards: ReturnType<typeof rednoteCard>[];
+  editorText?: string;
+  dedicatedTitle?: string;
+  titleError?: Error;
+}) {
+  const cards = cardCollection(input.cards);
+  const editor = {
+    waitFor: promiseMethod(undefined),
+    innerText: promiseMethod(input.editorText ?? '正文內容\n\n#AI #宏觀'),
+  };
+  const titleInput = {
+    inputValue: input.titleError
+      ? vi.fn().mockRejectedValue(input.titleError)
+      : promiseMethod(input.dedicatedTitle ?? ''),
+  };
+  return {
+    goto: promiseMethod(undefined),
+    locator: vi.fn((selector: string) => {
+      if (selector === '.note-card') return cards;
+      if (selector === '[contenteditable="true"]') {
+        return { first: () => editor };
+      }
+      if (selector === 'input[placeholder="填写标题会有更多赞哦"]') {
+        return { first: () => titleInput };
+      }
+      throw new Error(`unexpected Rednote page selector ${selector}`);
+    }),
+  };
+}
+
+function installPage(page: object, existing = true) {
+  const context = {
+    pages: vi.fn(() => (existing ? [page] : [])),
+    newPage: vi.fn().mockResolvedValue(page),
+    close: vi.fn().mockResolvedValue(undefined),
+  };
+  browser.launchPersistentContext.mockResolvedValue(context);
+  return context;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  browser.launchPersistentContext.mockReset();
+});
+
+describe('X browser metrics and reconciliation', () => {
+  it('reads X counts from aria labels and text fallbacks', async () => {
+    const page = xPage([
+      xArticle({
+        comments: { aria: '12 Replies' },
+        reposts: { aria: null, text: '3 reposts' },
+        likes: { aria: '1.2K Likes' },
+        views: { text: '45K Views' },
+      }),
+    ]);
+    const context = installPage(page);
+
+    await expect(collectXMetrics(post('x'))).resolves.toMatchObject({
+      views: 45_000,
+      likes: 1200,
+      comments: 12,
+      shares: 3,
+    });
+    expect(context.close).toHaveBeenCalledOnce();
+  });
+
+  it('returns null X counters when neither aria labels nor text are readable', async () => {
+    installPage(
+      xPage([
+        xArticle({
+          comments: { aria: null, text: '' },
+          reposts: { aria: null, text: 'none' },
+          likes: { aria: null, text: '' },
+          views: { text: '' },
+        }),
+      ]),
+      false,
+    );
+
+    await expect(collectXMetrics(post('x'))).resolves.toMatchObject({
+      views: null,
+      likes: null,
+      comments: null,
+      shares: null,
+    });
+  });
+
+  it('rejects an X metric row without a post URL', async () => {
+    await expect(
+      collectXMetrics(post('x', { post_url: '  ' })),
+    ).rejects.toThrow('has no post_url');
+    expect(browser.launchPersistentContext).not.toHaveBeenCalled();
+  });
+
+  it('reconciles a known X URL and rejects empty, malformed, or bodyless posts', async () => {
+    await expect(inspectXPublishedPost('   ')).rejects.toThrow('without a URL');
+    await expect(inspectXPublishedPost('https://x.com/home')).rejects.toThrow(
+      'Cannot extract an X post id',
+    );
+
+    installPage(xPage([xArticle({ body: '  ' })]));
+    await expect(
+      inspectXPublishedPost('https://x.com/zap/status/1234567890'),
+    ).rejects.toThrow('has no readable body');
+
+    installPage(xPage([xArticle({ body: '  recovered body  ' })]));
+    await expect(
+      inspectXPublishedPost('https://x.com/zap/status/1234567890'),
+    ).resolves.toEqual({
+      platformPostId: '1234567890',
+      postUrl: 'https://x.com/zap/status/1234567890',
+      publishedTitle: null,
+      publishedBody: 'recovered body',
+      hashtags: [],
+      videoDurationSec: null,
+    });
+  });
+
+  it('matches the nearest X timeline article and ignores unreadable timestamps', async () => {
+    const target = '2026-08-16T02:00:00.000Z';
+    installPage(
+      xPage([
+        xArticle({ datetime: null, href: '/zap/status/1', body: 'skip null' }),
+        xArticle({
+          datetime: 'bad-date',
+          href: '/zap/status/2',
+          body: 'skip bad',
+        }),
+        xArticle({
+          datetime: '2026-08-16T01:50:00.000Z',
+          href: '/zap/status/333',
+          body: 'near',
+        }),
+        xArticle({
+          datetime: '2026-08-16T02:20:00.000Z',
+          href: '/zap/status/444',
+          body: 'farther',
+        }),
+      ]),
+    );
+
+    await expect(
+      inspectXPublishedPostAt(target, 'https://x.com/zap'),
+    ).resolves.toMatchObject({
+      platformPostId: '333',
+      postUrl: 'https://x.com/zap/status/333',
+      publishedBody: 'near',
+    });
+  });
+
+  it('rejects invalid X timeline inputs, distant matches, and unreadable matched posts', async () => {
+    await expect(
+      inspectXPublishedPostAt('bad-time', 'https://x.com/zap'),
+    ).rejects.toThrow('invalid timestamp');
+    await expect(
+      inspectXPublishedPostAt('2026-08-16T02:00:00Z', '   '),
+    ).rejects.toThrow('without a profile URL');
+
+    installPage(
+      xPage([
+        xArticle({
+          datetime: '2026-08-16T00:00:00.000Z',
+          href: '/zap/status/1',
+        }),
+      ]),
+    );
+    await expect(
+      inspectXPublishedPostAt('2026-08-16T02:00:00Z', 'https://x.com/zap'),
+    ).rejects.toThrow('No X post found within 30 minutes');
+
+    installPage(
+      xPage([
+        xArticle({
+          datetime: '2026-08-16T02:00:00.000Z',
+          href: null,
+          body: 'body',
+        }),
+      ]),
+    );
+    await expect(
+      inspectXPublishedPostAt('2026-08-16T02:00:00Z', 'https://x.com/zap'),
+    ).rejects.toThrow('id or body is unreadable');
+  });
+});
+
+describe('Rednote browser metrics and reconciliation', () => {
+  it('recovers editor body, hashtags, dedicated title, duration, and note identity', async () => {
+    const page = rednotePage({
+      cards: [
+        rednoteCard({
+          noteId: 'note-1',
+          time: '2026-08-16 10:00',
+          title: 'Manager title',
+          duration: '02:05',
+        }),
+      ],
+      editorText: '正文第一段\n\n#AI #聯準會',
+      dedicatedTitle: ' Dedicated title ',
+    });
+    installPage(page);
+
+    await expect(
+      inspectRednotePublishedPost('2026-08-16T02:00:00.000Z'),
+    ).resolves.toEqual({
+      platformPostId: 'note-1',
+      postUrl: 'https://www.xiaohongshu.com/explore/note-1',
+      publishedTitle: 'Dedicated title',
+      publishedBody: '正文第一段',
+      hashtags: ['AI', '聯準會'],
+      videoDurationSec: 125,
+    });
+    expect(page.goto).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back from the dedicated title to manager title and then body text', async () => {
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'note-manager',
+            time: '2026-08-16 10:00',
+            title: 'Manager fallback',
+            duration: '00:20',
+          }),
+        ],
+        editorText: '正文',
+        titleError: new Error('input missing'),
+      }),
+    );
+    await expect(
+      inspectRednotePublishedPost('2026-08-16T02:00:00.000Z'),
+    ).resolves.toMatchObject({ publishedTitle: 'Manager fallback' });
+
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'note-body',
+            time: '2026-08-16 10:00',
+            title: null,
+            duration: '00:20',
+          }),
+        ],
+        editorText: '這是一段很長的正文內容超過二十個字元用來當標題',
+      }),
+    );
+    const recovered = await inspectRednotePublishedPost(
+      '2026-08-16T02:00:00.000Z',
+    );
+    expect(recovered.publishedTitle).toBe(recovered.publishedBody.slice(0, 20));
+  });
+
+  it('rejects missing note ids, invalid durations, empty body, and distant timestamps', async () => {
+    installPage(
+      rednotePage({
+        cards: [rednoteCard({ time: '2026-08-16 10:00', duration: '00:20' })],
+      }),
+    );
+    await expect(
+      inspectRednotePublishedPost('2026-08-16T02:00:00.000Z'),
+    ).rejects.toThrow('no readable note id');
+
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'note-1',
+            time: '2026-08-16 10:00',
+            duration: 'bad',
+          }),
+        ],
+      }),
+    );
+    await expect(
+      inspectRednotePublishedPost('2026-08-16T02:00:00.000Z'),
+    ).rejects.toThrow('no readable video duration');
+
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'note-1',
+            time: '2026-08-16 10:00',
+            duration: '00:20',
+          }),
+        ],
+        editorText: '   ',
+      }),
+    );
+    await expect(
+      inspectRednotePublishedPost('2026-08-16T02:00:00.000Z'),
+    ).rejects.toThrow('no readable body');
+
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'note-1',
+            time: '2026-08-16 08:00',
+            duration: '00:20',
+          }),
+        ],
+      }),
+    );
+    await expect(
+      inspectRednotePublishedPost('2026-08-16T02:00:00.000Z'),
+    ).rejects.toThrow('could not be matched within 30 minutes');
+  });
+
+  it('collects five Rednote counters by durable note id and repairs changed identity', async () => {
+    const onIdentity = vi.fn().mockResolvedValue(undefined);
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'other-note',
+            stats: ['1', '2', '3', '4', '5'],
+          }),
+          rednoteCard({
+            noteId: 'wanted-note',
+            stats: ['1.2K', '7', '35', '9', '4'],
+          }),
+        ],
+      }),
+    );
+
+    await expect(
+      collectRednoteMetrics(
+        post('rednote', { platform_post_id: 'wanted-note' }),
+        onIdentity,
+      ),
+    ).resolves.toMatchObject({
+      views: 1200,
+      comments: 7,
+      likes: 35,
+      saves: 9,
+      shares: 4,
+    });
+    expect(onIdentity).not.toHaveBeenCalled();
+
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'new-note',
+            searchText: '發佈標題',
+            stats: ['10', '2', '3', '4', '5'],
+          }),
+        ],
+      }),
+    );
+    await createMetricCollectors({ onRednoteIdentity: onIdentity }).rednote(
+      post('rednote'),
+    );
+    expect(onIdentity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platformPostId: 'new-note',
+        postUrl: 'https://www.xiaohongshu.com/explore/new-note',
+      }),
+    );
+  });
+
+  it('returns empty counts when a durable Rednote id disappears', async () => {
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'different',
+            stats: ['1', '2', '3', '4', '5'],
+          }),
+        ],
+      }),
+    );
+
+    await expect(
+      collectRednoteMetrics(
+        post('rednote', { platform_post_id: 'missing-note' }),
+      ),
+    ).resolves.toMatchObject({
+      views: null,
+      comments: null,
+      likes: null,
+      saves: null,
+      shares: null,
+    });
+  });
+
+  it('uses unique title matching, multiple-title timestamp matching, and timestamp fallback', async () => {
+    const unique = rednoteCard({
+      noteId: 'unique-note',
+      searchText: '發佈標題',
+      stats: ['10', '1', '2', '3', '4'],
+    });
+    installPage(rednotePage({ cards: [unique] }));
+    await expect(collectRednoteMetrics(post('rednote'))).resolves.toMatchObject(
+      {
+        views: 10,
+      },
+    );
+
+    const invalidTime = rednoteCard({
+      noteId: 'invalid-time',
+      searchText: '發佈標題',
+      time: 'bad-format',
+      stats: ['15', '1', '2', '3', '4'],
+    });
+    const impossibleTime = rednoteCard({
+      noteId: 'impossible-time',
+      searchText: '發佈標題',
+      time: '2026-99-99 99:99',
+      stats: ['16', '1', '2', '3', '4'],
+    });
+    const first = rednoteCard({
+      noteId: 'first',
+      searchText: '發佈標題',
+      time: '2026-08-16 09:00',
+      stats: ['20', '1', '2', '3', '4'],
+    });
+    const second = rednoteCard({
+      noteId: 'second',
+      searchText: '發佈標題',
+      time: '2026-08-16 10:00',
+      stats: ['30', '1', '2', '3', '4'],
+    });
+    const farther = rednoteCard({
+      noteId: 'farther',
+      searchText: '發佈標題',
+      time: '2026-08-16 11:00',
+      stats: ['35', '1', '2', '3', '4'],
+    });
+    installPage(
+      rednotePage({
+        cards: [invalidTime, impossibleTime, first, second, farther],
+      }),
+    );
+    await expect(collectRednoteMetrics(post('rednote'))).resolves.toMatchObject(
+      {
+        views: 30,
+      },
+    );
+
+    const fallback = rednoteCard({
+      noteId: 'fallback',
+      searchText: 'unrelated',
+      time: '2026-08-16 10:00',
+      stats: ['40', '1', '2', '3', '4'],
+    });
+    installPage(rednotePage({ cards: [fallback] }));
+    await expect(
+      collectRednoteMetrics(
+        post('rednote', { published_title: null, generated_title: null }),
+      ),
+    ).resolves.toMatchObject({ views: 40 });
+  });
+
+  it('rejects incomplete or unreadable Rednote statistics and invalid publish timestamps', async () => {
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'short',
+            searchText: '發佈標題',
+            stats: ['1', '2', '3'],
+          }),
+        ],
+      }),
+    );
+    await expect(collectRednoteMetrics(post('rednote'))).rejects.toThrow(
+      'exposed only 3 statistics',
+    );
+
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'bad-stat',
+            searchText: '發佈標題',
+            stats: ['1', 'two', '3', '4', '5'],
+          }),
+        ],
+      }),
+    );
+    await expect(collectRednoteMetrics(post('rednote'))).rejects.toThrow(
+      'unreadable statistic',
+    );
+
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'time',
+            time: null,
+            stats: ['1', '2', '3', '4', '5'],
+          }),
+        ],
+      }),
+    );
+    await expect(
+      collectRednoteMetrics(
+        post('rednote', {
+          published_title: null,
+          generated_title: null,
+          published_at: 'bad-date',
+        }),
+      ),
+    ).rejects.toThrow('invalid published_at');
+  });
+});

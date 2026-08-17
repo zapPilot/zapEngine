@@ -1,55 +1,54 @@
 # Social publishing
 
-`src/social` is the local, human-reviewed publisher for completed canonical
-Chinese podcast episodes. It publishes native media to X, Threads, Rednote, and
-YouTube, then records the published copy and telemetry for later iteration.
+`src/social` is the local social automation stack for completed canonical
+Chinese podcast episodes. The long-lived `social:daemon` process discovers new
+videos, schedules and publishes native media to X, Threads, Rednote, and YouTube,
+collects standardized metric snapshots, and refreshes versioned strategy
+preferences from those results.
 
-The intended operating model is deliberately simple:
+The normal operating model is deliberately simple:
 
 1. the podcast pipeline finishes the canonical `zh-Hant` video and stores it on
    the public media URL;
-2. `social:publish` fetches the episode and generates platform copy;
-3. a human reviews or edits the copy locally;
-4. fixed Zap Pilot branding is appended after review;
-5. each selected platform publishes its native media;
-6. local duplicate state and `social_posts` telemetry are written only after a
-   platform confirms success.
+2. `social:daemon` discovers the completed episode and enqueues one durable job
+   per platform;
+3. due jobs generate copy with the currently active strategy and publish native
+   media;
+4. successful posts are persisted to `social_posts`;
+5. the same daemon collects `1h` / `6h` / `24h` / `72h` / `7d` metric windows;
+6. standardized 24-hour samples periodically refresh the active strategy used by
+   later posts.
 
-Publishing still stays on the local Mac so browser sessions remain outside Fly
-workers. Manual `social:publish` remains available, while `social:daemon` can run
-unattended and use Supabase as its durable queue/strategy state.
+Publishing stays on the local Mac so browser sessions remain outside Fly workers.
+Manual `social:publish` and `social:metrics` remain package-level break-glass and
+debug tools; they are not separate production processes.
 
-## Canonical command
+## Canonical commands
 
-Run from the repository root:
-
-```bash
-pnpm --filter @zapengine/podcast-pipeline social:login
-pnpm --filter @zapengine/podcast-pipeline social:daemon
-pnpm --filter @zapengine/podcast-pipeline social:publish '<episode-uuid-or-share-url>' --dry-run
-pnpm --filter @zapengine/podcast-pipeline social:publish '<episode-uuid-or-share-url>'
-pnpm --filter @zapengine/podcast-pipeline social:publish '<episode-uuid-or-share-url>' --yes --platform threads
-```
-
-Or from `apps/podcast-pipeline`:
+Normal operation from the repository root only needs login/setup plus the daemon:
 
 ```bash
 pnpm social:login
-pnpm social:publish '<episode-uuid-or-share-url>' --dry-run
-pnpm social:publish '<episode-uuid-or-share-url>'
-pnpm social:publish '<episode-uuid-or-share-url>' --yes --platform threads
+pnpm social:daemon
 ```
 
-Useful selectors:
+The read-only dashboard is optional and does **not** need to run for publishing,
+metric collection, or learning:
 
 ```bash
-pnpm social:publish '<episode>' --platform x
-pnpm social:publish '<episode>' --platform threads
-pnpm social:publish '<episode>' --platform rednote
-pnpm social:publish '<episode>' --platform youtube
-pnpm social:publish '<episode>' --yes
-pnpm social:publish '<episode>' --yes --platform threads
-pnpm social:publish '<episode>' --force
+pnpm social:dashboard
+```
+
+Keep the dashboard lifecycle separate from the daemon. A dashboard port conflict
+must never stop publishing or metric collection.
+
+For manual recovery, smoke testing, or one-off diagnostics, call the granular
+package commands explicitly:
+
+```bash
+pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --dry-run
+pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --platform threads
+pnpm --filter @zapengine/podcast-pipeline social:metrics '<episode>' --platform threads
 ```
 
 Before the first daemon run, apply Supabase migration
@@ -343,16 +342,20 @@ Media duration semantics:
 
 - X: full duration when <= 140 seconds, otherwise the approximately 132.8-second
   teaser duration;
-- Threads: canonical full-video duration;
+- Threads: teaser duration;
 - Rednote: canonical full-video duration;
 - YouTube: canonical full-video duration.
 
 This distinction matters for later platform-performance analysis; X teaser posts
 must not be mislabeled as having published the full episode length.
 
-Metric collection in `metrics.ts` remains separate from publishing. Use the
-persisted `social_posts` identity and metrics snapshots for topic/hook/CTA
-iteration rather than changing publisher behavior based on one post.
+In normal operation, metric collection is owned by `social:daemon`, not a second
+process. `metrics.ts` remains callable only as a manual diagnostic/recovery entry
+point. The daemon records each standardized age bucket at most once and never
+labels a late observation as an earlier missed bucket.
+
+Strategy learning uses persisted `social_posts` plus standardized 24-hour
+snapshots; it does not change publisher behavior based on one post.
 
 ## Failure behavior
 
@@ -377,16 +380,16 @@ Use a completed episode with a canonical Chinese video:
 
 ```bash
 pnpm social:login
-pnpm social:publish '<episode>' --dry-run
+pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --dry-run
 ```
 
-Then test platforms independently:
+Then test platforms independently with the package-level break-glass command:
 
 ```bash
-pnpm social:publish '<episode>' --platform x
-pnpm social:publish '<episode>' --platform threads
-pnpm social:publish '<episode>' --platform rednote
-pnpm social:publish '<episode>' --platform youtube
+pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --platform x
+pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --platform threads
+pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --platform rednote
+pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --platform youtube
 ```
 
 Verify:
@@ -396,7 +399,8 @@ Verify:
 - Threads shows native video rather than an episode link card;
 - Rednote still uploads the complete video;
 - YouTube uploads the complete Chinese video and returns a watch URL/video id;
-- every text post ends at `https://www.zap-pilot.org`;
+- X/Threads/YouTube keep their configured Zap Pilot CTA while Rednote stays free
+  of off-platform website CTA;
 - newly rendered videos end at `www.zap-pilot.org`;
 - `social_posts.video_duration_sec` matches the media actually sent.
 
@@ -412,7 +416,11 @@ without rewriting the publishing stack:
 - `threads.ts`: Threads API transport;
 - `rednote-playwright.ts`: Rednote browser transport;
 - `youtube-auth.ts` / `youtube.ts`: YouTube OAuth and API upload transport;
-- `record.ts` / `metrics.ts`: learning loop and measurement.
+- `daemon.ts`: production orchestration for discovery, publishing, metrics, and
+  strategy refresh;
+- `record.ts` / `metrics.ts`: telemetry persistence and manual metric diagnostics;
+- `dashboard.ts`: optional read-only observability UI, never part of the daemon
+  lifecycle.
 
 A future smart teaser can replace the current `first 130 seconds` selector using
 transcript hooks or engagement data without changing X login/upload. Likewise,

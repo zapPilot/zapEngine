@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { SocialPostMetricRow, SocialPostRow } from '../types.js';
 import {
+  activeStrategyMap,
   buildStrategyGuidance,
   defaultSocialStrategy,
   learnSocialStrategies,
@@ -104,6 +105,49 @@ describe('social strategy', () => {
     ).toBe('2026-08-16T10:35:00.000Z');
   });
 
+  it('maps active rows by platform and fills absent platforms with null', () => {
+    const rows = [
+      {
+        id: 'strategy-1',
+        platform: 'x' as const,
+        version: 1,
+        config: defaultSocialStrategy('x'),
+        based_on_samples: 5,
+        active: true,
+        activated_at: '2026-08-16T00:00:00.000Z',
+        created_at: '2026-08-16T00:00:00.000Z',
+      },
+    ];
+
+    expect(activeStrategyMap(rows)).toEqual({
+      x: rows[0],
+      threads: null,
+      rednote: null,
+      youtube: null,
+    });
+  });
+
+  it('uses default schedule configuration when no strategy config or publish hours are supplied', () => {
+    const input = {
+      platform: 'threads' as const,
+      readyAt: new Date('2026-08-16T00:00:00.000Z'),
+    };
+    expect(nextPublishSlot(input).toISOString()).toBe(
+      '2026-08-16T03:15:00.000Z',
+    );
+    expect(nextPublishSlot({ ...input, config: {} }).toISOString()).toBe(
+      '2026-08-16T03:15:00.000Z',
+    );
+  });
+
+  it('returns no guidance for missing or empty preferences', () => {
+    expect(buildStrategyGuidance('x', undefined)).toBeUndefined();
+    expect(buildStrategyGuidance('x', {})).toBeUndefined();
+    expect(
+      buildStrategyGuidance('rednote', { avoidHashtags: ['弱標籤'] }),
+    ).toContain('弱標籤');
+  });
+
   it('turns learned hook and hashtag preferences into soft prompt guidance', () => {
     expect(
       buildStrategyGuidance('rednote', {
@@ -120,6 +164,82 @@ describe('social strategy', () => {
     expect(
       buildStrategyGuidance('x', { preferredHashtags: ['AI'] }),
     ).toBeUndefined();
+  });
+
+  it('scores zero-view samples safely and learns non-Rednote platforms without hashtag rules', () => {
+    const posts = Array.from({ length: 5 }, (_value, index) =>
+      post({
+        id: `threads-${index}`,
+        platform: 'threads',
+        publishedAt: `2026-08-${String(10 + index).padStart(2, '0')}T03:00:00.000Z`,
+        hookType: index < 3 ? 'question' : 'surprising_number',
+        hashtags: ['ignored-on-threads'],
+      }),
+    );
+    const metrics = [
+      metric({ postId: 'threads-0', views: 0 }),
+      metric({ postId: 'threads-1', views: 0 }),
+      metric({ postId: 'threads-2', views: 0 }),
+      metric({ postId: 'threads-3', views: 10, likes: 2 }),
+      metric({ postId: 'threads-4', views: 20, retention: 0.5 }),
+    ];
+
+    const [learned] = learnSocialStrategies({ posts, metrics });
+    expect(learned).toMatchObject({ platform: 'threads', basedOnSamples: 5 });
+    expect(learned?.config.preferredHashtags).toBeUndefined();
+    expect(learned?.config.avoidHashtags).toBeUndefined();
+  });
+
+  it('uses the average middle pair when learning from an even number of samples', () => {
+    const posts = Array.from({ length: 6 }, (_value, index) =>
+      post({
+        id: `even-${index}`,
+        platform: 'x',
+        publishedAt: '2026-08-15T03:00:00.000Z',
+        hookType: index < 3 ? 'question' : 'surprising_number',
+      }),
+    );
+    const metrics = posts.map((row, index) =>
+      metric({ postId: row.id, views: (index + 1) * 100 }),
+    );
+
+    expect(learnSocialStrategies({ posts, metrics })[0]).toMatchObject({
+      platform: 'x',
+      basedOnSamples: 6,
+    });
+  });
+
+  it('ignores orphan, null-view, and non-24h metric samples', () => {
+    const posts = Array.from({ length: 5 }, (_value, index) =>
+      post({
+        id: `x-${index}`,
+        platform: 'x',
+        publishedAt: '2026-08-15T03:00:00.000Z',
+      }),
+    );
+    const valid = posts.map((row) => metric({ postId: row.id, views: 100 }));
+    const metrics: SocialPostMetricRow[] = [
+      ...valid,
+      {
+        ...metric({ postId: 'missing', views: 100 }),
+        social_post_id: 'missing',
+      },
+      {
+        ...metric({ postId: 'x-0', views: 100 }),
+        id: 'null-view',
+        views: null,
+      },
+      {
+        ...metric({ postId: 'x-1', views: 100 }),
+        id: 'wrong-window',
+        measurement_window: '1h',
+      },
+    ];
+
+    expect(learnSocialStrategies({ posts, metrics })[0]).toMatchObject({
+      platform: 'x',
+      basedOnSamples: 5,
+    });
   });
 
   it('learns only from standardized 24h samples and requires enough evidence', () => {

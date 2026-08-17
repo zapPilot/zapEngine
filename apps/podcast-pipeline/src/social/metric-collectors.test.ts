@@ -68,6 +68,22 @@ describe('metric collector parsing', () => {
     });
   });
 
+  it('rejects malformed or privacy-empty YouTube demographic rows', () => {
+    expect(parseYouTubeDemographics(null)).toBeNull();
+    expect(parseYouTubeDemographics({ rows: 'bad' })).toBeNull();
+    expect(
+      parseYouTubeDemographics({
+        rows: [
+          'bad-row',
+          ['too-short'],
+          [123, 'male', 40],
+          ['age25-34', 123, 40],
+          ['age25-34', 'male', 'forty'],
+        ],
+      }),
+    ).toBeNull();
+  });
+
   it('selects the audience-retention bucket nearest five seconds', () => {
     expect(
       findRetentionAtSeconds(
@@ -85,6 +101,21 @@ describe('metric collector parsing', () => {
     expect(findRetentionAtSeconds({ rows: [] }, 5, null)).toBeNull();
   });
 
+  it('fails closed for malformed retention reports and ignores invalid buckets', () => {
+    expect(findRetentionAtSeconds(null, 5, 120)).toBeNull();
+    expect(findRetentionAtSeconds({ rows: 'bad' }, 5, 120)).toBeNull();
+    expect(findRetentionAtSeconds({ rows: [] }, 5, 0)).toBeNull();
+    expect(
+      findRetentionAtSeconds(
+        { rows: ['bad-row', [0.1], ['bad', 0.5], [0.1, 'bad']] },
+        5,
+        120,
+      ),
+    ).toBeNull();
+    expect(findRetentionAtSeconds({ rows: [[0.5, 0.4]] }, -5, 120)).toBe(0.4);
+    expect(findRetentionAtSeconds({ rows: [[1, 0.4]] }, 999, 120)).toBe(0.4);
+  });
+
   it('extracts the Rednote note id from Creator Studio impression metadata', () => {
     expect(
       extractRednoteNoteId(
@@ -98,5 +129,50 @@ describe('metric collector parsing', () => {
     ).toBe('6a811705000000000c003000');
     expect(extractRednoteNoteId('{bad-json')).toBeNull();
     expect(extractRednoteNoteId(null)).toBeNull();
+  });
+
+  it('rejects malformed Rednote identity shapes and trims valid ids', () => {
+    expect(extractRednoteNoteId('[]')).toBeNull();
+    expect(
+      extractRednoteNoteId(JSON.stringify({ noteTarget: 'bad' })),
+    ).toBeNull();
+    expect(
+      extractRednoteNoteId(JSON.stringify({ noteTarget: { value: 'bad' } })),
+    ).toBeNull();
+    expect(
+      extractRednoteNoteId(
+        JSON.stringify({ noteTarget: { value: { noteId: 123 } } }),
+      ),
+    ).toBeNull();
+    expect(
+      extractRednoteNoteId(
+        JSON.stringify({ noteTarget: { value: { noteId: '   ' } } }),
+      ),
+    ).toBeNull();
+    expect(
+      extractRednoteNoteId(
+        JSON.stringify({ noteTarget: { value: { noteId: ' note-1 ' } } }),
+      ),
+    ).toBe('note-1');
+  });
+
+  it('covers metric and clock parser boundaries', () => {
+    expect(parseMetricNumber('3B')).toBe(3_000_000_000);
+    expect(parseMetricNumber('9999999999999999B')).toBeNull();
+    expect(parseFirstMetricNumber('no metric here')).toBeNull();
+    expect(parseClockDurationSeconds(null)).toBeNull();
+    expect(parseClockDurationSeconds('1')).toBeNull();
+    expect(parseClockDurationSeconds('1:2:3:4')).toBeNull();
+    expect(parseClockDurationSeconds('1:-1')).toBeNull();
+    expect(parseClockDurationSeconds('1:02:99')).toBeNull();
+    expect(parseRednoteEditorText('   ')).toEqual({ body: '', hashtags: [] });
+    expect(parseRednoteEditorText('正文\nnot-a-tag')).toEqual({
+      body: '正文\nnot-a-tag',
+      hashtags: [],
+    });
+    expect(parseRednoteEditorText('正文\r\n#AI #宏觀')).toEqual({
+      body: '正文',
+      hashtags: ['AI', '宏觀'],
+    });
   });
 });

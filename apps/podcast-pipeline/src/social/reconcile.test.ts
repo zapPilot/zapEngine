@@ -270,6 +270,275 @@ describe('social telemetry reconciliation', () => {
     });
   });
 
+  it('rejects an invalid reconciliation cutoff before reading local state', async () => {
+    const readState = vi.fn();
+    await expect(
+      reconcileRecentSocialPosts({
+        posts: [],
+        publishedSince: 'not-a-date',
+        log: vi.fn(),
+        dependencies: { readState },
+      }),
+    ).rejects.toThrow('Invalid social reconciliation cutoff');
+    expect(readState).not.toHaveBeenCalled();
+  });
+
+  it('ignores missing language state plus invalid and old publish timestamps', async () => {
+    const inspectX = vi.fn();
+    const state = {
+      'no-language': {},
+      invalid: {
+        zh: {
+          x: { published: true, publishedAt: 'bad-date' },
+        },
+      },
+      old: {
+        zh: {
+          x: {
+            published: true,
+            publishedAt: '2026-08-01T00:00:00.000Z',
+            url: 'https://x.com/zap/status/1',
+          },
+        },
+      },
+    } as SocialPublishState;
+
+    await expect(
+      reconcileRecentSocialPosts({
+        posts: [],
+        publishedSince: '2026-08-10T00:00:00.000Z',
+        log: vi.fn(),
+        dependencies: { readState: async () => state, inspectX },
+      }),
+    ).resolves.toEqual([]);
+    expect(inspectX).not.toHaveBeenCalled();
+  });
+
+  it('logs unresolved reconciliation without stopping other repairable candidates', async () => {
+    const state: SocialPublishState = {
+      repaired: {
+        zh: {
+          x: {
+            published: true,
+            publishedAt: '2026-08-16T01:00:00.000Z',
+            url: 'https://x.com/zap/status/111',
+          },
+        },
+      },
+      unresolved: {
+        zh: {
+          rednote: {
+            published: true,
+            publishedAt: '2026-08-16T02:00:00.000Z',
+          },
+        },
+      },
+    };
+    const insertPost = vi.fn(async (value: NewSocialPost) =>
+      rowFromNewPost(value),
+    );
+    const log = vi.fn();
+
+    const rows = await reconcileRecentSocialPosts({
+      posts: [],
+      publishedSince: '2026-08-10T00:00:00.000Z',
+      log,
+      dependencies: {
+        readState: async () => state,
+        insertPost,
+        inspectX: async () => ({
+          platformPostId: '111',
+          postUrl: 'https://x.com/zap/status/111',
+          publishedTitle: null,
+          publishedBody: '普通說明文字',
+          hashtags: [],
+          videoDurationSec: null,
+        }),
+        inspectRednote: async () => {
+          throw new Error('rednote unavailable');
+        },
+      },
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('rednote unavailable'),
+    );
+    expect(log).toHaveBeenCalledWith(
+      'Social telemetry reconciliation: 1 repaired, 1 unresolved.',
+    );
+  });
+
+  it('marks X without URL or discoverable profile as unresolved', async () => {
+    const state: SocialPublishState = {
+      orphan: {
+        zh: {
+          x: {
+            published: true,
+            publishedAt: '2026-08-16T01:00:00.000Z',
+          },
+        },
+      },
+    };
+    const log = vi.fn();
+
+    await reconcileRecentSocialPosts({
+      posts: [],
+      publishedSince: '2026-08-10T00:00:00.000Z',
+      log,
+      dependencies: { readState: async () => state },
+    });
+
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('no X URL or discoverable X profile'),
+    );
+    expect(log).toHaveBeenCalledWith(
+      'Social telemetry reconciliation: 0 repaired, 1 unresolved.',
+    );
+  });
+
+  it('fails closed when recovered Rednote title or video duration is unusable', () => {
+    const base = {
+      episodeId: 'episode-1',
+      platform: 'rednote' as const,
+      published: {
+        published: true,
+        publishedAt: '2026-08-15T03:11:19.482Z',
+      } as const,
+      discovered: {
+        platformPostId: 'note-1',
+        postUrl: 'https://www.xiaohongshu.com/explore/note-1',
+        publishedTitle: 'Title',
+        publishedBody: 'Body',
+        hashtags: [],
+        videoDurationSec: 20,
+      },
+    };
+
+    expect(() =>
+      buildRecoveredSocialPost({
+        ...base,
+        discovered: { ...base.discovered, publishedTitle: '   ' },
+      }),
+    ).toThrow('visible title label');
+    expect(() =>
+      buildRecoveredSocialPost({
+        ...base,
+        discovered: { ...base.discovered, videoDurationSec: null },
+      }),
+    ).toThrow('positive video duration');
+    expect(() =>
+      buildRecoveredSocialPost({
+        ...base,
+        discovered: { ...base.discovered, videoDurationSec: 0 },
+      }),
+    ).toThrow('positive video duration');
+  });
+
+  it('covers conservative topic and hook fallbacks for recovered copy', () => {
+    expect(inferRecoveredTaxonomy('USDC 穩定幣市場更新')).toEqual({
+      topic: 'stablecoin',
+      hookType: 'explainer',
+    });
+    expect(inferRecoveredTaxonomy('Lido staking 流動性更新')).toMatchObject({
+      topic: 'defi',
+    });
+    expect(inferRecoveredTaxonomy('Bitcoin 市場更新')).toMatchObject({
+      topic: 'btc',
+    });
+    expect(inferRecoveredTaxonomy('聯準會 利率 決策')).toMatchObject({
+      topic: 'macro',
+    });
+    expect(inferRecoveredTaxonomy('S&P 股票市場')).toMatchObject({
+      topic: 'traditional_finance',
+    });
+    expect(inferRecoveredTaxonomy('完全沒有分類訊號')).toEqual({
+      topic: 'market_event',
+      hookType: 'explainer',
+    });
+  });
+
+  it('finds X profile only from valid status URLs and skips malformed candidates', () => {
+    expect(findXProfileUrl({})).toBeNull();
+    expect(
+      findXProfileUrl({
+        bad: {
+          zh: {
+            x: {
+              published: true,
+              publishedAt: '2026-08-16T00:00:00Z',
+              url: 'not a url',
+            },
+          },
+        },
+        wrongPath: {
+          zh: {
+            x: {
+              published: true,
+              publishedAt: '2026-08-16T00:00:00Z',
+              url: 'https://x.com/home',
+            },
+          },
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it('recognizes an existing row by exact state URL and rejects mismatched rows', async () => {
+    const state: SocialPublishState = {
+      'episode-1': {
+        zh: {
+          x: {
+            published: true,
+            publishedAt: '2026-08-16T01:50:42.907Z',
+            url: 'https://x.com/zap/status/99',
+          },
+        },
+      },
+    };
+    const exact = {
+      ...sibling,
+      platform: 'x' as const,
+      post_url: 'https://x.com/zap/status/99',
+      published_at: 'not-a-date',
+    };
+    const inspectX = vi.fn();
+    await reconcileRecentSocialPosts({
+      posts: [exact],
+      publishedSince: '2026-08-10T00:00:00Z',
+      log: vi.fn(),
+      dependencies: { readState: async () => state, inspectX },
+    });
+    expect(inspectX).not.toHaveBeenCalled();
+
+    const mismatched = {
+      ...exact,
+      episode_id: 'different-episode',
+      post_url: 'https://x.com/zap/status/other',
+    };
+    const insertPost = vi.fn(async (value: NewSocialPost) =>
+      rowFromNewPost(value),
+    );
+    await reconcileRecentSocialPosts({
+      posts: [mismatched],
+      publishedSince: '2026-08-10T00:00:00Z',
+      log: vi.fn(),
+      dependencies: {
+        readState: async () => state,
+        inspectX: async () => ({
+          platformPostId: '99',
+          postUrl: 'https://x.com/zap/status/99',
+          publishedTitle: null,
+          publishedBody: 'Body',
+          hashtags: [],
+          videoDurationSec: null,
+        }),
+        insertPost,
+      },
+    });
+    expect(insertPost).toHaveBeenCalledOnce();
+  });
+
   it('keeps recovered Rednote hashtags and video duration while marking copy metadata as recovered', () => {
     const recovered = buildRecoveredSocialPost({
       episodeId: 'episode-1',
