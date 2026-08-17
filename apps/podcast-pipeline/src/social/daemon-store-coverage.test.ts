@@ -19,7 +19,8 @@ vi.mock('../services/supabase-client.js', () => ({
 
 import {
   completeSocialPublishJob,
-  getSocialQueueSnapshot,
+  latestScheduledSocialJobs,
+  listSocialPublishCandidates,
 } from './daemon-store.js';
 
 function nextResult(): QueryResult {
@@ -32,13 +33,22 @@ function queryBuilder() {
   const builder = {
     select: vi.fn(),
     eq: vi.fn(),
-    in: vi.fn(),
+    gte: vi.fn(),
+    order: vi.fn(),
+    limit: vi.fn(),
     update: vi.fn(),
     returns: vi.fn(),
     maybeSingle: vi.fn(),
     then: vi.fn(),
   };
-  for (const method of ['select', 'eq', 'in', 'update'] as const) {
+  for (const method of [
+    'select',
+    'eq',
+    'gte',
+    'order',
+    'limit',
+    'update',
+  ] as const) {
     builder[method].mockImplementation(() => builder);
   }
   builder.returns.mockImplementation(() => Promise.resolve(nextResult()));
@@ -63,75 +73,35 @@ beforeEach(() => {
 });
 
 describe('social daemon store defensive query paths', () => {
-  it('returns an empty snapshot when Supabase returns null data', async () => {
+  it('returns an empty candidate list when Supabase returns null data', async () => {
     queue({ data: null, error: null });
 
-    await expect(getSocialQueueSnapshot()).resolves.toEqual({
-      pendingCount: 0,
-      episodeQueue: [],
-      nextByPlatform: {},
-    });
+    await expect(
+      listSocialPublishCandidates('2026-08-16T08:00:00.000Z'),
+    ).resolves.toEqual([]);
   });
 
-  it('surfaces publish-job and localization query errors', async () => {
-    queue({ data: null, error: new Error('jobs unavailable') });
-    await expect(getSocialQueueSnapshot()).rejects.toThrow('jobs unavailable');
+  it('surfaces candidate query errors', async () => {
+    queue({ data: null, error: new Error('candidates unavailable') });
 
-    queue(
-      {
-        data: [
-          {
-            episode_id: 'episode-1',
-            platform: 'x',
-            status: 'queued',
-            scheduled_at: '2026-08-16T10:05:00.000Z',
-            next_attempt_at: '2026-08-16T10:05:00.000Z',
-          },
-        ],
-        error: null,
-      },
-      { data: null, error: new Error('localizations unavailable') },
-    );
-    await expect(getSocialQueueSnapshot()).rejects.toThrow(
-      'localizations unavailable',
-    );
+    await expect(
+      listSocialPublishCandidates('2026-08-16T08:00:00.000Z'),
+    ).rejects.toThrow('candidates unavailable');
   });
 
-  it('keeps queue entries usable when localization titles are unavailable', async () => {
-    queue(
-      {
-        data: [
-          {
-            episode_id: 'episode-1',
-            platform: 'x',
-            status: 'queued',
-            scheduled_at: '2026-08-16T10:05:00.000Z',
-            next_attempt_at: '2026-08-16T10:05:00.000Z',
-          },
-        ],
-        error: null,
-      },
-      { data: null, error: null },
-    );
-
-    await expect(getSocialQueueSnapshot()).resolves.toEqual({
-      pendingCount: 1,
-      episodeQueue: [
-        {
-          episodeId: 'episode-1',
-          title: null,
-          nextAt: '2026-08-16T10:05:00.000Z',
-        },
+  it('keeps only the latest scheduled time for each platform', async () => {
+    queue({
+      data: [
+        { platform: 'x', scheduled_at: '2026-08-16T12:00:00.000Z' },
+        { platform: 'threads', scheduled_at: '2026-08-16T11:00:00.000Z' },
+        { platform: 'x', scheduled_at: '2026-08-16T10:00:00.000Z' },
       ],
-      nextByPlatform: {
-        x: {
-          episodeId: 'episode-1',
-          platform: 'x',
-          status: 'queued',
-          title: null,
-          nextAt: '2026-08-16T10:05:00.000Z',
-        },
-      },
+      error: null,
+    });
+
+    await expect(latestScheduledSocialJobs()).resolves.toEqual({
+      x: '2026-08-16T12:00:00.000Z',
+      threads: '2026-08-16T11:00:00.000Z',
     });
   });
 
