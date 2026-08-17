@@ -82,6 +82,14 @@ export async function runSocialDaemon(
 
   for (;;) {
     const tickStartedAt = now();
+    log(
+      `[social-daemon] checking discovery, publishing, metrics${
+        tickStartedAt.getTime() - lastStrategyRefresh >=
+        STRATEGY_REFRESH_INTERVAL_MS
+          ? ', and strategy'
+          : ''
+      }...`,
+    );
     await runSocialDaemonTick({
       now: tickStartedAt,
       firstStartedAt,
@@ -96,6 +104,9 @@ export async function runSocialDaemon(
     ) {
       lastStrategyRefresh = tickStartedAt.getTime();
     }
+    log(
+      `[social-daemon] check complete; next check in ${POLL_INTERVAL_MS / 1_000}s.`,
+    );
     await sleep(POLL_INTERVAL_MS);
   }
 }
@@ -148,6 +159,7 @@ async function discoverAndEnqueue(input: {
   for (const candidate of candidates) {
     const readyAt = new Date(candidate.ready_at);
     if (Number.isNaN(readyAt.getTime())) continue;
+    let discoveredLogged = false;
 
     for (const platform of SOCIAL_PLATFORMS) {
       const strategy = active[platform];
@@ -170,7 +182,18 @@ async function discoverAndEnqueue(input: {
         scheduledAt: scheduledAt.toISOString(),
         strategyVersionId: strategy?.id ?? null,
       });
-      if (inserted) rollingLast.set(platform, scheduledAt);
+      if (inserted) {
+        if (!discoveredLogged) {
+          input.log(
+            `[social-daemon] discovered episode ${candidate.episode_id}; ready at ${readyAt.toISOString()}.`,
+          );
+          discoveredLogged = true;
+        }
+        rollingLast.set(platform, scheduledAt);
+        input.log(
+          `[social-daemon] queued ${platform} for ${candidate.episode_id} at ${scheduledAt.toISOString()}.`,
+        );
+      }
     }
   }
 }

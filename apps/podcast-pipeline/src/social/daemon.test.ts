@@ -158,16 +158,24 @@ describe('social daemon', () => {
     ]);
     mocks.listSocialPostsByEpisode.mockResolvedValue([socialPost()]);
 
+    const log = vi.fn();
     await runSocialDaemonTick({
       now: NOW,
       firstStartedAt: '2026-08-16T08:00:00.000Z',
       refreshStrategy: true,
+      log,
     });
 
     expect(mocks.listSocialPublishCandidates).toHaveBeenCalledWith(
       '2026-08-16T08:00:00.000Z',
     );
     expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(4);
+    expect(log).toHaveBeenCalledWith(
+      `[social-daemon] discovered episode ${EPISODE_ID}; ready at 2026-08-16T09:00:00.000Z.`,
+    );
+    expect(log).toHaveBeenCalledWith(
+      `[social-daemon] queued x for ${EPISODE_ID} at 2026-08-16T10:05:00.000Z.`,
+    );
     expect(mocks.runSocialCli).toHaveBeenCalledWith(
       [EPISODE_ID, '--yes', '--platform', 'x'],
       expect.objectContaining({ setExitCodeOnFailure: false }),
@@ -293,6 +301,12 @@ describe('social daemon', () => {
     expect(mocks.refreshSocialStrategies).toHaveBeenCalledTimes(1);
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining('[social-daemon] started as'),
+    );
+    expect(log).toHaveBeenCalledWith(
+      '[social-daemon] checking discovery, publishing, metrics, and strategy...',
+    );
+    expect(log).toHaveBeenCalledWith(
+      '[social-daemon] check complete; next check in 60s.',
     );
   });
 
