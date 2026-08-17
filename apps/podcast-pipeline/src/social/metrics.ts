@@ -59,6 +59,21 @@ export type CollectedSocialMetrics = SocialMetricCounts & {
   details?: SocialPostMetricDetails;
 };
 
+export async function collectPostMetrics(
+  collect: (post: SocialPostRow) => Promise<CollectedSocialMetrics>,
+  post: SocialPostRow,
+): Promise<CollectedSocialMetrics | null> {
+  const collected = await collect(post);
+  const { details, ...counts } = collected;
+  if (
+    Object.values(counts).every((value) => value === null) &&
+    (!details || Object.keys(details).length === 0)
+  ) {
+    return null;
+  }
+  return collected;
+}
+
 export interface SocialMetricsCliOptions {
   episodeId: string;
   platform: SocialPlatform;
@@ -162,17 +177,17 @@ export async function runAutomaticSocialMetricsCollector(input: {
   let failed = 0;
   for (const post of posts) {
     try {
-      const collected = await collectors[post.platform](post);
-      const { details, ...counts } = collected;
-      if (
-        Object.values(counts).every((value) => value === null) &&
-        (!details || Object.keys(details).length === 0)
-      ) {
+      const collected = await collectPostMetrics(
+        collectors[post.platform],
+        post,
+      );
+      if (!collected) {
         input.log(
           `- ${platformLabel(post.platform)} ${post.id}: no metrics available yet.`,
         );
         continue;
       }
+      const { details, ...counts } = collected;
       const metric = buildSocialPostMetric({
         post,
         capturedAt,
