@@ -80,9 +80,7 @@ describe('social daemon loop coverage', () => {
     const messages = log.mock.calls.map(([message]) => String(message));
     expect(messages).toEqual(
       expect.arrayContaining([
-        expect.stringContaining(
-          'discovery begins at 2026-08-16T08:00:00.000Z',
-        ),
+        expect.stringContaining('discovery begins at 2026-08-16T08:00:00.000Z'),
         '[social-daemon] checking discovery, publishing, metrics, and strategy...',
         '[social-daemon] check complete; next check in 60s.',
       ]),
