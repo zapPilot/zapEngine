@@ -17,15 +17,9 @@ const UPLOAD_TIMEOUT_MS = 600_000;
 const SUCCESS_TIMEOUT_MS = 60_000;
 
 // The creator UI is a Simplified-Chinese SPA whose class names are generated,
-// so each field is located by several candidates and the first visible one
-// wins. A missing field names its own step in the thrown error.
-const TITLE_SELECTORS = [
-  'input[placeholder*="标题"]',
-  'input[placeholder*="题"]',
-  'input.d-text',
-  '[contenteditable="true"][data-placeholder*="标题"]',
-] as const;
-
+// so the description editor is located by several candidates and the first
+// visible one wins. Rednote is intentionally published without its dedicated
+// title field; the generated hook title is prepended to the description instead.
 const BODY_SELECTORS = [
   '[contenteditable="true"][data-placeholder*="正文"]',
   '[contenteditable="true"][data-placeholder*="描述"]',
@@ -76,10 +70,6 @@ async function publish(
     page.locator(UPLOAD_INPUT_SELECTOR).first().setInputFiles(input.videoPath),
   );
 
-  const title = await step('wait_editor', () =>
-    firstVisible(page, TITLE_SELECTORS, EDITOR_TIMEOUT_MS),
-  );
-
   await step('wait_upload_complete', () =>
     page
       .locator(UPLOAD_COMPLETE_SELECTOR)
@@ -92,26 +82,14 @@ async function publish(
     firstVisible(page, BODY_SELECTORS, EDITOR_TIMEOUT_MS),
   );
 
-  log('[rednote] Filling title and body');
+  log('[rednote] Filling description');
   await step('fill_body', () =>
-    body.fill(buildBody(input.body, input.hashtags)),
+    body.fill(buildRednoteDescription(input.body, input.hashtags)),
   );
 
   // Typing "#" opens the topic suggestion panel, and submit stays disabled while
   // it is open — filling the body is what disables the button.
   await step('dismiss_suggestions', () => page.keyboard.press('Escape'));
-
-  // The title is written last and read back: filling it before the body editor
-  // interaction published a note with an empty title, and the platform accepts
-  // that silently rather than rejecting the submit.
-  await step('fill_title', async () => {
-    await title.fill(input.title);
-    const actual = (await title.inputValue()).trim();
-    if (actual === input.title.trim()) return;
-    throw new Error(
-      `Title did not persist: expected ${JSON.stringify(input.title)}, field holds ${JSON.stringify(actual)}`,
-    );
-  });
 
   log('[rednote] Publishing');
   await step('wait_submit_enabled', () =>
@@ -135,7 +113,10 @@ async function publish(
   };
 }
 
-function buildBody(body: string, hashtags: readonly string[]): string {
+export function buildRednoteDescription(
+  body: string,
+  hashtags: readonly string[],
+): string {
   const tags = hashtags.map((tag) => `#${tag.replace(/^#+/, '')}`);
   return `${body.trim()}\n\n${tags.join(' ')}`;
 }

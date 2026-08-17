@@ -25,7 +25,10 @@ import {
   type PublishPlatformOutcome,
   publishSocialPlatforms,
 } from './publish.js';
-import { createSocialPublishJobs } from './publishers.js';
+import {
+  buildRednotePublishBody,
+  createSocialPublishJobs,
+} from './publishers.js';
 import { createSocialPostPersister } from './record.js';
 import { getPublishedPlatform, readPublishState } from './state.js';
 import type {
@@ -410,10 +413,8 @@ function printPreview(copy: GeneratedSocialCopy, assets: SocialAssets): void {
   console.log(youtubeMetadata.description);
   console.log(formatVideoPreview(video, episode.videoDurationSeconds));
   console.log(`${divider}\nREDNOTE\n${divider}`);
-  console.log('標題：');
-  console.log(copy.rednote.title);
-  console.log('正文：');
-  console.log(applyPlatformCta('rednote', copy.rednote.body));
+  console.log('描述：');
+  console.log(applyPlatformCta('rednote', buildRednotePublishBody(copy)));
   console.log(copy.rednote.hashtags.map((tag) => `#${tag}`).join(' '));
   console.log(formatVideoPreview(video, episode.videoDurationSeconds));
   console.log(divider);

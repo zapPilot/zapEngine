@@ -128,6 +128,15 @@ describe('generateSocialCopy', () => {
       'X text must not contain a URL',
     );
     expect(retryRequest?.messages[0]?.content).toContain(
+      'Rednote-only compliance rules must not sanitize or rewrite x.text.',
+    );
+    expect(retryRequest?.messages[0]?.content).toContain(
+      "Lead with the episode's real economic or technology thesis",
+    );
+    expect(retryRequest?.messages[0]?.content).toContain(
+      'Never disguise restricted content with misspellings, homophones, emoji substitutions or coded wording to evade moderation.',
+    );
+    expect(retryRequest?.messages[0]?.content).toContain(
       'Allowed topic values: macro, btc, eth, defi, stablecoin, traditional_finance, portfolio, market_event, technology.',
     );
     expect(retryRequest?.messages[0]?.content).toContain(

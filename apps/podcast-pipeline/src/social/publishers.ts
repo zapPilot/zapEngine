@@ -115,6 +115,10 @@ function createYouTubeJob(input: SocialPublishJobsInput): SocialPublishJob {
   };
 }
 
+export function buildRednotePublishBody(copy: GeneratedSocialCopy): string {
+  return `${copy.rednote.title.trim()}\n\n${copy.rednote.body.trim()}`;
+}
+
 function createRednoteJob(input: SocialPublishJobsInput): SocialPublishJob {
   const platform = 'rednote';
   const videoPath = selectVideoPath(platform, input);
@@ -126,8 +130,7 @@ function createRednoteJob(input: SocialPublishJobsInput): SocialPublishJob {
     platform,
     publish: () =>
       publisher.publishRednote({
-        title: input.copy.rednote.title,
-        body: applyPlatformCta(platform, input.copy.rednote.body),
+        body: applyPlatformCta(platform, buildRednotePublishBody(input.copy)),
         hashtags: input.copy.rednote.hashtags,
         videoPath,
       }),

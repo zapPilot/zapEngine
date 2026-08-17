@@ -34,7 +34,8 @@ vi.mock('./publish.js', () => ({
   publishSocialPlatforms: mocks.publishSocialPlatforms,
 }));
 
-vi.mock('./publishers.js', () => ({
+vi.mock('./publishers.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./publishers.js')>()),
   createSocialPublishJobs: mocks.createSocialPublishJobs,
 }));
 

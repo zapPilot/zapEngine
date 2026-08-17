@@ -89,7 +89,6 @@ export interface ThreadsPublishInput {
 }
 
 export interface RednotePublishInput {
-  title: string;
   body: string;
   hashtags: string[];
   videoPath: string;
