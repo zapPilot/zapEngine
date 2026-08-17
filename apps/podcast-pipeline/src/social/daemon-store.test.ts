@@ -27,6 +27,7 @@ import {
   ensureSocialDaemonStart,
   failSocialPublishJob,
   getActiveSocialStrategies,
+  getSocialQueueSnapshot,
   getSocialStrategyById,
   latestScheduledSocialJobs,
   listDueMetricPosts,
@@ -161,6 +162,73 @@ describe('social daemon store', () => {
     await expect(latestScheduledSocialJobs()).resolves.toEqual({
       x: '2026-08-16T10:05:00Z',
       threads: '2026-08-16T10:15:00Z',
+    });
+
+    queue(
+      {
+        data: [
+          {
+            episode_id: 'episode-1',
+            platform: 'x',
+            status: 'queued',
+            scheduled_at: '2026-08-16T10:05:00Z',
+            next_attempt_at: '2026-08-16T10:05:00Z',
+          },
+          {
+            episode_id: 'episode-2',
+            platform: 'x',
+            status: 'failed',
+            scheduled_at: '2026-08-16T09:05:00Z',
+            next_attempt_at: '2026-08-16T10:35:00Z',
+          },
+          {
+            episode_id: 'episode-2',
+            platform: 'threads',
+            status: 'queued',
+            scheduled_at: '2026-08-16T10:15:00Z',
+            next_attempt_at: '2026-08-16T10:15:00Z',
+          },
+        ],
+        error: null,
+      },
+      {
+        data: [
+          { episode_id: 'episode-1', title: 'First episode' },
+          { episode_id: 'episode-2', title: 'Second episode' },
+        ],
+        error: null,
+      },
+    );
+    await expect(getSocialQueueSnapshot()).resolves.toEqual({
+      pendingCount: 3,
+      episodeQueue: [
+        {
+          episodeId: 'episode-1',
+          title: 'First episode',
+          nextAt: '2026-08-16T10:05:00Z',
+        },
+        {
+          episodeId: 'episode-2',
+          title: 'Second episode',
+          nextAt: '2026-08-16T10:15:00Z',
+        },
+      ],
+      nextByPlatform: {
+        x: {
+          episodeId: 'episode-1',
+          platform: 'x',
+          status: 'queued',
+          title: 'First episode',
+          nextAt: '2026-08-16T10:05:00Z',
+        },
+        threads: {
+          episodeId: 'episode-2',
+          platform: 'threads',
+          status: 'queued',
+          title: 'Second episode',
+          nextAt: '2026-08-16T10:15:00Z',
+        },
+      },
     });
 
     const job = { id: 'job-1', platform: 'x' };

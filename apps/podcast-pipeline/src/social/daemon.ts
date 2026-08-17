@@ -18,6 +18,7 @@ import {
   ensureSocialDaemonStart,
   failSocialPublishJob,
   getActiveSocialStrategies,
+  getSocialQueueSnapshot,
   getSocialStrategyById,
   latestScheduledSocialJobs,
   listDueMetricPosts,
@@ -104,6 +105,9 @@ export async function runSocialDaemon(
     ) {
       lastStrategyRefresh = tickStartedAt.getTime();
     }
+    await isolate('queue summary', log, async () => {
+      logQueueSnapshot(await getSocialQueueSnapshot(), tickStartedAt, log);
+    });
     log(
       `[social-daemon] check complete; next check in ${POLL_INTERVAL_MS / 1_000}s.`,
     );
@@ -346,6 +350,63 @@ async function isolate(
       `[social-daemon] ${label} failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+function logQueueSnapshot(
+  snapshot: Awaited<ReturnType<typeof getSocialQueueSnapshot>>,
+  now: Date,
+  log: (message: string) => void,
+): void {
+  if (snapshot.pendingCount === 0) {
+    log('[social-daemon] queue: no publish jobs pending.');
+    return;
+  }
+
+  log(
+    `[social-daemon] queue: ${snapshot.pendingCount} publish job${snapshot.pendingCount === 1 ? '' : 's'} pending across ${snapshot.episodeQueue.length} article${snapshot.episodeQueue.length === 1 ? '' : 's'}.`,
+  );
+  snapshot.episodeQueue.forEach((episode, index) => {
+    const title = episode.title ?? episode.episodeId;
+    log(
+      `[social-daemon]   ${index + 1}. “${title}” — first publish ${formatJst(episode.nextAt)} (${formatRelative(episode.nextAt, now)}).`,
+    );
+  });
+  for (const platform of SOCIAL_PLATFORMS) {
+    const item = snapshot.nextByPlatform[platform];
+    if (!item) continue;
+    const title = item.title ? ` “${truncateTitle(item.title)}”` : '';
+    log(
+      `[social-daemon] next ${platform}:${title} at ${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status}).`,
+    );
+  }
+}
+
+function truncateTitle(title: string): string {
+  const normalized = title.replace(/\s+/g, ' ').trim();
+  return normalized.length > 42 ? `${normalized.slice(0, 41)}…` : normalized;
+}
+
+function padTwoDigits(number: number): string {
+  return String(number).padStart(2, '0');
+}
+
+function formatJst(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const jst = new Date(date.getTime() + 9 * 60 * 60_000);
+  return `${padTwoDigits(jst.getUTCMonth() + 1)}/${padTwoDigits(jst.getUTCDate())} ${padTwoDigits(jst.getUTCHours())}:${padTwoDigits(jst.getUTCMinutes())} JST`;
+}
+
+function formatRelative(value: string, now: Date): string {
+  const milliseconds = Date.parse(value) - now.getTime();
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) return 'due now';
+  const minutes = Math.ceil(milliseconds / 60_000);
+  if (minutes < 60) return `in ${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes
+    ? `in ${hours}h ${remainingMinutes}m`
+    : `in ${hours}h`;
 }
 
 function defaultSleep(milliseconds: number): Promise<void> {
