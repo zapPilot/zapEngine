@@ -1,8 +1,9 @@
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 import dotenv from 'dotenv';
 
+import { isInvokedDirectly } from './cli-args.js';
 import { isRednoteSessionReady, runRednoteLogin } from './rednote-login.js';
 import {
   ensureThreadsSession,
@@ -92,11 +93,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-// jscpd:ignore-start — CLI direct-invocation check, same pattern as social/cli.ts
-const invokedPath = process.argv[1]
-  ? pathToFileURL(resolve(process.argv[1])).href
-  : null;
-if (invokedPath === import.meta.url) {
+if (isInvokedDirectly(import.meta.url)) {
   try {
     await runSocialLogin();
   } catch (error: unknown) {
@@ -104,4 +101,3 @@ if (invokedPath === import.meta.url) {
     process.exitCode = 1;
   }
 }
-// jscpd:ignore-end

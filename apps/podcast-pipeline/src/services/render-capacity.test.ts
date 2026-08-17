@@ -688,7 +688,9 @@ function makeSupabase(
 
 function expectedProbeFailureMessage(error: unknown): string {
   if (error instanceof Error) return 'database offline';
-  if ('message' in error) return 'structured failure';
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    return 'structured failure';
+  }
   return 'Supabase render work query failed';
 }
 

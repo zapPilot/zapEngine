@@ -6,6 +6,7 @@ import type { ImageSearchProvider } from './image-search-provider.js';
 import {
   perceptualHashDistance,
   planVisualAssets,
+  type VisualAssetProgress,
   type VisualAssetScene,
 } from './visual-asset-planner.js';
 
@@ -672,9 +673,11 @@ describe('planVisualAssets', () => {
       },
     ]);
 
+    const progress: VisualAssetProgress[] = [];
     const result = await planVisualAssets({
       scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['target event'] }],
       workingDirectory: '/work/visual-assets',
+      onProgress: (event) => progress.push(event),
       dependencies: {
         acquireImage: vi.fn().mockResolvedValue(acquired('neutral')),
         searchProviders: bingProviders(search),
@@ -683,7 +686,15 @@ describe('planVisualAssets', () => {
     });
 
     expect(result.assets).toHaveLength(1);
-    expect(result.assets[0]?.sourceHostname).toBeUndefined();
+    expect(result.assets[0]?.sourcePageUrl).toBe(
+      'https://publisher.example.test/archive',
+    );
+    expect(progress).toContainEqual(
+      expect.objectContaining({
+        phase: 'assets',
+        sourceHostname: 'publisher.example.test',
+      }),
+    );
   });
 
   it('handles an empty-token query and preserves provider order ties in resilient mode', async () => {

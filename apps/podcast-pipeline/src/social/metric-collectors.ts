@@ -26,6 +26,19 @@ export type SocialMetricCollector = (
   post: SocialPostRow,
 ) => Promise<CollectedSocialMetrics>;
 
+async function fetchJsonWithTimeout(
+  fetchImpl: typeof fetch,
+  url: URL,
+  init: RequestInit = {},
+): Promise<{ response: Response; payload: unknown }> {
+  const response = await fetchImpl(url, {
+    ...init,
+    signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
+  });
+  const payload = (await response.json().catch(() => null)) as unknown;
+  return { response, payload };
+}
+
 export interface RecoveredPublishedPost {
   platformPostId: string;
   postUrl: string;
@@ -79,10 +92,7 @@ export async function collectThreadsMetrics(
   url.searchParams.set('metric', 'views,likes,replies,reposts,quotes,shares');
   url.searchParams.set('access_token', session.accessToken);
 
-  const response = await fetchImpl(url, {
-    signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
-  });
-  const payload = (await response.json().catch(() => null)) as unknown;
+  const { response, payload } = await fetchJsonWithTimeout(fetchImpl, url);
   if (!response.ok) {
     throw new Error(`Threads insights failed with HTTP ${response.status}.`);
   }
@@ -625,11 +635,11 @@ async function queryYouTubeAnalytics(input: {
   url.searchParams.set('filters', `video==${input.videoId}`);
   if (input.dimensions) url.searchParams.set('dimensions', input.dimensions);
 
-  const response = await input.fetchImpl(url, {
-    headers: { authorization: `Bearer ${input.accessToken}` },
-    signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
-  });
-  const payload = (await response.json().catch(() => null)) as unknown;
+  const { response, payload } = await fetchJsonWithTimeout(
+    input.fetchImpl,
+    url,
+    { headers: { authorization: `Bearer ${input.accessToken}` } },
+  );
   if (!response.ok)
     throw new Error(`YouTube Analytics failed with HTTP ${response.status}.`);
   if (!isRecord(payload) || !Array.isArray(payload['rows'])) {

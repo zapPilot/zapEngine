@@ -1,6 +1,6 @@
 import { hostname } from 'node:os';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 import dotenv from 'dotenv';
 
@@ -11,6 +11,7 @@ import {
 } from '../services/db.js';
 import type { SocialPostRow } from '../types.js';
 import { runSocialCli } from './cli.js';
+import { isInvokedDirectly } from './cli-args.js';
 import {
   claimSocialPublishJob,
   completeSocialPublishJob,
@@ -27,7 +28,7 @@ import {
   type SocialMetricWindowLabel,
 } from './daemon-store.js';
 import { createMetricCollectors } from './metric-collectors.js';
-import { buildSocialPostMetric } from './metrics.js';
+import { buildSocialPostMetric, splitUsableMetrics } from './metrics.js';
 import { SOCIAL_PLATFORMS, type SocialPlatform } from './platforms.js';
 import {
   activeStrategyMap,
@@ -291,19 +292,14 @@ export async function collectDueMetricWindows(
 
     try {
       const collected = await collectors[post.platform](post);
-      const { details, ...counts } = collected;
-      if (
-        Object.values(counts).every((value) => value === null) &&
-        (!details || Object.keys(details).length === 0)
-      ) {
-        continue;
-      }
+      const split = splitUsableMetrics(collected);
+      if (!split) continue;
       await insertSocialPostMetric(
         buildSocialPostMetric({
           post,
           capturedAt: now,
-          counts,
-          details,
+          counts: split.counts,
+          details: split.details,
           measurementWindow: window.label,
         }),
       );
@@ -413,9 +409,6 @@ function defaultSleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-const invokedPath = process.argv[1]
-  ? pathToFileURL(resolve(process.argv[1])).href
-  : null;
-if (invokedPath === import.meta.url) {
+if (isInvokedDirectly(import.meta.url)) {
   await runSocialDaemon();
 }
