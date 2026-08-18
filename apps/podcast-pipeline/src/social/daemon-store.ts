@@ -316,12 +316,15 @@ export async function reconcileSocialPublishJob(input: {
   completedAt: Date;
 }): Promise<boolean> {
   const completedAt = input.completedAt.toISOString();
+  const completion = {
+    status: 'completed' as const,
+    completed_at: completedAt,
+    social_post_id: input.socialPostId,
+  };
   const { data, error } = await getPipelineSupabase()
     .from('social_publish_jobs')
     .update({
-      status: 'completed',
-      completed_at: completedAt,
-      social_post_id: input.socialPostId,
+      ...completion,
       lease_owner: null,
       lease_expires_at: null,
       last_error: null,
