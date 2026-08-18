@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   ensureSocialDaemonStart: vi.fn(),
   failSocialPublishJob: vi.fn(),
   getActiveSocialStrategies: vi.fn(),
+  getSocialQueueSnapshot: vi.fn(),
   getSocialStrategyById: vi.fn(),
   latestScheduledSocialJobs: vi.fn(),
   listDueMetricPosts: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('./daemon-store.js', () => ({
   ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
   failSocialPublishJob: mocks.failSocialPublishJob,
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
+  getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   getSocialStrategyById: mocks.getSocialStrategyById,
   latestScheduledSocialJobs: mocks.latestScheduledSocialJobs,
   listDueMetricPosts: mocks.listDueMetricPosts,
@@ -116,6 +118,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.getActiveSocialStrategies.mockResolvedValue([]);
+  mocks.getSocialQueueSnapshot.mockResolvedValue({
+    pendingCount: 0,
+    episodeQueue: [],
+    nextByPlatform: {},
+  });
   mocks.latestScheduledSocialJobs.mockResolvedValue({});
   mocks.claimSocialPublishJob.mockResolvedValue(null);
   mocks.listDueMetricPosts.mockResolvedValue([]);
@@ -306,7 +313,66 @@ describe('social daemon', () => {
       '[social-daemon] checking discovery, publishing, metrics, and strategy...',
     );
     expect(log).toHaveBeenCalledWith(
+      '[social-daemon] queue: no publish jobs pending.',
+    );
+    expect(log).toHaveBeenCalledWith(
       '[social-daemon] check complete; next check in 60s.',
+    );
+  });
+
+  it('logs the pending queue and next scheduled post per platform', async () => {
+    mocks.getSocialQueueSnapshot.mockResolvedValue({
+      pendingCount: 4,
+      episodeQueue: [
+        {
+          episodeId: EPISODE_ID,
+          title: '穩定幣真實使用場景：境內交易佔六成，亞太地區成最大市場',
+          nextAt: '2026-08-16T10:05:00.000Z',
+        },
+        {
+          episodeId: 'episode-2',
+          title: 'AI安全之爭：集中控制與分散競爭誰更危險？',
+          nextAt: '2026-08-16T10:35:00.000Z',
+        },
+      ],
+      nextByPlatform: {
+        x: {
+          episodeId: EPISODE_ID,
+          platform: 'x',
+          status: 'queued',
+          title: '穩定幣真實使用場景：境內交易佔六成，亞太地區成最大市場',
+          nextAt: '2026-08-16T10:05:00.000Z',
+        },
+        threads: {
+          episodeId: EPISODE_ID,
+          platform: 'threads',
+          status: 'queued',
+          title: '穩定幣真實使用場景',
+          nextAt: '2026-08-16T10:15:00.000Z',
+        },
+      },
+    });
+    const sleep = vi.fn().mockRejectedValue(new Error('stop-loop'));
+    const log = vi.fn();
+
+    await expect(
+      runSocialDaemon({ now: () => NOW, sleep, log }),
+    ).rejects.toThrow('stop-loop');
+
+    expect(log).toHaveBeenCalledWith(
+      '[social-daemon] queue: 4 publish jobs pending across 2 articles.',
+    );
+    expect(log).toHaveBeenCalledWith(
+      '[social-daemon]   1. “穩定幣真實使用場景：境內交易佔六成，亞太地區成最大市場” — first publish 08/16 19:05 JST (in 5m).',
+    );
+    expect(log).toHaveBeenCalledWith(
+      '[social-daemon]   2. “AI安全之爭：集中控制與分散競爭誰更危險？” — first publish 08/16 19:35 JST (in 35m).',
+    );
+    expect(log).toHaveBeenCalledWith(
+      '[social-daemon] next x: “穩定幣真實使用場景：境內交易佔六成，亞太地區成最大市場” at 08/16 19:05 JST (in 5m; queued).',
+    );
+    expect(log).toHaveBeenCalledWith(
+      '[social-daemon] next threads: “穩定幣真實使用場景” at 08/16 19:15 JST (in 15m; queued).',
     );
   });
 

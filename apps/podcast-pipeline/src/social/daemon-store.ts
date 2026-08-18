@@ -32,6 +32,26 @@ export interface SocialPublishJobRow {
   updated_at: string;
 }
 
+export interface SocialQueueItem {
+  episodeId: string;
+  platform: SocialPlatform;
+  status: SocialPublishJobRow['status'];
+  title: string | null;
+  nextAt: string;
+}
+
+export interface SocialQueueEpisode {
+  episodeId: string;
+  title: string | null;
+  nextAt: string;
+}
+
+export interface SocialQueueSnapshot {
+  pendingCount: number;
+  episodeQueue: SocialQueueEpisode[];
+  nextByPlatform: Partial<Record<SocialPlatform, SocialQueueItem>>;
+}
+
 export interface SocialStrategyConfig {
   publishHoursJst?: number[];
   preferredHookTypes?: string[];
@@ -140,6 +160,74 @@ export async function latestScheduledSocialJobs(): Promise<
   return latest;
 }
 
+export async function getSocialQueueSnapshot(): Promise<SocialQueueSnapshot> {
+  const supabase = getPipelineSupabase();
+  const { data, error } = await supabase
+    .from('social_publish_jobs')
+    .select('episode_id,platform,status,scheduled_at,next_attempt_at')
+    .in('status', ['queued', 'failed', 'processing'])
+    .returns<
+      Pick<
+        SocialPublishJobRow,
+        | 'episode_id'
+        | 'platform'
+        | 'status'
+        | 'scheduled_at'
+        | 'next_attempt_at'
+      >[]
+    >();
+  if (error) throwSupabaseError(error);
+
+  const jobs = data ?? [];
+  if (jobs.length === 0) {
+    return { pendingCount: 0, episodeQueue: [], nextByPlatform: {} };
+  }
+
+  const episodeIds = [...new Set(jobs.map((job) => job.episode_id))];
+  const { data: localizations, error: localizationError } = await supabase
+    .from('episode_localizations')
+    .select('episode_id,title')
+    .eq('language_code', 'zh-Hant')
+    .in('episode_id', episodeIds)
+    .returns<{ episode_id: string; title: string | null }[]>();
+  if (localizationError) throwSupabaseError(localizationError);
+
+  const titleByEpisode = new Map(
+    (localizations ?? []).map((row) => [row.episode_id, row.title]),
+  );
+  const nextByPlatform: Partial<Record<SocialPlatform, SocialQueueItem>> = {};
+  const sortedJobs = [...jobs].sort(
+    (left, right) => Date.parse(jobNextAt(left)) - Date.parse(jobNextAt(right)),
+  );
+  const episodeQueue: SocialQueueEpisode[] = [];
+  const queuedEpisodes = new Set<string>();
+  for (const job of sortedJobs) {
+    if (!queuedEpisodes.has(job.episode_id)) {
+      queuedEpisodes.add(job.episode_id);
+      episodeQueue.push({
+        episodeId: job.episode_id,
+        title: titleByEpisode.get(job.episode_id) ?? null,
+        nextAt: jobNextAt(job),
+      });
+    }
+    nextByPlatform[job.platform] ??= {
+      episodeId: job.episode_id,
+      platform: job.platform,
+      status: job.status,
+      title: titleByEpisode.get(job.episode_id) ?? null,
+      nextAt: jobNextAt(job),
+    };
+  }
+
+  return { pendingCount: jobs.length, episodeQueue, nextByPlatform };
+}
+
+function jobNextAt(
+  job: Pick<SocialPublishJobRow, 'status' | 'scheduled_at' | 'next_attempt_at'>,
+): string {
+  return job.status === 'failed' ? job.next_attempt_at : job.scheduled_at;
+}
+
 export async function claimSocialPublishJob(input: {
   owner: string;
   now: Date;
@@ -156,6 +244,22 @@ export async function claimSocialPublishJob(input: {
   return rows[0] ?? null;
 }
 
+async function updateOwnedSocialPublishJob(
+  jobId: string,
+  owner: string,
+  patch: Partial<SocialPublishJobRow>,
+): Promise<void> {
+  const { data, error } = await getPipelineSupabase()
+    .from('social_publish_jobs')
+    .update(patch)
+    .eq('id', jobId)
+    .eq('lease_owner', owner)
+    .select('id')
+    .maybeSingle<{ id: string }>();
+  if (error) throwSupabaseError(error);
+  if (!data) throw new Error(`Social publish job ${jobId} lease was lost.`);
+}
+
 export async function completeSocialPublishJob(input: {
   jobId: string;
   owner: string;
@@ -163,24 +267,15 @@ export async function completeSocialPublishJob(input: {
   socialPostId?: string | null;
 }): Promise<void> {
   const completedAt = input.completedAt.toISOString();
-  const { data, error } = await getPipelineSupabase()
-    .from('social_publish_jobs')
-    .update({
-      status: 'completed',
-      completed_at: completedAt,
-      social_post_id: input.socialPostId ?? null,
-      lease_owner: null,
-      lease_expires_at: null,
-      last_error: null,
-      updated_at: completedAt,
-    })
-    .eq('id', input.jobId)
-    .eq('lease_owner', input.owner)
-    .select('id')
-    .maybeSingle<{ id: string }>();
-  if (error) throwSupabaseError(error);
-  if (!data)
-    throw new Error(`Social publish job ${input.jobId} lease was lost.`);
+  await updateOwnedSocialPublishJob(input.jobId, input.owner, {
+    status: 'completed',
+    completed_at: completedAt,
+    social_post_id: input.socialPostId ?? null,
+    lease_owner: null,
+    lease_expires_at: null,
+    last_error: null,
+    updated_at: completedAt,
+  });
 }
 
 export async function failSocialPublishJob(input: {
@@ -193,23 +288,14 @@ export async function failSocialPublishJob(input: {
   const nextAttemptAt = new Date(
     input.now.getTime() + publishRetryDelayMs(input.attemptCount),
   ).toISOString();
-  const { data, error } = await getPipelineSupabase()
-    .from('social_publish_jobs')
-    .update({
-      status: 'failed',
-      next_attempt_at: nextAttemptAt,
-      lease_owner: null,
-      lease_expires_at: null,
-      last_error: input.error.slice(0, 4_000),
-      updated_at: input.now.toISOString(),
-    })
-    .eq('id', input.jobId)
-    .eq('lease_owner', input.owner)
-    .select('id')
-    .maybeSingle<{ id: string }>();
-  if (error) throwSupabaseError(error);
-  if (!data)
-    throw new Error(`Social publish job ${input.jobId} lease was lost.`);
+  await updateOwnedSocialPublishJob(input.jobId, input.owner, {
+    status: 'failed',
+    next_attempt_at: nextAttemptAt,
+    lease_owner: null,
+    lease_expires_at: null,
+    last_error: input.error.slice(0, 4_000),
+    updated_at: input.now.toISOString(),
+  });
 }
 
 export function publishRetryDelayMs(attemptCount: number): number {
