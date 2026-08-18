@@ -199,4 +199,62 @@ describe('social daemon publish batch isolation', () => {
       expect.objectContaining({ jobId: 'job-2' }),
     );
   });
+
+  it('continues with later jobs when an earlier published outcome has a state error', async () => {
+    const stateError = new Error('published state could not be persisted');
+    mocks.claimSocialPublishBatch.mockResolvedValue([
+      publishJob('job-1', FIRST_EPISODE_ID, 5),
+      publishJob('job-2', SECOND_EPISODE_ID, 2),
+    ]);
+    mocks.listSocialPostsByEpisode
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'post-2' }]);
+    mocks.runSocialCli
+      .mockResolvedValueOnce([
+        {
+          platform: 'x',
+          status: 'published',
+          url: 'https://x.com/zap/status/1',
+          stateError,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          platform: 'x',
+          status: 'published',
+          url: 'https://x.com/zap/status/2',
+        },
+      ]);
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-18T00:00:00.000Z',
+    });
+
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-1',
+      owner: expect.any(String),
+      now: NOW,
+      attemptCount: 5,
+      error: stateError.message,
+    });
+    expect(mocks.completeSocialPublishJob).not.toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: 'job-1' }),
+    );
+    expect(mocks.runSocialCli).toHaveBeenCalledTimes(2);
+    expect(mocks.runSocialCli).toHaveBeenLastCalledWith(
+      [SECOND_EPISODE_ID, '--yes', '--platform', 'x'],
+      expect.objectContaining({ setExitCodeOnFailure: false }),
+    );
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-2',
+      owner: expect.any(String),
+      completedAt: NOW,
+      socialPostId: 'post-2',
+    });
+    expect(mocks.failSocialPublishJob).not.toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: 'job-2' }),
+    );
+  });
 });
