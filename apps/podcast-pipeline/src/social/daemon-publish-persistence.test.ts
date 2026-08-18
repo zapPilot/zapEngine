@@ -181,4 +181,39 @@ describe('social daemon publish persistence failures', () => {
     expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
     expect(mocks.completeSocialPublishJob).not.toHaveBeenCalled();
   });
+
+  it('does not republish when reconcile loses the CAS race and publish claims the job', async () => {
+    mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([
+      {
+        id: 'job-1',
+        episode_id: EPISODE_ID,
+        platform: 'x',
+        status: 'failed',
+      },
+    ]);
+    mocks.listSocialPostsByEpisode
+      .mockResolvedValueOnce([{ id: 'post-2' }])
+      .mockResolvedValueOnce([{ id: 'post-2' }]);
+    mocks.reconcileSocialPublishJob.mockResolvedValue(false);
+    mocks.claimSocialPublishBatch.mockResolvedValue([publishJob(4)]);
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-18T00:00:00.000Z',
+    });
+
+    expect(mocks.reconcileSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-1',
+      socialPostId: 'post-2',
+      completedAt: NOW,
+    });
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-1',
+      owner: expect.any(String),
+      completedAt: NOW,
+      socialPostId: 'post-2',
+    });
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
+  });
 });
