@@ -233,6 +233,28 @@ function jobNextAt(
   return job.status === 'failed' ? job.next_attempt_at : job.scheduled_at;
 }
 
+export interface UnfinishedSocialPublishJob {
+  id: string;
+  episode_id: string;
+  platform: SocialPlatform;
+  status: 'queued' | 'failed';
+}
+
+// `processing` rows are deliberately excluded: their lease owner may be
+// mid-publish, and the claim RPC is the only thing allowed to take an expired
+// lease back.
+export async function listUnfinishedSocialPublishJobs(): Promise<
+  UnfinishedSocialPublishJob[]
+> {
+  const { data, error } = await getPipelineSupabase()
+    .from('social_publish_jobs')
+    .select('id,episode_id,platform,status')
+    .in('status', ['queued', 'failed'])
+    .returns<UnfinishedSocialPublishJob[]>();
+  if (error) throwSupabaseError(error);
+  return data ?? [];
+}
+
 export async function claimSocialPublishJob(input: {
   owner: string;
   now: Date;
@@ -281,6 +303,36 @@ export async function completeSocialPublishJob(input: {
     last_error: null,
     updated_at: completedAt,
   });
+}
+
+// Completes a job from evidence in `social_posts` rather than from a publish
+// this daemon performed, so a manual `social:publish` -- or a crash after the
+// post row was written -- cannot leave the queue retrying a platform that is
+// already live. The status filter is the fence: a `processing` row belongs to
+// whoever holds its lease.
+export async function reconcileSocialPublishJob(input: {
+  jobId: string;
+  socialPostId: string;
+  completedAt: Date;
+}): Promise<boolean> {
+  const completedAt = input.completedAt.toISOString();
+  const { data, error } = await getPipelineSupabase()
+    .from('social_publish_jobs')
+    .update({
+      status: 'completed',
+      completed_at: completedAt,
+      social_post_id: input.socialPostId,
+      lease_owner: null,
+      lease_expires_at: null,
+      last_error: null,
+      updated_at: completedAt,
+    })
+    .eq('id', input.jobId)
+    .in('status', ['queued', 'failed'])
+    .select('id')
+    .maybeSingle<{ id: string }>();
+  if (error) throwSupabaseError(error);
+  return data !== null;
 }
 
 export async function failSocialPublishJob(input: {

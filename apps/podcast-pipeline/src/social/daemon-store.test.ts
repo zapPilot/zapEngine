@@ -35,7 +35,9 @@ import {
   listLearningSocialPosts,
   listMetricWindowsForPosts,
   listSocialPublishCandidates,
+  listUnfinishedSocialPublishJobs,
   publishRetryDelayMs,
+  reconcileSocialPublishJob,
 } from './daemon-store.js';
 
 function nextResult(): QueryResult {
@@ -122,6 +124,80 @@ describe('social daemon store', () => {
       '2026-08-16T09:30:00.000Z',
     );
     expect(mocks.calls.some((call) => call.method === 'upsert')).toBe(true);
+  });
+
+  it('lists only unleased unfinished jobs and reconciles one without a lease', async () => {
+    const now = new Date('2026-08-16T10:00:00.000Z');
+    queue({
+      data: [
+        {
+          id: 'job-1',
+          episode_id: 'episode-1',
+          platform: 'youtube',
+          status: 'failed',
+        },
+      ],
+      error: null,
+    });
+    await expect(listUnfinishedSocialPublishJobs()).resolves.toEqual([
+      {
+        id: 'job-1',
+        episode_id: 'episode-1',
+        platform: 'youtube',
+        status: 'failed',
+      },
+    ]);
+    expect(
+      mocks.calls.some(
+        (call) =>
+          call.method === 'in' &&
+          call.args[0] === 'status' &&
+          Array.isArray(call.args[1]) &&
+          !(call.args[1] as string[]).includes('processing'),
+      ),
+    ).toBe(true);
+
+    queue({ data: null, error: null });
+    await expect(listUnfinishedSocialPublishJobs()).resolves.toEqual([]);
+
+    queue({ data: { id: 'job-1' }, error: null });
+    await expect(
+      reconcileSocialPublishJob({
+        jobId: 'job-1',
+        socialPostId: 'post-1',
+        completedAt: now,
+      }),
+    ).resolves.toBe(true);
+    const updates = mocks.calls.filter((call) => call.method === 'update');
+    expect(updates[updates.length - 1]?.args[0]).toMatchObject({
+      status: 'completed',
+      social_post_id: 'post-1',
+      lease_owner: null,
+      last_error: null,
+    });
+
+    queue({ data: null, error: null });
+    await expect(
+      reconcileSocialPublishJob({
+        jobId: 'job-claimed',
+        socialPostId: 'post-1',
+        completedAt: now,
+      }),
+    ).resolves.toBe(false);
+
+    queue({ data: null, error: new Error('reconcile boom') });
+    await expect(
+      reconcileSocialPublishJob({
+        jobId: 'job-1',
+        socialPostId: 'post-1',
+        completedAt: now,
+      }),
+    ).rejects.toThrow('reconcile boom');
+
+    queue({ data: null, error: new Error('list boom') });
+    await expect(listUnfinishedSocialPublishJobs()).rejects.toThrow(
+      'list boom',
+    );
   });
 
   it('maps candidate, enqueue, schedule, claim, and metric-list queries', async () => {

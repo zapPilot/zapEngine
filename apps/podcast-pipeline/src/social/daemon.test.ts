@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   listDueMetricPosts: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
+  listUnfinishedSocialPublishJobs: vi.fn(),
+  reconcileSocialPublishJob: vi.fn(),
   insertSocialPostMetric: vi.fn(),
   listSocialPostsByEpisode: vi.fn(),
   updateSocialPostIdentity: vi.fn(),
@@ -35,6 +37,8 @@ vi.mock('./daemon-store.js', () => ({
   listDueMetricPosts: mocks.listDueMetricPosts,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
+  listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
+  reconcileSocialPublishJob: mocks.reconcileSocialPublishJob,
 }));
 
 vi.mock('../services/db.js', () => ({
@@ -125,6 +129,9 @@ beforeEach(() => {
   });
   mocks.latestScheduledSocialJobs.mockResolvedValue({});
   mocks.claimSocialPublishJob.mockResolvedValue(null);
+  mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
+  mocks.reconcileSocialPublishJob.mockResolvedValue(true);
+  mocks.listSocialPostsByEpisode.mockResolvedValue([]);
   mocks.listDueMetricPosts.mockResolvedValue([]);
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);
   mocks.enqueueSocialPublishJob.mockResolvedValue(true);
@@ -163,7 +170,9 @@ describe('social daemon', () => {
     mocks.runSocialCli.mockResolvedValue([
       { platform: 'x', status: 'published', url: 'https://x.com/zap/status/1' },
     ]);
-    mocks.listSocialPostsByEpisode.mockResolvedValue([socialPost()]);
+    mocks.listSocialPostsByEpisode
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([socialPost()]);
 
     const log = vi.fn();
     await runSocialDaemonTick({
@@ -233,6 +242,133 @@ describe('social daemon', () => {
       error: 'Meta down',
     });
     expect(mocks.completeSocialPublishJob).not.toHaveBeenCalled();
+  });
+
+  it('reconciles a failed job whose platform is already live instead of re-uploading', async () => {
+    mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([
+      {
+        id: 'job-youtube',
+        episode_id: EPISODE_ID,
+        platform: 'youtube',
+        status: 'failed',
+      },
+    ]);
+    mocks.listSocialPostsByEpisode.mockResolvedValue([
+      socialPost({
+        id: 'post-youtube',
+        platform: 'youtube',
+        post_url: 'https://www.youtube.com/watch?v=abc',
+      }),
+    ]);
+
+    const log = vi.fn();
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-16T08:00:00.000Z',
+      log,
+    });
+
+    expect(mocks.reconcileSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-youtube',
+      socialPostId: 'post-youtube',
+      completedAt: NOW,
+    });
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(
+      `[social-daemon] reconciled youtube for ${EPISODE_ID} - already published (post-youtube).`,
+    );
+  });
+
+  it('reconciles a queued job that a manual publish already satisfied', async () => {
+    mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([
+      {
+        id: 'job-queued',
+        episode_id: EPISODE_ID,
+        platform: 'youtube',
+        status: 'queued',
+      },
+    ]);
+    mocks.listSocialPostsByEpisode.mockResolvedValue([
+      socialPost({ id: 'post-manual', platform: 'youtube' }),
+    ]);
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-16T08:00:00.000Z',
+    });
+
+    expect(mocks.reconcileSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-queued',
+      socialPostId: 'post-manual',
+      completedAt: NOW,
+    });
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+  });
+
+  it('leaves a failed job alone when nothing was published, and ignores a lost reconcile race', async () => {
+    mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([
+      {
+        id: 'job-retry',
+        episode_id: EPISODE_ID,
+        platform: 'youtube',
+        status: 'failed',
+      },
+      {
+        id: 'job-raced',
+        episode_id: EPISODE_ID,
+        platform: 'x',
+        status: 'failed',
+      },
+    ]);
+    mocks.listSocialPostsByEpisode.mockImplementation(
+      async (_episodeId: string, platform: string) =>
+        platform === 'x' ? [socialPost({ id: 'post-raced' })] : [],
+    );
+    mocks.reconcileSocialPublishJob.mockResolvedValue(false);
+
+    const log = vi.fn();
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-16T08:00:00.000Z',
+      log,
+    });
+
+    expect(mocks.reconcileSocialPublishJob).toHaveBeenCalledTimes(1);
+    expect(mocks.reconcileSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-raced',
+      socialPostId: 'post-raced',
+      completedAt: NOW,
+    });
+    expect(log).not.toHaveBeenCalledWith(expect.stringContaining('reconciled'));
+  });
+
+  it('completes a claimed job without publishing when the post row already exists', async () => {
+    mocks.claimSocialPublishJob.mockResolvedValue(
+      publishJob({ id: 'job-crashed', platform: 'youtube', attempt_count: 3 }),
+    );
+    mocks.listSocialPostsByEpisode.mockResolvedValue([
+      socialPost({ id: 'post-crashed', platform: 'youtube' }),
+    ]);
+
+    const log = vi.fn();
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-16T08:00:00.000Z',
+      log,
+    });
+
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-crashed',
+      owner: expect.any(String),
+      completedAt: NOW,
+      socialPostId: 'post-crashed',
+    });
+    expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(
+      `[social-daemon] reconciled youtube for ${EPISODE_ID} - already published (post-crashed).`,
+    );
   });
 
   it('records only the earliest missing standardized metric window', async () => {
@@ -507,7 +643,9 @@ describe('social daemon', () => {
       mocks.listDueMetricPosts.mockResolvedValue([]);
       mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
       mocks.runSocialCli.mockResolvedValue(scenario.outcomes);
-      mocks.listSocialPostsByEpisode.mockResolvedValue(scenario.posts);
+      mocks.listSocialPostsByEpisode
+        .mockResolvedValueOnce([])
+        .mockResolvedValue(scenario.posts);
 
       await runSocialDaemonTick({
         now: NOW,
@@ -526,6 +664,7 @@ describe('social daemon', () => {
     mocks.latestScheduledSocialJobs.mockResolvedValue({});
     mocks.listDueMetricPosts.mockResolvedValue([]);
     mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
+    mocks.listSocialPostsByEpisode.mockResolvedValue([]);
     mocks.runSocialCli.mockRejectedValue('plain publish failure');
     await runSocialDaemonTick({
       now: NOW,

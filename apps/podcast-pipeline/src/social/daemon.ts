@@ -24,6 +24,8 @@ import {
   listDueMetricPosts,
   listMetricWindowsForPosts,
   listSocialPublishCandidates,
+  listUnfinishedSocialPublishJobs,
+  reconcileSocialPublishJob,
   type SocialMetricWindowLabel,
 } from './daemon-store.js';
 import { isMainModule } from './is-main-module.js';
@@ -124,6 +126,9 @@ export async function runSocialDaemonTick(input: {
 }): Promise<void> {
   const log = input.log ?? (() => void 0);
 
+  await isolate('reconcile', log, () =>
+    reconcileAlreadyPublishedJobs(input.now, log),
+  );
   await isolate('discover', log, () =>
     discoverAndEnqueue({
       now: input.now,
@@ -203,6 +208,30 @@ async function discoverAndEnqueue(input: {
   }
 }
 
+// `social_posts` is the source of truth for "this platform is live", so a job
+// left behind by a manual publish or by a crash between the post insert and the
+// job update is closed here instead of retrying an upload that would duplicate
+// the post.
+async function reconcileAlreadyPublishedJobs(
+  now: Date,
+  log: (message: string) => void,
+): Promise<void> {
+  const jobs = await listUnfinishedSocialPublishJobs();
+  for (const job of jobs) {
+    const [post] = await listSocialPostsByEpisode(job.episode_id, job.platform);
+    if (!post) continue;
+    const reconciled = await reconcileSocialPublishJob({
+      jobId: job.id,
+      socialPostId: post.id,
+      completedAt: now,
+    });
+    if (!reconciled) continue;
+    log(
+      `[social-daemon] reconciled ${job.platform} for ${job.episode_id} - already published (${post.id}).`,
+    );
+  }
+}
+
 async function publishOneDueJob(
   now: Date,
   log: (message: string) => void,
@@ -211,6 +240,23 @@ async function publishOneDueJob(
   if (!job) return;
 
   try {
+    const [alreadyPublished] = await listSocialPostsByEpisode(
+      job.episode_id,
+      job.platform,
+    );
+    if (alreadyPublished) {
+      await completeSocialPublishJob({
+        jobId: job.id,
+        owner: OWNER,
+        completedAt: now,
+        socialPostId: alreadyPublished.id,
+      });
+      log(
+        `[social-daemon] reconciled ${job.platform} for ${job.episode_id} - already published (${alreadyPublished.id}).`,
+      );
+      return;
+    }
+
     const strategy = job.strategy_version_id
       ? await getSocialStrategyById(job.strategy_version_id)
       : null;
