@@ -238,6 +238,33 @@ async function reconcileAlreadyPublishedJobs(
   }
 }
 
+async function persistPublishFailure(input: {
+  jobId: string;
+  episodeId: string;
+  platform: string;
+  attemptCount: number;
+  now: Date;
+  message: string;
+  log: (message: string) => void;
+}): Promise<void> {
+  try {
+    await failSocialPublishJob({
+      jobId: input.jobId,
+      owner: OWNER,
+      now: input.now,
+      attemptCount: input.attemptCount,
+      error: input.message,
+    });
+  } catch (persistenceError) {
+    input.log(
+      `[social-daemon] failed to persist ${input.platform} publish failure for ${input.episodeId}: ${persistenceError instanceof Error ? persistenceError.message : String(persistenceError)}`,
+    );
+  }
+  input.log(
+    `[social-daemon] ${input.platform} publish failed for ${input.episodeId}: ${input.message}`,
+  );
+}
+
 async function publishDueJobs(
   now: Date,
   log: (message: string) => void,
@@ -299,23 +326,15 @@ async function publishDueJobs(
         `[social-daemon] published ${job.platform} for ${job.episode_id} (${post.id}).`,
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      try {
-        await failSocialPublishJob({
-          jobId: job.id,
-          owner: OWNER,
-          now,
-          attemptCount: job.attempt_count,
-          error: message,
-        });
-      } catch (persistenceError) {
-        log(
-          `[social-daemon] failed to persist ${job.platform} publish failure for ${job.episode_id}: ${persistenceError instanceof Error ? persistenceError.message : String(persistenceError)}`,
-        );
-      }
-      log(
-        `[social-daemon] ${job.platform} publish failed for ${job.episode_id}: ${message}`,
-      );
+      await persistPublishFailure({
+        jobId: job.id,
+        episodeId: job.episode_id,
+        platform: job.platform,
+        attemptCount: job.attempt_count,
+        now,
+        message: error instanceof Error ? error.message : String(error),
+        log,
+      });
     }
   }
 }
