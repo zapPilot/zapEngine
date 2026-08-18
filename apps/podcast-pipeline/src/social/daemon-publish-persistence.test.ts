@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  claimSocialPublishJob: vi.fn(),
+  alignPendingSocialPublishSchedules: vi.fn(),
+  claimSocialPublishBatch: vi.fn(),
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn(),
   ensureSocialDaemonStart: vi.fn(),
@@ -9,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   getActiveSocialStrategies: vi.fn(),
   getSocialQueueSnapshot: vi.fn(),
   getSocialStrategyById: vi.fn(),
-  latestScheduledSocialJobs: vi.fn(),
+  latestPendingSocialPublishSchedule: vi.fn(),
   listDueMetricPosts: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
@@ -24,7 +25,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./daemon-store.js', () => ({
-  claimSocialPublishJob: mocks.claimSocialPublishJob,
+  alignPendingSocialPublishSchedules: mocks.alignPendingSocialPublishSchedules,
+  claimSocialPublishBatch: mocks.claimSocialPublishBatch,
   completeSocialPublishJob: mocks.completeSocialPublishJob,
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
   ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
@@ -32,7 +34,7 @@ vi.mock('./daemon-store.js', () => ({
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   getSocialStrategyById: mocks.getSocialStrategyById,
-  latestScheduledSocialJobs: mocks.latestScheduledSocialJobs,
+  latestPendingSocialPublishSchedule: mocks.latestPendingSocialPublishSchedule,
   listDueMetricPosts: mocks.listDueMetricPosts,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
@@ -82,15 +84,16 @@ function publishJob(attemptCount = 3) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.alignPendingSocialPublishSchedules.mockResolvedValue(0);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.getActiveSocialStrategies.mockResolvedValue([]);
-  mocks.latestScheduledSocialJobs.mockResolvedValue({});
+  mocks.latestPendingSocialPublishSchedule.mockResolvedValue(null);
   mocks.listDueMetricPosts.mockResolvedValue([]);
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);
   mocks.getSocialStrategyById.mockResolvedValue(null);
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
   mocks.reconcileSocialPublishJob.mockResolvedValue(true);
-  mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
+  mocks.claimSocialPublishBatch.mockResolvedValue([publishJob()]);
 });
 
 describe('social daemon publish persistence failures', () => {
@@ -162,7 +165,7 @@ describe('social daemon publish persistence failures', () => {
       },
     ]);
     mocks.listSocialPostsByEpisode.mockResolvedValueOnce([{ id: 'post-2' }]);
-    mocks.claimSocialPublishJob.mockResolvedValue(null);
+    mocks.claimSocialPublishBatch.mockResolvedValue([]);
 
     await runSocialDaemonTick({
       now: NOW,
