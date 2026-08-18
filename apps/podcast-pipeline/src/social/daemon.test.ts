@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   claimSocialPublishJob: vi.fn(),
+  alignPendingSocialPublishSchedules: vi.fn(),
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn(),
   ensureSocialDaemonStart: vi.fn(),
@@ -25,7 +26,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./daemon-store.js', () => ({
-  claimSocialPublishJob: mocks.claimSocialPublishJob,
+  claimSocialPublishBatch: async (...args: unknown[]) => {
+    const job = await mocks.claimSocialPublishJob(...args);
+    return job ? [job] : [];
+  },
+  alignPendingSocialPublishSchedules: mocks.alignPendingSocialPublishSchedules,
   completeSocialPublishJob: mocks.completeSocialPublishJob,
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
   ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
@@ -33,7 +38,14 @@ vi.mock('./daemon-store.js', () => ({
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   getSocialStrategyById: mocks.getSocialStrategyById,
-  latestScheduledSocialJobs: mocks.latestScheduledSocialJobs,
+  latestPendingSocialPublishSchedule: async () => {
+    const schedules = (await mocks.latestScheduledSocialJobs()) as Record<
+      string,
+      string
+    >;
+    const values = Object.values(schedules).sort();
+    return values.at(-1) ?? null;
+  },
   listDueMetricPosts: mocks.listDueMetricPosts,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
@@ -121,6 +133,7 @@ function publishJob(input: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
+  mocks.alignPendingSocialPublishSchedules.mockResolvedValue(0);
   mocks.getActiveSocialStrategies.mockResolvedValue([]);
   mocks.getSocialQueueSnapshot.mockResolvedValue({
     pendingCount: 0,

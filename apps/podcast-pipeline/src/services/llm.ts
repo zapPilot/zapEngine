@@ -48,8 +48,8 @@ const DEFAULT_PROMPT_PATH = join(
   'prompts',
   'script-system-prompt.txt',
 );
-const SCRIPT_GENERATION_MAX_ATTEMPTS = 2;
-const SCRIPT_GENERATION_RETRY_DELAY_MS = 2_000;
+const LLM_COMPLETION_MAX_ATTEMPTS = 2;
+const LLM_COMPLETION_RETRY_DELAY_MS = 2_000;
 const SCRIPT_PAYLOAD_MAX_ATTEMPTS = 2;
 const RETRYABLE_OPENROUTER_STATUS = new Set([408, 409, 429]);
 
@@ -433,18 +433,21 @@ function isRetryableOpenRouterError(error: unknown): boolean {
   return name === 'APIConnectionError' || name === 'APITimeoutError';
 }
 
-async function waitForScriptRetry(): Promise<void> {
+type LLMCompletionOperation = 'generateScript' | 'generateLanguageClassrooms';
+
+async function waitForRetry(): Promise<void> {
   await new Promise<void>((resolve) => {
-    setTimeout(resolve, SCRIPT_GENERATION_RETRY_DELAY_MS);
+    setTimeout(resolve, LLM_COMPLETION_RETRY_DELAY_MS);
   });
 }
 
-async function createScriptCompletionWithRetry(
+async function createCompletionWithRetry(
   openai: OpenAI,
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
   thinkingModel: string | null,
+  operation: LLMCompletionOperation,
 ): Promise<OpenRouterChatCompletion> {
-  for (let attempt = 1; attempt <= SCRIPT_GENERATION_MAX_ATTEMPTS; attempt++) {
+  for (let attempt = 1; attempt <= LLM_COMPLETION_MAX_ATTEMPTS; attempt++) {
     try {
       return await createOpenRouterChatCompletion(
         openai,
@@ -453,25 +456,25 @@ async function createScriptCompletionWithRetry(
       );
     } catch (error) {
       const shouldRetry =
-        attempt < SCRIPT_GENERATION_MAX_ATTEMPTS &&
+        attempt < LLM_COMPLETION_MAX_ATTEMPTS &&
         isRetryableOpenRouterError(error);
       if (!shouldRetry) {
         throw error;
       }
 
       logIngestEvent('llm:retry', {
-        operation: 'generateScript',
+        operation,
         model: params.model,
         attempt,
         nextAttempt: attempt + 1,
-        delayMs: SCRIPT_GENERATION_RETRY_DELAY_MS,
+        delayMs: LLM_COMPLETION_RETRY_DELAY_MS,
         error: errorMessage(error),
       });
-      await waitForScriptRetry();
+      await waitForRetry();
     }
   }
 
-  throw new Error('OpenRouter script generation retry loop exhausted');
+  throw new Error(`OpenRouter ${operation} retry loop exhausted`);
 }
 
 export async function generateScriptWithLLM(
@@ -484,7 +487,7 @@ export async function generateScriptWithLLM(
   let costUsd = 0;
 
   for (let attempt = 1; attempt <= SCRIPT_PAYLOAD_MAX_ATTEMPTS; attempt += 1) {
-    const completion = await createScriptCompletionWithRetry(
+    const completion = await createCompletionWithRetry(
       openai,
       {
         model,
@@ -502,6 +505,7 @@ export async function generateScriptWithLLM(
         temperature: 0.7,
       },
       thinkingModel,
+      'generateScript',
     );
 
     const metadata = completionMetadata(completion, model, thinkingModel);
@@ -554,7 +558,7 @@ export async function generateLanguageClassroomsWithLLM(
   input: LanguageClassroomInput,
 ): Promise<LanguageClassroomResult> {
   const { openai, model, thinkingModel } = getOpenRouterConfig();
-  const completion = await createOpenRouterChatCompletion(
+  const completion = await createCompletionWithRetry(
     openai,
     {
       model,
@@ -568,6 +572,7 @@ export async function generateLanguageClassroomsWithLLM(
       temperature: 0.4,
     },
     thinkingModel,
+    'generateLanguageClassrooms',
   );
 
   const content = completion.choices[0]?.message?.content || '';

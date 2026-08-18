@@ -34,7 +34,7 @@ Telegram trigger support is optional. Use `PIPELINE_TELEGRAM_BOT_TOKEN`, `PIPELI
 
 `PIPELINE_RENDER_ON_DEMAND=1` is version-controlled in `fly.toml`; `PIPELINE_FLY_API_TOKEN` is the deployment-only secret that lets the render machine stop when idle and be started again (see [Deployment](#on-demand-render-machines)). Both remain unset in normal local development.
 
-`OPENROUTER_TIMEOUT_MS` limits each OpenRouter request and defaults to `120000` milliseconds. Invalid or empty values use that default; OpenRouter retries are disabled so a stuck provider request fails promptly and a resubmission can resume from the latest committed ingest stage.
+`OPENROUTER_TIMEOUT_MS` limits each OpenRouter request and defaults to `120000` milliseconds. Invalid or empty values use that default; SDK-level retries stay disabled so a stuck provider request is still killed by the timeout, but the script-generation and language-classroom LLM steps each retry once on a transient failure (timeout/429/5xx) before failing the run, and a resubmission still resumes from the latest committed ingest stage.
 
 Scene alignment for `ja` and `en` is selected independently with `VIDEO_ALIGNMENT_PROVIDER=openrouter|nvidia`. `VIDEO_ALIGNMENT_MODEL` is interpreted by that provider. NVIDIA alignment uses `NVIDIA_API_KEY` and `NVIDIA_BASE_URL`; for example, set `VIDEO_ALIGNMENT_PROVIDER=nvidia` with `VIDEO_ALIGNMENT_MODEL=deepseek-ai/deepseek-v4-flash`. Invalid semantic output falls back to deterministic proportional alignment so rendering remains resumable.
 

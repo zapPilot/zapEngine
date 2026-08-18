@@ -113,11 +113,16 @@ the session as ready.
 ### YouTube
 
 YouTube uses the Google OAuth Desktop App flow with `youtube.upload` for
-publishing and `yt-analytics.readonly` for metric collection and the channel
-guard below. Configure `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and
-`YOUTUBE_CHANNEL_ID` in the repository root `.env`. The callback uses a
-localhost loopback port selected at login time, and the resulting refresh token
-is stored outside the repository at:
+publishing and `yt-analytics.readonly` for the engagement metrics and the channel
+guard below. Public view/like/comment counts come from `YOUTUBE_API_KEY` instead
+of that session: `videos.list` only honours `youtube.readonly` and wider scopes,
+and adding one of those would widen the grant to full read access over every
+channel the account owns — the same objection that keeps the channel guard off
+`channels.list`. Uploads are public, so an API key restricted to the YouTube Data
+API v3 is enough for those counters. Configure `YOUTUBE_CLIENT_ID`,
+`YOUTUBE_CLIENT_SECRET`, `YOUTUBE_CHANNEL_ID`, and `YOUTUBE_API_KEY` in the
+repository root `.env`. The callback uses a localhost loopback port selected at
+login time, and the resulting refresh token is stored outside the repository at:
 
 ```text
 ~/.zap-pilot/youtube-session.json

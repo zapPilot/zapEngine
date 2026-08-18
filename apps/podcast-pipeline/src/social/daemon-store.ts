@@ -165,6 +165,61 @@ export async function latestScheduledSocialJobs(): Promise<
   return latest;
 }
 
+export async function latestPendingSocialPublishSchedule(): Promise<
+  string | null
+> {
+  const { data, error } = await getPipelineSupabase()
+    .from('social_publish_jobs')
+    .select('scheduled_at')
+    .in('status', ['queued', 'failed', 'processing'])
+    .order('scheduled_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<{ scheduled_at: string }>();
+  if (error) throwSupabaseError(error);
+  return data?.scheduled_at ?? null;
+}
+
+export async function alignPendingSocialPublishSchedules(): Promise<number> {
+  const { data, error } = await getPipelineSupabase()
+    .from('social_publish_jobs')
+    .select('id,episode_id,status,scheduled_at,next_attempt_at')
+    .in('status', ['queued', 'failed'])
+    .returns<
+      Pick<
+        SocialPublishJobRow,
+        'id' | 'episode_id' | 'status' | 'scheduled_at' | 'next_attempt_at'
+      >[]
+    >();
+  if (error) throwSupabaseError(error);
+
+  const jobs = data ?? [];
+  const earliestByEpisode = new Map<string, string>();
+  for (const job of jobs) {
+    const current = earliestByEpisode.get(job.episode_id);
+    if (!current || Date.parse(job.scheduled_at) < Date.parse(current)) {
+      earliestByEpisode.set(job.episode_id, job.scheduled_at);
+    }
+  }
+
+  let aligned = 0;
+  for (const job of jobs) {
+    const scheduledAt = earliestByEpisode.get(job.episode_id);
+    if (!scheduledAt || scheduledAt === job.scheduled_at) continue;
+    const patch: Partial<SocialPublishJobRow> = { scheduled_at: scheduledAt };
+    if (job.status === 'queued') patch.next_attempt_at = scheduledAt;
+    const { data: updated, error: updateError } = await getPipelineSupabase()
+      .from('social_publish_jobs')
+      .update(patch)
+      .eq('id', job.id)
+      .eq('status', job.status)
+      .select('id')
+      .maybeSingle<{ id: string }>();
+    if (updateError) throwSupabaseError(updateError);
+    if (updated) aligned += 1;
+  }
+  return aligned;
+}
+
 export async function getSocialQueueSnapshot(): Promise<SocialQueueSnapshot> {
   const supabase = getPipelineSupabase();
   const { data, error } = await supabase
@@ -255,20 +310,19 @@ export async function listUnfinishedSocialPublishJobs(): Promise<
   return data ?? [];
 }
 
-export async function claimSocialPublishJob(input: {
+export async function claimSocialPublishBatch(input: {
   owner: string;
   now: Date;
-}): Promise<SocialPublishJobRow | null> {
+}): Promise<SocialPublishJobRow[]> {
   const { data, error } = await getPipelineSupabase().rpc(
-    'claim_social_publish_job',
+    'claim_social_publish_batch',
     {
       p_owner: input.owner,
       p_now: input.now.toISOString(),
     },
   );
   if (error) throwSupabaseError(error);
-  const rows = (data ?? []) as SocialPublishJobRow[];
-  return rows[0] ?? null;
+  return (data ?? []) as SocialPublishJobRow[];
 }
 
 async function updateOwnedSocialPublishJob(

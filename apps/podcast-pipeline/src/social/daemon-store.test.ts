@@ -21,7 +21,7 @@ vi.mock('../services/supabase-client.js', () => ({
 
 import {
   activateSocialStrategy,
-  claimSocialPublishJob,
+  claimSocialPublishBatch,
   completeSocialPublishJob,
   enqueueSocialPublishJob,
   ensureSocialDaemonStart,
@@ -310,12 +310,12 @@ describe('social daemon store', () => {
     const job = { id: 'job-1', platform: 'x' };
     queue({ data: [job], error: null });
     await expect(
-      claimSocialPublishJob({
+      claimSocialPublishBatch({
         owner: 'mac:1',
         now: new Date('2026-08-16T10:00:00Z'),
       }),
-    ).resolves.toEqual(job);
-    expect(mocks.rpc).toHaveBeenCalledWith('claim_social_publish_job', {
+    ).resolves.toEqual([job]);
+    expect(mocks.rpc).toHaveBeenCalledWith('claim_social_publish_batch', {
       p_owner: 'mac:1',
       p_now: '2026-08-16T10:00:00.000Z',
     });
@@ -433,8 +433,8 @@ describe('social daemon store', () => {
 
     queue({ data: null, error: null });
     await expect(
-      claimSocialPublishJob({ owner: 'mac:1', now }),
-    ).resolves.toBeNull();
+      claimSocialPublishBatch({ owner: 'mac:1', now }),
+    ).resolves.toEqual([]);
 
     queue({ data: null, error: new Error('lease update failed') });
     await expect(
@@ -567,7 +567,7 @@ describe('social daemon store', () => {
     ).rejects.toThrow('query failed');
     queue({ data: null, error: new Error('rpc failed') });
     await expect(
-      claimSocialPublishJob({ owner: 'mac:1', now: new Date() }),
+      claimSocialPublishBatch({ owner: 'mac:1', now: new Date() }),
     ).rejects.toThrow('rpc failed');
   });
 });

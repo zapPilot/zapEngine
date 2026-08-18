@@ -72,6 +72,7 @@ beforeEach(() => {
     session: { accessToken: 'threads-token' },
   });
   authMocks.youtube.mockResolvedValue({ accessToken: 'youtube-token' });
+  vi.stubEnv('YOUTUBE_API_KEY', 'youtube-api-key');
 });
 
 describe('Threads metric collection', () => {
@@ -356,6 +357,57 @@ describe('YouTube metric collection', () => {
       followersGained: null,
       details: {},
     });
+  });
+
+  it('reads public counters with an API key, not the session token', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        json({ items: [{ id: 'video-1', statistics: { viewCount: '7' } }] }),
+      )
+      .mockResolvedValueOnce(json({}, 503));
+
+    await expect(
+      collectYouTubeMetrics(post('youtube', 'video-1'), fetchImpl),
+    ).resolves.toMatchObject({ views: 7 });
+
+    const [dataUrl, dataInit] = fetchImpl.mock.calls[0] ?? [];
+    expect(new URL(String(dataUrl)).searchParams.get('key')).toBe(
+      'youtube-api-key',
+    );
+    expect(dataInit?.headers).toBeUndefined();
+  });
+
+  it('fails closed without an API key before issuing any request', async () => {
+    vi.stubEnv('YOUTUBE_API_KEY', '  ');
+    const fetchImpl = vi.fn<typeof fetch>();
+
+    await expect(
+      collectYouTubeMetrics(post('youtube', 'video-1'), fetchImpl),
+    ).rejects.toThrow('YOUTUBE_API_KEY is not configured');
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(authMocks.youtube).not.toHaveBeenCalled();
+  });
+
+  it('carries the Google error reason so a 403 names its own cause', async () => {
+    await expect(
+      collectYouTubeMetrics(
+        post('youtube', 'video-1'),
+        vi.fn<typeof fetch>().mockResolvedValue(
+          json(
+            {
+              error: {
+                message: 'Request had insufficient authentication scopes.',
+                errors: [{ reason: 'insufficientPermissions' }],
+              },
+            },
+            403,
+          ),
+        ),
+      ),
+    ).rejects.toThrow(
+      'YouTube statistics failed with HTTP 403. insufficientPermissions: Request had insufficient authentication scopes.',
+    );
   });
 
   it('rejects public-statistics HTTP errors, malformed payloads, and missing videos', async () => {
