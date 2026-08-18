@@ -44,6 +44,18 @@ If a PR only meant to touch one app adds a root env var, expect coverage and oth
 workspace gates to rerun. Read the failed workspace; do not assume env drift is
 local to the edited app.
 
+## Local `.env` after branch switches
+
+The shared local command audits the developer's root `.env`; CI does not have that
+file and checks source against `.env.example` only. A key added for another,
+unmerged branch can therefore make pre-commit fail on the current branch even when
+its diff is unrelated.
+
+Treat that as local branch drift: remove the branch-only override from `.env` (or
+switch back to the branch that declares it), rerun `pnpm lint dead-env`, and then
+commit normally. Do not add fake source usage / `.env.example` entries, weaken the
+gate, or use `--no-verify` just to preserve stale local operator state.
+
 ## Expo env bridge
 
 `apps/app` bridges native Expo env keys into `@zapengine/app-core` Vite-style keys
@@ -80,6 +92,7 @@ not per-job fixture inputs.
 2. Classify each reported key:
    - real runtime/source reference → add or correct `.env.example`;
    - stale example entry → remove it;
+   - local key from another branch → remove it from the current branch's `.env`;
    - CI fixture-only key → keep it in workflow/test setup, not `.env.example`;
    - accidental source reference → fix the source code.
 3. If the env edit touched root files, follow **monorepo-ci-debugging** for
@@ -90,6 +103,7 @@ not per-job fixture inputs.
 | Excuse | Reality |
 | --- | --- |
 | "CI sets this env var, so it belongs in `.env.example`." | CI fixture inputs are not runtime app env. |
+| "My local `.env` belongs to another branch, so skip the hook." | Clean the branch-only local override, then rerun the gate. CI cannot validate your untracked `.env`. |
 | "The dead-env failure is unrelated to my app change." | Root env files are broad Turbo inputs and can expose other workspaces. |
 | "Declare a fake usage so the gate passes." | That hides drift. Fix source usage or remove the stale example key. |
 | "Expo env can be read dynamically." | Keep `process.env.EXPO_PUBLIC_*` literal so Expo can inline it. |
