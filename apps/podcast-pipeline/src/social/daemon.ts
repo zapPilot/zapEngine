@@ -223,19 +223,28 @@ async function reconcileAlreadyPublishedJobs(
   log: (message: string) => void,
 ): Promise<void> {
   const jobs = await listUnfinishedSocialPublishJobs();
+  let firstError: unknown = null;
   for (const job of jobs) {
-    const [post] = await listSocialPostsByEpisode(job.episode_id, job.platform);
-    if (!post) continue;
-    const reconciled = await reconcileSocialPublishJob({
-      jobId: job.id,
-      socialPostId: post.id,
-      completedAt: now,
-    });
-    if (!reconciled) continue;
-    log(
-      `[social-daemon] reconciled ${job.platform} for ${job.episode_id} - already published (${post.id}).`,
-    );
+    try {
+      const [post] = await listSocialPostsByEpisode(
+        job.episode_id,
+        job.platform,
+      );
+      if (!post) continue;
+      const reconciled = await reconcileSocialPublishJob({
+        jobId: job.id,
+        socialPostId: post.id,
+        completedAt: now,
+      });
+      if (!reconciled) continue;
+      log(
+        `[social-daemon] reconciled ${job.platform} for ${job.episode_id} - already published (${post.id}).`,
+      );
+    } catch (error) {
+      firstError ??= error;
+    }
   }
+  if (firstError) throw firstError;
 }
 
 async function persistPublishFailure(input: {
