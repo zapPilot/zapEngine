@@ -8,6 +8,7 @@ import {
 } from '@/integration/podcastPlayerShared';
 import {
   buildPlaybackSections,
+  findPlaybackSection,
   type PodcastPlaybackSection,
 } from '@/integration/podcastSections';
 
@@ -100,11 +101,18 @@ export function usePodcastPlayerQueue({
   const playSectionFromQueue = useCallback<
     PodcastPlayer['playSectionFromQueue']
   >(
-    (episodes, episode, kind, { atSeconds = 0, shouldPlay = true } = {}) => {
-      const section = buildPlaybackSections(episode).find(
-        (candidate) => candidate.kind === kind,
+    (
+      episodes,
+      episode,
+      kind,
+      { atSeconds = 0, shouldPlay = true, languageCode } = {},
+    ) => {
+      const section = findPlaybackSection(
+        buildPlaybackSections(episode),
+        kind,
+        languageCode,
       );
-      if (section === undefined) return;
+      if (section === null) return;
 
       const nextQueue = [...episodes];
       const targetIndex = findPodcastQueueIndex(nextQueue, episode);

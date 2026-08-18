@@ -25,6 +25,7 @@ import {
 
 import { EpisodeVideoPlayer } from '@/components/podcast/EpisodeVideoPlayer';
 import {
+  classroomLanguageLabel,
   formatPodcastClock,
   nextPodcastPlaybackSpeed,
 } from '@/components/podcast/episodeFormatters';
@@ -37,6 +38,7 @@ import {
   episodeVideoPanelState,
   type EpisodeMediaTab,
   type EpisodeVideoPanelState,
+  resolveActiveClassroomLanguage,
   resolveActiveEpisodeMediaTab,
 } from '@/integration/episodeMediaTabs';
 import {
@@ -50,8 +52,12 @@ import {
 } from '@/integration/episodeVideoProgress';
 import type { PodcastEpisode } from '@/integration/podcastFeed';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
-import type { PodcastSectionKind } from '@/integration/podcastSections';
+import {
+  buildPlaybackSections,
+  type PodcastSectionKind,
+} from '@/integration/podcastSections';
 import { cn } from '@/lib/cn';
+import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 import { useEpisodeProgress } from '@/providers/PodcastProgressProvider';
 
 const VIDEO_PROGRESS_PERSIST_INTERVAL_SECONDS = 10;
@@ -304,10 +310,18 @@ function AudioPlaybackControls({
   player,
   onEpisodeChanged,
   section,
-}: EpisodeMediaPlayerProps & { section: PodcastSectionKind }) {
+  sectionLanguage,
+}: EpisodeMediaPlayerProps & {
+  section: PodcastSectionKind;
+  sectionLanguage: string | null;
+}) {
   const isCurrentEpisode =
     player.nowPlaying?.localizationId === episode.localizationId;
-  const isCurrent = isCurrentEpisode && player.currentSection === section;
+  const isCurrent =
+    isCurrentEpisode &&
+    player.currentSection === section &&
+    (section !== 'classroom' ||
+      player.currentSectionLanguage === sectionLanguage);
   const duration = isCurrent ? Math.floor(player.duration) : 0;
   const currentTime = isCurrent
     ? Math.min(Math.floor(player.currentTime), duration)
@@ -414,7 +428,11 @@ export function EpisodeMediaPlayer({
   onEpisodeChanged,
   onVideoClockChange,
 }: EpisodeMediaPlayerProps) {
+  const { t } = useContentLanguage();
   const [selectedTab, setSelectedTab] = useState<EpisodeMediaTab>('story');
+  const [selectedClassroomLanguage, setSelectedClassroomLanguage] = useState<
+    string | null
+  >(null);
   const [videoSession, setVideoSession] = useState<VideoHandoffSession | null>(
     null,
   );
@@ -431,6 +449,17 @@ export function EpisodeMediaPlayer({
   const isCurrentAudio =
     player.nowPlaying?.localizationId === episode.localizationId;
   const availability = episodeMediaTabAvailability(episode);
+  const classroomSections = buildPlaybackSections(episode).filter(
+    (section) => section.kind === 'classroom',
+  );
+  const activeClassroomLanguage = resolveActiveClassroomLanguage({
+    classroomSections,
+    playerLanguage:
+      isCurrentAudio && player.currentSection === 'classroom'
+        ? player.currentSectionLanguage
+        : null,
+    selectedLanguage: selectedClassroomLanguage,
+  });
   const videoPanelState = episodeVideoPanelState(episode);
   const videoProgress = episodeVideoProgressView(episode);
   const activeTab = resolveActiveEpisodeMediaTab({
@@ -504,6 +533,7 @@ export function EpisodeMediaPlayer({
     (
       section: PodcastSectionKind = 'main',
       shouldPlay = videoPlayingRef.current,
+      languageCode?: string | null,
     ) => {
       const position = clampSeconds(
         videoTimeRef.current,
@@ -514,6 +544,7 @@ export function EpisodeMediaPlayer({
       player.playSectionFromQueue(episodes, episode, section, {
         atSeconds: section === 'main' ? position : 0,
         shouldPlay,
+        languageCode: languageCode ?? null,
       });
       setSelectedTab(section === 'classroom' ? 'classroom' : 'story');
       onVideoClockChange?.(null);
@@ -522,19 +553,35 @@ export function EpisodeMediaPlayer({
     [episode, episodes, onVideoClockChange, persistVideoPosition, player],
   );
 
-  const selectAudioTab = (tab: 'story' | 'classroom') => {
+  const selectAudioTab = (
+    tab: 'story' | 'classroom',
+    languageCode?: string,
+  ) => {
     const section: PodcastSectionKind =
       tab === 'classroom' ? 'classroom' : 'main';
+    const targetLanguage =
+      tab === 'classroom' ? (languageCode ?? activeClassroomLanguage) : null;
     setSelectedTab(tab);
+    if (tab === 'classroom' && targetLanguage !== null) {
+      setSelectedClassroomLanguage(targetLanguage);
+    }
     if (!availability[tab]) return;
 
     if (videoSession !== null) {
-      continueWithAudio(section);
+      continueWithAudio(section, undefined, targetLanguage);
       return;
     }
-    if (isCurrentAudio && player.currentSection === section) return;
+    if (
+      isCurrentAudio &&
+      player.currentSection === section &&
+      (section !== 'classroom' ||
+        player.currentSectionLanguage === targetLanguage)
+    ) {
+      return;
+    }
     player.playSectionFromQueue(episodes, episode, section, {
       shouldPlay: player.isPlaying,
+      languageCode: targetLanguage,
     });
   };
 
@@ -664,12 +711,48 @@ export function EpisodeMediaPlayer({
             : 'Story player'
         }
       >
+        {activeAudioSection === 'classroom' && classroomSections.length > 1 ? (
+          <View className="flex-row flex-wrap gap-2 px-5 pt-4">
+            {classroomSections.map((section) => {
+              const language = section.languageCode;
+              if (language === null) return null;
+              const isActiveLanguage = language === activeClassroomLanguage;
+              return (
+                <Tap
+                  key={language}
+                  accessibilityRole="button"
+                  accessibilityLabel={classroomLanguageLabel(language, t)}
+                  accessibilityState={{ selected: isActiveLanguage }}
+                  onPress={() => selectAudioTab('classroom', language)}
+                  className={cn(
+                    'rounded-full border px-3 py-1.5',
+                    isActiveLanguage
+                      ? 'border-[rgba(212,197,163,.5)] bg-[rgba(212,197,163,.18)]'
+                      : 'border-line bg-[rgba(255,255,255,.04)]',
+                  )}
+                >
+                  <Text
+                    className={cn(
+                      'font-sans-semibold text-[12px]',
+                      isActiveLanguage ? 'text-accent' : 'text-ink-dim',
+                    )}
+                  >
+                    {classroomLanguageLabel(language, t)}
+                  </Text>
+                </Tap>
+              );
+            })}
+          </View>
+        ) : null}
         <AudioPlaybackControls
           episode={episode}
           episodes={episodes}
           player={player}
           onEpisodeChanged={onEpisodeChanged}
           section={activeAudioSection}
+          sectionLanguage={
+            activeAudioSection === 'classroom' ? activeClassroomLanguage : null
+          }
         />
       </View>
     );

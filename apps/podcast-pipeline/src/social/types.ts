@@ -99,9 +99,17 @@ export interface YouTubeMetadata {
   description: string;
 }
 
+export const YOUTUBE_PRIVACY_STATUSES = [
+  'private',
+  'unlisted',
+  'public',
+] as const;
+
+export type YouTubePrivacyStatus = (typeof YOUTUBE_PRIVACY_STATUSES)[number];
+
 export interface YouTubePublishInput extends YouTubeMetadata {
   videoPath: string;
-  privacyStatus: 'private' | 'unlisted' | 'public';
+  privacyStatus: YouTubePrivacyStatus;
 }
 
 export interface PublishResult {

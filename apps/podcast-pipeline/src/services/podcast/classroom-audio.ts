@@ -1,9 +1,12 @@
-import type { LanguageClassroomLesson } from '../../types.js';
+import {
+  LANGUAGE_CLASSROOM_LANGUAGE_CODES,
+  type LanguageClassroomLanguageCode,
+  type LanguageClassroomRow,
+} from '../../types.js';
 import type { UsageCostLine } from '../cost.js';
 import { logIngestEvent, step } from '../ingest/step.js';
+import { cleanTextForTts } from '../ingest/tts-text-cleansing.js';
 import { textToSpeech } from '../tts.js';
-import { concatMp3Buffers } from '../tts/audio-concat.js';
-import { buildClassroomSegments } from './classroom-script.js';
 
 export interface SynthesizeClassroomAudioOptions {
   episodeId?: string;
@@ -15,52 +18,33 @@ export interface SynthesizeClassroomAudioResult {
 }
 
 export async function synthesizeClassroomAudio(
-  lesson: LanguageClassroomLesson,
+  row: Pick<LanguageClassroomRow, 'target_language_code' | 'script'>,
   opts: SynthesizeClassroomAudioOptions = {},
 ): Promise<SynthesizeClassroomAudioResult> {
   const cost: UsageCostLine[] = [];
 
   try {
-    const segments = buildClassroomSegments(lesson);
-    const audioBuffers: Buffer[] = [];
-    logIngestEvent('classroom:target:start', {
-      segmentCount: segments.length,
-      targetLanguage: lesson.targetLanguageCode,
-    });
-
-    for (const [index, segment] of segments.entries()) {
-      const segmentNumber = index + 1;
-      logIngestEvent('classroom:segment:start', {
-        segment: segmentNumber,
-        segmentCount: segments.length,
-        targetLanguage: lesson.targetLanguageCode,
-        ttsLanguage: segment.languageCode,
-      });
-      const synthesized = await step('textToSpeech:classroom', () =>
-        textToSpeech(segment.text, {
-          languageCode: segment.languageCode,
-          usage: 'classroom',
-          costLabel: 'TTS classroom audio',
-        }),
-      );
-      audioBuffers.push(synthesized.audio);
-      cost.push(...synthesized.cost);
-      logIngestEvent('classroom:segment:done', {
-        segment: segmentNumber,
-        segmentCount: segments.length,
-        targetLanguage: lesson.targetLanguageCode,
-      });
-    }
-
-    const audio = await step('concatClassroomSegmentAudio', () =>
-      concatMp3Buffers(audioBuffers),
+    const targetLanguageCode = parseLanguageClassroomLanguageCode(
+      row.target_language_code,
     );
-    logIngestEvent('classroom:target:done', {
-      segmentCount: segments.length,
-      targetLanguage: lesson.targetLanguageCode,
+    logIngestEvent('classroom:target:start', {
+      targetLanguage: targetLanguageCode,
     });
+
+    const synthesized = await step('textToSpeech:classroom', () =>
+      textToSpeech(cleanTextForTts(row.script ?? ''), {
+        languageCode: targetLanguageCode,
+        usage: 'classroom',
+        costLabel: 'TTS classroom audio',
+      }),
+    );
+    cost.push(...synthesized.cost);
+    logIngestEvent('classroom:target:done', {
+      targetLanguage: targetLanguageCode,
+    });
+
     return {
-      audio,
+      audio: synthesized.audio,
       cost,
     };
   } catch (error) {
@@ -72,7 +56,7 @@ export async function synthesizeClassroomAudio(
     }
     console.error('[classroom-audio] synthesis failed:', {
       episodeId: opts.episodeId,
-      targetLanguageCode: lesson.targetLanguageCode,
+      targetLanguageCode: row.target_language_code,
       message: err.message,
       stack: err.stack,
       cause: err.cause,
@@ -82,4 +66,18 @@ export async function synthesizeClassroomAudio(
       cost,
     };
   }
+}
+
+function parseLanguageClassroomLanguageCode(
+  languageCode: string,
+): LanguageClassroomLanguageCode {
+  if (
+    LANGUAGE_CLASSROOM_LANGUAGE_CODES.includes(
+      languageCode as LanguageClassroomLanguageCode,
+    )
+  ) {
+    return languageCode as LanguageClassroomLanguageCode;
+  }
+
+  throw new Error(`Unsupported language classroom code: ${languageCode}`);
 }

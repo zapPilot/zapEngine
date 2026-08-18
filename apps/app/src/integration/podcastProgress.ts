@@ -16,6 +16,13 @@ export interface PodcastEpisodeProgress {
    * playback resume into the main section).
    */
   lastPositionSection?: PodcastSectionKind;
+  /**
+   * The classroom language `lastPositionSeconds` belongs to. Only meaningful
+   * when `lastPositionSection === 'classroom'`; absent for main-section
+   * entries and for entries written before per-language classroom sections
+   * existed (those resume into the legacy combined track).
+   */
+  lastPositionClassroomLanguage?: string;
 }
 
 export type PodcastProgressMap = Record<string, PodcastEpisodeProgress>;

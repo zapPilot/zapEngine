@@ -28,12 +28,14 @@ function isPodcastEpisodeProgress(
   if (typeof value !== 'object' || value === null) return false;
   const record = value as Record<string, unknown>;
   const section = record['lastPositionSection'];
+  const language = record['lastPositionClassroomLanguage'];
   return (
     typeof record['listened'] === 'boolean' &&
     typeof record['lastPositionSeconds'] === 'number' &&
     Number.isFinite(record['lastPositionSeconds']) &&
     record['lastPositionSeconds'] >= 0 &&
-    (section === undefined || section === 'main' || section === 'classroom')
+    (section === undefined || section === 'main' || section === 'classroom') &&
+    (language === undefined || typeof language === 'string')
   );
 }
 

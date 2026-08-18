@@ -58,6 +58,29 @@ const episode: PodcastEpisode = {
   lastPositionSeconds: 0,
 };
 
+const CLASSROOM_SECTIONS_LEGACY = [
+  { kind: 'main' as const, hlsUrl: episode.hlsUrl, languageCode: null },
+  {
+    kind: 'classroom' as const,
+    hlsUrl: 'https://example.com/classroom.m3u8',
+    languageCode: null,
+  },
+];
+
+const CLASSROOM_SECTIONS_JA_EN = [
+  { kind: 'main' as const, hlsUrl: episode.hlsUrl, languageCode: null },
+  {
+    kind: 'classroom' as const,
+    hlsUrl: 'https://example.com/classroom-ja.m3u8',
+    languageCode: 'ja',
+  },
+  {
+    kind: 'classroom' as const,
+    hlsUrl: 'https://example.com/classroom-en.m3u8',
+    languageCode: 'en',
+  },
+];
+
 function makePlayer(overrides: Partial<PodcastPlayer> = {}): PodcastPlayer {
   return {
     nowPlaying: episode,
@@ -65,8 +88,9 @@ function makePlayer(overrides: Partial<PodcastPlayer> = {}): PodcastPlayer {
     currentTime: 0,
     duration: 300,
     speed: 1,
-    sections: [{ kind: 'main', hlsUrl: episode.hlsUrl }],
+    sections: [{ kind: 'main', hlsUrl: episode.hlsUrl, languageCode: null }],
     currentSection: 'main',
+    currentSectionLanguage: null,
     queue: [],
     queueIndex: -1,
     hasPreviousEpisode: false,
@@ -128,6 +152,7 @@ describe('PodcastProgressTracker persistence lifecycle', () => {
       'episode',
       11,
       'main',
+      undefined,
     );
 
     player = makePlayer({ currentTime: 17 });
@@ -139,6 +164,7 @@ describe('PodcastProgressTracker persistence lifecycle', () => {
       'episode',
       17,
       'main',
+      undefined,
     );
   });
 
@@ -152,30 +178,26 @@ describe('PodcastProgressTracker persistence lifecycle', () => {
       'episode',
       8,
       'main',
+      undefined,
     );
 
     player = makePlayer({
       currentTime: 3,
       currentSection: 'classroom',
-      sections: [
-        { kind: 'main', hlsUrl: episode.hlsUrl },
-        { kind: 'classroom', hlsUrl: 'https://example.com/classroom.m3u8' },
-      ],
+      sections: CLASSROOM_SECTIONS_LEGACY,
     });
     renderTracker();
     expect(progressContext.setPosition).toHaveBeenCalledWith(
       'episode',
       3,
       'classroom',
+      undefined,
     );
 
     player = makePlayer({
       currentTime: 6,
       currentSection: 'classroom',
-      sections: [
-        { kind: 'main', hlsUrl: episode.hlsUrl },
-        { kind: 'classroom', hlsUrl: 'https://example.com/classroom.m3u8' },
-      ],
+      sections: CLASSROOM_SECTIONS_LEGACY,
     });
     renderTracker();
     act(() => root.unmount());
@@ -183,20 +205,42 @@ describe('PodcastProgressTracker persistence lifecycle', () => {
       'episode',
       6,
       'classroom',
+      undefined,
     );
     root = createRoot(container);
+  });
+
+  it('flushes when the classroom language changes within the same section kind', () => {
+    player = makePlayer({
+      currentTime: 5,
+      currentSection: 'classroom',
+      currentSectionLanguage: 'ja',
+      sections: CLASSROOM_SECTIONS_JA_EN,
+    });
+    renderTracker();
+
+    player = makePlayer({
+      currentTime: 2,
+      currentSection: 'classroom',
+      currentSectionLanguage: 'en',
+      sections: CLASSROOM_SECTIONS_JA_EN,
+    });
+    renderTracker();
+
+    // The ja position is force-flushed the moment the language changes to en,
+    // even though 5 seconds is below the ten-second persist interval.
+    expect(progressContext.setPosition).toHaveBeenCalledWith(
+      'episode',
+      5,
+      'classroom',
+      'ja',
+    );
   });
 });
 
 describe('PodcastProgressTracker completion', () => {
   it('marks an episode completed only after its final section finishes', () => {
-    const sections = [
-      { kind: 'main' as const, hlsUrl: episode.hlsUrl },
-      {
-        kind: 'classroom' as const,
-        hlsUrl: 'https://example.com/classroom.m3u8',
-      },
-    ];
+    const sections = CLASSROOM_SECTIONS_LEGACY;
 
     player = makePlayer({
       currentTime: 298,
@@ -226,6 +270,30 @@ describe('PodcastProgressTracker completion', () => {
     renderTracker();
     expect(progressContext.markListened).toHaveBeenCalledWith('episode', true);
   });
+
+  it('does not mark completed when the ja classroom language finishes but en is still pending', () => {
+    player = makePlayer({
+      currentTime: 88,
+      duration: 90,
+      currentSection: 'classroom',
+      currentSectionLanguage: 'ja',
+      sections: CLASSROOM_SECTIONS_JA_EN,
+    });
+    renderTracker();
+    expect(progressContext.markListened).not.toHaveBeenCalled();
+  });
+
+  it('marks completed only once the last classroom language (en) finishes', () => {
+    player = makePlayer({
+      currentTime: 88,
+      duration: 90,
+      currentSection: 'classroom',
+      currentSectionLanguage: 'en',
+      sections: CLASSROOM_SECTIONS_JA_EN,
+    });
+    renderTracker();
+    expect(progressContext.markListened).toHaveBeenCalledWith('episode', true);
+  });
 });
 
 describe('PodcastProgressTracker resume', () => {
@@ -245,14 +313,11 @@ describe('PodcastProgressTracker resume', () => {
     expect(player.seek).toHaveBeenCalledWith(120);
   });
 
-  it('resumes classroom progress and skips completed episodes', () => {
+  it('resumes classroom progress (legacy entry, no saved language) and skips completed episodes', () => {
     const skipToSection = vi.fn();
     player = makePlayer({
       skipToSection,
-      sections: [
-        { kind: 'main', hlsUrl: episode.hlsUrl },
-        { kind: 'classroom', hlsUrl: 'https://example.com/classroom.m3u8' },
-      ],
+      sections: CLASSROOM_SECTIONS_LEGACY,
     });
     progressContext = {
       ...progressContext,
@@ -265,7 +330,7 @@ describe('PodcastProgressTracker resume', () => {
       },
     };
     renderTracker();
-    expect(skipToSection).toHaveBeenCalledWith('classroom', 45);
+    expect(skipToSection).toHaveBeenCalledWith('classroom', 45, undefined);
 
     act(() => root.unmount());
     root = createRoot(container);
@@ -278,6 +343,27 @@ describe('PodcastProgressTracker resume', () => {
     };
     renderTracker();
     expect(player.seek).not.toHaveBeenCalled();
+  });
+
+  it('resumes into the saved classroom language when the episode has more than one', () => {
+    const skipToSection = vi.fn();
+    player = makePlayer({
+      skipToSection,
+      sections: CLASSROOM_SECTIONS_JA_EN,
+    });
+    progressContext = {
+      ...progressContext,
+      progress: {
+        episode: {
+          listened: false,
+          lastPositionSeconds: 45,
+          lastPositionSection: 'classroom',
+          lastPositionClassroomLanguage: 'ja',
+        },
+      },
+    };
+    renderTracker();
+    expect(skipToSection).toHaveBeenCalledWith('classroom', 45, 'ja');
   });
 
   it('keeps the resume overwrite protection at exactly two seconds', () => {

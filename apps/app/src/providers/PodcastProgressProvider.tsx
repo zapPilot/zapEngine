@@ -28,6 +28,7 @@ export interface PodcastProgressContextValue {
     localizationId: string,
     seconds: number,
     section?: PodcastSectionKind,
+    classroomLanguage?: string,
   ) => void;
   markAllListened: (localizationIds: readonly string[]) => void;
 }
@@ -43,6 +44,7 @@ type PodcastProgressMutation =
       localizationId: string;
       seconds: number;
       section: PodcastSectionKind;
+      classroomLanguage?: string;
     }
   | {
       type: 'markAllListened';
@@ -72,19 +74,32 @@ function applyProgressMutation(
 
   if (mutation.type === 'setPosition') {
     const existing = current[mutation.localizationId] ?? EMPTY_ENTRY;
+    const classroomLanguage =
+      mutation.section === 'classroom'
+        ? (mutation.classroomLanguage ?? undefined)
+        : undefined;
     if (
       existing.lastPositionSeconds === mutation.seconds &&
-      (existing.lastPositionSection ?? 'main') === mutation.section
+      (existing.lastPositionSection ?? 'main') === mutation.section &&
+      (existing.lastPositionClassroomLanguage ?? undefined) ===
+        classroomLanguage
     ) {
       return current;
     }
+    // Built explicitly rather than spreading `existing`: a stale
+    // `lastPositionClassroomLanguage` from a previous classroom-language
+    // entry must not survive onto a main (or different-language) position.
+    const nextEntry: PodcastEpisodeProgress = {
+      listened: existing.listened,
+      lastPositionSeconds: mutation.seconds,
+      lastPositionSection: mutation.section,
+    };
+    if (classroomLanguage !== undefined) {
+      nextEntry.lastPositionClassroomLanguage = classroomLanguage;
+    }
     return {
       ...current,
-      [mutation.localizationId]: {
-        ...existing,
-        lastPositionSeconds: mutation.seconds,
-        lastPositionSection: mutation.section,
-      },
+      [mutation.localizationId]: nextEntry,
     };
   }
 
@@ -168,12 +183,14 @@ export function PodcastProgressProvider({
       localizationId: string,
       seconds: number,
       section: PodcastSectionKind = 'main',
+      classroomLanguage?: string,
     ) => {
       commitMutation({
         type: 'setPosition',
         localizationId,
         seconds,
         section,
+        ...(classroomLanguage !== undefined ? { classroomLanguage } : {}),
       });
     },
     [commitMutation],

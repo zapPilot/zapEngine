@@ -410,7 +410,12 @@ describe('social daemon store', () => {
   it('surfaces each activation-stage error and starts versioning at one', async () => {
     const input = {
       platform: 'x' as const,
-      config: { publishHoursJst: [12, 19] },
+      config: {
+        publishSlotsJst: [
+          { hour: 12, minute: 0 },
+          { hour: 19, minute: 0 },
+        ],
+      },
       basedOnSamples: 8,
       now: new Date('2026-08-16T10:00:00Z'),
     };
@@ -447,7 +452,7 @@ describe('social daemon store', () => {
       id: 'strategy-1',
       platform: 'x',
       version: 1,
-      config: { publishHoursJst: [19] },
+      config: { publishSlotsJst: [{ hour: 19, minute: 0 }] },
       based_on_samples: 5,
       active: true,
       activated_at: '2026-08-16T10:00:00Z',
@@ -469,7 +474,12 @@ describe('social daemon store', () => {
     await expect(
       activateSocialStrategy({
         platform: 'x',
-        config: { publishHoursJst: [12, 19] },
+        config: {
+          publishSlotsJst: [
+            { hour: 12, minute: 0 },
+            { hour: 19, minute: 0 },
+          ],
+        },
         basedOnSamples: 8,
         now: new Date('2026-08-16T10:00:00Z'),
       }),

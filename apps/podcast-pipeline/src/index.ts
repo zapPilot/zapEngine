@@ -32,8 +32,10 @@ import {
   listEpisodeFeedPaged,
   listEpisodeLocalizationsByEpisodeId,
   listEpisodeVideoSummariesByLocalizationIds,
+  listLanguageClassroomAudioByLocalizationIds,
   listLanguageClassroomsByLocalizationId,
   listPublishedEpisodeCatalog,
+  toClassroomAudioTracks,
   toEpisodeFeedResponse,
   toEpisodeResponse,
   toEpisodeResponseFromLocalization,
@@ -162,6 +164,7 @@ async function loadEpisodeLocalizationResponse(
     classrooms,
     videoSummary?.video ?? null,
     videoSummary?.videoGeneration ?? null,
+    toClassroomAudioTracks(classrooms),
   );
 }
 
@@ -369,9 +372,11 @@ export function createApp(): Hono {
       cursor,
       languageCode,
     );
-    const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds(
-      rows.map((row) => row.localization_id),
-    );
+    const localizationIds = rows.map((row) => row.localization_id);
+    const [videoSummaries, classroomAudio] = await Promise.all([
+      listEpisodeVideoSummariesByLocalizationIds(localizationIds),
+      listLanguageClassroomAudioByLocalizationIds(localizationIds),
+    ]);
     return c.json({
       items: rows.map((row) => {
         const summary = videoSummaries.get(row.localization_id);
@@ -379,6 +384,7 @@ export function createApp(): Hono {
           row,
           summary?.video ?? null,
           summary?.videoGeneration ?? null,
+          classroomAudio.get(row.localization_id) ?? [],
         );
       }),
       nextCursor,
@@ -390,15 +396,29 @@ export function createApp(): Hono {
     const languageCode = parsePrimaryLanguageCode(c.req.query('language'));
     const limit = parseEpisodeSearchLimit(c.req.query('limit'));
     const searchResults = await searchEpisodes(query, languageCode, limit);
-    const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds(
-      searchResults.map((result) => result.episode.localizationId),
+    const localizationIds = searchResults.map(
+      (result) => result.episode.localizationId,
     );
+    const [videoSummaries, classroomAudio] = await Promise.all([
+      listEpisodeVideoSummariesByLocalizationIds(localizationIds),
+      listLanguageClassroomAudioByLocalizationIds(localizationIds),
+    ]);
     const items = searchResults.map((result) => {
       const summary = videoSummaries.get(result.episode.localizationId);
+      const audioTrack = result.episode.audioTracks[0];
       return {
         ...result,
         episode: {
           ...result.episode,
+          audioTracks: audioTrack
+            ? [
+                {
+                  ...audioTrack,
+                  classrooms:
+                    classroomAudio.get(result.episode.localizationId) ?? [],
+                },
+              ]
+            : result.episode.audioTracks,
           video: summary?.video ?? null,
           videoGeneration: summary?.videoGeneration ?? null,
         },
@@ -433,8 +453,9 @@ export function createApp(): Hono {
 
     const row = await findEpisodeListRowByLocalizationId(localizationId);
     if (row) {
-      const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds([
-        localizationId,
+      const [videoSummaries, classroomAudio] = await Promise.all([
+        listEpisodeVideoSummariesByLocalizationIds([localizationId]),
+        listLanguageClassroomAudioByLocalizationIds([localizationId]),
       ]);
       const videoSummary = videoSummaries.get(localizationId);
       return c.json(
@@ -443,6 +464,7 @@ export function createApp(): Hono {
           row.language_classrooms,
           videoSummary?.video ?? null,
           videoSummary?.videoGeneration ?? null,
+          classroomAudio.get(localizationId) ?? [],
         ),
       );
     }

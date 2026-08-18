@@ -136,4 +136,22 @@ describe('PodcastProgressProvider', () => {
       context().progress,
     );
   });
+
+  it('clears a saved classroom language once a later write moves to the main section', async () => {
+    await mountProvider();
+    act(() => context().setPosition('episode', 45, 'classroom', 'ja'));
+    expect(context().progress['episode']).toEqual({
+      listened: false,
+      lastPositionSeconds: 45,
+      lastPositionSection: 'classroom',
+      lastPositionClassroomLanguage: 'ja',
+    });
+
+    act(() => context().setPosition('episode', 90, 'main'));
+    expect(context().progress['episode']).toEqual({
+      listened: false,
+      lastPositionSeconds: 90,
+      lastPositionSection: 'main',
+    });
+  });
 });

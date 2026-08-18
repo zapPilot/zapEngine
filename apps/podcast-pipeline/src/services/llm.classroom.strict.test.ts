@@ -99,11 +99,14 @@ describe('language classroom content contract (strict)', () => {
               targetLanguageCode: 'ja',
               oneLiner: 'x',
               keywords: [keyword('流動性', '資金進出的難易度')],
+              script: '流動性とは、資産を素早く現金化できる度合いのことです。',
             },
             {
               targetLanguageCode: 'en',
               oneLiner: 'x',
               keywords: [keyword('liquidity', '資金進出的難易度')],
+              script:
+                'Liquidity is how easily an asset can be converted to cash.',
             },
           ],
         }),
@@ -130,11 +133,14 @@ describe('language classroom content contract (strict)', () => {
               targetLanguageCode: 'ja',
               oneLiner: 'x',
               keywords: [keyword('流動性', '資金進出的難易度')],
+              script: '流動性とは、資産を素早く現金化できる度合いのことです。',
             },
             {
               targetLanguageCode: 'en',
               oneLiner: 'x',
               keywords: [keyword('liquidity', '資金進出的難易度')],
+              script:
+                'Liquidity is how easily an asset can be converted to cash.',
             },
           ],
         }),
@@ -154,6 +160,38 @@ describe('language classroom content contract (strict)', () => {
     expect(system).not.toContain('keywords 必須來自 oneLiner');
   });
 
+  it('requires the script narration to be purely target-language and grounded in the article/script', async () => {
+    const createMock = vi.fn().mockResolvedValue(
+      jsonResponse(
+        JSON.stringify({
+          lessons: [
+            {
+              targetLanguageCode: 'ja',
+              oneLiner: 'x',
+              keywords: [keyword('流動性', '資金進出的難易度')],
+              script: '流動性とは、資産を素早く現金化できる度合いのことです。',
+            },
+            {
+              targetLanguageCode: 'en',
+              oneLiner: 'x',
+              keywords: [keyword('liquidity', '資金進出的難易度')],
+              script:
+                'Liquidity is how easily an asset can be converted to cash.',
+            },
+          ],
+        }),
+      ),
+    );
+    mockOpenAIModule(createMock);
+
+    await generateLanguageClassroomsWithLLM(groundedInput);
+
+    const { system } = capturedMessages(createMock);
+    expect(system).toContain('"script"');
+    expect(system).toContain('一律只使用目標語言');
+    expect(system).toContain('內容必須根據文章與講稿');
+  });
+
   it('caps keywords at five per lesson (maxKeywords boundary)', async () => {
     const sixKeywords = Array.from({ length: 6 }, (_v, i) =>
       keyword(`概念${i}`, `第 ${i} 個概念的意思`),
@@ -162,7 +200,12 @@ describe('language classroom content contract (strict)', () => {
       jsonResponse(
         JSON.stringify({
           lessons: [
-            { targetLanguageCode: 'ja', oneLiner: 'x', keywords: sixKeywords },
+            {
+              targetLanguageCode: 'ja',
+              oneLiner: 'x',
+              keywords: sixKeywords,
+              script: '流動性とは、資産を素早く現金化できる度合いのことです。',
+            },
           ],
         }),
       ),
@@ -175,6 +218,87 @@ describe('language classroom content contract (strict)', () => {
     });
 
     expect(result.lessons[0]!.keywords).toHaveLength(5);
+  });
+
+  it('returns the generated narration script on each lesson draft', async () => {
+    const script = '流動性とは、資産を素早く現金化できる度合いのことです。';
+    const createMock = vi.fn().mockResolvedValue(
+      jsonResponse(
+        JSON.stringify({
+          lessons: [
+            {
+              targetLanguageCode: 'ja',
+              oneLiner: 'x',
+              keywords: [keyword('流動性', '資金進出的難易度')],
+              script: ` ${script} `,
+            },
+          ],
+        }),
+      ),
+    );
+    mockOpenAIModule(createMock);
+
+    const result = await generateLanguageClassroomsWithLLM({
+      ...groundedInput,
+      targetLanguageCodes: ['ja'],
+    });
+
+    expect(result.lessons[0]!.script).toBe(script);
+  });
+
+  it('drops a lesson whose narration script is blank, keeping the rest', async () => {
+    const createMock = vi.fn().mockResolvedValue(
+      jsonResponse(
+        JSON.stringify({
+          lessons: [
+            {
+              targetLanguageCode: 'ja',
+              oneLiner: 'x',
+              keywords: [keyword('流動性', '資金進出的難易度')],
+              script: '流動性とは、資産を素早く現金化できる度合いのことです。',
+            },
+            {
+              targetLanguageCode: 'en',
+              oneLiner: 'x',
+              keywords: [keyword('liquidity', '資金進出的難易度')],
+              script: '   ',
+            },
+          ],
+        }),
+      ),
+    );
+    mockOpenAIModule(createMock);
+
+    const result = await generateLanguageClassroomsWithLLM(groundedInput);
+
+    expect(result.lessons.map((lesson) => lesson.targetLanguageCode)).toEqual([
+      'ja',
+    ]);
+  });
+
+  it('rejects a response whose lessons all have a blank narration script', async () => {
+    const createMock = vi.fn().mockResolvedValue(
+      jsonResponse(
+        JSON.stringify({
+          lessons: [
+            {
+              targetLanguageCode: 'ja',
+              oneLiner: 'x',
+              keywords: [keyword('流動性', '資金進出的難易度')],
+              script: '',
+            },
+          ],
+        }),
+      ),
+    );
+    mockOpenAIModule(createMock);
+
+    await expect(
+      generateLanguageClassroomsWithLLM({
+        ...groundedInput,
+        targetLanguageCodes: ['ja'],
+      }),
+    ).rejects.toThrow('did not contain any valid lessons');
   });
 
   it('rejects a response whose lessons all have empty keywords (requireKeywords)', async () => {
@@ -204,16 +328,20 @@ describe('language classroom content contract (strict)', () => {
               targetLanguageCode: 'en',
               oneLiner: 'x',
               keywords: [keyword('liquidity', '意思')],
+              script:
+                'Liquidity is how easily an asset can be converted to cash.',
             },
             {
               targetLanguageCode: 'ko',
               oneLiner: 'x',
               keywords: [keyword('유동성', '意思')],
+              script: '유동성은 자산을 현금으로 쉽게 바꿀 수 있는 정도입니다.',
             },
             {
               targetLanguageCode: 'ja',
               oneLiner: 'x',
               keywords: [keyword('流動性', '意思')],
+              script: '流動性とは、資産を素早く現金化できる度合いのことです。',
             },
           ],
         }),

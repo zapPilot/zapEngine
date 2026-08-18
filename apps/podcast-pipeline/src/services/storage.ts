@@ -93,8 +93,18 @@ export async function uploadHlsToR2(
   episodeId: string,
   languageCode: string,
   section: 'main' | 'classroom',
+  classroomTargetLanguageCode?: LanguageClassroomLanguageCode,
 ): Promise<HlsUploadResult> {
-  const prefix = `episodes/${episodeId}/localizations/${languageCode}/${section}`;
+  if (classroomTargetLanguageCode !== undefined && section !== 'classroom') {
+    throw new Error(
+      'classroomTargetLanguageCode is only valid when section is "classroom"',
+    );
+  }
+
+  const prefix =
+    classroomTargetLanguageCode === undefined
+      ? `episodes/${episodeId}/localizations/${languageCode}/${section}`
+      : `episodes/${episodeId}/localizations/${languageCode}/${section}/${classroomTargetLanguageCode}`;
   const r2 = getR2Client();
   const Bucket = getBucket();
 

@@ -1,10 +1,12 @@
 import {
+  normalizeClassroomAudioTrack,
   normalizeLanguageClassroomKeywords,
   normalizeLanguageClassroomLesson,
 } from '../lib/languageClassroom.js';
 import type { SocialPlatform } from '../social/platforms.js';
 import type {
   Article,
+  EpisodeClassroomTrackResponse,
   EpisodeFeedResponse,
   EpisodeFeedRow,
   EpisodeListRow,
@@ -95,12 +97,14 @@ export function toEpisodeResponse(
   languageClassrooms?: LanguageClassroomRow[] | LanguageClassroomLesson[],
   video: EpisodeVideoResponse | null = null,
   videoGeneration: EpisodeVideoGenerationSummary | null = null,
+  classroomAudioTracks: EpisodeClassroomTrackResponse[] = [],
 ): EpisodeResponse {
   return toEpisodeResponseWithClassrooms(
     row,
     languageClassrooms ?? parseClassroomsFromListRow(row),
     video,
     videoGeneration,
+    classroomAudioTracks,
   );
 }
 
@@ -110,6 +114,7 @@ export function toEpisodeResponseFromLocalization(
   languageClassrooms: LanguageClassroomRow[] | LanguageClassroomLesson[] = [],
   video: EpisodeVideoResponse | null = null,
   videoGeneration: EpisodeVideoGenerationSummary | null = null,
+  classroomAudioTracks: EpisodeClassroomTrackResponse[] = [],
 ): EpisodeResponse {
   return toEpisodeResponseWithClassrooms(
     {
@@ -132,6 +137,7 @@ export function toEpisodeResponseFromLocalization(
     languageClassrooms,
     video,
     videoGeneration,
+    classroomAudioTracks,
   );
 }
 
@@ -139,6 +145,7 @@ export function toEpisodeFeedResponse(
   row: EpisodeFeedRow,
   video: EpisodeVideoResponse | null = null,
   videoGeneration: EpisodeVideoGenerationSummary | null = null,
+  classroomAudioTracks: EpisodeClassroomTrackResponse[] = [],
 ): EpisodeFeedResponse {
   return {
     id: row.episode_id,
@@ -152,6 +159,7 @@ export function toEpisodeFeedResponse(
         title: row.title,
         hlsUrl: row.hls_url,
         classroomHlsUrl: row.classroom_hls_url,
+        classrooms: classroomAudioTracks,
       },
     ],
     createdAt: row.created_at,
@@ -169,9 +177,10 @@ export function toEpisodeResponseWithClassrooms(
   languageClassrooms: LanguageClassroomRow[] | LanguageClassroomLesson[],
   video: EpisodeVideoResponse | null = null,
   videoGeneration: EpisodeVideoGenerationSummary | null = null,
+  classroomAudioTracks: EpisodeClassroomTrackResponse[] = [],
 ): EpisodeResponse {
   return {
-    ...toEpisodeFeedResponse(row, video, videoGeneration),
+    ...toEpisodeFeedResponse(row, video, videoGeneration, classroomAudioTracks),
     script: row.script,
     languageClassrooms: languageClassrooms.map(toLanguageClassroomLesson),
   };
@@ -193,6 +202,15 @@ export function toLanguageClassroomLesson(
     oneLiner: row.one_liner,
     keywords: normalizeKeywords(row.keywords),
   };
+}
+
+/** Derives the audio-track classroom URLs already present on fetched rows — no extra query. */
+export function toClassroomAudioTracks(
+  rows: readonly LanguageClassroomRow[],
+): EpisodeClassroomTrackResponse[] {
+  return rows
+    .map(normalizeClassroomAudioTrack)
+    .filter((track): track is EpisodeClassroomTrackResponse => track !== null);
 }
 
 export async function findEpisodeBySourceUrl(
@@ -814,6 +832,7 @@ export async function upsertLanguageClassrooms(
     llm_model: lesson.llmModel,
     llm_thinking_model: lesson.llmThinkingModel,
     llm_provider: lesson.llmProvider,
+    script: lesson.script,
     updated_at: now,
   }));
 
@@ -830,6 +849,72 @@ export async function upsertLanguageClassrooms(
   }
 
   return normalizeLanguageClassroomRows(data);
+}
+
+/** Checkpoints one target language's synthesized audio without touching lesson content. */
+export async function updateLanguageClassroomAudio(
+  episodeLocalizationId: string,
+  targetLanguageCode: string,
+  updates: { hlsUrl: string; r2Prefix: string },
+): Promise<LanguageClassroomRow> {
+  const { data, error } = await getSupabase()
+    .from('language_classrooms')
+    .update({
+      hls_url: updates.hlsUrl,
+      r2_prefix: updates.r2Prefix,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('episode_localization_id', episodeLocalizationId)
+    .eq('target_language_code', targetLanguageCode)
+    .select('*')
+    .maybeSingle<LanguageClassroomRow>();
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+  if (!data) {
+    throw new Error(
+      `Failed to persist language classroom audio for ${targetLanguageCode}`,
+    );
+  }
+
+  return normalizeLanguageClassroomRow(data);
+}
+
+/** Lightweight batched lookup of per-language classroom audio, for feed/search/detail responses. */
+export async function listLanguageClassroomAudioByLocalizationIds(
+  episodeLocalizationIds: readonly string[],
+): Promise<Map<string, EpisodeClassroomTrackResponse[]>> {
+  const map = new Map<string, EpisodeClassroomTrackResponse[]>();
+  const uniqueIds = [...new Set(episodeLocalizationIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return map;
+
+  const { data, error } = await getSupabase()
+    .from('language_classrooms')
+    .select('episode_localization_id, target_language_code, hls_url')
+    .in('episode_localization_id', uniqueIds)
+    .order('target_language_code', { ascending: true })
+    .returns<
+      {
+        episode_localization_id: string;
+        target_language_code: string;
+        hls_url: string | null;
+      }[]
+    >();
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  for (const row of data ?? []) {
+    const track = normalizeClassroomAudioTrack(row);
+    if (track === null) continue;
+    const tracks = map.get(row.episode_localization_id) ?? [];
+    tracks.push(track);
+    map.set(row.episode_localization_id, tracks);
+  }
+
+  return map;
 }
 
 async function updateLocalizationFields(

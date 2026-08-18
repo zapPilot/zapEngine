@@ -22,6 +22,7 @@ interface PlaybackSnapshot {
   localizationId: string;
   currentTime: number;
   currentSection: PodcastSectionKind;
+  currentSectionLanguage: string | null;
   isPlaying: boolean;
 }
 
@@ -40,12 +41,14 @@ export function PodcastProgressTracker(): null {
   const duration = player.duration;
   const sections = player.sections;
   const currentSection = player.currentSection;
+  const currentSectionLanguage = player.currentSectionLanguage;
   const isPlaying = player.isPlaying;
 
   const latestPlaybackRef = useRef<PlaybackSnapshot | null>(null);
   const lastPersistedRef = useRef<{
     id: string;
     section: PodcastSectionKind;
+    language: string | null;
     seconds: number;
   } | null>(null);
   const finalizedRef = useRef<Set<string>>(new Set());
@@ -60,20 +63,28 @@ export function PodcastProgressTracker(): null {
       const isSamePosition =
         last?.id === snapshot.localizationId &&
         last.section === snapshot.currentSection &&
+        last.language === snapshot.currentSectionLanguage &&
         last.seconds === seconds;
       const intervalElapsed =
         last === null ||
         last.id !== snapshot.localizationId ||
         last.section !== snapshot.currentSection ||
+        last.language !== snapshot.currentSectionLanguage ||
         Math.abs(seconds - last.seconds) >= POSITION_PERSIST_INTERVAL_SECONDS;
       if (isSamePosition || (!force && !intervalElapsed)) return;
 
       lastPersistedRef.current = {
         id: snapshot.localizationId,
         section: snapshot.currentSection,
+        language: snapshot.currentSectionLanguage,
         seconds,
       };
-      setPosition(snapshot.localizationId, seconds, snapshot.currentSection);
+      setPosition(
+        snapshot.localizationId,
+        seconds,
+        snapshot.currentSection,
+        snapshot.currentSectionLanguage ?? undefined,
+      );
     },
     [setPosition],
   );
@@ -87,6 +98,7 @@ export function PodcastProgressTracker(): null {
             localizationId: nowPlaying.localizationId,
             currentTime,
             currentSection,
+            currentSectionLanguage,
             isPlaying,
           };
 
@@ -94,7 +106,8 @@ export function PodcastProgressTracker(): null {
       previous !== null &&
       (next === null ||
         previous.localizationId !== next.localizationId ||
-        previous.currentSection !== next.currentSection)
+        previous.currentSection !== next.currentSection ||
+        previous.currentSectionLanguage !== next.currentSectionLanguage)
     ) {
       persistSnapshot(previous, true);
     }
@@ -103,7 +116,8 @@ export function PodcastProgressTracker(): null {
       next !== null &&
       !next.isPlaying &&
       previous.localizationId === next.localizationId &&
-      previous.currentSection === next.currentSection
+      previous.currentSection === next.currentSection &&
+      previous.currentSectionLanguage === next.currentSectionLanguage
     ) {
       persistSnapshot(next, true);
     }
@@ -120,7 +134,8 @@ export function PodcastProgressTracker(): null {
     // and resumes into the classroom next time — so a missed background
     // transition delays the classroom, never silently skips it.
     const isLastSection =
-      nextPlaybackSection(sections, currentSection) === null;
+      nextPlaybackSection(sections, currentSection, currentSectionLanguage) ===
+      null;
     if (
       isLastSection &&
       duration > 0 &&
@@ -136,6 +151,7 @@ export function PodcastProgressTracker(): null {
     duration,
     sections,
     currentSection,
+    currentSectionLanguage,
     isPlaying,
     markListened,
     persistSnapshot,
@@ -187,8 +203,15 @@ export function PodcastProgressTracker(): null {
     if (savedSection === 'classroom') {
       // Only resume into the classroom when the episode still has that section;
       // a classroom-relative position must not be seeked on the main narration.
+      // The saved language may no longer exist on this episode (or predate
+      // per-language sections); skipToSection falls back to the first
+      // classroom section in that case.
       if (hasClassroom) {
-        player.skipToSection('classroom', saved.lastPositionSeconds);
+        player.skipToSection(
+          'classroom',
+          saved.lastPositionSeconds,
+          saved.lastPositionClassroomLanguage,
+        );
       }
       return;
     }

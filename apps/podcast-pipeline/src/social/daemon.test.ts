@@ -181,7 +181,7 @@ describe('social daemon', () => {
       `[social-daemon] discovered episode ${EPISODE_ID}; ready at 2026-08-16T09:00:00.000Z.`,
     );
     expect(log).toHaveBeenCalledWith(
-      `[social-daemon] queued x for ${EPISODE_ID} at 2026-08-16T10:05:00.000Z.`,
+      `[social-daemon] queued x for ${EPISODE_ID} at 2026-08-17T00:30:00.000Z.`,
     );
     expect(mocks.runSocialCli).toHaveBeenCalledWith(
       [EPISODE_ID, '--yes', '--platform', 'x'],
@@ -401,7 +401,7 @@ describe('social daemon', () => {
         id: 'strategy-x',
         platform: 'x',
         version: 2,
-        config: { publishHoursJst: [19] },
+        config: { publishSlotsJst: [{ hour: 19, minute: 0 }] },
         based_on_samples: 5,
         active: true,
         activated_at: '2026-08-16T08:00:00.000Z',

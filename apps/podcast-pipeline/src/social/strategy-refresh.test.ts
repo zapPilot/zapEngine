@@ -169,8 +169,8 @@ describe('refreshSocialStrategies', () => {
         platform: 'rednote',
         version: 1,
         config: {
-          publishHoursJst: [
-            ...(learned.config.publishHoursJst ?? []),
+          publishSlotsJst: [
+            ...(learned.config.publishSlotsJst ?? []),
           ].reverse(),
           preferredHookTypes: [
             ...(learned.config.preferredHookTypes ?? []),
@@ -203,7 +203,7 @@ describe('refreshSocialStrategies', () => {
         id: 'x-default',
         platform: 'x',
         version: 1,
-        config: defaultSocialStrategy('x'),
+        config: defaultSocialStrategy(),
         based_on_samples: 0,
         active: true,
         created_at: '2026-08-16T00:00:00.000Z',

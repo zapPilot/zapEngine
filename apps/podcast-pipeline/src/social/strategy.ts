@@ -4,6 +4,7 @@ import {
   getActiveSocialStrategies,
   listLearningSocialMetrics,
   listLearningSocialPosts,
+  type SocialPublishSlot,
   type SocialStrategyConfig,
   type SocialStrategyVersionRow,
 } from './daemon-store.js';
@@ -14,18 +15,16 @@ const MIN_PLATFORM_SAMPLES = 5;
 const MIN_VARIANT_SAMPLES = 2;
 const JST_OFFSET_HOURS = 9;
 
-const DEFAULT_PUBLISH_HOURS: Record<SocialPlatform, number[]> = {
-  x: [12, 19],
-  threads: [12, 19],
-  rednote: [12, 20],
-  youtube: [19],
-};
+const DEFAULT_PUBLISH_SLOTS_JST: readonly SocialPublishSlot[] = [
+  { hour: 9, minute: 30 },
+  { hour: 12, minute: 0 },
+  { hour: 14, minute: 30 },
+  { hour: 17, minute: 0 },
+];
 
-export function defaultSocialStrategy(
-  platform: SocialPlatform,
-): SocialStrategyConfig {
+export function defaultSocialStrategy(): SocialStrategyConfig {
   return {
-    publishHoursJst: [...DEFAULT_PUBLISH_HOURS[platform]],
+    publishSlotsJst: [...DEFAULT_PUBLISH_SLOTS_JST],
     explorationRate: 0.2,
   };
 }
@@ -47,8 +46,8 @@ export function nextPublishSlot(input: {
   after?: Date;
   config?: SocialStrategyConfig;
 }): Date {
-  const config = input.config ?? defaultSocialStrategy(input.platform);
-  const hours = normalizePublishHours(config.publishHoursJst, input.platform);
+  const config = input.config ?? defaultSocialStrategy();
+  const slots = normalizePublishSlots(config.publishSlotsJst);
   const floor = new Date(
     Math.max(input.readyAt.getTime(), input.after?.getTime() ?? 0),
   );
@@ -56,13 +55,13 @@ export function nextPublishSlot(input: {
   const floorJst = new Date(floorJstMs);
 
   for (let dayOffset = 0; dayOffset < 8; dayOffset += 1) {
-    for (const hour of hours) {
+    for (const slot of slots) {
       const candidateJstMs = Date.UTC(
         floorJst.getUTCFullYear(),
         floorJst.getUTCMonth(),
         floorJst.getUTCDate() + dayOffset,
-        hour,
-        stableMinute(input.platform),
+        slot.hour,
+        slot.minute,
         0,
         0,
       );
@@ -76,18 +75,29 @@ export function nextPublishSlot(input: {
   throw new Error(`Could not find a publish slot for ${input.platform}.`);
 }
 
-function stableMinute(platform: SocialPlatform): number {
-  return { x: 5, threads: 15, rednote: 25, youtube: 35 }[platform];
-}
-
-function normalizePublishHours(
-  hours: readonly number[] | undefined,
-  platform: SocialPlatform,
-): number[] {
-  const normalized = [...new Set(hours ?? [])]
-    .filter((hour) => Number.isInteger(hour) && hour >= 0 && hour <= 23)
-    .sort((a, b) => a - b);
-  return normalized.length ? normalized : [...DEFAULT_PUBLISH_HOURS[platform]];
+function normalizePublishSlots(
+  slots: readonly SocialPublishSlot[] | undefined,
+): SocialPublishSlot[] {
+  const seen = new Set<string>();
+  const normalized: SocialPublishSlot[] = [];
+  for (const slot of slots ?? []) {
+    if (
+      !Number.isInteger(slot.hour) ||
+      slot.hour < 0 ||
+      slot.hour > 23 ||
+      !Number.isInteger(slot.minute) ||
+      slot.minute < 0 ||
+      slot.minute > 59
+    ) {
+      continue;
+    }
+    const key = `${slot.hour}:${slot.minute}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(slot);
+  }
+  normalized.sort((a, b) => a.hour - b.hour || a.minute - b.minute);
+  return normalized.length ? normalized : [...DEFAULT_PUBLISH_SLOTS_JST];
 }
 
 export function buildStrategyGuidance(
@@ -148,12 +158,7 @@ export function learnSocialStrategies(input: {
       ...sample,
       score: scoreSample(sample.metric, medianViews),
     }));
-    const config = defaultSocialStrategy(platform);
-    config.publishHoursJst = topVariants(
-      scored,
-      (sample) => String(jstHour(sample.post.published_at)),
-      2,
-    ).map(Number);
+    const config = defaultSocialStrategy();
     config.preferredHookTypes = topVariants(
       scored,
       (sample) => sample.post.hook_type,
@@ -270,11 +275,6 @@ function median(values: readonly number[]): number {
     : (sorted[middle] ?? 0);
 }
 
-function jstHour(iso: string): number {
-  const time = Date.parse(iso);
-  return new Date(time + JST_OFFSET_HOURS * 60 * 60_000).getUTCHours();
-}
-
 function sameStrategy(
   a: SocialStrategyConfig,
   b: SocialStrategyConfig,
@@ -287,8 +287,12 @@ function sameStrategy(
 
 function canonicalStrategy(config: SocialStrategyConfig): SocialStrategyConfig {
   return {
-    ...(config.publishHoursJst
-      ? { publishHoursJst: [...config.publishHoursJst].sort((a, b) => a - b) }
+    ...(config.publishSlotsJst
+      ? {
+          publishSlotsJst: [...config.publishSlotsJst].sort(
+            (a, b) => a.hour - b.hour || a.minute - b.minute,
+          ),
+        }
       : {}),
     ...(config.preferredHookTypes
       ? { preferredHookTypes: [...config.preferredHookTypes].sort() }

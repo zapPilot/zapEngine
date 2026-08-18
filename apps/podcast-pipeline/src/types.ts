@@ -110,11 +110,17 @@ export type EpisodeFeedRow = Omit<
   'script' | 'language_classrooms' | 'like_count'
 >;
 
+export interface EpisodeClassroomTrackResponse {
+  languageCode: string;
+  hlsUrl: string;
+}
+
 export interface EpisodeAudioTrackResponse {
   languageCode: string;
   title: string;
   hlsUrl: string;
   classroomHlsUrl: string | null;
+  classrooms: EpisodeClassroomTrackResponse[];
 }
 
 export interface EpisodeVideoResponse {
@@ -162,6 +168,11 @@ export interface LanguageClassroomLesson {
   keywords: LanguageClassroomKeyword[];
 }
 
+/** A generated lesson before persistence, carrying the 100%-target-language TTS narration. */
+export type LanguageClassroomLessonDraft = LanguageClassroomLesson & {
+  script: string;
+};
+
 export interface LanguageClassroomRow {
   id: string;
   episode_localization_id: string;
@@ -172,6 +183,9 @@ export interface LanguageClassroomRow {
   llm_model: string | null;
   llm_thinking_model: string | null;
   llm_provider: string | null;
+  script: string | null;
+  hls_url: string | null;
+  r2_prefix: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -242,6 +256,7 @@ export interface NewLanguageClassroom {
   llmModel: string;
   llmThinkingModel: string | null;
   llmProvider: string;
+  script: string;
 }
 
 export interface SocialPostRow {

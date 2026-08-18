@@ -28,6 +28,7 @@ import type {
 } from '@/integration/podcastSections';
 import {
   buildPlaybackSections,
+  findPlaybackSection,
   resolveFinishedPlayback,
   speedForSection,
 } from '@/integration/podcastSections';
@@ -74,11 +75,17 @@ export function usePodcastPlayer(): PodcastPlayer {
     preferredForwardBufferDuration: 12,
   });
   const status = useAudioPlayerStatus(audioPlayer);
+  // jscpd:ignore-start — native and web players declare identical local state
+  // for the one shared PodcastPlayer contract; see the imports-block note above.
   const [nowPlaying, setNowPlaying] = useState<PodcastEpisode | null>(null);
   const { preferences: speedPreferences, setSpeedForSection } =
     usePodcastSpeedPreferences();
   const [currentSection, setCurrentSection] =
     useState<PodcastSectionKind>('main');
+  const [currentSectionLanguage, setCurrentSectionLanguage] = useState<
+    string | null
+  >(null);
+  // jscpd:ignore-end
   const pendingHandoffRef = useRef<PendingPodcastPlaybackHandoff | null>(null);
   const handoffIdRef = useRef(0);
   const [handoffRevision, setHandoffRevision] = useState(0);
@@ -114,14 +121,18 @@ export function usePodcastPlayer(): PodcastPlayer {
   // main->classroom transition survives the screen being off.
   useEffect(() => {
     if (nowPlaying === null) return;
-    const metadata = buildPodcastMediaMetadata(nowPlaying, currentSection);
+    const metadata = buildPodcastMediaMetadata(
+      nowPlaying,
+      currentSection,
+      currentSectionLanguage,
+    );
     if (lockScreenActiveRef.current) {
       audioPlayer.updateLockScreenMetadata(metadata);
     } else {
       lockScreenActiveRef.current = true;
       audioPlayer.setActiveForLockScreen(true, metadata, LOCK_SCREEN_OPTIONS);
     }
-  }, [audioPlayer, nowPlaying, currentSection]);
+  }, [audioPlayer, nowPlaying, currentSection, currentSectionLanguage]);
 
   useEffect(
     () => () => {
@@ -160,6 +171,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       audioPlayer.setPlaybackRate(speedForSection(speedPreferences, 'main'));
       setNowPlaying(episode);
       setCurrentSection('main');
+      setCurrentSectionLanguage(null);
       audioPlayer.play();
     },
     [audioPlayer, cancelPendingHandoff, speedPreferences],
@@ -183,6 +195,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       );
       setNowPlaying(episode);
       setCurrentSection(section.kind);
+      setCurrentSectionLanguage(section.languageCode);
 
       const startAt = finiteSeconds(atSeconds);
       if (startAt > 0) {
@@ -229,6 +242,7 @@ export function usePodcastPlayer(): PodcastPlayer {
         audioPlayer.setPlaybackRate(speedForSection(speedPreferences, 'main'));
         setNowPlaying(episode);
         setCurrentSection('main');
+        setCurrentSectionLanguage(null);
       }
 
       setHandoffRevision((current) => current + 1);
@@ -312,6 +326,7 @@ export function usePodcastPlayer(): PodcastPlayer {
     const action = resolveFinishedPlayback({
       sections,
       currentSection,
+      currentSectionLanguage,
       queue: queueState.queue,
       queueIndex: queueState.queueIndex,
     });
@@ -323,7 +338,14 @@ export function usePodcastPlayer(): PodcastPlayer {
     } else if (action.type === 'nextEpisode') {
       queueState.skipToNextEpisode();
     }
-  }, [status.didJustFinish, sections, currentSection, queueState, playSection]);
+  }, [
+    status.didJustFinish,
+    sections,
+    currentSection,
+    currentSectionLanguage,
+    queueState,
+    playSection,
+  ]);
 
   const seek = useCallback(
     (seconds: number) => {
@@ -354,9 +376,9 @@ export function usePodcastPlayer(): PodcastPlayer {
   );
 
   const skipToSection = useCallback(
-    (kind: PodcastSectionKind, atSeconds = 0) => {
-      const target = sections.find((section) => section.kind === kind);
-      if (target === undefined) return;
+    (kind: PodcastSectionKind, atSeconds = 0, languageCode?: string | null) => {
+      const target = findPlaybackSection(sections, kind, languageCode);
+      if (target === null) return;
       playSection(target, atSeconds, true);
     },
     [playSection, sections],
@@ -383,6 +405,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       speed,
       sections,
       currentSection,
+      currentSectionLanguage,
       queue: queueState.queue,
       queueIndex: queueState.queueIndex,
       pause,
@@ -407,6 +430,7 @@ export function usePodcastPlayer(): PodcastPlayer {
     speed,
     sections,
     currentSection,
+    currentSectionLanguage,
     skipToSection,
     status.currentTime,
     status.duration,

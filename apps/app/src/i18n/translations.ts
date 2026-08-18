@@ -31,6 +31,8 @@ export const en = {
   'language.noEpisodes': 'No episodes yet',
   'language.progress':
     '{name}, {completed} of {total} episodes completed, {percentage}%',
+  'language.japanese': 'Japanese',
+  'language.english': 'English',
   'account.manageWallets': 'Manage wallets',
   'account.approveEveryTransaction': 'You approve every transaction',
   'account.nonCustodialBody':
@@ -235,6 +237,8 @@ export const zhHant = {
   'language.closeMenu': '關閉語言選單',
   'language.noEpisodes': '尚無節目',
   'language.progress': '{name}，已聽完 {completed} / {total} 集，{percentage}%',
+  'language.japanese': '日語',
+  'language.english': '英語',
   'account.manageWallets': '管理錢包',
   'account.approveEveryTransaction': '每筆交易都由你確認',
   'account.nonCustodialBody':
@@ -428,6 +432,8 @@ export const ja = {
   'language.noEpisodes': 'エピソードはまだありません',
   'language.progress':
     '{name}、{total}話中{completed}話を再生済み、{percentage}%',
+  'language.japanese': '日本語',
+  'language.english': '英語',
   'account.manageWallets': 'ウォレットを管理',
   'account.approveEveryTransaction': 'すべての取引を自分で承認',
   'account.nonCustodialBody':

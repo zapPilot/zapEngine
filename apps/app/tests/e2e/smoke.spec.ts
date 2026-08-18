@@ -17,6 +17,16 @@ const PODCAST_FIXTURE = {
           hlsUrl: 'https://media.example.test/episode-1/playlist.m3u8',
           classroomHlsUrl:
             'https://media.example.test/episode-1/classroom.m3u8',
+          classrooms: [
+            {
+              languageCode: 'ja',
+              hlsUrl: 'https://media.example.test/episode-1/classroom-ja.m3u8',
+            },
+            {
+              languageCode: 'en',
+              hlsUrl: 'https://media.example.test/episode-1/classroom-en.m3u8',
+            },
+          ],
         },
       ],
     },
@@ -384,6 +394,21 @@ test('renders the web app shell and primary routes without page errors', async (
     await expect(page).toHaveURL(/\/podcast\/episode-1-zh-Hant\?lang=zh-Hant$/);
     await expect(page.locator('video')).toHaveCount(0);
     await expectResponsiveEpisodeMediaTabs(page);
+  });
+
+  await test.step('Classroom tab shows a language chip per target language', async () => {
+    // Chips are plain buttons inside the tabpanel, not additional tabs — the
+    // tablist stays fixed at Story/Classroom/Video (expectResponsiveEpisodeMediaTabs).
+    await page.getByRole('tab', { name: 'Classroom', exact: true }).click();
+    await expect(
+      page.getByRole('button', { name: 'Japanese', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'English', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('tablist', { name: 'Episode media' }),
+    ).toBeVisible();
   });
 
   await test.step('guest can open Home and return to Podcast', async () => {

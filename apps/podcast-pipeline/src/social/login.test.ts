@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  assertYouTubeChannel: vi.fn(),
   ensureThreadsSession: vi.fn(),
   ensureYouTubeSession: vi.fn(),
   isRednoteSessionReady: vi.fn(),
@@ -22,6 +23,10 @@ vi.mock('./rednote-login.js', () => ({
 vi.mock('./threads-auth.js', () => ({
   ensureThreadsSession: mocks.ensureThreadsSession,
   THREADS_INSIGHTS_SCOPE: 'threads_manage_insights',
+}));
+
+vi.mock('./youtube.js', () => ({
+  assertYouTubeChannel: mocks.assertYouTubeChannel,
 }));
 
 vi.mock('./youtube-auth.js', () => ({
@@ -52,6 +57,7 @@ beforeEach(() => {
     expiresAt: Date.now() + 60_000,
     scope: 'https://www.googleapis.com/auth/youtube.upload',
   });
+  mocks.assertYouTubeChannel.mockResolvedValue('UC-zap-nomad');
   mocks.isRednoteSessionReady.mockResolvedValue(true);
 });
 
@@ -65,7 +71,7 @@ describe('runSocialLogin', () => {
       'Checking social sessions...',
       '✓ X',
       '✓ Threads @zap',
-      '✓ YouTube',
+      '✓ YouTube UC-zap-nomad',
       '✓ Rednote',
       'All social platforms are ready.',
     ]);
@@ -129,6 +135,24 @@ describe('runSocialLogin', () => {
     expect(log).toHaveBeenCalledWith('✓ Rednote');
   });
 
+  it('fails YouTube login when the session authorized the wrong channel', async () => {
+    const log = vi.fn();
+    mocks.assertYouTubeChannel.mockRejectedValue(
+      new Error('The signed-in Google account cannot report on channel UC-x.'),
+    );
+
+    await expect(runSocialLogin(log)).rejects.toThrow(
+      'Social login incomplete: YouTube.',
+    );
+
+    expect(mocks.assertYouTubeChannel).toHaveBeenCalledWith({
+      accessToken: 'youtube-token',
+    });
+    expect(log).toHaveBeenCalledWith(
+      '✗ YouTube: The signed-in Google account cannot report on channel UC-x.',
+    );
+  });
+
   it('reports a Rednote login failure without hiding earlier platform success', async () => {
     const log = vi.fn();
     mocks.isRednoteSessionReady.mockResolvedValue(false);
@@ -140,7 +164,7 @@ describe('runSocialLogin', () => {
 
     expect(log).toHaveBeenCalledWith('✓ X');
     expect(log).toHaveBeenCalledWith('✓ Threads @zap');
-    expect(log).toHaveBeenCalledWith('✓ YouTube');
+    expect(log).toHaveBeenCalledWith('✓ YouTube UC-zap-nomad');
     expect(log).toHaveBeenCalledWith('✗ Rednote: Chrome closed');
   });
 

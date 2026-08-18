@@ -2,6 +2,7 @@ import {
   CONTENT_LANGUAGE_OPTIONS,
   type ContentLanguageCode,
 } from '@/config/contentLanguages';
+import type { TranslationKey } from '@/i18n/translations';
 
 const INTL_LOCALES: Readonly<Record<ContentLanguageCode, string>> = {
   en: 'en-US',
@@ -35,6 +36,16 @@ export function languageBadgeFor(languageCode: string): string {
     CONTENT_LANGUAGE_OPTIONS.find((option) => option.code === languageCode)
       ?.badge ?? languageCode.slice(0, 2).toUpperCase()
   );
+}
+
+/** Human-readable label for a classroom section's target language (e.g. a chip or pill). */
+export function classroomLanguageLabel(
+  languageCode: string,
+  t: (key: TranslationKey) => string,
+): string {
+  if (languageCode === 'ja') return t('language.japanese');
+  if (languageCode === 'en') return t('language.english');
+  return languageBadgeFor(languageCode);
 }
 
 const PODCAST_PLAYBACK_SPEEDS = [0.8, 1, 1.25, 1.5, 2] as const;

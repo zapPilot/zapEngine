@@ -5,10 +5,10 @@ import { fileURLToPath } from 'node:url';
 import OpenAI from 'openai';
 
 import { errorMessage } from '../lib/errorMessage.js';
-import { normalizeLanguageClassroomLesson } from '../lib/languageClassroom.js';
+import { normalizeLanguageClassroomLessonDraft } from '../lib/languageClassroom.js';
 import type {
   LanguageClassroomLanguageCode,
-  LanguageClassroomLesson,
+  LanguageClassroomLessonDraft,
 } from '../types.js';
 import { logIngestEvent } from './ingest/step.js';
 import { convertTextToZhTW } from './opencc.js';
@@ -23,7 +23,7 @@ export interface ScriptResult {
 }
 
 export interface LanguageClassroomResult {
-  lessons: LanguageClassroomLesson[];
+  lessons: LanguageClassroomLessonDraft[];
   model: string;
   thinkingModel: string | null;
   provider: string;
@@ -584,12 +584,13 @@ export async function generateLanguageClassroomsWithLLM(
 }
 
 function languageClassroomSystemPrompt(sourceLanguageCode: string): string {
-  return `你是語言小教室編輯。請閱讀文章內容與 Podcast 講稿，為 ${sourceLanguageCode} 使用者挑選本集最值得學的外語詞彙，並產生外語學習卡片。
+  return `你是語言小教室編輯。請閱讀文章內容與 Podcast 講稿，為 ${sourceLanguageCode} 使用者挑選本集最值得學的外語詞彙，並產生外語學習卡片與一段目標語言講稿。
 
 工作流程：
 1. 先用 ${sourceLanguageCode} 通讀文章與講稿，選出 3 到 5 個本集最核心、最實用的概念詞彙。優先挑本集主題的財經／加密貨幣關鍵概念；避免虛詞、寒暄語，以及過度在地、換個語言就失去意義的專有名詞。這一組概念是所有目標語言共用的。
 2. oneLiner 是原始文章標題在目標語言的直譯，只當作開場句，不是選詞的依據。
 3. 對每個 targetLanguageCode，用「同一組概念」產生 keywords：term 是該概念在目標語言的實際說法，meaning／note 用 ${sourceLanguageCode} 解釋。各語言的 lesson 必須對應同一組概念、同樣的數量與順序。
+4. 對每個 targetLanguageCode，再用同一組概念寫一段 script：約 1.5 到 3 分鐘的口語旁白（日文約 500 到 900 字，英文約 220 到 450 words），內容必須根據文章與講稿，逐一講解這堂課選出的每個概念，用自然口語呈現，不是逐字翻譯 oneLiner 或 keywords。
 
 請只輸出有效 JSON，不要 Markdown，不要註解。格式：
 {
@@ -604,7 +605,8 @@ function languageClassroomSystemPrompt(sourceLanguageCode: string): string {
           "meaning": "用主語言解釋這個概念的意思",
           "note": "用主語言給初學者的簡短提醒；沒有就 null"
         }
-      ]
+      ],
+      "script": "整堂課的口語旁白，一律只使用目標語言"
     }
   ]
 }
@@ -615,27 +617,29 @@ function languageClassroomSystemPrompt(sourceLanguageCode: string): string {
 - 所有目標語言共用同一組概念：每個 lesson 的 keywords 數量、順序、對應的概念都必須一致。
 - oneLiner 是標題的直譯，盡量保留原意，不要自行擴寫成描述句。
 - meaning 和 note 一律使用主語言 ${sourceLanguageCode}。
-- reading: targetLanguageCode === 'ja' 時填假名讀音；其他語言一律 null。`;
+- reading: targetLanguageCode === 'ja' 時填假名讀音；其他語言一律 null。
+- script 一律只使用目標語言，不可混入 ${sourceLanguageCode} 或其他語言，也不可包含 Markdown 或條列符號，要寫成適合朗讀的自然口語段落。
+- script 內容必須根據文章與講稿，涵蓋這堂課選出的每一個 keyword 概念，不能只根據標題或 oneLiner 隨意發揮。`;
 }
 
 function parseLanguageClassroomLessons(
   content: string,
   sourceLanguageCode: string,
   targetLanguageCodes: LanguageClassroomLanguageCode[],
-): LanguageClassroomLesson[] {
+): LanguageClassroomLessonDraft[] {
   const payload = parseJsonObject(content, 'Language classroom response');
   const rawLessons = Array.isArray(payload['lessons'])
     ? payload['lessons']
     : [];
   const lessons = rawLessons
     .map((raw) =>
-      normalizeLanguageClassroomLesson(raw, {
+      normalizeLanguageClassroomLessonDraft(raw, {
         sourceLanguageCode,
         requireKeywords: true,
         maxKeywords: 5,
       }),
     )
-    .filter((lesson): lesson is LanguageClassroomLesson => lesson !== null)
+    .filter((lesson): lesson is LanguageClassroomLessonDraft => lesson !== null)
     .filter((lesson) =>
       targetLanguageCodes.includes(
         lesson.targetLanguageCode as LanguageClassroomLanguageCode,
@@ -648,7 +652,7 @@ function parseLanguageClassroomLessons(
   const ordered = targetLanguageCodes
     .map((targetLanguageCode) => byTargetLanguage.get(targetLanguageCode))
     .filter(
-      (lesson): lesson is LanguageClassroomLesson => lesson !== undefined,
+      (lesson): lesson is LanguageClassroomLessonDraft => lesson !== undefined,
     );
 
   if (ordered.length === 0) {

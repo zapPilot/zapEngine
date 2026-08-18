@@ -485,6 +485,9 @@ create table if not exists from_fed_to_chain.language_classrooms (
   llm_model text,
   llm_thinking_model text,
   llm_provider text,
+  script text,
+  hls_url text,
+  r2_prefix text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint language_classrooms_language_codes_not_empty
@@ -1933,6 +1936,7 @@ grant select (
   target_language_code,
   one_liner,
   keywords,
+  hls_url,
   created_at,
   updated_at
 ) on from_fed_to_chain.language_classrooms to anon, authenticated;

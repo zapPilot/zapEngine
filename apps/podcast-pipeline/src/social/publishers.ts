@@ -6,6 +6,7 @@ import type {
   GeneratedSocialCopy,
   SocialPlatform,
   SocialPublishJob,
+  YouTubePrivacyStatus,
 } from './types.js';
 import { createPlaywrightXPublisher } from './x-playwright.js';
 import { createYouTubePublisher } from './youtube.js';
@@ -18,6 +19,8 @@ interface SocialPublishJobsInput {
   xVideoPath?: string;
   youtubeTitle?: string;
   youtubeDescription?: string;
+  /** Break-glass override for `social:publish`; the daemon always publishes public. */
+  youtubePrivacyStatus?: YouTubePrivacyStatus;
   onLog?: (message: string) => void;
 }
 
@@ -110,7 +113,7 @@ function createYouTubeJob(input: SocialPublishJobsInput): SocialPublishJob {
         title,
         description,
         videoPath,
-        privacyStatus: 'public',
+        privacyStatus: input.youtubePrivacyStatus ?? 'public',
       }),
   };
 }

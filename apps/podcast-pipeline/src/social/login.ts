@@ -9,6 +9,7 @@ import {
   THREADS_INSIGHTS_SCOPE,
 } from './threads-auth.js';
 import { isXSessionReady, runXLogin } from './x-playwright.js';
+import { assertYouTubeChannel } from './youtube.js';
 import {
   ensureYouTubeSession,
   YOUTUBE_ANALYTICS_SCOPE,
@@ -60,10 +61,13 @@ export async function runSocialLogin(
   }
 
   try {
-    await ensureYouTubeSession({
+    const session = await ensureYouTubeSession({
       additionalScopes: [YOUTUBE_ANALYTICS_SCOPE],
     });
-    log('✓ YouTube');
+    const channelId = await assertYouTubeChannel({
+      accessToken: session.accessToken,
+    });
+    log(`✓ YouTube ${channelId}`);
   } catch (error) {
     failures.push('YouTube');
     log(`✗ YouTube: ${errorMessage(error)}`);

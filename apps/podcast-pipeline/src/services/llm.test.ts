@@ -973,6 +973,8 @@ describe('generateLanguageClassroomsWithLLM', () => {
                       note: '市場分析常用詞',
                     },
                   ],
+                  script:
+                    '流動性とは、資産を素早く現金化できる度合いのことです。',
                 },
                 {
                   targetLanguageCode: 'en',
@@ -985,6 +987,8 @@ describe('generateLanguageClassroomsWithLLM', () => {
                       note: null,
                     },
                   ],
+                  script:
+                    'Liquidity is how easily an asset can be converted to cash.',
                 },
               ],
             }),
@@ -1142,6 +1146,7 @@ function validLanguageClassroomPayload(): string {
             note: null,
           },
         ],
+        script: '流動性とは、資産を素早く現金化できる度合いのことです。',
       },
     ],
   });

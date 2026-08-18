@@ -10,14 +10,32 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./youtube-auth.js', () => ({
   assertYouTubeSessionReady: mocks.assertYouTubeSessionReady,
+  YOUTUBE_ANALYTICS_SCOPE:
+    'https://www.googleapis.com/auth/yt-analytics.readonly',
 }));
 
 import { createYouTubePublisher } from './youtube.js';
 
+const ANALYTICS_URL = 'https://youtubeanalytics.googleapis.com/v2/reports';
+const CHANNEL_ID = 'UC-zap-nomad';
 const directories: string[] = [];
+
+/**
+ * Every upload proves the channel first, so the transport assertions below stay
+ * written against the upload calls alone.
+ */
+function withChannelProbe(fetchImpl: typeof fetch): typeof fetch {
+  return vi.fn<typeof fetch>(async (input, init) => {
+    if (String(input).startsWith(ANALYTICS_URL)) {
+      return new Response(JSON.stringify({ rows: [[0]] }), { status: 200 });
+    }
+    return fetchImpl(input, init);
+  });
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv('YOUTUBE_CHANNEL_ID', CHANNEL_ID);
   mocks.assertYouTubeSessionReady.mockResolvedValue({
     version: 1,
     accessToken: 'access-token',
@@ -29,6 +47,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   await Promise.all(
     directories
       .splice(0)
@@ -50,7 +69,7 @@ describe('YouTube publisher', () => {
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ id: 'yt-default' }), { status: 200 }),
       );
-    vi.stubGlobal('fetch', fetchImpl);
+    vi.stubGlobal('fetch', withChannelProbe(fetchImpl));
     const publisher = createYouTubePublisher();
 
     const result = await publisher.publishYouTube({
@@ -82,7 +101,7 @@ describe('YouTube publisher', () => {
       });
     });
     const publisher = createYouTubePublisher({
-      fetchImpl,
+      fetchImpl: withChannelProbe(fetchImpl),
       now: () => new Date('2026-08-16T00:00:00.000Z'),
     });
 
@@ -121,15 +140,17 @@ describe('YouTube publisher', () => {
   it('names upload-session failures for recovery', async () => {
     const videoPath = await fixtureVideo();
     const publisher = createYouTubePublisher({
-      fetchImpl: vi.fn<typeof fetch>(
-        async () =>
-          new Response(
-            JSON.stringify({ error: { message: 'quota exceeded' } }),
-            {
-              status: 403,
-              headers: { 'content-type': 'application/json' },
-            },
-          ),
+      fetchImpl: withChannelProbe(
+        vi.fn<typeof fetch>(
+          async () =>
+            new Response(
+              JSON.stringify({ error: { message: 'quota exceeded' } }),
+              {
+                status: 403,
+                headers: { 'content-type': 'application/json' },
+              },
+            ),
+        ),
       ),
     });
 
@@ -148,8 +169,8 @@ describe('YouTube publisher', () => {
   it('fails the upload-session step when Google omits the resumable location', async () => {
     const videoPath = await fixtureVideo();
     const publisher = createYouTubePublisher({
-      fetchImpl: vi.fn<typeof fetch>(
-        async () => new Response(null, { status: 200 }),
+      fetchImpl: withChannelProbe(
+        vi.fn<typeof fetch>(async () => new Response(null, { status: 200 })),
       ),
     });
 
@@ -171,16 +192,18 @@ describe('YouTube publisher', () => {
     let requestCount = 0;
     const publisher = createYouTubePublisher({
       onLog,
-      fetchImpl: vi.fn<typeof fetch>(async () => {
-        requestCount += 1;
-        if (requestCount === 1) {
-          return new Response(null, {
-            status: 200,
-            headers: { location: 'https://upload.example/session-2' },
-          });
-        }
-        return new Response('upstream upload failed', { status: 503 });
-      }),
+      fetchImpl: withChannelProbe(
+        vi.fn<typeof fetch>(async () => {
+          requestCount += 1;
+          if (requestCount === 1) {
+            return new Response(null, {
+              status: 200,
+              headers: { location: 'https://upload.example/session-2' },
+            });
+          }
+          return new Response('upstream upload failed', { status: 503 });
+        }),
+      ),
     });
 
     await expect(
@@ -200,19 +223,21 @@ describe('YouTube publisher', () => {
     const videoPath = await fixtureVideo();
     let requestCount = 0;
     const publisher = createYouTubePublisher({
-      fetchImpl: vi.fn<typeof fetch>(async () => {
-        requestCount += 1;
-        if (requestCount === 1) {
-          return new Response(null, {
+      fetchImpl: withChannelProbe(
+        vi.fn<typeof fetch>(async () => {
+          requestCount += 1;
+          if (requestCount === 1) {
+            return new Response(null, {
+              status: 200,
+              headers: { location: 'https://upload.example/session-3' },
+            });
+          }
+          return new Response(JSON.stringify({ id: '   ' }), {
             status: 200,
-            headers: { location: 'https://upload.example/session-3' },
+            headers: { 'content-type': 'application/json' },
           });
-        }
-        return new Response(JSON.stringify({ id: '   ' }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }),
+        }),
+      ),
     });
 
     await expect(
@@ -230,8 +255,8 @@ describe('YouTube publisher', () => {
   it('uses the generic HTTP failure for valid JSON that has no structured error', async () => {
     const videoPath = await fixtureVideo();
     const publisher = createYouTubePublisher({
-      fetchImpl: vi.fn<typeof fetch>(
-        async () => new Response('null', { status: 500 }),
+      fetchImpl: withChannelProbe(
+        vi.fn<typeof fetch>(async () => new Response('null', { status: 500 })),
       ),
     });
 
@@ -248,11 +273,8 @@ describe('YouTube publisher', () => {
   it('uses the generic HTTP failure when the API body is empty', async () => {
     const videoPath = await fixtureVideo();
     const publisher = createYouTubePublisher({
-      fetchImpl: vi.fn<typeof fetch>(
-        async () =>
-          new Response(null, {
-            status: 500,
-          }),
+      fetchImpl: withChannelProbe(
+        vi.fn<typeof fetch>(async () => new Response(null, { status: 500 })),
       ),
     });
 
@@ -264,6 +286,103 @@ describe('YouTube publisher', () => {
         privacyStatus: 'public',
       }),
     ).rejects.toThrow('YouTube API request failed with HTTP 500');
+  });
+});
+
+describe('YouTube channel guard', () => {
+  it('proves the expected channel with the analytics scope before uploading', async () => {
+    const videoPath = await fixtureVideo();
+    const onLog = vi.fn();
+    const requests: string[] = [];
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      requests.push(String(input));
+      if (requests.length === 1) {
+        return new Response(JSON.stringify({ rows: [[0]] }), { status: 200 });
+      }
+      if (requests.length === 2) {
+        return new Response(null, {
+          status: 200,
+          headers: { location: 'https://upload.example/session-guard' },
+        });
+      }
+      return new Response(JSON.stringify({ id: 'yt-guarded' }), {
+        status: 200,
+      });
+    });
+    const publisher = createYouTubePublisher({
+      fetchImpl,
+      onLog,
+      now: () => new Date('2026-08-16T00:00:00.000Z'),
+    });
+
+    const result = await publisher.publishYouTube({
+      title: '市場更新',
+      description: '今天的市場重點',
+      videoPath,
+      privacyStatus: 'unlisted',
+    });
+
+    expect(result.postId).toBe('yt-guarded');
+    const probe = new URL(requests[0] ?? '');
+    expect(probe.origin + probe.pathname).toBe(ANALYTICS_URL);
+    expect(probe.searchParams.get('ids')).toBe(`channel==${CHANNEL_ID}`);
+    expect(probe.searchParams.get('metrics')).toBe('views');
+    expect(probe.searchParams.get('startDate')).toBe('2026-08-16');
+    expect(probe.searchParams.get('endDate')).toBe('2026-08-16');
+    expect(requests[1]).toContain('uploadType=resumable');
+    expect(onLog).toHaveBeenCalledWith(
+      `[youtube] Publishing to channel ${CHANNEL_ID}`,
+    );
+    expect(mocks.assertYouTubeSessionReady).toHaveBeenCalledWith(
+      expect.objectContaining({
+        additionalScopes: [
+          'https://www.googleapis.com/auth/yt-analytics.readonly',
+        ],
+      }),
+    );
+  });
+
+  it('refuses to upload when the signed-in account does not own the channel', async () => {
+    const videoPath = await fixtureVideo();
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () =>
+        new Response(JSON.stringify({ error: { message: 'Forbidden' } }), {
+          status: 403,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    const publisher = createYouTubePublisher({ fetchImpl });
+
+    await expect(
+      publisher.publishYouTube({
+        title: '市場更新',
+        description: '今天的市場重點',
+        videoPath,
+        privacyStatus: 'public',
+      }),
+    ).rejects.toThrow(
+      /YOUTUBE_PUBLISH_FAILED[\s\S]+Step: verify_channel[\s\S]+cannot report on YouTube channel UC-zap-nomad[\s\S]+Forbidden/u,
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses to upload when no expected channel is configured', async () => {
+    const videoPath = await fixtureVideo();
+    vi.stubEnv('YOUTUBE_CHANNEL_ID', '  ');
+    const fetchImpl = vi.fn<typeof fetch>();
+    const publisher = createYouTubePublisher({ fetchImpl });
+
+    await expect(
+      publisher.publishYouTube({
+        title: '市場更新',
+        description: '今天的市場重點',
+        videoPath,
+        privacyStatus: 'public',
+      }),
+    ).rejects.toThrow(
+      /Step: verify_channel[\s\S]+YOUTUBE_CHANNEL_ID is not configured/u,
+    );
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
 

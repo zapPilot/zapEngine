@@ -12,6 +12,8 @@ import {
   isPodcastVideoGenerationPending,
   mergePodcastEpisodeVideo,
   normalisePodcastSearchQuery,
+  parsePodcastAudioTrack,
+  parsePodcastClassroomTrack,
   parsePodcastEpisode,
   parsePodcastEpisodeSearchResult,
   podcastVideoRefetchInterval,
@@ -198,6 +200,7 @@ describe('podcast feed client', () => {
       title: 'Main track',
       hlsUrl: 'https://cdn.example.com/main.m3u8',
       classroomHlsUrl: 'https://cdn.example.com/classroom.m3u8',
+      classrooms: [],
     });
     expect(parsed.languageClassrooms[0]?.keywords[0]?.term).toBe('金利');
   });
@@ -257,6 +260,75 @@ describe('podcast feed client', () => {
       progressPercent: 78,
       stage: 'encoding',
     });
+  });
+
+  it('parses per-language classroom tracks with dual-key field names', () => {
+    expect(
+      parsePodcastAudioTrack({
+        languageCode: 'zh-Hant',
+        title: 'Main track',
+        hlsUrl: 'https://cdn.example.com/main.m3u8',
+        classroomHlsUrl: null,
+        classrooms: [
+          { languageCode: 'ja', hlsUrl: 'https://cdn.example.com/ja.m3u8' },
+          { language_code: 'en', hls_url: 'https://cdn.example.com/en.m3u8' },
+        ],
+      }),
+    ).toEqual({
+      languageCode: 'zh-Hant',
+      title: 'Main track',
+      hlsUrl: 'https://cdn.example.com/main.m3u8',
+      classroomHlsUrl: null,
+      classrooms: [
+        { languageCode: 'ja', hlsUrl: 'https://cdn.example.com/ja.m3u8' },
+        { languageCode: 'en', hlsUrl: 'https://cdn.example.com/en.m3u8' },
+      ],
+    });
+  });
+
+  it('drops malformed classroom track entries and defaults to an empty list', () => {
+    expect(
+      parsePodcastAudioTrack({
+        languageCode: 'zh-Hant',
+        title: 'Main track',
+        hlsUrl: 'https://cdn.example.com/main.m3u8',
+        classrooms: [
+          { languageCode: 'ja' }, // missing hlsUrl
+          { hlsUrl: 'https://cdn.example.com/orphan.m3u8' }, // missing languageCode
+          { languageCode: 'en', hlsUrl: '   ' }, // blank hlsUrl
+          null,
+          'not an object',
+        ],
+      }),
+    ).toMatchObject({ classrooms: [] });
+
+    expect(
+      parsePodcastAudioTrack({
+        languageCode: 'zh-Hant',
+        title: 'Main track',
+        hlsUrl: 'https://cdn.example.com/main.m3u8',
+      }),
+    ).toMatchObject({ classrooms: [] });
+  });
+
+  it('parses a single classroom track entry directly', () => {
+    expect(
+      parsePodcastClassroomTrack({
+        languageCode: 'ja',
+        hlsUrl: 'https://cdn.example.com/ja.m3u8',
+      }),
+    ).toEqual({
+      languageCode: 'ja',
+      hlsUrl: 'https://cdn.example.com/ja.m3u8',
+    });
+    expect(parsePodcastClassroomTrack({ languageCode: 'ja' })).toBeNull();
+    expect(
+      parsePodcastClassroomTrack({
+        languageCode: '',
+        hlsUrl: 'https://cdn.example.com/ja.m3u8',
+      }),
+    ).toBeNull();
+    expect(parsePodcastClassroomTrack(null)).toBeNull();
   });
 
   it('treats null or incomplete video payloads as audio-only episodes', () => {

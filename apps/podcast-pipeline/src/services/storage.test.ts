@@ -150,6 +150,52 @@ describe('uploadHlsToR2', () => {
     expect(createReadStream).toHaveBeenCalledWith('/render/hls/playlist.m3u8');
     expect(createReadStream).toHaveBeenCalledWith('/render/hls/seg1.ts');
   });
+
+  it('nests a per-target-language prefix under the classroom section', async () => {
+    const files: HlsFile[] = [
+      {
+        name: 'playlist.m3u8',
+        path: '/render/hls/playlist.m3u8',
+        contentType: 'application/vnd.apple.mpegurl',
+      },
+    ];
+
+    const result = await uploadHlsToR2(
+      files,
+      'test-id',
+      'zh-Hant',
+      'classroom',
+      'ja',
+    );
+
+    expect(result).toEqual({
+      hlsUrl:
+        'https://cdn.example.com/episodes/test-id/localizations/zh-Hant/classroom/ja/playlist.m3u8',
+      r2Prefix: 'episodes/test-id/localizations/zh-Hant/classroom/ja',
+    });
+    expect(PutObjectCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Key: 'episodes/test-id/localizations/zh-Hant/classroom/ja/playlist.m3u8',
+      }),
+    );
+  });
+
+  it('rejects a target language code outside the classroom section', async () => {
+    const files: HlsFile[] = [
+      {
+        name: 'playlist.m3u8',
+        path: '/render/hls/playlist.m3u8',
+        contentType: 'application/vnd.apple.mpegurl',
+      },
+    ];
+
+    await expect(
+      uploadHlsToR2(files, 'test-id', 'zh-Hant', 'main', 'ja'),
+    ).rejects.toThrow(
+      'classroomTargetLanguageCode is only valid when section is "classroom"',
+    );
+    expect(mockSend).not.toHaveBeenCalled();
+  });
 });
 
 describe('uploadVideoArtifactsToR2', () => {

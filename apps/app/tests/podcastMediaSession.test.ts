@@ -50,6 +50,28 @@ describe('buildPodcastMediaMetadata', () => {
     });
   });
 
+  it('includes the classroom language code when one is active', () => {
+    const episode = makeEpisode();
+
+    expect(buildPodcastMediaMetadata(episode, 'classroom', 'ja')).toEqual({
+      title: 'Fed holds rates — Language Classroom (JA)',
+      artist: 'From Fed to Chain',
+    });
+    expect(buildPodcastMediaMetadata(episode, 'classroom', 'en')).toEqual({
+      title: 'Fed holds rates — Language Classroom (EN)',
+      artist: 'From Fed to Chain',
+    });
+  });
+
+  it('ignores a language code on the main section', () => {
+    const episode = makeEpisode();
+
+    expect(buildPodcastMediaMetadata(episode, 'main', 'ja')).toEqual({
+      title: 'Fed holds rates',
+      artist: 'From Fed to Chain',
+    });
+  });
+
   it('uses the generated video thumbnail as artwork when there is one', () => {
     const episode = makeEpisode({
       video: {

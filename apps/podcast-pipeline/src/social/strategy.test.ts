@@ -74,35 +74,54 @@ function metric(input: {
 }
 
 describe('social strategy', () => {
-  it('schedules the next configured JST slot and keeps platform minutes stable', () => {
+  it('schedules the next configured JST slot for every platform', () => {
     expect(
       nextPublishSlot({
         platform: 'x',
         readyAt: new Date('2026-08-16T08:00:00.000Z'),
-        config: { publishHoursJst: [12, 19] },
+        config: {
+          publishSlotsJst: [
+            { hour: 12, minute: 0 },
+            { hour: 19, minute: 0 },
+          ],
+        },
       }).toISOString(),
-    ).toBe('2026-08-16T10:05:00.000Z');
+    ).toBe('2026-08-16T10:00:00.000Z');
 
     expect(
       nextPublishSlot({
         platform: 'rednote',
         readyAt: new Date('2026-08-16T12:00:00.000Z'),
         after: new Date('2026-08-16T12:30:00.000Z'),
-        config: { publishHoursJst: [20] },
+        config: { publishSlotsJst: [{ hour: 20, minute: 0 }] },
       }).toISOString(),
-    ).toBe('2026-08-17T11:25:00.000Z');
+    ).toBe('2026-08-17T11:00:00.000Z');
   });
 
-  it('falls back to safe defaults when publish hours are invalid', () => {
-    const strategy = defaultSocialStrategy('youtube');
-    expect(strategy).toEqual({ publishHoursJst: [19], explorationRate: 0.2 });
+  it('falls back to safe defaults when publish slots are invalid', () => {
+    const strategy = defaultSocialStrategy();
+    expect(strategy).toEqual({
+      publishSlotsJst: [
+        { hour: 9, minute: 30 },
+        { hour: 12, minute: 0 },
+        { hour: 14, minute: 30 },
+        { hour: 17, minute: 0 },
+      ],
+      explorationRate: 0.2,
+    });
     expect(
       nextPublishSlot({
         platform: 'youtube',
         readyAt: new Date('2026-08-16T00:00:00.000Z'),
-        config: { publishHoursJst: [-1, 24, 1.5] },
+        config: {
+          publishSlotsJst: [
+            { hour: -1, minute: 0 },
+            { hour: 24, minute: 0 },
+            { hour: 1, minute: 90 },
+          ],
+        },
       }).toISOString(),
-    ).toBe('2026-08-16T10:35:00.000Z');
+    ).toBe('2026-08-16T00:30:00.000Z');
   });
 
   it('maps active rows by platform and fills absent platforms with null', () => {
@@ -111,7 +130,7 @@ describe('social strategy', () => {
         id: 'strategy-1',
         platform: 'x' as const,
         version: 1,
-        config: defaultSocialStrategy('x'),
+        config: defaultSocialStrategy(),
         based_on_samples: 5,
         active: true,
         activated_at: '2026-08-16T00:00:00.000Z',
@@ -127,17 +146,32 @@ describe('social strategy', () => {
     });
   });
 
-  it('uses default schedule configuration when no strategy config or publish hours are supplied', () => {
+  it('uses default schedule configuration when no strategy config or publish slots are supplied', () => {
     const input = {
       platform: 'threads' as const,
       readyAt: new Date('2026-08-16T00:00:00.000Z'),
     };
     expect(nextPublishSlot(input).toISOString()).toBe(
-      '2026-08-16T03:15:00.000Z',
+      '2026-08-16T00:30:00.000Z',
     );
     expect(nextPublishSlot({ ...input, config: {} }).toISOString()).toBe(
-      '2026-08-16T03:15:00.000Z',
+      '2026-08-16T00:30:00.000Z',
     );
+  });
+
+  it('keeps every default publish slot inside the 9:30-18:00 JST work window', () => {
+    const readyAt = new Date('2026-08-16T00:00:00.000Z');
+    for (const platform of ['x', 'threads', 'rednote', 'youtube'] as const) {
+      let after: Date | undefined;
+      for (let index = 0; index < 4; index += 1) {
+        const slot = nextPublishSlot({ platform, readyAt, after });
+        const jstMinutes =
+          ((slot.getTime() + 9 * 60 * 60_000) % (24 * 60 * 60_000)) / 60_000;
+        expect(jstMinutes).toBeGreaterThanOrEqual(9 * 60 + 30);
+        expect(jstMinutes).toBeLessThanOrEqual(18 * 60);
+        after = new Date(slot.getTime() + 60_000);
+      }
+    }
   });
 
   it('returns no guidance for missing or empty preferences', () => {
@@ -293,7 +327,9 @@ describe('social strategy', () => {
     expect(learned?.config.preferredHookTypes).toContain('question');
     expect(learned?.config.preferredHashtags).toContain('AI');
     expect(learned?.config.avoidHashtags).toContain('冷門');
-    expect(learned?.config.publishHoursJst).toContain(12);
+    expect(learned?.config.publishSlotsJst).toEqual(
+      defaultSocialStrategy().publishSlotsJst,
+    );
 
     expect(
       learnSocialStrategies({

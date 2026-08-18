@@ -1,6 +1,7 @@
 import type { PodcastEpisode } from '@/integration/podcastFeed';
 import {
-  classroomHlsUrlFor,
+  buildPlaybackSections,
+  type PodcastPlaybackSection,
   type PodcastSectionKind,
 } from '@/integration/podcastSections';
 
@@ -42,9 +43,40 @@ export function episodeMediaTabAvailability(
 ): EpisodeMediaTabAvailability {
   return {
     story: true,
-    classroom: classroomHlsUrlFor(episode) !== null,
+    classroom: buildPlaybackSections(episode).some(
+      (section) => section.kind === 'classroom',
+    ),
     video: episode.video !== null,
   };
+}
+
+/**
+ * Which classroom language chip should be active: the player's current
+ * classroom language when it belongs to this episode, otherwise the user's
+ * locally selected language, otherwise the first available classroom
+ * language. Returns null when the episode has no classroom sections.
+ */
+export function resolveActiveClassroomLanguage({
+  classroomSections,
+  playerLanguage,
+  selectedLanguage,
+}: {
+  classroomSections: readonly PodcastPlaybackSection[];
+  playerLanguage: string | null;
+  selectedLanguage: string | null;
+}): string | null {
+  const available = new Set(
+    classroomSections
+      .map((section) => section.languageCode)
+      .filter((language): language is string => language !== null),
+  );
+  if (playerLanguage !== null && available.has(playerLanguage)) {
+    return playerLanguage;
+  }
+  if (selectedLanguage !== null && available.has(selectedLanguage)) {
+    return selectedLanguage;
+  }
+  return classroomSections[0]?.languageCode ?? null;
 }
 
 export function resolveActiveEpisodeMediaTab({

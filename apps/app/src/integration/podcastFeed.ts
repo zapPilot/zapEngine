@@ -9,11 +9,18 @@ import {
 } from '@/config/contentLanguages';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
+export interface PodcastClassroomTrack {
+  languageCode: string;
+  hlsUrl: string;
+}
+
 export interface PodcastAudioTrack {
   languageCode: string;
   title: string;
   hlsUrl: string;
   classroomHlsUrl: string | null;
+  /** Per-language classroom tracks. Empty for episodes still on the combined-only track. */
+  classrooms: PodcastClassroomTrack[];
 }
 
 export interface PodcastLanguageClassroomKeyword {
@@ -362,6 +369,18 @@ export function isPodcastSearchQueryValid(query: string): boolean {
   );
 }
 
+export function parsePodcastClassroomTrack(
+  rawTrack: unknown,
+): PodcastClassroomTrack | null {
+  if (!isRecord(rawTrack)) return null;
+
+  const languageCode = readString(rawTrack, 'languageCode', 'language_code');
+  const hlsUrl = readString(rawTrack, 'hlsUrl', 'hls_url');
+  if (languageCode.trim() === '' || hlsUrl.trim() === '') return null;
+
+  return { languageCode, hlsUrl };
+}
+
 export function parsePodcastAudioTrack(
   rawTrack: unknown,
 ): PodcastAudioTrack | null {
@@ -378,6 +397,9 @@ export function parsePodcastAudioTrack(
       'classroomHlsUrl',
       'classroom_hls_url',
     ),
+    classrooms: readArray(rawTrack, ['classrooms'])
+      .map(parsePodcastClassroomTrack)
+      .filter((track): track is PodcastClassroomTrack => track !== null),
   };
 }
 
@@ -467,6 +489,7 @@ export function parsePodcastEpisode(rawEpisode: unknown): PodcastEpisode {
               'classroomHlsUrl',
               'classroom_hls_url',
             ),
+            classrooms: [],
           },
         ];
 

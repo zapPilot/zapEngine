@@ -57,13 +57,16 @@ discovers canonical videos completed at or after that durable anchor, so enablin
 it does not backfill old episodes. Jobs created after that point survive Mac
 restarts and are claimed with an expiring owner lease.
 
-The daemon polls once per minute. It spreads new episodes across per-platform JST
-publish windows, runs one due publish job at a time, records metric snapshots in
-the current `1h` / `6h` / `24h` / `72h` / `7d` age bucket, and periodically
+The daemon polls once per minute. It spreads new episodes across four daily
+per-platform JST publish slots (9:30 / 12:00 / 14:30 / 17:00, identical for
+every platform) so publishing always happens inside the local work window while
+the Mac is on. It runs one due publish job at a time, records metric snapshots
+in the current `1h` / `6h` / `24h` / `72h` / `7d` age bucket, and periodically
 refreshes versioned strategy preferences from standardized 24-hour performance.
-Missed early metric buckets are never backfilled with later data. Strategy
-versions are read at publish time, so updated preferences do not require a
-process restart.
+Publish hours are deliberately fixed and never learned: strategy learning only
+adjusts copy/content preferences (hook types, hashtags). Missed early metric
+buckets are never backfilled with later data. Strategy versions are read at
+publish time, so updated preferences do not require a process restart.
 
 `--yes` accepts the generated copy without opening the interactive review prompt.
 It is intended for unattended agent/E2E runs. If an episode was only partially
@@ -109,9 +112,10 @@ the session as ready.
 
 ### YouTube
 
-YouTube uses the Google OAuth Desktop App flow with the least-privilege
-`youtube.upload` scope. Configure `YOUTUBE_CLIENT_ID` and
-`YOUTUBE_CLIENT_SECRET` in the repository root `.env`. The callback uses a
+YouTube uses the Google OAuth Desktop App flow with `youtube.upload` for
+publishing and `yt-analytics.readonly` for metric collection and the channel
+guard below. Configure `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and
+`YOUTUBE_CHANNEL_ID` in the repository root `.env`. The callback uses a
 localhost loopback port selected at login time, and the resulting refresh token
 is stored outside the repository at:
 
@@ -127,6 +131,38 @@ Google may force uploads from an unaudited YouTube Data API project to remain
 private even when the request asks for `public`. If the first smoke upload stays
 private, verify the Google Cloud project's YouTube API audit status rather than
 adding a publisher workaround.
+
+#### Channel guard
+
+`YOUTUBE_CHANNEL_ID` is the only channel this publisher may upload to. Both
+`social:login` and every upload prove the signed-in Google account owns it before
+any video is created, and fail closed otherwise — an OAuth grant on the wrong
+Google identity is caught at login instead of surfacing as a video on a stranger's
+channel.
+
+The proof runs through YouTube Analytics rather than the Data API on purpose:
+`channels.list?mine=true` needs `youtube.readonly`, which this session does not
+carry and which would widen the grant to full read access over the account's
+channels. `GET youtubeanalytics/v2/reports?ids=channel==<id>&metrics=views`
+answers `200` only for a channel the account owns and `403 Forbidden` for anyone
+else's, so the scope the daemon already needs for metrics is enough to establish
+identity. The check runs _before_ the upload because `youtube.upload` cannot
+delete a video afterwards — a misdirected upload would be unrecoverable from
+here.
+
+#### One-off privacy override
+
+Daemon uploads are always `public`. `social:publish` accepts
+`--youtube-privacy private|unlisted|public` as a per-invocation override, which is
+what a smoke test of a changed upload path should use:
+
+```bash
+pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --platform youtube --youtube-privacy unlisted
+```
+
+The override is echoed in the review preview so it cannot be silently forgotten,
+and it is not persisted anywhere: the next run, and every daemon run, publishes
+public again.
 
 ### Rednote
 
@@ -206,12 +242,12 @@ full video through Playwright. The CLI warns when a video is above the general
 Per-platform CTA and video-release policy lives in `src/social/platforms.ts`.
 The current policy is:
 
-| Platform | Text CTA | Video mode |
-| --- | --- | --- |
-| X | Zap Pilot website | teaser |
-| Threads | Zap Pilot website | teaser |
-| Rednote | none | full |
-| YouTube | Zap Pilot website | full |
+| Platform | Text CTA          | Video mode |
+| -------- | ----------------- | ---------- |
+| X        | Zap Pilot website | teaser     |
+| Threads  | Zap Pilot website | teaser     |
+| Rednote  | none              | full       |
+| YouTube  | Zap Pilot website | full       |
 
 Rednote deliberately forbids website URLs/off-platform CTA in generated copy as
 well as disabling the fixed CTA at publish time, so a model response cannot
@@ -226,8 +262,8 @@ src/brand/cta.ts
 The current contract is versioned as:
 
 ```ts
-BRAND_CTA_VERSION = 'v1'
-ZAP_PILOT_SITE_URL = 'https://www.zap-pilot.org'
+BRAND_CTA_VERSION = 'v1';
+ZAP_PILOT_SITE_URL = 'https://www.zap-pilot.org';
 ```
 
 ### Text ending
@@ -277,12 +313,12 @@ The text CTA is unaffected and uses the current destination immediately.
 
 `platforms.ts` distinguishes platforms that require a local video file:
 
-| Platform | Local MP4 required | Published media |
-| --- | --- | --- |
-| X | yes | teaser (full MP4 only when already <= 140s) |
-| Threads | no | teaser prepared from the canonical public URL |
-| Rednote | yes | local canonical full MP4 |
-| YouTube | yes | local canonical full MP4 |
+| Platform | Local MP4 required | Published media                               |
+| -------- | ------------------ | --------------------------------------------- |
+| X        | yes                | teaser (full MP4 only when already <= 140s)   |
+| Threads  | no                 | teaser prepared from the canonical public URL |
+| Rednote  | yes                | local canonical full MP4                      |
+| YouTube  | yes                | local canonical full MP4                      |
 
 When publishing all platforms, the canonical MP4 is downloaded at most once. X
 derives the reusable teaser from that local file, Threads can reuse the same
@@ -365,7 +401,8 @@ The publisher is fail-closed per platform:
 - X requires a prepared local teaser/full MP4;
 - Threads requires a public HTTPS video URL and a finished Meta container;
 - Rednote requires a prepared local full MP4;
-- YouTube requires a valid Google OAuth session and prepared local full MP4;
+- YouTube requires a valid Google OAuth session, an expected channel the session
+  provably owns, and a prepared local full MP4;
 - platform success is never inferred merely because a browser click occurred;
 - duplicate-state and telemetry failures are reported separately from the
   platform publish result.
@@ -398,7 +435,10 @@ Verify:
   source outro;
 - Threads shows native video rather than an episode link card;
 - Rednote still uploads the complete video;
-- YouTube uploads the complete Chinese video and returns a watch URL/video id;
+- YouTube uploads the complete Chinese video and returns a watch URL/video id
+  (use `--youtube-privacy unlisted` for the first upload after changing this
+  transport, then confirm the video, title, description, and channel before
+  letting the daemon publish public);
 - X/Threads/YouTube keep their configured Zap Pilot CTA while Rednote stays free
   of off-platform website CTA;
 - newly rendered videos end at `www.zap-pilot.org`;

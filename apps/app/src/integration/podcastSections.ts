@@ -1,12 +1,20 @@
 /**
  * Language classroom (語言小教室) sectioned playback — pure logic.
  *
- * A podcast episode localization can carry two separate HLS audio artifacts:
- * the main narration (`episode.hlsUrl`) and a language classroom track
- * (`classroomHlsUrl`). They are played as two sequential *sections* of one
- * logical episode, with independent per-section playback speed (classroom
- * defaults to 1.0x). The pipeline never concatenates them (see
+ * A podcast episode localization can carry N+1 separate HLS audio artifacts:
+ * the main narration (`episode.hlsUrl`) and one language classroom track per
+ * target language (`audioTracks[].classrooms`), or — for episodes published
+ * before per-language classroom audio existed — a single combined classroom
+ * track (`classroomHlsUrl`). They are played as sequential *sections* of one
+ * logical episode (main, then each classroom language in turn), with
+ * independent per-section playback speed (classroom defaults to 1.0x). The
+ * pipeline never concatenates classroom audio into main (see
  * apps/podcast-pipeline/CLAUDE.md "Audio section invariant").
+ *
+ * A section is identified by the pair `(kind, languageCode)`, not `kind`
+ * alone: `languageCode` is `null` for `main` and for the legacy combined
+ * classroom fallback, and the target language code (e.g. `'ja'`) for each
+ * per-language classroom section.
  *
  * This module holds the platform-agnostic decision logic so the native
  * (`podcastPlayer.ts`) and web (`podcastPlayer.web.ts`) hooks cannot diverge on
@@ -14,7 +22,11 @@
  * without a player mock — the historical bug (classroom skipped when the screen
  * is off) reduces to a single tested function, `resolveFinishedPlayback`.
  */
-import type { PodcastEpisode } from '@/integration/podcastFeed';
+import type {
+  PodcastAudioTrack,
+  PodcastClassroomTrack,
+  PodcastEpisode,
+} from '@/integration/podcastFeed';
 import { hasNextPodcastEpisode } from '@/integration/podcastPlayerShared';
 
 export type PodcastSectionKind = 'main' | 'classroom';
@@ -22,6 +34,8 @@ export type PodcastSectionKind = 'main' | 'classroom';
 export interface PodcastPlaybackSection {
   kind: PodcastSectionKind;
   hlsUrl: string;
+  /** Target language of a classroom section, or null for main / the legacy combined track. */
+  languageCode: string | null;
 }
 
 type EpisodeSectionInput = Pick<
@@ -34,14 +48,14 @@ function isNonBlank(value: string | null | undefined): value is string {
 }
 
 /**
- * Resolve the classroom artifact for an episode. The strongest signal is the
- * audio track whose main `hlsUrl` matches the episode's; otherwise fall back to
- * the track matching the episode `languageCode`, then the first track. Returns
- * null when no non-blank classroom URL is available.
+ * The audio track representing this episode's displayed language. The
+ * strongest signal is the track whose main `hlsUrl` matches the episode's;
+ * otherwise fall back to the track matching the episode `languageCode`, then
+ * the first track.
  */
-export function classroomHlsUrlFor(
+function selectedAudioTrack(
   episode: EpisodeSectionInput,
-): string | null {
+): PodcastAudioTrack | undefined {
   const tracks = episode.audioTracks ?? [];
   const byHls = tracks.find(
     (track) => isNonBlank(track.hlsUrl) && track.hlsUrl === episode.hlsUrl,
@@ -49,34 +63,101 @@ export function classroomHlsUrlFor(
   const byLanguage = tracks.find(
     (track) => track.languageCode === episode.languageCode,
   );
-  const track = byHls ?? byLanguage ?? tracks[0];
+  return byHls ?? byLanguage ?? tracks[0];
+}
+
+function classroomTracksFor(
+  episode: EpisodeSectionInput,
+): PodcastClassroomTrack[] {
+  return selectedAudioTrack(episode)?.classrooms ?? [];
+}
+
+/**
+ * Resolve the legacy combined classroom artifact for an episode. Returns null
+ * when no non-blank classroom URL is available.
+ */
+function combinedClassroomHlsUrlFor(
+  episode: EpisodeSectionInput,
+): string | null {
+  const track = selectedAudioTrack(episode);
   return isNonBlank(track?.classroomHlsUrl) ? track!.classroomHlsUrl : null;
 }
 
 /**
  * Build the ordered playback sections for an episode: always `[main]`, plus
- * `classroom` when a classroom artifact exists. Never returns an empty array.
+ * one `classroom` section per target language when per-language classroom
+ * audio exists, or a single `classroom` section for the legacy combined
+ * track. Never returns an empty array.
  */
 export function buildPlaybackSections(
   episode: EpisodeSectionInput,
 ): PodcastPlaybackSection[] {
   const sections: PodcastPlaybackSection[] = [
-    { kind: 'main', hlsUrl: episode.hlsUrl },
+    { kind: 'main', hlsUrl: episode.hlsUrl, languageCode: null },
   ];
-  const classroomHlsUrl = classroomHlsUrlFor(episode);
-  if (classroomHlsUrl !== null) {
-    sections.push({ kind: 'classroom', hlsUrl: classroomHlsUrl });
+
+  const classroomTracks = classroomTracksFor(episode);
+  if (classroomTracks.length > 0) {
+    const seenLanguages = new Set<string>();
+    for (const track of classroomTracks) {
+      if (!isNonBlank(track.hlsUrl) || seenLanguages.has(track.languageCode)) {
+        continue;
+      }
+      seenLanguages.add(track.languageCode);
+      sections.push({
+        kind: 'classroom',
+        hlsUrl: track.hlsUrl,
+        languageCode: track.languageCode,
+      });
+    }
+    return sections;
+  }
+
+  const combinedHlsUrl = combinedClassroomHlsUrlFor(episode);
+  if (combinedHlsUrl !== null) {
+    sections.push({
+      kind: 'classroom',
+      hlsUrl: combinedHlsUrl,
+      languageCode: null,
+    });
   }
   return sections;
 }
 
+/** Advances from the given `(kind, languageCode)` pair to the next section in order, or null past the end. */
 export function nextPlaybackSection(
   sections: readonly PodcastPlaybackSection[],
-  current: PodcastSectionKind,
+  currentKind: PodcastSectionKind,
+  currentLanguageCode: string | null = null,
 ): PodcastPlaybackSection | null {
-  const index = sections.findIndex((section) => section.kind === current);
+  const index = sections.findIndex(
+    (section) =>
+      section.kind === currentKind &&
+      section.languageCode === currentLanguageCode,
+  );
   if (index < 0) return null;
   return sections[index + 1] ?? null;
+}
+
+/**
+ * Locates a section by kind, preferring an exact `(kind, languageCode)` match
+ * when `languageCode` is given, and otherwise falling back to the first
+ * section of that kind (e.g. jumping to "the classroom tab" with no specific
+ * language selected yet).
+ */
+export function findPlaybackSection(
+  sections: readonly PodcastPlaybackSection[],
+  kind: PodcastSectionKind,
+  languageCode?: string | null,
+): PodcastPlaybackSection | null {
+  if (languageCode !== undefined) {
+    const exact = sections.find(
+      (section) =>
+        section.kind === kind && section.languageCode === languageCode,
+    );
+    if (exact) return exact;
+  }
+  return sections.find((section) => section.kind === kind) ?? null;
 }
 
 export type FinishedPlaybackAction =
@@ -86,17 +167,23 @@ export type FinishedPlaybackAction =
 
 /**
  * Decide what to do when the current audio source finishes. Section advance
- * (main -> classroom) STRICTLY precedes episode advance, so the classroom
- * section is never skipped in favour of the next episode. Shared by native and
- * web so both platforms make the identical decision.
+ * (main -> classroom(ja) -> classroom(en) -> ...) STRICTLY precedes episode
+ * advance, so no classroom language is ever skipped in favour of the next
+ * episode. Shared by native and web so both platforms make the identical
+ * decision.
  */
 export function resolveFinishedPlayback(params: {
   sections: readonly PodcastPlaybackSection[];
   currentSection: PodcastSectionKind;
+  currentSectionLanguage?: string | null;
   queue: readonly PodcastEpisode[];
   queueIndex: number;
 }): FinishedPlaybackAction {
-  const next = nextPlaybackSection(params.sections, params.currentSection);
+  const next = nextPlaybackSection(
+    params.sections,
+    params.currentSection,
+    params.currentSectionLanguage ?? null,
+  );
   if (next !== null) {
     return { type: 'playSection', section: next };
   }

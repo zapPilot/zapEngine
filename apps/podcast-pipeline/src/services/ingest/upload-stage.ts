@@ -8,6 +8,7 @@ interface PackageAndUploadHlsInput {
   episodeId: string;
   languageCode: LanguageClassroomLanguageCode;
   section: 'main' | 'classroom';
+  classroomTargetLanguageCode?: LanguageClassroomLanguageCode;
   generateStepName: string;
   uploadStepName: string;
 }
@@ -26,6 +27,7 @@ export async function packageAndUploadHls(
         input.episodeId,
         input.languageCode,
         input.section,
+        input.classroomTargetLanguageCode,
       ),
     );
   } finally {

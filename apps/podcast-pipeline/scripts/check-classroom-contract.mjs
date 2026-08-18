@@ -34,6 +34,12 @@ requireContains('user message title', '標題：');
 requireContains('user message reads articleText', 'input.articleText');
 requireContains('user message reads script', 'input.script');
 
+// Each lesson must also carry a 100%-target-language TTS narration script,
+// grounded the same way as the keywords, not a translation of the title/oneLiner.
+requireContains('lesson response schema has a script field', '"script"');
+requireContains('classroom script purity rule', '一律只使用目標語言');
+requireContains('classroom script grounding rule', '內容必須根據文章與講稿');
+
 if (failures.length > 0) {
   console.error(
     'Language classroom content contract broken (see apps/podcast-pipeline/CLAUDE.md "Audio section invariant"):',

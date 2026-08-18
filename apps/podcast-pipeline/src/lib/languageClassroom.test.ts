@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  normalizeClassroomAudioTrack,
   normalizeLanguageClassroomKeyword,
   normalizeLanguageClassroomKeywords,
   normalizeLanguageClassroomLesson,
+  normalizeLanguageClassroomLessonDraft,
 } from './languageClassroom.js';
 
 describe('normalizeLanguageClassroomKeyword', () => {
@@ -126,5 +128,89 @@ describe('normalizeLanguageClassroomLesson', () => {
         { sourceLanguageCode: 'zh-Hant', requireKeywords: true },
       ),
     ).toBeNull();
+  });
+});
+
+describe('normalizeLanguageClassroomLessonDraft', () => {
+  it('carries a non-blank script alongside the normalized lesson', () => {
+    expect(
+      normalizeLanguageClassroomLessonDraft({
+        sourceLanguageCode: 'zh-Hant',
+        targetLanguageCode: 'ja',
+        oneLiner: 'この記事は市場流動性を説明します。',
+        keywords: [{ term: '流動性', meaning: '資金流動性' }],
+        script: ' 流動性とは、資産を素早く現金化できる度合いのことです。 ',
+      }),
+    ).toEqual({
+      sourceLanguageCode: 'zh-Hant',
+      targetLanguageCode: 'ja',
+      oneLiner: 'この記事は市場流動性を説明します。',
+      keywords: [
+        {
+          term: '流動性',
+          reading: null,
+          meaning: '資金流動性',
+          note: null,
+        },
+      ],
+      script: '流動性とは、資産を素早く現金化できる度合いのことです。',
+    });
+  });
+
+  it('rejects a lesson with a blank or missing script', () => {
+    const base = {
+      sourceLanguageCode: 'zh-Hant',
+      targetLanguageCode: 'ja',
+      oneLiner: 'この記事は市場流動性を説明します。',
+      keywords: [{ term: '流動性', meaning: '資金流動性' }],
+    };
+
+    expect(normalizeLanguageClassroomLessonDraft(base)).toBeNull();
+    expect(
+      normalizeLanguageClassroomLessonDraft({ ...base, script: '   ' }),
+    ).toBeNull();
+  });
+
+  it('rejects when the underlying lesson itself is invalid', () => {
+    expect(
+      normalizeLanguageClassroomLessonDraft({
+        targetLanguageCode: 'ja',
+        script: 'valid script',
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('normalizeClassroomAudioTrack', () => {
+  it('reads camelCase and snake_case field names', () => {
+    expect(
+      normalizeClassroomAudioTrack({
+        targetLanguageCode: 'ja',
+        hlsUrl: 'https://example.test/ja/playlist.m3u8',
+      }),
+    ).toEqual({
+      languageCode: 'ja',
+      hlsUrl: 'https://example.test/ja/playlist.m3u8',
+    });
+
+    expect(
+      normalizeClassroomAudioTrack({
+        target_language_code: 'en',
+        hls_url: 'https://example.test/en/playlist.m3u8',
+      }),
+    ).toEqual({
+      languageCode: 'en',
+      hlsUrl: 'https://example.test/en/playlist.m3u8',
+    });
+  });
+
+  it('treats a blank or missing hls url as absent', () => {
+    expect(
+      normalizeClassroomAudioTrack({ targetLanguageCode: 'ja', hlsUrl: '  ' }),
+    ).toBeNull();
+    expect(
+      normalizeClassroomAudioTrack({ targetLanguageCode: 'ja' }),
+    ).toBeNull();
+    expect(normalizeClassroomAudioTrack(null)).toBeNull();
   });
 });

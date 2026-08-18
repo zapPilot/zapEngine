@@ -97,6 +97,7 @@ describe('packageAndUploadHls', () => {
       'episode-1',
       'zh-Hant',
       'classroom',
+      undefined,
     );
     expect(mocks.step).toHaveBeenNthCalledWith(
       1,
@@ -126,5 +127,25 @@ describe('packageAndUploadHls', () => {
       }),
     ).rejects.toThrow('[step:uploadMainHlsToR2] R2 upload failed');
     expect(mocks.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes the classroom target language code through to the upload', async () => {
+    await packageAndUploadHls({
+      audio: Buffer.from('classroom-audio'),
+      episodeId: 'episode-1',
+      languageCode: 'zh-Hant',
+      section: 'classroom',
+      classroomTargetLanguageCode: 'ja',
+      generateStepName: 'generateClassroomHls',
+      uploadStepName: 'uploadClassroomHlsToR2',
+    });
+
+    expect(mocks.uploadHlsToR2).toHaveBeenCalledWith(
+      expect.any(Array),
+      'episode-1',
+      'zh-Hant',
+      'classroom',
+      'ja',
+    );
   });
 });

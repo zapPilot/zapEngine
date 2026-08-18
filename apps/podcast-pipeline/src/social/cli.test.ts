@@ -220,6 +220,21 @@ describe('parseCliOptions', () => {
       parseCliOptions([EPISODE_ID, '--platform', 'twitter']),
     ).toThrow('--platform must be one of: x, threads, rednote, youtube.');
   });
+
+  it('parses the break-glass YouTube privacy override', () => {
+    expect(
+      parseCliOptions([EPISODE_ID, '--youtube-privacy', 'unlisted']),
+    ).toEqual({
+      episodeId: EPISODE_ID,
+      dryRun: false,
+      force: false,
+      yes: false,
+      youtubePrivacy: 'unlisted',
+    });
+    expect(() =>
+      parseCliOptions([EPISODE_ID, '--youtube-privacy', 'hidden']),
+    ).toThrow('--youtube-privacy must be one of: private, unlisted, public.');
+  });
 });
 
 describe('runSocialCli media preparation', () => {
@@ -350,6 +365,31 @@ describe('runSocialCli publishing', () => {
         youtubeMetadata: expect.objectContaining({ title: episode.title }),
       }),
     );
+  });
+
+  it('keeps YouTube public unless the operator overrides privacy', async () => {
+    enableInteractiveReview('y');
+    await runSocialCli([EPISODE_ID, '--platform', 'youtube']);
+
+    expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
+      expect.not.objectContaining({ youtubePrivacyStatus: expect.anything() }),
+    );
+  });
+
+  it('forwards and previews a one-off unlisted YouTube upload', async () => {
+    enableInteractiveReview('y');
+    await runSocialCli([
+      EPISODE_ID,
+      '--platform',
+      'youtube',
+      '--youtube-privacy',
+      'unlisted',
+    ]);
+
+    expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
+      expect.objectContaining({ youtubePrivacyStatus: 'unlisted' }),
+    );
+    expect(console.log).toHaveBeenCalledWith('🔒 privacy override: unlisted');
   });
 
   it('publishes Threads without preparing a local file', async () => {

@@ -11,10 +11,15 @@ import type {
   YouTubePublisher,
   YouTubePublishInput,
 } from './types.js';
-import { assertYouTubeSessionReady } from './youtube-auth.js';
+import {
+  assertYouTubeSessionReady,
+  YOUTUBE_ANALYTICS_SCOPE,
+} from './youtube-auth.js';
 
 const RESUMABLE_UPLOAD_URL =
   'https://www.googleapis.com/upload/youtube/v3/videos';
+const ANALYTICS_REPORTS_URL =
+  'https://youtubeanalytics.googleapis.com/v2/reports';
 const REQUEST_TIMEOUT_MS = 30_000;
 
 interface YouTubeVideoResponse {
@@ -32,7 +37,21 @@ export function createYouTubePublisher(input?: {
 
   return {
     publishYouTube: async (publishInput) => {
-      const session = await assertYouTubeSessionReady({ fetchImpl });
+      const session = await assertYouTubeSessionReady({
+        fetchImpl,
+        additionalScopes: [YOUTUBE_ANALYTICS_SCOPE],
+      });
+      try {
+        const channelId = await assertYouTubeChannel({
+          accessToken: session.accessToken,
+          fetchImpl,
+          now,
+        });
+        log(`[youtube] Publishing to channel ${channelId}`);
+      } catch (error) {
+        throw new SocialPublishError('youtube', 'verify_channel', error);
+      }
+
       let uploadUrl: string;
       try {
         uploadUrl = await createUploadSession({
@@ -65,6 +84,51 @@ export function createYouTubePublisher(input?: {
       } satisfies PublishResult;
     },
   };
+}
+
+/**
+ * Proves which channel the session is about to upload to. `youtube.upload`
+ * cannot read the signed-in identity back (`channels.list?mine=true` answers 403
+ * without `youtube.readonly`), but the Analytics report scope the session
+ * already carries only reports on channels the account owns: the expected
+ * channel answers 200 and any other channel answers 403. Deleting a video that
+ * landed on the wrong channel is impossible under the upload-only scope, so the
+ * check has to run before the upload, not after it.
+ */
+export async function assertYouTubeChannel(input: {
+  accessToken: string;
+  env?: NodeJS.ProcessEnv;
+  fetchImpl?: typeof fetch;
+  now?: () => Date;
+}): Promise<string> {
+  const channelId = readExpectedChannelId(input.env ?? process.env);
+  const day = (input.now?.() ?? new Date()).toISOString().slice(0, 10);
+  const url = new URL(ANALYTICS_REPORTS_URL);
+  url.searchParams.set('ids', `channel==${channelId}`);
+  url.searchParams.set('metrics', 'views');
+  url.searchParams.set('startDate', day);
+  url.searchParams.set('endDate', day);
+
+  const response = await (input.fetchImpl ?? fetch)(url, {
+    headers: { authorization: `Bearer ${input.accessToken}` },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `The signed-in Google account cannot report on YouTube channel ${channelId}: ${await describeYouTubeError(response)}. Run \`pnpm social:login\` and authorize the account that owns that channel.`,
+    );
+  }
+  return channelId;
+}
+
+function readExpectedChannelId(env: NodeJS.ProcessEnv): string {
+  const channelId = env['YOUTUBE_CHANNEL_ID']?.trim();
+  if (!channelId) {
+    throw new Error(
+      'YOUTUBE_CHANNEL_ID is not configured. Set the only YouTube channel this publisher may upload to in the repository root .env.',
+    );
+  }
+  return channelId;
 }
 
 async function createUploadSession(input: {

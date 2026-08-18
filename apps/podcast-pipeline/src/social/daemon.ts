@@ -178,7 +178,7 @@ async function discoverAndEnqueue(input: {
         platform,
         readyAt,
         after,
-        config: strategy?.config ?? defaultSocialStrategy(platform),
+        config: strategy?.config ?? defaultSocialStrategy(),
       });
       const inserted = await enqueueSocialPublishJob({
         episodeId: candidate.episode_id,

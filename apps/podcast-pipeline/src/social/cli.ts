@@ -10,7 +10,11 @@ import dotenv from 'dotenv';
 
 import { ZAP_PILOT_SITE_URL } from '../brand/cta.js';
 import { OUTRO_TAIL_MS } from '../services/video/manifest.js';
-import { parsePlatformOption, requireEpisodeArgument } from './cli-args.js';
+import {
+  parsePlatformOption,
+  parseYouTubePrivacyOption,
+  requireEpisodeArgument,
+} from './cli-args.js';
 import { generateSocialCopy, parseGeneratedSocialCopy } from './copy.js';
 import { getSocialEpisode } from './episode.js';
 import {
@@ -36,6 +40,7 @@ import type {
   SocialEpisode,
   SocialPlatform,
   SocialPublishState,
+  YouTubePrivacyStatus,
 } from './types.js';
 import {
   type PreparedVideo,
@@ -53,7 +58,7 @@ const REPO_ROOT = resolve(
   '..',
 );
 const PLATFORM_USAGE = SOCIAL_PLATFORMS.join('|');
-const USAGE = `Usage: pnpm social:publish <episode-uuid-or-share-url> [--dry-run] [--yes] [--platform ${PLATFORM_USAGE}] [--force]`;
+const USAGE = `Usage: pnpm social:publish <episode-uuid-or-share-url> [--dry-run] [--yes] [--platform ${PLATFORM_USAGE}] [--youtube-privacy private|unlisted|public] [--force]`;
 
 dotenv.config({ path: resolve(REPO_ROOT, '.env') });
 
@@ -63,6 +68,7 @@ export interface SocialCliOptions {
   force: boolean;
   yes: boolean;
   platform?: SocialPlatform;
+  youtubePrivacy?: YouTubePrivacyStatus;
 }
 
 interface SocialAssets {
@@ -70,6 +76,13 @@ interface SocialAssets {
   video?: PreparedVideo;
   xVideo?: PreparedVideo;
 }
+
+/**
+ * `social:publish` is break-glass, so an operator smoke-testing a new upload path
+ * can hold one video back from the audience. Every unattended path — the daemon
+ * included — leaves this unset and publishes public.
+ */
+type PrivacyOverride = YouTubePrivacyStatus | undefined;
 
 interface ReviewSelection {
   copy: GeneratedSocialCopy;
@@ -119,7 +132,7 @@ export async function runSocialCli(
   console.log(`[ai] Generated copy using ${generated.model}`);
 
   if (options.dryRun) {
-    printPreview(generated.copy, assets);
+    printPreview(generated.copy, assets, options.youtubePrivacy);
     console.log(
       '\nDry run complete. Browser was not opened and nothing was published.',
     );
@@ -132,6 +145,7 @@ export async function runSocialCli(
         model: generated.model,
         platforms,
         assets,
+        youtubePrivacy: options.youtubePrivacy,
       })
     : await reviewSocialCopy({
         episode,
@@ -141,6 +155,7 @@ export async function runSocialCli(
         requestedPlatforms: platforms,
         video,
         xVideo,
+        youtubePrivacy: options.youtubePrivacy,
       });
   if (!review) return [];
 
@@ -163,6 +178,9 @@ export async function runSocialCli(
     videoUrl,
     youtubeTitle: youtubeMetadata.title,
     youtubeDescription: youtubeMetadata.description,
+    ...(options.youtubePrivacy
+      ? { youtubePrivacyStatus: options.youtubePrivacy }
+      : {}),
     ...(video ? { videoPath: video.path } : {}),
     ...(xVideo ? { xVideoPath: xVideo.path } : {}),
     onLog,
@@ -238,6 +256,7 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
       yes: { type: 'boolean', short: 'y', default: false },
       help: { type: 'boolean', short: 'h', default: false },
       platform: { type: 'string' },
+      'youtube-privacy': { type: 'string' },
     },
   });
 
@@ -249,6 +268,11 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
     yes: values.yes,
     ...(values.platform !== undefined
       ? { platform: parsePlatformOption(values.platform) }
+      : {}),
+    ...(values['youtube-privacy'] !== undefined
+      ? {
+          youtubePrivacy: parseYouTubePrivacyOption(values['youtube-privacy']),
+        }
       : {}),
   };
 }
@@ -293,17 +317,18 @@ async function reviewSocialCopy(input: {
   requestedPlatforms: SocialPlatform[];
   video?: PreparedVideo;
   xVideo?: PreparedVideo;
+  youtubePrivacy: PrivacyOverride;
 }): Promise<ReviewSelection | null> {
   let copy = input.initialCopy;
   let generatedCopy = input.initialCopy;
   let model = input.initialModel;
 
   while (true) {
-    printPreview(copy, {
-      episode: input.episode,
-      video: input.video,
-      xVideo: input.xVideo,
-    });
+    printPreview(
+      copy,
+      { episode: input.episode, video: input.video, xVideo: input.xVideo },
+      input.youtubePrivacy,
+    );
     const review = await askReviewAction(input.requestedPlatforms);
 
     if (review.action === 'quit') return null;
@@ -370,8 +395,9 @@ function autoApproveSocialCopy(input: {
   model: string;
   platforms: SocialPlatform[];
   assets: SocialAssets;
+  youtubePrivacy: PrivacyOverride;
 }): ReviewSelection {
-  printPreview(input.copy, input.assets);
+  printPreview(input.copy, input.assets, input.youtubePrivacy);
   console.log(
     `Auto-approved ${input.platforms.map(platformLabel).join(' + ')} with --yes.`,
   );
@@ -393,7 +419,11 @@ export function findPendingPlatforms(
   );
 }
 
-function printPreview(copy: GeneratedSocialCopy, assets: SocialAssets): void {
+function printPreview(
+  copy: GeneratedSocialCopy,
+  assets: SocialAssets,
+  youtubePrivacy: PrivacyOverride,
+): void {
   const { episode, video, xVideo } = assets;
   const divider = '────────────────────────';
   console.log(`\nTaxonomy: ${copy.topic} / ${copy.hookType}`);
@@ -411,6 +441,7 @@ function printPreview(copy: GeneratedSocialCopy, assets: SocialAssets): void {
   const youtubeMetadata = buildYouTubeMetadata(episode);
   console.log(youtubeMetadata.title);
   console.log(youtubeMetadata.description);
+  if (youtubePrivacy) console.log(`🔒 privacy override: ${youtubePrivacy}`);
   console.log(formatVideoPreview(video, episode.videoDurationSeconds));
   console.log(`${divider}\nREDNOTE\n${divider}`);
   console.log('描述：');

@@ -140,6 +140,18 @@ describe('Supabase user_episode_state grants', () => {
     );
   });
 
+  it('grants language classroom hls_url but not script or r2_prefix to Data API roles', () => {
+    const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
+    const migrations = readSortedMigrations().join('\n');
+
+    for (const sql of [schema, migrations]) {
+      const columns = grantedLanguageClassroomSelectColumns(sql);
+      expect(columns).toContain('hls_url');
+      expect(columns).not.toContain('script');
+      expect(columns).not.toContain('r2_prefix');
+    }
+  });
+
   it('keeps the mobile episode REST select columns in episodes_with_stats', () => {
     const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');
     const migrations = readSortedMigrations().join('\n');
@@ -276,6 +288,20 @@ function grantedEpisodeLocalizationSelectColumns(sql: string): string[] {
   const columns = new Set<string>();
   const pattern =
     /grant\s+select\s*\(([^)]*)\)\s+on\s+from_fed_to_chain\.episode_localizations\s+to\s+anon,\s*authenticated\s*;/gi;
+
+  for (const match of sql.matchAll(pattern)) {
+    for (const column of splitColumns(match[1]!)) {
+      columns.add(column);
+    }
+  }
+
+  return [...columns].sort();
+}
+
+function grantedLanguageClassroomSelectColumns(sql: string): string[] {
+  const columns = new Set<string>();
+  const pattern =
+    /grant\s+select\s*\(([^)]*)\)\s+on\s+from_fed_to_chain\.language_classrooms\s+to\s+anon,\s*authenticated\s*;/gi;
 
   for (const match of sql.matchAll(pattern)) {
     for (const column of splitColumns(match[1]!)) {

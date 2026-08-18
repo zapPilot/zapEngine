@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   episodeMediaTabAvailability,
   episodeVideoPanelState,
+  resolveActiveClassroomLanguage,
   resolveActiveEpisodeMediaTab,
   type EpisodeMediaTab,
 } from '@/integration/episodeMediaTabs';
 import type { PodcastAudioTrack } from '@/integration/podcastFeed';
+import type { PodcastPlaybackSection } from '@/integration/podcastSections';
 import { createPodcastEpisodeFactory } from './support/podcastEpisode';
 
 function audioTrack(
@@ -17,7 +19,16 @@ function audioTrack(
     title: 'Episode',
     hlsUrl: 'https://cdn.example.com/main.m3u8',
     classroomHlsUrl: 'https://cdn.example.com/classroom.m3u8',
+    classrooms: [],
     ...overrides,
+  };
+}
+
+function classroomSection(languageCode: string): PodcastPlaybackSection {
+  return {
+    kind: 'classroom',
+    hlsUrl: `https://cdn.example.com/${languageCode}.m3u8`,
+    languageCode,
   };
 }
 
@@ -168,6 +179,60 @@ describe('episodeVideoPanelState', () => {
         }),
       ),
     ).toBe('unavailable');
+  });
+});
+
+describe('resolveActiveClassroomLanguage', () => {
+  const sections = [classroomSection('ja'), classroomSection('en')];
+
+  it('prefers the player language when it belongs to this episode', () => {
+    expect(
+      resolveActiveClassroomLanguage({
+        classroomSections: sections,
+        playerLanguage: 'en',
+        selectedLanguage: 'ja',
+      }),
+    ).toBe('en');
+  });
+
+  it('falls back to the locally selected language when the player is elsewhere', () => {
+    expect(
+      resolveActiveClassroomLanguage({
+        classroomSections: sections,
+        playerLanguage: null,
+        selectedLanguage: 'en',
+      }),
+    ).toBe('en');
+  });
+
+  it('falls back to the first classroom language with no player or selection', () => {
+    expect(
+      resolveActiveClassroomLanguage({
+        classroomSections: sections,
+        playerLanguage: null,
+        selectedLanguage: null,
+      }),
+    ).toBe('ja');
+  });
+
+  it('ignores a player or selected language that no longer exists on this episode', () => {
+    expect(
+      resolveActiveClassroomLanguage({
+        classroomSections: sections,
+        playerLanguage: 'ko',
+        selectedLanguage: 'ko',
+      }),
+    ).toBe('ja');
+  });
+
+  it('returns null when the episode has no classroom sections', () => {
+    expect(
+      resolveActiveClassroomLanguage({
+        classroomSections: [],
+        playerLanguage: 'ja',
+        selectedLanguage: 'ja',
+      }),
+    ).toBeNull();
   });
 });
 

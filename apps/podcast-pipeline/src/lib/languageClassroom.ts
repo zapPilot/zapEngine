@@ -1,6 +1,8 @@
 import type {
+  EpisodeClassroomTrackResponse,
   LanguageClassroomKeyword,
   LanguageClassroomLesson,
+  LanguageClassroomLessonDraft,
 } from '../types.js';
 import { readNullableString, readString } from './string.js';
 
@@ -40,6 +42,36 @@ export function normalizeLanguageClassroomLesson(
     oneLiner,
     keywords,
   };
+}
+
+/** Like {@link normalizeLanguageClassroomLesson}, but also requires a non-blank `script` (the 100%-target-language TTS narration). */
+export function normalizeLanguageClassroomLessonDraft(
+  raw: unknown,
+  options: NormalizeLessonOptions = {},
+): LanguageClassroomLessonDraft | null {
+  const lesson = normalizeLanguageClassroomLesson(raw, options);
+  if (lesson === null) return null;
+
+  const script = readString((raw as Record<string, unknown>)['script']);
+  if (!script) return null;
+
+  return { ...lesson, script };
+}
+
+export function normalizeClassroomAudioTrack(
+  raw: unknown,
+): EpisodeClassroomTrackResponse | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+
+  const value = raw as Record<string, unknown>;
+  const languageCode = readString(
+    value['targetLanguageCode'] ?? value['target_language_code'],
+  );
+  const hlsUrl = readString(value['hlsUrl'] ?? value['hls_url']);
+
+  if (!languageCode || !hlsUrl) return null;
+
+  return { languageCode, hlsUrl };
 }
 
 export function normalizeLanguageClassroomKeywords(

@@ -52,8 +52,13 @@ export interface SocialQueueSnapshot {
   nextByPlatform: Partial<Record<SocialPlatform, SocialQueueItem>>;
 }
 
+export interface SocialPublishSlot {
+  hour: number;
+  minute: number;
+}
+
 export interface SocialStrategyConfig {
-  publishHoursJst?: number[];
+  publishSlotsJst?: SocialPublishSlot[];
   preferredHookTypes?: string[];
   preferredHashtags?: string[];
   avoidHashtags?: string[];

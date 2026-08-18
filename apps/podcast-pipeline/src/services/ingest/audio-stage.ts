@@ -9,8 +9,8 @@ import {
 import { buildLlmCostLine, type UsageCostLine } from '../cost.js';
 import {
   listLanguageClassroomsByLocalizationId,
-  toLanguageClassroomLesson,
   updateEpisodeLocalizationStatus,
+  updateLanguageClassroomAudio,
   upsertLanguageClassrooms,
 } from '../db.js';
 import { generateLanguageClassroomsWithLLM } from '../llm.js';
@@ -320,13 +320,23 @@ async function synthesizeAndUploadClassroomAudio(
     return null;
   }
 
-  const classroomAudios = await synthesizeClassroomAudios(
-    episodeId,
+  const readyRows = await ensureClassroomScripts(
+    localization,
+    languageCode,
     classroomRows,
+    costBreakdown,
   );
-  costBreakdown.push(...classroomAudios.cost);
+
+  const perTargetAudios = await synthesizeUploadAndCheckpointClassroomAudios(
+    episodeId,
+    localization,
+    languageCode,
+    readyRows,
+    costBreakdown,
+  );
+
   const classroomAudio = await combineClassroomAudio(
-    classroomAudios.audioBuffers,
+    perTargetAudios,
     languageCode,
   );
 
@@ -338,6 +348,113 @@ async function synthesizeAndUploadClassroomAudio(
     generateStepName: 'generateClassroomHls',
     uploadStepName: 'uploadClassroomHlsToR2',
   });
+}
+
+/**
+ * Backfills a blank-script target from the LLM before synthesis. A row with a
+ * blank script only reaches here for episodes still mid-repair: the
+ * presence-based missing-target guard in ensureLanguageClassrooms means a row
+ * from a previously completed episode is never regenerated, so this can only
+ * ever rewrite rows that were never fully published.
+ */
+async function ensureClassroomScripts(
+  localization: EpisodeLocalizationRow,
+  sourceLanguageCode: LanguageClassroomLanguageCode,
+  classroomRows: LanguageClassroomRow[],
+  costBreakdown: UsageCostLine[],
+): Promise<LanguageClassroomRow[]> {
+  const blankScriptTargets = classroomRows
+    .filter((row) => !hasNonEmptyString(row.script))
+    .map((row) => row.target_language_code as LanguageClassroomLanguageCode);
+
+  if (blankScriptTargets.length === 0) {
+    return classroomRows;
+  }
+
+  const regenerated = await generateAndPersistLessons(
+    localization,
+    sourceLanguageCode,
+    blankScriptTargets,
+  );
+  costBreakdown.push(...regenerated.cost);
+
+  const regeneratedTargets = new Set(
+    regenerated.rows.map((row) => row.target_language_code),
+  );
+  const retained = classroomRows.filter(
+    (row) => !regeneratedTargets.has(row.target_language_code),
+  );
+  const merged = existingLanguageClassroomResult(
+    [...retained, ...regenerated.rows],
+    sourceLanguageCode,
+    [],
+  ).rows;
+
+  const stillBlank = merged.filter((row) => !hasNonEmptyString(row.script));
+  if (stillBlank.length > 0) {
+    throw new Error(
+      `Language classroom script generation incomplete for ${sourceLanguageCode}; missing scripts: ${stillBlank
+        .map((row) => row.target_language_code)
+        .join(', ')}`,
+    );
+  }
+
+  return merged;
+}
+
+/**
+ * Only reached for languages whose classroom audio is required. Each target's
+ * HLS is checkpointed on its own language_classrooms row immediately after
+ * upload (persist-before-advance), so a later target's failure still leaves
+ * the earlier targets' audio durably recorded. A lesson that yields no audio
+ * fails the ingest rather than shrinking the section.
+ */
+async function synthesizeUploadAndCheckpointClassroomAudios(
+  episodeId: string,
+  localization: EpisodeLocalizationRow,
+  languageCode: LanguageClassroomLanguageCode,
+  classroomRows: LanguageClassroomRow[],
+  costBreakdown: UsageCostLine[],
+): Promise<Buffer[]> {
+  const audioBuffers: Buffer[] = [];
+
+  for (const row of classroomRows) {
+    const targetLanguageCode =
+      row.target_language_code as LanguageClassroomLanguageCode;
+
+    const result = await synthesizeClassroomAudio(row, { episodeId });
+    costBreakdown.push(...result.cost);
+    if (!result.audio) {
+      throw new Error(
+        `Language classroom audio synthesis failed for ${targetLanguageCode}`,
+      );
+    }
+    audioBuffers.push(result.audio);
+
+    const uploaded = await packageAndUploadHls({
+      audio: result.audio,
+      episodeId,
+      languageCode,
+      section: 'classroom',
+      classroomTargetLanguageCode: targetLanguageCode,
+      generateStepName: `generateClassroomHls:${targetLanguageCode}`,
+      uploadStepName: `uploadClassroomHlsToR2:${targetLanguageCode}`,
+    });
+    if (!uploaded) {
+      throw new Error(
+        `Language classroom HLS was not produced for ${targetLanguageCode}`,
+      );
+    }
+
+    await step(`updateLanguageClassroomAudio:${targetLanguageCode}`, () =>
+      updateLanguageClassroomAudio(localization.id, targetLanguageCode, {
+        hlsUrl: uploaded.hlsUrl,
+        r2Prefix: uploaded.r2Prefix,
+      }),
+    );
+  }
+
+  return audioBuffers;
 }
 
 async function synthesizeMainAudio(
@@ -369,34 +486,6 @@ async function packageMainHls(
     generateStepName: 'generateMainHls',
     uploadStepName: 'uploadMainHlsToR2',
   });
-}
-
-/**
- * Only reached for languages whose classroom audio is required, so a lesson
- * that yields no audio fails the ingest rather than shrinking the section.
- */
-async function synthesizeClassroomAudios(
-  episodeId: string,
-  classrooms: LanguageClassroomRow[],
-): Promise<{ audioBuffers: Buffer[]; cost: UsageCostLine[] }> {
-  const audioBuffers: Buffer[] = [];
-  const cost: UsageCostLine[] = [];
-
-  for (const classroom of classrooms) {
-    const result = await synthesizeClassroomAudio(
-      toLanguageClassroomLesson(classroom),
-      { episodeId },
-    );
-    cost.push(...result.cost);
-    if (!result.audio) {
-      throw new Error(
-        `Language classroom audio synthesis failed for ${classroom.target_language_code}`,
-      );
-    }
-    audioBuffers.push(result.audio);
-  }
-
-  return { audioBuffers, cost };
 }
 
 /**
@@ -446,48 +535,22 @@ async function ensureLanguageClassrooms(
       );
     }
 
-    const generated = await step('generateLanguageClassrooms', () =>
-      generateLanguageClassroomsWithLLM({
-        title: localization.title,
-        articleText: localization.raw_text ?? '',
-        script: localization.script ?? '',
-        sourceLanguageCode,
-        targetLanguageCodes: missingTargets,
-      }),
+    const generated = await generateAndPersistLessons(
+      localization,
+      sourceLanguageCode,
+      missingTargets,
     );
-    cost.push(
-      buildLlmCostLine('LLM classrooms', {
-        provider: generated.provider,
-        model: generated.model,
-        costUsd: generated.costUsd,
-      }),
-    );
-
-    const persisted = await step('upsertLanguageClassrooms', () =>
-      upsertLanguageClassrooms(
-        generated.lessons.map((lesson) => ({
-          id: randomUUID(),
-          episodeLocalizationId: localization.id,
-          sourceLanguageCode: lesson.sourceLanguageCode,
-          targetLanguageCode: lesson.targetLanguageCode,
-          oneLiner: lesson.oneLiner,
-          keywords: lesson.keywords,
-          llmModel: generated.model,
-          llmThinkingModel: generated.thinkingModel,
-          llmProvider: generated.provider,
-        })),
-      ),
-    );
+    cost.push(...generated.cost);
 
     const persistedTargets = new Set(
-      persisted.map((row) => row.target_language_code),
+      generated.rows.map((row) => row.target_language_code),
     );
     const retainedExisting = existing.filter(
       (row) => !persistedTargets.has(row.target_language_code),
     );
 
     return existingLanguageClassroomResult(
-      [...retainedExisting, ...persisted],
+      [...retainedExisting, ...generated.rows],
       sourceLanguageCode,
       cost,
     );
@@ -502,6 +565,56 @@ async function ensureLanguageClassrooms(
     }
     return existingLanguageClassroomResult(existing, sourceLanguageCode, cost);
   }
+}
+
+/**
+ * Generates lessons (content + the per-target narration script) via the LLM
+ * and persists them. Shared by the missing-target path in
+ * ensureLanguageClassrooms and the blank-script backfill in
+ * ensureClassroomScripts so both stay in lockstep with the lesson shape.
+ */
+async function generateAndPersistLessons(
+  localization: EpisodeLocalizationRow,
+  sourceLanguageCode: LanguageClassroomLanguageCode,
+  targetLanguageCodes: LanguageClassroomLanguageCode[],
+): Promise<{ rows: LanguageClassroomRow[]; cost: UsageCostLine[] }> {
+  const cost: UsageCostLine[] = [];
+
+  const generated = await step('generateLanguageClassrooms', () =>
+    generateLanguageClassroomsWithLLM({
+      title: localization.title,
+      articleText: localization.raw_text ?? '',
+      script: localization.script ?? '',
+      sourceLanguageCode,
+      targetLanguageCodes,
+    }),
+  );
+  cost.push(
+    buildLlmCostLine('LLM classrooms', {
+      provider: generated.provider,
+      model: generated.model,
+      costUsd: generated.costUsd,
+    }),
+  );
+
+  const persisted = await step('upsertLanguageClassrooms', () =>
+    upsertLanguageClassrooms(
+      generated.lessons.map((lesson) => ({
+        id: randomUUID(),
+        episodeLocalizationId: localization.id,
+        sourceLanguageCode: lesson.sourceLanguageCode,
+        targetLanguageCode: lesson.targetLanguageCode,
+        oneLiner: lesson.oneLiner,
+        keywords: lesson.keywords,
+        llmModel: generated.model,
+        llmThinkingModel: generated.thinkingModel,
+        llmProvider: generated.provider,
+        script: lesson.script,
+      })),
+    ),
+  );
+
+  return { rows: persisted, cost };
 }
 
 function assertLanguageClassroomsReady(

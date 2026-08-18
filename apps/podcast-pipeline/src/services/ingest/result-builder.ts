@@ -10,7 +10,10 @@ import {
   type UsageCostDetails,
   type UsageCostLine,
 } from '../cost.js';
-import { toEpisodeResponseFromLocalization } from '../db.js';
+import {
+  toClassroomAudioTracks,
+  toEpisodeResponseFromLocalization,
+} from '../db.js';
 import { getClassroomTargetLanguageCodes } from './classroom-config.js';
 
 export interface IngestResult {
@@ -68,6 +71,9 @@ export function buildIngestResult(
       episode,
       localization,
       classrooms,
+      null,
+      null,
+      toClassroomAudioTracks(classrooms),
     ),
     statusCode,
     costUsd: costDetails.totalUsd,

@@ -58,6 +58,8 @@ vi.mock('@/providers/ContentLanguageProvider', () => ({
       if (key === 'common.pause') return 'Pause';
       if (key === 'common.play') return 'Play';
       if (key === 'podcast.classroom') return 'Classroom';
+      if (key === 'language.japanese') return 'Japanese';
+      if (key === 'language.english') return 'English';
       return key;
     },
   }),
@@ -74,6 +76,7 @@ function createPlayer(): PodcastPlayer {
     speed: 1,
     sections: [],
     currentSection: 'main',
+    currentSectionLanguage: null,
     queue: [episode],
     queueIndex: 0,
     hasPreviousEpisode: false,
@@ -143,5 +146,36 @@ describe('NowPlayingBar', () => {
     expect(player.toggle).toHaveBeenCalledWith(episode);
     expect(player.seek).toHaveBeenCalledWith(42);
     expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('shows the classroom language on the pill when a language is active', async () => {
+    const player = {
+      ...createPlayer(),
+      currentSection: 'classroom' as const,
+      currentSectionLanguage: 'ja',
+    };
+    const onOpen = vi.fn();
+
+    await act(async () =>
+      root.render(<NowPlayingBar {...{ player, onOpen }} />),
+    );
+
+    expect(container.textContent).toContain('Classroom · Japanese');
+  });
+
+  it('shows a plain classroom pill for the legacy combined track (no language)', async () => {
+    const player = {
+      ...createPlayer(),
+      currentSection: 'classroom' as const,
+      currentSectionLanguage: null,
+    };
+    const onOpen = vi.fn();
+
+    await act(async () =>
+      root.render(<NowPlayingBar {...{ player, onOpen }} />),
+    );
+
+    expect(container.textContent).toContain('Classroom');
+    expect(container.textContent).not.toContain('Classroom ·');
   });
 });

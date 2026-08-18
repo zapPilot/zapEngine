@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { PodcastAudioTrack } from '@/integration/podcastFeed';
 import {
   buildPlaybackSections,
-  classroomHlsUrlFor,
   DEFAULT_PODCAST_SPEED_PREFERENCES,
+  findPlaybackSection,
   nextPlaybackSection,
   parseStoredSpeedPreferences,
   speedForSection,
@@ -18,6 +18,7 @@ function track(overrides: Partial<PodcastAudioTrack> = {}): PodcastAudioTrack {
     title: 'Episode',
     hlsUrl: 'https://cdn.example.com/main/playlist.m3u8',
     classroomHlsUrl: 'https://cdn.example.com/classroom/playlist.m3u8',
+    classrooms: [],
     ...overrides,
   };
 }
@@ -54,6 +55,7 @@ describe('buildPlaybackSections', () => {
     expect(sections[0]).toEqual({
       kind: 'main',
       hlsUrl: 'https://cdn.example.com/main/playlist.m3u8',
+      languageCode: null,
     });
   });
 
@@ -82,21 +84,92 @@ describe('buildPlaybackSections', () => {
   });
 
   it('falls back to the track matching languageCode when no hlsUrl matches', () => {
-    expect(
-      classroomHlsUrlFor(
-        episode({
-          hlsUrl: 'https://cdn.example.com/unknown.m3u8',
-          languageCode: 'ja',
-          audioTracks: [
-            track({
-              languageCode: 'ja',
-              hlsUrl: 'https://cdn.example.com/ja/main.m3u8',
-              classroomHlsUrl: 'https://cdn.example.com/ja/classroom.m3u8',
-            }),
-          ],
-        }),
-      ),
-    ).toBe('https://cdn.example.com/ja/classroom.m3u8');
+    const sections = buildPlaybackSections(
+      episode({
+        hlsUrl: 'https://cdn.example.com/unknown.m3u8',
+        languageCode: 'ja',
+        audioTracks: [
+          track({
+            languageCode: 'ja',
+            hlsUrl: 'https://cdn.example.com/ja/main.m3u8',
+            classroomHlsUrl: 'https://cdn.example.com/ja/classroom.m3u8',
+          }),
+        ],
+      }),
+    );
+    expect(sections[1]?.hlsUrl).toBe(
+      'https://cdn.example.com/ja/classroom.m3u8',
+    );
+  });
+
+  it('prefers per-language classroom tracks over the legacy combined URL', () => {
+    const sections = buildPlaybackSections(
+      episode({
+        audioTracks: [
+          track({
+            classroomHlsUrl: 'https://cdn.example.com/legacy/classroom.m3u8',
+            classrooms: [
+              { languageCode: 'ja', hlsUrl: 'https://cdn.example.com/ja.m3u8' },
+              { languageCode: 'en', hlsUrl: 'https://cdn.example.com/en.m3u8' },
+            ],
+          }),
+        ],
+      }),
+    );
+    expect(sections).toEqual([
+      {
+        kind: 'main',
+        hlsUrl: 'https://cdn.example.com/main/playlist.m3u8',
+        languageCode: null,
+      },
+      {
+        kind: 'classroom',
+        hlsUrl: 'https://cdn.example.com/ja.m3u8',
+        languageCode: 'ja',
+      },
+      {
+        kind: 'classroom',
+        hlsUrl: 'https://cdn.example.com/en.m3u8',
+        languageCode: 'en',
+      },
+    ]);
+  });
+
+  it('deduplicates classroom tracks that repeat a language', () => {
+    const sections = buildPlaybackSections(
+      episode({
+        audioTracks: [
+          track({
+            classrooms: [
+              {
+                languageCode: 'ja',
+                hlsUrl: 'https://cdn.example.com/ja-first.m3u8',
+              },
+              {
+                languageCode: 'ja',
+                hlsUrl: 'https://cdn.example.com/ja-second.m3u8',
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    expect(sections.filter((section) => section.kind === 'classroom')).toEqual([
+      {
+        kind: 'classroom',
+        hlsUrl: 'https://cdn.example.com/ja-first.m3u8',
+        languageCode: 'ja',
+      },
+    ]);
+  });
+
+  it('gives the legacy combined classroom section a null language', () => {
+    const sections = buildPlaybackSections(episode({}));
+    expect(sections[1]).toEqual({
+      kind: 'classroom',
+      hlsUrl: 'https://cdn.example.com/classroom/playlist.m3u8',
+      languageCode: null,
+    });
   });
 });
 
@@ -114,6 +187,86 @@ describe('nextPlaybackSection', () => {
 
   it('returns null after main when there is no classroom section', () => {
     expect(nextPlaybackSection(mainOnly, 'main')).toBeNull();
+  });
+
+  it('walks the full main -> ja -> en -> end chain by (kind, languageCode) pair', () => {
+    const sections = buildPlaybackSections(
+      episode({
+        audioTracks: [
+          track({
+            classrooms: [
+              { languageCode: 'ja', hlsUrl: 'https://cdn.example.com/ja.m3u8' },
+              { languageCode: 'en', hlsUrl: 'https://cdn.example.com/en.m3u8' },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    const toJa = nextPlaybackSection(sections, 'main', null);
+    expect(toJa).toEqual({
+      kind: 'classroom',
+      hlsUrl: 'https://cdn.example.com/ja.m3u8',
+      languageCode: 'ja',
+    });
+
+    const toEn = nextPlaybackSection(sections, 'classroom', 'ja');
+    expect(toEn).toEqual({
+      kind: 'classroom',
+      hlsUrl: 'https://cdn.example.com/en.m3u8',
+      languageCode: 'en',
+    });
+
+    expect(nextPlaybackSection(sections, 'classroom', 'en')).toBeNull();
+  });
+
+  it('advances past the legacy combined classroom section (null language pair)', () => {
+    expect(nextPlaybackSection(twoSections, 'main', null)?.languageCode).toBe(
+      null,
+    );
+    expect(nextPlaybackSection(twoSections, 'classroom', null)).toBeNull();
+  });
+});
+
+describe('findPlaybackSection', () => {
+  const sections = buildPlaybackSections(
+    episode({
+      audioTracks: [
+        track({
+          classrooms: [
+            { languageCode: 'ja', hlsUrl: 'https://cdn.example.com/ja.m3u8' },
+            { languageCode: 'en', hlsUrl: 'https://cdn.example.com/en.m3u8' },
+          ],
+        }),
+      ],
+    }),
+  );
+
+  it('finds an exact (kind, languageCode) match', () => {
+    expect(findPlaybackSection(sections, 'classroom', 'en')).toEqual({
+      kind: 'classroom',
+      hlsUrl: 'https://cdn.example.com/en.m3u8',
+      languageCode: 'en',
+    });
+  });
+
+  it('falls back to the first section of that kind when the language is omitted', () => {
+    expect(findPlaybackSection(sections, 'classroom')?.languageCode).toBe('ja');
+  });
+
+  it('falls back to the first section of that kind when the language does not match any section', () => {
+    expect(findPlaybackSection(sections, 'classroom', 'ko')?.languageCode).toBe(
+      'ja',
+    );
+  });
+
+  it('returns null when no section of that kind exists', () => {
+    expect(
+      findPlaybackSection(
+        buildPlaybackSections(episode({ audioTracks: [] })),
+        'classroom',
+      ),
+    ).toBeNull();
   });
 });
 

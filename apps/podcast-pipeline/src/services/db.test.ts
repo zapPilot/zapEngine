@@ -26,12 +26,14 @@ import {
   listEpisodes,
   listEpisodesPaged,
   listEpisodeVideoSummariesByLocalizationIds,
+  listLanguageClassroomAudioByLocalizationIds,
   listLanguageClassroomsByLocalizationId,
   listLanguageClassroomsByLocalizationIds,
   listPublishedEpisodeCatalog,
   listRecentSocialPosts,
   listSocialPostMetrics,
   listSocialPostsByEpisode,
+  toClassroomAudioTracks,
   toEpisodeResponse,
   toEpisodeResponseFromLocalization,
   toLanguageClassroomLesson,
@@ -39,6 +41,7 @@ import {
   toSocialPostMetricInsertPayload,
   updateEpisodeLocalizationArticleContent,
   updateEpisodeLocalizationStatus,
+  updateLanguageClassroomAudio,
   updateSocialPostIdentity,
   upsertLanguageClassrooms,
 } from './db.js';
@@ -143,6 +146,7 @@ describe('toEpisodeResponse', () => {
           hlsUrl: row.hls_url,
           classroomHlsUrl:
             'https://cdn.example.com/episodes/e/localizations/zh-Hant/classroom/playlist.m3u8',
+          classrooms: [],
         },
       ],
       createdAt: row.created_at,
@@ -190,6 +194,7 @@ describe('toEpisodeResponse', () => {
           title: localization.title,
           hlsUrl: localization.hls_url,
           classroomHlsUrl: localization.classroom_hls_url,
+          classrooms: [],
         },
       ],
       createdAt: episode.created_at,
@@ -326,6 +331,9 @@ describe('toEpisodeResponse', () => {
         llm_model: 'model',
         llm_thinking_model: null,
         llm_provider: 'provider',
+        script: null,
+        hls_url: null,
+        r2_prefix: null,
         created_at: '2024-01-01T00:00:00.000Z',
         updated_at: '2024-01-01T00:00:00.000Z',
       }),
@@ -1691,7 +1699,7 @@ describe('language classrooms', () => {
     ).rejects.toThrow('grouped classroom lookup failed');
   });
 
-  it('upserts classrooms keyed by localization and target language', async () => {
+  it('upserts classrooms keyed by localization and target language, including the script but not audio fields', async () => {
     await upsertLanguageClassrooms([
       {
         id: 'ignored',
@@ -1703,16 +1711,24 @@ describe('language classrooms', () => {
         llmModel: 'model',
         llmThinkingModel: null,
         llmProvider: 'provider',
+        script: '流動性とは、資産を素早く現金化できる度合いのことです。',
       },
     ]);
 
     expect(state.query!.upsert).toHaveBeenCalledWith(
       [
-        expect.objectContaining({
+        {
           episode_localization_id: 'loc-1',
           source_language_code: 'zh-Hant',
           target_language_code: 'ja',
-        }),
+          one_liner: 'この記事は流動性を説明します。',
+          keywords: [],
+          llm_model: 'model',
+          llm_thinking_model: null,
+          llm_provider: 'provider',
+          script: '流動性とは、資産を素早く現金化できる度合いのことです。',
+          updated_at: expect.any(String),
+        },
       ],
       { onConflict: 'episode_localization_id,target_language_code' },
     );
@@ -1733,6 +1749,7 @@ describe('language classrooms', () => {
           llmModel: 'model',
           llmThinkingModel: null,
           llmProvider: 'provider',
+          script: '流動性とは、資産を素早く現金化できる度合いのことです。',
         },
       ]),
     ).resolves.toEqual([]);
@@ -1756,9 +1773,162 @@ describe('language classrooms', () => {
           llmModel: 'model',
           llmThinkingModel: null,
           llmProvider: 'provider',
+          script: '流動性とは、資産を素早く現金化できる度合いのことです。',
         },
       ]),
     ).rejects.toThrow('classroom upsert failed');
+  });
+
+  it('checkpoints one target language audio without touching lesson content', async () => {
+    const row = classroomRow({
+      ...DB_CLASSROOM_ROW_DEFAULTS,
+      target_language_code: 'ja',
+      hls_url: 'https://cdn.example.com/classroom/ja/playlist.m3u8',
+      r2_prefix: 'episodes/e/localizations/zh-Hant/classroom/ja',
+    });
+    state.query!.maybeSingle.mockResolvedValue({ data: row, error: null });
+
+    const result = await updateLanguageClassroomAudio('loc-1', 'ja', {
+      hlsUrl: 'https://cdn.example.com/classroom/ja/playlist.m3u8',
+      r2Prefix: 'episodes/e/localizations/zh-Hant/classroom/ja',
+    });
+
+    expect(mockFrom).toHaveBeenCalledWith('language_classrooms');
+    expect(state.query!.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hls_url: 'https://cdn.example.com/classroom/ja/playlist.m3u8',
+        r2_prefix: 'episodes/e/localizations/zh-Hant/classroom/ja',
+      }),
+    );
+    expect(state.query!.eq).toHaveBeenCalledWith(
+      'episode_localization_id',
+      'loc-1',
+    );
+    expect(state.query!.eq).toHaveBeenCalledWith('target_language_code', 'ja');
+    expect(result).toEqual(row);
+  });
+
+  it('throws when no row matches the (localization, target language) pair', async () => {
+    state.query!.maybeSingle.mockResolvedValue({ data: null, error: null });
+
+    await expect(
+      updateLanguageClassroomAudio('loc-1', 'ja', {
+        hlsUrl: 'https://cdn.example.com/classroom/ja/playlist.m3u8',
+        r2Prefix: 'episodes/e/localizations/zh-Hant/classroom/ja',
+      }),
+    ).rejects.toThrow('Failed to persist language classroom audio for ja');
+  });
+
+  it('throws Supabase errors when checkpointing classroom audio fails', async () => {
+    state.query!.maybeSingle.mockResolvedValue({
+      data: null,
+      error: new Error('checkpoint classroom audio failed'),
+    });
+
+    await expect(
+      updateLanguageClassroomAudio('loc-1', 'ja', {
+        hlsUrl: 'https://cdn.example.com/classroom/ja/playlist.m3u8',
+        r2Prefix: 'episodes/e/localizations/zh-Hant/classroom/ja',
+      }),
+    ).rejects.toThrow('checkpoint classroom audio failed');
+  });
+
+  it('does not query classroom audio when no localization ids are provided', async () => {
+    const result = await listLanguageClassroomAudioByLocalizationIds([]);
+
+    expect(result).toEqual(new Map());
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('lists classroom audio grouped by localization id, dropping blank hls urls', async () => {
+    state.query!.returns.mockResolvedValue({
+      data: [
+        {
+          episode_localization_id: 'loc-1',
+          target_language_code: 'ja',
+          hls_url: 'https://cdn.example.com/classroom/ja/playlist.m3u8',
+        },
+        {
+          episode_localization_id: 'loc-1',
+          target_language_code: 'en',
+          hls_url: '   ',
+        },
+        {
+          episode_localization_id: 'loc-2',
+          target_language_code: 'en',
+          hls_url: 'https://cdn.example.com/classroom/en/playlist.m3u8',
+        },
+      ],
+      error: null,
+    });
+
+    const result = await listLanguageClassroomAudioByLocalizationIds([
+      'loc-1',
+      'loc-2',
+    ]);
+
+    expect(mockFrom).toHaveBeenCalledWith('language_classrooms');
+    expect(result.get('loc-1')).toEqual([
+      {
+        languageCode: 'ja',
+        hlsUrl: 'https://cdn.example.com/classroom/ja/playlist.m3u8',
+      },
+    ]);
+    expect(result.get('loc-2')).toEqual([
+      {
+        languageCode: 'en',
+        hlsUrl: 'https://cdn.example.com/classroom/en/playlist.m3u8',
+      },
+    ]);
+  });
+
+  it('returns an empty classroom audio map when a previously published episode has no row hls urls yet', async () => {
+    state.query!.returns.mockResolvedValue({ data: null, error: null });
+
+    await expect(
+      listLanguageClassroomAudioByLocalizationIds(['loc-1']),
+    ).resolves.toEqual(new Map());
+  });
+
+  it('throws Supabase errors when the classroom audio lookup fails', async () => {
+    state.query!.returns.mockResolvedValue({
+      data: null,
+      error: new Error('classroom audio lookup failed'),
+    });
+
+    await expect(
+      listLanguageClassroomAudioByLocalizationIds(['loc-1']),
+    ).rejects.toThrow('classroom audio lookup failed');
+  });
+});
+
+describe('toClassroomAudioTracks', () => {
+  it('derives audio tracks from rows already fetched, dropping rows without an hls url', () => {
+    const rows = [
+      classroomRow({
+        ...DB_CLASSROOM_ROW_DEFAULTS,
+        target_language_code: 'ja',
+        hls_url: 'https://cdn.example.com/classroom/ja/playlist.m3u8',
+      }),
+      classroomRow({
+        ...DB_CLASSROOM_ROW_DEFAULTS,
+        target_language_code: 'en',
+        hls_url: null,
+      }),
+    ];
+
+    expect(toClassroomAudioTracks(rows)).toEqual([
+      {
+        languageCode: 'ja',
+        hlsUrl: 'https://cdn.example.com/classroom/ja/playlist.m3u8',
+      },
+    ]);
+  });
+
+  it('returns an empty list for a legacy row with no per-language audio yet', () => {
+    expect(
+      toClassroomAudioTracks([classroomRow(DB_CLASSROOM_ROW_DEFAULTS)]),
+    ).toEqual([]);
   });
 });
 

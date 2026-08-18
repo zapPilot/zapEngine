@@ -41,10 +41,13 @@ export interface PodcastMediaMetadata {
 export function buildPodcastMediaMetadata(
   episode: PodcastEpisode,
   section: PodcastSectionKind,
+  languageCode: string | null = null,
 ): PodcastMediaMetadata {
   const title =
     section === 'classroom'
-      ? `${episode.title} — Language Classroom`
+      ? languageCode === null
+        ? `${episode.title} — Language Classroom`
+        : `${episode.title} — Language Classroom (${languageCode.toUpperCase()})`
       : episode.title;
   const artworkUrl = episode.video?.thumbnailUrl;
 

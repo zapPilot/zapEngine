@@ -23,6 +23,7 @@ const {
   mockTranslateCanonicalScript,
   mockUpdateEpisodeLocalizationArticleContent,
   mockUpdateEpisodeLocalizationStatus,
+  mockUpdateLanguageClassroomAudio,
   mockUpsertLanguageClassrooms,
   mockUploadHlsToR2,
   mockConvertArticleToZhTW,
@@ -42,6 +43,7 @@ const {
   mockTranslateCanonicalScript: vi.fn(),
   mockUpdateEpisodeLocalizationArticleContent: vi.fn(),
   mockUpdateEpisodeLocalizationStatus: vi.fn(),
+  mockUpdateLanguageClassroomAudio: vi.fn(),
   mockUpsertLanguageClassrooms: vi.fn(),
   mockUploadHlsToR2: vi.fn(),
   mockConvertArticleToZhTW: vi.fn(),
@@ -65,10 +67,18 @@ vi.mock('./db.js', () => ({
     localization: EpisodeLocalizationRow,
     languageClassrooms: LanguageClassroomRow[],
   ) => localizationResponse(episode, localization, languageClassrooms),
+  toClassroomAudioTracks: (rows: LanguageClassroomRow[]) =>
+    rows
+      .filter((row) => Boolean(row.hls_url?.trim()))
+      .map((row) => ({
+        languageCode: row.target_language_code,
+        hlsUrl: row.hls_url!,
+      })),
   upsertLanguageClassrooms: mockUpsertLanguageClassrooms,
   updateEpisodeLocalizationArticleContent:
     mockUpdateEpisodeLocalizationArticleContent,
   updateEpisodeLocalizationStatus: mockUpdateEpisodeLocalizationStatus,
+  updateLanguageClassroomAudio: mockUpdateLanguageClassroomAudio,
 }));
 
 vi.mock('./llm.js', () => ({
@@ -269,12 +279,14 @@ describe('performIngest failure paths', () => {
           targetLanguageCode: 'ja',
           oneLiner: 'Japanese lesson',
           keywords: [],
+          script: 'Japanese lesson script',
         },
         {
           sourceLanguageCode: 'zh-Hant',
           targetLanguageCode: 'en',
           oneLiner: 'English lesson',
           keywords: [],
+          script: 'English lesson script',
         },
       ],
       model: 'test-model',
@@ -290,6 +302,20 @@ describe('performIngest failure paths', () => {
       audio: Buffer.from('classroom-audio'),
       cost: [],
     });
+    mockUpdateLanguageClassroomAudio.mockImplementation(
+      (
+        _episodeLocalizationId: string,
+        targetLanguageCode: string,
+        updates: { hlsUrl: string; r2Prefix: string },
+      ) =>
+        Promise.resolve(
+          classroomRow({
+            target_language_code: targetLanguageCode,
+            hls_url: updates.hlsUrl,
+            r2_prefix: updates.r2Prefix,
+          }),
+        ),
+    );
     mockConcatMp3Buffers.mockResolvedValue(Buffer.from('combined-audio'));
   });
 
@@ -344,6 +370,7 @@ describe('performIngest failure paths', () => {
       episodeRow().id,
       'zh-Hant',
       'main',
+      undefined,
     );
     expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
       localizationRow().id,
@@ -539,11 +566,11 @@ describe('performIngest failure paths', () => {
     );
     expect(mockSynthesizeClassroomAudio).toHaveBeenCalledTimes(2);
     expect(mockSynthesizeClassroomAudio).toHaveBeenCalledWith(
-      expect.objectContaining({ targetLanguageCode: 'ja' }),
+      expect.objectContaining({ target_language_code: 'ja' }),
       { episodeId: episodeRow().id },
     );
     expect(mockSynthesizeClassroomAudio).toHaveBeenCalledWith(
-      expect.objectContaining({ targetLanguageCode: 'en' }),
+      expect.objectContaining({ target_language_code: 'en' }),
       { episodeId: episodeRow().id },
     );
     expect(mockConcatMp3Buffers).toHaveBeenCalledTimes(1);
@@ -551,22 +578,31 @@ describe('performIngest failure paths', () => {
       Buffer.from('ja-classroom'),
       Buffer.from('en-classroom'),
     ]);
-    expect(mockGenerateHls).toHaveBeenCalledTimes(2);
+    expect(mockGenerateHls).toHaveBeenCalledTimes(4);
     expect(mockGenerateHls).toHaveBeenNthCalledWith(1, Buffer.from('audio'));
     expect(mockGenerateHls).toHaveBeenNthCalledWith(
       2,
+      Buffer.from('ja-classroom'),
+    );
+    expect(mockGenerateHls).toHaveBeenNthCalledWith(
+      3,
+      Buffer.from('en-classroom'),
+    );
+    expect(mockGenerateHls).toHaveBeenNthCalledWith(
+      4,
       Buffer.from('classroom-audio'),
     );
     expect(mockGenerateHls).not.toHaveBeenCalledWith(
       Buffer.from('audioclassroom-audio'),
     );
-    expect(mockUploadHlsToR2).toHaveBeenCalledTimes(2);
+    expect(mockUploadHlsToR2).toHaveBeenCalledTimes(4);
     expect(mockUploadHlsToR2).toHaveBeenNthCalledWith(
       1,
       expect.any(Array),
       episodeRow().id,
       'zh-Hant',
       'main',
+      undefined,
     );
     expect(mockUploadHlsToR2).toHaveBeenNthCalledWith(
       2,
@@ -574,6 +610,23 @@ describe('performIngest failure paths', () => {
       episodeRow().id,
       'zh-Hant',
       'classroom',
+      'ja',
+    );
+    expect(mockUploadHlsToR2).toHaveBeenNthCalledWith(
+      3,
+      expect.any(Array),
+      episodeRow().id,
+      'zh-Hant',
+      'classroom',
+      'en',
+    );
+    expect(mockUploadHlsToR2).toHaveBeenNthCalledWith(
+      4,
+      expect.any(Array),
+      episodeRow().id,
+      'zh-Hant',
+      'classroom',
+      undefined,
     );
     expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
       localizationRow().id,
@@ -677,14 +730,23 @@ describe('performIngest failure paths', () => {
     ).rejects.toThrow('Language classroom audio synthesis failed for en');
 
     expect(mockConcatMp3Buffers).not.toHaveBeenCalled();
-    expect(mockGenerateHls).toHaveBeenCalledTimes(1);
+    expect(mockGenerateHls).toHaveBeenCalledTimes(2);
     expect(mockGenerateHls).toHaveBeenCalledWith(Buffer.from('audio'));
-    expect(mockUploadHlsToR2).toHaveBeenCalledTimes(1);
+    expect(mockGenerateHls).toHaveBeenCalledWith(Buffer.from('ja-classroom'));
+    expect(mockUploadHlsToR2).toHaveBeenCalledTimes(2);
     expect(mockUploadHlsToR2).toHaveBeenCalledWith(
       expect.any(Array),
       episodeRow().id,
       'zh-Hant',
       'main',
+      undefined,
+    );
+    expect(mockUploadHlsToR2).toHaveBeenCalledWith(
+      expect.any(Array),
+      episodeRow().id,
+      'zh-Hant',
+      'classroom',
+      'ja',
     );
     expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
       localizationRow().id,
@@ -942,6 +1004,7 @@ describe('performIngest failure paths', () => {
           targetLanguageCode: 'en',
           oneLiner: 'English lesson',
           keywords: [],
+          script: 'English lesson script',
         },
       ],
       model: 'test-model',
@@ -960,6 +1023,7 @@ describe('performIngest failure paths', () => {
           llmModel: string;
           llmThinkingModel: string | null;
           llmProvider: string;
+          script: string;
         }[],
       ) => {
         return Promise.resolve(
@@ -973,6 +1037,9 @@ describe('performIngest failure paths', () => {
             llm_model: r.llmModel,
             llm_thinking_model: r.llmThinkingModel,
             llm_provider: r.llmProvider,
+            script: r.script,
+            hls_url: null,
+            r2_prefix: null,
             created_at: '2024-01-01T00:00:00.000Z',
             updated_at: '2024-01-01T00:00:00.000Z',
           })),
@@ -1525,6 +1592,8 @@ describe('performIngest failure paths', () => {
     ).toEqual([
       ['zh-Hant', 'main'],
       ['zh-Hant', 'classroom'],
+      ['zh-Hant', 'classroom'],
+      ['zh-Hant', 'classroom'],
       ['ja', 'main'],
       ['en', 'main'],
     ]);
@@ -1793,6 +1862,7 @@ describe('performIngest failure paths', () => {
       episodeRow().id,
       'zh-Hant',
       'main',
+      undefined,
     );
   });
 
@@ -1888,14 +1958,30 @@ describe('performIngest failure paths', () => {
         performIngest('https://example.com/article', 'zh-Hant'),
       ).rejects.toThrow('[step:concatEpisodeClassroomAudio] ffmpeg failed');
 
-      expect(mockGenerateHls).toHaveBeenCalledTimes(1);
-      expect(mockUploadHlsToR2).toHaveBeenCalledTimes(1);
+      expect(mockGenerateHls).toHaveBeenCalledTimes(3);
+      expect(mockUploadHlsToR2).toHaveBeenCalledTimes(3);
       expect(mockUploadHlsToR2).toHaveBeenCalledWith(
         expect.any(Array),
         episodeRow().id,
         'zh-Hant',
         'main',
+        undefined,
       );
+      expect(mockUploadHlsToR2).toHaveBeenCalledWith(
+        expect.any(Array),
+        episodeRow().id,
+        'zh-Hant',
+        'classroom',
+        'ja',
+      );
+      expect(mockUploadHlsToR2).toHaveBeenCalledWith(
+        expect.any(Array),
+        episodeRow().id,
+        'zh-Hant',
+        'classroom',
+        'en',
+      );
+      expect(mockUpdateLanguageClassroomAudio).toHaveBeenCalledTimes(2);
       expect(mockUpdateEpisodeLocalizationStatus).not.toHaveBeenCalledWith(
         localizationRow().id,
         'completed',
@@ -2095,6 +2181,7 @@ function localizationResponse(
         title: localization.title,
         hlsUrl: localization.hls_url,
         classroomHlsUrl: localization.classroom_hls_url,
+        classrooms: languageClassroomAudioTracks(languageClassrooms),
       },
     ],
     createdAt: episode.created_at,
@@ -2112,6 +2199,17 @@ function localizationResponse(
       keywords: classroom.keywords,
     })),
   };
+}
+
+function languageClassroomAudioTracks(
+  classrooms: LanguageClassroomRow[],
+): { languageCode: string; hlsUrl: string }[] {
+  return classrooms
+    .filter((classroom) => Boolean(classroom.hls_url?.trim()))
+    .map((classroom) => ({
+      languageCode: classroom.target_language_code,
+      hlsUrl: classroom.hls_url!,
+    }));
 }
 
 function episodeRow(overrides: Partial<EpisodeRow> = {}): EpisodeRow {
@@ -2182,6 +2280,9 @@ function classroomRow(
     llm_model: 'model',
     llm_thinking_model: null,
     llm_provider: 'provider',
+    script: 'この記事は市場流動性を説明します。',
+    hls_url: null,
+    r2_prefix: null,
     created_at: '2024-01-01T00:00:00.000Z',
     updated_at: '2024-01-01T00:00:00.000Z',
     ...overrides,

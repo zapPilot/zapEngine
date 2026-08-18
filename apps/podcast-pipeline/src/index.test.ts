@@ -42,6 +42,7 @@ const {
   mockListPublishedEpisodeCatalog,
   mockListEpisodeVideoSummariesByLocalizationIds,
   mockListEpisodeLocalizationsByEpisodeId,
+  mockListLanguageClassroomAudioByLocalizationIds,
   mockListLanguageClassroomsByLocalizationId,
   mockListLanguageClassroomsByLocalizationIds,
   mockLoadEpisodeVideoGeneration,
@@ -52,6 +53,7 @@ const {
   mockTranslateCanonicalScript,
   mockUpdateEpisodeLocalizationArticleContent,
   mockUpdateEpisodeLocalizationStatus,
+  mockUpdateLanguageClassroomAudio,
   mockUpsertLanguageClassrooms,
   mockUploadHlsToR2,
   mockConvertArticleToZhTW,
@@ -80,6 +82,9 @@ const {
     .fn()
     .mockResolvedValue(new Map()),
   mockListEpisodeLocalizationsByEpisodeId: vi.fn(),
+  mockListLanguageClassroomAudioByLocalizationIds: vi
+    .fn()
+    .mockResolvedValue(new Map()),
   mockListLanguageClassroomsByLocalizationId: vi.fn(),
   mockListLanguageClassroomsByLocalizationIds: vi.fn(),
   mockLoadEpisodeVideoGeneration: vi.fn(),
@@ -94,6 +99,7 @@ const {
   mockTranslateCanonicalScript: vi.fn(),
   mockUpdateEpisodeLocalizationArticleContent: vi.fn(),
   mockUpdateEpisodeLocalizationStatus: vi.fn(),
+  mockUpdateLanguageClassroomAudio: vi.fn(),
   mockUpsertLanguageClassrooms: vi.fn(),
   mockUploadHlsToR2: vi.fn(),
   mockConvertArticleToZhTW: vi.fn(),
@@ -120,6 +126,8 @@ vi.mock('./services/db.js', async (importOriginal) => ({
   listEpisodeVideoSummariesByLocalizationIds:
     mockListEpisodeVideoSummariesByLocalizationIds,
   listEpisodeLocalizationsByEpisodeId: mockListEpisodeLocalizationsByEpisodeId,
+  listLanguageClassroomAudioByLocalizationIds:
+    mockListLanguageClassroomAudioByLocalizationIds,
   listLanguageClassroomsByLocalizationId:
     mockListLanguageClassroomsByLocalizationId,
   listLanguageClassroomsByLocalizationIds:
@@ -177,6 +185,7 @@ vi.mock('./services/db.js', async (importOriginal) => ({
   updateEpisodeLocalizationArticleContent:
     mockUpdateEpisodeLocalizationArticleContent,
   updateEpisodeLocalizationStatus: mockUpdateEpisodeLocalizationStatus,
+  updateLanguageClassroomAudio: mockUpdateLanguageClassroomAudio,
 }));
 
 vi.mock('./services/llm.js', () => ({
@@ -248,6 +257,7 @@ beforeEach(() => {
   delete process.env['FISH_AUDIO_ENGINE'];
   delete process.env['FISH_AUDIO_REFERENCE_ID'];
   mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(new Map());
+  mockListLanguageClassroomAudioByLocalizationIds.mockResolvedValue(new Map());
   mockLoadEpisodeVideoGeneration.mockResolvedValue(null);
   mockEnqueueEpisodeVideoJob.mockImplementation(
     (episodeLocalizationId: string) =>
@@ -771,6 +781,20 @@ describe('POST /ingest pipeline', () => {
       audio: Buffer.from('classroom-audio'),
       cost: [],
     });
+    mockUpdateLanguageClassroomAudio.mockImplementation(
+      (
+        _episodeLocalizationId: string,
+        targetLanguageCode: string,
+        updates: { hlsUrl: string; r2Prefix: string },
+      ) =>
+        Promise.resolve(
+          classroomRow({
+            target_language_code: targetLanguageCode,
+            hls_url: updates.hlsUrl,
+            r2_prefix: updates.r2Prefix,
+          }),
+        ),
+    );
     mockGenerateHls.mockResolvedValue({
       files: [
         {
@@ -857,11 +881,34 @@ describe('POST /ingest pipeline', () => {
         script: 'Generated script',
       }),
     );
+    expect(mockUploadHlsToR2).toHaveBeenCalledTimes(4);
     expect(mockUploadHlsToR2).toHaveBeenCalledWith(
       expect.any(Array),
       episodeRow().id,
       'zh-Hant',
       'main',
+      undefined,
+    );
+    expect(mockUploadHlsToR2).toHaveBeenCalledWith(
+      expect.any(Array),
+      episodeRow().id,
+      'zh-Hant',
+      'classroom',
+      'ja',
+    );
+    expect(mockUploadHlsToR2).toHaveBeenCalledWith(
+      expect.any(Array),
+      episodeRow().id,
+      'zh-Hant',
+      'classroom',
+      'en',
+    );
+    expect(mockUploadHlsToR2).toHaveBeenCalledWith(
+      expect.any(Array),
+      episodeRow().id,
+      'zh-Hant',
+      'classroom',
+      undefined,
     );
     expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
       localizationRow().id,
@@ -1280,6 +1327,20 @@ describe('POST /telegram/webhook', () => {
       classroomRow({ target_language_code: 'ja' }),
       classroomRow({ id: 'classroom-en', target_language_code: 'en' }),
     ]);
+    mockUpdateLanguageClassroomAudio.mockImplementation(
+      (
+        _episodeLocalizationId: string,
+        targetLanguageCode: string,
+        updates: { hlsUrl: string; r2Prefix: string },
+      ) =>
+        Promise.resolve(
+          classroomRow({
+            target_language_code: targetLanguageCode,
+            hls_url: updates.hlsUrl,
+            r2_prefix: updates.r2Prefix,
+          }),
+        ),
+    );
   });
 
   afterEach(() => {

@@ -2,7 +2,10 @@ import Slider from '@react-native-community/slider';
 import { Pause, Play } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
-import { formatPodcastClock } from '@/components/podcast/episodeFormatters';
+import {
+  classroomLanguageLabel,
+  formatPodcastClock,
+} from '@/components/podcast/episodeFormatters';
 import { Tap } from '@/components/ui/Tap';
 import type { PodcastEpisode } from '@/integration/podcastFeed';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
@@ -60,7 +63,9 @@ export function NowPlayingBar({
             {player.currentSection === 'classroom' ? (
               <View className="shrink-0 rounded-full bg-[rgba(212,197,163,.16)] px-2 py-[2px]">
                 <Text className="font-sans-semibold text-[9px] text-accent">
-                  {t('podcast.classroom')}
+                  {player.currentSectionLanguage === null
+                    ? t('podcast.classroom')
+                    : `${t('podcast.classroom')} · ${classroomLanguageLabel(player.currentSectionLanguage, t)}`}
                 </Text>
               </View>
             ) : null}

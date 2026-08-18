@@ -1,6 +1,10 @@
 import { parseSocialEpisodeId } from './episode.js';
 import { isSocialPlatform, SOCIAL_PLATFORMS } from './platforms.js';
-import type { SocialPlatform } from './types.js';
+import {
+  type SocialPlatform,
+  YOUTUBE_PRIVACY_STATUSES,
+  type YouTubePrivacyStatus,
+} from './types.js';
 
 /**
  * The argument contract every social command shares, so the publisher and the
@@ -27,4 +31,16 @@ export function parsePlatformOption(value: string): SocialPlatform {
     );
   }
   return value;
+}
+
+export function parseYouTubePrivacyOption(value: string): YouTubePrivacyStatus {
+  const status = YOUTUBE_PRIVACY_STATUSES.find(
+    (candidate) => candidate === value,
+  );
+  if (!status) {
+    throw new Error(
+      `--youtube-privacy must be one of: ${YOUTUBE_PRIVACY_STATUSES.join(', ')}.`,
+    );
+  }
+  return status;
 }

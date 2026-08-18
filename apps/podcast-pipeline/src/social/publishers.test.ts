@@ -166,6 +166,23 @@ describe('createSocialPublishJobs', () => {
     });
   });
 
+  it('forwards the break-glass YouTube privacy override', async () => {
+    const [job] = await createSocialPublishJobs({
+      platforms: ['youtube'],
+      copy,
+      videoUrl: VIDEO_URL,
+      videoPath: VIDEO_PATH,
+      youtubeTitle: '市場更新',
+      youtubeDescription: '完整說明',
+      youtubePrivacyStatus: 'unlisted',
+    });
+
+    await job?.publish();
+    expect(mocks.publishYouTube).toHaveBeenCalledWith(
+      expect.objectContaining({ privacyStatus: 'unlisted' }),
+    );
+  });
+
   it('rejects YouTube before publishing when video or metadata is missing', async () => {
     await expect(
       createSocialPublishJobs({

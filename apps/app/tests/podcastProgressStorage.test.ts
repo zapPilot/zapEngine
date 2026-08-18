@@ -71,6 +71,66 @@ describe('parseStoredPodcastProgress', () => {
       valid: { listened: false, lastPositionSeconds: 30 },
     });
   });
+
+  it('accepts a valid saved classroom language', () => {
+    expect(
+      parseStoredPodcastProgress(
+        JSON.stringify({
+          classroom: {
+            listened: false,
+            lastPositionSeconds: 45,
+            lastPositionSection: 'classroom',
+            lastPositionClassroomLanguage: 'ja',
+          },
+        }),
+      ),
+    ).toEqual({
+      classroom: {
+        listened: false,
+        lastPositionSeconds: 45,
+        lastPositionSection: 'classroom',
+        lastPositionClassroomLanguage: 'ja',
+      },
+    });
+  });
+
+  it('drops an entry whose saved classroom language is not a string', () => {
+    expect(
+      parseStoredPodcastProgress(
+        JSON.stringify({
+          invalidLanguage: {
+            listened: false,
+            lastPositionSeconds: 45,
+            lastPositionSection: 'classroom',
+            lastPositionClassroomLanguage: 42,
+          },
+        }),
+      ),
+    ).toEqual({});
+  });
+
+  it('accepts an entry carrying an unknown extra key (forward compatibility)', () => {
+    // The storage layer only validates the fields it knows about; an unknown
+    // key written by a newer app version must survive a round trip on an
+    // older one rather than getting the whole entry dropped.
+    expect(
+      parseStoredPodcastProgress(
+        JSON.stringify({
+          episode: {
+            listened: false,
+            lastPositionSeconds: 30,
+            futureField: 'from a newer app version',
+          },
+        }),
+      ),
+    ).toEqual({
+      episode: {
+        listened: false,
+        lastPositionSeconds: 30,
+        futureField: 'from a newer app version',
+      },
+    });
+  });
 });
 
 describe('createPodcastStorage', () => {
