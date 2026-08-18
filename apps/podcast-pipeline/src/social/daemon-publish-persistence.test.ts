@@ -243,4 +243,45 @@ describe('social daemon publish persistence failures', () => {
       error: leaseError.message,
     });
   });
+
+  it('recovers from lost failure persistence on the next tick without republishing an existing post', async () => {
+    const leaseError = new Error('Social publish job job-1 lease was lost.');
+    const persistenceError = new Error('failed to persist publish failure');
+    const recoveryNow = new Date(NOW.getTime() + 16 * 60_000);
+
+    mocks.listUnfinishedSocialPublishJobs
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          ...publishJob(4),
+          lease_owner: 'stale-owner',
+          lease_expires_at: new Date(NOW.getTime() + 15 * 60_000).toISOString(),
+        },
+      ]);
+    mocks.listSocialPostsByEpisode
+      .mockResolvedValueOnce([{ id: 'post-2' }])
+      .mockResolvedValueOnce([{ id: 'post-2' }]);
+    mocks.completeSocialPublishJob.mockRejectedValueOnce(leaseError);
+    mocks.failSocialPublishJob.mockRejectedValueOnce(persistenceError);
+    mocks.claimSocialPublishBatch
+      .mockResolvedValueOnce([publishJob(4)])
+      .mockResolvedValueOnce([]);
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-18T00:00:00.000Z',
+    });
+    await runSocialDaemonTick({
+      now: recoveryNow,
+      firstStartedAt: '2026-08-18T00:00:00.000Z',
+    });
+
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledTimes(1);
+    expect(mocks.reconcileSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-1',
+      socialPostId: 'post-2',
+      completedAt: recoveryNow,
+    });
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+  });
 });
