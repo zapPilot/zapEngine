@@ -22,6 +22,19 @@ const YOUTUBE_ANALYTICS_API =
 const REDNOTE_MANAGER_URL = 'https://creator.rednote.com/new/note-manager';
 const BROWSER_TIMEOUT_MS = 30_000;
 
+async function fetchJsonWithTimeout(
+  fetchImpl: typeof fetch,
+  url: URL,
+  init?: RequestInit,
+): Promise<{ ok: boolean; status: number; payload: unknown }> {
+  const response = await fetchImpl(url, {
+    ...init,
+    signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
+  });
+  const payload = (await response.json().catch(() => null)) as unknown;
+  return { ok: response.ok, status: response.status, payload };
+}
+
 export type SocialMetricCollector = (
   post: SocialPostRow,
 ) => Promise<CollectedSocialMetrics>;
@@ -79,17 +92,13 @@ export async function collectThreadsMetrics(
   url.searchParams.set('metric', 'views,likes,replies,reposts,quotes,shares');
   url.searchParams.set('access_token', session.accessToken);
 
-  const response = await fetchImpl(url, {
-    signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
-  });
-  const payload = (await response.json().catch(() => null)) as unknown;
-  if (!response.ok) {
-    throw new Error(`Threads insights failed with HTTP ${response.status}.`);
+  const { ok, status, payload } = await fetchJsonWithTimeout(fetchImpl, url);
+  if (!ok) {
+    throw new Error(`Threads insights failed with HTTP ${status}.`);
   }
   if (!isRecord(payload) || !Array.isArray(payload['data'])) {
     throw new Error('Threads insights returned an invalid response.');
   }
-
   const metrics = new Map<string, number>();
   for (const item of payload['data']) {
     if (!isRecord(item) || typeof item['name'] !== 'string') continue;
@@ -625,13 +634,12 @@ async function queryYouTubeAnalytics(input: {
   url.searchParams.set('filters', `video==${input.videoId}`);
   if (input.dimensions) url.searchParams.set('dimensions', input.dimensions);
 
-  const response = await input.fetchImpl(url, {
-    headers: { authorization: `Bearer ${input.accessToken}` },
-    signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
-  });
-  const payload = (await response.json().catch(() => null)) as unknown;
-  if (!response.ok)
-    throw new Error(`YouTube Analytics failed with HTTP ${response.status}.`);
+  const { ok, status, payload } = await fetchJsonWithTimeout(
+    input.fetchImpl,
+    url,
+    { headers: { authorization: `Bearer ${input.accessToken}` } },
+  );
+  if (!ok) throw new Error(`YouTube Analytics failed with HTTP ${status}.`);
   if (!isRecord(payload) || !Array.isArray(payload['rows'])) {
     throw new Error('YouTube Analytics returned an invalid response.');
   }

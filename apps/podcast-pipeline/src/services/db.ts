@@ -641,15 +641,16 @@ export async function insertSocialPost(
   return data;
 }
 
-export async function listSocialPostsByEpisode(
-  episodeId: string,
-  platform: SocialPlatform,
+type SocialPostsQuery = ReturnType<
+  ReturnType<ReturnType<typeof getSupabase>['from']>['select']
+>;
+
+async function listSocialPosts(
+  applyFilter: (query: SocialPostsQuery) => SocialPostsQuery,
 ): Promise<SocialPostRow[]> {
-  const { data, error } = await getSupabase()
-    .from('social_posts')
-    .select('*')
-    .eq('episode_id', episodeId)
-    .eq('platform', platform)
+  const { data, error } = await applyFilter(
+    getSupabase().from('social_posts').select('*'),
+  )
     .order('published_at', { ascending: false })
     .returns<SocialPostRow[]>();
 
@@ -660,21 +661,19 @@ export async function listSocialPostsByEpisode(
   return data ?? [];
 }
 
+export async function listSocialPostsByEpisode(
+  episodeId: string,
+  platform: SocialPlatform,
+): Promise<SocialPostRow[]> {
+  return listSocialPosts((query) =>
+    query.eq('episode_id', episodeId).eq('platform', platform),
+  );
+}
+
 export async function listRecentSocialPosts(
   publishedSince: string,
 ): Promise<SocialPostRow[]> {
-  const { data, error } = await getSupabase()
-    .from('social_posts')
-    .select('*')
-    .gte('published_at', publishedSince)
-    .order('published_at', { ascending: false })
-    .returns<SocialPostRow[]>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data ?? [];
+  return listSocialPosts((query) => query.gte('published_at', publishedSince));
 }
 
 export async function updateSocialPostIdentity(input: {
@@ -722,12 +721,18 @@ export function toSocialPostMetricInsertPayload(
     ...(metric.measurementWindow
       ? { measurement_window: metric.measurementWindow }
       : {}),
+    // jscpd:ignore-start — these six counters keep the same name in both the
+    // snake_case row and camelCase insert spellings, so the insert payload and
+    // the derived performance projection repeat the same six lines. Merging
+    // them would split one table's columns across declarations (same rationale
+    // as the ignore block in ../types.ts).
     views: metric.views,
     impressions: metric.impressions,
     likes: metric.likes,
     comments: metric.comments,
     shares: metric.shares,
     saves: metric.saves,
+    // jscpd:ignore-end
     profile_visits: metric.profileVisits,
     followers_gained: metric.followersGained,
     details: metric.details ?? {},

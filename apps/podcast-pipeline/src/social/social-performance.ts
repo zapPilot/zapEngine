@@ -13,6 +13,12 @@ const WINDOW_TARGET_HOURS: Record<
   '7d': 168,
 };
 
+// jscpd:ignore-start — the camelCase metric totals mirror the snake_case
+// `SocialPostMetricRow` columns whose names are identical in both spellings.
+// The row type pins the DDL column list in socialPostsMigration.test.ts, while
+// this is a derived per-platform performance view; merging the shared field
+// names would couple the computed view to the persistence row shape (same
+// rationale as the ignore block in ../types.ts).
 export interface SocialPostPerformance {
   postId: string;
   episodeId: string;
@@ -39,6 +45,7 @@ export interface SocialPostPerformance {
     | SocialPostMetricRow['details']['audienceDemographics']
     | null;
 }
+// jscpd:ignore-end
 
 export interface EpisodeSocialPerformance {
   episodeId: string;
