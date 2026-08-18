@@ -341,6 +341,21 @@ async function updateOwnedSocialPublishJob(
   if (!data) throw new Error(`Social publish job ${jobId} lease was lost.`);
 }
 
+function completedSocialPublishJobPatch(
+  completedAt: string,
+  socialPostId: string | null,
+): Partial<SocialPublishJobRow> {
+  return {
+    status: 'completed',
+    completed_at: completedAt,
+    social_post_id: socialPostId,
+    lease_owner: null,
+    lease_expires_at: null,
+    last_error: null,
+    updated_at: completedAt,
+  };
+}
+
 export async function completeSocialPublishJob(input: {
   jobId: string;
   owner: string;
@@ -348,15 +363,11 @@ export async function completeSocialPublishJob(input: {
   socialPostId?: string | null;
 }): Promise<void> {
   const completedAt = input.completedAt.toISOString();
-  await updateOwnedSocialPublishJob(input.jobId, input.owner, {
-    status: 'completed',
-    completed_at: completedAt,
-    social_post_id: input.socialPostId ?? null,
-    lease_owner: null,
-    lease_expires_at: null,
-    last_error: null,
-    updated_at: completedAt,
-  });
+  await updateOwnedSocialPublishJob(
+    input.jobId,
+    input.owner,
+    completedSocialPublishJobPatch(completedAt, input.socialPostId ?? null),
+  );
 }
 
 // Completes a job from evidence in `social_posts` rather than from a publish
@@ -370,20 +381,9 @@ export async function reconcileSocialPublishJob(input: {
   completedAt: Date;
 }): Promise<boolean> {
   const completedAt = input.completedAt.toISOString();
-  const completion = {
-    status: 'completed' as const,
-    completed_at: completedAt,
-    social_post_id: input.socialPostId,
-  };
   const { data, error } = await getPipelineSupabase()
     .from('social_publish_jobs')
-    .update({
-      ...completion,
-      lease_owner: null,
-      lease_expires_at: null,
-      last_error: null,
-      updated_at: completedAt,
-    })
+    .update(completedSocialPublishJobPatch(completedAt, input.socialPostId))
     .eq('id', input.jobId)
     .in('status', ['queued', 'failed'])
     .select('id')
