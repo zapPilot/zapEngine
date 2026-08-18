@@ -300,13 +300,19 @@ async function publishDueJobs(
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await failSocialPublishJob({
-        jobId: job.id,
-        owner: OWNER,
-        now,
-        attemptCount: job.attempt_count,
-        error: message,
-      });
+      try {
+        await failSocialPublishJob({
+          jobId: job.id,
+          owner: OWNER,
+          now,
+          attemptCount: job.attempt_count,
+          error: message,
+        });
+      } catch (persistenceError) {
+        log(
+          `[social-daemon] failed to persist ${job.platform} publish failure for ${job.episode_id}: ${persistenceError instanceof Error ? persistenceError.message : String(persistenceError)}`,
+        );
+      }
       log(
         `[social-daemon] ${job.platform} publish failed for ${job.episode_id}: ${message}`,
       );
