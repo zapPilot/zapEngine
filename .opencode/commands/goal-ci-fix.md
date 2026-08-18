@@ -168,6 +168,10 @@ A PR is a matching existing fix if either:
 - for older PRs without the marker, its `baseRefOid` equals the decisive failing
   SHA and its diff clearly addresses the current failures.
 
+A branch whose commits are prefixed `fixCI` (see Phase 7) is also a strong
+signal of a prior goal-ci-fix repair — inspect it before creating a competing
+fix.
+
 If more than one matching PR exists, prefer:
 
 1. exact `CI-Fix-Base` match,
@@ -347,6 +351,22 @@ them.
 Commit only files changed for this CI fix.
 
 Leave unrelated working-tree changes untouched.
+
+## Commit style (required)
+
+Every CI-fix commit MUST start with the `fixCI` prefix, conventional-commit
+style after it:
+
+```text
+fixCI(podcast): dedupe classroom language code parser
+fixCI(ci): unblock coverage gate
+```
+
+The `fixCI` prefix marks the commit as produced by this goal-ci-fix command.
+It is required, not optional — future iterations of this command recognize and
+iterate on `fixCI` commits (identifying existing fix branches/PRs, skipping
+already-fixed root causes). Keep the rest of the message a short root-cause
+summary, not a symptom list.
 
 ## Starting branch has an open PR
 
