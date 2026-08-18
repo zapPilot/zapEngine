@@ -1,0 +1,181 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+  claimSocialPublishJob: vi.fn(),
+  completeSocialPublishJob: vi.fn(),
+  enqueueSocialPublishJob: vi.fn(),
+  ensureSocialDaemonStart: vi.fn(),
+  failSocialPublishJob: vi.fn(),
+  getActiveSocialStrategies: vi.fn(),
+  getSocialQueueSnapshot: vi.fn(),
+  getSocialStrategyById: vi.fn(),
+  latestScheduledSocialJobs: vi.fn(),
+  listDueMetricPosts: vi.fn(),
+  listMetricWindowsForPosts: vi.fn(),
+  listSocialPublishCandidates: vi.fn(),
+  listUnfinishedSocialPublishJobs: vi.fn(),
+  reconcileSocialPublishJob: vi.fn(),
+  insertSocialPostMetric: vi.fn(),
+  listSocialPostsByEpisode: vi.fn(),
+  updateSocialPostIdentity: vi.fn(),
+  runSocialCli: vi.fn(),
+  createMetricCollectors: vi.fn(),
+  refreshSocialStrategies: vi.fn(),
+}));
+
+vi.mock('./daemon-store.js', () => ({
+  claimSocialPublishJob: mocks.claimSocialPublishJob,
+  completeSocialPublishJob: mocks.completeSocialPublishJob,
+  enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
+  ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
+  failSocialPublishJob: mocks.failSocialPublishJob,
+  getActiveSocialStrategies: mocks.getActiveSocialStrategies,
+  getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
+  getSocialStrategyById: mocks.getSocialStrategyById,
+  latestScheduledSocialJobs: mocks.latestScheduledSocialJobs,
+  listDueMetricPosts: mocks.listDueMetricPosts,
+  listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
+  listSocialPublishCandidates: mocks.listSocialPublishCandidates,
+  listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
+  reconcileSocialPublishJob: mocks.reconcileSocialPublishJob,
+}));
+
+vi.mock('../services/db.js', () => ({
+  insertSocialPostMetric: mocks.insertSocialPostMetric,
+  listSocialPostsByEpisode: mocks.listSocialPostsByEpisode,
+  updateSocialPostIdentity: mocks.updateSocialPostIdentity,
+}));
+
+vi.mock('./cli.js', () => ({ runSocialCli: mocks.runSocialCli }));
+vi.mock('./metric-collectors.js', () => ({
+  createMetricCollectors: mocks.createMetricCollectors,
+}));
+vi.mock('./strategy.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./strategy.js')>()),
+  refreshSocialStrategies: mocks.refreshSocialStrategies,
+}));
+
+import { runSocialDaemonTick } from './daemon.js';
+
+const NOW = new Date('2026-08-18T01:00:00.000Z');
+const EPISODE_ID = '123e4567-e89b-42d3-a456-426614174000';
+
+function publishJob(attemptCount = 3) {
+  return {
+    id: 'job-1',
+    episode_id: EPISODE_ID,
+    platform: 'x',
+    status: 'processing',
+    scheduled_at: NOW.toISOString(),
+    next_attempt_at: NOW.toISOString(),
+    strategy_version_id: null,
+    social_post_id: null,
+    attempt_count: attemptCount,
+    lease_owner: 'owner',
+    lease_expires_at: new Date(NOW.getTime() + 15 * 60_000).toISOString(),
+    last_error: null,
+    completed_at: null,
+    created_at: NOW.toISOString(),
+    updated_at: NOW.toISOString(),
+  };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.listSocialPublishCandidates.mockResolvedValue([]);
+  mocks.getActiveSocialStrategies.mockResolvedValue([]);
+  mocks.latestScheduledSocialJobs.mockResolvedValue({});
+  mocks.listDueMetricPosts.mockResolvedValue([]);
+  mocks.listMetricWindowsForPosts.mockResolvedValue([]);
+  mocks.getSocialStrategyById.mockResolvedValue(null);
+  mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
+  mocks.reconcileSocialPublishJob.mockResolvedValue(true);
+  mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
+});
+
+describe('social daemon publish persistence failures', () => {
+  it.each([
+    ['stateError', new Error('failed to persist platform state')],
+    ['recordError', new Error('failed to record social post')],
+  ] as const)(
+    'retries a published outcome when %s is present instead of marking the job complete',
+    async (errorField, error) => {
+      mocks.listSocialPostsByEpisode.mockResolvedValueOnce([]);
+      mocks.runSocialCli.mockResolvedValue([
+        {
+          platform: 'x',
+          status: 'published',
+          url: 'https://x.com/zap/status/1',
+          [errorField]: error,
+        },
+      ]);
+
+      await runSocialDaemonTick({
+        now: NOW,
+        firstStartedAt: '2026-08-18T00:00:00.000Z',
+      });
+
+      expect(mocks.failSocialPublishJob).toHaveBeenCalledWith({
+        jobId: 'job-1',
+        owner: expect.any(String),
+        now: NOW,
+        attemptCount: 3,
+        error: error.message,
+      });
+      expect(mocks.completeSocialPublishJob).not.toHaveBeenCalled();
+    },
+  );
+
+  it('retries when publish reports success but no social post row was recorded', async () => {
+    mocks.listSocialPostsByEpisode.mockResolvedValue([]);
+    mocks.runSocialCli.mockResolvedValue([
+      {
+        platform: 'x',
+        status: 'published',
+        url: 'https://x.com/zap/status/1',
+      },
+    ]);
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-18T00:00:00.000Z',
+    });
+
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-1',
+      owner: expect.any(String),
+      now: NOW,
+      attemptCount: 3,
+      error: 'x publish completed but no social_posts row was recorded.',
+    });
+    expect(mocks.completeSocialPublishJob).not.toHaveBeenCalled();
+  });
+
+  it('reconciles an unfinished job from social_posts before publish and never uploads it again', async () => {
+    mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([
+      {
+        ...publishJob(4),
+        status: 'retry_wait',
+        lease_owner: null,
+        lease_expires_at: null,
+        last_error: 'x publish completed but no social_posts row was recorded.',
+      },
+    ]);
+    mocks.listSocialPostsByEpisode.mockResolvedValueOnce([{ id: 'post-2' }]);
+    mocks.claimSocialPublishJob.mockResolvedValue(null);
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-18T00:00:00.000Z',
+    });
+
+    expect(mocks.reconcileSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-1',
+      socialPostId: 'post-2',
+      completedAt: NOW,
+    });
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
+    expect(mocks.completeSocialPublishJob).not.toHaveBeenCalled();
+  });
+});
