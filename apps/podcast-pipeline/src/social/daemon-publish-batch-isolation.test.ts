@@ -145,4 +145,58 @@ describe('social daemon publish batch isolation', () => {
       expect.objectContaining({ jobId: 'job-2' }),
     );
   });
+
+  it('continues with later jobs when an earlier platform publish fails', async () => {
+    const publishError = new Error('X publish failed');
+    mocks.claimSocialPublishBatch.mockResolvedValue([
+      publishJob('job-1', FIRST_EPISODE_ID, 3),
+      publishJob('job-2', SECOND_EPISODE_ID, 1),
+    ]);
+    mocks.listSocialPostsByEpisode
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'post-2' }]);
+    mocks.runSocialCli
+      .mockResolvedValueOnce([
+        {
+          platform: 'x',
+          status: 'failed',
+          error: publishError,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          platform: 'x',
+          status: 'published',
+          url: 'https://x.com/zap/status/2',
+        },
+      ]);
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-18T00:00:00.000Z',
+    });
+
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-1',
+      owner: expect.any(String),
+      now: NOW,
+      attemptCount: 3,
+      error: publishError.message,
+    });
+    expect(mocks.runSocialCli).toHaveBeenCalledTimes(2);
+    expect(mocks.runSocialCli).toHaveBeenLastCalledWith(
+      [SECOND_EPISODE_ID, '--yes', '--platform', 'x'],
+      expect.objectContaining({ setExitCodeOnFailure: false }),
+    );
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-2',
+      owner: expect.any(String),
+      completedAt: NOW,
+      socialPostId: 'post-2',
+    });
+    expect(mocks.failSocialPublishJob).not.toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: 'job-2' }),
+    );
+  });
 });
