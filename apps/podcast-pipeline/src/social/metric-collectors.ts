@@ -119,11 +119,26 @@ export async function collectThreadsMetrics(
   };
 }
 
+/**
+ * The public counters are read with an API key rather than the session's bearer
+ * token. `videos.list` only honours `youtube.readonly` and wider scopes, while
+ * the session deliberately carries just `youtube.upload` + `yt-analytics.readonly`
+ * so no metrics snapshot can widen the grant to full read access over the
+ * account's channels — the same reason the channel guard proves identity through
+ * Analytics instead of `channels.list` (see ./README.md, "Channel guard").
+ * Daemon uploads are always public, so an API key can read these counters.
+ */
 export async function collectYouTubeMetrics(
   post: SocialPostRow,
   fetchImpl: typeof fetch = fetch,
 ): Promise<CollectedSocialMetrics> {
   const videoId = requirePlatformPostId(post);
+  const apiKey = process.env['YOUTUBE_API_KEY']?.trim();
+  if (!apiKey) {
+    throw new Error(
+      'YOUTUBE_API_KEY is not configured. Set a YouTube Data API key in the repository root .env so public video statistics can be read without widening the OAuth grant.',
+    );
+  }
   const session = await assertYouTubeSessionReady({
     fetchImpl,
     additionalScopes: [YOUTUBE_ANALYTICS_SCOPE],
@@ -131,14 +146,14 @@ export async function collectYouTubeMetrics(
   const dataUrl = new URL(YOUTUBE_DATA_API);
   dataUrl.searchParams.set('part', 'statistics');
   dataUrl.searchParams.set('id', videoId);
+  dataUrl.searchParams.set('key', apiKey);
   const dataResponse = await fetchImpl(dataUrl, {
-    headers: { authorization: `Bearer ${session.accessToken}` },
     signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
   });
   const dataPayload = (await dataResponse.json().catch(() => null)) as unknown;
   if (!dataResponse.ok) {
     throw new Error(
-      `YouTube statistics failed with HTTP ${dataResponse.status}.`,
+      `YouTube statistics failed with HTTP ${dataResponse.status}.${describeGoogleApiError(dataPayload)}`,
     );
   }
   const statistics = extractYouTubeStatistics(dataPayload, videoId);
@@ -173,6 +188,27 @@ export async function collectYouTubeMetrics(
     followersGained: analytics.subscribersGained,
     details: analytics.details,
   };
+}
+
+/**
+ * A bare status code cannot tell an exhausted quota apart from a scope the
+ * session never had: both answer 403. Google names the cause in the body, so the
+ * reason travels with the thrown error instead of being parsed and dropped.
+ */
+function describeGoogleApiError(payload: unknown): string {
+  if (!isRecord(payload) || !isRecord(payload['error'])) return '';
+  const error = payload['error'];
+  const errors = error['errors'];
+  const reason =
+    Array.isArray(errors) &&
+    isRecord(errors[0]) &&
+    typeof errors[0]['reason'] === 'string'
+      ? errors[0]['reason']
+      : null;
+  const message =
+    typeof error['message'] === 'string' ? error['message'] : null;
+  const detail = [reason, message].filter((part) => part).join(': ');
+  return detail ? ` ${detail}` : '';
 }
 
 export async function collectXMetrics(
