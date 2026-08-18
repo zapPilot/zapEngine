@@ -11,6 +11,13 @@ const migration = fs.readFileSync(
   ),
   'utf8',
 );
+const batchMigration = fs.readFileSync(
+  path.join(
+    repoRoot,
+    'apps/podcast-pipeline/supabase/migrations/031_batch_social_publish_by_article.sql',
+  ),
+  'utf8',
+);
 const schema = fs.readFileSync(
   path.join(repoRoot, 'apps/podcast-pipeline/supabase/schema.sql'),
   'utf8',
@@ -71,18 +78,19 @@ describe('social daemon schema', () => {
     },
   );
 
-  it.each(sources)(
-    '%s claims jobs atomically with skip locked and an expiring lease',
-    (_name, sql) => {
+  it('claims one article batch atomically with skip locked and an expiring lease', () => {
+    for (const sql of [batchMigration, schema]) {
       expect(sql).toMatch(
-        /function from_fed_to_chain\.claim_social_publish_job/i,
+        /function from_fed_to_chain\.claim_social_publish_batch/i,
       );
+      expect(sql).toMatch(/seed_episode_id/i);
       expect(sql).toMatch(/for update skip locked/i);
       expect(sql).toMatch(/lease_expires_at = p_now \+ interval '60 minutes'/i);
-      expect(sql).toMatch(/attempt_count = attempt_count \+ 1/i);
+      expect(sql).toMatch(/attempt_count = job\.attempt_count \+ 1/i);
+      expect(sql).toMatch(/job\.episode_id = seed_episode_id/i);
       expect(sql).toMatch(/job\.attempt_count < 8/i);
-    },
-  );
+    }
+  });
 
   it('keeps migration bounded, service-role-only, and reloads PostgREST', () => {
     expect(migration.trim()).toMatch(/^--[\s\S]+?begin;/i);

@@ -12,7 +12,8 @@ import {
 import type { SocialPostRow } from '../types.js';
 import { runSocialCli } from './cli.js';
 import {
-  claimSocialPublishJob,
+  alignPendingSocialPublishSchedules,
+  claimSocialPublishBatch,
   completeSocialPublishJob,
   enqueueSocialPublishJob,
   ensureSocialDaemonStart,
@@ -20,7 +21,7 @@ import {
   getActiveSocialStrategies,
   getSocialQueueSnapshot,
   getSocialStrategyById,
-  latestScheduledSocialJobs,
+  latestPendingSocialPublishSchedule,
   listDueMetricPosts,
   listMetricWindowsForPosts,
   listSocialPublishCandidates,
@@ -31,7 +32,7 @@ import {
 import { isMainModule } from './is-main-module.js';
 import { createMetricCollectors } from './metric-collectors.js';
 import { buildSocialPostMetric, collectPostMetrics } from './metrics.js';
-import { SOCIAL_PLATFORMS, type SocialPlatform } from './platforms.js';
+import { SOCIAL_PLATFORMS } from './platforms.js';
 import {
   activeStrategyMap,
   buildStrategyGuidance,
@@ -129,6 +130,14 @@ export async function runSocialDaemonTick(input: {
   await isolate('reconcile', log, () =>
     reconcileAlreadyPublishedJobs(input.now, log),
   );
+  await isolate('align schedules', log, async () => {
+    const aligned = await alignPendingSocialPublishSchedules();
+    if (aligned > 0) {
+      log(
+        `[social-daemon] aligned ${aligned} pending platform job${aligned === 1 ? '' : 's'} to article publish slots.`,
+      );
+    }
+  });
   await isolate('discover', log, () =>
     discoverAndEnqueue({
       now: input.now,
@@ -136,7 +145,7 @@ export async function runSocialDaemonTick(input: {
       log,
     }),
   );
-  await isolate('publish', log, () => publishOneDueJob(input.now, log));
+  await isolate('publish', log, () => publishDueJobs(input.now, log));
   await isolate('metrics', log, async () => {
     await collectDueMetricWindows(input.now, log);
   });
@@ -152,40 +161,36 @@ async function discoverAndEnqueue(input: {
   firstStartedAt: string;
   log: (message: string) => void;
 }): Promise<void> {
-  const [candidates, activeStrategies, latestSchedules] = await Promise.all([
+  const [candidates, activeStrategies, latestSchedule] = await Promise.all([
     listSocialPublishCandidates(input.firstStartedAt),
     getActiveSocialStrategies(),
-    latestScheduledSocialJobs(),
+    latestPendingSocialPublishSchedule(),
   ]);
   if (candidates.length === 0) return;
 
   const active = activeStrategyMap(activeStrategies);
-  const rollingLast = new Map<SocialPlatform, Date>();
-  for (const platform of SOCIAL_PLATFORMS) {
-    const latest = latestSchedules[platform];
-    if (latest) rollingLast.set(platform, new Date(latest));
-  }
+  let rollingLast = latestSchedule ? new Date(latestSchedule) : null;
 
   for (const candidate of candidates) {
     const readyAt = new Date(candidate.ready_at);
     if (Number.isNaN(readyAt.getTime())) continue;
     let discoveredLogged = false;
+    let after = readyAt;
+    if (rollingLast) {
+      after = new Date(rollingLast.getTime() + 60_000);
+    } else if (input.now > readyAt) {
+      after = input.now;
+    }
+    const scheduledAt = nextPublishSlot({
+      platform: 'x',
+      readyAt,
+      after,
+      config: defaultSocialStrategy(),
+    });
+    let insertedAny = false;
 
     for (const platform of SOCIAL_PLATFORMS) {
       const strategy = active[platform];
-      const previous = rollingLast.get(platform);
-      let after = readyAt;
-      if (previous) {
-        after = new Date(previous.getTime() + 60_000);
-      } else if (input.now > readyAt) {
-        after = input.now;
-      }
-      const scheduledAt = nextPublishSlot({
-        platform,
-        readyAt,
-        after,
-        config: strategy?.config ?? defaultSocialStrategy(),
-      });
       const inserted = await enqueueSocialPublishJob({
         episodeId: candidate.episode_id,
         platform,
@@ -193,18 +198,19 @@ async function discoverAndEnqueue(input: {
         strategyVersionId: strategy?.id ?? null,
       });
       if (inserted) {
+        insertedAny = true;
         if (!discoveredLogged) {
           input.log(
             `[social-daemon] discovered episode ${candidate.episode_id}; ready at ${readyAt.toISOString()}.`,
           );
           discoveredLogged = true;
         }
-        rollingLast.set(platform, scheduledAt);
         input.log(
           `[social-daemon] queued ${platform} for ${candidate.episode_id} at ${scheduledAt.toISOString()}.`,
         );
       }
     }
+    if (insertedAny) rollingLast = scheduledAt;
   }
 }
 
@@ -232,76 +238,79 @@ async function reconcileAlreadyPublishedJobs(
   }
 }
 
-async function publishOneDueJob(
+async function publishDueJobs(
   now: Date,
   log: (message: string) => void,
 ): Promise<void> {
-  const job = await claimSocialPublishJob({ owner: OWNER, now });
-  if (!job) return;
+  const jobs = await claimSocialPublishBatch({ owner: OWNER, now });
+  for (const job of jobs) {
+    try {
+      const [alreadyPublished] = await listSocialPostsByEpisode(
+        job.episode_id,
+        job.platform,
+      );
+      if (alreadyPublished) {
+        await completeSocialPublishJob({
+          jobId: job.id,
+          owner: OWNER,
+          completedAt: now,
+          socialPostId: alreadyPublished.id,
+        });
+        log(
+          `[social-daemon] reconciled ${job.platform} for ${job.episode_id} - already published (${alreadyPublished.id}).`,
+        );
+        continue;
+      }
 
-  try {
-    const [alreadyPublished] = await listSocialPostsByEpisode(
-      job.episode_id,
-      job.platform,
-    );
-    if (alreadyPublished) {
+      const strategy = job.strategy_version_id
+        ? await getSocialStrategyById(job.strategy_version_id)
+        : null;
+      const guidance = buildStrategyGuidance(job.platform, strategy?.config);
+      const outcomes = await runSocialCli(
+        [job.episode_id, '--yes', '--platform', job.platform],
+        {
+          ...(guidance ? { strategyGuidance: guidance } : {}),
+          setExitCodeOnFailure: false,
+        },
+      );
+      const outcome = outcomes.find((row) => row.platform === job.platform);
+      if (!outcome || outcome.status === 'failed') {
+        throw outcome?.error ?? new Error(`${job.platform} did not publish.`);
+      }
+      if (outcome.stateError) throw outcome.stateError;
+      if (outcome.recordError) throw outcome.recordError;
+
+      const [post] = await listSocialPostsByEpisode(
+        job.episode_id,
+        job.platform,
+      );
+      if (!post) {
+        throw new Error(
+          `${job.platform} publish completed but no social_posts row was recorded.`,
+        );
+      }
       await completeSocialPublishJob({
         jobId: job.id,
         owner: OWNER,
         completedAt: now,
-        socialPostId: alreadyPublished.id,
+        socialPostId: post.id,
       });
       log(
-        `[social-daemon] reconciled ${job.platform} for ${job.episode_id} - already published (${alreadyPublished.id}).`,
+        `[social-daemon] published ${job.platform} for ${job.episode_id} (${post.id}).`,
       );
-      return;
-    }
-
-    const strategy = job.strategy_version_id
-      ? await getSocialStrategyById(job.strategy_version_id)
-      : null;
-    const guidance = buildStrategyGuidance(job.platform, strategy?.config);
-    const outcomes = await runSocialCli(
-      [job.episode_id, '--yes', '--platform', job.platform],
-      {
-        ...(guidance ? { strategyGuidance: guidance } : {}),
-        setExitCodeOnFailure: false,
-      },
-    );
-    const outcome = outcomes.find((row) => row.platform === job.platform);
-    if (!outcome || outcome.status === 'failed') {
-      throw outcome?.error ?? new Error(`${job.platform} did not publish.`);
-    }
-    if (outcome.stateError) throw outcome.stateError;
-    if (outcome.recordError) throw outcome.recordError;
-
-    const [post] = await listSocialPostsByEpisode(job.episode_id, job.platform);
-    if (!post) {
-      throw new Error(
-        `${job.platform} publish completed but no social_posts row was recorded.`,
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await failSocialPublishJob({
+        jobId: job.id,
+        owner: OWNER,
+        now,
+        attemptCount: job.attempt_count,
+        error: message,
+      });
+      log(
+        `[social-daemon] ${job.platform} publish failed for ${job.episode_id}: ${message}`,
       );
     }
-    await completeSocialPublishJob({
-      jobId: job.id,
-      owner: OWNER,
-      completedAt: now,
-      socialPostId: post.id,
-    });
-    log(
-      `[social-daemon] published ${job.platform} for ${job.episode_id} (${post.id}).`,
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await failSocialPublishJob({
-      jobId: job.id,
-      owner: OWNER,
-      now,
-      attemptCount: job.attempt_count,
-      error: message,
-    });
-    log(
-      `[social-daemon] ${job.platform} publish failed for ${job.episode_id}: ${message}`,
-    );
   }
 }
 

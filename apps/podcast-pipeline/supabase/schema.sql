@@ -1634,7 +1634,7 @@ where localization.language_code = 'zh-Hant'
   and video.duration_seconds is not null
   and video.duration_seconds > 0;
 
-create or replace function from_fed_to_chain.claim_social_publish_job(
+create or replace function from_fed_to_chain.claim_social_publish_batch(
   p_owner text,
   p_now timestamptz default now()
 )
@@ -1644,14 +1644,14 @@ security definer
 set search_path = from_fed_to_chain, pg_temp
 as $$
 declare
-  claimed_id uuid;
+  seed_episode_id uuid;
 begin
   if nullif(btrim(p_owner), '') is null then
     raise exception 'p_owner must not be blank';
   end if;
 
-  select job.id
-    into claimed_id
+  select job.episode_id
+    into seed_episode_id
   from from_fed_to_chain.social_publish_jobs job
   where job.scheduled_at <= p_now
     and job.attempt_count < 8
@@ -1663,21 +1663,27 @@ begin
   for update skip locked
   limit 1;
 
-  if claimed_id is null then
+  if seed_episode_id is null then
     return;
   end if;
 
   return query
-  update from_fed_to_chain.social_publish_jobs
+  update from_fed_to_chain.social_publish_jobs job
   set
     status = 'processing',
-    attempt_count = attempt_count + 1,
+    attempt_count = job.attempt_count + 1,
     lease_owner = p_owner,
     lease_expires_at = p_now + interval '60 minutes',
     last_error = null,
     updated_at = p_now
-  where id = claimed_id
-  returning *;
+  where job.episode_id = seed_episode_id
+    and job.scheduled_at <= p_now
+    and job.attempt_count < 8
+    and (
+      (job.status in ('queued', 'failed') and job.next_attempt_at <= p_now)
+      or (job.status = 'processing' and job.lease_expires_at <= p_now)
+    )
+  returning job.*;
 end;
 $$;
 
@@ -1906,7 +1912,7 @@ grant all on from_fed_to_chain.social_daemon_state to service_role;
 grant all on from_fed_to_chain.social_strategy_versions to service_role;
 grant all on from_fed_to_chain.social_publish_jobs to service_role;
 grant select on from_fed_to_chain.social_publish_candidates to service_role;
-grant execute on function from_fed_to_chain.claim_social_publish_job(text, timestamptz) to service_role;
+grant execute on function from_fed_to_chain.claim_social_publish_batch(text, timestamptz) to service_role;
 grant all on from_fed_to_chain.users to service_role;
 grant all on from_fed_to_chain.likes to service_role;
 grant all on from_fed_to_chain.user_episode_state to service_role;
@@ -1958,7 +1964,7 @@ revoke all on from_fed_to_chain.social_publish_jobs
   from public, anon, authenticated;
 revoke all on from_fed_to_chain.social_publish_candidates
   from public, anon, authenticated;
-revoke execute on function from_fed_to_chain.claim_social_publish_job(text, timestamptz)
+revoke execute on function from_fed_to_chain.claim_social_publish_batch(text, timestamptz)
   from public, anon, authenticated;
 
 revoke select, insert, update, delete on from_fed_to_chain.users
