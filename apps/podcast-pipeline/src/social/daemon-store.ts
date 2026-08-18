@@ -124,13 +124,21 @@ export async function listSocialPublishCandidates(
   return data ?? [];
 }
 
+function selectedSocialPublishJobExists(result: {
+  data: { id: string } | null;
+  error: Parameters<typeof throwSupabaseError>[0] | null;
+}): boolean {
+  if (result.error) throwSupabaseError(result.error);
+  return result.data !== null;
+}
+
 export async function enqueueSocialPublishJob(input: {
   episodeId: string;
   platform: SocialPlatform;
   scheduledAt: string;
   strategyVersionId?: string | null;
 }): Promise<boolean> {
-  const { data, error } = await getPipelineSupabase()
+  const result = await getPipelineSupabase()
     .from('social_publish_jobs')
     .upsert(
       {
@@ -144,8 +152,7 @@ export async function enqueueSocialPublishJob(input: {
     )
     .select('id')
     .maybeSingle<{ id: string }>();
-  if (error) throwSupabaseError(error);
-  return data !== null;
+  return selectedSocialPublishJobExists(result);
 }
 
 export async function latestScheduledSocialJobs(): Promise<
@@ -330,15 +337,16 @@ async function updateOwnedSocialPublishJob(
   owner: string,
   patch: Partial<SocialPublishJobRow>,
 ): Promise<void> {
-  const { data, error } = await getPipelineSupabase()
+  const result = await getPipelineSupabase()
     .from('social_publish_jobs')
     .update(patch)
     .eq('id', jobId)
     .eq('lease_owner', owner)
     .select('id')
     .maybeSingle<{ id: string }>();
-  if (error) throwSupabaseError(error);
-  if (!data) throw new Error(`Social publish job ${jobId} lease was lost.`);
+  if (!selectedSocialPublishJobExists(result)) {
+    throw new Error(`Social publish job ${jobId} lease was lost.`);
+  }
 }
 
 function completedSocialPublishJobPatch(
