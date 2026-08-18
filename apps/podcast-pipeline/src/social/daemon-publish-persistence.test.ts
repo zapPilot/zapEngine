@@ -216,4 +216,31 @@ describe('social daemon publish persistence failures', () => {
     expect(mocks.runSocialCli).not.toHaveBeenCalled();
     expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
   });
+
+  it('does not republish an existing post when completion loses the publish lease', async () => {
+    const leaseError = new Error('Social publish job job-1 lease was lost.');
+    mocks.listSocialPostsByEpisode.mockResolvedValueOnce([{ id: 'post-2' }]);
+    mocks.completeSocialPublishJob.mockRejectedValueOnce(leaseError);
+    mocks.claimSocialPublishBatch.mockResolvedValue([publishJob(4)]);
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-18T00:00:00.000Z',
+    });
+
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-1',
+      owner: expect.any(String),
+      completedAt: NOW,
+      socialPostId: 'post-2',
+    });
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-1',
+      owner: expect.any(String),
+      now: NOW,
+      attemptCount: 4,
+      error: leaseError.message,
+    });
+  });
 });
