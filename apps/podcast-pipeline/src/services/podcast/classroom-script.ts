@@ -1,8 +1,8 @@
 import {
-  LANGUAGE_CLASSROOM_LANGUAGE_CODES,
   type LanguageClassroomLanguageCode,
   type LanguageClassroomLesson,
 } from '../../types.js';
+import { parseLanguageClassroomLanguageCode } from './classroom-language.js';
 
 export interface ClassroomScriptSegment {
   text: string;
@@ -78,20 +78,6 @@ export function buildClassroomSegments(
   }
 
   return segments;
-}
-
-function parseLanguageClassroomLanguageCode(
-  languageCode: string,
-): LanguageClassroomLanguageCode {
-  if (
-    LANGUAGE_CLASSROOM_LANGUAGE_CODES.includes(
-      languageCode as LanguageClassroomLanguageCode,
-    )
-  ) {
-    return languageCode as LanguageClassroomLanguageCode;
-  }
-
-  throw new Error(`Unsupported language classroom code: ${languageCode}`);
 }
 
 function classroomIntro(

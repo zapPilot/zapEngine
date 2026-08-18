@@ -1,12 +1,9 @@
-import {
-  LANGUAGE_CLASSROOM_LANGUAGE_CODES,
-  type LanguageClassroomLanguageCode,
-  type LanguageClassroomRow,
-} from '../../types.js';
+import type { LanguageClassroomRow } from '../../types.js';
 import type { UsageCostLine } from '../cost.js';
 import { logIngestEvent, step } from '../ingest/step.js';
 import { cleanTextForTts } from '../ingest/tts-text-cleansing.js';
 import { textToSpeech } from '../tts.js';
+import { parseLanguageClassroomLanguageCode } from './classroom-language.js';
 
 export interface SynthesizeClassroomAudioOptions {
   episodeId?: string;
@@ -66,18 +63,4 @@ export async function synthesizeClassroomAudio(
       cost,
     };
   }
-}
-
-function parseLanguageClassroomLanguageCode(
-  languageCode: string,
-): LanguageClassroomLanguageCode {
-  if (
-    LANGUAGE_CLASSROOM_LANGUAGE_CODES.includes(
-      languageCode as LanguageClassroomLanguageCode,
-    )
-  ) {
-    return languageCode as LanguageClassroomLanguageCode;
-  }
-
-  throw new Error(`Unsupported language classroom code: ${languageCode}`);
 }
