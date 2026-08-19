@@ -124,28 +124,40 @@ export async function listSocialPublishCandidates(
   return data ?? [];
 }
 
+// A conflict-ignoring upsert and a status-fenced update both ask the same
+// question -- did this actually touch a row? -- so they share the answer, not
+// the builder: `upsert` and `update` produce POST and PATCH builders whose
+// types do not unify.
+async function affectedSocialPublishJobRow(
+  mutation: PromiseLike<{ data: { id: string } | null; error: unknown }>,
+): Promise<boolean> {
+  const { data, error } = await mutation;
+  if (error) throwSupabaseError(error);
+  return data !== null;
+}
+
 export async function enqueueSocialPublishJob(input: {
   episodeId: string;
   platform: SocialPlatform;
   scheduledAt: string;
   strategyVersionId?: string | null;
 }): Promise<boolean> {
-  const { data, error } = await getPipelineSupabase()
-    .from('social_publish_jobs')
-    .upsert(
-      {
-        episode_id: input.episodeId,
-        platform: input.platform,
-        scheduled_at: input.scheduledAt,
-        next_attempt_at: input.scheduledAt,
-        strategy_version_id: input.strategyVersionId ?? null,
-      },
-      { onConflict: 'episode_id,platform', ignoreDuplicates: true },
-    )
-    .select('id')
-    .maybeSingle<{ id: string }>();
-  if (error) throwSupabaseError(error);
-  return data !== null;
+  return affectedSocialPublishJobRow(
+    getPipelineSupabase()
+      .from('social_publish_jobs')
+      .upsert(
+        {
+          episode_id: input.episodeId,
+          platform: input.platform,
+          scheduled_at: input.scheduledAt,
+          next_attempt_at: input.scheduledAt,
+          strategy_version_id: input.strategyVersionId ?? null,
+        },
+        { onConflict: 'episode_id,platform', ignoreDuplicates: true },
+      )
+      .select('id')
+      .maybeSingle<{ id: string }>(),
+  );
 }
 
 export async function latestScheduledSocialJobs(): Promise<
@@ -381,15 +393,15 @@ export async function reconcileSocialPublishJob(input: {
   completedAt: Date;
 }): Promise<boolean> {
   const completedAt = input.completedAt.toISOString();
-  const { data, error } = await getPipelineSupabase()
-    .from('social_publish_jobs')
-    .update(completedSocialPublishJobPatch(completedAt, input.socialPostId))
-    .eq('id', input.jobId)
-    .in('status', ['queued', 'failed'])
-    .select('id')
-    .maybeSingle<{ id: string }>();
-  if (error) throwSupabaseError(error);
-  return data !== null;
+  return affectedSocialPublishJobRow(
+    getPipelineSupabase()
+      .from('social_publish_jobs')
+      .update(completedSocialPublishJobPatch(completedAt, input.socialPostId))
+      .eq('id', input.jobId)
+      .in('status', ['queued', 'failed'])
+      .select('id')
+      .maybeSingle<{ id: string }>(),
+  );
 }
 
 export async function failSocialPublishJob(input: {
