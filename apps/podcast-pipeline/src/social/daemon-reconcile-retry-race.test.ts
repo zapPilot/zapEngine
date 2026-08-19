@@ -45,8 +45,7 @@ vi.mock('./daemon-store.js', () => ({
 
 vi.mock('../services/db.js', () => ({
   insertSocialPostMetric: mocks.insertSocialPostMetric,
-  listSocialPostIdentitiesByEpisodes:
-    mocks.listSocialPostIdentitiesByEpisodes,
+  listSocialPostIdentitiesByEpisodes: mocks.listSocialPostIdentitiesByEpisodes,
   listSocialPostsByEpisode: mocks.listSocialPostsByEpisode,
   updateSocialPostIdentity: mocks.updateSocialPostIdentity,
 }));
