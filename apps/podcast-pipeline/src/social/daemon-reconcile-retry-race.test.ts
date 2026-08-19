@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   listUnfinishedSocialPublishJobs: vi.fn(),
   reconcileSocialPublishJob: vi.fn(),
   insertSocialPostMetric: vi.fn(),
+  listSocialPostIdentitiesByEpisodes: vi.fn(),
   listSocialPostsByEpisode: vi.fn(),
   updateSocialPostIdentity: vi.fn(),
   runSocialCli: vi.fn(),
@@ -44,6 +45,8 @@ vi.mock('./daemon-store.js', () => ({
 
 vi.mock('../services/db.js', () => ({
   insertSocialPostMetric: mocks.insertSocialPostMetric,
+  listSocialPostIdentitiesByEpisodes:
+    mocks.listSocialPostIdentitiesByEpisodes,
   listSocialPostsByEpisode: mocks.listSocialPostsByEpisode,
   updateSocialPostIdentity: mocks.updateSocialPostIdentity,
 }));
@@ -62,6 +65,10 @@ import { runSocialDaemonTick } from './daemon.js';
 const NOW = new Date('2026-08-19T04:30:00.000Z');
 const EPISODE_ID = '123e4567-e89b-42d3-a456-426614174020';
 
+function existingPost(id: string) {
+  return { id, episode_id: EPISODE_ID, platform: 'threads' };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.alignPendingSocialPublishSchedules.mockResolvedValue(0);
@@ -72,6 +79,8 @@ beforeEach(() => {
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);
   mocks.getSocialStrategyById.mockResolvedValue(null);
   mocks.claimSocialPublishBatch.mockResolvedValue([]);
+  mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([]);
+  mocks.listSocialPostsByEpisode.mockResolvedValue([]);
   mocks.createMetricCollectors.mockReturnValue({
     x: vi.fn(),
     threads: vi.fn(),
@@ -90,8 +99,8 @@ describe('social daemon reconciliation versus retry race', () => {
         status: 'failed',
       },
     ]);
-    mocks.listSocialPostsByEpisode.mockResolvedValue([
-      { id: 'post-existing-before-retry' },
+    mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([
+      existingPost('post-existing-before-retry'),
     ]);
     mocks.reconcileSocialPublishJob.mockResolvedValue(true);
 
@@ -101,6 +110,9 @@ describe('social daemon reconciliation versus retry race', () => {
       log: vi.fn(),
     });
 
+    expect(mocks.listSocialPostIdentitiesByEpisodes).toHaveBeenCalledWith([
+      EPISODE_ID,
+    ]);
     expect(mocks.reconcileSocialPublishJob).toHaveBeenCalledWith({
       jobId: 'job-failed-but-published',
       socialPostId: 'post-existing-before-retry',
@@ -113,5 +125,165 @@ describe('social daemon reconciliation versus retry race', () => {
     expect(mocks.runSocialCli).not.toHaveBeenCalled();
     expect(mocks.completeSocialPublishJob).not.toHaveBeenCalled();
     expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
+  });
+
+  it('fences a retry publish when reconciliation loses its CAS race', async () => {
+    const job = {
+      id: 'job-cas-race',
+      episode_id: EPISODE_ID,
+      platform: 'threads',
+      status: 'failed',
+      attempt_count: 3,
+      strategy_version_id: null,
+    };
+
+    mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([job]);
+    mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([
+      existingPost('post-existing-cas-race'),
+    ]);
+    mocks.listSocialPostsByEpisode.mockResolvedValue([
+      { id: 'post-existing-cas-race' },
+    ]);
+    mocks.reconcileSocialPublishJob.mockResolvedValue(false);
+    mocks.claimSocialPublishBatch.mockResolvedValue([job]);
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-19T03:00:00.000Z',
+      log: vi.fn(),
+    });
+
+    expect(mocks.reconcileSocialPublishJob).toHaveBeenCalledWith({
+      jobId: job.id,
+      socialPostId: 'post-existing-cas-race',
+      completedAt: NOW,
+    });
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: job.id,
+        completedAt: NOW,
+        socialPostId: 'post-existing-cas-race',
+      }),
+    );
+    expect(mocks.listSocialPostIdentitiesByEpisodes).toHaveBeenCalledTimes(1);
+    expect(mocks.listSocialPostsByEpisode).toHaveBeenCalledTimes(1);
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
+  });
+
+  it('never republishes when retry completion loses the lease after a reconciliation CAS miss', async () => {
+    const job = {
+      id: 'job-double-cas-loss',
+      episode_id: EPISODE_ID,
+      platform: 'threads',
+      status: 'failed',
+      attempt_count: 4,
+      strategy_version_id: null,
+    };
+
+    mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([job]);
+    mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([
+      existingPost('post-existing-double-cas'),
+    ]);
+    mocks.listSocialPostsByEpisode.mockResolvedValue([
+      { id: 'post-existing-double-cas' },
+    ]);
+    mocks.reconcileSocialPublishJob.mockResolvedValue(false);
+    mocks.claimSocialPublishBatch.mockResolvedValue([job]);
+    mocks.completeSocialPublishJob.mockRejectedValueOnce(
+      new Error('publish job lease lost'),
+    );
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-19T03:00:00.000Z',
+      log: vi.fn(),
+    });
+
+    expect(mocks.reconcileSocialPublishJob).toHaveBeenCalledWith({
+      jobId: job.id,
+      socialPostId: 'post-existing-double-cas',
+      completedAt: NOW,
+    });
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: job.id,
+        completedAt: NOW,
+        socialPostId: 'post-existing-double-cas',
+      }),
+    );
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: job.id,
+        attemptCount: 4,
+        error: 'publish job lease lost',
+      }),
+    );
+    expect(mocks.listSocialPostsByEpisode).toHaveBeenCalledTimes(1);
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+  });
+
+  it('recovers on the next tick when double CAS loss cannot persist the failure state', async () => {
+    const job = {
+      id: 'job-double-cas-persistence-loss',
+      episode_id: EPISODE_ID,
+      platform: 'threads',
+      status: 'failed',
+      attempt_count: 5,
+      strategy_version_id: null,
+    };
+    const later = new Date(NOW.getTime() + 10 * 60_000);
+    const log = vi.fn();
+
+    mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([job]);
+    mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([
+      existingPost('post-existing-persistence-loss'),
+    ]);
+    mocks.listSocialPostsByEpisode.mockResolvedValue([
+      { id: 'post-existing-persistence-loss' },
+    ]);
+    mocks.reconcileSocialPublishJob
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    mocks.claimSocialPublishBatch
+      .mockResolvedValueOnce([job])
+      .mockResolvedValueOnce([]);
+    mocks.completeSocialPublishJob.mockRejectedValueOnce(
+      new Error('publish job lease lost'),
+    );
+    mocks.failSocialPublishJob.mockRejectedValueOnce(
+      new Error('failure state write failed'),
+    );
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-19T03:00:00.000Z',
+      log,
+    });
+    await runSocialDaemonTick({
+      now: later,
+      firstStartedAt: '2026-08-19T03:00:00.000Z',
+      log,
+    });
+
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: job.id,
+        attemptCount: 5,
+        error: 'publish job lease lost',
+      }),
+    );
+    expect(mocks.reconcileSocialPublishJob).toHaveBeenNthCalledWith(2, {
+      jobId: job.id,
+      socialPostId: 'post-existing-persistence-loss',
+      completedAt: later,
+    });
+    expect(mocks.listSocialPostIdentitiesByEpisodes).toHaveBeenCalledTimes(2);
+    expect(mocks.claimSocialPublishBatch).toHaveBeenCalledTimes(2);
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledTimes(1);
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('failed to persist threads publish failure'),
+    );
   });
 });
