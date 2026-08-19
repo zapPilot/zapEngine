@@ -40,6 +40,7 @@ import {
   defaultSocialStrategy,
   nextPublishSlot,
   refreshSocialStrategies,
+  startOfJstDay,
 } from './strategy.js';
 
 const REPO_ROOT = resolve(
@@ -180,7 +181,7 @@ async function discoverAndEnqueue(input: {
     if (rollingLast) {
       after = new Date(rollingLast.getTime() + 60_000);
     } else if (input.now > readyAt) {
-      after = input.now;
+      after = startOfJstDay(input.now);
     }
     const scheduledAt = nextPublishSlot({
       platform: 'x',

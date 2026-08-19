@@ -40,6 +40,20 @@ export function activeStrategyMap(
   ) as Record<SocialPlatform, SocialStrategyVersionRow | null>;
 }
 
+export function startOfJstDay(date: Date): Date {
+  const jst = new Date(date.getTime() + JST_OFFSET_HOURS * 60 * 60_000);
+  const dayStartJstMs = Date.UTC(
+    jst.getUTCFullYear(),
+    jst.getUTCMonth(),
+    jst.getUTCDate(),
+    0,
+    0,
+    0,
+    0,
+  );
+  return new Date(dayStartJstMs - JST_OFFSET_HOURS * 60 * 60_000);
+}
+
 export function nextPublishSlot(input: {
   platform: SocialPlatform;
   readyAt: Date;

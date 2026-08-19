@@ -7,6 +7,7 @@ import {
   defaultSocialStrategy,
   learnSocialStrategies,
   nextPublishSlot,
+  startOfJstDay,
 } from './strategy.js';
 
 function post(input: {
@@ -172,6 +173,18 @@ describe('social strategy', () => {
         after = new Date(slot.getTime() + 60_000);
       }
     }
+  });
+
+  it('finds the start of the JST calendar day for a given instant', () => {
+    expect(
+      startOfJstDay(new Date('2026-08-16T04:00:00.000Z')).toISOString(),
+    ).toBe('2026-08-15T15:00:00.000Z');
+    expect(
+      startOfJstDay(new Date('2026-08-16T16:00:00.000Z')).toISOString(),
+    ).toBe('2026-08-16T15:00:00.000Z');
+    expect(
+      startOfJstDay(new Date('2026-08-16T15:00:00.000Z')).toISOString(),
+    ).toBe('2026-08-16T15:00:00.000Z');
   });
 
   it('returns no guidance for missing or empty preferences', () => {

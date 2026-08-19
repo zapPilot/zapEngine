@@ -578,6 +578,34 @@ describe('social daemon', () => {
     });
   });
 
+  it('discovers stale candidates after a restart and schedules them into the remaining slots for today instead of tomorrow', async () => {
+    const SECOND_EPISODE_ID = '223e4567-e89b-42d3-a456-426614174001';
+    mocks.listSocialPublishCandidates.mockResolvedValue([
+      { episode_id: EPISODE_ID, ready_at: '2026-08-10T00:00:00.000Z' },
+      { episode_id: SECOND_EPISODE_ID, ready_at: '2026-08-11T00:00:00.000Z' },
+    ]);
+
+    await runSocialDaemonTick({
+      now: new Date('2026-08-16T04:00:00.000Z'),
+      firstStartedAt: '2026-08-01T00:00:00.000Z',
+    });
+
+    const calls = mocks.enqueueSocialPublishJob.mock.calls.map(
+      ([input]) => input,
+    );
+    expect(
+      calls.find(
+        (input) => input.episodeId === EPISODE_ID && input.platform === 'x',
+      ),
+    ).toMatchObject({ scheduledAt: '2026-08-16T00:30:00.000Z' });
+    expect(
+      calls.find(
+        (input) =>
+          input.episodeId === SECOND_EPISODE_ID && input.platform === 'x',
+      ),
+    ).toMatchObject({ scheduledAt: '2026-08-16T03:00:00.000Z' });
+  });
+
   it('passes learned guidance into publishing and fails on state or record persistence errors', async () => {
     for (const field of ['stateError', 'recordError'] as const) {
       vi.clearAllMocks();
