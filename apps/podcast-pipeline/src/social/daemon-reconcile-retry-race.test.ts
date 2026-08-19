@@ -285,4 +285,61 @@ describe('social daemon reconciliation versus retry race', () => {
       expect.stringContaining('failed to persist threads publish failure'),
     );
   });
+
+  it('still fences publish when the next tick loses reconciliation CAS again before reclaim', async () => {
+    const job = {
+      id: 'job-second-tick-cas-miss',
+      episode_id: EPISODE_ID,
+      platform: 'threads',
+      status: 'failed',
+      attempt_count: 6,
+      strategy_version_id: null,
+    };
+    const later = new Date(NOW.getTime() + 10 * 60_000);
+
+    mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([job]);
+    mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([
+      existingPost('post-existing-second-tick-cas'),
+    ]);
+    mocks.listSocialPostsByEpisode.mockResolvedValue([
+      { id: 'post-existing-second-tick-cas' },
+    ]);
+    mocks.reconcileSocialPublishJob.mockResolvedValue(false);
+    mocks.claimSocialPublishBatch.mockResolvedValue([job]);
+    mocks.completeSocialPublishJob
+      .mockRejectedValueOnce(new Error('publish job lease lost'))
+      .mockResolvedValueOnce(undefined);
+    mocks.failSocialPublishJob.mockRejectedValueOnce(
+      new Error('failure state write failed'),
+    );
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-19T03:00:00.000Z',
+      log: vi.fn(),
+    });
+    await runSocialDaemonTick({
+      now: later,
+      firstStartedAt: '2026-08-19T03:00:00.000Z',
+      log: vi.fn(),
+    });
+
+    expect(mocks.reconcileSocialPublishJob).toHaveBeenNthCalledWith(2, {
+      jobId: job.id,
+      socialPostId: 'post-existing-second-tick-cas',
+      completedAt: later,
+    });
+    expect(mocks.claimSocialPublishBatch).toHaveBeenCalledTimes(2);
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledTimes(2);
+    expect(mocks.completeSocialPublishJob).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        jobId: job.id,
+        completedAt: later,
+        socialPostId: 'post-existing-second-tick-cas',
+      }),
+    );
+    expect(mocks.listSocialPostsByEpisode).toHaveBeenCalledTimes(2);
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledTimes(1);
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+  });
 });
