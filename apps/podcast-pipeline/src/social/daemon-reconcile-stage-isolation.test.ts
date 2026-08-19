@@ -357,6 +357,9 @@ describe('social daemon reconcile stage isolation', () => {
     mocks.claimSocialPublishBatch
       .mockResolvedValueOnce([claimedJob])
       .mockResolvedValueOnce([]);
+    mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([
+      { id: postId, episode_id: RECONCILE_EPISODE_ID, platform: 'x' },
+    ]);
     mocks.listSocialPostsByEpisode.mockResolvedValue([{ id: postId }]);
     mocks.completeSocialPublishJob.mockRejectedValueOnce(leaseError);
     mocks.failSocialPublishJob.mockResolvedValue(undefined);
