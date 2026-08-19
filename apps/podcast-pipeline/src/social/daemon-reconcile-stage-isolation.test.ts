@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   listUnfinishedSocialPublishJobs: vi.fn(),
   reconcileSocialPublishJob: vi.fn(),
   insertSocialPostMetric: vi.fn(),
+  listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
   listSocialPostsByEpisode: vi.fn(),
   updateSocialPostIdentity: vi.fn(),
   runSocialCli: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('./daemon-store.js', () => ({
 
 vi.mock('../services/db.js', () => ({
   insertSocialPostMetric: mocks.insertSocialPostMetric,
+  listSocialPostIdentitiesByEpisodes: mocks.listSocialPostIdentitiesByEpisodes,
   listSocialPostsByEpisode: mocks.listSocialPostsByEpisode,
   updateSocialPostIdentity: mocks.updateSocialPostIdentity,
 }));
@@ -111,8 +113,10 @@ describe('social daemon reconcile stage isolation', () => {
         updated_at: NOW.toISOString(),
       },
     ]);
+    mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([
+      { id: 'post-reconcile', episode_id: RECONCILE_EPISODE_ID, platform: 'x' },
+    ]);
     mocks.listSocialPostsByEpisode
-      .mockResolvedValueOnce([{ id: 'post-reconcile' }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'post-publish' }]);
     mocks.runSocialCli.mockResolvedValue([
@@ -168,9 +172,18 @@ describe('social daemon reconcile stage isolation', () => {
         status: 'failed',
       },
     ]);
-    mocks.listSocialPostsByEpisode
-      .mockResolvedValueOnce([{ id: 'post-reconcile-1' }])
-      .mockResolvedValueOnce([{ id: 'post-reconcile-2' }]);
+    mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([
+      {
+        id: 'post-reconcile-1',
+        episode_id: RECONCILE_EPISODE_ID,
+        platform: 'x',
+      },
+      {
+        id: 'post-reconcile-2',
+        episode_id: secondEpisodeId,
+        platform: 'threads',
+      },
+    ]);
     mocks.reconcileSocialPublishJob
       .mockRejectedValueOnce(reconcileError)
       .mockResolvedValueOnce(true);
@@ -197,9 +210,8 @@ describe('social daemon reconcile stage isolation', () => {
     expect(mocks.runSocialCli).not.toHaveBeenCalled();
   });
 
-  it('continues reconciling later jobs when one post lookup fails', async () => {
+  it('reports a failed sweep lookup and still publishes due jobs', async () => {
     const lookupError = new Error('social post lookup unavailable');
-    const secondEpisodeId = '123e4567-e89b-42d3-a456-426614174013';
     mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([
       {
         id: 'job-lookup-fails',
@@ -207,18 +219,38 @@ describe('social daemon reconcile stage isolation', () => {
         platform: 'x',
         status: 'failed',
       },
+    ]);
+    mocks.listSocialPostIdentitiesByEpisodes.mockRejectedValue(lookupError);
+    mocks.reconcileSocialPublishJob.mockResolvedValue(true);
+    mocks.claimSocialPublishBatch.mockResolvedValue([
       {
-        id: 'job-reconcile-after-lookup-failure',
-        episode_id: secondEpisodeId,
+        id: 'job-publish',
+        episode_id: PUBLISH_EPISODE_ID,
         platform: 'threads',
-        status: 'failed',
+        status: 'processing',
+        scheduled_at: NOW.toISOString(),
+        next_attempt_at: NOW.toISOString(),
+        strategy_version_id: null,
+        social_post_id: null,
+        attempt_count: 1,
+        lease_owner: 'owner',
+        lease_expires_at: new Date(NOW.getTime() + 15 * 60_000).toISOString(),
+        last_error: null,
+        completed_at: null,
+        created_at: NOW.toISOString(),
+        updated_at: NOW.toISOString(),
       },
     ]);
     mocks.listSocialPostsByEpisode
-      .mockRejectedValueOnce(lookupError)
-      .mockResolvedValueOnce([{ id: 'post-after-lookup-failure' }]);
-    mocks.reconcileSocialPublishJob.mockResolvedValue(true);
-    mocks.claimSocialPublishBatch.mockResolvedValue([]);
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'post-publish' }]);
+    mocks.runSocialCli.mockResolvedValue([
+      {
+        platform: 'threads',
+        status: 'published',
+        url: 'https://www.threads.net/@zap/post/1',
+      },
+    ]);
 
     const log = vi.fn();
     await runSocialDaemonTick({
@@ -227,18 +259,19 @@ describe('social daemon reconcile stage isolation', () => {
       log,
     });
 
-    expect(mocks.reconcileSocialPublishJob).toHaveBeenCalledTimes(1);
-    expect(mocks.reconcileSocialPublishJob).toHaveBeenCalledWith({
-      jobId: 'job-reconcile-after-lookup-failure',
-      socialPostId: 'post-after-lookup-failure',
-      completedAt: NOW,
-    });
-    expect(log).toHaveBeenCalledWith(
-      `[social-daemon] reconciled threads for ${secondEpisodeId} - already published (post-after-lookup-failure).`,
-    );
+    expect(mocks.reconcileSocialPublishJob).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
       `[social-daemon] reconcile failed: ${lookupError.message}`,
     );
-    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.runSocialCli).toHaveBeenCalledWith(
+      [PUBLISH_EPISODE_ID, '--yes', '--platform', 'threads'],
+      expect.objectContaining({ setExitCodeOnFailure: false }),
+    );
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-publish',
+      owner: expect.any(String),
+      completedAt: NOW,
+      socialPostId: 'post-publish',
+    });
   });
 });

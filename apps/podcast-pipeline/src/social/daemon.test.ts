@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   listUnfinishedSocialPublishJobs: vi.fn(),
   reconcileSocialPublishJob: vi.fn(),
   insertSocialPostMetric: vi.fn(),
+  listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
   listSocialPostsByEpisode: vi.fn(),
   updateSocialPostIdentity: vi.fn(),
   runSocialCli: vi.fn(),
@@ -55,6 +56,7 @@ vi.mock('./daemon-store.js', () => ({
 
 vi.mock('../services/db.js', () => ({
   insertSocialPostMetric: mocks.insertSocialPostMetric,
+  listSocialPostIdentitiesByEpisodes: mocks.listSocialPostIdentitiesByEpisodes,
   listSocialPostsByEpisode: mocks.listSocialPostsByEpisode,
   updateSocialPostIdentity: mocks.updateSocialPostIdentity,
 }));
@@ -266,12 +268,8 @@ describe('social daemon', () => {
         status: 'failed',
       },
     ]);
-    mocks.listSocialPostsByEpisode.mockResolvedValue([
-      socialPost({
-        id: 'post-youtube',
-        platform: 'youtube',
-        post_url: 'https://www.youtube.com/watch?v=abc',
-      }),
+    mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([
+      { id: 'post-youtube', episode_id: EPISODE_ID, platform: 'youtube' },
     ]);
 
     const log = vi.fn();
@@ -302,8 +300,8 @@ describe('social daemon', () => {
         status: 'queued',
       },
     ]);
-    mocks.listSocialPostsByEpisode.mockResolvedValue([
-      socialPost({ id: 'post-manual', platform: 'youtube' }),
+    mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([
+      { id: 'post-manual', episode_id: EPISODE_ID, platform: 'youtube' },
     ]);
 
     await runSocialDaemonTick({
@@ -334,10 +332,9 @@ describe('social daemon', () => {
         status: 'failed',
       },
     ]);
-    mocks.listSocialPostsByEpisode.mockImplementation(
-      async (_episodeId: string, platform: string) =>
-        platform === 'x' ? [socialPost({ id: 'post-raced' })] : [],
-    );
+    mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([
+      { id: 'post-raced', episode_id: EPISODE_ID, platform: 'x' },
+    ]);
     mocks.reconcileSocialPublishJob.mockResolvedValue(false);
 
     const log = vi.fn();

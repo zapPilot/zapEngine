@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 
 import {
   insertSocialPostMetric,
+  listSocialPostIdentitiesByEpisodes,
   listSocialPostsByEpisode,
   updateSocialPostIdentity,
 } from '../services/db.js';
@@ -223,22 +224,36 @@ async function reconcileAlreadyPublishedJobs(
   log: (message: string) => void,
 ): Promise<void> {
   const jobs = await listUnfinishedSocialPublishJobs();
+  if (jobs.length === 0) return;
+
+  // One lookup for the whole sweep: a backfilled queue can hold hundreds of
+  // jobs, and asking per job would spend most of a tick on round-trips.
+  const posts = await listSocialPostIdentitiesByEpisodes([
+    ...new Set(jobs.map((job) => job.episode_id)),
+  ]);
+  const postIdByJob = new Map<string, string>();
+  for (const post of posts) {
+    // Rows arrive newest first, so the first one wins -- the same row the
+    // per-job lookup used to return.
+    postIdByJob.set(
+      `${post.episode_id}|${post.platform}`,
+      postIdByJob.get(`${post.episode_id}|${post.platform}`) ?? post.id,
+    );
+  }
+
   let firstError: unknown = null;
   for (const job of jobs) {
     try {
-      const [post] = await listSocialPostsByEpisode(
-        job.episode_id,
-        job.platform,
-      );
-      if (!post) continue;
+      const socialPostId = postIdByJob.get(`${job.episode_id}|${job.platform}`);
+      if (!socialPostId) continue;
       const reconciled = await reconcileSocialPublishJob({
         jobId: job.id,
-        socialPostId: post.id,
+        socialPostId,
         completedAt: now,
       });
       if (!reconciled) continue;
       log(
-        `[social-daemon] reconciled ${job.platform} for ${job.episode_id} - already published (${post.id}).`,
+        `[social-daemon] reconciled ${job.platform} for ${job.episode_id} - already published (${socialPostId}).`,
       );
     } catch (error) {
       firstError ??= error;

@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   listUnfinishedSocialPublishJobs: vi.fn(),
   reconcileSocialPublishJob: vi.fn(),
   insertSocialPostMetric: vi.fn(),
+  listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
   listSocialPostsByEpisode: vi.fn(),
   updateSocialPostIdentity: vi.fn(),
   runSocialCli: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('./daemon-store.js', () => ({
 
 vi.mock('../services/db.js', () => ({
   insertSocialPostMetric: mocks.insertSocialPostMetric,
+  listSocialPostIdentitiesByEpisodes: mocks.listSocialPostIdentitiesByEpisodes,
   listSocialPostsByEpisode: mocks.listSocialPostsByEpisode,
   updateSocialPostIdentity: mocks.updateSocialPostIdentity,
 }));
@@ -164,7 +166,9 @@ describe('social daemon publish persistence failures', () => {
         last_error: 'x publish completed but no social_posts row was recorded.',
       },
     ]);
-    mocks.listSocialPostsByEpisode.mockResolvedValueOnce([{ id: 'post-2' }]);
+    mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([
+      { id: 'post-2', episode_id: EPISODE_ID, platform: 'x' },
+    ]);
     mocks.claimSocialPublishBatch.mockResolvedValue([]);
 
     await runSocialDaemonTick({
@@ -191,9 +195,10 @@ describe('social daemon publish persistence failures', () => {
         status: 'failed',
       },
     ]);
-    mocks.listSocialPostsByEpisode
-      .mockResolvedValueOnce([{ id: 'post-2' }])
-      .mockResolvedValueOnce([{ id: 'post-2' }]);
+    mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([
+      { id: 'post-2', episode_id: EPISODE_ID, platform: 'x' },
+    ]);
+    mocks.listSocialPostsByEpisode.mockResolvedValueOnce([{ id: 'post-2' }]);
     mocks.reconcileSocialPublishJob.mockResolvedValue(false);
     mocks.claimSocialPublishBatch.mockResolvedValue([publishJob(4)]);
 
@@ -258,9 +263,10 @@ describe('social daemon publish persistence failures', () => {
           lease_expires_at: new Date(NOW.getTime() + 15 * 60_000).toISOString(),
         },
       ]);
-    mocks.listSocialPostsByEpisode
-      .mockResolvedValueOnce([{ id: 'post-2' }])
-      .mockResolvedValueOnce([{ id: 'post-2' }]);
+    mocks.listSocialPostsByEpisode.mockResolvedValueOnce([{ id: 'post-2' }]);
+    mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([
+      { id: 'post-2', episode_id: EPISODE_ID, platform: 'x' },
+    ]);
     mocks.completeSocialPublishJob.mockRejectedValueOnce(leaseError);
     mocks.failSocialPublishJob.mockRejectedValueOnce(persistenceError);
     mocks.claimSocialPublishBatch

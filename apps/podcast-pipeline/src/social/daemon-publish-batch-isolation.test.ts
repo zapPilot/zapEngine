@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   listUnfinishedSocialPublishJobs: vi.fn(),
   reconcileSocialPublishJob: vi.fn(),
   insertSocialPostMetric: vi.fn(),
+  listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
   listSocialPostsByEpisode: vi.fn(),
   updateSocialPostIdentity: vi.fn(),
   runSocialCli: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('./daemon-store.js', () => ({
 
 vi.mock('../services/db.js', () => ({
   insertSocialPostMetric: mocks.insertSocialPostMetric,
+  listSocialPostIdentitiesByEpisodes: mocks.listSocialPostIdentitiesByEpisodes,
   listSocialPostsByEpisode: mocks.listSocialPostsByEpisode,
   updateSocialPostIdentity: mocks.updateSocialPostIdentity,
 }));

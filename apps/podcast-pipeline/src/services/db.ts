@@ -670,6 +670,36 @@ export async function listSocialPostsByEpisode(
   );
 }
 
+export interface SocialPostIdentity {
+  id: string;
+  episode_id: string;
+  platform: SocialPlatform;
+}
+
+// The daemon's reconcile sweep asks "is this platform already live?" once per
+// unfinished job. A backfill queue holding hundreds of jobs would turn that
+// into hundreds of sequential round-trips every tick, so the whole sweep is
+// answered by one query. `published_at desc` matches listSocialPosts, letting
+// callers keep taking the first row per (episode, platform) as the newest.
+export async function listSocialPostIdentitiesByEpisodes(
+  episodeIds: readonly string[],
+): Promise<SocialPostIdentity[]> {
+  if (episodeIds.length === 0) return [];
+
+  const { data, error } = await getSupabase()
+    .from('social_posts')
+    .select('id,episode_id,platform')
+    .in('episode_id', [...episodeIds])
+    .order('published_at', { ascending: false })
+    .returns<SocialPostIdentity[]>();
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  return data ?? [];
+}
+
 export async function listRecentSocialPosts(
   publishedSince: string,
 ): Promise<SocialPostRow[]> {
