@@ -244,7 +244,11 @@ async function reconcileAlreadyPublishedJobs(
       firstError ??= error;
     }
   }
-  if (firstError) throw firstError;
+  if (firstError) {
+    throw firstError instanceof Error
+      ? firstError
+      : new Error(String(firstError));
+  }
 }
 
 async function persistPublishFailure(input: {
