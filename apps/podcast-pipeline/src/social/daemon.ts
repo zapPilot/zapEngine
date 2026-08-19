@@ -223,19 +223,59 @@ async function reconcileAlreadyPublishedJobs(
   log: (message: string) => void,
 ): Promise<void> {
   const jobs = await listUnfinishedSocialPublishJobs();
+  let firstError: unknown = null;
   for (const job of jobs) {
-    const [post] = await listSocialPostsByEpisode(job.episode_id, job.platform);
-    if (!post) continue;
-    const reconciled = await reconcileSocialPublishJob({
-      jobId: job.id,
-      socialPostId: post.id,
-      completedAt: now,
+    try {
+      const [post] = await listSocialPostsByEpisode(
+        job.episode_id,
+        job.platform,
+      );
+      if (!post) continue;
+      const reconciled = await reconcileSocialPublishJob({
+        jobId: job.id,
+        socialPostId: post.id,
+        completedAt: now,
+      });
+      if (!reconciled) continue;
+      log(
+        `[social-daemon] reconciled ${job.platform} for ${job.episode_id} - already published (${post.id}).`,
+      );
+    } catch (error) {
+      firstError ??= error;
+    }
+  }
+  if (firstError) {
+    throw firstError instanceof Error
+      ? firstError
+      : new Error(String(firstError));
+  }
+}
+
+async function persistPublishFailure(input: {
+  jobId: string;
+  episodeId: string;
+  platform: string;
+  attemptCount: number;
+  now: Date;
+  message: string;
+  log: (message: string) => void;
+}): Promise<void> {
+  try {
+    await failSocialPublishJob({
+      jobId: input.jobId,
+      owner: OWNER,
+      now: input.now,
+      attemptCount: input.attemptCount,
+      error: input.message,
     });
-    if (!reconciled) continue;
-    log(
-      `[social-daemon] reconciled ${job.platform} for ${job.episode_id} - already published (${post.id}).`,
+  } catch (persistenceError) {
+    input.log(
+      `[social-daemon] failed to persist ${input.platform} publish failure for ${input.episodeId}: ${persistenceError instanceof Error ? persistenceError.message : String(persistenceError)}`,
     );
   }
+  input.log(
+    `[social-daemon] ${input.platform} publish failed for ${input.episodeId}: ${input.message}`,
+  );
 }
 
 async function publishDueJobs(
@@ -299,17 +339,15 @@ async function publishDueJobs(
         `[social-daemon] published ${job.platform} for ${job.episode_id} (${post.id}).`,
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      await failSocialPublishJob({
+      await persistPublishFailure({
         jobId: job.id,
-        owner: OWNER,
-        now,
+        episodeId: job.episode_id,
+        platform: job.platform,
         attemptCount: job.attempt_count,
-        error: message,
+        now,
+        message: error instanceof Error ? error.message : String(error),
+        log,
       });
-      log(
-        `[social-daemon] ${job.platform} publish failed for ${job.episode_id}: ${message}`,
-      );
     }
   }
 }

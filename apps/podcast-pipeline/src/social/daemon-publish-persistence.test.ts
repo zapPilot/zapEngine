@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  claimSocialPublishJob: vi.fn(),
   alignPendingSocialPublishSchedules: vi.fn(),
+  claimSocialPublishBatch: vi.fn(),
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn(),
   ensureSocialDaemonStart: vi.fn(),
@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   getActiveSocialStrategies: vi.fn(),
   getSocialQueueSnapshot: vi.fn(),
   getSocialStrategyById: vi.fn(),
-  latestScheduledSocialJobs: vi.fn(),
+  latestPendingSocialPublishSchedule: vi.fn(),
   listDueMetricPosts: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
@@ -25,11 +25,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./daemon-store.js', () => ({
-  claimSocialPublishBatch: async (...args: unknown[]) => {
-    const job = await mocks.claimSocialPublishJob(...args);
-    return job ? [job] : [];
-  },
   alignPendingSocialPublishSchedules: mocks.alignPendingSocialPublishSchedules,
+  claimSocialPublishBatch: mocks.claimSocialPublishBatch,
   completeSocialPublishJob: mocks.completeSocialPublishJob,
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
   ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
@@ -37,14 +34,7 @@ vi.mock('./daemon-store.js', () => ({
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   getSocialStrategyById: mocks.getSocialStrategyById,
-  latestPendingSocialPublishSchedule: async () => {
-    const schedules = (await mocks.latestScheduledSocialJobs()) as Record<
-      string,
-      string
-    >;
-    const values = Object.values(schedules).sort();
-    return values.at(-1) ?? null;
-  },
+  latestPendingSocialPublishSchedule: mocks.latestPendingSocialPublishSchedule,
   listDueMetricPosts: mocks.listDueMetricPosts,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
@@ -94,15 +84,16 @@ function publishJob(attemptCount = 3) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.alignPendingSocialPublishSchedules.mockResolvedValue(0);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.getActiveSocialStrategies.mockResolvedValue([]);
-  mocks.latestScheduledSocialJobs.mockResolvedValue({});
+  mocks.latestPendingSocialPublishSchedule.mockResolvedValue(null);
   mocks.listDueMetricPosts.mockResolvedValue([]);
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);
   mocks.getSocialStrategyById.mockResolvedValue(null);
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
   mocks.reconcileSocialPublishJob.mockResolvedValue(true);
-  mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
+  mocks.claimSocialPublishBatch.mockResolvedValue([publishJob()]);
 });
 
 describe('social daemon publish persistence failures', () => {
@@ -174,7 +165,7 @@ describe('social daemon publish persistence failures', () => {
       },
     ]);
     mocks.listSocialPostsByEpisode.mockResolvedValueOnce([{ id: 'post-2' }]);
-    mocks.claimSocialPublishJob.mockResolvedValue(null);
+    mocks.claimSocialPublishBatch.mockResolvedValue([]);
 
     await runSocialDaemonTick({
       now: NOW,
@@ -189,5 +180,108 @@ describe('social daemon publish persistence failures', () => {
     expect(mocks.runSocialCli).not.toHaveBeenCalled();
     expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
     expect(mocks.completeSocialPublishJob).not.toHaveBeenCalled();
+  });
+
+  it('does not republish when reconcile loses the CAS race and publish claims the job', async () => {
+    mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([
+      {
+        id: 'job-1',
+        episode_id: EPISODE_ID,
+        platform: 'x',
+        status: 'failed',
+      },
+    ]);
+    mocks.listSocialPostsByEpisode
+      .mockResolvedValueOnce([{ id: 'post-2' }])
+      .mockResolvedValueOnce([{ id: 'post-2' }]);
+    mocks.reconcileSocialPublishJob.mockResolvedValue(false);
+    mocks.claimSocialPublishBatch.mockResolvedValue([publishJob(4)]);
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-18T00:00:00.000Z',
+    });
+
+    expect(mocks.reconcileSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-1',
+      socialPostId: 'post-2',
+      completedAt: NOW,
+    });
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-1',
+      owner: expect.any(String),
+      completedAt: NOW,
+      socialPostId: 'post-2',
+    });
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
+  });
+
+  it('does not republish an existing post when completion loses the publish lease', async () => {
+    const leaseError = new Error('Social publish job job-1 lease was lost.');
+    mocks.listSocialPostsByEpisode.mockResolvedValueOnce([{ id: 'post-2' }]);
+    mocks.completeSocialPublishJob.mockRejectedValueOnce(leaseError);
+    mocks.claimSocialPublishBatch.mockResolvedValue([publishJob(4)]);
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-18T00:00:00.000Z',
+    });
+
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-1',
+      owner: expect.any(String),
+      completedAt: NOW,
+      socialPostId: 'post-2',
+    });
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-1',
+      owner: expect.any(String),
+      now: NOW,
+      attemptCount: 4,
+      error: leaseError.message,
+    });
+  });
+
+  it('recovers from lost failure persistence on the next tick without republishing an existing post', async () => {
+    const leaseError = new Error('Social publish job job-1 lease was lost.');
+    const persistenceError = new Error('failed to persist publish failure');
+    const recoveryNow = new Date(NOW.getTime() + 16 * 60_000);
+
+    mocks.listUnfinishedSocialPublishJobs
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          ...publishJob(4),
+          lease_owner: 'stale-owner',
+          lease_expires_at: new Date(NOW.getTime() + 15 * 60_000).toISOString(),
+        },
+      ]);
+    mocks.listSocialPostsByEpisode
+      .mockResolvedValueOnce([{ id: 'post-2' }])
+      .mockResolvedValueOnce([{ id: 'post-2' }]);
+    mocks.completeSocialPublishJob.mockRejectedValueOnce(leaseError);
+    mocks.failSocialPublishJob.mockRejectedValueOnce(persistenceError);
+    mocks.claimSocialPublishBatch
+      .mockResolvedValueOnce([publishJob(4)])
+      .mockResolvedValueOnce([]);
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-18T00:00:00.000Z',
+    });
+    await runSocialDaemonTick({
+      now: recoveryNow,
+      firstStartedAt: '2026-08-18T00:00:00.000Z',
+    });
+
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledTimes(1);
+    expect(mocks.reconcileSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-1',
+      socialPostId: 'post-2',
+      completedAt: recoveryNow,
+    });
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
   });
 });
