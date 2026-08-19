@@ -241,4 +241,53 @@ describe('social daemon reconcile stage isolation', () => {
     );
     expect(mocks.runSocialCli).not.toHaveBeenCalled();
   });
+
+  it('fences duplicate publishing when the unfinished-job lookup fails', async () => {
+    const lookupError = new Error('unfinished jobs lookup unavailable');
+    mocks.listUnfinishedSocialPublishJobs.mockRejectedValue(lookupError);
+    mocks.claimSocialPublishBatch.mockResolvedValue([
+      {
+        id: 'job-claimed-after-reconcile-failure',
+        episode_id: RECONCILE_EPISODE_ID,
+        platform: 'x',
+        status: 'processing',
+        scheduled_at: NOW.toISOString(),
+        next_attempt_at: NOW.toISOString(),
+        strategy_version_id: null,
+        social_post_id: null,
+        attempt_count: 2,
+        lease_owner: 'owner',
+        lease_expires_at: new Date(NOW.getTime() + 15 * 60_000).toISOString(),
+        last_error: 'previous persistence failure',
+        completed_at: null,
+        created_at: NOW.toISOString(),
+        updated_at: NOW.toISOString(),
+      },
+    ]);
+    mocks.listSocialPostsByEpisode.mockResolvedValue([
+      { id: 'post-existing-after-reconcile-failure' },
+    ]);
+
+    const log = vi.fn();
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-18T23:00:00.000Z',
+      log,
+    });
+
+    expect(log).toHaveBeenCalledWith(
+      `[social-daemon] reconcile failed: ${lookupError.message}`,
+    );
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
+      jobId: 'job-claimed-after-reconcile-failure',
+      owner: expect.any(String),
+      completedAt: NOW,
+      socialPostId: 'post-existing-after-reconcile-failure',
+    });
+    expect(log).toHaveBeenCalledWith(
+      `[social-daemon] reconciled x for ${RECONCILE_EPISODE_ID} - already published (post-existing-after-reconcile-failure).`,
+    );
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
+  });
 });
