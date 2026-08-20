@@ -3,7 +3,7 @@ import {
   requireUserAddress,
 } from '@core/hooks/useDepositExecutionState';
 import { getDepositPlan } from '@core/services/planOrchestrationService';
-import type { DepositPlan } from '@zapengine/types/api';
+import type { ChainSplit, DepositPlan } from '@zapengine/types/api';
 import type { Address } from 'viem';
 import { base } from 'viem/chains';
 
@@ -20,7 +20,7 @@ export interface InvestWalletContext {
  */
 export async function loadBaseInvestPlan(
   wallet: InvestWalletContext,
-  input: { fromToken: Address; fromAmount: string },
+  input: { fromToken: Address; fromAmount: string; split?: ChainSplit },
 ): Promise<{ userAddress: Address; plan: DepositPlan }> {
   const userAddress = requireUserAddress(wallet.account?.address);
   await ensureChain(wallet.chain?.id, base.id, wallet.switchChain);
@@ -31,6 +31,7 @@ export async function loadBaseInvestPlan(
     fromToken: input.fromToken,
     fromAmount: input.fromAmount,
     sourceChainId: base.id,
+    ...(input.split ? { split: input.split } : {}),
   });
 
   return { userAddress, plan };

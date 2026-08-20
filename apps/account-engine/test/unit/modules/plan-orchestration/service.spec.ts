@@ -665,6 +665,28 @@ describe('plan-orchestration service', () => {
     );
   });
 
+  it('lets a request split override the configured default split', async () => {
+    // The app's HLP entry point pins HyperCore per request precisely so it does
+    // not depend on however DEPOSIT_DEFAULT_SPLIT happens to be rolled out.
+    const { composeDeposit, service } = makeInvestService({
+      defaultSplit: { 8453: 1 },
+    });
+
+    await service.buildDeposit({
+      kind: 'invest',
+      userAddress: USER,
+      fromToken: BASE_USDC,
+      fromAmount: '1000',
+      sourceChainId: 8453,
+      split: { '1337': 1 },
+    });
+
+    expect(composeDeposit).toHaveBeenCalledWith(
+      expect.objectContaining({ split: { 1337: 1 } }),
+      expect.anything(),
+    );
+  });
+
   it('does not apply the default split to non-Base source re-quotes', async () => {
     const { composeDeposit, service } = makeInvestService({
       defaultSplit: { 8453: 0.9, 1337: 0.1 },

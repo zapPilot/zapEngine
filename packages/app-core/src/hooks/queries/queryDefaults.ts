@@ -33,7 +33,9 @@
 import { CACHE_WINDOW } from '@core/config/cacheWindow';
 import { extractErrorMessage, isClientError } from '@core/lib/errors';
 import { APIError } from '@core/lib/http';
-import { logger } from '@core/utils';
+// Deep import: the `@core/utils` barrel re-exports walletValidation, which
+// reaches the @zapengine/types root barrel and every API schema with it.
+import { logger } from '@core/utils/logger';
 
 /**
  * Data freshness profiles for different query types

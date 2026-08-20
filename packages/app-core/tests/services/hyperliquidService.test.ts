@@ -5,6 +5,7 @@ import {
   submitVaultDeposit,
   usdStringToUsd6,
   waitForPerpUsdcArrival,
+  waitForVaultEquityIncrease,
 } from '@core/services/hyperliquidService';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -228,6 +229,70 @@ describe('waitForPerpUsdcArrival', () => {
     const assertion = expect(promise).rejects.toThrow('Polling timed out');
 
     await vi.advanceTimersByTimeAsync(12_000);
+    await assertion;
+  });
+});
+
+describe('waitForVaultEquityIncrease', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  function equityResponse(equity: string): Response {
+    return jsonResponse([{ vaultAddress: HLP, equity }]);
+  }
+
+  it('resolves once equity rises above the pre-deposit snapshot', async () => {
+    fetchMock
+      .mockResolvedValueOnce(equityResponse('100'))
+      .mockResolvedValueOnce(equityResponse('149.5'));
+
+    const promise = waitForVaultEquityIncrease({
+      user: USER,
+      vaultAddress: HLP,
+      equityBeforeUsd6: 100_000_000n,
+    });
+
+    // One 4s interval between the equal-to-baseline read and the credited one.
+    await vi.advanceTimersByTimeAsync(4_000);
+
+    await expect(promise).resolves.toEqual({ equityUsd6: 149_500_000n });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('treats a first-ever deposit (no prior entry) as an increase', async () => {
+    fetchMock.mockResolvedValueOnce(equityResponse('9.5'));
+
+    await expect(
+      waitForVaultEquityIncrease({
+        user: USER,
+        vaultAddress: HLP,
+        equityBeforeUsd6: 0n,
+      }),
+    ).resolves.toEqual({ equityUsd6: 9_500_000n });
+  });
+
+  it('times out with PollTimeoutError while equity stays flat', async () => {
+    fetchMock.mockResolvedValue(equityResponse('100'));
+
+    const promise = waitForVaultEquityIncrease({
+      user: USER,
+      vaultAddress: HLP,
+      equityBeforeUsd6: 100_000_000n,
+      timeoutMs: 8_000,
+    });
+    const assertion = expect(promise).rejects.toThrow('Polling timed out');
+
+    await vi.advanceTimersByTimeAsync(10_000);
     await assertion;
   });
 });

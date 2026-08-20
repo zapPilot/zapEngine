@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildWizardStartInput,
   canSubmitHlpDeposit,
+  HLP_STATUS_COPY,
   hlpAmountRows,
   hyperliquidAccountUrl,
   resolveDepositExecutionCapability,
@@ -185,6 +186,14 @@ describe('HLP helpers', () => {
     expect(canSubmitHlpDeposit('awaitingArrival', true)).toBe(false);
     expect(canSubmitHlpDeposit('confirming', true)).toBe(false);
     expect(canSubmitHlpDeposit('deposited', true)).toBe(false);
+    // Already accepted by the exchange — a second deposit would double up.
+    expect(canSubmitHlpDeposit('submittedUnverified', true)).toBe(false);
+  });
+
+  it('tells the user where to confirm an unverified deposit', () => {
+    expect(HLP_STATUS_COPY.submittedUnverified).toBe(
+      'Deposit submitted — confirm it in your Hyperliquid account.',
+    );
   });
 
   it('formats amount rows and skips values that are not known yet', () => {

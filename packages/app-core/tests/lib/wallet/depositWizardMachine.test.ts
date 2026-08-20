@@ -84,6 +84,16 @@ function run(
   return events.reduce(depositWizardReducer, from);
 }
 
+/** Bridged, funds credited on HyperCore, HLP deposit not yet submitted. */
+function arrivedState(): DepositWizardState {
+  return run([
+    { type: 'PLAN_LOADED', plan, baselineUsd6: 1_000_000n },
+    { type: 'SOURCE_CONFIRMED', transactionHash: '0xbatch' },
+    { type: 'BRIDGE_UPDATE', legIndex: 1, status: 'destinationConfirmed' },
+    { type: 'HL_ARRIVED', arrivedUsd6: 29_500_000n },
+  ]);
+}
+
 describe('depositWizardReducer', () => {
   it('walks the full happy path from configure to done', () => {
     let state = run([{ type: 'PLAN_LOADED', plan, baselineUsd6: 1_000_000n }]);
@@ -179,6 +189,52 @@ describe('depositWizardReducer', () => {
     expect(state.hlp.status).toBe('idle');
   });
 
+  it('hands the deposit CTA back when the submission never reached the exchange', () => {
+    const submitting = run([{ type: 'HL_SUBMITTED' }], arrivedState());
+    expect(submitting.hlp.status).toBe('confirming');
+
+    const state = run([{ type: 'HL_SUBMIT_FAILED' }], submitting);
+    expect(state.hlp.status).toBe('arrived');
+    expect(state.stage).toBe('hyperliquidDeposit');
+    // The retry needs both of these to resolve the vaultTransfer amount.
+    expect(state.hlp.arrivedUsd6).toBe(29_500_000n);
+    expect(state.hlp.step).toEqual(hlpStep);
+  });
+
+  it('finishes as submitted-but-unverified when equity never confirms', () => {
+    const state = run(
+      [{ type: 'HL_SUBMITTED' }, { type: 'HL_UNVERIFIED' }],
+      arrivedState(),
+    );
+    expect(state.stage).toBe('done');
+    expect(state.hlp.status).toBe('submittedUnverified');
+    // A confirmation timeout is not a stage failure.
+    expect(state.error).toBeNull();
+  });
+
+  it('ignores HLP submission outcomes that do not belong to a live submission', () => {
+    // A reset mid-submit must not let the superseded run publish anything.
+    const afterReset = run(
+      [{ type: 'HL_SUBMITTED' }, { type: 'RESET' }],
+      arrivedState(),
+    );
+    for (const event of [
+      { type: 'HL_SUBMIT_FAILED' },
+      { type: 'HL_UNVERIFIED' },
+      { type: 'HL_CONFIRMED', vaultEquityUsd6: 29_400_000n },
+    ] satisfies DepositWizardEvent[]) {
+      expect(run([event], afterReset)).toEqual(initialDepositWizardState);
+    }
+
+    // Same guard from the terminal states themselves.
+    const deposited = run(
+      [{ type: 'HL_SUBMITTED' }, { type: 'HL_CONFIRMED', vaultEquityUsd6: 1n }],
+      arrivedState(),
+    );
+    expect(run([{ type: 'HL_SUBMIT_FAILED' }], deposited)).toBe(deposited);
+    expect(run([{ type: 'HL_UNVERIFIED' }], deposited)).toBe(deposited);
+  });
+
   it('records and clears stage failures via RETRY', () => {
     let state = run([
       { type: 'PLAN_LOADED', plan },
@@ -193,6 +249,14 @@ describe('depositWizardReducer', () => {
 
   it('resets to the initial state', () => {
     const state = run([{ type: 'PLAN_LOADED', plan }, { type: 'RESET' }]);
+    expect(state).toEqual(initialDepositWizardState);
+  });
+
+  it('resets out of the submitted-but-unverified terminal state', () => {
+    const state = run(
+      [{ type: 'HL_SUBMITTED' }, { type: 'HL_UNVERIFIED' }, { type: 'RESET' }],
+      arrivedState(),
+    );
     expect(state).toEqual(initialDepositWizardState);
   });
 });
