@@ -75,7 +75,7 @@ describe('alignPendingSocialPublishSchedules', () => {
     supabaseMocks.getPipelineSupabase.mockReturnValue(createSupabaseClient());
   });
 
-  it('aligns platform slots without erasing failed-job retry backoff', async () => {
+  it('aligns each episode independently without erasing failed-job retry backoff', async () => {
     state.jobs = [
       {
         id: 'failed-earliest',
@@ -99,15 +99,22 @@ describe('alignPendingSocialPublishSchedules', () => {
         next_attempt_at: '2026-08-19T08:00:00.000Z',
       },
       {
-        id: 'other-episode',
+        id: 'other-earliest',
         episode_id: 'episode-2',
         status: 'queued',
         scheduled_at: '2026-08-19T04:00:00.000Z',
         next_attempt_at: '2026-08-19T04:00:00.000Z',
       },
+      {
+        id: 'other-later',
+        episode_id: 'episode-2',
+        status: 'queued',
+        scheduled_at: '2026-08-19T06:00:00.000Z',
+        next_attempt_at: '2026-08-19T06:00:00.000Z',
+      },
     ];
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(2);
+    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(3);
 
     expect(state.updates).toEqual([
       {
@@ -123,6 +130,14 @@ describe('alignPendingSocialPublishSchedules', () => {
         status: 'failed',
         patch: {
           scheduled_at: '2026-08-19T01:00:00.000Z',
+        },
+      },
+      {
+        id: 'other-later',
+        status: 'queued',
+        patch: {
+          scheduled_at: '2026-08-19T04:00:00.000Z',
+          next_attempt_at: '2026-08-19T04:00:00.000Z',
         },
       },
     ]);
