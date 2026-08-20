@@ -30,4 +30,22 @@ describe('alignPendingSocialPublishSchedules status fence', () => {
     expect(inFilter).toHaveBeenCalledWith('status', ['queued', 'failed']);
     expect(update).not.toHaveBeenCalled();
   });
+
+  it('treats a null Supabase snapshot as empty without attempting writes', async () => {
+    const returns = vi.fn(async () => ({ data: null, error: null }));
+    const update = vi.fn();
+    supabaseMocks.getPipelineSupabase.mockReturnValue({
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          in: vi.fn(() => ({ returns })),
+        })),
+        update,
+      })),
+    });
+
+    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
+
+    expect(returns).toHaveBeenCalledOnce();
+    expect(update).not.toHaveBeenCalled();
+  });
 });
