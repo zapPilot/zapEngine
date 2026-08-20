@@ -26,6 +26,11 @@ interface AlignmentFixture {
   statusFences: string[];
 }
 
+interface QueryAttempts {
+  list: number;
+  update: number;
+}
+
 function makeAlignmentFixture(): AlignmentFixture {
   return {
     snapshots: [
@@ -68,44 +73,45 @@ function makeAlignmentFixture(): AlignmentFixture {
   };
 }
 
-function installSupabaseFixture(fixture: AlignmentFixture) {
-  let listAttempt = 0;
-  let updateAttempt = 0;
+function makeListQuery(fixture: AlignmentFixture, attempts: QueryAttempts) {
+  const returns = vi.fn(async () => {
+    const snapshot = fixture.snapshots[attempts.list] ?? [];
+    attempts.list += 1;
+    return { data: snapshot, error: null };
+  });
+  const inStatuses = vi.fn(() => ({ returns }));
+  return vi.fn(() => ({ in: inStatuses }));
+}
 
-  const from = vi.fn(() => ({
-    select: vi.fn(() => ({
-      in: vi.fn(() => ({
-        returns: vi.fn(async () => {
-          const snapshot = fixture.snapshots[listAttempt] ?? [];
-          listAttempt += 1;
-          return { data: snapshot, error: null };
-        }),
-      })),
-    })),
-    update: vi.fn((patch: Record<string, unknown>) => {
-      fixture.attemptedPatches.push(patch);
-      const builder = {
-        eq(field: string, value: string) {
-          if (field === 'id') fixture.attemptedIds.push(value);
-          if (field === 'status') fixture.statusFences.push(value);
-          return builder;
-        },
-        select() {
-          return {
-            async maybeSingle() {
-              updateAttempt += 1;
-              return {
-                data: updateAttempt === 1 ? null : { id: 'queued-sibling' },
-                error: null,
-              };
-            },
-          };
-        },
+function makeUpdateQuery(fixture: AlignmentFixture, attempts: QueryAttempts) {
+  return vi.fn((patch: Record<string, unknown>) => {
+    fixture.attemptedPatches.push(patch);
+    const maybeSingle = vi.fn(async () => {
+      attempts.update += 1;
+      return {
+        data: attempts.update === 1 ? null : { id: 'queued-sibling' },
+        error: null,
       };
-      return builder;
-    }),
-  }));
+    });
+    const builder = {
+      eq(field: string, value: string) {
+        if (field === 'id') fixture.attemptedIds.push(value);
+        if (field === 'status') fixture.statusFences.push(value);
+        return builder;
+      },
+      select() {
+        return { maybeSingle };
+      },
+    };
+    return builder;
+  });
+}
 
+function installSupabaseFixture(fixture: AlignmentFixture) {
+  const attempts: QueryAttempts = { list: 0, update: 0 };
+  const select = makeListQuery(fixture, attempts);
+  const update = makeUpdateQuery(fixture, attempts);
+  const from = vi.fn(() => ({ select, update }));
   supabase.getPipelineSupabase.mockReturnValue({ from });
 }
 
@@ -117,10 +123,7 @@ describe('alignPendingSocialPublishSchedules refreshed failed earliest', () => {
     await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
     await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
 
-    expect(fixture.attemptedIds).toEqual([
-      'queued-sibling',
-      'queued-sibling',
-    ]);
+    expect(fixture.attemptedIds).toEqual(['queued-sibling', 'queued-sibling']);
     expect(fixture.statusFences).toEqual(['queued', 'queued']);
     expect(fixture.attemptedPatches).toEqual([
       {
