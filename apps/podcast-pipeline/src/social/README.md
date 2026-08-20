@@ -32,6 +32,13 @@ pnpm social:login
 pnpm social:daemon
 ```
 
+Only one daemon may run at a time. Startup takes a pid lock at
+`~/.zap-pilot/social-daemon.pid`, so a second `pnpm social:daemon` on the same
+Mac exits immediately instead of racing the first one for the shared Chrome
+profiles that metric collection drives. A daemon killed without a clean exit
+leaves the file behind; the next start takes it over once the recorded pid is
+gone.
+
 The read-only dashboard is optional and does **not** need to run for publishing,
 metric collection, or learning:
 
@@ -50,6 +57,10 @@ pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --dry-run
 pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --platform threads
 pnpm --filter @zapengine/podcast-pipeline social:metrics '<episode>' --platform threads
 ```
+
+Known limitation: these do not take the daemon's pid lock, so running one that
+drives a browser while the daemon is live can still collide on a shared Chrome
+profile. Stop the daemon first.
 
 Before the first daemon run, apply Supabase migration
 `029_add_social_daemon.sql`. The daemon records its first-start timestamp and only

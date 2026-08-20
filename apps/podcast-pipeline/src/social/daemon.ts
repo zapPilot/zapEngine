@@ -15,6 +15,10 @@ import {
 import type { SocialPostRow } from '../types.js';
 import { runSocialCli } from './cli.js';
 import {
+  acquireSocialDaemonLock,
+  SocialDaemonAlreadyRunningError,
+} from './daemon-lock.js';
+import {
   alignPendingSocialPublishSchedules,
   claimSocialPublishBatch,
   completeSocialPublishJob,
@@ -525,5 +529,14 @@ function formatRelative(value: string, now: Date): string {
 }
 
 if (isMainModule(import.meta.url)) {
+  try {
+    await acquireSocialDaemonLock();
+  } catch (error) {
+    if (error instanceof SocialDaemonAlreadyRunningError) {
+      console.error(`[social-daemon] ${error.message}`);
+      process.exit(1);
+    }
+    throw error;
+  }
   await runSocialDaemon();
 }
