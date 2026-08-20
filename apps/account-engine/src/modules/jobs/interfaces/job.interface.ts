@@ -16,8 +16,7 @@ export enum JobStatus {
 export enum JobType {
   WEEKLY_REPORT_BATCH = 'weekly_report_batch',
   WEEKLY_REPORT_SINGLE = 'weekly_report_single',
-  DAILY_SUGGESTION_BATCH = 'daily_suggestion_batch',
-  DAILY_SUGGESTION_SINGLE = 'daily_suggestion_single',
+  STRATEGY_CHANGE_BATCH = 'strategy_change_batch',
 }
 
 /**
@@ -66,20 +65,6 @@ export interface SingleUserReportJobPayload extends Record<string, unknown> {
   userId: string;
   testMode?: boolean;
   testRecipient?: string;
-}
-
-/**
- * Daily suggestion batch job payload interface
- */
-export interface DailySuggestionBatchPayload extends Record<string, unknown> {
-  userIds?: string[];
-}
-
-/**
- * Daily suggestion single user job payload interface
- */
-export interface DailySuggestionSinglePayload extends Record<string, unknown> {
-  userId: string;
 }
 
 /**

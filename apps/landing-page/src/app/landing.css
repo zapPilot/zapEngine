@@ -2270,6 +2270,110 @@
   font-family: var(--font-mono), ui-monospace, monospace;
 }
 
+/* Chart zoom
+   A CSS overlay, not the Fullscreen API: `requestFullscreen` is unsupported for
+   arbitrary elements on iOS Safari, and .chart-hover-shell declares
+   `container-type: inline-size`, whose containment would trap an in-tree
+   position:fixed child. The overlay is portalled to <body> and re-declares
+   .shell-root there, because every rule in this file is scoped under it. */
+
+/* Legend and expand button share one flex cell, so the button cannot become a
+   third space-between child and push the legend off its right edge. */
+.shell-root .nav-curve-header-tools {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.shell-root .chart-zoom-trigger {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line-hi);
+  border-radius: var(--radius-subtle);
+  padding: 0;
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+
+.shell-root .chart-zoom-trigger:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.shell-root .chart-zoom-trigger svg {
+  width: 14px;
+  height: 14px;
+}
+
+.shell-root.chart-zoom-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  /* The shell's own 100vh floor would stretch the overlay past the viewport. */
+  min-height: 0;
+  padding: 24px;
+  background: rgba(4, 4, 4, 0.78);
+  backdrop-filter: blur(6px);
+}
+
+/* The film-grain layer is fixed and z-index 100; inside the overlay's own
+   stacking context it would sit on top of the enlarged chart. */
+.shell-root.chart-zoom-overlay::before {
+  content: none;
+}
+
+/* The card holds a 720x320 figure plus its header and caption, so the height
+   term keeps a wide viewport from producing a chart taller than the screen. */
+.shell-root .chart-zoom-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(1500px, 94vw, calc((94vh - 130px) * 2.25));
+  max-height: 94vh;
+  overflow-y: auto;
+}
+
+.shell-root .chart-zoom-close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  border: 1px solid var(--line-hi);
+  border-radius: var(--radius-pill);
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.shell-root .chart-zoom-close:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.shell-root .chart-zoom-close svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* An opaque ground: the card's own background is translucent, which over the
+   scrim would show the page through the chart. */
+.shell-root .chart-zoom-dialog > figure {
+  margin: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.038), transparent), var(--bg);
+}
+
 /* Metrics Row */
 
 .shell-root .metrics-row {

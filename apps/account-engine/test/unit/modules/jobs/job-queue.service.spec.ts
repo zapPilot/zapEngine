@@ -55,7 +55,7 @@ describe('JobQueueService', () => {
     it('stores metadata when provided', () => {
       const service = makeService();
       const job = service.createJob({
-        type: JobType.DAILY_SUGGESTION_BATCH,
+        type: JobType.STRATEGY_CHANGE_BATCH,
         payload: {},
         metadata: { tag: 'test' },
       });
@@ -74,7 +74,7 @@ describe('JobQueueService', () => {
     it('returns the highest-priority pending job', () => {
       const service = makeService();
       service.createJob({
-        type: JobType.DAILY_SUGGESTION_BATCH,
+        type: JobType.STRATEGY_CHANGE_BATCH,
         payload: {},
         priority: 0,
       });
@@ -95,7 +95,7 @@ describe('JobQueueService', () => {
       const service = makeService();
       const future = new Date(Date.now() + 60_000);
       service.createJob({
-        type: JobType.DAILY_SUGGESTION_SINGLE,
+        type: JobType.STRATEGY_CHANGE_BATCH,
         payload: {},
         scheduledAt: future,
       });
@@ -242,8 +242,8 @@ describe('JobQueueService', () => {
     it('increments retryCount and resets status to PENDING', () => {
       const service = makeService();
       const job = service.createJob({
-        type: JobType.DAILY_SUGGESTION_SINGLE,
-        payload: { userId: 'u-1' },
+        type: JobType.STRATEGY_CHANGE_BATCH,
+        payload: {},
       });
       const retried = service.retryJob(job.id, 'temporary failure');
       expect(retried.retryCount).toBe(1);
@@ -256,7 +256,7 @@ describe('JobQueueService', () => {
       const service = makeService();
       const before = new Date();
       const job = service.createJob({
-        type: JobType.DAILY_SUGGESTION_SINGLE,
+        type: JobType.STRATEGY_CHANGE_BATCH,
         payload: {},
       });
       const retried = service.retryJob(job.id, 'error');
