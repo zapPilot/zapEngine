@@ -106,11 +106,6 @@ class WalletTokenSummary(BaseModel):
     token_count: int = Field(
         ge=0, description="Number of different tokens (non-negative integer)"
     )
-    apr_30d: float | None = Field(
-        default=0.0,
-        ge=0.0,
-        description="Deprecated 30d APR placeholder (set to 0)",
-    )
     # Rounding handled by custom Annotated types where applicable
 
     @field_validator("token_count")
@@ -374,12 +369,6 @@ class PortfolioResponse(BaseModel):
     net_portfolio_value: USDRounded | None = Field(
         default=None,
         description="Alias for total_net_usd (backward compatibility)",
-    )
-    weighted_apr: float | None = Field(
-        default=0.0, description="Deprecated weighted APR metric (set to 0)"
-    )
-    estimated_monthly_income: float | None = Field(
-        default=0.0, description="Deprecated monthly income metric (set to 0)"
     )
     wallet_count: int = Field(
         ge=0,

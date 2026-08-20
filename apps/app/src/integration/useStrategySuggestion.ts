@@ -1,4 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
+import {
+  createQueryConfig,
+  queryKeys,
+} from '@zapengine/app-core/hooks/queries';
 import { getDailySuggestion } from '@zapengine/app-core/services';
 import type { DailySuggestionResponse } from '@zapengine/app-core/types/strategy';
 
@@ -35,7 +39,8 @@ export function toCompositionTargetFromSuggestion(
 
 export function useStrategySuggestion(userId: string | null) {
   return useQuery<DailySuggestionResponse, Error>({
-    queryKey: ['desktop', 'strategy-suggestion', userId ?? 'no-user'],
+    ...createQueryConfig({ dataType: 'volatile' }),
+    queryKey: queryKeys.desktop.strategySuggestion(userId ?? 'no-user'),
     queryFn: () => {
       if (!userId) {
         throw new Error('User ID is required');
@@ -43,8 +48,5 @@ export function useStrategySuggestion(userId: string | null) {
       return getDailySuggestion(userId);
     },
     enabled: Boolean(userId),
-    staleTime: 5 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-    retry: 2,
   });
 }

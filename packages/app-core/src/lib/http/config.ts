@@ -15,7 +15,6 @@ export const API_ENDPOINTS = {
   get accountApi(): string {
     return getRuntimeEnv('VITE_ACCOUNT_API_URL') || '';
   },
-  debank: 'https://pro-openapi.debank.com/v1',
 } as const;
 
 // Default configuration
@@ -31,7 +30,6 @@ export const HTTP_CONFIG = {
 
 // Internal types for HTTP utilities
 export type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
-export type ResponseTransformer<T = unknown> = (data: unknown) => T;
 
 // HTTP request configuration interface
 export interface HttpRequestConfig {

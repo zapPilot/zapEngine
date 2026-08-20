@@ -1,4 +1,5 @@
 import { CACHE_WINDOW } from '@core/config/cacheWindow';
+import type { DashboardWindowParams } from '@core/services';
 import { QueryClient } from '@tanstack/react-query';
 
 // Create a client instance with optimized configuration for DeFi app
@@ -131,5 +132,85 @@ export const queryKeys = {
     all: ['sentiment'] as const,
     market: () => ['sentiment', 'market'] as const,
     regimeHistory: () => ['sentiment', 'regime-history'] as const,
+  },
+
+  // Unified portfolio dashboard queries
+  portfolioDashboard: {
+    all: ['portfolio-dashboard'] as const,
+    /** Prefix matching every dashboard window cached for a user. */
+    byUser: (userId: string) => ['portfolio-dashboard', userId] as const,
+    detail: (userId: string | undefined, params: DashboardWindowParams) =>
+      [
+        'portfolio-dashboard',
+        userId,
+        params.trend_days,
+        params.drawdown_days,
+        params.rolling_days,
+        params.metrics,
+        // Distinguishes wallet-specific from bundle queries
+        params.wallet_address,
+      ] as const,
+  },
+
+  // Daily yield return queries
+  dailyYield: {
+    all: ['dailyYield'] as const,
+    /** Prefix matching every period/wallet slice cached for a user. */
+    byUser: (userId: string) => ['dailyYield', userId] as const,
+    list: (
+      userId: string | undefined,
+      days: number,
+      walletFilter: string | null | undefined,
+    ) => ['dailyYield', userId, days, walletFilter] as const,
+  },
+
+  /**
+   * Queries owned by the app host (`apps/app`). They live here so producers and
+   * the post-execution invalidation share one definition.
+   */
+  desktop: {
+    /**
+     * Deliberately broad: the whole app-host domain is invalidated once an
+     * investment finishes, rather than enumerating affected queries.
+     */
+    all: ['desktop'] as const,
+    portfolio: {
+      /** Prefix matching every day-window of a user's daily yield. */
+      dailyYieldByUser: (userId: string) =>
+        ['desktop', 'portfolio', 'dailyYield', userId] as const,
+      dailyYield: (userId: string | null, days: number) =>
+        ['desktop', 'portfolio', 'dailyYield', userId, days] as const,
+    },
+    strategySuggestion: (userId: string) =>
+      ['desktop', 'strategy-suggestion', userId] as const,
+    defaultBacktest: (days: number | 'default') =>
+      ['desktop', 'strategy', 'default-backtest', days] as const,
+    walletAssets: (walletAddresses: readonly string[]) =>
+      ['desktop', 'alchemy', 'wallet-assets', walletAddresses] as const,
+    walletHistory: (walletAddresses: readonly string[]) =>
+      ['desktop', 'moralis', 'wallet-history', walletAddresses] as const,
+    podcast: {
+      episodes: (languageCode: string) =>
+        ['desktop', 'podcast', 'episodes', languageCode] as const,
+      catalog: () => ['desktop', 'podcast', 'episodes', 'catalog'] as const,
+      episodeDetail: (languageCode: string, localizationId: string) =>
+        [
+          'desktop',
+          'podcast',
+          'episodes',
+          'detail',
+          languageCode,
+          localizationId,
+        ] as const,
+      episodeSearch: (languageCode: string, query: string) =>
+        [
+          'desktop',
+          'podcast',
+          'episodes',
+          'search',
+          languageCode,
+          query,
+        ] as const,
+    },
   },
 } as const;

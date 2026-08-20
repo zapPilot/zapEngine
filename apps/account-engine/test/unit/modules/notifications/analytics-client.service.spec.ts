@@ -188,8 +188,6 @@ describe('AnalyticsClientService', () => {
             },
           },
         },
-        estimated_monthly_income: 129.17,
-        weighted_apr: 12.5,
         wallet_count: 3,
         last_updated: '2025-01-01',
       } as any;
@@ -218,8 +216,6 @@ describe('AnalyticsClientService', () => {
             },
           },
         },
-        estimated_monthly_income: 83.33,
-        weighted_apr: 10,
         wallet_count: 1,
       } as any;
 
@@ -243,8 +239,6 @@ describe('AnalyticsClientService', () => {
             },
           },
         },
-        estimated_monthly_income: 83.33,
-        weighted_apr: 10,
         wallet_count: 1,
       } as any;
 
@@ -614,8 +608,6 @@ describe('AnalyticsClientService', () => {
           recommended_period: '30_days',
           windows: {}, // no roi_7d
         },
-        estimated_monthly_income: 83.33,
-        weighted_apr: 10,
         wallet_count: 1,
       } as any;
 
@@ -632,8 +624,6 @@ describe('AnalyticsClientService', () => {
           recommended_period: '30_days',
           windows: { roi_7d: { start_balance: 0 } }, // start_balance = 0, can't divide
         },
-        estimated_monthly_income: 83.33,
-        weighted_apr: 10,
         wallet_count: 1,
       } as any;
 

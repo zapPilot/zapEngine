@@ -1,3 +1,6 @@
+import { coerceToSupportedLanguage } from '../services/podcast/classroom-language.js';
+import type { LanguageClassroomLanguageCode } from '../types.js';
+
 export const BRAND_CTA_VERSION = 'v1' as const;
 export const ZAP_PILOT_SITE_URL = 'https://www.zap-pilot.org' as const;
 export const ZAP_PILOT_SITE_LABEL = 'www.zap-pilot.org' as const;
@@ -7,7 +10,7 @@ export const ZAP_PILOT_SITE_LABEL = 'www.zap-pilot.org' as const;
 // 250-unit generated-copy budget intact while making the destination explicit.
 export const SOCIAL_BRAND_CTA = `官網 ${ZAP_PILOT_SITE_URL}` as const;
 
-const VIDEO_CTA_TITLES: Record<'zh-Hant' | 'ja' | 'en', string> = {
+const VIDEO_CTA_TITLES: Record<LanguageClassroomLanguageCode, string> = {
   'zh-Hant': '更多市場洞察與工具',
   ja: '市場インサイトとツールをもっと',
   en: 'MORE MARKET INSIGHTS & TOOLS',
@@ -22,10 +25,8 @@ export function videoBrandCtaFor(languageCode: string): {
   title: string;
   callToAction: string;
 } {
-  const language =
-    languageCode === 'zh-Hant' || languageCode === 'ja' ? languageCode : 'en';
   return {
-    title: VIDEO_CTA_TITLES[language],
+    title: VIDEO_CTA_TITLES[coerceToSupportedLanguage(languageCode)],
     callToAction: ZAP_PILOT_SITE_LABEL,
   };
 }

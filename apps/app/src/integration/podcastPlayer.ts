@@ -75,17 +75,11 @@ export function usePodcastPlayer(): PodcastPlayer {
     preferredForwardBufferDuration: 12,
   });
   const status = useAudioPlayerStatus(audioPlayer);
-  // jscpd:ignore-start — native and web players declare identical local state
-  // for the one shared PodcastPlayer contract; see the imports-block note above.
   const [nowPlaying, setNowPlaying] = useState<PodcastEpisode | null>(null);
   const { preferences: speedPreferences, setSpeedForSection } =
     usePodcastSpeedPreferences();
-  const [currentSection, setCurrentSection] =
-    useState<PodcastSectionKind>('main');
-  const [currentSectionLanguage, setCurrentSectionLanguage] = useState<
-    string | null
-  >(null);
-  // jscpd:ignore-end
+  const [activeSection, setActiveSection] =
+    useState<PodcastPlaybackSection | null>(null);
   const pendingHandoffRef = useRef<PendingPodcastPlaybackHandoff | null>(null);
   const handoffIdRef = useRef(0);
   const [handoffRevision, setHandoffRevision] = useState(0);
@@ -94,6 +88,11 @@ export function usePodcastPlayer(): PodcastPlayer {
   const remoteCommandRef = useRef<PodcastRemoteCommandHandlers>(
     IDLE_REMOTE_COMMAND_HANDLERS,
   );
+
+  // A section is the (kind, languageCode) pair, so one state slice holds both;
+  // no active section means idle playback, which reads as the main section.
+  const currentSection = activeSection?.kind ?? 'main';
+  const currentSectionLanguage = activeSection?.languageCode ?? null;
 
   const sections = useMemo(
     () => (nowPlaying === null ? [] : buildPlaybackSections(nowPlaying)),
@@ -170,8 +169,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       audioPlayer.replace({ uri: episode.hlsUrl, name: episode.title });
       audioPlayer.setPlaybackRate(speedForSection(speedPreferences, 'main'));
       setNowPlaying(episode);
-      setCurrentSection('main');
-      setCurrentSectionLanguage(null);
+      setActiveSection(null);
       audioPlayer.play();
     },
     [audioPlayer, cancelPendingHandoff, speedPreferences],
@@ -194,8 +192,7 @@ export function usePodcastPlayer(): PodcastPlayer {
         speedForSection(speedPreferences, section.kind),
       );
       setNowPlaying(episode);
-      setCurrentSection(section.kind);
-      setCurrentSectionLanguage(section.languageCode);
+      setActiveSection(section);
 
       const startAt = finiteSeconds(atSeconds);
       if (startAt > 0) {
@@ -241,8 +238,7 @@ export function usePodcastPlayer(): PodcastPlayer {
         audioPlayer.replace({ uri: episode.hlsUrl, name: episode.title });
         audioPlayer.setPlaybackRate(speedForSection(speedPreferences, 'main'));
         setNowPlaying(episode);
-        setCurrentSection('main');
-        setCurrentSectionLanguage(null);
+        setActiveSection(null);
       }
 
       setHandoffRevision((current) => current + 1);

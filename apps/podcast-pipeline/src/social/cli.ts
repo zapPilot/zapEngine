@@ -9,6 +9,7 @@ import { parseArgs } from 'node:util';
 import dotenv from 'dotenv';
 
 import { ZAP_PILOT_SITE_URL } from '../brand/cta.js';
+import { errorMessage } from '../lib/errorMessage.js';
 import { OUTRO_TAIL_MS } from '../services/video/manifest.js';
 import {
   parsePlatformOption,
@@ -585,7 +586,7 @@ if (isMainModule(import.meta.url)) {
   try {
     await runSocialCli(process.argv.slice(2));
   } catch (error: unknown) {
-    console.error(error instanceof Error ? error.message : String(error));
+    console.error(errorMessage(error));
     process.exitCode = 1;
   }
 }

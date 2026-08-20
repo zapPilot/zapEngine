@@ -12,6 +12,7 @@ import {
   transformToDrawdownChart,
   transformToPerformanceChart,
 } from '@core/lib/analytics/transformers';
+import { queryKeys } from '@core/lib/state/queryClient';
 import { getDailyYieldReturns } from '@core/services';
 import type {
   AnalyticsData,
@@ -110,7 +111,8 @@ export function useAnalyticsData(
   // ============================================================================
 
   const monthlyPnLQuery = useQuery({
-    queryKey: ['dailyYield', userId, timePeriod.days, walletFilter], // Include wallet filter in cache key
+    // Wallet filter is part of the cache key
+    queryKey: queryKeys.dailyYield.list(userId, timePeriod.days, walletFilter),
     queryFn: () => {
       if (!userId) {
         throw new Error('User ID is required');

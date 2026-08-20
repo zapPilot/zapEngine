@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -40,7 +41,7 @@ class RuleBasedAllocationExecutor:
         self.trade_dates = list(self._seeded_trade_dates)
         self.last_trade_date = max(self._seeded_trade_dates, default=None)
 
-    def seed_trade_dates(self, trade_dates: list[date] | tuple[date, ...]) -> None:
+    def seed_trade_dates(self, trade_dates: Sequence[date]) -> None:
         self._seeded_trade_dates = tuple(sorted(set(trade_dates)))
         self.reset()
 

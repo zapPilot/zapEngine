@@ -16,6 +16,7 @@
  * - useAllocationTimeseries
  */
 
+import { queryKeys } from '@core/lib/state/queryClient';
 import {
   type DashboardWindowParams,
   getPortfolioDashboard,
@@ -90,15 +91,7 @@ export function usePortfolioDashboard(
   dashboard: UnifiedDashboardResponse | undefined;
 } {
   const queryResult = useQuery({
-    queryKey: [
-      'portfolio-dashboard',
-      userId,
-      params.trend_days,
-      params.drawdown_days,
-      params.rolling_days,
-      params.metrics,
-      params.wallet_address, // Distinguish wallet-specific vs bundle queries
-    ],
+    queryKey: queryKeys.portfolioDashboard.detail(userId, params),
     queryFn: () =>
       // Safe: enabled condition ensures userId is non-null
       getPortfolioDashboard(userId!, params),

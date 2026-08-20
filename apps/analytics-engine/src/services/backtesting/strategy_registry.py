@@ -28,12 +28,14 @@ from src.services.backtesting.features import (
     MarketDataRequirements,
 )
 from src.services.backtesting.public_params import DmaGatedFgiPublicParams
+from src.services.backtesting.signals.flat_minimum import (
+    build_initial_flat_minimum_asset_allocation,
+)
 from src.services.backtesting.strategies.base import BaseStrategy
 from src.services.backtesting.strategies.dca_classic import DcaClassicStrategy
 from src.services.backtesting.strategies.rule_based_portfolio import (
     DmaGatedFgiParams,
     RuleBasedPortfolioStrategy,
-    build_initial_portfolio_rules_asset_allocation,
 )
 
 StrategyBuildMode = Literal["compare", "daily_suggestion"]
@@ -150,7 +152,7 @@ def _build_portfolio_rules_strategy(
     initial_asset_allocation = (
         _build_compare_price_row_initial_asset_allocation(
             request,
-            build_initial_portfolio_rules_asset_allocation,
+            build_initial_flat_minimum_asset_allocation,
         )
         if request.mode == "compare"
         else None

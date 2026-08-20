@@ -63,6 +63,35 @@ describe('episode media handoff synchronization', () => {
     });
   });
 
+  it('treats a not-yet-known video duration as unclamped zero duration', () => {
+    const pauseAudio = vi.fn();
+
+    expect(
+      handoffAudioToVideo({
+        audioTimeSeconds: 37,
+        videoDurationSeconds: Number.NaN,
+        playbackRate: 1,
+        shouldPlay: true,
+        pauseAudio,
+      }).initialTimeSeconds,
+    ).toBe(37);
+
+    expect(
+      resolveActiveMediaClock({
+        videoClock: {
+          currentTimeSeconds: 52,
+          durationSeconds: Number.NaN,
+        },
+        isCurrentAudio: true,
+        audioCurrentTimeSeconds: 37,
+        audioDurationSeconds: 175,
+      }),
+    ).toEqual({
+      currentTimeSeconds: 52,
+      durationSeconds: 0,
+    });
+  });
+
   it('returns no active clock for an unrelated episode', () => {
     expect(
       resolveActiveMediaClock({

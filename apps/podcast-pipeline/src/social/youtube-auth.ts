@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import {
   chmod,
@@ -12,10 +11,16 @@ import { createServer } from 'node:http';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { toError } from '../lib/errorMessage.js';
 import {
   isPlainRecord as isRecord,
   nonemptyString,
 } from '../lib/typeGuards.js';
+import {
+  createSecureState,
+  openUrlInBrowser,
+  respond,
+} from './oauth-loopback.js';
 
 const AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -253,7 +258,7 @@ export async function waitForYouTubeAuthorizationCode(
       try {
         await input.onReady(redirectUri);
       } catch (error) {
-        finish(error instanceof Error ? error : new Error(String(error)));
+        finish(toError(error));
       }
     });
 
@@ -469,50 +474,6 @@ function assertRequiredScopes(
       `The YouTube session is missing required scopes: ${missing.join(', ')}. Run \`pnpm social:login\` to reconnect it.`,
     );
   }
-}
-
-function createSecureState(): string {
-  return randomBytes(32).toString('base64url');
-}
-
-async function openUrlInBrowser(url: string): Promise<void> {
-  const command = browserCommand(url);
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(command.executable, command.arguments, {
-      detached: true,
-      stdio: 'ignore',
-    });
-    child.once('error', reject);
-    child.once('spawn', () => {
-      child.unref();
-      resolve();
-    });
-  });
-}
-
-function browserCommand(url: string): {
-  executable: string;
-  arguments: string[];
-} {
-  if (process.platform === 'darwin') {
-    return { executable: 'open', arguments: [url] };
-  }
-  if (process.platform === 'win32') {
-    return {
-      executable: 'rundll32.exe',
-      arguments: ['url.dll,FileProtocolHandler', url],
-    };
-  }
-  return { executable: 'xdg-open', arguments: [url] };
-}
-
-function respond(
-  response: import('node:http').ServerResponse,
-  status: number,
-  body: string,
-): void {
-  response.writeHead(status, { 'content-type': 'text/plain; charset=utf-8' });
-  response.end(body);
 }
 
 async function readJson(response: Response): Promise<unknown> {

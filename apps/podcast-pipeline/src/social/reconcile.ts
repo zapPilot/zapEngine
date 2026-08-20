@@ -1,3 +1,4 @@
+import { errorMessage } from '../lib/errorMessage.js';
 import { insertSocialPost } from '../services/db.js';
 import type { NewSocialPost, SocialPostRow } from '../types.js';
 import {
@@ -139,7 +140,7 @@ async function reconcileCandidate(input: {
     return 'repaired';
   } catch (error) {
     input.log(
-      `✗ Could not reconcile ${platformLabel(platform)} for episode ${episodeId}: ${error instanceof Error ? error.message : String(error)}`,
+      `✗ Could not reconcile ${platformLabel(platform)} for episode ${episodeId}: ${errorMessage(error)}`,
     );
     return 'unresolved';
   }

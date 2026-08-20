@@ -1,3 +1,5 @@
+import type { LanguageClassroomLanguageCode } from '../../types.js';
+import { coerceToSupportedLanguage } from '../podcast/classroom-language.js';
 import {
   HEADLINE_MAX_TITLE_LINES,
   HEADLINE_MAX_UNITS_PER_LINE,
@@ -6,17 +8,14 @@ import { characterUnits, lineUnits } from './text-units.js';
 
 const ELLIPSIS = '…';
 
-const HEADLINE_KICKERS: Record<'zh-Hant' | 'ja' | 'en', string> = {
+const HEADLINE_KICKERS: Record<LanguageClassroomLanguageCode, string> = {
   'zh-Hant': '鏈上快訊',
   ja: 'チェーン速報',
   en: 'CHAIN BRIEF',
 };
 
 export function headlineKickerFor(languageCode: string): string {
-  if (languageCode === 'zh-Hant' || languageCode === 'ja') {
-    return HEADLINE_KICKERS[languageCode];
-  }
-  return HEADLINE_KICKERS.en;
+  return HEADLINE_KICKERS[coerceToSupportedLanguage(languageCode)];
 }
 
 // Latin words stay whole so wrapping never splits inside a word; CJK glyphs

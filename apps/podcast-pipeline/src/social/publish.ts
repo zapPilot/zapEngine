@@ -1,3 +1,4 @@
+import { toError } from '../lib/errorMessage.js';
 import type { PublishedSocialPost } from './record.js';
 import {
   getPublishedPlatform,
@@ -48,7 +49,7 @@ export async function publishSocialPlatforms(input: {
     try {
       result = await job.publish();
     } catch (error) {
-      const normalized = normalizeError(error);
+      const normalized = toError(error);
       log(`[${platform}] ✗ ${normalized.message}`);
       outcomes.push({ platform, status: 'failed', error: normalized });
       continue;
@@ -98,7 +99,7 @@ async function savePublishedState(input: {
     await input.save();
     return undefined;
   } catch (error) {
-    const normalized = normalizeError(error);
+    const normalized = toError(error);
     input.log(
       `[${input.platform}] ⚠ Published remotely, but local duplicate state was not saved: ${normalized.message}`,
     );
@@ -119,14 +120,10 @@ async function persistPublishedPost(input: {
     await input.persistPublished(input.published);
     return undefined;
   } catch (error) {
-    const normalized = normalizeError(error);
+    const normalized = toError(error);
     input.log(
       `[${input.published.platform}] ⚠ Published remotely, but telemetry recording failed: ${normalized.message}`,
     );
     return normalized;
   }
-}
-
-function normalizeError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error));
 }

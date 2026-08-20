@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { errorMessage } from '../lib/errorMessage.js';
 import {
   isPublisherReady,
   PROFILE_DIRECTORY,
@@ -44,7 +45,7 @@ if (invokedPath === import.meta.url) {
   try {
     await runRednoteLogin();
   } catch (error: unknown) {
-    console.error(error instanceof Error ? error.message : String(error));
+    console.error(errorMessage(error));
     process.exitCode = 1;
   }
 }

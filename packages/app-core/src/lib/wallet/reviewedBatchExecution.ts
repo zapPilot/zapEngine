@@ -5,6 +5,7 @@ import type {
   WalletReviewedBatchInput,
   WalletReviewedBatchResult,
 } from '@core/types';
+import { equalsAddress } from '@zapengine/types/shared';
 import { useCallback, useRef } from 'react';
 
 /**
@@ -44,9 +45,7 @@ export function checkReviewedBatchGuards(
       },
     };
   }
-  if (
-    connectedAddress.toLowerCase() !== input.expectedWalletAddress.toLowerCase()
-  ) {
+  if (!equalsAddress(connectedAddress, input.expectedWalletAddress)) {
     return {
       ok: false,
       result: {
@@ -128,7 +127,7 @@ export function checkReviewedBatchGuards(
       result: {
         status: 'blocked',
         code: 'INVALID_REVIEWED_BATCH',
-        reason: extractErrorMessage(error, String(error)),
+        reason: extractErrorMessage(error),
       },
     };
   }

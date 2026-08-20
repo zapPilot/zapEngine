@@ -1,3 +1,4 @@
+import { errorMessage } from '../lib/errorMessage.js';
 import { insertSocialPost, toSocialPostInsertPayload } from '../services/db.js';
 import type { NewSocialPost, SocialPostRow } from '../types.js';
 import { applyPlatformCta, platformVideoMode } from './platforms.js';
@@ -110,7 +111,7 @@ export function createSocialPostPersister(input: {
     try {
       await insert(record);
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
+      const detail = errorMessage(error);
       logError(
         `[${platform}] Post is live, but telemetry was not recorded: ${detail}\nManually insert this social_posts payload:\n${JSON.stringify(toSocialPostInsertPayload(record))}`,
       );

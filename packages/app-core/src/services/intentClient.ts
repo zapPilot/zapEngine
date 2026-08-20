@@ -1,3 +1,5 @@
+import { httpGet } from '@core/lib/http';
+import { createApiServiceCaller } from '@core/lib/http/createServiceCaller';
 import { pollUntil } from '@core/lib/polling';
 import { createIntentEngine } from '@zapengine/intent-engine';
 import { createPublicClient, type Hash, http, type PublicClient } from 'viem';
@@ -39,7 +41,20 @@ export interface BridgeStatus {
   };
 }
 
-export async function getBridgeStatus({
+// waitForBridgeCompletion treats every status failure as transient, so these
+// messages only ever reach logs and the onStatus/onAttempt observers.
+const callLifiStatusApi = createApiServiceCaller(
+  {
+    429: 'LI.FI rate limit reached while checking bridge status.',
+    500: 'LI.FI bridge status request failed.',
+    502: 'LI.FI returned an invalid bridge status response.',
+    503: 'LI.FI bridge status is temporarily unavailable.',
+    504: 'LI.FI bridge status request timed out.',
+  },
+  'Failed to fetch LI.FI bridge status',
+);
+
+export function getBridgeStatus({
   txHash,
   fromChain,
   toChain,
@@ -55,16 +70,13 @@ export async function getBridgeStatus({
     fromChain: fromChain.toString(),
     toChain: toChain.toString(),
   });
-  const response = await fetch(
-    `https://li.quest/v1/status?${params}`,
-    signal ? { signal } : undefined,
+
+  return callLifiStatusApi(() =>
+    httpGet<BridgeStatus>(
+      `https://li.quest/v1/status?${params}`,
+      signal ? { signal } : {},
+    ),
   );
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch LI.FI bridge status: ${response.status}`);
-  }
-
-  return (await response.json()) as BridgeStatus;
 }
 
 export class BridgeFailedError extends Error {

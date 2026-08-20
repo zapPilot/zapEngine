@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import date
 from typing import TYPE_CHECKING, Any, Protocol
 
 from src.services.backtesting.decision import AllocationIntent, DecisionAction
@@ -34,6 +36,8 @@ class AllocationExecutor(Protocol):
     def reset(self) -> None: ...
 
     def observe(self, hints: ExecutionHints) -> None: ...
+
+    def seed_trade_dates(self, trade_dates: Sequence[date]) -> None: ...
 
     def execute(
         self,

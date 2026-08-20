@@ -55,6 +55,11 @@ const envSchema = z.object({
     .url()
     .default('https://api-ui.hyperliquid.xyz'),
   HYPERLIQUID_RATE_LIMIT_RPM: parsePositiveInteger('60'),
+  DEBANK_API_URL: z.string().url().default('https://pro-openapi.debank.com'),
+  COINGECKO_API_URL: z
+    .string()
+    .url()
+    .default('https://api.coingecko.com/api/v3'),
 
   // CoinMarketCap API
   COINMARKETCAP_API_KEY: z.string().min(1).optional(),

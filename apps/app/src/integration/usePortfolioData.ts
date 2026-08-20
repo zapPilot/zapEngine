@@ -1,7 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { calculateAllocation } from '@zapengine/app-core/adapters';
 import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics';
-import { useLandingPageData } from '@zapengine/app-core/hooks/queries';
+import {
+  createQueryConfig,
+  queryKeys,
+  useLandingPageData,
+} from '@zapengine/app-core/hooks/queries';
 import { getDailyYieldReturns } from '@zapengine/app-core/services';
 
 import { DEMO, type MetricTone } from '@/data/demo';
@@ -151,10 +155,10 @@ export function usePortfolioData(
     { trend_days: days, drawdown_days: days, rolling_days: days },
   );
   const yieldQuery = useQuery({
-    queryKey: ['desktop', 'portfolio', 'dailyYield', userId, days],
+    ...createQueryConfig({ dataType: 'volatile' }),
+    queryKey: queryKeys.desktop.portfolio.dailyYield(userId, days),
     queryFn: () => getDailyYieldReturns(userId as string, days),
     enabled: Boolean(userId),
-    staleTime: 5 * 60 * 1000,
   });
 
   // userId still resolving, or the query hasn't produced a dashboard yet.

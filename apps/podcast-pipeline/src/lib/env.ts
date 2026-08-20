@@ -19,6 +19,26 @@ export function getPort(): number {
   return port;
 }
 
+/**
+ * Optional integer env override with a fallback: anything unparseable or below
+ * `min` keeps the default rather than failing, because these knobs are
+ * operational tuning, not configuration the service needs to boot.
+ */
+export function getIntEnv(
+  name: string,
+  options: { default: number; min: number },
+): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) {
+    return options.default;
+  }
+
+  const value = Number.parseInt(raw, 10);
+  return Number.isFinite(value) && value >= options.min
+    ? value
+    : options.default;
+}
+
 export function getTelegramBotToken(): string {
   return getRequiredEnv('PIPELINE_TELEGRAM_BOT_TOKEN');
 }

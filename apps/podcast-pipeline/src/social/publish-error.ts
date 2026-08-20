@@ -1,3 +1,4 @@
+import { errorMessage } from '../lib/errorMessage.js';
 import type { SocialPlatform } from './types.js';
 
 /**
@@ -11,7 +12,7 @@ export class SocialPublishError extends Error {
     readonly step: string,
     cause: unknown,
   ) {
-    const detail = cause instanceof Error ? cause.message : String(cause);
+    const detail = errorMessage(cause);
     super(
       `${platform.toUpperCase()}_PUBLISH_FAILED\nStep: ${step}\nCause: ${detail}`,
       { cause },

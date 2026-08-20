@@ -115,11 +115,13 @@ async function refreshPortfolioQueryCaches(
   if (userId) {
     invalidations.push(
       queryClient.invalidateQueries({
-        queryKey: ['portfolio-dashboard', userId],
+        queryKey: queryKeys.portfolioDashboard.byUser(userId),
       }),
-      queryClient.invalidateQueries({ queryKey: ['dailyYield', userId] }),
       queryClient.invalidateQueries({
-        queryKey: ['desktop', 'portfolio', 'dailyYield', userId],
+        queryKey: queryKeys.dailyYield.byUser(userId),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.desktop.portfolio.dailyYieldByUser(userId),
       }),
     );
   }

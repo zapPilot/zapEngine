@@ -6,12 +6,14 @@ import OpenAI from 'openai';
 
 import { errorMessage } from '../lib/errorMessage.js';
 import { normalizeLanguageClassroomLessonDraft } from '../lib/languageClassroom.js';
+import { sleep } from '../lib/sleep.js';
 import type {
   LanguageClassroomLanguageCode,
   LanguageClassroomLessonDraft,
 } from '../types.js';
 import { logIngestEvent } from './ingest/step.js';
 import { convertTextToZhTW } from './opencc.js';
+import { combineAbortSignalWithTimeout } from './video/abort.js';
 
 export interface ScriptResult {
   title: string | null;
@@ -278,49 +280,6 @@ export interface OpenRouterRequestOptions {
   signal?: AbortSignal;
 }
 
-interface OpenRouterDeadline {
-  signal: AbortSignal;
-  cleanup: () => void;
-}
-
-class OpenRouterTimeoutError extends Error {
-  constructor(timeoutMs: number) {
-    super(`OpenRouter request timed out after ${timeoutMs}ms`);
-    this.name = 'OpenRouterTimeoutError';
-  }
-}
-
-function createOpenRouterDeadline(
-  externalSignal: AbortSignal | undefined,
-  timeoutMs: number,
-): OpenRouterDeadline {
-  const controller = new AbortController();
-  const abortFromExternalSignal = (): void => {
-    controller.abort(externalSignal?.reason);
-  };
-
-  if (externalSignal?.aborted) {
-    abortFromExternalSignal();
-  } else {
-    externalSignal?.addEventListener('abort', abortFromExternalSignal, {
-      once: true,
-    });
-  }
-
-  const timeout = setTimeout(() => {
-    controller.abort(new OpenRouterTimeoutError(timeoutMs));
-  }, timeoutMs);
-  timeout.unref();
-
-  return {
-    signal: controller.signal,
-    cleanup: () => {
-      clearTimeout(timeout);
-      externalSignal?.removeEventListener('abort', abortFromExternalSignal);
-    },
-  };
-}
-
 export async function createOpenRouterChatCompletion(
   openai: OpenAI,
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
@@ -337,7 +296,11 @@ export async function createOpenRouterChatCompletion(
   });
 
   const request = withThinkingModel(params, thinkingModel);
-  const deadline = createOpenRouterDeadline(requestOptions.signal, timeoutMs);
+  const deadline = combineAbortSignalWithTimeout(
+    requestOptions.signal,
+    timeoutMs,
+    `OpenRouter request timed out after ${timeoutMs}ms`,
+  );
   let completion: OpenRouterChatCompletion;
   try {
     completion = await openai.chat.completions.create(request, {
@@ -350,7 +313,7 @@ export async function createOpenRouterChatCompletion(
     }
     throw error;
   } finally {
-    deadline.cleanup();
+    deadline.dispose();
   }
   const metadata = completionMetadata(completion, params.model, thinkingModel);
   logIngestEvent('llm:response', {
@@ -417,9 +380,6 @@ export function completionMetadata(
 }
 
 function isRetryableOpenRouterError(error: unknown): boolean {
-  if (error instanceof OpenRouterTimeoutError) {
-    return true;
-  }
   if (!error || typeof error !== 'object') {
     return false;
   }
@@ -430,16 +390,14 @@ function isRetryableOpenRouterError(error: unknown): boolean {
   }
 
   const name = (error as { name?: unknown }).name;
-  return name === 'APIConnectionError' || name === 'APITimeoutError';
+  return (
+    name === 'APIConnectionError' ||
+    name === 'APITimeoutError' ||
+    name === 'TimeoutError'
+  );
 }
 
 type LLMCompletionOperation = 'generateScript' | 'generateLanguageClassrooms';
-
-async function waitForRetry(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, LLM_COMPLETION_RETRY_DELAY_MS);
-  });
-}
 
 async function createCompletionWithRetry(
   openai: OpenAI,
@@ -470,7 +428,7 @@ async function createCompletionWithRetry(
         delayMs: LLM_COMPLETION_RETRY_DELAY_MS,
         error: errorMessage(error),
       });
-      await waitForRetry();
+      await sleep(LLM_COMPLETION_RETRY_DELAY_MS);
     }
   }
 

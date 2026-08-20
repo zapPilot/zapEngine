@@ -35,7 +35,6 @@ export interface PortfolioAllocation {
 export interface WalletTokenSummary {
   total_value_usd: number;
   token_count: number;
-  apr_30d: number;
 }
 
 export interface CategorySummaryDebt {
@@ -58,8 +57,6 @@ export interface PortfolioResponse {
   total_assets_usd: number;
   total_debt_usd: number;
   total_net_usd: number;
-  weighted_apr: number;
-  estimated_monthly_income: number;
   wallet_count: number;
   last_updated: string | null;
   portfolio_allocation: PortfolioAllocation;

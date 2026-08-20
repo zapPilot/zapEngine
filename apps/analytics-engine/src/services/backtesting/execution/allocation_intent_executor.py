@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -88,6 +89,11 @@ class AllocationIntentExecutor:
     def observe(self, hints: ExecutionHints) -> None:
         for plugin in self.plugins:
             plugin.observe(hints)
+
+    def seed_trade_dates(self, trade_dates: Sequence[date]) -> None:
+        # Trade history reaches this executor through its plugins; the pacing
+        # state it owns is rebuilt from scratch by reset().
+        del trade_dates
 
     def clear_plan(self) -> None:
         self._step_executor.clear()

@@ -1,4 +1,6 @@
 import { getRuntimeEnv } from '@core/lib/env/runtimeEnv';
+import { httpGet } from '@core/lib/http';
+import { createApiServiceCaller } from '@core/lib/http/createServiceCaller';
 import { z } from 'zod';
 
 import {
@@ -62,6 +64,16 @@ function moralisApiKey(): string {
   return key;
 }
 
+const callMoralisApi = createApiServiceCaller(
+  {
+    401: 'Moralis rejected the configured API key.',
+    429: 'Moralis rate limit reached for wallet history.',
+    500: 'Moralis wallet history request failed.',
+    503: 'Moralis wallet history is temporarily unavailable.',
+  },
+  'Moralis request failed',
+);
+
 async function fetchMoralisJson<T>(
   path: string,
   params: Record<string, string>,
@@ -72,20 +84,22 @@ async function fetchMoralisJson<T>(
     url.searchParams.set(key, value);
   }
 
+  // Resolved outside the API caller so a missing key stays a configuration
+  // error instead of being mapped to a transport error.
+  const apiKey = moralisApiKey();
+
   // Production note: proxy Moralis through account-engine/backend before exposing
   // this outside the current POC so the API key stays off desktop/web clients.
-  const response = await fetch(url, {
-    headers: {
-      accept: 'application/json',
-      'X-API-Key': moralisApiKey(),
-    },
-  });
+  const payload = await callMoralisApi(() =>
+    httpGet<unknown>(url.toString(), {
+      headers: {
+        accept: 'application/json',
+        'X-API-Key': apiKey,
+      },
+    }),
+  );
 
-  if (!response.ok) {
-    throw new Error(`Moralis request failed with HTTP ${response.status}.`);
-  }
-
-  return schema.parse(await response.json());
+  return schema.parse(payload);
 }
 
 async function getMoralisWalletHistoryForChain(

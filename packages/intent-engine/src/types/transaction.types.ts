@@ -1,26 +1,13 @@
-import { z } from 'zod';
-
-import { WALLET_ADDRESS_REGEX } from '@zapengine/types';
+import {
+  PreparedTransactionSchema,
+  type PreparedTransaction,
+} from '@zapengine/types/api';
 import type { Address, Hash, TransactionReceipt } from 'viem';
 
-// Prepared transaction ready to be signed and sent
-export const PreparedTransactionSchema = z.object({
-  to: z.string().regex(WALLET_ADDRESS_REGEX),
-  data: z.string().startsWith('0x'),
-  value: z.string().regex(/^\d+$/),
-  chainId: z.number(),
-  gasLimit: z.string().optional(),
-  // Metadata for UI/tracking
-  meta: z.object({
-    intentId: z.string().optional(),
-    intentType: z.string(),
-    estimatedGas: z.string().optional(),
-    estimatedDuration: z.number().optional(), // seconds
-    route: z.unknown().optional(), // LI.FI route object
-  }),
-});
-
-export type PreparedTransaction = z.infer<typeof PreparedTransactionSchema>;
+// The prepared-transaction wire contract lives in @zapengine/types (it is what
+// POST /plan-orchestration/deposit returns); re-exported here so the builders
+// keep a single local import site for transaction shapes.
+export { PreparedTransactionSchema, type PreparedTransaction };
 
 // Quote response from LI.FI
 export interface TransactionQuote {

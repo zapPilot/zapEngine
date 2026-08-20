@@ -6,6 +6,7 @@ import {
   MORPHO_VAULTS,
 } from '@zapengine/intent-engine';
 import { type DepositPlan, NATIVE_TOKEN_ADDRESS } from '@zapengine/types/api';
+import { equalsAddress } from '@zapengine/types/shared';
 import {
   type Address,
   erc20Abi,
@@ -64,13 +65,14 @@ export function assertSingleChainPlan(
 export function assertPlannedAccount(
   activeAddress: string | undefined,
   plannedAddress: Address,
+  planLabel: string,
 ): void {
   if (!activeAddress) {
-    throw new Error('Reconnect the wallet used to prepare this deposit plan.');
+    throw new Error(`Reconnect the wallet used to prepare this ${planLabel}.`);
   }
-  if (activeAddress.toLowerCase() !== plannedAddress.toLowerCase()) {
+  if (!equalsAddress(activeAddress, plannedAddress)) {
     throw new Error(
-      'The connected wallet changed. Reconnect the wallet used to prepare this deposit plan.',
+      `The connected wallet changed. Reconnect the wallet used to prepare this ${planLabel}.`,
     );
   }
 }
@@ -92,10 +94,7 @@ export function assertNativeGmxSpendWithinRequestedAmount(params: {
   ) {
     return;
   }
-  if (
-    params.request.fromToken.toLowerCase() !==
-    NATIVE_TOKEN_ADDRESS.toLowerCase()
-  ) {
+  if (!equalsAddress(params.request.fromToken, NATIVE_TOKEN_ADDRESS)) {
     return;
   }
 
@@ -124,8 +123,7 @@ export async function assertSingleChainPreflight(params: {
       ? params.request.fromAmount
       : params.request.amount,
   );
-  const isNative =
-    fundingToken.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase();
+  const isNative = equalsAddress(fundingToken, NATIVE_TOKEN_ADDRESS);
 
   if (isNative) {
     const required =

@@ -1,5 +1,6 @@
-import { chromium, type Page } from 'playwright-core';
+import { type BrowserContext, chromium, type Page } from 'playwright-core';
 
+import { toError } from '../lib/errorMessage.js';
 import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
 import type { SocialPostMetricDetails, SocialPostRow } from '../types.js';
 import type { CollectedSocialMetrics, SocialMetricCounts } from './metrics.js';
@@ -60,6 +61,7 @@ const EMPTY_COUNTS: SocialMetricCounts = {
 };
 
 export function createMetricCollectors(input?: {
+  browser?: MetricsBrowserSession;
   fetchImpl?: typeof fetch;
   onRednoteIdentity?: (input: {
     post: SocialPostRow;
@@ -68,12 +70,17 @@ export function createMetricCollectors(input?: {
   }) => Promise<void>;
 }): Record<SocialPlatform, SocialMetricCollector> {
   const fetchImpl = input?.fetchImpl ?? fetch;
+  const browser = input?.browser;
   return {
     threads: (post) => collectThreadsMetrics(post, fetchImpl),
     youtube: (post) => collectYouTubeMetrics(post, fetchImpl),
-    x: collectXMetrics,
+    x: (post) => collectXMetrics(post, browser),
     rednote: (post) =>
-      collectRednoteMetrics(post, input?.onRednoteIdentity ?? (async () => {})),
+      collectRednoteMetrics(
+        post,
+        input?.onRednoteIdentity ?? (async () => {}),
+        browser,
+      ),
   };
 }
 
@@ -213,34 +220,40 @@ function describeGoogleApiError(payload: unknown): string {
 
 export async function collectXMetrics(
   post: SocialPostRow,
+  browser?: MetricsBrowserSession,
 ): Promise<SocialMetricCounts> {
   const url = post.post_url?.trim();
   if (!url) throw new Error(`X post ${post.id} has no post_url.`);
 
-  return withPersistentPage(X_PROFILE_DIRECTORY, url, async (page) => {
-    const article = page.locator('article[data-testid="tweet"]').first();
-    await article.waitFor({ state: 'visible', timeout: BROWSER_TIMEOUT_MS });
-    const comments = await readXButtonCount(
-      article.locator('[data-testid="reply"]'),
-    );
-    const reposts = await readXButtonCount(
-      article.locator('[data-testid="retweet"]'),
-    );
-    const likes = await readXButtonCount(
-      article.locator('[data-testid="like"]'),
-    );
-    const views = await readFirstMetricNumber(
-      article.locator('a[href$="/analytics"]'),
-    );
-    return {
-      ...EMPTY_COUNTS,
-      views,
-      impressions: null,
-      likes,
-      comments,
-      shares: reposts,
-    };
-  });
+  return withPersistentPage(
+    X_PROFILE_DIRECTORY,
+    url,
+    async (page) => {
+      const article = page.locator('article[data-testid="tweet"]').first();
+      await article.waitFor({ state: 'visible', timeout: BROWSER_TIMEOUT_MS });
+      const comments = await readXButtonCount(
+        article.locator('[data-testid="reply"]'),
+      );
+      const reposts = await readXButtonCount(
+        article.locator('[data-testid="retweet"]'),
+      );
+      const likes = await readXButtonCount(
+        article.locator('[data-testid="like"]'),
+      );
+      const views = await readFirstMetricNumber(
+        article.locator('a[href$="/analytics"]'),
+      );
+      return {
+        ...EMPTY_COUNTS,
+        views,
+        impressions: null,
+        likes,
+        comments,
+        shares: reposts,
+      };
+    },
+    browser,
+  );
 }
 
 export async function inspectXPublishedPost(
@@ -439,6 +452,7 @@ export async function collectRednoteMetrics(
     platformPostId: string;
     postUrl: string;
   }) => Promise<void> = async () => {},
+  browser?: MetricsBrowserSession,
 ): Promise<SocialMetricCounts> {
   return withPersistentPage(
     REDNOTE_PROFILE_DIRECTORY,
@@ -498,6 +512,7 @@ export async function collectRednoteMetrics(
         shares,
       };
     },
+    browser,
   );
 }
 
@@ -919,24 +934,76 @@ function parseRednoteTime(raw: string | null): number | null {
   return Number.isNaN(value) ? null : value;
 }
 
+/**
+ * One persistent Chrome context per browser profile for the lifetime of a
+ * metrics sweep, with a fresh page per post. Launching and tearing down Chrome
+ * per post paid the browser startup cost once per row, and a persistent profile
+ * cannot be opened twice, so the sweep owns the context and every post that
+ * needs the same profile reuses it.
+ */
+export interface MetricsBrowserSession {
+  withPage<T>(
+    profileDirectory: string,
+    url: string,
+    run: (page: Page) => Promise<T>,
+  ): Promise<T>;
+  close(): Promise<void>;
+}
+
+export function createMetricsBrowserSession(): MetricsBrowserSession {
+  const contexts = new Map<string, BrowserContext>();
+
+  return {
+    async withPage(profileDirectory, url, run) {
+      let context = contexts.get(profileDirectory);
+      if (!context) {
+        context = await chromium.launchPersistentContext(profileDirectory, {
+          channel: 'chrome',
+          headless: true,
+          viewport: { width: 1440, height: 900 },
+        });
+        contexts.set(profileDirectory, context);
+      }
+
+      const page = await context.newPage();
+      try {
+        await page.goto(url, {
+          waitUntil: 'domcontentloaded',
+          timeout: BROWSER_TIMEOUT_MS,
+        });
+        return await run(page);
+      } finally {
+        await page.close();
+      }
+    },
+    async close() {
+      const open = [...contexts.values()];
+      contexts.clear();
+      let failure: unknown;
+      for (const context of open) {
+        try {
+          await context.close();
+        } catch (error) {
+          failure ??= error;
+        }
+      }
+      if (failure !== undefined) throw toError(failure);
+    },
+  };
+}
+
 async function withPersistentPage<T>(
   profileDirectory: string,
   url: string,
   run: (page: Page) => Promise<T>,
+  browser?: MetricsBrowserSession,
 ): Promise<T> {
-  const context = await chromium.launchPersistentContext(profileDirectory, {
-    channel: 'chrome',
-    headless: true,
-    viewport: { width: 1440, height: 900 },
-  });
+  if (browser) return browser.withPage(profileDirectory, url, run);
+
+  const session = createMetricsBrowserSession();
   try {
-    const page = context.pages()[0] ?? (await context.newPage());
-    await page.goto(url, {
-      waitUntil: 'domcontentloaded',
-      timeout: BROWSER_TIMEOUT_MS,
-    });
-    return await run(page);
+    return await session.withPage(profileDirectory, url, run);
   } finally {
-    await context.close();
+    await session.close();
   }
 }

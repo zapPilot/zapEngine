@@ -26,6 +26,9 @@ import {
 // One request per batch of scenes: a 64-scene episode does not fit one useful
 // completion, and a failed batch only costs its own scenes their enrichment.
 const SEARCH_INTENT_BATCH_SIZE = 14;
+// Batches are independent completions, so they run in parallel; three at a time
+// keeps the burst inside OpenRouter's per-key rate budget.
+const SEARCH_INTENT_BATCH_CONCURRENCY = 3;
 const SEARCH_INTENT_MAX_OUTPUT_TOKENS = 2_048;
 // Image search is run against Bing, Pexels and Pixabay, all queried in English.
 const NON_LATIN_SCRIPT_PATTERN =
@@ -104,21 +107,33 @@ export async function enrichStoryboardSearchIntents(
   const scenes = searchIntentScenes(request, sentences);
   if (!scenes) return unchanged;
 
-  const suggested = new Map<string, string[]>();
-  for (const batch of sceneBatches(scenes, SEARCH_INTENT_BATCH_SIZE)) {
-    throwIfAborted(options.signal);
-    try {
-      const raw = await provider.suggest({
-        title: request.searchTitle?.trim() || request.title,
-        scenes: batch,
-        ...(options.signal ? { signal: options.signal } : {}),
-      });
-      for (const [sceneId, intents] of parseSearchIntents(raw, batch)) {
-        suggested.set(sceneId, intents);
-      }
-    } catch (error) {
+  throwIfAborted(options.signal);
+  const batchResults = await mapBatchesWithLimit(
+    sceneBatches(scenes, SEARCH_INTENT_BATCH_SIZE),
+    SEARCH_INTENT_BATCH_CONCURRENCY,
+    async (batch) => {
       throwIfAborted(options.signal);
-      warnSearchIntentFailure(`batch ${batch[0]?.sceneId ?? 'empty'}`, error);
+      try {
+        const raw = await provider.suggest({
+          title: request.searchTitle?.trim() || request.title,
+          scenes: batch,
+          ...(options.signal ? { signal: options.signal } : {}),
+        });
+        return parseSearchIntents(raw, batch);
+      } catch (error) {
+        throwIfAborted(options.signal);
+        warnSearchIntentFailure(`batch ${batch[0]?.sceneId ?? 'empty'}`, error);
+        return [];
+      }
+    },
+  );
+
+  // Applied in batch order, so a scene's intents never depend on which request
+  // came back first.
+  const suggested = new Map<string, string[]>();
+  for (const entries of batchResults) {
+    for (const [sceneId, intents] of entries) {
+      suggested.set(sceneId, intents);
     }
   }
   if (suggested.size === 0) return unchanged;
@@ -289,6 +304,25 @@ function sanitizedIntents(value: unknown): string[] {
     if (intents.length === MAX_SEARCH_INTENTS_PER_SCENE) break;
   }
   return intents;
+}
+
+async function mapBatchesWithLimit<T>(
+  batches: readonly SearchIntentScene[][],
+  limit: number,
+  run: (batch: SearchIntentScene[]) => Promise<T>,
+): Promise<T[]> {
+  const results: T[] = new Array<T>(batches.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, batches.length) }, async () => {
+      while (next < batches.length) {
+        const index = next;
+        next += 1;
+        results[index] = await run(batches[index]!);
+      }
+    }),
+  );
+  return results;
 }
 
 function sceneBatches(

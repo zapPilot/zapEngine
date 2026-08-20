@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { RATE_LIMITS } from '../../config/constants.js';
+import { env } from '../../config/environment.js';
 import { BaseApiFetcher } from '../../core/fetchers/baseApiFetcher.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import {
@@ -97,13 +98,10 @@ export class DeBankFetcher extends BaseApiFetcher {
   private strictErrors: boolean;
 
   constructor(config?: DeBankConfig) {
-    const apiUrl =
-      config?.apiUrl ??
-      process.env['DEBANK_API_URL'] ??
-      'https://pro-openapi.debank.com';
-    const defaultRateLimit =
-      process.env['NODE_ENV'] === 'test' ? 0 : RATE_LIMITS.DEBANK_DELAY_MS;
-    const rateLimitMs = config?.rateLimitMs ?? defaultRateLimit; // 1 second between requests (conservative)
+    const apiUrl = config?.apiUrl ?? env.DEBANK_API_URL;
+    const rateLimitMs =
+      config?.rateLimitMs ??
+      DeBankFetcher.resolveRateLimitDelay(RATE_LIMITS.DEBANK_DELAY_MS);
 
     super(apiUrl, rateLimitMs);
 

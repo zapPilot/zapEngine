@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
+import { equalsAddress } from '@zapengine/types/shared';
 
 import { logger } from '../../utils';
 
@@ -39,10 +40,8 @@ export const findWalletByAddress = (
   connectedWallets: ConnectedWalletItem[],
   walletId: string,
 ): ConnectedWalletItem | undefined => {
-  const normalizedWalletId = walletId.toLowerCase();
-
-  return connectedWallets.find(
-    (walletItem) => walletItem.address.toLowerCase() === normalizedWalletId,
+  return connectedWallets.find((walletItem) =>
+    equalsAddress(walletItem.address, walletId),
   );
 };
 

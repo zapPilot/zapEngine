@@ -1,5 +1,6 @@
-import { encodeFunctionData, erc20Abi, type Hex } from 'viem';
+import { type Hex } from 'viem';
 
+import { buildApproveTx } from '../approvals/erc20Approval.js';
 import {
   GMX_V2_ARBITRUM_CHAIN_ID,
   GMX_V2_GAS_ESTIMATES,
@@ -14,18 +15,18 @@ export function createApprovalTx(params: {
   spenderAddress: `0x${string}`;
   amount: string;
 }): PreparedTransaction {
-  return PreparedTransactionSchema.parse({
-    to: params.tokenAddress,
-    data: encodeFunctionData({
-      abi: erc20Abi,
-      functionName: 'approve',
-      args: [params.spenderAddress, BigInt(params.amount)],
-    }),
-    value: '0',
+  const approval = buildApproveTx({
+    token: params.tokenAddress,
+    spender: params.spenderAddress,
+    amount: params.amount,
     chainId: GMX_V2_ARBITRUM_CHAIN_ID,
     gasLimit: GMX_V2_GAS_ESTIMATES.approve,
+    intentType: 'APPROVAL',
+  });
+  return PreparedTransactionSchema.parse({
+    ...approval,
     meta: {
-      intentType: 'APPROVAL',
+      ...approval.meta,
       estimatedGas: GMX_V2_GAS_ESTIMATES.approve,
       estimatedDuration: 0,
     },

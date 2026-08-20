@@ -1,5 +1,9 @@
 /** From Fed to Chain podcast feed client (podcast-pipeline `/episodes` API). */
 import { useQuery } from '@tanstack/react-query';
+import {
+  createQueryConfig,
+  queryKeys,
+} from '@zapengine/app-core/hooks/queries';
 import { getRuntimeEnv } from '@zapengine/app-core/lib/env/runtimeEnv';
 
 import {
@@ -677,17 +681,20 @@ export function usePodcastEpisodes() {
   const { isHydrated, languageCode } = useContentLanguage();
 
   return useQuery({
-    queryKey: ['desktop', 'podcast', 'episodes', languageCode],
+    ...createQueryConfig({ dataType: 'volatile' }),
+    queryKey: queryKeys.desktop.podcast.episodes(languageCode),
     queryFn: () => fetchPodcastEpisodes(fetch, languageCode),
     enabled: isHydrated,
-    staleTime: 5 * 60 * 1000,
   });
 }
 
 export function usePodcastCatalog() {
   return useQuery({
-    queryKey: ['desktop', 'podcast', 'episodes', 'catalog'],
+    ...createQueryConfig({ dataType: 'volatile' }),
+    queryKey: queryKeys.desktop.podcast.catalog(),
     queryFn: () => fetchPodcastCatalog(fetch),
+    // The language-neutral catalog only changes when an episode publishes, so
+    // it holds a longer window than the shared volatile one.
     staleTime: 30 * 60 * 1000,
   });
 }
@@ -701,14 +708,11 @@ export function usePodcastEpisode(
   const { isHydrated } = useContentLanguage();
 
   return useQuery({
-    queryKey: [
-      'desktop',
-      'podcast',
-      'episodes',
-      'detail',
+    ...createQueryConfig({ dataType: 'volatile' }),
+    queryKey: queryKeys.desktop.podcast.episodeDetail(
       languageCode,
       localizationId,
-    ],
+    ),
     queryFn: () => fetchPodcastEpisode(localizationId, fetch, languageCode),
     enabled: isHydrated && enabled && localizationId.trim() !== '',
     refetchInterval: (query) =>
@@ -718,7 +722,6 @@ export function usePodcastEpisode(
         query.state.fetchFailureCount,
       ),
     refetchOnMount: 'always',
-    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -728,17 +731,16 @@ export function usePodcastEpisodeSearch(query: string) {
   const enabled = isPodcastSearchQueryValid(normalisedQuery);
 
   return useQuery({
-    queryKey: [
-      'desktop',
-      'podcast',
-      'episodes',
-      'search',
+    ...createQueryConfig({ dataType: 'volatile' }),
+    queryKey: queryKeys.desktop.podcast.episodeSearch(
       languageCode,
       normalisedQuery,
-    ],
+    ),
     queryFn: () =>
       fetchPodcastEpisodeSearchResults(normalisedQuery, fetch, languageCode),
     enabled: isHydrated && enabled,
+    // Results are keyed by the typed query, so each one is only worth caching
+    // for a short window.
     staleTime: 60 * 1000,
   });
 }

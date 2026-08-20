@@ -150,7 +150,7 @@ export function useAtomicBatchExecution(
         return {
           status: 'blocked',
           code: 'CHAIN_UNAVAILABLE',
-          reason: extractErrorMessage(error, String(error)),
+          reason: extractErrorMessage(error),
         };
       }
 
@@ -196,29 +196,23 @@ export function useAtomicBatchExecution(
         };
       }
       if (
-        typeof preview.simulationFingerprint === 'string' &&
         preview.simulationFingerprint.toLowerCase() !==
-          input.expectedSimulationFingerprint.toLowerCase()
+        input.expectedSimulationFingerprint.toLowerCase()
       ) {
         return {
           status: REVIEW_CHANGED_STATUS,
           reason: 'simulation-fingerprint-mismatch',
           simulationFingerprint: preview.simulationFingerprint,
-          ...(typeof preview.riskHash === 'string'
-            ? { riskHash: preview.riskHash }
-            : {}),
+          riskHash: preview.riskHash,
         };
       }
       if (
-        typeof preview.riskHash === 'string' &&
         preview.riskHash.toLowerCase() !== input.expectedRiskHash.toLowerCase()
       ) {
         return {
           status: REVIEW_CHANGED_STATUS,
           reason: 'risk-hash-mismatch',
-          ...(typeof preview.simulationFingerprint === 'string'
-            ? { simulationFingerprint: preview.simulationFingerprint }
-            : {}),
+          simulationFingerprint: preview.simulationFingerprint,
           riskHash: preview.riskHash,
         };
       }
@@ -259,12 +253,8 @@ export function useAtomicBatchExecution(
         return {
           status: REVIEW_CHANGED_STATUS,
           reason: 'server-review-changed',
-          ...(typeof result.preview.simulationFingerprint === 'string'
-            ? { simulationFingerprint: result.preview.simulationFingerprint }
-            : {}),
-          ...(typeof result.preview.riskHash === 'string'
-            ? { riskHash: result.preview.riskHash }
-            : {}),
+          simulationFingerprint: result.preview.simulationFingerprint,
+          riskHash: result.preview.riskHash,
         };
       }
 
@@ -341,7 +331,7 @@ export function useAtomicBatchExecution(
         prepareAccessToken,
       ).catch((error: unknown) => {
         throw new Error(
-          `Privy EOA EIP-7702 atomic batch preparation failed: ${extractErrorMessage(error, String(error))}`,
+          `Privy EOA EIP-7702 atomic batch preparation failed: ${extractErrorMessage(error)}`,
         );
       });
 
@@ -375,7 +365,7 @@ export function useAtomicBatchExecution(
       pending.preview = preview;
       setSimulationPreview(preview);
     } catch (err: unknown) {
-      const message = extractErrorMessage(err, String(err));
+      const message = extractErrorMessage(err);
       setRetryError(message);
     } finally {
       setIsRetryingSimulation(false);
@@ -443,7 +433,7 @@ export function useAtomicBatchExecution(
         pending.preview = preview;
         setSimulationPreview(preview);
       } catch (err: unknown) {
-        const message = extractErrorMessage(err, String(err));
+        const message = extractErrorMessage(err);
         setRetryError(message);
         throw err;
       } finally {
@@ -531,9 +521,7 @@ export function useAtomicBatchExecution(
       } catch (err: unknown) {
         walletLogger.error('[privy.confirmBatchExecution] failed:', err);
         pending.reject(
-          err instanceof Error
-            ? err
-            : new Error(extractErrorMessage(err, String(err))),
+          err instanceof Error ? err : new Error(extractErrorMessage(err)),
         );
       } finally {
         setIsSigningAndSending(false);

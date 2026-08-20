@@ -1,6 +1,13 @@
 import { ArrowRight } from 'lucide-react';
 import { MESSAGES } from '@/config/messages';
+import { CHART_DIMENSIONS } from '@/config/track-record';
 import equityCurve from '@/data/equity-curve.json';
+import {
+  pathForSeries,
+  plotWidth,
+  xForPoint,
+  yForValue,
+} from '@/components/track-record/chartGeometry';
 import { Section } from '@/components/primitives/Section';
 
 type EquityPoint = {
@@ -15,16 +22,11 @@ type EquitySeries = {
   values: EquityPoint[];
 };
 
-const CHART_WIDTH = 720;
-const CHART_HEIGHT = 320;
-const CHART_PADDING = {
-  top: 30,
-  right: 34,
-  bottom: 54,
-  left: 56,
-};
-const PLOT_WIDTH = CHART_WIDTH - CHART_PADDING.left - CHART_PADDING.right;
-const PLOT_HEIGHT = CHART_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom;
+const {
+  width: CHART_WIDTH,
+  height: CHART_HEIGHT,
+  padding: CHART_PADDING,
+} = CHART_DIMENSIONS;
 const EQUITY_SERIES = equityCurve.series as EquitySeries[];
 const Y_TICKS = [50, 100, 150, 200];
 const ALL_VALUES = EQUITY_SERIES.flatMap((series) =>
@@ -36,27 +38,6 @@ const DOMAIN_MIN =
   ) * 10;
 const DOMAIN_MAX =
   Math.ceil(Math.max(...ALL_VALUES, ...Y_TICKS) / 10) * 10 + 10;
-
-function xForPoint(index: number, totalPoints: number) {
-  if (totalPoints <= 1) {
-    return CHART_PADDING.left;
-  }
-  return CHART_PADDING.left + (index / (totalPoints - 1)) * PLOT_WIDTH;
-}
-
-function yForValue(value: number) {
-  const ratio = (DOMAIN_MAX - value) / (DOMAIN_MAX - DOMAIN_MIN);
-  return CHART_PADDING.top + ratio * PLOT_HEIGHT;
-}
-
-function pathForSeries(series: EquitySeries) {
-  return series.values
-    .map((point, index) => {
-      const command = index === 0 ? 'M' : 'L';
-      return `${command} ${xForPoint(index, series.values.length).toFixed(2)} ${yForValue(point.value).toFixed(2)}`;
-    })
-    .join(' ');
-}
 
 function lastPoint(series: EquitySeries): EquityPoint {
   const point = series.values[series.values.length - 1];
@@ -77,8 +58,12 @@ function lastPointForSeries(seriesId: string): EquityPoint {
 }
 
 export function BacktestProof() {
-  const drawdownTop = yForValue(100);
-  const drawdownBottom = yForValue(100 + equityCurve.drawdownBand.dcaPercent);
+  const drawdownTop = yForValue(100, DOMAIN_MIN, DOMAIN_MAX);
+  const drawdownBottom = yForValue(
+    100 + equityCurve.drawdownBand.dcaPercent,
+    DOMAIN_MIN,
+    DOMAIN_MAX,
+  );
   const strategyEndValue = lastPointForSeries('strategy').value.toFixed(2);
   const dcaEndValue = lastPointForSeries('dca').value.toFixed(2);
 
@@ -129,24 +114,28 @@ export function BacktestProof() {
             className="equity-drawdown-band"
             x={CHART_PADDING.left}
             y={drawdownTop}
-            width={PLOT_WIDTH}
+            width={plotWidth}
             height={drawdownBottom - drawdownTop}
             rx="6"
           />
 
-          {Y_TICKS.map((tick) => (
-            <g className="equity-grid-line" key={tick}>
-              <line
-                x1={CHART_PADDING.left}
-                x2={CHART_WIDTH - CHART_PADDING.right}
-                y1={yForValue(tick)}
-                y2={yForValue(tick)}
-              />
-              <text x={CHART_PADDING.left - 14} y={yForValue(tick) + 4}>
-                {tick}
-              </text>
-            </g>
-          ))}
+          {Y_TICKS.map((tick) => {
+            const y = yForValue(tick, DOMAIN_MIN, DOMAIN_MAX);
+
+            return (
+              <g className="equity-grid-line" key={tick}>
+                <line
+                  x1={CHART_PADDING.left}
+                  x2={CHART_WIDTH - CHART_PADDING.right}
+                  y1={y}
+                  y2={y}
+                />
+                <text x={CHART_PADDING.left - 14} y={y + 4}>
+                  {tick}
+                </text>
+              </g>
+            );
+          })}
 
           <line
             className="equity-axis"
@@ -162,11 +151,14 @@ export function BacktestProof() {
               series.values.length - 1,
               series.values.length,
             );
-            const endY = yForValue(endPoint.value);
+            const endY = yForValue(endPoint.value, DOMAIN_MIN, DOMAIN_MAX);
 
             return (
               <g className={`equity-series ${series.id}`} key={series.id}>
-                <path d={pathForSeries(series)} stroke={series.color} />
+                <path
+                  d={pathForSeries(series.values, DOMAIN_MIN, DOMAIN_MAX)}
+                  stroke={series.color}
+                />
                 <circle cx={endX} cy={endY} r="4" />
                 <text x={endX - 8} y={endY - 12}>
                   {endPoint.value.toFixed(2)}

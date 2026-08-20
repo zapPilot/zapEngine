@@ -43,6 +43,7 @@ from src.services.backtesting.data.forward_fill import forward_fill_for_date
 from src.services.backtesting.execution.block_reasons import (
     resolve_effective_block_reason,
 )
+from src.services.backtesting.execution.contracts import AllocationExecutor
 from src.services.backtesting.execution.plugins import (
     TradeHistoryAwareExecutionPlugin,
 )
@@ -559,7 +560,9 @@ class StrategyDailySuggestionService:
         user_id: UUID,
         current_date: date,
     ) -> None:
-        execution_engine = getattr(strategy, "execution_engine", None)
+        execution_engine: AllocationExecutor | None = getattr(
+            strategy, "execution_engine", None
+        )
         plugins = getattr(execution_engine, "plugins", ())
         history_plugins = [
             plugin
@@ -602,24 +605,7 @@ class StrategyDailySuggestionService:
         for plugin in history_plugins:
             plugin.load_trade_dates(trade_dates)
         if trade_quota_guards and execution_engine is not None:
-            existing_dates = list(getattr(execution_engine, "trade_dates", []))
-            seeded_dates = sorted({*existing_dates, *trade_dates})
-            seed_trade_dates = getattr(execution_engine, "seed_trade_dates", None)
-            if callable(seed_trade_dates):
-                seed_trade_dates(seeded_dates)
-            elif hasattr(execution_engine, "trade_dates"):
-                execution_engine.trade_dates = seeded_dates
-            if not callable(seed_trade_dates) and hasattr(
-                execution_engine, "last_trade_date"
-            ):
-                execution_engine.last_trade_date = max(
-                    (
-                        trade_date
-                        for trade_date in seeded_dates
-                        if trade_date <= current_date
-                    ),
-                    default=None,
-                )
+            execution_engine.seed_trade_dates(trade_dates)
 
     @staticmethod
     def _build_price_map(

@@ -8,6 +8,7 @@
  */
 
 import { RATE_LIMITS } from '../../config/constants.js';
+import { env } from '../../config/environment.js';
 import { BaseApiFetcher } from '../../core/fetchers/baseApiFetcher.js';
 import { APIError } from '../../utils/errors.js';
 import { wrapHealthCheck } from '../../utils/healthCheck.js';
@@ -28,21 +29,15 @@ interface CoinGeckoFetcherConfig {
 }
 
 export class CoinGeckoFetcher extends BaseApiFetcher {
-  private static readonly DEFAULT_BASE_URL = 'https://api.coingecko.com/api/v3';
   private static readonly SOURCE_NAME = 'coingecko';
   private static readonly RETRY_ATTEMPTS = 3;
   private static readonly RETRY_DELAY_MS = 1000;
 
   constructor(config?: CoinGeckoFetcherConfig) {
-    const baseUrl =
-      config?.baseUrl ??
-      process.env['COINGECKO_API_URL'] ??
-      CoinGeckoFetcher.DEFAULT_BASE_URL;
-    /* v8 ignore start -- production rate limit path not reachable in test env */
-    const defaultRateLimit =
-      process.env['NODE_ENV'] === 'test' ? 0 : RATE_LIMITS.COINGECKO_DELAY_MS;
-    /* v8 ignore stop */
-    const rateLimitMs = config?.rateLimitMs ?? defaultRateLimit;
+    const baseUrl = config?.baseUrl ?? env.COINGECKO_API_URL;
+    const rateLimitMs =
+      config?.rateLimitMs ??
+      CoinGeckoFetcher.resolveRateLimitDelay(RATE_LIMITS.COINGECKO_DELAY_MS);
     super(baseUrl, rateLimitMs);
   }
 

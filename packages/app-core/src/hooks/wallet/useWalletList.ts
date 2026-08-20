@@ -1,6 +1,7 @@
 import { TIMINGS } from '@core/constants/timings';
 import type { WalletData } from '@core/lib/validation/walletUtils';
 import { loadWallets as fetchWallets } from '@core/services';
+import { equalsAddress } from '@zapengine/types/shared';
 import {
   type Dispatch,
   type SetStateAction,
@@ -34,7 +35,7 @@ function isWalletActive(
 ): boolean {
   return connectedWallets.some(
     (connectedWallet) =>
-      connectedWallet.address.toLowerCase() === walletAddress.toLowerCase() &&
+      equalsAddress(connectedWallet.address, walletAddress) &&
       connectedWallet.isActive,
   );
 }

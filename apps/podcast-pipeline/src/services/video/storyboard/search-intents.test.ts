@@ -149,6 +149,52 @@ describe('storyboard search intent enrichment', () => {
     expect(provider.suggest.mock.calls[0]?.[0].signal).toBe(controller.signal);
   });
 
+  it('runs batches in parallel and still enriches every scene', async () => {
+    const request = enrichmentRequest();
+    // The enrichment runs at most three batches at a time, so three requests
+    // must be in flight together before any of them is allowed to answer.
+    const inFlightBeforeAnyAnswer = 3;
+    let started = 0;
+    let release!: () => void;
+    const allStarted = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const provider = {
+      model: 'openrouter/test-model',
+      suggest: vi.fn<SearchIntentProvider['suggest']>(async (call) => {
+        started += 1;
+        if (started === inFlightBeforeAnyAnswer) release();
+        await allStarted;
+        return suggestSubjects(call);
+      }),
+    };
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(started).toBeGreaterThanOrEqual(inFlightBeforeAnyAnswer);
+    expect(result.enrichedSceneCount).toBe(request.draft.scenes.length);
+    expect(result.draft.scenes.map((scene) => scene.imageSearchIntent)).toEqual(
+      request.draft.scenes.map(() => [
+        'bank of japan governor press conference',
+      ]),
+    );
+  });
+
+  it('propagates an abort raised while batches are in flight', async () => {
+    const controller = new AbortController();
+    const provider = stubProvider(() => {
+      controller.abort();
+      throw new Error('OpenRouter connection reset');
+    });
+
+    await expect(
+      enrichStoryboardSearchIntents(enrichmentRequest(), {
+        provider,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow();
+  });
+
   it('keeps the deterministic intents of a batch whose request fails', async () => {
     const warn = silenceWarnings();
     const request = enrichmentRequest();

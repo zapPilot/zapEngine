@@ -1,5 +1,8 @@
+import { httpPost } from '@core/lib/http';
+import { createApiServiceCaller } from '@core/lib/http/createServiceCaller';
 import { pollUntil } from '@core/lib/polling';
 import { parseBaseUnits } from '@core/lib/wallet/usd6';
+import { equalsAddress } from '@zapengine/types/shared';
 import type { Address, WalletClient } from 'viem';
 import { z } from 'zod';
 
@@ -36,23 +39,29 @@ export function usdStringToUsd6(value: string): bigint {
   return parsed;
 }
 
-async function postInfo(params: {
+const callHyperliquidInfoApi = createApiServiceCaller(
+  {
+    429: 'Hyperliquid info API rate limit reached.',
+    500: 'Hyperliquid info request failed.',
+    502: 'Hyperliquid returned an invalid info response.',
+    503: 'Hyperliquid info API is temporarily unavailable.',
+    504: 'Hyperliquid info request timed out.',
+  },
+  'Hyperliquid info request failed',
+);
+
+function postInfo(params: {
   apiUrl: string;
   body: Record<string, unknown>;
   signal?: AbortSignal;
 }): Promise<unknown> {
-  const response = await fetch(`${params.apiUrl}/info`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(params.body),
-    ...(params.signal ? { signal: params.signal } : {}),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Hyperliquid info request failed: ${response.status}`);
-  }
-
-  return response.json();
+  return callHyperliquidInfoApi(() =>
+    httpPost<unknown>(
+      `${params.apiUrl}/info`,
+      params.body,
+      params.signal ? { signal: params.signal } : {},
+    ),
+  );
 }
 
 export interface PerpUsdcBalance {
@@ -108,9 +117,8 @@ export async function getVaultEquity({
     }),
   );
 
-  const entry = equities.find(
-    (candidate) =>
-      candidate.vaultAddress.toLowerCase() === vaultAddress.toLowerCase(),
+  const entry = equities.find((candidate) =>
+    equalsAddress(candidate.vaultAddress, vaultAddress),
   );
   if (!entry) {
     return null;

@@ -1,3 +1,4 @@
+import { equalsAddress } from '@zapengine/types/shared';
 import { toHex, type Chain } from 'viem';
 import { arbitrum, base, optimism } from 'viem/chains';
 
@@ -37,14 +38,13 @@ export function resolveEmbeddedWalletId(
     return undefined;
   }
 
-  const normalizedAddress = address.toLowerCase();
   for (const account of linkedAccounts ?? []) {
     if (
       !isLinkedAccountRecord(account) ||
       account.connector_type !== 'embedded' ||
       account.chain_type !== 'ethereum' ||
       typeof account.address !== 'string' ||
-      account.address.toLowerCase() !== normalizedAddress ||
+      !equalsAddress(account.address, address) ||
       typeof account.id !== 'string'
     ) {
       continue;

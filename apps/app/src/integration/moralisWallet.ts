@@ -1,6 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { CHAIN_BRAND, TOKEN_BRAND } from '@zapengine/brand-assets';
 import {
+  createQueryConfig,
+  queryKeys,
+} from '@zapengine/app-core/hooks/queries';
+import {
   getMoralisWalletHistory,
   getSupportedWalletTokenSymbol,
   getSupportedWalletTokenDefinition,
@@ -563,9 +567,12 @@ export function useMoralisWalletHistory(
 ): UseMoralisWalletHistoryResult {
   const walletAddresses = normalizeWalletAddressList(addressInput);
   const enabled = walletAddresses.length > 0;
-  const query = useQuery({
-    queryKey: ['desktop', 'moralis', 'wallet-history', walletAddresses],
+  const query = useQuery<ActivityHistoryData, Error>({
+    ...createQueryConfig({ dataType: 'volatile' }),
+    queryKey: queryKeys.desktop.walletHistory(walletAddresses),
     enabled,
+    // The activity feed is expected to show a just-settled deposit, so it
+    // stays fresher than the shared volatile window.
     staleTime: 60 * 1000,
     queryFn: async () => {
       const responses = (

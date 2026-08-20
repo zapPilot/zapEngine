@@ -8,6 +8,7 @@
  */
 
 import { RATE_LIMITS } from '../../config/constants.js';
+import { env } from '../../config/environment.js';
 import { BaseApiFetcher } from '../../core/fetchers/baseApiFetcher.js';
 import { APIError } from '../../utils/errors.js';
 import { serializeError } from '../../utils/errorSerializer.js';
@@ -36,21 +37,19 @@ interface FearGreedConfig {
 }
 
 export class FearGreedFetcher extends BaseApiFetcher {
-  private static readonly BASE_URL = 'https://pro-api.coinmarketcap.com';
   private static readonly ENDPOINT = '/v3/fear-and-greed/latest';
   private static readonly SOURCE_NAME = 'coinmarketcap';
-  /* v8 ignore next 3 -- production rate limit path not reachable in test env */
-  private static readonly RATE_LIMIT_MS =
-    process.env['NODE_ENV'] === 'test' ? 0 : RATE_LIMITS.COINMARKETCAP_DELAY_MS;
 
   private readonly apiKey: string;
 
   constructor(config?: FearGreedConfig) {
-    const baseUrl =
-      config?.apiUrl ??
-      process.env['COINMARKETCAP_API_URL'] ??
-      FearGreedFetcher.BASE_URL;
-    super(baseUrl, FearGreedFetcher.RATE_LIMIT_MS);
+    const baseUrl = config?.apiUrl ?? env.COINMARKETCAP_API_URL;
+    super(
+      baseUrl,
+      FearGreedFetcher.resolveRateLimitDelay(
+        RATE_LIMITS.COINMARKETCAP_DELAY_MS,
+      ),
+    );
 
     this.apiKey = config?.apiKey ?? process.env['COINMARKETCAP_API_KEY'] ?? '';
 

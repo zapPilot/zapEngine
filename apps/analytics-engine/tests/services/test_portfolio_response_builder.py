@@ -410,8 +410,6 @@ class TestPortfolioResponseBuilder:
         assert response.total_debt_usd == 0.0
         assert response.total_net_usd == 0.0
         assert response.wallet_count == 0
-        assert response.weighted_apr == 0.0
-        assert response.estimated_monthly_income == 0.0
         assert response.wallet_token_summary.token_count == 0
         assert response.last_updated is None
         assert response.positions == 0

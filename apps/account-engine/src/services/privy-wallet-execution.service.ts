@@ -15,7 +15,7 @@ import type {
   PrivyPrepareSendCallsRequest,
   PrivyPrepareSendCallsResponse,
 } from '@zapengine/types/api';
-import { sleep } from '@zapengine/types/shared';
+import { equalsAddress, sleep } from '@zapengine/types/shared';
 import { keccak256, toBytes, verifyTypedData } from 'viem';
 
 import {
@@ -436,7 +436,7 @@ export function createPrivyWalletExecutionService(config: {
     const ownsWallet = userWallets.some(
       (wallet) =>
         wallet.id === request.walletId &&
-        wallet.address.toLowerCase() === request.walletAddress.toLowerCase(),
+        equalsAddress(wallet.address, request.walletAddress),
     );
     if (!ownsWallet) {
       throw new BadRequestException(

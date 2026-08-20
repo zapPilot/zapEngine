@@ -233,8 +233,6 @@ class TestPortfolioResponseValidation:
                 total_assets_usd=1000.0,  # Should match allocation sum
                 total_debt_usd=0.0,
                 total_net_usd=1000.0,
-                weighted_apr=5.0,
-                estimated_monthly_income=41.67,
                 wallet_count=1,
                 last_updated=None,
                 portfolio_allocation=PortfolioAllocation(
@@ -304,8 +302,6 @@ class TestPortfolioResponseValidation:
                 total_assets_usd=1000.0,
                 total_debt_usd=200.0,
                 total_net_usd=900.0,  # Should be 800 (1000 - 200)!
-                weighted_apr=5.0,
-                estimated_monthly_income=41.67,
                 wallet_count=1,
                 last_updated=None,
                 portfolio_allocation=PortfolioAllocation(
@@ -448,8 +444,6 @@ class TestPortfolioResponseValidation:
                 total_assets_usd=1000.0,
                 total_debt_usd=0.0,
                 total_net_usd=1000.0,
-                weighted_apr=5.0,
-                estimated_monthly_income=41.67,
                 wallet_count=1,
                 last_updated=None,
                 portfolio_allocation=PortfolioAllocation(
@@ -519,8 +513,6 @@ class TestPortfolioResponseValidation:
                 total_assets_usd=1000.0,
                 total_debt_usd=970.0,  # 97% debt ratio (exceeds 95% max)
                 total_net_usd=30.0,  # 1000 - 970
-                weighted_apr=5.0,
-                estimated_monthly_income=4.17,
                 wallet_count=1,
                 last_updated=None,
                 portfolio_allocation=PortfolioAllocation(

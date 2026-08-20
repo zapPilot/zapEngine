@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import type { LanguageClassroomLanguageCode } from '../../types.js';
 import {
   assertMainNarrationAudioSource,
   buildWeightedCaptionTiming,
@@ -63,7 +64,7 @@ export async function createEpisodeVideoManifest(input: {
   hlsUrl: string;
   durationMs: number;
   silences?: readonly SilenceInterval[];
-  languageCode: 'zh-Hant' | 'ja' | 'en';
+  languageCode: LanguageClassroomLanguageCode;
   signal?: AbortSignal;
   alignmentProvider?: SceneAlignmentProvider;
 }): Promise<EpisodeVideoManifestResult> {

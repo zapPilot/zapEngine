@@ -204,4 +204,45 @@ describe('useTrackRecord', () => {
       });
     },
   );
+
+  describe('load sharing', () => {
+    beforeEach(() => {
+      mocks.fetchMeta.mockResolvedValue(liveMeta);
+      mocks.fetchLatestSnapshot.mockResolvedValue(liveSnapshot);
+      mocks.fetchSnapshotHistoryEntries.mockResolvedValue([
+        { cid: 'cid-latest', snapshot: liveSnapshot },
+      ]);
+    });
+
+    it('shares one cold load across consumers mounted together', async () => {
+      const { useTrackRecord } = await import('../useTrackRecord');
+
+      const first = renderHook(() => useTrackRecord());
+      const second = renderHook(() => useTrackRecord());
+
+      await waitFor(() => expect(first.result.current.isLoading).toBe(false));
+      await waitFor(() => expect(second.result.current.isLoading).toBe(false));
+
+      expect(mocks.fetchMeta).toHaveBeenCalledTimes(1);
+      expect(mocks.fetchSnapshotHistoryEntries).toHaveBeenCalledTimes(1);
+      expect(mocks.verifySignature).toHaveBeenCalledTimes(1);
+    });
+
+    it('reuses the cached verification instead of re-verifying', async () => {
+      const { useTrackRecord } = await import('../useTrackRecord');
+
+      const first = renderHook(() => useTrackRecord());
+      await waitFor(() => expect(first.result.current.isLoading).toBe(false));
+      const verification = first.result.current.verification;
+      first.unmount();
+
+      const second = renderHook(() => useTrackRecord());
+      await waitFor(() => expect(second.result.current.isLoading).toBe(false));
+
+      expect(mocks.verifySignature).toHaveBeenCalledTimes(1);
+      expect(mocks.verifyCidChain).toHaveBeenCalledTimes(1);
+      expect(mocks.verifyPerformanceMetrics).toHaveBeenCalledTimes(1);
+      expect(second.result.current.verification).toBe(verification);
+    });
+  });
 });

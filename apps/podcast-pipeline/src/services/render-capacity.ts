@@ -1,3 +1,4 @@
+import { toError } from '../lib/errorMessage.js';
 import type { FlyMachinesClient } from './fly-machines.js';
 import {
   getPipelineSupabase,
@@ -228,7 +229,7 @@ export function createRenderCapacityReconciler(
     apiFailures += 1;
     logger.error(
       `[render-capacity] Fly Machines API call failed (${apiFailures}/${RENDER_CAPACITY_MAX_API_FAILURES})`,
-      normalizeError(error),
+      toError(error),
     );
     if (
       apiFailures >= RENDER_CAPACITY_MAX_API_FAILURES &&
@@ -237,7 +238,7 @@ export function createRenderCapacityReconciler(
       apiFailureNotified = true;
       await warn(
         pending.telegramChatId,
-        buildTelegramRenderWakeFailedMessage(normalizeError(error).message),
+        buildTelegramRenderWakeFailedMessage(toError(error).message),
         '[render-capacity] render machine cannot be woken; video work is stalled',
       );
     }
@@ -251,7 +252,7 @@ export function createRenderCapacityReconciler(
     } catch (error) {
       logger.error(
         '[render-capacity] pending work lookup failed',
-        normalizeError(error),
+        toError(error),
       );
       return 'error';
     }
@@ -343,7 +344,7 @@ export function createRenderCapacityReconciler(
     try {
       await runOnce();
     } catch (error) {
-      logger.error('[render-capacity] poll failed', normalizeError(error));
+      logger.error('[render-capacity] poll failed', toError(error));
     } finally {
       running = false;
     }
@@ -471,8 +472,4 @@ async function selectRows<T>(
     throw new Error(message, { cause: error });
   }
   return data ?? [];
-}
-
-function normalizeError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error));
 }

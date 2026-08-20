@@ -65,6 +65,10 @@ interface QuoteParams {
   slippageBps?: number;
 }
 
+// Both native sentinels are accepted on purpose: the registries emit
+// `0xeeee…` (NATIVE_TOKEN_ADDRESS), while LI.FI quote responses and the
+// app-core balance path still address native ETH as the zero address. This is
+// the adapter boundary, so it must tolerate either spelling.
 function isNativeTokenAddress(address: string): boolean {
   const normalized = address.toLowerCase();
   return (

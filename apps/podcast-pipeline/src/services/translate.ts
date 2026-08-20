@@ -1,4 +1,6 @@
 import { getRequiredEnv } from '../lib/env.js';
+import { sleep } from '../lib/sleep.js';
+import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import type { UsageCostLine } from './cost.js';
 import {
@@ -196,10 +198,6 @@ function readTranslatedField(
   return value;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function looksLikeModelChatter(text: string): boolean {
   const trimmed = text.trimStart();
   const lower = trimmed.toLowerCase();
@@ -277,7 +275,7 @@ async function translateText(
     }
 
     if (attempt < MAX_RETRIES) {
-      await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+      await sleep(500 * (attempt + 1));
     }
   }
 

@@ -9,6 +9,27 @@ export function isWalletAddress(value: unknown): value is `0x${string}` {
   return typeof value === 'string' && WALLET_ADDRESS_REGEX.test(value);
 }
 
+/**
+ * Case-insensitive address equality.
+ *
+ * EVM addresses reach us in mixed casing — checksummed from registries and
+ * contract reads, lowercased from wallet backends — so `===` is unsafe on them.
+ *
+ * A missing side never matches: `null`/`undefined` returns `false` even when
+ * both sides are absent, so optional registry lookups
+ * (`NATIVE_TOKEN[chainId]`) cannot equate two unknown addresses.
+ */
+export function equalsAddress(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  if (a === null || a === undefined || b === null || b === undefined) {
+    return false;
+  }
+
+  return a.toLowerCase() === b.toLowerCase();
+}
+
 export interface ShortenAddressOptions {
   /** Characters kept from the start of the address (including `0x`). Default 6. */
   head?: number;

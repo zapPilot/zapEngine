@@ -1,3 +1,4 @@
+import { equalsAddress } from '@zapengine/types/shared';
 import type { Address, PublicClient } from 'viem';
 
 import type { LiFiAdapter } from '../adapters/lifi.adapter.js';
@@ -31,10 +32,6 @@ export interface WithdrawSwapPlan extends RotateTransactionPlan {
   assetToken: Address;
   /** Estimated assets out of the redeem (`previewRedeem`), as a wei string. */
   redeemAmount: string;
-}
-
-function sameToken(a: string, b: string): boolean {
-  return a.toLowerCase() === b.toLowerCase();
 }
 
 /**
@@ -86,7 +83,7 @@ export async function buildWithdrawSwapTx(
   const assetToken = vaultAsset as Address;
 
   // The user wants the vault's underlying asset — redeem only, no swap.
-  if (!input.toToken || sameToken(assetToken, input.toToken)) {
+  if (!input.toToken || equalsAddress(assetToken, input.toToken)) {
     return {
       steps: [redeemTx],
       estimates: {

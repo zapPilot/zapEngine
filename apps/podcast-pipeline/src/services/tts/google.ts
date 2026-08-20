@@ -1,6 +1,7 @@
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 
 import { sleep } from '../../lib/sleep.js';
+import { isRecord } from '../../lib/typeGuards.js';
 import type { UsageCostLine } from '../cost.js';
 import { resolveGcpClientOptions } from '../gcp-credentials.js';
 import type { TtsMetadata, TtsSynthesizeOptions } from '../tts.js';
@@ -258,10 +259,6 @@ function safeJsonStringify(value: unknown): string | null {
   } catch {
     return String(value);
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function getGoogleVoiceOptions(

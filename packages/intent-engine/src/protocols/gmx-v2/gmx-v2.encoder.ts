@@ -1,3 +1,4 @@
+import { equalsAddress } from '@zapengine/types/shared';
 import { encodeFunctionData, type Address, type Hex } from 'viem';
 
 import {
@@ -134,7 +135,7 @@ export function encodeGmxV2CreateDepositMulticall(
     }
 
     if (params.useNativeWntCollateral) {
-      if (token.toLowerCase() !== GMX_V2_TOKENS.WETH.address.toLowerCase()) {
+      if (!equalsAddress(token, GMX_V2_TOKENS.WETH.address)) {
         throw new Error('Native GMX collateral can only fund WETH');
       }
       calls.push(encodeGmxV2SendWnt(GMX_V2_ADDRESSES.depositVault, amount));

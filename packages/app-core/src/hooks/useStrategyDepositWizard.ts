@@ -19,6 +19,7 @@ import {
   type PlanOrchestrationDepositRequest,
   type StrategyChainExecutionGroup,
 } from '@zapengine/types/api';
+import { equalsAddress } from '@zapengine/types/shared';
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import {
   type Address,
@@ -28,6 +29,8 @@ import {
   type Hash,
   parseEther,
 } from 'viem';
+
+import { assertPlannedAccount } from './singleChainDepositExecution';
 
 export type StartStrategyDepositInput = Omit<
   Extract<PlanOrchestrationDepositRequest, { kind: 'strategy' }>,
@@ -40,20 +43,6 @@ class StrategyTransactionRevertedError extends Error {
   constructor() {
     super('Transaction reverted on-chain');
     this.name = 'StrategyTransactionRevertedError';
-  }
-}
-
-function assertPlannedAccount(
-  activeAddress: string | undefined,
-  plannedAddress: Address,
-): void {
-  if (!activeAddress) {
-    throw new Error('Reconnect the wallet used to prepare this strategy plan.');
-  }
-  if (activeAddress.toLowerCase() !== plannedAddress.toLowerCase()) {
-    throw new Error(
-      'The connected wallet changed. Reconnect the wallet used to prepare this strategy plan.',
-    );
   }
 }
 
@@ -115,8 +104,7 @@ async function assertGroupPreflight(params: {
   const nativeBalance = await publicClient.getBalance({
     address: params.address,
   });
-  const isNative =
-    params.group.fromToken.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase();
+  const isNative = equalsAddress(params.group.fromToken, NATIVE_TOKEN_ADDRESS);
 
   if (isNative) {
     const required = transactionValue + GAS_RESERVE_WEI;
@@ -227,7 +215,11 @@ export function useStrategyDepositWizard() {
     dispatch({ type: 'STEP_STARTED' });
     try {
       const address = input.userAddress as Address;
-      assertPlannedAccount(walletRef.current.account?.address, address);
+      assertPlannedAccount(
+        walletRef.current.account?.address,
+        address,
+        'strategy plan',
+      );
       if (step.kind === 'switch-chain') {
         const refreshed = await planRequest(input);
         dispatch({ type: 'PLAN_REFRESHED', plan: refreshed });
@@ -239,7 +231,11 @@ export function useStrategyDepositWizard() {
         }
         await assertGroupPreflight({ group, address });
         const activeWallet = walletRef.current;
-        assertPlannedAccount(activeWallet.account?.address, address);
+        assertPlannedAccount(
+          activeWallet.account?.address,
+          address,
+          'strategy plan',
+        );
         if (activeWallet.chain?.id !== step.chainId) {
           await activeWallet.switchChain(step.chainId);
         }
@@ -266,7 +262,11 @@ export function useStrategyDepositWizard() {
       let hash = step.transactionHash;
       if (!hash) {
         const activeWallet = walletRef.current;
-        assertPlannedAccount(activeWallet.account?.address, address);
+        assertPlannedAccount(
+          activeWallet.account?.address,
+          address,
+          'strategy plan',
+        );
         hash = await sendPreparedTransaction(activeWallet, transaction);
         dispatch({ type: 'TX_SUBMITTED', hash });
       }

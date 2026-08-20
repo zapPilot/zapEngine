@@ -18,6 +18,7 @@ import type {
   StrategyAllocation,
   StrategyDepositPlan,
 } from '@zapengine/types/api';
+import { equalsAddress } from '@zapengine/types/shared';
 
 export const PREVIEW_EXPIRY_MARGIN_MS = 10_000;
 
@@ -99,8 +100,7 @@ function contractName(
 ): string | null {
   const contract = contracts.find(
     (candidate) =>
-      candidate.name !== null &&
-      candidate.address.toLowerCase() === address.toLowerCase(),
+      candidate.name !== null && equalsAddress(candidate.address, address),
   );
   return contract?.name ?? null;
 }
@@ -150,7 +150,9 @@ const SINGLE_CHAIN_PROTOCOL_LABELS: Record<string, string> = {
   morpho: 'Morpho Moonwell USDC',
 };
 
-function isStrategyDepositPlan(
+/** A plan orchestration response is the multi-chain strategy shape when it
+ * carries execution groups; a single-chain `DepositPlan` never does. */
+export function isStrategyDepositPlan(
   plan: PlanOrchestrationDepositPlan | undefined,
 ): plan is StrategyDepositPlan {
   return Boolean(plan && 'executionGroups' in plan);

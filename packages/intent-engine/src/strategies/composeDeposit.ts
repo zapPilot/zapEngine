@@ -5,6 +5,7 @@ import {
   type DepositPlan,
   type PreparedTransaction,
 } from '@zapengine/types/api';
+import { equalsAddress } from '@zapengine/types/shared';
 import { type Address, type PublicClient } from 'viem';
 
 import type { LiFiAdapter } from '../adapters/lifi.adapter.js';
@@ -61,7 +62,7 @@ export interface ComposeDepositDeps {
 }
 
 function isNativeToken(chainId: number, token: Address): boolean {
-  return token.toLowerCase() === NATIVE_TOKEN[chainId]?.toLowerCase();
+  return equalsAddress(token, NATIVE_TOKEN[chainId]);
 }
 
 function approvalRequirementKey(params: {
@@ -229,6 +230,33 @@ function resolveSplit(input: ComposeDepositInput): ChainSplit {
   return split;
 }
 
+/** One allocation's quote plus the plan fragments assembled from it. */
+interface AllocationPlan {
+  quote: TransactionQuote;
+  leg: DepositLeg;
+  approval: TransactionQuote['approval'];
+  /** HyperCore only; afterLegIndex is assigned when the leg is appended. */
+  hlpFollowUp?: { expectedUsd: string };
+}
+
+/**
+ * `Promise.all` surfaces whichever allocation rejected first in wall-clock
+ * time; the sequential loop this replaces always surfaced the lowest-index
+ * failure. Settle everything, then rethrow in allocation order to keep the
+ * error a caller sees independent of quote latency.
+ */
+async function inAllocationOrder<T>(pending: Array<Promise<T>>): Promise<T[]> {
+  const settled = await Promise.allSettled(pending);
+  const values: T[] = [];
+  for (const result of settled) {
+    if (result.status === 'rejected') {
+      throw result.reason;
+    }
+    values.push(result.value);
+  }
+  return values;
+}
+
 export async function composeDeposit(
   input: ComposeDepositInput,
   deps: ComposeDepositDeps,
@@ -251,136 +279,145 @@ export async function composeDeposit(
   const quotes: TransactionQuote[] = [];
   const approvalRequirements = new Map<string, ApprovalRequirement>();
 
-  for (const allocation of allocations) {
-    if (allocation.chainId === input.sourceChainId) {
-      const stableVault = getVaultForBucket(allocation.chainId, 'stable');
-      if (!stableVault) {
+  // Each allocation is an independent quote round trip; request them together
+  // and assemble in allocation order so leg/call indices — and the follow-up's
+  // afterLegIndex — match a sequential walk exactly.
+  const allocationPlans = await inAllocationOrder(
+    allocations.map(async (allocation): Promise<AllocationPlan> => {
+      if (allocation.chainId === input.sourceChainId) {
+        const stableVault = getVaultForBucket(allocation.chainId, 'stable');
+        if (!stableVault) {
+          throw new Error(
+            `No stable deposit vault configured for chain ${allocation.chainId}`,
+          );
+        }
+        if (stableVault.protocol !== 'morpho') {
+          throw new Error(
+            `Unsupported stable deposit protocol ${stableVault.protocol}`,
+          );
+        }
+
+        const quote = await buildSupplyTx(
+          {
+            type: 'SUPPLY',
+            chainId: input.sourceChainId,
+            fromAddress: input.userAddress,
+            fromToken: input.fromToken,
+            fromAmount: allocation.amount,
+            vaultAddress: stableVault.vault,
+            protocol: stableVault.protocol,
+          },
+          deps.adapter,
+          sourceClient,
+        );
+
+        return {
+          quote,
+          approval:
+            !isNativeToken(input.sourceChainId, input.fromToken) &&
+            equalsAddress(input.fromToken, stableVault.asset)
+              ? {
+                  tokenAddress: input.fromToken,
+                  spenderAddress: stableVault.vault,
+                  amount: allocation.amount,
+                }
+              : quote.approval,
+          leg: {
+            chainId: allocation.chainId,
+            kind: 'supply',
+            protocol: stableVault.protocol,
+            toToken: stableVault.asset,
+            fromAmount: allocation.amount,
+            toAmountMin: quote.estimate.toAmountMin,
+            gasUsd: quote.estimate.gasCostUsd,
+            durationSec: quote.estimate.executionDuration,
+          },
+        };
+      }
+
+      if (allocation.chainId === HYPERCORE_CHAIN_ID) {
+        const quote = await buildBridgeTx(
+          {
+            fromChainId: input.sourceChainId,
+            toChainId: HYPERCORE_CHAIN_ID,
+            fromToken: input.fromToken,
+            toToken: HYPERCORE_PERPS_USDC,
+            fromAmount: allocation.amount,
+            userAddress: input.userAddress,
+          },
+          deps.adapter,
+        );
+
+        // Checked against the quoted output (6-decimal perp USDC) rather than
+        // the allocation, which may be denominated in a different source token.
+        if (BigInt(quote.estimate.toAmountMin) < BigInt(HLP_MIN_DEPOSIT_USD)) {
+          throw new Error(
+            `HLP allocation is below the vault minimum of ${HLP_MIN_DEPOSIT_USD} perp USDC base units (quoted ${quote.estimate.toAmountMin})`,
+          );
+        }
+
+        return {
+          quote,
+          approval: quote.approval,
+          leg: bridgeLegFromQuote({
+            chainId: HYPERCORE_CHAIN_ID,
+            toToken: HYPERCORE_PERPS_USDC,
+            fromAmount: allocation.amount,
+            quote,
+            protocol: 'hyperliquid',
+          }),
+          hlpFollowUp: { expectedUsd: quote.estimate.toAmountMin },
+        };
+      }
+
+      const toToken = USDC_ADDRESS[allocation.chainId];
+      if (!toToken) {
         throw new Error(
-          `No stable deposit vault configured for chain ${allocation.chainId}`,
+          `No USDC address configured for chain ${allocation.chainId}`,
         );
       }
-      if (stableVault.protocol !== 'morpho') {
-        throw new Error(
-          `Unsupported stable deposit protocol ${stableVault.protocol}`,
-        );
-      }
 
-      const quote = await buildSupplyTx(
-        {
-          type: 'SUPPLY',
-          chainId: input.sourceChainId,
-          fromAddress: input.userAddress,
-          fromToken: input.fromToken,
-          fromAmount: allocation.amount,
-          vaultAddress: stableVault.vault,
-          protocol: stableVault.protocol,
-        },
-        deps.adapter,
-        sourceClient,
-      );
-
-      quotes.push(quote);
-      calls.push(quote.transaction);
-      if (
-        !isNativeToken(input.sourceChainId, input.fromToken) &&
-        input.fromToken.toLowerCase() === stableVault.asset.toLowerCase()
-      ) {
-        addApprovalRequirement(approvalRequirements, {
-          tokenAddress: input.fromToken,
-          spenderAddress: stableVault.vault,
-          amount: allocation.amount,
-        });
-      } else {
-        addApprovalRequirement(approvalRequirements, quote.approval);
-      }
-      legs.push({
-        chainId: allocation.chainId,
-        kind: 'supply',
-        protocol: stableVault.protocol,
-        toToken: stableVault.asset,
-        fromAmount: allocation.amount,
-        toAmountMin: quote.estimate.toAmountMin,
-        gasUsd: quote.estimate.gasCostUsd,
-        durationSec: quote.estimate.executionDuration,
-      });
-      continue;
-    }
-
-    if (allocation.chainId === HYPERCORE_CHAIN_ID) {
       const quote = await buildBridgeTx(
         {
           fromChainId: input.sourceChainId,
-          toChainId: HYPERCORE_CHAIN_ID,
+          toChainId: allocation.chainId,
           fromToken: input.fromToken,
-          toToken: HYPERCORE_PERPS_USDC,
+          toToken,
           fromAmount: allocation.amount,
           userAddress: input.userAddress,
         },
         deps.adapter,
       );
 
-      // Checked against the quoted output (6-decimal perp USDC) rather than
-      // the allocation, which may be denominated in a different source token.
-      if (BigInt(quote.estimate.toAmountMin) < BigInt(HLP_MIN_DEPOSIT_USD)) {
-        throw new Error(
-          `HLP allocation is below the vault minimum of ${HLP_MIN_DEPOSIT_USD} perp USDC base units (quoted ${quote.estimate.toAmountMin})`,
-        );
-      }
-
-      quotes.push(quote);
-      calls.push(quote.transaction);
-      addApprovalRequirement(approvalRequirements, quote.approval);
-      legs.push(
-        bridgeLegFromQuote({
-          chainId: HYPERCORE_CHAIN_ID,
-          toToken: HYPERCORE_PERPS_USDC,
+      return {
+        quote,
+        approval: quote.approval,
+        leg: bridgeLegFromQuote({
+          chainId: allocation.chainId,
+          toToken,
           fromAmount: allocation.amount,
           quote,
-          protocol: 'hyperliquid',
         }),
-      );
+      };
+    }),
+  );
+
+  for (const allocationPlan of allocationPlans) {
+    quotes.push(allocationPlan.quote);
+    calls.push(allocationPlan.quote.transaction);
+    addApprovalRequirement(approvalRequirements, allocationPlan.approval);
+    legs.push(allocationPlan.leg);
+    if (allocationPlan.hlpFollowUp) {
       followUps.push(
         buildHlpDepositFollowUp({
           afterLegIndex: legs.length - 1,
-          expectedUsd: quote.estimate.toAmountMin,
+          expectedUsd: allocationPlan.hlpFollowUp.expectedUsd,
           ...(deps.hyperliquidNetwork
             ? { network: deps.hyperliquidNetwork }
             : {}),
         }),
       );
-      continue;
     }
-
-    const toToken = USDC_ADDRESS[allocation.chainId];
-    if (!toToken) {
-      throw new Error(
-        `No USDC address configured for chain ${allocation.chainId}`,
-      );
-    }
-
-    const quote = await buildBridgeTx(
-      {
-        fromChainId: input.sourceChainId,
-        toChainId: allocation.chainId,
-        fromToken: input.fromToken,
-        toToken,
-        fromAmount: allocation.amount,
-        userAddress: input.userAddress,
-      },
-      deps.adapter,
-    );
-
-    quotes.push(quote);
-    calls.push(quote.transaction);
-    addApprovalRequirement(approvalRequirements, quote.approval);
-    legs.push(
-      bridgeLegFromQuote({
-        chainId: allocation.chainId,
-        toToken,
-        fromAmount: allocation.amount,
-        quote,
-      }),
-    );
   }
 
   // Each allowance read is an independent RPC round trip; issue them together

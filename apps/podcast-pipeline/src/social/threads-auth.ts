@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import {
   chmod,
@@ -12,9 +11,16 @@ import { createServer as createHttpsServer } from 'node:https';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { toError } from '../lib/errorMessage.js';
+import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
+import {
+  createSecureState,
+  type OAuthCallbackResponse,
+  openUrlInBrowser,
+  respond,
+} from './oauth-loopback.js';
 import {
   describeThreadsApiError,
-  isRecord,
   nonemptyString,
   parseThreadsApiJson,
 } from './threads-api.js';
@@ -90,11 +96,6 @@ interface CallbackRequest {
   url?: string;
 }
 
-interface CallbackResponse {
-  end(body?: string): unknown;
-  writeHead(status: number, headers: Record<string, string>): unknown;
-}
-
 interface CallbackServer {
   readonly listening: boolean;
   close(): unknown;
@@ -104,7 +105,7 @@ interface CallbackServer {
 
 type CallbackServerFactory = (
   options: { cert: Buffer; key: Buffer },
-  listener: (request: CallbackRequest, response: CallbackResponse) => void,
+  listener: (request: CallbackRequest, response: OAuthCallbackResponse) => void,
 ) => CallbackServer;
 
 export interface ThreadsCallbackServerOptions extends ThreadsAuthorizationCallbackInput {
@@ -794,54 +795,6 @@ function parseProfile(value: unknown): ThreadsProfile {
   return { id: id.trim(), username: username.trim() };
 }
 
-function createSecureState(): string {
-  return randomBytes(32).toString('base64url');
-}
-
-async function openUrlInBrowser(url: string): Promise<void> {
-  const command = browserCommand(url);
-
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(command.executable, command.arguments, {
-      detached: true,
-      stdio: 'ignore',
-    });
-    child.once('error', reject);
-    child.once('spawn', () => {
-      child.unref();
-      resolve();
-    });
-  });
-}
-
-function browserCommand(url: string): {
-  executable: string;
-  arguments: string[];
-} {
-  if (process.platform === 'darwin') {
-    return { executable: 'open', arguments: [url] };
-  }
-  if (process.platform === 'win32') {
-    return {
-      executable: 'rundll32.exe',
-      arguments: ['url.dll,FileProtocolHandler', url],
-    };
-  }
-  return { executable: 'xdg-open', arguments: [url] };
-}
-
-function respond(
-  response: CallbackResponse,
-  status: number,
-  body: string,
-): void {
-  response.writeHead(status, {
-    'Content-Type': 'text/plain; charset=utf-8',
-    'Cache-Control': 'no-store',
-  });
-  response.end(body);
-}
-
 function sessionsEqual(left: ThreadsSession, right: ThreadsSession): boolean {
   return (
     left.accessToken === right.accessToken &&
@@ -861,8 +814,4 @@ function redactSecrets(message: string, secrets: readonly string[]): string {
       secret ? redacted.replaceAll(secret, '[REDACTED]') : redacted,
     message,
   );
-}
-
-function toError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error));
 }

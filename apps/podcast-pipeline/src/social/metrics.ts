@@ -4,6 +4,7 @@ import { parseArgs } from 'node:util';
 
 import dotenv from 'dotenv';
 
+import { errorMessage } from '../lib/errorMessage.js';
 import {
   getSocialPostById,
   insertSocialPostMetric,
@@ -17,7 +18,10 @@ import type {
   SocialPostRow,
 } from '../types.js';
 import { parsePlatformOption, requireEpisodeArgument } from './cli-args.js';
-import { createMetricCollectors } from './metric-collectors.js';
+import {
+  createMetricCollectors,
+  createMetricsBrowserSession,
+} from './metric-collectors.js';
 import { platformLabel, SOCIAL_PLATFORMS } from './platforms.js';
 import { reconcileRecentSocialPosts } from './reconcile.js';
 import type { SocialPlatform } from './types.js';
@@ -157,15 +161,6 @@ export async function runAutomaticSocialMetricsCollector(input: {
         log: input.log,
       })
     : listedPosts;
-  const updateIdentity = input.updateIdentity ?? updateSocialPostIdentity;
-  const collectors =
-    input.collectors ??
-    createMetricCollectors({
-      onRednoteIdentity: async ({ post, platformPostId, postUrl }) => {
-        await updateIdentity({ id: post.id, platformPostId, postUrl });
-      },
-    });
-
   if (posts.length === 0) {
     input.log(
       `No social posts published in the last ${AUTO_WINDOW_DAYS} days.`,
@@ -173,36 +168,51 @@ export async function runAutomaticSocialMetricsCollector(input: {
     return;
   }
 
+  const updateIdentity = input.updateIdentity ?? updateSocialPostIdentity;
+  const browser = input.collectors ? undefined : createMetricsBrowserSession();
+  const collectors =
+    input.collectors ??
+    createMetricCollectors({
+      browser,
+      onRednoteIdentity: async ({ post, platformPostId, postUrl }) => {
+        await updateIdentity({ id: post.id, platformPostId, postUrl });
+      },
+    });
+
   let recorded = 0;
   let failed = 0;
-  for (const post of posts) {
-    try {
-      const collected = await collectPostMetrics(
-        collectors[post.platform],
-        post,
-      );
-      if (!collected) {
-        input.log(
-          `- ${platformLabel(post.platform)} ${post.id}: no metrics available yet.`,
+  try {
+    for (const post of posts) {
+      try {
+        const collected = await collectPostMetrics(
+          collectors[post.platform],
+          post,
         );
-        continue;
+        if (!collected) {
+          input.log(
+            `- ${platformLabel(post.platform)} ${post.id}: no metrics available yet.`,
+          );
+          continue;
+        }
+        const { details, ...counts } = collected;
+        const metric = buildSocialPostMetric({
+          post,
+          capturedAt,
+          counts,
+          details,
+        });
+        await input.insertMetric(metric);
+        input.log(formatMetricsSummary(post, metric));
+        recorded += 1;
+      } catch (error) {
+        failed += 1;
+        input.log(
+          `✗ ${platformLabel(post.platform)} ${post.id}: ${errorMessage(error)}`,
+        );
       }
-      const { details, ...counts } = collected;
-      const metric = buildSocialPostMetric({
-        post,
-        capturedAt,
-        counts,
-        details,
-      });
-      await input.insertMetric(metric);
-      input.log(formatMetricsSummary(post, metric));
-      recorded += 1;
-    } catch (error) {
-      failed += 1;
-      input.log(
-        `✗ ${platformLabel(post.platform)} ${post.id}: ${error instanceof Error ? error.message : String(error)}`,
-      );
     }
+  } finally {
+    await browser?.close();
   }
 
   input.log(
@@ -397,7 +407,7 @@ if (invokedPath === import.meta.url) {
       reconcileRecentPosts: reconcileRecentSocialPosts,
     });
   } catch (error: unknown) {
-    console.error(error instanceof Error ? error.message : String(error));
+    console.error(errorMessage(error));
     process.exitCode = 1;
   }
 }

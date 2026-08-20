@@ -7,6 +7,7 @@
  * No API key required
  */
 
+import { sleep } from '@zapengine/types/shared';
 import YahooFinance from 'yahoo-finance2';
 
 const yahooFinance = new YahooFinance();
@@ -157,7 +158,7 @@ export class YahooFinanceFetcher {
   }
 
   private async rateLimitCall<T>(fn: () => Promise<T>): Promise<T> {
-    await new Promise((resolve) => setTimeout(resolve, this.rateLimitMs));
+    await sleep(this.rateLimitMs);
     return fn();
   }
 

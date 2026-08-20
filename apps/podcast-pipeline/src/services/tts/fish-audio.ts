@@ -1,3 +1,4 @@
+import { getIntEnv } from '../../lib/env.js';
 import { sleep } from '../../lib/sleep.js';
 import type { UsageCostLine } from '../cost.js';
 import type {
@@ -503,45 +504,31 @@ function findBestSplitIndex(text: string, maxChars: number): number {
 }
 
 function getRequestTimeoutMs(): number {
-  const envTimeout = process.env['FISH_AUDIO_TIMEOUT_MS']?.trim();
-  const timeout = envTimeout
-    ? Number.parseInt(envTimeout, 10)
-    : DEFAULT_REQUEST_TIMEOUT_MS;
-
-  return Number.isFinite(timeout) && timeout > 0
-    ? timeout
-    : DEFAULT_REQUEST_TIMEOUT_MS;
+  return getIntEnv('FISH_AUDIO_TIMEOUT_MS', {
+    default: DEFAULT_REQUEST_TIMEOUT_MS,
+    min: 1,
+  });
 }
 
 function getIdleTimeoutMs(): number {
-  const envTimeout = process.env['FISH_AUDIO_IDLE_TIMEOUT_MS']?.trim();
-  const timeout = envTimeout
-    ? Number.parseInt(envTimeout, 10)
-    : DEFAULT_IDLE_TIMEOUT_MS;
-
-  return Number.isFinite(timeout) && timeout > 0
-    ? timeout
-    : DEFAULT_IDLE_TIMEOUT_MS;
+  return getIntEnv('FISH_AUDIO_IDLE_TIMEOUT_MS', {
+    default: DEFAULT_IDLE_TIMEOUT_MS,
+    min: 1,
+  });
 }
 
 function getMaxCharsPerRequest(): number {
-  const envMax = process.env['FISH_AUDIO_MAX_CHARS_PER_REQUEST']?.trim();
-  const max = envMax
-    ? Number.parseInt(envMax, 10)
-    : DEFAULT_MAX_CHARS_PER_REQUEST;
-
-  return Number.isFinite(max) && max > 0 ? max : DEFAULT_MAX_CHARS_PER_REQUEST;
+  return getIntEnv('FISH_AUDIO_MAX_CHARS_PER_REQUEST', {
+    default: DEFAULT_MAX_CHARS_PER_REQUEST,
+    min: 1,
+  });
 }
 
 function getRequestDelayMs(): number {
-  const envDelay = process.env['FISH_AUDIO_REQUEST_DELAY_MS']?.trim();
-  const delay = envDelay
-    ? Number.parseInt(envDelay, 10)
-    : DEFAULT_REQUEST_DELAY_MS;
-
-  return Number.isFinite(delay) && delay >= 0
-    ? delay
-    : DEFAULT_REQUEST_DELAY_MS;
+  return getIntEnv('FISH_AUDIO_REQUEST_DELAY_MS', {
+    default: DEFAULT_REQUEST_DELAY_MS,
+    min: 0,
+  });
 }
 
 function getRetryDelayMs(response: Response | null, attempt: number): number {

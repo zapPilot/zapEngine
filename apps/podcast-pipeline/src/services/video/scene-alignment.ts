@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 
+import { isPlainRecord as isRecord } from '../../lib/typeGuards.js';
 import type { LanguageClassroomLanguageCode } from '../../types.js';
 import { createOpenRouterChatCompletion, getOpenRouterConfig } from '../llm.js';
 import { throwIfAborted } from './abort.js';
@@ -439,10 +440,6 @@ function unwrapAlignmentPayload(raw: unknown): unknown {
   if (Array.isArray(raw)) return raw;
   if (isRecord(raw)) return raw['scenes'];
   return raw;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function readRequiredString(

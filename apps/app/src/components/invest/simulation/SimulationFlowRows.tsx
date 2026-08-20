@@ -8,7 +8,7 @@ import { Text, View } from 'react-native';
 
 import {
   SimulationAssetAmountRow,
-  SimulationDirectionalSection,
+  SimulationAssetFlowSections,
   SimulationFlowSectionHeader,
   SimulationTokenMark,
 } from '@/components/invest/simulation/SimulationFlowPrimitives';
@@ -75,29 +75,25 @@ function ApproveRow({
   );
 }
 
-// jscpd:ignore-start -- this wiring around the shared SimulationAssetAmountRow
-// / SimulationDirectionalSection primitives is intentionally the same shape as
-// SimulationAssetRows.tsx's AssetRow/FlowSide: that file is the legacy Privy
-// preview's row (no counterparty, no call-index), while this is the unified
-// route review's row (counterparty + call-index). Merging them would force
-// one screen's content shape onto the other.
-function AssetRow({
-  change,
-  contracts,
-}: {
-  change: PrivySimulationAssetChange;
-  contracts: readonly PrivySimulationContract[];
-}) {
+/**
+ * The unified route review's asset row: every row names the call it belongs to
+ * and the counterparty resolved from that call's contracts.
+ */
+function renderAssetRow(
+  change: PrivySimulationAssetChange,
+  index: number,
+  contracts: readonly PrivySimulationContract[],
+) {
   const outgoing = change.direction === 'out';
-  const counterparty = resolveAssetCounterparty(change, contracts);
 
   return (
     <SimulationAssetAmountRow
+      key={`${change.direction}-${change.callIndex}-${change.token.address ?? change.token.symbol}-${index}`}
       token={change.token}
       subtitle={
         <Text className="mt-0.5 text-[10px] text-ink-faint" numberOfLines={1}>
           Call {change.callIndex + 1} · {outgoing ? 'to' : 'from'}{' '}
-          {counterparty}
+          {resolveAssetCounterparty(change, contracts)}
         </Text>
       }
       direction={change.direction}
@@ -130,34 +126,6 @@ function ApproveSection({
   );
 }
 
-function AssetSection({
-  label,
-  direction,
-  changes,
-  contracts,
-}: {
-  label: string;
-  direction: 'out' | 'in';
-  changes: readonly PrivySimulationAssetChange[];
-  contracts: readonly PrivySimulationContract[];
-}) {
-  return (
-    <SimulationDirectionalSection
-      label={label}
-      direction={direction}
-      items={changes}
-      renderItem={(change, index) => (
-        <AssetRow
-          key={`${direction}-${change.callIndex}-${change.token.address ?? change.token.symbol}-${index}`}
-          change={change}
-          contracts={contracts}
-        />
-      )}
-    />
-  );
-}
-// jscpd:ignore-end
-
 /**
  * The unified route-flow container: read-only approvals, outgoing transfers,
  * and incoming transfers rendered as one consistent row style. Every row
@@ -183,18 +151,10 @@ export function SimulationFlowRows({
           <View className="mx-4 h-px bg-line" />
         </>
       ) : null}
-      <AssetSection
-        label="You send"
-        direction="out"
-        changes={outgoing}
-        contracts={contracts}
-      />
-      <View className="mx-4 h-px bg-line" />
-      <AssetSection
-        label="You receive"
-        direction="in"
-        changes={incoming}
-        contracts={contracts}
+      <SimulationAssetFlowSections
+        outgoing={outgoing}
+        incoming={incoming}
+        renderItem={(change, index) => renderAssetRow(change, index, contracts)}
       />
     </View>
   );

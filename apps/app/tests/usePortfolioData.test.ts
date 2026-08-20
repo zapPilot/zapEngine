@@ -23,9 +23,15 @@ vi.mock('@zapengine/app-core/hooks/analytics', () => ({
   usePortfolioDashboard: usePortfolioDashboardMock,
 }));
 
-vi.mock('@zapengine/app-core/hooks/queries', () => ({
-  useLandingPageData: useLandingPageDataMock,
-}));
+vi.mock('@zapengine/app-core/hooks/queries', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@zapengine/app-core/hooks/queries')>();
+
+  return {
+    ...actual,
+    useLandingPageData: useLandingPageDataMock,
+  };
+});
 
 vi.mock('@zapengine/app-core/services', () => ({
   getDailyYieldReturns: vi.fn(),

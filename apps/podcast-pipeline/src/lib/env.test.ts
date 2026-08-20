@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   getAllowedTelegramUserIds,
+  getIntEnv,
   getPort,
   getRequiredEnv,
   getTelegramBotToken,
@@ -73,6 +74,35 @@ describe('getPort', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+});
+
+describe('getIntEnv', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('parses the env value when it is at or above min', () => {
+    vi.stubEnv('TUNING_VAR', ' 42 ');
+    expect(getIntEnv('TUNING_VAR', { default: 7, min: 1 })).toBe(42);
+    vi.stubEnv('TUNING_VAR', '0');
+    expect(getIntEnv('TUNING_VAR', { default: 7, min: 0 })).toBe(0);
+  });
+
+  it('falls back to the default when unset, blank or unparseable', () => {
+    delete process.env['TUNING_VAR'];
+    expect(getIntEnv('TUNING_VAR', { default: 7, min: 1 })).toBe(7);
+    vi.stubEnv('TUNING_VAR', '   ');
+    expect(getIntEnv('TUNING_VAR', { default: 7, min: 1 })).toBe(7);
+    vi.stubEnv('TUNING_VAR', 'abc');
+    expect(getIntEnv('TUNING_VAR', { default: 7, min: 1 })).toBe(7);
+  });
+
+  it('falls back to the default when the value is below min', () => {
+    vi.stubEnv('TUNING_VAR', '0');
+    expect(getIntEnv('TUNING_VAR', { default: 7, min: 1 })).toBe(7);
+    vi.stubEnv('TUNING_VAR', '-1');
+    expect(getIntEnv('TUNING_VAR', { default: 7, min: 0 })).toBe(7);
   });
 });
 

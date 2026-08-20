@@ -9,6 +9,7 @@
  * `getTokenBalance` — used by the invest deposit/withdraw panel so it
  * behaves like other DeFi protocols (live balance + $ value).
  */
+import { equalsAddress } from '@zapengine/types/shared';
 import { type Address, erc20Abi, formatUnits } from 'viem';
 
 import { getPublicClient, intentEngine } from './intentClient';
@@ -28,7 +29,7 @@ export interface OnChainTokenBalance {
 }
 
 function isNativeToken(tokenAddress: string): boolean {
-  return tokenAddress.toLowerCase() === NATIVE_TOKEN_ADDRESS;
+  return equalsAddress(tokenAddress, NATIVE_TOKEN_ADDRESS);
 }
 
 /**

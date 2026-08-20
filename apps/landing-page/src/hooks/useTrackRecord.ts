@@ -57,6 +57,7 @@ const moduleCache: {
   summary: PerformanceSummary | null;
   latestSnapshot: DailySnapshot | null;
   events: StrategyEvent[] | null;
+  verification: TrackRecordState['verification'] | null;
 } = {
   meta: null,
   snapshots: null,
@@ -64,7 +65,16 @@ const moduleCache: {
   summary: null,
   latestSnapshot: null,
   events: null,
+  verification: null,
 };
+
+type StateUpdate = (previous: TrackRecordState) => TrackRecordState;
+
+/**
+ * Cold loads walk the whole CID chain and recover a secp256k1 signature, so
+ * consumers mounting together share one load instead of each running their own.
+ */
+let inflight: Promise<StateUpdate> | null = null;
 
 interface LoadedTrackRecord {
   meta: TrackRecordMeta;
@@ -111,6 +121,117 @@ function toLoadedState(
   };
 }
 
+function cacheLoaded(
+  loaded: LoadedTrackRecord,
+  verification: TrackRecordState['verification'],
+): void {
+  moduleCache.meta = loaded.meta;
+  moduleCache.snapshotEntries = loaded.snapshotEntries;
+  moduleCache.snapshots = loaded.snapshots;
+  moduleCache.summary = loaded.summary;
+  moduleCache.latestSnapshot = loaded.latestSnapshot;
+  moduleCache.events = loaded.events;
+  moduleCache.verification = verification;
+}
+
+/** The cached verification is reused: nothing it derives from can change. */
+function cachedState(): TrackRecordState | null {
+  const cache = moduleCache;
+  if (
+    !cache.meta ||
+    !cache.snapshotEntries ||
+    !cache.snapshots ||
+    !cache.summary ||
+    !cache.events ||
+    !cache.verification
+  ) {
+    return null;
+  }
+
+  return toLoadedState(
+    {
+      meta: cache.meta,
+      snapshotEntries: cache.snapshotEntries,
+      snapshots: cache.snapshots,
+      latestSnapshot: cache.latestSnapshot,
+      summary: cache.summary,
+      events: cache.events,
+    },
+    cache.verification,
+  );
+}
+
+async function loadTrackRecord(): Promise<StateUpdate> {
+  try {
+    const meta = await fetchMeta();
+
+    if (!meta.latestSnapshotCid) {
+      // No live snapshot published yet. Fall back to demo data so the whole
+      // UI is reviewable; self-retires once a real CID lands. See
+      // src/data/mock-track-record.ts.
+      if (isTrackRecordMockEnabled()) {
+        const snapshotEntries = mockSnapshotEntries;
+        const snapshots = snapshotEntries.map((entry) => entry.snapshot);
+        const latestSnapshot = snapshots[snapshots.length - 1] ?? null;
+        const summary = computePerformanceSummary(snapshots);
+        // The demo curve is a real backtest, so its markers come from that
+        // same run rather than being re-derived from the synthesised
+        // snapshots.
+        const events = demoStrategyEvents();
+        const loaded: LoadedTrackRecord = {
+          meta: mockMeta,
+          snapshotEntries,
+          snapshots,
+          latestSnapshot,
+          summary,
+          events,
+        };
+        const verification = await buildVerification(loaded);
+
+        cacheLoaded(loaded, verification);
+
+        return () => toLoadedState(loaded, verification);
+      }
+
+      moduleCache.meta = meta;
+      return (previous) => ({
+        ...previous,
+        meta,
+        isLoading: false,
+        error: null,
+      });
+    }
+
+    const latestSnapshot = await fetchLatestSnapshot(meta);
+    const snapshotEntries = await fetchSnapshotHistoryEntries(
+      meta.latestSnapshotCid,
+      DEFAULT_HISTORY_LIMIT,
+    );
+    const snapshots = snapshotEntries.map((entry) => entry.snapshot);
+    const summary = computePerformanceSummary(snapshots);
+    const events = deriveEventsFromSnapshots(snapshots);
+    const loaded: LoadedTrackRecord = {
+      meta,
+      snapshotEntries,
+      snapshots,
+      latestSnapshot,
+      summary,
+      events,
+    };
+    const verification = await buildVerification(loaded);
+
+    cacheLoaded(loaded, verification);
+
+    return () => toLoadedState(loaded, verification);
+  } catch (err) {
+    return (previous) => ({
+      ...previous,
+      isLoading: false,
+      error: err instanceof Error ? err.message : 'Unknown error',
+    });
+  }
+}
+
 export function useTrackRecord() {
   const [state, setState] = useState<TrackRecordState>({
     meta: null,
@@ -139,118 +260,19 @@ export function useTrackRecord() {
     mountedRef.current = true;
 
     async function load() {
-      const cache = moduleCache;
-
-      if (
-        cache.meta &&
-        cache.snapshotEntries &&
-        cache.snapshots &&
-        cache.summary &&
-        cache.events
-      ) {
-        const loaded: LoadedTrackRecord = {
-          meta: cache.meta,
-          snapshotEntries: cache.snapshotEntries,
-          snapshots: cache.snapshots,
-          latestSnapshot: cache.latestSnapshot,
-          summary: cache.summary,
-          events: cache.events,
-        };
-        const verification = await buildVerification(loaded);
-
-        if (mountedRef.current) {
-          setState(toLoadedState(loaded, verification));
-        }
+      const cached = cachedState();
+      if (cached) {
+        setState(cached);
         return;
       }
 
-      try {
-        const meta = await fetchMeta();
+      const request = (inflight ??= loadTrackRecord().finally(() => {
+        inflight = null;
+      }));
+      const update = await request;
 
-        if (!meta.latestSnapshotCid) {
-          // No live snapshot published yet. Fall back to demo data so the whole
-          // UI is reviewable; self-retires once a real CID lands. See
-          // src/data/mock-track-record.ts.
-          if (isTrackRecordMockEnabled()) {
-            const snapshotEntries = mockSnapshotEntries;
-            const snapshots = snapshotEntries.map((entry) => entry.snapshot);
-            const latestSnapshot = snapshots[snapshots.length - 1] ?? null;
-            const summary = computePerformanceSummary(snapshots);
-            // The demo curve is a real backtest, so its markers come from that
-            // same run rather than being re-derived from the synthesised
-            // snapshots.
-            const events = demoStrategyEvents();
-            const loaded: LoadedTrackRecord = {
-              meta: mockMeta,
-              snapshotEntries,
-              snapshots,
-              latestSnapshot,
-              summary,
-              events,
-            };
-            const verification = await buildVerification(loaded);
-
-            cache.meta = mockMeta;
-            cache.snapshotEntries = snapshotEntries;
-            cache.snapshots = snapshots;
-            cache.summary = summary;
-            cache.latestSnapshot = latestSnapshot;
-            cache.events = events;
-
-            if (mountedRef.current) {
-              setState(toLoadedState(loaded, verification));
-            }
-            return;
-          }
-
-          if (mountedRef.current) {
-            setState((prev) => ({
-              ...prev,
-              meta,
-              isLoading: false,
-              error: null,
-            }));
-          }
-          cache.meta = meta;
-          return;
-        }
-
-        const latestSnapshot = await fetchLatestSnapshot(meta);
-        const snapshotEntries = await fetchSnapshotHistoryEntries(
-          meta.latestSnapshotCid,
-          DEFAULT_HISTORY_LIMIT,
-        );
-        const snapshots = snapshotEntries.map((entry) => entry.snapshot);
-        const summary = computePerformanceSummary(snapshots);
-        const events = deriveEventsFromSnapshots(snapshots);
-        const loaded: LoadedTrackRecord = {
-          meta,
-          snapshotEntries,
-          snapshots,
-          latestSnapshot,
-          summary,
-          events,
-        };
-        const verification = await buildVerification(loaded);
-
-        cache.meta = meta;
-        cache.snapshotEntries = snapshotEntries;
-        cache.snapshots = snapshots;
-        cache.summary = summary;
-        cache.latestSnapshot = latestSnapshot;
-        cache.events = events;
-
-        if (mountedRef.current) {
-          setState(toLoadedState(loaded, verification));
-        }
-      } catch (err) {
-        if (mountedRef.current) {
-          setState((prev) => ({
-            ...prev,
-            isLoading: false,
-            error: err instanceof Error ? err.message : 'Unknown error',
-          }));
-        }
+      if (mountedRef.current) {
+        setState(update);
       }
     }
 

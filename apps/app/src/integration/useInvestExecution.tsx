@@ -1,3 +1,4 @@
+import { queryKeys } from '@zapengine/app-core/hooks/queries';
 import {
   useSingleChainDepositWizard,
   type SingleChainDepositRecovery,
@@ -14,6 +15,7 @@ import type {
   PlanOrchestrationDepositPlan,
   PreparedTransaction,
 } from '@zapengine/types/api';
+import { equalsAddress } from '@zapengine/types/shared';
 import type { WalletProviderInterface } from '@zapengine/app-core/types';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -115,7 +117,7 @@ async function executeReviewedBatchWithWallet({
   }
   if (
     !wallet.account?.address ||
-    wallet.account.address.toLowerCase() !== review.walletAddress.toLowerCase()
+    !equalsAddress(wallet.account.address, review.walletAddress)
   ) {
     return {
       status: 'blocked',
@@ -504,7 +506,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (wizard.status !== 'done' || invalidatedDone.current) return;
     invalidatedDone.current = true;
-    void queryClient.invalidateQueries({ queryKey: ['desktop'] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.desktop.all });
   }, [queryClient, wizard.status]);
 
   const value: InvestExecutionContextValue = {

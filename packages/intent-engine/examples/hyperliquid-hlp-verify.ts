@@ -18,6 +18,8 @@
  *   VERIFY_AMOUNTS  - comma-separated USDC base units (default 50000000,5000000)
  */
 
+import { equalsAddress } from '@zapengine/types/shared';
+
 import {
   HLP_VAULTS,
   HYPERCORE_CHAIN_ID,
@@ -52,9 +54,8 @@ async function verifyPerpsUsdcToken(): Promise<void> {
       Array<{ address: string; name: string; decimals: number }>
     >;
   };
-  const token = body.tokens?.[String(HYPERCORE_CHAIN_ID)]?.find(
-    (entry) =>
-      entry.address.toLowerCase() === HYPERCORE_PERPS_USDC.toLowerCase(),
+  const token = body.tokens?.[String(HYPERCORE_CHAIN_ID)]?.find((entry) =>
+    equalsAddress(entry.address, HYPERCORE_PERPS_USDC),
   );
   check(
     'LI.FI perps USDC on 1337',

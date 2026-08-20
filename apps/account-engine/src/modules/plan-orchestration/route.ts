@@ -68,13 +68,7 @@ export function createPlanOrchestrationRoutes(
     zValidator('json', PlanOrchestrationDepositReviewRequestSchema),
     (c) => {
       const body = c.req.valid('json');
-      if (!service.buildDepositReview) {
-        return c.json(
-          { message: 'Deposit review is not configured' },
-          { status: 503 },
-        );
-      }
-      return handlePlanRequest(c, () => service.buildDepositReview!(body));
+      return handlePlanRequest(c, () => service.buildDepositReview(body));
     },
   );
 

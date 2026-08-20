@@ -9,6 +9,7 @@ import {
   type PreparedTransaction,
   type StrategyDepositPlan,
 } from '@zapengine/types/api';
+import { equalsAddress } from '@zapengine/types/shared';
 import { decodeFunctionData, erc20Abi, type Hash } from 'viem';
 
 export type StrategyWizardStepKind =
@@ -72,14 +73,10 @@ interface TokenDisplay {
 }
 
 function tokenDisplay(address: string, chainId: number): TokenDisplay {
-  if (
-    address.toLowerCase() === DEPOSIT_USDC_ADDRESSES[chainId]?.toLowerCase()
-  ) {
+  if (equalsAddress(address, DEPOSIT_USDC_ADDRESSES[chainId])) {
     return { symbol: 'USDC', decimals: 6 };
   }
-  if (
-    address.toLowerCase() === DEPOSIT_USDT_ADDRESSES[chainId]?.toLowerCase()
-  ) {
+  if (equalsAddress(address, DEPOSIT_USDT_ADDRESSES[chainId])) {
     return { symbol: 'USDT', decimals: 6 };
   }
   return { symbol: 'token', decimals: 18 };

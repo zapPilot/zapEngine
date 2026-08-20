@@ -25,6 +25,7 @@ import {
   formatGmxExecutionFee,
   formatPlanGas,
 } from '@/integration/planPreviewFormatters';
+import { isStrategyDepositPlan } from '@/integration/simulationPreviewModel';
 import { formatUsd } from '@/lib/format';
 
 interface StrategyPlanSummaryProps {
@@ -55,12 +56,6 @@ function RowMarks({
       {protocol ? <ProtocolIcon protocol={protocol} size={18} /> : null}
     </>
   );
-}
-
-function isStrategyDepositPlan(
-  plan: PlanOrchestrationDepositPlan | undefined,
-): plan is StrategyDepositPlan {
-  return Boolean(plan && 'executionGroups' in plan);
 }
 
 export function isDepositPlanForScope(

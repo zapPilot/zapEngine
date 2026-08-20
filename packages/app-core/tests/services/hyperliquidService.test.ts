@@ -1,3 +1,4 @@
+import { APIError } from '@core/lib/http';
 import {
   getPerpUsdcBalance,
   getVaultEquity,
@@ -138,12 +139,40 @@ describe('hyperliquid info reads', () => {
     ).resolves.toBeNull();
   });
 
-  it('throws on HTTP failures', async () => {
+  it('classifies HTTP failures as APIError with the upstream status', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(null, false));
 
-    await expect(getPerpUsdcBalance({ user: USER })).rejects.toThrow(
-      'Hyperliquid info request failed: 429',
+    await expect(getPerpUsdcBalance({ user: USER })).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof APIError &&
+        error.status === 429 &&
+        error.message === 'Hyperliquid info API rate limit reached.',
     );
+  });
+
+  it('retries a transport failure once before resolving', async () => {
+    vi.useFakeTimers();
+    try {
+      fetchMock
+        .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+        .mockResolvedValueOnce(
+          jsonResponse({
+            withdrawable: '1',
+            marginSummary: { accountValue: '1' },
+          }),
+        );
+
+      const promise = getPerpUsdcBalance({ user: USER });
+      await vi.advanceTimersByTimeAsync(2_000);
+
+      await expect(promise).resolves.toEqual({
+        withdrawableUsd6: 1_000_000n,
+        accountValueUsd6: 1_000_000n,
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -1,4 +1,5 @@
 import type { PreparedTransaction } from '@zapengine/types/api';
+import { equalsAddress } from '@zapengine/types/shared';
 import { decodeFunctionData, erc20Abi, maxUint256 } from 'viem';
 
 /**
@@ -72,7 +73,7 @@ export function assertApprovalCaps(
   },
   intent: { fromToken?: string; fromAmount?: string },
 ): void {
-  const fromToken = intent.fromToken?.toLowerCase();
+  const fromToken = intent.fromToken;
   const fromAmount =
     intent.fromAmount === undefined ? undefined : BigInt(intent.fromAmount);
 
@@ -92,7 +93,7 @@ export function assertApprovalCaps(
     if (
       fromToken !== undefined &&
       fromAmount !== undefined &&
-      tx.to.toLowerCase() === fromToken &&
+      equalsAddress(tx.to, fromToken) &&
       approval.amount > fromAmount
     ) {
       throw new PlanSafetyViolationError(

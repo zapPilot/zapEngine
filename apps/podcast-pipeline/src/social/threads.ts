@@ -1,7 +1,9 @@
+import { errorMessage, toError } from '../lib/errorMessage.js';
+import { sleep as defaultSleep } from '../lib/sleep.js';
+import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
 import { SocialPublishError } from './publish-error.js';
 import {
   describeThreadsApiError,
-  isRecord,
   nonemptyString,
   parseThreadsApiJson,
 } from './threads-api.js';
@@ -36,9 +38,7 @@ export function createThreadsPublisher(input?: {
   const apiBaseUrl = input?.apiBaseUrl ?? DEFAULT_API_BASE_URL;
   const fetchImpl = input?.fetchImpl ?? fetch;
   const log = input?.onLog ?? (() => void 0);
-  const sleep =
-    input?.sleep ??
-    ((delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)));
+  const sleep = input?.sleep ?? defaultSleep;
   const statusPollIntervalMs =
     input?.statusPollIntervalMs ?? DEFAULT_STATUS_POLL_INTERVAL_MS;
   const statusPollAttempts =
@@ -253,9 +253,9 @@ function containerFailureMessage(value: unknown, status: string): string {
 }
 
 function withLoginGuidance(error: unknown): Error {
-  const detail = error instanceof Error ? error.message : String(error);
+  const detail = errorMessage(error);
   if (detail.includes('pnpm social:login')) {
-    return error instanceof Error ? error : new Error(detail);
+    return toError(error);
   }
   return new Error(
     `${detail}\nRun \`pnpm social:login\` to reconnect Threads.`,

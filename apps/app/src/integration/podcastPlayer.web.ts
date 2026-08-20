@@ -48,24 +48,22 @@ export function usePodcastPlayer(): PodcastPlayer {
   );
   const pendingHandoffRef = useRef<PendingPodcastPlaybackHandoff | null>(null);
   const handoffIdRef = useRef(0);
-  // jscpd:ignore-start — native and web players declare identical local state
-  // for the one shared PodcastPlayer contract (native derives isPlaying/currentTime/
-  // duration from expo-audio's status instead of holding them as state directly).
+  // jscpd:ignore-start — native and web players are intentional twins that
+  // implement one shared PodcastPlayer contract over different media APIs.
   const [nowPlaying, setNowPlaying] = useState<PodcastEpisode | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const { preferences: speedPreferences, setSpeedForSection } =
     usePodcastSpeedPreferences();
-  const [currentSection, setCurrentSection] =
-    useState<PodcastSectionKind>('main');
-  const [currentSectionLanguage, setCurrentSectionLanguage] = useState<
-    string | null
-  >(null);
-  // jscpd:ignore-end
+  const [activeSection, setActiveSection] =
+    useState<PodcastPlaybackSection | null>(null);
 
-  // jscpd:ignore-start — native and web players are intentional twins that
-  // implement one shared PodcastPlayer contract over different media APIs.
+  // A section is the (kind, languageCode) pair, so one state slice holds both;
+  // no active section means idle playback, which reads as the main section.
+  const currentSection = activeSection?.kind ?? 'main';
+  const currentSectionLanguage = activeSection?.languageCode ?? null;
+
   const sections = useMemo(
     () => (nowPlaying === null ? [] : buildPlaybackSections(nowPlaying)),
     [nowPlaying],
@@ -246,8 +244,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       cancelPendingHandoff();
       if (!replaceSource(audio, episode.hlsUrl)) return;
       setNowPlaying(episode);
-      setCurrentSection('main');
-      setCurrentSectionLanguage(null);
+      setActiveSection(null);
       audio.playbackRate = speedForSection(speedPreferences, 'main');
       void audio.play();
     },
@@ -282,8 +279,7 @@ export function usePodcastPlayer(): PodcastPlayer {
         return;
       }
       setNowPlaying(episode);
-      setCurrentSection(section.kind);
-      setCurrentSectionLanguage(section.languageCode);
+      setActiveSection(section);
       audio.playbackRate = speedForSection(speedPreferences, section.kind);
       if (startAt === 0 && shouldPlay) void audio.play();
     },
@@ -320,8 +316,7 @@ export function usePodcastPlayer(): PodcastPlayer {
           return;
         }
         setNowPlaying(episode);
-        setCurrentSection('main');
-        setCurrentSectionLanguage(null);
+        setActiveSection(null);
         audio.playbackRate = speedForSection(speedPreferences, 'main');
         return;
       }

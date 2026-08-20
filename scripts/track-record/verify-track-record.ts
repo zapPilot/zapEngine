@@ -9,7 +9,10 @@ import {
   TrackRecordMetaSchema,
 } from '../../packages/types/src/strategy/index.js';
 import {
+  annualizedDownsideDeviation,
+  annualizedVolatility,
   createSnapshotMessageHash,
+  mean,
   verifyCidChain,
   verifySignature,
 } from '../../apps/landing-page/src/data/track-record-accessor';
@@ -40,29 +43,6 @@ function parseRatio(value: string | undefined): number | null {
 
 function formatDiff(actual: number, expected: number): string {
   return `stored=${actual.toFixed(4)}, recomputed=${expected.toFixed(4)}`;
-}
-
-function mean(values: number[]): number {
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
-function annualizedVolatility(returns: number[]): number {
-  if (returns.length === 0) return 0;
-  const avg = mean(returns);
-  const variance =
-    returns.reduce((sum, value) => sum + (value - avg) ** 2, 0) /
-    returns.length;
-  return Math.sqrt(variance * 252);
-}
-
-function annualizedDownsideDeviation(returns: number[]): number {
-  const negativeReturns = returns.filter((value) => value < 0);
-  if (negativeReturns.length === 0) return 0;
-  return Math.sqrt(
-    (negativeReturns.reduce((sum, value) => sum + value ** 2, 0) /
-      negativeReturns.length) *
-      252,
-  );
 }
 
 function verifyPerformanceMetrics(snapshots: DailySnapshot[]): string[] {

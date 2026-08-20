@@ -1,4 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
+import {
+  createQueryConfig,
+  queryKeys,
+} from '@zapengine/app-core/hooks/queries';
 import { getStrategyConfigs, runBacktest } from '@zapengine/app-core/services';
 import type {
   BacktestCompareConfigV3,
@@ -240,7 +244,10 @@ export function useDefaultStrategyBacktest(
   days?: number,
 ): UseDefaultStrategyBacktestResult {
   const query = useQuery({
-    queryKey: ['desktop', 'strategy', 'default-backtest', days ?? 'default'],
+    ...createQueryConfig({ dataType: 'volatile' }),
+    queryKey: queryKeys.desktop.defaultBacktest(days ?? 'default'),
+    // Each miss re-runs a full server-side backtest, so this holds a longer
+    // window than the shared volatile one.
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
       const configs = await getStrategyConfigs();

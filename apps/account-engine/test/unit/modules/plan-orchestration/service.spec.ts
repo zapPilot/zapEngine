@@ -110,6 +110,8 @@ function makeService(allowance: bigint) {
       buildGmxV2Withdraw,
       buildWithdrawSwap,
       getTokenPrice,
+      buildSupply: vi.fn(),
+      buildSwap: vi.fn(),
     },
     adapter: { getQuote: vi.fn(), getContractCallQuote: vi.fn() } as never,
     publicClients: {
@@ -146,6 +148,9 @@ function makeInvestService({
       buildGmxV2Supply: vi.fn(),
       buildGmxV2Withdraw: vi.fn(),
       buildWithdrawSwap: vi.fn(),
+      buildSupply: vi.fn(),
+      buildSwap: vi.fn(),
+      getTokenPrice: vi.fn(),
     },
     adapter: { getQuote: vi.fn(), getContractCallQuote: vi.fn() } as never,
     publicClients: {
@@ -421,18 +426,20 @@ describe('plan-orchestration service', () => {
         buildGmxV2Supply: vi.fn(),
         buildGmxV2Withdraw: vi.fn(),
         buildWithdrawSwap: vi.fn(),
+        buildSupply: vi.fn(),
+        buildSwap: vi.fn(),
+        getTokenPrice: vi.fn(),
       },
       adapter: {} as never,
       publicClients: {},
       composeDeposit,
       simulation: {
         adapter: { simulateBundle: bundleGate },
-        mode: 'enforce',
         reviewService: { simulateBundle },
       },
     });
 
-    const result = await service.buildDepositReview!({
+    const result = await service.buildDepositReview({
       kind: 'invest',
       userAddress: USER,
       fromToken: BASE_USDC,
@@ -464,20 +471,22 @@ describe('plan-orchestration service', () => {
         buildGmxV2Supply: vi.fn(),
         buildGmxV2Withdraw: vi.fn(),
         buildWithdrawSwap: vi.fn(),
+        buildSupply: vi.fn(),
+        buildSwap: vi.fn(),
+        getTokenPrice: vi.fn(),
       },
       adapter: {} as never,
       publicClients: {},
       composeDeposit,
       simulation: {
         adapter: { simulateBundle: vi.fn() },
-        mode: 'enforce',
         reviewService: {
           simulateBundle: vi.fn().mockRejectedValue(new Error('timed out')),
         },
       },
     });
 
-    const result = await service.buildDepositReview!({
+    const result = await service.buildDepositReview({
       kind: 'invest',
       userAddress: USER,
       fromToken: BASE_USDC,
@@ -506,13 +515,15 @@ describe('plan-orchestration service', () => {
         buildGmxV2Supply: vi.fn(),
         buildGmxV2Withdraw: vi.fn(),
         buildWithdrawSwap: vi.fn(),
+        buildSupply: vi.fn(),
+        buildSwap: vi.fn(),
+        getTokenPrice: vi.fn(),
       },
       adapter: {} as never,
       publicClients: {},
       composeDeposit,
       simulation: {
         adapter: { simulateBundle: vi.fn() },
-        mode: 'enforce',
         reviewService: {
           simulateBundle: vi.fn().mockResolvedValue({
             status: 'failed',
@@ -535,7 +546,7 @@ describe('plan-orchestration service', () => {
       },
     });
 
-    const result = await service.buildDepositReview!({
+    const result = await service.buildDepositReview({
       kind: 'invest',
       userAddress: USER,
       fromToken: BASE_USDC,
@@ -587,6 +598,9 @@ describe('plan-orchestration service', () => {
         buildGmxV2Supply: vi.fn(),
         buildGmxV2Withdraw: vi.fn(),
         buildWithdrawSwap: vi.fn(),
+        buildSupply: vi.fn(),
+        buildSwap: vi.fn(),
+        getTokenPrice: vi.fn(),
       },
       adapter: adapter as never,
       publicClients,
@@ -1087,6 +1101,7 @@ describe('plan-orchestration service', () => {
         getTokenPrice,
         buildGmxV2Withdraw: vi.fn(),
         buildWithdrawSwap: vi.fn(),
+        buildSwap: vi.fn(),
       },
       adapter: {} as never,
       publicClients: {
@@ -1095,12 +1110,11 @@ describe('plan-orchestration service', () => {
       } as never,
       simulation: {
         adapter: { simulateBundle: bundleGate },
-        mode: 'enforce',
         reviewService: { simulateBundle },
       },
     });
 
-    const result = await service.buildDepositReview!({
+    const result = await service.buildDepositReview({
       kind: 'strategy',
       strategyId: 'zap-morpho-gmx-v1',
       userAddress: USER,

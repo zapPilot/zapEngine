@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 import dotenv from 'dotenv';
 
+import { errorMessage, toError } from '../lib/errorMessage.js';
+import { sleep as defaultSleep } from '../lib/sleep.js';
 import {
   insertSocialPostMetric,
   listSocialPostIdentitiesByEpisodes,
@@ -31,7 +33,10 @@ import {
   type SocialMetricWindowLabel,
 } from './daemon-store.js';
 import { isMainModule } from './is-main-module.js';
-import { createMetricCollectors } from './metric-collectors.js';
+import {
+  createMetricCollectors,
+  createMetricsBrowserSession,
+} from './metric-collectors.js';
 import { buildSocialPostMetric, collectPostMetrics } from './metrics.js';
 import { SOCIAL_PLATFORMS } from './platforms.js';
 import {
@@ -261,9 +266,7 @@ async function reconcileAlreadyPublishedJobs(
     }
   }
   if (firstError) {
-    throw firstError instanceof Error
-      ? firstError
-      : new Error(String(firstError));
+    throw toError(firstError);
   }
 }
 
@@ -286,7 +289,7 @@ async function persistPublishFailure(input: {
     });
   } catch (persistenceError) {
     input.log(
-      `[social-daemon] failed to persist ${input.platform} publish failure for ${input.episodeId}: ${persistenceError instanceof Error ? persistenceError.message : String(persistenceError)}`,
+      `[social-daemon] failed to persist ${input.platform} publish failure for ${input.episodeId}: ${errorMessage(persistenceError)}`,
     );
   }
   input.log(
@@ -361,7 +364,7 @@ async function publishDueJobs(
         platform: job.platform,
         attemptCount: job.attempt_count,
         now,
-        message: error instanceof Error ? error.message : String(error),
+        message: errorMessage(error),
         log,
       });
     }
@@ -388,43 +391,49 @@ export async function collectDueMetricWindows(
         : [],
     ),
   );
+  const browser = createMetricsBrowserSession();
   const collectors = createMetricCollectors({
+    browser,
     onRednoteIdentity: async ({ post, platformPostId, postUrl }) => {
       await updateSocialPostIdentity({ id: post.id, platformPostId, postUrl });
     },
   });
 
   let inserted = 0;
-  for (const post of posts) {
-    const window = earliestDueWindow(post, now, completed);
-    if (!window) continue;
+  try {
+    for (const post of posts) {
+      const window = earliestDueWindow(post, now, completed);
+      if (!window) continue;
 
-    try {
-      const collected = await collectPostMetrics(
-        collectors[post.platform],
-        post,
-      );
-      if (!collected) continue;
-      const { details, ...counts } = collected;
-      await insertSocialPostMetric(
-        buildSocialPostMetric({
+      try {
+        const collected = await collectPostMetrics(
+          collectors[post.platform],
           post,
-          capturedAt: now,
-          counts,
-          details,
-          measurementWindow: window.label,
-        }),
-      );
-      completed.add(`${post.id}:${window.label}`);
-      inserted += 1;
-      log(
-        `[social-daemon] recorded ${post.platform} ${window.label} metrics for ${post.id}.`,
-      );
-    } catch (error) {
-      log(
-        `[social-daemon] metric collection failed for ${post.platform} ${post.id}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+        );
+        if (!collected) continue;
+        const { details, ...counts } = collected;
+        await insertSocialPostMetric(
+          buildSocialPostMetric({
+            post,
+            capturedAt: now,
+            counts,
+            details,
+            measurementWindow: window.label,
+          }),
+        );
+        completed.add(`${post.id}:${window.label}`);
+        inserted += 1;
+        log(
+          `[social-daemon] recorded ${post.platform} ${window.label} metrics for ${post.id}.`,
+        );
+      } catch (error) {
+        log(
+          `[social-daemon] metric collection failed for ${post.platform} ${post.id}: ${errorMessage(error)}`,
+        );
+      }
     }
+  } finally {
+    await browser.close();
   }
   return inserted;
 }
@@ -454,9 +463,7 @@ async function isolate(
   try {
     await task();
   } catch (error) {
-    log(
-      `[social-daemon] ${label} failed: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    log(`[social-daemon] ${label} failed: ${errorMessage(error)}`);
   }
 }
 
@@ -515,10 +522,6 @@ function formatRelative(value: string, now: Date): string {
   return remainingMinutes
     ? `in ${hours}h ${remainingMinutes}m`
     : `in ${hours}h`;
-}
-
-function defaultSleep(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 if (isMainModule(import.meta.url)) {

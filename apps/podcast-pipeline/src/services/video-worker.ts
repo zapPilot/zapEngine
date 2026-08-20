@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 
-import { errorMessage } from '../lib/errorMessage.js';
+import { errorMessage, toError } from '../lib/errorMessage.js';
 import {
   type HeavyWorkCoordinator,
   heavyWorkCoordinator,
@@ -151,7 +151,7 @@ export function createVideoWorker(
       const result = await runOnce();
       options.onPollResult?.(result);
     } catch (error) {
-      logger.error('[video-worker] poll failed', normalizeError(error));
+      logger.error('[video-worker] poll failed', toError(error));
     } finally {
       schedulePoll(pollIntervalMs);
     }
@@ -188,7 +188,7 @@ export function createVideoWorker(
     } catch (error) {
       logger.error(
         '[video-worker] failed to reap video failure notifications',
-        normalizeError(error),
+        toError(error),
       );
       return;
     }
@@ -203,7 +203,7 @@ export function createVideoWorker(
         // Leave the row unstamped so a later poll retries the notification.
         logger.error(
           '[video-worker] failure notification not delivered; will retry',
-          normalizeError(error),
+          toError(error),
         );
         continue;
       }
@@ -213,7 +213,7 @@ export function createVideoWorker(
         // Delivered but not stamped — a later poll may re-send (rare duplicate).
         logger.error(
           '[video-worker] failed to record failure notification',
-          normalizeError(error),
+          toError(error),
         );
       }
     }
@@ -278,7 +278,7 @@ export function createVideoWorker(
         .catch((failError) => {
           logger.error(
             '[video-worker] failed to release visual job',
-            normalizeError(failError),
+            toError(failError),
           );
           return null;
         });
@@ -392,7 +392,7 @@ export function createVideoWorker(
         .catch((error) => {
           logger.error(
             '[video-worker] completed job notification lookup failed',
-            normalizeError(error),
+            toError(error),
           );
           return job;
         });
@@ -415,7 +415,7 @@ export function createVideoWorker(
         .catch((failError) => {
           logger.error(
             '[video-worker] failed to release video job',
-            normalizeError(failError),
+            toError(failError),
           );
           return null;
         });
@@ -581,7 +581,7 @@ function startProgressFlush(input: {
           loggedFailure = true;
           input.logger.error(
             '[video-worker] progress reporting unavailable; continuing',
-            normalizeError(error),
+            toError(error),
           );
         }
       }
@@ -656,7 +656,7 @@ function startLeaseHeartbeat(input: {
       const nextDelayMs = retryDelayMs();
       input.logger.error(
         `[video-worker] lease heartbeat call failed (attempt ${consecutiveFailures}, stale ${formatSeconds(staleForMs)}/${formatSeconds(renewBudgetMs)})`,
-        normalizeError(error),
+        toError(error),
       );
       if (staleForMs + nextDelayMs >= renewBudgetMs) {
         input.controller.abort(
@@ -703,10 +703,7 @@ async function safelyNotify(
   try {
     await notify(chatId, message);
   } catch (error) {
-    logger.error(
-      '[video-worker] Telegram notification failed',
-      normalizeError(error),
-    );
+    logger.error('[video-worker] Telegram notification failed', toError(error));
   }
 }
 
@@ -716,8 +713,4 @@ function formatSeconds(milliseconds: number): string {
 
 function videoJobErrorMessage(error: unknown): string {
   return errorMessage(error).slice(0, 4_000);
-}
-
-function normalizeError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error));
 }

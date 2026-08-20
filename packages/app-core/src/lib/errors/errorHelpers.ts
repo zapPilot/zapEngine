@@ -4,12 +4,13 @@ import type { ServiceError } from './ServiceError';
  * Extract a human-readable message from an unknown error object.
  *
  * @param error - Error-like value to inspect
- * @param fallbackMessage - Message to return when no usable message exists
+ * @param fallbackMessage - Message to return when no usable message exists;
+ *   defaults to the stringified error
  * @returns Resolved error message string
  */
 export function extractErrorMessage(
   error: unknown,
-  fallbackMessage: string,
+  fallbackMessage = String(error),
 ): string {
   if (error instanceof Error) {
     return error.message;

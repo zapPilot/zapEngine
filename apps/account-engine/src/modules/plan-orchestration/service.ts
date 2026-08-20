@@ -37,6 +37,7 @@ import {
   type WithdrawPlan,
   WithdrawPlanSchema,
 } from '@zapengine/types/api';
+import { equalsAddress } from '@zapengine/types/shared';
 import {
   type Address,
   decodeFunctionData,
@@ -71,7 +72,7 @@ export interface PlanOrchestrationService {
     request: PlanOrchestrationDepositRequest,
   ): Promise<PlanOrchestrationDepositPlan>;
   /** Build the authoritative plan and attach rich, wallet-neutral reviews. */
-  buildDepositReview?: (
+  buildDepositReview: (
     request: PlanOrchestrationDepositReviewRequest,
   ) => Promise<PlanOrchestrationDepositReviewResponse>;
   buildWithdraw(
@@ -90,7 +91,6 @@ export type DepositChainSplit = Partial<Record<number, number>>;
 /** Bundle-simulation dependency for the fail-closed plan gate. */
 export interface PlanSimulationDeps {
   adapter: BundleSimulationAdapter;
-  mode: 'enforce' | 'off';
   /** Rich evidence rail used by `/deposit/review`; not used by `/deposit`. */
   reviewService?: PlanReviewSimulationService;
 }
@@ -98,9 +98,13 @@ export interface PlanSimulationDeps {
 export interface PlanOrchestrationServiceDeps {
   intentEngine: Pick<
     IntentEngine,
-    'buildGmxV2Supply' | 'buildGmxV2Withdraw' | 'buildWithdrawSwap'
-  > &
-    Partial<Pick<IntentEngine, 'buildSupply' | 'buildSwap' | 'getTokenPrice'>>;
+    | 'buildGmxV2Supply'
+    | 'buildGmxV2Withdraw'
+    | 'buildWithdrawSwap'
+    | 'buildSupply'
+    | 'buildSwap'
+    | 'getTokenPrice'
+  >;
   adapter: LiFiAdapter;
   publicClients: DepositPublicClients;
   composeDeposit?: typeof composeDeposit;
@@ -235,8 +239,8 @@ const MAX_PLAN_SLIPPAGE_BPS = 100;
 
 /**
  * Fail-closed gate, run on every plan before it is returned:
- * the pure safety validators always, then the bundle simulation when
- * enforced. `followUps` (HyperCore actions) are not EVM transactions and are
+ * the pure safety validators always, then the bundle simulation when one is
+ * configured. `followUps` (HyperCore actions) are not EVM transactions and are
  * never simulated — only the source-chain approvals+calls batch is.
  */
 async function assertPlanSafety(params: {
@@ -252,7 +256,7 @@ async function assertPlanSafety(params: {
   assertApprovalCaps(params.plan, params.intent);
   assertMinReceived(params.plan, { maxSlippageBps: MAX_PLAN_SLIPPAGE_BPS });
 
-  if (params.simulation?.mode !== 'enforce') {
+  if (!params.simulation) {
     return;
   }
 
@@ -297,9 +301,6 @@ async function getChainGasPricing(params: {
   publicClient: PublicClient;
   chainId: number;
 }): Promise<{ gasPriceWei: bigint; nativePriceUsd: string }> {
-  if (!params.intentEngine.getTokenPrice) {
-    throw new Error('Gas pricing dependency is not configured');
-  }
   const [gasPriceWei, nativeToken] = await Promise.all([
     params.publicClient.getGasPrice(),
     params.intentEngine.getTokenPrice(params.chainId, NATIVE_TOKEN_ADDRESS),
@@ -312,7 +313,7 @@ function gmxCollateralBudget(params: {
   fromToken: string;
   orderCount: number;
 }): string {
-  if (params.fromToken.toLowerCase() !== NATIVE_TOKEN_ADDRESS.toLowerCase()) {
+  if (!equalsAddress(params.fromToken, NATIVE_TOKEN_ADDRESS)) {
     return params.amount;
   }
 
@@ -413,18 +414,20 @@ async function buildGmxV2BasketDeposit(params: {
       ),
     ),
   );
-  const approvals = await filterNeededApprovals({
-    approvals: mergeApprovalTransactions(
-      plans.flatMap((plan) => plan.approvals),
-    ),
-    owner: userAddress,
-    publicClient,
-  });
-  const gasPricing = await getChainGasPricing({
-    intentEngine,
-    publicClient,
-    chainId: GMX_V2_ARBITRUM_CHAIN_ID,
-  });
+  const [approvals, gasPricing] = await Promise.all([
+    filterNeededApprovals({
+      approvals: mergeApprovalTransactions(
+        plans.flatMap((plan) => plan.approvals),
+      ),
+      owner: userAddress,
+      publicClient,
+    }),
+    getChainGasPricing({
+      intentEngine,
+      publicClient,
+      chainId: GMX_V2_ARBITRUM_CHAIN_ID,
+    }),
+  ]);
   const sharedApprovalGas = transactionGasUnits(approvals);
   const approvalGasPerPlan = sharedApprovalGas / 4n;
   const approvalGasRemainder = sharedApprovalGas % 4n;
@@ -523,8 +526,8 @@ async function calculateStrategyFunding(params: {
   const ethUsd6 = totalUsd6 - baseUsd6 - btcUsd6;
 
   const [baseToken, arbitrumToken] = await Promise.all([
-    intentEngine.getTokenPrice!(baseSource.chainId, baseSource.fromToken),
-    intentEngine.getTokenPrice!(
+    intentEngine.getTokenPrice(baseSource.chainId, baseSource.fromToken),
+    intentEngine.getTokenPrice(
       arbitrumSource.chainId,
       arbitrumSource.fromToken,
     ),
@@ -570,14 +573,10 @@ async function buildBaseMorphoAllocation(params: {
     baseClient,
     morphoVault,
   } = params;
-  const requiresSwap =
-    baseSource.fromToken.toLowerCase() !== BASE_USDC_ADDRESS.toLowerCase();
-  if (requiresSwap && !intentEngine.buildSwap) {
-    throw new Error('Strategy swap planning dependency is not configured');
-  }
+  const requiresSwap = !equalsAddress(baseSource.fromToken, BASE_USDC_ADDRESS);
 
   const swapQuote = requiresSwap
-    ? await intentEngine.buildSwap!({
+    ? await intentEngine.buildSwap({
         type: 'SWAP',
         chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
         fromAddress: userAddress,
@@ -587,7 +586,7 @@ async function buildBaseMorphoAllocation(params: {
       })
     : null;
   const depositAmount = swapQuote?.estimate.toAmountMin ?? baseAmount;
-  const supplyQuote = await intentEngine.buildSupply!(
+  const supplyQuote = await intentEngine.buildSupply(
     {
       type: 'SUPPLY',
       chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
@@ -820,9 +819,6 @@ async function buildStrategyDeposit(params: {
   simulation: PlanSimulationDeps | undefined;
 }): Promise<StrategyDepositPlan> {
   const { request, intentEngine, publicClients, simulation } = params;
-  if (!intentEngine.buildSupply || !intentEngine.getTokenPrice) {
-    throw new Error('Strategy planning dependencies are not configured');
-  }
   const userAddress = request.userAddress as Address;
   const funding = await calculateStrategyFunding({
     request,
@@ -936,14 +932,6 @@ async function buildStrategyDeposit(params: {
 }
 
 const DEPOSIT_REVIEW_EXPIRY_MS = 5 * 60 * 1000;
-const REVIEW_SIMULATION_OFF: PlanSimulationDeps = {
-  adapter: {
-    async simulateBundle() {
-      return { status: 'passed' };
-    },
-  },
-  mode: 'off',
-};
 
 function reviewFingerprint(value: unknown): `0x${string}` {
   return keccak256(toBytes(JSON.stringify(value)));
@@ -1024,15 +1012,15 @@ async function buildDepositReviewResponse(params: {
   request: PlanOrchestrationDepositReviewRequest;
   buildDeposit: (
     request: PlanOrchestrationDepositRequest,
-    simulation: PlanSimulationDeps | undefined,
+    simulation?: PlanSimulationDeps,
   ) => Promise<PlanOrchestrationDepositPlan>;
   reviewService: PlanReviewSimulationService | undefined;
 }): Promise<PlanOrchestrationDepositReviewResponse> {
-  // Build with the rich review rail disabled.  This preserves all pure safety
-  // checks while ensuring the endpoint performs exactly one Tenderly call per
-  // execution group rather than first running the pass/fail gate and then
-  // asking Tenderly for rich evidence again.
-  const plan = await params.buildDeposit(params.request, REVIEW_SIMULATION_OFF);
+  // Build with the pass/fail bundle gate omitted.  This preserves all pure
+  // safety checks while ensuring the endpoint performs exactly one Tenderly
+  // call per execution group rather than first running the pass/fail gate and
+  // then asking Tenderly for rich evidence again.
+  const plan = await params.buildDeposit(params.request);
   const reviewedAt = Date.now();
   const expiresAt = reviewedAt + DEPOSIT_REVIEW_EXPIRY_MS;
   const planFingerprint = reviewFingerprint(plan);
@@ -1132,7 +1120,7 @@ export function createPlanOrchestrationService({
 }: PlanOrchestrationServiceDeps): PlanOrchestrationService {
   async function buildDeposit(
     request: PlanOrchestrationDepositRequest,
-    simulationForSafety: PlanSimulationDeps | undefined,
+    simulationForSafety?: PlanSimulationDeps,
   ): Promise<PlanOrchestrationDepositPlan> {
     if (request.kind === 'invest') {
       // The env-configured default only applies to Base-source plans;
@@ -1206,16 +1194,18 @@ export function createPlanOrchestrationService({
       },
       publicClient,
     );
-    const approvals = await filterNeededApprovals({
-      approvals: gmxPlan.approvals,
-      owner: userAddress,
-      publicClient,
-    });
-    const gasPricing = await getChainGasPricing({
-      intentEngine,
-      publicClient,
-      chainId: GMX_V2_ARBITRUM_CHAIN_ID,
-    });
+    const [approvals, gasPricing] = await Promise.all([
+      filterNeededApprovals({
+        approvals: gmxPlan.approvals,
+        owner: userAddress,
+        publicClient,
+      }),
+      getChainGasPricing({
+        intentEngine,
+        publicClient,
+        chainId: GMX_V2_ARBITRUM_CHAIN_ID,
+      }),
+    ]);
     const gasUsd = gasUsdFromUnits({
       gasUnits: transactionGasUnits([...approvals, ...gmxPlan.steps]),
       ...gasPricing,

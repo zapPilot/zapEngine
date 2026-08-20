@@ -122,7 +122,7 @@ export function useInvestRouteSubmit({
       setSubmissionError(result.reason);
       if (result.status === 'review-changed') void review.refresh();
     } catch (error: unknown) {
-      setSubmissionError(extractErrorMessage(error, String(error)));
+      setSubmissionError(extractErrorMessage(error));
     } finally {
       setLaunchRequested(false);
     }

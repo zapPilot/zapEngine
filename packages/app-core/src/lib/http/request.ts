@@ -11,11 +11,7 @@ import {
   parseCacheControlForHint,
   syncQueryCacheDefaultsFromHint,
 } from './cacheControl';
-import {
-  HTTP_CONFIG,
-  type HttpRequestConfig,
-  type ResponseTransformer,
-} from './config';
+import { HTTP_CONFIG, type HttpRequestConfig } from './config';
 import {
   APIError,
   NetworkError,
@@ -58,7 +54,6 @@ function normalizeRequestExecutionError(error: unknown): Error {
 async function executeRequest<T>(
   url: string,
   requestInit: RequestInit,
-  transformer?: ResponseTransformer<T>,
 ): Promise<T> {
   const response = await fetch(url, requestInit);
 
@@ -82,8 +77,7 @@ async function executeRequest<T>(
     );
   }
 
-  const data = await response.json();
-  return transformer ? transformer(data) : data;
+  return response.json();
 }
 
 /**
@@ -92,7 +86,6 @@ async function executeRequest<T>(
 export async function httpRequest<T = unknown>(
   url: string,
   config: HttpRequestConfig = {},
-  transformer?: ResponseTransformer<T>,
 ): Promise<T> {
   const {
     timeout = HTTP_CONFIG.timeout,
@@ -113,7 +106,7 @@ export async function httpRequest<T = unknown>(
     requestConfig.signal = composedSignal;
 
     try {
-      return await executeRequest(url, requestConfig, transformer);
+      return await executeRequest(url, requestConfig);
     } catch (error) {
       lastError = normalizeRequestExecutionError(error);
 

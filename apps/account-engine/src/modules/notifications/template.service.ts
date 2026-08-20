@@ -9,8 +9,6 @@ export interface EmailMetrics {
   currentBalance: number;
   estimatedYearlyROI: number;
   estimatedYearlyPnL: number;
-  monthlyIncome: number;
-  weightedAPR: number;
   walletCount: number;
   recommendedPeriod: string;
   lastUpdated?: Date | string;
@@ -44,13 +42,11 @@ export class TemplateService {
   private calculateMetricsValues(metrics: EmailMetrics): {
     yearlyROIPercentage: number;
     yearlyPnL: number;
-    monthlyIncome: number;
     currentBalance: number;
     percentageOfBalance: number;
   } {
     const yearlyROIPercentage = this.toNumber(metrics.estimatedYearlyROI);
     const yearlyPnL = this.toNumber(metrics.estimatedYearlyPnL);
-    const monthlyIncome = this.toNumber(metrics.monthlyIncome);
     const currentBalance = this.toNumber(metrics.currentBalance);
     const percentageOfBalance =
       currentBalance > 0 ? (yearlyPnL / currentBalance) * 100 : 0;
@@ -58,7 +54,6 @@ export class TemplateService {
     return {
       yearlyROIPercentage,
       yearlyPnL,
-      monthlyIncome,
       currentBalance,
       percentageOfBalance,
     };
@@ -78,7 +73,6 @@ export class TemplateService {
     calculatedValues: {
       yearlyROIPercentage: number;
       yearlyPnL: number;
-      monthlyIncome: number;
       currentBalance: number;
       percentageOfBalance: number;
     },
@@ -106,9 +100,6 @@ export class TemplateService {
         calculatedValues.percentageOfBalance,
         true,
       ),
-      MONTHLY_PROFIT_CLASS: this.getTrendClass(calculatedValues.monthlyIncome),
-      MONTHLY_PROFIT: this.formatCurrency(calculatedValues.monthlyIncome, true),
-      MAX_DRAWDOWN: this.formatDrawdown(metrics.weightedAPR),
       UNSUBSCRIBE_URL: unsubscribeUrl,
     };
   }
@@ -233,11 +224,6 @@ export class TemplateService {
     }
 
     return value > 0 ? `+${absolute}` : `-${absolute}`;
-  }
-
-  private formatDrawdown(weightedApr: number): string {
-    const clamped = Math.max(-100, Math.min(100, weightedApr));
-    return `${clamped.toFixed(2)}%`;
   }
 
   private formatRecommendedPeriod(recommendedPeriod: string): string {

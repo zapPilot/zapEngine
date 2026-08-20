@@ -2,7 +2,7 @@ import { rm } from 'node:fs/promises';
 
 import sharp from 'sharp';
 
-import { errorMessage } from '../../lib/errorMessage.js';
+import { errorMessage, toError } from '../../lib/errorMessage.js';
 import type { ImageCandidate } from '../../types.js';
 import {
   type AcquiredRemoteImage,
@@ -326,7 +326,7 @@ async function acquireSearchedImage(
         })
         .catch((error: unknown): ImageCandidate[] => {
           if (state.input.signal?.aborted) throw error;
-          failures.push(normalizeError(error));
+          failures.push(toError(error));
           return [];
         });
       const candidates = rankSearchCandidates(
@@ -461,11 +461,6 @@ function reportSearchProgress(
     provider,
     elapsedMs: Date.now() - searchStartedAt,
   });
-}
-
-function normalizeError(error: unknown): Error {
-  if (error instanceof Error) return error;
-  return new Error(String(error));
 }
 
 function visualSearchFailure(

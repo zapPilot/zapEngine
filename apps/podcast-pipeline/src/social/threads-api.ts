@@ -1,3 +1,5 @@
+import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
+
 export function parseThreadsApiJson(raw: string): unknown {
   if (!raw.trim()) return null;
   try {
@@ -19,10 +21,6 @@ export function describeThreadsApiError(
     }
   }
   return `Threads API ${status}: ${rawFallback?.trim() || 'request failed'}`;
-}
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 export function nonemptyString(value: unknown): value is string {

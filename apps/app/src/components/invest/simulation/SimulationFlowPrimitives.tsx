@@ -1,4 +1,7 @@
-import type { PrivySimulationToken } from '@zapengine/types/api';
+import type {
+  PrivySimulationAssetChange,
+  PrivySimulationToken,
+} from '@zapengine/types/api';
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
@@ -89,7 +92,7 @@ export function SimulationAssetAmountRow({
  * header over either the rendered items or an empty-state message. Callers
  * own how each item renders (they may need extra props, like `contracts`).
  */
-export function SimulationDirectionalSection<T>({
+function SimulationDirectionalSection<T>({
   label,
   direction,
   items,
@@ -118,5 +121,38 @@ export function SimulationDirectionalSection<T>({
         </Text>
       )}
     </View>
+  );
+}
+
+/**
+ * The send/receive pair both flow containers end with. Only the row content
+ * differs between the legacy Privy preview and the unified route review, so
+ * callers own `renderItem` and nothing else.
+ */
+export function SimulationAssetFlowSections({
+  outgoing,
+  incoming,
+  renderItem,
+}: {
+  outgoing: readonly PrivySimulationAssetChange[];
+  incoming: readonly PrivySimulationAssetChange[];
+  renderItem: (change: PrivySimulationAssetChange, index: number) => ReactNode;
+}) {
+  return (
+    <>
+      <SimulationDirectionalSection
+        label="You send"
+        direction="out"
+        items={outgoing}
+        renderItem={renderItem}
+      />
+      <View className="mx-4 h-px bg-line" />
+      <SimulationDirectionalSection
+        label="You receive"
+        direction="in"
+        items={incoming}
+        renderItem={renderItem}
+      />
+    </>
   );
 }

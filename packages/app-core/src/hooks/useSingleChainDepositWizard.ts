@@ -39,6 +39,8 @@ export {
   singleChainDepositWizardReducer,
 } from './singleChainDepositMachine';
 
+const DEPOSIT_PLAN_LABEL = 'deposit plan';
+
 export interface SingleChainDepositWizard {
   wizard: SingleChainDepositWizardState;
   pending: boolean;
@@ -112,17 +114,29 @@ export function useSingleChainDepositWizard(): SingleChainDepositWizard {
       dispatch({ type: 'BATCH_STARTED' });
 
       try {
-        assertPlannedAccount(walletRef.current.account?.address, address);
+        assertPlannedAccount(
+          walletRef.current.account?.address,
+          address,
+          DEPOSIT_PLAN_LABEL,
+        );
         const refreshedPlan = await getDepositPlan(request);
         assertSingleChainPlan(refreshedPlan, request);
         if (generation !== generationRef.current) return;
         dispatch({ type: 'PLAN_REFRESHED', plan: refreshedPlan });
 
-        assertPlannedAccount(walletRef.current.account?.address, address);
+        assertPlannedAccount(
+          walletRef.current.account?.address,
+          address,
+          DEPOSIT_PLAN_LABEL,
+        );
         if (walletRef.current.chain?.id !== chainId) {
           await walletRef.current.switchChain(chainId);
         }
-        assertPlannedAccount(walletRef.current.account?.address, address);
+        assertPlannedAccount(
+          walletRef.current.account?.address,
+          address,
+          DEPOSIT_PLAN_LABEL,
+        );
         await assertSingleChainPreflight({
           request,
           plan: refreshedPlan,
@@ -132,7 +146,11 @@ export function useSingleChainDepositWizard(): SingleChainDepositWizard {
           request,
           address,
         );
-        assertPlannedAccount(walletRef.current.account?.address, address);
+        assertPlannedAccount(
+          walletRef.current.account?.address,
+          address,
+          DEPOSIT_PLAN_LABEL,
+        );
         if (generation !== generationRef.current) return;
 
         const activeWallet = walletRef.current;
@@ -198,7 +216,11 @@ export function useSingleChainDepositWizard(): SingleChainDepositWizard {
       dispatch({ type: 'SETTLEMENT_STARTED' });
       try {
         const address = request.userAddress as Address;
-        assertPlannedAccount(walletRef.current.account?.address, address);
+        assertPlannedAccount(
+          walletRef.current.account?.address,
+          address,
+          DEPOSIT_PLAN_LABEL,
+        );
         const baseline = positionBaselineRef.current;
         if (baseline === null) {
           throw new Error('Position baseline is unavailable.');

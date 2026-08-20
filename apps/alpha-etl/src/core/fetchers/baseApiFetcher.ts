@@ -32,6 +32,11 @@ export abstract class BaseApiFetcher {
     this.rateLimitDelay = rateLimitDelay;
   }
 
+  // Real provider delays would make the unit suite sleep for seconds per request.
+  protected static resolveRateLimitDelay(productionDelayMs: number): number {
+    return process.env['NODE_ENV'] === 'test' ? 0 : productionDelayMs;
+  }
+
   protected async enforceRateLimit(): Promise<void> {
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;

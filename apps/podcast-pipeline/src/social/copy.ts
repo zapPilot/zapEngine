@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 
 import { SOCIAL_BRAND_CTA } from '../brand/cta.js';
+import { errorMessage } from '../lib/errorMessage.js';
 import {
   createOpenRouterChatCompletion,
   getOpenRouterConfig,
@@ -297,6 +298,5 @@ function describeValidationFailure(error: unknown): string {
   if (error instanceof SyntaxError) {
     return `Invalid JSON: ${error.message}`;
   }
-  if (error instanceof Error) return error.message;
-  return String(error);
+  return errorMessage(error);
 }

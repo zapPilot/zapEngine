@@ -2,9 +2,12 @@ import type { DailySnapshot } from '@zapengine/types/strategy';
 import { describe, expect, it } from 'vitest';
 
 import {
+  annualizedDownsideDeviation,
+  annualizedVolatility,
   canonicalizeSnapshotForSigning,
   computePerformanceSummary,
   createSnapshotMessageHash,
+  mean,
   verifyCidChain,
   verifyPerformanceMetrics,
   verifySignature,
@@ -92,6 +95,23 @@ describe('track-record-accessor', () => {
       sharpe: '—',
       sortino: '—',
     });
+  });
+
+  it('annualizes the return statistics the verifiers share', () => {
+    const annualizer = Math.sqrt(252);
+
+    expect(mean([1, 2, 3])).toBe(2);
+    expect(annualizedVolatility([])).toBe(0);
+    expect(annualizedVolatility([0.01, 0.01])).toBe(0);
+    expect(annualizedVolatility([0.01, -0.01])).toBeCloseTo(
+      0.01 * annualizer,
+      12,
+    );
+    expect(annualizedDownsideDeviation([0.01, 0.02])).toBe(0);
+    expect(annualizedDownsideDeviation([0.02, -0.01])).toBeCloseTo(
+      0.01 * annualizer,
+      12,
+    );
   });
 
   it('validates stored performance metrics against the NAV series', () => {

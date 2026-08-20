@@ -56,7 +56,6 @@ from src.services.backtesting.public_params import runtime_params_to_public_para
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
 from src.services.backtesting.signals.flat_minimum import (
     FlatMinimumSignalComponent,
-    build_initial_flat_minimum_asset_allocation,
 )
 from src.services.backtesting.strategies.base import StrategyContext
 from src.services.backtesting.strategies.composed import ComposedSignalStrategy
@@ -413,25 +412,6 @@ class RuleBasedPortfolioStrategy(ComposedSignalStrategy):
         }
 
 
-# jscpd:ignore-start - intentional thin alias; signature mirrors the flat-minimum builder by design
-def build_initial_portfolio_rules_asset_allocation(
-    *,
-    aggregate_allocation: Mapping[str, float],
-    extra_data: Mapping[str, Any] | None,
-    price_map: Mapping[str, float] | None,
-    primary_price: float | None = None,
-) -> dict[str, float]:
-    return build_initial_flat_minimum_asset_allocation(
-        aggregate_allocation=aggregate_allocation,
-        extra_data=extra_data,
-        price_map=price_map,
-        primary_price=primary_price,
-    )
-
-
-# jscpd:ignore-end
-
-
 def default_rule_based_portfolio_params() -> dict[str, JsonValue]:
     return DmaGatedFgiParams().to_public_params()
 
@@ -440,6 +420,5 @@ __all__ = [
     "DMA_GATED_FGI_PUBLIC_PARAM_KEYS",
     "RuleBasedPortfolioStrategy",
     "DmaGatedFgiParams",
-    "build_initial_portfolio_rules_asset_allocation",
     "default_rule_based_portfolio_params",
 ]

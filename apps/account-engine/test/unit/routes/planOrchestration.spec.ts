@@ -33,6 +33,7 @@ const withdrawPlan: WithdrawPlan = {
 function createApp(
   service: PlanOrchestrationService = {
     buildDeposit: vi.fn().mockResolvedValue(plan),
+    buildDepositReview: vi.fn(),
     buildWithdraw: vi.fn().mockResolvedValue(withdrawPlan),
   },
 ) {
@@ -263,26 +264,6 @@ describe('POST /plan-orchestration/deposit/review', () => {
       sourceChainId: 8453,
     });
   });
-
-  it('returns service unavailable when the review rail is not configured', async () => {
-    const { app } = createApp();
-    const response = await app.request(
-      'http://localhost/plan-orchestration/deposit/review',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          kind: 'invest',
-          userAddress: USER,
-          fromToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-          fromAmount: '1000',
-          sourceChainId: 8453,
-        }),
-      },
-    );
-
-    expect(response.status).toBe(503);
-  });
 });
 
 describe('POST /plan-orchestration/withdraw', () => {
@@ -430,7 +411,7 @@ describe('plan safety gate', () => {
       .fn()
       .mockResolvedValue({ status: 'failed', reason: 'reverted' });
     const { app } = createGateApp({
-      simulation: { adapter: { simulateBundle }, mode: 'enforce' },
+      simulation: { adapter: { simulateBundle } },
     });
 
     const response = await app.request(
@@ -449,7 +430,7 @@ describe('plan safety gate', () => {
       .fn()
       .mockResolvedValue({ status: 'unavailable', reason: 'timeout' });
     const { app } = createGateApp({
-      simulation: { adapter: { simulateBundle }, mode: 'enforce' },
+      simulation: { adapter: { simulateBundle } },
     });
 
     const response = await app.request(
@@ -461,11 +442,8 @@ describe('plan safety gate', () => {
     expect(simulateBundle).toHaveBeenCalled();
   });
 
-  it('does not call the simulation adapter in off mode', async () => {
-    const simulateBundle = vi.fn();
-    const { app } = createGateApp({
-      simulation: { adapter: { simulateBundle }, mode: 'off' },
-    });
+  it('serves the plan when no simulation dependency is configured', async () => {
+    const { app } = createGateApp({});
 
     const response = await app.request(
       'http://localhost/plan-orchestration/deposit',
@@ -473,6 +451,5 @@ describe('plan safety gate', () => {
     );
 
     expect(response.status).toBe(200);
-    expect(simulateBundle).not.toHaveBeenCalled();
   });
 });

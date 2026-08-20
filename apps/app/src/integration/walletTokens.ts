@@ -1,4 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
+import {
+  createQueryConfig,
+  queryKeys,
+} from '@zapengine/app-core/hooks/queries';
 import { getAlchemyWalletBalancesSnapshot } from '@zapengine/app-core/services';
 
 import {
@@ -13,6 +17,7 @@ import {
   normalizeWalletAddressList,
   type UseWalletAssetsResult,
   type WalletAddressInput,
+  type WalletAssetsQueryData,
 } from '@/integration/moralisWallet';
 
 export type {
@@ -29,9 +34,12 @@ export function useWalletAssets(
 ): UseWalletAssetsResult {
   const walletAddresses = normalizeWalletAddressList(addressInput);
   const enabled = walletAddresses.length > 0;
-  const query = useQuery({
-    queryKey: ['desktop', 'alchemy', 'wallet-assets', walletAddresses],
+  const query = useQuery<WalletAssetsQueryData, Error>({
+    ...createQueryConfig({ dataType: 'volatile' }),
+    queryKey: queryKeys.desktop.walletAssets(walletAddresses),
     enabled,
+    // Balances gate the invest flow's amount step, so they stay fresher than
+    // the shared volatile window.
     staleTime: 60 * 1000,
     queryFn: async () => {
       const snapshots = await Promise.all(

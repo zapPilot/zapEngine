@@ -450,7 +450,7 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
             reason: error.message,
           };
         }
-        const reason = extractErrorMessage(error, String(error));
+        const reason = extractErrorMessage(error);
         const lowerReason = reason.toLowerCase();
         if (
           lowerReason.includes('eip-7702') ||
@@ -505,7 +505,7 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
       } catch (error: unknown) {
         return {
           status: 'unknown',
-          reason: extractErrorMessage(error, String(error)),
+          reason: extractErrorMessage(error),
         };
       }
     },

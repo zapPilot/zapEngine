@@ -22,6 +22,7 @@ import {
   useSignTypedData,
   useWallets,
 } from '@privy-io/react-auth';
+import { equalsAddress } from '@zapengine/types/shared';
 import { useCallback, useMemo, useState } from 'react';
 import { type Chain, createWalletClient, custom } from 'viem';
 import { arbitrum, base, optimism } from 'viem/chains';
@@ -239,8 +240,7 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
         account.type === 'wallet' &&
         account.walletClientType === 'privy' &&
         account.chainType === 'ethereum' &&
-        account.address.toLowerCase() ===
-          embeddedWallet.address.toLowerCase() &&
+        equalsAddress(account.address, embeddedWallet.address) &&
         'id' in account &&
         typeof account.id === 'string'
           ? [account.id]

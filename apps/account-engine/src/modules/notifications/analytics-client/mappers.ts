@@ -36,8 +36,6 @@ export function transformToEmailMetrics(
     currentBalance: portfolioData.total_net_usd,
     estimatedYearlyROI: portfolioData.portfolio_roi.recommended_yearly_roi,
     estimatedYearlyPnL: portfolioData.portfolio_roi.estimated_yearly_pnl_usd,
-    monthlyIncome: portfolioData.estimated_monthly_income,
-    weightedAPR: portfolioData.weighted_apr,
     walletCount: portfolioData.wallet_count,
     recommendedPeriod: portfolioData.portfolio_roi.recommended_period,
     lastUpdated: portfolioData.last_updated ?? undefined,

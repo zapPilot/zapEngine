@@ -19,13 +19,14 @@ interface MacroFearGreedFetcherConfig {
 export class MacroFearGreedFetcher extends BaseApiFetcher {
   private static readonly BASE_URL = 'https://production.dataviz.cnn.io';
   private static readonly ENDPOINT = '/index/fearandgreed/graphdata';
-  private static readonly RATE_LIMIT_MS =
-    process.env['NODE_ENV'] === 'test' ? 0 : 60_000;
+  private static readonly PRODUCTION_RATE_LIMIT_MS = 60_000;
 
   constructor(config?: MacroFearGreedFetcherConfig) {
     super(
       config?.apiUrl ?? MacroFearGreedFetcher.BASE_URL,
-      MacroFearGreedFetcher.RATE_LIMIT_MS,
+      MacroFearGreedFetcher.resolveRateLimitDelay(
+        MacroFearGreedFetcher.PRODUCTION_RATE_LIMIT_MS,
+      ),
     );
   }
 

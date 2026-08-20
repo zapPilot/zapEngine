@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   updateSocialPostIdentity: vi.fn(),
   runSocialCli: vi.fn(),
   createMetricCollectors: vi.fn(),
+  createMetricsBrowserSession: vi.fn(),
+  closeMetricsBrowserSession: vi.fn(),
   collectX: vi.fn(),
   refreshSocialStrategies: vi.fn(),
 }));
@@ -64,6 +66,7 @@ vi.mock('../services/db.js', () => ({
 vi.mock('./cli.js', () => ({ runSocialCli: mocks.runSocialCli }));
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
+  createMetricsBrowserSession: mocks.createMetricsBrowserSession,
 }));
 vi.mock('./strategy.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./strategy.js')>()),
@@ -157,6 +160,11 @@ beforeEach(() => {
     threads: vi.fn(),
     rednote: vi.fn(),
     youtube: vi.fn(),
+  });
+  mocks.closeMetricsBrowserSession.mockResolvedValue(undefined);
+  mocks.createMetricsBrowserSession.mockReturnValue({
+    withPage: vi.fn(),
+    close: mocks.closeMetricsBrowserSession,
   });
 });
 
@@ -407,6 +415,8 @@ describe('social daemon', () => {
         measurementWindow: '24h',
       }),
     );
+    expect(mocks.createMetricsBrowserSession).toHaveBeenCalledOnce();
+    expect(mocks.closeMetricsBrowserSession).toHaveBeenCalledOnce();
   });
 
   it('uses only the current age bucket so missed early snapshots are never backfilled with stale data', () => {
@@ -747,6 +757,7 @@ describe('social daemon', () => {
 
     await expect(collectDueMetricWindows(NOW, log)).resolves.toBe(0);
     expect(mocks.insertSocialPostMetric).not.toHaveBeenCalled();
+    expect(mocks.closeMetricsBrowserSession).toHaveBeenCalledOnce();
     expect(log.mock.calls.map(([line]) => String(line))).toEqual(
       expect.arrayContaining([
         expect.stringContaining('collector exploded'),

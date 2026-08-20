@@ -1,3 +1,4 @@
+import { equalsAddress } from '@zapengine/types/shared';
 import type { Address, PublicClient } from 'viem';
 
 import type { LiFiAdapter } from '../adapters/lifi.adapter.js';
@@ -34,8 +35,7 @@ export async function buildSupplyTx(
     functionName: 'asset',
   })) as Address;
 
-  const isDirectDeposit =
-    validated.fromToken.toLowerCase() === vaultAsset.toLowerCase();
+  const isDirectDeposit = equalsAddress(validated.fromToken, vaultAsset);
 
   if (isDirectDeposit) {
     const depositCalldata = encodeDeposit(

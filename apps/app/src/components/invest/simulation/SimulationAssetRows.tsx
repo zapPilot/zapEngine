@@ -3,18 +3,17 @@ import { Text, View } from 'react-native';
 
 import {
   SimulationAssetAmountRow,
-  SimulationDirectionalSection,
+  SimulationAssetFlowSections,
 } from '@/components/invest/simulation/SimulationFlowPrimitives';
 
-// jscpd:ignore-start -- this wiring around the shared SimulationAssetAmountRow
-// / SimulationDirectionalSection primitives is intentionally the same shape as
-// SimulationFlowRows.tsx's AssetRow/AssetSection: this file is the legacy
-// Privy preview's row (no counterparty, no call-index), while the other is the
-// unified route review's row (counterparty + call-index). Merging them would
-// force one screen's content shape onto the other.
-function AssetRow({ change }: { change: PrivySimulationAssetChange }) {
+/**
+ * The legacy Privy preview's asset row: the payload carries no counterparty
+ * and no call index here, so the subtitle is just the token name.
+ */
+function renderAssetRow(change: PrivySimulationAssetChange, index: number) {
   return (
     <SimulationAssetAmountRow
+      key={`${change.direction}-${change.callIndex}-${change.token.address ?? change.token.symbol}-${index}`}
       token={change.token}
       subtitle={
         <Text className="mt-0.5 text-[11px] text-ink-faint" numberOfLines={1}>
@@ -23,30 +22,6 @@ function AssetRow({ change }: { change: PrivySimulationAssetChange }) {
       }
       direction={change.direction}
       rawAmount={change.rawAmount}
-    />
-  );
-}
-
-function FlowSide({
-  label,
-  direction,
-  changes,
-}: {
-  label: string;
-  direction: 'out' | 'in';
-  changes: readonly PrivySimulationAssetChange[];
-}) {
-  return (
-    <SimulationDirectionalSection
-      label={label}
-      direction={direction}
-      items={changes}
-      renderItem={(change, index) => (
-        <AssetRow
-          key={`${direction}-${change.callIndex}-${change.token.address ?? change.token.symbol}-${index}`}
-          change={change}
-        />
-      )}
     />
   );
 }
@@ -60,10 +35,11 @@ export function SimulationAssetRows({
 }) {
   return (
     <View className="overflow-hidden rounded-2xl border border-line bg-surface">
-      <FlowSide label="You send" direction="out" changes={outgoing} />
-      <View className="mx-4 h-px bg-line" />
-      <FlowSide label="You receive" direction="in" changes={incoming} />
+      <SimulationAssetFlowSections
+        outgoing={outgoing}
+        incoming={incoming}
+        renderItem={renderAssetRow}
+      />
     </View>
   );
 }
-// jscpd:ignore-end

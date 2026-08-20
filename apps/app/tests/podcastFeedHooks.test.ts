@@ -15,9 +15,14 @@ const mocks = vi.hoisted(() => ({
   useQuery: vi.fn(),
 }));
 
-vi.mock('@tanstack/react-query', () => ({
-  useQuery: mocks.useQuery,
-}));
+vi.mock('@tanstack/react-query', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tanstack/react-query')>();
+
+  return {
+    ...actual,
+    useQuery: mocks.useQuery,
+  };
+});
 
 vi.mock('@/providers/ContentLanguageProvider', () => ({
   useContentLanguage: () => mocks.language,

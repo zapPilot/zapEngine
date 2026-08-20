@@ -3,6 +3,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import dotenv from 'dotenv';
 
+import { errorMessage } from '../lib/errorMessage.js';
 import { isRednoteSessionReady, runRednoteLogin } from './rednote-login.js';
 import {
   ensureThreadsSession,
@@ -90,10 +91,6 @@ export async function runSocialLogin(
   }
 
   log('All social platforms are ready.');
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 // jscpd:ignore-start — CLI direct-invocation check, same pattern as social/cli.ts

@@ -136,7 +136,6 @@ function resolvePlanSimulation(
         projectSlug: config.tenderly.projectSlug,
         accessKey: config.tenderly.accessToken,
       }),
-      mode: 'enforce',
       ...(config.reviewService ? { reviewService: config.reviewService } : {}),
     };
   }

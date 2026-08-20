@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { WALLET_ADDRESS_REGEX } from '@zapengine/types';
+import { equalsAddress } from '@zapengine/types/shared';
 import type { Address } from 'viem';
 
 import { CHAIN_IDS, TOKENS, type ChainId } from '../types/chain.types.js';
@@ -158,13 +159,9 @@ export const DEFAULT_VAULT_REGISTRY: VaultRegistry = [
   hyperliquidVaultCatalogSource,
 ];
 
-function normalizeAddress(address: string): string {
-  return address.toLowerCase();
-}
-
 function matchesAsset(vault: VaultMeta, asset: string): boolean {
   if (WALLET_ADDRESS_REGEX.test(asset)) {
-    return normalizeAddress(vault.assetAddress) === normalizeAddress(asset);
+    return equalsAddress(vault.assetAddress, asset);
   }
 
   return vault.assetSymbol.toLowerCase() === asset.toLowerCase();
@@ -200,12 +197,12 @@ export function findVaultByAddress(
   },
   registry: VaultRegistry = DEFAULT_VAULT_REGISTRY,
 ): VaultMeta | null {
-  const vaultAddress = normalizeAddress(opts.vaultAddress);
+  const { vaultAddress } = opts;
 
   return (
     listRegistryVaults(registry).find(
       (vault) =>
-        normalizeAddress(vault.vaultAddress) === vaultAddress &&
+        equalsAddress(vault.vaultAddress, vaultAddress) &&
         (opts.protocol === undefined || vault.protocol === opts.protocol) &&
         (opts.chainId === undefined || vault.chainId === opts.chainId),
     ) ?? null

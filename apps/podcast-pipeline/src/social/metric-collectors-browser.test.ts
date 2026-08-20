@@ -31,10 +31,15 @@ import {
   collectRednoteMetrics,
   collectXMetrics,
   createMetricCollectors,
+  createMetricsBrowserSession,
   inspectRednotePublishedPost,
   inspectXPublishedPost,
   inspectXPublishedPostAt,
 } from './metric-collectors.js';
+
+const X_PROFILE = join(tmpdir(), 'x-profile');
+const REDNOTE_PROFILE = join(tmpdir(), 'rednote-profile');
+const REDNOTE_MANAGER = 'https://creator.rednote.com/new/note-manager';
 
 function post(
   platform: SocialPostRow['platform'],
@@ -131,6 +136,7 @@ function xPage(articles: ReturnType<typeof xArticle>[]) {
     nth: (index: number) => articles[index]!,
   };
   return {
+    close: promiseMethod(undefined),
     goto: promiseMethod(undefined),
     locator: vi.fn((selector: string) => {
       if (selector === 'article[data-testid="tweet"]') return collection;
@@ -228,6 +234,7 @@ function rednotePage(input: {
       : promiseMethod(input.dedicatedTitle ?? ''),
   };
   return {
+    close: promiseMethod(undefined),
     goto: promiseMethod(undefined),
     locator: vi.fn((selector: string) => {
       if (selector === '.note-card') return cards;
@@ -718,5 +725,73 @@ describe('Rednote browser metrics and reconciliation', () => {
         }),
       ),
     ).rejects.toThrow('invalid published_at');
+  });
+});
+
+describe('metrics browser session', () => {
+  function sessionContext() {
+    const page = {
+      close: promiseMethod(undefined),
+      goto: promiseMethod(undefined),
+    };
+    return {
+      page,
+      newPage: vi.fn().mockResolvedValue(page),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+  }
+
+  it('reuses one context per profile, opens a page per post, and closes every context', async () => {
+    const xContext = sessionContext();
+    const rednoteContext = sessionContext();
+    browser.launchPersistentContext.mockImplementation(
+      async (directory: string) =>
+        directory === X_PROFILE ? xContext : rednoteContext,
+    );
+
+    const session = createMetricsBrowserSession();
+    await expect(
+      session.withPage(X_PROFILE, 'https://x.com/zap/status/1', async () => 1),
+    ).resolves.toBe(1);
+    await expect(
+      session.withPage(X_PROFILE, 'https://x.com/zap/status/2', async () => 2),
+    ).resolves.toBe(2);
+    await expect(
+      session.withPage(REDNOTE_PROFILE, REDNOTE_MANAGER, async () => 3),
+    ).resolves.toBe(3);
+
+    expect(browser.launchPersistentContext).toHaveBeenCalledTimes(2);
+    expect(xContext.newPage).toHaveBeenCalledTimes(2);
+    expect(xContext.page.close).toHaveBeenCalledTimes(2);
+    expect(xContext.page.goto).toHaveBeenLastCalledWith(
+      'https://x.com/zap/status/2',
+      expect.objectContaining({ waitUntil: 'domcontentloaded' }),
+    );
+    expect(xContext.close).not.toHaveBeenCalled();
+
+    await session.close();
+    expect(xContext.close).toHaveBeenCalledOnce();
+    expect(rednoteContext.close).toHaveBeenCalledOnce();
+  });
+
+  it('closes the page and keeps the context when a post fails, and every context on teardown', async () => {
+    const first = sessionContext();
+    const second = sessionContext();
+    first.close.mockRejectedValue(new Error('context teardown failed'));
+    browser.launchPersistentContext.mockImplementation(
+      async (directory: string) => (directory === X_PROFILE ? first : second),
+    );
+
+    const session = createMetricsBrowserSession();
+    await expect(
+      session.withPage(X_PROFILE, 'https://x.com/zap/status/1', async () => {
+        throw new Error('collector exploded');
+      }),
+    ).rejects.toThrow('collector exploded');
+    expect(first.page.close).toHaveBeenCalledOnce();
+    await session.withPage(REDNOTE_PROFILE, REDNOTE_MANAGER, async () => null);
+
+    await expect(session.close()).rejects.toThrow('context teardown failed');
+    expect(second.close).toHaveBeenCalledOnce();
   });
 });

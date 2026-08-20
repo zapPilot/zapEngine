@@ -1,3 +1,5 @@
+import { equalsAddress } from '@zapengine/types/shared';
+
 import {
   IntentSchema,
   SwapIntentSchema,
@@ -40,9 +42,8 @@ function assertKnownOnThisChainOrUnknown(
   registry: Record<number, Record<string, string>>,
   kind: 'token' | 'vault',
 ): void {
-  const lc = address.toLowerCase();
-  const onThisChain = Object.values(registry[chainId] ?? {}).some(
-    (addr) => addr.toLowerCase() === lc,
+  const onThisChain = Object.values(registry[chainId] ?? {}).some((addr) =>
+    equalsAddress(addr, address),
   );
   if (onThisChain) {
     return;
@@ -53,8 +54,8 @@ function assertKnownOnThisChainOrUnknown(
     if (otherChainId === chainId) {
       continue;
     }
-    const onOtherChain = Object.values(entries).some(
-      (addr) => addr.toLowerCase() === lc,
+    const onOtherChain = Object.values(entries).some((addr) =>
+      equalsAddress(addr, address),
     );
     if (onOtherChain) {
       if (kind === 'token') {

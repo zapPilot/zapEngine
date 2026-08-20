@@ -1,3 +1,5 @@
+import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
+
 export function isCreateTweetResponseUrl(rawUrl: string): boolean {
   try {
     const url = new URL(rawUrl);
@@ -60,8 +62,4 @@ function findRestId(value: unknown, depth: number): string | null {
 
 function nonemptyDigits(value: unknown): value is string {
   return typeof value === 'string' && /^\d+$/u.test(value);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }

@@ -1,7 +1,7 @@
 import { CHART_DIMENSIONS } from '@/config/track-record';
 
 export const { width, height, padding } = CHART_DIMENSIONS;
-const plotWidth = width - padding.left - padding.right;
+export const plotWidth = width - padding.left - padding.right;
 export const plotHeight = height - padding.top - padding.bottom;
 
 export function chartDateRange(points: ReadonlyArray<{ date: string }>): {

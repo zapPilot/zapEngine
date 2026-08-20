@@ -46,16 +46,12 @@ function createMocks() {
         recommended_period: '30_days',
         windows: { roi_7d: { value: 1.5 } },
       },
-      estimated_monthly_income: 41.67,
-      weighted_apr: 8.5,
       wallet_count: 2,
     }),
     transformToEmailMetrics: vi.fn().mockReturnValue({
       currentBalance: 5000,
       estimatedYearlyROI: 10,
       estimatedYearlyPnL: 500,
-      monthlyIncome: 41.67,
-      weightedAPR: 8.5,
       walletCount: 2,
       recommendedPeriod: '30_days',
       weeklyPnLPercentage: 1.5,
@@ -471,8 +467,6 @@ describe('WeeklyReportProcessor', () => {
         currentBalance: 5000,
         estimatedYearlyROI: 10,
         estimatedYearlyPnL: 500,
-        monthlyIncome: 41.67,
-        weightedAPR: 8.5,
         walletCount: 2,
         recommendedPeriod: '30_days',
         // no weeklyPnLPercentage
@@ -505,8 +499,6 @@ describe('WeeklyReportProcessor', () => {
         currentBalance: 5000,
         estimatedYearlyROI: 10,
         estimatedYearlyPnL: 500,
-        monthlyIncome: 41.67,
-        weightedAPR: 8.5,
         walletCount: 2,
         recommendedPeriod: '30_days',
       });
@@ -527,8 +519,6 @@ describe('WeeklyReportProcessor', () => {
         currentBalance: 5000,
         estimatedYearlyROI: 10,
         estimatedYearlyPnL: 500,
-        monthlyIncome: 41.67,
-        weightedAPR: 8.5,
         walletCount: 2,
         recommendedPeriod: '30_days',
       });
@@ -552,8 +542,6 @@ describe('WeeklyReportProcessor', () => {
         currentBalance: 0,
         estimatedYearlyROI: 0,
         estimatedYearlyPnL: 0,
-        monthlyIncome: 0,
-        weightedAPR: 0,
         walletCount: 1,
         recommendedPeriod: '30_days',
       });

@@ -1,3 +1,8 @@
+import {
+  clampPodcastPlaybackSeconds,
+  finiteSeconds,
+} from '@/integration/podcastPlayerShared';
+
 export const VIDEO_HANDOFF_SEEK_TOLERANCE_SECONDS = 0.35;
 
 export interface EpisodeMediaClock {
@@ -9,16 +14,6 @@ export interface VideoHandoffSession {
   readonly initialTimeSeconds: number;
   readonly playbackRate: number;
   readonly shouldPlay: boolean;
-}
-
-function finiteSeconds(seconds: number): number {
-  return Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
-}
-
-function clampSeconds(seconds: number, duration: number): number {
-  const finite = finiteSeconds(seconds);
-  const finiteDuration = finiteSeconds(duration);
-  return finiteDuration > 0 ? Math.min(finite, finiteDuration) : finite;
 }
 
 export function handoffAudioToVideo({
@@ -34,7 +29,7 @@ export function handoffAudioToVideo({
   shouldPlay: boolean;
   pauseAudio: () => void;
 }): VideoHandoffSession {
-  const initialTimeSeconds = clampSeconds(
+  const initialTimeSeconds = clampPodcastPlaybackSeconds(
     audioTimeSeconds,
     videoDurationSeconds,
   );
@@ -71,7 +66,7 @@ export function resolveActiveMediaClock({
   if (videoClock !== null) {
     const durationSeconds = finiteSeconds(videoClock.durationSeconds);
     return {
-      currentTimeSeconds: clampSeconds(
+      currentTimeSeconds: clampPodcastPlaybackSeconds(
         videoClock.currentTimeSeconds,
         durationSeconds,
       ),
@@ -82,7 +77,10 @@ export function resolveActiveMediaClock({
 
   const durationSeconds = finiteSeconds(audioDurationSeconds);
   return {
-    currentTimeSeconds: clampSeconds(audioCurrentTimeSeconds, durationSeconds),
+    currentTimeSeconds: clampPodcastPlaybackSeconds(
+      audioCurrentTimeSeconds,
+      durationSeconds,
+    ),
     durationSeconds,
   };
 }

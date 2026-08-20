@@ -51,6 +51,10 @@ import {
   type EpisodeVideoProgressView,
 } from '@/integration/episodeVideoProgress';
 import type { PodcastEpisode } from '@/integration/podcastFeed';
+import {
+  clampPodcastPlaybackSeconds,
+  finiteSeconds,
+} from '@/integration/podcastPlayerShared';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 import {
   buildPlaybackSections,
@@ -62,15 +66,6 @@ import { useEpisodeProgress } from '@/providers/PodcastProgressProvider';
 
 const VIDEO_PROGRESS_PERSIST_INTERVAL_SECONDS = 10;
 const VIDEO_COMPLETION_THRESHOLD_SECONDS = 2;
-
-function finiteSeconds(seconds: number): number {
-  return Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
-}
-
-function clampSeconds(seconds: number, duration: number): number {
-  const finite = finiteSeconds(seconds);
-  return duration > 0 ? Math.min(finite, duration) : finite;
-}
 
 export function PodcastIconButton({
   label,
@@ -535,7 +530,7 @@ export function EpisodeMediaPlayer({
       shouldPlay = videoPlayingRef.current,
       languageCode?: string | null,
     ) => {
-      const position = clampSeconds(
+      const position = clampPodcastPlaybackSeconds(
         videoTimeRef.current,
         videoDurationRef.current,
       );
@@ -587,7 +582,7 @@ export function EpisodeMediaPlayer({
 
   const handleVideoTimeUpdate = useCallback(
     (seconds: number, duration: number) => {
-      const position = clampSeconds(seconds, duration);
+      const position = clampPodcastPlaybackSeconds(seconds, duration);
       videoTimeRef.current = position;
       videoDurationRef.current = duration;
       onVideoClockChange?.({

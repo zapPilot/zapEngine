@@ -1,4 +1,5 @@
 import type { WalletData } from '@zapengine/app-core/lib/validation/walletUtils';
+import { equalsAddress } from '@zapengine/types/shared';
 
 export interface WalletRowVM {
   id: string;
@@ -15,11 +16,10 @@ export function toWalletRows(
   wallets: readonly WalletData[],
   activeAddress: string | null,
 ): WalletRowVM[] {
-  const active = activeAddress?.toLowerCase() ?? null;
   return wallets.map((wallet) => ({
     id: wallet.id,
     label: wallet.label,
     address: wallet.address,
-    isActive: active !== null && wallet.address.toLowerCase() === active,
+    isActive: equalsAddress(wallet.address, activeAddress),
   }));
 }

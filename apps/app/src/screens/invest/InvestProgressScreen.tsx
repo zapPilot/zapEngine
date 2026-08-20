@@ -231,7 +231,7 @@ export function InvestProgressScreen() {
     try {
       await action();
     } catch (error: unknown) {
-      setCheckpointError(extractErrorMessage(error, String(error)));
+      setCheckpointError(extractErrorMessage(error));
     } finally {
       setCheckpointPending(false);
     }

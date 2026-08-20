@@ -1,4 +1,6 @@
 import { getRuntimeEnv } from '@core/lib/env/runtimeEnv';
+import { httpGet, httpPost } from '@core/lib/http';
+import { createApiServiceCaller } from '@core/lib/http/createServiceCaller';
 import { formatUnits } from 'viem';
 
 import {
@@ -126,33 +128,35 @@ function fallbackPriceFor(symbol: AlchemySupportedWalletSymbol): number | null {
   return symbol === 'USDC' || symbol === 'USDT' ? 1 : null;
 }
 
+// 5xx keep the upstream `HTTP <status>` text: per-chain RPC failures are
+// aggregated by getAlchemyWalletBalancesSnapshot, and the surviving error has
+// to still say which status the network returned.
+const callAlchemyRpcApi = createApiServiceCaller(
+  {
+    401: 'Alchemy rejected the configured API key.',
+    429: 'Alchemy rate limit reached for wallet data.',
+  },
+  'Alchemy request failed',
+);
+
 async function fetchJsonRpc<T>(
   network: string,
   apiKey: string,
   method: string,
   params: unknown[],
 ): Promise<T> {
-  const response = await fetch(rpcUrl(network, apiKey), {
-    method: 'POST',
-    headers: {
-      accept: 'application/json',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      id: 1,
-      jsonrpc: JSON_RPC_VERSION,
-      method,
-      params,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Alchemy ${method} request failed with HTTP ${response.status}.`,
-    );
-  }
-
-  const payload = (await response.json()) as JsonRpcResponse<T>;
+  const payload = await callAlchemyRpcApi(() =>
+    httpPost<JsonRpcResponse<T>>(
+      rpcUrl(network, apiKey),
+      {
+        id: 1,
+        jsonrpc: JSON_RPC_VERSION,
+        method,
+        params,
+      },
+      { headers: { accept: 'application/json' } },
+    ),
+  );
   if (payload.error) {
     throw new Error(
       `Alchemy ${method} request failed: ${payload.error.message ?? 'unknown error'}.`,
@@ -190,21 +194,27 @@ function buildPriceMap<T extends PriceRow>(
   return prices;
 }
 
-async function fetchAlchemyJson<T>(
-  url: string,
-  init?: RequestInit,
+async function fetchAlchemyPrices<T>(
+  request: () => Promise<T>,
 ): Promise<T | null> {
   try {
-    const response = await fetch(url, init);
-    if (!response.ok) {
-      return null;
-    }
-    return (await response.json()) as T;
+    return await request();
   } catch {
     // Prices improve display but are not required to show spendable balances.
     // Browser privacy tools can block the Prices host while RPC remains usable.
     return null;
   }
+}
+
+function priceRequestConfig(apiKey: string) {
+  return {
+    headers: {
+      accept: 'application/json',
+      authorization: `Bearer ${apiKey}`,
+    },
+    // A blocked Prices host must not delay the balances it only decorates.
+    retries: 0,
+  };
 }
 
 async function fetchPriceByAddress(
@@ -215,17 +225,13 @@ async function fetchPriceByAddress(
     return new Map();
   }
 
-  const payload = await fetchAlchemyJson<{
-    data?: TokenPriceByAddressResult[];
-  }>(`${ALCHEMY_PRICE_BASE_URL}/tokens/by-address`, {
-    method: 'POST',
-    headers: {
-      accept: 'application/json',
-      authorization: `Bearer ${apiKey}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ addresses: requests }),
-  });
+  const payload = await fetchAlchemyPrices(() =>
+    httpPost<{ data?: TokenPriceByAddressResult[] }>(
+      `${ALCHEMY_PRICE_BASE_URL}/tokens/by-address`,
+      { addresses: requests },
+      priceRequestConfig(apiKey),
+    ),
+  );
 
   return buildPriceMap(payload, (row) => {
     const price = priceFromPrices(row.prices);
@@ -249,14 +255,12 @@ async function fetchPriceBySymbol(
     query.append('symbols', symbol);
   }
 
-  const payload = await fetchAlchemyJson<{
-    data?: TokenPriceBySymbolResult[];
-  }>(`${ALCHEMY_PRICE_BASE_URL}/tokens/by-symbol?${query}`, {
-    headers: {
-      accept: 'application/json',
-      authorization: `Bearer ${apiKey}`,
-    },
-  });
+  const payload = await fetchAlchemyPrices(() =>
+    httpGet<{ data?: TokenPriceBySymbolResult[] }>(
+      `${ALCHEMY_PRICE_BASE_URL}/tokens/by-symbol?${query}`,
+      priceRequestConfig(apiKey),
+    ),
+  );
 
   return buildPriceMap(payload, (row) => {
     const price = priceFromPrices(row.prices) ?? numberFrom(row.price);

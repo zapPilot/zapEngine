@@ -3,6 +3,8 @@ import { join } from 'node:path';
 
 import { chromium, type Page } from 'playwright-core';
 
+import { sleep } from '../lib/sleep.js';
+
 // Publishing needs a local file on a file input, which the OpenCLI Chrome
 // bridge cannot do: `DOM.setFileInputFiles` comes back as CDP "Not allowed"
 // even for a visible input on a plain page. Playwright drives the same system
@@ -69,7 +71,7 @@ export async function navigateToRednotePublishPage(
       throw error;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+    await sleep(retryDelayMs);
     await page.goto(PUBLISH_URL, { waitUntil: 'domcontentloaded' });
   }
 }

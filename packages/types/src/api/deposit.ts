@@ -4,7 +4,7 @@ import {
   CANONICAL_TOKEN_ADDRESSES,
   NATIVE_TOKEN_ADDRESS,
 } from '../shared/tokens.js';
-import { WALLET_ADDRESS_REGEX } from '../shared/wallet.js';
+import { WALLET_ADDRESS_REGEX, equalsAddress } from '../shared/wallet.js';
 
 export { NATIVE_TOKEN_ADDRESS } from '../shared/tokens.js';
 
@@ -336,10 +336,12 @@ export const StrategyDepositPlanSchema = z
             path: ['executionGroups', index, 'fromToken'],
           });
         }
-        const expectedCallTypes =
-          fundingToken === NATIVE_TOKEN_ADDRESS.toLowerCase()
-            ? ['SWAP', 'SUPPLY']
-            : ['SUPPLY'];
+        const expectedCallTypes = equalsAddress(
+          group.fromToken,
+          NATIVE_TOKEN_ADDRESS,
+        )
+          ? ['SWAP', 'SUPPLY']
+          : ['SUPPLY'];
         if (!hasIntentTypeSequence(callTypes, expectedCallTypes)) {
           ctx.addIssue({
             code: 'custom',
@@ -357,13 +359,12 @@ export const StrategyDepositPlanSchema = z
             path: ['executionGroups', index, 'fromToken'],
           });
         }
-        const expectedCallTypes =
-          fundingToken ===
-          DEPOSIT_USDC_ADDRESSES[
-            SUPPORTED_DEPOSIT_CHAINS.ARBITRUM
-          ]?.toLowerCase()
-            ? ['SUPPLY', 'SUPPLY']
-            : ['SWAP', 'SUPPLY', 'SWAP', 'SUPPLY'];
+        const expectedCallTypes = equalsAddress(
+          group.fromToken,
+          DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+        )
+          ? ['SUPPLY', 'SUPPLY']
+          : ['SWAP', 'SUPPLY', 'SWAP', 'SUPPLY'];
         if (!hasIntentTypeSequence(callTypes, expectedCallTypes)) {
           ctx.addIssue({
             code: 'custom',
@@ -457,10 +458,9 @@ function addInvestDepositValidationIssues(
   }
 
   const usdc = DEPOSIT_USDC_ADDRESSES[value.sourceChainId];
-  const fromToken = value.fromToken.toLowerCase();
   if (
-    fromToken !== usdc?.toLowerCase() &&
-    fromToken !== NATIVE_TOKEN_ADDRESS.toLowerCase()
+    !equalsAddress(value.fromToken, usdc) &&
+    !equalsAddress(value.fromToken, NATIVE_TOKEN_ADDRESS)
   ) {
     ctx.addIssue({
       code: 'custom',

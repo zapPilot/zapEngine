@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   describeThreadsApiError,
-  isRecord,
   nonemptyString,
   parseThreadsApiJson,
 } from './threads-api.js';
@@ -35,10 +34,7 @@ describe('Threads API helpers', () => {
     );
   });
 
-  it('distinguishes records and nonempty strings from invalid values', () => {
-    expect(isRecord({ ok: true })).toBe(true);
-    expect(isRecord(null)).toBe(false);
-    expect(isRecord([])).toBe(false);
+  it('distinguishes nonempty strings from invalid values', () => {
     expect(nonemptyString(' value ')).toBe(true);
     expect(nonemptyString('   ')).toBe(false);
     expect(nonemptyString(123)).toBe(false);
