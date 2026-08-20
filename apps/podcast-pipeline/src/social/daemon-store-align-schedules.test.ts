@@ -143,6 +143,52 @@ describe('alignPendingSocialPublishSchedules', () => {
     ]);
   });
 
+  it('derives the earliest schedule independently of snapshot row order', async () => {
+    state.jobs = [
+      {
+        id: 'queued-latest',
+        episode_id: 'episode-unordered',
+        status: 'queued',
+        scheduled_at: '2026-08-19T05:00:00.000Z',
+        next_attempt_at: '2026-08-19T05:00:00.000Z',
+      },
+      {
+        id: 'failed-middle',
+        episode_id: 'episode-unordered',
+        status: 'failed',
+        scheduled_at: '2026-08-19T03:00:00.000Z',
+        next_attempt_at: '2026-08-19T09:00:00.000Z',
+      },
+      {
+        id: 'queued-earliest-last',
+        episode_id: 'episode-unordered',
+        status: 'queued',
+        scheduled_at: '2026-08-19T01:00:00.000Z',
+        next_attempt_at: '2026-08-19T01:00:00.000Z',
+      },
+    ];
+
+    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(2);
+
+    expect(state.updates).toEqual([
+      {
+        id: 'queued-latest',
+        status: 'queued',
+        patch: {
+          scheduled_at: '2026-08-19T01:00:00.000Z',
+          next_attempt_at: '2026-08-19T01:00:00.000Z',
+        },
+      },
+      {
+        id: 'failed-middle',
+        status: 'failed',
+        patch: {
+          scheduled_at: '2026-08-19T01:00:00.000Z',
+        },
+      },
+    ]);
+  });
+
   it('does not count a queued job that is concurrently claimed before alignment', async () => {
     state.jobs = [
       {
