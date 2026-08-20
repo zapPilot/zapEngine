@@ -1,13 +1,13 @@
 import { errorMessage } from '../lib/errorMessage.js';
 import { insertSocialPost, toSocialPostInsertPayload } from '../services/db.js';
 import type { NewSocialPost, SocialPostRow } from '../types.js';
-import { applyPlatformCta, platformVideoMode } from './platforms.js';
+import { composeSocialContent, type SocialComposeEpisode } from './compose.js';
+import { platformVideoMode } from './platforms.js';
 import type {
   GeneratedSocialCopy,
   PublishResult,
   SocialContentFeatures,
   SocialPlatform,
-  YouTubeMetadata,
 } from './types.js';
 import { xTeaserDurationSeconds } from './video.js';
 
@@ -45,17 +45,22 @@ export function buildSocialPostRecord(input: {
   platform: SocialPlatform;
   result: PublishResult;
   snapshot: SocialCopySnapshot;
+  episode: SocialComposeEpisode;
   videoDurationSeconds: number;
   xVideoDurationSeconds?: number;
-  youtubeMetadata?: YouTubeMetadata;
 }): NewSocialPost {
-  const projection = projectPlatformCopy(
-    input.platform,
-    input.snapshot,
-    input.videoDurationSeconds,
-    input.xVideoDurationSeconds,
-    input.youtubeMetadata,
-  );
+  // Recorded through the same composition the publisher used, so telemetry
+  // cannot describe a different post than the one that went out. `cta: 'omit'`
+  // is what keeps the generated columns pre-branding.
+  const generated = composeSocialContent(input.platform, {
+    copy: input.snapshot.generated,
+    episode: input.episode,
+    cta: 'omit',
+  });
+  const published = composeSocialContent(input.platform, {
+    copy: input.snapshot.published,
+    episode: input.episode,
+  });
 
   return {
     episodeId: input.episodeId,
@@ -66,27 +71,44 @@ export function buildSocialPostRecord(input: {
     publishedAt: input.result.publishedAt,
     topic: input.snapshot.published.topic,
     hookType: input.snapshot.published.hookType,
-    generatedTitle: projection.generatedTitle,
-    publishedTitle: projection.publishedTitle,
-    generatedBody: projection.generatedBody,
-    publishedBody: projection.publishedBody,
-    hashtags: projection.hashtags,
-    videoDurationSec: projection.videoDurationSec,
+    generatedTitle: generated.title,
+    publishedTitle: published.title,
+    generatedBody: generated.body,
+    publishedBody: published.body,
+    hashtags: published.hashtags,
+    videoDurationSec: publishedVideoDuration(
+      input.platform,
+      input.videoDurationSeconds,
+      input.xVideoDurationSeconds,
+    ),
     contentFeatures: buildContentFeatures({
-      title: projection.publishedTitle,
-      body: projection.publishedBody,
-      hashtags: projection.hashtags,
+      title: published.title,
+      body: published.body,
+      hashtags: published.hashtags,
     }),
     llmModel: input.snapshot.model,
   };
 }
 
+// The duration of the media actually delivered, which is not the same as the
+// episode length: X publishes a teaser, and a recovery caller can report the
+// exact teaser it produced.
+function publishedVideoDuration(
+  platform: SocialPlatform,
+  videoDurationSeconds: number,
+  xVideoDurationSeconds?: number,
+): number {
+  if (platformVideoMode(platform) === 'full') return videoDurationSeconds;
+  const teaser = xTeaserDurationSeconds(videoDurationSeconds);
+  return platform === 'x' ? (xVideoDurationSeconds ?? teaser) : teaser;
+}
+
 export function createSocialPostPersister(input: {
   episodeId: string;
   snapshot: SocialCopySnapshot;
+  episode: SocialComposeEpisode;
   videoDurationSeconds: number;
   xVideoDurationSeconds?: number;
-  youtubeMetadata?: YouTubeMetadata;
   insert?: (post: NewSocialPost) => Promise<SocialPostRow>;
   onError?: (message: string) => void;
 }): (published: PublishedSocialPost) => Promise<void> {
@@ -99,12 +121,10 @@ export function createSocialPostPersister(input: {
       platform,
       result,
       snapshot: input.snapshot,
+      episode: input.episode,
       videoDurationSeconds: input.videoDurationSeconds,
       ...(input.xVideoDurationSeconds !== undefined
         ? { xVideoDurationSeconds: input.xVideoDurationSeconds }
-        : {}),
-      ...(input.youtubeMetadata
-        ? { youtubeMetadata: input.youtubeMetadata }
         : {}),
     });
 
@@ -117,58 +137,5 @@ export function createSocialPostPersister(input: {
       );
       throw error;
     }
-  };
-}
-
-function projectPlatformCopy(
-  platform: SocialPlatform,
-  snapshot: SocialCopySnapshot,
-  videoDurationSeconds: number,
-  xVideoDurationSeconds?: number,
-  youtubeMetadata?: YouTubeMetadata,
-) {
-  if (platform === 'rednote') {
-    return {
-      generatedTitle: snapshot.generated.rednote.title,
-      publishedTitle: snapshot.published.rednote.title,
-      generatedBody: snapshot.generated.rednote.body,
-      publishedBody: applyPlatformCta(
-        'rednote',
-        snapshot.published.rednote.body,
-      ),
-      hashtags: [...snapshot.published.rednote.hashtags],
-      videoDurationSec: videoDurationSeconds,
-    };
-  }
-
-  if (platform === 'youtube') {
-    if (!youtubeMetadata) {
-      throw new Error('YouTube telemetry requires published metadata.');
-    }
-    return {
-      generatedTitle: youtubeMetadata.title,
-      publishedTitle: youtubeMetadata.title,
-      generatedBody: youtubeMetadata.description,
-      publishedBody: youtubeMetadata.description,
-      hashtags: [],
-      videoDurationSec: videoDurationSeconds,
-    };
-  }
-
-  const teaserDuration = xTeaserDurationSeconds(videoDurationSeconds);
-  let publishedVideoDuration = teaserDuration;
-  if (platformVideoMode(platform) === 'full') {
-    publishedVideoDuration = videoDurationSeconds;
-  } else if (platform === 'x') {
-    publishedVideoDuration = xVideoDurationSeconds ?? teaserDuration;
-  }
-
-  return {
-    generatedTitle: null,
-    publishedTitle: null,
-    generatedBody: snapshot.generated.x.text,
-    publishedBody: applyPlatformCta(platform, snapshot.published.x.text),
-    hashtags: [],
-    videoDurationSec: publishedVideoDuration,
   };
 }

@@ -43,6 +43,7 @@ import {
   updateEpisodeLocalizationStatus,
   updateLanguageClassroomAudio,
   updateSocialPostIdentity,
+  updateSocialPostReviewStatus,
   upsertLanguageClassrooms,
 } from './db.js';
 
@@ -1496,6 +1497,27 @@ describe('social post telemetry', () => {
         postUrl: 'https://example.test/post-3',
       }),
     ).rejects.toThrow('identity update failed');
+  });
+
+  it('writes the observed review status and surfaces errors', async () => {
+    state.query!.eq.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    } as never);
+    await expect(
+      updateSocialPostReviewStatus({ id: 'post-1', reviewStatus: 'rejected' }),
+    ).resolves.toBeUndefined();
+    expect(state.query!.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ review_status: 'rejected' }),
+    );
+
+    state.query!.eq.mockResolvedValueOnce({
+      data: null,
+      error: new Error('review status update failed'),
+    } as never);
+    await expect(
+      updateSocialPostReviewStatus({ id: 'post-1', reviewStatus: 'visible' }),
+    ).rejects.toThrow('review status update failed');
   });
 
   it('returns null for a missing social post id and surfaces lookup errors', async () => {

@@ -255,8 +255,16 @@ create table if not exists from_fed_to_chain.social_posts (
   video_duration_sec double precision,
   content_features jsonb not null default '{}'::jsonb,
   llm_model text,
+  -- Platform review state as observed after publishing, not at publish time.
+  -- NULL means "never observed"; only Rednote reports one today, and anything
+  -- other than 'visible' means the post was suppressed rather than unpopular.
+  review_status text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  constraint social_posts_review_status_check check (
+    review_status is null
+    or review_status in ('visible', 'under_review', 'rejected', 'self_only')
+  ),
   constraint social_posts_post_url_not_blank check (
     post_url is null or btrim(post_url) <> ''
   ),
@@ -352,6 +360,24 @@ create index if not exists idx_episode_video_visuals_claim_queue
 create index if not exists idx_episode_video_visuals_expired_leases
   on from_fed_to_chain.episode_video_visuals (lease_expires_at)
   where status = 'processing';
+
+create table if not exists from_fed_to_chain.social_account_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  platform text not null
+    constraint social_account_snapshots_platform_check
+    check (platform in ('x', 'threads', 'rednote', 'youtube')),
+  captured_at timestamptz not null default now(),
+  followers integer not null check (followers >= 0),
+  -- Provenance of a scraped number (the label text it was read from), so a
+  -- parser reading the wrong figure is diagnosable after the fact.
+  details jsonb not null default '{}'::jsonb,
+  constraint social_account_snapshots_details_is_object check (
+    jsonb_typeof(details) = 'object'
+  )
+);
+
+create index if not exists idx_social_account_snapshots_platform_captured
+  on from_fed_to_chain.social_account_snapshots (platform, captured_at desc);
 
 create index if not exists idx_social_posts_episode_platform
   on from_fed_to_chain.social_posts (episode_id, platform);
@@ -1693,6 +1719,7 @@ alter table from_fed_to_chain.episode_video_visuals enable row level security;
 alter table from_fed_to_chain.episode_videos enable row level security;
 alter table from_fed_to_chain.social_posts enable row level security;
 alter table from_fed_to_chain.social_post_metrics enable row level security;
+alter table from_fed_to_chain.social_account_snapshots enable row level security;
 alter table from_fed_to_chain.social_daemon_state enable row level security;
 alter table from_fed_to_chain.social_strategy_versions enable row level security;
 alter table from_fed_to_chain.social_publish_jobs enable row level security;
@@ -1786,6 +1813,12 @@ drop policy if exists "Service role can manage social post metrics"
   on from_fed_to_chain.social_post_metrics;
 create policy "Service role can manage social post metrics"
   on from_fed_to_chain.social_post_metrics for all to service_role
+  using (true) with check (true);
+
+drop policy if exists "Service role can manage social account snapshots"
+  on from_fed_to_chain.social_account_snapshots;
+create policy "Service role can manage social account snapshots"
+  on from_fed_to_chain.social_account_snapshots for all to service_role
   using (true) with check (true);
 
 drop policy if exists "Service role can manage social daemon state"
@@ -1908,6 +1941,7 @@ grant all on from_fed_to_chain.episode_video_visuals to service_role;
 grant all on from_fed_to_chain.episode_videos to service_role;
 grant all on from_fed_to_chain.social_posts to service_role;
 grant all on from_fed_to_chain.social_post_metrics to service_role;
+grant all on from_fed_to_chain.social_account_snapshots to service_role;
 grant all on from_fed_to_chain.social_daemon_state to service_role;
 grant all on from_fed_to_chain.social_strategy_versions to service_role;
 grant all on from_fed_to_chain.social_publish_jobs to service_role;
@@ -1955,6 +1989,8 @@ revoke all on from_fed_to_chain.episode_video_visuals
 revoke all on from_fed_to_chain.social_posts
   from public, anon, authenticated;
 revoke all on from_fed_to_chain.social_post_metrics
+  from public, anon, authenticated;
+revoke all on from_fed_to_chain.social_account_snapshots
   from public, anon, authenticated;
 revoke all on from_fed_to_chain.social_daemon_state
   from public, anon, authenticated;

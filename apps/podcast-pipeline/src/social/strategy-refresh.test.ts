@@ -47,6 +47,7 @@ function post(
       hashtagCount: 2,
     },
     llm_model: 'model',
+    review_status: null,
     created_at: publishedAt,
     updated_at: publishedAt,
   };

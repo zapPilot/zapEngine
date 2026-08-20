@@ -62,8 +62,9 @@ Known limitation: these do not take the daemon's pid lock, so running one that
 drives a browser while the daemon is live can still collide on a shared Chrome
 profile. Stop the daemon first.
 
-Before the first daemon run, apply Supabase migration
-`029_add_social_daemon.sql`. The daemon records its first-start timestamp and only
+Before the first daemon run, apply Supabase migrations
+`029_add_social_daemon.sql`, `032_add_social_post_review_status.sql`, and
+`033_add_social_account_snapshots.sql`. The daemon records its first-start timestamp and only
 discovers canonical videos completed at or after that durable anchor, so enabling
 it does not backfill old episodes. Jobs created after that point survive Mac
 restarts and are claimed with an expiring owner lease.
@@ -76,8 +77,21 @@ in the current `1h` / `6h` / `24h` / `72h` / `7d` age bucket, and periodically
 refreshes versioned strategy preferences from standardized 24-hour performance.
 Publish hours are deliberately fixed and never learned: strategy learning only
 adjusts copy/content preferences (hook types, hashtags). Missed early metric
-buckets are never backfilled with later data. Strategy versions are read at
-publish time, so updated preferences do not require a process restart.
+buckets are never backfilled with later data.
+
+The strategy version a job publishes under is resolved when the job is
+**claimed**, never when it is queued. Stamping it at enqueue meant a job created
+before the first version existed — or scheduled days ahead of the next refresh —
+published unguided forever, however much the learner had since learned. The
+version actually used is written onto the job when it completes, so the queue
+still records which preferences produced each post. Guidance is a preference, so
+a failed strategy read publishes without it rather than holding the queue.
+
+`explorationRate` (default 0.2) is ε-greedy: that share of publishes drops the
+_preferred_ hook/hashtag lines so the learner keeps seeing variants outside its
+current best pool, since a strategy version that only ever suggests its own
+winners can only confirm itself. The avoid line is never dropped — a weak or
+moderation-risky hashtag is a safety signal, not a variant worth exploring.
 
 `--yes` accepts the generated copy without opening the interactive review prompt.
 It is intended for unattended agent/E2E runs. If an episode was only partially
@@ -259,6 +273,19 @@ Rednote continues to download the canonical Chinese MP4 locally and upload the
 full video through Playwright. The CLI warns when a video is above the general
 15-minute limit but still lets the platform make the final decision.
 
+The generated hook title goes into Rednote's **own title field**, not into the
+first line of the description. Ordering is load-bearing: the field is filled
+after the description and after the topic-suggestion panel is dismissed, because
+the SPA re-renders the form while the upload settles and silently drops a title
+written earlier. The value is then read back — a mismatch is retyped key by key,
+and a second mismatch fails the publish (`verify_title`) rather than shipping an
+untitled note, which the daemon's normal retry then regenerates.
+
+Hashtags remain plain text at the end of the description. Driving Rednote's real
+topic picker is a known gap: typing `#` opens a suggestion panel that keeps the
+submit button disabled, so the tags are searchable text rather than platform
+topics.
+
 ## Platform publishing policy
 
 Per-platform CTA and video-release policy lives in `src/social/platforms.ts`.
@@ -275,6 +302,38 @@ Rednote deliberately forbids website URLs/off-platform CTA in generated copy as
 well as disabling the fixed CTA at publish time, so a model response cannot
 accidentally reintroduce the review-triggering website promotion.
 
+### One composition, three readers
+
+`src/social/compose.ts` owns the whole mapping from one generated copy to what a
+platform receives:
+
+| Platform | Title field           | Body                    | Hashtags |
+| -------- | --------------------- | ----------------------- | -------- |
+| X        | none                  | `x.text` + brand CTA    | none     |
+| Threads  | none                  | same wording as X       | none     |
+| Rednote  | `rednote.title`       | `rednote.body`, no CTA  | 3-5      |
+| YouTube  | episode title (≤ 100) | episode summary (≤4500) | none     |
+
+Publishing (`publishers.ts`), telemetry (`record.ts`), and the review preview
+(`cli.ts`) all read it from there, so they cannot disagree about which field
+carries the hook title or where the CTA goes — each used to hold its own copy of
+this table, and the YouTube CTA string existed in three places.
+
+The platform differences are deliberate product choices, not drift: X has no
+title field, Rednote caps its title at 20 characters against the 15-35 the
+editorial title uses, and YouTube metadata is assembled from the episode rather
+than written by the model. Threads reuses the X wording on purpose rather than
+asking for a third variant.
+
+Telemetry reads the same mapping twice: once with the CTA (`published_*`) and
+once without (`generated_*`, defined as the copy before fixed branding). YouTube
+is the exception — its description is assembled, not written, so there is no
+pre-branding version of it to record.
+
+Each platform job also generates its own copy, so the same episode can carry
+different `topic`/`hook_type` labels per platform. That is intentional: guidance
+is per-platform, and a Rednote-specific rewrite must not change what X posts.
+
 Fixed acquisition branding itself lives in one module:
 
 ```text
@@ -287,6 +346,34 @@ The current contract is versioned as:
 BRAND_CTA_VERSION = 'v1';
 ZAP_PILOT_SITE_URL = 'https://www.zap-pilot.org';
 ```
+
+### Rednote moderation gate
+
+Rednote is the only platform that removes a rejected post silently: the note
+disappears from the note manager, its metrics stay at zero, and nothing reports
+an error. Four to five posts were lost that way before this gate existed, and the
+learner then read those zeros as weak content.
+
+`src/social/lexicon/` holds the term lists — advertising-law absolute claims,
+financial solicitation wording, and a small political tripwire — and matches them
+against normalized copy (`twp -> cn` OpenCC, NFKC, lower-case), so a Simplified
+list entry still catches Traditional copy and the Taiwan phrase set.
+
+It runs at two points:
+
+- `copy.ts` rejects `rednote.title`, `rednote.body` and each hashtag during
+  generation, per field, so the existing three-attempt retry loop regenerates the
+  copy with the offending term quoted back. This also covers the hand-edited copy
+  file, which is re-parsed through the same schema.
+- `publishers.ts` re-checks the composed post (title + body + hashtags) before a
+  browser is opened, because only the composition is what review actually reads.
+
+Extending the lists is deliberately conservative: never add a term this feed is
+_about_ (`穩定幣`, `美聯儲`, `以太坊`), prefer terms of three characters or more
+because matching is a substring scan, and grow the lists only from real review
+feedback. A false positive fails copy generation outright, which costs more than
+one risky post. Suppressing a topic that merely underperforms belongs to the
+strategy learner, not here.
 
 ### Text ending
 
@@ -303,8 +390,8 @@ published without any website CTA. YouTube keeps its existing website line in
 the description while `ctaMode: 'brand'` is enabled.
 
 Keeping CTA policy outside the editable/LLM payload lets each platform opt in or
-out independently. Telemetry projects the platform-specific published body from
-the same reviewed raw copy.
+out independently. Telemetry projects the platform-specific published body
+through `compose.ts`, from the same reviewed raw copy.
 
 X copy validation reserves the fixed suffix inside the normal 280 weighted-unit
 limit. The generated copy retains its existing 250-unit budget; the two
@@ -414,6 +501,55 @@ labels a late observation as an earlier missed bucket.
 
 Strategy learning uses persisted `social_posts` plus standardized 24-hour
 snapshots; it does not change publisher behavior based on one post.
+
+### Review state, and why the learner needs it
+
+`social_posts.review_status` records what the platform did to a post _after_ it
+was published: `visible`, `under_review`, `rejected`, or `self_only`. NULL means
+never observed. Rednote is the only platform that reports one today, and the
+metric collector reads it from the note card before parsing any numbers.
+
+A suppressed Rednote note still renders a stat row of zeros. Recording those
+zeros as a snapshot is what taught the learner to avoid the hashtags of posts
+nobody was ever shown, so `strategy.ts` drops a Rednote sample that is
+`under_review`, `rejected` or `self_only`, and — for rows predating this column —
+any Rednote sample at or below one view. Only Rednote gets that view floor: a
+quiet X or Threads post is real audience feedback.
+
+`under_review` is temporary, so a note recovering to `visible` is written back
+too; otherwise one moderation pass would exclude the post from learning forever.
+A note simply missing from the manager page is _not_ recorded as suppressed —
+that page is paginated, so absence is ambiguous.
+
+### Account follower snapshots
+
+`social_post_metrics.followers_gained` is per post and only YouTube can fill it,
+so the signal that matters most — did this account gain followers — was never
+collected. `social_account_snapshots` records a platform-level follower count,
+at most once per platform per day, from the same daemon tick:
+
+| Platform | Source                                     |
+| -------- | ------------------------------------------ |
+| Rednote  | creator home, read off the `粉丝` label    |
+| X        | publisher profile, `a[href$="/followers"]` |
+| Threads  | `threads_insights?metric=followers_count`  |
+| YouTube  | not collected                              |
+
+YouTube is absent by design: its publish OAuth scope is upload-only, so the
+daemon holds no credential that can read channel statistics, and per-post
+`subscribersGained` already comes from YouTube Analytics.
+
+Each platform is captured inside its own try/catch — a logged-out browser
+profile on one must not cost the others their daily snapshot — and a read that
+produces no parseable number records nothing rather than a zero. Scraped counts
+are located by the label's own text, not by generated class names, and the label
+is stored in `details` so a parser that starts reading the wrong figure is
+diagnosable afterwards.
+
+Rows are point-in-time and never backfilled, the same rule the metric windows
+follow. Per-post follower attribution is deliberately not attempted; a strategy
+version's effect on growth is read as the platform-level delta across the period
+that version was active.
 
 ## Failure behavior
 

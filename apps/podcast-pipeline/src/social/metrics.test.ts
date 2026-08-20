@@ -56,6 +56,7 @@ function post(input?: Partial<SocialPostRow>): SocialPostRow {
       hashtagCount: 0,
     },
     llm_model: 'openrouter/model-v1',
+    review_status: null,
     created_at: '2026-08-14T00:00:00.000Z',
     updated_at: '2026-08-14T00:00:00.000Z',
     ...input,

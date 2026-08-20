@@ -4,6 +4,7 @@ import {
   normalizeLanguageClassroomLesson,
 } from '../lib/languageClassroom.js';
 import type { SocialPlatform } from '../social/platforms.js';
+import type { SocialReviewStatus } from '../social/types.js';
 import type {
   Article,
   EpisodeClassroomTrackResponse,
@@ -716,6 +717,23 @@ export async function updateSocialPostIdentity(input: {
     .update({
       platform_post_id: input.platformPostId,
       ...(input.postUrl !== undefined ? { post_url: input.postUrl } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', input.id);
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+}
+
+export async function updateSocialPostReviewStatus(input: {
+  id: string;
+  reviewStatus: SocialReviewStatus;
+}): Promise<void> {
+  const { error } = await getSupabase()
+    .from('social_posts')
+    .update({
+      review_status: input.reviewStatus,
       updated_at: new Date().toISOString(),
     })
     .eq('id', input.id);

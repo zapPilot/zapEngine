@@ -33,6 +33,7 @@ const sibling: SocialPostRow = {
     hashtagCount: 1,
   },
   llm_model: 'model-1',
+  review_status: null,
   created_at: '2026-08-16T01:49:00.000Z',
   updated_at: '2026-08-16T01:49:00.000Z',
 };
@@ -55,6 +56,7 @@ function rowFromNewPost(post: NewSocialPost): SocialPostRow {
     video_duration_sec: post.videoDurationSec,
     content_features: post.contentFeatures,
     llm_model: post.llmModel,
+    review_status: null,
     created_at: '2026-08-16T10:00:00.000Z',
     updated_at: '2026-08-16T10:00:00.000Z',
   };

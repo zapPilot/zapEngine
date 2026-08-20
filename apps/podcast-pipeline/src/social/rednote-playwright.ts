@@ -17,14 +17,21 @@ const UPLOAD_TIMEOUT_MS = 600_000;
 const SUCCESS_TIMEOUT_MS = 60_000;
 
 // The creator UI is a Simplified-Chinese SPA whose class names are generated,
-// so the description editor is located by several candidates and the first
-// visible one wins. Rednote is intentionally published without its dedicated
-// title field; the generated hook title is prepended to the description instead.
+// so each field is located by several candidates and the first visible one wins.
 const BODY_SELECTORS = [
   '[contenteditable="true"][data-placeholder*="正文"]',
   '[contenteditable="true"][data-placeholder*="描述"]',
   '.ql-editor[contenteditable="true"]',
   '[contenteditable="true"]',
+] as const;
+
+// Rednote's own title field. It is filled last and then read back: the SPA
+// re-renders the form while the upload settles and after the topic panel closes,
+// and a title written before that is silently dropped.
+const TITLE_SELECTORS = [
+  'input[placeholder*="标题"]',
+  'input[placeholder*="標題"]',
+  '.title-input input',
 ] as const;
 
 // Submitting goes through <xhs-publish-btn>, whose label lives in an attribute
@@ -91,6 +98,13 @@ async function publish(
   // it is open — filling the body is what disables the button.
   await step('dismiss_suggestions', () => page.keyboard.press('Escape'));
 
+  log('[rednote] Filling title');
+  const title = await step('find_title', () =>
+    firstVisible(page, TITLE_SELECTORS, EDITOR_TIMEOUT_MS),
+  );
+  await step('fill_title', () => title.fill(input.title));
+  await step('verify_title', () => verifyTitle(title, input.title));
+
   log('[rednote] Publishing');
   await step('wait_submit_enabled', () =>
     page
@@ -119,6 +133,23 @@ export function buildRednoteDescription(
 ): string {
   const tags = hashtags.map((tag) => `#${tag.replace(/^#+/, '')}`);
   return `${body.trim()}\n\n${tags.join(' ')}`;
+}
+
+// `fill` sets the value in one shot, which this SPA sometimes discards without
+// firing an input event. Reading the field back is the only proof the title
+// landed; a retry types it key by key, and a second mismatch fails the publish
+// rather than shipping an untitled note.
+async function verifyTitle(field: Locator, expected: string): Promise<void> {
+  if ((await field.inputValue()) === expected) return;
+
+  await field.fill('');
+  await field.pressSequentially(expected);
+  const retried = await field.inputValue();
+  if (retried === expected) return;
+
+  throw new Error(
+    `Rednote kept title "${retried}" instead of "${expected}" after two attempts.`,
+  );
 }
 
 // Publishing must be confirmed by the page, never by "click did not throw".

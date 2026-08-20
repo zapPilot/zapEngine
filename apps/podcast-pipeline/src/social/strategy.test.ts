@@ -40,6 +40,7 @@ function post(input: {
       hashtagCount: input.hashtags?.length ?? 0,
     },
     llm_model: 'model',
+    review_status: null,
     created_at: input.publishedAt,
     updated_at: input.publishedAt,
   };
@@ -213,6 +214,42 @@ describe('social strategy', () => {
     ).toBeUndefined();
   });
 
+  it('explores by dropping preferred lines while always keeping the avoid line', () => {
+    const config = {
+      preferredHookTypes: ['question'] as const,
+      preferredHashtags: ['AI'],
+      avoidHashtags: ['冷門'],
+      explorationRate: 0.2,
+    };
+
+    const exploiting = buildStrategyGuidance(
+      'rednote',
+      { ...config, preferredHookTypes: [...config.preferredHookTypes] },
+      () => 0.9,
+    );
+    expect(exploiting).toContain('question');
+    expect(exploiting).toContain('AI');
+    expect(exploiting).toContain('冷門');
+
+    const exploring = buildStrategyGuidance(
+      'rednote',
+      { ...config, preferredHookTypes: [...config.preferredHookTypes] },
+      () => 0.1,
+    );
+    expect(exploring).not.toContain('question');
+    expect(exploring).not.toContain('AI');
+    expect(exploring).toContain('冷門');
+
+    // Nothing but preferences plus exploration means no guidance at all.
+    expect(
+      buildStrategyGuidance(
+        'rednote',
+        { preferredHashtags: ['AI'], explorationRate: 1 },
+        () => 0.5,
+      ),
+    ).toBeUndefined();
+  });
+
   it('scores zero-view samples safely and learns non-Rednote platforms without hashtag rules', () => {
     const posts = Array.from({ length: 5 }, (_value, index) =>
       post({
@@ -350,5 +387,92 @@ describe('social strategy', () => {
         metrics: metrics.slice(0, 4),
       }),
     ).toEqual([]);
+  });
+
+  // Regression: v3 shipped 穩定幣 in both lists because the preferred head
+  // slice(0, 8) and the avoid tail slice(-5) overlapped below 13 ranked tags.
+  it('never ranks the same hashtag as both preferred and avoided', () => {
+    const tagsByIndex = [['A', 'B'], ['A', 'B'], ['B'], ['B'], ['C'], ['C']];
+    const viewsByIndex = [1000, 1000, 500, 500, 10, 10];
+    const posts = tagsByIndex.map((hashtags, index) =>
+      post({
+        id: `overlap-${index}`,
+        publishedAt: '2026-08-15T03:00:00.000Z',
+        hashtags,
+      }),
+    );
+    const metrics = posts.map((row, index) =>
+      metric({ postId: row.id, views: viewsByIndex[index] ?? 0 }),
+    );
+
+    const [learned] = learnSocialStrategies({ posts, metrics });
+    expect(learned?.config.preferredHashtags).toEqual(['A', 'B']);
+    expect(learned?.config.avoidHashtags).toEqual(['C']);
+  });
+
+  it('drops Rednote samples the platform suppressed instead of learning from their zeros', () => {
+    const clean = Array.from({ length: 5 }, (_value, index) =>
+      post({
+        id: `clean-${index}`,
+        publishedAt: '2026-08-15T03:00:00.000Z',
+        hashtags: ['支付產業', '市場結構'],
+      }),
+    );
+    const suppressed = (
+      [
+        ['rejected', 'rejected'],
+        ['held', 'under_review'],
+        ['private', 'self_only'],
+      ] as const
+    ).map(([id, reviewStatus]) => ({
+      ...post({
+        id,
+        publishedAt: '2026-08-15T03:00:00.000Z',
+        hashtags: ['穩定幣'],
+      }),
+      review_status: reviewStatus,
+    }));
+    const posts = [...clean, ...suppressed];
+    const metrics = [
+      ...clean.map((row) => metric({ postId: row.id, views: 120, likes: 6 })),
+      ...suppressed.map((row) => metric({ postId: row.id, views: 0 })),
+    ];
+
+    const [learned] = learnSocialStrategies({ posts, metrics });
+    expect(learned).toMatchObject({ platform: 'rednote', basedOnSamples: 5 });
+    expect(learned?.config.preferredHashtags).not.toContain('穩定幣');
+    expect(learned?.config.avoidHashtags).not.toContain('穩定幣');
+  });
+
+  it('floors unobserved Rednote rows at more than one view but keeps quiet X posts', () => {
+    const rednotePosts = Array.from({ length: 6 }, (_value, index) =>
+      post({
+        id: `floor-${index}`,
+        publishedAt: '2026-08-15T03:00:00.000Z',
+        hashtags: index < 5 ? ['支付產業'] : ['歸零標籤'],
+      }),
+    );
+    const rednoteMetrics = rednotePosts.map((row, index) =>
+      metric({ postId: row.id, views: index < 5 ? 120 : 1 }),
+    );
+    const [rednote] = learnSocialStrategies({
+      posts: rednotePosts,
+      metrics: rednoteMetrics,
+    });
+    expect(rednote).toMatchObject({ platform: 'rednote', basedOnSamples: 5 });
+
+    // A quiet X post is genuine audience feedback: no floor there.
+    const xPosts = Array.from({ length: 5 }, (_value, index) =>
+      post({
+        id: `x-floor-${index}`,
+        platform: 'x',
+        publishedAt: '2026-08-15T03:00:00.000Z',
+      }),
+    );
+    const [x] = learnSocialStrategies({
+      posts: xPosts,
+      metrics: xPosts.map((row) => metric({ postId: row.id, views: 0 })),
+    });
+    expect(x).toMatchObject({ platform: 'x', basedOnSamples: 5 });
   });
 });

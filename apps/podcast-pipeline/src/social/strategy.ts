@@ -9,8 +9,23 @@ import {
   type SocialStrategyVersionRow,
 } from './daemon-store.js';
 import { SOCIAL_PLATFORMS, type SocialPlatform } from './platforms.js';
+import type { SocialReviewStatus } from './types.js';
 
 const LEARNING_DAYS = 60;
+// A Rednote note that fails review keeps rendering a stat row of zeros. Those
+// zeros are moderation, not audience feedback: left in, they drag the platform
+// median down and push the note's own hashtags onto the avoid list, so the
+// learner steers away from wording that was never shown to anyone.
+const SUPPRESSED_REVIEW_STATUSES: readonly SocialReviewStatus[] = [
+  'under_review',
+  'rejected',
+  'self_only',
+];
+// Rows that predate review-state collection, and notes the collector has not
+// reached yet, still need a floor. An accepted Rednote note lands in the dozens
+// of views within 24h, so at most one view is a suppression signal. Only Rednote
+// gets this floor: a genuinely unseen X or Threads post is real feedback.
+const REDNOTE_MIN_LEARNABLE_VIEWS = 1;
 const MIN_PLATFORM_SAMPLES = 5;
 const MIN_VARIANT_SAMPLES = 2;
 const JST_OFFSET_HOURS = 9;
@@ -117,15 +132,26 @@ function normalizePublishSlots(
 export function buildStrategyGuidance(
   platform: SocialPlatform,
   config: SocialStrategyConfig | undefined,
+  random: () => number = Math.random,
 ): string | undefined {
   if (!config) return undefined;
+  // ε-greedy. `explorationRate` of publishes drop the preferred lines so the
+  // learner keeps getting samples from outside its current best pool -- without
+  // it, a strategy version can only ever confirm itself. Avoid lines always
+  // stay: a weak or moderation-risky hashtag is a safety signal, not a variant
+  // worth exploring.
+  const exploring = random() < (config.explorationRate ?? 0);
   const lines: string[] = [];
-  if (config.preferredHookTypes?.length) {
+  if (!exploring && config.preferredHookTypes?.length) {
     lines.push(
       `Prefer these historically strong hook types when they genuinely fit the episode: ${config.preferredHookTypes.join(', ')}.`,
     );
   }
-  if (platform === 'rednote' && config.preferredHashtags?.length) {
+  if (
+    !exploring &&
+    platform === 'rednote' &&
+    config.preferredHashtags?.length
+  ) {
     lines.push(
       `Prefer relevant hashtags from this historically strong pool: ${config.preferredHashtags.join(', ')}. Do not force an irrelevant tag.`,
     );
@@ -157,7 +183,8 @@ export function learnSocialStrategies(input: {
         sample,
       ): sample is { metric: SocialPostMetricRow; post: SocialPostRow } =>
         sample.post !== undefined && sample.metric.views !== null,
-    );
+    )
+    .filter(isLearnableSample);
 
   return SOCIAL_PLATFORMS.flatMap((platform) => {
     const platformSamples = samples.filter(
@@ -192,15 +219,36 @@ export function learnSocialStrategies(input: {
         .filter(([, values]) => values.length >= MIN_VARIANT_SAMPLES)
         .map(([tag, values]) => ({ tag, score: average(values) }))
         .sort((a, b) => b.score - a.score);
-      config.preferredHashtags = rankedTags.slice(0, 8).map((row) => row.tag);
+      // Avoid is decided first and then removed from the preferred pool. The
+      // old head/tail slices overlapped whenever fewer than 13 tags qualified,
+      // which shipped 穩定幣 as both preferred and avoided in the same version.
       config.avoidHashtags = rankedTags
         .slice(-5)
         .filter((row) => row.score < 0.8)
+        .map((row) => row.tag);
+      const avoided = new Set(config.avoidHashtags);
+      config.preferredHashtags = rankedTags
+        .filter((row) => !avoided.has(row.tag))
+        .slice(0, 8)
         .map((row) => row.tag);
     }
 
     return [{ platform, config, basedOnSamples: platformSamples.length }];
   });
+}
+
+function isLearnableSample(sample: {
+  metric: SocialPostMetricRow;
+  post: SocialPostRow;
+}): boolean {
+  if (sample.post.platform !== 'rednote') return true;
+  if (
+    sample.post.review_status &&
+    SUPPRESSED_REVIEW_STATUSES.includes(sample.post.review_status)
+  ) {
+    return false;
+  }
+  return (sample.metric.views ?? 0) > REDNOTE_MIN_LEARNABLE_VIEWS;
 }
 
 export async function refreshSocialStrategies(input: {

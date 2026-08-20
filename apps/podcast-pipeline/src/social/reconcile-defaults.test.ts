@@ -41,6 +41,7 @@ function insertedRow(input: NewSocialPost): SocialPostRow {
     video_duration_sec: input.videoDurationSec,
     content_features: input.contentFeatures,
     llm_model: input.llmModel,
+    review_status: null,
     created_at: input.publishedAt,
     updated_at: input.publishedAt,
   };

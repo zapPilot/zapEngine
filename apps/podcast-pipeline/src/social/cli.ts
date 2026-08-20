@@ -8,7 +8,6 @@ import { parseArgs } from 'node:util';
 
 import dotenv from 'dotenv';
 
-import { ZAP_PILOT_SITE_URL } from '../brand/cta.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import { OUTRO_TAIL_MS } from '../services/video/manifest.js';
 import {
@@ -16,11 +15,11 @@ import {
   parseYouTubePrivacyOption,
   requireEpisodeArgument,
 } from './cli-args.js';
+import { composeSocialContent } from './compose.js';
 import { generateSocialCopy, parseGeneratedSocialCopy } from './copy.js';
 import { getSocialEpisode } from './episode.js';
 import { isMainModule } from './is-main-module.js';
 import {
-  applyPlatformCta,
   platformLabel,
   requiresLocalTeaser,
   requiresLocalVideo,
@@ -31,10 +30,7 @@ import {
   type PublishPlatformOutcome,
   publishSocialPlatforms,
 } from './publish.js';
-import {
-  buildRednotePublishBody,
-  createSocialPublishJobs,
-} from './publishers.js';
+import { createSocialPublishJobs } from './publishers.js';
 import { createSocialPostPersister } from './record.js';
 import { getPublishedPlatform, readPublishState } from './state.js';
 import type {
@@ -172,14 +168,12 @@ export async function runSocialCli(
 
   const videoUrl = requireCanonicalVideoUrl(episode);
   const publishedCopy = review.copy;
-  const youtubeMetadata = buildYouTubeMetadata(episode);
   const onLog = (message: string): void => console.log(message);
   const jobs = await createSocialPublishJobs({
     platforms: review.platforms,
     copy: publishedCopy,
+    episode,
     videoUrl,
-    youtubeTitle: youtubeMetadata.title,
-    youtubeDescription: youtubeMetadata.description,
     ...(options.youtubePrivacy
       ? { youtubePrivacyStatus: options.youtubePrivacy }
       : {}),
@@ -194,8 +188,8 @@ export async function runSocialCli(
       published: publishedCopy,
       model: review.model,
     },
+    episode,
     videoDurationSeconds: episode.videoDurationSeconds,
-    youtubeMetadata,
     onError: (message) => console.error(message),
   });
   const outcomes = await publishSocialPlatforms({
@@ -428,27 +422,33 @@ function printPreview(
 ): void {
   const { episode, video, xVideo } = assets;
   const divider = '────────────────────────';
+  // Previewed through the same composition the publisher uses, so review can
+  // never show wording a platform will not receive.
+  const compose = (platform: SocialPlatform) =>
+    composeSocialContent(platform, { copy, episode });
   console.log(`\nTaxonomy: ${copy.topic} / ${copy.hookType}`);
   console.log(`\n${divider}\nX\n${divider}`);
-  console.log(applyPlatformCta('x', copy.x.text));
+  console.log(compose('x').body);
   console.log(
     xVideo
       ? `🎬 teaser: ${formatDuration(xVideoDuration(episode.videoDurationSeconds))}, ${formatBytes(xVideo.sizeBytes)}\n${xVideo.path}`
       : '🎬 teaser: not prepared for this platform selection',
   );
   console.log(`${divider}\nTHREADS\n${divider}`);
-  console.log(applyPlatformCta('threads', copy.x.text));
+  console.log(compose('threads').body);
   console.log(`🎬 native video: ${requireCanonicalVideoUrl(episode)}`);
   console.log(`${divider}\nYOUTUBE\n${divider}`);
-  const youtubeMetadata = buildYouTubeMetadata(episode);
-  console.log(youtubeMetadata.title);
-  console.log(youtubeMetadata.description);
+  const youtube = compose('youtube');
+  console.log(youtube.title);
+  console.log(youtube.body);
   if (youtubePrivacy) console.log(`🔒 privacy override: ${youtubePrivacy}`);
   console.log(formatVideoPreview(video, episode.videoDurationSeconds));
   console.log(`${divider}\nREDNOTE\n${divider}`);
+  const rednote = compose('rednote');
+  console.log(`標題：${rednote.title ?? ''}`);
   console.log('描述：');
-  console.log(applyPlatformCta('rednote', buildRednotePublishBody(copy)));
-  console.log(copy.rednote.hashtags.map((tag) => `#${tag}`).join(' '));
+  console.log(rednote.body);
+  console.log(rednote.hashtags.map((tag) => `#${tag}`).join(' '));
   console.log(formatVideoPreview(video, episode.videoDurationSeconds));
   console.log(divider);
 }
@@ -530,22 +530,6 @@ function requireCanonicalVideoUrl(episode: SocialEpisode): string {
     );
   }
   return videoUrl;
-}
-
-export function buildYouTubeMetadata(episode: SocialEpisode): {
-  title: string;
-  description: string;
-} {
-  const title = Array.from(episode.title.trim()).slice(0, 100).join('');
-  const summary = (episode.description?.trim() || episode.summary.trim()).slice(
-    0,
-    4500,
-  );
-  const description =
-    SOCIAL_PLATFORM_CONFIG.youtube.ctaMode === 'brand'
-      ? `${summary}\n\n更多市場洞察與工具：${ZAP_PILOT_SITE_URL}`
-      : summary;
-  return { title, description };
 }
 
 function xVideoDuration(fullDurationSeconds: number): number {

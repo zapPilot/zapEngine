@@ -33,7 +33,7 @@ vi.mock('./threads-video.js', () => ({
 }));
 
 import { createSocialPublishJobs } from './publishers.js';
-import type { GeneratedSocialCopy } from './types.js';
+import type { GeneratedSocialCopy, SocialEpisode } from './types.js';
 
 const VIDEO_URL = 'https://media.example.com/episode-1.mp4';
 const VIDEO_PATH = '/fixtures/episode-1.mp4';
@@ -42,6 +42,10 @@ const PUBLISHED = {
   status: 'published',
   publishedAt: '2026-08-15T00:00:00.000Z',
 } as const;
+const episode: Pick<SocialEpisode, 'title' | 'summary' | 'description'> = {
+  title: '市場更新',
+  summary: '完整說明',
+};
 const copy: GeneratedSocialCopy = {
   topic: 'macro',
   hookType: 'question',
@@ -81,6 +85,7 @@ describe('createSocialPublishJobs', () => {
     const jobs = await createSocialPublishJobs({
       platforms: ['threads', 'x'],
       copy,
+      episode,
       videoUrl: VIDEO_URL,
       xVideoPath: X_VIDEO_PATH,
     });
@@ -103,6 +108,7 @@ describe('createSocialPublishJobs', () => {
     await createSocialPublishJobs({
       platforms: ['threads'],
       copy,
+      episode,
       videoUrl: VIDEO_URL,
       xVideoPath: X_VIDEO_PATH,
     });
@@ -117,6 +123,7 @@ describe('createSocialPublishJobs', () => {
     await createSocialPublishJobs({
       platforms: ['threads'],
       copy,
+      episode,
       videoUrl: VIDEO_URL,
     });
     const withoutTeaser =
@@ -130,6 +137,7 @@ describe('createSocialPublishJobs', () => {
     await createSocialPublishJobs({
       platforms: ['threads'],
       copy,
+      episode,
       videoUrl: VIDEO_URL,
     });
 
@@ -141,6 +149,7 @@ describe('createSocialPublishJobs', () => {
       createSocialPublishJobs({
         platforms: ['x'],
         copy,
+        episode,
         videoUrl: VIDEO_URL,
       }),
     ).rejects.toThrow('X publishing requires a prepared teaser video.');
@@ -151,16 +160,15 @@ describe('createSocialPublishJobs', () => {
     const [job] = await createSocialPublishJobs({
       platforms: ['youtube'],
       copy,
+      episode,
       videoUrl: VIDEO_URL,
       videoPath: VIDEO_PATH,
-      youtubeTitle: '市場更新',
-      youtubeDescription: '完整說明',
     });
 
     await job?.publish();
     expect(mocks.publishYouTube).toHaveBeenCalledWith({
       title: '市場更新',
-      description: '完整說明',
+      description: '完整說明\n\n更多市場洞察與工具：https://www.zap-pilot.org',
       videoPath: VIDEO_PATH,
       privacyStatus: 'public',
     });
@@ -170,10 +178,9 @@ describe('createSocialPublishJobs', () => {
     const [job] = await createSocialPublishJobs({
       platforms: ['youtube'],
       copy,
+      episode,
       videoUrl: VIDEO_URL,
       videoPath: VIDEO_PATH,
-      youtubeTitle: '市場更新',
-      youtubeDescription: '完整說明',
       youtubePrivacyStatus: 'unlisted',
     });
 
@@ -183,56 +190,64 @@ describe('createSocialPublishJobs', () => {
     );
   });
 
-  it('rejects YouTube before publishing when video or metadata is missing', async () => {
+  it('rejects YouTube before publishing when video or episode metadata is missing', async () => {
     await expect(
       createSocialPublishJobs({
         platforms: ['youtube'],
         copy,
+        episode,
         videoUrl: VIDEO_URL,
-        youtubeTitle: '市場更新',
-        youtubeDescription: '完整說明',
       }),
     ).rejects.toThrow('YouTube publishing requires a prepared video.');
 
-    await expect(
-      createSocialPublishJobs({
-        platforms: ['youtube'],
-        copy,
-        videoUrl: VIDEO_URL,
-        videoPath: VIDEO_PATH,
-      }),
-    ).rejects.toThrow(
-      'YouTube publishing requires title and description metadata.',
-    );
-
-    await expect(
-      createSocialPublishJobs({
-        platforms: ['youtube'],
-        copy,
-        videoUrl: VIDEO_URL,
-        videoPath: VIDEO_PATH,
-        youtubeTitle: '  valid title  ',
-        youtubeDescription: '   ',
-      }),
-    ).rejects.toThrow(
-      'YouTube publishing requires title and description metadata.',
-    );
+    for (const blank of [
+      { title: '   ', summary: '完整說明' },
+      { title: '市場更新', summary: '   ' },
+    ]) {
+      await expect(
+        createSocialPublishJobs({
+          platforms: ['youtube'],
+          copy,
+          episode: blank,
+          videoUrl: VIDEO_URL,
+          videoPath: VIDEO_PATH,
+        }),
+      ).rejects.toThrow(
+        'YouTube publishing requires title and description metadata.',
+      );
+    }
   });
 
-  it('builds Rednote with the prepared full video and no off-platform CTA', async () => {
+  it('builds Rednote with its native title field and no off-platform CTA', async () => {
     const [job] = await createSocialPublishJobs({
       platforms: ['rednote'],
       copy,
+      episode,
       videoUrl: VIDEO_URL,
       videoPath: VIDEO_PATH,
     });
 
     await job?.publish();
     expect(mocks.publishRednote).toHaveBeenCalledWith({
-      body: `${copy.rednote.title}\n\n${copy.rednote.body}`,
+      title: copy.rednote.title,
+      body: copy.rednote.body,
       hashtags: copy.rednote.hashtags,
       videoPath: VIDEO_PATH,
     });
+  });
+
+  it('rejects Rednote before publishing when the copy carries no title', async () => {
+    await expect(
+      createSocialPublishJobs({
+        platforms: ['rednote'],
+        copy: { ...copy, rednote: { ...copy.rednote, title: '' } },
+        episode,
+        videoUrl: VIDEO_URL,
+        videoPath: VIDEO_PATH,
+      }),
+    ).rejects.toThrow('Rednote publishing requires a generated title.');
+
+    expect(mocks.createPlaywrightRednotePublisher).not.toHaveBeenCalled();
   });
 
   it('rejects unsupported platform values at the exhaustive boundary', async () => {
@@ -240,9 +255,32 @@ describe('createSocialPublishJobs', () => {
       createSocialPublishJobs({
         platforms: ['mastodon' as never],
         copy,
+        episode,
         videoUrl: VIDEO_URL,
       }),
     ).rejects.toThrow('Unsupported social platform: mastodon');
+  });
+
+  // The composed post is the last thing Rednote review sees, and it is reached
+  // from paths that never ran the generation schema (a hand-edited copy file).
+  it('rejects Rednote before publishing when the composed post carries moderation-risk wording', async () => {
+    await expect(
+      createSocialPublishJobs({
+        platforms: ['rednote'],
+        copy: {
+          ...copy,
+          rednote: {
+            ...copy.rednote,
+            hashtags: ['市場', '財富自由', '宏觀'],
+          },
+        },
+        episode,
+        videoUrl: VIDEO_URL,
+        videoPath: VIDEO_PATH,
+      }),
+    ).rejects.toThrow(/moderation-risk wording/);
+
+    expect(mocks.createPlaywrightRednotePublisher).not.toHaveBeenCalled();
   });
 
   it('rejects Rednote before publishing when no video is prepared', async () => {
@@ -250,6 +288,7 @@ describe('createSocialPublishJobs', () => {
       createSocialPublishJobs({
         platforms: ['rednote'],
         copy,
+        episode,
         videoUrl: VIDEO_URL,
       }),
     ).rejects.toThrow('Rednote publishing requires a prepared video.');

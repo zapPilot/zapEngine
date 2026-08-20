@@ -11,8 +11,10 @@ import {
   listSocialPostIdentitiesByEpisodes,
   listSocialPostsByEpisode,
   updateSocialPostIdentity,
+  updateSocialPostReviewStatus,
 } from '../services/db.js';
 import type { SocialPostRow } from '../types.js';
+import { captureDueAccountSnapshots } from './account-snapshots.js';
 import { runSocialCli } from './cli.js';
 import {
   acquireSocialDaemonLock,
@@ -27,7 +29,6 @@ import {
   failSocialPublishJob,
   getActiveSocialStrategies,
   getSocialQueueSnapshot,
-  getSocialStrategyById,
   latestPendingSocialPublishSchedule,
   listDueMetricPosts,
   listMetricWindowsForPosts,
@@ -35,6 +36,7 @@ import {
   listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob,
   type SocialMetricWindowLabel,
+  type SocialStrategyVersionRow,
 } from './daemon-store.js';
 import { isMainModule } from './is-main-module.js';
 import {
@@ -42,7 +44,7 @@ import {
   createMetricsBrowserSession,
 } from './metric-collectors.js';
 import { buildSocialPostMetric, collectPostMetrics } from './metrics.js';
-import { SOCIAL_PLATFORMS } from './platforms.js';
+import { SOCIAL_PLATFORMS, type SocialPlatform } from './platforms.js';
 import {
   activeStrategyMap,
   buildStrategyGuidance,
@@ -160,6 +162,9 @@ export async function runSocialDaemonTick(input: {
   await isolate('metrics', log, async () => {
     await collectDueMetricWindows(input.now, log);
   });
+  await isolate('account snapshots', log, async () => {
+    await captureAccountSnapshots(input.now, log);
+  });
   if (input.refreshStrategy) {
     await isolate('strategy', log, () =>
       refreshSocialStrategies({ now: input.now, log }),
@@ -172,14 +177,12 @@ async function discoverAndEnqueue(input: {
   firstStartedAt: string;
   log: (message: string) => void;
 }): Promise<void> {
-  const [candidates, activeStrategies, latestSchedule] = await Promise.all([
+  const [candidates, latestSchedule] = await Promise.all([
     listSocialPublishCandidates(input.firstStartedAt),
-    getActiveSocialStrategies(),
     latestPendingSocialPublishSchedule(),
   ]);
   if (candidates.length === 0) return;
 
-  const active = activeStrategyMap(activeStrategies);
   let rollingLast = latestSchedule ? new Date(latestSchedule) : null;
 
   for (const candidate of candidates) {
@@ -201,12 +204,10 @@ async function discoverAndEnqueue(input: {
     let insertedAny = false;
 
     for (const platform of SOCIAL_PLATFORMS) {
-      const strategy = active[platform];
       const inserted = await enqueueSocialPublishJob({
         episodeId: candidate.episode_id,
         platform,
         scheduledAt: scheduledAt.toISOString(),
-        strategyVersionId: strategy?.id ?? null,
       });
       if (inserted) {
         insertedAny = true;
@@ -306,6 +307,9 @@ async function publishDueJobs(
   log: (message: string) => void,
 ): Promise<void> {
   const jobs = await claimSocialPublishBatch({ owner: OWNER, now });
+  if (jobs.length === 0) return;
+
+  const active = await activeStrategiesForPublish(log);
   for (const job of jobs) {
     try {
       const [alreadyPublished] = await listSocialPostsByEpisode(
@@ -325,9 +329,7 @@ async function publishDueJobs(
         continue;
       }
 
-      const strategy = job.strategy_version_id
-        ? await getSocialStrategyById(job.strategy_version_id)
-        : null;
+      const strategy = active[job.platform];
       const guidance = buildStrategyGuidance(job.platform, strategy?.config);
       const outcomes = await runSocialCli(
         [job.episode_id, '--yes', '--platform', job.platform],
@@ -357,6 +359,7 @@ async function publishDueJobs(
         owner: OWNER,
         completedAt: now,
         socialPostId: post.id,
+        ...(strategy ? { strategyVersionId: strategy.id } : {}),
       });
       log(
         `[social-daemon] published ${job.platform} for ${job.episode_id} (${post.id}).`,
@@ -372,6 +375,24 @@ async function publishDueJobs(
         log,
       });
     }
+  }
+}
+
+// Guidance is resolved when a job is claimed, never when it is queued: a job
+// queued before the first version existed, or scheduled days ahead of the next
+// refresh, would otherwise publish with stale or no guidance forever. Guidance
+// is only a preference, so a failed read degrades to publishing without it
+// rather than holding the queue.
+async function activeStrategiesForPublish(
+  log: (message: string) => void,
+): Promise<Record<SocialPlatform, SocialStrategyVersionRow | null>> {
+  try {
+    return activeStrategyMap(await getActiveSocialStrategies());
+  } catch (error) {
+    log(
+      `[social-daemon] publishing without strategy guidance: ${errorMessage(error)}`,
+    );
+    return activeStrategyMap([]);
   }
 }
 
@@ -401,6 +422,12 @@ export async function collectDueMetricWindows(
     onRednoteIdentity: async ({ post, platformPostId, postUrl }) => {
       await updateSocialPostIdentity({ id: post.id, platformPostId, postUrl });
     },
+    onRednoteReviewStatus: async ({ post, reviewStatus }) => {
+      await updateSocialPostReviewStatus({ id: post.id, reviewStatus });
+      log(
+        `[social-daemon] flagged ${post.platform} ${post.id} as ${reviewStatus}.`,
+      );
+    },
   });
 
   let inserted = 0;
@@ -414,7 +441,15 @@ export async function collectDueMetricWindows(
           collectors[post.platform],
           post,
         );
-        if (!collected) continue;
+        // Not an error and not a zero snapshot: the platform has nothing to
+        // report yet, or the note is suppressed. Silence here made a
+        // moderation removal indistinguishable from a quiet tick.
+        if (!collected) {
+          log(
+            `[social-daemon] no ${post.platform} metrics available yet for ${post.id}.`,
+          );
+          continue;
+        }
         const { details, ...counts } = collected;
         await insertSocialPostMetric(
           buildSocialPostMetric({
@@ -440,6 +475,22 @@ export async function collectDueMetricWindows(
     await browser.close();
   }
   return inserted;
+}
+
+// Platform-level follower counts, once a day. They live on the same daemon as
+// everything else social, but in their own step: a point-in-time account reading
+// has no per-post window semantics and must not share the metrics browser's
+// lifecycle with them.
+async function captureAccountSnapshots(
+  now: Date,
+  log: (message: string) => void,
+): Promise<void> {
+  const browser = createMetricsBrowserSession();
+  try {
+    await captureDueAccountSnapshots({ now, browser, log });
+  } finally {
+    await browser.close();
+  }
 }
 
 export function earliestDueWindow(

@@ -58,7 +58,7 @@ describe('Supabase user_episode_state grants', () => {
     expect(effectiveTablePrivileges(migrations, 'users')).toEqual([]);
   });
 
-  it.each(['social_posts', 'social_post_metrics'])(
+  it.each(['social_posts', 'social_post_metrics', 'social_account_snapshots'])(
     'keeps %s service-role-only after all grants and revokes are applied',
     (table) => {
       const schema = readRepoFile('apps/podcast-pipeline/supabase/schema.sql');

@@ -1,4 +1,6 @@
-import { applyPlatformCta, platformVideoMode } from './platforms.js';
+import { composeSocialContent, type SocialComposeEpisode } from './compose.js';
+import { assertRednoteCopySafe } from './lexicon/index.js';
+import { platformVideoMode } from './platforms.js';
 import { createPlaywrightRednotePublisher } from './rednote-playwright.js';
 import { createThreadsPublisher } from './threads.js';
 import { prepareThreadsVideoUrl } from './threads-video.js';
@@ -14,11 +16,10 @@ import { createYouTubePublisher } from './youtube.js';
 interface SocialPublishJobsInput {
   platforms: readonly SocialPlatform[];
   copy: GeneratedSocialCopy;
+  episode: SocialComposeEpisode;
   videoUrl: string;
   videoPath?: string;
   xVideoPath?: string;
-  youtubeTitle?: string;
-  youtubeDescription?: string;
   /** Break-glass override for `social:publish`; the daemon always publishes public. */
   youtubePrivacyStatus?: YouTubePrivacyStatus;
   onLog?: (message: string) => void;
@@ -56,19 +57,17 @@ function createXJob(input: SocialPublishJobsInput): SocialPublishJob {
       `X publishing requires a prepared ${platformVideoMode(platform)} video.`,
     );
   }
+  const { body } = composeSocialContent(platform, input);
   const publisher = createPlaywrightXPublisher({ onLog: input.onLog });
   return {
     platform,
-    publish: () =>
-      publisher.publishX({
-        text: applyPlatformCta(platform, input.copy.x.text),
-        videoPath,
-      }),
+    publish: () => publisher.publishX({ text: body, videoPath }),
   };
 }
 
 function createThreadsJob(input: SocialPublishJobsInput): SocialPublishJob {
   const platform = 'threads';
+  const { body } = composeSocialContent(platform, input);
   const publisher = createThreadsPublisher({
     onLog: input.onLog,
     ...(platformVideoMode(platform) === 'teaser'
@@ -85,10 +84,7 @@ function createThreadsJob(input: SocialPublishJobsInput): SocialPublishJob {
   return {
     platform,
     publish: () =>
-      publisher.publishThreads({
-        text: applyPlatformCta(platform, input.copy.x.text),
-        videoUrl: input.videoUrl,
-      }),
+      publisher.publishThreads({ text: body, videoUrl: input.videoUrl }),
   };
 }
 
@@ -98,9 +94,8 @@ function createYouTubeJob(input: SocialPublishJobsInput): SocialPublishJob {
   if (!videoPath) {
     throw new Error('YouTube publishing requires a prepared video.');
   }
-  const title = input.youtubeTitle?.trim();
-  const description = input.youtubeDescription?.trim();
-  if (!title || !description) {
+  const { title, body } = composeSocialContent(platform, input);
+  if (!title?.trim() || !body.trim()) {
     throw new Error(
       'YouTube publishing requires title and description metadata.',
     );
@@ -111,15 +106,11 @@ function createYouTubeJob(input: SocialPublishJobsInput): SocialPublishJob {
     publish: () =>
       publisher.publishYouTube({
         title,
-        description,
+        description: body,
         videoPath,
         privacyStatus: input.youtubePrivacyStatus ?? 'public',
       }),
   };
-}
-
-export function buildRednotePublishBody(copy: GeneratedSocialCopy): string {
-  return `${copy.rednote.title.trim()}\n\n${copy.rednote.body.trim()}`;
 }
 
 function createRednoteJob(input: SocialPublishJobsInput): SocialPublishJob {
@@ -128,15 +119,19 @@ function createRednoteJob(input: SocialPublishJobsInput): SocialPublishJob {
   if (!videoPath) {
     throw new Error('Rednote publishing requires a prepared video.');
   }
+  const { title, body, hashtags } = composeSocialContent(platform, input);
+  if (!title) {
+    throw new Error('Rednote publishing requires a generated title.');
+  }
+  // The last mile: `copy.ts` gates each generated field, but only the composed
+  // post is what Rednote review reads.
+  assertRednoteCopySafe([title, body, ...hashtags].join('\n'));
+
   const publisher = createPlaywrightRednotePublisher({ onLog: input.onLog });
   return {
     platform,
     publish: () =>
-      publisher.publishRednote({
-        body: applyPlatformCta(platform, buildRednotePublishBody(input.copy)),
-        hashtags: input.copy.rednote.hashtags,
-        videoPath,
-      }),
+      publisher.publishRednote({ title, body, hashtags, videoPath }),
   };
 }
 

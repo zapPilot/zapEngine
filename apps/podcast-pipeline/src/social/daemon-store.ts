@@ -2,7 +2,12 @@ import {
   getPipelineSupabase,
   throwSupabaseError,
 } from '../services/supabase-client.js';
-import type { SocialPostMetricRow, SocialPostRow } from '../types.js';
+import type {
+  NewSocialAccountSnapshot,
+  SocialAccountSnapshotRow,
+  SocialPostMetricRow,
+  SocialPostRow,
+} from '../types.js';
 import type { SocialPlatform } from './platforms.js';
 
 export const SOCIAL_DAEMON_STATE_ID = 'local-social-daemon-v1';
@@ -136,11 +141,13 @@ async function affectedSocialPublishJobRow(
   return data !== null;
 }
 
+// No strategy version is stamped here. A job can be queued days before it is
+// due -- or before any version exists at all -- so the version it publishes
+// under is resolved at claim time and recorded on completion.
 export async function enqueueSocialPublishJob(input: {
   episodeId: string;
   platform: SocialPlatform;
   scheduledAt: string;
-  strategyVersionId?: string | null;
 }): Promise<boolean> {
   return affectedSocialPublishJobRow(
     getPipelineSupabase()
@@ -151,7 +158,6 @@ export async function enqueueSocialPublishJob(input: {
           platform: input.platform,
           scheduled_at: input.scheduledAt,
           next_attempt_at: input.scheduledAt,
-          strategy_version_id: input.strategyVersionId ?? null,
         },
         { onConflict: 'episode_id,platform', ignoreDuplicates: true },
       )
@@ -356,6 +362,7 @@ async function updateOwnedSocialPublishJob(
 function completedSocialPublishJobPatch(
   completedAt: string,
   socialPostId: string | null,
+  strategyVersionId?: string | null,
 ): Partial<SocialPublishJobRow> {
   return {
     status: 'completed',
@@ -365,6 +372,11 @@ function completedSocialPublishJobPatch(
     lease_expires_at: null,
     last_error: null,
     updated_at: completedAt,
+    // Left untouched when absent: a job completed from evidence in
+    // `social_posts` was not published under any guidance this daemon applied.
+    ...(strategyVersionId !== undefined
+      ? { strategy_version_id: strategyVersionId }
+      : {}),
   };
 }
 
@@ -373,12 +385,18 @@ export async function completeSocialPublishJob(input: {
   owner: string;
   completedAt: Date;
   socialPostId?: string | null;
+  /** The strategy version whose guidance this publish actually used. */
+  strategyVersionId?: string | null;
 }): Promise<void> {
   const completedAt = input.completedAt.toISOString();
   await updateOwnedSocialPublishJob(
     input.jobId,
     input.owner,
-    completedSocialPublishJobPatch(completedAt, input.socialPostId ?? null),
+    completedSocialPublishJobPatch(
+      completedAt,
+      input.socialPostId ?? null,
+      input.strategyVersionId,
+    ),
   );
 }
 
@@ -429,6 +447,36 @@ export function publishRetryDelayMs(attemptCount: number): number {
   return Math.min(6 * 60 * 60_000, 5 * 60_000 * 2 ** exponent);
 }
 
+// Newest row per platform: the same query answers the 24h staleness gate and
+// the dashboard's current follower counts.
+export async function latestSocialAccountSnapshots(): Promise<
+  Partial<Record<SocialPlatform, SocialAccountSnapshotRow>>
+> {
+  const { data, error } = await getPipelineSupabase()
+    .from('social_account_snapshots')
+    .select('*')
+    .order('captured_at', { ascending: false })
+    .limit(100)
+    .returns<SocialAccountSnapshotRow[]>();
+  if (error) throwSupabaseError(error);
+  const latest: Partial<Record<SocialPlatform, SocialAccountSnapshotRow>> = {};
+  for (const row of data ?? []) latest[row.platform] ??= row;
+  return latest;
+}
+
+export async function insertSocialAccountSnapshot(
+  input: NewSocialAccountSnapshot,
+): Promise<void> {
+  const { error } = await getPipelineSupabase()
+    .from('social_account_snapshots')
+    .insert({
+      platform: input.platform,
+      followers: input.followers,
+      details: input.details ?? {},
+    });
+  if (error) throwSupabaseError(error);
+}
+
 export async function getActiveSocialStrategies(): Promise<
   SocialStrategyVersionRow[]
 > {
@@ -439,18 +487,6 @@ export async function getActiveSocialStrategies(): Promise<
     .returns<SocialStrategyVersionRow[]>();
   if (error) throwSupabaseError(error);
   return data ?? [];
-}
-
-export async function getSocialStrategyById(
-  id: string,
-): Promise<SocialStrategyVersionRow | null> {
-  const { data, error } = await getPipelineSupabase()
-    .from('social_strategy_versions')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle<SocialStrategyVersionRow>();
-  if (error) throwSupabaseError(error);
-  return data;
 }
 
 export async function activateSocialStrategy(input: {

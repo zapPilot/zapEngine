@@ -26,6 +26,7 @@ const post: SocialPostRow = {
     hashtagCount: 0,
   },
   llm_model: null,
+  review_status: null,
   created_at: '2026-08-15T00:00:00.000Z',
   updated_at: '2026-08-15T00:00:00.000Z',
 };
@@ -58,6 +59,7 @@ describe('social dashboard', () => {
     const app = createSocialDashboardApp({
       listPosts: vi.fn().mockResolvedValue([]),
       listMetrics: vi.fn().mockResolvedValue([]),
+      listAccounts: vi.fn().mockResolvedValue({}),
     });
 
     const response = await app.request('/api/social-performance');
@@ -66,6 +68,7 @@ describe('social dashboard', () => {
       window: 'latest',
       generatedAt: expect.any(String),
       episodes: [],
+      accounts: [],
     });
   });
 
@@ -76,6 +79,15 @@ describe('social dashboard', () => {
       now: () => new Date('2026-08-16T12:00:00.000Z'),
       listPosts,
       listMetrics,
+      listAccounts: vi.fn().mockResolvedValue({
+        rednote: {
+          id: 'snapshot-1',
+          platform: 'rednote',
+          captured_at: '2026-08-16T06:00:00.000Z',
+          followers: 42,
+          details: {},
+        },
+      }),
     });
 
     const response = await app.request('/api/social-performance?window=24h');
@@ -87,6 +99,13 @@ describe('social dashboard', () => {
           episodeId: 'episode-1',
           totalViews: 100,
           platforms: [{ averageViewDurationSec: 45 }],
+        },
+      ],
+      accounts: [
+        {
+          platform: 'rednote',
+          followers: 42,
+          capturedAt: '2026-08-16T06:00:00.000Z',
         },
       ],
     });

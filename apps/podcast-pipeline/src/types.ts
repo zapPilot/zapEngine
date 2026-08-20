@@ -3,6 +3,7 @@ import type {
   SocialContentFeatures,
   SocialHookType,
   SocialPlatform,
+  SocialReviewStatus,
   SocialTopic,
 } from './social/types.js';
 
@@ -276,6 +277,7 @@ export interface SocialPostRow {
   video_duration_sec: number | null;
   content_features: SocialContentFeatures;
   llm_model: string | null;
+  review_status: SocialReviewStatus | null;
   created_at: string;
   updated_at: string;
 }
@@ -296,6 +298,21 @@ export interface NewSocialPost {
   videoDurationSec: number | null;
   contentFeatures: SocialContentFeatures;
   llmModel: string | null;
+}
+
+export interface SocialAccountSnapshotRow {
+  id: string;
+  platform: SocialPlatform;
+  captured_at: string;
+  followers: number;
+  /** Provenance of a scraped number, e.g. the label text it was read from. */
+  details: Record<string, string>;
+}
+
+export interface NewSocialAccountSnapshot {
+  platform: SocialPlatform;
+  followers: number;
+  details?: Record<string, string>;
 }
 
 export interface SocialAudienceDemographics {

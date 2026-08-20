@@ -9,6 +9,7 @@ import {
   listRecentSocialPosts,
   listSocialPostMetrics,
 } from '../services/db.js';
+import { latestSocialAccountSnapshots } from './daemon-store.js';
 import {
   buildSocialPerformance,
   SOCIAL_METRIC_WINDOWS,
@@ -32,12 +33,14 @@ export function createSocialDashboardApp(
     now?: () => Date;
     listPosts?: typeof listRecentSocialPosts;
     listMetrics?: typeof listSocialPostMetrics;
+    listAccounts?: typeof latestSocialAccountSnapshots;
   } = {},
 ) {
   const app = new Hono();
   const now = input.now ?? (() => new Date());
   const listPosts = input.listPosts ?? listRecentSocialPosts;
   const listMetrics = input.listMetrics ?? listSocialPostMetrics;
+  const listAccounts = input.listAccounts ?? latestSocialAccountSnapshots;
 
   app.get('/', (c) => c.html(DASHBOARD_HTML));
   app.get('/api/social-performance', async (c) => {
@@ -45,14 +48,20 @@ export function createSocialDashboardApp(
     const cutoff = new Date(
       now().getTime() - HISTORY_DAYS * 24 * 60 * 60 * 1000,
     ).toISOString();
-    const [posts, metrics] = await Promise.all([
+    const [posts, metrics, accounts] = await Promise.all([
       listPosts(cutoff),
       listMetrics(cutoff),
+      listAccounts(),
     ]);
     return c.json({
       window,
       generatedAt: now().toISOString(),
       episodes: buildSocialPerformance({ posts, metrics, window }),
+      accounts: Object.values(accounts).map((snapshot) => ({
+        platform: snapshot.platform,
+        followers: snapshot.followers,
+        capturedAt: snapshot.captured_at,
+      })),
     });
   });
 
@@ -111,7 +120,8 @@ async function load(){
   const status=document.getElementById('status'), content=document.getElementById('content'); status.textContent='Loading…';
   try {
     const res=await fetch('/api/social-performance?window='+encodeURIComponent(selected)); if(!res.ok) throw new Error('HTTP '+res.status); const data=await res.json();
-    status.textContent='30-day dataset · '+data.window+' snapshot · updated '+new Date(data.generatedAt).toLocaleString(); content.replaceChildren();
+    const followers=(data.accounts||[]).map(a=>a.platform+' '+fmt(a.followers)).join(' · ');
+    status.textContent='30-day dataset · '+data.window+' snapshot · updated '+new Date(data.generatedAt).toLocaleString()+(followers?' · followers: '+followers:''); content.replaceChildren();
     if(!data.episodes.length){content.append(el('div','empty','No social metric snapshots yet. Keep pnpm social:daemon running.'));return;}
     data.episodes.forEach(ep=>{
       const card=el('section','episode'); const head=el('div','episode-head'); const left=el('div'); left.append(el('div','episode-title',ep.title),el('div','muted',ep.episodeId)); head.append(left,el('div','totals','Views '+fmt(ep.totalViews)+' · Impressions '+fmt(ep.totalImpressions))); card.append(head);

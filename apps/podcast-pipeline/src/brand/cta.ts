@@ -10,6 +10,12 @@ export const ZAP_PILOT_SITE_LABEL = 'www.zap-pilot.org' as const;
 // 250-unit generated-copy budget intact while making the destination explicit.
 export const SOCIAL_BRAND_CTA = `官網 ${ZAP_PILOT_SITE_URL}` as const;
 
+// YouTube descriptions have no character pressure, so they close with a full
+// sentence instead of the short suffix above. Both strings live here so the
+// destination can never drift between surfaces.
+export const YOUTUBE_DESCRIPTION_CTA =
+  `更多市場洞察與工具：${ZAP_PILOT_SITE_URL}` as const;
+
 const VIDEO_CTA_TITLES: Record<LanguageClassroomLanguageCode, string> = {
   'zh-Hant': '更多市場洞察與工具',
   ja: '市場インサイトとツールをもっと',

@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
   failSocialPublishJob: vi.fn(),
   getActiveSocialStrategies: vi.fn(),
   getSocialQueueSnapshot: vi.fn(),
-  getSocialStrategyById: vi.fn(),
   latestScheduledSocialJobs: vi.fn(),
   listDueMetricPosts: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
@@ -20,12 +19,14 @@ const mocks = vi.hoisted(() => ({
   listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
   listSocialPostsByEpisode: vi.fn(),
   updateSocialPostIdentity: vi.fn(),
+  updateSocialPostReviewStatus: vi.fn(),
   runSocialCli: vi.fn(),
   createMetricCollectors: vi.fn(),
   createMetricsBrowserSession: vi.fn(),
   closeMetricsBrowserSession: vi.fn(),
   collectX: vi.fn(),
   refreshSocialStrategies: vi.fn(),
+  captureDueAccountSnapshots: vi.fn(),
 }));
 
 vi.mock('./daemon-store.js', () => ({
@@ -40,7 +41,6 @@ vi.mock('./daemon-store.js', () => ({
   failSocialPublishJob: mocks.failSocialPublishJob,
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
-  getSocialStrategyById: mocks.getSocialStrategyById,
   latestPendingSocialPublishSchedule: async () => {
     const schedules = (await mocks.latestScheduledSocialJobs()) as Record<
       string,
@@ -61,8 +61,12 @@ vi.mock('../services/db.js', () => ({
   listSocialPostIdentitiesByEpisodes: mocks.listSocialPostIdentitiesByEpisodes,
   listSocialPostsByEpisode: mocks.listSocialPostsByEpisode,
   updateSocialPostIdentity: mocks.updateSocialPostIdentity,
+  updateSocialPostReviewStatus: mocks.updateSocialPostReviewStatus,
 }));
 
+vi.mock('./account-snapshots.js', () => ({
+  captureDueAccountSnapshots: mocks.captureDueAccountSnapshots,
+}));
 vi.mock('./cli.js', () => ({ runSocialCli: mocks.runSocialCli }));
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
@@ -108,6 +112,7 @@ function socialPost(input: Partial<SocialPostRow> = {}): SocialPostRow {
       hashtagCount: 0,
     },
     llm_model: 'model',
+    review_status: null,
     created_at: '2026-08-15T09:00:00.000Z',
     updated_at: '2026-08-15T09:00:00.000Z',
     ...input,
@@ -154,7 +159,6 @@ beforeEach(() => {
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);
   mocks.enqueueSocialPublishJob.mockResolvedValue(true);
   mocks.ensureSocialDaemonStart.mockResolvedValue('2026-08-16T08:00:00.000Z');
-  mocks.getSocialStrategyById.mockResolvedValue(null);
   mocks.createMetricCollectors.mockReturnValue({
     x: mocks.collectX,
     threads: vi.fn(),
@@ -166,6 +170,7 @@ beforeEach(() => {
     withPage: vi.fn(),
     close: mocks.closeMetricsBrowserSession,
   });
+  mocks.captureDueAccountSnapshots.mockResolvedValue(0);
 });
 
 describe('social daemon', () => {
@@ -547,22 +552,10 @@ describe('social daemon', () => {
     }
   });
 
-  it('uses active strategy schedules, skips invalid candidates, and keeps rolling slots only for inserted jobs', async () => {
+  it('skips invalid candidates, keeps rolling slots only for inserted jobs, and queues without a strategy version', async () => {
     mocks.listSocialPublishCandidates.mockResolvedValue([
       { episode_id: 'bad', ready_at: 'not-a-date' },
       { episode_id: EPISODE_ID, ready_at: '2026-08-16T11:00:00.000Z' },
-    ]);
-    mocks.getActiveSocialStrategies.mockResolvedValue([
-      {
-        id: 'strategy-x',
-        platform: 'x',
-        version: 2,
-        config: { publishSlotsJst: [{ hour: 19, minute: 0 }] },
-        based_on_samples: 5,
-        active: true,
-        activated_at: '2026-08-16T08:00:00.000Z',
-        created_at: '2026-08-16T08:00:00.000Z',
-      },
     ]);
     mocks.latestScheduledSocialJobs.mockResolvedValue({
       x: '2026-08-16T10:05:00.000Z',
@@ -577,15 +570,11 @@ describe('social daemon', () => {
     });
 
     expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(4);
-    const calls = mocks.enqueueSocialPublishJob.mock.calls.map(
-      ([input]) => input,
-    );
-    expect(calls.find((input) => input.platform === 'x')).toMatchObject({
-      strategyVersionId: 'strategy-x',
-    });
-    expect(calls.find((input) => input.platform === 'threads')).toMatchObject({
-      strategyVersionId: null,
-    });
+    // Stamping a version at enqueue is what left early jobs permanently
+    // unguided; the payload must stay free of it.
+    for (const [input] of mocks.enqueueSocialPublishJob.mock.calls) {
+      expect(input).not.toHaveProperty('strategyVersionId');
+    }
   });
 
   it('discovers stale candidates after a restart and schedules them into the remaining slots for today instead of tomorrow', async () => {
@@ -620,22 +609,25 @@ describe('social daemon', () => {
     for (const field of ['stateError', 'recordError'] as const) {
       vi.clearAllMocks();
       mocks.listSocialPublishCandidates.mockResolvedValue([]);
-      mocks.getActiveSocialStrategies.mockResolvedValue([]);
       mocks.latestScheduledSocialJobs.mockResolvedValue({});
       mocks.listDueMetricPosts.mockResolvedValue([]);
+      // Deliberately unstamped: the guidance must come from whatever version is
+      // active now, not from what existed when the job was queued.
       mocks.claimSocialPublishJob.mockResolvedValue(
-        publishJob({ strategy_version_id: 'strategy-1' }),
+        publishJob({ strategy_version_id: null }),
       );
-      mocks.getSocialStrategyById.mockResolvedValue({
-        id: 'strategy-1',
-        platform: 'x',
-        version: 1,
-        config: { preferredHookTypes: ['question'] },
-        based_on_samples: 5,
-        active: true,
-        activated_at: NOW.toISOString(),
-        created_at: NOW.toISOString(),
-      });
+      mocks.getActiveSocialStrategies.mockResolvedValue([
+        {
+          id: 'strategy-1',
+          platform: 'x',
+          version: 1,
+          config: { preferredHookTypes: ['question'] },
+          based_on_samples: 5,
+          active: true,
+          activated_at: NOW.toISOString(),
+          created_at: NOW.toISOString(),
+        },
+      ]);
       mocks.runSocialCli.mockResolvedValue([
         {
           platform: 'x',
@@ -789,6 +781,145 @@ describe('social daemon', () => {
       platformPostId: 'note-1',
       postUrl: 'https://www.xiaohongshu.com/explore/note-1',
     });
+  });
+
+  it('records the review status the collector observed and names it in the log', async () => {
+    const post = socialPost({
+      id: 'rednote-post',
+      platform: 'rednote',
+      published_at: '2026-08-16T09:30:00.000Z',
+    });
+    mocks.listDueMetricPosts.mockResolvedValue([post]);
+    const log = vi.fn();
+
+    await collectDueMetricWindows(NOW, log);
+    const options = mocks.createMetricCollectors.mock.calls[0]?.[0];
+    await options.onRednoteReviewStatus({ post, reviewStatus: 'rejected' });
+
+    expect(mocks.updateSocialPostReviewStatus).toHaveBeenCalledWith({
+      id: 'rednote-post',
+      reviewStatus: 'rejected',
+    });
+    expect(log.mock.calls.map(([line]) => String(line))).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('flagged rednote rednote-post as rejected'),
+      ]),
+    );
+  });
+
+  it('records the strategy version a publish actually used', async () => {
+    mocks.listSocialPublishCandidates.mockResolvedValue([]);
+    mocks.claimSocialPublishJob.mockResolvedValue(
+      publishJob({ strategy_version_id: null }),
+    );
+    mocks.getActiveSocialStrategies.mockResolvedValue([
+      {
+        id: 'strategy-live',
+        platform: 'x',
+        version: 7,
+        config: { preferredHookTypes: ['question'] },
+        based_on_samples: 9,
+        active: true,
+        activated_at: NOW.toISOString(),
+        created_at: NOW.toISOString(),
+      },
+    ]);
+    mocks.runSocialCli.mockResolvedValue([
+      { platform: 'x', status: 'published', url: 'https://x.com/zap/status/1' },
+    ]);
+    mocks.listSocialPostsByEpisode
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([socialPost()]);
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-16T08:00:00.000Z',
+    });
+
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith(
+      expect.objectContaining({ strategyVersionId: 'strategy-live' }),
+    );
+  });
+
+  it('publishes without guidance when the active strategy read fails', async () => {
+    mocks.listSocialPublishCandidates.mockResolvedValue([]);
+    mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
+    mocks.getActiveSocialStrategies.mockRejectedValue(
+      new Error('strategy read down'),
+    );
+    mocks.runSocialCli.mockResolvedValue([
+      { platform: 'x', status: 'published', url: 'https://x.com/zap/status/1' },
+    ]);
+    mocks.listSocialPostsByEpisode
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([socialPost()]);
+    const log = vi.fn();
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-16T08:00:00.000Z',
+      log,
+    });
+
+    expect(mocks.runSocialCli).toHaveBeenCalledWith(
+      [EPISODE_ID, '--yes', '--platform', 'x'],
+      { setExitCodeOnFailure: false },
+    );
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith(
+      expect.not.objectContaining({ strategyVersionId: expect.anything() }),
+    );
+    expect(log.mock.calls.map(([line]) => String(line))).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('publishing without strategy guidance'),
+      ]),
+    );
+  });
+
+  it('captures account snapshots on its own browser session and isolates their failure', async () => {
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-16T08:00:00.000Z',
+    });
+
+    expect(mocks.captureDueAccountSnapshots).toHaveBeenCalledWith(
+      expect.objectContaining({ now: NOW, browser: expect.anything() }),
+    );
+    expect(mocks.closeMetricsBrowserSession).toHaveBeenCalled();
+
+    vi.clearAllMocks();
+    mocks.listSocialPublishCandidates.mockResolvedValue([]);
+    mocks.getSocialQueueSnapshot.mockResolvedValue({
+      pendingCount: 0,
+      episodeQueue: [],
+      nextByPlatform: {},
+    });
+    mocks.claimSocialPublishJob.mockResolvedValue(null);
+    mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
+    mocks.listDueMetricPosts.mockResolvedValue([]);
+    mocks.latestScheduledSocialJobs.mockResolvedValue({});
+    mocks.createMetricsBrowserSession.mockReturnValue({
+      withPage: vi.fn(),
+      close: mocks.closeMetricsBrowserSession,
+    });
+    mocks.captureDueAccountSnapshots.mockRejectedValue(
+      new Error('followers down'),
+    );
+    const log = vi.fn();
+
+    await expect(
+      runSocialDaemonTick({
+        now: NOW,
+        firstStartedAt: '2026-08-16T08:00:00.000Z',
+        log,
+      }),
+    ).resolves.toBeUndefined();
+    expect(log.mock.calls.map(([line]) => String(line))).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('account snapshots failed: followers down'),
+      ]),
+    );
+    // The session is still closed on the failing path.
+    expect(mocks.closeMetricsBrowserSession).toHaveBeenCalled();
   });
 
   it('isolates discover, publish, metric, and strategy failures so one subsystem cannot stop a tick', async () => {

@@ -15,7 +15,11 @@ import {
   createSocialPostPersister,
   type SocialCopySnapshot,
 } from './record.js';
-import type { GeneratedSocialCopy, PublishResult } from './types.js';
+import type {
+  GeneratedSocialCopy,
+  PublishResult,
+  SocialEpisode,
+} from './types.js';
 
 const generated: GeneratedSocialCopy = {
   topic: 'eth',
@@ -40,6 +44,12 @@ const published: GeneratedSocialCopy = {
 beforeEach(() => {
   vi.clearAllMocks();
 });
+
+const episode: Pick<SocialEpisode, 'title' | 'summary' | 'description'> = {
+  title: '市場更新',
+  summary: '本集摘要。',
+  description: '完整說明',
+};
 
 const snapshot: SocialCopySnapshot = {
   generated,
@@ -81,6 +91,7 @@ describe('buildSocialPostRecord', () => {
         platform: 'x',
         result: result({ url: 'https://x.com/zap/status/123', postId: '123' }),
         snapshot,
+        episode,
         videoDurationSeconds: 321,
       }),
     ).toMatchObject({
@@ -98,6 +109,7 @@ describe('buildSocialPostRecord', () => {
         platform: 'x',
         result: result(),
         snapshot,
+        episode,
         videoDurationSeconds: 321,
         xVideoDurationSeconds: 133,
       }).videoDurationSec,
@@ -111,6 +123,7 @@ describe('buildSocialPostRecord', () => {
         platform: 'threads',
         result: result({ postId: 'thread-1' }),
         snapshot,
+        episode,
         videoDurationSeconds: 321,
       }),
     ).toMatchObject({
@@ -122,19 +135,7 @@ describe('buildSocialPostRecord', () => {
     });
   });
 
-  it('requires YouTube metadata for telemetry projection', () => {
-    expect(() =>
-      buildSocialPostRecord({
-        episodeId: 'episode-1',
-        platform: 'youtube',
-        result: result(),
-        snapshot,
-        videoDurationSeconds: 321,
-      }),
-    ).toThrow('YouTube telemetry requires published metadata');
-  });
-
-  it('projects YouTube metadata and full video duration', () => {
+  it('projects YouTube metadata assembled from the episode and full video duration', () => {
     expect(
       buildSocialPostRecord({
         episodeId: 'episode-1',
@@ -144,11 +145,8 @@ describe('buildSocialPostRecord', () => {
           postId: 'video-1',
         }),
         snapshot,
+        episode,
         videoDurationSeconds: 321,
-        youtubeMetadata: {
-          title: '市場更新',
-          description: '完整說明',
-        },
       }),
     ).toMatchObject({
       platform: 'youtube',
@@ -156,8 +154,10 @@ describe('buildSocialPostRecord', () => {
       platformPostId: 'video-1',
       generatedTitle: '市場更新',
       publishedTitle: '市場更新',
-      generatedBody: '完整說明',
-      publishedBody: '完整說明',
+      generatedBody:
+        '完整說明\n\n更多市場洞察與工具：https://www.zap-pilot.org',
+      publishedBody:
+        '完整說明\n\n更多市場洞察與工具：https://www.zap-pilot.org',
       hashtags: [],
       videoDurationSec: 321,
     });
@@ -170,6 +170,7 @@ describe('buildSocialPostRecord', () => {
         platform: 'rednote',
         result: result(),
         snapshot,
+        episode,
         videoDurationSeconds: 321,
       }),
     ).toMatchObject({
@@ -190,9 +191,9 @@ describe('createSocialPostPersister', () => {
     const persist = createSocialPostPersister({
       episodeId: 'episode-1',
       snapshot,
+      episode,
       videoDurationSeconds: 321,
       xVideoDurationSeconds: 130,
-      youtubeMetadata: { title: 'YT title', description: 'YT body' },
     });
 
     await persist({ platform: 'x', result: result() });
@@ -206,6 +207,7 @@ describe('createSocialPostPersister', () => {
     const persist = createSocialPostPersister({
       episodeId: 'episode-1',
       snapshot,
+      episode,
       videoDurationSeconds: 100,
       insert,
     });
@@ -215,20 +217,21 @@ describe('createSocialPostPersister', () => {
     );
   });
 
-  it('passes optional YouTube metadata into the persisted projection', async () => {
+  it('persists YouTube metadata assembled from the episode', async () => {
     const insert = vi.fn().mockResolvedValue({ id: 'social-post-youtube' });
     const persist = createSocialPostPersister({
       episodeId: 'episode-1',
       snapshot,
+      episode,
       videoDurationSeconds: 321,
-      youtubeMetadata: { title: 'YT title', description: 'YT body' },
       insert,
     });
     await persist({ platform: 'youtube', result: result() });
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({
-        generatedTitle: 'YT title',
-        generatedBody: 'YT body',
+        generatedTitle: '市場更新',
+        generatedBody:
+          '完整說明\n\n更多市場洞察與工具：https://www.zap-pilot.org',
       }),
     );
   });
@@ -239,6 +242,7 @@ describe('createSocialPostPersister', () => {
     const persist = createSocialPostPersister({
       episodeId: 'episode-1',
       snapshot,
+      episode,
       videoDurationSeconds: 321,
       insert,
       onError,
@@ -256,6 +260,7 @@ describe('createSocialPostPersister', () => {
     const persist = createSocialPostPersister({
       episodeId: 'episode-1',
       snapshot,
+      episode,
       videoDurationSeconds: 321,
       insert,
     });
@@ -268,6 +273,7 @@ describe('createSocialPostPersister', () => {
         platform: 'x',
         result: result({ postId: 'x-1' }),
         snapshot,
+        episode,
         videoDurationSeconds: 321,
       }),
     );
@@ -282,6 +288,7 @@ describe('createSocialPostPersister', () => {
     const persist = createSocialPostPersister({
       episodeId: 'episode-1',
       snapshot,
+      episode,
       videoDurationSeconds: 321,
       insert,
       onError,
@@ -301,6 +308,7 @@ describe('createSocialPostPersister', () => {
           platform: 'threads',
           result: result(),
           snapshot,
+          episode,
           videoDurationSeconds: 321,
         }),
       ),

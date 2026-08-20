@@ -52,6 +52,7 @@ function post(
       hashtagCount: 0,
     },
     llm_model: 'test/model',
+    review_status: null,
     created_at: '2026-08-16T02:00:00.000Z',
     updated_at: '2026-08-16T02:00:00.000Z',
     ...overrides,

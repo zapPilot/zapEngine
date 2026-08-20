@@ -35,6 +35,18 @@ export const SOCIAL_HOOK_TYPES = [
 
 export type SocialHookType = (typeof SOCIAL_HOOK_TYPES)[number];
 
+/**
+ * Platform review state, observed after publishing rather than at publish time.
+ * Rednote is the only platform that reports one today, and it removes a rejected
+ * note silently — so anything other than `visible` means the post was
+ * suppressed, not unpopular.
+ */
+export type SocialReviewStatus =
+  | 'visible'
+  | 'under_review'
+  | 'rejected'
+  | 'self_only';
+
 export interface SocialContentFeatures {
   containsQuestion: boolean;
   containsNumber: boolean;
@@ -89,6 +101,8 @@ export interface ThreadsPublishInput {
 }
 
 export interface RednotePublishInput {
+  /** Rednote's own title field, filled last -- see `rednote-playwright.ts`. */
+  title: string;
   body: string;
   hashtags: string[];
   videoPath: string;

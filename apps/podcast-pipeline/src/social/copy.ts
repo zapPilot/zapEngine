@@ -11,6 +11,10 @@ import {
 } from '../services/llm.js';
 import { convertTextToZhTW } from '../services/opencc.js';
 import {
+  describeSensitiveMatches,
+  findSensitiveTerms,
+} from './lexicon/index.js';
+import {
   type GeneratedSocialCopy,
   SOCIAL_HOOK_TYPES,
   SOCIAL_TOPICS,
@@ -140,6 +144,7 @@ const GeneratedSocialCopySchema = z
       hashtags: z.array(TraditionalChineseLine).min(3).max(5),
     }),
   })
+  .superRefine(addRednoteSensitiveTermIssues)
   .superRefine((copy, context) => {
     const combined = [
       copy.x.text,
@@ -155,6 +160,34 @@ const GeneratedSocialCopySchema = z
       message: `Copy is ${Math.round(ratio * 100)}% Latin letters; the maximum is ${Math.round(MAX_LATIN_LETTER_RATIO * 100)}%.`,
     });
   });
+
+// Rednote is the only platform that deletes a rejected post silently, so its
+// moderation gate runs here, where a failed field still routes through
+// `describeValidationFailure` into a regeneration attempt. Issues are reported
+// per field so the model is told which one to restate.
+function addRednoteSensitiveTermIssues(
+  copy: { rednote: { title: string; body: string; hashtags: string[] } },
+  context: z.RefinementCtx,
+): void {
+  const fields: { path: (string | number)[]; value: string }[] = [
+    { path: ['rednote', 'title'], value: copy.rednote.title },
+    { path: ['rednote', 'body'], value: copy.rednote.body },
+    ...copy.rednote.hashtags.map((tag, index) => ({
+      path: ['rednote', 'hashtags', index],
+      value: tag,
+    })),
+  ];
+
+  for (const { path, value } of fields) {
+    const matches = findSensitiveTerms(value);
+    if (matches.length === 0) continue;
+    context.addIssue({
+      code: 'custom',
+      path,
+      message: describeSensitiveMatches(matches),
+    });
+  }
+}
 
 // Three, not two: a provider that answers with a nested or truncated payload is
 // common enough that two attempts left the CLI failing outright.

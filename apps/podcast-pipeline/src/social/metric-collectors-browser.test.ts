@@ -32,6 +32,7 @@ import {
   collectXMetrics,
   createMetricCollectors,
   createMetricsBrowserSession,
+  detectRednoteReviewStatus,
   inspectRednotePublishedPost,
   inspectXPublishedPost,
   inspectXPublishedPostAt,
@@ -68,6 +69,7 @@ function post(
       hashtagCount: 0,
     },
     llm_model: 'model',
+    review_status: null,
     created_at: '2026-08-16T02:00:00.000Z',
     updated_at: '2026-08-16T02:00:00.000Z',
     ...overrides,
@@ -153,6 +155,7 @@ interface RednoteCardInput {
   stats?: (string | null)[];
   searchText?: string;
   impressionRaw?: string | null;
+  reviewText?: string;
 }
 
 function noteImpression(noteId: string): string {
@@ -174,6 +177,11 @@ function rednoteCard(input: RednoteCardInput = {}) {
     __searchText: input.searchText ?? input.title ?? '',
     waitFor: promiseMethod(undefined),
     getAttribute: promiseMethod(impression),
+    innerText: promiseMethod(
+      [input.searchText ?? input.title ?? '', input.reviewText ?? ''].join(
+        '\n',
+      ),
+    ),
     locator: vi.fn((selector: string) => {
       if (selector === '.note-card__time') {
         return { textContent: promiseMethod(input.time ?? null) };
@@ -725,6 +733,114 @@ describe('Rednote browser metrics and reconciliation', () => {
         }),
       ),
     ).rejects.toThrow('invalid published_at');
+  });
+
+  it.each([
+    ['审核中', 'under_review'],
+    ['審核中', 'under_review'],
+    ['待审核', 'under_review'],
+    ['审核未通过', 'rejected'],
+    ['内容不通过', 'rejected'],
+    ['仅自己可见', 'self_only'],
+    ['僅自己可見', 'self_only'],
+    ['發佈標題\n1.2万 浏览', 'visible'],
+    // Precision: a note *about* enforcement is not a suppressed note.
+    ['監管違規風險的三個訊號', 'visible'],
+  ])('reads %s from the note card as review status %s', (text, expected) => {
+    expect(detectRednoteReviewStatus(text)).toBe(expected);
+  });
+
+  it('reports a suppressed note instead of recording its zero statistics', async () => {
+    const onReviewStatus = vi.fn().mockResolvedValue(undefined);
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'held-note',
+            searchText: '發佈標題',
+            reviewText: '审核中',
+            stats: ['0', '0', '0', '0', '0'],
+          }),
+        ],
+      }),
+    );
+
+    await expect(
+      createMetricCollectors({
+        onRednoteReviewStatus: onReviewStatus,
+      }).rednote(post('rednote', { platform_post_id: 'held-note' })),
+    ).resolves.toMatchObject({ views: null, likes: null });
+    expect(onReviewStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ reviewStatus: 'under_review' }),
+    );
+  });
+
+  // `under_review` is temporary; without this a single moderation pass would
+  // exclude the post from learning forever.
+  it('records a recovery back to visible and resumes parsing statistics', async () => {
+    const onReviewStatus = vi.fn().mockResolvedValue(undefined);
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'recovered',
+            searchText: '發佈標題',
+            stats: ['120', '2', '9', '3', '1'],
+          }),
+        ],
+      }),
+    );
+
+    await expect(
+      collectRednoteMetrics(
+        post('rednote', {
+          platform_post_id: 'recovered',
+          review_status: 'under_review',
+        }),
+        undefined,
+        undefined,
+        onReviewStatus,
+      ),
+    ).resolves.toMatchObject({ views: 120, likes: 9 });
+    expect(onReviewStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ reviewStatus: 'visible' }),
+    );
+  });
+
+  it('writes nothing when the state is unchanged or the card is absent', async () => {
+    const onReviewStatus = vi.fn().mockResolvedValue(undefined);
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'steady',
+            searchText: '發佈標題',
+            stats: ['80', '1', '4', '2', '0'],
+          }),
+        ],
+      }),
+    );
+    await collectRednoteMetrics(
+      post('rednote', {
+        platform_post_id: 'steady',
+        review_status: 'visible',
+      }),
+      undefined,
+      undefined,
+      onReviewStatus,
+    );
+    expect(onReviewStatus).not.toHaveBeenCalled();
+
+    // A note missing from the manager page is ambiguous — it is paginated, not
+    // necessarily suppressed — so absence must not be recorded as a state.
+    installPage(rednotePage({ cards: [rednoteCard({ noteId: 'other' })] }));
+    await collectRednoteMetrics(
+      post('rednote', { platform_post_id: 'gone' }),
+      undefined,
+      undefined,
+      onReviewStatus,
+    );
+    expect(onReviewStatus).not.toHaveBeenCalled();
   });
 });
 

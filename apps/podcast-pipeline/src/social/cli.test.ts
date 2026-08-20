@@ -55,12 +55,7 @@ vi.mock('./video.js', () => ({
   X_VIDEO_LIMIT_SECONDS: 140,
 }));
 
-import {
-  buildYouTubeMetadata,
-  findPendingPlatforms,
-  parseCliOptions,
-  runSocialCli,
-} from './cli.js';
+import { findPendingPlatforms, parseCliOptions, runSocialCli } from './cli.js';
 import type {
   GeneratedSocialCopy,
   PlatformPublishState,
@@ -308,6 +303,10 @@ describe('runSocialCli media preparation', () => {
     expect(console.log).toHaveBeenCalledWith(
       `🎬 video: 10m 00s, 5.0 MB\n${VIDEO.path}`,
     );
+    // Review previews Rednote's own title field, not a hook line prepended to
+    // the description.
+    expect(console.log).toHaveBeenCalledWith(`標題：${copy.rednote.title}`);
+    expect(console.log).toHaveBeenCalledWith(copy.rednote.body);
   });
 
   it('fails before generation when a required canonical video URL is absent', async () => {
@@ -354,15 +353,12 @@ describe('runSocialCli publishing', () => {
       expect.objectContaining({
         platforms: ['youtube'],
         videoPath: VIDEO.path,
-        youtubeTitle: episode.title,
-        youtubeDescription: expect.stringContaining(
-          'https://www.zap-pilot.org',
-        ),
+        episode,
       }),
     );
     expect(mocks.createSocialPostPersister).toHaveBeenCalledWith(
       expect.objectContaining({
-        youtubeMetadata: expect.objectContaining({ title: episode.title }),
+        episode: expect.objectContaining({ title: episode.title }),
       }),
     );
   });
@@ -708,27 +704,6 @@ describe('runSocialCli publishing', () => {
     expect(mocks.getSocialEpisode).not.toHaveBeenCalled();
     expect(mocks.generateSocialCopy).not.toHaveBeenCalled();
     expect(mocks.publishSocialPlatforms).not.toHaveBeenCalled();
-  });
-});
-
-describe('YouTube metadata', () => {
-  it('truncates titles and descriptions and falls back to summary', () => {
-    const metadata = buildYouTubeMetadata({
-      ...episode,
-      title: `  ${'界'.repeat(120)}  `,
-      description: '   ',
-      summary: 'S'.repeat(5_000),
-    });
-    expect(Array.from(metadata.title)).toHaveLength(100);
-    expect(metadata.description.startsWith('S'.repeat(4_500))).toBe(true);
-    expect(metadata.description).toContain('https://www.zap-pilot.org');
-  });
-
-  it('prefers a trimmed description over summary', () => {
-    expect(
-      buildYouTubeMetadata({ ...episode, description: '  Description  ' })
-        .description,
-    ).toContain('Description');
   });
 });
 

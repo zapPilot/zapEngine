@@ -28,7 +28,6 @@ import {
   failSocialPublishJob,
   getActiveSocialStrategies,
   getSocialQueueSnapshot,
-  getSocialStrategyById,
   latestScheduledSocialJobs,
   listDueMetricPosts,
   listLearningSocialMetrics,
@@ -215,7 +214,6 @@ describe('social daemon store', () => {
         episodeId: 'episode-1',
         platform: 'x',
         scheduledAt: '2026-08-16T10:05:00Z',
-        strategyVersionId: 'strategy-1',
       }),
     ).resolves.toBe(true);
     queue({ data: null, error: null });
@@ -452,11 +450,6 @@ describe('social daemon store', () => {
     queue({ data: null, error: null });
     await expect(getActiveSocialStrategies()).resolves.toEqual([]);
 
-    queue({ data: null, error: new Error('strategy lookup failed') });
-    await expect(getSocialStrategyById('strategy-1')).rejects.toThrow(
-      'strategy lookup failed',
-    );
-
     queue({ data: null, error: new Error('learning posts failed') });
     await expect(
       listLearningSocialPosts('2026-08-01T00:00:00Z'),
@@ -536,10 +529,6 @@ describe('social daemon store', () => {
     };
     queue({ data: [strategy], error: null });
     await expect(getActiveSocialStrategies()).resolves.toEqual([strategy]);
-    queue({ data: strategy, error: null });
-    await expect(getSocialStrategyById('strategy-1')).resolves.toEqual(
-      strategy,
-    );
 
     const next = { ...strategy, id: 'strategy-2', version: 2 };
     queue(

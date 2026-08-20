@@ -18,6 +18,7 @@ import {
   parseGeneratedSocialCopy,
   weightedTweetLength,
 } from './copy.js';
+import type { GeneratedSocialCopy } from './types.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -316,6 +317,37 @@ describe('generateSocialCopy', () => {
       'topic: Invalid option',
     );
   });
+
+  it('retries Rednote moderation-risk wording with field-scoped feedback', async () => {
+    const risky = JSON.parse(socialCopyJson('第一版文案')) as {
+      rednote: { body: string };
+    };
+    risky.rednote.body = '這集告訴你穩賺不賠的做法';
+    llmMocks.createOpenRouterChatCompletion
+      .mockResolvedValueOnce(socialCompletion(JSON.stringify(risky)))
+      .mockResolvedValueOnce(socialCompletion(socialCopyJson('修正版文案')));
+
+    await expect(
+      generateSocialCopy({
+        episode: {
+          id: '123e4567-e89b-12d3-a456-426614174000',
+          title: 'Episode title',
+          summary: 'Episode summary',
+          transcript: 'Episode transcript',
+          publishedAt: '2026-08-12T00:00:00.000Z',
+          episodeUrl: 'https://example.com/e/episode',
+          videoDurationSeconds: 180,
+          videos: { zh: 'https://example.com/video.mp4' },
+        },
+      }),
+    ).resolves.toMatchObject({ copy: { x: { text: '修正版文案' } } });
+
+    const retryRequest =
+      llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1];
+    expect(retryRequest?.messages.at(-1)?.content).toContain(
+      'rednote.body: Rednote copy must not contain moderation-risk wording',
+    );
+  });
 });
 
 function socialCompletion(content: string): object {
@@ -502,6 +534,28 @@ describe('parseGeneratedSocialCopy', () => {
         }),
       ),
     ).toThrow(/Latin letters; the maximum is 35%/);
+  });
+
+  it('rejects Rednote moderation-risk wording in the title, body or a hashtag', () => {
+    for (const mutate of [
+      (payload: GeneratedSocialCopy) => {
+        payload.rednote.title = '穩賺不賠的支付紅利';
+      },
+      (payload: GeneratedSocialCopy) => {
+        payload.rednote.body = '加我微信就能拿到內幕消息';
+      },
+      (payload: GeneratedSocialCopy) => {
+        payload.rednote.hashtags = ['支付產業', '財富自由', '市場結構'];
+      },
+    ]) {
+      const payload = JSON.parse(
+        socialCopyJson('有效文案'),
+      ) as GeneratedSocialCopy;
+      mutate(payload);
+      expect(() => parseGeneratedSocialCopy(JSON.stringify(payload))).toThrow(
+        /moderation-risk wording/,
+      );
+    }
   });
 
   it('rejects a missing Rednote title', () => {

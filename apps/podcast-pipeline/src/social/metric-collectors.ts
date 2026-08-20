@@ -2,6 +2,7 @@ import { type BrowserContext, chromium, type Page } from 'playwright-core';
 
 import { toError } from '../lib/errorMessage.js';
 import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
+import { convertTextToZhCN } from '../services/opencc.js';
 import type { SocialPostMetricDetails, SocialPostRow } from '../types.js';
 import type { CollectedSocialMetrics, SocialMetricCounts } from './metrics.js';
 import { PROFILE_DIRECTORY as REDNOTE_PROFILE_DIRECTORY } from './rednote-browser.js';
@@ -9,7 +10,7 @@ import {
   assertThreadsSessionReady,
   THREADS_INSIGHTS_SCOPE,
 } from './threads-auth.js';
-import type { SocialPlatform } from './types.js';
+import type { SocialPlatform, SocialReviewStatus } from './types.js';
 import { PROFILE_DIRECTORY as X_PROFILE_DIRECTORY } from './x-playwright.js';
 import {
   assertYouTubeSessionReady,
@@ -68,6 +69,10 @@ export function createMetricCollectors(input?: {
     platformPostId: string;
     postUrl: string;
   }) => Promise<void>;
+  onRednoteReviewStatus?: (input: {
+    post: SocialPostRow;
+    reviewStatus: SocialReviewStatus;
+  }) => Promise<void>;
 }): Record<SocialPlatform, SocialMetricCollector> {
   const fetchImpl = input?.fetchImpl ?? fetch;
   const browser = input?.browser;
@@ -80,8 +85,31 @@ export function createMetricCollectors(input?: {
         post,
         input?.onRednoteIdentity ?? (async () => {}),
         browser,
+        input?.onRednoteReviewStatus ?? (async () => {}),
       ),
   };
+}
+
+// Rednote shows moderation state as a badge inside the note card, under
+// generated class names, so it is read from the card's own text. Markers stay
+// narrow on purpose: 违规 or 已下架 would also match a post *about* enforcement.
+const REDNOTE_REVIEW_MARKERS: readonly {
+  status: SocialReviewStatus;
+  markers: readonly string[];
+}[] = [
+  { status: 'rejected', markers: ['未通过', '不通过'] },
+  { status: 'under_review', markers: ['审核中', '待审核'] },
+  { status: 'self_only', markers: ['仅自己可见'] },
+];
+
+export function detectRednoteReviewStatus(
+  cardText: string,
+): SocialReviewStatus {
+  const normalized = convertTextToZhCN(cardText).normalize('NFKC');
+  for (const { status, markers } of REDNOTE_REVIEW_MARKERS) {
+    if (markers.some((marker) => normalized.includes(marker))) return status;
+  }
+  return 'visible';
 }
 
 export async function collectThreadsMetrics(
@@ -453,6 +481,10 @@ export async function collectRednoteMetrics(
     postUrl: string;
   }) => Promise<void> = async () => {},
   browser?: MetricsBrowserSession,
+  onReviewStatus: (input: {
+    post: SocialPostRow;
+    reviewStatus: SocialReviewStatus;
+  }) => Promise<void> = async () => {},
 ): Promise<SocialMetricCounts> {
   return withPersistentPage(
     REDNOTE_PROFILE_DIRECTORY,
@@ -464,6 +496,18 @@ export async function collectRednoteMetrics(
       });
       const card = await findRednoteCard(page, post);
       if (!card) return EMPTY_COUNTS;
+
+      // Read the state before the numbers: a suppressed note still renders a
+      // stat row of zeros, and recording those as a snapshot is what taught the
+      // learner to avoid the hashtags of a post nobody was ever shown.
+      // `under_review` is temporary, so a recovery back to `visible` is written
+      // too — otherwise one moderation pass would exclude the post forever.
+      const reviewStatus = detectRednoteReviewStatus(await card.innerText());
+      if (reviewStatus !== post.review_status) {
+        await onReviewStatus({ post, reviewStatus });
+      }
+      if (reviewStatus !== 'visible') return EMPTY_COUNTS;
+
       const stats = await card
         .locator('.note-card__stat')
         .evaluateAll((nodes) =>
