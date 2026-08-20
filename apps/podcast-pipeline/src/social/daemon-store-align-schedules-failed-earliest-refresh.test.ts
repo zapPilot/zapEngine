@@ -31,7 +31,10 @@ interface QueryAttempts {
   update: number;
 }
 
-function makeAlignmentFixture(): AlignmentFixture {
+function makeAlignmentFixture(
+  refreshedSchedule = '2026-08-20T03:00:00.000Z',
+  refreshedBackoff = '2026-08-20T12:00:00.000Z',
+): AlignmentFixture {
   return {
     snapshots: [
       [
@@ -55,8 +58,8 @@ function makeAlignmentFixture(): AlignmentFixture {
           id: 'failed-earliest',
           episode_id: 'episode-refresh',
           status: 'failed',
-          scheduled_at: '2026-08-20T03:00:00.000Z',
-          next_attempt_at: '2026-08-20T12:00:00.000Z',
+          scheduled_at: refreshedSchedule,
+          next_attempt_at: refreshedBackoff,
         },
         {
           id: 'queued-sibling',
@@ -137,6 +140,33 @@ describe('alignPendingSocialPublishSchedules refreshed failed earliest', () => {
     ]);
     expect(fixture.snapshots[1]?.[0]?.next_attempt_at).toBe(
       '2026-08-20T12:00:00.000Z',
+    );
+  });
+
+  it('recomputes from an earlier refreshed failed schedule without shortening its backoff', async () => {
+    const fixture = makeAlignmentFixture(
+      '2026-08-20T01:00:00.000Z',
+      '2026-08-20T11:00:00.000Z',
+    );
+    installSupabaseFixture(fixture);
+
+    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
+    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+
+    expect(fixture.attemptedIds).toEqual(['queued-sibling', 'queued-sibling']);
+    expect(fixture.statusFences).toEqual(['queued', 'queued']);
+    expect(fixture.attemptedPatches).toEqual([
+      {
+        scheduled_at: '2026-08-20T02:00:00.000Z',
+        next_attempt_at: '2026-08-20T02:00:00.000Z',
+      },
+      {
+        scheduled_at: '2026-08-20T01:00:00.000Z',
+        next_attempt_at: '2026-08-20T01:00:00.000Z',
+      },
+    ]);
+    expect(fixture.snapshots[1]?.[0]?.next_attempt_at).toBe(
+      '2026-08-20T11:00:00.000Z',
     );
   });
 });
