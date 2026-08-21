@@ -3,18 +3,18 @@ import { Text, View } from 'react-native';
 import { Tap } from '@/components/ui/Tap';
 import { cn } from '@/lib/cn';
 
-interface RangeTabsProps {
-  options: readonly string[];
-  value: string;
-  onChange?: (value: string) => void;
-  optionLabel?: (value: string) => string;
+interface RangeTabsProps<T extends string> {
+  options: readonly T[];
+  value: T;
+  onChange?: (value: T) => void;
+  optionLabel?: (value: T) => string;
   accessibilityLabel?: string;
   comfortable?: boolean;
   className?: string;
 }
 
 /** Segmented time-range selector (1D / 1W / 1M / 1Y / ALL …). */
-export function RangeTabs({
+export function RangeTabs<T extends string>({
   options,
   value,
   onChange,
@@ -22,7 +22,7 @@ export function RangeTabs({
   accessibilityLabel,
   comfortable = false,
   className,
-}: RangeTabsProps) {
+}: RangeTabsProps<T>) {
   return (
     <View
       accessibilityLabel={accessibilityLabel}

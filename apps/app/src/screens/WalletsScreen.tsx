@@ -1,15 +1,15 @@
 import { useToast } from '@zapengine/app-core/providers/ToastContext';
+import { tokens } from '@zapengine/design-tokens/tokens';
 import * as Clipboard from 'expo-clipboard';
+import { Wallet } from 'lucide-react-native';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { AddWalletForm } from '@/components/wallets/AddWalletForm';
-import {
-  EmptyWalletList,
-  WalletListSkeleton,
-} from '@/components/wallets/WalletListStates';
+import { WalletListSkeleton } from '@/components/wallets/WalletListStates';
 import { WalletRow } from '@/components/wallets/WalletRow';
 import { Card } from '@/components/ui/Card';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { InfoRow } from '@/components/ui/InfoRow';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenBackButton } from '@/components/ui/ScreenBackButton';
@@ -65,7 +65,22 @@ export function WalletsScreen() {
           {showListSkeleton ? (
             <WalletListSkeleton />
           ) : rows.length === 0 ? (
-            <EmptyWalletList onRefresh={() => void manager.reload()} />
+            <EmptyState
+              icon={
+                <Wallet
+                  size={17}
+                  strokeWidth={1.8}
+                  color={tokens.color.accent}
+                />
+              }
+              title="No wallets in this bundle"
+              body="Wallets you add appear here and feed the combined portfolio."
+              action={{
+                label: 'Refresh',
+                accessibilityLabel: 'Refresh wallet list',
+                onPress: () => void manager.reload(),
+              }}
+            />
           ) : (
             rows.map((row, index) => (
               <WalletRow

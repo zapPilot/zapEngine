@@ -101,7 +101,7 @@ export function PortfolioScreen() {
           <RangeTabs
             options={RANGE_OPTIONS}
             value={range}
-            onChange={(value) => setRange(value as PortfolioRange)}
+            onChange={setRange}
           />
         </View>
         <View className="mt-3 h-[170px] justify-center">

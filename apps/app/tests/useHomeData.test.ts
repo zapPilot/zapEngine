@@ -15,6 +15,10 @@ const useWalletAssetsMock = vi.hoisted(() => vi.fn());
 const useDefaultStrategyBacktestMock = vi.hoisted(() => vi.fn());
 const useStrategySuggestionMock = vi.hoisted(() => vi.fn());
 
+vi.mock('react', () => ({
+  useMemo: <T>(factory: () => T): T => factory(),
+}));
+
 vi.mock('@zapengine/app-core/hooks/analytics/usePortfolioDashboard', () => ({
   usePortfolioDashboard: usePortfolioDashboardMock,
 }));

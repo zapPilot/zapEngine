@@ -1,10 +1,12 @@
 import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics/usePortfolioDashboard';
 import { usePortfolioDataProgressive } from '@zapengine/app-core/hooks/queries/analytics/usePortfolioDataProgressive';
+import { useMemo } from 'react';
 
 import { DEMO } from '@/data/demo';
 import {
   type DailyValuePoint,
   mapDailyValuesToSparkline,
+  sortedDailyValues,
 } from '@/integration/portfolioMetrics';
 import {
   liveNumberOrDemo,
@@ -22,9 +24,11 @@ import type { UseWalletAssetsResult } from '@/integration/walletTokens';
 
 type HomeSlice = (typeof DEMO)['home'];
 type StrategySlice = (typeof DEMO)['strategy'];
-export type HomeRange = '1D' | '1W' | '1M' | '1Y' | 'ALL';
+export const HOME_RANGE_OPTIONS = ['1D', '1W', '1M', '1Y', 'ALL'] as const;
+export type HomeRange = (typeof HOME_RANGE_OPTIONS)[number];
 export const DEFAULT_HOME_RANGE: HomeRange = '1Y';
 const HOME_DASHBOARD_WINDOW_DAYS = 365;
+const EMPTY_DAILY_VALUES: readonly DailyValuePoint[] = [];
 
 /**
  * Shape consumed by HomeScreen. Disconnected/demo mode can still use DEMO;
@@ -38,7 +42,7 @@ export interface HomeData {
 export type HomeSnapshotAvailability = 'demo' | 'available' | 'unavailable';
 
 export interface UseHomeDataResult {
-  data: HomeData | null;
+  data: HomeData;
   isLoading: boolean;
   isError: boolean;
   snapshotAvailability: HomeSnapshotAvailability;
@@ -84,9 +88,7 @@ export function sliceHomeDailyValuesForRange(
   dailyValues: readonly DailyValuePoint[],
   range: HomeRange,
 ): DailyValuePoint[] {
-  const sorted = [...dailyValues].sort((a, b) =>
-    (a.date ?? '').localeCompare(b.date ?? ''),
-  );
+  const sorted = sortedDailyValues(dailyValues);
   const days = rangeWindowDays(range);
   const latest = sorted.at(-1);
   if (days === null || !latest?.date) {
@@ -194,17 +196,21 @@ export function useHomeData(
       : null;
 
   // --- Live: today's change + balance sparkline from the trends series ---
-  const dailyValues = dashboard.dashboard?.trends?.daily_values ?? [];
+  const dailyValues =
+    dashboard.dashboard?.trends?.daily_values ?? EMPTY_DAILY_VALUES;
   // Use array.at(-1) for the latest day — never index with [-1].
   const latestDay = dailyValues.at(-1);
 
-  const sparkline = mapDailyValuesToSparkline(
-    sliceHomeDailyValuesForRange(dailyValues, range),
-  );
-  const homeSparkline = sparklineOrFallback(
-    sparkline,
-    demoHome.sparkline,
-    isDemo,
+  const homeSparkline = useMemo(
+    () =>
+      sparklineOrFallback(
+        mapDailyValuesToSparkline(
+          sliceHomeDailyValuesForRange(dailyValues, range),
+        ),
+        demoHome.sparkline,
+        isDemo,
+      ),
+    [dailyValues, demoHome.sparkline, isDemo, range],
   );
 
   const home: HomeSlice = {
