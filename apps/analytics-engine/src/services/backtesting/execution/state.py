@@ -106,7 +106,7 @@ def build_strategy_summaries(
             last_price=last_price,
             last_market_prices=last_market_prices,
         )
-        final_value = portfolio.total_value(summary_price)
+        final_value = portfolio.equity(summary_price)
         allocation = sanitize_runtime_allocation(
             portfolio.allocation_percentages(summary_price)
         )

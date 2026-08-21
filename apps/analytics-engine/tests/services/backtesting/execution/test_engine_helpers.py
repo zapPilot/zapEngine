@@ -8,6 +8,7 @@ from src.models.backtesting import BacktestCompareConfigV3, BacktestResponse
 from src.services.backtesting.execution.compare import (
     materialize_compare_request,
 )
+from src.services.backtesting.execution.cost_model import PercentageSlippageModel
 from src.services.backtesting.execution.engine import (
     EngineConfig,
     StrategyEngine,
@@ -208,7 +209,12 @@ def test_apply_yield_disabled_returns_zero_breakdown_without_mutation() -> None:
         apply_yield=False,
     )
 
-    assert breakdown == {"spot_yield": 0.0, "stable_yield": 0.0, "total_yield": 0.0}
+    assert breakdown == {
+        "spot_yield": 0.0,
+        "stable_yield": 0.0,
+        "borrow_cost": 0.0,
+        "total_yield": 0.0,
+    }
     assert portfolio.spot_balance == pytest.approx(1.0)
     assert portfolio.stable_balance == pytest.approx(100.0)
 
@@ -247,6 +253,72 @@ def test_build_strategy_summaries_uses_explicit_summary_signal_id() -> None:
 
     assert summary.signal_id == "explicit_signal"
     assert summary.parameters == {"lookback_days": 30}
+
+
+def test_build_strategy_summaries_uses_equity_for_levered_portfolio() -> None:
+    strategy = ExplicitSignalSummaryStrategy()
+    summary = build_strategy_summaries(
+        strategies=[strategy],
+        portfolios={
+            "summary_signal": Portfolio(
+                spot_balance=10.0,
+                stable_balance=0.0,
+                debt_balance=400.0,
+            )
+        },
+        trade_counts={"summary_signal": 1},
+        total_capital=600.0,
+        last_price=100.0,
+        last_market_prices=None,
+        strategy_daily_values={"summary_signal": [600.0]},
+        benchmark_daily_prices=[100.0],
+    )["summary_signal"]
+
+    assert summary.final_value == pytest.approx(600.0)
+
+
+def test_apply_action_borrows_before_buying_and_repays_after_selling() -> None:
+    engine = StrategyEngine(EngineConfig())
+    portfolio = Portfolio(
+        stable_balance=0.0,
+        cost_model=PercentageSlippageModel(percent=0.0),
+    )
+    context = StrategyContext(
+        date=date(2025, 1, 2),
+        price=100.0,
+        sentiment=None,
+        price_history=[100.0],
+        portfolio=portfolio,
+    )
+
+    bought = engine._apply_action(
+        portfolio,
+        context,
+        StrategyAction(
+            snapshot=make_strategy_snapshot(reason="lever_up"),
+            transfers=[TransferIntent("stable", "spot", 500.0)],
+            debt_delta_usd=500.0,
+        ),
+    )
+
+    assert bought is True
+    assert portfolio.spot_balance == pytest.approx(5.0)
+    assert portfolio.stable_balance == pytest.approx(0.0)
+    assert portfolio.debt_balance == pytest.approx(500.0)
+
+    sold = engine._apply_action(
+        portfolio,
+        context,
+        StrategyAction(
+            snapshot=make_strategy_snapshot(reason="deleverage"),
+            transfers=[TransferIntent("spot", "stable", 500.0)],
+            debt_delta_usd=-500.0,
+        ),
+    )
+
+    assert sold is True
+    assert portfolio.debt_balance == pytest.approx(0.0)
+    assert portfolio.stable_balance == pytest.approx(0.0)
 
 
 def test_materialize_compare_request_passes_through_request() -> None:

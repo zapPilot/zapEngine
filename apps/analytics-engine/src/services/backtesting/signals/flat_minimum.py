@@ -137,6 +137,7 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
         init=False,
         repr=False,
     )
+    _latest_state: FlatMinimumState | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._spy_dma_signal = self._build_dma_signal("SPY")
@@ -150,6 +151,7 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
         self._last_ratio_zone = None
         self._ratio_cooldown_remaining = 0
         self._ratio_cooldown_blocked_zone = None
+        self._latest_state = None
 
     def initialize(self, context: StrategyContext) -> None:
         for spec in _ASSET_SPECS:
@@ -177,6 +179,7 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
             eth_btc_ratio_state=ratio_state,
             current_date=context.date,
         )
+        self._latest_state = snapshot
         self._decrement_ratio_cooldown()
         return snapshot
 
@@ -226,7 +229,18 @@ class FlatMinimumSignalComponent(StatefulSignalComponent):
                     cooldown_state=self._ratio_cooldown_state(),
                 ),
             )
+        self._latest_state = updated_snapshot
         return updated_snapshot
+
+    def dma_state_for(self, allocation_key: str) -> DmaMarketState | None:
+        """Return the most recently observed per-asset DMA state."""
+        if self._latest_state is None:
+            return None
+        return self._latest_state.dma_state_for(allocation_key)
+
+    @property
+    def latest_state(self) -> FlatMinimumState | None:
+        return self._latest_state
 
     def build_signal_observation(
         self,

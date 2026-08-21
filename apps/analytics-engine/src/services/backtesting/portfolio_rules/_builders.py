@@ -4,23 +4,46 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from copy import deepcopy
-from typing import Any, Protocol, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast
 
-from src.services.backtesting.portfolio_rules import (
-    ALL_PORTFOLIO_RULES,
-    DEFAULT_PORTFOLIO_RULES,
-    RULE_NAMES,
-)
-from src.services.backtesting.portfolio_rules.base import (
-    HasPublicParams,
-    PortfolioRule,
-)
-from src.services.backtesting.risk import (
-    RiskGuard,
-    TradeQuotaGuard,
+from src.services.backtesting.decision import (
+    AllocationIntent,
+    DecisionAction,
+    RuleGroup,
 )
 
-_RuleT = TypeVar("_RuleT", bound=PortfolioRule)
+if TYPE_CHECKING:
+    from src.services.backtesting.portfolio_rules.base import PortfolioRule
+    from src.services.backtesting.risk import RiskGuard
+
+_RuleT = TypeVar("_RuleT", bound="PortfolioRule")
+
+SCORE_BY_REASON: dict[str, float] = {
+    "portfolio_cross_down_exit": -1.0,
+    "portfolio_cross_up_equal_weight": 1.0,
+    "portfolio_dma_overextension_dca_sell": -0.8,
+    "portfolio_fgi_downshift_dca_sell": -0.6,
+}
+
+
+def target_intent(
+    *,
+    action: DecisionAction,
+    target: dict[str, float],
+    allocation_name: str,
+    reason: str,
+    rule_group: RuleGroup,
+    immediate: bool = False,
+) -> AllocationIntent:
+    return AllocationIntent(
+        action=action,
+        target_allocation=dict(target),
+        allocation_name=allocation_name,
+        immediate=immediate,
+        reason=reason,
+        rule_group=rule_group,
+        decision_score=SCORE_BY_REASON.get(reason, 0.0),
+    )
 
 
 class _PortfolioRuleParams(Protocol):
@@ -40,8 +63,11 @@ def build_portfolio_rules_for_params(
     *,
     include_inactive: bool = False,
 ) -> tuple[PortfolioRule, ...]:
-    assert_known_rule_names(params.disabled_rules, field_name="disabled_rules")
-    assert_known_rule_names(params.enabled_rules, field_name="enabled_rules")
+    from src.services.backtesting.portfolio_rules import (
+        ALL_PORTFOLIO_RULES,
+        DEFAULT_PORTFOLIO_RULES,
+    )
+
     rule_universe = ALL_PORTFOLIO_RULES if include_inactive else DEFAULT_PORTFOLIO_RULES
     nested_params = _nested_public_params_for(params)
     rules = [
@@ -67,6 +93,8 @@ def _nested_public_params_for(params: _PortfolioRuleParams) -> Any:
 
 
 def _rule_with_public_params(rule: _RuleT, nested_params: Any) -> _RuleT:
+    from src.services.backtesting.portfolio_rules.base import HasPublicParams
+
     if not isinstance(rule, HasPublicParams):
         return rule
     section_name = rule.public_params_section()
@@ -90,22 +118,11 @@ def required_rule(
     raise ValueError(f"Missing required portfolio rule: {rule_type.__name__}")
 
 
-def assert_known_rule_names(
-    rule_names: frozenset[str] | None,
-    *,
-    field_name: str,
-) -> None:
-    if rule_names is None:
-        return
-    invalid_rules = sorted(rule_names - RULE_NAMES)
-    if invalid_rules:
-        joined = ", ".join(invalid_rules)
-        raise ValueError(f"Unsupported portfolio rule names in {field_name}: {joined}")
-
-
 def build_risk_guards_for_params(
     params: _PortfolioRuleParams,
 ) -> tuple[RiskGuard, ...]:
+    from src.services.backtesting.risk import TradeQuotaGuard
+
     guards: list[RiskGuard] = []
     if (
         params.min_trade_interval_days is not None

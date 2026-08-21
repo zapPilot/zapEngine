@@ -219,7 +219,6 @@ use_equal_capital_pool  # unused variable (src/models/backtesting.py:168)
 # Backtesting Methods - Unused Methods (used in tests only)
 # ============================================================================
 _.validate_action_regimes  # unused method (src/models/backtesting.py:179)
-_.reject_legacy_borrow_params  # unused method (src/models/backtesting.py:357)
 
 # ============================================================================
 # Backtesting Module - Cross-module usage not detected by vulture
@@ -296,15 +295,7 @@ _ = coerce_action  # noqa: F841
 _ = coerce_rule_group  # noqa: F841
 _ = optional_float  # noqa: F841
 
-total_yield_from_borrowed  # unused variable (src/models/backtesting.py:106)
-liquidation_events  # unused variable (src/models/backtesting.py:100)
-_.force_liquidation  # unused method (src/services/backtesting/execution/portfolio.py:1203)
 operation  # unused variable (src/services/backtesting/strategies/base.py:26)
-
-# Portfolio attributes
-from src.services.backtesting.execution.portfolio import Portfolio
-
-_ = Portfolio.borrow_apr
 
 # API Router endpoints
 # Reachable via FastAPI @router.get('/configs') decorator; vulture cannot trace

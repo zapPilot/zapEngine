@@ -74,10 +74,8 @@ class DmaRuntimeDebugState:
 
     last_observed_zone: Zone | None
     last_actionable_zone: Zone | None
-    signal_cooldown_end_date: date | None
-    signal_cooldown_blocked_zone: BlockedZone | None
-    trade_cooldown_end_date: date | None
-    trade_cooldown_blocked_zone: BlockedZone | None
+    cooldown_end_date: date | None
+    cooldown_blocked_zone: BlockedZone | None
     fgi_ema_prev: float | None
     fgi_ema_current: float | None
 

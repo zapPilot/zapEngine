@@ -365,17 +365,17 @@ class StrategyEngine:
         trade_executed = self._apply_action(portfolio, context, action)
         if trade_executed:
             trade_counts[strategy.strategy_id] += 1
-        self._apply_yield(
+        yield_breakdown = self._apply_yield(
             portfolio,
             context.portfolio_price,
             sentiment_label,
             apply_yield=action.apply_yield,
         )
-        total_value = portfolio.total_value(context.portfolio_price)
+        equity = portfolio.equity(context.portfolio_price)
         if not record_point:
             return None
-        strategy_daily_values[strategy.strategy_id].append(total_value)
-        strategy.record_day(context, action, {}, trade_executed)
+        strategy_daily_values[strategy.strategy_id].append(equity)
+        strategy.record_day(context, action, yield_breakdown, trade_executed)
         return build_strategy_state(
             portfolio=portfolio,
             price=context.portfolio_price,
@@ -390,6 +390,8 @@ class StrategyEngine:
     ) -> bool:
         moved = False
         price = context.portfolio_price
+        if action.debt_delta_usd > 0.0:
+            portfolio.borrow(action.debt_delta_usd)
         if action.transfers:
             for transfer in action.transfers:
                 if transfer.amount_usd <= 0:
@@ -401,25 +403,31 @@ class StrategyEngine:
                     price,
                 )
                 moved = True
-            return moved
-        if not action.target_allocations:
-            return moved
-
-        target = normalize_target_allocation(action.target_allocations)
-        total_value = portfolio.total_value(price)
-        target_values = {bucket: total_value * pct for bucket, pct in target.items()}
-        current_values = portfolio.values_for_allocation_keys(price, target)
-        deltas = {
-            bucket: target_values[bucket] - current_values[bucket]
-            for bucket in target_values
-        }
-        to_bucket = max(deltas, key=lambda key: deltas[key])
-        from_bucket = min(deltas, key=lambda key: deltas[key])
-        amount = min(max(0.0, deltas[to_bucket]), max(0.0, -deltas[from_bucket]))
-        if amount <= 0:
-            return moved
-        portfolio.execute_transfer(from_bucket, to_bucket, amount, price)
-        return True
+        elif action.target_allocations:
+            target = normalize_target_allocation(action.target_allocations)
+            total_value = portfolio.total_value(price)
+            target_values = {
+                bucket: total_value * pct for bucket, pct in target.items()
+            }
+            current_values = portfolio.values_for_allocation_keys(price, target)
+            deltas = {
+                bucket: target_values[bucket] - current_values[bucket]
+                for bucket in target_values
+            }
+            to_bucket = max(deltas, key=lambda key: deltas[key])
+            from_bucket = min(deltas, key=lambda key: deltas[key])
+            amount = min(
+                max(0.0, deltas[to_bucket]),
+                max(0.0, -deltas[from_bucket]),
+            )
+            if amount > 0:
+                portfolio.execute_transfer(from_bucket, to_bucket, amount, price)
+                moved = True
+        if action.stable_cost_usd > 0.0:
+            portfolio.charge_stable(action.stable_cost_usd)
+        if action.debt_delta_usd < 0.0:
+            portfolio.repay(-action.debt_delta_usd)
+        return moved
 
     def _apply_yield(
         self,
@@ -429,7 +437,12 @@ class StrategyEngine:
         apply_yield: bool = True,
     ) -> dict[str, float]:
         if not apply_yield:
-            return {"spot_yield": 0.0, "stable_yield": 0.0, "total_yield": 0.0}
+            return {
+                "spot_yield": 0.0,
+                "stable_yield": 0.0,
+                "borrow_cost": 0.0,
+                "total_yield": 0.0,
+            }
         apr_rates = self.config.apr_by_regime.get(sentiment_label or "neutral", {})
         return portfolio.apply_daily_yield(price, apr_rates)
 

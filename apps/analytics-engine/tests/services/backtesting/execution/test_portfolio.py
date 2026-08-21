@@ -37,6 +37,52 @@ def test_apply_daily_yield_updates_spot_and_stable() -> None:
     assert portfolio.stable_balance > 1_000.0
 
 
+def test_borrow_repay_equity_ltv_and_health_factor() -> None:
+    portfolio = Portfolio(spot_balance=10.0, stable_balance=0.0)
+
+    assert portfolio.borrow(400.0) == pytest.approx(400.0)
+    assert portfolio.total_value(100.0) == pytest.approx(1_400.0)
+    assert portfolio.equity(100.0) == pytest.approx(1_000.0)
+    assert portfolio.ltv(100.0) == pytest.approx(0.4)
+    assert portfolio.health_factor(100.0, 0.8) == pytest.approx(2.0)
+
+    assert portfolio.repay(500.0) == pytest.approx(400.0)
+    assert portfolio.debt_balance == pytest.approx(0.0)
+    assert portfolio.stable_balance == pytest.approx(0.0)
+    assert portfolio.health_factor(100.0, 0.8) == float("inf")
+
+
+def test_repay_caps_at_available_stable_and_outstanding_debt() -> None:
+    portfolio = Portfolio(stable_balance=50.0, debt_balance=100.0)
+
+    assert portfolio.repay(1_000.0) == pytest.approx(50.0)
+    assert portfolio.stable_balance == pytest.approx(0.0)
+    assert portfolio.debt_balance == pytest.approx(50.0)
+
+
+def test_charge_stable_caps_at_available_balance() -> None:
+    portfolio = Portfolio(stable_balance=50.0)
+
+    assert portfolio.charge_stable(75.0) == pytest.approx(50.0)
+    assert portfolio.stable_balance == pytest.approx(0.0)
+
+
+def test_borrow_interest_compounds_daily() -> None:
+    portfolio = Portfolio(stable_balance=0.0, debt_balance=1_000.0)
+
+    first = portfolio.apply_daily_yield(100.0, {"borrow": 0.365})
+    second = portfolio.apply_daily_yield(100.0, {"borrow": 0.365})
+
+    assert first["borrow_cost"] == pytest.approx(1.0)
+    assert second["borrow_cost"] == pytest.approx(1.001)
+    assert portfolio.debt_balance == pytest.approx(1_002.001)
+
+
+def test_ltv_without_risk_assets_is_defined() -> None:
+    assert Portfolio(stable_balance=100.0).ltv(100.0) == pytest.approx(0.0)
+    assert Portfolio(stable_balance=100.0, debt_balance=50.0).ltv(100.0) == float("inf")
+
+
 def test_execute_transfer_respects_spot_stable_only_and_costs() -> None:
     portfolio = Portfolio(
         spot_balance=0.0,

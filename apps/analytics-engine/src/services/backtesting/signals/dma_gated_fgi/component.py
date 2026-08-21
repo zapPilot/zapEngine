@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import date
 
-from src.services.backtesting.decision import (
-    AllocationIntent,
-    DecisionAction,
-    RuleGroup,
-)
+from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.domain import (
     DmaSignalDiagnostics,
     SignalObservation,
@@ -23,7 +19,10 @@ from src.services.backtesting.signals.contracts import (
     StatefulSignalComponent,
 )
 from src.services.backtesting.signals.dma_gated_fgi.config import DmaGatedFgiConfig
-from src.services.backtesting.signals.dma_gated_fgi.metadata import build_signal_output
+from src.services.backtesting.signals.dma_gated_fgi.metadata import (
+    build_signal_output,
+    cross_event_for_intent,
+)
 from src.services.backtesting.signals.dma_gated_fgi.runtime import (
     DmaGatedFgiSignalRuntime,
 )
@@ -31,84 +30,11 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
     CrossEvent,
     DmaMarketState,
     SignalId,
-    Zone,
 )
 from src.services.backtesting.strategies.base import (
     StrategyContext,
 )
-from src.services.backtesting.tactics.base import (
-    Rule,
-    RuleConfig,
-    hold_intent,
-    hold_reason,
-    target_intent,
-)
-from src.services.backtesting.tactics.rules import (
-    DEFAULT_RULES,
-)
 from src.services.backtesting.utils import normalize_regime_label
-
-
-def _hold_reason(zone: Zone) -> str:
-    return hold_reason(zone)
-
-
-def _hold_intent(*, reason: str, rule_group: RuleGroup) -> AllocationIntent:
-    return hold_intent(reason=reason, rule_group=rule_group)
-
-
-# jscpd:ignore-start
-# Reason: compatibility wrapper intentionally mirrors the tactic target builder.
-def _target_intent(
-    *,
-    action: DecisionAction,
-    target: dict[str, float],
-    allocation_name: str,
-    reason: str,
-    rule_group: RuleGroup,
-    immediate: bool = False,
-) -> AllocationIntent:
-    return target_intent(
-        action=action,
-        target=target,
-        allocation_name=allocation_name,
-        reason=reason,
-        rule_group=rule_group,
-        immediate=immediate,
-    )
-
-
-# jscpd:ignore-end
-
-
-def _resolve_dma_allocation_intent(
-    snapshot: DmaMarketState,
-    *,
-    dma_overextension_threshold: float = 0.30,
-    fgi_slope_reversal_threshold: float = -0.05,
-    fgi_slope_recovery_threshold: float = 0.05,
-    rules: tuple[Rule, ...] = DEFAULT_RULES,
-    config: RuleConfig | None = None,
-    disabled_rules: frozenset[str] = frozenset(),
-) -> AllocationIntent:
-    resolved_config = config or RuleConfig(
-        dma_overextension_threshold=dma_overextension_threshold,
-        fgi_slope_reversal_threshold=fgi_slope_reversal_threshold,
-        fgi_slope_recovery_threshold=fgi_slope_recovery_threshold,
-    )
-    for rule in rules:
-        if rule.name in disabled_rules:
-            continue
-        if rule.matches(snapshot, config=resolved_config):
-            intent = rule.build_intent(snapshot, config=resolved_config)
-            diagnostics = dict(intent.diagnostics or {})
-            diagnostics.setdefault("matched_rule_name", rule.name)
-            return replace(intent, diagnostics=diagnostics)
-    intent = hold_intent(reason=hold_reason(snapshot.zone), rule_group="none")
-    return replace(
-        intent,
-        diagnostics={"matched_rule_name": "regime_no_signal_hold"},
-    )
 
 
 def _build_signal_observation(
@@ -117,9 +43,7 @@ def _build_signal_observation(
     intent: AllocationIntent,
 ) -> SignalObservation:
     signal_output = build_signal_output(market_state=snapshot, intent=intent)
-    cross_event = (
-        snapshot.actionable_cross_event if intent.rule_group == "cross" else None
-    )
+    cross_event = cross_event_for_intent(market_state=snapshot, intent=intent)
     return SignalObservation(
         signal_id=snapshot.signal_id,
         regime=snapshot.fgi_regime,
@@ -150,18 +74,10 @@ def _build_execution_hints(
     buy_strength = (
         compute_dma_buy_strength(snapshot.dma_distance) if enable_buy_gate else None
     )
-    current_regime = snapshot.fgi_regime
-    signal_value = snapshot.fgi_value
-    if (
-        "spy_below_extreme_fear_buy" in intent.reason
-        and snapshot.macro_fear_greed_regime is not None
-    ):
-        current_regime = snapshot.macro_fear_greed_regime
-        signal_value = snapshot.macro_fear_greed_value
     return ExecutionHints(
         signal_id=snapshot.signal_id,
-        current_regime=current_regime,
-        signal_value=signal_value,
+        current_regime=snapshot.fgi_regime,
+        signal_value=snapshot.fgi_value,
         signal_confidence=float(signal_confidence),
         decision_score=intent.decision_score,
         decision_action=intent.action,

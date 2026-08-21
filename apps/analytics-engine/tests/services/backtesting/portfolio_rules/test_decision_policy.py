@@ -34,7 +34,6 @@ from src.services.backtesting.portfolio_rules.decision_policy import (
     RulesEvaluator,
     _matched_rule_priority,
     _rule_with_public_params,
-    assert_known_rule_names,
     build_portfolio_rules_for_params,
     build_portfolio_snapshot,
     build_risk_guards_for_params,
@@ -813,9 +812,6 @@ def test_decision_policy_validation_helpers_raise_for_unknown_names() -> None:
 
     with pytest.raises(ValueError, match="Missing required portfolio rule"):
         required_rule((), type(cast(PortfolioRule, _FakeRule(name="alpha"))))
-
-    with pytest.raises(ValueError, match="Unsupported portfolio rule names"):
-        assert_known_rule_names(frozenset({"missing"}), field_name="disabled_rules")
 
 
 def test_matched_rule_priority_returns_none_without_matched_rule_diagnostic() -> None:
