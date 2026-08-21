@@ -104,14 +104,11 @@ function makeUpdateQuery(fixture: AlignmentFixture, attempts: QueryAttempts) {
 function installSupabaseFixture(fixture: AlignmentFixture) {
   const attempts: QueryAttempts = { list: 0, update: 0 };
   const update = makeUpdateQuery(fixture, attempts);
-  const readFixture = createAlignmentReadFixture(
-    () => {
-      const snapshot = fixture.snapshots[attempts.list] ?? [];
-      attempts.list += 1;
-      return { data: snapshot, error: null };
-    },
-    update,
-  );
+  const readFixture = createAlignmentReadFixture(() => {
+    const snapshot = fixture.snapshots[attempts.list] ?? [];
+    attempts.list += 1;
+    return { data: snapshot, error: null };
+  }, update);
   supabase.getPipelineSupabase.mockReturnValue(readFixture.client);
 }
 
