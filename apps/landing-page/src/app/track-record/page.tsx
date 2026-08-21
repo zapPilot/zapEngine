@@ -6,6 +6,7 @@ import { MetricsRow } from '@/components/track-record/MetricsRow';
 import { NavCurveChart } from '@/components/track-record/NavCurveChart';
 import { Section } from '@/components/primitives/Section';
 import equityCurve from '@/data/equity-curve.json';
+import { hasLiveTrackRecordData } from '@/data/mock-track-record';
 
 const BACKTEST_WINDOW = equityCurve.window;
 
@@ -14,7 +15,9 @@ export default function TrackRecordPage() {
   const { meta, latestSnapshot, summary, snapshots, events, isLoading, error } =
     state;
 
-  const hasLiveData = !!meta?.latestSnapshotCid;
+  // Demo data is not live data: the sentinel CID must not unlock the live
+  // chart or the on-chain wallet links.
+  const hasLiveData = hasLiveTrackRecordData(meta);
 
   return (
     <div className="track-record-page">
@@ -87,7 +90,7 @@ export default function TrackRecordPage() {
 
       <section className="model-wallets">
         <h3>Model Portfolio Wallets</h3>
-        {latestSnapshot ? (
+        {hasLiveData && latestSnapshot ? (
           <ul className="wallet-list">
             {latestSnapshot.walletAddresses.map((addr, i) => (
               <li key={addr}>

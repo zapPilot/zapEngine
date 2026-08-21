@@ -2,21 +2,21 @@ import { Context, Telegraf } from 'telegraf';
 
 import { ConfigService } from '../../config/config.service';
 import { DatabaseService } from '../../database/database.service';
-import { DailySuggestionData, DriftAlertData } from './interfaces';
 import {
   TELEGRAM_HELP_TEXT,
   TelegramBotCoreService,
 } from './telegram-bot-core.service';
 import { TelegramConnectionService } from './telegram-connection.service';
-import { TelegramNotificationService } from './telegram-notification.service';
+import {
+  BroadcastResult,
+  TelegramNotificationService,
+} from './telegram-notification.service';
 import { TelegramTokenService } from './telegram-token.service';
-import { TelegramTradeRecorderService } from './telegram-trade-recorder.service';
 
 export class TelegramService {
   private readonly botCore: TelegramBotCoreService;
   private readonly connection: TelegramConnectionService;
   private readonly notifications: TelegramNotificationService;
-  private readonly tradeRecorder: TelegramTradeRecorderService;
 
   /* istanbul ignore next -- DI constructor */
   constructor(
@@ -33,10 +33,6 @@ export class TelegramService {
       databaseService,
       this.botCore,
     );
-    this.tradeRecorder = new TelegramTradeRecorderService(
-      databaseService,
-      this.connection,
-    );
 
     this.registerHandlers();
   }
@@ -49,22 +45,11 @@ export class TelegramService {
     return this.botCore.stop();
   }
 
-  async sendDriftAlert(
-    userId: string,
-    driftData: DriftAlertData,
-  ): Promise<void> {
-    await this.notifications.sendDriftAlert(userId, driftData);
-  }
-
-  async sendDailySuggestion(
-    userId: string,
-    data: DailySuggestionData,
-  ): Promise<void> {
-    await this.notifications.sendDailySuggestion(userId, data);
-  }
-
-  async getTelegramConnectedUserIds(): Promise<string[]> {
-    return this.notifications.getTelegramConnectedUserIds();
+  async broadcastToConnectedUsers(
+    message: string,
+    logLabel: string,
+  ): Promise<BroadcastResult> {
+    return this.notifications.broadcastToConnectedUsers(message, logLabel);
   }
 
   validateWebhookSecret(secret: string): boolean {
@@ -93,9 +78,6 @@ export class TelegramService {
     );
     this.botCore.onCommand('stop', (ctx: Context) =>
       this.connection.handleStopCommand(ctx),
-    );
-    this.botCore.onCallbackQuery((ctx: Context) =>
-      this.tradeRecorder.handleDailySuggestionDoneCallback(ctx),
     );
     this.botCore.onHelp(async (ctx: Context) => {
       await ctx.reply(TELEGRAM_HELP_TEXT, { parse_mode: 'Markdown' });

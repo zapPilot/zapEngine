@@ -1,7 +1,6 @@
 import type { Mock } from 'vitest';
 
 import { DatabaseService } from '../../../../src/database/database.service';
-import { DailySuggestionData } from '../../../../src/modules/notifications/interfaces';
 import { TelegramBotCoreService } from '../../../../src/modules/notifications/telegram-bot-core.service';
 import { TelegramNotificationService } from '../../../../src/modules/notifications/telegram-notification.service';
 import { createMockDatabaseService } from '../../../test-utils';
@@ -12,53 +11,11 @@ interface MockBot {
   };
 }
 
-function createDailySuggestionData(
-  overrides: Partial<DailySuggestionData> = {},
-): DailySuggestionData {
+function createMockBot(): MockBot {
   return {
-    as_of: '2025-01-01',
-    config_id: 'test',
-    config_display_name: 'Test Config',
-    strategy_id: 'strat-1',
-    action: {
-      status: 'no_action',
-      required: false,
-      kind: null,
-      reason_code: 'already_aligned',
-      transfers: [],
+    telegram: {
+      sendMessage: vi.fn().mockResolvedValue({}),
     },
-    context: {
-      market: {
-        date: '2025-01-01',
-        token_price: { btc: 100000, eth: 4000 },
-        sentiment: 50,
-        sentiment_label: 'neutral',
-      },
-      signal: {
-        id: 'signal',
-        regime: 'neutral',
-        raw_value: 50,
-        confidence: 1,
-        details: {},
-      },
-      portfolio: {
-        spot_usd: 5000,
-        stable_usd: 5000,
-        total_value: 10000,
-        allocation: { spot: 0.5, stable: 0.5 },
-        asset_allocation: { btc: 0.5, eth: 0, spy: 0, stable: 0.5, alt: 0 },
-      },
-      target: {
-        allocation: { btc: 0.6, eth: 0, spy: 0, stable: 0.4, alt: 0 },
-      },
-      strategy: {
-        stance: 'hold',
-        reason_code: 'already_aligned',
-        rule_group: 'none',
-        details: {},
-      },
-    },
-    ...overrides,
   };
 }
 
@@ -75,159 +32,130 @@ function createNotificationMocks(bot: MockBot | null = createMockBot()) {
   return { service, dbMock, botCore, bot };
 }
 
-function createMockBot(): MockBot {
-  return {
-    telegram: {
-      sendMessage: vi.fn().mockResolvedValue({}),
-    },
-  };
+/** The connected-user list is awaited directly; chat ids go through .single(). */
+function connectedUsers(
+  dbMock: ReturnType<typeof createMockDatabaseService>,
+  userIds: string[],
+) {
+  dbMock.serviceRole.queryBuilder.mockResolvedThen({
+    data: userIds.map((user_id) => ({ user_id })),
+    error: null,
+  });
+}
+
+function chatIdFor(chatId: string | null) {
+  return chatId === null
+    ? { data: null, error: { code: 'PGRST116' } }
+    : { data: { config: { chat_id: chatId } }, error: null };
 }
 
 describe('TelegramNotificationService', () => {
-  it('sends drift alert when chat_id is found', async () => {
-    const { service, dbMock, bot } = createNotificationMocks();
-    dbMock.serviceRole.queryBuilder.single.mockResolvedValue({
-      data: { config: { chat_id: '12345' } },
-      error: null,
+  describe('broadcastToConnectedUsers', () => {
+    it('sends the same message to every connected user', async () => {
+      const { service, dbMock, bot } = createNotificationMocks();
+      connectedUsers(dbMock, ['u-1', 'u-2']);
+      dbMock.serviceRole.queryBuilder.single
+        .mockResolvedValueOnce(chatIdFor('111'))
+        .mockResolvedValueOnce(chatIdFor('222'));
+
+      const result = await service.broadcastToConnectedUsers(
+        'strategy moved',
+        'strategy change',
+      );
+
+      expect(result).toEqual({
+        recipients: 2,
+        sent: 2,
+        skippedNoChatId: 0,
+        skippedBlocked: 0,
+        failedUserIds: [],
+      });
+      expect(bot?.telegram.sendMessage).toHaveBeenCalledTimes(2);
+      expect(bot?.telegram.sendMessage).toHaveBeenNthCalledWith(
+        1,
+        '111',
+        'strategy moved',
+        expect.objectContaining({ parse_mode: 'Markdown' }),
+      );
+      expect(bot?.telegram.sendMessage).toHaveBeenNthCalledWith(
+        2,
+        '222',
+        'strategy moved',
+        expect.any(Object),
+      );
     });
 
-    await service.sendDriftAlert('user-1', {
-      drift_percentage: 15.5,
-      wallet_address: '0x1234567890abcdef1234567890abcdef12345678',
-      recommendations: [
-        {
-          action: 'buy',
-          token: 'ETH',
-          amount_usd: 500,
-          current_percent: 30,
-          target_percent: 50,
-        },
-      ],
+    it('skips a connected user with no chat id', async () => {
+      const { service, dbMock, bot } = createNotificationMocks();
+      connectedUsers(dbMock, ['u-1', 'u-2']);
+      dbMock.serviceRole.queryBuilder.single
+        .mockResolvedValueOnce(chatIdFor(null))
+        .mockResolvedValueOnce(chatIdFor('222'));
+
+      const result = await service.broadcastToConnectedUsers('msg', 'label');
+
+      expect(result.sent).toBe(1);
+      expect(result.skippedNoChatId).toBe(1);
+      expect(result.failedUserIds).toEqual([]);
+      expect(bot?.telegram.sendMessage).toHaveBeenCalledTimes(1);
     });
 
-    expect(bot?.telegram.sendMessage).toHaveBeenCalledWith(
-      '12345',
-      expect.stringContaining('Portfolio Drift Alert'),
-      expect.any(Object),
-    );
-  });
+    it('counts a blocked user as unreachable and disables their notifications', async () => {
+      const { service, dbMock, bot } = createNotificationMocks();
+      connectedUsers(dbMock, ['u-1']);
+      dbMock.serviceRole.queryBuilder.single.mockResolvedValue(
+        chatIdFor('111'),
+      );
+      bot?.telegram.sendMessage.mockRejectedValueOnce({
+        response: { error_code: 403 },
+      });
 
-  it('does nothing when bot is not configured', async () => {
-    const { service, botCore } = createNotificationMocks(null);
+      const result = await service.broadcastToConnectedUsers('msg', 'label');
 
-    await service.sendDriftAlert('user-1', {
-      drift_percentage: 10,
-      wallet_address: '0x1234567890abcdef1234567890abcdef12345678',
-      recommendations: [],
+      expect(result.sent).toBe(0);
+      expect(result.skippedBlocked).toBe(1);
+      expect(result.failedUserIds).toEqual([]);
+      expect(dbMock.serviceRole.queryBuilder.update).toHaveBeenCalledWith({
+        is_enabled: false,
+      });
     });
 
-    expect(botCore.getBot).toHaveBeenCalled();
-  });
+    it('records a transport failure without aborting the rest of the broadcast', async () => {
+      const { service, dbMock, bot } = createNotificationMocks();
+      connectedUsers(dbMock, ['u-1', 'u-2']);
+      dbMock.serviceRole.queryBuilder.single.mockResolvedValue(
+        chatIdFor('111'),
+      );
+      bot?.telegram.sendMessage.mockRejectedValueOnce(
+        new Error('Network timeout'),
+      );
 
-  it('does nothing when no chat_id is found', async () => {
-    const { service, dbMock, bot } = createNotificationMocks();
-    dbMock.serviceRole.queryBuilder.single.mockResolvedValue({
-      data: null,
-      error: { code: 'PGRST116' },
+      const result = await service.broadcastToConnectedUsers('msg', 'label');
+
+      expect(result.sent).toBe(1);
+      expect(result.failedUserIds).toEqual(['u-1']);
+      expect(bot?.telegram.sendMessage).toHaveBeenCalledTimes(2);
     });
 
-    await service.sendDriftAlert('user-1', {
-      drift_percentage: 10,
-      wallet_address: '0x1234567890abcdef1234567890abcdef12345678',
-      recommendations: [],
+    it('reports zero recipients without reading the database when the bot is unconfigured', async () => {
+      const { service, dbMock } = createNotificationMocks(null);
+
+      const result = await service.broadcastToConnectedUsers('msg', 'label');
+
+      expect(result).toEqual({
+        recipients: 0,
+        sent: 0,
+        skippedNoChatId: 0,
+        skippedBlocked: 0,
+        failedUserIds: [],
+      });
+      expect(dbMock.mock.getServiceRoleClient).not.toHaveBeenCalled();
     });
-
-    expect(bot?.telegram.sendMessage).not.toHaveBeenCalled();
-  });
-
-  it('sends daily suggestion messages without inline button for no-action payloads', async () => {
-    const { service, dbMock, bot } = createNotificationMocks();
-    dbMock.serviceRole.queryBuilder.single.mockResolvedValue({
-      data: { config: { chat_id: '12345' } },
-      error: null,
-    });
-
-    await service.sendDailySuggestion('user-1', createDailySuggestionData());
-
-    expect(bot?.telegram.sendMessage).toHaveBeenCalledWith(
-      '12345',
-      expect.stringContaining('Portfolio: $10,000'),
-      expect.not.objectContaining({
-        reply_markup: expect.anything(),
-      }),
-    );
-  });
-
-  it('adds a Done button and debt-aware totals for action-required payloads', async () => {
-    const { service, dbMock, bot } = createNotificationMocks();
-    dbMock.serviceRole.queryBuilder.single.mockResolvedValue({
-      data: { config: { chat_id: '12345' } },
-      error: null,
-    });
-
-    await service.sendDailySuggestion(
-      'user-1',
-      createDailySuggestionData({
-        config_id: 'dma_fgi_portfolio_rules_default',
-        strategy_id: 'dma_fgi_portfolio_rules',
-        action: {
-          status: 'action_required',
-          required: true,
-          kind: 'rebalance',
-          reason_code: 'eth_btc_ratio_rebalance',
-          transfers: [
-            { from_bucket: 'btc', to_bucket: 'eth', amount_usd: 750 },
-          ],
-        },
-        context: {
-          ...createDailySuggestionData().context,
-          market: {
-            ...createDailySuggestionData().context.market,
-            sentiment: 72,
-            sentiment_label: 'greed',
-          },
-          signal: {
-            ...createDailySuggestionData().context.signal,
-            regime: 'greed',
-            raw_value: 72,
-          },
-          portfolio: {
-            ...createDailySuggestionData().context.portfolio,
-            spot_usd: 7000,
-            stable_usd: 3000,
-            total_assets_usd: 10000,
-            total_debt_usd: 2000,
-            total_net_usd: 8000,
-          },
-        },
-      }),
-    );
-
-    expect(bot?.telegram.sendMessage).toHaveBeenCalledWith(
-      '12345',
-      expect.stringContaining('Net: $8,000'),
-      expect.objectContaining({
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: '☑️ Done',
-                callback_data:
-                  'dsdone|dma_fgi_portfolio_rules_default|dma_fgi_portfolio_rules',
-              },
-            ],
-          ],
-        },
-      }),
-    );
   });
 
   it('returns connected Telegram user ids', async () => {
     const { service, dbMock } = createNotificationMocks();
-    dbMock.serviceRole.queryBuilder.mockResolvedThen({
-      data: [{ user_id: 'u-1' }, { user_id: 'u-2' }],
-      error: null,
-    });
+    connectedUsers(dbMock, ['u-1', 'u-2']);
 
     await expect(service.getTelegramConnectedUserIds()).resolves.toEqual([
       'u-1',
@@ -245,49 +173,23 @@ describe('TelegramNotificationService', () => {
     await expect(service.getTelegramConnectedUserIds()).resolves.toEqual([]);
   });
 
-  it('throws when sendMessage fails with a non-blocked error', async () => {
-    const { service, dbMock, bot } = createNotificationMocks();
-    dbMock.serviceRole.queryBuilder.single.mockResolvedValue({
-      data: { config: { chat_id: '12345' } },
-      error: null,
-    });
-    const nonBlockedError = new Error('Network timeout');
-    bot?.telegram.sendMessage.mockRejectedValueOnce(nonBlockedError);
+  it('reports undelivered rather than throwing when the bot is unconfigured', async () => {
+    const { service } = createNotificationMocks(null);
 
     await expect(
-      service.sendDriftAlert('user-1', {
-        drift_percentage: 5,
-        wallet_address: '0x1234567890abcdef1234567890abcdef12345678',
-        recommendations: [],
-      }),
-    ).rejects.toThrow('Network timeout');
+      service.sendMessageToUser('user-1', '12345', 'msg'),
+    ).resolves.toBe(false);
   });
 
-  it('disables notifications when bot is blocked by user', async () => {
-    const { service, dbMock, bot } = createNotificationMocks();
-    dbMock.serviceRole.queryBuilder.single.mockResolvedValue({
-      data: { config: { chat_id: '12345' } },
-      error: null,
-    });
-    bot?.telegram.sendMessage.mockRejectedValueOnce({
-      response: { error_code: 403 },
-    });
-    dbMock.serviceRole.queryBuilder.mockResolvedThen({
-      data: {},
-      error: null,
-    });
+  it('rethrows a non-blocked send failure', async () => {
+    const { service, bot } = createNotificationMocks();
+    bot?.telegram.sendMessage.mockRejectedValueOnce(
+      new Error('Network timeout'),
+    );
 
     await expect(
-      service.sendDriftAlert('user-1', {
-        drift_percentage: 5,
-        wallet_address: '0x1234567890abcdef1234567890abcdef12345678',
-        recommendations: [],
-      }),
-    ).resolves.toBeUndefined();
-
-    expect(dbMock.serviceRole.queryBuilder.update).toHaveBeenCalledWith({
-      is_enabled: false,
-    });
+      service.sendMessageToUser('user-1', '12345', 'msg'),
+    ).rejects.toThrow('Network timeout');
   });
 
   it('detects bot-blocked errors defensively', () => {

@@ -7,17 +7,19 @@ import { DatabaseService } from './database/database.service';
 import { UserValidationService } from './database/user-validation.service';
 import { JobProcessorService } from './modules/jobs/job-processor.service';
 import { JobQueueService } from './modules/jobs/job-queue.service';
-import { DailySuggestionProcessor } from './modules/jobs/processors/daily-suggestion.processor';
+import { StrategyChangeProcessor } from './modules/jobs/processors/strategy-change.processor';
 import { WeeklyReportProcessor } from './modules/jobs/processors/weekly-report.processor';
 import { AdminNotificationService } from './modules/notifications/admin-notification.service';
 import { AnalyticsClientService } from './modules/notifications/analytics-client/client';
 import { ChartService } from './modules/notifications/chart.service';
 import { EmailService } from './modules/notifications/email.service';
 import { ReportUnsubscribeTokenService } from './modules/notifications/report-unsubscribe-token.service';
+import { StrategyChangeStateService } from './modules/notifications/strategy-change-state.service';
 import { SupabaseUserService } from './modules/notifications/supabase-user.service';
 import { TelegramService } from './modules/notifications/telegram.service';
 import { TelegramTokenService } from './modules/notifications/telegram-token.service';
 import { TemplateService } from './modules/notifications/template.service';
+import { TrackRecordCurveService } from './modules/notifications/track-record/client';
 import {
   createDepositPublicClients,
   createPlanOrchestrationModule,
@@ -54,7 +56,9 @@ export interface AppServices {
   jobQueueService: JobQueueService;
   jobProcessorService: JobProcessorService;
   weeklyReportProcessor: WeeklyReportProcessor;
-  dailySuggestionProcessor: DailySuggestionProcessor;
+  trackRecordCurveService: TrackRecordCurveService;
+  strategyChangeStateService: StrategyChangeStateService;
+  strategyChangeProcessor: StrategyChangeProcessor;
   activityTracker: ActivityTracker;
   planOrchestrationService: PlanOrchestrationService;
   privyWalletExecutionService: PrivyWalletExecutionService;
@@ -113,9 +117,14 @@ export function createContainer(
     supabaseUserService,
     reportUnsubscribeTokenService,
   );
-  const dailySuggestionProcessor = new DailySuggestionProcessor(
+  const trackRecordCurveService = new TrackRecordCurveService(configService);
+  const strategyChangeStateService = new StrategyChangeStateService(
+    databaseService,
+  );
+  const strategyChangeProcessor = new StrategyChangeProcessor(
     jobQueueService,
-    analyticsClientService,
+    trackRecordCurveService,
+    strategyChangeStateService,
     telegramService,
   );
   const activityTracker = new ActivityTracker(databaseService);
@@ -188,7 +197,7 @@ export function createContainer(
   });
 
   jobProcessorService.registerProcessor(weeklyReportProcessor);
-  jobProcessorService.registerProcessor(dailySuggestionProcessor);
+  jobProcessorService.registerProcessor(strategyChangeProcessor);
 
   return {
     env,
@@ -209,7 +218,9 @@ export function createContainer(
     jobQueueService,
     jobProcessorService,
     weeklyReportProcessor,
-    dailySuggestionProcessor,
+    trackRecordCurveService,
+    strategyChangeStateService,
+    strategyChangeProcessor,
     activityTracker,
     planOrchestrationService,
     privyWalletExecutionService,

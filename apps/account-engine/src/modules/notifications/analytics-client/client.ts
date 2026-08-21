@@ -16,14 +16,10 @@ import {
 } from '../../../common/utils';
 import { ConfigService } from '../../../config/config.service';
 import { PortfolioNotFoundError } from '../errors/portfolio-not-found.error';
-import { DailySuggestionData } from '../interfaces/daily-suggestion.interface';
 import { PortfolioResponse } from '../interfaces/portfolio-response.interface';
 import { PortfolioTrendResponse } from '../interfaces/portfolio-trend.interface';
 import { EmailMetrics } from '../template.service';
-import {
-  normalizeDailySuggestionResponse,
-  transformToEmailMetrics,
-} from './mappers';
+import { transformToEmailMetrics } from './mappers';
 
 export class AnalyticsClientService {
   private readonly logger = new Logger(AnalyticsClientService.name);
@@ -69,22 +65,6 @@ export class AnalyticsClientService {
     );
   }
 
-  async getDailySuggestion(userId: string): Promise<DailySuggestionData> {
-    // Daily suggestion occasionally has a cold-path spike on the first upstream call
-    // (~13-14s observed) before subsequent requests drop below 1s.
-    const response = await this.fetchFromAnalytics<unknown>(
-      `/api/v3/strategy/daily-suggestion/${userId}`,
-      'daily suggestion',
-      userId,
-      {
-        retryOnTimeout: true,
-        timeoutMs: ANALYTICS_CONFIG.DAILY_SUGGESTION_REQUEST_TIMEOUT_MS,
-      },
-    );
-
-    return normalizeDailySuggestionResponse(response);
-  }
-
   private async fetchFromAnalytics<T>(
     path: string,
     label: string,
@@ -92,51 +72,30 @@ export class AnalyticsClientService {
     options?: {
       baseUrl?: string;
       params?: Record<string, unknown>;
-      retryOnTimeout?: boolean;
-      timeoutMs?: number;
     },
   ): Promise<T> {
     const base = normalizeLoopbackUrl(
       options?.baseUrl ?? this.analyticsEngineUrl,
     );
-    const maxAttempts = options?.retryOnTimeout ? 2 : 1;
-    let lastError: unknown;
+    const startedAt = Date.now();
+    this.logger.log(`Fetching ${label} for user: ${userId} from ${base}`);
 
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      const startedAt = Date.now();
-      this.logger.log(`Fetching ${label} for user: ${userId} from ${base}`);
+    try {
+      const response = await this.fetchJson<T>(`${base}${path}`, {
+        params: options?.params,
+      });
 
-      try {
-        const response = await this.fetchJson<T>(`${base}${path}`, {
-          timeoutMs: options?.timeoutMs,
-          params: options?.params,
-        });
-
-        this.logger.log(
-          `Successfully retrieved ${label} for user: ${userId} from ${base} in ${Date.now() - startedAt}ms`,
-        );
-        return response;
-      } catch (error) {
-        lastError = error;
-        const elapsedMs = Date.now() - startedAt;
-
-        if (attempt < maxAttempts && this.isRetryableTimeoutError(error)) {
-          this.logger.warn(
-            `Timed out fetching ${label} for user ${userId} from ${base} after ${elapsedMs}ms; retrying once`,
-          );
-          continue;
-        }
-
-        this.logger.error(
-          `Failed to get ${label} for user ${userId} from ${base} after ${elapsedMs}ms:`,
-          error,
-        );
-        this.handleAnalyticsError(error, userId, label);
-      }
+      this.logger.log(
+        `Successfully retrieved ${label} for user: ${userId} from ${base} in ${Date.now() - startedAt}ms`,
+      );
+      return response;
+    } catch (error) {
+      this.logger.error(
+        `Failed to get ${label} for user ${userId} from ${base} after ${Date.now() - startedAt}ms:`,
+        error,
+      );
+      this.handleAnalyticsError(error, userId, label);
     }
-
-    /* v8 ignore next -- all loop paths call handleAnalyticsError (which throws) before reaching here */
-    this.handleAnalyticsError(lastError, userId, label);
   }
 
   private handleAnalyticsError(
@@ -174,13 +133,6 @@ export class AnalyticsClientService {
     throw new ServiceLayerException(
       `Failed to retrieve ${operationLabel}: ${getErrorMessage(error)}`,
     );
-  }
-
-  private isRetryableTimeoutError(error: unknown): boolean {
-    // This app uses node `fetch` (undici), not axios — timeouts surface as
-    // AbortError or with "timeout" / "timed out" in the message.
-    const message = getErrorMessage(error).toLowerCase();
-    return message.includes('timeout') || message.includes('timed out');
   }
 
   async getPortfolioTrendData(userId: string): Promise<PortfolioTrendResponse> {

@@ -268,6 +268,53 @@ describe('NavCurveChart', () => {
     expect(container.querySelector('.chart-tooltip-alloc-group')).toBeNull();
   });
 
+  it('offers an expand button in the header, and nothing expanded until asked', () => {
+    render(<NavCurveChart snapshots={SNAPSHOTS} events={EVENTS} />);
+
+    expect(
+      screen.getByRole('button', { name: 'Expand Strategy NAV chart' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('offers no expand button when there is no chart to expand', () => {
+    render(<NavCurveChart snapshots={[]} />);
+
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('renders the same chart inside the overlay, once, without recursing', () => {
+    render(<NavCurveChart snapshots={SNAPSHOTS} events={EVENTS} />);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Expand Strategy NAV chart' }),
+    );
+
+    // The overlay is portalled to <body>, so count from the document. Scoped to
+    // the chart's own class: MarkerGlyph renders an <svg> per marker too.
+    expect(document.querySelectorAll('svg.nav-curve-svg')).toHaveLength(2);
+    // Two independent scrubbers, and only one expand button — the enlarged copy
+    // carries none, which is what terminates the recursion.
+    expect(screen.getAllByRole('slider')).toHaveLength(2);
+    expect(
+      screen.getAllByRole('button', { name: 'Expand Strategy NAV chart' }),
+    ).toHaveLength(1);
+  });
+
+  it('scrubs the overlay chart independently of the inline one', () => {
+    render(<NavCurveChart snapshots={SNAPSHOTS} events={EVENTS} />);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Expand Strategy NAV chart' }),
+    );
+    const [inline, expanded] = screen.getAllByRole('slider');
+
+    fireEvent.focus(expanded!);
+    fireEvent.keyDown(expanded!, { key: 'ArrowRight' });
+
+    expect(expanded).toHaveAttribute('aria-valuenow', '1');
+    expect(inline).toHaveAttribute('aria-valuenow', '0');
+  });
+
   it('sizes the trade in the tooltip when the event carries the figures', () => {
     const { container } = render(
       <NavCurveChart

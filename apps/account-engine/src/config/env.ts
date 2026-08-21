@@ -33,6 +33,7 @@ const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
   TELEGRAM_BOT_NAME: z.string().optional(),
+  TRACK_RECORD_EQUITY_CURVE_URL: z.string().optional(),
   TENDERLY_ACCOUNT_SLUG: z.string().optional(),
   TENDERLY_PROJECT_SLUG: z.string().optional(),
   TENDERLY_ACCESS_TOKEN: z.string().optional(),

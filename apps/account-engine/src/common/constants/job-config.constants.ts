@@ -69,11 +69,6 @@ export const ANALYTICS_CONFIG = {
   REQUEST_TIMEOUT_MS: 10000,
 
   /**
-   * Request timeout for daily suggestion calls (20 seconds)
-   */
-  DAILY_SUGGESTION_REQUEST_TIMEOUT_MS: 60000,
-
-  /**
    * Request timeout for health check calls (5 seconds)
    */
   HEALTH_CHECK_TIMEOUT_MS: 5000,

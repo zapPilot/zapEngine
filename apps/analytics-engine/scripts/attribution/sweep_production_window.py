@@ -45,6 +45,11 @@ DEFAULT_TOLERANCES: dict[str, float] = {
     "max_drawdown_percent": 1.0,
     "trade_count": 5.0,
 }
+# The daily refresh rewrites both sides of the reproducibility check, so a
+# rewritten upstream database would sail through unnoticed. This is the one
+# comparison that survives it: fresh ROI against the ROI already committed.
+MAX_REFRESH_ROI_SHIFT_PP = 5.0
+
 TOLERANCE_ALIASES = {
     "roi": "roi_percent",
     "roi_percent": "roi_percent",
@@ -414,6 +419,49 @@ def _snapshot_metric(
     return None
 
 
+def _guard_committed_roi_shift(
+    *,
+    expected: dict[str, Any] | None,
+    actual: dict[str, Any],
+    max_shift_pp: float,
+) -> None:
+    """Refuse a refresh whose headline ROI moved further than the guard allows.
+
+    `expected` is the committed fixture — the only copy of the numbers that
+    predates this run — so this is the check `--update-snapshot` otherwise
+    cannot make: everything else it compares, it is about to overwrite.
+
+    Silent when there is nothing to compare against. A missing metric is not
+    waved through downstream: the landing-curve generator reads the same
+    snapshot and raises on a non-numeric headline figure.
+    """
+    if expected is None:
+        return
+
+    strategy_id = expected.get("default_strategy_id")
+    if not isinstance(strategy_id, str) or not strategy_id:
+        return
+
+    committed = _snapshot_metric(expected, strategy_id, "roi_percent")
+    fresh = _snapshot_metric(actual, strategy_id, "roi_percent")
+    if committed is None or fresh is None:
+        return
+
+    delta = float(fresh) - float(committed)
+    if abs(delta) <= max_shift_pp:
+        return
+
+    print(
+        f"{strategy_id} roi_percent moved {delta:+.4f}pp "
+        f"({committed:.4f} -> {fresh:.4f}), beyond the {max_shift_pp:.4f}pp refresh "
+        "guard \u2014 the upstream window was rewritten, not merely extended; "
+        "refusing to overwrite the committed artifacts. Re-run with "
+        "--max-roi-shift once the change is understood and intended.",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+
 def diff_snapshots(
     *,
     expected: dict[str, Any],
@@ -560,6 +608,16 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--max-roi-shift",
+        type=float,
+        default=MAX_REFRESH_ROI_SHIFT_PP,
+        help=(
+            "Largest headline ROI move, in percentage points, that "
+            "--update-snapshot may publish. Raise it deliberately when an "
+            "upstream data change is understood and intended."
+        ),
+    )
+    parser.add_argument(
         "--exclude-deprecated",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -657,6 +715,14 @@ def main() -> None:
             )
 
     if args.update_snapshot:
+        # First, before anything is written: _regenerate_landing_equity_curve
+        # overwrites equity-curve.json as a side effect, so a guard placed after
+        # it would fail with the artifact already dirty.
+        _guard_committed_roi_shift(
+            expected=expected,
+            actual=actual,
+            max_shift_pp=float(args.max_roi_shift),
+        )
         snapshot = _merge_preserved_excluded_entries(existing=expected, actual=actual)
         point_count = _regenerate_landing_equity_curve(
             compare_payload=collection.compare_payload,
