@@ -10,6 +10,7 @@ const supabase = vi.hoisted(() => ({
 vi.mock('../services/supabase-client.js', () => supabase);
 
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
+import { createAlignmentReadFixture } from './daemon-store-align-schedules.test-helper.js';
 
 interface PendingJob {
   id: string;
@@ -17,16 +18,6 @@ interface PendingJob {
   status: 'queued' | 'failed';
   scheduled_at: string;
   next_attempt_at: string;
-}
-
-function makeListQuery(jobs: PendingJob[]) {
-  return {
-    select: vi.fn(() => ({
-      in: vi.fn(() => ({
-        returns: vi.fn(async () => ({ data: jobs, error: null })),
-      })),
-    })),
-  };
 }
 
 function makeUpdateQuery(input: {
@@ -79,16 +70,17 @@ describe('alignPendingSocialPublishSchedules failed-earliest recovery', () => {
     const attemptedPatches: Record<string, unknown>[] = [];
     const attemptedIds: string[] = [];
     const statusFences: string[] = [];
-    const listQuery = makeListQuery(jobs);
+    const fixture = createAlignmentReadFixture<PendingJob>({
+      data: jobs,
+      error: null,
+    });
     const update = makeUpdateQuery({
       attemptedPatches,
       attemptedIds,
       statusFences,
     });
-
-    supabase.getPipelineSupabase.mockReturnValue({
-      from: vi.fn(() => ({ ...listQuery, update })),
-    });
+    fixture.update.mockImplementation(update);
+    supabase.getPipelineSupabase.mockReturnValue(fixture.client);
 
     await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
     await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
