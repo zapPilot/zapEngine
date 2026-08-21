@@ -76,11 +76,7 @@ export function StrategyScreen() {
         <Text className="font-sans-semibold text-[14px] text-ink">
           {t('strategy.backtest')}
         </Text>
-        <RangeTabs
-          options={RANGE_OPTIONS}
-          value={range}
-          onChange={(value) => setRange(value as StrategyRange)}
-        />
+        <RangeTabs options={RANGE_OPTIONS} value={range} onChange={setRange} />
       </View>
 
       <Card className="mx-5 mt-3 p-[15px]">

@@ -85,9 +85,9 @@ export function ActivityScreen() {
             comfortable
             accessibilityLabel={t('activity.categoryFilter')}
             optionLabel={(option) =>
-              activityFilterLabel(option as ActivityFilter, t('activity.all'))
+              activityFilterLabel(option, t('activity.all'))
             }
-            onChange={(value) => setFilter(value as ActivityFilter)}
+            onChange={setFilter}
           />
         </ScrollView>
       </View>

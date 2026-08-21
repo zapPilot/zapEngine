@@ -13,12 +13,14 @@ export interface YieldReturnPoint {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-function sortedDailyValues(
-  dailyValues: DailyValuePoint[] | undefined,
+export function sortedDailyValues(
+  dailyValues: readonly DailyValuePoint[] | undefined,
 ): DailyValuePoint[] {
-  return [...(dailyValues ?? [])].sort((a, b) =>
-    (a.date ?? '').localeCompare(b.date ?? ''),
-  );
+  return [...(dailyValues ?? [])].sort((a, b) => {
+    const aDate = a.date ?? '';
+    const bDate = b.date ?? '';
+    return aDate < bDate ? -1 : aDate > bDate ? 1 : 0;
+  });
 }
 
 export function mapDailyValuesToSparkline(

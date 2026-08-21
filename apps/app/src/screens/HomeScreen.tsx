@@ -1,3 +1,6 @@
+import type { EtlJobPollingState } from '@zapengine/app-core/hooks/wallet';
+import { useEtlJobPolling } from '@zapengine/app-core/hooks/wallet';
+import { tokens } from '@zapengine/design-tokens/tokens';
 import { useRouter } from 'expo-router';
 import {
   ArrowDown,
@@ -24,18 +27,19 @@ import { TokenIcon } from '@/components/token/TokenIcon';
 import { SharePortfolioButton } from '@/components/share/SharePortfolioButton';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
-import { DEMO } from '@/data/demo';
 import { DisplayUsdValue } from '@/components/ui/DisplayUsdValue';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { RangeTabs } from '@/components/ui/RangeTabs';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
-import { useEtlJobPolling } from '@zapengine/app-core/hooks/wallet';
+import type { DemoAsset } from '@/data/demo';
 
 import { useAccount } from '@/integration/useAccount';
 import {
   DEFAULT_HOME_RANGE,
+  HOME_RANGE_OPTIONS,
   type HomeRange,
   useHomeData,
 } from '@/integration/useHomeData';
@@ -43,12 +47,38 @@ import { createStrategyStartAction } from '@/integration/strategyStartAction';
 import { formatSignedPct, formatSignedUsd, formatUsd } from '@/lib/format';
 import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
+import type { TranslationKey } from '@/i18n/translations';
 
-const RANGE_OPTIONS = ['1D', '1W', '1M', '1Y', 'ALL'] as const;
+type PortfolioImportCopyKey = 'failed' | 'completed' | 'preparing';
 
-type HomeAsset = (typeof DEMO)['home']['assets'][number];
+const PORTFOLIO_IMPORT_COPY = {
+  failed: {
+    titleKey: 'home.etlFailedTitle',
+    bodyKey: 'home.etlFailedBody',
+    retryable: true,
+  },
+  completed: {
+    titleKey: 'home.noPortfolioHistoryTitle',
+    bodyKey: 'home.noPortfolioHistoryBody',
+    retryable: false,
+  },
+  preparing: {
+    titleKey: 'home.etlPreparingTitle',
+    bodyKey: 'home.etlPreparingBody',
+    retryable: false,
+  },
+} as const satisfies Record<
+  PortfolioImportCopyKey,
+  { titleKey: TranslationKey; bodyKey: TranslationKey; retryable: boolean }
+>;
 
-function AssetRow({ asset, divider }: { asset: HomeAsset; divider: boolean }) {
+function getPortfolioImportCopy(status: EtlJobPollingState['status']) {
+  if (status === 'failed') return PORTFOLIO_IMPORT_COPY.failed;
+  if (status === 'completed') return PORTFOLIO_IMPORT_COPY.completed;
+  return PORTFOLIO_IMPORT_COPY.preparing;
+}
+
+function AssetRow({ asset, divider }: { asset: DemoAsset; divider: boolean }) {
   return (
     <View
       className="flex-row items-center gap-[13px] px-1 py-[11px]"
@@ -108,61 +138,6 @@ function AssetListSkeleton() {
   );
 }
 
-function WalletAssetStatus({
-  isError,
-  onRetry,
-}: {
-  isError: boolean;
-  onRetry: () => void;
-}) {
-  return (
-    <View className="items-center px-4 py-6">
-      <View
-        className="h-10 w-10 items-center justify-center rounded-full border"
-        style={{
-          borderColor: isError
-            ? 'rgba(239,116,116,.24)'
-            : 'rgba(212,197,163,.2)',
-          backgroundColor: isError
-            ? 'rgba(239,116,116,.08)'
-            : 'rgba(212,197,163,.07)',
-        }}
-      >
-        {isError ? (
-          <RefreshCw size={17} strokeWidth={1.8} color="#ef9292" />
-        ) : (
-          <Wallet size={17} strokeWidth={1.8} color="#d4c5a3" />
-        )}
-      </View>
-      <Text className="mt-3 font-sans-semibold text-[13.5px] text-ink">
-        {isError ? 'Wallet balance unavailable' : 'No supported assets found'}
-      </Text>
-      <Text className="mt-1 max-w-[270px] text-center text-[11.5px] leading-[17px] text-ink-dim">
-        {isError
-          ? 'We could not load this wallet’s live balances.'
-          : 'USDC, USDT and ETH on Ethereum, Base or Arbitrum will appear here.'}
-      </Text>
-      {isError ? (
-        <Tap
-          accessibilityLabel="Retry wallet balances"
-          accessibilityRole="button"
-          className="mt-3 flex-row items-center gap-1.5 rounded-full border px-3 py-1.5"
-          style={{
-            borderColor: 'rgba(212,197,163,.22)',
-            backgroundColor: 'rgba(212,197,163,.07)',
-          }}
-          onPress={onRetry}
-        >
-          <RefreshCw size={12} strokeWidth={2} color="#d4c5a3" />
-          <Text className="font-sans-semibold text-[11px] text-accent">
-            Try again
-          </Text>
-        </Tap>
-      ) : null}
-    </View>
-  );
-}
-
 function PartialWalletWarning({ onRetry }: { onRetry: () => void }) {
   return (
     <View className="mb-2 flex-row items-center gap-2 rounded-xl bg-[rgba(239,146,146,.07)] px-3 py-2.5">
@@ -210,7 +185,7 @@ function PortfolioImportState({
           className="mt-3 flex-row items-center gap-1.5 rounded-full border border-[rgba(212,197,163,.22)] bg-[rgba(212,197,163,.07)] px-3 py-1.5"
           onPress={onRetry}
         >
-          <RefreshCw size={12} strokeWidth={2} color="#d4c5a3" />
+          <RefreshCw size={12} strokeWidth={2} color={tokens.color.accent} />
           <Text className="font-sans-semibold text-[11px] text-accent">
             {retryLabel}
           </Text>
@@ -280,27 +255,25 @@ export function HomeScreen() {
   ]);
 
   const isDemo = account.isDemo;
-  const home = data?.home ?? DEMO.home;
-  const strategy = data?.strategy ?? DEMO.strategy;
+  const { home, strategy } = data;
   const showBalanceSkeleton = !isDemo && isLoading && !etlState.isInProgress;
   const showPortfolioImportState =
     account.isOwnBundle &&
     !isDemo &&
     !showBalanceSkeleton &&
     snapshotAvailability === 'unavailable';
-  const portfolioImportStatus = etlState.status;
+  const portfolioImportCopy = getPortfolioImportCopy(etlState.status);
   const retryPortfolioImport = () => {
     if (account.userId && account.address) {
       void triggerEtl(account.userId, account.address);
     }
   };
   const showAssetSkeleton = !isDemo && walletAssets.isLoading;
-  const changePct = home.changePct;
-  const changeUsd = home.changeUsdToday;
   const startStrategy = createStrategyStartAction(authAction.run, () =>
     router.push('/invest/amount'),
   );
   const connect = () => void account.connect().catch(() => undefined);
+  const retryWalletAssets = () => void walletAssets.refetch();
 
   return (
     <ScreenScrollView>
@@ -312,27 +285,13 @@ export function HomeScreen() {
           {showPortfolioImportState ? (
             <View className="mt-3">
               <PortfolioImportState
-                title={
-                  portfolioImportStatus === 'failed'
-                    ? t('home.etlFailedTitle')
-                    : portfolioImportStatus === 'completed'
-                      ? t('home.noPortfolioHistoryTitle')
-                      : t('home.etlPreparingTitle')
-                }
-                body={
-                  portfolioImportStatus === 'failed'
-                    ? t('home.etlFailedBody')
-                    : portfolioImportStatus === 'completed'
-                      ? t('home.noPortfolioHistoryBody')
-                      : t('home.etlPreparingBody')
-                }
+                title={t(portfolioImportCopy.titleKey)}
+                body={t(portfolioImportCopy.bodyKey)}
                 retryLabel={
-                  portfolioImportStatus === 'failed'
-                    ? t('common.retry')
-                    : undefined
+                  portfolioImportCopy.retryable ? t('common.retry') : undefined
                 }
                 onRetry={
-                  portfolioImportStatus === 'failed'
+                  portfolioImportCopy.retryable
                     ? retryPortfolioImport
                     : undefined
                 }
@@ -349,14 +308,14 @@ export function HomeScreen() {
                 emptyClassName="text-ink-faint"
               />
               <View className="mt-[9px] flex-row items-center gap-2">
-                <Text className="rounded-full bg-[rgba(122,216,143,.12)] px-[9px] py-[3px] font-sans-semibold text-[12.5px] text-success">
-                  {typeof changePct === 'number'
-                    ? formatSignedPct(changePct).replace('+', '')
+                <Text className="rounded-full bg-success/[0.12] px-[9px] py-[3px] font-sans-semibold text-[12.5px] text-success">
+                  {typeof home.changePct === 'number'
+                    ? formatSignedPct(home.changePct).replace('+', '')
                     : '-'}
                 </Text>
                 <Text className="text-[13px] text-ink-dim">
-                  {typeof changeUsd === 'number'
-                    ? `${formatSignedUsd(changeUsd)} ${t('home.today')}`
+                  {typeof home.changeUsdToday === 'number'
+                    ? `${formatSignedUsd(home.changeUsdToday)} ${t('home.today')}`
                     : t('home.today')}
                 </Text>
               </View>
@@ -368,9 +327,9 @@ export function HomeScreen() {
           <View className="flex-row items-center justify-between">
             <SectionLabel>{t('home.balanceTrend')}</SectionLabel>
             <RangeTabs
-              options={RANGE_OPTIONS}
+              options={HOME_RANGE_OPTIONS}
               value={range}
-              onChange={(value) => setRange(value as HomeRange)}
+              onChange={setRange}
             />
           </View>
           <View className="mt-3 h-[88px] justify-center">
@@ -401,17 +360,33 @@ export function HomeScreen() {
           <ActionButton
             label={t('home.invest')}
             onPress={() => router.push('/invest/amount')}
-            icon={<ArrowDown size={18} color="#d4c5a3" strokeWidth={1.8} />}
+            icon={
+              <ArrowDown
+                size={18}
+                color={tokens.color.accent}
+                strokeWidth={1.8}
+              />
+            }
           />
           <ActionButton
             label={t('home.send')}
             onPress={() => router.push('/send')}
-            icon={<ArrowUp size={18} color="#d4c5a3" strokeWidth={1.8} />}
+            icon={
+              <ArrowUp
+                size={18}
+                color={tokens.color.accent}
+                strokeWidth={1.8}
+              />
+            }
           />
           <ActionButton
             label={t('home.more')}
             icon={
-              <MoreHorizontal size={18} color="#d4c5a3" strokeWidth={1.8} />
+              <MoreHorizontal
+                size={18}
+                color={tokens.color.accent}
+                strokeWidth={1.8}
+              />
             }
           />
         </View>
@@ -422,14 +397,8 @@ export function HomeScreen() {
           strategy={strategy}
           onStart={startStrategy}
           availableToInvest={{
-            totalUsdValue: walletAssets.totalUsdValue,
-            rows: walletAssets.chainRows,
+            wallet: walletAssets,
             isConnected: account.isConnected,
-            isLoading: walletAssets.isLoading,
-            isError: walletAssets.isError,
-            error: walletAssets.error,
-            failedChains: walletAssets.failedChains,
-            onRetry: () => void walletAssets.refetch(),
           }}
         />
       </View>
@@ -441,7 +410,7 @@ export function HomeScreen() {
           onPress={() => router.push('/portfolio')}
         >
           <View className="h-10 w-10 items-center justify-center rounded-xl border border-[rgba(212,197,163,.3)] bg-[rgba(212,197,163,.12)]">
-            <PieChart size={18} strokeWidth={1.8} color="#d4c5a3" />
+            <PieChart size={18} strokeWidth={1.8} color={tokens.color.accent} />
           </View>
           <View className="min-w-0 flex-1">
             <Text className="font-sans-semibold text-[14.5px] text-ink">
@@ -474,21 +443,35 @@ export function HomeScreen() {
               {showAssetSkeleton ? (
                 <AssetListSkeleton />
               ) : walletAssets.isError ? (
-                <WalletAssetStatus
-                  isError
-                  onRetry={() => void walletAssets.refetch()}
+                <EmptyState
+                  icon={
+                    <RefreshCw size={17} strokeWidth={1.8} color="#ef9292" />
+                  }
+                  tone="error"
+                  title="Wallet balance unavailable"
+                  body="We could not load this wallet’s live balances."
+                  action={{
+                    label: 'Try again',
+                    accessibilityLabel: 'Retry wallet balances',
+                    onPress: retryWalletAssets,
+                  }}
                 />
               ) : (
                 <>
                   {walletAssets.failedChains.length > 0 ? (
-                    <PartialWalletWarning
-                      onRetry={() => void walletAssets.refetch()}
-                    />
+                    <PartialWalletWarning onRetry={retryWalletAssets} />
                   ) : null}
                   {home.assets.length === 0 ? (
-                    <WalletAssetStatus
-                      isError={false}
-                      onRetry={() => void walletAssets.refetch()}
+                    <EmptyState
+                      icon={
+                        <Wallet
+                          size={17}
+                          strokeWidth={1.8}
+                          color={tokens.color.accent}
+                        />
+                      }
+                      title="No supported assets found"
+                      body="USDC, USDT and ETH on Ethereum, Base or Arbitrum will appear here."
                     />
                   ) : (
                     home.assets.map((asset, index) => (

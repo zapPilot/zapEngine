@@ -12,8 +12,10 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
 import { ZapLogo } from '@/components/ui/ZapLogo';
-import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
-import type { MoralisChainKey } from '@/integration/moralisWallet';
+import type {
+  ChainTokenBalanceRow,
+  UseWalletAssetsResult,
+} from '@/integration/walletTokens';
 import { formatUsd, tokenAmountFractionDigits } from '@/lib/format';
 
 export interface ZapStrategyCardData {
@@ -30,14 +32,8 @@ interface ZapStrategyCardProps {
   strategy: ZapStrategyCardData;
   onStart: () => void;
   availableToInvest?: {
-    totalUsdValue: number | null;
-    rows: ChainTokenBalanceRow[];
+    wallet: UseWalletAssetsResult;
     isConnected: boolean;
-    isLoading: boolean;
-    isError: boolean;
-    error: Error | null;
-    failedChains: MoralisChainKey[];
-    onRetry: () => void;
   };
 }
 
@@ -59,10 +55,12 @@ function AvailableToInvest({
 }) {
   if (!data.isConnected) return null;
 
+  const { wallet } = data;
+
   const isMissingAlchemyConfig =
-    data.error?.message.toLowerCase().includes('alchemy') === true &&
-    data.error.message.toLowerCase().includes('missing') === true;
-  const isPartial = data.failedChains.length > 0;
+    wallet.error?.message.toLowerCase().includes('alchemy') === true &&
+    wallet.error.message.toLowerCase().includes('missing') === true;
+  const isPartial = wallet.failedChains.length > 0;
 
   return (
     <View
@@ -76,23 +74,23 @@ function AvailableToInvest({
         <Text className="font-mono text-[9px] uppercase tracking-[.9px] text-ink-faint">
           Wallet available
         </Text>
-        {!data.isLoading && !data.isError ? (
+        {!wallet.isLoading && !wallet.isError ? (
           <Text className="font-mono-semibold text-[15px] text-ink">
-            {data.totalUsdValue === null
-              ? data.rows.length === 0
+            {wallet.totalUsdValue === null
+              ? wallet.chainRows.length === 0
                 ? '$0.00'
                 : '—'
-              : `${isPartial ? '≥ ' : ''}${formatUsd(data.totalUsdValue)}`}
+              : `${isPartial ? '≥ ' : ''}${formatUsd(wallet.totalUsdValue)}`}
           </Text>
         ) : null}
       </View>
 
-      {data.isLoading ? (
+      {wallet.isLoading ? (
         <View className="mt-3 gap-2">
           <SkeletonBlock className="h-7 w-full rounded-lg" />
           <SkeletonBlock className="h-7 w-full rounded-lg" />
         </View>
-      ) : data.isError ? (
+      ) : wallet.isError ? (
         <View className="mt-2.5 flex-row items-center gap-3">
           <View className="min-w-0 flex-1">
             <Text
@@ -117,7 +115,7 @@ function AvailableToInvest({
               borderColor: 'rgba(212,197,163,.22)',
               backgroundColor: 'rgba(212,197,163,.07)',
             }}
-            onPress={data.onRetry}
+            onPress={() => void wallet.refetch()}
           >
             <RefreshCw size={11} strokeWidth={2} color="#d4c5a3" />
             <Text className="font-sans-semibold text-[10px] text-accent">
@@ -125,7 +123,7 @@ function AvailableToInvest({
             </Text>
           </Tap>
         </View>
-      ) : data.rows.length === 0 ? (
+      ) : wallet.chainRows.length === 0 ? (
         <View className="mt-2">
           <Text className="font-sans-semibold text-[12px] text-ink-dim">
             No supported balance yet
@@ -136,7 +134,7 @@ function AvailableToInvest({
         </View>
       ) : (
         <View className="mt-2 gap-1.5">
-          {data.rows.slice(0, 3).map((row) => (
+          {wallet.chainRows.slice(0, 3).map((row) => (
             <View key={row.id} className="flex-row items-center gap-2">
               <View
                 className="rounded-full border px-2 py-0.5"
@@ -159,7 +157,7 @@ function AvailableToInvest({
           ))}
         </View>
       )}
-      {!data.isLoading && !data.isError && isPartial ? (
+      {!wallet.isLoading && !wallet.isError && isPartial ? (
         <View className="mt-2.5 flex-row items-center gap-2 rounded-lg bg-[rgba(239,146,146,.07)] px-2.5 py-2">
           <Text className="min-w-0 flex-1 text-[10.5px] leading-[15px] text-[#ef9292]">
             Some network balances are unavailable, so this total is incomplete.
@@ -169,7 +167,7 @@ function AvailableToInvest({
             accessibilityRole="button"
             className="min-h-9 justify-center px-1"
             hitSlop={8}
-            onPress={data.onRetry}
+            onPress={() => void wallet.refetch()}
           >
             <Text className="font-sans-semibold text-[10.5px] text-accent">
               Retry
