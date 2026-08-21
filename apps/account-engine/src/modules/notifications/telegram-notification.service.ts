@@ -1,19 +1,27 @@
 import { CHANNEL_TYPE_TELEGRAM } from '../../common/constants';
 import { BaseService } from '../../database/base.service';
 import { DatabaseService } from '../../database/database.service';
-import { DailySuggestionData, DriftAlertData } from './interfaces';
 import { TelegramBotCoreService } from './telegram-bot-core.service';
-import {
-  buildDailySuggestionMessagePayload,
-  formatDriftMessage,
-  TelegramMessagePayload,
-} from './telegram-message.util';
 
 interface TelegramNotificationSettings {
   user_id: string;
   config: {
     chat_id?: string;
   };
+}
+
+/**
+ * Outcome of one broadcast. The counts are split rather than summed because
+ * they mean different things to the caller: a user with no chat id or one who
+ * blocked the bot is unreachable and nothing can fix that by retrying, while a
+ * `failedUserIds` entry is a transport error worth another attempt.
+ */
+export interface BroadcastResult {
+  recipients: number;
+  sent: number;
+  skippedNoChatId: number;
+  skippedBlocked: number;
+  failedUserIds: string[];
 }
 
 export class TelegramNotificationService extends BaseService {
@@ -25,45 +33,65 @@ export class TelegramNotificationService extends BaseService {
     super(databaseService);
   }
 
-  async sendDriftAlert(
-    userId: string,
-    driftData: DriftAlertData,
-  ): Promise<void> {
-    await this.sendNotification(
-      userId,
-      () => formatDriftMessage(driftData),
-      `drift alert (${driftData.drift_percentage.toFixed(1)}% drift)`,
-    );
-  }
-
-  async sendDailySuggestion(
-    userId: string,
-    data: DailySuggestionData,
-  ): Promise<void> {
-    const payload = buildDailySuggestionMessagePayload(data);
-    await this.sendNotification(
-      userId,
-      () => payload.message,
-      'daily suggestion',
-      payload.replyMarkup,
-    );
-  }
-
-  async sendNotification(
-    userId: string,
-    formatMessage: () => string,
+  /**
+   * Send one message to every Telegram-connected user.
+   *
+   * Sequential on purpose: the recipient list is small and Telegram rate-limits
+   * per bot, so a burst buys nothing and risks 429s.
+   */
+  async broadcastToConnectedUsers(
+    message: string,
     logLabel: string,
-    replyMarkup?: TelegramMessagePayload['replyMarkup'],
-  ): Promise<void> {
-    // Fast-fail before the chat-id DB read when the bot isn't configured.
+  ): Promise<BroadcastResult> {
+    // Fast-fail before the DB read when the bot isn't configured.
     if (!this.botCore.getBot()) {
       this.logger.warn(`Telegram bot not configured, cannot send ${logLabel}`);
-      return;
+      return {
+        recipients: 0,
+        sent: 0,
+        skippedNoChatId: 0,
+        skippedBlocked: 0,
+        failedUserIds: [],
+      };
     }
-    const chatId = await this.getTelegramChatId(userId);
-    if (!chatId) return;
-    await this.sendMessageToUser(userId, chatId, formatMessage(), replyMarkup);
-    this.logger.log(`Sent ${logLabel} to user ${userId}`);
+
+    const userIds = await this.getTelegramConnectedUserIds();
+    const result: BroadcastResult = {
+      recipients: userIds.length,
+      sent: 0,
+      skippedNoChatId: 0,
+      skippedBlocked: 0,
+      failedUserIds: [],
+    };
+
+    for (const userId of userIds) {
+      const chatId = await this.getTelegramChatId(userId);
+      if (!chatId) {
+        result.skippedNoChatId += 1;
+        continue;
+      }
+
+      try {
+        const delivered = await this.sendMessageToUser(userId, chatId, message);
+        if (delivered) {
+          result.sent += 1;
+        } else {
+          result.skippedBlocked += 1;
+        }
+      } catch (error) {
+        this.logger.error(
+          `Failed to send ${logLabel} to user ${userId}:`,
+          error,
+        );
+        result.failedUserIds.push(userId);
+      }
+    }
+
+    this.logger.log(
+      `Sent ${logLabel} to ${result.sent}/${result.recipients} Telegram users`,
+    );
+
+    return result;
   }
 
   async getTelegramConnectedUserIds(): Promise<string[]> {
@@ -111,24 +139,24 @@ export class TelegramNotificationService extends BaseService {
     return settings.config.chat_id ?? null;
   }
 
+  /** False when the user blocked the bot — handled, not an error to retry. */
   async sendMessageToUser(
     userId: string,
     chatId: string,
     message: string,
-    replyMarkup?: TelegramMessagePayload['replyMarkup'],
-  ): Promise<void> {
+  ): Promise<boolean> {
     const bot = this.botCore.getBot();
     if (!bot) {
       this.logger.warn('Telegram bot not configured, cannot send message');
-      return;
+      return false;
     }
 
     try {
       await bot.telegram.sendMessage(chatId, message, {
         parse_mode: 'Markdown',
         link_preview_options: { is_disabled: true },
-        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
       });
+      return true;
     } catch (error: unknown) {
       if (!this.isBotBlockedError(error)) {
         this.logger.error(`Failed to send message to user ${userId}:`, error);
@@ -137,6 +165,7 @@ export class TelegramNotificationService extends BaseService {
 
       this.logger.warn(`User ${userId} blocked bot - disabling notifications`);
       await this.disableTelegramNotifications(userId);
+      return false;
     }
   }
 

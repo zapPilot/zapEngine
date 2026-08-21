@@ -6,11 +6,7 @@ import { HttpStatus, NotFoundException, toErrorResponse } from '../common/http';
 import type { AppServices } from '../container';
 import { Job, JobType } from '../modules/jobs/interfaces/job.interface';
 import { jsonResponse, jsonValidator, paramValidator } from './shared';
-import {
-  dailySuggestionBatchBodySchema,
-  jobIdParamSchema,
-  singleUserReportBodySchema,
-} from './validators';
+import { jobIdParamSchema, singleUserReportBodySchema } from './validators';
 
 export function createJobsRoutes(services: AppServices) {
   const app = new Hono();
@@ -73,29 +69,23 @@ export function createJobsRoutes(services: AppServices) {
     },
   );
 
-  app.post(
-    '/daily-suggestion/batch',
-    requireAdminApiKey,
-    jsonValidator(dailySuggestionBatchBodySchema),
-    (c) => {
-      const body = c.req.valid('json');
-      const job = services.jobQueueService.createJob({
-        type: JobType.DAILY_SUGGESTION_BATCH,
-        payload: { userIds: body.userIds },
-      });
-      const userCount = body.userIds?.length ?? 0;
-      const mode = userCount > 0 ? `${userCount} user(s)` : 'auto-discover';
+  // No body: the notification describes the strategy, so there is nothing to
+  // scope it to. Recipients are every Telegram-connected user.
+  app.post('/strategy-change/batch', requireAdminApiKey, (c) => {
+    const job = services.jobQueueService.createJob({
+      type: JobType.STRATEGY_CHANGE_BATCH,
+      payload: {},
+    });
 
-      return jsonResponse(
-        c,
-        {
-          job: mapJobToResponse(job),
-          message: `Daily suggestion batch job created for ${mode}.`,
-        },
-        HttpStatus.ACCEPTED,
-      );
-    },
-  );
+    return jsonResponse(
+      c,
+      {
+        job: mapJobToResponse(job),
+        message: 'Strategy change check job created successfully.',
+      },
+      HttpStatus.ACCEPTED,
+    );
+  });
 
   app.get('/:jobId', paramValidator(jobIdParamSchema), (c) => {
     const params = c.req.valid('param');

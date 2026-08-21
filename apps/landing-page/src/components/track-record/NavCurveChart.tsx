@@ -5,6 +5,7 @@ import { ChartEmptyState } from './ChartEmptyState';
 import { ChartHoverLayer } from './ChartHoverLayer.client';
 import { ChartLegend } from './ChartLegend';
 import type { ChartLegendItem } from './ChartLegend';
+import { ChartZoom } from './ChartZoom.client';
 import { allocationBar, allocationFromSnapshot } from './chartAllocation';
 import { buildChartMarkers } from './chartEvents';
 import * as geometry from './chartGeometry';
@@ -89,9 +90,17 @@ export function NavCurveChart({
     ];
   }
 
-  return (
+  /**
+   * One figure, rendered twice: inline, and again inside the zoom overlay. The
+   * expanded copy drops the caller's className (its size comes from the
+   * overlay) and carries no expand button of its own, which is what stops the
+   * recursion.
+   */
+  const chartFigure = (expanded: boolean) => (
     <figure
-      className={`nav-curve-chart ${className ?? ''}`}
+      className={
+        expanded ? 'nav-curve-chart' : `nav-curve-chart ${className ?? ''}`
+      }
       aria-label="NAV curve"
     >
       <div className="nav-curve-header">
@@ -99,10 +108,15 @@ export function NavCurveChart({
           <p className="nav-curve-kicker">Indexed growth</p>
           <h3>Strategy NAV</h3>
         </div>
-        <ChartLegend
-          items={legendItems(markers)}
-          className="nav-curve-legend"
-        />
+        <div className="nav-curve-header-tools">
+          <ChartLegend
+            items={legendItems(markers)}
+            className="nav-curve-legend"
+          />
+          {!expanded && (
+            <ChartZoom label="Strategy NAV">{chartFigure(true)}</ChartZoom>
+          )}
+        </div>
       </div>
 
       <ChartHoverLayer
@@ -173,4 +187,6 @@ export function NavCurveChart({
       <figcaption>Indexed to 100 at strategy start.</figcaption>
     </figure>
   );
+
+  return chartFigure(false);
 }

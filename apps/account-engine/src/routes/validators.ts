@@ -103,7 +103,3 @@ export const singleUserReportBodySchema = z.object({
   ).optional(),
   note: z.string().optional(),
 });
-
-export const dailySuggestionBatchBodySchema = z.object({
-  userIds: z.array(zUuid('Each userId must be a valid UUID')).optional(),
-});

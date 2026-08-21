@@ -15,7 +15,11 @@
  * Values are computed with the exact formulas track-record-accessor's
  * verifyPerformanceMetrics uses, so on-page verification passes cleanly.
  */
-import type { DailySnapshot, Position } from '@zapengine/types/strategy';
+import type {
+  DailySnapshot,
+  Position,
+  TrackRecordMeta,
+} from '@zapengine/types/strategy';
 import type { SnapshotHistoryEntry } from '@/data/track-record-accessor';
 import equityCurveRaw from '@/data/equity-curve.json';
 import type { AllocationWeights } from '@/data/track-record-allocations';
@@ -264,4 +268,24 @@ export const mockMeta = {
 /** Enabled by default; opt out with NEXT_PUBLIC_TRACK_RECORD_MOCK=0. */
 export function isTrackRecordMockEnabled(): boolean {
   return process.env['NEXT_PUBLIC_TRACK_RECORD_MOCK'] !== '0';
+}
+
+/**
+ * Demo mode, recognised by the sentinel CID above.
+ *
+ * Every consumer asks through here rather than comparing against
+ * MOCK_LATEST_CID itself: two call sites doing their own comparison is how a
+ * page ends up labelling fabricated returns as live.
+ */
+export function isDemoTrackRecordMeta(meta: TrackRecordMeta | null): boolean {
+  return meta !== null && meta.latestSnapshotCid === MOCK_LATEST_CID;
+}
+
+/**
+ * A published snapshot exists and it is not the demo one. Anything a reader
+ * could mistake for a real result — the Live badge, on-chain wallet links —
+ * must be gated on this and not merely on a CID being present.
+ */
+export function hasLiveTrackRecordData(meta: TrackRecordMeta | null): boolean {
+  return !!meta?.latestSnapshotCid && !isDemoTrackRecordMeta(meta);
 }

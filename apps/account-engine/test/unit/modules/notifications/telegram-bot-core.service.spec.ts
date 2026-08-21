@@ -70,18 +70,15 @@ describe('TelegramBotCoreService', () => {
     const service = createService();
     const startHandler = vi.fn();
     const stopHandler = vi.fn();
-    const callbackHandler = vi.fn();
     const helpHandler = vi.fn();
 
     service.onStart(startHandler);
     service.onCommand('stop', stopHandler);
-    service.onCallbackQuery(callbackHandler);
     service.onHelp(helpHandler);
 
     const bot = getLatestBotMock();
     expect(bot.start).toHaveBeenCalledWith(startHandler);
     expect(bot.command).toHaveBeenCalledWith('stop', stopHandler);
-    expect(bot.on).toHaveBeenCalledWith('callback_query', callbackHandler);
     expect(bot.help).toHaveBeenCalledWith(helpHandler);
   });
 

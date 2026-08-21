@@ -61,6 +61,16 @@ jobs:
             exit 1
           fi
 
+      # The refreshed artifacts are ~2.4k lines of JSON that no other job sees
+      # before they are live: the bot pushes with GITHUB_TOKEN, which does not
+      # trigger CI. The landing suite is what reads them — allocation rows
+      # aligned to the series, events agreeing with the curve, headline figures
+      # derived from the snapshot — and it runs in seconds. Through turbo so
+      # @zapengine/types is built first: track-record-accessor imports its
+      # schemas at runtime, not just as types.
+      - name: Validate refreshed artifacts against the landing-page test suite
+        run: pnpm turbo run test --filter=@zapengine/landing-page
+
       - name: Commit refreshed backtest artifacts
         run: |
           files=(

@@ -147,57 +147,39 @@ describe('POST /jobs/weekly-report/single-user', () => {
   });
 });
 
-describe('POST /jobs/daily-suggestion/batch', () => {
+describe('POST /jobs/strategy-change/batch', () => {
   it('returns 401 without x-api-key', async () => {
     const response = await createApp(createServices()).request(
-      'http://localhost/jobs/daily-suggestion/batch',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      },
+      'http://localhost/jobs/strategy-change/batch',
+      { method: 'POST' },
     );
     expect(response.status).toBe(401);
   });
 
-  it('returns 202 with auto-discover message when no userIds', async () => {
+  it('returns 401 with a wrong x-api-key', async () => {
     const response = await createApp(createServices()).request(
-      'http://localhost/jobs/daily-suggestion/batch',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': ADMIN_KEY },
-        body: JSON.stringify({}),
-      },
+      'http://localhost/jobs/strategy-change/batch',
+      { method: 'POST', headers: { 'x-api-key': 'wrong-key' } },
+    );
+    expect(response.status).toBe(401);
+  });
+
+  it('returns 202 and queues an unscoped job with no body', async () => {
+    const services = createServices({ type: JobType.STRATEGY_CHANGE_BATCH });
+    const response = await createApp(services).request(
+      'http://localhost/jobs/strategy-change/batch',
+      { method: 'POST', headers: { 'x-api-key': ADMIN_KEY } },
     );
     expect(response.status).toBe(202);
     const body = await response.json();
-    expect(body.message).toContain('auto-discover');
-  });
-
-  it('returns 202 with user count message when userIds are provided', async () => {
-    const response = await createApp(createServices()).request(
-      'http://localhost/jobs/daily-suggestion/batch',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': ADMIN_KEY },
-        body: JSON.stringify({ userIds: [USER_ID] }),
-      },
+    expect(body.message).toBe(
+      'Strategy change check job created successfully.',
     );
-    expect(response.status).toBe(202);
-    const body = await response.json();
-    expect(body.message).toContain('1 user(s)');
-  });
-
-  it('returns 400 for an invalid UUID in userIds', async () => {
-    const response = await createApp(createServices()).request(
-      'http://localhost/jobs/daily-suggestion/batch',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': ADMIN_KEY },
-        body: JSON.stringify({ userIds: ['not-a-uuid'] }),
-      },
-    );
-    expect(response.status).toBe(400);
+    expect(body.job.type).toBe('strategy_change_batch');
+    expect(services.jobQueueService.createJob).toHaveBeenCalledWith({
+      type: JobType.STRATEGY_CHANGE_BATCH,
+      payload: {},
+    });
   });
 });
 

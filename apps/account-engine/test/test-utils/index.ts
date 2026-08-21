@@ -6,6 +6,10 @@ import {
   JobStatus,
   JobType,
 } from '../../src/modules/jobs/interfaces/job.interface';
+import type {
+  CurveEvent,
+  EquityCurveSubset,
+} from '../../src/modules/notifications/track-record/schema';
 /**
  * Shared test utilities for Hono-based service tests.
  * Replaces the old NestJS-centric src/test-utils/ that was deleted during migration.
@@ -241,4 +245,65 @@ export function configureMockResults(
   });
 
   return queryBuilder;
+}
+
+// ---------------------------------------------------------------------------
+// Equity-curve fixtures (strategy-change notifications)
+// ---------------------------------------------------------------------------
+
+/**
+ * A three-day curve whose allocation rows are positional against the strategy
+ * series, matching the artifact contract the schema enforces.
+ */
+export function createEquityCurveFixture(
+  overrides: Partial<EquityCurveSubset> = {},
+): EquityCurveSubset {
+  return {
+    window: { end: '2026-01-03' },
+    series: [
+      {
+        id: 'strategy',
+        values: [
+          { date: '2026-01-01', value: 100 },
+          { date: '2026-01-02', value: 110 },
+          { date: '2026-01-03', value: 120.5 },
+        ],
+      },
+    ],
+    allocations: {
+      assets: ['btc', 'eth', 'spy', 'stable'],
+      values: [
+        [0, 0, 0, 1],
+        [0.5, 0, 0, 0.5],
+        [0.25, 0.25, 0, 0.5],
+      ],
+    },
+    events: [
+      createCurveEventFixture({ date: '2026-01-02' }),
+      createCurveEventFixture({
+        date: '2026-01-03',
+        type: 'rotate_to_eth',
+        toAsset: 'ETH',
+        fromAssets: ['BTC'],
+        amountPercent: 25,
+      }),
+    ],
+    eventsMeta: { strategyId: 'dma_fgi_portfolio_rules' },
+    ...overrides,
+  };
+}
+
+export function createCurveEventFixture(
+  overrides: Partial<CurveEvent> = {},
+): CurveEvent {
+  return {
+    date: '2026-01-02',
+    type: 'buy',
+    toAsset: 'BTC',
+    fromAssets: [],
+    amountUsd: 5000,
+    amountPercent: 50,
+    reason: 'portfolio_cross_up_equal_weight',
+    ...overrides,
+  };
 }

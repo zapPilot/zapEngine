@@ -13,8 +13,8 @@ import {
 import type { JobQueueService } from '../job-queue.service';
 
 /**
- * Helper for batch-to-single job fan-out pattern
- * Eliminates duplication in WeeklyReportProcessor and DailySuggestionProcessor
+ * Helper for the batch-to-single job fan-out pattern used by
+ * WeeklyReportProcessor.
  */
 export class BatchFanoutHelper {
   constructor(

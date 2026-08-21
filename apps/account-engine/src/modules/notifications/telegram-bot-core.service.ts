@@ -83,10 +83,6 @@ export class TelegramBotCoreService {
     this.bot?.command(command, handler);
   }
 
-  onCallbackQuery(handler: TelegramContextHandler): void {
-    this.bot?.on('callback_query', handler);
-  }
-
   onHelp(handler: TelegramContextHandler): void {
     this.bot?.help(handler);
   }

@@ -4,7 +4,10 @@ import Link from 'next/link';
 import { useTrackRecord } from '@/hooks/useTrackRecord';
 import { TrackRecordNav } from '@/components/track-record/TrackRecordNav';
 import { BrandMark } from '@/components/BrandMark';
-import { MOCK_LATEST_CID } from '@/data/mock-track-record';
+import {
+  hasLiveTrackRecordData,
+  isDemoTrackRecordMeta,
+} from '@/data/mock-track-record';
 
 export default function TrackRecordLayout({
   children,
@@ -13,8 +16,8 @@ export default function TrackRecordLayout({
 }) {
   const state = useTrackRecord();
 
-  const isDemo = state.meta?.latestSnapshotCid === MOCK_LATEST_CID;
-  const hasLiveData = !isDemo && !!state.meta?.latestSnapshotCid;
+  const isDemo = isDemoTrackRecordMeta(state.meta);
+  const hasLiveData = hasLiveTrackRecordData(state.meta);
 
   return (
     // `.shell-root` activates the landing CSS scoped under it (landing.css

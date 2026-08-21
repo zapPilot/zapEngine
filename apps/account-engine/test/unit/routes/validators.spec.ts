@@ -1,6 +1,5 @@
 import {
   addWalletBodySchema,
-  dailySuggestionBatchBodySchema,
   jobIdParamSchema,
   singleUserReportBodySchema,
   updateEmailBodySchema,
@@ -153,26 +152,6 @@ describe('Route validators', () => {
       const result = singleUserReportBodySchema.safeParse({
         userId: validUuid,
         testRecipient: 'not-email',
-      });
-      expect(result.success).toBe(false);
-    });
-  });
-
-  describe('dailySuggestionBatchBodySchema', () => {
-    it('accepts empty body', () => {
-      expect(dailySuggestionBatchBodySchema.safeParse({}).success).toBe(true);
-    });
-
-    it('accepts valid userIds array', () => {
-      const result = dailySuggestionBatchBodySchema.safeParse({
-        userIds: [validUuid],
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it('rejects invalid UUIDs in userIds', () => {
-      const result = dailySuggestionBatchBodySchema.safeParse({
-        userIds: ['not-uuid'],
       });
       expect(result.success).toBe(false);
     });
