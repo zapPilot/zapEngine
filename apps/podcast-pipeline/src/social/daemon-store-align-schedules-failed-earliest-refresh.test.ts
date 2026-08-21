@@ -10,6 +10,7 @@ const supabase = vi.hoisted(() => ({
 vi.mock('../services/supabase-client.js', () => supabase);
 
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
+import { createAlignmentReadFixture } from './daemon-store-align-schedules.test-helper.js';
 
 interface PendingJob {
   id: string;
@@ -76,16 +77,6 @@ function makeAlignmentFixture(
   };
 }
 
-function makeListQuery(fixture: AlignmentFixture, attempts: QueryAttempts) {
-  const returns = vi.fn(async () => {
-    const snapshot = fixture.snapshots[attempts.list] ?? [];
-    attempts.list += 1;
-    return { data: snapshot, error: null };
-  });
-  const inStatuses = vi.fn(() => ({ returns }));
-  return vi.fn(() => ({ in: inStatuses }));
-}
-
 function makeUpdateQuery(fixture: AlignmentFixture, attempts: QueryAttempts) {
   return vi.fn((patch: Record<string, unknown>) => {
     fixture.attemptedPatches.push(patch);
@@ -112,10 +103,16 @@ function makeUpdateQuery(fixture: AlignmentFixture, attempts: QueryAttempts) {
 
 function installSupabaseFixture(fixture: AlignmentFixture) {
   const attempts: QueryAttempts = { list: 0, update: 0 };
-  const select = makeListQuery(fixture, attempts);
   const update = makeUpdateQuery(fixture, attempts);
-  const from = vi.fn(() => ({ select, update }));
-  supabase.getPipelineSupabase.mockReturnValue({ from });
+  const readFixture = createAlignmentReadFixture(
+    () => {
+      const snapshot = fixture.snapshots[attempts.list] ?? [];
+      attempts.list += 1;
+      return { data: snapshot, error: null };
+    },
+    update,
+  );
+  supabase.getPipelineSupabase.mockReturnValue(readFixture.client);
 }
 
 describe('alignPendingSocialPublishSchedules refreshed failed earliest', () => {
