@@ -9,6 +9,7 @@ from src.services.backtesting.signals.dma_gated_fgi.types import (
     DmaCooldownState,
     Zone,
 )
+from src.services.backtesting.signals.dma_gated_fgi.utils import detect_zone_cross
 
 
 @dataclass(frozen=True)
@@ -41,15 +42,11 @@ def detect_ratio_cross(
     current_zone: Zone | None,
     cross_on_touch: bool = True,
 ) -> CrossEvent | None:
-    if prev_zone is None or current_zone is None:
-        return None
-    down_zones = {"at", "below"} if cross_on_touch else {"below"}
-    up_zones = {"at", "above"} if cross_on_touch else {"above"}
-    if prev_zone == "above" and current_zone in down_zones:
-        return "cross_down"
-    if prev_zone == "below" and current_zone in up_zones:
-        return "cross_up"
-    return None
+    return detect_zone_cross(
+        previous_zone=prev_zone,
+        current_zone=current_zone,
+        cross_on_touch=cross_on_touch,
+    )
 
 
 __all__ = [

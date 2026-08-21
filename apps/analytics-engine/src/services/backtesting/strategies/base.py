@@ -36,6 +36,8 @@ class StrategyAction:
     target_allocations: dict[str, float] | None = None
     transfers: list[TransferIntent] | None = None
     apply_yield: bool = True
+    debt_delta_usd: float = 0.0
+    stable_cost_usd: float = 0.0
 
 
 @dataclass(frozen=True)

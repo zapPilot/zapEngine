@@ -43,7 +43,6 @@ from src.services.backtesting.portfolio_rules.decision_policy import (
     RuleBasedPortfolioDecisionPolicy,
     RuleExecutionState,
     active_rules,
-    assert_known_rule_names,
     build_portfolio_rules_for_params,
     build_risk_guards_for_params,
     fresh_portfolio_rule,
@@ -59,9 +58,6 @@ from src.services.backtesting.signals.flat_minimum import (
 )
 from src.services.backtesting.strategies.base import StrategyContext
 from src.services.backtesting.strategies.composed import ComposedSignalStrategy
-from src.services.backtesting.tactics.rules import (
-    RULE_NAMES as TACTICAL_RULE_NAMES,
-)
 from src.services.backtesting.utils import (
     coerce_bool,
     coerce_float,
@@ -135,7 +131,7 @@ def _coerce_optional_rule_name_set(
     return _coerce_rule_name_set(value, field_name=field_name)
 
 
-_KNOWN_RULE_NAMES = PORTFOLIO_RULE_NAMES | TACTICAL_RULE_NAMES
+_KNOWN_RULE_NAMES = PORTFOLIO_RULE_NAMES
 _DMA_COERCION_SPEC["disabled_rules"] = _coerce_rule_name_set
 _DMA_COERCION_SPEC["enabled_rules"] = _coerce_optional_rule_name_set
 
@@ -333,9 +329,6 @@ class RuleBasedPortfolioStrategy(ComposedSignalStrategy):
         )
         if self.enabled_rules is None:
             self.enabled_rules = DEFAULT_PORTFOLIO_RULE_NAMES
-        assert_known_rule_names(self.disabled_rules, field_name="disabled_rules")
-        assert_known_rule_names(self.enabled_rules, field_name="enabled_rules")
-
         self.params = resolved_params
         self.execution_engine = RuleBasedAllocationExecutor()
         rules = build_portfolio_rules_for_params(

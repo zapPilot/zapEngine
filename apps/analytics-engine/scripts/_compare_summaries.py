@@ -7,7 +7,7 @@ from typing import Any
 
 from scripts._compare_common import _format_pct, _safe_float, _safe_mapping
 from scripts._compare_metrics import _merge_runtime_ratio_metrics
-from src.services.backtesting.tactics.rules import RULE_DESCRIPTIONS
+from src.services.backtesting.portfolio_rules import RULE_DESCRIPTIONS
 
 
 def _distance_for_asset(

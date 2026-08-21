@@ -426,7 +426,9 @@ def test_profile_cli_argument_is_removed() -> None:
 def test_analyze_compare_surfaces_matched_rule_name() -> None:
     payload = deepcopy(_payload())
     strategy = payload["timeline"][1]["strategies"]["dma_fgi_portfolio_rules_default"]
-    strategy["decision"]["details"] = {"matched_rule_name": "above_greed_sell"}
+    strategy["decision"]["details"] = {
+        "matched_rule_name": "dma_overextension_dca_sell"
+    }
 
     rendered = analyzer.analyze_response_payload(
         payload,
@@ -439,8 +441,8 @@ def test_analyze_compare_surfaces_matched_rule_name() -> None:
         sections=["decision", "rule"],
     )
 
-    assert "Matched rule: `above_greed_sell`" in rendered
-    assert "Sell when price is above DMA and FGI is greed." in rendered
+    assert "Matched rule: `dma_overextension_dca_sell`" in rendered
+    assert "DCA sell assets that are above DMA" in rendered
 
 
 def test_constraint_validation_passes_and_uses_full_history(

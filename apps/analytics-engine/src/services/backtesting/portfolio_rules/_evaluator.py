@@ -15,7 +15,6 @@ from src.services.backtesting.decision import AllocationIntent
 from src.services.backtesting.portfolio_rules import DEFAULT_PORTFOLIO_RULES
 from src.services.backtesting.portfolio_rules._builders import (
     active_rules,
-    assert_known_rule_names,
 )
 from src.services.backtesting.portfolio_rules._matcher import (
     resolve_portfolio_rules_intent,
@@ -149,8 +148,6 @@ class RuleBasedPortfolioDecisionPolicy(DecisionPolicy):
     _evaluator: RulesEvaluator = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        assert_known_rule_names(self.disabled_rules, field_name="disabled_rules")
-        assert_known_rule_names(self.enabled_rules, field_name="enabled_rules")
         self._evaluator = self._build_evaluator()
 
     def reset(self) -> None:

@@ -30,10 +30,9 @@ def build_signal_metadata(
         "reason": intent.reason,
         "price_above_dma": market_state.price_above_dma,
         "dma_distance": market_state.dma_distance,
-        "cross_event": (
-            market_state.actionable_cross_event
-            if intent.rule_group == "cross"
-            else None
+        "cross_event": cross_event_for_intent(
+            market_state=market_state,
+            intent=intent,
         ),
         "cooldown_active": market_state.cooldown_state.active,
         "cooldown_remaining_days": market_state.cooldown_state.remaining_days,
@@ -59,10 +58,9 @@ def build_signal_output(
     return SignalOutput(
         score=intent.decision_score,
         confidence=_confidence_for_context(
-            cross_event=(
-                market_state.actionable_cross_event
-                if intent.rule_group == "cross"
-                else None
+            cross_event=cross_event_for_intent(
+                market_state=market_state,
+                intent=intent,
             ),
             ath_event=market_state.ath_event,
             cooldown_active=market_state.cooldown_state.active,
@@ -74,6 +72,14 @@ def build_signal_output(
         immediate=intent.immediate,
         metadata=build_signal_metadata(market_state=market_state, intent=intent),
     )
+
+
+def cross_event_for_intent(
+    *,
+    market_state: DmaMarketState,
+    intent: AllocationIntent,
+) -> CrossEvent | None:
+    return market_state.actionable_cross_event if intent.rule_group == "cross" else None
 
 
 def _confidence_for_context(
@@ -95,4 +101,5 @@ def _confidence_for_context(
 __all__ = [
     "build_signal_metadata",
     "build_signal_output",
+    "cross_event_for_intent",
 ]

@@ -24,7 +24,6 @@ from __future__ import annotations
 from src.services.backtesting.portfolio_rules._builders import (
     _rule_with_public_params,
     active_rules,
-    assert_known_rule_names,
     build_portfolio_rules_for_params,
     build_risk_guards_for_params,
     fresh_portfolio_rule,
@@ -56,7 +55,6 @@ __all__ = [
     "RuleExecutionState",
     "RulesEvaluator",
     "active_rules",
-    "assert_known_rule_names",
     "build_portfolio_rules_for_params",
     "build_portfolio_snapshot",
     "build_risk_guards_for_params",

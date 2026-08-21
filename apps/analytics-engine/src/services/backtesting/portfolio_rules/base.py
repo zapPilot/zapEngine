@@ -13,9 +13,9 @@ from src.services.backtesting.decision import (
     DecisionAction,
     RuleGroup,
 )
+from src.services.backtesting.portfolio_rules._builders import target_intent
 from src.services.backtesting.signals.dma_gated_fgi.types import DmaMarketState
 from src.services.backtesting.signals.ratio_state import EthBtcRatioState
-from src.services.backtesting.tactics.base import target_intent
 from src.services.backtesting.target_allocation import (
     normalize_target_allocation,
     target_from_current_allocation,
