@@ -6,6 +6,10 @@ import '@ethersproject/shims';
 // pulls in the whole route tree).
 import './src/config/configureAppCoreEnv';
 
+// Must register its window listeners before expo-router/entry evaluates so
+// wallet-extension inpage errors never reach the dev error overlay.
+import './src/config/ignoreExtensionErrors';
+
 // NativeWind style registry — Metro intercepts this import.
 import './global.css';
 

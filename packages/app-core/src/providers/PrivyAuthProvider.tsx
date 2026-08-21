@@ -20,6 +20,11 @@ const PRIVY_DEFAULT_CHAIN = arbitrum as unknown as PrivyChain;
 const privyConfig: PrivyClientConfig = {
   appearance: { theme: 'dark' },
   loginMethods: ['email', 'google', 'apple'],
+  // External wallets are owned by the wagmi backend; Privy only provides the
+  // embedded wallet. Prevent Privy from probing every browser extension on
+  // startup (account retries, event subscriptions, and session chain switches),
+  // which can trigger extension-side unhandled rejections and fetch errors.
+  externalWallets: { disableAllExternalWallets: true },
   embeddedWallets: {
     ethereum: { createOnLogin: 'users-without-wallets' },
   },
