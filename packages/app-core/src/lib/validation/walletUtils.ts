@@ -5,7 +5,7 @@
 
 import { APIError, handleHTTPError } from '@core/lib/http';
 import type { UserCryptoWallet } from '@core/schemas/api/accountSchemas';
-import { isWalletAddress } from '@zapengine/types';
+import { isWalletAddress } from '@zapengine/types/shared';
 
 export interface WalletData {
   id: string;

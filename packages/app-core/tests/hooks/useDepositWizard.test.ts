@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useDepositWizard } from '@core/hooks/useDepositWizard';
+import { PollTimeoutError } from '@core/lib/polling';
+import { initialDepositWizardState } from '@core/lib/wallet/depositWizardMachine';
 import type { DepositPlan } from '@zapengine/types/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   getVaultEquity: vi.fn(),
   submitVaultDeposit: vi.fn(),
   waitForPerpUsdcArrival: vi.fn(),
+  waitForVaultEquityIncrease: vi.fn(),
   walletClient: { signTypedData: vi.fn() },
 }));
 
@@ -45,6 +48,7 @@ vi.mock('@core/services/hyperliquidService', () => ({
   getVaultEquity: mocks.getVaultEquity,
   submitVaultDeposit: mocks.submitVaultDeposit,
   waitForPerpUsdcArrival: mocks.waitForPerpUsdcArrival,
+  waitForVaultEquityIncrease: mocks.waitForVaultEquityIncrease,
 }));
 
 vi.mock('@core/utils/logger', () => ({
@@ -151,7 +155,29 @@ describe('useDepositWizard', () => {
       arrivedUsd6: 29_500_000n,
     });
     mocks.submitVaultDeposit.mockResolvedValue(undefined);
+    mocks.getVaultEquity.mockResolvedValue(null);
+    mocks.waitForVaultEquityIncrease.mockResolvedValue({
+      equityUsd6: 29_400_000n,
+    });
   });
+
+  /** Start the wizard and wait until the HLP deposit CTA is armed. */
+  async function startUntilArrived(
+    input: { split?: Record<string, number> } = {},
+  ) {
+    const { result } = renderHook(() => useDepositWizard());
+    await act(async () => {
+      await result.current.start({
+        fromToken: BASE_USDC as never,
+        fromAmount: '100000000',
+        ...input,
+      });
+    });
+    await waitFor(() => {
+      expect(result.current.wizard.hlp.status).toBe('arrived');
+    });
+    return result;
+  }
 
   it('runs the source batch and lands on the HLP step with arrived funds', async () => {
     const { result } = renderHook(() => useDepositWizard());
@@ -163,6 +189,8 @@ describe('useDepositWizard', () => {
       });
     });
 
+    // No split requested: the payload stays clean so the backend's
+    // DEPOSIT_DEFAULT_SPLIT rollout config still decides the destinations.
     expect(mocks.getDepositPlan).toHaveBeenCalledWith({
       kind: 'invest',
       userAddress: USER,
@@ -199,25 +227,36 @@ describe('useDepositWizard', () => {
     expect(mocks.switchChain).not.toHaveBeenCalled();
   });
 
-  it('submits the HLP vaultTransfer with the arrived amount and confirms via equity', async () => {
-    mocks.getVaultEquity
-      .mockResolvedValueOnce(null) // before submit
-      .mockResolvedValueOnce({ equityUsd6: 29_400_000n }); // confirmation poll
+  it('forwards an explicit destination split to plan orchestration', async () => {
+    await startUntilArrived({ split: { '1337': 1 } });
 
-    const { result } = renderHook(() => useDepositWizard());
-    await act(async () => {
-      await result.current.start({
-        fromToken: BASE_USDC as never,
-        fromAmount: '100000000',
-      });
+    expect(mocks.getDepositPlan).toHaveBeenCalledWith({
+      kind: 'invest',
+      userAddress: USER,
+      fromToken: BASE_USDC,
+      fromAmount: '100000000',
+      sourceChainId: 8453,
+      split: { '1337': 1 },
     });
-    await waitFor(() => {
-      expect(result.current.wizard.hlp.status).toBe('arrived');
-    });
+  });
+
+  it('submits the HLP vaultTransfer with the arrived amount and confirms via equity', async () => {
+    mocks.getVaultEquity.mockResolvedValue({ equityUsd6: 1_000_000n });
+
+    const result = await startUntilArrived();
 
     await act(async () => {
       await result.current.runHlpDeposit();
     });
+
+    expect(mocks.waitForVaultEquityIncrease).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: USER,
+        vaultAddress: HLP,
+        equityBeforeUsd6: 1_000_000n,
+        apiUrl: 'https://api.hyperliquid.xyz',
+      }),
+    );
 
     // Signature-only path: wallet client fetched without a chain switch.
     expect(mocks.getWalletClient).toHaveBeenCalledWith();
@@ -248,6 +287,82 @@ describe('useDepositWizard', () => {
       'not ready yet',
     );
     expect(mocks.submitVaultDeposit).not.toHaveBeenCalled();
+  });
+
+  it('re-arms the deposit CTA when the wallet rejects the vaultTransfer signature', async () => {
+    mocks.submitVaultDeposit.mockRejectedValueOnce(
+      new Error('User rejected the request'),
+    );
+
+    const result = await startUntilArrived();
+
+    await act(async () => {
+      await result.current.runHlpDeposit();
+    });
+
+    // Nothing left the wallet, so the perp USDC is still the user's to deposit.
+    expect(result.current.wizard.hlp.status).toBe('arrived');
+    expect(result.current.wizard.hlp.arrivedUsd6).toBe(29_500_000n);
+    expect(result.current.wizard.error?.stage).toBe('hyperliquidDeposit');
+    expect(mocks.waitForVaultEquityIncrease).not.toHaveBeenCalled();
+
+    act(() => {
+      result.current.retry();
+    });
+    expect(result.current.wizard.error).toBeNull();
+
+    await act(async () => {
+      await result.current.runHlpDeposit();
+    });
+
+    expect(mocks.submitVaultDeposit).toHaveBeenCalledTimes(2);
+    expect(result.current.wizard.stage).toBe('done');
+    expect(result.current.wizard.hlp.status).toBe('deposited');
+  });
+
+  it('finishes as submitted-but-unverified when the equity poll times out', async () => {
+    mocks.waitForVaultEquityIncrease.mockRejectedValueOnce(
+      new PollTimeoutError('Polling timed out after 120000ms'),
+    );
+
+    const result = await startUntilArrived();
+
+    await act(async () => {
+      await result.current.runHlpDeposit();
+    });
+
+    expect(result.current.wizard.stage).toBe('done');
+    expect(result.current.wizard.hlp.status).toBe('submittedUnverified');
+    // The transfer was accepted — never report it as a failed stage.
+    expect(result.current.wizard.error).toBeNull();
+  });
+
+  it('lets no HLP outcome from a reset submission reach the state', async () => {
+    let releaseSubmit = () => undefined as void;
+    mocks.submitVaultDeposit.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseSubmit = () => resolve();
+        }),
+    );
+
+    const result = await startUntilArrived();
+
+    const submission = result.current.runHlpDeposit();
+    await waitFor(() => {
+      expect(result.current.wizard.hlp.status).toBe('confirming');
+    });
+
+    act(() => {
+      result.current.reset();
+    });
+
+    await act(async () => {
+      releaseSubmit();
+      await submission;
+    });
+
+    expect(result.current.wizard).toEqual(initialDepositWizardState);
   });
 
   it('marks the bridge leg failed and surfaces a bridging error on terminal failure', async () => {

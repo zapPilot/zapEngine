@@ -5,7 +5,6 @@ import {
 } from '@core/hooks/useDepositExecutionState';
 import { extractErrorMessage } from '@core/lib/errors';
 import { isAbortError } from '@core/lib/http';
-import { pollUntil } from '@core/lib/polling';
 import {
   depositWizardReducer,
   type DepositWizardState,
@@ -22,10 +21,12 @@ import {
   getVaultEquity,
   submitVaultDeposit,
   waitForPerpUsdcArrival,
+  waitForVaultEquityIncrease,
 } from '@core/services/hyperliquidService';
 import { waitForBridgeCompletion } from '@core/services/intentClient';
 import { logger } from '@core/utils/logger';
 import type {
+  ChainSplit,
   DepositPlan,
   HyperliquidVaultDepositStep,
 } from '@zapengine/types/api';
@@ -35,6 +36,12 @@ import type { Address, Hash } from 'viem';
 export interface StartDepositWizardInput {
   fromToken: Address;
   fromAmount: string;
+  /**
+   * Destination weights per chainId. Omitted, the backend falls back to its
+   * `DEPOSIT_DEFAULT_SPLIT` rollout config; the HLP entry point pins
+   * HyperCore explicitly so it never depends on that env.
+   */
+  split?: ChainSplit;
 }
 
 const wizardLogger = logger.createContextLogger('DepositWizard');
@@ -141,7 +148,7 @@ export function useDepositWizard() {
   );
 
   const start = useCallback(
-    async ({ fromToken, fromAmount }: StartDepositWizardInput) =>
+    async ({ fromToken, fromAmount, split }: StartDepositWizardInput) =>
       actions.run(
         async () => {
           const controller = renewAbort();
@@ -149,7 +156,7 @@ export function useDepositWizard() {
 
           const { userAddress, plan } = await loadBaseInvestPlan(
             { account, chain, switchChain },
-            { fromToken, fromAmount },
+            { fromToken, fromAmount, ...(split ? { split } : {}) },
           );
           actions.setLastPlan(plan);
 
@@ -220,35 +227,6 @@ export function useDepositWizard() {
                 });
               }
             },
-            onCallSubmitted: (index) => {
-              dispatch({
-                type: 'BRIDGE_UPDATE',
-                legIndex: index,
-                status: 'submitted',
-              });
-            },
-            onCallConfirmed: (index, _tx, hash) => {
-              const leg = plan.legs[index];
-              if (leg?.kind !== 'bridge') return;
-              void watchBridgeLeg({
-                plan,
-                legIndex: index,
-                sourceTxHash: hash,
-                signal: controller.signal,
-              });
-              if (
-                hlpStep &&
-                baselineUsd6 !== undefined &&
-                leg.chainId === hlpStep.chainId
-              ) {
-                void watchHlpArrival({
-                  user: userAddress,
-                  step: hlpStep,
-                  baselineUsd6,
-                  signal: controller.signal,
-                });
-              }
-            },
           });
 
           return actions.applyExecutionResult(execution);
@@ -284,47 +262,60 @@ export function useDepositWizard() {
     const userAddress = requireUserAddress(account?.address);
     const usd6 = resolveHlpDepositUsd6(step, wizard.hlp.arrivedUsd6);
     const signal = abortRef.current?.signal;
-    const equityBefore = (await getVaultEquity({
-      user: userAddress,
-      vaultAddress: step.action.vaultAddress as Address,
-      apiUrl: step.signing.apiUrl,
-      ...(signal ? { signal } : {}),
-    })) ?? { equityUsd6: 0n };
+    const vaultAddress = step.action.vaultAddress as Address;
+    // Claim the submission before the first await: a second tap must not be
+    // able to open a duplicate vaultTransfer.
+    dispatch({ type: 'HL_SUBMITTED' });
 
+    let equityBeforeUsd6: bigint;
     try {
+      equityBeforeUsd6 =
+        (
+          await getVaultEquity({
+            user: userAddress,
+            vaultAddress,
+            apiUrl: step.signing.apiUrl,
+            ...(signal ? { signal } : {}),
+          })
+        )?.equityUsd6 ?? 0n;
       // Typed-data signature only — no chain switch: the phantom-agent domain
       // is fixed to chainId 1337 regardless of the wallet's current chain.
       const walletClient = await getWalletClient();
-      dispatch({ type: 'HL_SUBMITTED' });
       await submitVaultDeposit({
         walletClient,
-        vaultAddress: step.action.vaultAddress as Address,
+        vaultAddress,
         usd6,
         isTestnet: step.signing.hyperliquidChain === 'Testnet',
         apiUrl: step.signing.apiUrl,
       });
+    } catch (error) {
+      if (isAbortError(error)) return;
+      // The exchange never accepted a transfer, so the perp USDC is still
+      // withdrawable: release the CTA instead of stranding the funds behind a
+      // permanently disabled button.
+      dispatch({ type: 'HL_SUBMIT_FAILED' });
+      failStage('hyperliquidDeposit', error);
+      return;
+    }
 
-      const equity = await pollUntil({
-        fn: () =>
-          getVaultEquity({
-            user: userAddress,
-            vaultAddress: step.action.vaultAddress as Address,
-            apiUrl: step.signing.apiUrl,
-            ...(signal ? { signal } : {}),
-          }),
-        shouldStop: (value) =>
-          (value?.equityUsd6 ?? 0n) > equityBefore.equityUsd6,
-        intervalMs: 4_000,
-        timeoutMs: 2 * 60_000,
+    try {
+      const { equityUsd6 } = await waitForVaultEquityIncrease({
+        user: userAddress,
+        vaultAddress,
+        equityBeforeUsd6,
+        apiUrl: step.signing.apiUrl,
         ...(signal ? { signal } : {}),
       });
-      dispatch({
-        type: 'HL_CONFIRMED',
-        vaultEquityUsd6: equity?.equityUsd6 ?? 0n,
-      });
+      dispatch({ type: 'HL_CONFIRMED', vaultEquityUsd6: equityUsd6 });
     } catch (error) {
-      failStage('hyperliquidDeposit', error);
-      throw error;
+      if (isAbortError(error)) return;
+      // The deposit is already in flight on the exchange — a confirmation
+      // timeout must never fail the stage or re-arm the deposit button.
+      wizardLogger.error(
+        '[deposit-wizard] HLP equity confirmation did not settle:',
+        error,
+      );
+      dispatch({ type: 'HL_UNVERIFIED' });
     }
   }, [
     abortRef,

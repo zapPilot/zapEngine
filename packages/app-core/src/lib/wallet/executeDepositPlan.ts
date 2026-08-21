@@ -37,26 +37,6 @@ export interface ExecuteDepositPlanInput {
   executeAtomicBatch?: WalletAtomicBatchExecutor;
   onBundleSubmitted?: (callsId: string) => void;
   onBundleConfirmed?: (transactionHash?: Hash) => void;
-  onApprovalSubmitted?: (
-    index: number,
-    tx: PreparedTransaction,
-    hash: Hash,
-  ) => void;
-  onApprovalConfirmed?: (
-    index: number,
-    tx: PreparedTransaction,
-    hash: Hash,
-  ) => void;
-  onCallSubmitted?: (
-    index: number,
-    tx: PreparedTransaction,
-    hash: Hash,
-  ) => void;
-  onCallConfirmed?: (
-    index: number,
-    tx: PreparedTransaction,
-    hash: Hash,
-  ) => void;
 }
 
 function getWalletAddress(walletClient: WalletClient): Address {

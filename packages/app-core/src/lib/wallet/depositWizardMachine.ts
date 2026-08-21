@@ -40,6 +40,8 @@ export type WizardHlpStatus =
   | 'awaitingArrival'
   | 'arrived'
   | 'confirming'
+  /** Exchange accepted the vaultTransfer but equity never confirmed it. */
+  | 'submittedUnverified'
   | 'deposited';
 
 export interface WizardHlpState {
@@ -72,6 +74,8 @@ export type DepositWizardEvent =
     }
   | { type: 'HL_ARRIVED'; arrivedUsd6: bigint }
   | { type: 'HL_SUBMITTED' }
+  | { type: 'HL_SUBMIT_FAILED' }
+  | { type: 'HL_UNVERIFIED' }
   | { type: 'HL_CONFIRMED'; vaultEquityUsd6: bigint }
   | { type: 'STAGE_FAILED'; stage: WizardStage; message: string }
   | { type: 'RETRY' };
@@ -227,16 +231,39 @@ export function depositWizardReducer(
     case 'HL_SUBMITTED':
       return { ...state, hlp: { ...state.hlp, status: 'confirming' } };
 
+    // The three HL_SUBMITTED successors only apply to the submission they
+    // belong to: a reset (or a second attempt) moves the status away from
+    // `confirming`, and a late dispatch from the superseded run is a no-op.
+    case 'HL_SUBMIT_FAILED':
+      // The signature/POST never reached the exchange, so the funds are still
+      // withdrawable perp USDC — hand the deposit CTA back to the user.
+      return state.hlp.status === 'confirming'
+        ? { ...state, hlp: { ...state.hlp, status: 'arrived' } }
+        : state;
+
+    case 'HL_UNVERIFIED':
+      // Submitted and accepted; only the equity confirmation timed out. Never
+      // fall back to `arrived` — a second deposit would double the position.
+      return state.hlp.status === 'confirming'
+        ? {
+            ...state,
+            stage: 'done',
+            hlp: { ...state.hlp, status: 'submittedUnverified' },
+          }
+        : state;
+
     case 'HL_CONFIRMED':
-      return {
-        ...state,
-        stage: 'done',
-        hlp: {
-          ...state.hlp,
-          status: 'deposited',
-          vaultEquityUsd6: event.vaultEquityUsd6,
-        },
-      };
+      return state.hlp.status === 'confirming'
+        ? {
+            ...state,
+            stage: 'done',
+            hlp: {
+              ...state.hlp,
+              status: 'deposited',
+              vaultEquityUsd6: event.vaultEquityUsd6,
+            },
+          }
+        : state;
 
     case 'STAGE_FAILED':
       return {

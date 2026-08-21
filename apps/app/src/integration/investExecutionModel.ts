@@ -123,6 +123,8 @@ export const HLP_STATUS_COPY: Record<WizardHlpStatus, string> = {
   awaitingArrival: 'Waiting for USDC to arrive on Hyperliquid…',
   arrived: 'Funds arrived — ready to deposit into HLP.',
   confirming: 'Confirming your HLP deposit…',
+  submittedUnverified:
+    'Deposit submitted — confirm it in your Hyperliquid account.',
   deposited: 'Deposited into HLP.',
 };
 

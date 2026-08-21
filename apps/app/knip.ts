@@ -5,8 +5,10 @@ export default defineKnipConfig(
     entry: [
       'babel.config.js',
       'metro.config.js',
-      // Launched by playwright.config.ts as a webServer command.
-      'scripts/serve-web.mjs',
+      // knip does not trace `node scripts/<file>.mjs` invocations from
+      // package.json scripts; every scripts/*.mjs file is a CLI entrypoint
+      // (serve-web.mjs is launched by playwright.config.ts).
+      'scripts/*.mjs',
       // expo-router discovers route files by convention; knip cannot trace them.
       'src/app/**/*.{ts,tsx}',
       // Metro resolves platform suffixes at bundle time, not through imports

@@ -2,26 +2,56 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Baseline hit counts for each term in the exported iOS Hermes bundle, as of
-// the podcast-only bundle cut (see the iOS App Store plan). A count above
-// baseline usually means a *new* reachable wallet/DeFi code path leaked into
-// the iOS bundle graph. A count at/under baseline is one of:
-//  - @privy-io/expo + viem SDK internals: Privy ships its embedded-wallet RPC
-//    layer regardless of the `createOnLogin: 'off'` runtime config, so these
-//    strings exist in vendor code we cannot remove without dropping Privy.
-//  - i18n copy in src/i18n/translations.ts (documented, not worth a platform
-//    split for a handful of protocol-name strings).
-//  - The never-rendered LegacyHyperliquidScreen.ios stub's own identifier
-//    name, which itself contains "Hyperliquid".
+// Denylist for the exported iOS Hermes bundle. The iOS build ships podcast-only
+// (App Store Guideline 3.1.5(b)(i)), so no wallet/DeFi execution surface may be
+// reachable from its module graph.
+//
+// Two kinds of entry:
+//
+// 1. Vendor/collision terms with a non-zero baseline. These cannot reach zero
+//    because the hits come from dependencies we cannot drop, or from unrelated
+//    identifiers that merely contain the term. Each baseline below is the exact
+//    measured count, so any increase is a real regression. Every hit is
+//    accounted for:
+//      - eth_sendTransaction (2), personal_sign (1), WalletConnect (2):
+//        @privy-io/expo ships its embedded-wallet RPC layer and WalletConnect
+//        session errors regardless of `createOnLogin: 'off'`.
+//      - createWalletClient (1): viem's exported function name in its module
+//        registry.
+//      - Hyperliquid (1): viem's "Hyperliquid EVM Testnet" chain definition,
+//        part of viem's built-in chain list.
+//      - Morpho (2): react-native-svg's `feMorphology` / `FeMorphology` filter
+//        primitives. A substring collision, unrelated to Morpho Blue.
+//      - Aave (1): "Aavegotchi GHST Token" in a vendor token list. Also a
+//        substring collision, unrelated to Aave lending.
+//
+// 2. First-party execution markers, baseline 0. These strings only exist in our
+//    own deposit/withdraw path, so any hit at all means that path became
+//    reachable. They exist because the historical `Hyperliquid` baseline of 3
+//    hid a leak that had grown to 32 hits (the whole @nktkas/hyperliquid SDK)
+//    plus 28 unguarded `GMX` hits.
+//
+// The usual cause is not a missing `.ios.tsx` split but a BARREL import: one
+// module in the iOS graph importing `@zapengine/app-core/hooks/queries` or
+// `@core/services` or `@zapengine/types` pulls every sibling export with it.
+// Prefer a deep import of the one module you need.
 const DENYLIST = [
+  // Vendor / substring collisions — measured exact counts.
   { term: 'eth_sendTransaction', baseline: 2 },
   { term: 'personal_sign', baseline: 1 },
   { term: 'WalletConnect', baseline: 2 },
   { term: 'MetaMask', baseline: 0 },
   { term: 'Morpho', baseline: 2 },
   { term: 'Aave', baseline: 1 },
-  { term: 'Hyperliquid', baseline: 3 },
+  { term: 'Hyperliquid', baseline: 1 },
   { term: 'createWalletClient', baseline: 1 },
+  // First-party execution surface — must stay absent.
+  { term: 'GMX', baseline: 0 },
+  { term: 'Moonwell', baseline: 0 },
+  { term: 'vaultTransfer', baseline: 0 },
+  { term: 'clearinghouseState', baseline: 0 },
+  { term: 'getDepositPlan', baseline: 0 },
+  { term: 'li.quest', baseline: 0 },
 ];
 
 function findIosBundle(appRoot) {
@@ -81,9 +111,11 @@ function assertIosBundleClean(appRoot) {
         ...regressions.map((detail) => `  - ${detail}`),
         '',
         'The iOS build ships podcast-only (Guideline 3.1.5(b)(i)); a new hit',
-        'usually means a screen or hook that should stay wallet-free now',
-        'imports something reachable from the iOS bundle graph. Look for a',
-        'missing .ios.tsx platform split (see src/screens/*.ios.tsx).',
+        'means a module reachable from the iOS route graph now pulls in',
+        'wallet/DeFi code. Most often that is a BARREL import dragging in every',
+        'sibling export (@zapengine/app-core/hooks/queries, @core/services,',
+        '@zapengine/types) — import the single module you need instead. Failing',
+        'that, look for a missing .ios.tsx split (see src/screens/*.ios.tsx).',
         '',
       ].join('\n'),
     );

@@ -174,6 +174,45 @@ export async function waitForPerpUsdcArrival({
   return { arrivedUsd6: balance.withdrawableUsd6 - baselineUsd6 };
 }
 
+/**
+ * Poll the user's vault equity until it exceeds the pre-deposit snapshot. A
+ * timeout only means the credit is not visible yet — the vaultTransfer itself
+ * was already accepted by the exchange, so callers must not treat it as a
+ * failed deposit.
+ */
+export async function waitForVaultEquityIncrease({
+  user,
+  vaultAddress,
+  equityBeforeUsd6,
+  apiUrl = DEFAULT_API_URL,
+  signal,
+  timeoutMs = 2 * 60_000,
+}: {
+  user: Address;
+  vaultAddress: Address;
+  equityBeforeUsd6: bigint;
+  apiUrl?: string;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}): Promise<{ equityUsd6: bigint }> {
+  const equity = await pollUntil<VaultEquity | null>({
+    fn: () =>
+      getVaultEquity({
+        user,
+        vaultAddress,
+        apiUrl,
+        ...(signal ? { signal } : {}),
+      }),
+    shouldStop: (value) => (value?.equityUsd6 ?? 0n) > equityBeforeUsd6,
+    // Same public info API as the arrival poll — stay inside its rate limit.
+    intervalMs: 4_000,
+    timeoutMs,
+    ...(signal ? { signal } : {}),
+  });
+
+  return { equityUsd6: equity?.equityUsd6 ?? 0n };
+}
+
 // Load @nktkas/hyperliquid lazily: the SDK (msgpack action hashing + EIP-712
 // phantom-agent signing) is only needed at the moment the user confirms the
 // HLP deposit, so the wizard's read/polling path never pays its weight.

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDepositPlan } from '@zapengine/app-core/services';
-import type { DepositPlan } from '@zapengine/types/api';
+import type { ChainSplit, DepositPlan } from '@zapengine/types/api';
 
 interface DepositPlanPreviewInput {
   address: string | null;
@@ -8,6 +8,8 @@ interface DepositPlanPreviewInput {
   fromAmount: string;
   sourceChainId: number;
   amountUsd: number;
+  /** Destination weights; must match what the execution path will request. */
+  split?: ChainSplit;
 }
 
 export interface DepositPlanPreview {
@@ -22,6 +24,7 @@ export function useDepositPlanPreview({
   fromAmount,
   sourceChainId,
   amountUsd,
+  split,
 }: DepositPlanPreviewInput): DepositPlanPreview {
   const enabled = Boolean(address && amountUsd > 0 && fromAmount !== '0');
   const query = useQuery({
@@ -31,6 +34,7 @@ export function useDepositPlanPreview({
       fromToken,
       fromAmount,
       sourceChainId,
+      split ?? null,
     ],
     enabled,
     queryFn: () => {
@@ -41,6 +45,7 @@ export function useDepositPlanPreview({
         fromToken,
         fromAmount,
         sourceChainId,
+        ...(split ? { split } : {}),
       });
     },
   });

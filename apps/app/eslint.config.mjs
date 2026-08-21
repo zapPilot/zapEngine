@@ -48,7 +48,7 @@ export default defineConfig([
             {
               name: '@zapengine/app-core/hooks',
               message:
-                'Do not import the broad hooks barrel on React Native. Import RN-safe hooks from @zapengine/app-core/hooks/analytics or @zapengine/app-core/hooks/queries instead.',
+                'Do not import the broad hooks barrel on React Native. Import the specific hook module (e.g. @zapengine/app-core/hooks/queries/wallet/useUser) — the hooks/* barrels re-export every sibling and drag the app-core services surface into the bundle with them. See scripts/assert-ios-bundle-clean.cjs.',
             },
             {
               name: 'wagmi',
@@ -67,7 +67,7 @@ export default defineConfig([
                 '@zapengine/app-core/hooks/wallet/useWagmiWalletBackend',
               ],
               message:
-                'Web-only app-core hooks (DOM / Privy web SDK / wagmi). The hooks/wallet barrel is RN-safe apart from the Privy/wagmi backends; use it or the RN-safe data hooks from @zapengine/app-core/hooks/queries instead.',
+                'Web-only app-core hooks (DOM / Privy web SDK / wagmi). The hooks/wallet barrel is RN-safe apart from the Privy/wagmi backends; use it or an RN-safe data hook, imported by its own module path rather than through the hooks/queries barrel.',
             },
             {
               group: [

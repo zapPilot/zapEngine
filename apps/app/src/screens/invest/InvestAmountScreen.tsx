@@ -10,6 +10,7 @@ import { BridgeTestPanel } from '@/components/invest/BridgeTestPanel';
 import { ChainTokenSelectorSheet } from '@/components/invest/ChainTokenSelectorSheet';
 import { FundingSourceCard } from '@/components/invest/FundingSourceCard';
 import { FundingSourceSelector } from '@/components/invest/FundingSourceSelector';
+import { HyperliquidDepositPanel } from '@/components/invest/HyperliquidDepositPanel';
 import { QuickAmountChips } from '@/components/invest/QuickAmountChips';
 import { TokenSelectorPill } from '@/components/invest/TokenSelectorPill';
 import { StepHeader } from '@/components/invest/StepHeader';
@@ -46,20 +47,24 @@ import { formatUsd } from '@/lib/format';
 
 type FundingBalanceState = 'loading' | 'unavailable' | 'loaded';
 
-type InvestAmountTab = InvestScope | 'bridge';
+type InvestAmountTab = InvestScope | 'hyperliquid' | 'bridge';
 
 const GMX_BASKET_EXECUTION_FEE_LABEL = `${formatEther(
   ARBITRUM_GMX_BASKET_EXECUTION_FEE_WEI,
 )} ETH`;
 
+// Five tabs share one row, so the labels are abbreviated and the full
+// wording moves to `a11yLabel`.
 const INVEST_SCOPE_OPTIONS: readonly {
   value: InvestAmountTab;
   label: string;
+  a11yLabel: string;
 }[] = [
-  { value: 'both', label: 'Both chains' },
-  { value: 'base', label: 'Base only' },
-  { value: 'arbitrum', label: 'Arbitrum only' },
-  { value: 'bridge', label: 'Bridge' },
+  { value: 'both', label: 'Both', a11yLabel: 'Both chains' },
+  { value: 'base', label: 'Base', a11yLabel: 'Base only' },
+  { value: 'arbitrum', label: 'Arbitrum', a11yLabel: 'Arbitrum only' },
+  { value: 'hyperliquid', label: 'HLP', a11yLabel: 'Hyperliquid HLP' },
+  { value: 'bridge', label: 'Bridge', a11yLabel: 'Bridge test' },
 ];
 
 function fundingBalanceState({
@@ -175,7 +180,7 @@ function InvestScopeToggle({
         return (
           <Tap
             key={option.value}
-            accessibilityLabel={option.label}
+            accessibilityLabel={option.a11yLabel}
             accessibilityRole="radio"
             accessibilityState={{ checked: selected }}
             className="min-h-11 flex-1 items-center justify-center rounded-[10px] px-2"
@@ -455,9 +460,27 @@ export function InvestAmountScreen() {
       invest.setAmountInput('');
     }
     setActiveTab(tab);
-    if (tab !== 'bridge') {
+    if (tab !== 'bridge' && tab !== 'hyperliquid') {
       invest.setScope(tab);
     }
+  }
+
+  if (activeTab === 'hyperliquid') {
+    return (
+      <ScreenScrollView>
+        <StepHeader title="Invest" step="Hyperliquid HLP" />
+        <View className="px-5 pt-5">
+          <Text className="font-serif text-[28px] leading-[32px] text-ink">
+            Deposit into HLP
+          </Text>
+          <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
+            Bridge Base USDC to Hyperliquid and deposit into the HLP vault.
+          </Text>
+          <InvestScopeToggle value={activeTab} onChange={handleTabChange} />
+          <HyperliquidDepositPanel />
+        </View>
+      </ScreenScrollView>
+    );
   }
 
   if (activeTab === 'bridge') {
@@ -670,15 +693,6 @@ export function InvestAmountScreen() {
           >
             {primaryLabel}
           </PrimaryButton>
-          <Tap
-            accessibilityRole="link"
-            className="min-h-11 items-center justify-center"
-            onPress={() => router.push('/invest/hyperliquid')}
-          >
-            <Text className="text-[11px] text-ink-dim underline">
-              Open the existing Base → Hyperliquid flow
-            </Text>
-          </Tap>
         </View>
       </ScreenScrollView>
 
