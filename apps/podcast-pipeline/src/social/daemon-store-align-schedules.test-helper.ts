@@ -5,7 +5,20 @@ interface AlignmentSnapshot<T> {
   error: unknown;
 }
 
-export function createAlignmentReadFixture<T>(snapshot: AlignmentSnapshot<T>) {
+type MockFn = ReturnType<typeof vi.fn>;
+
+interface AlignmentReadFixture {
+  client: { from: MockFn };
+  from: MockFn;
+  inFilter: MockFn;
+  returns: MockFn;
+  select: MockFn;
+  update: MockFn;
+}
+
+export function createAlignmentReadFixture<T>(
+  snapshot: AlignmentSnapshot<T>,
+): AlignmentReadFixture {
   const returns = vi.fn(async () => snapshot);
   const inFilter = vi.fn(() => ({ returns }));
   const select = vi.fn(() => ({ in: inFilter }));
