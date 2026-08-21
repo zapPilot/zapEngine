@@ -5,6 +5,10 @@ interface AlignmentSnapshot<T> {
   error: unknown;
 }
 
+type AlignmentSnapshotSource<T> =
+  | AlignmentSnapshot<T>
+  | (() => AlignmentSnapshot<T> | Promise<AlignmentSnapshot<T>>);
+
 type MockFn = ReturnType<typeof vi.fn>;
 
 interface AlignmentReadFixture {
@@ -17,12 +21,14 @@ interface AlignmentReadFixture {
 }
 
 export function createAlignmentReadFixture<T>(
-  snapshot: AlignmentSnapshot<T>,
+  snapshot: AlignmentSnapshotSource<T>,
+  update: MockFn = vi.fn(),
 ): AlignmentReadFixture {
-  const returns = vi.fn(async () => snapshot);
+  const returns = vi.fn(async () =>
+    typeof snapshot === 'function' ? await snapshot() : snapshot,
+  );
   const inFilter = vi.fn(() => ({ returns }));
   const select = vi.fn(() => ({ in: inFilter }));
-  const update = vi.fn();
   const from = vi.fn(() => ({ select, update }));
 
   return {
