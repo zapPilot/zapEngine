@@ -9,7 +9,6 @@ import { parseArgs } from 'node:util';
 import dotenv from 'dotenv';
 
 import { errorMessage } from '../lib/errorMessage.js';
-import { OUTRO_TAIL_MS } from '../services/video/manifest.js';
 import {
   parsePlatformOption,
   parseYouTubePrivacyOption,
@@ -44,8 +43,7 @@ import {
   type PreparedVideo,
   prepareSocialVideo,
   prepareXTeaserVideo,
-  X_TEASER_CONTENT_SECONDS,
-  X_VIDEO_LIMIT_SECONDS,
+  xTeaserDurationSeconds,
 } from './video.js';
 
 const REPO_ROOT = resolve(
@@ -300,7 +298,7 @@ async function loadSocialAssets(
     durationSeconds: episode.videoDurationSeconds,
   });
   console.log(
-    `✓ X video (${formatDuration(xVideoDuration(episode.videoDurationSeconds))}, ${formatBytes(xVideo.sizeBytes)}${xVideo.reused ? ', cached/reused' : ''})`,
+    `✓ X video (${formatDuration(xTeaserDurationSeconds(episode.videoDurationSeconds))}, ${formatBytes(xVideo.sizeBytes)}${xVideo.reused ? ', cached/reused' : ''})`,
   );
   return { episode, video, xVideo };
 }
@@ -431,7 +429,7 @@ function printPreview(
   console.log(compose('x').body);
   console.log(
     xVideo
-      ? `🎬 teaser: ${formatDuration(xVideoDuration(episode.videoDurationSeconds))}, ${formatBytes(xVideo.sizeBytes)}\n${xVideo.path}`
+      ? `🎬 teaser: ${formatDuration(xTeaserDurationSeconds(episode.videoDurationSeconds))}, ${formatBytes(xVideo.sizeBytes)}\n${xVideo.path}`
       : '🎬 teaser: not prepared for this platform selection',
   );
   console.log(`${divider}\nTHREADS\n${divider}`);
@@ -530,11 +528,6 @@ function requireCanonicalVideoUrl(episode: SocialEpisode): string {
     );
   }
   return videoUrl;
-}
-
-function xVideoDuration(fullDurationSeconds: number): number {
-  if (fullDurationSeconds <= X_VIDEO_LIMIT_SECONDS) return fullDurationSeconds;
-  return X_TEASER_CONTENT_SECONDS + OUTRO_TAIL_MS / 1_000;
 }
 
 async function promptLine(message: string): Promise<string> {

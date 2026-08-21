@@ -59,7 +59,6 @@ describe('createEpisodeVideoProcessor', () => {
       manifestUrl: 'https://cdn.example.com/manifest.json',
       captionsAssUrl: 'https://cdn.example.com/captions.ass',
       r2Prefix: 'episodes/episode-1/video/renderer-v1/manifest-hash',
-      slideUrls: [],
     };
   }
 
@@ -102,7 +101,6 @@ describe('createEpisodeVideoProcessor', () => {
         manifestUrl: 'https://cdn.example.com/manifest.json',
         captionsAssUrl: 'https://cdn.example.com/captions.ass',
         r2Prefix: 'episodes/episode-1/video/renderer-v1/manifest-hash',
-        slideUrls: [],
       };
     });
     const removeDirectory = vi.fn().mockResolvedValue(undefined);

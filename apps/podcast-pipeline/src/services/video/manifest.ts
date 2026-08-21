@@ -642,10 +642,6 @@ export type Slide = SlideVideoManifest['slides'][number];
 export type ImageSlide = ImageVideoManifest['slides'][number];
 export type SlideSource = VisualSource;
 
-export function parseImageVideoManifest(input: unknown): ImageVideoManifest {
-  return imageVideoManifestSchema.parse(input);
-}
-
 export function parseVerticalVideoManifest(
   input: unknown,
 ): VerticalVideoManifest {

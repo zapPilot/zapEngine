@@ -53,6 +53,8 @@ vi.mock('./video.js', () => ({
   prepareXTeaserVideo: mocks.prepareXTeaserVideo,
   X_TEASER_CONTENT_SECONDS: 130,
   X_VIDEO_LIMIT_SECONDS: 140,
+  xTeaserDurationSeconds: (durationSeconds: number) =>
+    durationSeconds <= 140 ? durationSeconds : 132.8,
 }));
 
 import { findPendingPlatforms, parseCliOptions, runSocialCli } from './cli.js';

@@ -1,4 +1,3 @@
-import { isRecord } from '../lib/typeGuards.js';
 import type {
   EpisodeVideoResponse,
   LanguageClassroomLanguageCode,
@@ -98,7 +97,7 @@ export async function buildEpisodeSharePageHtml(input: {
       id: localization.episode_id,
       title: localization.title,
       description: localization.raw_text ?? localization.script ?? '',
-      coverUrl: getLocalizationCoverUrl(localization),
+      coverUrl: '',
       video,
     },
     platform: detectPlatform(input.userAgent),
@@ -398,15 +397,6 @@ function summarizeDescription(description: string, title: string): string {
   }
 
   return `${normalized.slice(0, 217).trimEnd()}...`;
-}
-
-function getLocalizationCoverUrl(localization: unknown): string {
-  if (!isRecord(localization)) {
-    return '';
-  }
-
-  const coverUrl = localization['cover_url'] ?? localization['coverUrl'];
-  return typeof coverUrl === 'string' ? coverUrl : '';
 }
 
 export function extractIosAppId(appStoreUrl: string): string {

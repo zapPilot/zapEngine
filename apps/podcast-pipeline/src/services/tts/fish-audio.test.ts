@@ -75,7 +75,6 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize('哈囉，這是 Fish Audio 測試', {
       languageCode: 'zh-Hant',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'custom-model-id',
@@ -128,7 +127,6 @@ describe('Fish Audio TTS provider', () => {
 
     await synthesize('Hello! Welcome to Fish Audio', {
       languageCode: 'en',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'custom-reference-id',
@@ -167,7 +165,6 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize('retry me', {
       languageCode: 'en',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'custom-reference-id',
@@ -191,7 +188,6 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize('retry request error', {
       languageCode: 'ja',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'custom-reference-id',
@@ -216,7 +212,6 @@ describe('Fish Audio TTS provider', () => {
     await expect(
       synthesize('retry string error', {
         languageCode: 'en',
-        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-reference-id',
@@ -239,7 +234,6 @@ describe('Fish Audio TTS provider', () => {
     await expect(
       synthesize('do not retry', {
         languageCode: 'en',
-        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-reference-id',
@@ -253,7 +247,6 @@ describe('Fish Audio TTS provider', () => {
   it('estimates cost from UTF-8 input bytes', () => {
     const cost = buildFishAudioCostLine('測試', {
       languageCode: 'zh-Hant',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'custom-model-id',
@@ -279,7 +272,6 @@ describe('Fish Audio TTS provider', () => {
   it('uses the default TTS audio label when no cost label is provided', () => {
     const cost = buildFishAudioCostLine('測試', {
       languageCode: 'zh-Hant',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'custom-model-id',
@@ -298,7 +290,6 @@ describe('Fish Audio TTS provider', () => {
     await expect(
       synthesize('缺少金鑰', {
         languageCode: 'zh-Hant',
-        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-model-id',
@@ -321,7 +312,6 @@ describe('Fish Audio TTS provider', () => {
     try {
       await synthesize('服務錯誤', {
         languageCode: 'zh-Hant',
-        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-model-id',
@@ -344,7 +334,6 @@ describe('Fish Audio TTS provider', () => {
     expect(
       getMetadata({
         languageCode: 'ja',
-        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-ja-model',
@@ -371,7 +360,6 @@ describe('Fish Audio TTS provider', () => {
     await expect(
       synthesize('no body test', {
         languageCode: 'en',
-        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-model-id',
@@ -390,7 +378,6 @@ describe('Fish Audio TTS provider', () => {
 
     await synthesize('large audio test', {
       languageCode: 'en',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'custom-model-id',
@@ -418,7 +405,6 @@ describe('Fish Audio TTS provider', () => {
     await expect(
       synthesize('測試', {
         languageCode: 'zh-Hant',
-        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-model-id',
@@ -440,7 +426,6 @@ describe('Fish Audio TTS provider', () => {
     await expect(
       synthesize('測試', {
         languageCode: 'zh-Hant',
-        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-model-id',
@@ -458,7 +443,6 @@ describe('Fish Audio TTS provider', () => {
     await expect(
       synthesize('測試', {
         languageCode: 'zh-Hant',
-        usage: 'main',
         config: {
           provider: 'google',
           modelId: 'wrong-provider',
@@ -476,7 +460,6 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize('stream reader test', {
       languageCode: 'en',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'model-id',
@@ -498,7 +481,6 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize('multi chunk stream', {
       languageCode: 'en',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'model-id',
@@ -523,7 +505,6 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize(longText, {
       languageCode: 'ja',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'ja-model',
@@ -549,7 +530,6 @@ describe('Fish Audio TTS provider', () => {
 
     await synthesize(longText, {
       languageCode: 'ja',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'ja-model',
@@ -596,7 +576,6 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize(longText, {
       languageCode: 'ja',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'ja-model',
@@ -623,7 +602,6 @@ describe('Fish Audio TTS provider', () => {
     await expect(
       synthesize(longText, {
         languageCode: 'ja',
-        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'ja-model',
@@ -645,7 +623,6 @@ describe('Fish Audio TTS provider', () => {
 
     await synthesize('short text', {
       languageCode: 'en',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'model-id',
@@ -673,7 +650,6 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize('retry after test', {
       languageCode: 'en',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'custom-reference-id',
@@ -706,7 +682,6 @@ describe('Fish Audio TTS provider', () => {
     await expect(
       synthesize('invalid retry after', {
         languageCode: 'en',
-        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-reference-id',
@@ -732,7 +707,6 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize('env retry delay test', {
       languageCode: 'en',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'custom-reference-id',
@@ -757,7 +731,6 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize('invalid env retry delay', {
       languageCode: 'en',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'custom-reference-id',
@@ -782,7 +755,6 @@ describe('Fish Audio TTS provider', () => {
     await expect(
       synthesize('default request settings', {
         languageCode: 'en',
-        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-reference-id',
@@ -809,7 +781,6 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize('invalid env defaults', {
       languageCode: 'en',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'custom-reference-id',
@@ -834,7 +805,6 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize('negative env defaults', {
       languageCode: 'en',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'custom-reference-id',
@@ -860,7 +830,6 @@ describe('Fish Audio TTS provider', () => {
 
     const result = await synthesize(text, {
       languageCode: 'ja',
-      usage: 'main',
       config: {
         provider: 'fish-audio',
         modelId: 'ja-model',

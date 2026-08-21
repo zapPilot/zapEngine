@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   getActiveSocialStrategies: vi.fn(),
   getSocialQueueSnapshot: vi.fn(),
   latestScheduledSocialJobs: vi.fn(),
-  listDueMetricPosts: vi.fn(),
+  listLearningSocialPosts: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
   listUnfinishedSocialPublishJobs: vi.fn(),
@@ -49,7 +49,7 @@ vi.mock('./daemon-store.js', () => ({
     const values = Object.values(schedules).sort();
     return values.at(-1) ?? null;
   },
-  listDueMetricPosts: mocks.listDueMetricPosts,
+  listLearningSocialPosts: mocks.listLearningSocialPosts,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
@@ -155,7 +155,7 @@ beforeEach(() => {
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
   mocks.reconcileSocialPublishJob.mockResolvedValue(true);
   mocks.listSocialPostsByEpisode.mockResolvedValue([]);
-  mocks.listDueMetricPosts.mockResolvedValue([]);
+  mocks.listLearningSocialPosts.mockResolvedValue([]);
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);
   mocks.enqueueSocialPublishJob.mockResolvedValue(true);
   mocks.ensureSocialDaemonStart.mockResolvedValue('2026-08-16T08:00:00.000Z');
@@ -396,7 +396,7 @@ describe('social daemon', () => {
 
   it('records only the earliest missing standardized metric window', async () => {
     const post = socialPost();
-    mocks.listDueMetricPosts.mockResolvedValue([post]);
+    mocks.listLearningSocialPosts.mockResolvedValue([post]);
     mocks.listMetricWindowsForPosts.mockResolvedValue([
       { social_post_id: post.id, measurement_window: '1h' },
       { social_post_id: post.id, measurement_window: '6h' },
@@ -610,7 +610,7 @@ describe('social daemon', () => {
       vi.clearAllMocks();
       mocks.listSocialPublishCandidates.mockResolvedValue([]);
       mocks.latestScheduledSocialJobs.mockResolvedValue({});
-      mocks.listDueMetricPosts.mockResolvedValue([]);
+      mocks.listLearningSocialPosts.mockResolvedValue([]);
       // Deliberately unstamped: the guidance must come from whatever version is
       // active now, not from what existed when the job was queued.
       mocks.claimSocialPublishJob.mockResolvedValue(
@@ -680,7 +680,7 @@ describe('social daemon', () => {
       mocks.listSocialPublishCandidates.mockResolvedValue([]);
       mocks.getActiveSocialStrategies.mockResolvedValue([]);
       mocks.latestScheduledSocialJobs.mockResolvedValue({});
-      mocks.listDueMetricPosts.mockResolvedValue([]);
+      mocks.listLearningSocialPosts.mockResolvedValue([]);
       mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
       mocks.runSocialCli.mockResolvedValue(scenario.outcomes);
       mocks.listSocialPostsByEpisode
@@ -702,7 +702,7 @@ describe('social daemon', () => {
     mocks.listSocialPublishCandidates.mockResolvedValue([]);
     mocks.getActiveSocialStrategies.mockResolvedValue([]);
     mocks.latestScheduledSocialJobs.mockResolvedValue({});
-    mocks.listDueMetricPosts.mockResolvedValue([]);
+    mocks.listLearningSocialPosts.mockResolvedValue([]);
     mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
     mocks.listSocialPostsByEpisode.mockResolvedValue([]);
     mocks.runSocialCli.mockRejectedValue('plain publish failure');
@@ -723,7 +723,7 @@ describe('social daemon', () => {
     const empty = socialPost({ id: 'post-empty' });
     const errorPost = socialPost({ id: 'post-error' });
     const stringErrorPost = socialPost({ id: 'post-string-error' });
-    mocks.listDueMetricPosts.mockResolvedValue([
+    mocks.listLearningSocialPosts.mockResolvedValue([
       tooYoung,
       empty,
       errorPost,
@@ -766,7 +766,7 @@ describe('social daemon', () => {
       post_url: null,
       published_at: '2026-08-16T09:30:00.000Z',
     });
-    mocks.listDueMetricPosts.mockResolvedValue([post]);
+    mocks.listLearningSocialPosts.mockResolvedValue([post]);
 
     await collectDueMetricWindows(NOW);
     const options = mocks.createMetricCollectors.mock.calls[0]?.[0];
@@ -789,7 +789,7 @@ describe('social daemon', () => {
       platform: 'rednote',
       published_at: '2026-08-16T09:30:00.000Z',
     });
-    mocks.listDueMetricPosts.mockResolvedValue([post]);
+    mocks.listLearningSocialPosts.mockResolvedValue([post]);
     const log = vi.fn();
 
     await collectDueMetricWindows(NOW, log);
@@ -895,7 +895,7 @@ describe('social daemon', () => {
     });
     mocks.claimSocialPublishJob.mockResolvedValue(null);
     mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
-    mocks.listDueMetricPosts.mockResolvedValue([]);
+    mocks.listLearningSocialPosts.mockResolvedValue([]);
     mocks.latestScheduledSocialJobs.mockResolvedValue({});
     mocks.createMetricsBrowserSession.mockReturnValue({
       withPage: vi.fn(),
@@ -927,7 +927,7 @@ describe('social daemon', () => {
       new Error('discover down'),
     );
     mocks.claimSocialPublishJob.mockRejectedValue('publish down');
-    mocks.listDueMetricPosts.mockRejectedValue(new Error('metrics down'));
+    mocks.listLearningSocialPosts.mockRejectedValue(new Error('metrics down'));
     mocks.refreshSocialStrategies.mockRejectedValue('strategy down');
     const log = vi.fn();
 

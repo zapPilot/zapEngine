@@ -18,7 +18,6 @@ import type {
   EpisodeVideoGenerationPublicStatus,
   EpisodeVideoGenerationSummary,
   EpisodeVideoResponse,
-  LanguageClassroomKeyword,
   LanguageClassroomLesson,
   LanguageClassroomRow,
   NewEpisode,
@@ -193,7 +192,7 @@ export function toLanguageClassroomLesson(
   if ('targetLanguageCode' in row) {
     return {
       ...row,
-      keywords: normalizeKeywords(row.keywords),
+      keywords: normalizeLanguageClassroomKeywords(row.keywords),
     };
   }
 
@@ -201,7 +200,7 @@ export function toLanguageClassroomLesson(
     sourceLanguageCode: row.source_language_code,
     targetLanguageCode: row.target_language_code,
     oneLiner: row.one_liner,
-    keywords: normalizeKeywords(row.keywords),
+    keywords: normalizeLanguageClassroomKeywords(row.keywords),
   };
 }
 
@@ -297,20 +296,6 @@ export async function findEpisodeListRowByLocalizationId(
   }
 
   return data;
-}
-
-export async function listEpisodes(): Promise<EpisodeListRow[]> {
-  const { data, error } = await getSupabase()
-    .from('episodes_with_stats')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .returns<EpisodeListRow[]>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data ?? [];
 }
 
 interface PublishedEpisodeCatalogRow {
@@ -839,21 +824,10 @@ export async function insertEpisodeLocalization(
 export async function listLanguageClassroomsByLocalizationId(
   episodeLocalizationId: string,
 ): Promise<LanguageClassroomRow[]> {
-  const classroomsByLocalizationId =
-    await listLanguageClassroomsByLocalizationIds([episodeLocalizationId]);
-  return classroomsByLocalizationId.get(episodeLocalizationId) ?? [];
-}
-
-export async function listLanguageClassroomsByLocalizationIds(
-  episodeLocalizationIds: string[],
-): Promise<Map<string, LanguageClassroomRow[]>> {
-  const map = new Map<string, LanguageClassroomRow[]>();
-  if (episodeLocalizationIds.length === 0) return map;
-
   const { data, error } = await getSupabase()
     .from('language_classrooms')
     .select('*')
-    .in('episode_localization_id', episodeLocalizationIds)
+    .eq('episode_localization_id', episodeLocalizationId)
     .order('target_language_code', { ascending: true })
     .returns<LanguageClassroomRow[]>();
 
@@ -861,13 +835,7 @@ export async function listLanguageClassroomsByLocalizationIds(
     throwSupabaseError(error);
   }
 
-  for (const row of normalizeLanguageClassroomRows(data)) {
-    const rows = map.get(row.episode_localization_id) ?? [];
-    rows.push(row);
-    map.set(row.episode_localization_id, rows);
-  }
-
-  return map;
+  return normalizeLanguageClassroomRows(data);
 }
 
 export async function upsertLanguageClassrooms(
@@ -1058,7 +1026,7 @@ function normalizeLanguageClassroomRow(
 ): LanguageClassroomRow {
   return {
     ...row,
-    keywords: normalizeKeywords(row.keywords),
+    keywords: normalizeLanguageClassroomKeywords(row.keywords),
   };
 }
 
@@ -1066,8 +1034,4 @@ function normalizeLanguageClassroomRows(
   data: LanguageClassroomRow[] | null,
 ): LanguageClassroomRow[] {
   return (data ?? []).map(normalizeLanguageClassroomRow);
-}
-
-function normalizeKeywords(value: unknown): LanguageClassroomKeyword[] {
-  return normalizeLanguageClassroomKeywords(value);
 }

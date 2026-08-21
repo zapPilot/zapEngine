@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { getTtsConfig, type TtsUsage } from './tts-config.js';
+import { getTtsConfig } from './tts-config.js';
 
 describe('TTS language config', () => {
   afterEach(() => {
@@ -10,17 +10,17 @@ describe('TTS language config', () => {
   it('uses Google only when TTS_PROVIDER=google', () => {
     vi.stubEnv('TTS_PROVIDER', 'google');
 
-    expect(getTtsConfig('main', 'zh-Hant')).toEqual({
+    expect(getTtsConfig('zh-Hant')).toEqual({
       provider: 'google',
       languageCode: 'cmn-TW',
       voiceName: 'cmn-TW-Wavenet-A',
     });
-    expect(getTtsConfig('main', 'ja')).toEqual({
+    expect(getTtsConfig('ja')).toEqual({
       provider: 'google',
       languageCode: 'ja-JP',
       voiceName: 'ja-JP-Wavenet-A',
     });
-    expect(getTtsConfig('main', 'en')).toEqual({
+    expect(getTtsConfig('en')).toEqual({
       provider: 'google',
       languageCode: 'en-US',
       voiceName: 'en-US-Wavenet-A',
@@ -28,17 +28,14 @@ describe('TTS language config', () => {
   });
 
   it.each([
-    ['main', 'zh-Hant', 'google'],
-    ['main', 'ja', 'google'],
-    ['main', 'en', 'google'],
-    ['classroom', 'zh-Hant', 'google'],
-    ['classroom', 'ja', 'google'],
-    ['classroom', 'en', 'google'],
+    ['zh-Hant', 'google'],
+    ['ja', 'google'],
+    ['en', 'google'],
   ] as const)(
-    'routes %s %s audio to %s when explicitly configured',
-    (usage: TtsUsage, languageCode, provider) => {
+    'routes %s audio to %s when explicitly configured',
+    (languageCode, provider) => {
       vi.stubEnv('TTS_PROVIDER', 'google');
-      expect(getTtsConfig(usage, languageCode).provider).toBe(provider);
+      expect(getTtsConfig(languageCode).provider).toBe(provider);
     },
   );
 
@@ -46,17 +43,17 @@ describe('TTS language config', () => {
     vi.stubEnv('TTS_PROVIDER', 'fish-audio');
     vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'my-voice-reference');
 
-    expect(getTtsConfig('main', 'zh-Hant')).toEqual({
+    expect(getTtsConfig('zh-Hant')).toEqual({
       provider: 'fish-audio',
       modelId: 'my-voice-reference',
       engine: 's2-pro',
     });
-    expect(getTtsConfig('main', 'ja')).toEqual({
+    expect(getTtsConfig('ja')).toEqual({
       provider: 'fish-audio',
       modelId: 'my-voice-reference',
       engine: 's2-pro',
     });
-    expect(getTtsConfig('classroom', 'en')).toEqual({
+    expect(getTtsConfig('en')).toEqual({
       provider: 'fish-audio',
       modelId: 'my-voice-reference',
       engine: 's2-pro',
@@ -68,7 +65,7 @@ describe('TTS language config', () => {
     vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'my-voice-reference');
     vi.stubEnv('FISH_AUDIO_ENGINE', 's2.1-pro-free');
 
-    expect(getTtsConfig('main', 'zh-Hant')).toEqual({
+    expect(getTtsConfig('zh-Hant')).toEqual({
       provider: 'fish-audio',
       modelId: 'my-voice-reference',
       engine: 's2.1-pro-free',
@@ -78,7 +75,7 @@ describe('TTS language config', () => {
   it('fails closed when TTS_PROVIDER=fish-audio but no Fish Audio reference id is set', () => {
     vi.stubEnv('TTS_PROVIDER', 'fish-audio');
 
-    expect(() => getTtsConfig('main', 'zh-Hant')).toThrow(
+    expect(() => getTtsConfig('zh-Hant')).toThrow(
       'TTS_PROVIDER=fish-audio requires FISH_AUDIO_REFERENCE_ID',
     );
   });
@@ -87,13 +84,13 @@ describe('TTS language config', () => {
     vi.stubEnv('TTS_PROVIDER', 'fish-audio');
     vi.stubEnv('FISH_AUDIO_REFERENCE_ID', '   ');
 
-    expect(() => getTtsConfig('main', 'en')).toThrow(
+    expect(() => getTtsConfig('en')).toThrow(
       'TTS_PROVIDER=fish-audio requires FISH_AUDIO_REFERENCE_ID',
     );
   });
 
   it('fails closed when TTS_PROVIDER is unset', () => {
-    expect(() => getTtsConfig('main', 'zh-Hant')).toThrow(
+    expect(() => getTtsConfig('zh-Hant')).toThrow(
       'TTS_PROVIDER must be set to fish-audio or google',
     );
   });
@@ -101,7 +98,7 @@ describe('TTS language config', () => {
   it('fails closed for unknown TTS_PROVIDER values', () => {
     vi.stubEnv('TTS_PROVIDER', 'elevenlabs');
 
-    expect(() => getTtsConfig('main', 'zh-Hant')).toThrow(
+    expect(() => getTtsConfig('zh-Hant')).toThrow(
       'TTS_PROVIDER must be set to fish-audio or google',
     );
   });
@@ -110,7 +107,7 @@ describe('TTS language config', () => {
     vi.stubEnv('TTS_PROVIDER', 'Fish-Audio');
     vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'my-voice-reference');
 
-    expect(getTtsConfig('main', 'zh-Hant').provider).toBe('fish-audio');
+    expect(getTtsConfig('zh-Hant').provider).toBe('fish-audio');
   });
 
   it('trims whitespace from TTS_PROVIDER, FISH_AUDIO_REFERENCE_ID, and FISH_AUDIO_ENGINE', () => {
@@ -118,7 +115,7 @@ describe('TTS language config', () => {
     vi.stubEnv('FISH_AUDIO_REFERENCE_ID', '  my-voice-reference  ');
     vi.stubEnv('FISH_AUDIO_ENGINE', '  s2.1-pro-free  ');
 
-    expect(getTtsConfig('main', 'zh-Hant')).toEqual({
+    expect(getTtsConfig('zh-Hant')).toEqual({
       provider: 'fish-audio',
       modelId: 'my-voice-reference',
       engine: 's2.1-pro-free',

@@ -32,7 +32,6 @@ export interface VideoArtifactUploadResult {
   manifestUrl: string;
   captionsAssUrl: string;
   r2Prefix: string;
-  slideUrls: string[];
 }
 
 export interface VisualSourceImageUpload {
@@ -201,7 +200,6 @@ export async function uploadVideoArtifactsToR2(
     manifestUrl: `${base}/${manifestKey}`,
     captionsAssUrl: `${base}/${captionsKey}`,
     r2Prefix: prefix,
-    slideUrls: slideKeys.map((key) => `${base}/${key}`),
   };
 }
 

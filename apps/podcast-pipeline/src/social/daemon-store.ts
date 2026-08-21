@@ -166,23 +166,6 @@ export async function enqueueSocialPublishJob(input: {
   );
 }
 
-export async function latestScheduledSocialJobs(): Promise<
-  Partial<Record<SocialPlatform, string>>
-> {
-  const { data, error } = await getPipelineSupabase()
-    .from('social_publish_jobs')
-    .select('platform,scheduled_at')
-    .order('scheduled_at', { ascending: false })
-    .limit(100)
-    .returns<{ platform: SocialPlatform; scheduled_at: string }[]>();
-  if (error) throwSupabaseError(error);
-  const latest: Partial<Record<SocialPlatform, string>> = {};
-  for (const row of data ?? []) {
-    latest[row.platform] ??= row.scheduled_at;
-  }
-  return latest;
-}
-
 export async function latestPendingSocialPublishSchedule(): Promise<
   string | null
 > {
@@ -554,12 +537,6 @@ export async function listLearningSocialMetrics(
     .returns<SocialPostMetricRow[]>();
   if (error) throwSupabaseError(error);
   return data ?? [];
-}
-
-export async function listDueMetricPosts(
-  publishedSince: string,
-): Promise<SocialPostRow[]> {
-  return listLearningSocialPosts(publishedSince);
 }
 
 export async function listMetricWindowsForPosts(

@@ -465,7 +465,6 @@ async function synthesizeMainAudio(
   const mainAudio = await step('textToSpeech', () =>
     textToSpeech(cleanTextForTts(script), {
       languageCode,
-      usage: 'main',
       costLabel: 'TTS main audio',
     }),
   );
@@ -681,7 +680,7 @@ function getTtsMetadataForLanguage(
   languageCode: string;
   voiceName: string;
 } {
-  const metadata = getTtsMetadata({ languageCode, usage: 'main' });
+  const metadata = getTtsMetadata({ languageCode });
   return {
     languageCode: metadata.languageCode,
     voiceName: metadata.voiceName,

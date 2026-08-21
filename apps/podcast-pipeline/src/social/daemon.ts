@@ -30,7 +30,7 @@ import {
   getActiveSocialStrategies,
   getSocialQueueSnapshot,
   latestPendingSocialPublishSchedule,
-  listDueMetricPosts,
+  listLearningSocialPosts,
   listMetricWindowsForPosts,
   listSocialPublishCandidates,
   listUnfinishedSocialPublishJobs,
@@ -403,7 +403,7 @@ export async function collectDueMetricWindows(
   const cutoff = new Date(
     now.getTime() - METRIC_LOOKBACK_DAYS * 24 * 60 * 60_000,
   ).toISOString();
-  const posts = await listDueMetricPosts(cutoff);
+  const posts = await listLearningSocialPosts(cutoff);
   if (posts.length === 0) return 0;
 
   const recorded = await listMetricWindowsForPosts(

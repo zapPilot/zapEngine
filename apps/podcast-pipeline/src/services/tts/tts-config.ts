@@ -2,7 +2,6 @@ import type { LanguageClassroomLanguageCode } from '../../types.js';
 
 export type TtsProvider = 'fish-audio' | 'google';
 export type FishAudioEngine = 's2-pro' | 's1' | 's2.1-pro-free' | (string & {});
-export type TtsUsage = 'main' | 'classroom';
 
 export interface FishAudioTtsLanguageConfig {
   provider: 'fish-audio';
@@ -39,22 +38,11 @@ const GOOGLE_EN_CONFIG = {
   voiceName: 'en-US-Wavenet-A',
 } satisfies GoogleTtsLanguageConfig;
 
-const FISH_AUDIO_ZH_HANT_CONFIG: FishAudioTtsLanguageConfig = {
+const FISH_AUDIO_CONFIG: FishAudioTtsLanguageConfig = {
   provider: FISH_AUDIO_PROVIDER,
   modelId: '',
   engine: DEFAULT_FISH_AUDIO_ENGINE,
 };
-const FISH_AUDIO_JA_CONFIG: FishAudioTtsLanguageConfig = {
-  provider: FISH_AUDIO_PROVIDER,
-  modelId: '',
-  engine: DEFAULT_FISH_AUDIO_ENGINE,
-};
-const FISH_AUDIO_EN_CONFIG: FishAudioTtsLanguageConfig = {
-  provider: FISH_AUDIO_PROVIDER,
-  modelId: '',
-  engine: DEFAULT_FISH_AUDIO_ENGINE,
-};
-
 const TTS_CONFIG: Record<
   TtsProvider,
   Record<LanguageClassroomLanguageCode, TtsLanguageConfig>
@@ -65,9 +53,9 @@ const TTS_CONFIG: Record<
     en: GOOGLE_EN_CONFIG,
   },
   'fish-audio': {
-    'zh-Hant': FISH_AUDIO_ZH_HANT_CONFIG,
-    ja: FISH_AUDIO_JA_CONFIG,
-    en: FISH_AUDIO_EN_CONFIG,
+    'zh-Hant': FISH_AUDIO_CONFIG,
+    ja: FISH_AUDIO_CONFIG,
+    en: FISH_AUDIO_CONFIG,
   },
 };
 
@@ -109,7 +97,6 @@ function buildFishAudioConfig(
 }
 
 export function getTtsConfig(
-  _usage: TtsUsage,
   languageCode: LanguageClassroomLanguageCode,
 ): TtsLanguageConfig {
   const provider = resolveTtsProvider();

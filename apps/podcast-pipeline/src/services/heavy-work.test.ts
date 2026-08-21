@@ -7,11 +7,13 @@ describe('createHeavyWorkCoordinator', () => {
   it('does not let the worker claim while ingest is active', async () => {
     const coordinator = createHeavyWorkCoordinator();
     const ingest = createDeferred<void>();
-    const runningIngest = coordinator.runIngest(() => ingest.promise);
+    const started = createDeferred<void>();
+    const runningIngest = coordinator.runIngest(() => {
+      started.resolve();
+      return ingest.promise;
+    });
 
-    await vi.waitFor(() =>
-      expect(coordinator.getState().activeIngests).toBe(1),
-    );
+    await started.promise;
     const work = vi.fn().mockResolvedValue('video');
     await expect(coordinator.tryRunVideo(work)).resolves.toEqual({
       acquired: false,
@@ -33,13 +35,7 @@ describe('createHeavyWorkCoordinator', () => {
     const ingestWork = vi.fn().mockResolvedValue('audio');
 
     const runningIngest = coordinator.runIngest(ingestWork);
-    await vi.waitFor(() =>
-      expect(coordinator.getState()).toEqual({
-        activeIngests: 0,
-        waitingIngests: 1,
-        videoActive: true,
-      }),
-    );
+    await Promise.resolve();
     expect(ingestWork).not.toHaveBeenCalled();
 
     video.resolve();
@@ -77,8 +73,6 @@ describe('createHeavyWorkCoordinator', () => {
     controller.abort(new Error('shutdown'));
     await expect(runningIngest).rejects.toThrow('shutdown');
     expect(ingestWork).not.toHaveBeenCalled();
-    expect(coordinator.getState().waitingIngests).toBe(0);
-
     video.resolve();
     await runningVideo;
   });

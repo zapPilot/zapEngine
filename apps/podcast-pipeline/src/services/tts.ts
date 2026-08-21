@@ -12,14 +12,9 @@ import {
   getTtsConfig,
   type TtsLanguageConfig,
   type TtsProvider,
-  type TtsUsage,
 } from './tts/tts-config.js';
 
-export type {
-  TtsLanguageConfig,
-  TtsProvider,
-  TtsUsage,
-} from './tts/tts-config.js';
+export type { TtsLanguageConfig, TtsProvider } from './tts/tts-config.js';
 
 export interface TtsMetadata {
   provider: TtsProvider;
@@ -29,7 +24,6 @@ export interface TtsMetadata {
 
 export interface TtsSynthesizeOptions {
   languageCode: LanguageClassroomLanguageCode;
-  usage: TtsUsage;
   config: TtsLanguageConfig;
   costLabel?: string;
 }
@@ -64,13 +58,11 @@ function getProvider(config: TtsLanguageConfig): TtsProviderModule {
 
 function normalizeTtsOptions(opts: {
   languageCode: LanguageClassroomLanguageCode;
-  usage: TtsUsage;
   costLabel?: string;
 }): TtsSynthesizeOptions {
   return {
     languageCode: opts.languageCode,
-    usage: opts.usage,
-    config: getTtsConfig(opts.usage, opts.languageCode),
+    config: getTtsConfig(opts.languageCode),
     costLabel: opts?.costLabel ?? 'TTS audio',
   };
 }
@@ -79,7 +71,6 @@ export async function textToSpeech(
   text: string,
   opts: {
     languageCode: LanguageClassroomLanguageCode;
-    usage: TtsUsage;
     costLabel?: string;
   },
 ): Promise<TtsSynthesisResult> {
@@ -89,7 +80,6 @@ export async function textToSpeech(
 
 export function getTtsMetadata(opts: {
   languageCode: LanguageClassroomLanguageCode;
-  usage: TtsUsage;
 }): TtsMetadata {
   const ttsOptions = normalizeTtsOptions(opts);
   return getProvider(ttsOptions.config).getMetadata(ttsOptions);
