@@ -645,7 +645,9 @@ describe('social daemon', () => {
       expect(mocks.runSocialCli).toHaveBeenCalledWith(
         [EPISODE_ID, '--yes', '--platform', 'x'],
         expect.objectContaining({
-          strategyGuidance: expect.stringContaining('question'),
+          strategyGuidanceByPlatform: {
+            x: expect.stringContaining('question'),
+          },
           setExitCodeOnFailure: false,
         }),
       );

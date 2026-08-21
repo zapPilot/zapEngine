@@ -64,6 +64,7 @@ export interface SocialCliOptions {
   force: boolean;
   yes: boolean;
   platform?: SocialPlatform;
+  platforms?: SocialPlatform[];
   youtubePrivacy?: YouTubePrivacyStatus;
 }
 
@@ -97,13 +98,14 @@ export async function runSocialCli(
   args: string[],
   runtime: {
     strategyGuidance?: string;
+    strategyGuidanceByPlatform?: Partial<Record<SocialPlatform, string>>;
     setExitCodeOnFailure?: boolean;
   } = {},
 ): Promise<PublishPlatformOutcome[]> {
   const options = parseCliOptions(args);
-  const requestedPlatforms: SocialPlatform[] = options.platform
-    ? [options.platform]
-    : [...SOCIAL_PLATFORMS];
+  const requestedPlatforms: SocialPlatform[] =
+    options.platforms ??
+    (options.platform ? [options.platform] : [...SOCIAL_PLATFORMS]);
   let platforms = requestedPlatforms;
 
   if (!options.dryRun && !options.force) {
@@ -123,6 +125,9 @@ export async function runSocialCli(
     episode,
     ...(runtime.strategyGuidance
       ? { strategyGuidance: runtime.strategyGuidance }
+      : {}),
+    ...(runtime.strategyGuidanceByPlatform
+      ? { strategyGuidanceByPlatform: runtime.strategyGuidanceByPlatform }
       : {}),
   });
   console.log(`[ai] Generated copy using ${generated.model}`);
@@ -261,7 +266,7 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
     force: values.force,
     yes: values.yes,
     ...(values.platform !== undefined
-      ? { platform: parsePlatformOption(values.platform) }
+      ? parsePlatformSelection(values.platform)
       : {}),
     ...(values['youtube-privacy'] !== undefined
       ? {
@@ -269,6 +274,17 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
         }
       : {}),
   };
+}
+
+function parsePlatformSelection(
+  value: string,
+): Pick<SocialCliOptions, 'platform' | 'platforms'> {
+  const platforms = value
+    .split(',')
+    .map((platform) => parsePlatformOption(platform.trim()));
+  return platforms.length === 1
+    ? { platform: platforms[0] }
+    : { platforms: [...new Set(platforms)] };
 }
 
 async function loadSocialAssets(

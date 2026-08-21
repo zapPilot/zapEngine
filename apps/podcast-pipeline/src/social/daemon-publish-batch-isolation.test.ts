@@ -65,11 +65,16 @@ const NOW = new Date('2026-08-18T01:00:00.000Z');
 const FIRST_EPISODE_ID = '123e4567-e89b-42d3-a456-426614174000';
 const SECOND_EPISODE_ID = '123e4567-e89b-42d3-a456-426614174001';
 
-function publishJob(id: string, episodeId: string, attemptCount: number) {
+function publishJob(
+  id: string,
+  episodeId: string,
+  attemptCount: number,
+  platform: 'x' | 'threads' = 'x',
+) {
   return {
     id,
     episode_id: episodeId,
-    platform: 'x',
+    platform,
     status: 'processing',
     scheduled_at: NOW.toISOString(),
     next_attempt_at: NOW.toISOString(),
@@ -99,6 +104,38 @@ beforeEach(() => {
 });
 
 describe('social daemon publish batch isolation', () => {
+  it('publishes all due platforms for one episode in a single CLI run', async () => {
+    mocks.claimSocialPublishBatch.mockResolvedValue([
+      publishJob('job-x', FIRST_EPISODE_ID, 1),
+      publishJob('job-threads', FIRST_EPISODE_ID, 1, 'threads'),
+    ]);
+    mocks.listSocialPostsByEpisode
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'post-x' }])
+      .mockResolvedValueOnce([{ id: 'post-threads' }]);
+    mocks.runSocialCli.mockResolvedValue([
+      { platform: 'x', status: 'published', url: 'https://x.com/zap/status/1' },
+      {
+        platform: 'threads',
+        status: 'published',
+        url: 'https://threads.net/@zap/post/1',
+      },
+    ]);
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-18T00:00:00.000Z',
+    });
+
+    expect(mocks.runSocialCli).toHaveBeenCalledTimes(1);
+    expect(mocks.runSocialCli).toHaveBeenCalledWith(
+      [FIRST_EPISODE_ID, '--yes', '--platform', 'x,threads'],
+      expect.objectContaining({ setExitCodeOnFailure: false }),
+    );
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledTimes(2);
+  });
+
   it('continues with later jobs when an earlier completion loses its lease', async () => {
     const leaseError = new Error('Social publish job job-1 lease was lost.');
     mocks.claimSocialPublishBatch.mockResolvedValue([

@@ -36,6 +36,7 @@ import {
   listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob,
   type SocialMetricWindowLabel,
+  type SocialPublishJobRow,
   type SocialStrategyVersionRow,
 } from './daemon-store.js';
 import { isMainModule } from './is-main-module.js';
@@ -310,60 +311,13 @@ async function publishDueJobs(
   if (jobs.length === 0) return;
 
   const active = await activeStrategiesForPublish(log);
+  const pendingByEpisode = new Map<string, typeof jobs>();
   for (const job of jobs) {
     try {
-      const [alreadyPublished] = await listSocialPostsByEpisode(
-        job.episode_id,
-        job.platform,
-      );
-      if (alreadyPublished) {
-        await completeSocialPublishJob({
-          jobId: job.id,
-          owner: OWNER,
-          completedAt: now,
-          socialPostId: alreadyPublished.id,
-        });
-        log(
-          `[social-daemon] reconciled ${job.platform} for ${job.episode_id} - already published (${alreadyPublished.id}).`,
-        );
-        continue;
-      }
-
-      const strategy = active[job.platform];
-      const guidance = buildStrategyGuidance(job.platform, strategy?.config);
-      const outcomes = await runSocialCli(
-        [job.episode_id, '--yes', '--platform', job.platform],
-        {
-          ...(guidance ? { strategyGuidance: guidance } : {}),
-          setExitCodeOnFailure: false,
-        },
-      );
-      const outcome = outcomes.find((row) => row.platform === job.platform);
-      if (!outcome || outcome.status === 'failed') {
-        throw outcome?.error ?? new Error(`${job.platform} did not publish.`);
-      }
-      if (outcome.stateError) throw outcome.stateError;
-      if (outcome.recordError) throw outcome.recordError;
-
-      const [post] = await listSocialPostsByEpisode(
-        job.episode_id,
-        job.platform,
-      );
-      if (!post) {
-        throw new Error(
-          `${job.platform} publish completed but no social_posts row was recorded.`,
-        );
-      }
-      await completeSocialPublishJob({
-        jobId: job.id,
-        owner: OWNER,
-        completedAt: now,
-        socialPostId: post.id,
-        ...(strategy ? { strategyVersionId: strategy.id } : {}),
-      });
-      log(
-        `[social-daemon] published ${job.platform} for ${job.episode_id} (${post.id}).`,
-      );
+      if (await reconcileClaimedJob(job, now, log)) continue;
+      const pending = pendingByEpisode.get(job.episode_id) ?? [];
+      pending.push(job);
+      pendingByEpisode.set(job.episode_id, pending);
     } catch (error) {
       await persistPublishFailure({
         jobId: job.id,
@@ -376,6 +330,124 @@ async function publishDueJobs(
       });
     }
   }
+
+  for (const [episodeId, pendingJobs] of pendingByEpisode) {
+    await publishEpisodeBatch(episodeId, pendingJobs, active, now, log);
+  }
+}
+
+async function reconcileClaimedJob(
+  job: SocialPublishJobRow,
+  now: Date,
+  log: (message: string) => void,
+): Promise<boolean> {
+  const [post] = await listSocialPostsByEpisode(job.episode_id, job.platform);
+  if (!post) return false;
+  await completeSocialPublishJob({
+    jobId: job.id,
+    owner: OWNER,
+    completedAt: now,
+    socialPostId: post.id,
+  });
+  log(
+    `[social-daemon] reconciled ${job.platform} for ${job.episode_id} - already published (${post.id}).`,
+  );
+  return true;
+}
+
+async function publishEpisodeBatch(
+  episodeId: string,
+  jobs: SocialPublishJobRow[],
+  active: Record<SocialPlatform, SocialStrategyVersionRow | null>,
+  now: Date,
+  log: (message: string) => void,
+): Promise<void> {
+  const guidanceByPlatform = Object.fromEntries(
+    jobs.flatMap((job) => {
+      const guidance = buildStrategyGuidance(
+        job.platform,
+        active[job.platform]?.config,
+      );
+      return guidance ? [[job.platform, guidance]] : [];
+    }),
+  ) as Partial<Record<SocialPlatform, string>>;
+  let outcomes: Awaited<ReturnType<typeof runSocialCli>>;
+  try {
+    outcomes = await runSocialCli(
+      [
+        episodeId,
+        '--yes',
+        '--platform',
+        jobs.map((job) => job.platform).join(','),
+      ],
+      {
+        ...(Object.keys(guidanceByPlatform).length > 0
+          ? { strategyGuidanceByPlatform: guidanceByPlatform }
+          : {}),
+        setExitCodeOnFailure: false,
+      },
+    );
+  } catch (error) {
+    await Promise.all(
+      jobs.map((job) => recordJobFailure(job, now, error, log)),
+    );
+    return;
+  }
+  for (const job of jobs) {
+    await finalizePublishOutcome(job, outcomes, active[job.platform], now, log);
+  }
+}
+
+async function finalizePublishOutcome(
+  job: SocialPublishJobRow,
+  outcomes: Awaited<ReturnType<typeof runSocialCli>>,
+  strategy: SocialStrategyVersionRow | null,
+  now: Date,
+  log: (message: string) => void,
+): Promise<void> {
+  try {
+    const outcome = outcomes.find((row) => row.platform === job.platform);
+    if (!outcome || outcome.status === 'failed') {
+      throw outcome?.error ?? new Error(`${job.platform} did not publish.`);
+    }
+    if (outcome.stateError) throw outcome.stateError;
+    if (outcome.recordError) throw outcome.recordError;
+    const [post] = await listSocialPostsByEpisode(job.episode_id, job.platform);
+    if (!post) {
+      throw new Error(
+        `${job.platform} publish completed but no social_posts row was recorded.`,
+      );
+    }
+    await completeSocialPublishJob({
+      jobId: job.id,
+      owner: OWNER,
+      completedAt: now,
+      socialPostId: post.id,
+      ...(strategy ? { strategyVersionId: strategy.id } : {}),
+    });
+    log(
+      `[social-daemon] published ${job.platform} for ${job.episode_id} (${post.id}).`,
+    );
+  } catch (error) {
+    await recordJobFailure(job, now, error, log);
+  }
+}
+
+function recordJobFailure(
+  job: SocialPublishJobRow,
+  now: Date,
+  error: unknown,
+  log: (message: string) => void,
+): Promise<void> {
+  return persistPublishFailure({
+    jobId: job.id,
+    episodeId: job.episode_id,
+    platform: job.platform,
+    attemptCount: job.attempt_count,
+    now,
+    message: errorMessage(error),
+    log,
+  });
 }
 
 // Guidance is resolved when a job is claimed, never when it is queued: a job
