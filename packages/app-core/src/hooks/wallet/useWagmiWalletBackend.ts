@@ -1,5 +1,4 @@
 import { getWagmiConfig } from '@core/config/wagmi';
-import { isWalletConnectEnabled } from '@core/lib/env/walletConnect';
 import { extractErrorMessage } from '@core/lib/errors';
 import {
   approvedWalletBrand,
@@ -55,40 +54,19 @@ import { getWalletClient as getWagmiWalletClient } from 'wagmi/actions';
 function toConnectorOptions(
   connectors: readonly Connector[],
 ): WalletConnectorOption[] {
-  const injectedConnectors = connectors.filter(
-    (connector) => connector.type !== 'walletConnect',
-  );
-  const specificInjected = injectedConnectors.filter(
+  const specificInjected = connectors.filter(
     (connector) => connector.id !== 'injected',
   );
   const visibleInjected =
-    specificInjected.length > 0 ? specificInjected : injectedConnectors;
+    specificInjected.length > 0 ? specificInjected : connectors;
 
-  const injectedOptions: WalletConnectorOption[] = visibleInjected.map(
-    (connector) => ({
-      id: connector.id,
-      name: connector.name,
-      ...(connector.icon ? { icon: connector.icon } : {}),
-      recommended: isApprovedWalletConnector(connector),
-      type: 'injected',
-    }),
-  );
-
-  const walletConnectConnector = connectors.find(
-    (connector) => connector.type === 'walletConnect',
-  );
-  const walletConnectOptions: WalletConnectorOption[] = walletConnectConnector
-    ? [
-        {
-          id: walletConnectConnector.id,
-          name: 'WalletConnect',
-          recommended: false,
-          type: 'walletConnect',
-        },
-      ]
-    : [];
-
-  return [...injectedOptions, ...walletConnectOptions];
+  return visibleInjected.map((connector) => ({
+    id: connector.id,
+    name: connector.name,
+    ...(connector.icon ? { icon: connector.icon } : {}),
+    recommended: isApprovedWalletConnector(connector),
+    type: 'injected',
+  }));
 }
 
 function toWalletError(
@@ -107,12 +85,10 @@ export interface WagmiWalletBackend {
   backend: WalletProviderInterface;
   /** Whether the wagmi backend should drive `useWalletProvider()`. */
   isConnected: boolean;
-  /** Discovered wallets (injected + the generic WalletConnect entry). */
+  /** Discovered injected wallets. */
   connectors: WalletConnectorOption[];
   /** Connect to a specific discovered connector by its `WalletConnectorOption.id`. */
   connectInjected: (connectorId: string) => Promise<boolean>;
-  connectWalletConnect: () => Promise<boolean>;
-  isWalletConnectAvailable: boolean;
 }
 
 /**
@@ -271,18 +247,6 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
     [connectors, connectToConnector],
   );
 
-  const connectWalletConnect = useCallback(async (): Promise<boolean> => {
-    const connector = connectors.find((c) => c.type === 'walletConnect');
-    if (!connector) {
-      setError({
-        message: 'WalletConnect is not configured.',
-        code: 'NO_WALLET',
-      });
-      return false;
-    }
-    return connectToConnector(connector);
-  }, [connectors, connectToConnector]);
-
   /**
    * Default `WalletProviderInterface.connect()` — used when nothing overrides
    * it (e.g. direct tests). The unified provider overrides this with the
@@ -290,18 +254,15 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
    * auto-connecting the sole detected wallet.
    */
   const handleConnect = useCallback(async (): Promise<void> => {
-    const injectedOnly = connectors.filter((c) => c.type !== 'walletConnect');
-
-    if (injectedOnly.length === 0) {
+    if (connectors.length === 0) {
       setError({
-        message:
-          'No wallet detected. Install a browser wallet extension or use WalletConnect.',
+        message: 'No wallet detected. Install a browser wallet extension.',
         code: 'NO_WALLET',
       });
       return;
     }
 
-    if (injectedOnly.length > 1) {
+    if (connectors.length > 1) {
       setError({
         message: 'Multiple wallets detected. Please choose a wallet first.',
         code: 'WALLET_SELECTION_REQUIRED',
@@ -309,7 +270,7 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
       return;
     }
 
-    const connector = injectedOnly[0];
+    const connector = connectors[0];
     if (!connector) {
       return;
     }
@@ -564,7 +525,5 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
     isConnected,
     connectors: connectorOptions,
     connectInjected,
-    connectWalletConnect,
-    isWalletConnectAvailable: isWalletConnectEnabled(),
   };
 }

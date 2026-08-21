@@ -38,8 +38,6 @@ const mocks = vi.hoisted(() => ({
     isConnected: false,
     connectors: [] as unknown[],
     connectInjected: vi.fn(),
-    connectWalletConnect: vi.fn(),
-    isWalletConnectAvailable: false,
   },
   privy: {
     backend: undefined as unknown as WalletProviderInterface,

@@ -23,8 +23,6 @@ export function buildAppCoreEnvSource(
     VITE_MORALIS_API_KEY: process.env.EXPO_PUBLIC_MORALIS_API_KEY,
     VITE_PODCAST_API_URL: process.env.EXPO_PUBLIC_PODCAST_API_URL,
     VITE_PRIVY_CLIENT_ID: process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID,
-    VITE_WALLETCONNECT_PROJECT_ID:
-      process.env.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID,
     VITE_APP_RUNTIME: APP_RUNTIME,
     MODE: isDevBuild() ? 'development' : 'production',
   };

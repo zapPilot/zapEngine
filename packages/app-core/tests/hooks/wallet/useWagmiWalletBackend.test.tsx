@@ -25,7 +25,6 @@ const mocks = vi.hoisted(() => ({
     chain: undefined as { id: number; name: string } | undefined,
   },
   connectors: [] as { id: string; name: string; icon?: string; type: string }[],
-  isWalletConnectEnabled: vi.fn(() => false),
 }));
 
 vi.mock('wagmi', () => ({
@@ -61,10 +60,6 @@ vi.mock('@core/lib/wallet/executeDepositPlan', () => ({
     mocks.submitPreparedTransactionsWithEIP7702,
 }));
 
-vi.mock('@core/lib/env/walletConnect', () => ({
-  isWalletConnectEnabled: mocks.isWalletConnectEnabled,
-}));
-
 vi.mock('@core/utils', () => ({
   walletLogger: { info: vi.fn(), error: vi.fn() },
 }));
@@ -85,7 +80,6 @@ beforeEach(() => {
     chain: undefined,
   };
   mocks.connectors = [];
-  mocks.isWalletConnectEnabled.mockReturnValue(false);
 });
 
 describe('useWagmiWalletBackend', () => {
@@ -359,23 +353,6 @@ describe('useWagmiWalletBackend', () => {
     mocks.connectors = [{ id: 'injected', name: 'Injected', type: 'injected' }];
     const { result } = renderHook(() => useWagmiWalletBackend());
     expect(result.current.connectors.map((o) => o.id)).toEqual(['injected']);
-  });
-
-  it('includes the generic WalletConnect connector as a non-recommended option when configured', () => {
-    mocks.connectors = [
-      { id: 'walletConnect', name: 'WalletConnect', type: 'walletConnect' },
-    ];
-    mocks.isWalletConnectEnabled.mockReturnValue(true);
-    const { result } = renderHook(() => useWagmiWalletBackend());
-    expect(result.current.isWalletConnectAvailable).toBe(true);
-    expect(result.current.connectors).toEqual([
-      {
-        id: 'walletConnect',
-        name: 'WalletConnect',
-        recommended: false,
-        type: 'walletConnect',
-      },
-    ]);
   });
 
   it('connectInjected connects the matching connector by id', async () => {

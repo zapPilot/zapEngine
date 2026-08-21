@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -115,5 +118,25 @@ describe('installExtensionErrorFilter', () => {
 
     expect(extensionEvent.stopImmediatePropagation).toHaveBeenCalledTimes(1);
     expect(appEvent.stopImmediatePropagation).not.toHaveBeenCalled();
+  });
+});
+
+describe('entrypoint wiring', () => {
+  it('imports the extension error filter before expo-router/entry', () => {
+    // The filter only beats the dev overlay's window listeners because it
+    // registers first — reordering the entrypoint imports would silently
+    // bring the overlay noise back.
+    const entrypoint = readFileSync(
+      fileURLToPath(new URL('../entrypoint.js', import.meta.url)),
+      'utf8',
+    );
+    const filterIndex = entrypoint.indexOf(
+      "import './src/config/ignoreExtensionErrors';",
+    );
+    const routerIndex = entrypoint.indexOf("import 'expo-router/entry';");
+
+    expect(filterIndex).toBeGreaterThan(-1);
+    expect(routerIndex).toBeGreaterThan(-1);
+    expect(filterIndex).toBeLessThan(routerIndex);
   });
 });

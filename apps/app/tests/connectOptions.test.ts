@@ -20,11 +20,6 @@ describe('approvedWalletOptions', () => {
       connector({ id: 'com.okex.wallet', name: 'OKX Wallet' }),
       connector({ id: 'com.ambire', name: 'Ambire Wallet', recommended: true }),
       connector({ id: 'io.rabby', name: 'Rabby Wallet', recommended: false }),
-      connector({
-        id: 'walletConnect',
-        name: 'WalletConnect',
-        type: 'walletConnect',
-      }),
     ]);
     expect(result.map((option) => option.name)).toEqual([
       'Ambire Wallet',
@@ -33,14 +28,9 @@ describe('approvedWalletOptions', () => {
     ]);
   });
 
-  it('hides unapproved injected wallets and generic WalletConnect', () => {
+  it('hides unapproved injected wallets', () => {
     const result = approvedWalletOptions([
       connector({ id: 'app.phantom', name: 'Phantom' }),
-      connector({
-        id: 'walletConnect',
-        name: 'WalletConnect',
-        type: 'walletConnect',
-      }),
     ]);
     expect(result).toEqual([]);
   });

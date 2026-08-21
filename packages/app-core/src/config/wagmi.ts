@@ -1,21 +1,21 @@
-import { getWalletConnectProjectId } from '@core/lib/env/walletConnect';
 import { arbitrum, base, optimism } from 'viem/chains';
 import { type Config, createConfig, http } from 'wagmi';
-// Import each connector from its own subpath, not the `wagmi/connectors`
+// Import the connector from its own subpath, not the `wagmi/connectors`
 // barrel — that barrel re-exports every connector (including `porto`, whose
 // `ox` dependency Metro cannot resolve), which would pull the whole set into
-// the web/desktop bundle just to use these two.
+// the web/desktop bundle just to use this one.
 import { injected } from 'wagmi/connectors/injected';
-import { walletConnect } from 'wagmi/connectors/walletConnect';
 
 /**
  * wagmi config for external-wallet login (web + Electron desktop only).
  *
  * `injected()` surfaces one connector per EIP-6963-announced browser
- * extension in real browsers. `walletConnect()` is added whenever a project ID
- * is configured, but remains below the visible picker as a future seam for
- * curated mobile-wallet handoffs. Unlike the pre-removal config, a missing
- * project ID does not throw — `injected()` still works in real browsers.
+ * extension in real browsers.
+ *
+ * Deliberately no WalletConnect connector: it never had a UI entry point
+ * (the picker allowlists injected wallets only), and wagmi eagerly
+ * initializes it on page load, firing AppKit telemetry to
+ * pulse.walletconnect.org that its options cannot disable.
  *
  * Lazily memoized so `createConfig` (which touches storage) never runs at
  * import time, matching the app-core "no module-scope env read" rule.
@@ -27,14 +27,9 @@ export function getWagmiConfig(): Config {
     return cachedConfig;
   }
 
-  const projectId = getWalletConnectProjectId();
-
   cachedConfig = createConfig({
     chains: [arbitrum, base, optimism],
-    connectors: [
-      injected(),
-      ...(projectId ? [walletConnect({ projectId, showQrModal: true })] : []),
-    ],
+    connectors: [injected()],
     transports: {
       [arbitrum.id]: http('https://arb1.arbitrum.io/rpc'),
       [base.id]: http('https://mainnet.base.org'),

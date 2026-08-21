@@ -6,18 +6,14 @@ import {
 import type { WalletConnectorOption } from '@zapengine/app-core/types';
 
 /**
- * Applies the product allowlist to discovered connectors. Generic
- * WalletConnect remains configured below the UI layer for future curated
- * deep-links, but it must never expose an unrestricted wallet directory.
+ * Applies the product allowlist to discovered connectors — the picker must
+ * never expose an unrestricted wallet directory.
  */
 export function approvedWalletOptions(
   connectors: readonly WalletConnectorOption[],
 ): WalletConnectorOption[] {
   return connectors
-    .filter(
-      (option) =>
-        option.type === 'injected' && isApprovedWalletConnector(option),
-    )
+    .filter((option) => isApprovedWalletConnector(option))
     .sort((a, b) => approvedWalletRank(a) - approvedWalletRank(b));
 }
 

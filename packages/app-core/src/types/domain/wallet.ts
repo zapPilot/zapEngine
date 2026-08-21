@@ -173,5 +173,5 @@ export interface WalletConnectorOption {
   /** EIP-6963 icon data-URI, when the wallet provided one. */
   icon?: string;
   recommended: boolean;
-  type: 'injected' | 'walletConnect';
+  type: 'injected';
 }

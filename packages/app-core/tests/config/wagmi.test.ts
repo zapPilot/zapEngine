@@ -4,11 +4,6 @@ const mocks = vi.hoisted(() => ({
   createConfig: vi.fn((config: unknown) => config),
   http: vi.fn((url: string) => ({ url })),
   injected: vi.fn(() => ({ type: 'injected' })),
-  walletConnect: vi.fn((options: unknown) => ({
-    type: 'walletConnect',
-    options,
-  })),
-  getWalletConnectProjectId: vi.fn<() => string | undefined>(),
 }));
 
 vi.mock('wagmi', () => ({
@@ -16,12 +11,6 @@ vi.mock('wagmi', () => ({
   http: mocks.http,
 }));
 vi.mock('wagmi/connectors/injected', () => ({ injected: mocks.injected }));
-vi.mock('wagmi/connectors/walletConnect', () => ({
-  walletConnect: mocks.walletConnect,
-}));
-vi.mock('@core/lib/env/walletConnect', () => ({
-  getWalletConnectProjectId: mocks.getWalletConnectProjectId,
-}));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -29,29 +18,19 @@ beforeEach(() => {
 });
 
 describe('getWagmiConfig', () => {
-  it('includes only injected() when no WalletConnect project id is configured, without throwing', async () => {
-    mocks.getWalletConnectProjectId.mockReturnValue(undefined);
-    const { getWagmiConfig } = await import('@core/config/wagmi');
-
-    expect(() => getWagmiConfig()).not.toThrow();
-    expect(mocks.injected).toHaveBeenCalledTimes(1);
-    expect(mocks.walletConnect).not.toHaveBeenCalled();
-  });
-
-  it('adds walletConnect() with showQrModal when a project id is configured', async () => {
-    mocks.getWalletConnectProjectId.mockReturnValue('test-project-id');
+  it('configures only the injected() connector — no WalletConnect (its eager init fires AppKit telemetry)', async () => {
     const { getWagmiConfig } = await import('@core/config/wagmi');
 
     getWagmiConfig();
 
-    expect(mocks.walletConnect).toHaveBeenCalledWith({
-      projectId: 'test-project-id',
-      showQrModal: true,
-    });
+    expect(mocks.injected).toHaveBeenCalledTimes(1);
+    const [config] = mocks.createConfig.mock.calls[0] as [
+      { connectors: { type: string }[] },
+    ];
+    expect(config.connectors).toEqual([{ type: 'injected' }]);
   });
 
   it('configures arbitrum/base/optimism chains, ssr, and multi-injected discovery', async () => {
-    mocks.getWalletConnectProjectId.mockReturnValue(undefined);
     const { getWagmiConfig } = await import('@core/config/wagmi');
 
     getWagmiConfig();
@@ -76,7 +55,6 @@ describe('getWagmiConfig', () => {
   });
 
   it('memoizes the config across calls (single createConfig invocation)', async () => {
-    mocks.getWalletConnectProjectId.mockReturnValue(undefined);
     const { getWagmiConfig } = await import('@core/config/wagmi');
 
     const first = getWagmiConfig();

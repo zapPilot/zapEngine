@@ -16,7 +16,7 @@ export interface WalletLoginContextValue {
   isPickerOpen: boolean;
   openPicker(): void;
   closePicker(): void;
-  /** Discovered wallets (injected + the generic WalletConnect entry). */
+  /** Discovered injected wallets. */
   connectors: WalletConnectorOption[];
   connectInjected(connectorId: string): Promise<void>;
   connectPrivy(): Promise<void>;
