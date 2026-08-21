@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest';
 import {
   type ImageVideoManifest,
   OUTRO_TAIL_MS,
-  parseImageVideoManifest,
   parseSlideVideoManifest,
   parseVerticalVideoManifest,
   type SlideVideoManifest,
@@ -47,7 +46,7 @@ function findSlide(
 }
 
 function createImageManifest(): ImageVideoManifest {
-  return parseImageVideoManifest({
+  return parseSlideVideoManifest({
     schemaVersion: 'podcast-slide-video.v2',
     rendererVersion: 'satori-resvg-v3',
     episode: {
@@ -97,7 +96,7 @@ function createImageManifest(): ImageVideoManifest {
       endMs: (index + 1) * 10_000,
       text: `字幕 ${index + 1}`,
     })),
-  });
+  }) as ImageVideoManifest;
 }
 
 function createVerticalManifest(): VerticalVideoManifest {

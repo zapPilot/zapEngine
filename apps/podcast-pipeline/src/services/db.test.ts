@@ -23,12 +23,10 @@ import {
   insertSocialPostMetric,
   listEpisodeFeedPaged,
   listEpisodeLocalizationsByEpisodeId,
-  listEpisodes,
   listEpisodesPaged,
   listEpisodeVideoSummariesByLocalizationIds,
   listLanguageClassroomAudioByLocalizationIds,
   listLanguageClassroomsByLocalizationId,
-  listLanguageClassroomsByLocalizationIds,
   listPublishedEpisodeCatalog,
   listRecentSocialPosts,
   listSocialPostMetrics,
@@ -630,21 +628,6 @@ describe('cursor helpers', () => {
 });
 
 describe('listEpisodesPaged', () => {
-  it('returns an empty list when the list view has no rows', async () => {
-    state.query!.returns.mockResolvedValue({ data: null, error: null });
-
-    await expect(listEpisodes()).resolves.toEqual([]);
-  });
-
-  it('throws Supabase errors when list view lookup fails', async () => {
-    state.query!.returns.mockResolvedValue({
-      data: null,
-      error: new Error('list failed'),
-    });
-
-    await expect(listEpisodes()).rejects.toThrow('list failed');
-  });
-
   it('queries the localization view by language and returns next cursor', async () => {
     const rows = [
       listRow({
@@ -1629,13 +1612,6 @@ describe('social post metrics', () => {
 });
 
 describe('language classrooms', () => {
-  it('does not query classrooms when no localization ids are provided', async () => {
-    const result = await listLanguageClassroomsByLocalizationIds([]);
-
-    expect(result).toEqual(new Map());
-    expect(mockFrom).not.toHaveBeenCalled();
-  });
-
   it('lists classrooms for one localization id', async () => {
     const rows = [classroomRow(DB_CLASSROOM_ROW_DEFAULTS)];
     state.query!.returns.mockResolvedValue({ data: rows, error: null });
@@ -1643,9 +1619,10 @@ describe('language classrooms', () => {
     await expect(
       listLanguageClassroomsByLocalizationId('loc-1'),
     ).resolves.toEqual(rows);
-    expect(state.query!.in).toHaveBeenCalledWith('episode_localization_id', [
+    expect(state.query!.eq).toHaveBeenCalledWith(
+      'episode_localization_id',
       'loc-1',
-    ]);
+    );
   });
 
   it('returns an empty classroom list when lookup data is null', async () => {
@@ -1671,54 +1648,6 @@ describe('language classrooms', () => {
     await expect(upsertLanguageClassrooms([])).resolves.toEqual([]);
 
     expect(mockFrom).not.toHaveBeenCalled();
-  });
-
-  it('groups classrooms by episode localization id', async () => {
-    const rows = [
-      classroomRow({
-        ...DB_CLASSROOM_ROW_DEFAULTS,
-        episode_localization_id: 'loc-1',
-        target_language_code: 'ja',
-      }),
-      classroomRow({
-        ...DB_CLASSROOM_ROW_DEFAULTS,
-        episode_localization_id: 'loc-2',
-        target_language_code: 'en',
-      }),
-    ];
-    state.query!.returns.mockResolvedValue({ data: rows, error: null });
-
-    const result = await listLanguageClassroomsByLocalizationIds([
-      'loc-1',
-      'loc-2',
-    ]);
-
-    expect(mockFrom).toHaveBeenCalledWith('language_classrooms');
-    expect(state.query!.in).toHaveBeenCalledWith('episode_localization_id', [
-      'loc-1',
-      'loc-2',
-    ]);
-    expect(result.get('loc-1')).toEqual([rows[0]]);
-    expect(result.get('loc-2')).toEqual([rows[1]]);
-  });
-
-  it('returns an empty classroom map when grouped lookup data is null', async () => {
-    state.query!.returns.mockResolvedValue({ data: null, error: null });
-
-    await expect(
-      listLanguageClassroomsByLocalizationIds(['loc-1']),
-    ).resolves.toEqual(new Map());
-  });
-
-  it('throws Supabase errors when grouped classroom lookup fails', async () => {
-    state.query!.returns.mockResolvedValue({
-      data: null,
-      error: new Error('grouped classroom lookup failed'),
-    });
-
-    await expect(
-      listLanguageClassroomsByLocalizationIds(['loc-1']),
-    ).rejects.toThrow('grouped classroom lookup failed');
   });
 
   it('upserts classrooms keyed by localization and target language, including the script but not audio fields', async () => {

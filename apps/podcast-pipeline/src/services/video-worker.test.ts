@@ -524,10 +524,12 @@ describe('createVideoWorker', () => {
     const repository = makeRepository();
     const coordinator = createHeavyWorkCoordinator();
     const ingest = createDeferred<void>();
-    const runningIngest = coordinator.runIngest(() => ingest.promise);
-    await vi.waitFor(() =>
-      expect(coordinator.getState().activeIngests).toBe(1),
-    );
+    const started = createDeferred<void>();
+    const runningIngest = coordinator.runIngest(() => {
+      started.resolve();
+      return ingest.promise;
+    });
+    await started.promise;
     const worker = createVideoWorker({
       repository,
       coordinator,

@@ -260,7 +260,6 @@ describe('textToSpeech', () => {
   it('uses custom Google voice options from resolved language config', async () => {
     const result = await textToSpeech('Hello world', {
       languageCode: 'en',
-      usage: 'main',
       config: {
         provider: 'google',
         languageCode: 'en-US',
@@ -290,7 +289,6 @@ describe('textToSpeech', () => {
   it('accepts a classroom language option with its configured Google voice mapping', async () => {
     const result = await textToSpeech('こんにちは', {
       languageCode: 'ja',
-      usage: 'classroom',
       config: {
         provider: 'google',
         languageCode: 'ja-JP',
@@ -405,7 +403,6 @@ describe('getGoogleVoiceOptions', () => {
     await expect(
       textToSpeech('test', {
         languageCode: 'ja',
-        usage: 'main',
         config: {
           provider: 'fish-audio',
           modelId: 'custom-model',

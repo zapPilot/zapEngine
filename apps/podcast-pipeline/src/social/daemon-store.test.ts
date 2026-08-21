@@ -28,8 +28,6 @@ import {
   failSocialPublishJob,
   getActiveSocialStrategies,
   getSocialQueueSnapshot,
-  latestScheduledSocialJobs,
-  listDueMetricPosts,
   listLearningSocialMetrics,
   listLearningSocialPosts,
   listMetricWindowsForPosts,
@@ -225,19 +223,6 @@ describe('social daemon store', () => {
       }),
     ).resolves.toBe(false);
 
-    queue({
-      data: [
-        { platform: 'x', scheduled_at: '2026-08-16T10:05:00Z' },
-        { platform: 'x', scheduled_at: '2026-08-16T09:05:00Z' },
-        { platform: 'threads', scheduled_at: '2026-08-16T10:15:00Z' },
-      ],
-      error: null,
-    });
-    await expect(latestScheduledSocialJobs()).resolves.toEqual({
-      x: '2026-08-16T10:05:00Z',
-      threads: '2026-08-16T10:15:00Z',
-    });
-
     queue(
       {
         data: [
@@ -325,10 +310,6 @@ describe('social daemon store', () => {
     queue({ data: [{ id: 'metric-1' }], error: null });
     await expect(
       listLearningSocialMetrics('2026-08-01T00:00:00Z'),
-    ).resolves.toHaveLength(1);
-    queue({ data: [{ id: 'post-2' }], error: null });
-    await expect(
-      listDueMetricPosts('2026-08-01T00:00:00Z'),
     ).resolves.toHaveLength(1);
     await expect(listMetricWindowsForPosts([])).resolves.toEqual([]);
     queue({
@@ -421,13 +402,6 @@ describe('social daemon store', () => {
         scheduledAt: now.toISOString(),
       }),
     ).rejects.toThrow('enqueue failed');
-
-    queue({ data: null, error: new Error('schedule lookup failed') });
-    await expect(latestScheduledSocialJobs()).rejects.toThrow(
-      'schedule lookup failed',
-    );
-    queue({ data: null, error: null });
-    await expect(latestScheduledSocialJobs()).resolves.toEqual({});
 
     queue({ data: null, error: null });
     await expect(

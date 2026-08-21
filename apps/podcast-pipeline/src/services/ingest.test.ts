@@ -361,7 +361,6 @@ describe('performIngest failure paths', () => {
 
     expect(mockTextToSpeech).toHaveBeenCalledWith('Generated script', {
       languageCode: 'zh-Hant',
-      usage: 'main',
       costLabel: 'TTS main audio',
     });
     expect(mockGenerateHls).toHaveBeenCalledWith(Buffer.from('audio'));
@@ -404,7 +403,7 @@ describe('performIngest failure paths', () => {
 
     expect(mockTextToSpeech).toHaveBeenCalledWith(
       'First paragraph.\n\nKeep inline --- punctuation.',
-      expect.objectContaining({ languageCode: 'zh-Hant', usage: 'main' }),
+      expect.objectContaining({ languageCode: 'zh-Hant' }),
     );
     expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
       localizationRow().id,
@@ -539,7 +538,6 @@ describe('performIngest failure paths', () => {
 
     expect(mockTextToSpeech).toHaveBeenCalledWith('Generated script', {
       languageCode: 'zh-Hant',
-      usage: 'main',
       costLabel: 'TTS main audio',
     });
     expect(result.costUsd).toBeCloseTo(0.00023, 10);
@@ -893,7 +891,6 @@ describe('performIngest failure paths', () => {
     expect(mockTranslateCanonicalScript).not.toHaveBeenCalled();
     expect(mockTextToSpeech).toHaveBeenCalledWith('English script', {
       languageCode: 'en',
-      usage: 'main',
       costLabel: 'TTS main audio',
     });
     expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
@@ -1412,7 +1409,6 @@ describe('performIngest failure paths', () => {
     ).toBeLessThan(mockTextToSpeech.mock.invocationCallOrder[0]!);
     expect(mockTextToSpeech).toHaveBeenCalledWith('日本語スクリプト', {
       languageCode: 'ja',
-      usage: 'main',
       costLabel: 'TTS main audio',
     });
     expect(result.costDetails.breakdown).toEqual(
@@ -1679,7 +1675,7 @@ describe('performIngest failure paths', () => {
     });
     expect(mockTextToSpeech).toHaveBeenCalledWith(
       'Healthy English script.',
-      expect.objectContaining({ languageCode: 'en', usage: 'main' }),
+      expect.objectContaining({ languageCode: 'en' }),
     );
   });
 
@@ -2158,7 +2154,6 @@ describe('performIngest failure paths', () => {
     expect(mockSynthesizeClassroomAudio).not.toHaveBeenCalled();
     expect(mockTextToSpeech).toHaveBeenCalledWith('', {
       languageCode: 'en',
-      usage: 'main',
       costLabel: 'TTS main audio',
     });
   });

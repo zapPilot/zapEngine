@@ -9,7 +9,6 @@ import { parseArgs } from 'node:util';
 import dotenv from 'dotenv';
 
 import { errorMessage } from '../lib/errorMessage.js';
-import { OUTRO_TAIL_MS } from '../services/video/manifest.js';
 import {
   parsePlatformOption,
   parseYouTubePrivacyOption,
@@ -44,8 +43,7 @@ import {
   type PreparedVideo,
   prepareSocialVideo,
   prepareXTeaserVideo,
-  X_TEASER_CONTENT_SECONDS,
-  X_VIDEO_LIMIT_SECONDS,
+  xTeaserDurationSeconds,
 } from './video.js';
 
 const REPO_ROOT = resolve(
@@ -66,6 +64,7 @@ export interface SocialCliOptions {
   force: boolean;
   yes: boolean;
   platform?: SocialPlatform;
+  platforms?: SocialPlatform[];
   youtubePrivacy?: YouTubePrivacyStatus;
 }
 
@@ -99,13 +98,14 @@ export async function runSocialCli(
   args: string[],
   runtime: {
     strategyGuidance?: string;
+    strategyGuidanceByPlatform?: Partial<Record<SocialPlatform, string>>;
     setExitCodeOnFailure?: boolean;
   } = {},
 ): Promise<PublishPlatformOutcome[]> {
   const options = parseCliOptions(args);
-  const requestedPlatforms: SocialPlatform[] = options.platform
-    ? [options.platform]
-    : [...SOCIAL_PLATFORMS];
+  const requestedPlatforms: SocialPlatform[] =
+    options.platforms ??
+    (options.platform ? [options.platform] : [...SOCIAL_PLATFORMS]);
   let platforms = requestedPlatforms;
 
   if (!options.dryRun && !options.force) {
@@ -125,6 +125,9 @@ export async function runSocialCli(
     episode,
     ...(runtime.strategyGuidance
       ? { strategyGuidance: runtime.strategyGuidance }
+      : {}),
+    ...(runtime.strategyGuidanceByPlatform
+      ? { strategyGuidanceByPlatform: runtime.strategyGuidanceByPlatform }
       : {}),
   });
   console.log(`[ai] Generated copy using ${generated.model}`);
@@ -263,7 +266,7 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
     force: values.force,
     yes: values.yes,
     ...(values.platform !== undefined
-      ? { platform: parsePlatformOption(values.platform) }
+      ? parsePlatformSelection(values.platform)
       : {}),
     ...(values['youtube-privacy'] !== undefined
       ? {
@@ -271,6 +274,17 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
         }
       : {}),
   };
+}
+
+function parsePlatformSelection(
+  value: string,
+): Pick<SocialCliOptions, 'platform' | 'platforms'> {
+  const platforms = value
+    .split(',')
+    .map((platform) => parsePlatformOption(platform.trim()));
+  return platforms.length === 1
+    ? { platform: platforms[0] }
+    : { platforms: [...new Set(platforms)] };
 }
 
 async function loadSocialAssets(
@@ -300,7 +314,7 @@ async function loadSocialAssets(
     durationSeconds: episode.videoDurationSeconds,
   });
   console.log(
-    `✓ X video (${formatDuration(xVideoDuration(episode.videoDurationSeconds))}, ${formatBytes(xVideo.sizeBytes)}${xVideo.reused ? ', cached/reused' : ''})`,
+    `✓ X video (${formatDuration(xTeaserDurationSeconds(episode.videoDurationSeconds))}, ${formatBytes(xVideo.sizeBytes)}${xVideo.reused ? ', cached/reused' : ''})`,
   );
   return { episode, video, xVideo };
 }
@@ -431,7 +445,7 @@ function printPreview(
   console.log(compose('x').body);
   console.log(
     xVideo
-      ? `🎬 teaser: ${formatDuration(xVideoDuration(episode.videoDurationSeconds))}, ${formatBytes(xVideo.sizeBytes)}\n${xVideo.path}`
+      ? `🎬 teaser: ${formatDuration(xTeaserDurationSeconds(episode.videoDurationSeconds))}, ${formatBytes(xVideo.sizeBytes)}\n${xVideo.path}`
       : '🎬 teaser: not prepared for this platform selection',
   );
   console.log(`${divider}\nTHREADS\n${divider}`);
@@ -530,11 +544,6 @@ function requireCanonicalVideoUrl(episode: SocialEpisode): string {
     );
   }
   return videoUrl;
-}
-
-function xVideoDuration(fullDurationSeconds: number): number {
-  if (fullDurationSeconds <= X_VIDEO_LIMIT_SECONDS) return fullDurationSeconds;
-  return X_TEASER_CONTENT_SECONDS + OUTRO_TAIL_MS / 1_000;
 }
 
 async function promptLine(message: string): Promise<string> {

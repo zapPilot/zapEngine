@@ -49,8 +49,8 @@ describe('TTS provider dispatcher', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv('TTS_PROVIDER', 'google');
-    mockGetTtsConfig.mockImplementation((usage, languageCode) =>
-      realTtsConfig.getTtsConfig!(usage, languageCode),
+    mockGetTtsConfig.mockImplementation((languageCode) =>
+      realTtsConfig.getTtsConfig!(languageCode),
     );
     mockFishSynthesize.mockResolvedValue({
       audio: Buffer.from('fish-audio'),
@@ -99,7 +99,6 @@ describe('TTS provider dispatcher', () => {
   it('routes zh-Hant main audio to Google', async () => {
     const result = await textToSpeech('測試文字', {
       languageCode: 'zh-Hant',
-      usage: 'main',
     });
 
     expect(result).toEqual({
@@ -116,7 +115,6 @@ describe('TTS provider dispatcher', () => {
     });
     expect(mockGoogleSynthesize).toHaveBeenCalledWith('測試文字', {
       languageCode: 'zh-Hant',
-      usage: 'main',
       config: {
         provider: 'google',
         languageCode: 'cmn-TW',
@@ -131,7 +129,6 @@ describe('TTS provider dispatcher', () => {
     await expect(
       textToSpeech('market liquidity', {
         languageCode: 'en',
-        usage: 'main',
       }),
     ).resolves.toEqual({
       audio: Buffer.from('google'),
@@ -148,7 +145,6 @@ describe('TTS provider dispatcher', () => {
 
     expect(mockGoogleSynthesize).toHaveBeenCalledWith('market liquidity', {
       languageCode: 'en',
-      usage: 'main',
       config: {
         provider: 'google',
         languageCode: 'en-US',
@@ -162,12 +158,10 @@ describe('TTS provider dispatcher', () => {
   it('routes zh-Hant classroom audio to Google', async () => {
     await textToSpeech('接下來是日文小教室。', {
       languageCode: 'zh-Hant',
-      usage: 'classroom',
     });
 
     expect(mockGoogleSynthesize).toHaveBeenCalledWith('接下來是日文小教室。', {
       languageCode: 'zh-Hant',
-      usage: 'classroom',
       config: {
         provider: 'google',
         languageCode: 'cmn-TW',
@@ -185,7 +179,6 @@ describe('TTS provider dispatcher', () => {
     await expect(
       textToSpeech('market liquidity', {
         languageCode: 'en',
-        usage: 'main',
       }),
     ).resolves.toEqual({
       audio: Buffer.from('google'),
@@ -202,7 +195,6 @@ describe('TTS provider dispatcher', () => {
 
     expect(mockGoogleSynthesize).toHaveBeenCalledWith('market liquidity', {
       languageCode: 'en',
-      usage: 'main',
       config: {
         provider: 'google',
         languageCode: 'en-US',
@@ -214,14 +206,13 @@ describe('TTS provider dispatcher', () => {
   });
 
   it('returns Google metadata for zh-Hant main audio', () => {
-    expect(getTtsMetadata({ languageCode: 'zh-Hant', usage: 'main' })).toEqual({
+    expect(getTtsMetadata({ languageCode: 'zh-Hant' })).toEqual({
       provider: 'google',
       languageCode: 'cmn-TW',
       voiceName: 'cmn-TW-Wavenet-A',
     });
     expect(mockGoogleGetMetadata).toHaveBeenCalledWith({
       languageCode: 'zh-Hant',
-      usage: 'main',
       config: {
         provider: 'google',
         languageCode: 'cmn-TW',
@@ -233,14 +224,13 @@ describe('TTS provider dispatcher', () => {
   });
 
   it('returns metadata for a requested main language', () => {
-    expect(getTtsMetadata({ languageCode: 'en', usage: 'main' })).toEqual({
+    expect(getTtsMetadata({ languageCode: 'en' })).toEqual({
       provider: 'google',
       languageCode: 'en-US',
       voiceName: 'en-US-Wavenet-A',
     });
     expect(mockGoogleGetMetadata).toHaveBeenCalledWith({
       languageCode: 'en',
-      usage: 'main',
       config: {
         provider: 'google',
         languageCode: 'en-US',
@@ -251,16 +241,13 @@ describe('TTS provider dispatcher', () => {
   });
 
   it('returns Google metadata for zh-Hant classroom audio', () => {
-    expect(
-      getTtsMetadata({ languageCode: 'zh-Hant', usage: 'classroom' }),
-    ).toEqual({
+    expect(getTtsMetadata({ languageCode: 'zh-Hant' })).toEqual({
       provider: 'google',
       languageCode: 'cmn-TW',
       voiceName: 'cmn-TW-Wavenet-A',
     });
     expect(mockGoogleGetMetadata).toHaveBeenCalledWith({
       languageCode: 'zh-Hant',
-      usage: 'classroom',
       config: {
         provider: 'google',
         languageCode: 'cmn-TW',
@@ -273,14 +260,13 @@ describe('TTS provider dispatcher', () => {
   it('ignores TTS env overrides when returning metadata', () => {
     vi.stubEnv('TTS_ZH_HANT_PROVIDER', 'fish-audio');
 
-    expect(getTtsMetadata({ languageCode: 'zh-Hant', usage: 'main' })).toEqual({
+    expect(getTtsMetadata({ languageCode: 'zh-Hant' })).toEqual({
       provider: 'google',
       languageCode: 'cmn-TW',
       voiceName: 'cmn-TW-Wavenet-A',
     });
     expect(mockGoogleGetMetadata).toHaveBeenCalledWith({
       languageCode: 'zh-Hant',
-      usage: 'main',
       config: {
         provider: 'google',
         languageCode: 'cmn-TW',
@@ -300,7 +286,7 @@ describe('TTS provider dispatcher', () => {
     mockGetTtsConfig.mockReturnValue(fishConfig);
 
     await expect(
-      textToSpeech('測試文字', { languageCode: 'zh-Hant', usage: 'main' }),
+      textToSpeech('測試文字', { languageCode: 'zh-Hant' }),
     ).resolves.toEqual({
       audio: Buffer.from('fish-audio'),
       cost: [
@@ -316,7 +302,6 @@ describe('TTS provider dispatcher', () => {
 
     expect(mockFishSynthesize).toHaveBeenCalledWith('測試文字', {
       languageCode: 'zh-Hant',
-      usage: 'main',
       config: fishConfig,
       costLabel: 'TTS audio',
     });
@@ -331,14 +316,13 @@ describe('TTS provider dispatcher', () => {
     };
     mockGetTtsConfig.mockReturnValue(fishConfig);
 
-    expect(getTtsMetadata({ languageCode: 'zh-Hant', usage: 'main' })).toEqual({
+    expect(getTtsMetadata({ languageCode: 'zh-Hant' })).toEqual({
       provider: 'fish-audio',
       languageCode: 'zh-Hant',
       voiceName: 'debb4c1065114ffda03f3a60abdcc421',
     });
     expect(mockFishGetMetadata).toHaveBeenCalledWith({
       languageCode: 'zh-Hant',
-      usage: 'main',
       config: fishConfig,
       costLabel: 'TTS audio',
     });

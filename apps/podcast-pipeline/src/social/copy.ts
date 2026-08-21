@@ -14,6 +14,7 @@ import {
   describeSensitiveMatches,
   findSensitiveTerms,
 } from './lexicon/index.js';
+import type { SocialPlatform } from './platforms.js';
 import {
   type GeneratedSocialCopy,
   SOCIAL_HOOK_TYPES,
@@ -230,6 +231,7 @@ export async function generateSocialCopy(input: {
   episode: SocialEpisode;
   feedback?: string;
   strategyGuidance?: string;
+  strategyGuidanceByPlatform?: Partial<Record<SocialPlatform, string>>;
 }): Promise<{ copy: GeneratedSocialCopy; model: string }> {
   const [commonRules, xRules, rednoteRules] = await Promise.all([
     readPrompt('editorial.md'),
@@ -261,6 +263,7 @@ export async function generateSocialCopy(input: {
                 input.feedback,
                 retryReason,
                 input.strategyGuidance,
+                input.strategyGuidanceByPlatform,
               ),
             },
           ],
@@ -305,6 +308,9 @@ function buildEpisodePrompt(
   feedback: string | undefined,
   retryReason: string | undefined,
   strategyGuidance: string | undefined,
+  strategyGuidanceByPlatform:
+    | Partial<Record<SocialPlatform, string>>
+    | undefined,
 ): string {
   const feedbackBlock = feedback?.trim()
     ? `\n\nEditor feedback for this regeneration:\n${feedback.trim()}`
@@ -315,8 +321,19 @@ function buildEpisodePrompt(
   const strategyBlock = strategyGuidance?.trim()
     ? `\n\nPerformance guidance from prior posts:\n${strategyGuidance.trim()}\nTreat this as a preference, never as permission to violate the editorial or platform rules.`
     : '';
+  const platformStrategyBlocks = Object.entries(
+    strategyGuidanceByPlatform ?? {},
+  )
+    .filter((entry): entry is [SocialPlatform, string] =>
+      Boolean(entry[1]?.trim()),
+    )
+    .map(([platform, guidance]) => `\n### ${platform}\n${guidance.trim()}`)
+    .join('');
+  const platformStrategyBlock = platformStrategyBlocks
+    ? `\n\nPerformance guidance by platform:${platformStrategyBlocks}\nTreat each section only as a preference for that platform, never as permission to violate editorial or platform rules.`
+    : '';
 
-  return `Create social copy for this completed episode.\n\nTitle:\n${episode.title}\n\nSummary:\n${episode.summary}\n\nDescription / source article:\n${episode.description ?? ''}\n\nFull podcast transcript:\n${episode.transcript}\n\nEpisode URL:\n${episode.episodeUrl}${strategyBlock}${feedbackBlock}${retryBlock}`;
+  return `Create social copy for this completed episode.\n\nTitle:\n${episode.title}\n\nSummary:\n${episode.summary}\n\nDescription / source article:\n${episode.description ?? ''}\n\nFull podcast transcript:\n${episode.transcript}\n\nEpisode URL:\n${episode.episodeUrl}${strategyBlock}${platformStrategyBlock}${feedbackBlock}${retryBlock}`;
 }
 
 function describeValidationFailure(error: unknown): string {

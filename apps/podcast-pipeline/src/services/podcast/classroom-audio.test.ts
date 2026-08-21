@@ -62,7 +62,6 @@ describe('synthesizeClassroomAudio', () => {
       '流動性とは、資産を素早く現金化できる度合いのことです。',
       {
         languageCode: 'ja',
-        usage: 'classroom',
         costLabel: 'TTS classroom audio',
       },
     );

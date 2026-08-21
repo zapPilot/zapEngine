@@ -31,7 +31,6 @@ export async function synthesizeClassroomAudio(
     const synthesized = await step('textToSpeech:classroom', () =>
       textToSpeech(cleanTextForTts(row.script ?? ''), {
         languageCode: targetLanguageCode,
-        usage: 'classroom',
         costLabel: 'TTS classroom audio',
       }),
     );

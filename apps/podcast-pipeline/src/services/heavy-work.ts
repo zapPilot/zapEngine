@@ -1,9 +1,3 @@
-export interface HeavyWorkCoordinatorState {
-  activeIngests: number;
-  waitingIngests: number;
-  videoActive: boolean;
-}
-
 export type VideoWorkAttempt<T> =
   | { acquired: true; value: T }
   | { acquired: false };
@@ -11,7 +5,6 @@ export type VideoWorkAttempt<T> =
 export interface HeavyWorkCoordinator {
   runIngest<T>(work: () => Promise<T>, signal?: AbortSignal): Promise<T>;
   tryRunVideo<T>(work: () => Promise<T>): Promise<VideoWorkAttempt<T>>;
-  getState(): HeavyWorkCoordinatorState;
 }
 
 export function createHeavyWorkCoordinator(): HeavyWorkCoordinator {
@@ -79,10 +72,6 @@ export function createHeavyWorkCoordinator(): HeavyWorkCoordinator {
         for (const resolve of videoIdleWaiters) resolve();
         videoIdleWaiters.clear();
       }
-    },
-
-    getState(): HeavyWorkCoordinatorState {
-      return { activeIngests, waitingIngests, videoActive };
     },
   };
 }

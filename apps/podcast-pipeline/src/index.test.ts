@@ -44,7 +44,6 @@ const {
   mockListEpisodeLocalizationsByEpisodeId,
   mockListLanguageClassroomAudioByLocalizationIds,
   mockListLanguageClassroomsByLocalizationId,
-  mockListLanguageClassroomsByLocalizationIds,
   mockLoadEpisodeVideoGeneration,
   mockScrapeArticle,
   mockServe,
@@ -86,7 +85,6 @@ const {
     .fn()
     .mockResolvedValue(new Map()),
   mockListLanguageClassroomsByLocalizationId: vi.fn(),
-  mockListLanguageClassroomsByLocalizationIds: vi.fn(),
   mockLoadEpisodeVideoGeneration: vi.fn(),
   mockScrapeArticle: vi.fn(),
   mockServe: vi.fn(
@@ -130,8 +128,6 @@ vi.mock('./services/db.js', async (importOriginal) => ({
     mockListLanguageClassroomAudioByLocalizationIds,
   listLanguageClassroomsByLocalizationId:
     mockListLanguageClassroomsByLocalizationId,
-  listLanguageClassroomsByLocalizationIds:
-    mockListLanguageClassroomsByLocalizationIds,
   toEpisodeResponse: (
     row: EpisodeListRow,
     languageClassrooms?: import('./types.js').LanguageClassroomRow[],
@@ -395,7 +391,7 @@ describe('GET /e/:id share landing page', () => {
     expect(mockFindEpisodeLocalizationByEpisodeId).not.toHaveBeenCalled();
   });
 
-  it('uses a localization cover URL when one is present', async () => {
+  it('ignores obsolete localization cover fields', async () => {
     mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue({
       ...localizationRow({ title: 'Covered Episode' }),
       cover_url: 'https://cdn.example.com/covers/episode.png',
@@ -410,7 +406,7 @@ describe('GET /e/:id share landing page', () => {
 
     expect(response.status).toBe(200);
     expect(html).toContain(
-      'property="og:image" content="https://cdn.example.com/covers/episode.png"',
+      'property="og:image" content="https://is1-ssl.mzstatic.com/image/thumb/',
     );
   });
 
@@ -1851,7 +1847,6 @@ describe('GET /episodes', () => {
       i: raw,
     }));
     mockListEpisodeFeedPaged.mockResolvedValue({ rows: [], nextCursor: null });
-    mockListLanguageClassroomsByLocalizationIds.mockResolvedValue(new Map());
   });
 
   it('returns a paginated feed response for zh-Hant', async () => {
@@ -2410,7 +2405,6 @@ describe('GET /episodes/:localizationId', () => {
 describe('app error handling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockListLanguageClassroomsByLocalizationIds.mockResolvedValue(new Map());
   });
 
   afterEach(() => {

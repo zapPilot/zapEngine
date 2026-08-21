@@ -220,10 +220,6 @@ describe('uploadVideoArtifactsToR2', () => {
       manifestUrl: `https://cdn.example.com/${prefix}/manifest.json`,
       captionsAssUrl: `https://cdn.example.com/${prefix}/captions.ass`,
       r2Prefix: prefix,
-      slideUrls: [
-        `https://cdn.example.com/${prefix}/slides/slide-01.png`,
-        `https://cdn.example.com/${prefix}/slides/slide-02.png`,
-      ],
     });
     expect(mockUploadConstructor).toHaveBeenCalledWith(
       expect.objectContaining({

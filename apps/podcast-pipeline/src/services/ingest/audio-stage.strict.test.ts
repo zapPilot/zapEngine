@@ -470,7 +470,6 @@ describe('strict language classroom audio integrity', () => {
       '',
       expect.objectContaining({
         languageCode: 'zh-Hant',
-        usage: 'main',
       }),
     );
   });
