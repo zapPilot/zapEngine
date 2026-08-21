@@ -10,42 +10,34 @@ const supabaseMocks = vi.hoisted(() => ({
 vi.mock('../services/supabase-client.js', () => supabaseMocks);
 
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
+import { createAlignmentReadFixture } from './daemon-store-align-schedules.test-helper.js';
 
 describe('alignPendingSocialPublishSchedules status fence', () => {
   it('queries only queued and failed jobs so processing leases are never aligned', async () => {
-    const returns = vi.fn(async () => ({ data: [], error: null }));
-    const inFilter = vi.fn(() => ({ returns }));
-    const select = vi.fn(() => ({ in: inFilter }));
-    const update = vi.fn();
-    const from = vi.fn(() => ({ select, update }));
-    supabaseMocks.getPipelineSupabase.mockReturnValue({ from });
+    const fixture = createAlignmentReadFixture({ data: [], error: null });
+    supabaseMocks.getPipelineSupabase.mockReturnValue(fixture.client);
 
     await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
 
-    expect(from).toHaveBeenCalledOnce();
-    expect(from).toHaveBeenCalledWith('social_publish_jobs');
-    expect(select).toHaveBeenCalledWith(
+    expect(fixture.from).toHaveBeenCalledOnce();
+    expect(fixture.from).toHaveBeenCalledWith('social_publish_jobs');
+    expect(fixture.select).toHaveBeenCalledWith(
       'id,episode_id,status,scheduled_at,next_attempt_at',
     );
-    expect(inFilter).toHaveBeenCalledWith('status', ['queued', 'failed']);
-    expect(update).not.toHaveBeenCalled();
+    expect(fixture.inFilter).toHaveBeenCalledWith('status', [
+      'queued',
+      'failed',
+    ]);
+    expect(fixture.update).not.toHaveBeenCalled();
   });
 
   it('treats a null Supabase snapshot as empty without attempting writes', async () => {
-    const returns = vi.fn(async () => ({ data: null, error: null }));
-    const update = vi.fn();
-    supabaseMocks.getPipelineSupabase.mockReturnValue({
-      from: vi.fn(() => ({
-        select: vi.fn(() => ({
-          in: vi.fn(() => ({ returns })),
-        })),
-        update,
-      })),
-    });
+    const fixture = createAlignmentReadFixture({ data: null, error: null });
+    supabaseMocks.getPipelineSupabase.mockReturnValue(fixture.client);
 
     await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
 
-    expect(returns).toHaveBeenCalledOnce();
-    expect(update).not.toHaveBeenCalled();
+    expect(fixture.returns).toHaveBeenCalledOnce();
+    expect(fixture.update).not.toHaveBeenCalled();
   });
 });
