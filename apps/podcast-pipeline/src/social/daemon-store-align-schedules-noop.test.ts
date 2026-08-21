@@ -10,11 +10,11 @@ const supabase = vi.hoisted(() => ({
 vi.mock('../services/supabase-client.js', () => supabase);
 
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
+import { createAlignmentReadFixture } from './daemon-store-align-schedules.test-helper.js';
 
 describe('alignPendingSocialPublishSchedules no-op behavior', () => {
   it('does not write or count jobs that already share the earliest schedule', async () => {
-    const update = vi.fn();
-    const returns = vi.fn(async () => ({
+    const fixture = createAlignmentReadFixture({
       data: [
         {
           id: 'threads-job',
@@ -32,17 +32,12 @@ describe('alignPendingSocialPublishSchedules no-op behavior', () => {
         },
       ],
       error: null,
-    }));
-    const select = vi.fn(() => ({
-      in: vi.fn(() => ({ returns })),
-    }));
-    supabase.getPipelineSupabase.mockReturnValue({
-      from: vi.fn(() => ({ select, update })),
     });
+    supabase.getPipelineSupabase.mockReturnValue(fixture.client);
 
     await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
 
-    expect(update).not.toHaveBeenCalled();
-    expect(returns).toHaveBeenCalledOnce();
+    expect(fixture.update).not.toHaveBeenCalled();
+    expect(fixture.returns).toHaveBeenCalledOnce();
   });
 });
