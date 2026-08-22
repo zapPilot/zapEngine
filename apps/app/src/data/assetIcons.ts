@@ -31,6 +31,7 @@ export const TOKEN_ICON_SRC: Record<TokenBrandSymbol, ImageSourcePropType> = {
   CBBTC: require('@zapengine/brand-assets/assets/tokens/cbbtc.png'),
   BTC: require('@zapengine/brand-assets/assets/tokens/btc.png'),
   SPY: require('@zapengine/brand-assets/assets/tokens/spy.png'),
+  ALT: require('@zapengine/brand-assets/assets/tokens/alt.png'),
 };
 
 export const PROTOCOL_ICON_SRC: Record<ProtocolBrandKey, ImageSourcePropType> =
@@ -39,4 +40,6 @@ export const PROTOCOL_ICON_SRC: Record<ProtocolBrandKey, ImageSourcePropType> =
     'gmx-v2': require('@zapengine/brand-assets/assets/protocols/gmx-v2.png'),
     hyperliquid: require('@zapengine/brand-assets/assets/protocols/hyperliquid.png'),
     ondo: require('@zapengine/brand-assets/assets/protocols/ondo.png'),
+    aave: require('@zapengine/brand-assets/assets/protocols/aave.png'),
+    lido: require('@zapengine/brand-assets/assets/protocols/lido.png'),
   };

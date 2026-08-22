@@ -26,6 +26,7 @@ beyond the normalization described below, and imply no endorsement.
 | `tokens/cbbtc.png` | `cbbtc.webp` | [CoinGecko](https://assets.coingecko.com/coins/images/40143/large/cbbtc.webp) — no SVG form of the cbBTC mark is published |
 | `tokens/eth.png`   | `eth.svg`    | [web3icons](https://github.com/0xa3k5/web3icons) `raw-svgs/tokens/branded/ETH.svg` (MIT)                                   |
 | `tokens/spy.png`   | `spy.svg`    | Original work — neutral rising-index motif created for zapEngine; not an SPDR mark.                                        |
+| `tokens/alt.png`   | `alt.svg`    | Original work — neutral overlapping multi-asset motif created for zapEngine.                                               |
 | `tokens/usdc.png`  | `usdc.svg`   | [web3icons](https://github.com/0xa3k5/web3icons) `raw-svgs/tokens/branded/USDC.svg` (MIT)                                  |
 | `tokens/usdt.png`  | `usdt.svg`   | [web3icons](https://github.com/0xa3k5/web3icons) `raw-svgs/tokens/branded/USDT.svg` (MIT)                                  |
 | `tokens/wbtc.png`  | `wbtc.svg`   | [web3icons](https://github.com/0xa3k5/web3icons) `raw-svgs/tokens/branded/WBTC.svg` (MIT)                                  |
@@ -35,8 +36,10 @@ beyond the normalization described below, and imply no endorsement.
 
 | Asset                       | Source file       | Origin                                                                                                                                                                                                                 |
 | --------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `protocols/aave.png`        | `aave.svg`        | [web3icons](https://github.com/0xa3k5/web3icons) `raw-svgs/tokens/branded/AAVE.svg` (MIT)                                                                                                                              |
 | `protocols/gmx-v2.png`      | `gmx-v2.svg`      | Official — [gmx-io/gmx-interface](https://github.com/gmx-io/gmx-interface) `src/img/ic_gmx_64.svg`                                                                                                                     |
 | `protocols/hyperliquid.png` | `hyperliquid.svg` | [web3icons](https://github.com/0xa3k5/web3icons) `raw-svgs/networks/branded/hyper-evm.svg` (MIT). Hyperliquid uses one mark for the venue and the chain, so this is a byte-identical copy of `chains/hyperliquid.svg`. |
+| `protocols/lido.png`        | `lido.svg`        | [web3icons](https://github.com/0xa3k5/web3icons) `raw-svgs/tokens/branded/LDO.svg` (MIT)                                                                                                                               |
 | `protocols/morpho.png`      | `morpho.svg`      | Official — `https://cdn.morpho.org/assets/logos/morpho.svg`                                                                                                                                                            |
 | `protocols/ondo.png`        | `ondo.svg`        | Official — `https://ondo.finance/favicon.svg`                                                                                                                                                                          |
 
@@ -67,3 +70,9 @@ The SPY asset is an original neutral market-index symbol: a light circular
 field, subdued pillars, and a rising line. It deliberately avoids the SPDR
 wordmark, spider imagery, and other SPDR trade dress. “S&P 500” is used only as
 the human-readable label for the tracked index exposure.
+
+## The ALT mark
+
+The ALT asset is an original neutral multi-asset symbol: three overlapping
+circles in a subdued gray palette. It names the aggregate altcoin allocation
+category rather than any individual token or protocol.

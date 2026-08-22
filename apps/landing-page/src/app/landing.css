@@ -324,20 +324,17 @@
   box-shadow: 0 0 10px currentColor;
 }
 
-.shell-root .pillar.spy .p-icon,
-.shell-root .pillar-dot.spy {
+.shell-root .pillar.spy .p-icon {
   background: var(--spy);
   color: var(--spy);
 }
 
-.shell-root .pillar.btc .p-icon,
-.shell-root .pillar-dot.btc {
+.shell-root .pillar.btc .p-icon {
   background: var(--btc);
   color: var(--btc);
 }
 
-.shell-root .pillar.usd .p-icon,
-.shell-root .pillar-dot.usd {
+.shell-root .pillar.usd .p-icon {
   background: var(--usd);
   color: var(--usd);
 }
@@ -761,14 +758,6 @@
 
 .shell-root .pillar-card {
   padding: 24px;
-}
-
-.shell-root .pillar-dot {
-  width: 10px;
-  height: 10px;
-  margin-bottom: 22px;
-  border-radius: 50%;
-  box-shadow: 0 0 12px currentColor;
 }
 
 .shell-root .pillar-tag {
@@ -2677,24 +2666,6 @@
   gap: 7px;
   color: var(--ink);
   font-weight: 500;
-}
-
-.shell-root .token-icon {
-  display: inline-block;
-  flex: none;
-  border-radius: 999px;
-  object-fit: contain;
-}
-
-.shell-root .token-icon-glyph {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-family: var(--font-sans), Arial, sans-serif;
-  font-size: 0.55em;
-  font-weight: 700;
-  line-height: 1;
 }
 
 .shell-root .market-series-chart-header h3 {

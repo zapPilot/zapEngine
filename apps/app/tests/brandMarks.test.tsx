@@ -50,12 +50,16 @@ vi.mock('@/data/assetIcons', () => ({
     WBTC: 'mark:tokens/wbtc',
     CBBTC: 'mark:tokens/cbbtc',
     BTC: 'mark:tokens/btc',
+    SPY: 'mark:tokens/spy',
+    ALT: 'mark:tokens/alt',
   },
   PROTOCOL_ICON_SRC: {
     morpho: 'mark:protocols/morpho',
     'gmx-v2': 'mark:protocols/gmx-v2',
     hyperliquid: 'mark:protocols/hyperliquid',
     ondo: 'mark:protocols/ondo',
+    aave: 'mark:protocols/aave',
+    lido: 'mark:protocols/lido',
   },
 }));
 
@@ -95,6 +99,11 @@ describe('TokenIcon', () => {
   it('normalizes casing that wallet indexers return', async () => {
     await render(<TokenIcon symbol="cbBTC" />);
     expect(marks()).toEqual(['mark:tokens/cbbtc']);
+  });
+
+  it('renders the S&P 500 category mark', async () => {
+    await render(<TokenIcon symbol="SPY" />);
+    expect(marks()).toEqual(['mark:tokens/spy']);
   });
 
   it('falls back to the initial for a symbol outside the registry', async () => {
@@ -152,6 +161,11 @@ describe('ProtocolIcon', () => {
   it('resolves an aliased protocol spelling', async () => {
     await render(<ProtocolIcon protocol="GMX" />);
     expect(marks()).toEqual(['mark:protocols/gmx-v2']);
+  });
+
+  it('normalizes a registered protocol label', async () => {
+    await render(<ProtocolIcon protocol="Aave" />);
+    expect(marks()).toEqual(['mark:protocols/aave']);
   });
 
   it('falls back to a monogram for an unregistered protocol', async () => {

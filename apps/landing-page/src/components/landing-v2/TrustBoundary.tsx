@@ -1,7 +1,4 @@
-import btcMark from '@zapengine/brand-assets/assets/tokens/btc.png';
-import ethMark from '@zapengine/brand-assets/assets/tokens/eth.png';
-import usdcMark from '@zapengine/brand-assets/assets/tokens/usdc.png';
-import Image from 'next/image';
+import { TokenIcon } from '@/components/brand/icons';
 
 const GUARANTEES = [
   {
@@ -24,19 +21,19 @@ const GUARANTEES = [
 
 const BUNDLE_STEPS = [
   {
-    icon: btcMark,
+    symbol: 'WBTC',
     label: 'Sell 0.021 WBTC',
     amount: '\u2212$2,040',
     positive: false,
   },
   {
-    icon: ethMark,
+    symbol: 'ETH',
     label: 'Sell 0.58 ETH',
     amount: '\u2212$2,105',
     positive: false,
   },
   {
-    icon: usdcMark,
+    symbol: 'USDC',
     label: 'Buy 4,145 USDC',
     amount: '+$4,145',
     positive: true,
@@ -82,7 +79,7 @@ export function TrustBoundary() {
             {BUNDLE_STEPS.map((step) => (
               <div key={step.label} className="zp-bundle-row">
                 <span className="zp-bundle-asset">
-                  <Image src={step.icon} alt="" width={20} height={20} />
+                  <TokenIcon symbol={step.symbol} size={20} />
                   {step.label}
                 </span>
                 <span

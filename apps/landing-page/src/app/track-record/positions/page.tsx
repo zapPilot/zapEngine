@@ -1,9 +1,13 @@
 'use client';
 
+import {
+  ChainIdentity,
+  ProtocolIcon,
+  TokenIcon,
+} from '@/components/brand/icons';
 import { useTrackRecord } from '@/hooks/useTrackRecord';
 import { PositionsTable } from '@/components/track-record/PositionsTable';
 import { TrackRecordLoading } from '@/components/track-record/TrackRecordLoading';
-import { TokenIcon } from '@/components/track-record/TokenIcon';
 
 export default function PositionsPage() {
   const state = useTrackRecord();
@@ -35,8 +39,11 @@ export default function PositionsPage() {
                   <TokenIcon symbol={pos.asset} size={18} />
                   {pos.asset}
                 </strong>
-                <span>{pos.protocol}</span>
-                <span>Chain {pos.chainId}</span>
+                <span className="asset-name">
+                  <ProtocolIcon protocol={pos.protocol} size={16} />
+                  {pos.protocol}
+                </span>
+                <ChainIdentity chainId={pos.chainId} unknownPrefix="Chain " />
               </div>
               <dl className="pos-detail-grid">
                 <div>

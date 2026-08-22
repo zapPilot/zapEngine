@@ -11,7 +11,6 @@
  */
 import { MARKER_ACTION_LABEL, MARKER_COLOR, MarkerGlyph } from './chartMarkers';
 import type { MarkerAction, MarkerAsset } from './chartMarkers';
-import { TokenIcon } from './TokenIcon';
 
 export type ChartLegendItem =
   | {
@@ -68,7 +67,6 @@ function LegendEntry({ item }: { item: ChartLegendItem }) {
     return (
       <span className="legend-item asset">
         <span style={{ background: MARKER_COLOR[item.asset] }} />
-        <TokenIcon symbol={item.asset} size={12} />
         {item.asset}
       </span>
     );
