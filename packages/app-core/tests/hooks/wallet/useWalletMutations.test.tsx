@@ -165,6 +165,37 @@ describe('useWalletMutations ownership proof', () => {
     );
   });
 
+  it.each([
+    ['query invalidation', 'invalidateAndRefetch'],
+    ['wallet reload', 'loadWallets'],
+  ] as const)(
+    'keeps server verification successful when %s fails',
+    async (_label, failingRefresh) => {
+      mocks[failingRefresh].mockRejectedValueOnce(new Error('refresh failed'));
+      const signMessage = vi.fn().mockResolvedValue('0xsignature');
+      const { result } = renderHook(() => useHarness(WALLET, signMessage), {
+        wrapper: createWrapper(),
+      });
+
+      await act(async () => {
+        await expect(result.current.handleVerifyWallet(WALLET)).resolves.toEqual({
+          success: true,
+        });
+      });
+
+      expect(mocks.invalidateAndRefetch).toHaveBeenCalledOnce();
+      expect(mocks.loadWallets).toHaveBeenCalledOnce();
+      expect(mocks.setWalletOperationState).toHaveBeenLastCalledWith(
+        'verifying',
+        WALLET,
+        {
+          isLoading: false,
+          error: null,
+        },
+      );
+    },
+  );
+
   it('adds the active wallet without verifying it', async () => {
     const signMessage = vi.fn().mockResolvedValue('0xsignature');
     const { result } = renderHook(
