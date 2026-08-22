@@ -137,7 +137,7 @@ describe('BaseService', () => {
     it('applies array conditions with .in()', async () => {
       qb.single.mockResolvedValue({ data: { id: '1' }, error: null });
 
-      await service.exposeFindOne('users', { id: ['1', '2'] } as any);
+      await service.exposeFindOne('users', { id: ['1', '2'] });
       expect(qb.in).toHaveBeenCalledWith('id', ['1', '2']);
     });
 
@@ -282,6 +282,23 @@ describe('BaseService', () => {
       await service.exposeDeleteWhere('users', { id: '1' });
       expect(qb.delete).toHaveBeenCalled();
       expect(qb.eq).toHaveBeenCalledWith('id', '1');
+      expect(qb.select).toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when a required single delete matches no rows', async () => {
+      qb.single.mockResolvedValue({
+        data: null,
+        error: { code: 'PGRST116', message: 'not found' },
+      });
+
+      await expect(
+        service.exposeDeleteWhere(
+          'users',
+          { id: 'missing' },
+          { requireSingleResult: true, entityName: 'User' },
+        ),
+      ).rejects.toThrow(NotFoundException);
+      expect(qb.select).toHaveBeenCalled();
     });
 
     it('throws on database error', async () => {

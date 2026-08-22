@@ -24,6 +24,7 @@ describe('wallet validation utilities', () => {
           user_id: 'user-1',
           wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
           label: 'Vault',
+          ownership_verified_at: '2026-07-02T00:05:00.000Z',
           created_at: '2026-07-02T00:00:00.000Z',
           updated_at: '2026-07-02T00:00:00.000Z',
         },
@@ -32,6 +33,7 @@ describe('wallet validation utilities', () => {
           user_id: 'user-1',
           wallet: '0x0000000000000000000000000000000000000001',
           label: null,
+          ownership_verified_at: null,
           created_at: '2026-07-02T01:00:00.000Z',
           updated_at: '2026-07-02T01:00:00.000Z',
         },
@@ -44,6 +46,8 @@ describe('wallet validation utilities', () => {
         isMain: false,
         isActive: false,
         createdAt: '2026-07-02T00:00:00.000Z',
+        ownershipVerifiedAt: '2026-07-02T00:05:00.000Z',
+        isVerified: true,
       },
       {
         id: 'wallet-2',
@@ -52,6 +56,8 @@ describe('wallet validation utilities', () => {
         isMain: false,
         isActive: false,
         createdAt: '2026-07-02T01:00:00.000Z',
+        ownershipVerifiedAt: null,
+        isVerified: false,
       },
     ]);
   });

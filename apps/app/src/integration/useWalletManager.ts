@@ -19,6 +19,7 @@ function createInitialOperations(): WalletOperations {
     adding: { isLoading: false, error: null },
     removing: {},
     editing: {},
+    verifying: {},
     subscribing: { isLoading: false, error: null },
   };
 }
@@ -32,6 +33,10 @@ export interface WalletManager {
     wallet: NewWallet,
   ) => Promise<{ success: boolean; error?: string }>;
   addingState: OperationState;
+  verifyWallet: (
+    walletAddress: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  verifying: Record<string, OperationState>;
   deleteWallet: (walletId: string) => Promise<void>;
   removing: Record<string, OperationState>;
   editing: Record<string, OperationState>;
@@ -107,6 +112,8 @@ export function useWalletManager(
     connectWallet: walletProvider.connect,
     addWallet: mutations.handleAddWallet,
     addingState: mutations.addingState,
+    verifyWallet: mutations.handleVerifyWallet,
+    verifying: mutations.verifyingState,
     deleteWallet: mutations.handleDeleteWallet,
     removing: operations.removing,
     editing: operations.editing,

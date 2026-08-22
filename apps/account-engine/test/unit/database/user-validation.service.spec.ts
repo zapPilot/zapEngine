@@ -1,5 +1,5 @@
 import { ServiceLayerException } from '../../../src/common/exceptions';
-import { NotFoundException } from '../../../src/common/http';
+import { ConflictException, NotFoundException } from '../../../src/common/http';
 import { DatabaseService } from '../../../src/database/database.service';
 import { UserValidationService } from '../../../src/database/user-validation.service';
 import { createMockDatabaseService } from '../../test-utils';
@@ -59,6 +59,48 @@ describe('UserValidationService', () => {
 
       await expect(
         service.validateWalletOwnership('0x123', 'user-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('validateVerifiedWalletOwnership', () => {
+    it('returns the verified wallet id and timestamp', async () => {
+      qb().single.mockResolvedValue({
+        data: {
+          id: 'w-1',
+          ownership_verified_at: '2026-08-22T00:00:00.000Z',
+        },
+        error: null,
+      });
+
+      await expect(
+        service.validateVerifiedWalletOwnership('0x123', 'user-1'),
+      ).resolves.toEqual({
+        id: 'w-1',
+        ownership_verified_at: '2026-08-22T00:00:00.000Z',
+      });
+      expect(qb().select).toHaveBeenCalledWith('id, ownership_verified_at');
+    });
+
+    it('rejects an unverified wallet with a conflict', async () => {
+      qb().single.mockResolvedValue({
+        data: { id: 'w-1', ownership_verified_at: null },
+        error: null,
+      });
+
+      await expect(
+        service.validateVerifiedWalletOwnership('0x123', 'user-1'),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('throws NotFoundException when the wallet is outside the bundle', async () => {
+      qb().single.mockResolvedValue({
+        data: null,
+        error: { code: 'PGRST116', message: 'not found' },
+      });
+
+      await expect(
+        service.validateVerifiedWalletOwnership('0x123', 'user-1'),
       ).rejects.toThrow(NotFoundException);
     });
   });

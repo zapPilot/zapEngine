@@ -81,6 +81,7 @@ export function useWalletOperations({
     adding: { isLoading: false, error: null },
     removing: {},
     editing: {},
+    verifying: {},
     subscribing: { isLoading: false, error: null },
   });
   const [isAdding, setIsAdding] = useState(false);
@@ -95,7 +96,7 @@ export function useWalletOperations({
 
   const setWalletOperationState = useCallback(
     (
-      key: 'removing' | 'editing',
+      key: 'removing' | 'editing' | 'verifying',
       walletId: string,
       state: { isLoading: boolean; error: string | null },
     ) => {

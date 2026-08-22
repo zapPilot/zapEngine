@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   addWallet: vi.fn(),
   removeWallet: vi.fn(),
   requestWalletBindingChallenge: vi.fn(),
+  verifyWallet: vi.fn(),
   invalidateAndRefetch: vi.fn(),
   refetch: vi.fn(),
 }));
@@ -16,6 +17,7 @@ vi.mock('@core/services', () => ({
   addWallet: mocks.addWallet,
   removeWallet: mocks.removeWallet,
   requestWalletBindingChallenge: mocks.requestWalletBindingChallenge,
+  verifyWallet: mocks.verifyWallet,
 }));
 
 vi.mock('@core/hooks/queries/wallet/useUser', () => ({
@@ -48,6 +50,7 @@ function useHarness(
     adding: { isLoading: false, error: null },
     removing: {},
     editing: {},
+    verifying: {},
     subscribing: { isLoading: false, error: null },
   });
   const [, setWallets] = useState([]);
@@ -67,10 +70,17 @@ function useHarness(
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.invalidateAndRefetch.mockResolvedValue(undefined);
+  mocks.addWallet.mockResolvedValue({ success: true });
+  mocks.verifyWallet.mockResolvedValue({ success: true });
+  mocks.requestWalletBindingChallenge.mockResolvedValue({
+    nonce: 'a'.repeat(64),
+    message: 'ownership-message',
+    expiresAt: '2026-08-22T00:05:00.000Z',
+  });
 });
 
 describe('useWalletMutations ownership proof', () => {
-  it('blocks an address that does not match the active signer', async () => {
+  it('adds a non-matching address without a signature', async () => {
     const signMessage = vi.fn();
     const { result } = renderHook(
       () =>
@@ -86,13 +96,40 @@ describe('useWalletMutations ownership proof', () => {
       });
     });
 
-    expect(outcome).toEqual({
-      success: false,
-      error: 'Connect this wallet to prove ownership before adding it.',
-    });
+    expect(outcome).toEqual({ success: true });
     expect(mocks.requestWalletBindingChallenge).not.toHaveBeenCalled();
     expect(signMessage).not.toHaveBeenCalled();
-    expect(mocks.addWallet).not.toHaveBeenCalled();
+    expect(mocks.addWallet).toHaveBeenCalledWith(
+      USER_ID,
+      WALLET,
+      undefined,
+      'Owned wallet',
+    );
+  });
+
+  it('requests, signs, and verifies an existing bundled wallet', async () => {
+    const signMessage = vi.fn().mockResolvedValue('0xsignature');
+    const { result } = renderHook(() => useHarness(WALLET, signMessage), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await expect(result.current.handleVerifyWallet(WALLET)).resolves.toEqual({
+        success: true,
+      });
+    });
+
+    expect(mocks.requestWalletBindingChallenge).toHaveBeenCalledWith(
+      USER_ID,
+      WALLET,
+    );
+    expect(signMessage).toHaveBeenCalledWith('ownership-message');
+    expect(mocks.verifyWallet).toHaveBeenCalledWith(
+      USER_ID,
+      WALLET,
+      '0xsignature',
+    );
+    expect(mocks.invalidateAndRefetch).toHaveBeenCalled();
   });
 
   it('requests, signs, and submits the ownership challenge in order', async () => {

@@ -19,6 +19,8 @@ import {
   validateUpdateEmailResponse,
   validateUserProfileResponse,
   validateUserWallets,
+  validateVerifyWalletResponse,
+  type VerifyWalletResponse,
 } from '@core/schemas/api/accountSchemas';
 import { logger } from '@core/utils/logger';
 import type { EtlJobStatus } from '@zapengine/types/etl';
@@ -284,16 +286,17 @@ export async function getUserWallets(
 export async function addWalletToBundle(
   userId: string,
   walletAddress: string,
-  signature: string,
+  signature: string | undefined,
   label?: string,
 ): Promise<AddWalletResponse> {
+  const body = {
+    wallet: walletAddress,
+    label,
+    ...(signature ? { signature } : {}),
+  };
   return requestAndValidate(
     () =>
-      postAccountResource<AddWalletResponse>(`/users/${userId}/wallets`, {
-        wallet: walletAddress,
-        label,
-        signature,
-      }),
+      postAccountResource<AddWalletResponse>(`/users/${userId}/wallets`, body),
     validateAddWalletResponse,
   );
 }
@@ -305,6 +308,21 @@ export async function requestWalletBindingChallenge(
   return requestOwnershipChallenge(
     `/users/${userId}/wallets/challenge`,
     walletAddress,
+  );
+}
+
+export async function verifyWalletOwnership(
+  userId: string,
+  walletAddress: string,
+  signature: string,
+): Promise<VerifyWalletResponse> {
+  return requestAndValidate(
+    () =>
+      postAccountResource<VerifyWalletResponse>(
+        `/users/${userId}/wallets/${walletAddress}/verify`,
+        { signature },
+      ),
+    validateVerifyWalletResponse,
   );
 }
 

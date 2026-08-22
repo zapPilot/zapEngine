@@ -5,6 +5,7 @@ import {
   updateEmailBodySchema,
   updateWalletLabelBodySchema,
   uuidParamSchema,
+  verifyWalletBodySchema,
   walletAddressParamSchema,
   walletBodySchema,
   walletIdParamSchema,
@@ -79,7 +80,7 @@ describe('Route validators', () => {
   });
 
   describe('addWalletBodySchema', () => {
-    it('accepts wallet with a required signature and optional label', () => {
+    it('accepts wallet with an optional signature and label', () => {
       const result = addWalletBodySchema.safeParse({
         wallet: validWallet,
         label: 'My Wallet',
@@ -88,9 +89,18 @@ describe('Route validators', () => {
       expect(result.success).toBe(true);
     });
 
-    it('rejects a wallet without an ownership signature', () => {
+    it('accepts a wallet without an ownership signature', () => {
       expect(
         addWalletBodySchema.safeParse({ wallet: validWallet }).success,
+      ).toBe(true);
+    });
+
+    it('rejects a malformed signature when one is supplied', () => {
+      expect(
+        addWalletBodySchema.safeParse({
+          wallet: validWallet,
+          signature: '0x1234',
+        }).success,
       ).toBe(false);
     });
 
@@ -101,6 +111,26 @@ describe('Route validators', () => {
         signature: `0x${'ab'.repeat(65)}`,
       });
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('verifyWalletBodySchema', () => {
+    it('accepts a valid signature', () => {
+      expect(
+        verifyWalletBodySchema.safeParse({
+          signature: `0x${'ab'.repeat(65)}`,
+        }).success,
+      ).toBe(true);
+    });
+
+    it('rejects a missing signature', () => {
+      expect(verifyWalletBodySchema.safeParse({}).success).toBe(false);
+    });
+
+    it('rejects a malformed signature', () => {
+      expect(
+        verifyWalletBodySchema.safeParse({ signature: '0x1234' }).success,
+      ).toBe(false);
     });
   });
 

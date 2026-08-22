@@ -9,6 +9,7 @@ import {
   addWallet as addWalletToBundle,
   removeWallet as removeWalletFromBundle,
   requestWalletBindingChallenge,
+  verifyWallet as verifyBundledWallet,
 } from '@core/services';
 import type {
   NewWallet,
@@ -17,6 +18,7 @@ import type {
 } from '@core/types';
 import { validateNewWallet } from '@core/utils';
 import { useQueryClient } from '@tanstack/react-query';
+import { equalsAddress } from '@zapengine/types/shared';
 import { type Dispatch, type SetStateAction, useCallback } from 'react';
 
 interface UseWalletMutationsParams {
@@ -38,7 +40,9 @@ interface WalletMutationResult {
 interface UseWalletMutationsReturn {
   handleDeleteWallet: (walletId: string) => Promise<void>;
   handleAddWallet: (newWallet: NewWallet) => Promise<WalletMutationResult>;
+  handleVerifyWallet: (walletAddress: string) => Promise<WalletMutationResult>;
   addingState: WalletOperations['adding'];
+  verifyingState: WalletOperations['verifying'];
 }
 
 const USER_ID_REQUIRED_ERROR = 'User ID is required';
@@ -47,8 +51,8 @@ const REMOVE_WALLET_ERROR = 'Failed to remove wallet';
 const ADD_WALLET_ERROR = 'Failed to add wallet';
 const REMOVE_OPERATION_NAME = 'wallet removal';
 const ADD_OPERATION_NAME = 'adding wallet';
-const WALLET_OWNERSHIP_ERROR =
-  'Connect this wallet to prove ownership before adding it.';
+const VERIFY_WALLET_ERROR = 'Failed to verify wallet';
+const VERIFY_OPERATION_NAME = 'verifying wallet';
 
 function createFailureResult(error: string): WalletMutationResult {
   return { success: false, error };
@@ -147,18 +151,17 @@ export function useWalletMutations({
         );
       }
 
-      if (signingAddress?.toLowerCase() !== newWallet.address.toLowerCase()) {
-        return createFailureResult(WALLET_OWNERSHIP_ERROR);
-      }
-
       setAddingState(true, null);
 
       try {
-        const challenge = await requestWalletBindingChallenge(
-          userId,
-          newWallet.address,
-        );
-        const signature = await signMessage(challenge.message);
+        let signature: string | undefined;
+        if (equalsAddress(signingAddress, newWallet.address)) {
+          const challenge = await requestWalletBindingChallenge(
+            userId,
+            newWallet.address,
+          );
+          signature = await signMessage(challenge.message);
+        }
         const response = await addWalletToBundle(
           userId,
           newWallet.address,
@@ -201,9 +204,73 @@ export function useWalletMutations({
     ],
   );
 
+  const handleVerifyWallet = useCallback(
+    async (walletAddress: string): Promise<WalletMutationResult> => {
+      if (!userId) {
+        return createFailureResult(USER_ID_REQUIRED_ERROR);
+      }
+
+      setWalletOperationState('verifying', walletAddress, {
+        isLoading: true,
+        error: null,
+      });
+
+      try {
+        const challenge = await requestWalletBindingChallenge(
+          userId,
+          walletAddress,
+        );
+        const signature = await signMessage(challenge.message);
+        const response = await verifyBundledWallet(
+          userId,
+          walletAddress,
+          signature,
+        );
+        if (!response.success) {
+          const error = response.error ?? VERIFY_WALLET_ERROR;
+          setWalletOperationState('verifying', walletAddress, {
+            isLoading: false,
+            error,
+          });
+          return createFailureResult(error);
+        }
+
+        await invalidateAndRefetch({
+          queryClient,
+          queryKey: queryKeys.user.wallets(userId),
+          refetch,
+          operationName: VERIFY_OPERATION_NAME,
+        });
+        await loadWallets();
+        setWalletOperationState('verifying', walletAddress, {
+          isLoading: false,
+          error: null,
+        });
+        return { success: true };
+      } catch (error) {
+        const errorMessage = handleWalletError(error);
+        setWalletOperationState('verifying', walletAddress, {
+          isLoading: false,
+          error: errorMessage,
+        });
+        return createFailureResult(errorMessage);
+      }
+    },
+    [
+      userId,
+      signMessage,
+      setWalletOperationState,
+      queryClient,
+      refetch,
+      loadWallets,
+    ],
+  );
+
   return {
     handleDeleteWallet,
     handleAddWallet,
+    handleVerifyWallet,
     addingState: operations.adding,
+    verifyingState: operations.verifying,
   };
 }

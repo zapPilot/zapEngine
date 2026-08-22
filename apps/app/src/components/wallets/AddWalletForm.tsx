@@ -1,4 +1,5 @@
 import type { NewWallet } from '@zapengine/app-core/types';
+import { equalsAddress } from '@zapengine/types/shared';
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
@@ -17,8 +18,8 @@ interface AddWalletFormProps {
 }
 
 /**
- * The target address remains editable for display/validation, but submission
- * only succeeds when the active wallet signs for that exact address.
+ * Matching active wallets are verified while adding. Other addresses can be
+ * added first and verified after the user switches wallets.
  */
 export function AddWalletForm({
   busy,
@@ -31,6 +32,7 @@ export function AddWalletForm({
   const [label, setLabel] = useState('');
   const [address, setAddress] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const willVerifyOnAdd = equalsAddress(activeAddress, address.trim());
 
   const submit = async () => {
     setError(null);
@@ -50,7 +52,8 @@ export function AddWalletForm({
   return (
     <View className="gap-3">
       <Text className="text-[11.5px] leading-[17px] text-ink-dim">
-        Connect the wallet you want to add, then sign the ownership message.
+        Add any wallet now. To enable portfolio tracking, switch to that wallet
+        and verify ownership.
         {activeAddress ? ` Connected: ${activeAddress}` : ''}
       </Text>
       <Tap
@@ -90,7 +93,13 @@ export function AddWalletForm({
       <View className="flex-row items-center gap-3">
         <View className="flex-1">
           <PrimaryButton disabled={busy} onPress={() => void submit()}>
-            {busy ? 'Waiting for signature…' : 'Verify & add wallet'}
+            {busy
+              ? willVerifyOnAdd
+                ? 'Waiting for signature…'
+                : 'Adding wallet…'
+              : willVerifyOnAdd
+                ? 'Verify & add wallet'
+                : 'Add wallet'}
           </PrimaryButton>
         </View>
         <Tap

@@ -72,23 +72,24 @@ export const walletLabelSchema = z
 // 65-byte ECDSA signature (r ‖ s ‖ v) over the issued binding challenge.
 const ECDSA_SIGNATURE_REGEX = /^0x[0-9a-fA-F]{130}$/;
 
+export const ecdsaSignatureSchema = z
+  .string()
+  .regex(
+    ECDSA_SIGNATURE_REGEX,
+    'signature must be a 65-byte hex-encoded ECDSA signature',
+  );
+
 export const addWalletBodySchema = walletBodySchema.extend({
   label: walletLabelSchema.optional(),
-  signature: z
-    .string()
-    .regex(
-      ECDSA_SIGNATURE_REGEX,
-      'signature must be a 65-byte hex-encoded ECDSA signature',
-    ),
+  signature: ecdsaSignatureSchema.optional(),
 });
 
 export const deleteUserBodySchema = walletBodySchema.extend({
-  signature: z
-    .string()
-    .regex(
-      ECDSA_SIGNATURE_REGEX,
-      'signature must be a 65-byte hex-encoded ECDSA signature',
-    ),
+  signature: ecdsaSignatureSchema,
+});
+
+export const verifyWalletBodySchema = z.object({
+  signature: ecdsaSignatureSchema,
 });
 
 export const updateEmailBodySchema = z.object({
