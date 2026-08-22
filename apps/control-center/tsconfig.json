@@ -1,0 +1,11 @@
+{
+  "extends": "@zapengine/tsconfig/react.json",
+  "compilerOptions": {
+    "types": ["vitest/globals"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["src/client/**/*", "src/shared/**/*", "vite.config.ts"]
+}

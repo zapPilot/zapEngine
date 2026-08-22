@@ -17,7 +17,6 @@
     "social:publish": "tsx src/social/cli.ts",
     "social:login": "tsx src/social/login.ts",
     "social:metrics": "tsx src/social/metrics.ts",
-    "social:dashboard": "tsx src/social/dashboard.ts",
     "social:daemon": "tsx watch --clear-screen=false src/social/daemon.ts",
     "video:render": "tsx src/services/video/cli.ts",
     "video:storyboard:smoke": "tsx src/services/video/storyboard/smoke-cli.ts",
