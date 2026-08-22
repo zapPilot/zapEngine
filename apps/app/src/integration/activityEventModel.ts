@@ -19,6 +19,7 @@ import type {
   ActivityFilter,
   ActivityGroup,
   ActivityKind,
+  ActivityWalletRef,
   ChainKey,
   MetricTone,
 } from '@/data/demo';
@@ -400,7 +401,10 @@ function describeEventDeltas(
 export function mapMoralisEvent(
   context: ActivityChainContext,
   event: MoralisWalletHistoryEvent,
-  options: { ownAddresses?: ReadonlySet<string> } = {},
+  options: {
+    ownAddresses?: ReadonlySet<string>;
+    wallet?: ActivityWalletRef;
+  } = {},
 ): MappedActivityEvent | null {
   const transfers = collectSupportedTransfers(context.moralis, event);
   const hasInteractionMetadata = Boolean(
@@ -446,6 +450,7 @@ export function mapMoralisEvent(
     meta: context.label,
     time: '',
     txHash: event.hash,
+    ...(options.wallet ? { wallet: options.wallet } : {}),
     ...(event.method_label?.trim()
       ? { methodLabel: event.method_label.trim() }
       : {}),

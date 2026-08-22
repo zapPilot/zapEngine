@@ -18,6 +18,7 @@ import { formatTokenBaseUnits } from '@zapengine/app-core/utils';
 import {
   type ActivityCategoryFlow,
   type ActivityGroup,
+  type ActivityWalletRef,
   type DemoAsset,
 } from '@/data/demo';
 import {
@@ -29,7 +30,7 @@ import {
   BASE_DEPOSIT_TOKENS,
   type DesktopDepositToken,
 } from '@/integration/depositTokens';
-import { formatTokenAmount, numberFrom } from '@/lib/format';
+import { formatTokenAmount, numberFrom, truncateAddress } from '@/lib/format';
 
 export type MoralisChainKey = MoralisWalletChain;
 
@@ -224,11 +225,25 @@ export interface ActivityHistoryOptions {
   walletAddresses?: readonly string[];
 }
 
+export interface ActivityWalletInput {
+  address: string;
+  label?: string | null;
+}
+
+interface WalletMoralisChainHistory extends MoralisChainHistory {
+  wallet?: ActivityWalletRef;
+}
+
 export type WalletAddressInput =
   | string
   | null
   | undefined
   | readonly (string | null | undefined)[];
+
+export type WalletActivityInput =
+  | WalletAddressInput
+  | ActivityWalletInput
+  | readonly (ActivityWalletInput | string | null | undefined)[];
 
 export interface WalletTokenBalanceLike {
   balance_formatted?: string | number | null | undefined;
@@ -265,6 +280,28 @@ export function normalizeWalletAddressList(
   }
 
   return Array.from(seen);
+}
+
+export function normalizeActivityWallets(
+  input: WalletActivityInput,
+): ActivityWalletRef[] {
+  const candidates = Array.isArray(input) ? input : [input];
+  const byAddress = new Map<string, ActivityWalletRef>();
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const address =
+      typeof candidate === 'string' ? candidate : candidate.address;
+    const normalized = address.trim().toLowerCase();
+    if (!normalized) continue;
+    const label =
+      typeof candidate === 'string'
+        ? truncateAddress(normalized)
+        : candidate.label?.trim() || truncateAddress(normalized);
+    byAddress.set(normalized, { address: normalized, label });
+  }
+
+  return Array.from(byAddress.values());
 }
 
 function usdPriceFor(amount: number, usdValue: number | null): number | null {
@@ -518,8 +555,85 @@ function timeLabel(timestamp: number, nowMs: number): string {
   return `${Math.floor(elapsedDays / 365)}y`;
 }
 
+function deltasCancelAcrossWallets(
+  events: readonly MappedActivityEvent[],
+): boolean {
+  const totals = new Map<string, number>();
+  let sawMovement = false;
+  for (const event of events) {
+    for (const delta of event.symbolDeltas) {
+      sawMovement = true;
+      totals.set(delta.symbol, (totals.get(delta.symbol) ?? 0) + delta.amount);
+    }
+  }
+  return (
+    sawMovement &&
+    Array.from(totals.values()).every((amount) => Math.abs(amount) <= 1e-9)
+  );
+}
+
+function mergeWalletPerspectives(
+  events: readonly MappedActivityEvent[],
+): MappedActivityEvent {
+  const first = events[0]!;
+  const distinctWallets = new Set(events.map((event) => event.wallet?.address));
+  const outgoing = events.find(
+    (event) =>
+      event.wallet && event.symbolDeltas.some((delta) => delta.amount < 0),
+  );
+  const incoming = events.find(
+    (event) =>
+      event.wallet &&
+      event.wallet.address !== outgoing?.wallet?.address &&
+      event.symbolDeltas.some((delta) => delta.amount > 0),
+  );
+
+  if (
+    distinctWallets.size < 2 ||
+    !outgoing?.wallet ||
+    !incoming?.wallet ||
+    !deltasCancelAcrossWallets(events)
+  ) {
+    return first;
+  }
+
+  const flowLabels = (outgoing.categoryDeltas ?? []).flatMap((delta) =>
+    delta.label.split(' · '),
+  );
+  const categoryDeltas = (outgoing.categoryDeltas ?? []).map((delta) => ({
+    ...delta,
+    usdNet: null,
+  }));
+
+  const {
+    amountLabel: _amountLabel,
+    amountTone: _amountTone,
+    wallet: _wallet,
+    category: _category,
+    tokenSymbol: _tokenSymbol,
+    ...base
+  } = first;
+  return {
+    ...base,
+    kind: 'internal-transfer',
+    title: outgoing.tokenSymbol
+      ? `Moved ${outgoing.tokenSymbol}`
+      : 'Moved assets',
+    walletTransfer: { from: outgoing.wallet, to: incoming.wallet },
+    flowLabels: flowLabels.slice(0, 2),
+    categoryDeltas,
+    symbolDeltas: [],
+    ...((outgoing.category ?? incoming.category)
+      ? { category: outgoing.category ?? incoming.category }
+      : {}),
+    ...((outgoing.tokenSymbol ?? incoming.tokenSymbol)
+      ? { tokenSymbol: outgoing.tokenSymbol ?? incoming.tokenSymbol }
+      : {}),
+  };
+}
+
 export function buildActivityGroupsFromMoralisHistory(
-  chainHistories: MoralisChainHistory[],
+  chainHistories: WalletMoralisChainHistory[],
   options: ActivityHistoryOptions,
 ): ActivityHistoryData {
   const nowMs = options.nowMs ?? Date.now();
@@ -527,27 +641,28 @@ export function buildActivityGroupsFromMoralisHistory(
     options.walletAddresses?.map((address) => address.trim().toLowerCase()),
   );
 
-  const seen = new Set<string>();
-  const mapped: MappedActivityEvent[] = [];
-  for (const { chain, response } of chainHistories) {
+  const byTransaction = new Map<string, MappedActivityEvent[]>();
+  for (const { chain, response, wallet } of chainHistories) {
     const context = CHAIN_BY_MORALIS.get(chain);
     if (!context) {
       continue;
     }
     for (const event of response.result ?? []) {
-      const activity = mapMoralisEvent(context, event, { ownAddresses });
-      if (!activity) {
-        continue;
-      }
+      const activity = mapMoralisEvent(context, event, {
+        ownAddresses,
+        ...(wallet ? { wallet } : {}),
+      });
+      if (!activity) continue;
       const dedupeKey = `${chain}:${event.hash}`;
-      if (seen.has(dedupeKey)) {
-        continue;
-      }
-      seen.add(dedupeKey);
-      mapped.push(activity);
+      const perspectives = byTransaction.get(dedupeKey) ?? [];
+      perspectives.push(activity);
+      byTransaction.set(dedupeKey, perspectives);
     }
   }
 
+  const mapped = Array.from(byTransaction.values()).map(
+    mergeWalletPerspectives,
+  );
   const orderedEvents = mapped
     .toSorted((a, b) => b.timestamp - a.timestamp)
     .slice(0, options.limit);
@@ -566,9 +681,10 @@ export function buildActivityGroupsFromMoralisHistory(
 }
 
 export function useMoralisWalletHistory(
-  addressInput: WalletAddressInput,
+  addressInput: WalletActivityInput,
 ): UseMoralisWalletHistoryResult {
-  const walletAddresses = normalizeWalletAddressList(addressInput);
+  const wallets = normalizeActivityWallets(addressInput);
+  const walletAddresses = wallets.map((wallet) => wallet.address);
   const enabled = walletAddresses.length > 0;
   const query = useQuery<ActivityHistoryData, Error>({
     ...createQueryConfig({ dataType: 'volatile' }),
@@ -580,10 +696,12 @@ export function useMoralisWalletHistory(
     queryFn: async () => {
       const responses = (
         await Promise.all(
-          walletAddresses.map((address) =>
-            getMoralisWalletHistory(address, {
-              limit: MORALIS_HISTORY_FETCH_LIMIT,
-            }),
+          wallets.map(async (wallet) =>
+            (
+              await getMoralisWalletHistory(wallet.address, {
+                limit: MORALIS_HISTORY_FETCH_LIMIT,
+              })
+            ).map((history) => ({ ...history, wallet })),
           ),
         )
       ).flat();

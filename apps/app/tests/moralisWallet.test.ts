@@ -8,6 +8,7 @@ import {
   type MoralisChainKey,
   type MoralisWalletHistoryResponse,
   type WalletTokenBalancesResponse,
+  normalizeActivityWallets,
   normalizeWalletAddressList,
 } from '@/integration/moralisWallet';
 import { DEFAULT_ARBITRUM_FUNDING_TOKEN } from '@/integration/depositTokens';
@@ -45,6 +46,24 @@ describe('Moralis desktop wallet mapping', () => {
 
     expect(normalizeWalletAddressList(' 0xABC ')).toEqual(['0xabc']);
     expect(normalizeWalletAddressList([null, undefined, '   '])).toEqual([]);
+    expect(
+      normalizeActivityWallets([
+        {
+          address: ' 0xABCDEF0000000000000000000000000000000001 ',
+          label: ' Main ',
+        },
+        { address: '0x2222222222222222222222222222222222222222', label: null },
+      ]),
+    ).toEqual([
+      {
+        address: '0xabcdef0000000000000000000000000000000001',
+        label: 'Main',
+      },
+      {
+        address: '0x2222222222222222222222222222222222222222',
+        label: '0x2222…2222',
+      },
+    ]);
   });
 
   it('groups supported holdings across Ethereum, Base, and Arbitrum only', () => {
@@ -403,6 +422,71 @@ describe('Moralis desktop wallet mapping', () => {
 
     expect(groups).toHaveLength(1);
     expect(groups[0]?.events).toHaveLength(1);
+  });
+
+  it('collapses a transfer between bundle wallets into one neutral portfolio event', () => {
+    const baseEvent = {
+      hash: '0xinternal',
+      block_timestamp: '2026-06-28T02:00:00.000Z',
+      receipt_status: '1',
+    };
+    const { groups, summary } = buildActivityGroupsFromMoralisHistory(
+      [
+        {
+          ...history('base', [
+            {
+              ...baseEvent,
+              erc20_transfers: [
+                {
+                  token_symbol: 'USDC',
+                  address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+                  direction: 'send',
+                  value_formatted: '50',
+                  value_usd: '50',
+                },
+              ],
+            },
+          ]),
+          wallet: { address: '0xaaa', label: 'Main Wallet' },
+        },
+        {
+          ...history('base', [
+            {
+              ...baseEvent,
+              erc20_transfers: [
+                {
+                  token_symbol: 'USDC',
+                  address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+                  direction: 'receive',
+                  value_formatted: '50',
+                  value_usd: '50',
+                },
+              ],
+            },
+          ]),
+          wallet: { address: '0xbbb', label: 'Trading Wallet' },
+        },
+      ],
+      {
+        limit: 10,
+        nowMs: Date.parse('2026-06-28T03:00:00.000Z'),
+        walletAddresses: ['0xaaa', '0xbbb'],
+      },
+    );
+
+    expect(groups[0]?.events).toEqual([
+      expect.objectContaining({
+        id: 'base-0xinternal',
+        kind: 'internal-transfer',
+        title: 'Moved USDC',
+        walletTransfer: {
+          from: { address: '0xaaa', label: 'Main Wallet' },
+          to: { address: '0xbbb', label: 'Trading Wallet' },
+        },
+        flowLabels: ['−50 USDC'],
+      }),
+    ]);
+    expect(summary).toEqual([]);
   });
 
   it('maps before dedupe so a later valid wallet perspective is retained', () => {

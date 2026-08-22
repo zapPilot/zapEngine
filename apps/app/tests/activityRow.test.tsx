@@ -155,6 +155,35 @@ describe('ActivityRow', () => {
     expect(container.textContent).not.toContain('Contract interaction');
   });
 
+  it('renders wallet attribution alongside protocol context', async () => {
+    await render(
+      event({
+        wallet: { address: '0xabc', label: 'Main Wallet' },
+        protocol: 'Aave V3',
+      }),
+    );
+
+    expect(container.textContent).toContain('Main Wallet · Aave');
+  });
+
+  it('renders portfolio-internal wallet transfers as wallet-to-wallet context', async () => {
+    await render(
+      event({
+        kind: 'internal-transfer',
+        title: 'Moved USDC',
+        walletTransfer: {
+          from: { address: '0xaaa', label: 'Main Wallet' },
+          to: { address: '0xbbb', label: 'Trading Wallet' },
+        },
+        flowLabels: ['−50 USDC'],
+        categoryDeltas: [],
+      }),
+    );
+
+    expect(container.textContent).toContain('Main Wallet → Trading Wallet');
+    expect(container.textContent).toContain('−50 USDC');
+  });
+
   it('renders protocol, at most two flows, failure, and gas metadata', async () => {
     await render(
       event({

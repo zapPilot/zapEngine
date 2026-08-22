@@ -57,6 +57,9 @@ function compactHash(hash: string): string {
 }
 
 function flowLabels(event: ActivityEvent): string[] {
+  if (event.flowLabels && event.flowLabels.length > 0) {
+    return event.flowLabels.slice(0, 2);
+  }
   const labels = (event.categoryDeltas ?? []).flatMap((delta) =>
     delta.label.split(' · '),
   );
@@ -90,9 +93,14 @@ export function ActivityRow({
     (event.kind === 'contract-interaction'
       ? 'Contract interaction'
       : undefined);
+  const walletContext = event.walletTransfer
+    ? `${event.walletTransfer.from.label} → ${event.walletTransfer.to.label}`
+    : event.wallet?.label;
+  const contextLabel = [walletContext, venue].filter(Boolean).join(' · ');
   const hashLabel = event.txHash ? compactHash(event.txHash) : undefined;
   const accessibilityLabel = [
     actionLabel(event),
+    walletContext,
     venue,
     ...flows,
     event.status === 'Failed' ? failedLabel : undefined,
@@ -175,12 +183,12 @@ export function ActivityRow({
                 </Pill>
               ) : null}
             </View>
-            {venue ? (
+            {contextLabel ? (
               <Text
                 className="mt-0.5 font-sans text-[11.5px] text-ink-dim"
                 numberOfLines={1}
               >
-                {venue}
+                {contextLabel}
               </Text>
             ) : null}
           </View>

@@ -71,6 +71,7 @@ export type ActivityKind =
   | 'yield'
   | 'deposit'
   | 'withdraw'
+  | 'internal-transfer'
   | 'contract-interaction'
   | 'strategy-update';
 
@@ -96,6 +97,11 @@ export interface ActivityCategoryFlow extends ActivityCategoryDelta {
   share: number;
 }
 
+export interface ActivityWalletRef {
+  address: string;
+  label: string;
+}
+
 export interface ActivityEvent {
   id: string;
   kind: ActivityKind;
@@ -105,6 +111,15 @@ export interface ActivityEvent {
   status: ActivityStatus;
   meta: string;
   time: string;
+  /** Wallet in the managed bundle that produced this activity perspective. */
+  wallet?: ActivityWalletRef;
+  /** Portfolio-internal transfer attribution when both endpoints are bundle wallets. */
+  walletTransfer?: {
+    from: ActivityWalletRef;
+    to: ActivityWalletRef;
+  };
+  /** Explicit presentation flows for events whose portfolio net delta is zero. */
+  flowLabels?: string[];
   /** Dominant allocation category — drives the row's category accent. */
   category?: AllocationCategoryKey;
   categoryDeltas?: ActivityCategoryDelta[];

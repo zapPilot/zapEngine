@@ -58,6 +58,7 @@ export function ActivityScreen() {
     isOwnBundle: account.isOwnBundle,
     viewingUserId: account.viewingUserId,
     ownWalletAddresses: account.walletAddresses,
+    ownWalletEntries: account.walletEntries,
     ownAddress: account.address,
   });
 

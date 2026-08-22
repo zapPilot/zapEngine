@@ -20,6 +20,7 @@ export interface ActivitySubject {
   isOwnBundle: boolean;
   viewingUserId: string | null;
   ownWalletAddresses: string[];
+  ownWalletEntries?: { address: string; label: string | null }[];
   ownAddress: string | null;
 }
 
@@ -49,7 +50,17 @@ export function useActivityData(
     visitedWalletAddresses,
   });
 
-  const history = useMoralisWalletHistory(addresses);
+  const ownWallets =
+    subject.ownWalletEntries && subject.ownWalletEntries.length > 0
+      ? subject.ownWalletEntries
+      : (addresses ?? []).map((address) => ({ address, label: null }));
+  const visitedWalletEntries = (visitedWallets.data ?? []).map((row) => ({
+    address: row.wallet,
+    label: row.label ?? null,
+  }));
+  const history = useMoralisWalletHistory(
+    subject.isOwnBundle ? ownWallets : visitedWalletEntries,
+  );
 
   return {
     data: { groups: history.groups, summary: history.summary },

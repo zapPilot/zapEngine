@@ -13,6 +13,8 @@ export interface DesktopAccount {
   address: string | null;
   /** Bundle wallet addresses used for read-only portfolio/activity data. */
   walletAddresses: string[];
+  /** Bundle wallets with user-defined labels for portfolio-level attribution. */
+  walletEntries: { address: string; label: string | null }[];
   /** Resolved Zap Pilot user id (from account-engine), or null. */
   userId: string | null;
   /** First-login ETL job returned by account-engine, if one was scheduled. */
@@ -61,6 +63,11 @@ export function useAccount(): DesktopAccount {
   } = wallet;
   const userId = user.userInfo?.userId?.trim() || null;
   const walletAddresses = user.userInfo?.bundleWallets ?? [];
+  const walletEntries =
+    user.userInfo?.additionalWallets?.map((wallet) => ({
+      address: wallet.wallet_address,
+      label: wallet.label,
+    })) ?? [];
   const urlUserId = getBundleViewUserId();
   // `userId` stays the real logged-in user; the viewing fields decide whose
   // bundle the screens display (a `?userId=` link overrides, read-only).
@@ -95,6 +102,7 @@ export function useAccount(): DesktopAccount {
     // available separately for read-only portfolio and activity aggregation.
     address: account?.address ?? user.connectedWallet ?? null,
     walletAddresses,
+    walletEntries,
     userId,
     etlJobId: user.userInfo?.etlJobId ?? null,
     isNewUser: user.userInfo?.isNewUser ?? false,
