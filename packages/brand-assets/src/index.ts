@@ -106,7 +106,13 @@ const PROTOCOL_BRAND_KEY_ALIASES: Record<string, ProtocolBrandKey> = {
   gmx: 'gmx-v2',
   gmxv2: 'gmx-v2',
   'gmx-v-2': 'gmx-v2',
+  'aave-v2': 'aave',
+  'aave-v3': 'aave',
+  'morpho-blue': 'morpho',
+  'ondo-finance': 'ondo',
+  'lido-finance': 'lido',
   hlp: 'hyperliquid',
+  'hyperliquid-hlp': 'hyperliquid',
   hypercore: 'hyperliquid',
 };
 

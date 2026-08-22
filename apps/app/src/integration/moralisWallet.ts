@@ -21,7 +21,6 @@ import {
   type DemoAsset,
 } from '@/data/demo';
 import {
-  collapseBursts,
   mapMoralisEvent,
   summarizeCategoryFlows,
   type MappedActivityEvent,
@@ -49,7 +48,7 @@ interface ChainConfig {
 
 /** Raw transactions fetched per chain per wallet before semantic filtering. */
 const MORALIS_HISTORY_FETCH_LIMIT = 50;
-/** Logical events shown in the feed after dedupe and burst collapsing. */
+/** Individual on-chain events shown after cross-wallet dedupe. */
 const ACTIVITY_DISPLAY_LIMIT = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -545,13 +544,13 @@ export function buildActivityGroupsFromMoralisHistory(
     }
   }
 
-  const collapsed = collapseBursts(
-    mapped.toSorted((a, b) => b.timestamp - a.timestamp),
-  ).slice(0, options.limit);
+  const orderedEvents = mapped
+    .toSorted((a, b) => b.timestamp - a.timestamp)
+    .slice(0, options.limit);
 
   const groups = ACTIVITY_BUCKETS.map((label) => ({
     label,
-    events: collapsed
+    events: orderedEvents
       .filter((event) => bucketForTimestamp(event.timestamp, nowMs) === label)
       .map((event) => ({
         ...event,
@@ -559,7 +558,7 @@ export function buildActivityGroupsFromMoralisHistory(
       })),
   })).filter((group) => group.events.length > 0);
 
-  return { groups, summary: summarizeCategoryFlows(collapsed) };
+  return { groups, summary: summarizeCategoryFlows(orderedEvents) };
 }
 
 export function useMoralisWalletHistory(

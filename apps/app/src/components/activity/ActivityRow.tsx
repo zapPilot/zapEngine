@@ -1,18 +1,74 @@
-import { ALLOCATION_CATEGORIES } from '@zapengine/app-core/lib/domain/allocationCategories';
-import { Text, View } from 'react-native';
+import {
+  CHAIN_BRAND,
+  PROTOCOL_BRAND,
+  protocolBrandKeyFor,
+} from '@zapengine/brand-assets';
+import { getExplorerTxUrl } from '@zapengine/app-core/config/chains/display';
+import * as Clipboard from 'expo-clipboard';
+import { Copy, ExternalLink } from 'lucide-react-native';
+import { Linking, Text, View } from 'react-native';
 
-import { TokenIcon } from '@/components/token/TokenIcon';
+import { ChainMark } from '@/components/token/ChainMark';
+import { ProtocolIcon } from '@/components/token/ProtocolIcon';
+import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
-import type { ActivityEvent, MetricTone } from '@/data/demo';
+import { Tap } from '@/components/ui/Tap';
+import type { ActivityEvent } from '@/data/demo';
 import { cn } from '@/lib/cn';
 
-/** Outflows render in plain ink: spending is normal for a wealth manager. */
-const AMOUNT_TONE_CLASS: Record<MetricTone, string> = {
-  positive: 'text-success',
-  negative: 'text-ink',
-  neutral: 'text-ink-dim',
-  accent: 'text-accent',
-};
+function relativeTimeLabel(value: string): string {
+  if (value === 'now' || value === '—') return value;
+  const match = /^(\d+)(m|h|d|w|mo|y)$/.exec(value);
+  if (!match) return value;
+  const count = Number(match[1]);
+  const unit = match[2];
+  const label =
+    unit === 'm'
+      ? 'minute'
+      : unit === 'h'
+        ? 'hour'
+        : unit === 'd'
+          ? 'day'
+          : unit === 'w'
+            ? 'week'
+            : unit === 'mo'
+              ? 'month'
+              : 'year';
+  return `${count} ${label}${count === 1 ? '' : 's'} ago`;
+}
+
+function compactTimeLabel(value: string): string {
+  return value === 'now' || value === '—' ? value : `${value} ago`;
+}
+
+function actionLabel(event: ActivityEvent): string {
+  return event.title;
+}
+
+function protocolLabel(protocol: string | undefined): string {
+  if (!protocol) return 'Contract interaction';
+  const key = protocolBrandKeyFor(protocol);
+  return key ? PROTOCOL_BRAND[key].label : protocol;
+}
+
+function flowLabels(event: ActivityEvent): string[] {
+  const labels = (event.categoryDeltas ?? []).flatMap((delta) =>
+    delta.label.split(' · '),
+  );
+  if (labels.length > 0) return labels.slice(0, 2);
+  return event.amountLabel ? [event.amountLabel] : [];
+}
+
+function flowTone(label: string): string {
+  if (label.startsWith('+')) return 'text-success';
+  if (label.startsWith('−') || label.startsWith('-')) return 'text-ink';
+  return 'text-ink-dim';
+}
+
+function explorerUrl(event: ActivityEvent): string | null {
+  if (!event.chain || !event.txHash) return null;
+  return getExplorerTxUrl(CHAIN_BRAND[event.chain].chainId, event.txHash);
+}
 
 export function ActivityRow({
   event,
@@ -21,89 +77,119 @@ export function ActivityRow({
   event: ActivityEvent;
   failedLabel: string;
 }) {
-  const categoryColor = event.category
-    ? ALLOCATION_CATEGORIES[event.category].color
-    : 'rgba(255,255,255,.16)';
-  const categoryLabel = event.category
-    ? ALLOCATION_CATEGORIES[event.category].label
-    : undefined;
+  const txUrl = explorerUrl(event);
+  const chainLabel = event.chain ? CHAIN_BRAND[event.chain].label : event.meta;
+  const flows = flowLabels(event);
+  const venue = protocolLabel(event.protocol);
   const accessibilityLabel = [
-    event.title,
-    categoryLabel,
-    event.meta,
-    event.amountLabel,
+    actionLabel(event),
+    venue,
+    ...flows,
     event.status === 'Failed' ? failedLabel : undefined,
-    event.time,
-    event.kind.replace('-', ' '),
+    chainLabel,
+    relativeTimeLabel(event.time),
   ]
     .filter((part): part is string => Boolean(part))
     .join(', ');
 
   return (
-    <View
-      accessible
-      accessibilityLabel={accessibilityLabel}
-      className="flex-row items-center gap-3 border-b border-line py-3 last:border-b-0"
-    >
-      <View
-        className="h-[18px] w-[2px] shrink-0 rounded-full"
-        style={{ backgroundColor: categoryColor }}
-      />
-      {event.tokenSymbol ? (
-        <TokenIcon
-          symbol={event.tokenSymbol}
-          {...(event.chain ? { chainKey: event.chain } : {})}
-          size={34}
-        />
-      ) : (
-        <View className="h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[rgba(255,255,255,.06)]">
-          <View
-            className="h-[9px] w-[9px] rounded-full"
-            style={{ backgroundColor: categoryColor }}
-          />
-        </View>
-      )}
-      <View className="flex-1">
-        <Text
-          className="font-sans-semibold text-[14px] text-ink"
-          numberOfLines={1}
-        >
-          {event.title}
-        </Text>
-        <Text
-          className="mt-[3px] font-mono text-[10.5px] text-ink-faint"
-          numberOfLines={1}
-        >
-          {event.meta}
-        </Text>
-      </View>
-      <View className="shrink-0 items-end pl-1">
-        {event.amountLabel ? (
-          <Text
-            className={cn(
-              'font-mono-semibold text-[13px]',
-              AMOUNT_TONE_CLASS[event.amountTone ?? 'neutral'],
-            )}
-          >
-            {event.amountLabel}
+    <Card className="mb-2 rounded-2xl px-3.5 py-3">
+      <View>
+        <View className="flex-row items-center justify-between gap-2">
+          <Text className="flex-1 font-mono text-[10.5px] text-ink-faint">
+            {compactTimeLabel(event.time)}
           </Text>
-        ) : null}
-        <Text className="mt-1 font-mono text-[10px] text-ink-faint">
-          {event.time}
-        </Text>
-        <View className="mt-1 flex-row items-center gap-2">
-          {event.status === 'Failed' ? (
-            <Pill className="border border-[rgba(255,111,97,.35)] bg-[rgba(255,111,97,.10)] px-2 py-[2px]">
-              <Text className="font-mono text-[9px] uppercase tracking-[0.8px] text-error">
-                {failedLabel}
+          <View className="flex-row items-center gap-1.5">
+            {event.chain ? (
+              <ChainMark chainKey={event.chain} size={13} />
+            ) : null}
+            <Text className="font-sans-medium text-[11px] text-ink-dim">
+              {chainLabel}
+            </Text>
+            {event.txHash && txUrl ? (
+              <Tap
+                className="flex-row items-center gap-1"
+                accessibilityRole="link"
+                accessibilityLabel={`Open transaction ${event.txHash} in explorer`}
+                onPress={() => void Linking.openURL(txUrl)}
+              >
+                <Text className="font-mono text-[10.5px] text-ink-faint underline">
+                  {`${event.txHash.slice(0, 6)}…${event.txHash.slice(-4)}`}
+                </Text>
+                <ExternalLink size={11} strokeWidth={1.8} color="#a1a1aa" />
+              </Tap>
+            ) : event.txHash ? (
+              <Text className="font-mono text-[10.5px] text-ink-faint">
+                {`${event.txHash.slice(0, 6)}…${event.txHash.slice(-4)}`}
               </Text>
-            </Pill>
-          ) : null}
-          <Text className="font-mono text-[9px] uppercase tracking-[0.8px] text-ink-faint">
-            {event.kind.replace('-', ' ')}
-          </Text>
+            ) : null}
+            {event.txHash ? (
+              <Tap
+                accessibilityRole="button"
+                accessibilityLabel={`Copy transaction hash ${event.txHash}`}
+                onPress={() => void Clipboard.setStringAsync(event.txHash!)}
+              >
+                <Copy size={11} strokeWidth={1.8} color="#a1a1aa" />
+              </Tap>
+            ) : null}
+          </View>
         </View>
+
+        <View
+          accessible
+          accessibilityLabel={accessibilityLabel}
+          className="mt-3 flex-row items-center gap-2.5"
+        >
+          <ProtocolIcon protocol={event.protocol ?? 'Contract'} size={36} />
+          <View className="min-w-0 flex-1">
+            <View className="flex-row items-center gap-2">
+              <Text
+                className="min-w-0 flex-1 font-sans-semibold text-[14px] text-ink"
+                numberOfLines={1}
+              >
+                {actionLabel(event)}
+              </Text>
+              {event.status === 'Failed' ? (
+                <Pill className="border border-[rgba(255,111,97,.35)] bg-[rgba(255,111,97,.10)] px-2 py-[2px]">
+                  <Text className="font-mono text-[9px] uppercase tracking-[0.8px] text-error">
+                    {failedLabel}
+                  </Text>
+                </Pill>
+              ) : null}
+            </View>
+            <Text
+              className="mt-0.5 font-sans text-[11.5px] text-ink-dim"
+              numberOfLines={1}
+            >
+              {venue}
+            </Text>
+          </View>
+          {flows.length > 0 ? (
+            <View className="shrink-0 items-end pl-1.5">
+              {flows.map((label, index) => (
+                <Text
+                  key={`${label}-${index}`}
+                  className={cn(
+                    'font-mono-medium text-[12px]',
+                    index > 0 ? 'mt-0.5' : '',
+                    flowTone(label),
+                  )}
+                >
+                  {label}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
+        {event.gasFeeLabel ? (
+          <View className="mt-3 border-t border-line pt-2">
+            <Text className="font-sans text-[10.5px] text-ink-faint">
+              Gas: {event.gasFeeLabel}
+            </Text>
+          </View>
+        ) : null}
       </View>
-    </View>
+    </Card>
   );
 }

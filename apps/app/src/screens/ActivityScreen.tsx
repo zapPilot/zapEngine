@@ -38,9 +38,9 @@ function ActivitySkeleton() {
         <SkeletonBlock className="mt-2 h-4 w-2/3" />
       </Card>
       <Card className="mt-5 p-4">
-        <SkeletonBlock className="h-5 w-40" />
-        <SkeletonBlock className="mt-3 h-4 w-full" />
-        <SkeletonBlock className="mt-2 h-4 w-3/4" />
+        <SkeletonBlock className="h-3 w-full" />
+        <SkeletonBlock className="mt-5 h-10 w-full" />
+        <SkeletonBlock className="mt-5 h-3 w-28" />
       </Card>
     </>
   );
@@ -91,7 +91,7 @@ export function ActivityScreen() {
           />
         </ScrollView>
       </View>
-      <View className="px-5 pt-5">
+      <View className="px-5 pt-4">
         {isLoading ? (
           <ActivitySkeleton />
         ) : isError ? (
@@ -106,27 +106,25 @@ export function ActivityScreen() {
         ) : (
           <>
             <CategoryFlowCard
-              className="mb-5"
+              className="mb-4"
               flows={summary}
               label={`${t('activity.netFlow')} · ${t('activity.recent')}`}
             />
             {filteredGroups.length > 0 ? (
               filteredGroups.map((group) => (
-                <View key={group.label} className="mb-5">
-                  <Text className="mb-2 font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">
+                <View key={group.label} className="mb-4">
+                  <Text className="mb-1.5 font-mono text-[9.5px] uppercase tracking-[0.9px] text-ink-faint">
                     {isKnownGroupLabel(group.label)
                       ? t(GROUP_LABEL_KEY[group.label])
                       : group.label}
                   </Text>
-                  <Card className="px-4">
-                    {group.events.map((event) => (
-                      <ActivityRow
-                        key={event.id}
-                        event={event}
-                        failedLabel={t('activity.failed')}
-                      />
-                    ))}
-                  </Card>
+                  {group.events.map((event) => (
+                    <ActivityRow
+                      key={event.id}
+                      event={event}
+                      failedLabel={t('activity.failed')}
+                    />
+                  ))}
                 </View>
               ))
             ) : (
