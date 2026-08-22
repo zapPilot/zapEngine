@@ -10,6 +10,7 @@ const supabase = vi.hoisted(() => ({
 vi.mock('../services/supabase-client.js', () => supabase);
 
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
+import { createAlignmentReadFixture } from './daemon-store-align-schedules.test-helper.js';
 
 interface AlignmentUpdate {
   id: string | undefined;
@@ -42,75 +43,56 @@ class AlignmentMutation {
   }
 }
 
-class AlignmentTable {
-  readonly updates: AlignmentUpdate[] = [];
-  private listAttempt = 0;
-
-  private readonly staleSnapshot = [
-    {
-      id: 'claimed-earliest',
-      episode_id: 'episode-status-transition',
-      status: 'queued',
-      scheduled_at: '2026-08-20T01:00:00.000Z',
-      next_attempt_at: '2026-08-20T01:00:00.000Z',
-    },
-    {
-      id: 'target',
-      episode_id: 'episode-status-transition',
-      status: 'queued',
-      scheduled_at: '2026-08-20T05:00:00.000Z',
-      next_attempt_at: '2026-08-20T05:00:00.000Z',
-    },
-  ];
-
-  private readonly recoveredSnapshot = [
-    {
-      id: 'failed-new-earliest',
-      episode_id: 'episode-status-transition',
-      status: 'failed',
-      scheduled_at: '2026-08-20T03:00:00.000Z',
-      next_attempt_at: '2026-08-20T09:00:00.000Z',
-    },
-    this.staleSnapshot[1],
-  ];
-
-  select() {
-    return this;
-  }
-
-  in() {
-    return this;
-  }
-
-  async returns() {
-    this.listAttempt += 1;
-    if (this.listAttempt === 1) {
-      return {
-        data: this.staleSnapshot,
-        error: { message: 'alignment list failed before claim transition' },
-      };
-    }
-    return { data: this.recoveredSnapshot, error: null };
-  }
-
-  update(patch: Record<string, unknown>) {
-    return new AlignmentMutation(patch, this.updates);
-  }
-}
-
 describe('alignPendingSocialPublishSchedules recovery snapshot', () => {
   it('drops a stale earliest job after another worker claims it', async () => {
-    const table = new AlignmentTable();
-    supabase.getPipelineSupabase.mockReturnValue({
-      from: vi.fn(() => table),
-    });
+    const staleSnapshot = [
+      {
+        id: 'claimed-earliest',
+        episode_id: 'episode-status-transition',
+        status: 'queued',
+        scheduled_at: '2026-08-20T01:00:00.000Z',
+        next_attempt_at: '2026-08-20T01:00:00.000Z',
+      },
+      {
+        id: 'target',
+        episode_id: 'episode-status-transition',
+        status: 'queued',
+        scheduled_at: '2026-08-20T05:00:00.000Z',
+        next_attempt_at: '2026-08-20T05:00:00.000Z',
+      },
+    ];
+    const recoveredSnapshot = [
+      {
+        id: 'failed-new-earliest',
+        episode_id: 'episode-status-transition',
+        status: 'failed',
+        scheduled_at: '2026-08-20T03:00:00.000Z',
+        next_attempt_at: '2026-08-20T09:00:00.000Z',
+      },
+      staleSnapshot[1],
+    ];
+    const updates: AlignmentUpdate[] = [];
+    let listAttempt = 0;
+    const update = vi.fn(
+      (patch: Record<string, unknown>) => new AlignmentMutation(patch, updates),
+    );
+    const fixture = createAlignmentReadFixture(() => {
+      listAttempt += 1;
+      return listAttempt === 1
+        ? {
+            data: staleSnapshot,
+            error: { message: 'alignment list failed before claim transition' },
+          }
+        : { data: recoveredSnapshot, error: null };
+    }, update);
+    supabase.getPipelineSupabase.mockReturnValue(fixture.client);
 
     await expect(alignPendingSocialPublishSchedules()).rejects.toMatchObject({
       message: 'alignment list failed before claim transition',
     });
     await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
 
-    expect(table.updates).toEqual([
+    expect(updates).toEqual([
       {
         id: 'target',
         status: 'queued',
