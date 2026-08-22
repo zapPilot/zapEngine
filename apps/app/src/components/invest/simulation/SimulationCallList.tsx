@@ -13,6 +13,7 @@ import { type ReactNode, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { Tap } from '@/components/ui/Tap';
+import { TokenIcon } from '@/components/token/TokenIcon';
 import {
   approvalForCall,
   compactTokenAmount,
@@ -72,16 +73,25 @@ export function SimulationCallRow({
               Gas {formatInteger(call.gasUsed)}
             </Text>
             {approval ? (
-              <Text className="font-mono text-[9.5px] text-accent">
-                Approval{' '}
-                {approval.unlimited
-                  ? 'Unlimited'
-                  : compactTokenAmount(
-                      approval.rawAmount,
-                      approval.token.decimals,
-                    )}{' '}
-                {approval.token.symbol}
-              </Text>
+              <View className="flex-row items-center gap-1.5">
+                <TokenIcon
+                  symbol={approval.token.symbol}
+                  size={16}
+                  {...(approval.token.logoUrl
+                    ? { remoteLogoUrl: approval.token.logoUrl }
+                    : {})}
+                />
+                <Text className="font-mono text-[9.5px] text-accent">
+                  Approval{' '}
+                  {approval.unlimited
+                    ? 'Unlimited'
+                    : compactTokenAmount(
+                        approval.rawAmount,
+                        approval.token.decimals,
+                      )}{' '}
+                  {approval.token.symbol}
+                </Text>
+              </View>
             ) : null}
           </View>
 

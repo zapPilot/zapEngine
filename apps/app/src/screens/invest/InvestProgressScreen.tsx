@@ -9,6 +9,8 @@ import type { DepositReviewGroup } from '@zapengine/types/api';
 
 import { StepHeader } from '@/components/invest/StepHeader';
 import { WizardDoneCard } from '@/components/invest/WizardDoneCard';
+import { ChainMark } from '@/components/token/ChainMark';
+import { ProtocolIcon } from '@/components/token/ProtocolIcon';
 import { SimulationReviewBody } from '@/components/invest/simulation/SimulationReviewBody';
 import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -50,6 +52,18 @@ function StepRow({
 }) {
   const confirmed = step.status === 'confirmed';
   const active = step.status !== 'locked';
+  const chainKey =
+    typeof step.chainId === 'number'
+      ? chainBrandKeyForChainId(step.chainId)
+      : null;
+  const protocol =
+    'groupId' in step
+      ? step.groupId === 'base-morpho'
+        ? 'morpho'
+        : step.groupId === 'arbitrum-gmx'
+          ? 'gmx-v2'
+          : null
+      : null;
   return (
     <View className="flex-row gap-3">
       <View className="items-center">
@@ -82,12 +96,16 @@ function StepRow({
         ) : null}
       </View>
       <View className="flex-1 pb-5 pt-1">
-        <Text
-          className="font-sans-semibold text-[13.5px]"
-          style={{ color: active ? '#f4f4f5' : '#71717a' }}
-        >
-          {step.label}
-        </Text>
+        <View className="flex-row items-center gap-1.5">
+          {chainKey ? <ChainMark chainKey={chainKey} size={14} /> : null}
+          {protocol ? <ProtocolIcon protocol={protocol} size={16} /> : null}
+          <Text
+            className="min-w-0 flex-1 font-sans-semibold text-[13.5px]"
+            style={{ color: active ? '#f4f4f5' : '#71717a' }}
+          >
+            {step.label}
+          </Text>
+        </View>
         <Text className="mt-1 text-[11px] leading-[16px] text-ink-dim">
           {step.detail}
         </Text>
@@ -547,6 +565,19 @@ export function InvestProgressScreen() {
                 : scope === 'arbitrum'
                   ? 'GMX settled'
                   : 'Morpho supplied · GMX settled'
+            }
+            statusIcon={
+              scope === 'both' ? (
+                <View className="flex-row gap-1">
+                  <ProtocolIcon protocol="morpho" size={16} />
+                  <ProtocolIcon protocol="gmx-v2" size={16} />
+                </View>
+              ) : (
+                <ProtocolIcon
+                  protocol={scope === 'base' ? 'morpho' : 'gmx-v2'}
+                  size={16}
+                />
+              )
             }
             onDone={() => {
               reset();

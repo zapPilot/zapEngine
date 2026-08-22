@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
 import { Tap } from '@/components/ui/Tap';
+import { TokenIcon } from '@/components/token/TokenIcon';
 import {
   compactTokenAmount,
   formatAddressOrUnknown,
@@ -57,6 +58,13 @@ export function SimulationApprovalCard({
       <View className="flex-row items-start justify-between gap-3">
         <View className="min-w-0 flex-1">
           <View className="flex-row flex-wrap items-center gap-2">
+            <TokenIcon
+              symbol={approval.token.symbol}
+              size={16}
+              {...(approval.token.logoUrl
+                ? { remoteLogoUrl: approval.token.logoUrl }
+                : {})}
+            />
             <Text className="font-sans-semibold text-[13px] text-accent">
               Approve {amountLabel} {approval.token.symbol}
             </Text>

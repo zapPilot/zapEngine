@@ -13,6 +13,7 @@ import { FundingSourceSelector } from '@/components/invest/FundingSourceSelector
 import { HyperliquidDepositPanel } from '@/components/invest/HyperliquidDepositPanel';
 import { QuickAmountChips } from '@/components/invest/QuickAmountChips';
 import { TokenSelectorPill } from '@/components/invest/TokenSelectorPill';
+import { ChainMark } from '@/components/token/ChainMark';
 import { StepHeader } from '@/components/invest/StepHeader';
 import { StepProgress } from '@/components/invest/StepProgress';
 import { SwapArrowDivider } from '@/components/invest/SwapArrowDivider';
@@ -59,11 +60,22 @@ const INVEST_SCOPE_OPTIONS: readonly {
   value: InvestAmountTab;
   label: string;
   a11yLabel: string;
+  chainKey?: 'base' | 'arbitrum' | 'hyperliquid';
 }[] = [
   { value: 'both', label: 'Both', a11yLabel: 'Both chains' },
-  { value: 'base', label: 'Base', a11yLabel: 'Base only' },
-  { value: 'arbitrum', label: 'Arbitrum', a11yLabel: 'Arbitrum only' },
-  { value: 'hyperliquid', label: 'HLP', a11yLabel: 'Hyperliquid HLP' },
+  { value: 'base', label: 'Base', a11yLabel: 'Base only', chainKey: 'base' },
+  {
+    value: 'arbitrum',
+    label: 'Arbitrum',
+    a11yLabel: 'Arbitrum only',
+    chainKey: 'arbitrum',
+  },
+  {
+    value: 'hyperliquid',
+    label: 'HLP',
+    a11yLabel: 'Hyperliquid HLP',
+    chainKey: 'hyperliquid',
+  },
   { value: 'bridge', label: 'Bridge', a11yLabel: 'Bridge test' },
 ];
 
@@ -195,13 +207,18 @@ function InvestScopeToggle({
             }
             onPress={() => onChange(option.value)}
           >
-            <Text
-              className={`text-center font-sans-semibold text-[11px] ${
-                selected ? 'text-accent' : 'text-ink-dim'
-              }`}
-            >
-              {option.label}
-            </Text>
+            <View className="flex-row items-center gap-1.5">
+              {option.chainKey ? (
+                <ChainMark chainKey={option.chainKey} size={13} />
+              ) : null}
+              <Text
+                className={`text-center font-sans-semibold text-[11px] ${
+                  selected ? 'text-accent' : 'text-ink-dim'
+                }`}
+              >
+                {option.label}
+              </Text>
+            </View>
           </Tap>
         );
       })}

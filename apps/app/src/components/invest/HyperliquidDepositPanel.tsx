@@ -8,6 +8,9 @@ import { CONNECT_WALLET_CTA } from '@/components/connect/connectCopy';
 import { HyperliquidDepositCard } from '@/components/invest/HyperliquidDepositCard';
 import { WizardDoneCard } from '@/components/invest/WizardDoneCard';
 import { WizardLegList } from '@/components/invest/WizardLegList';
+import { ChainMark } from '@/components/token/ChainMark';
+import { ProtocolIcon } from '@/components/token/ProtocolIcon';
+import { TokenIcon } from '@/components/token/TokenIcon';
 import { Card } from '@/components/ui/Card';
 import { InfoRow } from '@/components/ui/InfoRow';
 import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
@@ -77,9 +80,12 @@ export function HyperliquidDepositPanel() {
       {isConfigure ? (
         <>
           <Card className="p-4">
-            <Text className="font-mono text-[10px] uppercase tracking-[1px] text-ink-dim">
-              Base USDC amount
-            </Text>
+            <View className="flex-row items-center gap-1.5">
+              <ChainMark chainKey="base" size={14} />
+              <Text className="font-mono text-[10px] uppercase tracking-[1px] text-ink-dim">
+                Base USDC amount
+              </Text>
+            </View>
             <View className="mt-2 flex-row items-center">
               <Text className="mr-2 font-sans-semibold text-[28px] text-ink-dim">
                 $
@@ -95,9 +101,12 @@ export function HyperliquidDepositPanel() {
                   setAmountInput(normalizeAmountInput(value))
                 }
               />
-              <Text className="font-sans-semibold text-[12px] text-ink-dim">
-                USDC
-              </Text>
+              <View className="flex-row items-center gap-1.5">
+                <TokenIcon symbol="USDC" size={16} />
+                <Text className="font-sans-semibold text-[12px] text-ink-dim">
+                  USDC
+                </Text>
+              </View>
             </View>
           </Card>
           <Card className="mt-3 p-4">
@@ -194,6 +203,7 @@ export function HyperliquidDepositPanel() {
           <WizardDoneCard
             amountLabel={formatUsd(amountUsd ?? 0)}
             statusLabel={hlpDoneStatusLabel(wizard.hlp.status)}
+            statusIcon={<ProtocolIcon protocol="hyperliquid" size={16} />}
             onDone={() => {
               reset();
               router.replace('/home');

@@ -2,11 +2,20 @@ import { ALLOCATION_CATEGORIES } from '@zapengine/app-core/lib/domain/allocation
 import { Text, View } from 'react-native';
 
 import { AllocationBar } from '@/components/charts/AllocationBar';
+import { AllocationLegendRow } from '@/components/charts/AllocationLegendRow';
 import { Card } from '@/components/ui/Card';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import type { ActivityCategoryFlow } from '@/data/demo';
 import { cn } from '@/lib/cn';
 import { formatSignedUsd } from '@/lib/format';
+
+const CATEGORY_TOKEN_SYMBOL = {
+  btc: 'BTC',
+  eth: 'ETH',
+  spy: 'SPY',
+  stable: 'USDC',
+  alt: 'ALT',
+} as const;
 
 /**
  * The robo-advisor lens on the feed: where money moved, by allocation
@@ -39,33 +48,27 @@ export function CategoryFlowCard({
       />
       <View className="mt-[13px] gap-[9px]">
         {flows.map((flow) => (
-          <View
+          <AllocationLegendRow
             key={flow.category}
-            className="flex-row items-center justify-between gap-3"
-          >
-            <View className="flex-row items-center gap-2">
-              <View
-                className="h-[9px] w-[9px] rounded-full"
-                style={{
-                  backgroundColor: ALLOCATION_CATEGORIES[flow.category].color,
-                }}
-              />
-              <Text className="text-[13px] text-ink-dim">
-                {ALLOCATION_CATEGORIES[flow.category].label}
+            symbol={CATEGORY_TOKEN_SYMBOL[flow.category]}
+            color={ALLOCATION_CATEGORIES[flow.category].color}
+            label={ALLOCATION_CATEGORIES[flow.category].label}
+            value={
+              <Text
+                className={cn(
+                  'font-mono text-[12.5px]',
+                  flow.usdNet !== null && flow.usdNet >= 0
+                    ? 'text-success'
+                    : 'text-ink',
+                )}
+                numberOfLines={1}
+              >
+                {flow.usdNet !== null
+                  ? formatSignedUsd(flow.usdNet)
+                  : flow.label}
               </Text>
-            </View>
-            <Text
-              className={cn(
-                'font-mono text-[12.5px]',
-                flow.usdNet !== null && flow.usdNet >= 0
-                  ? 'text-success'
-                  : 'text-ink',
-              )}
-              numberOfLines={1}
-            >
-              {flow.usdNet !== null ? formatSignedUsd(flow.usdNet) : flow.label}
-            </Text>
-          </View>
+            }
+          />
         ))}
       </View>
     </Card>

@@ -34,14 +34,19 @@ export interface DemoData {
     quote: string;
     marketModeLabel: string;
     /** Allocation pillars for the home strategy card (flex weights). */
-    pillars: { label: string; weight: number; color: string }[];
+    pillars: { label: string; weight: number; color: string; symbol: string }[];
     backtest: {
       returnLabel: string;
       vsBtcLabel: string;
       vsEthLabel: string;
       metrics: { label: string; value: string; tone: MetricTone }[];
       currentModeLabel: string;
-      allocation: { label: string; pct: number; color: string }[];
+      allocation: {
+        label: string;
+        pct: number;
+        color: string;
+        symbol: string;
+      }[];
       /** Sentiment marker position 0–100 (fear → greed). */
       sentiment: number | null;
     };
@@ -52,7 +57,12 @@ export interface DemoData {
     changeUsdAllTime: number;
     changePctToday: number;
     metrics: { label: string; value: string; tone: MetricTone }[];
-    allocation: { label: string; pct: number; color: string }[];
+    allocation: {
+      label: string;
+      pct: number;
+      color: string;
+      symbol?: string;
+    }[];
     lastRebalancedLabel: string;
   };
   activitySummary: ActivityCategoryFlow[];
@@ -158,9 +168,9 @@ export const DEMO: DemoData = {
     quote: 'Buy in fear. Defend in greed.',
     marketModeLabel: 'Market mode · Cautious — defensive tilt',
     pillars: [
-      { label: 'Equities', weight: 5, color: 'var(--spy)' },
-      { label: 'Crypto', weight: 3, color: 'var(--btc)' },
-      { label: 'Stables', weight: 4, color: 'var(--usd)' },
+      { label: 'Equities', weight: 5, color: 'var(--spy)', symbol: 'SPY' },
+      { label: 'Crypto', weight: 3, color: 'var(--btc)', symbol: 'BTC' },
+      { label: 'Stables', weight: 4, color: 'var(--usd)', symbol: 'USDC' },
     ],
     backtest: {
       returnLabel: '+147.2%',
@@ -178,9 +188,9 @@ export const DEMO: DemoData = {
       ],
       currentModeLabel: 'Cautious · defensive tilt',
       allocation: [
-        { label: 'Equities', pct: 40, color: 'var(--spy)' },
-        { label: 'Crypto', pct: 25, color: 'var(--btc)' },
-        { label: 'Stables', pct: 35, color: 'var(--usd)' },
+        { label: 'Equities', pct: 40, color: 'var(--spy)', symbol: 'SPY' },
+        { label: 'Crypto', pct: 25, color: 'var(--btc)', symbol: 'BTC' },
+        { label: 'Stables', pct: 35, color: 'var(--usd)', symbol: 'USDC' },
       ],
       sentiment: 34,
     },
@@ -199,9 +209,9 @@ export const DEMO: DemoData = {
       { label: 'Max drawdown', value: '−6.1%', tone: 'negative' },
     ],
     allocation: [
-      { label: 'Stables', pct: 35, color: 'var(--usd)' },
-      { label: 'ETH', pct: 24, color: 'var(--spy)' },
-      { label: 'BTC', pct: 20, color: 'var(--btc)' },
+      { label: 'Stables', pct: 35, color: 'var(--usd)', symbol: 'USDC' },
+      { label: 'ETH', pct: 24, color: 'var(--spy)', symbol: 'ETH' },
+      { label: 'BTC', pct: 20, color: 'var(--btc)', symbol: 'BTC' },
       { label: 'DeFi yield', pct: 21, color: 'var(--accent)' },
     ],
     lastRebalancedLabel:

@@ -33,6 +33,7 @@ import {
   VERDICT_TEXT_CLASSES,
 } from '@/components/invest/simulation/SimulationReviewPrimitives';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { ChainMark } from '@/components/token/ChainMark';
 import { Tap } from '@/components/ui/Tap';
 import { useReducedMotion } from '@/components/ui/useReducedMotion';
 import {
@@ -43,6 +44,7 @@ import {
   getBlockingReason,
   partitionAssetChanges,
   signingActionLabel,
+  simulationChainKey,
   simulationChainLabel,
   titleCase,
   verdictMeta,
@@ -180,6 +182,7 @@ export function SimulationPreviewSheet({
   }, [isOpen, previewData.riskHash, signable]);
 
   const verdict = verdictMeta(previewData);
+  const chainKey = simulationChainKey(previewData.chainId);
   const blockingReason = getBlockingReason(previewData);
   const { incoming, outgoing } = partitionAssetChanges(
     previewData.assetChanges,
@@ -267,10 +270,12 @@ export function SimulationPreviewSheet({
                     </View>
                   ) : null}
                   <View className="flex-row items-center gap-2 rounded-full border border-line px-3 py-1.5">
+                    {chainKey ? (
+                      <ChainMark chainKey={chainKey} size={14} />
+                    ) : null}
                     <Text className="font-sans-medium text-[10.5px] text-ink">
                       {simulationChainLabel(previewData.chainId)}
                     </Text>
-                    <View className="h-2 w-2 rounded-full bg-usd" />
                   </View>
                 </View>
               </View>

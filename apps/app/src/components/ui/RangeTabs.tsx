@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 import { Tap } from '@/components/ui/Tap';
@@ -8,6 +9,7 @@ interface RangeTabsProps<T extends string> {
   value: T;
   onChange?: (value: T) => void;
   optionLabel?: (value: T) => string;
+  optionIcon?: (value: T) => ReactNode;
   accessibilityLabel?: string;
   comfortable?: boolean;
   className?: string;
@@ -19,6 +21,7 @@ export function RangeTabs<T extends string>({
   value,
   onChange,
   optionLabel,
+  optionIcon,
   accessibilityLabel,
   comfortable = false,
   className,
@@ -31,6 +34,7 @@ export function RangeTabs<T extends string>({
     >
       {options.map((opt) => {
         const active = opt === value;
+        const icon = optionIcon?.(opt);
         return (
           <Tap
             key={opt}
@@ -44,14 +48,28 @@ export function RangeTabs<T extends string>({
               active && 'bg-accent-soft',
             )}
           >
-            <Text
-              className={cn(
-                'font-mono text-[11px]',
-                active ? 'text-accent' : 'text-ink-faint',
-              )}
-            >
-              {optionLabel?.(opt) ?? opt}
-            </Text>
+            {icon ? (
+              <View className="flex-row items-center gap-1.5">
+                {icon}
+                <Text
+                  className={cn(
+                    'font-mono text-[11px]',
+                    active ? 'text-accent' : 'text-ink-faint',
+                  )}
+                >
+                  {optionLabel?.(opt) ?? opt}
+                </Text>
+              </View>
+            ) : (
+              <Text
+                className={cn(
+                  'font-mono text-[11px]',
+                  active ? 'text-accent' : 'text-ink-faint',
+                )}
+              >
+                {optionLabel?.(opt) ?? opt}
+              </Text>
+            )}
           </Tap>
         );
       })}

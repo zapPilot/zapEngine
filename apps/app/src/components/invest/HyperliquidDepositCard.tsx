@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Linking, Text, View } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
+import { ProtocolIcon } from '@/components/token/ProtocolIcon';
 import { InfoRow } from '@/components/ui/InfoRow';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Tap } from '@/components/ui/Tap';
@@ -43,6 +44,9 @@ export function HyperliquidDepositCard({
               key={row.label}
               label={row.label}
               value={row.value}
+              {...(index === 0
+                ? { icon: <ProtocolIcon protocol="hyperliquid" size={16} /> }
+                : {})}
               divider={index < rows.length - 1}
             />
           ))}

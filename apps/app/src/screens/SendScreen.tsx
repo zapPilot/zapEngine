@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
 import { ChainIconStack } from '@/components/token/ChainIconStack';
+import { ChainMark } from '@/components/token/ChainMark';
 import { TokenIcon } from '@/components/token/TokenIcon';
 import { Card } from '@/components/ui/Card';
 import { InfoRow } from '@/components/ui/InfoRow';
@@ -18,6 +19,7 @@ import {
   SEND_CHAIN_OPTIONS,
 } from '@/integration/sendTransactions';
 import { useAccount } from '@/integration/useAccount';
+import { chainDisplay } from '@/integration/planPreviewFormatters';
 import { useWalletAssets } from '@/integration/walletTokens';
 import { formatUsd } from '@/lib/format';
 
@@ -53,7 +55,7 @@ export function SendScreen() {
         holding: selectedHolding,
         recipient,
       });
-      return `Ready on chain ${request.chainId}`;
+      return `Ready on ${chainDisplay(request.chainId).label}`;
     } catch (error) {
       return error instanceof Error ? error.message : 'Enter send details';
     }
@@ -116,8 +118,9 @@ export function SendScreen() {
             {SEND_CHAIN_OPTIONS.map((chain) => (
               <Tap
                 key={chain.key}
-                className="rounded-full border border-line px-3 py-2"
+                className="flex-row items-center gap-1.5 rounded-full border border-line px-3 py-2"
               >
+                <ChainMark chainKey={chain.key} size={13} />
                 <Text className="font-mono text-[10px] text-ink-dim">
                   {chain.label}
                 </Text>
