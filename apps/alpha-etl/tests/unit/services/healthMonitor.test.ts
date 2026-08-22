@@ -234,18 +234,6 @@ describe("HealthMonitor", () => {
   });
 
   describe("Edge cases", () => {
-    it.skip("handles very short intervals", async () => {
-      // Skipping: vi.waitFor() advances timers while polling,
-      // causing very short intervals to fire multiple times unexpectedly
-      const pingDatabaseSpy = vi
-        .spyOn(database, "pingDatabase")
-        .mockResolvedValue(true);
-
-      startDatabaseHealthMonitor(100); // 100ms interval
-
-      await vi.waitFor(() => expect(pingDatabaseSpy).toHaveBeenCalledTimes(1));
-    });
-
     it("handles very long intervals", async () => {
       const pingDatabaseSpy = vi
         .spyOn(database, "pingDatabase")
@@ -257,27 +245,6 @@ describe("HealthMonitor", () => {
 
       await vi.advanceTimersByTimeAsync(3600000);
       await vi.waitFor(() => expect(pingDatabaseSpy).toHaveBeenCalledTimes(2));
-    });
-
-    it.skip("handles interval of 0 (runs continuously)", async () => {
-      // Skipping this test as setInterval(0) runs infinitely fast
-      // and causes test timeout in fake timer mode
-      const pingDatabaseSpy = vi
-        .spyOn(database, "pingDatabase")
-        .mockResolvedValue(true);
-
-      startDatabaseHealthMonitor(0);
-      await vi.waitFor(() => expect(pingDatabaseSpy).toHaveBeenCalled());
-    });
-
-    it.skip("handles negative intervals (treated as 0)", async () => {
-      // Skipping as negative intervals behave like 0 (continuous running)
-      const pingDatabaseSpy = vi
-        .spyOn(database, "pingDatabase")
-        .mockResolvedValue(true);
-
-      startDatabaseHealthMonitor(-1000);
-      await vi.waitFor(() => expect(pingDatabaseSpy).toHaveBeenCalled());
     });
 
     it("updates state even when transitioning between same status", async () => {
