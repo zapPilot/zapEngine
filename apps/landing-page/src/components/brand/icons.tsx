@@ -94,7 +94,10 @@ export function TokenIcon({
 
   if (source) {
     return (
-      <span className="token-icon" style={{ display: 'inline-flex' }}>
+      <span
+        className="token-icon"
+        style={{ display: 'inline-flex', height: size, width: size }}
+      >
         <MarkImage alt="" radius="999px" size={size} source={source} />
       </span>
     );
@@ -219,7 +222,9 @@ export function TokenIconPair({
             borderRadius: '999px',
             boxShadow: '0 0 0 1.5px #0a0a0a',
             display: 'inline-flex',
+            height: size,
             marginLeft: index === 0 ? 0 : -size * 0.35,
+            width: size,
           }}
         >
           <TokenIcon symbol={symbol} size={size} />
