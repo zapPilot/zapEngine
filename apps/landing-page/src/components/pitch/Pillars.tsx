@@ -1,6 +1,7 @@
 import { ALLOCATION_PILLARS } from '@/config/allocation';
 import { AllocationBar } from '@/components/primitives/AllocationBar';
 import { Section } from '@/components/primitives/Section';
+import { TokenIcon, TokenIconPair } from '@/components/brand/icons';
 
 const PILLAR_DETAILS: Record<
   (typeof ALLOCATION_PILLARS)[number]['key'],
@@ -36,7 +37,11 @@ export function Pillars() {
       <div className="pillar-card-grid">
         {ALLOCATION_PILLARS.map((pillar) => (
           <article className="pillar-card" key={pillar.key}>
-            <div className={`pillar-dot ${pillar.key}`} aria-hidden />
+            {pillar.symbols.length === 2 ? (
+              <TokenIconPair symbols={pillar.symbols} size={18} />
+            ) : (
+              <TokenIcon symbol={pillar.symbols[0]} size={18} />
+            )}
             <p className="pillar-tag">{pillar.tag.toUpperCase()}</p>
             <h3>{pillar.label}</h3>
             <div className="brushed-stat">{pillar.weight}%</div>

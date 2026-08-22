@@ -103,6 +103,7 @@ export default function SignalsPage() {
           kicker="Relative strength"
           points={seriesWithDma(signals, 'eth_btc')}
           title="ETH/BTC Ratio"
+          tokenPair={['ETH', 'BTC']}
         />
         <SentimentChart
           caption="Source: Alternative.me Crypto Fear & Greed Index."

@@ -1,4 +1,5 @@
 import type { DailySnapshot } from '@zapengine/types/strategy';
+import { ChainIdentity } from '@/components/brand/icons';
 import { hasRebalance } from './rebalance';
 
 interface RebalanceTableProps {
@@ -38,7 +39,9 @@ export function RebalanceTable({ snapshots, className }: RebalanceTableProps) {
                 <tr key={`${snap.date}-${i}`}>
                   <td className="td-date">{snap.date}</td>
                   <td className="td-type">Rebalance</td>
-                  <td className="td-chain">{tx.chainId}</td>
+                  <td className="td-chain">
+                    <ChainIdentity chainId={tx.chainId} />
+                  </td>
                   <td className="td-hash">
                     <a
                       href={`https://etherscan.io/tx/${tx.hash}`}

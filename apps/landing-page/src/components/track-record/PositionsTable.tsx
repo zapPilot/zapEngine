@@ -1,5 +1,9 @@
 import type { DailySnapshot } from '@zapengine/types/strategy';
-import { TokenIcon } from './TokenIcon';
+import {
+  ChainIdentity,
+  ProtocolIcon,
+  TokenIcon,
+} from '@/components/brand/icons';
 
 interface PositionsTableProps {
   positions: DailySnapshot['positions'];
@@ -42,8 +46,15 @@ export function PositionsTable({ positions, className }: PositionsTableProps) {
                   </span>
                 )}
               </td>
-              <td>{pos.protocol}</td>
-              <td className="td-chain">{pos.chainId}</td>
+              <td>
+                <span className="asset-name">
+                  <ProtocolIcon protocol={pos.protocol} size={16} />
+                  {pos.protocol}
+                </span>
+              </td>
+              <td className="td-chain">
+                <ChainIdentity chainId={pos.chainId} />
+              </td>
               <td className="td-pct">{pos.weight}</td>
               <td className="td-usd">${pos.valueUsd}</td>
               <td className="td-amount">{pos.amount}</td>

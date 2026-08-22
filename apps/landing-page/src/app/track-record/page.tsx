@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { ChainIdentity } from '@/components/brand/icons';
 import { useTrackRecord } from '@/hooks/useTrackRecord';
 import { MetricsRow } from '@/components/track-record/MetricsRow';
 import { NavCurveChart } from '@/components/track-record/NavCurveChart';
@@ -102,7 +103,15 @@ export default function TrackRecordPage() {
                   {addr}
                 </a>
                 <span className="chain-badge">
-                  chain {latestSnapshot.chainIds[i] ?? '—'}
+                  {latestSnapshot.chainIds[i] === undefined ? (
+                    'chain —'
+                  ) : (
+                    <ChainIdentity
+                      chainId={latestSnapshot.chainIds[i]}
+                      size={12}
+                      unknownPrefix="chain "
+                    />
+                  )}
                 </span>
               </li>
             ))}

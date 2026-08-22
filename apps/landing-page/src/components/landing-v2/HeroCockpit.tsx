@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { TokenIcon, TokenIconPair } from '@/components/brand/icons';
+import { ALLOCATION_PILLARS } from '@/config/allocation';
 
 const REGIME_READOUT = {
   regimeLabel: 'GREED',
@@ -15,12 +17,6 @@ const NET_WORTH_USD = 128540.22;
 const COUNT_UP_DELAY_MS = 300;
 const COUNT_UP_DURATION_MS = 1400;
 const WEIGHT_CYCLE_MS = 8000;
-
-const PILLARS = [
-  { label: 'S&P 500', color: '#d7dde7' },
-  { label: 'BTC · ETH', color: '#f7931a' },
-  { label: 'Stablecoins', color: '#2775ca' },
-] as const;
 
 const INITIAL_WEIGHTS: readonly [number, number, number] = [42, 38, 20];
 const WEIGHT_STATES: ReadonlyArray<readonly [number, number, number]> = [
@@ -124,7 +120,7 @@ export function HeroCockpit() {
           <path d={SPARK_LINE} fill="none" stroke="#d4c5a3" strokeWidth={1.6} />
         </svg>
         <div className="zp-alloc-bar" aria-hidden>
-          {PILLARS.map((pillar, index) => (
+          {ALLOCATION_PILLARS.map((pillar, index) => (
             <span
               key={pillar.label}
               style={{
@@ -135,13 +131,13 @@ export function HeroCockpit() {
           ))}
         </div>
         <div className="zp-alloc-legend">
-          {PILLARS.map((pillar, index) => (
+          {ALLOCATION_PILLARS.map((pillar, index) => (
             <span key={pillar.label} className="zp-alloc-item">
-              <span
-                className="zp-alloc-swatch"
-                style={{ background: pillar.color }}
-                aria-hidden
-              />
+              {pillar.symbols.length === 2 ? (
+                <TokenIconPair symbols={pillar.symbols} size={14} />
+              ) : (
+                <TokenIcon symbol={pillar.symbols[0]} size={14} />
+              )}
               {pillar.label} <strong>{weights[index] ?? 0}%</strong>
             </span>
           ))}

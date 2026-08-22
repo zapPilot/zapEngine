@@ -19,9 +19,16 @@ export type TokenBrandSymbol =
   | 'WBTC'
   | 'CBBTC'
   | 'BTC'
-  | 'SPY';
+  | 'SPY'
+  | 'ALT';
 
-export type ProtocolBrandKey = 'morpho' | 'gmx-v2' | 'hyperliquid' | 'ondo';
+export type ProtocolBrandKey =
+  | 'morpho'
+  | 'gmx-v2'
+  | 'hyperliquid'
+  | 'ondo'
+  | 'aave'
+  | 'lido';
 
 export interface ChainBrand {
   /** Human-readable chain name, safe for an accessibility label. */
@@ -64,6 +71,7 @@ export const TOKEN_BRAND: Record<TokenBrandSymbol, TokenBrand> = {
   CBBTC: { label: 'Coinbase Wrapped BTC', color: '#0052ff', glyph: '₿' },
   BTC: { label: 'Bitcoin', color: '#f7931a', glyph: '₿' },
   SPY: { label: 'S&P 500', color: '#d7dde7', glyph: 'S' },
+  ALT: { label: 'Altcoins', color: '#6b7280', glyph: 'A' },
 };
 
 export const PROTOCOL_BRAND: Record<ProtocolBrandKey, ProtocolBrand> = {
@@ -71,6 +79,8 @@ export const PROTOCOL_BRAND: Record<ProtocolBrandKey, ProtocolBrand> = {
   'gmx-v2': { label: 'GMX', color: '#4e09f8' },
   hyperliquid: { label: 'Hyperliquid', color: '#50d2c1' },
   ondo: { label: 'Ondo', color: '#f4f4f5' },
+  aave: { label: 'Aave', color: '#9896ff' },
+  lido: { label: 'Lido', color: '#00a3ff' },
 };
 
 const CHAIN_BRAND_KEY_BY_CHAIN_ID = new Map<number, ChainBrandKey>(

@@ -1,10 +1,10 @@
 import type { CSSProperties } from 'react';
 import type { MarketDmaPoint } from '@/data/market-signals';
+import { TokenIcon, TokenIconPair } from '@/components/brand/icons';
 import * as geometry from './chartGeometry';
 import { ChartAxis } from './ChartAxis';
 import { ChartEmptyState } from './ChartEmptyState';
 import { ChartLegend } from './ChartLegend';
-import { TokenIcon } from './TokenIcon';
 
 interface MarketSeriesChartProps {
   kicker: string;
@@ -16,6 +16,7 @@ interface MarketSeriesChartProps {
   caption?: string;
   className?: string;
   tokenSymbol?: string;
+  tokenPair?: readonly [string, string];
 }
 
 export function MarketSeriesChart({
@@ -28,6 +29,7 @@ export function MarketSeriesChart({
   caption,
   className,
   tokenSymbol,
+  tokenPair,
 }: MarketSeriesChartProps) {
   if (points.length === 0) {
     return (
@@ -67,7 +69,11 @@ export function MarketSeriesChart({
         <div>
           <p className="market-series-kicker">{kicker}</p>
           <h3>
-            {tokenSymbol ? <TokenIcon symbol={tokenSymbol} size={22} /> : null}
+            {tokenPair ? (
+              <TokenIconPair symbols={tokenPair} size={18} />
+            ) : tokenSymbol ? (
+              <TokenIcon symbol={tokenSymbol} size={22} />
+            ) : null}
             {title}
           </h3>
         </div>
