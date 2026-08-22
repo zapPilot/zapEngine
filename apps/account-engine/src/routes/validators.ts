@@ -46,12 +46,16 @@ export const jobIdParamSchema = z.object({
   jobId: z.string().min(1),
 });
 
-export const walletAddressParamSchema = uuidParamSchema.extend({
+export const walletOnlyParamSchema = z.object({
   walletAddress: z.string().refine(isWalletAddress, {
     message:
       'Wallet address must be a valid Ethereum address (42 characters starting with 0x)',
   }),
 });
+
+export const walletAddressParamSchema = uuidParamSchema.extend(
+  walletOnlyParamSchema.shape,
+);
 
 export const walletIdParamSchema = uuidParamSchema.extend({
   walletId: zUuid(),

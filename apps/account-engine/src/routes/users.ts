@@ -15,10 +15,22 @@ import {
   walletAddressParamSchema,
   walletBodySchema,
   walletIdParamSchema,
+  walletOnlyParamSchema,
 } from './validators';
 
 export function createUsersRoutes(services: AppServices) {
   const app = new Hono();
+
+  app.get(
+    '/by-wallet/:walletAddress',
+    paramValidator(walletOnlyParamSchema),
+    async (c) => {
+      const { walletAddress } = c.req.valid('param');
+      const response =
+        await services.usersService.getUserByWallet(walletAddress);
+      return jsonResponse(c, response, HttpStatus.OK);
+    },
+  );
 
   app.post('/connect-wallet', jsonValidator(walletBodySchema), async (c) => {
     const body = c.req.valid('json');

@@ -52,6 +52,7 @@ const ADD_WALLET_ERROR = 'Failed to add wallet';
 const REMOVE_OPERATION_NAME = 'wallet removal';
 const ADD_OPERATION_NAME = 'adding wallet';
 const VERIFY_WALLET_ERROR = 'Failed to verify wallet';
+const VERIFY_SIGNER_ERROR = 'Switch to this wallet before verifying ownership';
 const VERIFY_OPERATION_NAME = 'verifying wallet';
 
 function createFailureResult(error: string): WalletMutationResult {
@@ -154,18 +155,10 @@ export function useWalletMutations({
       setAddingState(true, null);
 
       try {
-        let signature: string | undefined;
-        if (equalsAddress(signingAddress, newWallet.address)) {
-          const challenge = await requestWalletBindingChallenge(
-            userId,
-            newWallet.address,
-          );
-          signature = await signMessage(challenge.message);
-        }
         const response = await addWalletToBundle(
           userId,
           newWallet.address,
-          signature,
+          undefined,
           newWallet.label,
         );
 
@@ -193,21 +186,21 @@ export function useWalletMutations({
         return createFailureResult(errorMessage);
       }
     },
-    [
-      userId,
-      signingAddress,
-      signMessage,
-      loadWallets,
-      queryClient,
-      refetch,
-      setAddingState,
-    ],
+    [userId, loadWallets, queryClient, refetch, setAddingState],
   );
 
   const handleVerifyWallet = useCallback(
     async (walletAddress: string): Promise<WalletMutationResult> => {
       if (!userId) {
         return createFailureResult(USER_ID_REQUIRED_ERROR);
+      }
+
+      if (!equalsAddress(signingAddress, walletAddress)) {
+        setWalletOperationState('verifying', walletAddress, {
+          isLoading: false,
+          error: VERIFY_SIGNER_ERROR,
+        });
+        return createFailureResult(VERIFY_SIGNER_ERROR);
       }
 
       setWalletOperationState('verifying', walletAddress, {
@@ -258,6 +251,7 @@ export function useWalletMutations({
     },
     [
       userId,
+      signingAddress,
       signMessage,
       setWalletOperationState,
       queryClient,

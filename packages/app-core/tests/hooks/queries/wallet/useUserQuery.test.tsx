@@ -6,12 +6,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   connectWallet: vi.fn(),
+  getUserByWallet: vi.fn(),
   getUserProfile: vi.fn(),
   activeAddress: { value: null as string | null },
 }));
 
 vi.mock('@core/services/accountService', () => ({
   connectWallet: mocks.connectWallet,
+  getUserByWallet: mocks.getUserByWallet,
   getUserProfile: mocks.getUserProfile,
 }));
 
@@ -30,10 +32,11 @@ import {
 
 const USER_ID = '5fc63d4e-4e07-47d8-840b-ccd3420d553f';
 
-function createWrapper() {
-  const client = new QueryClient({
+function createWrapper(
+  client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
-  });
+  }),
+) {
   return ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client }, children);
 }
@@ -53,6 +56,7 @@ function mockProfile(isSubscribedToReports: boolean) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.activeAddress.value = null;
+  mocks.getUserByWallet.mockResolvedValue({ user_id: USER_ID });
 });
 
 describe('useCurrentUser session identity', () => {
@@ -76,6 +80,31 @@ describe('useCurrentUser session identity', () => {
     expect(result.current.connectedWallet).toBe('0xbbb');
     expect(mocks.connectWallet).toHaveBeenCalledTimes(1);
     expect(mocks.connectWallet).toHaveBeenCalledWith('0xaaa');
+    expect(mocks.getUserByWallet).toHaveBeenCalledWith('0xaaa');
+  });
+
+  it('does not bootstrap the account again after the query cache is cleared', async () => {
+    mocks.activeAddress.value = '0xaaa';
+    mocks.connectWallet.mockResolvedValue({
+      user_id: USER_ID,
+      is_new_user: false,
+    });
+    mockProfile(true);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+
+    const { result, rerender } = renderHook(() => useCurrentUser(), {
+      wrapper: createWrapper(client),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    client.clear();
+    rerender();
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mocks.connectWallet).toHaveBeenCalledTimes(1);
+    expect(mocks.getUserByWallet.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 });
 

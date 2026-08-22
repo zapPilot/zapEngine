@@ -37,11 +37,11 @@ describe('toWalletRows', () => {
     expect(rows.map((row) => row.isVerified)).toEqual([false, true]);
   });
 
-  it('marks nothing active without a connected address', () => {
+  it('keeps unverified wallets verifiable even when they are not active', () => {
     const rows = toWalletRows(WALLETS, null);
 
     expect(rows.every((row) => !row.isActive)).toBe(true);
-    expect(rows.every((row) => !row.canVerify)).toBe(true);
+    expect(rows.map((row) => row.canVerify)).toEqual([true, false]);
   });
 
   it('preserves order, ids, and labels', () => {

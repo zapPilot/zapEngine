@@ -113,8 +113,6 @@ export function WalletsScreen() {
               </Text>
               <AddWalletForm
                 busy={manager.addingState.isLoading}
-                activeAddress={account.address}
-                onConnectWallet={manager.connectWallet}
                 onSubmit={manager.addWallet}
                 onDone={() => {
                   setShowAddForm(false);
@@ -134,8 +132,8 @@ export function WalletsScreen() {
         </View>
 
         <Text className="mt-3 text-[11.5px] leading-[17px] text-ink-faint">
-          You can add a wallet before connecting it. Switch to that wallet and
-          verify ownership before portfolio tracking begins.
+          Bundle membership and ownership proof are separate. Added wallets stay
+          unverified until you use Verify and sign with that wallet.
         </Text>
       </View>
     </ScreenScrollView>

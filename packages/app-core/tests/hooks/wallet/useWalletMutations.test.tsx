@@ -132,24 +132,8 @@ describe('useWalletMutations ownership proof', () => {
     expect(mocks.invalidateAndRefetch).toHaveBeenCalled();
   });
 
-  it('requests, signs, and submits the ownership challenge in order', async () => {
-    const callOrder: string[] = [];
-    mocks.requestWalletBindingChallenge.mockImplementation(async () => {
-      callOrder.push('challenge');
-      return {
-        nonce: 'a'.repeat(64),
-        message: 'ownership-message',
-        expiresAt: '2026-08-22T00:05:00.000Z',
-      };
-    });
-    const signMessage = vi.fn(async () => {
-      callOrder.push('sign');
-      return '0xsignature';
-    });
-    mocks.addWallet.mockImplementation(async () => {
-      callOrder.push('submit');
-      return { success: true };
-    });
+  it('adds the active wallet without verifying it', async () => {
+    const signMessage = vi.fn().mockResolvedValue('0xsignature');
     const { result } = renderHook(
       () => useHarness(WALLET.toLowerCase(), signMessage),
       { wrapper: createWrapper() },
@@ -164,17 +148,33 @@ describe('useWalletMutations ownership proof', () => {
       ).resolves.toEqual({ success: true });
     });
 
-    expect(callOrder).toEqual(['challenge', 'sign', 'submit']);
-    expect(mocks.requestWalletBindingChallenge).toHaveBeenCalledWith(
-      USER_ID,
-      WALLET,
-    );
-    expect(signMessage).toHaveBeenCalledWith('ownership-message');
+    expect(mocks.requestWalletBindingChallenge).not.toHaveBeenCalled();
+    expect(signMessage).not.toHaveBeenCalled();
     expect(mocks.addWallet).toHaveBeenCalledWith(
       USER_ID,
       WALLET,
-      '0xsignature',
+      undefined,
       'Owned wallet',
     );
+  });
+
+  it('refuses to verify when the active signer is not the target wallet', async () => {
+    const signMessage = vi.fn();
+    const { result } = renderHook(
+      () =>
+        useHarness('0x0000000000000000000000000000000000000001', signMessage),
+      { wrapper: createWrapper() },
+    );
+
+    await act(async () => {
+      await expect(result.current.handleVerifyWallet(WALLET)).resolves.toEqual({
+        success: false,
+        error: 'Switch to this wallet before verifying ownership',
+      });
+    });
+
+    expect(mocks.requestWalletBindingChallenge).not.toHaveBeenCalled();
+    expect(signMessage).not.toHaveBeenCalled();
+    expect(mocks.verifyWallet).not.toHaveBeenCalled();
   });
 });

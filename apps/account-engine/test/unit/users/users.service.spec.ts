@@ -112,6 +112,35 @@ function createMocks() {
 
 describe('UsersService', () => {
   // -----------------------------------------------------------------------
+  // getUserByWallet
+  // -----------------------------------------------------------------------
+  describe('getUserByWallet', () => {
+    it('performs a pure service-role lookup without invoking account bootstrap', async () => {
+      const { service, dbMock, srQb } = createMocks();
+      srQb.single.mockResolvedValue({
+        data: { user_id: 'user-1' },
+        error: null,
+      });
+
+      await expect(
+        service.getUserByWallet('0x1234567890abcdef1234567890abcdef12345678'),
+      ).resolves.toEqual({ user_id: 'user-1' });
+
+      expect(dbMock.mock.getServiceRoleClient).toHaveBeenCalled();
+      expect(dbMock.serviceRole.client.from).toHaveBeenCalledWith(
+        'user_crypto_wallets',
+      );
+      expect(dbMock.mock.getClient).not.toHaveBeenCalled();
+      expect(srQb.select).toHaveBeenCalledWith('user_id');
+      expect(srQb.eq).toHaveBeenCalledWith(
+        'wallet',
+        '0x1234567890abcdef1234567890abcdef12345678',
+      );
+      expect(dbMock.mock.rpc).not.toHaveBeenCalled();
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // connectWallet
   // -----------------------------------------------------------------------
   describe('connectWallet', () => {

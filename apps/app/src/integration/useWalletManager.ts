@@ -5,6 +5,7 @@ import {
 } from '@zapengine/app-core/hooks/wallet';
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
 import type { WalletData } from '@zapengine/app-core/lib/validation/walletUtils';
+import { equalsAddress } from '@zapengine/types/shared';
 import type {
   EditingWallet,
   NewWallet,
@@ -28,7 +29,6 @@ export interface WalletManager {
   wallets: WalletData[];
   isRefreshing: boolean;
   reload: () => Promise<void>;
-  connectWallet: () => Promise<void>;
   addWallet: (
     wallet: NewWallet,
   ) => Promise<{ success: boolean; error?: string }>;
@@ -92,6 +92,7 @@ export function useWalletManager(
     signingAddress: activeAddress,
     signMessage: walletProvider.signMessage,
   });
+  const verifyBundledWallet = mutations.handleVerifyWallet;
   const labels = useWalletLabels({
     userId: userId ?? '',
     wallets: list.wallets,
@@ -105,14 +106,27 @@ export function useWalletManager(
     await loadWallets();
   }, [loadWallets]);
 
+  const verifyWallet = useCallback(
+    async (walletAddress: string) => {
+      if (!equalsAddress(activeAddress, walletAddress)) {
+        await walletProvider.connect();
+        return {
+          success: false,
+          error: 'Select this wallet, then tap Verify again.',
+        };
+      }
+      return verifyBundledWallet(walletAddress);
+    },
+    [activeAddress, verifyBundledWallet, walletProvider],
+  );
+
   return {
     wallets: list.wallets,
     isRefreshing: list.isRefreshing,
     reload,
-    connectWallet: walletProvider.connect,
     addWallet: mutations.handleAddWallet,
     addingState: mutations.addingState,
-    verifyWallet: mutations.handleVerifyWallet,
+    verifyWallet,
     verifying: mutations.verifyingState,
     deleteWallet: mutations.handleDeleteWallet,
     removing: operations.removing,

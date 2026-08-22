@@ -76,6 +76,21 @@ export class UsersService extends BaseService {
     super(databaseService);
   }
 
+  async getUserByWallet(wallet: string): Promise<{ user_id: string }> {
+    return this.withErrorHandling(async () => {
+      const binding = await this.findOne<{ user_id: string }>(
+        'user_crypto_wallets',
+        { wallet },
+        {
+          select: 'user_id',
+          entityName: 'Wallet',
+          useServiceRole: true,
+        },
+      );
+      return { user_id: binding!.user_id };
+    }, 'fetch user by wallet');
+  }
+
   async connectWallet(wallet: string): Promise<ConnectWalletResponse> {
     return this.withErrorHandling(async () => {
       const result = (await this.databaseService.rpc(

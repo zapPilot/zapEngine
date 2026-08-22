@@ -1,9 +1,17 @@
+import {
+  isAccountBootstrapSuspended,
+  resumeAccountBootstrap,
+} from '@core/lib/state/accountBootstrap';
 import { queryKeys } from '@core/lib/state/queryClient';
 import { useWalletProvider } from '@core/providers/walletContext';
 import type { UserProfileResponse } from '@core/schemas/api/accountSchemas';
-import { connectWallet, getUserProfile } from '@core/services/accountService';
+import {
+  connectWallet,
+  getUserByWallet,
+  getUserProfile,
+} from '@core/services/accountService';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { createQueryConfig } from '../queryDefaults';
 
@@ -109,29 +117,21 @@ function buildUserQuery(
 }
 
 /** Hook to get user by wallet address */
-export function useUserByWallet(walletAddress: string | null) {
+export function useUserByWallet(walletAddress: string | null, enabled = true) {
   return useQuery(
     buildUserQuery(
       queryKeys.user.byWallet(walletAddress || ''),
-      walletAddress,
+      enabled ? walletAddress : null,
       async () => {
         if (!walletAddress) throw new Error('No wallet address provided');
 
-        const connectResponse = await connectWallet(walletAddress);
-        const {
-          user_id: userId,
-          is_new_user: isNewUser,
-          etl_job,
-        } = connectResponse;
-
+        const { user_id: userId } = await getUserByWallet(walletAddress);
         const profileData: UserProfileResponse = await getUserProfile(userId);
 
         return buildUserInfo({
           userId,
           profileData,
           fallbackWallet: walletAddress,
-          isNewUser,
-          etlJobId: etl_job?.job_id ?? null,
         });
       },
     ),
@@ -150,22 +150,86 @@ export function useCurrentUser() {
   const [sessionWallet, setSessionWallet] = useState<string | null>(
     connectedWallet,
   );
+  const previousSessionWallet = useRef<string | null>(sessionWallet);
+  const [bootstrappedWallet, setBootstrappedWallet] = useState<string | null>(
+    null,
+  );
+  const [bootstrapError, setBootstrapError] = useState<Error | null>(null);
+
   useEffect(() => {
     if (!connectedWallet) {
+      const previous = previousSessionWallet.current;
+      if (previous) {
+        resumeAccountBootstrap(previous);
+      }
+      previousSessionWallet.current = null;
       setSessionWallet(null);
+      setBootstrappedWallet(null);
     } else {
-      setSessionWallet((current) => current ?? connectedWallet);
+      if (previousSessionWallet.current === null) {
+        // A genuinely new wallet session may bootstrap again. A wallet that
+        // never disconnected after account deletion stays suspended.
+        resumeAccountBootstrap(connectedWallet);
+      }
+      setSessionWallet((current) => {
+        const next = current ?? connectedWallet;
+        previousSessionWallet.current = next;
+        return next;
+      });
     }
   }, [connectedWallet]);
 
-  const userQuery = useUserByWallet(sessionWallet);
+  const ensureSessionAccount = useCallback(async () => {
+    if (!sessionWallet || isAccountBootstrapSuspended(sessionWallet)) {
+      return false;
+    }
+    setBootstrapError(null);
+    try {
+      await connectWallet(sessionWallet);
+      if (isAccountBootstrapSuspended(sessionWallet)) {
+        return false;
+      }
+      setBootstrappedWallet(sessionWallet);
+      return true;
+    } catch (error) {
+      setBootstrapError(
+        error instanceof Error ? error : new Error(String(error)),
+      );
+      return false;
+    }
+  }, [sessionWallet]);
+
+  useEffect(() => {
+    if (!sessionWallet || bootstrappedWallet === sessionWallet) {
+      return;
+    }
+    void ensureSessionAccount();
+  }, [bootstrappedWallet, ensureSessionAccount, sessionWallet]);
+
+  const userQuery = useUserByWallet(
+    sessionWallet,
+    !!sessionWallet && bootstrappedWallet === sessionWallet,
+  );
+  const refetch = useCallback(async () => {
+    if (bootstrappedWallet !== sessionWallet) {
+      const ready = await ensureSessionAccount();
+      if (!ready) {
+        return;
+      }
+    }
+    return userQuery.refetch();
+  }, [bootstrappedWallet, ensureSessionAccount, sessionWallet, userQuery]);
 
   return {
     ...userQuery,
+    refetch,
     isConnected: !!connectedWallet,
     connectedWallet,
     userInfo: userQuery.data || null,
-    error: (userQuery.error as Error | null)?.message || null,
+    error:
+      bootstrapError?.message ??
+      (userQuery.error as Error | null)?.message ??
+      null,
   };
 }
 

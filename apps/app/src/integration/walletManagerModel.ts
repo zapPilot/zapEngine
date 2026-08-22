@@ -26,7 +26,7 @@ export function toWalletRows(
       address: wallet.address,
       isActive,
       isVerified: wallet.isVerified,
-      canVerify: isActive && !wallet.isVerified,
+      canVerify: !wallet.isVerified,
     };
   });
 }

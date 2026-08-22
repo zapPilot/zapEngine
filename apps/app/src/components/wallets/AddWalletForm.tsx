@@ -1,5 +1,4 @@
 import type { NewWallet } from '@zapengine/app-core/types';
-import { equalsAddress } from '@zapengine/types/shared';
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
@@ -8,8 +7,6 @@ import { Tap } from '@/components/ui/Tap';
 
 interface AddWalletFormProps {
   busy: boolean;
-  activeAddress: string | null;
-  onConnectWallet: () => Promise<void>;
   onSubmit: (
     wallet: NewWallet,
   ) => Promise<{ success: boolean; error?: string }>;
@@ -17,14 +14,9 @@ interface AddWalletFormProps {
   onCancel: () => void;
 }
 
-/**
- * Matching active wallets are verified while adding. Other addresses can be
- * added first and verified after the user switches wallets.
- */
+/** Adds bundle membership first; ownership verification is separate. */
 export function AddWalletForm({
   busy,
-  activeAddress,
-  onConnectWallet,
   onSubmit,
   onDone,
   onCancel,
@@ -32,7 +24,6 @@ export function AddWalletForm({
   const [label, setLabel] = useState('');
   const [address, setAddress] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const willVerifyOnAdd = equalsAddress(activeAddress, address.trim());
 
   const submit = async () => {
     setError(null);
@@ -52,21 +43,9 @@ export function AddWalletForm({
   return (
     <View className="gap-3">
       <Text className="text-[11.5px] leading-[17px] text-ink-dim">
-        Add any wallet now. To enable portfolio tracking, switch to that wallet
-        and verify ownership.
-        {activeAddress ? ` Connected: ${activeAddress}` : ''}
+        Add any wallet now. It will stay unverified until you prove ownership
+        from the wallet row.
       </Text>
-      <Tap
-        accessibilityRole="button"
-        accessibilityLabel="Choose wallet for ownership proof"
-        className="min-h-10 items-center justify-center rounded-xl border border-line bg-[rgba(255,255,255,.035)] px-3"
-        disabled={busy}
-        onPress={() => void onConnectWallet()}
-      >
-        <Text className="font-sans-semibold text-[12px] text-accent">
-          Choose wallet to verify
-        </Text>
-      </Tap>
       <TextInput
         className="rounded-2xl border border-line bg-[rgba(255,255,255,.035)] px-4 py-3 font-sans-semibold text-[13px] text-ink"
         autoCapitalize="none"
@@ -93,13 +72,7 @@ export function AddWalletForm({
       <View className="flex-row items-center gap-3">
         <View className="flex-1">
           <PrimaryButton disabled={busy} onPress={() => void submit()}>
-            {busy
-              ? willVerifyOnAdd
-                ? 'Waiting for signature…'
-                : 'Adding wallet…'
-              : willVerifyOnAdd
-                ? 'Verify & add wallet'
-                : 'Add wallet'}
+            {busy ? 'Adding wallet…' : 'Add wallet'}
           </PrimaryButton>
         </View>
         <Tap

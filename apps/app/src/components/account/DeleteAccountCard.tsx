@@ -1,3 +1,7 @@
+import {
+  resumeAccountBootstrap,
+  suspendAccountBootstrap,
+} from '@zapengine/app-core/lib/state/accountBootstrap';
 import { queryClient } from '@zapengine/app-core/lib/state/queryClient';
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
 import {
@@ -32,10 +36,19 @@ export function DeleteAccountCard() {
     try {
       const challenge = await requestAccountDeletionChallenge(userId, address);
       const signature = await wallet.signMessage(challenge.message);
-      await deleteUser(userId, address, signature);
 
-      queryClient.clear();
+      // Teardown is an explicit identity boundary: once deletion starts, no
+      // remount/refetch may bootstrap this connected wallet into a new user.
+      suspendAccountBootstrap(address);
+      try {
+        await deleteUser(userId, address, signature);
+      } catch (error) {
+        resumeAccountBootstrap(address);
+        throw error;
+      }
+
       await wallet.disconnect();
+      queryClient.clear();
       router.replace('/');
     } catch (caught) {
       setError(

@@ -21,6 +21,8 @@ import {
   validateUserWallets,
   validateVerifyWalletResponse,
   type VerifyWalletResponse,
+  type WalletUserLookupResponse,
+  walletUserLookupResponseSchema,
 } from '@core/schemas/api/accountSchemas';
 import { logger } from '@core/utils/logger';
 import type { EtlJobStatus } from '@zapengine/types/etl';
@@ -165,6 +167,19 @@ function requestOwnershipChallenge(
         wallet: walletAddress,
       }),
     validateOwnershipChallenge,
+  );
+}
+
+/** Pure wallet-to-user lookup. Never creates account state. */
+export async function getUserByWallet(
+  walletAddress: string,
+): Promise<WalletUserLookupResponse> {
+  return requestAndValidate(
+    () =>
+      getAccountResource<WalletUserLookupResponse>(
+        `/users/by-wallet/${walletAddress}`,
+      ),
+    (response) => walletUserLookupResponseSchema.parse(response),
   );
 }
 

@@ -143,6 +143,10 @@ export const etlJobTriggerResponseSchema = z.object({
   rate_limited: z.boolean().optional(),
 });
 
+export const walletUserLookupResponseSchema = z.object({
+  user_id: z.string(),
+});
+
 export const connectWalletResponseSchema = z.object({
   user_id: z.string(),
   is_new_user: z.boolean(),
@@ -206,6 +210,9 @@ export const userProfileResponseSchema = z.object({
   typeof userCryptoWalletSchema
 >;
 
+/** @public */ export type WalletUserLookupResponse = z.infer<
+  typeof walletUserLookupResponseSchema
+>;
 /** @public */ export type ConnectWalletResponse = z.infer<
   typeof connectWalletResponseSchema
 >;
