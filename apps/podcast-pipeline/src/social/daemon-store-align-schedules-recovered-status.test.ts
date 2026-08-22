@@ -10,6 +10,7 @@ const supabase = vi.hoisted(() => ({
 vi.mock('../services/supabase-client.js', () => supabase);
 
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
+import { createAlignmentReadFixture } from './daemon-store-align-schedules.test-helper.js';
 
 interface StatusRecoveryCase {
   initialStatus: 'queued' | 'failed';
@@ -79,20 +80,14 @@ async function runStatusRecoveryCase({
     };
     return builder;
   });
-  const select = vi.fn(() => ({
-    in: vi.fn(() => ({
-      returns: vi.fn(async () => {
-        listAttempt += 1;
-        if (listAttempt === 1) {
-          return { data: failedReadSnapshot, error: databaseError };
-        }
-        return { data: recoveredSnapshot, error: null };
-      }),
-    })),
-  }));
-  supabase.getPipelineSupabase.mockReturnValue({
-    from: vi.fn(() => ({ select, update })),
-  });
+  const fixture = createAlignmentReadFixture(async () => {
+    listAttempt += 1;
+    if (listAttempt === 1) {
+      return { data: failedReadSnapshot, error: databaseError };
+    }
+    return { data: recoveredSnapshot, error: null };
+  }, update);
+  supabase.getPipelineSupabase.mockReturnValue(fixture.client);
 
   await expect(alignPendingSocialPublishSchedules()).rejects.toBe(
     databaseError,
@@ -193,18 +188,12 @@ describe('alignPendingSocialPublishSchedules recovered status changes', () => {
       };
       return builder;
     });
-    const select = vi.fn(() => ({
-      in: vi.fn(() => ({
-        returns: vi.fn(async () => {
-          const snapshot = snapshots[listAttempt] ?? [];
-          listAttempt += 1;
-          return { data: snapshot, error: null };
-        }),
-      })),
-    }));
-    supabase.getPipelineSupabase.mockReturnValue({
-      from: vi.fn(() => ({ select, update })),
-    });
+    const fixture = createAlignmentReadFixture(async () => {
+      const snapshot = snapshots[listAttempt] ?? [];
+      listAttempt += 1;
+      return { data: snapshot, error: null };
+    }, update);
+    supabase.getPipelineSupabase.mockReturnValue(fixture.client);
 
     await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
     await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
