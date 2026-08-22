@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   verifyWallet: vi.fn(),
   invalidateAndRefetch: vi.fn(),
   refetch: vi.fn(),
+  loadWallets: vi.fn(),
+  setWalletOperationState: vi.fn(),
 }));
 
 vi.mock('@core/services', () => ({
@@ -60,8 +62,8 @@ function useHarness(
     operations,
     setOperations,
     setWallets,
-    setWalletOperationState: vi.fn(),
-    loadWallets: vi.fn(),
+    setWalletOperationState: mocks.setWalletOperationState,
+    loadWallets: mocks.loadWallets,
     signingAddress,
     signMessage,
   });
@@ -70,6 +72,7 @@ function useHarness(
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.invalidateAndRefetch.mockResolvedValue(undefined);
+  mocks.loadWallets.mockResolvedValue(undefined);
   mocks.addWallet.mockResolvedValue({ success: true });
   mocks.verifyWallet.mockResolvedValue({ success: true });
   mocks.requestWalletBindingChallenge.mockResolvedValue({
@@ -130,7 +133,68 @@ describe('useWalletMutations ownership proof', () => {
       '0xsignature',
     );
     expect(mocks.invalidateAndRefetch).toHaveBeenCalled();
+    expect(mocks.loadWallets).toHaveBeenCalledOnce();
   });
+
+  it('does not refresh wallet state when verification fails', async () => {
+    mocks.verifyWallet.mockResolvedValue({
+      success: false,
+      error: 'Verification rejected',
+    });
+    const signMessage = vi.fn().mockResolvedValue('0xsignature');
+    const { result } = renderHook(() => useHarness(WALLET, signMessage), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await expect(result.current.handleVerifyWallet(WALLET)).resolves.toEqual({
+        success: false,
+        error: 'Verification rejected',
+      });
+    });
+
+    expect(mocks.invalidateAndRefetch).not.toHaveBeenCalled();
+    expect(mocks.loadWallets).not.toHaveBeenCalled();
+    expect(mocks.setWalletOperationState).toHaveBeenLastCalledWith(
+      'verifying',
+      WALLET,
+      {
+        isLoading: false,
+        error: 'Verification rejected',
+      },
+    );
+  });
+
+  it.each([
+    ['query invalidation', 'invalidateAndRefetch'],
+    ['wallet reload', 'loadWallets'],
+  ] as const)(
+    'keeps server verification successful when %s fails',
+    async (_label, failingRefresh) => {
+      mocks[failingRefresh].mockRejectedValueOnce(new Error('refresh failed'));
+      const signMessage = vi.fn().mockResolvedValue('0xsignature');
+      const { result } = renderHook(() => useHarness(WALLET, signMessage), {
+        wrapper: createWrapper(),
+      });
+
+      await act(async () => {
+        await expect(result.current.handleVerifyWallet(WALLET)).resolves.toEqual({
+          success: true,
+        });
+      });
+
+      expect(mocks.invalidateAndRefetch).toHaveBeenCalledOnce();
+      expect(mocks.loadWallets).toHaveBeenCalledOnce();
+      expect(mocks.setWalletOperationState).toHaveBeenLastCalledWith(
+        'verifying',
+        WALLET,
+        {
+          isLoading: false,
+          error: null,
+        },
+      );
+    },
+  );
 
   it('adds the active wallet without verifying it', async () => {
     const signMessage = vi.fn().mockResolvedValue('0xsignature');

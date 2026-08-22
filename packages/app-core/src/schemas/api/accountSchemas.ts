@@ -163,9 +163,9 @@ export const addWalletResponseSchema = z.object({
 });
 
 export const verifyWalletResponseSchema = z.object({
-  success: z.boolean(),
+  success: z.literal(true),
   message: z.string(),
-  ownership_verified_at: z.string(),
+  ownership_verified_at: z.iso.datetime({ offset: true }),
 });
 
 export const ownershipChallengeSchema = z.object({
