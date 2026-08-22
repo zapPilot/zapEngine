@@ -52,11 +52,15 @@ export interface MappedActivityEvent extends ActivityEvent {
   sourceChain: MoralisWalletChain;
 }
 
-export const ACTIVITY_BURST_WINDOW_MS = 15 * 60 * 1000;
-
 const CATEGORY_ORDER = Object.keys(
   ALLOCATION_CATEGORIES,
 ) as AllocationCategoryKey[];
+
+const NATIVE_FEE_SYMBOL = {
+  eth: 'ETH',
+  base: 'ETH',
+  arbitrum: 'ETH',
+} satisfies Record<MoralisWalletChain, string>;
 
 const STORY_LABEL: Record<AllocationCategoryKey, string> = {
   btc: 'BTC',
@@ -86,18 +90,25 @@ function protocolLabel(event: MoralisWalletHistoryEvent): string | undefined {
 
 function gasFeeLabel(
   value: string | number | null | undefined,
+  symbol: string,
 ): string | undefined {
   const fee = numberFrom(value);
-  if (fee === null || fee < 0) {
+  if (fee === null || fee <= 0) {
     return undefined;
   }
-  if (fee > 0 && fee < 0.0001) {
-    return '< 0.0001 ETH';
+  if (fee < 0.000001) {
+    return `< 0.000001 ${symbol}`;
   }
   const formatted = fee.toLocaleString('en-US', {
     maximumFractionDigits: 6,
   });
-  return `${formatted} ETH`;
+  return `${formatted} ${symbol}`;
+}
+
+function possibleSpam(
+  value: MoralisWalletHistoryEvent['possible_spam'],
+): boolean {
+  return value === true || value === 'true' || value === 1;
 }
 
 function transferTokenAddress(transfer: MoralisWalletTransfer): string | null {
@@ -389,6 +400,7 @@ function describeEventDeltas(
 export function mapMoralisEvent(
   context: ActivityChainContext,
   event: MoralisWalletHistoryEvent,
+  options: { ownAddresses?: ReadonlySet<string> } = {},
 ): MappedActivityEvent | null {
   const transfers = collectSupportedTransfers(context.moralis, event);
   const hasInteractionMetadata = Boolean(
@@ -398,7 +410,9 @@ export function mapMoralisEvent(
   );
   const kind =
     classifyKind(transfers) ??
-    (hasInteractionMetadata ? ('contract-interaction' as const) : null);
+    (hasInteractionMetadata && !possibleSpam(event.possible_spam)
+      ? ('contract-interaction' as const)
+      : null);
   if (!kind) {
     return null;
   }
@@ -410,7 +424,13 @@ export function mapMoralisEvent(
   );
   const timestamp = Date.parse(event.block_timestamp ?? '');
   const protocol = protocolLabel(event);
-  const gasFee = gasFeeLabel(event.transaction_fee);
+  const sender = event.from_address?.trim().toLowerCase();
+  const senderIsExternal = Boolean(
+    sender && options.ownAddresses?.size && !options.ownAddresses.has(sender),
+  );
+  const gasFee = senderIsExternal
+    ? undefined
+    : gasFeeLabel(event.transaction_fee, NATIVE_FEE_SYMBOL[context.moralis]);
 
   return {
     id: `${context.moralis}-${event.hash}`,
@@ -438,84 +458,6 @@ export function mapMoralisEvent(
     timestamp: Number.isNaN(timestamp) ? 0 : timestamp,
     symbolDeltas,
   };
-}
-
-function mergeBurst(run: readonly MappedActivityEvent[]): MappedActivityEvent {
-  const newest = run[0]!;
-  const symbolDeltas = aggregateSymbolDeltas(
-    run.flatMap((event) => event.symbolDeltas),
-  );
-  const { categoryDeltas, primary, category, dominant } = describeEventDeltas(
-    newest.kind,
-    symbolDeltas,
-  );
-  const txCount = run.reduce((total, event) => total + (event.txCount ?? 1), 0);
-  const failedCount = run.reduce(
-    (total, event) =>
-      total + (event.status === 'Failed' ? (event.txCount ?? 1) : 0),
-    0,
-  );
-  const partialFailure = failedCount > 0 && failedCount < txCount;
-
-  return {
-    id: `${newest.sourceChain}-burst-${newest.hash}`,
-    hash: newest.hash,
-    sourceChain: newest.sourceChain,
-    kind: newest.kind,
-    title:
-      newest.kind === 'rebalance'
-        ? 'Rebalanced portfolio'
-        : composeTitle(newest.kind, symbolDeltas),
-    ...amountPresentation(dominant),
-    status: failedCount === txCount ? 'Failed' : 'Completed',
-    meta:
-      `${newest.meta} · ${txCount} transactions` +
-      (partialFailure ? ` · ${failedCount} failed` : ''),
-    time: newest.time,
-    ...(category ? { category } : {}),
-    ...(primary ? { tokenSymbol: primary.symbol } : {}),
-    categoryDeltas,
-    txCount,
-    chain: newest.chain,
-    timestamp: newest.timestamp,
-    symbolDeltas,
-  };
-}
-
-export function collapseBursts(
-  events: readonly MappedActivityEvent[],
-  windowMs: number = ACTIVITY_BURST_WINDOW_MS,
-): MappedActivityEvent[] {
-  const collapsed: MappedActivityEvent[] = [];
-  let run: MappedActivityEvent[] = [];
-
-  const flush = (): void => {
-    if (run.length === 1) {
-      collapsed.push(run[0]!);
-    } else if (run.length > 1) {
-      collapsed.push(mergeBurst(run));
-    }
-    run = [];
-  };
-
-  for (const event of events) {
-    const previous = run[run.length - 1];
-    const gap = previous ? previous.timestamp - event.timestamp : 0;
-    const sameBurst =
-      previous !== undefined &&
-      previous.chain === event.chain &&
-      previous.kind === event.kind &&
-      previous.timestamp > 0 &&
-      event.timestamp > 0 &&
-      gap >= 0 &&
-      gap <= windowMs;
-    if (!sameBurst) {
-      flush();
-    }
-    run.push(event);
-  }
-  flush();
-  return collapsed;
 }
 
 export function summarizeCategoryFlows(

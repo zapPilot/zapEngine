@@ -10,6 +10,7 @@ import { Linking, Text, View } from 'react-native';
 
 import { ChainMark } from '@/components/token/ChainMark';
 import { ProtocolIcon } from '@/components/token/ProtocolIcon';
+import { TokenIcon } from '@/components/token/TokenIcon';
 import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { Tap } from '@/components/ui/Tap';
@@ -45,10 +46,14 @@ function actionLabel(event: ActivityEvent): string {
   return event.title;
 }
 
-function protocolLabel(protocol: string | undefined): string {
-  if (!protocol) return 'Contract interaction';
+function protocolLabel(protocol: string | undefined): string | undefined {
+  if (!protocol) return undefined;
   const key = protocolBrandKeyFor(protocol);
   return key ? PROTOCOL_BRAND[key].label : protocol;
+}
+
+function compactHash(hash: string): string {
+  return `${hash.slice(0, 6)}…${hash.slice(-4)}`;
 }
 
 function flowLabels(event: ActivityEvent): string[] {
@@ -80,7 +85,12 @@ export function ActivityRow({
   const txUrl = explorerUrl(event);
   const chainLabel = event.chain ? CHAIN_BRAND[event.chain].label : event.meta;
   const flows = flowLabels(event);
-  const venue = protocolLabel(event.protocol);
+  const venue =
+    protocolLabel(event.protocol) ??
+    (event.kind === 'contract-interaction'
+      ? 'Contract interaction'
+      : undefined);
+  const hashLabel = event.txHash ? compactHash(event.txHash) : undefined;
   const accessibilityLabel = [
     actionLabel(event),
     venue,
@@ -109,24 +119,26 @@ export function ActivityRow({
             {event.txHash && txUrl ? (
               <Tap
                 className="flex-row items-center gap-1"
+                hitSlop={12}
                 accessibilityRole="link"
-                accessibilityLabel={`Open transaction ${event.txHash} in explorer`}
+                accessibilityLabel={`Open transaction ${hashLabel} in explorer`}
                 onPress={() => void Linking.openURL(txUrl)}
               >
                 <Text className="font-mono text-[10.5px] text-ink-faint underline">
-                  {`${event.txHash.slice(0, 6)}…${event.txHash.slice(-4)}`}
+                  {hashLabel}
                 </Text>
                 <ExternalLink size={11} strokeWidth={1.8} color="#a1a1aa" />
               </Tap>
             ) : event.txHash ? (
               <Text className="font-mono text-[10.5px] text-ink-faint">
-                {`${event.txHash.slice(0, 6)}…${event.txHash.slice(-4)}`}
+                {hashLabel}
               </Text>
             ) : null}
             {event.txHash ? (
               <Tap
+                hitSlop={12}
                 accessibilityRole="button"
-                accessibilityLabel={`Copy transaction hash ${event.txHash}`}
+                accessibilityLabel={`Copy transaction hash ${hashLabel}`}
                 onPress={() => void Clipboard.setStringAsync(event.txHash!)}
               >
                 <Copy size={11} strokeWidth={1.8} color="#a1a1aa" />
@@ -140,7 +152,13 @@ export function ActivityRow({
           accessibilityLabel={accessibilityLabel}
           className="mt-3 flex-row items-center gap-2.5"
         >
-          <ProtocolIcon protocol={event.protocol ?? 'Contract'} size={36} />
+          {event.protocol || event.kind === 'contract-interaction' ? (
+            <ProtocolIcon protocol={event.protocol ?? 'Contract'} size={36} />
+          ) : event.tokenSymbol ? (
+            <TokenIcon symbol={event.tokenSymbol} size={36} />
+          ) : (
+            <ProtocolIcon protocol="Contract" size={36} />
+          )}
           <View className="min-w-0 flex-1">
             <View className="flex-row items-center gap-2">
               <Text
@@ -157,12 +175,14 @@ export function ActivityRow({
                 </Pill>
               ) : null}
             </View>
-            <Text
-              className="mt-0.5 font-sans text-[11.5px] text-ink-dim"
-              numberOfLines={1}
-            >
-              {venue}
-            </Text>
+            {venue ? (
+              <Text
+                className="mt-0.5 font-sans text-[11.5px] text-ink-dim"
+                numberOfLines={1}
+              >
+                {venue}
+              </Text>
+            ) : null}
           </View>
           {flows.length > 0 ? (
             <View className="shrink-0 items-end pl-1.5">
@@ -174,6 +194,7 @@ export function ActivityRow({
                     index > 0 ? 'mt-0.5' : '',
                     flowTone(label),
                   )}
+                  numberOfLines={1}
                 >
                   {label}
                 </Text>
