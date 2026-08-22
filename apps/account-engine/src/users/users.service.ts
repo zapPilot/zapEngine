@@ -18,6 +18,10 @@ import { ReportUnsubscribeTokenService } from '../modules/notifications/report-u
 import { TelegramService } from '../modules/notifications/telegram.service';
 import { TelegramTokenService } from '../modules/notifications/telegram-token.service';
 import type {
+  AccountDeletionChallenge,
+  AccountDeletionChallengeService,
+} from '../services/account-deletion-challenge.service';
+import type {
   WalletBindingChallenge,
   WalletBindingChallengeService,
 } from '../services/wallet-binding-challenge.service';
@@ -63,6 +67,7 @@ export class UsersService extends BaseService {
     private readonly telegramService: TelegramService,
     private readonly telegramTokenService: TelegramTokenService,
     private readonly walletBindingChallengeService: WalletBindingChallengeService,
+    private readonly accountDeletionChallengeService: AccountDeletionChallengeService,
     private readonly reportUnsubscribeTokenService: ReportUnsubscribeTokenService,
   ) {
     super(databaseService);
@@ -95,32 +100,23 @@ export class UsersService extends BaseService {
   async addWallet(
     userId: string,
     wallet: string,
-    label?: string,
-    signature?: string,
+    label: string | undefined,
+    signature: string,
   ): Promise<AddWalletResponse> {
     return this.withErrorHandling(async () => {
       await this.userValidationService.validateUserExists(userId);
 
-      // Ownership proof: a signature over the previously issued
-      // binding challenge marks the wallet ownership-verified. The signature
-      // stays optional because bundles also track observe-only addresses the
-      // user cannot sign for — but a provided-yet-invalid signature is always
-      // rejected. Tier-S flows (custody graduation, L3) require verified rows.
-      let ownershipVerifiedAt: string | undefined;
-      if (signature) {
-        const verified =
-          await this.walletBindingChallengeService.verifyChallenge(
-            userId,
-            wallet,
-            signature,
-          );
-        if (!verified) {
-          throw new BadRequestException(
-            'Wallet ownership signature is invalid, expired, or missing a challenge',
-          );
-        }
-        ownershipVerifiedAt = new Date().toISOString();
+      const verified = await this.walletBindingChallengeService.verifyChallenge(
+        userId,
+        wallet,
+        signature,
+      );
+      if (!verified) {
+        throw new BadRequestException(
+          'Wallet ownership signature is invalid, expired, or missing a challenge',
+        );
       }
+      const ownershipVerifiedAt = new Date().toISOString();
 
       // Let the unique constraint on (wallet) be the source of truth. We skip
       // the pre-check entirely so the happy path is one round-trip — and we
@@ -133,16 +129,14 @@ export class UsersService extends BaseService {
             user_id: userId,
             wallet,
             label: label ?? generateDefaultWalletLabel(wallet),
-            ...(ownershipVerifiedAt
-              ? { ownership_verified_at: ownershipVerifiedAt }
-              : {}),
+            ownership_verified_at: ownershipVerifiedAt,
           },
           { entityName: 'Wallet' },
         );
 
         return {
           wallet_id: newWallet.id,
-          ownership_verified: Boolean(ownershipVerifiedAt),
+          ownership_verified: true,
           message: 'Wallet added successfully to user bundle',
         };
       } catch (error) {
@@ -174,6 +168,20 @@ export class UsersService extends BaseService {
       await this.userValidationService.validateUserExists(userId);
       return this.walletBindingChallengeService.issueChallenge(userId, wallet);
     }, 'request wallet binding challenge');
+  }
+
+  async requestDeletionChallenge(
+    userId: string,
+    wallet: string,
+  ): Promise<AccountDeletionChallenge> {
+    return this.withErrorHandling(async () => {
+      await this.userValidationService.validateUserExists(userId);
+      await this.userValidationService.validateWalletOwnership(wallet, userId);
+      return this.accountDeletionChallengeService.issueChallenge(
+        userId,
+        wallet,
+      );
+    }, 'request account deletion challenge');
   }
 
   async updateEmail(
@@ -383,9 +391,26 @@ export class UsersService extends BaseService {
     }, 'fetch user profile');
   }
 
-  async deleteUser(userId: string): Promise<SuccessResponse> {
+  async deleteUser(
+    userId: string,
+    wallet: string,
+    signature: string,
+  ): Promise<SuccessResponse> {
     return this.withErrorHandling(async () => {
       await this.userValidationService.validateUserExists(userId);
+      await this.userValidationService.validateWalletOwnership(wallet, userId);
+
+      const verified =
+        await this.accountDeletionChallengeService.verifyChallenge(
+          userId,
+          wallet,
+          signature,
+        );
+      if (!verified) {
+        throw new BadRequestException(
+          'Account deletion signature is invalid, expired, or missing a challenge',
+        );
+      }
 
       const activeSubscription =
         await this.userValidationService.getActiveSubscriptionWithPlan(userId);

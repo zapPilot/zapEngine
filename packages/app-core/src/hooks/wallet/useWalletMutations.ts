@@ -8,6 +8,7 @@ import {
 import {
   addWallet as addWalletToBundle,
   removeWallet as removeWalletFromBundle,
+  requestWalletBindingChallenge,
 } from '@core/services';
 import type {
   NewWallet,
@@ -25,6 +26,8 @@ interface UseWalletMutationsParams {
   setWallets: Dispatch<SetStateAction<WalletData[]>>;
   setWalletOperationState: WalletOperationStateSetter;
   loadWallets: () => Promise<void>;
+  signingAddress: string | null;
+  signMessage: (message: string) => Promise<string>;
 }
 
 interface WalletMutationResult {
@@ -44,6 +47,8 @@ const REMOVE_WALLET_ERROR = 'Failed to remove wallet';
 const ADD_WALLET_ERROR = 'Failed to add wallet';
 const REMOVE_OPERATION_NAME = 'wallet removal';
 const ADD_OPERATION_NAME = 'adding wallet';
+const WALLET_OWNERSHIP_ERROR =
+  'Connect this wallet to prove ownership before adding it.';
 
 function createFailureResult(error: string): WalletMutationResult {
   return { success: false, error };
@@ -64,6 +69,8 @@ export function useWalletMutations({
   setWallets,
   setWalletOperationState,
   loadWallets,
+  signingAddress,
+  signMessage,
 }: UseWalletMutationsParams): UseWalletMutationsReturn {
   const queryClient = useQueryClient();
   const { refetch } = useUser();
@@ -140,12 +147,22 @@ export function useWalletMutations({
         );
       }
 
+      if (signingAddress?.toLowerCase() !== newWallet.address.toLowerCase()) {
+        return createFailureResult(WALLET_OWNERSHIP_ERROR);
+      }
+
       setAddingState(true, null);
 
       try {
+        const challenge = await requestWalletBindingChallenge(
+          userId,
+          newWallet.address,
+        );
+        const signature = await signMessage(challenge.message);
         const response = await addWalletToBundle(
           userId,
           newWallet.address,
+          signature,
           newWallet.label,
         );
 
@@ -173,7 +190,15 @@ export function useWalletMutations({
         return createFailureResult(errorMessage);
       }
     },
-    [userId, loadWallets, queryClient, refetch, setAddingState],
+    [
+      userId,
+      signingAddress,
+      signMessage,
+      loadWallets,
+      queryClient,
+      refetch,
+      setAddingState,
+    ],
   );
 
   return {

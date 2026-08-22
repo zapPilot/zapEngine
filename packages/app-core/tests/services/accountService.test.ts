@@ -25,7 +25,10 @@ vi.mock('../../src/utils/logger', () => ({
 const {
   AccountServiceError,
   addWalletToBundle,
+  deleteUser,
   removeWalletFromBundle,
+  requestAccountDeletionChallenge,
+  requestWalletBindingChallenge,
   triggerWalletDataFetch,
   unsubscribeFromReportsWithToken,
 } = await import('../../src/services/accountService');
@@ -91,6 +94,49 @@ describe('accountService report unsubscribe', () => {
   });
 });
 
+describe('accountService ownership challenges', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const challenge = {
+    nonce: 'a'.repeat(64),
+    message: 'Sign this purpose-separated message',
+    expiresAt: '2026-08-22T00:05:00.000Z',
+  };
+
+  it('requests a wallet-binding challenge for the target address', async () => {
+    accountApi.post.mockResolvedValue(challenge);
+
+    await expect(
+      requestWalletBindingChallenge('user-1', '0xabc'),
+    ).resolves.toEqual(challenge);
+    expect(accountApi.post).toHaveBeenCalledWith(
+      '/users/user-1/wallets/challenge',
+      { wallet: '0xabc' },
+    );
+  });
+
+  it('signs account deletion through the dedicated endpoint and body', async () => {
+    accountApi.post.mockResolvedValue(challenge);
+    await expect(
+      requestAccountDeletionChallenge('user-1', '0xabc'),
+    ).resolves.toEqual(challenge);
+
+    accountApi.delete.mockResolvedValue({
+      success: true,
+      message: 'User deleted successfully',
+    });
+    await expect(
+      deleteUser('user-1', '0xabc', '0xsignature'),
+    ).resolves.toMatchObject({ success: true });
+    expect(accountApi.delete).toHaveBeenCalledWith('/users/user-1', {
+      wallet: '0xabc',
+      signature: '0xsignature',
+    });
+  });
+});
+
 describe('accountService wallet bundle errors', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -109,6 +155,7 @@ describe('accountService wallet bundle errors', () => {
       addWalletToBundle(
         'user-1',
         '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+        '0xsignature',
         'Primary wallet',
       ),
     ).rejects.toMatchObject({
@@ -119,6 +166,7 @@ describe('accountService wallet bundle errors', () => {
 
     expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
       label: 'Primary wallet',
+      signature: '0xsignature',
       wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
     });
   });
@@ -135,6 +183,7 @@ describe('accountService wallet bundle errors', () => {
       addWalletToBundle(
         'user-1',
         '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+        '0xsignature',
         'Primary wallet',
       ),
     ).rejects.toMatchObject({
@@ -144,6 +193,7 @@ describe('accountService wallet bundle errors', () => {
 
     expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
       label: 'Primary wallet',
+      signature: '0xsignature',
       wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
     });
   });
@@ -161,6 +211,7 @@ describe('accountService wallet bundle errors', () => {
       addWalletToBundle(
         'user-1',
         '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+        '0xsignature',
         'Primary wallet',
       ),
     ).rejects.toMatchObject({
@@ -171,6 +222,7 @@ describe('accountService wallet bundle errors', () => {
 
     expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
       label: 'Primary wallet',
+      signature: '0xsignature',
       wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
     });
   });
@@ -187,6 +239,7 @@ describe('accountService wallet bundle errors', () => {
       addWalletToBundle(
         'user-1',
         '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+        '0xsignature',
         'Primary wallet',
       ),
     ).rejects.toMatchObject({
@@ -196,6 +249,7 @@ describe('accountService wallet bundle errors', () => {
 
     expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
       label: 'Primary wallet',
+      signature: '0xsignature',
       wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
     });
   });
@@ -207,12 +261,14 @@ describe('accountService wallet bundle errors', () => {
       addWalletToBundle(
         'user-1',
         '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+        '0xsignature',
         'Primary wallet',
       ),
     ).rejects.toThrow(/wallet_id/);
 
     expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
       label: 'Primary wallet',
+      signature: '0xsignature',
       wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
     });
   });

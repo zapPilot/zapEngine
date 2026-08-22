@@ -45,7 +45,7 @@ function createQuery(method: 'GET' | 'DELETE'): QueryFunction {
   return query;
 }
 
-function createMutation(method: 'POST' | 'PUT'): MutationFunction {
+function createMutation(method: 'POST' | 'PUT' | 'DELETE'): MutationFunction {
   const mutation: MutationFunction = (endpoint, body, config = {}) =>
     requestWithMethod(method, endpoint, config, body);
   return mutation;
@@ -54,7 +54,7 @@ function createMutation(method: 'POST' | 'PUT'): MutationFunction {
 // --- Exported Methods ---
 
 export const httpGet = createQuery('GET');
-export const httpDelete = createQuery('DELETE');
+export const httpDelete = createMutation('DELETE');
 
 export const httpPost = createMutation('POST');
 export const httpPut = createMutation('PUT');

@@ -32,10 +32,11 @@ export async function loadWallets(userId: string): Promise<WalletData[]> {
 export async function addWallet(
   userId: string,
   address: string,
+  signature: string,
   label: string,
 ): Promise<ServiceResult> {
   return wrapServiceCall(async () => {
-    await addWalletToBundle(userId, address, label);
+    await addWalletToBundle(userId, address, signature, label);
   });
 }
 

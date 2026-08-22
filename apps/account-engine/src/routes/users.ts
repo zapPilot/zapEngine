@@ -6,6 +6,7 @@ import type { AppServices } from '../container';
 import { jsonResponse, jsonValidator, paramValidator } from './shared';
 import {
   addWalletBodySchema,
+  deleteUserBodySchema,
   reportUnsubscribeBodySchema,
   updateEmailBodySchema,
   updateWalletLabelBodySchema,
@@ -162,11 +163,36 @@ export function createUsersRoutes(services: AppServices) {
     return jsonResponse(c, response, HttpStatus.OK);
   });
 
-  app.delete('/:userId', paramValidator(uuidParamSchema), async (c) => {
-    const params = c.req.valid('param');
-    const response = await services.usersService.deleteUser(params.userId);
-    return jsonResponse(c, response, HttpStatus.OK);
-  });
+  app.post(
+    '/:userId/deletion-challenge',
+    paramValidator(uuidParamSchema),
+    jsonValidator(walletBodySchema),
+    async (c) => {
+      const { userId } = c.req.valid('param');
+      const { wallet } = c.req.valid('json');
+      return jsonResponse(
+        c,
+        await services.usersService.requestDeletionChallenge(userId, wallet),
+        HttpStatus.OK,
+      );
+    },
+  );
+
+  app.delete(
+    '/:userId',
+    paramValidator(uuidParamSchema),
+    jsonValidator(deleteUserBodySchema),
+    async (c) => {
+      const params = c.req.valid('param');
+      const body = c.req.valid('json');
+      const response = await services.usersService.deleteUser(
+        params.userId,
+        body.wallet,
+        body.signature,
+      );
+      return jsonResponse(c, response, HttpStatus.OK);
+    },
+  );
 
   app.post(
     '/:userId/telegram/request-token',

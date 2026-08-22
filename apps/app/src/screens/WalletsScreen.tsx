@@ -108,6 +108,8 @@ export function WalletsScreen() {
               </Text>
               <AddWalletForm
                 busy={manager.addingState.isLoading}
+                activeAddress={account.address}
+                onConnectWallet={manager.connectWallet}
                 onSubmit={manager.addWallet}
                 onDone={() => {
                   setShowAddForm(false);
@@ -127,8 +129,8 @@ export function WalletsScreen() {
         </View>
 
         <Text className="mt-3 text-[11.5px] leading-[17px] text-ink-faint">
-          Added wallets are tracked read-only for the combined portfolio. Only
-          your connected wallet can sign transactions.
+          Every wallet in the bundle must prove ownership with its own
+          signature. Connect the wallet whose address you are adding.
         </Text>
       </View>
     </ScreenScrollView>

@@ -79,18 +79,26 @@ describe('Route validators', () => {
   });
 
   describe('addWalletBodySchema', () => {
-    it('accepts wallet with optional label', () => {
+    it('accepts wallet with a required signature and optional label', () => {
       const result = addWalletBodySchema.safeParse({
         wallet: validWallet,
         label: 'My Wallet',
+        signature: `0x${'ab'.repeat(65)}`,
       });
       expect(result.success).toBe(true);
+    });
+
+    it('rejects a wallet without an ownership signature', () => {
+      expect(
+        addWalletBodySchema.safeParse({ wallet: validWallet }).success,
+      ).toBe(false);
     });
 
     it('rejects label over 100 characters', () => {
       const result = addWalletBodySchema.safeParse({
         wallet: validWallet,
         label: 'x'.repeat(101),
+        signature: `0x${'ab'.repeat(65)}`,
       });
       expect(result.success).toBe(false);
     });

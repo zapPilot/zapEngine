@@ -9,11 +9,13 @@ import {
   etlJobStatusResponseSchema,
   type EtlJobTriggerResponse,
   etlJobTriggerResponseSchema,
+  type OwnershipChallenge,
   type UpdateEmailResponse,
   type UserCryptoWallet,
   type UserProfileResponse,
   validateAddWalletResponse,
   validateMessageResponse,
+  validateOwnershipChallenge,
   validateUpdateEmailResponse,
   validateUserProfileResponse,
   validateUserWallets,
@@ -141,8 +143,27 @@ async function putAccountResource<T>(
   return callAccountApi(() => accountApiClient.put<T>(path, body));
 }
 
-async function deleteAccountResource<T>(path: string): Promise<T> {
-  return callAccountApi(() => accountApiClient.delete<T>(path));
+async function deleteAccountResource<T>(
+  path: string,
+  body?: Record<string, unknown>,
+): Promise<T> {
+  const request = body
+    ? () => accountApiClient.delete<T>(path, body)
+    : () => accountApiClient.delete<T>(path);
+  return callAccountApi(request);
+}
+
+function requestOwnershipChallenge(
+  path: string,
+  walletAddress: string,
+): Promise<OwnershipChallenge> {
+  return requestAndValidate(
+    () =>
+      postAccountResource<OwnershipChallenge>(path, {
+        wallet: walletAddress,
+      }),
+    validateOwnershipChallenge,
+  );
 }
 
 /**
@@ -189,9 +210,12 @@ export async function updateUserEmail(
   );
 }
 
-async function deleteUserResource(path: string): Promise<UpdateEmailResponse> {
+async function deleteUserResource(
+  path: string,
+  body?: Record<string, unknown>,
+): Promise<UpdateEmailResponse> {
   return requestAndValidate(
-    () => deleteAccountResource<UpdateEmailResponse>(path),
+    () => deleteAccountResource<UpdateEmailResponse>(path, body),
     validateUpdateEmailResponse,
   );
 }
@@ -220,12 +244,26 @@ export async function unsubscribeFromReportsWithToken(
   );
 }
 
-/**
- * Delete user account.
- * Cannot delete users with active subscriptions.
- */
-export async function deleteUser(userId: string): Promise<UpdateEmailResponse> {
-  return deleteUserResource(`/users/${userId}`);
+/** Request the purpose-separated ownership challenge required for deletion. */
+export async function requestAccountDeletionChallenge(
+  userId: string,
+  walletAddress: string,
+): Promise<OwnershipChallenge> {
+  return requestOwnershipChallenge(
+    `/users/${userId}/deletion-challenge`,
+    walletAddress,
+  );
+}
+
+export async function deleteUser(
+  userId: string,
+  walletAddress: string,
+  signature: string,
+): Promise<UpdateEmailResponse> {
+  return deleteUserResource(`/users/${userId}`, {
+    wallet: walletAddress,
+    signature,
+  });
 }
 
 /**
@@ -246,6 +284,7 @@ export async function getUserWallets(
 export async function addWalletToBundle(
   userId: string,
   walletAddress: string,
+  signature: string,
   label?: string,
 ): Promise<AddWalletResponse> {
   return requestAndValidate(
@@ -253,8 +292,19 @@ export async function addWalletToBundle(
       postAccountResource<AddWalletResponse>(`/users/${userId}/wallets`, {
         wallet: walletAddress,
         label,
+        signature,
       }),
     validateAddWalletResponse,
+  );
+}
+
+export async function requestWalletBindingChallenge(
+  userId: string,
+  walletAddress: string,
+): Promise<OwnershipChallenge> {
+  return requestOwnershipChallenge(
+    `/users/${userId}/wallets/challenge`,
+    walletAddress,
   );
 }
 

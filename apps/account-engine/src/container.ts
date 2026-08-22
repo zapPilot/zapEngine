@@ -29,6 +29,7 @@ import {
   planSimulationConfigFromEnv,
   resolveProtocolContractName,
 } from './modules/plan-orchestration';
+import { createAccountDeletionChallengeService } from './services/account-deletion-challenge.service';
 import {
   createPrivyWalletExecutionService,
   type PrivyWalletExecutionService,
@@ -82,6 +83,8 @@ export function createContainer(
     telegramTokenService,
   );
   const walletBindingChallengeService = createWalletBindingChallengeService();
+  const accountDeletionChallengeService =
+    createAccountDeletionChallengeService();
   const usersService = new UsersService(
     databaseService,
     userValidationService,
@@ -89,6 +92,7 @@ export function createContainer(
     telegramService,
     telegramTokenService,
     walletBindingChallengeService,
+    accountDeletionChallengeService,
     reportUnsubscribeTokenService,
   );
   const analyticsClientService = new AnalyticsClientService(configService);

@@ -28,6 +28,8 @@ export {
   getUserWallets,
   removeUserEmail,
   removeWalletFromBundle,
+  requestAccountDeletionChallenge,
+  requestWalletBindingChallenge,
   triggerWalletDataFetch,
   unsubscribeFromReportsWithToken,
   updateUserEmail,
