@@ -87,6 +87,10 @@ export class TelegramBotCoreService {
     this.bot?.help(handler);
   }
 
+  onCallbackQuery(handler: TelegramContextHandler): void {
+    this.bot?.on('callback_query', handler);
+  }
+
   validateWebhookSecret(secret: string): boolean {
     if (!this.webhookSecret) {
       this.logger.warn('TELEGRAM_WEBHOOK_SECRET not configured');

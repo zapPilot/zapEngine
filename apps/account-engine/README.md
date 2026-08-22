@@ -1,6 +1,6 @@
 # Account Engine
 
-Hono API service for Zap Pilot. Handles user accounts, wallet onboarding, Telegram connection flows, ETL webhook dispatch, and background jobs (weekly reports, strategy-change notifications).
+Hono API service for Zap Pilot. Handles user accounts, wallet onboarding, Telegram connection flows, ETL webhook dispatch, and background jobs (weekly reports, operator decision packets, strategy-change notifications).
 
 ## Stack
 
@@ -43,6 +43,28 @@ carries the full trade history and must not be replayed.
 
 Schedule it externally (Pipedream) at ~03:30 UTC, after the 01:30 UTC Backtest
 Refresh workflow has committed the day's curve.
+
+## Daily decision packet (operator)
+
+`POST /jobs/daily-suggestion/batch` requires the admin API key and a non-empty
+JSON body such as `{ "userIds": ["<operator-user-uuid>"] }`. It fetches each
+operator's live analytics suggestion and sends Telegram only when
+`action.status` is `action_required`. Blocked and no-action decisions stay
+quiet on Telegram and remain visible in the authenticated Strategy tab.
+
+The message explains the matched rule, threshold evidence, allocation change,
+cooldown, and trade quota. Its **☑️ Done** button records an executed decision
+in `strategy_trade_history`; analytics reads that history to enforce the
+per-user cooldown and trade-quota guards. It never records skipped decisions.
+
+Run this from an external Pipedream schedule after the alpha ETL daily refresh,
+at a different time from the 03:30 UTC public strategy-change broadcast. The
+queue and job status are process-memory only: HTTP 202 means accepted, not
+completed. Keep the trigger and completion polling in the same workflow using
+`GET /jobs/:jobId`, following the
+[Pipedream weekly report watchdog](./docs/pipedream-weekly-report-watchdog.md)
+pattern. Fly auto-stop, restarts, or requests routed to another machine can
+otherwise lose the queued job or its status.
 
 ## Deployment
 

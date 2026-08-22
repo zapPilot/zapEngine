@@ -21,7 +21,10 @@ import { createQueryConfig } from '../queryDefaults';
  * }
  * ```
  */
-export function useMarketDashboardQuery(days = 365) {
+export function useMarketDashboardQuery(
+  days = 365,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['market-dashboard', days],
     queryFn: () => getMarketDashboardData(days),
@@ -29,5 +32,6 @@ export function useMarketDashboardQuery(days = 365) {
       dataType: 'etl',
     }),
     refetchOnWindowFocus: false,
+    enabled: options?.enabled ?? true,
   });
 }

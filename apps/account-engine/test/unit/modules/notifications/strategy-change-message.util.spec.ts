@@ -1,6 +1,6 @@
+import { formatUsdAmount } from '../../../../src/modules/notifications/message-format.util';
 import {
   buildStrategyChangeMessage,
-  formatUsdAmount,
   latestEventDate,
   selectNewEvents,
 } from '../../../../src/modules/notifications/strategy-change-message.util';

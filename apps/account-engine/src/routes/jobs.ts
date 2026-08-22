@@ -6,7 +6,11 @@ import { HttpStatus, NotFoundException, toErrorResponse } from '../common/http';
 import type { AppServices } from '../container';
 import { Job, JobType } from '../modules/jobs/interfaces/job.interface';
 import { jsonResponse, jsonValidator, paramValidator } from './shared';
-import { jobIdParamSchema, singleUserReportBodySchema } from './validators';
+import {
+  dailySuggestionBatchBodySchema,
+  jobIdParamSchema,
+  singleUserReportBodySchema,
+} from './validators';
 
 export function createJobsRoutes(services: AppServices) {
   const app = new Hono();
@@ -63,6 +67,40 @@ export function createJobsRoutes(services: AppServices) {
         {
           job: mapJobToResponse(job),
           message: `Weekly report job created successfully for user ${body.userId}.`,
+        },
+        HttpStatus.ACCEPTED,
+      );
+    },
+  );
+
+  app.post(
+    '/daily-suggestion/batch',
+    requireAdminApiKey,
+    async (c, next) => {
+      if (c.req.raw.body === null) {
+        return jsonResponse(
+          c,
+          toErrorResponse(c.req.path, {
+            message: 'userIds is required',
+            statusCode: HttpStatus.BAD_REQUEST,
+          }),
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      await next();
+    },
+    jsonValidator(dailySuggestionBatchBodySchema),
+    (c) => {
+      const body = c.req.valid('json');
+      const job = services.jobQueueService.createJob({
+        type: JobType.DAILY_SUGGESTION_BATCH,
+        payload: { userIds: body.userIds },
+      });
+      return jsonResponse(
+        c,
+        {
+          job: mapJobToResponse(job),
+          message: `Daily suggestion batch job created for ${body.userIds.length} user(s).`,
         },
         HttpStatus.ACCEPTED,
       );

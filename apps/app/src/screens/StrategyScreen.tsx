@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
+import { DecisionPacketCard } from '@/components/strategy/DecisionPacketCard';
 import { AllocationBar } from '@/components/charts/AllocationBar';
 import { Pill } from '@/components/ui/Pill';
 import { MetricsGrid } from '@/components/metrics/MetricsGrid';
@@ -23,6 +24,7 @@ import {
 } from '@/integration/strategyRanges';
 import { useAccount } from '@/integration/useAccount';
 import { useStrategyData } from '@/integration/useStrategyData';
+import { useStrategyDecisionPacket } from '@/integration/useStrategyDecisionPacket';
 import { createStrategyStartAction } from '@/integration/strategyStartAction';
 import { resolveColor } from '@/lib/colors';
 import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
@@ -39,6 +41,7 @@ export function StrategyScreen() {
     account.isConnected,
     strategyBacktestDaysForRange(range),
   );
+  const decision = useStrategyDecisionPacket(account.userId);
 
   const isDemo = !account.isConnected;
   const strategy = result.data ?? DEMO.strategy;
@@ -161,6 +164,14 @@ export function StrategyScreen() {
           ))}
         </View>
       </Card>
+
+      {!isDemo ? (
+        <DecisionPacketCard
+          packet={decision.data}
+          chart={decision.chart}
+          loading={decision.isLoading}
+        />
+      ) : null}
 
       <Card className="mx-5 mt-4 p-4">
         <View className="flex-row items-center justify-between">

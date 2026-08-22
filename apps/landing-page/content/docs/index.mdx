@@ -5,6 +5,7 @@ description: The self-custodial investment autopilot across S&P 500, BTC/ETH, an
 
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Card, Cards } from 'fumadocs-ui/components/card';
+import { TokenIcon, TokenIconPair } from '@/components/brand/icons';
 
 Zap Pilot is a self-custodial investment autopilot: rules-based portfolio discipline, signed from your wallet and held by no one else. A rules engine watches objective market signals, prepares a rebalance bundle, and asks you to sign it from your own EOA. Buy in fear, defend in greed — no emotion, no custody, no discretionary manager.
 
@@ -12,9 +13,35 @@ Zap Pilot is a self-custodial investment autopilot: rules-based portfolio discip
 
 The portfolio is always a mix of three understandable assets — no tokens you can't pronounce, no protocols you don't understand:
 
-- **S&P 500** via Ondo's tokenized index — the equity pillar.
-- **BTC + ETH** — crypto risk-on, with an ETH/BTC relative-strength rotation overlay.
-- **Stablecoins** — defensive cash leg for risk-off regimes.
+<div className="not-prose my-6 grid gap-3">
+  <div className="flex items-start gap-3 rounded-lg border border-fd-border bg-fd-card/40 px-4 py-3">
+    <TokenIcon symbol="SPY" size={20} />
+    <div>
+      <div className="font-medium text-fd-foreground">S&P 500</div>
+      <div className="mt-0.5 text-sm text-fd-muted-foreground">
+        Via Ondo's tokenized index — the equity pillar.
+      </div>
+    </div>
+  </div>
+  <div className="flex items-start gap-3 rounded-lg border border-fd-border bg-fd-card/40 px-4 py-3">
+    <TokenIconPair symbols={['BTC', 'ETH']} size={20} />
+    <div>
+      <div className="font-medium text-fd-foreground">BTC + ETH</div>
+      <div className="mt-0.5 text-sm text-fd-muted-foreground">
+        Crypto risk-on, with an ETH/BTC relative-strength rotation overlay.
+      </div>
+    </div>
+  </div>
+  <div className="flex items-start gap-3 rounded-lg border border-fd-border bg-fd-card/40 px-4 py-3">
+    <TokenIcon symbol="USDC" size={20} />
+    <div>
+      <div className="font-medium text-fd-foreground">Stablecoins</div>
+      <div className="mt-0.5 text-sm text-fd-muted-foreground">
+        Defensive cash leg for risk-off regimes.
+      </div>
+    </div>
+  </div>
+</div>
 
 Allocation across the three pillars shifts with the market regime.
 

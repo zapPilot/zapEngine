@@ -11,6 +11,7 @@
  * underscores with spaces, which is what keeps that true.
  */
 
+import { formatUsdAmount, humanizeSlug } from './message-format.util';
 import { CurveEvent, EquityCurveSubset } from './track-record/schema';
 
 /**
@@ -52,10 +53,6 @@ const REASON_LABELS: Record<string, string> = {
   portfolio_fgi_downshift_dca_sell:
     'Market sentiment fell out of greed, so risk was trimmed with a scheduled sell.',
 };
-
-export function formatUsdAmount(amount: number): string {
-  return `$${amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-}
 
 /**
  * The trade events this run should announce.
@@ -181,13 +178,7 @@ function humanizeReason(reason: string): string {
   if (mapped) {
     return mapped;
   }
-
-  const normalized = reason.replaceAll(/[_-]+/g, ' ').trim().toLowerCase();
-  if (!normalized) {
-    return 'No additional context.';
-  }
-
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1) + '.';
+  return `${humanizeSlug(reason)}.`;
 }
 
 /**

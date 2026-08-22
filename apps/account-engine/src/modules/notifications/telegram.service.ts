@@ -2,6 +2,7 @@ import { Context, Telegraf } from 'telegraf';
 
 import { ConfigService } from '../../config/config.service';
 import { DatabaseService } from '../../database/database.service';
+import type { DailySuggestionSubset } from './analytics-client/daily-suggestion.schema';
 import {
   TELEGRAM_HELP_TEXT,
   TelegramBotCoreService,
@@ -12,11 +13,13 @@ import {
   TelegramNotificationService,
 } from './telegram-notification.service';
 import { TelegramTokenService } from './telegram-token.service';
+import { TelegramTradeRecorderService } from './telegram-trade-recorder.service';
 
 export class TelegramService {
   private readonly botCore: TelegramBotCoreService;
   private readonly connection: TelegramConnectionService;
   private readonly notifications: TelegramNotificationService;
+  private readonly tradeRecorder: TelegramTradeRecorderService;
 
   /* istanbul ignore next -- DI constructor */
   constructor(
@@ -32,6 +35,10 @@ export class TelegramService {
     this.notifications = new TelegramNotificationService(
       databaseService,
       this.botCore,
+    );
+    this.tradeRecorder = new TelegramTradeRecorderService(
+      databaseService,
+      this.connection,
     );
 
     this.registerHandlers();
@@ -50,6 +57,13 @@ export class TelegramService {
     logLabel: string,
   ): Promise<BroadcastResult> {
     return this.notifications.broadcastToConnectedUsers(message, logLabel);
+  }
+
+  async sendDailySuggestion(
+    userId: string,
+    data: DailySuggestionSubset,
+  ): Promise<void> {
+    await this.notifications.sendDailySuggestion(userId, data);
   }
 
   validateWebhookSecret(secret: string): boolean {
@@ -78,6 +92,9 @@ export class TelegramService {
     );
     this.botCore.onCommand('stop', (ctx: Context) =>
       this.connection.handleStopCommand(ctx),
+    );
+    this.botCore.onCallbackQuery((ctx: Context) =>
+      this.tradeRecorder.handleDailySuggestionDoneCallback(ctx),
     );
     this.botCore.onHelp(async (ctx: Context) => {
       await ctx.reply(TELEGRAM_HELP_TEXT, { parse_mode: 'Markdown' });

@@ -183,6 +183,48 @@ describe('POST /jobs/strategy-change/batch', () => {
   });
 });
 
+describe('POST /jobs/daily-suggestion/batch', () => {
+  it.each([undefined, {}, { userIds: [] }, { userIds: ['not-a-uuid'] }])(
+    'returns 400 for an invalid operator list',
+    async (body) => {
+      const response = await createApp(createServices()).request(
+        'http://localhost/jobs/daily-suggestion/batch',
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-api-key': ADMIN_KEY,
+          },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        },
+      );
+      expect(response.status).toBe(400);
+    },
+  );
+
+  it('requires the admin key and queues explicit userIds', async () => {
+    const services = createServices({ type: JobType.DAILY_SUGGESTION_BATCH });
+    const request = {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': ADMIN_KEY,
+      },
+      body: JSON.stringify({ userIds: [USER_ID] }),
+    };
+    const response = await createApp(services).request(
+      'http://localhost/jobs/daily-suggestion/batch',
+      request,
+    );
+    expect(response.status).toBe(202);
+    expect(services.jobQueueService.createJob).toHaveBeenCalledWith({
+      type: JobType.DAILY_SUGGESTION_BATCH,
+      payload: { userIds: [USER_ID] },
+    });
+    expect((await response.json()).message).toContain('1 user(s)');
+  });
+});
+
 describe('GET /jobs/:jobId', () => {
   it('returns 200 with job response', async () => {
     const response = await createApp(createServices()).request(

@@ -7,6 +7,7 @@ import { DatabaseService } from './database/database.service';
 import { UserValidationService } from './database/user-validation.service';
 import { JobProcessorService } from './modules/jobs/job-processor.service';
 import { JobQueueService } from './modules/jobs/job-queue.service';
+import { DailySuggestionProcessor } from './modules/jobs/processors/daily-suggestion.processor';
 import { StrategyChangeProcessor } from './modules/jobs/processors/strategy-change.processor';
 import { WeeklyReportProcessor } from './modules/jobs/processors/weekly-report.processor';
 import { AdminNotificationService } from './modules/notifications/admin-notification.service';
@@ -60,6 +61,7 @@ export interface AppServices {
   trackRecordCurveService: TrackRecordCurveService;
   strategyChangeStateService: StrategyChangeStateService;
   strategyChangeProcessor: StrategyChangeProcessor;
+  dailySuggestionProcessor: DailySuggestionProcessor;
   activityTracker: ActivityTracker;
   planOrchestrationService: PlanOrchestrationService;
   privyWalletExecutionService: PrivyWalletExecutionService;
@@ -129,6 +131,11 @@ export function createContainer(
     jobQueueService,
     trackRecordCurveService,
     strategyChangeStateService,
+    telegramService,
+  );
+  const dailySuggestionProcessor = new DailySuggestionProcessor(
+    jobQueueService,
+    analyticsClientService,
     telegramService,
   );
   const activityTracker = new ActivityTracker(databaseService);
@@ -202,6 +209,7 @@ export function createContainer(
 
   jobProcessorService.registerProcessor(weeklyReportProcessor);
   jobProcessorService.registerProcessor(strategyChangeProcessor);
+  jobProcessorService.registerProcessor(dailySuggestionProcessor);
 
   return {
     env,
@@ -225,6 +233,7 @@ export function createContainer(
     trackRecordCurveService,
     strategyChangeStateService,
     strategyChangeProcessor,
+    dailySuggestionProcessor,
     activityTracker,
     planOrchestrationService,
     privyWalletExecutionService,

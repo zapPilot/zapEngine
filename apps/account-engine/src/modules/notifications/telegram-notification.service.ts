@@ -1,6 +1,11 @@
 import { CHANNEL_TYPE_TELEGRAM } from '../../common/constants';
 import { BaseService } from '../../database/base.service';
 import { DatabaseService } from '../../database/database.service';
+import type { DailySuggestionSubset } from './analytics-client/daily-suggestion.schema';
+import {
+  buildDecisionPacketMessage,
+  type TelegramMessagePayload,
+} from './daily-suggestion-message.util';
 import { TelegramBotCoreService } from './telegram-bot-core.service';
 
 interface TelegramNotificationSettings {
@@ -31,6 +36,27 @@ export class TelegramNotificationService extends BaseService {
     private readonly botCore: TelegramBotCoreService,
   ) {
     super(databaseService);
+  }
+
+  async sendDailySuggestion(
+    userId: string,
+    data: DailySuggestionSubset,
+  ): Promise<void> {
+    if (!this.botCore.getBot()) {
+      this.logger.warn(
+        'Telegram bot not configured, cannot send daily suggestion',
+      );
+      return;
+    }
+    const chatId = await this.getTelegramChatId(userId);
+    if (!chatId) return;
+    const payload = buildDecisionPacketMessage(data);
+    await this.sendMessageToUser(
+      userId,
+      chatId,
+      payload.message,
+      payload.replyMarkup,
+    );
   }
 
   /**
@@ -144,6 +170,7 @@ export class TelegramNotificationService extends BaseService {
     userId: string,
     chatId: string,
     message: string,
+    replyMarkup?: TelegramMessagePayload['replyMarkup'],
   ): Promise<boolean> {
     const bot = this.botCore.getBot();
     if (!bot) {
@@ -155,6 +182,7 @@ export class TelegramNotificationService extends BaseService {
       await bot.telegram.sendMessage(chatId, message, {
         parse_mode: 'Markdown',
         link_preview_options: { is_disabled: true },
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
       });
       return true;
     } catch (error: unknown) {

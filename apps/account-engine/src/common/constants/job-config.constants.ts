@@ -68,6 +68,9 @@ export const ANALYTICS_CONFIG = {
    */
   REQUEST_TIMEOUT_MS: 10000,
 
+  /** Daily suggestion cold paths can take 13-14 seconds. */
+  DAILY_SUGGESTION_REQUEST_TIMEOUT_MS: 60000,
+
   /**
    * Request timeout for health check calls (5 seconds)
    */

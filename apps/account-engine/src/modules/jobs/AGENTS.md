@@ -2,7 +2,7 @@ See @../../../AGENTS.md for app-level conventions.
 
 # Jobs module
 
-In-memory async work queue and processors for weekly reports and strategy-change notifications.
+In-memory async work queue and processors for weekly reports, per-user daily decision packets, and strategy-change notifications.
 
 ## Flow
 
@@ -11,6 +11,7 @@ In-memory async work queue and processors for weekly reports and strategy-change
 3. Processors return `JobProcessingResult`; retryable failures are rescheduled with backoff and permanent failures are marked failed.
 4. Weekly-report batch jobs fan out into single-user child jobs; `GET /jobs/:jobId` derives parent status from the children.
 5. `STRATEGY_CHANGE_BATCH` deliberately does not fan out — it broadcasts one strategy-wide message, so there is nothing per-user to compute.
+6. `DAILY_SUGGESTION_BATCH` requires explicit non-empty `userIds` and fans out one live suggestion job per operator. It must never auto-discover recipients.
 
 ## Invariants
 

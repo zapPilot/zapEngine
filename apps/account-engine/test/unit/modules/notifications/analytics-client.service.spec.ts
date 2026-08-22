@@ -268,4 +268,69 @@ describe('AnalyticsClientService', () => {
       expect(result.weeklyPnLPercentage).toBeUndefined();
     });
   });
+
+  describe('getDailySuggestion', () => {
+    const validSuggestion = {
+      as_of: '2026-08-22',
+      config_id: 'config',
+      config_display_name: 'Strategy',
+      strategy_id: 'strategy',
+      action: {
+        status: 'no_action',
+        required: false,
+        reason_code: 'already_aligned',
+        transfers: [],
+      },
+      context: {
+        portfolio: { total_value: 1000 },
+        target: { allocation: { stable: 1 } },
+        signal: { regime: 'neutral' },
+        strategy: {},
+      },
+    };
+
+    it('returns a validated narrow response', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ ...validSuggestion, future: true }),
+      });
+      const result = await service.getDailySuggestion('user-1');
+      expect(result).not.toHaveProperty('future');
+    });
+
+    it('retries one timeout and succeeds', async () => {
+      global.fetch = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('request timed out'))
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(validSuggestion),
+        });
+      await expect(service.getDailySuggestion('user-1')).resolves.toMatchObject(
+        {
+          config_id: 'config',
+        },
+      );
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('maps 404 and rejects malformed upstream data', async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: () => Promise.resolve('missing'),
+      });
+      await expect(service.getDailySuggestion('user-1')).rejects.toThrow(
+        PortfolioNotFoundError,
+      );
+
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ nope: true }),
+      });
+      await expect(service.getDailySuggestion('user-1')).rejects.toThrow(
+        'Unexpected daily suggestion shape: as_of',
+      );
+    });
+  });
 });

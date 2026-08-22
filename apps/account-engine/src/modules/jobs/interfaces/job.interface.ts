@@ -17,6 +17,16 @@ export enum JobType {
   WEEKLY_REPORT_BATCH = 'weekly_report_batch',
   WEEKLY_REPORT_SINGLE = 'weekly_report_single',
   STRATEGY_CHANGE_BATCH = 'strategy_change_batch',
+  DAILY_SUGGESTION_BATCH = 'daily_suggestion_batch',
+  DAILY_SUGGESTION_SINGLE = 'daily_suggestion_single',
+}
+
+export interface DailySuggestionBatchPayload extends Record<string, unknown> {
+  userIds: string[];
+}
+
+export interface DailySuggestionSinglePayload extends Record<string, unknown> {
+  userId: string;
 }
 
 /**

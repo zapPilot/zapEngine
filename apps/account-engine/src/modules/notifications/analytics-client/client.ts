@@ -19,6 +19,10 @@ import { PortfolioNotFoundError } from '../errors/portfolio-not-found.error';
 import { PortfolioResponse } from '../interfaces/portfolio-response.interface';
 import { PortfolioTrendResponse } from '../interfaces/portfolio-trend.interface';
 import { EmailMetrics } from '../template.service';
+import {
+  type DailySuggestionSubset,
+  DailySuggestionSubsetSchema,
+} from './daily-suggestion.schema';
 import { transformToEmailMetrics } from './mappers';
 
 export class AnalyticsClientService {
@@ -65,6 +69,28 @@ export class AnalyticsClientService {
     );
   }
 
+  async getDailySuggestion(userId: string): Promise<DailySuggestionSubset> {
+    const response = await this.fetchFromAnalytics<unknown>(
+      `/api/v3/strategy/daily-suggestion/${userId}`,
+      'daily suggestion',
+      userId,
+      {
+        retryOnTimeout: true,
+        timeoutMs: ANALYTICS_CONFIG.DAILY_SUGGESTION_REQUEST_TIMEOUT_MS,
+      },
+    );
+    const parsed = DailySuggestionSubsetSchema.safeParse(response);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0]!;
+      const path = issue.path.length ? issue.path.join('.') : 'root';
+      throw new ServiceLayerException(
+        `Unexpected daily suggestion shape: ${path} ${issue.message}`,
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+    return parsed.data;
+  }
+
   private async fetchFromAnalytics<T>(
     path: string,
     label: string,
@@ -72,30 +98,47 @@ export class AnalyticsClientService {
     options?: {
       baseUrl?: string;
       params?: Record<string, unknown>;
+      retryOnTimeout?: boolean;
+      timeoutMs?: number;
     },
   ): Promise<T> {
     const base = normalizeLoopbackUrl(
       options?.baseUrl ?? this.analyticsEngineUrl,
     );
-    const startedAt = Date.now();
-    this.logger.log(`Fetching ${label} for user: ${userId} from ${base}`);
+    const maxAttempts = options?.retryOnTimeout ? 2 : 1;
+    let lastError: unknown;
 
-    try {
-      const response = await this.fetchJson<T>(`${base}${path}`, {
-        params: options?.params,
-      });
-
-      this.logger.log(
-        `Successfully retrieved ${label} for user: ${userId} from ${base} in ${Date.now() - startedAt}ms`,
-      );
-      return response;
-    } catch (error) {
-      this.logger.error(
-        `Failed to get ${label} for user ${userId} from ${base} after ${Date.now() - startedAt}ms:`,
-        error,
-      );
-      this.handleAnalyticsError(error, userId, label);
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const startedAt = Date.now();
+      this.logger.log(`Fetching ${label} for user: ${userId} from ${base}`);
+      try {
+        const response = await this.fetchJson<T>(`${base}${path}`, {
+          params: options?.params,
+          timeoutMs: options?.timeoutMs,
+        });
+        this.logger.log(
+          `Successfully retrieved ${label} for user: ${userId} from ${base} in ${Date.now() - startedAt}ms`,
+        );
+        return response;
+      } catch (error) {
+        lastError = error;
+        const elapsedMs = Date.now() - startedAt;
+        if (attempt < maxAttempts && this.isRetryableTimeoutError(error)) {
+          this.logger.warn(
+            `Timed out fetching ${label} for user ${userId} from ${base} after ${elapsedMs}ms; retrying once`,
+          );
+          continue;
+        }
+        this.logger.error(
+          `Failed to get ${label} for user ${userId} from ${base} after ${elapsedMs}ms:`,
+          error,
+        );
+        this.handleAnalyticsError(error, userId, label);
+      }
     }
+
+    /* v8 ignore next -- every loop exit throws above */
+    this.handleAnalyticsError(lastError, userId, label);
   }
 
   private handleAnalyticsError(
@@ -133,6 +176,11 @@ export class AnalyticsClientService {
     throw new ServiceLayerException(
       `Failed to retrieve ${operationLabel}: ${getErrorMessage(error)}`,
     );
+  }
+
+  private isRetryableTimeoutError(error: unknown): boolean {
+    const message = getErrorMessage(error).toLowerCase();
+    return message.includes('timeout') || message.includes('timed out');
   }
 
   async getPortfolioTrendData(userId: string): Promise<PortfolioTrendResponse> {
