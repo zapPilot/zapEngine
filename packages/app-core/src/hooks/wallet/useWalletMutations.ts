@@ -16,8 +16,8 @@ import type {
   WalletOperations,
   WalletOperationStateSetter,
 } from '@core/types';
-import { logger } from '@core/utils/logger';
 import { validateNewWallet } from '@core/utils';
+import { logger } from '@core/utils/logger';
 import { useQueryClient } from '@tanstack/react-query';
 import { equalsAddress } from '@zapengine/types/shared';
 import { type Dispatch, type SetStateAction, useCallback } from 'react';
