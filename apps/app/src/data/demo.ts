@@ -6,6 +6,8 @@
 
 import type { AllocationCategoryKey } from '@zapengine/app-core/lib/domain/allocationCategories';
 
+import type { DailyValuePoint } from '@/integration/portfolioMetrics';
+
 export type ChainKey = 'ethereum' | 'arbitrum' | 'base';
 
 export interface DemoAsset {
@@ -24,9 +26,11 @@ export interface DemoData {
   };
   home: {
     totalBalance: number | null;
-    changePct: number | null;
-    changeUsdToday: number | null;
+    latestChangePct: number | null;
+    latestChangeUsd: number | null;
+    latestSnapshotDate: string | null;
     sparkline: number[];
+    trendPoints: DailyValuePoint[];
     assets: DemoAsset[];
   };
   strategy: {
@@ -124,11 +128,20 @@ export const DEMO: DemoData = {
   },
   home: {
     totalBalance: 24_815.6,
-    changePct: 2.6,
-    changeUsdToday: 612.4,
+    latestChangePct: 2.6,
+    latestChangeUsd: 612.4,
+    latestSnapshotDate: '2026-08-22',
     sparkline: [42, 44, 38, 41, 33, 36, 27, 31, 23, 27, 17, 22, 13, 11, 9].map(
       (y) => 54 - y,
     ),
+    trendPoints: [
+      22_100, 22_250, 21_980, 22_330, 22_020, 22_460, 22_180, 22_760, 22_540,
+      23_050, 22_830, 23_620, 23_950, 24_203.2, 24_815.6,
+    ].map((total_value_usd, index) => ({
+      date: `2026-08-${String(index + 8).padStart(2, '0')}`,
+      total_value_usd,
+      categories: [{ assets_usd: total_value_usd + 1_200, debt_usd: 1_200 }],
+    })),
     assets: [
       {
         symbol: 'USDC',
@@ -191,11 +204,10 @@ export const DEMO: DemoData = {
     changeUsdAllTime: 1_840.2,
     changePctToday: 0.4,
     metrics: [
-      { label: 'Total return', value: '+16.7%', tone: 'positive' },
+      { label: 'Value change', value: '+16.7%', tone: 'positive' },
       { label: 'Current APY', value: '9.2%', tone: 'accent' },
-      { label: '7D return', value: '+1.8%', tone: 'positive' },
-      { label: '30D return', value: '+4.2%', tone: 'positive' },
-      { label: 'Realized yield', value: '$642.10', tone: 'neutral' },
+      { label: '7D value change', value: '+1.8%', tone: 'positive' },
+      { label: '30D value change', value: '+4.2%', tone: 'positive' },
       { label: 'Max drawdown', value: '−6.1%', tone: 'negative' },
     ],
     allocation: [

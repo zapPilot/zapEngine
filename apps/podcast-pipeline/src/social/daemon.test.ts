@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   listSocialPublishCandidates: vi.fn(),
   listUnfinishedSocialPublishJobs: vi.fn(),
   reconcileSocialPublishJob: vi.fn(),
+  skipOverdueSocialPublishJobs: vi.fn(),
   insertSocialPostMetric: vi.fn(),
   listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
   listSocialPostsByEpisode: vi.fn(),
@@ -54,6 +55,7 @@ vi.mock('./daemon-store.js', () => ({
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob: mocks.reconcileSocialPublishJob,
+  skipOverdueSocialPublishJobs: mocks.skipOverdueSocialPublishJobs,
 }));
 
 vi.mock('../services/db.js', () => ({
@@ -81,6 +83,7 @@ import type { SocialPostRow } from '../types.js';
 import {
   collectDueMetricWindows,
   earliestDueWindow,
+  readSocialPublishOverdueGraceMs,
   runSocialDaemon,
   runSocialDaemonTick,
 } from './daemon.js';
@@ -154,6 +157,7 @@ beforeEach(() => {
   mocks.claimSocialPublishJob.mockResolvedValue(null);
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
   mocks.reconcileSocialPublishJob.mockResolvedValue(true);
+  mocks.skipOverdueSocialPublishJobs.mockResolvedValue(0);
   mocks.listSocialPostsByEpisode.mockResolvedValue([]);
   mocks.listLearningSocialPosts.mockResolvedValue([]);
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);
@@ -173,7 +177,135 @@ beforeEach(() => {
   mocks.captureDueAccountSnapshots.mockResolvedValue(0);
 });
 
+describe('social publish overdue configuration', () => {
+  it('is disabled when the setting is absent or blank', () => {
+    expect(readSocialPublishOverdueGraceMs({})).toBeNull();
+    expect(
+      readSocialPublishOverdueGraceMs({
+        SOCIAL_PUBLISH_SKIP_OVERDUE_MINUTES: '   ',
+      }),
+    ).toBeNull();
+  });
+
+  it('converts positive integer minutes to milliseconds', () => {
+    expect(
+      readSocialPublishOverdueGraceMs({
+        SOCIAL_PUBLISH_SKIP_OVERDUE_MINUTES: '60',
+      }),
+    ).toBe(60 * 60_000);
+  });
+
+  it.each(['0', '-1', '1.5', 'nope', '9007199254740991'])(
+    'rejects unsafe value %s',
+    (value) => {
+      expect(() =>
+        readSocialPublishOverdueGraceMs({
+          SOCIAL_PUBLISH_SKIP_OVERDUE_MINUTES: value,
+        }),
+      ).toThrow(
+        'SOCIAL_PUBLISH_SKIP_OVERDUE_MINUTES must be a positive integer number of minutes.',
+      );
+    },
+  );
+});
+
 describe('social daemon', () => {
+  it('reconciles and discovers before skipping overdue jobs and claiming publish work', async () => {
+    mocks.listSocialPublishCandidates.mockResolvedValue([
+      { episode_id: EPISODE_ID, ready_at: '2026-08-16T00:00:00.000Z' },
+    ]);
+    mocks.skipOverdueSocialPublishJobs.mockResolvedValue(4);
+    const log = vi.fn();
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-16T00:00:00.000Z',
+      overdueGraceMs: 60 * 60_000,
+      log,
+    });
+
+    expect(mocks.skipOverdueSocialPublishJobs).toHaveBeenCalledWith({
+      now: NOW,
+      graceMs: 60 * 60_000,
+    });
+    expect(
+      mocks.listUnfinishedSocialPublishJobs.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      mocks.skipOverdueSocialPublishJobs.mock.invocationCallOrder[0]!,
+    );
+    expect(
+      mocks.enqueueSocialPublishJob.mock.invocationCallOrder.at(-1),
+    ).toBeLessThan(
+      mocks.skipOverdueSocialPublishJobs.mock.invocationCallOrder[0]!,
+    );
+    expect(
+      mocks.skipOverdueSocialPublishJobs.mock.invocationCallOrder[0],
+    ).toBeLessThan(mocks.claimSocialPublishJob.mock.invocationCallOrder[0]!);
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(
+      '[social-daemon] skipped 4 overdue publish jobs (60m grace; cutoff 2026-08-16T09:00:00.000Z).',
+    );
+  });
+
+  it('fails publishing closed when the overdue update fails while continuing later stages', async () => {
+    mocks.skipOverdueSocialPublishJobs.mockRejectedValue(
+      new Error('skip query down'),
+    );
+    const log = vi.fn();
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-16T00:00:00.000Z',
+      overdueGraceMs: 60 * 60_000,
+      log,
+    });
+
+    expect(mocks.claimSocialPublishJob).not.toHaveBeenCalled();
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.listLearningSocialPosts).toHaveBeenCalled();
+    expect(mocks.captureDueAccountSnapshots).toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(
+      '[social-daemon] publish failed: skip query down',
+    );
+  });
+
+  it('keeps publishing due jobs within the configured grace period', async () => {
+    mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
+    mocks.runSocialCli.mockResolvedValue([
+      { platform: 'x', status: 'published', url: 'https://x.com/zap/status/1' },
+    ]);
+    mocks.listSocialPostsByEpisode
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([socialPost()]);
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-16T00:00:00.000Z',
+      overdueGraceMs: 60 * 60_000,
+    });
+
+    expect(mocks.skipOverdueSocialPublishJobs).toHaveBeenCalled();
+    expect(mocks.runSocialCli).toHaveBeenCalledOnce();
+  });
+
+  it('does not publish skipped work on later ticks', async () => {
+    mocks.skipOverdueSocialPublishJobs
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(0);
+
+    for (let tick = 0; tick < 2; tick += 1) {
+      await runSocialDaemonTick({
+        now: new Date(NOW.getTime() + tick * 60_000),
+        firstStartedAt: '2026-08-16T00:00:00.000Z',
+        overdueGraceMs: 60 * 60_000,
+      });
+    }
+
+    expect(mocks.skipOverdueSocialPublishJobs).toHaveBeenCalledTimes(2);
+    expect(mocks.claimSocialPublishJob).toHaveBeenCalledTimes(2);
+    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+  });
+
   it('discovers new episodes, publishes one due job, and refreshes learning without backfilling before the durable start', async () => {
     mocks.listSocialPublishCandidates.mockResolvedValue([
       { episode_id: EPISODE_ID, ready_at: '2026-08-16T09:00:00.000Z' },

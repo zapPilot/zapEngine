@@ -1,20 +1,15 @@
-import { useQuery } from '@tanstack/react-query';
 import { calculateAllocation } from '@zapengine/app-core/adapters';
 import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics';
-import {
-  createQueryConfig,
-  queryKeys,
-  useLandingPageData,
-} from '@zapengine/app-core/hooks/queries';
-import { getDailyYieldReturns } from '@zapengine/app-core/services';
+import { useLandingPageData } from '@zapengine/app-core/hooks/queries';
 
 import { DEMO, type MetricTone } from '@/data/demo';
 import {
-  calculateWindowReturn,
-  mapDailyValuesToSparkline,
-  sumYieldReturns,
+  calculateAdjacentSnapshotChange,
+  calculateWindowValueChangePct,
+  type DailyValuePoint,
+  toTrendPoints,
 } from '@/integration/portfolioMetrics';
-import { formatPct, formatSignedPct, formatUsd } from '@/lib/format';
+import { formatPct, formatSignedPct } from '@/lib/format';
 
 interface Metric {
   label: string;
@@ -25,10 +20,11 @@ interface Metric {
 /** Shape the PortfolioScreen renders. */
 export interface PortfolioViewData {
   positionValue: number | null;
-  changePct: number | null;
-  changeUsdAllTime: number | null;
-  changePctToday: number | null;
-  chartData: number[];
+  valueChangePct: number | null;
+  valueChangeUsd: number | null;
+  latestSnapshotChangePct: number | null;
+  latestSnapshotDate: string | null;
+  trendPoints: DailyValuePoint[];
   metrics: Metric[];
   allocation: { label: string; pct: number; color: string }[];
   lastRebalancedLabel: string;
@@ -118,16 +114,16 @@ function positivePctMetric(label: string, pct: number | null): Metric {
 function unavailablePortfolioData(): PortfolioViewData {
   return {
     positionValue: null,
-    changePct: null,
-    changeUsdAllTime: null,
-    changePctToday: null,
-    chartData: [],
+    valueChangePct: null,
+    valueChangeUsd: null,
+    latestSnapshotChangePct: null,
+    latestSnapshotDate: null,
+    trendPoints: [],
     metrics: [
-      unavailableMetric('Total return'),
+      unavailableMetric('Value change'),
       unavailableMetric('Current APY', 'accent'),
-      unavailableMetric('7D return'),
-      unavailableMetric('30D return'),
-      unavailableMetric('Realized yield'),
+      unavailableMetric('7D value change'),
+      unavailableMetric('30D value change'),
       unavailableMetric('Max drawdown', 'negative'),
       unavailableMetric('Volatility'),
       unavailableMetric('Sharpe', 'accent'),
@@ -154,13 +150,6 @@ export function usePortfolioData(
     userId ?? undefined,
     { trend_days: days, drawdown_days: days, rolling_days: days },
   );
-  const yieldQuery = useQuery({
-    ...createQueryConfig({ dataType: 'volatile' }),
-    queryKey: queryKeys.desktop.portfolio.dailyYield(userId, days),
-    queryFn: () => getDailyYieldReturns(userId as string, days),
-    enabled: Boolean(userId),
-  });
-
   // userId still resolving, or the query hasn't produced a dashboard yet.
   if (!userId && options.isResolvingUser) {
     return { data: null, isLoading: true, isError: false };
@@ -179,12 +168,9 @@ export function usePortfolioData(
   }
 
   const landing = landingQuery.data;
-  const dailyValues = dashboard?.trends?.daily_values ?? [];
-  const chronologicalDailyValues = [...dailyValues].sort((a, b) =>
-    (a.date ?? '').localeCompare(b.date ?? ''),
-  );
-  const firstDay = chronologicalDailyValues[0];
-  const lastDay = chronologicalDailyValues.at(-1);
+  const trendPoints = toTrendPoints(dashboard?.trends?.daily_values ?? []);
+  const firstDay = trendPoints[0];
+  const lastDay = trendPoints.at(-1);
 
   // Position value = authoritative landing BFF balance.
   const positionValue =
@@ -194,7 +180,7 @@ export function usePortfolioData(
         ? landing.total_net_usd
         : null;
 
-  // All-time change: earliest vs latest total_value_usd.
+  // Selected-range value change: earliest vs latest total_value_usd.
   const firstValue = firstDay?.total_value_usd;
   const lastValue = lastDay?.total_value_usd;
   const trend =
@@ -203,16 +189,12 @@ export function usePortfolioData(
     firstValue > 0
       ? { first: firstValue, last: lastValue }
       : null;
-  const changeUsdAllTime = trend ? trend.last - trend.first : null;
-  const changePct = trend
+  const valueChangeUsd = trend ? trend.last - trend.first : null;
+  const valueChangePct = trend
     ? ((trend.last - trend.first) / trend.first) * 100
     : null;
 
-  // Today = latest daily change_percentage.
-  const changePctToday =
-    typeof lastDay?.change_percentage === 'number'
-      ? lastDay.change_percentage
-      : null;
+  const latestSnapshotChange = calculateAdjacentSnapshotChange(trendPoints);
 
   // --- Metrics: real where analytics gives a clean source, unavailable otherwise. ---
   const sharpeSeries =
@@ -226,7 +208,7 @@ export function usePortfolioData(
   const maxDrawdownPct =
     dashboard?.drawdown_analysis?.enhanced?.summary?.max_drawdown_pct;
 
-  const totalReturnMetric = pctMetric('Total return', changePct);
+  const valueChangeMetric = pctMetric('Value change', valueChangePct);
 
   // max_drawdown_pct is reported as a negative value upstream.
   const maxDrawdownMetric = numberMetric(
@@ -247,25 +229,17 @@ export function usePortfolioData(
     'accent',
   );
 
-  const return7d = calculateWindowReturn(chronologicalDailyValues, 7);
-  const return30d = calculateWindowReturn(chronologicalDailyValues, 30);
-  const realizedYield = sumYieldReturns(yieldQuery.data?.daily_returns);
-  const realizedYieldMetric = numberMetric(
-    'Realized yield',
-    realizedYield,
-    formatUsd,
-    (value) => (value < 0 ? 'negative' : 'neutral'),
-  );
+  const valueChange7d = calculateWindowValueChangePct(trendPoints, 7);
+  const valueChange30d = calculateWindowValueChangePct(trendPoints, 30);
 
   const metrics: PortfolioViewData['metrics'] = [
-    totalReturnMetric,
+    valueChangeMetric,
     positivePctMetric(
       'Current APY',
       landing?.portfolio_roi?.recommended_yearly_roi ?? null,
     ),
-    pctMetric('7D return', return7d),
-    pctMetric('30D return', return30d),
-    realizedYieldMetric,
+    pctMetric('7D value change', valueChange7d),
+    pctMetric('30D value change', valueChange30d),
     maxDrawdownMetric,
     volatilityMetric,
     sharpeMetric,
@@ -291,10 +265,11 @@ export function usePortfolioData(
 
   const data: PortfolioViewData = {
     positionValue,
-    changePct,
-    changeUsdAllTime,
-    changePctToday,
-    chartData: mapDailyValuesToSparkline(chronologicalDailyValues),
+    valueChangePct,
+    valueChangeUsd,
+    latestSnapshotChangePct: latestSnapshotChange?.pct ?? null,
+    latestSnapshotDate: lastDay?.date ?? null,
+    trendPoints,
     metrics,
     allocation,
     lastRebalancedLabel: 'Auto-managed by Zap Strategy',
@@ -302,7 +277,7 @@ export function usePortfolioData(
 
   return {
     data,
-    isLoading: isLoading || landingQuery.isLoading || yieldQuery.isLoading,
-    isError: isError || landingQuery.isError || yieldQuery.isError,
+    isLoading: isLoading || landingQuery.isLoading,
+    isError: isError || landingQuery.isError,
   };
 }

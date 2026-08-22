@@ -1,25 +1,40 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  calculateWindowReturn,
-  mapDailyValuesToSparkline,
-  sumYieldReturns,
+  calculateAdjacentSnapshotChange,
+  calculateWindowValueChangePct,
+  nearestTrendPointIndex,
+  snapshotCategoryTotals,
+  toTrendPoints,
+  trendPointX,
 } from '@/integration/portfolioMetrics';
 
 describe('portfolioMetrics', () => {
-  it('maps sparkline values in chronological order and ignores invalid totals', () => {
+  it('keeps complete trend points in chronological order and ignores invalid totals', () => {
     expect(
-      mapDailyValuesToSparkline([
+      toTrendPoints([
         { date: '2026-06-03', total_value_usd: Number.NaN },
-        { date: '2026-06-02', total_value_usd: 110 },
+        {
+          date: '2026-06-02',
+          total_value_usd: 110,
+          categories: [{ assets_usd: 120, debt_usd: 10 }],
+        },
         { date: '2026-06-01', total_value_usd: 100 },
         { date: '2026-06-04', total_value_usd: Infinity },
         { date: '2026-06-05', total_value_usd: 125 },
       ]),
-    ).toEqual([100, 110, 125]);
+    ).toEqual([
+      { date: '2026-06-01', total_value_usd: 100 },
+      {
+        date: '2026-06-02',
+        total_value_usd: 110,
+        categories: [{ assets_usd: 120, debt_usd: 10 }],
+      },
+      { date: '2026-06-05', total_value_usd: 125 },
+    ]);
   });
 
-  it('calculates window returns from the latest point to the nearest eligible start point', () => {
+  it('calculates window value change from the nearest eligible start point', () => {
     const dailyValues = [
       { date: '2026-06-01', total_value_usd: 100 },
       { date: '2026-06-20', total_value_usd: 120 },
@@ -27,14 +42,14 @@ describe('portfolioMetrics', () => {
       { date: '2026-06-10', total_value_usd: 90 },
     ];
 
-    expect(calculateWindowReturn(dailyValues, 7)).toBe(25);
-    expect(calculateWindowReturn(dailyValues, 30)).toBe(50);
+    expect(calculateWindowValueChangePct(dailyValues, 7)).toBe(25);
+    expect(calculateWindowValueChangePct(dailyValues, 30)).toBe(50);
   });
 
-  it('returns null for unsafe return calculations instead of emitting misleading percentages', () => {
-    expect(calculateWindowReturn([], 7)).toBeNull();
+  it('returns null for unsafe value-change calculations', () => {
+    expect(calculateWindowValueChangePct([], 7)).toBeNull();
     expect(
-      calculateWindowReturn(
+      calculateWindowValueChangePct(
         [
           { date: 'not-a-date', total_value_usd: 100 },
           { date: 'also-not-a-date', total_value_usd: 110 },
@@ -43,7 +58,7 @@ describe('portfolioMetrics', () => {
       ),
     ).toBeNull();
     expect(
-      calculateWindowReturn(
+      calculateWindowValueChangePct(
         [
           { date: '2026-06-01', total_value_usd: 0 },
           { date: '2026-06-30', total_value_usd: 110 },
@@ -53,16 +68,51 @@ describe('portfolioMetrics', () => {
     ).toBeNull();
   });
 
-  it('sums only finite realized yield returns and returns null when none are usable', () => {
+  it('derives portfolio change only from adjacent finite snapshots', () => {
+    const points = [
+      { total_value_usd: 100 },
+      { total_value_usd: 125 },
+      { total_value_usd: Number.NaN },
+    ];
+    expect(calculateAdjacentSnapshotChange(points, 1)).toEqual({
+      usd: 25,
+      pct: 25,
+    });
+    expect(calculateAdjacentSnapshotChange(points, 0)).toBeNull();
+    expect(calculateAdjacentSnapshotChange(points, 2)).toBeNull();
     expect(
-      sumYieldReturns([
-        { yield_return_usd: 1.25 },
-        { yield_return_usd: Number.NaN },
-        { yield_return_usd: -0.5 },
-        { yield_return_usd: Infinity },
-      ]),
-    ).toBe(0.75);
+      calculateAdjacentSnapshotChange([{ total_value_usd: 100 }]),
+    ).toBeNull();
+  });
 
-    expect(sumYieldReturns([{ yield_return_usd: Number.NaN }, {}])).toBeNull();
+  it('sums gross assets and debt across categories and ignores non-finite fields', () => {
+    expect(
+      snapshotCategoryTotals({
+        total_value_usd: 125,
+        categories: [
+          { assets_usd: 100, debt_usd: 10 },
+          { assets_usd: 50, debt_usd: 15 },
+          { assets_usd: Number.NaN, debt_usd: Infinity },
+        ],
+      }),
+    ).toEqual({ assetsUsd: 150, debtUsd: 25 });
+    expect(snapshotCategoryTotals({ total_value_usd: 125 })).toEqual({});
+    expect(
+      snapshotCategoryTotals({
+        total_value_usd: 0,
+        categories: [{ assets_usd: 0, debt_usd: 0 }],
+      }),
+    ).toEqual({ assetsUsd: 0, debtUsd: 0 });
+  });
+
+  it('selects and positions the nearest marker inside chart bounds', () => {
+    expect(nearestTrendPointIndex(-20, 100, 5)).toBe(0);
+    expect(nearestTrendPointIndex(51, 100, 5)).toBe(2);
+    expect(nearestTrendPointIndex(200, 100, 5)).toBe(4);
+    expect(nearestTrendPointIndex(20, 0, 5)).toBeNull();
+    expect(nearestTrendPointIndex(Number.NaN, 100, 5)).toBeNull();
+    expect(trendPointX(0, 100, 5)).toBe(0);
+    expect(trendPointX(4, 100, 5)).toBe(100);
+    expect(trendPointX(9, 100, 5)).toBe(100);
   });
 });

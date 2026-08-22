@@ -181,9 +181,10 @@ describe('useHomeData', () => {
     expect(result).toMatchObject({ isLoading: false, isError: false });
     expect(result.data?.home).toMatchObject({
       totalBalance: null,
-      changePct: null,
-      changeUsdToday: null,
-      sparkline: [],
+      latestChangePct: null,
+      latestChangeUsd: null,
+      latestSnapshotDate: null,
+      trendPoints: [],
       assets: [],
     });
     expect(result.data?.strategy.backtest).toMatchObject({
@@ -268,8 +269,18 @@ describe('useHomeData', () => {
       dashboard: {
         trends: {
           daily_values: [
-            { total_value_usd: 1000, change_percentage: 1.5, pnl_usd: 15 },
-            { total_value_usd: 1234, change_percentage: -0.5, pnl_usd: -6 },
+            {
+              date: '2026-08-01',
+              total_value_usd: 1000,
+              change_percentage: 1.5,
+              pnl_usd: 15,
+            },
+            {
+              date: '2026-08-02',
+              total_value_usd: 1234,
+              change_percentage: -0.5,
+              pnl_usd: -6,
+            },
           ],
         },
       },
@@ -288,11 +299,15 @@ describe('useHomeData', () => {
     expect(result).toMatchObject({ isLoading: false, isError: true });
     expect(result.data?.home).toMatchObject({
       totalBalance: 1234,
-      changePct: -0.5,
-      changeUsdToday: -6,
-      sparkline: [1000, 1234],
+      latestChangeUsd: 234,
+      latestSnapshotDate: '2026-08-02',
       assets: [{ symbol: 'ETH' }],
     });
+    expect(result.data.home.latestChangePct).toBeCloseTo(23.4);
+    expect(result.data.home.trendPoints).toEqual([
+      expect.objectContaining({ total_value_usd: 1000 }),
+      expect.objectContaining({ total_value_usd: 1234 }),
+    ]);
     expect(result.data?.strategy.quote).toBe('Stay patient.');
     expect(usePortfolioDashboardMock).toHaveBeenCalledWith('user-123', {
       trend_days: 365,

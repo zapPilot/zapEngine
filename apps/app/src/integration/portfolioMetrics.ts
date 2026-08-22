@@ -1,14 +1,28 @@
 import { isFiniteNumber } from '@zapengine/types/shared';
 
-export interface DailyValuePoint {
-  date?: string;
-  total_value_usd?: number;
-  change_percentage?: number;
+export interface DailyValueCategory {
+  assets_usd?: number;
+  debt_usd?: number;
+  category?: string;
+  source_type?: string;
+  value_usd?: number;
   pnl_usd?: number;
 }
 
-export interface YieldReturnPoint {
-  yield_return_usd?: number;
+export interface DailyValuePoint {
+  date?: string;
+  total_value_usd?: number;
+  categories?: readonly DailyValueCategory[];
+}
+
+export interface SnapshotChange {
+  usd: number;
+  pct: number | null;
+}
+
+export interface SnapshotCategoryTotals {
+  assetsUsd?: number;
+  debtUsd?: number;
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -23,31 +37,46 @@ export function sortedDailyValues(
   });
 }
 
-export function mapDailyValuesToSparkline(
-  dailyValues: DailyValuePoint[] | undefined,
-): number[] {
-  return sortedDailyValues(dailyValues)
-    .map((point) => point.total_value_usd)
-    .filter(isFiniteNumber);
-}
-
-export function calculateWindowReturn(
-  dailyValues: DailyValuePoint[] | undefined,
-  days: number,
-): number | null {
-  const sorted = sortedDailyValues(dailyValues).filter((point) =>
+/** Keep every usable snapshot intact so chart consumers retain its metadata. */
+export function toTrendPoints(
+  dailyValues: readonly DailyValuePoint[] | undefined,
+): DailyValuePoint[] {
+  return sortedDailyValues(dailyValues).filter((point) =>
     isFiniteNumber(point.total_value_usd),
   );
+}
+
+export function calculateAdjacentSnapshotChange(
+  trendPoints: readonly DailyValuePoint[] | undefined,
+  index = (trendPoints?.length ?? 0) - 1,
+): SnapshotChange | null {
+  const current = trendPoints?.[index]?.total_value_usd;
+  const previous = trendPoints?.[index - 1]?.total_value_usd;
+  if (!isFiniteNumber(current) || !isFiniteNumber(previous)) {
+    return null;
+  }
+
+  return {
+    usd: current - previous,
+    pct: previous > 0 ? ((current - previous) / previous) * 100 : null,
+  };
+}
+
+export function calculateWindowValueChangePct(
+  dailyValues: readonly DailyValuePoint[] | undefined,
+  days: number,
+): number | null {
+  const sorted = toTrendPoints(dailyValues);
   const latest = sorted.at(-1);
   if (!latest?.date || !isFiniteNumber(latest.total_value_usd)) {
     return null;
   }
 
   const latestTs = Date.parse(latest.date);
-  const targetTs = latestTs - days * MS_PER_DAY;
   if (Number.isNaN(latestTs)) {
     return null;
   }
+  const targetTs = latestTs - days * MS_PER_DAY;
 
   const start =
     sorted
@@ -70,14 +99,53 @@ export function calculateWindowReturn(
   return ((latest.total_value_usd - startValue) / startValue) * 100;
 }
 
-export function sumYieldReturns(
-  dailyReturns: YieldReturnPoint[] | undefined,
-): number | null {
-  const values = (dailyReturns ?? [])
-    .map((row) => row.yield_return_usd)
+function sumFiniteCategoryField(
+  categories: readonly DailyValueCategory[] | undefined,
+  field: keyof DailyValueCategory,
+): number | undefined {
+  const values = (categories ?? [])
+    .map((category) => category[field])
     .filter(isFiniteNumber);
-  if (values.length === 0) {
+  return values.length > 0
+    ? values.reduce((total, value) => total + value, 0)
+    : undefined;
+}
+
+/** Gross values are summed across every category/source represented upstream. */
+export function snapshotCategoryTotals(
+  point: DailyValuePoint,
+): SnapshotCategoryTotals {
+  const assetsUsd = sumFiniteCategoryField(point.categories, 'assets_usd');
+  const debtUsd = sumFiniteCategoryField(point.categories, 'debt_usd');
+  return {
+    ...(assetsUsd === undefined ? {} : { assetsUsd }),
+    ...(debtUsd === undefined ? {} : { debtUsd }),
+  };
+}
+
+export function nearestTrendPointIndex(
+  pointerX: number,
+  width: number,
+  pointCount: number,
+): number | null {
+  if (
+    !Number.isFinite(pointerX) ||
+    !Number.isFinite(width) ||
+    width <= 0 ||
+    pointCount <= 0
+  ) {
     return null;
   }
-  return values.reduce((total, value) => total + value, 0);
+  if (pointCount === 1) return 0;
+  const clampedX = Math.max(0, Math.min(width, pointerX));
+  return Math.round((clampedX / width) * (pointCount - 1));
+}
+
+export function trendPointX(
+  index: number,
+  width: number,
+  pointCount: number,
+): number {
+  if (pointCount <= 1 || width <= 0) return 0;
+  return Math.max(0, Math.min(width, (index / (pointCount - 1)) * width));
 }

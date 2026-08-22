@@ -311,6 +311,34 @@ export async function listUnfinishedSocialPublishJobs(): Promise<
   return data ?? [];
 }
 
+export async function skipOverdueSocialPublishJobs(input: {
+  now: Date;
+  graceMs: number;
+}): Promise<number> {
+  if (!Number.isSafeInteger(input.graceMs) || input.graceMs <= 0) {
+    throw new Error('Social publish overdue grace must be a positive integer.');
+  }
+
+  const completedAt = input.now.toISOString();
+  const cutoff = new Date(input.now.getTime() - input.graceMs).toISOString();
+  const { data, error } = await getPipelineSupabase()
+    .from('social_publish_jobs')
+    .update({
+      status: 'completed',
+      completed_at: completedAt,
+      lease_owner: null,
+      lease_expires_at: null,
+      last_error: `skipped: overdue; grace_ms=${input.graceMs}; cutoff=${cutoff}`,
+      updated_at: completedAt,
+    })
+    .in('status', ['queued', 'failed'])
+    .lt('scheduled_at', cutoff)
+    .select('id')
+    .returns<{ id: string }[]>();
+  if (error) throwSupabaseError(error);
+  return data?.length ?? 0;
+}
+
 export async function claimSocialPublishBatch(input: {
   owner: string;
   now: Date;

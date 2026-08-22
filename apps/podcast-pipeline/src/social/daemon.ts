@@ -35,6 +35,7 @@ import {
   listSocialPublishCandidates,
   listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob,
+  skipOverdueSocialPublishJobs,
   type SocialMetricWindowLabel,
   type SocialPublishJobRow,
   type SocialStrategyVersionRow,
@@ -66,6 +67,8 @@ const POLL_INTERVAL_MS = 60_000;
 const METRIC_LOOKBACK_DAYS = 8;
 const STRATEGY_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
 const OWNER = `${hostname()}:${process.pid}`;
+const SOCIAL_PUBLISH_SKIP_OVERDUE_MINUTES =
+  'SOCIAL_PUBLISH_SKIP_OVERDUE_MINUTES';
 
 const METRIC_WINDOWS: readonly {
   label: SocialMetricWindowLabel;
@@ -86,12 +89,34 @@ export interface SocialDaemonDependencies {
   log?: (message: string) => void;
 }
 
+export function readSocialPublishOverdueGraceMs(
+  env: NodeJS.ProcessEnv = process.env,
+): number | null {
+  const raw = env[SOCIAL_PUBLISH_SKIP_OVERDUE_MINUTES]?.trim();
+  if (!raw) return null;
+
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(
+      `${SOCIAL_PUBLISH_SKIP_OVERDUE_MINUTES} must be a positive integer number of minutes.`,
+    );
+  }
+  const minutes = Number(raw);
+  const maxMinutes = Math.floor(Number.MAX_SAFE_INTEGER / 60_000);
+  if (!Number.isSafeInteger(minutes) || minutes <= 0 || minutes > maxMinutes) {
+    throw new Error(
+      `${SOCIAL_PUBLISH_SKIP_OVERDUE_MINUTES} must be a positive integer number of minutes.`,
+    );
+  }
+  return minutes * 60_000;
+}
+
 export async function runSocialDaemon(
   dependencies: SocialDaemonDependencies = {},
 ): Promise<never> {
   const now = dependencies.now ?? (() => new Date());
   const sleep = dependencies.sleep ?? defaultSleep;
   const log = dependencies.log ?? console.log;
+  const overdueGraceMs = readSocialPublishOverdueGraceMs();
   let lastStrategyRefresh = 0;
 
   const firstStartedAt = await ensureSocialDaemonStart(now());
@@ -116,6 +141,7 @@ export async function runSocialDaemon(
       refreshStrategy:
         tickStartedAt.getTime() - lastStrategyRefresh >=
         STRATEGY_REFRESH_INTERVAL_MS,
+      overdueGraceMs,
     });
     if (
       tickStartedAt.getTime() - lastStrategyRefresh >=
@@ -138,6 +164,7 @@ export async function runSocialDaemonTick(input: {
   firstStartedAt: string;
   log?: (message: string) => void;
   refreshStrategy?: boolean;
+  overdueGraceMs?: number | null;
 }): Promise<void> {
   const log = input.log ?? (() => void 0);
 
@@ -159,7 +186,23 @@ export async function runSocialDaemonTick(input: {
       log,
     }),
   );
-  await isolate('publish', log, () => publishDueJobs(input.now, log));
+  await isolate('publish', log, async () => {
+    if (input.overdueGraceMs != null) {
+      const cutoff = new Date(
+        input.now.getTime() - input.overdueGraceMs,
+      ).toISOString();
+      const skipped = await skipOverdueSocialPublishJobs({
+        now: input.now,
+        graceMs: input.overdueGraceMs,
+      });
+      if (skipped > 0) {
+        log(
+          `[social-daemon] skipped ${skipped} overdue publish job${skipped === 1 ? '' : 's'} (${input.overdueGraceMs / 60_000}m grace; cutoff ${cutoff}).`,
+        );
+      }
+    }
+    await publishDueJobs(input.now, log);
+  });
   await isolate('metrics', log, async () => {
     await collectDueMetricWindows(input.now, log);
   });

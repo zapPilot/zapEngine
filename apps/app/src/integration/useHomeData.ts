@@ -4,12 +4,12 @@ import { useMemo } from 'react';
 
 import { DEMO } from '@/data/demo';
 import {
+  calculateAdjacentSnapshotChange,
   type DailyValuePoint,
-  mapDailyValuesToSparkline,
   sortedDailyValues,
+  toTrendPoints,
 } from '@/integration/portfolioMetrics';
 import {
-  liveNumberOrDemo,
   liveTextOrDemo,
   marketModeLabelFromRegime,
   pillarsFromTarget,
@@ -23,6 +23,7 @@ import { useWalletAssets } from '@/integration/walletTokens';
 import type { UseWalletAssetsResult } from '@/integration/walletTokens';
 
 type HomeSlice = (typeof DEMO)['home'];
+type HomeViewData = Omit<HomeSlice, 'sparkline'>;
 type StrategySlice = (typeof DEMO)['strategy'];
 export const HOME_RANGE_OPTIONS = ['1D', '1W', '1M', '1Y', 'ALL'] as const;
 export type HomeRange = (typeof HOME_RANGE_OPTIONS)[number];
@@ -35,7 +36,7 @@ const EMPTY_DAILY_VALUES: readonly DailyValuePoint[] = [];
  * connected live misses stay null/empty so the screen renders dashes.
  */
 export interface HomeData {
-  home: HomeSlice;
+  home: HomeViewData;
   strategy: StrategySlice;
 }
 
@@ -55,8 +56,8 @@ export interface UseHomeDataResult {
  * Wires the cleanly-available live signals into the DEMO.home / DEMO.strategy
  * shapes:
  * - total balance from the progressive landing balance section,
- * - today's change % / USD and the balance sparkline from the unified dashboard
- *   trends series,
+ * - latest adjacent-snapshot change and complete balance trend points from the
+ *   unified dashboard trends series,
  * - the contrarian quote + market-mode label from the progressive strategy
  *   section (Fear & Greed quote + current regime).
  *
@@ -110,15 +111,15 @@ export function sliceHomeDailyValuesForRange(
   return sliced.length >= 2 ? sliced : sorted.slice(-2);
 }
 
-function sparklineOrFallback(
-  liveSparkline: number[],
-  demoSparkline: number[],
+function trendPointsOrFallback(
+  liveTrendPoints: DailyValuePoint[],
+  demoTrendPoints: DailyValuePoint[],
   isDemo: boolean,
-): number[] {
-  if (liveSparkline.length >= 2) {
-    return liveSparkline;
+): DailyValuePoint[] {
+  if (liveTrendPoints.length >= 2) {
+    return liveTrendPoints;
   }
-  return isDemo ? demoSparkline : [];
+  return isDemo ? demoTrendPoints : [];
 }
 
 function unavailableBacktest(): StrategySlice['backtest'] {
@@ -195,37 +196,32 @@ export function useHomeData(
       ? (balanceSection?.data?.balance ?? null)
       : null;
 
-  // --- Live: today's change + balance sparkline from the trends series ---
+  // --- Live: latest adjacent-snapshot change + complete trend points. ---
   const dailyValues =
     dashboard.dashboard?.trends?.daily_values ?? EMPTY_DAILY_VALUES;
-  // Use array.at(-1) for the latest day — never index with [-1].
-  const latestDay = dailyValues.at(-1);
-
-  const homeSparkline = useMemo(
+  const allTrendPoints = useMemo(
+    () => toTrendPoints(dailyValues),
+    [dailyValues],
+  );
+  const homeTrendPoints = useMemo(
     () =>
-      sparklineOrFallback(
-        mapDailyValuesToSparkline(
-          sliceHomeDailyValuesForRange(dailyValues, range),
-        ),
-        demoHome.sparkline,
+      trendPointsOrFallback(
+        toTrendPoints(sliceHomeDailyValuesForRange(allTrendPoints, range)),
+        demoHome.trendPoints,
         isDemo,
       ),
-    [dailyValues, demoHome.sparkline, isDemo, range],
+    [allTrendPoints, demoHome.trendPoints, isDemo, range],
   );
+  const changeSource = isDemo ? demoHome.trendPoints : allTrendPoints;
+  const latestDay = changeSource.at(-1);
+  const latestChange = calculateAdjacentSnapshotChange(changeSource);
 
-  const home: HomeSlice = {
+  const home: HomeViewData = {
     totalBalance,
-    changePct: liveNumberOrDemo(
-      latestDay?.change_percentage,
-      demoHome.changePct,
-      isDemo,
-    ),
-    changeUsdToday: liveNumberOrDemo(
-      latestDay?.pnl_usd,
-      demoHome.changeUsdToday,
-      isDemo,
-    ),
-    sparkline: homeSparkline,
+    latestChangePct: latestChange?.pct ?? null,
+    latestChangeUsd: latestChange?.usd ?? null,
+    latestSnapshotDate: latestDay?.date ?? null,
+    trendPoints: homeTrendPoints,
     assets: isDemo ? demoHome.assets : walletAssets.assets,
   };
 

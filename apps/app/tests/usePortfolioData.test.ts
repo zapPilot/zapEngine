@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -8,17 +7,6 @@ import {
 
 const useLandingPageDataMock = vi.hoisted(() => vi.fn());
 const usePortfolioDashboardMock = vi.hoisted(() => vi.fn());
-const useQueryMock = vi.hoisted(() => vi.fn());
-
-vi.mock('@tanstack/react-query', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@tanstack/react-query')>();
-
-  return {
-    ...actual,
-    useQuery: useQueryMock,
-  };
-});
-
 vi.mock('@zapengine/app-core/hooks/analytics', () => ({
   usePortfolioDashboard: usePortfolioDashboardMock,
 }));
@@ -33,10 +21,6 @@ vi.mock('@zapengine/app-core/hooks/queries', async (importOriginal) => {
   };
 });
 
-vi.mock('@zapengine/app-core/services', () => ({
-  getDailyYieldReturns: vi.fn(),
-}));
-
 function mockSettledSources() {
   useLandingPageDataMock.mockReturnValue({
     data: null,
@@ -48,22 +32,16 @@ function mockSettledSources() {
     isLoading: false,
     isError: false,
   });
-  useQueryMock.mockReturnValue({
-    data: null,
-    isLoading: false,
-    isError: false,
-  });
 }
 
 beforeEach(() => {
   useLandingPageDataMock.mockReset();
   usePortfolioDashboardMock.mockReset();
-  useQueryMock.mockReset();
   mockSettledSources();
 });
 
 describe('Portfolio data range mapping', () => {
-  it('maps portfolio tabs to dashboard and yield windows', () => {
+  it('maps portfolio tabs to dashboard windows', () => {
     expect(portfolioDaysForRange('1W')).toBe(7);
     expect(portfolioDaysForRange('1M')).toBe(30);
     expect(portfolioDaysForRange('3M')).toBe(90);
@@ -83,9 +61,6 @@ describe('usePortfolioData', () => {
       drawdown_days: 365,
       rolling_days: 365,
     });
-    expect(useQuery).toHaveBeenCalledWith(
-      expect.objectContaining({ enabled: false }),
-    );
   });
 
   it('settles to unavailable portfolio values when no user id is available', () => {
@@ -94,15 +69,14 @@ describe('usePortfolioData', () => {
     expect(result).toMatchObject({ isLoading: false, isError: false });
     expect(result.data).toMatchObject({
       positionValue: null,
-      changePct: null,
-      changeUsdAllTime: null,
-      changePctToday: null,
-      chartData: [],
+      valueChangePct: null,
+      valueChangeUsd: null,
+      latestSnapshotChangePct: null,
+      trendPoints: [],
       allocation: [],
       lastRebalancedLabel: 'Auto-managed by Zap Strategy',
     });
     expect(result.data?.metrics.map((metric) => metric.value)).toEqual([
-      '—',
       '—',
       '—',
       '—',
@@ -113,7 +87,7 @@ describe('usePortfolioData', () => {
     ]);
   });
 
-  it('passes the selected range window to dashboard and yield queries', () => {
+  it('passes the selected range window only to the dashboard query', () => {
     const result = usePortfolioData('user-123', '1W');
 
     expect(result).toMatchObject({ isLoading: false, isError: false });
@@ -122,13 +96,6 @@ describe('usePortfolioData', () => {
       drawdown_days: 7,
       rolling_days: 7,
     });
-    expect(useQuery).toHaveBeenCalledWith(
-      expect.objectContaining({
-        enabled: true,
-        queryKey: ['desktop', 'portfolio', 'dailyYield', 'user-123', 7],
-        staleTime: 5 * 60 * 1000,
-      }),
-    );
   });
 
   it('surfaces connected live misses as unavailable values instead of demo-like data', () => {
@@ -137,15 +104,14 @@ describe('usePortfolioData', () => {
     expect(result).toMatchObject({ isLoading: false, isError: false });
     expect(result.data).toMatchObject({
       positionValue: null,
-      changePct: null,
-      changeUsdAllTime: null,
-      changePctToday: null,
-      chartData: [],
+      valueChangePct: null,
+      valueChangeUsd: null,
+      latestSnapshotChangePct: null,
+      trendPoints: [],
       allocation: [],
       lastRebalancedLabel: 'Auto-managed by Zap Strategy',
     });
     expect(result.data?.metrics.map((metric) => metric.value)).toEqual([
-      '—',
       '—',
       '—',
       '—',
@@ -155,11 +121,10 @@ describe('usePortfolioData', () => {
       '—',
     ]);
     expect(result.data?.metrics.map((metric) => metric.label)).toEqual([
-      'Total return',
+      'Value change',
       'Current APY',
-      '7D return',
-      '30D return',
-      'Realized yield',
+      '7D value change',
+      '30D value change',
       'Max drawdown',
       'Volatility',
       'Sharpe',
@@ -169,9 +134,6 @@ describe('usePortfolioData', () => {
       drawdown_days: 365,
       rolling_days: 365,
     });
-    expect(useQuery).toHaveBeenCalledWith(
-      expect.objectContaining({ enabled: true }),
-    );
   });
 
   it('calculates returns and latest daily change from chronological trend order', () => {
@@ -204,18 +166,18 @@ describe('usePortfolioData', () => {
     const result = usePortfolioData('user-123', '1Y');
 
     expect(result.data).toMatchObject({
-      changePct: 25,
-      changeUsdAllTime: 250,
-      changePctToday: 2.5,
-      chartData: [1000, 1100, 1250],
+      valueChangePct: 25,
+      valueChangeUsd: 250,
+      latestSnapshotChangePct: (150 / 1100) * 100,
+      latestSnapshotDate: '2026-06-29',
     });
     expect(result.data?.metrics[0]).toEqual({
-      label: 'Total return',
+      label: 'Value change',
       value: '+25.0%',
       tone: 'positive',
     });
     expect(result.data?.metrics[2]).toEqual({
-      label: '7D return',
+      label: '7D value change',
       value: '+13.6%',
       tone: 'positive',
     });
@@ -266,30 +228,21 @@ describe('usePortfolioData', () => {
       isLoading: false,
       isError: false,
     });
-    useQueryMock.mockReturnValue({
-      data: {
-        daily_returns: [{ yield_return_usd: 1.5 }, { yield_return_usd: -0.25 }],
-      },
-      isLoading: false,
-      isError: true,
-    });
-
     const result = usePortfolioData('user-123', '1Y');
 
     expect(result).toMatchObject({ isLoading: false, isError: true });
     expect(result.data).toMatchObject({
       positionValue: 1500,
-      changePct: 25,
-      changeUsdAllTime: 250,
-      changePctToday: 2.5,
-      chartData: [1000, 1100, 1250],
+      valueChangePct: 25,
+      valueChangeUsd: 250,
+      latestSnapshotChangePct: (150 / 1100) * 100,
+      latestSnapshotDate: '2026-06-29',
     });
     expect(result.data?.metrics).toEqual([
-      { label: 'Total return', value: '+25.0%', tone: 'positive' },
+      { label: 'Value change', value: '+25.0%', tone: 'positive' },
       { label: 'Current APY', value: '12.3%', tone: 'accent' },
-      { label: '7D return', value: '+13.6%', tone: 'positive' },
-      { label: '30D return', value: '+25.0%', tone: 'positive' },
-      { label: 'Realized yield', value: '$1.25', tone: 'neutral' },
+      { label: '7D value change', value: '+13.6%', tone: 'positive' },
+      { label: '30D value change', value: '+25.0%', tone: 'positive' },
       { label: 'Max drawdown', value: '−8.3%', tone: 'negative' },
       { label: 'Volatility', value: '13.5%', tone: 'neutral' },
       { label: 'Sharpe', value: '1.23', tone: 'accent' },
@@ -299,6 +252,9 @@ describe('usePortfolioData', () => {
     );
     expect(result.data?.metrics.map((metric) => metric.label)).not.toContain(
       'Gas saved',
+    );
+    expect(result.data?.metrics.map((metric) => metric.label)).not.toContain(
+      'Realized yield',
     );
   });
 });

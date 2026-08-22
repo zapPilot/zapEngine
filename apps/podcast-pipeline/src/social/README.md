@@ -79,6 +79,22 @@ Publish hours are deliberately fixed and never learned: strategy learning only
 adjusts copy/content preferences (hook types, hashtags). Missed early metric
 buckets are never backfilled with later data.
 
+By default, overdue publish jobs remain durable and are published after the
+daemon restarts. Set `SOCIAL_PUBLISH_SKIP_OVERDUE_MINUTES` to a positive integer
+(for example, `60`) to discard `queued` or `failed` jobs whose original
+`scheduled_at` is older than that grace period. The daemon reconciles existing
+`social_posts`, discovers new episodes, and marks overdue jobs completed before
+claiming anything for publication, so work discovered after downtime cannot
+publish in the same tick before the policy is applied. A failure while applying
+the policy blocks publishing for that tick and is retried on the next poll.
+
+This policy does not introduce a database status. A skipped row is represented
+as `status = 'completed'`, `social_post_id is null`, and
+`last_error like 'skipped: overdue%'`. Reporting must exclude those rows from
+successful-publish counts. `processing` jobs are not skipped because their
+lease may represent an in-flight publish; existing reconciliation and lease
+fencing continue to own their recovery.
+
 The strategy version a job publishes under is resolved when the job is
 **claimed**, never when it is queued. Stamping it at enqueue meant a job created
 before the first version existed — or scheduled days ahead of the next refresh —

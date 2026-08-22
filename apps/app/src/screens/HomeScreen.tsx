@@ -15,7 +15,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 
-import { Sparkline } from '@/components/charts/Sparkline';
+import { PortfolioTrendChart } from '@/components/charts/PortfolioTrendChart';
 import {
   AccountUnavailableOverlay,
   DemoBlurCover,
@@ -45,6 +45,7 @@ import {
 } from '@/integration/useHomeData';
 import { createStrategyStartAction } from '@/integration/strategyStartAction';
 import { formatSignedPct, formatSignedUsd, formatUsd } from '@/lib/format';
+import { formatSnapshotDate, isSnapshotToday } from '@/lib/portfolioDates';
 import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 import type { TranslationKey } from '@/i18n/translations';
@@ -217,7 +218,7 @@ function ActionButton({
 
 export function HomeScreen() {
   const router = useRouter();
-  const { t } = useContentLanguage();
+  const { languageCode, t } = useContentLanguage();
   const authAction = useAuthenticatedAction();
   const [range, setRange] = useState<HomeRange>(DEFAULT_HOME_RANGE);
   const account = useAccount();
@@ -274,6 +275,9 @@ export function HomeScreen() {
   );
   const connect = () => void account.connect().catch(() => undefined);
   const retryWalletAssets = () => void walletAssets.refetch();
+  const latestSnapshotLabel = isSnapshotToday(home.latestSnapshotDate)
+    ? t('home.today')
+    : formatSnapshotDate(home.latestSnapshotDate, languageCode);
 
   return (
     <ScreenScrollView>
@@ -309,14 +313,19 @@ export function HomeScreen() {
               />
               <View className="mt-[9px] flex-row items-center gap-2">
                 <Text className="rounded-full bg-success/[0.12] px-[9px] py-[3px] font-sans-semibold text-[12.5px] text-success">
-                  {typeof home.changePct === 'number'
-                    ? formatSignedPct(home.changePct).replace('+', '')
+                  {typeof home.latestChangePct === 'number'
+                    ? formatSignedPct(home.latestChangePct).replace('+', '')
                     : '-'}
                 </Text>
                 <Text className="text-[13px] text-ink-dim">
-                  {typeof home.changeUsdToday === 'number'
-                    ? `${formatSignedUsd(home.changeUsdToday)} ${t('home.today')}`
-                    : t('home.today')}
+                  {typeof home.latestChangeUsd === 'number'
+                    ? [
+                        formatSignedUsd(home.latestChangeUsd),
+                        latestSnapshotLabel,
+                      ]
+                        .filter(Boolean)
+                        .join(' ')
+                    : (latestSnapshotLabel ?? '')}
                 </Text>
               </View>
             </>
@@ -336,7 +345,11 @@ export function HomeScreen() {
             {showPortfolioImportState ? null : showBalanceSkeleton ? (
               <SkeletonBlock className="h-[70px] w-full rounded-2xl" />
             ) : (
-              <Sparkline data={home.sparkline} height={82} />
+              <PortfolioTrendChart
+                trendPoints={home.trendPoints}
+                height={82}
+                gradientId="homeNetWorthSpark"
+              />
             )}
           </View>
         </View>
