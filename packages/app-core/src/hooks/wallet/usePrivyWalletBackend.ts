@@ -113,8 +113,17 @@ export function usePrivyWalletBackend(): PrivyWalletBackend {
   }, []);
 
   const connect = useCallback(async (): Promise<void> => {
-    setError(null);
-    login();
+    try {
+      setError(null);
+      login();
+    } catch (err) {
+      walletLogger.error('Failed to open Privy login:', err);
+      setError({
+        message:
+          err instanceof Error ? err.message : 'Failed to open Privy login',
+        code: 'PRIVY_LOGIN_ERROR',
+      });
+    }
   }, [login]);
 
   const disconnect = useCallback(async (): Promise<void> => {

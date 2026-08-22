@@ -13,7 +13,10 @@ from src.api.cache_headers import apply_analytics_cache_headers
 from src.core.database import get_db
 from src.models.analytics_responses import PortfolioTrendResponse
 from src.models.dashboard import DashboardTimeRanges
-from src.models.yield_returns import YieldReturnsResponse
+from src.models.yield_returns import (
+    MultiWindowYieldSummaryResponse,
+    YieldReturnsResponse,
+)
 from src.services.dependencies import (
     CanonicalSnapshotServiceDep,
     DashboardServiceDep,
@@ -69,6 +72,41 @@ def get_trend_v2(
     snapshot_date = canonical_snapshot_service.get_snapshot_date(user_id)
     result = trend_service.get_portfolio_trend(
         user_id, days, snapshot_date=snapshot_date
+    )
+    apply_analytics_cache_headers(response)
+    return result
+
+
+@router.get("/{user_id}/yield/summary", response_model=MultiWindowYieldSummaryResponse)
+async def get_yield_summary_v2(
+    response: Response,
+    yield_return_service: YieldReturnServiceDep,
+    user_id: UUID = Path(..., description="User ID"),
+    windows: str = Query("7d,30d,90d"),
+    outlier_strategy: str = Query("iqr", pattern="^(none|iqr|zscore|percentile)$"),
+    min_threshold: float = Query(0.0, ge=0.0),
+    wallet_address: WalletAddressQuery = None,
+    wallet_address_camel: WalletAddressCamelQuery = None,
+) -> MultiWindowYieldSummaryResponse:
+    """Return protocol yield summaries for bounded comparison windows."""
+    requested_windows = tuple(
+        dict.fromkeys(window.strip() for window in windows.split(",") if window.strip())
+    )
+    if not requested_windows or not set(requested_windows) <= {"7d", "30d", "90d"}:
+        raise HTTPException(
+            status_code=422,
+            detail={"invalid_windows": list(requested_windows)},
+        )
+    resolved_wallet_address = _resolve_wallet_address(
+        wallet_address=wallet_address,
+        wallet_address_camel=wallet_address_camel,
+    )
+    result = await yield_return_service.get_yield_summary(
+        user_id=user_id,
+        windows=requested_windows,
+        outlier_strategy=outlier_strategy,
+        min_threshold=min_threshold,
+        wallet_address=resolved_wallet_address,
     )
     apply_analytics_cache_headers(response)
     return result

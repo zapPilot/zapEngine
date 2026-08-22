@@ -464,7 +464,7 @@ describe('useWagmiWalletBackend', () => {
     });
   });
 
-  it('reports reconnecting as busy and does not start a manual connect', async () => {
+  it('lets an explicit connect proceed while auto-reconnect never settles', async () => {
     const connector = {
       id: 'com.ambire',
       uid: 'com.ambire-1',
@@ -472,6 +472,8 @@ describe('useWagmiWalletBackend', () => {
       type: 'injected',
     };
     mocks.connectors = [connector];
+    // A wallet extension that never answers wagmi's startup probe keeps the
+    // reconnect sweep pending forever — an explicit pick must still connect.
     mocks.connection = {
       address: undefined,
       isConnected: false,
@@ -480,15 +482,16 @@ describe('useWagmiWalletBackend', () => {
       connector: undefined,
       chain: undefined,
     };
+    mocks.connectAsync.mockResolvedValue(undefined);
     const { result } = renderHook(() => useWagmiWalletBackend());
 
     expect(result.current.backend.isConnecting).toBe(true);
     await act(async () => {
       await expect(result.current.connectInjected('com.ambire')).resolves.toBe(
-        false,
+        true,
       );
     });
-    expect(mocks.connectAsync).not.toHaveBeenCalled();
+    expect(mocks.connectAsync).toHaveBeenCalledWith({ connector });
   });
 
   it('deduplicates deferred connect calls while the SDK promise is pending', async () => {

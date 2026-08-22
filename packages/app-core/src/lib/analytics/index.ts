@@ -5,5 +5,6 @@
  */
 
 export * from './analyticsValidation';
+export * from './incomeClassification';
 export * from './queryStringUtils';
 export * from './transformers';

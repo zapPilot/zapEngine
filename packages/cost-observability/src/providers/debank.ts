@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { currentUtcPeriod, projectMonthEnd, roundUsd } from '../time.js';
+import { currentUtcPeriod, projectMonthEnd } from '../time.js';
 import type { CostSnapshot, FetchLike } from '../types.js';
 
 const responseSchema = z.object({
@@ -46,7 +46,7 @@ export async function fetchDeBankCostSnapshot(
     data.stats.find((entry) => entry.date === today)?.usage ?? 0;
   const unitCostUsd = normalizeUnitCost(input.unitCostUsd);
   const accruedCostUsd =
-    unitCostUsd === null ? null : roundUsd(consumed * unitCostUsd);
+    unitCostUsd === null ? null : roundUsageUsd(consumed * unitCostUsd);
 
   return {
     provider: 'debank',
@@ -75,6 +75,7 @@ export async function fetchDeBankCostSnapshot(
     projectedCostUsd:
       accruedCostUsd === null ? null : projectMonthEnd(accruedCostUsd, now),
     costType: 'list-price-equivalent',
+    source: 'api',
     fetchedAt: now.toISOString(),
   };
 }
@@ -83,4 +84,8 @@ function normalizeUnitCost(value: number | undefined): number | null {
   return value !== undefined && Number.isFinite(value) && value >= 0
     ? value
     : null;
+}
+
+function roundUsageUsd(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000;
 }

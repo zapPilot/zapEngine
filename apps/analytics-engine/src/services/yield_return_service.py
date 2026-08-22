@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -17,12 +18,14 @@ from sqlalchemy.orm import Session
 from src.core.filter_utils import normalize_filter
 from src.models.yield_returns import (
     DailyYieldReturn,
+    MultiWindowYieldSummaryResponse,
     PeriodInfo,
     TokenYieldBreakdown,
     YieldReturnsResponse,
     YieldReturnSummary,
 )
 from src.services.aggregators.yield_return_aggregator import YieldReturnAggregator
+from src.services.aggregators.yield_summary_builder import build_yield_summary
 from src.services.analytics.analytics_context import PortfolioAnalyticsContext
 from src.services.shared.base_analytics_service import BaseAnalyticsService
 from src.services.shared.query_names import QUERY_NAMES
@@ -72,40 +75,14 @@ class YieldReturnService(BaseAnalyticsService):
                 wallet_address or "bundle",
             )
 
-            start_date, end_date = self.context.calculate_date_range(days)
-
-            rows = await self.query_service.fetch_time_range_query(
-                db=self.db,
-                query_name=QUERY_NAMES.PORTFOLIO_YIELD_SNAPSHOTS,
-                user_id=user_id,
-                start_date=start_date,
-                end_date=end_date,
-                wallet_address=wallet_address,
-            )
-
-            self._logger.info("Fetched %d snapshots from database", len(rows))
-
-            # Use new aggregator for aggregation and delta calculation
-            token_agg, usd_agg = YieldReturnAggregator.aggregate_snapshots(
-                user_id, rows
-            )
-
-            token_deltas = YieldReturnAggregator.calculate_snapshot_deltas(token_agg)
-            usd_deltas = YieldReturnAggregator.calculate_usd_balance_deltas(usd_agg)
-
-            all_deltas = token_deltas + usd_deltas
-            filtered = YieldReturnAggregator.filter_significant_deltas(
-                all_deltas, min_threshold
+            start_date, end_date, filtered = await self._fetch_yield_deltas(
+                user_id, days, wallet_address, min_threshold
             )
             daily_returns = self._build_daily_returns(filtered, protocols, chains)
 
             self._logger.info(
-                "Calculated %d daily returns (token_agg=%d, usd_agg=%d, token_deltas=%d, usd_deltas=%d, filtered=%d)",
+                "Calculated %d daily returns from %d filtered deltas",
                 len(daily_returns),
-                len(token_agg),
-                len(usd_agg),
-                len(token_deltas),
-                len(usd_deltas),
                 len(filtered),
             )
 
@@ -124,6 +101,63 @@ class YieldReturnService(BaseAnalyticsService):
             )
 
         return await self._with_async_cache(cache_key, compute, ttl_hours=ttl_hours)
+
+    async def get_yield_summary(
+        self,
+        user_id: UUID,
+        *,
+        windows: tuple[str, ...] = ("7d", "30d", "90d"),
+        outlier_strategy: str = "iqr",
+        min_threshold: float = 0.0,
+        wallet_address: str | None = None,
+    ) -> MultiWindowYieldSummaryResponse:
+        """Return outlier-filtered yield summaries for multiple windows."""
+        wallet_key, ttl_hours = self._wallet_cache_config(wallet_address)
+        cache_key = self._cache_key(
+            "yield_summary",
+            user_id,
+            wallet_key,
+            ",".join(windows),
+            outlier_strategy,
+            f"threshold:{self._normalize_float(min_threshold)}",
+        )
+
+        async def compute() -> MultiWindowYieldSummaryResponse:
+            _start, _end, deltas = await self._fetch_yield_deltas(
+                user_id,
+                max(int(window.removesuffix("d")) for window in windows) + 1,
+                wallet_address,
+                min_threshold,
+            )
+            return build_yield_summary(str(user_id), deltas, windows, outlier_strategy)
+
+        return await self._with_async_cache(cache_key, compute, ttl_hours=ttl_hours)
+
+    async def _fetch_yield_deltas(
+        self,
+        user_id: UUID,
+        days: int,
+        wallet_address: str | None,
+        min_threshold: float,
+    ) -> tuple[datetime, datetime, list[dict[str, Any]]]:
+        """Fetch snapshots and calculate significant token/USD balance deltas."""
+        start_date, end_date = self.context.calculate_date_range(days)
+        rows = await self.query_service.fetch_time_range_query(
+            db=self.db,
+            query_name=QUERY_NAMES.PORTFOLIO_YIELD_SNAPSHOTS,
+            user_id=user_id,
+            start_date=start_date,
+            end_date=end_date,
+            wallet_address=wallet_address,
+        )
+        self._logger.info("Fetched %d snapshots from database", len(rows))
+        token_agg, usd_agg = YieldReturnAggregator.aggregate_snapshots(user_id, rows)
+        token_deltas = YieldReturnAggregator.calculate_snapshot_deltas(token_agg)
+        usd_deltas = YieldReturnAggregator.calculate_usd_balance_deltas(usd_agg)
+        filtered = YieldReturnAggregator.filter_significant_deltas(
+            token_deltas + usd_deltas, min_threshold
+        )
+        return start_date, end_date, filtered
 
     @staticmethod
     def _normalize_float(value: float) -> str:

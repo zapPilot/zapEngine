@@ -21,6 +21,7 @@ import {
   DemoBlurCover,
   DemoConnectOverlay,
 } from '@/components/home/DemoConnectOverlay';
+import { HomeIncomeCard } from '@/components/home/HomeIncomeCard';
 import { ZapStrategyCard } from '@/components/strategy/ZapStrategyCard';
 import { ChainIconStack } from '@/components/token/ChainIconStack';
 import { TokenIcon } from '@/components/token/TokenIcon';
@@ -43,6 +44,7 @@ import {
   type HomeRange,
   useHomeData,
 } from '@/integration/useHomeData';
+import { useHomeIncome } from '@/integration/useHomeIncome';
 import { createStrategyStartAction } from '@/integration/strategyStartAction';
 import { formatSignedPct, formatSignedUsd, formatUsd } from '@/lib/format';
 import { formatSnapshotDate, isSnapshotToday } from '@/lib/portfolioDates';
@@ -236,6 +238,7 @@ export function HomeScreen() {
       isEtlInProgress: account.isOwnBundle && etlState.isInProgress,
     },
   );
+  const homeIncome = useHomeIncome(account.viewingUserId);
 
   useEffect(() => {
     if (
@@ -428,6 +431,12 @@ export function HomeScreen() {
           }}
         />
       </View>
+
+      {!account.isDemo && !homeIncome.isError ? (
+        <View className="mt-6 px-5">
+          <HomeIncomeCard {...homeIncome} />
+        </View>
+      ) : null}
 
       <View className="mt-6 px-5">
         <Tap

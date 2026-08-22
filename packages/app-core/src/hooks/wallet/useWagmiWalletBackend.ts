@@ -183,12 +183,10 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
         return Promise.resolve(true);
       }
 
-      // Auto-reconnect/another connect owns wagmi's state machine. Waiting
-      // for it avoids racing a second SDK call from the picker.
-      if (isReconnecting || accountIsConnecting || connectIsPending) {
-        return Promise.resolve(false);
-      }
-
+      // An explicit selection must not wait for wagmi's auto-reconnect sweep:
+      // with several extensions installed, one that never answers the startup
+      // probe keeps that sweep pending forever. wagmi's connect() action runs
+      // independently of it, so proceeding here is safe.
       const promise = (async (): Promise<boolean> => {
         try {
           setError(null);
@@ -222,14 +220,7 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
       })();
       return promise;
     },
-    [
-      accountIsConnecting,
-      activeConnector,
-      connectAsync,
-      connectIsPending,
-      isConnected,
-      isReconnecting,
-    ],
+    [activeConnector, connectAsync, isConnected],
   );
 
   const connectInjected = useCallback(

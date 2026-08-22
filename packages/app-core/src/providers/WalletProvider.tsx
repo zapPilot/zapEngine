@@ -88,10 +88,12 @@ export function WalletProvider({
     : privy.isActive
       ? privy.backend
       : wagmi.backend;
-  const isConnecting =
-    connectingId !== null ||
-    wagmi.backend.isConnecting ||
-    privy.backend.isConnecting;
+  // Only user-initiated attempts (picker selections) surface as busy. Backend
+  // bootstrap states — wagmi's auto-reconnect sweep, Privy hydration — must
+  // stay internal: with several extensions installed, one that never answers
+  // wagmi's startup probe keeps that sweep pending forever, and surfacing it
+  // here would disable the connect UI indefinitely.
+  const isConnecting = connectingId !== null;
 
   /**
    * Disconnects both backends. wagmi and Privy are independent sessions — a
@@ -131,7 +133,10 @@ export function WalletProvider({
       connectPrivy,
       connectingId,
       isConnecting,
-      error: activeBackend.error,
+      // The picker may fail on the non-active backend (e.g. a Privy login
+      // error while wagmi is the neutral default), so surface whichever
+      // backend holds an error.
+      error: wagmi.backend.error ?? privy.backend.error,
     }),
     [
       isPickerOpen,
@@ -142,7 +147,8 @@ export function WalletProvider({
       connectPrivy,
       connectingId,
       isConnecting,
-      activeBackend.error,
+      wagmi.backend.error,
+      privy.backend.error,
     ],
   );
 

@@ -277,3 +277,59 @@ async def test_get_daily_yield_returns_empty_database_result(db_session):
     assert response.summary.average_daily_return == 0.0
     assert response.summary.positive_days == 0
     assert response.summary.negative_days == 0
+
+
+@pytest.mark.asyncio
+async def test_get_yield_summary_supports_token_and_usd_balance_deltas(db_session):
+    user_id = uuid4()
+    day0 = datetime(2026, 8, 1, tzinfo=UTC)
+    day1 = day0 + timedelta(days=1)
+    rows = [
+        _build_snapshot(user_id, "Morpho", day0, supply_amount=100),
+        _build_snapshot(user_id, "Morpho", day1, supply_amount=103),
+        {
+            "user_id": str(user_id),
+            "chain": "hyperliquid",
+            "protocol_name": "hyperliquid",
+            "name": "hyperliquid",
+            "snapshot_at": day0,
+            "protocol_type": "usd_balance",
+            "protocol_data": {"usd_value": 500},
+            "name_item": "Hyperliquidity Provider (HLP)",
+        },
+        {
+            "user_id": str(user_id),
+            "chain": "hyperliquid",
+            "protocol_name": "hyperliquid",
+            "name": "hyperliquid",
+            "snapshot_at": day1,
+            "protocol_type": "usd_balance",
+            "protocol_data": {"usd_value": 498},
+            "name_item": "Hyperliquidity Provider (HLP)",
+        },
+    ]
+    query_service = StubQueryService(rows)
+    service = YieldReturnService(db_session, query_service, PortfolioAnalyticsContext())
+
+    response = await service.get_yield_summary(user_id, windows=("30d",))
+
+    protocols = {
+        item.protocol: item for item in response.windows["30d"].protocol_breakdown
+    }
+    assert protocols["Morpho"].window.total_yield_usd == pytest.approx(3)
+    assert protocols["hyperliquid"].window.total_yield_usd == pytest.approx(-2)
+    assert (
+        query_service.last_call["end_date"] - query_service.last_call["start_date"]
+    ).days == 31
+
+
+@pytest.mark.asyncio
+async def test_get_yield_summary_empty_portfolio(db_session):
+    service = YieldReturnService(
+        db_session, StubQueryService([]), PortfolioAnalyticsContext()
+    )
+
+    response = await service.get_yield_summary(uuid4(), windows=("7d", "90d"))
+
+    assert response.windows["7d"].statistics.total_days == 0
+    assert response.windows["90d"].protocol_breakdown == []

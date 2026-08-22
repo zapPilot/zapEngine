@@ -60,12 +60,15 @@ export {
   getLandingPagePortfolioData,
   getMarketDashboardData,
   getPortfolioDashboard,
+  getYieldSummary,
   type LandingPageResponse,
   type MarketDashboardPoint,
   type MarketDashboardResponse,
   type PoolDetail,
   type RiskMetrics,
   type UnifiedDashboardResponse,
+  type YieldReturnsSummaryResponse,
+  type YieldSummaryParams,
 } from './analyticsService';
 
 // Bundle Sharing

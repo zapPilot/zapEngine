@@ -7,7 +7,11 @@ export const COST_PROVIDERS = [
 
 export type CostProvider = (typeof COST_PROVIDERS)[number];
 
-export type CostType = 'actual' | 'estimated' | 'list-price-equivalent';
+export type CostType =
+  | 'actual'
+  | 'estimated'
+  | 'fixed'
+  | 'list-price-equivalent';
 
 export interface CostUsageItem {
   key: string;
@@ -15,6 +19,8 @@ export interface CostUsageItem {
   unit: 'usd' | 'units';
   value: number;
 }
+
+export type CostSource = 'api' | 'fixed' | 'manual';
 
 export interface CostSnapshot {
   provider: CostProvider;
@@ -24,6 +30,7 @@ export interface CostSnapshot {
   accruedCostUsd: number | null;
   projectedCostUsd: number | null;
   costType: CostType;
+  source: CostSource;
   fetchedAt: string;
 }
 

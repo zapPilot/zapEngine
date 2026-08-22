@@ -16,6 +16,8 @@ import {
   validateLandingPageResponse,
   validateMarketDashboardResponse,
   validateUnifiedDashboardResponse,
+  validateYieldReturnsSummaryResponse,
+  type YieldReturnsSummaryResponse,
 } from '@core/schemas/api/analyticsSchemas';
 
 // Re-export types for external use
@@ -30,6 +32,7 @@ export type {
   PoolDetail,
   RiskMetrics,
   UnifiedDashboardResponse,
+  YieldReturnsSummaryResponse,
 } from '@core/schemas/api/analyticsSchemas';
 
 // Bundle-level endpoints aggregate every wallet in the user's bundle and can
@@ -158,6 +161,31 @@ export async function getDailyYieldReturns(
     USER_ANALYTICS_REQUEST_CONFIG,
   );
   return validateDailyYieldReturnsResponse(response);
+}
+
+export interface YieldSummaryParams {
+  windows?: string[];
+  walletAddress?: string;
+}
+
+export async function getYieldSummary(
+  userId: string,
+  params: YieldSummaryParams = {},
+): Promise<YieldReturnsSummaryResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.windows?.length) {
+    searchParams.set('windows', params.windows.join(','));
+  }
+  if (params.walletAddress) {
+    searchParams.set('walletAddress', params.walletAddress);
+  }
+  const query = searchParams.toString();
+  const endpoint = `/api/v2/analytics/${userId}/yield/summary${query ? `?${query}` : ''}`;
+  const response = await httpUtils.analyticsEngine.get(
+    endpoint,
+    USER_ANALYTICS_REQUEST_CONFIG,
+  );
+  return validateYieldReturnsSummaryResponse(response);
 }
 
 /**

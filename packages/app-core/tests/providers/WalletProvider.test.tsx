@@ -177,12 +177,51 @@ describe('WalletProvider (unified)', () => {
     expect(mocks.privy.backend.connect).not.toHaveBeenCalled();
   });
 
-  it('exposes unified busy state through both wallet and login contexts', () => {
+  it('keeps backend bootstrap busy states out of the wallet and login contexts', () => {
+    // wagmi's auto-reconnect sweep and Privy hydration report isConnecting;
+    // neither is user-initiated, so the connect UI must stay usable.
     mocks.wagmi.backend = stubBackend({ isConnecting: true });
+    mocks.privy.backend = stubBackend({ isConnecting: true });
     const { wallet, login } = renderAndCapture();
 
-    expect(wallet.isConnecting).toBe(true);
-    expect(login.isConnecting).toBe(true);
+    expect(wallet.isConnecting).toBe(false);
+    expect(login.isConnecting).toBe(false);
+  });
+
+  it('reports busy only while a picker-initiated connect is in flight', async () => {
+    let resolveConnect: ((connected: boolean) => void) | undefined;
+    mocks.wagmi.connectInjected.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveConnect = resolve;
+        }),
+    );
+    const rendered = renderClientAndCapture();
+
+    let pending: Promise<void> | undefined;
+    act(() => {
+      pending = rendered.value.login.connectInjected('com.ambire');
+    });
+    expect(rendered.value.login.isConnecting).toBe(true);
+    expect(rendered.value.login.connectingId).toBe('com.ambire');
+    expect(rendered.value.wallet.isConnecting).toBe(true);
+
+    await act(async () => {
+      resolveConnect?.(false);
+      await pending;
+    });
+    expect(rendered.value.login.isConnecting).toBe(false);
+    expect(rendered.value.login.connectingId).toBeNull();
+    rendered.unmount();
+  });
+
+  it('surfaces a privy backend error through the login context when wagmi has none', () => {
+    mocks.privy.backend = stubBackend({
+      error: { message: 'privy exploded', code: 'PRIVY_LOGIN_ERROR' },
+    });
+    const { login } = renderAndCapture();
+
+    expect(login.error).toMatchObject({ code: 'PRIVY_LOGIN_ERROR' });
   });
 
   it('closes the picker when injected connection resolves true', async () => {
