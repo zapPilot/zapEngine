@@ -3,6 +3,7 @@ import { defineKnipConfig } from '@zapengine/knip-config/base';
 export default defineKnipConfig({
   entry: ['src/app/**/page.tsx', 'src/app/**/layout.tsx'],
   project: ['src/**/*.{ts,tsx}'],
+  ignore: ['src/components/docs/AssetLabel.tsx'],
   ignoreDependencies: [
     'postcss',
     'eslint-config-next',

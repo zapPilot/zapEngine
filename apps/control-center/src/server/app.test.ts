@@ -23,22 +23,45 @@ const overview: OverviewResponse = {
   },
 };
 
-describe('control center API', () => {
-  it('returns persisted overview without triggering a provider refresh', async () => {
-    const getOverview = vi.fn().mockResolvedValue(overview);
-    const app = createControlCenterApp({
-      config: readControlCenterConfig({}),
-      service: {
-        getOverview,
-        getCostHistory: vi.fn().mockResolvedValue({
+function createTestApp(
+  overrides: {
+    getOverview?: unknown;
+    getCostHistory?: unknown;
+    syncCosts?: unknown;
+    getSocial?: unknown;
+  } = {},
+) {
+  return createControlCenterApp({
+    config: readControlCenterConfig({}),
+    service: {
+      getOverview: (overrides.getOverview as never) ?? vi.fn(),
+      getCostHistory:
+        (overrides.getCostHistory as never) ??
+        vi.fn().mockResolvedValue({
           currentMonthDaily: [],
           monthlyTotals: [],
           cashSpendUsd: null,
         }),
-        syncCosts: vi.fn(),
-        getSocial: vi.fn().mockResolvedValue(overview.social),
-      },
-      serveClient: false,
+      syncCosts: (overrides.syncCosts as never) ?? vi.fn(),
+      getSocial:
+        (overrides.getSocial as never) ??
+        vi.fn().mockResolvedValue(overview.social),
+    } as never,
+    serveClient: false,
+  });
+}
+
+describe('control center API', () => {
+  it('returns persisted overview without triggering a provider refresh', async () => {
+    const getOverview = vi.fn().mockResolvedValue(overview);
+    const app = createTestApp({
+      getOverview,
+      getCostHistory: vi.fn().mockResolvedValue({
+        currentMonthDaily: [],
+        monthlyTotals: [],
+        cashSpendUsd: null,
+      }),
+      getSocial: vi.fn().mockResolvedValue(overview.social),
     });
 
     const response = await app.request('/api/overview');
@@ -52,16 +75,7 @@ describe('control center API', () => {
 
   it('normalizes unknown social windows to latest', async () => {
     const getSocial = vi.fn().mockResolvedValue(overview.social);
-    const app = createControlCenterApp({
-      config: readControlCenterConfig({}),
-      service: {
-        getOverview: vi.fn(),
-        getCostHistory: vi.fn(),
-        syncCosts: vi.fn(),
-        getSocial,
-      },
-      serveClient: false,
-    });
+    const app = createTestApp({ getSocial });
 
     expect(
       (await app.request('/api/social-performance?window=nope')).status,
@@ -75,16 +89,7 @@ describe('control center API', () => {
       persisted: 3,
       providers: [],
     });
-    const app = createControlCenterApp({
-      config: readControlCenterConfig({}),
-      service: {
-        getOverview: vi.fn(),
-        getCostHistory: vi.fn(),
-        syncCosts,
-        getSocial: vi.fn(),
-      },
-      serveClient: false,
-    });
+    const app = createTestApp({ syncCosts });
 
     const response = await app.request('/api/costs/sync', { method: 'POST' });
     expect(response.status).toBe(200);

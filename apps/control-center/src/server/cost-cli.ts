@@ -1,7 +1,3 @@
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import dotenv from 'dotenv';
 import {
   COST_PROVIDERS,
   type CostProvider,
@@ -9,16 +5,10 @@ import {
 
 import type { CostTransactionKind } from '../shared/types.js';
 import { readControlCenterConfig } from './config/env.js';
+import { loadEnv } from './paths.js';
 import { createCostRepository } from './services/cost-repository.js';
 
-const repoRoot = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  '..',
-  '..',
-);
-dotenv.config({ path: resolve(repoRoot, '.env') });
+loadEnv();
 
 const repository = createCostRepository(readControlCenterConfig());
 if (!repository) {

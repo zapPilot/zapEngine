@@ -1,5 +1,5 @@
 import type { OverviewResponse } from '../../shared/types.js';
-import { integer, usd } from '../format.js';
+import { integer, platformLabel, usd } from '../format.js';
 import { ProviderLedger, UsageSignals } from './ProviderLedger.js';
 
 export function OverviewView({ data }: { data: OverviewResponse | null }) {
@@ -93,14 +93,4 @@ function Metric(props: {
       <strong className={`mono ${props.accent ?? ''}`}>{props.value}</strong>
     </div>
   );
-}
-
-function platformLabel(platform: string): string {
-  const labels: Record<string, string> = {
-    x: 'X',
-    rednote: 'Rednote',
-    youtube: 'YouTube',
-    threads: 'Threads',
-  };
-  return labels[platform] ?? platform;
 }

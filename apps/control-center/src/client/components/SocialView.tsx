@@ -1,5 +1,11 @@
 import type { SocialPerformanceResponse } from '../../shared/types.js';
-import { duration, integer, percent, relativeTime } from '../format.js';
+import {
+  duration,
+  integer,
+  percent,
+  platformLabel,
+  relativeTime,
+} from '../format.js';
 
 const windows: SocialPerformanceResponse['window'][] = [
   'latest',
@@ -149,16 +155,6 @@ export function SocialView(props: {
       </aside>
     </div>
   );
-}
-
-function platformLabel(platform: string): string {
-  const labels: Record<string, string> = {
-    x: 'X',
-    rednote: 'Rednote',
-    youtube: 'YouTube',
-    threads: 'Threads',
-  };
-  return labels[platform] ?? platform;
 }
 
 function sumKnown(values: Array<number | null>): number | null {
