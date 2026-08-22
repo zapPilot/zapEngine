@@ -38,8 +38,10 @@ function MarkImage({
       style={{
         borderRadius: radius,
         flexShrink: 0,
+        height: size,
         objectFit: 'contain',
         verticalAlign: 'text-bottom',
+        width: size,
         ...style,
       }}
     />
