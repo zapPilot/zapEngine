@@ -16,6 +16,7 @@ import type {
   WalletOperations,
   WalletOperationStateSetter,
 } from '@core/types';
+import { logger } from '@core/utils/logger';
 import { validateNewWallet } from '@core/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { equalsAddress } from '@zapengine/types/shared';
@@ -54,6 +55,7 @@ const ADD_OPERATION_NAME = 'adding wallet';
 const VERIFY_WALLET_ERROR = 'Failed to verify wallet';
 const VERIFY_SIGNER_ERROR = 'Switch to this wallet before verifying ownership';
 const VERIFY_OPERATION_NAME = 'verifying wallet';
+const walletMutationsLogger = logger.createContextLogger('WalletMutations');
 
 function createFailureResult(error: string): WalletMutationResult {
   return { success: false, error };
@@ -228,13 +230,24 @@ export function useWalletMutations({
           return createFailureResult(error);
         }
 
-        await invalidateAndRefetch({
-          queryClient,
-          queryKey: queryKeys.user.wallets(userId),
-          refetch,
-          operationName: VERIFY_OPERATION_NAME,
-        });
-        await loadWallets();
+        const refreshResults = await Promise.allSettled([
+          invalidateAndRefetch({
+            queryClient,
+            queryKey: queryKeys.user.wallets(userId),
+            refetch,
+            operationName: VERIFY_OPERATION_NAME,
+          }),
+          loadWallets(),
+        ]);
+        for (const refreshResult of refreshResults) {
+          if (refreshResult.status === 'rejected') {
+            walletMutationsLogger.warn(
+              '[wallet-verification] ownership persisted but wallet refresh failed:',
+              refreshResult.reason,
+            );
+          }
+        }
+
         setWalletOperationState('verifying', walletAddress, {
           isLoading: false,
           error: null,
