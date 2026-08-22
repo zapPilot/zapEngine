@@ -105,7 +105,7 @@ export const healthCheckResponseSchema = z.object({
  * - Prevents accidentally dropping fields (like message, rate_limited)
  * - Simplifies the codebase (no transformation logic to maintain)
  * - Matches the existing snake_case convention at the top level
- * - Future-proofs against new API additions
+ * - Future-proofs against new API fields
  */
 export const etlJobStatusResponseSchema = z
   .object({
@@ -204,7 +204,7 @@ export const userProfileResponseSchema = z.object({
 
 /**
  * Type inference from schemas
- * These types are automatically generated from schemas
+ * These types are automatically generated from the Zod schemas
  */
 /** @public */ export type UserCryptoWallet = z.infer<
   typeof userCryptoWalletSchema
