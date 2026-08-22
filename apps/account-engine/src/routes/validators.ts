@@ -79,8 +79,16 @@ export const addWalletBodySchema = walletBodySchema.extend({
     .regex(
       ECDSA_SIGNATURE_REGEX,
       'signature must be a 65-byte hex-encoded ECDSA signature',
-    )
-    .optional(),
+    ),
+});
+
+export const deleteUserBodySchema = walletBodySchema.extend({
+  signature: z
+    .string()
+    .regex(
+      ECDSA_SIGNATURE_REGEX,
+      'signature must be a 65-byte hex-encoded ECDSA signature',
+    ),
 });
 
 export const updateEmailBodySchema = z.object({

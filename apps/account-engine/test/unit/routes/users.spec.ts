@@ -31,6 +31,11 @@ function createServices(): AppServices {
         message: 'ZapPilot wallet ownership proof',
         expiresAt: '2026-01-01T00:05:00.000Z',
       }),
+      requestDeletionChallenge: vi.fn().mockResolvedValue({
+        nonce: 'b'.repeat(64),
+        message: 'Zap Pilot Account Deletion',
+        expiresAt: '2026-01-01T00:05:00.000Z',
+      }),
       updateEmail: vi.fn().mockResolvedValue({ email: 'a@b.com' }),
       unsubscribeFromReports: vi.fn().mockResolvedValue({ success: true }),
       unsubscribeFromReportsWithToken: vi
@@ -185,7 +190,7 @@ describe('POST /users/:userId/wallets', () => {
     expect(response.status).toBe(400);
   });
 
-  it('returns 201 for a valid userId + wallet', async () => {
+  it('requires an ownership signature', async () => {
     const response = await createApp(createServices()).request(
       `http://localhost/users/${VALID_UUID}/wallets`,
       {
@@ -194,7 +199,7 @@ describe('POST /users/:userId/wallets', () => {
         body: JSON.stringify({ wallet: VALID_WALLET }),
       },
     );
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(400);
   });
 
   it('returns 400 for an invalid userId', async () => {
@@ -348,13 +353,52 @@ describe('GET /users/:userId', () => {
   });
 });
 
+describe('POST /users/:userId/deletion-challenge', () => {
+  it('issues a purpose-separated challenge for a bundle wallet', async () => {
+    const services = createServices();
+    const response = await createApp(services).request(
+      `http://localhost/users/${VALID_UUID}/deletion-challenge`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ wallet: VALID_WALLET }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(services.usersService.requestDeletionChallenge).toHaveBeenCalledWith(
+      VALID_UUID,
+      VALID_WALLET,
+    );
+  });
+});
+
 describe('DELETE /users/:userId', () => {
-  it('returns 200', async () => {
+  it('forwards a deletion ownership proof', async () => {
+    const services = createServices();
+    const signature = `0x${'ab'.repeat(65)}`;
+    const response = await createApp(services).request(
+      `http://localhost/users/${VALID_UUID}`,
+      {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ wallet: VALID_WALLET, signature }),
+      },
+    );
+    expect(response.status).toBe(200);
+    expect(services.usersService.deleteUser).toHaveBeenCalledWith(
+      VALID_UUID,
+      VALID_WALLET,
+      signature,
+    );
+  });
+
+  it('rejects deletion without a signed body', async () => {
     const response = await createApp(createServices()).request(
       `http://localhost/users/${VALID_UUID}`,
       { method: 'DELETE' },
     );
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(400);
   });
 });
 

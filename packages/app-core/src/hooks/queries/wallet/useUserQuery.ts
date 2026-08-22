@@ -1,8 +1,9 @@
 import { queryKeys } from '@core/lib/state/queryClient';
 import { useWalletProvider } from '@core/providers/walletContext';
 import type { UserProfileResponse } from '@core/schemas/api/accountSchemas';
-import { connectWallet, getUserProfile } from '@core/services';
+import { connectWallet, getUserProfile } from '@core/services/accountService';
 import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 
 import { createQueryConfig } from '../queryDefaults';
 
@@ -142,7 +143,22 @@ export function useCurrentUser() {
   const { account } = useWalletProvider();
   const connectedWallet = account?.address ?? null;
 
-  const userQuery = useUserByWallet(connectedWallet);
+  // Keep account identity stable for the lifetime of a connected session.
+  // The active signer may temporarily change so another wallet can prove
+  // ownership before joining this bundle; that must not bootstrap/switch the
+  // Zap Pilot account underneath the mutation.
+  const [sessionWallet, setSessionWallet] = useState<string | null>(
+    connectedWallet,
+  );
+  useEffect(() => {
+    if (!connectedWallet) {
+      setSessionWallet(null);
+    } else {
+      setSessionWallet((current) => current ?? connectedWallet);
+    }
+  }, [connectedWallet]);
+
+  const userQuery = useUserByWallet(sessionWallet);
 
   return {
     ...userQuery,

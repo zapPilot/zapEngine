@@ -29,7 +29,7 @@ function createServiceHttpClient(resolveBaseURL: () => string) {
     get: query(httpGet),
     post: mutation(httpPost),
     put: mutation(httpPut),
-    delete: query(httpDelete),
+    delete: mutation(httpDelete),
   } as const;
 }
 

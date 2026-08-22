@@ -9,6 +9,7 @@ import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { NonCustodialCard } from '@/components/ui/NonCustodialCard';
 import { Tap } from '@/components/ui/Tap';
 import { LanguageSettingsCard } from '@/components/account/LanguageSettingsCard';
+import { DeleteAccountCard } from '@/components/account/DeleteAccountCard';
 import { TelegramCard } from '@/components/account/TelegramCard';
 import { DEMO } from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
@@ -67,6 +68,7 @@ export function AccountScreen() {
             ? t('account.disconnectWallet')
             : t('account.connectWallet')}
         </PrimaryButton>
+        <DeleteAccountCard />
       </View>
     </ScreenScrollView>
   );

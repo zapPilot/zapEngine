@@ -2,6 +2,7 @@ import { usePrivy } from '@privy-io/expo';
 import { Text, View } from 'react-native';
 
 import { LanguageSettingsCard } from '@/components/account/LanguageSettingsCard';
+import { DeleteAccountCard } from '@/components/account/DeleteAccountCard';
 import { OpenZapPilotWebButton } from '@/components/OpenZapPilotWebButton';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -45,6 +46,7 @@ export function AccountScreen() {
         >
           {t('account.signOut')}
         </PrimaryButton>
+        <DeleteAccountCard />
       </View>
     </ScreenScrollView>
   );

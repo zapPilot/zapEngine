@@ -3,6 +3,7 @@ import {
   useWalletList,
   useWalletMutations,
 } from '@zapengine/app-core/hooks/wallet';
+import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
 import type { WalletData } from '@zapengine/app-core/lib/validation/walletUtils';
 import type {
   EditingWallet,
@@ -26,6 +27,7 @@ export interface WalletManager {
   wallets: WalletData[];
   isRefreshing: boolean;
   reload: () => Promise<void>;
+  connectWallet: () => Promise<void>;
   addWallet: (
     wallet: NewWallet,
   ) => Promise<{ success: boolean; error?: string }>;
@@ -45,6 +47,7 @@ export function useWalletManager(
   userId: string | null,
   activeAddress: string | null,
 ): WalletManager {
+  const walletProvider = useWalletProvider();
   const [operations, setOperations] = useState<WalletOperations>(
     createInitialOperations,
   );
@@ -81,6 +84,8 @@ export function useWalletManager(
     setWallets: list.setWallets,
     setWalletOperationState,
     loadWallets,
+    signingAddress: activeAddress,
+    signMessage: walletProvider.signMessage,
   });
   const labels = useWalletLabels({
     userId: userId ?? '',
@@ -99,6 +104,7 @@ export function useWalletManager(
     wallets: list.wallets,
     isRefreshing: list.isRefreshing,
     reload,
+    connectWallet: walletProvider.connect,
     addWallet: mutations.handleAddWallet,
     addingState: mutations.addingState,
     deleteWallet: mutations.handleDeleteWallet,

@@ -72,7 +72,9 @@ export function useWalletOperations({
 }: UseWalletOperationsParams): UseWalletOperationsReturn {
   const { showToast } = useToast();
   const {
+    account,
     connectedWallets = EMPTY_CONNECTED_WALLETS,
+    signMessage,
     switchActiveWallet = () => Promise.resolve(),
   } = useWalletProvider();
   const [operations, setOperations] = useState<WalletOperations>({
@@ -122,6 +124,8 @@ export function useWalletOperations({
     setWallets: walletList.setWallets,
     setWalletOperationState,
     loadWallets: walletList.loadWallets,
+    signingAddress: account?.address ?? null,
+    signMessage,
   });
 
   const walletLabels = useWalletLabels({
