@@ -26,6 +26,10 @@ async function runDatabaseCheck(): Promise<void> {
 export function startDatabaseHealthMonitor(
   intervalMs: number = DEFAULT_INTERVAL_MS,
 ): void {
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
+    throw new RangeError('Health check interval must be a positive number');
+  }
+
   void runDatabaseCheck();
   setInterval(() => {
     void runDatabaseCheck();
