@@ -621,7 +621,7 @@ describe('mapMoralisEvent', () => {
     );
   });
 
-  it('drops spam metadata-only interactions but retains supported transfers', () => {
+  it('drops transaction-level spam even when it contains a supported transfer', () => {
     const spamMetadataOnly = mapMoralisEvent(
       ARBITRUM,
       historyEvent({
@@ -646,7 +646,72 @@ describe('mapMoralisEvent', () => {
     );
 
     expect(spamMetadataOnly).toBeNull();
-    expect(spamWithSupportedTransfer?.kind).toBe('deposit');
+    expect(spamWithSupportedTransfer).toBeNull();
+  });
+
+  it('drops transfer-level spam and protocol-internal legs outside the portfolio', () => {
+    const ownAddresses = new Set([
+      '0x1111111111111111111111111111111111111111',
+    ]);
+    const transfers = collectSupportedTransfers(
+      'arbitrum',
+      historyEvent({
+        erc20_transfers: [
+          typedTransfer({
+            token_address: USDC_ARB,
+            token_symbol: 'USDC',
+            direction: 'receive',
+            from_address: '0x2222222222222222222222222222222222222222',
+            to_address: '0x1111111111111111111111111111111111111111',
+            possible_spam: true,
+            value_formatted: '5',
+          }),
+          typedTransfer({
+            token_address: USDC_ARB,
+            token_symbol: 'USDC',
+            direction: 'send',
+            from_address: '0x3333333333333333333333333333333333333333',
+            to_address: '0x4444444444444444444444444444444444444444',
+            value_formatted: '20',
+          }),
+          typedTransfer({
+            token_address: USDC_ARB,
+            token_symbol: 'USDC',
+            direction: 'receive',
+            from_address: '0x5555555555555555555555555555555555555555',
+            to_address: '0x1111111111111111111111111111111111111111',
+            value_formatted: '10',
+          }),
+        ],
+      }),
+      ownAddresses,
+    );
+
+    expect(transfers).toEqual([
+      expect.objectContaining({
+        symbol: 'USDC',
+        direction: 'receive',
+        amount: 10,
+      }),
+    ]);
+  });
+
+  it('drops metadata-only interactions initiated outside the portfolio', () => {
+    const ownAddresses = new Set([
+      '0x1111111111111111111111111111111111111111',
+    ]);
+
+    expect(
+      mapMoralisEvent(
+        ARBITRUM,
+        historyEvent({
+          from_address: '0x2222222222222222222222222222222222222222',
+          method_label: 'transfer',
+          to_address_entity: 'Claim Reward',
+        }),
+        { ownAddresses },
+      ),
+    ).toBeNull();
   });
 
   it('shows gas only when the sender is owned or sender ownership is unknown', () => {
@@ -668,6 +733,15 @@ describe('mapMoralisEvent', () => {
         from_address: '0x2222222222222222222222222222222222222222',
         method_label: 'transfer',
         transaction_fee: '0.000012',
+        native_transfers: [
+          typedTransfer({
+            token_symbol: 'ETH',
+            direction: 'receive',
+            from_address: '0x2222222222222222222222222222222222222222',
+            to_address: '0x1111111111111111111111111111111111111111',
+            value_formatted: '0.01',
+          }),
+        ],
       }),
       { ownAddresses },
     );
@@ -681,6 +755,7 @@ describe('mapMoralisEvent', () => {
     );
 
     expect(ownSend?.gasFeeLabel).toBe('0.000012 ETH');
+    expect(incoming?.kind).toBe('deposit');
     expect(incoming).not.toHaveProperty('gasFeeLabel');
     expect(unknownOwnership?.gasFeeLabel).toBe('0.000012 ETH');
   });

@@ -107,9 +107,29 @@ function gasFeeLabel(
 }
 
 function possibleSpam(
-  value: MoralisWalletHistoryEvent['possible_spam'],
+  value: boolean | string | number | null | undefined,
 ): boolean {
   return value === true || value === 'true' || value === 1;
+}
+
+function normalizedAddress(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toLowerCase();
+  return normalized || null;
+}
+
+function transferTouchesPortfolio(
+  transfer: MoralisWalletTransfer,
+  ownAddresses: ReadonlySet<string> | undefined,
+): boolean {
+  if (!ownAddresses?.size) return true;
+
+  const from = normalizedAddress(transfer.from_address);
+  const to = normalizedAddress(transfer.to_address);
+  if (!from && !to) return true;
+
+  return Boolean(
+    (from && ownAddresses.has(from)) || (to && ownAddresses.has(to)),
+  );
 }
 
 function transferTokenAddress(transfer: MoralisWalletTransfer): string | null {
@@ -128,7 +148,11 @@ function mapTransfer(
   chain: MoralisWalletChain,
   transfer: MoralisWalletTransfer,
   nativeToken: boolean,
+  ownAddresses?: ReadonlySet<string>,
 ): SupportedActivityTransfer | null {
+  if (possibleSpam(transfer.possible_spam)) return null;
+  if (!transferTouchesPortfolio(transfer, ownAddresses)) return null;
+
   const direction = transfer.direction?.trim().toLowerCase();
   if (direction !== 'receive' && direction !== 'send') {
     return null;
@@ -157,16 +181,17 @@ function mapTransfer(
 export function collectSupportedTransfers(
   chain: MoralisWalletChain,
   event: MoralisWalletHistoryEvent,
+  ownAddresses?: ReadonlySet<string>,
 ): SupportedActivityTransfer[] {
   const transfers: SupportedActivityTransfer[] = [];
   for (const transfer of event.erc20_transfers ?? []) {
-    const supported = mapTransfer(chain, transfer, false);
+    const supported = mapTransfer(chain, transfer, false, ownAddresses);
     if (supported) {
       transfers.push(supported);
     }
   }
   for (const transfer of event.native_transfers ?? []) {
-    const supported = mapTransfer(chain, transfer, true);
+    const supported = mapTransfer(chain, transfer, true, ownAddresses);
     if (supported) {
       transfers.push(supported);
     }
@@ -406,7 +431,20 @@ export function mapMoralisEvent(
     wallet?: ActivityWalletRef;
   } = {},
 ): MappedActivityEvent | null {
-  const transfers = collectSupportedTransfers(context.moralis, event);
+  if (possibleSpam(event.possible_spam)) {
+    return null;
+  }
+
+  const transfers = collectSupportedTransfers(
+    context.moralis,
+    event,
+    options.ownAddresses,
+  );
+  const sender = normalizedAddress(event.from_address);
+  const senderIsOwned = Boolean(
+    sender && options.ownAddresses?.size && options.ownAddresses.has(sender),
+  );
+  const ownershipKnown = Boolean(options.ownAddresses?.size);
   const hasInteractionMetadata = Boolean(
     event.method_label?.trim() ||
     event.to_address_entity?.trim() ||
@@ -414,7 +452,7 @@ export function mapMoralisEvent(
   );
   const kind =
     classifyKind(transfers) ??
-    (hasInteractionMetadata && !possibleSpam(event.possible_spam)
+    (hasInteractionMetadata && (!ownershipKnown || senderIsOwned)
       ? ('contract-interaction' as const)
       : null);
   if (!kind) {
@@ -428,7 +466,6 @@ export function mapMoralisEvent(
   );
   const timestamp = Date.parse(event.block_timestamp ?? '');
   const protocol = protocolLabel(event);
-  const sender = event.from_address?.trim().toLowerCase();
   const senderIsExternal = Boolean(
     sender && options.ownAddresses?.size && !options.ownAddresses.has(sender),
   );
