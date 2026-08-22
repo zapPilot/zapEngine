@@ -64,8 +64,9 @@ export interface SocialDecision {
   preferredHookTypes: string[];
   preferredHashtags: string[];
   avoidHashtags: string[];
-  bestTimeWindow: string | null;
   bestTopic: string | null;
+  bestTopicSamples: number | null;
+  publishSlotsJst: string | null;
   topExample: string | null;
 }
 

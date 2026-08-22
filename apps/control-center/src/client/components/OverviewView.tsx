@@ -65,6 +65,10 @@ export function OverviewView({ data }: { data: OverviewResponse | null }) {
         <section className="open-panel social-pulse">
           <div className="section-heading">
             <h2>What to publish next</h2>
+            <small className="decision-note">
+              Topic and hook are generated once per episode and shared across
+              all platforms
+            </small>
           </div>
           <div className="decision-list">
             {(data?.social.decisions ?? []).slice(0, 4).map((decision) => (
@@ -116,10 +120,16 @@ function SocialDecisionRow({ decision }: { decision: SocialDecision }) {
       </span>
       <strong>{hooks}</strong>
       <small>
-        {[decision.bestTimeWindow, decision.bestTopic]
-          .filter(Boolean)
-          .join(' · ') || 'More samples needed for timing/topic'}
+        {decision.bestTopic
+          ? `Top topic: ${decision.bestTopic} (median of ${decision.bestTopicSamples} posts)`
+          : 'Not enough topic evidence yet'}
       </small>
+      {decision.publishSlotsJst ? (
+        <small>Posts at {decision.publishSlotsJst} JST (fixed schedule)</small>
+      ) : null}
+      {decision.topExample ? (
+        <small>Top post: {decision.topExample}</small>
+      ) : null}
     </div>
   );
 }

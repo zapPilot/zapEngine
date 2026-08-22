@@ -48,11 +48,11 @@ interface AccountRow {
 
 interface StrategyRow {
   platform: string;
-  based_on_samples: number;
   config: {
     preferredHookTypes?: string[];
     preferredHashtags?: string[];
     avoidHashtags?: string[];
+    publishSlotsJst?: Array<{ hour: number; minute: number }>;
   } | null;
 }
 
@@ -63,6 +63,8 @@ const TARGET_HOURS: Record<Exclude<SocialWindow, 'latest'>, number> = {
 };
 const PLATFORMS = ['x', 'threads', 'rednote', 'youtube'] as const;
 const SUPPRESSED_REDNOTE = new Set(['under_review', 'rejected', 'self_only']);
+const MIN_TOPIC_BUCKET_SAMPLES = 3;
+const MIN_QUALIFIED_TOPIC_BUCKETS = 2;
 
 export async function loadSocialPerformance(input: {
   config: ControlCenterConfig;
@@ -110,7 +112,7 @@ export async function loadSocialPerformance(input: {
           .limit(100),
         client
           .from('social_strategy_versions')
-          .select('platform,based_on_samples,config')
+          .select('platform,config')
           .eq('active', true),
       ]);
     const error = postResult.error ?? metricResult.error ?? accountResult.error;
@@ -223,7 +225,7 @@ function buildEpisodes(
     .map((entry) => entry.summary);
 }
 
-function buildDecisions(
+export function buildDecisions(
   posts: SocialPostRow[],
   metrics: SocialMetricRow[],
   strategies: StrategyRow[],
@@ -249,11 +251,11 @@ function buildDecisions(
       (sample) => sample.post.platform === platform,
     );
     const strategy = strategyByPlatform.get(platform);
-    const evidenceSamples =
-      strategy?.based_on_samples ?? platformSamples.length;
-    if (!strategy && platformSamples.length === 0) {
+    const evidenceSamples = platformSamples.length;
+    if (!strategy && evidenceSamples === 0) {
       return [];
     }
+    const topic = bestTopic(platformSamples);
     return [
       {
         platform,
@@ -262,10 +264,9 @@ function buildDecisions(
         preferredHookTypes: strategy?.config?.preferredHookTypes ?? [],
         preferredHashtags: strategy?.config?.preferredHashtags ?? [],
         avoidHashtags: strategy?.config?.avoidHashtags ?? [],
-        bestTimeWindow: bestVariant(platformSamples, (sample) =>
-          timeWindowJst(sample.post.published_at),
-        ),
-        bestTopic: bestVariant(platformSamples, (sample) => sample.post.topic),
+        bestTopic: topic?.topic ?? null,
+        bestTopicSamples: topic?.samples ?? null,
+        publishSlotsJst: formatPublishSlots(strategy?.config?.publishSlotsJst),
         topExample: topExample(platformSamples),
       },
     ];
@@ -294,40 +295,43 @@ function topExample(
   return `“${postTitle(best.post).slice(0, 68)}” · ${best.metric.views.toLocaleString('en-US')} views`;
 }
 
-function bestVariant<T extends { metric: SocialMetricRow }>(
-  samples: T[],
-  keyOf: (sample: T) => string,
-): string | null {
+function bestTopic(
+  samples: Array<{ post: SocialPostRow; metric: SocialMetricRow }>,
+): { topic: string; samples: number } | null {
   const groups = new Map<string, number[]>();
   for (const sample of samples) {
-    const key = keyOf(sample);
-    const values = groups.get(key) ?? [];
+    const values = groups.get(sample.post.topic) ?? [];
     values.push(sample.metric.views ?? 0);
-    groups.set(key, values);
+    groups.set(sample.post.topic, values);
   }
   const candidates = [...groups.entries()]
-    .filter(([, values]) => values.length >= 2)
-    .map(([key, values]) => ({ key, score: median(values) }))
+    .filter(([, values]) => values.length >= MIN_TOPIC_BUCKET_SAMPLES)
+    .map(([topic, values]) => ({
+      topic,
+      samples: values.length,
+      score: median(values),
+    }))
     .sort((a, b) => b.score - a.score);
-  return candidates[0]?.key ?? null;
+  if (candidates.length < MIN_QUALIFIED_TOPIC_BUCKETS) {
+    return null;
+  }
+  const winner = candidates[0]!;
+  return { topic: winner.topic, samples: winner.samples };
 }
 
-function timeWindowJst(value: string): string {
-  const date = new Date(Date.parse(value) + 9 * 60 * 60_000);
-  const hour = date.getUTCHours() + date.getUTCMinutes() / 60;
-  if (hour < 11) {
-    return '09:00–11:00 JST';
+function formatPublishSlots(
+  slots: Array<{ hour: number; minute: number }> | undefined,
+): string | null {
+  if (!slots?.length) {
+    return null;
   }
-  if (hour < 13.5) {
-    return '11:00–13:30 JST';
-  }
-  if (hour < 16) {
-    return '13:30–16:00 JST';
-  }
-  if (hour < 18) {
-    return '16:00–18:00 JST';
-  }
-  return '18:00+ JST';
+  return [...slots]
+    .sort((a, b) => a.hour - b.hour || a.minute - b.minute)
+    .map(
+      ({ hour, minute }) =>
+        `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+    )
+    .join(' / ');
 }
 
 function confidence(samples: number): SocialDecision['confidence'] {

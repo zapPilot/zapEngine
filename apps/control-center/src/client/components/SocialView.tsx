@@ -174,12 +174,20 @@ function DecisionCard({ decision }: { decision: SocialDecision }) {
         }
       />
       <DecisionLine
-        label="Best time evidence"
-        value={decision.bestTimeWindow ?? 'More samples needed'}
+        label="Schedule"
+        value={
+          decision.publishSlotsJst
+            ? `${decision.publishSlotsJst} JST (fixed)`
+            : 'Default slots'
+        }
       />
       <DecisionLine
         label="Best topic evidence"
-        value={decision.bestTopic ?? 'More samples needed'}
+        value={
+          decision.bestTopic
+            ? `${decision.bestTopic} (n=${decision.bestTopicSamples})`
+            : 'More samples needed'
+        }
       />
       <DecisionLine
         label="Winning example"
