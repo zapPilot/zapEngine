@@ -1834,7 +1834,9 @@
 
 .shell-root .nav-curve-chart,
 .shell-root .drawdown-chart,
-.shell-root .benchmark-chart {
+.shell-root .benchmark-chart,
+.shell-root .market-series-chart,
+.shell-root .sentiment-chart {
   margin: 0 0 18px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1847,7 +1849,10 @@
 
 .shell-root .nav-curve-chart-empty,
 .shell-root .drawdown-chart-empty,
-.shell-root .benchmark-chart-empty {
+.shell-root .benchmark-chart-empty,
+.shell-root .market-series-chart-empty,
+.shell-root .sentiment-chart-empty,
+.shell-root .market-signals-empty {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 40px 22px;
@@ -1859,7 +1864,9 @@
 
 .shell-root .nav-curve-header,
 .shell-root .drawdown-chart-header,
-.shell-root .benchmark-chart-header {
+.shell-root .benchmark-chart-header,
+.shell-root .market-series-chart-header,
+.shell-root .sentiment-chart-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1869,7 +1876,9 @@
 
 .shell-root .nav-curve-kicker,
 .shell-root .drawdown-kicker,
-.shell-root .benchmark-kicker {
+.shell-root .benchmark-kicker,
+.shell-root .market-series-kicker,
+.shell-root .sentiment-kicker {
   margin: 0 0 8px;
   color: var(--ink-faint);
   font-size: 10px;
@@ -1880,7 +1889,9 @@
 
 .shell-root .nav-curve-header h3,
 .shell-root .drawdown-chart-header h3,
-.shell-root .benchmark-chart-header h3 {
+.shell-root .benchmark-chart-header h3,
+.shell-root .market-series-chart-header h3,
+.shell-root .sentiment-chart-header h3 {
   margin: 0;
   color: var(--ink);
   font-family: var(--font-serif), Georgia, serif;
@@ -1927,7 +1938,9 @@
 
 .shell-root .nav-curve-svg,
 .shell-root .drawdown-svg,
-.shell-root .benchmark-svg {
+.shell-root .benchmark-svg,
+.shell-root .market-series-svg,
+.shell-root .sentiment-svg {
   display: block;
   width: 100%;
   height: auto;
@@ -1957,6 +1970,46 @@
   stroke-width: 2;
   stroke-dasharray: 7 7;
   vector-effect: non-scaling-stroke;
+}
+
+.shell-root .chart-series.market,
+.shell-root .chart-series.market-dma,
+.shell-root .chart-series.sentiment {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.shell-root .chart-series.market {
+  stroke: var(--series-color);
+  stroke-width: 2.5;
+}
+
+.shell-root .chart-series.market-dma {
+  stroke: var(--ink-dim);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  opacity: 0.5;
+}
+
+.shell-root .chart-series.sentiment {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.shell-root .sentiment-band line {
+  stroke: rgba(255, 255, 255, 0.065);
+  stroke-width: 1;
+  stroke-dasharray: 2 5;
+}
+
+.shell-root .sentiment-band text {
+  fill: var(--ink-faint);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9px;
+  text-anchor: end;
+  text-transform: uppercase;
 }
 
 .shell-root .chart-grid-line line {
@@ -2164,7 +2217,9 @@
    palette validator if any of them changes. See chartMarkers.tsx. */
 .shell-root .chart-event-layer,
 .shell-root .chart-legend,
-.shell-root .chart-tooltip {
+.shell-root .chart-tooltip,
+.shell-root .market-series-chart,
+.shell-root .sentiment-chart {
   --event-btc: #f7931a;
   --event-eth: #627eea;
   --event-spy: #7ad88f;
@@ -2228,6 +2283,48 @@
   gap: 12px;
 }
 
+.shell-root .legend-item.market span {
+  background: var(--series-color);
+}
+
+.shell-root .legend-item.market-dma span {
+  background: var(--ink-dim);
+  background-image: linear-gradient(
+    90deg,
+    var(--ink-dim) 0 50%,
+    transparent 50% 100%
+  );
+  background-size: 6px 2px;
+  opacity: 0.5;
+}
+
+.shell-root .signal-chart-tools {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shell-root .signal-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 9px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.025);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.shell-root .signal-chip.below {
+  color: var(--ink-dim);
+}
+
 .shell-root .legend-item.asset span {
   width: 8px;
   height: 8px;
@@ -2260,7 +2357,9 @@
 
 .shell-root .nav-curve-chart figcaption,
 .shell-root .drawdown-chart figcaption,
-.shell-root .benchmark-chart figcaption {
+.shell-root .benchmark-chart figcaption,
+.shell-root .market-series-chart figcaption,
+.shell-root .sentiment-chart figcaption {
   margin: 10px 0 0;
   color: var(--ink-faint);
   font-size: 10px;
@@ -2421,7 +2520,8 @@
   gap: 40px;
 }
 
-.shell-root .track-record-performance h2 {
+.shell-root .track-record-performance h2,
+.shell-root .track-record-signals h2 {
   margin: 0 0 8px;
   color: var(--ink);
   font-family: var(--font-serif), Georgia, serif;
@@ -2572,8 +2672,81 @@
 }
 
 .shell-root .asset-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   color: var(--ink);
   font-weight: 500;
+}
+
+.shell-root .token-icon {
+  display: inline-block;
+  flex: none;
+  border-radius: 999px;
+  object-fit: contain;
+}
+
+.shell-root .token-icon-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-family: var(--font-sans), Arial, sans-serif;
+  font-size: 0.55em;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.shell-root .market-series-chart-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.shell-root .signals-meta,
+.shell-root .signals-note {
+  color: var(--ink-dim);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.shell-root .signals-meta {
+  margin: 0 0 8px;
+}
+
+.shell-root .signals-note {
+  margin: 0 0 24px;
+  color: var(--ink-faint);
+}
+
+.shell-root .signals-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+@media (max-width: 960px) {
+  .shell-root .signals-charts {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .shell-root .market-series-chart-header,
+  .shell-root .sentiment-chart-header {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .shell-root .signal-chart-tools {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .shell-root .chart-legend-group {
+    flex-wrap: wrap;
+  }
 }
 
 .shell-root .asset-token {
@@ -3049,6 +3222,7 @@
   }
 
   .shell-root .track-record-performance h2,
+  .shell-root .track-record-signals h2,
   .shell-root .track-record-positions h2,
   .shell-root .track-record-rebalances h2,
   .shell-root .track-record-verification h2 {

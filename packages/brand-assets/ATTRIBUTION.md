@@ -25,6 +25,7 @@ beyond the normalization described below, and imply no endorsement.
 | `tokens/btc.png`   | `btc.svg`    | [web3icons](https://github.com/0xa3k5/web3icons) `raw-svgs/tokens/branded/BTC.svg` (MIT)                                   |
 | `tokens/cbbtc.png` | `cbbtc.webp` | [CoinGecko](https://assets.coingecko.com/coins/images/40143/large/cbbtc.webp) — no SVG form of the cbBTC mark is published |
 | `tokens/eth.png`   | `eth.svg`    | [web3icons](https://github.com/0xa3k5/web3icons) `raw-svgs/tokens/branded/ETH.svg` (MIT)                                   |
+| `tokens/spy.png`   | `spy.svg`    | Original work — neutral rising-index motif created for zapEngine; not an SPDR mark.                                        |
 | `tokens/usdc.png`  | `usdc.svg`   | [web3icons](https://github.com/0xa3k5/web3icons) `raw-svgs/tokens/branded/USDC.svg` (MIT)                                  |
 | `tokens/usdt.png`  | `usdt.svg`   | [web3icons](https://github.com/0xa3k5/web3icons) `raw-svgs/tokens/branded/USDT.svg` (MIT)                                  |
 | `tokens/wbtc.png`  | `wbtc.svg`   | [web3icons](https://github.com/0xa3k5/web3icons) `raw-svgs/tokens/branded/WBTC.svg` (MIT)                                  |
@@ -59,3 +60,10 @@ carries no interior form, so once clipped to the circular chain badge it renders
 as a featureless blue disc and stops identifying anything. The circular Base
 mark this repository already shipped is kept instead. Replace it if Base
 publishes a symbol that survives a circular clip at badge size.
+
+## The SPY mark
+
+The SPY asset is an original neutral market-index symbol: a light circular
+field, subdued pillars, and a rising line. It deliberately avoids the SPDR
+wordmark, spider imagery, and other SPDR trade dress. “S&P 500” is used only as
+the human-readable label for the tracked index exposure.

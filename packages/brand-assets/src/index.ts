@@ -18,7 +18,8 @@ export type TokenBrandSymbol =
   | 'WETH'
   | 'WBTC'
   | 'CBBTC'
-  | 'BTC';
+  | 'BTC'
+  | 'SPY';
 
 export type ProtocolBrandKey = 'morpho' | 'gmx-v2' | 'hyperliquid' | 'ondo';
 
@@ -62,6 +63,7 @@ export const TOKEN_BRAND: Record<TokenBrandSymbol, TokenBrand> = {
   WBTC: { label: 'Wrapped Bitcoin', color: '#f7931a', glyph: '₿' },
   CBBTC: { label: 'Coinbase Wrapped BTC', color: '#0052ff', glyph: '₿' },
   BTC: { label: 'Bitcoin', color: '#f7931a', glyph: '₿' },
+  SPY: { label: 'S&P 500', color: '#d7dde7', glyph: 'S' },
 };
 
 export const PROTOCOL_BRAND: Record<ProtocolBrandKey, ProtocolBrand> = {

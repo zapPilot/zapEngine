@@ -1,4 +1,5 @@
 import type { DailySnapshot } from '@zapengine/types/strategy';
+import { TokenIcon } from './TokenIcon';
 
 interface PositionsTableProps {
   positions: DailySnapshot['positions'];
@@ -31,7 +32,10 @@ export function PositionsTable({ positions, className }: PositionsTableProps) {
           {positions.map((pos, i) => (
             <tr key={i}>
               <td className="td-asset">
-                <span className="asset-name">{pos.asset}</span>
+                <span className="asset-name">
+                  <TokenIcon symbol={pos.asset} size={18} />
+                  {pos.asset}
+                </span>
                 {pos.tokenAddress && (
                   <span className="asset-token">
                     {pos.tokenAddress.slice(0, 8)}…

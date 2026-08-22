@@ -28,6 +28,7 @@ export const CHART_DIMENSIONS = {
 export const TABS = [
   { href: '/track-record', label: 'Overview' },
   { href: '/track-record/performance', label: 'Performance' },
+  { href: '/track-record/signals', label: 'Signals' },
   { href: '/track-record/positions', label: 'Positions' },
   { href: '/track-record/rebalances', label: 'Rebalances' },
   { href: '/track-record/verification', label: 'Verification' },

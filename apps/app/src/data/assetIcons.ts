@@ -30,6 +30,7 @@ export const TOKEN_ICON_SRC: Record<TokenBrandSymbol, ImageSourcePropType> = {
   WBTC: require('@zapengine/brand-assets/assets/tokens/wbtc.png'),
   CBBTC: require('@zapengine/brand-assets/assets/tokens/cbbtc.png'),
   BTC: require('@zapengine/brand-assets/assets/tokens/btc.png'),
+  SPY: require('@zapengine/brand-assets/assets/tokens/spy.png'),
 };
 
 export const PROTOCOL_ICON_SRC: Record<ProtocolBrandKey, ImageSourcePropType> =

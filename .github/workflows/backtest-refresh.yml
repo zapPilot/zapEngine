@@ -44,6 +44,10 @@ jobs:
             --reference-date "$REFERENCE_DATE" \
             --no-progress
 
+      - name: Regenerate landing market signals
+        working-directory: apps/analytics-engine
+        run: uv run python scripts/landing/market_signals.py --days 365
+
       - name: Sync landing strategy snapshot
         run: pnpm lint snapshot-sync --fix
 
@@ -51,13 +55,22 @@ jobs:
         run: |
           pnpm --filter @zapengine/landing-page exec prettier --write \
             src/data/strategy-snapshot.json \
-            src/data/equity-curve.json
+            src/data/equity-curve.json \
+            src/data/market-signals.json
 
       - name: Verify curve reaches the reference date
         run: |
           last_date="$(node -e "const c=require('./apps/landing-page/src/data/equity-curve.json'); const v=c.series[0].values; process.stdout.write(v[v.length-1].date)")"
           if [ "$last_date" != "$REFERENCE_DATE" ]; then
             echo "equity-curve.json ends at $last_date, expected $REFERENCE_DATE — stale upstream data or missing DATABASE_READ_ONLY_URL; refusing to publish." >&2
+            exit 1
+          fi
+
+      - name: Verify market signals reach the reference date
+        run: |
+          last_date="$(node -e "const s=require('./apps/landing-page/src/data/market-signals.json'); process.stdout.write(s.snapshots.at(-1).snapshot_date)")"
+          if [ "$last_date" != "$REFERENCE_DATE" ]; then
+            echo "market-signals.json ends at $last_date, expected $REFERENCE_DATE — stale upstream data or missing DATABASE_READ_ONLY_URL; refusing to publish." >&2
             exit 1
           fi
 
@@ -77,6 +90,7 @@ jobs:
             apps/analytics-engine/tests/fixtures/strategy_performance_snapshot_500d.json
             apps/landing-page/src/data/strategy-snapshot.json
             apps/landing-page/src/data/equity-curve.json
+            apps/landing-page/src/data/market-signals.json
           )
           if git diff --quiet -- "${files[@]}"; then
             echo "No backtest artifact changes to commit."

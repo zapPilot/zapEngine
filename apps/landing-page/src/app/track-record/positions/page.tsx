@@ -3,6 +3,7 @@
 import { useTrackRecord } from '@/hooks/useTrackRecord';
 import { PositionsTable } from '@/components/track-record/PositionsTable';
 import { TrackRecordLoading } from '@/components/track-record/TrackRecordLoading';
+import { TokenIcon } from '@/components/track-record/TokenIcon';
 
 export default function PositionsPage() {
   const state = useTrackRecord();
@@ -30,7 +31,10 @@ export default function PositionsPage() {
           {latestSnapshot.positions.map((pos, i) => (
             <article className="position-detail" key={i}>
               <div className="pos-detail-header">
-                <strong>{pos.asset}</strong>
+                <strong className="asset-name">
+                  <TokenIcon symbol={pos.asset} size={18} />
+                  {pos.asset}
+                </strong>
                 <span>{pos.protocol}</span>
                 <span>Chain {pos.chainId}</span>
               </div>

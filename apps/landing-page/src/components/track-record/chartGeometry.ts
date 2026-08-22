@@ -18,7 +18,7 @@ export function midAndMaxTicks(
   domainMin: number,
   domainMax: number,
 ): readonly [number, number] {
-  return [Math.round((domainMin + domainMax) / 2), domainMax];
+  return [(domainMin + domainMax) / 2, domainMax];
 }
 
 export function xForPoint(index: number, total: number): number {
