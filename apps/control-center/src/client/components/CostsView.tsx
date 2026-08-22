@@ -1,15 +1,25 @@
-import type { OverviewResponse } from '../../shared/types.js';
+import type {
+  CostHistoryResponse,
+  OverviewResponse,
+} from '../../shared/types.js';
 import { usd } from '../format.js';
+import { CostHistoryChart } from './CostHistoryChart.js';
 import { ProviderLedger, UsageSignals } from './ProviderLedger.js';
 import { RunwayChart } from './RunwayChart.js';
 
-export function CostsView({ data }: { data: OverviewResponse | null }) {
+export function CostsView({
+  data,
+  history,
+}: {
+  data: OverviewResponse | null;
+  history: CostHistoryResponse | null;
+}) {
   return (
     <div className="view-stack costs-view">
       <div className="costs-intro">
         <section className="cost-hero actual-border">
           <strong className="mono actual">{usd(data?.accruedCostUsd)}</strong>
-          <span>Accrued usage cost</span>
+          <span>Month-to-date operating cost</span>
         </section>
         <section className="cost-hero projected-border">
           <strong className="mono projected">
@@ -17,19 +27,25 @@ export function CostsView({ data }: { data: OverviewResponse | null }) {
           </strong>
           <span>Projected month-end</span>
         </section>
-        <section className="semantics-panel">
-          <h2>Understanding cost semantics</h2>
-          <Definition term="Actual">
-            Provider-reported billing or usage data accrued this month.
-          </Definition>
-          <Definition term="Estimated">
-            Current usage translated through a versioned pricing model.
-          </Definition>
-          <Definition term="List-price equivalent">
-            Observed prepaid units valued at configured list price.
-          </Definition>
+        <section className="cost-hero">
+          <strong className="mono">{usd(data?.cashInvoiceSpendUsd)}</strong>
+          <span>Cash spend this month</span>
         </section>
       </div>
+
+      <section className="semantics-panel">
+        <h2>Cost semantics</h2>
+        <Definition term="Actual">Provider-reported usage cost.</Definition>
+        <Definition term="Fixed">Committed recurring monthly cost.</Definition>
+        <Definition term="List-price equivalent">
+          Prepaid units valued using the rate active when the snapshot was
+          stored.
+        </Definition>
+        <Definition term="Cash spend">
+          Charges, top-ups, subscriptions, and invoices recorded separately from
+          operating usage.
+        </Definition>
+      </section>
 
       <section className="open-panel costs-ledger">
         <div className="section-heading">
@@ -46,11 +62,12 @@ export function CostsView({ data }: { data: OverviewResponse | null }) {
           <UsageSignals providers={data?.providers ?? []} />
         </section>
         <RunwayChart
-          accrued={data?.accruedCostUsd}
-          generatedAt={data?.generatedAt}
+          history={history?.currentMonthDaily ?? []}
           projected={data?.projectedCostUsd}
         />
       </div>
+
+      <CostHistoryChart points={history?.monthlyTotals ?? []} />
     </div>
   );
 }

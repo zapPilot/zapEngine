@@ -1,7 +1,6 @@
 import type { OverviewResponse } from '../../shared/types.js';
 import { integer, usd } from '../format.js';
 import { ProviderLedger, UsageSignals } from './ProviderLedger.js';
-import { RunwayChart } from './RunwayChart.js';
 
 export function OverviewView({ data }: { data: OverviewResponse | null }) {
   const latestEpisode = data?.social.episodes[0];
@@ -26,12 +25,6 @@ export function OverviewView({ data }: { data: OverviewResponse | null }) {
         <Metric label="Active accounts" value={integer(data?.activeAccounts)} />
         <Metric label="Social reach" value={integer(data?.socialReach)} />
       </section>
-
-      <RunwayChart
-        accrued={data?.accruedCostUsd}
-        generatedAt={data?.generatedAt}
-        projected={data?.projectedCostUsd}
-      />
 
       <div className="overview-lower">
         <section className="open-panel provider-panel">

@@ -22,8 +22,26 @@ export function createControlCenterApp(input: {
     input.service ?? createOverviewService({ config: input.config });
 
   app.get('/api/overview', async (context) => {
-    const force = context.req.query('refresh') === '1';
-    return context.json(await service.getOverview(force));
+    return context.json(await service.getOverview());
+  });
+  app.get('/api/costs/history', async (context) => {
+    return context.json(await service.getCostHistory());
+  });
+  app.post('/api/costs/sync', async (context) => {
+    try {
+      const summary = await service.syncCosts();
+      return context.json(summary);
+    } catch (error) {
+      return context.json(
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Cost synchronization failed',
+        },
+        503,
+      );
+    }
   });
   app.get('/api/social-performance', async (context) => {
     const requested = context.req.query('window');

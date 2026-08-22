@@ -18,6 +18,7 @@
     "social:login": "pnpm --filter @zapengine/podcast-pipeline social:login",
     "social:daemon": "pnpm --filter @zapengine/podcast-pipeline social:daemon",
     "ops:dashboard": "turbo run dev --filter=@zapengine/control-center",
+    "ops:cost": "pnpm --filter @zapengine/control-center ops:cost",
     "ops:sync": "turbo run ops:sync --filter=@zapengine/control-center",
     "track-record:generate": "tsx --tsconfig apps/landing-page/tsconfig.json scripts/track-record/generate-daily-snapshot.ts",
     "track-record:publish": "tsx --tsconfig apps/landing-page/tsconfig.json scripts/track-record/publish-daily-snapshot.ts",

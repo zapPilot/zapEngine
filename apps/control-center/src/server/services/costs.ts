@@ -1,6 +1,9 @@
 import {
+  createFixedMonthlyCostSnapshot,
   fetchDeBankCostSnapshot,
   fetchOpenRouterCostSnapshot,
+  resolvePricingRate,
+  type CostPricingRate,
   type CostProvider,
   type CostSnapshot,
   type CostType,
@@ -15,23 +18,41 @@ interface CostSource {
   label: string;
   costType: CostType;
   configured: boolean;
+  pricingRateId: string | null;
   load: () => Promise<CostSnapshot>;
 }
 
-export async function loadCostProviders(input: {
+export interface CollectedCostProvider extends CostProviderResult {
+  pricingRateId: string | null;
+}
+
+export async function collectCostProviders(input: {
   config: ControlCenterConfig;
+  pricingRates: CostPricingRate[];
   fetch?: FetchLike;
   now?: Date;
-}): Promise<CostProviderResult[]> {
+}): Promise<CollectedCostProvider[]> {
   const now = input.now ?? new Date();
   const openRouterKey =
     input.config.OPENROUTER_MANAGEMENT_KEY ?? input.config.OPENROUTER_API_KEY;
+  const debankRate = resolvePricingRate(input.pricingRates, {
+    provider: 'debank',
+    metricKey: 'api_unit',
+    at: now,
+  });
+  const supabaseRate = resolvePricingRate(input.pricingRates, {
+    provider: 'supabase',
+    metricKey: 'pro_plan',
+    at: now,
+  });
+
   const sources: CostSource[] = [
     {
       provider: 'openrouter',
       label: 'OpenRouter',
       costType: 'actual',
       configured: Boolean(openRouterKey),
+      pricingRateId: null,
       load: () =>
         fetchOpenRouterCostSnapshot({
           apiKey: openRouterKey!,
@@ -45,23 +66,37 @@ export async function loadCostProviders(input: {
       label: 'DeBank',
       costType: 'list-price-equivalent',
       configured: Boolean(input.config.DEBANK_API_KEY),
+      pricingRateId: debankRate?.id ?? null,
       load: () =>
         fetchDeBankCostSnapshot({
           apiKey: input.config.DEBANK_API_KEY!,
-          unitCostUsd: input.config.DEBANK_UNIT_COST_USD,
+          unitCostUsd: debankRate?.priceUsd,
           fetch: input.fetch,
           now,
           baseUrl: input.config.DEBANK_BASE_URL,
         }),
     },
-    staticUnconfiguredSource('supabase', 'Supabase', 'estimated'),
+    {
+      provider: 'supabase',
+      label: 'Supabase',
+      costType: 'fixed',
+      configured: Boolean(supabaseRate),
+      pricingRateId: supabaseRate?.id ?? null,
+      load: async () =>
+        createFixedMonthlyCostSnapshot({
+          provider: 'supabase',
+          monthlyCostUsd: supabaseRate!.priceUsd,
+          usageLabel: 'Pro monthly plan',
+          now,
+        }),
+    },
     staticUnconfiguredSource('fly', 'Fly.io', 'estimated'),
   ];
 
   return Promise.all(sources.map(loadSource));
 }
 
-async function loadSource(source: CostSource): Promise<CostProviderResult> {
+async function loadSource(source: CostSource): Promise<CollectedCostProvider> {
   if (!source.configured) {
     return {
       provider: source.provider,
@@ -69,7 +104,11 @@ async function loadSource(source: CostSource): Promise<CostProviderResult> {
       status: 'unconfigured',
       costType: source.costType,
       snapshot: null,
-      message: 'Not connected',
+      pricingRateId: source.pricingRateId,
+      message:
+        source.provider === 'debank' && source.pricingRateId === null
+          ? 'Usage available; pricing rate missing'
+          : 'Not connected',
     };
   }
 
@@ -81,7 +120,11 @@ async function loadSource(source: CostSource): Promise<CostProviderResult> {
       status: 'ok',
       costType: snapshot.costType,
       snapshot,
-      message: null,
+      pricingRateId: source.pricingRateId,
+      message:
+        source.provider === 'debank' && snapshot.accruedCostUsd === null
+          ? 'Usage synced; USD cost unknown'
+          : null,
     };
   } catch (error) {
     return {
@@ -90,6 +133,7 @@ async function loadSource(source: CostSource): Promise<CostProviderResult> {
       status: 'error',
       costType: source.costType,
       snapshot: null,
+      pricingRateId: source.pricingRateId,
       message: safeProviderError(error),
     };
   }
@@ -105,6 +149,7 @@ function staticUnconfiguredSource(
     label,
     costType,
     configured: false,
+    pricingRateId: null,
     load: () => Promise.reject(new Error('Not connected')),
   };
 }

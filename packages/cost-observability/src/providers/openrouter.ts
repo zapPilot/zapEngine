@@ -67,6 +67,7 @@ export async function fetchOpenRouterCostSnapshot(
     accruedCostUsd: data.usage_monthly,
     projectedCostUsd: projectMonthEnd(data.usage_monthly, now),
     costType: 'actual',
+    source: 'api',
     fetchedAt: now.toISOString(),
   };
 }

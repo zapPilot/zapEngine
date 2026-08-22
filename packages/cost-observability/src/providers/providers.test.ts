@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { fetchDeBankCostSnapshot } from './debank.js';
+import { createFixedMonthlyCostSnapshot } from './fixed.js';
 import { fetchOpenRouterCostSnapshot } from './openrouter.js';
 
 describe('cost providers', () => {
@@ -74,24 +75,39 @@ describe('cost providers', () => {
     ]);
   });
 
-  it('calculates DeBank list-price equivalent only when configured', async () => {
+  it('calculates DeBank list-price equivalent from the supplied pricing rate', async () => {
     const fetcher = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
           balance: 510_200,
-          stats: [{ usage: 2_000, remains: 510_200, date: '2026-08-16' }],
+          stats: [{ usage: 14_405, remains: 510_200, date: '2026-08-16' }],
         }),
       ),
     );
 
     const snapshot = await fetchDeBankCostSnapshot({
       apiKey: 'test-key',
-      unitCostUsd: 0.0002,
+      unitCostUsd: 200 / 1_000_000,
       fetch: fetcher,
       now: new Date('2026-08-16T00:00:00.000Z'),
     });
 
-    expect(snapshot.accruedCostUsd).toBe(0.4);
-    expect(snapshot.projectedCostUsd).toBeCloseTo(0.83, 2);
+    expect(snapshot.accruedCostUsd).toBe(2.881);
+  });
+
+  it('keeps a fixed monthly plan constant for accrued and projected cost', () => {
+    const snapshot = createFixedMonthlyCostSnapshot({
+      provider: 'supabase',
+      monthlyCostUsd: 25,
+      now: new Date('2026-08-22T12:00:00.000Z'),
+    });
+
+    expect(snapshot).toMatchObject({
+      provider: 'supabase',
+      accruedCostUsd: 25,
+      projectedCostUsd: 25,
+      costType: 'fixed',
+      source: 'fixed',
+    });
   });
 });

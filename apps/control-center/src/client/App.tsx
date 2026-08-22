@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import type {
+  CostHistoryResponse,
   OverviewResponse,
   SocialPerformanceResponse,
 } from '../shared/types.js';
@@ -12,22 +13,36 @@ import { SocialView } from './components/SocialView.js';
 export function App() {
   const [view, setView] = useState<DashboardView>('overview');
   const [overview, setOverview] = useState<OverviewResponse | null>(null);
+  const [costHistory, setCostHistory] = useState<CostHistoryResponse | null>(
+    null,
+  );
   const [social, setSocial] = useState<SocialPerformanceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadOverview = useCallback(async (refresh = false) => {
+  const loadOverview = useCallback(async (sync = false) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
-        `/api/overview${refresh ? '?refresh=1' : ''}`,
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      if (sync) {
+        const syncResponse = await fetch('/api/costs/sync', { method: 'POST' });
+        if (!syncResponse.ok) {
+          const body = (await syncResponse.json()) as { error?: string };
+          throw new Error(body.error ?? `HTTP ${syncResponse.status}`);
+        }
       }
-      const next = (await response.json()) as OverviewResponse;
+      const [overviewResponse, historyResponse] = await Promise.all([
+        fetch('/api/overview'),
+        fetch('/api/costs/history'),
+      ]);
+      if (!overviewResponse.ok || !historyResponse.ok) {
+        throw new Error(
+          `HTTP ${!overviewResponse.ok ? overviewResponse.status : historyResponse.status}`,
+        );
+      }
+      const next = (await overviewResponse.json()) as OverviewResponse;
       setOverview(next);
+      setCostHistory((await historyResponse.json()) as CostHistoryResponse);
       setSocial(next.social);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Request failed');
@@ -85,7 +100,9 @@ export function App() {
         </div>
       ) : null}
       {view === 'overview' ? <OverviewView data={overview} /> : null}
-      {view === 'costs' ? <CostsView data={overview} /> : null}
+      {view === 'costs' ? (
+        <CostsView data={overview} history={costHistory} />
+      ) : null}
       {view === 'social' ? (
         <SocialView data={social} onWindowChange={loadSocial} />
       ) : null}

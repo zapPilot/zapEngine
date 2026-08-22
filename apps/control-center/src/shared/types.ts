@@ -15,6 +15,28 @@ export interface CostProviderResult {
   message: string | null;
 }
 
+export type CostTransactionKind =
+  | 'subscription'
+  | 'top_up'
+  | 'invoice'
+  | 'adjustment';
+
+export interface CostHistoryPoint {
+  date: string;
+  accruedCostUsd: number | null;
+}
+
+export interface MonthlyCostPoint {
+  month: string;
+  accruedCostUsd: number | null;
+}
+
+export interface CostHistoryResponse {
+  currentMonthDaily: CostHistoryPoint[];
+  monthlyTotals: MonthlyCostPoint[];
+  cashSpendUsd: number | null;
+}
+
 export interface SocialAccountSummary {
   platform: string;
   followers: number | null;
