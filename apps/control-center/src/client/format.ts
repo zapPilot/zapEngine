@@ -46,3 +46,12 @@ export function relativeTime(value: string): string {
 export function providerUsage(unit: 'usd' | 'units', value: number): string {
   return unit === 'usd' ? usd(value) : `${integer(value)} units`;
 }
+
+export function filterKnownAccruedCost<
+  T extends { accruedCostUsd: number | null },
+>(points: T[]): (T & { accruedCostUsd: number })[] {
+  return points.filter(
+    (point): point is T & { accruedCostUsd: number } =>
+      point.accruedCostUsd !== null,
+  );
+}

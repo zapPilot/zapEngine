@@ -1,14 +1,11 @@
 import type { CostHistoryPoint } from '../../shared/types.js';
-import { usd } from '../format.js';
+import { filterKnownAccruedCost, usd } from '../format.js';
 
 export function RunwayChart(props: {
   history: CostHistoryPoint[];
   projected: number | null | undefined;
 }) {
-  const known = props.history.filter(
-    (point): point is CostHistoryPoint & { accruedCostUsd: number } =>
-      point.accruedCostUsd !== null,
-  );
+  const known = filterKnownAccruedCost(props.history);
   if (known.length === 0) {
     return (
       <section className="runway-panel" aria-labelledby="runway-title">

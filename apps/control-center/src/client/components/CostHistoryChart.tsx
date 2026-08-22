@@ -1,11 +1,8 @@
 import type { MonthlyCostPoint } from '../../shared/types.js';
-import { usd } from '../format.js';
+import { filterKnownAccruedCost, usd } from '../format.js';
 
 export function CostHistoryChart({ points }: { points: MonthlyCostPoint[] }) {
-  const known = points.filter(
-    (point): point is MonthlyCostPoint & { accruedCostUsd: number } =>
-      point.accruedCostUsd !== null,
-  );
+  const known = filterKnownAccruedCost(points);
   if (known.length === 0) {
     return (
       <section className="runway-panel">

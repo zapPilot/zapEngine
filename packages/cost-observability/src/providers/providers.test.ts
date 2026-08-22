@@ -4,6 +4,16 @@ import { fetchDeBankCostSnapshot } from './debank.js';
 import { createFixedMonthlyCostSnapshot } from './fixed.js';
 import { fetchOpenRouterCostSnapshot } from './openrouter.js';
 
+function createDeBankFetcher(
+  stats: Array<{ usage: number; remains: number; date: string }>,
+) {
+  return vi
+    .fn()
+    .mockResolvedValue(
+      new Response(JSON.stringify({ balance: 510_200, stats })),
+    );
+}
+
 describe('cost providers', () => {
   it('normalizes OpenRouter monthly usage as actual cost', async () => {
     const fetcher = vi.fn().mockResolvedValue(
@@ -43,18 +53,11 @@ describe('cost providers', () => {
   });
 
   it('keeps DeBank USD cost unknown without an explicit unit price', async () => {
-    const fetcher = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          balance: 510_200,
-          stats: [
-            { usage: 1_320, remains: 510_200, date: '2026-08-16' },
-            { usage: 900, remains: 511_520, date: '2026-08-15' },
-            { usage: 400, remains: 512_420, date: '2026-07-31' },
-          ],
-        }),
-      ),
-    );
+    const fetcher = createDeBankFetcher([
+      { usage: 1_320, remains: 510_200, date: '2026-08-16' },
+      { usage: 900, remains: 511_520, date: '2026-08-15' },
+      { usage: 400, remains: 512_420, date: '2026-07-31' },
+    ]);
 
     const snapshot = await fetchDeBankCostSnapshot({
       apiKey: 'test-key',
@@ -76,14 +79,9 @@ describe('cost providers', () => {
   });
 
   it('calculates DeBank list-price equivalent from the supplied pricing rate', async () => {
-    const fetcher = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          balance: 510_200,
-          stats: [{ usage: 14_405, remains: 510_200, date: '2026-08-16' }],
-        }),
-      ),
-    );
+    const fetcher = createDeBankFetcher([
+      { usage: 14_405, remains: 510_200, date: '2026-08-16' },
+    ]);
 
     const snapshot = await fetchDeBankCostSnapshot({
       apiKey: 'test-key',

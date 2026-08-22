@@ -1,5 +1,0 @@
-{
-  "extends": ["@zapengine/knip-config/base"],
-  "entry": ["src/index.ts"],
-  "project": ["src/**/*.ts"]
-}
