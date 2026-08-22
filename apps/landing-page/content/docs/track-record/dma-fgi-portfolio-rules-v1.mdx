@@ -3,6 +3,8 @@ title: DMA/FGI Portfolio Rules v1
 description: Strategy specification for the DMA/FGI regime-aware portfolio allocator
 ---
 
+import { AssetLabel, AssetPairLabel } from '@/components/docs/AssetLabel';
+
 ## Overview
 
 **Strategy ID:** `dma_fgi_portfolio_rules`
@@ -16,29 +18,35 @@ Generate superior absolute and risk-adjusted returns by trading between three ri
 
 ## Assets
 
-| Pillar      | Asset                   | Venue                |
-| ----------- | ----------------------- | -------------------- |
-| Equities    | Ondo USDC (OUSG / USDY) | Ethereum             |
-| Crypto      | WBTC, WETH              | Ethereum / Arbitrum  |
-| Stablecoins | USDC, USDT              | All supported chains |
+| Pillar      | Asset                                                             | Venue                |
+| ----------- | ----------------------------------------------------------------- | -------------------- |
+| Equities    | Ondo USDC (OUSG / USDY)                                           | Ethereum             |
+| Crypto      | <AssetPairLabel first="WBTC" second="WETH" label="WBTC + WETH" /> | Ethereum / Arbitrum  |
+| Stablecoins | <AssetPairLabel first="USDC" second="USDT" label="USDC + USDT" /> | All supported chains |
 
 ## Rebalance Rules
 
 ### Signal Logic
 
-- **200-DMA (BTC):** Weekly close above/below 200-WMA triggers regime shift for the crypto pillar
+- <strong>
+    <AssetLabel symbol="BTC" label="200-DMA (BTC)" />:
+  </strong>
+  Weekly close above/below 200-WMA triggers regime shift for the crypto pillar
 - **Fear & Greed Index:** Daily FGI reading below 30 = fear (defensive), above 70 = greed (aggressive), 30–70 = neutral
-- **ETH/BTC Ratio:** Cross of the 20-day EMA triggers crypto pillar rotation
+- <strong>
+    <AssetPairLabel first="ETH" second="BTC" label="ETH/BTC Ratio" />:
+  </strong>
+  Cross of the 20-day EMA triggers crypto pillar rotation
 
 ### Allocation Matrix
 
-| Regime                       | Equities | BTC/ETH | Stablecoins |
-| ---------------------------- | -------- | ------- | ----------- |
-| Risk-On (DMA+ + FGI > 70)    | 60%      | 30%     | 10%         |
-| Risk-On (DMA+ OR FGI)        | 40%      | 35%     | 25%         |
-| Neutral                      | 30%      | 20%     | 50%         |
-| Risk-Off (DMA- OR FGI < 30)  | 20%      | 15%     | 65%         |
-| Risk-Off (DMA- AND FGI < 30) | 10%      | 10%     | 80%         |
+| Regime                       | <AssetLabel symbol="SPY" label="Equities" /> | <AssetPairLabel first="BTC" second="ETH" label="BTC/ETH" /> | <AssetLabel symbol="USDC" label="Stablecoins" /> |
+| ---------------------------- | -------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------ |
+| Risk-On (DMA+ + FGI > 70)    | 60%                                          | 30%                                                         | 10%                                              |
+| Risk-On (DMA+ OR FGI)        | 40%                                          | 35%                                                         | 25%                                              |
+| Neutral                      | 30%                                          | 20%                                                         | 50%                                              |
+| Risk-Off (DMA- OR FGI < 30)  | 20%                                          | 15%                                                         | 65%                                              |
+| Risk-Off (DMA- AND FGI < 30) | 10%                                          | 10%                                                         | 80%                                              |
 
 ### Rebalance Triggers
 

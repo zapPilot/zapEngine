@@ -5,6 +5,7 @@ description: A product-level view — what you can do, how funds flow, what prot
 
 import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
 import { Callout } from 'fumadocs-ui/components/callout';
+import { AssetLabel, AssetPairLabel } from '@/components/docs/AssetLabel';
 
 Zap Pilot is the self-custodial robo-advisor layer between you and the DeFi market. You stay in control of your wallet; Zap Pilot watches the market, prepares moves, and asks you to sign when it's time to act.
 
@@ -110,9 +111,19 @@ Any standard externally-owned account works. Wallets that support modern atomic-
 
 **Where your assets actually sit between rebalances.**
 
-- **Tokenized S&P 500** for the equity pillar.
-- **BTC and ETH** held directly, with relative-strength rotation between them.
-- **Stablecoins** for the defensive leg, optionally parked in conservative yield venues so idle capital still earns a baseline.
+- <strong>
+    <AssetLabel symbol="SPY" label="Tokenized S&P 500" />
+  </strong>
+  for the equity pillar.
+- <strong>
+    <AssetPairLabel first="BTC" second="ETH" label="BTC and ETH" />
+  </strong>
+  held directly, with relative-strength rotation between them.
+- <strong>
+    <AssetLabel symbol="USDC" label="Stablecoins" />
+  </strong>
+  for the defensive leg, optionally parked in conservative yield venues so idle
+  capital still earns a baseline.
 
 The specific venues evolve as the DeFi landscape changes; what stays fixed is the three-pillar shape of the portfolio.
 
@@ -124,7 +135,11 @@ The specific venues evolve as the DeFi landscape changes; what stays fixed is th
 
 - **Long-term trend** — a moving-average filter that decides whether risk assets are above or below their long-term regime line.
 - **Market sentiment** — a fear-and-greed reading used to dial risk down when the market gets euphoric.
-- **In-crypto rotation** — ETH/BTC relative strength to decide which crypto leg leads when crypto risk is on.
+- <strong>
+    <AssetPairLabel first="ETH" second="BTC" label="In-crypto rotation" />
+  </strong>
+  — ETH/BTC relative strength to decide which crypto leg leads when crypto risk
+  is on.
 
 Inputs come from established public market-data providers; nothing in the strategy depends on a private oracle or a custom price feed.
 

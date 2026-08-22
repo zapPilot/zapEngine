@@ -3,6 +3,8 @@ title: DCA Classic v1
 description: Dollar-cost averaging baseline benchmark
 ---
 
+import { AssetPairLabel } from '@/components/docs/AssetLabel';
+
 ## Overview
 
 **Strategy ID:** `dca_classic`
@@ -19,7 +21,7 @@ DCA Classic exists as a fair comparison baseline. It captures the beta return of
 ## Parameters
 
 - **Weekly investment:** $100 (fixed)
-- **Allocation:** 60% BTC, 40% ETH (static, never rebalanced)
+- **Allocation:** <AssetPairLabel first="BTC" second="ETH" label="60% BTC · 40% ETH" /> (static, never rebalanced)
 - **Execution:** Market order, Monday 00:00 UTC
 - **No stop-loss, no take-profit, no fee optimization**
 

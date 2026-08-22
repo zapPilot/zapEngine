@@ -6,6 +6,7 @@ description: Sense the regime, decide the allocation, sign one bundle from your 
 import { Steps, Step } from 'fumadocs-ui/components/steps';
 import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
 import { Callout } from 'fumadocs-ui/components/callout';
+import { AssetPairLabel } from '@/components/docs/AssetLabel';
 
 Every regime shift becomes one signed bundle in your own EOA. The flow has three parts:
 
@@ -19,7 +20,14 @@ Three signal _categories_ are evaluated continuously:
 
 - **200-Day Moving Average** — long-term trend filter.
 - **Fear & Greed Index** — sentiment filter (CNN macro plus crypto-native sources).
-- **ETH / BTC relative strength** — in-crypto rotation overlay.
+- <strong>
+    <AssetPairLabel
+      first="ETH"
+      second="BTC"
+      label="ETH / BTC relative strength"
+    />
+  </strong>
+  — in-crypto rotation overlay.
 
 The signal categories are stable. The exact thresholds, weights, and cooldowns are tuned in `apps/analytics-engine` and may change between releases — they live in code, not in this page.
 
