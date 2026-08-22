@@ -30,7 +30,7 @@ export interface PortfolioViewData {
   changePctToday: number | null;
   chartData: number[];
   metrics: Metric[];
-  allocation: { label: string; pct: number; color: string }[];
+  allocation: { label: string; pct: number; color: string; symbol?: string }[];
   lastRebalancedLabel: string;
 }
 
@@ -280,11 +280,13 @@ export function usePortfolioData(
           label: row.name,
           pct: Math.round(row.value),
           color: row.color,
+          symbol: row.symbol,
         })),
         {
           label: 'Stablecoins',
           pct: Math.round(calculatedAllocation.stable),
           color: allocationColor('Stables', 0),
+          symbol: 'USDC',
         },
       ].filter((row) => row.pct > 0)
     : [];

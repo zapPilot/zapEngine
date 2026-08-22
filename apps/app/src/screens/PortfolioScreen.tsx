@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { AllocationBar } from '@/components/charts/AllocationBar';
+import { AllocationLegendRow } from '@/components/charts/AllocationLegendRow';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { MetricsGrid } from '@/components/metrics/MetricsGrid';
 import { MetricsGridSkeleton } from '@/components/metrics/MetricsGridSkeleton';
@@ -25,7 +26,6 @@ import {
   type PortfolioViewData,
   usePortfolioData,
 } from '@/integration/usePortfolioData';
-import { resolveColor } from '@/lib/colors';
 import { formatSignedPct, formatSignedUsd } from '@/lib/format';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
@@ -146,21 +146,17 @@ export function PortfolioScreen() {
           />
           <View className="mt-[13px] gap-[9px]">
             {(portfolio?.allocation ?? []).map((item) => (
-              <View
+              <AllocationLegendRow
                 key={item.label}
-                className="flex-row items-center justify-between"
-              >
-                <View className="flex-row items-center gap-2">
-                  <View
-                    className="h-[9px] w-[9px] rounded-full"
-                    style={{ backgroundColor: resolveColor(item.color) }}
-                  />
-                  <Text className="text-[13px] text-ink-dim">{item.label}</Text>
-                </View>
-                <Text className="font-mono text-[12.5px] text-ink">
-                  {item.pct}%
-                </Text>
-              </View>
+                {...(item.symbol ? { symbol: item.symbol } : {})}
+                color={item.color}
+                label={item.label}
+                value={
+                  <Text className="font-mono text-[12.5px] text-ink">
+                    {item.pct}%
+                  </Text>
+                }
+              />
             ))}
           </View>
         </Card>

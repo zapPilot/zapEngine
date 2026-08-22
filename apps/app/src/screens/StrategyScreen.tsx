@@ -6,6 +6,7 @@ import { Text, View } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
 import { AllocationBar } from '@/components/charts/AllocationBar';
+import { AllocationLegendRow } from '@/components/charts/AllocationLegendRow';
 import { Pill } from '@/components/ui/Pill';
 import { MetricsGrid } from '@/components/metrics/MetricsGrid';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -24,7 +25,6 @@ import {
 import { useAccount } from '@/integration/useAccount';
 import { useStrategyData } from '@/integration/useStrategyData';
 import { createStrategyStartAction } from '@/integration/strategyStartAction';
-import { resolveColor } from '@/lib/colors';
 import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
@@ -143,21 +143,17 @@ export function StrategyScreen() {
         />
         <View className="mt-3 gap-2">
           {allocation.map((item) => (
-            <View
+            <AllocationLegendRow
               key={item.label}
-              className="flex-row items-center justify-between"
-            >
-              <View className="flex-row items-center gap-2">
-                <View
-                  className="h-[9px] w-[9px] rounded-full"
-                  style={{ backgroundColor: resolveColor(item.color) }}
-                />
-                <Text className="text-[13px] text-ink-dim">{item.label}</Text>
-              </View>
-              <Text className="font-mono text-[12.5px] text-ink">
-                {item.pct}%
-              </Text>
-            </View>
+              symbol={item.symbol}
+              color={item.color}
+              label={item.label}
+              value={
+                <Text className="font-mono text-[12.5px] text-ink">
+                  {item.pct}%
+                </Text>
+              }
+            />
           ))}
         </View>
       </Card>

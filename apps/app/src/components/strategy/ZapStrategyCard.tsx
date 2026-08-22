@@ -3,6 +3,8 @@ import { RefreshCw } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
 import { AllocationBar } from '@/components/charts/AllocationBar';
+import { ChainMark } from '@/components/token/ChainMark';
+import { TokenIcon } from '@/components/token/TokenIcon';
 import type { Metric } from '@/components/metrics/MetricsGrid';
 import { ArrowGlyph } from '@/components/ui/ArrowGlyph';
 import { Card } from '@/components/ui/Card';
@@ -137,19 +139,23 @@ function AvailableToInvest({
           {wallet.chainRows.slice(0, 3).map((row) => (
             <View key={row.id} className="flex-row items-center gap-2">
               <View
-                className="rounded-full border px-2 py-0.5"
+                className="flex-row items-center gap-1 rounded-full border px-2 py-0.5"
                 style={{
                   borderColor: 'rgba(212,197,163,.18)',
                   backgroundColor: 'rgba(212,197,163,.07)',
                 }}
               >
+                <ChainMark chainKey={row.chain} size={12} />
                 <Text className="font-mono text-[8.5px] text-accent">
                   {row.chainLabel}
                 </Text>
               </View>
-              <Text className="flex-1 font-mono text-[11px] text-ink-dim">
-                {compactBalance(row)}
-              </Text>
+              <View className="min-w-0 flex-1 flex-row items-center gap-1.5">
+                <TokenIcon symbol={row.token.symbol} size={14} />
+                <Text className="font-mono text-[11px] text-ink-dim">
+                  {compactBalance(row)}
+                </Text>
+              </View>
               <Text className="font-mono text-[11px] text-ink-faint">
                 {row.usdValue === null ? '—' : formatUsd(row.usdValue)}
               </Text>

@@ -4,6 +4,7 @@ import { ScrollView, Text, View } from 'react-native';
 
 import { ActivityRow } from '@/components/activity/ActivityRow';
 import { CategoryFlowCard } from '@/components/activity/CategoryFlowCard';
+import { TokenIcon } from '@/components/token/TokenIcon';
 import { Card } from '@/components/ui/Card';
 import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { RangeTabs } from '@/components/ui/RangeTabs';
@@ -50,6 +51,14 @@ function activityFilterLabel(filter: ActivityFilter, allLabel: string): string {
   return filter === 'All' ? allLabel : ALLOCATION_CATEGORIES[filter].shortLabel;
 }
 
+const ACTIVITY_FILTER_SYMBOL = {
+  btc: 'BTC',
+  eth: 'ETH',
+  spy: 'SPY',
+  stable: 'USDC',
+  alt: 'ALT',
+} as const;
+
 export function ActivityScreen() {
   const [filter, setFilter] = useState<ActivityFilter>('All');
   const { t } = useContentLanguage();
@@ -86,6 +95,11 @@ export function ActivityScreen() {
             accessibilityLabel={t('activity.categoryFilter')}
             optionLabel={(option) =>
               activityFilterLabel(option, t('activity.all'))
+            }
+            optionIcon={(option) =>
+              option === 'All' ? null : (
+                <TokenIcon symbol={ACTIVITY_FILTER_SYMBOL[option]} size={14} />
+              )
             }
             onChange={setFilter}
           />
