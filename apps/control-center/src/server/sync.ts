@@ -12,7 +12,6 @@ const repoRoot = resolve(
   '..',
   '..',
   '..',
-  '..',
 );
 dotenv.config({ path: resolve(repoRoot, '.env') });
 

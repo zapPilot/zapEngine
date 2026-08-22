@@ -58,6 +58,11 @@
       "dependsOn": ["^build"],
       "passThroughEnv": ["EXPO_PUBLIC_*", "NEXT_PUBLIC_*", "VITE_*"]
     },
+    "ops:sync": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "outputs": []
+    },
     "lint": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
