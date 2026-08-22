@@ -11,6 +11,7 @@ import {
   type CostRepository,
 } from './cost-repository.js';
 import { syncCosts } from './cost-sync.js';
+import { loadProductHealth } from './product-health.js';
 import { loadSocialPerformance } from './social.js';
 
 const EMPTY_HISTORY: CostHistoryResponse = {
@@ -30,51 +31,59 @@ export function createOverviewService(input: {
   const repository = input.repository ?? createCostRepository(input.config);
   const loadSocial = input.loadSocial ?? loadSocialPerformance;
   const runSync = input.sync ?? syncCosts;
-  const cache = createAsyncCache({
+  const socialCache = createAsyncCache({
     ttlMs: input.config.CONTROL_CENTER_CACHE_TTL_MS,
-    load: async (): Promise<OverviewResponse> => {
-      const fetchedAt = now();
-      const [providers, history, social] = await Promise.all([
-        repository
-          ? repository.loadLatestProviders()
-          : Promise.resolve(unconfiguredProviders()),
-        repository
-          ? loadCostHistory({ repository, now: fetchedAt })
-          : Promise.resolve(EMPTY_HISTORY),
-        loadSocial({ config: input.config, now: fetchedAt }),
-      ]);
-      const snapshots = providers.flatMap((provider) =>
-        provider.snapshot ? [provider.snapshot] : [],
-      );
-      const accrued = snapshots
-        .map((snapshot) => snapshot.accruedCostUsd)
-        .filter((value): value is number => value !== null);
-      const projected = snapshots
-        .map((snapshot) => snapshot.projectedCostUsd)
-        .filter((value): value is number => value !== null);
-      const followers = social.accounts
-        .map((account) => account.followers)
-        .filter((value): value is number => value !== null);
-
-      return {
-        generatedAt: fetchedAt.toISOString(),
-        accruedCostUsd: sumKnown(accrued),
-        projectedCostUsd: sumKnown(projected),
-        cashInvoiceSpendUsd: history.cashSpendUsd,
-        aumUsd: null,
-        activeAccounts: null,
-        socialReach: sumKnown(followers),
-        providers,
-        social,
-      };
-    },
+    load: () => loadSocial({ config: input.config, now: now() }),
   });
 
+  async function getOverview(forceSocial = false): Promise<OverviewResponse> {
+    const fetchedAt = now();
+    const [providers, history, product, social] = await Promise.all([
+      repository
+        ? repository
+            .loadLatestProviders()
+            .catch((error) => repositoryErrorProviders(error))
+        : Promise.resolve(unconfiguredProviders()),
+      repository
+        ? loadCostHistory({ repository, now: fetchedAt }).catch(
+            () => EMPTY_HISTORY,
+          )
+        : Promise.resolve(EMPTY_HISTORY),
+      loadProductHealth({ config: input.config, now: fetchedAt }),
+      socialCache.get(forceSocial),
+    ]);
+    const snapshots = providers.flatMap((provider) =>
+      provider.snapshot ? [provider.snapshot] : [],
+    );
+    const accrued = snapshots
+      .map((snapshot) => snapshot.accruedCostUsd)
+      .filter((value): value is number => value !== null);
+    const projected = snapshots
+      .map((snapshot) => snapshot.projectedCostUsd)
+      .filter((value): value is number => value !== null);
+    const followers = social.accounts
+      .map((account) => account.followers)
+      .filter((value): value is number => value !== null);
+
+    return {
+      generatedAt: fetchedAt.toISOString(),
+      accruedCostUsd: sumKnown(accrued),
+      projectedCostUsd: sumKnown(projected),
+      cashInvoiceSpendUsd: history.cashSpendUsd,
+      aumUsd: product.observedPortfolioUsd,
+      activeAccounts: product.wau,
+      socialReach: sumKnown(followers),
+      product,
+      providers,
+      social,
+    };
+  }
+
   return {
-    getOverview: (force = false) => cache.get(force),
+    getOverview,
     getCostHistory: () =>
       repository
-        ? loadCostHistory({ repository, now: now() })
+        ? loadCostHistory({ repository, now: now() }).catch(() => EMPTY_HISTORY)
         : Promise.resolve(EMPTY_HISTORY),
     syncCosts: async () => {
       if (!repository) {
@@ -85,7 +94,7 @@ export function createOverviewService(input: {
         repository,
         now: now(),
       });
-      await cache.get(true);
+      await socialCache.get(true);
       return summary;
     },
     getSocial: (
@@ -116,6 +125,20 @@ function placeholder(
     snapshot: null,
     message: 'Supabase ops ledger is not connected',
   };
+}
+
+function repositoryErrorProviders(error: unknown): CostProviderResult[] {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'object' && error && 'message' in error
+        ? String(error.message)
+        : 'Cost ledger unavailable';
+  return unconfiguredProviders().map((provider) => ({
+    ...provider,
+    status: 'error' as const,
+    message,
+  }));
 }
 
 function sumKnown(values: number[]): number | null {

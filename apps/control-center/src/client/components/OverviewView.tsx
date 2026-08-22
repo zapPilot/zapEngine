@@ -1,29 +1,33 @@
-import type { OverviewResponse } from '../../shared/types.js';
-import { integer, usd } from '../format.js';
-import { ProviderLedger, UsageSignals } from './ProviderLedger.js';
+import type { OverviewResponse, SocialDecision } from '../../shared/types.js';
+import { integer, percent, usd } from '../format.js';
+import { platformLabel } from '../platform.js';
+import { ProviderLedger } from './ProviderLedger.js';
 
 export function OverviewView({ data }: { data: OverviewResponse | null }) {
-  const latestEpisode = data?.social.episodes[0];
+  const product = data?.product;
   return (
     <div className="view-stack">
       <section className="metric-strip" aria-label="Operating overview">
         <Metric
-          accent="actual"
-          label="Accrued usage cost"
-          value={usd(data?.accruedCostUsd)}
-        />
-        <Metric
           accent="projected"
-          label="Projected month-end"
+          label="Projected month-end spend"
           value={usd(data?.projectedCostUsd)}
         />
         <Metric
-          label="Cash / invoice spend"
-          value={usd(data?.cashInvoiceSpendUsd)}
+          accent="actual"
+          label="Observed portfolio value"
+          value={usd(product?.observedPortfolioUsd)}
         />
-        <Metric label="AUM" value={usd(data?.aumUsd)} />
-        <Metric label="Active accounts" value={integer(data?.activeAccounts)} />
-        <Metric label="Social reach" value={integer(data?.socialReach)} />
+        <Metric label="Weekly active users" value={integer(product?.wau)} />
+        <Metric label="Monthly active users" value={integer(product?.mau)} />
+        <Metric
+          label="Registered users"
+          value={integer(product?.registeredUsers)}
+        />
+        <Metric
+          label="Tracked social followers"
+          value={integer(data?.socialReach)}
+        />
       </section>
 
       <div className="overview-lower">
@@ -33,49 +37,45 @@ export function OverviewView({ data }: { data: OverviewResponse | null }) {
           </div>
           <ProviderLedger providers={data?.providers ?? []} />
         </section>
-        <section className="open-panel usage-panel">
+
+        <section className="open-panel product-health-panel">
           <div className="section-heading">
-            <h2>Usage signals</h2>
+            <h2>Product health</h2>
           </div>
-          <UsageSignals providers={data?.providers ?? []} />
+          <div className="decision-list">
+            <DecisionRow
+              label="Activation funnel"
+              value={`${integer(product?.registeredUsers)} registered → ${integer(product?.verifiedWallets)} verified → ${integer(product?.portfolioUsers)} observed`}
+            />
+            <DecisionRow
+              label="Engagement"
+              value={`${integer(product?.wau)} WAU / ${integer(product?.mau)} MAU`}
+            />
+            <DecisionRow
+              label="Portfolio freshness"
+              value={`${integer(product?.portfolioFresh24h)} fresh <24h · ${integer(product?.portfolioFresh7d)} fresh <7d`}
+            />
+            <DecisionRow
+              label="Concentration"
+              value={`Top 1 ${percent(product?.top1PortfolioShare)} · Top 3 ${percent(product?.top3PortfolioShare)}`}
+            />
+          </div>
         </section>
+
         <section className="open-panel social-pulse">
           <div className="section-heading">
-            <h2>Social pulse</h2>
+            <h2>What to publish next</h2>
           </div>
-          <div className="account-list">
-            {(data?.social.accounts ?? []).map((account) => (
-              <div className="account-row" key={account.platform}>
-                <span className="platform-label">
-                  {platformLabel(account.platform)}
-                </span>
-                <strong className="mono">{integer(account.followers)}</strong>
-                <small>followers</small>
-              </div>
+          <div className="decision-list">
+            {(data?.social.decisions ?? []).slice(0, 4).map((decision) => (
+              <SocialDecisionRow decision={decision} key={decision.platform} />
             ))}
-          </div>
-          {latestEpisode ? (
-            <div className="latest-episode">
-              <span>Latest episode performance</span>
-              <strong>{latestEpisode.title}</strong>
-              <div className="episode-totals">
-                <span>
-                  <b className="mono">{integer(latestEpisode.totalViews)}</b>{' '}
-                  views
-                </span>
-                <span>
-                  <b className="mono">
-                    {integer(latestEpisode.totalImpressions)}
-                  </b>{' '}
-                  impressions
-                </span>
+            {data?.social.decisions.length === 0 ? (
+              <div className="empty-inline">
+                No learned social strategy yet.
               </div>
-            </div>
-          ) : (
-            <div className="empty-inline">
-              {data?.social.message ?? 'No social snapshots yet.'}
-            </div>
-          )}
+            ) : null}
+          </div>
         </section>
       </div>
     </div>
@@ -95,12 +95,31 @@ function Metric(props: {
   );
 }
 
-function platformLabel(platform: string): string {
-  const labels: Record<string, string> = {
-    x: 'X',
-    rednote: 'Rednote',
-    youtube: 'YouTube',
-    threads: 'Threads',
-  };
-  return labels[platform] ?? platform;
+function DecisionRow(props: { label: string; value: string }) {
+  return (
+    <div className="decision-row">
+      <span>{props.label}</span>
+      <strong>{props.value}</strong>
+    </div>
+  );
+}
+
+function SocialDecisionRow({ decision }: { decision: SocialDecision }) {
+  const hooks = decision.preferredHookTypes.length
+    ? decision.preferredHookTypes.join(' / ')
+    : 'Keep exploring';
+  const evidence = `${decision.evidenceSamples} samples · ${decision.confidence} confidence`;
+  return (
+    <div className="decision-row social-decision-row">
+      <span>
+        {platformLabel(decision.platform)} · {evidence}
+      </span>
+      <strong>{hooks}</strong>
+      <small>
+        {[decision.bestTimeWindow, decision.bestTopic]
+          .filter(Boolean)
+          .join(' · ') || 'More samples needed for timing/topic'}
+      </small>
+    </div>
+  );
 }

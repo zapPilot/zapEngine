@@ -12,6 +12,7 @@ import {
 
 import type { CostProviderResult } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
+import { fetchFlyRunRateSnapshot } from './fly.js';
 
 interface CostSource {
   provider: CostProvider;
@@ -90,7 +91,16 @@ export async function collectCostProviders(input: {
           now,
         }),
     },
-    staticUnconfiguredSource('fly', 'Fly.io', 'estimated'),
+    input.config.FLY_COST_MODE === 'flyctl'
+      ? {
+          provider: 'fly',
+          label: 'Fly.io',
+          costType: 'estimated',
+          configured: true,
+          pricingRateId: null,
+          load: () => fetchFlyRunRateSnapshot({ now }),
+        }
+      : staticUnconfiguredSource('fly', 'Fly.io', 'estimated'),
   ];
 
   return Promise.all(sources.map(loadSource));

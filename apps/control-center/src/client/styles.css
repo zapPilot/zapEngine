@@ -372,10 +372,7 @@ h1 {
 
 .overview-lower {
   display: grid;
-  grid-template-columns: minmax(480px, 1.65fr) minmax(240px, 0.8fr) minmax(
-      240px,
-      0.9fr
-    );
+  grid-template-columns: minmax(500px, 1.55fr) repeat(2, minmax(250px, 0.8fr));
   gap: 12px;
 }
 .open-panel {
@@ -412,6 +409,30 @@ h1 {
 }
 .provider-name {
   font-weight: 650;
+}
+.decision-list {
+  display: grid;
+  gap: 0;
+}
+.decision-row {
+  display: grid;
+  gap: 4px;
+  padding: 13px 18px;
+  border-top: 1px solid var(--line);
+}
+.decision-row span,
+.decision-row small,
+.decision-note,
+.decision-line span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.decision-row strong {
+  font-size: 13px;
+  line-height: 1.4;
+}
+.social-decision-row small {
+  line-height: 1.35;
 }
 .provider-name a:hover {
   color: var(--blue);
@@ -613,6 +634,67 @@ h1 {
 }
 .costs-lower .runway-chart {
   height: 260px;
+}
+
+.decision-section {
+  display: grid;
+  gap: 10px;
+}
+.decision-section > .section-heading {
+  padding: 0 2px;
+}
+.decision-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.decision-card {
+  display: grid;
+  gap: 10px;
+  padding: 15px 16px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+.decision-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.decision-card header > strong {
+  font-size: 15px;
+}
+.decision-card header > span {
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+.confidence-high {
+  color: #197a51;
+}
+.confidence-medium {
+  color: #9a6300;
+}
+.confidence-low {
+  color: var(--muted);
+}
+.decision-line {
+  display: grid;
+  grid-template-columns: 115px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+.decision-line strong {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.decision-card > small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.social-table-compact td:last-child {
+  min-width: 190px;
+  white-space: normal;
 }
 
 .social-layout {
@@ -867,6 +949,9 @@ a:focus-visible {
     grid-column: auto;
   }
   .social-layout {
+    grid-template-columns: 1fr;
+  }
+  .decision-grid {
     grid-template-columns: 1fr;
   }
   .followers-rail {
