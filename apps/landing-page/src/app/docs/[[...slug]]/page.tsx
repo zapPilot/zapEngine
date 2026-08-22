@@ -9,6 +9,12 @@ import defaultMdxComponents from 'fumadocs-ui/mdx';
 import { source } from '@/lib/source';
 import type { TOCItemType } from 'fumadocs-core/toc';
 import type { ComponentType } from 'react';
+import {
+  ChainMark,
+  ProtocolIcon,
+  TokenIcon,
+  TokenIconPair,
+} from '@/components/brand/icons';
 
 // MDX-enhanced page data interface with body and toc
 interface PageDataWithMDX {
@@ -42,7 +48,15 @@ export default async function Page(props: DocsRouteProps) {
       <DocsTitle>{data.title}</DocsTitle>
       <DocsDescription>{data.description}</DocsDescription>
       <DocsBody>
-        <MDX components={defaultMdxComponents} />
+        <MDX
+          components={{
+            ...defaultMdxComponents,
+            TokenIcon,
+            ChainMark,
+            ProtocolIcon,
+            TokenIconPair,
+          }}
+        />
       </DocsBody>
     </DocsPage>
   );

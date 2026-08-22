@@ -16,11 +16,11 @@ Generate superior absolute and risk-adjusted returns by trading between three ri
 
 ## Assets
 
-| Pillar      | Asset                   | Venue                |
-| ----------- | ----------------------- | -------------------- |
-| Equities    | Ondo USDC (OUSG / USDY) | Ethereum             |
-| Crypto      | WBTC, WETH              | Ethereum / Arbitrum  |
-| Stablecoins | USDC, USDT              | All supported chains |
+| Pillar      | Asset                                                                                                    | Venue                                                                                                                         |
+| ----------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Equities    | <ProtocolIcon protocol="ondo" size={16} /> <TokenIcon symbol="USDC" size={16} /> Ondo USDC (OUSG / USDY) | <ChainMark chainKey="ethereum" size={16} labelled /> Ethereum                                                                 |
+| Crypto      | <TokenIcon symbol="WBTC" size={16} /> WBTC, <TokenIcon symbol="WETH" size={16} /> WETH                   | <ChainMark chainKey="ethereum" size={16} labelled /> Ethereum / <ChainMark chainKey="arbitrum" size={16} labelled /> Arbitrum |
+| Stablecoins | <TokenIcon symbol="USDC" size={16} /> USDC, <TokenIcon symbol="USDT" size={16} /> USDT                   | All supported chains                                                                                                          |
 
 ## Rebalance Rules
 
@@ -32,13 +32,13 @@ Generate superior absolute and risk-adjusted returns by trading between three ri
 
 ### Allocation Matrix
 
-| Regime                       | Equities | BTC/ETH | Stablecoins |
-| ---------------------------- | -------- | ------- | ----------- |
-| Risk-On (DMA+ + FGI > 70)    | 60%      | 30%     | 10%         |
-| Risk-On (DMA+ OR FGI)        | 40%      | 35%     | 25%         |
-| Neutral                      | 30%      | 20%     | 50%         |
-| Risk-Off (DMA- OR FGI < 30)  | 20%      | 15%     | 65%         |
-| Risk-Off (DMA- AND FGI < 30) | 10%      | 10%     | 80%         |
+| Regime                       | <TokenIcon symbol="SPY" size={16} /> Equities | <TokenIconPair symbols={['BTC', 'ETH']} size={14} /> BTC/ETH | <TokenIcon symbol="USDC" size={16} /> Stablecoins |
+| ---------------------------- | --------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------- |
+| Risk-On (DMA+ + FGI > 70)    | 60%                                           | 30%                                                          | 10%                                               |
+| Risk-On (DMA+ OR FGI)        | 40%                                           | 35%                                                          | 25%                                               |
+| Neutral                      | 30%                                           | 20%                                                          | 50%                                               |
+| Risk-Off (DMA- OR FGI < 30)  | 20%                                           | 15%                                                          | 65%                                               |
+| Risk-Off (DMA- AND FGI < 30) | 10%                                           | 10%                                                          | 80%                                               |
 
 ### Rebalance Triggers
 
