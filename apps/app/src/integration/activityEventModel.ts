@@ -1,3 +1,4 @@
+import { PROTOCOL_BRAND, protocolBrandKeyFor } from '@zapengine/brand-assets';
 import {
   ALLOCATION_CATEGORIES,
   getAllocationCategoryForToken,
@@ -69,6 +70,34 @@ function successfulStatus(
   status: MoralisWalletHistoryEvent['receipt_status'],
 ): boolean {
   return status == null || status === true || status === '1' || status === 1;
+}
+
+function protocolLabel(event: MoralisWalletHistoryEvent): string | undefined {
+  const entities = [event.to_address_entity, event.from_address_entity]
+    .map((entity) => entity?.trim())
+    .filter((entity): entity is string => Boolean(entity));
+  const known = entities.find((entity) => protocolBrandKeyFor(entity));
+  if (known) {
+    const key = protocolBrandKeyFor(known)!;
+    return PROTOCOL_BRAND[key].label;
+  }
+  return entities[0];
+}
+
+function gasFeeLabel(
+  value: string | number | null | undefined,
+): string | undefined {
+  const fee = numberFrom(value);
+  if (fee === null || fee < 0) {
+    return undefined;
+  }
+  if (fee > 0 && fee < 0.0001) {
+    return '< 0.0001 ETH';
+  }
+  const formatted = fee.toLocaleString('en-US', {
+    maximumFractionDigits: 6,
+  });
+  return `${formatted} ETH`;
 }
 
 function transferTokenAddress(transfer: MoralisWalletTransfer): string | null {
@@ -292,6 +321,9 @@ function composeTitle(
   if (kind === 'withdraw') {
     return primary ? `Sent ${primary.symbol}` : 'Sent assets';
   }
+  if (kind === 'contract-interaction') {
+    return 'Contract interaction';
+  }
   const story = crossCategoryStory(symbolDeltas);
   if (story) {
     return `${STORY_LABEL[story.source]} → ${STORY_LABEL[story.target]}`;
@@ -359,7 +391,14 @@ export function mapMoralisEvent(
   event: MoralisWalletHistoryEvent,
 ): MappedActivityEvent | null {
   const transfers = collectSupportedTransfers(context.moralis, event);
-  const kind = classifyKind(transfers);
+  const hasInteractionMetadata = Boolean(
+    event.method_label?.trim() ||
+    event.to_address_entity?.trim() ||
+    event.from_address_entity?.trim(),
+  );
+  const kind =
+    classifyKind(transfers) ??
+    (hasInteractionMetadata ? ('contract-interaction' as const) : null);
   if (!kind) {
     return null;
   }
@@ -370,17 +409,28 @@ export function mapMoralisEvent(
     symbolDeltas,
   );
   const timestamp = Date.parse(event.block_timestamp ?? '');
+  const protocol = protocolLabel(event);
+  const gasFee = gasFeeLabel(event.transaction_fee);
 
   return {
     id: `${context.moralis}-${event.hash}`,
     hash: event.hash,
     sourceChain: context.moralis,
     kind,
-    title: event.summary?.trim() || composeTitle(kind, symbolDeltas),
+    title:
+      event.summary?.trim() ||
+      event.method_label?.trim() ||
+      composeTitle(kind, symbolDeltas),
     ...amountPresentation(dominant),
     status: successfulStatus(event.receipt_status) ? 'Completed' : 'Failed',
     meta: context.label,
     time: '',
+    txHash: event.hash,
+    ...(event.method_label?.trim()
+      ? { methodLabel: event.method_label.trim() }
+      : {}),
+    ...(protocol ? { protocol } : {}),
+    ...(gasFee ? { gasFeeLabel: gasFee } : {}),
     ...(category ? { category } : {}),
     ...(primary ? { tokenSymbol: primary.symbol } : {}),
     categoryDeltas,

@@ -48,6 +48,36 @@ describe('Moralis wallet service', () => {
     });
   });
 
+  it('retains enriched activity metadata from wallet history responses', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        result: [
+          {
+            hash: '0xactivity',
+            method_label: 'deposit',
+            from_address_entity: null,
+            to_address_entity: 'Aave V3',
+            transaction_fee: '0.00002341',
+          },
+        ],
+        cursor: null,
+      }),
+    );
+
+    const histories = await getMoralisWalletHistory(
+      '0x1234567890123456789012345678901234567890',
+    );
+
+    expect(histories[0]?.response.result[0]).toEqual(
+      expect.objectContaining({
+        hash: '0xactivity',
+        method_label: 'deposit',
+        to_address_entity: 'Aave V3',
+        transaction_fee: '0.00002341',
+      }),
+    );
+  });
+
   it('surfaces a clear error when the Moralis API key is missing', async () => {
     delete process.env['VITE_MORALIS_API_KEY'];
 

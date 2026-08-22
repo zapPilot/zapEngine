@@ -1,11 +1,10 @@
-import type { SocialPerformanceResponse } from '../../shared/types.js';
-import {
-  duration,
-  integer,
-  percent,
-  platformLabel,
-  relativeTime,
-} from '../format.js';
+import type {
+  SocialDecision,
+  SocialPerformanceResponse,
+  SocialPlatformPerformance,
+} from '../../shared/types.js';
+import { duration, integer, percent, relativeTime } from '../format.js';
+import { platformLabel } from '../platform.js';
 
 const windows: SocialPerformanceResponse['window'][] = [
   'latest',
@@ -25,7 +24,6 @@ export function SocialView(props: {
     data?.accounts.map((account) => account.followers) ?? [],
   );
   const latest = data?.episodes[0];
-  const latestReach = latest?.totalImpressions ?? latest?.totalViews;
 
   return (
     <div className="social-layout">
@@ -42,25 +40,40 @@ export function SocialView(props: {
             </button>
           ))}
         </div>
+
+        <section className="decision-section">
+          <div className="section-heading">
+            <h2>Publishing decisions</h2>
+            <span className="decision-note">
+              Learned from standardized 24h samples
+            </span>
+          </div>
+          <div className="decision-grid">
+            {(data?.decisions ?? []).map((decision) => (
+              <DecisionCard decision={decision} key={decision.platform} />
+            ))}
+          </div>
+        </section>
+
         <section className="social-metrics" aria-label="Social overview">
           <div>
             <strong className="mono">{integer(followerTotal)}</strong>
-            <span>Total followers</span>
+            <span>Tracked followers</span>
           </div>
           <div>
             <strong className="mono">
               {integer(data?.status === 'ok' ? data.accounts.length : null)}
             </strong>
-            <span>Active channels</span>
+            <span>Follower telemetry channels</span>
           </div>
           <div>
-            <strong className="mono">{integer(latestReach)}</strong>
-            <span>Latest episode reach</span>
+            <strong className="mono">{integer(latest?.totalViews)}</strong>
+            <span>Latest episode views</span>
           </div>
         </section>
 
         <section className="performance-section">
-          <h2>Performance by recent episode</h2>
+          <h2>Evidence by recent episode</h2>
           {(data?.episodes ?? []).map((episode) => (
             <article className="episode-ledger" key={episode.episodeId}>
               <div className="episode-heading">
@@ -73,17 +86,13 @@ export function SocialView(props: {
                 </span>
               </div>
               <div className="ledger-wrap">
-                <table className="social-table">
+                <table className="social-table social-table-compact">
                   <thead>
                     <tr>
                       <th>Platform</th>
                       <th>Views</th>
-                      <th>Impressions</th>
-                      <th>Engagement rate</th>
-                      <th>5s retention</th>
-                      <th>Avg watch</th>
-                      <th>Cover CTR</th>
-                      <th>Quality</th>
+                      <th>Engagement</th>
+                      <th>Decision signal</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -104,23 +113,9 @@ export function SocialView(props: {
                         </td>
                         <td className="mono">{integer(platform.views)}</td>
                         <td className="mono">
-                          {integer(platform.impressions)}
-                        </td>
-                        <td className="mono">
                           {percent(platform.engagementRate)}
                         </td>
-                        <td className="mono">
-                          {percent(platform.fiveSecondRetentionRate)}
-                        </td>
-                        <td className="mono">
-                          {duration(platform.averageViewDurationSec)}
-                        </td>
-                        <td className="mono">{percent(platform.coverCtr)}</td>
-                        <td className="mono quality">
-                          {platform.technicalQualityScore === null
-                            ? '—'
-                            : `${Math.round(platform.technicalQualityScore)}/100`}
-                        </td>
+                        <td>{platformSignal(platform)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -139,8 +134,9 @@ export function SocialView(props: {
           ) : null}
         </section>
       </div>
+
       <aside className="followers-rail">
-        <h2>Followers</h2>
+        <h2>Follower telemetry</h2>
         {(data?.accounts ?? []).map((account) => (
           <div className="follower-entry" key={account.platform}>
             <span>{platformLabel(account.platform)}</span>
@@ -151,10 +147,86 @@ export function SocialView(props: {
         {data?.accounts.length === 0 ? (
           <div className="empty-inline">No account snapshots available.</div>
         ) : null}
-        <p>Follower counts update on each platform’s collection cadence.</p>
+        <p>
+          Missing platforms are collection gaps, not zero followers. Optimize
+          posts from per-post evidence above instead.
+        </p>
       </aside>
     </div>
   );
+}
+
+function DecisionCard({ decision }: { decision: SocialDecision }) {
+  return (
+    <article className="decision-card">
+      <header>
+        <strong>{platformLabel(decision.platform)}</strong>
+        <span className={`confidence-${decision.confidence}`}>
+          {decision.confidence} confidence
+        </span>
+      </header>
+      <DecisionLine
+        label="Hook"
+        value={
+          decision.preferredHookTypes.length
+            ? decision.preferredHookTypes.join(' / ')
+            : 'Keep exploring'
+        }
+      />
+      <DecisionLine
+        label="Best time evidence"
+        value={decision.bestTimeWindow ?? 'More samples needed'}
+      />
+      <DecisionLine
+        label="Best topic evidence"
+        value={decision.bestTopic ?? 'More samples needed'}
+      />
+      <DecisionLine
+        label="Winning example"
+        value={decision.topExample ?? 'More samples needed'}
+      />
+      {decision.platform === 'rednote' ? (
+        <>
+          <DecisionLine
+            label="Prefer tags"
+            value={decision.preferredHashtags.join(' · ') || 'Keep exploring'}
+          />
+          <DecisionLine
+            label="Avoid tags"
+            value={decision.avoidHashtags.join(' · ') || 'None yet'}
+          />
+        </>
+      ) : null}
+      <small>{decision.evidenceSamples} comparable 24h samples</small>
+    </article>
+  );
+}
+
+function DecisionLine(props: { label: string; value: string }) {
+  return (
+    <div className="decision-line">
+      <span>{props.label}</span>
+      <strong>{props.value}</strong>
+    </div>
+  );
+}
+
+function platformSignal(platform: SocialPlatformPerformance): string {
+  if (platform.platform === 'rednote') {
+    return `${integer(platform.saves)} saves · ${integer(platform.shares)} shares`;
+  }
+  if (platform.platform === 'youtube') {
+    const watch =
+      platform.averageViewPercentage === null
+        ? duration(platform.averageViewDurationSec)
+        : `${percent(platform.averageViewPercentage)} watched`;
+    const subscribers =
+      platform.followersGained === null
+        ? ''
+        : ` · ${platform.followersGained >= 0 ? '+' : ''}${platform.followersGained} subs`;
+    return `${watch}${subscribers}`;
+  }
+  return `${integer(platform.shares)} shares · ${integer(platform.comments)} replies`;
 }
 
 function sumKnown(values: Array<number | null>): number | null {

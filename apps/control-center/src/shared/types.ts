@@ -47,12 +47,26 @@ export interface SocialPlatformPerformance {
   platform: string;
   postUrl: string | null;
   views: number | null;
-  impressions: number | null;
   engagementRate: number | null;
-  fiveSecondRetentionRate: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  saves: number | null;
+  followersGained: number | null;
   averageViewDurationSec: number | null;
-  coverCtr: number | null;
-  technicalQualityScore: number | null;
+  averageViewPercentage: number | null;
+}
+
+export interface SocialDecision {
+  platform: string;
+  evidenceSamples: number;
+  confidence: 'low' | 'medium' | 'high';
+  preferredHookTypes: string[];
+  preferredHashtags: string[];
+  avoidHashtags: string[];
+  bestTimeWindow: string | null;
+  bestTopic: string | null;
+  topExample: string | null;
 }
 
 export interface SocialEpisodeSummary {
@@ -69,7 +83,21 @@ export interface SocialPerformanceResponse {
   window: 'latest' | '24h' | '72h' | '7d';
   generatedAt: string;
   accounts: SocialAccountSummary[];
+  decisions: SocialDecision[];
   episodes: SocialEpisodeSummary[];
+}
+
+export interface ProductHealthResponse {
+  registeredUsers: number | null;
+  verifiedWallets: number | null;
+  portfolioUsers: number | null;
+  wau: number | null;
+  mau: number | null;
+  observedPortfolioUsd: number | null;
+  portfolioFresh24h: number | null;
+  portfolioFresh7d: number | null;
+  top1PortfolioShare: number | null;
+  top3PortfolioShare: number | null;
 }
 
 export interface OverviewResponse {
@@ -80,6 +108,7 @@ export interface OverviewResponse {
   aumUsd: number | null;
   activeAccounts: number | null;
   socialReach: number | null;
+  product: ProductHealthResponse;
   providers: CostProviderResult[];
   social: SocialPerformanceResponse;
 }

@@ -554,6 +554,76 @@ describe('mapMoralisEvent', () => {
     expect(event?.title).toBe('Received USDC');
   });
 
+  it('adds protocol, decoded method, tx hash, and gas metadata for the activity card', () => {
+    const event = mapMoralisEvent(
+      ARBITRUM,
+      historyEvent({
+        hash: '0xactivity',
+        method_label: 'deposit',
+        to_address_entity: 'Aave V3',
+        transaction_fee: '0.00002341',
+        erc20_transfers: [
+          typedTransfer({
+            token_address: USDC_ARB,
+            token_symbol: 'USDC',
+            direction: 'send',
+            value_formatted: '50',
+          }),
+        ],
+      }),
+    );
+
+    expect(event).toEqual(
+      expect.objectContaining({
+        txHash: '0xactivity',
+        methodLabel: 'deposit',
+        protocol: 'Aave',
+        gasFeeLabel: '< 0.0001 ETH',
+      }),
+    );
+  });
+
+  it('keeps an unknown Moralis entity as the protocol placeholder label', () => {
+    const event = mapMoralisEvent(
+      ARBITRUM,
+      historyEvent({
+        to_address_entity: 'Example Router',
+        erc20_transfers: [
+          typedTransfer({
+            token_address: USDC_ARB,
+            token_symbol: 'USDC',
+            direction: 'send',
+            value_formatted: '10',
+          }),
+        ],
+      }),
+    );
+
+    expect(event?.protocol).toBe('Example Router');
+  });
+
+  it('keeps decoded contract interactions even when no supported token moves', () => {
+    const event = mapMoralisEvent(
+      ARBITRUM,
+      historyEvent({
+        summary: 'Approve USDC for Aave',
+        method_label: 'approve',
+        to_address_entity: 'Aave V3',
+        transaction_fee: '0.0002',
+      }),
+    );
+
+    expect(event).toEqual(
+      expect.objectContaining({
+        kind: 'contract-interaction',
+        title: 'Approve USDC for Aave',
+        protocol: 'Aave',
+        txHash: '0xhash',
+        gasFeeLabel: '0.0002 ETH',
+      }),
+    );
+  });
+
   it('uses the largest priced category for the row category and amount', () => {
     const event = mapMoralisEvent(
       ARBITRUM,

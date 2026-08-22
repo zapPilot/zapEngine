@@ -18,10 +18,10 @@ const schema = z.object({
   OPENROUTER_BASE_URL: optionalString,
   DEBANK_API_KEY: optionalString,
   DEBANK_BASE_URL: optionalString,
+  FLY_COST_MODE: z.enum(['manual', 'flyctl']).default('manual'),
   SUPABASE_URL: optionalString,
   SUPABASE_SERVICE_ROLE_KEY: optionalString,
   SUPABASE_DB_SCHEMA: z.string().trim().min(1).default('from_fed_to_chain'),
-  SUPABASE_OPS_DB_SCHEMA: z.string().trim().min(1).default('ops'),
 });
 
 export type ControlCenterConfig = z.infer<typeof schema>;

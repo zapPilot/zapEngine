@@ -492,7 +492,7 @@ describe('Moralis desktop wallet mapping', () => {
     ]);
   });
 
-  it('collapses same-chain bursts into one logical event', () => {
+  it('keeps same-chain bursts as individual transaction cards', () => {
     const burstEvent = (hash: string, minute: number) => ({
       hash,
       block_timestamp: `2026-06-28T02:0${minute}:00.000Z`,
@@ -529,18 +529,21 @@ describe('Moralis desktop wallet mapping', () => {
     );
 
     expect(groups).toHaveLength(1);
-    expect(groups[0]?.events).toEqual([
+    expect(groups[0]?.events).toHaveLength(3);
+    expect(groups[0]?.events.map((event) => event.id)).toEqual([
+      'base-0xa',
+      'base-0xb',
+      'base-0xc',
+    ]);
+    expect(groups[0]?.events[0]).toEqual(
       expect.objectContaining({
-        id: 'base-burst-0xa',
         kind: 'rebalance',
-        title: 'Rebalanced portfolio',
-        txCount: 3,
-        meta: 'Base · 3 transactions',
+        txHash: '0xa',
         status: 'Completed',
         category: 'btc',
         tokenSymbol: 'CBBTC',
       }),
-    ]);
+    );
   });
 
   it('marks only explicit non-success receipt statuses as failed', () => {

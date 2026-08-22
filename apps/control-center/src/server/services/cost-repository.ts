@@ -84,14 +84,14 @@ export function createCostRepository(
     config.SUPABASE_URL,
     config.SUPABASE_SERVICE_ROLE_KEY,
     {
-      db: { schema: config.SUPABASE_OPS_DB_SCHEMA },
+      db: { schema: config.SUPABASE_DB_SCHEMA },
       auth: { autoRefreshToken: false, persistSession: false },
     },
   );
   return {
     async loadPricingRates() {
       const { data, error } = await client
-        .from('cost_rates')
+        .from('ops_cost_rates')
         .select(
           'id,provider,metric_key,unit,price_usd,effective_from,effective_to',
         )
@@ -111,23 +111,20 @@ export function createCostRepository(
     },
 
     async upsertSnapshot(snapshot, pricingRateId) {
-      const { error } = await client.from('cost_snapshots').upsert(
-        {
-          provider: snapshot.provider,
-          snapshot_date: snapshot.fetchedAt.slice(0, 10),
-          period_start: snapshot.periodStart,
-          period_end: snapshot.periodEnd,
-          accrued_cost_usd: snapshot.accruedCostUsd,
-          projected_cost_usd: snapshot.projectedCostUsd,
-          cost_type: snapshot.costType,
-          source: snapshot.source,
-          usage: snapshot.usage,
-          pricing_rate_id: pricingRateId,
-          fetched_at: snapshot.fetchedAt,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'provider,snapshot_date' },
-      );
+      const { error } = await client.rpc('ops_upsert_cost_snapshot', {
+        p_provider: snapshot.provider,
+        p_snapshot_date: snapshot.fetchedAt.slice(0, 10),
+        p_period_start: snapshot.periodStart,
+        p_period_end: snapshot.periodEnd,
+        p_accrued_cost_usd: snapshot.accruedCostUsd,
+        p_projected_cost_usd: snapshot.projectedCostUsd,
+        p_cost_type: snapshot.costType,
+        p_source: snapshot.source,
+        p_usage: snapshot.usage,
+        p_pricing_rate_id: pricingRateId,
+        p_fetched_at: snapshot.fetchedAt,
+        p_updated_at: new Date().toISOString(),
+      });
       if (error) {
         throw error;
       }
@@ -135,7 +132,7 @@ export function createCostRepository(
 
     async loadLatestProviders() {
       const { data, error } = await client
-        .from('cost_snapshots')
+        .from('ops_cost_snapshots')
         .select(
           'provider,snapshot_date,period_start,period_end,accrued_cost_usd,projected_cost_usd,cost_type,source,usage,pricing_rate_id,fetched_at',
         )
@@ -194,7 +191,7 @@ export function createCostRepository(
       );
       const [snapshotsResult, transactionsResult] = await Promise.all([
         client
-          .from('cost_snapshots')
+          .from('ops_cost_snapshots')
           .select(
             'provider,snapshot_date,period_start,period_end,accrued_cost_usd,projected_cost_usd,cost_type,source,usage,pricing_rate_id,fetched_at',
           )
@@ -202,7 +199,7 @@ export function createCostRepository(
           .lt('snapshot_date', nextMonth.toISOString().slice(0, 10))
           .order('snapshot_date', { ascending: true }),
         client
-          .from('cost_transactions')
+          .from('ops_cost_transactions')
           .select('amount_usd,charged_at')
           .gte('charged_at', monthStart.toISOString())
           .lt('charged_at', nextMonth.toISOString()),
@@ -229,14 +226,14 @@ export function createCostRepository(
     },
 
     async insertTransaction(input) {
-      const { error } = await client.from('cost_transactions').insert({
-        provider: input.provider,
-        amount_usd: input.amountUsd,
-        charged_at: input.chargedAt,
-        kind: input.kind,
-        source: input.source,
-        external_id: input.externalId ?? null,
-        description: input.description ?? null,
+      const { error } = await client.rpc('ops_insert_cost_transaction', {
+        p_provider: input.provider,
+        p_amount_usd: input.amountUsd,
+        p_charged_at: input.chargedAt,
+        p_kind: input.kind,
+        p_source: input.source,
+        p_external_id: input.externalId ?? null,
+        p_description: input.description ?? null,
       });
       if (error) {
         throw error;

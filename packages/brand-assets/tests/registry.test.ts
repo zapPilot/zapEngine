@@ -50,14 +50,19 @@ describe('protocolBrandKeyFor', () => {
     ['gmx_v2', 'gmx-v2'],
     ['GMX V2', 'gmx-v2'],
     ['  Morpho  ', 'morpho'],
+    ['Morpho Blue', 'morpho'],
+    ['Aave V3', 'aave'],
+    ['Ondo Finance', 'ondo'],
+    ['Lido Finance', 'lido'],
     ['HLP', 'hyperliquid'],
+    ['Hyperliquid HLP', 'hyperliquid'],
     ['HyperCore', 'hyperliquid'],
   ])('normalizes %s to %s', (raw, expected) => {
     expect(protocolBrandKeyFor(raw)).toBe(expected);
   });
 
   it('returns undefined for an unknown protocol so callers can fall back', () => {
-    expect(protocolBrandKeyFor('aave-v3')).toBeUndefined();
+    expect(protocolBrandKeyFor('unknown-router')).toBeUndefined();
     expect(protocolBrandKeyFor('')).toBeUndefined();
   });
 });

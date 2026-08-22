@@ -169,9 +169,9 @@ describe('ProtocolIcon', () => {
   });
 
   it('falls back to a monogram for an unregistered protocol', async () => {
-    await render(<ProtocolIcon protocol="aave-v3" />);
+    await render(<ProtocolIcon protocol="unknown-router" />);
     expect(marks()).toEqual([]);
-    expect(container.textContent).toBe('A');
+    expect(container.textContent).toBe('U');
   });
 });
 

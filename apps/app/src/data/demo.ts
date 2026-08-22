@@ -71,6 +71,7 @@ export type ActivityKind =
   | 'yield'
   | 'deposit'
   | 'withdraw'
+  | 'contract-interaction'
   | 'strategy-update';
 
 export type ActivityStatus = 'Completed' | 'Settled' | 'Applied' | 'Failed';
@@ -107,10 +108,18 @@ export interface ActivityEvent {
   /** Dominant allocation category — drives the row's category accent. */
   category?: AllocationCategoryKey;
   categoryDeltas?: ActivityCategoryDelta[];
-  /** Number of on-chain transactions collapsed into this event. */
+  /** Number of on-chain transactions represented by this event. */
   txCount?: number;
   chain?: ChainKey;
-  /** Primary token, used for the row's compound token/chain mark. */
+  /** Transaction hash when the event maps to exactly one on-chain transaction. */
+  txHash?: string;
+  /** Moralis-decoded method label when available. */
+  methodLabel?: string;
+  /** Counterparty protocol/entity label. Known protocols resolve to brand marks. */
+  protocol?: string;
+  /** Native-chain transaction fee, preformatted for the activity card footer. */
+  gasFeeLabel?: string;
+  /** Primary token, retained for filtering/semantic summaries. */
   tokenSymbol?: string;
   steps?: ActivityStep[];
 }
@@ -244,6 +253,10 @@ export const DEMO: DemoData = {
           ],
           txCount: 32,
           chain: 'arbitrum',
+          txHash: '0x9b6d0000000000000000000000000000000040a6',
+          methodLabel: 'multicall',
+          protocol: 'GMX V2',
+          gasFeeLabel: '< 0.0001 ETH',
           tokenSymbol: 'CBBTC',
         },
         {
@@ -260,6 +273,9 @@ export const DEMO: DemoData = {
             { category: 'stable', usdNet: 2500, label: '+2,500 USDC' },
           ],
           chain: 'base',
+          txHash: '0xa467000000000000000000000000000000006bc9',
+          protocol: 'Morpho',
+          gasFeeLabel: '< 0.0001 ETH',
           tokenSymbol: 'USDC',
         },
       ],
@@ -281,6 +297,9 @@ export const DEMO: DemoData = {
             { category: 'eth', usdNet: -150, label: '−0.045 ETH' },
           ],
           chain: 'arbitrum',
+          txHash: '0x10e4000000000000000000000000000000004be8',
+          protocol: 'Aave V3',
+          gasFeeLabel: '< 0.0001 ETH',
           tokenSymbol: 'ETH',
         },
       ],
@@ -302,6 +321,9 @@ export const DEMO: DemoData = {
             { category: 'stable', usdNet: -800, label: '−800 USDC' },
           ],
           chain: 'base',
+          txHash: '0xd47900000000000000000000000000000000f020',
+          protocol: 'Ondo Finance',
+          gasFeeLabel: '0.00012 ETH',
           tokenSymbol: 'USDC',
         },
       ],

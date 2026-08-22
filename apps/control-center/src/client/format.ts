@@ -47,16 +47,6 @@ export function providerUsage(unit: 'usd' | 'units', value: number): string {
   return unit === 'usd' ? usd(value) : `${integer(value)} units`;
 }
 
-export function platformLabel(platform: string): string {
-  const labels: Record<string, string> = {
-    x: 'X',
-    rednote: 'Rednote',
-    youtube: 'YouTube',
-    threads: 'Threads',
-  };
-  return labels[platform] ?? platform;
-}
-
 export function filterKnownAccruedCost<
   T extends { accruedCostUsd: number | null },
 >(points: T[]): (T & { accruedCostUsd: number })[] {
