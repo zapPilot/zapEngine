@@ -11,7 +11,12 @@ vi.mock('../services/supabase-client.js', () => supabase);
 
 import { listUnfinishedSocialPublishJobs } from './daemon-store.js';
 
-function createUnfinishedJobsFixture() {
+interface UnfinishedJobsResult {
+  data: unknown;
+  error: unknown;
+}
+
+function createUnfinishedJobsFixture(result?: UnfinishedJobsResult) {
   const rows = [
     {
       id: 'queued-job',
@@ -26,7 +31,9 @@ function createUnfinishedJobsFixture() {
       status: 'failed' as const,
     },
   ];
-  const returns = vi.fn().mockResolvedValue({ data: rows, error: null });
+  const returns = vi
+    .fn()
+    .mockResolvedValue(result ?? { data: rows, error: null });
   const statusFilter = vi.fn(() => ({ returns }));
   const select = vi.fn(() => ({ in: statusFilter }));
   const from = vi.fn(() => ({ select }));
@@ -54,5 +61,21 @@ describe('listUnfinishedSocialPublishJobs query', () => {
       'queued',
       'failed',
     ]);
+  });
+
+  it('treats a null row set as an empty unfinished queue', async () => {
+    createUnfinishedJobsFixture({ data: null, error: null });
+
+    await expect(listUnfinishedSocialPublishJobs()).resolves.toEqual([]);
+    expect(supabase.throwSupabaseError).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the unfinished-job read returns a database error', async () => {
+    const databaseError = { message: 'unfinished jobs read failed' };
+    createUnfinishedJobsFixture({ data: null, error: databaseError });
+
+    await expect(listUnfinishedSocialPublishJobs()).rejects.toBe(databaseError);
+    expect(supabase.throwSupabaseError).toHaveBeenCalledOnce();
+    expect(supabase.throwSupabaseError).toHaveBeenCalledWith(databaseError);
   });
 });
