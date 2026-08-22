@@ -1,4 +1,5 @@
 import { ServiceLayerException } from '../common/exceptions';
+import { ConflictException } from '../common/http';
 import { Logger } from '../common/logger';
 import { Database } from '../types/database.types';
 import { BaseService } from './base.service';
@@ -53,6 +54,33 @@ export class UserValidationService extends BaseService {
       { wallet: walletAddress, user_id: userId },
       'Wallet',
     );
+  }
+
+  async validateVerifiedWalletOwnership(
+    walletAddress: string,
+    userId: string,
+  ): Promise<{ id: string; ownership_verified_at: string }> {
+    this.logger.debug(
+      `Validating verified wallet ownership: ${walletAddress} for user: ${userId}`,
+    );
+    const wallet = await this.mustExist<{
+      id: string;
+      ownership_verified_at: string | null;
+    }>(
+      'user_crypto_wallets',
+      { wallet: walletAddress, user_id: userId },
+      'Wallet',
+      'id, ownership_verified_at',
+    );
+
+    if (!wallet.ownership_verified_at) {
+      throw new ConflictException('Wallet ownership has not been verified');
+    }
+
+    return {
+      id: wallet.id,
+      ownership_verified_at: wallet.ownership_verified_at,
+    };
   }
 
   /**

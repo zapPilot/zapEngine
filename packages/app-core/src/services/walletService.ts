@@ -3,6 +3,10 @@ import {
   transformWalletData,
   type WalletData,
 } from '@core/lib/validation/walletUtils';
+import type {
+  AddWalletResponse,
+  VerifyWalletResponse,
+} from '@core/schemas/api/accountSchemas';
 
 import {
   addWalletToBundle,
@@ -11,6 +15,7 @@ import {
   removeWalletFromBundle,
   updateUserEmail,
   updateWalletLabel as updateWalletLabelRequest,
+  verifyWalletOwnership,
 } from './accountService';
 
 /**
@@ -32,12 +37,22 @@ export async function loadWallets(userId: string): Promise<WalletData[]> {
 export async function addWallet(
   userId: string,
   address: string,
-  signature: string,
+  signature: string | undefined,
   label: string,
-): Promise<ServiceResult> {
+): Promise<ServiceResult<AddWalletResponse>> {
   return wrapServiceCall(async () => {
-    await addWalletToBundle(userId, address, signature, label);
+    return addWalletToBundle(userId, address, signature, label);
   });
+}
+
+export async function verifyWallet(
+  userId: string,
+  address: string,
+  signature: string,
+): Promise<ServiceResult<VerifyWalletResponse>> {
+  return wrapServiceCall(() =>
+    verifyWalletOwnership(userId, address, signature),
+  );
 }
 
 /**

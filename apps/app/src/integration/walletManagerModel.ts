@@ -6,6 +6,8 @@ export interface WalletRowVM {
   label: string;
   address: string;
   isActive: boolean;
+  isVerified: boolean;
+  canVerify: boolean;
 }
 
 /**
@@ -16,10 +18,15 @@ export function toWalletRows(
   wallets: readonly WalletData[],
   activeAddress: string | null,
 ): WalletRowVM[] {
-  return wallets.map((wallet) => ({
-    id: wallet.id,
-    label: wallet.label,
-    address: wallet.address,
-    isActive: equalsAddress(wallet.address, activeAddress),
-  }));
+  return wallets.map((wallet) => {
+    const isActive = equalsAddress(wallet.address, activeAddress);
+    return {
+      id: wallet.id,
+      label: wallet.label,
+      address: wallet.address,
+      isActive,
+      isVerified: wallet.isVerified,
+      canVerify: isActive && !wallet.isVerified,
+    };
+  });
 }

@@ -34,6 +34,7 @@ export {
   unsubscribeFromReportsWithToken,
   updateUserEmail,
   updateWalletLabel,
+  verifyWalletOwnership,
 } from './accountService';
 
 // Wallet Management
@@ -44,6 +45,7 @@ export {
   unsubscribeUserEmail,
   updateManagedWalletLabel,
   updateUserEmailSubscription,
+  verifyWallet,
 } from './walletService';
 
 // Analytics & Portfolio Data

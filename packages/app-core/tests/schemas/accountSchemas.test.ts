@@ -6,6 +6,7 @@ import {
   validateMessageResponse,
   validateUserProfileResponse,
   validateUserWallets,
+  validateVerifyWalletResponse,
 } from '../../src/schemas/api/accountSchemas';
 
 describe('account service response schemas', () => {
@@ -61,6 +62,7 @@ describe('account service response schemas', () => {
           user_id: 'user-1',
           wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
           label: null,
+          ownership_verified_at: null,
           created_at: '2026-07-02T00:00:00.000Z',
         },
       ]),
@@ -70,9 +72,24 @@ describe('account service response schemas', () => {
         user_id: 'user-1',
         wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
         label: null,
+        ownership_verified_at: null,
         created_at: '2026-07-02T00:00:00.000Z',
       },
     ]);
+  });
+
+  it('accepts a wallet verification response with its timestamp', () => {
+    expect(
+      validateVerifyWalletResponse({
+        success: true,
+        message: 'Wallet ownership verified successfully',
+        ownership_verified_at: '2026-08-22T00:00:00.000Z',
+      }),
+    ).toEqual({
+      success: true,
+      message: 'Wallet ownership verified successfully',
+      ownership_verified_at: '2026-08-22T00:00:00.000Z',
+    });
   });
 
   it('rejects malformed wallet rows before wallet manager consumers read them', () => {

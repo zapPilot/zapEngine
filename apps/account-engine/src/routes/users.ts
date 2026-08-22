@@ -11,6 +11,7 @@ import {
   updateEmailBodySchema,
   updateWalletLabelBodySchema,
   uuidParamSchema,
+  verifyWalletBodySchema,
   walletAddressParamSchema,
   walletBodySchema,
   walletIdParamSchema,
@@ -77,6 +78,22 @@ export function createUsersRoutes(services: AppServices) {
           params.userId,
           body.wallet,
         );
+      return jsonResponse(c, response, HttpStatus.OK);
+    },
+  );
+
+  app.post(
+    '/:userId/wallets/:walletAddress/verify',
+    paramValidator(walletAddressParamSchema),
+    jsonValidator(verifyWalletBodySchema),
+    async (c) => {
+      const params = c.req.valid('param');
+      const body = c.req.valid('json');
+      const response = await services.usersService.verifyWalletOwnership(
+        params.userId,
+        params.walletAddress,
+        body.signature,
+      );
       return jsonResponse(c, response, HttpStatus.OK);
     },
   );

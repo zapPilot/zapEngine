@@ -14,6 +14,8 @@ export interface WalletData {
   isMain: boolean;
   isActive: boolean;
   createdAt: string;
+  ownershipVerifiedAt: string | null;
+  isVerified: boolean;
 }
 
 /**
@@ -31,6 +33,8 @@ function toWalletData(wallet: UserCryptoWallet): WalletData {
     isMain: false,
     isActive: false,
     createdAt: wallet.created_at,
+    ownershipVerifiedAt: wallet.ownership_verified_at ?? null,
+    isVerified: wallet.ownership_verified_at != null,
   };
 }
 

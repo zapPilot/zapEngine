@@ -27,6 +27,9 @@ export interface AddWalletResponse {
   message: string;
   ownership_verified: boolean;
 }
+export interface VerifyWalletResponse extends SuccessResponse {
+  ownership_verified_at: string;
+}
 export interface UpdateEmailResponse extends SuccessResponse {
   email_updated: boolean;
   plan_upgraded: boolean;

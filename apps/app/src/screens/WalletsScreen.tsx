@@ -90,11 +90,16 @@ export function WalletsScreen() {
                 isRemoving={Boolean(manager.removing[row.id]?.isLoading)}
                 removeError={manager.removing[row.id]?.error ?? null}
                 editError={manager.editing[row.id]?.error ?? null}
+                isVerifying={Boolean(manager.verifying[row.address]?.isLoading)}
+                verifyError={manager.verifying[row.address]?.error ?? null}
                 onCopy={copyAddress}
                 onSaveLabel={(walletId, newLabel) =>
                   void manager.saveLabel(walletId, newLabel)
                 }
                 onDelete={(walletId) => void manager.deleteWallet(walletId)}
+                onVerify={(walletAddress) =>
+                  void manager.verifyWallet(walletAddress)
+                }
               />
             ))
           )}
@@ -129,8 +134,8 @@ export function WalletsScreen() {
         </View>
 
         <Text className="mt-3 text-[11.5px] leading-[17px] text-ink-faint">
-          Every wallet in the bundle must prove ownership with its own
-          signature. Connect the wallet whose address you are adding.
+          You can add a wallet before connecting it. Switch to that wallet and
+          verify ownership before portfolio tracking begins.
         </Text>
       </View>
     </ScreenScrollView>

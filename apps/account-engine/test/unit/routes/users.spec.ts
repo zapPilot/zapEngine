@@ -31,6 +31,11 @@ function createServices(): AppServices {
         message: 'ZapPilot wallet ownership proof',
         expiresAt: '2026-01-01T00:05:00.000Z',
       }),
+      verifyWalletOwnership: vi.fn().mockResolvedValue({
+        success: true,
+        message: 'Wallet ownership verified successfully',
+        ownership_verified_at: '2026-08-22T00:00:00.000Z',
+      }),
       requestDeletionChallenge: vi.fn().mockResolvedValue({
         nonce: 'b'.repeat(64),
         message: 'Zap Pilot Account Deletion',
@@ -190,8 +195,9 @@ describe('POST /users/:userId/wallets', () => {
     expect(response.status).toBe(400);
   });
 
-  it('requires an ownership signature', async () => {
-    const response = await createApp(createServices()).request(
+  it('forwards undefined when the ownership signature is omitted', async () => {
+    const services = createServices();
+    const response = await createApp(services).request(
       `http://localhost/users/${VALID_UUID}/wallets`,
       {
         method: 'POST',
@@ -199,7 +205,13 @@ describe('POST /users/:userId/wallets', () => {
         body: JSON.stringify({ wallet: VALID_WALLET }),
       },
     );
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(201);
+    expect((services.usersService.addWallet as Mock).mock.calls[0]).toEqual([
+      VALID_UUID,
+      VALID_WALLET,
+      undefined,
+      undefined,
+    ]);
   });
 
   it('returns 400 for an invalid userId', async () => {
@@ -223,6 +235,54 @@ describe('POST /users/:userId/wallets', () => {
         body: JSON.stringify({ wallet: 'bad' }),
       },
     );
+    expect(response.status).toBe(400);
+  });
+});
+
+describe('POST /users/:userId/wallets/:walletAddress/verify', () => {
+  it('forwards the wallet and signature to the service', async () => {
+    const services = createServices();
+    const signature = `0x${'ab'.repeat(65)}`;
+    const response = await createApp(services).request(
+      `http://localhost/users/${VALID_UUID}/wallets/${VALID_WALLET}/verify`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ signature }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(services.usersService.verifyWalletOwnership).toHaveBeenCalledWith(
+      VALID_UUID,
+      VALID_WALLET,
+      signature,
+    );
+  });
+
+  it('rejects a malformed signature', async () => {
+    const response = await createApp(createServices()).request(
+      `http://localhost/users/${VALID_UUID}/wallets/${VALID_WALLET}/verify`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ signature: '0x1234' }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it('rejects an invalid wallet parameter', async () => {
+    const response = await createApp(createServices()).request(
+      `http://localhost/users/${VALID_UUID}/wallets/not-a-wallet/verify`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ signature: `0x${'ab'.repeat(65)}` }),
+      },
+    );
+
     expect(response.status).toBe(400);
   });
 });

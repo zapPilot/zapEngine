@@ -264,6 +264,9 @@ export function HomeScreen() {
     !showBalanceSkeleton &&
     snapshotAvailability === 'unavailable';
   const portfolioImportCopy = getPortfolioImportCopy(etlState.status);
+  const portfolioNeedsVerification = etlState.errorMessage?.includes(
+    'ownership has not been verified',
+  );
   const retryPortfolioImport = () => {
     if (account.userId && account.address) {
       void triggerEtl(account.userId, account.address);
@@ -289,13 +292,23 @@ export function HomeScreen() {
           {showPortfolioImportState ? (
             <View className="mt-3">
               <PortfolioImportState
-                title={t(portfolioImportCopy.titleKey)}
-                body={t(portfolioImportCopy.bodyKey)}
+                title={
+                  portfolioNeedsVerification
+                    ? 'Verify this wallet first'
+                    : t(portfolioImportCopy.titleKey)
+                }
+                body={
+                  portfolioNeedsVerification
+                    ? 'Go to Wallets, switch to this wallet, and verify ownership before importing its portfolio.'
+                    : t(portfolioImportCopy.bodyKey)
+                }
                 retryLabel={
-                  portfolioImportCopy.retryable ? t('common.retry') : undefined
+                  portfolioImportCopy.retryable && !portfolioNeedsVerification
+                    ? t('common.retry')
+                    : undefined
                 }
                 onRetry={
-                  portfolioImportCopy.retryable
+                  portfolioImportCopy.retryable && !portfolioNeedsVerification
                     ? retryPortfolioImport
                     : undefined
                 }

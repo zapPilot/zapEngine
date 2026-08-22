@@ -14,9 +14,12 @@ interface WalletRowProps {
   isRemoving: boolean;
   removeError: string | null;
   editError: string | null;
+  isVerifying: boolean;
+  verifyError: string | null;
   onCopy: (address: string) => void;
   onSaveLabel: (walletId: string, newLabel: string) => void;
   onDelete: (walletId: string) => void;
+  onVerify: (walletAddress: string) => void;
 }
 
 type RowMode = 'view' | 'edit' | 'confirm-remove';
@@ -89,14 +92,17 @@ export function WalletRow({
   isRemoving,
   removeError,
   editError,
+  isVerifying,
+  verifyError,
   onCopy,
   onSaveLabel,
   onDelete,
+  onVerify,
 }: WalletRowProps) {
   const [mode, setMode] = useState<RowMode>('view');
   const [labelDraft, setLabelDraft] = useState(row.label);
 
-  const inlineError = removeError ?? editError;
+  const inlineError = removeError ?? editError ?? verifyError;
 
   return (
     <View
@@ -136,6 +142,13 @@ export function WalletRow({
                     </Text>
                   </Pill>
                 ) : null}
+                {!row.isVerified ? (
+                  <Pill className="bg-[rgba(212,197,163,.10)]">
+                    <Text className="font-mono text-[9.5px] uppercase tracking-[0.5px] text-accent">
+                      Unverified
+                    </Text>
+                  </Pill>
+                ) : null}
               </>
             )}
           </View>
@@ -146,6 +159,13 @@ export function WalletRow({
 
         {mode === 'view' ? (
           <View className="flex-row items-center gap-1.5">
+            {row.canVerify ? (
+              <InlineActionButton
+                label={isVerifying ? 'Waiting for signature…' : 'Verify'}
+                disabled={isVerifying}
+                onPress={() => onVerify(row.address)}
+              />
+            ) : null}
             <IconAction
               label={`Copy ${row.label} address`}
               onPress={() => onCopy(row.address)}

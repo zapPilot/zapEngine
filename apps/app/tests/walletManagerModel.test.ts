@@ -10,6 +10,8 @@ const WALLETS = [
     isMain: true,
     isActive: false,
     createdAt: '2026-01-01T00:00:00Z',
+    ownershipVerifiedAt: null,
+    isVerified: false,
   },
   {
     id: 'w-2',
@@ -18,6 +20,8 @@ const WALLETS = [
     isMain: false,
     isActive: false,
     createdAt: '2026-01-02T00:00:00Z',
+    ownershipVerifiedAt: '2026-01-02T00:05:00Z',
+    isVerified: true,
   },
 ];
 
@@ -29,12 +33,15 @@ describe('toWalletRows', () => {
     );
 
     expect(rows.map((row) => row.isActive)).toEqual([true, false]);
+    expect(rows.map((row) => row.canVerify)).toEqual([true, false]);
+    expect(rows.map((row) => row.isVerified)).toEqual([false, true]);
   });
 
   it('marks nothing active without a connected address', () => {
     const rows = toWalletRows(WALLETS, null);
 
     expect(rows.every((row) => !row.isActive)).toBe(true);
+    expect(rows.every((row) => !row.canVerify)).toBe(true);
   });
 
   it('preserves order, ids, and labels', () => {

@@ -31,7 +31,51 @@ const {
   requestWalletBindingChallenge,
   triggerWalletDataFetch,
   unsubscribeFromReportsWithToken,
+  verifyWalletOwnership,
 } = await import('../../src/services/accountService');
+
+describe('accountService wallet verification', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('omits the signature key when adding an unverified wallet', async () => {
+    accountApi.post.mockResolvedValue({
+      wallet_id: 'wallet-1',
+      message: 'Wallet added',
+      ownership_verified: false,
+    });
+
+    await expect(
+      addWalletToBundle(
+        'user-1',
+        '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+        undefined,
+        'Watch wallet',
+      ),
+    ).resolves.toMatchObject({ ownership_verified: false });
+    expect(accountApi.post).toHaveBeenCalledWith('/users/user-1/wallets', {
+      label: 'Watch wallet',
+      wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+    });
+  });
+
+  it('posts a signature to the wallet verify endpoint', async () => {
+    accountApi.post.mockResolvedValue({
+      success: true,
+      message: 'Wallet ownership verified successfully',
+      ownership_verified_at: '2026-08-22T00:00:00.000Z',
+    });
+
+    await expect(
+      verifyWalletOwnership('user-1', '0xabc', '0xsignature'),
+    ).resolves.toMatchObject({ success: true });
+    expect(accountApi.post).toHaveBeenCalledWith(
+      '/users/user-1/wallets/0xabc/verify',
+      { signature: '0xsignature' },
+    );
+  });
+});
 
 describe('accountService wallet fetch trigger', () => {
   beforeEach(() => {

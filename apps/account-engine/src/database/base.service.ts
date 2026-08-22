@@ -227,11 +227,11 @@ export abstract class BaseService {
         .from(table as never)
         .delete(),
       conditions,
-    );
+    ).select();
 
     const result = requireSingleResult ? await query.single() : await query;
 
-    SupabaseErrorHandler.validateOperation<null>(
+    SupabaseErrorHandler.validateOperation<unknown>(
       result,
       `delete ${entityName.toLowerCase()}`,
       entityName,

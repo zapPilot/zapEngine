@@ -33,6 +33,7 @@ export const userCryptoWalletSchema = z.object({
   wallet: z.string(),
   // Backend sometimes returns null for label; accept nullable to avoid hard failures
   label: z.string().nullable().optional(),
+  ownership_verified_at: z.string().nullable().optional(),
   created_at: z.string(),
 });
 
@@ -157,6 +158,12 @@ export const addWalletResponseSchema = z.object({
   ownership_verified: z.boolean(),
 });
 
+export const verifyWalletResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  ownership_verified_at: z.string(),
+});
+
 export const ownershipChallengeSchema = z.object({
   nonce: z.string().length(64),
   message: z.string().min(1),
@@ -208,6 +215,9 @@ export const userProfileResponseSchema = z.object({
 /** @public */ export type AddWalletResponse = z.infer<
   typeof addWalletResponseSchema
 >;
+/** @public */ export type VerifyWalletResponse = z.infer<
+  typeof verifyWalletResponseSchema
+>;
 /** @public */ export type OwnershipChallenge = z.infer<
   typeof ownershipChallengeSchema
 >;
@@ -243,6 +253,9 @@ export const validateEtlJobTriggerResponse = createValidator(
 );
 export const validateAddWalletResponse = createValidator(
   addWalletResponseSchema,
+);
+export const validateVerifyWalletResponse = createValidator(
+  verifyWalletResponseSchema,
 );
 export const validateOwnershipChallenge = createValidator(
   ownershipChallengeSchema,
