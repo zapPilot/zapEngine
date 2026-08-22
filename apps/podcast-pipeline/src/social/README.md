@@ -39,15 +39,16 @@ profiles that metric collection drives. A daemon killed without a clean exit
 leaves the file behind; the next start takes it over once the recorded pid is
 gone.
 
-The read-only dashboard is optional and does **not** need to run for publishing,
-metric collection, or learning:
+The read-only Control Center is optional and does **not** need to run for
+publishing, metric collection, or learning:
 
 ```bash
-pnpm social:dashboard
+pnpm ops:dashboard
 ```
 
-Keep the dashboard lifecycle separate from the daemon. A dashboard port conflict
-must never stop publishing or metric collection.
+It consumes the social tables directly from `apps/control-center`; keep its
+lifecycle separate from the daemon. A Control Center port conflict must never
+stop publishing or metric collection.
 
 For manual recovery, smoke testing, or one-off diagnostics, call the granular
 package commands explicitly:
@@ -633,8 +634,8 @@ without rewriting the publishing stack:
 - `daemon.ts`: production orchestration for discovery, publishing, metrics, and
   strategy refresh;
 - `record.ts` / `metrics.ts`: telemetry persistence and manual metric diagnostics;
-- `dashboard.ts`: optional read-only observability UI, never part of the daemon
-  lifecycle.
+- `apps/control-center`: optional read-only observability UI, never part of the
+  daemon lifecycle.
 
 A future smart teaser can replace the current `first 130 seconds` selector using
 transcript hooks or engagement data without changing X login/upload. Likewise,

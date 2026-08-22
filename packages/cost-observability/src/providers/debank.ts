@@ -1,0 +1,86 @@
+import { z } from 'zod';
+
+import { currentUtcPeriod, projectMonthEnd, roundUsd } from '../time.js';
+import type { CostSnapshot, FetchLike } from '../types.js';
+
+const responseSchema = z.object({
+  balance: z.number().nonnegative(),
+  stats: z.array(
+    z.object({
+      usage: z.number().nonnegative(),
+      remains: z.number().nonnegative(),
+      date: z.iso.date(),
+    }),
+  ),
+});
+
+export interface DeBankCostInput {
+  apiKey: string;
+  unitCostUsd?: number;
+  fetch?: FetchLike;
+  now?: Date;
+  baseUrl?: string;
+}
+
+export async function fetchDeBankCostSnapshot(
+  input: DeBankCostInput,
+): Promise<CostSnapshot> {
+  const now = input.now ?? new Date();
+  const fetcher = input.fetch ?? globalThis.fetch;
+  const baseUrl = input.baseUrl ?? 'https://pro-openapi.debank.com/v1';
+  const response = await fetcher(`${baseUrl}/account/units`, {
+    headers: { AccessKey: input.apiKey, accept: 'application/json' },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) {
+    throw new Error(`DeBank units request failed (${response.status})`);
+  }
+
+  const data = responseSchema.parse(await response.json());
+  const monthPrefix = now.toISOString().slice(0, 7);
+  const today = now.toISOString().slice(0, 10);
+  const consumed = data.stats
+    .filter((entry) => entry.date.startsWith(monthPrefix))
+    .reduce((sum, entry) => sum + entry.usage, 0);
+  const todayUsage =
+    data.stats.find((entry) => entry.date === today)?.usage ?? 0;
+  const unitCostUsd = normalizeUnitCost(input.unitCostUsd);
+  const accruedCostUsd =
+    unitCostUsd === null ? null : roundUsd(consumed * unitCostUsd);
+
+  return {
+    provider: 'debank',
+    ...currentUtcPeriod(now),
+    usage: [
+      {
+        key: 'monthly_units',
+        label: 'Units consumed',
+        unit: 'units',
+        value: consumed,
+      },
+      {
+        key: 'today_units',
+        label: 'Units today',
+        unit: 'units',
+        value: todayUsage,
+      },
+      {
+        key: 'remaining_units',
+        label: 'Units remaining',
+        unit: 'units',
+        value: data.balance,
+      },
+    ],
+    accruedCostUsd,
+    projectedCostUsd:
+      accruedCostUsd === null ? null : projectMonthEnd(accruedCostUsd, now),
+    costType: 'list-price-equivalent',
+    fetchedAt: now.toISOString(),
+  };
+}
+
+function normalizeUnitCost(value: number | undefined): number | null {
+  return value !== undefined && Number.isFinite(value) && value >= 0
+    ? value
+    : null;
+}
