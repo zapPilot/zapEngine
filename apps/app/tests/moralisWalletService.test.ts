@@ -55,8 +55,10 @@ describe('Moralis wallet service', () => {
           {
             hash: '0xactivity',
             method_label: 'deposit',
+            from_address: '0x1111111111111111111111111111111111111111',
             from_address_entity: null,
             to_address_entity: 'Aave V3',
+            possible_spam: false,
             transaction_fee: '0.00002341',
           },
         ],
@@ -72,7 +74,9 @@ describe('Moralis wallet service', () => {
       expect.objectContaining({
         hash: '0xactivity',
         method_label: 'deposit',
+        from_address: '0x1111111111111111111111111111111111111111',
         to_address_entity: 'Aave V3',
+        possible_spam: false,
         transaction_fee: '0.00002341',
       }),
     );

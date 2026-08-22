@@ -221,6 +221,7 @@ export interface ActivityHistoryOptions {
   limit: number;
   nowMs?: number;
   timeZone?: string;
+  walletAddresses?: readonly string[];
 }
 
 export type WalletAddressInput =
@@ -522,6 +523,9 @@ export function buildActivityGroupsFromMoralisHistory(
   options: ActivityHistoryOptions,
 ): ActivityHistoryData {
   const nowMs = options.nowMs ?? Date.now();
+  const ownAddresses = new Set(
+    options.walletAddresses?.map((address) => address.trim().toLowerCase()),
+  );
 
   const seen = new Set<string>();
   const mapped: MappedActivityEvent[] = [];
@@ -531,7 +535,7 @@ export function buildActivityGroupsFromMoralisHistory(
       continue;
     }
     for (const event of response.result ?? []) {
-      const activity = mapMoralisEvent(context, event);
+      const activity = mapMoralisEvent(context, event, { ownAddresses });
       if (!activity) {
         continue;
       }
@@ -585,6 +589,7 @@ export function useMoralisWalletHistory(
       ).flat();
       return buildActivityGroupsFromMoralisHistory(responses, {
         limit: ACTIVITY_DISPLAY_LIMIT,
+        walletAddresses,
       });
     },
   });

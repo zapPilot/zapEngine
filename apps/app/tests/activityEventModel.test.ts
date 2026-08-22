@@ -10,10 +10,8 @@ import {
   type ActivityGroup,
 } from '@/data/demo';
 import {
-  ACTIVITY_BURST_WINDOW_MS,
   activityEventMatchesFilter,
   classifyKind,
-  collapseBursts,
   collectSupportedTransfers,
   computeNetDeltas,
   filterActivityGroups,
@@ -35,7 +33,6 @@ const WBTC_ARB = '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f';
 const CBBTC_ARB = '0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf';
 const SPOOF_ADDRESS = '0x0000000000000000000000000000000000000001';
 const BASE_TS = Date.parse('2026-08-10T12:00:00.000Z');
-const MINUTE = 60 * 1000;
 
 function typedTransfer(
   overrides: Partial<MoralisWalletTransfer>,
@@ -578,7 +575,7 @@ describe('mapMoralisEvent', () => {
         txHash: '0xactivity',
         methodLabel: 'deposit',
         protocol: 'Aave',
-        gasFeeLabel: '< 0.0001 ETH',
+        gasFeeLabel: '0.000023 ETH',
       }),
     );
   });
@@ -622,6 +619,83 @@ describe('mapMoralisEvent', () => {
         gasFeeLabel: '0.0002 ETH',
       }),
     );
+  });
+
+  it('drops spam metadata-only interactions but retains supported transfers', () => {
+    const spamMetadataOnly = mapMoralisEvent(
+      ARBITRUM,
+      historyEvent({
+        method_label: 'transfer',
+        to_address_entity: 'Claim Reward',
+        possible_spam: true,
+      }),
+    );
+    const spamWithSupportedTransfer = mapMoralisEvent(
+      ARBITRUM,
+      historyEvent({
+        possible_spam: 'true',
+        erc20_transfers: [
+          typedTransfer({
+            token_address: USDC_ARB,
+            token_symbol: 'USDC',
+            direction: 'receive',
+            value_formatted: '5',
+          }),
+        ],
+      }),
+    );
+
+    expect(spamMetadataOnly).toBeNull();
+    expect(spamWithSupportedTransfer?.kind).toBe('deposit');
+  });
+
+  it('shows gas only when the sender is owned or sender ownership is unknown', () => {
+    const ownAddresses = new Set([
+      '0x1111111111111111111111111111111111111111',
+    ]);
+    const ownSend = mapMoralisEvent(
+      ARBITRUM,
+      historyEvent({
+        from_address: '0x1111111111111111111111111111111111111111',
+        method_label: 'approve',
+        transaction_fee: '0.000012',
+      }),
+      { ownAddresses },
+    );
+    const incoming = mapMoralisEvent(
+      ARBITRUM,
+      historyEvent({
+        from_address: '0x2222222222222222222222222222222222222222',
+        method_label: 'transfer',
+        transaction_fee: '0.000012',
+      }),
+      { ownAddresses },
+    );
+    const unknownOwnership = mapMoralisEvent(
+      ARBITRUM,
+      historyEvent({
+        from_address: '0x2222222222222222222222222222222222222222',
+        method_label: 'transfer',
+        transaction_fee: '0.000012',
+      }),
+    );
+
+    expect(ownSend?.gasFeeLabel).toBe('0.000012 ETH');
+    expect(incoming).not.toHaveProperty('gasFeeLabel');
+    expect(unknownOwnership?.gasFeeLabel).toBe('0.000012 ETH');
+  });
+
+  it.each([
+    [0, undefined],
+    ['0.0000009', '< 0.000001 ETH'],
+    ['0.000001', '0.000001 ETH'],
+  ])('formats gas fee %j as %j', (transaction_fee, expected) => {
+    const event = mapMoralisEvent(
+      ARBITRUM,
+      historyEvent({ method_label: 'approve', transaction_fee }),
+    );
+
+    expect(event?.gasFeeLabel).toBe(expected);
   });
 
   it('uses the largest priced category for the row category and amount', () => {
@@ -791,159 +865,6 @@ describe('mapMoralisEvent', () => {
     );
 
     expect(event?.timestamp).toBe(0);
-  });
-});
-
-describe('collapseBursts', () => {
-  it('merges same-chain same-kind events at the exact inclusive window boundary', () => {
-    const collapsed = collapseBursts([
-      mappedEvent({ hash: '0xnewest', timestamp: BASE_TS, time: 'newest' }),
-      mappedEvent({
-        hash: '0xolder',
-        timestamp: BASE_TS - ACTIVITY_BURST_WINDOW_MS,
-        time: 'older',
-      }),
-    ]);
-
-    expect(collapsed).toHaveLength(1);
-    expect(collapsed[0]).toEqual(
-      expect.objectContaining({
-        id: 'arbitrum-burst-0xnewest',
-        hash: '0xnewest',
-        title: 'Rebalanced portfolio',
-        txCount: 2,
-        meta: 'Arbitrum · 2 transactions',
-        timestamp: BASE_TS,
-        time: 'newest',
-      }),
-    );
-  });
-
-  it('merges a run whose adjacent gaps are each within the window', () => {
-    const collapsed = collapseBursts([
-      mappedEvent({ hash: '0xa', timestamp: BASE_TS }),
-      mappedEvent({
-        hash: '0xb',
-        timestamp: BASE_TS - ACTIVITY_BURST_WINDOW_MS,
-      }),
-      mappedEvent({
-        hash: '0xc',
-        timestamp: BASE_TS - 2 * ACTIVITY_BURST_WINDOW_MS,
-      }),
-    ]);
-
-    expect(collapsed).toHaveLength(1);
-    expect(collapsed[0]?.txCount).toBe(3);
-  });
-
-  it('splits a run when the adjacent gap is greater than the window', () => {
-    const collapsed = collapseBursts([
-      mappedEvent({ hash: '0xa', timestamp: BASE_TS }),
-      mappedEvent({
-        hash: '0xb',
-        timestamp: BASE_TS - ACTIVITY_BURST_WINDOW_MS - 1,
-      }),
-    ]);
-
-    expect(collapsed.map((event) => event.hash)).toEqual(['0xa', '0xb']);
-  });
-
-  it('does not merge events from different chains', () => {
-    const collapsed = collapseBursts([
-      mappedEvent({ hash: '0xa', timestamp: BASE_TS }),
-      mappedEvent({
-        hash: '0xb',
-        sourceChain: 'base',
-        chain: 'base',
-        meta: 'Base',
-        timestamp: BASE_TS - MINUTE,
-      }),
-    ]);
-
-    expect(collapsed.map((event) => event.hash)).toEqual(['0xa', '0xb']);
-  });
-
-  it('does not merge events of different kinds', () => {
-    const collapsed = collapseBursts([
-      mappedEvent({ hash: '0xa', timestamp: BASE_TS }),
-      mappedEvent({
-        hash: '0xb',
-        kind: 'deposit',
-        timestamp: BASE_TS - MINUTE,
-      }),
-    ]);
-
-    expect(collapsed.map((event) => event.hash)).toEqual(['0xa', '0xb']);
-  });
-
-  it('annotates a partially failed burst while retaining Completed status', () => {
-    const collapsed = collapseBursts([
-      mappedEvent({ hash: '0xa', timestamp: BASE_TS }),
-      mappedEvent({
-        hash: '0xb',
-        status: 'Failed',
-        timestamp: BASE_TS - MINUTE,
-      }),
-    ]);
-
-    expect(collapsed[0]).toEqual(
-      expect.objectContaining({
-        status: 'Completed',
-        meta: 'Arbitrum · 2 transactions · 1 failed',
-      }),
-    );
-  });
-
-  it('marks a burst Failed only when every transaction failed', () => {
-    const collapsed = collapseBursts([
-      mappedEvent({ hash: '0xa', status: 'Failed', timestamp: BASE_TS }),
-      mappedEvent({
-        hash: '0xb',
-        status: 'Failed',
-        timestamp: BASE_TS - MINUTE,
-      }),
-    ]);
-
-    expect(collapsed[0]).toEqual(
-      expect.objectContaining({
-        status: 'Failed',
-        meta: 'Arbitrum · 2 transactions',
-      }),
-    );
-  });
-
-  it('adds existing txCount values when collapsing already-counted events', () => {
-    const collapsed = collapseBursts([
-      mappedEvent({ hash: '0xa', txCount: 3, timestamp: BASE_TS }),
-      mappedEvent({
-        hash: '0xb',
-        txCount: 2,
-        timestamp: BASE_TS - MINUTE,
-      }),
-    ]);
-
-    expect(collapsed[0]?.txCount).toBe(5);
-  });
-
-  it('returns a single event without changing its identity', () => {
-    const single = mappedEvent({ hash: '0xonly' });
-    const collapsed = collapseBursts([single]);
-
-    expect(collapsed).toEqual([single]);
-    expect(collapsed[0]).toBe(single);
-  });
-
-  it('does not merge events whose timestamps are unknown', () => {
-    const collapsed = collapseBursts([
-      mappedEvent({ hash: '0xa', timestamp: 0 }),
-      mappedEvent({ hash: '0xb', timestamp: 0 }),
-    ]);
-
-    expect(collapsed.map((event) => event.hash)).toEqual(['0xa', '0xb']);
-  });
-
-  it('returns an empty list for an empty feed', () => {
-    expect(collapseBursts([])).toEqual([]);
   });
 });
 

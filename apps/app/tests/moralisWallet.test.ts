@@ -546,6 +546,38 @@ describe('Moralis desktop wallet mapping', () => {
     );
   });
 
+  it('filters spam metadata-only events before applying the display limit', () => {
+    const spamEvents = Array.from({ length: 30 }, (_, index) => ({
+      hash: `0xspam${index}`,
+      block_timestamp: `2026-06-28T02:${String(index).padStart(2, '0')}:00.000Z`,
+      receipt_status: '1',
+      method_label: 'transfer',
+      to_address_entity: `Claim reward ${index}`,
+      possible_spam: true,
+    }));
+    const approve = {
+      hash: '0xapprove',
+      block_timestamp: '2026-06-28T01:00:00.000Z',
+      receipt_status: '1',
+      method_label: 'approve',
+      to_address_entity: 'Aave V3',
+      possible_spam: false,
+    };
+
+    const { groups } = buildActivityGroupsFromMoralisHistory(
+      [history('base', [...spamEvents, approve])],
+      {
+        limit: 30,
+        nowMs: Date.parse('2026-06-28T03:00:00.000Z'),
+        timeZone: 'UTC',
+      },
+    );
+
+    expect(groups.flatMap((group) => group.events)).toEqual([
+      expect.objectContaining({ id: 'base-0xapprove', protocol: 'Aave' }),
+    ]);
+  });
+
   it('marks only explicit non-success receipt statuses as failed', () => {
     const { groups } = buildActivityGroupsFromMoralisHistory(
       [

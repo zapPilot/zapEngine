@@ -108,8 +108,6 @@ export interface ActivityEvent {
   /** Dominant allocation category — drives the row's category accent. */
   category?: AllocationCategoryKey;
   categoryDeltas?: ActivityCategoryDelta[];
-  /** Number of on-chain transactions represented by this event. */
-  txCount?: number;
   chain?: ChainKey;
   /** Transaction hash when the event maps to exactly one on-chain transaction. */
   txHash?: string;
@@ -251,12 +249,10 @@ export const DEMO: DemoData = {
             { category: 'btc', usdNet: 1240, label: '+0.0107 CBBTC' },
             { category: 'stable', usdNet: -1240, label: '−1,240 USDC' },
           ],
-          txCount: 32,
           chain: 'arbitrum',
-          txHash: '0x9b6d0000000000000000000000000000000040a6',
           methodLabel: 'multicall',
           protocol: 'GMX V2',
-          gasFeeLabel: '< 0.0001 ETH',
+          gasFeeLabel: '0.000023 ETH',
           tokenSymbol: 'CBBTC',
         },
         {
@@ -273,9 +269,10 @@ export const DEMO: DemoData = {
             { category: 'stable', usdNet: 2500, label: '+2,500 USDC' },
           ],
           chain: 'base',
-          txHash: '0xa467000000000000000000000000000000006bc9',
+          txHash:
+            '0xa467000000000000000000000000000000000000000000000000000000006bc9',
           protocol: 'Morpho',
-          gasFeeLabel: '< 0.0001 ETH',
+          gasFeeLabel: '0.000012 ETH',
           tokenSymbol: 'USDC',
         },
       ],
@@ -297,9 +294,10 @@ export const DEMO: DemoData = {
             { category: 'eth', usdNet: -150, label: '−0.045 ETH' },
           ],
           chain: 'arbitrum',
-          txHash: '0x10e4000000000000000000000000000000004be8',
+          txHash:
+            '0x10e4000000000000000000000000000000000000000000000000000000004be8',
           protocol: 'Aave V3',
-          gasFeeLabel: '< 0.0001 ETH',
+          gasFeeLabel: '0.000009 ETH',
           tokenSymbol: 'ETH',
         },
       ],
@@ -321,7 +319,8 @@ export const DEMO: DemoData = {
             { category: 'stable', usdNet: -800, label: '−800 USDC' },
           ],
           chain: 'base',
-          txHash: '0xd47900000000000000000000000000000000f020',
+          txHash:
+            '0xd47900000000000000000000000000000000000000000000000000000000f020',
           protocol: 'Ondo Finance',
           gasFeeLabel: '0.00012 ETH',
           tokenSymbol: 'USDC',
