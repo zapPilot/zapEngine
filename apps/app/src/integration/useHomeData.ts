@@ -27,7 +27,6 @@ export interface HomeViewData {
   totalBalance: number | null;
   rangeChangePct: number | null;
   rangeChangeUsd: number | null;
-  latestSnapshotDate: string | null;
   trendPoints: DailyValuePoint[];
 }
 
@@ -220,15 +219,12 @@ export function useHomeData(
     [allTrendPoints, isDemo, range],
   );
   const rangeChange = calculateHomeRangeChange(selectedTrendPoints);
-  const latestDay = (isDemo ? DEMO.home.trendPoints : allTrendPoints).at(-1);
-
   return {
     data: {
       home: {
         totalBalance,
         rangeChangePct: rangeChange?.pct ?? null,
         rangeChangeUsd: rangeChange?.usd ?? null,
-        latestSnapshotDate: latestDay?.date ?? null,
         trendPoints: selectedTrendPoints,
       },
       strategyStatus: isDemo

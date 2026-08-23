@@ -54,7 +54,7 @@ function summary(
 }
 
 describe('buildHomeIncomeView', () => {
-  it('keeps passive income out of GMX and HLP strategy returns', () => {
+  it('excludes strategy protocols from passive income', () => {
     const result = buildHomeIncomeView(
       summary([
         { protocol: 'Morpho', averageDaily: 2 },
@@ -65,27 +65,7 @@ describe('buildHomeIncomeView', () => {
 
     expect(result.status).toBe('ready');
     expect(result.passiveMonthlyUsd).toBeCloseTo(60.8);
-    expect(result.strategyRows[0]).toEqual(
-      expect.objectContaining({ protocol: 'GMX V2' }),
-    );
-    expect(result.strategyRows[0]?.monthlyUsd).toBeCloseTo(91.2);
-    expect(result.strategyRows[1]?.monthlyUsd).toBeCloseTo(-30.4);
-  });
-
-  it('merges strategy rows across chains and sorts by magnitude', () => {
-    const result = buildHomeIncomeView(
-      summary([
-        { protocol: 'GMX V2', chain: 'arb', averageDaily: 1 },
-        { protocol: 'gmx', chain: 'avax', averageDaily: -0.25 },
-        { protocol: 'Hyperliquid', averageDaily: -2 },
-      ]),
-    );
-
-    expect(result.strategyRows[0]).toEqual({
-      protocol: 'Hyperliquid HLP',
-      monthlyUsd: -60.8,
-    });
-    expect(result.strategyRows[1]?.monthlyUsd).toBeCloseTo(22.8);
+    expect(result).not.toHaveProperty('strategyRows');
   });
 
   it('marks fewer than seven observed days as insufficient', () => {

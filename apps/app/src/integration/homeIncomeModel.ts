@@ -6,25 +6,12 @@ import type { YieldReturnsSummaryResponse } from '@zapengine/app-core/services';
 
 export const MIN_OBSERVED_DAYS = 7;
 
-export interface HomeStrategyIncomeRow {
-  protocol: string;
-  monthlyUsd: number;
-}
-
 export interface HomeIncomeView {
   status: 'ready' | 'insufficient' | 'empty';
   passiveMonthlyUsd: number;
   medianDailyUsd: number;
-  strategyRows: HomeStrategyIncomeRow[];
   windowDays: number;
   observedDays: number;
-}
-
-function strategyLabel(protocol: string): string {
-  const normalized = protocol.toLowerCase();
-  if (normalized.includes('gmx')) return 'GMX V2';
-  if (normalized.includes('hyperliquid')) return 'Hyperliquid HLP';
-  return protocol;
 }
 
 export function buildHomeIncomeView(
@@ -38,7 +25,6 @@ export function buildHomeIncomeView(
     status: 'empty',
     passiveMonthlyUsd: 0,
     medianDailyUsd: window?.median_daily_yield_usd ?? 0,
-    strategyRows: [],
     windowDays,
     observedDays,
   };
@@ -47,28 +33,15 @@ export function buildHomeIncomeView(
   }
 
   let passiveAverageDailyUsd = 0;
-  const strategyMonthlyByProtocol = new Map<string, number>();
   for (const item of window.protocol_breakdown) {
     if (classifyIncomeProtocol(item.protocol) === 'passive') {
       passiveAverageDailyUsd += item.window.average_daily_yield_usd;
-      continue;
     }
-    const label = strategyLabel(item.protocol);
-    strategyMonthlyByProtocol.set(
-      label,
-      (strategyMonthlyByProtocol.get(label) ?? 0) +
-        estimateMonthlyIncomeUsd(item.window.average_daily_yield_usd),
-    );
   }
 
   return {
     ...emptyResult,
     status: observedDays < MIN_OBSERVED_DAYS ? 'insufficient' : 'ready',
     passiveMonthlyUsd: estimateMonthlyIncomeUsd(passiveAverageDailyUsd),
-    strategyRows: [...strategyMonthlyByProtocol.entries()]
-      .map(([protocol, monthlyUsd]) => ({ protocol, monthlyUsd }))
-      .sort(
-        (left, right) => Math.abs(right.monthlyUsd) - Math.abs(left.monthlyUsd),
-      ),
   };
 }

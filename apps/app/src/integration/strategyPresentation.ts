@@ -63,15 +63,6 @@ export function currentModeLabelFor(
   return demoTextOrDash(demoLabel, isDemo);
 }
 
-export function marketModeLabelFromRegime(
-  regimeId: string | null | undefined,
-  demoMarketModeLabel: string,
-  isDemo: boolean,
-): string {
-  const regimeLabel = regimeId ? getRegimeLabel(regimeId) : '';
-  return marketModeLabelFor(regimeLabel, demoMarketModeLabel, isDemo);
-}
-
 export function regimeDisplayFromRegime(
   regimeId: string | null | undefined,
   demoMarketModeLabel: string,

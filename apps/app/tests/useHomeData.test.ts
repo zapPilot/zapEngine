@@ -160,7 +160,6 @@ describe('useHomeData', () => {
       totalBalance: null,
       rangeChangePct: null,
       rangeChangeUsd: null,
-      latestSnapshotDate: null,
       trendPoints: [],
     });
     expect(result.data.strategyStatus).toBeNull();
@@ -281,7 +280,6 @@ describe('useHomeData', () => {
     expect(result.data.home).toMatchObject({
       totalBalance: 1234,
       rangeChangeUsd: 234,
-      latestSnapshotDate: '2026-08-02',
     });
     expect(result.data.home.rangeChangePct).toBeCloseTo(23.4);
     expect(result.data.home.trendPoints).toEqual([
