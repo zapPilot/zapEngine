@@ -51,6 +51,20 @@ describe("BaseDatabaseClient", () => {
     expect(mockClient.release).toHaveBeenCalled();
   });
 
+  it("preserves acquisition errors without rolling back or releasing", async () => {
+    (getDbClient as unknown).mockRejectedValueOnce(
+      new Error("connection unavailable"),
+    );
+    const operation = vi.fn();
+
+    await expect(client.run(operation)).rejects.toThrow(
+      "connection unavailable",
+    );
+    expect(operation).not.toHaveBeenCalled();
+    expect(mockClient.query).not.toHaveBeenCalled();
+    expect(mockClient.release).not.toHaveBeenCalled();
+  });
+
   it("wraps errors in DatabaseError and still releases client", async () => {
     mockClient.query.mockRejectedValueOnce(new Error("fail"));
 
