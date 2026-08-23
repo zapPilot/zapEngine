@@ -70,5 +70,6 @@ describe('YouTube upload stream lifecycle', () => {
 
     expect(uploadBody).toBeDefined();
     expect(uploadBody?.destroyed).toBe(true);
+    expect(uploadBody?.closed).toBe(true);
   });
 });
