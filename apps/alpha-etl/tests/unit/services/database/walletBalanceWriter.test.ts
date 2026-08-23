@@ -107,6 +107,29 @@ describe('WalletBalanceWriter', () => {
     vi.useRealTimers();
   });
 
+  it('rolls back the delete when the replacement insert fails', async () => {
+    query
+      .mockResolvedValueOnce({ rowCount: null })
+      .mockResolvedValueOnce({ rowCount: 1 })
+      .mockRejectedValueOnce(new Error('insert failed'))
+      .mockResolvedValueOnce({ rowCount: null });
+
+    const result = await new WalletBalanceWriter().writeWalletBalanceSnapshots([
+      token(),
+    ]);
+
+    expect(result.success).toBe(false);
+    expect(result.errors).toContain('insert failed');
+    expect(query.mock.calls.map(([sql]) => sql)).toEqual([
+      'BEGIN',
+      expect.stringContaining('DELETE FROM analytics.daily_wallet_tokens'),
+      expect.stringContaining('INSERT INTO analytics.daily_wallet_tokens'),
+      'ROLLBACK',
+    ]);
+    expect(query.mock.calls.some(([sql]) => sql === 'COMMIT')).toBe(false);
+    expect(release).toHaveBeenCalledOnce();
+  });
+
   it('rolls back and reports database errors', async () => {
     query
       .mockResolvedValueOnce({ rowCount: null })
