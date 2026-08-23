@@ -66,7 +66,7 @@ describe('recordReplacementResult', () => {
     const result = createEmptyWriteResult();
     result.recordsInserted = 4;
     result.errors.push('earlier warning');
-    const replace = vi.fn().mockRejectedValue({ code: 'WRITE_FAILED' });
+    const replace = vi.fn().mockRejectedValue('replacement rejected');
 
     await expect(
       recordReplacementResult(result, 1, 'Daily replacement completed', replace),
@@ -76,7 +76,7 @@ describe('recordReplacementResult', () => {
     expect(result).toEqual({
       success: false,
       recordsInserted: 4,
-      errors: ['earlier warning', '[object Object]'],
+      errors: ['earlier warning', 'replacement rejected'],
       duplicatesSkipped: 0,
     });
     expect(infoMock).not.toHaveBeenCalled();
