@@ -51,6 +51,20 @@ describe("BaseDatabaseClient", () => {
     expect(mockClient.release).toHaveBeenCalled();
   });
 
+  it("preserves acquisition errors without rolling back or releasing", async () => {
+    (getDbClient as unknown).mockRejectedValueOnce(
+      new Error("connection unavailable"),
+    );
+    const operation = vi.fn();
+
+    await expect(client.run(operation)).rejects.toThrow(
+      "connection unavailable",
+    );
+    expect(operation).not.toHaveBeenCalled();
+    expect(mockClient.query).not.toHaveBeenCalled();
+    expect(mockClient.release).not.toHaveBeenCalled();
+  });
+
   it("wraps errors in DatabaseError and still releases client", async () => {
     mockClient.query.mockRejectedValueOnce(new Error("fail"));
 
@@ -73,17 +87,16 @@ describe("BaseDatabaseClient", () => {
     expect(mockClient.release).toHaveBeenCalled();
   });
 
-  it("handles rollback failure gracefully", async () => {
-    // Both the operation and the ROLLBACK fail
+  it("preserves the operation error when rollback also fails", async () => {
     mockClient.query
       .mockRejectedValueOnce(new Error("operation error"))
       .mockRejectedValueOnce(new Error("rollback error"));
 
     await expect(
       client.run(async (db) => db.query("INSERT ...")),
-    ).rejects.toBeInstanceOf(DatabaseError);
-    // Client should still be released despite rollback failure
-    expect(mockClient.release).toHaveBeenCalled();
+    ).rejects.toThrow("operation error");
+    expect(mockClient.query).toHaveBeenNthCalledWith(2, "ROLLBACK");
+    expect(mockClient.release).toHaveBeenCalledTimes(1);
   });
 
   it("wraps non-Error thrown values in DatabaseError with generic message", async () => {

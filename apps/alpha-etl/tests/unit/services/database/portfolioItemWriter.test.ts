@@ -99,6 +99,30 @@ describe('PortfolioItemWriter', () => {
     expect(getDbClient).not.toHaveBeenCalled();
   });
 
+  it('rolls back the delete when the replacement insert fails', async () => {
+    query
+      .mockResolvedValueOnce({ rowCount: null })
+      .mockResolvedValueOnce({ rowCount: 1 })
+      .mockRejectedValueOnce(new Error('insert failed'))
+      .mockResolvedValueOnce({ rowCount: null });
+
+    const result = await new PortfolioItemWriter().writeSnapshots(
+      [position()],
+      'debank',
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errors).toContain('insert failed');
+    expect(query.mock.calls.map(([sql]) => sql)).toEqual([
+      'BEGIN',
+      expect.stringContaining('DELETE FROM analytics.daily_portfolio_positions'),
+      expect.stringContaining('INSERT INTO analytics.daily_portfolio_positions'),
+      'ROLLBACK',
+    ]);
+    expect(query.mock.calls.some(([sql]) => sql === 'COMMIT')).toBe(false);
+    expect(release).toHaveBeenCalledOnce();
+  });
+
   it('reports a failed transaction and releases the client', async () => {
     query
       .mockResolvedValueOnce({ rowCount: null })
