@@ -1,3 +1,4 @@
+import { once } from 'node:events';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 
@@ -206,7 +207,9 @@ async function uploadVideo(input: {
     }
     return { id: nonemptyString(payload['id'])! };
   } finally {
+    const closed = body.closed ? null : once(body, 'close');
     body.destroy();
+    if (closed) await closed;
   }
 }
 
