@@ -137,9 +137,7 @@ describe('useWalletMutations ownership proof', () => {
   });
 
   it('does not submit verification when challenge signing fails', async () => {
-    const signMessage = vi
-      .fn()
-      .mockRejectedValue(new Error('Signature rejected'));
+    const signMessage = vi.fn().mockRejectedValue(new Error('Signature rejected'));
     const { result } = renderHook(() => useHarness(WALLET, signMessage), {
       wrapper: createWrapper(),
     });
@@ -211,9 +209,7 @@ describe('useWalletMutations ownership proof', () => {
       });
 
       await act(async () => {
-        await expect(
-          result.current.handleVerifyWallet(WALLET),
-        ).resolves.toEqual({
+        await expect(result.current.handleVerifyWallet(WALLET)).resolves.toEqual({
           success: true,
         });
       });
