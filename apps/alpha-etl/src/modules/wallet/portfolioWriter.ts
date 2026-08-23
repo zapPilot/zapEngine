@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 
 import { getTableName } from '../../config/database.js';
 import {
+  BaseWriter,
   createEmptyWriteResult,
   type WriteResult,
 } from '../../core/database/baseWriter.js';
@@ -12,12 +13,15 @@ import type {
   PortfolioSnapshotSource,
 } from '../../types/database.js';
 import { logger } from '../../utils/logger.js';
-import { DailySliceWriter, replaceDailySlices } from './dailySliceWriter.js';
+import {
+  recordReplacementResult,
+  replaceRowsInTransaction,
+} from './dailyReplacement.js';
 
 // Writes analytics.daily_portfolio_positions directly: the affected
 // (wallet, UTC day) slices are deleted and re-inserted in one transaction,
 // so a retried or repeated job always converges to the latest batch.
-export class PortfolioItemWriter extends DailySliceWriter<PortfolioItemSnapshotInsert> {
+export class PortfolioItemWriter extends BaseWriter<PortfolioItemSnapshotInsert> {
   protected override batchSize = 100;
 
   async writeSnapshots(
@@ -36,13 +40,19 @@ export class PortfolioItemWriter extends DailySliceWriter<PortfolioItemSnapshotI
       successfulWallets,
     );
 
-    return this.executeDailyReplacement({
+    if (replaceKeys.length === 0) {
+      return result;
+    }
+
+    return recordReplacementResult(
       result,
-      replace: (client) =>
-        this.replacePositions(client, positions, replaceKeys),
-      logMessage: 'Daily portfolio positions replaced',
-      walletDays: replaceKeys.length,
-    });
+      replaceKeys.length,
+      'Daily portfolio positions replaced',
+      () =>
+        this.withDatabaseClient((client) =>
+          this.replacePositions(client, positions, replaceKeys),
+        ),
+    );
   }
 
   private async replacePositions(
@@ -58,11 +68,12 @@ export class PortfolioItemWriter extends DailySliceWriter<PortfolioItemSnapshotI
       )
       .join(', ');
 
-    return replaceDailySlices(client, {
+    return replaceRowsInTransaction({
+      client,
       table,
-      deletePredicate: `(wallet, snapshot_date, source) IN (${keyPlaceholders})`,
+      deleteSql: `DELETE FROM ${table} WHERE (wallet, snapshot_date, source) IN (${keyPlaceholders})`,
       deleteValues: replaceKeys.flat(),
-      records: positions,
+      rows: positions,
       batchSize: this.batchSize,
       buildInsertValues: buildPortfolioInsertValues,
     });

@@ -69,6 +69,10 @@ gh run view <run-id> --log-failed
 - **Root blast radius:** `.env*`, lock/workspace/root package files, `turbo.json`,
   `.jscpd.json`, and `packages/*` can surface failures outside the edited app.
   Read the failed workspace/task before assigning ownership.
+- **Knip workspace config:** this repo's shared Knip config is a code helper, not
+  a JSON `extends` target. New TypeScript workspaces must use `knip.ts` with
+  `defineKnipConfig` from `@zapengine/knip-config/base`; keep framework/MDX-only
+  entries explicit and narrow instead of adding blanket deadcode ignores.
 - **Formatting loops:** follow **monorepo-lint-format-loop** rather than adding
   formatting workarounds here.
 - **iOS cancellation/timeouts:** follow

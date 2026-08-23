@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 
 import { getTableName } from '../../config/database.js';
 import {
+  BaseWriter,
   createEmptyWriteResult,
   type WriteResult,
 } from '../../core/database/baseWriter.js';
@@ -10,24 +11,33 @@ import type {
   DailyWalletTokenInsert,
   WalletBalanceSnapshotInsert,
 } from '../../types/database.js';
-import { DailySliceWriter, replaceDailySlices } from './dailySliceWriter.js';
+import {
+  recordReplacementResult,
+  replaceRowsInTransaction,
+} from './dailyReplacement.js';
 
-export class WalletBalanceWriter extends DailySliceWriter<WalletBalanceSnapshotInsert> {
+export class WalletBalanceWriter extends BaseWriter<WalletBalanceSnapshotInsert> {
   async writeWalletBalanceSnapshots(
     snapshots: WalletBalanceSnapshotInsert[],
     successfulWallets: string[] = [],
   ): Promise<WriteResult> {
     const result = createEmptyWriteResult();
     const tokens = toDailyWalletTokens(snapshots);
-
     const replaceKeys = collectReplaceKeys(tokens, successfulWallets);
 
-    return this.executeDailyReplacement({
+    if (replaceKeys.length === 0) {
+      return result;
+    }
+
+    return recordReplacementResult(
       result,
-      replace: (client) => this.replaceTokens(client, tokens, replaceKeys),
-      logMessage: 'Daily wallet tokens replaced',
-      walletDays: replaceKeys.length,
-    });
+      replaceKeys.length,
+      'Daily wallet tokens replaced',
+      () =>
+        this.withDatabaseClient((client) =>
+          this.replaceTokens(client, tokens, replaceKeys),
+        ),
+    );
   }
 
   private async replaceTokens(
@@ -40,11 +50,12 @@ export class WalletBalanceWriter extends DailySliceWriter<WalletBalanceSnapshotI
       .map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2}::date)`)
       .join(', ');
 
-    return replaceDailySlices(client, {
+    return replaceRowsInTransaction({
+      client,
       table,
-      deletePredicate: `(user_wallet_address, snapshot_date) IN (${keyPlaceholders})`,
+      deleteSql: `DELETE FROM ${table} WHERE (user_wallet_address, snapshot_date) IN (${keyPlaceholders})`,
       deleteValues: replaceKeys.flat(),
-      records: tokens,
+      rows: tokens,
       batchSize: this.batchSize,
       buildInsertValues,
     });

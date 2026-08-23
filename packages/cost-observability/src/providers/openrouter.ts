@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
+import { type CostSnapshot, type FetchLike } from '../types.js';
 import { currentUtcPeriod, projectMonthEnd } from '../time.js';
-import type { CostSnapshot, FetchLike } from '../types.js';
 
 const responseSchema = z.object({
   data: z.object({
