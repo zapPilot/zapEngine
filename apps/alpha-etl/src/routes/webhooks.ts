@@ -1,4 +1,9 @@
-import { type Request, type Response, Router } from 'express';
+import {
+  type NextFunction,
+  type Request,
+  type Response,
+  Router,
+} from 'express';
 import { z } from 'zod';
 
 import { etlJobQueue } from '../modules/core/jobQueueSingleton.js';
@@ -48,6 +53,27 @@ function buildValidationResponse(error: z.ZodError, requestId: string) {
   );
 }
 
+function requireWebhookSecret(req: Request, res: Response, next: NextFunction) {
+  const requestId = getRequestId(req.headers);
+  const webhookSecret = process.env['WEBHOOK_SECRET'];
+  const authorization = req.get('authorization');
+
+  if (!webhookSecret || authorization !== `Bearer ${webhookSecret}`) {
+    logger.warn('Unauthorized ETL job webhook request', { requestId });
+    return res
+      .status(401)
+      .json(
+        buildWebhookErrorApiResponse(
+          'UNAUTHORIZED',
+          'Invalid or missing webhook credential',
+          requestId,
+        ),
+      );
+  }
+
+  return next();
+}
+
 function jobRequestHandler(receivedLog: string, failedLog: string) {
   return async (req: Request, res: Response) => {
     const requestId = getRequestId(req.headers);
@@ -95,11 +121,13 @@ function jobRequestHandler(receivedLog: string, failedLog: string) {
 
 router.post(
   '/jobs',
+  requireWebhookSecret,
   jobRequestHandler('ETL job request received', 'ETL job request failed:'),
 );
 
 router.post(
   '/pipedream',
+  requireWebhookSecret,
   jobRequestHandler(
     'Pipedream compatibility webhook received',
     'Pipedream webhook processing failed:',

@@ -1,0 +1,34 @@
+name: Alpha ETL Daily Refresh
+
+on:
+  schedule:
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alpha-etl-daily-refresh
+  cancel-in-progress: false
+
+jobs:
+  enqueue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ALPHA_ETL_WEBHOOK_SECRET: ${{ secrets.ALPHA_ETL_WEBHOOK_SECRET }}
+      ALPHA_ETL_JOBS_URL: https://alpha-etl.fly.dev/webhooks/jobs
+    steps:
+      - name: Enqueue six-source daily refresh
+        run: |
+          if [ -z "$ALPHA_ETL_WEBHOOK_SECRET" ]; then
+            echo "ALPHA_ETL_WEBHOOK_SECRET is not configured" >&2
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-all-errors \
+            --request POST "$ALPHA_ETL_JOBS_URL" \
+            --header "Authorization: Bearer $ALPHA_ETL_WEBHOOK_SECRET" \
+            --header "Content-Type: application/json" \
+            --data '{}'
