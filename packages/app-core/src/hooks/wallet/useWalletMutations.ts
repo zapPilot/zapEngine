@@ -17,9 +17,10 @@ import type {
   WalletOperationStateSetter,
 } from '@core/types';
 import { validateNewWallet } from '@core/utils';
+import { logger } from '@core/utils/logger';
 import { useQueryClient } from '@tanstack/react-query';
 import { equalsAddress } from '@zapengine/types/shared';
-import { type Dispatch, type SetStateAction, useCallback } from 'react';
+import { type Dispatch, type SetStateAction, useCallback, useRef } from 'react';
 
 interface UseWalletMutationsParams {
   userId: string;
@@ -54,6 +55,7 @@ const ADD_OPERATION_NAME = 'adding wallet';
 const VERIFY_WALLET_ERROR = 'Failed to verify wallet';
 const VERIFY_SIGNER_ERROR = 'Switch to this wallet before verifying ownership';
 const VERIFY_OPERATION_NAME = 'verifying wallet';
+const walletMutationsLogger = logger.createContextLogger('WalletMutations');
 
 function createFailureResult(error: string): WalletMutationResult {
   return { success: false, error };
@@ -79,6 +81,8 @@ export function useWalletMutations({
 }: UseWalletMutationsParams): UseWalletMutationsReturn {
   const queryClient = useQueryClient();
   const { refetch } = useUser();
+  const signingAddressRef = useRef(signingAddress);
+  signingAddressRef.current = signingAddress;
 
   const setRemovingState = useCallback(
     (walletId: string, isLoading: boolean, error: string | null) => {
@@ -195,12 +199,20 @@ export function useWalletMutations({
         return createFailureResult(USER_ID_REQUIRED_ERROR);
       }
 
-      if (!equalsAddress(signingAddress, walletAddress)) {
+      const rejectStaleSigner = (): WalletMutationResult | null => {
+        if (equalsAddress(signingAddressRef.current, walletAddress)) {
+          return null;
+        }
         setWalletOperationState('verifying', walletAddress, {
           isLoading: false,
           error: VERIFY_SIGNER_ERROR,
         });
         return createFailureResult(VERIFY_SIGNER_ERROR);
+      };
+
+      const signerFailure = rejectStaleSigner();
+      if (signerFailure) {
+        return signerFailure;
       }
 
       setWalletOperationState('verifying', walletAddress, {
@@ -213,7 +225,17 @@ export function useWalletMutations({
           userId,
           walletAddress,
         );
+        const challengeSignerFailure = rejectStaleSigner();
+        if (challengeSignerFailure) {
+          return challengeSignerFailure;
+        }
+
         const signature = await signMessage(challenge.message);
+        const signatureSignerFailure = rejectStaleSigner();
+        if (signatureSignerFailure) {
+          return signatureSignerFailure;
+        }
+
         const response = await verifyBundledWallet(
           userId,
           walletAddress,
@@ -228,13 +250,24 @@ export function useWalletMutations({
           return createFailureResult(error);
         }
 
-        await invalidateAndRefetch({
-          queryClient,
-          queryKey: queryKeys.user.wallets(userId),
-          refetch,
-          operationName: VERIFY_OPERATION_NAME,
-        });
-        await loadWallets();
+        const refreshResults = await Promise.allSettled([
+          invalidateAndRefetch({
+            queryClient,
+            queryKey: queryKeys.user.wallets(userId),
+            refetch,
+            operationName: VERIFY_OPERATION_NAME,
+          }),
+          loadWallets(),
+        ]);
+        for (const refreshResult of refreshResults) {
+          if (refreshResult.status === 'rejected') {
+            walletMutationsLogger.warn(
+              '[wallet-verification] ownership persisted but wallet refresh failed:',
+              refreshResult.reason,
+            );
+          }
+        }
+
         setWalletOperationState('verifying', walletAddress, {
           isLoading: false,
           error: null,
@@ -251,7 +284,6 @@ export function useWalletMutations({
     },
     [
       userId,
-      signingAddress,
       signMessage,
       setWalletOperationState,
       queryClient,
