@@ -15,21 +15,14 @@ vi.mock('../../../src/utils/logger.js', async () => {
   return mockLogger();
 });
 
-// Mock incremental portfolio rollup synchronizer
+// Mock category trend synchronizer
 vi.mock('../../../src/modules/core/portfolioRollupSync.js', () => ({
   portfolioRollupSynchronizer: {
     synchronize: vi.fn().mockResolvedValue({
       durationMs: 5,
       metrics: {
-        portfolioKeysProcessed: 1,
-        walletKeysProcessed: 1,
         usersProcessed: 1,
-        portfolioRowsWritten: 1,
-        walletRowsWritten: 1,
         trendRowsWritten: 1,
-        remainingPortfolioKeys: 0,
-        remainingWalletKeys: 0,
-        remainingUsers: 0,
       },
     }),
   },
@@ -85,15 +78,8 @@ describe('ETLJobQueue', () => {
     vi.mocked(portfolioRollupSynchronizer.synchronize).mockResolvedValue({
       durationMs: 5,
       metrics: {
-        portfolioKeysProcessed: 1,
-        walletKeysProcessed: 1,
         usersProcessed: 1,
-        portfolioRowsWritten: 1,
-        walletRowsWritten: 1,
         trendRowsWritten: 1,
-        remainingPortfolioKeys: 0,
-        remainingWalletKeys: 0,
-        remainingUsers: 0,
       },
     });
   });
@@ -631,6 +617,7 @@ describe('ETLJobQueue', () => {
 
       expect(portfolioRollupSynchronizer.synchronize).toHaveBeenCalledWith(
         'debank-with-records',
+        null,
       );
     });
 
@@ -669,6 +656,7 @@ describe('ETLJobQueue', () => {
 
       expect(portfolioRollupSynchronizer.synchronize).toHaveBeenCalledWith(
         'wallet-job-zero',
+        ['user-123'],
       );
     });
 
@@ -704,6 +692,7 @@ describe('ETLJobQueue', () => {
 
       expect(portfolioRollupSynchronizer.synchronize).toHaveBeenCalledWith(
         'partial-failure-with-inserts',
+        null,
       );
       expect(job.status).toBe('failed');
 
@@ -712,7 +701,6 @@ describe('ETLJobQueue', () => {
     });
 
     it.each([
-      'hyperliquid',
       'feargreed',
       'macro-fear-greed',
       'token-price',
@@ -748,6 +736,41 @@ describe('ETLJobQueue', () => {
       await privateQueue(jobQueue).processNext();
 
       expect(portfolioRollupSynchronizer.synchronize).not.toHaveBeenCalled();
+    });
+
+    it('rebuilds all trends after Hyperliquid writes records', async () => {
+      mockProcessor.processJob.mockResolvedValue({
+        success: true,
+        recordsProcessed: 5,
+        recordsInserted: 5,
+        errors: [],
+        sourceResults: {
+          hyperliquid: {
+            source: 'hyperliquid',
+            success: true,
+            recordsProcessed: 5,
+            recordsInserted: 5,
+            errors: [],
+          },
+        },
+      });
+
+      vi.mocked(portfolioRollupSynchronizer.synchronize).mockClear();
+      const job = {
+        jobId: 'hyperliquid-write',
+        trigger: 'manual',
+        sources: ['hyperliquid'],
+        createdAt: new Date(),
+        status: 'pending',
+      };
+
+      privateQueue(jobQueue).jobs.set(job.jobId, job);
+      await privateQueue(jobQueue).processNext();
+
+      expect(portfolioRollupSynchronizer.synchronize).toHaveBeenCalledWith(
+        'hyperliquid-write',
+        null,
+      );
     });
 
     it('does not synchronize a failed wallet_fetch that wrote zero rows', async () => {

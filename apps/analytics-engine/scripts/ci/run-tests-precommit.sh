@@ -350,8 +350,33 @@ execute_sql_file() {
     fi
 
     if [[ "$env" == "managed_docker" ]]; then
-        # Execute via docker exec for managed container
-        docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" < "$sql_file"
+        # Prefer the host psql client so \ir paths are resolved relative to the
+        # local SQL file. Piping through docker exec makes psql resolve includes
+        # inside the container, where migration 026 is not available.
+        if command -v psql &> /dev/null; then
+            psql "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT}/${POSTGRES_DB}" \
+                -v ON_ERROR_STOP=1 -f "$sql_file"
+        else
+            # psql resolves \ir relative to the file passed with -f. Copy the
+            # bootstrap and migration tree into the container instead of piping
+            # stdin, which makes migration includes resolve from the wrong cwd.
+            local container_sql_root="/tmp/zapengine-analytics-sql"
+            docker exec "$POSTGRES_CONTAINER" mkdir -p \
+                "$container_sql_root/scripts/db" \
+                "$container_sql_root/migrations"
+            docker cp "$SCRIPT_DIR/../db/." \
+                "$POSTGRES_CONTAINER:$container_sql_root/scripts/db"
+            docker cp "$SCRIPT_DIR/../../migrations/." \
+                "$POSTGRES_CONTAINER:$container_sql_root/migrations"
+
+            local sql_basename
+            sql_basename=$(basename "$sql_file")
+            docker cp "$sql_file" \
+                "$POSTGRES_CONTAINER:$container_sql_root/scripts/db/$sql_basename"
+            docker exec "$POSTGRES_CONTAINER" psql \
+                -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+                -f "$container_sql_root/scripts/db/$sql_basename"
+        fi
     else
         # Execute via psql for external database
         # Use DATABASE_INTEGRATION_URL since it's the normalized async URL
@@ -415,16 +440,21 @@ apply_inline_compatibility_additions() {
 
 reset_managed_database() {
     printf '%b\n' "${YELLOW}[Pre-commit Tests] Resetting managed database...${NC}"
-    # Use drop schema cascade to clear everything in public schema without restarting container
-    # This is faster than restarting and sufficient for most tests
-    if docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" > /dev/null 2>&1; then
+    # Reset every snapshot schema. Keeping analytics/alpha_raw while replacing
+    # public can leave migration 026's function behind but remove its public
+    # compatibility views, producing an impossible half-migrated test state.
+    if docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA IF EXISTS private CASCADE; DROP SCHEMA IF EXISTS analytics CASCADE; DROP SCHEMA IF EXISTS alpha_raw CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;" > /dev/null 2>&1; then
        return 0
     else
        # If DROP fails (e.g. active connections), try to kill connections first
        docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
            SELECT pg_terminate_backend(pid) FROM pg_stat_activity
            WHERE pid <> pg_backend_pid() AND datname = '$POSTGRES_DB';
-           DROP SCHEMA public CASCADE; CREATE SCHEMA public;" > /dev/null 2>&1
+           DROP SCHEMA IF EXISTS private CASCADE;
+           DROP SCHEMA IF EXISTS analytics CASCADE;
+           DROP SCHEMA IF EXISTS alpha_raw CASCADE;
+           DROP SCHEMA public CASCADE;
+           CREATE SCHEMA public;" > /dev/null 2>&1
     fi
 }
 
@@ -438,7 +468,7 @@ reset_external_database() {
     fi
 
     connection_string=$(echo "$db_url" | sed -E 's#postgresql\+[^:]+://(.*)#postgresql://\1#')
-    psql "$connection_string" -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" > /dev/null 2>&1
+    psql "$connection_string" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS private CASCADE; DROP SCHEMA IF EXISTS analytics CASCADE; DROP SCHEMA IF EXISTS alpha_raw CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;" > /dev/null 2>&1
 }
 
 # Unified database schema setup for both managed Docker and external databases
@@ -494,12 +524,9 @@ setup_database_schema() {
     # Step 4: Apply comprehensive compatibility shim
     apply_schema_compat_shim "$env"
 
-    # Step 5: Ensure incremental portfolio rollup infra is installed even when
-    # schema dumps were used (migrations 023/024 add private.* tables and the
-    # process_portfolio_rollup_queue function). The bootstrap SQL is idempotent
-    # and skips existing objects (CREATE TABLE IF NOT EXISTS, CREATE OR REPLACE
-    # FUNCTION), so it is safe to run regardless of whether we used dumps or
-    # fresh bootstrap.
+    # Step 5: Ensure canonical daily snapshot infra is installed even when
+    # schema dumps were used. The bootstrap applies migrations 023/024/026 on
+    # first setup and skips that transition once the 026 trend function exists.
     bootstrap_schema "$env" || true
 
     printf '%b\n' "${GREEN}[Pre-commit Tests] Schema setup complete${NC}"

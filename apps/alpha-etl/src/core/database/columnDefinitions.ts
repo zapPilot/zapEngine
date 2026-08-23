@@ -120,6 +120,7 @@ export const DAILY_PORTFOLIO_POSITION_COLUMNS: readonly (keyof DailyPortfolioPos
     'detail',
     'snapshot_at',
     'snapshot_date',
+    'source',
     'has_supported_portfolio',
     'site_url',
     'asset_dict',

@@ -7,8 +7,11 @@ Each subdirectory is one pipeline. Keep the established fetch/transform/write/or
 ## Shared invariants
 
 - Writers must be idempotent because jobs can retry or replay.
+- Canonical daily writers replace only the successful provider's wallet/day slice. A successful empty provider response must still delete that slice so removed positions or tokens do not remain stale; failed provider responses must not delete it.
 - Respect provider rate limits through the existing shared limiter/base fetcher; do not bypass it with direct ad-hoc requests.
-- DeBank wallet writes and successful `wallet_fetch` jobs are the paths that enqueue portfolio rollup work. Other pipelines must not invoke portfolio rollups as a side effect.
+- DeBank and Hyperliquid position writes rebuild category trends. Successful
+  `wallet_fetch` jobs rebuild only `metadata.userId`; batch jobs pass `NULL` to
+  rebuild all users. Other pipelines must not rebuild category trends.
 - Alpha ETL admin Telegram settings stay under `TELEGRAM_*`; podcast-pipeline uses the separate `PIPELINE_TELEGRAM_*` namespace.
 - Database shape changes require the matching schema/type changes and SQL migration. `analytics-engine` reads `alpha_raw.*`, so breaking changes must be coordinated across that boundary.
 - Add a nested `AGENTS.md` only for module-specific traps that are not obvious from code/tests; do not copy these shared rules into every pipeline.

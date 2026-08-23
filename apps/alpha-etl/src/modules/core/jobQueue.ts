@@ -16,6 +16,7 @@ import {
   type PersistedJobStatus,
   type PersistJobMetadata,
   resolveJobSuccess,
+  resolveTrendUserScope,
   shouldPersistJobStatus,
   shouldSynchronizePortfolioRollups,
 } from './jobQueue.helpers.js';
@@ -243,7 +244,10 @@ export class ETLJobQueue {
       });
 
       return {
-        stats: await portfolioRollupSynchronizer.synchronize(job.jobId),
+        stats: await portfolioRollupSynchronizer.synchronize(
+          job.jobId,
+          resolveTrendUserScope(job),
+        ),
       };
     } catch (error) {
       const errorMessage = `Portfolio rollup synchronization failed: ${toErrorMessage(error)}`;

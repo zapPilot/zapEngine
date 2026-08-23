@@ -171,23 +171,105 @@ async def _acquire_test_setup_lock(session: AsyncSession) -> None:
     )
 
 
-async def _process_portfolio_rollup_queue(
+async def _replace_daily_snapshots_from_test_raw_data(
     session: AsyncSession,
     *,
     include_daily_portfolio: bool = True,
     include_daily_wallet_token: bool = True,
     include_portfolio_category_trend: bool = True,
 ) -> None:
-    del (
-        include_daily_portfolio,
-        include_daily_wallet_token,
-        include_portfolio_category_trend,
-    )
     await _set_local_lock_timeouts(session)
     await _acquire_test_setup_lock(session)
-    await session.execute(
-        text("SELECT * FROM private.process_portfolio_rollup_queue()")
-    )
+    if include_daily_portfolio:
+        await session.execute(text("TRUNCATE analytics.daily_portfolio_positions"))
+        await session.execute(
+            text(
+                """
+                WITH latest_protocol_batch AS (
+                  SELECT
+                    wallet_lower,
+                    name,
+                    snapshot_date_utc,
+                    max(snapshot_at) AS latest_snapshot_at
+                  FROM portfolio_item_snapshots
+                  GROUP BY wallet_lower, name, snapshot_date_utc
+                )
+                INSERT INTO analytics.daily_portfolio_positions (
+                  id, wallet, snapshot_at, snapshot_date, chain,
+                  has_supported_portfolio, id_raw, logo_url, name, site_url,
+                  asset_dict, asset_token_list, detail, detail_types, pool,
+                  proxy_detail, asset_usd_value, debt_usd_value, net_usd_value,
+                  update_at, name_item, source
+                )
+                SELECT
+                  snapshots.id,
+                  snapshots.wallet_lower,
+                  snapshots.snapshot_at,
+                  snapshots.snapshot_date_utc,
+                  snapshots.chain,
+                  snapshots.has_supported_portfolio,
+                  snapshots.id_raw,
+                  snapshots.logo_url,
+                  snapshots.name,
+                  snapshots.site_url,
+                  snapshots.asset_dict,
+                  snapshots.asset_token_list,
+                  snapshots.detail,
+                  snapshots.detail_types,
+                  snapshots.pool,
+                  snapshots.proxy_detail,
+                  snapshots.asset_usd_value,
+                  snapshots.debt_usd_value,
+                  snapshots.net_usd_value,
+                  snapshots.update_at,
+                  snapshots.name_item,
+                  CASE
+                    WHEN snapshots.chain = 'hyperliquid' THEN 'hyperliquid'
+                    ELSE 'debank'
+                  END
+                FROM portfolio_item_snapshots AS snapshots
+                JOIN latest_protocol_batch AS latest
+                  ON latest.wallet_lower = snapshots.wallet_lower
+                 AND latest.name = snapshots.name
+                 AND latest.snapshot_date_utc = snapshots.snapshot_date_utc
+                 AND latest.latest_snapshot_at = snapshots.snapshot_at
+                """
+            )
+        )
+    if include_daily_wallet_token:
+        await session.execute(text("TRUNCATE analytics.daily_wallet_tokens"))
+        await session.execute(
+            text(
+                """
+                INSERT INTO analytics.daily_wallet_tokens (
+                  user_wallet_address, token_address, chain, symbol,
+                  amount, price, snapshot_date
+                )
+                SELECT
+                  lower(user_wallet_address),
+                  token_address,
+                  chain,
+                  symbol,
+                  amount,
+                  price,
+                  inserted_at::date
+                FROM alpha_raw.wallet_token_snapshots
+                WHERE is_wallet IS TRUE
+                  AND token_address IS NOT NULL
+                  AND btrim(token_address) <> ''
+                ON CONFLICT (
+                  user_wallet_address, token_address, chain, snapshot_date
+                ) DO UPDATE SET
+                  symbol = EXCLUDED.symbol,
+                  amount = EXCLUDED.amount,
+                  price = EXCLUDED.price
+                """
+            )
+        )
+    if include_portfolio_category_trend:
+        await session.execute(
+            text("SELECT * FROM analytics.rebuild_category_trends(NULL)")
+        )
 
 
 async def refresh_mv_session(
@@ -197,10 +279,10 @@ async def refresh_mv_session(
     include_daily_wallet_token: bool = True,
     include_portfolio_category_trend: bool = True,
 ) -> None:
-    """Drain integration portfolio rollup queues with lock retries."""
+    """Replace canonical daily test data with lock retries."""
     for attempt in range(1, INTEGRATION_DB_LOCK_RETRY_ATTEMPTS + 1):
         try:
-            await _process_portfolio_rollup_queue(
+            await _replace_daily_snapshots_from_test_raw_data(
                 session,
                 include_daily_portfolio=include_daily_portfolio,
                 include_daily_wallet_token=include_daily_wallet_token,
@@ -686,7 +768,7 @@ async def build_multi_protocol_snapshot(
 @pytest.fixture(scope="session", autouse=True)
 async def ensure_incremental_rollups_exist(request: pytest.FixtureRequest):
     """
-    Verify incremental portfolio rollups exist in the integration database.
+    Verify canonical daily snapshots exist in the integration database.
 
     Integration tests assume database has migrations pre-applied.
     This fixture validates setup and provides a helpful error if they are missing.
@@ -737,18 +819,15 @@ async def ensure_incremental_rollups_exist(request: pytest.FixtureRequest):
                     f"{schema_name}.{relation_name}.\n"
                     "Apply migrations:\n"
                     "  psql <db> < migrations/023_prepare_incremental_portfolio_rollups.sql\n"
-                    "  psql <db> < migrations/024_activate_incremental_portfolio_rollups.sql"
+                    "  psql <db> < migrations/024_activate_incremental_portfolio_rollups.sql\n"
+                    "  psql <db> < migrations/026_daily_batch_snapshots.sql"
                 )
 
         processor = await conn.execute(
-            text(
-                "SELECT to_regprocedure("
-                "'private.process_portfolio_rollup_queue(integer)'"
-                ")"
-            )
+            text("SELECT to_regprocedure('analytics.rebuild_category_trends(text[])')")
         )
         if processor.scalar() is None:
-            pytest.fail("Integration test database is missing the rollup processor.")
+            pytest.fail("Integration test database is missing the trend rebuild.")
 
         retired_table = await conn.execute(
             text("SELECT to_regclass('alpha_raw.pool_apr_snapshots')")
@@ -762,9 +841,9 @@ async def ensure_incremental_rollups_exist(request: pytest.FixtureRequest):
 @pytest.fixture
 async def refresh_integration_mv(integration_db_session: AsyncSession):
     """
-    Process incremental portfolio rollups in integration tests.
+    Replace canonical daily data in integration tests.
 
     Call after inserting portfolio snapshots to update compatibility views.
-    Mirrors the production post-DeBank workflow.
+    Mirrors the production direct-write and trend-rebuild workflow.
     """
     await refresh_mv_session(integration_db_session)

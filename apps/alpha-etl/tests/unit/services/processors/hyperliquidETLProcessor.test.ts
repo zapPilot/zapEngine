@@ -274,6 +274,18 @@ describe("HyperliquidVaultETLProcessor", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    mockPortfolioWriter.writeSnapshots.mockResolvedValue({
+      success: true,
+      recordsInserted: 0,
+      duplicatesSkipped: 0,
+      errors: [],
+    });
+    mockAprWriter.writeSnapshots.mockResolvedValue({
+      success: true,
+      recordsInserted: 0,
+      duplicatesSkipped: 0,
+      errors: [],
+    });
     const { HyperliquidVaultETLProcessor } =
       await import("../../../../src/modules/hyperliquid/processor.js");
     processor = new HyperliquidVaultETLProcessor();
@@ -448,9 +460,11 @@ describe("HyperliquidVaultETLProcessor", () => {
         aprData,
         vaultDetails,
       );
-      expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith([
-        portfolioSnapshot,
-      ]);
+      expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith(
+        [portfolioSnapshot],
+        "hyperliquid",
+        ["0xwallet1"],
+      );
       expect(mockAprWriter.writeSnapshots).toHaveBeenCalledWith([aprSnapshot]);
 
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -579,7 +593,11 @@ describe("HyperliquidVaultETLProcessor", () => {
       expect(result.success).toBe(true);
       expect(result.recordsProcessed).toBe(1);
       expect(result.recordsInserted).toBe(1);
-      expect(mockPortfolioWriter.writeSnapshots).not.toHaveBeenCalled();
+      expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith(
+        [],
+        "hyperliquid",
+        ["0xwallet1"],
+      );
       expect(mockAprWriter.writeSnapshots).toHaveBeenCalledWith([aprSnapshot]);
     });
 
@@ -625,9 +643,11 @@ describe("HyperliquidVaultETLProcessor", () => {
         },
       );
 
-      expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith([
-        portfolioSnapshot,
-      ]);
+      expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith(
+        [portfolioSnapshot],
+        "hyperliquid",
+        ["0xwallet1"],
+      );
       expect(mockAprWriter.writeSnapshots).not.toHaveBeenCalled();
     });
 
@@ -1153,7 +1173,7 @@ describe("HyperliquidVaultETLProcessor", () => {
   });
 
   describe("Data Flow - Empty Scenarios", () => {
-    it("should skip portfolio write when no position records", async () => {
+    it("should clear the portfolio slice when no position records", async () => {
       const job = createMockJob();
       const vipUser = createMockVipUser("user-1", "0xwallet1");
       const vaultDetails = createMockVaultDetails("0xvault1");
@@ -1181,7 +1201,11 @@ describe("HyperliquidVaultETLProcessor", () => {
 
       expect(result.success).toBe(true);
       expect(result.recordsInserted).toBe(1);
-      expect(mockPortfolioWriter.writeSnapshots).not.toHaveBeenCalled();
+      expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith(
+        [],
+        "hyperliquid",
+        ["0xwallet1"],
+      );
       expect(mockAprWriter.writeSnapshots).toHaveBeenCalledWith([aprSnapshot]);
     });
 
@@ -1215,13 +1239,15 @@ describe("HyperliquidVaultETLProcessor", () => {
 
       expect(result.success).toBe(false);
       expect(result.recordsInserted).toBe(1);
-      expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith([
-        portfolioSnapshot,
-      ]);
+      expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith(
+        [portfolioSnapshot],
+        "hyperliquid",
+        ["0xwallet1"],
+      );
       expect(mockAprWriter.writeSnapshots).not.toHaveBeenCalled();
     });
 
-    it("should complete successfully with no writes when both are empty", async () => {
+    it("should clear the portfolio slice when position and APR results are empty", async () => {
       const job = createMockJob();
       const vipUser = createMockVipUser("user-1", "0xwallet1");
       const vaultDetails = createMockVaultDetails("0xvault1");
@@ -1242,7 +1268,11 @@ describe("HyperliquidVaultETLProcessor", () => {
       expect(result.success).toBe(false);
       expect(result.recordsProcessed).toBe(1);
       expect(result.recordsInserted).toBe(0);
-      expect(mockPortfolioWriter.writeSnapshots).not.toHaveBeenCalled();
+      expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith(
+        [],
+        "hyperliquid",
+        ["0xwallet1"],
+      );
       expect(mockAprWriter.writeSnapshots).not.toHaveBeenCalled();
     });
   });
@@ -1657,6 +1687,18 @@ describe("HyperliquidVaultETLProcessor", () => {
       mockHyperliquidFetcher.extractAprData.mockReturnValue(aprData);
       mockTransformer.transformPosition.mockReturnValue(portfolioSnapshot);
       mockTransformer.transformApr.mockReturnValue(aprSnapshot);
+      mockPortfolioWriter.writeSnapshots.mockResolvedValue({
+        success: true,
+        recordsInserted: 1,
+        duplicatesSkipped: 0,
+        errors: [],
+      });
+      mockAprWriter.writeSnapshots.mockResolvedValue({
+        success: true,
+        recordsInserted: 1,
+        duplicatesSkipped: 0,
+        errors: [],
+      });
 
       const result = await processor.process(createMockJob());
 

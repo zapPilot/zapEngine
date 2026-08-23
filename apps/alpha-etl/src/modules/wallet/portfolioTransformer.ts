@@ -116,7 +116,7 @@ export class DeBankPortfolioTransformer {
     const results: PortfolioItemSnapshotInsert[] = [];
 
     // Generate ONE timestamp for the entire batch to ensure consistent snapshot time
-    // This lets the incremental rollup keep every item in the latest protocol batch.
+    // This lets the canonical daily table keep every item in the protocol batch.
     const batchTimestamp = new Date().toISOString();
 
     for (const protocol of protocols) {

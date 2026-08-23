@@ -111,13 +111,97 @@ def _set_local_lock_timeouts(conn) -> None:
     conn.execute(text("SET LOCAL statement_timeout = '120s'"))
 
 
-def _process_portfolio_rollup_queue(
+def _replace_daily_snapshots_from_test_raw_data(
     conn, *, include_portfolio_category_trend: bool = True
 ) -> None:
-    del include_portfolio_category_trend
     _set_local_lock_timeouts(conn)
     _acquire_test_setup_lock(conn)
-    conn.execute(text("SELECT * FROM private.process_portfolio_rollup_queue()"))
+    conn.execute(text("TRUNCATE analytics.daily_portfolio_positions"))
+    conn.execute(
+        text(
+            """
+            WITH latest_protocol_batch AS (
+              SELECT
+                wallet_lower,
+                name,
+                snapshot_date_utc,
+                max(snapshot_at) AS latest_snapshot_at
+              FROM portfolio_item_snapshots
+              GROUP BY wallet_lower, name, snapshot_date_utc
+            )
+            INSERT INTO analytics.daily_portfolio_positions (
+              id, wallet, snapshot_at, snapshot_date, chain,
+              has_supported_portfolio, id_raw, logo_url, name, site_url,
+              asset_dict, asset_token_list, detail, detail_types, pool,
+              proxy_detail, asset_usd_value, debt_usd_value, net_usd_value,
+              update_at, name_item, source
+            )
+            SELECT
+              snapshots.id,
+              snapshots.wallet_lower,
+              snapshots.snapshot_at,
+              snapshots.snapshot_date_utc,
+              snapshots.chain,
+              snapshots.has_supported_portfolio,
+              snapshots.id_raw,
+              snapshots.logo_url,
+              snapshots.name,
+              snapshots.site_url,
+              snapshots.asset_dict,
+              snapshots.asset_token_list,
+              snapshots.detail,
+              snapshots.detail_types,
+              snapshots.pool,
+              snapshots.proxy_detail,
+              snapshots.asset_usd_value,
+              snapshots.debt_usd_value,
+              snapshots.net_usd_value,
+              snapshots.update_at,
+              snapshots.name_item,
+              CASE
+                WHEN snapshots.chain = 'hyperliquid' THEN 'hyperliquid'
+                ELSE 'debank'
+              END
+            FROM portfolio_item_snapshots AS snapshots
+            JOIN latest_protocol_batch AS latest
+              ON latest.wallet_lower = snapshots.wallet_lower
+             AND latest.name = snapshots.name
+             AND latest.snapshot_date_utc = snapshots.snapshot_date_utc
+             AND latest.latest_snapshot_at = snapshots.snapshot_at
+            """
+        )
+    )
+    conn.execute(text("TRUNCATE analytics.daily_wallet_tokens"))
+    conn.execute(
+        text(
+            """
+            INSERT INTO analytics.daily_wallet_tokens (
+              user_wallet_address, token_address, chain, symbol,
+              amount, price, snapshot_date
+            )
+            SELECT
+              lower(user_wallet_address),
+              token_address,
+              chain,
+              symbol,
+              amount,
+              price,
+              inserted_at::date
+            FROM alpha_raw.wallet_token_snapshots
+            WHERE is_wallet IS TRUE
+              AND token_address IS NOT NULL
+              AND btrim(token_address) <> ''
+            ON CONFLICT (
+              user_wallet_address, token_address, chain, snapshot_date
+            ) DO UPDATE SET
+              symbol = EXCLUDED.symbol,
+              amount = EXCLUDED.amount,
+              price = EXCLUDED.price
+            """
+        )
+    )
+    if include_portfolio_category_trend:
+        conn.execute(text("SELECT * FROM analytics.rebuild_category_trends(NULL)"))
 
 
 def _truncate_test_tables(conn) -> None:
@@ -129,12 +213,9 @@ def _truncate_test_tables(conn) -> None:
         "users",
         "plans",
         "mv_portfolio_summary_v2",
-        "private.daily_portfolio_snapshots_cache",
-        "private.daily_wallet_token_snapshots_cache",
-        "private.portfolio_category_trend_cache",
-        "private.portfolio_rollup_dirty_portfolio",
-        "private.portfolio_rollup_dirty_wallet",
-        "private.portfolio_rollup_dirty_users",
+        "analytics.daily_portfolio_positions",
+        "analytics.daily_wallet_tokens",
+        "analytics.daily_category_trends",
     ]
     existing_tables = [
         table for table in table_candidates if _table_exists(conn, table)
@@ -150,7 +231,7 @@ def _initialize_test_database(engine) -> None:
             _set_local_lock_timeouts(conn)
             _acquire_test_setup_lock(conn)
             _ensure_test_schema_and_tables(conn)
-            _ensure_test_incremental_rollups(conn)
+            _ensure_test_daily_snapshots(conn)
             _truncate_test_tables(conn)
             _seed_test_reference_data(conn)
 
@@ -275,15 +356,13 @@ def _ensure_test_schema_and_tables(conn) -> None:
     )
 
 
-def _ensure_test_incremental_rollups(conn) -> None:
+def _ensure_test_daily_snapshots(conn) -> None:
     processor = conn.execute(
-        text(
-            "SELECT to_regprocedure('private.process_portfolio_rollup_queue(integer)')"
-        )
+        text("SELECT to_regprocedure('analytics.rebuild_category_trends(text[])')")
     ).scalar()
     if processor is None:
         raise RuntimeError(
-            "Incremental portfolio rollups are not installed. "
+            "Canonical daily snapshots are not installed. "
             "Run scripts/db/bootstrap-integration-db.sh before tests."
         )
 
@@ -411,13 +490,13 @@ def query_service():
 
 @pytest.fixture
 def refresh_materialized_views(db_session: Session):
-    """Drain the incremental rollup queue with lock retry protection."""
+    """Replace canonical daily test data, then rebuild category trends."""
 
     def _refresh(*, include_portfolio_category_trend: bool = True) -> None:
         for attempt in range(1, TEST_DB_LOCK_RETRY_ATTEMPTS + 1):
             try:
                 with db_session.begin_nested():
-                    _process_portfolio_rollup_queue(
+                    _replace_daily_snapshots_from_test_raw_data(
                         db_session.connection(),
                         include_portfolio_category_trend=include_portfolio_category_trend,
                     )
@@ -437,11 +516,10 @@ def refresh_materialized_views(db_session: Session):
 @pytest.fixture
 def refresh_portfolio_mv(refresh_materialized_views):
     """
-    Process portfolio rollups after inserting test data.
+    Replace canonical daily data after inserting test fixtures.
 
-    In production, DeBank invokes the same incremental processor immediately and
-    the 30-minute cron is a fallback. Tests keep the historical fixture name to
-    avoid obscuring query-test intent.
+    Production alpha-etl writes the daily tables directly. Tests keep the
+    historical fixture name to avoid obscuring query-test intent.
 
     Usage:
         def test_portfolio_trend(db_session, refresh_portfolio_mv):
@@ -449,7 +527,7 @@ def refresh_portfolio_mv(refresh_materialized_views):
             db_session.execute(text("INSERT INTO portfolio_item_snapshots ..."))
             db_session.commit()
 
-            # Drain dirty keys with the production processor
+            # Replace the daily test slice and rebuild category trends
             refresh_portfolio_mv()
 
             # Query the compatibility view - now contains fresh data

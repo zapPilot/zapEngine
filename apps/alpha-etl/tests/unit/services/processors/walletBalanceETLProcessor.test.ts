@@ -354,8 +354,10 @@ describe("WalletBalanceETLProcessor", () => {
         },
       );
 
-      // Writer is still called with empty array
-      expect(mockWriter.writeWalletBalanceSnapshots).toHaveBeenCalledWith([]);
+      // Successful empty data clears the wallet/day slice.
+      expect(mockWriter.writeWalletBalanceSnapshots).toHaveBeenCalledWith([], [
+        "0x1234567890123456789012345678901234567890",
+      ]);
     });
   });
 

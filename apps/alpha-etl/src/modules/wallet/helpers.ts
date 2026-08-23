@@ -129,6 +129,7 @@ export function createWalletLoadCallback(
   portfolioWriter: PortfolioItemWriter,
   jobId: string,
   logPrefix: string,
+  getSuccessfulWallets: () => string[],
 ): (transformedData: WalletETLRecord[]) => Promise<WalletLoadResult> {
   return async (transformedData: WalletETLRecord[]) => {
     const { walletRecords: walletData, portfolioRecords: portfolioData } =
@@ -140,8 +141,16 @@ export function createWalletLoadCallback(
       portfolioRecords: portfolioData.length,
     });
 
-    const portfolioResult = await portfolioWriter.writeSnapshots(portfolioData);
-    const balanceResult = await writer.writeWalletBalanceSnapshots(walletData);
+    const successfulWallets = getSuccessfulWallets();
+    const portfolioResult = await portfolioWriter.writeSnapshots(
+      portfolioData,
+      'debank',
+      successfulWallets,
+    );
+    const balanceResult = await writer.writeWalletBalanceSnapshots(
+      walletData,
+      successfulWallets,
+    );
     const loadResult = createWalletLoadResult(balanceResult, portfolioResult);
 
     logger.info(`${logPrefix} - Database write completed`, {

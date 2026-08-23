@@ -23,15 +23,8 @@ vi.mock('../../../../src/modules/core/portfolioRollupSync.js', () => ({
     synchronize: vi.fn().mockResolvedValue({
       durationMs: 0,
       metrics: {
-        portfolioKeysProcessed: 0,
-        walletKeysProcessed: 0,
         usersProcessed: 0,
-        portfolioRowsWritten: 0,
-        walletRowsWritten: 0,
         trendRowsWritten: 0,
-        remainingPortfolioKeys: 0,
-        remainingWalletKeys: 0,
-        remainingUsers: 0,
       },
     }),
   },

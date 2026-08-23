@@ -1,4 +1,4 @@
-"""Regression tests for the database-owned incremental portfolio rollups."""
+"""Regression tests for canonical daily batch snapshots and trend rebuilds."""
 
 from __future__ import annotations
 
@@ -30,26 +30,26 @@ def _insert_user_and_wallet(
     )
 
 
-def _insert_portfolio_snapshot(
+def _insert_daily_position(
     db_session: Session,
     *,
     snapshot_id: str,
-    user_id: str,
     wallet: str,
-    protocol: str,
     snapshot_at: str,
+    snapshot_date: str,
+    name_item: str,
     symbol: str,
     amount: str,
-    price: str = "1",
+    source: str = "debank",
 ) -> None:
     db_session.execute(
         text(
             """
-            INSERT INTO portfolio_item_snapshots (
+            INSERT INTO analytics.daily_portfolio_positions (
               id,
-              user_id,
               wallet,
               snapshot_at,
+              snapshot_date,
               chain,
               name,
               id_raw,
@@ -57,197 +57,169 @@ def _insert_portfolio_snapshot(
               asset_token_list,
               asset_usd_value,
               debt_usd_value,
-              net_usd_value
+              net_usd_value,
+              source
             )
             VALUES (
               :snapshot_id,
-              :user_id,
-              :wallet,
+              lower(:wallet),
               :snapshot_at,
+              CAST(:snapshot_date AS date),
               'ethereum',
-              :protocol,
-              :protocol,
-              :snapshot_id,
+              'morpho',
+              'shared-protocol-id',
+              :name_item,
               CAST(:asset_token_list AS jsonb),
-              CAST(:amount AS numeric) * CAST(:price AS numeric),
+              CAST(:amount AS numeric),
               0,
-              CAST(:amount AS numeric) * CAST(:price AS numeric)
+              CAST(:amount AS numeric),
+              :source
             )
             """
         ),
         {
             "snapshot_id": snapshot_id,
-            "user_id": user_id,
             "wallet": wallet,
-            "protocol": protocol,
             "snapshot_at": snapshot_at,
+            "snapshot_date": snapshot_date,
+            "name_item": name_item,
             "asset_token_list": json.dumps(
-                [{"symbol": symbol, "amount": amount, "price": price}]
+                [{"symbol": symbol, "amount": amount, "price": "1"}]
             ),
             "amount": amount,
-            "price": price,
+            "source": source,
         },
     )
 
 
-def test_incremental_rollups_preserve_batches_latest_wallet_and_trend_history(
+def _rebuild_trends(db_session: Session, user_ids: list[str] | None):
+    return (
+        db_session.execute(
+            text(
+                """
+                SELECT users_processed, trend_rows_written
+                FROM analytics.rebuild_category_trends(:user_ids)
+                """
+            ),
+            {"user_ids": user_ids},
+        )
+        .mappings()
+        .one()
+    )
+
+
+def test_replace_batches_preserve_positions_and_complete_wallet_tokens(
     db_session: Session,
-    refresh_materialized_views,
 ) -> None:
     wallet = "0xAbC"
     _insert_user_and_wallet(
         db_session,
-        user_id="rollup-user-a",
-        wallet_id="rollup-wallet-a",
+        user_id="daily-user",
+        wallet_id="daily-wallet",
         wallet=wallet,
     )
-    db_session.execute(text("INSERT INTO users (id) VALUES ('rollup-user-b')"))
 
-    _insert_portfolio_snapshot(
+    _insert_daily_position(
         db_session,
-        snapshot_id="morpho-old",
-        user_id="rollup-user-a",
+        snapshot_id="old-position",
         wallet=wallet,
-        protocol="morpho",
         snapshot_at="2026-07-20T09:00:00Z",
+        snapshot_date="2026-07-20",
+        name_item="old",
         symbol="USDC",
         amount="1",
     )
-    # Two legitimate positions share one protocol-level id_raw and timestamp.
-    _insert_portfolio_snapshot(
+
+    # A retry replaces the whole wallet/day slice. Both rows in the replacement
+    # are legitimate even though their protocol-level id_raw is identical.
+    db_session.execute(
+        text(
+            """
+            DELETE FROM analytics.daily_portfolio_positions
+            WHERE wallet = lower(:wallet)
+              AND snapshot_date = DATE '2026-07-20'
+              AND source = 'debank'
+            """
+        ),
+        {"wallet": wallet},
+    )
+    _insert_daily_position(
         db_session,
-        snapshot_id="morpho-latest-a",
-        user_id="rollup-user-a",
+        snapshot_id="latest-a",
         wallet=wallet,
-        protocol="morpho",
         snapshot_at="2026-07-20T10:00:00Z",
+        snapshot_date="2026-07-20",
+        name_item="position-a",
         symbol="USDC",
         amount="2",
     )
-    _insert_portfolio_snapshot(
+    _insert_daily_position(
         db_session,
-        snapshot_id="morpho-latest-b",
-        user_id="rollup-user-a",
+        snapshot_id="latest-b",
         wallet=wallet,
-        protocol="morpho",
         snapshot_at="2026-07-20T10:00:00Z",
+        snapshot_date="2026-07-20",
+        name_item="position-b",
         symbol="USDC",
         amount="3",
     )
-    _insert_portfolio_snapshot(
+    _insert_daily_position(
         db_session,
-        snapshot_id="aave-latest",
-        user_id="rollup-user-a",
+        snapshot_id="day-two",
         wallet=wallet,
-        protocol="aave",
-        snapshot_at="2026-07-20T08:00:00Z",
-        symbol="WETH",
-        amount="2",
-        price="20",
+        snapshot_at="2026-07-21T10:00:00Z",
+        snapshot_date="2026-07-21",
+        name_item="position-c",
+        symbol="USDC",
+        amount="8",
     )
 
     db_session.execute(
         text(
             """
-            INSERT INTO alpha_raw.wallet_token_snapshots (
-              id,
+            INSERT INTO analytics.daily_wallet_tokens (
               user_wallet_address,
               token_address,
               chain,
               symbol,
               amount,
               price,
-              is_wallet,
-              time_at,
-              inserted_at
+              snapshot_date
             )
             VALUES
-              ('wallet-old', :wallet, '0xold', 'ethereum', 'WBTC', 1, 10, true, 100, '2026-07-20'),
-              ('wallet-latest-a', :wallet, '0xa', 'ethereum', 'WBTC', 2, 10, true, 200, '2026-07-20'),
-              ('wallet-latest-b', :wallet, '0xb', 'ethereum', 'ETH', 1, 20, true, 200, '2026-07-20')
+              (lower(:wallet), '0xa', 'ethereum', 'WBTC', 2, 10, DATE '2026-07-20'),
+              (lower(:wallet), '0xb', 'ethereum', 'ETH', 1, 20, DATE '2026-07-20')
             """
         ),
         {"wallet": wallet},
     )
 
-    refresh_materialized_views()
+    metrics = _rebuild_trends(db_session, ["daily-user"])
 
-    portfolio_ids = db_session.execute(
-        text(
-            """
-            SELECT id
-            FROM daily_portfolio_snapshots
-            ORDER BY id
-            """
-        )
+    assert metrics["users_processed"] == 1
+    assert metrics["trend_rows_written"] > 0
+    ids = db_session.execute(
+        text("SELECT id FROM daily_portfolio_snapshots ORDER BY id")
     ).scalars()
-    assert list(portfolio_ids) == [
-        "aave-latest",
-        "morpho-latest-a",
-        "morpho-latest-b",
-    ]
+    assert list(ids) == ["day-two", "latest-a", "latest-b"]
 
-    wallet_ids = db_session.execute(
+    wallet_tokens = db_session.execute(
         text(
             """
-            SELECT id
+            SELECT token_address
             FROM alpha_raw.daily_wallet_token_snapshots
-            ORDER BY id
+            ORDER BY token_address
             """
         )
     ).scalars()
-    assert list(wallet_ids) == ["wallet-latest-a", "wallet-latest-b"]
-
-    # Moving a row between protocol keys invalidates both old and new keys.
-    db_session.execute(
-        text(
-            """
-            UPDATE portfolio_item_snapshots
-            SET name = 'compound'
-            WHERE id = 'aave-latest'
-            """
-        )
-    )
-    refresh_materialized_views()
-    moved_protocol = db_session.execute(
-        text(
-            """
-            SELECT name
-            FROM daily_portfolio_snapshots
-            WHERE id = 'aave-latest'
-            """
-        )
-    ).scalar_one()
-    stale_protocol_rows = db_session.execute(
-        text(
-            """
-            SELECT count(*)
-            FROM daily_portfolio_snapshots
-            WHERE name = 'aave'
-            """
-        )
-    ).scalar_one()
-    assert moved_protocol == "compound"
-    assert stale_protocol_rows == 0
-
-    _insert_portfolio_snapshot(
-        db_session,
-        snapshot_id="morpho-day-two",
-        user_id="rollup-user-a",
-        wallet=wallet,
-        protocol="morpho",
-        snapshot_at="2026-07-21T10:00:00Z",
-        symbol="USDC",
-        amount="8",
-    )
-    refresh_materialized_views()
+    assert list(wallet_tokens) == ["0xa", "0xb"]
 
     stablecoin_trend = db_session.execute(
         text(
             """
             SELECT date, category_value_usd, pnl_usd
             FROM portfolio_category_trend_mv
-            WHERE user_id = 'rollup-user-a'
+            WHERE user_id = 'daily-user'
               AND source_type = 'defi'
               AND category = 'stablecoins'
             ORDER BY date
@@ -262,114 +234,65 @@ def test_incremental_rollups_preserve_batches_latest_wallet_and_trend_history(
         ("2026-07-21", 8.0, 3.0),
     ]
 
-    # Rebinding a wallet rebuilds both users' complete histories.
-    db_session.execute(
-        text(
-            """
-            UPDATE user_crypto_wallets
-            SET user_id = 'rollup-user-b'
-            WHERE id = 'rollup-wallet-a'
-            """
-        )
-    )
-    refresh_materialized_views()
 
-    old_user_rows = db_session.execute(
-        text(
-            """
-            SELECT count(*)
-            FROM portfolio_category_trend_mv
-            WHERE user_id = 'rollup-user-a'
-            """
-        )
-    ).scalar_one()
-    new_user_rows = db_session.execute(
-        text(
-            """
-            SELECT count(*)
-            FROM portfolio_category_trend_mv
-            WHERE user_id = 'rollup-user-b'
-            """
-        )
-    ).scalar_one()
-    assert old_user_rows == 0
-    assert new_user_rows > 0
-
-    # Deleting the latest protocol batch exposes the previous batch.
-    db_session.execute(
-        text(
-            """
-            DELETE FROM portfolio_item_snapshots
-            WHERE id IN ('morpho-latest-a', 'morpho-latest-b')
-            """
-        )
-    )
-    refresh_materialized_views()
-    morpho_ids = db_session.execute(
-        text(
-            """
-            SELECT id
-            FROM daily_portfolio_snapshots
-            WHERE name = 'morpho'
-              AND snapshot_date = DATE '2026-07-20'
-            """
-        )
-    ).scalars()
-    assert list(morpho_ids) == ["morpho-old"]
-
-    empty_run = (
-        db_session.execute(
-            text("SELECT * FROM private.process_portfolio_rollup_queue()")
-        )
-        .mappings()
-        .one()
-    )
-    assert empty_run["portfolio_keys_processed"] == 0
-    assert empty_run["wallet_keys_processed"] == 0
-    assert empty_run["users_processed"] == 0
-
-
-def test_rollup_queue_dequeue_rolls_back_atomically(
+def test_scoped_trend_rebuild_is_idempotent_and_transactional(
     db_session: Session,
 ) -> None:
     _insert_user_and_wallet(
         db_session,
-        user_id="rollback-user",
-        wallet_id="rollback-wallet",
-        wallet="0xRollback",
+        user_id="trend-user",
+        wallet_id="trend-wallet",
+        wallet="0xTrend",
     )
-    _insert_portfolio_snapshot(
+    _insert_daily_position(
         db_session,
-        snapshot_id="rollback-snapshot",
-        user_id="rollback-user",
-        wallet="0xRollback",
-        protocol="aave",
+        snapshot_id="trend-position",
+        wallet="0xTrend",
         snapshot_at="2026-07-22T10:00:00Z",
+        snapshot_date="2026-07-22",
+        name_item="position",
         symbol="USDC",
         amount="10",
     )
 
-    nested = db_session.begin_nested()
-    processed = (
-        db_session.execute(
-            text("SELECT * FROM private.process_portfolio_rollup_queue()")
+    first = _rebuild_trends(db_session, ["trend-user"])
+    second = _rebuild_trends(db_session, ["trend-user"])
+    assert first == second
+
+    before = db_session.execute(
+        text(
+            """
+            SELECT category_value_usd
+            FROM analytics.daily_category_trends
+            WHERE user_id = 'trend-user'
+              AND source_type = 'defi'
+              AND category = 'stablecoins'
+            """
         )
-        .mappings()
-        .one()
+    ).scalar_one()
+
+    nested = db_session.begin_nested()
+    db_session.execute(
+        text(
+            """
+            UPDATE analytics.daily_portfolio_positions
+            SET asset_token_list = '[{"symbol":"USDC","amount":"99","price":"1"}]'
+            WHERE id = 'trend-position'
+            """
+        )
     )
-    assert processed["portfolio_keys_processed"] == 1
+    _rebuild_trends(db_session, ["trend-user"])
     nested.rollback()
 
-    queued_after_rollback = db_session.execute(
-        text("SELECT count(*) FROM private.portfolio_rollup_dirty_portfolio")
-    ).scalar_one()
-    assert queued_after_rollback == 1
-
-    processed_again = (
-        db_session.execute(
-            text("SELECT * FROM private.process_portfolio_rollup_queue()")
+    after = db_session.execute(
+        text(
+            """
+            SELECT category_value_usd
+            FROM analytics.daily_category_trends
+            WHERE user_id = 'trend-user'
+              AND source_type = 'defi'
+              AND category = 'stablecoins'
+            """
         )
-        .mappings()
-        .one()
-    )
-    assert processed_again["portfolio_keys_processed"] == 1
+    ).scalar_one()
+    assert after == before
