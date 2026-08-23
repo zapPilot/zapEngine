@@ -102,4 +102,30 @@ describe('replaceRowsInTransaction transaction boundary', () => {
     expect(mockClient.query).toHaveBeenNthCalledWith(5, 'ROLLBACK');
     expect(mockClient.release).toHaveBeenCalledTimes(1);
   });
+
+  it('deletes and commits an authoritative empty replacement without inserting', async () => {
+    mockClient.query
+      .mockResolvedValueOnce(undefined) // BEGIN
+      .mockResolvedValueOnce(undefined) // DELETE
+      .mockResolvedValueOnce(undefined); // COMMIT
+
+    const client = new DailyReplacementTestClient();
+
+    await expect(client.replace([])).resolves.toBe(0);
+
+    expect(mockClient.query).toHaveBeenNthCalledWith(1, 'BEGIN');
+    expect(mockClient.query).toHaveBeenNthCalledWith(
+      2,
+      'DELETE FROM analytics.daily_test_rows WHERE wallet = $1',
+      ['0xabc'],
+    );
+    expect(mockClient.query).toHaveBeenNthCalledWith(3, 'COMMIT');
+    expect(mockClient.query).toHaveBeenCalledTimes(3);
+    expect(
+      mockClient.query.mock.calls.some(([sql]) =>
+        String(sql).startsWith('INSERT INTO analytics.daily_test_rows'),
+      ),
+    ).toBe(false);
+    expect(mockClient.release).toHaveBeenCalledTimes(1);
+  });
 });
