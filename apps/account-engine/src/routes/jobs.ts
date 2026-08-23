@@ -125,6 +125,24 @@ export function createJobsRoutes(services: AppServices) {
     );
   });
 
+  app.post(
+    '/maintenance/telegram-token-cleanup',
+    requireAdminApiKey,
+    async (c) => {
+      const deletedCount =
+        await services.telegramTokenService.cleanupExpiredTokens();
+
+      return jsonResponse(
+        c,
+        {
+          deletedCount,
+          message: `Cleaned up ${deletedCount} expired Telegram token(s).`,
+        },
+        HttpStatus.OK,
+      );
+    },
+  );
+
   app.get('/:jobId', paramValidator(jobIdParamSchema), (c) => {
     const params = c.req.valid('param');
     const result = services.jobQueueService.getJobWithAggregatedStatus(

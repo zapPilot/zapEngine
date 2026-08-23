@@ -41,8 +41,25 @@ a broadcast reached someone, so retries re-send rather than skip. The first run
 against a fresh table announces at most the window's last day — the artifact
 carries the full trade history and must not be replayed.
 
-Schedule it externally (Pipedream) at ~03:30 UTC, after the 01:30 UTC Backtest
-Refresh workflow has committed the day's curve.
+GitHub Actions owns this schedule at 03:30 UTC, after the 01:30 UTC Backtest
+Refresh workflow has committed the day's curve. The
+`strategy-change-broadcast.yml` workflow requires the repository secret
+`ADMIN_API_KEY` to match account-engine's Fly secret. A successful HTTP 202
+means the in-memory job was accepted; confirm processing and recipient count in
+Fly logs. Correct credentials or transient failures, then use **Run workflow**
+to retry the same trigger manually.
+
+## Scheduled maintenance
+
+`POST /jobs/maintenance/telegram-token-cleanup` is admin-only and calls the
+existing `cleanup_expired_telegram_tokens` database function. GitHub Actions
+owns the daily 04:00 UTC trigger through `telegram-token-cleanup.yml`; no schema
+migration or automatic database migration apply is involved.
+
+The workflow requires the repository secret `ADMIN_API_KEY` to match Fly. Its
+successful response includes `deletedCount`; inspect that output and
+account-engine logs during operational verification. After correcting a failed
+request, use **Run workflow** to retry it safely.
 
 ## Daily decision packet (operator)
 

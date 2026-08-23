@@ -21,6 +21,41 @@
     "entrypoint": ".github/workflows/backtest-refresh.yml"
   },
   {
+    "name": "strategy-change-broadcast",
+    "purpose": "Queue the daily strategy-change Telegram broadcast check.",
+    "schedule_kind": "cron",
+    "schedule": "30 3 * * *",
+    "schedule_source": "workflow",
+    "runtime": "github-actions",
+    "workspace": "@zapengine/account-engine",
+    "entrypoint": ".github/workflows/strategy-change-broadcast.yml",
+    "endpoint": "https://account-engine.fly.dev/jobs/strategy-change/batch",
+    "docs": "apps/account-engine/README.md"
+  },
+  {
+    "name": "telegram-token-cleanup",
+    "purpose": "Delete expired and old used Telegram verification tokens.",
+    "schedule_kind": "cron",
+    "schedule": "0 4 * * *",
+    "schedule_source": "workflow",
+    "runtime": "github-actions",
+    "workspace": "@zapengine/account-engine",
+    "entrypoint": ".github/workflows/telegram-token-cleanup.yml",
+    "endpoint": "https://account-engine.fly.dev/jobs/maintenance/telegram-token-cleanup",
+    "docs": "apps/account-engine/README.md"
+  },
+  {
+    "name": "ops-cost-sync",
+    "purpose": "Collect and persist daily vendor and infrastructure cost snapshots.",
+    "schedule_kind": "cron",
+    "schedule": "30 4 * * *",
+    "schedule_source": "workflow",
+    "runtime": "github-actions",
+    "workspace": "@zapengine/control-center",
+    "entrypoint": ".github/workflows/ops-cost-sync.yml",
+    "docs": "apps/control-center/README.md"
+  },
+  {
     "name": "social-daemon",
     "purpose": "Publish scheduled social posts, collect metrics, and refresh social strategy guidance.",
     "schedule_kind": "continuous",

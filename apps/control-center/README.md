@@ -56,7 +56,9 @@ Enable the Fly compute run-rate collector (requires `flyctl auth login` on the m
 FLY_COST_MODE=flyctl pnpm turbo run ops:sync --filter=@zapengine/control-center --env-mode=loose
 ```
 
-For a scheduled/local persistent setup, put `FLY_COST_MODE=flyctl` in the repository-root `.env` and use the normal `pnpm ops:sync` command.
+The daily GitHub Actions workflow sets `FLY_COST_MODE=flyctl` and uses the
+official Fly CLI setup action. Local manual runs can set the same mode in the
+repository-root `.env` and use the normal `pnpm ops:sync` command.
 
 Record a manual Fly current-month estimate instead:
 
@@ -71,7 +73,17 @@ pnpm ops:cost transaction fly invoice 21.07 "August invoice"
 pnpm ops:cost transaction debank top_up 200 "1M API units"
 ```
 
-Run `pnpm ops:sync` daily from any scheduler (launchd, cron, or a future Fly scheduler). The collector is scheduler-agnostic and does not depend on the Control Center process being alive.
+GitHub Actions is the sole recurring owner and runs `pnpm ops:sync` daily at
+04:30 UTC through `.github/workflows/ops-cost-sync.yml`. It requires these
+repository secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+`DEBANK_API_KEY`, `OPENROUTER_MANAGEMENT_KEY`, and `FLY_API_TOKEN`. The Fly token
+must allow the CLI to inspect the deployed Zap Engine apps.
+
+For recovery, inspect the failed workflow step and provider summary, correct
+the affected credential or provider outage, then use **Run workflow**. Confirm
+that the run reports persisted snapshots and that `ops.cost_snapshots` contains
+fresh rows before considering the sync recovered. Do not add a second cron or
+operator-Mac trigger.
 
 Vendor credentials and Supabase service-role credentials are read only by the Hono/CLI process. Browser responses contain normalized ledger data and never include tokens.
 

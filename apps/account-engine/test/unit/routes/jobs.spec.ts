@@ -35,6 +35,9 @@ function createServices(jobOverrides: Partial<Job> = {}): AppServices {
   const job = createJob(jobOverrides);
   return {
     env: { ADMIN_API_KEY: ADMIN_KEY },
+    telegramTokenService: {
+      cleanupExpiredTokens: vi.fn().mockResolvedValue(3),
+    },
     jobQueueService: {
       createJob: vi.fn().mockReturnValue(job),
       getJobWithAggregatedStatus: vi.fn().mockReturnValue({ job }),
@@ -180,6 +183,41 @@ describe('POST /jobs/strategy-change/batch', () => {
       type: JobType.STRATEGY_CHANGE_BATCH,
       payload: {},
     });
+  });
+});
+
+describe('POST /jobs/maintenance/telegram-token-cleanup', () => {
+  it('returns 401 without x-api-key', async () => {
+    const response = await createApp(createServices()).request(
+      'http://localhost/jobs/maintenance/telegram-token-cleanup',
+      { method: 'POST' },
+    );
+    expect(response.status).toBe(401);
+  });
+
+  it('returns 401 with a wrong x-api-key', async () => {
+    const response = await createApp(createServices()).request(
+      'http://localhost/jobs/maintenance/telegram-token-cleanup',
+      { method: 'POST', headers: { 'x-api-key': 'wrong-key' } },
+    );
+    expect(response.status).toBe(401);
+  });
+
+  it('runs cleanup and returns the deleted count when authorized', async () => {
+    const services = createServices();
+    const response = await createApp(services).request(
+      'http://localhost/jobs/maintenance/telegram-token-cleanup',
+      { method: 'POST', headers: { 'x-api-key': ADMIN_KEY } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      deletedCount: 3,
+      message: 'Cleaned up 3 expired Telegram token(s).',
+    });
+    expect(
+      services.telegramTokenService.cleanupExpiredTokens,
+    ).toHaveBeenCalledOnce();
   });
 });
 
