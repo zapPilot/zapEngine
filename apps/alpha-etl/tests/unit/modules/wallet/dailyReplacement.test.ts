@@ -85,4 +85,21 @@ describe('replaceRowsInTransaction transaction boundary', () => {
     expect(mockClient.query).not.toHaveBeenCalledWith('COMMIT');
     expect(mockClient.release).toHaveBeenCalledTimes(1);
   });
+
+  it('rolls back and releases the client when commit fails', async () => {
+    mockClient.query
+      .mockResolvedValueOnce(undefined) // BEGIN
+      .mockResolvedValueOnce(undefined) // DELETE
+      .mockResolvedValueOnce({ rowCount: 2 }) // INSERT
+      .mockRejectedValueOnce(new Error('commit failed'))
+      .mockResolvedValueOnce(undefined); // ROLLBACK from BaseDatabaseClient
+
+    const client = new DailyReplacementTestClient();
+
+    await expect(client.replace([1, 2])).rejects.toThrow('commit failed');
+
+    expect(mockClient.query).toHaveBeenNthCalledWith(4, 'COMMIT');
+    expect(mockClient.query).toHaveBeenNthCalledWith(5, 'ROLLBACK');
+    expect(mockClient.release).toHaveBeenCalledTimes(1);
+  });
 });
