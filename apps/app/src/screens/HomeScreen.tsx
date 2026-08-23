@@ -9,6 +9,7 @@ import {
   Check,
   RefreshCw,
   TriangleAlert,
+  Wallet,
   Zap,
 } from 'lucide-react-native';
 import type { ReactNode } from 'react';
@@ -18,18 +19,23 @@ import { Text, View } from 'react-native';
 import { PortfolioTrendChart } from '@/components/charts/PortfolioTrendChart';
 import {
   AccountUnavailableOverlay,
+  DemoBlurCover,
   DemoConnectOverlay,
 } from '@/components/home/DemoConnectOverlay';
 import { HomeIncomeCard } from '@/components/home/HomeIncomeCard';
 import { SharePortfolioButton } from '@/components/share/SharePortfolioButton';
+import { ChainIconStack } from '@/components/token/ChainIconStack';
+import { TokenIcon } from '@/components/token/TokenIcon';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
 import { DisplayUsdValue } from '@/components/ui/DisplayUsdValue';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { RangeTabs } from '@/components/ui/RangeTabs';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
+import { DEMO, type DemoAsset } from '@/data/demo';
 import type { TranslationKey } from '@/i18n/translations';
 import { useAccount } from '@/integration/useAccount';
 import {
@@ -40,6 +46,10 @@ import {
   useHomeData,
 } from '@/integration/useHomeData';
 import { useHomeIncome } from '@/integration/useHomeIncome';
+import {
+  normalizeWalletAddressList,
+  useWalletAssets,
+} from '@/integration/walletTokens';
 import { formatSignedPct, formatSignedUsd, formatUsd } from '@/lib/format';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
@@ -70,6 +80,86 @@ function getPortfolioImportCopy(status: EtlJobPollingState['status']) {
   if (status === 'failed') return PORTFOLIO_IMPORT_COPY.failed;
   if (status === 'completed') return PORTFOLIO_IMPORT_COPY.completed;
   return PORTFOLIO_IMPORT_COPY.preparing;
+}
+
+function AssetRow({ asset, divider }: { asset: DemoAsset; divider: boolean }) {
+  const usdLabel =
+    typeof asset.usdValue === 'number' ? formatUsd(asset.usdValue) : '-';
+
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${asset.symbol}, ${asset.name}, ${asset.amountLabel}, ${usdLabel}`}
+      className="flex-row items-center gap-[13px] px-1 py-[11px]"
+      style={
+        divider
+          ? { borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,.05)' }
+          : null
+      }
+    >
+      <TokenIcon symbol={asset.symbol} alt={asset.symbol} />
+      <View className="min-w-0 flex-1">
+        <View className="flex-row items-baseline gap-[7px]">
+          <Text className="font-sans-semibold text-[14.5px] text-ink">
+            {asset.symbol}
+          </Text>
+          <Text className="text-[12px] text-ink-faint">{asset.name}</Text>
+        </View>
+        <View className="mt-[7px] flex-row items-center gap-1.5">
+          <ChainIconStack chains={asset.chains} />
+          <Text className="text-[12px] text-ink-dim" numberOfLines={1}>
+            {asset.amountLabel}
+          </Text>
+        </View>
+      </View>
+      <Text className="font-mono-semibold text-[13.5px] text-ink">
+        {usdLabel}
+      </Text>
+    </View>
+  );
+}
+
+function AssetListSkeleton() {
+  return (
+    <View>
+      {[0, 1, 2].map((item) => (
+        <View
+          key={item}
+          className="flex-row items-center gap-[13px] px-1 py-[11px]"
+        >
+          <SkeletonBlock className="h-9 w-9 rounded-full" />
+          <View className="flex-1">
+            <SkeletonBlock className="h-4 w-28" />
+            <SkeletonBlock className="mt-[7px] h-4 w-36 rounded-full" />
+          </View>
+          <SkeletonBlock className="h-4 w-16" />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function PartialWalletWarning({ onRetry }: { onRetry: () => void }) {
+  const { t } = useContentLanguage();
+
+  return (
+    <View className="mb-2 flex-row items-center gap-2 rounded-xl bg-[rgba(239,146,146,.07)] px-3 py-2.5">
+      <Text className="min-w-0 flex-1 text-[11px] leading-[16px] text-[#ef9292]">
+        {t('home.assetsPartialBody')}
+      </Text>
+      <Tap
+        accessibilityLabel={t('home.assetsRetryA11y')}
+        accessibilityRole="button"
+        className="min-h-9 justify-center px-1"
+        hitSlop={8}
+        onPress={onRetry}
+      >
+        <Text className="font-sans-semibold text-[10.5px] text-accent">
+          {t('common.retry')}
+        </Text>
+      </Tap>
+    </View>
+  );
 }
 
 function PortfolioImportState({
@@ -264,6 +354,9 @@ export function HomeScreen() {
     },
   );
   const homeIncome = useHomeIncome(account.viewingUserId);
+  const walletAssets = useWalletAssets(
+    account.isOwnBundle ? account.walletAddresses : [],
+  );
 
   useEffect(() => {
     if (
@@ -301,6 +394,14 @@ export function HomeScreen() {
     }
   };
   const connect = () => void account.connect().catch(() => undefined);
+  const retryWalletAssets = () => void walletAssets.refetch();
+  const displayedAssets = isDemo ? DEMO.home.assets : walletAssets.assets;
+  const walletCount = normalizeWalletAddressList(
+    account.isOwnBundle ? account.walletAddresses : [],
+  ).length;
+  const walletAssetsTotal = isDemo
+    ? displayedAssets.reduce((total, asset) => total + (asset.usdValue ?? 0), 0)
+    : walletAssets.totalUsdValue;
 
   return (
     <ScreenScrollView>
@@ -457,6 +558,86 @@ export function HomeScreen() {
           onPress={() => router.push('/strategy')}
         />
       </View>
+
+      {account.isOwnBundle ? (
+        <View className="mt-6 px-5">
+          <View className="mb-2 flex-row items-center justify-between">
+            <SectionLabel>{t('home.walletAssets')}</SectionLabel>
+            <Text
+              className={`font-mono text-[9.5px] uppercase tracking-[0.76px] ${
+                !isDemo && walletAssets.failedChains.length > 0
+                  ? 'text-[#ef9292]'
+                  : 'text-ink-faint'
+              }`}
+            >
+              {isDemo
+                ? t('home.demo')
+                : walletAssets.failedChains.length > 0
+                  ? t('home.partial')
+                  : t('home.live')}
+            </Text>
+          </View>
+          <View className="relative">
+            <Card className="p-[13px]">
+              {!isDemo && walletAssets.isLoading ? (
+                <AssetListSkeleton />
+              ) : !isDemo && walletAssets.isError ? (
+                <EmptyState
+                  icon={
+                    <RefreshCw size={17} strokeWidth={1.8} color="#ef9292" />
+                  }
+                  tone="error"
+                  title={t('home.assetsErrorTitle')}
+                  body={t('home.assetsErrorBody')}
+                  action={{
+                    label: t('common.retry'),
+                    accessibilityLabel: t('home.assetsRetryA11y'),
+                    onPress: retryWalletAssets,
+                  }}
+                />
+              ) : (
+                <>
+                  {!isDemo && walletAssets.failedChains.length > 0 ? (
+                    <PartialWalletWarning onRetry={retryWalletAssets} />
+                  ) : null}
+                  {displayedAssets.length === 0 ? (
+                    <EmptyState
+                      icon={
+                        <Wallet
+                          size={17}
+                          strokeWidth={1.8}
+                          color={tokens.color.accent}
+                        />
+                      }
+                      title={t('home.assetsEmptyTitle')}
+                      body={t('home.assetsEmptyBody')}
+                    />
+                  ) : (
+                    displayedAssets.map((asset, index) => (
+                      <AssetRow
+                        key={asset.symbol}
+                        asset={asset}
+                        divider={index < displayedAssets.length - 1}
+                      />
+                    ))
+                  )}
+                </>
+              )}
+              <View className="mt-2 flex-row items-center justify-between border-t border-line px-1 pt-3">
+                <Text className="font-mono text-[9.5px] text-ink-faint">
+                  {t('home.assetsIdleAcross', { count: walletCount })}
+                </Text>
+                <Text className="font-mono-semibold text-[12.5px] text-ink-dim">
+                  {typeof walletAssetsTotal === 'number'
+                    ? formatUsd(walletAssetsTotal)
+                    : '-'}
+                </Text>
+              </View>
+            </Card>
+            {isDemo ? <DemoBlurCover /> : null}
+          </View>
+        </View>
+      ) : null}
 
       {!account.isDemo && !homeIncome.isError ? (
         <View className="mt-6 px-5">

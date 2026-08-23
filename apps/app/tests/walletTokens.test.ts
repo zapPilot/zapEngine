@@ -37,4 +37,31 @@ describe('wallet token balances', () => {
       }),
     );
   });
+
+  it('normalizes and deduplicates a bundle before building the query', () => {
+    useWalletAssets([
+      ' 0xABCDEFabcdefABCDEFabcdefABCDEFabcdefABCD ',
+      '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
+    ]);
+
+    expect(useQueryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: [
+          'desktop',
+          'alchemy',
+          'wallet-assets',
+          ['0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'],
+        ],
+        enabled: true,
+      }),
+    );
+  });
+
+  it('disables the balance query for an empty bundle', () => {
+    useWalletAssets([]);
+
+    expect(useQueryMock).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+  });
 });

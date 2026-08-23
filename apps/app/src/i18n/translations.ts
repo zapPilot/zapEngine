@@ -146,6 +146,15 @@ export const en = {
     'At least 7 days of observations are needed for a monthly estimate.',
   'home.incomeEmpty': 'No protocol yield history is available yet.',
   'home.walletAssets': 'Wallet assets',
+  'home.assetsIdleAcross': 'Idle across {count} wallet(s)',
+  'home.assetsEmptyTitle': 'No supported assets found',
+  'home.assetsEmptyBody':
+    'USDC, USDT, ETH and wrapped BTC on Ethereum, Base or Arbitrum will appear here.',
+  'home.assetsErrorTitle': 'Wallet balance unavailable',
+  'home.assetsErrorBody': 'We could not load live balances for your wallets.',
+  'home.assetsPartialBody':
+    'Some network balances could not be loaded. The assets below are partial.',
+  'home.assetsRetryA11y': 'Retry unavailable network balances',
   'home.demo': 'Demo',
   'home.partial': 'Partial',
   'home.live': 'Live',
@@ -379,6 +388,14 @@ export const zhHant = {
   'home.incomeInsufficient': '至少需要 7 天觀測資料，才能估算月收入。',
   'home.incomeEmpty': '目前還沒有協議收益紀錄。',
   'home.walletAssets': '錢包資產',
+  'home.assetsIdleAcross': '閒置於 {count} 個錢包',
+  'home.assetsEmptyTitle': '找不到支援的資產',
+  'home.assetsEmptyBody':
+    'Ethereum、Base 或 Arbitrum 上的 USDC、USDT、ETH 與包裝 BTC 會顯示在這裡。',
+  'home.assetsErrorTitle': '無法取得錢包餘額',
+  'home.assetsErrorBody': '目前無法載入你錢包的即時餘額。',
+  'home.assetsPartialBody': '部分網路的餘額載入失敗，以下資產僅為部分資料。',
+  'home.assetsRetryA11y': '重試載入失敗的網路餘額',
   'home.demo': '展示',
   'home.partial': '部分資料',
   'home.live': '即時',
@@ -609,6 +626,16 @@ export const ja = {
   'home.incomeInsufficient': '月間推定には7日以上の観測データが必要です。',
   'home.incomeEmpty': 'プロトコル収益の履歴はまだありません。',
   'home.walletAssets': 'ウォレット資産',
+  'home.assetsIdleAcross': '{count} 件のウォレットで未運用',
+  'home.assetsEmptyTitle': '対応資産が見つかりません',
+  'home.assetsEmptyBody':
+    'Ethereum・Base・Arbitrum 上の USDC、USDT、ETH、ラップド BTC がここに表示されます。',
+  'home.assetsErrorTitle': 'ウォレット残高を取得できません',
+  'home.assetsErrorBody':
+    'ウォレットのリアルタイム残高を読み込めませんでした。',
+  'home.assetsPartialBody':
+    '一部のネットワーク残高を取得できませんでした。以下は部分的な一覧です。',
+  'home.assetsRetryA11y': '取得できなかった残高を再試行',
   'home.demo': 'デモ',
   'home.partial': '一部取得',
   'home.live': 'リアルタイム',

@@ -29,6 +29,8 @@ export type {
   WalletAddressInput,
 };
 
+export { normalizeWalletAddressList };
+
 export function useWalletAssets(
   addressInput: WalletAddressInput,
 ): UseWalletAssetsResult {
