@@ -2,6 +2,8 @@ See @README.md for project overview and @package.json for available scripts.
 
 # Supabase clients
 
+`migrations/` is frozen immutable history; new DB migrations go through root `supabase/migrations/` (see CONTRIBUTING.md "Adding a database migration").
+
 Two clients exist — use the right one:
 
 - **Anon** (`DatabaseService.getClient()`): default for all user-facing reads/writes (RLS enforced)

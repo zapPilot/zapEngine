@@ -1,5 +1,7 @@
 See @README.md for project overview and @package.json for available scripts.
 
+`migrations/` is frozen immutable history; new DB migrations go through root `supabase/migrations/` (see CONTRIBUTING.md "Adding a database migration").
+
 # Gotchas
 
 - Test framework is **Vitest**, not Jest. Use `vi.mock()`, not `jest.mock()`.

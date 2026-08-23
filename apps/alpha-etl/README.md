@@ -76,7 +76,7 @@ All env vars live in the monorepo root `.env` (see `.env.example` at repo root).
 
 ## Migrations
 
-Files in `migrations/` use non-sequential numbering with some duplicate prefixes — treat existing filenames as immutable history. New migrations use the next unused prefix after `012`.
+Files in `migrations/` use non-sequential numbering with some duplicate prefixes and are immutable history. Create new database migrations through the root [`supabase/migrations/`](../../supabase/migrations/) workflow documented in [`CONTRIBUTING.md`](../../CONTRIBUTING.md#adding-a-database-migration).
 
 ## Deep dives
 

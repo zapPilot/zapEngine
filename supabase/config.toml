@@ -1,0 +1,6 @@
+# Supabase CLI workdir for the single shared project (ref pinned by `supabase link`;
+# see CONTRIBUTING.md "Adding a database migration"). project_id is a local label only.
+project_id = "zapengine"
+
+[db]
+major_version = 15

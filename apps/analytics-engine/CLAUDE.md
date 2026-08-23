@@ -15,6 +15,7 @@ From inside this directory, drop the `--filter …` prefix: `pnpm dev`, `pnpm te
 # Database
 
 - This service is **read-only**. Never add INSERT/UPDATE/DELETE operations.
+- `migrations/` is frozen immutable history; new DB migrations go through root `supabase/migrations/` (see CONTRIBUTING.md "Adding a database migration"). This service never applies migrations; the operator uses `supabase db push`. The three unnumbered `migrations/*.sql` files are frozen operations scripts, not migrations. Migrations 026 and 027 become frozen legacy history once the root baseline exists; the baseline and root migrations determine their live-state disposition, and files from this directory must never be reapplied.
 - SQL params MUST use `:snake_case` format — enforced by `scripts/quality/audit_sql_params.py`
 - SQL queries live in `src/queries/sql/*.sql` (query registry pattern, not inline strings)
 - Set `DATABASE_READ_ONLY=true` in `.env`
