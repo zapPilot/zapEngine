@@ -43,6 +43,26 @@ describe('recordReplacementResult', () => {
     });
   });
 
+  it('does not misclassify a successful replacement when success logging fails', async () => {
+    const result = createEmptyWriteResult();
+    const replace = vi.fn().mockResolvedValue(7);
+    infoMock.mockImplementationOnce(() => {
+      throw new Error('logger unavailable');
+    });
+
+    await expect(
+      recordReplacementResult(result, 3, 'Daily replacement completed', replace),
+    ).rejects.toThrow('logger unavailable');
+
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      success: true,
+      recordsInserted: 7,
+      errors: [],
+      duplicatesSkipped: 0,
+    });
+  });
+
   it('preserves prior inserted counts, appends the write error, and does not log success', async () => {
     const result = createEmptyWriteResult();
     result.recordsInserted = 5;
