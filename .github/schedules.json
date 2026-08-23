@@ -1,0 +1,149 @@
+[
+  {
+    "name": "track-record-snapshot",
+    "purpose": "Generate, publish, verify, and commit the daily signed track-record snapshot.",
+    "schedule_kind": "cron",
+    "schedule": "0 0 * * *",
+    "schedule_source": "workflow",
+    "runtime": "github-actions",
+    "workspace": "root",
+    "entrypoint": ".github/workflows/track-record-snapshot.yml",
+    "docs": "docs/track-record-pipeline.md"
+  },
+  {
+    "name": "backtest-refresh",
+    "purpose": "Refresh committed backtest and landing-page market artifacts through UTC yesterday.",
+    "schedule_kind": "cron",
+    "schedule": "30 1 * * *",
+    "schedule_source": "workflow",
+    "runtime": "github-actions",
+    "workspace": "@zapengine/analytics-engine",
+    "entrypoint": ".github/workflows/backtest-refresh.yml"
+  },
+  {
+    "name": "social-daemon",
+    "purpose": "Publish scheduled social posts, collect metrics, and refresh social strategy guidance.",
+    "schedule_kind": "continuous",
+    "schedule": "process lifetime",
+    "schedule_source": "external",
+    "runtime": "local-mac",
+    "workspace": "@zapengine/podcast-pipeline",
+    "entrypoint": "apps/podcast-pipeline/src/social/daemon.ts"
+  },
+  {
+    "name": "daily-suggestion",
+    "purpose": "Queue the operator's daily decision packet and Telegram notification evaluation.",
+    "schedule_kind": "cron",
+    "schedule": "5 0 * * *",
+    "schedule_source": "external",
+    "runtime": "pipedream",
+    "workspace": "@zapengine/account-engine",
+    "entrypoint": "apps/account-engine/src/routes/jobs.ts",
+    "endpoint": "https://account-engine.fly.dev/jobs/daily-suggestion/batch",
+    "docs": "apps/account-engine/README.md"
+  },
+  {
+    "name": "alpha-etl-daily-refresh",
+    "purpose": "Queue the daily refresh across all six alpha-etl data sources.",
+    "schedule_kind": "cron",
+    "schedule": "0 10 * * *",
+    "schedule_source": "external",
+    "runtime": "pipedream",
+    "workspace": "@zapengine/alpha-etl",
+    "entrypoint": "apps/alpha-etl/src/routes/webhooks.ts",
+    "endpoint": "https://alpha-etl.fly.dev/webhooks/pipedream",
+    "docs": "apps/alpha-etl/README.md"
+  },
+  {
+    "name": "weekly-report",
+    "purpose": "Queue the weekly account report batch and monitor that processing starts.",
+    "schedule_kind": "cron",
+    "schedule": "0 20 * * 1",
+    "schedule_source": "external",
+    "runtime": "pipedream",
+    "workspace": "@zapengine/account-engine",
+    "entrypoint": "apps/account-engine/src/routes/jobs.ts",
+    "endpoint": "https://account-engine.fly.dev/jobs/weekly-report/batch",
+    "docs": "apps/account-engine/docs/pipedream-weekly-report-watchdog.md"
+  },
+  {
+    "name": "account-job-processor",
+    "purpose": "Poll and process the account-engine in-memory background-job queue.",
+    "schedule_kind": "interval",
+    "schedule": "5000ms",
+    "schedule_source": "code",
+    "runtime": "fly-process",
+    "workspace": "@zapengine/account-engine",
+    "entrypoint": "apps/account-engine/src/modules/jobs/job-processor.service.ts"
+  },
+  {
+    "name": "account-job-retention-cleanup",
+    "purpose": "Evict expired terminal and stuck account-engine in-memory jobs.",
+    "schedule_kind": "interval",
+    "schedule": "3600000ms",
+    "schedule_source": "code",
+    "runtime": "fly-process",
+    "workspace": "@zapengine/account-engine",
+    "entrypoint": "apps/account-engine/src/modules/jobs/job-queue.service.ts"
+  },
+  {
+    "name": "account-activity-cache-cleanup",
+    "purpose": "Expire account-engine activity-tracker cache entries.",
+    "schedule_kind": "interval",
+    "schedule": "3600000ms",
+    "schedule_source": "code",
+    "runtime": "fly-process",
+    "workspace": "@zapengine/account-engine",
+    "entrypoint": "apps/account-engine/src/app.ts"
+  },
+  {
+    "name": "alpha-etl-database-health-monitor",
+    "purpose": "Refresh alpha-etl database connectivity health state.",
+    "schedule_kind": "interval",
+    "schedule": "15000ms",
+    "schedule_source": "code",
+    "runtime": "fly-process",
+    "workspace": "@zapengine/alpha-etl",
+    "entrypoint": "apps/alpha-etl/src/modules/core/healthMonitor.ts"
+  },
+  {
+    "name": "podcast-render-capacity-reconciler",
+    "purpose": "Start an on-demand podcast render machine when claimable work exists.",
+    "schedule_kind": "interval",
+    "schedule": "30000ms",
+    "schedule_source": "code",
+    "runtime": "fly-process",
+    "workspace": "@zapengine/podcast-pipeline",
+    "entrypoint": "apps/podcast-pipeline/src/services/render-capacity.ts"
+  },
+  {
+    "name": "podcast-video-worker-poll",
+    "purpose": "Claim podcast video and visual render jobs from the durable queue.",
+    "schedule_kind": "interval",
+    "schedule": "15000ms",
+    "schedule_source": "code",
+    "runtime": "fly-process",
+    "workspace": "@zapengine/podcast-pipeline",
+    "entrypoint": "apps/podcast-pipeline/src/services/video-worker.ts"
+  },
+  {
+    "name": "podcast-video-worker-liveness",
+    "purpose": "Emit liveness evidence for the podcast render process without an HTTP health check.",
+    "schedule_kind": "interval",
+    "schedule": "300000ms",
+    "schedule_source": "code",
+    "runtime": "fly-process",
+    "workspace": "@zapengine/podcast-pipeline",
+    "entrypoint": "apps/podcast-pipeline/src/worker.ts"
+  },
+  {
+    "name": "desktop-rebalance-scheduler",
+    "purpose": "Poll signed-in desktop portfolio drift and emit rebalance notifications.",
+    "schedule_kind": "interval",
+    "schedule": "21600000ms",
+    "schedule_source": "code",
+    "runtime": "electron",
+    "workspace": "@zapengine/desktop",
+    "entrypoint": "apps/desktop/src/main/scheduler/rebalanceScheduler.ts"
+  }
+]

@@ -195,6 +195,9 @@ jobs:
       - name: Assert dispatch options match .github/fly-apps.json
         run: bash scripts/check-dispatch-registry-drift.sh
 
+      - name: Assert schedules match .github/schedules.json
+        run: bash scripts/check-schedules-registry.sh
+
       - uses: dorny/paths-filter@v3
         id: filter
         if: github.event_name != 'workflow_dispatch'
