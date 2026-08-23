@@ -47,6 +47,20 @@ export interface WalletBalanceSnapshotInsert {
   [key: string]: unknown;
 }
 
+/**
+ * Row shape written to analytics.daily_wallet_tokens: one idle wallet token
+ * per wallet/UTC day, slimmed to the columns analytics readers use.
+ */
+export interface DailyWalletTokenInsert {
+  user_wallet_address: string;
+  token_address: string;
+  chain: string;
+  symbol: Nullable<string>;
+  amount: Nullable<number>;
+  price: Nullable<number>;
+  snapshot_date: string;
+}
+
 export interface HyperliquidVaultAprSnapshotInsert {
   source: string;
   vault_address: string;
@@ -85,6 +99,16 @@ export interface PortfolioItemSnapshotInsert {
   debt_usd_value: number;
   net_usd_value: number;
   update_at: number;
+}
+
+/**
+ * Row shape written to analytics.daily_portfolio_positions: the transformer
+ * record plus the UTC day derived from snapshot_at (wallet lowercased by the
+ * writer).
+ */
+export interface DailyPortfolioPositionInsert
+  extends PortfolioItemSnapshotInsert {
+  snapshot_date: string;
 }
 
 export interface SentimentSnapshotInsert {

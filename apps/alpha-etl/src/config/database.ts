@@ -12,9 +12,9 @@ import { env } from './environment.js';
  * Centralized database table name definitions to avoid scattered schema references
  */
 export const TABLES = {
-  WALLET_TOKEN_SNAPSHOTS: `${env.DB_SCHEMA}.wallet_token_snapshots`,
+  DAILY_WALLET_TOKENS: 'analytics.daily_wallet_tokens',
   HYPERLIQUID_VAULT_APR_SNAPSHOTS: `${env.DB_SCHEMA}.hyperliquid_vault_apr_snapshots`,
-  PORTFOLIO_ITEM_SNAPSHOTS: 'public.portfolio_item_snapshots',
+  DAILY_PORTFOLIO_POSITIONS: 'analytics.daily_portfolio_positions',
   SENTIMENT_SNAPSHOTS: `${env.DB_SCHEMA}.sentiment_snapshots`,
   MACRO_FEAR_GREED_SNAPSHOTS: `${env.DB_SCHEMA}.macro_fear_greed_snapshots`,
   TOKEN_PRICE_SNAPSHOTS: `${env.DB_SCHEMA}.token_price_snapshots`,
