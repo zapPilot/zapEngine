@@ -61,4 +61,24 @@ describe('recordReplacementResult', () => {
     });
     expect(infoMock).not.toHaveBeenCalled();
   });
+
+  it('normalizes non-Error replacement rejections without losing prior result state', async () => {
+    const result = createEmptyWriteResult();
+    result.recordsInserted = 4;
+    result.errors.push('earlier warning');
+    const replace = vi.fn().mockRejectedValue({ code: 'WRITE_FAILED' });
+
+    await expect(
+      recordReplacementResult(result, 1, 'Daily replacement completed', replace),
+    ).resolves.toBe(result);
+
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      success: false,
+      recordsInserted: 4,
+      errors: ['earlier warning', '[object Object]'],
+      duplicatesSkipped: 0,
+    });
+    expect(infoMock).not.toHaveBeenCalled();
+  });
 });
