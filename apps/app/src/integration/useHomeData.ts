@@ -1,5 +1,11 @@
 import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics/usePortfolioDashboard';
 import { usePortfolioDataProgressive } from '@zapengine/app-core/hooks/queries/analytics/usePortfolioDataProgressive';
+import {
+  buildTradeActions,
+  formatRegimeLabel,
+  getStatusPanelContent,
+} from '@zapengine/app-core/services/suggestion';
+import type { DailySuggestionActionStatus } from '@zapengine/app-core/types/strategy';
 import { useMemo } from 'react';
 
 import { DEMO } from '@/data/demo';
@@ -9,35 +15,37 @@ import {
   sortedDailyValues,
   toTrendPoints,
 } from '@/integration/portfolioMetrics';
-import {
-  liveTextOrDemo,
-  marketModeLabelFromRegime,
-  pillarsFromTarget,
-} from '@/integration/strategyPresentation';
-import { useDefaultStrategyBacktest } from '@/integration/useDefaultStrategyBacktest';
-import {
-  toCompositionTargetFromSuggestion,
-  useStrategySuggestion,
-} from '@/integration/useStrategySuggestion';
-import { useWalletAssets } from '@/integration/walletTokens';
-import type { UseWalletAssetsResult } from '@/integration/walletTokens';
+import { useStrategySuggestion } from '@/integration/useStrategySuggestion';
 
-type HomeSlice = (typeof DEMO)['home'];
-type HomeViewData = Omit<HomeSlice, 'sparkline'>;
-type StrategySlice = (typeof DEMO)['strategy'];
-export const HOME_RANGE_OPTIONS = ['1D', '1W', '1M', '1Y', 'ALL'] as const;
+export const HOME_RANGE_OPTIONS = ['1D', '1W', '1M', '3M', '1Y'] as const;
 export type HomeRange = (typeof HOME_RANGE_OPTIONS)[number];
 export const DEFAULT_HOME_RANGE: HomeRange = '1Y';
 const HOME_DASHBOARD_WINDOW_DAYS = 365;
 const EMPTY_DAILY_VALUES: readonly DailyValuePoint[] = [];
 
-/**
- * Shape consumed by HomeScreen. Disconnected/demo mode can still use DEMO;
- * connected live misses stay null/empty so the screen renders dashes.
- */
+export interface HomeViewData {
+  totalBalance: number | null;
+  rangeChangePct: number | null;
+  rangeChangeUsd: number | null;
+  latestSnapshotDate: string | null;
+  trendPoints: DailyValuePoint[];
+}
+
+export interface HomeStrategyStatusView {
+  status: DailySuggestionActionStatus;
+  regimeLabel: string;
+  fearGreed: number | null;
+  primaryAction: {
+    description: string;
+    amountUsd: number;
+  } | null;
+  additionalActionCount: number;
+  reason: string | null;
+}
+
 export interface HomeData {
   home: HomeViewData;
-  strategy: StrategySlice;
+  strategyStatus: HomeStrategyStatusView | null;
 }
 
 export type HomeSnapshotAvailability = 'demo' | 'available' | 'unavailable';
@@ -47,28 +55,15 @@ export interface UseHomeDataResult {
   isLoading: boolean;
   isError: boolean;
   snapshotAvailability: HomeSnapshotAvailability;
-  walletAssets: UseWalletAssetsResult;
 }
 
 /**
- * Container hook for the Home screen.
- *
- * Wires the cleanly-available live signals into the DEMO.home / DEMO.strategy
- * shapes:
- * - total balance from the progressive landing balance section,
- * - latest adjacent-snapshot change and complete balance trend points from the
- *   unified dashboard trends series,
- * - the contrarian quote + market-mode label from the progressive strategy
- *   section (Fear & Greed quote + current regime).
- *
- * Wallet holdings come from the configured token-balance provider for the
- * connected EOA. Target pillars come from app-core/account-engine sources.
- * Default strategy ROI/drawdown metrics come from the backtesting compare
- * endpoint.
+ * Home only needs portfolio-level analytics plus the current strategy decision.
+ * Spendable balances belong to the invest flow, not this portfolio overview.
  *
  * @param subjectUserId Account-engine user id whose bundle is displayed —
  *   the viewer's own id or a `?userId=` bundle-view id. Analytics v2 paths
- *   are UUID-typed; a wallet address 422s, so it must never be passed here.
+ *   are UUID-typed; a wallet address must never be passed here.
  */
 export function getHomeDashboardWindowParams() {
   return {
@@ -82,6 +77,7 @@ function rangeWindowDays(range: HomeRange): number | null {
   if (range === '1D') return 1;
   if (range === '1W') return 7;
   if (range === '1M') return 30;
+  if (range === '3M') return 90;
   return null;
 }
 
@@ -122,32 +118,57 @@ function trendPointsOrFallback(
   return isDemo ? demoTrendPoints : [];
 }
 
-function unavailableBacktest(): StrategySlice['backtest'] {
+export function calculateHomeRangeChange(
+  trendPoints: readonly DailyValuePoint[],
+) {
+  const first = trendPoints.at(0);
+  const latest = trendPoints.at(-1);
+  if (!first || !latest || trendPoints.length < 2) return null;
+  return calculateAdjacentSnapshotChange([first, latest]);
+}
+
+function strategyStatusFromSuggestion(
+  data: NonNullable<ReturnType<typeof useStrategySuggestion>['data']>,
+): HomeStrategyStatusView {
+  const actions = buildTradeActions(data);
+  const primaryAction = actions.at(0) ?? null;
+  const statusPanel = getStatusPanelContent(data, actions);
+
   return {
-    returnLabel: '—',
-    vsBtcLabel: 'Trades —',
-    vsEthLabel: 'Max DD —',
-    metrics: [
-      { label: 'ROI', value: '—', tone: 'positive' },
-      { label: 'Max drawdown', value: '—', tone: 'negative' },
-    ],
-    currentModeLabel: '—',
-    allocation: [],
-    sentiment: null,
+    status: data.action.status,
+    regimeLabel: formatRegimeLabel(data.context.signal.regime),
+    fearGreed: data.context.market.sentiment ?? null,
+    primaryAction: primaryAction
+      ? {
+          description: primaryAction.description,
+          amountUsd: primaryAction.amount_usd,
+        }
+      : null,
+    additionalActionCount: Math.max(0, actions.length - 1),
+    reason:
+      data.action.status === 'action_required'
+        ? null
+        : statusPanel.bodyDescription,
   };
 }
 
+const DEMO_STRATEGY_STATUS: HomeStrategyStatusView = {
+  status: 'no_action',
+  regimeLabel: 'cautious',
+  fearGreed: DEMO.strategy.backtest.sentiment,
+  primaryAction: null,
+  additionalActionCount: 0,
+  reason: DEMO.strategy.quote,
+};
+
 export function useHomeData(
   subjectUserId: string | null,
-  address: string | null,
   range: HomeRange,
   options: {
     isResolvingSubject?: boolean;
     isEtlInProgress?: boolean;
   } = {},
 ): UseHomeDataResult {
-  // Hooks run unconditionally (React rules); analytics no-ops until we have
-  // an account-engine user id to display.
   const analyticsSubjectId = subjectUserId?.trim() || null;
   const progressive = usePortfolioDataProgressive(
     analyticsSubjectId,
@@ -157,115 +178,65 @@ export function useHomeData(
     analyticsSubjectId ?? undefined,
     getHomeDashboardWindowParams(),
   );
-  // Transaction readiness must reflect the active signing EOA only. Bundle
-  // wallets remain an analytics concern and must not inflate spendable funds.
-  const walletAssets = useWalletAssets(address);
-  const defaultBacktest = useDefaultStrategyBacktest();
   const suggestion = useStrategySuggestion(analyticsSubjectId);
 
-  const demoHome = DEMO.home;
-  const demoStrategy = DEMO.strategy;
-
   const balanceSection = progressive.sections?.balance;
-  const strategySection = progressive.sections?.strategy;
   const hasPortfolioSnapshot = Boolean(progressive.unifiedData?.lastUpdated);
-
   const isResolvingSubject =
     Boolean(options.isResolvingSubject) && analyticsSubjectId === null;
 
   const isLoading =
     isResolvingSubject ||
     Boolean(balanceSection?.isLoading) ||
-    Boolean(strategySection?.isLoading) ||
     dashboard.isLoading ||
     suggestion.isLoading;
   const isError =
-    Boolean(balanceSection?.error) ||
-    Boolean(strategySection?.error) ||
-    dashboard.isError ||
-    suggestion.isError;
+    Boolean(balanceSection?.error) || dashboard.isError || suggestion.isError;
 
   // While the subject is still resolving, stay in the live (skeleton) state
   // instead of flashing demo data.
   const isDemo = analyticsSubjectId === null && !isResolvingSubject;
-
-  // --- Live: total balance from the landing balance section ---
   const totalBalance = isDemo
-    ? demoHome.totalBalance
+    ? DEMO.home.totalBalance
     : hasPortfolioSnapshot
       ? (balanceSection?.data?.balance ?? null)
       : null;
 
-  // --- Live: latest adjacent-snapshot change + complete trend points. ---
   const dailyValues =
     dashboard.dashboard?.trends?.daily_values ?? EMPTY_DAILY_VALUES;
   const allTrendPoints = useMemo(
     () => toTrendPoints(dailyValues),
     [dailyValues],
   );
-  const homeTrendPoints = useMemo(
+  const selectedTrendPoints = useMemo(
     () =>
       trendPointsOrFallback(
         toTrendPoints(sliceHomeDailyValuesForRange(allTrendPoints, range)),
-        demoHome.trendPoints,
+        toTrendPoints(
+          sliceHomeDailyValuesForRange(DEMO.home.trendPoints, range),
+        ),
         isDemo,
       ),
-    [allTrendPoints, demoHome.trendPoints, isDemo, range],
+    [allTrendPoints, isDemo, range],
   );
-  const changeSource = isDemo ? demoHome.trendPoints : allTrendPoints;
-  const latestDay = changeSource.at(-1);
-  const latestChange = calculateAdjacentSnapshotChange(changeSource);
-
-  const home: HomeViewData = {
-    totalBalance,
-    latestChangePct: latestChange?.pct ?? null,
-    latestChangeUsd: latestChange?.usd ?? null,
-    latestSnapshotDate: latestDay?.date ?? null,
-    trendPoints: homeTrendPoints,
-    assets: isDemo ? demoHome.assets : walletAssets.assets,
-  };
-
-  // --- Live: contrarian quote tied to current sentiment ---
-  const quote = liveTextOrDemo(
-    strategySection?.data?.sentimentQuote,
-    demoStrategy.quote,
-    isDemo,
-  );
-
-  // --- Live: current market regime → human-readable mode label ---
-  const marketModeLabel = marketModeLabelFromRegime(
-    strategySection?.data?.currentRegime ?? null,
-    demoStrategy.marketModeLabel,
-    isDemo,
-  );
-
-  const target = suggestion.data
-    ? toCompositionTargetFromSuggestion(suggestion.data)
-    : null;
-  const pillars = pillarsFromTarget(target, demoStrategy.pillars, isDemo);
-
-  const strategy: StrategySlice = {
-    estApyLabel:
-      defaultBacktest.data?.returnLabel ??
-      (isDemo ? demoStrategy.estApyLabel : '—'),
-    quote,
-    marketModeLabel,
-    pillars,
-    backtest: defaultBacktest.data
-      ? {
-          ...demoStrategy.backtest,
-          returnLabel: defaultBacktest.data.returnLabel,
-          vsBtcLabel: defaultBacktest.data.vsBtcLabel,
-          vsEthLabel: defaultBacktest.data.vsEthLabel,
-          metrics: defaultBacktest.data.metrics,
-        }
-      : isDemo
-        ? demoStrategy.backtest
-        : unavailableBacktest(),
-  };
+  const rangeChange = calculateHomeRangeChange(selectedTrendPoints);
+  const latestDay = (isDemo ? DEMO.home.trendPoints : allTrendPoints).at(-1);
 
   return {
-    data: { home, strategy },
+    data: {
+      home: {
+        totalBalance,
+        rangeChangePct: rangeChange?.pct ?? null,
+        rangeChangeUsd: rangeChange?.usd ?? null,
+        latestSnapshotDate: latestDay?.date ?? null,
+        trendPoints: selectedTrendPoints,
+      },
+      strategyStatus: isDemo
+        ? DEMO_STRATEGY_STATUS
+        : suggestion.data
+          ? strategyStatusFromSuggestion(suggestion.data)
+          : null,
+    },
     isLoading,
     isError,
     snapshotAvailability: isDemo
@@ -273,6 +244,5 @@ export function useHomeData(
       : hasPortfolioSnapshot
         ? 'available'
         : 'unavailable',
-    walletAssets,
   };
 }

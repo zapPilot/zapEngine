@@ -4,12 +4,12 @@ import { tokens } from '@zapengine/design-tokens/tokens';
 import { useRouter } from 'expo-router';
 import {
   ArrowDown,
+  ArrowRight,
   ArrowUp,
-  ChevronRight,
-  MoreHorizontal,
-  PieChart,
+  Check,
   RefreshCw,
-  Wallet,
+  TriangleAlert,
+  Zap,
 } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
@@ -18,39 +18,30 @@ import { Text, View } from 'react-native';
 import { PortfolioTrendChart } from '@/components/charts/PortfolioTrendChart';
 import {
   AccountUnavailableOverlay,
-  DemoBlurCover,
   DemoConnectOverlay,
 } from '@/components/home/DemoConnectOverlay';
 import { HomeIncomeCard } from '@/components/home/HomeIncomeCard';
-import { ZapStrategyCard } from '@/components/strategy/ZapStrategyCard';
-import { ChainIconStack } from '@/components/token/ChainIconStack';
-import { TokenIcon } from '@/components/token/TokenIcon';
 import { SharePortfolioButton } from '@/components/share/SharePortfolioButton';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
 import { DisplayUsdValue } from '@/components/ui/DisplayUsdValue';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { RangeTabs } from '@/components/ui/RangeTabs';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
-import type { DemoAsset } from '@/data/demo';
-
+import type { TranslationKey } from '@/i18n/translations';
 import { useAccount } from '@/integration/useAccount';
 import {
   DEFAULT_HOME_RANGE,
   HOME_RANGE_OPTIONS,
   type HomeRange,
+  type HomeStrategyStatusView,
   useHomeData,
 } from '@/integration/useHomeData';
 import { useHomeIncome } from '@/integration/useHomeIncome';
-import { createStrategyStartAction } from '@/integration/strategyStartAction';
 import { formatSignedPct, formatSignedUsd, formatUsd } from '@/lib/format';
-import { formatSnapshotDate, isSnapshotToday } from '@/lib/portfolioDates';
-import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
-import type { TranslationKey } from '@/i18n/translations';
 
 type PortfolioImportCopyKey = 'failed' | 'completed' | 'preparing';
 
@@ -79,87 +70,6 @@ function getPortfolioImportCopy(status: EtlJobPollingState['status']) {
   if (status === 'failed') return PORTFOLIO_IMPORT_COPY.failed;
   if (status === 'completed') return PORTFOLIO_IMPORT_COPY.completed;
   return PORTFOLIO_IMPORT_COPY.preparing;
-}
-
-function AssetRow({ asset, divider }: { asset: DemoAsset; divider: boolean }) {
-  return (
-    <View
-      className="flex-row items-center gap-[13px] px-1 py-[11px]"
-      style={
-        divider
-          ? { borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,.05)' }
-          : null
-      }
-    >
-      <TokenIcon symbol={asset.symbol} alt={asset.symbol} />
-      <View className="min-w-0 flex-1">
-        <View className="flex-row items-baseline gap-[7px]">
-          <Text className="font-sans-semibold text-[14.5px] text-ink">
-            {asset.symbol}
-          </Text>
-          <Text className="text-[12px] text-ink-faint">{asset.name}</Text>
-        </View>
-        <View className="mt-[7px] flex-row items-center gap-1.5">
-          <ChainIconStack chains={asset.chains} />
-          <Text className="text-[12px] text-ink-dim" numberOfLines={1}>
-            {asset.amountLabel}
-          </Text>
-        </View>
-      </View>
-      <View className="items-end">
-        <Text className="font-mono-semibold text-[13.5px] text-ink">
-          {typeof asset.usdValue === 'number' ? formatUsd(asset.usdValue) : '-'}
-        </Text>
-        <Text className="mt-[7px] font-mono text-[11px] text-ink-faint">
-          Wallet
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function AssetListSkeleton() {
-  return (
-    <View>
-      {[0, 1, 2].map((item) => (
-        <View
-          key={item}
-          className="flex-row items-center gap-[13px] px-1 py-[11px]"
-        >
-          <SkeletonBlock className="h-9 w-9 rounded-full" />
-          <View className="flex-1">
-            <SkeletonBlock className="h-4 w-28" />
-            <SkeletonBlock className="mt-[7px] h-4 w-36 rounded-full" />
-          </View>
-          <View className="items-end">
-            <SkeletonBlock className="h-4 w-16" />
-            <SkeletonBlock className="mt-[7px] h-3 w-12" />
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-function PartialWalletWarning({ onRetry }: { onRetry: () => void }) {
-  return (
-    <View className="mb-2 flex-row items-center gap-2 rounded-xl bg-[rgba(239,146,146,.07)] px-3 py-2.5">
-      <Text className="min-w-0 flex-1 text-[11px] leading-[16px] text-[#ef9292]">
-        Some network balances could not be loaded. The assets below are partial.
-      </Text>
-      <Tap
-        accessibilityLabel="Retry unavailable network balances"
-        accessibilityRole="button"
-        className="min-h-9 justify-center px-1"
-        hitSlop={8}
-        onPress={onRetry}
-      >
-        <Text className="font-sans-semibold text-[10.5px] text-accent">
-          Retry
-        </Text>
-      </Tap>
-    </View>
-  );
 }
 
 function PortfolioImportState({
@@ -202,26 +112,142 @@ function ActionButton({
   icon,
   label,
   onPress,
+  primary = false,
 }: {
   icon: ReactNode;
   label: string;
-  onPress?: () => void;
+  onPress: () => void;
+  primary?: boolean;
 }) {
   return (
     <Tap
-      className="flex-1 items-center gap-2 rounded-[15px] border border-line bg-[rgba(255,255,255,.035)] py-3"
+      accessibilityRole="button"
+      className={`flex-1 flex-row items-center justify-center gap-2 rounded-[15px] border py-3 ${
+        primary
+          ? 'border-[rgba(212,197,163,.28)] bg-[rgba(212,197,163,.12)]'
+          : 'border-line bg-[rgba(255,255,255,.035)]'
+      }`}
       onPress={onPress}
     >
       {icon}
-      <Text className="font-sans-semibold text-[12px] text-ink">{label}</Text>
+      <Text
+        className={`font-sans-semibold text-[12.5px] ${primary ? 'text-accent' : 'text-ink'}`}
+      >
+        {label}
+      </Text>
     </Tap>
+  );
+}
+
+function StrategyStatusCard({
+  status,
+  loading,
+  onPress,
+}: {
+  status: HomeStrategyStatusView | null;
+  loading: boolean;
+  onPress: () => void;
+}) {
+  const { t } = useContentLanguage();
+
+  if (loading && !status) {
+    return (
+      <View>
+        <SectionLabel>{t('home.strategyStatusTitle')}</SectionLabel>
+        <Card className="mt-3 p-4">
+          <SkeletonBlock className="h-5 w-48" />
+          <SkeletonBlock className="mt-3 h-4 w-64" />
+          <SkeletonBlock className="mt-2 h-4 w-40" />
+        </Card>
+      </View>
+    );
+  }
+
+  if (!status) return null;
+
+  const isActionRequired = status.status === 'action_required';
+  const isBlocked = status.status === 'blocked';
+  const title = isActionRequired
+    ? t('home.rebalanceRecommended')
+    : isBlocked
+      ? t('home.strategyBlocked')
+      : t('home.portfolioOnTarget');
+  const icon = isActionRequired ? (
+    <Zap size={16} strokeWidth={2} color={tokens.color.accent} />
+  ) : isBlocked ? (
+    <TriangleAlert size={16} strokeWidth={2} color={tokens.color.error} />
+  ) : (
+    <Check size={16} strokeWidth={2} color={tokens.color.success} />
+  );
+
+  return (
+    <View>
+      <SectionLabel>{t('home.strategyStatusTitle')}</SectionLabel>
+      <Tap accessibilityRole="button" onPress={onPress} className="mt-3">
+        <Card className="p-4" style={{ borderColor: 'rgba(212,197,163,.2)' }}>
+          <View className="flex-row items-center gap-2">
+            {icon}
+            <Text className="flex-1 font-sans-semibold text-[15px] text-ink">
+              {title}
+            </Text>
+            <ArrowRight
+              size={16}
+              strokeWidth={1.8}
+              color={tokens.color['ink-faint']}
+            />
+          </View>
+
+          <View className="mt-3 flex-row items-center gap-2">
+            <Text className="font-mono text-[10px] uppercase tracking-[0.7px] text-ink-faint">
+              {status.regimeLabel}
+            </Text>
+            {typeof status.fearGreed === 'number' ? (
+              <>
+                <Text className="text-[10px] text-ink-faint">·</Text>
+                <Text className="font-mono text-[10px] text-ink-dim">
+                  FGI {Math.round(status.fearGreed)}
+                </Text>
+              </>
+            ) : null}
+          </View>
+
+          {status.primaryAction ? (
+            <View className="mt-2.5">
+              <Text className="text-[12.5px] leading-[18px] text-ink-dim">
+                {status.primaryAction.description}
+                {' · '}
+                <Text className="font-mono-semibold text-ink">
+                  {formatUsd(status.primaryAction.amountUsd)}
+                </Text>
+              </Text>
+              {status.additionalActionCount > 0 ? (
+                <Text className="mt-1 text-[10.5px] text-ink-faint">
+                  {t('home.moreStrategyActions', {
+                    count: status.additionalActionCount,
+                  })}
+                </Text>
+              ) : null}
+            </View>
+          ) : status.reason ? (
+            <Text className="mt-2.5 text-[12px] leading-[18px] text-ink-dim">
+              {status.reason}
+            </Text>
+          ) : null}
+
+          <Text className="mt-3 font-sans-semibold text-[11px] text-accent">
+            {isActionRequired
+              ? t('home.viewRecommendation')
+              : t('home.viewStrategy')}
+          </Text>
+        </Card>
+      </Tap>
+    </View>
   );
 }
 
 export function HomeScreen() {
   const router = useRouter();
-  const { languageCode, t } = useContentLanguage();
-  const authAction = useAuthenticatedAction();
+  const { t } = useContentLanguage();
   const [range, setRange] = useState<HomeRange>(DEFAULT_HOME_RANGE);
   const account = useAccount();
   const {
@@ -229,9 +255,8 @@ export function HomeScreen() {
     startPolling: startEtlPolling,
     triggerEtl,
   } = useEtlJobPolling();
-  const { data, isLoading, snapshotAvailability, walletAssets } = useHomeData(
+  const { data, isLoading, snapshotAvailability } = useHomeData(
     account.viewingUserId,
-    account.address,
     range,
     {
       isResolvingSubject: account.isResolvingViewingUser,
@@ -259,7 +284,7 @@ export function HomeScreen() {
   ]);
 
   const isDemo = account.isDemo;
-  const { home, strategy } = data;
+  const { home, strategyStatus } = data;
   const showBalanceSkeleton = !isDemo && isLoading && !etlState.isInProgress;
   const showPortfolioImportState =
     account.isOwnBundle &&
@@ -275,15 +300,7 @@ export function HomeScreen() {
       void triggerEtl(account.userId, account.address);
     }
   };
-  const showAssetSkeleton = !isDemo && walletAssets.isLoading;
-  const startStrategy = createStrategyStartAction(authAction.run, () =>
-    router.push('/invest/amount'),
-  );
   const connect = () => void account.connect().catch(() => undefined);
-  const retryWalletAssets = () => void walletAssets.refetch();
-  const latestSnapshotLabel = isSnapshotToday(home.latestSnapshotDate)
-    ? t('home.today')
-    : formatSnapshotDate(home.latestSnapshotDate, languageCode);
 
   return (
     <ScreenScrollView>
@@ -291,7 +308,26 @@ export function HomeScreen() {
 
       <View className="relative">
         <View className="px-5 pt-6">
-          <SectionLabel>{t('home.netWorth')}</SectionLabel>
+          <View className="flex-row items-center justify-between">
+            <SectionLabel>{t('home.netWorth')}</SectionLabel>
+            {!showPortfolioImportState ? (
+              <Tap
+                accessibilityRole="button"
+                className="flex-row items-center gap-1 py-1"
+                onPress={() => router.push('/portfolio')}
+              >
+                <Text className="font-sans-semibold text-[10.5px] text-accent">
+                  {t('home.viewPortfolio')}
+                </Text>
+                <ArrowRight
+                  size={12}
+                  strokeWidth={2}
+                  color={tokens.color.accent}
+                />
+              </Tap>
+            ) : null}
+          </View>
+
           {showPortfolioImportState ? (
             <View className="mt-3">
               <PortfolioImportState
@@ -328,20 +364,22 @@ export function HomeScreen() {
                 emptyClassName="text-ink-faint"
               />
               <View className="mt-[9px] flex-row items-center gap-2">
-                <Text className="rounded-full bg-success/[0.12] px-[9px] py-[3px] font-sans-semibold text-[12.5px] text-success">
-                  {typeof home.latestChangePct === 'number'
-                    ? formatSignedPct(home.latestChangePct).replace('+', '')
+                <Text
+                  className={`rounded-full px-[9px] py-[3px] font-sans-semibold text-[12.5px] ${
+                    typeof home.rangeChangePct === 'number' &&
+                    home.rangeChangePct < 0
+                      ? 'bg-error/[0.12] text-error'
+                      : 'bg-success/[0.12] text-success'
+                  }`}
+                >
+                  {typeof home.rangeChangePct === 'number'
+                    ? formatSignedPct(home.rangeChangePct)
                     : '-'}
                 </Text>
                 <Text className="text-[13px] text-ink-dim">
-                  {typeof home.latestChangeUsd === 'number'
-                    ? [
-                        formatSignedUsd(home.latestChangeUsd),
-                        latestSnapshotLabel,
-                      ]
-                        .filter(Boolean)
-                        .join(' ')
-                    : (latestSnapshotLabel ?? '')}
+                  {typeof home.rangeChangeUsd === 'number'
+                    ? `${formatSignedUsd(home.rangeChangeUsd)} · ${range}`
+                    : range}
                 </Text>
               </View>
             </>
@@ -387,11 +425,12 @@ export function HomeScreen() {
       {account.isOwnBundle ? (
         <View className="mt-5 flex-row gap-3 px-5">
           <ActionButton
+            primary
             label={t('home.invest')}
             onPress={() => router.push('/invest/amount')}
             icon={
               <ArrowDown
-                size={18}
+                size={17}
                 color={tokens.color.accent}
                 strokeWidth={1.8}
               />
@@ -402,17 +441,7 @@ export function HomeScreen() {
             onPress={() => router.push('/send')}
             icon={
               <ArrowUp
-                size={18}
-                color={tokens.color.accent}
-                strokeWidth={1.8}
-              />
-            }
-          />
-          <ActionButton
-            label={t('home.more')}
-            icon={
-              <MoreHorizontal
-                size={18}
+                size={17}
                 color={tokens.color.accent}
                 strokeWidth={1.8}
               />
@@ -422,106 +451,16 @@ export function HomeScreen() {
       ) : null}
 
       <View className="mt-6 px-5">
-        <ZapStrategyCard
-          strategy={strategy}
-          onStart={startStrategy}
-          availableToInvest={{
-            wallet: walletAssets,
-            isConnected: account.isConnected,
-          }}
+        <StrategyStatusCard
+          status={strategyStatus}
+          loading={!isDemo && isLoading}
+          onPress={() => router.push('/strategy')}
         />
       </View>
 
       {!account.isDemo && !homeIncome.isError ? (
         <View className="mt-6 px-5">
           <HomeIncomeCard {...homeIncome} />
-        </View>
-      ) : null}
-
-      <View className="mt-6 px-5">
-        <Tap
-          accessibilityRole="button"
-          className="flex-row items-center gap-[13px] rounded-[15px] border border-line bg-[rgba(255,255,255,.035)] p-4"
-          onPress={() => router.push('/portfolio')}
-        >
-          <View className="h-10 w-10 items-center justify-center rounded-xl border border-[rgba(212,197,163,.3)] bg-[rgba(212,197,163,.12)]">
-            <PieChart size={18} strokeWidth={1.8} color={tokens.color.accent} />
-          </View>
-          <View className="min-w-0 flex-1">
-            <Text className="font-sans-semibold text-[14.5px] text-ink">
-              {t('home.portfolio')}
-            </Text>
-            <Text className="mt-1 text-[12px] text-ink-dim">
-              {t('home.portfolioDescription')}
-            </Text>
-          </View>
-          <ChevronRight size={18} strokeWidth={1.8} color="#71717a" />
-        </Tap>
-      </View>
-
-      {account.isOwnBundle ? (
-        <View className="mt-6 px-5">
-          <View className="mb-2 flex-row items-center justify-between">
-            <Text className="font-sans-semibold text-[15px] text-ink">
-              {t('home.walletAssets')}
-            </Text>
-            <Text className="font-mono text-[9.5px] uppercase tracking-[0.76px] text-ink-faint">
-              {isDemo
-                ? t('home.demo')
-                : walletAssets.failedChains.length > 0
-                  ? t('home.partial')
-                  : t('home.live')}
-            </Text>
-          </View>
-          <View className="relative">
-            <Card className="p-[13px]">
-              {showAssetSkeleton ? (
-                <AssetListSkeleton />
-              ) : walletAssets.isError ? (
-                <EmptyState
-                  icon={
-                    <RefreshCw size={17} strokeWidth={1.8} color="#ef9292" />
-                  }
-                  tone="error"
-                  title="Wallet balance unavailable"
-                  body="We could not load this wallet’s live balances."
-                  action={{
-                    label: 'Try again',
-                    accessibilityLabel: 'Retry wallet balances',
-                    onPress: retryWalletAssets,
-                  }}
-                />
-              ) : (
-                <>
-                  {walletAssets.failedChains.length > 0 ? (
-                    <PartialWalletWarning onRetry={retryWalletAssets} />
-                  ) : null}
-                  {home.assets.length === 0 ? (
-                    <EmptyState
-                      icon={
-                        <Wallet
-                          size={17}
-                          strokeWidth={1.8}
-                          color={tokens.color.accent}
-                        />
-                      }
-                      title="No supported assets found"
-                      body="USDC, USDT and ETH on Ethereum, Base or Arbitrum will appear here."
-                    />
-                  ) : (
-                    home.assets.map((asset, index) => (
-                      <AssetRow
-                        key={asset.symbol}
-                        asset={asset}
-                        divider={index < home.assets.length - 1}
-                      />
-                    ))
-                  )}
-                </>
-              )}
-            </Card>
-            {isDemo ? <DemoBlurCover /> : null}
-          </View>
         </View>
       ) : null}
     </ScreenScrollView>

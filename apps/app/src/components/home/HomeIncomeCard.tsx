@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/Card';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import type { HomeIncomeView } from '@/integration/homeIncomeModel';
-import { formatSignedUsd, formatUsd } from '@/lib/format';
+import { formatUsd } from '@/lib/format';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 interface HomeIncomeCardProps {
@@ -48,29 +48,6 @@ export function HomeIncomeCard({
             <Text className="mt-1.5 text-[11px] leading-[16px] text-ink-dim">
               {t('home.passiveIncomeBasis')}
             </Text>
-            {income.strategyRows.length > 0 ? (
-              <View className="mt-4 border-t border-line pt-3">
-                <SectionLabel>{t('home.strategyIncomeTitle')}</SectionLabel>
-                {income.strategyRows.map((row) => (
-                  <View
-                    key={row.protocol}
-                    className="mt-2 flex-row items-center justify-between"
-                  >
-                    <Text className="text-[12px] text-ink-dim">
-                      {row.protocol}
-                    </Text>
-                    <Text
-                      className="font-mono-semibold text-[12px]"
-                      style={{
-                        color: row.monthlyUsd < 0 ? '#ef9292' : '#78c7a4',
-                      }}
-                    >
-                      {formatSignedUsd(row.monthlyUsd)}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
           </>
         )}
       </Card>
