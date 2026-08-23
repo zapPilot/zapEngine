@@ -4,7 +4,7 @@ import type { WriteResult } from '../../core/database/baseWriter.js';
 import { logger } from '../../utils/logger.js';
 
 interface InsertValues {
-  columns: string[];
+  columns: readonly string[];
   placeholders: string;
   values: unknown[];
 }

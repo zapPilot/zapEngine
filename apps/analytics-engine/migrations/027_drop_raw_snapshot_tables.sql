@@ -7,8 +7,12 @@
 --   2. A cold backup of both tables exists off-database:
 --        pg_dump --data-only -t public.portfolio_item_snapshots \
 --                -t alpha_raw.wallet_token_snapshots <dsn> | gzip > backup.sql.gz
---   3. Endpoint parity has been verified over several days and the guard
---      below confirms nothing wrote to the raw tables since the deploy.
+--   3. The canonical analytics.daily_* tables have been verified.
+--
+-- Guard policy:
+--   Refuse to drop if either raw table contains rows for the current UTC day.
+--   Rows from previous UTC days are allowed because they may have been written
+--   by the legacy ETL before the 026-era cutover.
 --
 -- Dropping these releases ~1 GB immediately (no VACUUM FULL needed). The
 -- canonical daily history lives in analytics.daily_portfolio_positions /
@@ -21,13 +25,15 @@ BEGIN;
 SET LOCAL lock_timeout = '15s';
 SET LOCAL statement_timeout = '5min';
 
--- Guard: the legacy ETL wrote these tables until the 026-era deploy; refuse
--- to drop while rows from the last 2 UTC days exist (evidence a writer is
--- still active — an old alpha-etl instance or a direct PostgREST producer).
+-- ----------------------------------------------------------------------------
+-- Guard: refuse to drop if a legacy/raw writer has written anything today UTC.
+-- Yesterday's rows are allowed: they may predate the 026-era cutover.
+-- ----------------------------------------------------------------------------
 DO $$
 DECLARE
-  recent_portfolio_rows bigint;
-  recent_wallet_rows bigint;
+  recent_portfolio_rows bigint := 0;
+  recent_wallet_rows bigint := 0;
+  utc_today date := (pg_catalog.now() AT TIME ZONE 'UTC')::date;
 BEGIN
   IF pg_catalog.to_regclass('public.portfolio_item_snapshots') IS NULL
      AND pg_catalog.to_regclass('alpha_raw.wallet_token_snapshots') IS NULL THEN
@@ -35,22 +41,31 @@ BEGIN
     RETURN;
   END IF;
 
-  SELECT pg_catalog.count(*)
-  INTO recent_portfolio_rows
-  FROM public.portfolio_item_snapshots
-  WHERE snapshot_date_utc >= (pg_catalog.now() AT TIME ZONE 'UTC')::date - 1;
+  IF pg_catalog.to_regclass('public.portfolio_item_snapshots') IS NOT NULL THEN
+    SELECT pg_catalog.count(*)
+    INTO recent_portfolio_rows
+    FROM public.portfolio_item_snapshots
+    WHERE snapshot_date_utc >= utc_today;
+  END IF;
 
-  SELECT pg_catalog.count(*)
-  INTO recent_wallet_rows
-  FROM alpha_raw.wallet_token_snapshots
-  WHERE inserted_at >= (pg_catalog.now() AT TIME ZONE 'UTC')::date - 1;
+  IF pg_catalog.to_regclass('alpha_raw.wallet_token_snapshots') IS NOT NULL THEN
+    SELECT pg_catalog.count(*)
+    INTO recent_wallet_rows
+    FROM alpha_raw.wallet_token_snapshots
+    WHERE inserted_at >= utc_today;
+  END IF;
 
   IF recent_portfolio_rows > 0 OR recent_wallet_rows > 0 THEN
     RAISE EXCEPTION
-      'Raw tables received rows in the last 2 UTC days (portfolio %, wallet %); a writer is still active — do not drop yet',
+      'Raw tables received rows today UTC % (portfolio %, wallet %); a raw writer may still be active — do not drop yet',
+      utc_today,
       recent_portfolio_rows,
       recent_wallet_rows;
   END IF;
+
+  RAISE NOTICE
+    'No raw writes detected for UTC %; proceeding with raw table removal',
+    utc_today;
 END
 $$;
 

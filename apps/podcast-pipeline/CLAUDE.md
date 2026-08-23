@@ -2,6 +2,7 @@ See @README.md for project overview.
 
 # Gotchas
 
+- `supabase/migrations/` and `supabase/schema.sql` are a frozen snapshot as of migration 035; parity tests read them in place. Current schema truth is the live database plus root `supabase/migrations/` (see CONTRIBUTING.md "Adding a database migration").
 - **Telegram env vars are namespaced.** This service uses `PIPELINE_TELEGRAM_*` (bot token, webhook secret, allowed user IDs) deliberately so it does not collide with `apps/account-engine`'s `TELEGRAM_*` bot. Do not introduce unprefixed `TELEGRAM_*` vars here — they would be read by both processes.
 - **Webhook is fire-and-forget.** `/telegram/webhook` returns 200 immediately and then runs `runIngestPipeline` in the background. Adding `await` on the pipeline call from the handler breaks Telegram's webhook timeout contract — keep new long-running work behind the same fast-ack pattern.
 - **Video renders live in their own process.** `src/index.ts` serves HTTP and runs ingest; `src/worker.ts` runs the video worker, and they deploy as separate Fly process groups (`app` on shared CPU, `render` on dedicated CPU — see README). `bootstrap()` does not start a worker unless asked (`startVideoWorker: true`). Do not move rendering back into the API process: ffmpeg starves the event loop until `/health` times out and Fly drops the instance from the proxy pool. `heavyWorkCoordinator` still guards a single-process setup, but it cannot coordinate across the two groups — that separation is the point.

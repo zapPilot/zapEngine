@@ -22,6 +22,7 @@ Do not use Markdown files as a long-lived TODO system.
 - [app-layout.md](./app-layout.md) — default layout for new TypeScript server apps
 - [track-record-pipeline.md](./track-record-pipeline.md) — current track-record snapshot runbook
 - [EIP-7702 session scoping](./spikes/2026-07-07-eip7702-session-scoping.md) — retained wallet-policy decision and revalidation triggers
+- [Supabase CLI migration workflow](./spikes/2026-08-22-supabase-cli-migration-workflow.md) — single-workdir baseline and manual production-apply decision
 - [product strategy](./product-strategy/README.md) — stable positioning only; execution work belongs in Issues
 
 Deeper implementation docs live beside the code under `apps/*/docs/` or `packages/*/docs/`.

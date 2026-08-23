@@ -28,12 +28,12 @@ For `analytics-engine`, include `sql:audit`, `service-reachability`, and `pylint
 
 ## Verification hierarchy
 
-| Command | Scope | Use |
-| --- | --- | --- |
-| `pnpm verify changed` | Committed, staged, and working-tree changes | Inner edit loop |
-| `pnpm verify branch` | `origin/main...HEAD` | Before push or PR |
-| `pnpm verify parallel` | Full repository, parallel | Fast full local gate |
-| `pnpm verify ci` | Full repository, sequential and fail-fast | Diagnose CI failure order |
+| Command                | Scope                                       | Use                       |
+| ---------------------- | ------------------------------------------- | ------------------------- |
+| `pnpm verify changed`  | Committed, staged, and working-tree changes | Inner edit loop           |
+| `pnpm verify branch`   | `origin/main...HEAD`                        | Before push or PR         |
+| `pnpm verify parallel` | Full repository, parallel                   | Fast full local gate      |
+| `pnpm verify ci`       | Full repository, sequential and fail-fast   | Diagnose CI failure order |
 
 All `pnpm verify` modes require a non-shallow clone. Run `git fetch --unshallow origin` first when necessary.
 
@@ -82,6 +82,30 @@ pnpm contracts check
 ```
 
 Use Zod v4. Do not add Swagger/OpenAPI scaffolding unless the task requires it.
+
+## Adding a database migration
+
+The root `supabase/` directory is the only active Supabase CLI workdir for the shared production project. Create a migration from the repository root:
+
+```bash
+supabase migration new <description>
+```
+
+Edit the generated `supabase/migrations/<timestamp>_<description>.sql`, open a PR, and merge it before applying it. The operator then runs locally:
+
+```bash
+supabase db push --dry-run
+supabase db push
+supabase migration list
+```
+
+Review the dry-run migration list before every push. Push exactly one migration at a time, and confirm that `LOCAL` and `REMOTE` match afterward. If the CLI is unavailable when authoring the file, use the UTC filename format `$(date -u +%Y%m%d%H%M%S)_<description>.sql`.
+
+Migration SQL must use schema-qualified object names. Do not use `CREATE INDEX CONCURRENTLY` or `DROP INDEX CONCURRENTLY`: each migration and its history row run in one implicit transaction. Express `pg_cron` changes through `cron.schedule`, `cron.alter_job`, or `cron.unschedule` calls inside a migration. A destructive migration requires its own PR and must never share a push with another migration.
+
+Do not change the schema through the Supabase Dashboard SQL Editor or MCP `apply_migration` / `execute_sql`, except for a documented emergency. Do not add migrations under `apps/*/migrations/` or `apps/podcast-pipeline/supabase/migrations/`, run `supabase init` anywhere in this repository, or modify a migration that has already been pushed.
+
+After any emergency out-of-band schema change, reconcile it immediately with `supabase db pull <description>` and commit the resulting new migration. Database credentials belong in the operator's keychain or temporary shell environment, never in `.env` or `.env.example`.
 
 ## Adding an app or package
 
