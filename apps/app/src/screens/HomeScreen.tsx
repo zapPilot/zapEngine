@@ -425,22 +425,20 @@ export function HomeScreen() {
         <View className="px-5 pt-6">
           <View className="flex-row items-center justify-between">
             <SectionLabel>{t('home.netWorth')}</SectionLabel>
-            {!showPortfolioImportState ? (
-              <Tap
-                accessibilityRole="button"
-                className="flex-row items-center gap-1 py-1"
-                onPress={() => router.push('/portfolio')}
-              >
-                <Text className="font-sans-semibold text-[10.5px] text-accent">
-                  {t('home.viewPortfolio')}
-                </Text>
-                <ArrowRight
-                  size={12}
-                  strokeWidth={2}
-                  color={tokens.color.accent}
-                />
-              </Tap>
-            ) : null}
+            <Tap
+              accessibilityRole="button"
+              className="flex-row items-center gap-1 py-1"
+              onPress={() => router.push('/portfolio')}
+            >
+              <Text className="font-sans-semibold text-[10.5px] text-accent">
+                {t('home.viewPortfolio')}
+              </Text>
+              <ArrowRight
+                size={12}
+                strokeWidth={2}
+                color={tokens.color.accent}
+              />
+            </Tap>
           </View>
 
           {showPortfolioImportState ? (
@@ -469,7 +467,11 @@ export function HomeScreen() {
               />
             </View>
           ) : (
-            <>
+            <Tap
+              accessibilityLabel={`${t('home.netWorth')}, ${typeof home.totalBalance === 'number' ? formatUsd(home.totalBalance) : '-'}, ${t('home.viewPortfolio')}`}
+              accessibilityRole="button"
+              onPress={() => router.push('/portfolio')}
+            >
               <DisplayUsdValue
                 loading={showBalanceSkeleton}
                 value={home.totalBalance}
@@ -497,7 +499,7 @@ export function HomeScreen() {
                     : range}
                 </Text>
               </View>
-            </>
+            </Tap>
           )}
         </View>
 

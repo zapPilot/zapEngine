@@ -417,6 +417,10 @@ test('renders the web app shell and primary routes without page errors', async (
     await expect(page).toHaveURL(/\/home$/);
     await expectHealthyRoute(page);
     await expect(page.getByText('Sign in to continue')).toHaveCount(0);
+    await expect(page.getByText('Wallet assets')).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Rebalance', exact: true }),
+    ).toBeVisible();
 
     await page.getByRole('tab', { name: 'Podcast' }).click();
     await expect(page).toHaveURL(/\/podcast$/);
@@ -450,6 +454,13 @@ test('renders the web app shell and primary routes without page errors', async (
   await test.step('Portfolio route requires authentication', async () => {
     await page.goto('/portfolio');
     await expect(page).toHaveURL(/\/portfolio$/);
+    await expectHealthyRoute(page);
+    await expect(page.getByText('Sign in to continue')).toBeVisible();
+  });
+
+  await test.step('Decision focus route requires authentication without route errors', async () => {
+    await page.goto('/strategy?focus=decision');
+    await expect(page).toHaveURL(/\/strategy\?focus=decision$/);
     await expectHealthyRoute(page);
     await expect(page.getByText('Sign in to continue')).toBeVisible();
   });

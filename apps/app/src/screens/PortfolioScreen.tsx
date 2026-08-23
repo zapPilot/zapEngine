@@ -107,7 +107,14 @@ export function PortfolioScreen() {
           />
         </View>
         <View className="mt-[9px] flex-row items-center gap-2">
-          <Text className="rounded-full bg-[rgba(122,216,143,.12)] px-[9px] py-[3px] font-sans-semibold text-[12.5px] text-success">
+          <Text
+            className={`rounded-full px-[9px] py-[3px] font-sans-semibold text-[12.5px] ${
+              typeof portfolio?.valueChangePct === 'number' &&
+              portfolio.valueChangePct < 0
+                ? 'bg-error/[0.12] text-error'
+                : 'bg-success/[0.12] text-success'
+            }`}
+          >
             {typeof portfolio?.valueChangePct === 'number'
               ? formatSignedPct(portfolio.valueChangePct).replace('+', '')
               : '-'}
