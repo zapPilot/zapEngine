@@ -2,7 +2,6 @@ import type { PoolClient } from 'pg';
 
 import { getTableName } from '../../config/database.js';
 import {
-  BaseWriter,
   createEmptyWriteResult,
   type WriteResult,
 } from '../../core/database/baseWriter.js';
@@ -13,11 +12,12 @@ import type {
   PortfolioSnapshotSource,
 } from '../../types/database.js';
 import { logger } from '../../utils/logger.js';
+import { DailySliceWriter, replaceDailySlices } from './dailySliceWriter.js';
 
 // Writes analytics.daily_portfolio_positions directly: the affected
 // (wallet, UTC day) slices are deleted and re-inserted in one transaction,
 // so a retried or repeated job always converges to the latest batch.
-export class PortfolioItemWriter extends BaseWriter<PortfolioItemSnapshotInsert> {
+export class PortfolioItemWriter extends DailySliceWriter<PortfolioItemSnapshotInsert> {
   protected override batchSize = 100;
 
   async writeSnapshots(
@@ -36,28 +36,13 @@ export class PortfolioItemWriter extends BaseWriter<PortfolioItemSnapshotInsert>
       successfulWallets,
     );
 
-    if (replaceKeys.length === 0) {
-      return result;
-    }
-
-    try {
-      const inserted = await this.withDatabaseClient((client) =>
+    return this.executeDailyReplacement({
+      result,
+      replace: (client) =>
         this.replacePositions(client, positions, replaceKeys),
-      );
-
-      result.recordsInserted = inserted;
-      logger.info('Daily portfolio positions replaced', {
-        records: inserted,
-        walletDays: replaceKeys.length,
-      });
-    } catch (error) {
-      result.success = false;
-      result.errors.push(
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-
-    return result;
+      logMessage: 'Daily portfolio positions replaced',
+      walletDays: replaceKeys.length,
+    });
   }
 
   private async replacePositions(
@@ -73,26 +58,14 @@ export class PortfolioItemWriter extends BaseWriter<PortfolioItemSnapshotInsert>
       )
       .join(', ');
 
-    await client.query('BEGIN');
-    await client.query(
-      `DELETE FROM ${table} WHERE (wallet, snapshot_date, source) IN (${keyPlaceholders})`,
-      replaceKeys.flat(),
-    );
-
-    let inserted = 0;
-    for (let i = 0; i < positions.length; i += this.batchSize) {
-      const batch = positions.slice(i, i + this.batchSize);
-      const { columns, placeholders, values } =
-        buildPortfolioInsertValues(batch);
-      const batchResult = await client.query(
-        `INSERT INTO ${table} (${columns.join(', ')}) VALUES ${placeholders}`,
-        values,
-      );
-      inserted += batchResult.rowCount ?? 0;
-    }
-
-    await client.query('COMMIT');
-    return inserted;
+    return replaceDailySlices(client, {
+      table,
+      deletePredicate: `(wallet, snapshot_date, source) IN (${keyPlaceholders})`,
+      deleteValues: replaceKeys.flat(),
+      records: positions,
+      batchSize: this.batchSize,
+      buildInsertValues: buildPortfolioInsertValues,
+    });
   }
 
   private filterValidRecords(
