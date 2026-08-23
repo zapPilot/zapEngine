@@ -10,6 +10,7 @@ import { buildPortfolioInsertValues } from '../../core/database/columnDefinition
 import type {
   DailyPortfolioPositionInsert,
   PortfolioItemSnapshotInsert,
+  PortfolioSnapshotSource,
 } from '../../types/database.js';
 import { logger } from '../../utils/logger.js';
 
@@ -21,16 +22,23 @@ export class PortfolioItemWriter extends BaseWriter<PortfolioItemSnapshotInsert>
 
   async writeSnapshots(
     records: PortfolioItemSnapshotInsert[],
+    source: PortfolioSnapshotSource,
+    successfulWallets: string[] = [],
   ): Promise<WriteResult> {
     const result = createEmptyWriteResult();
     const validRecords = this.filterValidRecords(records, result);
+    const positions = validRecords.map((record) =>
+      toDailyPosition(record, source),
+    );
+    const replaceKeys = collectReplaceKeys(
+      positions,
+      source,
+      successfulWallets,
+    );
 
-    if (validRecords.length === 0) {
+    if (replaceKeys.length === 0) {
       return result;
     }
-
-    const positions = validRecords.map(toDailyPosition);
-    const replaceKeys = collectReplaceKeys(positions);
 
     try {
       const inserted = await this.withDatabaseClient((client) =>
@@ -55,16 +63,19 @@ export class PortfolioItemWriter extends BaseWriter<PortfolioItemSnapshotInsert>
   private async replacePositions(
     client: PoolClient,
     positions: DailyPortfolioPositionInsert[],
-    replaceKeys: [string, string][],
+    replaceKeys: [string, string, PortfolioSnapshotSource][],
   ): Promise<number> {
     const table = getTableName('DAILY_PORTFOLIO_POSITIONS');
     const keyPlaceholders = replaceKeys
-      .map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2}::date)`)
+      .map(
+        (_, index) =>
+          `($${index * 3 + 1}, $${index * 3 + 2}::date, $${index * 3 + 3})`,
+      )
       .join(', ');
 
     await client.query('BEGIN');
     await client.query(
-      `DELETE FROM ${table} WHERE (wallet, snapshot_date) IN (${keyPlaceholders})`,
+      `DELETE FROM ${table} WHERE (wallet, snapshot_date, source) IN (${keyPlaceholders})`,
       replaceKeys.flat(),
     );
 
@@ -111,10 +122,12 @@ export class PortfolioItemWriter extends BaseWriter<PortfolioItemSnapshotInsert>
 
 function toDailyPosition(
   record: PortfolioItemSnapshotInsert,
+  source: PortfolioSnapshotSource,
 ): DailyPortfolioPositionInsert {
   return {
     ...record,
     wallet: record.wallet.toLowerCase(),
+    source,
     snapshot_date: toUtcDateString(record.snapshot_at),
   };
 }
@@ -125,12 +138,29 @@ function toUtcDateString(isoTimestamp: string): string {
 
 function collectReplaceKeys(
   positions: DailyPortfolioPositionInsert[],
-): [string, string][] {
-  const keys = new Map<string, [string, string]>();
+  source: PortfolioSnapshotSource,
+  successfulWallets: string[],
+): [string, string, PortfolioSnapshotSource][] {
+  const keys = new Map<string, [string, string, PortfolioSnapshotSource]>();
+  const walletsWithPositions = new Set<string>();
   for (const position of positions) {
-    keys.set(`${position.wallet}|${position.snapshot_date}`, [
+    walletsWithPositions.add(position.wallet);
+    keys.set(`${position.wallet}|${position.snapshot_date}|${source}`, [
       position.wallet,
       position.snapshot_date,
+      source,
+    ]);
+  }
+  const snapshotDate = toUtcDateString(new Date().toISOString());
+  for (const wallet of successfulWallets) {
+    const normalizedWallet = wallet.toLowerCase();
+    if (walletsWithPositions.has(normalizedWallet)) {
+      continue;
+    }
+    keys.set(`${normalizedWallet}|${snapshotDate}|${source}`, [
+      normalizedWallet,
+      snapshotDate,
+      source,
     ]);
   }
   return [...keys.values()];

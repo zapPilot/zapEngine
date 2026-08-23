@@ -36,9 +36,16 @@ describe('Database Services', () => {
       mockClient.query.mockRejectedValue(new Error('Write error'));
       const writer = new PortfolioItemWriter();
 
-      const result = await writer.writeSnapshots([
-        { wallet: 'w1', id_raw: 'id1' } as unknown,
-      ]);
+      const result = await writer.writeSnapshots(
+        [
+          {
+            wallet: 'w1',
+            id_raw: 'id1',
+            snapshot_at: '2026-08-23T00:00:00Z',
+          } as unknown,
+        ],
+        'debank',
+      );
       expect(result.success).toBe(false);
       expect(result.errors[0]).toBe('Write error');
     });
@@ -93,28 +100,14 @@ describe('Database Services', () => {
       mockClient.query.mockRejectedValue(new Error('Write error'));
       const writer = new WalletBalanceWriter();
 
-      // First call removed to avoid duplicate declaration
-
-      // Wait, WalletBalanceWriter implementation doesn't catch error in writeWalletBalanceSnapshots/writeBatch?
-      // Checking file: writeBatch wraps in try/catch (lines 77-84 in WalletBalanceWriter? No, checking previous file content step 163...
-      // WalletBalanceWriter lines 45-50 log success. But where is catch?
-      // WalletBalanceWriter.ts (Step 163) does NOT have try/catch block!
-      // Line 37: `await this.withDatabaseClient...`
-      // BaseWriter.withDatabaseClient might handle it?
-      // WalletBalanceWriter seems to rely on BaseWriter or caller handling?
-      // If check line 48 was 'uncovered', and file ends at 55.
-      // Line 48 is `duplicatesSkipped: result.duplicatesSkipped ?? 0,` inside logger.debug.
-      // If coverage report says line 48 is uncovered, it means `writeBatch` success path logger was not hit?
-      // Or maybe it is covered but I want to cover ERROR path?
-      // If there is no try/catch, error propagates.
-      // I will expect it to throw.
-
-      // Wait, looking at Step 163 again... lines 52: return result.
-      // It seems WalletBalanceWriter implementation provided in Step 163 is different from others.
-      // It does NOT catch errors. So it throws.
-
       const result = await writer.writeWalletBalanceSnapshots([
-        { user_wallet_address: 'w1', token_address: 't1' } as unknown,
+        {
+          user_wallet_address: 'w1',
+          token_address: 't1',
+          chain: 'eth',
+          is_wallet: true,
+          inserted_at: '2026-08-23',
+        },
       ]);
       expect(result.success).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);

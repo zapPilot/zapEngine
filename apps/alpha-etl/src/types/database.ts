@@ -106,8 +106,10 @@ export interface PortfolioItemSnapshotInsert {
  * record plus the UTC day derived from snapshot_at (wallet lowercased by the
  * writer).
  */
-export interface DailyPortfolioPositionInsert
-  extends PortfolioItemSnapshotInsert {
+export type PortfolioSnapshotSource = 'debank' | 'hyperliquid';
+
+export interface DailyPortfolioPositionInsert extends PortfolioItemSnapshotInsert {
+  source: PortfolioSnapshotSource;
   snapshot_date: string;
 }
 

@@ -3,7 +3,7 @@
 -- ============================================================================
 -- The DeBank ETL runs once per day, so the incremental trigger/queue/30-minute
 -- cron machinery from migrations 023/024 is retired. alpha-etl now writes the
--- canonical daily tables directly (delete+insert per wallet/UTC day), and the
+-- canonical daily tables directly (delete+insert per provider/wallet/UTC day), and the
 -- category trends are recomputed by analytics.rebuild_category_trends() right
 -- after each write. There is no queue left to drain, so no cron replaces the
 -- retired job.
@@ -142,6 +142,22 @@ ALTER POLICY portfolio_category_trend_cache_select
 ALTER TABLE analytics.daily_portfolio_positions
   ALTER COLUMN id SET DEFAULT gen_random_uuid();
 
+-- DeBank and Hyperliquid share this table and can write the same wallet/day.
+-- Persist the provider so each successful fetch replaces only its own slice.
+ALTER TABLE analytics.daily_portfolio_positions
+  ADD COLUMN source text;
+UPDATE analytics.daily_portfolio_positions
+SET source = CASE
+  WHEN chain = 'hyperliquid' THEN 'hyperliquid'
+  ELSE 'debank'
+END;
+ALTER TABLE analytics.daily_portfolio_positions
+  ALTER COLUMN source SET NOT NULL,
+  ADD CONSTRAINT daily_portfolio_positions_source_check
+    CHECK (source IN ('debank', 'hyperliquid'));
+CREATE INDEX daily_portfolio_positions_wallet_date_source_idx
+  ON analytics.daily_portfolio_positions (wallet, snapshot_date, source);
+
 -- ----------------------------------------------------------------------------
 -- New canonical wallet-token daily table (slim), backfilled from raw history.
 -- One row per idle wallet token per wallet/UTC day.
@@ -189,6 +205,7 @@ SELECT
 FROM alpha_raw.wallet_token_snapshots AS wts
 WHERE wts.is_wallet IS TRUE
   AND wts.token_address IS NOT NULL
+  AND pg_catalog.btrim(wts.token_address) <> ''
 ON CONFLICT (user_wallet_address, token_address, chain, snapshot_date)
   DO NOTHING;
 
@@ -519,19 +536,29 @@ $$;
 -- RLS is enabled on the direct-write tables and alpha_etl_user is not their
 -- owner, so its DML needs explicit policies (reads stay covered by the
 -- SELECT-to-PUBLIC policies above).
-CREATE POLICY daily_portfolio_positions_etl_write
-  ON analytics.daily_portfolio_positions
-  FOR ALL
-  TO alpha_etl_user
-  USING (true)
-  WITH CHECK (true);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_roles
+    WHERE rolname = 'alpha_etl_user'
+  ) THEN
+    CREATE POLICY daily_portfolio_positions_etl_write
+      ON analytics.daily_portfolio_positions
+      FOR ALL
+      TO alpha_etl_user
+      USING (true)
+      WITH CHECK (true);
 
-CREATE POLICY daily_wallet_tokens_etl_write
-  ON analytics.daily_wallet_tokens
-  FOR ALL
-  TO alpha_etl_user
-  USING (true)
-  WITH CHECK (true);
+    CREATE POLICY daily_wallet_tokens_etl_write
+      ON analytics.daily_wallet_tokens
+      FOR ALL
+      TO alpha_etl_user
+      USING (true)
+      WITH CHECK (true);
+  END IF;
+END
+$$;
 
 -- ----------------------------------------------------------------------------
 -- Recompute all trends once: the backfilled wallet-token history replaces the
@@ -544,7 +571,7 @@ ANALYZE analytics.daily_wallet_tokens;
 ANALYZE analytics.daily_category_trends;
 
 COMMENT ON TABLE analytics.daily_portfolio_positions IS
-  'Canonical daily portfolio positions: every row of the day''s DeBank/Hyperliquid batch per wallet/UTC day (alpha-etl replaces the wallet/day slice on each write). Permanent history — never add retention.';
+  'Canonical daily portfolio positions: every row of the day''s DeBank/Hyperliquid batch per provider/wallet/UTC day (alpha-etl replaces only that provider slice on each successful write, including empty batches). Permanent history — never add retention.';
 COMMENT ON TABLE analytics.daily_wallet_tokens IS
   'Canonical daily idle-wallet token balances: one row per token per wallet/UTC day, slimmed to reader-used columns. Permanent history — never add retention.';
 COMMENT ON TABLE analytics.daily_category_trends IS

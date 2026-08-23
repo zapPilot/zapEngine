@@ -94,6 +94,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
   private async fetchData(job: ETLJob): Promise<{
     walletBalances: WalletBalanceSnapshotInsert[];
     portfolioItems: PortfolioItemSnapshotInsert[];
+    successfulWallets: string[];
   }> {
     logger.info('Processing DeBank data for VIP users', { jobId: job.jobId });
 
@@ -122,7 +123,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
         costSavingsPercent: `${costSavingsPercent}%`,
       });
 
-      return { walletBalances, portfolioItems };
+      return { walletBalances, portfolioItems, successfulWallets };
     } catch (error) {
       logger.error('Failed to fetch DeBank data for VIP users:', {
         jobId: job.jobId,
@@ -241,6 +242,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
   }
 
   private async executeWalletPipeline(job: ETLJob): Promise<ETLProcessResult> {
+    let successfulWallets: string[] = [];
     const transformData = createWalletTransformCallback(
       this.transformer,
       job.jobId,
@@ -251,12 +253,20 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
       this.portfolioWriter,
       job.jobId,
       'DeBank VIP batch',
+      () => successfulWallets,
     );
 
     return executeETLFlow<WalletETLRecord, WalletETLRecord>(
       job,
       'debank',
-      this.fetchWalletBatch.bind(this, job),
+      async () => {
+        const data = await this.fetchData(job);
+        successfulWallets = data.successfulWallets;
+        return createMergedFetchResult(
+          data.walletBalances,
+          data.portfolioItems,
+        );
+      },
       transformData,
       loadData,
       {
@@ -264,10 +274,5 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
         allowEmptyTransform: true,
       },
     );
-  }
-
-  private async fetchWalletBatch(job: ETLJob): Promise<WalletETLRecord[]> {
-    const { walletBalances, portfolioItems } = await this.fetchData(job);
-    return createMergedFetchResult(walletBalances, portfolioItems);
   }
 }

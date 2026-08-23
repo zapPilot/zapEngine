@@ -215,6 +215,7 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
 
     const portfolioResult = await this.writePortfolioRecords(
       batch.portfolioRecords,
+      batch.successfulWallets,
     );
     const aprResult = await this.writeAprRecords(batch.aprRecords);
 
@@ -231,12 +232,18 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
 
   private async writePortfolioRecords(
     records: PortfolioItemSnapshotInsert[],
+    successfulWallets: string[],
   ): Promise<WriteResult> {
-    if (records.length === 0) {
+    if (records.length === 0 && successfulWallets.length === 0) {
       return createEmptyWriteResult();
     }
 
-    return this.portfolioWriter.writeSnapshots(records);
+    const result = await this.portfolioWriter.writeSnapshots(
+      records,
+      'hyperliquid',
+      successfulWallets,
+    );
+    return records.length === 0 ? { ...result, recordsInserted: 0 } : result;
   }
 
   private async writeAprRecords(

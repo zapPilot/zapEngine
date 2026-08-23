@@ -601,8 +601,12 @@ describe("Hyperliquid Pipeline Integration Tests", () => {
       expect(result.recordsProcessed).toBe(1);
       expect(result.recordsInserted).toBe(1); // Only APR snapshot
 
-      // Portfolio writer should not be called (no valid positions)
-      expect(mockPortfolioWriter.writeSnapshots).not.toHaveBeenCalled();
+      // A successful empty position response clears the old provider slice.
+      expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith(
+        [],
+        "hyperliquid",
+        [vipUsers[0].wallet],
+      );
 
       // APR writer should still be called
       expect(mockAprWriter.writeSnapshots).toHaveBeenCalledTimes(1);
@@ -886,8 +890,12 @@ describe("Hyperliquid Pipeline Integration Tests", () => {
       expect(result.recordsProcessed).toBe(1);
       expect(result.recordsInserted).toBe(1); // Only APR
 
-      // No portfolio writes
-      expect(mockPortfolioWriter.writeSnapshots).not.toHaveBeenCalled();
+      // A successful empty position response clears the old provider slice.
+      expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith(
+        [],
+        "hyperliquid",
+        [vipUsers[0].wallet],
+      );
 
       // APR should still be written
       expect(mockAprWriter.writeSnapshots).toHaveBeenCalledTimes(1);

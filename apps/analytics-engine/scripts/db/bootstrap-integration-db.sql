@@ -384,8 +384,14 @@ ALTER TABLE public.portfolio_item_snapshots
   ADD COLUMN IF NOT EXISTS snapshot_date_utc date
     GENERATED ALWAYS AS ((snapshot_at AT TIME ZONE 'UTC')::date) STORED;
 
--- Recreate the three legacy MVs so migrations 023/024 exercise the production
--- transition on every integration bootstrap.
+SELECT to_regprocedure('analytics.rebuild_category_trends(text[])') IS NULL
+  AS needs_daily_batch_migration
+\gset
+
+\if :needs_daily_batch_migration
+
+-- Recreate the three legacy MVs so migrations 023/024/026 exercise the
+-- production transition on the first integration bootstrap.
 DO $$
 DECLARE
   target record;
@@ -654,6 +660,10 @@ BEGIN;
 \ir ../../migrations/023_prepare_incremental_portfolio_rollups.sql
 \ir ../../migrations/024_activate_incremental_portfolio_rollups.sql
 COMMIT;
+
+\ir ../../migrations/026_daily_batch_snapshots.sql
+
+\endif
 
 CREATE TABLE IF NOT EXISTS alpha_raw.hyperliquid_vault_apr_snapshots (
     vault_address TEXT,

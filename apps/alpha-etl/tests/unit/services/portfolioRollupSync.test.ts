@@ -21,15 +21,8 @@ vi.mock('../../../src/utils/logger.js', async () => {
 });
 
 const metricsRow = {
-  portfolioKeysProcessed: '2',
-  walletKeysProcessed: '3',
   usersProcessed: '1',
-  portfolioRowsWritten: '5',
-  walletRowsWritten: '8',
   trendRowsWritten: '13',
-  remainingPortfolioKeys: '0',
-  remainingWalletKeys: '0',
-  remainingUsers: '0',
 };
 
 describe('PortfolioRollupSynchronizer', () => {
@@ -49,25 +42,16 @@ describe('PortfolioRollupSynchronizer', () => {
     synchronizer = new PortfolioRollupSynchronizer();
   });
 
-  it('calls the incremental database processor and returns numeric metrics', async () => {
-    const result = await synchronizer.synchronize('job-1');
+  it('rebuilds scoped category trends and returns numeric metrics', async () => {
+    const result = await synchronizer.synchronize('job-1', ['user-1']);
 
     expect(mockClient.query).toHaveBeenCalledWith(
-      expect.stringContaining('private.process_portfolio_rollup_queue()'),
-    );
-    expect(mockClient.query).not.toHaveBeenCalledWith(
-      expect.stringContaining('REFRESH MATERIALIZED VIEW'),
+      expect.stringContaining('analytics.rebuild_category_trends'),
+      [['user-1']],
     );
     expect(result.metrics).toEqual({
-      portfolioKeysProcessed: 2,
-      walletKeysProcessed: 3,
       usersProcessed: 1,
-      portfolioRowsWritten: 5,
-      walletRowsWritten: 8,
       trendRowsWritten: 13,
-      remainingPortfolioKeys: 0,
-      remainingWalletKeys: 0,
-      remainingUsers: 0,
     });
     expect(mockClient.release).toHaveBeenCalledOnce();
   });
@@ -75,8 +59,8 @@ describe('PortfolioRollupSynchronizer', () => {
   it('fails when the processor does not return its metrics row', async () => {
     mockClient.query.mockResolvedValue({ rows: [] });
 
-    await expect(synchronizer.synchronize('job-2')).rejects.toThrow(
-      'Portfolio rollup processor returned no metrics row',
+    await expect(synchronizer.synchronize('job-2', null)).rejects.toThrow(
+      'Category trend rebuild returned no metrics row',
     );
     expect(mockClient.release).toHaveBeenCalledOnce();
   });
@@ -84,7 +68,7 @@ describe('PortfolioRollupSynchronizer', () => {
   it('releases the database client when processing fails', async () => {
     mockClient.query.mockRejectedValue(new Error('processor failed'));
 
-    await expect(synchronizer.synchronize('job-3')).rejects.toThrow(
+    await expect(synchronizer.synchronize('job-3', null)).rejects.toThrow(
       'processor failed',
     );
     expect(mockClient.release).toHaveBeenCalledOnce();
@@ -93,7 +77,7 @@ describe('PortfolioRollupSynchronizer', () => {
   it('does not release a client that was never acquired', async () => {
     vi.mocked(getDbClient).mockRejectedValue('database unavailable');
 
-    await expect(synchronizer.synchronize('job-4')).rejects.toBe(
+    await expect(synchronizer.synchronize('job-4', null)).rejects.toBe(
       'database unavailable',
     );
     expect(mockClient.release).not.toHaveBeenCalled();

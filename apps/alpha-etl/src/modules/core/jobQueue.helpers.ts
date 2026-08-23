@@ -61,8 +61,19 @@ export function shouldSynchronizePortfolioRollups(
     return true;
   }
 
+  const hyperliquidResult = pipelineResult.sourceResults.hyperliquid;
+  if (hyperliquidResult && hyperliquidResult.recordsInserted > 0) {
+    return true;
+  }
+
   const isWalletJob = job.metadata?.jobType === 'wallet_fetch';
   return isWalletJob && pipelineResult.success;
+}
+
+export function resolveTrendUserScope(job: ETLJob): string[] | null {
+  return job.metadata?.jobType === 'wallet_fetch'
+    ? [job.metadata.userId]
+    : null;
 }
 
 export function resolveJobSuccess(
