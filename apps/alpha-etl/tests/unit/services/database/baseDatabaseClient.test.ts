@@ -73,17 +73,16 @@ describe("BaseDatabaseClient", () => {
     expect(mockClient.release).toHaveBeenCalled();
   });
 
-  it("handles rollback failure gracefully", async () => {
-    // Both the operation and the ROLLBACK fail
+  it("preserves the operation error when rollback also fails", async () => {
     mockClient.query
       .mockRejectedValueOnce(new Error("operation error"))
       .mockRejectedValueOnce(new Error("rollback error"));
 
     await expect(
       client.run(async (db) => db.query("INSERT ...")),
-    ).rejects.toBeInstanceOf(DatabaseError);
-    // Client should still be released despite rollback failure
-    expect(mockClient.release).toHaveBeenCalled();
+    ).rejects.toThrow("operation error");
+    expect(mockClient.query).toHaveBeenNthCalledWith(2, "ROLLBACK");
+    expect(mockClient.release).toHaveBeenCalledTimes(1);
   });
 
   it("wraps non-Error thrown values in DatabaseError with generic message", async () => {
