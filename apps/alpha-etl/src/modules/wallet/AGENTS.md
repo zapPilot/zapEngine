@@ -12,4 +12,5 @@ On-demand DeBank/chain-RPC pipeline triggered by account-engine through `POST /w
 - Unknown/unregistered chains are filtered by the current normalization path. Update the registered chain mapping deliberately rather than leaking raw provider ids into shared contracts.
 - Preserve the job-queue acceptance model: the webhook acknowledges work and the queue performs the refresh; do not turn the route into a long-running synchronous fetch.
 - `DEBANK_STRICT_ERRORS` controls provider error behavior. Do not silently change strict/degraded semantics in unrelated work.
-- Successful wallet writes are allowed to enqueue portfolio rollups; keep that side effect confined to the established wallet/rollup path.
+- Successful wallet writes rebuild category trends through the established
+  post-write synchronizer; do not add database queues or cron fallback.

@@ -33,7 +33,7 @@ import {
  * Unlike WalletBalanceETLProcessor (VIP user batch processing), this processor:
  * - Processes a single wallet address from job.metadata.walletAddress
  * - No VIP user database fetching or activity filtering
- * - Always invokes incremental portfolio rollups on success (even if 0 records)
+ * - Always rebuilds the requesting user's category trends on success
  * - Used for on-demand wallet onboarding and refresh
  */
 export class WalletFetchETLProcessor implements BaseETLProcessor {

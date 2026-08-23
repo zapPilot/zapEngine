@@ -5,13 +5,13 @@ import type {
 } from '../../modules/stock-price/schema.js';
 import type { TokenPriceData } from '../../modules/token-price/schema.js';
 import type {
+  DailyPortfolioPositionInsert,
+  DailyWalletTokenInsert,
   HyperliquidVaultAprSnapshotInsert,
   MacroFearGreedSnapshotInsert,
-  PortfolioItemSnapshotInsert,
   SentimentSnapshotInsert,
   TokenPairRatioDmaSnapshotInsert,
   TokenPriceDmaSnapshotInsert,
-  WalletBalanceSnapshotInsert,
 } from '../../types/database.js';
 import { formatDateToYYYYMMDD } from '../../utils/dateUtils.js';
 import { buildGenericInsertValues } from './columnHelpers.js';
@@ -89,40 +89,27 @@ function mapStockPriceRecord(
 /**
  * Centralized column definitions and insert helpers for database writers.
  */
-export const WALLET_BALANCE_COLUMNS = [
+export const DAILY_WALLET_TOKEN_COLUMNS = [
   'user_wallet_address',
   'token_address',
   'chain',
-  'name',
   'symbol',
-  'display_symbol',
-  'optimized_symbol',
-  'decimals',
-  'logo_url',
-  'protocol_id',
-  'price',
-  'price_24h_change',
-  'is_verified',
-  'is_core',
-  'is_wallet',
-  'time_at',
-  'total_supply',
-  'credit_score',
   'amount',
-  'raw_amount',
-  'raw_amount_hex_str',
+  'price',
+  'snapshot_date',
 ] as const;
 
-export type WalletBalanceColumn = (typeof WALLET_BALANCE_COLUMNS)[number];
+export type DailyWalletTokenColumn =
+  (typeof DAILY_WALLET_TOKEN_COLUMNS)[number];
 
 export function buildInsertValues(
-  records: WalletBalanceSnapshotInsert[],
-  columns: readonly WalletBalanceColumn[] = WALLET_BALANCE_COLUMNS,
-): InsertValuesResult<WalletBalanceColumn> {
+  records: DailyWalletTokenInsert[],
+  columns: readonly DailyWalletTokenColumn[] = DAILY_WALLET_TOKEN_COLUMNS,
+): InsertValuesResult<DailyWalletTokenColumn> {
   return buildGenericInsertValues(records, columns);
 }
 
-export const PORTFOLIO_ITEM_COLUMNS: readonly (keyof PortfolioItemSnapshotInsert)[] =
+export const DAILY_PORTFOLIO_POSITION_COLUMNS: readonly (keyof DailyPortfolioPositionInsert)[] =
   [
     'wallet',
     'chain',
@@ -132,6 +119,7 @@ export const PORTFOLIO_ITEM_COLUMNS: readonly (keyof PortfolioItemSnapshotInsert
     'asset_usd_value',
     'detail',
     'snapshot_at',
+    'snapshot_date',
     'has_supported_portfolio',
     'site_url',
     'asset_dict',
@@ -144,9 +132,10 @@ export const PORTFOLIO_ITEM_COLUMNS: readonly (keyof PortfolioItemSnapshotInsert
     'update_at',
   ] as const;
 
-export type PortfolioItemColumn = (typeof PORTFOLIO_ITEM_COLUMNS)[number];
+export type DailyPortfolioPositionColumn =
+  (typeof DAILY_PORTFOLIO_POSITION_COLUMNS)[number];
 
-const PORTFOLIO_JSON_COLUMNS = new Set<PortfolioItemColumn>([
+const PORTFOLIO_JSON_COLUMNS = new Set<DailyPortfolioPositionColumn>([
   'detail',
   'asset_dict',
   'asset_token_list',
@@ -155,11 +144,11 @@ const PORTFOLIO_JSON_COLUMNS = new Set<PortfolioItemColumn>([
 ]);
 
 export function buildPortfolioInsertValues(
-  records: PortfolioItemSnapshotInsert[],
-): InsertValuesResult<PortfolioItemColumn> {
+  records: DailyPortfolioPositionInsert[],
+): InsertValuesResult<DailyPortfolioPositionColumn> {
   return buildGenericInsertValues(
     records,
-    PORTFOLIO_ITEM_COLUMNS,
+    DAILY_PORTFOLIO_POSITION_COLUMNS,
     (column, value) => {
       if (PORTFOLIO_JSON_COLUMNS.has(column)) {
         return serializeJson(value);

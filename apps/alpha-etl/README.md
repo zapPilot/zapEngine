@@ -3,8 +3,9 @@
 HTTP-triggered ETL service that collects wallet, vault, sentiment, token, and market data and writes to PostgreSQL.
 
 **Pipelines:**
-- **Wallet Balance** — DeBank → `wallet_token_snapshots` (VIP users)
-- **Hyperliquid Vault** — Hyperliquid UI API → `portfolio_item_snapshots` + `hyperliquid_vault_apr_snapshots`
+
+- **Wallet Balance** — DeBank → `analytics.daily_wallet_tokens` + `analytics.daily_portfolio_positions`
+- **Hyperliquid Vault** — Hyperliquid UI API → `analytics.daily_portfolio_positions` + `hyperliquid_vault_apr_snapshots`
 - **Fear & Greed** — CoinMarketCap → sentiment snapshots
 - **Macro Fear & Greed** — CNN → macro sentiment snapshots
 - **Token Price** — CoinGecko → token price snapshots + DMA
@@ -17,6 +18,12 @@ POST /webhooks/jobs → in-memory FIFO queue → ETL Pipeline Factory → [Fetch
 ```
 
 Each pipeline follows `BaseETLProcessor`: `fetcher.ts` → `transformer.ts` → `writer.ts`.
+
+Wallet and portfolio writers replace each affected wallet/UTC-day slice in one
+transaction. After DeBank or Hyperliquid writes, the queue invokes
+`analytics.rebuild_category_trends(text[])`; on-demand wallet jobs scope the
+rebuild to `metadata.userId`, while batch jobs rebuild all users. Snapshot
+triggers, dirty queues, and database cron are not part of this path.
 
 ## Job API
 
