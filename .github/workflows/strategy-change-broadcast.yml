@@ -1,0 +1,32 @@
+name: Strategy Change Broadcast
+
+on:
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: strategy-change-broadcast
+  cancel-in-progress: false
+
+jobs:
+  enqueue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+      STRATEGY_CHANGE_URL: https://account-engine.fly.dev/jobs/strategy-change/batch
+    steps:
+      - name: Queue strategy-change broadcast check
+        run: |
+          if [ -z "$ADMIN_API_KEY" ]; then
+            echo "ADMIN_API_KEY is not configured" >&2
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-all-errors \
+            --request POST "$STRATEGY_CHANGE_URL" \
+            --header "x-api-key: $ADMIN_API_KEY"
