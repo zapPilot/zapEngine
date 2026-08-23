@@ -36,13 +36,11 @@ describe('recordReplacementResult', () => {
       errors: [],
       duplicatesSkipped: 0,
     });
-    expect(infoMock).toHaveBeenCalledExactlyOnceWith(
-      'Daily replacement completed',
-      {
-        records: 7,
-        walletDays: 3,
-      },
-    );
+    expect(infoMock).toHaveBeenCalledTimes(1);
+    expect(infoMock).toHaveBeenCalledWith('Daily replacement completed', {
+      records: 7,
+      walletDays: 3,
+    });
   });
 
   it('preserves prior inserted counts, appends the write error, and does not log success', async () => {
