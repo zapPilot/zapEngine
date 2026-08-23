@@ -43,6 +43,8 @@ async function createTestApp(): Promise<express.Application> {
 
 describe('Webhooks Router', () => {
   let app: express.Application;
+  const originalWebhookSecret = process.env['WEBHOOK_SECRET'];
+  const webhookSecret = 'expected-webhook-secret';
 
   const createMockJob = (overrides: Partial<ETLJob> = {}): ETLJob =>
     createEtlJob(overrides);
@@ -55,9 +57,61 @@ describe('Webhooks Router', () => {
     app = await createTestApp();
   });
 
+  afterEach(() => {
+    if (originalWebhookSecret === undefined) {
+      delete process.env['WEBHOOK_SECRET'];
+    } else {
+      process.env['WEBHOOK_SECRET'] = originalWebhookSecret;
+    }
+  });
+
+  function authenticatedPost(path = '/webhooks/jobs') {
+    process.env['WEBHOOK_SECRET'] = webhookSecret;
+    return request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${webhookSecret}`);
+  }
+
+  describe.each(['/webhooks/jobs', '/webhooks/pipedream'])(
+    'job webhook authentication: %s',
+    (path) => {
+      it('returns 401 when the credential is missing', async () => {
+        process.env['WEBHOOK_SECRET'] = webhookSecret;
+
+        await request(app).post(path).send({}).expect(401);
+
+        expect(mockJobQueue.enqueue).not.toHaveBeenCalled();
+      });
+
+      it('returns 401 when the credential is invalid', async () => {
+        process.env['WEBHOOK_SECRET'] = webhookSecret;
+
+        await request(app)
+          .post(path)
+          .set('Authorization', 'Bearer wrong-secret')
+          .send({})
+          .expect(401);
+
+        expect(mockJobQueue.enqueue).not.toHaveBeenCalled();
+      });
+
+      it('fails closed when WEBHOOK_SECRET is not configured', async () => {
+        delete process.env['WEBHOOK_SECRET'];
+
+        await request(app)
+          .post(path)
+          .set('Authorization', `Bearer ${webhookSecret}`)
+          .send({})
+          .expect(401);
+
+        expect(mockJobQueue.enqueue).not.toHaveBeenCalled();
+      });
+    },
+  );
+
   describe('POST /webhooks/jobs', () => {
     it('queues all current sources for an empty payload', async () => {
-      const response = await request(app).post('/webhooks/jobs').send({});
+      const response = await authenticatedPost().send({});
 
       expect(response.status).toBe(202);
       expect(response.body.data.jobId).toBe('job-123');
@@ -69,8 +123,7 @@ describe('Webhooks Router', () => {
     });
 
     it('queues a current-source subset sequentially as tasks', async () => {
-      await request(app)
-        .post('/webhooks/jobs')
+      await authenticatedPost()
         .send({ sources: ['hyperliquid', 'debank'] })
         .expect(202);
 
@@ -94,8 +147,7 @@ describe('Webhooks Router', () => {
         ],
       };
 
-      await request(app)
-        .post('/webhooks/jobs')
+      await authenticatedPost()
         .send({ tasks: [task] })
         .expect(202);
 
@@ -107,8 +159,7 @@ describe('Webhooks Router', () => {
     });
 
     it('rejects ambiguous sources plus tasks payloads', async () => {
-      const response = await request(app)
-        .post('/webhooks/jobs')
+      const response = await authenticatedPost()
         .send({
           sources: ['debank'],
           tasks: [{ source: 'token-price', operation: 'backfill', tokens: [] }],
@@ -121,8 +172,7 @@ describe('Webhooks Router', () => {
     });
 
     it('rejects removed defillama source requests', async () => {
-      const response = await request(app)
-        .post('/webhooks/jobs')
+      const response = await authenticatedPost()
         .send({ sources: ['defillama'] })
         .expect(400);
 
@@ -132,8 +182,7 @@ describe('Webhooks Router', () => {
     });
 
     it('does not require trigger and ignores old trigger metadata', async () => {
-      await request(app)
-        .post('/webhooks/jobs')
+      await authenticatedPost()
         .send({ trigger: 'scheduled', source: 'feargreed' })
         .expect(202);
 
@@ -147,8 +196,7 @@ describe('Webhooks Router', () => {
 
   describe('POST /webhooks/pipedream', () => {
     it('adapts old Pipedream payloads to the queued job API', async () => {
-      await request(app)
-        .post('/webhooks/pipedream')
+      await authenticatedPost('/webhooks/pipedream')
         .send({ trigger: 'manual', sources: ['hyperliquid'] })
         .expect(202);
 
@@ -217,12 +265,10 @@ describe('Webhooks Router', () => {
 
   describe('POST /webhooks/jobs error envelopes', () => {
     it('returns 400 with VALIDATION_ERROR envelope and zod issues on bad payload', async () => {
-      const response = await request(app)
-        .post('/webhooks/jobs')
-        .send({
-          sources: ['debank'],
-          tasks: [{ source: 'token-price', operation: 'backfill', tokens: [] }],
-        });
+      const response = await authenticatedPost().send({
+        sources: ['debank'],
+        tasks: [{ source: 'token-price', operation: 'backfill', tokens: [] }],
+      });
 
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
@@ -236,7 +282,7 @@ describe('Webhooks Router', () => {
     it('returns 500 with API_ERROR envelope when enqueue throws', async () => {
       mockJobQueue.enqueue.mockRejectedValueOnce(new Error('db down'));
 
-      const response = await request(app).post('/webhooks/jobs').send({});
+      const response = await authenticatedPost().send({});
 
       expect(response.status).toBe(500);
       expect(response.body.success).toBe(false);
@@ -249,7 +295,7 @@ describe('Webhooks Router', () => {
       // toErrorMessage's fallback path for non-Error throws.
       mockJobQueue.enqueue.mockRejectedValueOnce('plain string failure');
 
-      const response = await request(app).post('/webhooks/jobs').send({});
+      const response = await authenticatedPost().send({});
 
       expect(response.status).toBe(500);
       expect(response.body.error.code).toBe('API_ERROR');
@@ -260,8 +306,7 @@ describe('Webhooks Router', () => {
       // express.json()'s SyntaxError from body-parser surfaces as a 400 with
       // its own envelope, NOT through our zod validation path. This test
       // pins that behavior so future changes notice if it shifts.
-      const response = await request(app)
-        .post('/webhooks/jobs')
+      const response = await authenticatedPost()
         .set('Content-Type', 'application/json')
         .send('{not json');
 

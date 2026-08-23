@@ -47,11 +47,11 @@
     "purpose": "Queue the daily refresh across all six alpha-etl data sources.",
     "schedule_kind": "cron",
     "schedule": "0 10 * * *",
-    "schedule_source": "external",
-    "runtime": "pipedream",
+    "schedule_source": "workflow",
+    "runtime": "github-actions",
     "workspace": "@zapengine/alpha-etl",
-    "entrypoint": "apps/alpha-etl/src/routes/webhooks.ts",
-    "endpoint": "https://alpha-etl.fly.dev/webhooks/pipedream",
+    "entrypoint": ".github/workflows/alpha-etl-daily-refresh.yml",
+    "endpoint": "https://alpha-etl.fly.dev/webhooks/jobs",
     "docs": "apps/alpha-etl/README.md"
   },
   {

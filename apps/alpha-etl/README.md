@@ -27,7 +27,10 @@ triggers, dirty queues, and database cron are not part of this path.
 
 ## Job API
 
-`POST /webhooks/jobs` is the canonical queued endpoint for Pipedream and manual operations.
+`POST /webhooks/jobs` is the canonical queued endpoint for scheduled and manual
+operations. It requires `Authorization: Bearer $WEBHOOK_SECRET`; the server
+rejects the request when the credential is missing, invalid, or not configured.
+`POST /webhooks/pipedream` remains a compatibility alias with the same boundary.
 
 ### Most common: trigger all sources (no sources specified)
 
@@ -38,7 +41,10 @@ triggers, dirty queues, and database cron are not part of this path.
 Runs all 6 sources sequentially: `debank`, `hyperliquid`, `feargreed`, `macro-fear-greed`, `token-price`, `stock-price`
 
 ```bash
-curl -X POST /webhooks/jobs -H "Content-Type: application/json" -d '{}'
+curl -X POST /webhooks/jobs \
+  -H "Authorization: Bearer $WEBHOOK_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
 
 ### Specific sources only
@@ -51,6 +57,7 @@ Runs only the requested current sources sequentially.
 
 ```bash
 curl -X POST /webhooks/jobs -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $WEBHOOK_SECRET" \
   -d '{"sources": ["debank", "hyperliquid"]}'
 ```
 
@@ -72,7 +79,23 @@ Runs explicit backfill work through the same queue. `trigger` is not required; s
 
 ## Environment
 
-All env vars live in the monorepo root `.env` (see `.env.example` at repo root). Required: `ALPHA_ETL_DATABASE_URL`. Optional: `WEBHOOK_SECRET` (enables webhook auth when set), `ALPHA_ETL_PORT=3003` (local port override).
+All env vars live in the monorepo root `.env` (see `.env.example` at repo root).
+Required: `ALPHA_ETL_DATABASE_URL`. Production job triggers also require
+`WEBHOOK_SECRET`; job enqueue endpoints fail closed when it is absent.
+`ALPHA_ETL_PORT=3003` is an optional local port override.
+
+## Daily schedule and recovery
+
+GitHub Actions owns the 10:00 UTC daily refresh through
+`.github/workflows/alpha-etl-daily-refresh.yml`. The repository secret
+`ALPHA_ETL_WEBHOOK_SECRET` must match Fly's `WEBHOOK_SECRET` before the auth
+enforcement is deployed. The workflow sends an empty body to the canonical job
+endpoint, preserving the six-source refresh.
+
+If a run fails, first confirm both secret locations still match and inspect the
+Alpha ETL Fly logs. Then use **Run workflow** to dispatch the same workflow
+manually. A successful HTTP 202 proves enqueue only; confirm the queued job in
+the service logs before considering recovery complete.
 
 ## Migrations
 

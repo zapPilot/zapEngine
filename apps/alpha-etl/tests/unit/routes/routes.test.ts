@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 
@@ -44,6 +44,10 @@ describe('Routes', () => {
     mockGetJob.mockReturnValue(null);
     mockGetResult.mockReturnValue(null);
     mockEnqueue.mockResolvedValue({ jobId: 'job1' });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   describe('Backfill Route', () => {
@@ -122,8 +126,10 @@ describe('Routes', () => {
     });
 
     it('should handle Pipedream webhook source/sources validation', async () => {
+      vi.stubEnv('WEBHOOK_SECRET', 'test-webhook-secret');
       const res = await request(app)
         .post('/webhooks/pipedream')
+        .set('Authorization', 'Bearer test-webhook-secret')
         .send({
           trigger: 'manual',
           source: 'hyperliquid',
