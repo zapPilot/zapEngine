@@ -55,6 +55,26 @@ describe('replaceRowsInTransaction transaction boundary', () => {
     (getDbClient as unknown).mockResolvedValue(mockClient);
   });
 
+  it('does not mutate replacement data when transaction begin fails', async () => {
+    mockClient.query
+      .mockRejectedValueOnce(new Error('begin failed'))
+      .mockResolvedValueOnce(undefined); // best-effort ROLLBACK from BaseDatabaseClient
+
+    const client = new DailyReplacementTestClient();
+
+    await expect(client.replace([1, 2])).rejects.toThrow('begin failed');
+
+    expect(mockClient.query).toHaveBeenNthCalledWith(1, 'BEGIN');
+    expect(mockClient.query).toHaveBeenNthCalledWith(2, 'ROLLBACK');
+    expect(mockClient.query).toHaveBeenCalledTimes(2);
+    expect(mockClient.query).not.toHaveBeenCalledWith(
+      'DELETE FROM analytics.daily_test_rows WHERE wallet = $1',
+      ['0xabc'],
+    );
+    expect(mockClient.query).not.toHaveBeenCalledWith('COMMIT');
+    expect(mockClient.release).toHaveBeenCalledTimes(1);
+  });
+
   it('rolls back the whole replacement when a later insert batch fails', async () => {
     mockClient.query
       .mockResolvedValueOnce(undefined) // BEGIN
