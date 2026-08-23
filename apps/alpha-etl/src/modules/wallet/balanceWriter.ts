@@ -11,7 +11,10 @@ import type {
   DailyWalletTokenInsert,
   WalletBalanceSnapshotInsert,
 } from '../../types/database.js';
-import { logger } from '../../utils/logger.js';
+import {
+  recordReplacementResult,
+  replaceRowsInTransaction,
+} from './dailyReplacement.js';
 
 export class WalletBalanceWriter extends BaseWriter<WalletBalanceSnapshotInsert> {
   async writeWalletBalanceSnapshots(
@@ -20,29 +23,21 @@ export class WalletBalanceWriter extends BaseWriter<WalletBalanceSnapshotInsert>
   ): Promise<WriteResult> {
     const result = createEmptyWriteResult();
     const tokens = toDailyWalletTokens(snapshots);
-
     const replaceKeys = collectReplaceKeys(tokens, successfulWallets);
 
     if (replaceKeys.length === 0) {
       return result;
     }
 
-    try {
-      result.recordsInserted = await this.withDatabaseClient((client) =>
-        this.replaceTokens(client, tokens, replaceKeys),
-      );
-      logger.info('Daily wallet tokens replaced', {
-        records: result.recordsInserted,
-        walletDays: replaceKeys.length,
-      });
-    } catch (error) {
-      result.success = false;
-      result.errors.push(
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-
-    return result;
+    return recordReplacementResult(
+      result,
+      replaceKeys.length,
+      'Daily wallet tokens replaced',
+      () =>
+        this.withDatabaseClient((client) =>
+          this.replaceTokens(client, tokens, replaceKeys),
+        ),
+    );
   }
 
   private async replaceTokens(
@@ -55,25 +50,15 @@ export class WalletBalanceWriter extends BaseWriter<WalletBalanceSnapshotInsert>
       .map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2}::date)`)
       .join(', ');
 
-    await client.query('BEGIN');
-    await client.query(
-      `DELETE FROM ${table} WHERE (user_wallet_address, snapshot_date) IN (${keyPlaceholders})`,
-      replaceKeys.flat(),
-    );
-
-    let inserted = 0;
-    for (let i = 0; i < tokens.length; i += this.batchSize) {
-      const batch = tokens.slice(i, i + this.batchSize);
-      const { columns, placeholders, values } = buildInsertValues(batch);
-      const batchResult = await client.query(
-        `INSERT INTO ${table} (${columns.join(', ')}) VALUES ${placeholders}`,
-        values,
-      );
-      inserted += batchResult.rowCount ?? 0;
-    }
-
-    await client.query('COMMIT');
-    return inserted;
+    return replaceRowsInTransaction({
+      client,
+      table,
+      deleteSql: `DELETE FROM ${table} WHERE (user_wallet_address, snapshot_date) IN (${keyPlaceholders})`,
+      deleteValues: replaceKeys.flat(),
+      rows: tokens,
+      batchSize: this.batchSize,
+      buildInsertValues,
+    });
   }
 }
 
