@@ -1,8 +1,8 @@
 import { tokens } from '@zapengine/design-tokens/tokens';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowRight, Info, TriangleAlert } from 'lucide-react-native';
-import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { type LayoutChangeEvent, ScrollView, Text, View } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
 import { DecisionPacketCard } from '@/components/strategy/DecisionPacketCard';
@@ -26,15 +26,19 @@ import { useAccount } from '@/integration/useAccount';
 import { useStrategyData } from '@/integration/useStrategyData';
 import { useStrategyDecisionPacket } from '@/integration/useStrategyDecisionPacket';
 import { createStrategyStartAction } from '@/integration/strategyStartAction';
+import { parseStrategyFocusParam } from '@/integration/strategyFocus';
 import { resolveColor } from '@/lib/colors';
 import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 export function StrategyScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ focus?: string | string[] }>();
   const { t } = useContentLanguage();
   const authAction = useAuthenticatedAction();
   const [range, setRange] = useState<StrategyRange>('1Y');
+  const [decisionPacketY, setDecisionPacketY] = useState<number | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
   const account = useAccount();
   const result = useStrategyData(
     account.userId,
@@ -58,9 +62,35 @@ export function StrategyScreen() {
   const startStrategy = createStrategyStartAction(authAction.run, () =>
     router.push('/invest/amount'),
   );
+  const strategyFocus = parseStrategyFocusParam(params.focus);
+  const measureDecisionPacket = (event: LayoutChangeEvent) => {
+    setDecisionPacketY(event.nativeEvent.layout.y);
+  };
+
+  useEffect(() => {
+    if (
+      strategyFocus !== 'decision' ||
+      loading ||
+      decision.isLoading ||
+      !decision.data ||
+      decisionPacketY === null
+    ) {
+      return;
+    }
+
+    scrollRef.current?.scrollTo({ y: decisionPacketY, animated: true });
+    router.setParams({ focus: undefined });
+  }, [
+    decision.data,
+    decision.isLoading,
+    decisionPacketY,
+    loading,
+    router,
+    strategyFocus,
+  ]);
 
   return (
-    <ScreenScrollView>
+    <ScreenScrollView scrollRef={scrollRef}>
       <View className="flex-row items-start justify-between px-5 pt-2">
         <View>
           <Text className="font-serif text-[27px] leading-[31px] text-ink">
@@ -166,11 +196,13 @@ export function StrategyScreen() {
       </Card>
 
       {!isDemo ? (
-        <DecisionPacketCard
-          packet={decision.data}
-          chart={decision.chart}
-          loading={decision.isLoading}
-        />
+        <View onLayout={measureDecisionPacket}>
+          <DecisionPacketCard
+            packet={decision.data}
+            chart={decision.chart}
+            loading={decision.isLoading}
+          />
+        </View>
       ) : null}
 
       <Card className="mx-5 mt-4 p-4">

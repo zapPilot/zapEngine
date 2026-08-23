@@ -8,6 +8,7 @@ import {
   ArrowUp,
   Check,
   RefreshCw,
+  Scale,
   TriangleAlert,
   Wallet,
   Zap,
@@ -46,6 +47,7 @@ import {
   useHomeData,
 } from '@/integration/useHomeData';
 import { useHomeIncome } from '@/integration/useHomeIncome';
+import { STRATEGY_DECISION_FOCUS_HREF } from '@/integration/strategyFocus';
 import {
   normalizeWalletAddressList,
   useWalletAssets,
@@ -203,14 +205,19 @@ function ActionButton({
   label,
   onPress,
   primary = false,
+  accessibilityLabel,
+  showIndicator = false,
 }: {
   icon: ReactNode;
   label: string;
   onPress: () => void;
   primary?: boolean;
+  accessibilityLabel?: string | undefined;
+  showIndicator?: boolean;
 }) {
   return (
     <Tap
+      accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
       className={`flex-1 flex-row items-center justify-center gap-2 rounded-[15px] border py-3 ${
         primary
@@ -221,10 +228,16 @@ function ActionButton({
     >
       {icon}
       <Text
+        numberOfLines={1}
         className={`font-sans-semibold text-[12.5px] ${primary ? 'text-accent' : 'text-ink'}`}
       >
         {label}
       </Text>
+      <View
+        accessible={false}
+        className="absolute right-2 h-1.5 w-1.5 rounded-full bg-accent"
+        style={{ opacity: showIndicator ? 1 : 0 }}
+      />
     </Tap>
   );
 }
@@ -402,6 +415,7 @@ export function HomeScreen() {
   const walletAssetsTotal = isDemo
     ? displayedAssets.reduce((total, asset) => total + (asset.usdValue ?? 0), 0)
     : walletAssets.totalUsdValue;
+  const isStrategyActionRequired = strategyStatus?.status === 'action_required';
 
   return (
     <ScreenScrollView>
@@ -526,7 +540,7 @@ export function HomeScreen() {
       {account.isOwnBundle ? (
         <View className="mt-5 flex-row gap-3 px-5">
           <ActionButton
-            primary
+            primary={!isStrategyActionRequired}
             label={t('home.invest')}
             onPress={() => router.push('/invest/amount')}
             icon={
@@ -535,6 +549,20 @@ export function HomeScreen() {
                 color={tokens.color.accent}
                 strokeWidth={1.8}
               />
+            }
+          />
+          <ActionButton
+            accessibilityLabel={
+              isStrategyActionRequired
+                ? t('home.rebalanceActionRequiredA11y')
+                : undefined
+            }
+            primary={isStrategyActionRequired}
+            showIndicator={isStrategyActionRequired}
+            label={t('home.rebalance')}
+            onPress={() => router.push(STRATEGY_DECISION_FOCUS_HREF)}
+            icon={
+              <Scale size={17} color={tokens.color.accent} strokeWidth={1.8} />
             }
           />
           <ActionButton
@@ -555,7 +583,7 @@ export function HomeScreen() {
         <StrategyStatusCard
           status={strategyStatus}
           loading={!isDemo && isLoading}
-          onPress={() => router.push('/strategy')}
+          onPress={() => router.push(STRATEGY_DECISION_FOCUS_HREF)}
         />
       </View>
 
