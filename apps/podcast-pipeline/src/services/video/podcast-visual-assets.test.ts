@@ -44,16 +44,24 @@ describe('planPodcastVisualAssets', () => {
     });
 
     expect(plan.scenes).toEqual([
-      { sceneId: 'scene-01', assetId: 'brand-intro' },
-      { sceneId: 'scene-02', assetId: 'brand-outro' },
+      { sceneId: 'scene-01', assetId: 'image-98' },
+      { sceneId: 'scene-02', assetId: 'image-99' },
     ]);
     expect(plan.assets.map((asset) => asset.assetId)).toEqual([
-      'brand-intro',
-      'brand-outro',
+      'image-98',
+      'image-99',
     ]);
-    expect(plan.assets.every((asset) => asset.contentType === 'image/png')).toBe(
+    expect(plan.assets.every((asset) => /^image-\d{2}$/.test(asset.assetId))).toBe(
       true,
     );
+    expect(
+      plan.assets.every(
+        (asset) =>
+          asset.contentType === 'image/png' &&
+          new URL(asset.originalImageUrl).protocol === 'https:' &&
+          new URL(asset.sourcePageUrl).protocol === 'https:',
+      ),
+    ).toBe(true);
     await Promise.all(plan.assets.map((asset) => stat(asset.path)));
     expect(progress).toEqual([
       { phase: 'assets', sceneId: 'scene-01' },
