@@ -5,6 +5,10 @@ import {
   createOpenRouterChatCompletion,
   getOpenRouterConfig,
 } from '../../llm.js';
+import {
+  podcastBrandVisualKind,
+  validatePodcastStoryboardDraft,
+} from '../../podcast-packaging.js';
 import { throwIfAborted } from '../abort.js';
 import {
   MAX_SEARCH_INTENT_CHARACTERS,
@@ -18,10 +22,7 @@ import {
   canonicalSentenceRangeText,
   splitCanonicalSentences,
 } from './sentences.js';
-import {
-  isGroundedSearchIntent,
-  validateStoryboardDraft,
-} from './validation.js';
+import { isGroundedSearchIntent } from './validation.js';
 
 // One request per batch of scenes: a 64-scene episode does not fit one useful
 // completion, and a failed batch only costs its own scenes their enrichment.
@@ -59,6 +60,9 @@ export interface SearchIntentEnrichment {
    * names a model that shaped nothing. */
   model: string | null;
   enrichedSceneCount: number;
+  /** Scenes for which the model returned suggestions but none survived
+   * grounding. Brand scenes are deliberately skipped and never discarded. */
+  discardedSceneCount: number;
 }
 
 /**
@@ -91,6 +95,7 @@ export async function enrichStoryboardSearchIntents(
     draft: request.draft,
     model: null,
     enrichedSceneCount: 0,
+    discardedSceneCount: 0,
   };
 
   let provider: SearchIntentProvider;
@@ -142,32 +147,48 @@ export async function enrichStoryboardSearchIntents(
     scenes.map((scene) => [scene.sceneId, scene.text]),
   );
   let enrichedSceneCount = 0;
+  let discardedSceneCount = 0;
   const enrichedScenes = request.draft.scenes.map((scene) => {
+    if (podcastBrandVisualKind(scene.imageSearchIntent)) return scene;
     const grounded = (suggested.get(scene.sceneId) ?? []).filter((intent) =>
       isGroundedSearchIntent(
         intent,
         evidenceBySceneId.get(scene.sceneId) ?? '',
       ),
     );
-    if (grounded.length === 0) return scene;
+    if (grounded.length === 0) {
+      if (suggested.has(scene.sceneId)) discardedSceneCount += 1;
+      return scene;
+    }
     enrichedSceneCount += 1;
     return { ...scene, imageSearchIntent: grounded };
   });
-  if (enrichedSceneCount === 0) return unchanged;
+  if (enrichedSceneCount === 0) {
+    return { ...unchanged, discardedSceneCount };
+  }
 
-  const validation = validateStoryboardDraft(
+  const validation = validatePodcastStoryboardDraft(
+    request.script,
     { scenes: enrichedScenes },
-    { script: request.script, sentences, durationMs: request.durationMs },
+    request.durationMs,
   );
   if (!validation.success) {
     warnSearchIntentFailure(
       'validation',
       new Error(validation.issues.map((issue) => issue.message).join('; ')),
     );
-    return unchanged;
+    return {
+      ...unchanged,
+      discardedSceneCount: enrichedSceneCount + discardedSceneCount,
+    };
   }
 
-  return { draft: validation.draft, model: provider.model, enrichedSceneCount };
+  return {
+    draft: validation.draft,
+    model: provider.model,
+    enrichedSceneCount,
+    discardedSceneCount,
+  };
 }
 
 export function createOpenRouterSearchIntentProvider(): SearchIntentProvider {
@@ -239,14 +260,14 @@ function searchIntentScenes(
   request: { draft: StoryboardDraft; script: string; searchScript?: string },
   sentences: readonly CanonicalSentence[],
 ): SearchIntentScene[] | null {
+  const contentScenes = request.draft.scenes.filter(
+    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) === null,
+  );
   const searchEvidence = request.searchScript
-    ? balancedSearchEvidenceGroups(
-        request.searchScript,
-        request.draft.scenes.length,
-      )
+    ? balancedSearchEvidenceGroups(request.searchScript, contentScenes.length)
     : null;
   const scenes: SearchIntentScene[] = [];
-  for (const [index, scene] of request.draft.scenes.entries()) {
+  for (const [index, scene] of contentScenes.entries()) {
     const text = canonicalSentenceRangeText(
       request.script,
       sentences,

@@ -139,14 +139,14 @@ describe('applyPodcastBrandingToStoryboard', () => {
     const content = createDeterministicStoryboard({
       title: '長篇市場觀察',
       script,
-      durationMs: 24 * 60 * 60_000,
+      durationMs: 12.8 * 60_000,
       sentences,
     });
 
     const branded = applyAndValidatePodcastBrandingToStoryboard(
       script,
       content,
-      24 * 60 * 60_000,
+      12.8 * 60_000,
     );
 
     expect(content.scenes).toHaveLength(63);
