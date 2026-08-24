@@ -1,0 +1,2 @@
+create index idx_social_experiment_assignments_episode_id
+  on from_fed_to_chain.social_experiment_assignments (episode_id);
