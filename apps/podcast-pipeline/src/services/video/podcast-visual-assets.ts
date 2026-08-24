@@ -64,7 +64,11 @@ export async function planPodcastVisualAssets(
           onProgress: input.onProgress
             ? (progress) =>
                 input.onProgress?.(
-                  remapProgress(progress, originalSceneIndex, input.scenes.length),
+                  remapProgress(
+                    progress,
+                    originalSceneIndex,
+                    input.scenes.length,
+                  ),
                 )
             : undefined,
         });
