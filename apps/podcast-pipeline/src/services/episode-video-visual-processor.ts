@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { contentTypeExtension } from '../lib/content-type.js';
+import { applyPodcastBrandingToStoryboard } from './podcast-packaging.js';
 import { scrapeArticle } from './scrape.js';
 import { uploadEpisodeVisualAssetsToR2 } from './storage.js';
 import { analyzeEpisodeAudio } from './video/episode-video.js';
@@ -12,6 +13,7 @@ import {
   EPISODE_VISUAL_STORYBOARD_PROMPT_VERSION,
   hashEpisodeVisualSelection,
 } from './video/episode-visual.js';
+import { planPodcastVisualAssets } from './video/podcast-visual-assets.js';
 import {
   createDeterministicStoryboardProvider,
   type DeterministicStoryboardSearchContext,
@@ -23,10 +25,7 @@ import {
 } from './video/storyboard/orchestrator.js';
 import type { StoryboardProvider } from './video/storyboard/provider.js';
 import { enrichStoryboardSearchIntents } from './video/storyboard/search-intents.js';
-import {
-  planVisualAssets,
-  type VisualAssetProgress,
-} from './video/visual-asset-planner.js';
+import type { VisualAssetProgress } from './video/visual-asset-planner.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoVisualCompletion,
@@ -50,7 +49,7 @@ interface EpisodeVideoVisualProcessorDependencies {
   generateStoryboard: typeof generateVisualStoryboard;
   enrichSearchIntents: typeof enrichStoryboardSearchIntents;
   scrape: typeof scrapeArticle;
-  planAssets: typeof planVisualAssets;
+  planAssets: typeof planPodcastVisualAssets;
   upload: typeof uploadEpisodeVisualAssetsToR2;
   makeTemporaryDirectory: (prefix: string) => Promise<string>;
   writeManifest: typeof writeFile;
@@ -63,7 +62,7 @@ const defaultDependencies: EpisodeVideoVisualProcessorDependencies = {
   generateStoryboard: generateVisualStoryboard,
   enrichSearchIntents: enrichStoryboardSearchIntents,
   scrape: scrapeArticle,
-  planAssets: planVisualAssets,
+  planAssets: planPodcastVisualAssets,
   upload: uploadEpisodeVisualAssetsToR2,
   makeTemporaryDirectory: mkdtemp,
   writeManifest: writeFile,
@@ -113,11 +112,14 @@ export function createEpisodeVideoVisualProcessor(
         },
         { signal: context.signal },
       );
-      const storyboard = { ...generated, draft: intents.draft };
+      const storyboard = {
+        ...generated,
+        draft: applyPodcastBrandingToStoryboard(source.script, intents.draft),
+      };
       logVisualProgress(dependencies.logger, 'visual:intents', {
         run: context.runId,
         episode: source.episodeId,
-        enriched: `${intents.enrichedSceneCount}/${storyboard.draft.scenes.length}`,
+        enriched: `${intents.enrichedSceneCount}/${intents.draft.scenes.length}`,
         model: intents.model ?? 'deterministic',
       });
 
@@ -297,7 +299,7 @@ function createSourceVisualManifest(input: {
   source: EpisodeVideoVisualSource;
   storyboard: StoryboardGenerationResult;
   visualHash: string;
-  assetPlan: Awaited<ReturnType<typeof planVisualAssets>>;
+  assetPlan: Awaited<ReturnType<typeof planPodcastVisualAssets>>;
 }): Record<string, unknown> {
   return {
     schemaVersion: EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION,
