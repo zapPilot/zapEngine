@@ -1,4 +1,5 @@
 import { errorMessage } from '../../../lib/errorMessage.js';
+import { podcastContentSceneCountRange } from '../../podcast-packaging.js';
 import { throwIfAborted } from '../abort.js';
 import type { StoryboardDraft } from './draft.js';
 import { createDeterministicStoryboard } from './fallback.js';
@@ -82,6 +83,11 @@ export async function generateStoryboard(input: {
         script: input.script,
         sentences,
         durationMs: input.durationMs,
+        sceneCountRange: podcastContentSceneCountRange(
+          input.durationMs,
+          sentences.length,
+          input.script,
+        ),
       });
       attempts.push({
         attempt,
@@ -126,6 +132,11 @@ export async function generateStoryboard(input: {
     script: input.script,
     sentences,
     durationMs: input.durationMs,
+    sceneCountRange: podcastContentSceneCountRange(
+      input.durationMs,
+      sentences.length,
+      input.script,
+    ),
   });
   if (!fallbackValidation.success) {
     throw new Error(

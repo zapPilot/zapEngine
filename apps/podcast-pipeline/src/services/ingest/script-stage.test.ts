@@ -147,6 +147,32 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
     expect(result.localization.title).toBe(existing.title);
   });
 
+  it('runs application packaging inside the observable ingest step', async () => {
+    const existing = localizationRow({ status: 'scraped', script: '' });
+    const costBreakdown: unknown[] = [];
+    mocks.generateScriptWithLLM.mockResolvedValue({
+      ...generatedScript({ title: null }),
+      script: `${PODCAST_INTRO}\n\n${ZAP_PILOT_OUTRO}`,
+    });
+
+    await expect(
+      ensureEpisodeLocalizationScript(
+        'https://example.com/article',
+        'zh-Hant',
+        costBreakdown as never[],
+        { episode: episodeRow(), localization: existing },
+      ),
+    ).rejects.toThrow(
+      'Podcast body is empty after removing generated packaging',
+    );
+
+    expect(mocks.step.mock.calls.map(([name]) => name)).toContain(
+      'packagePodcastScript',
+    );
+    expect(costBreakdown).toHaveLength(1);
+    expect(mocks.updateEpisodeLocalizationStatus).not.toHaveBeenCalled();
+  });
+
   it('resumes after script generation without clearing the editorial title', async () => {
     const existing = localizationRow({
       title: '已持久化的編輯標題',

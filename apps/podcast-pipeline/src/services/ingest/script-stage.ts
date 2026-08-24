@@ -185,7 +185,9 @@ async function ensureLocalizationScript(input: {
         costUsd: generated.costUsd,
       }),
     );
-    const packagedScript = packagePodcastScript(generated.script);
+    const packagedScript = await step('packagePodcastScript', () =>
+      Promise.resolve(packagePodcastScript(generated.script)),
+    );
     localization = await step(
       'updateEpisodeLocalizationStatus:script_generated',
       () =>

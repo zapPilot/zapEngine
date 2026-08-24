@@ -219,9 +219,9 @@ describe('createEpisodeVideoVisualProcessor', () => {
     const logger = { info: vi.fn() };
     const enrichSearchIntents = vi.fn(async () => ({
       draft: {
-        scenes: storyboard().draft.scenes.map((scene, index) => ({
+        scenes: storyboard().draft.scenes.map((scene) => ({
           ...scene,
-          imageSearchIntent: [`bank of japan press room ${index}`],
+          imageSearchIntent: ['bank of japan press room'],
         })),
       },
       model: 'openrouter/free',
@@ -272,7 +272,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
       planAssets.mock.calls[0]?.[0].scenes.map(
         (scene: { imageSearchIntent: string[] }) => scene.imageSearchIntent,
       ),
-    ).toEqual([['bank of japan press room 0'], ['bank of japan press room 1']]);
+    ).toEqual([['bank of japan press room'], ['bank of japan press room']]);
     expect(result.visualPayload['provenance']).toEqual(
       expect.objectContaining({ searchIntentModel: 'openrouter/free' }),
     );

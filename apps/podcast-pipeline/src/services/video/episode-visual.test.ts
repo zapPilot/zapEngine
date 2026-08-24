@@ -181,6 +181,63 @@ describe('episode visual payload', () => {
     });
   });
 
+  it('records bundled branding without fabricating article provenance', () => {
+    const brandAsset: PlannedVisualImage = {
+      assetId: 'image-98',
+      path: '/work/image-98.png',
+      contentType: 'image/png',
+      sha256: 'c'.repeat(64),
+      perceptualHash: '1'.repeat(16),
+      width: 2880,
+      height: 2560,
+      originalImageUrl: 'https://www.zap-pilot.org',
+      sourcePageUrl: 'https://www.zap-pilot.org',
+      provider: 'brand',
+      license: 'brand-generated',
+    };
+    const brandedAssets = [brandAsset, assets[0]!];
+    const selectedScenes = [
+      { sceneId: 'scene-01', assetId: 'image-98' },
+      { sceneId: 'scene-02', assetId: 'image-01' },
+      { sceneId: 'scene-03', assetId: 'image-01' },
+    ];
+
+    const payload = buildEpisodeVisualPayload({
+      visualVersion: 'image-only-v1',
+      visualHash: hashEpisodeVisualSelection({
+        visualVersion: 'image-only-v1',
+        episodeId,
+        canonicalLocalizationId: localizationId,
+        scenes: storyboard.draft.scenes,
+        selectedScenes,
+        assets: brandedAssets,
+      }),
+      episodeId,
+      canonicalLocalizationId: localizationId,
+      manifestUrl: 'https://cdn.example.test/manifest.json',
+      storyboard,
+      searchIntentModel: null,
+      selectedScenes,
+      assets: brandedAssets,
+      r2ImageUrls: {
+        'image-98': 'https://cdn.example.test/image-98.png',
+        'image-01': 'https://cdn.example.test/image-01.jpg',
+      },
+    });
+
+    expect(payload.assets[0]).toMatchObject({
+      provider: 'brand',
+      license: 'brand-generated',
+      originalImageUrl: 'https://www.zap-pilot.org',
+      sourcePageUrl: 'https://www.zap-pilot.org',
+    });
+    expect(payload.visualPlan.scenes[0]?.sources[0]).toMatchObject({
+      label: 'Zap Pilot',
+      attribution: 'Zap Pilot',
+      license: 'brand-generated',
+    });
+  });
+
   it('fails closed when scene selection, local assets, or uploaded URLs are missing', () => {
     const base = {
       visualVersion: 'image-only-v1',

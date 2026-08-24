@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import type { StoryboardDraft } from './video/storyboard/draft.js';
 import {
+  applyAndValidatePodcastBrandingToStoryboard,
   applyPodcastBrandingToStoryboard,
   packagePodcastScript,
   PODCAST_INTRO,
   PODCAST_INTRO_VISUAL_INTENT,
   ZAP_PILOT_OUTRO,
-  ZAP_PILOT_OUTRO_VISUAL_INTENT,
 } from './podcast-packaging.js';
+import type { StoryboardDraft } from './video/storyboard/draft.js';
+import { createDeterministicStoryboard } from './video/storyboard/fallback.js';
+import { splitCanonicalSentences } from './video/storyboard/sentences.js';
 
 describe('packagePodcastScript', () => {
   it('wraps only the generated body with application-owned branding', () => {
@@ -30,10 +32,16 @@ describe('packagePodcastScript', () => {
       `${PODCAST_INTRO}\n\n真正正文。\n\n${ZAP_PILOT_OUTRO}`,
     );
   });
+
+  it('does not duplicate the current intro when retry output already contains it', () => {
+    expect(packagePodcastScript(`${PODCAST_INTRO}\n\n真正正文。`)).toBe(
+      `${PODCAST_INTRO}\n\n真正正文。\n\n${ZAP_PILOT_OUTRO}`,
+    );
+  });
 });
 
 describe('applyPodcastBrandingToStoryboard', () => {
-  it('isolates intro/outro and replaces packaging-tainted search intents', () => {
+  it('isolates only the intro and preserves content search intents', () => {
     const script = packagePodcastScript(
       '第一段談聯準會資產負債表。\n第二段談穩定幣支付。',
     );
@@ -67,19 +75,13 @@ describe('applyPodcastBrandingToStoryboard', () => {
         sceneId: 'scene-02',
         startSentenceId: 's0002',
         endSentenceId: 's0002',
-        imageSearchIntent: ['第一段談聯準會資產負債表。'],
+        imageSearchIntent: ['podcast studio microphone'],
       },
       {
         sceneId: 'scene-03',
         startSentenceId: 's0003',
-        endSentenceId: 's0003',
-        imageSearchIntent: ['第二段談穩定幣支付。'],
-      },
-      {
-        sceneId: 'scene-04',
-        startSentenceId: 's0004',
         endSentenceId: 's0004',
-        imageSearchIntent: [ZAP_PILOT_OUTRO_VISUAL_INTENT],
+        imageSearchIntent: ['podcast host outro'],
       },
     ]);
   });
@@ -97,5 +99,57 @@ describe('applyPodcastBrandingToStoryboard', () => {
     };
 
     expect(applyPodcastBrandingToStoryboard('只有正文。', draft)).toBe(draft);
+  });
+
+  it('keeps a 90-second packaged episode within the renderer scene limit', () => {
+    const script = packagePodcastScript(
+      Array.from({ length: 12 }, (_, index) => `第${index + 1}段正文。`).join(
+        '',
+      ),
+    );
+    const sentences = splitCanonicalSentences(script);
+    const content = createDeterministicStoryboard({
+      title: '市場觀察',
+      script,
+      durationMs: 90_000,
+      sentences,
+    });
+
+    const branded = applyAndValidatePodcastBrandingToStoryboard(
+      script,
+      content,
+      90_000,
+    );
+
+    expect(content.scenes.length).toBeGreaterThanOrEqual(8);
+    expect(content.scenes.length).toBeLessThanOrEqual(9);
+    expect(branded.scenes.length).toBeGreaterThanOrEqual(9);
+    expect(branded.scenes.length).toBeLessThanOrEqual(10);
+    expect(branded.scenes.at(-1)?.endSentenceId).toBe(sentences.at(-1)?.id);
+  });
+
+  it('reserves one of 64 storyboard slots for the packaged intro', () => {
+    const script = packagePodcastScript(
+      Array.from(
+        { length: 100 },
+        (_, index) => `長篇正文第${index + 1}句。`,
+      ).join(''),
+    );
+    const sentences = splitCanonicalSentences(script);
+    const content = createDeterministicStoryboard({
+      title: '長篇市場觀察',
+      script,
+      durationMs: 24 * 60 * 60_000,
+      sentences,
+    });
+
+    const branded = applyAndValidatePodcastBrandingToStoryboard(
+      script,
+      content,
+      24 * 60 * 60_000,
+    );
+
+    expect(content.scenes).toHaveLength(63);
+    expect(branded.scenes).toHaveLength(64);
   });
 });

@@ -40,7 +40,7 @@ Scene alignment for `ja` and `en` is selected independently with `VIDEO_ALIGNMEN
 
 ## Vertical news video (image-only, multilingual)
 
-After all three audio localizations complete, ingest idempotently enqueues one episode-scoped visual job and one canonical `zh-Hant` localization render job. Japanese and English audio remain fully generated for the app, but their duplicate social-video encodes are intentionally skipped to reduce render compute. The visual job creates a shared, image-only storyboard, mirrors selected images to R2, and records source-page/original-image provenance (license + photographer for stock providers). It never stores a text-card fallback.
+After all three audio localizations complete, ingest idempotently enqueues one episode-scoped visual job and one canonical `zh-Hant` localization render job. Japanese and English audio remain fully generated for the app, but their duplicate social-video encodes are intentionally skipped to reduce render compute. The visual job creates a shared, image-only storyboard, starts packaged episodes with the bundled Zap Podcast intro card, mirrors selected images to R2, and records truthful source-page/original-image provenance (license + photographer for stock providers). Content scenes never store a generated text-card fallback.
 
 What each scene searches for is written by an LLM, not by a keyword table. The
 deterministic storyboard still owns the scene split and timing — it is what makes

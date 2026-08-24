@@ -94,11 +94,28 @@ export function materializeLocaleVideoManifest(
     throw new Error('Scene alignment must cover every locale sentence');
   }
 
-  const transitionMs = fitTransitionToShortestSlide(
-    slides,
+  const contentSlides = slides.filter(
+    (slide) => slide.sources[0]?.license !== 'brand-generated',
+  );
+  const brandSlides = slides.filter(
+    (slide) => slide.sources[0]?.license === 'brand-generated',
+  );
+  const contentTransitionMs = fitTransitionToShortestSlide(
+    contentSlides.length > 0 ? contentSlides : slides,
     OUTPUT_FPS,
     PREFERRED_TRANSITION_MS,
   );
+  const transitionMs =
+    brandSlides.length === 0
+      ? contentTransitionMs
+      : Math.min(
+          contentTransitionMs,
+          fitTransitionToShortestSlide(
+            brandSlides,
+            OUTPUT_FPS,
+            contentTransitionMs,
+          ),
+        );
   const outro = videoBrandCtaFor(input.episode.languageCode);
 
   return parseVerticalVideoManifest({

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { contentTypeExtension } from '../lib/content-type.js';
-import { applyPodcastBrandingToStoryboard } from './podcast-packaging.js';
+import { applyAndValidatePodcastBrandingToStoryboard } from './podcast-packaging.js';
 import { scrapeArticle } from './scrape.js';
 import { uploadEpisodeVisualAssetsToR2 } from './storage.js';
 import { analyzeEpisodeAudio } from './video/episode-video.js';
@@ -114,7 +114,11 @@ export function createEpisodeVideoVisualProcessor(
       );
       const storyboard = {
         ...generated,
-        draft: applyPodcastBrandingToStoryboard(source.script, intents.draft),
+        draft: applyAndValidatePodcastBrandingToStoryboard(
+          source.script,
+          intents.draft,
+          analysis.durationMs,
+        ),
       };
       logVisualProgress(dependencies.logger, 'visual:intents', {
         run: context.runId,

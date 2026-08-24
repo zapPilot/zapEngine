@@ -212,21 +212,23 @@ function AssetPanel({
           objectPosition: asset.position,
         }}
       />
-      <div
-        style={{
-          display: 'flex',
-          position: 'absolute',
-          right: 30,
-          bottom: 24,
-          padding: '12px 20px',
-          backgroundColor: 'rgba(10, 10, 10, 0.84)',
-          color: colors.inkDim,
-          fontFamily: mono,
-          fontSize: 22,
-        }}
-      >
-        {asset.source.attribution}
-      </div>
+      {asset.source.license === 'brand-generated' ? null : (
+        <div
+          style={{
+            display: 'flex',
+            position: 'absolute',
+            right: 30,
+            bottom: 24,
+            padding: '12px 20px',
+            backgroundColor: 'rgba(10, 10, 10, 0.84)',
+            color: colors.inkDim,
+            fontFamily: mono,
+            fontSize: 22,
+          }}
+        >
+          {asset.source.attribution}
+        </div>
+      )}
     </div>
   );
 }
