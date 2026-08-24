@@ -5,6 +5,9 @@ import type {
   EpisodeLocalizationRow,
   EpisodeRow,
 } from '../../types.js';
+import { PODCAST_INTRO, ZAP_PILOT_OUTRO } from '../podcast-packaging.js';
+
+const PACKAGED_SCRIPT = `${PODCAST_INTRO}\n\nGenerated script\n\n${ZAP_PILOT_OUTRO}`;
 
 const mocks = vi.hoisted(() => ({
   findEpisodeBySourceUrl: vi.fn(),
@@ -83,7 +86,7 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
     mocks.updateEpisodeLocalizationStatus.mockResolvedValue(
       localizationRow({
         title: editorialTitle,
-        script: 'Generated script',
+        script: PACKAGED_SCRIPT,
         status: 'script_generated',
       }),
     );
@@ -100,7 +103,7 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
       'script_generated',
       {
         title: editorialTitle,
-        script: 'Generated script',
+        script: PACKAGED_SCRIPT,
         llmModel: 'test/model',
         llmThinkingModel: null,
         llmProvider: 'test-provider',
@@ -121,7 +124,7 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
     mocks.updateEpisodeLocalizationStatus.mockResolvedValue(
       localizationRow({
         title: existing.title,
-        script: 'Generated script',
+        script: PACKAGED_SCRIPT,
         status: 'script_generated',
       }),
     );
@@ -135,7 +138,7 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
 
     const updates = mocks.updateEpisodeLocalizationStatus.mock.calls[0]?.[2];
     expect(updates).toEqual({
-      script: 'Generated script',
+      script: PACKAGED_SCRIPT,
       llmModel: 'test/model',
       llmThinkingModel: null,
       llmProvider: 'test-provider',
@@ -193,7 +196,7 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
           title: editorialTitle,
           raw_text: scrapedArticle.text,
           status: 'script_generated',
-          script: 'Generated script',
+          script: PACKAGED_SCRIPT,
         }),
       );
 

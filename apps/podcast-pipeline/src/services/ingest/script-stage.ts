@@ -18,6 +18,7 @@ import {
 } from '../db.js';
 import { generateScriptWithLLM } from '../llm.js';
 import { convertArticleToZhTW } from '../opencc.js';
+import { packagePodcastScript } from '../podcast-packaging.js';
 import { scrapeArticle } from '../scrape.js';
 import { logIngestSkip, step } from './step.js';
 
@@ -184,12 +185,13 @@ async function ensureLocalizationScript(input: {
         costUsd: generated.costUsd,
       }),
     );
+    const packagedScript = packagePodcastScript(generated.script);
     localization = await step(
       'updateEpisodeLocalizationStatus:script_generated',
       () =>
         updateEpisodeLocalizationStatus(localization!.id, 'script_generated', {
           ...(generated.title === null ? {} : { title: generated.title }),
-          script: generated.script,
+          script: packagedScript,
           llmModel: generated.model,
           llmThinkingModel: generated.thinkingModel,
           llmProvider: generated.provider,
