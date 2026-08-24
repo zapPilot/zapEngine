@@ -32,6 +32,22 @@ export interface DeBankTokenBalance {
   raw_amount_hex_str?: string;
 }
 
+const DeBankTokenBalanceSchema = z
+  .object({
+    amount: z.number(),
+    chain: z.string().trim().min(1),
+    decimals: z.number().int().nonnegative(),
+    id: z.string().trim().min(1),
+    is_core: z.boolean(),
+    is_verified: z.boolean(),
+    is_wallet: z.boolean(),
+    name: z.string(),
+    price: z.number().optional(),
+    price_24h_change: z.number().optional(),
+    symbol: z.string(),
+  })
+  .passthrough();
+
 // Zod schema for DeBank complex protocol list validation
 const ProtocolItemSchema = z.object({
   asset_dict: z.record(z.string(), z.number()),
@@ -50,10 +66,10 @@ const ProtocolItemSchema = z.object({
 });
 
 const DeBankProtocolSchema = z.object({
-  chain: z.string(),
+  chain: z.string().trim().min(1),
   dao_id: z.string().optional(),
   has_supported_portfolio: z.boolean(),
-  id: z.string(),
+  id: z.string().trim().min(1),
   is_tvl: z.boolean().nullish(),
   is_visible_in_defi: z.boolean().nullish(),
   logo_url: z.string().nullable(),
@@ -155,19 +171,33 @@ export class DeBankFetcher extends BaseApiFetcher {
     data: unknown,
     walletAddress: string,
   ): DeBankTokenBalance[] {
-    if (Array.isArray(data)) {
+    if (!Array.isArray(data)) {
+      logger.warn('API returned non-array response', {
+        walletAddress: maskWalletAddress(walletAddress),
+        responseType: typeof data,
+        response: data,
+      });
+      if (this.strictErrors) {
+        throw new Error(
+          'DeBank API returned non-array response for token list',
+        );
+      }
+      return [];
+    }
+
+    const validation = z.array(DeBankTokenBalanceSchema).safeParse(data);
+    if (validation.success) {
       return data as DeBankTokenBalance[];
     }
 
-    logger.warn('API returned non-array response', {
+    logger.warn('DeBank token list validation failed, returning raw data', {
       walletAddress: maskWalletAddress(walletAddress),
-      responseType: typeof data,
-      response: data,
+      error: validation.error.message,
     });
     if (this.strictErrors) {
-      throw new Error('DeBank API returned non-array response for token list');
+      throw new Error('DeBank token list validation failed');
     }
-    return [];
+    return data as DeBankTokenBalance[];
   }
 
   /**
@@ -254,6 +284,9 @@ export class DeBankFetcher extends BaseApiFetcher {
               : 'Unknown validation error',
         },
       );
+      if (this.strictErrors) {
+        throw new Error('DeBank complex protocol list validation failed');
+      }
       return data as DeBankComplexProtocolList;
     }
   }
