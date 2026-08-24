@@ -7,7 +7,7 @@ import { splitCanonicalSentences } from './video/storyboard/sentences.js';
 
 export const PODCAST_INTRO = '歡迎收聽 Zap Podcast。';
 export const ZAP_PILOT_OUTRO =
-  '如果你也在管理多個錢包、DeFi 部位和投資組合，可以搜尋 Zap Pilot，讓投資組合管理更簡單、更清楚。';
+  '如果你也在管理多個錢包、DeFi 部位和投資組合，可以到 Zap Pilot 官網，讓投資組合管理更簡單、更清楚。';
 
 export const PODCAST_INTRO_VISUAL_INTENT = 'brand:zap-podcast-intro';
 export const ZAP_PILOT_OUTRO_VISUAL_INTENT = 'brand:zap-pilot-outro';
