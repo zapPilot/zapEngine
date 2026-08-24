@@ -52,9 +52,9 @@ describe('planPodcastVisualAssets', () => {
       'image-98',
       'image-99',
     ]);
-    expect(plan.assets.every((asset) => /^image-\d{2}$/.test(asset.assetId))).toBe(
-      true,
-    );
+    expect(
+      plan.assets.every((asset) => /^image-\d{2}$/.test(asset.assetId)),
+    ).toBe(true);
     expect(
       plan.assets.every(
         (asset) =>
@@ -82,7 +82,10 @@ describe('planPodcastVisualAssets', () => {
           sceneId: 'scene-01',
           imageSearchIntent: [PODCAST_INTRO_VISUAL_INTENT],
         },
-        { sceneId: 'scene-02', imageSearchIntent: ['Federal Reserve balance sheet'] },
+        {
+          sceneId: 'scene-02',
+          imageSearchIntent: ['Federal Reserve balance sheet'],
+        },
         {
           sceneId: 'scene-03',
           imageSearchIntent: [ZAP_PILOT_OUTRO_VISUAL_INTENT],
