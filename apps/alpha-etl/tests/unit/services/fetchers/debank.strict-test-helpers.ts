@@ -13,6 +13,21 @@ export function mockDeBankResponse(fetcher: DeBankFetcher, response: unknown) {
     .mockResolvedValue(response);
 }
 
+export function validToken(overrides: Record<string, unknown> = {}) {
+  return {
+    amount: 1,
+    chain: 'eth',
+    decimals: 18,
+    id: '0xtoken',
+    is_core: false,
+    is_verified: true,
+    is_wallet: true,
+    name: 'Token',
+    symbol: 'TKN',
+    ...overrides,
+  };
+}
+
 export function validProtocol(overrides: Record<string, unknown> = {}) {
   return {
     chain: 'eth',
