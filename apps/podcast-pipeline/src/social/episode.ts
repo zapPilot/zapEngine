@@ -3,6 +3,7 @@ import {
   findEpisodeLocalizationByEpisodeId,
   listEpisodeVideoSummariesByLocalizationIds,
 } from '../services/db.js';
+import { stripKnownPodcastPackaging } from '../services/podcast-packaging.js';
 import { isEpisodeId } from '../services/request-validation.js';
 import { buildEpisodeShareUrl } from '../services/telegram.js';
 import type { SocialEpisode } from './types.js';
@@ -61,7 +62,9 @@ export function buildSocialEpisode(input: {
   localization: LocalizationProjection;
   video: VideoProjection | null;
 }): SocialEpisode {
-  const transcript = input.localization.script?.trim() ?? '';
+  const transcript = stripKnownPodcastPackaging(
+    input.localization.script?.trim() ?? '',
+  );
   if (!transcript) {
     throw new Error(
       `Episode ${input.episode.id} has no completed zh transcript. Social publishing aborted.`,
@@ -84,7 +87,7 @@ export function buildSocialEpisode(input: {
   }
 
   const description = input.localization.raw_text?.trim() || undefined;
-  const summarySource = description ?? transcript;
+  const summarySource = stripKnownPodcastPackaging(description ?? transcript);
 
   return {
     id: input.episode.id,

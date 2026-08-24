@@ -15,6 +15,7 @@ import {
 } from '../db.js';
 import { generateLanguageClassroomsWithLLM } from '../llm.js';
 import { synthesizeClassroomAudio } from '../podcast/classroom-audio.js';
+import { stripKnownPodcastPackaging } from '../podcast-packaging.js';
 import { getTtsMetadata, textToSpeech } from '../tts.js';
 import { concatMp3Buffers } from '../tts/audio-concat.js';
 import { getClassroomTargetLanguageCodes } from './classroom-config.js';
@@ -583,7 +584,7 @@ async function generateAndPersistLessons(
     generateLanguageClassroomsWithLLM({
       title: localization.title,
       articleText: localization.raw_text ?? '',
-      script: localization.script ?? '',
+      script: stripKnownPodcastPackaging(localization.script ?? ''),
       sourceLanguageCode,
       targetLanguageCodes,
     }),

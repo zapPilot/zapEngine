@@ -2022,6 +2022,8 @@ describe('updates', () => {
     await updateEpisodeLocalizationStatus(row.id, 'script_generated', {
       title: '真正影響市場的不是價格，而是流動性',
       script: 'Generated script',
+      scriptBody: 'Generated body',
+      packagingVersion: 'podcast-script.v1',
       llmModel: 'model',
       llmThinkingModel: 'thinking-model',
       llmProvider: 'provider',
@@ -2032,6 +2034,8 @@ describe('updates', () => {
         status: 'script_generated',
         title: '真正影響市場的不是價格，而是流動性',
         script: 'Generated script',
+        script_body: 'Generated body',
+        packaging_version: 'podcast-script.v1',
         llm_model: 'model',
         llm_thinking_model: 'thinking-model',
         llm_provider: 'provider',

@@ -928,7 +928,7 @@ describe('POST /ingest pipeline', () => {
       expect.objectContaining({
         title: '市場流動性正在重新定價',
         articleText: '滑鼠和腳踏車市場',
-        script: PACKAGED_SCRIPT,
+        script: 'Generated script',
         sourceLanguageCode: 'zh-Hant',
         targetLanguageCodes: ['ja', 'en'],
       }),

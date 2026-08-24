@@ -16,6 +16,11 @@ vi.mock('../services/db.js', async (importOriginal) => ({
 }));
 
 import {
+  packagePodcastScript,
+  PODCAST_INTRO,
+  ZAP_PILOT_OUTRO,
+} from '../services/podcast-packaging.js';
+import {
   buildSocialEpisode,
   getSocialEpisode,
   parseSocialEpisodeId,
@@ -132,6 +137,27 @@ describe('buildSocialEpisode', () => {
     expect(result.title).toBe('Fallback source title');
     expect(result.description).toBeUndefined();
     expect(result.summary).toBe('完整 podcast 講稿');
+  });
+
+  it('removes application-owned podcast packaging from social text', () => {
+    const result = buildSocialEpisode({
+      episode,
+      localization: {
+        ...localization,
+        raw_text: null,
+        script: packagePodcastScript('真正的節目正文。'),
+      },
+      video: {
+        url: 'https://cdn.example/video.mp4',
+        thumbnailUrl: 'https://cdn.example/thumbnail.jpg',
+        durationSeconds: 173,
+      },
+    });
+
+    expect(result.transcript).toBe('真正的節目正文。');
+    expect(result.summary).toBe('真正的節目正文。');
+    expect(result.transcript).not.toContain(PODCAST_INTRO);
+    expect(result.transcript).not.toContain(ZAP_PILOT_OUTRO);
   });
 
   it('allows an empty source title fallback without inventing a title', () => {

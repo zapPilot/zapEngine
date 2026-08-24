@@ -69,7 +69,8 @@ interface ParsedScriptPayload {
 class ScriptPayloadValidationError extends Error {
   constructor(
     message: string,
-    readonly reason: 'invalid_json' | 'missing_script',
+    readonly reason: 'invalid_json' | 'missing_script' | 'packaged_body',
+    readonly detail: string | null = null,
     options?: ErrorOptions,
   ) {
     super(message, options);
@@ -104,9 +105,116 @@ export function buildUserMessage(title: string, text: string): string {
 function buildScriptPayloadRetryMessage(
   title: string,
   text: string,
-  reason: ScriptPayloadValidationError['reason'],
+  error: ScriptPayloadValidationError,
 ): string {
-  return `${buildUserMessage(title, text)}\n\n修正要求：上一個回應未符合 JSON 輸出契約（${reason}）。只輸出可解析的 JSON 物件，且 title 與 script 都必須是非空字串。`;
+  const reason = error.detail
+    ? `${error.reason}: ${error.detail}`
+    : error.reason;
+  return `${buildUserMessage(title, text)}\n\n修正要求：上一個回應未符合 JSON 輸出契約（${reason}）。只輸出可解析的 JSON 物件，title 與 script 都必須是非空字串，且 script 只能包含 body，不得自行加入開場招呼、結尾 CTA、Markdown 標題、時間碼或分隔線。`;
+}
+
+function generatedScriptBodyViolation(script: string): string | null {
+  const body = script.trim();
+  const normalizedStart = body.slice(0, 40).toLocaleLowerCase();
+  const greetingPrefixes = [
+    '各位',
+    '大家好',
+    '歡迎',
+    '哈囉',
+    '哈啰',
+    '嗨，',
+    '嗨,',
+    '嗨 ',
+    'hello ',
+    'hi ',
+  ];
+  if (greetingPrefixes.some((prefix) => normalizedStart.startsWith(prefix))) {
+    return 'opening_greeting';
+  }
+  const lines = body.split(/\r?\n/u);
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (isMarkdownHeading(line)) return 'markdown_heading';
+    if (isTimestampLine(line)) return 'timestamp';
+    if (isMarkdownSeparator(line)) return 'separator';
+  }
+
+  const ending = body.slice(-300).toLocaleLowerCase();
+  const ctaLead = [
+    '記得',
+    '別忘了',
+    '歡迎',
+    '請',
+    '前往',
+    '造訪',
+    '可以到',
+    'remember',
+    'please',
+    'visit',
+  ];
+  const ctaAction = [
+    '訂閱',
+    '按讚',
+    '分享',
+    '追蹤',
+    '留言',
+    '官網',
+    '網站',
+    '下載',
+    '註冊',
+    '加入',
+    'subscribe',
+    'like',
+    'share',
+    'follow',
+    'visit our website',
+  ];
+  if (
+    ctaLead.some((phrase) => ending.includes(phrase)) &&
+    ctaAction.some((phrase) => ending.includes(phrase))
+  ) {
+    return 'closing_cta';
+  }
+  return null;
+}
+
+function isMarkdownHeading(line: string): boolean {
+  let hashes = 0;
+  while (line[hashes] === '#' && hashes < 7) hashes += 1;
+  return hashes >= 1 && hashes <= 6 && /\s/u.test(line[hashes] ?? '');
+}
+
+function isTimestampLine(line: string): boolean {
+  const unwrapped =
+    line.startsWith('[') || line.startsWith('(') ? line.slice(1) : line;
+  const token = unwrapped.split(/\s/u, 1)[0]?.replace(/[\])]$/u, '') ?? '';
+  const parts = token.split(':');
+  if (parts.length < 2 || parts.length > 3) return false;
+  return parts.every(
+    (part, index) =>
+      /^\d{1,2}$/u.test(part) &&
+      (index === 0 || Number.parseInt(part, 10) < 60),
+  );
+}
+
+function isMarkdownSeparator(line: string): boolean {
+  const marker = line[0];
+  return (
+    line.length >= 3 &&
+    marker !== undefined &&
+    '-_*'.includes(marker) &&
+    [...line].every((character) => character === marker)
+  );
+}
+
+function assertGeneratedScriptBody(script: string): void {
+  const violation = generatedScriptBodyViolation(script);
+  if (violation === null) return;
+  throw new ScriptPayloadValidationError(
+    `LLM returned a script with application-owned packaging: ${violation}`,
+    'packaged_body',
+    violation,
+  );
 }
 
 export function normalizeEditorialTitle(value: unknown): string | null {
@@ -153,6 +261,7 @@ function parseScriptPayload(content: string): ParsedScriptPayload {
 
   const stripped = stripJsonFence(content.trim());
   if (!stripped.startsWith('{')) {
+    assertGeneratedScriptBody(content);
     return {
       title: null,
       script: content,
@@ -167,6 +276,7 @@ function parseScriptPayload(content: string): ParsedScriptPayload {
     throw new ScriptPayloadValidationError(
       'LLM returned invalid script JSON content',
       'invalid_json',
+      null,
       { cause: error },
     );
   }
@@ -178,6 +288,7 @@ function parseScriptPayload(content: string): ParsedScriptPayload {
       'missing_script',
     );
   }
+  assertGeneratedScriptBody(script);
 
   const rawTitle = payload['title'];
   const title = normalizeEditorialTitle(rawTitle);
@@ -441,7 +552,7 @@ export async function generateScriptWithLLM(
 ): Promise<ScriptResult> {
   const { openai, model, thinkingModel } = getOpenRouterConfig();
   const system = getSystemPrompt();
-  let retryReason: ScriptPayloadValidationError['reason'] | null = null;
+  let retryError: ScriptPayloadValidationError | null = null;
   let costUsd = 0;
 
   for (let attempt = 1; attempt <= SCRIPT_PAYLOAD_MAX_ATTEMPTS; attempt += 1) {
@@ -455,9 +566,9 @@ export async function generateScriptWithLLM(
           {
             role: 'user',
             content:
-              retryReason === null
+              retryError === null
                 ? buildUserMessage(title, text)
-                : buildScriptPayloadRetryMessage(title, text, retryReason),
+                : buildScriptPayloadRetryMessage(title, text, retryError),
           },
         ],
         temperature: 0.7,
@@ -489,7 +600,7 @@ export async function generateScriptWithLLM(
       ) {
         throw error;
       }
-      retryReason = error.reason;
+      retryError = error;
     }
   }
 

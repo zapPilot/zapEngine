@@ -8,6 +8,7 @@ import {
   rankEpisodeSearchResults,
   searchEpisodes,
 } from './episode-search.js';
+import { packagePodcastScript, PODCAST_INTRO } from './podcast-packaging.js';
 
 vi.mock('./db.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./db.js')>();
@@ -175,6 +176,23 @@ describe('rankEpisodeSearchResults', () => {
     );
 
     expect(result.map((item) => item.row.id)).toEqual(['title', 'script']);
+  });
+
+  it('uses the first body paragraph for title matches instead of the packaged intro', () => {
+    const result = rankEpisodeSearchResults(
+      [
+        row({
+          title: 'Stablecoin regulation',
+          script: packagePodcastScript('第一段真正正文。\n\n第二段正文。'),
+        }),
+      ],
+      'stablecoin regulation',
+      20,
+    );
+
+    expect(result[0]?.matchSource).toBe('title');
+    expect(result[0]?.snippet).toBe('第一段真正正文。');
+    expect(result[0]?.snippet).not.toContain(PODCAST_INTRO);
   });
 
   it('uses the closest script sentence and caps snippets at 180 characters', () => {

@@ -10,6 +10,7 @@ import {
   listEpisodesPaged,
   toEpisodeResponse,
 } from './db.js';
+import { PODCAST_INTRO } from './podcast-packaging.js';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const CORPUS_PAGE_SIZE = 50;
@@ -367,7 +368,8 @@ function firstScriptParagraph(script: string | null): string | null {
     script
       .split(/\n\s*\n/u)
       .map((value) => value.trim())
-      .find(Boolean) ?? script.trim();
+      .find((value) => Boolean(value) && value !== PODCAST_INTRO) ??
+    script.trim();
   return truncateSnippet(paragraph);
 }
 

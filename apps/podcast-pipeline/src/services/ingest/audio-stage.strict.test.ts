@@ -6,6 +6,7 @@ import {
   localizationRow,
 } from '../../__fixtures__/index-test.js';
 import type { LanguageClassroomRow } from '../../types.js';
+import { packagePodcastScript } from '../podcast-packaging.js';
 
 const {
   mockConcatMp3Buffers,
@@ -470,6 +471,38 @@ describe('strict language classroom audio integrity', () => {
       '',
       expect.objectContaining({
         languageCode: 'zh-Hant',
+      }),
+    );
+  });
+
+  it('grounds classroom generation in the article and stripped podcast body', async () => {
+    mockListLanguageClassroomsByLocalizationId.mockResolvedValue([]);
+    mockGenerateLanguageClassroomsWithLLM.mockResolvedValue({
+      lessons: [],
+      model: 'test-model',
+      thinkingModel: null,
+      provider: 'test-provider',
+      costUsd: 0,
+    });
+    mockUpsertLanguageClassrooms.mockResolvedValue(classroomRows);
+
+    await ensureLocalizationCompleted(
+      episodeRow(),
+      localizationRow({
+        status: 'script_generated',
+        raw_text: '來源文章內容',
+        script: packagePodcastScript('課堂要使用的正文。'),
+        hls_url: '',
+        classroom_hls_url: null,
+      }),
+      'zh-Hant',
+      [],
+    );
+
+    expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
+      expect.objectContaining({
+        articleText: '來源文章內容',
+        script: '課堂要使用的正文。',
       }),
     );
   });

@@ -733,6 +733,80 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
     );
   });
 
+  it.each([
+    ['opening_greeting', '歡迎收聽今天的節目。正文從市場變化開始。'],
+    ['closing_cta', '正文分析市場變化。\n\n記得訂閱並分享這個節目。'],
+    ['markdown_heading', '# 市場標題\n正文分析市場變化。'],
+    ['timestamp', '[00:15] 正文分析市場變化。'],
+    ['separator', '正文分析市場變化。\n\n---\n\n下一段正文。'],
+  ])(
+    'retries a %s instead of accepting application-owned packaging',
+    async (detail, invalidScript) => {
+      const mockCreate = vi
+        .fn()
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                content: scriptPayload('市場流動性正在重新定價', invalidScript),
+              },
+            },
+          ],
+          provider: 'Cloudflare',
+          model: 'test/model',
+        })
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                content: scriptPayload(
+                  '市場流動性正在重新定價',
+                  '正文分析市場變化。',
+                ),
+              },
+            },
+          ],
+          provider: 'Cloudflare',
+          model: 'test/model',
+        });
+      mockOpenAIClient(mockCreate);
+
+      const result = await generateScriptWithLLM('Title', 'Text');
+
+      expect(result.script).toBe('正文分析市場變化。');
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+      const retryRequest = mockCreate.mock.calls[1]![0] as {
+        messages: { role: string; content: string }[];
+      };
+      expect(retryRequest.messages.at(-1)?.content).toContain(
+        `上一個回應未符合 JSON 輸出契約（packaged_body: ${detail}）`,
+      );
+    },
+  );
+
+  it('fails after the second response still contains application-owned packaging', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: scriptPayload(
+              '市場流動性正在重新定價',
+              '歡迎收聽今天的節目。正文從市場變化開始。',
+            ),
+          },
+        },
+      ],
+      provider: 'Cloudflare',
+      model: 'test/model',
+    });
+    mockOpenAIClient(mockCreate);
+
+    await expect(generateScriptWithLLM('Title', 'Text')).rejects.toThrow(
+      'application-owned packaging: opening_greeting',
+    );
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+  });
+
   it('throws after two JSON payloads omit a usable script', async () => {
     const mockCreate = vi.fn().mockResolvedValue({
       choices: [

@@ -82,6 +82,8 @@ export interface EpisodeLocalizationRow extends EpisodeLocalizationProjection {
   id: string;
   episode_id: string;
   raw_text: string | null;
+  script_body?: string | null;
+  packaging_version?: string | null;
   tts_language_code: string | null;
   tts_voice_name: string | null;
   r2_prefix: string | null;
@@ -236,6 +238,8 @@ export interface NewEpisodeLocalization {
   hlsUrl: string;
   rawText: string;
   script: string;
+  scriptBody?: string | null;
+  packagingVersion?: string | null;
   llmModel: string;
   llmThinkingModel: string | null;
   llmProvider: string;
