@@ -4,6 +4,15 @@ import { DeBankFetcher } from '../../../../src/modules/wallet/fetcher.js';
 
 export const walletAddress = '0x1234567890123456789012345678901234567890';
 
+export function mockDeBankFailure(fetcher: DeBankFetcher, error: Error) {
+  return vi
+    .spyOn(
+      fetcher as unknown as { fetchWithRetry: () => Promise<unknown> },
+      'fetchWithRetry',
+    )
+    .mockRejectedValue(error);
+}
+
 export function mockDeBankResponse(fetcher: DeBankFetcher, response: unknown) {
   return vi
     .spyOn(
