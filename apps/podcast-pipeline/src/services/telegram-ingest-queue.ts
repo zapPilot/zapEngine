@@ -12,6 +12,10 @@ import {
   TELEGRAM_START_TEXT,
   type TelegramChatId,
 } from './telegram.js';
+import {
+  isAllowedTelegramSourceUrl,
+  TELEGRAM_UNSUPPORTED_SOURCE_TEXT,
+} from './telegram-source.js';
 
 interface InflightTelegramIngest {
   latestChatId: TelegramChatId;
@@ -103,6 +107,11 @@ export function createTelegramIngestQueue(): TelegramIngestQueue {
     url: string,
     languageCode: LanguageClassroomLanguageCode,
   ): void {
+    if (!isAllowedTelegramSourceUrl(url)) {
+      scheduleMessage(chatId, TELEGRAM_UNSUPPORTED_SOURCE_TEXT);
+      return;
+    }
+
     const existing = inflightIngests.get(url);
     if (existing) {
       existing.latestChatId = chatId;
