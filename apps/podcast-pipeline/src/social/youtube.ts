@@ -1,3 +1,4 @@
+import { once } from 'node:events';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 
@@ -183,27 +184,33 @@ async function uploadVideo(input: {
   fetchImpl: typeof fetch;
 }): Promise<YouTubeVideoResponse> {
   const file = await stat(input.videoPath);
-  const body = createReadStream(input.videoPath) as unknown as BodyInit;
-  const response = await input.fetchImpl(input.uploadUrl, {
-    method: 'PUT',
-    headers: {
-      authorization: `Bearer ${input.accessToken}`,
-      'content-length': String(file.size),
-      'content-type': 'video/mp4',
-    },
-    body,
-    duplex: 'half',
-  } as RequestInit & { duplex: 'half' });
+  const body = createReadStream(input.videoPath);
+  try {
+    const response = await input.fetchImpl(input.uploadUrl, {
+      method: 'PUT',
+      headers: {
+        authorization: `Bearer ${input.accessToken}`,
+        'content-length': String(file.size),
+        'content-type': 'video/mp4',
+      },
+      body: body as unknown as BodyInit,
+      duplex: 'half',
+    } as RequestInit & { duplex: 'half' });
 
-  if (!response.ok) {
-    throw new Error(await describeYouTubeError(response));
-  }
+    if (!response.ok) {
+      throw new Error(await describeYouTubeError(response));
+    }
 
-  const payload = (await response.json()) as unknown;
-  if (!isRecord(payload) || !nonemptyString(payload['id'])) {
-    throw new Error('YouTube upload response did not include a video id.');
+    const payload = (await response.json()) as unknown;
+    if (!isRecord(payload) || !nonemptyString(payload['id'])) {
+      throw new Error('YouTube upload response did not include a video id.');
+    }
+    return { id: nonemptyString(payload['id'])! };
+  } finally {
+    const closed = body.closed ? null : once(body, 'close');
+    body.destroy();
+    if (closed) await closed;
   }
-  return { id: nonemptyString(payload['id'])! };
 }
 
 async function describeYouTubeError(response: Response): Promise<string> {

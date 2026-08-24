@@ -107,6 +107,41 @@ describe('WalletBalanceWriter', () => {
     vi.useRealTimers();
   });
 
+  it('clears successful empty wallets in the same replacement as wallets with tokens', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-23T12:00:00.000Z'));
+    query.mockResolvedValue({ rowCount: 1 });
+
+    const result = await new WalletBalanceWriter().writeWalletBalanceSnapshots(
+      [token()],
+      ['0xABC', '0xEMPTY'],
+    );
+
+    expect(result.recordsInserted).toBe(1);
+    expect(query.mock.calls.map(([sql]) => sql)).toEqual([
+      'BEGIN',
+      expect.stringContaining('DELETE FROM analytics.daily_wallet_tokens'),
+      expect.stringContaining('INSERT INTO analytics.daily_wallet_tokens'),
+      'COMMIT',
+    ]);
+    expect(query.mock.calls[1]?.[1]).toEqual([
+      '0xabc',
+      '2026-08-23',
+      '0xempty',
+      '2026-08-23',
+    ]);
+    expect(query.mock.calls[2]?.[1]).toEqual([
+      '0xabc',
+      '0xtoken',
+      'eth',
+      'ETH',
+      2,
+      3000,
+      '2026-08-23',
+    ]);
+    vi.useRealTimers();
+  });
+
   it('rolls back the delete when the replacement insert fails', async () => {
     query
       .mockResolvedValueOnce({ rowCount: null })

@@ -58,14 +58,16 @@ export async function recordReplacementResult(
 ): Promise<WriteResult> {
   try {
     result.recordsInserted = await replace();
-    logger.info(message, {
-      records: result.recordsInserted,
-      walletDays,
-    });
   } catch (error) {
     result.success = false;
     result.errors.push(error instanceof Error ? error.message : String(error));
+    return result;
   }
+
+  logger.info(message, {
+    records: result.recordsInserted,
+    walletDays,
+  });
 
   return result;
 }
