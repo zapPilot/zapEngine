@@ -4,20 +4,23 @@ import {
   type StoryboardDraftScene,
 } from './video/storyboard/draft.js';
 import { splitCanonicalSentences } from './video/storyboard/sentences.js';
+import {
+  storyboardSceneCountRange,
+  validateStoryboardDraft,
+} from './video/storyboard/validation.js';
 
 export const PODCAST_INTRO = '歡迎收聽 Zap Podcast。';
 export const ZAP_PILOT_OUTRO =
   '如果你也在管理多個錢包、DeFi 部位和投資組合，可以到 Zap Pilot 官網，讓投資組合管理更簡單、更清楚。';
 
 export const PODCAST_INTRO_VISUAL_INTENT = 'brand:zap-podcast-intro';
-export const ZAP_PILOT_OUTRO_VISUAL_INTENT = 'brand:zap-pilot-outro';
 
-const LEGACY_PODCAST_INTROS = [
+const STRIPPABLE_PODCAST_INTROS = [
   '各位觀眾朋友，歡迎收聽今天的 Zap Podcast。',
   PODCAST_INTRO,
 ] as const;
 
-export type PodcastBrandVisualKind = 'intro' | 'outro';
+export type PodcastBrandVisualKind = 'intro';
 
 export function packagePodcastScript(rawBody: string): string {
   const body = stripKnownPodcastPackaging(rawBody);
@@ -31,7 +34,6 @@ export function podcastBrandVisualKind(
   imageSearchIntent: readonly string[],
 ): PodcastBrandVisualKind | null {
   if (imageSearchIntent.includes(PODCAST_INTRO_VISUAL_INTENT)) return 'intro';
-  if (imageSearchIntent.includes(ZAP_PILOT_OUTRO_VISUAL_INTENT)) return 'outro';
   return null;
 }
 
@@ -54,32 +56,24 @@ export function applyPodcastBrandingToStoryboard(
     sentences.map((sentence) => [sentence.id, sentence.index]),
   );
   const bodyStartIndex = 1;
-  const bodyEndIndex = sentences.length - 2;
+  const contentEndIndex = sentences.length - 1;
   const contentScenes = draft.scenes.flatMap((scene) => {
     const startIndex = sentenceIndex.get(scene.startSentenceId);
     const endIndex = sentenceIndex.get(scene.endSentenceId);
     if (startIndex === undefined || endIndex === undefined) return [];
 
     const clippedStart = Math.max(startIndex, bodyStartIndex);
-    const clippedEnd = Math.min(endIndex, bodyEndIndex);
+    const clippedEnd = Math.min(endIndex, contentEndIndex);
     if (clippedStart > clippedEnd) return [];
 
     const startSentence = sentences[clippedStart];
     const endSentence = sentences[clippedEnd];
     if (!startSentence || !endSentence) return [];
-    const wasClipped = clippedStart !== startIndex || clippedEnd !== endIndex;
     return [
       {
         ...scene,
         startSentenceId: startSentence.id,
         endSentenceId: endSentence.id,
-        ...(wasClipped
-          ? {
-              imageSearchIntent: [
-                contentSearchIntent(sentences, clippedStart, clippedEnd),
-              ],
-            }
-          : {}),
       },
     ];
   });
@@ -94,12 +88,6 @@ export function applyPodcastBrandingToStoryboard(
       imageSearchIntent: [PODCAST_INTRO_VISUAL_INTENT],
     },
     ...boundedContentScenes,
-    {
-      sceneId: 'scene-01',
-      startSentenceId: lastSentence.id,
-      endSentenceId: lastSentence.id,
-      imageSearchIntent: [ZAP_PILOT_OUTRO_VISUAL_INTENT],
-    },
   ].map((scene, index) => ({
     ...scene,
     sceneId: `scene-${String(index + 1).padStart(2, '0')}`,
@@ -108,9 +96,35 @@ export function applyPodcastBrandingToStoryboard(
   return { scenes };
 }
 
+export function applyAndValidatePodcastBrandingToStoryboard(
+  script: string,
+  draft: StoryboardDraft,
+  durationMs: number,
+): StoryboardDraft {
+  const sentences = splitCanonicalSentences(script);
+  const branded = applyPodcastBrandingToStoryboard(script, draft);
+  const validation = validateStoryboardDraft(branded, {
+    script,
+    sentences,
+    durationMs,
+    sceneCountRange: podcastBrandedSceneCountRange(
+      durationMs,
+      sentences.length,
+      script,
+    ),
+  });
+  if (!validation.success) {
+    const details = validation.issues
+      .map((issue) => `${issue.code}: ${issue.message}`)
+      .join('; ');
+    throw new Error(`Branded podcast storyboard is invalid: ${details}`);
+  }
+  return validation.draft;
+}
+
 function stripKnownPodcastPackaging(rawScript: string): string {
   let body = rawScript.trim();
-  for (const intro of LEGACY_PODCAST_INTROS) {
+  for (const intro of STRIPPABLE_PODCAST_INTROS) {
     if (body.startsWith(intro)) {
       body = body.slice(intro.length).trim();
       break;
@@ -122,24 +136,10 @@ function stripKnownPodcastPackaging(rawScript: string): string {
   return body;
 }
 
-function contentSearchIntent(
-  sentences: readonly { text: string }[],
-  startIndex: number,
-  endIndex: number,
-): string {
-  const text = sentences
-    .slice(startIndex, endIndex + 1)
-    .map((sentence) => sentence.text)
-    .join(' ')
-    .trim();
-  const bounded = [...text].slice(0, 80).join('').trim();
-  return bounded.length >= 2 ? bounded : 'article topic';
-}
-
 function boundContentScenes(
   scenes: readonly StoryboardDraftScene[],
 ): StoryboardDraftScene[] {
-  const maxContentScenes = MAX_STORYBOARD_SLIDES - 2;
+  const maxContentScenes = MAX_STORYBOARD_SLIDES - 1;
   if (scenes.length <= maxContentScenes) return [...scenes];
 
   const kept = scenes.slice(0, maxContentScenes);
@@ -148,4 +148,37 @@ function boundContentScenes(
   if (!lastKept || !overflowEnd) return kept;
   kept[kept.length - 1] = { ...lastKept, endSentenceId: overflowEnd };
   return kept;
+}
+
+export function podcastContentSceneCountRange(
+  durationMs: number,
+  sentenceCount: number,
+  script: string,
+): { min: number; max: number } {
+  const range = storyboardSceneCountRange(durationMs, sentenceCount);
+  if (!hasCurrentPodcastPackaging(script)) return range;
+  const max = Math.max(1, Math.min(range.max - 1, MAX_STORYBOARD_SLIDES - 1));
+  return { min: Math.min(range.min, max), max };
+}
+
+function podcastBrandedSceneCountRange(
+  durationMs: number,
+  sentenceCount: number,
+  script: string,
+): { min: number; max: number } {
+  const content = podcastContentSceneCountRange(
+    durationMs,
+    sentenceCount,
+    script,
+  );
+  if (!hasCurrentPodcastPackaging(script)) return content;
+  return { min: content.min + 1, max: content.max + 1 };
+}
+
+function hasCurrentPodcastPackaging(script: string): boolean {
+  const sentences = splitCanonicalSentences(script);
+  return (
+    sentences[0]?.text === PODCAST_INTRO &&
+    sentences.at(-1)?.text === ZAP_PILOT_OUTRO
+  );
 }

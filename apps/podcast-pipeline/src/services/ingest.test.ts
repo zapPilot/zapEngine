@@ -6,6 +6,9 @@ import type {
   EpisodeRow,
   LanguageClassroomRow,
 } from '../types.js';
+import { packagePodcastScript } from './podcast-packaging.js';
+
+const PACKAGED_SCRIPT = packagePodcastScript('Generated script');
 
 const {
   mockFindEpisodeBySourceUrl,
@@ -198,7 +201,10 @@ describe('performIngest failure paths', () => {
               title: '軟體更新',
               raw_text: '滑鼠和腳踏車市場',
               hls_url: '',
-              script: 'Generated script',
+              script:
+                typeof data?.['script'] === 'string'
+                  ? data['script']
+                  : PACKAGED_SCRIPT,
               status: 'script_generated',
             }),
           );
@@ -226,7 +232,7 @@ describe('performIngest failure paths', () => {
             localizationRow({
               title: '軟體更新',
               raw_text: '滑鼠和腳踏車市場',
-              script: 'Generated script',
+              script: PACKAGED_SCRIPT,
               hls_url: 'https://cdn.example.com/playlist.m3u8',
               r2_prefix: 'episodes/e/localizations/zh-Hant',
               status: 'completed',
@@ -333,7 +339,7 @@ describe('performIngest failure paths', () => {
     expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
       localizationRow().id,
       'script_generated',
-      expect.objectContaining({ script: 'Generated script' }),
+      expect.objectContaining({ script: PACKAGED_SCRIPT }),
     );
     expect(mockGenerateHls).not.toHaveBeenCalled();
     expect(mockUploadHlsToR2).not.toHaveBeenCalled();
@@ -359,7 +365,7 @@ describe('performIngest failure paths', () => {
       performIngest('https://example.com/article', 'zh-Hant'),
     ).rejects.toThrow('[step:uploadMainHlsToR2] R2 upload failed');
 
-    expect(mockTextToSpeech).toHaveBeenCalledWith('Generated script', {
+    expect(mockTextToSpeech).toHaveBeenCalledWith(PACKAGED_SCRIPT, {
       languageCode: 'zh-Hant',
       costLabel: 'TTS main audio',
     });
@@ -402,13 +408,13 @@ describe('performIngest failure paths', () => {
     await performIngest('https://example.com/article', 'zh-Hant');
 
     expect(mockTextToSpeech).toHaveBeenCalledWith(
-      'First paragraph.\n\nKeep inline --- punctuation.',
+      packagePodcastScript('First paragraph.\n\nKeep inline --- punctuation.'),
       expect.objectContaining({ languageCode: 'zh-Hant' }),
     );
     expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
       localizationRow().id,
       'script_generated',
-      expect.objectContaining({ script: originalScript }),
+      expect.objectContaining({ script: packagePodcastScript(originalScript) }),
     );
   });
 
@@ -536,7 +542,7 @@ describe('performIngest failure paths', () => {
       'zh-Hant',
     );
 
-    expect(mockTextToSpeech).toHaveBeenCalledWith('Generated script', {
+    expect(mockTextToSpeech).toHaveBeenCalledWith(PACKAGED_SCRIPT, {
       languageCode: 'zh-Hant',
       costLabel: 'TTS main audio',
     });
@@ -1429,7 +1435,7 @@ describe('performIngest failure paths', () => {
 
     mockGenerateScriptWithLLM.mockResolvedValue({
       title: editorialTitle,
-      script: 'Generated script',
+      script: PACKAGED_SCRIPT,
       model: 'test-model',
       thinkingModel: null,
       provider: 'test-provider',
@@ -1572,12 +1578,12 @@ describe('performIngest failure paths', () => {
     expect(mockGenerateScriptWithLLM).toHaveBeenCalledTimes(1);
     expect(mockTranslateCanonicalScript).toHaveBeenCalledWith({
       title: editorialTitle,
-      script: 'Generated script',
+      script: PACKAGED_SCRIPT,
       targetLanguageCode: 'ja',
     });
     expect(mockTranslateCanonicalScript).toHaveBeenCalledWith({
       title: editorialTitle,
-      script: 'Generated script',
+      script: PACKAGED_SCRIPT,
       targetLanguageCode: 'en',
     });
     expect(

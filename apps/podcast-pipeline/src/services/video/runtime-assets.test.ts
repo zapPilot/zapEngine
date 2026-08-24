@@ -19,6 +19,7 @@ describe('videoAssetPaths', () => {
       videoAssetPaths.notoSansCjkTcBold,
       videoAssetPaths.jetBrainsMonoSemibold,
       videoAssetPaths.logo,
+      videoAssetPaths.podcastIntro,
       videoAssetPaths.usStatesMap,
     ];
 

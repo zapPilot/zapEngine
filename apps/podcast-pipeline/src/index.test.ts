@@ -13,6 +13,7 @@ import {
   localizationRow,
   telegramUpdate,
 } from './__fixtures__/index-test.js';
+import { packagePodcastScript } from './services/podcast-packaging.js';
 import type {
   EpisodeListRow,
   EpisodeLocalizationRow,
@@ -20,6 +21,8 @@ import type {
   EpisodeRow,
   LanguageClassroomLesson,
 } from './types.js';
+
+const PACKAGED_SCRIPT = packagePodcastScript('Generated script');
 
 const {
   mockConcatMp3Buffers,
@@ -722,7 +725,10 @@ describe('POST /ingest pipeline', () => {
                   : '軟體更新',
               raw_text: '滑鼠和腳踏車市場',
               hls_url: '',
-              script: 'Generated script',
+              script:
+                typeof data?.['script'] === 'string'
+                  ? data['script']
+                  : PACKAGED_SCRIPT,
               status: 'script_generated',
             }),
           );
@@ -750,7 +756,7 @@ describe('POST /ingest pipeline', () => {
             localizationRow({
               title: '市場流動性正在重新定價',
               raw_text: '滑鼠和腳踏車市場',
-              script: 'Generated script',
+              script: PACKAGED_SCRIPT,
               hls_url:
                 'https://cdn.example.com/episodes/e/localizations/zh-Hant/main/playlist.m3u8',
               r2_prefix: 'episodes/e/localizations/zh-Hant/main',
@@ -874,7 +880,7 @@ describe('POST /ingest pipeline', () => {
       'script_generated',
       expect.objectContaining({
         title: '市場流動性正在重新定價',
-        script: 'Generated script',
+        script: PACKAGED_SCRIPT,
       }),
     );
     expect(mockUploadHlsToR2).toHaveBeenCalledTimes(4);
@@ -922,7 +928,7 @@ describe('POST /ingest pipeline', () => {
       expect.objectContaining({
         title: '市場流動性正在重新定價',
         articleText: '滑鼠和腳踏車市場',
-        script: 'Generated script',
+        script: PACKAGED_SCRIPT,
         sourceLanguageCode: 'zh-Hant',
         targetLanguageCodes: ['ja', 'en'],
       }),

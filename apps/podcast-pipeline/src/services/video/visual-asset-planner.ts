@@ -23,12 +23,16 @@ export interface VisualAssetScene {
   imageSearchIntent: readonly string[];
 }
 
-export type VisualImageProvider = 'article' | ImageSearchProvider['origin'];
+export type VisualImageProvider =
+  | 'article'
+  | 'brand'
+  | ImageSearchProvider['origin'];
 export type VisualSelectionMode = 'strict' | 'resilient';
 export type VisualReuseKind = 'non-consecutive' | 'consecutive';
 
 const PROVIDER_LICENSES = {
   article: 'unknown',
+  brand: 'brand-generated',
   bing: 'unknown',
   pexels: 'pexels',
   pixabay: 'pixabay',

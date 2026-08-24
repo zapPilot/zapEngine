@@ -14,6 +14,7 @@ export interface StoryboardValidationContext {
   script: string;
   sentences: readonly CanonicalSentence[];
   durationMs: number;
+  sceneCountRange?: { min: number; max: number };
 }
 
 export interface StoryboardValidationIssue {
@@ -121,10 +122,9 @@ export function validateStoryboardDraft(
 
   const draft = parsed.data;
   const issues: StoryboardValidationIssue[] = [];
-  const countRange = storyboardSceneCountRange(
-    context.durationMs,
-    context.sentences.length,
-  );
+  const countRange =
+    context.sceneCountRange ??
+    storyboardSceneCountRange(context.durationMs, context.sentences.length);
   if (
     draft.scenes.length < countRange.min ||
     draft.scenes.length > countRange.max

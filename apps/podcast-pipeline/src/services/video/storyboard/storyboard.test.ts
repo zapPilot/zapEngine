@@ -743,6 +743,66 @@ describe('shared visual plan and locale manifest materialization', () => {
     expect(manifest.clip.transitionMs).toBe(83);
   });
 
+  it('keeps transitions valid when a bundled brand slide is unusually short', () => {
+    const sentences = splitCanonicalSentences('Intro. Markets changed.');
+    const timing: CanonicalAudioTiming = {
+      durationMs: 10_000,
+      sentences: [
+        { sentence: sentences[0]!, startMs: 0, endMs: 125 },
+        { sentence: sentences[1]!, startMs: 125, endMs: 10_000 },
+      ],
+      captions: [
+        { startMs: 0, endMs: 125, text: 'Intro.' },
+        { startMs: 125, endMs: 10_000, text: 'Markets changed.' },
+      ],
+      silences: [],
+    };
+    const draft: StoryboardDraft = {
+      scenes: sentences.map((sentence, index) => ({
+        sceneId: stableSceneId(index),
+        startSentenceId: sentence.id,
+        endSentenceId: sentence.id,
+        imageSearchIntent: [`image intent ${index + 1}`],
+      })),
+    };
+    const brandSource = {
+      ...sceneSource('scene-01'),
+      label: 'Zap Pilot',
+      attribution: 'Zap Pilot',
+      license: 'brand-generated' as const,
+    };
+    const visualPlan = materializeImageVisualPlan({
+      draft,
+      sceneAssets: [
+        {
+          sceneId: 'scene-01',
+          sources: [brandSource],
+          asset: sceneAsset('scene-01'),
+        },
+        {
+          sceneId: 'scene-02',
+          sources: [sceneSource('scene-02')],
+          asset: sceneAsset('scene-02'),
+        },
+      ],
+    });
+
+    const manifest = materializeLocaleVideoManifest({
+      visualPlan,
+      timing,
+      sceneAlignment: draft.scenes,
+      episode: {
+        id: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
+        localizationId: '56b21422-1a38-4917-957e-b23223c0396c',
+        languageCode: 'en',
+        title: 'Markets',
+      },
+      audioSource: '/audio/en.m4a',
+    });
+
+    expect(manifest.clip.transitionMs).toBe(83);
+  });
+
   it('throws when scene alignment count mismatches visual plan scenes', () => {
     const sentences = splitCanonicalSentences('Markets changed.');
     const timing: CanonicalAudioTiming = {

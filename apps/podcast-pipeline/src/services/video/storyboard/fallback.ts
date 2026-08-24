@@ -1,3 +1,4 @@
+import { podcastContentSceneCountRange } from '../../podcast-packaging.js';
 import { speakingUnits } from '../text-units.js';
 import {
   MAX_SEARCH_INTENT_CHARACTERS,
@@ -14,11 +15,7 @@ import {
   canonicalSentenceRangeText,
   splitCanonicalSentences,
 } from './sentences.js';
-import {
-  normalizeNumericToken,
-  NUMERIC_TOKEN_PATTERN,
-  storyboardSceneCountRange,
-} from './validation.js';
+import { normalizeNumericToken, NUMERIC_TOKEN_PATTERN } from './validation.js';
 import { stableSceneId } from './visual-plan.js';
 
 const keywordSegmenter = new Intl.Segmenter('zh-Hant', {
@@ -1205,9 +1202,10 @@ export function createDeterministicStoryboard(input: {
     throw new Error('Cannot build a storyboard from an empty canonical script');
   }
 
-  const range = storyboardSceneCountRange(
+  const range = podcastContentSceneCountRange(
     input.durationMs,
     input.sentences.length,
+    input.script,
   );
   const groups = chooseBalancedGroups(
     input.sentences,

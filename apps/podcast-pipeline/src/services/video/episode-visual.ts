@@ -24,8 +24,8 @@ const visualAssetMetadataSchema = z
     r2Url: z.string().url(),
     originalImageUrl: z.string().url(),
     sourcePageUrl: z.string().url(),
-    provider: z.enum(['article', 'pexels', 'pixabay', 'bing']),
-    license: z.enum(['unknown', 'pexels', 'pixabay']),
+    provider: z.enum(['article', 'brand', 'pexels', 'pixabay', 'bing']),
+    license: z.enum(['brand-generated', 'unknown', 'pexels', 'pixabay']),
     photographer: z.string().min(1).optional(),
     photographerUrl: z.string().url().optional(),
     contentType: z.enum([
@@ -167,7 +167,10 @@ export function buildEpisodeVisualPayload(input: {
         sources: [
           {
             id: sourceId,
-            label: sourceLabel(asset.sourcePageUrl),
+            label:
+              asset.provider === 'brand'
+                ? 'Zap Pilot'
+                : sourceLabel(asset.sourcePageUrl),
             url: asset.sourcePageUrl,
             attribution: assetAttribution(asset),
             license: asset.license,
@@ -242,6 +245,7 @@ const STOCK_PROVIDER_LABELS: Partial<
 };
 
 function assetAttribution(asset: PlannedVisualImage): string {
+  if (asset.provider === 'brand') return 'Zap Pilot';
   const providerLabel = STOCK_PROVIDER_LABELS[asset.provider];
   if (providerLabel) {
     return asset.photographer
