@@ -1347,6 +1347,9 @@ describe('social post telemetry', () => {
     const payload = {
       episode_id: 'episode-1',
       platform: 'threads',
+      language_code: 'zh-Hant',
+      experiment_key: null,
+      experiment_variant: null,
       post_url: null,
       platform_post_id: 'threads-post-1',
       published_at: '2026-08-15T02:00:00.000Z',

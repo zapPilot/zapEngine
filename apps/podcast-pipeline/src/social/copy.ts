@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 import { z } from 'zod';
 
-import { SOCIAL_BRAND_CTA } from '../brand/cta.js';
+import { SOCIAL_BRAND_CTA_BY_LANGUAGE } from '../brand/cta.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import {
   createOpenRouterChatCompletion,
@@ -20,6 +20,7 @@ import {
   SOCIAL_HOOK_TYPES,
   SOCIAL_TOPICS,
   type SocialEpisode,
+  type SocialLanguageCode,
 } from './types.js';
 
 const X_TOTAL_MAX_WEIGHTED_LENGTH = 280;
@@ -67,8 +68,12 @@ function isCjkCharacter(character: string): boolean {
   );
 }
 
-const X_TEXT_MAX_WEIGHTED_LENGTH =
-  X_TOTAL_MAX_WEIGHTED_LENGTH - weightedTweetLength(`\n\n${SOCIAL_BRAND_CTA}`);
+function xTextMaxWeightedLength(languageCode: SocialLanguageCode): number {
+  return (
+    X_TOTAL_MAX_WEIGHTED_LENGTH -
+    weightedTweetLength(`\n\n${SOCIAL_BRAND_CTA_BY_LANGUAGE[languageCode]}`)
+  );
+}
 
 export function latinLetterRatio(value: string): number {
   const visible = value.replace(/\s/gu, '');
@@ -97,23 +102,26 @@ function addAccentedLatinIssue(value: string, context: z.RefinementCtx): void {
   });
 }
 
-const XTextSchema = TraditionalChineseLine.superRefine((text, context) => {
-  if (SINGLE_URL_PATTERN.test(text)) {
+function xTextSchema(languageCode: SocialLanguageCode): z.ZodType<string> {
+  return languageLine(languageCode).superRefine((text, context) => {
+    if (SINGLE_URL_PATTERN.test(text)) {
+      context.addIssue({
+        code: 'custom',
+        message:
+          'X text must not contain a URL; the fixed Zap Pilot CTA is appended automatically.',
+      });
+    }
+
+    const weightedLength = weightedTweetLength(text);
+    const maximum = xTextMaxWeightedLength(languageCode);
+    if (weightedLength <= maximum) return;
+
     context.addIssue({
       code: 'custom',
-      message:
-        'X text must not contain a URL; the fixed Zap Pilot CTA is appended automatically.',
+      message: `X text is ${weightedLength} weighted units; the maximum is ${maximum}. The fixed CTA must still fit X's ${X_TOTAL_MAX_WEIGHTED_LENGTH}-unit limit.`,
     });
-  }
-
-  const weightedLength = weightedTweetLength(text);
-  if (weightedLength <= X_TEXT_MAX_WEIGHTED_LENGTH) return;
-
-  context.addIssue({
-    code: 'custom',
-    message: `X text is ${weightedLength} weighted units; the maximum is ${X_TEXT_MAX_WEIGHTED_LENGTH}. The fixed CTA must still fit X's ${X_TOTAL_MAX_WEIGHTED_LENGTH}-unit limit.`,
   });
-});
+}
 
 const REDNOTE_TITLE_MAX_CHARACTERS = 20;
 const RednoteBodySchema = TraditionalChineseLine.superRefine(
@@ -126,41 +134,110 @@ const RednoteBodySchema = TraditionalChineseLine.superRefine(
   },
 );
 
-const GeneratedSocialCopySchema = z
-  .object({
-    topic: z.enum(SOCIAL_TOPICS),
-    hookType: z.enum(SOCIAL_HOOK_TYPES),
-    x: z.object({ text: XTextSchema }),
-    rednote: z.object({
-      title: TraditionalChineseLine.superRefine((title, context) => {
-        const length = Array.from(title).length;
-        if (length <= REDNOTE_TITLE_MAX_CHARACTERS) return;
+export interface SocialCopyBlocks {
+  short: boolean;
+  rednote: boolean;
+}
 
+const ALL_COPY_BLOCKS: SocialCopyBlocks = { short: true, rednote: true };
+
+function generatedSocialCopySchema(
+  languageCode: SocialLanguageCode,
+  blocks: SocialCopyBlocks,
+) {
+  const line = languageLine(languageCode);
+  const short = z.object({ text: xTextSchema(languageCode) });
+  const rednote = z.object({
+    title: line.superRefine((title, context) => {
+      const length = Array.from(title).length;
+      if (length <= REDNOTE_TITLE_MAX_CHARACTERS) return;
+
+      context.addIssue({
+        code: 'custom',
+        message: `Rednote title is ${length} characters; the maximum is ${REDNOTE_TITLE_MAX_CHARACTERS}.`,
+      });
+    }),
+    body:
+      languageCode === 'zh-Hant'
+        ? RednoteBodySchema
+        : line.superRefine(addNoUrlIssue),
+    hashtags: z.array(line).min(3).max(5),
+  });
+  return z
+    .object({
+      topic: z.enum(SOCIAL_TOPICS),
+      hookType: z.enum(SOCIAL_HOOK_TYPES),
+      short: blocks.short ? short : z.never().optional(),
+      rednote: blocks.rednote ? rednote : z.never().optional(),
+    })
+    .strict()
+    .superRefine((copy, context) => {
+      if (languageCode === 'zh-Hant' && copy.rednote) {
+        addRednoteSensitiveTermIssues(
+          copy as { rednote: NonNullable<GeneratedSocialCopy['rednote']> },
+          context,
+        );
+      }
+    })
+    .superRefine((copy, context) => {
+      const combined = [
+        copy.short?.text,
+        copy.rednote?.title,
+        copy.rednote?.body,
+        ...(copy.rednote?.hashtags ?? []),
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join('\n');
+      if (!combined) return;
+      const ratio = latinLetterRatio(combined);
+      if (
+        (languageCode !== 'en' && ratio <= MAX_LATIN_LETTER_RATIO) ||
+        (languageCode === 'en' && ratio >= 0.5)
+      )
+        return;
+
+      context.addIssue({
+        code: 'custom',
+        message:
+          languageCode === 'en'
+            ? `English copy is only ${Math.round(ratio * 100)}% Latin letters; the minimum is 50%.`
+            : `Copy is ${Math.round(ratio * 100)}% Latin letters; the maximum is ${Math.round(MAX_LATIN_LETTER_RATIO * 100)}%.`,
+      });
+    });
+}
+
+const KANA_PATTERN = /[\u3040-\u30ff]/u;
+const CJK_PATTERN = /[\u3040-\u30ff\u3400-\u9fff]/u;
+
+function languageLine(languageCode: SocialLanguageCode): z.ZodType<string> {
+  if (languageCode === 'zh-Hant') return TraditionalChineseLine;
+  return z
+    .string()
+    .trim()
+    .min(1)
+    .superRefine((value, context) => {
+      if (languageCode === 'ja' && !KANA_PATTERN.test(value)) {
         context.addIssue({
           code: 'custom',
-          message: `Rednote title is ${length} characters; the maximum is ${REDNOTE_TITLE_MAX_CHARACTERS}.`,
+          message: 'Japanese copy must contain kana.',
         });
-      }),
-      body: RednoteBodySchema,
-      hashtags: z.array(TraditionalChineseLine).min(3).max(5),
-    }),
-  })
-  .superRefine(addRednoteSensitiveTermIssues)
-  .superRefine((copy, context) => {
-    const combined = [
-      copy.x.text,
-      copy.rednote.title,
-      copy.rednote.body,
-      ...copy.rednote.hashtags,
-    ].join('\n');
-    const ratio = latinLetterRatio(combined);
-    if (ratio <= MAX_LATIN_LETTER_RATIO) return;
-
-    context.addIssue({
-      code: 'custom',
-      message: `Copy is ${Math.round(ratio * 100)}% Latin letters; the maximum is ${Math.round(MAX_LATIN_LETTER_RATIO * 100)}%.`,
+      }
+      if (languageCode === 'en' && CJK_PATTERN.test(value)) {
+        context.addIssue({
+          code: 'custom',
+          message: 'English copy must not contain CJK characters.',
+        });
+      }
     });
+}
+
+function addNoUrlIssue(value: string, context: z.RefinementCtx): void {
+  if (!SINGLE_URL_PATTERN.test(value)) return;
+  context.addIssue({
+    code: 'custom',
+    message: 'Body must not contain a URL or website CTA.',
   });
+}
 
 // Rednote is the only platform that deletes a rejected post silently, so its
 // moderation gate runs here, where a failed field still routes through
@@ -201,7 +278,7 @@ const SOCIAL_PROMPT_ROOT = new URL('../../prompts/social/', import.meta.url);
 function unwrapNestedPayload(value: unknown): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
   const record = value as Record<string, unknown>;
-  if ('x' in record || 'rednote' in record) return value;
+  if ('short' in record || 'rednote' in record) return value;
 
   for (const nested of Object.values(record)) {
     if (typeof nested !== 'string') continue;
@@ -214,30 +291,47 @@ function unwrapNestedPayload(value: unknown): unknown {
   return value;
 }
 
-export function parseGeneratedSocialCopy(raw: string): GeneratedSocialCopy {
-  const parsed = GeneratedSocialCopySchema.parse(
+export function parseGeneratedSocialCopy(
+  raw: string,
+  languageCode: SocialLanguageCode = 'zh-Hant',
+  blocks: SocialCopyBlocks = ALL_COPY_BLOCKS,
+): GeneratedSocialCopy {
+  const parsed = generatedSocialCopySchema(languageCode, blocks).parse(
     unwrapNestedPayload(JSON.parse(stripJsonFence(raw.trim()))),
   );
   return {
     ...parsed,
-    rednote: {
-      ...parsed.rednote,
-      hashtags: parsed.rednote.hashtags.map((tag) => tag.replace(/^#+/, '')),
-    },
+    ...(parsed.rednote
+      ? {
+          rednote: {
+            ...parsed.rednote,
+            hashtags: parsed.rednote.hashtags.map((tag) =>
+              tag.replace(/^#+/, ''),
+            ),
+          },
+        }
+      : {}),
   };
 }
 
 export async function generateSocialCopy(input: {
   episode: SocialEpisode;
+  languageCode?: SocialLanguageCode;
+  platforms?: readonly SocialPlatform[];
   feedback?: string;
   strategyGuidance?: string;
   strategyGuidanceByPlatform?: Partial<Record<SocialPlatform, string>>;
 }): Promise<{ copy: GeneratedSocialCopy; model: string }> {
-  const [commonRules, xRules, rednoteRules] = await Promise.all([
-    readPrompt('editorial.md'),
-    readPrompt('x.md'),
-    readPrompt('rednote.md'),
-  ]);
+  const languageCode =
+    input.languageCode ?? input.episode.languageCode ?? 'zh-Hant';
+  const blocks = copyBlocksForPlatforms(input.platforms ?? ['x', 'rednote']);
+  const [commonRules, shortRules, rednoteRules, languageRules] =
+    await Promise.all([
+      readPrompt('editorial.md'),
+      blocks.short ? readPrompt('x.md') : Promise.resolve(''),
+      blocks.rednote ? readPrompt('rednote.md') : Promise.resolve(''),
+      readPrompt(`language/${languageCode}.md`),
+    ]);
   // Social copy is published verbatim, so it runs on the pipeline's configured
   // LLM_MODEL rather than a free router that silently swaps models per request.
   const config = getOpenRouterConfig({ thinkingModel: null });
@@ -254,7 +348,14 @@ export async function generateSocialCopy(input: {
           messages: [
             {
               role: 'system',
-              content: buildSystemPrompt(commonRules, xRules, rednoteRules),
+              content: buildSystemPrompt(
+                commonRules,
+                shortRules,
+                rednoteRules,
+                languageRules,
+                languageCode,
+                blocks,
+              ),
             },
             {
               role: 'user',
@@ -276,7 +377,7 @@ export async function generateSocialCopy(input: {
       }
 
       return {
-        copy: parseGeneratedSocialCopy(content),
+        copy: parseGeneratedSocialCopy(content, languageCode, blocks),
         model: completion.model ?? config.model,
       };
     } catch (error) {
@@ -297,10 +398,56 @@ async function readPrompt(filename: string): Promise<string> {
 
 function buildSystemPrompt(
   commonRules: string,
-  xRules: string,
+  shortRules: string,
   rednoteRules: string,
+  languageRules: string,
+  languageCode: SocialLanguageCode,
+  blocks: SocialCopyBlocks,
 ): string {
-  return `${commonRules}\n\nThe X and Rednote outputs must express the same underlying episode thesis and hook, while adapting wording to each platform. Apply platform-specific restrictions only to their corresponding output fields; Rednote-only compliance rules must not sanitize or rewrite x.text.\n\n## X rules (x.text only)\n${xRules}\n\n## Rednote rules (rednote fields only)\n${rednoteRules}\n\nReturn JSON only with exactly this shape:\n{\n  "topic": "one allowed topic",\n  "hookType": "one allowed hook type",\n  "x": { "text": "..." },\n  "rednote": {\n    "title": "...",\n    "body": "...",\n    "hashtags": ["tag without #", "..."]\n  }\n}\n\nAllowed topic values: ${SOCIAL_TOPICS.join(', ')}.\nAllowed hookType values: ${SOCIAL_HOOK_TYPES.join(', ')}.\n\nAll copy must be Traditional Chinese. X text must not contain a URL or closing CTA; the publisher may append a platform-specific CTA. Rednote title must be at most 20 characters. Rednote body must not contain a URL or website CTA. Hashtags must contain 3 to 5 items without the # prefix.`;
+  const blockRules = [
+    blocks.short ? `## Short-form rules (short.text only)\n${shortRules}` : '',
+    blocks.rednote
+      ? `## Rednote rules (rednote fields only)\n${rednoteRules}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+  const shape = [
+    '  "topic": "one allowed topic",',
+    '  "hookType": "one allowed hook type"',
+    ...(blocks.short ? [',  "short": { "text": "..." }'] : []),
+    ...(blocks.rednote
+      ? [
+          ',  "rednote": {',
+          '    "title": "...",',
+          '    "body": "...",',
+          '    "hashtags": ["tag without #", "..."]',
+          '  }',
+        ]
+      : []),
+  ].join('\n');
+  const restrictions = [
+    blocks.short
+      ? 'Short text must not contain a URL or closing CTA; the publisher appends the platform CTA.'
+      : '',
+    blocks.rednote
+      ? 'Rednote title must be at most 20 characters. Rednote body must not contain a URL or website CTA. Hashtags must contain 3 to 5 items without the # prefix.'
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return `${commonRules}\n\n## Output language (${languageCode})\n${languageRules}\n\nEvery requested output must express the same underlying episode thesis and hook. Apply platform-specific restrictions only to their corresponding fields.\n\n${blockRules}\n\nReturn JSON only with exactly this shape:\n{\n${shape}\n}\n\nAllowed topic values: ${SOCIAL_TOPICS.join(', ')}.\nAllowed hookType values: ${SOCIAL_HOOK_TYPES.join(', ')}.\n\n${restrictions}`;
+}
+
+function copyBlocksForPlatforms(
+  platforms: readonly SocialPlatform[],
+): SocialCopyBlocks {
+  return {
+    short: platforms.some(
+      (platform) => platform === 'x' || platform === 'threads',
+    ),
+    rednote: platforms.includes('rednote'),
+  };
 }
 
 function buildEpisodePrompt(

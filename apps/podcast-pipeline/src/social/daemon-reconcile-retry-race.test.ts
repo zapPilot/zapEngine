@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
   getSocialQueueSnapshot: vi.fn(),
   getSocialStrategyById: vi.fn(),
   latestPendingSocialPublishSchedule: vi.fn(),
+  listPendingSocialPublishSchedules: vi.fn(),
   listLearningSocialPosts: vi.fn(),
+  listLearningSocialMetrics: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
   listUnfinishedSocialPublishJobs: vi.fn(),
@@ -21,7 +23,7 @@ const mocks = vi.hoisted(() => ({
   listSocialPostIdentitiesByEpisodes: vi.fn(),
   listSocialPostsByEpisode: vi.fn(),
   updateSocialPostIdentity: vi.fn(),
-  runSocialCli: vi.fn(),
+  publishSocialBatch: vi.fn(),
   createMetricCollectors: vi.fn(),
   refreshSocialStrategies: vi.fn(),
 }));
@@ -37,7 +39,9 @@ vi.mock('./daemon-store.js', () => ({
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   getSocialStrategyById: mocks.getSocialStrategyById,
   latestPendingSocialPublishSchedule: mocks.latestPendingSocialPublishSchedule,
+  listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
+  listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
@@ -52,7 +56,9 @@ vi.mock('../services/db.js', () => ({
   updateSocialPostIdentity: mocks.updateSocialPostIdentity,
 }));
 
-vi.mock('./cli.js', () => ({ runSocialCli: mocks.runSocialCli }));
+vi.mock('./publish-batch.js', () => ({
+  publishSocialBatch: mocks.publishSocialBatch,
+}));
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
 }));
@@ -76,7 +82,9 @@ beforeEach(() => {
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.getActiveSocialStrategies.mockResolvedValue([]);
   mocks.latestPendingSocialPublishSchedule.mockResolvedValue(null);
+  mocks.listPendingSocialPublishSchedules.mockResolvedValue([]);
   mocks.listLearningSocialPosts.mockResolvedValue([]);
+  mocks.listLearningSocialMetrics.mockResolvedValue([]);
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);
   mocks.getSocialStrategyById.mockResolvedValue(null);
   mocks.claimSocialPublishBatch.mockResolvedValue([]);
@@ -91,6 +99,63 @@ beforeEach(() => {
 });
 
 describe('social daemon reconciliation versus retry race', () => {
+  it('does not let an existing YouTube language reconcile its sibling language', async () => {
+    const englishJob = {
+      id: 'youtube-en-job',
+      episode_id: EPISODE_ID,
+      platform: 'youtube',
+      language_code: 'en',
+      status: 'failed',
+      attempt_count: 2,
+      strategy_version_id: null,
+    };
+    const japaneseJob = {
+      ...englishJob,
+      id: 'youtube-ja-job',
+      language_code: 'ja',
+    };
+    mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([
+      englishJob,
+      japaneseJob,
+    ]);
+    mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([
+      {
+        id: 'youtube-en-post',
+        episode_id: EPISODE_ID,
+        platform: 'youtube',
+        language_code: 'en',
+      },
+    ]);
+    mocks.reconcileSocialPublishJob.mockResolvedValue(true);
+    mocks.claimSocialPublishBatch.mockResolvedValue([japaneseJob]);
+    mocks.listSocialPostsByEpisode
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'youtube-ja-post' }]);
+    mocks.publishSocialBatch.mockResolvedValue([
+      { platform: 'youtube', status: 'published' },
+    ]);
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: '2026-08-19T03:00:00.000Z',
+      log: vi.fn(),
+    });
+
+    expect(mocks.reconcileSocialPublishJob).toHaveBeenCalledTimes(1);
+    expect(mocks.reconcileSocialPublishJob).toHaveBeenCalledWith({
+      jobId: englishJob.id,
+      socialPostId: 'youtube-en-post',
+      completedAt: NOW,
+    });
+    expect(mocks.publishSocialBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        episodeId: EPISODE_ID,
+        languageCode: 'ja',
+        platforms: [expect.objectContaining({ platform: 'youtube' })],
+      }),
+    );
+  });
+
   it('reconciles an already-published failed job before the retry claim stage', async () => {
     mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([
       {
@@ -123,7 +188,7 @@ describe('social daemon reconciliation versus retry race', () => {
     expect(
       mocks.reconcileSocialPublishJob.mock.invocationCallOrder[0],
     ).toBeLessThan(mocks.claimSocialPublishBatch.mock.invocationCallOrder[0]!);
-    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
     expect(mocks.completeSocialPublishJob).not.toHaveBeenCalled();
     expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
   });
@@ -168,7 +233,7 @@ describe('social daemon reconciliation versus retry race', () => {
     );
     expect(mocks.listSocialPostIdentitiesByEpisodes).toHaveBeenCalledTimes(1);
     expect(mocks.listSocialPostsByEpisode).toHaveBeenCalledTimes(1);
-    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
     expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
   });
 
@@ -221,7 +286,7 @@ describe('social daemon reconciliation versus retry race', () => {
       }),
     );
     expect(mocks.listSocialPostsByEpisode).toHaveBeenCalledTimes(1);
-    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
   });
 
   it('recovers on the next tick when double CAS loss cannot persist the failure state', async () => {
@@ -282,7 +347,7 @@ describe('social daemon reconciliation versus retry race', () => {
     expect(mocks.listSocialPostIdentitiesByEpisodes).toHaveBeenCalledTimes(2);
     expect(mocks.claimSocialPublishBatch).toHaveBeenCalledTimes(2);
     expect(mocks.completeSocialPublishJob).toHaveBeenCalledTimes(1);
-    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining('failed to persist threads publish failure'),
     );
@@ -342,6 +407,6 @@ describe('social daemon reconciliation versus retry race', () => {
     );
     expect(mocks.listSocialPostsByEpisode).toHaveBeenCalledTimes(2);
     expect(mocks.failSocialPublishJob).toHaveBeenCalledTimes(1);
-    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
   });
 });

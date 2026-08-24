@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
   getSocialQueueSnapshot: vi.fn(),
   getSocialStrategyById: vi.fn(),
   latestPendingSocialPublishSchedule: vi.fn(),
+  listPendingSocialPublishSchedules: vi.fn(),
   listLearningSocialPosts: vi.fn(),
+  listLearningSocialMetrics: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
   listUnfinishedSocialPublishJobs: vi.fn(),
@@ -21,7 +23,7 @@ const mocks = vi.hoisted(() => ({
   listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
   listSocialPostsByEpisode: vi.fn(),
   updateSocialPostIdentity: vi.fn(),
-  runSocialCli: vi.fn(),
+  publishSocialBatch: vi.fn(),
   createMetricCollectors: vi.fn(),
   refreshSocialStrategies: vi.fn(),
 }));
@@ -37,7 +39,9 @@ vi.mock('./daemon-store.js', () => ({
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   getSocialStrategyById: mocks.getSocialStrategyById,
   latestPendingSocialPublishSchedule: mocks.latestPendingSocialPublishSchedule,
+  listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
+  listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
@@ -52,7 +56,9 @@ vi.mock('../services/db.js', () => ({
   updateSocialPostIdentity: mocks.updateSocialPostIdentity,
 }));
 
-vi.mock('./cli.js', () => ({ runSocialCli: mocks.runSocialCli }));
+vi.mock('./publish-batch.js', () => ({
+  publishSocialBatch: mocks.publishSocialBatch,
+}));
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
 }));
@@ -98,7 +104,9 @@ beforeEach(() => {
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.getActiveSocialStrategies.mockResolvedValue([]);
   mocks.latestPendingSocialPublishSchedule.mockResolvedValue(null);
+  mocks.listPendingSocialPublishSchedules.mockResolvedValue([]);
   mocks.listLearningSocialPosts.mockResolvedValue([]);
+  mocks.listLearningSocialMetrics.mockResolvedValue([]);
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);
   mocks.getSocialStrategyById.mockResolvedValue(null);
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
@@ -116,7 +124,7 @@ describe('social daemon publish batch isolation', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'post-x' }])
       .mockResolvedValueOnce([{ id: 'post-threads' }]);
-    mocks.runSocialCli.mockResolvedValue([
+    mocks.publishSocialBatch.mockResolvedValue([
       { platform: 'x', status: 'published', url: 'https://x.com/zap/status/1' },
       {
         platform: 'threads',
@@ -130,10 +138,9 @@ describe('social daemon publish batch isolation', () => {
       firstStartedAt: '2026-08-18T00:00:00.000Z',
     });
 
-    expect(mocks.runSocialCli).toHaveBeenCalledTimes(1);
-    expect(mocks.runSocialCli).toHaveBeenCalledWith(
-      [FIRST_EPISODE_ID, '--yes', '--platform', 'x,threads'],
-      expect.objectContaining({ setExitCodeOnFailure: false }),
+    expect(mocks.publishSocialBatch).toHaveBeenCalledTimes(1);
+    expect(mocks.publishSocialBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ episodeId: FIRST_EPISODE_ID }),
     );
     expect(mocks.completeSocialPublishJob).toHaveBeenCalledTimes(2);
   });
@@ -151,7 +158,7 @@ describe('social daemon publish batch isolation', () => {
     mocks.completeSocialPublishJob
       .mockRejectedValueOnce(leaseError)
       .mockResolvedValueOnce(undefined);
-    mocks.runSocialCli.mockResolvedValue([
+    mocks.publishSocialBatch.mockResolvedValue([
       {
         platform: 'x',
         status: 'published',
@@ -171,10 +178,9 @@ describe('social daemon publish batch isolation', () => {
       attemptCount: 4,
       error: leaseError.message,
     });
-    expect(mocks.runSocialCli).toHaveBeenCalledTimes(1);
-    expect(mocks.runSocialCli).toHaveBeenCalledWith(
-      [SECOND_EPISODE_ID, '--yes', '--platform', 'x'],
-      expect.objectContaining({ setExitCodeOnFailure: false }),
+    expect(mocks.publishSocialBatch).toHaveBeenCalledTimes(1);
+    expect(mocks.publishSocialBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ episodeId: SECOND_EPISODE_ID }),
     );
     expect(mocks.completeSocialPublishJob).toHaveBeenLastCalledWith({
       jobId: 'job-2',
@@ -197,7 +203,7 @@ describe('social daemon publish batch isolation', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'post-2' }]);
-    mocks.runSocialCli
+    mocks.publishSocialBatch
       .mockResolvedValueOnce([
         {
           platform: 'x',
@@ -225,10 +231,9 @@ describe('social daemon publish batch isolation', () => {
       attemptCount: 3,
       error: publishError.message,
     });
-    expect(mocks.runSocialCli).toHaveBeenCalledTimes(2);
-    expect(mocks.runSocialCli).toHaveBeenLastCalledWith(
-      [SECOND_EPISODE_ID, '--yes', '--platform', 'x'],
-      expect.objectContaining({ setExitCodeOnFailure: false }),
+    expect(mocks.publishSocialBatch).toHaveBeenCalledTimes(2);
+    expect(mocks.publishSocialBatch).toHaveBeenLastCalledWith(
+      expect.objectContaining({ episodeId: SECOND_EPISODE_ID }),
     );
     expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
       jobId: 'job-2',
@@ -251,7 +256,7 @@ describe('social daemon publish batch isolation', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'post-2' }]);
-    mocks.runSocialCli
+    mocks.publishSocialBatch
       .mockResolvedValueOnce([
         {
           platform: 'x',
@@ -283,10 +288,9 @@ describe('social daemon publish batch isolation', () => {
     expect(mocks.completeSocialPublishJob).not.toHaveBeenCalledWith(
       expect.objectContaining({ jobId: 'job-1' }),
     );
-    expect(mocks.runSocialCli).toHaveBeenCalledTimes(2);
-    expect(mocks.runSocialCli).toHaveBeenLastCalledWith(
-      [SECOND_EPISODE_ID, '--yes', '--platform', 'x'],
-      expect.objectContaining({ setExitCodeOnFailure: false }),
+    expect(mocks.publishSocialBatch).toHaveBeenCalledTimes(2);
+    expect(mocks.publishSocialBatch).toHaveBeenLastCalledWith(
+      expect.objectContaining({ episodeId: SECOND_EPISODE_ID }),
     );
     expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
       jobId: 'job-2',
@@ -309,7 +313,7 @@ describe('social daemon publish batch isolation', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'post-2' }]);
-    mocks.runSocialCli
+    mocks.publishSocialBatch
       .mockResolvedValueOnce([
         {
           platform: 'x',
@@ -341,10 +345,9 @@ describe('social daemon publish batch isolation', () => {
     expect(mocks.completeSocialPublishJob).not.toHaveBeenCalledWith(
       expect.objectContaining({ jobId: 'job-1' }),
     );
-    expect(mocks.runSocialCli).toHaveBeenCalledTimes(2);
-    expect(mocks.runSocialCli).toHaveBeenLastCalledWith(
-      [SECOND_EPISODE_ID, '--yes', '--platform', 'x'],
-      expect.objectContaining({ setExitCodeOnFailure: false }),
+    expect(mocks.publishSocialBatch).toHaveBeenCalledTimes(2);
+    expect(mocks.publishSocialBatch).toHaveBeenLastCalledWith(
+      expect.objectContaining({ episodeId: SECOND_EPISODE_ID }),
     );
     expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
       jobId: 'job-2',

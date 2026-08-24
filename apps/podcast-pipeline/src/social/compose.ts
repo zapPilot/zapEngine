@@ -1,4 +1,4 @@
-import { YOUTUBE_DESCRIPTION_CTA } from '../brand/cta.js';
+import { YOUTUBE_DESCRIPTION_CTA_BY_LANGUAGE } from '../brand/cta.js';
 import { applyPlatformCta, SOCIAL_PLATFORM_CONFIG } from './platforms.js';
 import type {
   GeneratedSocialCopy,
@@ -10,7 +10,7 @@ import type {
 export type SocialComposeEpisode = Pick<
   SocialEpisode,
   'title' | 'summary' | 'description'
->;
+> & { languageCode?: SocialEpisode['languageCode'] };
 
 export interface ComposedSocialContent {
   /** `null` on platforms that have no title field of their own. */
@@ -44,7 +44,14 @@ export function composeSocialContent(
   // YouTube's closing line is part of the assembled description, not the short
   // `官網 …` suffix `applyPlatformCta` appends, so it is already final.
   if (platform === 'youtube' || input.cta === 'omit') return content;
-  return { ...content, body: applyPlatformCta(platform, content.body) };
+  return {
+    ...content,
+    body: applyPlatformCta(
+      platform,
+      content.body,
+      input.episode.languageCode ?? 'zh-Hant',
+    ),
+  };
 }
 
 function composePlatformContent(
@@ -56,18 +63,29 @@ function composePlatformContent(
     case 'threads':
       // No title field on either platform; Threads deliberately reuses the X
       // wording rather than asking the model for a third variant.
-      return { title: null, body: input.copy.x.text, hashtags: [] };
-    case 'rednote':
       return {
-        title: input.copy.rednote.title,
-        body: input.copy.rednote.body,
-        hashtags: [...input.copy.rednote.hashtags],
+        title: null,
+        body: requireCopyBlock(input.copy.short, 'short').text,
+        hashtags: [],
       };
+    case 'rednote': {
+      const rednote = requireCopyBlock(input.copy.rednote, 'rednote');
+      return {
+        title: rednote.title,
+        body: rednote.body,
+        hashtags: [...rednote.hashtags],
+      };
+    }
     case 'youtube':
       return composeYouTubeContent(input.episode);
     default:
       return assertNever(platform);
   }
+}
+
+function requireCopyBlock<T>(block: T | undefined, name: string): T {
+  if (block) return block;
+  throw new Error(`Generated social copy is missing the ${name} block.`);
 }
 
 // YouTube copy is assembled from the episode rather than written by the model:
@@ -88,7 +106,7 @@ function composeYouTubeContent(
   // still catches it.
   const branded =
     summary && SOCIAL_PLATFORM_CONFIG.youtube.ctaMode === 'brand'
-      ? `${summary}\n\n${YOUTUBE_DESCRIPTION_CTA}`
+      ? `${summary}\n\n${YOUTUBE_DESCRIPTION_CTA_BY_LANGUAGE[episode.languageCode ?? 'zh-Hant']}`
       : summary;
   return { title, body: branded, hashtags: [] };
 }

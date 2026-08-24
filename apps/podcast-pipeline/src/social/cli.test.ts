@@ -86,12 +86,13 @@ const episode: SocialEpisode = {
   publishedAt: '2026-08-11T00:00:00.000Z',
   episodeUrl: EPISODE_URL,
   videoDurationSeconds: 600,
-  videos: { zh: VIDEO_URL },
+  languageCode: 'zh-Hant',
+  videoUrl: VIDEO_URL,
 };
 const copy: GeneratedSocialCopy = {
   topic: 'macro',
   hookType: 'question',
-  x: { text: 'X copy' },
+  short: { text: 'X copy' },
   rednote: {
     title: '小紅書標題',
     body: '小紅書正文',
@@ -171,8 +172,9 @@ afterEach(() => {
 
 describe('parseCliOptions', () => {
   it('parses defaults', () => {
-    expect(parseCliOptions([EPISODE_ID])).toEqual({
+    expect(parseCliOptions([EPISODE_ID, '--language', 'zh-Hant'])).toEqual({
       episodeId: EPISODE_ID,
+      languageCode: 'zh-Hant',
       dryRun: false,
       force: false,
       yes: false,
@@ -181,9 +183,17 @@ describe('parseCliOptions', () => {
 
   it('parses a share URL and platform', () => {
     expect(
-      parseCliOptions([EPISODE_URL, '--dry-run', '--platform', 'threads']),
+      parseCliOptions([
+        EPISODE_URL,
+        '--language',
+        'zh-Hant',
+        '--dry-run',
+        '--platform',
+        'threads',
+      ]),
     ).toEqual({
       episodeId: EPISODE_ID,
+      languageCode: 'zh-Hant',
       dryRun: true,
       force: false,
       yes: false,
@@ -192,7 +202,9 @@ describe('parseCliOptions', () => {
   });
 
   it('parses force and help/missing argument errors', () => {
-    expect(parseCliOptions([EPISODE_ID, '--force'])).toMatchObject({
+    expect(
+      parseCliOptions([EPISODE_ID, '--language', 'zh-Hant', '--force']),
+    ).toMatchObject({
       force: true,
     });
     expect(() => parseCliOptions(['--help'])).toThrow(/Usage:/);
@@ -201,9 +213,17 @@ describe('parseCliOptions', () => {
 
   it('parses unattended approval', () => {
     expect(
-      parseCliOptions([EPISODE_ID, '--yes', '--platform', 'threads']),
+      parseCliOptions([
+        EPISODE_ID,
+        '--language',
+        'zh-Hant',
+        '--yes',
+        '--platform',
+        'threads',
+      ]),
     ).toEqual({
       episodeId: EPISODE_ID,
+      languageCode: 'zh-Hant',
       dryRun: false,
       force: false,
       yes: true,
@@ -212,34 +232,63 @@ describe('parseCliOptions', () => {
   });
 
   it('rejects obsolete language and platform values', () => {
-    expect(() => parseCliOptions([EPISODE_ID, '--lang', 'ja'])).toThrow();
     expect(() =>
-      parseCliOptions([EPISODE_ID, '--platform', 'twitter']),
+      parseCliOptions([EPISODE_ID, '--language', 'zh-Hant', '--lang', 'ja']),
+    ).toThrow();
+    expect(() =>
+      parseCliOptions([
+        EPISODE_ID,
+        '--language',
+        'zh-Hant',
+        '--platform',
+        'twitter',
+      ]),
     ).toThrow('--platform must be one of: x, threads, rednote, youtube.');
   });
 
   it('parses the break-glass YouTube privacy override', () => {
     expect(
-      parseCliOptions([EPISODE_ID, '--youtube-privacy', 'unlisted']),
+      parseCliOptions([
+        EPISODE_ID,
+        '--language',
+        'zh-Hant',
+        '--youtube-privacy',
+        'unlisted',
+      ]),
     ).toEqual({
       episodeId: EPISODE_ID,
+      languageCode: 'zh-Hant',
       dryRun: false,
       force: false,
       yes: false,
       youtubePrivacy: 'unlisted',
     });
     expect(() =>
-      parseCliOptions([EPISODE_ID, '--youtube-privacy', 'hidden']),
+      parseCliOptions([
+        EPISODE_ID,
+        '--language',
+        'zh-Hant',
+        '--youtube-privacy',
+        'hidden',
+      ]),
     ).toThrow('--youtube-privacy must be one of: private, unlisted, public.');
   });
 });
 
 describe('runSocialCli media preparation', () => {
   it('downloads the full video and creates a teaser for X-only', async () => {
-    await runSocialCli([EPISODE_ID, '--dry-run', '--platform', 'x']);
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--dry-run',
+      '--platform',
+      'x',
+    ]);
 
     expect(mocks.prepareSocialVideo).toHaveBeenCalledWith({
       episodeId: EPISODE_ID,
+      languageCode: 'zh-Hant',
       url: VIDEO_URL,
     });
     expect(mocks.prepareXTeaserVideo).toHaveBeenCalledWith({
@@ -254,7 +303,14 @@ describe('runSocialCli media preparation', () => {
   });
 
   it('keeps Threads-only remote and does not download the video', async () => {
-    await runSocialCli([EPISODE_ID, '--dry-run', '--platform', 'threads']);
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--dry-run',
+      '--platform',
+      'threads',
+    ]);
 
     expect(mocks.prepareSocialVideo).not.toHaveBeenCalled();
     expect(mocks.prepareXTeaserVideo).not.toHaveBeenCalled();
@@ -262,7 +318,14 @@ describe('runSocialCli media preparation', () => {
   });
 
   it('downloads the full video for YouTube but does not create an X teaser', async () => {
-    await runSocialCli([EPISODE_ID, '--dry-run', '--platform', 'youtube']);
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--dry-run',
+      '--platform',
+      'youtube',
+    ]);
 
     expect(mocks.prepareSocialVideo).toHaveBeenCalledOnce();
     expect(mocks.prepareXTeaserVideo).not.toHaveBeenCalled();
@@ -287,10 +350,17 @@ describe('runSocialCli media preparation', () => {
       reused: true,
     });
 
-    await runSocialCli([EPISODE_ID, '--dry-run', '--platform', 'x']);
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--dry-run',
+      '--platform',
+      'x',
+    ]);
 
     expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('✓ zh video (1m 30s, 512.0 KB, cached)'),
+      expect.stringContaining('✓ zh-Hant video (1m 30s, 512.0 KB, cached)'),
     );
     expect(console.log).toHaveBeenCalledWith(
       expect.stringContaining('✓ X video (1m 30s, 256.0 KB, cached/reused)'),
@@ -298,7 +368,14 @@ describe('runSocialCli media preparation', () => {
   });
 
   it('downloads the full video for Rednote but does not create an X teaser', async () => {
-    await runSocialCli([EPISODE_ID, '--dry-run', '--platform', 'rednote']);
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--dry-run',
+      '--platform',
+      'rednote',
+    ]);
 
     expect(mocks.prepareSocialVideo).toHaveBeenCalledOnce();
     expect(mocks.prepareXTeaserVideo).not.toHaveBeenCalled();
@@ -307,17 +384,24 @@ describe('runSocialCli media preparation', () => {
     );
     // Review previews Rednote's own title field, not a hook line prepended to
     // the description.
-    expect(console.log).toHaveBeenCalledWith(`標題：${copy.rednote.title}`);
-    expect(console.log).toHaveBeenCalledWith(copy.rednote.body);
+    expect(console.log).toHaveBeenCalledWith(`標題：${copy.rednote!.title}`);
+    expect(console.log).toHaveBeenCalledWith(copy.rednote!.body);
   });
 
   it('fails before generation when a required canonical video URL is absent', async () => {
-    mocks.getSocialEpisode.mockResolvedValue({ ...episode, videos: {} });
+    mocks.getSocialEpisode.mockResolvedValue({ ...episode, videoUrl: '' });
 
     await expect(
-      runSocialCli([EPISODE_ID, '--dry-run', '--platform', 'x']),
+      runSocialCli([
+        EPISODE_ID,
+        '--language',
+        'zh-Hant',
+        '--dry-run',
+        '--platform',
+        'x',
+      ]),
     ).rejects.toThrow(
-      `No completed zh video found for episode ${EPISODE_ID}. Social publishing aborted.`,
+      `No completed zh-Hant video found for episode ${EPISODE_ID}. Social publishing aborted.`,
     );
     expect(mocks.generateSocialCopy).not.toHaveBeenCalled();
   });
@@ -326,7 +410,13 @@ describe('runSocialCli media preparation', () => {
 describe('runSocialCli publishing', () => {
   it('publishes X with branded copy, public source URL and teaser path', async () => {
     enableInteractiveReview('x');
-    await runSocialCli([EPISODE_ID, '--platform', 'x']);
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--platform',
+      'x',
+    ]);
 
     expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -349,7 +439,13 @@ describe('runSocialCli publishing', () => {
 
   it('publishes YouTube with deterministic episode metadata', async () => {
     enableInteractiveReview('y');
-    await runSocialCli([EPISODE_ID, '--platform', 'youtube']);
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--platform',
+      'youtube',
+    ]);
 
     expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -367,7 +463,13 @@ describe('runSocialCli publishing', () => {
 
   it('keeps YouTube public unless the operator overrides privacy', async () => {
     enableInteractiveReview('y');
-    await runSocialCli([EPISODE_ID, '--platform', 'youtube']);
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--platform',
+      'youtube',
+    ]);
 
     expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
       expect.not.objectContaining({ youtubePrivacyStatus: expect.anything() }),
@@ -378,6 +480,8 @@ describe('runSocialCli publishing', () => {
     enableInteractiveReview('y');
     await runSocialCli([
       EPISODE_ID,
+      '--language',
+      'zh-Hant',
       '--platform',
       'youtube',
       '--youtube-privacy',
@@ -392,7 +496,13 @@ describe('runSocialCli publishing', () => {
 
   it('publishes Threads without preparing a local file', async () => {
     enableInteractiveReview('t');
-    await runSocialCli([EPISODE_ID, '--platform', 'threads']);
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--platform',
+      'threads',
+    ]);
 
     expect(mocks.prepareSocialVideo).not.toHaveBeenCalled();
     expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
@@ -408,7 +518,13 @@ describe('runSocialCli publishing', () => {
 
   it('quits interactive review without publishing', async () => {
     enableInteractiveReview('q');
-    await runSocialCli([EPISODE_ID, '--platform', 'threads']);
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--platform',
+      'threads',
+    ]);
     expect(mocks.createSocialPublishJobs).not.toHaveBeenCalled();
   });
 
@@ -417,7 +533,13 @@ describe('runSocialCli publishing', () => {
     process.env['EDITOR'] = '/usr/bin/true';
     try {
       enableInteractiveReview('e', 't');
-      await runSocialCli([EPISODE_ID, '--platform', 'threads']);
+      await runSocialCli([
+        EPISODE_ID,
+        '--language',
+        'zh-Hant',
+        '--platform',
+        'threads',
+      ]);
       expect(mocks.createSocialPostPersister).toHaveBeenCalledOnce();
       expect(mocks.publishSocialPlatforms).toHaveBeenCalledOnce();
     } finally {
@@ -432,13 +554,25 @@ describe('runSocialCli publishing', () => {
       process.env['EDITOR'] = '/definitely/missing/editor';
       enableInteractiveReview('e');
       await expect(
-        runSocialCli([EPISODE_ID, '--platform', 'threads']),
+        runSocialCli([
+          EPISODE_ID,
+          '--language',
+          'zh-Hant',
+          '--platform',
+          'threads',
+        ]),
       ).rejects.toThrow();
 
       process.env['EDITOR'] = '/usr/bin/false';
       enableInteractiveReview('e');
       await expect(
-        runSocialCli([EPISODE_ID, '--platform', 'threads']),
+        runSocialCli([
+          EPISODE_ID,
+          '--language',
+          'zh-Hant',
+          '--platform',
+          'threads',
+        ]),
       ).rejects.toThrow('exited with status');
     } finally {
       if (previousEditor === undefined) delete process.env['EDITOR'];
@@ -449,17 +583,25 @@ describe('runSocialCli publishing', () => {
   it('regenerates with feedback and can recover from an unknown review choice', async () => {
     const regenerated: GeneratedSocialCopy = {
       ...copy,
-      x: { text: 'Regenerated X copy' },
+      short: { text: 'Regenerated X copy' },
     };
     mocks.generateSocialCopy
       .mockResolvedValueOnce({ copy, model: 'model-1' })
       .mockResolvedValueOnce({ copy: regenerated, model: 'model-2' });
     enableInteractiveReview('g', 'make it sharper', 'unknown', 't');
 
-    await runSocialCli([EPISODE_ID, '--platform', 'threads']);
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--platform',
+      'threads',
+    ]);
 
     expect(mocks.generateSocialCopy).toHaveBeenNthCalledWith(2, {
       episode,
+      languageCode: 'zh-Hant',
+      platforms: ['threads'],
       feedback: 'make it sharper',
     });
     expect(console.log).toHaveBeenCalledWith('Unknown choice.');
@@ -475,7 +617,7 @@ describe('runSocialCli publishing', () => {
 
   it('publishes all reviewed platforms with the all shortcut', async () => {
     enableInteractiveReview('a');
-    await runSocialCli([EPISODE_ID]);
+    await runSocialCli([EPISODE_ID, '--language', 'zh-Hant']);
     expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
       expect.objectContaining({
         platforms: ['x', 'threads', 'rednote', 'youtube'],
@@ -488,7 +630,14 @@ describe('runSocialCli publishing', () => {
       ...episode,
       videoDurationSeconds: 901,
     });
-    await runSocialCli([EPISODE_ID, '--yes', '--platform', 'rednote']);
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--yes',
+      '--platform',
+      'rednote',
+    ]);
     expect(console.warn).toHaveBeenCalledWith(
       expect.stringContaining('15-minute'),
     );
@@ -514,7 +663,13 @@ describe('runSocialCli publishing', () => {
     });
     try {
       await expect(
-        runSocialCli([EPISODE_ID, '--platform', 'threads']),
+        runSocialCli([
+          EPISODE_ID,
+          '--language',
+          'zh-Hant',
+          '--platform',
+          'threads',
+        ]),
       ).rejects.toThrow('Interactive review requires a TTY');
     } finally {
       if (stdinDescriptor)
@@ -525,7 +680,14 @@ describe('runSocialCli publishing', () => {
   });
 
   it('publishes without a TTY when --yes is provided', async () => {
-    await runSocialCli([EPISODE_ID, '--yes', '--platform', 'threads']);
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--yes',
+      '--platform',
+      'threads',
+    ]);
 
     expect(mocks.createReadlineInterface).not.toHaveBeenCalled();
     expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
@@ -544,7 +706,7 @@ describe('runSocialCli publishing', () => {
     });
     enableInteractiveReview('yes', 'a');
 
-    await runSocialCli([EPISODE_ID]);
+    await runSocialCli([EPISODE_ID, '--language', 'zh-Hant']);
 
     expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
       expect.objectContaining({ platforms: ['threads', 'rednote', 'youtube'] }),
@@ -561,7 +723,7 @@ describe('runSocialCli publishing', () => {
     });
     enableInteractiveReview('n');
 
-    await runSocialCli([EPISODE_ID]);
+    await runSocialCli([EPISODE_ID, '--language', 'zh-Hant']);
 
     expect(mocks.getSocialEpisode).not.toHaveBeenCalled();
   });
@@ -576,7 +738,7 @@ describe('runSocialCli publishing', () => {
     };
     mocks.readPublishState.mockResolvedValue(state);
 
-    await runSocialCli([EPISODE_ID, '--yes']);
+    await runSocialCli([EPISODE_ID, '--language', 'zh-Hant', '--yes']);
 
     expect(mocks.createReadlineInterface).not.toHaveBeenCalled();
     expect(mocks.createSocialPublishJobs).toHaveBeenCalledWith(
@@ -594,6 +756,8 @@ describe('runSocialCli publishing', () => {
     });
     await runSocialCli([
       EPISODE_ID,
+      '--language',
+      'zh-Hant',
       '--yes',
       '--force',
       '--platform',
@@ -613,7 +777,7 @@ describe('runSocialCli publishing', () => {
       },
     ]);
 
-    await runSocialCli([EPISODE_ID, '--yes']);
+    await runSocialCli([EPISODE_ID, '--language', 'zh-Hant', '--yes']);
 
     expect(console.error).toHaveBeenCalledWith(
       expect.stringContaining('2 failed platforms.'),
@@ -649,7 +813,7 @@ describe('runSocialCli publishing', () => {
       },
     ]);
 
-    await runSocialCli([EPISODE_ID, '--yes']);
+    await runSocialCli([EPISODE_ID, '--language', 'zh-Hant', '--yes']);
 
     expect(process.exitCode).toBe(1);
     expect(console.error).toHaveBeenCalledWith(
@@ -673,7 +837,14 @@ describe('runSocialCli publishing', () => {
         recordError: new Error('record failed'),
       },
     ]);
-    await runSocialCli([EPISODE_ID, '--yes', '--platform', 'threads']);
+    await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--yes',
+      '--platform',
+      'threads',
+    ]);
     expect(console.error).toHaveBeenCalledWith(
       expect.stringContaining(
         '1 local duplicate-state failure. That post is live',
@@ -701,7 +872,7 @@ describe('runSocialCli publishing', () => {
     };
     mocks.readPublishState.mockResolvedValue(state);
 
-    await runSocialCli([EPISODE_ID]);
+    await runSocialCli([EPISODE_ID, '--language', 'zh-Hant']);
 
     expect(mocks.getSocialEpisode).not.toHaveBeenCalled();
     expect(mocks.generateSocialCopy).not.toHaveBeenCalled();

@@ -6,7 +6,7 @@ import {
 import { stripKnownPodcastPackaging } from '../services/podcast-packaging.js';
 import { isEpisodeId } from '../services/request-validation.js';
 import { buildEpisodeShareUrl } from '../services/telegram.js';
-import type { SocialEpisode } from './types.js';
+import type { SocialEpisode, SocialLanguageCode } from './types.js';
 
 interface EpisodeProjection {
   id: string;
@@ -30,8 +30,6 @@ interface VideoProjection {
   thumbnailUrl: string;
   durationSeconds: number;
 }
-
-const CANONICAL_LANGUAGE_CODE = 'zh-Hant';
 
 export function parseSocialEpisodeId(value: string): string {
   const normalized = value.trim();
@@ -61,13 +59,15 @@ export function buildSocialEpisode(input: {
   episode: EpisodeProjection;
   localization: LocalizationProjection;
   video: VideoProjection | null;
+  languageCode?: SocialLanguageCode;
 }): SocialEpisode {
+  const languageCode = input.languageCode ?? 'zh-Hant';
   const transcript = stripKnownPodcastPackaging(
     input.localization.script?.trim() ?? '',
   );
   if (!transcript) {
     throw new Error(
-      `Episode ${input.episode.id} has no completed zh transcript. Social publishing aborted.`,
+      `Episode ${input.episode.id} has no completed ${languageCode} transcript. Social publishing aborted.`,
     );
   }
 
@@ -82,7 +82,7 @@ export function buildSocialEpisode(input: {
     videoDurationSeconds <= 0
   ) {
     throw new Error(
-      `No completed zh video found for episode ${input.episode.id}. Social publishing aborted.`,
+      `No completed ${languageCode} video found for episode ${input.episode.id}. Social publishing aborted.`,
     );
   }
 
@@ -91,6 +91,7 @@ export function buildSocialEpisode(input: {
 
   return {
     id: input.episode.id,
+    languageCode,
     title: input.localization.title.trim() || input.episode.source_title || '',
     description,
     summary: summarize(summarySource),
@@ -98,14 +99,14 @@ export function buildSocialEpisode(input: {
     publishedAt: input.episode.created_at,
     episodeUrl: buildEpisodeShareUrl(input.episode.id),
     videoDurationSeconds,
-    videos: { zh: videoUrl },
+    videoUrl,
   };
 }
 
 export async function getSocialEpisode(
   episodeId: string,
+  languageCode: SocialLanguageCode = 'zh-Hant',
 ): Promise<SocialEpisode> {
-  const languageCode = CANONICAL_LANGUAGE_CODE;
   const episode = await findEpisodeById(episodeId);
   if (!episode) {
     throw new Error(`Episode ${episodeId} not found.`);
@@ -117,7 +118,7 @@ export async function getSocialEpisode(
   );
   if (localization?.status !== 'completed') {
     throw new Error(
-      `No completed zh localization found for episode ${episodeId}. Social publishing aborted.`,
+      `No completed ${languageCode} localization found for episode ${episodeId}. Social publishing aborted.`,
     );
   }
 
@@ -125,7 +126,20 @@ export async function getSocialEpisode(
     await listEpisodeVideoSummariesByLocalizationIds([localization.id])
   ).get(localization.id)?.video;
 
-  return buildSocialEpisode({ episode, localization, video: video ?? null });
+  return buildSocialEpisode({
+    episode,
+    localization,
+    video: video ?? null,
+    languageCode,
+  });
+}
+
+export function requireSocialEpisodeVideoUrl(episode: SocialEpisode): string {
+  const videoUrl = episode.videoUrl.trim();
+  if (videoUrl) return videoUrl;
+  throw new Error(
+    `No completed ${episode.languageCode} video found for episode ${episode.id}. Social publishing aborted.`,
+  );
 }
 
 function summarize(value: string): string {

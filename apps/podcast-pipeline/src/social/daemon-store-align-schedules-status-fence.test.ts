@@ -22,7 +22,7 @@ describe('alignPendingSocialPublishSchedules status fence', () => {
     expect(fixture.from).toHaveBeenCalledOnce();
     expect(fixture.from).toHaveBeenCalledWith('social_publish_jobs');
     expect(fixture.select).toHaveBeenCalledWith(
-      'id,episode_id,status,scheduled_at,next_attempt_at',
+      'id,episode_id,language_code,status,scheduled_at,next_attempt_at',
     );
     expect(fixture.inFilter).toHaveBeenCalledWith('status', [
       'queued',

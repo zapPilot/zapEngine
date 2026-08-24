@@ -1,4 +1,9 @@
-import type { SocialPostMetricRow, SocialPostRow } from '../types.js';
+import {
+  type PrimaryLanguageCode,
+  type SocialPostMetricRow,
+  type SocialPostRow,
+  SUPPORTED_PRIMARY_LANGUAGE_CODES,
+} from '../types.js';
 import {
   activateSocialStrategy,
   getActiveSocialStrategies,
@@ -9,6 +14,7 @@ import {
   type SocialStrategyVersionRow,
 } from './daemon-store.js';
 import { SOCIAL_PLATFORMS, type SocialPlatform } from './platforms.js';
+import { median } from './statistics.js';
 import type { SocialReviewStatus } from './types.js';
 
 const LEARNING_DAYS = 60;
@@ -46,13 +52,27 @@ export function defaultSocialStrategy(): SocialStrategyConfig {
 
 export function activeStrategyMap(
   rows: readonly SocialStrategyVersionRow[],
-): Record<SocialPlatform, SocialStrategyVersionRow | null> {
-  return Object.fromEntries(
-    SOCIAL_PLATFORMS.map((platform) => [
-      platform,
-      rows.find((row) => row.platform === platform) ?? null,
-    ]),
-  ) as Record<SocialPlatform, SocialStrategyVersionRow | null>;
+): Record<string, SocialStrategyVersionRow | null> {
+  const map: Record<string, SocialStrategyVersionRow | null> = {};
+  for (const platform of SOCIAL_PLATFORMS) {
+    for (const languageCode of SUPPORTED_PRIMARY_LANGUAGE_CODES) {
+      map[strategyMapKey(platform, languageCode)] =
+        rows.find(
+          (row) =>
+            row.platform === platform &&
+            (row.language_code ?? 'zh-Hant') === languageCode,
+        ) ?? null;
+    }
+    map[platform] = map[strategyMapKey(platform, 'zh-Hant')] ?? null;
+  }
+  return map;
+}
+
+export function strategyMapKey(
+  platform: SocialPlatform,
+  languageCode: PrimaryLanguageCode,
+): string {
+  return `${platform}|${languageCode}`;
 }
 
 export function startOfJstDay(date: Date): Date {
@@ -166,6 +186,7 @@ export function buildStrategyGuidance(
 
 export interface LearnedStrategy {
   platform: SocialPlatform;
+  languageCode: PrimaryLanguageCode;
   config: SocialStrategyConfig;
   basedOnSamples: number;
 }
@@ -186,55 +207,66 @@ export function learnSocialStrategies(input: {
     )
     .filter(isLearnableSample);
 
-  return SOCIAL_PLATFORMS.flatMap((platform) => {
-    const platformSamples = samples.filter(
-      (sample) => sample.post.platform === platform,
-    );
-    if (platformSamples.length < MIN_PLATFORM_SAMPLES) return [];
+  return SOCIAL_PLATFORMS.flatMap((platform) =>
+    SUPPORTED_PRIMARY_LANGUAGE_CODES.flatMap((languageCode) => {
+      const platformSamples = samples.filter(
+        (sample) =>
+          sample.post.platform === platform &&
+          (sample.post.language_code ?? 'zh-Hant') === languageCode,
+      );
+      if (platformSamples.length < MIN_PLATFORM_SAMPLES) return [];
 
-    const medianViews = median(
-      platformSamples.map((sample) => sample.metric.views ?? 0),
-    );
-    const scored = platformSamples.map((sample) => ({
-      ...sample,
-      score: scoreSample(sample.metric, medianViews),
-    }));
-    const config = defaultSocialStrategy();
-    config.preferredHookTypes = topVariants(
-      scored,
-      (sample) => sample.post.hook_type,
-      2,
-    );
+      const medianViews = median(
+        platformSamples.map((sample) => sample.metric.views ?? 0),
+      );
+      const scored = platformSamples.map((sample) => ({
+        ...sample,
+        score: scoreSample(sample.metric, medianViews),
+      }));
+      const config = defaultSocialStrategy();
+      config.preferredHookTypes = topVariants(
+        scored,
+        (sample) => sample.post.hook_type,
+        2,
+      );
 
-    if (platform === 'rednote') {
-      const tagScores = new Map<string, number[]>();
-      for (const sample of scored) {
-        for (const tag of sample.post.hashtags) {
-          const values = tagScores.get(tag) ?? [];
-          values.push(sample.score);
-          tagScores.set(tag, values);
+      if (platform === 'rednote') {
+        const tagScores = new Map<string, number[]>();
+        for (const sample of scored) {
+          for (const tag of sample.post.hashtags) {
+            const values = tagScores.get(tag) ?? [];
+            values.push(sample.score);
+            tagScores.set(tag, values);
+          }
         }
+        const rankedTags = [...tagScores.entries()]
+          .filter(([, values]) => values.length >= MIN_VARIANT_SAMPLES)
+          .map(([tag, values]) => ({ tag, score: average(values) }))
+          .sort((a, b) => b.score - a.score);
+        // Avoid is decided first and then removed from the preferred pool. The
+        // old head/tail slices overlapped whenever fewer than 13 tags qualified,
+        // which shipped 穩定幣 as both preferred and avoided in the same version.
+        config.avoidHashtags = rankedTags
+          .slice(-5)
+          .filter((row) => row.score < 0.8)
+          .map((row) => row.tag);
+        const avoided = new Set(config.avoidHashtags);
+        config.preferredHashtags = rankedTags
+          .filter((row) => !avoided.has(row.tag))
+          .slice(0, 8)
+          .map((row) => row.tag);
       }
-      const rankedTags = [...tagScores.entries()]
-        .filter(([, values]) => values.length >= MIN_VARIANT_SAMPLES)
-        .map(([tag, values]) => ({ tag, score: average(values) }))
-        .sort((a, b) => b.score - a.score);
-      // Avoid is decided first and then removed from the preferred pool. The
-      // old head/tail slices overlapped whenever fewer than 13 tags qualified,
-      // which shipped 穩定幣 as both preferred and avoided in the same version.
-      config.avoidHashtags = rankedTags
-        .slice(-5)
-        .filter((row) => row.score < 0.8)
-        .map((row) => row.tag);
-      const avoided = new Set(config.avoidHashtags);
-      config.preferredHashtags = rankedTags
-        .filter((row) => !avoided.has(row.tag))
-        .slice(0, 8)
-        .map((row) => row.tag);
-    }
 
-    return [{ platform, config, basedOnSamples: platformSamples.length }];
-  });
+      return [
+        {
+          platform,
+          languageCode,
+          config,
+          basedOnSamples: platformSamples.length,
+        },
+      ];
+    }),
+  );
 }
 
 function isLearnableSample(sample: {
@@ -267,16 +299,18 @@ export async function refreshSocialStrategies(input: {
   const activeByPlatform = activeStrategyMap(active);
 
   for (const learned of learnSocialStrategies({ posts, metrics })) {
-    const current = activeByPlatform[learned.platform];
+    const current =
+      activeByPlatform[strategyMapKey(learned.platform, learned.languageCode)];
     if (current && sameStrategy(current.config, learned.config)) continue;
     const version = await activateSocialStrategy({
       platform: learned.platform,
+      languageCode: learned.languageCode,
       config: learned.config,
       basedOnSamples: learned.basedOnSamples,
       now: input.now,
     });
     log(
-      `[strategy] ${learned.platform} activated v${version.version} from ${learned.basedOnSamples} 24h samples.`,
+      `[strategy] ${learned.platform}/${learned.languageCode} activated v${version.version} from ${learned.basedOnSamples} 24h samples.`,
     );
   }
 }
@@ -326,15 +360,6 @@ function topVariants<T extends { score: number }>(
 
 function average(values: readonly number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
-function median(values: readonly number[]): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0
-    ? ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2
-    : (sorted[middle] ?? 0);
 }
 
 function sameStrategy(

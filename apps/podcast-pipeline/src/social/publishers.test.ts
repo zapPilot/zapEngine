@@ -49,7 +49,7 @@ const episode: Pick<SocialEpisode, 'title' | 'summary' | 'description'> = {
 const copy: GeneratedSocialCopy = {
   topic: 'macro',
   hookType: 'question',
-  x: { text: '市場更新' },
+  short: { text: '市場更新' },
   rednote: {
     title: '市場更新',
     body: '正文',
@@ -95,11 +95,11 @@ describe('createSocialPublishJobs', () => {
     await jobs[1]?.publish();
 
     expect(mocks.publishThreads).toHaveBeenCalledWith({
-      text: `${copy.x.text}\n\n官網 https://www.zap-pilot.org`,
+      text: `${copy.short!.text}\n\n官網 https://www.zap-pilot.org`,
       videoUrl: VIDEO_URL,
     });
     expect(mocks.publishX).toHaveBeenCalledWith({
-      text: `${copy.x.text}\n\n官網 https://www.zap-pilot.org`,
+      text: `${copy.short!.text}\n\n官網 https://www.zap-pilot.org`,
       videoPath: X_VIDEO_PATH,
     });
   });
@@ -170,6 +170,7 @@ describe('createSocialPublishJobs', () => {
       title: '市場更新',
       description: '完整說明\n\n更多市場洞察與工具：https://www.zap-pilot.org',
       videoPath: VIDEO_PATH,
+      languageCode: 'zh-Hant',
       privacyStatus: 'public',
     });
   });
@@ -229,9 +230,9 @@ describe('createSocialPublishJobs', () => {
 
     await job?.publish();
     expect(mocks.publishRednote).toHaveBeenCalledWith({
-      title: copy.rednote.title,
-      body: copy.rednote.body,
-      hashtags: copy.rednote.hashtags,
+      title: copy.rednote!.title,
+      body: copy.rednote!.body,
+      hashtags: copy.rednote!.hashtags,
       videoPath: VIDEO_PATH,
     });
   });
@@ -240,7 +241,7 @@ describe('createSocialPublishJobs', () => {
     await expect(
       createSocialPublishJobs({
         platforms: ['rednote'],
-        copy: { ...copy, rednote: { ...copy.rednote, title: '' } },
+        copy: { ...copy, rednote: { ...copy.rednote!, title: '' } },
         episode,
         videoUrl: VIDEO_URL,
         videoPath: VIDEO_PATH,
@@ -270,7 +271,7 @@ describe('createSocialPublishJobs', () => {
         copy: {
           ...copy,
           rednote: {
-            ...copy.rednote,
+            ...copy.rednote!,
             hashtags: ['市場', '財富自由', '宏觀'],
           },
         },

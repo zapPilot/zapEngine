@@ -13,7 +13,9 @@ const mocks = vi.hoisted(() => ({
   getSocialQueueSnapshot: vi.fn(),
   getSocialStrategyById: vi.fn().mockResolvedValue(null),
   latestScheduledSocialJobs: vi.fn().mockResolvedValue({}),
+  listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
   listLearningSocialPosts: vi.fn().mockResolvedValue([]),
+  listLearningSocialMetrics: vi.fn().mockResolvedValue([]),
   listMetricWindowsForPosts: vi.fn().mockResolvedValue([]),
   listSocialPublishCandidates: vi.fn().mockResolvedValue([]),
   listUnfinishedSocialPublishJobs: vi.fn().mockResolvedValue([]),
@@ -23,7 +25,7 @@ const mocks = vi.hoisted(() => ({
   listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
   listSocialPostsByEpisode: vi.fn().mockResolvedValue([]),
   updateSocialPostIdentity: vi.fn(),
-  runSocialCli: vi.fn(),
+  publishSocialBatch: vi.fn(),
   createMetricCollectors: vi.fn().mockReturnValue({
     x: vi.fn(),
     threads: vi.fn(),
@@ -54,7 +56,9 @@ vi.mock('./daemon-store.js', () => ({
     const values = Object.values(schedules).sort();
     return values.at(-1) ?? null;
   },
+  listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
+  listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
@@ -68,7 +72,9 @@ vi.mock('../services/db.js', () => ({
   listSocialPostsByEpisode: mocks.listSocialPostsByEpisode,
   updateSocialPostIdentity: mocks.updateSocialPostIdentity,
 }));
-vi.mock('./cli.js', () => ({ runSocialCli: mocks.runSocialCli }));
+vi.mock('./publish-batch.js', () => ({
+  publishSocialBatch: mocks.publishSocialBatch,
+}));
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
 }));

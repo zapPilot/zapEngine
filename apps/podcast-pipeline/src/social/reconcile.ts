@@ -12,8 +12,9 @@ import { buildContentFeatures } from './record.js';
 import { readPublishState } from './state.js';
 import {
   type PlatformPublishState,
-  SOCIAL_STATE_LANGUAGE_KEY,
+  SOCIAL_STATE_LANGUAGE_KEYS,
   type SocialHookType,
+  type SocialLanguageCode,
   type SocialPlatform,
   type SocialPublishState,
   type SocialTopic,
@@ -35,6 +36,7 @@ export interface ReconcileRecentSocialPostsDependencies {
 
 interface ReconcileCandidate {
   episodeId: string;
+  languageCode: SocialLanguageCode;
   platform: (typeof RECONCILABLE_PLATFORMS)[number];
   published: PlatformPublishState;
 }
@@ -89,13 +91,19 @@ function recentStateCandidates(
 ): ReconcileCandidate[] {
   const candidates: ReconcileCandidate[] = [];
   for (const [episodeId, episodeState] of Object.entries(state)) {
-    const languageState = episodeState[SOCIAL_STATE_LANGUAGE_KEY];
-    if (!languageState) continue;
-
-    for (const platform of RECONCILABLE_PLATFORMS) {
-      const published = languageState[platform];
-      if (published && isRecentState(published, cutoffMs)) {
-        candidates.push({ episodeId, platform, published });
+    for (const [languageCode, languageKey] of Object.entries(
+      SOCIAL_STATE_LANGUAGE_KEYS,
+    ) as [
+      SocialLanguageCode,
+      (typeof SOCIAL_STATE_LANGUAGE_KEYS)[SocialLanguageCode],
+    ][]) {
+      const languageState = episodeState[languageKey];
+      if (!languageState) continue;
+      for (const platform of RECONCILABLE_PLATFORMS) {
+        const published = languageState[platform];
+        if (published && isRecentState(published, cutoffMs)) {
+          candidates.push({ episodeId, languageCode, platform, published });
+        }
       }
     }
   }
@@ -109,8 +117,10 @@ async function reconcileCandidate(input: {
   xProfileUrl: string | null;
   log: (message: string) => void;
 }): Promise<'repaired' | 'unresolved' | 'skipped'> {
-  const { episodeId, platform, published } = input.candidate;
-  if (hasRecordedPost(input.posts, episodeId, platform, published)) {
+  const { episodeId, languageCode, platform, published } = input.candidate;
+  if (
+    hasRecordedPost(input.posts, episodeId, languageCode, platform, published)
+  ) {
     return 'skipped';
   }
 
@@ -121,9 +131,14 @@ async function reconcileCandidate(input: {
       dependencies: input.dependencies,
       xProfileUrl: input.xProfileUrl,
     });
-    const sibling = input.posts.find((post) => post.episode_id === episodeId);
+    const sibling = input.posts.find(
+      (post) =>
+        post.episode_id === episodeId &&
+        (post.language_code ?? 'zh-Hant') === languageCode,
+    );
     const recovered = buildRecoveredSocialPost({
       episodeId,
+      languageCode,
       platform,
       published,
       discovered,
@@ -148,6 +163,7 @@ async function reconcileCandidate(input: {
 
 export function buildRecoveredSocialPost(input: {
   episodeId: string;
+  languageCode?: SocialLanguageCode;
   platform: 'x' | 'rednote';
   published: PlatformPublishState;
   discovered: RecoveredPublishedPost;
@@ -184,6 +200,9 @@ export function buildRecoveredSocialPost(input: {
   return {
     episodeId: input.episodeId,
     platform: input.platform,
+    languageCode: input.languageCode ?? 'zh-Hant',
+    experimentKey: null,
+    experimentVariant: null,
     postUrl: input.discovered.postUrl,
     platformPostId: input.discovered.platformPostId,
     publishedAt: input.published.publishedAt,
@@ -279,12 +298,17 @@ function isRecentState(
 function hasRecordedPost(
   posts: readonly SocialPostRow[],
   episodeId: string,
+  languageCode: SocialLanguageCode,
   platform: 'x' | 'rednote',
   published: PlatformPublishState,
 ): boolean {
   const expectedTime = Date.parse(published.publishedAt);
   return posts.some((post) => {
-    if (post.episode_id !== episodeId || post.platform !== platform)
+    if (
+      post.episode_id !== episodeId ||
+      post.platform !== platform ||
+      (post.language_code ?? 'zh-Hant') !== languageCode
+    )
       return false;
     if (published.url && post.post_url === published.url) return true;
     const actualTime = Date.parse(post.published_at);
@@ -298,14 +322,16 @@ function hasRecordedPost(
 
 export function findXProfileUrl(state: SocialPublishState): string | null {
   for (const episodeState of Object.values(state)) {
-    const url = episodeState[SOCIAL_STATE_LANGUAGE_KEY]?.x?.url?.trim();
-    if (!url) continue;
-    try {
-      const parsed = new URL(url);
-      const match = /^\/([^/]+)\/status\/\d+/u.exec(parsed.pathname);
-      if (match?.[1]) return `${parsed.origin}/${match[1]}`;
-    } catch {
-      continue;
+    for (const languageKey of Object.values(SOCIAL_STATE_LANGUAGE_KEYS)) {
+      const url = episodeState[languageKey]?.x?.url?.trim();
+      if (!url) continue;
+      try {
+        const parsed = new URL(url);
+        const match = /^\/([^/]+)\/status\/\d+/u.exec(parsed.pathname);
+        if (match?.[1]) return `${parsed.origin}/${match[1]}`;
+      } catch {
+        continue;
+      }
     }
   }
   return null;

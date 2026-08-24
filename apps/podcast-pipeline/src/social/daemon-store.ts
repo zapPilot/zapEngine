@@ -4,7 +4,9 @@ import {
 } from '../services/supabase-client.js';
 import type {
   NewSocialAccountSnapshot,
+  PrimaryLanguageCode,
   SocialAccountSnapshotRow,
+  SocialDistributionMetadata,
   SocialPostMetricRow,
   SocialPostRow,
 } from '../types.js';
@@ -17,12 +19,17 @@ export type SocialMetricWindowLabel = '1h' | '6h' | '24h' | '72h' | '7d';
 export interface SocialPublishCandidate {
   episode_id: string;
   ready_at: string;
+  language_code: PrimaryLanguageCode;
+  episode_created_at: string;
 }
 
 export interface SocialPublishJobRow {
   id: string;
   episode_id: string;
   platform: SocialPlatform;
+  language_code: PrimaryLanguageCode;
+  experiment_key: string | null;
+  experiment_variant: string | null;
   status: 'queued' | 'processing' | 'completed' | 'failed';
   scheduled_at: string;
   next_attempt_at: string;
@@ -40,13 +47,19 @@ export interface SocialPublishJobRow {
 export interface SocialQueueItem {
   episodeId: string;
   platform: SocialPlatform;
+  languageCode: PrimaryLanguageCode;
   status: SocialPublishJobRow['status'];
   title: string | null;
   nextAt: string;
 }
 
+export interface SocialQueueLaneItem extends SocialQueueItem {
+  experiment: string | null;
+}
+
 export interface SocialQueueEpisode {
   episodeId: string;
+  languageCode: PrimaryLanguageCode;
   title: string | null;
   nextAt: string;
 }
@@ -55,6 +68,16 @@ export interface SocialQueueSnapshot {
   pendingCount: number;
   episodeQueue: SocialQueueEpisode[];
   nextByPlatform: Partial<Record<SocialPlatform, SocialQueueItem>>;
+  nextByLane: Record<string, SocialQueueLaneItem>;
+  waitingMedia: SocialWaitingMediaItem[];
+}
+
+export interface SocialWaitingMediaItem {
+  episodeId: string;
+  platform: SocialPlatform;
+  languageCode: PrimaryLanguageCode;
+  title: string | null;
+  experiment: string | null;
 }
 
 export interface SocialPublishSlot {
@@ -73,6 +96,7 @@ export interface SocialStrategyConfig {
 export interface SocialStrategyVersionRow {
   id: string;
   platform: SocialPlatform;
+  language_code?: PrimaryLanguageCode;
   version: number;
   config: SocialStrategyConfig;
   based_on_samples: number;
@@ -121,7 +145,7 @@ export async function listSocialPublishCandidates(
 ): Promise<SocialPublishCandidate[]> {
   const { data, error } = await getPipelineSupabase()
     .from('social_publish_candidates')
-    .select('episode_id,ready_at')
+    .select('episode_id,ready_at,language_code,episode_created_at')
     .gte('ready_at', readySince)
     .order('ready_at', { ascending: true })
     .returns<SocialPublishCandidate[]>();
@@ -144,11 +168,13 @@ async function affectedSocialPublishJobRow(
 // No strategy version is stamped here. A job can be queued days before it is
 // due -- or before any version exists at all -- so the version it publishes
 // under is resolved at claim time and recorded on completion.
-export async function enqueueSocialPublishJob(input: {
-  episodeId: string;
-  platform: SocialPlatform;
-  scheduledAt: string;
-}): Promise<boolean> {
+export async function enqueueSocialPublishJob(
+  input: SocialDistributionMetadata & {
+    episodeId: string;
+    platform: SocialPlatform;
+    scheduledAt: string;
+  },
+): Promise<boolean> {
   return affectedSocialPublishJobRow(
     getPipelineSupabase()
       .from('social_publish_jobs')
@@ -156,10 +182,16 @@ export async function enqueueSocialPublishJob(input: {
         {
           episode_id: input.episodeId,
           platform: input.platform,
+          language_code: input.languageCode ?? 'zh-Hant',
+          experiment_key: input.experimentKey ?? null,
+          experiment_variant: input.experimentVariant ?? null,
           scheduled_at: input.scheduledAt,
           next_attempt_at: input.scheduledAt,
         },
-        { onConflict: 'episode_id,platform', ignoreDuplicates: true },
+        {
+          onConflict: 'episode_id,platform,language_code',
+          ignoreDuplicates: true,
+        },
       )
       .select('id')
       .maybeSingle<{ id: string }>(),
@@ -180,31 +212,60 @@ export async function latestPendingSocialPublishSchedule(): Promise<
   return data?.scheduled_at ?? null;
 }
 
+export interface PendingSocialPublishSchedule {
+  episode_id: string;
+  language_code: PrimaryLanguageCode;
+  scheduled_at: string;
+  completed_at: string | null;
+  status: SocialPublishJobRow['status'];
+}
+
+export async function listPendingSocialPublishSchedules(): Promise<
+  PendingSocialPublishSchedule[]
+> {
+  const { data, error } = await getPipelineSupabase()
+    .from('social_publish_jobs')
+    .select('episode_id,language_code,scheduled_at,completed_at,status')
+    .in('status', ['queued', 'failed', 'processing', 'completed'])
+    .order('scheduled_at', { ascending: true })
+    .returns<PendingSocialPublishSchedule[]>();
+  if (error) throwSupabaseError(error);
+  return data ?? [];
+}
+
 export async function alignPendingSocialPublishSchedules(): Promise<number> {
   const { data, error } = await getPipelineSupabase()
     .from('social_publish_jobs')
-    .select('id,episode_id,status,scheduled_at,next_attempt_at')
+    .select('id,episode_id,language_code,status,scheduled_at,next_attempt_at')
     .in('status', ['queued', 'failed'])
     .returns<
       Pick<
         SocialPublishJobRow,
-        'id' | 'episode_id' | 'status' | 'scheduled_at' | 'next_attempt_at'
+        | 'id'
+        | 'episode_id'
+        | 'status'
+        | 'scheduled_at'
+        | 'next_attempt_at'
+        | 'language_code'
       >[]
     >();
   if (error) throwSupabaseError(error);
 
   const jobs = data ?? [];
-  const earliestByEpisode = new Map<string, string>();
+  const earliestByEpisodeLanguage = new Map<string, string>();
   for (const job of jobs) {
-    const current = earliestByEpisode.get(job.episode_id);
+    const key = `${job.episode_id}|${job.language_code ?? 'zh-Hant'}`;
+    const current = earliestByEpisodeLanguage.get(key);
     if (!current || Date.parse(job.scheduled_at) < Date.parse(current)) {
-      earliestByEpisode.set(job.episode_id, job.scheduled_at);
+      earliestByEpisodeLanguage.set(key, job.scheduled_at);
     }
   }
 
   let aligned = 0;
   for (const job of jobs) {
-    const scheduledAt = earliestByEpisode.get(job.episode_id);
+    const scheduledAt = earliestByEpisodeLanguage.get(
+      `${job.episode_id}|${job.language_code ?? 'zh-Hant'}`,
+    );
     if (!scheduledAt || scheduledAt === job.scheduled_at) continue;
     const patch: Partial<SocialPublishJobRow> = { scheduled_at: scheduledAt };
     if (job.status === 'queued') patch.next_attempt_at = scheduledAt;
@@ -221,17 +282,24 @@ export async function alignPendingSocialPublishSchedules(): Promise<number> {
   return aligned;
 }
 
-export async function getSocialQueueSnapshot(): Promise<SocialQueueSnapshot> {
+export async function getSocialQueueSnapshot(
+  options: { includeWaitingMedia?: boolean } = {},
+): Promise<SocialQueueSnapshot> {
   const supabase = getPipelineSupabase();
   const { data, error } = await supabase
     .from('social_publish_jobs')
-    .select('episode_id,platform,status,scheduled_at,next_attempt_at')
+    .select(
+      'episode_id,platform,language_code,experiment_key,experiment_variant,status,scheduled_at,next_attempt_at',
+    )
     .in('status', ['queued', 'failed', 'processing'])
     .returns<
       Pick<
         SocialPublishJobRow,
         | 'episode_id'
         | 'platform'
+        | 'language_code'
+        | 'experiment_key'
+        | 'experiment_variant'
         | 'status'
         | 'scheduled_at'
         | 'next_attempt_at'
@@ -240,47 +308,129 @@ export async function getSocialQueueSnapshot(): Promise<SocialQueueSnapshot> {
   if (error) throwSupabaseError(error);
 
   const jobs = data ?? [];
+  const waitingMedia = options.includeWaitingMedia
+    ? await listWaitingSocialMedia()
+    : [];
   if (jobs.length === 0) {
-    return { pendingCount: 0, episodeQueue: [], nextByPlatform: {} };
+    return withQueueLanes(
+      {
+        pendingCount: 0,
+        episodeQueue: [],
+        nextByPlatform: {},
+      },
+      {},
+      waitingMedia,
+    );
   }
 
   const episodeIds = [...new Set(jobs.map((job) => job.episode_id))];
   const { data: localizations, error: localizationError } = await supabase
     .from('episode_localizations')
-    .select('episode_id,title')
-    .eq('language_code', 'zh-Hant')
+    .select('episode_id,language_code,title')
     .in('episode_id', episodeIds)
-    .returns<{ episode_id: string; title: string | null }[]>();
+    .returns<
+      {
+        episode_id: string;
+        language_code: PrimaryLanguageCode;
+        title: string | null;
+      }[]
+    >();
   if (localizationError) throwSupabaseError(localizationError);
 
-  const titleByEpisode = new Map(
-    (localizations ?? []).map((row) => [row.episode_id, row.title]),
+  const titleByEpisodeLanguage = new Map(
+    (localizations ?? []).map((row) => [
+      `${row.episode_id}|${row.language_code ?? 'zh-Hant'}`,
+      row.title,
+    ]),
   );
   const nextByPlatform: Partial<Record<SocialPlatform, SocialQueueItem>> = {};
+  const nextByLane: Record<string, SocialQueueLaneItem> = {};
   const sortedJobs = [...jobs].sort(
     (left, right) => Date.parse(jobNextAt(left)) - Date.parse(jobNextAt(right)),
   );
   const episodeQueue: SocialQueueEpisode[] = [];
   const queuedEpisodes = new Set<string>();
   for (const job of sortedJobs) {
-    if (!queuedEpisodes.has(job.episode_id)) {
-      queuedEpisodes.add(job.episode_id);
+    const languageCode = job.language_code ?? 'zh-Hant';
+    const episodeLanguage = `${job.episode_id}|${languageCode}`;
+    if (!queuedEpisodes.has(episodeLanguage)) {
+      queuedEpisodes.add(episodeLanguage);
       episodeQueue.push({
         episodeId: job.episode_id,
-        title: titleByEpisode.get(job.episode_id) ?? null,
+        languageCode,
+        title:
+          titleByEpisodeLanguage.get(`${job.episode_id}|${languageCode}`) ??
+          null,
         nextAt: jobNextAt(job),
       });
     }
-    nextByPlatform[job.platform] ??= {
+    const item: SocialQueueItem = {
       episodeId: job.episode_id,
       platform: job.platform,
+      languageCode,
       status: job.status,
-      title: titleByEpisode.get(job.episode_id) ?? null,
+      title:
+        titleByEpisodeLanguage.get(`${job.episode_id}|${languageCode}`) ?? null,
       nextAt: jobNextAt(job),
+    };
+    nextByPlatform[job.platform] ??= item;
+    nextByLane[`${job.platform}|${languageCode}`] ??= {
+      ...item,
+      experiment:
+        job.experiment_key && job.experiment_variant
+          ? `${job.experiment_key}:${job.experiment_variant}`
+          : null,
     };
   }
 
-  return { pendingCount: jobs.length, episodeQueue, nextByPlatform };
+  return withQueueLanes(
+    { pendingCount: jobs.length, episodeQueue, nextByPlatform },
+    nextByLane,
+    waitingMedia,
+  );
+}
+
+function withQueueLanes(
+  snapshot: Omit<SocialQueueSnapshot, 'nextByLane' | 'waitingMedia'>,
+  nextByLane: SocialQueueSnapshot['nextByLane'],
+  waitingMedia: SocialWaitingMediaItem[],
+): SocialQueueSnapshot {
+  // Keep the historical enumerable snapshot shape stable for existing log and
+  // monitoring consumers while exposing the multilingual lane index directly.
+  Object.defineProperties(snapshot, {
+    nextByLane: { value: nextByLane, enumerable: false },
+    waitingMedia: { value: waitingMedia, enumerable: false },
+  });
+  return snapshot as SocialQueueSnapshot;
+}
+
+async function listWaitingSocialMedia(): Promise<SocialWaitingMediaItem[]> {
+  const { data, error } = await getPipelineSupabase()
+    .from('social_waiting_media')
+    .select(
+      'episode_id,platform,language_code,title,experiment_key,experiment_variant',
+    )
+    .returns<
+      {
+        episode_id: string;
+        platform: SocialPlatform;
+        language_code: PrimaryLanguageCode;
+        title: string | null;
+        experiment_key: string | null;
+        experiment_variant: string | null;
+      }[]
+    >();
+  if (error) throwSupabaseError(error);
+  return (data ?? []).map((row) => ({
+    episodeId: row.episode_id,
+    platform: row.platform,
+    languageCode: row.language_code,
+    title: row.title,
+    experiment:
+      row.experiment_key && row.experiment_variant
+        ? `${row.experiment_key}:${row.experiment_variant}`
+        : null,
+  }));
 }
 
 function jobNextAt(
@@ -293,6 +443,7 @@ export interface UnfinishedSocialPublishJob {
   id: string;
   episode_id: string;
   platform: SocialPlatform;
+  language_code: PrimaryLanguageCode;
   status: 'queued' | 'failed';
 }
 
@@ -304,7 +455,7 @@ export async function listUnfinishedSocialPublishJobs(): Promise<
 > {
   const { data, error } = await getPipelineSupabase()
     .from('social_publish_jobs')
-    .select('id,episode_id,platform,status')
+    .select('id,episode_id,platform,language_code,status')
     .in('status', ['queued', 'failed'])
     .returns<UnfinishedSocialPublishJob[]>();
   if (error) throwSupabaseError(error);
@@ -502,15 +653,18 @@ export async function getActiveSocialStrategies(): Promise<
 
 export async function activateSocialStrategy(input: {
   platform: SocialPlatform;
+  languageCode?: PrimaryLanguageCode;
   config: SocialStrategyConfig;
   basedOnSamples: number;
   now: Date;
 }): Promise<SocialStrategyVersionRow> {
   const supabase = getPipelineSupabase();
+  const languageCode = input.languageCode ?? 'zh-Hant';
   const { data: current, error: versionError } = await supabase
     .from('social_strategy_versions')
     .select('version')
     .eq('platform', input.platform)
+    .eq('language_code', languageCode)
     .order('version', { ascending: false })
     .limit(1)
     .returns<{ version: number }[]>();
@@ -522,6 +676,7 @@ export async function activateSocialStrategy(input: {
     .from('social_strategy_versions')
     .update({ active: false })
     .eq('platform', input.platform)
+    .eq('language_code', languageCode)
     .eq('active', true);
   if (deactivateError) throwSupabaseError(deactivateError);
 
@@ -529,6 +684,7 @@ export async function activateSocialStrategy(input: {
     .from('social_strategy_versions')
     .insert({
       platform: input.platform,
+      language_code: languageCode,
       version,
       config: input.config,
       based_on_samples: input.basedOnSamples,

@@ -140,12 +140,17 @@ describe('social strategy', () => {
       },
     ];
 
-    expect(activeStrategyMap(rows)).toEqual({
-      x: rows[0],
-      threads: null,
-      rednote: null,
-      youtube: null,
-    });
+    expect(activeStrategyMap(rows)).toEqual(
+      expect.objectContaining({
+        x: rows[0],
+        threads: null,
+        rednote: null,
+        youtube: null,
+        'x|zh-Hant': rows[0],
+        'x|ja': null,
+        'x|en': null,
+      }),
+    );
   });
 
   it('uses default schedule configuration when no strategy config or publish slots are supplied', () => {

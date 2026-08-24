@@ -1,4 +1,5 @@
 import { appendBrandCta } from '../brand/cta.js';
+import type { PrimaryLanguageCode } from '../types.js';
 
 export type SocialVideoMode = 'teaser' | 'full';
 export type SocialCtaMode = 'brand' | 'none';
@@ -64,9 +65,10 @@ export function platformVideoMode(platform: SocialPlatform): SocialVideoMode {
 export function applyPlatformCta(
   platform: SocialPlatform,
   body: string,
+  languageCode: PrimaryLanguageCode = 'zh-Hant',
 ): string {
   return SOCIAL_PLATFORM_CONFIG[platform].ctaMode === 'brand'
-    ? appendBrandCta(body)
+    ? appendBrandCta(body, languageCode)
     : body.trim();
 }
 

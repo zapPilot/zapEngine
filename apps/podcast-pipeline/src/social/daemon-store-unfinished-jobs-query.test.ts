@@ -55,7 +55,7 @@ describe('listUnfinishedSocialPublishJobs query', () => {
 
     expect(fixture.from).toHaveBeenCalledWith('social_publish_jobs');
     expect(fixture.select).toHaveBeenCalledWith(
-      'id,episode_id,platform,status',
+      'id,episode_id,platform,language_code,status',
     );
     expect(fixture.statusFilter).toHaveBeenCalledWith('status', [
       'queued',

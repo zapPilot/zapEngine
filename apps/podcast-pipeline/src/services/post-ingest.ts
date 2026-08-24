@@ -148,8 +148,10 @@ export async function performMultilingualIngestAndEnqueueVideo(
           const priorVisualJob = await dependencies.findVisualJob(
             ingest.episode.id,
           );
-          const priorVideoJob = await dependencies.findVideoJob(
-            canonicalLocalization.id,
+          const priorVideoJobs = await Promise.all(
+            renderableLocalizations.map((localization) =>
+              dependencies.findVideoJob(localization.id),
+            ),
           );
           const visualJob = await dependencies.enqueueVisual(
             ingest.episode.id,
@@ -162,19 +164,19 @@ export async function performMultilingualIngestAndEnqueueVideo(
               telegramChatId: normalizedTelegramChatId,
             },
           );
-          // Audio remains multilingual, but social video is intentionally
-          // rendered only for the canonical Traditional Chinese localization.
-          // The shared visual checkpoint can still use the English script for
-          // search grounding without paying for duplicate ja/en encodes.
-          const videoJob = await dependencies.enqueueVideo(
-            canonicalLocalization.id,
-            normalizedTelegramChatId,
+          const videoJobs = await Promise.all(
+            renderableLocalizations.map((localization) =>
+              dependencies.enqueueVideo(
+                localization.id,
+                normalizedTelegramChatId,
+              ),
+            ),
           );
-          const videoJobs = [videoJob];
+          const videoJob = videoJobs[0] ?? null;
           logIngestEvent('video:enqueue:done', {
             elapsedMs: Date.now() - enqueueStartedAt,
             episodeId: ingest.episode.id,
-            status: videoJob?.status ?? 'unavailable',
+            status: videoJobs.map(({ status }) => status).join(','),
           });
           return {
             ingest,
@@ -188,12 +190,15 @@ export async function performMultilingualIngestAndEnqueueVideo(
                 priorVisualJob?.last_error,
                 visualJob.last_error,
               ),
-              videosByLocalizationId: {
-                [videoJob.episode_localization_id]: erasedByReset(
-                  priorVideoJob?.last_error,
-                  videoJob.last_error,
-                ),
-              },
+              videosByLocalizationId: Object.fromEntries(
+                videoJobs.map((queuedJob, index) => [
+                  queuedJob.episode_localization_id,
+                  erasedByReset(
+                    priorVideoJobs[index]?.last_error,
+                    queuedJob.last_error,
+                  ),
+                ]),
+              ),
             },
           };
         } catch (error) {

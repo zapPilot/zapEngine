@@ -34,7 +34,7 @@ function socialCopyJson(xText: string): string {
   return JSON.stringify({
     topic: 'macro',
     hookType: 'question',
-    x: { text: xText },
+    short: { text: xText },
     rednote: {
       title: '標題',
       body: '正文內容',
@@ -102,11 +102,12 @@ describe('generateSocialCopy', () => {
           publishedAt: '2026-08-12T00:00:00.000Z',
           episodeUrl: 'https://example.com/e/episode',
           videoDurationSeconds: 180,
-          videos: { zh: 'https://example.com/video.mp4' },
+          languageCode: 'zh-Hant',
+          videoUrl: 'https://example.com/video.mp4',
         },
       }),
     ).resolves.toMatchObject({
-      copy: { x: { text: '有效文案' } },
+      copy: { short: { text: '有效文案' } },
       model: 'deepseek/deepseek-v4-flash',
     });
 
@@ -123,13 +124,13 @@ describe('generateSocialCopy', () => {
     const retryRequest =
       llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1];
     expect(retryRequest?.messages.at(-1)?.content).toContain(
-      'x.text: X text is 252 weighted units; the maximum is 250.',
+      'short.text: X text is 252 weighted units; the maximum is 250.',
     );
     expect(retryRequest?.messages[0]?.content).toContain(
-      'X text must not contain a URL',
+      'generated copy itself must not contain a URL',
     );
     expect(retryRequest?.messages[0]?.content).toContain(
-      'Rednote-only compliance rules must not sanitize or rewrite x.text.',
+      'Apply platform-specific restrictions only to their corresponding fields.',
     );
     expect(retryRequest?.messages[0]?.content).toContain(
       "Lead with the episode's real economic or technology thesis",
@@ -159,7 +160,8 @@ describe('generateSocialCopy', () => {
         publishedAt: '2026-08-12T00:00:00.000Z',
         episodeUrl: 'https://example.com/e/episode',
         videoDurationSeconds: 180,
-        videos: { zh: 'https://example.com/video.mp4' },
+        languageCode: 'zh-Hant',
+        videoUrl: 'https://example.com/video.mp4',
       },
       strategyGuidance: '  Prefer a contrarian hook and #AI.  ',
     });
@@ -187,7 +189,8 @@ describe('generateSocialCopy', () => {
         publishedAt: '2026-08-12T00:00:00.000Z',
         episodeUrl: 'https://example.com/e/episode',
         videoDurationSeconds: 180,
-        videos: { zh: 'https://example.com/video.mp4' },
+        languageCode: 'zh-Hant',
+        videoUrl: 'https://example.com/video.mp4',
       },
       feedback: '  更有衝擊力  ',
     });
@@ -213,7 +216,8 @@ describe('generateSocialCopy', () => {
         publishedAt: '2026-08-12T00:00:00.000Z',
         episodeUrl: 'https://example.com/e/episode',
         videoDurationSeconds: 180,
-        videos: { zh: 'https://example.com/video.mp4' },
+        languageCode: 'zh-Hant',
+        videoUrl: 'https://example.com/video.mp4',
       },
       feedback: '   ',
     });
@@ -228,7 +232,7 @@ describe('generateSocialCopy', () => {
     const mostlyLatin = JSON.stringify({
       topic: 'eth',
       hookType: 'risk_warning',
-      x: { text: 'staking burn' },
+      short: { text: 'staking burn' },
       rednote: {
         title: 'qual Poo 燃換 LE?',
         body: 'ekom buscando 燃燒',
@@ -250,7 +254,8 @@ describe('generateSocialCopy', () => {
           publishedAt: '2026-08-12T00:00:00.000Z',
           episodeUrl: 'https://example.com/e/episode',
           videoDurationSeconds: 180,
-          videos: { zh: 'https://example.com/video.mp4' },
+          languageCode: 'zh-Hant',
+          videoUrl: 'https://example.com/video.mp4',
         },
       }),
     ).rejects.toThrow(/invalid social copy 3 times/u);
@@ -275,10 +280,11 @@ describe('generateSocialCopy', () => {
           publishedAt: '2026-08-12T00:00:00.000Z',
           episodeUrl: 'https://example.com/e/episode',
           videoDurationSeconds: 180,
-          videos: { zh: 'https://example.com/video.mp4' },
+          languageCode: 'zh-Hant',
+          videoUrl: 'https://example.com/video.mp4',
         },
       }),
-    ).resolves.toMatchObject({ copy: { x: { text: '恢復文案' } } });
+    ).resolves.toMatchObject({ copy: { short: { text: '恢復文案' } } });
     expect(
       llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1]?.messages.at(
         -1,
@@ -306,10 +312,11 @@ describe('generateSocialCopy', () => {
           publishedAt: '2026-08-12T00:00:00.000Z',
           episodeUrl: 'https://example.com/e/episode',
           videoDurationSeconds: 180,
-          videos: { zh: 'https://example.com/video.mp4' },
+          languageCode: 'zh-Hant',
+          videoUrl: 'https://example.com/video.mp4',
         },
       }),
-    ).resolves.toMatchObject({ copy: { x: { text: '修正版文案' } } });
+    ).resolves.toMatchObject({ copy: { short: { text: '修正版文案' } } });
 
     const retryRequest =
       llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1];
@@ -337,10 +344,11 @@ describe('generateSocialCopy', () => {
           publishedAt: '2026-08-12T00:00:00.000Z',
           episodeUrl: 'https://example.com/e/episode',
           videoDurationSeconds: 180,
-          videos: { zh: 'https://example.com/video.mp4' },
+          languageCode: 'zh-Hant',
+          videoUrl: 'https://example.com/video.mp4',
         },
       }),
-    ).resolves.toMatchObject({ copy: { x: { text: '修正版文案' } } });
+    ).resolves.toMatchObject({ copy: { short: { text: '修正版文案' } } });
 
     const retryRequest =
       llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1];
@@ -355,12 +363,60 @@ function socialCompletion(content: string): object {
 }
 
 describe('parseGeneratedSocialCopy', () => {
+  it('accepts taxonomy-only output for a YouTube-only batch', () => {
+    expect(
+      parseGeneratedSocialCopy(
+        JSON.stringify({ topic: 'technology', hookType: 'explainer' }),
+        'en',
+        { short: false, rednote: false },
+      ),
+    ).toEqual({ topic: 'technology', hookType: 'explainer' });
+  });
+
+  it('enforces Japanese kana and English CJK-free copy independently', () => {
+    const japanese = JSON.stringify({
+      topic: 'macro',
+      hookType: 'question',
+      short: { text: '金利転換は本当に始まったのか？' },
+    });
+    expect(
+      parseGeneratedSocialCopy(japanese, 'ja', {
+        short: true,
+        rednote: false,
+      }).short!.text,
+    ).toContain('のか');
+
+    expect(() =>
+      parseGeneratedSocialCopy(
+        JSON.stringify({
+          topic: 'macro',
+          hookType: 'question',
+          short: { text: '金利轉換' },
+        }),
+        'ja',
+        { short: true, rednote: false },
+      ),
+    ).toThrow(/must contain kana/u);
+
+    expect(() =>
+      parseGeneratedSocialCopy(
+        JSON.stringify({
+          topic: 'macro',
+          hookType: 'question',
+          short: { text: 'Rates are changing 金利' },
+        }),
+        'en',
+        { short: true, rednote: false },
+      ),
+    ).toThrow(/must not contain CJK/u);
+  });
+
   it('accepts valid structured copy and strips hashtag prefixes', () => {
     const copy = parseGeneratedSocialCopy(
       JSON.stringify({
         topic: 'eth',
         hookType: 'contrarian',
-        x: { text: 'ETH 這波可能不是在交易 crypto narrative。' },
+        short: { text: 'ETH 這波可能不是在交易 crypto narrative。' },
         rednote: {
           title: 'ETH到底在漲什麼？',
           body: '大家都在看 ETH，但這集真正想拆的是背後的利率與流動性脈絡。',
@@ -369,7 +425,7 @@ describe('parseGeneratedSocialCopy', () => {
       }),
     );
 
-    expect(copy.rednote.hashtags).toEqual(['以太坊', '美聯儲', '投資']);
+    expect(copy.rednote!.hashtags).toEqual(['以太坊', '美聯儲', '投資']);
   });
 
   it('rejects invalid JSON', () => {
@@ -421,7 +477,7 @@ describe('parseGeneratedSocialCopy', () => {
       }),
     );
 
-    expect(copy.x.text).toBe('巢狀文案');
+    expect(copy.short!.text).toBe('巢狀文案');
   });
 
   it('accepts JSON wrapped in a markdown fence', () => {
@@ -429,12 +485,12 @@ describe('parseGeneratedSocialCopy', () => {
       `\`\`\`json\n${socialCopyJson('短文案')}\n\`\`\``,
     );
 
-    expect(copy.x.text).toBe('短文案');
+    expect(copy.short!.text).toBe('短文案');
   });
 
   it('accepts X text at the 250 weighted-unit limit', () => {
     expect(
-      parseGeneratedSocialCopy(socialCopyJson('中'.repeat(125))).x.text,
+      parseGeneratedSocialCopy(socialCopyJson('中'.repeat(125))).short!.text,
     ).toHaveLength(125);
   });
 
@@ -467,7 +523,7 @@ describe('parseGeneratedSocialCopy', () => {
         socialCopyJson(
           '以太坊提出EIP-8363提案：当质押率达50%时燃烧所有收益，迫使驗證者轉型。',
         ),
-      ).x.text,
+      ).short!.text,
     ).toBe(
       '以太坊提出EIP-8363提案：當質押率達50%時燃燒所有收益，迫使驗證者轉型。',
     );
@@ -479,20 +535,21 @@ describe('parseGeneratedSocialCopy', () => {
         JSON.stringify({
           topic: 'eth',
           hookType: 'explainer',
-          x: { text: '有效文案' },
+          short: { text: '有效文案' },
           rednote: {
             title: '標題',
             body: '正文內容',
             hashtags: ['以太坊', '质押', '加密货币'],
           },
         }),
-      ).rednote.hashtags,
+      ).rednote!.hashtags,
     ).toEqual(['以太坊', '質押', '加密貨幣']);
   });
 
   it('normalizes wording to the Taiwan phrase set', () => {
     expect(
-      parseGeneratedSocialCopy(socialCopyJson('以太坊社區在台灣的討論')).x.text,
+      parseGeneratedSocialCopy(socialCopyJson('以太坊社區在台灣的討論')).short!
+        .text,
     ).toBe('以太坊社群在臺灣的討論');
   });
 
@@ -502,7 +559,7 @@ describe('parseGeneratedSocialCopy', () => {
         JSON.stringify({
           topic: 'eth',
           hookType: 'question',
-          x: { text: '有效文案' },
+          short: { text: '有效文案' },
           rednote: {
             title: '這個標題實在太長了根本塞不進小紅書的欄位裡面',
             body: '正文內容',
@@ -525,7 +582,7 @@ describe('parseGeneratedSocialCopy', () => {
         JSON.stringify({
           topic: 'eth',
           hookType: 'risk_warning',
-          x: { text: 'staking burn' },
+          short: { text: 'staking burn' },
           rednote: {
             title: 'qual Poo 燃換 LE?',
             body: 'ekom buscando 燃燒',
@@ -539,13 +596,13 @@ describe('parseGeneratedSocialCopy', () => {
   it('rejects Rednote moderation-risk wording in the title, body or a hashtag', () => {
     for (const mutate of [
       (payload: GeneratedSocialCopy) => {
-        payload.rednote.title = '穩賺不賠的支付紅利';
+        payload.rednote!.title = '穩賺不賠的支付紅利';
       },
       (payload: GeneratedSocialCopy) => {
-        payload.rednote.body = '加我微信就能拿到內幕消息';
+        payload.rednote!.body = '加我微信就能拿到內幕消息';
       },
       (payload: GeneratedSocialCopy) => {
-        payload.rednote.hashtags = ['支付產業', '財富自由', '市場結構'];
+        payload.rednote!.hashtags = ['支付產業', '財富自由', '市場結構'];
       },
     ]) {
       const payload = JSON.parse(
@@ -564,7 +621,7 @@ describe('parseGeneratedSocialCopy', () => {
         JSON.stringify({
           topic: 'eth',
           hookType: 'explainer',
-          x: { text: 'x copy' },
+          short: { text: 'x copy' },
           rednote: { body: 'body', hashtags: ['a', 'b', 'c'] },
         }),
       ),
@@ -577,7 +634,7 @@ describe('parseGeneratedSocialCopy', () => {
         JSON.stringify({
           topic: 'eth',
           hookType: 'explainer',
-          x: { text: '' },
+          short: { text: '' },
           rednote: { title: 'title', body: 'body', hashtags: ['a', 'b', 'c'] },
         }),
       ),

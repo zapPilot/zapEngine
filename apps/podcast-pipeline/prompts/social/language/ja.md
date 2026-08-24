@@ -1,0 +1,1 @@
+Write every published field in natural Japanese. Use Japanese sentence structure and kana; do not return Chinese prose with a few Japanese words added. Established English financial terms may remain when natural for a Japanese audience.

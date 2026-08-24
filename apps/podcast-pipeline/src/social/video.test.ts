@@ -19,11 +19,11 @@ const VIDEO_URL = 'https://media.example.com/video.mp4';
 const SECOND_VIDEO_URL = 'https://media.example.com/video-v2.mp4';
 const OUTPUT_PATH = join(
   DIRECTORY,
-  `episode-${EPISODE_ID}-${socialVideoCacheIdentity(VIDEO_URL)}-zh.mp4`,
+  `episode-${EPISODE_ID}-${socialVideoCacheIdentity(VIDEO_URL)}-zh-Hant.mp4`,
 );
 const SECOND_OUTPUT_PATH = join(
   DIRECTORY,
-  `episode-${EPISODE_ID}-${socialVideoCacheIdentity(SECOND_VIDEO_URL)}-zh.mp4`,
+  `episode-${EPISODE_ID}-${socialVideoCacheIdentity(SECOND_VIDEO_URL)}-zh-Hant.mp4`,
 );
 const TEMPORARY_PATH = `${OUTPUT_PATH}.tmp-${process.pid}`;
 const SECOND_TEMPORARY_PATH = `${SECOND_OUTPUT_PATH}.tmp-${process.pid}`;

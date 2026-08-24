@@ -30,8 +30,10 @@ CAS/lease write loses the race, the next tick must still re-check persisted
 ## Recovery invariants
 
 1. Run unfinished-job reconciliation before `claimSocialPublishBatch()`.
-2. When an existing `(episode, platform)` post is found, repair/complete the job;
-   never call `runSocialCli` for that job.
+2. Post and job identity is `(episode, platform, language)`. When an existing
+   post with that exact identity is found, repair/complete the job; evidence for
+   one language must never complete or suppress a sibling-language job, and the
+   daemon must never call platform transport for the matching job.
 3. A failed reconciliation lookup must not disable duplicate protection in the
    publish stage: a claimed job still checks `social_posts` before publishing.
 4. `reconcileSocialPublishJob()` returning `false` is a CAS miss, not permission
@@ -51,7 +53,7 @@ pnpm turbo run test --filter=@zapengine/podcast-pipeline
 At minimum, assert the affected case proves all of these:
 
 - reconciliation happens before retry claim when both are available;
-- existing post identity prevents `runSocialCli`;
+- existing post identity prevents `publishSocialBatch`;
 - CAS miss / lease loss can survive into another tick without duplicate publish;
 - the latest durable job state can still converge to completed.
 

@@ -14,6 +14,7 @@ import {
   type VideoProcessRunner,
 } from '../services/video/ffmpeg-video.js';
 import { OUTRO_TAIL_MS } from '../services/video/manifest.js';
+import type { SocialLanguageCode } from './types.js';
 
 const SOCIAL_TEMP_DIR = join(tmpdir(), 'zap-pilot-social');
 export const X_VIDEO_LIMIT_SECONDS = 140;
@@ -36,6 +37,7 @@ export function socialVideoCacheIdentity(value: string): string {
 
 export async function prepareSocialVideo(input: {
   episodeId: string;
+  languageCode?: SocialLanguageCode;
   url: string;
 }): Promise<PreparedVideo> {
   await mkdir(SOCIAL_TEMP_DIR, { recursive: true });
@@ -43,7 +45,7 @@ export async function prepareSocialVideo(input: {
   const sourceIdentity = socialVideoCacheIdentity(input.url);
   const outputPath = join(
     SOCIAL_TEMP_DIR,
-    `episode-${safeEpisodeId}-${sourceIdentity}-zh.mp4`,
+    `episode-${safeEpisodeId}-${sourceIdentity}-${input.languageCode ?? 'zh-Hant'}.mp4`,
   );
   const cached = await reusablePreparedVideo(outputPath);
   if (cached) return cached;

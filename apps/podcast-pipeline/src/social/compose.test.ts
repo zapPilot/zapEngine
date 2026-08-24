@@ -6,7 +6,7 @@ import type { GeneratedSocialCopy, SocialEpisode } from './types.js';
 const copy: GeneratedSocialCopy = {
   topic: 'macro',
   hookType: 'question',
-  x: { text: '利率轉向了嗎？' },
+  short: { text: '利率轉向了嗎？' },
   rednote: {
     title: '利率真的轉向？',
     body: '這集拆解了三個訊號。',

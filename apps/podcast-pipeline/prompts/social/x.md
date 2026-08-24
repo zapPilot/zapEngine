@@ -7,7 +7,7 @@ Ideal structure:
 1. Hook.
 2. Optional one or two sentence explanation.
 
-Avoid generic episode announcements. Prefer roughly 40 to 100 Traditional Chinese characters, but do not pad copy merely to reach a target length.
+Avoid generic episode announcements. Prefer one compact hook and no more than two short explanatory sentences; do not pad copy merely to reach a target length.
 
 Use zero to two hashtags. Zero is often best.
 

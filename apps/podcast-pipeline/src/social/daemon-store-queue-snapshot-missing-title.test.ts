@@ -85,16 +85,19 @@ describe('getSocialQueueSnapshot missing localization titles', () => {
       episodeQueue: [
         {
           episodeId: 'episode-titled',
+          languageCode: 'zh-Hant',
           title: 'Titled episode',
           nextAt: '2026-08-21T09:00:00.000Z',
         },
         {
           episodeId: 'episode-missing-title',
+          languageCode: 'zh-Hant',
           title: null,
           nextAt: '2026-08-21T10:00:00.000Z',
         },
         {
           episodeId: 'episode-null-title',
+          languageCode: 'zh-Hant',
           title: null,
           nextAt: '2026-08-21T13:00:00.000Z',
         },
@@ -102,6 +105,7 @@ describe('getSocialQueueSnapshot missing localization titles', () => {
       nextByPlatform: {
         threads: {
           episodeId: 'episode-titled',
+          languageCode: 'zh-Hant',
           platform: 'threads',
           status: 'processing',
           title: 'Titled episode',
@@ -109,6 +113,7 @@ describe('getSocialQueueSnapshot missing localization titles', () => {
         },
         x: {
           episodeId: 'episode-missing-title',
+          languageCode: 'zh-Hant',
           platform: 'x',
           status: 'failed',
           title: null,

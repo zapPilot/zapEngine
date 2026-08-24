@@ -1,17 +1,17 @@
 # Social publishing
 
-`src/social` is the local social automation stack for completed canonical
-Chinese podcast episodes. The long-lived `social:daemon` process discovers new
+`src/social` is the local multilingual social automation stack for completed
+podcast localizations. The long-lived `social:daemon` process discovers new
 videos, schedules and publishes native media to X, Threads, Rednote, and YouTube,
 collects standardized metric snapshots, and refreshes versioned strategy
 preferences from those results.
 
 The normal operating model is deliberately simple:
 
-1. the podcast pipeline finishes the canonical `zh-Hant` video and stores it on
-   the public media URL;
-2. `social:daemon` discovers the completed episode and enqueues one durable job
-   per platform;
+1. the podcast pipeline finishes the `zh-Hant`, `ja`, and `en` videos and stores
+   each at its localization's public media URL;
+2. `social:daemon` discovers each completed localization and enqueues durable
+   jobs identified by `(episode, platform, language)` according to policy;
 3. due jobs generate copy with the currently active strategy and publish native
    media;
 4. successful posts are persisted to `social_posts`;
@@ -54,8 +54,8 @@ For manual recovery, smoke testing, or one-off diagnostics, call the granular
 package commands explicitly:
 
 ```bash
-pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --dry-run
-pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --platform threads
+pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --language ja --dry-run
+pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --language ja --platform threads
 pnpm --filter @zapengine/podcast-pipeline social:metrics '<episode>' --platform threads
 ```
 
@@ -63,17 +63,16 @@ Known limitation: these do not take the daemon's pid lock, so running one that
 drives a browser while the daemon is live can still collide on a shared Chrome
 profile. Stop the daemon first.
 
-Before the first daemon run, apply Supabase migrations
-`029_add_social_daemon.sql`, `032_add_social_post_review_status.sql`, and
-`033_add_social_account_snapshots.sql`. The daemon records its first-start timestamp and only
-discovers canonical videos completed at or after that durable anchor, so enabling
-it does not backfill old episodes. Jobs created after that point survive Mac
-restarts and are claimed with an expiring owner lease.
+Before enabling multilingual distribution, the operator must apply
+`20260824090000_social_multilingual_distribution.sql` in the same maintenance
+window as the daemon code update. The daemon records its first-start timestamp
+and policy activation timestamps prevent old episodes from being backfilled.
+Jobs survive Mac restarts and are claimed with an expiring owner lease.
 
-The daemon polls once per minute. It spreads new episodes across four daily
-per-platform JST publish slots (9:30 / 12:00 / 14:30 / 17:00, identical for
-every platform) so publishing always happens inside the local work window while
-the Mac is on. It runs one due publish job at a time, records metric snapshots
+The daemon polls once per minute. It spreads new episodes across four daily JST
+publish slots (9:30 / 12:00 / 14:30 / 17:00); platforms in one language batch
+share a slot, while two languages from the same episode are separated by at
+least two hours. It runs one due language batch at a time, records metric snapshots
 in the current `1h` / `6h` / `24h` / `72h` / `7d` age bucket, and periodically
 refreshes versioned strategy preferences from standardized 24-hour performance.
 Publish hours are deliberately fixed and never learned: strategy learning only
@@ -171,8 +170,12 @@ login time, and the resulting refresh token is stored outside the repository at:
 ```
 
 The upload transport uses the YouTube Data API resumable-upload endpoint and
-publishes the existing canonical `zh-Hant` MP4 as one public video. It does not
-render a second YouTube-specific video and does not attempt multi-language audio.
+publishes the existing `en` and `ja` localization MP4s as two independent public
+videos. Each upload carries matching `defaultLanguage` and
+`defaultAudioLanguage`; `zh-Hant` is paused by policy. YouTube charges 1,600
+quota units per `videos.insert`, so the default 10,000-unit daily quota permits
+about six uploads (roughly three two-language episodes) before an operator must
+wait for quota reset or obtain a higher quota.
 
 Google may force uploads from an unaudited YouTube Data API project to remain
 private even when the request asks for `public`. If the first smoke upload stays
@@ -204,7 +207,7 @@ Daemon uploads are always `public`. `social:publish` accepts
 what a smoke test of a changed upload path should use:
 
 ```bash
-pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --platform youtube --youtube-privacy unlisted
+pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --language en --platform youtube --youtube-privacy unlisted
 ```
 
 The override is echoed in the review preview so it cannot be silently forgotten,
@@ -223,7 +226,7 @@ recognized as authenticated.
 
 X no longer posts an episode URL as the primary media.
 
-For a canonical video at or below 140 seconds, X reuses the full MP4. For a
+For the assigned language video at or below 140 seconds, X reuses the full MP4. For a
 longer episode, `prepareXTeaserVideo()` creates a deterministic teaser:
 
 ```text
@@ -255,9 +258,9 @@ publishes, and confirms navigation/success before returning `published`.
 
 ### Threads: native teaser video
 
-Threads publishes a platform-safe teaser rather than the canonical full podcast
-MP4. When X already prepared the teaser, Threads reuses that artifact; otherwise
-Threads can download the canonical source, render the same deterministic teaser,
+Threads publishes a platform-safe teaser from the Japanese video rather than the
+full podcast MP4. When X already prepared the same-language teaser, Threads
+reuses that artifact; otherwise Threads can download the Japanese source, render the same deterministic teaser,
 and upload it to R2 itself. The Meta container always receives the resulting
 public HTTPS teaser URL.
 
@@ -286,7 +289,7 @@ processing and returned `ERROR: UNKNOWN`.
 
 ### Rednote: native full video
 
-Rednote continues to download the canonical Chinese MP4 locally and upload the
+Rednote continues to download the `zh-Hant` MP4 locally and upload the
 full video through Playwright. The CLI warns when a video is above the general
 15-minute limit but still lets the platform make the final decision.
 
@@ -305,15 +308,22 @@ topics.
 
 ## Platform publishing policy
 
-Per-platform CTA and video-release policy lives in `src/social/platforms.ts`.
-The current policy is:
+Language allocation lives in `src/social/policy.ts`; CTA and video mode live in
+`src/social/platforms.ts`. The current policy is:
 
-| Platform | Text CTA          | Video mode |
-| -------- | ----------------- | ---------- |
-| X        | Zap Pilot website | teaser     |
-| Threads  | Zap Pilot website | teaser     |
-| Rednote  | none              | full       |
-| YouTube  | Zap Pilot website | full       |
+| Platform | Language allocation               | Text CTA                    | Video mode |
+| -------- | --------------------------------- | --------------------------- | ---------- |
+| X        | `en`/`ja` 50/50 (`x-language-v1`) | localized Zap Pilot website | teaser     |
+| Threads  | `ja`                              | Japanese Zap Pilot website  | teaser     |
+| Rednote  | `zh-Hant`                         | none                        | full       |
+| YouTube  | `en` + `ja`                       | localized Zap Pilot website | full       |
+
+X's assignment is inserted once and then read back from
+`social_experiment_assignments`; that persisted row is authoritative. If the
+assigned language video never becomes ready, no X job is materialized. X browser
+automation therefore uses one account for mixed `en`/`ja` posts; monitor account
+quality and platform enforcement rather than silently falling back to the other
+language.
 
 Rednote deliberately forbids website URLs/off-platform CTA in generated copy as
 well as disabling the fixed CTA at publish time, so a model response cannot
@@ -324,14 +334,16 @@ accidentally reintroduce the review-triggering website promotion.
 `src/social/compose.ts` owns the whole mapping from one generated copy to what a
 platform receives:
 
-| Platform | Title field           | Body                    | Hashtags |
-| -------- | --------------------- | ----------------------- | -------- |
-| X        | none                  | `x.text` + brand CTA    | none     |
-| Threads  | none                  | same wording as X       | none     |
-| Rednote  | `rednote.title`       | `rednote.body`, no CTA  | 3-5      |
-| YouTube  | episode title (≤ 100) | episode summary (≤4500) | none     |
+| Platform | Title field           | Body                               | Hashtags |
+| -------- | --------------------- | ---------------------------------- | -------- |
+| X        | none                  | `short.text` + localized brand CTA | none     |
+| Threads  | none                  | `short.text` + localized brand CTA | none     |
+| Rednote  | `rednote.title`       | `rednote.body`, no CTA             | 3-5      |
+| YouTube  | episode title (≤ 100) | episode summary (≤4500)            | none     |
 
-Publishing (`publishers.ts`), telemetry (`record.ts`), and the review preview
+The copy generator requests only the blocks needed by the language batch. A
+YouTube-only batch still performs one LLM call for `topic`/`hookType`, but its
+schema has no `short` or `rednote` field. Publishing (`publishers.ts`), telemetry (`record.ts`), and the review preview
 (`cli.ts`) all read it from there, so they cannot disagree about which field
 carries the hook title or where the CTA goes — each used to hold its own copy of
 this table, and the YouTube CTA string existed in three places.
@@ -439,14 +451,14 @@ The text CTA is unaffected and uses the current destination immediately.
 
 `platforms.ts` distinguishes platforms that require a local video file:
 
-| Platform | Local MP4 required | Published media                               |
-| -------- | ------------------ | --------------------------------------------- |
-| X        | yes                | teaser (full MP4 only when already <= 140s)   |
-| Threads  | no                 | teaser prepared from the canonical public URL |
-| Rednote  | yes                | local canonical full MP4                      |
-| YouTube  | yes                | local canonical full MP4                      |
+| Platform | Local MP4 required | Published media                              |
+| -------- | ------------------ | -------------------------------------------- |
+| X        | yes                | teaser (full MP4 only when already <= 140s)  |
+| Threads  | no                 | teaser prepared from the language public URL |
+| Rednote  | yes                | local `zh-Hant` full MP4                     |
+| YouTube  | yes                | local `en` or `ja` full MP4                  |
 
-When publishing all platforms, the canonical MP4 is downloaded at most once. X
+Within one language batch, the localization MP4 is downloaded at most once. X
 derives the reusable teaser from that local file, Threads can reuse the same
 teaser through its public R2 upload, and Rednote/YouTube reuse the full local
 file. Changing `videoMode` in `platforms.ts` switches the release policy without
@@ -479,9 +491,10 @@ Successful posts are recorded in:
 ~/.zap-pilot/social-publisher.json
 ```
 
-The state key intentionally retains the historical `zh` language key even
-though publishing is canonical-Chinese-only. This keeps old state compatible so
-previously published episodes are not reposted after the language simplification.
+The state key intentionally retains historical `zh` as the `zh-Hant` alias;
+Japanese and English use `ja` and `en`. Reconciliation iterates all three keys,
+and duplicate identity always includes language so one YouTube localization can
+never suppress or complete the other.
 
 If a platform succeeds but saving duplicate state fails, the CLI exits non-zero
 and tells the operator that the post is already live. Verify and repair local

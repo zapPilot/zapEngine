@@ -7,6 +7,7 @@ import type {
   GeneratedSocialCopy,
   PublishResult,
   SocialContentFeatures,
+  SocialLanguageCode,
   SocialPlatform,
 } from './types.js';
 import { xTeaserDurationSeconds } from './video.js';
@@ -22,6 +23,9 @@ export interface SocialCopySnapshot {
 
 export interface PublishedSocialPost {
   platform: SocialPlatform;
+  languageCode?: SocialLanguageCode;
+  experimentKey?: string | null;
+  experimentVariant?: string | null;
   result: PublishResult;
 }
 
@@ -43,6 +47,9 @@ export function buildContentFeatures(input: {
 export function buildSocialPostRecord(input: {
   episodeId: string;
   platform: SocialPlatform;
+  languageCode?: SocialLanguageCode;
+  experimentKey?: string | null;
+  experimentVariant?: string | null;
   result: PublishResult;
   snapshot: SocialCopySnapshot;
   episode: SocialComposeEpisode;
@@ -65,6 +72,9 @@ export function buildSocialPostRecord(input: {
   return {
     episodeId: input.episodeId,
     platform: input.platform,
+    languageCode: input.languageCode ?? 'zh-Hant',
+    experimentKey: input.experimentKey ?? null,
+    experimentVariant: input.experimentVariant ?? null,
     postUrl: input.platform === 'rednote' ? null : (input.result.url ?? null),
     platformPostId:
       input.platform === 'rednote' ? null : (input.result.postId ?? null),
@@ -105,6 +115,13 @@ function publishedVideoDuration(
 
 export function createSocialPostPersister(input: {
   episodeId: string;
+  languageCode?: SocialLanguageCode;
+  experimentByPlatform?: Partial<
+    Record<
+      SocialPlatform,
+      { experimentKey: string | null; experimentVariant: string | null }
+    >
+  >;
   snapshot: SocialCopySnapshot;
   episode: SocialComposeEpisode;
   videoDurationSeconds: number;
@@ -119,6 +136,8 @@ export function createSocialPostPersister(input: {
     const record = buildSocialPostRecord({
       episodeId: input.episodeId,
       platform,
+      languageCode: input.languageCode,
+      ...input.experimentByPlatform?.[platform],
       result,
       snapshot: input.snapshot,
       episode: input.episode,

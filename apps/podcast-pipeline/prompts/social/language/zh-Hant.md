@@ -1,0 +1,1 @@
+Write every published field in natural Traditional Chinese used in Taiwan. Do not drift into Simplified Chinese or another language. English financial terms may appear only when they are the clearest established term.

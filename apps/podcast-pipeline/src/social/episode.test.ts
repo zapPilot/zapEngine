@@ -107,7 +107,8 @@ describe('buildSocialEpisode', () => {
       description: '來源文章內容',
       transcript: '完整 podcast 講稿',
       videoDurationSeconds: 173,
-      videos: { zh: 'https://cdn.example/video.mp4' },
+      languageCode: 'zh-Hant',
+      videoUrl: 'https://cdn.example/video.mp4',
     });
     expect(result.episodeUrl).toBe(
       `https://podcast.example/base/e/${EPISODE_ID}?lang=zh-Hant`,
@@ -121,7 +122,7 @@ describe('buildSocialEpisode', () => {
         localization,
         video: null,
       }),
-    ).toThrow(`No completed zh video found for episode ${EPISODE_ID}`);
+    ).toThrow(`No completed zh-Hant video found for episode ${EPISODE_ID}`);
   });
 
   it('falls back to transcript summary and source title when optional localization fields are missing', () => {
@@ -184,7 +185,7 @@ describe('buildSocialEpisode', () => {
           durationSeconds: 173,
         },
       }),
-    ).toThrow('has no completed zh transcript');
+    ).toThrow('has no completed zh-Hant transcript');
 
     expect(() =>
       buildSocialEpisode({
@@ -196,7 +197,7 @@ describe('buildSocialEpisode', () => {
           durationSeconds: 173,
         },
       }),
-    ).toThrow('has no completed zh transcript');
+    ).toThrow('has no completed zh-Hant transcript');
   });
 
   it('bounds long social summaries without truncating the transcript', () => {
@@ -248,7 +249,7 @@ describe('getSocialEpisode', () => {
     });
 
     await expect(getSocialEpisode(EPISODE_ID)).rejects.toThrow(
-      `No completed zh localization found for episode ${EPISODE_ID}`,
+      `No completed zh-Hant localization found for episode ${EPISODE_ID}`,
     );
     expect(
       dbMocks.listEpisodeVideoSummariesByLocalizationIds,
@@ -275,7 +276,7 @@ describe('getSocialEpisode', () => {
     });
 
     await expect(getSocialEpisode(EPISODE_ID)).rejects.toThrow(
-      `No completed zh video found for episode ${EPISODE_ID}`,
+      `No completed zh-Hant video found for episode ${EPISODE_ID}`,
     );
   });
 
@@ -326,7 +327,8 @@ describe('getSocialEpisode', () => {
       id: EPISODE_ID,
       title: '真正的標題',
       videoDurationSeconds: 173,
-      videos: { zh: 'https://cdn.example/video.mp4' },
+      languageCode: 'zh-Hant',
+      videoUrl: 'https://cdn.example/video.mp4',
     });
   });
 });

@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
   getActiveSocialStrategies: vi.fn(),
   getSocialQueueSnapshot: vi.fn(),
   latestScheduledSocialJobs: vi.fn(),
+  listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
   listLearningSocialPosts: vi.fn(),
+  listLearningSocialMetrics: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
   listUnfinishedSocialPublishJobs: vi.fn(),
@@ -21,13 +23,14 @@ const mocks = vi.hoisted(() => ({
   listSocialPostsByEpisode: vi.fn(),
   updateSocialPostIdentity: vi.fn(),
   updateSocialPostReviewStatus: vi.fn(),
-  runSocialCli: vi.fn(),
+  publishSocialBatch: vi.fn(),
   createMetricCollectors: vi.fn(),
   createMetricsBrowserSession: vi.fn(),
   closeMetricsBrowserSession: vi.fn(),
   collectX: vi.fn(),
   refreshSocialStrategies: vi.fn(),
   captureDueAccountSnapshots: vi.fn(),
+  getOrCreateExperimentAssignment: vi.fn(),
 }));
 
 vi.mock('./daemon-store.js', () => ({
@@ -50,7 +53,9 @@ vi.mock('./daemon-store.js', () => ({
     const values = Object.values(schedules).sort();
     return values.at(-1) ?? null;
   },
+  listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
+  listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
@@ -69,7 +74,9 @@ vi.mock('../services/db.js', () => ({
 vi.mock('./account-snapshots.js', () => ({
   captureDueAccountSnapshots: mocks.captureDueAccountSnapshots,
 }));
-vi.mock('./cli.js', () => ({ runSocialCli: mocks.runSocialCli }));
+vi.mock('./publish-batch.js', () => ({
+  publishSocialBatch: mocks.publishSocialBatch,
+}));
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
   createMetricsBrowserSession: mocks.createMetricsBrowserSession,
@@ -77,6 +84,10 @@ vi.mock('./metric-collectors.js', () => ({
 vi.mock('./strategy.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./strategy.js')>()),
   refreshSocialStrategies: mocks.refreshSocialStrategies,
+}));
+vi.mock('./experiments.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./experiments.js')>()),
+  getOrCreateExperimentAssignment: mocks.getOrCreateExperimentAssignment,
 }));
 
 import type { SocialPostRow } from '../types.js';
@@ -154,12 +165,29 @@ beforeEach(() => {
     nextByPlatform: {},
   });
   mocks.latestScheduledSocialJobs.mockResolvedValue({});
+  mocks.listPendingSocialPublishSchedules.mockResolvedValue([]);
+  mocks.getOrCreateExperimentAssignment.mockImplementation(
+    ({
+      experimentKey,
+      episodeId,
+    }: {
+      experimentKey: string;
+      episodeId: string;
+    }) =>
+      Promise.resolve({
+        experiment_key: experimentKey,
+        episode_id: episodeId,
+        variant: 'ja',
+        assigned_at: '2026-08-24T00:00:00.000Z',
+      }),
+  );
   mocks.claimSocialPublishJob.mockResolvedValue(null);
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
   mocks.reconcileSocialPublishJob.mockResolvedValue(true);
   mocks.skipOverdueSocialPublishJobs.mockResolvedValue(0);
   mocks.listSocialPostsByEpisode.mockResolvedValue([]);
   mocks.listLearningSocialPosts.mockResolvedValue([]);
+  mocks.listLearningSocialMetrics.mockResolvedValue([]);
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);
   mocks.enqueueSocialPublishJob.mockResolvedValue(true);
   mocks.ensureSocialDaemonStart.mockResolvedValue('2026-08-16T08:00:00.000Z');
@@ -212,7 +240,12 @@ describe('social publish overdue configuration', () => {
 describe('social daemon', () => {
   it('reconciles and discovers before skipping overdue jobs and claiming publish work', async () => {
     mocks.listSocialPublishCandidates.mockResolvedValue([
-      { episode_id: EPISODE_ID, ready_at: '2026-08-16T00:00:00.000Z' },
+      {
+        episode_id: EPISODE_ID,
+        ready_at: '2026-08-16T00:00:00.000Z',
+        language_code: 'zh-Hant',
+        episode_created_at: '2026-08-24T00:00:00.000Z',
+      },
     ]);
     mocks.skipOverdueSocialPublishJobs.mockResolvedValue(4);
     const log = vi.fn();
@@ -241,7 +274,7 @@ describe('social daemon', () => {
     expect(
       mocks.skipOverdueSocialPublishJobs.mock.invocationCallOrder[0],
     ).toBeLessThan(mocks.claimSocialPublishJob.mock.invocationCallOrder[0]!);
-    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
       '[social-daemon] skipped 4 overdue publish jobs (60m grace; cutoff 2026-08-16T09:00:00.000Z).',
     );
@@ -261,7 +294,7 @@ describe('social daemon', () => {
     });
 
     expect(mocks.claimSocialPublishJob).not.toHaveBeenCalled();
-    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
     expect(mocks.listLearningSocialPosts).toHaveBeenCalled();
     expect(mocks.captureDueAccountSnapshots).toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
@@ -271,7 +304,7 @@ describe('social daemon', () => {
 
   it('keeps publishing due jobs within the configured grace period', async () => {
     mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
-    mocks.runSocialCli.mockResolvedValue([
+    mocks.publishSocialBatch.mockResolvedValue([
       { platform: 'x', status: 'published', url: 'https://x.com/zap/status/1' },
     ]);
     mocks.listSocialPostsByEpisode
@@ -285,7 +318,7 @@ describe('social daemon', () => {
     });
 
     expect(mocks.skipOverdueSocialPublishJobs).toHaveBeenCalled();
-    expect(mocks.runSocialCli).toHaveBeenCalledOnce();
+    expect(mocks.publishSocialBatch).toHaveBeenCalledOnce();
   });
 
   it('does not publish skipped work on later ticks', async () => {
@@ -303,12 +336,17 @@ describe('social daemon', () => {
 
     expect(mocks.skipOverdueSocialPublishJobs).toHaveBeenCalledTimes(2);
     expect(mocks.claimSocialPublishJob).toHaveBeenCalledTimes(2);
-    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
   });
 
   it('discovers new episodes, publishes one due job, and refreshes learning without backfilling before the durable start', async () => {
     mocks.listSocialPublishCandidates.mockResolvedValue([
-      { episode_id: EPISODE_ID, ready_at: '2026-08-16T09:00:00.000Z' },
+      {
+        episode_id: EPISODE_ID,
+        ready_at: '2026-08-16T09:00:00.000Z',
+        language_code: 'zh-Hant',
+        episode_created_at: '2026-08-24T00:00:00.000Z',
+      },
     ]);
     mocks.claimSocialPublishJob.mockResolvedValue({
       id: 'job-1',
@@ -327,7 +365,7 @@ describe('social daemon', () => {
       created_at: '2026-08-16T09:00:00.000Z',
       updated_at: '2026-08-16T10:00:00.000Z',
     });
-    mocks.runSocialCli.mockResolvedValue([
+    mocks.publishSocialBatch.mockResolvedValue([
       { platform: 'x', status: 'published', url: 'https://x.com/zap/status/1' },
     ]);
     mocks.listSocialPostsByEpisode
@@ -345,16 +383,15 @@ describe('social daemon', () => {
     expect(mocks.listSocialPublishCandidates).toHaveBeenCalledWith(
       '2026-08-16T08:00:00.000Z',
     );
-    expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(4);
+    expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(1);
     expect(log).toHaveBeenCalledWith(
-      `[social-daemon] discovered episode ${EPISODE_ID}; ready at 2026-08-16T09:00:00.000Z.`,
+      `[social-daemon] discovered zh-Hant episode ${EPISODE_ID}; ready at 2026-08-16T09:00:00.000Z.`,
     );
     expect(log).toHaveBeenCalledWith(
-      `[social-daemon] queued x for ${EPISODE_ID} at 2026-08-17T00:30:00.000Z.`,
+      `[social-daemon] queued rednote/zh-Hant for ${EPISODE_ID} at 2026-08-17T00:30:00.000Z.`,
     );
-    expect(mocks.runSocialCli).toHaveBeenCalledWith(
-      [EPISODE_ID, '--yes', '--platform', 'x'],
-      expect.objectContaining({ setExitCodeOnFailure: false }),
+    expect(mocks.publishSocialBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ episodeId: EPISODE_ID }),
     );
     expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
       jobId: 'job-1',
@@ -365,6 +402,41 @@ describe('social daemon', () => {
     expect(mocks.refreshSocialStrategies).toHaveBeenCalledWith(
       expect.objectContaining({ now: NOW }),
     );
+  });
+
+  it('keeps a two-hour floor between sibling-language schedules', async () => {
+    const siblingScheduledAt = '2026-08-25T00:30:00.000Z';
+    mocks.listSocialPublishCandidates.mockResolvedValue([
+      {
+        episode_id: EPISODE_ID,
+        ready_at: '2026-08-25T00:00:00.000Z',
+        language_code: 'ja',
+        episode_created_at: '2026-08-24T00:00:00.000Z',
+      },
+    ]);
+    mocks.listPendingSocialPublishSchedules.mockResolvedValue([
+      {
+        episode_id: EPISODE_ID,
+        language_code: 'en',
+        scheduled_at: siblingScheduledAt,
+        completed_at: siblingScheduledAt,
+        status: 'completed',
+      },
+    ]);
+
+    await runSocialDaemonTick({
+      now: new Date('2026-08-25T00:15:00.000Z'),
+      firstStartedAt: '2026-08-24T00:00:00.000Z',
+      log: vi.fn(),
+    });
+
+    const scheduledTimes = mocks.enqueueSocialPublishJob.mock.calls.map(
+      ([input]) => Date.parse(input.scheduledAt),
+    );
+    expect(scheduledTimes.length).toBeGreaterThan(0);
+    expect(
+      Math.min(...scheduledTimes) - Date.parse(siblingScheduledAt),
+    ).toBeGreaterThanOrEqual(2 * 60 * 60_000);
   });
 
   it('backs off a failed publish without preventing the rest of the tick', async () => {
@@ -385,7 +457,7 @@ describe('social daemon', () => {
       created_at: '2026-08-16T09:00:00.000Z',
       updated_at: '2026-08-16T10:00:00.000Z',
     });
-    mocks.runSocialCli.mockResolvedValue([
+    mocks.publishSocialBatch.mockResolvedValue([
       { platform: 'threads', status: 'failed', error: new Error('Meta down') },
     ]);
 
@@ -429,7 +501,7 @@ describe('social daemon', () => {
       socialPostId: 'post-youtube',
       completedAt: NOW,
     });
-    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
     expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
       `[social-daemon] reconciled youtube for ${EPISODE_ID} - already published (post-youtube).`,
@@ -459,7 +531,7 @@ describe('social daemon', () => {
       socialPostId: 'post-manual',
       completedAt: NOW,
     });
-    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
   });
 
   it('leaves a failed job alone when nothing was published, and ignores a lost reconcile race', async () => {
@@ -513,7 +585,7 @@ describe('social daemon', () => {
       log,
     });
 
-    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
     expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
       jobId: 'job-crashed',
       owner: expect.any(String),
@@ -662,10 +734,10 @@ describe('social daemon', () => {
       '[social-daemon]   2. “AI安全之爭：集中控制與分散競爭誰更危險？” — first publish 08/16 19:35 JST (in 35m).',
     );
     expect(log).toHaveBeenCalledWith(
-      '[social-daemon] next x: “穩定幣真實使用場景：境內交易佔六成，亞太地區成最大市場” at 08/16 19:05 JST (in 5m; queued).',
+      '[social-daemon] next x/zh-Hant: “穩定幣真實使用場景：境內交易佔六成，亞太地區成最大市場” at 08/16 19:05 JST (in 5m; queued).',
     );
     expect(log).toHaveBeenCalledWith(
-      '[social-daemon] next threads: “穩定幣真實使用場景” at 08/16 19:15 JST (in 15m; queued).',
+      '[social-daemon] next threads/zh-Hant: “穩定幣真實使用場景” at 08/16 19:15 JST (in 15m; queued).',
     );
   });
 
@@ -686,8 +758,18 @@ describe('social daemon', () => {
 
   it('skips invalid candidates, keeps rolling slots only for inserted jobs, and queues without a strategy version', async () => {
     mocks.listSocialPublishCandidates.mockResolvedValue([
-      { episode_id: 'bad', ready_at: 'not-a-date' },
-      { episode_id: EPISODE_ID, ready_at: '2026-08-16T11:00:00.000Z' },
+      {
+        episode_id: 'bad',
+        ready_at: 'not-a-date',
+        language_code: 'zh-Hant',
+        episode_created_at: '2026-08-24T00:00:00.000Z',
+      },
+      {
+        episode_id: EPISODE_ID,
+        ready_at: '2026-08-16T11:00:00.000Z',
+        language_code: 'zh-Hant',
+        episode_created_at: '2026-08-24T00:00:00.000Z',
+      },
     ]);
     mocks.latestScheduledSocialJobs.mockResolvedValue({
       x: '2026-08-16T10:05:00.000Z',
@@ -701,7 +783,7 @@ describe('social daemon', () => {
       firstStartedAt: '2026-08-16T08:00:00.000Z',
     });
 
-    expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(4);
+    expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(1);
     // Stamping a version at enqueue is what left early jobs permanently
     // unguided; the payload must stay free of it.
     for (const [input] of mocks.enqueueSocialPublishJob.mock.calls) {
@@ -712,8 +794,18 @@ describe('social daemon', () => {
   it('discovers stale candidates after a restart and schedules them into the remaining slots for today instead of tomorrow', async () => {
     const SECOND_EPISODE_ID = '223e4567-e89b-42d3-a456-426614174001';
     mocks.listSocialPublishCandidates.mockResolvedValue([
-      { episode_id: EPISODE_ID, ready_at: '2026-08-10T00:00:00.000Z' },
-      { episode_id: SECOND_EPISODE_ID, ready_at: '2026-08-11T00:00:00.000Z' },
+      {
+        episode_id: EPISODE_ID,
+        ready_at: '2026-08-10T00:00:00.000Z',
+        language_code: 'zh-Hant',
+        episode_created_at: '2026-08-24T00:00:00.000Z',
+      },
+      {
+        episode_id: SECOND_EPISODE_ID,
+        ready_at: '2026-08-11T00:00:00.000Z',
+        language_code: 'zh-Hant',
+        episode_created_at: '2026-08-24T00:00:00.000Z',
+      },
     ]);
 
     await runSocialDaemonTick({
@@ -726,13 +818,14 @@ describe('social daemon', () => {
     );
     expect(
       calls.find(
-        (input) => input.episodeId === EPISODE_ID && input.platform === 'x',
+        (input) =>
+          input.episodeId === EPISODE_ID && input.platform === 'rednote',
       ),
     ).toMatchObject({ scheduledAt: '2026-08-16T00:30:00.000Z' });
     expect(
       calls.find(
         (input) =>
-          input.episodeId === SECOND_EPISODE_ID && input.platform === 'x',
+          input.episodeId === SECOND_EPISODE_ID && input.platform === 'rednote',
       ),
     ).toMatchObject({ scheduledAt: '2026-08-16T03:00:00.000Z' });
   });
@@ -743,6 +836,7 @@ describe('social daemon', () => {
       mocks.listSocialPublishCandidates.mockResolvedValue([]);
       mocks.latestScheduledSocialJobs.mockResolvedValue({});
       mocks.listLearningSocialPosts.mockResolvedValue([]);
+      mocks.listLearningSocialMetrics.mockResolvedValue([]);
       // Deliberately unstamped: the guidance must come from whatever version is
       // active now, not from what existed when the job was queued.
       mocks.claimSocialPublishJob.mockResolvedValue(
@@ -760,7 +854,7 @@ describe('social daemon', () => {
           created_at: NOW.toISOString(),
         },
       ]);
-      mocks.runSocialCli.mockResolvedValue([
+      mocks.publishSocialBatch.mockResolvedValue([
         {
           platform: 'x',
           status: 'published',
@@ -774,13 +868,12 @@ describe('social daemon', () => {
         firstStartedAt: '2026-08-16T08:00:00.000Z',
       });
 
-      expect(mocks.runSocialCli).toHaveBeenCalledWith(
-        [EPISODE_ID, '--yes', '--platform', 'x'],
+      expect(mocks.publishSocialBatch).toHaveBeenCalledWith(
         expect.objectContaining({
+          episodeId: EPISODE_ID,
           strategyGuidanceByPlatform: {
             x: expect.stringContaining('question'),
           },
-          setExitCodeOnFailure: false,
         }),
       );
       expect(mocks.failSocialPublishJob).toHaveBeenCalledWith(
@@ -815,8 +908,9 @@ describe('social daemon', () => {
       mocks.getActiveSocialStrategies.mockResolvedValue([]);
       mocks.latestScheduledSocialJobs.mockResolvedValue({});
       mocks.listLearningSocialPosts.mockResolvedValue([]);
+      mocks.listLearningSocialMetrics.mockResolvedValue([]);
       mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
-      mocks.runSocialCli.mockResolvedValue(scenario.outcomes);
+      mocks.publishSocialBatch.mockResolvedValue(scenario.outcomes);
       mocks.listSocialPostsByEpisode
         .mockResolvedValueOnce([])
         .mockResolvedValue(scenario.posts);
@@ -837,9 +931,10 @@ describe('social daemon', () => {
     mocks.getActiveSocialStrategies.mockResolvedValue([]);
     mocks.latestScheduledSocialJobs.mockResolvedValue({});
     mocks.listLearningSocialPosts.mockResolvedValue([]);
+    mocks.listLearningSocialMetrics.mockResolvedValue([]);
     mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
     mocks.listSocialPostsByEpisode.mockResolvedValue([]);
-    mocks.runSocialCli.mockRejectedValue('plain publish failure');
+    mocks.publishSocialBatch.mockRejectedValue('plain publish failure');
     await runSocialDaemonTick({
       now: NOW,
       firstStartedAt: '2026-08-16T08:00:00.000Z',
@@ -958,7 +1053,7 @@ describe('social daemon', () => {
         created_at: NOW.toISOString(),
       },
     ]);
-    mocks.runSocialCli.mockResolvedValue([
+    mocks.publishSocialBatch.mockResolvedValue([
       { platform: 'x', status: 'published', url: 'https://x.com/zap/status/1' },
     ]);
     mocks.listSocialPostsByEpisode
@@ -981,7 +1076,7 @@ describe('social daemon', () => {
     mocks.getActiveSocialStrategies.mockRejectedValue(
       new Error('strategy read down'),
     );
-    mocks.runSocialCli.mockResolvedValue([
+    mocks.publishSocialBatch.mockResolvedValue([
       { platform: 'x', status: 'published', url: 'https://x.com/zap/status/1' },
     ]);
     mocks.listSocialPostsByEpisode
@@ -995,9 +1090,8 @@ describe('social daemon', () => {
       log,
     });
 
-    expect(mocks.runSocialCli).toHaveBeenCalledWith(
-      [EPISODE_ID, '--yes', '--platform', 'x'],
-      { setExitCodeOnFailure: false },
+    expect(mocks.publishSocialBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ episodeId: EPISODE_ID }),
     );
     expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith(
       expect.not.objectContaining({ strategyVersionId: expect.anything() }),
@@ -1030,6 +1124,7 @@ describe('social daemon', () => {
     mocks.claimSocialPublishJob.mockResolvedValue(null);
     mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
     mocks.listLearningSocialPosts.mockResolvedValue([]);
+    mocks.listLearningSocialMetrics.mockResolvedValue([]);
     mocks.latestScheduledSocialJobs.mockResolvedValue({});
     mocks.createMetricsBrowserSession.mockReturnValue({
       withPage: vi.fn(),

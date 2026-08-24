@@ -1,3 +1,4 @@
+import type { PrimaryLanguageCode } from '../types.js';
 import type { SocialPlatform } from './platforms.js';
 
 export type { SocialPlatform } from './platforms.js';
@@ -7,6 +8,12 @@ export type { SocialPlatform } from './platforms.js';
  * existing published records keep matching and are not re-posted.
  */
 export const SOCIAL_STATE_LANGUAGE_KEY = 'zh';
+export const SOCIAL_STATE_LANGUAGE_KEYS = {
+  'zh-Hant': SOCIAL_STATE_LANGUAGE_KEY,
+  ja: 'ja',
+  en: 'en',
+} as const satisfies Record<PrimaryLanguageCode, string>;
+export type SocialLanguageCode = PrimaryLanguageCode;
 
 export const SOCIAL_TOPICS = [
   'macro',
@@ -63,6 +70,7 @@ export interface SocialContentFeatures {
 
 export interface SocialEpisode {
   id: string;
+  languageCode: SocialLanguageCode;
   title: string;
   description?: string;
   summary: string;
@@ -70,20 +78,16 @@ export interface SocialEpisode {
   publishedAt: string;
   episodeUrl: string;
   videoDurationSeconds: number;
-  videos: {
-    zh?: string;
-    ja?: string;
-    en?: string;
-  };
+  videoUrl: string;
 }
 
 export interface GeneratedSocialCopy {
   topic: SocialTopic;
   hookType: SocialHookType;
-  x: {
+  short?: {
     text: string;
   };
-  rednote: {
+  rednote?: {
     title: string;
     body: string;
     hashtags: string[];
@@ -123,6 +127,7 @@ export type YouTubePrivacyStatus = (typeof YOUTUBE_PRIVACY_STATUSES)[number];
 
 export interface YouTubePublishInput extends YouTubeMetadata {
   videoPath: string;
+  languageCode?: SocialLanguageCode;
   privacyStatus: YouTubePrivacyStatus;
 }
 
@@ -166,5 +171,10 @@ export type LanguagePublishState = Partial<
 
 export type SocialPublishState = Record<
   string,
-  Partial<Record<typeof SOCIAL_STATE_LANGUAGE_KEY, LanguagePublishState>>
+  Partial<
+    Record<
+      (typeof SOCIAL_STATE_LANGUAGE_KEYS)[SocialLanguageCode],
+      LanguagePublishState
+    >
+  >
 >;

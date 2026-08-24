@@ -7,6 +7,7 @@ import {
 } from './state.js';
 import type {
   PublishResult,
+  SocialLanguageCode,
   SocialPlatform,
   SocialPublishJob,
 } from './types.js';
@@ -22,6 +23,7 @@ export interface PublishPlatformOutcome {
 
 export async function publishSocialPlatforms(input: {
   episodeId: string;
+  languageCode?: SocialLanguageCode;
   jobs: readonly SocialPublishJob[];
   force: boolean;
   statePath?: string;
@@ -34,7 +36,12 @@ export async function publishSocialPlatforms(input: {
   for (const job of input.jobs) {
     const platform = job.platform;
     const state = await readPublishState(input.statePath);
-    const existing = getPublishedPlatform(state, input.episodeId, platform);
+    const existing = getPublishedPlatform(
+      state,
+      input.episodeId,
+      platform,
+      input.languageCode,
+    );
     if (existing && !input.force) {
       log(`[${platform}] already published — skipping.`);
       outcomes.push({
@@ -60,6 +67,7 @@ export async function publishSocialPlatforms(input: {
         markPlatformPublished({
           episodeId: input.episodeId,
           platform,
+          languageCode: input.languageCode,
           result: {
             published: true,
             publishedAt: result.publishedAt,

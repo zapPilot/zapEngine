@@ -25,6 +25,7 @@ import type {
   NewLanguageClassroom,
   NewSocialPost,
   NewSocialPostMetric,
+  PrimaryLanguageCode,
   PublishedEpisodeCatalog,
   SocialPostMetricRow,
   SocialPostRow,
@@ -599,6 +600,9 @@ export function toSocialPostInsertPayload(
   return {
     episode_id: post.episodeId,
     platform: post.platform,
+    language_code: post.languageCode ?? 'zh-Hant',
+    experiment_key: post.experimentKey ?? null,
+    experiment_variant: post.experimentVariant ?? null,
     post_url: post.postUrl,
     platform_post_id: post.platformPostId,
     published_at: post.publishedAt,
@@ -654,9 +658,15 @@ async function listSocialPosts(
 export async function listSocialPostsByEpisode(
   episodeId: string,
   platform: SocialPlatform,
+  languageCode?: PrimaryLanguageCode,
 ): Promise<SocialPostRow[]> {
   return listSocialPosts((query) =>
-    query.eq('episode_id', episodeId).eq('platform', platform),
+    languageCode
+      ? query
+          .eq('episode_id', episodeId)
+          .eq('platform', platform)
+          .eq('language_code', languageCode)
+      : query.eq('episode_id', episodeId).eq('platform', platform),
   );
 }
 
@@ -664,6 +674,7 @@ export interface SocialPostIdentity {
   id: string;
   episode_id: string;
   platform: SocialPlatform;
+  language_code?: PrimaryLanguageCode;
 }
 
 // The daemon's reconcile sweep asks "is this platform already live?" once per
@@ -678,7 +689,7 @@ export async function listSocialPostIdentitiesByEpisodes(
 
   const { data, error } = await getSupabase()
     .from('social_posts')
-    .select('id,episode_id,platform')
+    .select('id,episode_id,platform,language_code')
     .in('episode_id', [...episodeIds])
     .order('published_at', { ascending: false })
     .returns<SocialPostIdentity[]>();

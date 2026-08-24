@@ -263,11 +263,13 @@ describe('social daemon store', () => {
       episodeQueue: [
         {
           episodeId: 'episode-1',
+          languageCode: 'zh-Hant',
           title: 'First episode',
           nextAt: '2026-08-16T10:05:00Z',
         },
         {
           episodeId: 'episode-2',
+          languageCode: 'zh-Hant',
           title: 'Second episode',
           nextAt: '2026-08-16T10:15:00Z',
         },
@@ -275,6 +277,7 @@ describe('social daemon store', () => {
       nextByPlatform: {
         x: {
           episodeId: 'episode-1',
+          languageCode: 'zh-Hant',
           platform: 'x',
           status: 'queued',
           title: 'First episode',
@@ -282,6 +285,7 @@ describe('social daemon store', () => {
         },
         threads: {
           episodeId: 'episode-2',
+          languageCode: 'zh-Hant',
           platform: 'threads',
           status: 'queued',
           title: 'Second episode',

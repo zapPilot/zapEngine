@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
   getSocialQueueSnapshot: vi.fn(),
   getSocialStrategyById: vi.fn(),
   latestPendingSocialPublishSchedule: vi.fn(),
+  listPendingSocialPublishSchedules: vi.fn(),
   listLearningSocialPosts: vi.fn(),
+  listLearningSocialMetrics: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
   listUnfinishedSocialPublishJobs: vi.fn(),
@@ -21,7 +23,7 @@ const mocks = vi.hoisted(() => ({
   listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
   listSocialPostsByEpisode: vi.fn(),
   updateSocialPostIdentity: vi.fn(),
-  runSocialCli: vi.fn(),
+  publishSocialBatch: vi.fn(),
   createMetricCollectors: vi.fn(),
   refreshSocialStrategies: vi.fn(),
 }));
@@ -37,7 +39,9 @@ vi.mock('./daemon-store.js', () => ({
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   getSocialStrategyById: mocks.getSocialStrategyById,
   latestPendingSocialPublishSchedule: mocks.latestPendingSocialPublishSchedule,
+  listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
+  listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
@@ -52,7 +56,9 @@ vi.mock('../services/db.js', () => ({
   updateSocialPostIdentity: mocks.updateSocialPostIdentity,
 }));
 
-vi.mock('./cli.js', () => ({ runSocialCli: mocks.runSocialCli }));
+vi.mock('./publish-batch.js', () => ({
+  publishSocialBatch: mocks.publishSocialBatch,
+}));
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
 }));
@@ -93,7 +99,9 @@ beforeEach(() => {
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.getActiveSocialStrategies.mockResolvedValue([]);
   mocks.latestPendingSocialPublishSchedule.mockResolvedValue(null);
+  mocks.listPendingSocialPublishSchedules.mockResolvedValue([]);
   mocks.listLearningSocialPosts.mockResolvedValue([]);
+  mocks.listLearningSocialMetrics.mockResolvedValue([]);
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);
   mocks.getSocialStrategyById.mockResolvedValue(null);
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
@@ -114,7 +122,7 @@ describe('social daemon publish failure persistence isolation', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'post-2' }]);
-    mocks.runSocialCli
+    mocks.publishSocialBatch
       .mockResolvedValueOnce([
         {
           platform: 'x',
@@ -144,10 +152,9 @@ describe('social daemon publish failure persistence isolation', () => {
       attemptCount: 7,
       error: publishError.message,
     });
-    expect(mocks.runSocialCli).toHaveBeenCalledTimes(2);
-    expect(mocks.runSocialCli).toHaveBeenLastCalledWith(
-      [SECOND_EPISODE_ID, '--yes', '--platform', 'x'],
-      expect.objectContaining({ setExitCodeOnFailure: false }),
+    expect(mocks.publishSocialBatch).toHaveBeenCalledTimes(2);
+    expect(mocks.publishSocialBatch).toHaveBeenLastCalledWith(
+      expect.objectContaining({ episodeId: SECOND_EPISODE_ID }),
     );
     expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
       jobId: 'job-2',

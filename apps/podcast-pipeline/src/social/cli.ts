@@ -16,7 +16,7 @@ import {
 } from './cli-args.js';
 import { composeSocialContent } from './compose.js';
 import { generateSocialCopy, parseGeneratedSocialCopy } from './copy.js';
-import { getSocialEpisode } from './episode.js';
+import { getSocialEpisode, requireSocialEpisodeVideoUrl } from './episode.js';
 import { isMainModule } from './is-main-module.js';
 import {
   platformLabel,
@@ -25,16 +25,13 @@ import {
   SOCIAL_PLATFORM_CONFIG,
   SOCIAL_PLATFORMS,
 } from './platforms.js';
-import {
-  type PublishPlatformOutcome,
-  publishSocialPlatforms,
-} from './publish.js';
-import { createSocialPublishJobs } from './publishers.js';
-import { createSocialPostPersister } from './record.js';
+import type { PublishPlatformOutcome } from './publish.js';
+import { publishSocialBatch } from './publish-batch.js';
 import { getPublishedPlatform, readPublishState } from './state.js';
 import type {
   GeneratedSocialCopy,
   SocialEpisode,
+  SocialLanguageCode,
   SocialPlatform,
   SocialPublishState,
   YouTubePrivacyStatus,
@@ -54,12 +51,13 @@ const REPO_ROOT = resolve(
   '..',
 );
 const PLATFORM_USAGE = SOCIAL_PLATFORMS.join('|');
-const USAGE = `Usage: pnpm social:publish <episode-uuid-or-share-url> [--dry-run] [--yes] [--platform ${PLATFORM_USAGE}] [--youtube-privacy private|unlisted|public] [--force]`;
+const USAGE = `Usage: pnpm social:publish <episode-uuid-or-share-url> --language zh-Hant|ja|en [--dry-run] [--yes] [--platform ${PLATFORM_USAGE}] [--youtube-privacy private|unlisted|public] [--force]`;
 
 dotenv.config({ path: resolve(REPO_ROOT, '.env') });
 
 export interface SocialCliOptions {
   episodeId: string;
+  languageCode: SocialLanguageCode;
   dryRun: boolean;
   force: boolean;
   yes: boolean;
@@ -123,6 +121,8 @@ export async function runSocialCli(
   console.log('Generating social copy...');
   const generated = await generateSocialCopy({
     episode,
+    languageCode: options.languageCode,
+    platforms,
     ...(runtime.strategyGuidance
       ? { strategyGuidance: runtime.strategyGuidance }
       : {}),
@@ -169,37 +169,24 @@ export async function runSocialCli(
     );
   }
 
-  const videoUrl = requireCanonicalVideoUrl(episode);
   const publishedCopy = review.copy;
   const onLog = (message: string): void => console.log(message);
-  const jobs = await createSocialPublishJobs({
-    platforms: review.platforms,
-    copy: publishedCopy,
-    episode,
-    videoUrl,
-    ...(options.youtubePrivacy
-      ? { youtubePrivacyStatus: options.youtubePrivacy }
-      : {}),
-    ...(video ? { videoPath: video.path } : {}),
-    ...(xVideo ? { xVideoPath: xVideo.path } : {}),
-    onLog,
-  });
-  const persistPublished = createSocialPostPersister({
+  const outcomes = await publishSocialBatch({
     episodeId: options.episodeId,
-    snapshot: {
+    languageCode: options.languageCode,
+    platforms: review.platforms.map((platform) => ({ platform })),
+    copySnapshot: {
       generated: review.generatedCopy,
       published: publishedCopy,
       model: review.model,
     },
     episode,
-    videoDurationSeconds: episode.videoDurationSeconds,
-    onError: (message) => console.error(message),
-  });
-  const outcomes = await publishSocialPlatforms({
-    episodeId: options.episodeId,
-    jobs,
+    ...(video ? { video } : {}),
+    ...(xVideo ? { teaserVideo: xVideo } : {}),
     force: options.force,
-    persistPublished,
+    ...(options.youtubePrivacy
+      ? { youtubePrivacyStatus: options.youtubePrivacy }
+      : {}),
     onLog,
   });
 
@@ -255,13 +242,18 @@ export function parseCliOptions(args: string[]): SocialCliOptions {
       yes: { type: 'boolean', short: 'y', default: false },
       help: { type: 'boolean', short: 'h', default: false },
       platform: { type: 'string' },
+      language: { type: 'string' },
       'youtube-privacy': { type: 'string' },
     },
   });
 
   const episodeId = requireEpisodeArgument(values.help, positionals, USAGE);
+  if (!values.language) {
+    throw new Error(`--language is required.\n${USAGE}`);
+  }
   return {
     episodeId,
+    languageCode: parseSocialLanguage(values.language),
     dryRun: values['dry-run'],
     force: values.force,
     yes: values.yes,
@@ -292,7 +284,10 @@ async function loadSocialAssets(
   requestedPlatforms: readonly SocialPlatform[],
 ): Promise<SocialAssets> {
   console.log(`Fetching episode ${options.episodeId}...`);
-  const episode = await getSocialEpisode(options.episodeId);
+  const episode = await getSocialEpisode(
+    options.episodeId,
+    options.languageCode,
+  );
   console.log('✓ metadata');
   console.log('✓ transcript');
 
@@ -300,10 +295,11 @@ async function loadSocialAssets(
 
   const video = await prepareSocialVideo({
     episodeId: options.episodeId,
-    url: requireCanonicalVideoUrl(episode),
+    languageCode: options.languageCode,
+    url: requireSocialEpisodeVideoUrl(episode),
   });
   console.log(
-    `✓ zh video (${formatDuration(episode.videoDurationSeconds)}, ${formatBytes(video.sizeBytes)}${video.reused ? ', cached' : ''})`,
+    `✓ ${options.languageCode} video (${formatDuration(episode.videoDurationSeconds)}, ${formatBytes(video.sizeBytes)}${video.reused ? ', cached' : ''})`,
   );
 
   if (!requiresLocalTeaser(requestedPlatforms)) return { episode, video };
@@ -343,7 +339,7 @@ async function reviewSocialCopy(input: {
 
     if (review.action === 'quit') return null;
     if (review.action === 'edit') {
-      copy = await editCopy(input.episodeId, copy);
+      copy = await editCopy(input.episodeId, copy, input.episode.languageCode);
       continue;
     }
     if (review.action === 'regenerate') {
@@ -351,6 +347,8 @@ async function reviewSocialCopy(input: {
       console.log('Regenerating social copy...');
       const regenerated = await generateSocialCopy({
         episode: input.episode,
+        languageCode: input.episode.languageCode,
+        platforms: input.requestedPlatforms,
         feedback,
       });
       copy = regenerated.copy;
@@ -372,12 +370,18 @@ async function handleExistingState(
     state,
     options.episodeId,
     requestedPlatforms,
+    options.languageCode,
   );
   if (pending.length === requestedPlatforms.length) return requestedPlatforms;
 
   console.log(`⚠ Episode ${options.episodeId} was already published:`);
   for (const platform of requestedPlatforms) {
-    const existing = getPublishedPlatform(state, options.episodeId, platform);
+    const existing = getPublishedPlatform(
+      state,
+      options.episodeId,
+      platform,
+      options.languageCode,
+    );
     console.log(
       `${platformLabel(platform)}       ${existing ? '✓' : 'pending'}`,
     );
@@ -423,9 +427,11 @@ export function findPendingPlatforms(
   state: SocialPublishState,
   episodeId: string,
   requestedPlatforms: readonly SocialPlatform[],
+  languageCode: SocialLanguageCode = 'zh-Hant',
 ): SocialPlatform[] {
   return requestedPlatforms.filter(
-    (platform) => !getPublishedPlatform(state, episodeId, platform),
+    (platform) =>
+      !getPublishedPlatform(state, episodeId, platform, languageCode),
   );
 }
 
@@ -450,7 +456,7 @@ function printPreview(
   );
   console.log(`${divider}\nTHREADS\n${divider}`);
   console.log(compose('threads').body);
-  console.log(`🎬 native video: ${requireCanonicalVideoUrl(episode)}`);
+  console.log(`🎬 native video: ${episode.videoUrl}`);
   console.log(`${divider}\nYOUTUBE\n${divider}`);
   const youtube = compose('youtube');
   console.log(youtube.title);
@@ -511,6 +517,7 @@ async function askReviewAction(
 async function editCopy(
   episodeId: string,
   copy: GeneratedSocialCopy,
+  languageCode: SocialLanguageCode,
 ): Promise<GeneratedSocialCopy> {
   const directory = join(tmpdir(), 'zap-pilot-social');
   await mkdir(directory, { recursive: true });
@@ -527,7 +534,10 @@ async function editCopy(
 
   const raw = await readFile(path, 'utf8');
   try {
-    return parseGeneratedSocialCopy(raw);
+    return parseGeneratedSocialCopy(raw, languageCode, {
+      short: copy.short !== undefined,
+      rednote: copy.rednote !== undefined,
+    });
   } catch (error) {
     throw new Error(
       `Edited social copy is invalid: ${(error as Error).message}`,
@@ -536,14 +546,9 @@ async function editCopy(
   }
 }
 
-function requireCanonicalVideoUrl(episode: SocialEpisode): string {
-  const videoUrl = episode.videos.zh?.trim();
-  if (!videoUrl) {
-    throw new Error(
-      `No completed zh video found for episode ${episode.id}. Social publishing aborted.`,
-    );
-  }
-  return videoUrl;
+function parseSocialLanguage(value: string): SocialLanguageCode {
+  if (value === 'zh-Hant' || value === 'ja' || value === 'en') return value;
+  throw new Error(`Unsupported social language: ${value}.`);
 }
 
 async function promptLine(message: string): Promise<string> {

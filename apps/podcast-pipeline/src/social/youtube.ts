@@ -155,8 +155,8 @@ async function createUploadSession(input: {
         title: input.input.title,
         description: input.input.description,
         categoryId: '27',
-        defaultLanguage: 'zh-Hant',
-        defaultAudioLanguage: 'zh-Hant',
+        defaultLanguage: input.input.languageCode ?? 'zh-Hant',
+        defaultAudioLanguage: input.input.languageCode ?? 'zh-Hant',
       },
       status: {
         privacyStatus: input.input.privacyStatus,

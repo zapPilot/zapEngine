@@ -24,7 +24,7 @@ import type {
 const generated: GeneratedSocialCopy = {
   topic: 'eth',
   hookType: 'surprising_number',
-  x: { text: 'AI 產生的短文案' },
+  short: { text: 'AI 產生的短文案' },
   rednote: {
     title: 'AI 產生標題',
     body: 'AI 產生的正文',
@@ -34,7 +34,7 @@ const generated: GeneratedSocialCopy = {
 const published: GeneratedSocialCopy = {
   topic: 'macro',
   hookType: 'question',
-  x: { text: '編輯後的短文案？２０２６' },
+  short: { text: '編輯後的短文案？２０２６' },
   rednote: {
     title: '利率真的轉向？',
     body: '編輯後的正文含數字２',

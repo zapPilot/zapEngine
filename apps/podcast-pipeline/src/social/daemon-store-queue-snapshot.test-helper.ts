@@ -3,6 +3,7 @@ import { vi } from 'vitest';
 export interface QueueJobFixture {
   episode_id: string;
   platform: 'threads' | 'x';
+  language_code?: 'zh-Hant' | 'ja' | 'en';
   status: 'queued' | 'failed' | 'processing';
   scheduled_at: string;
   next_attempt_at: string;
@@ -10,6 +11,7 @@ export interface QueueJobFixture {
 
 export interface LocalizationFixture {
   episode_id: string;
+  language_code?: 'zh-Hant' | 'ja' | 'en';
   title: string | null;
 }
 
@@ -24,7 +26,6 @@ interface QueueSnapshotReadFixture {
   client: { from: ReturnType<typeof vi.fn> };
   from: ReturnType<typeof vi.fn>;
   jobStatusFilter: ReturnType<typeof vi.fn>;
-  localizationLanguageFilter: ReturnType<typeof vi.fn>;
   localizationEpisodeFilter: ReturnType<typeof vi.fn>;
 }
 
@@ -48,11 +49,8 @@ export function createQueueSnapshotReadFixture({
   const localizationEpisodeFilter = vi.fn(() => ({
     returns: localizationReturns,
   }));
-  const localizationLanguageFilter = vi.fn(() => ({
-    in: localizationEpisodeFilter,
-  }));
   const localizationSelect = vi.fn(() => ({
-    eq: localizationLanguageFilter,
+    in: localizationEpisodeFilter,
   }));
 
   const from = vi.fn((table: string) => {
@@ -67,7 +65,6 @@ export function createQueueSnapshotReadFixture({
     client: { from },
     from,
     jobStatusFilter,
-    localizationLanguageFilter,
     localizationEpisodeFilter,
   };
 }

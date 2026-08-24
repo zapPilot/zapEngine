@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
   getSocialQueueSnapshot: vi.fn(),
   getSocialStrategyById: vi.fn(),
   latestPendingSocialPublishSchedule: vi.fn(),
+  listPendingSocialPublishSchedules: vi.fn(),
   listLearningSocialPosts: vi.fn(),
+  listLearningSocialMetrics: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
   listUnfinishedSocialPublishJobs: vi.fn(),
@@ -21,7 +23,7 @@ const mocks = vi.hoisted(() => ({
   listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
   listSocialPostsByEpisode: vi.fn(),
   updateSocialPostIdentity: vi.fn(),
-  runSocialCli: vi.fn(),
+  publishSocialBatch: vi.fn(),
   createMetricCollectors: vi.fn(),
   refreshSocialStrategies: vi.fn(),
 }));
@@ -37,7 +39,9 @@ vi.mock('./daemon-store.js', () => ({
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   getSocialStrategyById: mocks.getSocialStrategyById,
   latestPendingSocialPublishSchedule: mocks.latestPendingSocialPublishSchedule,
+  listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
+  listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
@@ -52,7 +56,9 @@ vi.mock('../services/db.js', () => ({
   updateSocialPostIdentity: mocks.updateSocialPostIdentity,
 }));
 
-vi.mock('./cli.js', () => ({ runSocialCli: mocks.runSocialCli }));
+vi.mock('./publish-batch.js', () => ({
+  publishSocialBatch: mocks.publishSocialBatch,
+}));
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
 }));
@@ -73,7 +79,9 @@ beforeEach(() => {
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.getActiveSocialStrategies.mockResolvedValue([]);
   mocks.latestPendingSocialPublishSchedule.mockResolvedValue(null);
+  mocks.listPendingSocialPublishSchedules.mockResolvedValue([]);
   mocks.listLearningSocialPosts.mockResolvedValue([]);
+  mocks.listLearningSocialMetrics.mockResolvedValue([]);
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);
   mocks.getSocialStrategyById.mockResolvedValue(null);
   mocks.createMetricCollectors.mockReturnValue({
@@ -121,7 +129,7 @@ describe('social daemon reconcile stage isolation', () => {
     mocks.listSocialPostsByEpisode
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'post-publish' }]);
-    mocks.runSocialCli.mockResolvedValue([
+    mocks.publishSocialBatch.mockResolvedValue([
       {
         platform: 'threads',
         status: 'published',
@@ -144,9 +152,8 @@ describe('social daemon reconcile stage isolation', () => {
     expect(log).toHaveBeenCalledWith(
       `[social-daemon] reconcile failed: ${reconcileError.message}`,
     );
-    expect(mocks.runSocialCli).toHaveBeenCalledWith(
-      [PUBLISH_EPISODE_ID, '--yes', '--platform', 'threads'],
-      expect.objectContaining({ setExitCodeOnFailure: false }),
+    expect(mocks.publishSocialBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ episodeId: PUBLISH_EPISODE_ID }),
     );
     expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
       jobId: 'job-publish',
@@ -209,7 +216,7 @@ describe('social daemon reconcile stage isolation', () => {
     expect(log).toHaveBeenCalledWith(
       `[social-daemon] reconcile failed: ${reconcileError.message}`,
     );
-    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
   });
 
   it('reports a failed sweep lookup and still publishes due jobs', async () => {
@@ -246,7 +253,7 @@ describe('social daemon reconcile stage isolation', () => {
     mocks.listSocialPostsByEpisode
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'post-publish' }]);
-    mocks.runSocialCli.mockResolvedValue([
+    mocks.publishSocialBatch.mockResolvedValue([
       {
         platform: 'threads',
         status: 'published',
@@ -265,9 +272,8 @@ describe('social daemon reconcile stage isolation', () => {
     expect(log).toHaveBeenCalledWith(
       `[social-daemon] reconcile failed: ${lookupError.message}`,
     );
-    expect(mocks.runSocialCli).toHaveBeenCalledWith(
-      [PUBLISH_EPISODE_ID, '--yes', '--platform', 'threads'],
-      expect.objectContaining({ setExitCodeOnFailure: false }),
+    expect(mocks.publishSocialBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ episodeId: PUBLISH_EPISODE_ID }),
     );
     expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
       jobId: 'job-publish',
@@ -322,7 +328,7 @@ describe('social daemon reconcile stage isolation', () => {
     expect(log).toHaveBeenCalledWith(
       `[social-daemon] reconciled x for ${RECONCILE_EPISODE_ID} - already published (post-existing-after-reconcile-failure).`,
     );
-    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
     expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
   });
 
@@ -395,6 +401,6 @@ describe('social daemon reconcile stage isolation', () => {
     expect(log).toHaveBeenCalledWith(
       `[social-daemon] reconciled x for ${RECONCILE_EPISODE_ID} - already published (${postId}).`,
     );
-    expect(mocks.runSocialCli).not.toHaveBeenCalled();
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
   });
 });

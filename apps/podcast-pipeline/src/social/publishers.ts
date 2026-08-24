@@ -108,6 +108,7 @@ function createYouTubeJob(input: SocialPublishJobsInput): SocialPublishJob {
         title,
         description: body,
         videoPath,
+        languageCode: input.episode.languageCode ?? 'zh-Hant',
         privacyStatus: input.youtubePrivacyStatus ?? 'public',
       }),
   };

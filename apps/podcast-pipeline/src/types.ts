@@ -41,6 +41,8 @@ export const SUPPORTED_PRIMARY_LANGUAGE_CODES = [
   'ja',
   'en',
 ] as const;
+export type PrimaryLanguageCode =
+  (typeof SUPPORTED_PRIMARY_LANGUAGE_CODES)[number];
 export const LANGUAGE_CLASSROOM_LANGUAGE_CODES = [
   DEFAULT_LANGUAGE_CODE,
   'ja',
@@ -268,6 +270,9 @@ export interface SocialPostRow {
   id: string;
   episode_id: string;
   platform: SocialPlatform;
+  language_code?: PrimaryLanguageCode;
+  experiment_key?: string | null;
+  experiment_variant?: string | null;
   post_url: string | null;
   platform_post_id: string | null;
   published_at: string;
@@ -286,7 +291,13 @@ export interface SocialPostRow {
   updated_at: string;
 }
 
-export interface NewSocialPost {
+export interface SocialDistributionMetadata {
+  languageCode?: PrimaryLanguageCode;
+  experimentKey?: string | null;
+  experimentVariant?: string | null;
+}
+
+export interface NewSocialPost extends SocialDistributionMetadata {
   episodeId: string;
   platform: SocialPlatform;
   postUrl: string | null;

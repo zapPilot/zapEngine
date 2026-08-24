@@ -17,7 +17,7 @@ describe('getSocialQueueSnapshot localization query', () => {
     vi.clearAllMocks();
   });
 
-  it('queries pending jobs and canonical localizations with deduplicated episode ids', async () => {
+  it('queries pending jobs and multilingual localizations with deduplicated episode ids', async () => {
     const fixture = createQueueSnapshotReadFixture({
       jobs: [
         {
@@ -59,11 +59,6 @@ describe('getSocialQueueSnapshot localization query', () => {
       'processing',
     ]);
     expect(fixture.client.from).toHaveBeenCalledWith('episode_localizations');
-    expect(fixture.localizationLanguageFilter).toHaveBeenCalledOnce();
-    expect(fixture.localizationLanguageFilter).toHaveBeenCalledWith(
-      'language_code',
-      'zh-Hant',
-    );
     expect(fixture.localizationEpisodeFilter).toHaveBeenCalledOnce();
     expect(fixture.localizationEpisodeFilter).toHaveBeenCalledWith(
       'episode_id',

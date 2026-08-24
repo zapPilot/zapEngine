@@ -4,7 +4,8 @@ import { dirname, join } from 'node:path';
 
 import {
   type PlatformPublishState,
-  SOCIAL_STATE_LANGUAGE_KEY,
+  SOCIAL_STATE_LANGUAGE_KEYS,
+  type SocialLanguageCode,
   type SocialPlatform,
   type SocialPublishState,
 } from './types.js';
@@ -35,24 +36,30 @@ export function getPublishedPlatform(
   state: SocialPublishState,
   episodeId: string,
   platform: SocialPlatform,
+  languageCode: SocialLanguageCode = 'zh-Hant',
 ): PlatformPublishState | undefined {
-  return state[episodeId]?.[SOCIAL_STATE_LANGUAGE_KEY]?.[platform];
+  return state[episodeId]?.[SOCIAL_STATE_LANGUAGE_KEYS[languageCode]]?.[
+    platform
+  ];
 }
 
 export async function markPlatformPublished(input: {
   episodeId: string;
   platform: SocialPlatform;
+  languageCode?: SocialLanguageCode;
   result: PlatformPublishState;
   path?: string;
 }): Promise<void> {
   const path = input.path ?? DEFAULT_SOCIAL_STATE_PATH;
   const state = await readPublishState(path);
   const episodeState = state[input.episodeId] ?? {};
-  const languageState = episodeState[SOCIAL_STATE_LANGUAGE_KEY] ?? {};
+  const languageKey =
+    SOCIAL_STATE_LANGUAGE_KEYS[input.languageCode ?? 'zh-Hant'];
+  const languageState = episodeState[languageKey] ?? {};
 
   state[input.episodeId] = {
     ...episodeState,
-    [SOCIAL_STATE_LANGUAGE_KEY]: {
+    [languageKey]: {
       ...languageState,
       [input.platform]: input.result,
     },
