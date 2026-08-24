@@ -6,11 +6,19 @@ import { createEtlJob } from '../../../utils/createEtlJob.js';
 const successfulWallet = '0x1234567890123456789012345678901234567890';
 const failedWallet = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd';
 
-const fetchAndFilterVipUsersForProcessing = vi.fn();
-const updatePortfolioTimestampsNonFatal = vi.fn();
-const fetchWalletDataFromDeBank = vi.fn();
-const writeWalletBalanceSnapshots = vi.fn();
-const writePortfolioSnapshots = vi.fn();
+const {
+  fetchAndFilterVipUsersForProcessing,
+  fetchWalletDataFromDeBank,
+  updatePortfolioTimestampsNonFatal,
+  writePortfolioSnapshots,
+  writeWalletBalanceSnapshots,
+} = vi.hoisted(() => ({
+  fetchAndFilterVipUsersForProcessing: vi.fn(),
+  fetchWalletDataFromDeBank: vi.fn(),
+  updatePortfolioTimestampsNonFatal: vi.fn(),
+  writePortfolioSnapshots: vi.fn(),
+  writeWalletBalanceSnapshots: vi.fn(),
+}));
 
 vi.mock('../../../../src/modules/vip-users/processing.js', () => ({
   fetchAndFilterVipUsersForProcessing,
