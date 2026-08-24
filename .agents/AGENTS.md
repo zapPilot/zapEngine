@@ -46,7 +46,7 @@ security skill, but not creating a new skill for one CVE.
 
 Hard limits for every `.agents/skills/*/SKILL.md`:
 
-- Target: 60-120 lines.
+- Prefer the shortest file that preserves the recurring, repo-specific decision.
 - Maximum: 180 lines unless there is a strong reason.
 - Frontmatter description: 1 focused paragraph, under 8 wrapped lines.
 - Body: prefer headings, short bullets, and command blocks.
@@ -58,7 +58,7 @@ reference chains.
 
 ## Skill structure
 
-Use this shape by default:
+Use this shape when every section adds value; shorter skills may omit sections:
 
 ```markdown
 ---
@@ -71,18 +71,23 @@ description: >-
 # Human-readable title
 
 ## Where the signal already is
+
 [Point to the exact log/file/CI job. Do not re-discover from scratch.]
 
 ## Core principle
+
 [One strong rule that prevents the previous bad behavior.]
 
 ## Fix workflow
+
 [Small ordered steps or a compact table by failure case.]
 
 ## Rationalizations — STOP
+
 [Short table of tempting but wrong shortcuts.]
 
 ## Verification
+
 [The exact commands or CI checks that must pass.]
 ```
 
@@ -115,7 +120,7 @@ Before opening a PR that adds or edits a skill, check:
 
 - Does this skill remove repeated ambiguity for future agents?
 - Can the trigger be recognized from the user's request, CI output, or repo logs?
-- Is the first action a precise file/log/command to inspect?
+- When diagnosis is required, does the skill point to the most useful file, log, or command without forcing unnecessary investigation?
 - Is the safe fix path shorter than the anti-pattern list?
 - Could any paragraph be replaced by a command, path, or link?
 - Would this still be useful six months from now?
@@ -132,7 +137,8 @@ run, they should make the smallest durable update:
 2. Correct stale commands or paths in an existing skill as soon as verified.
 3. Update an existing skill only if the run exposed a missing recurring trap.
 4. Add a new skill only if the criteria above pass.
-5. Keep the PR diff reviewable: one behavior change plus one small doc update at
-   most.
+5. Keep related code, tests, CI fixes, documentation, and skill corrections on the
+   current branch and PR. Do not split them solely to enforce category purity.
 
-When in doubt, leave a PR note instead of expanding `.agents/skills`.
+Preserve the user's current branch and worktree. Do not create or switch branches,
+move commits, or open another PR unless the user explicitly requests it.

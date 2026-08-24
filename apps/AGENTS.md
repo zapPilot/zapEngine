@@ -33,10 +33,10 @@ The durable plane definitions live in [docs/architecture/planes.md](../docs/arch
 
 ## Verification
 
-During the edit loop, run:
+During the edit loop, run only the narrowest relevant workspace test or check. Before handoff or push, run one aggregate gate:
 
 ```bash
-pnpm verify changed
+pnpm verify branch
 ```
 
-Before pushing a branch, run `pnpm verify branch`.
+Do not also repeat every workspace command when `pnpm verify branch` already covers it. If the aggregate gate is unavailable or unnecessarily expensive for the change, run `pnpm verify changed` plus the specific affected workspace test and report that narrower verification.

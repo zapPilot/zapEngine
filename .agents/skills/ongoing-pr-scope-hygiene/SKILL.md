@@ -1,76 +1,41 @@
 ---
 name: ongoing-pr-scope-hygiene
 description: >-
-  Use when continuing ZapEngine automation PRs whose title, label, or branch marks
-  them as ongoing work, especially `[test-qa-hourly]`, `[skills-daily]`,
-  `test-qa/ongoing-*`, or `docs/agent-skills-ongoing-*`. Prevents the PR body and
-  allowed scope from drifting away from the actual branch diff.
+  Use when continuing a long-lived ZapEngine automation PR or branch. Preserves
+  the user's current branch and worktree while keeping the PR description honest.
 ---
 
 # Ongoing PR scope hygiene
 
-## Where the signal already is
+## Primary rule
 
-Before adding another commit, compare all three:
+The checked-out branch and worktree are the user's chosen integration unit. Continue
+working there. Do not create or switch branches or worktrees, move commits, rebuild
+the work on `origin/main`, or open additional PRs unless the user explicitly asks.
 
-1. the PR title/body and declared scope;
-2. the complete `base...head` changed-file list;
-3. the task's allowed and forbidden changes.
+Existing changes belong to the user. Preserve them and adapt new work around them.
 
-Use the GitHub PR diff as source of truth. In a checkout, also run:
+## Efficient continuation
 
-```bash
-git fetch origin main
-git diff --name-status origin/main...HEAD
-git log --oneline origin/main..HEAD
-```
+1. Read the current diff sufficiently to avoid overwriting existing work.
+2. Implement the requested outcome on the current branch.
+3. Keep directly discovered fixes in the same branch and PR. Tests, CI fixes,
+   documentation, migrations, generated files, snapshots, lockfiles, dependency
+   updates, and formatter/lint output are valid companion changes.
+4. If the PR description is materially inaccurate, update it once before merge to
+   summarize the final result. Do not repeatedly police file categories while coding.
+5. Run the appropriate final gate once and merge only when required checks pass.
 
-## Core principle
+## Stop only for real boundaries
 
-**An ongoing branch is reusable only while its complete diff still represents one
-coherent task. The latest commit message is not the PR scope.**
+Ask the user before continuing only when the next action would:
 
-ZapEngine automation branches live across runs, so unrelated fixes can accumulate
-silently. Do not call a PR `test-only` or `docs-only` unless every changed file
-matches that claim.
+- overwrite or discard existing work;
+- rewrite history or force-push;
+- expose secrets or materially alter an authorization/security boundary;
+- perform an irreversible or destructive migration;
+- introduce a semantic behavior change clearly unrelated to the requested outcome;
+- require leaving the current branch or worktree.
 
-## Continuation workflow
-
-1. Read the full PR diff before editing, not only the latest commit.
-2. Classify every changed file against the task's allowed scope.
-3. If all files remain coherent, continue the branch and update the PR body to
-   describe the complete current diff.
-4. If a newly discovered CI fix is directly required by the existing change, add
-   only the minimal fix and update the scope/validation sections immediately.
-5. If the fix belongs to another workflow—security infrastructure in a test-only
-   PR, agent docs in a QA PR, or unrelated product code—stop extending the branch.
-6. Do not merge while the PR body understates the diff or required PR-head checks
-   are failing.
-
-## ZapEngine scope boundaries
-
-- `[test-qa-hourly]`: tests, fixtures, minimal test utilities, and only the minimal
-  implementation fix directly exposed by those tests.
-- `[skills-daily]`: `.agents/skills`, `.agents/AGENTS.md`, CLAUDE/README/runbooks;
-  no implementation, tests, dependency, lockfile, or CI-script changes.
-- Security/audit command changes are not automatically test QA work. Treat changes
-  to `scripts/security.sh`, lockfiles, or dependency constraints as separate scope
-  unless they are the active task's explicit CI blocker and the PR body says so.
-
-## Rationalizations — STOP
-
-| Excuse | Reality |
-| --- | --- |
-| "The newest commit is test-only." | The PR is reviewed and merged as the complete `base...head` diff. |
-| "CI needed this unrelated script fix." | Update the declared scope only when it is directly required; otherwise stop and route it separately. |
-| "The PR body was accurate when opened." | Long-lived automation PRs must refresh the body after every scope-changing commit. |
-| "All checks passed, so scope does not matter." | Green CI does not make a misleading or mixed-purpose PR safe. |
-
-## Verification before merge
-
-- PR title/body describe every changed area.
-- Complete changed-file list fits the active task's allowed scope.
-- No forbidden files, secrets, blanket ignores, or gate reductions are present.
-- Required checks are green on the final PR head.
-- If the branch is stale, conflicted, oversized, or mixed-purpose, stop for review
-  instead of adding another commit or opening an overlapping PR.
+A large, mixed, stale, or unusually named branch is not by itself a reason to switch,
+split, or stop. Report the final scope accurately and keep moving.
