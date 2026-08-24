@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DeBankFetcher } from '../../../../src/modules/wallet/fetcher.js';
+import {
+  mockDeBankFailure,
+  mockDeBankResponse,
+  validProtocol,
+  validToken,
+  walletAddress,
+} from './debank.strict-test-helpers.js';
 
 vi.mock('../../../../src/utils/logger.js', async () => {
   const { mockLogger } = await import('../../../setup/mocks.js');
@@ -13,23 +20,8 @@ vi.mock('../../../../src/utils/mask.js', async () => {
 });
 
 describe('DeBankFetcher production strictness', () => {
-  const walletAddress = '0x1234567890123456789012345678901234567890';
   let originalNodeEnv: string | undefined;
   let originalStrictErrors: string | undefined;
-
-  function mockUpstreamFailure(fetcher: DeBankFetcher) {
-    vi.spyOn(
-      fetcher as unknown as { fetchWithRetry: () => Promise<unknown> },
-      'fetchWithRetry',
-    ).mockRejectedValue(new Error('upstream unavailable'));
-  }
-
-  function mockUpstreamResponse(fetcher: DeBankFetcher, response: unknown) {
-    vi.spyOn(
-      fetcher as unknown as { fetchWithRetry: () => Promise<unknown> },
-      'fetchWithRetry',
-    ).mockResolvedValue(response);
-  }
 
   beforeEach(() => {
     originalNodeEnv = process.env.NODE_ENV;
@@ -50,7 +42,7 @@ describe('DeBankFetcher production strictness', () => {
 
   it('rejects upstream failures instead of turning them into an empty wallet snapshot', async () => {
     const fetcher = new DeBankFetcher();
-    mockUpstreamFailure(fetcher);
+    mockDeBankFailure(fetcher, new Error('upstream unavailable'));
 
     await expect(fetcher.fetchWalletTokenList(walletAddress)).rejects.toThrow(
       'DeBank API error: upstream unavailable',
@@ -60,7 +52,7 @@ describe('DeBankFetcher production strictness', () => {
   it('lets explicit strict mode override a degraded production environment', async () => {
     process.env.DEBANK_STRICT_ERRORS = 'false';
     const fetcher = new DeBankFetcher({ strictErrors: true });
-    mockUpstreamFailure(fetcher);
+    mockDeBankFailure(fetcher, new Error('upstream unavailable'));
 
     await expect(fetcher.fetchWalletTokenList(walletAddress)).rejects.toThrow(
       'DeBank API error: upstream unavailable',
@@ -69,19 +61,7 @@ describe('DeBankFetcher production strictness', () => {
 
   it('rejects malformed token elements instead of accepting partial wallet data', async () => {
     const fetcher = new DeBankFetcher({ strictErrors: true });
-    mockUpstreamResponse(fetcher, [
-      {
-        amount: 'not-a-number',
-        chain: 'eth',
-        decimals: 18,
-        id: '0xtoken',
-        is_core: false,
-        is_verified: true,
-        is_wallet: true,
-        name: 'Broken Token',
-        symbol: 'BROKEN',
-      },
-    ]);
+    mockDeBankResponse(fetcher, [validToken({ amount: 'not-a-number' })]);
 
     await expect(fetcher.fetchWalletTokenList(walletAddress)).rejects.toThrow(
       'DeBank API error: DeBank token list validation failed',
@@ -90,11 +70,8 @@ describe('DeBankFetcher production strictness', () => {
 
   it('rejects malformed protocol payloads instead of accepting raw partial data', async () => {
     const fetcher = new DeBankFetcher({ strictErrors: true });
-    mockUpstreamResponse(fetcher, [
-      {
-        chain: 'arb',
-        portfolio_item_list: [],
-      },
+    mockDeBankResponse(fetcher, [
+      validProtocol({ has_supported_portfolio: undefined }),
     ]);
 
     await expect(
