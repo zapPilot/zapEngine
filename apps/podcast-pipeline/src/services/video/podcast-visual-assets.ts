@@ -27,9 +27,34 @@ export async function planPodcastVisualAssets(
   const contentScenes = input.scenes.filter(
     (scene) => podcastBrandVisualKind(scene.imageSearchIntent) === null,
   );
+  const firstContentIndex = input.scenes.findIndex(
+    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) === null,
+  );
+  const leadingBrandSceneCount =
+    firstContentIndex === -1 ? input.scenes.length : firstContentIndex;
   const originalSceneIndex = new Map(
     input.scenes.map((scene, index) => [scene.sceneId, index]),
   );
+  const assets: PlannedVisualImage[] = [];
+  const brandAssets = new Map<PodcastBrandVisualKind, PlannedVisualImage>();
+
+  // Branded packaging is always placed around content by
+  // applyPodcastBrandingToStoryboard. Materialize the leading card before any
+  // remote image work so selecting-images progress never moves backwards.
+  for (let index = 0; index < leadingBrandSceneCount; index += 1) {
+    const scene = input.scenes[index];
+    if (!scene) continue;
+    const brandKind = podcastBrandVisualKind(scene.imageSearchIntent);
+    if (brandKind === null) continue;
+    const asset = await ensurePodcastBrandAsset(
+      brandKind,
+      brandAssets,
+      assets,
+      input.workingDirectory,
+    );
+    reportBrandAssetProgress(input, scene.sceneId, index, asset.assetId);
+  }
+
   const contentPlan =
     contentScenes.length === 0
       ? { assets: [], scenes: [] }
@@ -43,12 +68,11 @@ export async function planPodcastVisualAssets(
                 )
             : undefined,
         });
+  assets.push(...contentPlan.assets);
 
-  const assets = [...contentPlan.assets];
   const sceneAssetId = new Map(
     contentPlan.scenes.map((scene) => [scene.sceneId, scene.assetId]),
   );
-  const brandAssets = new Map<PodcastBrandVisualKind, PlannedVisualImage>();
   const scenes: VisualAssetPlan['scenes'] = [];
 
   for (const [sceneIndex, scene] of input.scenes.entries()) {
@@ -63,28 +87,36 @@ export async function planPodcastVisualAssets(
       continue;
     }
 
-    let asset = brandAssets.get(brandKind);
-    if (!asset) {
-      asset = await createPodcastBrandAsset(
-        brandKind,
-        input.workingDirectory,
-      );
-      brandAssets.set(brandKind, asset);
-      assets.push(asset);
-    }
+    const asset = await ensurePodcastBrandAsset(
+      brandKind,
+      brandAssets,
+      assets,
+      input.workingDirectory,
+    );
     scenes.push({ sceneId: scene.sceneId, assetId: asset.assetId });
-    input.onProgress?.({
-      phase: 'assets',
-      sceneId: scene.sceneId,
-      sceneIndex: sceneIndex + 1,
-      sceneCount: input.scenes.length,
-      provider: 'article',
-      assetId: asset.assetId,
-      elapsedMs: 0,
-    });
+    if (sceneIndex >= leadingBrandSceneCount) {
+      reportBrandAssetProgress(input, scene.sceneId, sceneIndex, asset.assetId);
+    }
   }
 
   return { assets, scenes };
+}
+
+function reportBrandAssetProgress(
+  input: PlanVisualAssetsInput,
+  sceneId: string,
+  sceneIndex: number,
+  assetId: string,
+): void {
+  input.onProgress?.({
+    phase: 'assets',
+    sceneId,
+    sceneIndex: sceneIndex + 1,
+    sceneCount: input.scenes.length,
+    provider: 'article',
+    assetId,
+    elapsedMs: 0,
+  });
 }
 
 function remapProgress(
@@ -98,6 +130,20 @@ function remapProgress(
     sceneIndex: index === undefined ? progress.sceneIndex : index + 1,
     sceneCount,
   };
+}
+
+async function ensurePodcastBrandAsset(
+  kind: PodcastBrandVisualKind,
+  brandAssets: Map<PodcastBrandVisualKind, PlannedVisualImage>,
+  assets: PlannedVisualImage[],
+  workingDirectory: string,
+): Promise<PlannedVisualImage> {
+  const existing = brandAssets.get(kind);
+  if (existing) return existing;
+  const created = await createPodcastBrandAsset(kind, workingDirectory);
+  brandAssets.set(kind, created);
+  assets.push(created);
+  return created;
 }
 
 async function createPodcastBrandAsset(
