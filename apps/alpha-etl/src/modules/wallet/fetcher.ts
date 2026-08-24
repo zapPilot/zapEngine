@@ -42,7 +42,7 @@ const DeBankTokenBalanceSchema = z
     is_verified: z.boolean(),
     is_wallet: z.boolean(),
     name: z.string(),
-    price: z.number().optional(),
+    price: z.number().nonnegative().optional(),
     price_24h_change: z.number().optional(),
     symbol: z.string(),
   })
@@ -261,6 +261,7 @@ export class DeBankFetcher extends BaseApiFetcher {
         {
           walletAddress: maskWalletAddress(walletAddress),
           responseType: typeof data,
+          response: data,
         },
       );
       if (this.strictErrors) {
@@ -271,24 +272,22 @@ export class DeBankFetcher extends BaseApiFetcher {
       return [];
     }
 
-    try {
-      return DeBankComplexProtocolListSchema.parse(data);
-    } catch (zodError) {
-      logger.warn(
-        'DeBank complex protocol list validation failed, returning raw data',
-        {
-          walletAddress: maskWalletAddress(walletAddress),
-          error:
-            zodError instanceof Error
-              ? zodError.message
-              : 'Unknown validation error',
-        },
-      );
-      if (this.strictErrors) {
-        throw new Error('DeBank complex protocol list validation failed');
-      }
-      return data as DeBankComplexProtocolList;
+    const validation = DeBankComplexProtocolListSchema.safeParse(data);
+    if (validation.success) {
+      return validation.data;
     }
+
+    logger.warn(
+      'DeBank complex protocol list validation failed, returning raw data',
+      {
+        walletAddress: maskWalletAddress(walletAddress),
+        error: validation.error.message,
+      },
+    );
+    if (this.strictErrors) {
+      throw new Error('DeBank complex protocol list validation failed');
+    }
+    return data as DeBankComplexProtocolList;
   }
 
   private logFetchError(
@@ -298,7 +297,7 @@ export class DeBankFetcher extends BaseApiFetcher {
   ): void {
     logger.error(message, {
       walletAddress: maskWalletAddress(walletAddress),
-      error,
+      error: toErrorMessage(error),
     });
   }
 
@@ -309,40 +308,13 @@ export class DeBankFetcher extends BaseApiFetcher {
     return [];
   }
 
-  healthCheck = createWrappedHealthCheck(() => this.checkHealth());
+  async checkHealth(): Promise<HealthCheckResult> {
+    return createWrappedHealthCheck('DeBank', () =>
+      this.fetchWalletTokenList('0x0000000000000000000000000000000000000000'),
+    );
+  }
 
-  private async checkHealth(): Promise<HealthCheckResult> {
-    // Test with a well-known address (Ethereum Foundation)
-    const testAddress = '0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae';
-    const url = `${this.baseUrl}/v1/user/total_balance`;
-    const params = new URLSearchParams({
-      id: testAddress,
-    });
-
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-      'User-Agent': this.userAgent,
-    };
-
-    Object.assign(headers, this.buildHeaders());
-
-    const response = await fetch(`${url}?${params}`, {
-      headers,
-      signal: AbortSignal.timeout(10000), // 10 second timeout
-    });
-
-    if (response.ok) {
-      return { status: 'healthy' };
-    } else if (response.status === 429) {
-      return {
-        status: 'unhealthy',
-        details: 'Rate limited - consider adding API key',
-      };
-    } else {
-      return {
-        status: 'unhealthy',
-        details: `HTTP ${response.status}: ${response.statusText}`,
-      };
-    }
+  private static resolveRateLimitDelay(rateLimitMs: number): number {
+    return Math.max(rateLimitMs, 0);
   }
 }
