@@ -1,6 +1,10 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { isAllowedTelegramSourceUrl } from './telegram-source.js';
+
+beforeEach(() => {
+  vi.stubEnv('PIPELINE_TELEGRAM_ALLOWED_SOURCE_HOSTS', '');
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();
