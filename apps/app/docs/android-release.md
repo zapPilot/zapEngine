@@ -50,19 +50,19 @@ values in the Expo dashboard under the project's environment variables. Mirror
 the values used by the production app, including the applicable variables below:
 
 ```text
-EXPO_PUBLIC_ACCOUNT_API_URL
-EXPO_PUBLIC_ANALYTICS_ENGINE_URL
-EXPO_PUBLIC_PRIVY_APP_ID
-EXPO_PUBLIC_PRIVY_CLIENT_ID
-EXPO_PUBLIC_ALCHEMY_API_KEY
-EXPO_PUBLIC_MORALIS_API_KEY
-EXPO_PUBLIC_PODCAST_API_URL
+ACCOUNT_API_URL
+ANALYTICS_ENGINE_URL
+PRIVY_MOBILE_APP_ID
+PRIVY_MOBILE_CLIENT_ID
+ALCHEMY_API_KEY
+MORALIS_API_KEY
+PODCAST_API_URL
 ```
 
 Only configure variables actually used by the selected wallet/data providers.
 Do not assume the ignored repository-root `.env` is available on EAS Build.
 
-`EXPO_PUBLIC_PRIVY_CLIENT_ID` must reference a Privy **mobile** app client, not
+`PRIVY_MOBILE_CLIENT_ID` must reference a Privy **mobile** app client, not
 a web client. Open **Privy Dashboard > App settings > Clients** and register the
 native identifiers before testing or releasing:
 

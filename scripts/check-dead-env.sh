@@ -313,6 +313,20 @@ declared_vars=$(
     | sort -u
 )
 
+if ! node "$REPO_ROOT/scripts/env/cli.mjs" audit-example; then
+  exit 1
+fi
+
+node --test "$REPO_ROOT/scripts/env/lib.test.mjs"
+
+manifest_mappings=$(node "$REPO_ROOT/scripts/env/cli.mjs" mappings)
+projected_vars=$(
+  printf '%s\n' "$manifest_mappings" \
+    | tr '|' '\n' \
+    | grep -vE '^(client|server|host)$' \
+    | sort -u
+)
+
 # ── local .env audit: optional locally, absent in CI by design ───────────────
 if [ -f "$LOCAL_ENV_FILE" ]; then
   duplicate_local_vars=$(
@@ -409,8 +423,25 @@ while IFS= read -r var; do
   if apps=$(check_var_in_apps "$var"); then
     live_vars+=("$var|$apps")
   else
-    dead_vars+=("$var")
-    found_dead=1
+    projected_live=""
+    mapping=$(printf '%s\n' "$manifest_mappings" | grep -E "^${var}\\|" || true)
+    IFS='|' read -r _canonical manifest_kind projection_a projection_b projection_c <<< "$mapping"
+    if [ "$manifest_kind" = "host" ]; then
+      live_vars+=("$var|host tooling")
+      continue
+    fi
+    for projection in "$projection_a" "$projection_b" "$projection_c"; do
+      [ -n "$projection" ] || continue
+      if projection_apps=$(check_var_in_apps "$projection"); then
+        projected_live="${projected_live:+$projected_live }$projection_apps"
+      fi
+    done
+    if [ -n "$projected_live" ]; then
+      live_vars+=("$var|$projected_live")
+    else
+      dead_vars+=("$var")
+      found_dead=1
+    fi
   fi
 done <<< "$declared_vars"
 
@@ -439,7 +470,7 @@ missing_vars=()
 while IFS='|' read -r var app_name; do
   [ -n "$var" ] || continue
 
-  if is_excluded_builtin "$var" || is_declared_var "$var"; then
+  if is_excluded_builtin "$var" || is_declared_var "$var" || grep -Fxq "$var" <<< "$projected_vars"; then
     continue
   fi
 

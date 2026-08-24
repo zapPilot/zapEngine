@@ -16,8 +16,8 @@ for Expo Go. Mobile authentication is wired through Privy's Expo SDK path and
 expects:
 
 ```bash
-EXPO_PUBLIC_PRIVY_APP_ID=...
-EXPO_PUBLIC_PRIVY_CLIENT_ID=... # Privy mobile app client
+PRIVY_MOBILE_APP_ID=...
+PRIVY_MOBILE_CLIENT_ID=... # Privy mobile app client
 ```
 
 Do not reuse a Privy web client ID in an Android or iOS build.

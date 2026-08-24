@@ -5,40 +5,10 @@ set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
-load_repo_env() {
-  local env_file="$repo_root/.env"
-  local line key value
-
-  [ -f "$env_file" ] || return 0
-
-  while IFS= read -r line || [ -n "$line" ]; do
-    line="${line%$'\r'}"
-
-    [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
-    [[ "$line" =~ ^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=(.*)$ ]] || continue
-
-    key="${BASH_REMATCH[2]}"
-    value="${BASH_REMATCH[3]}"
-    value="${value#"${value%%[![:space:]]*}"}"
-    value="${value%"${value##*[![:space:]]}"}"
-
-    if [[ "$value" == \"*\" && "$value" == *\" ]]; then
-      value="${value:1:${#value}-2}"
-    elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
-      value="${value:1:${#value}-2}"
-    fi
-
-    if [[ -z "${!key+x}" ]]; then
-      export "$key=$value"
-    fi
-  done < "$env_file"
-}
-
 cd "$repo_root"
-load_repo_env
-
-# Sourced after load_repo_env so ACCOUNT_ENGINE_PORT and friends are exported
-# before the port table is built from them.
+# The root package script loads canonical .env values and client projections
+# before this dispatcher starts, so Turbo sees them while computing task hashes.
+# Sourced here so ACCOUNT_ENGINE_PORT and friends are available to the port table.
 # shellcheck source=scripts/dev-ports-lib.sh
 source "$repo_root/scripts/dev-ports-lib.sh"
 

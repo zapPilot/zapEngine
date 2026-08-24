@@ -2,13 +2,33 @@
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": [
     ".nvmrc",
-    ".env.example",
+    ".env*",
     ".jscpd.json",
     "pnpm-lock.yaml",
     "package.json",
     "pnpm-workspace.yaml"
   ],
-  "globalEnv": ["NODE_ENV", "CI"],
+  "globalEnv": [
+    "NODE_ENV",
+    "CI",
+    "ACCOUNT_API_URL",
+    "ANALYTICS_ENGINE_URL",
+    "PODCAST_API_URL",
+    "CACHE_MAX_AGE_SECONDS",
+    "CACHE_STALE_WHILE_REVALIDATE_SECONDS",
+    "PRIVY_WEB_APP_ID",
+    "PRIVY_MOBILE_APP_ID",
+    "PRIVY_MOBILE_CLIENT_ID",
+    "MORALIS_API_KEY",
+    "ALCHEMY_API_KEY",
+    "ENABLE_RQ_DEVTOOLS",
+    "ENABLE_DEBUG_LOGGING",
+    "ENABLE_DEV_LOGGING",
+    "IPFS_GATEWAY",
+    "IPFS_GATEWAY_FALLBACK",
+    "GA_ID",
+    "TRACK_RECORD_MOCK"
+  ],
   "futureFlags": {
     "longerSignatureKey": true
   },

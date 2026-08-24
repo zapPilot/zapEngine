@@ -14,10 +14,15 @@ function isDevBuild(): boolean {
 export function buildAppCoreEnvSource(
   extra: ExpoExtraConfig = {},
 ): Record<string, string | undefined> {
+  const privyAppId =
+    APP_RUNTIME === 'native'
+      ? process.env.EXPO_PUBLIC_PRIVY_APP_ID || extra.privyMobileAppId
+      : extra.privyWebAppId || process.env.EXPO_PUBLIC_PRIVY_APP_ID;
+
   return {
     VITE_ACCOUNT_API_URL: process.env.EXPO_PUBLIC_ACCOUNT_API_URL,
     VITE_ANALYTICS_ENGINE_URL: process.env.EXPO_PUBLIC_ANALYTICS_ENGINE_URL,
-    VITE_PRIVY_APP_ID: process.env.EXPO_PUBLIC_PRIVY_APP_ID,
+    VITE_PRIVY_APP_ID: privyAppId,
     VITE_ALCHEMY_API_KEY:
       process.env.EXPO_PUBLIC_ALCHEMY_API_KEY || extra.alchemyApiKey,
     VITE_MORALIS_API_KEY: process.env.EXPO_PUBLIC_MORALIS_API_KEY,
