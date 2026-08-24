@@ -11,9 +11,10 @@ import type { EpisodeVideoProgressUpdate } from './video-progress.js';
 // This is the queue compatibility fence for the whole video pipeline, not only
 // image selection. Bump it when a completed render must be regenerated under a
 // new output contract (v4: 720x1280 at 24fps; v5: LLM-written search intents
-// and the chunk-crossfade freeze fix).
+// and the chunk-crossfade freeze fix; v6: cover + body + Zap Pilot outro,
+// BODY ONLY storyboard, intro extends first body).
 export const EPISODE_VIDEO_VISUAL_VERSION =
-  'podcast-image-visual-plan.v5' as const;
+  'podcast-image-visual-plan.v6' as const;
 
 export type EpisodeVideoJobStatus =
   | 'queued'

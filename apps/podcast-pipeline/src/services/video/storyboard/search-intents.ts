@@ -7,6 +7,7 @@ import {
 } from '../../llm.js';
 import {
   podcastBrandVisualKind,
+  splitPodcastVisualSections,
   validatePodcastStoryboardDraft,
 } from '../../podcast-packaging.js';
 import { throwIfAborted } from '../abort.js';
@@ -266,13 +267,37 @@ function searchIntentScenes(
   const searchEvidence = request.searchScript
     ? balancedSearchEvidenceGroups(request.searchScript, contentScenes.length)
     : null;
+  const sections = splitPodcastVisualSections(request.script);
+  const sentenceIndex = new Map(
+    sentences.map((sentence) => [sentence.id, sentence.index]),
+  );
+  const bodyStartIndex = sections.isPackaged
+    ? (sections.body[0]?.index ?? 0)
+    : 0;
+  const bodyEndIndex = sections.isPackaged
+    ? (sections.body.at(-1)?.index ?? sentences.length - 1)
+    : sentences.length - 1;
   const scenes: SearchIntentScene[] = [];
   for (const [index, scene] of contentScenes.entries()) {
+    const startIndex = sentenceIndex.get(scene.startSentenceId);
+    const endIndex = sentenceIndex.get(scene.endSentenceId);
+    if (startIndex === undefined || endIndex === undefined) return null;
+    // Clip evidence to body when packaged: first scene is extended to intro for timing,
+    // but its visual semantics must remain BODY ONLY.
+    const clippedStart = sections.isPackaged
+      ? Math.max(startIndex, bodyStartIndex)
+      : startIndex;
+    const clippedEnd = sections.isPackaged
+      ? Math.min(endIndex, bodyEndIndex)
+      : endIndex;
+    if (clippedStart > clippedEnd) return null;
+    const clippedStartId = sentences[clippedStart]!.id;
+    const clippedEndId = sentences[clippedEnd]!.id;
     const text = canonicalSentenceRangeText(
       request.script,
       sentences,
-      scene.startSentenceId,
-      scene.endSentenceId,
+      clippedStartId,
+      clippedEndId,
     )?.trim();
     if (!text) return null;
     const searchText = searchEvidence?.[index]?.trim();

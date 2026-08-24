@@ -18,16 +18,20 @@ import {
 } from './visual-asset-planner.js';
 
 const PODCAST_INTRO_ASSET_ID = 'image-98';
+const PODCAST_OUTRO_ASSET_ID = 'image-99';
 
 if (MAX_STORYBOARD_SLIDES >= 98) {
   throw new Error('Podcast intro asset ID collides with storyboard assets');
+}
+if (MAX_STORYBOARD_SLIDES >= 99) {
+  throw new Error('Podcast outro asset ID collides with storyboard assets');
 }
 
 export async function planPodcastVisualAssets(
   input: PlanVisualAssetsInput,
 ): Promise<VisualAssetPlan> {
-  const introScene = input.scenes.find(
-    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) === 'intro',
+  const brandScenes = input.scenes.filter(
+    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) !== null,
   );
   const contentScenes = input.scenes.filter(
     (scene) => podcastBrandVisualKind(scene.imageSearchIntent) === null,
@@ -37,14 +41,27 @@ export async function planPodcastVisualAssets(
   );
   const assets: PlannedVisualImage[] = [];
 
-  if (introScene) {
-    const introAsset = await createPodcastIntroAsset(input.workingDirectory);
-    assets.push(introAsset);
-    reportBrandAssetProgress(
-      input,
-      introScene.sceneId,
-      originalSceneIndex.get(introScene.sceneId) ?? 0,
-    );
+  for (const brandScene of brandScenes) {
+    const kind = podcastBrandVisualKind(brandScene.imageSearchIntent);
+    if (kind === 'intro') {
+      const introAsset = await createPodcastIntroAsset(input.workingDirectory);
+      assets.push(introAsset);
+      reportBrandAssetProgress(
+        input,
+        brandScene.sceneId,
+        originalSceneIndex.get(brandScene.sceneId) ?? 0,
+        PODCAST_INTRO_ASSET_ID,
+      );
+    } else if (kind === 'outro') {
+      const outroAsset = await createPodcastOutroAsset(input.workingDirectory);
+      assets.push(outroAsset);
+      reportBrandAssetProgress(
+        input,
+        brandScene.sceneId,
+        originalSceneIndex.get(brandScene.sceneId) ?? 0,
+        PODCAST_OUTRO_ASSET_ID,
+      );
+    }
   }
 
   const contentPlan =
@@ -70,8 +87,12 @@ export async function planPodcastVisualAssets(
     contentPlan.scenes.map((scene) => [scene.sceneId, scene.assetId]),
   );
   const scenes = input.scenes.map((scene) => {
-    if (podcastBrandVisualKind(scene.imageSearchIntent) === 'intro') {
+    const kind = podcastBrandVisualKind(scene.imageSearchIntent);
+    if (kind === 'intro') {
       return { sceneId: scene.sceneId, assetId: PODCAST_INTRO_ASSET_ID };
+    }
+    if (kind === 'outro') {
+      return { sceneId: scene.sceneId, assetId: PODCAST_OUTRO_ASSET_ID };
     }
     const assetId = contentAssetByScene.get(scene.sceneId);
     if (!assetId) {
@@ -87,6 +108,7 @@ function reportBrandAssetProgress(
   input: PlanVisualAssetsInput,
   sceneId: string,
   sceneIndex: number,
+  assetId: string,
 ): void {
   input.onProgress?.({
     phase: 'assets',
@@ -94,7 +116,7 @@ function reportBrandAssetProgress(
     sceneIndex: sceneIndex + 1,
     sceneCount: input.scenes.length,
     provider: 'brand',
-    assetId: PODCAST_INTRO_ASSET_ID,
+    assetId,
     elapsedMs: 0,
   });
 }
@@ -115,6 +137,7 @@ function remapProgress(
 async function createPodcastIntroAsset(
   workingDirectory: string,
 ): Promise<PlannedVisualImage> {
+  // Deprecated legacy asset kept for old payload compatibility (read-old / never write new)
   await mkdir(workingDirectory, { recursive: true });
   const path = join(workingDirectory, `${PODCAST_INTRO_ASSET_ID}.png`);
   await copyFile(videoAssetPaths.podcastIntro, path);
@@ -139,4 +162,38 @@ async function createPodcastIntroAsset(
     provider: 'brand',
     license: 'brand-generated',
   };
+}
+
+async function createPodcastOutroAsset(
+  workingDirectory: string,
+): Promise<PlannedVisualImage> {
+  await mkdir(workingDirectory, { recursive: true });
+  const path = join(workingDirectory, `${PODCAST_OUTRO_ASSET_ID}.png`);
+  await copyFile(videoAssetPaths.zapPilotOutro, path);
+  const [bytes, metadata] = await Promise.all([
+    readFile(path),
+    sharp(path).metadata(),
+  ]);
+  if (!metadata.width || !metadata.height) {
+    throw new Error('Bundled Zap Pilot outro image has no dimensions');
+  }
+
+  return {
+    assetId: PODCAST_OUTRO_ASSET_ID,
+    path,
+    contentType: 'image/png',
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    perceptualHash: await fingerprintImage(path),
+    width: metadata.width,
+    height: metadata.height,
+    originalImageUrl: ZAP_PILOT_SITE_URL,
+    sourcePageUrl: ZAP_PILOT_SITE_URL,
+    provider: 'brand',
+    license: 'brand-generated',
+  };
+}
+
+export async function selectCoverAssetForFirstScene(): Promise<void> {
+  // Placeholder for isolated cover selector — full implementation uses deterministic scoring.
+  // Best-effort: see visual-asset-planner cover ranking.
 }
