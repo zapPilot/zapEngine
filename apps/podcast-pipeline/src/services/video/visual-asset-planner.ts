@@ -65,14 +65,14 @@ export interface VisualAssetPlan {
 }
 
 export interface VisualAssetProgress {
-  phase: 'search' | 'assets';
+  phase: 'search' | 'assets' | 'cover';
   sceneId: string;
   sceneIndex: number;
   sceneCount: number;
   candidateCount?: number;
   rejectedCandidateCount?: number;
   rejectionSummary?: string;
-  provider?: VisualImageProvider | 'reuse';
+  provider?: VisualImageProvider | 'reuse' | 'cover';
   assetId?: string;
   sourceHostname?: string;
   reuseKind?: VisualReuseKind;

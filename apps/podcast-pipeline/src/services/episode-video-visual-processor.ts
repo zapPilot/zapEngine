@@ -232,29 +232,6 @@ export function createEpisodeVideoVisualProcessor(
           }
         },
       });
-      // WP11/WP12 cover selection logging (best-effort isolated selector)
-      {
-        const coverScene = storyboard.draft.scenes[0];
-        const coverAssetId = coverScene
-          ? assetPlan.scenes.find(
-              (scene) => scene.sceneId === coverScene.sceneId,
-            )?.assetId
-          : undefined;
-        // In resilient mode cover should always succeed via reuse fallback.
-        const coverFallback = !coverAssetId;
-        logVisualProgress(dependencies.logger, 'visual:cover', {
-          run: context.runId,
-          episode: source.episodeId,
-          candidates: String(
-            storyboard.draft.scenes.filter(
-              (scene) =>
-                podcastBrandVisualKind(scene.imageSearchIntent) === null,
-            ).length,
-          ),
-          selected: coverAssetId ?? 'none',
-          fallback: String(coverFallback),
-        });
-      }
       const visualHash = hashEpisodeVisualSelection({
         visualVersion: job.visual_version,
         episodeId: source.episodeId,
@@ -454,6 +431,19 @@ function logPlannerProgress(
   episodeId: string,
   progress: VisualAssetProgress,
 ): void {
+  if (progress.phase === 'cover') {
+    logVisualProgress(logger, 'visual:cover', {
+      run: runId,
+      episode: episodeId,
+      candidates: String(progress.candidateCount ?? 0),
+      selected: progress.assetId ?? 'none',
+      fallback: String(
+        progress.candidateCount === 0 || progress.assetId === 'none',
+      ),
+      elapsedMs: progress.elapsedMs,
+    });
+    return;
+  }
   logVisualProgress(logger, `visual:${progress.phase}`, {
     run: runId,
     episode: episodeId,

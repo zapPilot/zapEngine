@@ -100,27 +100,6 @@ export function getPodcastEditorialSentences(
   }));
 }
 
-export function getEnglishBodySentences(
-  englishScript: string,
-  isPackaged: boolean,
-): CanonicalSentence[] {
-  if (!isPackaged) return splitCanonicalSentences(englishScript);
-  if (!englishScript.trim()) return splitCanonicalSentences(englishScript);
-  const sentences = splitCanonicalSentences(englishScript);
-  if (sentences.length < 3) return sentences;
-  const body = sentences.slice(1, -1);
-  if (body.length === 0) return sentences;
-  const baseOffset = body[0]!.startOffset;
-  return body.map((sentence, index) => ({
-    id: sentence.id,
-    // Re-index to 0 for validation, IDs preserved as original s0001 etc? For English, IDs are independent, but keep original IDs for consistency
-    index,
-    text: sentence.text,
-    startOffset: sentence.startOffset - baseOffset,
-    endOffset: sentence.endOffset - baseOffset,
-  }));
-}
-
 export function packagePodcastScript(rawBody: string): string {
   const body = stripKnownPodcastPackaging(rawBody);
   if (!body) {
@@ -267,6 +246,15 @@ function boundContentScenes(
   return kept;
 }
 
+function withOutroReserve(range: { min: number; max: number }): {
+  min: number;
+  max: number;
+} {
+  // -1 because the final slot is reserved for deterministic Zap Pilot outro (not intro)
+  const max = Math.max(1, Math.min(range.max - 1, MAX_STORYBOARD_SLIDES - 1));
+  return { min: Math.min(range.min, max), max };
+}
+
 export function podcastContentSceneCountRange(
   durationMs: number,
   sentenceCount: number,
@@ -274,9 +262,7 @@ export function podcastContentSceneCountRange(
 ): { min: number; max: number } {
   const range = storyboardSceneCountRange(durationMs, sentenceCount);
   if (!hasCurrentPodcastPackaging(script)) return range;
-  // -1 because the final slot is reserved for deterministic Zap Pilot outro (not intro)
-  const max = Math.max(1, Math.min(range.max - 1, MAX_STORYBOARD_SLIDES - 1));
-  return { min: Math.min(range.min, max), max };
+  return withOutroReserve(range);
 }
 
 export function podcastEditorialSceneCountRange(
@@ -286,8 +272,7 @@ export function podcastEditorialSceneCountRange(
 ): { min: number; max: number } {
   const range = storyboardSceneCountRange(durationMs, sentenceCount);
   if (!isPackaged) return range;
-  const max = Math.max(1, Math.min(range.max - 1, MAX_STORYBOARD_SLIDES - 1));
-  return { min: Math.min(range.min, max), max };
+  return withOutroReserve(range);
 }
 
 function podcastBrandedSceneCountRange(
