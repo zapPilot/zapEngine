@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import sharp from 'sharp';
 
+import { ZAP_PILOT_SITE_LABEL } from '../../brand/cta.js';
 import {
   podcastBrandVisualKind,
   type PodcastBrandVisualKind,
@@ -160,6 +161,6 @@ function brandSvg(kind: PodcastBrandVisualKind): string {
     <rect x="110" y="130" width="1380" height="640" rx="44" fill="#ffffff" opacity="0.055"/>
     <text x="160" y="345" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="108" font-weight="700" letter-spacing="9">ZAP PILOT</text>
     <text x="166" y="455" fill="#dbe4f0" font-family="Arial, Helvetica, sans-serif" font-size="46">Manage your portfolio, not just a wallet.</text>
-    <text x="166" y="590" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="600">Search “Zap Pilot” to learn more</text>
+    <text x="166" y="590" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="600">${ZAP_PILOT_SITE_LABEL}</text>
   </svg>`;
 }
