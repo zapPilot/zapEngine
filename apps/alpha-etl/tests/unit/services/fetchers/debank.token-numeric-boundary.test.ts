@@ -78,4 +78,16 @@ describe('DeBankFetcher token numeric boundaries', () => {
       'DeBank API error: DeBank token list validation failed',
     );
   });
+
+  it('rejects negative token prices in strict mode', async () => {
+    const fetcher = new DeBankFetcher({ strictErrors: true });
+    vi.spyOn(
+      fetcher as unknown as { fetchWithRetry: () => Promise<unknown> },
+      'fetchWithRetry',
+    ).mockResolvedValue([validToken({ price: -0.01 })]);
+
+    await expect(fetcher.fetchWalletTokenList(walletAddress)).rejects.toThrow(
+      'DeBank API error: DeBank token list validation failed',
+    );
+  });
 });
