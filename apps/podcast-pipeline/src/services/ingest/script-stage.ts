@@ -18,7 +18,10 @@ import {
 } from '../db.js';
 import { generateScriptWithLLM } from '../llm.js';
 import { convertArticleToZhTW } from '../opencc.js';
-import { packagePodcastScript } from '../podcast-packaging.js';
+import {
+  packagePodcastScript,
+  PODCAST_PACKAGING_VERSION,
+} from '../podcast-packaging.js';
 import { scrapeArticle } from '../scrape.js';
 import { logIngestSkip, step } from './step.js';
 
@@ -174,7 +177,28 @@ async function ensureLocalizationScript(input: {
     );
   }
 
-  if (needsGeneratedScript(localization)) {
+  const persistedBody = localization.script_body?.trim();
+  const canRepackage =
+    persistedBody &&
+    localization.status !== 'pending' &&
+    localization.status !== 'scraped' &&
+    (!localization.script ||
+      localization.packaging_version !== PODCAST_PACKAGING_VERSION);
+
+  if (canRepackage) {
+    const packagedScript = await step('packagePodcastScript', () =>
+      Promise.resolve(packagePodcastScript(persistedBody)),
+    );
+    localization = await step(
+      'updateEpisodeLocalizationStatus:script_generated',
+      () =>
+        updateEpisodeLocalizationStatus(localization!.id, 'script_generated', {
+          script: packagedScript,
+          scriptBody: persistedBody,
+          packagingVersion: PODCAST_PACKAGING_VERSION,
+        }),
+    );
+  } else if (needsGeneratedScript(localization)) {
     const generated = await step('generateScript', () =>
       generateScriptWithLLM(input.article.title, input.article.text),
     );
@@ -194,6 +218,8 @@ async function ensureLocalizationScript(input: {
         updateEpisodeLocalizationStatus(localization!.id, 'script_generated', {
           ...(generated.title === null ? {} : { title: generated.title }),
           script: packagedScript,
+          scriptBody: generated.script.trim(),
+          packagingVersion: PODCAST_PACKAGING_VERSION,
           llmModel: generated.model,
           llmThinkingModel: generated.thinkingModel,
           llmProvider: generated.provider,
@@ -240,6 +266,8 @@ async function persistScrapedLocalization(
     return updateEpisodeLocalizationStatus(localization.id, 'scraped', {
       hlsUrl: '',
       script: '',
+      scriptBody: null,
+      packagingVersion: null,
       r2Prefix: null,
       ttsLanguageCode: null,
       ttsVoiceName: null,

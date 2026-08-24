@@ -11,6 +11,7 @@ import {
 } from './video/storyboard/validation.js';
 
 export const PODCAST_INTRO = '歡迎收聽 Zap Podcast。';
+export const PODCAST_PACKAGING_VERSION = 'podcast-script.v1';
 export const ZAP_PILOT_OUTRO =
   '如果你也在管理多個錢包、DeFi 部位和投資組合，可以到 Zap Pilot 官網，讓投資組合管理更簡單、更清楚。';
 
@@ -135,7 +136,7 @@ export function validatePodcastStoryboardDraft(
   });
 }
 
-function stripKnownPodcastPackaging(rawScript: string): string {
+export function stripKnownPodcastPackaging(rawScript: string): string {
   let body = rawScript.trim();
   for (const intro of STRIPPABLE_PODCAST_INTROS) {
     if (body.startsWith(intro)) {

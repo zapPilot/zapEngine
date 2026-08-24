@@ -63,6 +63,8 @@ type LocalizationStatusUpdates = Partial<
     NewEpisodeLocalization,
     | 'title'
     | 'script'
+    | 'scriptBody'
+    | 'packagingVersion'
     | 'llmModel'
     | 'llmThinkingModel'
     | 'llmProvider'
@@ -81,6 +83,8 @@ const LOCALIZATION_UPDATE_COLUMNS: Record<
 > = {
   title: 'title',
   script: 'script',
+  scriptBody: 'script_body',
+  packagingVersion: 'packaging_version',
   llmModel: 'llm_model',
   llmThinkingModel: 'llm_thinking_model',
   llmProvider: 'llm_provider',
@@ -999,6 +1003,13 @@ function toLocalizationPayload(
     r2_prefix: localization.r2Prefix,
     status: localization.status,
   };
+
+  if (localization.scriptBody !== undefined) {
+    payload['script_body'] = localization.scriptBody;
+  }
+  if (localization.packagingVersion !== undefined) {
+    payload['packaging_version'] = localization.packagingVersion;
+  }
 
   if (localization.classroomHlsUrl != null) {
     payload['classroom_hls_url'] = localization.classroomHlsUrl;

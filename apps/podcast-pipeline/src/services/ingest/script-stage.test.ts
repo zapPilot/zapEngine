@@ -5,7 +5,11 @@ import type {
   EpisodeLocalizationRow,
   EpisodeRow,
 } from '../../types.js';
-import { PODCAST_INTRO, ZAP_PILOT_OUTRO } from '../podcast-packaging.js';
+import {
+  PODCAST_INTRO,
+  PODCAST_PACKAGING_VERSION,
+  ZAP_PILOT_OUTRO,
+} from '../podcast-packaging.js';
 
 const PACKAGED_SCRIPT = `${PODCAST_INTRO}\n\nGenerated script\n\n${ZAP_PILOT_OUTRO}`;
 
@@ -104,6 +108,8 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
       {
         title: editorialTitle,
         script: PACKAGED_SCRIPT,
+        scriptBody: 'Generated script',
+        packagingVersion: PODCAST_PACKAGING_VERSION,
         llmModel: 'test/model',
         llmThinkingModel: null,
         llmProvider: 'test-provider',
@@ -139,6 +145,8 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
     const updates = mocks.updateEpisodeLocalizationStatus.mock.calls[0]?.[2];
     expect(updates).toEqual({
       script: PACKAGED_SCRIPT,
+      scriptBody: 'Generated script',
+      packagingVersion: PODCAST_PACKAGING_VERSION,
       llmModel: 'test/model',
       llmThinkingModel: null,
       llmProvider: 'test-provider',
@@ -190,6 +198,41 @@ describe('ensureEpisodeLocalizationScript editorial title persistence', () => {
     expect(mocks.generateScriptWithLLM).not.toHaveBeenCalled();
     expect(mocks.updateEpisodeLocalizationStatus).not.toHaveBeenCalled();
     expect(result.localization).toBe(existing);
+  });
+
+  it('repackages a persisted raw body without another LLM request', async () => {
+    const existing = localizationRow({
+      status: 'script_generated',
+      script: '',
+      script_body: '  Generated script  ',
+      packaging_version: 'podcast-script.v0',
+    });
+    mocks.updateEpisodeLocalizationStatus.mockResolvedValue(
+      localizationRow({
+        status: 'script_generated',
+        script: PACKAGED_SCRIPT,
+        script_body: 'Generated script',
+        packaging_version: PODCAST_PACKAGING_VERSION,
+      }),
+    );
+
+    await ensureEpisodeLocalizationScript(
+      'https://example.com/article',
+      'zh-Hant',
+      [],
+      { episode: episodeRow(), localization: existing },
+    );
+
+    expect(mocks.generateScriptWithLLM).not.toHaveBeenCalled();
+    expect(mocks.updateEpisodeLocalizationStatus).toHaveBeenCalledWith(
+      existing.id,
+      'script_generated',
+      {
+        script: PACKAGED_SCRIPT,
+        scriptBody: 'Generated script',
+        packagingVersion: PODCAST_PACKAGING_VERSION,
+      },
+    );
   });
 
   it('regenerates an editorial title in the same run after a pending re-scrape', async () => {
@@ -284,6 +327,8 @@ function localizationRow(
     classroom_hls_url: null,
     raw_text: '文章內容',
     script: '',
+    script_body: null,
+    packaging_version: null,
     llm_model: null,
     llm_thinking_model: null,
     llm_provider: null,
