@@ -73,6 +73,9 @@ defaults apply. Use a command-line environment override for a one-off local
 run, and configure CI-only or production secrets in the CI/deployment platform
 rather than the shared local file.
 
+For shared client values, `VITE_*` is the only local source. Platform-prefixed
+`EXPO_PUBLIC_*` and `ZAP_*` keys are deployment or runtime overrides.
+
 For analytics-engine's Python venv (first-time only):
 
 ```bash

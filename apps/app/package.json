@@ -39,7 +39,7 @@
     "ios:submit": "node scripts/submit-latest-production.mjs ios",
     "ios:bundle-check": "node scripts/assert-ios-bundle-clean.cjs",
     "build": "EXPO_NO_TELEMETRY=1 expo export --platform android --output-dir dist/android && EXPO_NO_TELEMETRY=1 expo export --platform ios --output-dir dist/ios && pnpm run ios:bundle-check",
-    "build:web": "EXPO_NO_TELEMETRY=1 expo export --platform web --output-dir dist/web --source-maps",
+    "build:web": "EXPO_NO_TELEMETRY=1 expo export --platform web --output-dir dist/web --source-maps --clear",
     "check:web-native-leaks": "node scripts/check-web-native-leaks.mjs",
     "type-check": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint . --max-warnings 0",

@@ -10,8 +10,9 @@ import { app } from 'electron';
  *
  * Precedence (highest first):
  *   1. ZAP-prefixed process env values (dev / power users)
- *   2. userData config.json (packaged-app override, editable without rebuild)
- *   3. production defaults below
+ *   2. Managed VITE-prefixed process env values (local canonical values)
+ *   3. userData config.json (packaged-app override, editable without rebuild)
+ *   4. production defaults below
  */
 
 /** ZAP_* env key -> app-core VITE_* key. */
@@ -19,6 +20,8 @@ const ENV_KEY_MAP: Record<string, string> = {
   ZAP_ACCOUNT_API_URL: 'VITE_ACCOUNT_API_URL',
   ZAP_ANALYTICS_ENGINE_URL: 'VITE_ANALYTICS_ENGINE_URL',
 };
+
+const MANAGED_VITE_KEYS = Object.values(ENV_KEY_MAP);
 
 /**
  * Production defaults stay blank until the real production URLs are chosen
@@ -46,6 +49,13 @@ export function buildMainEnvSource(
 
   for (const [viteKey, value] of Object.entries(deps.configFile ?? {})) {
     if (typeof value === 'string') {
+      source[viteKey] = value;
+    }
+  }
+
+  for (const viteKey of MANAGED_VITE_KEYS) {
+    const value = deps.env[viteKey];
+    if (value !== undefined && value !== '') {
       source[viteKey] = value;
     }
   }

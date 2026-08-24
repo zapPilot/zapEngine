@@ -32,28 +32,26 @@ function loadRepoRootEnv(): void {
 
 loadRepoRootEnv();
 
-export function resolveExpoAlchemyApiKey(
+export function resolveExpoPublicValue(
   env: Record<string, string | undefined>,
+  expoKey: string,
+  viteKey: string,
 ): string {
-  return (
-    env.EXPO_PUBLIC_ALCHEMY_API_KEY?.trim() ||
-    env.VITE_ALCHEMY_API_KEY?.trim() ||
-    ''
-  );
+  return env[expoKey]?.trim() || env[viteKey]?.trim() || '';
 }
 
-export function resolveExpoMoralisApiKey(
-  env: Record<string, string | undefined>,
-): string {
-  return (
-    env.EXPO_PUBLIC_MORALIS_API_KEY?.trim() ||
-    env.VITE_MORALIS_API_KEY?.trim() ||
-    ''
-  );
-}
+export const EXPO_PUBLIC_PROJECTION = {
+  EXPO_PUBLIC_ALCHEMY_API_KEY: 'VITE_ALCHEMY_API_KEY',
+  EXPO_PUBLIC_MORALIS_API_KEY: 'VITE_MORALIS_API_KEY',
+  EXPO_PUBLIC_ACCOUNT_API_URL: 'VITE_ACCOUNT_API_URL',
+  EXPO_PUBLIC_ANALYTICS_ENGINE_URL: 'VITE_ANALYTICS_ENGINE_URL',
+  EXPO_PUBLIC_PODCAST_API_URL: 'VITE_PODCAST_API_URL',
+  EXPO_PUBLIC_PRIVY_APP_ID: 'VITE_PRIVY_APP_ID',
+} as const;
 
-process.env.EXPO_PUBLIC_ALCHEMY_API_KEY = resolveExpoAlchemyApiKey(process.env);
-process.env.EXPO_PUBLIC_MORALIS_API_KEY = resolveExpoMoralisApiKey(process.env);
+for (const [expoKey, viteKey] of Object.entries(EXPO_PUBLIC_PROJECTION)) {
+  process.env[expoKey] = resolveExpoPublicValue(process.env, expoKey, viteKey);
+}
 
 /**
  * expo-dev-client wires a local-network dev-server launcher into the app
@@ -184,8 +182,8 @@ const config: ExpoConfig = {
   ],
   extra: {
     appRuntime: 'app',
-    // EXPO_PUBLIC_* remains canonical for deployed builds. VITE_* is a local
-    // repo fallback so Expo can share the already-configured Alchemy key.
+    // EXPO_PUBLIC_* remains the deployment override. During local config
+    // evaluation, the projection above fills unset/blank values from VITE_*.
     alchemyApiKey: process.env.EXPO_PUBLIC_ALCHEMY_API_KEY ?? '',
     privyAppId: process.env.EXPO_PUBLIC_PRIVY_APP_ID ?? '',
     privyClientId: process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID ?? '',

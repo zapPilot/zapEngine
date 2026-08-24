@@ -59,10 +59,12 @@ Pre-commit keeps checks fast: frozen-lockfile installation, repository drift che
 1. Add the key to root `.env.example` with a short purpose comment.
 2. Use the local runtime convention:
    - Node or server TypeScript: `process.env.X` or `process.env['X']`
-   - Vite client code: `import.meta.env.X` for exposed values
+   - Shared app client code: `getRuntimeEnv('VITE_X')` from app-core
    - Python: `os.getenv("X")`, `os.environ["X"]`, or `os.environ.get("X")`
-3. Add production configuration to the relevant deployment system.
-4. Run:
+3. Prefer a `VITE_*` key as the local source. Add a platform-prefixed override
+   only when that deployment or runtime needs a different value.
+4. Add production configuration to the relevant deployment system.
+5. Run:
 
 ```bash
 bash scripts/check-dead-env.sh

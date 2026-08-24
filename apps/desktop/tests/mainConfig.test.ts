@@ -36,20 +36,36 @@ describe('buildMainEnvSource', () => {
     expect(source['VITE_ACCOUNT_API_URL']).toBe('https://account.prod.example');
   });
 
-  it('ZAP_* env wins over config file and defaults', () => {
+  it('managed VITE_* env wins over config file and defaults', () => {
     const source = buildMainEnvSource({
-      env: { ZAP_ANALYTICS_ENGINE_URL: 'http://localhost:8001' },
+      env: { VITE_ANALYTICS_ENGINE_URL: 'http://localhost:8001' },
       configFile: { VITE_ANALYTICS_ENGINE_URL: 'https://analytics.override' },
       defaults: DEFAULTS,
       isPackaged: false,
     });
     expect(source['VITE_ANALYTICS_ENGINE_URL']).toBe('http://localhost:8001');
+  });
+
+  it('ZAP_* env wins over non-empty VITE_* env', () => {
+    const source = buildMainEnvSource({
+      env: {
+        VITE_ANALYTICS_ENGINE_URL: 'http://localhost:8001',
+        ZAP_ANALYTICS_ENGINE_URL: 'http://localhost:9001',
+      },
+      configFile: { VITE_ANALYTICS_ENGINE_URL: 'https://analytics.override' },
+      defaults: DEFAULTS,
+      isPackaged: false,
+    });
+    expect(source['VITE_ANALYTICS_ENGINE_URL']).toBe('http://localhost:9001');
     expect(source['MODE']).toBe('development');
   });
 
-  it('ignores empty env values', () => {
+  it('ignores empty VITE_* and ZAP_* env values', () => {
     const source = buildMainEnvSource({
-      env: { ZAP_ANALYTICS_ENGINE_URL: '' },
+      env: {
+        VITE_ANALYTICS_ENGINE_URL: '',
+        ZAP_ANALYTICS_ENGINE_URL: '',
+      },
       configFile: undefined,
       defaults: DEFAULTS,
       isPackaged: true,
@@ -59,13 +75,23 @@ describe('buildMainEnvSource', () => {
     );
   });
 
-  it('always pins VITE_APP_RUNTIME to desktop', () => {
+  it('always pins VITE_APP_RUNTIME and MODE', () => {
     const source = buildMainEnvSource({
-      env: {},
-      configFile: { VITE_APP_RUNTIME: 'web' },
+      env: { VITE_APP_RUNTIME: 'web', MODE: 'test' },
+      configFile: { VITE_APP_RUNTIME: 'app', MODE: 'staging' },
       defaults: DEFAULTS,
       isPackaged: true,
     });
     expect(source['VITE_APP_RUNTIME']).toBe('desktop');
+    expect(source['MODE']).toBe('production');
+  });
+
+  it('does not copy unmanaged VITE_* env values', () => {
+    const source = buildMainEnvSource({
+      env: { VITE_PODCAST_API_URL: 'http://localhost:3000' },
+      defaults: DEFAULTS,
+      isPackaged: false,
+    });
+    expect(source).not.toHaveProperty('VITE_PODCAST_API_URL');
   });
 });
