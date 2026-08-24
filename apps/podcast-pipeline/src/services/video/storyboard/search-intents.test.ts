@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+  applyAndValidatePodcastBrandingToStoryboard,
+  packagePodcastScript,
+  PODCAST_INTRO_VISUAL_INTENT,
+} from '../../podcast-packaging.js';
+
 const llmMocks = vi.hoisted(() => ({
   createOpenRouterChatCompletion: vi.fn(),
   getOpenRouterConfig: vi.fn(),
@@ -114,6 +120,53 @@ describe('storyboard search intent enrichment', () => {
         'bank of japan governor press conference',
       ]),
     );
+  });
+
+  it('skips the brand scene and maps the first English evidence to the first clipped content scene', async () => {
+    const script = packagePodcastScript(SCRIPT);
+    const sentences = splitCanonicalSentences(script);
+    const contentDraft = createDeterministicStoryboard({
+      title: TITLE,
+      script,
+      durationMs: DURATION_MS,
+      sentences,
+      searchTitle: SEARCH_TITLE,
+      searchScript: SEARCH_SCRIPT,
+    });
+    const brandedDraft = applyAndValidatePodcastBrandingToStoryboard(
+      script,
+      contentDraft,
+      DURATION_MS,
+    );
+    const provider = stubProvider(suggestSubjects);
+
+    const result = await enrichStoryboardSearchIntents(
+      {
+        draft: brandedDraft,
+        title: TITLE,
+        searchTitle: SEARCH_TITLE,
+        script,
+        searchScript: SEARCH_SCRIPT,
+        durationMs: DURATION_MS,
+      },
+      { provider },
+    );
+
+    const offeredScenes = provider.suggest.mock.calls.flatMap(
+      ([call]) => call.scenes,
+    );
+    expect(offeredScenes).toHaveLength(brandedDraft.scenes.length - 1);
+    expect(offeredScenes[0]).toEqual(
+      expect.objectContaining({
+        sceneId: 'scene-02',
+        searchText: expect.stringContaining('Part 1'),
+      }),
+    );
+    expect(result.draft.scenes[0]?.imageSearchIntent).toEqual([
+      PODCAST_INTRO_VISUAL_INTENT,
+    ]);
+    expect(result.enrichedSceneCount).toBe(brandedDraft.scenes.length - 1);
+    expect(result.discardedSceneCount).toBe(0);
   });
 
   it('sends the English title when the episode has one', async () => {
@@ -237,6 +290,7 @@ describe('storyboard search intent enrichment', () => {
         draft: request.draft,
         model: null,
         enrichedSceneCount: 0,
+        discardedSceneCount: 0,
       });
       expect(warn).toHaveBeenCalled();
     } finally {
@@ -259,6 +313,7 @@ describe('storyboard search intent enrichment', () => {
       draft: request.draft,
       model: null,
       enrichedSceneCount: 0,
+      discardedSceneCount: request.draft.scenes.length,
     });
   });
 
@@ -284,6 +339,7 @@ describe('storyboard search intent enrichment', () => {
         draft: request.draft,
         model: null,
         enrichedSceneCount: 0,
+        discardedSceneCount: request.draft.scenes.length,
       });
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining('validation failed'),
@@ -309,6 +365,7 @@ describe('storyboard search intent enrichment', () => {
       draft: request.draft,
       model: null,
       enrichedSceneCount: 0,
+      discardedSceneCount: 0,
     });
     expect(provider.suggest).not.toHaveBeenCalled();
   });
@@ -422,6 +479,7 @@ describe('storyboard search intent enrichment', () => {
         draft: request.draft,
         model: null,
         enrichedSceneCount: 0,
+        discardedSceneCount: 0,
       });
       expect(llmMocks.createOpenRouterChatCompletion).not.toHaveBeenCalled();
     } finally {

@@ -26,6 +26,7 @@ function keepDeterministicIntents() {
     draft: request.draft as never,
     model: null,
     enrichedSceneCount: 0,
+    discardedSceneCount: 0,
   }));
 }
 
@@ -130,6 +131,11 @@ describe('createEpisodeVideoVisualProcessor', () => {
         'visual:assets run=run12345 episode=00000000-0000-4000-8000-000000000001',
       ),
     );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'visual:branding run=run12345 episode=00000000-0000-4000-8000-000000000001 status=skipped reason=unpackaged-script',
+      ),
+    );
     expect(removeDirectory).toHaveBeenCalledWith('/work/visual', {
       recursive: true,
       force: true,
@@ -226,6 +232,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
       },
       model: 'openrouter/free',
       enrichedSceneCount: 2,
+      discardedSceneCount: 0,
     }));
     const processor = createEpisodeVideoVisualProcessor({
       analyzeAudio: vi
@@ -278,7 +285,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
     );
     expect(logger.info).toHaveBeenCalledWith(
       expect.stringContaining(
-        'visual:intents run=run12345 episode=00000000-0000-4000-8000-000000000001 enriched=2/2 model=openrouter/free',
+        'visual:intents run=run12345 episode=00000000-0000-4000-8000-000000000001 enriched=2/2 brand=0 discarded=0 model=openrouter/free',
       ),
     );
     // Enrichment shares the storyboard's slice of the bar; it must not add a

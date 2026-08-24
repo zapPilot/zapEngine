@@ -3,7 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { contentTypeExtension } from '../lib/content-type.js';
-import { applyAndValidatePodcastBrandingToStoryboard } from './podcast-packaging.js';
+import {
+  applyAndValidatePodcastBrandingToStoryboard,
+  podcastBrandVisualKind,
+} from './podcast-packaging.js';
 import { scrapeArticle } from './scrape.js';
 import { uploadEpisodeVisualAssetsToR2 } from './storage.js';
 import { analyzeEpisodeAudio } from './video/episode-video.js';
@@ -96,12 +99,27 @@ export function createEpisodeVideoVisualProcessor(
         durationMs: analysis.durationMs,
         signal: context.signal,
       });
-      // The storyboard keeps the scene split and timing; only its search
-      // intents are rewritten, so a failed enrichment costs relevance and
-      // never the checkpoint.
+      const brandedDraft = applyAndValidatePodcastBrandingToStoryboard(
+        source.script,
+        generated.draft,
+        analysis.durationMs,
+      );
+      const brandSceneCount = brandedDraft.scenes.filter(
+        (scene) => podcastBrandVisualKind(scene.imageSearchIntent) !== null,
+      ).length;
+      if (brandSceneCount === 0) {
+        logVisualProgress(dependencies.logger, 'visual:branding', {
+          run: context.runId,
+          episode: source.episodeId,
+          status: 'skipped',
+          reason: 'unpackaged-script',
+        });
+      }
+      // Branding establishes the final scene spans first. Enrichment then sees
+      // the clipped content and skips the fixed brand card entirely.
       const intents = await dependencies.enrichSearchIntents(
         {
-          draft: generated.draft,
+          draft: brandedDraft,
           title: source.title,
           ...(source.englishTitle ? { searchTitle: source.englishTitle } : {}),
           script: source.script,
@@ -114,16 +132,14 @@ export function createEpisodeVideoVisualProcessor(
       );
       const storyboard = {
         ...generated,
-        draft: applyAndValidatePodcastBrandingToStoryboard(
-          source.script,
-          intents.draft,
-          analysis.durationMs,
-        ),
+        draft: intents.draft,
       };
       logVisualProgress(dependencies.logger, 'visual:intents', {
         run: context.runId,
         episode: source.episodeId,
         enriched: `${intents.enrichedSceneCount}/${intents.draft.scenes.length}`,
+        brand: brandSceneCount,
+        discarded: intents.discardedSceneCount,
         model: intents.model ?? 'deterministic',
       });
 

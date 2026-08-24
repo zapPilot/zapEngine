@@ -6,6 +6,7 @@ import {
 import { splitCanonicalSentences } from './video/storyboard/sentences.js';
 import {
   storyboardSceneCountRange,
+  type StoryboardValidationResult,
   validateStoryboardDraft,
 } from './video/storyboard/validation.js';
 
@@ -101,9 +102,28 @@ export function applyAndValidatePodcastBrandingToStoryboard(
   draft: StoryboardDraft,
   durationMs: number,
 ): StoryboardDraft {
-  const sentences = splitCanonicalSentences(script);
   const branded = applyPodcastBrandingToStoryboard(script, draft);
-  const validation = validateStoryboardDraft(branded, {
+  const validation = validatePodcastStoryboardDraft(
+    script,
+    branded,
+    durationMs,
+  );
+  if (!validation.success) {
+    const details = validation.issues
+      .map((issue) => `${issue.code}: ${issue.message}`)
+      .join('; ');
+    throw new Error(`Branded podcast storyboard is invalid: ${details}`);
+  }
+  return validation.draft;
+}
+
+export function validatePodcastStoryboardDraft(
+  script: string,
+  draft: StoryboardDraft,
+  durationMs: number,
+): StoryboardValidationResult {
+  const sentences = splitCanonicalSentences(script);
+  return validateStoryboardDraft(draft, {
     script,
     sentences,
     durationMs,
@@ -113,13 +133,6 @@ export function applyAndValidatePodcastBrandingToStoryboard(
       script,
     ),
   });
-  if (!validation.success) {
-    const details = validation.issues
-      .map((issue) => `${issue.code}: ${issue.message}`)
-      .join('; ');
-    throw new Error(`Branded podcast storyboard is invalid: ${details}`);
-  }
-  return validation.draft;
 }
 
 function stripKnownPodcastPackaging(rawScript: string): string {
