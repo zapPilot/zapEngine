@@ -79,14 +79,16 @@ describe('createEpisodeVideoVisualProcessor', () => {
       signal: expect.any(AbortSignal),
       timeoutMs: VISUAL_ARTICLE_SCRAPE_TIMEOUT_MS,
     });
-    expect(generateStoryboard).toHaveBeenCalledWith({
-      title: source().title,
-      script: source().script,
-      searchTitle: source().englishTitle,
-      searchScript: source().englishScript,
-      durationMs: 90_000,
-      signal: expect.any(AbortSignal),
-    });
+    expect(generateStoryboard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: source().title,
+        script: source().script,
+        searchTitle: source().englishTitle,
+        searchScript: source().englishScript,
+        durationMs: 90_000,
+        signal: expect.any(AbortSignal),
+      }),
+    );
     expect(upload).toHaveBeenCalledWith(
       expect.objectContaining({
         episodeId,

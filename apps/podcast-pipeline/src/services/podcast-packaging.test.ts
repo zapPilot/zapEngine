@@ -3,9 +3,13 @@ import { describe, expect, it } from 'vitest';
 import {
   applyAndValidatePodcastBrandingToStoryboard,
   applyPodcastBrandingToStoryboard,
+  getPodcastEditorialScript,
+  getPodcastEditorialSentences,
   packagePodcastScript,
   PODCAST_INTRO,
   PODCAST_INTRO_VISUAL_INTENT,
+  PODCAST_OUTRO_VISUAL_INTENT,
+  splitPodcastVisualSections,
   ZAP_PILOT_OUTRO,
 } from './podcast-packaging.js';
 import type { StoryboardDraft } from './video/storyboard/draft.js';
@@ -68,20 +72,20 @@ describe('applyPodcastBrandingToStoryboard', () => {
       {
         sceneId: 'scene-01',
         startSentenceId: 's0001',
-        endSentenceId: 's0001',
-        imageSearchIntent: [PODCAST_INTRO_VISUAL_INTENT],
-      },
-      {
-        sceneId: 'scene-02',
-        startSentenceId: 's0002',
         endSentenceId: 's0002',
         imageSearchIntent: ['podcast studio microphone'],
       },
       {
-        sceneId: 'scene-03',
+        sceneId: 'scene-02',
         startSentenceId: 's0003',
-        endSentenceId: 's0004',
+        endSentenceId: 's0003',
         imageSearchIntent: ['podcast host outro'],
+      },
+      {
+        sceneId: 'scene-03',
+        startSentenceId: 's0004',
+        endSentenceId: 's0004',
+        imageSearchIntent: [PODCAST_OUTRO_VISUAL_INTENT],
       },
     ]);
   });
@@ -107,12 +111,14 @@ describe('applyPodcastBrandingToStoryboard', () => {
         '',
       ),
     );
-    const sentences = splitCanonicalSentences(script);
+    const editorialScript = getPodcastEditorialScript(script);
+    const editorialSentences = getPodcastEditorialSentences(script);
     const content = createDeterministicStoryboard({
       title: '市場觀察',
-      script,
+      script: editorialScript,
       durationMs: 90_000,
-      sentences,
+      sentences: editorialSentences,
+      isPackaged: true,
     });
 
     const branded = applyAndValidatePodcastBrandingToStoryboard(
@@ -121,26 +127,40 @@ describe('applyPodcastBrandingToStoryboard', () => {
       90_000,
     );
 
-    expect(content.scenes.length).toBeGreaterThanOrEqual(8);
+    expect(content.scenes.length).toBeGreaterThanOrEqual(7);
     expect(content.scenes.length).toBeLessThanOrEqual(9);
-    expect(branded.scenes.length).toBeGreaterThanOrEqual(9);
+    expect(branded.scenes.length).toBeGreaterThanOrEqual(8);
     expect(branded.scenes.length).toBeLessThanOrEqual(10);
-    expect(branded.scenes.at(-1)?.endSentenceId).toBe(sentences.at(-1)?.id);
+    expect(branded.scenes.at(-1)?.endSentenceId).toBe(
+      splitCanonicalSentences(script).at(-1)?.id,
+    );
+    // First scene extends intro for timing but keeps body visual intent
+    expect(branded.scenes[0]?.startSentenceId).toBe(
+      splitPodcastVisualSections(script).intro?.id,
+    );
+    expect(branded.scenes[0]?.imageSearchIntent).not.toContain(
+      PODCAST_INTRO_VISUAL_INTENT,
+    );
+    expect(branded.scenes.at(-1)?.imageSearchIntent).toEqual([
+      PODCAST_OUTRO_VISUAL_INTENT,
+    ]);
   });
 
-  it('reserves one of 64 storyboard slots for the packaged intro', () => {
+  it('reserves one of 64 storyboard slots for the packaged outro', () => {
     const script = packagePodcastScript(
       Array.from(
         { length: 100 },
         (_, index) => `長篇正文第${index + 1}句。`,
       ).join(''),
     );
-    const sentences = splitCanonicalSentences(script);
+    const editorialScript = getPodcastEditorialScript(script);
+    const editorialSentences = getPodcastEditorialSentences(script);
     const content = createDeterministicStoryboard({
       title: '長篇市場觀察',
-      script,
+      script: editorialScript,
       durationMs: 12.8 * 60_000,
-      sentences,
+      sentences: editorialSentences,
+      isPackaged: true,
     });
 
     const branded = applyAndValidatePodcastBrandingToStoryboard(
@@ -151,5 +171,8 @@ describe('applyPodcastBrandingToStoryboard', () => {
 
     expect(content.scenes).toHaveLength(63);
     expect(branded.scenes).toHaveLength(64);
+    expect(branded.scenes.at(-1)?.imageSearchIntent).toEqual([
+      PODCAST_OUTRO_VISUAL_INTENT,
+    ]);
   });
 });

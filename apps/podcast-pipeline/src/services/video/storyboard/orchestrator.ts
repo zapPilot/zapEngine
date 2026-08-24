@@ -1,5 +1,8 @@
 import { errorMessage } from '../../../lib/errorMessage.js';
-import { podcastContentSceneCountRange } from '../../podcast-packaging.js';
+import {
+  podcastContentSceneCountRange,
+  podcastEditorialSceneCountRange,
+} from '../../podcast-packaging.js';
 import { throwIfAborted } from '../abort.js';
 import type { StoryboardDraft } from './draft.js';
 import { createDeterministicStoryboard } from './fallback.js';
@@ -55,11 +58,25 @@ export async function generateStoryboard(input: {
   durationMs: number;
   provider: StoryboardProvider;
   signal?: AbortSignal;
+  sentences?: readonly import('./sentences.js').CanonicalSentence[];
+  isPackaged?: boolean;
 }): Promise<StoryboardGenerationResult> {
-  const sentences = splitCanonicalSentences(input.script);
+  const sentences = input.sentences ?? splitCanonicalSentences(input.script);
   if (sentences.length === 0) {
     throw new Error('Canonical script does not contain any sentences');
   }
+  const sceneCountRange =
+    input.isPackaged !== undefined
+      ? podcastEditorialSceneCountRange(
+          input.durationMs,
+          sentences.length,
+          input.isPackaged,
+        )
+      : podcastContentSceneCountRange(
+          input.durationMs,
+          sentences.length,
+          input.script,
+        );
 
   const attempts: StoryboardAttemptReport[] = [];
   let repairIssues: StoryboardValidationIssue[] | undefined;
@@ -83,11 +100,7 @@ export async function generateStoryboard(input: {
         script: input.script,
         sentences,
         durationMs: input.durationMs,
-        sceneCountRange: podcastContentSceneCountRange(
-          input.durationMs,
-          sentences.length,
-          input.script,
-        ),
+        sceneCountRange,
       });
       attempts.push({
         attempt,
@@ -127,16 +140,13 @@ export async function generateStoryboard(input: {
     script: input.script,
     durationMs: input.durationMs,
     sentences,
+    ...(input.isPackaged !== undefined ? { isPackaged: input.isPackaged } : {}),
   });
   const fallbackValidation = validateStoryboardDraft(fallback, {
     script: input.script,
     sentences,
     durationMs: input.durationMs,
-    sceneCountRange: podcastContentSceneCountRange(
-      input.durationMs,
-      sentences.length,
-      input.script,
-    ),
+    sceneCountRange,
   });
   if (!fallbackValidation.success) {
     throw new Error(

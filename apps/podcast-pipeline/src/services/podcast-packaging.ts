@@ -3,7 +3,10 @@ import {
   type StoryboardDraft,
   type StoryboardDraftScene,
 } from './video/storyboard/draft.js';
-import { splitCanonicalSentences } from './video/storyboard/sentences.js';
+import {
+  type CanonicalSentence,
+  splitCanonicalSentences,
+} from './video/storyboard/sentences.js';
 import {
   storyboardSceneCountRange,
   type StoryboardValidationResult,
@@ -16,13 +19,86 @@ export const ZAP_PILOT_OUTRO =
   '如果你也在管理多個錢包、DeFi 部位和投資組合，可以到 Zap Pilot 官網，讓投資組合管理更簡單、更清楚。';
 
 export const PODCAST_INTRO_VISUAL_INTENT = 'brand:zap-podcast-intro';
+export const PODCAST_OUTRO_VISUAL_INTENT = 'brand:zap-pilot-outro';
 
 const STRIPPABLE_PODCAST_INTROS = [
   '各位觀眾朋友，歡迎收聽今天的 Zap Podcast。',
   PODCAST_INTRO,
 ] as const;
 
-export type PodcastBrandVisualKind = 'intro';
+export type PodcastBrandVisualKind = 'intro' | 'outro';
+
+export interface PodcastVisualSections {
+  intro: CanonicalSentence | null;
+  body: CanonicalSentence[];
+  outro: CanonicalSentence | null;
+  isPackaged: boolean;
+}
+
+export function splitPodcastVisualSections(
+  script: string,
+): PodcastVisualSections {
+  const sentences = splitCanonicalSentences(script);
+  if (
+    sentences.length >= 3 &&
+    sentences[0]?.text === PODCAST_INTRO &&
+    sentences.at(-1)?.text === ZAP_PILOT_OUTRO
+  ) {
+    return {
+      intro: sentences[0] ?? null,
+      body: sentences.slice(1, -1),
+      outro: sentences.at(-1) ?? null,
+      isPackaged: true,
+    };
+  }
+  return {
+    intro: null,
+    body: sentences,
+    outro: null,
+    isPackaged: false,
+  };
+}
+
+export function getPodcastEditorialScript(script: string): string {
+  const sections = splitPodcastVisualSections(script);
+  if (!sections.isPackaged) return script;
+  if (sections.body.length === 0) return script;
+  const first = sections.body[0]!;
+  const last = sections.body.at(-1)!;
+  const bodyText = script.slice(first.startOffset, last.endOffset);
+  return bodyText.trim();
+}
+
+export function getEnglishBodyScript(
+  englishScript: string,
+  isPackaged: boolean,
+): string {
+  if (!isPackaged) return englishScript;
+  if (!englishScript.trim()) return englishScript;
+  const sentences = splitCanonicalSentences(englishScript);
+  if (sentences.length < 3) return englishScript;
+  const body = sentences.slice(1, -1);
+  if (body.length === 0) return englishScript;
+  return englishScript
+    .slice(body[0]!.startOffset, body.at(-1)!.endOffset)
+    .trim();
+}
+
+export function getPodcastEditorialSentences(
+  script: string,
+): CanonicalSentence[] {
+  const sections = splitPodcastVisualSections(script);
+  if (!sections.isPackaged) return splitCanonicalSentences(script);
+  const body = sections.body;
+  const baseOffset = body[0]!.startOffset;
+  return body.map((sentence, index) => ({
+    id: sentence.id,
+    index,
+    text: sentence.text,
+    startOffset: sentence.startOffset - baseOffset,
+    endOffset: sentence.endOffset - baseOffset,
+  }));
+}
 
 export function packagePodcastScript(rawBody: string): string {
   const body = stripKnownPodcastPackaging(rawBody);
@@ -36,6 +112,7 @@ export function podcastBrandVisualKind(
   imageSearchIntent: readonly string[],
 ): PodcastBrandVisualKind | null {
   if (imageSearchIntent.includes(PODCAST_INTRO_VISUAL_INTENT)) return 'intro';
+  if (imageSearchIntent.includes(PODCAST_OUTRO_VISUAL_INTENT)) return 'outro';
   return null;
 }
 
@@ -43,29 +120,25 @@ export function applyPodcastBrandingToStoryboard(
   script: string,
   draft: StoryboardDraft,
 ): StoryboardDraft {
-  const sentences = splitCanonicalSentences(script);
-  const firstSentence = sentences[0];
-  const lastSentence = sentences.at(-1);
-  if (
-    sentences.length < 3 ||
-    firstSentence?.text !== PODCAST_INTRO ||
-    lastSentence?.text !== ZAP_PILOT_OUTRO
-  ) {
+  const sections = splitPodcastVisualSections(script);
+  if (!sections.isPackaged || !sections.intro || !sections.outro) {
     return draft;
   }
+  if (sections.body.length === 0) return draft;
 
+  const sentences = splitCanonicalSentences(script);
   const sentenceIndex = new Map(
     sentences.map((sentence) => [sentence.id, sentence.index]),
   );
-  const bodyStartIndex = 1;
-  const contentEndIndex = sentences.length - 1;
+  const bodyStartIndex = sections.body[0]!.index;
+  const bodyEndIndex = sections.body.at(-1)!.index;
   const contentScenes = draft.scenes.flatMap((scene) => {
     const startIndex = sentenceIndex.get(scene.startSentenceId);
     const endIndex = sentenceIndex.get(scene.endSentenceId);
     if (startIndex === undefined || endIndex === undefined) return [];
 
     const clippedStart = Math.max(startIndex, bodyStartIndex);
-    const clippedEnd = Math.min(endIndex, contentEndIndex);
+    const clippedEnd = Math.min(endIndex, bodyEndIndex);
     if (clippedStart > clippedEnd) return [];
 
     const startSentence = sentences[clippedStart];
@@ -82,18 +155,26 @@ export function applyPodcastBrandingToStoryboard(
 
   if (contentScenes.length === 0) return draft;
   const boundedContentScenes = boundContentScenes(contentScenes);
-  const scenes: StoryboardDraftScene[] = [
-    {
-      sceneId: 'scene-01',
-      startSentenceId: firstSentence.id,
-      endSentenceId: firstSentence.id,
-      imageSearchIntent: [PODCAST_INTRO_VISUAL_INTENT],
+  const extendedScenes: StoryboardDraftScene[] = boundedContentScenes.map(
+    (scene, index) => {
+      if (index === 0) {
+        return { ...scene, startSentenceId: sections.intro!.id };
+      }
+      return scene;
     },
-    ...boundedContentScenes,
-  ].map((scene, index) => ({
-    ...scene,
-    sceneId: `scene-${String(index + 1).padStart(2, '0')}`,
-  }));
+  );
+  const outroScene: StoryboardDraftScene = {
+    sceneId: 'scene-temp',
+    startSentenceId: sections.outro.id,
+    endSentenceId: sections.outro.id,
+    imageSearchIntent: [PODCAST_OUTRO_VISUAL_INTENT],
+  };
+  const scenes: StoryboardDraftScene[] = [...extendedScenes, outroScene].map(
+    (scene, index) => ({
+      ...scene,
+      sceneId: `scene-${String(index + 1).padStart(2, '0')}`,
+    }),
+  );
 
   return { scenes };
 }
@@ -153,6 +234,7 @@ export function stripKnownPodcastPackaging(rawScript: string): string {
 function boundContentScenes(
   scenes: readonly StoryboardDraftScene[],
 ): StoryboardDraftScene[] {
+  // -1 because the final slot is reserved for deterministic Zap Pilot outro
   const maxContentScenes = MAX_STORYBOARD_SLIDES - 1;
   if (scenes.length <= maxContentScenes) return [...scenes];
 
@@ -164,6 +246,15 @@ function boundContentScenes(
   return kept;
 }
 
+function withOutroReserve(range: { min: number; max: number }): {
+  min: number;
+  max: number;
+} {
+  // -1 because the final slot is reserved for deterministic Zap Pilot outro (not intro)
+  const max = Math.max(1, Math.min(range.max - 1, MAX_STORYBOARD_SLIDES - 1));
+  return { min: Math.min(range.min, max), max };
+}
+
 export function podcastContentSceneCountRange(
   durationMs: number,
   sentenceCount: number,
@@ -171,8 +262,17 @@ export function podcastContentSceneCountRange(
 ): { min: number; max: number } {
   const range = storyboardSceneCountRange(durationMs, sentenceCount);
   if (!hasCurrentPodcastPackaging(script)) return range;
-  const max = Math.max(1, Math.min(range.max - 1, MAX_STORYBOARD_SLIDES - 1));
-  return { min: Math.min(range.min, max), max };
+  return withOutroReserve(range);
+}
+
+export function podcastEditorialSceneCountRange(
+  durationMs: number,
+  sentenceCount: number,
+  isPackaged: boolean,
+): { min: number; max: number } {
+  const range = storyboardSceneCountRange(durationMs, sentenceCount);
+  if (!isPackaged) return range;
+  return withOutroReserve(range);
 }
 
 function podcastBrandedSceneCountRange(

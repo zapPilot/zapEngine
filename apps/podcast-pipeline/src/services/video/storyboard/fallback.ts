@@ -1,4 +1,7 @@
-import { podcastContentSceneCountRange } from '../../podcast-packaging.js';
+import {
+  podcastContentSceneCountRange,
+  podcastEditorialSceneCountRange,
+} from '../../podcast-packaging.js';
 import { speakingUnits } from '../text-units.js';
 import {
   MAX_SEARCH_INTENT_CHARACTERS,
@@ -1197,16 +1200,24 @@ export function createDeterministicStoryboard(input: {
   sentences: readonly CanonicalSentence[];
   searchTitle?: string;
   searchScript?: string;
+  isPackaged?: boolean;
 }): StoryboardDraft {
   if (input.sentences.length === 0) {
     throw new Error('Cannot build a storyboard from an empty canonical script');
   }
 
-  const range = podcastContentSceneCountRange(
-    input.durationMs,
-    input.sentences.length,
-    input.script,
-  );
+  const range =
+    input.isPackaged !== undefined
+      ? podcastEditorialSceneCountRange(
+          input.durationMs,
+          input.sentences.length,
+          input.isPackaged,
+        )
+      : podcastContentSceneCountRange(
+          input.durationMs,
+          input.sentences.length,
+          input.script,
+        );
   const groups = chooseBalancedGroups(
     input.sentences,
     range.min,

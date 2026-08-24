@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   applyAndValidatePodcastBrandingToStoryboard,
   packagePodcastScript,
-  PODCAST_INTRO_VISUAL_INTENT,
+  PODCAST_OUTRO_VISUAL_INTENT,
 } from '../../podcast-packaging.js';
 
 const llmMocks = vi.hoisted(() => ({
@@ -158,12 +158,16 @@ describe('storyboard search intent enrichment', () => {
     expect(offeredScenes).toHaveLength(brandedDraft.scenes.length - 1);
     expect(offeredScenes[0]).toEqual(
       expect.objectContaining({
-        sceneId: 'scene-02',
+        sceneId: 'scene-01',
         searchText: expect.stringContaining('Part 1'),
       }),
     );
-    expect(result.draft.scenes[0]?.imageSearchIntent).toEqual([
-      PODCAST_INTRO_VISUAL_INTENT,
+    // First scene is now cover (body) with intro timing, last scene is Zap Pilot outro brand
+    expect(result.draft.scenes[0]?.imageSearchIntent).not.toEqual([
+      PODCAST_OUTRO_VISUAL_INTENT,
+    ]);
+    expect(result.draft.scenes.at(-1)?.imageSearchIntent).toEqual([
+      PODCAST_OUTRO_VISUAL_INTENT,
     ]);
     expect(result.enrichedSceneCount).toBe(brandedDraft.scenes.length - 1);
     expect(result.discardedSceneCount).toBe(0);

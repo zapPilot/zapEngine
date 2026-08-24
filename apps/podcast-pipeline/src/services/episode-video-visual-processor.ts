@@ -5,7 +5,11 @@ import { join } from 'node:path';
 import { contentTypeExtension } from '../lib/content-type.js';
 import {
   applyAndValidatePodcastBrandingToStoryboard,
+  getEnglishBodyScript,
+  getPodcastEditorialScript,
+  getPodcastEditorialSentences,
   podcastBrandVisualKind,
+  splitPodcastVisualSections,
 } from './podcast-packaging.js';
 import { scrapeArticle } from './scrape.js';
 import { uploadEpisodeVisualAssetsToR2 } from './storage.js';
@@ -28,6 +32,7 @@ import {
 } from './video/storyboard/orchestrator.js';
 import type { StoryboardProvider } from './video/storyboard/provider.js';
 import { enrichStoryboardSearchIntents } from './video/storyboard/search-intents.js';
+import { splitCanonicalSentences } from './video/storyboard/sentences.js';
 import type { VisualAssetProgress } from './video/visual-asset-planner.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
@@ -91,13 +96,41 @@ export function createEpisodeVideoVisualProcessor(
         signal: context.signal,
       });
       context.reportProgress(visualStageProgress('analyzing-audio'));
+      const visualSections = splitPodcastVisualSections(source.script);
+      logVisualProgress(dependencies.logger, 'visual:sections', {
+        run: context.runId,
+        episode: source.episodeId,
+        intro: String(visualSections.intro ? 1 : 0),
+        body: String(visualSections.body.length),
+        outro: String(visualSections.outro ? 1 : 0),
+      });
+      const editorialScript = getPodcastEditorialScript(source.script);
+      const englishBodyScript = getEnglishBodyScript(
+        source.englishScript,
+        visualSections.isPackaged,
+      );
+      const editorialSentences = getPodcastEditorialSentences(source.script);
       const generated = await dependencies.generateStoryboard({
         title: source.title,
         script: source.script,
+        editorialScript,
+        editorialSentences,
+        isPackaged: visualSections.isPackaged,
         searchTitle: source.englishTitle,
-        searchScript: source.englishScript,
+        searchScript: englishBodyScript,
         durationMs: analysis.durationMs,
         signal: context.signal,
+      });
+      logVisualProgress(dependencies.logger, 'visual:storyboard', {
+        run: context.runId,
+        episode: source.episodeId,
+        editorialSentences: String(visualSections.body.length),
+        packagingExcluded: String(
+          visualSections.isPackaged
+            ? splitCanonicalSentences(source.script).length -
+                visualSections.body.length
+            : 0,
+        ),
       });
       const brandedDraft = applyAndValidatePodcastBrandingToStoryboard(
         source.script,
@@ -114,6 +147,19 @@ export function createEpisodeVideoVisualProcessor(
           status: 'skipped',
           reason: 'unpackaged-script',
         });
+      } else {
+        const outroScene = brandedDraft.scenes.find(
+          (scene) =>
+            podcastBrandVisualKind(scene.imageSearchIntent) === 'outro',
+        );
+        if (outroScene) {
+          logVisualProgress(dependencies.logger, 'visual:branding', {
+            run: context.runId,
+            episode: source.episodeId,
+            kind: 'zap-pilot-outro',
+            sceneId: outroScene.sceneId,
+          });
+        }
       }
       // Branding establishes the final scene spans first. Enrichment then sees
       // the clipped content and skips the fixed brand card entirely.
@@ -123,9 +169,7 @@ export function createEpisodeVideoVisualProcessor(
           title: source.title,
           ...(source.englishTitle ? { searchTitle: source.englishTitle } : {}),
           script: source.script,
-          ...(source.englishScript
-            ? { searchScript: source.englishScript }
-            : {}),
+          ...(englishBodyScript ? { searchScript: englishBodyScript } : {}),
           durationMs: analysis.durationMs,
         },
         { signal: context.signal },
@@ -264,21 +308,45 @@ export function createEpisodeVideoVisualProcessor(
 export async function generateVisualStoryboard(input: {
   title: string;
   script: string;
+  editorialScript?: string;
+  editorialSentences?: readonly import('./video/storyboard/sentences.js').CanonicalSentence[];
+  isPackaged?: boolean;
   searchTitle?: string;
   searchScript?: string;
   durationMs: number;
   signal?: AbortSignal;
   provider?: StoryboardProvider;
 }): Promise<StoryboardGenerationResult> {
+  const visualSections = splitPodcastVisualSections(input.script);
+  const isPackaged = input.isPackaged ?? visualSections.isPackaged;
+  const editorialScript =
+    input.editorialScript ?? getPodcastEditorialScript(input.script);
+  const editorialSentences =
+    input.editorialSentences ?? getPodcastEditorialSentences(input.script);
+  // Provider sees editorial script only (BODY ONLY invariant)
+  const providerScript = isPackaged ? editorialScript : input.script;
+  const providerSentences = isPackaged
+    ? editorialSentences
+    : splitCanonicalSentences(input.script);
+  let englishBody: string | undefined;
+  if (input.searchScript !== undefined) {
+    // If the caller already supplied editorialSentences, assume searchScript is already BODY ONLY
+    englishBody =
+      input.editorialSentences !== undefined
+        ? input.searchScript
+        : getEnglishBodyScript(input.searchScript, isPackaged);
+  }
   return generateStoryboard({
     title: input.title,
-    script: input.script,
+    script: providerScript,
     durationMs: input.durationMs,
+    sentences: providerSentences,
+    ...(isPackaged ? { isPackaged } : {}),
     provider:
       input.provider ??
       configuredStoryboardProvider({
         ...(input.searchTitle ? { searchTitle: input.searchTitle } : {}),
-        ...(input.searchScript ? { searchScript: input.searchScript } : {}),
+        ...(englishBody ? { searchScript: englishBody } : {}),
       }),
     ...(input.signal ? { signal: input.signal } : {}),
   });
@@ -363,6 +431,19 @@ function logPlannerProgress(
   episodeId: string,
   progress: VisualAssetProgress,
 ): void {
+  if (progress.phase === 'cover') {
+    logVisualProgress(logger, 'visual:cover', {
+      run: runId,
+      episode: episodeId,
+      candidates: String(progress.candidateCount ?? 0),
+      selected: progress.assetId ?? 'none',
+      fallback: String(
+        progress.candidateCount === 0 || progress.assetId === 'none',
+      ),
+      elapsedMs: progress.elapsedMs,
+    });
+    return;
+  }
   logVisualProgress(logger, `visual:${progress.phase}`, {
     run: runId,
     episode: episodeId,

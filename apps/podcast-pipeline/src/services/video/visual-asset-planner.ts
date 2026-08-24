@@ -65,14 +65,14 @@ export interface VisualAssetPlan {
 }
 
 export interface VisualAssetProgress {
-  phase: 'search' | 'assets';
+  phase: 'search' | 'assets' | 'cover';
   sceneId: string;
   sceneIndex: number;
   sceneCount: number;
   candidateCount?: number;
   rejectedCandidateCount?: number;
   rejectionSummary?: string;
-  provider?: VisualImageProvider | 'reuse';
+  provider?: VisualImageProvider | 'reuse' | 'cover';
   assetId?: string;
   sourceHostname?: string;
   reuseKind?: VisualReuseKind;
@@ -723,6 +723,17 @@ const GENERIC_STOCK_PENALTY_TERMS = [
   'teamwork',
 ] as const;
 
+const GENERIC_PODCAST_PENALTY_TERMS = [
+  'podcast',
+  'microphone',
+  'studio',
+  'headphones',
+  'generic finance',
+  'generic crypto coin collage',
+  'crypto coin collage',
+  'coin collage',
+] as const;
+
 const SYNTHETIC_IMAGE_TERMS = [
   '3d illustration',
   '3d render',
@@ -890,6 +901,12 @@ function searchCandidateScore(
   }
   if (includesAny(corpus, COVER_SOURCE_PENALTY_TERMS)) score -= 12;
   if (includesAny(corpus, GENERIC_STOCK_PENALTY_TERMS)) score -= 16;
+  if (
+    !/(?:podcast|microphone|studio|headphones)/i.test(normalizedIntent) &&
+    includesAny(corpus, GENERIC_PODCAST_PENALTY_TERMS)
+  ) {
+    score -= 30;
+  }
 
   const sourceHostname = candidateHostname(candidate.sourceUrl);
   if (sourceHostname) {
