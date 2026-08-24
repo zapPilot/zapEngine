@@ -17,6 +17,9 @@ import {
   planVisualAssets,
 } from './visual-asset-planner.js';
 
+const BRAND_SOURCE_PAGE_URL =
+  'https://github.com/zapPilot/zapEngine/tree/main/apps/podcast-pipeline';
+
 export async function planPodcastVisualAssets(
   input: PlanVisualAssetsInput,
 ): Promise<VisualAssetPlan> {
@@ -101,7 +104,10 @@ async function createPodcastBrandAsset(
   workingDirectory: string,
 ): Promise<PlannedVisualImage> {
   await mkdir(workingDirectory, { recursive: true });
-  const assetId = kind === 'intro' ? 'brand-intro' : 'brand-outro';
+  // The persisted visual payload intentionally keeps its existing image-XX
+  // asset contract. Content scenes are capped at 62, so 98/99 cannot collide
+  // with search-planned image IDs.
+  const assetId = kind === 'intro' ? 'image-98' : 'image-99';
   const path = join(workingDirectory, `${assetId}.png`);
   const rendered = await sharp(Buffer.from(brandSvg(kind)))
     .png()
@@ -116,8 +122,8 @@ async function createPodcastBrandAsset(
     perceptualHash: await fingerprintImage(path),
     width: rendered.info.width,
     height: rendered.info.height,
-    originalImageUrl: `brand://zap/${assetId}`,
-    sourcePageUrl: 'brand://zap',
+    originalImageUrl: `${BRAND_SOURCE_PAGE_URL}?brand=${kind}`,
+    sourcePageUrl: BRAND_SOURCE_PAGE_URL,
     // Keep the existing manifest provider union unchanged. These assets are
     // generated locally and never pass through article/search acquisition.
     provider: 'article',
