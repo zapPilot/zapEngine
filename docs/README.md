@@ -14,6 +14,7 @@ Do not use Markdown files as a long-lived TODO system.
 - [README.md](../README.md) — product overview, repository layout, setup, and common commands
 - [AGENTS.md](../AGENTS.md) — repository-wide engineering principles
 - [CONTRIBUTING.md](../CONTRIBUTING.md) — daily development and verification workflow
+- [current architecture](./architecture/current.md) — deployed topology, data ownership, scheduling, and infrastructure sources of truth
 - [architecture planes](./architecture/planes.md) — durable cross-service boundaries
 - The app or package's own `README.md` and nearest scoped instruction file
 
