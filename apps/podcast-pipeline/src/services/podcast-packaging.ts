@@ -67,11 +67,19 @@ export function applyPodcastBrandingToStoryboard(
     const startSentence = sentences[clippedStart];
     const endSentence = sentences[clippedEnd];
     if (!startSentence || !endSentence) return [];
+    const wasClipped = clippedStart !== startIndex || clippedEnd !== endIndex;
     return [
       {
         ...scene,
         startSentenceId: startSentence.id,
         endSentenceId: endSentence.id,
+        ...(wasClipped
+          ? {
+              imageSearchIntent: [
+                contentSearchIntent(sentences, clippedStart, clippedEnd),
+              ],
+            }
+          : {}),
       },
     ];
   });
@@ -112,6 +120,20 @@ function stripKnownPodcastPackaging(rawScript: string): string {
     body = body.slice(0, -ZAP_PILOT_OUTRO.length).trim();
   }
   return body;
+}
+
+function contentSearchIntent(
+  sentences: readonly { text: string }[],
+  startIndex: number,
+  endIndex: number,
+): string {
+  const text = sentences
+    .slice(startIndex, endIndex + 1)
+    .map((sentence) => sentence.text)
+    .join(' ')
+    .trim();
+  const bounded = [...text].slice(0, 80).join('').trim();
+  return bounded.length >= 2 ? bounded : 'article topic';
 }
 
 function boundContentScenes(
