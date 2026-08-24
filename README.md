@@ -24,6 +24,7 @@ zapEngine/
 │   ├── account-engine      # Hono API — user accounts, wallets, Telegram (port 3004)
 │   ├── alpha-etl           # Express ETL — DeFi APR data ingestion (port 3003)
 │   ├── analytics-engine    # FastAPI — portfolio analytics & risk metrics (port 8001)
+│   ├── control-center      # Founder-local ops dashboard and cost ledger UI/API
 │   ├── desktop    # Electron — macOS shell around the app web export
 │   ├── landing-page        # Next.js 15 — marketing & docs site (port 3000)
 │   ├── app           # Expo / React Native — universal Zap Pilot app (iOS/Android/Web)
@@ -42,6 +43,7 @@ zapEngine/
 | account-engine   | TypeScript   | Hono 4.12         | Fly.io             |
 | alpha-etl        | TypeScript   | Express 4.18      | Fly.io             |
 | analytics-engine | Python 3.11+ | FastAPI           | Fly.io             |
+| control-center   | TypeScript   | Vite / Hono       | Founder-local      |
 | desktop          | TypeScript   | Electron          | macOS DMG          |
 | landing-page     | TypeScript   | Next.js 15        | Vercel             |
 | app              | TypeScript   | Expo 57 / RN 0.86 | Vercel (web) / EAS |
@@ -117,7 +119,7 @@ never killed.
 
 All apps — including analytics-engine — run via `pnpm <script>`. Python scripts wrap `uv run` under the hood; the CLI is uniform. The default `pnpm dev` includes analytics-engine so backtesting and analytics pages work out of the box. Use `pnpm dev lite` only when you are not touching those pages.
 
-For development and verification commands, see [CONTRIBUTING.md](./CONTRIBUTING.md). Repository-wide engineering principles live in [AGENTS.md](./AGENTS.md).
+For development and verification commands, see [CONTRIBUTING.md](./CONTRIBUTING.md). Repository-wide engineering principles live in [AGENTS.md](./AGENTS.md). For the deployed topology, data ownership, and infrastructure sources of truth, see [current architecture](./docs/architecture/current.md).
 
 ## Turbo Remote Cache (optional)
 
