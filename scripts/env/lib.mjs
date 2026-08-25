@@ -18,12 +18,18 @@ export function parseEnv(text) {
     const key = match[1];
     let value = (match[2] ?? '').trim();
     if (
+      !(
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      )
+    ) {
+      value = value.replace(/\s+#.*$/u, '').trim();
+    }
+    if (
       (value.startsWith('"') && value.endsWith('"')) ||
       (value.startsWith("'") && value.endsWith("'"))
     ) {
       value = value.slice(1, -1);
-    } else {
-      value = value.replace(/\s+#.*$/u, '').trim();
     }
 
     if (Object.hasOwn(values, key)) duplicates.push(key);
