@@ -139,6 +139,11 @@ export function validateEnv(env, { target, capability } = {}) {
 export function migrateEnvFile(path) {
   const source = readFileSync(path, 'utf8');
   const parsed = parseEnv(source);
+  if (parsed.duplicates.length > 0) {
+    throw new Error(
+      `Duplicate env assignments: ${[...new Set(parsed.duplicates)].join(', ')}`,
+    );
+  }
   const existingCanonical = new Set(
     source
       .split(/\r?\n/u)
