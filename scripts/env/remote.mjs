@@ -3,6 +3,8 @@ import path from 'node:path';
 
 const repoRoot = path.resolve(import.meta.dirname, '../..');
 const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/u;
+// superfly/flyctl-actions installs only `flyctl`; the `fly` alias is a local Homebrew convenience.
+const FLY_BIN = 'flyctl';
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -76,7 +78,7 @@ export function listFlyKeys(destination) {
     throw new Error('not checkable: set FLY_API_TOKEN');
   }
   return parseJsonNames(
-    run('fly', ['secrets', 'list', '--app', destination.app, '--json'], {
+    run(FLY_BIN, ['secrets', 'list', '--app', destination.app, '--json'], {
       failure: 'not checkable: FLY_API_TOKEN cannot read Fly secrets',
     }),
     `Fly ${destination.app}`,
@@ -150,7 +152,7 @@ export function importFlyValues(destination, values) {
   const input = `${Object.entries(values)
     .map(([name, value]) => `${name}=${value}`)
     .join('\n')}\n`;
-  run('fly', ['secrets', 'import', '--app', destination.app], {
+  run(FLY_BIN, ['secrets', 'import', '--app', destination.app], {
     input,
     failure: `Fly sync failed for ${destination.app}`,
   });
@@ -158,7 +160,7 @@ export function importFlyValues(destination, values) {
 
 export function unsetFlyKeys(destination, names) {
   if (names.length === 0) return;
-  run('fly', ['secrets', 'unset', ...names, '--app', destination.app], {
+  run(FLY_BIN, ['secrets', 'unset', ...names, '--app', destination.app], {
     failure: `Fly prune failed for ${destination.app}`,
   });
 }

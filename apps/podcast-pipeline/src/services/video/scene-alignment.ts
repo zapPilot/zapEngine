@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 
+import { getRequiredEnv } from '../../lib/env.js';
 import { isPlainRecord as isRecord } from '../../lib/typeGuards.js';
 import type { LanguageClassroomLanguageCode } from '../../types.js';
 import { createOpenRouterChatCompletion, getOpenRouterConfig } from '../llm.js';
@@ -11,9 +12,7 @@ import {
 } from './storyboard/sentences.js';
 
 const DEFAULT_VIDEO_ALIGNMENT_PROVIDER = 'openrouter';
-const DEFAULT_VIDEO_ALIGNMENT_MODEL = 'openrouter/free';
 const DEFAULT_NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
-const DEFAULT_NVIDIA_ALIGNMENT_MODEL = 'nvidia/nvidia-nemotron-nano-9b-v2';
 const NVIDIA_ALIGNMENT_TIMEOUT_MS = 120_000;
 
 export interface VisualSceneAnchor {
@@ -342,11 +341,7 @@ function extractJsonObject(content: string): string {
 export function createOpenRouterSceneAlignmentProvider(): SceneAlignmentProvider {
   return {
     async align(request) {
-      const model =
-        process.env['VIDEO_ALIGNMENT_MODEL']?.trim() ||
-        process.env['LLM_MODEL']?.trim() ||
-        process.env['TRANSLATION_LLM_MODEL']?.trim() ||
-        DEFAULT_VIDEO_ALIGNMENT_MODEL;
+      const model = getRequiredEnv('VIDEO_ALIGNMENT_MODEL').trim();
       const { openai, model: resolvedModel } = getOpenRouterConfig({
         model,
         thinkingModel: null,
@@ -386,10 +381,7 @@ function requiredNvidiaApiKey(): string {
 export function createNvidiaSceneAlignmentProvider(
   options: NvidiaSceneAlignmentProviderOptions = {},
 ): SceneAlignmentProvider {
-  const model =
-    options.model ??
-    process.env['VIDEO_ALIGNMENT_MODEL']?.trim() ??
-    DEFAULT_NVIDIA_ALIGNMENT_MODEL;
+  const model = options.model ?? getRequiredEnv('VIDEO_ALIGNMENT_MODEL').trim();
   const client =
     options.client ??
     new OpenAI({

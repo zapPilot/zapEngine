@@ -377,6 +377,7 @@ describe('getSystemPrompt error handling', () => {
 
   it('throws when prompt file cannot be read', async () => {
     vi.stubEnv('OPENROUTER_API_KEY', 'test-api-key');
+    vi.stubEnv('LLM_MODEL', 'test/model');
     vi.stubEnv('SCRIPT_PROMPT_PATH', '/nonexistent/prompt.txt');
 
     const { generateScriptWithLLM: freshGenerate } = await import('./llm.js');
@@ -480,9 +481,23 @@ describe('generateScriptWithLLM', () => {
     );
   });
 
+  it('throws when LLM_MODEL is not set and no override is given', async () => {
+    vi.stubEnv('LLM_MODEL', '');
+    await expect(generateScriptWithLLM('Title', 'Text')).rejects.toThrow(
+      'Missing required environment variable: LLM_MODEL',
+    );
+  });
+
+  it('does not require LLM_MODEL when overrides.model is provided', () => {
+    vi.stubEnv('LLM_MODEL', '');
+
+    const config = getOpenRouterConfig({ model: 'override/model' });
+
+    expect(config.model).toBe('override/model');
+  });
+
   it('uses default OpenRouter config when optional fields are absent', async () => {
     vi.stubEnv('OPENROUTER_BASE_URL', '');
-    vi.stubEnv('LLM_MODEL', '');
     vi.stubEnv('LLM_THINKING_MODEL', '');
     vi.mocked(OpenAI).mockClear();
 
@@ -504,14 +519,14 @@ describe('generateScriptWithLLM', () => {
     });
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'anthropic/claude-3-5-sonnet-20241022',
+        model: 'test/model',
       }),
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(result).toEqual({
       title: null,
       script: 'Script',
-      model: 'anthropic/claude-3-5-sonnet-20241022',
+      model: 'test/model',
       thinkingModel: null,
       provider: 'unknown',
       costUsd: 0,

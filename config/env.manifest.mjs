@@ -295,7 +295,9 @@ export const ENV_MANIFEST = {
   OPENROUTER_BASE_URL: server(['podcast-pipeline', 'control-center']),
   OPENROUTER_MANAGEMENT_KEY: server(['control-center'], { sensitive: true }),
   OPENROUTER_TIMEOUT_MS: server(['podcast-pipeline']),
-  LLM_MODEL: server(['podcast-pipeline']),
+  LLM_MODEL: server(['podcast-pipeline'], {
+    requiredFor: ['podcast-pipeline:base'],
+  }),
   LLM_THINKING_MODEL: server(['podcast-pipeline']),
   TRANSLATION_LLM_MODEL: server(['podcast-pipeline']),
   GOOGLE_TRANSLATE_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
@@ -372,9 +374,13 @@ export const ENV_MANIFEST = {
   VIDEO_STORYBOARD_PROVIDER: server(['podcast-pipeline']),
   NVIDIA_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
   NVIDIA_BASE_URL: server(['podcast-pipeline']),
-  NVIDIA_STORYBOARD_MODEL: server(['podcast-pipeline']),
+  NVIDIA_STORYBOARD_MODEL: server(['podcast-pipeline'], {
+    requiredFor: ['podcast-pipeline:base'],
+  }),
   VIDEO_ALIGNMENT_PROVIDER: server(['podcast-pipeline']),
-  VIDEO_ALIGNMENT_MODEL: server(['podcast-pipeline']),
+  VIDEO_ALIGNMENT_MODEL: server(['podcast-pipeline'], {
+    requiredFor: ['podcast-pipeline:base'],
+  }),
   VIDEO_FFMPEG_PATH: host(['podcast-pipeline']),
   VIDEO_FFPROBE_PATH: host(['podcast-pipeline']),
   PEXELS_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
