@@ -19,6 +19,16 @@ test('parseEnv handles exports, quotes, comments, and duplicates', () => {
   assert.deepEqual(parsed.duplicates, ['A']);
 });
 
+test('parseEnv preserves quoted hash literals before trailing comments', () => {
+  const parsed = parseEnv(
+    'A="two # literal" # trailing\nB=\'three # literal\' # trailing\n',
+  );
+  assert.deepEqual(parsed.values, {
+    A: 'two # literal',
+    B: 'three # literal',
+  });
+});
+
 test('projectEnv exposes only declared client values', () => {
   const projected = projectEnv(
     { ACCOUNT_API_URL: 'https://account', SUPABASE_SERVICE_ROLE_KEY: 'secret' },
@@ -173,6 +183,36 @@ test('migrateEnvFile treats equivalent quoted legacy aliases as the same value',
   }
 });
 
+test('migrateEnvFile normalizes quoted aliases with inline comments before comparing values', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'zap-env-migrate-'));
+  const envPath = join(directory, '.env');
+
+  try {
+    await writeFile(
+      envPath,
+      [
+        'VITE_ACCOUNT_API_URL="https://shared-account" # vite',
+        'EXPO_PUBLIC_ACCOUNT_API_URL=https://shared-account # expo',
+        'UNRELATED=value',
+        '',
+      ].join('\n'),
+    );
+
+    migrateEnvFile(envPath);
+    const migrated = await readFile(envPath, 'utf8');
+
+    assert.equal(
+      migrated,
+      'ACCOUNT_API_URL="https://shared-account" # vite\nUNRELATED=value\n',
+    );
+
+    migrateEnvFile(envPath);
+    assert.equal(await readFile(envPath, 'utf8'), migrated);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('migrateEnvFile rejects conflicting legacy aliases before rewriting', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'zap-env-migrate-'));
   const envPath = join(directory, '.env');
@@ -191,6 +231,53 @@ test('migrateEnvFile rejects conflicting legacy aliases before rewriting', async
       /Conflicting legacy values for ACCOUNT_API_URL/u,
     );
     assert.equal(await readFile(envPath, 'utf8'), original);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('migrateEnvFile rejects duplicate assignments before rewriting', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'zap-env-migrate-'));
+  const envPath = join(directory, '.env');
+  const original = [
+    'ACCOUNT_API_URL=https://first',
+    'ACCOUNT_API_URL=https://second',
+    'UNRELATED=value',
+    '',
+  ].join('\n');
+
+  try {
+    await writeFile(envPath, original);
+
+    assert.equal(parseEnv(original).values.ACCOUNT_API_URL, 'https://second');
+    assert.throws(
+      () => migrateEnvFile(envPath),
+      /Duplicate env assignments: ACCOUNT_API_URL/u,
+    );
+    assert.equal(await readFile(envPath, 'utf8'), original);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('migrateEnvFile preserves CRLF line endings while renaming legacy keys', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'zap-env-migrate-'));
+  const envPath = join(directory, '.env');
+  const original = [
+    'VITE_ACCOUNT_API_URL=https://account',
+    'UNRELATED=value',
+    '',
+  ].join('\r\n');
+
+  try {
+    await writeFile(envPath, original);
+
+    migrateEnvFile(envPath);
+
+    assert.equal(
+      await readFile(envPath, 'utf8'),
+      'ACCOUNT_API_URL=https://account\r\nUNRELATED=value\r\n',
+    );
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
