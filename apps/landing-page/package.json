@@ -33,6 +33,7 @@
     "fumadocs-ui": "^15.8.5",
     "lucide-react": "catalog:",
     "next": "^15.5.7",
+    "posthog-js": "^1.418.14",
     "react": "catalog:",
     "react-dom": "catalog:",
     "viem": "catalog:"
