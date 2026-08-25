@@ -173,6 +173,36 @@ test('migrateEnvFile treats equivalent quoted legacy aliases as the same value',
   }
 });
 
+test('migrateEnvFile normalizes quoted aliases with inline comments before comparing values', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'zap-env-migrate-'));
+  const envPath = join(directory, '.env');
+
+  try {
+    await writeFile(
+      envPath,
+      [
+        'VITE_ACCOUNT_API_URL="https://shared-account" # vite',
+        'EXPO_PUBLIC_ACCOUNT_API_URL=https://shared-account # expo',
+        'UNRELATED=value',
+        '',
+      ].join('\n'),
+    );
+
+    migrateEnvFile(envPath);
+    const migrated = await readFile(envPath, 'utf8');
+
+    assert.equal(
+      migrated,
+      'ACCOUNT_API_URL="https://shared-account" # vite\nUNRELATED=value\n',
+    );
+
+    migrateEnvFile(envPath);
+    assert.equal(await readFile(envPath, 'utf8'), migrated);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('migrateEnvFile rejects conflicting legacy aliases before rewriting', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'zap-env-migrate-'));
   const envPath = join(directory, '.env');
