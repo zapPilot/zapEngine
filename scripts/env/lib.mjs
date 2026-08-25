@@ -132,12 +132,29 @@ export function validateEnv(env, { target, capability } = {}) {
 
 export function migrateEnvFile(path) {
   const source = readFileSync(path, 'utf8');
+  const parsed = parseEnv(source);
   const existingCanonical = new Set(
     source
       .split(/\r?\n/u)
       .map((line) => ASSIGNMENT.exec(line)?.[1])
       .filter((name) => name && !Object.hasOwn(LEGACY_ENV_NAMES, name)),
   );
+  const legacyCanonicalValues = new Map();
+
+  for (const [legacyName, canonicalName] of Object.entries(LEGACY_ENV_NAMES)) {
+    if (!Object.hasOwn(parsed.values, legacyName)) continue;
+    if (existingCanonical.has(canonicalName)) continue;
+
+    const value = parsed.values[legacyName];
+    const previous = legacyCanonicalValues.get(canonicalName);
+    if (previous && previous.value !== value) {
+      throw new Error(
+        `Conflicting legacy values for ${canonicalName}: ${previous.name} and ${legacyName}`,
+      );
+    }
+    legacyCanonicalValues.set(canonicalName, { name: legacyName, value });
+  }
+
   const seenCanonical = new Set();
   const output = [];
 
