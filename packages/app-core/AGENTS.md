@@ -16,7 +16,7 @@ See @../AGENTS.md for shared package guidelines.
 - Read env lazily through `getRuntimeEnv`; never capture host env at module import time.
 - Hosts inject values with `configureAppCoreEnv` during bootstrap.
 - Shared app-core env keys keep the `VITE_` contract; native hosts map their public env names into that contract.
-- Expo resolves non-empty `EXPO_PUBLIC_*` overrides before local `VITE_*` values; desktop resolves non-empty `ZAP_*`, then managed `VITE_*`, userData config, and production defaults.
+- Human-facing client config uses canonical unprefixed names. The root projector creates bundler-specific names before startup; Expo and desktop adapters then inject app-core's existing `VITE_*` contract.
 
 ## Async execution authority
 

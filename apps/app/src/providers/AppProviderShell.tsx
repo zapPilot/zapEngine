@@ -65,8 +65,8 @@ function ConfigNoticeScreen({ target }: { target: string }): ReactElement {
         Privy config is missing
       </Text>
       <Text className="mt-3 text-center font-sans text-[13px] leading-5 text-ink-dim">
-        Add EXPO_PUBLIC_PRIVY_APP_ID and EXPO_PUBLIC_PRIVY_CLIENT_ID before
-        starting the {target}.
+        Add PRIVY_MOBILE_APP_ID and PRIVY_MOBILE_CLIENT_ID before starting the{' '}
+        {target}.
       </Text>
     </View>
   );

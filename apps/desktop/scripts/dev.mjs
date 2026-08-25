@@ -5,26 +5,23 @@
 //   ZAP_ELECTRON_LOOPBACK=1                     -> 127.0.0.1 static server
 //   (default)                                   -> app:// serving ../app/dist/web
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import electronPath from 'electron';
 
+import {
+  loadEnvFile,
+  mergeEnv,
+  projectEnv,
+} from '../../../scripts/env/lib.mjs';
+
 const appRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const repoRootEnv = resolve(appRoot, '../../.env');
 
-if (existsSync(repoRootEnv)) {
-  for (const line of readFileSync(repoRootEnv, 'utf8').split(/\r?\n/u)) {
-    const match = /^\s*(?:export\s+)?([\w.-]+)\s*=\s*(.*)?\s*$/u.exec(line);
-    const key = match?.[1];
-    if (!key || !/^(?:VITE_|ZAP_)/u.test(key)) {
-      continue;
-    }
-    const value = (match?.[2] ?? '').trim().replace(/^(['"])(.*)\1$/u, '$2');
-    process.env[key] ??= value;
-  }
-}
+const canonicalEnv = mergeEnv(loadEnvFile(repoRootEnv).values, process.env);
+Object.assign(process.env, canonicalEnv, projectEnv(canonicalEnv, 'desktop'));
 
 const bundle = spawnSync(
   process.execPath,

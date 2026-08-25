@@ -46,6 +46,17 @@ describe('buildAppCoreEnvSource', () => {
     ).toBe('public-key');
   });
 
+  it('uses the explicit mobile Privy app id in the native runtime', () => {
+    vi.stubEnv('EXPO_PUBLIC_PRIVY_APP_ID', '');
+
+    expect(
+      buildAppCoreEnvSource({
+        privyWebAppId: 'web-app',
+        privyMobileAppId: 'mobile-app',
+      }).VITE_PRIVY_APP_ID,
+    ).toBe('mobile-app');
+  });
+
   it('always reports the native app runtime', () => {
     expect(buildAppCoreEnvSource().VITE_APP_RUNTIME).toBe('native');
   });

@@ -4,11 +4,8 @@ import { getConfig } from 'expo/config';
 import { compileModsAsync } from 'expo/config-plugins';
 import { describe, expect, it, vi } from 'vitest';
 
-import appConfig, {
-  EXPO_PUBLIC_PROJECTION,
-  resolveExpoPublicValue,
-  shouldEnableDevClientPlugin,
-} from '../app.config';
+import { projectEnv } from '../../../scripts/env/lib.mjs';
+import appConfig, { shouldEnableDevClientPlugin } from '../app.config';
 
 function pluginName(plugin: unknown): unknown {
   return Array.isArray(plugin) ? plugin[0] : plugin;
@@ -82,67 +79,21 @@ describe('Android store identity', () => {
     expect(audioIndex).toBeLessThan(videoIndex);
   });
 
-  it('prefers a non-empty Expo override and trims it', () => {
+  it('projects canonical values to Expo names', () => {
     expect(
-      resolveExpoPublicValue(
+      projectEnv(
         {
-          EXPO_PUBLIC_ALCHEMY_API_KEY: '  expo-key  ',
-          VITE_ALCHEMY_API_KEY: 'vite-key',
+          ACCOUNT_API_URL: 'http://localhost:3004',
+          PRIVY_MOBILE_APP_ID: 'mobile-app',
+          PRIVY_MOBILE_CLIENT_ID: 'mobile-client',
         },
-        'EXPO_PUBLIC_ALCHEMY_API_KEY',
-        'VITE_ALCHEMY_API_KEY',
+        'expo',
       ),
-    ).toBe('expo-key');
-  });
-
-  it('falls back from an empty or blank Expo override to the trimmed Vite value', () => {
-    expect(
-      resolveExpoPublicValue(
-        {
-          EXPO_PUBLIC_ACCOUNT_API_URL: '',
-          VITE_ACCOUNT_API_URL: '  http://localhost:3004  ',
-        },
-        'EXPO_PUBLIC_ACCOUNT_API_URL',
-        'VITE_ACCOUNT_API_URL',
-      ),
-    ).toBe('http://localhost:3004');
-    expect(
-      resolveExpoPublicValue(
-        {
-          EXPO_PUBLIC_ACCOUNT_API_URL: '   ',
-          VITE_ACCOUNT_API_URL: '  http://localhost:3004  ',
-        },
-        'EXPO_PUBLIC_ACCOUNT_API_URL',
-        'VITE_ACCOUNT_API_URL',
-      ),
-    ).toBe('http://localhost:3004');
-  });
-
-  it('returns an empty string when both tiers are empty', () => {
-    expect(
-      resolveExpoPublicValue(
-        {
-          EXPO_PUBLIC_MORALIS_API_KEY: ' ',
-          VITE_MORALIS_API_KEY: '',
-        },
-        'EXPO_PUBLIC_MORALIS_API_KEY',
-        'VITE_MORALIS_API_KEY',
-      ),
-    ).toBe('');
-  });
-
-  it('projects all shared local keys without projecting the native-only Privy client ID', () => {
-    expect(EXPO_PUBLIC_PROJECTION).toEqual({
-      EXPO_PUBLIC_ALCHEMY_API_KEY: 'VITE_ALCHEMY_API_KEY',
-      EXPO_PUBLIC_MORALIS_API_KEY: 'VITE_MORALIS_API_KEY',
-      EXPO_PUBLIC_ACCOUNT_API_URL: 'VITE_ACCOUNT_API_URL',
-      EXPO_PUBLIC_ANALYTICS_ENGINE_URL: 'VITE_ANALYTICS_ENGINE_URL',
-      EXPO_PUBLIC_PODCAST_API_URL: 'VITE_PODCAST_API_URL',
-      EXPO_PUBLIC_PRIVY_APP_ID: 'VITE_PRIVY_APP_ID',
+    ).toMatchObject({
+      EXPO_PUBLIC_ACCOUNT_API_URL: 'http://localhost:3004',
+      EXPO_PUBLIC_PRIVY_APP_ID: 'mobile-app',
+      EXPO_PUBLIC_PRIVY_CLIENT_ID: 'mobile-client',
     });
-    expect(EXPO_PUBLIC_PROJECTION).not.toHaveProperty(
-      'EXPO_PUBLIC_PRIVY_CLIENT_ID',
-    );
   });
 });
 

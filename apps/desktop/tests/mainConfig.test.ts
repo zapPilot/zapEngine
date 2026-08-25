@@ -36,9 +36,9 @@ describe('buildMainEnvSource', () => {
     expect(source['VITE_ACCOUNT_API_URL']).toBe('https://account.prod.example');
   });
 
-  it('managed VITE_* env wins over config file and defaults', () => {
+  it('canonical env wins over config file and defaults', () => {
     const source = buildMainEnvSource({
-      env: { VITE_ANALYTICS_ENGINE_URL: 'http://localhost:8001' },
+      env: { ANALYTICS_ENGINE_URL: 'http://localhost:8001' },
       configFile: { VITE_ANALYTICS_ENGINE_URL: 'https://analytics.override' },
       defaults: DEFAULTS,
       isPackaged: false,
@@ -46,12 +46,9 @@ describe('buildMainEnvSource', () => {
     expect(source['VITE_ANALYTICS_ENGINE_URL']).toBe('http://localhost:8001');
   });
 
-  it('ZAP_* env wins over non-empty VITE_* env', () => {
+  it('uses a canonical process value without config aliases', () => {
     const source = buildMainEnvSource({
-      env: {
-        VITE_ANALYTICS_ENGINE_URL: 'http://localhost:8001',
-        ZAP_ANALYTICS_ENGINE_URL: 'http://localhost:9001',
-      },
+      env: { ANALYTICS_ENGINE_URL: 'http://localhost:9001' },
       configFile: { VITE_ANALYTICS_ENGINE_URL: 'https://analytics.override' },
       defaults: DEFAULTS,
       isPackaged: false,
@@ -60,11 +57,10 @@ describe('buildMainEnvSource', () => {
     expect(source['MODE']).toBe('development');
   });
 
-  it('ignores empty VITE_* and ZAP_* env values', () => {
+  it('ignores empty canonical env values', () => {
     const source = buildMainEnvSource({
       env: {
-        VITE_ANALYTICS_ENGINE_URL: '',
-        ZAP_ANALYTICS_ENGINE_URL: '',
+        ANALYTICS_ENGINE_URL: '',
       },
       configFile: undefined,
       defaults: DEFAULTS,
@@ -86,9 +82,9 @@ describe('buildMainEnvSource', () => {
     expect(source['MODE']).toBe('production');
   });
 
-  it('does not copy unmanaged VITE_* env values', () => {
+  it('does not copy unrelated canonical env values', () => {
     const source = buildMainEnvSource({
-      env: { VITE_PODCAST_API_URL: 'http://localhost:3000' },
+      env: { PODCAST_API_URL: 'http://localhost:3000' },
       defaults: DEFAULTS,
       isPackaged: false,
     });

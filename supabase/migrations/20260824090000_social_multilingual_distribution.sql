@@ -153,7 +153,7 @@ left join from_fed_to_chain.social_posts post
   and post.platform = policy.platform
   and post.language_code = policy.language_code
 where (
-    video.id is null
+    video.episode_localization_id is null
     or video.status <> 'completed'
     or nullif(btrim(video.mp4_url), '') is null
     or nullif(btrim(video.thumbnail_url), '') is null

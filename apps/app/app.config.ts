@@ -1,57 +1,12 @@
-import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import type { ExpoConfig } from 'expo/config';
 
-function loadRepoRootEnv(): void {
-  const repoRootEnv = path.resolve(__dirname, '../../.env');
+import { loadEnvFile, mergeEnv, projectEnv } from '../../scripts/env/lib.mjs';
 
-  if (!existsSync(repoRootEnv)) {
-    return;
-  }
-
-  for (const line of readFileSync(repoRootEnv, 'utf8').split(/\r?\n/u)) {
-    const match = /^\s*(?:export\s+)?([\w.-]+)\s*=\s*(.*)?\s*$/u.exec(line);
-
-    if (!match) {
-      continue;
-    }
-
-    const key = match[1];
-
-    if (!key) {
-      continue;
-    }
-
-    const rawValue = match[2] ?? '';
-    const value = rawValue.trim().replace(/^(['"])(.*)\1$/u, '$2');
-
-    process.env[key] ??= value;
-  }
-}
-
-loadRepoRootEnv();
-
-export function resolveExpoPublicValue(
-  env: Record<string, string | undefined>,
-  expoKey: string,
-  viteKey: string,
-): string {
-  return env[expoKey]?.trim() || env[viteKey]?.trim() || '';
-}
-
-export const EXPO_PUBLIC_PROJECTION = {
-  EXPO_PUBLIC_ALCHEMY_API_KEY: 'VITE_ALCHEMY_API_KEY',
-  EXPO_PUBLIC_MORALIS_API_KEY: 'VITE_MORALIS_API_KEY',
-  EXPO_PUBLIC_ACCOUNT_API_URL: 'VITE_ACCOUNT_API_URL',
-  EXPO_PUBLIC_ANALYTICS_ENGINE_URL: 'VITE_ANALYTICS_ENGINE_URL',
-  EXPO_PUBLIC_PODCAST_API_URL: 'VITE_PODCAST_API_URL',
-  EXPO_PUBLIC_PRIVY_APP_ID: 'VITE_PRIVY_APP_ID',
-} as const;
-
-for (const [expoKey, viteKey] of Object.entries(EXPO_PUBLIC_PROJECTION)) {
-  process.env[expoKey] = resolveExpoPublicValue(process.env, expoKey, viteKey);
-}
+const repoRootEnv = path.resolve(__dirname, '../../.env');
+const canonicalEnv = mergeEnv(loadEnvFile(repoRootEnv).values, process.env);
+Object.assign(process.env, canonicalEnv, projectEnv(canonicalEnv, 'expo'));
 
 /**
  * expo-dev-client wires a local-network dev-server launcher into the app
@@ -182,10 +137,11 @@ const config: ExpoConfig = {
   ],
   extra: {
     appRuntime: 'app',
-    // EXPO_PUBLIC_* remains the deployment override. During local config
-    // evaluation, the projection above fills unset/blank values from VITE_*.
+    // Canonical values are projected before Expo evaluates this config.
     alchemyApiKey: process.env.EXPO_PUBLIC_ALCHEMY_API_KEY ?? '',
     privyAppId: process.env.EXPO_PUBLIC_PRIVY_APP_ID ?? '',
+    privyWebAppId: canonicalEnv.PRIVY_WEB_APP_ID ?? '',
+    privyMobileAppId: canonicalEnv.PRIVY_MOBILE_APP_ID ?? '',
     privyClientId: process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID ?? '',
     eas: {
       projectId: 'c20d048d-5e94-447b-b95d-dfb7fc30e23d',

@@ -73,8 +73,23 @@ defaults apply. Use a command-line environment override for a one-off local
 run, and configure CI-only or production secrets in the CI/deployment platform
 rather than the shared local file.
 
-For shared client values, `VITE_*` is the only local source. Platform-prefixed
-`EXPO_PUBLIC_*` and `ZAP_*` keys are deployment or runtime overrides.
+Human-maintained client values use canonical, unprefixed names. The env
+projector creates `VITE_*`, `EXPO_PUBLIC_*`, and `NEXT_PUBLIC_*` values before
+each bundler starts; do not add those generated aliases to `.env`.
+
+```bash
+pnpm env:check                   # inventory and local drift
+pnpm env:check --target expo     # required base config for one target
+pnpm env:show --target web       # redacts sensitive values
+```
+
+Deployment synchronization is dry-run by default:
+
+```bash
+pnpm env:deploy:fly --target account-engine
+pnpm env:deploy:eas --environment production
+# Add --apply only after reviewing the listed key names.
+```
 
 For analytics-engine's Python venv (first-time only):
 

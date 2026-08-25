@@ -9,19 +9,16 @@ import { app } from 'electron';
  * dist/main/main.cjs, so there is no runtime workspace resolution.
  *
  * Precedence (highest first):
- *   1. ZAP-prefixed process env values (dev / power users)
- *   2. Managed VITE-prefixed process env values (local canonical values)
- *   3. userData config.json (packaged-app override, editable without rebuild)
- *   4. production defaults below
+ *   1. Canonical process env values (dev / managed deployment)
+ *   2. userData config.json (packaged-app override, editable without rebuild)
+ *   3. production defaults below
  */
 
-/** ZAP_* env key -> app-core VITE_* key. */
+/** Canonical env key -> app-core VITE_* key. */
 const ENV_KEY_MAP: Record<string, string> = {
-  ZAP_ACCOUNT_API_URL: 'VITE_ACCOUNT_API_URL',
-  ZAP_ANALYTICS_ENGINE_URL: 'VITE_ANALYTICS_ENGINE_URL',
+  ACCOUNT_API_URL: 'VITE_ACCOUNT_API_URL',
+  ANALYTICS_ENGINE_URL: 'VITE_ANALYTICS_ENGINE_URL',
 };
-
-const MANAGED_VITE_KEYS = Object.values(ENV_KEY_MAP);
 
 /**
  * Production defaults stay blank until the real production URLs are chosen
@@ -53,15 +50,8 @@ export function buildMainEnvSource(
     }
   }
 
-  for (const viteKey of MANAGED_VITE_KEYS) {
-    const value = deps.env[viteKey];
-    if (value !== undefined && value !== '') {
-      source[viteKey] = value;
-    }
-  }
-
-  for (const [zapKey, viteKey] of Object.entries(ENV_KEY_MAP)) {
-    const value = deps.env[zapKey];
+  for (const [canonicalKey, viteKey] of Object.entries(ENV_KEY_MAP)) {
+    const value = deps.env[canonicalKey];
     if (value !== undefined && value !== '') {
       source[viteKey] = value;
     }

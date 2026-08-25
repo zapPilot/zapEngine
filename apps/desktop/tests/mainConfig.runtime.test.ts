@@ -26,9 +26,8 @@ vi.mock('@zapengine/app-core/lib/env/runtimeEnv', () => ({
 import { configureMainAppCoreEnv } from '../src/main/config';
 
 const USER_DATA_PATH = '/Users/test/Library/Application Support/ZapPilot';
-const ORIGINAL_ZAP_ACCOUNT_API_URL = process.env['ZAP_ACCOUNT_API_URL'];
-const ORIGINAL_ZAP_ANALYTICS_ENGINE_URL =
-  process.env['ZAP_ANALYTICS_ENGINE_URL'];
+const ORIGINAL_ACCOUNT_API_URL = process.env['ACCOUNT_API_URL'];
+const ORIGINAL_ANALYTICS_ENGINE_URL = process.env['ANALYTICS_ENGINE_URL'];
 
 function restoreEnvValue(key: string, value: string | undefined): void {
   if (value === undefined) {
@@ -54,16 +53,13 @@ describe('configureMainAppCoreEnv', () => {
     vi.clearAllMocks();
     configMocks.app.getPath.mockReturnValue(USER_DATA_PATH);
     configMocks.app.isPackaged = true;
-    delete process.env['ZAP_ACCOUNT_API_URL'];
-    delete process.env['ZAP_ANALYTICS_ENGINE_URL'];
+    delete process.env['ACCOUNT_API_URL'];
+    delete process.env['ANALYTICS_ENGINE_URL'];
   });
 
   afterAll(() => {
-    restoreEnvValue('ZAP_ACCOUNT_API_URL', ORIGINAL_ZAP_ACCOUNT_API_URL);
-    restoreEnvValue(
-      'ZAP_ANALYTICS_ENGINE_URL',
-      ORIGINAL_ZAP_ANALYTICS_ENGINE_URL,
-    );
+    restoreEnvValue('ACCOUNT_API_URL', ORIGINAL_ACCOUNT_API_URL);
+    restoreEnvValue('ANALYTICS_ENGINE_URL', ORIGINAL_ANALYTICS_ENGINE_URL);
   });
 
   it('injects user config values into app-core env', () => {
