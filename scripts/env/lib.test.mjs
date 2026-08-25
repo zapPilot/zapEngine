@@ -259,3 +259,26 @@ test('migrateEnvFile rejects duplicate assignments before rewriting', async () =
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('migrateEnvFile preserves CRLF line endings while renaming legacy keys', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'zap-env-migrate-'));
+  const envPath = join(directory, '.env');
+  const original = [
+    'VITE_ACCOUNT_API_URL=https://account',
+    'UNRELATED=value',
+    '',
+  ].join('\r\n');
+
+  try {
+    await writeFile(envPath, original);
+
+    migrateEnvFile(envPath);
+
+    assert.equal(
+      await readFile(envPath, 'utf8'),
+      'ACCOUNT_API_URL=https://account\r\nUNRELATED=value\r\n',
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
