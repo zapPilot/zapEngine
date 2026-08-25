@@ -5,6 +5,31 @@ import { ENV_MANIFEST, LEGACY_ENV_NAMES } from '../../config/env.manifest.mjs';
 const ASSIGNMENT =
   /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)?\s*$/u;
 
+function stripInlineComment(value) {
+  let quote;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (character === '\\') {
+      index += 1;
+      continue;
+    }
+    if (quote) {
+      if (character === quote) quote = undefined;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === '#' && index > 0 && /\s/u.test(value[index - 1])) {
+      return value.slice(0, index).trim();
+    }
+  }
+
+  return value;
+}
+
 export function parseEnv(text) {
   const values = {};
   const duplicates = [];
@@ -16,15 +41,7 @@ export function parseEnv(text) {
     if (!match) continue;
 
     const key = match[1];
-    let value = (match[2] ?? '').trim();
-    if (
-      !(
-        (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      )
-    ) {
-      value = value.replace(/\s+#.*$/u, '').trim();
-    }
+    let value = stripInlineComment((match[2] ?? '').trim());
     if (
       (value.startsWith('"') && value.endsWith('"')) ||
       (value.startsWith("'") && value.endsWith("'"))
