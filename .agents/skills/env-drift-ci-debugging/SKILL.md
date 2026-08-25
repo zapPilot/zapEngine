@@ -1,119 +1,115 @@
 ---
 name: env-drift-ci-debugging
 description: >-
-  Use when `check-dead-env`, `pnpm lint dead-env`, `.env.example`, `.env*`, or
-  Expo `EXPO_PUBLIC_*` changes fail CI or invalidate unexpected workspaces.
-  Covers app env declarations, Expo-to-app-core env bridging, CI-only fixture
-  env, and root env cache blast radius.
+  Use when `check-dead-env`, `pnpm lint dead-env`, `pnpm env:status`, or
+  `pnpm env:sync` reports missing, stale, misprojected, or unreachable env
+  configuration. Covers the manifest registry, committed non-secret values,
+  Infisical secrets, destination projections, and remote CLI drift.
 ---
 
 # Env drift CI debugging
 
 ## Core principle
 
-**Declare only real source/runtime env in `.env.example`; fix env drift at the
-source of truth, not by weakening `check-dead-env`.**
+**`config/env.manifest.mjs` is the env contract. Fix the manifest, committed
+values, or destination adapter that owns the mismatch; never recreate the old
+`.env.example` model or weaken the drift gates.**
 
-`check-dead-env` protects the contract between source code, operators, and CI. A
-missing real env key should be declared; a stale or fixture-only key should be
-removed.
+Non-secret values live in `config/env/{dev,prod}.env`; secrets come from
+Infisical. Client names stay canonical and unprefixed in source stores; the
+projector creates `VITE_*`, `EXPO_PUBLIC_*`, or `NEXT_PUBLIC_*` names for the
+actual bundler target.
 
 ## Where the signal already is
 
-CI job `check-dead-env` maps to:
+CI's offline contract is exactly:
 
 ```bash
 pnpm lint dead-env
+pnpm env:status --offline
 ```
 
-If it fails after a root env/config edit, read the dead-env output first. Do not
-assume the workspace you touched is the workspace that widened the Turbo blast
-radius.
+The scheduled remote-drift workflow runs:
 
-## Cache invalidation traps
+```bash
+pnpm env:status
+```
 
-Changing root files can expose unrelated-looking workspaces because Turbo inputs
-are broad:
+For a proposed destination change, preview before writing:
 
-- `.env.example` is a global dependency.
-- `.env*` is an input for `build`, `type-check`, `test`, and `test:coverage`.
-- `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `package.json`, `.jscpd.json`, and
-  `turbo.json` similarly widen the blast radius.
+```bash
+pnpm env:sync --target <destination>
+# Add --apply only after reviewing the listed key names.
+```
 
-If a PR only meant to touch one app adds a root env var, expect coverage and other
-workspace gates to rerun. Read the failed workspace; do not assume env drift is
-local to the edited app.
+## Classify before fixing
 
-## Local `.env` after branch switches
+- **Source reads an undeclared key** → declare the canonical key in
+  `config/env.manifest.mjs`; add a committed non-secret value only when the
+  environment really has one.
+- **Required runtime value silently falls back** → mark the real key required
+  for that target and fail closed; do not preserve a production-critical
+  fallback merely to keep startup green.
+- **Prod committed value is localhost / placeholder** → correct
+  `config/env/prod.env` from the deployed topology before any `--apply`.
+- **Client key appears under the wrong prefix** → fix the manifest projection or
+  target mapping. Do not store generated `VITE_*` / `EXPO_PUBLIC_*` /
+  `NEXT_PUBLIC_*` aliases as independent values.
+- **Remote destination has extra/missing keys** → inspect `env:status`, then fix
+  the destination registry/manifest or use a reviewed dry-run `env:sync`.
+- **Vercel / EAS / Fly / Infisical command fails** → verify the exact pinned CLI
+  version's real flags/output before editing `scripts/env/remote.mjs`. Do not
+  invent commands from another CLI version or provider.
 
-The shared local command audits the developer's root `.env`; CI does not have that
-file and checks source against `.env.example` only. A key added for another,
-unmerged branch can therefore make pre-commit fail on the current branch even when
-its diff is unrelated.
+## Project-specific destination traps
 
-Treat that as local branch drift: remove the branch-only override from `.env` (or
-switch back to the branch that declares it), rerun `pnpm lint dead-env`, and then
-commit normally. Do not add fake source usage / `.env.example` entries, weaken the
-gate, or use `--no-verify` just to preserve stale local operator state.
+- The universal app's **web** deployment is an Expo web export, so its runtime
+  projection is `EXPO_PUBLIC_*`, not the app-core internal `VITE_*` names.
+- Vercel project selection is carried by the destination's recorded project/org
+  IDs; do not assume every Vercel subcommand accepts a `--project` flag.
+- EAS env commands must match the pinned `eas-cli` behavior used by the repo;
+  list/create/delete syntax is not interchangeable with Vercel-style commands.
+- A successful offline check proves registry/value safety only. It does not
+  prove authenticated remote destinations are reachable or synchronized.
 
-## Expo env bridge
+## Local `.env` escape hatch
 
-`apps/app` bridges native Expo env keys into `@zapengine/app-core` Vite-style keys
-in `apps/app/src/config/appCoreEnv.ts`.
-
-Rules:
-
-- Keep `process.env.EXPO_PUBLIC_*` reads literal so `babel-preset-expo` can
-  inline them.
-- Every `EXPO_PUBLIC_*` key referenced in app source must be declared in
-  `.env.example`.
-- Stale keys must be deleted from `.env.example`; do not keep them to placate old
-  code paths.
-
-When CI reports `check-dead-env` for app, run `pnpm lint dead-env`, then update
-the real source of truth: add missing real `EXPO_PUBLIC_*` keys, delete stale
-keys, and fix accidental bare `EXPO_PUBLIC_` references in app source.
-
-## CI-only env is not app env
-
-Do not put CI fixture-only variables into `.env.example` just because CI sets
-them. In this repo, `TEST_DATABASE_URL` and `DATABASE_INTEGRATION_URL` are
-provided directly by `.github/workflows/ci.yml` for analytics/test database
-fixtures; they are not app env references.
-
-If `check-dead-env` reports one of these test DB keys from `.env.example`, remove
-the example entry instead of declaring fake app usage or weakening the gate. Keep
-runtime env documentation focused on variables read by source code or operators,
-not per-job fixture inputs.
+Root `.env` is not the default source anymore. `pnpm dev` reads Git + Infisical;
+`.env` is only used through the explicit `pnpm dev --local-env` emergency path.
+If `pnpm lint dead-env` flags an old branch-only local key, clean that local
+state rather than adding fake manifest usage.
 
 ## Fix workflow
 
-1. Run `pnpm lint dead-env`.
-2. Classify each reported key:
-   - real runtime/source reference → add or correct `.env.example`;
-   - stale example entry → remove it;
-   - local key from another branch → remove it from the current branch's `.env`;
-   - CI fixture-only key → keep it in workflow/test setup, not `.env.example`;
-   - accidental source reference → fix the source code.
-3. If the env edit touched root files, follow **monorepo-ci-debugging** for
-   broadened verification.
+1. Run `pnpm lint dead-env && pnpm env:status --offline`.
+2. Read `config/env.manifest.mjs`, the relevant committed environment file, and
+   `config/env.destinations.mjs` before changing anything.
+3. Fix requiredness, canonical value, projection, or destination ownership at
+   that source of truth.
+4. If remote state matters, run `pnpm env:status`; if credentials are missing,
+   report the destination as not checkable rather than guessing.
+5. Preview the affected destination with `pnpm env:sync --target <destination>`.
+6. Use `--apply` only when the requested task actually includes remote mutation
+   and the dry-run key set is correct.
+7. After root env/config changes, run the broader affected CI gates from
+   **monorepo-ci-debugging** because Turbo inputs can widen the blast radius.
 
 ## Rationalizations — STOP
 
-| Excuse | Reality |
+| Shortcut | Why it is wrong here |
 | --- | --- |
-| "CI sets this env var, so it belongs in `.env.example`." | CI fixture inputs are not runtime app env. |
-| "My local `.env` belongs to another branch, so skip the hook." | Clean the branch-only local override, then rerun the gate. CI cannot validate your untracked `.env`. |
-| "The dead-env failure is unrelated to my app change." | Root env files are broad Turbo inputs and can expose other workspaces. |
-| "Declare a fake usage so the gate passes." | That hides drift. Fix source usage or remove the stale example key. |
-| "Expo env can be read dynamically." | Keep `process.env.EXPO_PUBLIC_*` literal so Expo can inline it. |
+| "Add it back to `.env.example`." | That file is gone; the manifest is authoritative. |
+| "Keep the fallback so prod still starts." | Required production configuration must fail closed instead of silently choosing another model/URL. |
+| "The provider CLI probably supports this flag." | Today's Vercel/EAS fixes came from exactly this assumption; verify the pinned CLI. |
+| "A dry-run can use localhost and we will fix it later." | `env:sync --apply` projects committed values to production; bad committed prod values are dangerous. |
+| "Web is Vite, so use `VITE_*`." | The deployed universal web app is an Expo web export and consumes projected `EXPO_PUBLIC_*`. |
 
 ## Verification
 
 ```bash
 pnpm lint dead-env
+pnpm env:status --offline
+pnpm env:status                 # when remote credentials are available
+pnpm env:sync --target <destination>
 pnpm verify changed
 ```
-
-After root env/config changes, also run the relevant separate CI jobs from
-**monorepo-ci-debugging**, especially coverage.
