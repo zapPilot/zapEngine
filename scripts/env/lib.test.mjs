@@ -19,6 +19,16 @@ test('parseEnv handles exports, quotes, comments, and duplicates', () => {
   assert.deepEqual(parsed.duplicates, ['A']);
 });
 
+test('parseEnv preserves quoted hash literals before trailing comments', () => {
+  const parsed = parseEnv(
+    'A="two # literal" # trailing\nB=\'three # literal\' # trailing\n',
+  );
+  assert.deepEqual(parsed.values, {
+    A: 'two # literal',
+    B: 'three # literal',
+  });
+});
+
 test('projectEnv exposes only declared client values', () => {
   const projected = projectEnv(
     { ACCOUNT_API_URL: 'https://account', SUPABASE_SERVICE_ROLE_KEY: 'secret' },
