@@ -112,3 +112,26 @@ test('migrateEnvFile preserves an existing canonical value and removes legacy al
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('migrateEnvFile rejects conflicting legacy aliases before rewriting', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'zap-env-migrate-'));
+  const envPath = join(directory, '.env');
+  const original = [
+    'VITE_ACCOUNT_API_URL=https://legacy-vite',
+    'EXPO_PUBLIC_ACCOUNT_API_URL=https://legacy-expo',
+    'UNRELATED=value',
+    '',
+  ].join('\n');
+
+  try {
+    await writeFile(envPath, original);
+
+    assert.throws(
+      () => migrateEnvFile(envPath),
+      /Conflicting legacy values for ACCOUNT_API_URL/u,
+    );
+    assert.equal(await readFile(envPath, 'utf8'), original);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
