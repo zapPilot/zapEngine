@@ -1,11 +1,7 @@
-import path from 'node:path';
-
-import { config as loadDotenv } from 'dotenv';
-
 import { initSentry } from './observability/sentry';
 
-const REPO_ROOT_ENV = path.resolve(__dirname, '../../../.env');
-loadDotenv({ path: REPO_ROOT_ENV });
+// Must run before './app' is required so the Sentry SDK can instrument the
+// modules it pulls in. tsc's CommonJS emit keeps requires in source order.
 initSentry(process.env);
 
 import { bootstrap } from './app';

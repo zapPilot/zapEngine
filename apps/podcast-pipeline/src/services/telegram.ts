@@ -37,7 +37,7 @@ interface TelegramSendMessageOptions {
 }
 
 export const TELEGRAM_HELP_TEXT =
-  '貼一個文章 URL，我會幫你產生新一集 podcast。\n支援任何 Mozilla Readability 能讀的網站（含 panews.io）。';
+  '貼一個 PANews 文章 URL，我會幫你產生新一集 podcast。\n目前只支援 panews.io / panewslab.com。';
 export const TELEGRAM_NO_URL_TEXT = '請貼一個 http(s) 文章網址';
 export const TELEGRAM_INFLIGHT_TEXT = '這個 URL 已在處理中，完成後我會通知你。';
 export const TELEGRAM_START_TEXT = '收到，開始處理文章。';

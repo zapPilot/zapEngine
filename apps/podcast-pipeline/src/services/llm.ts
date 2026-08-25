@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import OpenAI from 'openai';
 
+import { getRequiredEnv } from '../lib/env.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import { normalizeLanguageClassroomLessonDraft } from '../lib/languageClassroom.js';
 import { sleep } from '../lib/sleep.js';
@@ -334,10 +335,7 @@ export function getOpenRouterConfig(overrides?: {
 
   const baseURL =
     process.env['OPENROUTER_BASE_URL'] || 'https://openrouter.ai/api/v1';
-  const model =
-    overrides?.model ||
-    process.env['LLM_MODEL'] ||
-    'anthropic/claude-3-5-sonnet-20241022';
+  const model = overrides?.model?.trim() || getRequiredEnv('LLM_MODEL');
   const thinkingModel =
     overrides?.thinkingModel !== undefined
       ? overrides.thinkingModel

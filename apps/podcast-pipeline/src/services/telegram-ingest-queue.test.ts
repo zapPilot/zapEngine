@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   perform: vi.fn(),
@@ -29,6 +29,7 @@ vi.mock('./telegram.js', () => ({
 }));
 
 import { createTelegramIngestQueue } from './telegram-ingest-queue.js';
+import { TELEGRAM_UNSUPPORTED_SOURCE_TEXT } from './telegram-source.js';
 
 function ingestResult() {
   return { episode: { id: 'episode-1' } };
@@ -37,6 +38,10 @@ function ingestResult() {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.send.mockResolvedValue(undefined);
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe('Telegram ingest queue', () => {
@@ -97,5 +102,23 @@ describe('Telegram ingest queue', () => {
     await vi.waitFor(() =>
       expect(mocks.send).toHaveBeenCalledWith('chat-1', 'hello'),
     );
+  });
+
+  it('blocks non-PANews URLs before ingest starts', async () => {
+    vi.stubEnv('PIPELINE_TELEGRAM_ALLOWED_SOURCE_HOSTS', '');
+    const queue = createTelegramIngestQueue();
+    queue.enqueue(
+      'chat-1',
+      'https://pub-example.r2.dev/episodes/example/playlist.m3u8',
+      'zh-Hant',
+    );
+
+    await vi.waitFor(() =>
+      expect(mocks.send).toHaveBeenCalledWith(
+        'chat-1',
+        TELEGRAM_UNSUPPORTED_SOURCE_TEXT,
+      ),
+    );
+    expect(mocks.perform).not.toHaveBeenCalled();
   });
 });

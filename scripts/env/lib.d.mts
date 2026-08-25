@@ -16,3 +16,9 @@ export function projectEnv(
 export function projectAllClientEnv(
   canonicalEnv: Record<string, string | undefined>,
 ): Record<string, string>;
+export function auditSecretClassification(
+  committedByEnvironment: Record<string, ParsedEnv>,
+): string[];
+export function validateProductionEnv(
+  env: Record<string, string | undefined>,
+): string[];

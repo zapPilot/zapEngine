@@ -1,8 +1,4 @@
 import { hostname } from 'node:os';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import dotenv from 'dotenv';
 
 import { errorMessage, toError } from '../lib/errorMessage.js';
 import { sleep as defaultSleep } from '../lib/sleep.js';
@@ -63,13 +59,6 @@ import {
   strategyMapKey,
 } from './strategy.js';
 
-const REPO_ROOT = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  '..',
-  '..',
-);
 const POLL_INTERVAL_MS = 60_000;
 const METRIC_LOOKBACK_DAYS = 8;
 const STRATEGY_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
@@ -88,8 +77,6 @@ const METRIC_WINDOWS: readonly {
   { label: '72h', targetHours: 72 },
   { label: '7d', targetHours: 168 },
 ];
-
-dotenv.config({ path: resolve(REPO_ROOT, '.env') });
 
 export interface SocialDaemonDependencies {
   now?: () => Date;

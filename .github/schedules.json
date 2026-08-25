@@ -21,6 +21,16 @@
     "entrypoint": ".github/workflows/backtest-refresh.yml"
   },
   {
+    "name": "env-drift",
+    "purpose": "Check committed environment configuration against all configured deployment destinations.",
+    "schedule_kind": "cron",
+    "schedule": "17 1 * * *",
+    "schedule_source": "workflow",
+    "runtime": "github-actions",
+    "workspace": "root",
+    "entrypoint": ".github/workflows/env-drift.yml"
+  },
+  {
     "name": "strategy-change-broadcast",
     "purpose": "Queue the daily strategy-change Telegram broadcast check.",
     "schedule_kind": "cron",

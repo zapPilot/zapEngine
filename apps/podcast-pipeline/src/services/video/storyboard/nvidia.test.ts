@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   buildNvidiaStoryboardSystemPrompt,
@@ -33,6 +33,10 @@ const request: StoryboardProviderRequest = {
 const originalApiKey = process.env['NVIDIA_API_KEY'];
 const originalModel = process.env['NVIDIA_STORYBOARD_MODEL'];
 const originalBaseUrl = process.env['NVIDIA_BASE_URL'];
+
+beforeEach(() => {
+  process.env['NVIDIA_STORYBOARD_MODEL'] = 'test/nvidia-model';
+});
 
 afterEach(() => {
   if (originalApiKey === undefined) delete process.env['NVIDIA_API_KEY'];
@@ -150,14 +154,17 @@ describe('NVIDIA storyboard provider', () => {
     ).rejects.toThrow('empty storyboard JSON');
   });
 
-  it('uses environment and default model fallbacks with injected clients', () => {
+  it('uses a trimmed NVIDIA_STORYBOARD_MODEL env value with injected clients', () => {
     const { client } = clientReturning({ content: '{"scenes":[]}' });
     process.env['NVIDIA_STORYBOARD_MODEL'] = ' env-model ';
     expect(createNvidiaStoryboardProvider({ client }).model).toBe('env-model');
+  });
 
+  it('throws when NVIDIA_STORYBOARD_MODEL is not set', () => {
+    const { client } = clientReturning({ content: '{"scenes":[]}' });
     delete process.env['NVIDIA_STORYBOARD_MODEL'];
-    expect(createNvidiaStoryboardProvider({ client }).model).toBe(
-      'nvidia/nvidia-nemotron-nano-9b-v2',
+    expect(() => createNvidiaStoryboardProvider({ client })).toThrow(
+      'Missing required environment variable: NVIDIA_STORYBOARD_MODEL',
     );
   });
 

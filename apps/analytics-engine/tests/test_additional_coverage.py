@@ -287,30 +287,6 @@ def test_production_requires_real_db_url() -> None:
 
     with pytest.raises(ValueError):
         Settings(
-            ENVIRONMENT=Environment.PRODUCTION,
+            NODE_ENV=Environment.PRODUCTION,
             DATABASE_READ_ONLY_URL="placeholder_db_url",
         )
-
-
-def test_config_load_dotenv_importerror(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Reload config with ImportError to cover optional dotenv branch."""
-
-    import builtins
-    import importlib
-
-    from src.core import config as config_module
-    from src.core import database as database_module
-
-    real_import = builtins.__import__
-
-    def fake_import(name, *args, **kwargs):
-        if name == "dotenv":
-            raise ImportError("missing dotenv")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", fake_import)
-    importlib.reload(config_module)
-
-    monkeypatch.setattr(builtins, "__import__", real_import)
-    config_module = importlib.reload(config_module)
-    database_module.settings = config_module.settings

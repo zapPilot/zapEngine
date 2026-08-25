@@ -11,7 +11,8 @@ const client = (targets, projections, options = {}) => ({
   targets,
   projections,
   requiredFor: options.requiredFor ?? [],
-  sensitive: false,
+  sensitive: options.sensitive ?? false,
+  environments: options.environments ?? ['dev', 'prod'],
   documented: options.documented ?? true,
 });
 
@@ -21,6 +22,7 @@ const server = (targets, options = {}) => ({
   projections: {},
   requiredFor: options.requiredFor ?? [],
   sensitive: options.sensitive ?? false,
+  environments: options.environments ?? ['dev', 'prod'],
   documented: options.documented ?? true,
 });
 
@@ -29,7 +31,8 @@ const host = (targets, options = {}) => ({
   targets,
   projections: {},
   requiredFor: [],
-  sensitive: false,
+  sensitive: options.sensitive ?? false,
+  environments: [],
   documented: options.documented ?? true,
 });
 
@@ -57,9 +60,10 @@ export const ENV_MANIFEST = {
   }),
   PRIVY_WEB_APP_ID: client(
     WEB_TARGETS,
-    { vite: 'VITE_PRIVY_APP_ID' },
+    { vite: 'VITE_PRIVY_APP_ID', expo: 'EXPO_PUBLIC_PRIVY_APP_ID' },
     {
       requiredFor: ['web:base', 'desktop:base'],
+      sensitive: true,
     },
   ),
   PRIVY_MOBILE_APP_ID: client(
@@ -67,23 +71,31 @@ export const ENV_MANIFEST = {
     {
       expo: 'EXPO_PUBLIC_PRIVY_APP_ID',
     },
-    { requiredFor: ['expo:base'] },
+    { requiredFor: ['expo:base'], sensitive: true },
   ),
   PRIVY_MOBILE_CLIENT_ID: client(
     ['expo'],
     {
       expo: 'EXPO_PUBLIC_PRIVY_CLIENT_ID',
     },
-    { requiredFor: ['expo:base'] },
+    { requiredFor: ['expo:base'], sensitive: true },
   ),
-  MORALIS_API_KEY: client(APP_TARGETS, {
-    vite: 'VITE_MORALIS_API_KEY',
-    expo: 'EXPO_PUBLIC_MORALIS_API_KEY',
-  }),
-  ALCHEMY_API_KEY: client(APP_TARGETS, {
-    vite: 'VITE_ALCHEMY_API_KEY',
-    expo: 'EXPO_PUBLIC_ALCHEMY_API_KEY',
-  }),
+  MORALIS_API_KEY: client(
+    APP_TARGETS,
+    {
+      vite: 'VITE_MORALIS_API_KEY',
+      expo: 'EXPO_PUBLIC_MORALIS_API_KEY',
+    },
+    { sensitive: true },
+  ),
+  ALCHEMY_API_KEY: client(
+    APP_TARGETS,
+    {
+      vite: 'VITE_ALCHEMY_API_KEY',
+      expo: 'EXPO_PUBLIC_ALCHEMY_API_KEY',
+    },
+    { sensitive: true },
+  ),
   ENABLE_RQ_DEVTOOLS: client(WEB_TARGETS, {
     vite: 'VITE_ENABLE_RQ_DEVTOOLS',
   }),
@@ -104,7 +116,7 @@ export const ENV_MANIFEST = {
     next: 'NEXT_PUBLIC_TRACK_RECORD_MOCK',
   }),
 
-  NODE_ENV: server(['all']),
+  NODE_ENV: host(['all']),
   ALPHA_ETL_DATABASE_URL: server(['alpha-etl'], {
     requiredFor: ['alpha-etl:base'],
     sensitive: true,
@@ -113,6 +125,7 @@ export const ENV_MANIFEST = {
     ['account-engine', 'podcast-pipeline', 'control-center'],
     {
       requiredFor: ['account-engine:base', 'podcast-pipeline:base'],
+      sensitive: true,
     },
   ),
   SUPABASE_ANON_KEY: server(['account-engine'], {
@@ -128,14 +141,16 @@ export const ENV_MANIFEST = {
   ),
   ALPHA_ETL_URL: server(['account-engine']),
   ALPHA_ETL_WEBHOOK_SECRET: server(['account-engine'], { sensitive: true }),
-  ACCOUNT_ENGINE_PORT: server(['account-engine']),
-  SENTRY_DSN: server(['account-engine']),
+  ACCOUNT_ENGINE_PORT: host(['account-engine']),
+  SENTRY_DSN: server(['account-engine'], { sensitive: true }),
   EMAIL_HOST: server(['account-engine']),
-  EMAIL_USER: server(['account-engine']),
+  EMAIL_USER: server(['account-engine'], { sensitive: true }),
   EMAIL_APP_PASSWORD: server(['account-engine'], { sensitive: true }),
   REPORT_UNSUBSCRIBE_SECRET: server(['account-engine'], { sensitive: true }),
   REPORT_UNSUBSCRIBE_URL: server(['account-engine']),
-  NOTIFICATIONS_TEST_RECIPIENT: server(['account-engine']),
+  NOTIFICATIONS_TEST_RECIPIENT: server(['account-engine'], {
+    sensitive: true,
+  }),
   ADMIN_NOTIFICATIONS_ENABLED: server(['account-engine']),
   LIFI_INTEGRATOR: server(['account-engine'], {
     requiredFor: ['account-engine:base'],
@@ -143,25 +158,40 @@ export const ENV_MANIFEST = {
   LIFI_API_KEY: server(['account-engine'], { sensitive: true }),
   DEPOSIT_DEFAULT_SPLIT: server(['account-engine']),
   HYPERLIQUID_NETWORK: server(['account-engine']),
-  RPC_URL_BASE: server(['account-engine']),
-  RPC_URL_ETHEREUM: server(['account-engine']),
-  RPC_URL_ARBITRUM: server(['account-engine']),
-  PRIVY_APP_ID: server(['account-engine']),
-  PRIVY_APP_SECRET: server(['account-engine'], { sensitive: true }),
+  RPC_URL_BASE: server(['account-engine'], { sensitive: true }),
+  RPC_URL_ETHEREUM: server(['account-engine'], { sensitive: true }),
+  RPC_URL_ARBITRUM: server(['account-engine'], { sensitive: true }),
+  PRIVY_APP_ID: server(['account-engine'], {
+    requiredFor: ['account-engine:base'],
+    sensitive: true,
+  }),
+  PRIVY_APP_SECRET: server(['account-engine'], {
+    requiredFor: ['account-engine:base'],
+    sensitive: true,
+  }),
   ADMIN_API_KEY: server(['account-engine'], { sensitive: true }),
   TELEGRAM_BOT_TOKEN: server(['account-engine'], { sensitive: true }),
   TELEGRAM_BOT_NAME: server(['account-engine']),
   TELEGRAM_WEBHOOK_SECRET: server(['account-engine'], { sensitive: true }),
   TRACK_RECORD_EQUITY_CURVE_URL: server(['account-engine']),
-  TENDERLY_ACCOUNT_SLUG: server(['account-engine']),
-  TENDERLY_PROJECT_SLUG: server(['account-engine']),
-  TENDERLY_ACCESS_TOKEN: server(['account-engine'], { sensitive: true }),
-  PLAN_SIMULATION_REQUIRED: server(['account-engine']),
+  TENDERLY_ACCOUNT_SLUG: server(['account-engine'], {
+    requiredFor: ['account-engine:base'],
+    sensitive: true,
+  }),
+  TENDERLY_PROJECT_SLUG: server(['account-engine'], {
+    requiredFor: ['account-engine:base'],
+    sensitive: true,
+  }),
+  TENDERLY_ACCESS_TOKEN: server(['account-engine'], {
+    requiredFor: ['account-engine:base'],
+    sensitive: true,
+  }),
+  PLAN_SIMULATION_REQUIRED: server(['account-engine'], {
+    requiredFor: ['account-engine:base'],
+  }),
   PLAN_SIMULATION_MODE: server(['account-engine']),
 
-  ENVIRONMENT: server(['analytics-engine']),
-  DEBUG: server(['analytics-engine']),
-  ANALYTICS_ENGINE_PORT: server(['analytics-engine']),
+  ANALYTICS_ENGINE_PORT: host(['analytics-engine']),
   DATABASE_READ_ONLY: server(['analytics-engine']),
   DATABASE_READ_ONLY_URL: server(['analytics-engine'], {
     requiredFor: ['analytics-engine:base'],
@@ -242,20 +272,20 @@ export const ENV_MANIFEST = {
   }),
 
   DB_SCHEMA: server(['alpha-etl']),
-  ALPHA_ETL_PORT: server(['alpha-etl']),
-  HOST: server(['alpha-etl', 'analytics-engine']),
+  ALPHA_ETL_PORT: host(['alpha-etl']),
+  HOST: host(['alpha-etl', 'analytics-engine']),
   WEBHOOK_SECRET: server(['alpha-etl'], { sensitive: true }),
   DEBANK_API_URL: server(['alpha-etl']),
   DEBANK_API_KEY: server(['alpha-etl', 'control-center'], { sensitive: true }),
   DEBANK_BASE_URL: server(['control-center']),
-  DEBANK_STRICT_ERRORS: server(['alpha-etl']),
+  DEBANK_STRICT_ERRORS: server(['alpha-etl'], { environments: ['dev'] }),
   HYPERLIQUID_API_URL: server(['alpha-etl']),
   HYPERLIQUID_RATE_LIMIT_RPM: server(['alpha-etl']),
   COINGECKO_API_URL: server(['alpha-etl']),
   RATE_LIMIT_REQUESTS_PER_MINUTE: server(['alpha-etl']),
   RATE_LIMIT_BURST: server(['alpha-etl']),
   LOG_LEVEL: server(['alpha-etl', 'podcast-pipeline']),
-  MOCK_APIS: server(['alpha-etl']),
+  MOCK_APIS: server(['alpha-etl'], { environments: ['dev'] }),
   COINMARKETCAP_API_KEY: server(['alpha-etl'], { sensitive: true }),
   COINMARKETCAP_API_URL: server(['alpha-etl']),
   ALPHA_VANTAGE_API_KEY: server(['alpha-etl'], { sensitive: true }),
@@ -266,17 +296,19 @@ export const ENV_MANIFEST = {
   OPENROUTER_BASE_URL: server(['podcast-pipeline', 'control-center']),
   OPENROUTER_MANAGEMENT_KEY: server(['control-center'], { sensitive: true }),
   OPENROUTER_TIMEOUT_MS: server(['podcast-pipeline']),
-  LLM_MODEL: server(['podcast-pipeline']),
+  LLM_MODEL: server(['podcast-pipeline'], {
+    requiredFor: ['podcast-pipeline:base'],
+  }),
   LLM_THINKING_MODEL: server(['podcast-pipeline']),
   TRANSLATION_LLM_MODEL: server(['podcast-pipeline']),
   GOOGLE_TRANSLATE_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
   GOOGLE_APPLICATION_CREDENTIALS_BASE64: server(['podcast-pipeline'], {
     sensitive: true,
   }),
-  GOOGLE_APPLICATION_CREDENTIALS: server(['podcast-pipeline']),
+  GOOGLE_APPLICATION_CREDENTIALS: host(['podcast-pipeline']),
   YOUTUBE_CLIENT_ID: server(['podcast-pipeline'], { sensitive: true }),
   YOUTUBE_CLIENT_SECRET: server(['podcast-pipeline'], { sensitive: true }),
-  YOUTUBE_CHANNEL_ID: server(['podcast-pipeline']),
+  YOUTUBE_CHANNEL_ID: server(['podcast-pipeline'], { sensitive: true }),
   YOUTUBE_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
   TTS_PROVIDER: server(['podcast-pipeline'], {
     requiredFor: ['podcast-pipeline:base'],
@@ -297,6 +329,7 @@ export const ENV_MANIFEST = {
   FISH_AUDIO_REQUEST_DELAY_MS: server(['podcast-pipeline']),
   R2_ENDPOINT: server(['podcast-pipeline'], {
     requiredFor: ['podcast-pipeline:media'],
+    sensitive: true,
   }),
   R2_ACCESS_KEY_ID: server(['podcast-pipeline'], {
     requiredFor: ['podcast-pipeline:media'],
@@ -308,6 +341,7 @@ export const ENV_MANIFEST = {
   }),
   R2_BUCKET_NAME: server(['podcast-pipeline'], {
     requiredFor: ['podcast-pipeline:media'],
+    sensitive: true,
   }),
   R2_PUBLIC_BASE_URL: server(['podcast-pipeline'], {
     requiredFor: ['podcast-pipeline:media'],
@@ -321,6 +355,7 @@ export const ENV_MANIFEST = {
   PIPELINE_TELEGRAM_ALLOWED_USER_IDS: server(['podcast-pipeline'], {
     sensitive: true,
   }),
+  PIPELINE_TELEGRAM_ALLOWED_SOURCE_HOSTS: server(['podcast-pipeline']),
   INGEST_ADMIN_TOKEN: server(['podcast-pipeline'], { sensitive: true }),
   SCRIPT_PROMPT_PATH: server(['podcast-pipeline']),
   PODCAST_PUBLIC_BASE_URL: server(['podcast-pipeline']),
@@ -332,19 +367,23 @@ export const ENV_MANIFEST = {
   THREADS_APP_SECRET: server(['podcast-pipeline'], { sensitive: true }),
   THREADS_ACCESS_TOKEN: server(['podcast-pipeline'], { sensitive: true }),
   THREADS_REDIRECT_URI: server(['podcast-pipeline']),
-  THREADS_TLS_CERT_PATH: server(['podcast-pipeline']),
-  THREADS_TLS_KEY_PATH: server(['podcast-pipeline']),
+  THREADS_TLS_CERT_PATH: host(['podcast-pipeline']),
+  THREADS_TLS_KEY_PATH: host(['podcast-pipeline']),
   PIPELINE_RENDER_ON_DEMAND: server(['podcast-pipeline']),
   PIPELINE_FLY_API_TOKEN: server(['podcast-pipeline'], { sensitive: true }),
-  FLY_APP_NAME: server(['podcast-pipeline']),
+  FLY_APP_NAME: host(['podcast-pipeline']),
   VIDEO_STORYBOARD_PROVIDER: server(['podcast-pipeline']),
   NVIDIA_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
   NVIDIA_BASE_URL: server(['podcast-pipeline']),
-  NVIDIA_STORYBOARD_MODEL: server(['podcast-pipeline']),
+  NVIDIA_STORYBOARD_MODEL: server(['podcast-pipeline'], {
+    requiredFor: ['podcast-pipeline:base'],
+  }),
   VIDEO_ALIGNMENT_PROVIDER: server(['podcast-pipeline']),
-  VIDEO_ALIGNMENT_MODEL: server(['podcast-pipeline']),
-  VIDEO_FFMPEG_PATH: server(['podcast-pipeline']),
-  VIDEO_FFPROBE_PATH: server(['podcast-pipeline']),
+  VIDEO_ALIGNMENT_MODEL: server(['podcast-pipeline'], {
+    requiredFor: ['podcast-pipeline:base'],
+  }),
+  VIDEO_FFMPEG_PATH: host(['podcast-pipeline']),
+  VIDEO_FFPROBE_PATH: host(['podcast-pipeline']),
   PEXELS_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
   PIXABAY_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
   SUPABASE_DB_SCHEMA: server(['podcast-pipeline', 'control-center']),
@@ -360,14 +399,16 @@ export const ENV_MANIFEST = {
 
   // CI, build, and operational tooling. These remain inventoried without
   // encouraging developers to place ephemeral values in their local .env.
-  CI: server(['all'], { documented: false }),
-  PORT: server(['all'], { documented: false }),
+  CI: host(['all'], { documented: false }),
+  PORT: host(['all'], { documented: false }),
   TEST_DATABASE_URL: server(['analytics-engine'], {
     documented: false,
+    environments: [],
     sensitive: true,
   }),
   DATABASE_INTEGRATION_URL: server(['analytics-engine'], {
     documented: false,
+    environments: [],
     sensitive: true,
   }),
   EAS_BUILD: host(['expo'], { documented: false }),
@@ -375,6 +416,22 @@ export const ENV_MANIFEST = {
   PLAYWRIGHT_BASE_URL: host(['expo'], { documented: false }),
   PLAYWRIGHT_PORT: host(['expo'], { documented: false }),
   PLAYWRIGHT_SKIP_INSTALL: host(['expo'], { documented: false }),
+  EXPO_TOKEN: host(['env-tooling'], {
+    documented: false,
+    sensitive: true,
+  }),
+  FLY_API_TOKEN: host(['env-tooling'], {
+    documented: false,
+    sensitive: true,
+  }),
+  INFISICAL_PROJECT_ID: host(['env-tooling'], {
+    documented: false,
+    sensitive: true,
+  }),
+  VERCEL_TOKEN: host(['env-tooling'], {
+    documented: false,
+    sensitive: true,
+  }),
   TRACK_RECORD_CHAIN_IDS: server(['track-record-tooling'], {
     documented: false,
   }),

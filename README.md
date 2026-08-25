@@ -61,35 +61,35 @@ zapEngine/
 pnpm install
 ```
 
-All apps read from a single `.env` at the repo root — copy the example, then
-keep only the values needed for the apps and optional features you run:
-
-```bash
-cp .env.example .env
-```
-
-Do not add empty optional overrides to `.env`; leave them unset so their code
-defaults apply. Use a command-line environment override for a one-off local
-run, and configure CI-only or production secrets in the CI/deployment platform
-rather than the shared local file.
+Environment keys and non-secret values are versioned in
+`config/env.manifest.mjs` and `config/env/{dev,prod}.env`. Secrets come from
+Infisical. Install and authenticate the Infisical CLI before running `pnpm dev`.
+For an offline emergency, create a root `.env` and opt in with
+`pnpm dev --local-env`; the file is never read by default.
 
 Human-maintained client values use canonical, unprefixed names. The env
 projector creates `VITE_*`, `EXPO_PUBLIC_*`, and `NEXT_PUBLIC_*` values before
-each bundler starts; do not add those generated aliases to `.env`.
+each bundler starts; do not add those generated aliases to a source store.
 
 ```bash
-pnpm env:check                   # inventory and local drift
-pnpm env:check --target expo     # required base config for one target
+pnpm env:status --offline        # manifest + committed-value safety
+pnpm env:status                  # include Infisical and every destination
 pnpm env:show --target web       # redacts sensitive values
 ```
 
 Deployment synchronization is dry-run by default:
 
 ```bash
-pnpm env:deploy:fly --target account-engine
-pnpm env:deploy:eas --environment production
+pnpm env:sync --target account-engine
+pnpm env:sync --target expo
 # Add --apply only after reviewing the listed key names.
 ```
+
+The scheduled environment-drift workflow requires read-only
+`INFISICAL_UNIVERSAL_AUTH_CLIENT_ID`,
+`INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET`, `INFISICAL_PROJECT_ID`,
+`FLY_API_TOKEN`, `EXPO_TOKEN`, and `VERCEL_TOKEN` repository secrets. Missing
+credentials make the workflow fail as not checkable.
 
 For analytics-engine's Python venv (first-time only):
 

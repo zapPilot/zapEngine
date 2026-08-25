@@ -30,14 +30,9 @@ function parseArgs(): { snapshotPath: string; metaPath: string } {
 }
 
 function pinataToken(): string {
-  const token =
-    process.env['TRACK_RECORD_IPFS_PINATA_TOKEN'] ??
-    process.env['IPFS_PINATA_TOKEN'] ??
-    process.env['PINATA_JWT'];
+  const token = process.env['TRACK_RECORD_IPFS_PINATA_TOKEN'];
   if (!token) {
-    throw new Error(
-      'Missing TRACK_RECORD_IPFS_PINATA_TOKEN, IPFS_PINATA_TOKEN, or PINATA_JWT',
-    );
+    throw new Error('Missing TRACK_RECORD_IPFS_PINATA_TOKEN');
   }
   return token;
 }

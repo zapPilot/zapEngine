@@ -48,7 +48,6 @@
     "@resvg/resvg-js": "2.6.2",
     "@supabase/supabase-js": "catalog:",
     "@zapengine/design-tokens": "workspace:*",
-    "dotenv": "catalog:",
     "fluent-ffmpeg": "^2.1.3",
     "hono": "catalog:",
     "jsdom": "catalog:",

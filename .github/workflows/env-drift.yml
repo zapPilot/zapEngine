@@ -1,0 +1,58 @@
+name: Environment drift
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: env-drift
+  cancel-in-progress: false
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
+      INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate required credentials
+        run: |
+          missing=0
+          for name in EXPO_TOKEN FLY_API_TOKEN VERCEL_TOKEN \
+            INFISICAL_UNIVERSAL_AUTH_CLIENT_ID INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET \
+            INFISICAL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "$name is not configured" >&2
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - uses: ./.github/actions/setup-workspace
+
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1 / 1.6
+
+      - name: Install destination CLIs
+        run: npm install --global @infisical/cli@0.43.125 vercel@54.21.1
+
+      - name: Authenticate Infisical read-only identity
+        run: |
+          token="$(infisical login --method=universal-auth --silent --plain)"
+          echo "::add-mask::$token"
+          echo "INFISICAL_TOKEN=$token" >> "$GITHUB_ENV"
+
+      - name: Check all environment destinations
+        run: pnpm env:status

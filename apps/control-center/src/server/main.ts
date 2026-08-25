@@ -2,9 +2,6 @@ import { serve } from '@hono/node-server';
 
 import { createControlCenterApp } from './app.js';
 import { readControlCenterConfig } from './config/env.js';
-import { loadEnv } from './paths.js';
-
-loadEnv();
 
 const config = readControlCenterConfig();
 serve({

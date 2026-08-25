@@ -1424,7 +1424,7 @@ describe('POST /telegram/webhook', () => {
     expect(response.status).toBe(200);
     await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(1));
     expect(telegramMessageTexts()).toEqual([
-      expect.stringContaining('貼一個文章 URL'),
+      expect.stringContaining('貼一個 PANews 文章 URL'),
     ]);
     expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
   });
@@ -1441,7 +1441,7 @@ describe('POST /telegram/webhook', () => {
         expect(mockTelegramFetch).toHaveBeenCalledTimes(1),
       );
       expect(telegramMessageTexts()).toEqual([
-        expect.stringContaining('貼一個文章 URL'),
+        expect.stringContaining('貼一個 PANews 文章 URL'),
       ]);
       expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
     },
@@ -1462,7 +1462,7 @@ describe('POST /telegram/webhook', () => {
     expect(response.status).toBe(200);
     await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(1));
     expect(telegramMessageTexts()).toEqual([
-      expect.stringContaining('貼一個文章 URL'),
+      expect.stringContaining('貼一個 PANews 文章 URL'),
     ]);
   });
 

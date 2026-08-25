@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 
+import { getRequiredEnv } from '../../../lib/env.js';
 import type {
   StoryboardProvider,
   StoryboardProviderOptions,
@@ -9,7 +10,6 @@ import type {
 import { formatSentencesForPrompt } from './sentences.js';
 
 const DEFAULT_NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
-const DEFAULT_NVIDIA_MODEL = 'nvidia/nvidia-nemotron-nano-9b-v2';
 const NVIDIA_TIMEOUT_MS = 45_000;
 const NVIDIA_MAX_OUTPUT_TOKENS = 2_000;
 
@@ -91,9 +91,7 @@ export function createNvidiaStoryboardProvider(
   providerOptions: NvidiaStoryboardProviderOptions = {},
 ): StoryboardProvider {
   const model =
-    providerOptions.model ??
-    process.env['NVIDIA_STORYBOARD_MODEL']?.trim() ??
-    DEFAULT_NVIDIA_MODEL;
+    providerOptions.model ?? getRequiredEnv('NVIDIA_STORYBOARD_MODEL').trim();
   const client =
     providerOptions.client ??
     new OpenAI({

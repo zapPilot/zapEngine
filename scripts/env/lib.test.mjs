@@ -1,14 +1,13 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import {
-  migrateEnvFile,
+  auditSecretClassification,
   parseEnv,
   projectEnv,
   validateEnv,
+  validateProductionEnv,
 } from './lib.mjs';
 
 test('parseEnv handles exports, quotes, comments, and duplicates', () => {
@@ -17,6 +16,16 @@ test('parseEnv handles exports, quotes, comments, and duplicates', () => {
   );
   assert.deepEqual(parsed.values, { A: 'three', B: 'two # literal' });
   assert.deepEqual(parsed.duplicates, ['A']);
+});
+
+test('parseEnv preserves quoted hash literals before trailing comments', () => {
+  const parsed = parseEnv(
+    'A="two # literal" # trailing\nB=\'three # literal\' # trailing\n',
+  );
+  assert.deepEqual(parsed.values, {
+    A: 'two # literal',
+    B: 'three # literal',
+  });
 });
 
 test('projectEnv exposes only declared client values', () => {
@@ -58,21 +67,12 @@ test('Turbo hashes canonical values and receives projected bundler values', asyn
     await readFile(new URL('../../turbo.json', import.meta.url), 'utf8'),
   );
   assert.ok(turbo.globalDependencies.includes('.env*'));
+  assert.ok(turbo.globalDependencies.includes('config/env*.mjs'));
+  assert.ok(turbo.globalDependencies.includes('config/env/*.env'));
   assert.ok(turbo.globalEnv.includes('ACCOUNT_API_URL'));
   assert.ok(turbo.tasks.build.env.includes('VITE_*'));
   assert.ok(turbo.tasks.build.env.includes('EXPO_PUBLIC_*'));
   assert.ok(turbo.tasks.build.env.includes('NEXT_PUBLIC_*'));
-});
-
-test('.env.example contains canonical names only', async () => {
-  const example = await readFile(
-    new URL('../../.env.example', import.meta.url),
-    'utf8',
-  );
-  assert.doesNotMatch(
-    example,
-    /^(?:VITE_|EXPO_PUBLIC_|NEXT_PUBLIC_|ZAP_(?:ACCOUNT|ANALYTICS))/mu,
-  );
 });
 
 test('validateEnv rejects human-maintained legacy aliases', () => {
@@ -82,116 +82,27 @@ test('validateEnv rejects human-maintained legacy aliases', () => {
   );
 });
 
-test('migrateEnvFile preserves an existing canonical value and removes legacy aliases', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'zap-env-migrate-'));
-  const envPath = join(directory, '.env');
-
-  try {
-    await writeFile(
-      envPath,
-      [
-        'VITE_ACCOUNT_API_URL=https://legacy-vite',
-        'ACCOUNT_API_URL=https://canonical',
-        'EXPO_PUBLIC_ACCOUNT_API_URL=https://legacy-expo',
-        'UNRELATED=value',
-        '',
-      ].join('\n'),
-    );
-
-    migrateEnvFile(envPath);
-    const migrated = await readFile(envPath, 'utf8');
-
-    assert.equal(
-      migrated,
-      'ACCOUNT_API_URL=https://canonical\nUNRELATED=value\n',
-    );
-
-    migrateEnvFile(envPath);
-    assert.equal(await readFile(envPath, 'utf8'), migrated);
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
+test('secret classification rejects sensitive and credential-like committed values', () => {
+  const errors = auditSecretClassification({
+    dev: {
+      values: {
+        SUPABASE_SERVICE_ROLE_KEY: 'secret',
+        ACCOUNT_API_URL: 'a'.repeat(48),
+      },
+      duplicates: [],
+    },
+  });
+  assert.ok(
+    errors.some((error) => error.includes('SUPABASE_SERVICE_ROLE_KEY')),
+  );
+  assert.ok(errors.some((error) => error.includes('credential-like')));
 });
 
-test('migrateEnvFile collapses equal legacy aliases into one canonical value', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'zap-env-migrate-'));
-  const envPath = join(directory, '.env');
-
-  try {
-    await writeFile(
-      envPath,
-      [
-        'VITE_ACCOUNT_API_URL=https://shared-account',
-        'EXPO_PUBLIC_ACCOUNT_API_URL=https://shared-account',
-        'UNRELATED=value',
-        '',
-      ].join('\n'),
-    );
-
-    migrateEnvFile(envPath);
-    const migrated = await readFile(envPath, 'utf8');
-
-    assert.equal(
-      migrated,
-      'ACCOUNT_API_URL=https://shared-account\nUNRELATED=value\n',
-    );
-
-    migrateEnvFile(envPath);
-    assert.equal(await readFile(envPath, 'utf8'), migrated);
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-});
-
-test('migrateEnvFile treats equivalent quoted legacy aliases as the same value', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'zap-env-migrate-'));
-  const envPath = join(directory, '.env');
-
-  try {
-    await writeFile(
-      envPath,
-      [
-        '  VITE_ACCOUNT_API_URL = "https://shared-account"',
-        "EXPO_PUBLIC_ACCOUNT_API_URL='https://shared-account'",
-        'UNRELATED=value',
-        '',
-      ].join('\n'),
-    );
-
-    migrateEnvFile(envPath);
-    const migrated = await readFile(envPath, 'utf8');
-
-    assert.equal(
-      migrated,
-      '  ACCOUNT_API_URL = "https://shared-account"\nUNRELATED=value\n',
-    );
-
-    migrateEnvFile(envPath);
-    assert.equal(await readFile(envPath, 'utf8'), migrated);
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-});
-
-test('migrateEnvFile rejects conflicting legacy aliases before rewriting', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'zap-env-migrate-'));
-  const envPath = join(directory, '.env');
-  const original = [
-    'VITE_ACCOUNT_API_URL=https://legacy-vite',
-    'EXPO_PUBLIC_ACCOUNT_API_URL=https://legacy-expo',
-    'UNRELATED=value',
-    '',
-  ].join('\n');
-
-  try {
-    await writeFile(envPath, original);
-
-    assert.throws(
-      () => migrateEnvFile(envPath),
-      /Conflicting legacy values for ACCOUNT_API_URL/u,
-    );
-    assert.equal(await readFile(envPath, 'utf8'), original);
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
+test('production validation rejects local endpoints and placeholders', () => {
+  const errors = validateProductionEnv({
+    ACCOUNT_API_URL: 'http://localhost:3004',
+    LIFI_INTEGRATOR: 'your-integrator',
+  });
+  assert.ok(errors.some((error) => error.includes('ACCOUNT_API_URL')));
+  assert.ok(errors.some((error) => error.includes('LIFI_INTEGRATOR')));
 });

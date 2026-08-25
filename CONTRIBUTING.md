@@ -56,18 +56,20 @@ Pre-commit keeps checks fast: frozen-lockfile installation, repository drift che
 
 ## Adding an environment variable
 
-1. Add the key to root `.env.example` with a short purpose comment.
+1. Add the canonical key, kind, targets, sensitivity, environments, and any
+   required target to `config/env.manifest.mjs`.
 2. Use the local runtime convention:
    - Node or server TypeScript: `process.env.X` or `process.env['X']`
    - Shared app client code: `getRuntimeEnv('VITE_X')` from app-core
    - Python: `os.getenv("X")`, `os.environ["X"]`, or `os.environ.get("X")`
-3. Prefer a `VITE_*` key as the local source. Add a platform-prefixed override
-   only when that deployment or runtime needs a different value.
-4. Add production configuration to the relevant deployment system.
+3. Put non-secret values in `config/env/dev.env` and/or `prod.env`. Put secret
+   values only in the matching Infisical environment. Bundler-prefixed names
+   are generated projections and are never source keys.
+4. Use `pnpm env:sync --target <destination>` to review deployment drift.
 5. Run:
 
 ```bash
-bash scripts/check-dead-env.sh
+pnpm lint dead-env && pnpm env:status --offline
 ```
 
 The checker validates both declared-but-unused and referenced-but-undeclared variables. Fly configuration drift is reported as a warning.
@@ -107,7 +109,7 @@ Migration SQL must use schema-qualified object names. Do not use `CREATE INDEX C
 
 Do not change the schema through the Supabase Dashboard SQL Editor or MCP `apply_migration` / `execute_sql`, except for a documented emergency. Do not add migrations under `apps/*/migrations/` or `apps/podcast-pipeline/supabase/migrations/`, run `supabase init` anywhere in this repository, or modify a migration that has already been pushed.
 
-After any emergency out-of-band schema change, reconcile it immediately with `supabase db pull <description>` and commit the resulting new migration. Database credentials belong in the operator's keychain or temporary shell environment, never in `.env` or `.env.example`.
+After any emergency out-of-band schema change, reconcile it immediately with `supabase db pull <description>` and commit the resulting new migration. Database credentials belong in the operator's keychain or temporary shell environment, never in committed env files.
 
 ## Adding an app or package
 

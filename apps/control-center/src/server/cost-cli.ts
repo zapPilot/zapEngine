@@ -5,10 +5,7 @@ import {
 
 import type { CostTransactionKind } from '../shared/types.js';
 import { readControlCenterConfig } from './config/env.js';
-import { loadEnv } from './paths.js';
 import { createCostRepository } from './services/cost-repository.js';
-
-loadEnv();
 
 const repository = createCostRepository(readControlCenterConfig());
 if (!repository) {

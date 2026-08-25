@@ -34,7 +34,7 @@ DEVPORTS_STALE_HOURS="${ZAP_DEV_STALE_HOURS:-12}"
 
 # app web and landing hardcode their port in their own dev script, so there is
 # nothing to override. The other three read the names already defined in
-# .env.example, which dev.sh has exported by the time this file is sourced.
+# the canonical dev environment, which dev.sh receives from env/run.mjs.
 DEVPORTS_APP_WEB=8081
 DEVPORTS_LANDING=3000
 DEVPORTS_ACCOUNT="${ACCOUNT_ENGINE_PORT:-3004}"

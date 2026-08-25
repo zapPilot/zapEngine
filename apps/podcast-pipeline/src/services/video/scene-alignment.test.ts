@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const llmMocks = vi.hoisted(() => ({
   createOpenRouterChatCompletion: vi.fn(),
@@ -21,6 +21,20 @@ import {
   validateSceneAlignment,
   type VisualSceneAnchor,
 } from './scene-alignment.js';
+
+const originalVideoAlignmentModel = process.env['VIDEO_ALIGNMENT_MODEL'];
+
+beforeEach(() => {
+  process.env['VIDEO_ALIGNMENT_MODEL'] = 'test/alignment-model';
+});
+
+afterEach(() => {
+  if (originalVideoAlignmentModel === undefined) {
+    delete process.env['VIDEO_ALIGNMENT_MODEL'];
+  } else {
+    process.env['VIDEO_ALIGNMENT_MODEL'] = originalVideoAlignmentModel;
+  }
+});
 
 const scenes: VisualSceneAnchor[] = [
   {
@@ -498,52 +512,53 @@ describe('scene alignment', () => {
     }
   });
 
-  it('OpenRouter provider handles model fallbacks, no signal, and malformed content', async () => {
-    const previousVideoModel = process.env['VIDEO_ALIGNMENT_MODEL'];
-    const previousLlmModel = process.env['LLM_MODEL'];
-    const previousTranslationModel = process.env['TRANSLATION_LLM_MODEL'];
-    try {
-      delete process.env['VIDEO_ALIGNMENT_MODEL'];
-      process.env['LLM_MODEL'] = 'llm-fallback';
-      process.env['TRANSLATION_LLM_MODEL'] = 'translation-fallback';
-      llmMocks.getOpenRouterConfig.mockReturnValue({
-        openai: llmMocks.openai,
-        model: 'resolved-model',
-      });
-      llmMocks.createOpenRouterChatCompletion
-        .mockResolvedValueOnce({
-          choices: [{ message: { content: '{"endSentenceIds":["s0001"]}' } }],
-        })
-        .mockResolvedValueOnce({ choices: [] });
-      const provider = createOpenRouterSceneAlignmentProvider();
-      const request = {
-        canonicalScenes: [{ sceneId: 'scene-01', text: 'First.' }],
-        localizedSentences: 's0001\tLocalized.',
-        languageCode: 'en' as const,
-      };
-      await expect(provider.align(request)).resolves.toEqual({
-        endSentenceIds: ['s0001'],
-      });
-      expect(llmMocks.getOpenRouterConfig).toHaveBeenCalledWith({
-        model: 'llm-fallback',
-        thinkingModel: null,
-      });
-      expect(
-        llmMocks.createOpenRouterChatCompletion.mock.calls.at(-2)?.[3],
-      ).toBeUndefined();
-      await expect(provider.align(request)).rejects.toThrow(
-        'invalid JSON content',
-      );
-    } finally {
-      if (previousVideoModel === undefined)
-        delete process.env['VIDEO_ALIGNMENT_MODEL'];
-      else process.env['VIDEO_ALIGNMENT_MODEL'] = previousVideoModel;
-      if (previousLlmModel === undefined) delete process.env['LLM_MODEL'];
-      else process.env['LLM_MODEL'] = previousLlmModel;
-      if (previousTranslationModel === undefined)
-        delete process.env['TRANSLATION_LLM_MODEL'];
-      else process.env['TRANSLATION_LLM_MODEL'] = previousTranslationModel;
-    }
+  it('OpenRouter provider requires VIDEO_ALIGNMENT_MODEL and does not fall back to LLM_MODEL', async () => {
+    delete process.env['VIDEO_ALIGNMENT_MODEL'];
+    process.env['LLM_MODEL'] = 'llm-fallback';
+    const provider = createOpenRouterSceneAlignmentProvider();
+    const request = {
+      canonicalScenes: [{ sceneId: 'scene-01', text: 'First.' }],
+      localizedSentences: 's0001\tLocalized.',
+      languageCode: 'en' as const,
+    };
+
+    await expect(provider.align(request)).rejects.toThrow(
+      'Missing required environment variable: VIDEO_ALIGNMENT_MODEL',
+    );
+    expect(llmMocks.getOpenRouterConfig).not.toHaveBeenCalled();
+  });
+
+  it('OpenRouter provider forwards a trimmed VIDEO_ALIGNMENT_MODEL, skips a signal when absent, and rejects malformed content', async () => {
+    process.env['VIDEO_ALIGNMENT_MODEL'] = ' resolved-model ';
+    llmMocks.getOpenRouterConfig.mockReturnValue({
+      openai: llmMocks.openai,
+      model: 'resolved-model',
+    });
+    llmMocks.createOpenRouterChatCompletion
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: '{"endSentenceIds":["s0001"]}' } }],
+      })
+      .mockResolvedValueOnce({ choices: [] });
+    const provider = createOpenRouterSceneAlignmentProvider();
+    const request = {
+      canonicalScenes: [{ sceneId: 'scene-01', text: 'First.' }],
+      localizedSentences: 's0001\tLocalized.',
+      languageCode: 'en' as const,
+    };
+
+    await expect(provider.align(request)).resolves.toEqual({
+      endSentenceIds: ['s0001'],
+    });
+    expect(llmMocks.getOpenRouterConfig).toHaveBeenCalledWith({
+      model: 'resolved-model',
+      thinkingModel: null,
+    });
+    expect(
+      llmMocks.createOpenRouterChatCompletion.mock.calls.at(-2)?.[3],
+    ).toBeUndefined();
+    await expect(provider.align(request)).rejects.toThrow(
+      'invalid JSON content',
+    );
   });
 
   it('passes cancellation to the OpenRouter request', async () => {
