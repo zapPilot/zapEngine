@@ -15,15 +15,42 @@ const FISH_AUDIO_PRICE_USD_PER_UTF8_BYTE =
   FISH_AUDIO_PRICE_USD_PER_MILLION_UTF8_BYTES / 1_000_000;
 const ERROR_BODY_LIMIT = 300;
 const MAX_FISH_AUDIO_TTS_ATTEMPTS = 3;
-const DEFAULT_RETRY_DELAY_MS = 1_000;
+const DEFAULT_RETRY_DELAY_MS = 2_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 600_000;
-const DEFAULT_IDLE_TIMEOUT_MS = 60_000;
-const DEFAULT_MAX_CHARS_PER_REQUEST = 500;
-const DEFAULT_REQUEST_DELAY_MS = 0;
+const DEFAULT_IDLE_TIMEOUT_MS = 180_000;
+const DEFAULT_MAX_CHARS_PER_REQUEST = 800;
+const DEFAULT_REQUEST_DELAY_MS = 1_000;
 const PROGRESS_BAR_WIDTH = 20;
 const RETRYABLE_STATUS_CODES = new Set([
   408, 409, 425, 429, 500, 502, 503, 504,
 ]);
+
+export class FishAudioTimeoutError extends Error {
+  readonly kind: 'idle' | 'total';
+  readonly timeoutMs: number;
+  readonly requestElapsedMs: number;
+  readonly receivedBytes: number;
+
+  constructor(
+    message: string,
+    kind: 'idle' | 'total',
+    timeoutMs: number,
+    requestElapsedMs: number,
+    receivedBytes: number,
+  ) {
+    super(message);
+    this.name = 'FishAudioTimeoutError';
+    this.kind = kind;
+    this.timeoutMs = timeoutMs;
+    this.requestElapsedMs = requestElapsedMs;
+    this.receivedBytes = receivedBytes;
+  }
+
+  /** @deprecated use requestElapsedMs */
+  get elapsedMs(): number {
+    return this.requestElapsedMs;
+  }
+}
 
 export async function synthesize(
   text: string,
@@ -261,26 +288,49 @@ async function synthesizeChunkWithRetry(
         throw err;
       }
 
+      const { reason, delayMs } = classifyRetryError(err, attempt);
       console.warn('[/tts] Fish Audio TTS retrying chunk after error', {
+        reason,
         attempt,
+        nextAttempt: attempt + 1,
         maxAttempts: MAX_FISH_AUDIO_TTS_ATTEMPTS,
         chunkIndex,
         totalChunks,
         languageCode,
         model: config.engine,
         message: err.message,
+        delayMs,
       });
-      await sleep(
-        err instanceof TransientError
-          ? err.retryDelayMs
-          : getRetryDelayMs(null, attempt),
-      );
+      await sleep(delayMs);
     }
   }
 
   throw new Error('Fish Audio TTS chunk retry loop exhausted unexpectedly');
 }
 
+function classifyRetryError(
+  error: Error,
+  attempt: number,
+): { reason: string; delayMs: number } {
+  if (error instanceof FishAudioTimeoutError) {
+    return {
+      reason: error.kind === 'idle' ? 'idle_timeout' : 'total_timeout',
+      delayMs: getRetryDelayMs(null, attempt),
+    };
+  }
+  if (error instanceof TransientError) {
+    return {
+      reason: `http_${error.status}`,
+      delayMs: error.retryDelayMs,
+    };
+  }
+  return {
+    reason: 'network_error',
+    delayMs: getRetryDelayMs(null, attempt),
+  };
+}
+
+// eslint-disable-next-line sonarjs/cognitive-complexity
 async function fetchSingleChunk(
   apiKey: string,
   text: string,
@@ -290,13 +340,41 @@ async function fetchSingleChunk(
   totalChunks: number,
   attempt: number,
 ): Promise<ArrayBuffer> {
+  const startTime = Date.now();
+  let receivedBytes = 0;
+  let timeoutError: FishAudioTimeoutError | null = null;
+  const totalTimeoutMs = getRequestTimeoutMs();
+  const idleTimeoutMs = getIdleTimeoutMs();
+
   const controller = new AbortController();
-  const totalTimeout = setTimeout(
-    () => controller.abort(),
-    getRequestTimeoutMs(),
-  );
+  const totalTimeout = setTimeout(() => {
+    const requestElapsedMs = Date.now() - startTime;
+    timeoutError = new FishAudioTimeoutError(
+      `Fish Audio TTS request timed out after ${requestElapsedMs}ms (total_timeout, ${totalTimeoutMs}ms limit, received ${receivedBytes}B)`,
+      'total',
+      totalTimeoutMs,
+      requestElapsedMs,
+      receivedBytes,
+    );
+    controller.abort(timeoutError);
+  }, totalTimeoutMs);
 
   let idleTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  const resetIdleTimeout = () => {
+    if (idleTimeout) clearTimeout(idleTimeout);
+    idleTimeout = setTimeout(() => {
+      const requestElapsedMs = Date.now() - startTime;
+      timeoutError = new FishAudioTimeoutError(
+        `Fish Audio TTS chunk timed out after ${idleTimeoutMs}ms idle (idle_timeout, ${idleTimeoutMs}ms limit, requestElapsed ${requestElapsedMs}ms, received ${receivedBytes}B)`,
+        'idle',
+        idleTimeoutMs,
+        requestElapsedMs,
+        receivedBytes,
+      );
+      controller.abort(timeoutError);
+    }, idleTimeoutMs);
+  };
 
   try {
     console.log('[/tts] Fish Audio TTS request started', {
@@ -359,20 +437,11 @@ async function fetchSingleChunk(
       throw new Error('Fish Audio TTS response has no body stream');
     }
 
-    const startTime = Date.now();
-
-    const resetIdleTimeout = () => {
-      if (idleTimeout) clearTimeout(idleTimeout);
-      idleTimeout = setTimeout(() => {
-        controller.abort();
-      }, getIdleTimeoutMs());
-    };
-
+    // Only start idle timer after response.ok and body is available (TTFB not covered by idle)
     resetIdleTimeout();
 
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
-    let receivedBytes = 0;
 
     try {
       while (true) {
@@ -418,6 +487,27 @@ async function fetchSingleChunk(
     }
 
     return result.buffer;
+  } catch (error) {
+    const resolvedError =
+      timeoutError ?? (error instanceof FishAudioTimeoutError ? error : null);
+    if (resolvedError) {
+      console.warn('[/tts] Fish Audio TTS chunk timed out', {
+        reason:
+          resolvedError.kind === 'idle' ? 'idle_timeout' : 'total_timeout',
+        chunkIndex,
+        totalChunks,
+        attempt,
+        maxAttempts: MAX_FISH_AUDIO_TTS_ATTEMPTS,
+        receivedBytes: resolvedError.receivedBytes,
+        timeoutMs: resolvedError.timeoutMs,
+        idleTimeoutMs:
+          resolvedError.kind === 'idle' ? resolvedError.timeoutMs : undefined,
+        requestElapsedMs: resolvedError.requestElapsedMs,
+        elapsedMs: resolvedError.requestElapsedMs,
+      });
+      throw resolvedError;
+    }
+    throw error;
   } finally {
     clearTimeout(totalTimeout);
     if (idleTimeout) clearTimeout(idleTimeout);

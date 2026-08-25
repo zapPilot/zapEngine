@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BaseApiFetcher } from '../../../../src/core/fetchers/baseApiFetcher.js';
 import { SupabaseFetcher } from '../../../../src/modules/vip-users/supabaseFetcher.js';
+import { logger } from '../../../../src/utils/logger.js';
 
 vi.mock('../../../../src/utils/logger.js', async () => {
   const { mockLogger } = await import('../../../setup/mocks.js');
@@ -112,12 +113,20 @@ describe('Fetchers', () => {
       );
     });
 
-    it('should handle error in batchUpdatePortfolioTimestamps', async () => {
-      vi.spyOn(fetcher as unknown, 'withDatabaseClient').mockRejectedValue(
-        new Error('Update Fail'),
-      );
+    it('logs non-fatal timestamp update failures without throwing', async () => {
+      const error = new Error('Update Fail');
+      vi.spyOn(fetcher as unknown, 'withDatabaseClient').mockRejectedValue(error);
 
-      await fetcher.batchUpdatePortfolioTimestamps(['0x123']);
+      await expect(
+        fetcher.batchUpdatePortfolioTimestamps(['0x123']),
+      ).resolves.toBeUndefined();
+      expect(logger.error).toHaveBeenCalledWith(
+        'Failed to update portfolio timestamps',
+        {
+          error,
+          walletCount: 1,
+        },
+      );
     });
   });
 });

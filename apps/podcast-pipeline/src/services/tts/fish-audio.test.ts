@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   buildFishAudioCostLine,
+  FishAudioTimeoutError,
   getMetadata,
   synthesize,
 } from './fish-audio.js';
@@ -851,4 +852,522 @@ describe('Fish Audio TTS provider', () => {
 
     expect(result.audio).toBeDefined();
   });
+
+  // === WP-9: Resilience tests (idle/total timeout, chunking, concat order) ===
+  /* eslint-disable sonarjs/no-nested-functions, sonarjs/no-identical-functions, promise/param-names, @typescript-eslint/prefer-promise-reject-errors, @typescript-eslint/only-throw-error */
+  function createAbortableHangingReader(signal: AbortSignal): {
+    getReader: () => {
+      read: () => Promise<{ done: boolean; value?: Uint8Array }>;
+      releaseLock: () => void;
+    };
+  } {
+    return {
+      getReader() {
+        return {
+          read() {
+            return new Promise((_, reject) => {
+              if (signal.aborted) {
+                const reason =
+                  (signal as unknown as { reason?: unknown }).reason ??
+                  new DOMException('This operation was aborted', 'AbortError');
+                reject(reason);
+                return;
+              }
+              const onAbort = () => {
+                const reason =
+                  (signal as unknown as { reason?: unknown }).reason ??
+                  new DOMException('This operation was aborted', 'AbortError');
+                reject(reason);
+              };
+              signal.addEventListener('abort', onAbort, { once: true });
+            });
+          },
+          releaseLock() {},
+        };
+      },
+    } as unknown as {
+      getReader: () => {
+        read: () => Promise<{ done: boolean; value?: Uint8Array }>;
+        releaseLock: () => void;
+      };
+    };
+  }
+
+  function createChunkedReader(
+    signal: AbortSignal,
+    chunks: Uint8Array[],
+    delayMsBetweenChunks: number,
+  ): {
+    getReader: () => {
+      read: () => Promise<{ done: boolean; value?: Uint8Array }>;
+      releaseLock: () => void;
+    };
+  } {
+    let idx = 0;
+    return {
+      getReader() {
+        return {
+          async read() {
+            if (signal.aborted) {
+              const reason =
+                (signal as unknown as { reason?: unknown }).reason ??
+                new DOMException('This operation was aborted', 'AbortError');
+              throw reason;
+            }
+            if (idx >= chunks.length) {
+              return { done: true, value: undefined };
+            }
+            if (idx > 0 && delayMsBetweenChunks > 0) {
+              await new Promise<void>((resolve, reject) => {
+                const timer = setTimeout(resolve, delayMsBetweenChunks);
+                const onAbort = () => {
+                  clearTimeout(timer);
+                  const reason =
+                    (signal as unknown as { reason?: unknown }).reason ??
+                    new DOMException(
+                      'This operation was aborted',
+                      'AbortError',
+                    );
+                  reject(reason);
+                };
+                if (signal.aborted) {
+                  clearTimeout(timer);
+                  onAbort();
+                  return;
+                }
+                signal.addEventListener('abort', onAbort, { once: true });
+              });
+              if (signal.aborted) {
+                const reason =
+                  (signal as unknown as { reason?: unknown }).reason ??
+                  new DOMException('This operation was aborted', 'AbortError');
+                throw reason;
+              }
+            }
+            const value = chunks[idx]!;
+            idx += 1;
+            return { done: false, value };
+          },
+          releaseLock() {},
+        };
+      },
+    };
+  }
+
+  it('Test A: idle timeout aborts stalled stream with idle kind and retries', async () => {
+    vi.stubEnv('FISH_AUDIO_IDLE_TIMEOUT_MS', '40');
+    vi.stubEnv('FISH_AUDIO_TIMEOUT_MS', '500');
+    vi.stubEnv('FISH_AUDIO_RETRY_DELAY_MS', '0');
+    vi.stubEnv('FISH_AUDIO_MAX_CHARS_PER_REQUEST', '1500');
+    const mockFetch = vi
+      .fn()
+      .mockImplementation((_url: string, init: RequestInit) => {
+        const signal = init.signal!;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          body: createAbortableHangingReader(signal),
+        } as unknown as Response);
+      });
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    const warnSpy = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => undefined);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    let caught: unknown;
+    try {
+      await synthesize('idle timeout test', {
+        languageCode: 'en',
+        config: { provider: 'fish-audio', modelId: 'm', engine: 's2-pro' },
+      });
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBeInstanceOf(FishAudioTimeoutError);
+    expect((caught as FishAudioTimeoutError).kind).toBe('idle');
+    expect((caught as FishAudioTimeoutError).timeoutMs).toBe(40);
+    expect(
+      (caught as FishAudioTimeoutError).requestElapsedMs,
+    ).toBeGreaterThanOrEqual(40);
+    // backward compat alias
+    expect((caught as FishAudioTimeoutError).elapsedMs).toBe(
+      (caught as FishAudioTimeoutError).requestElapsedMs,
+    );
+    expect((caught as FishAudioTimeoutError).receivedBytes).toBe(0);
+    expect((caught as Error).message).not.toBe('This operation was aborted');
+    expect((caught as Error).message).toContain('40ms idle');
+    expect((caught as Error).message).toContain('requestElapsed');
+    expect((caught as Error).message).toContain('idle_timeout');
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    const timeoutLogs = warnSpy.mock.calls.filter(
+      ([msg]) => msg === '[/tts] Fish Audio TTS chunk timed out',
+    );
+    expect(timeoutLogs.length).toBeGreaterThanOrEqual(3);
+    expect(timeoutLogs[0]?.[1]).toEqual(
+      expect.objectContaining({
+        reason: 'idle_timeout',
+        timeoutMs: 40,
+        idleTimeoutMs: 40,
+        requestElapsedMs: expect.any(Number),
+        receivedBytes: 0,
+      }),
+    );
+    // retry logs should also carry idle_timeout reason
+    const retryLogs = warnSpy.mock.calls.filter(
+      ([msg]) => msg === '[/tts] Fish Audio TTS retrying chunk after error',
+    );
+    expect(retryLogs.length).toBe(2);
+    expect(retryLogs[0]?.[1]).toEqual(
+      expect.objectContaining({ reason: 'idle_timeout' }),
+    );
+
+    warnSpy.mockRestore();
+    logSpy.mockRestore();
+  });
+
+  it('Test B: idle timer resets on each received chunk and does not abort within idle window', async () => {
+    vi.stubEnv('FISH_AUDIO_IDLE_TIMEOUT_MS', '150');
+    vi.stubEnv('FISH_AUDIO_TIMEOUT_MS', '1000');
+    vi.stubEnv('FISH_AUDIO_RETRY_DELAY_MS', '0');
+    vi.stubEnv('FISH_AUDIO_MAX_CHARS_PER_REQUEST', '1500');
+    // Each chunk arrives every 40ms, well within 150ms idle limit, so should succeed
+    const mockFetch = vi
+      .fn()
+      .mockImplementation((_url: string, init: RequestInit) => {
+        const signal = init.signal!;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          body: createChunkedReader(
+            signal,
+            [
+              new Uint8Array([0x01]),
+              new Uint8Array([0x02]),
+              new Uint8Array([0x03]),
+            ],
+            40,
+          ),
+        } as unknown as Response);
+      });
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    const result = await synthesize('idle reset test', {
+      languageCode: 'en',
+      config: { provider: 'fish-audio', modelId: 'm', engine: 's2-pro' },
+    });
+    expect(result.audio).toEqual(Buffer.from([0x01, 0x02, 0x03]));
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('Test C: TTFB stall is classified as total_timeout, not idle_timeout', async () => {
+    vi.stubEnv('FISH_AUDIO_IDLE_TIMEOUT_MS', '30');
+    vi.stubEnv('FISH_AUDIO_TIMEOUT_MS', '60');
+    vi.stubEnv('FISH_AUDIO_RETRY_DELAY_MS', '0');
+    vi.stubEnv('FISH_AUDIO_MAX_CHARS_PER_REQUEST', '1500');
+    const mockFetch = vi
+      .fn()
+      .mockImplementation((_url: string, init: RequestInit) => {
+        const signal = init.signal!;
+        return new Promise((_resolve, reject) => {
+          const onAbort = () => {
+            const reason =
+              (signal as unknown as { reason?: unknown }).reason ??
+              new DOMException('This operation was aborted', 'AbortError');
+            reject(reason);
+          };
+          if (signal.aborted) {
+            onAbort();
+            return;
+          }
+          signal.addEventListener('abort', onAbort, { once: true });
+          // never resolve => triggers total timeout, idle timer not started yet
+        });
+      });
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+
+    const warnSpy = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    let caught: unknown;
+    try {
+      await synthesize('ttfb test', {
+        languageCode: 'en',
+        config: { provider: 'fish-audio', modelId: 'm', engine: 's2-pro' },
+      });
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBeInstanceOf(FishAudioTimeoutError);
+    expect((caught as FishAudioTimeoutError).kind).toBe('total');
+    expect((caught as FishAudioTimeoutError).timeoutMs).toBe(60);
+    expect(
+      (caught as FishAudioTimeoutError).requestElapsedMs,
+    ).toBeGreaterThanOrEqual(60);
+    expect((caught as FishAudioTimeoutError).elapsedMs).toBe(
+      (caught as FishAudioTimeoutError).requestElapsedMs,
+    );
+    expect((caught as Error).message).toContain('total_timeout');
+    expect((caught as Error).message).toContain('60ms limit');
+    const timeoutLogs = warnSpy.mock.calls.filter(
+      ([msg]) => msg === '[/tts] Fish Audio TTS chunk timed out',
+    );
+    expect(timeoutLogs[0]?.[1]).toEqual(
+      expect.objectContaining({
+        reason: 'total_timeout',
+        timeoutMs: 60,
+        requestElapsedMs: expect.any(Number),
+      }),
+    );
+
+    warnSpy.mockRestore();
+    vi.restoreAllMocks();
+  });
+
+  it('Test D: idle timeout retry succeeds on second attempt', async () => {
+    vi.stubEnv('FISH_AUDIO_IDLE_TIMEOUT_MS', '40');
+    vi.stubEnv('FISH_AUDIO_TIMEOUT_MS', '500');
+    vi.stubEnv('FISH_AUDIO_RETRY_DELAY_MS', '0');
+    vi.stubEnv('FISH_AUDIO_MAX_CHARS_PER_REQUEST', '1500');
+    let call = 0;
+    const mockFetch = vi
+      .fn()
+      .mockImplementation((_url: string, init: RequestInit) => {
+        call += 1;
+        const signal = init.signal!;
+        if (call === 1) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            body: createAbortableHangingReader(signal),
+          } as unknown as Response);
+        }
+        return Promise.resolve(streamResponse([new Uint8Array([0xaa, 0xbb])]));
+      });
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    const result = await synthesize('retry success test', {
+      languageCode: 'en',
+      config: { provider: 'fish-audio', modelId: 'm', engine: 's2-pro' },
+    });
+    expect(result.audio).toEqual(Buffer.from([0xaa, 0xbb]));
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('Test E: retry exhausted preserves idle timeout error, not generic abort', async () => {
+    vi.stubEnv('FISH_AUDIO_IDLE_TIMEOUT_MS', '30');
+    vi.stubEnv('FISH_AUDIO_TIMEOUT_MS', '500');
+    vi.stubEnv('FISH_AUDIO_RETRY_DELAY_MS', '0');
+    const mockFetch = vi
+      .fn()
+      .mockImplementation((_url: string, init: RequestInit) => {
+        const signal = init.signal!;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          body: createAbortableHangingReader(signal),
+        } as unknown as Response);
+      });
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    let caught: unknown;
+    try {
+      await synthesize('exhausted', {
+        languageCode: 'en',
+        config: { provider: 'fish-audio', modelId: 'm', engine: 's2-pro' },
+      });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(FishAudioTimeoutError);
+    expect((caught as FishAudioTimeoutError).kind).toBe('idle');
+    expect((caught as FishAudioTimeoutError).timeoutMs).toBe(30);
+    expect(
+      (caught as FishAudioTimeoutError).requestElapsedMs,
+    ).toBeGreaterThanOrEqual(30);
+    expect((caught as FishAudioTimeoutError).elapsedMs).toBe(
+      (caught as FishAudioTimeoutError).requestElapsedMs,
+    );
+    expect((caught as Error).message.toLowerCase()).not.toContain(
+      'this operation was aborted',
+    );
+    expect((caught as Error).message).toMatch(/idle_timeout/);
+    expect((caught as Error).message).toContain('30ms idle');
+    expect((caught as Error).message).toContain('requestElapsed');
+  });
+
+  it('Test F: 800-char chunking splits long text into bounded sentence-aware chunks', async () => {
+    vi.stubEnv('FISH_AUDIO_MAX_CHARS_PER_REQUEST', '800');
+    vi.stubEnv('FISH_AUDIO_REQUEST_DELAY_MS', '0');
+    vi.stubEnv('FISH_AUDIO_RETRY_DELAY_MS', '0');
+    // 2500 chars would have been 1-2 chunks before, now should be >=4
+    const longText =
+      `${'這是測試。'.repeat(200)} ${'Hello world. '.repeat(100)}`.repeat(2);
+    expect(longText.length).toBeGreaterThan(800);
+    const mockFetch = vi
+      .fn()
+      .mockImplementation((_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string) as { text: string };
+        expect(body.text.length).toBeLessThanOrEqual(800);
+        return Promise.resolve(streamResponse([new Uint8Array([0x01])]));
+      });
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await synthesize(longText, {
+      languageCode: 'ja',
+      config: { provider: 'fish-audio', modelId: 'ja-model', engine: 's2-pro' },
+    });
+
+    const chunkCount = mockFetch.mock.calls.length;
+    expect(chunkCount).toBeGreaterThan(3);
+    // verify each chunk <=800 and sentence boundary prioritized (contains delimiter if not last chunk)
+    for (let i = 0; i < mockFetch.mock.calls.length - 1; i += 1) {
+      const body = JSON.parse(
+        (mockFetch.mock.calls[i] as [string, { body: string }])[1].body,
+      ) as { text: string };
+      expect(body.text.length).toBeLessThanOrEqual(800);
+      // At least one of the preferred delimiters should be near the end if available
+      // We just ensure not a hard cut in middle of no delimiter case is still <=800
+    }
+  });
+
+  it('Test F2: default max chars is 800 when env is unset', async () => {
+    vi.unstubAllEnvs();
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+    vi.stubEnv('FISH_AUDIO_RETRY_DELAY_MS', '0');
+    vi.stubEnv('FISH_AUDIO_REQUEST_DELAY_MS', '0');
+    // Do not set FISH_AUDIO_MAX_CHARS_PER_REQUEST -> should default to 800
+    const text = 'a'.repeat(801);
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(streamResponse([new Uint8Array([0x01])]));
+    vi.stubGlobal('fetch', mockFetch);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await synthesize(text, {
+      languageCode: 'en',
+      config: { provider: 'fish-audio', modelId: 'm', engine: 's2-pro' },
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const firstBody = JSON.parse(
+      (mockFetch.mock.calls[0] as [string, { body: string }])[1].body,
+    ) as { text: string };
+    expect(firstBody.text.length).toBeLessThanOrEqual(800);
+  });
+
+  it('Test G: concat order preserves chunk sequence', async () => {
+    vi.stubEnv('FISH_AUDIO_MAX_CHARS_PER_REQUEST', '10');
+    vi.stubEnv('FISH_AUDIO_REQUEST_DELAY_MS', '0');
+    vi.stubEnv('FISH_AUDIO_RETRY_DELAY_MS', '0');
+    const text = 'AAA BBB CCC DDD EEE'; // will split into multiple 10-char chunks
+    const orderedBuffers = [
+      Buffer.from([0x01]),
+      Buffer.from([0x02]),
+      Buffer.from([0x03]),
+      Buffer.from([0x04]),
+    ];
+    let callIdx = 0;
+    const mockFetch = vi.fn().mockImplementation(() => {
+      const buf = orderedBuffers[callIdx % orderedBuffers.length]!;
+      callIdx += 1;
+      // Return stream that yields the buffer's bytes
+      return Promise.resolve(streamResponse([new Uint8Array(buf)]));
+    });
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { concatMp3Buffers } = await import('./audio-concat.js');
+    const concatSpy = vi.mocked(concatMp3Buffers);
+    concatSpy.mockClear();
+
+    await synthesize(text, {
+      languageCode: 'en',
+      config: { provider: 'fish-audio', modelId: 'm', engine: 's2-pro' },
+    });
+
+    expect(concatSpy).toHaveBeenCalledTimes(1);
+    const passedBuffers = concatSpy.mock.calls[0]![0];
+    expect(passedBuffers.length).toBeGreaterThan(1);
+    // Verify order is preserved: buffers should be in call order
+    for (let i = 0; i < passedBuffers.length; i += 1) {
+      const expected = orderedBuffers[i % orderedBuffers.length]!;
+      expect(passedBuffers[i]!.equals(expected)).toBe(true);
+    }
+  });
+
+  it('improved retry log includes reason and delayMs for network errors', async () => {
+    vi.stubEnv('FISH_AUDIO_RETRY_DELAY_MS', '0');
+    const mockFetch = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('socket hang up'))
+      .mockResolvedValueOnce(streamResponse([new Uint8Array([0x01])]));
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+    const warnSpy = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await synthesize('network retry log', {
+      languageCode: 'en',
+      config: { provider: 'fish-audio', modelId: 'm', engine: 's2-pro' },
+    });
+
+    const retryLog = warnSpy.mock.calls.find(
+      ([msg]) => msg === '[/tts] Fish Audio TTS retrying chunk after error',
+    );
+    expect(retryLog?.[1]).toEqual(
+      expect.objectContaining({
+        reason: 'network_error',
+        delayMs: expect.any(Number),
+      }),
+    );
+  });
+
+  it('retry log for http errors includes http status reason', async () => {
+    vi.stubEnv('FISH_AUDIO_RETRY_DELAY_MS', '0');
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(errorResponse(503, '', 'down'))
+      .mockResolvedValueOnce(streamResponse([new Uint8Array([0x01])]));
+    vi.stubGlobal('fetch', mockFetch);
+    vi.stubEnv('FISH_AUDIO_API_KEY', 'fish-test-key');
+    const warnSpy = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await synthesize('http retry log', {
+      languageCode: 'en',
+      config: { provider: 'fish-audio', modelId: 'm', engine: 's2-pro' },
+    });
+
+    const retryLog = warnSpy.mock.calls.find(
+      ([msg]) => msg === '[/tts] Fish Audio TTS retrying chunk after error',
+    );
+    expect(retryLog?.[1]).toEqual(
+      expect.objectContaining({ reason: 'http_503' }),
+    );
+  });
+  /* eslint-enable sonarjs/no-nested-functions, sonarjs/no-identical-functions, promise/param-names, @typescript-eslint/prefer-promise-reject-errors, @typescript-eslint/only-throw-error */
 });
