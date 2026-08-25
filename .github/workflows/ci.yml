@@ -373,6 +373,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: ./.github/actions/setup-workspace
+
       - name: Check env registry drift
         run: pnpm lint dead-env && pnpm env:status --offline
 
