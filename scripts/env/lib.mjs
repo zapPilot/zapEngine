@@ -155,6 +155,7 @@ export function validateEnv(env, { target, capability } = {}) {
 
 export function migrateEnvFile(path) {
   const source = readFileSync(path, 'utf8');
+  const lineEnding = source.includes('\r\n') ? '\r\n' : '\n';
   const parsed = parseEnv(source);
   if (parsed.duplicates.length > 0) {
     throw new Error(
@@ -205,5 +206,5 @@ export function migrateEnvFile(path) {
     );
   }
 
-  writeFileSync(path, output.join('\n'));
+  writeFileSync(path, output.join(lineEnding));
 }
