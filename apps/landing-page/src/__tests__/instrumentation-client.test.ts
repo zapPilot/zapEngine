@@ -1,3 +1,5 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 const posthogMocks = vi.hoisted(() => ({
   init: vi.fn(),
 }));
@@ -10,8 +12,12 @@ describe('PostHog client instrumentation', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    delete process.env['NEXT_PUBLIC_POSTHOG_KEY'];
-    delete process.env['NEXT_PUBLIC_POSTHOG_HOST'];
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', undefined);
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_HOST', undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('does not initialize without a project key', async () => {
@@ -20,28 +26,38 @@ describe('PostHog client instrumentation', () => {
     expect(posthogMocks.init).not.toHaveBeenCalled();
   });
 
-  it('initializes with the configured project host', async () => {
-    process.env['NEXT_PUBLIC_POSTHOG_KEY'] = 'phc_test';
-    process.env['NEXT_PUBLIC_POSTHOG_HOST'] = 'https://eu.i.posthog.com';
-
-    await import('../instrumentation-client');
-
-    expect(posthogMocks.init).toHaveBeenCalledWith('phc_test', {
-      api_host: 'https://eu.i.posthog.com',
-      capture_pageview: true,
-      capture_pageleave: true,
-      autocapture: true,
-    });
-  });
-
-  it('uses the US ingest host when no host override is provided', async () => {
-    process.env['NEXT_PUBLIC_POSTHOG_KEY'] = 'phc_test';
+  it('tracks client-side navigations and keeps replay off', async () => {
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'phc_test');
 
     await import('../instrumentation-client');
 
     expect(posthogMocks.init).toHaveBeenCalledWith(
       'phc_test',
-      expect.objectContaining({ api_host: 'https://us.i.posthog.com' }),
+      expect.objectContaining({
+        capture_pageview: 'history_change',
+        disable_session_recording: true,
+        respect_dnt: true,
+      }),
+    );
+  });
+
+  it('leaves the ingest host to the SDK default when none is configured', async () => {
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'phc_test');
+
+    await import('../instrumentation-client');
+
+    expect(posthogMocks.init.mock.calls[0]?.[1]).not.toHaveProperty('api_host');
+  });
+
+  it('uses the configured ingest host when one is provided', async () => {
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'phc_test');
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_HOST', 'https://eu.i.posthog.com');
+
+    await import('../instrumentation-client');
+
+    expect(posthogMocks.init).toHaveBeenCalledWith(
+      'phc_test',
+      expect.objectContaining({ api_host: 'https://eu.i.posthog.com' }),
     );
   });
 });

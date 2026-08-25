@@ -1,14 +1,19 @@
 import posthog from 'posthog-js';
 
 const posthogKey = process.env['NEXT_PUBLIC_POSTHOG_KEY']?.trim();
+const posthogHost = process.env['NEXT_PUBLIC_POSTHOG_HOST']?.trim();
 
 if (posthogKey) {
   posthog.init(posthogKey, {
-    api_host:
-      process.env['NEXT_PUBLIC_POSTHOG_HOST']?.trim() ||
-      'https://us.i.posthog.com',
-    capture_pageview: true,
-    capture_pageleave: true,
-    autocapture: true,
+    // Docs and pitch pages navigate client-side, so the default `true` would
+    // only ever report the first page of a session.
+    capture_pageview: 'history_change',
+    // Replay is disabled here so a project-side toggle cannot start recording
+    // unmasked marketing pages before a masking policy exists.
+    disable_session_recording: true,
+    respect_dnt: true,
+    // Omitted rather than defaulted: posthog-js already falls back to the US
+    // ingest host, so the value lives only in the env manifest.
+    ...(posthogHost ? { api_host: posthogHost } : {}),
   });
 }
