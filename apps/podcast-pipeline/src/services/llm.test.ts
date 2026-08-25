@@ -604,7 +604,11 @@ describe('generateScriptWithLLM', () => {
     expect(result.costUsd).toBe(0.00001);
   });
 
-  it('requests JSON output and OpenRouter usage accounting', async () => {
+  // These assert the shape of the request we send, never that OpenRouter acted
+  // on it. That gap is why `usage` sat inside an `extra_body` wrapper — a
+  // Python-SDK-only convention that never reaches the wire from this SDK —
+  // while `costUsd` quietly defaulted to 0 for as long as it was there.
+  it('requests JSON output, usage accounting and provider routing', async () => {
     const mockCreate = vi.fn().mockResolvedValue({
       choices: [{ message: { content: 'Script' } }],
       provider: 'Cloudflare',
@@ -616,11 +620,18 @@ describe('generateScriptWithLLM', () => {
     await generateScriptWithLLM('Title', 'Text');
 
     const callArgs = mockCreate.mock.calls[0]![0] as {
-      extra_body?: { usage?: object };
+      extra_body?: unknown;
+      usage?: object;
+      provider?: object;
       response_format?: object;
     };
     expect(callArgs.response_format).toEqual({ type: 'json_object' });
-    expect(callArgs.extra_body?.usage).toEqual({ include: true });
+    expect(callArgs.usage).toEqual({ include: true });
+    expect(callArgs.provider).toEqual({
+      sort: 'throughput',
+      require_parameters: true,
+    });
+    expect(callArgs.extra_body).toBeUndefined();
   });
 
   it('accepts a fenced JSON response', async () => {
@@ -871,6 +882,8 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
         thinking: false,
         inputChars,
         timeoutMs: 45_000,
+        maxTokens: 'unset',
+        reasoning: 'provider-default',
       },
     );
     expect(ingestMocks.logIngestEvent).toHaveBeenNthCalledWith(
@@ -894,7 +907,10 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
     expect(logs).not.toContain('test-api-key');
   });
 
-  it('does not log an LLM response when the request fails', async () => {
+  // `llm:response` is the only line carrying the provider, so a failed request
+  // used to leave nothing behind at all. It still must not be logged — the
+  // request never produced one — but the failure now has to say what was asked.
+  it('logs a failure instead of a response when the request fails', async () => {
     ingestMocks.logIngestEvent.mockClear();
     const timeoutError = new Error('Request timed out');
     const mockCreate = vi.fn().mockRejectedValue(timeoutError);
@@ -904,7 +920,10 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
       timeoutError,
     );
 
-    expect(ingestMocks.logIngestEvent).toHaveBeenCalledTimes(1);
+    const events = ingestMocks.logIngestEvent.mock.calls.map(
+      (call: unknown[]) => call[0] as string,
+    );
+    expect(events).toEqual(['llm:request', 'llm:failed']);
     expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
       'llm:request',
       expect.objectContaining({
@@ -912,9 +931,23 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
         timeoutMs: DEFAULT_OPENROUTER_TIMEOUT_MS,
       }),
     );
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:failed',
+      expect.objectContaining({
+        model: 'test/model',
+        timeoutMs: DEFAULT_OPENROUTER_TIMEOUT_MS,
+        maxTokens: 'unset',
+        reasoning: 'provider-default',
+        routing: 'throughput',
+        error: 'Request timed out',
+      }),
+    );
   });
 
-  it('uses thinking model when configured', async () => {
+  // OpenRouter has no per-request "think with a different model" field; its
+  // knob is `reasoning`. LLM_THINKING_MODEL therefore only records provenance
+  // on the row, and nothing about it is sent upstream.
+  it('records the configured thinking model without sending it upstream', async () => {
     vi.stubEnv('LLM_THINKING_MODEL', 'anthropic/claude-3-opus');
 
     const mockCreate = vi.fn().mockResolvedValue({
@@ -925,18 +958,13 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
 
     mockOpenAIClient(mockCreate);
 
-    await generateScriptWithLLM('Title', 'Text');
+    const result = await generateScriptWithLLM('Title', 'Text');
 
-    expect(mockCreate).toHaveBeenCalled();
-    const callArgs = mockCreate.mock.calls[0]![0] as {
-      extra_body?: { thinking?: object; usage?: object };
-    };
-    expect(callArgs.extra_body).toBeDefined();
-    expect(callArgs.extra_body?.thinking).toEqual({
-      type: 'optimized',
-      model: 'anthropic/claude-3-opus',
-    });
-    expect(callArgs.extra_body?.usage).toEqual({ include: true });
+    expect(result.thinkingModel).toBe('anthropic/claude-3-opus');
+    const callArgs = mockCreate.mock.calls[0]![0] as Record<string, unknown>;
+    expect(callArgs['extra_body']).toBeUndefined();
+    expect(callArgs['thinking']).toBeUndefined();
+    expect(callArgs['usage']).toEqual({ include: true });
   });
 
   it.each([
@@ -1042,6 +1070,45 @@ describe('generateLanguageClassroomsWithLLM', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+
+  // The classroom call is the heaviest generation in the pipeline: one response
+  // carries a full narration script per target language. Left unbounded it hit
+  // the request deadline instead of returning, so these three constraints are
+  // load-bearing, not decoration.
+  it('bounds the request with JSON mode, an output ceiling and reasoning off', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: validLanguageClassroomPayload() } }],
+      provider: 'Cloudflare',
+      model: 'test/model',
+      usage: { cost: 0.00002 },
+    });
+
+    mockOpenAIClient(mockCreate);
+
+    await generateLanguageClassroomsWithLLM({
+      title: '市場流動性',
+      articleText: '這篇文章解釋市場流動性與資金進出。',
+      script: '大家好，今天談市場流動性。',
+      sourceLanguageCode: 'zh-Hant',
+      targetLanguageCodes: ['ja', 'en'],
+    });
+
+    const callArgs = mockCreate.mock.calls[0]![0] as {
+      response_format?: object;
+      max_tokens?: number;
+      reasoning?: object;
+      provider?: object;
+      usage?: object;
+    };
+    expect(callArgs.response_format).toEqual({ type: 'json_object' });
+    expect(callArgs.max_tokens).toBe(8000);
+    expect(callArgs.reasoning).toEqual({ enabled: false });
+    expect(callArgs.provider).toEqual({
+      sort: 'throughput',
+      require_parameters: true,
+    });
+    expect(callArgs.usage).toEqual({ include: true });
   });
 
   it('returns parsed language classroom lessons from JSON response', async () => {
