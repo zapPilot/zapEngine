@@ -129,6 +129,7 @@ export const ENV_MANIFEST = {
   ALPHA_ETL_URL: server(['account-engine']),
   ALPHA_ETL_WEBHOOK_SECRET: server(['account-engine'], { sensitive: true }),
   ACCOUNT_ENGINE_PORT: server(['account-engine']),
+  SENTRY_DSN: server(['account-engine']),
   EMAIL_HOST: server(['account-engine']),
   EMAIL_USER: server(['account-engine']),
   EMAIL_APP_PASSWORD: server(['account-engine'], { sensitive: true }),
