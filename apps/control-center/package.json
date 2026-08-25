@@ -27,7 +27,6 @@
     "@hono/node-server": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "@zapengine/cost-observability": "workspace:*",
-    "dotenv": "catalog:",
     "hono": "catalog:",
     "lucide-react": "catalog:",
     "react": "catalog:",
