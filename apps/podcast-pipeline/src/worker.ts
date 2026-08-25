@@ -1,10 +1,3 @@
-import path from 'node:path';
-
-import dotenv from 'dotenv';
-
-const envPath = path.resolve(process.cwd(), '../../.env');
-dotenv.config({ path: envPath });
-
 import { readRenderOnDemandConfig } from './lib/env.js';
 import { installProcessShutdown } from './lib/process-shutdown.js';
 import { processEpisodeVideoJob } from './services/episode-video-processor.js';

@@ -3,6 +3,8 @@
   "globalDependencies": [
     ".nvmrc",
     ".env*",
+    "config/env*.mjs",
+    "config/env/*.env",
     ".jscpd.json",
     "pnpm-lock.yaml",
     "package.json",

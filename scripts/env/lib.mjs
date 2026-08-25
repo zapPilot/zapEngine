@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 
 import { ENV_MANIFEST, LEGACY_ENV_NAMES } from '../../config/env.manifest.mjs';
 
@@ -153,58 +153,92 @@ export function validateEnv(env, { target, capability } = {}) {
   return { errors, warnings };
 }
 
-export function migrateEnvFile(path) {
-  const source = readFileSync(path, 'utf8');
-  const lineEnding = source.includes('\r\n') ? '\r\n' : '\n';
-  const parsed = parseEnv(source);
-  if (parsed.duplicates.length > 0) {
-    throw new Error(
-      `Duplicate env assignments: ${[...new Set(parsed.duplicates)].join(', ')}`,
-    );
-  }
-  const existingCanonical = new Set(
-    source
-      .split(/\r?\n/u)
-      .map((line) => ASSIGNMENT.exec(line)?.[1])
-      .filter((name) => name && !Object.hasOwn(LEGACY_ENV_NAMES, name)),
-  );
-  const legacyCanonicalValues = new Map();
+const SENSITIVE_NAME =
+  /(?:_KEY|_SECRET|_TOKEN|_PASSWORD|_CREDENTIALS?|PRIVATE_KEY|_DSN|DATABASE_URL)$/u;
+const CREDENTIAL_VALUE =
+  /^(?:eyJ|sk-|pk_|fly_|ghp_)[A-Za-z0-9_./+\-=]+$|^(?:[A-Fa-f0-9]{41,}|[A-Za-z0-9+/]{41,}={0,2})$/u;
 
-  for (const [legacyName, canonicalName] of Object.entries(LEGACY_ENV_NAMES)) {
-    if (!Object.hasOwn(parsed.values, legacyName)) continue;
-    if (existingCanonical.has(canonicalName)) continue;
+export function auditSecretClassification(committedByEnvironment) {
+  const errors = [];
 
-    const value = parsed.values[legacyName];
-    const previous = legacyCanonicalValues.get(canonicalName);
-    if (previous && previous.value !== value) {
-      throw new Error(
-        `Conflicting legacy values for ${canonicalName}: ${previous.name} and ${legacyName}`,
-      );
+  for (const [name, definition] of Object.entries(ENV_MANIFEST)) {
+    if (
+      SENSITIVE_NAME.test(name) &&
+      !definition.sensitive &&
+      !(
+        definition.kind === 'host' &&
+        (name.endsWith('_PATH') || name === 'GOOGLE_APPLICATION_CREDENTIALS')
+      )
+    ) {
+      errors.push(`${name} looks sensitive but is classified sensitive: false`);
     }
-    legacyCanonicalValues.set(canonicalName, { name: legacyName, value });
   }
 
-  const seenCanonical = new Set();
-  const output = [];
-
-  for (const line of source.split(/\r?\n/u)) {
-    const match = ASSIGNMENT.exec(line);
-    if (!match) {
-      output.push(line);
-      continue;
+  for (const [environment, parsed] of Object.entries(committedByEnvironment)) {
+    for (const duplicate of parsed.duplicates ?? []) {
+      errors.push(`${environment}: ${duplicate} is declared more than once`);
     }
-
-    const oldName = match[1];
-    const canonicalName = LEGACY_ENV_NAMES[oldName] ?? oldName;
-    if (oldName !== canonicalName && existingCanonical.has(canonicalName)) {
-      continue;
+    for (const [name, value] of Object.entries(parsed.values ?? parsed)) {
+      const definition = ENV_MANIFEST[name];
+      if (!definition) {
+        errors.push(`${environment}: ${name} is not declared in the manifest`);
+        continue;
+      }
+      if (definition.kind === 'host') {
+        errors.push(
+          `${environment}: ${name} is host-managed and cannot be committed`,
+        );
+      }
+      if (!definition.environments.includes(environment)) {
+        errors.push(
+          `${environment}: ${name} is not enabled in this environment`,
+        );
+      }
+      if (definition.sensitive) {
+        errors.push(
+          `${environment}: ${name} is sensitive and cannot be committed`,
+        );
+      } else if (value && CREDENTIAL_VALUE.test(value.trim())) {
+        errors.push(
+          `${environment}: ${name} has a credential-like committed value`,
+        );
+      }
     }
-    if (seenCanonical.has(canonicalName)) continue;
-    seenCanonical.add(canonicalName);
-    output.push(
-      oldName === canonicalName ? line : line.replace(oldName, canonicalName),
-    );
   }
 
-  writeFileSync(path, output.join(lineEnding));
+  return errors;
+}
+
+export function validateProductionEnv(env) {
+  const errors = [];
+  const unsafeHost =
+    /(?:localhost|127\.0\.0\.1|::1|host\.docker\.internal|\.local(?:[/:]|$))/iu;
+  const placeholder = /(?:TODO|CHANGEME|your-)/iu;
+
+  for (const [name, value] of Object.entries(env)) {
+    if (!value) continue;
+    const definition = ENV_MANIFEST[name];
+    if (!definition || definition.kind === 'host') continue;
+    if (unsafeHost.test(value))
+      errors.push(`${name} contains a local-only host`);
+    if (placeholder.test(value)) errors.push(`${name} contains a placeholder`);
+    if (
+      /(?:_URL|_GATEWAY|_ENDPOINT)$/u.test(name) &&
+      value.startsWith('http://')
+    ) {
+      errors.push(`${name} must use https:// in production`);
+    }
+    if (
+      definition.kind === 'server' &&
+      /^(?:VITE_|EXPO_PUBLIC_|NEXT_PUBLIC_)/u.test(name)
+    ) {
+      errors.push(`${name} is a server value with a public projection prefix`);
+    }
+  }
+
+  if (env.PLAN_SIMULATION_REQUIRED !== 'true') {
+    errors.push('PLAN_SIMULATION_REQUIRED must be true in production');
+  }
+
+  return errors;
 }

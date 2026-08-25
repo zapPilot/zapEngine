@@ -6,7 +6,6 @@ Simplified architecture with consolidated validation logic and eliminated compon
 
 from enum import Enum
 from functools import cached_property
-from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -18,8 +17,6 @@ from pydantic import (
     model_validator,
 )
 from pydantic_settings import BaseSettings
-
-REPO_ROOT_ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
 
 DEV_ALLOWED_ORIGINS = (
     "http://localhost:3000",
@@ -210,13 +207,10 @@ class Settings(BaseSettings):
         le=65535,
         description="Server port number (1-65535)",
     )
-    debug: bool = Field(
-        default=False, alias="DEBUG", description="Enable debug mode for development"
-    )
     environment: Environment = Field(
         default=Environment.DEVELOPMENT,
-        alias="ENVIRONMENT",
-        description="Application environment (development, staging, production)",
+        alias="NODE_ENV",
+        description="Host-provided runtime environment",
     )
 
     # CORS settings
@@ -462,6 +456,11 @@ class Settings(BaseSettings):
 
     # Environment properties
     @property
+    def debug(self) -> bool:
+        """Enable development diagnostics only outside production."""
+        return not self.is_production
+
+    @property
     def is_production(self) -> bool:
         """Check if running in production environment."""
         return self.environment == Environment.PRODUCTION
@@ -501,14 +500,6 @@ class Settings(BaseSettings):
         "env_nested_delimiter": "__",
     }
 
-
-# Load environment variables from the monorepo root .env file if it exists
-try:
-    from dotenv import load_dotenv
-
-    load_dotenv(REPO_ROOT_ENV_FILE)
-except ImportError:
-    pass  # dotenv is optional
 
 # Global settings instance for backward compatibility
 settings = Settings()

@@ -1,7 +1,5 @@
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-
-import dotenv from 'dotenv';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { errorMessage } from '../lib/errorMessage.js';
 import { isRednoteSessionReady, runRednoteLogin } from './rednote-login.js';
@@ -15,16 +13,6 @@ import {
   ensureYouTubeSession,
   YOUTUBE_ANALYTICS_SCOPE,
 } from './youtube-auth.js';
-
-const REPO_ROOT = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  '..',
-  '..',
-);
-
-dotenv.config({ path: resolve(REPO_ROOT, '.env') });
 
 export async function runSocialLogin(
   log: (message: string) => void = console.log,

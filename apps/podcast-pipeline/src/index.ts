@@ -1,10 +1,3 @@
-import path from 'node:path';
-
-import dotenv from 'dotenv';
-
-const envPath = path.resolve(process.cwd(), '../../.env');
-dotenv.config({ path: envPath });
-
 import { serve } from '@hono/node-server';
 import { type Context, Hono } from 'hono';
 import { cors } from 'hono/cors';

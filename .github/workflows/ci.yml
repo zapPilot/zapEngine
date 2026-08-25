@@ -365,8 +365,8 @@ jobs:
       fly_token: ${{ secrets[matrix.secret_name] }}
 
   # Local equivalent: `pnpm lint dead-env`. The shared script also audits the
-  # developer's root .env when present; CI intentionally checks source against
-  # the committed .env.example registry because secrets are not checked out.
+  # developer's root .env when present; CI checks source against the committed
+  # manifest and verifies that committed values contain no secrets.
   check-dead-env:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -374,7 +374,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Check env registry drift
-        run: bash scripts/check-dead-env.sh
+        run: pnpm lint dead-env && pnpm env:status --offline
 
   # Local equivalent: `pnpm coverage summary`.
   coverage:

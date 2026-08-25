@@ -1,8 +1,6 @@
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-
-import dotenv from 'dotenv';
 
 import { errorMessage } from '../lib/errorMessage.js';
 import {
@@ -26,13 +24,6 @@ import { platformLabel, SOCIAL_PLATFORMS } from './platforms.js';
 import { reconcileRecentSocialPosts } from './reconcile.js';
 import type { SocialPlatform } from './types.js';
 
-const REPO_ROOT = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  '..',
-  '..',
-);
 const AUTO_WINDOW_DAYS = 7;
 const USAGE = `Usage: pnpm social:metrics
   pnpm social:metrics <episode-uuid-or-share-url> --platform ${SOCIAL_PLATFORMS.join('|')} [--post-id <uuid>] [--views N] [--impressions N] [--likes N] [--comments N] [--shares N] [--saves N] [--profile-visits N] [--followers-gained N]
@@ -40,8 +31,6 @@ const USAGE = `Usage: pnpm social:metrics
 With no arguments, metrics are collected automatically for social posts published
 in the last ${AUTO_WINDOW_DAYS} days. The explicit form remains available for manual recovery.
 Every manual metric is optional; omitted values are stored as NULL.`;
-
-dotenv.config({ path: resolve(REPO_ROOT, '.env') });
 
 export type SocialMetricCounts = Omit<
   NewSocialPostMetric,

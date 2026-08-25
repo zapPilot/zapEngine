@@ -1,12 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-
-import dotenv from 'dotenv';
 
 import { errorMessage } from '../lib/errorMessage.js';
 import {
@@ -43,17 +40,8 @@ import {
   xTeaserDurationSeconds,
 } from './video.js';
 
-const REPO_ROOT = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  '..',
-  '..',
-);
 const PLATFORM_USAGE = SOCIAL_PLATFORMS.join('|');
 const USAGE = `Usage: pnpm social:publish <episode-uuid-or-share-url> --language zh-Hant|ja|en [--dry-run] [--yes] [--platform ${PLATFORM_USAGE}] [--youtube-privacy private|unlisted|public] [--force]`;
-
-dotenv.config({ path: resolve(REPO_ROOT, '.env') });
 
 export interface SocialCliOptions {
   episodeId: string;
