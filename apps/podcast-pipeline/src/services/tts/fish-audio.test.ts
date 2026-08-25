@@ -990,14 +990,32 @@ describe('Fish Audio TTS provider', () => {
 
     expect(caught).toBeInstanceOf(FishAudioTimeoutError);
     expect((caught as FishAudioTimeoutError).kind).toBe('idle');
+    expect((caught as FishAudioTimeoutError).timeoutMs).toBe(40);
+    expect(
+      (caught as FishAudioTimeoutError).requestElapsedMs,
+    ).toBeGreaterThanOrEqual(40);
+    // backward compat alias
+    expect((caught as FishAudioTimeoutError).elapsedMs).toBe(
+      (caught as FishAudioTimeoutError).requestElapsedMs,
+    );
+    expect((caught as FishAudioTimeoutError).receivedBytes).toBe(0);
     expect((caught as Error).message).not.toBe('This operation was aborted');
+    expect((caught as Error).message).toContain('40ms idle');
+    expect((caught as Error).message).toContain('requestElapsed');
+    expect((caught as Error).message).toContain('idle_timeout');
     expect(mockFetch).toHaveBeenCalledTimes(3);
     const timeoutLogs = warnSpy.mock.calls.filter(
       ([msg]) => msg === '[/tts] Fish Audio TTS chunk timed out',
     );
     expect(timeoutLogs.length).toBeGreaterThanOrEqual(3);
     expect(timeoutLogs[0]?.[1]).toEqual(
-      expect.objectContaining({ reason: 'idle_timeout' }),
+      expect.objectContaining({
+        reason: 'idle_timeout',
+        timeoutMs: 40,
+        idleTimeoutMs: 40,
+        requestElapsedMs: expect.any(Number),
+        receivedBytes: 0,
+      }),
     );
     // retry logs should also carry idle_timeout reason
     const retryLogs = warnSpy.mock.calls.filter(
@@ -1093,11 +1111,23 @@ describe('Fish Audio TTS provider', () => {
     expect(caught).toBeInstanceOf(FishAudioTimeoutError);
     expect((caught as FishAudioTimeoutError).kind).toBe('total');
     expect((caught as FishAudioTimeoutError).timeoutMs).toBe(60);
+    expect(
+      (caught as FishAudioTimeoutError).requestElapsedMs,
+    ).toBeGreaterThanOrEqual(60);
+    expect((caught as FishAudioTimeoutError).elapsedMs).toBe(
+      (caught as FishAudioTimeoutError).requestElapsedMs,
+    );
+    expect((caught as Error).message).toContain('total_timeout');
+    expect((caught as Error).message).toContain('60ms limit');
     const timeoutLogs = warnSpy.mock.calls.filter(
       ([msg]) => msg === '[/tts] Fish Audio TTS chunk timed out',
     );
     expect(timeoutLogs[0]?.[1]).toEqual(
-      expect.objectContaining({ reason: 'total_timeout' }),
+      expect.objectContaining({
+        reason: 'total_timeout',
+        timeoutMs: 60,
+        requestElapsedMs: expect.any(Number),
+      }),
     );
 
     warnSpy.mockRestore();
@@ -1169,10 +1199,19 @@ describe('Fish Audio TTS provider', () => {
     }
     expect(caught).toBeInstanceOf(FishAudioTimeoutError);
     expect((caught as FishAudioTimeoutError).kind).toBe('idle');
+    expect((caught as FishAudioTimeoutError).timeoutMs).toBe(30);
+    expect(
+      (caught as FishAudioTimeoutError).requestElapsedMs,
+    ).toBeGreaterThanOrEqual(30);
+    expect((caught as FishAudioTimeoutError).elapsedMs).toBe(
+      (caught as FishAudioTimeoutError).requestElapsedMs,
+    );
     expect((caught as Error).message.toLowerCase()).not.toContain(
       'this operation was aborted',
     );
     expect((caught as Error).message).toMatch(/idle_timeout/);
+    expect((caught as Error).message).toContain('30ms idle');
+    expect((caught as Error).message).toContain('requestElapsed');
   });
 
   it('Test F: 800-char chunking splits long text into bounded sentence-aware chunks', async () => {

@@ -28,22 +28,27 @@ const RETRYABLE_STATUS_CODES = new Set([
 export class FishAudioTimeoutError extends Error {
   readonly kind: 'idle' | 'total';
   readonly timeoutMs: number;
-  readonly elapsedMs: number;
+  readonly requestElapsedMs: number;
   readonly receivedBytes: number;
 
   constructor(
     message: string,
     kind: 'idle' | 'total',
     timeoutMs: number,
-    elapsedMs: number,
+    requestElapsedMs: number,
     receivedBytes: number,
   ) {
     super(message);
     this.name = 'FishAudioTimeoutError';
     this.kind = kind;
     this.timeoutMs = timeoutMs;
-    this.elapsedMs = elapsedMs;
+    this.requestElapsedMs = requestElapsedMs;
     this.receivedBytes = receivedBytes;
+  }
+
+  /** @deprecated use requestElapsedMs */
+  get elapsedMs(): number {
+    return this.requestElapsedMs;
   }
 }
 
@@ -337,34 +342,21 @@ async function fetchSingleChunk(
 ): Promise<ArrayBuffer> {
   const startTime = Date.now();
   let receivedBytes = 0;
-  let idleTimedOut = false;
-  let totalTimedOut = false;
+  let timeoutError: FishAudioTimeoutError | null = null;
   const totalTimeoutMs = getRequestTimeoutMs();
   const idleTimeoutMs = getIdleTimeoutMs();
 
   const controller = new AbortController();
   const totalTimeout = setTimeout(() => {
-    totalTimedOut = true;
-    const elapsedMs = Date.now() - startTime;
-    const timeoutError = new FishAudioTimeoutError(
-      `Fish Audio TTS request timed out after ${elapsedMs}ms (total_timeout, ${totalTimeoutMs}ms limit)`,
+    const requestElapsedMs = Date.now() - startTime;
+    timeoutError = new FishAudioTimeoutError(
+      `Fish Audio TTS request timed out after ${requestElapsedMs}ms (total_timeout, ${totalTimeoutMs}ms limit, received ${receivedBytes}B)`,
       'total',
       totalTimeoutMs,
-      elapsedMs,
+      requestElapsedMs,
       receivedBytes,
     );
-    (
-      controller.signal as unknown as {
-        __fishAudioTimeoutError?: FishAudioTimeoutError;
-      }
-    ).__fishAudioTimeoutError = timeoutError;
-    try {
-      (controller as unknown as { abort: (reason?: unknown) => void }).abort(
-        timeoutError,
-      );
-    } catch {
-      controller.abort();
-    }
+    controller.abort(timeoutError);
   }, totalTimeoutMs);
 
   let idleTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -372,27 +364,15 @@ async function fetchSingleChunk(
   const resetIdleTimeout = () => {
     if (idleTimeout) clearTimeout(idleTimeout);
     idleTimeout = setTimeout(() => {
-      idleTimedOut = true;
-      const elapsedMs = Date.now() - startTime;
-      const timeoutError = new FishAudioTimeoutError(
-        `Fish Audio TTS chunk timed out after ${elapsedMs}ms idle (idle_timeout, ${idleTimeoutMs}ms limit)`,
+      const requestElapsedMs = Date.now() - startTime;
+      timeoutError = new FishAudioTimeoutError(
+        `Fish Audio TTS chunk timed out after ${idleTimeoutMs}ms idle (idle_timeout, ${idleTimeoutMs}ms limit, requestElapsed ${requestElapsedMs}ms, received ${receivedBytes}B)`,
         'idle',
         idleTimeoutMs,
-        elapsedMs,
+        requestElapsedMs,
         receivedBytes,
       );
-      (
-        controller.signal as unknown as {
-          __fishAudioTimeoutError?: FishAudioTimeoutError;
-        }
-      ).__fishAudioTimeoutError = timeoutError;
-      try {
-        (controller as unknown as { abort: (reason?: unknown) => void }).abort(
-          timeoutError,
-        );
-      } catch {
-        controller.abort();
-      }
+      controller.abort(timeoutError);
     }, idleTimeoutMs);
   };
 
@@ -508,104 +488,30 @@ async function fetchSingleChunk(
 
     return result.buffer;
   } catch (error) {
-    const timeoutError = resolveFishAudioTimeoutError(
-      error,
-      controller.signal,
-      {
-        idleTimedOut,
-        totalTimedOut,
-        idleTimeoutMs,
-        totalTimeoutMs,
-        startTime,
-        receivedBytes,
-      },
-    );
-    if (timeoutError) {
+    const resolvedError =
+      timeoutError ?? (error instanceof FishAudioTimeoutError ? error : null);
+    if (resolvedError) {
       console.warn('[/tts] Fish Audio TTS chunk timed out', {
-        reason: timeoutError.kind === 'idle' ? 'idle_timeout' : 'total_timeout',
+        reason:
+          resolvedError.kind === 'idle' ? 'idle_timeout' : 'total_timeout',
         chunkIndex,
         totalChunks,
         attempt,
         maxAttempts: MAX_FISH_AUDIO_TTS_ATTEMPTS,
-        receivedBytes: timeoutError.receivedBytes,
-        timeoutMs: timeoutError.timeoutMs,
-        elapsedMs: timeoutError.elapsedMs,
+        receivedBytes: resolvedError.receivedBytes,
+        timeoutMs: resolvedError.timeoutMs,
+        idleTimeoutMs:
+          resolvedError.kind === 'idle' ? resolvedError.timeoutMs : undefined,
+        requestElapsedMs: resolvedError.requestElapsedMs,
+        elapsedMs: resolvedError.requestElapsedMs,
       });
-      throw timeoutError;
+      throw resolvedError;
     }
     throw error;
   } finally {
     clearTimeout(totalTimeout);
     if (idleTimeout) clearTimeout(idleTimeout);
   }
-}
-
-function resolveFishAudioTimeoutError(
-  error: unknown,
-  signal: AbortSignal,
-  context: {
-    idleTimedOut: boolean;
-    totalTimedOut: boolean;
-    idleTimeoutMs: number;
-    totalTimeoutMs: number;
-    startTime: number;
-    receivedBytes: number;
-  },
-): FishAudioTimeoutError | null {
-  if (error instanceof FishAudioTimeoutError) {
-    return error;
-  }
-  const signalWithMeta = signal as unknown as {
-    reason?: unknown;
-    __fishAudioTimeoutError?: FishAudioTimeoutError;
-  };
-  if (signalWithMeta.reason instanceof FishAudioTimeoutError) {
-    return signalWithMeta.reason;
-  }
-  if (signalWithMeta.__fishAudioTimeoutError instanceof FishAudioTimeoutError) {
-    return signalWithMeta.__fishAudioTimeoutError;
-  }
-  const isAbortError =
-    error instanceof DOMException
-      ? error.name === 'AbortError'
-      : error instanceof Error &&
-        (error.name === 'AbortError' ||
-          error.message.toLowerCase().includes('aborted') ||
-          error.message.toLowerCase().includes('abort'));
-
-  if (isAbortError && signal.aborted) {
-    if (context.totalTimedOut) {
-      return new FishAudioTimeoutError(
-        `Fish Audio TTS request timed out after ${Date.now() - context.startTime}ms (total_timeout, ${context.totalTimeoutMs}ms limit)`,
-        'total',
-        context.totalTimeoutMs,
-        Date.now() - context.startTime,
-        context.receivedBytes,
-      );
-    }
-    if (context.idleTimedOut) {
-      return new FishAudioTimeoutError(
-        `Fish Audio TTS chunk timed out after ${Date.now() - context.startTime}ms idle (idle_timeout, ${context.idleTimeoutMs}ms limit)`,
-        'idle',
-        context.idleTimeoutMs,
-        Date.now() - context.startTime,
-        context.receivedBytes,
-      );
-    }
-    // Fallback: signal aborted without our flag (e.g., abort reason not propagated in some runtimes)
-    // Distinguish by whether idle timer was ever started (receivedBytes or response stage).
-    // If totalTimedOut and idleTimedOut are both false, treat as total timeout if we never received bytes yet,
-    // otherwise idle is more likely but we default to total for TTFB safety.
-    // To keep semantics, prefer total_timeout when in doubt for early aborts.
-    return new FishAudioTimeoutError(
-      `Fish Audio TTS request aborted after ${Date.now() - context.startTime}ms`,
-      context.idleTimedOut ? 'idle' : 'total',
-      context.idleTimedOut ? context.idleTimeoutMs : context.totalTimeoutMs,
-      Date.now() - context.startTime,
-      context.receivedBytes,
-    );
-  }
-  return null;
 }
 
 class TransientError extends Error {
