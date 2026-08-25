@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { routePath } from 'hono/route';
 
 import { getErrorStatus, HttpStatus, toErrorResponse } from './common/http';
 import { Logger } from './common/logger';
@@ -22,6 +23,8 @@ import { createUsersRoutes } from './routes/users';
 import { createWalletExecutionRoutes } from './routes/wallet-execution';
 
 const logger = new Logger('Bootstrap');
+
+const SERVER_ERROR_THRESHOLD: number = HttpStatus.INTERNAL_SERVER_ERROR;
 
 export function createApp(
   services: AppServices,
@@ -60,10 +63,10 @@ export function createApp(
   app.onError((error, c) => {
     const status = getErrorStatus(error);
 
-    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+    if (status >= SERVER_ERROR_THRESHOLD) {
       captureServerException(error, {
         method: c.req.method,
-        path: c.req.path,
+        route: routePath(c),
       });
     }
 
@@ -104,11 +107,9 @@ export function bootstrap(rawEnv: NodeJS.ProcessEnv = process.env) {
   };
 
   process.on('unhandledRejection', (reason) => {
-    captureServerException(reason);
     logger.error('Unhandled Rejection:', reason);
   });
   process.on('uncaughtException', (error) => {
-    captureServerException(error);
     logger.error('Uncaught Exception:', error);
   });
 

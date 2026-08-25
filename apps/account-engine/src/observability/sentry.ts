@@ -28,16 +28,19 @@ export function initSentry(rawEnv: SentryEnv = process.env) {
   return true;
 }
 
+// `route` must be the registered route pattern, never the concrete request
+// path — account-engine routes embed wallet addresses and user UUIDs, which
+// would otherwise land in an indexed Sentry tag despite sendDefaultPii: false.
 export function captureServerException(
   error: unknown,
-  context: { method?: string; path?: string } = {},
+  context: { method?: string; route?: string } = {},
 ) {
   Sentry.withScope((scope) => {
     if (context.method) {
       scope.setTag('http.method', context.method);
     }
-    if (context.path) {
-      scope.setTag('http.route', context.path);
+    if (context.route) {
+      scope.setTag('http.route', context.route);
     }
 
     Sentry.captureException(error);
