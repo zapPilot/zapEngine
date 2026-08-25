@@ -225,3 +225,27 @@ test('migrateEnvFile rejects conflicting legacy aliases before rewriting', async
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('migrateEnvFile rejects duplicate assignments before rewriting', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'zap-env-migrate-'));
+  const envPath = join(directory, '.env');
+  const original = [
+    'ACCOUNT_API_URL=https://first',
+    'ACCOUNT_API_URL=https://second',
+    'UNRELATED=value',
+    '',
+  ].join('\n');
+
+  try {
+    await writeFile(envPath, original);
+
+    assert.equal(parseEnv(original).values.ACCOUNT_API_URL, 'https://second');
+    assert.throws(
+      () => migrateEnvFile(envPath),
+      /Duplicate env assignments: ACCOUNT_API_URL/u,
+    );
+    assert.equal(await readFile(envPath, 'utf8'), original);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
