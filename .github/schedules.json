@@ -100,6 +100,16 @@
     "docs": "apps/alpha-etl/README.md"
   },
   {
+    "name": "env-drift",
+    "purpose": "Verify committed environment values match Infisical and deployment destinations.",
+    "schedule_kind": "cron",
+    "schedule": "17 1 * * *",
+    "schedule_source": "workflow",
+    "runtime": "github-actions",
+    "workspace": "root",
+    "entrypoint": ".github/workflows/env-drift.yml"
+  },
+  {
     "name": "weekly-report",
     "purpose": "Queue the weekly account report batch and monitor that processing starts.",
     "schedule_kind": "cron",

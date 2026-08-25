@@ -35,7 +35,6 @@
     "@supabase/supabase-js": "catalog:",
     "@zapengine/intent-engine": "workspace:*",
     "@zapengine/types": "workspace:*",
-    "dotenv": "catalog:",
     "hono": "catalog:",
     "nodemailer": "catalog:",
     "telegraf": "catalog:",
