@@ -30,7 +30,9 @@ describe('isAllowedTelegramSourceUrl', () => {
 
   it('supports extra hosts only when explicitly configured', () => {
     vi.stubEnv('PIPELINE_TELEGRAM_ALLOWED_SOURCE_HOSTS', 'example.com');
-    expect(isAllowedTelegramSourceUrl('https://example.com/article')).toBe(true);
+    expect(isAllowedTelegramSourceUrl('https://example.com/article')).toBe(
+      true,
+    );
   });
 
   it('rejects malformed URLs', () => {
