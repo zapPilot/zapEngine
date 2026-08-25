@@ -12,6 +12,7 @@ import {
   stopServices,
 } from './container';
 import { createPlanOrchestrationRoutes } from './modules/plan-orchestration';
+import { captureServerException } from './observability/sentry';
 import { createEtlRoutes } from './routes/etl';
 import { createHealthRoutes, type ReleaseMetadataEnv } from './routes/health';
 import { createJobsRoutes } from './routes/jobs';
@@ -56,9 +57,18 @@ export function createApp(
     ),
   );
 
-  app.onError((error, c) =>
-    jsonResponse(c, toErrorResponse(c.req.path, error), getErrorStatus(error)),
-  );
+  app.onError((error, c) => {
+    const status = getErrorStatus(error);
+
+    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      captureServerException(error, {
+        method: c.req.method,
+        path: c.req.path,
+      });
+    }
+
+    return jsonResponse(c, toErrorResponse(c.req.path, error), status);
+  });
 
   return app;
 }
@@ -94,9 +104,11 @@ export function bootstrap(rawEnv: NodeJS.ProcessEnv = process.env) {
   };
 
   process.on('unhandledRejection', (reason) => {
+    captureServerException(reason);
     logger.error('Unhandled Rejection:', reason);
   });
   process.on('uncaughtException', (error) => {
+    captureServerException(error);
     logger.error('Uncaught Exception:', error);
   });
 
