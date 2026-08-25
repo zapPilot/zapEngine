@@ -100,7 +100,6 @@ export function listEasKeys(destination) {
         'long',
         '--scope',
         'project',
-        '--non-interactive',
       ],
       {
         cwd: path.join(repoRoot, 'apps', 'app'),
