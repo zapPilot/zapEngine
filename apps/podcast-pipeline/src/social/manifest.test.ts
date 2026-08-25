@@ -41,9 +41,14 @@ describe('social command manifest contract', () => {
         .scripts ?? {};
 
     expect(rootScripts['social:daemon']).toBe(
-      'pnpm --filter @zapengine/podcast-pipeline social:daemon',
+      'node scripts/env/run.mjs -- pnpm --filter @zapengine/podcast-pipeline social:daemon',
     );
-    expect(rootScripts).not.toHaveProperty('social:metrics');
+    expect(rootScripts['social:publish']).toBe(
+      'node scripts/env/run.mjs -- pnpm --filter @zapengine/podcast-pipeline social:publish',
+    );
+    expect(rootScripts['social:metrics']).toBe(
+      'node scripts/env/run.mjs -- pnpm --filter @zapengine/podcast-pipeline social:metrics',
+    );
     expect(workspaceScripts['social:metrics']).toBe(
       'tsx src/social/metrics.ts',
     );
