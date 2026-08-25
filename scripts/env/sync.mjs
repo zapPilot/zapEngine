@@ -69,11 +69,11 @@ if (
 }
 
 const projectionKind =
-  destination.target === 'expo'
+  ['expo', 'web'].includes(destination.target)
     ? 'expo'
     : destination.target === 'landing-page'
       ? 'next'
-      : ['web', 'desktop'].includes(destination.target)
+      : destination.target === 'desktop'
         ? 'vite'
         : undefined;
 const desired = Object.entries(ENV_MANIFEST)

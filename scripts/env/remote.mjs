@@ -8,7 +8,7 @@ function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? repoRoot,
     encoding: 'utf8',
-    env: process.env,
+    env: { ...process.env, ...options.env },
     input: options.input,
     maxBuffer: 20 * 1024 * 1024,
   });
@@ -50,6 +50,27 @@ function parseJsonNames(output, label) {
   return names;
 }
 
+function sliceJson(output) {
+  const start = output.search(/[[{]/u);
+  return start === -1 ? output : output.slice(start);
+}
+
+function parseNameColumn(output) {
+  const names = new Set();
+  for (const line of output.split(/\r?\n/)) {
+    const match = /^Name\s+(\S+)\s*$/u.exec(line);
+    if (match && ENV_NAME.test(match[1])) names.add(match[1]);
+  }
+  return names;
+}
+
+function vercelProjectEnv(destination) {
+  return {
+    VERCEL_ORG_ID: destination.orgId,
+    VERCEL_PROJECT_ID: destination.projectId,
+  };
+}
+
 export function listFlyKeys(destination) {
   if (!process.env.FLY_API_TOKEN) {
     throw new Error('not checkable: set FLY_API_TOKEN');
@@ -66,7 +87,7 @@ export function listEasKeys(destination) {
   if (!process.env.EXPO_TOKEN) {
     throw new Error('not checkable: set EXPO_TOKEN');
   }
-  return parseJsonNames(
+  return parseNameColumn(
     run(
       'pnpm',
       [
@@ -76,7 +97,7 @@ export function listEasKeys(destination) {
         '--environment',
         destination.environment,
         '--format',
-        'json',
+        'long',
         '--scope',
         'project',
         '--non-interactive',
@@ -86,7 +107,6 @@ export function listEasKeys(destination) {
         failure: 'not checkable: EXPO_TOKEN cannot list EAS variables',
       },
     ),
-    'EAS',
   );
 }
 
@@ -95,20 +115,24 @@ export function listVercelKeys(destination) {
     throw new Error('not checkable: set VERCEL_TOKEN');
   }
   return parseJsonNames(
-    run(
-      'vercel',
-      [
-        'env',
-        'ls',
-        destination.environment,
-        '--json',
-        '--project',
-        destination.project,
-        '--token',
-        process.env.VERCEL_TOKEN,
-        '--no-color',
-      ],
-      { failure: 'not checkable: VERCEL_TOKEN cannot list Vercel variables' },
+    sliceJson(
+      run(
+        'vercel',
+        [
+          'env',
+          'ls',
+          destination.environment,
+          '--format',
+          'json',
+          '--token',
+          process.env.VERCEL_TOKEN,
+          '--no-color',
+        ],
+        {
+          env: vercelProjectEnv(destination),
+          failure: 'not checkable: VERCEL_TOKEN cannot list Vercel variables',
+        },
+      ),
     ),
     `Vercel ${destination.project}`,
   );
@@ -146,13 +170,15 @@ export function setEasValue(destination, name, value, sensitive) {
     [
       'dlx',
       'eas-cli@20.5.1',
-      'env:set',
+      'env:create',
       '--environment',
       destination.environment,
       '--name',
       name,
       '--value',
       value,
+      '--type',
+      'string',
       '--visibility',
       sensitive ? 'sensitive' : 'plaintext',
       '--scope',
@@ -174,7 +200,7 @@ export function deleteEasKey(destination, name) {
       'dlx',
       'eas-cli@20.5.1',
       'env:delete',
-      '--environment',
+      '--variable-environment',
       destination.environment,
       '--variable-name',
       name,
@@ -198,14 +224,14 @@ export function setVercelValue(destination, name, value, sensitive) {
       name,
       destination.environment,
       '--force',
+      '--yes',
       ...(sensitive ? ['--sensitive'] : []),
-      '--project',
-      destination.project,
       '--token',
       process.env.VERCEL_TOKEN,
       '--no-color',
     ],
     {
+      env: vercelProjectEnv(destination),
       input: value,
       failure: `Vercel sync failed for ${name}`,
     },
@@ -221,12 +247,13 @@ export function deleteVercelKey(destination, name) {
       name,
       destination.environment,
       '--yes',
-      '--project',
-      destination.project,
       '--token',
       process.env.VERCEL_TOKEN,
       '--no-color',
     ],
-    { failure: `Vercel prune failed for ${name}` },
+    {
+      env: vercelProjectEnv(destination),
+      failure: `Vercel prune failed for ${name}`,
+    },
   );
 }

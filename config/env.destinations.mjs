@@ -37,6 +37,8 @@ export const ENV_DESTINATIONS = {
   web: {
     platform: 'vercel',
     project: 'zap-engine-frontend',
+    projectId: 'prj_OJFY8nuWqZO7K8sIp5jUjxTS1L7D',
+    orgId: 'team_VhMT6LoRJMK2LjJmU8qgtrwy',
     environment: 'production',
     sourceEnvironment: 'prod',
     target: 'web',
@@ -44,7 +46,9 @@ export const ENV_DESTINATIONS = {
   },
   'landing-page': {
     platform: 'vercel',
-    project: 'landing-page',
+    project: 'zap-engine-landing-page',
+    projectId: 'prj_bHScNxDp3xmcScepOqcM3MDnlGub',
+    orgId: 'team_VhMT6LoRJMK2LjJmU8qgtrwy',
     environment: 'production',
     sourceEnvironment: 'prod',
     target: 'landing-page',

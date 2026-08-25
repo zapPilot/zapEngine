@@ -17,11 +17,11 @@ function report(scope, status, name, detail = '') {
 
 function projectedName(name, definition, target) {
   if (definition.kind !== 'client') return name;
-  if (target === 'expo') return definition.projections.expo;
-  if (target === 'landing-page') return definition.projections.next;
-  if (target === 'web' || target === 'desktop') {
-    return definition.projections.vite;
+  if (target === 'expo' || target === 'web') {
+    return definition.projections.expo;
   }
+  if (target === 'landing-page') return definition.projections.next;
+  if (target === 'desktop') return definition.projections.vite;
   return name;
 }
 
