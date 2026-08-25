@@ -1,0 +1,52 @@
+name: Temporary Sentry sync
+
+on:
+  push:
+    branches:
+      - feat/sentry-observability
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/sentry-observability
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Update canonical env inventory
+        shell: python
+        run: |
+          from pathlib import Path
+
+          manifest = Path('config/env.manifest.mjs')
+          text = manifest.read_text()
+          needle = "  ACCOUNT_ENGINE_PORT: server(['account-engine']),\n"
+          if 'SENTRY_DSN:' not in text:
+              text = text.replace(needle, needle + "  SENTRY_DSN: server(['account-engine']),\n", 1)
+          manifest.write_text(text)
+
+          example = Path('.env.example')
+          text = example.read_text()
+          needle = 'ACCOUNT_ENGINE_PORT=3004\n'
+          if 'SENTRY_DSN=' not in text:
+              text = text.replace(needle, needle + '\n# Sentry error monitoring (optional; no-op when unset)\nSENTRY_DSN=\n', 1)
+          example.write_text(text)
+      - name: Generate pnpm lockfile
+        env:
+          HUSKY: '0'
+          PLAYWRIGHT_SKIP_INSTALL: '1'
+        run: pnpm install --lockfile-only --no-frozen-lockfile --ignore-scripts
+      - name: Commit generated files
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add config/env.manifest.mjs .env.example pnpm-lock.yaml
+          git diff --cached --quiet || git commit -m "chore: sync Sentry env and lockfile"
+          git push origin HEAD:feat/sentry-observability
