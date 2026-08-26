@@ -769,6 +769,9 @@ export function toSocialPostMetricInsertPayload(
     ...(metric.measurementWindow
       ? { measurement_window: metric.measurementWindow }
       : {}),
+    ...(metric.collectionStatus
+      ? { collection_status: metric.collectionStatus }
+      : {}),
     // jscpd:ignore-start — these six counters keep the same name in both the
     // snake_case row and camelCase insert spellings, so the insert payload and
     // the derived performance projection repeat the same six lines. Merging

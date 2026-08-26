@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { errorMessage } from '../lib/errorMessage.js';
+import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
 import {
   getSocialPostById,
   insertSocialPostMetric,
@@ -34,7 +35,12 @@ Every manual metric is optional; omitted values are stored as NULL.`;
 
 export type SocialMetricCounts = Omit<
   NewSocialPostMetric,
-  'socialPostId' | 'capturedAt' | 'ageHours' | 'measurementWindow' | 'details'
+  | 'socialPostId'
+  | 'capturedAt'
+  | 'ageHours'
+  | 'measurementWindow'
+  | 'collectionStatus'
+  | 'details'
 >;
 
 const METRIC_LABELS: Record<keyof SocialMetricCounts, string> = {
@@ -52,19 +58,39 @@ export type CollectedSocialMetrics = SocialMetricCounts & {
   details?: SocialPostMetricDetails;
 };
 
+export type MetricCollectionResult =
+  | { status: 'collected'; metrics: CollectedSocialMetrics }
+  | { status: 'unavailable'; reason: string }
+  | { status: 'retryable'; reason: string };
+
+function isMetricCollectionResult(
+  value: unknown,
+): value is MetricCollectionResult {
+  if (!isRecord(value)) return false;
+  const status = value['status'];
+  return (
+    typeof status === 'string' &&
+    ['collected', 'unavailable', 'retryable'].includes(status)
+  );
+}
+
 export async function collectPostMetrics(
-  collect: (post: SocialPostRow) => Promise<CollectedSocialMetrics>,
+  collect: (
+    post: SocialPostRow,
+  ) => Promise<CollectedSocialMetrics | MetricCollectionResult>,
   post: SocialPostRow,
-): Promise<CollectedSocialMetrics | null> {
-  const collected = await collect(post);
+): Promise<MetricCollectionResult> {
+  const raw = await collect(post);
+  if (isMetricCollectionResult(raw)) return raw;
+  const collected = raw;
   const { details, ...counts } = collected;
   if (
     Object.values(counts).every((value) => value === null) &&
     (!details || Object.keys(details).length === 0)
   ) {
-    return null;
+    return { status: 'retryable', reason: 'no metrics available yet' };
   }
-  return collected;
+  return { status: 'collected', metrics: collected };
 }
 
 export interface SocialMetricsCliOptions {
@@ -173,22 +199,29 @@ export async function runAutomaticSocialMetricsCollector(input: {
   try {
     for (const post of posts) {
       try {
-        const collected = await collectPostMetrics(
+        const result = await collectPostMetrics(
           collectors[post.platform],
           post,
         );
-        if (!collected) {
+        if (result.status === 'retryable') {
           input.log(
-            `- ${platformLabel(post.platform)} ${post.id}: no metrics available yet.`,
+            `- ${platformLabel(post.platform)} ${post.id}: no metrics available yet (${result.reason}).`,
           );
           continue;
         }
-        const { details, ...counts } = collected;
+        if (result.status === 'unavailable') {
+          input.log(
+            `- ${platformLabel(post.platform)} ${post.id}: metrics unavailable (${result.reason}).`,
+          );
+          continue;
+        }
+        const { details, ...counts } = result.metrics;
         const metric = buildSocialPostMetric({
           post,
           capturedAt,
           counts,
           details,
+          collectionStatus: 'collected',
         });
         await input.insertMetric(metric);
         input.log(formatMetricsSummary(post, metric));
@@ -300,6 +333,7 @@ export function buildSocialPostMetric(input: {
   counts: SocialMetricCounts;
   details?: SocialPostMetricDetails;
   measurementWindow?: NewSocialPostMetric['measurementWindow'];
+  collectionStatus?: NewSocialPostMetric['collectionStatus'];
 }): NewSocialPostMetric {
   const publishedAt = new Date(input.post.published_at);
   if (Number.isNaN(publishedAt.getTime())) {
@@ -318,6 +352,9 @@ export function buildSocialPostMetric(input: {
     ageHours: Math.round(Math.max(0, elapsedHours) * 100) / 100,
     ...(input.measurementWindow
       ? { measurementWindow: input.measurementWindow }
+      : {}),
+    ...(input.collectionStatus
+      ? { collectionStatus: input.collectionStatus }
       : {}),
     ...input.counts,
     ...(input.details ? { details: input.details } : {}),
