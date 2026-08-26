@@ -29,8 +29,10 @@ pnpm turbo run test:coverage
 pnpm exec tsx scripts/coverage-summary.ts
 ```
 
-That job enforces **per-workspace absolute floors** through each workspace's
-`test:coverage` command. It does **not** currently run
+That job enforces **configured per-workspace absolute floors** through each
+workspace's `test:coverage` command. Workspaces without thresholds do not fail
+an absolute floor, and only reporters that emit `json-summary` enter the
+aggregate. It does **not** currently run
 `scripts/coverage-regression.ts` in CI. If the log says:
 
 ```txt
@@ -38,8 +40,10 @@ ERROR: Coverage for lines (...) does not meet global threshold (...)
 Failed: @zapengine/<workspace>#test:coverage
 ```
 
-then the failing layer is that workspace's `vitest.config.ts` or pytest
-threshold, not the baseline regression gate.
+then the failing layer is that configured workspace's `vitest.config.ts` or
+pytest threshold, not the baseline regression gate. `packages/design-tokens`
+has no absolute floor. `apps/control-center` currently has neither a floor nor
+a JSON summary reporter and is absent from the 12-workspace aggregate.
 
 ## Core principle — fix coverage without hiding the blast radius
 

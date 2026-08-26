@@ -9,8 +9,7 @@ import { AssetLabel, AssetPairLabel } from '@/components/docs/AssetLabel';
 
 **Strategy ID:** `dma_fgi_portfolio_rules`
 **Version:** v1
-**Start Date:** 2024-12-02
-**Status:** Live
+**Status:** Backtest
 
 ## Goal
 
@@ -24,35 +23,22 @@ Generate superior absolute and risk-adjusted returns by trading between three ri
 | Crypto      | <AssetPairLabel first="WBTC" second="WETH" label="WBTC + WETH" /> | Ethereum / Arbitrum  |
 | Stablecoins | <AssetPairLabel first="USDC" second="USDT" label="USDC + USDT" /> | All supported chains |
 
-## Rebalance Rules
+## Rules, in priority order
 
-### Signal Logic
+The engine evaluates each daily snapshot top-down and uses the first matching
+rule. Exact thresholds, weights, and cooldowns are code-owned in
+`portfolio_rules/__init__.py` rather than duplicated here.
 
-- <strong>
-    <AssetLabel symbol="BTC" label="200-DMA (BTC)" />:
-  </strong>
-  Weekly close above/below 200-WMA triggers regime shift for the crypto pillar
-- **Fear & Greed Index:** Daily FGI reading below 30 = fear (defensive), above 70 = greed (aggressive), 30–70 = neutral
-- <strong>
-    <AssetPairLabel first="ETH" second="BTC" label="ETH/BTC Ratio" />:
-  </strong>
-  Cross of the 20-day EMA triggers crypto pillar rotation
-
-### Allocation Matrix
-
-| Regime                       | <AssetLabel symbol="SPY" label="Equities" /> | <AssetPairLabel first="BTC" second="ETH" label="BTC/ETH" /> | <AssetLabel symbol="USDC" label="Stablecoins" /> |
-| ---------------------------- | -------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------ |
-| Risk-On (DMA+ + FGI > 70)    | 60%                                          | 30%                                                         | 10%                                              |
-| Risk-On (DMA+ OR FGI)        | 40%                                          | 35%                                                         | 25%                                              |
-| Neutral                      | 30%                                          | 20%                                                         | 50%                                              |
-| Risk-Off (DMA- OR FGI < 30)  | 20%                                          | 15%                                                         | 65%                                              |
-| Risk-Off (DMA- AND FGI < 30) | 10%                                          | 10%                                                         | 80%                                              |
-
-### Rebalance Triggers
-
-1. **Weekly review:** Every Monday at 00:00 UTC, evaluate all signals
-2. **Threshold breach:** If any signal crosses its threshold by >5%, execute within 24h
-3. **Drift tolerance:** If any position drifts >10% from target, rebalance immediately
+1. **Cross-down exit** — leave a risk asset and its peers when price crosses
+   below its long-term trend.
+2. **Cross-up equal-weight** — restore equal-weight exposure across assets above
+   trend after a cross-up.
+3. **ETH/BTC ratio rotation** — rotate the crypto leg when relative strength
+   crosses its trend.
+4. **ETH/BTC deviation DCA** — incrementally lean toward the relatively cheap
+   crypto asset when the ratio deviates far from its mean.
+5. **DMA overextension DCA sell** — trim overextended risk exposure gradually.
+6. **FGI downshift DCA sell** — reduce risk incrementally when greed unwinds.
 
 ## Risk Limits
 
@@ -63,22 +49,17 @@ Generate superior absolute and risk-adjusted returns by trading between three ri
 - No derivatives
 - No lending (only LP and governance staking)
 
-## Cost Inclusions
+## Backtest costs
 
-All costs below are deducted from NAV before performance calculation:
+Backtest performance includes the configured execution-cost model. Live NAV and
+live execution-cost accounting remain pending with the on-chain pipeline.
 
 - Network gas (estimated at time of execution)
 - Slippage (estimated at 0.5% for liquidity above $100k, 1% otherwise)
 - Protocol fees (Ondo: 0%, Morpho: variable, GMX: 0.02%)
 
-## Failure Conditions
+## Status boundary
 
-- NAV drops >40% from peak → suspend trading, publish incident report
-- Any single chain unavailable >72h → fallback to remaining chains
-- Price oracle stale >1h → use last known price, flag in daily snapshot
-
-## Changelog
-
-| Version | Date       | Change                  |
-| ------- | ---------- | ----------------------- |
-| v1      | 2024-12-02 | Initial live deployment |
+These rules are validated by backtests. They are not a claim of live execution,
+public NAV accounting, automatic incident response, or an operating fallback
+policy.

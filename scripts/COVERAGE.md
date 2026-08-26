@@ -1,10 +1,10 @@
 # Coverage tooling
 
-Each workspace owns its absolute coverage floor in `vitest.config.ts` (TypeScript)
-or `pyproject.toml` (Python). The separate GitHub `coverage` job runs every
-workspace's `test:coverage` script, so a workspace exits non-zero when one of
-its configured floors is missed. The job then publishes a complete monorepo
-summary; the optional baseline comparison remains a manual no-regression tool.
+Configured workspaces own an absolute coverage floor in `vitest.config.ts`
+(TypeScript) or `pyproject.toml` (Python). The separate GitHub `coverage` job
+runs every workspace's `test:coverage` script; configured floors fail locally,
+then the job publishes the reports available to the monorepo summary. The
+optional baseline comparison remains a manual no-regression tool.
 
 ## Commands
 
@@ -103,7 +103,10 @@ comparison is useful.
   `src/hooks/useReducedMotion.ts` additionally enforce per-file floors of
   80/75/80/80.
 - `packages/design-tokens` reports coverage for aggregation but has no absolute
-  floor. Raise a config-level threshold when the team chooses to gate it.
+  floor.
+- `apps/control-center` runs `test:coverage` but currently emits no
+  `json-summary` report and has no floor, so it is absent from the aggregate.
+  Its coverage contract is tracked separately from this 12-workspace state.
 
 Update this table whenever a workspace threshold changes. Ratchet floors upward
 only after sustained coverage improvements; do not lower them to conceal a
