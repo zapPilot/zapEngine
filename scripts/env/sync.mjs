@@ -68,14 +68,13 @@ if (
   process.exit(1);
 }
 
-const projectionKind =
-  ['expo', 'web'].includes(destination.target)
-    ? 'expo'
-    : destination.target === 'landing-page'
-      ? 'next'
-      : destination.target === 'desktop'
-        ? 'vite'
-        : undefined;
+const projectionKind = ['expo', 'web'].includes(destination.target)
+  ? 'expo'
+  : destination.target === 'landing-page'
+    ? 'next'
+    : destination.target === 'desktop'
+      ? 'vite'
+      : undefined;
 const desired = Object.entries(ENV_MANIFEST)
   .filter(([, definition]) => definition.kind !== 'host')
   .filter(([, definition]) => definition.environments.includes(environment))
@@ -101,9 +100,7 @@ try {
   console.error(error.message);
   process.exit(1);
 }
-const selected = desired.filter(
-  ({ name, required }) => required || actual.has(name),
-);
+const selected = desired;
 const desiredNames = new Set(desired.map(({ name }) => name));
 const managed = new Set(destination.managed);
 const forbidden = [...actual]

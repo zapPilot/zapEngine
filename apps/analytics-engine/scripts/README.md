@@ -14,13 +14,6 @@ details.
 | `quality/check_service_reachability.py` | Service dependency validation |
 | `market/analyze_btc_sentiment.py` | BTC price/sentiment charts |
 
-Run fixture constraint validation after strategy iterations:
-
-```bash
-pnpm --filter @zapengine/analytics-engine exec uv run python scripts/analyze_compare.py \
-  --saved-config-id dma_fgi_portfolio_rules \
-  --config-id dma_fgi_portfolio_rules \
-  --from-date 2025-01-01 \
-  --to-date 2026-04-10 \
-  --format markdown
-```
+The canonical validation command lives in
+[`src/services/backtesting/COMMANDS.md`](../src/services/backtesting/COMMANDS.md).
+Use the current date for its `<to-date>` placeholder.

@@ -2,7 +2,7 @@ import { defineKnipConfig } from '@zapengine/knip-config/base';
 
 export default defineKnipConfig({
   entry: [
-    'src/main/main.ts',
+    'src/main/entry.ts',
     'src/preload/preload.ts',
     // Run from package.json, never imported. knip does not promote a package.json
     // script reference to an entry point, and `project` below includes

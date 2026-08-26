@@ -1,22 +1,22 @@
 ---
 name: env-drift-ci-debugging
 description: >-
-  Use when `check-dead-env`, `pnpm lint dead-env`, `.env.example`, `.env*`, or
-  Expo `EXPO_PUBLIC_*` changes fail CI or invalidate unexpected workspaces.
-  Covers app env declarations, Expo-to-app-core env bridging, CI-only fixture
-  env, and root env cache blast radius.
+  Use when `check-dead-env`, `pnpm lint dead-env`, `config/env.manifest.mjs`,
+  `config/env/*.env`, Infisical configuration, or Expo `EXPO_PUBLIC_*` changes
+  fail CI. Covers the canonical env registry, non-secret defaults, secret
+  ownership, local fallback, and source-reference auditing.
 ---
 
 # Env drift CI debugging
 
 ## Core principle
 
-**Declare only real source/runtime env in `.env.example`; fix env drift at the
+**Keep every real runtime key in `config/env.manifest.mjs`; fix env drift at the
 source of truth, not by weakening `check-dead-env`.**
 
-`check-dead-env` protects the contract between source code, operators, and CI. A
-missing real env key should be declared; a stale or fixture-only key should be
-removed.
+The manifest is the canonical registry. `config/env/dev.env` and
+`config/env/prod.env` hold version-controlled non-secret values; Infisical owns
+secrets. `scripts/check-dead-env.sh` compares manifest keys with source reads.
 
 ## Where the signal already is
 
@@ -30,31 +30,15 @@ If it fails after a root env/config edit, read the dead-env output first. Do not
 assume the workspace you touched is the workspace that widened the Turbo blast
 radius.
 
-## Cache invalidation traps
+## Ownership model
 
-Changing root files can expose unrelated-looking workspaces because Turbo inputs
-are broad:
+- `config/env.manifest.mjs`: canonical key registry and metadata.
+- `config/env/dev.env`, `config/env/prod.env`: non-secret environment values.
+- Infisical: secret values for supported environments.
+- Root `.env`: emergency input only when an operator explicitly uses
+  `--local-env`; it is not a registry or normal configuration path.
 
-- `.env.example` is a global dependency.
-- `.env*` is an input for `build`, `type-check`, `test`, and `test:coverage`.
-- `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `package.json`, `.jscpd.json`, and
-  `turbo.json` similarly widen the blast radius.
-
-If a PR only meant to touch one app adds a root env var, expect coverage and other
-workspace gates to rerun. Read the failed workspace; do not assume env drift is
-local to the edited app.
-
-## Local `.env` after branch switches
-
-The shared local command audits the developer's root `.env`; CI does not have that
-file and checks source against `.env.example` only. A key added for another,
-unmerged branch can therefore make pre-commit fail on the current branch even when
-its diff is unrelated.
-
-Treat that as local branch drift: remove the branch-only override from `.env` (or
-switch back to the branch that declares it), rerun `pnpm lint dead-env`, and then
-commit normally. Do not add fake source usage / `.env.example` entries, weaken the
-gate, or use `--no-verify` just to preserve stale local operator state.
+There is no `.env.example`. Never recreate it to satisfy an old instruction.
 
 ## Expo env bridge
 
@@ -65,34 +49,28 @@ Rules:
 
 - Keep `process.env.EXPO_PUBLIC_*` reads literal so `babel-preset-expo` can
   inline them.
-- Every `EXPO_PUBLIC_*` key referenced in app source must be declared in
-  `.env.example`.
-- Stale keys must be deleted from `.env.example`; do not keep them to placate old
-  code paths.
+- Every `EXPO_PUBLIC_*` key referenced in app source must be registered in the
+  manifest.
+- Remove stale keys from the manifest and environment files; do not keep them to
+  placate old code paths.
 
 When CI reports `check-dead-env` for app, run `pnpm lint dead-env`, then update
-the real source of truth: add missing real `EXPO_PUBLIC_*` keys, delete stale
-keys, and fix accidental bare `EXPO_PUBLIC_` references in app source.
+the manifest and the appropriate non-secret or Infisical value source.
 
 ## CI-only env is not app env
 
-Do not put CI fixture-only variables into `.env.example` just because CI sets
-them. In this repo, `TEST_DATABASE_URL` and `DATABASE_INTEGRATION_URL` are
-provided directly by `.github/workflows/ci.yml` for analytics/test database
-fixtures; they are not app env references.
-
-If `check-dead-env` reports one of these test DB keys from `.env.example`, remove
-the example entry instead of declaring fake app usage or weakening the gate. Keep
-runtime env documentation focused on variables read by source code or operators,
-not per-job fixture inputs.
+Do not register CI fixture-only variables merely because a workflow sets them.
+`TEST_DATABASE_URL` and `DATABASE_INTEGRATION_URL` are job inputs for analytics
+fixtures, not application configuration.
 
 ## Fix workflow
 
 1. Run `pnpm lint dead-env`.
 2. Classify each reported key:
-   - real runtime/source reference → add or correct `.env.example`;
-   - stale example entry → remove it;
-   - local key from another branch → remove it from the current branch's `.env`;
+   - real runtime/source reference → add or correct the manifest entry;
+   - non-secret runtime value → update `config/env/dev.env` / `prod.env`;
+   - secret runtime value → update Infisical, never a committed env file;
+   - stale registry entry → remove it and any non-secret values;
    - CI fixture-only key → keep it in workflow/test setup, not `.env.example`;
    - accidental source reference → fix the source code.
 3. If the env edit touched root files, follow **monorepo-ci-debugging** for
@@ -102,9 +80,9 @@ not per-job fixture inputs.
 
 | Excuse | Reality |
 | --- | --- |
-| "CI sets this env var, so it belongs in `.env.example`." | CI fixture inputs are not runtime app env. |
-| "My local `.env` belongs to another branch, so skip the hook." | Clean the branch-only local override, then rerun the gate. CI cannot validate your untracked `.env`. |
-| "The dead-env failure is unrelated to my app change." | Root env files are broad Turbo inputs and can expose other workspaces. |
+| "CI sets this env var, so it belongs in the manifest." | CI fixture inputs are not runtime app env. |
+| "Put the secret in `prod.env`." | Version-controlled env files are non-secret; secrets belong in Infisical. |
+| "Root `.env` is the normal local source." | It is an explicit `--local-env` emergency fallback only. |
 | "Declare a fake usage so the gate passes." | That hides drift. Fix source usage or remove the stale example key. |
 | "Expo env can be read dynamically." | Keep `process.env.EXPO_PUBLIC_*` literal so Expo can inline it. |
 

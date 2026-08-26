@@ -79,7 +79,8 @@ Runs explicit backfill work through the same queue. `trigger` is not required; s
 
 ## Environment
 
-All env vars live in the monorepo root `.env` (see `.env.example` at repo root).
+Runtime keys are registered in root `config/env.manifest.mjs`. Non-secret values
+live in `config/env/dev.env` and `config/env/prod.env`; secrets live in Infisical.
 Required: `ALPHA_ETL_DATABASE_URL`. Production job triggers also require
 `WEBHOOK_SECRET`; job enqueue endpoints fail closed when it is absent.
 `ALPHA_ETL_PORT=3003` is an optional local port override.
@@ -107,4 +108,4 @@ See [docs/adr/](./docs/adr/) for architectural decision records.
 
 ## Deployment
 
-Fly.io via Docker — `fly deploy`.
+Deployment is owned by the CI deploy registry in root `.github/fly-apps.json`.

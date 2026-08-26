@@ -1,5 +1,12 @@
 import type { Mock } from 'vitest';
 
+const captureServerException = vi.hoisted(() => vi.fn());
+
+vi.mock('../../src/observability/sentry', () => ({
+  captureServerException,
+  initSentry: vi.fn(() => false),
+}));
+
 import { createApp } from '../../src/app';
 import { NotFoundException } from '../../src/common/http';
 import type { AppServices } from '../../src/container';
@@ -426,5 +433,35 @@ describe('Hono app routes', () => {
     );
 
     expect(response.status).toBe(404);
+  });
+
+  it('reports 5xx failures to Sentry tagged with the route pattern, not the concrete path', async () => {
+    const services = createServices();
+    const crash = new Error('unexpected crash');
+    (services.usersService.getUserProfile as Mock).mockRejectedValue(crash);
+    const app = createApp(services);
+
+    await app.request(
+      'http://localhost/users/123e4567-e89b-12d3-a456-426614174000',
+    );
+
+    expect(captureServerException).toHaveBeenCalledWith(crash, {
+      method: 'GET',
+      route: '/users/:userId',
+    });
+  });
+
+  it('does not report expected 4xx application errors to Sentry', async () => {
+    const services = createServices();
+    (services.usersService.getUserProfile as Mock).mockRejectedValue(
+      new NotFoundException('gone'),
+    );
+    const app = createApp(services);
+
+    await app.request(
+      'http://localhost/users/123e4567-e89b-12d3-a456-426614174000',
+    );
+
+    expect(captureServerException).not.toHaveBeenCalled();
   });
 });

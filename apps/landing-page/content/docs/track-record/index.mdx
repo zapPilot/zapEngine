@@ -1,19 +1,17 @@
 ---
 title: Track Record
-description: Live on-chain track record for the Zap Pilot strategy
+description: Backtest track record while the live on-chain pipeline is pending
 ---
 
-## Live Track Record
+## Backtest Track Record
 
-The Zap Pilot track record is generated daily by an automated pipeline that:
+The published charts currently describe backtest results. The live on-chain
+snapshot pipeline, signed history, and public verification chain are pending;
+this page does not claim they are operating today.
 
-1. Fetches on-chain wallet positions via RPC
-2. Values assets using Chainlink price feeds
-3. Computes NAV and performance metrics
-4. Pins a signed JSON snapshot to IPFS
-5. Commits the new CID to this repository
-
-Each snapshot is cryptographically linked to the previous one via `previousCid`, forming a tamper-evident chain. The full history is publicly verifiable.
+The intended live pipeline will fetch positions, value assets, compute NAV,
+sign snapshots, and publish a verifiable history. Until that pipeline is live,
+the runtime pending banner is authoritative.
 
 ## Pages
 
@@ -21,19 +19,22 @@ Each snapshot is cryptographically linked to the previous one via `previousCid`,
 - **Performance** (`/track-record/performance`) — NAV curve, drawdown, benchmark comparison
 - **Positions** (`/track-record/positions`) — Current tokenized holdings by chain
 - **Rebalances** (`/track-record/rebalances`) — Rebalance history with on-chain tx links
+- **Signals** (`/track-record/signals`) — Strategy signal history
 - **Verification** (`/track-record/verification`) — CID chain validity, signature checks, methodology
 
 ## Strategy Specs
 
-- [DMA/FGI Portfolio Rules v1](/docs/track-record/dma-fgi-portfolio-rules-v1) — The live strategy
+- [DMA/FGI Portfolio Rules v1](/docs/track-record/dma-fgi-portfolio-rules-v1) — The backtested strategy
 - [DCA Classic v1](/docs/track-record/dca-classic-v1) — The baseline benchmark
 
 ## Verify
 
-Run the full verification CLI:
+The verification CLI is reserved for the future live snapshot chain:
 
 ```bash
 pnpm track-record:verify
 ```
 
-This walks the entire CID chain, validates schema, verifies EIP-191 signatures, recomputes performance metrics from raw positions + prices, and checks CID content hashes.
+Once the live pipeline is enabled, it will validate schema, signatures,
+recomputed metrics, and snapshot content hashes. It is not evidence of a live
+public chain today.

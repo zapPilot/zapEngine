@@ -12,7 +12,7 @@
     "secret_name": "FLY_API_TOKEN_ETL",
     "fly_config": "apps/alpha-etl/fly.toml",
     "verify_package_script": "",
-    "capture_release_metadata": false,
+    "capture_release_metadata": true,
     "verify_docker": true
   },
   {
@@ -20,7 +20,7 @@
     "secret_name": "FLY_API_TOKEN_ANALYTICS",
     "fly_config": "apps/analytics-engine/fly.toml",
     "verify_package_script": "",
-    "capture_release_metadata": false,
+    "capture_release_metadata": true,
     "verify_docker": false
   },
   {
