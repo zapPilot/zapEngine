@@ -2,21 +2,53 @@
 
 Read the nearest scoped `AGENTS.md` before changing code. Scoped rules may add to or override these repository-wide defaults.
 
-- Understand before editing. Read the relevant implementation, callers, and tests; resolve uncertainty from code and runtime evidence instead of guessing.
-- Treat the current checkout, branch, and worktree as user-owned context. Continue the requested work exactly where it was started. Do not create or switch branches or worktrees, detach `HEAD`, rebuild a branch from another base, move commits between worktrees, or split work into additional PRs unless the user explicitly asks. If publishing from the current branch is impossible, stop and explain why instead of silently choosing another branch.
-- Preserve all existing worktree changes. Related fixes discovered while implementing the requested outcome may stay in the same branch and PR, including tests, CI, documentation, migrations, generated files, snapshots, lockfiles, and formatter or lint autofixes. Do not split them out merely to keep a PR single-purpose. Avoid only unrelated semantic behavior changes.
-- Mechanical formatting is always allowed, including repository-wide formatter output. Accept the canonical formatter result instead of spending time minimizing its diff or hand-restoring unaffected files.
-- Choose the simplest implementation that fully meets the current requirements. Avoid speculative abstractions, configuration, feature flags, indirection, and "future flexibility".
-- Search before building generic functionality. Check installed dependencies, types, and source first. Consult current official documentation when behavior is external, version-sensitive, or genuinely uncertain; do not browse by default for straightforward local implementation work.
-- Prefer a mature dependency when it removes meaningful code, edge cases, or operational risk. Do not add a dependency when a small local implementation is genuinely simpler and safer.
-- Never assume an external library or API lacks or supports a capability. Verify against the installed version, current documentation, types, or source before designing around it.
-- Fix root causes. Do not weaken tests, CI gates, coverage thresholds, types, lint rules, or validation to make a failure disappear.
-- Verification is part of implementation. During development, run the narrowest relevant check. Before handoff, run one appropriate aggregate gate and rely on CI for redundant full-repository coverage; do not repeat equivalent gates after every small edit or commit. If no executable repository environment is available, complete the code without blocking on formatting or local verification, clearly state what was not run, and leave formatter/generated-output/final verification to the next environment-enabled agent or CI.
-- For bugs, reproduce the reported failure with a test or deterministic check when practical, then verify the fix against that reproduction.
-- Grow the system in layers. Start from the smallest version that works end to end, and add each capability on top of a product that already works. Never trade a working product for unfinished complexity.
-- Keep components modular and concerns clearly separated.
-- Do not preserve backward compatibility unless the nearest scoped instructions or an explicitly supported external contract require it. Otherwise remove obsolete paths instead of adding compatibility layers, fallbacks, or migrations.
-- Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.
-- Preserve the ancestry of the checked-out worktree when publishing or creating a clean snapshot. Its recorded `HEAD` and local branch are the authoritative base; never reset, squash, rebase, replay, or substitute `origin/main` without explicit user authorization. History rewriting and force-pushing always require explicit authorization.
-- Identity (zapEngine): Use GitHub account `i-xtsu-sixyou-ken-mei`, never `david30907d`. Once per task, immediately before the first commit or GitHub write, confirm the active `gh` account and local git name/email; re-check only if authentication state changes. If needed, switch to `i-xtsu-sixyou-ken-mei` and set `i-xtsu-sixyou-ken-mei@users.noreply.github.com`. GitHub App/API commits may use that account's verified relay email.
-- Never act as `david30907d` anywhere in this repository — no commits, pushes, PRs, issues, comments, or reviews. It is the user's employer account and must not appear in this project's history. Correct commit authorship is not enough on its own: SSH to `github.com` on this machine authenticates as `david30907d`, so a plain `git push` records `david30907d` as the pusher (a permanent `head_ref_force_pushed` / push event on the PR timeline) even when every commit is authored by `i-xtsu-sixyou-ken-mei`. Verify the transport identity with `ssh -T git@github.com` before a task's first push; when it answers `david30907d`, push over HTTPS with the active `gh` credential instead — `git -c credential.helper='!gh auth git-credential' push https://github.com/<owner>/<repo> <branch>`. If a push has already gone out under `david30907d`, say so immediately instead of hiding it; the timeline event cannot be deleted.
+## Engineering principles
+
+* Understand before editing. Read the relevant implementation, callers, tests, and nearby architecture first. Resolve uncertainty from code, runtime evidence, installed types/source, or current official documentation instead of guessing.
+* Choose the simplest durable implementation that fully meets the current requirement. Avoid speculative abstractions, unnecessary configuration, feature flags, indirection, and known throwaway stopgaps. Grow capability incrementally from a working end-to-end system.
+* Search before building generic functionality. Check existing repository code, installed dependencies, platform capabilities, and official APIs first. Prefer a mature dependency when it meaningfully reduces code, edge cases, or operational risk; otherwise prefer the smaller local implementation.
+* Keep concerns modular and architecture boundaries explicit. Do not introduce a new paradigm into unrelated code when an established local pattern already exists.
+* Fix root causes. Do not weaken tests, CI gates, coverage thresholds, types, lint rules, validation, or architectural boundaries merely to make a failure disappear.
+* Do not preserve backward compatibility unless the nearest scoped instructions or an explicitly supported external contract require it. Otherwise remove obsolete paths instead of adding compatibility layers or fallbacks.
+
+## Working tree and history
+
+* Treat the current checkout, branch, worktree, commits, and uncommitted changes as user-owned context. Continue the requested work exactly where it was started.
+* Preserve all existing changes. Related fixes discovered while implementing the requested outcome may remain in the same branch and PR, including tests, CI, documentation, migrations, generated files, snapshots, lockfiles, and formatter or lint autofixes. Avoid only unrelated semantic behavior changes.
+* Do not create or switch branches or worktrees, detach `HEAD`, reset, squash, rebase, replay commits, substitute another base such as `origin/main`, move commits between worktrees, split work into additional PRs, or otherwise rewrite history unless the user explicitly asks.
+* History rewriting and force-pushing always require explicit authorization. If the current branch cannot be published safely, stop and explain why instead of silently changing repository history or context.
+* Mechanical formatting is allowed. Accept canonical formatter output instead of hand-restoring unrelated formatting-only changes.
+
+## Verification
+
+* Verification is part of implementation. During development, run the narrowest relevant check. Before handoff or push, run one appropriate aggregate gate and rely on CI for redundant full-repository coverage.
+* Do not repeatedly run equivalent full checks after every small edit or commit.
+* For bugs, reproduce the reported failure with a test or deterministic check when practical, then verify the fix against that reproduction.
+* If no executable repository environment is available, complete the implementation without blocking on local formatting or verification. Clearly report what was not run and leave final executable verification to the next environment-enabled agent or CI.
+
+## GitHub identity
+
+This repository must use GitHub account `i-xtsu-sixyou-ken-mei`, never `david30907d`.
+
+Before the first commit or GitHub write in a task:
+
+1. Confirm the active `gh` account and local git name/email.
+2. If necessary, switch to `i-xtsu-sixyou-ken-mei` and use `i-xtsu-sixyou-ken-mei@users.noreply.github.com`.
+3. Before the first push, verify the SSH transport identity with:
+
+```bash
+ssh -T git@github.com
+```
+
+If SSH authenticates as `david30907d`, do not use a plain SSH `git push`. Push over HTTPS with the active `gh` credential instead:
+
+```bash
+git -c credential.helper='!gh auth git-credential' \
+  push https://github.com/<owner>/<repo> <branch>
+```
+
+Never act as `david30907d` in this repository: no commits, pushes, PRs, issues, comments, or reviews. It is the user's employer account and must not appear in this project's history.
+
+Correct commit authorship alone is insufficient: pushing through SSH authenticated as `david30907d` permanently records that account as the pusher in GitHub's PR and repository event history.
+
+If a push has already occurred under `david30907d`, report it immediately instead of hiding it; that GitHub timeline event cannot be removed.
