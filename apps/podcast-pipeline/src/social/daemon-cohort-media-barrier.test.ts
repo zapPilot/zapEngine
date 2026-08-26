@@ -60,6 +60,7 @@ vi.mock('./daemon-store.js', () => ({
   listLearningSocialPosts: mocks.listLearningSocialPosts,
   listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
+  listSocialEpisodeLocalizationTitles: vi.fn().mockResolvedValue([]),
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listSocialPublishCandidatesForEpisodes:
     mocks.listSocialPublishCandidatesForEpisodes,
@@ -148,7 +149,9 @@ describe('release cohort media readiness barrier', () => {
 
     expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
-      expect.stringContaining(`episode ${EPISODE_ID} · waiting media`),
+      expect.stringContaining(
+        'episode #123e4567 · cohort not release-ready · 🇯🇵 ja · 🇺🇸 en',
+      ),
     );
   });
 

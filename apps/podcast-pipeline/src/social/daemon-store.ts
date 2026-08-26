@@ -28,6 +28,12 @@ export interface SocialPublishCandidate {
   episode_created_at: string;
 }
 
+export interface SocialEpisodeLocalizationTitle {
+  episode_id: string;
+  language_code: PrimaryLanguageCode;
+  title: string | null;
+}
+
 export interface SocialPublishJobRow {
   id: string;
   episode_id: string;
@@ -64,10 +70,17 @@ export interface SocialQueueLaneItem extends SocialQueueItem {
   experiment: string | null;
 }
 
+export interface SocialQueueEpisodeLane {
+  platform: SocialPlatform;
+  languageCode: PrimaryLanguageCode;
+}
+
 export interface SocialQueueEpisode {
   episodeId: string;
   title: string | null;
   nextAt: string;
+  laneCount: number;
+  lanes: SocialQueueEpisodeLane[];
 }
 
 export interface SocialQueueSnapshot {
@@ -75,15 +88,13 @@ export interface SocialQueueSnapshot {
   episodeQueue: SocialQueueEpisode[];
   nextByPlatform: Partial<Record<SocialPlatform, SocialQueueItem>>;
   nextByLane: Record<string, SocialQueueLaneItem>;
-  waitingMedia: SocialWaitingMediaItem[];
+  waitingVideos: SocialWaitingVideoItem[];
 }
 
-export interface SocialWaitingMediaItem {
+export interface SocialWaitingVideoItem {
   episodeId: string;
-  platform: SocialPlatform;
-  languageCode: PrimaryLanguageCode;
   title: string | null;
-  experiment: string | null;
+  languageCodes: PrimaryLanguageCode[];
 }
 
 export interface SocialPublishSlot {
@@ -185,6 +196,19 @@ export async function listSocialPublishCandidatesForEpisodes(
       .order('ready_at', { ascending: true })
       .returns<SocialPublishCandidate[]>(),
   );
+}
+
+export async function listSocialEpisodeLocalizationTitles(
+  episodeIds: readonly string[],
+): Promise<SocialEpisodeLocalizationTitle[]> {
+  if (episodeIds.length === 0) return [];
+  const { data, error } = await getPipelineSupabase()
+    .from('episode_localizations')
+    .select('episode_id,language_code,title')
+    .in('episode_id', [...episodeIds])
+    .returns<SocialEpisodeLocalizationTitle[]>();
+  if (error) throwSupabaseError(error);
+  return data ?? [];
 }
 
 // A conflict-ignoring upsert and a status-fenced update both ask the same
@@ -370,8 +394,8 @@ export async function getSocialQueueSnapshot(
   if (error) throwSupabaseError(error);
 
   const jobs = data ?? [];
-  const waitingMedia = options.includeWaitingMedia
-    ? await listWaitingSocialMedia()
+  const waitingVideos = options.includeWaitingMedia
+    ? await listWaitingSocialVideos()
     : [];
   if (jobs.length === 0) {
     return withQueueLanes(
@@ -381,26 +405,15 @@ export async function getSocialQueueSnapshot(
         nextByPlatform: {},
       },
       {},
-      waitingMedia,
+      waitingVideos,
     );
   }
 
   const episodeIds = [...new Set(jobs.map((job) => job.episode_id))];
-  const { data: localizations, error: localizationError } = await supabase
-    .from('episode_localizations')
-    .select('episode_id,language_code,title')
-    .in('episode_id', episodeIds)
-    .returns<
-      {
-        episode_id: string;
-        language_code: PrimaryLanguageCode;
-        title: string | null;
-      }[]
-    >();
-  if (localizationError) throwSupabaseError(localizationError);
+  const localizations = await listSocialEpisodeLocalizationTitles(episodeIds);
 
   const titleByEpisodeLanguage = new Map(
-    (localizations ?? []).map((row) => [
+    localizations.map((row) => [
       `${row.episode_id}|${row.language_code ?? 'zh-Hant'}`,
       row.title,
     ]),
@@ -412,17 +425,38 @@ export async function getSocialQueueSnapshot(
   );
   const episodeQueue: SocialQueueEpisode[] = [];
   const queuedEpisodes = new Set<string>();
+  const lanesByEpisode = new Map<string, SocialQueueEpisodeLane[]>();
+  for (const job of jobs) {
+    const lanes = lanesByEpisode.get(job.episode_id) ?? [];
+    lanes.push({
+      platform: job.platform,
+      languageCode: job.language_code ?? 'zh-Hant',
+    });
+    lanesByEpisode.set(job.episode_id, lanes);
+  }
   for (const job of sortedJobs) {
     const languageCode = job.language_code ?? 'zh-Hant';
     if (!queuedEpisodes.has(job.episode_id)) {
       queuedEpisodes.add(job.episode_id);
-      episodeQueue.push({
+      const episode = {
         episodeId: job.episode_id,
         title:
           titleByEpisodeLanguage.get(`${job.episode_id}|${languageCode}`) ??
           null,
         nextAt: jobNextAt(job),
+      } as SocialQueueEpisode;
+      const lanes = lanesByEpisode.get(job.episode_id) ?? [];
+      Object.defineProperties(episode, {
+        laneCount: {
+          value: lanes.length || 1,
+          enumerable: false,
+        },
+        lanes: {
+          value: lanes,
+          enumerable: false,
+        },
       });
+      episodeQueue.push(episode);
     }
     const item: SocialQueueItem = {
       episodeId: job.episode_id,
@@ -448,50 +482,71 @@ export async function getSocialQueueSnapshot(
   return withQueueLanes(
     { pendingCount: jobs.length, episodeQueue, nextByPlatform },
     nextByLane,
-    waitingMedia,
+    waitingVideos,
   );
 }
 
 function withQueueLanes(
-  snapshot: Omit<SocialQueueSnapshot, 'nextByLane' | 'waitingMedia'>,
+  snapshot: Omit<SocialQueueSnapshot, 'nextByLane' | 'waitingVideos'>,
   nextByLane: SocialQueueSnapshot['nextByLane'],
-  waitingMedia: SocialWaitingMediaItem[],
+  waitingVideos: SocialWaitingVideoItem[],
 ): SocialQueueSnapshot {
   // Keep the historical enumerable snapshot shape stable for existing log and
   // monitoring consumers while exposing the multilingual lane index directly.
   Object.defineProperties(snapshot, {
     nextByLane: { value: nextByLane, enumerable: false },
-    waitingMedia: { value: waitingMedia, enumerable: false },
+    waitingVideos: { value: waitingVideos, enumerable: false },
   });
   return snapshot as SocialQueueSnapshot;
 }
 
-async function listWaitingSocialMedia(): Promise<SocialWaitingMediaItem[]> {
+async function listWaitingSocialVideos(): Promise<SocialWaitingVideoItem[]> {
   const { data, error } = await getPipelineSupabase()
     .from('social_waiting_media')
-    .select(
-      'episode_id,platform,language_code,title,experiment_key,experiment_variant',
-    )
+    .select('episode_id,language_code')
     .returns<
       {
         episode_id: string;
-        platform: SocialPlatform;
         language_code: PrimaryLanguageCode;
-        title: string | null;
-        experiment_key: string | null;
-        experiment_variant: string | null;
       }[]
     >();
   if (error) throwSupabaseError(error);
-  return (data ?? []).map((row) => ({
-    episodeId: row.episode_id,
-    platform: row.platform,
-    languageCode: row.language_code,
-    title: row.title,
-    experiment:
-      row.experiment_key && row.experiment_variant
-        ? `${row.experiment_key}:${row.experiment_variant}`
-        : null,
+
+  const rows = data ?? [];
+  if (rows.length === 0) return [];
+
+  // `social_waiting_media` is policy-shaped, so the same missing localization
+  // can appear once for every channel that needs it. The artifact itself is
+  // channel-independent: one completed language video satisfies every lane
+  // that consumes that localization. Collapse those policy rows into episode
+  // + language video requirements before exposing them to the daemon log.
+  const episodeIds = [...new Set(rows.map((row) => row.episode_id))];
+  const titles = await listSocialEpisodeLocalizationTitles(episodeIds);
+  const titleByEpisodeLanguage = new Map(
+    titles.map((row) => [
+      `${row.episode_id}|${row.language_code ?? 'zh-Hant'}`,
+      row.title,
+    ]),
+  );
+  const languagesByEpisode = new Map<string, Set<PrimaryLanguageCode>>();
+  for (const row of rows) {
+    const languages = languagesByEpisode.get(row.episode_id) ?? new Set();
+    languages.add(row.language_code);
+    languagesByEpisode.set(row.episode_id, languages);
+  }
+  const languageOrder: PrimaryLanguageCode[] = ['zh-Hant', 'ja', 'en'];
+
+  return [...languagesByEpisode.entries()].map(([episodeId, languages]) => ({
+    episodeId,
+    title:
+      titleByEpisodeLanguage.get(`${episodeId}|zh-Hant`) ??
+      [...languages]
+        .map((language) =>
+          titleByEpisodeLanguage.get(`${episodeId}|${language}`),
+        )
+        .find((title) => title != null) ??
+      null,
+    languageCodes: languageOrder.filter((language) => languages.has(language)),
   }));
 }
 

@@ -60,6 +60,7 @@ vi.mock('./daemon-store.js', () => ({
   listLearningSocialPosts: mocks.listLearningSocialPosts,
   listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
+  listSocialEpisodeLocalizationTitles: vi.fn().mockResolvedValue([]),
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listSocialPublishCandidatesForEpisodes:
     mocks.listSocialPublishCandidatesForEpisodes,

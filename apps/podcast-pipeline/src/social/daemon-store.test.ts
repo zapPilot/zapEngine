@@ -105,6 +105,53 @@ beforeEach(() => {
 });
 
 describe('social daemon store', () => {
+  it('collapses channel-shaped waiting rows into language video requirements', async () => {
+    queue(
+      { data: [], error: null },
+      {
+        data: [
+          { episode_id: 'episode-1', language_code: 'ja' },
+          { episode_id: 'episode-1', language_code: 'ja' },
+          { episode_id: 'episode-1', language_code: 'en' },
+        ],
+        error: null,
+      },
+      {
+        data: [
+          {
+            episode_id: 'episode-1',
+            language_code: 'zh-Hant',
+            title: '從巴菲特到但斌：七大基金持倉揭示人工智慧投資輪動',
+          },
+          {
+            episode_id: 'episode-1',
+            language_code: 'ja',
+            title: 'バフェットからダン・ビンまで',
+          },
+          {
+            episode_id: 'episode-1',
+            language_code: 'en',
+            title: 'From Buffett to Dan Bin',
+          },
+        ],
+        error: null,
+      },
+    );
+
+    const snapshot = await getSocialQueueSnapshot({
+      includeWaitingMedia: true,
+    });
+
+    expect(snapshot.waitingVideos).toEqual([
+      {
+        episodeId: 'episode-1',
+        title: '從巴菲特到但斌：七大基金持倉揭示人工智慧投資輪動',
+        languageCodes: ['ja', 'en'],
+      },
+    ]);
+    expect(mocks.from).toHaveBeenCalledWith('social_waiting_media');
+  });
+
   it('persists the first daemon start exactly once and handles an insert race', async () => {
     const now = new Date('2026-08-16T10:00:00.000Z');
     queue({

@@ -63,6 +63,7 @@ vi.mock('./daemon-store.js', () => ({
   listLearningSocialPosts: mocks.listLearningSocialPosts,
   listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
+  listSocialEpisodeLocalizationTitles: vi.fn().mockResolvedValue([]),
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listSocialPublishCandidatesForEpisodes:
     mocks.listSocialPublishCandidatesForEpisodes,
@@ -97,7 +98,7 @@ const NOW = new Date('2026-08-16T10:00:00.000Z');
 class StopDaemon extends Error {}
 
 describe('social daemon queue summary coverage', () => {
-  it('formats singular queues, fallback titles, invalid dates, and near/far publish times', async () => {
+  it('formats singular article queues, fallback ids, invalid dates, and abnormal lanes', async () => {
     mocks.getSocialQueueSnapshot.mockResolvedValue({
       pendingCount: 1,
       episodeQueue: [
@@ -105,33 +106,21 @@ describe('social daemon queue summary coverage', () => {
           episodeId: 'episode-fallback-title',
           title: null,
           nextAt: 'not-a-date',
+          laneCount: 1,
+          lanes: [{ platform: 'x', languageCode: 'en' }],
         },
       ],
       nextByPlatform: {
         x: {
           episodeId: 'episode-x',
+          platform: 'x',
+          languageCode: 'en',
           title:
             'A very long social article title that should be truncated for compact daemon logs',
           nextAt: '2026-08-16T10:30:00.000Z',
-          status: 'queued',
-        },
-        threads: {
-          episodeId: 'episode-threads',
-          title: '',
-          nextAt: '2026-08-16T12:00:00.000Z',
-          status: 'retrying',
-        },
-        rednote: {
-          episodeId: 'episode-rednote',
-          title: 'Short title',
-          nextAt: '2026-08-16T12:05:00.000Z',
-          status: 'queued',
-        },
-        youtube: {
-          episodeId: 'episode-youtube',
-          title: 'Already due',
-          nextAt: 'invalid',
-          status: 'queued',
+          status: 'failed',
+          attemptCount: 2,
+          attemptsExhausted: false,
         },
       },
     });
@@ -152,12 +141,11 @@ describe('social daemon queue summary coverage', () => {
       expect.arrayContaining([
         expect.stringContaining('queue · 1 job'),
         expect.stringContaining('1 article'),
-        expect.stringContaining('“episode-fallback-title”'),
-        expect.stringContaining('first publish not-a-date (due now)'),
-        expect.stringContaining('in 30m'),
-        expect.stringContaining('in 2h'),
-        expect.stringContaining('in 2h 5m'),
-        expect.stringContaining('invalid (due now'),
+        expect.stringContaining('“episode #episode-fallback-title”'),
+        expect.stringContaining('not-a-date (due now)'),
+        expect.stringContaining('↳ 1 lane · 𝕏 x 🇺🇸 en'),
+        expect.stringContaining('⚠️ [social-daemon]'),
+        expect.stringContaining('in 30m; failed'),
       ]),
     );
     expect(messages.some((message) => message.includes('…'))).toBe(true);

@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   listLearningSocialPosts: vi.fn(),
   listLearningSocialMetrics: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
+  listSocialEpisodeLocalizationTitles: vi.fn(),
   insertSocialPostMetric: vi.fn(),
   updateSocialPostIdentity: vi.fn(),
   updateSocialPostReviewStatus: vi.fn(),
@@ -47,6 +48,8 @@ vi.mock('./daemon-store.js', () => ({
   listLearningSocialPosts: mocks.listLearningSocialPosts,
   listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
+  listSocialEpisodeLocalizationTitles:
+    mocks.listSocialEpisodeLocalizationTitles,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listSocialPublishCandidatesForEpisodes:
     mocks.listSocialPublishCandidatesForEpisodes,
@@ -149,6 +152,13 @@ beforeEach(() => {
   mocks.listLearningSocialPosts.mockResolvedValue([]);
   mocks.listLearningSocialMetrics.mockResolvedValue([]);
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);
+  mocks.listSocialEpisodeLocalizationTitles.mockResolvedValue([
+    {
+      episode_id: 'episode-1',
+      language_code: 'zh-Hant',
+      title: '穩定幣真實使用場景',
+    },
+  ]);
   mocks.insertSocialPostMetric.mockResolvedValue({});
   mocks.updateSocialPostReviewStatus.mockResolvedValue(undefined);
   mocks.updateSocialPostIdentity.mockResolvedValue(undefined);
@@ -227,7 +237,7 @@ describe('collectDueMetricWindows unavailable handling', () => {
       expect.stringContaining('metrics unavailable'),
     );
     expect(log).toHaveBeenCalledWith(
-      expect.stringContaining('metrics: 1 unavailable'),
+      '📊 [social-daemon] metrics · 1 unavailable',
     );
   });
 

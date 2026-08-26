@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   listLearningSocialPosts: vi.fn(),
   listLearningSocialMetrics: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
+  listSocialEpisodeLocalizationTitles: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
   listSocialPublishCandidatesForEpisodes: vi.fn(),
   listPartiallyPublishedCohorts: vi.fn(),
@@ -60,6 +61,8 @@ vi.mock('./daemon-store.js', () => ({
   listLearningSocialPosts: mocks.listLearningSocialPosts,
   listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
+  listSocialEpisodeLocalizationTitles:
+    mocks.listSocialEpisodeLocalizationTitles,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listSocialPublishCandidatesForEpisodes:
     mocks.listSocialPublishCandidatesForEpisodes,
@@ -223,6 +226,15 @@ beforeEach(() => {
   mocks.listLearningSocialPosts.mockResolvedValue([]);
   mocks.listLearningSocialMetrics.mockResolvedValue([]);
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);
+  mocks.listSocialEpisodeLocalizationTitles.mockResolvedValue([
+    {
+      episode_id: EPISODE_ID,
+      language_code: 'zh-Hant',
+      title: '穩定幣真實使用場景',
+    },
+    { episode_id: EPISODE_ID, language_code: 'ja', title: '日本語タイトル' },
+    { episode_id: EPISODE_ID, language_code: 'en', title: 'English title' },
+  ]);
   mocks.enqueueSocialPublishJob.mockResolvedValue(true);
   mocks.ensureSocialDaemonStart.mockResolvedValue('2026-08-16T08:00:00.000Z');
   mocks.createMetricCollectors.mockReturnValue({
@@ -387,14 +399,13 @@ describe('social daemon', () => {
     );
     // rednote, threads, x (ja variant), youtube en, youtube ja.
     expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(5);
-    expect(log).toHaveBeenCalledWith(
-      `🔎 [social-daemon] discovered episode ${EPISODE_ID} · ready 2026-08-16T09:00:00.000Z`,
-    );
-    expect(log).toHaveBeenCalledWith(
-      expect.stringContaining(
-        `📥 [social-daemon] 📕 rednote 🇹🇼 zh-Hant · queued · episode ${EPISODE_ID} · `,
-      ),
-    );
+    const enqueueLogs = log.mock.calls
+      .map(([line]) => String(line))
+      .filter((line) => line.includes('· queued 5 lanes ·'));
+    expect(enqueueLogs).toHaveLength(1);
+    expect(enqueueLogs[0]).toContain('“穩定幣真實使用場景”');
+    expect(enqueueLogs[0]).toContain('📕zh-Hant 🧵ja 𝕏ja ▶️en ▶️ja');
+    expect(enqueueLogs[0]).not.toContain(EPISODE_ID);
     expect(mocks.publishSocialBatch).toHaveBeenCalledWith(
       expect.objectContaining({ episodeId: EPISODE_ID }),
     );
@@ -436,7 +447,9 @@ describe('social daemon', () => {
 
     expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
-      expect.stringContaining(`episode ${EPISODE_ID} · waiting media`),
+      expect.stringContaining(
+        '“穩定幣真實使用場景” · cohort not release-ready · 🇯🇵 ja · 🇺🇸 en',
+      ),
     );
   });
 
@@ -468,7 +481,7 @@ describe('social daemon', () => {
     expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
     expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
-      `✅ [social-daemon] ▶️ youtube 🇹🇼 zh-Hant · reconciled · episode ${EPISODE_ID} · already published (post-youtube)`,
+      '✅ [social-daemon] ▶️ youtube 🇹🇼 zh-Hant · “穩定幣真實使用場景” · reconciled · already published',
     );
   });
 
@@ -558,7 +571,7 @@ describe('social daemon', () => {
     });
     expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
-      `✅ [social-daemon] ▶️ youtube 🇹🇼 zh-Hant · reconciled · episode ${EPISODE_ID} · already published (post-crashed)`,
+      '✅ [social-daemon] ▶️ youtube 🇹🇼 zh-Hant · “穩定幣真實使用場景” · reconciled · already published',
     );
   });
 
@@ -657,11 +670,21 @@ describe('social daemon', () => {
           episodeId: EPISODE_ID,
           title: '穩定幣真實使用場景：境內交易佔六成，亞太地區成最大市場',
           nextAt: '2026-08-16T10:05:00.000Z',
+          laneCount: 2,
+          lanes: [
+            { platform: 'x', languageCode: 'en' },
+            { platform: 'threads', languageCode: 'ja' },
+          ],
         },
         {
           episodeId: 'episode-2',
           title: 'AI安全之爭：集中控制與分散競爭誰更危險？',
           nextAt: '2026-08-16T10:35:00.000Z',
+          laneCount: 2,
+          lanes: [
+            { platform: 'rednote', languageCode: 'zh-Hant' },
+            { platform: 'youtube', languageCode: 'en' },
+          ],
         },
       ],
       nextByPlatform: {
@@ -692,17 +715,48 @@ describe('social daemon', () => {
       '📥 [social-daemon] queue · 4 jobs · 2 articles',
     );
     expect(log).toHaveBeenCalledWith(
-      '📥 [social-daemon]   1. “穩定幣真實使用場景：境內交易佔六成，亞太地區成最大市場” · first publish 08/16 19:05 JST (in 5m)',
+      '📥 [social-daemon]   1. “穩定幣真實使用場景：境內交易佔六成，亞太地區成最大市場” · 08/16 19:05 JST (in 5m)',
     );
     expect(log).toHaveBeenCalledWith(
-      '📥 [social-daemon]   2. “AI安全之爭：集中控制與分散競爭誰更危險？” · first publish 08/16 19:35 JST (in 35m)',
+      '📥 [social-daemon]      ↳ 2 lanes · 🧵 threads 🇯🇵 ja · 𝕏 x 🇺🇸 en',
     );
     expect(log).toHaveBeenCalledWith(
-      '📥 [social-daemon] next 𝕏 x 🇹🇼 zh-Hant · “穩定幣真實使用場景：境內交易佔六成，亞太地區成最大市場” · 08/16 19:05 JST (in 5m; queued)',
+      '📥 [social-daemon]   2. “AI安全之爭：集中控制與分散競爭誰更危險？” · 08/16 19:35 JST (in 35m)',
     );
     expect(log).toHaveBeenCalledWith(
-      '📥 [social-daemon] next 🧵 threads 🇹🇼 zh-Hant · “穩定幣真實使用場景” · 08/16 19:15 JST (in 15m; queued)',
+      '📥 [social-daemon]      ↳ 2 lanes · 📕 rednote 🇹🇼 zh-Hant · ▶️ youtube 🇺🇸 en',
     );
+    expect(log.mock.calls.map(([line]) => String(line))).not.toEqual(
+      expect.arrayContaining([expect.stringContaining('next 𝕏 x')]),
+    );
+  });
+
+  it('logs missing video artifacts by article and language rather than channel', async () => {
+    mocks.getSocialQueueSnapshot.mockResolvedValue({
+      pendingCount: 0,
+      episodeQueue: [],
+      nextByPlatform: {},
+      waitingVideos: [
+        {
+          episodeId: EPISODE_ID,
+          title: '從巴菲特到但斌：七大基金持倉揭示人工智慧投資輪動',
+          languageCodes: ['zh-Hant', 'ja', 'en'],
+        },
+      ],
+    });
+    const sleep = vi.fn().mockRejectedValue(new Error('stop-loop'));
+    const log = vi.fn();
+
+    await expect(
+      runSocialDaemon({ now: () => NOW, sleep, log }),
+    ).rejects.toThrow('stop-loop');
+
+    expect(log).toHaveBeenCalledWith(
+      '⏳ [social-daemon] “從巴菲特到但斌：七大基金持倉揭示人工智慧投資輪動” · waiting video · 🇹🇼 zh-Hant · 🇯🇵 ja · 🇺🇸 en',
+    );
+    expect(
+      log.mock.calls.map(([line]) => String(line)).join('\n'),
+    ).not.toContain('rednote · waiting');
   });
 
   // A lane past the claim RPC's attempt fence is never picked up again, so a
@@ -738,7 +792,7 @@ describe('social daemon', () => {
     ).rejects.toThrow('stop-loop');
 
     expect(log).toHaveBeenCalledWith(
-      '📥 [social-daemon] next 𝕏 x 🇹🇼 zh-Hant · “穩定幣真實使用場景” · blocked (8 attempts exhausted; failed)',
+      '⚠️ [social-daemon] 𝕏 x 🇹🇼 zh-Hant · “穩定幣真實使用場景” · blocked (8 attempts exhausted; failed)',
     );
   });
 
@@ -907,8 +961,7 @@ describe('social daemon', () => {
     });
     expect(log.mock.calls.map(([line]) => String(line))).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('flagged as rejected'),
-        expect.stringContaining('rednote-post'),
+        expect.stringContaining('“穩定幣真實使用場景” · review → rejected'),
       ]),
     );
   });

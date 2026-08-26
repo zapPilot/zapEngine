@@ -36,12 +36,14 @@ import {
   listMetricWindowsForPosts,
   listPartiallyPublishedCohorts,
   listPendingSocialPublishSchedules,
+  listSocialEpisodeLocalizationTitles,
   listSocialPublishCandidates,
   listSocialPublishCandidatesForEpisodes,
   listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob,
   releaseSocialPublishJobLease,
   skipOverdueSocialPublishJobs,
+  type SocialEpisodeLocalizationTitle,
   type SocialMetricWindowLabel,
   type SocialPublishCandidate,
   type SocialPublishJobRow,
@@ -277,8 +279,10 @@ async function discoverAndEnqueue(input: {
   if (candidates.length === 0) return;
 
   const episodeIds = [...new Set(candidates.map((c) => c.episode_id))];
-  const readyCandidates =
-    await listSocialPublishCandidatesForEpisodes(episodeIds);
+  const [readyCandidates, titleByEpisodeLanguage] = await Promise.all([
+    listSocialPublishCandidatesForEpisodes(episodeIds),
+    loadEpisodeTitleMap(episodeIds),
+  ]);
   const candidatesByEpisode = new Map<string, SocialPublishCandidate[]>();
   for (const candidate of readyCandidates) {
     const list = candidatesByEpisode.get(candidate.episode_id) ?? [];
@@ -309,9 +313,15 @@ async function discoverAndEnqueue(input: {
     const missingLanguages = [...requiredLanguages].filter(
       (language) => !readyLanguages.has(language),
     );
+    const title =
+      titleByEpisodeLanguage.get(`${episodeId}|zh-Hant`) ??
+      titleByEpisodeLanguage.get(
+        `${episodeId}|${firstCandidate.language_code}`,
+      ) ??
+      null;
     if (missingLanguages.length > 0) {
       input.log(
-        `⏳ [social-daemon] episode ${episodeId} · waiting media · ${missingLanguages.map((language) => `${languageFlag(language)} ${language}`).join(', ')} · cohort not enqueued yet.`,
+        `⏳ [social-daemon] ${episodeLabel(title, episodeId)} · cohort not release-ready · ${missingLanguages.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
       );
       continue;
     }
@@ -338,6 +348,7 @@ async function discoverAndEnqueue(input: {
 
     const insertedAny = await enqueueCohortJobs({
       episodeId,
+      title,
       lanes,
       readyAt,
       scheduledAt,
@@ -368,12 +379,13 @@ function scheduleCohort(input: {
 
 async function enqueueCohortJobs(input: {
   episodeId: string;
+  title: string | null;
   lanes: readonly ReleaseCohortLane[];
   readyAt: Date;
   scheduledAt: Date;
   log: (message: string) => void;
 }): Promise<boolean> {
-  let insertedAny = false;
+  const insertedLanes: ReleaseCohortLane[] = [];
   for (const lane of input.lanes) {
     const inserted = await enqueueSocialPublishJob({
       episodeId: input.episodeId,
@@ -383,18 +395,14 @@ async function enqueueCohortJobs(input: {
       experimentVariant: lane.experimentVariant,
       scheduledAt: input.scheduledAt.toISOString(),
     });
-    if (!inserted) continue;
-    if (!insertedAny) {
-      input.log(
-        `🔎 [social-daemon] discovered episode ${input.episodeId} · ready ${input.readyAt.toISOString()}`,
-      );
-    }
-    insertedAny = true;
-    input.log(
-      `📥 [social-daemon] ${laneLabel(lane.platform, lane.language)} · queued · episode ${input.episodeId} · ${input.scheduledAt.toISOString()}`,
-    );
+    if (inserted) insertedLanes.push(lane);
   }
-  return insertedAny;
+  if (insertedLanes.length === 0) return false;
+
+  input.log(
+    `📥 [social-daemon] ${episodeLabel(input.title, input.episodeId)} · queued ${insertedLanes.length} lane${insertedLanes.length === 1 ? '' : 's'} · ${formatJst(input.scheduledAt.toISOString())} · ${insertedLanes.map((lane) => compactLaneLabel(lane.platform, lane.language)).join(' ')}`,
+  );
+  return true;
 }
 
 // `social_posts` is the source of truth for "this platform is live", so a job
@@ -410,8 +418,10 @@ async function reconcileAlreadyPublishedJobs(
 
   // One lookup for the whole sweep: a backfilled queue can hold hundreds of
   // jobs, and asking per job would spend most of a tick on round-trips.
-  const posts = await listSocialPostIdentitiesByEpisodes([
-    ...new Set(jobs.map((job) => job.episode_id)),
+  const episodeIds = [...new Set(jobs.map((job) => job.episode_id))];
+  const [posts, titleByEpisodeLanguage] = await Promise.all([
+    listSocialPostIdentitiesByEpisodes(episodeIds),
+    loadEpisodeTitleMap(episodeIds),
   ]);
   const postIdByJob = new Map<string, string>();
   for (const post of posts) {
@@ -437,7 +447,7 @@ async function reconcileAlreadyPublishedJobs(
     });
     if (!reconciled) continue;
     log(
-      `✅ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · reconciled · episode ${job.episode_id} · already published (${socialPostId})`,
+      `✅ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, job.episode_id, jobLanguage(job)), job.episode_id)} · reconciled · already published`,
     );
   }
 }
@@ -449,6 +459,7 @@ async function persistPublishFailure(input: {
   attemptCount: number;
   now: Date;
   message: string;
+  title?: string | null;
   log: (message: string) => void;
 }): Promise<void> {
   try {
@@ -465,7 +476,7 @@ async function persistPublishFailure(input: {
     );
   }
   input.log(
-    `❌ [social-daemon] ${platformIcon(input.platform)} ${input.platform} · publish failed · episode ${input.episodeId} · ${input.message}`,
+    `❌ [social-daemon] ${platformIcon(input.platform)} ${input.platform} · ${episodeLabel(input.title ?? null, input.episodeId)} · publish failed · episode=${input.episodeId} · job=${input.jobId} · ${input.message}`,
   );
 }
 
@@ -504,11 +515,15 @@ async function publishDueJobs(
     return;
   }
 
-  const active = await activeStrategiesForPublish(log);
+  const [active, titleByEpisodeLanguage] = await Promise.all([
+    activeStrategiesForPublish(log),
+    loadEpisodeTitleMap(jobs.map((job) => job.episode_id)),
+  ]);
   const pendingByEpisodeLanguage = new Map<string, SocialPublishJobRow[]>();
   for (const job of jobs) {
     try {
-      if (await reconcileClaimedJob(job, now, log)) continue;
+      if (await reconcileClaimedJob(job, now, titleByEpisodeLanguage, log))
+        continue;
       const key = `${job.episode_id}|${jobLanguage(job)}`;
       const pending = pendingByEpisodeLanguage.get(key) ?? [];
       pending.push(job);
@@ -521,6 +536,11 @@ async function publishDueJobs(
         attemptCount: job.attempt_count,
         now,
         message: errorMessage(error),
+        title: episodeTitle(
+          titleByEpisodeLanguage,
+          job.episode_id,
+          jobLanguage(job),
+        ),
         log,
       });
     }
@@ -529,7 +549,13 @@ async function publishDueJobs(
   const groups = [...pendingByEpisodeLanguage.values()];
   for (const [index, pendingJobs] of groups.entries()) {
     try {
-      await publishLanguageBatch(pendingJobs, active, now, log);
+      await publishLanguageBatch(
+        pendingJobs,
+        active,
+        titleByEpisodeLanguage,
+        now,
+        log,
+      );
     } catch (error) {
       // Every lane in `pendingJobs` itself is left alone here, even the ones
       // after whichever one failed: some of them may already have published
@@ -575,6 +601,7 @@ async function releaseUntouchedLeases(
 async function reconcileClaimedJob(
   job: SocialPublishJobRow,
   now: Date,
+  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
   log: (message: string) => void,
 ): Promise<boolean> {
   const [post] = await listSocialPostsByEpisode(
@@ -590,7 +617,7 @@ async function reconcileClaimedJob(
     socialPostId: post.id,
   });
   log(
-    `✅ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · reconciled · episode ${job.episode_id} · already published (${post.id})`,
+    `✅ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, job.episode_id, jobLanguage(job)), job.episode_id)} · reconciled · already published`,
   );
   return true;
 }
@@ -598,6 +625,7 @@ async function reconcileClaimedJob(
 async function publishLanguageBatch(
   jobs: SocialPublishJobRow[],
   active: Record<string, SocialStrategyVersionRow | null>,
+  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
   now: Date,
   log: (message: string) => void,
 ): Promise<void> {
@@ -631,6 +659,7 @@ async function publishLanguageBatch(
       outcomes,
       active[strategyMapKey(job.platform, jobLanguage(job))] ?? null,
       now,
+      titleByEpisodeLanguage,
       log,
     );
   }
@@ -641,6 +670,7 @@ async function finalizePublishOutcome(
   outcomes: Awaited<ReturnType<typeof publishSocialBatch>>,
   strategy: SocialStrategyVersionRow | null,
   now: Date,
+  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
   log: (message: string) => void,
 ): Promise<void> {
   const persistFailure = (message: string): SocialReleaseFailureError =>
@@ -674,7 +704,7 @@ async function finalizePublishOutcome(
     ...(strategy ? { strategyVersionId: strategy.id } : {}),
   });
   log(
-    `✅ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · published · episode ${job.episode_id} (${post.id})`,
+    `✅ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, job.episode_id, jobLanguage(job)), job.episode_id)} · published${post.post_url ? ` · ${post.post_url}` : ''}`,
   );
 }
 
@@ -682,6 +712,47 @@ function jobLanguage(
   job: Pick<SocialPublishJobRow, 'language_code'>,
 ): SocialPublishJobRow['language_code'] {
   return job.language_code ?? 'zh-Hant';
+}
+
+async function loadEpisodeTitleMap(
+  episodeIds: readonly string[],
+): Promise<Map<string, string | null>> {
+  const rows = await listSocialEpisodeLocalizationTitles([
+    ...new Set(episodeIds),
+  ]);
+  return new Map(
+    rows.map((row: SocialEpisodeLocalizationTitle) => [
+      `${row.episode_id}|${row.language_code ?? 'zh-Hant'}`,
+      row.title,
+    ]),
+  );
+}
+
+function episodeTitle(
+  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
+  episodeId: string,
+  languageCode: string,
+): string | null {
+  return (
+    titleByEpisodeLanguage.get(`${episodeId}|${languageCode}`) ??
+    titleByEpisodeLanguage.get(`${episodeId}|zh-Hant`) ??
+    null
+  );
+}
+
+function episodeLabel(title: string | null, episodeId: string): string {
+  return title ? `“${truncateTitle(title)}”` : `episode #${shortId(episodeId)}`;
+}
+
+function shortId(id: string): string {
+  return /^[0-9a-f]{8}-/i.test(id) ? id.slice(0, 8) : id;
+}
+
+function compactLaneLabel(
+  platform: SocialPlatform,
+  languageCode: string,
+): string {
+  return `${platformIcon(platform)}${languageCode}`;
 }
 
 // Guidance is resolved when a job is claimed, never when it is queued: a job
@@ -717,9 +788,10 @@ export async function collectDueMetricWindows(
   const posts = await listLearningSocialPosts(cutoff);
   if (posts.length === 0) return 0;
 
-  const recorded = await listMetricWindowsForPosts(
-    posts.map((post) => post.id),
-  );
+  const [recorded, titleByEpisodeLanguage] = await Promise.all([
+    listMetricWindowsForPosts(posts.map((post) => post.id)),
+    loadEpisodeTitleMap(posts.map((post) => post.episode_id)),
+  ]);
   const completed = new Set(
     recorded.flatMap((row) =>
       row.measurement_window
@@ -736,7 +808,7 @@ export async function collectDueMetricWindows(
     onRednoteReviewStatus: async ({ post, reviewStatus }) => {
       await updateSocialPostReviewStatus({ id: post.id, reviewStatus });
       log(
-        `⚠️ [social-daemon] ${platformIcon(post.platform)} ${post.platform} ${post.id} · flagged as ${reviewStatus}`,
+        `⚠️ [social-daemon] ${platformIcon(post.platform)} ${post.platform} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · review → ${reviewStatus}`,
       );
     },
   });
@@ -744,6 +816,7 @@ export async function collectDueMetricWindows(
   let inserted = 0;
   let unavailable = 0;
   let retryable = 0;
+  const collectedByWindow = new Map<SocialMetricWindowLabel, number>();
   try {
     for (const post of posts) {
       const window = earliestDueWindow(post, now, completed);
@@ -784,7 +857,7 @@ export async function collectDueMetricWindows(
           completed.add(`${post.id}:${window.label}`);
           unavailable += 1;
           log(
-            `⚠️ [social-daemon] ${platformIcon(post.platform)} ${post.platform} ${post.id} · ${window.label} metrics unavailable · ${result.reason}`,
+            `⚠️ [social-daemon] ${platformIcon(post.platform)} ${post.platform} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · ${window.label} metrics unavailable · ${result.reason}`,
           );
           continue;
         }
@@ -801,21 +874,28 @@ export async function collectDueMetricWindows(
         );
         completed.add(`${post.id}:${window.label}`);
         inserted += 1;
-        log(
-          `📊 [social-daemon] ${platformIcon(post.platform)} ${post.platform} ${window.label} metrics · ${post.id}`,
+        collectedByWindow.set(
+          window.label,
+          (collectedByWindow.get(window.label) ?? 0) + 1,
         );
       } catch (error) {
         log(
-          `❌ [social-daemon] ${platformIcon(post.platform)} ${post.platform} ${post.id} · metric collection failed · ${errorMessage(error)}`,
+          `❌ [social-daemon] ${platformIcon(post.platform)} ${post.platform} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · ${window.label} metrics failed · post=${post.id} · ${errorMessage(error)}`,
         );
       }
     }
-    if (inserted + unavailable > 0) {
+    if (inserted + unavailable + retryable > 0) {
       const parts = [] as string[];
       if (inserted) parts.push(`${inserted} collected`);
       if (unavailable) parts.push(`${unavailable} unavailable`);
       if (retryable) parts.push(`${retryable} pending`);
-      log(`[social-daemon] metrics: ${parts.join(', ')}`);
+      const windows = METRIC_WINDOWS.flatMap(({ label }) => {
+        const count = collectedByWindow.get(label) ?? 0;
+        return count > 0 ? [`${label} ×${count}`] : [];
+      });
+      log(
+        `📊 [social-daemon] metrics · ${parts.join(' · ')}${windows.length > 0 ? ` · ${windows.join(' · ')}` : ''}`,
+      );
     }
   } finally {
     await browser.close();
@@ -879,27 +959,31 @@ function logQueueSnapshot(
   now: Date,
   log: (message: string) => void,
 ): void {
-  const waitingMedia = snapshot.waitingMedia ?? [];
-  if (snapshot.pendingCount === 0 && waitingMedia.length === 0) {
+  const waitingVideos = snapshot.waitingVideos ?? [];
+  if (snapshot.pendingCount === 0 && waitingVideos.length === 0) {
     log('📥 [social-daemon] queue · 0 jobs · 0 articles');
     return;
   }
 
-  for (const item of waitingMedia) {
-    const title = item.title ? ` “${truncateTitle(item.title)}”` : '';
+  for (const item of waitingVideos) {
     log(
-      `⏳ [social-daemon] ${laneLabel(item.platform, item.languageCode)}${item.experiment ? ` [${item.experiment}]` : ''} · waiting media ·${title}`,
+      `⏳ [social-daemon] ${episodeLabel(item.title, item.episodeId)} · waiting video · ${item.languageCodes.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
     );
   }
-  if (waitingMedia.length > 0) log('');
+  if (waitingVideos.length > 0) log('');
 
   log(
     `📥 [social-daemon] queue · ${snapshot.pendingCount} job${snapshot.pendingCount === 1 ? '' : 's'} · ${snapshot.episodeQueue.length} article${snapshot.episodeQueue.length === 1 ? '' : 's'}`,
   );
   snapshot.episodeQueue.forEach((episode, index) => {
-    const title = episode.title ?? episode.episodeId;
+    const title = episode.title ?? `episode #${shortId(episode.episodeId)}`;
+    const laneCount = episode.laneCount ?? episode.lanes?.length ?? 1;
     log(
-      `📥 [social-daemon]   ${index + 1}. “${title}” · first publish ${formatJst(episode.nextAt)} (${formatRelative(episode.nextAt, now)})`,
+      `📥 [social-daemon]   ${index + 1}. “${title}” · ${formatJst(episode.nextAt)} (${formatRelative(episode.nextAt, now)})`,
+    );
+    const lanes = formatQueueEpisodeLanes(episode.lanes ?? []);
+    log(
+      `📥 [social-daemon]      ↳ ${laneCount} lane${laneCount === 1 ? '' : 's'}${lanes ? ` · ${lanes}` : ''}`,
     );
   });
   const lanes =
@@ -914,7 +998,9 @@ function logQueueSnapshot(
         },
       ]),
     );
-  const nextLanes = Object.values(lanes);
+  const nextLanes = Object.values(lanes).filter(
+    (item) => item.status === 'failed' || item.attemptsExhausted,
+  );
   if (snapshot.episodeQueue.length > 0 && nextLanes.length > 0) log('');
   for (const item of nextLanes) {
     const title = item.title ? ` “${truncateTitle(item.title)}”` : '';
@@ -924,9 +1010,29 @@ function logQueueSnapshot(
       ? `blocked (${item.attemptCount} attempts exhausted; ${item.status})`
       : `${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status})`;
     log(
-      `📥 [social-daemon] next ${laneLabel(item.platform, item.languageCode)}${item.experiment ? ` [${item.experiment}]` : ''} ·${title} · ${timing}`,
+      `⚠️ [social-daemon] ${laneLabel(item.platform, item.languageCode)}${item.experiment ? ` [${item.experiment}]` : ''} ·${title} · ${timing}`,
     );
   }
+}
+
+function formatQueueEpisodeLanes(
+  lanes: readonly { platform: SocialPlatform; languageCode: string }[],
+): string {
+  const platformOrder: SocialPlatform[] = [
+    'rednote',
+    'threads',
+    'x',
+    'youtube',
+  ];
+  return [...lanes]
+    .sort(
+      (left, right) =>
+        platformOrder.indexOf(left.platform) -
+          platformOrder.indexOf(right.platform) ||
+        left.languageCode.localeCompare(right.languageCode),
+    )
+    .map((lane) => laneLabel(lane.platform, lane.languageCode))
+    .join(' · ');
 }
 
 function truncateTitle(title: string): string {
