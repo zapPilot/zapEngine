@@ -852,6 +852,7 @@ describe('metrics browser session', () => {
     };
     return {
       page,
+      request: { get: promiseMethod({ status: () => 200 }) },
       newPage: vi.fn().mockResolvedValue(page),
       close: vi.fn().mockResolvedValue(undefined),
     };
@@ -888,6 +889,26 @@ describe('metrics browser session', () => {
     await session.close();
     expect(xContext.close).toHaveBeenCalledOnce();
     expect(rednoteContext.close).toHaveBeenCalledOnce();
+  });
+
+  // A cookie-only read (a follower count a server already put in its response)
+  // must reuse the signed-in profile the pages use, not launch a second Chrome
+  // against a profile directory that cannot be opened twice.
+  it('serves request work from the same context as page work', async () => {
+    const context = sessionContext();
+    browser.launchPersistentContext.mockResolvedValue(context);
+
+    const session = createMetricsBrowserSession();
+    await session.withPage(REDNOTE_PROFILE, REDNOTE_MANAGER, async () => null);
+    await expect(
+      session.withRequest(REDNOTE_PROFILE, async (request) => {
+        const response = await request.get('https://creator.rednote.com/api');
+        return response.status();
+      }),
+    ).resolves.toBe(200);
+
+    expect(browser.launchPersistentContext).toHaveBeenCalledOnce();
+    expect(context.newPage).toHaveBeenCalledOnce();
   });
 
   it('closes the page and keeps the context when a post fails, and every context on teardown', async () => {

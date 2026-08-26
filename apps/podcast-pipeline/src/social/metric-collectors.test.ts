@@ -19,6 +19,11 @@ describe('metric collector parsing', () => {
     ['2.5M', 2_500_000],
     ['1.5万', 15_000],
     ['2億', 200_000_000],
+    // X and the creator pages render in the profile's own language, so the
+    // Traditional and Simplified spellings of both suffixes have to parse --
+    // dropping one reads 1.2萬 followers as 1.
+    ['1.2萬', 12_000],
+    ['3亿', 300_000_000],
   ])('parses %s into %d', (raw, expected) => {
     expect(parseMetricNumber(raw)).toBe(expected);
   });
@@ -31,6 +36,7 @@ describe('metric collector parsing', () => {
   it('extracts a metric from an aria label or rendered text', () => {
     expect(parseFirstMetricNumber('1.2K Views')).toBe(1200);
     expect(parseFirstMetricNumber('讚 35')).toBe(35);
+    expect(parseFirstMetricNumber('1.2萬 位跟隨者')).toBe(12_000);
     expect(parseFirstMetricNumber(null)).toBeNull();
   });
 

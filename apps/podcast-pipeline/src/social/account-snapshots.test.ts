@@ -12,23 +12,47 @@ vi.mock('./threads-auth.js', () => ({
 
 import {
   captureDueAccountSnapshots,
-  isRednoteLoginSnippet,
-  isRednoteLoginUrl,
-  parseFollowerCountNear,
-  readRednoteFollowerCount,
+  extractRednoteFollowerText,
+  parseRednoteUserId,
+  xFollowerLinkSelector,
 } from './account-snapshots.js';
 import type { MetricsBrowserSession } from './metric-collectors.js';
 
 const NOW = new Date('2026-08-20T12:00:00.000Z');
 const X_PROFILE = 'https://x.com/zap_pilot';
-const REDNOTE_HOME_URL = 'https://creator.rednote.com/new/home';
-const REDNOTE_HOME_TEXT = '首页\n粉丝\n1,234\n获赞\n5.6万';
+const X_FOLLOWER_SELECTOR =
+  'a[href="/zap_pilot/verified_followers"], a[href="/zap_pilot/followers"]';
+const REDNOTE_USER_INFO_URL =
+  'https://creator.rednote.com/api/galaxy/user/info';
+const REDNOTE_USER_ID = '65e15da0000000000500e538';
+const REDNOTE_PROFILE_URL = `https://www.rednote.com/user/profile/${REDNOTE_USER_ID}`;
 
-/** Indexing is clamped to the last entry, so a fixture sequence is never empty. */
-function at<T>(items: readonly T[], index: number): T {
-  const value = items[Math.min(index, items.length - 1)];
-  if (value === undefined) throw new Error('empty fixture sequence');
-  return value;
+/**
+ * The shape the consumer profile page server-renders: one entry per counter,
+ * the follower one identified by `type`, and the neighbouring `Likes & Saves`
+ * figure that a label-relative text read could pick up instead.
+ */
+function rednoteProfileHtml(count: string): string {
+  const interactions = [
+    '{"type":"follows","name":"Following","count":"925","i18nCount":"925"}',
+    `{"type":"fans","name":"Followers","count":"${count}","i18nCount":"${count}"}`,
+    '{"type":"interaction","name":"Likes & Saves","count":"456","i18nCount":"456"}',
+  ].join(',');
+  return `<script>window.__INITIAL_STATE__={"user":{"userPageData":{"interactions":[${interactions}],"tags":[]}}}</script>`;
+}
+
+function apiResponse(input: {
+  status?: number;
+  json?: unknown;
+  text?: string;
+}) {
+  const status = input.status ?? 200;
+  return {
+    ok: () => status >= 200 && status < 300,
+    status: () => status,
+    json: async () => input.json,
+    text: async () => input.text ?? '',
+  };
 }
 
 function locator(text: string) {
@@ -39,25 +63,13 @@ function locator(text: string) {
   return { ...node, first: () => node };
 }
 
-/**
- * Successive reads model SPA hydration: the shell answers first and the last
- * entry is what the page settles on. A single string is a page that never
- * changes.
- */
-function sequenceLocator(texts: readonly string[]) {
-  let reads = 0;
-  const node = {
-    waitFor: vi.fn().mockResolvedValue(undefined),
-    innerText: vi.fn(async () => at(texts, reads++)),
-  };
-  return { ...node, first: () => node };
-}
-
 function browserSession(input: {
-  rednoteText?: string | readonly string[];
-  rednoteUrl?: string;
+  rednoteUserInfoStatus?: number;
+  rednoteProfileStatus?: number;
+  rednoteFollowerCount?: string;
+  rednoteProfileHtml?: string;
   xFollowersText?: string;
-  failFor?: string;
+  failFor?: 'rednote' | 'x';
 }): MetricsBrowserSession {
   return {
     withPage: (async (
@@ -65,23 +77,48 @@ function browserSession(input: {
       url: string,
       run: (page: unknown) => Promise<unknown>,
     ) => {
-      if (input.failFor && url.includes(input.failFor)) {
+      if (input.failFor === 'x') {
         throw new Error(`browser profile is logged out (${url})`);
       }
-      const rednoteText = input.rednoteText ?? REDNOTE_HOME_TEXT;
-      const rednoteTexts =
-        typeof rednoteText === 'string' ? [rednoteText] : rednoteText;
-      const rednoteUrl = input.rednoteUrl ?? REDNOTE_HOME_URL;
-      const isRednote = url.includes('creator.rednote.com');
       return run({
-        url: () => (isRednote ? rednoteUrl : url),
-        waitForTimeout: vi.fn().mockResolvedValue(undefined),
         locator: (selector: string) => {
-          if (selector === 'body') return sequenceLocator(rednoteTexts);
-          return locator(input.xFollowersText ?? '8,096 Followers');
+          // Only the selector the collector is supposed to use answers: a
+          // regression back to a suffix match on `/followers` must fail here
+          // rather than silently read whatever the fixture returns.
+          if (selector !== X_FOLLOWER_SELECTOR) {
+            throw new Error(`unexpected X selector ${selector}`);
+          }
+          return locator(input.xFollowersText ?? '8,096 位跟隨者');
         },
       });
     }) as MetricsBrowserSession['withPage'],
+    withRequest: (async (
+      _profile: string,
+      run: (request: unknown) => Promise<unknown>,
+    ) => {
+      if (input.failFor === 'rednote') {
+        throw new Error('browser profile is logged out (rednote)');
+      }
+      return run({
+        get: async (url: string) => {
+          if (url === REDNOTE_USER_INFO_URL) {
+            return apiResponse({
+              status: input.rednoteUserInfoStatus,
+              json: { data: { userId: REDNOTE_USER_ID } },
+            });
+          }
+          if (url !== REDNOTE_PROFILE_URL) {
+            throw new Error(`unexpected rednote request ${url}`);
+          }
+          return apiResponse({
+            status: input.rednoteProfileStatus,
+            text:
+              input.rednoteProfileHtml ??
+              rednoteProfileHtml(input.rednoteFollowerCount ?? '1234'),
+          });
+        },
+      });
+    }) as MetricsBrowserSession['withRequest'],
     close: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -99,38 +136,12 @@ function threadsInsights(followers: number | null) {
   }) as unknown as typeof fetch;
 }
 
-/**
- * Drives the poll off an injected clock so a deadline is reached without any
- * real elapsed time.
- */
-function follower(input: {
-  texts: readonly (string | Error)[];
-  urls?: readonly string[];
-  timeoutMs?: number;
-}) {
-  let clock = 0;
-  let reads = 0;
-  let urlReads = 0;
-  const sleep = vi.fn(async (ms: number) => {
-    clock += ms;
-  });
-  const urls = input.urls ?? [REDNOTE_HOME_URL];
-  const read = () => {
-    const next = at(input.texts, reads++);
-    if (next instanceof Error) throw next;
-    return next;
-  };
-  return {
-    sleep,
-    run: () =>
-      readRednoteFollowerCount({
-        readText: async () => read(),
-        readUrl: () => at(urls, urlReads++),
-        sleep,
-        now: () => clock,
-        timeoutMs: input.timeoutMs ?? 15_000,
-      }),
-  };
+function rednoteLine(log: ReturnType<typeof vi.fn>): string {
+  return (
+    log.mock.calls
+      .map(([line]) => String(line))
+      .find((line) => line.includes('rednote')) ?? ''
+  );
 }
 
 beforeEach(() => {
@@ -146,119 +157,55 @@ beforeEach(() => {
   });
 });
 
-describe('parseFollowerCountNear', () => {
-  it.each([
-    ['粉丝\n1,234', 1234],
-    ['1.2万 粉丝', 12000],
-    ['1,234\n粉丝', 1234],
-    ['获赞 5000', null],
-    ['粉丝\n0', 0],
-    ['粉丝 0', 0],
-    ['粉丝\n--', null],
-    ['首页\n粉丝\n--', null],
-  ])('reads %s as %s', (text, expected) => {
-    expect(parseFollowerCountNear(text, '粉丝')).toBe(expected);
-  });
-});
-
-describe('isRednoteLoginUrl', () => {
-  it.each([
-    ['https://creator.rednote.com/new/home', false],
-    ['https://creator.rednote.com/login', true],
-    ['https://www.xiaohongshu.com/passport/login', true],
-    ['https://creator.rednote.com/new/auth', true],
-    ['https://creator.rednote.com/new/data', false],
-    // Path segments are compared by equality, so a creator page whose path
-    // merely contains "auth" is not an expired session.
-    ['https://creator.rednote.com/author/123', false],
-    // Query strings are no longer consulted: a login modal that leaves the path
-    // alone is caught by the body snippet check on every poll iteration.
-    ['https://creator.rednote.com/new/home?signin=1', false],
-    ['not-a-url', false],
-  ])('classifies %s as %s', (url, expected) => {
-    expect(isRednoteLoginUrl(url)).toBe(expected);
-  });
-});
-
-describe('isRednoteLoginSnippet', () => {
-  it.each([
-    ['扫码登录', true],
-    ['请登录后查看', true],
-    ['请使用手机扫码登录 二维码', true],
-    ['登录已过期 请重新登录', true],
-    ['登录后查看完整数据', true],
-    ['首页\n粉丝\n1,234', false],
-    ['作品管理\n数据概览', false],
-  ])('classifies snippet %s as %s', (snippet, expected) => {
-    expect(isRednoteLoginSnippet(snippet)).toBe(expected);
+describe('extractRednoteFollowerText', () => {
+  it('reads the fans entry rather than a neighbouring counter', () => {
+    expect(extractRednoteFollowerText(rednoteProfileHtml('77'))).toBe('77');
   });
 
-  it('normalizes traditional to simplified before matching', () => {
-    expect(isRednoteLoginSnippet('掃碼登錄')).toBe(true);
-    expect(isRednoteLoginSnippet('請登錄')).toBe(true);
-  });
-});
-
-describe('readRednoteFollowerCount', () => {
-  // The regression this whole collector exists for: the label ships in the
-  // shell next to a placeholder and only the number hydrates from a later API
-  // response, so waiting for the label and reading once still reads nothing.
-  it('waits through a hydrating placeholder for the number itself', async () => {
-    const poll = follower({
-      texts: ['首页\n粉丝\n--', '首页\n粉丝\n--', '首页\n粉丝\n1,234'],
-    });
-    await expect(poll.run()).resolves.toBe(1234);
-    expect(poll.sleep).toHaveBeenCalledTimes(2);
+  // The page emits the same entry with its keys in either order between
+  // renders, so the count is located inside the entry, not after the type.
+  it('reads the fans entry when count precedes type', () => {
+    const html =
+      '{"count":"1.2万","i18nCount":"1.2万","type":"fans","name":"粉丝"}';
+    expect(extractRednoteFollowerText(html)).toBe('1.2万');
   });
 
-  // Traditional pages need no separate selector: the text is normalized to
-  // zh-CN before parsing, so 粉絲 and 粉丝 share one wait.
-  it('reads a late Traditional 粉絲 count through the same poll', async () => {
-    const poll = follower({ texts: ['首頁\n粉絲\n--', '首頁\n粉絲\n2,345'] });
-    await expect(poll.run()).resolves.toBe(2345);
+  it('returns the masked count a signed-out read renders', () => {
+    expect(extractRednoteFollowerText(rednoteProfileHtml('10+'))).toBe('10+');
   });
 
-  it('returns a zero count instead of polling on', async () => {
-    const poll = follower({ texts: ['粉丝\n0'] });
-    await expect(poll.run()).resolves.toBe(0);
-    expect(poll.sleep).not.toHaveBeenCalled();
-  });
-
-  it('reports session expiry when the body turns into a login page mid-poll', async () => {
-    const poll = follower({ texts: ['首页\n作品管理', '扫码登录'] });
-    await expect(poll.run()).rejects.toThrow(/Rednote session expired/);
-  });
-
-  it('reports session expiry when the page redirects to login mid-poll', async () => {
-    const poll = follower({
-      texts: ['首页\n作品管理', '首页'],
-      urls: [REDNOTE_HOME_URL, 'https://creator.rednote.com/login?from=home'],
-    });
-    await expect(poll.run()).rejects.toThrow(/redirected to login/);
-  });
-
-  it('keeps a real count that shares the page with an incidental 登录 string', async () => {
-    const poll = follower({ texts: ['粉丝\n1,234\n请登录以继续'] });
-    await expect(poll.run()).resolves.toBe(1234);
-  });
-
-  it('re-reads after a body read fails mid-navigation', async () => {
-    const poll = follower({
-      texts: [new Error('Execution context was destroyed'), '粉丝\n777'],
-    });
-    await expect(poll.run()).resolves.toBe(777);
-  });
-
-  it('honors the deadline and reports url plus snippet when nothing hydrates', async () => {
-    const poll = follower({
-      texts: ['首页\n作品管理\n数据概览'],
-      timeoutMs: 2_000,
-    });
-    await expect(poll.run()).rejects.toThrow(
-      /exposed no follower count \(url=https:\/\/creator\.rednote\.com\/new\/home snippet="首页 作品管理 数据概览"\)/,
+  it('returns null when the page carries no fans entry at all', () => {
+    expect(extractRednoteFollowerText('<html><body>登录</body></html>')).toBe(
+      null,
     );
-    // 2000ms budget at a 500ms interval: bounded, not spun.
-    expect(poll.sleep).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe('parseRednoteUserId', () => {
+  it.each([
+    [{ data: { userId: REDNOTE_USER_ID } }, REDNOTE_USER_ID],
+    [{ data: { userId: ' padded ' } }, 'padded'],
+    [{ data: { userId: '' } }, null],
+    [{ data: {} }, null],
+    [{ code: -1, msg: '登录已过期' }, null],
+    [null, null],
+  ])('reads %j as %s', (payload, expected) => {
+    expect(parseRednoteUserId(payload)).toBe(expected);
+  });
+});
+
+describe('xFollowerLinkSelector', () => {
+  it('accepts both follower tabs, pinned to the publisher handle', () => {
+    expect(xFollowerLinkSelector(X_PROFILE)).toBe(X_FOLLOWER_SELECTOR);
+  });
+
+  it('refuses a URL that carries no handle', () => {
+    expect(() => xFollowerLinkSelector('https://x.com/')).toThrow(
+      /no readable handle/,
+    );
+    expect(() => xFollowerLinkSelector('https://x.com/a/b')).toThrow(
+      /no readable handle/,
+    );
   });
 });
 
@@ -277,7 +224,11 @@ describe('captureDueAccountSnapshots', () => {
     ).resolves.toBe(3);
 
     expect(insert.mock.calls.map(([snapshot]) => snapshot)).toEqual([
-      { platform: 'rednote', followers: 1234, details: { label: '粉丝' } },
+      {
+        platform: 'rednote',
+        followers: 1234,
+        details: { profileUrl: REDNOTE_PROFILE_URL },
+      },
       { platform: 'x', followers: 8096, details: { profileUrl: X_PROFILE } },
       { platform: 'threads', followers: 310, details: {} },
     ]);
@@ -334,7 +285,7 @@ describe('captureDueAccountSnapshots', () => {
     await expect(
       captureDueAccountSnapshots({
         now: NOW,
-        browser: browserSession({ failFor: 'creator.rednote.com' }),
+        browser: browserSession({ failFor: 'rednote' }),
         fetchImpl: threadsInsights(310),
         latest: vi.fn().mockResolvedValue({}),
         insert,
@@ -346,10 +297,8 @@ describe('captureDueAccountSnapshots', () => {
       'x',
       'threads',
     ]);
-    expect(log.mock.calls.map(([line]) => String(line))).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('account snapshot rednote failed'),
-      ]),
+    expect(rednoteLine(log)).toEqual(
+      expect.stringContaining('account snapshot rednote failed'),
     );
   });
 
@@ -361,18 +310,22 @@ describe('captureDueAccountSnapshots', () => {
       captureDueAccountSnapshots({
         now: NOW,
         browser: browserSession({
-          rednoteText: '首页\n作品管理',
-          xFollowersText: 'Followers',
+          rednoteProfileHtml: '<html><body>Zap Pilot</body></html>',
+          xFollowersText: '位跟隨者',
         }),
         fetchImpl: threadsInsights(null),
         latest: vi.fn().mockResolvedValue({}),
         insert,
         log,
-        followerWaitMs: 0,
       }),
     ).resolves.toBe(0);
     expect(insert).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledTimes(3);
+    expect(rednoteLine(log)).toEqual(
+      expect.stringContaining(
+        `Rednote profile ${REDNOTE_PROFILE_URL} exposed no follower count`,
+      ),
+    );
   });
 
   it('reports a missing X profile instead of guessing one', async () => {
@@ -399,7 +352,7 @@ describe('captureDueAccountSnapshots', () => {
     const insert = vi.fn().mockResolvedValue(undefined);
     await captureDueAccountSnapshots({
       now: NOW,
-      browser: browserSession({ rednoteText: '粉丝\n0' }),
+      browser: browserSession({ rednoteFollowerCount: '0' }),
       fetchImpl: threadsInsights(310),
       latest: vi.fn().mockResolvedValue({}),
       insert,
@@ -411,104 +364,76 @@ describe('captureDueAccountSnapshots', () => {
     ).toBe(true);
   });
 
-  it('handles the Traditional 粉絲 label through zh-CN normalization', async () => {
+  it('reads a count the page abbreviates', async () => {
     const insert = vi.fn().mockResolvedValue(undefined);
     await captureDueAccountSnapshots({
       now: NOW,
-      browser: browserSession({ rednoteText: '首頁\n粉絲\n2,345' }),
+      browser: browserSession({ rednoteFollowerCount: '1.2万' }),
       fetchImpl: threadsInsights(310),
       latest: vi.fn().mockResolvedValue({}),
       insert,
     });
     expect(
       insert.mock.calls.some(
-        ([s]) => s.platform === 'rednote' && s.followers === 2345,
+        ([s]) => s.platform === 'rednote' && s.followers === 12_000,
       ),
     ).toBe(true);
   });
 
-  it('fails with session expired when the creator home redirects to a login URL', async () => {
+  it('reports an expired Rednote session instead of reading the profile page', async () => {
     const log = vi.fn();
-    await captureDueAccountSnapshots({
-      now: NOW,
-      browser: browserSession({
-        rednoteUrl: 'https://creator.rednote.com/login?from=home',
-        rednoteText: '扫码登录',
-      }),
-      fetchImpl: threadsInsights(310),
-      latest: vi.fn().mockResolvedValue({}),
-      insert: vi.fn().mockResolvedValue(undefined),
-      log,
-    });
-    expect(log.mock.calls.map(([line]) => String(line))).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('Rednote session expired'),
-      ]),
-    );
-    expect(log.mock.calls.map(([line]) => String(line)).join('\n')).not.toMatch(
-      /exposed no follower count/,
-    );
-  });
-
-  it('fails with session expired when the body is a login page even though the URL has not changed', async () => {
-    const log = vi.fn();
-    await captureDueAccountSnapshots({
-      now: NOW,
-      browser: browserSession({
-        rednoteText: '请登录\n扫码登录\n二维码已过期',
-      }),
-      fetchImpl: threadsInsights(310),
-      latest: vi.fn().mockResolvedValue({}),
-      insert: vi.fn().mockResolvedValue(undefined),
-      log,
-    });
-    const joined = log.mock.calls.map(([line]) => String(line)).join('\n');
-    expect(joined).toEqual(expect.stringContaining('Rednote session expired'));
-  });
-
-  it('reports a missing follower count with url and snippet when the layout moved', async () => {
-    const log = vi.fn();
-    await captureDueAccountSnapshots({
-      now: NOW,
-      browser: browserSession({
-        rednoteText: '首页\n作品管理\n数据概览\n暂无数据',
-      }),
-      fetchImpl: threadsInsights(310),
-      latest: vi.fn().mockResolvedValue({}),
-      insert: vi.fn().mockResolvedValue(undefined),
-      log,
-      followerWaitMs: 0,
-    });
-    const rednoteLine =
-      log.mock.calls
-        .map(([line]) => String(line))
-        .find((line) => line.includes('rednote failed')) ?? '';
-    expect(rednoteLine).toEqual(
-      expect.stringContaining('exposed no follower count'),
-    );
-    expect(rednoteLine).toEqual(
-      expect.stringContaining('url=https://creator.rednote.com/new/home'),
-    );
-    expect(rednoteLine).toEqual(expect.stringContaining('snippet='));
-  });
-
-  it('keeps the SPA race from being reported as a missing count', async () => {
     const insert = vi.fn().mockResolvedValue(undefined);
+
     await captureDueAccountSnapshots({
       now: NOW,
-      browser: browserSession({
-        // The label is in the shell from the first paint; only the number
-        // arrives with the stats API response.
-        rednoteText: ['首页\n粉丝\n--', '首页\n粉丝\n99'],
-      }),
+      browser: browserSession({ rednoteUserInfoStatus: 401 }),
       fetchImpl: threadsInsights(310),
       latest: vi.fn().mockResolvedValue({}),
       insert,
+      log,
     });
-    expect(
-      insert.mock.calls.some(
-        ([s]) => s.platform === 'rednote' && s.followers === 99,
-      ),
-    ).toBe(true);
+
+    expect(insert.mock.calls.some(([row]) => row.platform === 'rednote')).toBe(
+      false,
+    );
+    expect(rednoteLine(log)).toEqual(
+      expect.stringContaining('Rednote session expired'),
+    );
+  });
+
+  // Signed out, the profile page still answers 200 and masks every counter as
+  // `10+`. Recording that would read as an account that lost its followers.
+  it('refuses the masked count a signed-out profile page renders', async () => {
+    const log = vi.fn();
+    const insert = vi.fn().mockResolvedValue(undefined);
+
+    await captureDueAccountSnapshots({
+      now: NOW,
+      browser: browserSession({ rednoteFollowerCount: '10+' }),
+      fetchImpl: threadsInsights(310),
+      latest: vi.fn().mockResolvedValue({}),
+      insert,
+      log,
+    });
+
+    expect(insert.mock.calls.some(([row]) => row.platform === 'rednote')).toBe(
+      false,
+    );
+    expect(rednoteLine(log)).toEqual(
+      expect.stringContaining('masked follower count ("10+")'),
+    );
+  });
+
+  it('reports the HTTP status when the profile page itself fails', async () => {
+    const log = vi.fn();
+    await captureDueAccountSnapshots({
+      now: NOW,
+      browser: browserSession({ rednoteProfileStatus: 503 }),
+      fetchImpl: threadsInsights(310),
+      latest: vi.fn().mockResolvedValue({}),
+      insert: vi.fn().mockResolvedValue(undefined),
+      log,
+    });
+    expect(rednoteLine(log)).toEqual(expect.stringContaining('HTTP 503'));
   });
 });

@@ -1,5 +1,7 @@
+import type { APIRequestContext } from 'playwright-core';
+
 import { errorMessage } from '../lib/errorMessage.js';
-import { convertTextToZhCN } from '../services/opencc.js';
+import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
 import type { NewSocialAccountSnapshot } from '../types.js';
 import {
   insertSocialAccountSnapshot,
@@ -8,6 +10,7 @@ import {
 import {
   type MetricsBrowserSession,
   parseFirstMetricNumber,
+  parseMetricNumber,
 } from './metric-collectors.js';
 import { findXProfileUrl } from './reconcile.js';
 import { PROFILE_DIRECTORY as REDNOTE_PROFILE_DIRECTORY } from './rednote-browser.js';
@@ -16,11 +19,11 @@ import { assertThreadsSessionReady } from './threads-auth.js';
 import type { SocialPlatform } from './types.js';
 import { PROFILE_DIRECTORY as X_PROFILE_DIRECTORY } from './x-playwright.js';
 
-const REDNOTE_HOME_URL = 'https://creator.rednote.com/new/home';
+const REDNOTE_USER_INFO_URL =
+  'https://creator.rednote.com/api/galaxy/user/info';
+const REDNOTE_PROFILE_URL_PREFIX = 'https://www.rednote.com/user/profile/';
 const THREADS_API_BASE = 'https://graph.threads.net';
 const BROWSER_TIMEOUT_MS = 30_000;
-const REDNOTE_FOLLOWER_WAIT_MS = 15_000;
-const REDNOTE_FOLLOWER_POLL_MS = 500;
 // One snapshot per platform per day. Follower counts move slowly, and a tighter
 // cadence would open a browser on every minute-long daemon tick.
 const SNAPSHOT_STALENESS_MS = 24 * 60 * 60_000;
@@ -28,7 +31,6 @@ const SNAPSHOT_STALENESS_MS = 24 * 60 * 60_000;
 interface CollectorContext {
   browser: MetricsBrowserSession;
   fetchImpl: typeof fetch;
-  followerWaitMs: number;
 }
 
 type FollowerCollector = (
@@ -36,144 +38,104 @@ type FollowerCollector = (
 ) => Promise<NewSocialAccountSnapshot>;
 
 /**
- * Reads the label's own text rather than a generated class name: both creator
- * UIs re-skin often, and the number sits beside the word in every layout seen so
- * far -- on the same line, or on the line under (or above) it in a stat grid.
- */
-export function parseFollowerCountNear(
-  text: string,
-  label: string,
-): number | null {
-  const lines = text.split('\n').map((line) => line.trim());
-  for (const [index, line] of lines.entries()) {
-    if (!line.includes(label)) continue;
-    for (const candidate of [
-      line.replace(label, ' '),
-      lines[index + 1] ?? '',
-      lines[index - 1] ?? '',
-    ]) {
-      const value = parseFirstMetricNumber(candidate);
-      if (value !== null) return value;
-    }
-  }
-  return null;
-}
-
-/**
- * Compared by path segment equality rather than as a substring of the whole
- * URL, which read `/author/...` as an expired session. Query strings are
- * deliberately not consulted: a login modal that leaves the path alone is caught
- * by `isRednoteLoginSnippet` on every poll iteration instead.
- */
-const REDNOTE_AUTH_PATH_SEGMENTS = new Set([
-  'login',
-  'signin',
-  'sign-in',
-  'passport',
-  'auth',
-]);
-
-export function isRednoteLoginUrl(url: string): boolean {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return false;
-  }
-  return parsed.pathname
-    .toLowerCase()
-    .split('/')
-    .some((segment) => REDNOTE_AUTH_PATH_SEGMENTS.has(segment));
-}
-
-export function isRednoteLoginSnippet(snippet: string): boolean {
-  const normalized = convertTextToZhCN(snippet);
-  if (normalized.includes('扫码登录')) return true;
-  if (normalized.includes('请登录')) return true;
-  if (normalized.includes('二维码') && normalized.includes('登录')) return true;
-  if (normalized.includes('登录已过期') || normalized.includes('登录过期'))
-    return true;
-  if (normalized.includes('登录后查看')) return true;
-  return false;
-}
-
-/**
- * Polls until the follower number itself parses, because that is the invariant
- * the caller needs. Waiting for the `粉丝` label is not the same thing: the creator
- * shell can render the label next to a placeholder and hydrate the number from a
- * later API response, which satisfies a label gate at T=0 and still reads
- * nothing.
+ * The creator platform no longer ships a page carrying this number: every
+ * creator route other than publish/note-manager now redirects to the publish
+ * shell, which shows the upload form and nothing about the account. The count
+ * lives on the consumer profile page instead, and that page is server-rendered
+ * -- the number is in the first response, so nothing here waits on hydration.
  *
- * The first parseable value wins, 0 included. A placeholder that happened to
- * parse would therefore be latched, but `--` and `...` carry no digit run and 0
- * is a legitimate count, so a stability window would cost every snapshot an
- * extra poll interval to guard a shell nobody has observed.
+ * It is read from the embedded state's `fans` entry rather than from the
+ * visible label because that page renders in the viewer's language (`Followers`
+ * on the international domain, `粉丝` on the mainland one) while the entry type
+ * is the backend's own name for it. The neighbouring `Likes & Saves` figure sits
+ * one line below the label in the rendered text, so a label-relative text read
+ * has a wrong number within reach; this one does not.
  */
-export async function readRednoteFollowerCount(input: {
-  readText: () => Promise<string>;
-  readUrl: () => string;
-  sleep: (ms: number) => Promise<void>;
-  now?: () => number;
-  timeoutMs?: number;
-}): Promise<number> {
-  const now = input.now ?? Date.now;
-  const deadline = now() + (input.timeoutMs ?? REDNOTE_FOLLOWER_WAIT_MS);
-  let url = '';
-  let text = '';
+export function extractRednoteFollowerText(html: string): string | null {
+  const entry = /\{[^{}]*"type"\s*:\s*"fans"[^{}]*\}/u.exec(html)?.[0];
+  if (!entry) return null;
+  return /"count"\s*:\s*"([^"]*)"/u.exec(entry)?.[1] ?? null;
+}
 
-  for (;;) {
-    url = input.readUrl();
-    if (isRednoteLoginUrl(url)) {
-      throw new Error(`Rednote session expired (redirected to login: ${url}).`);
-    }
+export function parseRednoteUserId(payload: unknown): string | null {
+  if (!isRecord(payload) || !isRecord(payload['data'])) return null;
+  const userId = payload['data']['userId'];
+  return typeof userId === 'string' && userId.trim() ? userId.trim() : null;
+}
 
-    try {
-      text = convertTextToZhCN(await input.readText());
-    } catch {
-      // A navigation mid-read detaches the body; the next poll re-reads it.
-      text = '';
-    }
-
-    // Parsed before the login check so a page carrying a real count is never
-    // discarded over an incidental 登录 string elsewhere in the layout.
-    const followers = parseFollowerCountNear(text, '粉丝');
-    if (followers !== null) return followers;
-
-    if (isRednoteLoginSnippet(text)) {
-      throw new Error(
-        `Rednote session expired (login page detected at ${url}).`,
-      );
-    }
-
-    if (now() >= deadline) break;
-    await input.sleep(REDNOTE_FOLLOWER_POLL_MS);
+/**
+ * The account's own id, which the profile URL needs. It is asked for rather
+ * than configured, and this call is also the session gate: signed out it answers
+ * HTTP 401, while the profile page below still answers HTTP 200 -- with every
+ * count masked as `10+`.
+ */
+async function readRednoteUserId(request: APIRequestContext): Promise<string> {
+  const response = await request.get(REDNOTE_USER_INFO_URL, {
+    timeout: BROWSER_TIMEOUT_MS,
+  });
+  if (!response.ok()) {
+    throw new Error(
+      `Rednote session expired (creator user info returned HTTP ${response.status()}). Run \`pnpm social:login\` to sign the browser profile in again.`,
+    );
   }
-
-  const snippet = text.slice(0, 600).replace(/\s+/gu, ' ').trim();
-  throw new Error(
-    `Rednote creator home exposed no follower count (url=${url} snippet=${snippet ? `"${snippet}"` : 'unreadable'}).`,
+  const userId = parseRednoteUserId(
+    (await response.json().catch(() => null)) as unknown,
   );
+  if (!userId) {
+    throw new Error('Rednote creator user info exposed no user id.');
+  }
+  return userId;
 }
 
 async function collectRednoteFollowers({
   browser,
-  followerWaitMs,
 }: CollectorContext): Promise<NewSocialAccountSnapshot> {
-  return browser.withPage(
-    REDNOTE_PROFILE_DIRECTORY,
-    REDNOTE_HOME_URL,
-    async (page) => {
-      const body = page.locator('body');
-      await body.waitFor({ state: 'visible', timeout: BROWSER_TIMEOUT_MS });
-      const followers = await readRednoteFollowerCount({
-        readText: () => body.innerText(),
-        readUrl: () => page.url(),
-        sleep: (ms) => page.waitForTimeout(ms),
-        timeoutMs: followerWaitMs,
-      });
-      return { platform: 'rednote', followers, details: { label: '粉丝' } };
-    },
-  );
+  return browser.withRequest(REDNOTE_PROFILE_DIRECTORY, async (request) => {
+    const userId = await readRednoteUserId(request);
+    const profileUrl = `${REDNOTE_PROFILE_URL_PREFIX}${userId}`;
+    const response = await request.get(profileUrl, {
+      timeout: BROWSER_TIMEOUT_MS,
+    });
+    if (!response.ok()) {
+      throw new Error(
+        `Rednote profile ${profileUrl} returned HTTP ${response.status()}.`,
+      );
+    }
+
+    const raw = extractRednoteFollowerText(await response.text());
+    if (raw === null) {
+      throw new Error(
+        `Rednote profile ${profileUrl} exposed no follower count.`,
+      );
+    }
+    // Strict on purpose: a signed-out read of this page answers `10+`, which a
+    // lenient parse would record as a real drop to 10 followers.
+    const followers = parseMetricNumber(raw);
+    if (followers === null) {
+      throw new Error(
+        `Rednote profile ${profileUrl} exposed a masked follower count ("${raw}"), which is what a signed-out read returns. Run \`pnpm social:login\` to sign the browser profile in again.`,
+      );
+    }
+    return { platform: 'rednote', followers, details: { profileUrl } };
+  });
+}
+
+/**
+ * X serves the profile header's follower link at `/verified_followers` for
+ * accounts that have the verified-followers tab and at `/followers` for the
+ * rest, so both are accepted -- a suffix match on `/followers` alone reads the
+ * verified layout as a profile with no follower count at all. Both are pinned to
+ * the publisher's own handle so no other account's follower link on the page can
+ * answer for it.
+ */
+export function xFollowerLinkSelector(profileUrl: string): string {
+  const [handle, ...rest] = new URL(profileUrl).pathname
+    .split('/')
+    .filter(Boolean);
+  if (rest.length > 0 || !handle || !/^\w{1,15}$/u.test(handle)) {
+    throw new Error(`X profile ${profileUrl} carries no readable handle.`);
+  }
+  return `a[href="/${handle}/verified_followers"], a[href="/${handle}/followers"]`;
 }
 
 async function collectXFollowers({
@@ -187,7 +149,7 @@ async function collectXFollowers({
   }
 
   return browser.withPage(X_PROFILE_DIRECTORY, profileUrl, async (page) => {
-    const link = page.locator('a[href$="/followers"]').first();
+    const link = page.locator(xFollowerLinkSelector(profileUrl)).first();
     await link.waitFor({ state: 'visible', timeout: BROWSER_TIMEOUT_MS });
     const followers = parseFirstMetricNumber(await link.innerText());
     if (followers === null) {
@@ -251,7 +213,6 @@ export async function captureDueAccountSnapshots(input: {
   fetchImpl?: typeof fetch;
   latest?: typeof latestSocialAccountSnapshots;
   insert?: typeof insertSocialAccountSnapshot;
-  followerWaitMs?: number;
 }): Promise<number> {
   const log = input.log ?? (() => void 0);
   const latest = await (input.latest ?? latestSocialAccountSnapshots)();
@@ -259,7 +220,6 @@ export async function captureDueAccountSnapshots(input: {
   const context: CollectorContext = {
     browser: input.browser,
     fetchImpl: input.fetchImpl ?? fetch,
-    followerWaitMs: input.followerWaitMs ?? REDNOTE_FOLLOWER_WAIT_MS,
   };
 
   let captured = 0;

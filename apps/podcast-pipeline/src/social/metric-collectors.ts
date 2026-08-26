@@ -1,4 +1,9 @@
-import { type BrowserContext, chromium, type Page } from 'playwright-core';
+import {
+  type APIRequestContext,
+  type BrowserContext,
+  chromium,
+  type Page,
+} from 'playwright-core';
 
 import { toError } from '../lib/errorMessage.js';
 import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
@@ -866,13 +871,13 @@ async function readFirstMetricNumber(
 
 export function parseFirstMetricNumber(value: string | null): number | null {
   if (!value) return null;
-  const match = /[\d,.]+\s*(?:[KMB]|万|億)?/iu.exec(value);
+  const match = /[\d,.]+\s*(?:[KMB]|万|萬|億|亿)?/iu.exec(value);
   return match ? parseMetricNumber(match[0]) : null;
 }
 
 export function parseMetricNumber(raw: string): number | null {
   const normalized = raw.trim().replace(/,/gu, '').replace(/\s+/gu, '');
-  const match = /^(\d+(?:\.\d+)?)([KMB]|万|億)?$/iu.exec(normalized);
+  const match = /^(\d+(?:\.\d+)?)([KMB]|万|萬|億|亿)?$/iu.exec(normalized);
   if (!match) return null;
   const base = Number(match[1]);
   const value = Math.round(base * metricMultiplier(match[2]));
@@ -888,8 +893,10 @@ function metricMultiplier(suffix: string | undefined): number {
     case 'B':
       return 1_000_000_000;
     case '万':
+    case '萬':
       return 10_000;
     case '億':
+    case '亿':
       return 100_000_000;
     default:
       return 1;
@@ -991,24 +998,37 @@ export interface MetricsBrowserSession {
     url: string,
     run: (page: Page) => Promise<T>,
   ): Promise<T>;
+  /**
+   * The same signed-in profile without rendering a page. A reading that a
+   * server already puts in its response -- an API payload, or a count embedded
+   * in server-rendered HTML -- needs the profile's cookies, not its DOM.
+   */
+  withRequest<T>(
+    profileDirectory: string,
+    run: (request: APIRequestContext) => Promise<T>,
+  ): Promise<T>;
   close(): Promise<void>;
 }
 
 export function createMetricsBrowserSession(): MetricsBrowserSession {
   const contexts = new Map<string, BrowserContext>();
 
+  async function contextFor(profileDirectory: string): Promise<BrowserContext> {
+    let context = contexts.get(profileDirectory);
+    if (!context) {
+      context = await chromium.launchPersistentContext(profileDirectory, {
+        channel: 'chrome',
+        headless: true,
+        viewport: { width: 1440, height: 900 },
+      });
+      contexts.set(profileDirectory, context);
+    }
+    return context;
+  }
+
   return {
     async withPage(profileDirectory, url, run) {
-      let context = contexts.get(profileDirectory);
-      if (!context) {
-        context = await chromium.launchPersistentContext(profileDirectory, {
-          channel: 'chrome',
-          headless: true,
-          viewport: { width: 1440, height: 900 },
-        });
-        contexts.set(profileDirectory, context);
-      }
-
+      const context = await contextFor(profileDirectory);
       const page = await context.newPage();
       try {
         await page.goto(url, {
@@ -1019,6 +1039,10 @@ export function createMetricsBrowserSession(): MetricsBrowserSession {
       } finally {
         await page.close();
       }
+    },
+    async withRequest(profileDirectory, run) {
+      const context = await contextFor(profileDirectory);
+      return run(context.request);
     },
     async close() {
       const open = [...contexts.values()];

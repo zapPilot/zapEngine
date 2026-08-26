@@ -590,12 +590,12 @@ so the signal that matters most — did this account gain followers — was neve
 collected. `social_account_snapshots` records a platform-level follower count,
 at most once per platform per day, from the same daemon tick:
 
-| Platform | Source                                     |
-| -------- | ------------------------------------------ |
-| Rednote  | creator home, read off the `粉丝` label    |
-| X        | publisher profile, `a[href$="/followers"]` |
-| Threads  | `threads_insights?metric=followers_count`  |
-| YouTube  | not collected                              |
+| Platform | Source                                                               |
+| -------- | -------------------------------------------------------------------- |
+| Rednote  | consumer profile page, the `fans` entry of its server-rendered state |
+| X        | publisher profile, the `/verified_followers` or `/followers` link    |
+| Threads  | `threads_insights?metric=followers_count`                            |
+| YouTube  | not collected                                                        |
 
 YouTube is absent by design: its publish OAuth scope is upload-only, so the
 daemon holds no credential that can read channel statistics, and per-post
@@ -603,10 +603,26 @@ daemon holds no credential that can read channel statistics, and per-post
 
 Each platform is captured inside its own try/catch — a logged-out browser
 profile on one must not cost the others their daily snapshot — and a read that
-produces no parseable number records nothing rather than a zero. Scraped counts
-are located by the label's own text, not by generated class names, and the label
-is stored in `details` so a parser that starts reading the wrong figure is
-diagnosable afterwards.
+produces no parseable number records nothing rather than a zero. The URL each
+count was read from is stored in `details` so a collector that starts reading the
+wrong figure is diagnosable afterwards.
+
+Rednote's count has no creator-platform page behind it: every creator route
+other than publish/note-manager redirects to the publish shell, which says
+nothing about the account. It is read from the consumer profile page
+(`www.rednote.com/user/profile/<userId>`), which server-renders the number, so
+this collector needs the signed-in profile's cookies but not its DOM — it uses
+`MetricsBrowserSession.withRequest` and never opens a page. The user id comes
+from the creator API (`/api/galaxy/user/info`) rather than configuration, and
+that call is also the session gate: signed out it answers HTTP 401, while the
+profile page still answers HTTP 200 with every counter masked as `10+`. The
+count is therefore parsed strictly — a value that is not an exact number is a
+signed-out read, never a snapshot — and it is taken from the state's `fans`
+entry rather than the visible label, which renders in the viewer's language.
+
+X serves the follower link at `/verified_followers` on accounts that have that
+tab and at `/followers` on the rest; both are accepted, pinned to the
+publisher's own handle.
 
 Rows are point-in-time and never backfilled, the same rule the metric windows
 follow. Per-post follower attribution is deliberately not attempted; a strategy
