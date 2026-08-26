@@ -559,11 +559,14 @@ describe('Rednote browser metrics and reconciliation', () => {
         onIdentity,
       ),
     ).resolves.toMatchObject({
-      views: 1200,
-      comments: 7,
-      likes: 35,
-      saves: 9,
-      shares: 4,
+      status: 'collected',
+      metrics: {
+        views: 1200,
+        comments: 7,
+        likes: 35,
+        saves: 9,
+        shares: 4,
+      },
     });
     expect(onIdentity).not.toHaveBeenCalled();
 
@@ -606,11 +609,8 @@ describe('Rednote browser metrics and reconciliation', () => {
         post('rednote', { platform_post_id: 'missing-note' }),
       ),
     ).resolves.toMatchObject({
-      views: null,
-      comments: null,
-      likes: null,
-      saves: null,
-      shares: null,
+      status: 'unavailable',
+      reason: expect.stringContaining('not found'),
     });
   });
 
@@ -623,7 +623,8 @@ describe('Rednote browser metrics and reconciliation', () => {
     installPage(rednotePage({ cards: [unique] }));
     await expect(collectRednoteMetrics(post('rednote'))).resolves.toMatchObject(
       {
-        views: 10,
+        status: 'collected',
+        metrics: { views: 10 },
       },
     );
 
@@ -664,7 +665,8 @@ describe('Rednote browser metrics and reconciliation', () => {
     );
     await expect(collectRednoteMetrics(post('rednote'))).resolves.toMatchObject(
       {
-        views: 30,
+        status: 'collected',
+        metrics: { views: 30 },
       },
     );
 
@@ -679,7 +681,7 @@ describe('Rednote browser metrics and reconciliation', () => {
       collectRednoteMetrics(
         post('rednote', { published_title: null, generated_title: null }),
       ),
-    ).resolves.toMatchObject({ views: 40 });
+    ).resolves.toMatchObject({ status: 'collected', metrics: { views: 40 } });
   });
 
   it('rejects incomplete or unreadable Rednote statistics and invalid publish timestamps', async () => {
@@ -769,7 +771,10 @@ describe('Rednote browser metrics and reconciliation', () => {
       createMetricCollectors({
         onRednoteReviewStatus: onReviewStatus,
       }).rednote(post('rednote', { platform_post_id: 'held-note' })),
-    ).resolves.toMatchObject({ views: null, likes: null });
+    ).resolves.toMatchObject({
+      status: 'retryable',
+      reason: expect.stringContaining('under_review'),
+    });
     expect(onReviewStatus).toHaveBeenCalledWith(
       expect.objectContaining({ reviewStatus: 'under_review' }),
     );
@@ -801,7 +806,10 @@ describe('Rednote browser metrics and reconciliation', () => {
         undefined,
         onReviewStatus,
       ),
-    ).resolves.toMatchObject({ views: 120, likes: 9 });
+    ).resolves.toMatchObject({
+      status: 'collected',
+      metrics: { views: 120, likes: 9 },
+    });
     expect(onReviewStatus).toHaveBeenCalledWith(
       expect.objectContaining({ reviewStatus: 'visible' }),
     );

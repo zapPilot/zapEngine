@@ -273,6 +273,9 @@ function isLearnableSample(sample: {
   metric: SocialPostMetricRow;
   post: SocialPostRow;
 }): boolean {
+  if ((sample.metric.collection_status ?? 'collected') === 'unavailable') {
+    return false;
+  }
   if (sample.post.platform !== 'rednote') return true;
   if (
     sample.post.review_status &&

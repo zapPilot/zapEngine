@@ -456,7 +456,8 @@ describe('YouTube metric collection', () => {
     const collectors = createMetricCollectors({ fetchImpl });
 
     await expect(collectors.threads(post('threads'))).resolves.toMatchObject({
-      views: 3,
+      status: 'collected',
+      metrics: { views: 3 },
     });
     expect(Object.keys(collectors).sort()).toEqual([
       'rednote',
