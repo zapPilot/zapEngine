@@ -119,7 +119,6 @@ describe('social daemon store defensive query paths', () => {
       episodeQueue: [
         {
           episodeId: 'episode-1',
-          languageCode: 'zh-Hant',
           title: null,
           nextAt: '2026-08-16T10:05:00.000Z',
         },

@@ -20,6 +20,7 @@ const REDNOTE_HOME_URL = 'https://creator.rednote.com/new/home';
 const THREADS_API_BASE = 'https://graph.threads.net';
 const BROWSER_TIMEOUT_MS = 30_000;
 const REDNOTE_FOLLOWER_WAIT_MS = 15_000;
+const REDNOTE_FOLLOWER_POLL_MS = 500;
 // One snapshot per platform per day. Follower counts move slowly, and a tighter
 // cadence would open a browser on every minute-long daemon tick.
 const SNAPSHOT_STALENESS_MS = 24 * 60 * 60_000;
@@ -27,6 +28,7 @@ const SNAPSHOT_STALENESS_MS = 24 * 60 * 60_000;
 interface CollectorContext {
   browser: MetricsBrowserSession;
   fetchImpl: typeof fetch;
+  followerWaitMs: number;
 }
 
 type FollowerCollector = (
@@ -57,17 +59,37 @@ export function parseFollowerCountNear(
   return null;
 }
 
+/**
+ * Compared by path segment equality rather than as a substring of the whole
+ * URL, which read `/author/...` as an expired session. Query strings are
+ * deliberately not consulted: a login modal that leaves the path alone is caught
+ * by `isRednoteLoginSnippet` on every poll iteration instead.
+ */
+const REDNOTE_AUTH_PATH_SEGMENTS = new Set([
+  'login',
+  'signin',
+  'sign-in',
+  'passport',
+  'auth',
+]);
+
 export function isRednoteLoginUrl(url: string): boolean {
-  return /(?:^|[/?#&=._-])(?:login|passport|signin|auth)(?:$|[/?#&=._-])/i.test(
-    url,
-  );
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  return parsed.pathname
+    .toLowerCase()
+    .split('/')
+    .some((segment) => REDNOTE_AUTH_PATH_SEGMENTS.has(segment));
 }
 
 export function isRednoteLoginSnippet(snippet: string): boolean {
   const normalized = convertTextToZhCN(snippet);
   if (normalized.includes('扫码登录')) return true;
-  if (normalized.split(/\r?\n/u).some((line) => line.trim() === '请登录'))
-    return true;
+  if (normalized.includes('请登录')) return true;
   if (normalized.includes('二维码') && normalized.includes('登录')) return true;
   if (normalized.includes('登录已过期') || normalized.includes('登录过期'))
     return true;
@@ -75,8 +97,67 @@ export function isRednoteLoginSnippet(snippet: string): boolean {
   return false;
 }
 
+/**
+ * Polls until the follower number itself parses, because that is the invariant
+ * the caller needs. Waiting for the `粉丝` label is not the same thing: the creator
+ * shell can render the label next to a placeholder and hydrate the number from a
+ * later API response, which satisfies a label gate at T=0 and still reads
+ * nothing.
+ *
+ * The first parseable value wins, 0 included. A placeholder that happened to
+ * parse would therefore be latched, but `--` and `...` carry no digit run and 0
+ * is a legitimate count, so a stability window would cost every snapshot an
+ * extra poll interval to guard a shell nobody has observed.
+ */
+export async function readRednoteFollowerCount(input: {
+  readText: () => Promise<string>;
+  readUrl: () => string;
+  sleep: (ms: number) => Promise<void>;
+  now?: () => number;
+  timeoutMs?: number;
+}): Promise<number> {
+  const now = input.now ?? Date.now;
+  const deadline = now() + (input.timeoutMs ?? REDNOTE_FOLLOWER_WAIT_MS);
+  let url = '';
+  let text = '';
+
+  for (;;) {
+    url = input.readUrl();
+    if (isRednoteLoginUrl(url)) {
+      throw new Error(`Rednote session expired (redirected to login: ${url}).`);
+    }
+
+    try {
+      text = convertTextToZhCN(await input.readText());
+    } catch {
+      // A navigation mid-read detaches the body; the next poll re-reads it.
+      text = '';
+    }
+
+    // Parsed before the login check so a page carrying a real count is never
+    // discarded over an incidental 登录 string elsewhere in the layout.
+    const followers = parseFollowerCountNear(text, '粉丝');
+    if (followers !== null) return followers;
+
+    if (isRednoteLoginSnippet(text)) {
+      throw new Error(
+        `Rednote session expired (login page detected at ${url}).`,
+      );
+    }
+
+    if (now() >= deadline) break;
+    await input.sleep(REDNOTE_FOLLOWER_POLL_MS);
+  }
+
+  const snippet = text.slice(0, 600).replace(/\s+/gu, ' ').trim();
+  throw new Error(
+    `Rednote creator home exposed no follower count (url=${url} snippet=${snippet ? `"${snippet}"` : 'unreadable'}).`,
+  );
+}
+
 async function collectRednoteFollowers({
   browser,
+  followerWaitMs,
 }: CollectorContext): Promise<NewSocialAccountSnapshot> {
   return browser.withPage(
     REDNOTE_PROFILE_DIRECTORY,
@@ -84,93 +165,12 @@ async function collectRednoteFollowers({
     async (page) => {
       const body = page.locator('body');
       await body.waitFor({ state: 'visible', timeout: BROWSER_TIMEOUT_MS });
-
-      const getUrl = (): string => {
-        try {
-          const maybeUrl = (page as unknown as { url?: () => string }).url;
-          return typeof maybeUrl === 'function'
-            ? maybeUrl.call(page)
-            : REDNOTE_HOME_URL;
-        } catch {
-          return REDNOTE_HOME_URL;
-        }
-      };
-
-      const initialUrl = getUrl();
-      if (isRednoteLoginUrl(initialUrl)) {
-        throw new Error(
-          `Rednote session expired (redirected to login: ${initialUrl}).`,
-        );
-      }
-
-      // The SPA shell renders <body> immediately, but account statistics are
-      // fetched afterwards. Waiting only for body races the API response and
-      // reads an empty state; we must wait for the follower label itself.
-      const followerLocator = page.locator('text=粉丝').first();
-      let sawFollowerLabel = false;
-      try {
-        await followerLocator.waitFor({
-          state: 'visible',
-          timeout: REDNOTE_FOLLOWER_WAIT_MS,
-        });
-        sawFollowerLabel = true;
-      } catch {
-        // Traditional pages use 粉絲; convertTextToZhCN normalizes it later, but
-        // the live DOM still contains the original glyph. Probe once more.
-        try {
-          await page
-            .locator('text=粉絲')
-            .first()
-            .waitFor({ state: 'visible', timeout: 2_000 });
-          sawFollowerLabel = true;
-        } catch {
-          // Fall through to debug-aware error below.
-        }
-      }
-
-      if (!sawFollowerLabel) {
-        const currentUrl = getUrl();
-        let snippet = '';
-        try {
-          const raw = await body.innerText();
-          snippet = convertTextToZhCN(raw)
-            .slice(0, 600)
-            .replace(/\s+/gu, ' ')
-            .trim();
-        } catch {
-          // Keep snippet empty; URL alone is still useful.
-        }
-        if (isRednoteLoginUrl(currentUrl) || isRednoteLoginSnippet(snippet)) {
-          throw new Error(
-            `Rednote session expired (login page detected at ${currentUrl}${snippet ? ` snippet="${snippet.slice(0, 200)}"` : ''}).`,
-          );
-        }
-        throw new Error(
-          `Rednote creator home exposed no follower count (url=${currentUrl} snippet=${snippet ? `"${snippet}"` : 'unreadable'}).`,
-        );
-      }
-
-      const finalUrl = getUrl();
-      if (isRednoteLoginUrl(finalUrl)) {
-        throw new Error(
-          `Rednote session expired (redirected to login: ${finalUrl}).`,
-        );
-      }
-
-      const text = convertTextToZhCN(await body.innerText());
-      if (isRednoteLoginSnippet(text)) {
-        throw new Error(
-          `Rednote session expired (login content detected at ${finalUrl}).`,
-        );
-      }
-
-      const followers = parseFollowerCountNear(text, '粉丝');
-      if (followers === null) {
-        const snippet = text.slice(0, 600).replace(/\s+/gu, ' ').trim();
-        throw new Error(
-          `Rednote creator home exposed no follower count (url=${finalUrl} snippet="${snippet}").`,
-        );
-      }
+      const followers = await readRednoteFollowerCount({
+        readText: () => body.innerText(),
+        readUrl: () => page.url(),
+        sleep: (ms) => page.waitForTimeout(ms),
+        timeoutMs: followerWaitMs,
+      });
       return { platform: 'rednote', followers, details: { label: '粉丝' } };
     },
   );
@@ -251,6 +251,7 @@ export async function captureDueAccountSnapshots(input: {
   fetchImpl?: typeof fetch;
   latest?: typeof latestSocialAccountSnapshots;
   insert?: typeof insertSocialAccountSnapshot;
+  followerWaitMs?: number;
 }): Promise<number> {
   const log = input.log ?? (() => void 0);
   const latest = await (input.latest ?? latestSocialAccountSnapshots)();
@@ -258,6 +259,7 @@ export async function captureDueAccountSnapshots(input: {
   const context: CollectorContext = {
     browser: input.browser,
     fetchImpl: input.fetchImpl ?? fetch,
+    followerWaitMs: input.followerWaitMs ?? REDNOTE_FOLLOWER_WAIT_MS,
   };
 
   let captured = 0;

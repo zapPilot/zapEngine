@@ -6,6 +6,14 @@ export interface SocialLanguagePolicyEntry {
   activeSince: string;
   experimentKey?: string;
   experimentVariant?: string;
+  /**
+   * How `experimentKey` gates inclusion. `exclusive` resolves a real
+   * `social_experiment_assignments` row and only the assigned language's lane
+   * is included. `always` means every language listed always ships together;
+   * `experimentKey`/`experimentVariant` are then just a reporting label, and no
+   * assignment row is created for them, so consumers must not expect one.
+   */
+  assignment?: 'exclusive' | 'always';
 }
 
 const MULTILINGUAL_ACTIVE_SINCE = '2026-08-24T00:00:00.000Z';
@@ -19,12 +27,14 @@ export const SOCIAL_LANGUAGE_POLICY = {
       activeSince: MULTILINGUAL_ACTIVE_SINCE,
       experimentKey: 'x-language-v1',
       experimentVariant: 'en',
+      assignment: 'exclusive',
     },
     {
       language: 'ja',
       activeSince: MULTILINGUAL_ACTIVE_SINCE,
       experimentKey: 'x-language-v1',
       experimentVariant: 'ja',
+      assignment: 'exclusive',
     },
   ],
   youtube: [
@@ -33,30 +43,17 @@ export const SOCIAL_LANGUAGE_POLICY = {
       activeSince: MULTILINGUAL_ACTIVE_SINCE,
       experimentKey: 'youtube-language-cohort-v1',
       experimentVariant: 'en',
+      assignment: 'always',
     },
     {
       language: 'ja',
       activeSince: MULTILINGUAL_ACTIVE_SINCE,
       experimentKey: 'youtube-language-cohort-v1',
       experimentVariant: 'ja',
+      assignment: 'always',
     },
   ],
 } as const satisfies Record<
   SocialPlatform,
   readonly SocialLanguagePolicyEntry[]
 >;
-
-export function policyEntriesForLanguage(
-  languageCode: SocialLanguageCode,
-): { platform: SocialPlatform; policy: SocialLanguagePolicyEntry }[] {
-  return (
-    Object.entries(SOCIAL_LANGUAGE_POLICY) as [
-      SocialPlatform,
-      readonly SocialLanguagePolicyEntry[],
-    ][]
-  ).flatMap(([platform, entries]) =>
-    entries
-      .filter(({ language }) => language === languageCode)
-      .map((policy) => ({ platform, policy })),
-  );
-}

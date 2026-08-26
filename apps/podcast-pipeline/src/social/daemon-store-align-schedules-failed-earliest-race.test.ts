@@ -12,6 +12,8 @@ vi.mock('../services/supabase-client.js', () => supabase);
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
 import { createAlignmentReadFixture } from './daemon-store-align-schedules.test-helper.js';
 
+const NOW = new Date('2026-08-20T00:00:00.000Z');
+
 interface PendingJob {
   id: string;
   episode_id: string;
@@ -82,8 +84,8 @@ describe('alignPendingSocialPublishSchedules failed-earliest recovery', () => {
     fixture.update.mockImplementation(update);
     supabase.getPipelineSupabase.mockReturnValue(fixture.client);
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
 
     expect(attemptedIds).toEqual(['queued-sibling', 'queued-sibling']);
     expect(statusFences).toEqual(['queued', 'queued']);

@@ -31,6 +31,8 @@ vi.mock('../services/supabase-client.js', () => supabaseMocks);
 
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
 
+const NOW = new Date('2026-08-19T00:00:00.000Z');
+
 function createSelectBuilder() {
   const returns = vi.fn(async () => ({ data: state.jobs, error: null }));
   const inFilter = vi.fn(() => ({ returns }));
@@ -114,7 +116,7 @@ describe('alignPendingSocialPublishSchedules', () => {
       },
     ];
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(3);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(3);
 
     expect(state.updates).toEqual([
       {
@@ -168,7 +170,7 @@ describe('alignPendingSocialPublishSchedules', () => {
       },
     ];
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(2);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(2);
 
     expect(state.updates).toEqual([
       {
@@ -208,7 +210,7 @@ describe('alignPendingSocialPublishSchedules', () => {
     ];
     state.updateResults = [false];
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
 
     expect(state.updates).toEqual([
       {
@@ -248,7 +250,7 @@ describe('alignPendingSocialPublishSchedules', () => {
     ];
     state.updateResults = [false, true];
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
 
     expect(state.updates).toEqual([
       {
@@ -296,7 +298,7 @@ describe('alignPendingSocialPublishSchedules', () => {
     ];
     state.updateResults = [false, true];
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
 
     expect(state.updates).toEqual([
       {
@@ -344,7 +346,7 @@ describe('alignPendingSocialPublishSchedules', () => {
     ];
     state.updateResults = [false, true];
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
 
     expect(state.updates).toEqual([
       {
@@ -392,7 +394,7 @@ describe('alignPendingSocialPublishSchedules', () => {
     ];
     state.updateResults = [false, true];
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
 
     expect(state.updates).toEqual([
       {

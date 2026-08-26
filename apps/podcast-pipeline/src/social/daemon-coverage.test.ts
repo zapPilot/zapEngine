@@ -18,8 +18,11 @@ const mocks = vi.hoisted(() => ({
   listLearningSocialMetrics: vi.fn().mockResolvedValue([]),
   listMetricWindowsForPosts: vi.fn().mockResolvedValue([]),
   listSocialPublishCandidates: vi.fn().mockResolvedValue([]),
+  listSocialPublishCandidatesForEpisodes: vi.fn().mockResolvedValue([]),
+  listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
   listUnfinishedSocialPublishJobs: vi.fn().mockResolvedValue([]),
   reconcileSocialPublishJob: vi.fn().mockResolvedValue(true),
+  releaseSocialPublishJobLease: vi.fn(),
   skipOverdueSocialPublishJobs: vi.fn().mockResolvedValue(0),
   insertSocialPostMetric: vi.fn(),
   listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
@@ -61,8 +64,12 @@ vi.mock('./daemon-store.js', () => ({
   listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
+  listSocialPublishCandidatesForEpisodes:
+    mocks.listSocialPublishCandidatesForEpisodes,
+  listPartiallyPublishedCohorts: mocks.listPartiallyPublishedCohorts,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob: mocks.reconcileSocialPublishJob,
+  releaseSocialPublishJobLease: mocks.releaseSocialPublishJobLease,
   skipOverdueSocialPublishJobs: mocks.skipOverdueSocialPublishJobs,
 }));
 

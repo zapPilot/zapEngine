@@ -11,6 +11,8 @@ vi.mock('../services/supabase-client.js', () => supabase);
 
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
 
+const NOW = new Date('2026-08-19T00:00:00.000Z');
+
 describe('alignPendingSocialPublishSchedules update failures', () => {
   it('recovers remaining alignments across a partial write and retry CAS miss', async () => {
     const jobs = [
@@ -87,7 +89,7 @@ describe('alignPendingSocialPublishSchedules update failures', () => {
       from: vi.fn(() => ({ select, update })),
     });
 
-    await expect(alignPendingSocialPublishSchedules()).rejects.toBe(
+    await expect(alignPendingSocialPublishSchedules(NOW)).rejects.toBe(
       databaseError,
     );
 
@@ -96,7 +98,7 @@ describe('alignPendingSocialPublishSchedules update failures', () => {
     expect(attemptedPatches[1]).not.toHaveProperty('next_attempt_at');
     expect(supabase.throwSupabaseError).toHaveBeenCalledWith(databaseError);
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
 
     expect(attemptedIds).toEqual([
       'aligned-before-error',
@@ -109,7 +111,7 @@ describe('alignPendingSocialPublishSchedules update failures', () => {
     expect(jobs[3]?.scheduled_at).toBe('2026-08-19T01:00:00.000Z');
     expect(jobs[3]?.next_attempt_at).toBe('2026-08-19T01:00:00.000Z');
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
 
     expect(jobs[2]?.scheduled_at).toBe('2026-08-19T01:00:00.000Z');
     expect(jobs[2]?.next_attempt_at).toBe('2026-08-19T09:00:00.000Z');
@@ -183,7 +185,7 @@ describe('alignPendingSocialPublishSchedules update failures', () => {
       from: vi.fn(() => ({ select, update })),
     });
 
-    await expect(alignPendingSocialPublishSchedules()).rejects.toBe(
+    await expect(alignPendingSocialPublishSchedules(NOW)).rejects.toBe(
       databaseError,
     );
 
@@ -194,7 +196,7 @@ describe('alignPendingSocialPublishSchedules update failures', () => {
       next_attempt_at: '2026-08-19T01:00:00.000Z',
     });
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(2);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(2);
     expect(jobs[1]?.next_attempt_at).toBe('2026-08-19T09:00:00.000Z');
     expect(jobs[2]?.next_attempt_at).toBe('2026-08-19T01:00:00.000Z');
   });
@@ -253,13 +255,13 @@ describe('alignPendingSocialPublishSchedules update failures', () => {
       from: vi.fn(() => ({ select, update })),
     });
 
-    await expect(alignPendingSocialPublishSchedules()).rejects.toBe(
+    await expect(alignPendingSocialPublishSchedules(NOW)).rejects.toBe(
       databaseError,
     );
     expect(update).not.toHaveBeenCalled();
     expect(supabase.throwSupabaseError).toHaveBeenCalledWith(databaseError);
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
     expect(update).toHaveBeenCalledTimes(1);
     expect(jobs[1]).toMatchObject({
       scheduled_at: '2026-08-19T01:00:00.000Z',
@@ -329,12 +331,12 @@ describe('alignPendingSocialPublishSchedules update failures', () => {
       from: vi.fn(() => ({ select, update })),
     });
 
-    await expect(alignPendingSocialPublishSchedules()).rejects.toBe(
+    await expect(alignPendingSocialPublishSchedules(NOW)).rejects.toBe(
       databaseError,
     );
     expect(update).not.toHaveBeenCalled();
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
     expect(patches).toEqual([
       {
         scheduled_at: '2026-08-19T03:00:00.000Z',

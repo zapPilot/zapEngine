@@ -16,8 +16,11 @@ const mocks = vi.hoisted(() => ({
   listLearningSocialMetrics: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
+  listSocialPublishCandidatesForEpisodes: vi.fn(),
+  listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
   listUnfinishedSocialPublishJobs: vi.fn(),
   reconcileSocialPublishJob: vi.fn(),
+  releaseSocialPublishJobLease: vi.fn(),
   skipOverdueSocialPublishJobs: vi.fn().mockResolvedValue(0),
   insertSocialPostMetric: vi.fn(),
   listSocialPostIdentitiesByEpisodes: vi.fn(),
@@ -44,8 +47,12 @@ vi.mock('./daemon-store.js', () => ({
   listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
+  listSocialPublishCandidatesForEpisodes:
+    mocks.listSocialPublishCandidatesForEpisodes,
+  listPartiallyPublishedCohorts: mocks.listPartiallyPublishedCohorts,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob: mocks.reconcileSocialPublishJob,
+  releaseSocialPublishJobLease: mocks.releaseSocialPublishJobLease,
   skipOverdueSocialPublishJobs: mocks.skipOverdueSocialPublishJobs,
 }));
 vi.mock('../services/db.js', () => ({

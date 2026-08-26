@@ -11,6 +11,8 @@ vi.mock('../services/supabase-client.js', () => supabase);
 
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
 
+const NOW = new Date('2026-08-20T00:00:00.000Z');
+
 describe('alignPendingSocialPublishSchedules claim recovery', () => {
   it('uses the latest failed status and preserves backoff after a claimed job returns', async () => {
     const snapshots = [
@@ -97,9 +99,9 @@ describe('alignPendingSocialPublishSchedules claim recovery', () => {
       from: vi.fn(() => ({ select, update })),
     });
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
 
     expect(attemptedIds).toEqual(['target', 'target']);
     expect(statusFences).toEqual(['queued', 'failed']);
@@ -199,9 +201,9 @@ describe('alignPendingSocialPublishSchedules claim recovery', () => {
       from: vi.fn(() => ({ select, update })),
     });
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
 
     expect(attemptedIds).toEqual(['target', 'target']);
     expect(statusFences).toEqual(['queued', 'queued']);
@@ -302,9 +304,9 @@ describe('alignPendingSocialPublishSchedules claim recovery', () => {
       from: vi.fn(() => ({ select, update })),
     });
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
 
     expect(attemptedIds).toEqual(['target', 'sibling']);
     expect(statusFences).toEqual(['queued', 'queued']);
@@ -366,7 +368,7 @@ describe('alignPendingSocialPublishSchedules claim recovery', () => {
       from: vi.fn(() => ({ select, update })),
     });
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
 
     expect(attemptedIds).toEqual(['queued-sibling']);
     expect(attemptedPatches).toEqual([

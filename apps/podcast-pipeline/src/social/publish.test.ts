@@ -20,6 +20,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 });
 
 import { publishSocialPlatforms } from './publish.js';
+import { SocialReleaseFailureError } from './publish-error.js';
 import type { PublishedSocialPost } from './record.js';
 import { getPublishedPlatform, readPublishState } from './state.js';
 import type { PublishResult, SocialPublishJob } from './types.js';
@@ -140,7 +141,7 @@ describe('publishSocialPlatforms', () => {
     ]);
   });
 
-  it('keeps successful jobs and skips them on retry', async () => {
+  it('keeps a published job saved and skips it on retry after a later platform failed', async () => {
     const path = await statePath();
     const firstPublishX = vi
       .fn()
@@ -149,13 +150,17 @@ describe('publishSocialPlatforms', () => {
       .fn()
       .mockRejectedValue(new Error('API failed'));
 
-    const first = await publishSocialPlatforms({
-      episodeId: 'episode-1',
-      jobs: [job('x', firstPublishX), job('threads', firstPublishThreads)],
-      force: false,
-      statePath: path,
-    });
-    expect(first.map((item) => item.status)).toEqual(['published', 'failed']);
+    await expect(
+      publishSocialPlatforms({
+        episodeId: 'episode-1',
+        jobs: [job('x', firstPublishX), job('threads', firstPublishThreads)],
+        force: false,
+        statePath: path,
+      }),
+    ).rejects.toThrow('API failed');
+    expect(
+      getPublishedPlatform(await readPublishState(path), 'episode-1', 'x'),
+    ).toBeDefined();
 
     const retryPublishX = vi.fn().mockRejectedValue(new Error('must not run'));
     const retryPublishThreads = vi
@@ -180,13 +185,11 @@ describe('publishSocialPlatforms', () => {
     });
   });
 
-  it('continues to later jobs after a failure', async () => {
+  it('stops at the first transport failure and never calls a later job', async () => {
     const path = await statePath();
-    const publishRednote = vi
-      .fn()
-      .mockResolvedValue(success('2026-08-11T00:04:00.000Z'));
+    const publishRednote = vi.fn();
 
-    const outcomes = await publishSocialPlatforms({
+    const error = await publishSocialPlatforms({
       episodeId: 'episode-1',
       jobs: [
         job('threads', vi.fn().mockRejectedValue(new Error('Threads failed'))),
@@ -194,16 +197,18 @@ describe('publishSocialPlatforms', () => {
       ],
       force: false,
       statePath: path,
-    });
+    }).catch((caught: unknown) => caught);
 
-    expect(outcomes.map((item) => item.status)).toEqual([
-      'failed',
-      'published',
-    ]);
-    expect(publishRednote).toHaveBeenCalledOnce();
+    expect(error).toBeInstanceOf(SocialReleaseFailureError);
+    const releaseError = error as SocialReleaseFailureError;
+    expect(releaseError.platform).toBe('threads');
+    expect(releaseError.phase).toBe('transport');
+    expect(releaseError.publishedLanes).toEqual([]);
+    expect(releaseError.untouchedLanes).toEqual(['rednote']);
+    expect(publishRednote).not.toHaveBeenCalled();
   });
 
-  it('publishes X independently when YouTube fails first', async () => {
+  it('reports which lanes already published before a later transport failure', async () => {
     const path = await statePath();
     const publishX = vi
       .fn()
@@ -211,30 +216,35 @@ describe('publishSocialPlatforms', () => {
         success('2026-08-11T00:05:00.000Z', 'https://x.com/status/2'),
       );
 
-    const outcomes = await publishSocialPlatforms({
+    const error = await publishSocialPlatforms({
       episodeId: 'episode-1',
       jobs: [
-        job('youtube', vi.fn().mockRejectedValue(new Error('YouTube failed'))),
         job('x', publishX),
+        job('youtube', vi.fn().mockRejectedValue(new Error('YouTube failed'))),
       ],
       force: false,
       statePath: path,
-    });
+    }).catch((caught: unknown) => caught);
 
-    expect(outcomes.map((item) => item.status)).toEqual([
-      'failed',
-      'published',
-    ]);
+    expect(error).toBeInstanceOf(SocialReleaseFailureError);
+    const releaseError = error as SocialReleaseFailureError;
+    expect(releaseError.platform).toBe('youtube');
+    expect(releaseError.publishedLanes).toEqual(['x']);
+    expect(releaseError.untouchedLanes).toEqual([]);
     expect(publishX).toHaveBeenCalledOnce();
     expect(
       getPublishedPlatform(await readPublishState(path), 'episode-1', 'x'),
     ).toMatchObject({ url: 'https://x.com/status/2' });
   });
 
-  it('normalizes non-Error telemetry failures while keeping the post published', async () => {
+  it('fails the lane when telemetry recording throws a non-Error value, after the post is already saved locally', async () => {
     const path = await statePath();
     const onLog = vi.fn();
-    const outcomes = await publishSocialPlatforms({
+    const persistPublished = vi
+      .fn()
+      .mockRejectedValue('database string failure');
+
+    const error = await publishSocialPlatforms({
       episodeId: 'episode-string-error',
       jobs: [
         job(
@@ -244,82 +254,35 @@ describe('publishSocialPlatforms', () => {
       ],
       force: false,
       statePath: path,
-      persistPublished: vi.fn().mockRejectedValue('database string failure'),
+      persistPublished,
       onLog,
-    });
+    }).catch((caught: unknown) => caught);
 
-    expect(outcomes[0]).toMatchObject({
-      platform: 'threads',
-      status: 'published',
-      recordError: expect.objectContaining({
-        message: 'database string failure',
-      }),
+    expect(error).toBeInstanceOf(SocialReleaseFailureError);
+    expect((error as SocialReleaseFailureError).phase).toBe('telemetry');
+    expect((error as Error).cause).toMatchObject({
+      message: 'database string failure',
     });
+    expect(
+      getPublishedPlatform(
+        await readPublishState(path),
+        'episode-string-error',
+        'threads',
+      ),
+    ).toBeDefined();
     expect(onLog).toHaveBeenCalledWith(
       '[threads] ⚠ Published remotely, but telemetry recording failed: database string failure',
     );
   });
 
-  it('keeps the post published locally and continues after telemetry persistence fails', async () => {
-    const path = await statePath();
-    const recordFailure = new Error('database insert failed');
-    const persistPublished = vi
-      .fn()
-      .mockRejectedValueOnce(recordFailure)
-      .mockResolvedValueOnce(undefined);
-    const onLog = vi.fn();
-
-    const outcomes = await publishSocialPlatforms({
-      episodeId: 'episode-1',
-      jobs: [
-        job(
-          'x',
-          vi
-            .fn()
-            .mockResolvedValue(
-              success('2026-08-11T00:00:00.000Z', 'https://x.com/status/1'),
-            ),
-        ),
-        job(
-          'threads',
-          vi.fn().mockResolvedValue(success('2026-08-11T00:01:00.000Z')),
-        ),
-      ],
-      force: false,
-      statePath: path,
-      persistPublished,
-      onLog,
-    });
-
-    expect(outcomes).toEqual([
-      {
-        platform: 'x',
-        status: 'published',
-        url: 'https://x.com/status/1',
-        recordError: recordFailure,
-      },
-      { platform: 'threads', status: 'published' },
-    ]);
-    expect(persistPublished).toHaveBeenCalledTimes(2);
-    const state = await readPublishState(path);
-    expect(getPublishedPlatform(state, 'episode-1', 'x')).toBeDefined();
-    expect(getPublishedPlatform(state, 'episode-1', 'threads')).toBeDefined();
-    expect(onLog).toHaveBeenCalledWith(
-      '[x] ⚠ Published remotely, but telemetry recording failed: database insert failed',
-    );
-  });
-
-  it('reports a published post, persists telemetry, and continues when local state fails', async () => {
+  it('fails the lane when local duplicate state cannot be saved, before telemetry ever runs', async () => {
     const path = await statePath();
     const stateFailure = new Error('rename denied');
     fsMocks.rename.mockRejectedValueOnce(stateFailure);
     const persistPublished = vi.fn().mockResolvedValue(undefined);
-    const publishThreads = vi
-      .fn()
-      .mockResolvedValue(success('2026-08-11T00:01:00.000Z'));
     const onLog = vi.fn();
 
-    const outcomes = await publishSocialPlatforms({
+    const error = await publishSocialPlatforms({
       episodeId: 'episode-1',
       jobs: [
         job(
@@ -330,70 +293,19 @@ describe('publishSocialPlatforms', () => {
               success('2026-08-11T00:00:00.000Z', 'https://x.com/status/1'),
             ),
         ),
-        job('threads', publishThreads),
       ],
       force: false,
       statePath: path,
       persistPublished,
       onLog,
-    });
+    }).catch((caught: unknown) => caught);
 
-    expect(outcomes).toEqual([
-      {
-        platform: 'x',
-        status: 'published',
-        url: 'https://x.com/status/1',
-        stateError: stateFailure,
-      },
-      { platform: 'threads', status: 'published' },
-    ]);
-    expect(persistPublished).toHaveBeenCalledTimes(2);
-    expect(publishThreads).toHaveBeenCalledOnce();
-    const state = await readPublishState(path);
-    expect(getPublishedPlatform(state, 'episode-1', 'x')).toBeUndefined();
-    expect(getPublishedPlatform(state, 'episode-1', 'threads')).toBeDefined();
+    expect(error).toBeInstanceOf(SocialReleaseFailureError);
+    expect((error as SocialReleaseFailureError).phase).toBe('state');
+    expect((error as Error).cause).toBe(stateFailure);
+    expect(persistPublished).not.toHaveBeenCalled();
     expect(onLog).toHaveBeenCalledWith(
       '[x] ⚠ Published remotely, but local duplicate state was not saved: rename denied',
     );
-  });
-
-  it('preserves both state and telemetry errors while continuing later platforms', async () => {
-    const path = await statePath();
-    const stateFailure = new Error('state write failed');
-    const recordFailure = new Error('telemetry insert failed');
-    fsMocks.rename.mockRejectedValueOnce(stateFailure);
-    const persistPublished = vi
-      .fn()
-      .mockRejectedValueOnce(recordFailure)
-      .mockResolvedValueOnce(undefined);
-    const publishRednote = vi
-      .fn()
-      .mockResolvedValue(success('2026-08-11T00:02:00.000Z'));
-
-    const outcomes = await publishSocialPlatforms({
-      episodeId: 'episode-1',
-      jobs: [
-        job(
-          'threads',
-          vi.fn().mockResolvedValue(success('2026-08-11T00:01:00.000Z')),
-        ),
-        job('rednote', publishRednote),
-      ],
-      force: false,
-      statePath: path,
-      persistPublished,
-    });
-
-    expect(outcomes).toEqual([
-      {
-        platform: 'threads',
-        status: 'published',
-        stateError: stateFailure,
-        recordError: recordFailure,
-      },
-      { platform: 'rednote', status: 'published' },
-    ]);
-    expect(persistPublished).toHaveBeenCalledTimes(2);
-    expect(publishRednote).toHaveBeenCalledOnce();
   });
 });

@@ -24,6 +24,7 @@ import {
 } from './platforms.js';
 import type { PublishPlatformOutcome } from './publish.js';
 import { publishSocialBatch } from './publish-batch.js';
+import { SocialReleaseFailureError } from './publish-error.js';
 import { getPublishedPlatform, readPublishState } from './state.js';
 import type {
   GeneratedSocialCopy,
@@ -159,62 +160,48 @@ export async function runSocialCli(
 
   const publishedCopy = review.copy;
   const onLog = (message: string): void => console.log(message);
-  const outcomes = await publishSocialBatch({
-    episodeId: options.episodeId,
-    languageCode: options.languageCode,
-    platforms: review.platforms.map((platform) => ({ platform })),
-    copySnapshot: {
-      generated: review.generatedCopy,
-      published: publishedCopy,
-      model: review.model,
-    },
-    episode,
-    ...(video ? { video } : {}),
-    ...(xVideo ? { teaserVideo: xVideo } : {}),
-    force: options.force,
-    ...(options.youtubePrivacy
-      ? { youtubePrivacyStatus: options.youtubePrivacy }
-      : {}),
-    onLog,
-  });
-
-  reportPublishOutcomes(outcomes, runtime.setExitCodeOnFailure ?? true);
-  return outcomes;
+  try {
+    const outcomes = await publishSocialBatch({
+      episodeId: options.episodeId,
+      languageCode: options.languageCode,
+      platforms: review.platforms.map((platform) => ({ platform })),
+      copySnapshot: {
+        generated: review.generatedCopy,
+        published: publishedCopy,
+        model: review.model,
+      },
+      episode,
+      ...(video ? { video } : {}),
+      ...(xVideo ? { teaserVideo: xVideo } : {}),
+      force: options.force,
+      ...(options.youtubePrivacy
+        ? { youtubePrivacyStatus: options.youtubePrivacy }
+        : {}),
+      onLog,
+    });
+    console.log('Done.');
+    return outcomes;
+  } catch (error) {
+    reportPublishFailure(error, runtime.setExitCodeOnFailure ?? true);
+    return [];
+  }
 }
 
-function reportPublishOutcomes(
-  outcomes: readonly PublishPlatformOutcome[],
+/**
+ * Fail-fast, same as the daemon: the first transport/state/telemetry failure
+ * stops the batch, so there is nothing partial left to reconcile here. This
+ * only reports what happened and exits non-zero; it does not retry or fall
+ * back to a best-effort mode.
+ */
+function reportPublishFailure(
+  error: unknown,
   setExitCodeOnFailure: boolean,
 ): void {
-  const failed = outcomes.filter((outcome) => outcome.status === 'failed');
-  const stateFailures = outcomes.filter((outcome) => outcome.stateError);
-  const recordFailures = outcomes.filter((outcome) => outcome.recordError);
-  if (
-    failed.length === 0 &&
-    stateFailures.length === 0 &&
-    recordFailures.length === 0
-  ) {
-    console.log('Done.');
-    return;
-  }
-
   if (setExitCodeOnFailure) process.exitCode = 1;
-  if (failed.length > 0) {
+  console.error(errorMessage(error));
+  if (error instanceof SocialReleaseFailureError) {
     console.error(
-      `Done with ${failed.length} failed platform${failed.length === 1 ? '' : 's'}. Successfully published platforms with saved local state will be skipped next time.`,
-    );
-  }
-  if (stateFailures.length > 0) {
-    const subject =
-      stateFailures.length === 1 ? 'That post is' : 'Those posts are';
-    const object = stateFailures.length === 1 ? 'it' : 'them';
-    console.error(
-      `Done with ${stateFailures.length} local duplicate-state failure${stateFailures.length === 1 ? '' : 's'}. ${subject} live, but ~/.zap-pilot/social-publisher.json was NOT saved for ${object}. Verify the platform post and repair the local state before rerunning, or the CLI may publish a duplicate.`,
-    );
-  }
-  if (recordFailures.length > 0) {
-    console.error(
-      `Done with ${recordFailures.length} telemetry record failure${recordFailures.length === 1 ? '' : 's'}. The affected posts are live; use the payload above to restore each missing row.`,
+      `Published before failure: ${error.publishedLanes.join(', ') || '(none)'}. Untouched: ${error.untouchedLanes.join(', ') || '(none)'}.`,
     );
   }
 }

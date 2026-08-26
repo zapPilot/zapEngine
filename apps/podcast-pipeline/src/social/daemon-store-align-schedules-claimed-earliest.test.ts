@@ -12,6 +12,8 @@ vi.mock('../services/supabase-client.js', () => supabase);
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
 import { createAlignmentReadFixture } from './daemon-store-align-schedules.test-helper.js';
 
+const NOW = new Date('2026-08-20T00:00:00.000Z');
+
 interface AlignmentUpdate {
   id: string | undefined;
   status: string | undefined;
@@ -87,10 +89,12 @@ describe('alignPendingSocialPublishSchedules recovery snapshot', () => {
     }, update);
     supabase.getPipelineSupabase.mockReturnValue(fixture.client);
 
-    await expect(alignPendingSocialPublishSchedules()).rejects.toMatchObject({
-      message: 'alignment list failed before claim transition',
-    });
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+    await expect(alignPendingSocialPublishSchedules(NOW)).rejects.toMatchObject(
+      {
+        message: 'alignment list failed before claim transition',
+      },
+    );
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
 
     expect(updates).toEqual([
       {
