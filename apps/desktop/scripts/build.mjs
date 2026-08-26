@@ -15,10 +15,17 @@ const shared = {
   logLevel: 'info',
 };
 
+const bakedDsn = process.env['SENTRY_DESKTOP_DSN']?.trim() ?? '';
+const bakedRelease = process.env['APP_COMMIT_SHA']?.trim() ?? '';
+
 await build({
   ...shared,
   entryPoints: ['src/main/entry.ts'],
   outfile: 'dist/main/main.cjs',
+  define: {
+    __SENTRY_DESKTOP_DSN__: JSON.stringify(bakedDsn),
+    __SENTRY_DESKTOP_RELEASE__: JSON.stringify(bakedRelease),
+  },
 });
 
 await build({
