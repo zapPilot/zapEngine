@@ -16,8 +16,11 @@ const mocks = vi.hoisted(() => ({
   listLearningSocialMetrics: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
+  listSocialPublishCandidatesForEpisodes: vi.fn(),
+  listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
   listUnfinishedSocialPublishJobs: vi.fn(),
   reconcileSocialPublishJob: vi.fn(),
+  releaseSocialPublishJobLease: vi.fn(),
   skipOverdueSocialPublishJobs: vi.fn().mockResolvedValue(0),
   insertSocialPostMetric: vi.fn(),
   listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
@@ -44,8 +47,12 @@ vi.mock('./daemon-store.js', () => ({
   listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
+  listSocialPublishCandidatesForEpisodes:
+    mocks.listSocialPublishCandidatesForEpisodes,
+  listPartiallyPublishedCohorts: mocks.listPartiallyPublishedCohorts,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob: mocks.reconcileSocialPublishJob,
+  releaseSocialPublishJobLease: mocks.releaseSocialPublishJobLease,
   skipOverdueSocialPublishJobs: mocks.skipOverdueSocialPublishJobs,
 }));
 
@@ -68,6 +75,7 @@ vi.mock('./strategy.js', async (importOriginal) => ({
 }));
 
 import { runSocialDaemonTick } from './daemon.js';
+import { SocialReleaseFailureError } from './publish-error.js';
 
 const NOW = new Date('2026-08-18T01:00:00.000Z');
 const EPISODE_ID = '123e4567-e89b-42d3-a456-426614174000';
@@ -110,38 +118,35 @@ beforeEach(() => {
 
 describe('social daemon publish persistence failures', () => {
   it.each([
-    ['stateError', new Error('failed to persist platform state')],
-    ['recordError', new Error('failed to record social post')],
+    ['state', new Error('failed to persist platform state')],
+    ['telemetry', new Error('failed to record social post')],
   ] as const)(
-    'retries a published outcome when %s is present instead of marking the job complete',
-    async (errorField, error) => {
+    'stops the tick instead of retrying when publishSocialBatch fails with a %s error',
+    async (phase, cause) => {
       mocks.listSocialPostsByEpisode.mockResolvedValueOnce([]);
-      mocks.publishSocialBatch.mockResolvedValue([
-        {
+      mocks.publishSocialBatch.mockRejectedValue(
+        new SocialReleaseFailureError({
+          episodeId: EPISODE_ID,
+          languageCode: 'zh-Hant',
           platform: 'x',
-          status: 'published',
-          url: 'https://x.com/zap/status/1',
-          [errorField]: error,
-        },
-      ]);
+          phase,
+          cause,
+        }),
+      );
 
-      await runSocialDaemonTick({
-        now: NOW,
-        firstStartedAt: '2026-08-18T00:00:00.000Z',
-      });
+      await expect(
+        runSocialDaemonTick({
+          now: NOW,
+          firstStartedAt: '2026-08-18T00:00:00.000Z',
+        }),
+      ).rejects.toThrow(cause.message);
 
-      expect(mocks.failSocialPublishJob).toHaveBeenCalledWith({
-        jobId: 'job-1',
-        owner: expect.any(String),
-        now: NOW,
-        attemptCount: 3,
-        error: error.message,
-      });
+      expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
       expect(mocks.completeSocialPublishJob).not.toHaveBeenCalled();
     },
   );
 
-  it('retries when publish reports success but no social post row was recorded', async () => {
+  it('stops the tick when publish reports success but no social post row was recorded', async () => {
     mocks.listSocialPostsByEpisode.mockResolvedValue([]);
     mocks.publishSocialBatch.mockResolvedValue([
       {
@@ -151,18 +156,16 @@ describe('social daemon publish persistence failures', () => {
       },
     ]);
 
-    await runSocialDaemonTick({
-      now: NOW,
-      firstStartedAt: '2026-08-18T00:00:00.000Z',
-    });
+    await expect(
+      runSocialDaemonTick({
+        now: NOW,
+        firstStartedAt: '2026-08-18T00:00:00.000Z',
+      }),
+    ).rejects.toThrow(
+      'x publish completed but no social_posts row was recorded.',
+    );
 
-    expect(mocks.failSocialPublishJob).toHaveBeenCalledWith({
-      jobId: 'job-1',
-      owner: expect.any(String),
-      now: NOW,
-      attemptCount: 3,
-      error: 'x publish completed but no social_posts row was recorded.',
-    });
+    expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
     expect(mocks.completeSocialPublishJob).not.toHaveBeenCalled();
   });
 

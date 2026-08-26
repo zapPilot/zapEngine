@@ -18,6 +18,7 @@ import { app } from 'electron';
 const ENV_KEY_MAP: Record<string, string> = {
   ACCOUNT_API_URL: 'VITE_ACCOUNT_API_URL',
   ANALYTICS_ENGINE_URL: 'VITE_ANALYTICS_ENGINE_URL',
+  SENTRY_DESKTOP_DSN: 'VITE_SENTRY_DSN',
 };
 
 /**
@@ -28,6 +29,7 @@ const ENV_KEY_MAP: Record<string, string> = {
 const PRODUCTION_DEFAULTS: Record<string, string> = {
   VITE_ACCOUNT_API_URL: '',
   VITE_ANALYTICS_ENGINE_URL: '',
+  VITE_SENTRY_DSN: '',
 };
 
 export interface MainEnvDeps {

@@ -59,7 +59,6 @@ export interface SocialQueueLaneItem extends SocialQueueItem {
 
 export interface SocialQueueEpisode {
   episodeId: string;
-  languageCode: PrimaryLanguageCode;
   title: string | null;
   nextAt: string;
 }
@@ -140,17 +139,45 @@ export async function ensureSocialDaemonStart(now: Date): Promise<string> {
   return raced.first_started_at;
 }
 
+function unwrapCandidates(result: {
+  data: SocialPublishCandidate[] | null;
+  error: unknown;
+}): SocialPublishCandidate[] {
+  if (result.error) throwSupabaseError(result.error);
+  return result.data ?? [];
+}
+
 export async function listSocialPublishCandidates(
   readySince: string,
 ): Promise<SocialPublishCandidate[]> {
-  const { data, error } = await getPipelineSupabase()
-    .from('social_publish_candidates')
-    .select('episode_id,ready_at,language_code,episode_created_at')
-    .gte('ready_at', readySince)
-    .order('ready_at', { ascending: true })
-    .returns<SocialPublishCandidate[]>();
-  if (error) throwSupabaseError(error);
-  return data ?? [];
+  return unwrapCandidates(
+    await getPipelineSupabase()
+      .from('social_publish_candidates')
+      .select('episode_id,ready_at,language_code,episode_created_at')
+      .gte('ready_at', readySince)
+      .order('ready_at', { ascending: true })
+      .returns<SocialPublishCandidate[]>(),
+  );
+}
+
+// The anchor filter above is applied per lane, not per episode: a canonical
+// zh-Hant localization that finished ready before `readySince` would
+// otherwise never appear here, so an episode discovered through one recently
+// ready language always looks permanently incomplete. Callers that already
+// know which episodes matter use this instead, unfiltered by anchor, to see
+// every ready language for exactly those episodes.
+export async function listSocialPublishCandidatesForEpisodes(
+  episodeIds: readonly string[],
+): Promise<SocialPublishCandidate[]> {
+  if (episodeIds.length === 0) return [];
+  return unwrapCandidates(
+    await getPipelineSupabase()
+      .from('social_publish_candidates')
+      .select('episode_id,ready_at,language_code,episode_created_at')
+      .in('episode_id', [...episodeIds])
+      .order('ready_at', { ascending: true })
+      .returns<SocialPublishCandidate[]>(),
+  );
 }
 
 // A conflict-ignoring upsert and a status-fenced update both ask the same
@@ -233,39 +260,44 @@ export async function listPendingSocialPublishSchedules(): Promise<
   return data ?? [];
 }
 
-export async function alignPendingSocialPublishSchedules(): Promise<number> {
+// `episode_id` is the release cohort: every lane (platform x language) that
+// still can move shares one `scheduled_at`, taken as the earliest slot seen
+// across every status for that episode -- including `completed`. That is
+// deliberate, not just an optimization: when a sibling lane already
+// published, its `scheduled_at` is in the past, so a lagging pending lane is
+// pulled to that same past slot and becomes immediately claimable on the next
+// tick instead of waiting out its own, later slot. A pending lane already due
+// (`scheduled_at <= now`) is left alone either way, since realigning it would
+// not change when it can next be claimed.
+export async function alignPendingSocialPublishSchedules(
+  now: Date,
+): Promise<number> {
   const { data, error } = await getPipelineSupabase()
     .from('social_publish_jobs')
-    .select('id,episode_id,language_code,status,scheduled_at,next_attempt_at')
-    .in('status', ['queued', 'failed'])
+    .select('id,episode_id,status,scheduled_at,next_attempt_at')
+    .in('status', ['queued', 'failed', 'processing', 'completed'])
     .returns<
       Pick<
         SocialPublishJobRow,
-        | 'id'
-        | 'episode_id'
-        | 'status'
-        | 'scheduled_at'
-        | 'next_attempt_at'
-        | 'language_code'
+        'id' | 'episode_id' | 'status' | 'scheduled_at' | 'next_attempt_at'
       >[]
     >();
   if (error) throwSupabaseError(error);
 
   const jobs = data ?? [];
-  const earliestByEpisodeLanguage = new Map<string, string>();
+  const earliestByEpisode = new Map<string, string>();
   for (const job of jobs) {
-    const key = `${job.episode_id}|${job.language_code ?? 'zh-Hant'}`;
-    const current = earliestByEpisodeLanguage.get(key);
+    const current = earliestByEpisode.get(job.episode_id);
     if (!current || Date.parse(job.scheduled_at) < Date.parse(current)) {
-      earliestByEpisodeLanguage.set(key, job.scheduled_at);
+      earliestByEpisode.set(job.episode_id, job.scheduled_at);
     }
   }
 
   let aligned = 0;
   for (const job of jobs) {
-    const scheduledAt = earliestByEpisodeLanguage.get(
-      `${job.episode_id}|${job.language_code ?? 'zh-Hant'}`,
-    );
+    if (job.status !== 'queued' && job.status !== 'failed') continue;
+    if (Date.parse(job.scheduled_at) <= now.getTime()) continue;
+    const scheduledAt = earliestByEpisode.get(job.episode_id);
     if (!scheduledAt || scheduledAt === job.scheduled_at) continue;
     const patch: Partial<SocialPublishJobRow> = { scheduled_at: scheduledAt };
     if (job.status === 'queued') patch.next_attempt_at = scheduledAt;
@@ -352,12 +384,10 @@ export async function getSocialQueueSnapshot(
   const queuedEpisodes = new Set<string>();
   for (const job of sortedJobs) {
     const languageCode = job.language_code ?? 'zh-Hant';
-    const episodeLanguage = `${job.episode_id}|${languageCode}`;
-    if (!queuedEpisodes.has(episodeLanguage)) {
-      queuedEpisodes.add(episodeLanguage);
+    if (!queuedEpisodes.has(job.episode_id)) {
+      queuedEpisodes.add(job.episode_id);
       episodeQueue.push({
         episodeId: job.episode_id,
-        languageCode,
         title:
           titleByEpisodeLanguage.get(`${job.episode_id}|${languageCode}`) ??
           null,
@@ -472,7 +502,37 @@ export async function skipOverdueSocialPublishJobs(input: {
 
   const completedAt = input.now.toISOString();
   const cutoff = new Date(input.now.getTime() - input.graceMs).toISOString();
-  const { data, error } = await getPipelineSupabase()
+  const supabase = getPipelineSupabase();
+
+  const { data: completedRows, error: completedError } = await supabase
+    .from('social_publish_jobs')
+    .select('episode_id')
+    .in('status', ['completed'])
+    .returns<{ episode_id: string }[]>();
+  if (completedError) throwSupabaseError(completedError);
+
+  const { data: candidateRows, error: candidateError } = await supabase
+    .from('social_publish_jobs')
+    .select('id,episode_id')
+    .in('status', ['queued', 'failed'])
+    .lt('scheduled_at', cutoff)
+    .returns<{ id: string; episode_id: string }[]>();
+  if (candidateError) throwSupabaseError(candidateError);
+
+  // A lane whose episode already has a completed sibling is exactly the
+  // partial-cohort state this daemon exists to finish, not discard -- it must
+  // never be swept away as merely overdue.
+  const completedEpisodes = new Set(
+    (completedRows ?? [])
+      .map((row) => row.episode_id)
+      .filter((episodeId): episodeId is string => Boolean(episodeId)),
+  );
+  const overdueIds = (candidateRows ?? [])
+    .filter((row) => !completedEpisodes.has(row.episode_id))
+    .map((row) => row.id);
+  if (overdueIds.length === 0) return 0;
+
+  const { data, error } = await supabase
     .from('social_publish_jobs')
     .update({
       status: 'completed',
@@ -482,8 +542,7 @@ export async function skipOverdueSocialPublishJobs(input: {
       last_error: `skipped: overdue; grace_ms=${input.graceMs}; cutoff=${cutoff}`,
       updated_at: completedAt,
     })
-    .in('status', ['queued', 'failed'])
-    .lt('scheduled_at', cutoff)
+    .in('id', overdueIds)
     .select('id')
     .returns<{ id: string }[]>();
   if (error) throwSupabaseError(error);
@@ -493,16 +552,45 @@ export async function skipOverdueSocialPublishJobs(input: {
 export async function claimSocialPublishBatch(input: {
   owner: string;
   now: Date;
+  /**
+   * Restricts the claim to one episode's cohort. Used while a cohort is only
+   * partially published, so the next tick finishes it instead of starting a
+   * different episode while this one still has pending lanes.
+   */
+  episodeId?: string;
 }): Promise<SocialPublishJobRow[]> {
   const { data, error } = await getPipelineSupabase().rpc(
     'claim_social_publish_batch',
     {
       p_owner: input.owner,
       p_now: input.now.toISOString(),
+      ...(input.episodeId ? { p_episode_id: input.episodeId } : {}),
     },
   );
   if (error) throwSupabaseError(error);
   return (data ?? []) as SocialPublishJobRow[];
+}
+
+// completed + still-pending on the same episode is exactly a broken cohort:
+// some lanes already shipped, others have not. The daemon must finish these
+// before it is allowed to start a fresh episode.
+export async function listPartiallyPublishedCohorts(): Promise<string[]> {
+  const { data, error } = await getPipelineSupabase()
+    .from('social_publish_jobs')
+    .select('episode_id,status')
+    .in('status', ['queued', 'failed', 'completed'])
+    .returns<{ episode_id: string; status: SocialPublishJobRow['status'] }[]>();
+  if (error) throwSupabaseError(error);
+
+  const completedEpisodes = new Set<string>();
+  const pendingEpisodes = new Set<string>();
+  for (const row of data ?? []) {
+    if (row.status === 'completed') completedEpisodes.add(row.episode_id);
+    else pendingEpisodes.add(row.episode_id);
+  }
+  return [...pendingEpisodes].filter((episodeId) =>
+    completedEpisodes.has(episodeId),
+  );
 }
 
 async function updateOwnedSocialPublishJob(
@@ -600,6 +688,25 @@ export async function failSocialPublishJob(input: {
     lease_owner: null,
     lease_expires_at: null,
     last_error: input.error.slice(0, 4_000),
+    updated_at: input.now.toISOString(),
+  });
+}
+
+// Used to hand back a claimed-but-never-attempted lane when a sibling lane in
+// the same release cohort fails fatally: the lane goes straight back to
+// `queued`, immediately claimable, with no backoff applied -- it was never
+// actually tried, so there is nothing to retry-delay.
+export async function releaseSocialPublishJobLease(input: {
+  jobId: string;
+  owner: string;
+  scheduledAt: string;
+  now: Date;
+}): Promise<void> {
+  await updateOwnedSocialPublishJob(input.jobId, input.owner, {
+    status: 'queued',
+    next_attempt_at: input.scheduledAt,
+    lease_owner: null,
+    lease_expires_at: null,
     updated_at: input.now.toISOString(),
   });
 }

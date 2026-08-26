@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@next/third-parties": "^15.3.4",
+    "@sentry/nextjs": "^10.70.0",
     "@zapengine/brand-assets": "workspace:*",
     "@zapengine/types": "workspace:*",
     "fumadocs-core": "^15.8.5",
@@ -33,6 +34,7 @@
     "fumadocs-ui": "^15.8.5",
     "lucide-react": "catalog:",
     "next": "^15.5.7",
+    "posthog-js": "^1.418.14",
     "react": "catalog:",
     "react-dom": "catalog:",
     "viem": "catalog:"

@@ -58,6 +58,7 @@ vi.mock('./video.js', () => ({
 }));
 
 import { findPendingPlatforms, parseCliOptions, runSocialCli } from './cli.js';
+import { SocialReleaseFailureError } from './publish-error.js';
 import type {
   GeneratedSocialCopy,
   PlatformPublishState,
@@ -133,12 +134,8 @@ function restoreProperty(
   }
 }
 
-let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
-
 beforeEach(() => {
-  consoleErrorSpy = vi
-    .spyOn(console, 'error')
-    .mockImplementation(() => undefined);
+  vi.spyOn(console, 'error').mockImplementation(() => undefined);
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   mocks.createReadlineInterface.mockReturnValue({
@@ -767,91 +764,60 @@ describe('runSocialCli publishing', () => {
     expect(mocks.publishSocialPlatforms).toHaveBeenCalledOnce();
   });
 
-  it('reports plural platform failures without inventing state or telemetry failures', async () => {
-    mocks.publishSocialPlatforms.mockResolvedValue([
-      { platform: 'x', status: 'failed', error: new Error('x failed') },
-      {
-        platform: 'threads',
-        status: 'failed',
-        error: new Error('threads failed'),
-      },
+  it('stops at the first platform failure, reports it, and sets a non-zero exit code', async () => {
+    mocks.publishSocialPlatforms.mockRejectedValue(
+      new SocialReleaseFailureError({
+        episodeId: EPISODE_ID,
+        languageCode: 'zh-Hant',
+        platform: 'x',
+        phase: 'transport',
+        cause: new Error('x failed'),
+        publishedLanes: [],
+        untouchedLanes: ['threads'],
+      }),
+    );
+
+    const outcomes = await runSocialCli([
+      EPISODE_ID,
+      '--language',
+      'zh-Hant',
+      '--yes',
     ]);
 
-    await runSocialCli([EPISODE_ID, '--language', 'zh-Hant', '--yes']);
-
+    expect(outcomes).toEqual([]);
+    expect(process.exitCode).toBe(1);
     expect(console.error).toHaveBeenCalledWith(
-      expect.stringContaining('2 failed platforms.'),
+      expect.stringContaining('Platform: x'),
     );
-    expect(
-      consoleErrorSpy.mock.calls.some(([message]: unknown[]) =>
-        String(message).includes('duplicate-state failure'),
-      ),
-    ).toBe(false);
-    expect(
-      consoleErrorSpy.mock.calls.some(([message]: unknown[]) =>
-        String(message).includes('telemetry record failure'),
-      ),
-    ).toBe(false);
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('Published before failure: (none)'),
+    );
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('Untouched: threads'),
+    );
   });
 
-  it('reports publish, local-state, and telemetry failures in singular and plural forms', async () => {
-    mocks.publishSocialPlatforms.mockResolvedValue([
-      { platform: 'x', status: 'failed', error: new Error('x failed') },
-      {
+  it('reports which platforms already published before a later one failed', async () => {
+    mocks.publishSocialPlatforms.mockRejectedValue(
+      new SocialReleaseFailureError({
+        episodeId: EPISODE_ID,
+        languageCode: 'zh-Hant',
         platform: 'threads',
-        status: 'published',
-        result: { status: 'published', publishedAt: '2026-08-11T00:00:00Z' },
-        stateError: new Error('state failed'),
-        recordError: new Error('record failed'),
-      },
-      {
-        platform: 'rednote',
-        status: 'published',
-        result: { status: 'published', publishedAt: '2026-08-11T00:00:00Z' },
-        stateError: new Error('state failed 2'),
-        recordError: new Error('record failed 2'),
-      },
-    ]);
+        phase: 'state',
+        cause: new Error('rename denied'),
+        publishedLanes: ['x'],
+        untouchedLanes: ['rednote'],
+      }),
+    );
 
     await runSocialCli([EPISODE_ID, '--language', 'zh-Hant', '--yes']);
 
     expect(process.exitCode).toBe(1);
     expect(console.error).toHaveBeenCalledWith(
-      expect.stringContaining('1 failed platform.'),
+      expect.stringContaining('Published before failure: x'),
     );
     expect(console.error).toHaveBeenCalledWith(
-      expect.stringContaining('2 local duplicate-state failures'),
-    );
-    expect(console.error).toHaveBeenCalledWith(
-      expect.stringContaining('2 telemetry record failures'),
-    );
-  });
-
-  it('reports singular local-state and telemetry failures', async () => {
-    mocks.publishSocialPlatforms.mockResolvedValue([
-      {
-        platform: 'threads',
-        status: 'published',
-        result: { status: 'published', publishedAt: '2026-08-11T00:00:00Z' },
-        stateError: new Error('state failed'),
-        recordError: new Error('record failed'),
-      },
-    ]);
-    await runSocialCli([
-      EPISODE_ID,
-      '--language',
-      'zh-Hant',
-      '--yes',
-      '--platform',
-      'threads',
-    ]);
-    expect(console.error).toHaveBeenCalledWith(
-      expect.stringContaining(
-        '1 local duplicate-state failure. That post is live',
-      ),
-    );
-    expect(console.error).toHaveBeenCalledWith(
-      expect.stringContaining('1 telemetry record failure.'),
+      expect.stringContaining('Untouched: rednote'),
     );
   });
 

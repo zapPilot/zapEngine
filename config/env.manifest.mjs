@@ -112,11 +112,44 @@ export const ENV_MANIFEST = {
     next: 'NEXT_PUBLIC_IPFS_GATEWAY_FALLBACK',
   }),
   GA_ID: client(['landing-page'], { next: 'NEXT_PUBLIC_GA_ID' }),
+  POSTHOG_KEY: client(
+    ['landing-page'],
+    { next: 'NEXT_PUBLIC_POSTHOG_KEY' },
+    { sensitive: true },
+  ),
+  POSTHOG_HOST: client(['landing-page'], { next: 'NEXT_PUBLIC_POSTHOG_HOST' }),
+  SENTRY_ZAP_PILOT_WEB_DSN: client(
+    ['web'],
+    { expo: 'EXPO_PUBLIC_SENTRY_DSN' },
+    { sensitive: true },
+  ),
+  SENTRY_ZAP_PILOT_NATIVE_DSN: client(
+    ['expo'],
+    { expo: 'EXPO_PUBLIC_SENTRY_DSN' },
+    { sensitive: true },
+  ),
+  SENTRY_DESKTOP_DSN: client(
+    ['desktop'],
+    { vite: 'VITE_SENTRY_DSN' },
+    { sensitive: true },
+  ),
+  SENTRY_LANDING_PAGE_DSN: client(
+    ['landing-page'],
+    { next: 'NEXT_PUBLIC_SENTRY_DSN' },
+    { sensitive: true },
+  ),
   TRACK_RECORD_MOCK: client(['landing-page'], {
     next: 'NEXT_PUBLIC_TRACK_RECORD_MOCK',
   }),
 
   NODE_ENV: host(['all']),
+  APP_COMMIT_SHA: host([
+    'account-engine',
+    'alpha-etl',
+    'analytics-engine',
+    'podcast-pipeline',
+  ]),
+  NEXT_RUNTIME: host(['landing-page']),
   ALPHA_ETL_DATABASE_URL: server(['alpha-etl'], {
     requiredFor: ['alpha-etl:base'],
     sensitive: true,
@@ -142,7 +175,15 @@ export const ENV_MANIFEST = {
   ALPHA_ETL_URL: server(['account-engine']),
   ALPHA_ETL_WEBHOOK_SECRET: server(['account-engine'], { sensitive: true }),
   ACCOUNT_ENGINE_PORT: host(['account-engine']),
-  SENTRY_DSN: server(['account-engine'], { sensitive: true }),
+  SENTRY_ACCOUNT_ENGINE_DSN: server(['account-engine'], { sensitive: true }),
+  SENTRY_ALPHA_ETL_DSN: server(['alpha-etl'], { sensitive: true }),
+  SENTRY_ANALYTICS_ENGINE_DSN: server(['analytics-engine'], {
+    sensitive: true,
+  }),
+  SENTRY_PODCAST_PIPELINE_DSN: server(['podcast-pipeline'], {
+    sensitive: true,
+  }),
+  SENTRY_CONTROL_CENTER_DSN: server(['control-center'], { sensitive: true }),
   EMAIL_HOST: server(['account-engine']),
   EMAIL_USER: server(['account-engine'], { sensitive: true }),
   EMAIL_APP_PASSWORD: server(['account-engine'], { sensitive: true }),

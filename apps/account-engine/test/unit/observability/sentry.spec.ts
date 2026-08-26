@@ -23,15 +23,18 @@ describe('Sentry observability', () => {
     vi.clearAllMocks();
   });
 
-  it('is a no-op when SENTRY_DSN is unset', () => {
+  it('is a no-op when SENTRY_ACCOUNT_ENGINE_DSN is unset', () => {
     expect(initSentry({ NODE_ENV: 'production' })).toBe(false);
     expect(sentryMocks.init).not.toHaveBeenCalled();
   });
 
-  it('is a no-op when SENTRY_DSN is blank', () => {
-    expect(initSentry({ NODE_ENV: 'production', SENTRY_DSN: '   ' })).toBe(
-      false,
-    );
+  it('is a no-op when SENTRY_ACCOUNT_ENGINE_DSN is blank', () => {
+    expect(
+      initSentry({
+        NODE_ENV: 'production',
+        SENTRY_ACCOUNT_ENGINE_DSN: '   ',
+      }),
+    ).toBe(false);
     expect(sentryMocks.init).not.toHaveBeenCalled();
   });
 
@@ -40,7 +43,8 @@ describe('Sentry observability', () => {
       initSentry({
         APP_COMMIT_SHA: ' commit-sha ',
         NODE_ENV: ' production ',
-        SENTRY_DSN: ' https://examplePublicKey@example.ingest.sentry.io/1 ',
+        SENTRY_ACCOUNT_ENGINE_DSN:
+          ' https://examplePublicKey@example.ingest.sentry.io/1 ',
       }),
     ).toBe(true);
 
@@ -49,13 +53,15 @@ describe('Sentry observability', () => {
       environment: 'production',
       release: 'commit-sha',
       sendDefaultPii: false,
+      skipOpenTelemetrySetup: true,
     });
   });
 
   it('leaves release undefined when APP_COMMIT_SHA is blank', () => {
     initSentry({
       APP_COMMIT_SHA: '   ',
-      SENTRY_DSN: 'https://examplePublicKey@example.ingest.sentry.io/1',
+      SENTRY_ACCOUNT_ENGINE_DSN:
+        'https://examplePublicKey@example.ingest.sentry.io/1',
     });
 
     expect(sentryMocks.init).toHaveBeenCalledWith(

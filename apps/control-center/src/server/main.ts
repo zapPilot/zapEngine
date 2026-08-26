@@ -1,7 +1,11 @@
 import { serve } from '@hono/node-server';
 
-import { createControlCenterApp } from './app.js';
-import { readControlCenterConfig } from './config/env.js';
+import { initSentry } from './observability/sentry.js';
+
+initSentry(process.env);
+
+const [{ createControlCenterApp }, { readControlCenterConfig }] =
+  await Promise.all([import('./app.js'), import('./config/env.js')]);
 
 const config = readControlCenterConfig();
 serve({

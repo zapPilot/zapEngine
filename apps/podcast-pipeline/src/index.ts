@@ -1,7 +1,10 @@
+import './observability/sentry-init.js';
+
 import { serve } from '@hono/node-server';
 import { type Context, Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
+import { routePath } from 'hono/route';
 
 import {
   getAllowedTelegramUserIds,
@@ -11,6 +14,7 @@ import {
 } from './lib/env.js';
 import { installProcessShutdown } from './lib/process-shutdown.js';
 import { isRecord } from './lib/typeGuards.js';
+import { captureServerException } from './observability/sentry.js';
 import {
   buildIngestSummaryFromResult,
   presentCostBreakdown,
@@ -483,7 +487,16 @@ export function createApp(): Hono {
     return c.json(await loadEpisodeLocalizationResponse(episode, languageCode));
   });
 
-  app.onError(handleAppError);
+  app.onError((error, c) => {
+    const status = error instanceof HTTPException ? error.status : 500;
+    if (status >= 500) {
+      captureServerException(error, {
+        method: c.req.method,
+        route: routePath(c),
+      });
+    }
+    return handleAppError(error, c);
+  });
 
   return app;
 }

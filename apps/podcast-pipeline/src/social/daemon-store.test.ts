@@ -31,10 +31,13 @@ import {
   listLearningSocialMetrics,
   listLearningSocialPosts,
   listMetricWindowsForPosts,
+  listPartiallyPublishedCohorts,
   listSocialPublishCandidates,
+  listSocialPublishCandidatesForEpisodes,
   listUnfinishedSocialPublishJobs,
   publishRetryDelayMs,
   reconcileSocialPublishJob,
+  releaseSocialPublishJobLease,
 } from './daemon-store.js';
 
 function nextResult(): QueryResult {
@@ -263,13 +266,11 @@ describe('social daemon store', () => {
       episodeQueue: [
         {
           episodeId: 'episode-1',
-          languageCode: 'zh-Hant',
           title: 'First episode',
           nextAt: '2026-08-16T10:05:00Z',
         },
         {
           episodeId: 'episode-2',
-          languageCode: 'zh-Hant',
           title: 'Second episode',
           nextAt: '2026-08-16T10:15:00Z',
         },
@@ -536,5 +537,99 @@ describe('social daemon store', () => {
     await expect(
       claimSocialPublishBatch({ owner: 'mac:1', now: new Date() }),
     ).rejects.toThrow('rpc failed');
+  });
+
+  it('scopes a claim to one episode when asked, without touching the default call', async () => {
+    const job = { id: 'job-1', platform: 'x' };
+    queue({ data: [job], error: null });
+    await expect(
+      claimSocialPublishBatch({
+        owner: 'mac:1',
+        now: new Date('2026-08-16T10:00:00Z'),
+        episodeId: 'episode-1',
+      }),
+    ).resolves.toEqual([job]);
+    expect(mocks.rpc).toHaveBeenCalledWith('claim_social_publish_batch', {
+      p_owner: 'mac:1',
+      p_now: '2026-08-16T10:00:00.000Z',
+      p_episode_id: 'episode-1',
+    });
+  });
+
+  it('reads every ready localization for a set of episodes, unfiltered by the discovery anchor', async () => {
+    await expect(listSocialPublishCandidatesForEpisodes([])).resolves.toEqual(
+      [],
+    );
+
+    queue({
+      data: [
+        {
+          episode_id: 'episode-1',
+          ready_at: '2026-08-10T00:00:00Z',
+          language_code: 'zh-Hant',
+          episode_created_at: '2026-08-24T00:00:00Z',
+        },
+      ],
+      error: null,
+    });
+    await expect(
+      listSocialPublishCandidatesForEpisodes(['episode-1']),
+    ).resolves.toHaveLength(1);
+
+    queue({ data: null, error: new Error('candidates by episode failed') });
+    await expect(
+      listSocialPublishCandidatesForEpisodes(['episode-1']),
+    ).rejects.toThrow('candidates by episode failed');
+  });
+
+  it('finds only episodes with both a completed lane and a still-pending lane', async () => {
+    queue({
+      data: [
+        { episode_id: 'episode-partial', status: 'completed' },
+        { episode_id: 'episode-partial', status: 'queued' },
+        { episode_id: 'episode-done', status: 'completed' },
+        { episode_id: 'episode-fresh', status: 'queued' },
+      ],
+      error: null,
+    });
+    await expect(listPartiallyPublishedCohorts()).resolves.toEqual([
+      'episode-partial',
+    ]);
+
+    queue({ data: null, error: new Error('partial cohorts failed') });
+    await expect(listPartiallyPublishedCohorts()).rejects.toThrow(
+      'partial cohorts failed',
+    );
+  });
+
+  it('releases an untouched lane back to queued without applying retry backoff', async () => {
+    const now = new Date('2026-08-16T10:05:00Z');
+    queue({ data: { id: 'job-1' }, error: null });
+    await expect(
+      releaseSocialPublishJobLease({
+        jobId: 'job-1',
+        owner: 'mac:1',
+        scheduledAt: '2026-08-16T10:00:00Z',
+        now,
+      }),
+    ).resolves.toBeUndefined();
+    const updates = mocks.calls.filter((call) => call.method === 'update');
+    expect(updates[updates.length - 1]?.args[0]).toEqual({
+      status: 'queued',
+      next_attempt_at: '2026-08-16T10:00:00Z',
+      lease_owner: null,
+      lease_expires_at: null,
+      updated_at: now.toISOString(),
+    });
+
+    queue({ data: null, error: null });
+    await expect(
+      releaseSocialPublishJobLease({
+        jobId: 'job-lost',
+        owner: 'mac:1',
+        scheduledAt: '2026-08-16T10:00:00Z',
+        now,
+      }),
+    ).rejects.toThrow('lease was lost');
   });
 });

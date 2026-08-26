@@ -105,6 +105,18 @@ export function buildTelegramRenderWakeFailedMessage(detail: string): string {
   ].join('\n');
 }
 
+/**
+ * `social:daemon` treats a release-cohort failure as fatal and exits; this is
+ * the only signal that reaches a human when nobody is watching the terminal.
+ */
+export function buildSocialReleaseFailedMessage(detail: string): string {
+  return [
+    '⚠️ Social 發布程序中止',
+    `原因：${publicTelegramErrorMessage(detail)}`,
+    'daemon 已停止，需要手動重啟；已發布的貼文不受影響。',
+  ].join('\n');
+}
+
 export async function sendMessage(
   chatId: TelegramChatId,
   text: string,

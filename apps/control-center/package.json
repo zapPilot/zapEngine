@@ -24,6 +24,7 @@
     "type-check": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json"
   },
   "dependencies": {
+    "@sentry/node": "^10.70.0",
     "@hono/node-server": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "@zapengine/cost-observability": "workspace:*",

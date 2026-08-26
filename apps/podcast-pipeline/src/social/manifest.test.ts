@@ -33,7 +33,7 @@ describe('social command manifest contract', () => {
     expect(workspaceScripts).not.toHaveProperty('social:rednote-login');
   });
 
-  it('keeps metrics internal while exposing the daemon as the root entry command', () => {
+  it('keeps publish and metrics internal while exposing only the daemon as a root entry command', () => {
     const rootScripts =
       readManifest(resolve(repoRoot, 'package.json')).scripts ?? {};
     const workspaceScripts =
@@ -43,12 +43,13 @@ describe('social command manifest contract', () => {
     expect(rootScripts['social:daemon']).toBe(
       'node scripts/env/run.mjs -- pnpm --filter @zapengine/podcast-pipeline social:daemon',
     );
-    expect(rootScripts['social:publish']).toBe(
-      'node scripts/env/run.mjs -- pnpm --filter @zapengine/podcast-pipeline social:publish',
+    expect(workspaceScripts['social:daemon']).toBe('tsx src/social/daemon.ts');
+    expect(workspaceScripts['social:daemon:watch']).toBe(
+      'tsx watch --clear-screen=false src/social/daemon.ts',
     );
-    expect(rootScripts['social:metrics']).toBe(
-      'node scripts/env/run.mjs -- pnpm --filter @zapengine/podcast-pipeline social:metrics',
-    );
+    expect(rootScripts).not.toHaveProperty('social:publish');
+    expect(rootScripts).not.toHaveProperty('social:metrics');
+    expect(workspaceScripts['social:publish']).toBe('tsx src/social/cli.ts');
     expect(workspaceScripts['social:metrics']).toBe(
       'tsx src/social/metrics.ts',
     );

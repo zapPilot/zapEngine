@@ -34,7 +34,15 @@ RUN pnpm --filter @zapengine/types build \
 FROM node:24-alpine AS runner
 WORKDIR /app
 
-ENV NODE_ENV=production
+ARG COMMIT_SHA=""
+ARG BUILD_TIME=""
+
+ENV NODE_ENV=production \
+    APP_COMMIT_SHA=$COMMIT_SHA \
+    APP_BUILD_TIME=$BUILD_TIME
+
+LABEL org.opencontainers.image.revision=$COMMIT_SHA \
+      org.opencontainers.image.created=$BUILD_TIME
 
 RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 nodejs
@@ -50,4 +58,4 @@ EXPOSE 3003
 
 ENV PORT=3003
 
-CMD ["node", "dist/app.js"]
+CMD ["node", "dist/main.js"]
