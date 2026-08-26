@@ -25,7 +25,13 @@ export const ENV_DESTINATIONS = {
     app: 'from-fed-to-chain-api',
     environment: 'prod',
     target: 'podcast-pipeline',
-    managed: ['FLY_APP_NAME', 'NODE_ENV', 'PORT'],
+    managed: [
+      'FLY_APP_NAME',
+      'NODE_ENV',
+      'PORT',
+      // Deprecated: removed in cb2ef9fd, still present on Fly until `pnpm env:sync --target podcast-pipeline --apply --prune` is run.
+      'PIPELINE_RENDER_ON_DEMAND',
+    ],
   },
   expo: {
     platform: 'eas',

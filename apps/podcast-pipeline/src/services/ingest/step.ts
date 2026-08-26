@@ -53,7 +53,7 @@ function logEventWithContext(
   prefix: string,
   event: string,
   details: LogDetails,
-  context: Readonly<StepLogContext> | undefined,
+  context?: Readonly<StepLogContext>,
 ): void {
   const fields = [
     ...contextLogFields(context),
