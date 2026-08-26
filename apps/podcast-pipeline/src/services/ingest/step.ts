@@ -30,7 +30,7 @@ export function logPipelineEvent(
   event: string,
   details: LogDetails = {},
 ): void {
-  logEventWithContext(prefix, event, details, undefined);
+  logEventWithContext(prefix, event, details);
 }
 
 export function logIngestEvent(event: string, details: LogDetails = {}): void {
@@ -53,7 +53,7 @@ function logEventWithContext(
   prefix: string,
   event: string,
   details: LogDetails,
-  context: Readonly<StepLogContext> | undefined,
+  context?: Readonly<StepLogContext>,
 ): void {
   const fields = [
     ...contextLogFields(context),
