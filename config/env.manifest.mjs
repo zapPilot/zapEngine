@@ -112,6 +112,12 @@ export const ENV_MANIFEST = {
     next: 'NEXT_PUBLIC_IPFS_GATEWAY_FALLBACK',
   }),
   GA_ID: client(['landing-page'], { next: 'NEXT_PUBLIC_GA_ID' }),
+  POSTHOG_KEY: client(
+    ['landing-page'],
+    { next: 'NEXT_PUBLIC_POSTHOG_KEY' },
+    { sensitive: true },
+  ),
+  POSTHOG_HOST: client(['landing-page'], { next: 'NEXT_PUBLIC_POSTHOG_HOST' }),
   TRACK_RECORD_MOCK: client(['landing-page'], {
     next: 'NEXT_PUBLIC_TRACK_RECORD_MOCK',
   }),
