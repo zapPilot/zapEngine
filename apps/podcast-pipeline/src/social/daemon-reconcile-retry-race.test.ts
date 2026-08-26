@@ -356,7 +356,7 @@ describe('social daemon reconciliation versus retry race', () => {
     expect(mocks.completeSocialPublishJob).toHaveBeenCalledTimes(1);
     expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
-      expect.stringContaining('failed to persist threads publish failure'),
+      expect.stringMatching(/failed to persist.*publish failure/),
     );
   });
 

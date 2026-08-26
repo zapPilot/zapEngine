@@ -149,7 +149,7 @@ beforeEach(() => {
   mocks.listLearningSocialPosts.mockResolvedValue([]);
   mocks.listLearningSocialMetrics.mockResolvedValue([]);
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);
-  mocks.insertSocialPostMetric.mockResolvedValue({} as never);
+  mocks.insertSocialPostMetric.mockResolvedValue({});
   mocks.updateSocialPostReviewStatus.mockResolvedValue(undefined);
   mocks.updateSocialPostIdentity.mockResolvedValue(undefined);
   mocks.collectRednote.mockReset();
@@ -313,8 +313,6 @@ describe('collectDueMetricWindows unavailable handling', () => {
 
 describe('strategy learning excludes suppressed', () => {
   it('excludes rejected/self_only rednote metrics', () => {
-    const basePost = post({ id: 'p1', review_status: 'rejected' });
-    const visiblePost = post({ id: 'p2', review_status: 'visible' });
     const metrics = [
       {
         id: 'm1',

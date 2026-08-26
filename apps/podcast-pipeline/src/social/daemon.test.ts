@@ -305,7 +305,7 @@ describe('social daemon', () => {
     ).toBeLessThan(mocks.claimSocialPublishJob.mock.invocationCallOrder[0]!);
     expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
-      '[social-daemon] skipped 4 overdue publish jobs (60m grace; cutoff 2026-08-16T09:00:00.000Z).',
+      '⚠️ [social-daemon] skipped 4 overdue publish jobs · 60m grace · cutoff 2026-08-16T09:00:00.000Z',
     );
   });
 
@@ -388,11 +388,11 @@ describe('social daemon', () => {
     // rednote, threads, x (ja variant), youtube en, youtube ja.
     expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(5);
     expect(log).toHaveBeenCalledWith(
-      `[social-daemon] discovered episode ${EPISODE_ID}; ready at 2026-08-16T09:00:00.000Z.`,
+      `🔎 [social-daemon] discovered episode ${EPISODE_ID} · ready 2026-08-16T09:00:00.000Z`,
     );
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining(
-        `[social-daemon] queued rednote/zh-Hant for ${EPISODE_ID} at `,
+        `📥 [social-daemon] 🔴 rednote 🇹🇼 zh-Hant · queued · episode ${EPISODE_ID} · `,
       ),
     );
     expect(mocks.publishSocialBatch).toHaveBeenCalledWith(
@@ -436,7 +436,7 @@ describe('social daemon', () => {
 
     expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
-      expect.stringContaining(`episode ${EPISODE_ID} waiting on media for`),
+      expect.stringContaining(`episode ${EPISODE_ID} · waiting media`),
     );
   });
 
@@ -468,7 +468,7 @@ describe('social daemon', () => {
     expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
     expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
-      `[social-daemon] reconciled youtube for ${EPISODE_ID} - already published (post-youtube).`,
+      `✅ [social-daemon] ▶️ youtube 🇹🇼 zh-Hant · reconciled · episode ${EPISODE_ID} · already published (post-youtube)`,
     );
   });
 
@@ -558,7 +558,7 @@ describe('social daemon', () => {
     });
     expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
-      `[social-daemon] reconciled youtube for ${EPISODE_ID} - already published (post-crashed).`,
+      `✅ [social-daemon] ▶️ youtube 🇹🇼 zh-Hant · reconciled · episode ${EPISODE_ID} · already published (post-crashed)`,
     );
   });
 
@@ -639,13 +639,13 @@ describe('social daemon', () => {
       expect.stringContaining('[social-daemon] started as'),
     );
     expect(log).toHaveBeenCalledWith(
-      '[social-daemon] checking discovery, publishing, metrics, and strategy...',
+      '🔄 [social-daemon] checking discovery · publishing · metrics · strategy',
     );
     expect(log).toHaveBeenCalledWith(
-      '[social-daemon] queue: no publish jobs pending.',
+      '📥 [social-daemon] queue · 0 jobs · 0 articles',
     );
     expect(log).toHaveBeenCalledWith(
-      '[social-daemon] check complete; next check in 60s.',
+      '✅ [social-daemon] check complete · next check in 60s.',
     );
   });
 
@@ -689,19 +689,19 @@ describe('social daemon', () => {
     ).rejects.toThrow('stop-loop');
 
     expect(log).toHaveBeenCalledWith(
-      '[social-daemon] queue: 4 publish jobs pending across 2 articles.',
+      '📥 [social-daemon] queue · 4 jobs · 2 articles',
     );
     expect(log).toHaveBeenCalledWith(
-      '[social-daemon]   1. “穩定幣真實使用場景：境內交易佔六成，亞太地區成最大市場” — first publish 08/16 19:05 JST (in 5m).',
+      '📥 [social-daemon]   1. “穩定幣真實使用場景：境內交易佔六成，亞太地區成最大市場” · first publish 08/16 19:05 JST (in 5m)',
     );
     expect(log).toHaveBeenCalledWith(
-      '[social-daemon]   2. “AI安全之爭：集中控制與分散競爭誰更危險？” — first publish 08/16 19:35 JST (in 35m).',
+      '📥 [social-daemon]   2. “AI安全之爭：集中控制與分散競爭誰更危險？” · first publish 08/16 19:35 JST (in 35m)',
     );
     expect(log).toHaveBeenCalledWith(
-      '[social-daemon] next x/zh-Hant: “穩定幣真實使用場景：境內交易佔六成，亞太地區成最大市場” at 08/16 19:05 JST (in 5m; queued).',
+      '📥 [social-daemon] next 𝕏 x 🇹🇼 zh-Hant · “穩定幣真實使用場景：境內交易佔六成，亞太地區成最大市場” · 08/16 19:05 JST (in 5m; queued)',
     );
     expect(log).toHaveBeenCalledWith(
-      '[social-daemon] next threads/zh-Hant: “穩定幣真實使用場景” at 08/16 19:15 JST (in 15m; queued).',
+      '📥 [social-daemon] next 🧵 threads 🇹🇼 zh-Hant · “穩定幣真實使用場景” · 08/16 19:15 JST (in 15m; queued)',
     );
   });
 
@@ -870,7 +870,8 @@ describe('social daemon', () => {
     });
     expect(log.mock.calls.map(([line]) => String(line))).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('flagged rednote rednote-post as rejected'),
+        expect.stringContaining('flagged as rejected'),
+        expect.stringContaining('rednote-post'),
       ]),
     );
   });
@@ -983,7 +984,7 @@ describe('social daemon', () => {
     ).resolves.toBeUndefined();
     expect(log.mock.calls.map(([line]) => String(line))).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('account snapshots failed: followers down'),
+        expect.stringMatching(/account snapshots failed.*followers down/),
       ]),
     );
     // The session is still closed on the failing path.
@@ -1007,8 +1008,8 @@ describe('social daemon', () => {
     const messages = log.mock.calls.map(([line]) => String(line));
     expect(messages).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('metrics failed: metrics down'),
-        expect.stringContaining('strategy failed: strategy down'),
+        expect.stringMatching(/metrics failed.*metrics down/),
+        expect.stringMatching(/strategy failed.*strategy down/),
       ]),
     );
   });

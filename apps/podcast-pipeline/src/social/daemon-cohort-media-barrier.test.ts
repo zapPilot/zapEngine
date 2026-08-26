@@ -148,7 +148,7 @@ describe('release cohort media readiness barrier', () => {
 
     expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
-      expect.stringContaining(`episode ${EPISODE_ID} waiting on media for`),
+      expect.stringContaining(`episode ${EPISODE_ID} · waiting media`),
     );
   });
 

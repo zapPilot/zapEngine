@@ -128,12 +128,10 @@ export async function acquireSocialDaemonLock(
     }
 
     if (state.kind === 'pid') {
-      log(
-        `[social-daemon] taking over the lock left by dead pid ${state.pid}.`,
-      );
+      log(`🔓 [social-daemon] taking over lock from dead pid ${state.pid}`);
       rmSync(lockPath, { force: true });
     } else if (state.kind === 'garbage') {
-      log(`[social-daemon] taking over an unreadable lock at ${lockPath}.`);
+      log(`🔓 [social-daemon] taking over unreadable lock at ${lockPath}`);
       rmSync(lockPath, { force: true });
     }
   }
