@@ -348,10 +348,7 @@ async function fetchSingleChunk(
 
   const controller = new AbortController();
   const totalTimeout = setTimeout(() => {
-    const requestElapsedMs = Math.max(
-      totalTimeoutMs,
-      Date.now() - startTime,
-    );
+    const requestElapsedMs = Math.max(totalTimeoutMs, Date.now() - startTime);
     timeoutError = new FishAudioTimeoutError(
       `Fish Audio TTS request timed out after ${requestElapsedMs}ms (total_timeout, ${totalTimeoutMs}ms limit, received ${receivedBytes}B)`,
       'total',
