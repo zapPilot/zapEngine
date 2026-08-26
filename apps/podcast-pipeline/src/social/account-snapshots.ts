@@ -89,7 +89,14 @@ export function isRednoteLoginUrl(url: string): boolean {
 export function isRednoteLoginSnippet(snippet: string): boolean {
   const normalized = convertTextToZhCN(snippet);
   if (normalized.includes('扫码登录')) return true;
-  if (normalized.includes('请登录')) return true;
+  if (
+    normalized
+      .split(/\r?\n/u)
+      .map((line) => line.trim())
+      .some((line) => /^请登录[！!。.？?]?$/u.test(line))
+  ) {
+    return true;
+  }
   if (normalized.includes('二维码') && normalized.includes('登录')) return true;
   if (normalized.includes('登录已过期') || normalized.includes('登录过期'))
     return true;
