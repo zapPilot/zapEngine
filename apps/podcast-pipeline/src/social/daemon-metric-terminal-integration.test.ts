@@ -170,4 +170,51 @@ describe('social daemon terminal metric windows', () => {
       }),
     );
   });
+
+  it('retries a later metric window after a retryable failure even when an earlier window is terminal', async () => {
+    const now = new Date('2026-08-20T10:00:00.000Z');
+    mocks.listLearningSocialPosts.mockResolvedValue([post()]);
+    mocks.listMetricWindowsForPosts.mockResolvedValue([
+      { social_post_id: 'post-1', measurement_window: '72h' },
+    ]);
+    mocks.collectRednote
+      .mockResolvedValueOnce({
+        status: 'retryable',
+        reason: 'temporary Rednote metrics failure',
+      })
+      .mockResolvedValueOnce({
+        status: 'collected',
+        metrics: {
+          views: 1300,
+          impressions: null,
+          likes: 50,
+          comments: 4,
+          shares: 3,
+          saves: 9,
+          profileVisits: null,
+          followersGained: null,
+        },
+      });
+
+    const tick = () =>
+      runSocialDaemonTick({
+        now,
+        firstStartedAt: '2026-08-20T08:00:00.000Z',
+        log: vi.fn(),
+      });
+
+    await tick();
+    await tick();
+
+    expect(mocks.collectRednote).toHaveBeenCalledTimes(2);
+    expect(mocks.insertSocialPostMetric).toHaveBeenCalledTimes(1);
+    expect(mocks.insertSocialPostMetric).toHaveBeenCalledWith(
+      expect.objectContaining({
+        socialPostId: 'post-1',
+        measurementWindow: '7d',
+        collectionStatus: 'collected',
+        views: 1300,
+      }),
+    );
+  });
 });
