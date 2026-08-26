@@ -298,7 +298,7 @@ describe('captureDueAccountSnapshots', () => {
       'threads',
     ]);
     expect(rednoteLine(log)).toEqual(
-      expect.stringContaining('account snapshot rednote failed'),
+      expect.stringMatching(/rednote.*account snapshot failed/),
     );
   });
 

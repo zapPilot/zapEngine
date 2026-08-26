@@ -99,7 +99,7 @@ describe('social daemon lock', () => {
         String(process.pid),
       );
       expect(messages).toEqual([
-        '[social-daemon] taking over the lock left by dead pid 4242.',
+        '🔓 [social-daemon] taking over lock from dead pid 4242',
       ]);
     } finally {
       lock.release();
@@ -127,7 +127,7 @@ describe('social daemon lock', () => {
         String(process.pid),
       );
       expect(messages).toEqual([
-        `[social-daemon] taking over an unreadable lock at ${lockPath}.`,
+        `🔓 [social-daemon] taking over unreadable lock at ${lockPath}`,
       ]);
     } finally {
       lock.release();

@@ -150,13 +150,14 @@ describe('social daemon queue summary coverage', () => {
     const messages = log.mock.calls.map(([message]) => String(message));
     expect(messages).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('1 publish job pending across 1 article.'),
+        expect.stringContaining('queue · 1 job'),
+        expect.stringContaining('1 article'),
         expect.stringContaining('“episode-fallback-title”'),
         expect.stringContaining('first publish not-a-date (due now)'),
         expect.stringContaining('in 30m'),
         expect.stringContaining('in 2h'),
         expect.stringContaining('in 2h 5m'),
-        expect.stringContaining('at invalid (due now'),
+        expect.stringContaining('invalid (due now'),
       ]),
     );
     expect(messages.some((message) => message.includes('…'))).toBe(true);

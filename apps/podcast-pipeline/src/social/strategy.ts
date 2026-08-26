@@ -13,6 +13,7 @@ import {
   type SocialStrategyConfig,
   type SocialStrategyVersionRow,
 } from './daemon-store.js';
+import { laneLabel } from './log-format.js';
 import { SOCIAL_PLATFORMS, type SocialPlatform } from './platforms.js';
 import { median } from './statistics.js';
 import type { SocialReviewStatus } from './types.js';
@@ -310,7 +311,7 @@ export async function refreshSocialStrategies(input: {
       now: input.now,
     });
     log(
-      `[strategy] ${learned.platform}/${learned.languageCode} activated v${version.version} from ${learned.basedOnSamples} 24h samples.`,
+      `🧠 [strategy] ${laneLabel(learned.platform, learned.languageCode)} · activated v${version.version} · ${learned.basedOnSamples} × 24h samples`,
     );
   }
 }

@@ -49,6 +49,7 @@ import {
 } from './daemon-store.js';
 import { buildSocialExperimentReports } from './experiment-report.js';
 import { isMainModule } from './is-main-module.js';
+import { laneLabel, languageFlag, platformIcon } from './log-format.js';
 import {
   createMetricCollectors,
   createMetricsBrowserSession,
@@ -123,18 +124,18 @@ export async function runSocialDaemon(
 
   const firstStartedAt = await ensureSocialDaemonStart(now());
   log(
-    `[social-daemon] started as ${OWNER}; discovery begins at ${firstStartedAt}.`,
+    `🤖 [social-daemon] started as ${OWNER}; discovery begins at ${firstStartedAt}.`,
   );
 
   for (;;) {
     const tickStartedAt = now();
     log(
-      `[social-daemon] checking discovery, publishing, metrics${
+      `🔄 [social-daemon] checking discovery · publishing · metrics${
         tickStartedAt.getTime() - lastStrategyRefresh >=
         STRATEGY_REFRESH_INTERVAL_MS
-          ? ', and strategy'
+          ? ' · strategy'
           : ''
-      }...`,
+      }`,
     );
     await runSocialDaemonTick({
       now: tickStartedAt,
@@ -159,7 +160,7 @@ export async function runSocialDaemon(
       );
     });
     log(
-      `[social-daemon] check complete; next check in ${POLL_INTERVAL_MS / 1_000}s.`,
+      `✅ [social-daemon] check complete · next check in ${POLL_INTERVAL_MS / 1_000}s.`,
     );
     await sleep(POLL_INTERVAL_MS);
   }
@@ -188,7 +189,7 @@ export async function runSocialDaemonTick(input: {
   const aligned = await alignPendingSocialPublishSchedules(input.now);
   if (aligned > 0) {
     log(
-      `[social-daemon] aligned ${aligned} pending platform job${aligned === 1 ? '' : 's'} to article publish slots.`,
+      `📥 [social-daemon] aligned ${aligned} pending platform job${aligned === 1 ? '' : 's'} · to article publish slots.`,
     );
   }
 
@@ -208,7 +209,7 @@ export async function runSocialDaemonTick(input: {
     });
     if (skipped > 0) {
       log(
-        `[social-daemon] skipped ${skipped} overdue publish job${skipped === 1 ? '' : 's'} (${input.overdueGraceMs / 60_000}m grace; cutoff ${cutoff}).`,
+        `⚠️ [social-daemon] skipped ${skipped} overdue publish job${skipped === 1 ? '' : 's'} · ${input.overdueGraceMs / 60_000}m grace · cutoff ${cutoff}`,
       );
     }
   }
@@ -243,11 +244,11 @@ async function logExperimentReports(
     const arms = report.arms
       .map(
         (arm) =>
-          `${arm.variant}: n=${arm.samples}, median reach=${arm.medianReach}, engagement=${(arm.medianEngagementRate * 100).toFixed(2)}%, profile visits=${(arm.medianProfileVisitRate * 100).toFixed(2)}%`,
+          `${languageFlag(arm.variant)} ${arm.variant} · n=${arm.samples} · reach=${arm.medianReach} · engagement=${(arm.medianEngagementRate * 100).toFixed(2)}% · profile=${(arm.medianProfileVisitRate * 100).toFixed(2)}%`,
       )
-      .join('; ');
+      .join(' · ');
     log(
-      `[experiment] ${report.experimentKey} ${report.evaluable ? 'evaluable' : 'report-only'} (${report.durationDays.toFixed(1)}d, telemetry ${report.telemetryComplete ? 'complete' : 'gapped'}): ${arms}.`,
+      `🧪 [experiment] ${report.experimentKey} · ${report.evaluable ? 'evaluable' : 'report-only'} · ${report.durationDays.toFixed(1)}d · ${report.telemetryComplete ? 'telemetry complete' : '⚠️ telemetry gapped'} · ${arms}`,
     );
   }
 }
@@ -307,7 +308,7 @@ async function discoverAndEnqueue(input: {
     );
     if (missingLanguages.length > 0) {
       input.log(
-        `[social-daemon] episode ${episodeId} waiting on media for ${missingLanguages.join(', ')}; cohort not enqueued yet.`,
+        `⏳ [social-daemon] episode ${episodeId} · waiting media · ${missingLanguages.map((language) => `${languageFlag(language)} ${language}`).join(', ')} · cohort not enqueued yet.`,
       );
       continue;
     }
@@ -382,12 +383,12 @@ async function enqueueCohortJobs(input: {
     if (!inserted) continue;
     if (!insertedAny) {
       input.log(
-        `[social-daemon] discovered episode ${input.episodeId}; ready at ${input.readyAt.toISOString()}.`,
+        `🔎 [social-daemon] discovered episode ${input.episodeId} · ready ${input.readyAt.toISOString()}`,
       );
     }
     insertedAny = true;
     input.log(
-      `[social-daemon] queued ${lane.platform}/${lane.language} for ${input.episodeId} at ${input.scheduledAt.toISOString()}.`,
+      `📥 [social-daemon] ${laneLabel(lane.platform, lane.language)} · queued · episode ${input.episodeId} · ${input.scheduledAt.toISOString()}`,
     );
   }
   return insertedAny;
@@ -433,7 +434,7 @@ async function reconcileAlreadyPublishedJobs(
     });
     if (!reconciled) continue;
     log(
-      `[social-daemon] reconciled ${job.platform} for ${job.episode_id} - already published (${socialPostId}).`,
+      `✅ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · reconciled · episode ${job.episode_id} · already published (${socialPostId})`,
     );
   }
 }
@@ -457,11 +458,11 @@ async function persistPublishFailure(input: {
     });
   } catch (persistenceError) {
     input.log(
-      `[social-daemon] failed to persist ${input.platform} publish failure for ${input.episodeId}: ${errorMessage(persistenceError)}`,
+      `❌ [social-daemon] ${platformIcon(input.platform)} ${input.platform} · failed to persist publish failure · episode ${input.episodeId} · ${errorMessage(persistenceError)}`,
     );
   }
   input.log(
-    `[social-daemon] ${input.platform} publish failed for ${input.episodeId}: ${input.message}`,
+    `❌ [social-daemon] ${platformIcon(input.platform)} ${input.platform} · publish failed · episode ${input.episodeId} · ${input.message}`,
   );
 }
 
@@ -576,7 +577,7 @@ async function reconcileClaimedJob(
     socialPostId: post.id,
   });
   log(
-    `[social-daemon] reconciled ${job.platform} for ${job.episode_id} - already published (${post.id}).`,
+    `✅ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · reconciled · episode ${job.episode_id} · already published (${post.id})`,
   );
   return true;
 }
@@ -660,7 +661,7 @@ async function finalizePublishOutcome(
     ...(strategy ? { strategyVersionId: strategy.id } : {}),
   });
   log(
-    `[social-daemon] published ${job.platform} for ${job.episode_id} (${post.id}).`,
+    `✅ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · published · episode ${job.episode_id} (${post.id})`,
   );
 }
 
@@ -682,7 +683,7 @@ async function activeStrategiesForPublish(
     return activeStrategyMap(await getActiveSocialStrategies());
   } catch (error) {
     log(
-      `[social-daemon] publishing without strategy guidance: ${errorMessage(error)}`,
+      `⚠️ [social-daemon] publishing without strategy guidance · ${errorMessage(error)}`,
     );
     return activeStrategyMap([]);
   }
@@ -717,7 +718,7 @@ export async function collectDueMetricWindows(
     onRednoteReviewStatus: async ({ post, reviewStatus }) => {
       await updateSocialPostReviewStatus({ id: post.id, reviewStatus });
       log(
-        `[social-daemon] flagged ${post.platform} ${post.id} as ${reviewStatus}.`,
+        `⚠️ [social-daemon] ${platformIcon(post.platform)} ${post.platform} ${post.id} · flagged as ${reviewStatus}`,
       );
     },
   });
@@ -738,7 +739,7 @@ export async function collectDueMetricWindows(
         // moderation removal indistinguishable from a quiet tick.
         if (!collected) {
           log(
-            `[social-daemon] no ${post.platform} metrics available yet for ${post.id}.`,
+            `⏳ [social-daemon] ${platformIcon(post.platform)} ${post.platform} ${post.id} · no metrics yet`,
           );
           continue;
         }
@@ -755,11 +756,11 @@ export async function collectDueMetricWindows(
         completed.add(`${post.id}:${window.label}`);
         inserted += 1;
         log(
-          `[social-daemon] recorded ${post.platform} ${window.label} metrics for ${post.id}.`,
+          `📊 [social-daemon] ${platformIcon(post.platform)} ${post.platform} ${window.label} metrics · ${post.id}`,
         );
       } catch (error) {
         log(
-          `[social-daemon] metric collection failed for ${post.platform} ${post.id}: ${errorMessage(error)}`,
+          `❌ [social-daemon] ${platformIcon(post.platform)} ${post.platform} ${post.id} · metric collection failed · ${errorMessage(error)}`,
         );
       }
     }
@@ -810,7 +811,7 @@ async function isolate(
   try {
     await task();
   } catch (error) {
-    log(`[social-daemon] ${label} failed: ${errorMessage(error)}`);
+    log(`❌ [social-daemon] ${label} failed · ${errorMessage(error)}`);
   }
 }
 
@@ -821,24 +822,24 @@ function logQueueSnapshot(
 ): void {
   const waitingMedia = snapshot.waitingMedia ?? [];
   if (snapshot.pendingCount === 0 && waitingMedia.length === 0) {
-    log('[social-daemon] queue: no publish jobs pending.');
+    log('📥 [social-daemon] queue · 0 jobs · 0 articles');
     return;
   }
 
   for (const item of waitingMedia) {
     const title = item.title ? ` “${truncateTitle(item.title)}”` : '';
     log(
-      `[social-daemon] waiting media ${item.platform}/${item.languageCode}${item.experiment ? ` [${item.experiment}]` : ''}:${title}.`,
+      `⏳ [social-daemon] ${laneLabel(item.platform, item.languageCode)}${item.experiment ? ` [${item.experiment}]` : ''} · waiting media ·${title}`,
     );
   }
 
   log(
-    `[social-daemon] queue: ${snapshot.pendingCount} publish job${snapshot.pendingCount === 1 ? '' : 's'} pending across ${snapshot.episodeQueue.length} article${snapshot.episodeQueue.length === 1 ? '' : 's'}.`,
+    `📥 [social-daemon] queue · ${snapshot.pendingCount} job${snapshot.pendingCount === 1 ? '' : 's'} · ${snapshot.episodeQueue.length} article${snapshot.episodeQueue.length === 1 ? '' : 's'}`,
   );
   snapshot.episodeQueue.forEach((episode, index) => {
     const title = episode.title ?? episode.episodeId;
     log(
-      `[social-daemon]   ${index + 1}. “${title}” — first publish ${formatJst(episode.nextAt)} (${formatRelative(episode.nextAt, now)}).`,
+      `📥 [social-daemon]   ${index + 1}. “${title}” · first publish ${formatJst(episode.nextAt)} (${formatRelative(episode.nextAt, now)})`,
     );
   });
   const lanes =
@@ -856,7 +857,7 @@ function logQueueSnapshot(
   for (const item of Object.values(lanes)) {
     const title = item.title ? ` “${truncateTitle(item.title)}”` : '';
     log(
-      `[social-daemon] next ${item.platform}/${item.languageCode}${item.experiment ? ` [${item.experiment}]` : ''}:${title} at ${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status}).`,
+      `📥 [social-daemon] next ${laneLabel(item.platform, item.languageCode)}${item.experiment ? ` [${item.experiment}]` : ''} ·${title} · ${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status})`,
     );
   }
 }
@@ -897,7 +898,7 @@ export function fatalSummary(error: unknown): string {
 }
 
 export function buildFatalReport(error: unknown): string {
-  const lines = [`[social-daemon] FATAL: ${fatalSummary(error)}`];
+  const lines = [`❌ [social-daemon] FATAL: ${fatalSummary(error)}`];
   if (error instanceof SocialReleaseFailureError) {
     lines.push(
       `  published before failure: ${error.publishedLanes.join(', ') || '(none)'}`,
@@ -929,7 +930,7 @@ if (isMainModule(import.meta.url)) {
     lock = await acquireSocialDaemonLock();
   } catch (error) {
     if (error instanceof SocialDaemonAlreadyRunningError) {
-      console.error(`[social-daemon] ${error.message}`);
+      console.error(`🔒 [social-daemon] ${error.message}`);
       process.exit(1);
     }
     throw error;

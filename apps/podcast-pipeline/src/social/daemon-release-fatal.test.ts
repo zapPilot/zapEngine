@@ -310,7 +310,7 @@ describe('fatal report formatting and notification', () => {
     );
     expect(buildFatalReport(error)).toBe(
       [
-        `[social-daemon] FATAL: x/ja for episode ${EPISODE_A} (transport): x publish failed`,
+        `❌ [social-daemon] FATAL: x/ja for episode ${EPISODE_A} (transport): x publish failed`,
         '  published before failure: threads',
         '  untouched after failure: youtube',
       ].join('\n'),
@@ -322,7 +322,7 @@ describe('fatal report formatting and notification', () => {
 
     expect(fatalSummary(error)).toBe('reconcile lookup down');
     expect(buildFatalReport(error)).toBe(
-      '[social-daemon] FATAL: reconcile lookup down',
+      '❌ [social-daemon] FATAL: reconcile lookup down',
     );
   });
 
