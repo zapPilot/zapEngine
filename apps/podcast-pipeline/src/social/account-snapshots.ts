@@ -58,13 +58,20 @@ export function parseFollowerCountNear(
 }
 
 export function isRednoteLoginUrl(url: string): boolean {
-  return /login|passport|signin|auth/i.test(url);
+  return /(?:^|[/?#&=._-])(?:login|passport|signin|auth)(?:$|[/?#&=._-])/i.test(
+    url,
+  );
 }
 
 export function isRednoteLoginSnippet(snippet: string): boolean {
   const normalized = convertTextToZhCN(snippet);
   if (normalized.includes('扫码登录')) return true;
-  if (normalized.includes('请登录')) return true;
+  if (
+    normalized
+      .split(/\r?\n/u)
+      .some((line) => line.trim() === '请登录')
+  )
+    return true;
   if (normalized.includes('二维码') && normalized.includes('登录')) return true;
   if (normalized.includes('登录已过期') || normalized.includes('登录过期'))
     return true;
@@ -155,7 +162,7 @@ async function collectRednoteFollowers({
       }
 
       const text = convertTextToZhCN(await body.innerText());
-      if (isRednoteLoginSnippet(text) && !text.includes('粉丝')) {
+      if (isRednoteLoginSnippet(text)) {
         throw new Error(
           `Rednote session expired (login content detected at ${finalUrl}).`,
         );
