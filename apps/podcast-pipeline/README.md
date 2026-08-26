@@ -26,7 +26,9 @@ already knowing that language's localization id.
 
 ## Environment
 
-All env vars live in the monorepo root `.env` (see `.env.example` at repo root). Required for full ingest: `OPENROUTER_API_KEY`, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, `INGEST_ADMIN_TOKEN`, and an explicit `TTS_PROVIDER`. Production-quality audio uses `TTS_PROVIDER=fish-audio` with `FISH_AUDIO_API_KEY` and `FISH_AUDIO_REFERENCE_ID`; Google credentials are needed only when deliberately setting `TTS_PROVIDER=google`. Script generation and language-classroom generation use `LLM_MODEL` via OpenRouter. Title/script translation uses OpenRouter first via `TRANSLATION_LLM_MODEL=openrouter/free`; Google Cloud Translation API v2 remains the fallback when `GOOGLE_TRANSLATE_API_KEY` is configured.
+Runtime keys are registered in root `config/env.manifest.mjs`. Non-secret values
+live in `config/env/dev.env` and `config/env/prod.env`; secrets live in Infisical.
+Required for full ingest: `OPENROUTER_API_KEY`, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, `INGEST_ADMIN_TOKEN`, and an explicit `TTS_PROVIDER`. Production-quality audio uses `TTS_PROVIDER=fish-audio` with `FISH_AUDIO_API_KEY` and `FISH_AUDIO_REFERENCE_ID`; Google credentials are needed only when deliberately setting `TTS_PROVIDER=google`. Script generation and language-classroom generation use `LLM_MODEL` via OpenRouter. Title/script translation uses OpenRouter first via `TRANSLATION_LLM_MODEL=openrouter/free`; Google Cloud Translation API v2 remains the fallback when `GOOGLE_TRANSLATE_API_KEY` is configured.
 
 TTS provider selection is code-owned in `src/services/tts/tts-config.ts` and applies to both main and classroom audio for all languages (`zh-Hant`, `ja`, `en`). Missing, unknown, or incomplete Fish Audio configuration fails ingest instead of silently falling back to Google. Changing providers is an explicit env change and deploy.
 

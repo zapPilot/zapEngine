@@ -10,7 +10,7 @@ This codebase powers the full stack: TypeScript/Python microservices, a universa
 
 ## License
 
-MIT License — see [LICENSE](./LICENSE) for details.
+MIT License — see [LICENSE](./LICENSE.md) for details.
 
 ---
 
@@ -38,16 +38,16 @@ zapEngine/
     └── types               # Shared TypeScript types & Zod schemas
 ```
 
-| App              | Language     | Framework         | Deploy             |
-| ---------------- | ------------ | ----------------- | ------------------ |
-| account-engine   | TypeScript   | Hono 4.12         | Fly.io             |
-| alpha-etl        | TypeScript   | Express 4.18      | Fly.io             |
-| analytics-engine | Python 3.11+ | FastAPI           | Fly.io             |
-| control-center   | TypeScript   | Vite / Hono       | Founder-local      |
-| desktop          | TypeScript   | Electron          | macOS DMG          |
-| landing-page     | TypeScript   | Next.js 15        | Vercel             |
-| app              | TypeScript   | Expo 57 / RN 0.86 | Vercel (web) / EAS |
-| podcast-pipeline | TypeScript   | Hono 4.12         | Fly.io             |
+| App              | Language     | Framework         |
+| ---------------- | ------------ | ----------------- |
+| account-engine   | TypeScript   | Hono 4.12         |
+| alpha-etl        | TypeScript   | Express 4.18      |
+| analytics-engine | Python 3.11+ | FastAPI           |
+| control-center   | TypeScript   | Vite / Hono       |
+| desktop          | TypeScript   | Electron          |
+| landing-page     | TypeScript   | Next.js 15        |
+| app              | TypeScript   | Expo 57 / RN 0.86 |
+| podcast-pipeline | TypeScript   | Hono 4.12         |
 
 ## Prerequisites
 

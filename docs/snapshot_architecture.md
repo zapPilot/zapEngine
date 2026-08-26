@@ -29,8 +29,9 @@ daily base tables.
 ## Scheduling and idempotency
 
 There are no snapshot triggers, dirty queues, cache tables, or database cron.
-The daily Pipedream job calls `POST /webhooks/jobs`; on-demand wallet refreshes
-use the queued wallet webhook. A successful wallet refresh rebuilds only its
+GitHub Actions runs the daily refresh at 10:00 UTC through
+`.github/workflows/alpha-etl-daily-refresh.yml`; on-demand wallet refreshes use
+the queued wallet webhook. A successful wallet refresh rebuilds only its
 `metadata.userId`, while scheduled DeBank and Hyperliquid writes rebuild all
 users.
 
@@ -40,12 +41,14 @@ does not run on a day, that date has no snapshot.
 
 ## Raw-table retirement
 
-Migration 026 promotes the former daily cache tables, backfills complete idle
-wallet-token history, and removes the incremental machinery while retaining the
-two raw tables for deployment parity checks. After a cold backup and several
-days with no raw writes, migration 027 drops
+Migration 026 promoted the former daily cache tables, backfilled complete idle
+wallet-token history, and removed the incremental machinery while retaining the
+two raw tables for deployment parity checks. Migration 027 then dropped
 `public.portfolio_item_snapshots` and `alpha_raw.wallet_token_snapshots` without
 `CASCADE`.
+
+The historical `apps/*/migrations/` directories are frozen. New migrations go
+through root `supabase/migrations/` as documented in `CONTRIBUTING.md`.
 
 Daily history is permanent and has no retention job. Portfolio position growth
 is handled by a separate future schema-slimming project, not by deleting daily

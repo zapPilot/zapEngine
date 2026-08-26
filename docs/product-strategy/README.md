@@ -12,4 +12,5 @@ Current principles:
 - Treat public track record and repeat usage as stronger evidence than feature count.
 - Keep Privy as an onboarding rail rather than the product identity.
 
-Execution plans, experiments, interview targets, and unfinished product work belong in GitHub Issues or the project tracker. The dated PMF plan, status map, and consultation-question backlog in this directory are archived and must not be treated as current priorities.
+Execution plans, experiments, interview targets, and unfinished product work
+belong in GitHub Issues or the project tracker, not archived Markdown stubs.

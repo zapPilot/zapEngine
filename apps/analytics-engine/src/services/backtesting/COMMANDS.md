@@ -16,12 +16,14 @@ pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution
 
 ## Validation
 
+Replace `<to-date>` with today's UTC date when running the command.
+
 ```bash
 pnpm --filter @zapengine/analytics-engine exec uv run python scripts/analyze_compare.py \
   --saved-config-id dma_fgi_portfolio_rules_default \
   --config-id dma_fgi_portfolio_rules_default \
   --from-date 2025-01-01 \
-  --to-date 2026-04-10 \
+  --to-date <to-date> \
   --format markdown
 ```
 
