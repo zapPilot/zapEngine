@@ -705,6 +705,43 @@ describe('social daemon', () => {
     );
   });
 
+  // A lane past the claim RPC's attempt fence is never picked up again, so a
+  // timestamp beside it would promise a retry that cannot happen.
+  it('reports an attempt-exhausted lane as blocked instead of giving it a next time', async () => {
+    mocks.getSocialQueueSnapshot.mockResolvedValue({
+      pendingCount: 1,
+      episodeQueue: [
+        {
+          episodeId: EPISODE_ID,
+          title: '穩定幣真實使用場景',
+          nextAt: '2026-08-16T10:05:00.000Z',
+        },
+      ],
+      nextByPlatform: {
+        x: {
+          episodeId: EPISODE_ID,
+          platform: 'x',
+          languageCode: 'zh-Hant',
+          status: 'failed',
+          title: '穩定幣真實使用場景',
+          nextAt: '2026-08-16T10:05:00.000Z',
+          attemptCount: 8,
+          attemptsExhausted: true,
+        },
+      },
+    });
+    const sleep = vi.fn().mockRejectedValue(new Error('stop-loop'));
+    const log = vi.fn();
+
+    await expect(
+      runSocialDaemon({ now: () => NOW, sleep, log }),
+    ).rejects.toThrow('stop-loop');
+
+    expect(log).toHaveBeenCalledWith(
+      '📥 [social-daemon] next 𝕏 x 🇹🇼 zh-Hant · “穩定幣真實使用場景” · blocked (8 attempts exhausted; failed)',
+    );
+  });
+
   it('supports the default daemon dependencies up to the first sleep boundary', async () => {
     const timeout = vi.spyOn(global, 'setTimeout').mockImplementation(() => {
       throw new Error('stop-default-sleep');

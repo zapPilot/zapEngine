@@ -7,6 +7,7 @@ export interface QueueJobFixture {
   status: 'queued' | 'failed' | 'processing';
   scheduled_at: string;
   next_attempt_at: string;
+  attempt_count?: number;
 }
 
 export interface LocalizationFixture {
@@ -36,7 +37,7 @@ export function createQueueSnapshotReadFixture({
   localizationError,
 }: QueueSnapshotFixtureOptions): QueueSnapshotReadFixture {
   const jobReturns = vi.fn().mockResolvedValue({
-    data: jobs,
+    data: jobs?.map((job) => ({ attempt_count: 0, ...job })) ?? jobs,
     error: jobsError ?? null,
   });
   const jobStatusFilter = vi.fn(() => ({ returns: jobReturns }));

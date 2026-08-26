@@ -14,6 +14,11 @@ import type { SocialPlatform } from './platforms.js';
 
 export const SOCIAL_DAEMON_STATE_ID = 'local-social-daemon-v1';
 
+// Mirrors the `attempt_count < 8` fence inside `claim_social_publish_batch`. A
+// lane that has burned every attempt is never claimable again, so the queue
+// snapshot flags it rather than reporting a time that will never arrive.
+const MAX_PUBLISH_ATTEMPTS = 8;
+
 export type SocialMetricWindowLabel = '1h' | '6h' | '24h' | '72h' | '7d';
 
 export interface SocialPublishCandidate {
@@ -51,6 +56,8 @@ export interface SocialQueueItem {
   status: SocialPublishJobRow['status'];
   title: string | null;
   nextAt: string;
+  attemptCount: number;
+  attemptsExhausted: boolean;
 }
 
 export interface SocialQueueLaneItem extends SocialQueueItem {
@@ -266,9 +273,15 @@ export async function listPendingSocialPublishSchedules(): Promise<
 // deliberate, not just an optimization: when a sibling lane already
 // published, its `scheduled_at` is in the past, so a lagging pending lane is
 // pulled to that same past slot and becomes immediately claimable on the next
-// tick instead of waiting out its own, later slot. A pending lane already due
-// (`scheduled_at <= now`) is left alone either way, since realigning it would
-// not change when it can next be claimed.
+// tick instead of waiting out its own, later slot.
+//
+// "Already due" is measured against both claim gates, not `scheduled_at`
+// alone. A `queued` lane whose `next_attempt_at` sits past the cohort slot is
+// unclaimable however old its `scheduled_at` is, and nothing else in the
+// pipeline can pull that column back, so skipping it on `scheduled_at <= now`
+// stranded it -- and stranded every other episode behind the partial-cohort
+// fence with it. A `failed` lane is different: its `next_attempt_at` is retry
+// backoff that must be served, so only its `scheduled_at` is realigned.
 export async function alignPendingSocialPublishSchedules(
   now: Date,
 ): Promise<number> {
@@ -296,11 +309,10 @@ export async function alignPendingSocialPublishSchedules(
   let aligned = 0;
   for (const job of jobs) {
     if (job.status !== 'queued' && job.status !== 'failed') continue;
-    if (Date.parse(job.scheduled_at) <= now.getTime()) continue;
     const scheduledAt = earliestByEpisode.get(job.episode_id);
-    if (!scheduledAt || scheduledAt === job.scheduled_at) continue;
-    const patch: Partial<SocialPublishJobRow> = { scheduled_at: scheduledAt };
-    if (job.status === 'queued') patch.next_attempt_at = scheduledAt;
+    if (!scheduledAt) continue;
+    const patch = alignmentPatch(job, scheduledAt, now);
+    if (!patch) continue;
     const { data: updated, error: updateError } = await getPipelineSupabase()
       .from('social_publish_jobs')
       .update(patch)
@@ -314,6 +326,23 @@ export async function alignPendingSocialPublishSchedules(
   return aligned;
 }
 
+function alignmentPatch(
+  job: Pick<SocialPublishJobRow, 'status' | 'scheduled_at' | 'next_attempt_at'>,
+  scheduledAt: string,
+  now: Date,
+): Partial<SocialPublishJobRow> | null {
+  if (job.status === 'failed') {
+    if (Date.parse(job.scheduled_at) <= now.getTime()) return null;
+    if (scheduledAt === job.scheduled_at) return null;
+    return { scheduled_at: scheduledAt };
+  }
+
+  const blockedUntil = Date.parse(jobNextAt(job));
+  if (blockedUntil <= now.getTime()) return null;
+  if (blockedUntil <= Date.parse(scheduledAt)) return null;
+  return { scheduled_at: scheduledAt, next_attempt_at: scheduledAt };
+}
+
 export async function getSocialQueueSnapshot(
   options: { includeWaitingMedia?: boolean } = {},
 ): Promise<SocialQueueSnapshot> {
@@ -321,7 +350,7 @@ export async function getSocialQueueSnapshot(
   const { data, error } = await supabase
     .from('social_publish_jobs')
     .select(
-      'episode_id,platform,language_code,experiment_key,experiment_variant,status,scheduled_at,next_attempt_at',
+      'episode_id,platform,language_code,experiment_key,experiment_variant,status,scheduled_at,next_attempt_at,attempt_count',
     )
     .in('status', ['queued', 'failed', 'processing'])
     .returns<
@@ -335,6 +364,7 @@ export async function getSocialQueueSnapshot(
         | 'status'
         | 'scheduled_at'
         | 'next_attempt_at'
+        | 'attempt_count'
       >[]
     >();
   if (error) throwSupabaseError(error);
@@ -402,6 +432,8 @@ export async function getSocialQueueSnapshot(
       title:
         titleByEpisodeLanguage.get(`${job.episode_id}|${languageCode}`) ?? null,
       nextAt: jobNextAt(job),
+      attemptCount: job.attempt_count,
+      attemptsExhausted: job.attempt_count >= MAX_PUBLISH_ATTEMPTS,
     };
     nextByPlatform[job.platform] ??= item;
     nextByLane[`${job.platform}|${languageCode}`] ??= {
@@ -463,10 +495,17 @@ async function listWaitingSocialMedia(): Promise<SocialWaitingMediaItem[]> {
   }));
 }
 
+// `claim_social_publish_batch` gates a pending lane on `scheduled_at <= now`
+// AND `next_attempt_at <= now`, so the soonest it can be picked up is the later
+// of the two. Reporting `scheduled_at` alone made a lane whose
+// `next_attempt_at` sat further out render as `due now` every tick while the
+// claim kept skipping it.
 function jobNextAt(
-  job: Pick<SocialPublishJobRow, 'status' | 'scheduled_at' | 'next_attempt_at'>,
+  job: Pick<SocialPublishJobRow, 'scheduled_at' | 'next_attempt_at'>,
 ): string {
-  return job.status === 'failed' ? job.next_attempt_at : job.scheduled_at;
+  return Date.parse(job.next_attempt_at) > Date.parse(job.scheduled_at)
+    ? job.next_attempt_at
+    : job.scheduled_at;
 }
 
 export interface UnfinishedSocialPublishJob {

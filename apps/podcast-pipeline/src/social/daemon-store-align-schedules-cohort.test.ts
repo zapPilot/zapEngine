@@ -186,3 +186,64 @@ describe('alignPendingSocialPublishSchedules release cohort behavior', () => {
     ]);
   });
 });
+
+describe('alignPendingSocialPublishSchedules claim-gate recovery', () => {
+  // Production case: a hand-rescheduled cohort left one lane's
+  // `next_attempt_at` a day ahead of its own `scheduled_at`. The lane looked
+  // overdue, was never claimable, and held the partial-cohort fence shut for
+  // every other article.
+  it('pulls back a queued lane stranded by a next_attempt_at past its cohort slot', async () => {
+    installFixture([
+      {
+        id: 'completed-sibling',
+        episode_id: 'episode-stranded',
+        status: 'completed',
+        scheduled_at: '2026-08-25T08:21:00.000Z',
+        next_attempt_at: '2026-08-25T08:30:00.000Z',
+      },
+      {
+        id: 'stranded-lane',
+        episode_id: 'episode-stranded',
+        status: 'queued',
+        scheduled_at: '2026-08-25T08:21:00.000Z',
+        next_attempt_at: '2026-08-27T00:30:00.000Z',
+      },
+    ]);
+
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
+
+    expect(state.updates).toEqual([
+      {
+        id: 'stranded-lane',
+        status: 'queued',
+        patch: {
+          scheduled_at: '2026-08-25T08:21:00.000Z',
+          next_attempt_at: '2026-08-25T08:21:00.000Z',
+        },
+      },
+    ]);
+  });
+
+  it('leaves an already-due failed lane serving its retry backoff untouched', async () => {
+    installFixture([
+      {
+        id: 'completed-sibling',
+        episode_id: 'episode-backoff',
+        status: 'completed',
+        scheduled_at: '2026-08-25T00:00:00.000Z',
+        next_attempt_at: '2026-08-25T00:00:00.000Z',
+      },
+      {
+        id: 'backoff-lane',
+        episode_id: 'episode-backoff',
+        status: 'failed',
+        scheduled_at: '2026-08-25T08:00:00.000Z',
+        next_attempt_at: '2026-08-27T00:00:00.000Z',
+      },
+    ]);
+
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
+
+    expect(state.updates).toEqual([]);
+  });
+});

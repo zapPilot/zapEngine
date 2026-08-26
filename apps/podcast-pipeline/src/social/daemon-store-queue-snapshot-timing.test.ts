@@ -104,6 +104,8 @@ describe('getSocialQueueSnapshot processing timing', () => {
           status: 'failed',
           title: 'Failed episode',
           nextAt: '2026-08-21T11:00:00.000Z',
+          attemptCount: 0,
+          attemptsExhausted: false,
         },
         x: {
           episodeId: 'episode-processing',
@@ -112,6 +114,8 @@ describe('getSocialQueueSnapshot processing timing', () => {
           status: 'processing',
           title: 'Processing episode',
           nextAt: '2026-08-21T12:00:00.000Z',
+          attemptCount: 0,
+          attemptsExhausted: false,
         },
       },
     });
@@ -165,6 +169,8 @@ describe('getSocialQueueSnapshot processing timing', () => {
       status: 'failed',
       title: 'Failed episode',
       nextAt: '2026-08-21T11:00:00.000Z',
+      attemptCount: 0,
+      attemptsExhausted: false,
     });
   });
 
@@ -226,6 +232,8 @@ describe('getSocialQueueSnapshot processing timing', () => {
       status: 'failed',
       title: 'Failed episode',
       nextAt: '2026-08-21T10:00:00.000Z',
+      attemptCount: 0,
+      attemptsExhausted: false,
     });
   });
 
@@ -283,6 +291,8 @@ describe('getSocialQueueSnapshot processing timing', () => {
         status: 'processing',
         title: 'Other episode',
         nextAt: '2026-08-21T09:00:00.000Z',
+        attemptCount: 0,
+        attemptsExhausted: false,
       },
       x: {
         episodeId: 'episode-shared',
@@ -291,6 +301,8 @@ describe('getSocialQueueSnapshot processing timing', () => {
         status: 'failed',
         title: 'Shared episode',
         nextAt: '2026-08-21T10:00:00.000Z',
+        attemptCount: 0,
+        attemptsExhausted: false,
       },
     });
   });
@@ -320,6 +332,8 @@ describe('getSocialQueueSnapshot processing timing', () => {
           status: 'failed',
           title: null,
           nextAt: '2026-08-21T11:00:00.000Z',
+          attemptCount: 0,
+          attemptsExhausted: false,
         },
         x: {
           episodeId: 'episode-processing',
@@ -328,8 +342,87 @@ describe('getSocialQueueSnapshot processing timing', () => {
           status: 'processing',
           title: null,
           nextAt: '2026-08-21T12:00:00.000Z',
+          attemptCount: 0,
+          attemptsExhausted: false,
         },
       },
     });
+  });
+});
+
+describe('getSocialQueueSnapshot claim-gate reporting', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // The queue log is the only place an operator sees a lane's next action, so
+  // it has to agree with `claim_social_publish_batch`, which needs both
+  // `scheduled_at` and `next_attempt_at` to be in the past.
+  it('reports a queued lane held back by next_attempt_at, not its stale schedule', async () => {
+    createQueueSnapshotFixture(
+      [
+        {
+          episode_id: 'episode-failed',
+          platform: 'x',
+          status: 'queued',
+          scheduled_at: '2026-08-21T08:00:00.000Z',
+          next_attempt_at: '2026-08-22T00:30:00.000Z',
+        },
+      ],
+      defaultLocalizations,
+    );
+
+    const snapshot = await getSocialQueueSnapshot();
+
+    expect(snapshot.nextByPlatform.x?.nextAt).toBe('2026-08-22T00:30:00.000Z');
+    expect(snapshot.episodeQueue[0]?.nextAt).toBe('2026-08-22T00:30:00.000Z');
+  });
+
+  it('keeps reporting scheduled_at when it is the later of the two claim gates', async () => {
+    createQueueSnapshotFixture(
+      [
+        {
+          episode_id: 'episode-failed',
+          platform: 'x',
+          status: 'queued',
+          scheduled_at: '2026-08-22T00:30:00.000Z',
+          next_attempt_at: '2026-08-21T08:00:00.000Z',
+        },
+      ],
+      defaultLocalizations,
+    );
+
+    const snapshot = await getSocialQueueSnapshot();
+
+    expect(snapshot.nextByPlatform.x?.nextAt).toBe('2026-08-22T00:30:00.000Z');
+  });
+
+  it('flags a lane that has burned every claim attempt', async () => {
+    createQueueSnapshotFixture(
+      [
+        {
+          episode_id: 'episode-failed',
+          platform: 'x',
+          status: 'failed',
+          scheduled_at: '2026-08-21T08:00:00.000Z',
+          next_attempt_at: '2026-08-21T09:00:00.000Z',
+          attempt_count: 8,
+        },
+        {
+          episode_id: 'episode-processing',
+          platform: 'threads',
+          status: 'failed',
+          scheduled_at: '2026-08-21T08:00:00.000Z',
+          next_attempt_at: '2026-08-21T09:00:00.000Z',
+          attempt_count: 7,
+        },
+      ],
+      defaultLocalizations,
+    );
+
+    const snapshot = await getSocialQueueSnapshot();
+
+    expect(snapshot.nextByPlatform.x?.attemptsExhausted).toBe(true);
+    expect(snapshot.nextByPlatform.threads?.attemptsExhausted).toBe(false);
   });
 });

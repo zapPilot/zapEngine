@@ -492,7 +492,17 @@ async function publishDueJobs(
           )
         ).flat()
       : await claimSocialPublishBatch({ owner: OWNER, now });
-  if (jobs.length === 0) return;
+  if (jobs.length === 0) {
+    // Without this the fence is indistinguishable from an idle queue: the tick
+    // returns silently while every other episode waits behind a cohort that
+    // has nothing claimable in it.
+    if (partialCohorts.length > 0) {
+      log(
+        `🚧 [social-daemon] fenced by ${partialCohorts.length} unfinished cohort${partialCohorts.length === 1 ? '' : 's'} · ${partialCohorts.join(', ')} · nothing claimable yet; no other article can start.`,
+      );
+    }
+    return;
+  }
 
   const active = await activeStrategiesForPublish(log);
   const pendingByEpisodeLanguage = new Map<string, SocialPublishJobRow[]>();
@@ -908,8 +918,13 @@ function logQueueSnapshot(
   if (snapshot.episodeQueue.length > 0 && nextLanes.length > 0) log('');
   for (const item of nextLanes) {
     const title = item.title ? ` “${truncateTitle(item.title)}”` : '';
+    // A lane past the claim RPC's attempt fence will never be picked up again;
+    // printing a timestamp for it would promise a retry that cannot happen.
+    const timing = item.attemptsExhausted
+      ? `blocked (${item.attemptCount} attempts exhausted; ${item.status})`
+      : `${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status})`;
     log(
-      `📥 [social-daemon] next ${laneLabel(item.platform, item.languageCode)}${item.experiment ? ` [${item.experiment}]` : ''} ·${title} · ${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status})`,
+      `📥 [social-daemon] next ${laneLabel(item.platform, item.languageCode)}${item.experiment ? ` [${item.experiment}]` : ''} ·${title} · ${timing}`,
     );
   }
 }

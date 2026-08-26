@@ -140,6 +140,40 @@ describe('release cohort serialization', () => {
     expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
   });
 
+  // The fence used to return silently, so a cohort holding every other article
+  // back was indistinguishable from an idle queue in the daemon log.
+  it('names the cohort holding the fence shut when nothing in it is claimable', async () => {
+    mocks.listPartiallyPublishedCohorts.mockResolvedValue([PARTIAL_EPISODE]);
+    mocks.claimSocialPublishBatch.mockResolvedValue([]);
+    const log = vi.fn();
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: FIRST_STARTED_AT,
+      log,
+    });
+
+    expect(log).toHaveBeenCalledWith(
+      `🚧 [social-daemon] fenced by 1 unfinished cohort · ${PARTIAL_EPISODE} · nothing claimable yet; no other article can start.`,
+    );
+  });
+
+  it('stays quiet about the fence when no cohort is partial', async () => {
+    mocks.listPartiallyPublishedCohorts.mockResolvedValue([]);
+    mocks.claimSocialPublishBatch.mockResolvedValue([]);
+    const log = vi.fn();
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: FIRST_STARTED_AT,
+      log,
+    });
+
+    expect(log).not.toHaveBeenCalledWith(
+      expect.stringContaining('[social-daemon] fenced by'),
+    );
+  });
+
   it('finishes the partial cohort before an unrestricted claim can start a fresh episode', async () => {
     mocks.listPartiallyPublishedCohorts.mockResolvedValue([PARTIAL_EPISODE]);
     const pendingLane = {

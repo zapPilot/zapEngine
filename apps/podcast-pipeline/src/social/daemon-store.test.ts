@@ -235,6 +235,7 @@ describe('social daemon store', () => {
             status: 'queued',
             scheduled_at: '2026-08-16T10:05:00Z',
             next_attempt_at: '2026-08-16T10:05:00Z',
+            attempt_count: 0,
           },
           {
             episode_id: 'episode-2',
@@ -242,6 +243,7 @@ describe('social daemon store', () => {
             status: 'failed',
             scheduled_at: '2026-08-16T09:05:00Z',
             next_attempt_at: '2026-08-16T10:35:00Z',
+            attempt_count: 0,
           },
           {
             episode_id: 'episode-2',
@@ -249,6 +251,7 @@ describe('social daemon store', () => {
             status: 'queued',
             scheduled_at: '2026-08-16T10:15:00Z',
             next_attempt_at: '2026-08-16T10:15:00Z',
+            attempt_count: 0,
           },
         ],
         error: null,
@@ -283,6 +286,8 @@ describe('social daemon store', () => {
           status: 'queued',
           title: 'First episode',
           nextAt: '2026-08-16T10:05:00Z',
+          attemptCount: 0,
+          attemptsExhausted: false,
         },
         threads: {
           episodeId: 'episode-2',
@@ -291,6 +296,8 @@ describe('social daemon store', () => {
           status: 'queued',
           title: 'Second episode',
           nextAt: '2026-08-16T10:15:00Z',
+          attemptCount: 0,
+          attemptsExhausted: false,
         },
       },
     });

@@ -107,6 +107,8 @@ describe('getSocialQueueSnapshot missing localization titles', () => {
           status: 'processing',
           title: 'Titled episode',
           nextAt: '2026-08-21T09:00:00.000Z',
+          attemptCount: 0,
+          attemptsExhausted: false,
         },
         x: {
           episodeId: 'episode-missing-title',
@@ -115,6 +117,8 @@ describe('getSocialQueueSnapshot missing localization titles', () => {
           status: 'failed',
           title: null,
           nextAt: '2026-08-21T10:00:00.000Z',
+          attemptCount: 0,
+          attemptsExhausted: false,
         },
       },
     });
