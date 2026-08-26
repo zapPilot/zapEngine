@@ -15,12 +15,21 @@ import {
   isRednoteLoginSnippet,
   isRednoteLoginUrl,
   parseFollowerCountNear,
+  readRednoteFollowerCount,
 } from './account-snapshots.js';
 import type { MetricsBrowserSession } from './metric-collectors.js';
 
 const NOW = new Date('2026-08-20T12:00:00.000Z');
 const X_PROFILE = 'https://x.com/zap_pilot';
+const REDNOTE_HOME_URL = 'https://creator.rednote.com/new/home';
 const REDNOTE_HOME_TEXT = '首页\n粉丝\n1,234\n获赞\n5.6万';
+
+/** Indexing is clamped to the last entry, so a fixture sequence is never empty. */
+function at<T>(items: readonly T[], index: number): T {
+  const value = items[Math.min(index, items.length - 1)];
+  if (value === undefined) throw new Error('empty fixture sequence');
+  return value;
+}
 
 function locator(text: string) {
   const node = {
@@ -30,24 +39,22 @@ function locator(text: string) {
   return { ...node, first: () => node };
 }
 
-function followerLocator(text: string, selector: string) {
-  const target = selector === 'text=粉丝' ? '粉丝' : '粉絲';
-  const succeed = text.includes(target);
+/**
+ * Successive reads model SPA hydration: the shell answers first and the last
+ * entry is what the page settles on. A single string is a page that never
+ * changes.
+ */
+function sequenceLocator(texts: readonly string[]) {
+  let reads = 0;
   const node = {
-    waitFor: succeed
-      ? vi.fn().mockResolvedValue(undefined)
-      : vi
-          .fn()
-          .mockRejectedValue(
-            new Error('TimeoutError: locator.waitFor timeout'),
-          ),
-    innerText: vi.fn().mockResolvedValue(text),
+    waitFor: vi.fn().mockResolvedValue(undefined),
+    innerText: vi.fn(async () => at(texts, reads++)),
   };
   return { ...node, first: () => node };
 }
 
 function browserSession(input: {
-  rednoteText?: string;
+  rednoteText?: string | readonly string[];
   rednoteUrl?: string;
   xFollowersText?: string;
   failFor?: string;
@@ -62,16 +69,15 @@ function browserSession(input: {
         throw new Error(`browser profile is logged out (${url})`);
       }
       const rednoteText = input.rednoteText ?? REDNOTE_HOME_TEXT;
-      const rednoteUrl =
-        input.rednoteUrl ?? 'https://creator.rednote.com/new/home';
+      const rednoteTexts =
+        typeof rednoteText === 'string' ? [rednoteText] : rednoteText;
+      const rednoteUrl = input.rednoteUrl ?? REDNOTE_HOME_URL;
       const isRednote = url.includes('creator.rednote.com');
       return run({
         url: () => (isRednote ? rednoteUrl : url),
+        waitForTimeout: vi.fn().mockResolvedValue(undefined),
         locator: (selector: string) => {
-          if (selector === 'body') return locator(rednoteText);
-          if (selector === 'text=粉丝' || selector === 'text=粉絲') {
-            return followerLocator(rednoteText, selector);
-          }
+          if (selector === 'body') return sequenceLocator(rednoteTexts);
           return locator(input.xFollowersText ?? '8,096 Followers');
         },
       });
@@ -91,6 +97,40 @@ function threadsInsights(followers: number | null) {
           : [{ name: 'followers_count', total_value: { value: followers } }],
     }),
   }) as unknown as typeof fetch;
+}
+
+/**
+ * Drives the poll off an injected clock so a deadline is reached without any
+ * real elapsed time.
+ */
+function follower(input: {
+  texts: readonly (string | Error)[];
+  urls?: readonly string[];
+  timeoutMs?: number;
+}) {
+  let clock = 0;
+  let reads = 0;
+  let urlReads = 0;
+  const sleep = vi.fn(async (ms: number) => {
+    clock += ms;
+  });
+  const urls = input.urls ?? [REDNOTE_HOME_URL];
+  const read = () => {
+    const next = at(input.texts, reads++);
+    if (next instanceof Error) throw next;
+    return next;
+  };
+  return {
+    sleep,
+    run: () =>
+      readRednoteFollowerCount({
+        readText: async () => read(),
+        readUrl: () => at(urls, urlReads++),
+        sleep,
+        now: () => clock,
+        timeoutMs: input.timeoutMs ?? 15_000,
+      }),
+  };
 }
 
 beforeEach(() => {
@@ -114,6 +154,8 @@ describe('parseFollowerCountNear', () => {
     ['获赞 5000', null],
     ['粉丝\n0', 0],
     ['粉丝 0', 0],
+    ['粉丝\n--', null],
+    ['首页\n粉丝\n--', null],
   ])('reads %s as %s', (text, expected) => {
     expect(parseFollowerCountNear(text, '粉丝')).toBe(expected);
   });
@@ -124,8 +166,15 @@ describe('isRednoteLoginUrl', () => {
     ['https://creator.rednote.com/new/home', false],
     ['https://creator.rednote.com/login', true],
     ['https://www.xiaohongshu.com/passport/login', true],
-    ['https://creator.rednote.com/new/home?signin=1', true],
+    ['https://creator.rednote.com/new/auth', true],
     ['https://creator.rednote.com/new/data', false],
+    // Path segments are compared by equality, so a creator page whose path
+    // merely contains "auth" is not an expired session.
+    ['https://creator.rednote.com/author/123', false],
+    // Query strings are no longer consulted: a login modal that leaves the path
+    // alone is caught by the body snippet check on every poll iteration.
+    ['https://creator.rednote.com/new/home?signin=1', false],
+    ['not-a-url', false],
   ])('classifies %s as %s', (url, expected) => {
     expect(isRednoteLoginUrl(url)).toBe(expected);
   });
@@ -147,6 +196,69 @@ describe('isRednoteLoginSnippet', () => {
   it('normalizes traditional to simplified before matching', () => {
     expect(isRednoteLoginSnippet('掃碼登錄')).toBe(true);
     expect(isRednoteLoginSnippet('請登錄')).toBe(true);
+  });
+});
+
+describe('readRednoteFollowerCount', () => {
+  // The regression this whole collector exists for: the label ships in the
+  // shell next to a placeholder and only the number hydrates from a later API
+  // response, so waiting for the label and reading once still reads nothing.
+  it('waits through a hydrating placeholder for the number itself', async () => {
+    const poll = follower({
+      texts: ['首页\n粉丝\n--', '首页\n粉丝\n--', '首页\n粉丝\n1,234'],
+    });
+    await expect(poll.run()).resolves.toBe(1234);
+    expect(poll.sleep).toHaveBeenCalledTimes(2);
+  });
+
+  // Traditional pages need no separate selector: the text is normalized to
+  // zh-CN before parsing, so 粉絲 and 粉丝 share one wait.
+  it('reads a late Traditional 粉絲 count through the same poll', async () => {
+    const poll = follower({ texts: ['首頁\n粉絲\n--', '首頁\n粉絲\n2,345'] });
+    await expect(poll.run()).resolves.toBe(2345);
+  });
+
+  it('returns a zero count instead of polling on', async () => {
+    const poll = follower({ texts: ['粉丝\n0'] });
+    await expect(poll.run()).resolves.toBe(0);
+    expect(poll.sleep).not.toHaveBeenCalled();
+  });
+
+  it('reports session expiry when the body turns into a login page mid-poll', async () => {
+    const poll = follower({ texts: ['首页\n作品管理', '扫码登录'] });
+    await expect(poll.run()).rejects.toThrow(/Rednote session expired/);
+  });
+
+  it('reports session expiry when the page redirects to login mid-poll', async () => {
+    const poll = follower({
+      texts: ['首页\n作品管理', '首页'],
+      urls: [REDNOTE_HOME_URL, 'https://creator.rednote.com/login?from=home'],
+    });
+    await expect(poll.run()).rejects.toThrow(/redirected to login/);
+  });
+
+  it('keeps a real count that shares the page with an incidental 登录 string', async () => {
+    const poll = follower({ texts: ['粉丝\n1,234\n请登录以继续'] });
+    await expect(poll.run()).resolves.toBe(1234);
+  });
+
+  it('re-reads after a body read fails mid-navigation', async () => {
+    const poll = follower({
+      texts: [new Error('Execution context was destroyed'), '粉丝\n777'],
+    });
+    await expect(poll.run()).resolves.toBe(777);
+  });
+
+  it('honors the deadline and reports url plus snippet when nothing hydrates', async () => {
+    const poll = follower({
+      texts: ['首页\n作品管理\n数据概览'],
+      timeoutMs: 2_000,
+    });
+    await expect(poll.run()).rejects.toThrow(
+      /exposed no follower count \(url=https:\/\/creator\.rednote\.com\/new\/home snippet="首页 作品管理 数据概览"\)/,
+    );
+    // 2000ms budget at a 500ms interval: bounded, not spun.
+    expect(poll.sleep).toHaveBeenCalledTimes(4);
   });
 });
 
@@ -256,6 +368,7 @@ describe('captureDueAccountSnapshots', () => {
         latest: vi.fn().mockResolvedValue({}),
         insert,
         log,
+        followerWaitMs: 0,
       }),
     ).resolves.toBe(0);
     expect(insert).not.toHaveBeenCalled();
@@ -298,7 +411,7 @@ describe('captureDueAccountSnapshots', () => {
     ).toBe(true);
   });
 
-  it('handles the Traditional 粉絲 label via the same follower wait', async () => {
+  it('handles the Traditional 粉絲 label through zh-CN normalization', async () => {
     const insert = vi.fn().mockResolvedValue(undefined);
     await captureDueAccountSnapshots({
       now: NOW,
@@ -353,7 +466,7 @@ describe('captureDueAccountSnapshots', () => {
     expect(joined).toEqual(expect.stringContaining('Rednote session expired'));
   });
 
-  it('reports a missing follower label with url and snippet for non-login pages (SPA not yet hydrated or layout moved)', async () => {
+  it('reports a missing follower count with url and snippet when the layout moved', async () => {
     const log = vi.fn();
     await captureDueAccountSnapshots({
       now: NOW,
@@ -364,6 +477,7 @@ describe('captureDueAccountSnapshots', () => {
       latest: vi.fn().mockResolvedValue({}),
       insert: vi.fn().mockResolvedValue(undefined),
       log,
+      followerWaitMs: 0,
     });
     const rednoteLine =
       log.mock.calls
@@ -378,16 +492,15 @@ describe('captureDueAccountSnapshots', () => {
     expect(rednoteLine).toEqual(expect.stringContaining('snippet='));
   });
 
-  it('keeps the SPA race from being reported as a missing count when the label arrives within the wait window', async () => {
-    // The mock models the critical difference vs the old body-only wait:
-    // follower locator succeeds only when 粉丝 is present. A body that
-    // already contains 粉丝 therefore passes the new wait gate without
-    // needing an extra retry, whereas the old code would have read whatever
-    // body happened to be there at T=0.
+  it('keeps the SPA race from being reported as a missing count', async () => {
     const insert = vi.fn().mockResolvedValue(undefined);
     await captureDueAccountSnapshots({
       now: NOW,
-      browser: browserSession({ rednoteText: '粉丝\n99' }),
+      browser: browserSession({
+        // The label is in the shell from the first paint; only the number
+        // arrives with the stats API response.
+        rednoteText: ['首页\n粉丝\n--', '首页\n粉丝\n99'],
+      }),
       fetchImpl: threadsInsights(310),
       latest: vi.fn().mockResolvedValue({}),
       insert,
