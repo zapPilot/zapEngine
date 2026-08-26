@@ -87,13 +87,11 @@ describe('getSocialQueueSnapshot processing timing', () => {
       episodeQueue: [
         {
           episodeId: 'episode-failed',
-          languageCode: 'zh-Hant',
           title: 'Failed episode',
           nextAt: '2026-08-21T11:00:00.000Z',
         },
         {
           episodeId: 'episode-processing',
-          languageCode: 'zh-Hant',
           title: 'Processing episode',
           nextAt: '2026-08-21T12:00:00.000Z',
         },
@@ -151,13 +149,11 @@ describe('getSocialQueueSnapshot processing timing', () => {
     expect(snapshot.episodeQueue).toEqual([
       {
         episodeId: 'episode-failed',
-        languageCode: 'zh-Hant',
         title: 'Failed episode',
         nextAt: '2026-08-21T11:00:00.000Z',
       },
       {
         episodeId: 'episode-processing',
-        languageCode: 'zh-Hant',
         title: 'Processing episode',
         nextAt: '2026-08-21T12:00:00.000Z',
       },
@@ -209,19 +205,16 @@ describe('getSocialQueueSnapshot processing timing', () => {
     expect(snapshot.episodeQueue).toEqual([
       {
         episodeId: 'episode-failed',
-        languageCode: 'zh-Hant',
         title: 'Failed episode',
         nextAt: '2026-08-21T10:00:00.000Z',
       },
       {
         episodeId: 'episode-queued',
-        languageCode: 'zh-Hant',
         title: 'Queued episode',
         nextAt: '2026-08-21T12:00:00.000Z',
       },
       {
         episodeId: 'episode-processing',
-        languageCode: 'zh-Hant',
         title: 'Processing episode',
         nextAt: '2026-08-21T13:00:00.000Z',
       },
@@ -273,13 +266,11 @@ describe('getSocialQueueSnapshot processing timing', () => {
     expect(snapshot.episodeQueue).toEqual([
       {
         episodeId: 'episode-other',
-        languageCode: 'zh-Hant',
         title: 'Other episode',
         nextAt: '2026-08-21T09:00:00.000Z',
       },
       {
         episodeId: 'episode-shared',
-        languageCode: 'zh-Hant',
         title: 'Shared episode',
         nextAt: '2026-08-21T10:00:00.000Z',
       },
@@ -312,13 +303,11 @@ describe('getSocialQueueSnapshot processing timing', () => {
       episodeQueue: [
         {
           episodeId: 'episode-failed',
-          languageCode: 'zh-Hant',
           title: null,
           nextAt: '2026-08-21T11:00:00.000Z',
         },
         {
           episodeId: 'episode-processing',
-          languageCode: 'zh-Hant',
           title: null,
           nextAt: '2026-08-21T12:00:00.000Z',
         },

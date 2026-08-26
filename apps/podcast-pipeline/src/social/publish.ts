@@ -1,4 +1,5 @@
 import { toError } from '../lib/errorMessage.js';
+import { SocialReleaseFailureError } from './publish-error.js';
 import type { PublishedSocialPost } from './record.js';
 import {
   getPublishedPlatform,
@@ -14,13 +15,19 @@ import type {
 
 export interface PublishPlatformOutcome {
   platform: SocialPlatform;
-  status: 'published' | 'skipped' | 'failed';
+  status: 'published' | 'skipped';
   url?: string;
-  error?: Error;
-  stateError?: Error;
-  recordError?: Error;
 }
 
+/**
+ * Fail-fast: the first transport, local-state, or telemetry failure throws a
+ * `SocialReleaseFailureError` instead of recording a soft failure and moving
+ * on. A partial outcome here is unreadable -- there is no way to tell "did it
+ * actually publish" apart from "did our bookkeeping just not confirm it" --
+ * and that ambiguity is exactly what let sibling lanes drift out of sync.
+ * Lanes already published before the failure stay published; whichever lane
+ * failed and everything after it in `jobs` never runs this tick.
+ */
 export async function publishSocialPlatforms(input: {
   episodeId: string;
   languageCode?: SocialLanguageCode;
@@ -31,9 +38,10 @@ export async function publishSocialPlatforms(input: {
   onLog?: (message: string) => void;
 }): Promise<PublishPlatformOutcome[]> {
   const log = input.onLog ?? (() => void 0);
+  const languageCode = input.languageCode ?? 'zh-Hant';
   const outcomes: PublishPlatformOutcome[] = [];
 
-  for (const job of input.jobs) {
+  for (const [index, job] of input.jobs.entries()) {
     const platform = job.platform;
     const state = await readPublishState(input.statePath);
     const existing = getPublishedPlatform(
@@ -52,86 +60,72 @@ export async function publishSocialPlatforms(input: {
       continue;
     }
 
+    const publishedLanes = outcomes.map((outcome) => outcome.platform);
+    const untouchedLanes = input.jobs
+      .slice(index + 1)
+      .map((pending) => pending.platform);
+    const fail = (
+      phase: 'transport' | 'state' | 'telemetry',
+      cause: unknown,
+    ): SocialReleaseFailureError =>
+      new SocialReleaseFailureError({
+        episodeId: input.episodeId,
+        languageCode,
+        platform,
+        phase,
+        cause,
+        publishedLanes,
+        untouchedLanes,
+      });
+
     let result: PublishResult;
     try {
       result = await job.publish();
     } catch (error) {
       const normalized = toError(error);
       log(`[${platform}] ✗ ${normalized.message}`);
-      outcomes.push({ platform, status: 'failed', error: normalized });
-      continue;
+      throw fail('transport', normalized);
     }
 
-    const stateError = await savePublishedState({
-      save: () =>
-        markPlatformPublished({
-          episodeId: input.episodeId,
-          platform,
-          languageCode: input.languageCode,
-          result: {
-            published: true,
-            publishedAt: result.publishedAt,
-            ...(result.url ? { url: result.url } : {}),
-          },
-          path: input.statePath,
-        }),
-      platform,
-      log,
-    });
+    try {
+      await markPlatformPublished({
+        episodeId: input.episodeId,
+        platform,
+        languageCode: input.languageCode,
+        result: {
+          published: true,
+          publishedAt: result.publishedAt,
+          ...(result.url ? { url: result.url } : {}),
+        },
+        path: input.statePath,
+      });
+    } catch (error) {
+      const normalized = toError(error);
+      log(
+        `[${platform}] ⚠ Published remotely, but local duplicate state was not saved: ${normalized.message}`,
+      );
+      throw fail('state', normalized);
+    }
 
-    const recordError = await persistPublishedPost({
-      persistPublished: input.persistPublished,
-      published: { platform, result },
-      log,
-    });
+    if (input.persistPublished) {
+      try {
+        await input.persistPublished({ platform, result });
+      } catch (error) {
+        const normalized = toError(error);
+        log(
+          `[${platform}] ⚠ Published remotely, but telemetry recording failed: ${normalized.message}`,
+        );
+        throw fail('telemetry', normalized);
+      }
+    }
 
     log(`[${platform}] ✓ ${result.url ?? 'Published'}`);
     outcomes.push({
       platform,
       status: 'published',
       ...(result.url ? { url: result.url } : {}),
-      ...(stateError ? { stateError } : {}),
-      ...(recordError ? { recordError } : {}),
     });
   }
 
   return outcomes;
-}
-
-async function savePublishedState(input: {
-  save: () => Promise<void>;
-  platform: SocialPlatform;
-  log: (message: string) => void;
-}): Promise<Error | undefined> {
-  try {
-    await input.save();
-    return undefined;
-  } catch (error) {
-    const normalized = toError(error);
-    input.log(
-      `[${input.platform}] ⚠ Published remotely, but local duplicate state was not saved: ${normalized.message}`,
-    );
-    return normalized;
-  }
-}
-
-async function persistPublishedPost(input: {
-  persistPublished:
-    | ((published: PublishedSocialPost) => Promise<void>)
-    | undefined;
-  published: PublishedSocialPost;
-  log: (message: string) => void;
-}): Promise<Error | undefined> {
-  if (!input.persistPublished) return undefined;
-
-  try {
-    await input.persistPublished(input.published);
-    return undefined;
-  } catch (error) {
-    const normalized = toError(error);
-    input.log(
-      `[${input.published.platform}] ⚠ Published remotely, but telemetry recording failed: ${normalized.message}`,
-    );
-    return normalized;
-  }
 }

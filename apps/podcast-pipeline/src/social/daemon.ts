@@ -1,6 +1,7 @@
 import { hostname } from 'node:os';
 
-import { errorMessage, toError } from '../lib/errorMessage.js';
+import { getAllowedTelegramUserIds } from '../lib/env.js';
+import { errorMessage } from '../lib/errorMessage.js';
 import { sleep as defaultSleep } from '../lib/sleep.js';
 import {
   insertSocialPostMetric,
@@ -9,11 +10,17 @@ import {
   updateSocialPostIdentity,
   updateSocialPostReviewStatus,
 } from '../services/db.js';
+import {
+  buildSocialReleaseFailedMessage,
+  sendTelegramNotification,
+} from '../services/telegram.js';
 import type { SocialPostRow } from '../types.js';
 import { captureDueAccountSnapshots } from './account-snapshots.js';
+import { type ReleaseCohortLane, resolveReleaseCohortLanes } from './cohort.js';
 import {
   acquireSocialDaemonLock,
   SocialDaemonAlreadyRunningError,
+  type SocialDaemonLock,
 } from './daemon-lock.js';
 import {
   alignPendingSocialPublishSchedules,
@@ -27,11 +34,13 @@ import {
   listLearningSocialMetrics,
   listLearningSocialPosts,
   listMetricWindowsForPosts,
+  listPartiallyPublishedCohorts,
   listPendingSocialPublishSchedules,
   listSocialPublishCandidates,
+  listSocialPublishCandidatesForEpisodes,
   listUnfinishedSocialPublishJobs,
-  type PendingSocialPublishSchedule,
   reconcileSocialPublishJob,
+  releaseSocialPublishJobLease,
   skipOverdueSocialPublishJobs,
   type SocialMetricWindowLabel,
   type SocialPublishCandidate,
@@ -39,7 +48,6 @@ import {
   type SocialStrategyVersionRow,
 } from './daemon-store.js';
 import { buildSocialExperimentReports } from './experiment-report.js';
-import { getOrCreateExperimentAssignment } from './experiments.js';
 import { isMainModule } from './is-main-module.js';
 import {
   createMetricCollectors,
@@ -47,8 +55,8 @@ import {
 } from './metric-collectors.js';
 import { buildSocialPostMetric, collectPostMetrics } from './metrics.js';
 import type { SocialPlatform } from './platforms.js';
-import { policyEntriesForLanguage } from './policy.js';
 import { publishSocialBatch } from './publish-batch.js';
+import { SocialReleaseFailureError } from './publish-error.js';
 import {
   activeStrategyMap,
   buildStrategyGuidance,
@@ -62,7 +70,6 @@ import {
 const POLL_INTERVAL_MS = 60_000;
 const METRIC_LOOKBACK_DAYS = 8;
 const STRATEGY_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
-export const MIN_CROSS_LANGUAGE_GAP_MS = 2 * 60 * 60_000;
 const OWNER = `${hostname()}:${process.pid}`;
 const SOCIAL_PUBLISH_SKIP_OVERDUE_MINUTES =
   'SOCIAL_PUBLISH_SKIP_OVERDUE_MINUTES';
@@ -158,6 +165,15 @@ export async function runSocialDaemon(
   }
 }
 
+/**
+ * `reconcile`, `align schedules`, `discover`, and `publish` are release-shape
+ * stages: a failure here can leave a cohort's lanes disagreeing about what
+ * was actually published, or leave the queue mis-scheduled. Those propagate
+ * and stop the whole process (see the `isMainModule` block below). `metrics`,
+ * `account snapshots`, `strategy`, and `experiment report` are purely
+ * observational -- losing one of them for a tick has no release-correctness
+ * consequence, so those stay isolated.
+ */
 export async function runSocialDaemonTick(input: {
   now: Date;
   firstStartedAt: string;
@@ -167,41 +183,37 @@ export async function runSocialDaemonTick(input: {
 }): Promise<void> {
   const log = input.log ?? (() => void 0);
 
-  await isolate('reconcile', log, () =>
-    reconcileAlreadyPublishedJobs(input.now, log),
-  );
-  await isolate('align schedules', log, async () => {
-    const aligned = await alignPendingSocialPublishSchedules();
-    if (aligned > 0) {
+  await reconcileAlreadyPublishedJobs(input.now, log);
+
+  const aligned = await alignPendingSocialPublishSchedules(input.now);
+  if (aligned > 0) {
+    log(
+      `[social-daemon] aligned ${aligned} pending platform job${aligned === 1 ? '' : 's'} to article publish slots.`,
+    );
+  }
+
+  await discoverAndEnqueue({
+    now: input.now,
+    firstStartedAt: input.firstStartedAt,
+    log,
+  });
+
+  if (input.overdueGraceMs != null) {
+    const cutoff = new Date(
+      input.now.getTime() - input.overdueGraceMs,
+    ).toISOString();
+    const skipped = await skipOverdueSocialPublishJobs({
+      now: input.now,
+      graceMs: input.overdueGraceMs,
+    });
+    if (skipped > 0) {
       log(
-        `[social-daemon] aligned ${aligned} pending platform job${aligned === 1 ? '' : 's'} to article publish slots.`,
+        `[social-daemon] skipped ${skipped} overdue publish job${skipped === 1 ? '' : 's'} (${input.overdueGraceMs / 60_000}m grace; cutoff ${cutoff}).`,
       );
     }
-  });
-  await isolate('discover', log, () =>
-    discoverAndEnqueue({
-      now: input.now,
-      firstStartedAt: input.firstStartedAt,
-      log,
-    }),
-  );
-  await isolate('publish', log, async () => {
-    if (input.overdueGraceMs != null) {
-      const cutoff = new Date(
-        input.now.getTime() - input.overdueGraceMs,
-      ).toISOString();
-      const skipped = await skipOverdueSocialPublishJobs({
-        now: input.now,
-        graceMs: input.overdueGraceMs,
-      });
-      if (skipped > 0) {
-        log(
-          `[social-daemon] skipped ${skipped} overdue publish job${skipped === 1 ? '' : 's'} (${input.overdueGraceMs / 60_000}m grace; cutoff ${cutoff}).`,
-        );
-      }
-    }
-    await publishDueJobs(input.now, log);
-  });
+  }
+  await publishDueJobs(input.now, log);
+
   await isolate('metrics', log, async () => {
     await collectDueMetricWindows(input.now, log);
   });
@@ -240,6 +252,15 @@ async function logExperimentReports(
   }
 }
 
+/**
+ * The anchor-filtered `candidates` list only tells us which episodes have
+ * *recent* activity; a canonical localization that finished ready before the
+ * anchor would never show up there on its own. So the anchor decides which
+ * episodes to look at, then `listSocialPublishCandidatesForEpisodes` (no
+ * anchor) fetches every ready language for exactly those episodes -- that is
+ * what lets an episode ready before the anchor still count toward its
+ * cohort's readiness.
+ */
 async function discoverAndEnqueue(input: {
   now: Date;
   firstStartedAt: string;
@@ -251,45 +272,80 @@ async function discoverAndEnqueue(input: {
   ]);
   if (candidates.length === 0) return;
 
+  const episodeIds = [...new Set(candidates.map((c) => c.episode_id))];
+  const readyCandidates =
+    await listSocialPublishCandidatesForEpisodes(episodeIds);
+  const candidatesByEpisode = new Map<string, SocialPublishCandidate[]>();
+  for (const candidate of readyCandidates) {
+    const list = candidatesByEpisode.get(candidate.episode_id) ?? [];
+    list.push(candidate);
+    candidatesByEpisode.set(candidate.episode_id, list);
+  }
+
   const latestPending = schedules
     .filter(({ status }) => status !== 'completed')
     .at(-1)?.scheduled_at;
   let rollingLast = latestPending ? new Date(latestPending) : null;
 
-  for (const candidate of candidates) {
-    const readyAt = new Date(candidate.ready_at);
-    if (Number.isNaN(readyAt.getTime())) continue;
-    const policyEntries = policyEntriesForLanguage(
-      candidate.language_code,
-    ).filter(
-      ({ policy }) =>
-        Date.parse(candidate.episode_created_at) >=
-        Date.parse(policy.activeSince),
-    );
-    if (policyEntries.length === 0) continue;
-    const scheduledAt = scheduleCandidate({
-      candidate,
-      schedules,
-      rollingLast,
-      readyAt,
-      now: input.now,
+  for (const episodeId of episodeIds) {
+    const episodeCandidates = candidatesByEpisode.get(episodeId) ?? [];
+    const firstCandidate = episodeCandidates[0];
+    if (!firstCandidate) continue;
+
+    const lanes = await resolveReleaseCohortLanes({
+      episodeId,
+      episodeCreatedAt: firstCandidate.episode_created_at,
     });
-    const insertedAny = await enqueueCandidateJobs({
-      candidate,
-      policyEntries,
+    if (lanes.length === 0) continue;
+
+    const readyLanguages = new Set(
+      episodeCandidates.map((candidate) => candidate.language_code),
+    );
+    const requiredLanguages = new Set(lanes.map((lane) => lane.language));
+    const missingLanguages = [...requiredLanguages].filter(
+      (language) => !readyLanguages.has(language),
+    );
+    if (missingLanguages.length > 0) {
+      input.log(
+        `[social-daemon] episode ${episodeId} waiting on media for ${missingLanguages.join(', ')}; cohort not enqueued yet.`,
+      );
+      continue;
+    }
+
+    const readyAt = new Date(
+      Math.max(
+        ...episodeCandidates
+          .filter((candidate) => requiredLanguages.has(candidate.language_code))
+          .map((candidate) => Date.parse(candidate.ready_at)),
+      ),
+    );
+    if (Number.isNaN(readyAt.getTime())) continue;
+
+    // Idempotent: an episode that already has any job row -- even a partial
+    // enqueue from a prior, interrupted tick -- reuses that row's slot rather
+    // than recomputing one, so a retried enqueue can never drift the cohort's
+    // timestamp away from lanes it already inserted.
+    const existingSchedule = schedules.find(
+      (schedule) => schedule.episode_id === episodeId,
+    );
+    const scheduledAt = existingSchedule
+      ? new Date(existingSchedule.scheduled_at)
+      : scheduleCohort({ readyAt, rollingLast, now: input.now });
+
+    const insertedAny = await enqueueCohortJobs({
+      episodeId,
+      lanes,
       readyAt,
       scheduledAt,
       log: input.log,
     });
-    if (insertedAny) rollingLast = scheduledAt;
+    if (insertedAny && !existingSchedule) rollingLast = scheduledAt;
   }
 }
 
-function scheduleCandidate(input: {
-  candidate: SocialPublishCandidate;
-  schedules: readonly PendingSocialPublishSchedule[];
-  rollingLast: Date | null;
+function scheduleCohort(input: {
   readyAt: Date;
+  rollingLast: Date | null;
   now: Date;
 }): Date {
   let after = input.readyAt;
@@ -297,22 +353,6 @@ function scheduleCandidate(input: {
     after = new Date(input.rollingLast.getTime() + 60_000);
   } else if (input.now > input.readyAt) {
     after = startOfJstDay(input.now);
-  }
-  const siblingAnchors = input.schedules
-    .filter(
-      (schedule) =>
-        schedule.episode_id === input.candidate.episode_id &&
-        schedule.language_code !== input.candidate.language_code,
-    )
-    .flatMap((schedule) => [schedule.completed_at, schedule.scheduled_at])
-    .filter((value): value is string => Boolean(value))
-    .map(Date.parse)
-    .filter(Number.isFinite);
-  if (siblingAnchors.length > 0) {
-    const floor = new Date(
-      Math.max(...siblingAnchors) + MIN_CROSS_LANGUAGE_GAP_MS,
-    );
-    if (floor > after) after = floor;
   }
   return nextPublishSlot({
     platform: 'x',
@@ -322,43 +362,32 @@ function scheduleCandidate(input: {
   });
 }
 
-async function enqueueCandidateJobs(input: {
-  candidate: SocialPublishCandidate;
-  policyEntries: ReturnType<typeof policyEntriesForLanguage>;
+async function enqueueCohortJobs(input: {
+  episodeId: string;
+  lanes: readonly ReleaseCohortLane[];
   readyAt: Date;
   scheduledAt: Date;
   log: (message: string) => void;
 }): Promise<boolean> {
   let insertedAny = false;
-  for (const { platform, policy } of input.policyEntries) {
-    const experimentKey = policy.experimentKey;
-    let experimentVariant = policy.experimentVariant;
-    if (experimentKey === 'x-language-v1') {
-      const assignment = await getOrCreateExperimentAssignment({
-        experimentKey,
-        episodeId: input.candidate.episode_id,
-        variants: ['en', 'ja'],
-      });
-      if (assignment.variant !== input.candidate.language_code) continue;
-      experimentVariant = assignment.variant;
-    }
+  for (const lane of input.lanes) {
     const inserted = await enqueueSocialPublishJob({
-      episodeId: input.candidate.episode_id,
-      platform,
-      languageCode: input.candidate.language_code,
-      experimentKey,
-      experimentVariant,
+      episodeId: input.episodeId,
+      platform: lane.platform,
+      languageCode: lane.language,
+      experimentKey: lane.experimentKey,
+      experimentVariant: lane.experimentVariant,
       scheduledAt: input.scheduledAt.toISOString(),
     });
     if (!inserted) continue;
     if (!insertedAny) {
       input.log(
-        `[social-daemon] discovered ${input.candidate.language_code} episode ${input.candidate.episode_id}; ready at ${input.readyAt.toISOString()}.`,
+        `[social-daemon] discovered episode ${input.episodeId}; ready at ${input.readyAt.toISOString()}.`,
       );
     }
     insertedAny = true;
     input.log(
-      `[social-daemon] queued ${platform}/${input.candidate.language_code} for ${input.candidate.episode_id} at ${input.scheduledAt.toISOString()}.`,
+      `[social-daemon] queued ${lane.platform}/${lane.language} for ${input.episodeId} at ${input.scheduledAt.toISOString()}.`,
     );
   }
   return insertedAny;
@@ -392,28 +421,20 @@ async function reconcileAlreadyPublishedJobs(
     );
   }
 
-  let firstError: unknown = null;
   for (const job of jobs) {
-    try {
-      const socialPostId = postIdByJob.get(
-        `${job.episode_id}|${job.platform}|${jobLanguage(job)}`,
-      );
-      if (!socialPostId) continue;
-      const reconciled = await reconcileSocialPublishJob({
-        jobId: job.id,
-        socialPostId,
-        completedAt: now,
-      });
-      if (!reconciled) continue;
-      log(
-        `[social-daemon] reconciled ${job.platform} for ${job.episode_id} - already published (${socialPostId}).`,
-      );
-    } catch (error) {
-      firstError ??= error;
-    }
-  }
-  if (firstError) {
-    throw toError(firstError);
+    const socialPostId = postIdByJob.get(
+      `${job.episode_id}|${job.platform}|${jobLanguage(job)}`,
+    );
+    if (!socialPostId) continue;
+    const reconciled = await reconcileSocialPublishJob({
+      jobId: job.id,
+      socialPostId,
+      completedAt: now,
+    });
+    if (!reconciled) continue;
+    log(
+      `[social-daemon] reconciled ${job.platform} for ${job.episode_id} - already published (${socialPostId}).`,
+    );
   }
 }
 
@@ -444,15 +465,33 @@ async function persistPublishFailure(input: {
   );
 }
 
+/**
+ * `listPartiallyPublishedCohorts` fences new work behind unfinished ones: an
+ * episode with some lanes already completed and others still pending must
+ * finish before any other episode is allowed to start. When partial cohorts
+ * exist but nothing in them is due yet, this tick publishes nothing at all --
+ * it must not fall through to an unrestricted claim that could start a fresh
+ * episode ahead of one still mid-release.
+ */
 async function publishDueJobs(
   now: Date,
   log: (message: string) => void,
 ): Promise<void> {
-  const jobs = await claimSocialPublishBatch({ owner: OWNER, now });
+  const partialCohorts = await listPartiallyPublishedCohorts();
+  const jobs =
+    partialCohorts.length > 0
+      ? (
+          await Promise.all(
+            partialCohorts.map((episodeId) =>
+              claimSocialPublishBatch({ owner: OWNER, now, episodeId }),
+            ),
+          )
+        ).flat()
+      : await claimSocialPublishBatch({ owner: OWNER, now });
   if (jobs.length === 0) return;
 
   const active = await activeStrategiesForPublish(log);
-  const pendingByEpisodeLanguage = new Map<string, typeof jobs>();
+  const pendingByEpisodeLanguage = new Map<string, SocialPublishJobRow[]>();
   for (const job of jobs) {
     try {
       if (await reconcileClaimedJob(job, now, log)) continue;
@@ -473,8 +512,49 @@ async function publishDueJobs(
     }
   }
 
-  for (const pendingJobs of pendingByEpisodeLanguage.values()) {
-    await publishLanguageBatch(pendingJobs, active, now, log);
+  const groups = [...pendingByEpisodeLanguage.values()];
+  for (const [index, pendingJobs] of groups.entries()) {
+    try {
+      await publishLanguageBatch(pendingJobs, active, now, log);
+    } catch (error) {
+      // Every lane in `pendingJobs` itself is left alone here, even the ones
+      // after whichever one failed: some of them may already have published
+      // successfully (fail-fast stops the batch, but does not undo what it
+      // already did), so releasing their lease back to `queued` could
+      // re-publish a lane that is already live. They stay `processing` and
+      // self-heal through the normal lease-expiry + reconcile path. Only
+      // lanes in groups that were never even claimed for publishing --
+      // genuinely untouched -- are safe to hand back immediately.
+      await releaseUntouchedLeases(groups.slice(index + 1).flat(), now, log);
+      throw error;
+    }
+  }
+}
+
+async function releaseUntouchedLeases(
+  jobs: readonly SocialPublishJobRow[],
+  now: Date,
+  log: (message: string) => void,
+): Promise<void> {
+  for (const job of jobs) {
+    try {
+      await releaseSocialPublishJobLease({
+        jobId: job.id,
+        owner: OWNER,
+        scheduledAt: job.scheduled_at,
+        now,
+      });
+    } catch (releaseError) {
+      log(
+        new SocialReleaseFailureError({
+          episodeId: job.episode_id,
+          languageCode: jobLanguage(job),
+          platform: job.platform,
+          phase: 'lease',
+          cause: releaseError,
+        }).message,
+      );
+    }
   }
 }
 
@@ -518,27 +598,19 @@ async function publishLanguageBatch(
       return guidance ? [[job.platform, guidance]] : [];
     }),
   ) as Partial<Record<SocialPlatform, string>>;
-  let outcomes: Awaited<ReturnType<typeof publishSocialBatch>>;
-  try {
-    outcomes = await publishSocialBatch({
-      episodeId: firstJob.episode_id,
-      languageCode: jobLanguage(firstJob),
-      platforms: jobs.map((job) => ({
-        platform: job.platform,
-        experimentKey: job.experiment_key,
-        experimentVariant: job.experiment_variant,
-      })),
-      ...(Object.keys(guidanceByPlatform).length > 0
-        ? { strategyGuidanceByPlatform: guidanceByPlatform }
-        : {}),
-      onLog: log,
-    });
-  } catch (error) {
-    await Promise.all(
-      jobs.map((job) => recordJobFailure(job, now, error, log)),
-    );
-    return;
-  }
+  const outcomes = await publishSocialBatch({
+    episodeId: firstJob.episode_id,
+    languageCode: jobLanguage(firstJob),
+    platforms: jobs.map((job) => ({
+      platform: job.platform,
+      experimentKey: job.experiment_key,
+      experimentVariant: job.experiment_variant,
+    })),
+    ...(Object.keys(guidanceByPlatform).length > 0
+      ? { strategyGuidanceByPlatform: guidanceByPlatform }
+      : {}),
+    onLog: log,
+  });
   for (const job of jobs) {
     await finalizePublishOutcome(
       job,
@@ -557,59 +629,45 @@ async function finalizePublishOutcome(
   now: Date,
   log: (message: string) => void,
 ): Promise<void> {
-  try {
-    const outcome = outcomes.find((row) => row.platform === job.platform);
-    if (!outcome || outcome.status === 'failed') {
-      throw outcome?.error ?? new Error(`${job.platform} did not publish.`);
-    }
-    if (outcome.stateError) throw outcome.stateError;
-    if (outcome.recordError) throw outcome.recordError;
-    const [post] = await listSocialPostsByEpisode(
-      job.episode_id,
-      job.platform,
-      jobLanguage(job),
-    );
-    if (!post) {
-      throw new Error(
-        `${job.platform} publish completed but no social_posts row was recorded.`,
-      );
-    }
-    await completeSocialPublishJob({
-      jobId: job.id,
-      owner: OWNER,
-      completedAt: now,
-      socialPostId: post.id,
-      ...(strategy ? { strategyVersionId: strategy.id } : {}),
+  const persistFailure = (message: string): SocialReleaseFailureError =>
+    new SocialReleaseFailureError({
+      episodeId: job.episode_id,
+      languageCode: jobLanguage(job),
+      platform: job.platform,
+      phase: 'persist',
+      cause: new Error(message),
     });
-    log(
-      `[social-daemon] published ${job.platform} for ${job.episode_id} (${post.id}).`,
-    );
-  } catch (error) {
-    await recordJobFailure(job, now, error, log);
+
+  const outcome = outcomes.find((row) => row.platform === job.platform);
+  if (!outcome) {
+    throw persistFailure(`${job.platform} did not publish.`);
   }
+  const [post] = await listSocialPostsByEpisode(
+    job.episode_id,
+    job.platform,
+    jobLanguage(job),
+  );
+  if (!post) {
+    throw persistFailure(
+      `${job.platform} publish completed but no social_posts row was recorded.`,
+    );
+  }
+  await completeSocialPublishJob({
+    jobId: job.id,
+    owner: OWNER,
+    completedAt: now,
+    socialPostId: post.id,
+    ...(strategy ? { strategyVersionId: strategy.id } : {}),
+  });
+  log(
+    `[social-daemon] published ${job.platform} for ${job.episode_id} (${post.id}).`,
+  );
 }
 
 function jobLanguage(
   job: Pick<SocialPublishJobRow, 'language_code'>,
 ): SocialPublishJobRow['language_code'] {
   return job.language_code ?? 'zh-Hant';
-}
-
-function recordJobFailure(
-  job: SocialPublishJobRow,
-  now: Date,
-  error: unknown,
-  log: (message: string) => void,
-): Promise<void> {
-  return persistPublishFailure({
-    jobId: job.id,
-    episodeId: job.episode_id,
-    platform: job.platform,
-    attemptCount: job.attempt_count,
-    now,
-    message: errorMessage(error),
-    log,
-  });
 }
 
 // Guidance is resolved when a job is claimed, never when it is queued: a job
@@ -831,9 +889,44 @@ function formatRelative(value: string, now: Date): string {
     : `in ${hours}h`;
 }
 
-if (isMainModule(import.meta.url)) {
+export function fatalSummary(error: unknown): string {
+  if (error instanceof SocialReleaseFailureError) {
+    return `${error.platform}/${error.languageCode} for episode ${error.episodeId} (${error.phase}): ${errorMessage(error.cause)}`;
+  }
+  return errorMessage(error);
+}
+
+export function buildFatalReport(error: unknown): string {
+  const lines = [`[social-daemon] FATAL: ${fatalSummary(error)}`];
+  if (error instanceof SocialReleaseFailureError) {
+    lines.push(
+      `  published before failure: ${error.publishedLanes.join(', ') || '(none)'}`,
+      `  untouched after failure: ${error.untouchedLanes.join(', ') || '(none)'}`,
+    );
+  }
+  return lines.join('\n');
+}
+
+// Best-effort only: the daemon has no terminal to watch once it is running
+// unattended, so this is the one signal that reaches a human -- but a broken
+// or unset Telegram config must never mask the fatal error already on stderr.
+export async function notifyFatalFailure(error: unknown): Promise<void> {
   try {
-    await acquireSocialDaemonLock();
+    const [chatId] = getAllowedTelegramUserIds();
+    if (!chatId) return;
+    await sendTelegramNotification(
+      chatId,
+      buildSocialReleaseFailedMessage(fatalSummary(error)),
+    );
+  } catch {
+    // Swallowed deliberately -- see comment above.
+  }
+}
+
+if (isMainModule(import.meta.url)) {
+  let lock: SocialDaemonLock;
+  try {
+    lock = await acquireSocialDaemonLock();
   } catch (error) {
     if (error instanceof SocialDaemonAlreadyRunningError) {
       console.error(`[social-daemon] ${error.message}`);
@@ -841,5 +934,12 @@ if (isMainModule(import.meta.url)) {
     }
     throw error;
   }
-  await runSocialDaemon();
+  try {
+    await runSocialDaemon();
+  } catch (error) {
+    console.error(buildFatalReport(error));
+    await notifyFatalFailure(error);
+    lock.release();
+    process.exit(1);
+  }
 }

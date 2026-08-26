@@ -70,14 +70,14 @@ and policy activation timestamps prevent old episodes from being backfilled.
 Jobs survive Mac restarts and are claimed with an expiring owner lease.
 
 The daemon polls once per minute. It spreads new episodes across four daily JST
-publish slots (9:30 / 12:00 / 14:30 / 17:00); platforms in one language batch
-share a slot, while two languages from the same episode are separated by at
-least two hours. It runs one due language batch at a time, records metric snapshots
-in the current `1h` / `6h` / `24h` / `72h` / `7d` age bucket, and periodically
-refreshes versioned strategy preferences from standardized 24-hour performance.
-Publish hours are deliberately fixed and never learned: strategy learning only
-adjusts copy/content preferences (hook types, hashtags). Missed early metric
-buckets are never backfilled with later data.
+publish slots (9:30 / 12:00 / 14:30 / 17:00); see
+[Release cohort scheduling](#release-cohort-scheduling) below for how one
+article's lanes share a slot. It records metric snapshots in the current `1h` /
+`6h` / `24h` / `72h` / `7d` age bucket, and periodically refreshes versioned
+strategy preferences from standardized 24-hour performance. Publish hours are
+deliberately fixed and never learned: strategy learning only adjusts
+copy/content preferences (hook types, hashtags). Missed early metric buckets
+are never backfilled with later data.
 
 By default, overdue publish jobs remain durable and are published after the
 daemon restarts. Set `SOCIAL_PUBLISH_SKIP_OVERDUE_MINUTES` to a positive integer
@@ -121,6 +121,38 @@ telemetry writes.
 
 `--force` bypasses the local duplicate-publish guard. Use it only after checking
 the platform itself, because it can intentionally create a second post.
+
+## Release cohort scheduling
+
+`episode_id` is the release cohort and the transaction boundary; a language is
+only a lane inside it. `src/social/cohort.ts`'s `resolveReleaseCohortLanes()`
+is the single definition of which platform x language lanes one episode's
+cohort has -- discovery, the media readiness barrier, and publish preflight
+all call it, so they cannot disagree about the cohort's shape.
+
+A cohort only enqueues once every required lane's media is ready. There is no
+"publish whatever is ready now" partial release: if one language is still
+rendering, the whole cohort waits, and the daemon logs which language it is
+waiting on. Once ready, every lane -- every platform, every language -- is
+enqueued together and shares one `scheduled_at`. There is no cross-language
+gap; two languages of the same article publish at the same slot, batched by
+platform the way a single-language episode always was.
+
+Publishing a cohort is fail-fast. The first transport, local-state, or
+`social_posts` telemetry failure on any lane stops the batch; lanes already
+published before that stay published, but nothing after the failure runs.
+`reconcile`, `align schedules`, `discover`, and `publish` are release-shape
+stages, so a failure in any of them is fatal: it stops the daemon process
+(`console.error` + a best-effort Telegram notice + `process.exit(1)`) rather
+than being swallowed and retried quietly. Only `metrics`, `account snapshots`,
+`strategy`, and `experiment report`/`queue summary` are purely observational
+and stay isolated per tick.
+
+A cohort with some lanes already completed and others still pending is
+partially published. The daemon finishes that cohort -- and only that cohort --
+before claiming work for any other episode; a partial cohort with nothing due
+yet means the tick publishes nothing at all rather than starting a fresh
+episode ahead of it.
 
 ## Login and persistent sessions
 
@@ -595,9 +627,11 @@ The publisher is fail-closed per platform:
 - duplicate-state and telemetry failures are reported separately from the
   platform publish result.
 
-When publishing multiple platforms, a successful platform remains saved even if
-a later platform fails. Rerunning without `--force` skips platforms whose local
-state was saved and offers to retry only the pending ones.
+Publishing is fail-fast, not best-effort: the first platform failure stops the
+batch immediately rather than continuing to the rest. A platform that already
+published before that failure remains saved. Rerunning without `--force` skips
+platforms whose local state was saved and offers to retry only the pending
+ones.
 
 ## Safe smoke test after publisher changes
 
@@ -644,6 +678,8 @@ without rewriting the publishing stack:
 - `threads.ts`: Threads API transport;
 - `rednote-playwright.ts`: Rednote browser transport;
 - `youtube-auth.ts` / `youtube.ts`: YouTube OAuth and API upload transport;
+- `cohort.ts`: release cohort lane resolution -- the one place that decides
+  which platform x language lanes an episode's release has;
 - `daemon.ts`: production orchestration for discovery, publishing, metrics, and
   strategy refresh;
 - `record.ts` / `metrics.ts`: telemetry persistence and manual metric diagnostics;

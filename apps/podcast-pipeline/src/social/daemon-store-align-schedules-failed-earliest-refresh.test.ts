@@ -12,6 +12,8 @@ vi.mock('../services/supabase-client.js', () => supabase);
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
 import { createAlignmentReadFixture } from './daemon-store-align-schedules.test-helper.js';
 
+const NOW = new Date('2026-08-20T00:00:00.000Z');
+
 interface PendingJob {
   id: string;
   episode_id: string;
@@ -117,8 +119,8 @@ describe('alignPendingSocialPublishSchedules refreshed failed earliest', () => {
     const fixture = makeAlignmentFixture();
     installSupabaseFixture(fixture);
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
 
     expect(fixture.attemptedIds).toEqual(['queued-sibling', 'queued-sibling']);
     expect(fixture.statusFences).toEqual(['queued', 'queued']);
@@ -144,8 +146,8 @@ describe('alignPendingSocialPublishSchedules refreshed failed earliest', () => {
     );
     installSupabaseFixture(fixture);
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(1);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
 
     expect(fixture.attemptedIds).toEqual(['queued-sibling', 'queued-sibling']);
     expect(fixture.statusFences).toEqual(['queued', 'queued']);

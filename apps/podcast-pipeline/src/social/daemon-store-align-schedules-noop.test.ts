@@ -12,6 +12,8 @@ vi.mock('../services/supabase-client.js', () => supabase);
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
 import { createAlignmentReadFixture } from './daemon-store-align-schedules.test-helper.js';
 
+const NOW = new Date('2026-08-21T00:00:00.000Z');
+
 describe('alignPendingSocialPublishSchedules no-op behavior', () => {
   it('does not write or count jobs that already share the earliest schedule', async () => {
     const fixture = createAlignmentReadFixture({
@@ -35,7 +37,7 @@ describe('alignPendingSocialPublishSchedules no-op behavior', () => {
     });
     supabase.getPipelineSupabase.mockReturnValue(fixture.client);
 
-    await expect(alignPendingSocialPublishSchedules()).resolves.toBe(0);
+    await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
 
     expect(fixture.update).not.toHaveBeenCalled();
     expect(fixture.returns).toHaveBeenCalledOnce();
