@@ -23,10 +23,10 @@ Use `pnpm build packages` only when a raw script bypasses Turbo or when all pack
 
 ## Verification
 
-During the edit loop, run:
+Use the repository root verification policy. The package-specific aggregate
+commands are:
 
 ```bash
 pnpm verify changed
+pnpm verify branch
 ```
-
-Before pushing a branch, run `pnpm verify branch`.

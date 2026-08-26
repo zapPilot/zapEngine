@@ -198,7 +198,9 @@ Reuse that branch and continue fixing it.
 Do not create another competing CI-fix PR.
 
 If switching the current checkout would overwrite unrelated local work, use a
-safe isolated git worktree for that PR branch instead.
+safe isolated git worktree for that PR branch instead. Follow the repository
+root `AGENTS.md` working-tree and history rules; do not duplicate or override
+them here.
 
 ## Existing matching PR is obsolete or unrelated
 
@@ -414,23 +416,26 @@ Do not create another branch or PR.
 
 ### Otherwise
 
-Create exactly one CI-fix branch from the authoritative remote main:
+Invoking `/goal-ci-fix` explicitly authorizes creation of exactly one CI-fix
+branch when no matching branch or PR exists. Follow the repository root
+`AGENTS.md` working-tree and history rules, then create it from authoritative
+remote main:
 
 ```bash
 git fetch origin
 git switch -c fix/ci-<topic> origin/main
 ```
 
-If the starting checkout contains unrelated dirty work that makes switching
-unsafe, use an isolated worktree based on `origin/main` rather than stashing,
-resetting, or including unrelated changes.
-
 Commit only the CI fix.
 
-Push:
+Before the first commit or GitHub write, perform the identity checks in the
+repository root `AGENTS.md` "GitHub identity" section. Push over HTTPS with the
+active `gh` credential so the employer SSH identity can never become the
+recorded pusher:
 
 ```bash
-git push -u origin fix/ci-<topic>
+git -c credential.helper='!gh auth git-credential' \
+  push https://github.com/<owner>/<repo> fix/ci-<topic>
 ```
 
 Open a PR whose body includes:
@@ -528,16 +533,9 @@ Only the exact current `origin/main` HEAD green run completes a main CI repair.
 
 # Checkout cleanup
 
-When the starting branch was not changed for shipping, leave it as-is.
-
-If the current checkout was switched during the fix, return to `START_BRANCH`
-before finishing when safe.
-
-Never reset, stash, discard, or commit unrelated user changes just to restore
-the branch.
-
-If an isolated worktree was created, remove it only when doing so cannot destroy
-uncommitted work.
+Follow the repository root `AGENTS.md` working-tree and history rules. Restore
+the starting checkout only when safe, and never discard user-owned work during
+cleanup.
 
 # Closing protocol
 

@@ -1,10 +1,10 @@
 # Coverage tooling
 
-Each workspace owns its absolute coverage floor in `vitest.config.ts` (TypeScript)
-or `pyproject.toml` (Python). The separate GitHub `coverage` job runs every
-workspace's `test:coverage` script, so a workspace exits non-zero when one of
-its configured floors is missed. The job then publishes a complete monorepo
-summary; the optional baseline comparison remains a manual no-regression tool.
+Configured workspaces own an absolute coverage floor in `vitest.config.ts`
+(TypeScript) or `pyproject.toml` (Python). The separate GitHub `coverage` job
+runs every workspace's `test:coverage` script; configured floors fail locally,
+then the job publishes the reports available to the monorepo summary. The
+optional baseline comparison remains a manual no-regression tool.
 
 ## Commands
 
@@ -29,13 +29,14 @@ database URLs.
 - analytics-engine emits pytest-cov Cobertura at `coverage.xml`; the aggregator
   also accepts `htmlcov/coverage.xml` as a fallback.
 
-A complete sweep contains 12 workspaces:
+A complete sweep contains 13 workspaces:
 
 ```text
 apps/account-engine
 apps/alpha-etl
 apps/analytics-engine
 apps/app
+apps/control-center
 apps/desktop
 apps/landing-page
 apps/podcast-pipeline
@@ -50,7 +51,7 @@ After a full run, verify completeness with:
 
 ```bash
 pnpm exec tsx scripts/coverage-summary.ts
-jq '.workspaces | length' coverage/summary.json # 12
+jq '.workspaces | length' coverage/summary.json # 13
 ```
 
 ## CI behavior
@@ -67,7 +68,7 @@ pnpm exec tsx scripts/coverage-summary.ts
 
 The first command validates the aggregation and regression scripts. The Turbo
 run enforces the absolute workspace floors below. The final command creates the
-12-workspace aggregate. CI uploads `coverage/summary.json` for 30 days and
+13-workspace aggregate. CI uploads `coverage/summary.json` for 30 days and
 per-workspace HTML reports for seven days.
 
 `scripts/coverage-regression.ts` is not part of the CI job. Baseline drift alone
@@ -82,6 +83,7 @@ comparison is useful.
 | `apps/alpha-etl`         | 92         | 92       | 92        | 92    |
 | `apps/analytics-engine`  | —          | —        | —         | 95    |
 | `apps/app`               | 57         | 61       | 60        | 58    |
+| `apps/control-center`    | 51         | 40       | 50        | 52    |
 | `apps/desktop`           | 85         | 80       | 85        | 85    |
 | `apps/landing-page`      | 50         | 45       | 55        | 50    |
 | `apps/podcast-pipeline`  | 91         | 80       | 92        | 92    |
@@ -103,7 +105,9 @@ comparison is useful.
   `src/hooks/useReducedMotion.ts` additionally enforce per-file floors of
   80/75/80/80.
 - `packages/design-tokens` reports coverage for aggregation but has no absolute
-  floor. Raise a config-level threshold when the team chooses to gate it.
+  floor.
+- `apps/control-center` floors are the integer lower bounds of its initial
+  measured baseline (51.58/40.97/50.00/52.15).
 
 Update this table whenever a workspace threshold changes. Ratchet floors upward
 only after sustained coverage improvements; do not lower them to conceal a

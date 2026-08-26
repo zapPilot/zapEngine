@@ -628,7 +628,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 
 ### 2026-05-02 - SPY tax pattern diagnosis
 - **Commit**: `8ab4485` (SPY tax diagnostic tooling)
-- **Diagnostic**: `apps/analytics-engine/docs/diagnostics/spy_tax_2026-04-15.md`
+- **Diagnostic**: removed; see git history (the durable verdict and statistics are retained below)
 - **Pattern verdict**: S1 + S4
 - **Key statistics**:
   - Total divergence events: 27
