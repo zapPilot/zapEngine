@@ -23,6 +23,9 @@ RUN useradd --create-home appuser \
 
 WORKDIR /home/appuser/app
 
+ARG COMMIT_SHA=""
+ARG BUILD_TIME=""
+
 COPY --from=builder /app/.venv /opt/venv
 COPY apps/analytics-engine/src ./src
 COPY apps/analytics-engine/pyproject.toml ./pyproject.toml
@@ -32,7 +35,12 @@ RUN chown -R appuser:appuser /home/appuser/app /opt/venv
 
 USER appuser
 
-ENV PATH="/opt/venv/bin:$PATH"
+ENV PATH="/opt/venv/bin:$PATH" \
+    APP_COMMIT_SHA=$COMMIT_SHA \
+    APP_BUILD_TIME=$BUILD_TIME
+
+LABEL org.opencontainers.image.revision=$COMMIT_SHA \
+      org.opencontainers.image.created=$BUILD_TIME
 
 EXPOSE 8001
 

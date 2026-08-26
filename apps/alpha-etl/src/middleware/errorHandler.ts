@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 
+import { captureServerException } from '../observability/sentry.js';
 import type { ApiResponse } from '../types/index.js';
 import { ensureRequestIdContext, resolveError } from './errorResolution.js';
 
@@ -13,6 +14,17 @@ export function errorHandler(
   const requestId =
     (req.headers['x-request-id'] as string | undefined) ?? 'unknown';
   const { statusCode, apiError } = resolveError(error, requestId);
+
+  if (statusCode >= 500) {
+    const routePath =
+      typeof req.route?.path === 'string'
+        ? `${req.baseUrl}${req.route.path}`
+        : undefined;
+    captureServerException(error, {
+      method: req.method,
+      ...(routePath ? { route: routePath } : {}),
+    });
+  }
 
   ensureRequestIdContext(apiError, requestId);
 

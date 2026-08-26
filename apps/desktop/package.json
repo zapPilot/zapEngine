@@ -25,6 +25,7 @@
     "clean": "rm -rf dist coverage release"
   },
   "dependencies": {
+    "@sentry/electron": "^7.17.0",
     "@zapengine/app-core": "workspace:*",
     "@zapengine/types": "workspace:*",
     "viem": "catalog:"

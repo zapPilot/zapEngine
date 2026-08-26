@@ -4,6 +4,7 @@ Quant Engine - Analytics backend for portfolio management and DeFi data aggregat
 # Force reload for SQL query cache refresh
 
 import logging
+import os
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import cast
@@ -30,8 +31,15 @@ from src.core.exceptions import (
     DataNotFoundError,
     ServiceError,
 )
+from src.core.sentry import capture_server_exception, init_sentry
 
 logger = logging.getLogger(__name__)
+
+init_sentry(
+    settings.sentry_analytics_engine_dsn,
+    environment=settings.environment.value,
+    release=os.getenv("APP_COMMIT_SHA"),
+)
 
 
 @asynccontextmanager
@@ -102,6 +110,9 @@ def create_service_error_handler(
         # Use transient status if available, otherwise default status
         status_code = 503 if getattr(exc, "is_transient", False) else default_status
 
+        if status_code >= 500:
+            capture_server_exception(exc, request)
+
         return JSONResponse(
             status_code=status_code,
             content={
@@ -146,6 +157,7 @@ async def data_integrity_error_handler(
             "context": integrity_error.context,
         },
     )
+    capture_server_exception(integrity_error, request)
 
     return JSONResponse(
         status_code=500,

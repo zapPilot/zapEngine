@@ -1,7 +1,17 @@
+import * as Sentry from '@sentry/nextjs';
 import posthog from 'posthog-js';
 
+const sentryDsn = process.env['NEXT_PUBLIC_SENTRY_DSN']?.trim();
 const posthogKey = process.env['NEXT_PUBLIC_POSTHOG_KEY']?.trim();
 const posthogHost = process.env['NEXT_PUBLIC_POSTHOG_HOST']?.trim();
+
+if (sentryDsn) {
+  Sentry.init({
+    dsn: sentryDsn,
+    release: undefined,
+    sendDefaultPii: false,
+  });
+}
 
 if (posthogKey) {
   posthog.init(posthogKey, {
