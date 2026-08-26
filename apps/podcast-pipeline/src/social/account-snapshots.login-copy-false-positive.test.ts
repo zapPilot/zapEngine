@@ -53,9 +53,9 @@ async function captureAuthenticatedRednote(rednoteText: string) {
   return { captured, insert, log };
 }
 
-function expectValidFollowerSnapshot(input: Awaited<
-  ReturnType<typeof captureAuthenticatedRednote>
->) {
+function expectValidFollowerSnapshot(
+  input: Awaited<ReturnType<typeof captureAuthenticatedRednote>>,
+) {
   expect(input.captured).toBe(1);
   expect(input.insert).toHaveBeenCalledTimes(1);
   expect(input.insert).toHaveBeenCalledWith({
