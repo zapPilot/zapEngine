@@ -53,6 +53,16 @@ const DEFAULT_PROMPT_PATH = join(
 );
 const LLM_COMPLETION_MAX_ATTEMPTS = 2;
 const LLM_COMPLETION_RETRY_DELAY_MS = 2_000;
+/**
+ * One response carries a lesson per target language, each with a 1.5-3 minute
+ * narration script, so the real output sits around 3-4k tokens. The cap is what
+ * makes a degenerate provider truncate instead of generating until the request
+ * deadline: several endpoints for the configured model advertise a completion
+ * limit in the hundreds of thousands of tokens.
+ */
+const LANGUAGE_CLASSROOM_MAX_TOKENS = 8_000;
+/** Selecting concepts and writing narration, not a reasoning task. */
+const LANGUAGE_CLASSROOM_REASONING: OpenRouterReasoning = { enabled: false };
 const SCRIPT_PAYLOAD_MAX_ATTEMPTS = 2;
 const RETRYABLE_OPENROUTER_STATUS = new Set([408, 409, 429]);
 
@@ -356,29 +366,63 @@ export function getOpenRouterConfig(overrides?: {
   return { openai, model, thinkingModel, timeoutMs };
 }
 
+export interface OpenRouterProviderRouting {
+  sort?: 'price' | 'throughput' | 'latency';
+  require_parameters?: boolean;
+  quantizations?: string[];
+}
+
+export interface OpenRouterReasoning {
+  enabled?: boolean;
+  effort?: 'minimal' | 'low' | 'medium' | 'high';
+}
+
+/**
+ * Left unset, OpenRouter load-balances on price, and the cheapest endpoints for
+ * a slug can be fp4-quantized or degraded ones that never return inside the
+ * request deadline. `require_parameters` additionally keeps the request away
+ * from endpoints that would accept but silently ignore `response_format` or
+ * `reasoning`.
+ *
+ * A `quantizations` allowlist is the next escalation, but it is deliberately
+ * not set here: it would also drop every endpoint whose quantization OpenRouter
+ * reports as unknown, which includes DeepSeek's own first-party endpoint.
+ */
+const OPENROUTER_PROVIDER_ROUTING: OpenRouterProviderRouting = {
+  sort: 'throughput',
+  require_parameters: true,
+};
+
 export type OpenRouterParams =
   OpenAI.Chat.ChatCompletionCreateParamsNonStreaming & {
-    extra_body?: {
-      thinking?: { type: 'optimized'; model: string };
-      usage?: { include: boolean };
-    };
+    usage?: { include: boolean };
+    provider?: OpenRouterProviderRouting;
+    reasoning?: OpenRouterReasoning;
   };
 
-export function withThinkingModel(
+/**
+ * OpenRouter reads these alongside `model` and `messages` at the top level of
+ * the request body. They used to travel inside an `extra_body` wrapper, which
+ * is the Python SDK's client-side kwarg: that SDK flattens it into the body
+ * before the request leaves the process, so a literal `extra_body` key never
+ * reaches OpenRouter and everything inside it was dropped.
+ */
+export function withOpenRouterOptions(
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
-  thinkingModel: string | null,
+  reasoning?: OpenRouterReasoning,
 ): OpenRouterParams {
-  const extraBody: NonNullable<OpenRouterParams['extra_body']> = {
-    usage: { include: true },
-  };
-  if (thinkingModel) {
-    extraBody.thinking = { type: 'optimized', model: thinkingModel };
-  }
-
   return {
     ...params,
-    extra_body: extraBody,
+    usage: { include: true },
+    provider: OPENROUTER_PROVIDER_ROUTING,
+    ...(reasoning ? { reasoning } : {}),
   };
+}
+
+function reasoningLabel(reasoning: OpenRouterReasoning | undefined): string {
+  if (!reasoning) return 'provider-default';
+  if (reasoning.enabled === false) return 'disabled';
+  return reasoning.effort ? `effort:${reasoning.effort}` : 'enabled';
 }
 
 export type OpenRouterChatCompletion = OpenAI.Chat.ChatCompletion & {
@@ -387,6 +431,7 @@ export type OpenRouterChatCompletion = OpenAI.Chat.ChatCompletion & {
 
 export interface OpenRouterRequestOptions {
   signal?: AbortSignal;
+  reasoning?: OpenRouterReasoning;
 }
 
 export async function createOpenRouterChatCompletion(
@@ -397,14 +442,20 @@ export async function createOpenRouterChatCompletion(
 ): Promise<OpenRouterChatCompletion> {
   const inputChars = userInputCharacterCount(params.messages);
   const timeoutMs = getOpenRouterTimeoutMs();
+  const reasoning = reasoningLabel(requestOptions.reasoning);
+  // Explicit 'unset' rather than an omitted field: an absent output ceiling is
+  // exactly the condition worth spotting on the failure line.
+  const maxTokens = params.max_tokens ?? 'unset';
   logIngestEvent('llm:request', {
     model: params.model,
     thinking: Boolean(thinkingModel),
     inputChars,
     timeoutMs,
+    maxTokens,
+    reasoning,
   });
 
-  const request = withThinkingModel(params, thinkingModel);
+  const request = withOpenRouterOptions(params, requestOptions.reasoning);
   const deadline = combineAbortSignalWithTimeout(
     requestOptions.signal,
     timeoutMs,
@@ -417,10 +468,22 @@ export async function createOpenRouterChatCompletion(
     });
   } catch (error) {
     const abortReason = deadline.signal.reason;
-    if (deadline.signal.aborted && abortReason instanceof Error) {
-      throw abortReason;
-    }
-    throw error;
+    const failure =
+      deadline.signal.aborted && abortReason instanceof Error
+        ? abortReason
+        : error;
+    // `llm:response` is the only line carrying the provider, and it fires only
+    // on success — a timeout otherwise left no record of what was requested.
+    logIngestEvent('llm:failed', {
+      model: params.model,
+      inputChars,
+      timeoutMs,
+      maxTokens,
+      reasoning,
+      routing: OPENROUTER_PROVIDER_ROUTING.sort ?? 'default',
+      error: errorMessage(failure),
+    });
+    throw failure;
   } finally {
     deadline.dispose();
   }
@@ -513,6 +576,7 @@ async function createCompletionWithRetry(
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
   thinkingModel: string | null,
   operation: LLMCompletionOperation,
+  reasoning?: OpenRouterReasoning,
 ): Promise<OpenRouterChatCompletion> {
   for (let attempt = 1; attempt <= LLM_COMPLETION_MAX_ATTEMPTS; attempt++) {
     try {
@@ -520,6 +584,7 @@ async function createCompletionWithRetry(
         openai,
         params,
         thinkingModel,
+        { reasoning },
       );
     } catch (error) {
       const shouldRetry =
@@ -629,6 +694,9 @@ export async function generateLanguageClassroomsWithLLM(
     openai,
     {
       model,
+      // parseLanguageClassroomLessons parses this as JSON either way; asking
+      // for JSON mode is what stops the model prefacing it with prose.
+      response_format: { type: 'json_object' },
       messages: [
         {
           role: 'system',
@@ -637,9 +705,11 @@ export async function generateLanguageClassroomsWithLLM(
         { role: 'user', content: buildLanguageClassroomUserMessage(input) },
       ],
       temperature: 0.4,
+      max_tokens: LANGUAGE_CLASSROOM_MAX_TOKENS,
     },
     thinkingModel,
     'generateLanguageClassrooms',
+    LANGUAGE_CLASSROOM_REASONING,
   );
 
   const content = completion.choices[0]?.message?.content || '';
