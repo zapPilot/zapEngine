@@ -689,6 +689,11 @@ async function activeStrategiesForPublish(
   }
 }
 
+const TERMINAL_METRIC_REVIEW_STATUSES = new Set<string>([
+  'rejected',
+  'self_only',
+]);
+
 export async function collectDueMetricWindows(
   now: Date,
   log: (message: string) => void = () => void 0,
@@ -724,26 +729,53 @@ export async function collectDueMetricWindows(
   });
 
   let inserted = 0;
+  let unavailable = 0;
+  let retryable = 0;
   try {
     for (const post of posts) {
       const window = earliestDueWindow(post, now, completed);
       if (!window) continue;
 
       try {
-        const collected = await collectPostMetrics(
+        const result = await collectPostMetrics(
           collectors[post.platform],
           post,
         );
-        // Not an error and not a zero snapshot: the platform has nothing to
-        // report yet, or the note is suppressed. Silence here made a
-        // moderation removal indistinguishable from a quiet tick.
-        if (!collected) {
+        if (result.status === 'retryable') {
+          retryable += 1;
+          continue;
+        }
+        if (result.status === 'unavailable') {
+          const emptyCounts = {
+            views: null,
+            impressions: null,
+            likes: null,
+            comments: null,
+            shares: null,
+            saves: null,
+            profileVisits: null,
+            followersGained: null,
+          } as const;
+          await insertSocialPostMetric(
+            buildSocialPostMetric({
+              post,
+              capturedAt: now,
+              counts: emptyCounts,
+              details: {
+                platformMetrics: { unavailableReason: result.reason },
+              },
+              measurementWindow: window.label,
+              collectionStatus: 'unavailable',
+            }),
+          );
+          completed.add(`${post.id}:${window.label}`);
+          unavailable += 1;
           log(
-            `⏳ [social-daemon] ${platformIcon(post.platform)} ${post.platform} ${post.id} · no metrics yet`,
+            `⚠️ [social-daemon] ${platformIcon(post.platform)} ${post.platform} ${post.id} · ${window.label} metrics unavailable · ${result.reason}`,
           );
           continue;
         }
-        const { details, ...counts } = collected;
+        const { details, ...counts } = result.metrics;
         await insertSocialPostMetric(
           buildSocialPostMetric({
             post,
@@ -751,6 +783,7 @@ export async function collectDueMetricWindows(
             counts,
             details,
             measurementWindow: window.label,
+            collectionStatus: 'collected',
           }),
         );
         completed.add(`${post.id}:${window.label}`);
@@ -763,6 +796,13 @@ export async function collectDueMetricWindows(
           `❌ [social-daemon] ${platformIcon(post.platform)} ${post.platform} ${post.id} · metric collection failed · ${errorMessage(error)}`,
         );
       }
+    }
+    if (inserted + unavailable > 0) {
+      const parts = [] as string[];
+      if (inserted) parts.push(`${inserted} collected`);
+      if (unavailable) parts.push(`${unavailable} unavailable`);
+      if (retryable) parts.push(`${retryable} pending`);
+      log(`[social-daemon] metrics: ${parts.join(', ')}`);
     }
   } finally {
     await browser.close();
@@ -791,6 +831,12 @@ export function earliestDueWindow(
   now: Date,
   completed: ReadonlySet<string>,
 ): (typeof METRIC_WINDOWS)[number] | null {
+  if (
+    post.review_status &&
+    TERMINAL_METRIC_REVIEW_STATUSES.has(post.review_status)
+  ) {
+    return null;
+  }
   const publishedAt = Date.parse(post.published_at);
   if (Number.isNaN(publishedAt)) return null;
   const ageHours = (now.getTime() - publishedAt) / 3_600_000;

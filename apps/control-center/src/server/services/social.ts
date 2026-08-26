@@ -32,6 +32,7 @@ interface SocialMetricRow extends Pick<
   captured_at: string;
   age_hours: number;
   measurement_window: string | null;
+  collection_status?: string | null;
   impressions: number | null;
   followers_gained: number | null;
   details: {
@@ -100,7 +101,7 @@ export async function loadSocialPerformance(input: {
         client
           .from('social_post_metrics')
           .select(
-            'social_post_id,captured_at,age_hours,measurement_window,views,impressions,likes,comments,shares,saves,followers_gained,details',
+            'social_post_id,captured_at,age_hours,measurement_window,collection_status,views,impressions,likes,comments,shares,saves,followers_gained,details',
           )
           .gte('captured_at', since)
           .order('captured_at', { ascending: false })
@@ -181,7 +182,10 @@ function buildEpisodes(
   metrics: SocialMetricRow[],
   window: SocialWindow,
 ): SocialEpisodeSummary[] {
-  const metricsByPost = groupMetrics(metrics);
+  const filteredMetrics = metrics.filter(
+    (metric) => (metric.collection_status ?? 'collected') !== 'unavailable',
+  );
+  const metricsByPost = groupMetrics(filteredMetrics);
   const episodes = new Map<
     string,
     {
@@ -236,7 +240,10 @@ export function buildDecisions(
   );
   const samples = metrics
     .filter(
-      (metric) => metric.measurement_window === '24h' && metric.views !== null,
+      (metric) =>
+        metric.measurement_window === '24h' &&
+        metric.views !== null &&
+        (metric.collection_status ?? 'collected') !== 'unavailable',
     )
     .flatMap((metric) => {
       const post = postById.get(metric.social_post_id);

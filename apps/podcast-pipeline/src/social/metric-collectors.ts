@@ -9,7 +9,11 @@ import { toError } from '../lib/errorMessage.js';
 import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
 import { convertTextToZhCN } from '../services/opencc.js';
 import type { SocialPostMetricDetails, SocialPostRow } from '../types.js';
-import type { CollectedSocialMetrics, SocialMetricCounts } from './metrics.js';
+import type {
+  CollectedSocialMetrics,
+  MetricCollectionResult,
+  SocialMetricCounts,
+} from './metrics.js';
 import { PROFILE_DIRECTORY as REDNOTE_PROFILE_DIRECTORY } from './rednote-browser.js';
 import {
   assertThreadsSessionReady,
@@ -44,7 +48,12 @@ async function fetchJsonWithTimeout(
 
 export type SocialMetricCollector = (
   post: SocialPostRow,
-) => Promise<CollectedSocialMetrics>;
+) => Promise<MetricCollectionResult>;
+
+const TERMINAL_REDNOW_REVIEW_STATUSES: readonly SocialReviewStatus[] = [
+  'rejected',
+  'self_only',
+] as const;
 
 export interface RecoveredPublishedPost {
   platformPostId: string;
@@ -82,9 +91,18 @@ export function createMetricCollectors(input?: {
   const fetchImpl = input?.fetchImpl ?? fetch;
   const browser = input?.browser;
   return {
-    threads: (post) => collectThreadsMetrics(post, fetchImpl),
-    youtube: (post) => collectYouTubeMetrics(post, fetchImpl),
-    x: (post) => collectXMetrics(post, browser),
+    threads: async (post) => ({
+      status: 'collected',
+      metrics: await collectThreadsMetrics(post, fetchImpl),
+    }),
+    youtube: async (post) => ({
+      status: 'collected',
+      metrics: await collectYouTubeMetrics(post, fetchImpl),
+    }),
+    x: async (post) => ({
+      status: 'collected',
+      metrics: await collectXMetrics(post, browser),
+    }),
     rednote: (post) =>
       collectRednoteMetrics(
         post,
@@ -490,7 +508,7 @@ export async function collectRednoteMetrics(
     post: SocialPostRow;
     reviewStatus: SocialReviewStatus;
   }) => Promise<void> = async () => {},
-): Promise<SocialMetricCounts> {
+): Promise<MetricCollectionResult> {
   return withPersistentPage(
     REDNOTE_PROFILE_DIRECTORY,
     REDNOTE_MANAGER_URL,
@@ -500,7 +518,14 @@ export async function collectRednoteMetrics(
         timeout: BROWSER_TIMEOUT_MS,
       });
       const card = await findRednoteCard(page, post);
-      if (!card) return EMPTY_COUNTS;
+      if (!card) {
+        return {
+          status: 'unavailable',
+          reason: post.platform_post_id
+            ? `rednote post ${post.platform_post_id} not found in manager`
+            : 'rednote post not found in manager',
+        };
+      }
 
       // Read the state before the numbers: a suppressed note still renders a
       // stat row of zeros, and recording those as a snapshot is what taught the
@@ -511,7 +536,19 @@ export async function collectRednoteMetrics(
       if (reviewStatus !== post.review_status) {
         await onReviewStatus({ post, reviewStatus });
       }
-      if (reviewStatus !== 'visible') return EMPTY_COUNTS;
+      if (reviewStatus === 'under_review') {
+        return { status: 'retryable', reason: 'rednote post under_review' };
+      }
+      if (
+        (TERMINAL_REDNOW_REVIEW_STATUSES as readonly string[]).includes(
+          reviewStatus,
+        )
+      ) {
+        return {
+          status: 'unavailable',
+          reason: `rednote post ${reviewStatus}`,
+        };
+      }
 
       const stats = await card
         .locator('.note-card__stat')
@@ -553,12 +590,15 @@ export async function collectRednoteMetrics(
       }
 
       return {
-        ...EMPTY_COUNTS,
-        views,
-        comments,
-        likes,
-        saves,
-        shares,
+        status: 'collected',
+        metrics: {
+          ...EMPTY_COUNTS,
+          views,
+          comments,
+          likes,
+          saves,
+          shares,
+        },
       };
     },
     browser,

@@ -814,7 +814,17 @@ export async function listLearningSocialPosts(
     .order('published_at', { ascending: true })
     .returns<SocialPostRow[]>();
   if (error) throwSupabaseError(error);
-  return data ?? [];
+  // Suppressed posts were never shown to anyone. Learning from their zero
+  // snapshots is moderation, not audience feedback; metric collection also
+  // has no reason to open a browser for a post the platform hid.
+  const rows = data ?? [];
+  return rows.filter(
+    (post) =>
+      post.review_status === null ||
+      post.review_status === undefined ||
+      post.review_status === 'visible' ||
+      post.review_status === 'under_review',
+  );
 }
 
 export async function listLearningSocialMetrics(

@@ -345,12 +345,15 @@ export interface SocialPostMetricDetails {
   platformMetrics?: Record<string, number | string | boolean | null>;
 }
 
+export type SocialMetricCollectionStatus = 'collected' | 'unavailable';
+
 export interface SocialPostMetricRow {
   id: string;
   social_post_id: string;
   captured_at: string;
   age_hours: number;
   measurement_window?: '1h' | '6h' | '24h' | '72h' | '7d' | null;
+  collection_status?: SocialMetricCollectionStatus;
   views: number | null;
   impressions: number | null;
   likes: number | null;
@@ -374,6 +377,7 @@ export interface NewSocialPostMetric {
   capturedAt: string;
   ageHours: number;
   measurementWindow?: '1h' | '6h' | '24h' | '72h' | '7d';
+  collectionStatus?: SocialMetricCollectionStatus;
   views: number | null;
   impressions: number | null;
   likes: number | null;
