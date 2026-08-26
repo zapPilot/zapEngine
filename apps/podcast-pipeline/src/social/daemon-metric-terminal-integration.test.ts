@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   insertSocialPostMetric: vi.fn(),
   listLearningSocialPosts: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
+  listPartiallyPublishedCohorts: vi.fn(),
   listPendingSocialPublishSchedules: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
   listUnfinishedSocialPublishJobs: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock('./daemon-store.js', async (importOriginal) => ({
   claimSocialPublishBatch: mocks.claimSocialPublishBatch,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
+  listPartiallyPublishedCohorts: mocks.listPartiallyPublishedCohorts,
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
@@ -89,6 +91,7 @@ beforeEach(() => {
   mocks.claimSocialPublishBatch.mockResolvedValue([]);
   mocks.closeMetricsBrowserSession.mockResolvedValue(undefined);
   mocks.insertSocialPostMetric.mockResolvedValue({});
+  mocks.listPartiallyPublishedCohorts.mockResolvedValue([]);
   mocks.listPendingSocialPublishSchedules.mockResolvedValue([]);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
