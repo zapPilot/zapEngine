@@ -392,7 +392,7 @@ describe('social daemon', () => {
     );
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining(
-        `📥 [social-daemon] 🔴 rednote 🇹🇼 zh-Hant · queued · episode ${EPISODE_ID} · `,
+        `📥 [social-daemon] 📕 rednote 🇹🇼 zh-Hant · queued · episode ${EPISODE_ID} · `,
       ),
     );
     expect(mocks.publishSocialBatch).toHaveBeenCalledWith(

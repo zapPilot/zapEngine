@@ -10,7 +10,7 @@ import {
   getAllowedTelegramUserIds,
   getPort,
   getTelegramWebhookSecret,
-  readRenderOnDemandConfig,
+  readFlyMachinesConfig,
 } from './lib/env.js';
 import { installProcessShutdown } from './lib/process-shutdown.js';
 import { isRecord } from './lib/typeGuards.js';
@@ -575,22 +575,22 @@ export function bootstrap(options: BootstrapOptions = {}) {
 
 /**
  * The API process is the only always-on part of the deployment, so it owns
- * restarting the on-demand `render` group. Both groups evaluate the same gate
- * against the same Fly secrets: when this returns null the worker also stays
- * always-on, so the two can never disagree about who keeps renders moving.
+ * restarting the `render` group -- the group's single mode is on demand, and
+ * this is the only thing that can start it. There is no second mode to fall
+ * back to: off Fly there is no machine at all, and on Fly a missing token
+ * throws out of `readFlyMachinesConfig` and fails the boot.
  */
 function createRenderCapacityFromEnv(): RenderCapacityReconciler | null {
-  const config = readRenderOnDemandConfig();
-  if (!config.enabled) {
-    console.log(`[render-capacity] disabled: ${config.reason}`);
+  const config = readFlyMachinesConfig();
+  if (!config) {
+    console.log(
+      '[render-capacity] FLY_APP_NAME unset: not on Fly, no render machine to manage',
+    );
     return null;
   }
 
   return createRenderCapacityReconciler({
-    machines: createFlyMachinesClient({
-      appName: config.appName,
-      token: config.token,
-    }),
+    machines: createFlyMachinesClient(config),
   });
 }
 

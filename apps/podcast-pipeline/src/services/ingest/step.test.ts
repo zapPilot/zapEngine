@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   getStepLogContext,
   logIngestEvent,
+  logPipelineEvent,
   step,
   withStepLogContext,
 } from './step.js';
@@ -145,9 +146,17 @@ describe('ingest step log context', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     logIngestEvent('empty');
     logIngestEvent('partial', { ignored: undefined, kept: 'yes' });
+    logPipelineEvent('[social-copy]', 'llm:request', {
+      language: 'ja',
+      model: 'test/model',
+    });
 
     expect(log).toHaveBeenNthCalledWith(1, '[/ingest] empty');
     expect(log).toHaveBeenNthCalledWith(2, '[/ingest] partial kept=yes');
+    expect(log).toHaveBeenNthCalledWith(
+      3,
+      '[social-copy] llm:request language=ja model=test/model',
+    );
   });
 
   it('merges nested contexts and exposes flat event logs', async () => {

@@ -9,7 +9,7 @@ export interface StepLogContext {
   localizationTotal?: number;
 }
 
-type IngestLogDetails = Record<string, string | number | boolean | undefined>;
+export type LogDetails = Record<string, string | number | boolean | undefined>;
 
 const stepLogContext = new AsyncLocalStorage<StepLogContext>();
 
@@ -25,11 +25,16 @@ export function getStepLogContext(): Readonly<StepLogContext> | undefined {
   return stepLogContext.getStore();
 }
 
-export function logIngestEvent(
+export function logPipelineEvent(
+  prefix: string,
   event: string,
-  details: IngestLogDetails = {},
+  details: LogDetails = {},
 ): void {
-  logIngestEventWithContext(event, details, stepLogContext.getStore());
+  logEventWithContext(prefix, event, details);
+}
+
+export function logIngestEvent(event: string, details: LogDetails = {}): void {
+  logEventWithContext('[/ingest]', event, details, stepLogContext.getStore());
 }
 
 /**
@@ -44,9 +49,10 @@ export function currentRssMb(): number {
   return Math.round(process.memoryUsage.rss() / 1_048_576);
 }
 
-function logIngestEventWithContext(
+function logEventWithContext(
+  prefix: string,
   event: string,
-  details: IngestLogDetails,
+  details: LogDetails,
   context: Readonly<StepLogContext> | undefined,
 ): void {
   const fields = [
@@ -59,16 +65,17 @@ function logIngestEventWithContext(
     .map(([key, value]) => `${key}=${formatLogValue(value)}`)
     .join(' ');
 
-  console.log(`[/ingest] ${event}${suffix ? ` ${suffix}` : ''}`);
+  console.log(`${prefix} ${event}${suffix ? ` ${suffix}` : ''}`);
 }
 
 export async function step<T>(name: string, fn: () => Promise<T>): Promise<T> {
   const startedAt = Date.now();
   const context = stepLogContext.getStore();
-  logIngestEventWithContext('step:start', { name }, context);
+  logEventWithContext('[/ingest]', 'step:start', { name }, context);
 
   const heartbeat = setInterval(() => {
-    logIngestEventWithContext(
+    logEventWithContext(
+      '[/ingest]',
       'step:waiting',
       {
         name,
@@ -82,7 +89,8 @@ export async function step<T>(name: string, fn: () => Promise<T>): Promise<T> {
 
   try {
     const result = await fn();
-    logIngestEventWithContext(
+    logEventWithContext(
+      '[/ingest]',
       'step:done',
       {
         name,
@@ -94,7 +102,8 @@ export async function step<T>(name: string, fn: () => Promise<T>): Promise<T> {
     return result;
   } catch (e) {
     const err = e instanceof Error ? e : new Error(String(e));
-    logIngestEventWithContext(
+    logEventWithContext(
+      '[/ingest]',
       'step:failed',
       {
         name,

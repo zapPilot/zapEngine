@@ -131,7 +131,7 @@ describe('refreshSocialStrategies', () => {
     );
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining(
-        '🧠 [strategy] 🔴 rednote 🇹🇼 zh-Hant · activated v2 · 5 × 24h samples',
+        '🧠 [strategy] 📕 rednote 🇹🇼 zh-Hant · activated v2 · 5 × 24h samples',
       ),
     );
   });

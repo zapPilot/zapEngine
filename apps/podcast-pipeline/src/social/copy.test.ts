@@ -120,6 +120,12 @@ describe('generateSocialCopy', () => {
       llmMocks.openai,
       expect.objectContaining({ model: 'deepseek/deepseek-v4-flash' }),
       null,
+      {
+        logContext: {
+          prefix: '[social-copy]',
+          details: { language: 'zh-Hant' },
+        },
+      },
     );
     const retryRequest =
       llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1];

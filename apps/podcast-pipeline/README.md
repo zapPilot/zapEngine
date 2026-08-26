@@ -34,7 +34,7 @@ TTS provider selection is code-owned in `src/services/tts/tts-config.ts` and app
 
 Telegram trigger support is optional. Use `PIPELINE_TELEGRAM_BOT_TOKEN`, `PIPELINE_TELEGRAM_WEBHOOK_SECRET`, and `PIPELINE_TELEGRAM_ALLOWED_USER_IDS` for this service so it does not collide with account-engine's Telegram bot settings.
 
-`PIPELINE_RENDER_ON_DEMAND=1` is version-controlled in `fly.toml`; `PIPELINE_FLY_API_TOKEN` is the deployment-only secret that lets the render machine stop when idle and be started again (see [Deployment](#on-demand-render-machines)). Both remain unset in normal local development.
+`PIPELINE_FLY_API_TOKEN` is the one setting behind the render machine stopping when idle and being started again (see [Deployment](#on-demand-render-machines)). It is an Infisical prod secret synced to Fly like every other one. It stays unset in normal local development: without `FLY_APP_NAME` the API process reports that there is no render machine to manage and skips the reconciler.
 
 `OPENROUTER_TIMEOUT_MS` limits each OpenRouter request and defaults to `120000` milliseconds. Invalid or empty values use that default; SDK-level retries stay disabled so a stuck provider request is still killed by the timeout, but the script-generation and language-classroom LLM steps each retry once on a transient failure (timeout/429/5xx) before failing the run, and a resubmission still resumes from the latest committed ingest stage.
 
@@ -196,17 +196,17 @@ Having no service also means Fly Proxy cannot auto-stop the `render` group, and 
 - The worker exits `0` after 90 seconds of an empty queue. Under `[[restart]] policy = 'on-failure'` (fly.toml) that leaves the machine `stopped` — billed for storage only. It no longer keeps a performance CPU running through the five-minute retry backoff; the always-on app reconciler starts it again when `next_attempt_at` becomes claimable.
 - The always-on `app` process polls every 30 s for work the render group could actually claim and starts a stopped machine through the Machines API (`http://_api.internal:4280`, never leaving the private network). See `src/services/render-capacity.ts`.
 
-Provision the API token once, at the 20-year maximum. Expiry is the failure mode that costs money rather than raising an error: an expired token silently returns the app to an always-on performance Machine, so this token is deliberately the longest-lived credential in the deployment. The non-secret feature flag is already committed in `fly.toml`:
+Provision the API token once, at the 20-year maximum, then store it in Infisical prod and let the env rail put it on Fly:
 
 ```bash
-fly secrets set \
-  PIPELINE_FLY_API_TOKEN="$(fly tokens create deploy --expiry 175200h --name pipeline-render-on-demand -a from-fed-to-chain-api)" \
-  -a from-fed-to-chain-api
+fly tokens create deploy --expiry 175200h --name pipeline-render-on-demand -a from-fed-to-chain-api
+# paste into Infisical prod as PIPELINE_FLY_API_TOKEN, then:
+pnpm env:sync --target podcast-pipeline --apply
 ```
 
-`--name` keeps this token distinguishable in `fly tokens list` from the deploy tokens CI uses; without it every row reads `flyctl deploy token` and none can be rotated or revoked with confidence.
+`--name` keeps this token distinguishable in `fly tokens list` from the deploy tokens CI uses; without it every row reads `flyctl deploy token` and none can be rotated or revoked with confidence. Expiry is the failure mode that costs money rather than raising an error, so this token is deliberately the longest-lived credential in the deployment.
 
-Both process groups evaluate the same gate, so they cannot disagree: if the token is absent or expired, the worker goes back to running forever while `app` stops touching the Machines API. `fly secrets unset PIPELINE_FLY_API_TOKEN -a from-fed-to-chain-api` is therefore an emergency rollback that favors availability over cost.
+Infisical owns the value because the env rail must be able to see it: `config/env.manifest.mjs` marks it `requiredFor: ['podcast-pipeline:base']`, so a value that goes missing fails `env:sync` and `env:status` instead of being quietly pruned off Fly. There is no feature flag beside it and no always-on fallback — an `app` that boots on Fly without the token throws `Missing required environment variable: PIPELINE_FLY_API_TOKEN`. To take the render group out of service, scale it to zero (below) rather than removing its configuration.
 
 What the reconciler counts as claimable mirrors the `WHERE` clauses of `claim_episode_video_v2` / `claim_episode_video_visual_v2`, including their `visual_version` fence and the completed-visual join. A looser test would wake a machine that claims nothing, idles out and wakes again; the repeat guard stops after three wakes on an unchanged backlog and sends one Telegram warning. Rows stuck in `processing` with an expired lease count as work too — only the claim RPCs reap those, so a stopped worker would otherwise strand them forever.
 

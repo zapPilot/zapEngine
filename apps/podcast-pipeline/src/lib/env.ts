@@ -57,35 +57,25 @@ export function getAllowedTelegramUserIds(): Set<string> {
   );
 }
 
-export type RenderOnDemandConfig =
-  | { enabled: true; appName: string; token: string }
-  | { enabled: false; reason: string };
+export interface FlyMachinesConfig {
+  appName: string;
+  token: string;
+}
 
 /**
- * Gate for the on-demand `render` process group: the worker only exits on an
- * idle queue when the API process can start it again.
- *
- * Both process groups read the same Fly secrets, so evaluating the identical
- * condition on both sides is what guarantees they agree. A worker that stopped
- * itself while the API cannot wake it would strand every queued job.
+ * What the API process needs to start the `render` machine through the Fly
+ * Machines API. `FLY_APP_NAME` is injected by the platform, so its absence
+ * means this process is not running on Fly and there is no machine to manage --
+ * that is the only case that returns null. On Fly the token is mandatory:
+ * missing configuration must fail the boot, never degrade into a deployment
+ * mode where nobody starts the render group. Renders stalled silently for two
+ * days in August 2026 because a fallback did exactly that.
  */
-export function readRenderOnDemandConfig(): RenderOnDemandConfig {
-  const flag = process.env['PIPELINE_RENDER_ON_DEMAND']?.trim().toLowerCase();
-  if (flag !== '1' && flag !== 'true') {
-    return { enabled: false, reason: 'PIPELINE_RENDER_ON_DEMAND is not set' };
-  }
-
-  const token = process.env['PIPELINE_FLY_API_TOKEN']?.trim();
-  if (!token) {
-    return { enabled: false, reason: 'PIPELINE_FLY_API_TOKEN is empty' };
-  }
-
+export function readFlyMachinesConfig(): FlyMachinesConfig | null {
   const appName = process.env['FLY_APP_NAME']?.trim();
-  if (!appName) {
-    return { enabled: false, reason: 'FLY_APP_NAME is empty' };
-  }
+  if (!appName) return null;
 
-  return { enabled: true, appName, token };
+  return { appName, token: getRequiredEnv('PIPELINE_FLY_API_TOKEN').trim() };
 }
 
 export function trimTrailingSlash(value: string): string {
