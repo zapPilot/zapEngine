@@ -29,7 +29,13 @@ function getContentType(filename: string): string {
 
 export async function generateHls(mp3Buffer: Buffer): Promise<HlsResult> {
   const tempDir = path.join(tmpdir(), `hls_${randomUUID()}`);
-  const inputFile = path.join(tempDir, 'input.mp3');
+  // The source MP3 lives in a subdirectory so that the top level of `tempDir`
+  // holds nothing but ffmpeg's own output. The `readdir` below keeps only files,
+  // so the input can never be swept into the upload set again — it used to be,
+  // and every episode shipped a second copy of its whole audio track to R2 under
+  // `{prefix}/input.mp3`, which nothing ever read.
+  const sourceDir = path.join(tempDir, 'source');
+  const inputFile = path.join(sourceDir, 'input.mp3');
   const outputName = 'playlist.m3u8';
   const segmentPattern = path.join(tempDir, 'seg%d.ts');
   const cleanup = async (): Promise<void> => {
@@ -41,7 +47,7 @@ export async function generateHls(mp3Buffer: Buffer): Promise<HlsResult> {
   };
 
   try {
-    await mkdir(tempDir, { recursive: true });
+    await mkdir(sourceDir, { recursive: true });
     await writeFile(inputFile, mp3Buffer);
 
     await new Promise<void>((resolve, reject) => {

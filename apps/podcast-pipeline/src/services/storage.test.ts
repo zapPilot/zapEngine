@@ -48,6 +48,18 @@ vi.mock('@aws-sdk/client-s3', () => ({
   }),
 }));
 
+const { mockSleep, mockLogPipelineEvent } = vi.hoisted(() => ({
+  mockSleep: vi.fn().mockResolvedValue(undefined),
+  mockLogPipelineEvent: vi.fn(),
+}));
+
+// Retries are instant here so the backoff schedule can be asserted from the
+// recorded delays instead of waited out.
+vi.mock('../lib/sleep.js', () => ({ sleep: mockSleep }));
+vi.mock('./ingest/step.js', () => ({
+  logPipelineEvent: mockLogPipelineEvent,
+}));
+
 vi.mock('@aws-sdk/lib-storage', () => ({
   Upload: vi.fn().mockImplementation(function (options) {
     mockUploadConstructor(options);
@@ -70,6 +82,8 @@ beforeEach(() => {
   mockUploadAbort.mockReset().mockResolvedValue(undefined);
   mockUploadDone.mockReset().mockResolvedValue({});
   mockUploadConstructor.mockClear();
+  mockSleep.mockReset().mockResolvedValue(undefined);
+  mockLogPipelineEvent.mockReset();
   vi.mocked(createReadStream).mockClear();
   vi.mocked(PutObjectCommand).mockClear();
 });
@@ -376,5 +390,250 @@ describe('uploadEpisodeVisualAssetsToR2', () => {
       }),
     ).rejects.toThrow('Duplicate visual scene id: scene-01');
     expect(mockSend).not.toHaveBeenCalled();
+  });
+});
+
+describe('R2 upload retries', () => {
+  const playlist: HlsFile[] = [
+    {
+      name: 'playlist.m3u8',
+      path: '/render/hls/playlist.m3u8',
+      contentType: 'application/vnd.apple.mpegurl',
+    },
+  ];
+
+  function transportError(
+    message: string,
+    extra: Record<string, unknown> = {},
+  ): Error {
+    return Object.assign(new Error(message), extra);
+  }
+
+  const upload = () => uploadHlsToR2(playlist, 'test-id', 'zh-Hant', 'main');
+
+  it('reopens the stream on a retry instead of replaying a consumed one', async () => {
+    // The AWS SDK refuses to retry a Readable body at all, so the second
+    // attempt has to build its own stream.
+    mockSend.mockRejectedValueOnce(
+      transportError('write EPIPE', { code: 'EPIPE' }),
+    );
+
+    await expect(upload()).resolves.toMatchObject({
+      r2Prefix: expect.any(String),
+    });
+
+    expect(mockSend).toHaveBeenCalledTimes(2);
+    expect(
+      vi
+        .mocked(createReadStream)
+        .mock.calls.filter(([path]) => path === '/render/hls/playlist.m3u8'),
+    ).toHaveLength(2);
+  });
+
+  it('retries a socket hang up, which carries no error code', async () => {
+    mockSend.mockRejectedValueOnce(transportError('socket hang up'));
+
+    await expect(upload()).resolves.toBeDefined();
+    expect(mockSend).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ['503', 503],
+    ['429', 429],
+    ['408', 408],
+  ])('retries an HTTP %s response', async (_label, httpStatusCode) => {
+    mockSend.mockRejectedValueOnce(
+      transportError('r2 unavailable', { $metadata: { httpStatusCode } }),
+    );
+
+    await expect(upload()).resolves.toBeDefined();
+    expect(mockSend).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    [
+      '403 AccessDenied',
+      { name: 'AccessDenied', $metadata: { httpStatusCode: 403 } },
+    ],
+    [
+      'bad credentials',
+      { name: 'InvalidAccessKeyId', $metadata: { httpStatusCode: 403 } },
+    ],
+    [
+      '404 NoSuchBucket',
+      { name: 'NoSuchBucket', $metadata: { httpStatusCode: 404 } },
+    ],
+  ])('does not retry %s', async (_label, extra) => {
+    const error = transportError('not retryable', extra);
+    mockSend.mockRejectedValue(error);
+
+    await expect(upload()).rejects.toBe(error);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockSleep).not.toHaveBeenCalled();
+  });
+
+  it('retries a transient failure nested under `cause`', async () => {
+    mockSend.mockRejectedValueOnce(
+      new Error('wrapped', {
+        cause: transportError('read ECONNRESET', { code: 'ECONNRESET' }),
+      }),
+    );
+
+    await expect(upload()).resolves.toBeDefined();
+    expect(mockSend).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives up after three attempts and preserves the original error', async () => {
+    const error = transportError('write EPIPE', {
+      code: 'EPIPE',
+      $metadata: { httpStatusCode: 500, requestId: 'req-1' },
+    });
+    mockSend.mockRejectedValue(error);
+
+    await expect(upload()).rejects.toBe(error);
+    expect(mockSend).toHaveBeenCalledTimes(3);
+  });
+
+  it('backs off exponentially with jitter and logs each retry', async () => {
+    mockSend.mockRejectedValue(
+      transportError('write EPIPE', { code: 'EPIPE' }),
+    );
+
+    await expect(upload()).rejects.toThrow('write EPIPE');
+
+    const delays = mockSleep.mock.calls.map(([ms]) => ms as number);
+    expect(delays).toHaveLength(2);
+    expect(delays[0]).toBeGreaterThanOrEqual(500);
+    expect(delays[0]).toBeLessThanOrEqual(750);
+    expect(delays[1]).toBeGreaterThanOrEqual(1000);
+    expect(delays[1]).toBeLessThanOrEqual(1500);
+
+    expect(mockLogPipelineEvent).toHaveBeenCalledTimes(2);
+    expect(mockLogPipelineEvent).toHaveBeenLastCalledWith(
+      '[r2]',
+      'put:retry',
+      expect.objectContaining({
+        key: 'episodes/test-id/localizations/zh-Hant/main/playlist.m3u8',
+        attempt: 2,
+        nextAttempt: 3,
+        error: 'write EPIPE',
+      }),
+    );
+  });
+
+  it('does not retry once the caller signal is aborted', async () => {
+    const controller = new AbortController();
+    mockSend.mockImplementationOnce(() => {
+      controller.abort();
+      return Promise.reject(transportError('write EPIPE', { code: 'EPIPE' }));
+    });
+
+    await expect(
+      uploadEpisodeVisualAssetsToR2({
+        episodeId: 'ep-1',
+        visualVersion: 'v5',
+        visualHash: 'hash1',
+        manifestPath: '/render/visual-manifest.json',
+        images: [],
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow('write EPIPE');
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('R2 upload concurrency', () => {
+  it('keeps at most four HLS segment uploads in flight', async () => {
+    let active = 0;
+    let peak = 0;
+    mockSend.mockImplementation(async () => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      active -= 1;
+      return {};
+    });
+
+    const files: HlsFile[] = Array.from({ length: 10 }, (_unused, index) => ({
+      name: `seg${index}.ts`,
+      path: `/render/hls/seg${index}.ts`,
+      contentType: 'video/mp2t',
+    }));
+
+    await uploadHlsToR2(files, 'test-id', 'zh-Hant', 'main');
+
+    expect(mockSend).toHaveBeenCalledTimes(10);
+    expect(peak).toBe(4);
+  });
+
+  it('bounds the visual asset fan-out too', async () => {
+    let active = 0;
+    let peak = 0;
+    mockSend.mockImplementation(async () => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      active -= 1;
+      return {};
+    });
+
+    await uploadEpisodeVisualAssetsToR2({
+      episodeId: 'ep-1',
+      visualVersion: 'v5',
+      visualHash: 'hash1',
+      manifestPath: '/render/visual-manifest.json',
+      images: Array.from({ length: 12 }, (_unused, index) => ({
+        sceneId: `scene-${index}`,
+        path: `/render/scene-${index}.jpg`,
+        contentType: 'image/jpeg' as const,
+      })),
+    });
+
+    expect(peak).toBe(4);
+  });
+});
+
+describe('R2 cache headers', () => {
+  it('leaves HLS objects cacheable-but-revalidatable', async () => {
+    // The HLS prefix carries no content hash, so a resumed ingest rewrites the
+    // same keys. An immutable header here would pin the CDN to stale audio.
+    await uploadHlsToR2(
+      [
+        {
+          name: 'playlist.m3u8',
+          path: '/render/hls/playlist.m3u8',
+          contentType: 'application/vnd.apple.mpegurl',
+        },
+      ],
+      'test-id',
+      'zh-Hant',
+      'main',
+    );
+
+    expect(vi.mocked(PutObjectCommand).mock.calls[0]![0]).not.toHaveProperty(
+      'CacheControl',
+    );
+  });
+
+  it('keeps content-addressed artifacts immutable', async () => {
+    await uploadEpisodeVisualAssetsToR2({
+      episodeId: 'ep-1',
+      visualVersion: 'v5',
+      visualHash: 'hash1',
+      manifestPath: '/render/visual-manifest.json',
+      images: [
+        {
+          sceneId: 'scene-01',
+          path: '/render/scene-01.jpg',
+          contentType: 'image/jpeg',
+        },
+      ],
+    });
+
+    for (const [params] of vi.mocked(PutObjectCommand).mock.calls) {
+      expect(params).toMatchObject({
+        CacheControl: 'public, max-age=31536000, immutable',
+      });
+    }
   });
 });

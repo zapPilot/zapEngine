@@ -3,19 +3,28 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const sentryMocks = vi.hoisted(() => ({
   captureException: vi.fn(),
   init: vi.fn(),
+  setContext: vi.fn(),
+  setLevel: vi.fn(),
   setTag: vi.fn(),
 }));
 
 vi.mock('@sentry/node', () => ({
   captureException: sentryMocks.captureException,
   init: sentryMocks.init,
-  withScope: vi.fn(
-    (callback: (scope: { setTag: typeof sentryMocks.setTag }) => void) =>
-      callback({ setTag: sentryMocks.setTag }),
+  withScope: vi.fn((callback: (scope: unknown) => void) =>
+    callback({
+      setContext: sentryMocks.setContext,
+      setLevel: sentryMocks.setLevel,
+      setTag: sentryMocks.setTag,
+    }),
   ),
 }));
 
-import { captureServerException, initSentry } from './sentry.js';
+import {
+  capturePipelineException,
+  captureServerException,
+  initSentry,
+} from './sentry.js';
 
 describe('podcast pipeline Sentry observability', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -51,5 +60,54 @@ describe('podcast pipeline Sentry observability', () => {
       '/episodes/:id',
     );
     expect(sentryMocks.captureException).toHaveBeenCalledWith(error);
+  });
+
+  it('tags the component and keeps per-episode detail out of tags', () => {
+    const error = new Error('write EPIPE');
+    capturePipelineException(error, {
+      component: 'ingest',
+      tags: { entrypoint: 'telegram', step: 'uploadMainHlsToR2' },
+      context: { url: 'https://news.test/a', runId: 'abcd1234' },
+    });
+
+    expect(sentryMocks.setTag).toHaveBeenCalledWith('component', 'ingest');
+    expect(sentryMocks.setTag).toHaveBeenCalledWith('entrypoint', 'telegram');
+    expect(sentryMocks.setTag).toHaveBeenCalledWith(
+      'step',
+      'uploadMainHlsToR2',
+    );
+    // A URL as a tag would blow up cardinality; it belongs in context.
+    expect(sentryMocks.setTag).not.toHaveBeenCalledWith(
+      'url',
+      expect.anything(),
+    );
+    expect(sentryMocks.setContext).toHaveBeenCalledWith('pipeline', {
+      url: 'https://news.test/a',
+      runId: 'abcd1234',
+    });
+    expect(sentryMocks.captureException).toHaveBeenCalledWith(error);
+  });
+
+  it('skips undefined tags rather than sending them empty', () => {
+    capturePipelineException(new Error('boom'), {
+      component: 'video-render',
+      tags: { step: undefined },
+    });
+
+    expect(sentryMocks.setTag).toHaveBeenCalledTimes(1);
+    expect(sentryMocks.setTag).toHaveBeenCalledWith(
+      'component',
+      'video-render',
+    );
+    expect(sentryMocks.setLevel).not.toHaveBeenCalled();
+  });
+
+  it('downgrades a failure that will be retried to a warning', () => {
+    capturePipelineException(new Error('boom'), {
+      component: 'video-visual',
+      level: 'warning',
+    });
+
+    expect(sentryMocks.setLevel).toHaveBeenCalledWith('warning');
   });
 });

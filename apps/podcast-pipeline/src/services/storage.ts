@@ -3,10 +3,14 @@ import { basename } from 'node:path';
 
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
+import { mapWithConcurrency } from '../lib/concurrency.js';
 import { contentTypeExtension } from '../lib/content-type.js';
 import { getRequiredEnv, trimTrailingSlash } from '../lib/env.js';
+import { errorMessage } from '../lib/errorMessage.js';
+import { sleep } from '../lib/sleep.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import type { HlsFile } from './hls.js';
+import { logPipelineEvent } from './ingest/step.js';
 
 export interface HlsUploadResult {
   hlsUrl: string;
@@ -59,6 +63,40 @@ const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 const VIDEO_MULTIPART_PART_SIZE = 8 * 1024 * 1024;
 const VIDEO_MULTIPART_QUEUE_SIZE = 2;
 
+/**
+ * R2 uploads retry here, not in the AWS SDK, because the SDK refuses outright:
+ * `@smithy/core`'s retry middleware bails on any request whose body is a
+ * `Readable` ("An error was encountered in a non-retryable streaming request"),
+ * and `createReadStream` bodies are exactly that. So a single `EPIPE` on one of
+ * an episode's ~100 HLS segments used to fail the whole step with zero attempts.
+ * Each attempt therefore opens a *fresh* stream — a consumed one cannot be
+ * replayed. Object keys are deterministic, so re-PUTting is safe.
+ */
+const R2_PUT_MAX_ATTEMPTS = 3;
+const R2_PUT_BASE_DELAY_MS = 500;
+
+/**
+ * How many objects one upload call keeps in flight. HLS is `-hls_time 6`, so a
+ * ten-minute episode is ~100 segments; opening all of them at once is what made
+ * a transient socket error near-certain on every run.
+ */
+const R2_PUT_CONCURRENCY = 4;
+
+const RETRYABLE_R2_ERROR_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'EAI_AGAIN',
+  'EPIPE',
+  'ERR_STREAM_PREMATURE_CLOSE',
+  'ETIMEDOUT',
+]);
+const RETRYABLE_R2_ERROR_NAMES = new Set([
+  'RequestTimeout',
+  'RequestTimeTooSkewed',
+  'TimeoutError',
+]);
+const RETRYABLE_R2_STATUS = new Set([408, 429]);
+
 let client: S3Client | null = null;
 let bucket: string | null = null;
 let publicBase: string | null = null;
@@ -107,24 +145,20 @@ export async function uploadHlsToR2(
   const r2 = getR2Client();
   const Bucket = getBucket();
 
-  const uploads = await Promise.allSettled(
-    files.map(({ name, path, contentType }) =>
-      r2.send(
-        new PutObjectCommand({
-          Bucket,
-          Key: `${prefix}/${name}`,
-          Body: createReadStream(path),
-          ContentType: contentType,
-        }),
-      ),
-    ),
+  // No CacheControl on purpose: this prefix carries no content hash, so a
+  // resumed ingest rewrites the same keys and an immutable header would pin the
+  // CDN to the previous audio.
+  await mapWithConcurrency(
+    files,
+    R2_PUT_CONCURRENCY,
+    ({ name, path, contentType }) =>
+      putObject(r2, {
+        Bucket,
+        Key: `${prefix}/${name}`,
+        path,
+        contentType,
+      }),
   );
-  const failedUpload = uploads.find(
-    (upload): upload is PromiseRejectedResult => upload.status === 'rejected',
-  );
-  if (failedUpload) {
-    throw failedUpload.reason;
-  }
 
   return {
     hlsUrl: `${getPublicBase()}/${prefix}/playlist.m3u8`,
@@ -156,41 +190,23 @@ export async function uploadVideoArtifactsToR2(
     signal: input.signal,
   });
 
-  await Promise.all([
-    putFile(
-      r2,
-      Bucket,
-      thumbnailKey,
-      input.thumbnailPath,
-      'image/png',
-      input.signal,
-    ),
-    putFile(
-      r2,
-      Bucket,
-      manifestKey,
-      input.manifestPath,
-      'application/json',
-      input.signal,
-    ),
-    putFile(
-      r2,
-      Bucket,
-      captionsKey,
-      input.captionsPath,
-      'text/x-ssa; charset=utf-8',
-      input.signal,
-    ),
-    ...input.slidePaths.map((slidePath, index) =>
-      putFile(
-        r2,
-        Bucket,
-        slideKeys[index]!,
-        slidePath,
-        'image/png',
-        input.signal,
-      ),
-    ),
+  await putImmutableObjects(r2, Bucket, input.signal, [
+    { Key: thumbnailKey, path: input.thumbnailPath, contentType: 'image/png' },
+    {
+      Key: manifestKey,
+      path: input.manifestPath,
+      contentType: 'application/json',
+    },
+    {
+      Key: captionsKey,
+      path: input.captionsPath,
+      contentType: 'text/x-ssa; charset=utf-8',
+    },
+    ...input.slidePaths.map((slidePath, index) => ({
+      Key: slideKeys[index]!,
+      path: slidePath,
+      contentType: 'image/png',
+    })),
   ]);
 
   const base = getPublicBase();
@@ -232,25 +248,19 @@ export async function uploadEpisodeVisualAssetsToR2(
     };
   });
 
-  await Promise.all([
-    putFile(
-      r2,
-      Bucket,
-      manifestKey,
-      input.manifestPath,
-      'application/json',
-      input.signal,
-    ),
-    ...imageEntries.map((image) =>
-      putFile(
-        r2,
-        Bucket,
-        image.key,
-        image.path,
-        image.contentType,
-        input.signal,
-      ),
-    ),
+  // Up to 64 scenes at up to 25 MB each (MAX_REMOTE_IMAGE_BYTES in
+  // video/assets.ts), so this is the fan-out that most needs a ceiling.
+  await putImmutableObjects(r2, Bucket, input.signal, [
+    {
+      Key: manifestKey,
+      path: input.manifestPath,
+      contentType: 'application/json',
+    },
+    ...imageEntries.map((image) => ({
+      Key: image.key,
+      path: image.path,
+      contentType: image.contentType,
+    })),
   ]);
 
   const base = getPublicBase();
@@ -324,23 +334,134 @@ async function uploadMp4(input: {
   }
 }
 
-async function putFile(
+interface R2ObjectUpload {
+  Key: string;
+  path: string;
+  contentType: string;
+}
+
+/**
+ * Bounded fan-out for content-addressed artifacts, which are safe to serve with
+ * an immutable cache header because their keys carry a hash.
+ */
+async function putImmutableObjects(
   r2: S3Client,
   Bucket: string,
-  Key: string,
-  path: string,
-  contentType: string,
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined,
+  objects: readonly R2ObjectUpload[],
 ): Promise<void> {
-  signal?.throwIfAborted();
-  await r2.send(
-    new PutObjectCommand({
+  await mapWithConcurrency(objects, R2_PUT_CONCURRENCY, (object) =>
+    putObject(r2, {
       Bucket,
-      Key,
-      Body: createReadStream(path),
-      ContentType: contentType,
-      CacheControl: IMMUTABLE_CACHE_CONTROL,
+      ...object,
+      cacheControl: IMMUTABLE_CACHE_CONTROL,
+      signal,
     }),
-    { abortSignal: signal },
   );
+}
+
+async function putObject(
+  r2: S3Client,
+  input: R2ObjectUpload & {
+    Bucket: string;
+    cacheControl?: string;
+    signal?: AbortSignal;
+  },
+): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    input.signal?.throwIfAborted();
+    try {
+      await r2.send(
+        new PutObjectCommand({
+          Bucket: input.Bucket,
+          Key: input.Key,
+          // A fresh stream per attempt. Reusing the consumed one is why the SDK
+          // will not retry a streaming body itself.
+          Body: createReadStream(input.path),
+          ContentType: input.contentType,
+          ...(input.cacheControl === undefined
+            ? {}
+            : { CacheControl: input.cacheControl }),
+        }),
+        { abortSignal: input.signal },
+      );
+      return;
+    } catch (error) {
+      if (
+        attempt >= R2_PUT_MAX_ATTEMPTS ||
+        input.signal?.aborted === true ||
+        !isRetryableR2Error(error)
+      ) {
+        throw error;
+      }
+
+      const delayMs = r2RetryDelayMs(attempt);
+      logPipelineEvent('[r2]', 'put:retry', {
+        key: input.Key,
+        attempt,
+        nextAttempt: attempt + 1,
+        delayMs,
+        error: errorMessage(error),
+      });
+      await sleep(delayMs);
+    }
+  }
+}
+
+/** 500ms, 1s, ... with up to 50% jitter so a whole batch does not resynchronize. */
+function r2RetryDelayMs(attempt: number): number {
+  const base = R2_PUT_BASE_DELAY_MS * 2 ** (attempt - 1);
+  return Math.round(base * (1 + Math.random() * 0.5));
+}
+
+interface R2ErrorShape {
+  cause?: unknown;
+  code?: unknown;
+  message?: unknown;
+  name?: unknown;
+  $metadata?: { httpStatusCode?: unknown };
+}
+
+/**
+ * Transport-level failures are worth another attempt; anything that says the
+ * request itself was wrong (credentials, bucket, signature) is not.
+ *
+ * The SDK wraps the socket error it saw, so the verdict can sit anywhere in the
+ * `cause` chain — a bare `Error` whose cause is an `ECONNRESET` is retryable.
+ */
+function isRetryableR2Error(error: unknown): boolean {
+  for (let current = error, depth = 0; depth < 5; depth += 1) {
+    if (!current || typeof current !== 'object') break;
+    const candidate = current as R2ErrorShape;
+    const verdict = classifyR2Error(candidate);
+    if (verdict !== undefined) return verdict;
+    current = candidate.cause;
+  }
+
+  return false;
+}
+
+/** `undefined` means "no opinion" — keep walking the cause chain. */
+function classifyR2Error(candidate: R2ErrorShape): boolean | undefined {
+  if (candidate.name === 'AbortError') return false;
+
+  const { code, name } = candidate;
+  if (typeof code === 'string' && RETRYABLE_R2_ERROR_CODES.has(code)) {
+    return true;
+  }
+  if (typeof name === 'string' && RETRYABLE_R2_ERROR_NAMES.has(name)) {
+    return true;
+  }
+
+  const status = candidate.$metadata?.httpStatusCode;
+  if (typeof status === 'number' && status >= 400) {
+    return RETRYABLE_R2_STATUS.has(status) || status >= 500;
+  }
+
+  // Node reports an abandoned keep-alive connection with this message and no
+  // machine-readable code, and it is one of the two failures seen in production.
+  return typeof candidate.message === 'string' &&
+    candidate.message.includes('socket hang up')
+    ? true
+    : undefined;
 }
