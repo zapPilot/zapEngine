@@ -1,0 +1,110 @@
+name: Environment apply
+
+# Merging main is the only automatic writer of deployment environment state.
+# `env:sync` is declarative rather than a diff, so it is safe to reassert the
+# whole manifest on every run, and rotated Infisical secrets reach production
+# through a workflow_dispatch of this same rail instead of a second mechanism.
+on:
+  push:
+    branches: [main]
+    paths:
+      - config/env/**
+      - config/env.manifest.mjs
+      - config/env.destinations.mjs
+      - scripts/env/**
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Destination to apply, or every destination.
+        type: choice
+        default: all
+        options:
+          - all
+          - account-engine
+          - alpha-etl
+          - analytics-engine
+          - expo
+          - landing-page
+          - podcast-pipeline
+          - web
+      dry_run:
+        description: List the SET/UNSET keys without writing to any store.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Serialized instead of cancelled: a cancelled run would leave the fleet
+# half-applied. A queued run checks out the newer main, so last one wins. The
+# group is shared with the drift audit so a read never overlaps a write and
+# reports the drift the write is in the middle of fixing.
+concurrency:
+  group: env-rail
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      # One expired platform token must not stop the other destinations from
+      # converging on the merged manifest.
+      fail-fast: false
+      matrix:
+        # Keep in step with DESTINATION_NAMES in config/env.destinations.mjs and
+        # with the dispatch options above. A destination missing here still gets
+        # caught by the verify job's fleet-wide audit.
+        target: >-
+          ${{ fromJSON((github.event_name == 'push' || github.event.inputs.target == 'all')
+          && '["account-engine","alpha-etl","analytics-engine","expo","landing-page","podcast-pipeline","web"]'
+          || format('["{0}"]', github.event.inputs.target)) }}
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
+      INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-workspace
+
+      - uses: ./.github/actions/setup-env-tooling
+
+      - name: Sync ${{ matrix.target }}
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          if [ "$DRY_RUN" = 'true' ]; then
+            pnpm env:sync --target "$TARGET"
+          else
+            pnpm env:sync --target "$TARGET" --apply --prune
+          fi
+
+  # The 2026-08 render outage was two Fly secrets going missing without a single
+  # red signal. Applying and then auditing in the same workflow makes the fleet
+  # failing to converge a failed run on main rather than a next-day discovery.
+  verify:
+    needs: apply
+    if: github.event.inputs.dry_run != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
+      INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-workspace
+
+      - uses: ./.github/actions/setup-env-tooling
+
+      - name: Check all environment destinations
+        run: pnpm env:status

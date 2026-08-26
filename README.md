@@ -77,19 +77,32 @@ pnpm env:status                  # include Infisical and every destination
 pnpm env:show --target web       # redacts sensitive values
 ```
 
-Deployment synchronization is dry-run by default:
+Deployment stores are written by CI, not from a laptop. Merging a change under
+`config/env/`, `config/env.manifest.mjs`, or `config/env.destinations.mjs` to
+`main` runs the `Environment apply` workflow, which applies every destination
+with `--apply --prune` and then audits the whole fleet. Because a key removed
+from the manifest is removed from production, review the dry run before merging.
+
+Rotating a secret changes no tracked file, so dispatch the same rail by hand:
 
 ```bash
-pnpm env:sync --target account-engine
-pnpm env:sync --target expo
-# Add --apply only after reviewing the listed key names.
+gh workflow run env-apply.yml -f target=podcast-pipeline   # or target=all
+gh workflow run env-apply.yml -f target=all -f dry_run=true  # SET/UNSET only
 ```
 
-The scheduled environment-drift workflow requires read-only
+Locally the command is dry-run by default and `--apply` is break-glass only:
+
+```bash
+pnpm env:sync --target account-engine   # list the keys, change nothing
+pnpm env:sync --target expo
+```
+
+`Environment apply` and the daily `Environment drift` audit share the same
 `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID`,
 `INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET`, `INFISICAL_PROJECT_ID`,
-`FLY_API_TOKEN`, `EXPO_TOKEN`, and `VERCEL_TOKEN` repository secrets. Missing
-credentials make the workflow fail as not checkable.
+`FLY_API_TOKEN`, `EXPO_TOKEN`, and `VERCEL_TOKEN` repository secrets. The
+Infisical identity only ever reads; the three platform tokens need write scope
+for apply. Missing credentials make the workflow fail as not checkable.
 
 For analytics-engine's Python venv (first-time only):
 
