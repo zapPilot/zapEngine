@@ -5,16 +5,19 @@ Use this checklist for any rule, priority, or saved-config behavior change in
 
 ## Gate
 
+Replace `<to-date>` and `<reference-date>` with today's UTC date unless the step
+explicitly says to preserve an existing fixture window.
+
 1. Edit rules, priorities, sizing, or risk guards.
 2. Run `analyze_compare.py` for every changed saved config:
    ```bash
    pnpm --filter @zapengine/analytics-engine exec uv run python scripts/analyze_compare.py \
-     --saved-config-id <strategy_id> --from-date 2025-01-01 --to-date 2026-04-10 --summary
+     --saved-config-id <strategy_id> --from-date 2025-01-01 --to-date <to-date> --summary
    ```
 3. Run a decision-log attribution report:
    ```bash
    pnpm --filter @zapengine/analytics-engine exec uv run python scripts/analyze_compare.py \
-     --saved-config-id dma_fgi_portfolio_rules --from-date 2025-01-01 --to-date 2026-04-10 \
+     --saved-config-id dma_fgi_portfolio_rules --from-date 2025-01-01 --to-date <to-date> \
      --emit-decision-log --decision-log-dir /tmp/zapengine-decisions
    pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/per_rule_report.py \
      /tmp/zapengine-decisions/decisions.jsonl --strategy dma_fgi_portfolio_rules --format markdown
@@ -22,7 +25,7 @@ Use this checklist for any rule, priority, or saved-config behavior change in
 4. If a rule priority, allowlist, or trigger changed, run standalone isolation:
    ```bash
    pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/rule_only_sweep.py \
-     --reference-date 2026-04-15 --days 500 --format markdown
+     --reference-date <reference-date> --days 500 --format markdown
    ```
 5. Regenerate the 500-day snapshot only for intentional performance drift:
    ```bash
