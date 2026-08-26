@@ -15,7 +15,10 @@ Routes grouped under `/users`, `/jobs`, `/etl`, `/telegram`. See `src/routes/`.
 
 ## Environment
 
-All env vars live in the monorepo root `.env` (see `.env.example` at repo root). Required: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ACCOUNT_ENGINE_PORT=3004`.
+Runtime keys are registered in root `config/env.manifest.mjs`. Non-secret values
+live in `config/env/dev.env` and `config/env/prod.env`; secrets live in Infisical.
+Required: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+`ACCOUNT_ENGINE_PORT=3004`.
 
 Weekly-report unsubscribe links use `REPORT_UNSUBSCRIBE_SECRET` when set and
 otherwise fall back to `SUPABASE_SERVICE_ROLE_KEY`.
@@ -85,7 +88,7 @@ otherwise lose the queued job or its status.
 
 ## Deployment
 
-Fly.io via Docker — `fly deploy`.
+Deployment is owned by the CI deploy registry in root `.github/fly-apps.json`.
 
 The weekly report scheduler and its completion watchdog are configured in
 Pipedream. See

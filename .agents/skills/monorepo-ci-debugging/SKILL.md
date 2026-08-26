@@ -42,10 +42,8 @@ and iOS smoke remain separate jobs.
    - `pnpm turbo run <task> --filter=@zapengine/<workspace>`
    - `cd apps/app && pnpm exec vitest run <file>`
    - `pnpm lint repo`, `pnpm contracts check`, or `pnpm lint dead-env`
-4. Fix the root cause and rerun that same command.
-5. Run `pnpm verify changed`, then the separate jobs affected by the change.
-6. Before handoff, confirm the previously-red PR checks are green on the latest
-   head SHA.
+4. Fix the root cause and rerun that same command. Follow root `AGENTS.md` for
+   aggregate verification and handoff.
 
 When CI already ran, use GitHub evidence instead of pushing speculative fixes:
 
@@ -91,14 +89,6 @@ gh run view <run-id> --log-failed
 
 ## Handoff
 
-Run the full core gate when the change has broad/root impact:
-
-```bash
-pnpm run verify parallel
-pnpm run security audit
-```
-
-Run other separate jobs only when touched, especially `pnpm lint dead-env` and
-the coverage job above. Node 24 on CI is authoritative. A CI fix is complete only
-when the original parity command is green locally and the latest PR checks are
-green after push.
+Use the root verification policy, then run the separate job parity commands
+affected by the fix. Node 24 on CI is authoritative. A CI fix is complete only
+when the original parity command and latest PR checks are green.

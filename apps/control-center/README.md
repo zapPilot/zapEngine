@@ -57,8 +57,7 @@ FLY_COST_MODE=flyctl pnpm turbo run ops:sync --filter=@zapengine/control-center 
 ```
 
 The daily GitHub Actions workflow sets `FLY_COST_MODE=flyctl` and uses the
-official Fly CLI setup action. Local manual runs can set the same mode in the
-repository-root `.env` and use the normal `pnpm ops:sync` command.
+official Fly CLI setup action. Local manual runs use the explicit command above.
 
 Record a manual Fly current-month estimate instead:
 

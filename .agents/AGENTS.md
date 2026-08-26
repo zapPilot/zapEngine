@@ -137,8 +137,5 @@ run, they should make the smallest durable update:
 2. Correct stale commands or paths in an existing skill as soon as verified.
 3. Update an existing skill only if the run exposed a missing recurring trap.
 4. Add a new skill only if the criteria above pass.
-5. Keep related code, tests, CI fixes, documentation, and skill corrections on the
-   current branch and PR. Do not split them solely to enforce category purity.
-
-Preserve the user's current branch and worktree. Do not create or switch branches,
-move commits, or open another PR unless the user explicitly requests it.
+5. Keep related code, tests, CI fixes, documentation, and skill corrections
+   together; follow the repository root working-tree and history rules.

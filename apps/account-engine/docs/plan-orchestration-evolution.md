@@ -8,15 +8,14 @@ This file holds the **multi-step evolution guardrail** for the
 plan-orchestration plane specifically — roadmap-shaped content that does not
 belong in the constraints layer. It is a guardrail, not a scheduled project.
 
-## 1. Now: deposit-plan is a dead proxy
+## 1. Current boundary
 
-The current `deposit-plan` lives in account-engine and is a dead proxy.
-Do not extend it.
+The bounded `plan-orchestration` module lives in account-engine. The legacy
+`deposit-plan` endpoint remains an accidental tenant; do not extend it.
 
-## 2. When analytics→deposit is wired
+## 2. Current module contract
 
-Replace the dead proxy with **one** bounded
-`apps/account-engine/src/modules/plan-orchestration/` module that:
+`apps/account-engine/src/modules/plan-orchestration/`:
 
 - Owns the `POST /plan-orchestration/*` routes.
 - Owns its `@zapengine/types` contract.
