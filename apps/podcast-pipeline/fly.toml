@@ -26,11 +26,12 @@ kill_timeout = '30s'
 # `app` is always on: it takes the Telegram webhook, which times out easily.
 # `render` is on demand — it has no service, so Fly Proxy cannot auto-stop it;
 # instead the worker exits 0 on an idle queue and `app` starts it again through
-# the Machines API (src/services/render-capacity.ts). The feature flag is
-# version-controlled above; PIPELINE_FLY_API_TOKEN remains a Fly secret. If the
-# token is absent, both sides fail safe to always-on rather than stranding jobs.
-# PIPELINE_RENDER_ON_DEMAND is versioned in config/env/prod.env and materialized
-# by `pnpm env:sync --target podcast-pipeline`.
+# the Machines API (src/services/render-capacity.ts). That is the group's only
+# mode, so PIPELINE_FLY_API_TOKEN is the single setting it needs: it lives in
+# Infisical prod and reaches Fly through
+# `pnpm env:sync --target podcast-pipeline --apply`. An `app` that boots on Fly
+# without it fails outright — there is deliberately no second mode to fall back
+# to, because a fallback nobody notices is what stopped renders for two days.
 [processes]
   app = 'node dist/index.js'
   render = 'node dist/worker.js'

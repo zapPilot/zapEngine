@@ -21,7 +21,7 @@ describe('log-format', () => {
   });
 
   it('maps known platforms to icons', () => {
-    expect(platformIcon('rednote')).toBe('🔴');
+    expect(platformIcon('rednote')).toBe('📕');
     expect(platformIcon('x')).toBe('𝕏');
     expect(platformIcon('youtube')).toBe('▶️');
     expect(platformIcon('threads')).toBe('🧵');
@@ -32,13 +32,13 @@ describe('log-format', () => {
   });
 
   it('formats platform and language labels', () => {
-    expect(platformLabel('rednote')).toBe('🔴 rednote');
+    expect(platformLabel('rednote')).toBe('📕 rednote');
     expect(languageLabel('zh-Hant')).toBe('🇹🇼 zh-Hant');
     expect(languageLabel('en')).toBe('🇺🇸 en');
   });
 
   it('formats lane labels', () => {
-    expect(laneLabel('rednote', 'zh-Hant')).toBe('🔴 rednote 🇹🇼 zh-Hant');
+    expect(laneLabel('rednote', 'zh-Hant')).toBe('📕 rednote 🇹🇼 zh-Hant');
     expect(laneLabel('x', 'ja')).toBe('𝕏 x 🇯🇵 ja');
     expect(laneLabel('youtube', 'en')).toBe('▶️ youtube 🇺🇸 en');
   });

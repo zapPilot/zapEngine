@@ -14,7 +14,7 @@ export function languageFlag(language: string): string {
 export function platformIcon(platform: string): string {
   switch (platform) {
     case 'rednote':
-      return '🔴';
+      return '📕';
     case 'x':
       return '𝕏';
     case 'youtube':

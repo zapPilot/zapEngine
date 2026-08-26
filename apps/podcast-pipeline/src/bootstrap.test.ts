@@ -35,6 +35,17 @@ vi.mock('./services/episode-video-visual-processor.js', () => ({
   processEpisodeVideoVisualJob: vi.fn(),
 }));
 
+const renderCapacityMock = vi.hoisted(() => ({
+  createRenderCapacityReconciler: vi.fn(),
+}));
+
+vi.mock('./services/render-capacity.js', async (importOriginal) => {
+  const actual = (await importOriginal<
+    typeof import('./services/render-capacity.js')
+  >()) as Record<string, unknown>;
+  return { ...actual, ...renderCapacityMock };
+});
+
 vi.mock('./lib/env.js', async (importOriginal) => {
   const actual = (await importOriginal<
     typeof import('./lib/env.js')
@@ -60,6 +71,7 @@ vi.mock('./lib/env.js', async (importOriginal) => {
 describe('bootstrap', () => {
   afterEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it('starts the server, exposes a shutdown that detaches signal handlers, and stops the video worker', async () => {
@@ -144,16 +156,58 @@ describe('bootstrap', () => {
     await handle.shutdown();
   });
 
-  it('leaves the render group alone unless the Fly on-demand gate is configured', async () => {
+  it('has no render machine to manage when FLY_APP_NAME says this is not Fly', async () => {
     const { bootstrap } = await import('./index.js');
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    delete process.env['FLY_APP_NAME'];
 
     const handle = bootstrap({
       app: { fetch: vi.fn() } as unknown as Hono,
     });
 
     expect(handle.renderCapacity).toBeNull();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('not on Fly'));
+    expect(
+      renderCapacityMock.createRenderCapacityReconciler,
+    ).not.toHaveBeenCalled();
 
     await handle.shutdown();
+    log.mockRestore();
+  });
+
+  // The render group has exactly one mode, so an unconfigured token has to stop
+  // the boot. Degrading quietly here is what stalled renders for two days.
+  it('fails the boot when running on Fly without a Machines API token', async () => {
+    const { bootstrap } = await import('./index.js');
+    vi.stubEnv('FLY_APP_NAME', 'from-fed-to-chain-api');
+    vi.stubEnv('PIPELINE_FLY_API_TOKEN', '');
+
+    expect(() =>
+      bootstrap({ app: { fetch: vi.fn() } as unknown as Hono }),
+    ).toThrow(/PIPELINE_FLY_API_TOKEN/);
+    expect(
+      renderCapacityMock.createRenderCapacityReconciler,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('runs the reconciler whenever the Fly Machines config is complete', async () => {
+    const { bootstrap } = await import('./index.js');
+    const reconciler = { start: vi.fn(), runOnce: vi.fn(), stop: vi.fn() };
+    renderCapacityMock.createRenderCapacityReconciler.mockReturnValue(
+      reconciler,
+    );
+    vi.stubEnv('FLY_APP_NAME', 'from-fed-to-chain-api');
+    vi.stubEnv('PIPELINE_FLY_API_TOKEN', 'fly-token');
+
+    const handle = bootstrap({
+      app: { fetch: vi.fn() } as unknown as Hono,
+    });
+
+    expect(handle.renderCapacity).toBe(reconciler);
+    expect(reconciler.start).toHaveBeenCalled();
+
+    await handle.shutdown('SIGTERM');
+    expect(reconciler.stop).toHaveBeenCalled();
   });
 
   it('runs the render-capacity reconciler for the process lifetime when one is provided', async () => {

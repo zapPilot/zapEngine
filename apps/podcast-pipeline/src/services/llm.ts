@@ -12,7 +12,11 @@ import type {
   LanguageClassroomLanguageCode,
   LanguageClassroomLessonDraft,
 } from '../types.js';
-import { logIngestEvent } from './ingest/step.js';
+import {
+  type LogDetails,
+  logIngestEvent,
+  logPipelineEvent,
+} from './ingest/step.js';
 import { convertTextToZhTW } from './opencc.js';
 import { combineAbortSignalWithTimeout } from './video/abort.js';
 
@@ -432,6 +436,25 @@ export type OpenRouterChatCompletion = OpenAI.Chat.ChatCompletion & {
 export interface OpenRouterRequestOptions {
   signal?: AbortSignal;
   reasoning?: OpenRouterReasoning;
+  logContext?: {
+    prefix: string;
+    details?: LogDetails;
+  };
+}
+
+function logOpenRouterEvent(
+  event: string,
+  details: LogDetails,
+  logContext: OpenRouterRequestOptions['logContext'],
+): void {
+  if (logContext) {
+    logPipelineEvent(logContext.prefix, event, {
+      ...(logContext.details ?? {}),
+      ...details,
+    });
+    return;
+  }
+  logIngestEvent(event, details);
 }
 
 export async function createOpenRouterChatCompletion(
@@ -446,14 +469,18 @@ export async function createOpenRouterChatCompletion(
   // Explicit 'unset' rather than an omitted field: an absent output ceiling is
   // exactly the condition worth spotting on the failure line.
   const maxTokens = params.max_tokens ?? 'unset';
-  logIngestEvent('llm:request', {
-    model: params.model,
-    thinking: Boolean(thinkingModel),
-    inputChars,
-    timeoutMs,
-    maxTokens,
-    reasoning,
-  });
+  logOpenRouterEvent(
+    'llm:request',
+    {
+      model: params.model,
+      thinking: Boolean(thinkingModel),
+      inputChars,
+      timeoutMs,
+      maxTokens,
+      reasoning,
+    },
+    requestOptions.logContext,
+  );
 
   const request = withOpenRouterOptions(params, requestOptions.reasoning);
   const deadline = combineAbortSignalWithTimeout(
@@ -474,29 +501,37 @@ export async function createOpenRouterChatCompletion(
         : error;
     // `llm:response` is the only line carrying the provider, and it fires only
     // on success — a timeout otherwise left no record of what was requested.
-    logIngestEvent('llm:failed', {
-      model: params.model,
-      inputChars,
-      timeoutMs,
-      maxTokens,
-      reasoning,
-      routing: OPENROUTER_PROVIDER_ROUTING.sort ?? 'default',
-      error: errorMessage(failure),
-    });
+    logOpenRouterEvent(
+      'llm:failed',
+      {
+        model: params.model,
+        inputChars,
+        timeoutMs,
+        maxTokens,
+        reasoning,
+        routing: OPENROUTER_PROVIDER_ROUTING.sort ?? 'default',
+        error: errorMessage(failure),
+      },
+      requestOptions.logContext,
+    );
     throw failure;
   } finally {
     deadline.dispose();
   }
   const metadata = completionMetadata(completion, params.model, thinkingModel);
-  logIngestEvent('llm:response', {
-    model: metadata.model,
-    thinking: Boolean(thinkingModel),
-    inputChars,
-    timeoutMs,
-    provider: metadata.provider,
-    costUsd: metadata.costUsd,
-    outputChars: completionOutputCharacterCount(completion),
-  });
+  logOpenRouterEvent(
+    'llm:response',
+    {
+      model: metadata.model,
+      thinking: Boolean(thinkingModel),
+      inputChars,
+      timeoutMs,
+      provider: metadata.provider,
+      costUsd: metadata.costUsd,
+      outputChars: completionOutputCharacterCount(completion),
+    },
+    requestOptions.logContext,
+  );
 
   return completion;
 }

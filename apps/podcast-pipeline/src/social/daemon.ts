@@ -153,15 +153,18 @@ export async function runSocialDaemon(
       lastStrategyRefresh = tickStartedAt.getTime();
     }
     await isolate('queue summary', log, async () => {
+      log('');
       logQueueSnapshot(
         await getSocialQueueSnapshot({ includeWaitingMedia: true }),
         tickStartedAt,
         log,
       );
     });
+    log('');
     log(
       `✅ [social-daemon] check complete · next check in ${POLL_INTERVAL_MS / 1_000}s.`,
     );
+    log('');
     await sleep(POLL_INTERVAL_MS);
   }
 }
@@ -878,6 +881,7 @@ function logQueueSnapshot(
       `⏳ [social-daemon] ${laneLabel(item.platform, item.languageCode)}${item.experiment ? ` [${item.experiment}]` : ''} · waiting media ·${title}`,
     );
   }
+  if (waitingMedia.length > 0) log('');
 
   log(
     `📥 [social-daemon] queue · ${snapshot.pendingCount} job${snapshot.pendingCount === 1 ? '' : 's'} · ${snapshot.episodeQueue.length} article${snapshot.episodeQueue.length === 1 ? '' : 's'}`,
@@ -900,7 +904,9 @@ function logQueueSnapshot(
         },
       ]),
     );
-  for (const item of Object.values(lanes)) {
+  const nextLanes = Object.values(lanes);
+  if (snapshot.episodeQueue.length > 0 && nextLanes.length > 0) log('');
+  for (const item of nextLanes) {
     const title = item.title ? ` “${truncateTitle(item.title)}”` : '';
     log(
       `📥 [social-daemon] next ${laneLabel(item.platform, item.languageCode)}${item.experiment ? ` [${item.experiment}]` : ''} ·${title} · ${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status})`,

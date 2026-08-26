@@ -89,12 +89,12 @@ describe('startVideoWorkerProcess', () => {
     expect(logger.info).toHaveBeenCalledTimes(2);
   });
 
-  it('creates the default process-exit callback without invoking it in always-on mode', async () => {
-    const { handle, videoWorker } = makeHarness({
-      exit: undefined,
-      onDemand: false,
-    });
+  // Covers the `process.exit` default without ever firing it: no empty poll
+  // reaches trackIdle, so the real callback stays untouched.
+  it('creates the default process-exit callback without invoking it', async () => {
+    const { handle, videoWorker, poll } = makeHarness({ exit: undefined });
 
+    poll('completed');
     expect(videoWorker.start).toHaveBeenCalledOnce();
     await handle.shutdown('default exit callback test');
   });
@@ -110,41 +110,9 @@ describe('startVideoWorkerProcess', () => {
     info.mockRestore();
   });
 
-  it('explains when configured on-demand mode is explicitly disabled by the caller', async () => {
-    vi.stubEnv('PIPELINE_RENDER_ON_DEMAND', 'true');
-    vi.stubEnv('PIPELINE_FLY_API_TOKEN', 'test-token');
-    vi.stubEnv('FLY_APP_NAME', 'podcast-test');
-    const { logger } = makeHarness({ onDemand: false });
-
-    expect(logger.info).toHaveBeenCalledWith(
-      '[video-worker] always-on: disabled by caller',
-    );
-    vi.unstubAllEnvs();
-  });
-
-  it('stays alive on an empty queue when on-demand mode is off', async () => {
-    vi.useFakeTimers();
-    const { exit, videoWorker, poll, logger } = makeHarness({
-      onDemand: false,
-      idleShutdownMs: IDLE_SHUTDOWN_MS,
-    });
-
-    poll('empty');
-    await vi.advanceTimersByTimeAsync(IDLE_SHUTDOWN_MS * 5);
-    poll('empty');
-    await vi.advanceTimersByTimeAsync(0);
-
-    expect(exit).not.toHaveBeenCalled();
-    expect(videoWorker.stop).not.toHaveBeenCalled();
-    expect(logger.info).toHaveBeenCalledWith(
-      expect.stringContaining('always-on'),
-    );
-  });
-
   it('exits 0 once the queue has stayed empty past the idle window', async () => {
     vi.useFakeTimers();
     const { exit, videoWorker, poll, logger } = makeHarness({
-      onDemand: true,
       idleShutdownMs: IDLE_SHUTDOWN_MS,
     });
 
@@ -168,7 +136,6 @@ describe('startVideoWorkerProcess', () => {
   it('restarts the idle window whenever a poll finds work', async () => {
     vi.useFakeTimers();
     const { exit, poll } = makeHarness({
-      onDemand: true,
       idleShutdownMs: IDLE_SHUTDOWN_MS,
     });
 
@@ -186,7 +153,6 @@ describe('startVideoWorkerProcess', () => {
   it('shuts down only once even if further empty polls land', async () => {
     vi.useFakeTimers();
     const { exit, videoWorker, poll } = makeHarness({
-      onDemand: true,
       idleShutdownMs: IDLE_SHUTDOWN_MS,
     });
 

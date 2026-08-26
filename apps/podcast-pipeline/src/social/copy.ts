@@ -370,6 +370,12 @@ export async function generateSocialCopy(input: {
           ],
         },
         config.thinkingModel,
+        {
+          logContext: {
+            prefix: '[social-copy]',
+            details: { language: languageCode },
+          },
+        },
       );
       const content = completion.choices[0]?.message.content;
       if (typeof content !== 'string' || !content.trim()) {

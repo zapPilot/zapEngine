@@ -410,8 +410,14 @@ export const ENV_MANIFEST = {
   THREADS_REDIRECT_URI: server(['podcast-pipeline']),
   THREADS_TLS_CERT_PATH: host(['podcast-pipeline']),
   THREADS_TLS_KEY_PATH: host(['podcast-pipeline']),
-  PIPELINE_RENDER_ON_DEMAND: server(['podcast-pipeline']),
-  PIPELINE_FLY_API_TOKEN: server(['podcast-pipeline'], { sensitive: true }),
+  // The only configuration behind the on-demand render machine, so it is
+  // required rather than optional: a missing value must fail `env:sync` and
+  // `env:status` loudly instead of leaving the Fly secret to be pruned, which
+  // is how renders silently stopped for two days in August 2026.
+  PIPELINE_FLY_API_TOKEN: server(['podcast-pipeline'], {
+    sensitive: true,
+    requiredFor: ['podcast-pipeline:base'],
+  }),
   FLY_APP_NAME: host(['podcast-pipeline']),
   VIDEO_STORYBOARD_PROVIDER: server(['podcast-pipeline']),
   NVIDIA_API_KEY: server(['podcast-pipeline'], { sensitive: true }),

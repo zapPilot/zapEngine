@@ -1,4 +1,3 @@
-import { readRenderOnDemandConfig } from './lib/env.js';
 import { installProcessShutdown } from './lib/process-shutdown.js';
 import { processEpisodeVideoJob } from './services/episode-video-processor.js';
 import { processEpisodeVideoVisualJob } from './services/episode-video-visual-processor.js';
@@ -21,7 +20,7 @@ import {
 const LIVENESS_INTERVAL_MS = 300_000;
 
 /**
- * How long the queue must stay empty before an on-demand render machine exits.
+ * How long the queue must stay empty before the render machine exits.
  *
  * Ninety seconds allows a freshly enqueued sibling job to become claimable,
  * but does not keep a performance CPU running through the database's five-
@@ -34,8 +33,6 @@ export interface VideoWorkerProcessOptions {
   createWorker?: (options: CreateVideoWorkerOptions) => EpisodeVideoWorker;
   livenessIntervalMs?: number;
   idleShutdownMs?: number;
-  /** Defaults to the shared Fly on-demand gate; tests inject it directly. */
-  onDemand?: boolean;
   exit?: (code: number) => void;
   logger?: Pick<Console, 'info'>;
 }
@@ -50,8 +47,6 @@ export function startVideoWorkerProcess(
 ): VideoWorkerProcessHandle {
   const logger = options.logger ?? console;
   const exit = options.exit ?? ((code: number) => process.exit(code));
-  const onDemandConfig = readRenderOnDemandConfig();
-  const onDemand = options.onDemand ?? onDemandConfig.enabled;
   const idleShutdownMs = options.idleShutdownMs ?? IDLE_SHUTDOWN_MS;
 
   let liveness: NodeJS.Timeout | null = null;
@@ -67,7 +62,7 @@ export function startVideoWorkerProcess(
   // Runs right after a poll confirmed the queue was empty, so it can never
   // interrupt a render in flight.
   const trackIdle = (result: VideoWorkerPollResult): void => {
-    if (!onDemand || stopping) return;
+    if (stopping) return;
     if (result !== 'empty') {
       firstIdleAt = null;
       return;
@@ -94,13 +89,8 @@ export function startVideoWorkerProcess(
     onPollResult: trackIdle,
   });
 
-  const alwaysOnReason = onDemandConfig.enabled
-    ? 'disabled by caller'
-    : onDemandConfig.reason;
   logger.info(
-    onDemand
-      ? `[video-worker] on-demand: exits after ${idleShutdownMs}ms of an empty queue`
-      : `[video-worker] always-on: ${alwaysOnReason}`,
+    `[video-worker] on-demand: exits after ${idleShutdownMs}ms of an empty queue`,
   );
 
   // The worker's poll timer is unref'd so bootstrap() and tests never hang on
