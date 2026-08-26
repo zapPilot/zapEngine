@@ -35,10 +35,16 @@ radius.
 - `config/env.manifest.mjs`: canonical key registry and metadata.
 - `config/env/dev.env`, `config/env/prod.env`: non-secret environment values.
 - Infisical: secret values for supported environments.
+- `.github/workflows/env-apply.yml`: canonical deployment-store writer. Merges
+  touching the canonical env definition apply every destination with prune and
+  then audit the fleet; secret-only rotations use the same workflow manually.
 - Root `.env`: emergency input only when an operator explicitly uses
   `--local-env`; it is not a registry or normal configuration path.
 
 There is no `.env.example`. Never recreate it to satisfy an old instruction.
+Do not document laptop `env:sync --apply` as the normal deployment path; local
+sync is a dry-run/recovery tool, while deployment propagation is owned by the
+Environment apply workflow.
 
 ## Expo env bridge
 
@@ -75,6 +81,9 @@ fixtures, not application configuration.
    - accidental source reference → fix the source code.
 3. If the env edit touched root files, follow **monorepo-ci-debugging** for
    broadened verification.
+4. Review `pnpm env:sync --target <destination>` as a dry run when deployment
+   keys change. The merge to `main` is what normally applies/prunes deployment
+   state through `.github/workflows/env-apply.yml`.
 
 ## Rationalizations — STOP
 
@@ -83,6 +92,7 @@ fixtures, not application configuration.
 | "CI sets this env var, so it belongs in the manifest." | CI fixture inputs are not runtime app env. |
 | "Put the secret in `prod.env`." | Version-controlled env files are non-secret; secrets belong in Infisical. |
 | "Root `.env` is the normal local source." | It is an explicit `--local-env` emergency fallback only. |
+| "I'll apply production env from my laptop after merge." | The Environment apply workflow is the normal writer; use local `--apply` only as break-glass recovery. |
 | "Declare a fake usage so the gate passes." | That hides drift. Fix source usage or remove the stale example key. |
 | "Expo env can be read dynamically." | Keep `process.env.EXPO_PUBLIC_*` literal so Expo can inline it. |
 
