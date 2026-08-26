@@ -199,7 +199,8 @@ export async function runAutomaticSocialMetricsCollector(input: {
   try {
     for (const post of posts) {
       try {
-        const result = await collectPostMetrics(collectors[post.platform], post);
+        const collect = collectors[post.platform];
+        const result = await collectPostMetrics(collect, post);
         if (result.status === 'retryable') {
           input.log(
             `- ${platformLabel(post.platform)} ${post.id}: no metrics available yet (${result.reason}).`,
