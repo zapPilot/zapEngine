@@ -30,7 +30,7 @@ export function logPipelineEvent(
   event: string,
   details: LogDetails = {},
 ): void {
-  logEventWithContext(prefix, event, details);
+  logEventWithContext(prefix, event, details, stepLogContext.getStore());
 }
 
 export function logIngestEvent(event: string, details: LogDetails = {}): void {

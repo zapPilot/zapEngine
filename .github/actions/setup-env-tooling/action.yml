@@ -1,0 +1,38 @@
+name: Setup environment tooling
+description: >-
+  Install the destination CLIs the environment rails call and authenticate the
+  Infisical machine identity. Run `./.github/actions/setup-workspace` first so
+  the global npm installs land on the workspace Node version.
+
+runs:
+  using: composite
+  steps:
+    # Every rail reads from Infisical and writes to (or reads from) Fly, EAS,
+    # and Vercel. A missing credential has to fail here rather than surface as a
+    # per-destination NOT_CHECKABLE that reads like a clean audit.
+    - name: Validate required credentials
+      shell: bash
+      run: |
+        missing=0
+        for name in EXPO_TOKEN FLY_API_TOKEN VERCEL_TOKEN \
+          INFISICAL_UNIVERSAL_AUTH_CLIENT_ID INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET \
+          INFISICAL_PROJECT_ID; do
+          if [ -z "${!name}" ]; then
+            echo "$name is not configured" >&2
+            missing=1
+          fi
+        done
+        exit "$missing"
+
+    - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1 / 1.6
+
+    - name: Install destination CLIs
+      shell: bash
+      run: npm install --global @infisical/cli@0.43.125 vercel@54.21.1
+
+    - name: Authenticate Infisical machine identity
+      shell: bash
+      run: |
+        token="$(infisical login --method=universal-auth --silent --plain)"
+        echo "::add-mask::$token"
+        echo "INFISICAL_TOKEN=$token" >> "$GITHUB_ENV"

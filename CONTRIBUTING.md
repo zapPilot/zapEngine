@@ -65,7 +65,9 @@ Pre-commit keeps checks fast: frozen-lockfile installation, repository drift che
 3. Put non-secret values in `config/env/dev.env` and/or `prod.env`. Put secret
    values only in the matching Infisical environment. Bundler-prefixed names
    are generated projections and are never source keys.
-4. Use `pnpm env:sync --target <destination>` to review deployment drift.
+4. Review the deployment diff with `pnpm env:sync --target <destination>`. The
+   dry run writes nothing; merging to `main` is what applies it, including
+   removals.
 5. Run:
 
 ```bash

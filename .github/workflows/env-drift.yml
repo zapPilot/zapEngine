@@ -1,8 +1,10 @@
 name: Environment drift
 
+# Audit only. Pushes to main are covered by env-apply, which verifies the fleet
+# right after it writes; running this at the same time would race that apply and
+# report drift the apply was in the middle of fixing. What is left here is
+# drift this repository did not cause: a value changed straight on a platform.
 on:
-  push:
-    branches: [main]
   schedule:
     - cron: '17 1 * * *'
   workflow_dispatch:
@@ -10,8 +12,10 @@ on:
 permissions:
   contents: read
 
+# Shared with env-apply: auditing while a rail is writing reports drift that is
+# already being fixed.
 concurrency:
-  group: env-drift
+  group: env-rail
   cancel-in-progress: false
 
 jobs:
@@ -28,31 +32,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate required credentials
-        run: |
-          missing=0
-          for name in EXPO_TOKEN FLY_API_TOKEN VERCEL_TOKEN \
-            INFISICAL_UNIVERSAL_AUTH_CLIENT_ID INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET \
-            INFISICAL_PROJECT_ID; do
-            if [ -z "${!name}" ]; then
-              echo "$name is not configured" >&2
-              missing=1
-            fi
-          done
-          exit "$missing"
-
       - uses: ./.github/actions/setup-workspace
 
-      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1 / 1.6
-
-      - name: Install destination CLIs
-        run: npm install --global @infisical/cli@0.43.125 vercel@54.21.1
-
-      - name: Authenticate Infisical read-only identity
-        run: |
-          token="$(infisical login --method=universal-auth --silent --plain)"
-          echo "::add-mask::$token"
-          echo "INFISICAL_TOKEN=$token" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/setup-env-tooling
 
       - name: Check all environment destinations
         run: pnpm env:status
