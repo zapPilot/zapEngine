@@ -19,11 +19,16 @@ interface CostSource {
   label: string;
   costType: CostType;
   configured: boolean;
+  // Whether the configuration asks for this provider today, independent of
+  // whether its credentials are present: an unconfigured provider that is still
+  // expected is a misconfiguration, not an operator choice.
+  expected: boolean;
   pricingRateId: string | null;
   load: () => Promise<CostSnapshot>;
 }
 
 export interface CollectedCostProvider extends CostProviderResult {
+  expected: boolean;
   pricingRateId: string | null;
 }
 
@@ -53,6 +58,7 @@ export async function collectCostProviders(input: {
       label: 'OpenRouter',
       costType: 'actual',
       configured: Boolean(openRouterKey),
+      expected: true,
       pricingRateId: null,
       load: () =>
         fetchOpenRouterCostSnapshot({
@@ -67,6 +73,7 @@ export async function collectCostProviders(input: {
       label: 'DeBank',
       costType: 'list-price-equivalent',
       configured: Boolean(input.config.DEBANK_API_KEY),
+      expected: true,
       pricingRateId: debankRate?.id ?? null,
       load: () =>
         fetchDeBankCostSnapshot({
@@ -82,6 +89,7 @@ export async function collectCostProviders(input: {
       label: 'Supabase',
       costType: 'fixed',
       configured: Boolean(supabaseRate),
+      expected: true,
       pricingRateId: supabaseRate?.id ?? null,
       load: async () =>
         createFixedMonthlyCostSnapshot({
@@ -97,6 +105,7 @@ export async function collectCostProviders(input: {
           label: 'Fly.io',
           costType: 'estimated',
           configured: true,
+          expected: true,
           pricingRateId: null,
           load: () => fetchFlyRunRateSnapshot({ now }),
         }
@@ -114,6 +123,7 @@ async function loadSource(source: CostSource): Promise<CollectedCostProvider> {
       status: 'unconfigured',
       costType: source.costType,
       snapshot: null,
+      expected: source.expected,
       pricingRateId: source.pricingRateId,
       message:
         source.provider === 'debank' && source.pricingRateId === null
@@ -130,6 +140,7 @@ async function loadSource(source: CostSource): Promise<CollectedCostProvider> {
       status: 'ok',
       costType: snapshot.costType,
       snapshot,
+      expected: source.expected,
       pricingRateId: source.pricingRateId,
       message:
         source.provider === 'debank' && snapshot.accruedCostUsd === null
@@ -143,6 +154,7 @@ async function loadSource(source: CostSource): Promise<CollectedCostProvider> {
       status: 'error',
       costType: source.costType,
       snapshot: null,
+      expected: source.expected,
       pricingRateId: source.pricingRateId,
       message: safeProviderError(error),
     };
@@ -159,6 +171,7 @@ function staticUnconfiguredSource(
     label,
     costType,
     configured: false,
+    expected: false,
     pricingRateId: null,
     load: () => Promise.reject(new Error('Not connected')),
   };

@@ -3,10 +3,12 @@
 Founder decision dashboard for product health, persisted cost history, and learned social publishing guidance. It is lifecycle-independent from production daemons and pipelines.
 
 ```bash
-pnpm ops:dashboard
+infisical run --env=prod -- pnpm ops:dashboard
 ```
 
 The Vite UI listens on `127.0.0.1:4174`; its Hono API listens on `CONTROL_CENTER_PORT` (`4175` by default).
+
+Supabase service-role credentials and vendor keys live in Infisical `prod`, so every command here needs the same `infisical run` wrapper. Without it the API process refuses to start rather than serving a dashboard whose every panel reads empty.
 
 ## Cost ledger
 
@@ -47,36 +49,44 @@ A `$200` DeBank top-up therefore never makes current-month API usage appear to b
 Sync all automatic providers and persist today's snapshots:
 
 ```bash
-pnpm ops:sync
+infisical run --env=prod -- pnpm ops:sync
 ```
+
+It exits non-zero when a provider the configuration expects lands no snapshot,
+even if the others did: Supabase is a fixed-rate provider with no credential of
+its own, so a run that persisted something is not evidence that a revoked vendor
+key was noticed. Fly.io reporting `Not connected` under the default
+`FLY_COST_MODE=manual` is an operator choice, not a failure.
 
 Enable the Fly compute run-rate collector (requires `flyctl auth login` on the machine running the collector):
 
 ```bash
-FLY_COST_MODE=flyctl pnpm turbo run ops:sync --filter=@zapengine/control-center --env-mode=loose
+FLY_COST_MODE=flyctl infisical run --env=prod -- pnpm ops:sync
 ```
 
 The daily GitHub Actions workflow sets `FLY_COST_MODE=flyctl` and uses the
-official Fly CLI setup action. Local manual runs use the explicit command above.
+official Fly CLI setup action.
 
 Record a manual Fly current-month estimate instead:
 
 ```bash
-pnpm ops:cost snapshot fly 18.43
+infisical run --env=prod -- pnpm ops:cost snapshot fly 18.43
 ```
 
 Record a real invoice / charge separately:
 
 ```bash
-pnpm ops:cost transaction fly invoice 21.07 "August invoice"
-pnpm ops:cost transaction debank top_up 200 "1M API units"
+infisical run --env=prod -- pnpm ops:cost transaction fly invoice 21.07 "August invoice"
+infisical run --env=prod -- pnpm ops:cost transaction debank top_up 200 "1M API units"
 ```
 
 GitHub Actions is the sole recurring owner and runs `pnpm ops:sync` daily at
-04:30 UTC through `.github/workflows/ops-cost-sync.yml`. It requires these
-repository secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
-`DEBANK_API_KEY`, `OPENROUTER_MANAGEMENT_KEY`, and `FLY_API_TOKEN`. The Fly token
-must allow the CLI to inspect the deployed Zap Engine apps.
+04:30 UTC through `.github/workflows/ops-cost-sync.yml`. It reads vendor and
+Supabase credentials from Infisical `prod` through the same universal-auth
+identity as the environment-drift workflow, so its only repository secrets are
+`INFISICAL_UNIVERSAL_AUTH_CLIENT_ID`, `INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET`,
+`INFISICAL_PROJECT_ID`, and `FLY_API_TOKEN`. The Fly token must allow the CLI to
+inspect the deployed Zap Engine apps.
 
 For recovery, inspect the failed workflow step and provider summary, correct
 the affected credential or provider outage, then use **Run workflow**. Confirm

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "dev": {
+      "passThroughEnv": [
+        "$TURBO_EXTENDS$",
+        "CONTROL_CENTER_PORT",
+        "CONTROL_CENTER_CACHE_TTL_MS",
+        "SUPABASE_URL",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "SUPABASE_DB_SCHEMA",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_MANAGEMENT_KEY",
+        "OPENROUTER_BASE_URL",
+        "DEBANK_API_KEY",
+        "DEBANK_BASE_URL",
+        "FLY_COST_MODE",
+        "FLY_API_TOKEN",
+        "SENTRY_CONTROL_CENTER_DSN"
+      ]
+    },
+    "ops:sync": {
+      "passThroughEnv": [
+        "SUPABASE_URL",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "SUPABASE_DB_SCHEMA",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_MANAGEMENT_KEY",
+        "OPENROUTER_BASE_URL",
+        "DEBANK_API_KEY",
+        "DEBANK_BASE_URL",
+        "FLY_COST_MODE",
+        "FLY_API_TOKEN"
+      ]
+    }
+  }
+}

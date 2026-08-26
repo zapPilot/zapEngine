@@ -11,6 +11,7 @@ export interface CostSyncSummaryItem {
   provider: string;
   label: string;
   status: 'persisted' | 'skipped' | 'error';
+  expected: boolean;
   accruedCostUsd: number | null;
   message: string | null;
 }
@@ -57,6 +58,7 @@ export async function syncCosts(input: {
         provider: result.provider,
         label: result.label,
         status: result.status === 'error' ? 'error' : 'skipped',
+        expected: result.expected,
         accruedCostUsd: null,
         message: result.message,
       });
@@ -69,6 +71,7 @@ export async function syncCosts(input: {
         provider: result.provider,
         label: result.label,
         status: 'persisted',
+        expected: result.expected,
         accruedCostUsd: snapshot.accruedCostUsd,
         message:
           result.provider === 'fly' && flyCarryForward
@@ -80,6 +83,7 @@ export async function syncCosts(input: {
         provider: result.provider,
         label: result.label,
         status: 'error',
+        expected: result.expected,
         accruedCostUsd: snapshot.accruedCostUsd,
         message: 'Snapshot persistence failed',
       });
@@ -87,6 +91,18 @@ export async function syncCosts(input: {
   }
 
   return { syncedAt: now.toISOString(), persisted, providers };
+}
+
+// `persisted` alone cannot express success: Supabase is a fixed-rate provider
+// with no credential of its own, so it lands a snapshot even when every vendor
+// key is gone. Only the expected-but-absent set separates a revoked key from
+// Fly.io deliberately sitting in manual mode.
+export function degradedProviders(
+  summary: CostSyncSummary,
+): CostSyncSummaryItem[] {
+  return summary.providers.filter(
+    (provider) => provider.expected && provider.status !== 'persisted',
+  );
 }
 
 function carryForwardFlyEstimate(
