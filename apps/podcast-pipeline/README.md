@@ -200,8 +200,8 @@ Provision the API token once, at the 20-year maximum, then store it in Infisical
 
 ```bash
 fly tokens create deploy --expiry 175200h --name pipeline-render-on-demand -a from-fed-to-chain-api
-# paste into Infisical prod as PIPELINE_FLY_API_TOKEN, then:
-pnpm env:sync --target podcast-pipeline --apply
+# paste into Infisical prod as PIPELINE_FLY_API_TOKEN, then put it on Fly:
+gh workflow run env-apply.yml -f target=podcast-pipeline
 ```
 
 `--name` keeps this token distinguishable in `fly tokens list` from the deploy tokens CI uses; without it every row reads `flyctl deploy token` and none can be rotated or revoked with confidence. Expiry is the failure mode that costs money rather than raising an error, so this token is deliberately the longest-lived credential in the deployment.

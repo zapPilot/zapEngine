@@ -14,6 +14,13 @@ git add apps/landing-page/src/data/strategy-snapshot.json
 pnpm lint repo
 pnpm lint dead-env
 
+# Merging main applies config/env to production, so a manifest that cannot pass
+# its own offline audit must not reach a PR. Diff-scoped because this is the
+# only class of staged change the audit can fail on.
+if git diff --cached --name-only | grep -qE '^config/env(/|\.)'; then
+  pnpm env:status --offline
+fi
+
 pnpm lint-staged
 
 printf '\n✅ Pre-commit passed (CI runs the full gate)\n'

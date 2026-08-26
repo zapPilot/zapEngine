@@ -4,6 +4,11 @@
  * Human-maintained files and deployment stores use these unprefixed names.
  * Public bundler prefixes are projections only; server and host values retain
  * their canonical names.
+ *
+ * Merging a change here to `main` applies this file to every deployment store
+ * through the Environment apply workflow (`env:sync --apply --prune`), so a key
+ * dropped from a target here is unset in production. Review the dry run in the
+ * pull request rather than after the merge.
  */
 
 const client = (targets, projections, options = {}) => ({
