@@ -29,13 +29,14 @@ database URLs.
 - analytics-engine emits pytest-cov Cobertura at `coverage.xml`; the aggregator
   also accepts `htmlcov/coverage.xml` as a fallback.
 
-A complete sweep contains 12 workspaces:
+A complete sweep contains 13 workspaces:
 
 ```text
 apps/account-engine
 apps/alpha-etl
 apps/analytics-engine
 apps/app
+apps/control-center
 apps/desktop
 apps/landing-page
 apps/podcast-pipeline
@@ -50,7 +51,7 @@ After a full run, verify completeness with:
 
 ```bash
 pnpm exec tsx scripts/coverage-summary.ts
-jq '.workspaces | length' coverage/summary.json # 12
+jq '.workspaces | length' coverage/summary.json # 13
 ```
 
 ## CI behavior
@@ -67,7 +68,7 @@ pnpm exec tsx scripts/coverage-summary.ts
 
 The first command validates the aggregation and regression scripts. The Turbo
 run enforces the absolute workspace floors below. The final command creates the
-12-workspace aggregate. CI uploads `coverage/summary.json` for 30 days and
+13-workspace aggregate. CI uploads `coverage/summary.json` for 30 days and
 per-workspace HTML reports for seven days.
 
 `scripts/coverage-regression.ts` is not part of the CI job. Baseline drift alone
@@ -82,6 +83,7 @@ comparison is useful.
 | `apps/alpha-etl`         | 92         | 92       | 92        | 92    |
 | `apps/analytics-engine`  | —          | —        | —         | 95    |
 | `apps/app`               | 57         | 61       | 60        | 58    |
+| `apps/control-center`    | 51         | 40       | 50        | 52    |
 | `apps/desktop`           | 85         | 80       | 85        | 85    |
 | `apps/landing-page`      | 50         | 45       | 55        | 50    |
 | `apps/podcast-pipeline`  | 91         | 80       | 92        | 92    |
@@ -104,9 +106,8 @@ comparison is useful.
   80/75/80/80.
 - `packages/design-tokens` reports coverage for aggregation but has no absolute
   floor.
-- `apps/control-center` runs `test:coverage` but currently emits no
-  `json-summary` report and has no floor, so it is absent from the aggregate.
-  Its coverage contract is tracked separately from this 12-workspace state.
+- `apps/control-center` floors are the integer lower bounds of its initial
+  measured baseline (51.58/40.97/50.00/52.15).
 
 Update this table whenever a workspace threshold changes. Ratchet floors upward
 only after sustained coverage improvements; do not lower them to conceal a

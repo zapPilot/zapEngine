@@ -42,8 +42,8 @@ Failed: @zapengine/<workspace>#test:coverage
 
 then the failing layer is that configured workspace's `vitest.config.ts` or
 pytest threshold, not the baseline regression gate. `packages/design-tokens`
-has no absolute floor. `apps/control-center` currently has neither a floor nor
-a JSON summary reporter and is absent from the 12-workspace aggregate.
+has no absolute floor. The aggregate contains 13 workspaces, including
+`apps/control-center`.
 
 ## Core principle — fix coverage without hiding the blast radius
 
