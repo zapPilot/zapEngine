@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const posthogMocks = vi.hoisted(() => ({
   init: vi.fn(),
 }));
+const sentryMocks = vi.hoisted(() => ({ init: vi.fn() }));
+
+vi.mock('@sentry/nextjs', () => ({ init: sentryMocks.init }));
 
 vi.mock('posthog-js', () => ({
   default: { init: posthogMocks.init },
@@ -14,6 +17,7 @@ describe('PostHog client instrumentation', () => {
     vi.clearAllMocks();
     vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', undefined);
     vi.stubEnv('NEXT_PUBLIC_POSTHOG_HOST', undefined);
+    vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', undefined);
   });
 
   afterEach(() => {
@@ -24,6 +28,19 @@ describe('PostHog client instrumentation', () => {
     await import('../instrumentation-client');
 
     expect(posthogMocks.init).not.toHaveBeenCalled();
+    expect(sentryMocks.init).not.toHaveBeenCalled();
+  });
+
+  it('initializes error-only Sentry reporting when configured', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', ' https://example.test/5 ');
+
+    await import('../instrumentation-client');
+
+    expect(sentryMocks.init).toHaveBeenCalledWith({
+      dsn: 'https://example.test/5',
+      release: undefined,
+      sendDefaultPii: false,
+    });
   });
 
   it('tracks client-side navigations and keeps replay off', async () => {

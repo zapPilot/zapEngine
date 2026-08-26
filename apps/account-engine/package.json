@@ -32,6 +32,7 @@
     "@hono/node-server": "catalog:",
     "@hono/zod-validator": "^0.7.4",
     "@privy-io/node": "^0.21.0",
+    "@sentry/node": "^10.70.0",
     "@supabase/supabase-js": "catalog:",
     "@zapengine/intent-engine": "workspace:*",
     "@zapengine/types": "workspace:*",

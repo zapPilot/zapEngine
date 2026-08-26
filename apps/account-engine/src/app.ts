@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { routePath } from 'hono/route';
 
 import { getErrorStatus, HttpStatus, toErrorResponse } from './common/http';
 import { Logger } from './common/logger';
@@ -12,6 +13,7 @@ import {
   stopServices,
 } from './container';
 import { createPlanOrchestrationRoutes } from './modules/plan-orchestration';
+import { captureServerException } from './observability/sentry';
 import { createEtlRoutes } from './routes/etl';
 import { createHealthRoutes, type ReleaseMetadataEnv } from './routes/health';
 import { createJobsRoutes } from './routes/jobs';
@@ -21,6 +23,8 @@ import { createUsersRoutes } from './routes/users';
 import { createWalletExecutionRoutes } from './routes/wallet-execution';
 
 const logger = new Logger('Bootstrap');
+
+const SERVER_ERROR_THRESHOLD: number = HttpStatus.INTERNAL_SERVER_ERROR;
 
 export function createApp(
   services: AppServices,
@@ -56,9 +60,18 @@ export function createApp(
     ),
   );
 
-  app.onError((error, c) =>
-    jsonResponse(c, toErrorResponse(c.req.path, error), getErrorStatus(error)),
-  );
+  app.onError((error, c) => {
+    const status = getErrorStatus(error);
+
+    if (status >= SERVER_ERROR_THRESHOLD) {
+      captureServerException(error, {
+        method: c.req.method,
+        route: routePath(c),
+      });
+    }
+
+    return jsonResponse(c, toErrorResponse(c.req.path, error), status);
+  });
 
   return app;
 }

@@ -212,6 +212,7 @@ class Settings(BaseSettings):
         alias="NODE_ENV",
         description="Host-provided runtime environment",
     )
+    sentry_analytics_engine_dsn: str = Field(default="")
 
     # CORS settings
     allowed_origins: str | list[str] = Field(

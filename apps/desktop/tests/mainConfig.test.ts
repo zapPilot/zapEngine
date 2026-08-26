@@ -5,6 +5,7 @@ import { buildMainEnvSource } from '../src/main/config';
 const DEFAULTS = {
   VITE_ACCOUNT_API_URL: 'https://account.prod.example',
   VITE_ANALYTICS_ENGINE_URL: 'https://analytics.prod.example',
+  VITE_SENTRY_DSN: '',
 };
 
 describe('buildMainEnvSource', () => {
@@ -55,6 +56,15 @@ describe('buildMainEnvSource', () => {
     });
     expect(source['VITE_ANALYTICS_ENGINE_URL']).toBe('http://localhost:9001');
     expect(source['MODE']).toBe('development');
+  });
+
+  it('projects the canonical desktop Sentry DSN for app-core consumers', () => {
+    const source = buildMainEnvSource({
+      env: { SENTRY_DESKTOP_DSN: 'https://public@sentry.example/1' },
+      defaults: DEFAULTS,
+      isPackaged: true,
+    });
+    expect(source['VITE_SENTRY_DSN']).toBe('https://public@sentry.example/1');
   });
 
   it('ignores empty canonical env values', () => {

@@ -66,6 +66,13 @@ describe('Android store identity', () => {
     ]);
   });
 
+  it('configures Sentry native support without source-map uploads', () => {
+    expect(appConfig.plugins).toContainEqual([
+      '@sentry/react-native/expo',
+      { disableAutoUpload: true },
+    ]);
+  });
+
   it('lists expo-audio before expo-video so the background-audio Info.plist mod wins', () => {
     // @expo/config-plugins runs each mod chain in REVERSE registration order:
     // the plugin listed FIRST runs LAST and owns the final value. expo-video

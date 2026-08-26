@@ -5,14 +5,14 @@
   "license": "UNLICENSED",
   "type": "module",
   "description": "Alpha data ETL pipeline",
-  "main": "dist/app.js",
+  "main": "dist/main.js",
   "files": [
     "dist"
   ],
   "scripts": {
     "build": "tsc",
-    "start": "node dist/app.js",
-    "dev": "tsx watch src/app.ts",
+    "start": "node dist/main.js",
+    "dev": "tsx watch src/main.ts",
     "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"scripts/**/*.ts\"",
     "test": "vitest run",
@@ -36,6 +36,7 @@
   ],
   "author": "",
   "dependencies": {
+    "@sentry/node": "^10.70.0",
     "@zapengine/types": "workspace:*",
     "cors": "^2.8.5",
     "dotenv": "catalog:",

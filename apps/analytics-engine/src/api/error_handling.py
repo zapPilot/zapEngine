@@ -5,6 +5,8 @@ from typing import Any
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from src.core.sentry import capture_server_exception
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,6 +50,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
             "exception_type": type(exc).__name__,
         },
     )
+    capture_server_exception(exc, request)
 
     try:
         request_id = getattr(request.state, "request_id", None)

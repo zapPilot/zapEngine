@@ -1,8 +1,11 @@
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
+import { routePath } from 'hono/route';
 
 import type { SocialPerformanceResponse } from '../shared/types.js';
 import type { ControlCenterConfig } from './config/env.js';
+import { captureServerException } from './observability/sentry.js';
 import { createOverviewService } from './services/overview.js';
 
 const WINDOWS: SocialPerformanceResponse['window'][] = [
@@ -32,6 +35,10 @@ export function createControlCenterApp(input: {
       const summary = await service.syncCosts();
       return context.json(summary);
     } catch (error) {
+      captureServerException(error, {
+        method: context.req.method,
+        route: routePath(context),
+      });
       return context.json(
         {
           error:
@@ -51,6 +58,19 @@ export function createControlCenterApp(input: {
       ? (requested as SocialPerformanceResponse['window'])
       : 'latest';
     return context.json(await service.getSocial(window));
+  });
+
+  app.onError((error, context) => {
+    const status = error instanceof HTTPException ? error.status : 500;
+    if (status >= 500) {
+      captureServerException(error, {
+        method: context.req.method,
+        route: routePath(context),
+      });
+    }
+    return error instanceof HTTPException
+      ? error.getResponse()
+      : context.text('Internal Server Error', 500);
   });
 
   if (input.serveClient !== false) {

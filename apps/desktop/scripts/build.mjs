@@ -17,7 +17,7 @@ const shared = {
 
 await build({
   ...shared,
-  entryPoints: ['src/main/main.ts'],
+  entryPoints: ['src/main/entry.ts'],
   outfile: 'dist/main/main.cjs',
 });
 

@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@next/third-parties": "^15.3.4",
+    "@sentry/nextjs": "^10.70.0",
     "@zapengine/brand-assets": "workspace:*",
     "@zapengine/types": "workspace:*",
     "fumadocs-core": "^15.8.5",

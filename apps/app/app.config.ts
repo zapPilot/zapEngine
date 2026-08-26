@@ -79,6 +79,12 @@ const config: ExpoConfig = {
   plugins: [
     './scripts/with-app-store-icon.cjs',
     [
+      '@sentry/react-native/expo',
+      {
+        disableAutoUpload: true,
+      },
+    ],
+    [
       'expo-build-properties',
       {
         ios: {
