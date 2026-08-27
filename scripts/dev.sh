@@ -12,7 +12,10 @@ cd "$repo_root"
 # shellcheck source=scripts/dev-ports-lib.sh
 source "$repo_root/scripts/dev-ports-lib.sh"
 
-flags=(--cache=local:rw --ui=stream --no-update-notifier)
+# `scripts/env/run.mjs` is the canonical env boundary. Turbo strict mode would
+# otherwise drop server-only values (for example SUPABASE_URL) before service
+# dev tasks start, even though the runner loaded them successfully.
+flags=(--cache=local:rw --ui=stream --no-update-notifier --env-mode=loose)
 
 usage() {
   echo "usage: pnpm dev [web|app|api|landing|analytics|all|stop]" >&2
