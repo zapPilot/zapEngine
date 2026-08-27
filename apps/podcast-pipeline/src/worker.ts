@@ -1,4 +1,10 @@
+// First import on purpose: the SDK has to be initialized before the modules it
+// instruments are loaded. Without this the render process had no Sentry client
+// at all, so every failed render was invisible outside `fly logs`.
+import './observability/sentry-init.js';
+
 import { installProcessShutdown } from './lib/process-shutdown.js';
+import { flushSentry } from './observability/sentry.js';
 import { processEpisodeVideoJob } from './services/episode-video-processor.js';
 import { processEpisodeVideoVisualJob } from './services/episode-video-visual-processor.js';
 import {
@@ -57,6 +63,7 @@ export function startVideoWorkerProcess(
   const { shutdown } = installProcessShutdown(async (reason) => {
     if (liveness) clearInterval(liveness);
     await videoWorker?.stop(new Error(`Video worker stopping: ${reason}`));
+    await flushSentry();
   });
 
   // Runs right after a poll confirmed the queue was empty, so it can never

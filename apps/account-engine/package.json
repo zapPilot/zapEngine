@@ -25,6 +25,7 @@
     "deadcode": "knip --files --exports --dependencies",
     "deadcode:fix": "knip --files --exports --dependencies --fix",
     "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
+    "sentry:smoke": "tsx scripts/sentry-smoke.ts",
     "security:audit": "pnpm audit --prod --audit-level=moderate",
     "clean": "rm -rf dist coverage"
   },

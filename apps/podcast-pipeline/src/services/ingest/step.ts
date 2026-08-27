@@ -113,6 +113,10 @@ export async function step<T>(name: string, fn: () => Promise<T>): Promise<T> {
       context,
     );
     const wrapped = new Error(`[step:${name}] ${err.message}`, { cause: err });
+    // Carried as a property, not parsed back out of the message, so a failure
+    // reported to Sentry at the terminal boundary can be tagged with the step
+    // that actually failed.
+    (wrapped as { stepName?: string }).stepName = name;
     const meta = (err as { $metadata?: unknown }).$metadata;
     if (meta !== undefined) {
       (wrapped as { $metadata?: unknown }).$metadata = meta;
@@ -155,4 +159,10 @@ function contextLogFields(
 
 function formatLogValue(value: string | number | boolean): string {
   return String(value).replace(/\s+/gu, '_');
+}
+
+/** The name of the `step()` that failed, if the error came from one. */
+export function failedStepName(error: unknown): string | undefined {
+  const name = (error as { stepName?: unknown } | null)?.stepName;
+  return typeof name === 'string' ? name : undefined;
 }

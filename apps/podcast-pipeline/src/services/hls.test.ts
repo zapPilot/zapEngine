@@ -101,11 +101,14 @@ describe('generateHls', () => {
     const result = await generateHls(audio);
 
     expect(fsMocks.mkdir).toHaveBeenCalledWith(
-      '/var/folders/test-cache/hls_mock-uuid-123',
+      '/var/folders/test-cache/hls_mock-uuid-123/source',
       { recursive: true },
     );
+    // The source MP3 must not sit in the directory that gets scanned for
+    // upload: when it did, every episode also shipped a full second copy of its
+    // audio to R2 as `{prefix}/input.mp3`, which nothing reads.
     expect(fsMocks.writeFile).toHaveBeenCalledWith(
-      '/var/folders/test-cache/hls_mock-uuid-123/input.mp3',
+      '/var/folders/test-cache/hls_mock-uuid-123/source/input.mp3',
       audio,
     );
     expect(fsMocks.readdir).toHaveBeenCalledWith(

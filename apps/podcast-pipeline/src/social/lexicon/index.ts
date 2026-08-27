@@ -1,6 +1,8 @@
 import { convertTextToZhCN, convertTextToZhTW } from '../../services/opencc.js';
 import { AD_LAW_TERMS } from './ad-law.js';
+import { ASSET_ALLOCATION_TERMS } from './asset-allocation.js';
 import { FINANCE_TERMS } from './finance.js';
+import { MARKET_TIMING_TERMS } from './market-timing.js';
 import { POLITICAL_TERMS } from './political.js';
 
 /**
@@ -16,11 +18,23 @@ import { POLITICAL_TERMS } from './political.js';
  *   this gate's.
  * - Prefer terms of three characters or more. Matching is a substring scan, so a
  *   two-character fragment collides with ordinary sentences (保本 inside
- *   「確保本次」).
+ *   「確保本次」). ./asset-allocation.ts and ./market-timing.ts each carry a
+ *   handful of deliberate two-character exceptions and say why in place.
  * - Only grow the lists from real review feedback. A false positive fails copy
  *   generation outright, which is more expensive than one risky post.
+ *
+ * These lists are the precision half of the gate. They catch wording that can
+ * only be an instruction; the framing a term list cannot express — political
+ * motive presented as market causation, a prediction stated more strongly than
+ * its source — is judged by ../rednote-semantic-risk.ts instead. Neither layer
+ * is a topic blacklist.
  */
-export type SensitiveCategory = 'ad_law' | 'finance' | 'political';
+export type SensitiveCategory =
+  | 'ad_law'
+  | 'finance'
+  | 'asset_allocation'
+  | 'market_timing'
+  | 'political';
 
 export interface SensitiveMatch {
   term: string;
@@ -30,6 +44,8 @@ export interface SensitiveMatch {
 const CATEGORY_LABELS: Record<SensitiveCategory, string> = {
   ad_law: 'ad-law absolute claim',
   finance: 'financial solicitation',
+  asset_allocation: 'asset-allocation instruction',
+  market_timing: 'entry-exit timing instruction',
   political: 'political sensitivity',
 };
 
@@ -46,6 +62,8 @@ function normalize(value: string): string {
 const INDEX: readonly { normalized: string; match: SensitiveMatch }[] = [
   ...indexTerms(AD_LAW_TERMS, 'ad_law'),
   ...indexTerms(FINANCE_TERMS, 'finance'),
+  ...indexTerms(ASSET_ALLOCATION_TERMS, 'asset_allocation'),
+  ...indexTerms(MARKET_TIMING_TERMS, 'market_timing'),
   ...indexTerms(POLITICAL_TERMS, 'political'),
 ];
 

@@ -326,17 +326,78 @@ full video through Playwright. The CLI warns when a video is above the general
 15-minute limit but still lets the platform make the final decision.
 
 The generated hook title goes into Rednote's **own title field**, not into the
-first line of the description. Ordering is load-bearing: the field is filled
-after the description and after the topic-suggestion panel is dismissed, because
-the SPA re-renders the form while the upload settles and silently drops a title
-written earlier. The value is then read back — a mismatch is retyped key by key,
-and a second mismatch fails the publish (`verify_title`) rather than shipping an
-untitled note, which the daemon's normal retry then regenerates.
+first line of the description. Ordering is load-bearing: the field is filled last,
+after the description, the topics and the content declaration.
 
-Hashtags remain plain text at the end of the description. Driving Rednote's real
-topic picker is a known gap: typing `#` opens a suggestion panel that keeps the
-submit button disabled, so the tags are searchable text rather than platform
-topics.
+**Reading the field back does not prove the title landed.** A write issued while
+the form is re-rendering — which is what the topic panel and the declaration
+select both cause — sets the input's DOM value without ever reaching the SPA's
+model. `inputValue()` then returns exactly what was just written, the note is
+created with `title: ""`, and nothing anywhere goes red. Notes shipped untitled
+for weeks behind that check: the request body
+(`POST webapi.rednote.com/web_api/sns/v2/note`) carried
+`"title":"","desc":"…"` while the browser showed the title in place.
+
+What does prove it is the character counter beside the field (`.count-tip`, a
+descendant of the same `.input` block, rendered as `11 / 20` and absent as a
+whole element while the model is empty): that is the SPA reading its own state.
+`writeTitle()` clears and rewrites up to three times until that counter exists
+and reads above zero, and fails the publish (`fill_title`) if the model never
+agrees. A `fill_title` failure is fatal to the whole release cohort and exits the
+daemon — it is not a soft retry.
+
+**The counter proves the model received the write; it does not tell you how the
+platform counts.** Rednote weights a half-width character at half a full-width
+one, so the live form counts `AI代理不等於公鏈繁榮？` — twelve code points — as
+`11 / 20`. `writeTitle()` originally required the counter to equal
+`Array.from(title).length`, which made every title carrying Latin text or digits
+fail `fill_title` forever the first time it ran against the real form. The bug
+this check exists for shows up as an _absent or zero_ counter, never as
+off-by-one, so a disagreeing count is logged (`title_count_mismatch`) rather than
+raised. Do not tighten it back to equality.
+
+The note manager is where this is visible after the fact: a titled note shows its
+title in the card, an untitled one falls back to showing the description.
+
+Hashtags are real platform topics, not text. On Rednote a literal `#標籤` in the
+body is ordinary prose with no topic page behind it, so the publisher types each
+tag into the TipTap editor, waits for the suggestion popup
+(`#creator-editor-topic-container .item`) and accepts the row whose name matches
+exactly. An accepted row becomes an `a.tiptap-topic` entity carrying the topic's
+id and link, and that entity is what the publisher verifies before moving on.
+
+Three rules make that safe:
+
+- **The query is Simplified.** Topic search is script-sensitive and the two
+  scripts are _different topics_: 「宏觀經濟」 had 8.3万 views against 「宏观经济」's
+  5.2亿 when this was measured. The copy stays Traditional; only the topic query
+  runs through OpenCC.
+- **A 「新建话题」 row is a rejection, not a candidate.** A query matching nothing
+  still gets one row offering to create the topic. Accepting it makes a brand-new
+  topic with no audience and an empty link — success-shaped and worth nothing.
+- **A skipped tag leaves no trace.** Escape closes the popup but keeps what was
+  typed, as plain text. The publisher backspaces the `#` and every character of
+  the query, so the literal-hashtag behaviour cannot come back by accident.
+
+A tag with no matching topic is skipped (`topic_not_found` in the log). If _no_
+tag matches, the publish fails at `attach_topics` rather than shipping a note
+with no topic at all. `PublishResult.hashtags` reports the tags that actually
+attached, and telemetry records those — otherwise the strategy learner credits a
+tag that was never on the note.
+
+Every note also declares itself as AI-synthesized. Rednote's 社區公約 2.0 asks a
+creator to mark AI involvement, and every episode here is an LLM-written script
+over synthesized narration, so the publisher opens the 「添加内容类型声明」 select,
+picks 「笔记含AI合成内容」, and confirms the resulting `.d-select-description`
+before continuing. It fails the publish (`declare_ai_content`) rather than
+logging and moving on: the declaration is a claim only this step can make, and a
+skipped one is invisible afterwards. This is a compliance step, not a content
+filter — AI as a _subject_ is never a risk (see the moderation gate below).
+
+`submit-disabled` on `<xhs-publish-btn>` tracks the upload settling rather than
+the editor: it reads `true` for a while after the transfer finishes and there is
+nothing the publisher can do to hurry it. Waiting for `false` before submitting
+is still what prevents a no-op publish.
 
 ## Platform publishing policy
 
@@ -366,12 +427,12 @@ accidentally reintroduce the review-triggering website promotion.
 `src/social/compose.ts` owns the whole mapping from one generated copy to what a
 platform receives:
 
-| Platform | Title field           | Body                               | Hashtags |
-| -------- | --------------------- | ---------------------------------- | -------- |
-| X        | none                  | `short.text` + localized brand CTA | none     |
-| Threads  | none                  | `short.text` + localized brand CTA | none     |
-| Rednote  | `rednote.title`       | `rednote.body`, no CTA             | 3-5      |
-| YouTube  | episode title (≤ 100) | episode summary (≤4500)            | none     |
+| Platform | Title field           | Body                               | Hashtags   |
+| -------- | --------------------- | ---------------------------------- | ---------- |
+| X        | none                  | `short.text` + localized brand CTA | none       |
+| Threads  | none                  | `short.text` + localized brand CTA | none       |
+| Rednote  | `rednote.title`       | `rednote.body`, no CTA             | 3-5 topics |
+| YouTube  | episode title (≤ 100) | episode summary (≤4500)            | none       |
 
 The copy generator requests only the blocks needed by the language batch. A
 YouTube-only batch still performs one LLM call for `topic`/`hookType`, but its
@@ -435,6 +496,51 @@ because matching is a substring scan, and grow the lists only from real review
 feedback. A false positive fails copy generation outright, which costs more than
 one risky post. Suppressing a topic that merely underperforms belongs to the
 strategy learner, not here.
+
+#### The two layers, and why the second one exists
+
+Solicitation wording was only half the problem. Three notes ended at zero views
+in August 2026, and the two that were actually removed broke rules no term list
+had: one quoted an investor's 「低配債券、超配黃金」, the other framed itself around
+「退場節奏」. Neither contains a single solicitation term. The third — an AI and
+workplace note — breaks no rule at all, and is pinned as a passing fixture so
+the response to a zero is never "add `AI` to the blacklist".
+
+Four red lines, with stable ids, now cover that gap. They live in one file,
+`prompts/social/rednote-risk-rules.md`, which is appended to the writer's Rednote
+block **and** read by the judge, so the two cannot drift:
+
+| Rule                             | What it forbids                                                         |
+| -------------------------------- | ----------------------------------------------------------------------- |
+| `asset_allocation_advice`        | how much of an asset to hold — including attributed to a named investor |
+| `market_timing_advice`           | when to enter, exit, take profit or cut a loss                          |
+| `political_market_speculation`   | a political motive presented as the established cause of a market move  |
+| `strong_prediction_unattributed` | a prediction stated more strongly, or less attributed, than its source  |
+
+The first two are lexical, so `lexicon/asset-allocation.ts` and
+`lexicon/market-timing.ts` catch them at both existing gate points for free. The
+lists are narrower than they look: `加碼` is absent because 「央行加碼寬鬆」 is
+ordinary macro reporting here, and `建倉`/`平倉`/`增持`/`減持` are absent because
+they are the mechanics an explainer has to name.
+
+The last two are framing, not vocabulary, so `rednote-semantic-risk.ts` judges
+them with one extra LLM call per attempt, inside the existing three-attempt loop
+in `copy.ts` — a verdict of risk becomes the next attempt's retry reason, so the
+model rewrites the note rather than the release failing. The judge also sees the
+episode, because `strong_prediction_unattributed` can only be decided against the
+source. It returns all four ids, so it doubles as the recall net for a phrasing
+the term lists miss (「債券可以少一點、黃金多一點」).
+
+The judge is **fail-closed**: a transport failure or an unreadable verdict throws
+too, distinguished by `reason: 'unavailable'` rather than `'risk'`. A gate that
+fails open is the exact failure this whole section exists to prevent, and the
+daemon already turns a copy-generation failure into a loud fatal with a Telegram
+notice. The cost is real: a persistently broken judge stops Chinese releases
+until someone looks.
+
+The judge does not run on the hand-edited copy file (`cli.ts`), which is covered
+by the term lists and the `publishers.ts` last mile only. An operator editing the
+copy by hand is making a deliberate choice; the automated writer is not.
 
 ### Text ending
 

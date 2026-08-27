@@ -4,6 +4,8 @@ import { pathToFileURL } from 'node:url';
 
 import { net, protocol } from 'electron';
 
+import { captureDesktopException } from './sentry';
+
 export const APP_SCHEME = 'app';
 export const APP_HOST = 'bundle';
 export const APP_START_URL = `${APP_SCHEME}://${APP_HOST}/`;
@@ -91,6 +93,15 @@ export function registerAppProtocolHandler(webRoot: string): void {
     const { pathname } = new URL(request.url);
     const resolved = resolveWebAsset(webRoot, pathname);
     if ('status' in resolved) {
+      captureDesktopException(
+        new Error(`app:// asset request failed with ${resolved.status}`),
+        {
+          component: 'asset-protocol',
+          tags: { 'asset.status': String(resolved.status) },
+          context: { pathname },
+          level: 'error',
+        },
+      );
       return new Response(null, { status: resolved.status });
     }
     return net.fetch(pathToFileURL(resolved.filePath).toString());

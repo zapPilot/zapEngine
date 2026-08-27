@@ -3,6 +3,7 @@ import { ServiceLayerException } from '../../common/exceptions';
 import { HttpStatus } from '../../common/http';
 import { Logger } from '../../common/logger';
 import { getErrorMessage } from '../../common/utils';
+import { captureBackgroundException } from '../../observability/sentry';
 import { AdminNotificationService } from '../notifications/admin-notification.service';
 import {
   Job,
@@ -218,6 +219,17 @@ export class JobProcessorService {
     const error = `No processor registered for job type: ${job.type}. Available types: ${availableTypes}`;
     this.logger.error(error);
 
+    captureBackgroundException(new Error(error), {
+      component: 'job',
+      tags: {
+        job_type: job.type,
+        job_status: JobStatus.FAILED,
+        reason: 'no_processor',
+      },
+      context: { jobId: job.id, availableTypes },
+      level: 'error',
+    });
+
     this.jobQueueService.failJob(job.id, error);
     this.jobQueueService.logJobEvent(job.id, LogLevel.ERROR, error);
 
@@ -265,6 +277,20 @@ export class JobProcessorService {
     const nextAttempt = job.retryCount + 1;
     const shouldRetry = this.shouldRetry(error, nextAttempt, job.maxRetries);
     const errorMessage = error.message || 'Unknown error';
+
+    captureBackgroundException(error, {
+      component: 'job',
+      tags: {
+        job_type: job.type,
+        job_status: shouldRetry ? JobStatus.PENDING : JobStatus.FAILED,
+      },
+      context: {
+        jobId: job.id,
+        retryCount: job.retryCount,
+        maxRetries: job.maxRetries,
+      },
+      level: shouldRetry ? 'warning' : 'error',
+    });
 
     if (shouldRetry) {
       this.scheduleRetry(job, errorMessage, nextAttempt);
@@ -336,6 +362,15 @@ export class JobProcessorService {
           'Failed to send admin notification',
           getErrorMessage(err),
         );
+        // The job failure itself was already captured as 'error' by
+        // handleJobFailure — this is a distinct failure (the notification
+        // attempt), so 'warning' here, not a duplicate 'error' report.
+        captureBackgroundException(err, {
+          component: 'job-notification',
+          tags: { job_type: job.type },
+          context: { jobId: job.id },
+          level: 'warning',
+        });
       }
     })();
   }

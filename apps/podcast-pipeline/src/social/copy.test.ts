@@ -12,16 +12,28 @@ vi.mock('../services/llm.js', async (importOriginal) => ({
   getOpenRouterConfig: llmMocks.getOpenRouterConfig,
 }));
 
+// Only the judge's LLM call is stubbed; `readRednoteRiskRules` stays real so the
+// assertions below prove the red-line rules actually reach the writer's prompt.
+// The judge itself is covered by ./rednote-semantic-risk.test.ts.
+const riskMocks = vi.hoisted(() => ({ assertRednoteSemanticRisk: vi.fn() }));
+
+vi.mock('./rednote-semantic-risk.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./rednote-semantic-risk.js')>()),
+  assertRednoteSemanticRisk: riskMocks.assertRednoteSemanticRisk,
+}));
+
 import {
   generateSocialCopy,
   latinLetterRatio,
   parseGeneratedSocialCopy,
   weightedTweetLength,
 } from './copy.js';
+import { RednoteSemanticRiskError } from './rednote-semantic-risk.js';
 import type { GeneratedSocialCopy } from './types.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  riskMocks.assertRednoteSemanticRisk.mockResolvedValue(undefined);
   llmMocks.getOpenRouterConfig.mockReturnValue({
     openai: llmMocks.openai,
     model: 'deepseek/deepseek-v4-flash',
@@ -143,6 +155,9 @@ describe('generateSocialCopy', () => {
     );
     expect(retryRequest?.messages[0]?.content).toContain(
       'Never disguise restricted content with misspellings, homophones, emoji substitutions or coded wording to evade moderation.',
+    );
+    expect(retryRequest?.messages[0]?.content).toContain(
+      'R1 `asset_allocation_advice`',
     );
     expect(retryRequest?.messages[0]?.content).toContain(
       'Allowed topic values: macro, btc, eth, defi, stablecoin, traditional_finance, portfolio, market_event, technology.',
@@ -361,6 +376,73 @@ describe('generateSocialCopy', () => {
     expect(retryRequest?.messages.at(-1)?.content).toContain(
       'rednote.body: Rednote copy must not contain moderation-risk wording',
     );
+  });
+
+  it('retries a semantic red-line verdict with the rule id in the reason', async () => {
+    llmMocks.createOpenRouterChatCompletion
+      .mockResolvedValueOnce(socialCompletion(socialCopyJson('第一版文案')))
+      .mockResolvedValueOnce(socialCompletion(socialCopyJson('修正版文案')));
+    riskMocks.assertRednoteSemanticRisk.mockRejectedValueOnce(
+      new RednoteSemanticRiskError({
+        reason: 'risk',
+        rules: ['market_timing_advice'],
+        message:
+          'Rednote copy breaks investment-direction red lines (market_timing_advice — "退場節奏" (tells the reader when to exit)).',
+      }),
+    );
+
+    await expect(
+      generateSocialCopy({
+        episode: {
+          id: '123e4567-e89b-12d3-a456-426614174000',
+          title: 'Episode title',
+          summary: 'Episode summary',
+          transcript: 'Episode transcript',
+          publishedAt: '2026-08-12T00:00:00.000Z',
+          episodeUrl: 'https://example.com/e/episode',
+          videoDurationSeconds: 180,
+          languageCode: 'zh-Hant',
+          videoUrl: 'https://example.com/video.mp4',
+        },
+      }),
+    ).resolves.toMatchObject({ copy: { short: { text: '修正版文案' } } });
+
+    expect(riskMocks.assertRednoteSemanticRisk).toHaveBeenCalledTimes(2);
+    const retryRequest =
+      llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1];
+    expect(retryRequest?.messages.at(-1)?.content).toContain(
+      'market_timing_advice',
+    );
+  });
+
+  it('never judges a non-Chinese batch, which has no Rednote block', async () => {
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValueOnce(
+      socialCompletion(
+        JSON.stringify({
+          topic: 'macro',
+          hookType: 'question',
+          short: { text: 'Is the rate turn real? The episode breaks it down.' },
+        }),
+      ),
+    );
+
+    await generateSocialCopy({
+      languageCode: 'en',
+      platforms: ['x'],
+      episode: {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        title: 'Episode title',
+        summary: 'Episode summary',
+        transcript: 'Episode transcript',
+        publishedAt: '2026-08-12T00:00:00.000Z',
+        episodeUrl: 'https://example.com/e/episode',
+        videoDurationSeconds: 180,
+        languageCode: 'en',
+        videoUrl: 'https://example.com/video.mp4',
+      },
+    });
+
+    expect(riskMocks.assertRednoteSemanticRisk).not.toHaveBeenCalled();
   });
 });
 

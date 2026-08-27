@@ -1,5 +1,6 @@
 'use client';
 
+import * as Sentry from '@sentry/nextjs';
 import { useEffect, useRef, useState } from 'react';
 import type { DailySnapshot, TrackRecordMeta } from '@zapengine/types/strategy';
 import type { PerformanceSummary } from '@/data/track-record-accessor';
@@ -224,6 +225,12 @@ async function loadTrackRecord(): Promise<StateUpdate> {
 
     return () => toLoadedState(loaded, verification);
   } catch (err) {
+    // Terminal boundary for the whole meta -> IPFS -> history -> compute ->
+    // signature chain: nothing here retries, so any failure collapses straight
+    // to the empty state the UI renders from `error`. Report it once per load
+    // rather than per consumer — `inflight` above already dedupes concurrent
+    // mounts onto one `loadTrackRecord()` call.
+    Sentry.captureException(err, { tags: { component: 'track-record' } });
     return (previous) => ({
       ...previous,
       isLoading: false,

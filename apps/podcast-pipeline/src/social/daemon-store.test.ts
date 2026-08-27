@@ -656,6 +656,29 @@ describe('social daemon store', () => {
     );
   });
 
+  // A publish that dies mid-cohort leaves its own lane `processing` under a live
+  // 60-minute lease. Asserted on the query filter rather than on returned rows:
+  // the in-memory reduce already treats every non-completed status as pending,
+  // so a status missing from the filter never reaches it and no fixture of rows
+  // can expose the gap.
+  it('counts a lane still processing as pending work', async () => {
+    queue({
+      data: [
+        { episode_id: 'episode-crashed', status: 'completed' },
+        { episode_id: 'episode-crashed', status: 'processing' },
+      ],
+      error: null,
+    });
+
+    await expect(listPartiallyPublishedCohorts()).resolves.toEqual([
+      'episode-crashed',
+    ]);
+    expect(mocks.calls.filter((call) => call.method === 'in')).toContainEqual({
+      method: 'in',
+      args: ['status', ['queued', 'processing', 'failed', 'completed']],
+    });
+  });
+
   it('releases an untouched lane back to queued without applying retry backoff', async () => {
     const now = new Date('2026-08-16T10:05:00Z');
     queue({ data: { id: 'job-1' }, error: null });

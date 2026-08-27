@@ -10,8 +10,12 @@ const mocks = vi.hoisted(() => ({
   ),
   failure: vi.fn((_error: unknown, url: string) => `failed:${url}`),
   summary: vi.fn(() => ({ total: 1 })),
+  capture: vi.fn(),
 }));
 
+vi.mock('../observability/sentry.js', () => ({
+  capturePipelineException: mocks.capture,
+}));
 vi.mock('./post-ingest.js', () => ({
   performMultilingualIngestAndEnqueueVideo: mocks.perform,
 }));
@@ -75,6 +79,52 @@ describe('Telegram ingest queue', () => {
         { replyMarkup: { inline_keyboard: [['retry']] } },
       ),
     );
+  });
+
+  it('reports a terminal ingest failure to Sentry exactly once', async () => {
+    // Nothing rethrows past the queue's catch, so this is the only path that can
+    // turn a failed episode into a Sentry event — an HTTP-only reporter sees
+    // none of it.
+    const error = Object.assign(
+      new Error('[step:uploadMainHlsToR2] write EPIPE'),
+      {
+        stepName: 'uploadMainHlsToR2',
+      },
+    );
+    mocks.perform.mockRejectedValueOnce(error);
+    const queue = createTelegramIngestQueue();
+    queue.enqueue('chat-1', 'https://example.test/sentry', 'zh-Hant');
+
+    await vi.waitFor(() => expect(mocks.capture).toHaveBeenCalledTimes(1));
+    expect(mocks.capture).toHaveBeenCalledWith(error, {
+      component: 'ingest',
+      tags: {
+        entrypoint: 'telegram',
+        step: 'uploadMainHlsToR2',
+        language: 'zh-Hant',
+      },
+      context: {
+        url: 'https://example.test/sentry',
+        sourceHost: 'example.test',
+      },
+    });
+    // The submitter's chat id is never sent to Sentry.
+    expect(JSON.stringify(mocks.capture.mock.calls)).not.toContain('chat-1');
+    await vi.waitFor(() => expect(mocks.failure).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not report a successful ingest', async () => {
+    mocks.perform.mockResolvedValueOnce({
+      ingest: ingestResult(),
+      videoJob: { status: 'queued' },
+    });
+    const queue = createTelegramIngestQueue();
+    queue.enqueue('chat-1', 'https://example.test/ok', 'zh-Hant');
+
+    await vi.waitFor(() =>
+      expect(mocks.send).toHaveBeenCalledWith('chat-1', 'ready:queued'),
+    );
+    expect(mocks.capture).not.toHaveBeenCalled();
   });
 
   it('coalesces duplicate URLs and sends completion to the latest chat', async () => {

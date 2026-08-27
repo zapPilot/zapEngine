@@ -1,8 +1,14 @@
+import '../observability/sentry-init.js';
+
 import { hostname } from 'node:os';
 
 import { getAllowedTelegramUserIds } from '../lib/env.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import { sleep as defaultSleep } from '../lib/sleep.js';
+import {
+  capturePipelineException,
+  flushSentry,
+} from '../observability/sentry.js';
 import {
   insertSocialPostMetric,
   listSocialPostIdentitiesByEpisodes,
@@ -951,6 +957,11 @@ async function isolate(
     await task();
   } catch (error) {
     log(`❌ [social-daemon] ${label} failed · ${errorMessage(error)}`);
+    capturePipelineException(error, {
+      component: 'social-daemon',
+      tags: { operation: label },
+      level: 'warning',
+    });
   }
 }
 
@@ -1112,8 +1123,16 @@ if (isMainModule(import.meta.url)) {
     await runSocialDaemon();
   } catch (error) {
     console.error(buildFatalReport(error));
+    capturePipelineException(error, {
+      component: 'social-daemon',
+      tags: {
+        operation:
+          error instanceof SocialReleaseFailureError ? error.phase : 'fatal',
+      },
+    });
     await notifyFatalFailure(error);
     lock.release();
+    await flushSentry();
     process.exit(1);
   }
 }

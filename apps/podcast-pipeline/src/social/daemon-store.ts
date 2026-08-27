@@ -672,7 +672,12 @@ export async function listPartiallyPublishedCohorts(): Promise<string[]> {
   const { data, error } = await getPipelineSupabase()
     .from('social_publish_jobs')
     .select('episode_id,status')
-    .in('status', ['queued', 'failed', 'completed'])
+    // `processing` belongs here: a publish that died mid-cohort leaves its lane
+    // `processing` under a live 60-minute lease, and omitting that status made
+    // the half-released cohort invisible to this fence for the whole hour --
+    // long enough for the next episode's slot to come due and start releasing
+    // ahead of it. Every non-completed status is pending work by definition.
+    .in('status', ['queued', 'processing', 'failed', 'completed'])
     .returns<{ episode_id: string; status: SocialPublishJobRow['status'] }[]>();
   if (error) throwSupabaseError(error);
 

@@ -1,3 +1,11 @@
+const sentryMocks = vi.hoisted(() => ({
+  captureBackgroundException: vi.fn(),
+}));
+
+vi.mock('../../../../src/observability/sentry', () => ({
+  captureBackgroundException: sentryMocks.captureBackgroundException,
+}));
+
 import { JOB_CONFIG } from '../../../../src/common/constants';
 import {
   JobStatus,
@@ -488,6 +496,7 @@ describe('JobQueueService', () => {
 
       // Job should be cleaned up
       expect(service.getJob(job.id)).toBeNull();
+      expect(sentryMocks.captureBackgroundException).not.toHaveBeenCalled();
       service.stop();
     });
 
@@ -509,6 +518,19 @@ describe('JobQueueService', () => {
       const recovered = service.getJob(job.id);
       expect(recovered?.status).toBe(JobStatus.FAILED);
       expect(recovered?.errorMessage).toContain('TTL');
+      expect(sentryMocks.captureBackgroundException).toHaveBeenCalledTimes(1);
+      expect(sentryMocks.captureBackgroundException).toHaveBeenCalledWith(
+        expect.any(Error),
+        {
+          component: 'job-cleanup',
+          tags: { job_type: JobType.WEEKLY_REPORT_BATCH, job_status: 'failed' },
+          context: {
+            jobId: job.id,
+            nonTerminalTtlMs: JOB_CONFIG.NON_TERMINAL_TTL_MS,
+          },
+          level: 'error',
+        },
+      );
       service.stop();
     });
   });

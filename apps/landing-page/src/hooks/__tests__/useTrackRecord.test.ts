@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   verifyPerformanceMetrics: vi.fn(),
   verifySignature: vi.fn(),
   isTrackRecordMockEnabled: vi.fn(),
+  captureException: vi.fn(),
 }));
 
 vi.mock('@/data/track-record-accessor', () => ({
@@ -21,6 +22,10 @@ vi.mock('@/data/track-record-accessor', () => ({
   verifyCidChain: mocks.verifyCidChain,
   verifyPerformanceMetrics: mocks.verifyPerformanceMetrics,
   verifySignature: mocks.verifySignature,
+}));
+
+vi.mock('@sentry/nextjs', () => ({
+  captureException: mocks.captureException,
 }));
 
 vi.mock('@/data/mock-track-record', () => ({
@@ -202,8 +207,24 @@ describe('useTrackRecord', () => {
         latestSnapshot: null,
         error: message,
       });
+      expect(mocks.captureException).toHaveBeenCalledExactlyOnceWith(failure, {
+        tags: { component: 'track-record' },
+      });
     },
   );
+
+  it('reports the load failure once even when several consumers mount together', async () => {
+    mocks.fetchMeta.mockRejectedValue(new Error('metadata unavailable'));
+    const { useTrackRecord } = await import('../useTrackRecord');
+
+    const first = renderHook(() => useTrackRecord());
+    const second = renderHook(() => useTrackRecord());
+
+    await waitFor(() => expect(first.result.current.isLoading).toBe(false));
+    await waitFor(() => expect(second.result.current.isLoading).toBe(false));
+
+    expect(mocks.captureException).toHaveBeenCalledTimes(1);
+  });
 
   describe('load sharing', () => {
     beforeEach(() => {

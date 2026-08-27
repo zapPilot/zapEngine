@@ -14,6 +14,7 @@ const PRIVY_SUPPORTED_CHAINS = NATIVE_WALLET_SUPPORTED_CHAINS as NonNullable<
 >;
 
 export const AppProviders = createAppProviders({
+  requiresMobilePrivy: true,
   missingConfigTarget: 'native wallet flow',
   onReady: () => {
     void SplashScreen.hideAsync();

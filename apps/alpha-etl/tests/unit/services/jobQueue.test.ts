@@ -38,8 +38,16 @@ vi.mock('../../../src/config/database.js', async (importOriginal) => {
   };
 });
 
+// Mock Sentry observability (covers both jobQueue.ts's own call sites and
+// jobQueue.helpers.ts's persistJobStatus failure capture, since it's the
+// same module).
+vi.mock('../../../src/observability/sentry.js', () => ({
+  captureBackgroundException: vi.fn(),
+}));
+
 import { getDbClient } from '../../../src/config/database.js';
 import { portfolioRollupSynchronizer } from '../../../src/modules/core/portfolioRollupSync.js';
+import { captureBackgroundException } from '../../../src/observability/sentry.js';
 
 type PersistedJobStatus = 'pending' | 'processing' | 'completed' | 'failed';
 interface MockProcessor {
@@ -990,6 +998,170 @@ describe('ETLJobQueue', () => {
       if (result?.success) {
         expect(result.data.status).toBe('completed');
         expect(result.data).not.toHaveProperty('rollupSyncMetrics');
+      }
+    });
+  });
+
+  describe('Sentry background failure capture', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('captures exactly once with failure_mode=threw when the processor throws', async () => {
+      mockProcessor.processJob.mockImplementation(() => {
+        throw new Error('processor exploded');
+      });
+
+      await jobQueue.enqueue({
+        trigger: 'manual',
+        sources: ['hyperliquid'],
+      });
+
+      await vi.runAllTimersAsync();
+
+      expect(captureBackgroundException).toHaveBeenCalledTimes(1);
+      expect(captureBackgroundException).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.objectContaining({
+          component: 'job',
+          tags: { job_status: 'failed', failure_mode: 'threw' },
+          level: 'error',
+        }),
+      );
+    });
+
+    it('captures exactly once with failure_mode=soft and chains the rollup error as cause', async () => {
+      mockProcessor.processJob.mockResolvedValue({
+        success: true,
+        recordsProcessed: 5,
+        recordsInserted: 5,
+        errors: [],
+        sourceResults: {
+          debank: {
+            source: 'debank',
+            success: true,
+            recordsProcessed: 5,
+            recordsInserted: 5,
+            errors: [],
+          },
+        },
+      });
+
+      const rollupCause = new Error('rollup sync exploded');
+      vi.mocked(portfolioRollupSynchronizer.synchronize).mockRejectedValue(
+        rollupCause,
+      );
+
+      await jobQueue.enqueue({
+        trigger: 'manual',
+        sources: ['debank'],
+      });
+
+      await vi.runAllTimersAsync();
+
+      expect(captureBackgroundException).toHaveBeenCalledTimes(1);
+      const [capturedError, options] = vi.mocked(captureBackgroundException)
+        .mock.calls[0];
+
+      expect(options).toMatchObject({
+        component: 'job',
+        tags: { failure_mode: 'soft' },
+        level: 'error',
+      });
+      expect(capturedError).toBeInstanceOf(Error);
+      expect((capturedError as Error).cause).toBe(rollupCause);
+    });
+
+    it('captures exactly once with failure_mode=soft when the pipeline itself reports errors', async () => {
+      mockProcessor.processJob.mockResolvedValue({
+        success: false,
+        recordsProcessed: 1,
+        recordsInserted: 0,
+        errors: ['debank: API timeout'],
+        sourceResults: {},
+      });
+
+      await jobQueue.enqueue({
+        trigger: 'manual',
+        sources: ['debank'],
+      });
+
+      await vi.runAllTimersAsync();
+
+      expect(captureBackgroundException).toHaveBeenCalledTimes(1);
+      const [capturedError, options] = vi.mocked(captureBackgroundException)
+        .mock.calls[0];
+
+      expect(options).toMatchObject({
+        component: 'job',
+        tags: { failure_mode: 'soft' },
+        level: 'error',
+      });
+      expect((capturedError as Error).message).toContain('debank: API timeout');
+      expect((capturedError as Error).cause).toBeUndefined();
+    });
+
+    it('does not capture anything for a successful job', async () => {
+      mockProcessor.processJob.mockResolvedValue({
+        success: true,
+        recordsProcessed: 3,
+        recordsInserted: 3,
+        errors: [],
+        sourceResults: {},
+      });
+
+      await jobQueue.enqueue({
+        trigger: 'manual',
+        sources: ['hyperliquid'],
+      });
+
+      await vi.runAllTimersAsync();
+
+      expect(captureBackgroundException).not.toHaveBeenCalled();
+    });
+
+    it('never forwards userId or other job.metadata values into a capture payload', async () => {
+      const mockDbClient = {
+        query: vi.fn().mockResolvedValue({}),
+        release: vi.fn(),
+      };
+      vi.mocked(getDbClient).mockResolvedValue(mockDbClient as unknown);
+
+      mockProcessor.processJob.mockImplementation(() => {
+        throw new Error('processor exploded');
+      });
+
+      const secretUserId = 'secret-user-id-123';
+      const secretWallet = '0xSecretWalletAddressDoNotLeak';
+
+      await jobQueue.enqueue({
+        trigger: 'webhook',
+        sources: ['debank'],
+        metadata: {
+          jobType: 'wallet_fetch',
+          userId: secretUserId,
+          walletAddress: secretWallet,
+        },
+      });
+
+      await vi.runAllTimersAsync();
+
+      expect(captureBackgroundException).toHaveBeenCalled();
+
+      for (const call of vi.mocked(captureBackgroundException).mock.calls) {
+        const serialized = JSON.stringify(call, (_key, value) =>
+          value instanceof Error
+            ? { message: value.message, stack: value.stack }
+            : value,
+        );
+        expect(serialized).not.toContain(secretUserId);
+        expect(serialized).not.toContain(secretWallet);
+        expect(serialized).not.toContain('userId');
+        expect(serialized).not.toContain('walletAddress');
       }
     });
   });

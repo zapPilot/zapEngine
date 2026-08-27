@@ -10,9 +10,11 @@ import {
   Text,
   View,
 } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 
 import { ConnectSheetHost } from '@/components/connect/ConnectSheetHost';
 import { PodcastProgressTracker } from '@/components/podcast/PodcastProgressTracker';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ZapLogo } from '@/components/ui/ZapLogo';
 import { getExpoMobileRuntimeConfig } from '@/config/expoRuntimeConfig';
 import type { MobileRuntimeConfig } from '@/config/mobileRuntimeConfig';
@@ -26,17 +28,33 @@ import { ToastProvider } from '@/providers/ToastProvider';
 
 type PrivyRuntimeConfig = NonNullable<MobileRuntimeConfig['privy']>;
 
-interface AppProviderShellProps {
-  children: ReactNode;
-  missingConfigTarget: string;
-  onReady?: () => void;
-  renderWalletProviders: (
-    content: ReactNode,
-    privy: PrivyRuntimeConfig,
-  ) => ReactElement;
-}
+/**
+ * Only the native runtimes read Privy credentials from the Expo runtime config;
+ * web resolves its own app id through `buildAppCoreEnvSource` and never receives
+ * `PRIVY_MOBILE_CLIENT_ID` (the env manifest scopes it to the `expo` target).
+ * The discriminant makes "web waiting on mobile Privy config" unrepresentable.
+ */
+type WalletProvidersConfig =
+  | {
+      requiresMobilePrivy: true;
+      missingConfigTarget: string;
+      renderWalletProviders: (
+        content: ReactNode,
+        privy: PrivyRuntimeConfig,
+      ) => ReactElement;
+    }
+  | {
+      requiresMobilePrivy: false;
+      renderWalletProviders: (content: ReactNode) => ReactElement;
+    };
 
-type AppProvidersConfig = Omit<AppProviderShellProps, 'children'>;
+type AppProvidersConfig = {
+  onReady?: () => void;
+} & WalletProvidersConfig;
+
+type AppProviderShellProps = AppProvidersConfig & {
+  children: ReactNode;
+};
 
 function useReactQueryNativeAppFocus(): void {
   useEffect(() => {
@@ -55,29 +73,61 @@ function useReactQueryNativeAppFocus(): void {
   }, []);
 }
 
-function ConfigNoticeScreen({ target }: { target: string }): ReactElement {
+function IconNoticeScreen({
+  title,
+  body,
+  children,
+}: {
+  title: string;
+  body: string;
+  children?: ReactNode;
+}): ReactElement {
   return (
     <View className="flex-1 items-center justify-center bg-bg px-6">
       <View className="mb-5 h-14 w-14 items-center justify-center rounded-2xl border border-line bg-surface">
         <ZapLogo size={24} />
       </View>
       <Text className="text-center font-sans-semibold text-[20px] text-ink">
-        Privy config is missing
+        {title}
       </Text>
       <Text className="mt-3 text-center font-sans text-[13px] leading-5 text-ink-dim">
-        Add PRIVY_MOBILE_APP_ID and PRIVY_MOBILE_CLIENT_ID before starting the{' '}
-        {target}.
+        {body}
       </Text>
+      {children}
     </View>
   );
 }
 
-export function AppProviderShell({
-  children,
-  missingConfigTarget,
-  onReady,
-  renderWalletProviders,
-}: AppProviderShellProps): ReactElement | null {
+function ConfigNoticeScreen({ target }: { target: string }): ReactElement {
+  return (
+    <IconNoticeScreen
+      title="Privy config is missing"
+      body={`Add PRIVY_MOBILE_APP_ID and PRIVY_MOBILE_CLIENT_ID before starting the ${target}.`}
+    />
+  );
+}
+
+function CrashFallbackScreen({
+  resetError,
+}: {
+  resetError: () => void;
+}): ReactElement {
+  return (
+    <IconNoticeScreen
+      title="Something went wrong"
+      body="The app hit an unexpected error. Try again, or restart the app if it keeps happening."
+    >
+      <PrimaryButton className="mt-6" onPress={resetError}>
+        Try again
+      </PrimaryButton>
+    </IconNoticeScreen>
+  );
+}
+
+export function AppProviderShell(
+  props: AppProviderShellProps,
+): ReactElement | null {
+  const { children, onReady } = props;
   const [fontsLoaded] = useFonts(APP_FONTS);
   const runtimeConfig = getExpoMobileRuntimeConfig();
   const readyNotifiedRef = useRef(false);
@@ -92,19 +142,6 @@ export function AppProviderShell({
 
   if (!fontsLoaded) {
     return null;
-  }
-
-  if (!runtimeConfig.privy) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <ToastProvider>
-          <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
-            <StatusBar style="light" />
-            <ConfigNoticeScreen target={missingConfigTarget} />
-          </View>
-        </ToastProvider>
-      </QueryClientProvider>
-    );
   }
 
   const appContent = (
@@ -128,10 +165,51 @@ export function AppProviderShell({
     </ContentLanguageProvider>
   );
 
+  if (props.requiresMobilePrivy) {
+    const { privy } = runtimeConfig;
+
+    if (!privy) {
+      return (
+        <Sentry.ErrorBoundary
+          fallback={({ resetError }) => (
+            <CrashFallbackScreen resetError={resetError} />
+          )}
+        >
+          <QueryClientProvider client={queryClient}>
+            <ToastProvider>
+              <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
+                <StatusBar style="light" />
+                <ConfigNoticeScreen target={props.missingConfigTarget} />
+              </View>
+            </ToastProvider>
+          </QueryClientProvider>
+        </Sentry.ErrorBoundary>
+      );
+    }
+
+    return (
+      <Sentry.ErrorBoundary
+        fallback={({ resetError }) => (
+          <CrashFallbackScreen resetError={resetError} />
+        )}
+      >
+        <QueryClientProvider client={queryClient}>
+          {props.renderWalletProviders(appContent, privy)}
+        </QueryClientProvider>
+      </Sentry.ErrorBoundary>
+    );
+  }
+
   return (
-    <QueryClientProvider client={queryClient}>
-      {renderWalletProviders(appContent, runtimeConfig.privy)}
-    </QueryClientProvider>
+    <Sentry.ErrorBoundary
+      fallback={({ resetError }) => (
+        <CrashFallbackScreen resetError={resetError} />
+      )}
+    >
+      <QueryClientProvider client={queryClient}>
+        {props.renderWalletProviders(appContent)}
+      </QueryClientProvider>
+    </Sentry.ErrorBoundary>
   );
 }
 

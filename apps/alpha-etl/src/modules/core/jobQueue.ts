@@ -3,10 +3,12 @@ import type { PoolClient } from 'pg';
 
 import { TIMEOUTS } from '../../config/constants.js';
 import { getDbClient } from '../../config/database.js';
+import { captureBackgroundException } from '../../observability/sentry.js';
 import type { ETLJob, ETLJobResult } from '../../types/index.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import {
+  buildJobFailureError,
   buildPersistJobStatusQuery,
   createPendingJob,
   createSuccessResult,
@@ -53,6 +55,9 @@ interface ProcessedJobOutcome {
   totalDurationMs: number;
   rollupSyncStats?: PortfolioRollupSyncStats | undefined;
   rollupSyncError?: string | undefined;
+  // The raw error thrown by the rollup sync, kept only long enough to chain
+  // it onto the synthesized soft-fail error as `cause` (see finalizeProcessedJob).
+  rollupSyncErrorCause?: unknown;
   jobSuccess: boolean;
 }
 
@@ -184,8 +189,11 @@ export class ETLJobQueue {
     const startTime = Date.now();
     const pipelineResult = await this.processor.processJob(job);
     const etlDurationMs = Date.now() - startTime;
-    const { stats: rollupSyncStats, error: rollupSyncError } =
-      await this.synchronizePortfolioRollupsIfNeeded(job, pipelineResult);
+    const {
+      stats: rollupSyncStats,
+      error: rollupSyncError,
+      errorCause: rollupSyncErrorCause,
+    } = await this.synchronizePortfolioRollupsIfNeeded(job, pipelineResult);
     const totalDurationMs = Date.now() - startTime;
     const jobSuccess = resolveJobSuccess(job, pipelineResult, rollupSyncError);
 
@@ -195,6 +203,7 @@ export class ETLJobQueue {
       totalDurationMs,
       rollupSyncStats,
       rollupSyncError,
+      rollupSyncErrorCause,
       jobSuccess,
     };
   }
@@ -205,6 +214,7 @@ export class ETLJobQueue {
   ): Promise<{
     stats?: PortfolioRollupSyncStats;
     error?: string;
+    errorCause?: unknown;
   }> {
     // Keep wallet onboarding in "processing" until incremental caches are ready.
     const shouldSynchronize = shouldSynchronizePortfolioRollups(
@@ -255,7 +265,7 @@ export class ETLJobQueue {
         jobId: job.jobId,
         error: errorMessage,
       });
-      return { error: errorMessage };
+      return { error: errorMessage, errorCause: error };
     }
   }
 
@@ -268,6 +278,29 @@ export class ETLJobQueue {
       : 'failed';
     job.status = finalStatus;
     this.terminalAt.set(job.jobId, Date.now());
+
+    if (finalStatus === 'failed') {
+      captureBackgroundException(
+        buildJobFailureError(
+          outcome.pipelineResult,
+          outcome.rollupSyncError,
+          outcome.rollupSyncErrorCause,
+        ),
+        {
+          component: 'job',
+          tags: { failure_mode: 'soft' },
+          context: {
+            jobId: job.jobId,
+            sources: job.sources,
+            tasks: job.tasks,
+            filters: job.filters,
+            pipelineErrors: outcome.pipelineResult.errors,
+            rollupSyncError: outcome.rollupSyncError,
+          },
+          level: 'error',
+        },
+      );
+    }
 
     const jobResult = createSuccessResult(job, outcome, finalStatus);
     this.results.set(job.jobId, jobResult);
@@ -288,6 +321,13 @@ export class ETLJobQueue {
 
     job.status = 'failed';
     this.terminalAt.set(job.jobId, Date.now());
+
+    captureBackgroundException(error, {
+      component: 'job',
+      tags: { job_status: 'failed', failure_mode: 'threw' },
+      context: { jobId: job.jobId, sources: job.sources, tasks: job.tasks },
+      level: 'error',
+    });
 
     await this.persistJobStatus(job.jobId, 'failed', {
       ...job.metadata,

@@ -20,9 +20,19 @@ const release = resolveSentryRelease(
 );
 
 const options = buildDesktopSentryOptions(dsn, release);
+const enabled = options !== undefined;
 
 if (options) {
   init(options);
 }
+
+/**
+ * Whether error reporting is actually on is otherwise invisible: a missing
+ * DSN and a code path that never captures look identical from the outside —
+ * both are just an empty Sentry project.
+ */
+console.log(
+  `[sentry] ${enabled ? 'enabled' : 'disabled'} environment=${app.isPackaged ? 'production' : 'development'} release=${release ?? 'unknown'}`,
+);
 
 void import('./main');
