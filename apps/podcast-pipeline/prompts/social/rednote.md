@@ -22,6 +22,8 @@ For crypto, stablecoin, RWA, wallet or on-chain topics:
 
 If the episode is explicitly about asset prices or trading, keep that subject factual and risk-oriented rather than pretending it is a payment or technology story.
 
+The four investment-direction red lines that follow this file are hard rules, not preferences. They are the wording that has actually cost this account a post, and a note that breaks one is rejected and rewritten before it can be published.
+
 The body may sound conversational and personal, but never fabricate human experiences, trades, feelings, meetings or observations that are not supported by the episode. It is fine to say the episode整理了某個脈絡; do not pretend the author personally witnessed something.
 
 Hashtags should be specific to the episode and follow the same compliance framing. Do not add generic or high-risk financial tags just to fill space.

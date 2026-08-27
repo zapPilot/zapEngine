@@ -1,5 +1,6 @@
 import type { Locator, Page } from 'playwright-core';
 
+import { convertTextToZhCN } from '../services/opencc.js';
 import { SocialPublishError } from './publish-error.js';
 import {
   isPublisherReady,
@@ -15,19 +16,25 @@ import type {
 const EDITOR_TIMEOUT_MS = 30_000;
 const UPLOAD_TIMEOUT_MS = 600_000;
 const SUCCESS_TIMEOUT_MS = 60_000;
+const TOPIC_SUGGESTION_TIMEOUT_MS = 8_000;
+const TOPIC_TYPING_DELAY_MS = 80;
 
 // The creator UI is a Simplified-Chinese SPA whose class names are generated,
 // so each field is located by several candidates and the first visible one wins.
+// The body is a TipTap/ProseMirror instance; its `data-placeholder` lives on the
+// inner paragraph rather than on the editable element, which is why the
+// placeholder candidates only ever matched a descendant.
 const BODY_SELECTORS = [
-  '[contenteditable="true"][data-placeholder*="正文"]',
-  '[contenteditable="true"][data-placeholder*="描述"]',
+  '.tiptap.ProseMirror[contenteditable="true"]',
   '.ql-editor[contenteditable="true"]',
   '[contenteditable="true"]',
 ] as const;
 
-// Rednote's own title field. It is filled last and then read back: the SPA
-// re-renders the form while the upload settles and after the topic panel closes,
-// and a title written before that is silently dropped.
+// Rednote's own title field, filled last. Reading `inputValue()` back proves
+// nothing: a write that lands while the form is re-rendering sets the DOM value
+// without ever reaching the SPA's model, and the note is then created with
+// `title: ""` while every DOM-level check passes. The field's own character
+// counter is the SPA reading its own state, so that is what confirms the write.
 const TITLE_SELECTORS = [
   'input[placeholder*="标题"]',
   'input[placeholder*="標題"]',
@@ -38,7 +45,9 @@ const TITLE_SELECTORS = [
 // and whose buttons live in a shadow root (reopened in rednote-browser.ts). The
 // host also reports readiness: `submit-disabled` flips to "false" only when the
 // form will actually accept a submit, which is the one trustworthy enabled check
-// — the button is never `disabled`, it is only styled differently.
+// — the button is never `disabled`, it is only styled differently. It tracks the
+// upload settling, not the editor: it reads "true" for a while after the file
+// finishes transferring and there is nothing the publisher can do to hurry it.
 const PUBLISH_HOST_SELECTOR = 'xhs-publish-btn';
 const SUBMIT_ENABLED_SELECTOR = 'xhs-publish-btn[submit-disabled="false"]';
 // Exact match so it cannot hit the sidebar's "发布笔记" nav item.
@@ -48,6 +57,41 @@ const PUBLISH_BUTTON_SELECTOR = 'text="发布"';
 // submit control stays inert (styled, not `disabled`) until then — so Playwright
 // actionability cannot see it and this wait is what prevents a no-op publish.
 const UPLOAD_COMPLETE_SELECTOR = 'text="重新上传"';
+
+// Rendered as "7 / 20" beside the title input, inside the same `.input` block,
+// and absent entirely while the model holds no title.
+const TITLE_COUNTER_SELECTOR = '.count-tip';
+const TITLE_CONTAINER_SELECTOR = '.input';
+const TITLE_WRITE_ATTEMPTS = 3;
+// Counted rather than measured against the clock: the counter is rendered on a
+// framework tick, so the wait only has to outlast a render, and a fixed count
+// keeps the retry deterministic.
+const TITLE_ACCEPTED_POLLS = 12;
+const TITLE_POLL_INTERVAL_MS = 250;
+
+// Rednote's 社區公約 2.0 asks a creator to declare AI involvement, and every
+// episode here carries an LLM-written script over synthesized narration. The
+// control is a `d-select` whose options are in the DOM but hidden until the
+// placeholder is clicked; selecting one replaces the placeholder with a
+// `.d-select-description` carrying the chosen label, which is what proves it
+// stuck.
+const CONTENT_DECLARATION_SELECTOR = 'text="添加内容类型声明"';
+const AI_CONTENT_LABEL = '笔记含AI合成内容';
+const AI_CONTENT_OPTION_SELECTOR = `text="${AI_CONTENT_LABEL}"`;
+const SELECTED_DECLARATION_SELECTOR = '.d-select-description';
+
+// Typing "#" opens a topic suggestion popup rendered outside the editor. Its
+// container carries a real id, which is the one stable handle on this form.
+const TOPIC_PANEL_ROW_SELECTOR = '#creator-editor-topic-container .item';
+const TOPIC_ROW_NAME_SELECTOR = '.name';
+// A query that matches nothing still gets one row, offering to create the topic.
+// Accepting it makes a brand-new topic with no audience and an empty link, which
+// looks like success and delivers nothing — so this class is a rejection, not a
+// candidate.
+const TOPIC_ROW_NEW_TOPIC_SELECTOR = '.num.newTopic';
+// What an accepted suggestion becomes. The same anchor is mirrored into a
+// preview region outside the editor, so every read of it is scoped to the editor.
+const EDITOR_TOPIC_SELECTOR = 'a.tiptap-topic';
 
 export function createPlaywrightRednotePublisher(input?: {
   onLog?: (message: string) => void;
@@ -90,20 +134,30 @@ async function publish(
   );
 
   log('[rednote] Filling description');
-  await step('fill_body', () =>
-    body.fill(buildRednoteDescription(input.body, input.hashtags)),
-  );
+  await step('fill_body', () => body.fill(input.body.trim()));
 
-  // Typing "#" opens the topic suggestion panel, and submit stays disabled while
-  // it is open — filling the body is what disables the button.
-  await step('dismiss_suggestions', () => page.keyboard.press('Escape'));
+  const hashtags = await step('attach_topics', () =>
+    attachTopics(page, body, input.hashtags, log),
+  );
+  if (hashtags.length === 0) {
+    throw new SocialPublishError(
+      'rednote',
+      'attach_topics',
+      new Error(
+        `None of the ${input.hashtags.length} generated hashtags matched a Rednote topic, so the note would carry no topic at all.`,
+      ),
+    );
+  }
+  log(`[rednote] Topics attached: ${hashtags.length}/${input.hashtags.length}`);
+
+  await step('declare_ai_content', () => declareAiContent(page));
+  log('[rednote] Declared AI-synthesized content');
 
   log('[rednote] Filling title');
   const title = await step('find_title', () =>
     firstVisible(page, TITLE_SELECTORS, EDITOR_TIMEOUT_MS),
   );
-  await step('fill_title', () => title.fill(input.title));
-  await step('verify_title', () => verifyTitle(title, input.title));
+  await step('fill_title', () => writeTitle(title, input.title));
 
   log('[rednote] Publishing');
   await step('wait_submit_enabled', () =>
@@ -123,33 +177,224 @@ async function publish(
   return {
     status: 'published',
     publishedAt: new Date().toISOString(),
+    hashtags,
     ...(publicPostUrl(page.url()) ? { url: page.url() } : {}),
   };
 }
 
-export function buildRednoteDescription(
-  body: string,
+/**
+ * Turns each generated hashtag into a real Rednote topic entity, and returns the
+ * ones that made it onto the note.
+ *
+ * A hashtag is never written as literal `#text`: on this platform that is
+ * ordinary prose with no topic page behind it, which is what the note used to
+ * ship. A tag with no matching topic is removed from the body instead — pressing
+ * Escape leaves the typed characters in place, so backspacing them out is what
+ * keeps the fallback from reappearing by accident.
+ */
+async function attachTopics(
+  page: Page,
+  body: Locator,
   hashtags: readonly string[],
-): string {
-  const tags = hashtags.map((tag) => `#${tag.replace(/^#+/, '')}`);
-  return `${body.trim()}\n\n${tags.join(' ')}`;
+  log: (message: string) => void,
+): Promise<string[]> {
+  const attached: string[] = [];
+  for (const hashtag of hashtags) {
+    const tag = hashtag.replace(/^#+/, '').trim();
+    if (!tag) continue;
+    if (await attachTopic(page, body, tag)) {
+      attached.push(tag);
+      continue;
+    }
+    log(`[rednote] topic_not_found: ${tag}`);
+  }
+  return attached;
 }
 
-// `fill` sets the value in one shot, which this SPA sometimes discards without
-// firing an input event. Reading the field back is the only proof the title
-// landed; a retry types it key by key, and a second mismatch fails the publish
-// rather than shipping an untitled note.
-async function verifyTitle(field: Locator, expected: string): Promise<void> {
-  if ((await field.inputValue()) === expected) return;
+async function attachTopic(
+  page: Page,
+  body: Locator,
+  tag: string,
+): Promise<boolean> {
+  // Topic search is script-sensitive and the audience is on the Simplified side:
+  // 「宏觀經濟」 and 「宏观经济」 are two different topics, and the Simplified one
+  // carried 5.2亿 views against 8.3万 when this was measured. Copy stays
+  // Traditional; only the topic query is converted.
+  const query = convertTextToZhCN(tag);
+  await body.click();
+  await moveCaretToEnd(body);
+  await page.keyboard.type(`#${query}`, { delay: TOPIC_TYPING_DELAY_MS });
 
-  await field.fill('');
-  await field.pressSequentially(expected);
-  const retried = await field.inputValue();
-  if (retried === expected) return;
+  // The exact-name test has to run against the row's name element: a row's own
+  // text is the name concatenated with its view count, which no anchored
+  // pattern can match.
+  const row = page
+    .locator(TOPIC_PANEL_ROW_SELECTOR)
+    .filter({
+      has: page
+        .locator(TOPIC_ROW_NAME_SELECTOR)
+        .filter({ hasText: exactTopicName(query) }),
+    })
+    .filter({ hasNot: page.locator(TOPIC_ROW_NEW_TOPIC_SELECTOR) })
+    .first();
+
+  try {
+    await row.waitFor({
+      state: 'visible',
+      timeout: TOPIC_SUGGESTION_TIMEOUT_MS,
+    });
+    await row.click();
+  } catch {
+    await discardTypedTopic(page, query);
+    return false;
+  }
+
+  if (await editorTopics(page).then((names) => names.includes(query))) {
+    return true;
+  }
+  await discardTypedTopic(page, query);
+  return false;
+}
+
+// `hasText` is a substring match, so 「#支付」 would also select 「#支付产业链」.
+// The row renders the name with its leading "#" and nothing else.
+function exactTopicName(query: string): RegExp {
+  return new RegExp(`^#${escapeRegExp(query)}$`, 'u');
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
+// Escape closes the suggestion popup but keeps what was typed, as plain text in
+// the body. Removing it character by character is what makes a skipped tag
+// leave no trace.
+async function discardTypedTopic(page: Page, query: string): Promise<void> {
+  await page.keyboard.press('Escape');
+  // One keystroke per code point, plus the leading "#".
+  const typed = Array.from(query).length + 1;
+  for (let index = 0; index < typed; index += 1) {
+    await page.keyboard.press('Backspace');
+  }
+}
+
+/**
+ * Names of the topics currently in the editor. The same anchor is mirrored into
+ * a preview region, so this is deliberately scoped: an unscoped query reports
+ * every topic several times.
+ */
+async function editorTopics(page: Page): Promise<string[]> {
+  return page.evaluate(
+    ([editorSelector, topicSelector]) =>
+      [
+        ...document.querySelectorAll(`${editorSelector} ${topicSelector}`),
+      ].flatMap((element) => {
+        try {
+          const topic: unknown = JSON.parse(
+            element.getAttribute('data-topic') ?? '{}',
+          );
+          const name = (topic as { name?: unknown }).name;
+          return typeof name === 'string' ? [name] : [];
+        } catch {
+          return [];
+        }
+      }),
+    ['.tiptap.ProseMirror', EDITOR_TOPIC_SELECTOR] as const,
+  );
+}
+
+// Clicking the editor is what gives ProseMirror focus, but it puts the caret
+// wherever the click landed -- the middle of a multi-paragraph body. Collapsing a
+// range over the whole editable afterwards is the only placement independent of
+// the body's shape; ProseMirror picks it up from `selectionchange`.
+async function moveCaretToEnd(body: Locator): Promise<void> {
+  await body.evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    (element as HTMLElement).focus();
+  });
+}
+
+/**
+ * Declares the note as containing AI-synthesized content. It fails the publish
+ * rather than logging and moving on: the declaration is a claim about the note
+ * that only this step can make, and a skipped one is invisible afterwards --
+ * exactly the silent failure mode the rest of this publisher is built against.
+ */
+async function declareAiContent(page: Page): Promise<void> {
+  const placeholder = page.locator(CONTENT_DECLARATION_SELECTOR).first();
+  await placeholder.scrollIntoViewIfNeeded();
+  await placeholder.click();
+
+  const option = page.locator(AI_CONTENT_OPTION_SELECTOR).first();
+  await option.waitFor({ state: 'visible', timeout: EDITOR_TIMEOUT_MS });
+  await option.click();
+
+  await page
+    .locator(SELECTED_DECLARATION_SELECTOR)
+    .filter({ hasText: AI_CONTENT_LABEL })
+    .first()
+    .waitFor({ state: 'visible', timeout: EDITOR_TIMEOUT_MS });
+}
+
+/**
+ * Writes the title and confirms the SPA actually took it.
+ *
+ * A write issued just after the topic panel and the declaration select close can
+ * land on the input without reaching the model: the DOM value is set, the
+ * character counter stays at zero, and the note is created with `title: ""`.
+ * That failure is invisible to `inputValue()`, which only reads back what was
+ * just written -- which is why untitled notes shipped for weeks under a check
+ * that never went red. Clearing and rewriting fixes it, so each attempt is
+ * verified against the counter and the publish fails if the model never agrees.
+ */
+async function writeTitle(field: Locator, expected: string): Promise<void> {
+  const wanted = Array.from(expected).length;
+  for (let attempt = 1; attempt <= TITLE_WRITE_ATTEMPTS; attempt += 1) {
+    await field.click();
+    await field.fill('');
+    await field.fill(expected);
+    if (await titleAccepted(field, expected, wanted)) return;
+  }
 
   throw new Error(
-    `Rednote kept title "${retried}" instead of "${expected}" after two attempts.`,
+    `Rednote did not accept the title "${expected}" after ${TITLE_WRITE_ATTEMPTS} attempts; its own character count never reached ${wanted}.`,
   );
+}
+
+async function titleAccepted(
+  field: Locator,
+  expected: string,
+  wanted: number,
+): Promise<boolean> {
+  for (let poll = 0; poll < TITLE_ACCEPTED_POLLS; poll += 1) {
+    if (
+      (await field.inputValue()) === expected &&
+      (await countedTitleCharacters(field)) === wanted
+    ) {
+      return true;
+    }
+    await field.page().waitForTimeout(TITLE_POLL_INTERVAL_MS);
+  }
+  return false;
+}
+
+// `null` when the counter is absent, which is how the field renders an empty
+// model -- indistinguishable from "0 / 20" for this purpose, and both mean the
+// title did not arrive.
+async function countedTitleCharacters(field: Locator): Promise<number | null> {
+  const counter = await field.evaluate(
+    (element, [container, tip]) =>
+      element.closest(container)?.querySelector(tip)?.textContent ?? null,
+    [TITLE_CONTAINER_SELECTOR, TITLE_COUNTER_SELECTOR] as const,
+  );
+  // Whitespace is stripped first so the pattern stays anchored and linear.
+  const counted = /^(\d+)\/\d+$/u.exec((counter ?? '').replace(/\s/gu, ''));
+  return counted?.[1] === undefined ? null : Number(counted[1]);
 }
 
 // Publishing must be confirmed by the page, never by "click did not throw".
