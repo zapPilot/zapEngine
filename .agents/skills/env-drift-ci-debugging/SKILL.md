@@ -35,6 +35,9 @@ radius.
 - `config/env.manifest.mjs`: canonical key registry and metadata.
 - `config/env/dev.env`, `config/env/prod.env`: non-secret environment values.
 - Infisical: secret values for supported environments.
+- `.github/workflows/env-apply.yml`: canonical deployment-store writer; merges
+  apply/prune canonical env state, while secret-only rotations dispatch the same
+  workflow.
 - Root `.env`: emergency input only when an operator explicitly uses
   `--local-env`; it is not a registry or normal configuration path.
 
@@ -75,6 +78,10 @@ fixtures, not application configuration.
    - accidental source reference → fix the source code.
 3. If the env edit touched root files, follow **monorepo-ci-debugging** for
    broadened verification.
+
+Deployment propagation is owned by `.github/workflows/env-apply.yml`; use
+`pnpm env:sync --target <destination>` locally to review the dry run, not as the
+normal production writer.
 
 ## Rationalizations — STOP
 
