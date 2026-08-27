@@ -183,6 +183,26 @@ describe('buildSocialPostRecord', () => {
       videoDurationSec: 321,
     });
   });
+
+  // A generated hashtag with no matching Rednote topic is skipped rather than
+  // typed in as literal text, so the note carries fewer topics than the copy
+  // asked for. Recording the requested set would credit the learner's
+  // preferred/avoid pools with a tag that was never on the note.
+  it('records the hashtags the platform actually accepted', () => {
+    expect(
+      buildSocialPostRecord({
+        episodeId: 'episode-1',
+        platform: 'rednote',
+        result: result({ hashtags: ['總經', '利率'] }),
+        snapshot,
+        episode,
+        videoDurationSeconds: 321,
+      }),
+    ).toMatchObject({
+      hashtags: ['總經', '利率'],
+      contentFeatures: expect.objectContaining({ hashtagCount: 2 }),
+    });
+  });
 });
 
 describe('createSocialPostPersister', () => {

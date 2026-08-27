@@ -8,6 +8,7 @@ import {
   createOpenRouterChatCompletion,
   getOpenRouterConfig,
   stripJsonFence,
+  unwrapNestedJsonPayload,
 } from '../services/llm.js';
 import { convertTextToZhTW } from '../services/opencc.js';
 import {
@@ -15,6 +16,10 @@ import {
   findSensitiveTerms,
 } from './lexicon/index.js';
 import type { SocialPlatform } from './platforms.js';
+import {
+  assertRednoteSemanticRisk,
+  readRednoteRiskRules,
+} from './rednote-semantic-risk.js';
 import {
   type GeneratedSocialCopy,
   SOCIAL_HOOK_TYPES,
@@ -272,32 +277,16 @@ function addRednoteSensitiveTermIssues(
 const MAX_ATTEMPTS = 3;
 const SOCIAL_PROMPT_ROOT = new URL('../../prompts/social/', import.meta.url);
 
-// Providers behind the same model id disagree about json_object mode: some
-// answer with the requested object, others nest it as a fenced string under an
-// arbitrary key (observed: {"stable diff":"ok","text":"```json…"}).
-function unwrapNestedPayload(value: unknown): unknown {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
-  const record = value as Record<string, unknown>;
-  if ('short' in record || 'rednote' in record) return value;
-
-  for (const nested of Object.values(record)) {
-    if (typeof nested !== 'string') continue;
-    try {
-      return JSON.parse(stripJsonFence(nested.trim()));
-    } catch {
-      continue;
-    }
-  }
-  return value;
-}
-
 export function parseGeneratedSocialCopy(
   raw: string,
   languageCode: SocialLanguageCode = 'zh-Hant',
   blocks: SocialCopyBlocks = ALL_COPY_BLOCKS,
 ): GeneratedSocialCopy {
   const parsed = generatedSocialCopySchema(languageCode, blocks).parse(
-    unwrapNestedPayload(JSON.parse(stripJsonFence(raw.trim()))),
+    unwrapNestedJsonPayload(JSON.parse(stripJsonFence(raw.trim())), [
+      'short',
+      'rednote',
+    ]),
   );
   return {
     ...parsed,
@@ -325,13 +314,22 @@ export async function generateSocialCopy(input: {
   const languageCode =
     input.languageCode ?? input.episode.languageCode ?? 'zh-Hant';
   const blocks = copyBlocksForPlatforms(input.platforms ?? ['x', 'rednote']);
-  const [commonRules, shortRules, rednoteRules, languageRules] =
-    await Promise.all([
-      readPrompt('editorial.md'),
-      blocks.short ? readPrompt('x.md') : Promise.resolve(''),
-      blocks.rednote ? readPrompt('rednote.md') : Promise.resolve(''),
-      readPrompt(`language/${languageCode}.md`),
-    ]);
+  // The red-line rules are one file shared with the judge in
+  // ./rednote-semantic-risk.ts, so the writer is held to exactly what the
+  // gate checks.
+  const [
+    commonRules,
+    shortRules,
+    rednoteRules,
+    rednoteRiskRules,
+    languageRules,
+  ] = await Promise.all([
+    readPrompt('editorial.md'),
+    blocks.short ? readPrompt('x.md') : Promise.resolve(''),
+    blocks.rednote ? readPrompt('rednote.md') : Promise.resolve(''),
+    blocks.rednote ? readRednoteRiskRules() : Promise.resolve(''),
+    readPrompt(`language/${languageCode}.md`),
+  ]);
   // Social copy is published verbatim, so it runs on the pipeline's configured
   // LLM_MODEL rather than a free router that silently swaps models per request.
   const config = getOpenRouterConfig({ thinkingModel: null });
@@ -351,7 +349,7 @@ export async function generateSocialCopy(input: {
               content: buildSystemPrompt(
                 commonRules,
                 shortRules,
-                rednoteRules,
+                `${rednoteRules}\n\n${rednoteRiskRules}`,
                 languageRules,
                 languageCode,
                 blocks,
@@ -382,10 +380,19 @@ export async function generateSocialCopy(input: {
         throw new Error('OpenRouter returned empty social copy.');
       }
 
-      return {
-        copy: parseGeneratedSocialCopy(content, languageCode, blocks),
-        model: completion.model ?? config.model,
-      };
+      const copy = parseGeneratedSocialCopy(content, languageCode, blocks);
+      // The term lists ran inside the schema above. This is the framing half of
+      // the gate, and it has to be here rather than in the schema because it is
+      // an LLM call: a verdict of risk becomes the next attempt's retry reason,
+      // so the model rewrites the note instead of the release failing.
+      if (languageCode === 'zh-Hant' && copy.rednote) {
+        await assertRednoteSemanticRisk({
+          rednote: copy.rednote,
+          episode: input.episode,
+        });
+      }
+
+      return { copy, model: completion.model ?? config.model };
     } catch (error) {
       lastError = error;
       retryReason = describeValidationFailure(error);
