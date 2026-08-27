@@ -7,7 +7,7 @@ import type {
   TtsSynthesizeOptions,
 } from '../tts.js';
 import { concatMp3Buffers } from './audio-concat.js';
-import type { FishAudioTtsLanguageConfig } from './tts-config.js';
+import type { FishAudioTtsConfig } from './tts-config.js';
 
 const FISH_AUDIO_TTS_URL = 'https://api.fish.audio/v1/tts';
 const FISH_AUDIO_PRICE_USD_PER_MILLION_UTF8_BYTES = 15;
@@ -61,7 +61,7 @@ export async function synthesize(
     throw new Error('FISH_AUDIO_API_KEY is required for Fish Audio TTS');
   }
 
-  const config = getFishAudioConfig(opts);
+  const config = opts.config;
   const maxChars = getMaxCharsPerRequest();
   const requestDelayMs = getRequestDelayMs();
   const chunks = splitTextIntoChunks(text, maxChars);
@@ -150,24 +150,10 @@ export async function synthesize(
 }
 
 export function getMetadata(opts: TtsSynthesizeOptions): TtsMetadata {
-  const config = getFishAudioConfig(opts);
   return {
-    provider: 'fish-audio',
     languageCode: opts.languageCode,
-    voiceName: config.modelId,
+    voiceName: opts.config.modelId,
   };
-}
-
-function getFishAudioConfig(
-  opts: TtsSynthesizeOptions,
-): FishAudioTtsLanguageConfig {
-  if (opts.config.provider !== 'fish-audio') {
-    throw new Error(
-      `Fish Audio TTS received ${opts.config.provider} language config`,
-    );
-  }
-
-  return opts.config;
 }
 
 interface FishAudioProgressContext {
@@ -262,7 +248,7 @@ function formatDurationMs(ms: number): string {
 async function synthesizeChunkWithRetry(
   apiKey: string,
   text: string,
-  config: FishAudioTtsLanguageConfig,
+  config: FishAudioTtsConfig,
   languageCode: string,
   chunkIndex: number,
   totalChunks: number,
@@ -334,7 +320,7 @@ function classifyRetryError(
 async function fetchSingleChunk(
   apiKey: string,
   text: string,
-  config: FishAudioTtsLanguageConfig,
+  config: FishAudioTtsConfig,
   languageCode: string,
   chunkIndex: number,
   totalChunks: number,
@@ -536,7 +522,7 @@ class NonRetryableFishAudioError extends Error {
 function fetchFishAudio(
   apiKey: string,
   text: string,
-  config: FishAudioTtsLanguageConfig,
+  config: FishAudioTtsConfig,
   signal: AbortSignal,
 ): Promise<Response> {
   return fetch(FISH_AUDIO_TTS_URL, {
@@ -646,7 +632,7 @@ export function buildFishAudioCostLine(
   text: string,
   opts: TtsSynthesizeOptions,
 ): UsageCostLine {
-  const config = getFishAudioConfig(opts);
+  const config = opts.config;
   const utf8Bytes = Buffer.byteLength(text, 'utf8');
 
   return {

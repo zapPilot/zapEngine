@@ -165,10 +165,7 @@ export function auditSecretClassification(committedByEnvironment) {
     if (
       SENSITIVE_NAME.test(name) &&
       !definition.sensitive &&
-      !(
-        definition.kind === 'host' &&
-        (name.endsWith('_PATH') || name === 'GOOGLE_APPLICATION_CREDENTIALS')
-      )
+      !(definition.kind === 'host' && name.endsWith('_PATH'))
     ) {
       errors.push(`${name} looks sensitive but is classified sensitive: false`);
     }

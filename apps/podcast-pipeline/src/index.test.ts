@@ -247,14 +247,13 @@ vi.mock('./services/video-status.js', async (importOriginal) => ({
   loadEpisodeVideoGeneration: mockLoadEpisodeVideoGeneration,
 }));
 
-process.env['TTS_PROVIDER'] = 'google';
+process.env['FISH_AUDIO_REFERENCE_ID'] = 'test-fish-reference';
 
 const app = (await import('./index.js')).default;
 
 beforeEach(() => {
-  process.env['TTS_PROVIDER'] = 'google';
+  process.env['FISH_AUDIO_REFERENCE_ID'] = 'test-fish-reference';
   delete process.env['FISH_AUDIO_ENGINE'];
-  delete process.env['FISH_AUDIO_REFERENCE_ID'];
   mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(new Map());
   mockListLanguageClassroomAudioByLocalizationIds.mockResolvedValue(new Map());
   mockLoadEpisodeVideoGeneration.mockResolvedValue(null);
@@ -920,8 +919,8 @@ describe('POST /ingest pipeline', () => {
           'https://cdn.example.com/episodes/00000000-0000-4000-8000-000000000001/localizations/zh-Hant/main/playlist.m3u8',
         r2Prefix:
           'episodes/00000000-0000-4000-8000-000000000001/localizations/zh-Hant/main',
-        ttsLanguageCode: 'cmn-TW',
-        ttsVoiceName: 'cmn-TW-Wavenet-A',
+        ttsLanguageCode: 'zh-Hant',
+        ttsVoiceName: 'test-fish-reference',
       }),
     );
     expect(mockGenerateLanguageClassroomsWithLLM).toHaveBeenCalledWith(
@@ -1270,8 +1269,8 @@ describe('POST /ingest pipeline', () => {
     expect(body.summary).not.toContain('Breakdown');
   });
 
-  it('persists code-owned Google TTS metadata even when TTS env overrides are present', async () => {
-    vi.stubEnv('TTS_ZH_HANT_PROVIDER', 'fish-audio');
+  it('persists Fish Audio metadata even when the retired TTS_PROVIDER env is set', async () => {
+    vi.stubEnv('TTS_PROVIDER', 'google');
 
     const response = await app.request('/ingest', {
       method: 'POST',
@@ -1287,8 +1286,8 @@ describe('POST /ingest pipeline', () => {
       localizationRow().id,
       'completed',
       expect.objectContaining({
-        ttsLanguageCode: 'cmn-TW',
-        ttsVoiceName: 'cmn-TW-Wavenet-A',
+        ttsLanguageCode: 'zh-Hant',
+        ttsVoiceName: 'test-fish-reference',
       }),
     );
   });
@@ -2532,14 +2531,9 @@ function configureFreshTelegramIngest(): void {
           {
             category: 'translate',
             label: `Translation ${targetLanguageCode}`,
-            provider: 'google',
-            model: 'nmt',
+            provider: 'openrouter',
+            model: 'openrouter/free',
             costUsd: 0.0001,
-            usage: {
-              unit: 'characters',
-              quantity: 5,
-              unitPriceUsd: 0.00002,
-            },
           },
         ],
       }),

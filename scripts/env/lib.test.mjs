@@ -48,9 +48,6 @@ test('validateEnv applies capability-specific requirements', () => {
       'FISH_AUDIO_API_KEY is required for podcast-pipeline:fish-audio',
     ),
   );
-  assert.ok(
-    errors.includes('TTS_PROVIDER is required for podcast-pipeline:base'),
-  );
 });
 
 test('manifest never projects server or host values to a client bundle', async () => {

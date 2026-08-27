@@ -23,7 +23,7 @@ Focused guards:
 - `apps/app/tests/podcastSections.test.ts`
 - `apps/app/tests/podcastPlaybackTransitions.test.ts`
 
-For translation provider fallback/cost behavior, use `podcast-translation-fallback-testing` instead.
+For translation provider validation and retry behavior, use `podcast-translation-testing` instead.
 
 ## Core principle
 

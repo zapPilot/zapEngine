@@ -229,10 +229,9 @@ describe('translate cost category', () => {
       {
         category: 'translate' as const,
         label: 'Translation ja',
-        provider: 'google',
-        model: 'nmt',
+        provider: 'openrouter',
+        model: 'openrouter/free',
         costUsd: 0.0123,
-        usage: { unit: 'characters', quantity: 615, unitPriceUsd: 0.00002 },
       },
     ]);
 

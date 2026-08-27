@@ -1,12 +1,12 @@
 # Podcast Pipeline
 
-Hono API service for From Fed to Chain. Turns article URLs into multilingual podcast episodes: scrape, OpenRouter LLM script generation, OpenRouter-first translation with Google Cloud Translation fallback, hybrid Text-to-Speech, FFmpeg HLS, Cloudflare R2 upload, and Supabase metadata.
+Hono API service for From Fed to Chain. Turns article URLs into multilingual podcast episodes: scrape, OpenRouter LLM script generation, OpenRouter `openrouter/free` translation, Fish Audio Text-to-Speech, FFmpeg HLS, Cloudflare R2 upload, and Supabase metadata.
 
 ## Stack
 
 - Hono on Node.js - TypeScript
 - OpenRouter-compatible LLM API
-- Fish Audio Text-to-Speech, with Google TTS as an explicit manual alternative
+- Fish Audio Text-to-Speech
 - FFmpeg HLS packaging
 - Cloudflare R2 (S3-compatible storage)
 - Supabase PostgreSQL
@@ -28,15 +28,15 @@ already knowing that language's localization id.
 
 Runtime keys are registered in root `config/env.manifest.mjs`. Non-secret values
 live in `config/env/dev.env` and `config/env/prod.env`; secrets live in Infisical.
-Required for full ingest: `OPENROUTER_API_KEY`, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, `INGEST_ADMIN_TOKEN`, and an explicit `TTS_PROVIDER`. Production-quality audio uses `TTS_PROVIDER=fish-audio` with `FISH_AUDIO_API_KEY` and `FISH_AUDIO_REFERENCE_ID`; Google credentials are needed only when deliberately setting `TTS_PROVIDER=google`. Script generation and language-classroom generation use `LLM_MODEL` via OpenRouter. Title/script translation uses OpenRouter first via `TRANSLATION_LLM_MODEL=openrouter/free`; Google Cloud Translation API v2 remains the fallback when `GOOGLE_TRANSLATE_API_KEY` is configured.
+Required for full ingest: `OPENROUTER_API_KEY`, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, `INGEST_ADMIN_TOKEN`, `FISH_AUDIO_API_KEY`, and `FISH_AUDIO_REFERENCE_ID`. Fish Audio is the only TTS provider. Script generation and language-classroom generation use `LLM_MODEL` via OpenRouter. Title/script translation always uses OpenRouter's code-owned `openrouter/free` router; there is no secondary translation provider or paid fallback.
 
-TTS provider selection is code-owned in `src/services/tts/tts-config.ts` and applies to both main and classroom audio for all languages (`zh-Hant`, `ja`, `en`). Missing, unknown, or incomplete Fish Audio configuration fails ingest instead of silently falling back to Google. Changing providers is an explicit env change and deploy.
+Fish Audio configuration is code-owned in `src/services/tts/tts-config.ts` and applies to both main and classroom audio for all languages (`zh-Hant`, `ja`, `en`). There is no provider switch: a missing or blank `FISH_AUDIO_REFERENCE_ID` fails ingest instead of degrading to another voice. `FISH_AUDIO_ENGINE` overrides only the Fish Audio engine and defaults to `s2-pro`.
 
 Telegram trigger support is optional. Use `PIPELINE_TELEGRAM_BOT_TOKEN`, `PIPELINE_TELEGRAM_WEBHOOK_SECRET`, and `PIPELINE_TELEGRAM_ALLOWED_USER_IDS` for this service so it does not collide with account-engine's Telegram bot settings.
 
 `PIPELINE_FLY_API_TOKEN` is the one setting behind the render machine stopping when idle and being started again (see [Deployment](#on-demand-render-machines)). It is an Infisical prod secret synced to Fly like every other one. It stays unset in normal local development: without `FLY_APP_NAME` the API process reports that there is no render machine to manage and skips the reconciler.
 
-`OPENROUTER_TIMEOUT_MS` limits each OpenRouter request and defaults to `120000` milliseconds. Invalid or empty values use that default; SDK-level retries stay disabled so a stuck provider request is still killed by the timeout, but the script-generation and language-classroom LLM steps each retry once on a transient failure (timeout/429/5xx) before failing the run, and a resubmission still resumes from the latest committed ingest stage.
+`OPENROUTER_TIMEOUT_MS` limits each OpenRouter request and defaults to `120000` milliseconds. Invalid or empty values use that default; SDK-level retries stay disabled so a stuck provider request is still killed by the timeout, but the script-generation, language-classroom, and translation steps each retry once on a transient failure (timeout/429/5xx) before failing the run, and a resubmission still resumes from the latest committed ingest stage. Translation additionally retries a response that arrived but is unusable (malformed JSON, a missing or blank field, model chatter), re-prompting with the rejection reason — at `temperature: 0` an identical resend would only reproduce the same output.
 
 That deadline only helps if the request itself is bounded, so every OpenRouter call sends `provider: { sort: 'throughput', require_parameters: true }` at the top level of the body. Without it OpenRouter load-balances on price, and the cheapest endpoints for a slug can be fp4-quantized or degraded ones that never answer inside the deadline — which means changing `LLM_MODEL` to a different snapshot silently moves the workload onto a different provider pool. `require_parameters` additionally keeps the request off endpoints that would accept but ignore `response_format` or `reasoning`.
 

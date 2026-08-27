@@ -5,12 +5,14 @@ const mocks = vi.hoisted(() => ({
   getOpenRouterConfig: vi.fn(),
 }));
 
-const mockFetch = vi.fn();
 const mockOpenai = {};
 
-vi.stubGlobal('fetch', mockFetch);
-
-vi.mock('./llm.js', () => mocks);
+// Partial mock: the request helpers are stubbed, but the shared OpenRouter
+// retry policy is the real one so translation cannot drift away from it.
+vi.mock('./llm.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./llm.js')>()),
+  ...mocks,
+}));
 
 import { translateCanonicalScript, translateChineseText } from './translate.js';
 
@@ -18,18 +20,20 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.useRealTimers();
   vi.clearAllMocks();
-  mockFetch.mockReset();
 });
 
 describe('translateChineseText', () => {
   beforeEach(() => {
-    vi.stubEnv('GOOGLE_TRANSLATE_API_KEY', 'test-google-translate-key');
-    mockOpenRouterConfig();
+    mocks.getOpenRouterConfig.mockReturnValue({
+      openai: mockOpenai,
+      model: 'openrouter/free',
+      thinkingModel: null,
+    });
     mockOpenRouterCompletion(JSON.stringify({ text: 'Translated text' }));
   });
 
-  it('translates Chinese text through OpenRouter and reports one cost line', async () => {
-    const result = await translateChineseText('滑鼠和腳踏車市場', 'en');
+  it('uses the code-owned openrouter/free model', async () => {
+    await translateChineseText('滑鼠和腳踏車市場', 'en');
 
     expect(mocks.getOpenRouterConfig).toHaveBeenCalledWith({
       model: 'openrouter/free',
@@ -44,121 +48,20 @@ describe('translateChineseText', () => {
       }),
       null,
     );
-    expect(mockFetch).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      text: 'Translated text',
-      cost: [
-        {
-          category: 'translate',
-          label: 'Translation en',
-          provider: 'OpenRouter',
-          model: 'openrouter/free',
-          costUsd: 0.00003,
-        },
-      ],
-    });
   });
 
-  it('uses TRANSLATION_LLM_MODEL when provided', async () => {
+  it('ignores the removed TRANSLATION_LLM_MODEL env override', async () => {
     vi.stubEnv('TRANSLATION_LLM_MODEL', 'openrouter/custom-free');
-    mockOpenRouterConfig('openrouter/custom-free');
 
     await translateChineseText('滑鼠和腳踏車市場', 'en');
 
     expect(mocks.getOpenRouterConfig).toHaveBeenCalledWith({
-      model: 'openrouter/custom-free',
+      model: 'openrouter/free',
       thinkingModel: null,
     });
   });
 
-  it('falls back to Google Translate when OpenRouter fails', async () => {
-    mocks.createOpenRouterChatCompletion.mockRejectedValueOnce(
-      new Error('OpenRouter timeout'),
-    );
-    mockGoogleTranslation('Google translated text');
-
-    const result = await translateChineseText('滑鼠和腳踏車市場', 'en');
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      'https://translation.googleapis.com/language/translate/v2?key=test-google-translate-key',
-      expect.objectContaining({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          q: '滑鼠和腳踏車市場',
-          source: 'zh-TW',
-          target: 'en',
-          format: 'text',
-        }),
-      }),
-    );
-    expect(result).toEqual({
-      text: 'Google translated text',
-      cost: [
-        {
-          category: 'translate',
-          label: 'Translation en',
-          provider: 'google',
-          model: 'translate-api',
-          costUsd: 0.00016,
-        },
-      ],
-    });
-  });
-
-  it('falls back to Google Translate when OpenRouter returns invalid JSON', async () => {
-    mockOpenRouterCompletion('Translated text');
-    mockGoogleTranslation('Google translated text');
-
-    const result = await translateChineseText('滑鼠和腳踏車市場', 'en');
-
-    expect(result.text).toBe('Google translated text');
-    expect(result.cost[0]?.provider).toBe('google');
-  });
-
-  it('falls back to Google Translate when OpenRouter returns empty content', async () => {
-    mockOpenRouterCompletion('   ');
-    mockGoogleTranslation('Google translated text');
-
-    const result = await translateChineseText('滑鼠和腳踏車市場', 'en');
-
-    expect(result.text).toBe('Google translated text');
-    expect(result.cost[0]?.provider).toBe('google');
-  });
-
-  it('falls back to Google Translate when OpenRouter omits the translated text field', async () => {
-    mockOpenRouterCompletion(JSON.stringify({ title: 'Wrong field' }));
-    mockGoogleTranslation('Google translated text');
-
-    const result = await translateChineseText('滑鼠和腳踏車市場', 'en');
-
-    expect(result.text).toBe('Google translated text');
-    expect(result.cost[0]?.provider).toBe('google');
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it.each([
-    ['non-object JSON', JSON.stringify(['Translated text'])],
-    ['empty translated field', JSON.stringify({ text: '   ' })],
-  ])('falls back to Google for %s from OpenRouter', async (_label, content) => {
-    mockOpenRouterCompletion(content);
-    mockGoogleTranslation('Google translated text');
-
-    const result = await translateChineseText('滑鼠和腳踏車市場', 'en');
-    expect(result.text).toBe('Google translated text');
-    expect(result.cost[0]?.provider).toBe('google');
-  });
-
-  it('falls back when OpenRouter returns no completion choice', async () => {
-    mocks.createOpenRouterChatCompletion.mockResolvedValueOnce({ choices: [] });
-    mockGoogleTranslation('Google translated text');
-
-    await expect(
-      translateChineseText('滑鼠和腳踏車市場', 'en'),
-    ).resolves.toMatchObject({ text: 'Google translated text' });
-  });
-
-  it('uses configured model and zero-cost defaults when completion metadata is absent', async () => {
+  it('falls back to the code-owned model and zero cost when completion metadata is absent', async () => {
     mocks.createOpenRouterChatCompletion.mockResolvedValueOnce({
       choices: [
         { message: { content: JSON.stringify({ text: 'Translated text' }) } },
@@ -183,142 +86,164 @@ describe('translateChineseText', () => {
     });
   });
 
-  it('preserves empty text without calling any API', async () => {
-    const result = await translateChineseText('', 'ja');
-
-    expect(mocks.getOpenRouterConfig).not.toHaveBeenCalled();
-    expect(mocks.createOpenRouterChatCompletion).not.toHaveBeenCalled();
-    expect(mockFetch).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      text: '',
+  it('returns OpenRouter cost metadata', async () => {
+    await expect(
+      translateChineseText('滑鼠和腳踏車市場', 'en'),
+    ).resolves.toEqual({
+      text: 'Translated text',
       cost: [
         {
           category: 'translate',
-          label: 'Translation ja',
-          provider: 'google',
-          model: 'translate-api',
-          costUsd: 0,
+          label: 'Translation en',
+          provider: 'OpenRouter',
+          model: 'openrouter/free',
+          costUsd: 0.00003,
         },
       ],
     });
   });
 
-  it('throws when OpenRouter is unavailable and GOOGLE_TRANSLATE_API_KEY is missing', async () => {
-    mocks.getOpenRouterConfig.mockImplementationOnce(() => {
-      throw new Error('OPENROUTER_API_KEY not set');
+  it('preserves empty input without calling OpenRouter', async () => {
+    await expect(translateChineseText('', 'ja')).resolves.toEqual({
+      text: '',
+      cost: [],
     });
-    vi.stubEnv('GOOGLE_TRANSLATE_API_KEY', '');
+    expect(mocks.getOpenRouterConfig).not.toHaveBeenCalled();
+    expect(mocks.createOpenRouterChatCompletion).not.toHaveBeenCalled();
+  });
 
-    await expect(
-      translateChineseText('滑鼠和腳踏車市場', 'en'),
-    ).rejects.toThrow(
-      'Missing required environment variable: GOOGLE_TRANSLATE_API_KEY',
+  it.each([
+    ['invalid JSON', 'not-json'],
+    ['non-object JSON', JSON.stringify(['Translated text'])],
+    ['missing field', JSON.stringify({ title: 'Wrong field' })],
+    ['blank field', JSON.stringify({ text: '   ' })],
+    [
+      'model chatter',
+      JSON.stringify({ text: 'Here is the translation: translated text' }),
+    ],
+  ])('retries once for %s and then succeeds', async (_label, badContent) => {
+    vi.useFakeTimers();
+    mocks.createOpenRouterChatCompletion
+      .mockResolvedValueOnce(completion(badContent, 0.00001))
+      .mockResolvedValueOnce(
+        completion(JSON.stringify({ text: 'Retried translation' }), 0.00002),
+      );
+
+    const promise = translateChineseText('滑鼠和腳踏車市場', 'en');
+    await vi.advanceTimersByTimeAsync(500);
+
+    await expect(promise).resolves.toEqual({
+      text: 'Retried translation',
+      cost: [
+        expect.objectContaining({ costUsd: 0.00001 }),
+        expect.objectContaining({ costUsd: 0.00002 }),
+      ],
+    });
+    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends the rejection reason with the retried request', async () => {
+    vi.useFakeTimers();
+    mocks.createOpenRouterChatCompletion
+      .mockResolvedValueOnce(
+        completion(
+          JSON.stringify({ text: 'Here is the translation: translated text' }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        completion(JSON.stringify({ text: 'Retried translation' })),
+      );
+
+    const promise = translateChineseText('滑鼠和腳踏車市場', 'en');
+    await vi.advanceTimersByTimeAsync(500);
+    await promise;
+
+    const [, firstRequest] =
+      mocks.createOpenRouterChatCompletion.mock.calls[0] ?? [];
+    const [, retriedRequest] =
+      mocks.createOpenRouterChatCompletion.mock.calls[1] ?? [];
+    expect(firstRequest.messages[1].content).not.toContain(
+      'Correction required',
+    );
+    expect(retriedRequest.messages[1].content).toContain('Correction required');
+    expect(retriedRequest.messages[1].content).toContain(
+      'OpenRouter translation returned explanatory text',
     );
   });
 
-  it('throws immediately on non-retryable Google fallback errors', async () => {
-    mocks.getOpenRouterConfig.mockImplementationOnce(() => {
-      throw new Error('OPENROUTER_API_KEY not set');
-    });
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      text: async () => 'Invalid request',
-    });
-
-    await expect(
-      translateChineseText('滑鼠和腳踏車市場', 'en'),
-    ).rejects.toThrow('Google Translate API error: 400 - Invalid request');
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it('throws when Google fallback returns no translated text for non-empty input', async () => {
-    mocks.getOpenRouterConfig.mockImplementationOnce(() => {
-      throw new Error('OPENROUTER_API_KEY not set');
-    });
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        data: {
-          translations: [{}],
-        },
-      }),
-    });
-
-    await expect(
-      translateChineseText('滑鼠和腳踏車市場', 'en'),
-    ).rejects.toThrow('Google Translate API returned empty translation');
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it('throws a domain error when Google fallback omits translations', async () => {
-    mocks.getOpenRouterConfig.mockImplementationOnce(() => {
-      throw new Error('OPENROUTER_API_KEY not set');
-    });
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ data: {} }),
-    });
-
-    await expect(
-      translateChineseText('滑鼠和腳踏車市場', 'en'),
-    ).rejects.toThrow('Google Translate API returned empty translation');
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it('retries Google fallback on 429 then succeeds', async () => {
+  it('does not add a correction preamble when the provider itself failed', async () => {
     vi.useFakeTimers();
-    mocks.getOpenRouterConfig.mockImplementationOnce(() => {
-      throw new Error('OPENROUTER_API_KEY not set');
-    });
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 429,
-        text: async () => 'Rate limited',
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          data: {
-            translations: [{ translatedText: 'Retried translation' }],
-          },
-        }),
-      });
+    mocks.createOpenRouterChatCompletion
+      .mockRejectedValueOnce({ status: 503 })
+      .mockResolvedValueOnce(
+        completion(JSON.stringify({ text: 'Retried translation' })),
+      );
 
     const promise = translateChineseText('滑鼠和腳踏車市場', 'en');
-    await vi.advanceTimersByTimeAsync(1000);
-    const result = await promise;
+    await vi.advanceTimersByTimeAsync(500);
+    await promise;
 
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(result.text).toBe('Retried translation');
+    const [, retriedRequest] =
+      mocks.createOpenRouterChatCompletion.mock.calls[1] ?? [];
+    expect(retriedRequest.messages[1].content).not.toContain(
+      'Correction required',
+    );
   });
 
-  it('retries Google fallback up to MAX_RETRIES on 500 then throws', async () => {
+  it.each([
+    ['rate limit', { status: 429 }],
+    ['server error', { status: 503 }],
+    ['timeout', Object.assign(new Error('timeout'), { name: 'TimeoutError' })],
+  ])('retries once for %s provider failure', async (_label, error) => {
     vi.useFakeTimers();
-    mocks.getOpenRouterConfig.mockImplementationOnce(() => {
-      throw new Error('OPENROUTER_API_KEY not set');
+    mocks.createOpenRouterChatCompletion
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce(
+        completion(JSON.stringify({ text: 'Retried translation' }), 0.00002),
+      );
+
+    const promise = translateChineseText('滑鼠和腳踏車市場', 'en');
+    await vi.advanceTimersByTimeAsync(500);
+
+    await expect(promise).resolves.toMatchObject({
+      text: 'Retried translation',
     });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-      text: async () => 'Internal error',
-    });
+    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(2);
+  });
+
+  it('fails immediately for non-retryable provider errors', async () => {
+    mocks.createOpenRouterChatCompletion.mockRejectedValueOnce({ status: 401 });
+
+    await expect(
+      translateChineseText('滑鼠和腳踏車市場', 'en'),
+    ).rejects.toEqual({ status: 401 });
+    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails after response-validation retry exhaustion', async () => {
+    vi.useFakeTimers();
+    mocks.createOpenRouterChatCompletion.mockResolvedValue(
+      completion(JSON.stringify({ text: '   ' }), 0.00001),
+    );
 
     const promise = translateChineseText('滑鼠和腳踏車市場', 'en');
     promise.catch(() => undefined);
-    await vi.advanceTimersByTimeAsync(3000);
+    await vi.advanceTimersByTimeAsync(500);
+
     await expect(promise).rejects.toThrow(
-      'Google Translate API error: 500 - Internal error',
+      'OpenRouter translation returned empty text',
     );
-    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(2);
   });
 });
 
 describe('translateCanonicalScript', () => {
   beforeEach(() => {
-    vi.stubEnv('GOOGLE_TRANSLATE_API_KEY', 'test-google-translate-key');
-    mockOpenRouterConfig();
+    mocks.getOpenRouterConfig.mockReturnValue({
+      openai: mockOpenai,
+      model: 'openrouter/free',
+      thinkingModel: null,
+    });
     mockOpenRouterCompletion(
       JSON.stringify({
         title: '翻訳タイトル',
@@ -327,16 +252,14 @@ describe('translateCanonicalScript', () => {
     );
   });
 
-  it('translates title and script through one OpenRouter request', async () => {
-    const result = await translateCanonicalScript({
-      title: '標題',
-      script: '第一句。\n第二句。',
-      targetLanguageCode: 'ja',
-    });
-
-    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(1);
-    expect(mockFetch).not.toHaveBeenCalled();
-    expect(result).toEqual({
+  it('translates title and script in one OpenRouter request', async () => {
+    await expect(
+      translateCanonicalScript({
+        title: '標題',
+        script: '第一句。\n第二句。',
+        targetLanguageCode: 'ja',
+      }),
+    ).resolves.toEqual({
       title: '翻訳タイトル',
       script: '翻訳本文\n二行目',
       cost: [
@@ -349,207 +272,45 @@ describe('translateCanonicalScript', () => {
         },
       ],
     });
+    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to Google Translate when OpenRouter fails', async () => {
-    mocks.createOpenRouterChatCompletion.mockRejectedValueOnce(
-      new Error('OpenRouter timeout'),
-    );
-    mockGoogleTranslation('Google title');
-    mockGoogleTranslation('Google script');
-
-    const result = await translateCanonicalScript({
-      title: '標題',
-      script: '第一句。\n第二句。',
-      targetLanguageCode: 'ja',
-    });
-
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(result).toEqual({
-      title: 'Google title',
-      script: 'Google script',
-      cost: [
-        {
-          category: 'translate',
-          label: 'Translation ja',
-          provider: 'google',
-          model: 'translate-api',
-          costUsd: 0.00022,
-        },
-      ],
-    });
-  });
-
-  it('falls back to Google Translate when OpenRouter script is explanatory text', async () => {
+  it('preserves an empty title while translating the script', async () => {
     mockOpenRouterCompletion(
-      JSON.stringify({
-        title: '翻訳タイトル',
-        script: 'Here is the translation: 翻訳本文',
-      }),
+      JSON.stringify({ title: 'model tried to fill it', script: '翻訳本文' }),
     );
-    mockGoogleTranslation('Google title');
-    mockGoogleTranslation('Google script');
-
-    const result = await translateCanonicalScript({
-      title: '標題',
-      script: '第一句。\n第二句。',
-      targetLanguageCode: 'ja',
-    });
-
-    expect(result.script).toBe('Google script');
-    expect(result.cost[0]?.provider).toBe('google');
-  });
-
-  it('falls back to Google Translate when OpenRouter omits part of the translated script', async () => {
-    mockOpenRouterCompletion(JSON.stringify({ title: '翻訳タイトル' }));
-    mockGoogleTranslation('Google title');
-    mockGoogleTranslation('Google script');
-
-    const result = await translateCanonicalScript({
-      title: '標題',
-      script: '第一句。\n第二句。',
-      targetLanguageCode: 'ja',
-    });
-
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(result).toEqual({
-      title: 'Google title',
-      script: 'Google script',
-      cost: [
-        {
-          category: 'translate',
-          label: 'Translation ja',
-          provider: 'google',
-          model: 'translate-api',
-          costUsd: 0.00022,
-        },
-      ],
-    });
-  });
-
-  it('throws when Google fallback returns an empty translated script', async () => {
-    mocks.createOpenRouterChatCompletion.mockRejectedValueOnce(
-      new Error('OpenRouter timeout'),
-    );
-    mockGoogleTranslation('Google title');
-    mockGoogleTranslation('   ');
 
     await expect(
       translateCanonicalScript({
-        title: '標題',
-        script: '第一句。\n第二句。',
+        title: '',
+        script: '第一句。',
         targetLanguageCode: 'ja',
       }),
-    ).rejects.toThrow('Google Translate API returned empty translation');
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    ).resolves.toMatchObject({ title: '', script: '翻訳本文' });
   });
 
-  it('preserves an empty title while translating a non-empty script through Google fallback', async () => {
-    mocks.createOpenRouterChatCompletion.mockRejectedValueOnce(
-      new Error('OpenRouter timeout'),
-    );
-    mockGoogleTranslation('Google script');
-
-    const result = await translateCanonicalScript({
-      title: '',
-      script: '第一句。\n第二句。',
-      targetLanguageCode: 'ja',
-    });
-
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({
-      title: '',
-      script: 'Google script',
-      cost: [
-        {
-          category: 'translate',
-          label: 'Translation ja',
-          provider: 'google',
-          model: 'translate-api',
-          costUsd: 0.00018,
-        },
-      ],
-    });
-  });
-
-  it('preserves an empty script while translating a non-empty title through Google fallback', async () => {
-    mocks.createOpenRouterChatCompletion.mockRejectedValueOnce(
-      new Error('OpenRouter timeout'),
-    );
-    mockGoogleTranslation('Google title');
-
-    const result = await translateCanonicalScript({
-      title: '標題',
-      script: '',
-      targetLanguageCode: 'ja',
-    });
-
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({
-      title: 'Google title',
-      script: '',
-      cost: [
-        {
-          category: 'translate',
-          label: 'Translation ja',
-          provider: 'google',
-          model: 'translate-api',
-          costUsd: 0.00004,
-        },
-      ],
-    });
-  });
-
-  it('preserves an empty canonical script without calling any API', async () => {
-    const result = await translateCanonicalScript({
-      title: '',
-      script: '',
-      targetLanguageCode: 'ja',
-    });
-
+  it('preserves a fully empty canonical script without calling OpenRouter', async () => {
+    await expect(
+      translateCanonicalScript({
+        title: '',
+        script: '',
+        targetLanguageCode: 'ja',
+      }),
+    ).resolves.toEqual({ title: '', script: '', cost: [] });
     expect(mocks.getOpenRouterConfig).not.toHaveBeenCalled();
     expect(mocks.createOpenRouterChatCompletion).not.toHaveBeenCalled();
-    expect(mockFetch).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      title: '',
-      script: '',
-      cost: [
-        {
-          category: 'translate',
-          label: 'Translation ja',
-          provider: 'google',
-          model: 'translate-api',
-          costUsd: 0,
-        },
-      ],
-    });
   });
 });
 
-function mockOpenRouterConfig(model = 'openrouter/free'): void {
-  mocks.getOpenRouterConfig.mockReturnValue({
-    openai: mockOpenai,
-    model,
-    thinkingModel: null,
-  });
+function mockOpenRouterCompletion(content: string): void {
+  mocks.createOpenRouterChatCompletion.mockResolvedValue(completion(content));
 }
 
-function mockOpenRouterCompletion(content: string): void {
-  mocks.createOpenRouterChatCompletion.mockResolvedValue({
+function completion(content: string, cost = 0.00003) {
+  return {
     choices: [{ message: { content } }],
     provider: 'OpenRouter',
     model: 'openrouter/free',
-    usage: { cost: 0.00003 },
-  });
-}
-
-function mockGoogleTranslation(translatedText: string): void {
-  mockFetch.mockResolvedValueOnce({
-    ok: true,
-    json: async () => ({
-      data: {
-        translations: [{ translatedText }],
-      },
-    }),
-  });
+    usage: { cost },
+  };
 }

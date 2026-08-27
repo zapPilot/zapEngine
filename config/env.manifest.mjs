@@ -346,19 +346,10 @@ export const ENV_MANIFEST = {
     requiredFor: ['podcast-pipeline:base'],
   }),
   LLM_THINKING_MODEL: server(['podcast-pipeline']),
-  TRANSLATION_LLM_MODEL: server(['podcast-pipeline']),
-  GOOGLE_TRANSLATE_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
-  GOOGLE_APPLICATION_CREDENTIALS_BASE64: server(['podcast-pipeline'], {
-    sensitive: true,
-  }),
-  GOOGLE_APPLICATION_CREDENTIALS: host(['podcast-pipeline']),
   YOUTUBE_CLIENT_ID: server(['podcast-pipeline'], { sensitive: true }),
   YOUTUBE_CLIENT_SECRET: server(['podcast-pipeline'], { sensitive: true }),
   YOUTUBE_CHANNEL_ID: server(['podcast-pipeline'], { sensitive: true }),
   YOUTUBE_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
-  TTS_PROVIDER: server(['podcast-pipeline'], {
-    requiredFor: ['podcast-pipeline:base'],
-  }),
   FISH_AUDIO_API_KEY: server(['podcast-pipeline'], {
     requiredFor: ['podcast-pipeline:fish-audio'],
     sensitive: true,

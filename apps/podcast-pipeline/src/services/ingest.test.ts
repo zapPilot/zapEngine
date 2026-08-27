@@ -132,7 +132,7 @@ const performMultilingualIngest = (
 describe('performIngest failure paths', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env['TTS_PROVIDER'] = 'google';
+    process.env['FISH_AUDIO_REFERENCE_ID'] = 'test-fish-reference';
     mockFindEpisodeBySourceUrl.mockResolvedValue(null);
     mockScrapeArticle.mockResolvedValue({
       title: '软件更新',
@@ -171,14 +171,9 @@ describe('performIngest failure paths', () => {
         {
           category: 'translate',
           label: 'Translation en',
-          provider: 'google',
-          model: 'nmt',
+          provider: 'openrouter',
+          model: 'openrouter/free',
           costUsd: 0.0001,
-          usage: {
-            unit: 'characters',
-            quantity: 5,
-            unitPriceUsd: 0.00002,
-          },
         },
       ],
     });
@@ -517,7 +512,7 @@ describe('performIngest failure paths', () => {
           {
             category: 'tts',
             label: 'TTS classroom audio',
-            provider: 'google',
+            provider: 'openrouter',
             model: 'ja-JP-Wavenet-A',
             costUsd: 0.00003,
           },
@@ -529,7 +524,7 @@ describe('performIngest failure paths', () => {
           {
             category: 'tts',
             label: 'TTS classroom audio',
-            provider: 'google',
+            provider: 'openrouter',
             model: 'en-US-Wavenet-A',
             costUsd: 0.00004,
           },
@@ -720,7 +715,7 @@ describe('performIngest failure paths', () => {
           {
             category: 'tts',
             label: 'TTS classroom audio',
-            provider: 'google',
+            provider: 'openrouter',
             model: 'ja-JP-Wavenet-A',
             costUsd: 0.00003,
           },
@@ -903,8 +898,8 @@ describe('performIngest failure paths', () => {
       localizationRow().id,
       'completed',
       expect.objectContaining({
-        ttsLanguageCode: 'en-US',
-        ttsVoiceName: 'en-US-Wavenet-A',
+        ttsLanguageCode: 'en',
+        ttsVoiceName: 'test-fish-reference',
       }),
     );
     expect(mockGenerateLanguageClassroomsWithLLM).not.toHaveBeenCalled();
@@ -935,7 +930,6 @@ describe('performIngest failure paths', () => {
   });
 
   it('reuses completed audio even when stored TTS metadata differs from the current Fish Audio config', async () => {
-    vi.stubEnv('TTS_PROVIDER', 'fish-audio');
     vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'fish-model');
     const existingLocalization = localizationRow({
       status: 'completed',
@@ -966,7 +960,6 @@ describe('performIngest failure paths', () => {
   });
 
   it('reuses completed audio when stored TTS metadata matches Fish Audio config', async () => {
-    vi.stubEnv('TTS_PROVIDER', 'fish-audio');
     vi.stubEnv('FISH_AUDIO_REFERENCE_ID', 'fish-model');
     mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
     mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(
@@ -1233,7 +1226,7 @@ describe('performIngest failure paths', () => {
     });
   });
 
-  it('uses per-language provider metadata for non-default language TTS', async () => {
+  it('uses Fish Audio metadata for non-default language TTS', async () => {
     mockFindEpisodeBySourceUrl.mockResolvedValue(episodeRow());
     mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(
       localizationRow({
@@ -1250,8 +1243,8 @@ describe('performIngest failure paths', () => {
       localizationRow().id,
       'completed',
       expect.objectContaining({
-        ttsLanguageCode: 'ja-JP',
-        ttsVoiceName: 'ja-JP-Wavenet-A',
+        ttsLanguageCode: 'ja',
+        ttsVoiceName: 'test-fish-reference',
       }),
     );
     expect(mockGenerateLanguageClassroomsWithLLM).not.toHaveBeenCalled();
@@ -1308,14 +1301,9 @@ describe('performIngest failure paths', () => {
         {
           category: 'translate',
           label: 'Translation ja',
-          provider: 'google',
-          model: 'nmt',
+          provider: 'openrouter',
+          model: 'openrouter/free',
           costUsd: 0.0001,
-          usage: {
-            unit: 'characters',
-            quantity: 5,
-            unitPriceUsd: 0.00002,
-          },
         },
       ],
     });
@@ -1421,7 +1409,7 @@ describe('performIngest failure paths', () => {
       expect.arrayContaining([
         expect.objectContaining({
           category: 'translate',
-          provider: 'google',
+          provider: 'openrouter',
           costUsd: 0.0001,
         }),
       ]),
@@ -1493,14 +1481,9 @@ describe('performIngest failure paths', () => {
             {
               category: 'translate',
               label: `Translation ${targetLanguageCode}`,
-              provider: 'google',
-              model: 'nmt',
+              provider: 'openrouter',
+              model: 'openrouter/free',
               costUsd: 0.0001,
-              usage: {
-                unit: 'characters',
-                quantity: 5,
-                unitPriceUsd: 0.00002,
-              },
             },
           ],
         }),
@@ -1707,15 +1690,15 @@ describe('performIngest failure paths', () => {
     });
   });
 
-  it('uses default Google TTS metadata for zh-Hant', async () => {
+  it('uses Fish Audio metadata for zh-Hant', async () => {
     await performIngest('https://example.com/article', 'zh-Hant');
 
     expect(mockUpdateEpisodeLocalizationStatus).toHaveBeenCalledWith(
       localizationRow().id,
       'completed',
       expect.objectContaining({
-        ttsLanguageCode: 'cmn-TW',
-        ttsVoiceName: 'cmn-TW-Wavenet-A',
+        ttsLanguageCode: 'zh-Hant',
+        ttsVoiceName: 'test-fish-reference',
       }),
     );
   });

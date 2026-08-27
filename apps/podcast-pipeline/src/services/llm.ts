@@ -586,7 +586,11 @@ export function completionMetadata(
   };
 }
 
-function isRetryableOpenRouterError(error: unknown): boolean {
+/**
+ * Transport-level failures worth one more attempt. Shared with translation so a
+ * single OpenRouter retry policy covers every caller of this client.
+ */
+export function isRetryableOpenRouterError(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
     return false;
   }
