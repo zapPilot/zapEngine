@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { PITCH_SLIDES, type PitchSlideId } from '@/config/pitch';
-import { trackPitchView, trackSlideViewed } from '@/lib/analytics/pitch';
+import { trackPitchView, trackSlideViewed } from '@/lib/analytics/events';
 
 const KEYS_DOWN = new Set(['ArrowDown', 'PageDown', 'j', 'J']);
 const KEYS_UP = new Set(['ArrowUp', 'PageUp', 'k', 'K']);

@@ -2,6 +2,7 @@ import { tokens } from '@zapengine/design-tokens/tokens';
 import { Stack } from 'expo-router';
 import type { ReactElement } from 'react';
 
+import { AnalyticsIdentitySync } from '@/integration/analyticsIdentity';
 import { OwnBundleUrlSync } from '@/integration/bundleShareUrlSync';
 import {
   DesktopSchedulerContextSync,
@@ -17,6 +18,7 @@ export default function RootLayout(): ReactElement | null {
     <AppProviders>
       <DesktopSchedulerContextSync />
       <OwnBundleUrlSync />
+      <AnalyticsIdentitySync />
       <Stack
         screenOptions={{
           headerShown: false,

@@ -117,12 +117,18 @@ export const ENV_MANIFEST = {
     next: 'NEXT_PUBLIC_IPFS_GATEWAY_FALLBACK',
   }),
   GA_ID: client(['landing-page'], { next: 'NEXT_PUBLIC_GA_ID' }),
+  // One PostHog project serves both surfaces so the landing -> app funnel joins
+  // on a single distinct_id. `web` (not `expo`) because the app's analytics is
+  // web-only; the native module is inert and would never read the value.
   POSTHOG_KEY: client(
-    ['landing-page'],
-    { next: 'NEXT_PUBLIC_POSTHOG_KEY' },
+    ['landing-page', 'web'],
+    { next: 'NEXT_PUBLIC_POSTHOG_KEY', expo: 'EXPO_PUBLIC_POSTHOG_KEY' },
     { sensitive: true },
   ),
-  POSTHOG_HOST: client(['landing-page'], { next: 'NEXT_PUBLIC_POSTHOG_HOST' }),
+  POSTHOG_HOST: client(['landing-page', 'web'], {
+    next: 'NEXT_PUBLIC_POSTHOG_HOST',
+    expo: 'EXPO_PUBLIC_POSTHOG_HOST',
+  }),
   SENTRY_ZAP_PILOT_WEB_DSN: client(
     ['web'],
     { expo: 'EXPO_PUBLIC_SENTRY_DSN' },

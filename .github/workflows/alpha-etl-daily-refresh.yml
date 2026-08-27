@@ -13,14 +13,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  enqueue:
+  refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+
     env:
       ALPHA_ETL_WEBHOOK_SECRET: ${{ secrets.ALPHA_ETL_WEBHOOK_SECRET }}
       ALPHA_ETL_JOBS_URL: https://alpha-etl.fly.dev/webhooks/jobs
+
     steps:
-      - name: Enqueue six-source daily refresh
+      - name: Run daily ETL and wait for completion
+        shell: bash
         run: |
           set -euo pipefail
 
@@ -29,59 +32,60 @@ jobs:
             exit 1
           fi
 
-          enqueue_response=$(curl --fail-with-body --silent --show-error \
-            --retry 3 --retry-all-errors \
-            --request POST "$ALPHA_ETL_JOBS_URL" \
-            --header "Authorization: Bearer $ALPHA_ETL_WEBHOOK_SECRET" \
-            --header "Content-Type: application/json" \
-            --data '{}')
-          job_id=$(jq -er '.data.jobId | select(type == "string" and length > 0)' <<< "$enqueue_response")
+          response="$(
+            curl --fail-with-body --silent --show-error \
+              --retry 3 \
+              --retry-all-errors \
+              --request POST "$ALPHA_ETL_JOBS_URL" \
+              --header "Authorization: Bearer $ALPHA_ETL_WEBHOOK_SECRET" \
+              --header "Content-Type: application/json" \
+              --data '{}'
+          )"
 
-          echo "Enqueued Alpha ETL job $job_id"
+          job_id="$(echo "$response" | jq -r '.data.jobId // empty')"
 
-          for attempt in $(seq 1 60); do
-            status_response=$(curl --silent --show-error \
-              --retry 3 --retry-all-errors \
-              --write-out $'\n%{http_code}' \
-              "$ALPHA_ETL_JOBS_URL/$job_id")
-            response_body=${status_response%$'\n'*}
-            http_code=${status_response##*$'\n'}
+          if [ -z "$job_id" ]; then
+            echo "ETL enqueue response did not contain jobId:"
+            echo "$response"
+            exit 1
+          fi
 
-            if [ "$http_code" = "404" ]; then
-              echo "Alpha ETL job $job_id was not found" >&2
-              exit 1
-            fi
+          echo "ETL job queued: $job_id"
 
-            if [[ "$http_code" != 2* ]]; then
-              echo "Alpha ETL job status request failed with HTTP $http_code" >&2
-              echo "$response_body" >&2
-              exit 1
-            fi
+          status_url="$ALPHA_ETL_JOBS_URL/$job_id"
 
-            status=$(jq -er '.data.status | select(type == "string")' <<< "$response_body")
-            echo "Poll $attempt/60: $status"
+          while true; do
+            body_file="$(mktemp)"
 
-            case "$status" in
-              completed)
+            http_status="$(
+              curl --silent --show-error \
+                --output "$body_file" \
+                --write-out '%{http_code}' \
+                "$status_url"
+            )"
+
+            body="$(cat "$body_file")"
+            rm -f "$body_file"
+
+            status="$(echo "$body" | jq -r '.data.status // empty')"
+
+            echo "ETL job $job_id: HTTP $http_status · $status"
+
+            case "$http_status" in
+              200)
+                echo "$body" | jq .
+                echo "Daily ETL completed successfully."
                 exit 0
                 ;;
-              failed)
-                echo "Alpha ETL job $job_id failed" >&2
-                echo "$response_body" >&2
-                exit 1
+
+              202)
+                sleep 10
                 ;;
-              pending|processing)
-                ;;
+
               *)
-                echo "Alpha ETL job $job_id returned unknown status: $status" >&2
+                echo "Daily ETL failed or partially completed:"
+                echo "$body" | jq . || echo "$body"
                 exit 1
                 ;;
             esac
-
-            if [ "$attempt" -lt 60 ]; then
-              sleep 15
-            fi
           done
-
-          echo "Timed out waiting for Alpha ETL job $job_id" >&2
-          exit 1

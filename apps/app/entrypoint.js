@@ -14,6 +14,11 @@ import './src/observability/configureSentry';
 // wallet-extension inpage errors never reach the dev error overlay.
 import './src/config/ignoreExtensionErrors';
 
+// PostHog initializes on import (web only; the native module is inert). It has
+// to run before the route tree evaluates or the session's first $pageview is
+// never captured.
+import './src/observability/analytics';
+
 // NativeWind style registry — Metro intercepts this import.
 import './global.css';
 

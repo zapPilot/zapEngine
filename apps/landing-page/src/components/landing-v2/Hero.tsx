@@ -1,4 +1,4 @@
-import { LINKS } from '@/config/links';
+import { AppCtaLink } from './AppCtaLink';
 import { HeroCockpit } from './HeroCockpit';
 
 const HERO_CHIPS = ['No custody', 'No discretion', 'No standing approvals'];
@@ -29,14 +29,9 @@ export function Hero() {
           ))}
         </div>
         <div className="zp-hero-ctas" aria-label="Primary actions">
-          <a
-            className="zp-btn zp-btn-primary"
-            href={LINKS.app}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <AppCtaLink className="zp-btn zp-btn-primary" location="hero">
             Open the app <span aria-hidden>→</span>
-          </a>
+          </AppCtaLink>
           <a className="zp-btn zp-btn-ghost" href="#proof">
             See the backtest
           </a>

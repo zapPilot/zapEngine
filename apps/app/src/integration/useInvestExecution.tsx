@@ -37,6 +37,7 @@ import {
   buildInvestDepositPlanRequest,
   useInvest,
 } from '@/integration/useInvest';
+import { trackEvent } from '@/observability/analytics';
 
 export interface InvestExecutionContextValue {
   wizard: InvestExecutionWizardState;
@@ -429,6 +430,10 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
       if (submission.status !== 'submitted') {
         return submission;
       }
+      trackEvent('invest_submitted', {
+        chain_id: submission.chainId,
+        group_id: submission.groupId,
+      });
       const queue = input.queue?.length
         ? input.queue
         : [{ plan: input.plan, review: input.review }];

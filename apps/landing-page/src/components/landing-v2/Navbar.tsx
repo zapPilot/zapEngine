@@ -1,5 +1,6 @@
 import Image from 'next/image';
-import { LINKS } from '@/config/links';
+
+import { AppCtaLink } from './AppCtaLink';
 
 const NAV_LINKS = [
   { label: 'Strategy', href: '#strategy' },
@@ -29,14 +30,9 @@ export function Navbar() {
           </a>
         ))}
       </div>
-      <a
-        className="zp-nav-cta"
-        href={LINKS.app}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
+      <AppCtaLink className="zp-nav-cta" location="navbar">
         Launch App
-      </a>
+      </AppCtaLink>
     </nav>
   );
 }

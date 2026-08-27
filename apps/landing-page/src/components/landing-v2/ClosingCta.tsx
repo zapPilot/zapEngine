@@ -1,4 +1,5 @@
 import { LINKS } from '@/config/links';
+import { AppCtaLink } from './AppCtaLink';
 
 export function ClosingCta() {
   return (
@@ -15,14 +16,9 @@ export function ClosingCta() {
         </p>
         <div className="zp-closing-ctas">
           {/* jscpd:ignore-start — CTA button pair, intentionally consistent styling across landing sections */}
-          <a
-            className="zp-btn zp-btn-primary"
-            href={LINKS.app}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <AppCtaLink className="zp-btn zp-btn-primary" location="closing">
             Open the app <span aria-hidden>→</span>
-          </a>
+          </AppCtaLink>
           <a
             className="zp-btn zp-btn-ghost"
             href={LINKS.social.github}

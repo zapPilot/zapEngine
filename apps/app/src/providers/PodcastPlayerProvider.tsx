@@ -6,10 +6,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
 } from 'react';
 
 import { usePodcastPlayer as usePodcastPlayerModel } from '@/integration/podcastPlayer';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
+import { trackEvent } from '@/observability/analytics';
 import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
 import { useVideoPlaybackCoordinator } from '@/providers/VideoPlaybackCoordinatorProvider';
 
@@ -35,6 +37,23 @@ export function PodcastPlayerProvider({
   useEffect(() => {
     if (isPlaying) pauseActiveVideo();
   }, [isPlaying, pauseActiveVideo]);
+
+  // One report per episode start, watched here rather than in the four play
+  // entry points below — and latched so pausing and resuming the same
+  // localization does not count twice.
+  const episodeId = player.nowPlaying?.id;
+  const languageCode = player.nowPlaying?.languageCode;
+  const reportedLocalizationId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isPlaying || !currentLocalizationId) return;
+    if (reportedLocalizationId.current === currentLocalizationId) return;
+    reportedLocalizationId.current = currentLocalizationId;
+    trackEvent('podcast_episode_played', {
+      episode_id: episodeId ?? '',
+      localization_id: currentLocalizationId,
+      language_code: languageCode ?? '',
+    });
+  }, [currentLocalizationId, episodeId, isPlaying, languageCode]);
 
   // jscpd:ignore-start — playback actions share the same auth+gating pattern
   const toggle = useCallback<PodcastPlayer['toggle']>(

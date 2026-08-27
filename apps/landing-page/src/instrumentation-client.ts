@@ -33,8 +33,16 @@ if (posthogKey) {
     // unmasked marketing pages before a masking policy exists.
     disable_session_recording: true,
     respect_dnt: true,
+    // Nothing on the marketing site calls `identify`, so the default would mint
+    // a person profile for every anonymous visitor. The product app shares this
+    // project and does identify, which is what the landing -> app funnel joins on.
+    person_profiles: 'identified_only',
     // Omitted rather than defaulted: posthog-js already falls back to the US
     // ingest host, so the value lives only in the env manifest.
     ...(posthogHost ? { api_host: posthogHost } : {}),
   });
+  // The product app reports into the same project, so every event needs to say
+  // which surface produced it. Registered rather than passed per call so
+  // autocaptured `$pageview` carries it too.
+  posthog.register({ surface: 'landing' });
 }

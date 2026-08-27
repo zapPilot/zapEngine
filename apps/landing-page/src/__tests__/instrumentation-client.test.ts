@@ -2,13 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const posthogMocks = vi.hoisted(() => ({
   init: vi.fn(),
+  register: vi.fn(),
 }));
 const sentryMocks = vi.hoisted(() => ({ init: vi.fn() }));
 
 vi.mock('@sentry/nextjs', () => ({ init: sentryMocks.init }));
 
 vi.mock('posthog-js', () => ({
-  default: { init: posthogMocks.init },
+  default: { init: posthogMocks.init, register: posthogMocks.register },
 }));
 
 describe('PostHog client instrumentation', () => {
@@ -80,6 +81,24 @@ describe('PostHog client instrumentation', () => {
         respect_dnt: true,
       }),
     );
+  });
+
+  it('leaves anonymous marketing visitors without a person profile', async () => {
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'phc_test');
+
+    await import('../instrumentation-client');
+
+    expect(posthogMocks.init.mock.calls[0]?.[1]).toMatchObject({
+      person_profiles: 'identified_only',
+    });
+  });
+
+  it('stamps every event with the surface that produced it', async () => {
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'phc_test');
+
+    await import('../instrumentation-client');
+
+    expect(posthogMocks.register).toHaveBeenCalledWith({ surface: 'landing' });
   });
 
   it('leaves the ingest host to the SDK default when none is configured', async () => {
