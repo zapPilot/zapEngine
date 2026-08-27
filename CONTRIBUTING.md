@@ -107,6 +107,8 @@ supabase migration list
 
 Review the dry-run migration list before every push. Push exactly one migration at a time, and confirm that `LOCAL` and `REMOTE` match afterward. If the CLI is unavailable when authoring the file, use the UTC filename format `$(date -u +%Y%m%d%H%M%S)_<description>.sql`.
 
+A migration that adds a function to `public` must end it with `revoke execute on function <sig> from public;` and grant EXECUTE explicitly to the roles that call it. PostgreSQL merges its built-in `EXECUTE TO PUBLIC` default in at creation time, so `anon` inherits every new function through PUBLIC and no `alter default privileges` setting can suppress it — see `supabase/migrations/20260827132739_lock_down_public_anon_access.sql` for why, and for the pattern to copy.
+
 Migration SQL must use schema-qualified object names. Do not use `CREATE INDEX CONCURRENTLY` or `DROP INDEX CONCURRENTLY`: each migration and its history row run in one implicit transaction. Express `pg_cron` changes through `cron.schedule`, `cron.alter_job`, or `cron.unschedule` calls inside a migration. A destructive migration requires its own PR and must never share a push with another migration.
 
 Do not change the schema through the Supabase Dashboard SQL Editor or MCP `apply_migration` / `execute_sql`, except for a documented emergency. Do not add migrations under `apps/*/migrations/` or `apps/podcast-pipeline/supabase/migrations/`, run `supabase init` anywhere in this repository, or modify a migration that has already been pushed.
