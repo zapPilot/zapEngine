@@ -350,7 +350,7 @@ async function fetchSingleChunk(
   const resetIdleTimeout = () => {
     if (idleTimeout) clearTimeout(idleTimeout);
     idleTimeout = setTimeout(() => {
-      const requestElapsedMs = Date.now() - startTime;
+      const requestElapsedMs = Math.max(idleTimeoutMs, Date.now() - startTime);
       timeoutError = new FishAudioTimeoutError(
         `Fish Audio TTS chunk timed out after ${idleTimeoutMs}ms idle (idle_timeout, ${idleTimeoutMs}ms limit, requestElapsed ${requestElapsedMs}ms, received ${receivedBytes}B)`,
         'idle',

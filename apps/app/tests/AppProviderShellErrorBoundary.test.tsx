@@ -135,8 +135,9 @@ async function mount(children: ReactNode): Promise<{
     root = createRoot(container);
     root.render(
       <AppProviderShell
+        requiresMobilePrivy
         missingConfigTarget="test flow"
-        renderWalletProviders={(content) => content as ReactElement}
+        renderWalletProviders={(content: ReactNode) => content as ReactElement}
       >
         {children}
       </AppProviderShell>,
