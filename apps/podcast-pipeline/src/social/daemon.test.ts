@@ -35,6 +35,9 @@ const mocks = vi.hoisted(() => ({
   refreshSocialStrategies: vi.fn(),
   captureDueAccountSnapshots: vi.fn(),
   getOrCreateExperimentAssignment: vi.fn(),
+  capturePipelineException: vi.fn(),
+  flushSentry: vi.fn(),
+  initSentry: vi.fn(),
 }));
 
 vi.mock('./daemon-store.js', () => ({
@@ -98,6 +101,11 @@ vi.mock('./strategy.js', async (importOriginal) => ({
 vi.mock('./experiments.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./experiments.js')>()),
   getOrCreateExperimentAssignment: mocks.getOrCreateExperimentAssignment,
+}));
+vi.mock('../observability/sentry.js', () => ({
+  capturePipelineException: mocks.capturePipelineException,
+  flushSentry: mocks.flushSentry,
+  initSentry: mocks.initSentry,
 }));
 
 import type { SocialPostRow } from '../types.js';
@@ -1101,6 +1109,22 @@ describe('social daemon', () => {
         expect.stringMatching(/metrics failed.*metrics down/),
         expect.stringMatching(/strategy failed.*strategy down/),
       ]),
+    );
+    expect(mocks.capturePipelineException).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'metrics down' }),
+      {
+        component: 'social-daemon',
+        tags: { operation: 'metrics' },
+        level: 'warning',
+      },
+    );
+    expect(mocks.capturePipelineException).toHaveBeenCalledWith(
+      'strategy down',
+      {
+        component: 'social-daemon',
+        tags: { operation: 'strategy' },
+        level: 'warning',
+      },
     );
   });
 

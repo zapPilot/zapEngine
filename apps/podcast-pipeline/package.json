@@ -19,6 +19,7 @@
     "social:metrics": "tsx src/social/metrics.ts",
     "social:daemon": "tsx src/social/daemon.ts",
     "social:daemon:watch": "tsx watch --clear-screen=false src/social/daemon.ts",
+    "sentry:smoke": "tsx src/observability/sentry-smoke.ts",
     "video:render": "tsx src/services/video/cli.ts",
     "video:storyboard:smoke": "tsx src/services/video/storyboard/smoke-cli.ts",
     "video:r2-canary": "tsx src/services/video/r2-playback-canary.ts",

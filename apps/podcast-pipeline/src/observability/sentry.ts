@@ -16,7 +16,8 @@ export type PipelineComponent =
   | 'ingest'
   | 'video-render'
   | 'video-visual'
-  | 'video-worker';
+  | 'video-worker'
+  | 'social-daemon';
 
 export interface PipelineExceptionOptions {
   component: PipelineComponent;
@@ -94,4 +95,17 @@ export function captureServerException(
       'http.route': context.route,
     },
   });
+}
+
+/**
+ * Drains buffered events before a short-lived process exits. A failed flush is
+ * intentionally non-throwing: observability must never replace the original
+ * process failure or prevent an on-demand worker from shutting down.
+ */
+export async function flushSentry(timeoutMs = 5_000): Promise<boolean> {
+  try {
+    return await Sentry.flush(timeoutMs);
+  } catch {
+    return false;
+  }
 }

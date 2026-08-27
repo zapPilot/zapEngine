@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const sentryMocks = vi.hoisted(() => ({
   captureException: vi.fn(),
+  flush: vi.fn(),
   init: vi.fn(),
   setContext: vi.fn(),
   setLevel: vi.fn(),
@@ -10,6 +11,7 @@ const sentryMocks = vi.hoisted(() => ({
 
 vi.mock('@sentry/node', () => ({
   captureException: sentryMocks.captureException,
+  flush: sentryMocks.flush,
   init: sentryMocks.init,
   withScope: vi.fn((callback: (scope: unknown) => void) =>
     callback({
@@ -23,11 +25,15 @@ vi.mock('@sentry/node', () => ({
 import {
   capturePipelineException,
   captureServerException,
+  flushSentry,
   initSentry,
 } from './sentry.js';
 
 describe('podcast pipeline Sentry observability', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sentryMocks.flush.mockResolvedValue(true);
+  });
 
   it('does not initialize without a non-blank DSN', () => {
     expect(initSentry({ SENTRY_PODCAST_PIPELINE_DSN: '' })).toBe(false);
@@ -109,5 +115,15 @@ describe('podcast pipeline Sentry observability', () => {
     });
 
     expect(sentryMocks.setLevel).toHaveBeenCalledWith('warning');
+  });
+
+  it('flushes buffered events before process exit', async () => {
+    await expect(flushSentry()).resolves.toBe(true);
+    expect(sentryMocks.flush).toHaveBeenCalledWith(5_000);
+  });
+
+  it('does not let a flush failure replace the original process failure', async () => {
+    sentryMocks.flush.mockRejectedValueOnce(new Error('transport down'));
+    await expect(flushSentry(1_000)).resolves.toBe(false);
   });
 });
