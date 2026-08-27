@@ -96,17 +96,18 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
     walletBalances: WalletBalanceSnapshotInsert[];
     portfolioItems: PortfolioItemSnapshotInsert[];
     successfulWallets: string[];
+    errors: string[];
   }> {
     logger.info('Processing DeBank data for VIP users', { jobId: job.jobId });
 
     try {
-      const { usersToUpdate, vipUsersTotal, costSavingsPercent } =
+      const { usersToUpdate, vipUsersTotal } =
         await fetchAndFilterVipUsersForProcessing(
           this.supabaseFetcher,
           job.jobId,
           'No VIP users found for DeBank processing',
         );
-      const { walletBalances, portfolioItems, successfulWallets } =
+      const { walletBalances, portfolioItems, successfulWallets, errors } =
         await this.fetchUserDataBatch(usersToUpdate, job.jobId);
       await updatePortfolioTimestampsNonFatal(
         this.supabaseFetcher,
@@ -121,10 +122,9 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
         walletsProcessed: successfulWallets.length,
         walletBalanceRecords: walletBalances.length,
         portfolioItemRecords: portfolioItems.length,
-        costSavingsPercent: `${costSavingsPercent}%`,
       });
 
-      return { walletBalances, portfolioItems, successfulWallets };
+      return { walletBalances, portfolioItems, successfulWallets, errors };
     } catch (error) {
       logger.error('Failed to fetch DeBank data for VIP users:', {
         jobId: job.jobId,
@@ -141,6 +141,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
     walletBalances: WalletBalanceSnapshotInsert[];
     portfolioItems: PortfolioItemSnapshotInsert[];
     successfulWallets: string[];
+    errors: string[];
   }> {
     const walletBalances: WalletBalanceSnapshotInsert[] = [];
     const portfolioItems: PortfolioItemSnapshotInsert[] = [];
@@ -172,7 +173,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
       });
     }
 
-    return { walletBalances, portfolioItems, successfulWallets };
+    return { walletBalances, portfolioItems, successfulWallets, errors };
   }
 
   private async processUserWallet(
@@ -190,8 +191,8 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
       const data = await this.fetchUserData(user.wallet);
 
       if (!data) {
-        // A per-wallet fetch failure is terminal for this wallet but does not fail
-        // the batch job, so the queue-level Sentry boundary will never see it.
+        // A per-wallet fetch failure is terminal for this wallet, and the batch
+        // result propagates the error after preserving other successful writes.
         const error = new Error(`Failed to fetch data for ${maskedWallet}`);
         captureBackgroundException(error, {
           component: 'job',
@@ -255,6 +256,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
 
   private async executeWalletPipeline(job: ETLJob): Promise<ETLProcessResult> {
     let successfulWallets: string[] = [];
+    let walletErrors: string[] = [];
     const transformData = createWalletTransformCallback(
       this.transformer,
       job.jobId,
@@ -268,12 +270,13 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
       () => successfulWallets,
     );
 
-    return executeETLFlow<WalletETLRecord, WalletETLRecord>(
+    const result = await executeETLFlow<WalletETLRecord, WalletETLRecord>(
       job,
       'debank',
       async () => {
         const data = await this.fetchData(job);
         successfulWallets = data.successfulWallets;
+        walletErrors = data.errors;
         return createMergedFetchResult(
           data.walletBalances,
           data.portfolioItems,
@@ -286,5 +289,12 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
         allowEmptyTransform: true,
       },
     );
+
+    if (walletErrors.length > 0) {
+      result.errors.push(...walletErrors);
+      result.success = false;
+    }
+
+    return result;
   }
 }

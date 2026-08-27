@@ -3,23 +3,23 @@
  * Tests orchestration logic, APR deduplication, error handling, and data flow
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type {
   ETLJob,
   VipUserWithActivity,
-} from "../../../../src/types/index.js";
-import { logger as mockLogger } from "../../../../src/utils/logger.js";
-import { createEtlJob } from "../../../utils/createEtlJob.js";
+} from '../../../../src/types/index.js';
+import { logger as mockLogger } from '../../../../src/utils/logger.js';
+import { createEtlJob } from '../../../utils/createEtlJob.js';
 import type {
   VaultPositionData,
   VaultAprData,
   VaultDetailsResponse,
-} from "../../../../src/modules/hyperliquid/fetcher.js";
+} from '../../../../src/modules/hyperliquid/fetcher.js';
 import type {
   PortfolioItemSnapshotInsert,
   HyperliquidVaultAprSnapshotInsert,
-} from "../../../../src/types/database.js";
-import type { HyperliquidVaultETLProcessor } from "../../../../src/modules/hyperliquid/processor.js";
+} from '../../../../src/types/database.js';
+import type { HyperliquidVaultETLProcessor } from '../../../../src/modules/hyperliquid/processor.js';
 
 // Hoisted mocks for proper timing
 const {
@@ -60,17 +60,17 @@ const {
 });
 
 // Mock all dependencies
-vi.mock("../../../../src/utils/logger.js", async () => {
-  const { mockLogger } = await import("../../../setup/mocks.js");
+vi.mock('../../../../src/utils/logger.js', async () => {
+  const { mockLogger } = await import('../../../setup/mocks.js');
   return mockLogger();
 });
 
-vi.mock("../../../../src/utils/mask.js", async () => {
-  const { mockWalletAddressMask } = await import("../../../setup/mocks.js");
+vi.mock('../../../../src/utils/mask.js', async () => {
+  const { mockWalletAddressMask } = await import('../../../setup/mocks.js');
   return mockWalletAddressMask();
 });
 
-vi.mock("../../../../src/modules/hyperliquid/fetcher.js", () => ({
+vi.mock('../../../../src/modules/hyperliquid/fetcher.js', () => ({
   HyperliquidFetcher: class MockHyperliquidFetcher {
     constructor() {
       return mockHyperliquidFetcher;
@@ -78,7 +78,7 @@ vi.mock("../../../../src/modules/hyperliquid/fetcher.js", () => ({
   },
 }));
 
-vi.mock("../../../../src/modules/vip-users/supabaseFetcher.js", () => ({
+vi.mock('../../../../src/modules/vip-users/supabaseFetcher.js', () => ({
   SupabaseFetcher: class MockSupabaseFetcher {
     constructor() {
       return mockSupabaseFetcher;
@@ -86,7 +86,7 @@ vi.mock("../../../../src/modules/vip-users/supabaseFetcher.js", () => ({
   },
 }));
 
-vi.mock("../../../../src/modules/hyperliquid/transformer.js", () => ({
+vi.mock('../../../../src/modules/hyperliquid/transformer.js', () => ({
   HyperliquidDataTransformer: class MockTransformer {
     constructor() {
       return mockTransformer;
@@ -94,7 +94,7 @@ vi.mock("../../../../src/modules/hyperliquid/transformer.js", () => ({
   },
 }));
 
-vi.mock("../../../../src/modules/hyperliquid/aprWriter.js", () => ({
+vi.mock('../../../../src/modules/hyperliquid/aprWriter.js', () => ({
   HyperliquidVaultAprWriter: class MockAprWriter {
     constructor() {
       return mockAprWriter;
@@ -102,7 +102,7 @@ vi.mock("../../../../src/modules/hyperliquid/aprWriter.js", () => ({
   },
 }));
 
-vi.mock("../../../../src/modules/wallet/portfolioWriter.js", () => ({
+vi.mock('../../../../src/modules/wallet/portfolioWriter.js', () => ({
   PortfolioItemWriter: class MockPortfolioWriter {
     constructor() {
       return mockPortfolioWriter;
@@ -113,10 +113,10 @@ vi.mock("../../../../src/modules/wallet/portfolioWriter.js", () => ({
 // Test data factory functions
 function createMockJob(overrides: Partial<ETLJob> = {}): ETLJob {
   return createEtlJob({
-    jobId: "test-job-123",
-    sources: ["hyperliquid"],
+    jobId: 'test-job-123',
+    sources: ['hyperliquid'],
     filters: {},
-    createdAt: new Date("2025-02-01T12:00:00Z"),
+    createdAt: new Date('2025-02-01T12:00:00Z'),
     ...overrides,
   });
 }
@@ -138,11 +138,11 @@ const createMockVaultDetails = (
   apr: number = 1.5,
   timestamp?: Date,
 ): VaultDetailsResponse => ({
-  vault: "hlp",
+  vault: 'hlp',
   vaultAddress,
-  leader: "0xleader123",
+  leader: '0xleader123',
   name: `Vault ${vaultAddress}`,
-  description: "Test vault",
+  description: 'Test vault',
   apr,
   totalVlm: 1_000_000,
   leaderCommission: 0.1,
@@ -150,15 +150,15 @@ const createMockVaultDetails = (
   isClosed: false,
   allowDeposits: true,
   followerState: {
-    user: "0xwallet",
+    user: '0xwallet',
     vaultAddress,
-    totalAccountValue: "100",
-    maxWithdrawable: "10",
+    totalAccountValue: '100',
+    maxWithdrawable: '10',
     maxDistributable: undefined,
   },
   relationship: {
-    type: "follower",
-    data: { since: timestamp?.toISOString() ?? "2024-01-01" },
+    type: 'follower',
+    data: { since: timestamp?.toISOString() ?? '2024-01-01' },
   },
   portfolio: [],
   allTime: {},
@@ -176,9 +176,9 @@ function createMockPositionData(
     hlpBalance: 100,
     vaultUsdValue: 100,
     maxWithdrawable: 10,
-    relationshipType: "follower",
-    leaderAddress: "0xleader123",
-    vaultDescription: "Test vault",
+    relationshipType: 'follower',
+    leaderAddress: '0xleader123',
+    vaultDescription: 'Test vault',
   };
 }
 
@@ -188,7 +188,7 @@ const createMockAprData = (
 ): VaultAprData => ({
   vaultAddress,
   vaultName: `Vault ${vaultAddress}`,
-  leaderAddress: "0xleader123",
+  leaderAddress: '0xleader123',
   apr,
   tvlUsd: 1_000_000,
   leaderCommission: 0.1,
@@ -205,41 +205,41 @@ const createMockPortfolioSnapshot = (
   vaultAddress: string,
 ): PortfolioItemSnapshotInsert => ({
   wallet:
-    userId === "user-1"
-      ? "0xwallet1"
-      : userId === "user-2"
-        ? "0xwallet2"
-        : userId === "user-3"
-          ? "0xwallet3"
-          : userId === "u1"
-            ? "0xwallet1"
-            : "0xwallet",
-  chain: "hyperliquid",
-  name: "hyperliquid",
+    userId === 'user-1'
+      ? '0xwallet1'
+      : userId === 'user-2'
+        ? '0xwallet2'
+        : userId === 'user-3'
+          ? '0xwallet3'
+          : userId === 'u1'
+            ? '0xwallet1'
+            : '0xwallet',
+  chain: 'hyperliquid',
+  name: 'hyperliquid',
   name_item: `Vault ${vaultAddress}`,
   id_raw: vaultAddress,
   asset_usd_value: 100,
   detail: {
     vault_address: vaultAddress,
     hlp_balance: 100,
-    relationship_type: "follower",
+    relationship_type: 'follower',
     max_withdrawable: 10,
-    description: "Test vault",
+    description: 'Test vault',
   },
-  snapshot_at: "2025-02-01T12:00:00.000Z",
+  snapshot_at: '2025-02-01T12:00:00.000Z',
   has_supported_portfolio: true,
   site_url: `https://app.hyperliquid.xyz/vaults/${vaultAddress}`,
   asset_dict: { [vaultAddress]: 100 },
   asset_token_list: [],
-  detail_types: ["hyperliquid"],
+  detail_types: ['hyperliquid'],
   pool: {
     id: vaultAddress,
-    chain: "hyperliquid",
+    chain: 'hyperliquid',
     index: null,
     time_at: 1738411200,
-    adapter_id: "hyperliquid_vault",
-    controller: "0xleader123",
-    project_id: "hyperliquid",
+    adapter_id: 'hyperliquid_vault',
+    controller: '0xleader123',
+    project_id: 'hyperliquid',
   },
   proxy_detail: {},
   debt_usd_value: 0,
@@ -251,10 +251,10 @@ const createMockAprSnapshot = (
   vaultAddress: string,
   snapshotTime: string,
 ): HyperliquidVaultAprSnapshotInsert => ({
-  source: "hyperliquid",
+  source: 'hyperliquid',
   vault_address: vaultAddress,
   vault_name: `Vault ${vaultAddress}`,
-  leader_address: "0xleader123",
+  leader_address: '0xleader123',
   apr: 1.5,
   apr_base: 1.3,
   apr_reward: 0.2,
@@ -269,7 +269,7 @@ const createMockAprSnapshot = (
   snapshot_time: snapshotTime,
 });
 
-describe("HyperliquidVaultETLProcessor", () => {
+describe('HyperliquidVaultETLProcessor', () => {
   let processor: HyperliquidVaultETLProcessor;
 
   beforeEach(async () => {
@@ -287,12 +287,12 @@ describe("HyperliquidVaultETLProcessor", () => {
       errors: [],
     });
     const { HyperliquidVaultETLProcessor } =
-      await import("../../../../src/modules/hyperliquid/processor.js");
+      await import('../../../../src/modules/hyperliquid/processor.js');
     processor = new HyperliquidVaultETLProcessor();
   });
 
-  describe("Constructor and Initialization", () => {
-    it("should initialize all dependencies", () => {
+  describe('Constructor and Initialization', () => {
+    it('should initialize all dependencies', () => {
       expect(processor.hyperliquidFetcher).toBe(mockHyperliquidFetcher);
       expect(processor.supabaseFetcher).toBe(mockSupabaseFetcher);
       expect(processor.transformer).toBe(mockTransformer);
@@ -300,22 +300,22 @@ describe("HyperliquidVaultETLProcessor", () => {
       expect(processor.portfolioWriter).toBe(mockPortfolioWriter);
     });
 
-    it("should return correct source type", () => {
-      expect(processor.getSourceType()).toBe("hyperliquid");
+    it('should return correct source type', () => {
+      expect(processor.getSourceType()).toBe('hyperliquid');
     });
   });
 
-  describe("validation and write helpers", () => {
-    it("returns a failed process result when the job is invalid", async () => {
-      const result = await processor.process({ trigger: "manual" } as ETLJob);
+  describe('validation and write helpers', () => {
+    it('returns a failed process result when the job is invalid', async () => {
+      const result = await processor.process({ trigger: 'manual' } as ETLJob);
 
       expect(result.success).toBe(false);
       expect(result.recordsInserted).toBe(0);
-      expect(result.source).toBe("hyperliquid");
+      expect(result.source).toBe('hyperliquid');
       expect(result.errors.length).toBeGreaterThan(0);
     });
 
-    it("returns an empty write result when there is no transformed batch", async () => {
+    it('returns an empty write result when there is no transformed batch', async () => {
       const result = await (
         processor as unknown as {
           writeTransformedData: (
@@ -328,7 +328,7 @@ describe("HyperliquidVaultETLProcessor", () => {
             errors: string[];
           }>;
         }
-      ).writeTransformedData([], "job-empty");
+      ).writeTransformedData([], 'job-empty');
 
       expect(result).toEqual({
         success: true,
@@ -338,7 +338,7 @@ describe("HyperliquidVaultETLProcessor", () => {
       });
     });
 
-    it("treats missing duplicatesSkipped values as zero", async () => {
+    it('treats missing duplicatesSkipped values as zero', async () => {
       mockPortfolioWriter.writeSnapshots.mockResolvedValue({
         success: true,
         recordsInserted: 2,
@@ -374,17 +374,17 @@ describe("HyperliquidVaultETLProcessor", () => {
         [
           {
             portfolioRecords: [
-              createMockPortfolioSnapshot("user-1", "0xvault1"),
+              createMockPortfolioSnapshot('user-1', '0xvault1'),
             ],
             aprRecords: [
-              createMockAprSnapshot("0xvault1", "2025-02-01T12:00:00.000Z"),
+              createMockAprSnapshot('0xvault1', '2025-02-01T12:00:00.000Z'),
             ],
-            successfulWallets: ["0xwallet1"],
+            successfulWallets: ['0xwallet1'],
             errors: [],
             success: true,
           },
         ],
-        "job-duplicates",
+        'job-duplicates',
       );
 
       expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledOnce();
@@ -398,20 +398,20 @@ describe("HyperliquidVaultETLProcessor", () => {
     });
   });
 
-  describe("process() - Happy Path", () => {
-    it("should successfully process single VIP user with complete data", async () => {
+  describe('process() - Happy Path', () => {
+    it('should successfully process single VIP user with complete data', async () => {
       const job = createMockJob();
-      const vipUser = createMockVipUser("user-1", "0xwallet1");
-      const vaultDetails = createMockVaultDetails("0xvault1");
-      const positionData = createMockPositionData("0xwallet1", "0xvault1");
-      const aprData = createMockAprData("0xvault1");
+      const vipUser = createMockVipUser('user-1', '0xwallet1');
+      const vaultDetails = createMockVaultDetails('0xvault1');
+      const positionData = createMockPositionData('0xwallet1', '0xvault1');
+      const aprData = createMockAprData('0xvault1');
       const portfolioSnapshot = createMockPortfolioSnapshot(
-        "user-1",
-        "0xvault1",
+        'user-1',
+        '0xvault1',
       );
       const aprSnapshot = createMockAprSnapshot(
-        "0xvault1",
-        "2025-02-01T12:00:00.000Z",
+        '0xvault1',
+        '2025-02-01T12:00:00.000Z',
       );
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue([vipUser]);
@@ -439,15 +439,15 @@ describe("HyperliquidVaultETLProcessor", () => {
       expect(result.recordsProcessed).toBe(1);
       expect(result.recordsInserted).toBe(2);
       expect(result.errors).toEqual([]);
-      expect(result.source).toBe("hyperliquid");
+      expect(result.source).toBe('hyperliquid');
 
       expect(mockSupabaseFetcher.fetchVipUsers).toHaveBeenCalledTimes(1);
       expect(mockHyperliquidFetcher.getVaultDetails).toHaveBeenCalledWith(
-        "0xwallet1",
+        '0xwallet1',
       );
       expect(mockHyperliquidFetcher.extractPositionData).toHaveBeenCalledWith(
         vaultDetails,
-        "0xwallet1",
+        '0xwallet1',
       );
       expect(mockHyperliquidFetcher.extractAprData).toHaveBeenCalledWith(
         vaultDetails,
@@ -462,17 +462,17 @@ describe("HyperliquidVaultETLProcessor", () => {
       );
       expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith(
         [portfolioSnapshot],
-        "hyperliquid",
-        ["0xwallet1"],
+        'hyperliquid',
+        ['0xwallet1'],
       );
       expect(mockAprWriter.writeSnapshots).toHaveBeenCalledWith([aprSnapshot]);
 
       expect(mockLogger.info).toHaveBeenCalledWith(
-        "Processing Hyperliquid vault data",
+        'Processing Hyperliquid vault data',
         { jobId: job.jobId },
       );
       expect(mockLogger.info).toHaveBeenCalledWith(
-        "Hyperliquid processing completed",
+        'Hyperliquid processing completed',
         {
           jobId: job.jobId,
           usersProcessed: 1,
@@ -483,12 +483,12 @@ describe("HyperliquidVaultETLProcessor", () => {
       );
     });
 
-    it("should successfully process multiple VIP users", async () => {
+    it('should successfully process multiple VIP users', async () => {
       const job = createMockJob();
       const vipUsers = [
-        createMockVipUser("user-1", "0xwallet1"),
-        createMockVipUser("user-2", "0xwallet2"),
-        createMockVipUser("user-3", "0xwallet3"),
+        createMockVipUser('user-1', '0xwallet1'),
+        createMockVipUser('user-2', '0xwallet2'),
+        createMockVipUser('user-3', '0xwallet3'),
       ];
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
@@ -510,7 +510,7 @@ describe("HyperliquidVaultETLProcessor", () => {
           createMockPortfolioSnapshot(vipUsers[i].user_id, vaultAddr),
         );
         mockTransformer.transformApr.mockReturnValueOnce(
-          createMockAprSnapshot(vaultAddr, "2025-02-01T12:00:00.000Z"),
+          createMockAprSnapshot(vaultAddr, '2025-02-01T12:00:00.000Z'),
         );
       }
 
@@ -540,8 +540,8 @@ describe("HyperliquidVaultETLProcessor", () => {
     });
   });
 
-  describe("process() - Edge Cases", () => {
-    it("should return early when no VIP users found", async () => {
+  describe('process() - Edge Cases', () => {
+    it('should return early when no VIP users found', async () => {
       const job = createMockJob();
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue([]);
 
@@ -552,11 +552,11 @@ describe("HyperliquidVaultETLProcessor", () => {
         recordsProcessed: 0,
         recordsInserted: 0,
         errors: [],
-        source: "hyperliquid",
+        source: 'hyperliquid',
       });
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        "No VIP users returned for Hyperliquid processing",
+        'No VIP users returned for Hyperliquid processing',
         { jobId: job.jobId },
       );
       expect(mockHyperliquidFetcher.getVaultDetails).not.toHaveBeenCalled();
@@ -564,15 +564,15 @@ describe("HyperliquidVaultETLProcessor", () => {
       expect(mockAprWriter.writeSnapshots).not.toHaveBeenCalled();
     });
 
-    it("should skip position when transformPosition returns null", async () => {
+    it('should skip position when transformPosition returns null', async () => {
       const job = createMockJob();
-      const vipUser = createMockVipUser("user-1", "0xwallet1");
-      const vaultDetails = createMockVaultDetails("0xvault1");
-      const positionData = createMockPositionData("0xwallet1", "0xvault1");
-      const aprData = createMockAprData("0xvault1");
+      const vipUser = createMockVipUser('user-1', '0xwallet1');
+      const vaultDetails = createMockVaultDetails('0xvault1');
+      const positionData = createMockPositionData('0xwallet1', '0xvault1');
+      const aprData = createMockAprData('0xvault1');
       const aprSnapshot = createMockAprSnapshot(
-        "0xvault1",
-        "2025-02-01T12:00:00.000Z",
+        '0xvault1',
+        '2025-02-01T12:00:00.000Z',
       );
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue([vipUser]);
@@ -595,21 +595,21 @@ describe("HyperliquidVaultETLProcessor", () => {
       expect(result.recordsInserted).toBe(1);
       expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith(
         [],
-        "hyperliquid",
-        ["0xwallet1"],
+        'hyperliquid',
+        ['0xwallet1'],
       );
       expect(mockAprWriter.writeSnapshots).toHaveBeenCalledWith([aprSnapshot]);
     });
 
-    it("should continue processing when transformApr throws error", async () => {
+    it('should continue processing when transformApr throws error', async () => {
       const job = createMockJob();
-      const vipUser = createMockVipUser("user-1", "0xwallet1");
-      const vaultDetails = createMockVaultDetails("0xvault1");
-      const positionData = createMockPositionData("0xwallet1", "0xvault1");
-      const aprData = createMockAprData("0xvault1");
+      const vipUser = createMockVipUser('user-1', '0xwallet1');
+      const vaultDetails = createMockVaultDetails('0xvault1');
+      const positionData = createMockPositionData('0xwallet1', '0xvault1');
+      const aprData = createMockAprData('0xvault1');
       const portfolioSnapshot = createMockPortfolioSnapshot(
-        "user-1",
-        "0xvault1",
+        'user-1',
+        '0xvault1',
       );
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue([vipUser]);
@@ -618,7 +618,7 @@ describe("HyperliquidVaultETLProcessor", () => {
       mockHyperliquidFetcher.extractAprData.mockReturnValue(aprData);
       mockTransformer.transformPosition.mockReturnValue(portfolioSnapshot);
       mockTransformer.transformApr.mockImplementation(() => {
-        throw new Error("APR transformation failed");
+        throw new Error('APR transformation failed');
       });
       mockPortfolioWriter.writeSnapshots.mockResolvedValue({
         success: true,
@@ -632,72 +632,72 @@ describe("HyperliquidVaultETLProcessor", () => {
       expect(result.success).toBe(false);
       expect(result.recordsProcessed).toBe(1);
       expect(result.recordsInserted).toBe(1);
-      expect(result.errors).toEqual(["APR transformation failed"]);
+      expect(result.errors).toEqual(['APR transformation failed']);
 
       expect(mockLogger.error).toHaveBeenCalledWith(
-        "Hyperliquid APR transformation failed",
+        'Hyperliquid APR transformation failed',
         {
           jobId: job.jobId,
-          vault: "0xvault1",
-          error: "APR transformation failed",
+          vault: '0xvault1',
+          error: 'APR transformation failed',
         },
       );
 
       expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith(
         [portfolioSnapshot],
-        "hyperliquid",
-        ["0xwallet1"],
+        'hyperliquid',
+        ['0xwallet1'],
       );
       expect(mockAprWriter.writeSnapshots).not.toHaveBeenCalled();
     });
 
-    it("should handle mixed success and failure across multiple users", async () => {
+    it('should handle mixed success and failure across multiple users', async () => {
       const job = createMockJob();
       const vipUsers = [
-        createMockVipUser("user-1", "0xwallet1"),
-        createMockVipUser("user-2", "0xwallet2"),
-        createMockVipUser("user-3", "0xwallet3"),
+        createMockVipUser('user-1', '0xwallet1'),
+        createMockVipUser('user-2', '0xwallet2'),
+        createMockVipUser('user-3', '0xwallet3'),
       ];
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
 
       // User 1: Success
       mockHyperliquidFetcher.getVaultDetails.mockResolvedValueOnce(
-        createMockVaultDetails("0xvault1"),
+        createMockVaultDetails('0xvault1'),
       );
       mockHyperliquidFetcher.extractPositionData.mockReturnValueOnce(
-        createMockPositionData("0xwallet1", "0xvault1"),
+        createMockPositionData('0xwallet1', '0xvault1'),
       );
       mockHyperliquidFetcher.extractAprData.mockReturnValueOnce(
-        createMockAprData("0xvault1"),
+        createMockAprData('0xvault1'),
       );
       mockTransformer.transformPosition.mockReturnValueOnce(
-        createMockPortfolioSnapshot("user-1", "0xvault1"),
+        createMockPortfolioSnapshot('user-1', '0xvault1'),
       );
       mockTransformer.transformApr.mockReturnValueOnce(
-        createMockAprSnapshot("0xvault1", "2025-02-01T12:00:00.000Z"),
+        createMockAprSnapshot('0xvault1', '2025-02-01T12:00:00.000Z'),
       );
 
       // User 2: transformApr throws
       mockHyperliquidFetcher.getVaultDetails.mockResolvedValueOnce(
-        createMockVaultDetails("0xvault2"),
+        createMockVaultDetails('0xvault2'),
       );
       mockHyperliquidFetcher.extractPositionData.mockReturnValueOnce(
-        createMockPositionData("0xwallet2", "0xvault2"),
+        createMockPositionData('0xwallet2', '0xvault2'),
       );
       mockHyperliquidFetcher.extractAprData.mockReturnValueOnce(
-        createMockAprData("0xvault2"),
+        createMockAprData('0xvault2'),
       );
       mockTransformer.transformPosition.mockReturnValueOnce(
-        createMockPortfolioSnapshot("user-2", "0xvault2"),
+        createMockPortfolioSnapshot('user-2', '0xvault2'),
       );
       mockTransformer.transformApr.mockImplementationOnce(() => {
-        throw new Error("APR error for user 2");
+        throw new Error('APR error for user 2');
       });
 
       // User 3: getVaultDetails fails
       mockHyperliquidFetcher.getVaultDetails.mockRejectedValueOnce(
-        new Error("API error for user 3"),
+        new Error('API error for user 3'),
       );
 
       mockPortfolioWriter.writeSnapshots.mockResolvedValue({
@@ -719,25 +719,25 @@ describe("HyperliquidVaultETLProcessor", () => {
       expect(result.recordsProcessed).toBe(3);
       expect(result.recordsInserted).toBe(3);
       expect(result.errors).toEqual([
-        "APR error for user 2",
-        "API error for user 3",
+        'APR error for user 2',
+        'API error for user 3',
       ]);
 
       expect(mockLogger.error).toHaveBeenCalledTimes(2);
     });
   });
 
-  describe("APR Deduplication Logic (CRITICAL)", () => {
-    it("should keep only the latest snapshot when multiple users share same vault address", async () => {
+  describe('APR Deduplication Logic (CRITICAL)', () => {
+    it('should keep only the latest snapshot when multiple users share same vault address', async () => {
       const job = createMockJob();
       const vipUsers = [
-        createMockVipUser("user-1", "0xwallet1"),
-        createMockVipUser("user-2", "0xwallet2"),
+        createMockVipUser('user-1', '0xwallet1'),
+        createMockVipUser('user-2', '0xwallet2'),
       ];
 
-      const sharedVault = "0xvault_shared";
-      const olderTime = "2025-02-01T10:00:00.000Z";
-      const newerTime = "2025-02-01T12:00:00.000Z";
+      const sharedVault = '0xvault_shared';
+      const olderTime = '2025-02-01T10:00:00.000Z';
+      const newerTime = '2025-02-01T12:00:00.000Z';
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
 
@@ -746,13 +746,13 @@ describe("HyperliquidVaultETLProcessor", () => {
         createMockVaultDetails(sharedVault),
       );
       mockHyperliquidFetcher.extractPositionData.mockReturnValueOnce(
-        createMockPositionData("0xwallet1", sharedVault),
+        createMockPositionData('0xwallet1', sharedVault),
       );
       mockHyperliquidFetcher.extractAprData.mockReturnValueOnce(
         createMockAprData(sharedVault),
       );
       mockTransformer.transformPosition.mockReturnValueOnce(
-        createMockPortfolioSnapshot("user-1", sharedVault),
+        createMockPortfolioSnapshot('user-1', sharedVault),
       );
       mockTransformer.transformApr.mockReturnValueOnce(
         createMockAprSnapshot(sharedVault, olderTime),
@@ -763,13 +763,13 @@ describe("HyperliquidVaultETLProcessor", () => {
         createMockVaultDetails(sharedVault),
       );
       mockHyperliquidFetcher.extractPositionData.mockReturnValueOnce(
-        createMockPositionData("0xwallet2", sharedVault),
+        createMockPositionData('0xwallet2', sharedVault),
       );
       mockHyperliquidFetcher.extractAprData.mockReturnValueOnce(
         createMockAprData(sharedVault),
       );
       mockTransformer.transformPosition.mockReturnValueOnce(
-        createMockPortfolioSnapshot("user-2", sharedVault),
+        createMockPortfolioSnapshot('user-2', sharedVault),
       );
       mockTransformer.transformApr.mockReturnValueOnce(
         createMockAprSnapshot(sharedVault, newerTime),
@@ -801,16 +801,16 @@ describe("HyperliquidVaultETLProcessor", () => {
       expect(aprSnapshots[0].snapshot_time).toBe(newerTime);
     });
 
-    it("should discard older snapshots when newer one comes first", async () => {
+    it('should discard older snapshots when newer one comes first', async () => {
       const job = createMockJob();
       const vipUsers = [
-        createMockVipUser("user-1", "0xwallet1"),
-        createMockVipUser("user-2", "0xwallet2"),
+        createMockVipUser('user-1', '0xwallet1'),
+        createMockVipUser('user-2', '0xwallet2'),
       ];
 
-      const sharedVault = "0xvault_shared";
-      const newerTime = "2025-02-01T12:00:00.000Z";
-      const olderTime = "2025-02-01T10:00:00.000Z";
+      const sharedVault = '0xvault_shared';
+      const newerTime = '2025-02-01T12:00:00.000Z';
+      const olderTime = '2025-02-01T10:00:00.000Z';
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
 
@@ -819,13 +819,13 @@ describe("HyperliquidVaultETLProcessor", () => {
         createMockVaultDetails(sharedVault),
       );
       mockHyperliquidFetcher.extractPositionData.mockReturnValueOnce(
-        createMockPositionData("0xwallet1", sharedVault),
+        createMockPositionData('0xwallet1', sharedVault),
       );
       mockHyperliquidFetcher.extractAprData.mockReturnValueOnce(
         createMockAprData(sharedVault),
       );
       mockTransformer.transformPosition.mockReturnValueOnce(
-        createMockPortfolioSnapshot("user-1", sharedVault),
+        createMockPortfolioSnapshot('user-1', sharedVault),
       );
       mockTransformer.transformApr.mockReturnValueOnce(
         createMockAprSnapshot(sharedVault, newerTime),
@@ -836,13 +836,13 @@ describe("HyperliquidVaultETLProcessor", () => {
         createMockVaultDetails(sharedVault),
       );
       mockHyperliquidFetcher.extractPositionData.mockReturnValueOnce(
-        createMockPositionData("0xwallet2", sharedVault),
+        createMockPositionData('0xwallet2', sharedVault),
       );
       mockHyperliquidFetcher.extractAprData.mockReturnValueOnce(
         createMockAprData(sharedVault),
       );
       mockTransformer.transformPosition.mockReturnValueOnce(
-        createMockPortfolioSnapshot("user-2", sharedVault),
+        createMockPortfolioSnapshot('user-2', sharedVault),
       );
       mockTransformer.transformApr.mockReturnValueOnce(
         createMockAprSnapshot(sharedVault, olderTime),
@@ -868,66 +868,66 @@ describe("HyperliquidVaultETLProcessor", () => {
       expect(aprSnapshots[0].snapshot_time).toBe(newerTime);
     });
 
-    it("should keep snapshots for different vault addresses", async () => {
+    it('should keep snapshots for different vault addresses', async () => {
       const job = createMockJob();
       const vipUsers = [
-        createMockVipUser("user-1", "0xwallet1"),
-        createMockVipUser("user-2", "0xwallet2"),
-        createMockVipUser("user-3", "0xwallet3"),
+        createMockVipUser('user-1', '0xwallet1'),
+        createMockVipUser('user-2', '0xwallet2'),
+        createMockVipUser('user-3', '0xwallet3'),
       ];
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
 
-      const vault1 = "0xvault1";
-      const vault2 = "0xvault2";
-      const vault3 = "0xvault3";
+      const vault1 = '0xvault1';
+      const vault2 = '0xvault2';
+      const vault3 = '0xvault3';
 
       mockHyperliquidFetcher.getVaultDetails.mockResolvedValueOnce(
         createMockVaultDetails(vault1),
       );
       mockHyperliquidFetcher.extractPositionData.mockReturnValueOnce(
-        createMockPositionData("0xwallet1", vault1),
+        createMockPositionData('0xwallet1', vault1),
       );
       mockHyperliquidFetcher.extractAprData.mockReturnValueOnce(
         createMockAprData(vault1),
       );
       mockTransformer.transformPosition.mockReturnValueOnce(
-        createMockPortfolioSnapshot("user-1", vault1),
+        createMockPortfolioSnapshot('user-1', vault1),
       );
       mockTransformer.transformApr.mockReturnValueOnce(
-        createMockAprSnapshot(vault1, "2025-02-01T12:00:00.000Z"),
+        createMockAprSnapshot(vault1, '2025-02-01T12:00:00.000Z'),
       );
 
       mockHyperliquidFetcher.getVaultDetails.mockResolvedValueOnce(
         createMockVaultDetails(vault2),
       );
       mockHyperliquidFetcher.extractPositionData.mockReturnValueOnce(
-        createMockPositionData("0xwallet2", vault2),
+        createMockPositionData('0xwallet2', vault2),
       );
       mockHyperliquidFetcher.extractAprData.mockReturnValueOnce(
         createMockAprData(vault2),
       );
       mockTransformer.transformPosition.mockReturnValueOnce(
-        createMockPortfolioSnapshot("user-2", vault2),
+        createMockPortfolioSnapshot('user-2', vault2),
       );
       mockTransformer.transformApr.mockReturnValueOnce(
-        createMockAprSnapshot(vault2, "2025-02-01T12:00:00.000Z"),
+        createMockAprSnapshot(vault2, '2025-02-01T12:00:00.000Z'),
       );
 
       mockHyperliquidFetcher.getVaultDetails.mockResolvedValueOnce(
         createMockVaultDetails(vault3),
       );
       mockHyperliquidFetcher.extractPositionData.mockReturnValueOnce(
-        createMockPositionData("0xwallet3", vault3),
+        createMockPositionData('0xwallet3', vault3),
       );
       mockHyperliquidFetcher.extractAprData.mockReturnValueOnce(
         createMockAprData(vault3),
       );
       mockTransformer.transformPosition.mockReturnValueOnce(
-        createMockPortfolioSnapshot("user-3", vault3),
+        createMockPortfolioSnapshot('user-3', vault3),
       );
       mockTransformer.transformApr.mockReturnValueOnce(
-        createMockAprSnapshot(vault3, "2025-02-01T12:00:00.000Z"),
+        createMockAprSnapshot(vault3, '2025-02-01T12:00:00.000Z'),
       );
 
       mockPortfolioWriter.writeSnapshots.mockResolvedValue({
@@ -953,10 +953,10 @@ describe("HyperliquidVaultETLProcessor", () => {
     });
   });
 
-  describe("Error Handling", () => {
-    it("should throw and catch when fetchVipUsers fails", async () => {
+  describe('Error Handling', () => {
+    it('should throw and catch when fetchVipUsers fails', async () => {
       const job = createMockJob();
-      const fetchError = new Error("Supabase connection failed");
+      const fetchError = new Error('Supabase connection failed');
 
       mockSupabaseFetcher.fetchVipUsers.mockRejectedValue(fetchError);
 
@@ -965,10 +965,10 @@ describe("HyperliquidVaultETLProcessor", () => {
       expect(result.success).toBe(false);
       expect(result.recordsProcessed).toBe(0);
       expect(result.recordsInserted).toBe(0);
-      expect(result.errors).toEqual(["Supabase connection failed"]);
+      expect(result.errors).toEqual(['Supabase connection failed']);
 
       expect(mockLogger.error).toHaveBeenCalledWith(
-        "hyperliquid processing failed:",
+        'hyperliquid processing failed:',
         {
           jobId: job.jobId,
           error: expect.any(Error),
@@ -976,35 +976,35 @@ describe("HyperliquidVaultETLProcessor", () => {
       );
     });
 
-    it("should continue processing when getVaultDetails fails for one user", async () => {
+    it('should continue processing when getVaultDetails fails for one user', async () => {
       const job = createMockJob();
       const vipUsers = [
-        createMockVipUser("user-1", "0xwallet1"),
-        createMockVipUser("user-2", "0xwallet2"),
+        createMockVipUser('user-1', '0xwallet1'),
+        createMockVipUser('user-2', '0xwallet2'),
       ];
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
 
       // User 1: fails
       mockHyperliquidFetcher.getVaultDetails.mockRejectedValueOnce(
-        new Error("API timeout"),
+        new Error('API timeout'),
       );
 
       // User 2: succeeds
       mockHyperliquidFetcher.getVaultDetails.mockResolvedValueOnce(
-        createMockVaultDetails("0xvault2"),
+        createMockVaultDetails('0xvault2'),
       );
       mockHyperliquidFetcher.extractPositionData.mockReturnValueOnce(
-        createMockPositionData("0xwallet2", "0xvault2"),
+        createMockPositionData('0xwallet2', '0xvault2'),
       );
       mockHyperliquidFetcher.extractAprData.mockReturnValueOnce(
-        createMockAprData("0xvault2"),
+        createMockAprData('0xvault2'),
       );
       mockTransformer.transformPosition.mockReturnValueOnce(
-        createMockPortfolioSnapshot("user-2", "0xvault2"),
+        createMockPortfolioSnapshot('user-2', '0xvault2'),
       );
       mockTransformer.transformApr.mockReturnValueOnce(
-        createMockAprSnapshot("0xvault2", "2025-02-01T12:00:00.000Z"),
+        createMockAprSnapshot('0xvault2', '2025-02-01T12:00:00.000Z'),
       );
 
       mockPortfolioWriter.writeSnapshots.mockResolvedValue({
@@ -1025,32 +1025,32 @@ describe("HyperliquidVaultETLProcessor", () => {
       expect(result.success).toBe(false);
       expect(result.recordsProcessed).toBe(2);
       expect(result.recordsInserted).toBe(2);
-      expect(result.errors).toEqual(["API timeout"]);
+      expect(result.errors).toEqual(['API timeout']);
 
       expect(mockLogger.error).toHaveBeenCalledWith(
-        "Failed to process Hyperliquid vault for user",
+        'Failed to process Hyperliquid vault for user',
         {
           jobId: job.jobId,
-          userId: "user-1",
-          wallet: "0xwall...let1",
-          error: "API timeout",
+          userId: 'user-1',
+          wallet: '0xwall...let1',
+          error: 'API timeout',
         },
       );
     });
 
-    it("should mark success as false when portfolio writer fails", async () => {
+    it('should mark success as false when portfolio writer fails', async () => {
       const job = createMockJob();
-      const vipUser = createMockVipUser("user-1", "0xwallet1");
-      const vaultDetails = createMockVaultDetails("0xvault1");
-      const positionData = createMockPositionData("0xwallet1", "0xvault1");
-      const aprData = createMockAprData("0xvault1");
+      const vipUser = createMockVipUser('user-1', '0xwallet1');
+      const vaultDetails = createMockVaultDetails('0xvault1');
+      const positionData = createMockPositionData('0xwallet1', '0xvault1');
+      const aprData = createMockAprData('0xvault1');
       const portfolioSnapshot = createMockPortfolioSnapshot(
-        "user-1",
-        "0xvault1",
+        'user-1',
+        '0xvault1',
       );
       const aprSnapshot = createMockAprSnapshot(
-        "0xvault1",
-        "2025-02-01T12:00:00.000Z",
+        '0xvault1',
+        '2025-02-01T12:00:00.000Z',
       );
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue([vipUser]);
@@ -1062,7 +1062,7 @@ describe("HyperliquidVaultETLProcessor", () => {
       mockPortfolioWriter.writeSnapshots.mockResolvedValue({
         success: false,
         recordsInserted: 0,
-        errors: ["Portfolio write error"],
+        errors: ['Portfolio write error'],
         duplicatesSkipped: 0,
       });
       mockAprWriter.writeSnapshots.mockResolvedValue({
@@ -1076,22 +1076,22 @@ describe("HyperliquidVaultETLProcessor", () => {
 
       expect(result.success).toBe(false);
       expect(result.recordsInserted).toBe(1);
-      expect(result.errors).toEqual(["Portfolio write error"]);
+      expect(result.errors).toEqual(['Portfolio write error']);
     });
 
-    it("should mark success as false when APR writer fails", async () => {
+    it('should mark success as false when APR writer fails', async () => {
       const job = createMockJob();
-      const vipUser = createMockVipUser("user-1", "0xwallet1");
-      const vaultDetails = createMockVaultDetails("0xvault1");
-      const positionData = createMockPositionData("0xwallet1", "0xvault1");
-      const aprData = createMockAprData("0xvault1");
+      const vipUser = createMockVipUser('user-1', '0xwallet1');
+      const vaultDetails = createMockVaultDetails('0xvault1');
+      const positionData = createMockPositionData('0xwallet1', '0xvault1');
+      const aprData = createMockAprData('0xvault1');
       const portfolioSnapshot = createMockPortfolioSnapshot(
-        "user-1",
-        "0xvault1",
+        'user-1',
+        '0xvault1',
       );
       const aprSnapshot = createMockAprSnapshot(
-        "0xvault1",
-        "2025-02-01T12:00:00.000Z",
+        '0xvault1',
+        '2025-02-01T12:00:00.000Z',
       );
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue([vipUser]);
@@ -1109,7 +1109,7 @@ describe("HyperliquidVaultETLProcessor", () => {
       mockAprWriter.writeSnapshots.mockResolvedValue({
         success: false,
         recordsInserted: 0,
-        errors: ["APR write error"],
+        errors: ['APR write error'],
         duplicatesSkipped: 0,
       });
 
@@ -1117,22 +1117,22 @@ describe("HyperliquidVaultETLProcessor", () => {
 
       expect(result.success).toBe(false);
       expect(result.recordsInserted).toBe(1);
-      expect(result.errors).toEqual(["APR write error"]);
+      expect(result.errors).toEqual(['APR write error']);
     });
 
-    it("should handle both writers failing simultaneously", async () => {
+    it('should handle both writers failing simultaneously', async () => {
       const job = createMockJob();
-      const vipUser = createMockVipUser("user-1", "0xwallet1");
-      const vaultDetails = createMockVaultDetails("0xvault1");
-      const positionData = createMockPositionData("0xwallet1", "0xvault1");
-      const aprData = createMockAprData("0xvault1");
+      const vipUser = createMockVipUser('user-1', '0xwallet1');
+      const vaultDetails = createMockVaultDetails('0xvault1');
+      const positionData = createMockPositionData('0xwallet1', '0xvault1');
+      const aprData = createMockAprData('0xvault1');
       const portfolioSnapshot = createMockPortfolioSnapshot(
-        "user-1",
-        "0xvault1",
+        'user-1',
+        '0xvault1',
       );
       const aprSnapshot = createMockAprSnapshot(
-        "0xvault1",
-        "2025-02-01T12:00:00.000Z",
+        '0xvault1',
+        '2025-02-01T12:00:00.000Z',
       );
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue([vipUser]);
@@ -1144,13 +1144,13 @@ describe("HyperliquidVaultETLProcessor", () => {
       mockPortfolioWriter.writeSnapshots.mockResolvedValue({
         success: false,
         recordsInserted: 0,
-        errors: ["Portfolio DB error"],
+        errors: ['Portfolio DB error'],
         duplicatesSkipped: 0,
       });
       mockAprWriter.writeSnapshots.mockResolvedValue({
         success: false,
         recordsInserted: 0,
-        errors: ["APR DB error"],
+        errors: ['APR DB error'],
         duplicatesSkipped: 0,
       });
 
@@ -1158,30 +1158,30 @@ describe("HyperliquidVaultETLProcessor", () => {
 
       expect(result.success).toBe(false);
       expect(result.recordsInserted).toBe(0);
-      expect(result.errors).toEqual(["Portfolio DB error", "APR DB error"]);
+      expect(result.errors).toEqual(['Portfolio DB error', 'APR DB error']);
     });
 
-    it("should handle non-Error exceptions", async () => {
+    it('should handle non-Error exceptions', async () => {
       const job = createMockJob();
-      mockSupabaseFetcher.fetchVipUsers.mockRejectedValue("String error");
+      mockSupabaseFetcher.fetchVipUsers.mockRejectedValue('String error');
 
       const result = await processor.process(job);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toEqual(["Unknown error"]);
+      expect(result.errors).toEqual(['Unknown error']);
     });
   });
 
-  describe("Data Flow - Empty Scenarios", () => {
-    it("should clear the portfolio slice when no position records", async () => {
+  describe('Data Flow - Empty Scenarios', () => {
+    it('should clear the portfolio slice when no position records', async () => {
       const job = createMockJob();
-      const vipUser = createMockVipUser("user-1", "0xwallet1");
-      const vaultDetails = createMockVaultDetails("0xvault1");
-      const positionData = createMockPositionData("0xwallet1", "0xvault1");
-      const aprData = createMockAprData("0xvault1");
+      const vipUser = createMockVipUser('user-1', '0xwallet1');
+      const vaultDetails = createMockVaultDetails('0xvault1');
+      const positionData = createMockPositionData('0xwallet1', '0xvault1');
+      const aprData = createMockAprData('0xvault1');
       const aprSnapshot = createMockAprSnapshot(
-        "0xvault1",
-        "2025-02-01T12:00:00.000Z",
+        '0xvault1',
+        '2025-02-01T12:00:00.000Z',
       );
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue([vipUser]);
@@ -1203,21 +1203,21 @@ describe("HyperliquidVaultETLProcessor", () => {
       expect(result.recordsInserted).toBe(1);
       expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith(
         [],
-        "hyperliquid",
-        ["0xwallet1"],
+        'hyperliquid',
+        ['0xwallet1'],
       );
       expect(mockAprWriter.writeSnapshots).toHaveBeenCalledWith([aprSnapshot]);
     });
 
-    it("should skip APR write when no APR snapshots", async () => {
+    it('should skip APR write when no APR snapshots', async () => {
       const job = createMockJob();
-      const vipUser = createMockVipUser("user-1", "0xwallet1");
-      const vaultDetails = createMockVaultDetails("0xvault1");
-      const positionData = createMockPositionData("0xwallet1", "0xvault1");
-      const aprData = createMockAprData("0xvault1");
+      const vipUser = createMockVipUser('user-1', '0xwallet1');
+      const vaultDetails = createMockVaultDetails('0xvault1');
+      const positionData = createMockPositionData('0xwallet1', '0xvault1');
+      const aprData = createMockAprData('0xvault1');
       const portfolioSnapshot = createMockPortfolioSnapshot(
-        "user-1",
-        "0xvault1",
+        'user-1',
+        '0xvault1',
       );
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue([vipUser]);
@@ -1226,7 +1226,7 @@ describe("HyperliquidVaultETLProcessor", () => {
       mockHyperliquidFetcher.extractAprData.mockReturnValue(aprData);
       mockTransformer.transformPosition.mockReturnValue(portfolioSnapshot);
       mockTransformer.transformApr.mockImplementation(() => {
-        throw new Error("APR error");
+        throw new Error('APR error');
       });
       mockPortfolioWriter.writeSnapshots.mockResolvedValue({
         success: true,
@@ -1241,18 +1241,18 @@ describe("HyperliquidVaultETLProcessor", () => {
       expect(result.recordsInserted).toBe(1);
       expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith(
         [portfolioSnapshot],
-        "hyperliquid",
-        ["0xwallet1"],
+        'hyperliquid',
+        ['0xwallet1'],
       );
       expect(mockAprWriter.writeSnapshots).not.toHaveBeenCalled();
     });
 
-    it("should clear the portfolio slice when position and APR results are empty", async () => {
+    it('should clear the portfolio slice when position and APR results are empty', async () => {
       const job = createMockJob();
-      const vipUser = createMockVipUser("user-1", "0xwallet1");
-      const vaultDetails = createMockVaultDetails("0xvault1");
-      const positionData = createMockPositionData("0xwallet1", "0xvault1");
-      const aprData = createMockAprData("0xvault1");
+      const vipUser = createMockVipUser('user-1', '0xwallet1');
+      const vaultDetails = createMockVaultDetails('0xvault1');
+      const positionData = createMockPositionData('0xwallet1', '0xvault1');
+      const aprData = createMockAprData('0xvault1');
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue([vipUser]);
       mockHyperliquidFetcher.getVaultDetails.mockResolvedValue(vaultDetails);
@@ -1260,7 +1260,7 @@ describe("HyperliquidVaultETLProcessor", () => {
       mockHyperliquidFetcher.extractAprData.mockReturnValue(aprData);
       mockTransformer.transformPosition.mockReturnValue(null);
       mockTransformer.transformApr.mockImplementation(() => {
-        throw new Error("APR error");
+        throw new Error('APR error');
       });
 
       const result = await processor.process(job);
@@ -1270,96 +1270,96 @@ describe("HyperliquidVaultETLProcessor", () => {
       expect(result.recordsInserted).toBe(0);
       expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith(
         [],
-        "hyperliquid",
-        ["0xwallet1"],
+        'hyperliquid',
+        ['0xwallet1'],
       );
       expect(mockAprWriter.writeSnapshots).not.toHaveBeenCalled();
     });
   });
 
-  describe("healthCheck()", () => {
-    it("should return healthy when both fetchers are healthy", async () => {
+  describe('healthCheck()', () => {
+    it('should return healthy when both fetchers are healthy', async () => {
       mockHyperliquidFetcher.healthCheck.mockResolvedValue({
-        status: "healthy",
+        status: 'healthy',
       });
-      mockSupabaseFetcher.healthCheck.mockResolvedValue({ status: "healthy" });
+      mockSupabaseFetcher.healthCheck.mockResolvedValue({ status: 'healthy' });
 
       const result = await processor.healthCheck();
 
-      expect(result).toEqual({ status: "healthy" });
+      expect(result).toEqual({ status: 'healthy' });
       expect(mockHyperliquidFetcher.healthCheck).toHaveBeenCalledTimes(1);
       expect(mockSupabaseFetcher.healthCheck).toHaveBeenCalledTimes(1);
     });
 
-    it("should return unhealthy when Hyperliquid is unhealthy", async () => {
+    it('should return unhealthy when Hyperliquid is unhealthy', async () => {
       mockHyperliquidFetcher.healthCheck.mockResolvedValue({
-        status: "unhealthy",
-        details: "API unreachable",
+        status: 'unhealthy',
+        details: 'API unreachable',
       });
-      mockSupabaseFetcher.healthCheck.mockResolvedValue({ status: "healthy" });
+      mockSupabaseFetcher.healthCheck.mockResolvedValue({ status: 'healthy' });
 
       const result = await processor.healthCheck();
 
       expect(result).toEqual({
-        status: "unhealthy",
-        details: "Hyperliquid: unhealthy (API unreachable), Supabase: healthy",
+        status: 'unhealthy',
+        details: 'Hyperliquid: unhealthy (API unreachable), Supabase: healthy',
       });
     });
 
-    it("should return unhealthy when Supabase is unhealthy", async () => {
+    it('should return unhealthy when Supabase is unhealthy', async () => {
       mockHyperliquidFetcher.healthCheck.mockResolvedValue({
-        status: "healthy",
+        status: 'healthy',
       });
       mockSupabaseFetcher.healthCheck.mockResolvedValue({
-        status: "unhealthy",
-        details: "Connection timeout",
+        status: 'unhealthy',
+        details: 'Connection timeout',
       });
 
       const result = await processor.healthCheck();
 
       expect(result).toEqual({
-        status: "unhealthy",
+        status: 'unhealthy',
         details:
-          "Hyperliquid: healthy, Supabase: unhealthy (Connection timeout)",
+          'Hyperliquid: healthy, Supabase: unhealthy (Connection timeout)',
       });
     });
 
-    it("should return unhealthy when both are unhealthy", async () => {
+    it('should return unhealthy when both are unhealthy', async () => {
       mockHyperliquidFetcher.healthCheck.mockResolvedValue({
-        status: "unhealthy",
-        details: "API down",
+        status: 'unhealthy',
+        details: 'API down',
       });
       mockSupabaseFetcher.healthCheck.mockResolvedValue({
-        status: "unhealthy",
-        details: "DB down",
+        status: 'unhealthy',
+        details: 'DB down',
       });
 
       const result = await processor.healthCheck();
 
       expect(result).toEqual({
-        status: "unhealthy",
+        status: 'unhealthy',
         details:
-          "Hyperliquid: unhealthy (API down), Supabase: unhealthy (DB down)",
+          'Hyperliquid: unhealthy (API down), Supabase: unhealthy (DB down)',
       });
     });
 
-    it("should handle health check without details field", async () => {
+    it('should handle health check without details field', async () => {
       mockHyperliquidFetcher.healthCheck.mockResolvedValue({
-        status: "unhealthy",
+        status: 'unhealthy',
       });
-      mockSupabaseFetcher.healthCheck.mockResolvedValue({ status: "healthy" });
+      mockSupabaseFetcher.healthCheck.mockResolvedValue({ status: 'healthy' });
 
       const result = await processor.healthCheck();
 
       expect(result).toEqual({
-        status: "unhealthy",
-        details: "Hyperliquid: unhealthy, Supabase: healthy",
+        status: 'unhealthy',
+        details: 'Hyperliquid: unhealthy, Supabase: healthy',
       });
     });
   });
 
-  describe("getStats()", () => {
-    it("should return stats from both fetchers", () => {
+  describe('getStats()', () => {
+    it('should return stats from both fetchers', () => {
       const hyperliquidStats = {
         requestsTotal: 100,
         requestsSuccessful: 95,
@@ -1385,7 +1385,7 @@ describe("HyperliquidVaultETLProcessor", () => {
       expect(mockSupabaseFetcher.getRequestStats).toHaveBeenCalledTimes(1);
     });
 
-    it("should aggregate stats correctly with empty stats", () => {
+    it('should aggregate stats correctly with empty stats', () => {
       mockHyperliquidFetcher.getRequestStats.mockReturnValue({});
       mockSupabaseFetcher.getRequestStats.mockReturnValue({});
 
@@ -1398,20 +1398,20 @@ describe("HyperliquidVaultETLProcessor", () => {
     });
   });
 
-  describe("Logging Verification", () => {
-    it("should log at all key processing points", async () => {
+  describe('Logging Verification', () => {
+    it('should log at all key processing points', async () => {
       const job = createMockJob();
-      const vipUser = createMockVipUser("user-1", "0xwallet1");
-      const vaultDetails = createMockVaultDetails("0xvault1");
-      const positionData = createMockPositionData("0xwallet1", "0xvault1");
-      const aprData = createMockAprData("0xvault1");
+      const vipUser = createMockVipUser('user-1', '0xwallet1');
+      const vaultDetails = createMockVaultDetails('0xvault1');
+      const positionData = createMockPositionData('0xwallet1', '0xvault1');
+      const aprData = createMockAprData('0xvault1');
       const portfolioSnapshot = createMockPortfolioSnapshot(
-        "user-1",
-        "0xvault1",
+        'user-1',
+        '0xvault1',
       );
       const aprSnapshot = createMockAprSnapshot(
-        "0xvault1",
-        "2025-02-01T12:00:00.000Z",
+        '0xvault1',
+        '2025-02-01T12:00:00.000Z',
       );
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue([vipUser]);
@@ -1436,11 +1436,11 @@ describe("HyperliquidVaultETLProcessor", () => {
       await processor.process(job);
 
       expect(mockLogger.info).toHaveBeenCalledWith(
-        "Processing Hyperliquid vault data",
+        'Processing Hyperliquid vault data',
         { jobId: job.jobId },
       );
       expect(mockLogger.info).toHaveBeenCalledWith(
-        "Hyperliquid processing completed",
+        'Hyperliquid processing completed',
         {
           jobId: job.jobId,
           usersProcessed: 1,
@@ -1452,10 +1452,10 @@ describe("HyperliquidVaultETLProcessor", () => {
     });
   });
 
-  describe("Activity-based filtering integration", () => {
-    it("should skip inactive users with recent updates", async () => {
+  describe('Daily VIP user processing', () => {
+    it('should process inactive users with recent updates', async () => {
       // Mock user: inactive (10 days) but updated 3 days ago
-      const inactiveUser = createMockVipUser("inactive-user", "0xINACTIVE");
+      const inactiveUser = createMockVipUser('inactive-user', '0xINACTIVE');
       inactiveUser.last_activity_at = new Date(
         Date.now() - 10 * 24 * 60 * 60 * 1000,
       ).toISOString();
@@ -1469,12 +1469,13 @@ describe("HyperliquidVaultETLProcessor", () => {
 
       await processor.process(createMockJob());
 
-      // Verify Hyperliquid API was NOT called for this user
-      expect(mockHyperliquidFetcher.getVaultDetails).not.toHaveBeenCalled();
+      expect(mockHyperliquidFetcher.getVaultDetails).toHaveBeenCalledWith(
+        '0xINACTIVE',
+      );
     });
 
-    it("should include active users in processing", async () => {
-      const activeUser = createMockVipUser("active-user", "0xACTIVE");
+    it('should include active users in processing', async () => {
+      const activeUser = createMockVipUser('active-user', '0xACTIVE');
       activeUser.last_activity_at = new Date(
         Date.now() - 2 * 24 * 60 * 60 * 1000,
       ).toISOString();
@@ -1482,9 +1483,9 @@ describe("HyperliquidVaultETLProcessor", () => {
         Date.now() - 10 * 24 * 60 * 60 * 1000,
       ).toISOString();
 
-      const vaultDetails = createMockVaultDetails("0xvault1");
-      const positionData = createMockPositionData("0xACTIVE", "0xvault1");
-      const aprData = createMockAprData("0xvault1");
+      const vaultDetails = createMockVaultDetails('0xvault1');
+      const positionData = createMockPositionData('0xACTIVE', '0xvault1');
+      const aprData = createMockAprData('0xvault1');
 
       mockSupabaseFetcher.fetchVipUsersWithActivity.mockResolvedValue([
         activeUser,
@@ -1496,12 +1497,12 @@ describe("HyperliquidVaultETLProcessor", () => {
       await processor.process(createMockJob());
 
       expect(mockHyperliquidFetcher.getVaultDetails).toHaveBeenCalledWith(
-        "0xACTIVE",
+        '0xACTIVE',
       );
     });
 
-    it("should update inactive users after 7+ days", async () => {
-      const staleUser = createMockVipUser("stale-user", "0xSTALE");
+    it('should update inactive users after 7+ days', async () => {
+      const staleUser = createMockVipUser('stale-user', '0xSTALE');
       staleUser.last_activity_at = new Date(
         Date.now() - 30 * 24 * 60 * 60 * 1000,
       ).toISOString();
@@ -1509,9 +1510,9 @@ describe("HyperliquidVaultETLProcessor", () => {
         Date.now() - 8 * 24 * 60 * 60 * 1000,
       ).toISOString();
 
-      const vaultDetails = createMockVaultDetails("0xvault1");
-      const positionData = createMockPositionData("0xSTALE", "0xvault1");
-      const aprData = createMockAprData("0xvault1");
+      const vaultDetails = createMockVaultDetails('0xvault1');
+      const positionData = createMockPositionData('0xSTALE', '0xvault1');
+      const aprData = createMockAprData('0xvault1');
 
       mockSupabaseFetcher.fetchVipUsersWithActivity.mockResolvedValue([
         staleUser,
@@ -1523,14 +1524,14 @@ describe("HyperliquidVaultETLProcessor", () => {
       await processor.process(createMockJob());
 
       expect(mockHyperliquidFetcher.getVaultDetails).toHaveBeenCalledWith(
-        "0xSTALE",
+        '0xSTALE',
       );
     });
 
-    it("should handle mixed user populations", async () => {
+    it('should handle mixed user populations', async () => {
       const user1 = createMockVipUser(
-        "u1",
-        "0x1111111111111111111111111111111111111111",
+        'u1',
+        '0x1111111111111111111111111111111111111111',
       );
       user1.last_activity_at = new Date(
         Date.now() - 2 * 24 * 60 * 60 * 1000,
@@ -1538,8 +1539,8 @@ describe("HyperliquidVaultETLProcessor", () => {
       user1.last_portfolio_update_at = null;
 
       const user2 = createMockVipUser(
-        "u2",
-        "0x2222222222222222222222222222222222222222",
+        'u2',
+        '0x2222222222222222222222222222222222222222',
       );
       user2.last_activity_at = new Date(
         Date.now() - 10 * 24 * 60 * 60 * 1000,
@@ -1549,8 +1550,8 @@ describe("HyperliquidVaultETLProcessor", () => {
       ).toISOString();
 
       const user3 = createMockVipUser(
-        "u3",
-        "0x3333333333333333333333333333333333333333",
+        'u3',
+        '0x3333333333333333333333333333333333333333',
       );
       user3.last_activity_at = new Date(
         Date.now() - 15 * 24 * 60 * 60 * 1000,
@@ -1559,9 +1560,9 @@ describe("HyperliquidVaultETLProcessor", () => {
         Date.now() - 8 * 24 * 60 * 60 * 1000,
       ).toISOString();
 
-      const vaultDetails = createMockVaultDetails("0xvault1");
-      const positionData = createMockPositionData("0xwallet", "0xvault1");
-      const aprData = createMockAprData("0xvault1");
+      const vaultDetails = createMockVaultDetails('0xvault1');
+      const positionData = createMockPositionData('0xwallet', '0xvault1');
+      const aprData = createMockAprData('0xvault1');
 
       mockSupabaseFetcher.fetchVipUsersWithActivity.mockResolvedValue([
         user1,
@@ -1574,25 +1575,23 @@ describe("HyperliquidVaultETLProcessor", () => {
 
       await processor.process(createMockJob());
 
-      // Should process 2 out of 3 users
-      expect(mockHyperliquidFetcher.getVaultDetails).toHaveBeenCalledTimes(2);
+      expect(mockHyperliquidFetcher.getVaultDetails).toHaveBeenCalledTimes(3);
       expect(mockHyperliquidFetcher.getVaultDetails).toHaveBeenCalledWith(
-        "0x1111111111111111111111111111111111111111",
+        '0x1111111111111111111111111111111111111111',
       );
       expect(mockHyperliquidFetcher.getVaultDetails).toHaveBeenCalledWith(
-        "0x3333333333333333333333333333333333333333",
+        '0x3333333333333333333333333333333333333333',
       );
-      expect(mockHyperliquidFetcher.getVaultDetails).not.toHaveBeenCalledWith(
-        "0x2222222222222222222222222222222222222222",
+      expect(mockHyperliquidFetcher.getVaultDetails).toHaveBeenCalledWith(
+        '0x2222222222222222222222222222222222222222',
       );
     });
 
-    it("should log correct cost savings stats", async () => {
-      // 10 users: 3 to update, 7 to skip = 70% savings
+    it('should log that every VIP wallet is scheduled', async () => {
       const users = Array.from({ length: 10 }, (_, i) => {
         const user = createMockVipUser(
           `user${i}`,
-          `0x${i.toString().padStart(40, "0")}`,
+          `0x${i.toString().padStart(40, '0')}`,
         );
         user.last_activity_at = new Date(
           Date.now() - 10 * 24 * 60 * 60 * 1000,
@@ -1604,9 +1603,9 @@ describe("HyperliquidVaultETLProcessor", () => {
         return user;
       });
 
-      const vaultDetails = createMockVaultDetails("0xvault1");
-      const positionData = createMockPositionData("0xwallet", "0xvault1");
-      const aprData = createMockAprData("0xvault1");
+      const vaultDetails = createMockVaultDetails('0xvault1');
+      const positionData = createMockPositionData('0xwallet', '0xvault1');
+      const aprData = createMockAprData('0xvault1');
 
       mockSupabaseFetcher.fetchVipUsersWithActivity.mockResolvedValue(users);
       mockHyperliquidFetcher.getVaultDetails.mockResolvedValue(vaultDetails);
@@ -1616,31 +1615,29 @@ describe("HyperliquidVaultETLProcessor", () => {
       await processor.process(createMockJob());
 
       expect(mockLogger.info).toHaveBeenCalledWith(
-        "Users filtered by activity",
+        'VIP users scheduled for daily processing',
         expect.objectContaining({
           totalVipUsers: 10,
-          usersToUpdate: 3,
-          usersSkipped: 7,
-          costSavingsPercent: "70%",
+          usersToUpdate: 10,
         }),
       );
     });
   });
 
-  describe("Portfolio timestamp updates", () => {
-    it("should call batchUpdatePortfolioTimestamps for successful wallets", async () => {
+  describe('Portfolio timestamp updates', () => {
+    it('should not update DeBank portfolio timestamps', async () => {
       const user1 = createMockVipUser(
-        "u1",
-        "0xWALLET1111111111111111111111111111111111",
+        'u1',
+        '0xWALLET1111111111111111111111111111111111',
       );
       const user2 = createMockVipUser(
-        "u2",
-        "0xWALLET2222222222222222222222222222222222",
+        'u2',
+        '0xWALLET2222222222222222222222222222222222',
       );
 
-      const vaultDetails = createMockVaultDetails("0xvault1");
-      const positionData = createMockPositionData("0xwallet", "0xvault1");
-      const aprData = createMockAprData("0xvault1");
+      const vaultDetails = createMockVaultDetails('0xvault1');
+      const positionData = createMockPositionData('0xwallet', '0xvault1');
+      const aprData = createMockAprData('0xvault1');
 
       mockSupabaseFetcher.fetchVipUsersWithActivity.mockResolvedValue([
         user1,
@@ -1654,33 +1651,30 @@ describe("HyperliquidVaultETLProcessor", () => {
 
       expect(
         mockSupabaseFetcher.batchUpdatePortfolioTimestamps,
-      ).toHaveBeenCalledWith([
-        "0xWALLET1111111111111111111111111111111111",
-        "0xWALLET2222222222222222222222222222222222",
-      ]);
+      ).not.toHaveBeenCalled();
     });
 
-    it("should handle timestamp update failure gracefully", async () => {
+    it('should handle timestamp update failure gracefully', async () => {
       const user1 = createMockVipUser(
-        "u1",
-        "0xWALLET1111111111111111111111111111111111",
+        'u1',
+        '0xWALLET1111111111111111111111111111111111',
       );
 
-      const vaultDetails = createMockVaultDetails("0xvault1");
+      const vaultDetails = createMockVaultDetails('0xvault1');
       const positionData = createMockPositionData(
-        "0xWALLET1111111111111111111111111111111111",
-        "0xvault1",
+        '0xWALLET1111111111111111111111111111111111',
+        '0xvault1',
       );
-      const aprData = createMockAprData("0xvault1");
-      const portfolioSnapshot = createMockPortfolioSnapshot("u1", "0xvault1");
+      const aprData = createMockAprData('0xvault1');
+      const portfolioSnapshot = createMockPortfolioSnapshot('u1', '0xvault1');
       const aprSnapshot = createMockAprSnapshot(
-        "0xvault1",
-        "2025-02-01T12:00:00.000Z",
+        '0xvault1',
+        '2025-02-01T12:00:00.000Z',
       );
 
       mockSupabaseFetcher.fetchVipUsersWithActivity.mockResolvedValue([user1]);
       mockSupabaseFetcher.batchUpdatePortfolioTimestamps.mockRejectedValue(
-        new Error("Timestamp update failed"),
+        new Error('Timestamp update failed'),
       );
       mockHyperliquidFetcher.getVaultDetails.mockResolvedValue(vaultDetails);
       mockHyperliquidFetcher.extractPositionData.mockReturnValue(positionData);
@@ -1705,13 +1699,12 @@ describe("HyperliquidVaultETLProcessor", () => {
       // Should still succeed despite timestamp failure
       expect(result.success).toBe(true);
       expect(result.recordsInserted).toBeGreaterThan(0);
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        "Failed to batch update portfolio timestamps",
-        expect.any(Object),
-      );
+      expect(
+        mockSupabaseFetcher.batchUpdatePortfolioTimestamps,
+      ).not.toHaveBeenCalled();
     });
 
-    it("should not call batchUpdatePortfolioTimestamps if no users processed", async () => {
+    it('should not call batchUpdatePortfolioTimestamps if no users processed', async () => {
       mockSupabaseFetcher.fetchVipUsersWithActivity.mockResolvedValue([]);
 
       await processor.process(createMockJob());
@@ -1722,11 +1715,11 @@ describe("HyperliquidVaultETLProcessor", () => {
     });
   });
 
-  describe("Edge cases", () => {
-    it("should handle all users being filtered out", async () => {
+  describe('Edge cases', () => {
+    it('should process recently updated users', async () => {
       const user = createMockVipUser(
-        "u1",
-        "0x1111111111111111111111111111111111111111",
+        'u1',
+        '0x1111111111111111111111111111111111111111',
       );
       user.last_activity_at = new Date(
         Date.now() - 10 * 24 * 60 * 60 * 1000,
@@ -1740,29 +1733,27 @@ describe("HyperliquidVaultETLProcessor", () => {
       const result = await processor.process(createMockJob());
 
       expect(result.success).toBe(true);
-      expect(result.recordsProcessed).toBe(0);
-      expect(mockHyperliquidFetcher.getVaultDetails).not.toHaveBeenCalled();
+      expect(result.recordsProcessed).toBeGreaterThan(0);
+      expect(mockHyperliquidFetcher.getVaultDetails).toHaveBeenCalled();
     });
 
-    it("should handle exactly 7-day boundary correctly", async () => {
+    it('should handle exactly 7-day boundary correctly', async () => {
       const exactlySevenDays = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
       const user = createMockVipUser(
-        "boundary",
-        "0xBOUNDARY1111111111111111111111111111111",
+        'boundary',
+        '0xBOUNDARY1111111111111111111111111111111',
       );
       user.last_activity_at = exactlySevenDays.toISOString();
       user.last_portfolio_update_at = new Date(
         Date.now() - 2 * 24 * 60 * 60 * 1000,
       ).toISOString();
 
-      // At exactly 7 days, user is considered inactive
-      // Should be skipped (updated 2 days ago)
       mockSupabaseFetcher.fetchVipUsersWithActivity.mockResolvedValue([user]);
 
       await processor.process(createMockJob());
 
-      expect(mockHyperliquidFetcher.getVaultDetails).not.toHaveBeenCalled();
+      expect(mockHyperliquidFetcher.getVaultDetails).toHaveBeenCalled();
     });
   });
 });

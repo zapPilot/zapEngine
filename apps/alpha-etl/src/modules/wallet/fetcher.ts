@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { RATE_LIMITS } from '../../config/constants.js';
 import { env } from '../../config/environment.js';
 import { BaseApiFetcher } from '../../core/fetchers/baseApiFetcher.js';
+import type { Nullable } from '../../types/index.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import {
   createWrappedHealthCheck,
@@ -21,11 +22,11 @@ export interface DeBankTokenBalance {
   decimals: number;
   logo_url?: string;
   protocol_id?: string;
-  price?: number;
-  price_24h_change?: number;
-  is_verified: boolean;
-  is_core: boolean;
-  is_wallet: boolean;
+  price?: Nullable<number> | undefined;
+  price_24h_change?: Nullable<number> | undefined;
+  is_verified: Nullable<boolean> | undefined;
+  is_core: Nullable<boolean> | undefined;
+  is_wallet: Nullable<boolean> | undefined;
   time_at?: number;
   amount: number; // This is the balance in token units
   raw_amount?: string; // Raw balance as string
@@ -38,12 +39,12 @@ const DeBankTokenBalanceSchema = z
     chain: z.string().trim().min(1),
     decimals: z.number().int().nonnegative(),
     id: z.string().trim().min(1),
-    is_core: z.boolean(),
-    is_verified: z.boolean(),
-    is_wallet: z.boolean(),
+    is_core: z.boolean().nullish(),
+    is_verified: z.boolean().nullish(),
+    is_wallet: z.boolean().nullish(),
     name: z.string(),
-    price: z.number().nonnegative().optional(),
-    price_24h_change: z.number().optional(),
+    price: z.number().nonnegative().nullish(),
+    price_24h_change: z.number().nullish(),
     symbol: z.string(),
   })
   .passthrough();

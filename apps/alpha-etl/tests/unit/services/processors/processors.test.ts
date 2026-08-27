@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 import { validateWalletFetchJob } from '../../../../src/core/processors/validation.js';
-import { filterVipUsersByActivity } from '../../../../src/modules/vip-users/activityFiltering.js';
 
 // validateWalletFetchJob uses declared schemas; these tests drive specific metadata failures.
 
@@ -85,24 +84,6 @@ describe('Processors', () => {
         '0x1234567890123456789012345678901234567890',
       );
       expect(result.userId).toBe('user-123');
-    });
-  });
-
-  describe('UserActivityFiltering', () => {
-    it('should cover update logic for inactive updated users', () => {
-      const now = new Date();
-      const longAgo = new Date(now.getTime() - 100 * 24 * 60 * 60 * 1000);
-
-      // Covers branch where user is inactive but still scheduled due to stale last update.
-      const userToUpdateButInactive: unknown = {
-        user_id: 'u2',
-        wallet: 'w2',
-        last_portfolio_update_at: longAgo.toISOString(),
-        last_activity_at: longAgo.toISOString(),
-      };
-
-      const result = filterVipUsersByActivity([userToUpdateButInactive]);
-      expect(result.stats.inactiveUpdated).toBe(1);
     });
   });
 });

@@ -292,10 +292,12 @@ describe('WalletBalanceETLProcessor', () => {
       const result = await processor.process(job);
 
       // Assert
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
       expect(result.recordsProcessed).toBe(1);
       expect(result.recordsInserted).toBe(1);
-      expect(result.errors).toEqual([]);
+      expect(result.errors).toEqual([
+        'User 0xabcd...abcd: DeBank API limit reached',
+      ]);
 
       // Verify that the error was logged correctly for the failed user
       expect(mockLogger.error).toHaveBeenCalledWith(
@@ -582,8 +584,8 @@ describe('WalletBalanceETLProcessor', () => {
     });
   });
 
-  describe('Activity-based filtering integration', () => {
-    it('should skip inactive users with recent updates', async () => {
+  describe('Daily VIP user processing', () => {
+    it('should process inactive users with recent updates', async () => {
       // Mock user: inactive (10 days) but updated 3 days ago
       const inactiveUser = {
         user_id: 'inactive-user',
@@ -602,9 +604,12 @@ describe('WalletBalanceETLProcessor', () => {
 
       await processor.process(createMockJob());
 
-      // Verify DeBank API was NOT called for this user
-      expect(mockDeBankFetcher.fetchWalletTokenList).not.toHaveBeenCalled();
-      expect(mockDeBankFetcher.fetchComplexProtocolList).not.toHaveBeenCalled();
+      expect(mockDeBankFetcher.fetchWalletTokenList).toHaveBeenCalledWith(
+        '0xINACTIVE',
+      );
+      expect(mockDeBankFetcher.fetchComplexProtocolList).toHaveBeenCalledWith(
+        '0xINACTIVE',
+      );
     });
 
     it('should include active users in processing', async () => {
@@ -695,21 +700,19 @@ describe('WalletBalanceETLProcessor', () => {
 
       await processor.process(createMockJob());
 
-      // Should process 2 out of 3 users
-      expect(mockDeBankFetcher.fetchWalletTokenList).toHaveBeenCalledTimes(2);
+      expect(mockDeBankFetcher.fetchWalletTokenList).toHaveBeenCalledTimes(3);
       expect(mockDeBankFetcher.fetchWalletTokenList).toHaveBeenCalledWith(
         '0x1111111111111111111111111111111111111111',
       );
       expect(mockDeBankFetcher.fetchWalletTokenList).toHaveBeenCalledWith(
         '0x3333333333333333333333333333333333333333',
       );
-      expect(mockDeBankFetcher.fetchWalletTokenList).not.toHaveBeenCalledWith(
+      expect(mockDeBankFetcher.fetchWalletTokenList).toHaveBeenCalledWith(
         '0x2222222222222222222222222222222222222222',
       );
     });
 
-    it('should log correct cost savings stats', async () => {
-      // 10 users: 3 to update, 7 to skip = 70% savings
+    it('should log that every VIP wallet is scheduled', async () => {
       const users = Array.from({ length: 10 }, (_, i) => ({
         user_id: `user${i}`,
         wallet: `0x${i.toString().padStart(40, '0')}`,
@@ -727,12 +730,10 @@ describe('WalletBalanceETLProcessor', () => {
       await processor.process(createMockJob());
 
       expect(mockLogger.info).toHaveBeenCalledWith(
-        'Users filtered by activity',
+        'VIP users scheduled for daily processing',
         expect.objectContaining({
           totalVipUsers: 10,
-          usersToUpdate: 3,
-          usersSkipped: 7,
-          costSavingsPercent: '70%',
+          usersToUpdate: 10,
         }),
       );
     });
@@ -841,7 +842,7 @@ describe('WalletBalanceETLProcessor', () => {
   });
 
   describe('Edge cases', () => {
-    it('should handle all users being filtered out', async () => {
+    it('should process recently updated users', async () => {
       const users = [
         {
           user_id: 'u1',
@@ -860,8 +861,8 @@ describe('WalletBalanceETLProcessor', () => {
       const result = await processor.process(createMockJob());
 
       expect(result.success).toBe(true);
-      expect(result.recordsProcessed).toBe(0);
-      expect(mockDeBankFetcher.fetchWalletTokenList).not.toHaveBeenCalled();
+      expect(result.recordsProcessed).toBeGreaterThan(0);
+      expect(mockDeBankFetcher.fetchWalletTokenList).toHaveBeenCalled();
     });
 
     it('should handle exactly 7-day boundary correctly', async () => {
@@ -878,13 +879,11 @@ describe('WalletBalanceETLProcessor', () => {
         },
       ];
 
-      // At exactly 7 days, user is considered inactive
-      // Should be skipped (updated 2 days ago)
       mockSupabaseFetcher.fetchVipUsersWithActivity.mockResolvedValue(users);
 
       await processor.process(createMockJob());
 
-      expect(mockDeBankFetcher.fetchWalletTokenList).not.toHaveBeenCalled();
+      expect(mockDeBankFetcher.fetchWalletTokenList).toHaveBeenCalled();
     });
   });
 });

@@ -1,12 +1,10 @@
 import type { VipUserWithActivity } from '../../types/index.js';
 import { logger } from '../../utils/logger.js';
-import { filterVipUsersByActivity } from './activityFiltering.js';
 import type { SupabaseFetcher } from './supabaseFetcher.js';
 
 export interface VipUsersProcessingResult {
   usersToUpdate: VipUserWithActivity[];
   vipUsersTotal: number;
-  costSavingsPercent: number;
 }
 
 export async function fetchAndFilterVipUsersForProcessing(
@@ -18,29 +16,18 @@ export async function fetchAndFilterVipUsersForProcessing(
 
   if (vipUsers.length === 0) {
     logger.warn(emptyUsersLogMessage, { jobId });
-    return { usersToUpdate: [], vipUsersTotal: 0, costSavingsPercent: 0 };
+    return { usersToUpdate: [], vipUsersTotal: 0 };
   }
 
-  const { usersToUpdate, costSavingsPercent, stats } =
-    filterVipUsersByActivity(vipUsers);
-
-  logger.info('Users filtered by activity', {
+  logger.info('VIP users scheduled for daily processing', {
     jobId,
     totalVipUsers: vipUsers.length,
-    usersToUpdate: usersToUpdate.length,
-    usersSkipped: stats.inactiveSkipped,
-    costSavingsPercent: `${costSavingsPercent}%`,
-    breakdown: {
-      neverUpdated: stats.neverUpdated,
-      activeUsers: stats.activeUsers,
-      inactiveUpdated: stats.inactiveUpdated,
-    },
+    usersToUpdate: vipUsers.length,
   });
 
   return {
-    usersToUpdate,
+    usersToUpdate: vipUsers,
     vipUsersTotal: vipUsers.length,
-    costSavingsPercent,
   };
 }
 

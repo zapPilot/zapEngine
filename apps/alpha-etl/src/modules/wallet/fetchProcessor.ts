@@ -10,6 +10,7 @@ import {
   fetchWalletDataFromDeBank,
   mapTokenBalancesToSnapshots,
 } from '../../modules/vip-users/common.js';
+import { captureBackgroundException } from '../../observability/sentry.js';
 import type {
   PortfolioItemSnapshotInsert,
   WalletBalanceSnapshotInsert,
@@ -135,7 +136,17 @@ export class WalletFetchETLProcessor implements BaseETLProcessor {
       );
 
       if (!data) {
-        return { walletBalances: [], portfolioItems: [] };
+        const maskedWallet = maskWalletAddress(walletAddress);
+        const error = new Error(
+          `Failed to fetch DeBank data for ${maskedWallet}`,
+        );
+        captureBackgroundException(error, {
+          component: 'job',
+          tags: { failure_scope: 'wallet_user', provider: 'debank' },
+          context: { jobId, wallet: maskedWallet },
+          level: 'error',
+        });
+        throw error;
       }
 
       const walletBalances = mapTokenBalancesToSnapshots(

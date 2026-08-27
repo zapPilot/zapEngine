@@ -9,10 +9,7 @@ import {
   withValidatedJob,
 } from '../../core/processors/baseETLProcessor.js';
 import { buildRequestStats } from '../../modules/core/processorStats.js';
-import {
-  fetchAndFilterVipUsersForProcessing,
-  updatePortfolioTimestampsNonFatal,
-} from '../../modules/vip-users/processing.js';
+import { fetchAndFilterVipUsersForProcessing } from '../../modules/vip-users/processing.js';
 import { SupabaseFetcher } from '../../modules/vip-users/supabaseFetcher.js';
 import { PortfolioItemWriter } from '../../modules/wallet/portfolioWriter.js';
 import type {
@@ -91,8 +88,7 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
         updateProcessSummary(summary, usersToUpdate.length, batch);
         return [batch];
       },
-      async (transformedData) =>
-        this.writeTransformedData(transformedData, job.jobId),
+      async (transformedData) => this.writeTransformedData(transformedData),
       {
         allowEmptyFetch: true,
         allowEmptyTransform: true,
@@ -200,18 +196,11 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
 
   private async writeTransformedData(
     transformedData: HyperliquidTransformBatch[],
-    jobId: string,
   ): Promise<WriteResult> {
     const batch = transformedData[0];
     if (!batch) {
       return createEmptyWriteResult();
     }
-
-    await updatePortfolioTimestampsNonFatal(
-      this.supabaseFetcher,
-      batch.successfulWallets,
-      jobId,
-    );
 
     const portfolioResult = await this.writePortfolioRecords(
       batch.portfolioRecords,
