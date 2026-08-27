@@ -15,3 +15,4 @@ On-demand DeBank/chain-RPC pipeline triggered by account-engine through `POST /w
 - Successful wallet writes rebuild category trends through the established
   post-write synchronizer; do not add database queues or cron fallback.
 - Pass every successfully fetched wallet to both daily writers even when its transformed position or token list is empty. Portfolio replacement keys include the provider so DeBank refreshes cannot delete Hyperliquid rows for the same wallet/day.
+- Per-wallet emptiness stays a success (see above), but a VIP batch where every fetched wallet returned no tokens and no positions fails the source: DeBank answering 200 with nothing is not a day on which every VIP wallet emptied out. Keep the assertion at batch level so the writers still clear each wallet/day slice.

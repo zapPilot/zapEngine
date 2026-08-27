@@ -14,7 +14,19 @@ const localEnv =
   runnerArgs.includes('--local-env') || rawCommand.includes('--local-env');
 const command = rawCommand.filter((argument) => argument !== '--local-env');
 if (command.length === 0) {
-  console.error('usage: node scripts/env/run.mjs -- <command> [args...]');
+  console.error(
+    'usage: node scripts/env/run.mjs [--environment dev|prod] -- <command> [args...]',
+  );
+  process.exit(2);
+}
+
+// Scheduled jobs run production work from CI and need the prod rail; local
+// development is the default so an unqualified `pnpm dev` cannot reach prod.
+const environmentIndex = runnerArgs.indexOf('--environment');
+const environment =
+  environmentIndex >= 0 ? runnerArgs[environmentIndex + 1] : 'dev';
+if (!['dev', 'prod'].includes(environment)) {
+  console.error('Unknown environment. Expected dev or prod.');
   process.exit(2);
 }
 
@@ -38,7 +50,7 @@ if (localEnv) {
   );
 } else {
   try {
-    sourceValues = resolveValues('dev');
+    sourceValues = resolveValues(environment);
   } catch (error) {
     console.error(`error: ${error.message}`);
     console.error('Use --local-env only as an offline escape hatch.');

@@ -448,9 +448,10 @@ describe('Webhooks Router', () => {
       expect(response.status).toBe(206);
     });
 
-    it('returns 206 when recordsInserted < recordsProcessed', async () => {
-      // Records-mismatch branch of the 206 logic — distinct from the
-      // source-errors branch above.
+    it('returns 200 when recordsInserted < recordsProcessed but no source errored', async () => {
+      // recordsProcessed counts each source's raw-fetch length, so it is not
+      // comparable to inserted DB rows: hyperliquid reports vault users here.
+      // Only a source-level error may downgrade a completed job to 206.
       mockJobQueue.getJob.mockReturnValueOnce(
         createMockJob({ status: 'completed' }),
       );
@@ -461,7 +462,15 @@ describe('Webhooks Router', () => {
           status: 'completed',
           recordsProcessed: 10,
           recordsInserted: 7,
-          sourceResults: {},
+          sourceResults: {
+            hyperliquid: {
+              success: true,
+              recordsProcessed: 5,
+              recordsInserted: 2,
+              errors: [],
+              source: 'hyperliquid',
+            },
+          },
           duration: 100,
           completedAt: new Date('2024-01-01T00:00:01Z'),
         },
@@ -469,7 +478,7 @@ describe('Webhooks Router', () => {
 
       const response = await request(app).get('/webhooks/jobs/job-123');
 
-      expect(response.status).toBe(206);
+      expect(response.status).toBe(200);
     });
 
     it('returns 500 with failed-result error when job failed', async () => {

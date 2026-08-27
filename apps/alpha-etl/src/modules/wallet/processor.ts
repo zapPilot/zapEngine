@@ -40,6 +40,13 @@ import {
 import { DeBankPortfolioTransformer } from './portfolioTransformer.js';
 import { PortfolioItemWriter } from './portfolioWriter.js';
 
+interface WalletBatchFetchResult {
+  walletBalances: WalletBalanceSnapshotInsert[];
+  portfolioItems: PortfolioItemSnapshotInsert[];
+  successfulWallets: string[];
+  errors: string[];
+}
+
 /**
  * ETL processor for wallet balance data and portfolio items from DeBank
  */
@@ -92,12 +99,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
     return 'debank';
   }
 
-  private async fetchData(job: ETLJob): Promise<{
-    walletBalances: WalletBalanceSnapshotInsert[];
-    portfolioItems: PortfolioItemSnapshotInsert[];
-    successfulWallets: string[];
-    errors: string[];
-  }> {
+  private async fetchData(job: ETLJob): Promise<WalletBatchFetchResult> {
     logger.info('Processing DeBank data for VIP users', { jobId: job.jobId });
 
     try {
@@ -137,12 +139,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
   private async fetchUserDataBatch(
     users: VipUserWithActivity[],
     jobId: string,
-  ): Promise<{
-    walletBalances: WalletBalanceSnapshotInsert[];
-    portfolioItems: PortfolioItemSnapshotInsert[];
-    successfulWallets: string[];
-    errors: string[];
-  }> {
+  ): Promise<WalletBatchFetchResult> {
     const walletBalances: WalletBalanceSnapshotInsert[] = [];
     const portfolioItems: PortfolioItemSnapshotInsert[] = [];
     const successfulWallets: string[] = [];
@@ -295,6 +292,52 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
       result.success = false;
     }
 
+    this.failOnSilentEmptyBatch(job, result, successfulWallets);
+
     return result;
+  }
+
+  /**
+   * A VIP batch that fetched wallets and wrote nothing is DeBank answering 200
+   * with an empty body, not a day on which every VIP wallet emptied out.
+   *
+   * Per-wallet success stays untouched on purpose: the writers must still see
+   * every fetched wallet so an emptied slice is deleted rather than left stale.
+   * The assertion belongs here, where the whole batch is visible — this is the
+   * signal whose absence hid a four-day gap in `analytics.daily_wallet_tokens`
+   * behind `success: true, errors: 0`.
+   *
+   * `recordsProcessed` is the merged raw fetch, so this fires only when the
+   * provider itself returned nothing. A batch that fetched rows and then lost
+   * them in transformation is a different fault and keeps its own warning.
+   */
+  private failOnSilentEmptyBatch(
+    job: ETLJob,
+    result: ETLProcessResult,
+    successfulWallets: string[],
+  ): void {
+    if (successfulWallets.length === 0 || result.recordsProcessed > 0) {
+      return;
+    }
+
+    const message =
+      `DeBank returned no tokens and no positions for all ` +
+      `${successfulWallets.length} fetched VIP wallets`;
+    const error = new Error(message);
+    logger.error(message, {
+      jobId: job.jobId,
+      walletsFetched: successfulWallets.length,
+    });
+    captureBackgroundException(error, {
+      component: 'job',
+      tags: { failure_scope: 'wallet_batch', provider: 'debank' },
+      context: {
+        jobId: job.jobId,
+        walletsFetched: successfulWallets.length,
+      },
+      level: 'error',
+    });
+    result.errors.push(message);
+    result.success = false;
   }
 }

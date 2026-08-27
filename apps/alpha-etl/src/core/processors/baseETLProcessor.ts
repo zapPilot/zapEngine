@@ -56,6 +56,18 @@ export async function executeETLFlow<TRaw, TTransformed>(
 
   const result = createETLProcessResult(source);
 
+  // `allowEmptyFetch`/`allowEmptyTransform` mark the sources for which nothing
+  // is a legitimate answer (a wallet that holds no positions). Where they are
+  // not set, emptiness is a provider or transform fault, and a silent success
+  // is indistinguishable from a healthy no-op run: it reports 0/0 with no
+  // errors and the caller sees a green job.
+  const failEmpty = (message: string): ETLProcessResult => {
+    logger.error(message, { jobId: job.jobId });
+    result.success = false;
+    result.errors.push(message);
+    return result;
+  };
+
   try {
     logger.info(`Processing ${source} data`, { jobId: job.jobId });
 
@@ -63,15 +75,13 @@ export async function executeETLFlow<TRaw, TTransformed>(
     result.recordsProcessed = rawData.length;
 
     if (rawData.length === 0 && !allowEmptyFetch) {
-      logger.warn(`No data fetched from ${source}`, { jobId: job.jobId });
-      return result;
+      return failEmpty(`No data fetched from ${source}`);
     }
 
     const transformedData = await transformFn(rawData);
 
     if (transformedData.length === 0 && !allowEmptyTransform) {
-      logger.warn('No valid data after transformation', { jobId: job.jobId });
-      return result;
+      return failEmpty(`No valid data after transformation for ${source}`);
     }
 
     const writeResult = await writeFn(transformedData);

@@ -16,13 +16,19 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Supabase, DeBank, and OpenRouter credentials arrive through the
+    # environment rail. They were never configured as repository secrets, and
+    # an unset `secrets.*` mapping is an empty string that overrides the
+    # injected value rather than falling back to it. `ops:sync` itself reports
+    # which credentials reached the process — turbo runs in strict env mode, so
+    # the injection alone does not prove they survive to the child.
     env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      DEBANK_API_KEY: ${{ secrets.DEBANK_API_KEY }}
-      OPENROUTER_MANAGEMENT_KEY: ${{ secrets.OPENROUTER_MANAGEMENT_KEY }}
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      FLY_COST_MODE: flyctl
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
+      INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -30,19 +36,8 @@ jobs:
         with:
           uv: 'false'
 
-      - name: Setup flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1 / 1.6
-
-      - name: Validate required credentials
-        run: |
-          missing=0
-          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY DEBANK_API_KEY OPENROUTER_MANAGEMENT_KEY FLY_API_TOKEN; do
-            if [ -z "${!name}" ]; then
-              echo "$name is not configured" >&2
-              missing=1
-            fi
-          done
-          exit "$missing"
+      # Also installs flyctl, which FLY_COST_MODE=flyctl shells out to.
+      - uses: ./.github/actions/setup-env-tooling
 
       - name: Collect and persist cost snapshots
-        run: pnpm ops:sync
+        run: node scripts/env/run.mjs --environment prod -- pnpm ops:sync

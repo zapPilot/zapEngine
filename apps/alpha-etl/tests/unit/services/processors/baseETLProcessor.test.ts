@@ -14,45 +14,55 @@ describe('BaseETLProcessor - executeETLFlow', () => {
     jobId: 'test-job',
     filters: {},
     createdAt: new Date(),
-    status: 'pending'
+    status: 'pending',
   });
 
   async function runFlow<TRaw, TTransformed>(
     fetchFn: () => Promise<TRaw[]>,
     transformFn: (raw: TRaw[]) => Promise<TTransformed[]>,
-    writeFn: (data: TTransformed[]) => Promise<{ success: boolean; recordsInserted: number; errors: string[] }>
+    writeFn: (
+      data: TTransformed[],
+    ) => Promise<{
+      success: boolean;
+      recordsInserted: number;
+      errors: string[];
+    }>,
   ) {
     return executeETLFlow(
       mockJob,
       'test-source',
       fetchFn,
       transformFn,
-      writeFn
+      writeFn,
     );
   }
 
-  it('should return 0 records if fetch returns empty array', async () => {
+  it('should fail if fetch returns empty array and empties are not allowed', async () => {
     const fetchFn = vi.fn().mockResolvedValue([]);
     const transformFn = vi.fn();
     const writeFn = vi.fn();
 
     const result = await runFlow(fetchFn, transformFn, writeFn);
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
+    expect(result.errors).toEqual(['No data fetched from test-source']);
     expect(result.recordsProcessed).toBe(0);
     expect(result.recordsInserted).toBe(0);
     expect(transformFn).not.toHaveBeenCalled();
     expect(writeFn).not.toHaveBeenCalled();
   });
 
-  it('should return 0 inserted if transform returns empty array', async () => {
+  it('should fail if transform returns empty array and empties are not allowed', async () => {
     const fetchFn = vi.fn().mockResolvedValue(['raw-data']);
     const transformFn = vi.fn().mockResolvedValue([]);
     const writeFn = vi.fn();
 
     const result = await runFlow(fetchFn, transformFn, writeFn);
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
+    expect(result.errors).toEqual([
+      'No valid data after transformation for test-source',
+    ]);
     expect(result.recordsProcessed).toBe(1);
     expect(result.recordsInserted).toBe(0);
     expect(writeFn).not.toHaveBeenCalled();
@@ -65,7 +75,7 @@ describe('BaseETLProcessor - executeETLFlow', () => {
       success: false,
       recordsInserted: 0,
       errors: ['Database error'],
-      duplicatesSkipped: 0
+      duplicatesSkipped: 0,
     });
 
     const result = await runFlow(fetchFn, transformFn, writeFn);
@@ -87,14 +97,14 @@ describe('BaseETLProcessor - executeETLFlow', () => {
   });
 
   it('should pass empty fetch to transform when allowEmptyFetch=true', async () => {
-    const mockTransform = vi.fn().mockResolvedValue([]);
+    const mockTransform = vi.fn().mockResolvedValue(['derived']);
     const result = await executeETLFlow(
       mockJob,
       'test-source',
       async () => [],
       mockTransform,
-      async () => ({ success: true, recordsInserted: 0, errors: [] }),
-      { allowEmptyFetch: true }
+      async () => ({ success: true, recordsInserted: 1, errors: [] }),
+      { allowEmptyFetch: true },
     );
 
     expect(result.success).toBe(true);
@@ -102,50 +112,51 @@ describe('BaseETLProcessor - executeETLFlow', () => {
   });
 
   it('should pass empty transform to write when allowEmptyTransform=true', async () => {
-    const mockWrite = vi.fn().mockResolvedValue({ success: true, recordsInserted: 0, errors: [] });
+    const mockWrite = vi
+      .fn()
+      .mockResolvedValue({ success: true, recordsInserted: 0, errors: [] });
     const result = await executeETLFlow(
       mockJob,
       'test-source',
       async () => ['data'],
       async () => [],
       mockWrite,
-      { allowEmptyTransform: true }
+      { allowEmptyTransform: true },
     );
 
     expect(result.success).toBe(true);
     expect(mockWrite).toHaveBeenCalledWith([]);
   });
 
-  it('should log warning when fetch returns empty array', async () => {
-    await runFlow(
-      vi.fn().mockResolvedValue([]),
-      vi.fn(),
-      vi.fn()
-    );
+  it('should log an error when fetch returns empty array', async () => {
+    await runFlow(vi.fn().mockResolvedValue([]), vi.fn(), vi.fn());
 
-    expect(logger.warn).toHaveBeenCalledWith(
+    expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining('No data fetched'),
-      expect.any(Object)
+      expect.any(Object),
     );
   });
 
-  it('should log warning when transform returns empty array', async () => {
+  it('should log an error when transform returns empty array', async () => {
     await runFlow(
       vi.fn().mockResolvedValue(['data']),
       vi.fn().mockResolvedValue([]),
-      vi.fn()
+      vi.fn(),
     );
 
-    expect(logger.warn).toHaveBeenCalledWith(
+    expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining('No valid data after transformation'),
-      expect.any(Object)
+      expect.any(Object),
     );
   });
 });
 
 describe('wrapHealthCheck', () => {
   it('should return healthy status', async () => {
-    const result = await wrapHealthCheck(async () => ({ status: 'healthy', details: 'OK' }));
+    const result = await wrapHealthCheck(async () => ({
+      status: 'healthy',
+      details: 'OK',
+    }));
     expect(result.status).toBe('healthy');
     expect(result.details).toBe('OK');
   });

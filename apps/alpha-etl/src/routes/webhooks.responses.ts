@@ -32,6 +32,15 @@ function buildFailedResultError(
   };
 }
 
+/**
+ * 206 means "some source reported an error", nothing else.
+ *
+ * `recordsProcessed` is not comparable to `recordsInserted`: every source sets
+ * it to its own raw-fetch length, so hyperliquid counts vault users while its
+ * insert count is DB rows. A healthy job routinely reports 10 processed / 7
+ * inserted, and treating that gap as partial failure turned the daily refresh
+ * permanently amber while a real four-day DeBank outage reported success.
+ */
 function hasPartialSourceFailures(
   result: Extract<ETLJobResult, { success: true }>,
 ): boolean {
@@ -95,8 +104,7 @@ export function determineJobStatusCode(
   if (
     job.status === 'completed' &&
     result?.success &&
-    (hasPartialSourceFailures(result) ||
-      result.data.recordsProcessed > result.data.recordsInserted)
+    hasPartialSourceFailures(result)
   ) {
     return 206;
   }

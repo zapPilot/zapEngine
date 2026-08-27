@@ -31,3 +31,49 @@ export function readControlCenterConfig(
 ): ControlCenterConfig {
   return schema.parse(env);
 }
+
+export interface CredentialPresence {
+  name: string;
+  present: boolean;
+}
+
+/**
+ * Credentials `ops:sync` cannot do its job without.
+ *
+ * The dashboard degrades per provider on purpose, but the nightly sync has no
+ * reader to notice a provider quietly reporting `unconfigured`: it would print
+ * a shorter list and exit 0. Every one of these can also go missing without
+ * the environment being wrong — turbo runs in strict env mode, so a key absent
+ * from `apps/control-center/turbo.json` is stripped before this process starts.
+ *
+ * `FLY_API_TOKEN` is read from the environment rather than the config schema
+ * because it is consumed by the `flyctl` child process, not by this app.
+ */
+export function checkCostSyncCredentials(
+  config: ControlCenterConfig,
+  env: NodeJS.ProcessEnv = process.env,
+): CredentialPresence[] {
+  const presence: CredentialPresence[] = [
+    { name: 'SUPABASE_URL', present: Boolean(config.SUPABASE_URL) },
+    {
+      name: 'SUPABASE_SERVICE_ROLE_KEY',
+      present: Boolean(config.SUPABASE_SERVICE_ROLE_KEY),
+    },
+    { name: 'DEBANK_API_KEY', present: Boolean(config.DEBANK_API_KEY) },
+    {
+      name: 'OPENROUTER_MANAGEMENT_KEY',
+      present: Boolean(
+        config.OPENROUTER_MANAGEMENT_KEY ?? config.OPENROUTER_API_KEY,
+      ),
+    },
+  ];
+
+  if (config.FLY_COST_MODE === 'flyctl') {
+    presence.push({
+      name: 'FLY_API_TOKEN',
+      present: Boolean(env['FLY_API_TOKEN']?.trim()),
+    });
+  }
+
+  return presence;
+}

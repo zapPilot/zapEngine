@@ -168,12 +168,21 @@ describe('GET /webhooks/jobs/:jobId', () => {
     expect(response.body.timestamp).toBeDefined();
   });
 
-  it('should return 206 when inserts are less than processed records', async () => {
+  it('should return 206 when a source reported errors', async () => {
     const job = createEtlJob({ jobId: 'etl_test_job', status: 'completed' });
     const result = createSuccessResult({
       recordsProcessed: 10,
       recordsInserted: 8,
       errors: ['insert timeout'],
+      sourceResults: {
+        debank: {
+          success: true,
+          recordsProcessed: 10,
+          recordsInserted: 8,
+          errors: ['insert timeout'],
+          source: 'debank',
+        },
+      } as SuccessfulResultData['sourceResults'],
     });
     mockJobQueue.getJob.mockReturnValue(job);
     mockJobQueue.getResult.mockReturnValue(result);
