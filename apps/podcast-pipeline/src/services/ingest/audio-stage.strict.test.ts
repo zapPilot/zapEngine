@@ -102,8 +102,8 @@ describe('strict language classroom audio integrity', () => {
       cost: [],
     });
     mockGetTtsMetadata.mockReturnValue({
-      languageCode: 'cmn-TW',
-      voiceName: 'cmn-TW-Wavenet-A',
+      languageCode: 'zh-Hant',
+      voiceName: 'fish-reference',
     });
     mockPackageAndUploadHls.mockImplementation(
       ({ episodeId, languageCode, section, classroomTargetLanguageCode }) => {
@@ -1038,8 +1038,8 @@ describe('strict language classroom audio integrity', () => {
       });
       mockConcatMp3Buffers.mockResolvedValue(Buffer.from('classroom-combined'));
       mockGetTtsMetadata.mockReturnValue({
-        languageCode: 'cmn-TW',
-        voiceName: 'voice',
+        languageCode: 'zh-Hant',
+        voiceName: 'fish-reference',
       });
       mockPackageAndUploadHls.mockImplementation(({ section }) =>
         Promise.resolve({

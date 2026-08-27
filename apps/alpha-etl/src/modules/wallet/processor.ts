@@ -14,6 +14,7 @@ import {
   updatePortfolioTimestampsNonFatal,
 } from '../../modules/vip-users/processing.js';
 import { SupabaseFetcher } from '../../modules/vip-users/supabaseFetcher.js';
+import { captureBackgroundException } from '../../observability/sentry.js';
 import type {
   PortfolioItemSnapshotInsert,
   WalletBalanceSnapshotInsert,
@@ -189,11 +190,16 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
       const data = await this.fetchUserData(user.wallet);
 
       if (!data) {
-        // Logged in fetchUserData
-        return {
-          success: false,
-          error: `Failed to fetch data for ${maskedWallet}`,
-        };
+        // A per-wallet fetch failure is terminal for this wallet but does not fail
+        // the batch job, so the queue-level Sentry boundary will never see it.
+        const error = new Error(`Failed to fetch data for ${maskedWallet}`);
+        captureBackgroundException(error, {
+          component: 'job',
+          tags: { failure_scope: 'wallet_user', provider: 'debank' },
+          context: { jobId, userId: user.user_id, wallet: maskedWallet },
+          level: 'error',
+        });
+        return { success: false, error: error.message };
       }
 
       const { tokens, protocols } = data;
@@ -223,6 +229,12 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
       logger.error('Failed to fetch data for user', {
         ...logContext,
         error,
+      });
+      captureBackgroundException(error, {
+        component: 'job',
+        tags: { failure_scope: 'wallet_user', provider: 'debank' },
+        context: logContext,
+        level: 'error',
       });
       return { success: false, error: errorMsg };
     }

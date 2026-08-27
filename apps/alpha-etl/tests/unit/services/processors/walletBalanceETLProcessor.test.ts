@@ -3,21 +3,26 @@
  * Simplified tests focusing on core functionality and coverage
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { WalletBalanceETLProcessor } from "../../../../src/modules/wallet/processor.js";
-import type { ETLJob } from "../../../../src/types/index.js";
-import { logger as mockLogger } from "../../../../src/utils/logger.js";
-import { createEtlJob } from "../../../utils/createEtlJob.js";
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { WalletBalanceETLProcessor } from '../../../../src/modules/wallet/processor.js';
+import { captureBackgroundException } from '../../../../src/observability/sentry.js';
+import type { ETLJob } from '../../../../src/types/index.js';
+import { logger as mockLogger } from '../../../../src/utils/logger.js';
+import { createEtlJob } from '../../../utils/createEtlJob.js';
+
+vi.mock('../../../../src/observability/sentry.js', () => ({
+  captureBackgroundException: vi.fn(),
+}));
 
 // Mock the logger to prevent console output during tests
-vi.mock("../../../../src/utils/logger.js", async () => {
-  const { mockLogger } = await import("../../../setup/mocks.js");
+vi.mock('../../../../src/utils/logger.js', async () => {
+  const { mockLogger } = await import('../../../setup/mocks.js');
   return mockLogger();
 });
 
 // Mock the mask utility
-vi.mock("../../../../src/utils/mask.js", async () => {
-  const { mockWalletAddressMask } = await import("../../../setup/mocks.js");
+vi.mock('../../../../src/utils/mask.js', async () => {
+  const { mockWalletAddressMask } = await import('../../../setup/mocks.js');
   return mockWalletAddressMask();
 });
 
@@ -25,10 +30,10 @@ vi.mock("../../../../src/utils/mask.js", async () => {
 const mockDeBankFetcher = {
   fetchWalletTokenList: vi.fn().mockResolvedValue([
     {
-      id: "0x1234567890123456789012345678901234567890",
-      chain: "eth",
-      name: "ethereum",
-      symbol: "eth",
+      id: '0x1234567890123456789012345678901234567890',
+      chain: 'eth',
+      name: 'ethereum',
+      symbol: 'eth',
       amount: 5.25,
       price: 1800.5,
     },
@@ -38,13 +43,13 @@ const mockDeBankFetcher = {
     requestCount: 0,
     lastRequestTime: 0,
   }),
-  healthCheck: vi.fn().mockResolvedValue({ status: "healthy" }),
+  healthCheck: vi.fn().mockResolvedValue({ status: 'healthy' }),
 };
 
 const fetchVipUsers = vi.fn().mockResolvedValue([
   {
-    user_id: "user1",
-    wallet: "0x1234567890123456789012345678901234567890",
+    user_id: 'user1',
+    wallet: '0x1234567890123456789012345678901234567890',
     last_activity_at: null, // Never had activity - will always update
     last_portfolio_update_at: null, // Never updated - will always update
   },
@@ -58,7 +63,7 @@ const mockSupabaseFetcher = {
     requestCount: 0,
     lastRequestTime: 0,
   }),
-  healthCheck: vi.fn().mockResolvedValue({ status: "healthy" }),
+  healthCheck: vi.fn().mockResolvedValue({ status: 'healthy' }),
 };
 
 const mockTransformer = {
@@ -71,8 +76,8 @@ const mockTransformer = {
     return data.map((item) => ({
       user_wallet_address: item.user_wallet_address,
       token_address: item.token_address,
-      chain: item.chain || "ethereum",
-      symbol: item.symbol || "eth",
+      chain: item.chain || 'ethereum',
+      symbol: item.symbol || 'eth',
       amount: item.amount || 5.25,
     }));
   }),
@@ -101,7 +106,7 @@ const mockPortfolioWriter = {
 };
 
 // Mock external dependencies with simple implementations
-vi.mock("../../../../src/modules/wallet/fetcher.js", () => ({
+vi.mock('../../../../src/modules/wallet/fetcher.js', () => ({
   DeBankFetcher: class {
     fetchWalletTokenList = mockDeBankFetcher.fetchWalletTokenList;
     fetchComplexProtocolList = mockDeBankFetcher.fetchComplexProtocolList;
@@ -110,7 +115,7 @@ vi.mock("../../../../src/modules/wallet/fetcher.js", () => ({
   },
 }));
 
-vi.mock("../../../../src/modules/vip-users/supabaseFetcher.js", () => ({
+vi.mock('../../../../src/modules/vip-users/supabaseFetcher.js', () => ({
   SupabaseFetcher: class {
     fetchVipUsers = mockSupabaseFetcher.fetchVipUsers;
     fetchVipUsersWithActivity = mockSupabaseFetcher.fetchVipUsersWithActivity;
@@ -121,31 +126,31 @@ vi.mock("../../../../src/modules/vip-users/supabaseFetcher.js", () => ({
   },
 }));
 
-vi.mock("../../../../src/modules/wallet/balanceTransformer.js", () => ({
+vi.mock('../../../../src/modules/wallet/balanceTransformer.js', () => ({
   WalletBalanceTransformer: class {
     transformBatch = mockTransformer.transformBatch;
   },
 }));
 
-vi.mock("../../../../src/modules/wallet/balanceWriter.js", () => ({
+vi.mock('../../../../src/modules/wallet/balanceWriter.js', () => ({
   WalletBalanceWriter: class {
     writeWalletBalanceSnapshots = mockWriter.writeWalletBalanceSnapshots;
   },
 }));
 
-vi.mock("../../../../src/modules/wallet/portfolioTransformer.js", () => ({
+vi.mock('../../../../src/modules/wallet/portfolioTransformer.js', () => ({
   DeBankPortfolioTransformer: class {
     transformBatch = mockPortfolioTransformer.transformBatch;
   },
 }));
 
-vi.mock("../../../../src/modules/wallet/portfolioWriter.js", () => ({
+vi.mock('../../../../src/modules/wallet/portfolioWriter.js', () => ({
   PortfolioItemWriter: class {
     writeSnapshots = mockPortfolioWriter.writeSnapshots;
   },
 }));
 
-describe("WalletBalanceETLProcessor", () => {
+describe('WalletBalanceETLProcessor', () => {
   let processor: WalletBalanceETLProcessor;
   let consoleErrorSpy: vi.SpyInstance;
 
@@ -153,7 +158,7 @@ describe("WalletBalanceETLProcessor", () => {
     vi.clearAllMocks();
     processor = new WalletBalanceETLProcessor();
     // Spy on console.error to prevent logging during tests and to verify calls
-    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -162,22 +167,22 @@ describe("WalletBalanceETLProcessor", () => {
 
   const createMockJob = (overrides: Partial<ETLJob> = {}): ETLJob =>
     createEtlJob({
-      jobId: "test-job-123",
-      sources: ["debank"],
+      jobId: 'test-job-123',
+      sources: ['debank'],
       filters: {},
       createdAt: new Date(),
       ...overrides,
     });
 
-  describe("constructor", () => {
-    it("should initialize successfully", () => {
+  describe('constructor', () => {
+    it('should initialize successfully', () => {
       expect(processor).toBeDefined();
-      expect(processor.getSourceType()).toBe("debank");
+      expect(processor.getSourceType()).toBe('debank');
     });
   });
 
-  describe("process", () => {
-    it("should process wallet balance data successfully", async () => {
+  describe('process', () => {
+    it('should process wallet balance data successfully', async () => {
       const job = createMockJob();
       const result = await processor.process(job);
 
@@ -186,11 +191,11 @@ describe("WalletBalanceETLProcessor", () => {
         recordsProcessed: 1,
         recordsInserted: 1,
         errors: [],
-        source: "debank",
+        source: 'debank',
       });
     });
 
-    it("should handle empty VIP users list", async () => {
+    it('should handle empty VIP users list', async () => {
       const job = createMockJob();
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValueOnce([]);
 
@@ -201,35 +206,35 @@ describe("WalletBalanceETLProcessor", () => {
         recordsProcessed: 0,
         recordsInserted: 0,
         errors: [],
-        source: "debank",
+        source: 'debank',
       });
     });
 
-    it("should handle errors during processing", async () => {
+    it('should handle errors during processing', async () => {
       const job = createMockJob();
       mockSupabaseFetcher.fetchVipUsers.mockRejectedValueOnce(
-        new Error("Database error"),
+        new Error('Database error'),
       );
 
       const result = await processor.process(job);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain("Database error");
+      expect(result.errors).toContain('Database error');
     });
 
-    it("should default missing writer errors to empty array", async () => {
+    it('should default missing writer errors to empty array', async () => {
       const job = createMockJob();
 
       mockWriter.writeWalletBalanceSnapshots.mockResolvedValueOnce({
         success: true,
         recordsInserted: 1,
-        errors: "",
+        errors: '',
         duplicatesSkipped: 0,
       } as unknown);
       mockPortfolioWriter.writeSnapshots.mockResolvedValueOnce({
         success: true,
         recordsInserted: 0,
-        errors: "",
+        errors: '',
         duplicatesSkipped: 0,
       } as unknown);
 
@@ -239,30 +244,30 @@ describe("WalletBalanceETLProcessor", () => {
       expect(result.errors).toEqual([]);
     });
 
-    it("should handle non-Error exceptions during processing", async () => {
+    it('should handle non-Error exceptions during processing', async () => {
       const job = createMockJob();
-      mockSupabaseFetcher.fetchVipUsers.mockRejectedValueOnce("Database down");
+      mockSupabaseFetcher.fetchVipUsers.mockRejectedValueOnce('Database down');
 
       const result = await processor.process(job);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain("Unknown error");
+      expect(result.errors).toContain('Unknown error');
     });
 
-    it("should continue processing other users if one user fails", async () => {
+    it('should continue processing other users if one user fails', async () => {
       // Arrange
       const job = createMockJob();
       const vipUsers = [
         {
-          user_id: "user-success",
-          wallet: "0x1234567890123456789012345678901234567890",
+          user_id: 'user-success',
+          wallet: '0x1234567890123456789012345678901234567890',
         },
         {
-          user_id: "user-fail",
-          wallet: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+          user_id: 'user-fail',
+          wallet: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
         },
       ];
-      const processingError = new Error("DeBank API limit reached");
+      const processingError = new Error('DeBank API limit reached');
 
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
 
@@ -270,10 +275,10 @@ describe("WalletBalanceETLProcessor", () => {
       mockDeBankFetcher.fetchWalletTokenList
         .mockResolvedValueOnce([
           {
-            id: "0xTokenSuccess",
-            chain: "eth",
-            name: "SuccessCoin",
-            symbol: "SCS",
+            id: '0xTokenSuccess',
+            chain: 'eth',
+            name: 'SuccessCoin',
+            symbol: 'SCS',
             amount: 10,
             price: 1,
           },
@@ -294,38 +299,49 @@ describe("WalletBalanceETLProcessor", () => {
 
       // Verify that the error was logged correctly for the failed user
       expect(mockLogger.error).toHaveBeenCalledWith(
-        "Failed to fetch data for user",
+        'Failed to fetch data for user',
         {
           jobId: job.jobId,
-          userId: "user-fail",
-          wallet: "0xabcd...abcd",
+          userId: 'user-fail',
+          wallet: '0xabcd...abcd',
           error: processingError,
         },
       );
 
+      expect(captureBackgroundException).toHaveBeenCalledWith(processingError, {
+        component: 'job',
+        tags: { failure_scope: 'wallet_user', provider: 'debank' },
+        context: {
+          jobId: job.jobId,
+          userId: 'user-fail',
+          wallet: '0xabcd...abcd',
+        },
+        level: 'error',
+      });
+
       // Ensure processing continued for the successful user
       expect(mockTransformer.transformBatch).toHaveBeenCalledWith([
         expect.objectContaining({
-          user_wallet_address: "0x1234567890123456789012345678901234567890",
+          user_wallet_address: '0x1234567890123456789012345678901234567890',
         }),
       ]);
     });
 
-    it("should handle cases where transformation results in no data", async () => {
+    it('should handle cases where transformation results in no data', async () => {
       // Arrange
       const job = createMockJob();
       mockSupabaseFetcher.fetchVipUsers.mockResolvedValue([
         {
-          user_id: "user1",
-          wallet: "0x1234567890123456789012345678901234567890",
+          user_id: 'user1',
+          wallet: '0x1234567890123456789012345678901234567890',
         },
       ]);
       mockDeBankFetcher.fetchWalletTokenList.mockResolvedValue([
         {
-          id: "0xToken1",
-          chain: "eth",
-          name: "JunkCoin",
-          symbol: "JNK",
+          id: '0xToken1',
+          chain: 'eth',
+          name: 'JunkCoin',
+          symbol: 'JNK',
           amount: 100,
           price: 0,
         },
@@ -348,86 +364,87 @@ describe("WalletBalanceETLProcessor", () => {
 
       // Verify the warning was logged
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        "No valid data after wallet balance transformation",
+        'No valid data after wallet balance transformation',
         {
           jobId: job.jobId,
         },
       );
 
       // Successful empty data clears the wallet/day slice.
-      expect(mockWriter.writeWalletBalanceSnapshots).toHaveBeenCalledWith([], [
-        "0x1234567890123456789012345678901234567890",
-      ]);
+      expect(mockWriter.writeWalletBalanceSnapshots).toHaveBeenCalledWith(
+        [],
+        ['0x1234567890123456789012345678901234567890'],
+      );
     });
   });
 
-  describe("healthCheck", () => {
-    it("should return healthy when both services are healthy", async () => {
+  describe('healthCheck', () => {
+    it('should return healthy when both services are healthy', async () => {
       const result = await processor.healthCheck();
-      expect(result).toEqual({ status: "healthy" });
+      expect(result).toEqual({ status: 'healthy' });
     });
 
-    it("should return unhealthy when a service is unhealthy", async () => {
+    it('should return unhealthy when a service is unhealthy', async () => {
       mockDeBankFetcher.healthCheck.mockResolvedValueOnce({
-        status: "unhealthy",
-        details: "API error",
+        status: 'unhealthy',
+        details: 'API error',
       });
 
       const result = await processor.healthCheck();
 
-      expect(result.status).toBe("unhealthy");
-      expect(result.details).toContain("DeBank: unhealthy");
+      expect(result.status).toBe('unhealthy');
+      expect(result.details).toContain('DeBank: unhealthy');
     });
 
-    it("should include unhealthy status when DeBank details are missing", async () => {
+    it('should include unhealthy status when DeBank details are missing', async () => {
       mockDeBankFetcher.healthCheck.mockResolvedValueOnce({
-        status: "unhealthy",
+        status: 'unhealthy',
       });
 
       const result = await processor.healthCheck();
 
-      expect(result.status).toBe("unhealthy");
-      expect(result.details).toContain("DeBank: unhealthy");
-      expect(result.details).not.toContain("undefined");
+      expect(result.status).toBe('unhealthy');
+      expect(result.details).toContain('DeBank: unhealthy');
+      expect(result.details).not.toContain('undefined');
     });
 
-    it("should include Supabase details when Supabase is unhealthy", async () => {
+    it('should include Supabase details when Supabase is unhealthy', async () => {
       mockSupabaseFetcher.healthCheck.mockResolvedValueOnce({
-        status: "unhealthy",
-        details: "DB timeout",
+        status: 'unhealthy',
+        details: 'DB timeout',
       });
 
       const result = await processor.healthCheck();
 
-      expect(result.status).toBe("unhealthy");
-      expect(result.details).toContain("Supabase: unhealthy (DB timeout)");
+      expect(result.status).toBe('unhealthy');
+      expect(result.details).toContain('Supabase: unhealthy (DB timeout)');
     });
 
-    it("should handle health check errors with Error instance", async () => {
+    it('should handle health check errors with Error instance', async () => {
       mockDeBankFetcher.healthCheck.mockRejectedValueOnce(
-        new Error("Health check failed"),
+        new Error('Health check failed'),
       );
 
       const result = await processor.healthCheck();
 
-      expect(result.status).toBe("unhealthy");
-      expect(result.details).toBe("Health check failed");
+      expect(result.status).toBe('unhealthy');
+      expect(result.details).toBe('Health check failed');
     });
 
-    it("should handle health check errors with non-Error values", async () => {
+    it('should handle health check errors with non-Error values', async () => {
       mockDeBankFetcher.healthCheck.mockRejectedValueOnce(
-        "Health check failed",
+        'Health check failed',
       );
 
       const result = await processor.healthCheck();
 
-      expect(result.status).toBe("unhealthy");
-      expect(result.details).toBe("Unknown error");
+      expect(result.status).toBe('unhealthy');
+      expect(result.details).toBe('Unknown error');
     });
   });
 
-  describe("getStats", () => {
-    it("should return combined stats from both fetchers", () => {
+  describe('getStats', () => {
+    it('should return combined stats from both fetchers', () => {
       const stats = processor.getStats();
 
       expect(stats).toEqual({
@@ -443,41 +460,41 @@ describe("WalletBalanceETLProcessor", () => {
     });
   });
 
-  describe("internal helpers", () => {
-    it("should skip undefined balances and portfolio items during aggregation", async () => {
+  describe('internal helpers', () => {
+    it('should skip undefined balances and portfolio items during aggregation', async () => {
       const processorAny = processor as unknown;
       const processUserWalletSpy = vi
-        .spyOn(processorAny, "processUserWallet")
+        .spyOn(processorAny, 'processUserWallet')
         .mockResolvedValue({
           success: true,
           balances: undefined,
           portfolioItems: undefined,
-          successfulWallet: "0xSKIP",
+          successfulWallet: '0xSKIP',
         });
 
       const result = await processorAny.fetchUserDataBatch(
         [
           {
-            user_id: "user-skip",
-            wallet: "0xSKIP",
+            user_id: 'user-skip',
+            wallet: '0xSKIP',
             last_activity_at: null,
             last_portfolio_update_at: null,
           },
         ],
-        "job-skip",
+        'job-skip',
       );
 
       expect(result.walletBalances).toEqual([]);
       expect(result.portfolioItems).toEqual([]);
-      expect(result.successfulWallets).toEqual(["0xSKIP"]);
+      expect(result.successfulWallets).toEqual(['0xSKIP']);
 
       processUserWalletSpy.mockRestore();
     });
 
-    it("should skip failed user results that have no error message", async () => {
+    it('should skip failed user results that have no error message', async () => {
       const processorAny = processor as unknown;
       const processUserWalletSpy = vi
-        .spyOn(processorAny, "processUserWallet")
+        .spyOn(processorAny, 'processUserWallet')
         .mockResolvedValue({
           success: false,
           error: undefined,
@@ -486,13 +503,13 @@ describe("WalletBalanceETLProcessor", () => {
       const result = await processorAny.fetchUserDataBatch(
         [
           {
-            user_id: "user-missing-error",
-            wallet: "0xNOERROR",
+            user_id: 'user-missing-error',
+            wallet: '0xNOERROR',
             last_activity_at: null,
             last_portfolio_update_at: null,
           },
         ],
-        "job-no-error",
+        'job-no-error',
       );
 
       expect(result.walletBalances).toEqual([]);
@@ -503,59 +520,74 @@ describe("WalletBalanceETLProcessor", () => {
       processUserWalletSpy.mockRestore();
     });
 
-    it("should surface unknown errors from fetchUserData", async () => {
+    it('should surface unknown errors from fetchUserData', async () => {
       const processorAny = processor as unknown;
       const fetchUserDataSpy = vi
-        .spyOn(processorAny, "fetchUserData")
-        .mockRejectedValue("Fetch failed");
+        .spyOn(processorAny, 'fetchUserData')
+        .mockRejectedValue('Fetch failed');
 
       const result = await processorAny.processUserWallet(
         {
-          user_id: "user-error",
-          wallet: "0xERROR",
+          user_id: 'user-error',
+          wallet: '0xERROR',
           last_activity_at: null,
           last_portfolio_update_at: null,
         },
-        "job-error",
+        'job-error',
       );
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain("Unknown error");
+      expect(result.error).toContain('Unknown error');
 
       fetchUserDataSpy.mockRestore();
     });
 
-    it("should return a fetch failure when fetchUserData resolves to null", async () => {
+    it('should return a fetch failure when fetchUserData resolves to null', async () => {
       const processorAny = processor as unknown;
       const fetchUserDataSpy = vi
-        .spyOn(processorAny, "fetchUserData")
+        .spyOn(processorAny, 'fetchUserData')
         .mockResolvedValue(null);
 
       const result = await processorAny.processUserWallet(
         {
-          user_id: "user-no-data",
-          wallet: "0x0000000000000000000000000000000000000000",
+          user_id: 'user-no-data',
+          wallet: '0x0000000000000000000000000000000000000000',
           last_activity_at: null,
           last_portfolio_update_at: null,
         },
-        "job-no-data",
+        'job-no-data',
       );
 
       expect(result).toEqual({
         success: false,
-        error: "Failed to fetch data for 0x0000...0000",
+        error: 'Failed to fetch data for 0x0000...0000',
       });
+      expect(captureBackgroundException).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Failed to fetch data for 0x0000...0000',
+        }),
+        {
+          component: 'job',
+          tags: { failure_scope: 'wallet_user', provider: 'debank' },
+          context: {
+            jobId: 'job-no-data',
+            userId: 'user-no-data',
+            wallet: '0x0000...0000',
+          },
+          level: 'error',
+        },
+      );
 
       fetchUserDataSpy.mockRestore();
     });
   });
 
-  describe("Activity-based filtering integration", () => {
-    it("should skip inactive users with recent updates", async () => {
+  describe('Activity-based filtering integration', () => {
+    it('should skip inactive users with recent updates', async () => {
       // Mock user: inactive (10 days) but updated 3 days ago
       const inactiveUser = {
-        user_id: "inactive-user",
-        wallet: "0xINACTIVE",
+        user_id: 'inactive-user',
+        wallet: '0xINACTIVE',
         last_activity_at: new Date(
           Date.now() - 10 * 24 * 60 * 60 * 1000,
         ).toISOString(),
@@ -575,10 +607,10 @@ describe("WalletBalanceETLProcessor", () => {
       expect(mockDeBankFetcher.fetchComplexProtocolList).not.toHaveBeenCalled();
     });
 
-    it("should include active users in processing", async () => {
+    it('should include active users in processing', async () => {
       const activeUser = {
-        user_id: "active-user",
-        wallet: "0xACTIVE",
+        user_id: 'active-user',
+        wallet: '0xACTIVE',
         last_activity_at: new Date(
           Date.now() - 2 * 24 * 60 * 60 * 1000,
         ).toISOString(),
@@ -594,17 +626,17 @@ describe("WalletBalanceETLProcessor", () => {
       await processor.process(createMockJob());
 
       expect(mockDeBankFetcher.fetchWalletTokenList).toHaveBeenCalledWith(
-        "0xACTIVE",
+        '0xACTIVE',
       );
       expect(mockDeBankFetcher.fetchComplexProtocolList).toHaveBeenCalledWith(
-        "0xACTIVE",
+        '0xACTIVE',
       );
     });
 
-    it("should update inactive users after 7+ days", async () => {
+    it('should update inactive users after 7+ days', async () => {
       const staleUser = {
-        user_id: "stale-user",
-        wallet: "0xSTALE",
+        user_id: 'stale-user',
+        wallet: '0xSTALE',
         last_activity_at: new Date(
           Date.now() - 30 * 24 * 60 * 60 * 1000,
         ).toISOString(),
@@ -620,26 +652,26 @@ describe("WalletBalanceETLProcessor", () => {
       await processor.process(createMockJob());
 
       expect(mockDeBankFetcher.fetchWalletTokenList).toHaveBeenCalledWith(
-        "0xSTALE",
+        '0xSTALE',
       );
       expect(mockDeBankFetcher.fetchComplexProtocolList).toHaveBeenCalledWith(
-        "0xSTALE",
+        '0xSTALE',
       );
     });
 
-    it("should handle mixed user populations", async () => {
+    it('should handle mixed user populations', async () => {
       const users = [
         {
-          user_id: "u1",
-          wallet: "0x1111111111111111111111111111111111111111",
+          user_id: 'u1',
+          wallet: '0x1111111111111111111111111111111111111111',
           last_activity_at: new Date(
             Date.now() - 2 * 24 * 60 * 60 * 1000,
           ).toISOString(),
           last_portfolio_update_at: null,
         }, // Active, never updated → INCLUDE
         {
-          user_id: "u2",
-          wallet: "0x2222222222222222222222222222222222222222",
+          user_id: 'u2',
+          wallet: '0x2222222222222222222222222222222222222222',
           last_activity_at: new Date(
             Date.now() - 10 * 24 * 60 * 60 * 1000,
           ).toISOString(),
@@ -648,8 +680,8 @@ describe("WalletBalanceETLProcessor", () => {
           ).toISOString(),
         }, // Inactive, recent update → SKIP
         {
-          user_id: "u3",
-          wallet: "0x3333333333333333333333333333333333333333",
+          user_id: 'u3',
+          wallet: '0x3333333333333333333333333333333333333333',
           last_activity_at: new Date(
             Date.now() - 15 * 24 * 60 * 60 * 1000,
           ).toISOString(),
@@ -666,21 +698,21 @@ describe("WalletBalanceETLProcessor", () => {
       // Should process 2 out of 3 users
       expect(mockDeBankFetcher.fetchWalletTokenList).toHaveBeenCalledTimes(2);
       expect(mockDeBankFetcher.fetchWalletTokenList).toHaveBeenCalledWith(
-        "0x1111111111111111111111111111111111111111",
+        '0x1111111111111111111111111111111111111111',
       );
       expect(mockDeBankFetcher.fetchWalletTokenList).toHaveBeenCalledWith(
-        "0x3333333333333333333333333333333333333333",
+        '0x3333333333333333333333333333333333333333',
       );
       expect(mockDeBankFetcher.fetchWalletTokenList).not.toHaveBeenCalledWith(
-        "0x2222222222222222222222222222222222222222",
+        '0x2222222222222222222222222222222222222222',
       );
     });
 
-    it("should log correct cost savings stats", async () => {
+    it('should log correct cost savings stats', async () => {
       // 10 users: 3 to update, 7 to skip = 70% savings
       const users = Array.from({ length: 10 }, (_, i) => ({
         user_id: `user${i}`,
-        wallet: `0x${i.toString().padStart(40, "0")}`,
+        wallet: `0x${i.toString().padStart(40, '0')}`,
         last_activity_at: new Date(
           Date.now() - 10 * 24 * 60 * 60 * 1000,
         ).toISOString(),
@@ -695,29 +727,29 @@ describe("WalletBalanceETLProcessor", () => {
       await processor.process(createMockJob());
 
       expect(mockLogger.info).toHaveBeenCalledWith(
-        "Users filtered by activity",
+        'Users filtered by activity',
         expect.objectContaining({
           totalVipUsers: 10,
           usersToUpdate: 3,
           usersSkipped: 7,
-          costSavingsPercent: "70%",
+          costSavingsPercent: '70%',
         }),
       );
     });
   });
 
-  describe("Portfolio timestamp updates", () => {
-    it("should call batchUpdatePortfolioTimestamps for successful wallets", async () => {
+  describe('Portfolio timestamp updates', () => {
+    it('should call batchUpdatePortfolioTimestamps for successful wallets', async () => {
       const users = [
         {
-          user_id: "u1",
-          wallet: "0xWALLET1111111111111111111111111111111111",
+          user_id: 'u1',
+          wallet: '0xWALLET1111111111111111111111111111111111',
           last_activity_at: null,
           last_portfolio_update_at: null,
         },
         {
-          user_id: "u2",
-          wallet: "0xWALLET2222222222222222222222222222222222",
+          user_id: 'u2',
+          wallet: '0xWALLET2222222222222222222222222222222222',
           last_activity_at: null,
           last_portfolio_update_at: null,
         },
@@ -730,16 +762,16 @@ describe("WalletBalanceETLProcessor", () => {
       expect(
         mockSupabaseFetcher.batchUpdatePortfolioTimestamps,
       ).toHaveBeenCalledWith([
-        "0xWALLET1111111111111111111111111111111111",
-        "0xWALLET2222222222222222222222222222222222",
+        '0xWALLET1111111111111111111111111111111111',
+        '0xWALLET2222222222222222222222222222222222',
       ]);
     });
 
-    it("should handle timestamp update failure gracefully", async () => {
+    it('should handle timestamp update failure gracefully', async () => {
       const users = [
         {
-          user_id: "u1",
-          wallet: "0xWALLET1111111111111111111111111111111111",
+          user_id: 'u1',
+          wallet: '0xWALLET1111111111111111111111111111111111',
           last_activity_at: null,
           last_portfolio_update_at: null,
         },
@@ -747,16 +779,16 @@ describe("WalletBalanceETLProcessor", () => {
 
       mockSupabaseFetcher.fetchVipUsersWithActivity.mockResolvedValue(users);
       mockSupabaseFetcher.batchUpdatePortfolioTimestamps.mockRejectedValue(
-        new Error("Timestamp update failed"),
+        new Error('Timestamp update failed'),
       );
 
       // Set up fetcher mocks to return data
       mockDeBankFetcher.fetchWalletTokenList.mockResolvedValue([
         {
-          id: "0xtoken1",
-          chain: "eth",
-          name: "TestToken",
-          symbol: "TEST",
+          id: '0xtoken1',
+          chain: 'eth',
+          name: 'TestToken',
+          symbol: 'TEST',
           amount: 100,
           price: 1,
         },
@@ -766,10 +798,10 @@ describe("WalletBalanceETLProcessor", () => {
       // Set up transformer and writer mocks
       mockTransformer.transformBatch.mockReturnValue([
         {
-          user_wallet_address: "0xWALLET1111111111111111111111111111111111",
-          token_address: "0xtoken1",
-          chain: "eth",
-          symbol: "TEST",
+          user_wallet_address: '0xWALLET1111111111111111111111111111111111',
+          token_address: '0xtoken1',
+          chain: 'eth',
+          symbol: 'TEST',
           amount: 100,
         },
       ]);
@@ -792,12 +824,12 @@ describe("WalletBalanceETLProcessor", () => {
       expect(result.success).toBe(true);
       expect(result.recordsInserted).toBeGreaterThan(0);
       expect(mockLogger.error).toHaveBeenCalledWith(
-        "Failed to batch update portfolio timestamps",
+        'Failed to batch update portfolio timestamps',
         expect.any(Object),
       );
     });
 
-    it("should not call batchUpdatePortfolioTimestamps if no users processed", async () => {
+    it('should not call batchUpdatePortfolioTimestamps if no users processed', async () => {
       mockSupabaseFetcher.fetchVipUsersWithActivity.mockResolvedValue([]);
 
       await processor.process(createMockJob());
@@ -808,12 +840,12 @@ describe("WalletBalanceETLProcessor", () => {
     });
   });
 
-  describe("Edge cases", () => {
-    it("should handle all users being filtered out", async () => {
+  describe('Edge cases', () => {
+    it('should handle all users being filtered out', async () => {
       const users = [
         {
-          user_id: "u1",
-          wallet: "0x1111111111111111111111111111111111111111",
+          user_id: 'u1',
+          wallet: '0x1111111111111111111111111111111111111111',
           last_activity_at: new Date(
             Date.now() - 10 * 24 * 60 * 60 * 1000,
           ).toISOString(),
@@ -832,13 +864,13 @@ describe("WalletBalanceETLProcessor", () => {
       expect(mockDeBankFetcher.fetchWalletTokenList).not.toHaveBeenCalled();
     });
 
-    it("should handle exactly 7-day boundary correctly", async () => {
+    it('should handle exactly 7-day boundary correctly', async () => {
       const exactlySevenDays = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
       const users = [
         {
-          user_id: "boundary",
-          wallet: "0xBOUNDARY1111111111111111111111111111111",
+          user_id: 'boundary',
+          wallet: '0xBOUNDARY1111111111111111111111111111111',
           last_activity_at: exactlySevenDays.toISOString(),
           last_portfolio_update_at: new Date(
             Date.now() - 2 * 24 * 60 * 60 * 1000,

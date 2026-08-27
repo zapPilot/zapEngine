@@ -45,7 +45,6 @@
     "@aws-sdk/client-s3": "^3.940.0",
     "@aws-sdk/lib-storage": "^3.940.0",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
-    "@google-cloud/text-to-speech": "^6.4.0",
     "@hono/node-server": "catalog:",
     "@mozilla/readability": "^0.6.0",
     "@resvg/resvg-js": "2.6.2",
