@@ -12,6 +12,7 @@ void SplashScreen.preventAutoHideAsync();
 // viem/chains) to keep the wallet backend out of the iOS bundle. Privy is
 // used for email authentication only.
 export const AppProviders = createAppProviders({
+  requiresMobilePrivy: true,
   missingConfigTarget: 'iOS podcast flow',
   onReady: () => {
     void SplashScreen.hideAsync();

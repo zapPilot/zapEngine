@@ -26,17 +26,33 @@ import { ToastProvider } from '@/providers/ToastProvider';
 
 type PrivyRuntimeConfig = NonNullable<MobileRuntimeConfig['privy']>;
 
-interface AppProviderShellProps {
-  children: ReactNode;
-  missingConfigTarget: string;
-  onReady?: () => void;
-  renderWalletProviders: (
-    content: ReactNode,
-    privy: PrivyRuntimeConfig,
-  ) => ReactElement;
-}
+/**
+ * Only the native runtimes read Privy credentials from the Expo runtime config;
+ * web resolves its own app id through `buildAppCoreEnvSource` and never receives
+ * `PRIVY_MOBILE_CLIENT_ID` (the env manifest scopes it to the `expo` target).
+ * The discriminant makes "web waiting on mobile Privy config" unrepresentable.
+ */
+type WalletProvidersConfig =
+  | {
+      requiresMobilePrivy: true;
+      missingConfigTarget: string;
+      renderWalletProviders: (
+        content: ReactNode,
+        privy: PrivyRuntimeConfig,
+      ) => ReactElement;
+    }
+  | {
+      requiresMobilePrivy: false;
+      renderWalletProviders: (content: ReactNode) => ReactElement;
+    };
 
-type AppProvidersConfig = Omit<AppProviderShellProps, 'children'>;
+type AppProvidersConfig = {
+  onReady?: () => void;
+} & WalletProvidersConfig;
+
+type AppProviderShellProps = AppProvidersConfig & {
+  children: ReactNode;
+};
 
 function useReactQueryNativeAppFocus(): void {
   useEffect(() => {
@@ -72,12 +88,10 @@ function ConfigNoticeScreen({ target }: { target: string }): ReactElement {
   );
 }
 
-export function AppProviderShell({
-  children,
-  missingConfigTarget,
-  onReady,
-  renderWalletProviders,
-}: AppProviderShellProps): ReactElement | null {
+export function AppProviderShell(
+  props: AppProviderShellProps,
+): ReactElement | null {
+  const { children, onReady } = props;
   const [fontsLoaded] = useFonts(APP_FONTS);
   const runtimeConfig = getExpoMobileRuntimeConfig();
   const readyNotifiedRef = useRef(false);
@@ -92,19 +106,6 @@ export function AppProviderShell({
 
   if (!fontsLoaded) {
     return null;
-  }
-
-  if (!runtimeConfig.privy) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <ToastProvider>
-          <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
-            <StatusBar style="light" />
-            <ConfigNoticeScreen target={missingConfigTarget} />
-          </View>
-        </ToastProvider>
-      </QueryClientProvider>
-    );
   }
 
   const appContent = (
@@ -128,9 +129,32 @@ export function AppProviderShell({
     </ContentLanguageProvider>
   );
 
+  if (props.requiresMobilePrivy) {
+    const { privy } = runtimeConfig;
+
+    if (!privy) {
+      return (
+        <QueryClientProvider client={queryClient}>
+          <ToastProvider>
+            <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
+              <StatusBar style="light" />
+              <ConfigNoticeScreen target={props.missingConfigTarget} />
+            </View>
+          </ToastProvider>
+        </QueryClientProvider>
+      );
+    }
+
+    return (
+      <QueryClientProvider client={queryClient}>
+        {props.renderWalletProviders(appContent, privy)}
+      </QueryClientProvider>
+    );
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
-      {renderWalletProviders(appContent, runtimeConfig.privy)}
+      {props.renderWalletProviders(appContent)}
     </QueryClientProvider>
   );
 }
