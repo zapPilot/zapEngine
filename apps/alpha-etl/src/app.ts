@@ -6,6 +6,7 @@ import { closeDbPool, testDatabaseConnection } from './config/database.js';
 import { env } from './config/environment.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { startDatabaseHealthMonitor } from './modules/core/healthMonitor.js';
+import { flushSentry } from './observability/sentry.js';
 import { backfillRouter } from './routes/backfill.js';
 import { healthRouter } from './routes/health.js';
 import { webhooksRouter } from './routes/webhooks.js';
@@ -104,6 +105,7 @@ function registerShutdownHandlers(server: ReturnType<typeof app.listen>): void {
 
     server.close(async () => {
       await closeDbPool();
+      await flushSentry();
       logger.info('Server closed. Exiting process.');
       process.exit(0);
     });

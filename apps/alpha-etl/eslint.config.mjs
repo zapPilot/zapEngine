@@ -11,5 +11,6 @@ export default createBackendVitestConfig({
     '**/*.cjs',
     'tests/**',
     'vitest.config.ts',
+    'knip.ts',
   ],
 });

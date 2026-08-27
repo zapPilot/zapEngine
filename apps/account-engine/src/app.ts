@@ -13,7 +13,7 @@ import {
   stopServices,
 } from './container';
 import { createPlanOrchestrationRoutes } from './modules/plan-orchestration';
-import { captureServerException } from './observability/sentry';
+import { captureServerException, flushSentry } from './observability/sentry';
 import { createEtlRoutes } from './routes/etl';
 import { createHealthRoutes, type ReleaseMetadataEnv } from './routes/health';
 import { createJobsRoutes } from './routes/jobs';
@@ -104,6 +104,7 @@ export function bootstrap(rawEnv: NodeJS.ProcessEnv = process.env) {
     clearInterval(cleanupInterval);
     server.close();
     await stopServices(services);
+    await flushSentry();
   };
 
   process.on('unhandledRejection', (reason) => {

@@ -8,7 +8,10 @@ interface PackageManifest {
   scripts?: Record<string, string>;
 }
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
+const repoRoot = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../../..',
+);
 
 function readRootScripts(): Record<string, string> {
   const manifest = JSON.parse(

@@ -1,3 +1,11 @@
+const sentryMocks = vi.hoisted(() => ({
+  captureBackgroundException: vi.fn(),
+}));
+
+vi.mock('../../../../src/observability/sentry', () => ({
+  captureBackgroundException: sentryMocks.captureBackgroundException,
+}));
+
 import { ServiceLayerException } from '../../../../src/common/exceptions';
 import {
   type JobProcessingResult,
@@ -194,6 +202,24 @@ describe('JobProcessorService', () => {
       // Wait for the fire-and-forget notification attempt
       await Promise.resolve();
       await Promise.resolve();
+
+      // The terminal job failure ('error') and the failed notification
+      // attempt ('warning') are distinct events, not a double-report of one.
+      expect(sentryMocks.captureBackgroundException).toHaveBeenCalledTimes(2);
+      expect(sentryMocks.captureBackgroundException).toHaveBeenNthCalledWith(
+        1,
+        expect.any(Error),
+        expect.objectContaining({ component: 'job', level: 'error' }),
+      );
+      expect(sentryMocks.captureBackgroundException).toHaveBeenNthCalledWith(
+        2,
+        expect.any(Error),
+        expect.objectContaining({
+          component: 'job-notification',
+          level: 'warning',
+          context: { jobId: 'job-1' },
+        }),
+      );
     });
   });
 
@@ -209,6 +235,7 @@ describe('JobProcessorService', () => {
       expect(result.success).toBe(true);
       expect(jobQueueService.startProcessing).toHaveBeenCalledWith('job-1');
       expect(jobQueueService.completeJob).toHaveBeenCalledWith('job-1');
+      expect(sentryMocks.captureBackgroundException).not.toHaveBeenCalled();
     });
 
     it('throws when job not found', async () => {
@@ -239,6 +266,17 @@ describe('JobProcessorService', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('No processor registered');
+      // resolveProcessor is the only capture site on this path — it never
+      // reaches handleJobFailure, so this must not double-report.
+      expect(sentryMocks.captureBackgroundException).toHaveBeenCalledTimes(1);
+      expect(sentryMocks.captureBackgroundException).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.objectContaining({
+          component: 'job',
+          level: 'error',
+          tags: expect.objectContaining({ reason: 'no_processor' }),
+        }),
+      );
     });
 
     it('retries on retryable error', async () => {
@@ -256,6 +294,19 @@ describe('JobProcessorService', () => {
       expect(jobQueueService.retryJob).toHaveBeenCalledWith(
         'job-1',
         'Temporary failure',
+      );
+      expect(sentryMocks.captureBackgroundException).toHaveBeenCalledTimes(1);
+      expect(sentryMocks.captureBackgroundException).toHaveBeenCalledWith(
+        expect.any(Error),
+        {
+          component: 'job',
+          tags: {
+            job_type: JobType.WEEKLY_REPORT_BATCH,
+            job_status: 'pending',
+          },
+          context: { jobId: 'job-1', retryCount: 0, maxRetries: 3 },
+          level: 'warning',
+        },
       );
     });
 
@@ -275,6 +326,43 @@ describe('JobProcessorService', () => {
         'job-1',
         'Still failing',
       );
+      // Exactly one capture for this terminal failure — failJobPermanently
+      // must not add a second one.
+      expect(sentryMocks.captureBackgroundException).toHaveBeenCalledTimes(1);
+      expect(sentryMocks.captureBackgroundException).toHaveBeenCalledWith(
+        expect.any(Error),
+        {
+          component: 'job',
+          tags: { job_type: JobType.WEEKLY_REPORT_BATCH, job_status: 'failed' },
+          context: { jobId: 'job-1', retryCount: 3, maxRetries: 3 },
+          level: 'error',
+        },
+      );
+    });
+
+    it('never puts userId or walletAddress into a capture call', async () => {
+      const { service, jobQueueService } = createMocks();
+      const userId = 'user-1a2b3c4d-e5f6-7890-abcd-ef1234567890';
+      const walletAddress = '0x1234567890123456789012345678901234abcd';
+      const job = createPendingJob({
+        maxRetries: 0,
+        retryCount: 0,
+        payload: { userId, walletAddress },
+      });
+      jobQueueService.getJob.mockReturnValue(job);
+      const processor = createTestProcessor({
+        success: false,
+        error: 'boom',
+      });
+      service.registerProcessor(processor);
+
+      await service.processJob('job-1');
+
+      const serialized = JSON.stringify(
+        sentryMocks.captureBackgroundException.mock.calls,
+      );
+      expect(serialized).not.toContain(userId);
+      expect(serialized).not.toContain(walletAddress);
     });
 
     it('does not retry non-retryable errors', async () => {

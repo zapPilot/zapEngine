@@ -11,6 +11,10 @@ const electronMocks = vi.hoisted(() => ({
   registerSchemesAsPrivileged: vi.fn(),
 }));
 
+const sentryMocks = vi.hoisted(() => ({
+  captureDesktopException: vi.fn(),
+}));
+
 vi.mock('electron', () => ({
   net: {
     fetch: electronMocks.fetch,
@@ -19,6 +23,10 @@ vi.mock('electron', () => ({
     handle: electronMocks.handle,
     registerSchemesAsPrivileged: electronMocks.registerSchemesAsPrivileged,
   },
+}));
+
+vi.mock('../src/main/sentry', () => ({
+  captureDesktopException: sentryMocks.captureDesktopException,
 }));
 
 import {
@@ -71,7 +79,7 @@ describe('registerAppProtocolHandler', () => {
     }
   });
 
-  it('returns an HTTP status response when an asset cannot be resolved', async () => {
+  it('returns an HTTP status response and reports it to Sentry when an asset cannot be resolved', async () => {
     tempRoot = mkdtempSync(join(tmpdir(), 'zap-desktop-protocol-'));
 
     registerAppProtocolHandler(tempRoot);
@@ -82,6 +90,15 @@ describe('registerAppProtocolHandler', () => {
 
     expect(response.status).toBe(404);
     expect(electronMocks.fetch).not.toHaveBeenCalled();
+    expect(sentryMocks.captureDesktopException).toHaveBeenCalledTimes(1);
+    expect(sentryMocks.captureDesktopException).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        component: 'asset-protocol',
+        tags: expect.objectContaining({ 'asset.status': '404' }),
+        context: expect.objectContaining({ pathname: '/missing.png' }),
+      }),
+    );
   });
 
   it('serves existing files through Electron net.fetch', async () => {

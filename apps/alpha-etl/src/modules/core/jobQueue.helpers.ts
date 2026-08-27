@@ -1,3 +1,4 @@
+import { captureBackgroundException } from '../../observability/sentry.js';
 import type { ETLJob, ETLJobResult } from '../../types/index.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
@@ -160,12 +161,36 @@ export function logPersistStatusFailure(
   status: PersistedJobStatus,
   error: unknown,
 ): void {
-  // Non-fatal error - log and continue
+  // Non-fatal here, but account-engine polls this table for a job's terminal
+  // state, so a swallowed persistence failure leaves it waiting forever for a
+  // result that was already computed.
   logger.warn('Failed to persist job status to database (non-fatal)', {
     jobId,
     status,
     error: toErrorMessage(error),
   });
+
+  captureBackgroundException(error, {
+    component: 'job',
+    tags: { operation: 'persist_status', job_status: status },
+    context: { jobId },
+    level: 'warning',
+  });
+}
+
+export function buildJobFailureError(
+  pipelineResult: ETLJobProcessingResult,
+  rollupSyncError: string | undefined,
+  rollupSyncErrorCause: unknown,
+): Error {
+  const message =
+    rollupSyncError ??
+    (normalizeJobErrors(pipelineResult.errors).join('; ') ||
+      'ETL job failed without a specific error');
+
+  return rollupSyncErrorCause === undefined
+    ? new Error(message)
+    : new Error(message, { cause: rollupSyncErrorCause });
 }
 
 export function buildPersistJobStatusQuery(

@@ -5,6 +5,7 @@ import { ServiceLayerException } from '../../common/exceptions';
 import { HttpStatus } from '../../common/http';
 import { Logger } from '../../common/logger';
 import { calculateJitteredBackoffDelay } from '../../common/utils';
+import { captureBackgroundException } from '../../observability/sentry';
 import {
   CreateJobOptions,
   Job,
@@ -414,11 +415,25 @@ export class JobQueueService {
       // Non-terminal: force-fail if it's been hanging longer than the TTL.
       const startedAt = job.startedAt ?? job.scheduledAt;
       if (startedAt < stuckCutoff) {
+        const errorMessage = `Job force-failed after exceeding non-terminal TTL (${JOB_CONFIG.NON_TERMINAL_TTL_MS}ms)`;
         job.status = JobStatus.FAILED;
-        job.errorMessage = `Job force-failed after exceeding non-terminal TTL (${JOB_CONFIG.NON_TERMINAL_TTL_MS}ms)`;
+        job.errorMessage = errorMessage;
         job.completedAt = new Date();
         job.updatedAt = new Date();
         stuckCount++;
+
+        // This branch mutates job state directly and bypasses updateJobStatus,
+        // so it is the only place that will ever see this stuck-job failure —
+        // no other capture site is reachable from here.
+        captureBackgroundException(new Error(errorMessage), {
+          component: 'job-cleanup',
+          tags: { job_type: job.type, job_status: JobStatus.FAILED },
+          context: {
+            jobId: job.id,
+            nonTerminalTtlMs: JOB_CONFIG.NON_TERMINAL_TTL_MS,
+          },
+          level: 'error',
+        });
       }
     }
 

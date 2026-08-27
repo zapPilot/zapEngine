@@ -1,6 +1,7 @@
 import { sleep } from '@zapengine/types/shared';
 import { Pool, type PoolClient } from 'pg';
 
+import { captureBackgroundException } from '../observability/sentry.js';
 import { logger } from '../utils/logger.js';
 import { env } from './environment.js';
 
@@ -243,14 +244,28 @@ export async function testDatabaseConnection(): Promise<boolean> {
   }
 }
 
+// Tracks consecutive pingDatabase failures across the health monitor's
+// 15-second poll loop. An unconditional capture on every tick would be
+// ~240 events/hour; only the first failure of a run is reported.
+let consecutivePingFailures = 0;
+
 export async function pingDatabase(): Promise<boolean> {
   let client: PoolClient | null = null;
   try {
     client = await getDbClient();
     await client.query('SELECT 1');
+    consecutivePingFailures = 0;
     return true;
   } catch (error) {
     logger.error('Database ping failed:', error);
+    consecutivePingFailures += 1;
+    if (consecutivePingFailures === 1) {
+      captureBackgroundException(error, {
+        component: 'db-health',
+        context: { consecutiveFailures: consecutivePingFailures },
+        level: 'warning',
+      });
+    }
     return false;
   } finally {
     releaseClient(client);
