@@ -52,12 +52,14 @@ class TestableService extends BaseService {
 describe('BaseService', () => {
   let service: TestableService;
   let dbMock: ReturnType<typeof createMockDatabaseService>;
-  let qb: ReturnType<typeof createMockDatabaseService>['anon']['queryBuilder'];
+  let qb: ReturnType<
+    typeof createMockDatabaseService
+  >['supabase']['queryBuilder'];
 
   beforeEach(() => {
     dbMock = createMockDatabaseService();
     service = new TestableService(dbMock.mock as unknown as DatabaseService);
-    qb = dbMock.anon.queryBuilder;
+    qb = dbMock.supabase.queryBuilder;
   });
 
   // -----------------------------------------------------------------------
@@ -72,7 +74,7 @@ describe('BaseService', () => {
 
       const result = await service.exposeFindOne('users', { id: '1' });
       expect(result).toEqual({ id: '1', name: 'Alice' });
-      expect(dbMock.anon.client.from).toHaveBeenCalledWith('users');
+      expect(dbMock.supabase.client.from).toHaveBeenCalledWith('users');
       expect(qb.select).toHaveBeenCalledWith('*');
       expect(qb.eq).toHaveBeenCalledWith('id', '1');
     });
@@ -116,22 +118,6 @@ describe('BaseService', () => {
         },
       );
       expect(qb.select).toHaveBeenCalledWith('id, email');
-    });
-
-    it('uses service role client when useServiceRole is true', async () => {
-      dbMock.serviceRole.queryBuilder.single.mockResolvedValue({
-        data: { id: '1' },
-        error: null,
-      });
-
-      await service.exposeFindOne(
-        'users',
-        { id: '1' },
-        {
-          useServiceRole: true,
-        },
-      );
-      expect(dbMock.serviceRole.client.from).toHaveBeenCalledWith('users');
     });
 
     it('applies array conditions with .in()', async () => {
@@ -254,21 +240,6 @@ describe('BaseService', () => {
         { requireSingleResult: true },
       );
       expect(result).toEqual({ id: '1', name: 'Bob' });
-    });
-
-    it('uses service role client when specified', async () => {
-      dbMock.serviceRole.queryBuilder.mockResolvedThen({
-        data: [{ id: '1' }],
-        error: null,
-      });
-
-      await service.exposeUpdateWhere(
-        'users',
-        { name: 'Bob' },
-        { id: '1' },
-        { useServiceRole: true },
-      );
-      expect(dbMock.serviceRole.client.from).toHaveBeenCalledWith('users');
     });
   });
 

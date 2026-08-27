@@ -38,22 +38,12 @@ export abstract class BaseService {
     return this.databaseService.getClient();
   }
 
-  protected get serviceRoleSupabase(): SupabaseClient<Database> {
-    return this.databaseService.getServiceRoleClient();
-  }
-
-  private resolveClient(useServiceRole?: boolean): SupabaseClient<Database> {
-    return useServiceRole ? this.serviceRoleSupabase : this.supabase;
-  }
-
   private buildSelectQuery(
     table: string,
     conditions: Record<string, ConditionValue>,
     select: string,
-    useServiceRole?: boolean,
   ) {
-    const client = this.resolveClient(useServiceRole);
-    const query = client.from(table as never).select(select);
+    const query = this.supabase.from(table as never).select(select);
     return this.applyConditions(query, conditions);
   }
 
@@ -67,22 +57,15 @@ export abstract class BaseService {
       select?: string;
       entityName?: string;
       throwOnNotFound?: boolean;
-      useServiceRole?: boolean;
     } = {},
   ): Promise<T | null> {
     const {
       select = '*',
       entityName = 'Resource',
       throwOnNotFound = true,
-      useServiceRole = false,
     } = options;
 
-    const query = this.buildSelectQuery(
-      table,
-      conditions,
-      select,
-      useServiceRole,
-    );
+    const query = this.buildSelectQuery(table, conditions, select);
     const result = await query.single();
 
     return SupabaseErrorHandler.validateOperation<T>(
@@ -143,18 +126,11 @@ export abstract class BaseService {
     options: {
       select?: string;
       entityName?: string;
-      useServiceRole?: boolean;
     } = {},
   ): Promise<T> {
-    const {
-      select = '*',
-      entityName = 'Resource',
-      useServiceRole = false,
-    } = options;
+    const { select = '*', entityName = 'Resource' } = options;
 
-    const builder = this.resolveClient(useServiceRole)
-      .from(table as never)
-      .insert(data as never);
+    const builder = this.supabase.from(table as never).insert(data as never);
     const query = select ? builder.select(select) : builder;
 
     const result = await query.single();
@@ -177,18 +153,15 @@ export abstract class BaseService {
       select?: string;
       entityName?: string;
       requireSingleResult?: boolean;
-      useServiceRole?: boolean;
     } = {},
   ): Promise<UpdateResult<T>> {
     const {
       select = '*',
       entityName = 'Resource',
       requireSingleResult = false,
-      useServiceRole = false,
     } = options;
 
-    const client = this.resolveClient(useServiceRole);
-    let query = client.from(table as never).update(updates as never);
+    let query = this.supabase.from(table as never).update(updates as never);
     query = this.applyConditions(query, conditions);
 
     const finalQuery = select ? query.select(select) : query;
@@ -213,19 +186,12 @@ export abstract class BaseService {
     options: {
       entityName?: string;
       requireSingleResult?: boolean;
-      useServiceRole?: boolean;
     } = {},
   ): Promise<void> {
-    const {
-      entityName = 'Resource',
-      requireSingleResult = false,
-      useServiceRole = false,
-    } = options;
+    const { entityName = 'Resource', requireSingleResult = false } = options;
 
     const query = this.applyConditions(
-      this.resolveClient(useServiceRole)
-        .from(table as never)
-        .delete(),
+      this.supabase.from(table as never).delete(),
       conditions,
     ).select();
 

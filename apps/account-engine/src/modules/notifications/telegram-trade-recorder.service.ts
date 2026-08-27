@@ -57,7 +57,7 @@ export class TelegramTradeRecorderService {
     }
     if (!alreadyRecorded) {
       const result = await this.databaseService
-        .getServiceRoleClient()
+        .getClient()
         .from('strategy_trade_history' as never)
         .insert({
           user_id: userId,
@@ -91,7 +91,7 @@ export class TelegramTradeRecorderService {
     configId: string;
   }): Promise<boolean | null> {
     const { data, error } = await this.databaseService
-      .getServiceRoleClient()
+      .getClient()
       .from('strategy_trade_history' as never)
       .select('id')
       .eq('user_id', params.userId)

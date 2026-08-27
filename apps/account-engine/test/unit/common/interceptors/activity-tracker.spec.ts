@@ -12,7 +12,7 @@ function createDatabaseService() {
 
   return {
     service: {
-      getServiceRoleClient: () => ({ from }),
+      getClient: () => ({ from }),
     },
     from,
     update,

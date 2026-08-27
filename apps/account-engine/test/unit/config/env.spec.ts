@@ -3,8 +3,8 @@ import { loadEnv } from '../../../src/config/env';
 
 const validEnv = {
   SUPABASE_URL: 'https://example.supabase.co',
-  SUPABASE_ANON_KEY: 'anon-key',
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
+  REPORT_UNSUBSCRIBE_SECRET: 'unsubscribe-secret',
   LIFI_INTEGRATOR: 'zapengine-test',
 };
 
@@ -18,8 +18,8 @@ describe('loadEnv', () => {
   it('parses a minimal valid env successfully', () => {
     const result = loadEnv(validEnv);
     expect(result.SUPABASE_URL).toBe('https://example.supabase.co');
-    expect(result.SUPABASE_ANON_KEY).toBe('anon-key');
     expect(result.SUPABASE_SERVICE_ROLE_KEY).toBe('service-role-key');
+    expect(result.REPORT_UNSUBSCRIBE_SECRET).toBe('unsubscribe-secret');
   });
 
   it('defaults PORT to 3004 when no port env is provided', () => {
@@ -48,14 +48,14 @@ describe('loadEnv', () => {
     );
   });
 
-  it('throws BadRequestException when SUPABASE_ANON_KEY is missing', () => {
-    expect(() => loadEnv(omitEnvKey('SUPABASE_ANON_KEY'))).toThrow(
+  it('throws BadRequestException when SUPABASE_SERVICE_ROLE_KEY is missing', () => {
+    expect(() => loadEnv(omitEnvKey('SUPABASE_SERVICE_ROLE_KEY'))).toThrow(
       BadRequestException,
     );
   });
 
-  it('throws BadRequestException when SUPABASE_SERVICE_ROLE_KEY is missing', () => {
-    expect(() => loadEnv(omitEnvKey('SUPABASE_SERVICE_ROLE_KEY'))).toThrow(
+  it('throws BadRequestException when REPORT_UNSUBSCRIBE_SECRET is missing', () => {
+    expect(() => loadEnv(omitEnvKey('REPORT_UNSUBSCRIBE_SECRET'))).toThrow(
       BadRequestException,
     );
   });

@@ -128,19 +128,16 @@ export function createMockSupabaseClient() {
 // ---------------------------------------------------------------------------
 
 export function createMockDatabaseService() {
-  const anon = createMockSupabaseClient();
-  const serviceRole = createMockSupabaseClient();
+  const supabase = createMockSupabaseClient();
 
   const mock = {
-    getClient: vi.fn().mockReturnValue(anon.client),
-    getServiceRoleClient: vi.fn().mockReturnValue(serviceRole.client),
+    getClient: vi.fn().mockReturnValue(supabase.client),
     rpc: vi.fn().mockResolvedValue(null),
   };
 
   return {
     mock,
-    anon,
-    serviceRole,
+    supabase,
   };
 }
 
@@ -188,7 +185,6 @@ export function createMockConfigService(
 ): any {
   const defaults: Record<string, unknown> = {
     SUPABASE_URL: 'http://localhost:54321',
-    SUPABASE_ANON_KEY: 'test-anon-key',
     SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
     ADMIN_API_KEY: 'test-admin-key',
     TELEGRAM_BOT_TOKEN: 'test-bot-token',
@@ -205,6 +201,7 @@ export function createMockConfigService(
     EMAIL_APP_PASSWORD: 'test-password',
     NOTIFICATIONS_TEST_RECIPIENT: 'recipient@test.com',
     ADMIN_NOTIFICATIONS_ENABLED: 'true',
+    REPORT_UNSUBSCRIBE_SECRET: 'test-report-unsubscribe-secret',
     ...overrides,
   };
 

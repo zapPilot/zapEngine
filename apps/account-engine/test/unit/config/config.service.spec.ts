@@ -4,7 +4,6 @@ import type { AppEnv } from '../../../src/config/env';
 function buildEnv(overrides: Record<string, unknown> = {}): AppEnv {
   return {
     SUPABASE_URL: 'https://example.supabase.co',
-    SUPABASE_ANON_KEY: 'anon-key',
     SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
     PORT: 3000,
     NODE_ENV: 'test',

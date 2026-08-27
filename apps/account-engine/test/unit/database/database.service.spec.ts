@@ -27,51 +27,15 @@ describe('DatabaseService', () => {
   });
 
   function buildService(overrides: Record<string, unknown> = {}) {
-    configService = createMockConfigService(
-      overrides,
-    ) as unknown as ConfigService;
+    configService = createMockConfigService(overrides);
     return new DatabaseService(configService);
   }
 
   describe('constructor', () => {
-    it('creates a Supabase client with URL and anon key from config', () => {
+    it('creates a single Supabase client with URL and service role key', () => {
       buildService();
 
-      expect(mockedCreateClient).toHaveBeenCalledWith(
-        'http://localhost:54321',
-        'test-anon-key',
-      );
-    });
-
-    it('throws when Supabase URL is missing', () => {
-      expect(() => buildService({ SUPABASE_URL: undefined })).toThrow(
-        'Missing Supabase configuration',
-      );
-    });
-
-    it('throws when Supabase anon key is missing', () => {
-      expect(() => buildService({ SUPABASE_ANON_KEY: undefined })).toThrow(
-        'Missing Supabase configuration',
-      );
-    });
-  });
-
-  describe('getClient', () => {
-    it('returns the anon Supabase client', () => {
-      const service = buildService();
-      const client = service.getClient();
-      expect(client).toBeDefined();
-      expect(client.from).toBeDefined();
-    });
-  });
-
-  describe('getServiceRoleClient', () => {
-    it('creates a service role client on first call', () => {
-      const service = buildService();
-      mockedCreateClient.mockClear();
-
-      service.getServiceRoleClient();
-
+      expect(mockedCreateClient).toHaveBeenCalledTimes(1);
       expect(mockedCreateClient).toHaveBeenCalledWith(
         'http://localhost:54321',
         'test-service-role-key',
@@ -84,30 +48,29 @@ describe('DatabaseService', () => {
       );
     });
 
-    it('caches the service role client on subsequent calls', () => {
-      const service = buildService();
-      mockedCreateClient.mockClear();
-
-      const first = service.getServiceRoleClient();
-      const second = service.getServiceRoleClient();
-
-      expect(first).toBe(second);
-      expect(mockedCreateClient).toHaveBeenCalledTimes(1);
+    it('throws when Supabase URL is missing', () => {
+      expect(() => buildService({ SUPABASE_URL: undefined })).toThrow(
+        'Missing Supabase configuration',
+      );
     });
 
-    it('throws when service role key is missing', () => {
-      const service = buildService({
-        SUPABASE_SERVICE_ROLE_KEY: undefined,
-      });
+    it('throws when the service role key is missing', () => {
+      expect(() =>
+        buildService({ SUPABASE_SERVICE_ROLE_KEY: undefined }),
+      ).toThrow('Missing Supabase configuration');
+    });
+  });
 
-      expect(() => service.getServiceRoleClient()).toThrow(
-        'Missing Supabase service role configuration',
-      );
+  describe('getClient', () => {
+    it('returns the same client on every call', () => {
+      const service = buildService();
+      expect(service.getClient()).toBe(service.getClient());
+      expect(service.getClient().from).toBeDefined();
     });
   });
 
   describe('rpc', () => {
-    it('calls rpc on the anon client by default', async () => {
+    it('calls rpc on the Supabase client', async () => {
       const service = buildService();
       const client = service.getClient();
       (client.rpc as Mock).mockResolvedValue({
@@ -127,21 +90,6 @@ describe('DatabaseService', () => {
         { p_wallet: '0x123' },
       );
       expect(result).toEqual({ result: true });
-    });
-
-    it('uses service role client when useServiceRole is true', async () => {
-      const service = buildService();
-      const serviceClient = service.getServiceRoleClient();
-      (serviceClient.rpc as Mock).mockResolvedValue({
-        data: { ok: true },
-        error: null,
-      });
-
-      await service.rpc('create_user_with_wallet_and_plan' as any, {} as any, {
-        useServiceRole: true,
-      });
-
-      expect(serviceClient.rpc).toHaveBeenCalled();
     });
 
     it('throws when rpc returns an error', async () => {

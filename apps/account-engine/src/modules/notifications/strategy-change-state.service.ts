@@ -32,7 +32,6 @@ export class StrategyChangeStateService extends BaseService {
         select: 'last_event_date',
         entityName: ENTITY_NAME,
         throwOnNotFound: false,
-        useServiceRole: true,
       },
     );
 
@@ -50,16 +49,14 @@ export class StrategyChangeStateService extends BaseService {
     strategyId: string,
     lastEventDate: string,
   ): Promise<void> {
-    const result = await this.serviceRoleSupabase
-      .from(STATE_TABLE as never)
-      .upsert(
-        {
-          strategy_id: strategyId,
-          last_event_date: lastEventDate,
-          updated_at: new Date().toISOString(),
-        } as never,
-        { onConflict: 'strategy_id' },
-      );
+    const result = await this.supabase.from(STATE_TABLE as never).upsert(
+      {
+        strategy_id: strategyId,
+        last_event_date: lastEventDate,
+        updated_at: new Date().toISOString(),
+      } as never,
+      { onConflict: 'strategy_id' },
+    );
 
     SupabaseErrorHandler.validateOperation(
       result,

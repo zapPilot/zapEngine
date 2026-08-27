@@ -48,7 +48,7 @@ export class TelegramConnectionService extends BaseService {
     const telegramUsername = ctx.from?.username;
 
     // Upsert isn't on the BaseService surface; raw call here is intentional.
-    const { error: upsertError } = await this.serviceRoleSupabase
+    const { error: upsertError } = await this.supabase
       .from('notification_settings')
       .upsert(
         {
@@ -80,7 +80,7 @@ export class TelegramConnectionService extends BaseService {
             'users',
             { telegram_username: telegramUsername },
             { id: userId },
-            { entityName: 'User', useServiceRole: true },
+            { entityName: 'User' },
           )
         : Promise.resolve(),
       this.tokenService.invalidateToken(token),
@@ -119,7 +119,7 @@ export class TelegramConnectionService extends BaseService {
       await this.deleteWhere(
         'notification_settings',
         { user_id: userId, channel_type: CHANNEL_TYPE_TELEGRAM },
-        { entityName: 'Telegram settings', useServiceRole: true },
+        { entityName: 'Telegram settings' },
       );
     } catch (error) {
       this.logger.error(`Failed to disconnect user ${userId}:`, error);
@@ -143,7 +143,7 @@ export class TelegramConnectionService extends BaseService {
     // chain coincidentally matches the one in TelegramNotificationService
     // but the .maybeSingle() lookup vs list-fetch makes them distinct ops.
     // jscpd:ignore-start
-    const { data } = await this.serviceRoleSupabase
+    const { data } = await this.supabase
       .from('notification_settings')
       .select('user_id')
       .eq('channel_type', CHANNEL_TYPE_TELEGRAM)

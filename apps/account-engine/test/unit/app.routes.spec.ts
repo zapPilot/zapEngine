@@ -41,7 +41,7 @@ function createServices(): AppServices {
   return {
     env: {
       SUPABASE_URL: 'http://localhost',
-      SUPABASE_ANON_KEY: 'anon',
+      REPORT_UNSUBSCRIBE_SECRET: 'unsubscribe',
       SUPABASE_SERVICE_ROLE_KEY: 'service',
       PORT: 3004,
       NODE_ENV: 'test',

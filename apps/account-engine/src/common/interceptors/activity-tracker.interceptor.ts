@@ -56,7 +56,7 @@ export class ActivityTracker {
   }
 
   private async updateUserActivity(userId: string): Promise<void> {
-    const client = this.databaseService.getServiceRoleClient();
+    const client = this.databaseService.getClient();
 
     const { error } = await client
       .from('users')

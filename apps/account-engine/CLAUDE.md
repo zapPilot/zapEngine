@@ -1,13 +1,23 @@
 See @README.md for project overview and @package.json for available scripts.
 
-# Supabase clients
+# Supabase client
 
 `migrations/` is frozen immutable history; new DB migrations go through root `supabase/migrations/` (see CONTRIBUTING.md "Adding a database migration").
 
-Two clients exist — use the right one:
+There is exactly **one** client — `DatabaseService.getClient()`, holding the
+service-role key. `BaseService.supabase` returns it; there is no second client
+and no per-call client selection.
 
-- **Anon** (`DatabaseService.getClient()`): default for all user-facing reads/writes (RLS enforced)
-- **Service-role** (`DatabaseService.getServiceRoleClient()`): bypasses RLS — only for onboarding, admin flows, and job processing
+No anon path exists, by design. This project has no Supabase Auth (auth is Privy)
+and no Realtime client, so nothing ever authenticates as `authenticated` — the
+`anon` role was only ever "the role account-engine happened to use" while holding
+full CRUD on eight `public` tables, and provided zero authorization value. Both
+roles now have no grants on `public` and RLS denies them outright; see
+`supabase/migrations/20260827*_lock_down_public_anon_access.sql`.
+
+Authorization therefore lives entirely in the route layer (Privy identity,
+`ADMIN_API_KEY` for job routes) — never assume Postgres will refuse a query on
+a caller's behalf.
 
 # Gotchas
 

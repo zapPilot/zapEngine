@@ -105,8 +105,7 @@ function createMocks() {
     walletBindingChallengeService,
     accountDeletionChallengeService,
     reportUnsubscribeTokenService,
-    qb: dbMock.anon.queryBuilder,
-    srQb: dbMock.serviceRole.queryBuilder,
+    qb: dbMock.supabase.queryBuilder,
   };
 }
 
@@ -115,9 +114,9 @@ describe('UsersService', () => {
   // getUserByWallet
   // -----------------------------------------------------------------------
   describe('getUserByWallet', () => {
-    it('performs a pure service-role lookup without invoking account bootstrap', async () => {
-      const { service, dbMock, srQb } = createMocks();
-      srQb.single.mockResolvedValue({
+    it('performs a pure lookup without invoking account bootstrap', async () => {
+      const { service, dbMock, qb } = createMocks();
+      qb.single.mockResolvedValue({
         data: { user_id: 'user-1' },
         error: null,
       });
@@ -126,13 +125,11 @@ describe('UsersService', () => {
         service.getUserByWallet('0x1234567890abcdef1234567890abcdef12345678'),
       ).resolves.toEqual({ user_id: 'user-1' });
 
-      expect(dbMock.mock.getServiceRoleClient).toHaveBeenCalled();
-      expect(dbMock.serviceRole.client.from).toHaveBeenCalledWith(
+      expect(dbMock.supabase.client.from).toHaveBeenCalledWith(
         'user_crypto_wallets',
       );
-      expect(dbMock.mock.getClient).not.toHaveBeenCalled();
-      expect(srQb.select).toHaveBeenCalledWith('user_id');
-      expect(srQb.eq).toHaveBeenCalledWith(
+      expect(qb.select).toHaveBeenCalledWith('user_id');
+      expect(qb.eq).toHaveBeenCalledWith(
         'wallet',
         '0x1234567890abcdef1234567890abcdef12345678',
       );
@@ -475,8 +472,8 @@ describe('UsersService', () => {
   // -----------------------------------------------------------------------
   describe('updateEmail', () => {
     it('updates email successfully', async () => {
-      const { service, dbMock, srQb } = createMocks();
-      srQb.single.mockResolvedValue({
+      const { service, dbMock, qb } = createMocks();
+      qb.single.mockResolvedValue({
         data: { id: 'user-1' },
         error: null,
       });
@@ -487,7 +484,7 @@ describe('UsersService', () => {
       expect(result.email_updated).toBe(true);
       expect(result.plan_upgraded).toBe(false);
       expect(dbMock.mock.rpc).not.toHaveBeenCalled();
-      expect(srQb.update).toHaveBeenCalledWith({
+      expect(qb.update).toHaveBeenCalledWith({
         email: 'new@test.com',
         is_subscribed_to_reports: true,
       });
@@ -522,8 +519,8 @@ describe('UsersService', () => {
 
   describe('unsubscribeFromReportsWithToken', () => {
     it('unsubscribes the matching email using the service-role client', async () => {
-      const { service, srQb } = createMocks();
-      srQb.single
+      const { service, qb } = createMocks();
+      qb.single
         .mockResolvedValueOnce({
           data: { email: 'test@test.com' },
           error: null,
@@ -537,14 +534,14 @@ describe('UsersService', () => {
         await service.unsubscribeFromReportsWithToken('signed-token');
 
       expect(result.success).toBe(true);
-      expect(srQb.update).toHaveBeenCalledWith({
+      expect(qb.update).toHaveBeenCalledWith({
         is_subscribed_to_reports: false,
       });
     });
 
     it('rejects a token when the current email no longer matches', async () => {
-      const { service, srQb } = createMocks();
-      srQb.single.mockResolvedValue({
+      const { service, qb } = createMocks();
+      qb.single.mockResolvedValue({
         data: { email: 'changed@test.com' },
         error: null,
       });
@@ -552,12 +549,12 @@ describe('UsersService', () => {
       await expect(
         service.unsubscribeFromReportsWithToken('signed-token'),
       ).rejects.toThrow(BadRequestException);
-      expect(srQb.update).not.toHaveBeenCalled();
+      expect(qb.update).not.toHaveBeenCalled();
     });
 
     it('rejects a token when the user no longer exists', async () => {
-      const { service, srQb } = createMocks();
-      srQb.single.mockResolvedValue({
+      const { service, qb } = createMocks();
+      qb.single.mockResolvedValue({
         data: null,
         error: null,
       });
@@ -565,7 +562,7 @@ describe('UsersService', () => {
       await expect(
         service.unsubscribeFromReportsWithToken('signed-token'),
       ).rejects.toThrow(BadRequestException);
-      expect(srQb.update).not.toHaveBeenCalled();
+      expect(qb.update).not.toHaveBeenCalled();
     });
   });
 
@@ -776,14 +773,13 @@ describe('UsersService', () => {
     });
 
     it('issues one user delete and relies on database cascades', async () => {
-      const { service, qb, srQb } = createMocks();
+      const { service, qb } = createMocks();
       qb.single.mockResolvedValue({ data: { id: 'user-1' }, error: null });
 
       await service.deleteUser('user-1', '0x123', '0x' + 'ab'.repeat(65));
 
       expect(qb.delete).toHaveBeenCalledTimes(1);
       expect(qb.eq).toHaveBeenCalledWith('id', 'user-1');
-      expect(srQb.delete).not.toHaveBeenCalled();
       expect(qb.update).not.toHaveBeenCalled();
     });
 
@@ -954,8 +950,8 @@ describe('UsersService', () => {
   // -----------------------------------------------------------------------
   describe('getTelegramStatus', () => {
     it('returns connected status', async () => {
-      const { service, srQb } = createMocks();
-      srQb.single.mockResolvedValue({
+      const { service, qb } = createMocks();
+      qb.single.mockResolvedValue({
         data: { is_enabled: true, created_at: '2026-01-01' },
         error: null,
       });
@@ -968,8 +964,8 @@ describe('UsersService', () => {
     });
 
     it('returns not connected when no settings', async () => {
-      const { service, srQb } = createMocks();
-      srQb.single.mockResolvedValue({
+      const { service, qb } = createMocks();
+      qb.single.mockResolvedValue({
         data: null,
         error: { code: 'PGRST116', message: 'not found' },
       });
@@ -986,14 +982,14 @@ describe('UsersService', () => {
   // -----------------------------------------------------------------------
   describe('disconnectTelegram', () => {
     it('disconnects successfully', async () => {
-      const { service, srQb } = createMocks();
+      const { service, qb } = createMocks();
       // findTelegramSettings returns existing settings
-      srQb.single.mockResolvedValueOnce({
+      qb.single.mockResolvedValueOnce({
         data: { user_id: 'user-1' },
         error: null,
       });
       // deleteWhere succeeds
-      srQb.mockResolvedThen({ data: null, error: null });
+      qb.mockResolvedThen({ data: null, error: null });
 
       const result = await service.disconnectTelegram('user-1');
 
@@ -1002,8 +998,8 @@ describe('UsersService', () => {
     });
 
     it('throws BadRequestException when not connected', async () => {
-      const { service, srQb } = createMocks();
-      srQb.single.mockResolvedValue({
+      const { service, qb } = createMocks();
+      qb.single.mockResolvedValue({
         data: null,
         error: { code: 'PGRST116', message: 'not found' },
       });

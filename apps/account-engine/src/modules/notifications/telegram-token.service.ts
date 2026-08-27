@@ -66,7 +66,7 @@ export class TelegramTokenService {
 
     const { data: recentTokens, error: rateLimitError } =
       await this.databaseService
-        .getServiceRoleClient()
+        .getClient()
         .from('telegram_verification_tokens')
         .select('created_at')
         .eq('user_id', userId)
@@ -94,7 +94,7 @@ export class TelegramTokenService {
 
     // Store token in database
     const { error: insertError } = await this.databaseService
-      .getServiceRoleClient()
+      .getClient()
       .from('telegram_verification_tokens')
       .insert({
         token,
@@ -132,7 +132,7 @@ export class TelegramTokenService {
     }
 
     const { data, error } = await this.databaseService
-      .getServiceRoleClient()
+      .getClient()
       .from('telegram_verification_tokens')
       .select('user_id, expires_at, used_at')
       .eq('token', token)
@@ -169,7 +169,7 @@ export class TelegramTokenService {
    */
   async invalidateToken(token: string): Promise<void> {
     const { error } = await this.databaseService
-      .getServiceRoleClient()
+      .getClient()
       .from('telegram_verification_tokens')
       .update({ used_at: new Date().toISOString() })
       .eq('token', token);
@@ -195,7 +195,7 @@ export class TelegramTokenService {
    */
   async cleanupExpiredTokens(): Promise<number> {
     const { data, error } = await this.databaseService
-      .getServiceRoleClient()
+      .getClient()
       .rpc('cleanup_expired_telegram_tokens');
 
     if (error) {

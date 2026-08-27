@@ -37,7 +37,7 @@ function connectedUsers(
   dbMock: ReturnType<typeof createMockDatabaseService>,
   userIds: string[],
 ) {
-  dbMock.serviceRole.queryBuilder.mockResolvedThen({
+  dbMock.supabase.queryBuilder.mockResolvedThen({
     data: userIds.map((user_id) => ({ user_id })),
     error: null,
   });
@@ -54,7 +54,7 @@ describe('TelegramNotificationService', () => {
     it('sends the same message to every connected user', async () => {
       const { service, dbMock, bot } = createNotificationMocks();
       connectedUsers(dbMock, ['u-1', 'u-2']);
-      dbMock.serviceRole.queryBuilder.single
+      dbMock.supabase.queryBuilder.single
         .mockResolvedValueOnce(chatIdFor('111'))
         .mockResolvedValueOnce(chatIdFor('222'));
 
@@ -88,7 +88,7 @@ describe('TelegramNotificationService', () => {
     it('skips a connected user with no chat id', async () => {
       const { service, dbMock, bot } = createNotificationMocks();
       connectedUsers(dbMock, ['u-1', 'u-2']);
-      dbMock.serviceRole.queryBuilder.single
+      dbMock.supabase.queryBuilder.single
         .mockResolvedValueOnce(chatIdFor(null))
         .mockResolvedValueOnce(chatIdFor('222'));
 
@@ -103,9 +103,7 @@ describe('TelegramNotificationService', () => {
     it('counts a blocked user as unreachable and disables their notifications', async () => {
       const { service, dbMock, bot } = createNotificationMocks();
       connectedUsers(dbMock, ['u-1']);
-      dbMock.serviceRole.queryBuilder.single.mockResolvedValue(
-        chatIdFor('111'),
-      );
+      dbMock.supabase.queryBuilder.single.mockResolvedValue(chatIdFor('111'));
       bot?.telegram.sendMessage.mockRejectedValueOnce({
         response: { error_code: 403 },
       });
@@ -115,7 +113,7 @@ describe('TelegramNotificationService', () => {
       expect(result.sent).toBe(0);
       expect(result.skippedBlocked).toBe(1);
       expect(result.failedUserIds).toEqual([]);
-      expect(dbMock.serviceRole.queryBuilder.update).toHaveBeenCalledWith({
+      expect(dbMock.supabase.queryBuilder.update).toHaveBeenCalledWith({
         is_enabled: false,
       });
     });
@@ -123,9 +121,7 @@ describe('TelegramNotificationService', () => {
     it('records a transport failure without aborting the rest of the broadcast', async () => {
       const { service, dbMock, bot } = createNotificationMocks();
       connectedUsers(dbMock, ['u-1', 'u-2']);
-      dbMock.serviceRole.queryBuilder.single.mockResolvedValue(
-        chatIdFor('111'),
-      );
+      dbMock.supabase.queryBuilder.single.mockResolvedValue(chatIdFor('111'));
       bot?.telegram.sendMessage.mockRejectedValueOnce(
         new Error('Network timeout'),
       );
@@ -149,7 +145,7 @@ describe('TelegramNotificationService', () => {
         skippedBlocked: 0,
         failedUserIds: [],
       });
-      expect(dbMock.mock.getServiceRoleClient).not.toHaveBeenCalled();
+      expect(dbMock.mock.getClient).not.toHaveBeenCalled();
     });
   });
 
@@ -165,7 +161,7 @@ describe('TelegramNotificationService', () => {
 
   it('returns an empty array when connected-user lookup fails', async () => {
     const { service, dbMock } = createNotificationMocks();
-    dbMock.serviceRole.queryBuilder.mockResolvedThen({
+    dbMock.supabase.queryBuilder.mockResolvedThen({
       data: null,
       error: null,
     });

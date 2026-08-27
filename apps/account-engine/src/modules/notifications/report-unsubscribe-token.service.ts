@@ -86,19 +86,18 @@ export class ReportUnsubscribeTokenService {
       .digest('base64url');
   }
 
+  /**
+   * Unsubscribe links are signed with a dedicated secret rather than a Supabase
+   * key: rotating the database credential must not invalidate links already
+   * sitting in users' inboxes.
+   */
   private getSigningSecret(): string {
-    const configuredSecret = this.configService.get<string>(
-      'REPORT_UNSUBSCRIBE_SECRET',
-    );
-    const fallbackSecret = this.configService.get<string>(
-      'SUPABASE_SERVICE_ROLE_KEY',
-    );
-    const secret = configuredSecret?.trim() || fallbackSecret?.trim();
+    const secret = this.configService
+      .get<string>('REPORT_UNSUBSCRIBE_SECRET')
+      ?.trim();
 
     if (!secret) {
-      throw new Error(
-        'REPORT_UNSUBSCRIBE_SECRET or SUPABASE_SERVICE_ROLE_KEY must be configured',
-      );
+      throw new Error('REPORT_UNSUBSCRIBE_SECRET must be configured');
     }
 
     return secret;

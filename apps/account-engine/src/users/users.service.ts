@@ -84,7 +84,6 @@ export class UsersService extends BaseService {
         {
           select: 'user_id',
           entityName: 'Wallet',
-          useServiceRole: true,
         },
       );
       return { user_id: binding!.user_id };
@@ -96,7 +95,6 @@ export class UsersService extends BaseService {
       const result = (await this.databaseService.rpc(
         'create_user_with_wallet_and_plan',
         { p_wallet: wallet, p_plan_code: 'free' },
-        { useServiceRole: true },
       )) as unknown as CreateUserRpcResponse;
 
       this.logger.log(
@@ -282,14 +280,10 @@ export class UsersService extends BaseService {
         throw new ConflictException('Email already in use by another user');
       }
 
-      await this.updateReportPreferences(
-        userId,
-        {
-          email,
-          is_subscribed_to_reports: true,
-        },
-        true,
-      );
+      await this.updateReportPreferences(userId, {
+        email,
+        is_subscribed_to_reports: true,
+      });
 
       return {
         success: true,
@@ -302,11 +296,9 @@ export class UsersService extends BaseService {
 
   async unsubscribeFromReports(userId: string): Promise<SuccessResponse> {
     return this.withErrorHandling(async () => {
-      await this.updateReportPreferences(
-        userId,
-        { is_subscribed_to_reports: false },
-        false,
-      );
+      await this.updateReportPreferences(userId, {
+        is_subscribed_to_reports: false,
+      });
       return {
         success: true,
         message: 'Successfully unsubscribed from email reports',
@@ -326,7 +318,6 @@ export class UsersService extends BaseService {
           select: 'email',
           entityName: 'User',
           throwOnNotFound: false,
-          useServiceRole: true,
         },
       );
 
@@ -334,11 +325,9 @@ export class UsersService extends BaseService {
         throw new BadRequestException('Invalid unsubscribe token');
       }
 
-      await this.updateReportPreferences(
-        identity.userId,
-        { is_subscribed_to_reports: false },
-        true,
-      );
+      await this.updateReportPreferences(identity.userId, {
+        is_subscribed_to_reports: false,
+      });
 
       return {
         success: true,
@@ -353,7 +342,6 @@ export class UsersService extends BaseService {
       email?: string;
       is_subscribed_to_reports: boolean;
     },
-    useServiceRole: boolean,
   ): Promise<void> {
     await this.updateWhere(
       'users',
@@ -362,7 +350,6 @@ export class UsersService extends BaseService {
       {
         entityName: 'User',
         requireSingleResult: true,
-        useServiceRole,
       },
     );
   }
@@ -671,7 +658,7 @@ export class UsersService extends BaseService {
       await this.deleteWhere(
         'notification_settings',
         { user_id: userId, channel_type: CHANNEL_TYPE_TELEGRAM },
-        { entityName: 'Telegram settings', useServiceRole: true },
+        { entityName: 'Telegram settings' },
       );
       // jscpd:ignore-end
 
@@ -695,7 +682,6 @@ export class UsersService extends BaseService {
         select,
         entityName: 'Telegram settings',
         throwOnNotFound: false,
-        useServiceRole: true,
       },
     );
   }

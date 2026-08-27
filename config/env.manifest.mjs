@@ -172,10 +172,6 @@ export const ENV_MANIFEST = {
       sensitive: true,
     },
   ),
-  SUPABASE_ANON_KEY: server(['account-engine'], {
-    requiredFor: ['account-engine:base'],
-    sensitive: true,
-  }),
   SUPABASE_SERVICE_ROLE_KEY: server(
     ['account-engine', 'podcast-pipeline', 'control-center'],
     {
@@ -198,7 +194,10 @@ export const ENV_MANIFEST = {
   EMAIL_HOST: server(['account-engine']),
   EMAIL_USER: server(['account-engine'], { sensitive: true }),
   EMAIL_APP_PASSWORD: server(['account-engine'], { sensitive: true }),
-  REPORT_UNSUBSCRIBE_SECRET: server(['account-engine'], { sensitive: true }),
+  REPORT_UNSUBSCRIBE_SECRET: server(['account-engine'], {
+    requiredFor: ['account-engine:base'],
+    sensitive: true,
+  }),
   REPORT_UNSUBSCRIBE_URL: server(['account-engine']),
   NOTIFICATIONS_TEST_RECIPIENT: server(['account-engine'], {
     sensitive: true,

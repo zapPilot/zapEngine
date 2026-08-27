@@ -99,7 +99,6 @@ export class LedgerService extends BaseService {
     const inserted = await this.insertOne<LedgerRow>(table, row, {
       entityName,
       select: 'id, inserted_at',
-      useServiceRole: true,
     });
     return { id: inserted.id, insertedAt: inserted.inserted_at };
   }

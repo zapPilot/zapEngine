@@ -121,9 +121,9 @@ export class TelegramNotificationService extends BaseService {
   }
 
   async getTelegramConnectedUserIds(): Promise<string[]> {
-    // The findMany surface doesn't accept useServiceRole — go raw here.
-    // notification_settings is service-role only.
-    const { data } = await this.serviceRoleSupabase
+    // The findMany surface can't express this bare projection without going
+    // through the single-row/entityName shape — raw call here is intentional.
+    const { data } = await this.supabase
       .from('notification_settings')
       .select('user_id')
       .eq('channel_type', CHANNEL_TYPE_TELEGRAM)
@@ -153,7 +153,6 @@ export class TelegramNotificationService extends BaseService {
         select: 'config',
         entityName: 'Telegram settings',
         throwOnNotFound: false,
-        useServiceRole: true,
       },
     );
 
@@ -210,7 +209,7 @@ export class TelegramNotificationService extends BaseService {
       'notification_settings',
       { is_enabled: false },
       { user_id: userId, channel_type: CHANNEL_TYPE_TELEGRAM },
-      { entityName: 'Telegram settings', useServiceRole: true },
+      { entityName: 'Telegram settings' },
     );
   }
 }

@@ -118,11 +118,11 @@ describe('TelegramService facade', () => {
 
   it('delegates the strategy-change broadcast through the facade', async () => {
     const { service, dbMock } = createMocks();
-    dbMock.serviceRole.queryBuilder.mockResolvedThen({
+    dbMock.supabase.queryBuilder.mockResolvedThen({
       data: [{ user_id: 'u-1' }],
       error: null,
     });
-    dbMock.serviceRole.queryBuilder.single.mockResolvedValue({
+    dbMock.supabase.queryBuilder.single.mockResolvedValue({
       data: { config: { chat_id: '12345' } },
       error: null,
     });

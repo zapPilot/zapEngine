@@ -93,7 +93,7 @@ export class SupabaseUserService extends BaseService {
     userId?: string;
     userIds?: string[];
   }): Promise<ReportRecipientRecord[]> {
-    let query = this.serviceRoleSupabase
+    let query = this.supabase
       .from('users')
       .select(
         `

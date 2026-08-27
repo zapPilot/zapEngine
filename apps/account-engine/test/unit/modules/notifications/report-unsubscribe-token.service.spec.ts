@@ -47,12 +47,11 @@ describe('ReportUnsubscribeTokenService', () => {
     expect(result.searchParams.has('address')).toBe(false);
   });
 
-  it('falls back to the service-role key when a dedicated secret is absent', () => {
-    const service = createService({
-      REPORT_UNSUBSCRIBE_SECRET: '',
-      SUPABASE_SERVICE_ROLE_KEY: 'service-role-fallback',
-    });
+  it('refuses to sign without a dedicated secret', () => {
+    const service = createService({ REPORT_UNSUBSCRIBE_SECRET: '  ' });
 
-    expect(() => service.createToken(USER_ID, EMAIL)).not.toThrow();
+    expect(() => service.createToken(USER_ID, EMAIL)).toThrow(
+      'REPORT_UNSUBSCRIBE_SECRET must be configured',
+    );
   });
 });

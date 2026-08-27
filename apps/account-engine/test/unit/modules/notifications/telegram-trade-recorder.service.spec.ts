@@ -58,17 +58,17 @@ describe('TelegramTradeRecorderService', () => {
     await service.handleDailySuggestionDoneCallback(ctx);
 
     expect(connectionService.findUserIdByChatId).not.toHaveBeenCalled();
-    expect(dbMock.serviceRole.queryBuilder.single).not.toHaveBeenCalled();
+    expect(dbMock.supabase.queryBuilder.single).not.toHaveBeenCalled();
   });
 
   it('records trade history once and clears the inline keyboard', async () => {
     const { service, dbMock, connectionService } = createRecorderMocks();
     connectionService.findUserIdByChatId.mockResolvedValueOnce('user-1');
-    dbMock.serviceRole.queryBuilder.maybeSingle.mockResolvedValueOnce({
+    dbMock.supabase.queryBuilder.maybeSingle.mockResolvedValueOnce({
       data: null,
       error: null,
     });
-    dbMock.serviceRole.queryBuilder.mockResolvedThen({
+    dbMock.supabase.queryBuilder.mockResolvedThen({
       data: null,
       error: null,
     });
@@ -76,7 +76,7 @@ describe('TelegramTradeRecorderService', () => {
 
     await service.handleDailySuggestionDoneCallback(ctx);
 
-    expect(dbMock.serviceRole.queryBuilder.insert).toHaveBeenCalledWith({
+    expect(dbMock.supabase.queryBuilder.insert).toHaveBeenCalledWith({
       user_id: 'user-1',
       trade_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       strategy_id: 'dma_fgi_portfolio_rules',
@@ -94,7 +94,7 @@ describe('TelegramTradeRecorderService', () => {
   it('does not insert a duplicate same-day history row', async () => {
     const { service, dbMock, connectionService } = createRecorderMocks();
     connectionService.findUserIdByChatId.mockResolvedValueOnce('user-1');
-    dbMock.serviceRole.queryBuilder.maybeSingle.mockResolvedValueOnce({
+    dbMock.supabase.queryBuilder.maybeSingle.mockResolvedValueOnce({
       data: { id: 1 },
       error: null,
     });
@@ -102,7 +102,7 @@ describe('TelegramTradeRecorderService', () => {
 
     await service.handleDailySuggestionDoneCallback(ctx);
 
-    expect(dbMock.serviceRole.queryBuilder.insert).not.toHaveBeenCalled();
+    expect(dbMock.supabase.queryBuilder.insert).not.toHaveBeenCalled();
     expect(ctx.answerCbQuery).toHaveBeenCalledWith(
       '⚠️ Already recorded for today.',
       true,
@@ -115,7 +115,7 @@ describe('TelegramTradeRecorderService', () => {
 
     await service.handleDailySuggestionDoneCallback(ctx);
 
-    expect(dbMock.serviceRole.queryBuilder.insert).not.toHaveBeenCalled();
+    expect(dbMock.supabase.queryBuilder.insert).not.toHaveBeenCalled();
     expect(ctx.answerCbQuery).toHaveBeenCalledWith(
       'Unable to record this action.',
       false,
@@ -129,7 +129,7 @@ describe('TelegramTradeRecorderService', () => {
 
     await service.handleDailySuggestionDoneCallback(ctx);
 
-    expect(dbMock.serviceRole.queryBuilder.insert).not.toHaveBeenCalled();
+    expect(dbMock.supabase.queryBuilder.insert).not.toHaveBeenCalled();
     expect(ctx.answerCbQuery).toHaveBeenCalledWith(
       'Telegram is not linked to a user.',
       false,
@@ -151,7 +151,7 @@ describe('TelegramTradeRecorderService', () => {
   it('answers callback when DB returns error for trade history check', async () => {
     const { service, dbMock, connectionService } = createRecorderMocks();
     connectionService.findUserIdByChatId.mockResolvedValueOnce('user-1');
-    dbMock.serviceRole.queryBuilder.maybeSingle.mockResolvedValueOnce({
+    dbMock.supabase.queryBuilder.maybeSingle.mockResolvedValueOnce({
       data: null,
       error: { message: 'query failed' },
     });
@@ -168,11 +168,11 @@ describe('TelegramTradeRecorderService', () => {
   it('answers callback when INSERT fails', async () => {
     const { service, dbMock, connectionService } = createRecorderMocks();
     connectionService.findUserIdByChatId.mockResolvedValueOnce('user-1');
-    dbMock.serviceRole.queryBuilder.maybeSingle.mockResolvedValueOnce({
+    dbMock.supabase.queryBuilder.maybeSingle.mockResolvedValueOnce({
       data: null,
       error: null,
     });
-    dbMock.serviceRole.queryBuilder.mockResolvedThen({
+    dbMock.supabase.queryBuilder.mockResolvedThen({
       data: null,
       error: { message: 'insert failed' },
     });
@@ -189,7 +189,7 @@ describe('TelegramTradeRecorderService', () => {
   it('handles answerCbQuery missing gracefully', async () => {
     const { service, dbMock, connectionService } = createRecorderMocks();
     connectionService.findUserIdByChatId.mockResolvedValueOnce('user-1');
-    dbMock.serviceRole.queryBuilder.maybeSingle.mockResolvedValueOnce({
+    dbMock.supabase.queryBuilder.maybeSingle.mockResolvedValueOnce({
       data: { id: 1 },
       error: null,
     });
@@ -207,11 +207,11 @@ describe('TelegramTradeRecorderService', () => {
   it('handles editMessageReplyMarkup missing gracefully', async () => {
     const { service, dbMock, connectionService } = createRecorderMocks();
     connectionService.findUserIdByChatId.mockResolvedValueOnce('user-1');
-    dbMock.serviceRole.queryBuilder.maybeSingle.mockResolvedValueOnce({
+    dbMock.supabase.queryBuilder.maybeSingle.mockResolvedValueOnce({
       data: null,
       error: null,
     });
-    dbMock.serviceRole.queryBuilder.mockResolvedThen({
+    dbMock.supabase.queryBuilder.mockResolvedThen({
       data: null,
       error: null,
     });
@@ -229,11 +229,11 @@ describe('TelegramTradeRecorderService', () => {
   it('handles editMessageReplyMarkup throwing an error', async () => {
     const { service, dbMock, connectionService } = createRecorderMocks();
     connectionService.findUserIdByChatId.mockResolvedValueOnce('user-1');
-    dbMock.serviceRole.queryBuilder.maybeSingle.mockResolvedValueOnce({
+    dbMock.supabase.queryBuilder.maybeSingle.mockResolvedValueOnce({
       data: null,
       error: null,
     });
-    dbMock.serviceRole.queryBuilder.mockResolvedThen({
+    dbMock.supabase.queryBuilder.mockResolvedThen({
       data: null,
       error: null,
     });

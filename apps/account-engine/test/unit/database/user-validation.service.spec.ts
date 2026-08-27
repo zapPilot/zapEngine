@@ -15,7 +15,7 @@ describe('UserValidationService', () => {
     );
   });
 
-  const qb = () => dbMock.anon.queryBuilder;
+  const qb = () => dbMock.supabase.queryBuilder;
 
   describe('validateUserExists', () => {
     it('returns user data when user exists', async () => {

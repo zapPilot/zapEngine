@@ -23,7 +23,7 @@ describe('SupabaseUserService', () => {
   describe('getReportRecipientsWithWallets', () => {
     it('returns subscribed users with wallets without consulting plans', async () => {
       const { service, dbMock } = createMocks();
-      const qb = dbMock.serviceRole.queryBuilder;
+      const qb = dbMock.supabase.queryBuilder;
 
       qb.mockResolvedThen({
         data: [
@@ -40,7 +40,7 @@ describe('SupabaseUserService', () => {
       expect(result).toHaveLength(1);
       expect(result[0]?.user.email).toBe('a@b.com');
       expect(result[0]?.wallets).toEqual(['0xabc']);
-      expect(dbMock.mock.getServiceRoleClient).toHaveBeenCalled();
+      expect(dbMock.mock.getClient).toHaveBeenCalled();
       expect(qb.eq).toHaveBeenCalledWith('is_subscribed_to_reports', true);
       expect(qb.not).toHaveBeenCalledWith('email', 'is', null);
       expect(qb.eq).not.toHaveBeenCalledWith('plan_code', 'vip');
@@ -48,7 +48,7 @@ describe('SupabaseUserService', () => {
 
     it('returns every linked wallet on the user row', async () => {
       const { service, dbMock } = createMocks();
-      dbMock.serviceRole.queryBuilder.mockResolvedThen({
+      dbMock.supabase.queryBuilder.mockResolvedThen({
         data: [
           {
             id: 'u-1',
@@ -66,14 +66,14 @@ describe('SupabaseUserService', () => {
 
     it('pushes a user ID filter into the database query', async () => {
       const { service, dbMock } = createMocks();
-      dbMock.serviceRole.queryBuilder.mockResolvedThen({
+      dbMock.supabase.queryBuilder.mockResolvedThen({
         data: [],
         error: null,
       });
 
       await service.getReportRecipientsWithWallets(['u-1', 'u-2']);
 
-      expect(dbMock.serviceRole.queryBuilder.in).toHaveBeenCalledWith('id', [
+      expect(dbMock.supabase.queryBuilder.in).toHaveBeenCalledWith('id', [
         'u-1',
         'u-2',
       ]);
@@ -81,7 +81,7 @@ describe('SupabaseUserService', () => {
 
     it('returns empty when no users match', async () => {
       const { service, dbMock } = createMocks();
-      dbMock.serviceRole.queryBuilder.mockResolvedThen({
+      dbMock.supabase.queryBuilder.mockResolvedThen({
         data: [],
         error: null,
       });
@@ -92,7 +92,7 @@ describe('SupabaseUserService', () => {
 
     it('throws ServiceLayerException on database error', async () => {
       const { service, dbMock } = createMocks();
-      dbMock.serviceRole.queryBuilder.mockResolvedThen({
+      dbMock.supabase.queryBuilder.mockResolvedThen({
         data: null,
         error: { message: 'query failed' },
       });
@@ -104,7 +104,7 @@ describe('SupabaseUserService', () => {
 
     it('skips users without email', async () => {
       const { service, dbMock } = createMocks();
-      dbMock.serviceRole.queryBuilder.mockResolvedThen({
+      dbMock.supabase.queryBuilder.mockResolvedThen({
         data: [
           {
             id: 'u-1',
@@ -123,17 +123,14 @@ describe('SupabaseUserService', () => {
   describe('getReportRecipientWithWallets', () => {
     it('returns null when user not found', async () => {
       const { service, dbMock } = createMocks();
-      dbMock.serviceRole.queryBuilder.mockResolvedThen({
+      dbMock.supabase.queryBuilder.mockResolvedThen({
         data: [],
         error: null,
       });
 
       const result = await service.getReportRecipientWithWallets('u-1');
       expect(result).toBeNull();
-      expect(dbMock.serviceRole.queryBuilder.eq).toHaveBeenCalledWith(
-        'id',
-        'u-1',
-      );
+      expect(dbMock.supabase.queryBuilder.eq).toHaveBeenCalledWith('id', 'u-1');
     });
   });
 

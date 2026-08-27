@@ -10,14 +10,14 @@ const EVENT_ID = '323e4567-e89b-12d3-a456-426614174002';
 function createLedger() {
   const dbMock = createMockDatabaseService();
   const service = new LedgerService(dbMock.mock as unknown as DatabaseService);
-  return { service, dbMock, srQb: dbMock.serviceRole.queryBuilder };
+  return { service, dbMock, qb: dbMock.supabase.queryBuilder };
 }
 
 function mockInsertedRow(
-  srQb: ReturnType<typeof createLedger>['srQb'],
+  qb: ReturnType<typeof createLedger>['qb'],
   id = EVENT_ID,
 ) {
-  srQb.single.mockResolvedValue({
+  qb.single.mockResolvedValue({
     data: { id, inserted_at: '2026-07-07T00:00:00.000Z' },
     error: null,
   });
@@ -26,8 +26,8 @@ function mockInsertedRow(
 describe('LedgerService', () => {
   describe('appendSignalEvent', () => {
     it('inserts an append-only signal event row via the service-role client', async () => {
-      const { service, dbMock, srQb } = createLedger();
-      mockInsertedRow(srQb);
+      const { service, dbMock, qb } = createLedger();
+      mockInsertedRow(qb);
 
       const result = await service.appendSignalEvent({
         source: 'analytics-engine',
@@ -36,10 +36,10 @@ describe('LedgerService', () => {
       });
 
       expect(result.id).toBe(EVENT_ID);
-      expect(dbMock.serviceRole.client.from).toHaveBeenCalledWith(
+      expect(dbMock.supabase.client.from).toHaveBeenCalledWith(
         'ledger_signal_events',
       );
-      expect(srQb.insert).toHaveBeenCalledWith(
+      expect(qb.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           source: 'analytics-engine',
           signal_type: 'daily-suggestion',
@@ -63,8 +63,8 @@ describe('LedgerService', () => {
 
   describe('appendDecisionEvent', () => {
     it('inserts a decision event carrying strategyVersion and config identity', async () => {
-      const { service, dbMock, srQb } = createLedger();
-      mockInsertedRow(srQb);
+      const { service, dbMock, qb } = createLedger();
+      mockInsertedRow(qb);
 
       await service.appendDecisionEvent({
         strategyVersion: 'v1',
@@ -75,10 +75,10 @@ describe('LedgerService', () => {
         payload: { targetWeights: { btc: 0.5 } },
       });
 
-      expect(dbMock.serviceRole.client.from).toHaveBeenCalledWith(
+      expect(dbMock.supabase.client.from).toHaveBeenCalledWith(
         'ledger_decision_events',
       );
-      expect(srQb.insert).toHaveBeenCalledWith(
+      expect(qb.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           strategy_version: 'v1',
           config_identity: 'balanced-2026-06',
@@ -90,7 +90,7 @@ describe('LedgerService', () => {
     });
 
     it('rejects a decision event without a strategyVersion', async () => {
-      const { service, srQb } = createLedger();
+      const { service, qb } = createLedger();
 
       await expect(
         service.appendDecisionEvent({
@@ -100,14 +100,14 @@ describe('LedgerService', () => {
           payload: {},
         }),
       ).rejects.toThrow(ServiceLayerException);
-      expect(srQb.insert).not.toHaveBeenCalled();
+      expect(qb.insert).not.toHaveBeenCalled();
     });
   });
 
   describe('appendPlanEvent', () => {
     it('inserts a plan event linked to its decision', async () => {
-      const { service, dbMock, srQb } = createLedger();
-      mockInsertedRow(srQb);
+      const { service, dbMock, qb } = createLedger();
+      mockInsertedRow(qb);
 
       await service.appendPlanEvent({
         planKind: 'rebalance',
@@ -117,10 +117,10 @@ describe('LedgerService', () => {
         payload: { legs: [] },
       });
 
-      expect(dbMock.serviceRole.client.from).toHaveBeenCalledWith(
+      expect(dbMock.supabase.client.from).toHaveBeenCalledWith(
         'ledger_plan_events',
       );
-      expect(srQb.insert).toHaveBeenCalledWith(
+      expect(qb.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           plan_kind: 'rebalance',
           decision_event_id: EVENT_ID,
@@ -143,8 +143,8 @@ describe('LedgerService', () => {
 
   describe('appendExecutionEvent', () => {
     it('inserts an execution event with chain and tx metadata', async () => {
-      const { service, dbMock, srQb } = createLedger();
-      mockInsertedRow(srQb);
+      const { service, dbMock, qb } = createLedger();
+      mockInsertedRow(qb);
 
       await service.appendExecutionEvent({
         status: 'submitted',
@@ -155,10 +155,10 @@ describe('LedgerService', () => {
         payload: { legIndex: 0 },
       });
 
-      expect(dbMock.serviceRole.client.from).toHaveBeenCalledWith(
+      expect(dbMock.supabase.client.from).toHaveBeenCalledWith(
         'ledger_execution_events',
       );
-      expect(srQb.insert).toHaveBeenCalledWith(
+      expect(qb.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'submitted',
           plan_event_id: EVENT_ID,
@@ -182,8 +182,8 @@ describe('LedgerService', () => {
   });
 
   it('honours an explicit occurredAt while inserted_at stays server-side', async () => {
-    const { service, srQb } = createLedger();
-    mockInsertedRow(srQb);
+    const { service, qb } = createLedger();
+    mockInsertedRow(qb);
 
     await service.appendSignalEvent({
       source: 'analytics-engine',
@@ -192,17 +192,17 @@ describe('LedgerService', () => {
       payload: {},
     });
 
-    expect(srQb.insert).toHaveBeenCalledWith(
+    expect(qb.insert).toHaveBeenCalledWith(
       expect.objectContaining({ occurred_at: '2026-07-06T12:00:00.000Z' }),
     );
-    expect(srQb.insert).toHaveBeenCalledWith(
+    expect(qb.insert).toHaveBeenCalledWith(
       expect.not.objectContaining({ inserted_at: expect.anything() }),
     );
   });
 
   it('propagates insert failures as HTTP-mapped exceptions', async () => {
-    const { service, srQb } = createLedger();
-    srQb.single.mockResolvedValue({
+    const { service, qb } = createLedger();
+    qb.single.mockResolvedValue({
       data: null,
       error: { code: '42501', message: 'permission denied' },
     });

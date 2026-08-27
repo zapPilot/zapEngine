@@ -16,7 +16,7 @@ function createService() {
 describe('StrategyChangeStateService', () => {
   it('reads the stored cursor through the service-role client', async () => {
     const { service, dbMock } = createService();
-    dbMock.serviceRole.queryBuilder.single.mockResolvedValue({
+    dbMock.supabase.queryBuilder.single.mockResolvedValue({
       data: { last_event_date: '2026-08-19' },
       error: null,
     });
@@ -24,10 +24,10 @@ describe('StrategyChangeStateService', () => {
     await expect(service.getLastNotifiedEventDate(STRATEGY_ID)).resolves.toBe(
       '2026-08-19',
     );
-    expect(dbMock.serviceRole.client.from).toHaveBeenCalledWith(
+    expect(dbMock.supabase.client.from).toHaveBeenCalledWith(
       'strategy_change_notification_state',
     );
-    expect(dbMock.serviceRole.queryBuilder.eq).toHaveBeenCalledWith(
+    expect(dbMock.supabase.queryBuilder.eq).toHaveBeenCalledWith(
       'strategy_id',
       STRATEGY_ID,
     );
@@ -35,7 +35,7 @@ describe('StrategyChangeStateService', () => {
 
   it('reports no cursor when the strategy has never been announced', async () => {
     const { service, dbMock } = createService();
-    dbMock.serviceRole.queryBuilder.single.mockResolvedValue({
+    dbMock.supabase.queryBuilder.single.mockResolvedValue({
       data: null,
       error: { code: 'PGRST116' },
     });
@@ -47,14 +47,14 @@ describe('StrategyChangeStateService', () => {
 
   it('upserts the cursor keyed on the strategy', async () => {
     const { service, dbMock } = createService();
-    dbMock.serviceRole.queryBuilder.mockResolvedThen({
+    dbMock.supabase.queryBuilder.mockResolvedThen({
       data: null,
       error: null,
     });
 
     await service.setLastNotifiedEventDate(STRATEGY_ID, '2026-08-19');
 
-    expect(dbMock.serviceRole.queryBuilder.upsert).toHaveBeenCalledWith(
+    expect(dbMock.supabase.queryBuilder.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         strategy_id: STRATEGY_ID,
         last_event_date: '2026-08-19',
@@ -66,7 +66,7 @@ describe('StrategyChangeStateService', () => {
 
   it('throws when the cursor cannot be advanced', async () => {
     const { service, dbMock } = createService();
-    dbMock.serviceRole.queryBuilder.mockResolvedThen({
+    dbMock.supabase.queryBuilder.mockResolvedThen({
       data: null,
       error: { code: '42501', message: 'permission denied' },
     });

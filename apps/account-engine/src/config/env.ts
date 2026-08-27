@@ -5,7 +5,6 @@ import { BadRequestException } from '../common/http';
 
 const envSchema = z.object({
   SUPABASE_URL: z.string().min(1),
-  SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   ANALYTICS_ENGINE_URL: z.string().optional(),
   ALPHA_ETL_URL: z.string().optional(),
@@ -26,7 +25,7 @@ const envSchema = z.object({
   EMAIL_HOST: z.string().optional(),
   EMAIL_USER: z.string().optional(),
   EMAIL_APP_PASSWORD: z.string().optional(),
-  REPORT_UNSUBSCRIBE_SECRET: z.string().optional(),
+  REPORT_UNSUBSCRIBE_SECRET: z.string().min(1),
   REPORT_UNSUBSCRIBE_URL: z.url().optional(),
   NOTIFICATIONS_TEST_RECIPIENT: z.string().optional(),
   ADMIN_NOTIFICATIONS_ENABLED: z.string().optional(),

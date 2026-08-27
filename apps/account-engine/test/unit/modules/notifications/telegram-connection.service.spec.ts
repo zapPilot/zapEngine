@@ -80,7 +80,7 @@ describe('TelegramConnectionService', () => {
   it('replies with error when notification_settings upsert fails', async () => {
     const { service, dbMock, tokenService } = createConnectionMocks();
     tokenService.validateToken.mockResolvedValueOnce('user-1');
-    dbMock.serviceRole.queryBuilder.mockResolvedThen({
+    dbMock.supabase.queryBuilder.mockResolvedThen({
       data: null,
       error: { message: 'DB error' },
     });
@@ -96,7 +96,7 @@ describe('TelegramConnectionService', () => {
   it('stores chat settings, updates username, and invalidates token on success', async () => {
     const { service, dbMock, tokenService } = createConnectionMocks();
     tokenService.validateToken.mockResolvedValueOnce('user-1');
-    dbMock.serviceRole.queryBuilder.mockResolvedThen({
+    dbMock.supabase.queryBuilder.mockResolvedThen({
       data: {},
       error: null,
     });
@@ -104,10 +104,10 @@ describe('TelegramConnectionService', () => {
 
     await service.handleStartCommand(ctx);
 
-    expect(dbMock.serviceRole.client.from).toHaveBeenCalledWith(
+    expect(dbMock.supabase.client.from).toHaveBeenCalledWith(
       'notification_settings',
     );
-    expect(dbMock.serviceRole.queryBuilder.upsert).toHaveBeenCalledWith(
+    expect(dbMock.supabase.queryBuilder.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         user_id: 'user-1',
         channel_type: 'telegram',
@@ -116,7 +116,7 @@ describe('TelegramConnectionService', () => {
       }),
       { onConflict: 'user_id,channel_type' },
     );
-    expect(dbMock.serviceRole.client.from).toHaveBeenCalledWith('users');
+    expect(dbMock.supabase.client.from).toHaveBeenCalledWith('users');
     expect(tokenService.invalidateToken).toHaveBeenCalledWith('valid-token');
     expect(ctx.reply).toHaveBeenCalledWith(
       expect.stringContaining('Successfully connected'),
@@ -126,7 +126,7 @@ describe('TelegramConnectionService', () => {
 
   it('finds a user id by Telegram chat id', async () => {
     const { service, dbMock } = createConnectionMocks();
-    dbMock.serviceRole.queryBuilder.maybeSingle.mockResolvedValueOnce({
+    dbMock.supabase.queryBuilder.maybeSingle.mockResolvedValueOnce({
       data: { user_id: 'user-1' },
       error: null,
     });
@@ -136,7 +136,7 @@ describe('TelegramConnectionService', () => {
 
   it('replies with no connection message when chat_id is not found', async () => {
     const { service, dbMock } = createConnectionMocks();
-    dbMock.serviceRole.queryBuilder.maybeSingle.mockResolvedValueOnce({
+    dbMock.supabase.queryBuilder.maybeSingle.mockResolvedValueOnce({
       data: null,
       error: null,
     });
@@ -154,11 +154,11 @@ describe('TelegramConnectionService', () => {
 
   it('replies with error message when deletion fails', async () => {
     const { service, dbMock } = createConnectionMocks();
-    dbMock.serviceRole.queryBuilder.maybeSingle.mockResolvedValueOnce({
+    dbMock.supabase.queryBuilder.maybeSingle.mockResolvedValueOnce({
       data: { user_id: 'user-1' },
       error: null,
     });
-    dbMock.serviceRole.queryBuilder.mockResolvedThen({
+    dbMock.supabase.queryBuilder.mockResolvedThen({
       data: null,
       error: { message: 'delete failed' },
     });
@@ -176,11 +176,11 @@ describe('TelegramConnectionService', () => {
 
   it('deletes notification settings on successful stop', async () => {
     const { service, dbMock } = createConnectionMocks();
-    dbMock.serviceRole.queryBuilder.maybeSingle.mockResolvedValueOnce({
+    dbMock.supabase.queryBuilder.maybeSingle.mockResolvedValueOnce({
       data: { user_id: 'user-1' },
       error: null,
     });
-    dbMock.serviceRole.queryBuilder.mockResolvedThen({
+    dbMock.supabase.queryBuilder.mockResolvedThen({
       data: {},
       error: null,
     });
@@ -191,7 +191,7 @@ describe('TelegramConnectionService', () => {
 
     await service.handleStopCommand(ctx);
 
-    expect(dbMock.serviceRole.queryBuilder.delete).toHaveBeenCalled();
+    expect(dbMock.supabase.queryBuilder.delete).toHaveBeenCalled();
     expect(ctx.reply).toHaveBeenCalledWith(
       expect.stringContaining('Disconnected from Zap Pilot'),
       expect.any(Object),
@@ -219,7 +219,7 @@ describe('TelegramConnectionService', () => {
       data: { user_id: 'user-2' },
       error: null,
     });
-    dbMock.serviceRole.client.from.mockReturnValueOnce(notificationSettingsQb);
+    dbMock.supabase.client.from.mockReturnValueOnce(notificationSettingsQb);
 
     await expect(service.findUserIdByChatId('777')).resolves.toBe('user-2');
   });

@@ -5,7 +5,7 @@ Hono API service for Zap Pilot. Handles user accounts, wallet onboarding, Telegr
 ## Stack
 
 - Hono on Node.js — TypeScript
-- Supabase PostgreSQL (dual-client: anon + service-role)
+- Supabase PostgreSQL (single service-role client; see CLAUDE.md)
 - Telegraf (Telegram bot)
 - Vitest (tests)
 
@@ -17,11 +17,12 @@ Routes grouped under `/users`, `/jobs`, `/etl`, `/telegram`. See `src/routes/`.
 
 Runtime keys are registered in root `config/env.manifest.mjs`. Non-secret values
 live in `config/env/dev.env` and `config/env/prod.env`; secrets live in Infisical.
-Required: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
-`ACCOUNT_ENGINE_PORT=3004`.
+Required: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+`REPORT_UNSUBSCRIBE_SECRET`, `ACCOUNT_ENGINE_PORT=3004`.
 
-Weekly-report unsubscribe links use `REPORT_UNSUBSCRIBE_SECRET` when set and
-otherwise fall back to `SUPABASE_SERVICE_ROLE_KEY`.
+Weekly-report unsubscribe links are signed with `REPORT_UNSUBSCRIBE_SECRET`.
+It is required rather than derived from a Supabase key so that rotating the
+database credential does not invalidate links already sitting in inboxes.
 `REPORT_UNSUBSCRIBE_URL` optionally overrides the public confirmation page
 (`https://app.zap-pilot.org/unsubscribe` by default).
 

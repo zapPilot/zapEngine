@@ -18,12 +18,12 @@ describe('TelegramTokenService', () => {
     );
   });
 
-  const srQb = () => dbMock.serviceRole.queryBuilder;
+  const qb = () => dbMock.supabase.queryBuilder;
 
   describe('generateToken', () => {
     it('generates a token when rate limit not exceeded', async () => {
       // Two sequential awaits on same query builder: rate-limit check, then insert
-      configureMockResults(srQb(), [
+      configureMockResults(qb(), [
         { data: [], error: null }, // rate limit check
         { data: null, error: null }, // insert
       ]);
@@ -35,7 +35,7 @@ describe('TelegramTokenService', () => {
     });
 
     it('throws BadRequestException when rate limited', async () => {
-      configureMockResults(srQb(), [
+      configureMockResults(qb(), [
         { data: [{ created_at: new Date().toISOString() }], error: null },
       ]);
 
@@ -45,7 +45,7 @@ describe('TelegramTokenService', () => {
     });
 
     it('throws ServiceLayerException on rate limit check error', async () => {
-      configureMockResults(srQb(), [
+      configureMockResults(qb(), [
         { data: null, error: { message: 'DB error' } },
       ]);
 
@@ -55,7 +55,7 @@ describe('TelegramTokenService', () => {
     });
 
     it('throws ServiceLayerException on insert error', async () => {
-      configureMockResults(srQb(), [
+      configureMockResults(qb(), [
         { data: [], error: null }, // rate limit check OK
         { data: null, error: { message: 'insert failed' } }, // insert fails
       ]);
@@ -69,7 +69,7 @@ describe('TelegramTokenService', () => {
   describe('validateToken', () => {
     it('returns userId for valid token', async () => {
       const futureDate = new Date(Date.now() + 600_000).toISOString();
-      srQb().single.mockResolvedValue({
+      qb().single.mockResolvedValue({
         data: { user_id: 'user-1', expires_at: futureDate, used_at: null },
         error: null,
       });
@@ -83,7 +83,7 @@ describe('TelegramTokenService', () => {
     });
 
     it('returns null when token not found', async () => {
-      srQb().single.mockResolvedValue({
+      qb().single.mockResolvedValue({
         data: null,
         error: { code: 'PGRST116', message: 'not found' },
       });
@@ -92,7 +92,7 @@ describe('TelegramTokenService', () => {
     });
 
     it('returns null for already used token', async () => {
-      srQb().single.mockResolvedValue({
+      qb().single.mockResolvedValue({
         data: {
           user_id: 'user-1',
           expires_at: new Date(Date.now() + 600_000).toISOString(),
@@ -105,7 +105,7 @@ describe('TelegramTokenService', () => {
     });
 
     it('returns null for expired token', async () => {
-      srQb().single.mockResolvedValue({
+      qb().single.mockResolvedValue({
         data: {
           user_id: 'user-1',
           expires_at: new Date(Date.now() - 1000).toISOString(),
@@ -120,13 +120,13 @@ describe('TelegramTokenService', () => {
 
   describe('invalidateToken', () => {
     it('marks token as used', async () => {
-      srQb().mockResolvedThen({ data: null, error: null });
+      qb().mockResolvedThen({ data: null, error: null });
 
       await expect(service.invalidateToken('tok')).resolves.toBeUndefined();
     });
 
     it('throws ServiceLayerException on error', async () => {
-      srQb().mockResolvedThen({
+      qb().mockResolvedThen({
         data: null,
         error: { message: 'update failed' },
       });
@@ -139,14 +139,14 @@ describe('TelegramTokenService', () => {
 
   describe('cleanupExpiredTokens', () => {
     it('returns deleted count from rpc', async () => {
-      dbMock.serviceRole.client.rpc.mockResolvedValue({ data: 5, error: null });
+      dbMock.supabase.client.rpc.mockResolvedValue({ data: 5, error: null });
 
       const count = await service.cleanupExpiredTokens();
       expect(count).toBe(5);
     });
 
     it('throws ServiceLayerException on rpc error', async () => {
-      dbMock.serviceRole.client.rpc.mockResolvedValue({
+      dbMock.supabase.client.rpc.mockResolvedValue({
         data: null,
         error: { message: 'rpc failed' },
       });
