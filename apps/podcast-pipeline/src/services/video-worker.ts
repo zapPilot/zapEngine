@@ -588,16 +588,11 @@ interface ProgressCell {
   take: () => EpisodeVideoProgressUpdate | null;
 }
 
-/**
- * Coalesces progress reports down to the newest one. ffmpeg emits roughly two
- * per second and the asset planner several per scene, so a write per event would
- * be ~1200 round trips per render to display a number that is polled every 10s.
- */
-function createProgressCell(): ProgressCell {
-  let latest: EpisodeVideoProgressUpdate | null = null;
+function createGenericCell<T>(): { set(value: T): void; take(): T | null } {
+  let latest: T | null = null;
   return {
-    set: (update) => {
-      latest = update;
+    set: (value: T) => {
+      latest = value;
     },
     take: () => {
       const pending = latest;
@@ -605,6 +600,15 @@ function createProgressCell(): ProgressCell {
       return pending;
     },
   };
+}
+
+/**
+ * Coalesces progress reports down to the newest one. ffmpeg emits roughly two
+ * per second and the asset planner several per scene, so a write per event would
+ * be ~1200 round trips per render to display a number that is polled every 10s.
+ */
+function createProgressCell(): ProgressCell {
+  return createGenericCell<EpisodeVideoProgressUpdate>();
 }
 
 interface ReportedRenderMetrics {
@@ -624,16 +628,10 @@ interface RenderMetricsCell {
 
 /** Same shape as {@link createProgressCell}: `set` is handed to the processor. */
 function createRenderMetricsCell(): RenderMetricsCell {
-  let latest: ReportedRenderMetrics | null = null;
+  const cell = createGenericCell<ReportedRenderMetrics>();
   return {
-    set: (metrics) => {
-      latest = { metrics, reportedAt: new Date() };
-    },
-    take: () => {
-      const pending = latest;
-      latest = null;
-      return pending;
-    },
+    set: (metrics) => cell.set({ metrics, reportedAt: new Date() }),
+    take: () => cell.take(),
   };
 }
 
