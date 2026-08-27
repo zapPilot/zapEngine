@@ -8,6 +8,11 @@ import {
   heavyWorkCoordinator,
 } from './heavy-work.js';
 import {
+  type EpisodeRenderMetrics,
+  recordPipelineRun,
+  renderStageRun,
+} from './ops-ledger.js';
+import {
   buildTelegramVideoCompletedMessage,
   buildTelegramVideoFailedMessage,
   sendMessage,
@@ -55,6 +60,15 @@ export interface ProcessEpisodeVideoJobContext {
   saveManifest(input: EpisodeVideoManifestPersistence): Promise<void>;
   /** See the note on ProcessEpisodeVideoVisualJobContext.reportProgress. */
   reportProgress(update: EpisodeVideoProgressUpdate): void;
+  /**
+   * The render's own timings and peak memory, reported once from the
+   * processor's `finally`. Parallel to reportProgress: the worker keeps the
+   * last value and writes it to the cost ledger on both the completed and the
+   * failed path. A failed render still burned dedicated-CPU seconds, and the
+   * processor throws rather than returning on that path, so the completion
+   * value can never carry them.
+   */
+  reportRenderMetrics(metrics: EpisodeRenderMetrics): void;
 }
 
 export type ProcessEpisodeVideoJob = (
@@ -365,7 +379,10 @@ export function createVideoWorker(
       controller: jobController,
       logger,
     });
+    const renderMetrics = createRenderMetricsCell();
+    const jobStartedAt = new Date();
     let source: EpisodeVideoSource | null = null;
+    let outcome: 'completed' | 'failed' = 'failed';
 
     try {
       jobController.signal.throwIfAborted();
@@ -378,6 +395,7 @@ export function createVideoWorker(
         signal: jobController.signal,
         runId,
         reportProgress: progress.set,
+        reportRenderMetrics: renderMetrics.set,
         saveManifest: async (manifest) => {
           jobController.signal.throwIfAborted();
           const saved = await repository.saveManifest(
@@ -428,6 +446,7 @@ export function createVideoWorker(
           logger,
         );
       }
+      outcome = 'completed';
       return 'completed';
     } catch (error) {
       const failedJob = await repository
@@ -466,6 +485,14 @@ export function createVideoWorker(
       stopProgressFlush();
       releaseShutdownRelay();
       if (activeJobController === jobController) activeJobController = null;
+      await recordRenderCost({
+        job,
+        source,
+        runRef: runId,
+        status: outcome,
+        startedAt: jobStartedAt,
+        reported: renderMetrics.take(),
+      });
     }
   };
   /* jscpd:ignore-end */
@@ -578,6 +605,83 @@ function createProgressCell(): ProgressCell {
       return pending;
     },
   };
+}
+
+interface ReportedRenderMetrics {
+  metrics: EpisodeRenderMetrics;
+  /**
+   * Stamped when the processor reports, not when the worker reads. The ledger
+   * derives the encode's start from it, and the read happens after `complete`
+   * or `fail` has already round-tripped to the database.
+   */
+  reportedAt: Date;
+}
+
+interface RenderMetricsCell {
+  set: (metrics: EpisodeRenderMetrics) => void;
+  take: () => ReportedRenderMetrics | null;
+}
+
+/** Same shape as {@link createProgressCell}: `set` is handed to the processor. */
+function createRenderMetricsCell(): RenderMetricsCell {
+  let latest: ReportedRenderMetrics | null = null;
+  return {
+    set: (metrics) => {
+      latest = { metrics, reportedAt: new Date() };
+    },
+    take: () => {
+      const pending = latest;
+      latest = null;
+      return pending;
+    },
+  };
+}
+
+/**
+ * Writes what this render attempt cost, on the completed and the failed path
+ * alike — a render that died after twenty minutes of x264 is the retry waste
+ * this ledger exists to price.
+ *
+ * A job that failed before the encode started reports no metrics, so it has no
+ * stage row and no Fly seconds attributed. The run row is still written: it is
+ * the only durable record that the attempt happened at all, and its
+ * `started_at`/`finished_at` still bound the machine time it consumed.
+ */
+async function recordRenderCost(input: {
+  job: EpisodeVideoJobRow;
+  source: EpisodeVideoSource | null;
+  runRef: string;
+  status: 'completed' | 'failed';
+  startedAt: Date;
+  reported: ReportedRenderMetrics | null;
+}): Promise<void> {
+  const { job, source, reported } = input;
+  const finishedAt = new Date();
+  await recordPipelineRun({
+    runId: randomUUID(),
+    pipeline: 'video_render',
+    runRef: input.runRef,
+    trigger: 'worker',
+    status: input.status,
+    startedAt: input.startedAt,
+    finishedAt,
+    episodeId: source?.episodeId ?? job.episode_id,
+    component: 'video-render',
+    stages:
+      reported === null || source === null
+        ? []
+        : [
+            renderStageRun({
+              metrics: reported.metrics,
+              reportedAt: reported.reportedAt,
+              episodeId: source.episodeId,
+              localizationId: job.episode_localization_id,
+              languageCode: source.languageCode,
+              attempt: job.attempt_count,
+              jobWallMs: finishedAt.getTime() - input.startedAt.getTime(),
+            }),
+          ],
+  });
 }
 
 /**

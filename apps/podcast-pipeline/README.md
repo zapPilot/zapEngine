@@ -140,6 +140,46 @@ Background video logs use the same short-run convention and expose only safe ope
 [video-worker] video:render run=ef123456 episode=... language=ja phase=encoding percent=42
 ```
 
+## Pipeline cost ledger
+
+The logs above are the pipeline's only record of what an episode cost, and they live exactly as long as Fly keeps them. `ops.pipeline_runs` and `ops.pipeline_stage_runs` (migration `20260827065915_add_ops_pipeline_telemetry`) make that durable, so "what did this episode cost", "which language renders slowest" and "how much did retries burn" stop being questions you answer by reading logs.
+
+- **A run** is one background work unit — one ingest, or one claimed render job. It carries the short `run_ref` from the log lines, the trigger (`http` / `telegram` / `worker`), and its wall clock.
+- **A stage run** is one billable operation inside it. Ingest stages come from the same `classifyCostGroup()` that builds the Telegram cost summary (`script` / `translation` / `narration` / `classroom` / `other`), so the two can never disagree. Renders add `video_render`.
+
+Two pricing bases:
+
+| `pricing_basis`     | Who says what it cost                                                                                                              |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `provider_reported` | The LLM/TTS provider billed this exact amount; `estimated_cost_usd` is stored as reported.                                         |
+| `rate_card`         | The write supplies billable units; the RPC multiplies them by the `ops.cost_rates` version in effect and stamps `pricing_rate_id`. |
+
+Writes go through `from_fed_to_chain.ops_record_pipeline_run`, reads through the `from_fed_to_chain.ops_pipeline_runs` / `ops_pipeline_stage_runs` views. `ops` itself stays invisible to PostgREST — same bridge pattern as the `ops_cost_*` objects in migration 035.
+
+**A ledger write can never fail the pipeline.** `recordPipelineRun` swallows its own errors into one `[ops-ledger]` line plus a Sentry `warning`. Warning, not silence: a ledger that never writes has to be visible, but a render that finished is finished whether or not its cost was recorded.
+
+**Fly render cost is an estimate, not an invoice.** The seeded rate is derived from this repository's own reference figure (`apps/control-center/src/server/services/fly.ts`): 2 vCPU x `$32.19` per performance vCPU-month / 730 h / 3600 s = `$0.00002450` per second, with no extra RAM charge because `performance-2x` includes 4 GB. Reconcile it against the first real Fly invoice, and correct it by **adding a version** — close the old row's `effective_to` and insert a new one — never by editing the row in place, or historical rows silently reprice.
+
+Three gaps are deliberate, and worth knowing before trusting a total:
+
+- `estimated_cost_usd` on a `video_render` row prices the **encode window only**, because that is the number `fly.toml`'s "until production telemetry proves a smaller shape is cheaper" note has to be settled against. Narration download, alignment and upload hold the same dedicated CPU; the wider span is recorded as `usage.jobWallMs`. Boot time, stopped-machine rootfs and bandwidth are in neither.
+- Ingest stage rows carry no timing. `UsageCostLine` has none to give, and adding it would mean changing every ingest stage signature. Per-language elapsed time is still only in the `localization:done elapsedMs=` log line; the run row has the whole-run wall clock.
+- The language that was mid-flight when an ingest failed loses its partial spend. The sink only collects languages that returned.
+- Shared visual (storyboard) jobs are not recorded at all yet, though they also run on the render machine.
+
+`RENDER_MACHINE_SHAPE` in `src/services/ops-ledger.ts` names the machine renders are priced against. Fly exposes no runtime signal for it, so `ops-ledger.test.ts` parses `fly.toml` and fails if the two drift — resizing the `render` group means changing the constant and adding a new rate version in the same change.
+
+The first questions this data answers:
+
+```sql
+select stage, language_code, sum(estimated_cost_usd), count(*)
+from from_fed_to_chain.ops_pipeline_stage_runs
+group by stage, language_code order by 3 desc;
+
+select percentile_cont(0.95) within group (order by (usage->>'cgroupPeakObservedMb')::numeric)
+from from_fed_to_chain.ops_pipeline_stage_runs where stage = 'video_render';
+```
+
 ## Telegram Bot Setup
 
 Create a bot with [BotFather](https://t.me/BotFather), then set these env vars for the pipeline process:

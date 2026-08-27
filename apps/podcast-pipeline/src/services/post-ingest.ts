@@ -15,13 +15,18 @@ import {
   type HeavyWorkCoordinator,
   heavyWorkCoordinator,
 } from './heavy-work.js';
-import { type IngestResult, performMultilingualIngest } from './ingest.js';
+import {
+  type IngestCostSinkEntry,
+  type IngestResult,
+  performMultilingualIngest,
+} from './ingest.js';
 import {
   currentRssMb,
   getStepLogContext,
   logIngestEvent,
   withStepLogContext,
 } from './ingest/step.js';
+import { recordPipelineRun, stageRunsFromCostLines } from './ops-ledger.js';
 import { orderedPrimaryLocalizations } from './primary-localizations.js';
 import type { TelegramChatId } from './telegram.js';
 import {
@@ -90,15 +95,47 @@ export async function performMultilingualIngestAndEnqueueVideo(
   url: string,
   responseLanguageCode: LanguageClassroomLanguageCode,
   options: {
+    /** Which entrypoint submitted this run; recorded on its cost ledger row. */
+    trigger: 'http' | 'telegram';
     telegramChatId?: TelegramChatId | (() => TelegramChatId | undefined);
     signal?: AbortSignal;
     dependencies?: Partial<PostIngestDependencies>;
-  } = {},
+  },
 ): Promise<PostIngestResult> {
   const dependencies = { ...defaultDependencies, ...options.dependencies };
   const runId = getStepLogContext()?.runId ?? randomUUID().slice(0, 8);
   return withStepLogContext({ runId }, async () => {
     const startedAt = Date.now();
+    // This function is the terminal boundary of an ingest run — both /ingest
+    // and the Telegram background path pass through it, and it owns the run id
+    // and the start clock — so it is also where the run is priced.
+    const ledgerRunId = randomUUID();
+    const costSink: IngestCostSinkEntry[] = [];
+    const recordCost = (
+      status: 'completed' | 'failed',
+      episodeId: string | null,
+    ): Promise<void> =>
+      recordPipelineRun({
+        runId: ledgerRunId,
+        pipeline: 'ingest',
+        runRef: runId,
+        trigger: options.trigger,
+        status,
+        startedAt: new Date(startedAt),
+        finishedAt: new Date(),
+        episodeId,
+        component: 'ingest',
+        // Every sink entry is a language that finished, so its stages are
+        // `completed` even when a later language took the run down.
+        stages: costSink.flatMap((entry) =>
+          stageRunsFromCostLines(entry.lines, {
+            languageCode: entry.languageCode,
+            episodeId: entry.episodeId,
+            localizationId: entry.localizationId,
+            status: 'completed',
+          }),
+        ),
+      });
     logIngestEvent('run:start', {
       responseLanguage: responseLanguageCode,
       url,
@@ -109,6 +146,7 @@ export async function performMultilingualIngestAndEnqueueVideo(
         const ingest = await dependencies.performIngest(
           url,
           responseLanguageCode,
+          costSink,
         );
 
         // Audio is committed at this point. Scheduling the video job must never turn
@@ -249,12 +287,16 @@ export async function performMultilingualIngestAndEnqueueVideo(
         status: result.ingest.statusCode,
         rssMb: currentRssMb(),
       });
+      await recordCost('completed', result.ingest.episode.id);
       return result;
     } catch (error) {
       logIngestEvent('run:failed', {
         elapsedMs: Date.now() - startedAt,
         error: errorMessage(error),
       });
+      // Whatever the finished languages already spent is the retry waste this
+      // run leaves behind; record it before the failure propagates.
+      await recordCost('failed', costSink[0]?.episodeId ?? null);
       throw error;
     }
   });

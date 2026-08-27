@@ -60,6 +60,7 @@ export function createTelegramIngestQueue(): TelegramIngestQueue {
     try {
       const { ingest: result, videoJob } =
         await performMultilingualIngestAndEnqueueVideo(url, languageCode, {
+          trigger: 'telegram',
           telegramChatId: () => inflight.latestChatId,
         });
       invalidateEpisodeSearchCache();
