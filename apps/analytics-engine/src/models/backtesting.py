@@ -192,8 +192,7 @@ class StrategySummary(BaseModel):
     # win_rate_percent stays None: a meaningful trade-level win rate needs
     # forward-PnL per executed decision (hot-path trade accounting, separate
     # track). Deriving it from daily returns would be positive-day rate, which
-    # is misleading. Trade-level win rate is computed offline in
-    # scripts/attribution/regime_breakdown.py instead.
+    # is misleading.
     win_rate_percent: float | None = None
     final_allocation: Allocation
     final_asset_allocation: AssetAllocation

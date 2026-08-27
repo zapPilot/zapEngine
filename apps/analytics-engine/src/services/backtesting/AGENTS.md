@@ -16,7 +16,7 @@ Historical iteration records live in [ITERATION_LOG.md](./ITERATION_LOG.md); the
 
 For intentional strategy behavior changes:
 
-1. Follow `ITERATION_PLAYBOOK.md` and run the comparison/attribution checks for the changed saved config.
+1. Follow `ITERATION_PLAYBOOK.md` and run its behavioral and snapshot checks for the changed saved config.
 2. Update `tests/fixtures/hierarchical_validation_events.json` when expected decision behavior changes.
 3. Regenerate the strategy performance snapshot only when the performance change is intentional and verified against the configured read-only production-history source.
 4. Record the result and diagnostics in `ITERATION_LOG.md`.

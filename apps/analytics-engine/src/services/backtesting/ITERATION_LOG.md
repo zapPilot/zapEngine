@@ -7,18 +7,17 @@ For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
-### 2026-08-21 - Removed dead per-asset tactics and added an unregistered leverage experiment
-- **Status**: Infrastructure complete; production-history experiment pending the read-only database gate. No production rule, priority, saved config, registry entry, API contract, allocation wire type, landing-page artifact, or validation fixture changed.
-- **Commit**: pending local change (`DMA/FGI refactor + inert debt primitives + research leverage sweep`).
+### 2026-08-21 - Removed dead per-asset tactics and added debt primitives
+
+- **Status**: Infrastructure complete. No production rule, priority, saved config, registry entry, API contract, allocation wire type, landing-page artifact, or validation fixture changed.
+- **Commit**: pending local change (`DMA/FGI refactor + inert debt primitives`).
 - **Finding**: `signals/dma_gated_fgi` is a stateful per-asset observation component, not a strategy. The canonical strategy remains `dma_fgi_portfolio_rules`; `dca_classic` remains its frozen benchmark. The unused `tactics/` registry and its component resolver were removed, the signal/trade cooldown twins were collapsed to one state machine, and portfolio-rule intent construction now lives at the portfolio-rule layer. The execution portfolio gained an independent USD debt counter: borrowing raises stable balance and debt together, repayment caps at available stable/debt, `total_value` remains gross, and performance uses `equity = total_value - debt`. With debt at its default zero, the existing arithmetic path is unchanged.
-- **Research overlay**: `scripts/research/leverage/` adds `risk_on`, `fear_dip`, and combined modes without registering a recipe. The pinned experiment is 3 modes × 3 target LTVs × 3 fixed borrow APRs = 27 cells, compared with the two existing baselines over the full 500-day window and two 250-day halves. It reports ROI, Sharpe, Sortino, Calmar, MaxDD, trades, liquidations, maximum LTV, levered days, and cumulative borrow cost. Liquidation is checked only at daily close; fixed APR sensitivity substitutes for unavailable historical borrow-rate coverage; no live borrow execution is implied.
-- **Snapshot delta**: Not measured locally. `sweep_production_window.py --check --in-process` safely skipped because `DATABASE_READ_ONLY_URL` is unset; no snapshot or landing artifact was updated. The leverage sweep skipped for the same reason, so no result report or promotion claim is recorded here.
-- **Per-rule report / rule-only sweep**: Not applicable — production rule behavior and ordering are unchanged.
-- **Validation**: `pytest tests/services/backtesting tests/scripts tests/test_validation_events.py -q` → 785 passed; the research suite includes a synthetic 46-day borrow → crash → liquidation path. `ruff check src tests scripts`, `ruff format --check`, `mypy src` (197 source files), and `vulture src/ vulture_whitelist.py --min-confidence 80` are clean. Root `pnpm dup:check` could not start because this worktree has no installed `node_modules`/Turbo.
-- **Next**: With `DATABASE_READ_ONLY_URL` configured, run `uv run python scripts/research/leverage/leverage_sweep.py --reference-date 2026-08-19`; review full/half-window Calmar and Sharpe versus the unlevered baseline before considering any productization. Do not register the research strategy or update the production snapshot as part of that run.
+- **Snapshot delta**: Not measured locally. `sweep_production_window.py --check --in-process` safely skipped because `DATABASE_READ_ONLY_URL` is unset; no snapshot or landing artifact was updated.
+- **Validation**: `pytest tests/services/backtesting tests/test_validation_events.py -q`, `ruff check src tests scripts`, `ruff format --check`, `mypy src` (197 source files), and `vulture src/ vulture_whitelist.py --min-confidence 80` are clean. Root `pnpm dup:check` could not start because this worktree has no installed `node_modules`/Turbo.
 
 ### 2026-06-02 - Removed the 6 extended metrics (Omega / Tail / Skew / Kurtosis / Pain / RecoveryDays) — unused yardsticks
-- **Status**: Cleanup / contract change (no production-strategy behavior change). Reverses 2026-05-28 (registry landed) + 2026-05-29 (folded into `StrategySummary`/snapshot). Rationale: the 6 are *evaluation metrics* (same tier as ROI / Sharpe / Calmar), never consumed as a decision / ranking / optimization signal, never rendered in the frontend (`BacktestTerminalDisplay` only draws ROI / Calmar / MaxDD), and the only attempt to prove they carry new information — the n=3 Spearman probe — was retired STATISTICALLY VOID on 2026-05-30. They were API + snapshot surface with no reader.
+
+- **Status**: Cleanup / contract change (no production-strategy behavior change). Reverses 2026-05-28 (registry landed) + 2026-05-29 (folded into `StrategySummary`/snapshot). Rationale: the 6 are _evaluation metrics_ (same tier as ROI / Sharpe / Calmar), never consumed as a decision / ranking / optimization signal, never rendered in the frontend (`BacktestTerminalDisplay` only draws ROI / Calmar / MaxDD), and the only attempt to prove they carry new information — the n=3 Spearman probe — was retired STATISTICALLY VOID on 2026-05-30. They were API + snapshot surface with no reader.
 - **Removed**:
   - `src/services/backtesting/execution/metrics/` whole subpackage (`base.py` Protocols, `registry.py` + `compute_extended_metrics`, `omega.py`, `tail_ratio.py`, `distribution.py`, `pain_index.py`, `recovery_time.py`, `__init__.py`) + its test dir `tests/services/backtesting/execution/metrics/` (6 modules). `mypy src` drops 220→212 files.
   - `StrategySummary` (`src/models/backtesting.py`) 6 fields; `execution/state.py` `compute_extended_metrics` import + call + 6-field unpacking.
@@ -30,16 +29,18 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Per-rule report / rule-only sweep**: not applicable — no rule / priority / trigger / default behavior changed.
 
 ### 2026-06-02 - Optuna cooldown ceiling 90→180 + per-trial overfit guard: interior optimum at 134, no OOS gain
+
 - **Status**: Measurement iteration (no production-default change). Resolves the 2026-05-28 followup #1 (cooldown ceiling saturation) and lands followup #2 (per-trial in-sample/OOS gap in the Optuna report). `dma_fgi_portfolio_rules_default` snapshot untouched.
 - **Change** (uncommitted working tree, `scripts/attribution/optuna_search.py` + `tests/scripts/test_optuna_search.py`): `SearchSpaceBounds.cross_cooldown_days` (7,90)→(7,180); new `--cooldown-max` CLI flag (default 180); `objective()` records `in_sample_sharpe_mean` / `oos_sharpe_mean` / `oos_in_sample_gap` per trial via `trial.set_user_attr`; `study_to_report` surfaces per-trial `user_attrs` + top-level `best_oos_in_sample_gap`. Validator permits it (`cross_cooldown_days` is `Field(ge=0)`, no upper cap). DB-independent layer green: `ruff check src tests`, `mypy src` (220 files), `pytest tests/scripts/test_optuna_search.py` (12).
 - **Run**: 30 TPE trials (seed 42), 2024-01-01→2026-04-15, walk-forward 180/60/30 sliding, objective sharpe. Report: `reports/optuna_cooldown180_sharpe.json`.
-- **Headline — cooldown does NOT saturate when uncapped**: best trial #28 `cross_cooldown_days=134` (interior, not the 180 ceiling), `oos_sharpe_mean=1.8529`. Top 6 span cd∈[134,180] @ oos 1.80–1.85; the 180-ceiling trials (#12/#13) score *lower* (1.8028). The old 90 ceiling was clipping the real interior optimum (~134); widening reveals it and disproves the followup-#1 "cooldown is an unbounded regime-hold proxy" worry. Cooldown is a legitimate interior-optimum tunable.
+- **Headline — cooldown does NOT saturate when uncapped**: best trial #28 `cross_cooldown_days=134` (interior, not the 180 ceiling), `oos_sharpe_mean=1.8529`. Top 6 span cd∈[134,180] @ oos 1.80–1.85; the 180-ceiling trials (#12/#13) score _lower_ (1.8028). The old 90 ceiling was clipping the real interior optimum (~134); widening reveals it and disproves the followup-#1 "cooldown is an unbounded regime-hold proxy" worry. Cooldown is a legitimate interior-optimum tunable.
 - **But no performance gain**: best `oos_sharpe 1.8529 ≈` the 2026-05-28 best `1.853` (then cd=78). OOS Sharpe is a flat plateau across cd∈[78,134] → promotion gate (>10% OOS improvement vs pinned default) NOT met. No new default params adopted.
 - **Overfit guard (followup #2 payoff)**: best `oos_in_sample_gap = +0.0204` (oos 1.853 ≥ in-sample 1.832) → no overfit; top-6 gaps all within ±0.02. Readable straight from the report JSON now.
 - **Next evidence-driven widening targets (saturation scan of best trial)**: `buy_sideways_max_range` PIN-HI at ceiling 0.10 and `overextension_threshold_multiplier_greed` PIN-LO at floor 0.20 — these now show the saturation cooldown used to. Candidates for the next bound-widening iteration.
 - **Per-rule report / rule-only sweep**: not run — no default rule, priority, trigger, or production-default behavior changed.
 
 ### 2026-05-30 - Renamed strategy code identity to `RuleBasedPortfolio*` (wire ids frozen)
+
 - **Status**: Internal rename only — no behavior, no contract, no DB change. The strategy is a general portfolio **rule engine** (`portfolio_rules/` registry, `enabled_rules`/`disabled_rules` allowlist, priority + first-match-wins); DMA/FGI is just the rule subset currently hung on it, so the `DmaFgiPortfolioRules*` code name was too narrow.
 - **Renamed (Python identifiers + file)**: `strategies/dma_fgi_portfolio_rules.py` → `rule_based_portfolio.py`; class `DmaFgiPortfolioRulesStrategy` → `RuleBasedPortfolioStrategy`; class `DmaFgiPortfolioRulesDecisionPolicy` → `RuleBasedPortfolioDecisionPolicy`; `default_dma_fgi_portfolio_rules_params` → `default_rule_based_portfolio_params`; primary unit test file likewise. The `feature_summary()["policy"]` diagnostic label tracks the class name.
 - **FROZEN (wire ids — deliberately class-name ≠ id)**: `strategy_id`/`config_id`/`signal_id` values stay `dma_fgi_portfolio_rules` / `dma_fgi_portfolio_rules_default` / `dma_fgi_portfolio_rules_signal`; `rule_group` stays `dma_fgi`; display name stays `DMA/FGI Portfolio Rules`; constant `STRATEGY_DMA_FGI_PORTFOLIO_RULES` keeps its name aligned with its (frozen) value. Renaming these would be a cross-service breaking change — they are typed `rule_group` literals in `packages/types` (Zod), appear in `scripts/contracts/snapshots/*.json`, are consumed by the app surfaces, and are persisted by `migrations/020`/`022` (~800 external references). **So a future reader: the rule-based strategy's stable/legacy wire id is `dma_fgi_portfolio_rules` on purpose.**
@@ -48,9 +49,10 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Per-rule report / rule-only sweep**: not applicable — pure rename, no rule/priority/trigger change.
 
 ### 2026-05-30 - Removed `fixed_interval_rebalance` [RESEARCH] strategy + retired the n=3 cross-strategy rank-correlation probe
+
 - **Status**: Cleanup (no production behavior change). Strategy universe drops 3 → 2 (`dca_classic`, `dma_fgi_portfolio_rules`). Production default `dma_fgi_portfolio_rules` is untouched — its 500-day snapshot anchors stay byte-identical (ROI 76.8826, Sharpe 2.6274, Calmar 5.7841, MaxDD -8.9254, 53 trades). `dca_classic` (ROI -14.3192, MaxDD -42.9936) remains the frozen benchmark and is now the sole null baseline.
 - **Why remove `fixed_interval_rebalance`**: it was a `[RESEARCH]`-only calibrated null baseline (best preset trailed DMA by ~−65pp ROI; see 2026-05-25 / 2026-05-27 entries). Its one residual role — a second null-baseline reference point — is subsumed by `dca_classic`, a stricter (more negative) null. Keeping a third strategy that never ships only added registry / preset / snapshot / test surface with no decision value.
-- **Why retire the probe** (`scripts/attribution/extended_metrics_rank_compare.py` + its 21 unit tests + `reports/extended_metrics_rank_correlation.md`): the 2026-05-29 entry already declared its n=3 verdicts STATISTICALLY VOID. Dropping `fixed_interval_rebalance` takes the cross-strategy universe to n=2, where Spearman ρ is structurally ±1 — the probe can no longer yield a readable verdict at all. That is positive evidence that *cross-strategy* rank-correlation is the wrong instrument; the "does each extended metric carry new information?" question belongs at trial-level sampling (2026-05-29 followup #1(a): record `StrategySummary` per Optuna trial → n≫3). The 6 extended-metric implementations under `execution/metrics/` and their snapshot tolerances are **KEPT** — only the cross-strategy probe is gone.
+- **Why retire the probe** (`scripts/attribution/extended_metrics_rank_compare.py` + its 21 unit tests + `reports/extended_metrics_rank_correlation.md`): the 2026-05-29 entry already declared its n=3 verdicts STATISTICALLY VOID. Dropping `fixed_interval_rebalance` takes the cross-strategy universe to n=2, where Spearman ρ is structurally ±1 — the probe can no longer yield a readable verdict at all. That is positive evidence that _cross-strategy_ rank-correlation is the wrong instrument; the "does each extended metric carry new information?" question belongs at trial-level sampling (2026-05-29 followup #1(a): record `StrategySummary` per Optuna trial → n≫3). The 6 extended-metric implementations under `execution/metrics/` and their snapshot tolerances are **KEPT** — only the cross-strategy probe is gone.
 - **Removed**: `strategies/fixed_interval_rebalance.py`; `STRATEGY_FIXED_INTERVAL_REBALANCE` + display name (`constants.py`); recipe + `_normalize_/_build_fixed_interval_*` helpers + `param_family="fixed_interval_rebalance"` literal (`strategy_registry.py`); benchmark family spec + `_fixed_interval_benchmark_factory` (`composition_catalog.py`); `FixedIntervalRebalancePublicParams` and the now-orphaned `_TargetWeightsParams` / `_validate_target_weights_sum` it was the sole consumer of, noted "Kept" in the 2026-05-27 entry (`public_params.py`); 3 seed presets (`strategy_presets.py`); the `fixed_interval_rebalance` block from the 500-day snapshot fixture (synced to `apps/landing-page/src/data/strategy-snapshot.json` via `lint:snapshot-sync:fix`); the COMMANDS.md experiments section. Tests updated: `test_strategy_presets.py`, `test_strategy_config_store.py`, `test_v3_strategy.py`, `test_strategy_registry.py`.
 - **Validation in this environment**:
   - `uv run ruff check` / `ruff format --check` → clean; `uv run mypy src` → no issues in 220 source files
@@ -60,11 +62,12 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Per-rule report / rule-only sweep**: not applicable — no rule, priority, trigger, or production-default behavior changed.
 
 ### 2026-05-29 - Extended metrics folded into production measurement flow; rank-correlation probe added; n=3 verdicts STATISTICALLY VOID
+
 - **Status**: Supersedes the "Phase A/B UNCONSUMED" framing in the 2026-05-28 entry below. The 6 extended metrics now flow from `compute_extended_metrics()` → `build_strategy_summaries` → `StrategySummary` → `POST /api/v3/backtesting/compare` → snapshot fixture. No registry is dead code anymore. **However**: the probe that would tell us whether the 6 metrics carry new information cannot yet give an actionable verdict — the strategy universe has shrunk to 3 (`dca_classic`, `dma_fgi_portfolio_rules`, `fixed_interval_rebalance`), and Spearman ρ with n=3 has at most 6 distinct values, so it saturates trivially.
 - **Implementation**:
   - `StrategySummary` Pydantic model gains 6 fields (`omega_ratio`, `tail_ratio`, `skewness`, `excess_kurtosis`, `pain_index`, `max_drawdown_recovery_days`) at `float = 0.0` defaults — mirrors the existing 10 core metric fields. Key naming aligned with the metric class's `.key` attribute (`max_drawdown_recovery_days`, **not** `_time` — caught by the first 500 server error after the initial wiring).
   - `build_strategy_summaries` at `execution/state.py:118-124` now calls `compute_extended_metrics(strategy_daily_values[strategy_id])` parallel to the existing `_calculate_performance_metrics` call, and unpacks the 6 keys into the `StrategySummary(...)` constructor.
-  - `sweep_production_window.py` `METRIC_KEYS` tuple extended by 6 entries; `DEFAULT_TOLERANCES` extended by matching tolerances (ratio metrics 0.10, skew 0.05, kurt 0.10, pain_index 0.01, recovery_days 5.0); `TOLERANCE_ALIASES` gains canonical + short-form CLI aliases. `_snapshot_strategy_entry` also writes 3 *previously-unstored* core metrics (`sortino_ratio`, `volatility`, `ulcer_index`) so the probe has a full comparison surface — the fixture grew from 5 to 14 stored per-strategy metrics.
+  - `sweep_production_window.py` `METRIC_KEYS` tuple extended by 6 entries; `DEFAULT_TOLERANCES` extended by matching tolerances (ratio metrics 0.10, skew 0.05, kurt 0.10, pain_index 0.01, recovery_days 5.0); `TOLERANCE_ALIASES` gains canonical + short-form CLI aliases. `_snapshot_strategy_entry` also writes 3 _previously-unstored_ core metrics (`sortino_ratio`, `volatility`, `ulcer_index`) so the probe has a full comparison surface — the fixture grew from 5 to 14 stored per-strategy metrics.
   - Zod ↔ Pydantic parity: `packages/types/src/strategy/backtesting.ts::BacktestStrategySummarySchema` gained 6 matching `z.number().optional()` fields. `pnpm contracts:check` passes.
   - Snapshot fixture regenerated via `pnpm --filter @zapengine/analytics-engine dev` + `sweep_production_window.py --update-snapshot`. The pre-existing `fixed_interval_rebalance` coverage drift (PR#26 leftover) gets fixed for free as a side effect — `tests/integration/test_strategy_performance_snapshot.py::test_every_registered_strategy_has_snapshot_entry` now passes for the first time since PR#26 merged.
   - Landing-page synced via `pnpm lint:snapshot-sync:fix`.
@@ -87,13 +90,14 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Followups (priority order)** — the prior followups #1/#2 from the 2026-05-28 entry remain outstanding; new items added below:
   1. **Make the probe actually informative**: feed it a richer universe. Two paths, either works:
      - **(a) Optuna-trial universe**: extend `reports/optuna_first_run.json` (or future runs) to record `StrategySummary` per trial — every trial is a distinct parameter point. 30 trials → n=30 → meaningful Spearman. The blocker is the followup-#2 work below (Optuna trials currently record only `oos_sharpe_mean`).
-     - **(b) Ablation grid**: enumerate single-rule and single-knob ablations of `dma_fgi_portfolio_rules` (e.g., 8 ablations × 4 cooldown variants = 32 strategies). `rule_only_sweep.py` already covers part of this — adapt its output into the probe input.
+     - **(b) Ablation grid**: enumerate single-rule and single-knob ablations of `dma_fgi_portfolio_rules` (e.g., 8 ablations × 4 cooldown variants = 32 strategies).
   2. **Propagate `in_sample_sharpe_mean` through the Optuna report** (~10 LOC in `optuna_search.py`) — still pending from the 2026-05-28 entry.
   3. **Optuna search-bound revisit** (`cross_cooldown_days` 90 → 180) — still pending from the 2026-05-28 entry.
   4. **Promote `excess_kurtosis` or `max_drawdown_recovery_days` to Optuna objective** — gated on followup #1 confirming the NEW INFO verdict holds at n ≥ 10. Currently overhyped due to n=3.
 - **Per-rule report / rule-only sweep**: not run — no default rule, priority, trigger, or production-default behavior changed in this iteration.
 
 ### 2026-05-28 - Phase C/E author verification: snapshot byte-identical confirmed, first Optuna walk-forward search; extended metrics still UNCONSUMED
+
 - **Status**: closes the "Pending local verification by author" items on the architectural refactor entry below. Phase A/B extended-metrics registry remains infrastructure-only — not yet measured as a decision signal.
 - **Phase C verification (Pending → done)**: `pnpm --filter @zapengine/analytics-engine run test:strategy-snapshot:fast` → "Drift rows: 0 / No metric drift exceeded tolerance." Confirms the `decision_policy.py` six-file split is byte-identical against `tests/fixtures/strategy_performance_snapshot_500d.json`. Phase C re-confirmed as zero-behavior structural refactor.
 - **Phase E verification (Pending → done)**: first real Optuna run — 30 TPE trials on `dma_fgi_portfolio_rules`, full range 2024-01-01 → 2026-04-15, default walk-forward (in-sample 180d / out-of-sample 60d / step 30d, sliding). Report: `apps/analytics-engine/reports/optuna_first_run.json`.
@@ -110,6 +114,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Per-rule report / rule-only sweep**: not run — no default rule, priority, trigger, or production-default behavior changed in this iteration.
 
 ### 2026-05-28 - Architectural refactor: extended-metrics registry + decision_policy.py split (no behavior change)
+
 - **Status**: structural refactor; no production-default behavior change; snapshot byte-identical claim pending local verification against `DATABASE_READ_ONLY_URL`
 - **Commits**: `219bffc` (extended metrics registry + 6 new metrics) and a follow-up on the same branch (`claude/analytics-backtesting-architecture-O2mf0`) for the decision_policy.py split
 - **Plan**: `~/.claude/plans/apps-analytics-engine-backtesting-rule-happy-donut.md`
@@ -132,14 +137,14 @@ Newest first. Each entry: date, commit, finding, key numbers.
   - `uv run pytest tests/services/backtesting/ --ignore=tests/test_strategy_performance_snapshot.py` → 764 pass
 - **Pending local verification by author** (requires `DATABASE_READ_ONLY_URL`):
   - `pnpm --filter @zapengine/analytics-engine exec uv run pytest tests/test_strategy_performance_snapshot.py` — expected byte-identical against `tests/fixtures/strategy_performance_snapshot_500d.json` because no metric is folded into `calculate_all_metrics()` and the decision_policy split is structural only (no logic moved, only file boundaries redrawn).
-  - `scripts/attribution/sweep_production_window.py` + `scripts/attribution/per_rule_report.py` — should remain byte-stable; not required unless snapshot drifts.
+  - `scripts/attribution/sweep_production_window.py` should remain byte-stable; not required unless snapshot drifts.
 - **Per-rule report / rule-only sweep**: not run — no default rule, priority, trigger, or production-default behavior changed in this iteration.
 - **Phase D — walk-forward harness (landed on same branch, commit `6a041b7`)**:
   - `src/services/backtesting/validation/walk_forward.py`: `split_windows()` (pure date arithmetic — sliding or anchored mode, disjoint adjacent in-sample / out-of-sample windows, never overflows full_end); `WalkForwardRunner` (calls `BacktestingService.run_compare_v3` in-process twice per fold, sequential to keep DB pool calm); `WalkForwardReport` (aggregates `oos_sharpe_mean` / `oos_calmar_mean` / `oos_roi_mean` + stds and the diagnostic `in_sample_sharpe_mean` — the delta flags overfit configs).
   - 15 new tests in `tests/services/backtesting/validation/test_walk_forward.py` cover every `split_windows` branch (edge cases: range too short, end < start, non-positive config values, sliding vs anchored window advancement), aggregation correctness, and runner happy / sad paths with a mocked `BacktestingService`. **Fully DB-independent**; end-to-end fold runs against real data still need `DATABASE_READ_ONLY_URL` (same gating as the snapshot fixture).
 - **Phase E — Optuna search script (landed on same branch, commit pending)**:
   - `uv add optuna` brings in optuna 4.8 + alembic + colorlog + mako + markupsafe + tqdm (run-time deps).
-  - `scripts/attribution/optuna_search.py`: TPE sampler over the 11 leaf scalars on `DmaGatedFgiPublicParams` (`signal.cross_cooldown_days` int, `signal.cross_on_touch` bool, `pacing.k` / `r_max`, `buy_gate.window_days` / `sideways_max_range`, the 5 `top_escape` thresholds). Each trial calls `WalkForwardRunner.run()`; objective = `oos_sharpe_mean` (default) or `oos_calmar_mean` (`--objective calmar`). Categorical-set knobs (`enabled_rules` / `disabled_rules`) and the list knob (`buy_leg_caps`) intentionally left fixed in v1 — their search spaces blow up TPE without obvious payoff, and `rule_only_sweep.py` already covers rule-set diagnostics.
+  - `scripts/attribution/optuna_search.py`: TPE sampler over the 11 leaf scalars on `DmaGatedFgiPublicParams` (`signal.cross_cooldown_days` int, `signal.cross_on_touch` bool, `pacing.k` / `r_max`, `buy_gate.window_days` / `sideways_max_range`, the 5 `top_escape` thresholds). Each trial calls `WalkForwardRunner.run()`; objective = `oos_sharpe_mean` (default) or `oos_calmar_mean` (`--objective calmar`). Categorical-set knobs (`enabled_rules` / `disabled_rules`) and the list knob (`buy_leg_caps`) intentionally remain fixed because their search spaces blow up TPE without obvious payoff.
   - CLI: `--strategy-id` / `--start-date` / `--end-date` / `--in-sample-days` / `--out-of-sample-days` / `--step-days` / `--anchored` / `--trials` / `--objective {sharpe,calmar}` / `--token-symbol` / `--total-capital` / `--storage` (SQLite resume) / `--study-name` / `--output`. `--storage sqlite:///optuna.db` enables resume across runs.
   - 10 unit tests in `tests/scripts/test_optuna_search.py` cover the suggest-shape, bounds plumbing, score-report mapping, the full trial→score wiring (via `optuna.trial.FixedTrial` + a stub `WalkForwardRunner`), and the JSON output shape. `_build_service_factory` is intentionally untested (needs real DB).
 - **Validation in this environment (no Supabase access)**:
@@ -152,13 +157,14 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Per-rule report / rule-only sweep**: not run — no default rule, priority, trigger, or production-default behavior changed in this iteration.
 - **Next**:
   1. Local snapshot byte-identical verification (Phase C structural refactor), then merge to main.
-  2. First real Optuna run on the canonical 500-day window; if `best_params` improves on the pinned `dma_fgi_portfolio_rules_default` snapshot in oos_sharpe terms by >10%, follow-up with focused single-variant `analyze_compare.py` + snapshot decision per the iteration playbook.
+  2. First real Optuna run on the canonical 500-day window; if `best_params` improves on the pinned `dma_fgi_portfolio_rules_default` snapshot in oos_sharpe terms by >10%, follow up with a snapshot decision per the iteration playbook.
 
 ### 2026-05-26 - Broad-market DMA confirmation filter sweep, then cleanup (null on this window)
+
 - **Status**: rejected and cleaned up (null result — filter never engaged in this window)
 - **Commit**: pending local change (`broad-market buy filter sweep + delete plumbing`)
 - **Plan**: `~/.claude/plans/plan-mode-exitplanmode-playful-starfish.md`
-- **Hypothesis**: the prior 2026-05-26 regime-cdr `all_above` variant was the only sweep variant (across both cdr and regime-cdr iterations) to ever improve `dma_fgi_portfolio_rules_default` MaxDD (-8.43 % vs -8.93 %). It failed as a rebalance *trigger* (-22pp ROI) but the underlying "all 3 above DMA-200" condition showed real selectivity. This iteration tested it as a **suppression filter on buy-side intents** instead — a `RiskGuard` that returns a hold for any `intent.action == "buy"` while not all of BTC/ETH/SPY have `zone == "above"`. The `action == "buy"` discriminator self-restricts the filter to `cross_up_equal_weight` (the only DMA default buy emitter); all sells / exits / pair-rebalances are untouched.
+- **Hypothesis**: the prior 2026-05-26 regime-cdr `all_above` variant was the only sweep variant (across both cdr and regime-cdr iterations) to ever improve `dma_fgi_portfolio_rules_default` MaxDD (-8.43 % vs -8.93 %). It failed as a rebalance _trigger_ (-22pp ROI) but the underlying "all 3 above DMA-200" condition showed real selectivity. This iteration tested it as a **suppression filter on buy-side intents** instead — a `RiskGuard` that returns a hold for any `intent.action == "buy"` while not all of BTC/ETH/SPY have `zone == "above"`. The `action == "buy"` discriminator self-restricts the filter to `cross_up_equal_weight` (the only DMA default buy emitter); all sells / exits / pair-rebalances are untouched.
 - **Implementation (additive only)**: new `risk/broad_market_buy_filter.py::BroadMarketBuyFilterGuard` (~75 lines incl. docstring + helper), exported through `risk/__init__.py`. Wired through a single boolean public param `broad_market_buy_filter: bool = False` on `DmaGatedFgiPublicParams` (with matching field on `DmaGatedFgiParams`, `DMA_GATED_FGI_PUBLIC_PARAM_KEYS` membership, `_DMA_COERCION_SPEC` entry, `_PortfolioRuleParams` Protocol field, and conditional `guards.append(...)` in `build_risk_guards_for_params`). Three unit tests in `tests/services/backtesting/risk/test_broad_market_buy_filter.py` (buy blocked when one below, buy allowed when all above, sell never filtered). Production defaults to off — `dma_fgi_portfolio_rules_default` byte-stable against pinned snapshot.
 - **5-variant sweep (canonical 500-day window `2024-12-02..2026-04-15`, `total_capital=10000`)**:
   | Config | Source | ROI % | Calmar | Sharpe | MaxDD % | Trades | ROI Δ vs `bl_dma_default` |
@@ -185,11 +191,12 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Validation**: `uv run pytest tests/services/backtesting/risk/ tests/services/backtesting/portfolio_rules/ tests/services/backtesting/test_public_params.py tests/services/backtesting/test_strategy_registry.py tests/api/test_v3_strategy.py tests/api/test_backtesting.py` — all green pre- and post-cleanup. `uv run ruff check src tests` and `uv run mypy <edited files>` clean. `uv run vulture src/ vulture_whitelist.py --min-confidence 80` — no output. `pnpm contracts:check` — parity passed (boolean field auto-mirrored; no Zod ripple). Post-cleanup smoke `POST /api/v3/backtesting/compare` for `dma_fgi_portfolio_rules_default` returns ROI 76.8826 / 53 trades / MaxDD -8.9254, snapshot byte-stable; no `--update-snapshot`.
 - **Per-rule report / rule-only sweep**: not run — no default rule priority/trigger or production-default behavior changed in this iteration.
 - **Next**:
-  1. The "filter never engaged" finding **does not falsify the broader-market confirmation idea** — it falsifies its relevance *on this specific 500-day window*. If/when a wider window (e.g., a window that includes a 2022-style partial drawdown) becomes part of the snapshot/test corpus, re-introducing this filter is a one-file experiment by referencing this entry. Until then, keeping the plumbing is dead optionality.
+  1. The "filter never engaged" finding **does not falsify the broader-market confirmation idea** — it falsifies its relevance _on this specific 500-day window_. If/when a wider window (e.g., a window that includes a 2022-style partial drawdown) becomes part of the snapshot/test corpus, re-introducing this filter is a one-file experiment by referencing this entry. Until then, keeping the plumbing is dead optionality.
   2. The `L6` candidate (`fgi_downshift_dca_sell` removal, +0.73pp ROI / -0.88pp MaxDD) remains the most actionable open question. With the filter ruled out for this window, L6 is the only path forward that might modify the production default; worth a focused single-variant compare + a snapshot decision in the next iteration.
   3. The `spy_latch` retune (already flagged in CLAUDE.md) is still pending — bring it in once retuned.
 
 ### 2026-05-26 - Regime-aware drift rebalance sweep, then cleanup
+
 - **Status**: rejected and cleaned up
 - **Commit**: pending local change (`regime-aware drift rebalance sweep + delete plumbing`)
 - **Plan**: `~/.claude/plans/plan-mode-exitplanmode-playful-starfish.md`
@@ -223,10 +230,11 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Per-rule report / rule-only sweep**: not run — no default rule priority/trigger or production-default behavior changed in this iteration.
 - **Next**:
   1. **`fgi_downshift_dca_sell` retention** is still the most actionable open question from the prior cdr entry — `L6_dma_minus_downshift` (no cdr involved) is the only +ROI leave-one-out from DMA default (+0.73pp ROI, -0.88pp MaxDD). Worth a focused single-variant compare and a snapshot decision.
-  2. The `all_above` MaxDD improvement (-0.49pp at -22pp ROI cost) hints that a **multi-asset DMA confirmation filter** could be useful — but as a *suppression gate on existing signals* (e.g. block buy-side signals when not all three are above DMA-200) rather than as a new rebalance trigger. This is a fundamentally different mechanism than cdr-shaped rules; the prior cdr experiments do not foreclose it. No code planned this round.
+  2. The `all_above` MaxDD improvement (-0.49pp at -22pp ROI cost) hints that a **multi-asset DMA confirmation filter** could be useful — but as a _suppression gate on existing signals_ (e.g. block buy-side signals when not all three are above DMA-200) rather than as a new rebalance trigger. This is a fundamentally different mechanism than cdr-shaped rules; the prior cdr experiments do not foreclose it. No code planned this round.
   3. Both deferred items from the prior cdr entry remain: include `spy_latch` in a follow-up sweep once its retune lands.
 
 ### 2026-05-26 - Rule-combination sweep with CalendarDriftRebalanceRule, then cleanup
+
 - **Status**: rejected and cleaned up
 - **Commit**: pending local change (`record cdr rule-combo sweep + delete plumbing`)
 - **Finding**: 14-variant rule-combination sweep against the 500-day production window (`2024-12-02..2026-04-15`, `total_capital=10000`) with `calendar_drift_rebalance` (cdr) parameters fixed at **`interval_days=30, min_drift_pct=0.05, target_weights={btc:0.30, eth:0.25, spy:0.30, stable:0.15}`** (single defensible "monthly drift-gated rebalance" choice). Tests vary which rules are enabled inside `dma_fgi_portfolio_rules`: the 6 DMA defaults, DMA leave-one-out across each rule, three DMA-family functional subsets (cross / eth_btc-pair / sells) standalone, and the same three subsets with `calendar_drift_rebalance` added. Headline: **no rule combination including cdr beats `dma_fgi_portfolio_rules_default` (ROI 76.88%)**. The only combo that slightly exceeds DMA default is `L6_dma_minus_downshift` (DMA \ `fgi_downshift_dca_sell`, ROI 77.61%, **+0.73pp**), which contains no cdr. Cdr alone is destructive in every base except the eth_btc-pair group, where it lifts ROI from −0.87% → 16.71% (still well below DMA default). Best risk-adjusted combo is `G3_sells_only` (`dma_overextension_dca_sell` + `fgi_downshift_dca_sell`): Sharpe 4.10, Calmar 6.89, **MaxDD only −1.85%** — but ROI 17.92% because pure sells have no entry rule and stay mostly in stable.
@@ -275,9 +283,10 @@ Newest first. Each entry: date, commit, finding, key numbers.
   | `S_minimal_signals` | [`cross_down`, `cross_up`, `ratio_rot`] | 55.4133 | 2.3006 | 1.2962 | -16.4876 | 9 |
   | `S_minimal_signals_cdr_eq` | minimal + cdr (equal-weight) | 26.5450 | 0.7626 | 0.7220 | -24.6466 | 19 |
   | `S_default_plus_cdr_eq` | DMA default + cdr (equal-weight) | 25.5020 | 0.7611 | 0.7756 | -23.6848 | 62 |
-  Equal-weight `cdr_only` reproduces the prior 2026-05-25 `drift_5pct_30d` standalone result (7 trades / +0.16 % vs +0.09 %), confirming rule-pipeline cdr is behaviorally equivalent to the standalone `fixed_interval_rebalance` recipe at the same params. Equal-weight cdr added to DMA default loses **−51.4pp ROI** (76.88 → 25.50) vs the 30/25/30/15 mix's −54.92pp; both are decisively negative. Equal-weight cdr added to `minimal_signals` loses **−28.87pp ROI** (55.41 → 26.55). Equal-weight cdr added to `ratio_only` *adds* +31.88pp (−9.46 → +22.42), matching the main sweep's positive-interaction-with-pair-rules finding. No conclusion changes; this run is a cross-check against the equal-weight baseline used by `fixed_interval_balanced_30d`.
+  Equal-weight `cdr_only` reproduces the prior 2026-05-25 `drift_5pct_30d` standalone result (7 trades / +0.16 % vs +0.09 %), confirming rule-pipeline cdr is behaviorally equivalent to the standalone `fixed_interval_rebalance` recipe at the same params. Equal-weight cdr added to DMA default loses **−51.4pp ROI** (76.88 → 25.50) vs the 30/25/30/15 mix's −54.92pp; both are decisively negative. Equal-weight cdr added to `minimal_signals` loses **−28.87pp ROI** (55.41 → 26.55). Equal-weight cdr added to `ratio_only` _adds_ +31.88pp (−9.46 → +22.42), matching the main sweep's positive-interaction-with-pair-rules finding. No conclusion changes; this run is a cross-check against the equal-weight baseline used by `fixed_interval_balanced_30d`.
 
 ### 2026-05-25 - Fixed-interval rebalance baseline measurement
+
 - **Status**: active (research-only; no production default change)
 - **Commit**: `8252ff72` (`feat(analytics-engine): add fixed-interval rebalance research strategy`)
 - **Finding**: First live measurement of the new `fixed_interval_rebalance` recipe against the canonical 500-day production window (`2024-12-02..2026-04-15`, `total_capital=10000`). All three seed presets and an additional drift-gate sweep run cold via `/api/v3/backtesting/compare`. Headline: every fixed-interval variant materially underperforms `dma_fgi_portfolio_rules_default`; the best preset (`fixed_interval_conservative_30d`) trails by **−65.11pp ROI** with a max-drawdown that is still **2.57pp deeper** despite holding 70% stables. The best drift-gated equal-weight variant (`drift_10pct_30d`, 3 trades over 500 days) clears only ROI **+2.70%** vs DMA's **+76.88%**. This validates DMA/FGI's edge as signal-driven, not just rebalance-cadence-driven, and pins a calibrated "naïve baseline" that future rule changes can be scored against.
@@ -299,13 +308,14 @@ Newest first. Each entry: date, commit, finding, key numbers.
   | drift 10% / 30d | 30 | 0.10 | 2.7022 | 0.0729 | 0.2141 | -28.2681 | 3 |
 - **Interpretation**: in calendar-only mode, ROI degrades monotonically with frequency (cal_7d -2.41% → cal_14d -1.70% → cal_30d -0.56%) — more frequent rebalancing pays away small wins via spread/cost-realism friction without compensating signal. Layering a drift gate strictly improves all four moments (ROI, Sharpe, MaxDD all better) by collapsing trade count 17→7 (5% gate) and 17→3 (10% gate). Even at the best drift-gate point the strategy is **roughly 74pp ROI behind DMA**, so drift-gated equal-weight is still a baseline, not a contender.
 - **Snapshot exclusion verified**: `uv run python scripts/attribution/sweep_production_window.py --check` reports `Fetching 2 strategies for 2024-12-02..2026-04-15` (excludes `fixed_interval_rebalance` via its `[RESEARCH] ` display-name prefix) and `Drift rows: 0` — zero drift on `dma_fgi_portfolio_rules` and `dca_classic`. The pinned 500-day fixture is untouched and no `--update-snapshot` was performed.
-- **Validation**: no `tests/fixtures/hierarchical_validation_events.json` updates (no DMA/FGI rule, priority, or threshold changed). Existing fast tests untouched. Live `analyze_compare.py --saved-config-id fixed_interval_balanced_30d --no-constraints` could not run standalone — it hit the carrier-asset gap below.
-- **Bug surfaced (not fixed here)**: `_build_fixed_interval_recipe()` in [strategy_registry.py](./strategy_registry.py) declares `MarketDataRequirements(... required_price_features=frozenset(), required_aux_series=frozenset(), ...)`, so compare requests that contain *only* `fixed_interval_rebalance` configs return HTTP 400 `"Missing price for spot asset 'ETH'"` — ETH/SPY series are never fetched because no requirement asked for them. Workaround: include `dma_fgi_portfolio_rules_default` in the same `configs[]` list to "carry" the asset-price requirements. This affects `analyze_compare.py --saved-config-id fixed_interval_*` too. Follow-up: extend `MarketDataRequirements` to express bucket-mapper-implied asset coverage, or have the benchmark family declare ETH/SPY explicitly.
+- **Validation**: no `tests/fixtures/hierarchical_validation_events.json` updates (no DMA/FGI rule, priority, or threshold changed). Existing fast tests untouched. A standalone `fixed_interval_balanced_30d` compare request hit the carrier-asset gap below.
+- **Bug surfaced (not fixed here)**: `_build_fixed_interval_recipe()` in [strategy_registry.py](./strategy_registry.py) declares `MarketDataRequirements(... required_price_features=frozenset(), required_aux_series=frozenset(), ...)`, so compare requests that contain _only_ `fixed_interval_rebalance` configs return HTTP 400 `"Missing price for spot asset 'ETH'"` — ETH/SPY series are never fetched because no requirement asked for them. Workaround: include `dma_fgi_portfolio_rules_default` in the same `configs[]` list to "carry" the asset-price requirements. Follow-up: extend `MarketDataRequirements` to express bucket-mapper-implied asset coverage, or have the benchmark family declare ETH/SPY explicitly.
 - **Per-rule report / rule-only sweep**: not applicable (`fixed_interval_rebalance` has zero rule-based decisions; `dma_fgi_portfolio_rules` priorities and triggers are unchanged this iteration).
 - **Decision**: keep the three seed presets as committed (`fixed_interval_balanced_30d`, `fixed_interval_conservative_30d`, `fixed_interval_aggressive_90d`). `dma_fgi_portfolio_rules_default` remains the sole production default. The fixed-interval surface now functions as the calibrated null baseline against which future DMA rule edits and other research strategies should be scored.
-- **Next**: (1) file the carrier-asset bug as a separate task — extend `MarketDataRequirements` so `fixed_interval_rebalance` standalone compare requests succeed and `analyze_compare.py` can run on it directly. (2) When the next DMA rule iteration runs the production-window sweep, include `fixed_interval_balanced_30d` and `fixed_interval_conservative_30d` in the same compare call to record the live spread vs naïve baseline alongside the headline ROI.
+- **Next**: (1) file the carrier-asset bug as a separate task — extend `MarketDataRequirements` so `fixed_interval_rebalance` standalone compare requests succeed. (2) When the next DMA rule iteration runs the production-window sweep, include `fixed_interval_balanced_30d` and `fixed_interval_conservative_30d` in the same compare call to record the live spread vs naïve baseline alongside the headline ROI.
 
 ### 2026-05-21 - Metrics infrastructure (non-strategy-affecting tooling)
+
 - **Status**: active
 - **Commit**: pending local change (`metrics-infrastructure track A`)
 - **Finding**: `StrategySummary` exposed only 5 aggregate numbers (`roi_percent`, `calmar_ratio`, `sharpe_ratio`, `max_drawdown_percent`, `trade_count`), while `PerformanceMetricsCalculator` was already computing three more (`sortino_ratio`, `volatility`, `beta`) and discarding them in `state.py:build_strategy_summaries`. There was no regime-conditional decomposition either, despite `dma_overextension_dca_sell` and `fgi_downshift_dca_sell` being FGI-regime-conditional. This iteration adds the missing measurement surface as **additive diagnostic fields** and a new offline attribution tool, deliberately leaving the snapshot regression-gate path untouched.
@@ -316,17 +326,17 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Implemented (contract parity)**:
   - Added 7 matching `z.number().optional()` fields to `BacktestStrategySummarySchema` in `packages/types/src/strategy/backtesting.ts`. `pnpm contracts:check` regenerates the Zod snapshot and aligns it with the Pydantic JSON schema (the parity normalizer ignores `required`/`default`, so `float = 0.0` ↔ `z.number().optional()`).
 - **Implemented (regime breakdown diagnostic)**:
-  - New offline script `scripts/attribution/regime_breakdown.py`. Consumes the `/api/v3/backtesting/compare` timeline (per-day portfolio value, FGI label, DMA zone, transfer events) and decision log, reusing `sweep_production_window` helpers (`COMPARE_PATH`, `_compare_request`, `_window_start`, `_parse_reference_date`) plus `emit_decision_log=True` for trade rows. Attributes each daily return to the regime in effect *going into* the move (regime on day `t-1`). Outputs per-bucket {return-day count, % of time, cumulative %, annualized % (`n/a` below `MIN_ANNUALIZE_DAYS=30`), Sharpe, MaxDD, trade win-rate, trade count} for both FGI regimes (`extreme_fear`/`fear`/`neutral`/`greed`/`extreme_greed`) and DMA zones (`below`/`at`/`above`/`unknown`).
 - **Behavior guard**: `METRIC_KEYS` in `scripts/attribution/sweep_production_window.py` and the compute path for the 5 gated metrics are **unchanged**. The 500-day snapshot fixture is byte-stable; no `--update-snapshot` performed.
-- **Validation**: `uv run pytest tests/services/backtesting/execution/test_performance_metrics.py tests/services/backtesting/execution/test_performance_metrics_edge.py` — 33 passed (incl. 4 new `TestCalculate{Cvar,UlcerIndex,Alpha,InformationRatio}` classes + updated aggregate key-set + insufficient-data tests). `uv run mypy src/models/backtesting.py src/services/backtesting/execution/performance_metrics.py src/services/backtesting/execution/state.py scripts/attribution/regime_breakdown.py` — clean. `uv run ruff check` + `ruff format --check` on the same 5 files — clean. `uv run pytest tests/integration/test_strategy_performance_snapshot.py` — 3 passed (fixture-shape gate). `pnpm contracts:check` (repo root) — Contract parity checks passed.
-- **Not run locally** (requires `DATABASE_READ_ONLY_URL`): `pnpm --filter @zapengine/analytics-engine test:strategy-snapshot:fast` (live drift gate) and a real-data execution of `regime_breakdown.py`. Both are CI-runnable; the live drift gate is expected to be zero-drift since no `METRIC_KEYS`-feeding compute path was modified.
+- **Validation**: `uv run pytest tests/services/backtesting/execution/test_performance_metrics.py tests/services/backtesting/execution/test_performance_metrics_edge.py` — 33 passed (incl. 4 new `TestCalculate{Cvar,UlcerIndex,Alpha,InformationRatio}` classes + updated aggregate key-set + insufficient-data tests). `uv run mypy src/models/backtesting.py src/services/backtesting/execution/performance_metrics.py src/services/backtesting/execution/state.py` and matching Ruff checks were clean. `uv run pytest tests/integration/test_strategy_performance_snapshot.py` — 3 passed (fixture-shape gate). `pnpm contracts:check` (repo root) — Contract parity checks passed.
+- **Not run locally** (requires `DATABASE_READ_ONLY_URL`): `pnpm --filter @zapengine/analytics-engine test:strategy-snapshot:fast` (live drift gate). The gate is expected to be zero-drift since no `METRIC_KEYS`-feeding compute path was modified.
 - **Next**: use the new metrics as the scorecard for Track B (cost-realism validity check — wire `PercentageSlippageModel`, sweep 0/5/10/30 bps, re-validate the 2026-05-14 R4-aggressive +5.17pp under friction) and Track C (parameter sweeps — asymmetric `eth_btc_deviation_dca`, R4 multiplier robustness grid, `trade_quota_guard` sweep). Plan: `~/.claude/plans/zapengine-backtesting-tracks-abc.md`.
 
 ### 2026-05-14 - R5/R6 null-result cleanup
+
 - **Status**: rejected and cleaned up
 - **Commit**: pending local change (`record R5/R6 null sweep cleanup`)
 - **Finding**: R5 slope-scaled `fgi_downshift_dca_sell` sizing and R6 252d cross-up drawdown amplification both produced zero metric movement across the proposed 500-day rule-only variants. Per the no-false-optionality maintenance rule, the opt-in plumbing was removed in the same change instead of leaving dead research params.
-- **Implemented then removed (R5)**: tested `FgiSlopeScaledSizing`, nested `fgi_downshift` public params, flat runtime keys, decision-policy injection, and `rule_only_sweep.py` flags. All proposed step variants were identical to the neutral 5%/5% baseline, so the sizing strategy, params, flags, and tests were removed; `fgi_downshift_dca_sell` remains on `FlatSizing`.
+- **Implemented then removed (R5)**: tested `FgiSlopeScaledSizing`, nested `fgi_downshift` public params, flat runtime keys, and decision-policy injection. All proposed step variants were identical to the neutral 5%/5% baseline, so the sizing strategy, params, flags, and tests were removed; `fgi_downshift_dca_sell` remains on `FlatSizing`.
 - **Implemented then removed (R6)**: tested `peak_distance_252d`, drawdown-only `cross_up` public params, `CrossUpEqualWeightRule.drawdown_amplifier_alpha` / `drawdown_amplifier_threshold`, decision-policy injection, and sweep flags. Alpha variants, including the loose 10% threshold, were identical to the neutral baseline, so the 252d signal/rule/params/flags/tests were removed.
 
 **R5 - fgi_downshift slope-scaled sizing sweep**:
@@ -348,17 +358,19 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Wiring verification**: the requested liveness commands executed successfully, but neither `--fgi-downshift-step-strong 0.20` nor `--cross-up-drawdown-amplifier-alpha 1.0 --cross-up-drawdown-amplifier-threshold 0.10` changed the relevant standalone row. This is a null-result signal, not a promotion candidate.
 - **Decision (R5)**: reject and clean up immediately. The 22 downshift matches did not respond to the proposed slope thresholds in this window.
 - **Decision (R6)**: reject and clean up immediately. The 4 cross-up matches still do not receive a measurable cycle-aware drawdown boost, even at the looser 10% threshold.
-- **Validation**: targeted red-green tests passed before cleanup (`70 passed`). After cleanup, `pnpm type-check` passed, `pnpm lint` passed, `uv run pytest tests/services/backtesting tests/scripts tests/api` passed `855` tests, `pnpm test:strategy-snapshot:fast` reported zero drift, `uv run vulture src/ vulture_whitelist.py --min-confidence 80` passed with no output, and `analyze_compare.py --saved-config-id dma_fgi_portfolio_rules --from-date 2025-01-01 --to-date 2026-04-10 --summary` passed `14/14` validation checks.
+- **Validation**: targeted red-green tests passed before cleanup (`70 passed`). After cleanup, `pnpm type-check` passed, `pnpm lint` passed, `uv run pytest tests/services/backtesting tests/scripts tests/api` passed `855` tests, `pnpm test:strategy-snapshot:fast` reported zero drift, `uv run vulture src/ vulture_whitelist.py --min-confidence 80` passed with no output, and all 14 behavioral validation checks passed.
 
 ### 2026-05-14 - R1/R2 cross-up cleanup after R4 promotion
+
 - **Status**: active
 - **Commit**: pending local change (`cleanup R1/R2 cross-up research plumbing`)
 - **Finding**: R4-aggressive is now the production default, and the earlier R1/R2 cross-up experiments remained opt-in null-result plumbing. Per the same cleanup rule used for previous dead research params, keeping disabled knobs creates false optionality without a validated path to promotion.
-- **Removed symbols**: deleted `CrossUpEqualWeightRule.fgi_slope_min`, `drawdown_amplifier_alpha`, and `drawdown_amplifier_threshold`; removed `DmaMarketState.peak_distance_60d` and `DmaSignalInputs.peak_distance_60d`; removed nested public `cross_up` params and flat runtime keys `cross_up_fgi_slope_min`, `cross_up_drawdown_amplifier_alpha`, and `cross_up_drawdown_amplifier_threshold`; removed matching `rule_only_sweep.py` CLI flags and R1/R2 tests.
+- **Removed symbols**: deleted `CrossUpEqualWeightRule.fgi_slope_min`, `drawdown_amplifier_alpha`, and `drawdown_amplifier_threshold`; removed `DmaMarketState.peak_distance_60d` and `DmaSignalInputs.peak_distance_60d`; removed nested public `cross_up` params and flat runtime keys `cross_up_fgi_slope_min`, `cross_up_drawdown_amplifier_alpha`, and `cross_up_drawdown_amplifier_threshold`; removed matching research flags and R1/R2 tests.
 - **Kept**: `StrategyContext.price_history_map` and `FlatMinimumSignalComponent` asset-specific history routing remain core infrastructure, independent of R2. Historical R1/R2 evidence remains in the 2026-05-13 entry below.
 - **Validation**: `pnpm --filter @zapengine/analytics-engine type-check` passed. `pnpm --filter @zapengine/analytics-engine lint` passed. `uv run pytest tests/services/backtesting tests/scripts tests/api` passed 855 tests. `pnpm --filter @zapengine/analytics-engine test:strategy-snapshot:fast` reported zero drift. `uv run vulture src/ vulture_whitelist.py --min-confidence 80` passed with no output.
 
 ### 2026-05-14 - Promote R4-aggressive DMA overextension sentiment multipliers
+
 - **Status**: active
 - **Commit**: pending local change (`promote R4-aggressive overextension defaults`)
 - **Promoted**: `dma_overextension_dca_sell` now defaults to `overextension_threshold_multiplier_greed=0.50` and `overextension_threshold_multiplier_extreme_greed=0.33` across the rule dataclass, `DmaGatedFgiParams`, and nested public `top_escape` params. Explicit saved config values still override these defaults.
@@ -368,9 +380,10 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Validation**: hierarchical validation events passed `14/14` with no fixture updates. `test_dma_overextension_dca_sell.py` was updated red-first so the new default greed threshold behavior is covered. `sweep_production_window.py --update-snapshot` refreshed `tests/fixtures/strategy_performance_snapshot_500d.json` and regenerated the landing-page equity curve.
 
 ### 2026-05-13 - R4 sentiment-modulated DMA overextension threshold
+
 - **Status**: active
 - **Commit**: pending local change (`dma_overextension_dca_sell R4 opt-in multipliers`)
-- **Implemented**: added opt-in `top_escape` public params for `overextension_threshold_multiplier_greed` and `overextension_threshold_multiplier_extreme_greed`, wired them through `DmaGatedFgiParams`, `decision_policy._rule_for_params`, and `rule_only_sweep.py` CLI flags. `DmaOverextensionDcaSellRule` now multiplies the asset-specific DMA overextension threshold only in `greed` and `extreme_greed`; all other regimes use the existing threshold.
+- **Implemented**: added opt-in `top_escape` public params for `overextension_threshold_multiplier_greed` and `overextension_threshold_multiplier_extreme_greed` and wired them through `DmaGatedFgiParams` and `decision_policy._rule_for_params`. `DmaOverextensionDcaSellRule` now multiplies the asset-specific DMA overextension threshold only in `greed` and `extreme_greed`; all other regimes use the existing threshold.
 - **Behavior guard**: both multipliers default to `1.0`, so default `dma_overextension_dca_sell` behavior and the 500-day snapshot fixture are unchanged.
 - **500-day rule-only sweep vs current overextension baseline**:
   | Variant | Greed mult | Extreme greed mult | ROI | ROI Delta | Calmar | Calmar Delta | Sharpe | Sharpe Delta | Trades | Matches | Decision |
@@ -386,9 +399,10 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Validation**: targeted red-green tests passed (`43 passed` after implementation). `pnpm --filter @zapengine/analytics-engine type-check` passed. `pnpm --filter @zapengine/analytics-engine lint` passed. `uv run pytest tests/services/backtesting tests/scripts tests/api` passed 865 tests. `pnpm --filter @zapengine/analytics-engine test:strategy-snapshot:fast` reported zero 500-day snapshot drift. No `--update-snapshot`.
 
 ### 2026-05-13 - Cross-up sentiment filter and drawdown amplifier opt-in
+
 - **Status**: active
 - **Commit**: pending local change (`cross_up_equal_weight R1/R2 opt-in params`)
-- **Implemented**: added `peak_distance_60d` to `DmaMarketState`, computed from asset-specific `SignalContext.price_history[-60:]`; added `StrategyContext.price_history_map` so flat SPY/BTC/ETH signals do not reuse BTC history for SPY/ETH; added opt-in `cross_up` public params for `fgi_slope_min`, `drawdown_amplifier_alpha`, and `drawdown_amplifier_threshold`; wired them through `DmaGatedFgiParams`, `decision_policy._rule_for_params`, and `rule_only_sweep.py` CLI flags.
+- **Implemented**: added `peak_distance_60d` to `DmaMarketState`, computed from asset-specific `SignalContext.price_history[-60:]`; added `StrategyContext.price_history_map` so flat SPY/BTC/ETH signals do not reuse BTC history for SPY/ETH; added opt-in `cross_up` public params for `fgi_slope_min`, `drawdown_amplifier_alpha`, and `drawdown_amplifier_threshold`; wired them through `DmaGatedFgiParams` and `decision_policy._rule_for_params`.
 - **Behavior guard**: with `fgi_slope_min=None` and `drawdown_amplifier_alpha=None`, `cross_up_equal_weight` keeps the old equal-weight behavior. The drawdown threshold is inert unless alpha is set.
 - **500-day rule-only sweep vs current cross_up baseline**:
   | Variant | fgi_slope_min | drawdown_alpha | ROI | ROI Delta | Calmar | Calmar Delta | Sharpe | Trades | Matches | Decision |
@@ -405,9 +419,10 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Next**: keep R1/R2 as opt-in research params only. If revisiting R2, test a lower drawdown threshold or different peak-distance window before promoting any default.
 
 ### 2026-05-13 - Extreme-fear buy_step sweep and structural root cause
+
 - **Status**: active
 - **Commit**: pending local change (`extreme-fear buy_step variant sweep`)
-- **Plumbed**: added `buy_step` to `_ExtremeFearPublicParams` and `DmaGatedFgiParams`, wired it through `decision_policy._rule_for_params`, and added `--buy-step` to `scripts/attribution/rule_only_sweep.py` so sizing of `extreme_fear_dca_buy` can be tested without code edits.
+- **Plumbed**: added `buy_step` to `_ExtremeFearPublicParams` and `DmaGatedFgiParams` and wired it through `decision_policy._rule_for_params` so sizing of `extreme_fear_dca_buy` can be varied without code edits.
 - **User hypothesis**: 2026-02-06 BTC $62,854 and 2025-11-22 BTC $85,052 were local lows in extreme-fear cycles, so increasing `buy_step` from 0.01 to 0.20 / 0.50 with `min_consecutive_extreme_fear_days=5..7` should let the rule capture them and turn the standalone delta positive.
 - **Size sweep vs minimal-baseline standalone**:
   | N | buy_step | ROI | ROI Delta | Calmar | Sharpe | Matches | Decision |
@@ -426,6 +441,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Next**: if revisiting extreme-fear entries, change the trigger entirely (e.g., require BTC's own DMA distance to be deep below + price drawdown threshold) rather than tuning N or sizing. Alternatively, redesign `cross_up_equal_weight` so it does not force-liquidate below-DMA assets when an unrelated asset (SPY) crosses up — that would unblock holding BTC purchases through a bear cycle.
 
 ### 2026-05-12 - Delete demoted rules and reject extreme-fear consecutive-day promotion
+
 - **Status**: active
 - **Commit**: pending local change (`delete demoted portfolio rules`)
 - **Deleted rules**: removed the demoted stable-gating and greed-suppression rule implementations, their dedicated unit tests, registry exports, API/frontend metadata references, validation-event shaping hooks, and current assistant context entries. Historical log rows remain as audit history only.
@@ -439,9 +455,10 @@ Newest first. Each entry: date, commit, finding, key numbers.
   | 5 | 55.0940 | -0.3193 | 2.2881 | -0.0125 | 1.2903 | -0.0059 | 17 | 8 | 37 | reject |
   | 7 | 55.3616 | -0.0517 | 2.2986 | -0.0020 | 1.2948 | -0.0014 | 17 | 8 | 21 | reject |
 - **Decision**: user intuition was not confirmed. The best variant, N=7, still failed the +0.5pp ROI bar and slightly trailed disabled on Calmar and Sharpe, so `extreme_fear_dca_buy` remains non-default and the default snapshot should not be refreshed for this rule.
-- **Validation**: focused affected tests passed (97 passed, 5 skipped), `pnpm --filter @zapengine/analytics-engine type-check` passed, `pnpm --filter @zapengine/analytics-engine lint` passed, `pnpm --filter @zapengine/analytics-engine deadcode` passed, and `pnpm --filter @zapengine/analytics-engine test` passed with 2420 tests plus zero 500-day snapshot drift. `analyze_compare.py --saved-config-id dma_fgi_portfolio_rules --from-date 2025-01-01 --to-date 2026-04-10 --summary` passed 14/14 validation checks with ROI 66.69%, Calmar 4.90, MaxDD -9.32%, and 48 trades.
+- **Validation**: focused affected tests passed (97 passed, 5 skipped), `pnpm --filter @zapengine/analytics-engine type-check` passed, `pnpm --filter @zapengine/analytics-engine lint` passed, `pnpm --filter @zapengine/analytics-engine deadcode` passed, and `pnpm --filter @zapengine/analytics-engine test` passed with 2420 tests plus zero 500-day snapshot drift. All 14 behavioral validation checks passed with ROI 66.69%, Calmar 4.90, MaxDD -9.32%, and 48 trades.
 
 ### 2026-05-12 - Known-negative rule retune pass
+
 - **Status**: active
 - **Commit**: pending local change (`known-negative portfolio-rule retune`)
 - **Finding**: Re-ran the 2026-05-09 known-negative rule plan against the current rule-only default. The fresh remove-all-three baseline is now stronger than the old pre-port anchor: `dma_fgi_portfolio_rules` without the three review rules is ROI 69.1371%, Calmar 5.0118, Sharpe 2.2797, MaxDD -9.3248%, 45 trades. Enabling all three old ports together is still harmful at ROI 51.4126%, Calmar 3.7889, Sharpe 2.0475, 39 trades. The only retune with material positive attribution was `eth_btc_deviation_dca` with wider 0.50/0.65 thresholds and 14d/60d cooldowns while keeping symmetric coverage enabled, so it was promoted back into the default rule set. `dma_stable_gating` and `greed_sell_suppression` remain non-default.
@@ -474,24 +491,26 @@ Newest first. Each entry: date, commit, finding, key numbers.
   | eth_btc_ratio_rotation | 3 | 3 | 0 |
   | spy_latch | 0 | 0 | 0 |
 
-  | Shadower | Shadowed | Count |
-  | --- | --- | ---: |
-  | dma_overextension_dca_sell | fgi_downshift_dca_sell | 6 |
-  | cross_down_exit | dma_stable_gating | 3 |
-  | eth_btc_deviation_dca | dma_overextension_dca_sell | 3 |
-  | cross_down_exit | dma_overextension_dca_sell | 2 |
-  | dma_overextension_dca_sell | extreme_fear_dca_buy | 2 |
-  | cross_down_exit | extreme_fear_dca_buy | 1 |
-  | cross_up_equal_weight | dma_stable_gating | 1 |
-  | cross_up_equal_weight | extreme_fear_dca_buy | 1 |
-  | eth_btc_ratio_rotation | dma_overextension_dca_sell | 1 |
-  | eth_btc_ratio_rotation | dma_stable_gating | 1 |
-  | eth_btc_ratio_rotation | fgi_downshift_dca_sell | 1 |
+  | Shadower                   | Shadowed                   | Count |
+  | -------------------------- | -------------------------- | ----: |
+  | dma_overextension_dca_sell | fgi_downshift_dca_sell     |     6 |
+  | cross_down_exit            | dma_stable_gating          |     3 |
+  | eth_btc_deviation_dca      | dma_overextension_dca_sell |     3 |
+  | cross_down_exit            | dma_overextension_dca_sell |     2 |
+  | dma_overextension_dca_sell | extreme_fear_dca_buy       |     2 |
+  | cross_down_exit            | extreme_fear_dca_buy       |     1 |
+  | cross_up_equal_weight      | dma_stable_gating          |     1 |
+  | cross_up_equal_weight      | extreme_fear_dca_buy       |     1 |
+  | eth_btc_ratio_rotation     | dma_overextension_dca_sell |     1 |
+  | eth_btc_ratio_rotation     | dma_stable_gating          |     1 |
+  | eth_btc_ratio_rotation     | fgi_downshift_dca_sell     |     1 |
+
 - **Rule-only sweep**: Initial standalone sweep showed `dma_stable_gating` old trigger ROI -13.3723pp vs minimal baseline, `greed_sell_suppression` 0.0000pp, and `eth_btc_deviation_dca` old trigger +5.6761pp. The promoted ETH/BTC retune improved standalone isolation to ROI 61.9655% (+6.5522pp), Calmar 3.3651 (+1.0645), trades 12 (+3), matches 19. The only positive DMA variant, H1.A, had a 0.0000pp rule-only delta despite 53 matches, so it failed the retention bar.
-- **Validation**: `analyze_compare.py --saved-config-id dma_fgi_portfolio_rules --from-date 2025-01-01 --to-date 2026-04-10 --summary` passed 14/14 validation checks with ROI 66.69%, Calmar 4.90, MaxDD -9.32%, 48 trades. Focused tests passed for `tests/services/backtesting/portfolio_rules/test_eth_btc_deviation_dca.py` and `tests/services/backtesting/strategies/test_dma_fgi_rule_attribution.py`. `tests/api/test_v3_strategy.py` could not run locally because the test Postgres on localhost:5433 was not running; the first failure was connection refused during fixture setup.
+- **Validation**: all 14 behavioral validation checks passed with ROI 66.69%, Calmar 4.90, MaxDD -9.32%, 48 trades. Focused tests passed for `tests/services/backtesting/portfolio_rules/test_eth_btc_deviation_dca.py` and `tests/services/backtesting/strategies/test_dma_fgi_rule_attribution.py`. `tests/api/test_v3_strategy.py` could not run locally because the test Postgres on localhost:5433 was not running; the first failure was connection refused during fixture setup.
 - **Next**: Keep `dma_stable_gating` and `greed_sell_suppression` in non-default attribution diagnostics. If revisiting DMA stable gating, require an event-driven previous-zone field rather than another broad state trigger.
 
 ### 2026-05-10 - Single strategy surface
+
 - **Status**: active
 - **Commit**: pending local change (`dma_fgi_portfolio_rules` only)
 - **Finding**: Collapsed the production-facing strategy surface to the canonical `dma_fgi_portfolio_rules` recipe and removed the ETH/BTC rotation strategy plus leave-one-out attribution variants.
@@ -499,16 +518,18 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Snapshot scope**: the 500-day fixture now tracks only `dma_fgi_portfolio_rules`; historical attribution rows remain below for audit context.
 
 ### 2026-05-10 - Rule-only architecture migration
+
 - **Status**: active
 - **Commit**: `4bdd93f2` + pending local change (`rule-only portfolio rules migration`)
 - **Finding**: Completed the rule-only migration by adding `SpyLatchRule` as a stateful post-intent adjustment, adding `EthBtcContinuousWeightRule` for saved-config BTC/ETH rotation, rewriting `eth_btc_rotation` onto the `RuleBasedAllocationExecutor`, and deleting the hierarchical/pair-rotation strategy infrastructure.
 - **Deleted infrastructure**: removed `hierarchical_minimum.py`, `hierarchical_outer_policy.py`, `hierarchical_attribution.py`, `spy_crypto_hierarchical_rotation.py`, `pair_rotation_template.py`, the hierarchical attribution sweep/diagnostic scripts, and their dedicated tests.
 - **Snapshot delta vs 2026-05-09 `dma_fgi_portfolio_rules` baseline**: ROI remains 50.5217%, Calmar 3.7265, Sharpe 2.0178, MaxDD -9.3248%, trades 52. The refreshed 500-day fixture removes `dma_fgi_hierarchical_control` and `retired hierarchical minimum`; `eth_btc_rotation` remains 126.2611% ROI, so the rule wrapper stayed within the ±5pp saved-config tolerance.
 - **SPY latch attribution**: added `dma_fgi_portfolio_rules_minus_spy_latch` after the rule-only migration. The 500-day leave-one-out is behavior-neutral vs baseline: ROI 50.5217%, Calmar 3.7265, Sharpe 2.0178, MaxDD -9.3248%, trades 52.
-- **Validation events**: added `spy_latch_absorb_fresh_stable_2026_04_16` for synthetic 14-day latch absorption and `eth_btc_continuous_weight_2025_07_15` for real BTC/ETH continuous weighting. Live `analyze_compare.py` validation passes for `dma_fgi_portfolio_rules` (19 checked) and `eth_btc_rotation` (3 checked).
+- **Validation events**: added `spy_latch_absorb_fresh_stable_2026_04_16` for synthetic 14-day latch absorption and `eth_btc_continuous_weight_2025_07_15` for real BTC/ETH continuous weighting. Behavioral validation passes for `dma_fgi_portfolio_rules` (19 checked) and `eth_btc_rotation` (3 checked).
 - **Known issue carried forward**: `dma_stable_gating`, `greed_sell_suppression`, and `eth_btc_deviation_dca` still have negative leave-one-out attribution in the flat first-match engine. Next iteration should retune DMA stable gating to an event-driven trigger, revisit greed suppression interaction with overextension sells, and lower/fixture the ETH/BTC deviation DCA thresholds.
 
 ### 2026-05-09 - Flat portfolio-rule hierarchical behavior ports
+
 - **Status**: superseded
 - **Commit**: `065860d8` + pending local change (`dma_fgi_portfolio_rules` rule ports)
 - **Finding**: Ported `dma_stable_gating`, `greed_sell_suppression`, and `eth_btc_deviation_dca` into the canonical flat portfolio-rule engine with leave-one-out attribution variants. The implementation is traceable and fixture-covered, but the 500-day snapshot says all three ports are harmful in the current flat-rule form.
@@ -519,6 +540,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Decision**: keep these ports only as explicit canonical-strategy behavior under review; do not promote them as proven improvements without narrower triggers, threshold tuning, or disabling the harmful pieces.
 
 ### 2026-05-08 — Portfolio rule cooldowns localized
+
 - **Status**: active
 - **Commit**: pending local change (`dma_fgi_portfolio_rules` per-rule cooldown)
 - **Finding**: The shared post-trade portfolio cooldown gate was removed because it let a cross-down sell suppress short-lived extreme-fear DCA opportunities. Portfolio rules now expose rule-local cooldown fields, defaulting to 0d, and cooldown state is recorded only after an executed transfer.
@@ -526,6 +548,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Validation**: `dma_fgi_portfolio_rules` hierarchical validation passes with `extreme_fear_dca_2025_03_11` PASS; 500-day strategy snapshot reports no metric drift above tolerance.
 
 ### 2026-05-07 — Risk layer extraction and adaptive sizing audit trail
+
 - **Status**: active
 - **Commit**: pending local change (`phase4-risk-sizing`)
 - **Finding**: Moved `trade_quota` and `dma_buy_gate` from portfolio-rule wrappers into post-decision `risk/` guards while preserving the old priority semantics, then added `SizingStrategy` with flat defaults and canonical `FgiExponentialSizing(max_multiplier=1.1)` for extreme-fear buys.
@@ -534,6 +557,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Validation**: `tests/test_validation_events.py` passed after both Phase B and Phase C. Full `pnpm --filter @zapengine/analytics-engine test` remains blocked locally by a corrupted Docker test container (`analytics-test-postgres` returns containerd input/output errors), not by pytest failures.
 
 ### 2026-05-07 — Portfolio rules hierarchical-feature port stopped at DMA stable gating
+
 - **Status**: superseded
 - **Commit**: pending local change (`dma_fgi_portfolio_rules` priority-spacing setup)
 - **Finding**: Phase 0 priority spacing was behavior-neutral after preserving the existing optional `dma_buy_gate` order after overextension sells. Phase 1's direct flat translation of DMA stable gating (`BTC/ETH below DMA` + crypto FGI in `fear/extreme_fear` -> route to stable) had the wrong sign and was reverted per the stop condition. The ablation proved isolation, but the trigger was too broad in the flat rule layer and blocked profitable extreme-fear DCA exposure.
@@ -541,21 +565,23 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Next**: Reassess the source behavior before trying another port. The profitable hierarchical "DMA stable gating" appears tied to outer DMA intent composition, not the broad below-DMA fear/extreme-fear crypto blocker tested here.
 
 ### 2026-05-07 — Cross-up cooldown restored and validation trigger assets
+
 - **Status**: active
 - **Commit**: pending local change (`dma_fgi_portfolio_rules` cooldown validation follow-up)
-- **Finding**: Reverted the raw `cross_event` re-entry bypass introduced in the 2026-05-06 iteration: `cross_up_equal_weight` now requires `actionable_cross_event == "cross_up"` and emits `portfolio_rule_trigger_assets` so hierarchical observation diagnostics select the actual cross-triggering asset. `analyze_compare.py` now marks cross-down validation events as `SKIPPED` when the reference asset was already at zero in the previous explicit target allocation.
+- **Finding**: Reverted the raw `cross_event` re-entry bypass introduced in the 2026-05-06 iteration: `cross_up_equal_weight` now requires `actionable_cross_event == "cross_up"` and emits `portfolio_rule_trigger_assets` so hierarchical observation diagnostics select the actual cross-triggering asset. Cross-down validation events are skipped when the reference asset was already at zero in the previous explicit target allocation.
 - **Snapshot delta vs 55.02% / 47 trades / 3.20 Calmar baseline**: ROI 55.02% → 64.31% (+9.29pp), Calmar 3.20 → 4.28 (+1.09), Sharpe 1.63 → 1.90 (+0.27), MaxDD -11.80% → -10.20% (+1.59pp), trades 47 → 47 (0).
 - **Validation events**: Targeted `dma_fgi_portfolio_rules` checks now resolve `btc_cross_down_2025_03_08` as `SKIPPED`, `cooldown_period_2025_03_24` as `PASS`, and `eth_cross_up_2025_06_09` as `PASS`. The full fixture still has unrelated pre-existing failures in other event families.
 
 ### 2026-05-06 — Portfolio cross semantics and analyzer output cleanup
+
 - **Status**: active
-- **Commit**: pending local change (`dma_fgi_portfolio_rules` fixture semantics + `analyze_compare.py` CLI cleanup)
+- **Commit**: pending local change (`dma_fgi_portfolio_rules` fixture semantics)
 - **Finding**: Portfolio cross-down exits now liquidate BTC/ETH as one crypto peer group while preserving SPY, and SPY-only cross-down remains SPY-scoped. Cross-up equal-weight now treats a same-day raw cross-up as eligible even when the previous cross-down cooldown still marks the above zone blocked, allowing stable to redeploy on the explicit cross-up signal.
-- **Analyzer cleanup**: `analyze_compare.py` no longer exposes output-section profiles; default output renders all sections and `--section` remains the explicit subset mechanism. Markdown `--out` paths are resolved to absolute paths, emit a save notice, and write fallback markdown when markdown rendering fails after constraint validation is available.
 - **Snapshot result**: 500-day `dma_fgi_portfolio_rules` snapshot check reports no metric drift above tolerance; the traceability baseline remains ROI 55.02%, Calmar 3.20, MaxDD -11.80%, and 47 trades.
 - **Validation events**: `btc_cross_down_preserve_spy_2025_10_18` and `spy_cross_up_redeploy_2026_04_08` pass as targeted live API constraint checks for `dma_fgi_portfolio_rules`.
 
 ### 2026-05-05 — Portfolio rules atomic execution
+
 - **Status**: active
 - **Commit**: pending local change (`dma_fgi_portfolio_rules` rule-based executor)
 - **Finding**: `dma_fgi_portfolio_rules` now uses `RuleBasedAllocationExecutor`, so each matched portfolio rule executes the full target-allocation delta on the same bar instead of routing through `FgiExponentialPacingPolicy` and multi-step ramps. The legacy allocation executor, pacing policy, and execution plugins remain untouched for the other strategies.
@@ -564,6 +590,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Regression pins**: unit coverage verifies atomic full-delta transfers, cost-model handoff, buy-gate holds, trade-quota holds, and strategy wiring. The 2025-03-24 validation event passes, and the research-inclusive 500-day snapshot re-anchor shows drift only in the portfolio-rules family before update.
 
 ### 2026-05-05 — SPY portfolio cross-down cooldown aligned to 30d
+
 - **Status**: active
 - **Commit range**: `38ae5e3..3cf9464` plus this snapshot/docs update.
 - **Finding**: `dma_fgi_portfolio_rules` now feeds per-symbol cross-down cooldowns into the flat minimum DMA engines with BTC/ETH/SPY all at 30d by default. Later iterations removed the separate shared post-trade DCA gate in favor of rule-local cooldowns.
@@ -571,12 +598,14 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Regression pins**: unit coverage locks the cooldown lookup defaults and custom fallback; strategy coverage verifies SPY and BTC remain cooldown-blocked across the default window. The 2025-03-24 validation event now checks that cooldown-blocked cross-up equal-weight re-entry does not match while allowing hold targets to preserve existing SPY exposure from prior validated DCA. A synthetic 2025-07-15 ETH/BTC ratio cross-up test pins the complete BTC→ETH rotation behavior.
 
 ### 2026-05-04 — Portfolio cross-down cooldown gating
+
 - **Commit**: pending local change on `57be82e` (`dma_fgi_portfolio_rules` cross-down cooldown)
 - **Finding**: Portfolio cross rules now consume `actionable_cross_event`, and the DMA signal engine now suppresses actionable crosses whose target zone is still cooldown-blocked. This makes the existing 30-day cross cooldown effective for `dma_fgi_portfolio_rules`: after a cross-down commits, raw cross-up observations can still appear, but they are not actionable until the blocked-side cooldown has cleared.
 - **Snapshot delta vs previous `dma_fgi_portfolio_rules` baseline**: ROI 9.37% → 29.73% (+20.36pp), Calmar 0.29 → 1.33 (+1.03), Sharpe 0.40 → 0.99 (+0.59), MaxDD -22.83% → -15.73% (+7.10pp), trades 102 → 82 (-20).
 - **Attribution sanity**: `_minus_cross_up_eq_weight` remains near the old risk-managed reference at 10.02% ROI / 1.02 Calmar / 71 trades, confirming the cooldown keeps cross-up exposure selective rather than removing the rule outright. `_minus_cross_down_exit` falls to 8.97% ROI, so the cross-down exit remains valuable once whipsaw re-entry is blocked.
 
 ### 2026-05-04 — Flat portfolio-rule engine
+
 - **Commit**: this commit (`dma_fgi_portfolio_rules` research baseline + attribution variants)
 - **Finding**: Added a portfolio-level rule layer parallel to asset-local tactics. The canonical strategy evaluates the five flat rules first-match-wins: cross-down exits, cross-up equal-weight, extreme-fear DCA buy, DMA-overextension DCA sell, and FGI-downshift DCA sell. Each rule has its own file and a leave-one-out strategy id for snapshot attribution.
 - **Result**: `dma_fgi_portfolio_rules` ROI = 9.37%, Calmar 0.29, MaxDD -22.83%, 102 trades.
@@ -584,21 +613,24 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Comparison**: vs `retired hierarchical minimum` (121.30% ROI), -111.93pp ROI; vs `dma_fgi_eth_btc_minimum` (145.28% ROI), -135.91pp ROI.
 
 ### 2026-05-04 — SPY macro extreme fear + persistent SPY latch
+
 - **Commit**: this commit (`retired hierarchical minimum` production behavior re-anchor)
 - **Finding**: Added fixture-backed crypto extreme-fear DCA dates, introduced a SPY-side macro extreme-fear DCA rule using CNN macro F&G plus SPY DMA, and promoted the SPY latch from same-tick-only behavior to persistent fresh-stable absorption while the latch remains active. The 500-day minimum baseline stays inside the ROI noise band while improving risk-adjusted metrics, so the snapshot was re-anchored.
 - **Snapshot delta vs previous `retired hierarchical minimum` baseline**: ROI 121.44% → 121.30% (-0.14pp), Calmar 4.50 → 4.63 (+0.12), Sharpe 1.91 → 1.98 (+0.07), MaxDD -17.46% → -16.97% (+0.48pp), trades 85 → 81 (-4).
 - **Validation events**: new constraints pass for crypto extreme-fear DCA on 2025-03-11 and 2025-04-07, SPY macro extreme-fear DCA on 2025-03-13 and 2025-04-08, and persistent latch absorption on 2025-05-24. Proposed 2025-03-09/2025-03-03 were shifted because the trigger gates did not resolve to crypto extreme fear / SPY below-DMA respectively.
 
 ### 2026-05-03 — Flat minimum baseline
+
 - **Commit**: this commit (`dma_fgi_flat_minimum` research baseline + sweep)
 - **Rationale**: Break the strategy out of the hierarchical outer SPY/crypto sleeve and inner BTC/ETH ratio framework while preserving the minimum stack's event-driven DMA semantics. The flat baseline removes outer/inner gating, adaptive crypto DMA reference selection, ETH/BTC ratio rotation, and target composers; each of SPY/BTC/ETH gets its own DMA-200 gate. Cross-down sells only the triggering asset to stable, explicit buy intents redeploy existing stable, and no-signal days preserve the current allocation.
 - **Result**: `dma_fgi_flat_minimum` ROI = 24.04%, Calmar 0.93, MaxDD -18.31%, 55 trades.
 - **Comparison**:
   - vs `retired hierarchical minimum` (121.44% ROI, 4.50 Calmar, -17.46% MaxDD, 85 trades): -97.40pp ROI, -3.57 Calmar, 0.85pp deeper drawdown, -30 trades.
   - vs `dma_fgi_eth_btc_minimum` (145.28% ROI, 4.46 Calmar, -20.72% MaxDD, 51 trades): -121.24pp ROI, -3.53 Calmar, 2.41pp shallower drawdown, +4 trades.
-- **Validation note**: `analyze_compare.py` on 2025-02-02 now passes `eth_cross_down_2025_02_02` for `dma_fgi_flat_minimum`: `target_allocation.eth = 0.0`, portfolio ETH = 0.0, and stable rises to ~72.11%.
+- **Validation note**: the 2025-02-02 case now passes `eth_cross_down_2025_02_02` for `dma_fgi_flat_minimum`: `target_allocation.eth = 0.0`, portfolio ETH = 0.0, and stable rises to ~72.11%.
 
 ### 2026-05-02 - SPY tax fix attempt: DMA-discipline variants (Phase D)
+
 - **Commit**: this commit (DMA cooldown/below-DMA research variants + sweep)
 - **D-1 finding**: BTC vs ETH split on 2025-04-22 in `retired hierarchical minimum` is BTC 0.00%, ETH 90.48%, SPY 9.52%, stable 0.00%; inner-pair fix needed yes.
 - **Variants**:
@@ -615,6 +647,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Next**: Phase E should isolate the inner BTC/ETH DMA correctness gap without applying outer below-DMA hold globally; also revisit a direct S2 composition constraint or ETH max-down logic separately.
 
 ### 2026-05-02 - SPY tax fix attempt: S1/S4 targeted variants
+
 - **Commit**: this commit (targeted S1/S4 research variants + sweep)
 - **Variants**:
   - Retired hierarchical minimum DMA-buffer: S1 test; requires 3% above-DMA distance before above-DMA DMA buy entries.
@@ -627,6 +660,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Next**: re-run diagnosis with finer instrumentation around stable-vs-SPY allocation and post-sell redeploy timing. The first diagnosis correctly identified weak SPY events and oscillation, but these simple gates did not isolate the return leak.
 
 ### 2026-05-02 - SPY tax pattern diagnosis
+
 - **Commit**: `8ab4485` (SPY tax diagnostic tooling)
 - **Diagnostic**: removed; see git history (the durable verdict and statistics are retained below)
 - **Pattern verdict**: S1 + S4
@@ -640,6 +674,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Next**: Phase C will build variants targeting S1 and S4 specifically.
 
 ### 2026-05-02 — SPY tax decomposed via `dma_fgi_eth_btc_minimum`
+
 - **Commit**: `05326af` (eth_btc_minimum research variant + sweep)
 - **Hypothesis**: 19.77pp gap between `dma_fgi_adaptive_binary_eth_btc` (141.21%) and `retired hierarchical minimum` (121.44%) is a mix of SPY constraint cost / outer architecture cost / context-dependent greed_sell_suppression
 - **Result**: `dma_fgi_eth_btc_minimum` ROI = 145.28%, Calmar 4.46, MaxDD -20.72%, 51 trades
@@ -647,12 +682,14 @@ Newest first. Each entry: date, commit, finding, key numbers.
 - **Next iteration target**: diagnose SPY/crypto switch timing in outer pair-template. Suspects: outer DMA gating threshold too aggressive, composition formula shrinks crypto share too fast when SPY rises, symmetric DMA200 windows ignore asset volatility differences, no "both-above-DMA hold" rule (oscillates between SPY and crypto).
 
 ### 2026-04-15 — Buy Floor removed, Phase A deprecation
+
 - **Commit**: `e3e140c` (Buy Floor removal + 8 strategies marked DEPRECATED)
 - **Finding**: `dma_buy_strength_floor` has +0.28pp Δ in the minimum baseline (1 trade difference over 500 days). Below noise threshold. Removed from `MinimumHierarchicalOuterPolicy` at the type level. Added `feature_summary()` method to outer policy Protocol.
 - **Snapshot delta**: `retired hierarchical minimum` 121.16% → ~121.44% (matches old `_minus_buy_floor` exactly, validating behavior-equivalence).
 - **Deprecated**: 4 `full_minus_*` Phase 1 variants (poisoned by Adaptive DMA), `adaptive_dma_only`, `fear_recovery_only`, two `(sucks)` controls.
 
 ### 2026-04-15 — `retired hierarchical minimum` shipped
+
 - **Commit**: `fe8db22`
 - **Finding**: Minimum hierarchical SPY/crypto strategy (DMA gating + Greed Sell Suppression + Buy Floor + inner ETH/BTC rotation) hits 121.16% ROI vs production 36.62%. Validates that Adaptive DMA Reference + Fear Recovery Buy + SPY Cross-Up Latch are all unnecessary or harmful.
 - **Architecture**: introduced `HierarchicalOuterDecisionPolicy` Protocol, extracted `FullFeaturedOuterPolicy` from existing strategy class (behavior-preserving refactor), added `MinimumHierarchicalOuterPolicy` as a 2-feature composition.
@@ -663,6 +700,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
   - `_minus_dma_gating`: 24.48% (-96.68pp Δ — DMA gating is foundation)
 
 ### 2026-04-15 — 500-day snapshot fixture established
+
 - **Commit**: `6b09fa6` (snapshot fixture + sweep_production_window.py)
 - **Finding**: Yearly attribution windows in `sweep_hierarchical.py` don't predict 500-day production performance — path-dependent state resets at year boundaries. New script runs the same 500-day window the frontend uses, with snapshot fixture as ground truth.
 - **Cross-strategy bug surfaced**: `test_spy_does_not_dilute_total_return` and `test_production_not_worse_than_ablations` fail on initial snapshot — these are intentional regression markers for the next iteration to fix.
@@ -670,6 +708,7 @@ Newest first. Each entry: date, commit, finding, key numbers.
 ### Adding new entries
 
 When you complete an iteration, prepend a new entry above with:
+
 1. Date
 2. Commit hash (use `git rev-parse --short HEAD` after merging)
 3. One-paragraph finding

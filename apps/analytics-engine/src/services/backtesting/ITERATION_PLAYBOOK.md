@@ -5,29 +5,18 @@ Use this checklist for any rule, priority, or saved-config behavior change in
 
 ## Gate
 
-Replace `<to-date>` and `<reference-date>` with today's UTC date unless the step
-explicitly says to preserve an existing fixture window.
-
 1. Edit rules, priorities, sizing, or risk guards.
-2. Run `analyze_compare.py` for every changed saved config:
+2. Update the behavioral validation fixture when expected decisions change,
+   then run its gate and the backtesting suite:
    ```bash
-   pnpm --filter @zapengine/analytics-engine exec uv run python scripts/analyze_compare.py \
-     --saved-config-id <strategy_id> --from-date 2025-01-01 --to-date <to-date> --summary
+   pnpm --filter @zapengine/analytics-engine exec uv run pytest \
+     tests/test_validation_events.py tests/services/backtesting
    ```
-3. Run a decision-log attribution report:
+3. Check the pinned production-history snapshot:
    ```bash
-   pnpm --filter @zapengine/analytics-engine exec uv run python scripts/analyze_compare.py \
-     --saved-config-id dma_fgi_portfolio_rules --from-date 2025-01-01 --to-date <to-date> \
-     --emit-decision-log --decision-log-dir /tmp/zapengine-decisions
-   pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/per_rule_report.py \
-     /tmp/zapengine-decisions/decisions.jsonl --strategy dma_fgi_portfolio_rules --format markdown
+   pnpm --filter @zapengine/analytics-engine test:strategy-snapshot
    ```
-4. If a rule priority, allowlist, or trigger changed, run standalone isolation:
-   ```bash
-   pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/rule_only_sweep.py \
-     --reference-date <reference-date> --days 500 --format markdown
-   ```
-5. Regenerate the 500-day snapshot only for intentional performance drift:
+4. Regenerate the 500-day snapshot only for intentional performance drift:
    ```bash
    pnpm --filter @zapengine/analytics-engine exec uv run python scripts/attribution/sweep_production_window.py \
      --update-snapshot
@@ -37,25 +26,17 @@ explicitly says to preserve an existing fixture window.
    `--reference-date` re-cuts at the fixture's current date, so iteration
    diffs stay apples-to-apples. Pass `--reference-date` explicitly only when
    you intend to move the window.
-6. Prepend an `ITERATION_LOG.md` entry using the template below.
+5. Prepend an `ITERATION_LOG.md` entry using the template below.
 
 ## Log Template
 
 ```markdown
 ### YYYY-MM-DD - Short iteration title
+
 - **Status**: active | superseded | removed-strategy
 - **Commit**: pending local change (`short scope`) or `<hash>`
 - **Finding**: One paragraph explaining what changed and why.
 - **Snapshot delta**: ROI, Calmar, Sharpe, MaxDD, trade count versus prior baseline.
-- **Per-rule report**: Attach match / win / shadowed counts and top shadowing pairs.
-- **Rule-only sweep**: Attach standalone deltas for any rule whose trigger or priority changed.
 - **Validation**: List targeted validation events and test commands.
 - **Next**: Follow-up items or explicit no-follow-up note.
 ```
-
-## Interpretation
-
-Leave-one-out on the flat first-match engine measures marginal contribution
-given the current priority order. It is not a standalone rule-quality score.
-Use `per_rule_report.py` to identify shadowing, and `rule_only_sweep.py` to
-measure `minimal baseline + rule` behavior independently of production priority.

@@ -23,9 +23,8 @@ Run locally (requires ``DATABASE_READ_ONLY_URL`` for real fold runs):
         --output reports/optuna_dma_fgi.json
 
 The categorical-set knobs (``enabled_rules`` / ``disabled_rules``) and
-the list knob (``buy_leg_caps``) are intentionally left fixed in v1 —
-their search spaces blow up TPE without obvious payoff, and the
-existing ``rule_only_sweep.py`` already covers rule-set diagnostics.
+the list knob (``buy_leg_caps``) are intentionally left fixed in v1 because
+their search spaces blow up TPE without obvious payoff.
 """
 
 from __future__ import annotations

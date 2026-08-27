@@ -4,10 +4,8 @@
 backtesting strategy iteration. It defines historical market events and the
 expected strategy decision behavior on those dates.
 
-The fixture is consumed by:
-
-- `tests/test_validation_events.py` for the pytest CI gate.
-- `scripts/analyze_compare.py` unless `--no-constraints` is passed.
+The fixture is consumed by `tests/test_validation_events.py` for the pytest CI
+gate.
 
 The assertion language is project-specific. It validates strategy-domain
 concepts such as target allocations, DMA crosses, decision reasons, and matched
@@ -67,19 +65,19 @@ assertion semantics so the failure stays loud.
 Event triggers verify that the timeline point really matches the market condition
 the fixture claims to exercise before assertion checks run.
 
-| `event_type` | Trigger checked |
-|---|---|
-| `crypto_cross_down` | Crypto DMA cross is `cross_down`; `reference_asset` narrows BTC/ETH when provided. |
-| `crypto_cross_up` | Crypto DMA cross is `cross_up`; `reference_asset` narrows BTC/ETH when provided. |
-| `spy_cross_down` | SPY DMA cross is `cross_down`. |
-| `spy_cross_up` | SPY DMA cross is `cross_up`. |
+| `event_type`                    | Trigger checked                                                                                                       |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `crypto_cross_down`             | Crypto DMA cross is `cross_down`; `reference_asset` narrows BTC/ETH when provided.                                    |
+| `crypto_cross_up`               | Crypto DMA cross is `cross_up`; `reference_asset` narrows BTC/ETH when provided.                                      |
+| `spy_cross_down`                | SPY DMA cross is `cross_down`.                                                                                        |
+| `spy_cross_up`                  | SPY DMA cross is `cross_up`.                                                                                          |
 | `extreme_fear_below_crypto_dma` | Assertion window contains a day where crypto sentiment or macro F&G is `extreme_fear` and crypto DMA zone is `below`. |
-| `extreme_fear_below_spy_dma` | Assertion window contains a day where macro F&G is `extreme_fear` and SPY DMA zone is `below`. |
-| `crypto_dma_fgi_sell` | Decision reason contains a crypto sell reason. |
-| `eth_btc_ratio_cross_up` | Inner ETH/BTC ratio zone crosses from `below` to `above`. |
-| `eth_btc_ratio_cross_down` | Inner ETH/BTC ratio zone crosses from `above` to `below`. |
-| `decision_action_assertion` | No market trigger check; use for decision-only assertions. |
-| `hold` | No market trigger check; use for free-form date assertions that define which assets may move. |
+| `extreme_fear_below_spy_dma`    | Assertion window contains a day where macro F&G is `extreme_fear` and SPY DMA zone is `below`.                        |
+| `crypto_dma_fgi_sell`           | Decision reason contains a crypto sell reason.                                                                        |
+| `eth_btc_ratio_cross_up`        | Inner ETH/BTC ratio zone crosses from `below` to `above`.                                                             |
+| `eth_btc_ratio_cross_down`      | Inner ETH/BTC ratio zone crosses from `above` to `below`.                                                             |
+| `decision_action_assertion`     | No market trigger check; use for decision-only assertions.                                                            |
+| `hold`                          | No market trigger check; use for free-form date assertions that define which assets may move.                         |
 
 ## Assertion Fields
 
