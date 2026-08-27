@@ -9,6 +9,7 @@ export default defineKnipConfig({
   entry: [
     'src/index.ts',
     'src/worker.ts',
+    'src/observability/sentry-smoke.ts',
     'src/social/cli.ts',
     'src/social/login.ts',
     'src/social/metrics.ts',

@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { EpisodeRenderMetrics } from './ops-ledger.js';
 import { uploadVideoArtifactsToR2 } from './storage.js';
 import { combineAbortSignalWithTimeout } from './video/abort.js';
 import { downloadNarrationAudio } from './video/audio-analysis.js';
@@ -206,10 +207,7 @@ export function createEpisodeVideoProcessor(
         try {
           const observedPeakBytes =
             memorySampler === null ? null : await memorySampler.stop();
-          await logRenderMetrics(dependencies.logger, {
-            run: context.runId,
-            episode: source.episodeId,
-            language: source.languageCode,
+          const metrics = buildRenderMetrics({
             status: renderStatus,
             wallMs: Date.now() - renderStartedAt,
             durationMs: generated.manifest.clip.durationMs,
@@ -225,6 +223,16 @@ export function createEpisodeVideoProcessor(
             observedPeakBytes,
             currentBytes: await dependencies.readCgroupMemory(),
           });
+          logRenderMetrics(
+            dependencies.logger,
+            {
+              run: context.runId,
+              episode: source.episodeId,
+              language: source.languageCode,
+            },
+            metrics,
+          );
+          context.reportRenderMetrics(metrics);
         } finally {
           renderDeadline.dispose();
         }
@@ -311,10 +319,10 @@ function logRenderProgress(
 function logLocaleVideoEvent(
   logger: Pick<Console, 'info'>,
   event: string,
-  fields: Record<string, string | number>,
+  fields: Record<string, string | number | undefined>,
 ): void {
   const details = Object.entries(fields)
-    .map(([key, value]) => `${key}=${value}`)
+    .flatMap(([key, value]) => (value === undefined ? [] : [`${key}=${value}`]))
     .join(' ');
   logger.info(`[video-worker] ${event} ${details}`);
 }
@@ -364,40 +372,28 @@ function bytesToMb(bytes: number): number {
   return Math.round((bytes / 1024 / 1024) * 10) / 10;
 }
 
-async function logRenderMetrics(
-  logger: Pick<Console, 'info'>,
-  fields: {
-    run: string;
-    episode: string;
-    language: string;
-    status: 'completed' | 'failed';
-    wallMs: number;
-    durationMs: number;
-    narrationDownloadMs: number;
-    mediaMs?: number;
-    chunkEncodeMs?: number;
-    finalEncodeMs?: number;
-    downscaleMs?: number;
-    observedPeakBytes: number | null;
-    currentBytes: number | null;
-  },
-): Promise<void> {
-  const {
-    observedPeakBytes,
-    currentBytes,
-    mediaMs,
-    chunkEncodeMs,
-    finalEncodeMs,
-    downscaleMs,
-    ...eventFields
-  } = fields;
-  logLocaleVideoEvent(logger, 'video:render-metrics', {
-    ...eventFields,
-    ...(mediaMs === undefined ? {} : { mediaMs }),
-    ...(chunkEncodeMs === undefined ? {} : { chunkEncodeMs }),
-    ...(finalEncodeMs === undefined ? {} : { finalEncodeMs }),
-    ...(downscaleMs === undefined ? {} : { downscaleMs }),
-    realtime: (fields.durationMs / Math.max(fields.wallMs, 1)).toFixed(3),
+/**
+ * Derives the render's own report from the raw measurements. Built once and
+ * used twice — logged as `video:render-metrics` and written to the cost ledger
+ * — so the line in `fly logs` and the row in `ops.pipeline_stage_runs` can
+ * never disagree about what a render cost.
+ */
+function buildRenderMetrics(fields: {
+  status: 'completed' | 'failed';
+  wallMs: number;
+  durationMs: number;
+  narrationDownloadMs: number;
+  mediaMs?: number;
+  chunkEncodeMs?: number;
+  finalEncodeMs?: number;
+  downscaleMs?: number;
+  observedPeakBytes: number | null;
+  currentBytes: number | null;
+}): EpisodeRenderMetrics {
+  const { observedPeakBytes, currentBytes, ...measured } = fields;
+  return {
+    ...measured,
+    realtimeFactor: fields.durationMs / Math.max(fields.wallMs, 1),
     nodeRssMb: bytesToMb(process.memoryUsage().rss),
     ...(currentBytes === null
       ? {}
@@ -405,6 +401,19 @@ async function logRenderMetrics(
     ...(observedPeakBytes === null
       ? {}
       : { cgroupPeakObservedMb: bytesToMb(observedPeakBytes) }),
+  };
+}
+
+function logRenderMetrics(
+  logger: Pick<Console, 'info'>,
+  identity: { run: string; episode: string; language: string },
+  metrics: EpisodeRenderMetrics,
+): void {
+  const { realtimeFactor, ...reported } = metrics;
+  logLocaleVideoEvent(logger, 'video:render-metrics', {
+    ...identity,
+    ...reported,
+    realtime: realtimeFactor.toFixed(3),
   });
 }
 

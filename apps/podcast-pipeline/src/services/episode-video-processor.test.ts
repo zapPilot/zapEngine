@@ -120,6 +120,7 @@ describe('createEpisodeVideoProcessor', () => {
       runId: 'run12345',
       saveManifest,
       reportProgress: vi.fn(),
+      reportRenderMetrics: vi.fn(),
     });
 
     expect(calls).toEqual(['save', 'render', 'upload']);
@@ -214,6 +215,7 @@ describe('createEpisodeVideoProcessor', () => {
       runId: 'run12345',
       saveManifest: vi.fn().mockResolvedValue(undefined),
       reportProgress,
+      reportRenderMetrics: vi.fn(),
     });
 
     expect(reportProgress.mock.calls.map(([update]) => update)).toEqual([
@@ -270,6 +272,7 @@ describe('createEpisodeVideoProcessor', () => {
       runId: 'run12345',
       saveManifest: vi.fn().mockResolvedValue(undefined),
       reportProgress: vi.fn(),
+      reportRenderMetrics: vi.fn(),
     });
 
     const lines = logger.info.mock.calls.map(([line]) => line as string);
@@ -306,11 +309,13 @@ describe('createEpisodeVideoProcessor', () => {
       logger,
     });
 
+    const reportRenderMetrics = vi.fn();
     await processJob(job(), source(), {
       signal: new AbortController().signal,
       runId: 'run12345',
       saveManifest: vi.fn().mockResolvedValue(undefined),
       reportProgress: vi.fn(),
+      reportRenderMetrics,
     });
 
     const metricsLine = logger.info.mock.calls
@@ -325,6 +330,64 @@ describe('createEpisodeVideoProcessor', () => {
     expect(metricsLine).toContain('cgroupCurrentMb=120');
     expect(metricsLine).toContain('cgroupPeakObservedMb=300');
     expect(metricsLine).toContain('nodeRssMb=');
+
+    // The cost ledger is fed from the same object the log line renders, so the
+    // row in ops.pipeline_stage_runs and the line in `fly logs` cannot drift.
+    expect(reportRenderMetrics).toHaveBeenCalledTimes(1);
+    expect(reportRenderMetrics).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'completed',
+        durationMs: 92_800,
+        mediaMs: 1_100,
+        chunkEncodeMs: 2_200,
+        finalEncodeMs: 3_300,
+        downscaleMs: 400,
+        cgroupCurrentMb: 120,
+        cgroupPeakObservedMb: 300,
+        realtimeFactor: expect.any(Number),
+        nodeRssMb: expect.any(Number),
+        wallMs: expect.any(Number),
+        narrationDownloadMs: expect.any(Number),
+      }),
+    );
+  });
+
+  it('reports the seconds a failed render burned, without the phases it never reached', async () => {
+    const logger = { info: vi.fn() };
+    const reportRenderMetrics = vi.fn();
+    const processJob = createEpisodeVideoProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
+      analyzeAudio: vi
+        .fn()
+        .mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      createManifest: vi
+        .fn()
+        .mockResolvedValue(generatedManifest('manifest-hash')),
+      render: vi.fn().mockRejectedValue(new Error('ffmpeg exited 1')),
+      upload: vi.fn(),
+      makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
+      writeManifest: vi.fn().mockResolvedValue(undefined),
+      removeDirectory: vi.fn().mockResolvedValue(undefined),
+      readCgroupMemory: vi.fn().mockResolvedValue(null),
+      memorySampleIntervalMs: 60_000,
+      logger,
+    });
+
+    await expect(
+      processJob(job(), source(), {
+        signal: new AbortController().signal,
+        runId: 'run12345',
+        saveManifest: vi.fn().mockResolvedValue(undefined),
+        reportProgress: vi.fn(),
+        reportRenderMetrics,
+      }),
+    ).rejects.toThrow('ffmpeg exited 1');
+
+    const [metrics] = reportRenderMetrics.mock.calls[0]!;
+    expect(metrics).toMatchObject({ status: 'failed', durationMs: 92_800 });
+    expect(metrics.wallMs).toEqual(expect.any(Number));
+    expect(metrics).not.toHaveProperty('mediaMs');
+    expect(metrics).not.toHaveProperty('cgroupPeakObservedMb');
   });
 
   it('rejects when the rendered manifest hash diverges from the persisted hash', async () => {
@@ -363,6 +426,7 @@ describe('createEpisodeVideoProcessor', () => {
         runId: 'run12345',
         saveManifest: vi.fn().mockResolvedValue(undefined),
         reportProgress: vi.fn(),
+        reportRenderMetrics: vi.fn(),
       }),
     ).rejects.toThrow('Rendered manifest hash differs from persisted hash');
   });
@@ -402,6 +466,7 @@ describe('createEpisodeVideoProcessor', () => {
         runId: 'run12345',
         saveManifest: vi.fn().mockResolvedValue(undefined),
         reportProgress: vi.fn(),
+        reportRenderMetrics: vi.fn(),
       }).catch((error: unknown) => error);
 
       // A hung ffmpeg keeps renewing its lease, and the render process group has
@@ -451,6 +516,7 @@ describe('createEpisodeVideoProcessor', () => {
         runId: 'run12345',
         saveManifest: vi.fn(),
         reportProgress: vi.fn(),
+        reportRenderMetrics: vi.fn(),
       }).catch((error: unknown) => error);
 
       await vi.advanceTimersByTimeAsync(300_000);
@@ -486,6 +552,7 @@ describe('createEpisodeVideoProcessor', () => {
         runId: 'run12345',
         saveManifest: vi.fn(),
         reportProgress: vi.fn(),
+        reportRenderMetrics: vi.fn(),
       }),
     ).rejects.toThrow('ffprobe failed');
 
@@ -527,6 +594,7 @@ describe('createEpisodeVideoProcessor', () => {
       runId: 'run12345',
       saveManifest: vi.fn().mockResolvedValue(undefined),
       reportProgress: vi.fn(),
+      reportRenderMetrics: vi.fn(),
     });
 
     await vi.waitFor(() => expect(readCgroupMemory).toHaveBeenCalledOnce());
@@ -548,6 +616,7 @@ describe('createEpisodeVideoProcessor', () => {
         runId: 'run12345',
         saveManifest: vi.fn(),
         reportProgress: vi.fn(),
+        reportRenderMetrics: vi.fn(),
       }),
     ).rejects.toThrow('does not match its completed visual checkpoint');
   });
@@ -575,6 +644,7 @@ describe('createEpisodeVideoProcessor', () => {
         runId: 'run12345',
         saveManifest: vi.fn().mockResolvedValue(undefined),
         reportProgress: vi.fn(),
+        reportRenderMetrics: vi.fn(),
       }),
     ).rejects.toThrow('Video renderer returned no artifacts');
   });
@@ -613,6 +683,7 @@ describe('createEpisodeVideoProcessor', () => {
       runId: 'run12345',
       saveManifest: vi.fn().mockResolvedValue(undefined),
       reportProgress,
+      reportRenderMetrics: vi.fn(),
     });
 
     expect(reportProgress).toHaveBeenCalledWith({
@@ -652,6 +723,7 @@ describe('createEpisodeVideoProcessor', () => {
         runId: 'run12345',
         saveManifest: vi.fn().mockResolvedValue(undefined),
         reportProgress: vi.fn(),
+        reportRenderMetrics: vi.fn(),
       }),
     ).rejects.toThrow('cgroup read failed');
     expect(render).not.toHaveBeenCalled();
@@ -692,6 +764,7 @@ describe('createEpisodeVideoProcessor', () => {
         runId: 'run12345',
         saveManifest: vi.fn().mockResolvedValue(undefined),
         reportProgress: vi.fn(),
+        reportRenderMetrics: vi.fn(),
       }),
     ).rejects.toThrow('R2 unavailable');
     expect(removeDirectory).toHaveBeenCalled();

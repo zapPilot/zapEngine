@@ -1,4 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const ledger = vi.hoisted(() => ({ recordPipelineRun: vi.fn() }));
+
+// Only the write is stubbed. stageRunsFromCostLines stays real so the mapping
+// from raw cost lines to ledger rows is exercised by the ingest path itself.
+vi.mock('./ops-ledger.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./ops-ledger.js')>()),
+  recordPipelineRun: ledger.recordPipelineRun,
+}));
 
 import {
   episodeListResponse,
@@ -6,8 +15,10 @@ import {
   localizationRow,
 } from '../__fixtures__/index-test.js';
 import type { EpisodeLocalizationRow } from '../types.js';
-import { buildUsageCostDetails } from './cost.js';
+import { buildUsageCostDetails, type UsageCostLine } from './cost.js';
 import { createHeavyWorkCoordinator } from './heavy-work.js';
+import type { IngestCostSinkEntry } from './ingest.js';
+import type { PipelineRunInput } from './ops-ledger.js';
 import { performMultilingualIngestAndEnqueueVideo } from './post-ingest.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
@@ -15,6 +26,15 @@ import {
   type EpisodeVideoVisualJobRow,
   hashEpisodeVideoVisualSource,
 } from './video-jobs.js';
+
+beforeEach(() => {
+  ledger.recordPipelineRun.mockReset();
+  ledger.recordPipelineRun.mockResolvedValue(undefined);
+});
+
+function recordedRun(): PipelineRunInput {
+  return ledger.recordPipelineRun.mock.calls[0]![0] as PipelineRunInput;
+}
 
 function queuedVideoJob(
   localization: EpisodeLocalizationRow = videoLocalizations()[0]!,
@@ -131,6 +151,7 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
       'https://example.com/article',
       'ja',
       {
+        trigger: 'http',
         telegramChatId: 123,
         dependencies: {
           coordinator: createHeavyWorkCoordinator(),
@@ -148,6 +169,7 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
     expect(performIngest).toHaveBeenCalledWith(
       'https://example.com/article',
       'ja',
+      expect.any(Array),
     );
     expect(listLocalizations).toHaveBeenCalledWith(result.ingest.episode.id, [
       'zh-Hant',
@@ -207,6 +229,7 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
       'https://example.com/article',
       'zh-Hant',
       {
+        trigger: 'http',
         dependencies: {
           coordinator: createHeavyWorkCoordinator(),
           findEpisode: vi.fn().mockResolvedValue(null),
@@ -248,6 +271,7 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
       'https://example.com/article',
       'ja',
       {
+        trigger: 'http',
         dependencies: {
           coordinator: createHeavyWorkCoordinator(),
           findEpisode: vi.fn().mockResolvedValue(null),
@@ -280,6 +304,7 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
       'https://example.com/article',
       'ja',
       {
+        trigger: 'http',
         telegramChatId: 123,
         dependencies: {
           coordinator: createHeavyWorkCoordinator(),
@@ -321,6 +346,7 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
       'https://example.com/article',
       'ja',
       {
+        trigger: 'http',
         dependencies: {
           coordinator: createHeavyWorkCoordinator(),
           findEpisode: vi.fn().mockResolvedValue(null),
@@ -367,6 +393,7 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
       'https://example.com/article',
       'ja',
       {
+        trigger: 'http',
         dependencies: {
           coordinator: createHeavyWorkCoordinator(),
           findEpisode: vi.fn().mockResolvedValue(null),
@@ -414,6 +441,7 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
       'https://example.com/article',
       'ja',
       {
+        trigger: 'http',
         dependencies: {
           coordinator: createHeavyWorkCoordinator(),
           findEpisode: vi.fn().mockResolvedValue(null),
@@ -456,6 +484,7 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
       'https://example.com/article',
       'ja',
       {
+        trigger: 'http',
         dependencies: {
           coordinator: { runIngest } as never,
           findEpisode: vi
@@ -497,6 +526,7 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
       'https://example.com/article',
       'ja',
       {
+        trigger: 'http',
         dependencies: {
           coordinator,
           findEpisode: vi
@@ -522,5 +552,207 @@ describe('performMultilingualIngestAndEnqueueVideo', () => {
     );
 
     expect(runIngest).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('performMultilingualIngestAndEnqueueVideo cost ledger', () => {
+  function scriptLine(overrides: Partial<UsageCostLine> = {}): UsageCostLine {
+    return {
+      category: 'llm',
+      label: 'LLM script',
+      provider: 'openrouter',
+      model: 'anthropic/claude-sonnet-4',
+      costUsd: 0.02,
+      ...overrides,
+    };
+  }
+
+  /** Fills the sink the way the real multilingual loop does, language by language. */
+  function ingestFillingSink(
+    entries: IngestCostSinkEntry[],
+    outcome: { throwAfter?: number } = {},
+  ) {
+    return vi.fn(
+      async (
+        _url: string,
+        _languageCode: string,
+        costSink?: IngestCostSinkEntry[],
+      ) => {
+        const delivered = entries.slice(
+          0,
+          outcome.throwAfter ?? entries.length,
+        );
+        costSink?.push(...delivered);
+        if (outcome.throwAfter !== undefined) {
+          throw new Error('en localization failed');
+        }
+        return {
+          episode: episodeListResponse(listRow({ language_code: 'ja' })),
+          statusCode: 201 as const,
+          costUsd: 0,
+          costDetails: buildUsageCostDetails([]),
+        };
+      },
+    );
+  }
+
+  const sinkEntries: IngestCostSinkEntry[] = [
+    {
+      languageCode: 'zh-Hant',
+      episodeId: 'episode-1',
+      localizationId: 'localization-zh',
+      lines: [
+        scriptLine(),
+        scriptLine({
+          category: 'tts',
+          label: 'TTS main audio',
+          provider: 'fish-audio',
+          model: 'speech-1.6',
+          costUsd: 0.05,
+          usage: { unit: 'character', quantity: 3_000, unitPriceUsd: 0.000015 },
+        }),
+      ],
+    },
+    {
+      languageCode: 'ja',
+      episodeId: 'episode-1',
+      localizationId: 'localization-ja',
+      lines: [
+        scriptLine({
+          category: 'translate',
+          label: 'OpenRouter translation',
+          costUsd: 0.004,
+        }),
+      ],
+    },
+  ];
+
+  it('records one run per ingest with a stage row for every language', async () => {
+    const localizations = videoLocalizations();
+
+    await performMultilingualIngestAndEnqueueVideo(
+      'https://example.com/article',
+      'ja',
+      {
+        trigger: 'telegram',
+        dependencies: {
+          coordinator: createHeavyWorkCoordinator(),
+          findEpisode: vi.fn().mockResolvedValue(null),
+          performIngest: ingestFillingSink(sinkEntries),
+          listLocalizations: vi.fn().mockResolvedValue(localizations),
+          enqueueVisual: vi.fn().mockResolvedValue(queuedVisualJob()),
+          enqueueVideo: vi.fn(async (localizationId: string) =>
+            queuedVideoJob(
+              localizations.find(({ id }) => id === localizationId),
+            ),
+          ),
+          findVisualJob: vi.fn().mockResolvedValue(null),
+          findVideoJob: vi.fn().mockResolvedValue(null),
+        },
+      },
+    );
+
+    const run = recordedRun();
+    expect(ledger.recordPipelineRun).toHaveBeenCalledTimes(1);
+    expect(run).toMatchObject({
+      pipeline: 'ingest',
+      trigger: 'telegram',
+      status: 'completed',
+      component: 'ingest',
+    });
+    expect(run.finishedAt.getTime()).toBeGreaterThanOrEqual(
+      run.startedAt.getTime(),
+    );
+    expect(
+      run.stages.map(({ stage, languageCode, localizationId }) => ({
+        stage,
+        languageCode,
+        localizationId,
+      })),
+    ).toEqual([
+      {
+        stage: 'script',
+        languageCode: 'zh-Hant',
+        localizationId: 'localization-zh',
+      },
+      {
+        stage: 'narration',
+        languageCode: 'zh-Hant',
+        localizationId: 'localization-zh',
+      },
+      {
+        stage: 'translation',
+        languageCode: 'ja',
+        localizationId: 'localization-ja',
+      },
+    ]);
+  });
+
+  it('still records what the finished languages spent when a later one fails', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await expect(
+      performMultilingualIngestAndEnqueueVideo(
+        'https://example.com/article',
+        'ja',
+        {
+          trigger: 'http',
+          dependencies: {
+            coordinator: createHeavyWorkCoordinator(),
+            findEpisode: vi.fn().mockResolvedValue(null),
+            performIngest: ingestFillingSink(sinkEntries, { throwAfter: 1 }),
+          },
+        },
+      ),
+    ).rejects.toThrow('en localization failed');
+
+    const run = recordedRun();
+    expect(run.status).toBe('failed');
+    expect(run.episodeId).toBe('episode-1');
+    expect(run.stages.map(({ stage }) => stage)).toEqual([
+      'script',
+      'narration',
+    ]);
+    expect(run.stages.map(({ reportedCostUsd }) => reportedCostUsd)).toEqual([
+      0.02, 0.05,
+    ]);
+  });
+
+  it('records a run with no stages when a resubmission costs nothing', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const localizations = videoLocalizations();
+
+    await performMultilingualIngestAndEnqueueVideo(
+      'https://example.com/article',
+      'ja',
+      {
+        trigger: 'http',
+        dependencies: {
+          coordinator: createHeavyWorkCoordinator(),
+          findEpisode: vi
+            .fn()
+            .mockResolvedValue({ id: localizations[0]!.episode_id }),
+          performIngest: ingestFillingSink([
+            {
+              languageCode: 'zh-Hant',
+              episodeId: 'episode-1',
+              localizationId: 'localization-zh',
+              lines: [],
+            },
+          ]),
+          listLocalizations: vi.fn().mockResolvedValue(localizations),
+          enqueueVisual: vi.fn().mockResolvedValue(queuedVisualJob()),
+          enqueueVideo: vi.fn(async (localizationId: string) =>
+            queuedVideoJob(
+              localizations.find(({ id }) => id === localizationId),
+            ),
+          ),
+          findVisualJob: vi.fn().mockResolvedValue(null),
+          findVideoJob: vi.fn().mockResolvedValue(null),
+        },
+      },
+    );
+
+    expect(recordedRun()).toMatchObject({ status: 'completed', stages: [] });
   });
 });

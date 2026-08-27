@@ -50,9 +50,25 @@ const MULTILINGUAL_INGEST_LANGUAGE_CODES: LanguageClassroomLanguageCode[] = [
 const MAX_TRANSLATED_SCRIPT_CHARACTERS = 30_000;
 const MAX_TRANSLATED_TO_CANONICAL_RATIO = 4;
 
+/**
+ * One localization's finished cost, collected as the loop advances.
+ *
+ * Handed in as an out-parameter for the same reason `costBreakdown` already is
+ * one throughout the ingest stages: an ingest that fails on its third language
+ * still spent real money on the first two, and only a sink filled as it goes
+ * survives the throw.
+ */
+export interface IngestCostSinkEntry {
+  languageCode: LanguageClassroomLanguageCode;
+  episodeId: string;
+  localizationId: string;
+  lines: UsageCostLine[];
+}
+
 export async function performMultilingualIngest(
   url: string,
   responseLanguageCode: LanguageClassroomLanguageCode,
+  costSink?: IngestCostSinkEntry[],
 ): Promise<IngestResult> {
   const runId = getStepLogContext()?.runId ?? randomUUID().slice(0, 8);
   return withStepLogContext({ runId }, async () => {
@@ -75,6 +91,12 @@ export async function performMultilingualIngest(
             logIngestEvent('localization:start');
             try {
               const result = await performIngest(url, languageCode);
+              costSink?.push({
+                languageCode,
+                episodeId: result.episode.id,
+                localizationId: result.episode.localizationId,
+                lines: result.costDetails.breakdown,
+              });
               logIngestEvent('localization:done', {
                 elapsedMs: Date.now() - startedAt,
                 status: result.statusCode,

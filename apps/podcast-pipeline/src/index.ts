@@ -217,6 +217,7 @@ export function createApp(): Hono {
     const postIngest = await performMultilingualIngestAndEnqueueVideo(
       url,
       languageCode,
+      { trigger: 'http' },
     );
     const result = postIngest.ingest;
     const episode = omitEpisodeVideoFields(result.episode);

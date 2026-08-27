@@ -26,6 +26,12 @@ vendor APIs / fixed pricing / Fly run-rate or manual estimate
 
 The `ops` schema stays private and is not exposed through Supabase Data API. Control Center reaches it through service-role-only views and write RPCs in the already exposed `from_fed_to_chain` schema. `anon` and `authenticated` receive no access to the bridge or the underlying ledger.
 
+### Podcast unit economics
+
+`ops.cost_snapshots` is per-provider and monthly, so it cannot say what one episode cost. `ops.pipeline_runs` and `ops.pipeline_stage_runs` sit beside it and do: one row per background work unit, one row per billable stage, keyed by episode, localization, language and stage (`script` / `translation` / `narration` / `classroom` / `other` / `video_render`). `apps/podcast-pipeline` writes them; see its README's "Pipeline cost ledger" for what each column means and which costs are deliberately not in there.
+
+No dashboard reads them yet, but the read path already exists on the same bridge: `from_fed_to_chain.ops_pipeline_runs` and `from_fed_to_chain.ops_pipeline_stage_runs`, `security_invoker`, granted to `service_role` only.
+
 ## Provider semantics
 
 - OpenRouter: `usage_monthly` from `GET /api/v1/key`, stored as `actual` usage cost. `OPENROUTER_MANAGEMENT_KEY` takes precedence over the completion key.

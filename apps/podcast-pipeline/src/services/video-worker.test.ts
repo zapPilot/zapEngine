@@ -1,7 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const ledger = vi.hoisted(() => ({ recordPipelineRun: vi.fn() }));
+
+// Only the write is stubbed. renderStageRun stays real so the worker's own
+// pricing of a render is what these tests assert on.
+vi.mock('./ops-ledger.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./ops-ledger.js')>()),
+  recordPipelineRun: ledger.recordPipelineRun,
+}));
+
 import { createDeferred } from '../__fixtures__/index-test.js';
 import { createHeavyWorkCoordinator } from './heavy-work.js';
+import type { EpisodeRenderMetrics, PipelineRunInput } from './ops-ledger.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoCompletion,
@@ -186,6 +196,8 @@ function createVideoWorker(options: TestVideoWorkerOptions) {
 describe('createVideoWorker', () => {
   beforeEach(() => {
     vi.useRealTimers();
+    ledger.recordPipelineRun.mockReset();
+    ledger.recordPipelineRun.mockResolvedValue(undefined);
   });
 
   it('processes one job, persists provenance, completes, and notifies the latest chat', async () => {
@@ -1327,5 +1339,141 @@ describe('createVideoWorker', () => {
     expect(repository.claim).toHaveBeenCalledWith(
       expect.stringMatching(/^.+:\d+:[0-9a-f-]{36}$/u),
     );
+  });
+});
+
+describe('render cost ledger', () => {
+  const metrics: EpisodeRenderMetrics = {
+    status: 'completed',
+    wallMs: 480_000,
+    durationMs: 900_000,
+    narrationDownloadMs: 4_200,
+    mediaMs: 120_000,
+    chunkEncodeMs: 240_000,
+    finalEncodeMs: 90_000,
+    downscaleMs: 12_000,
+    realtimeFactor: 1.875,
+    nodeRssMb: 310.4,
+    cgroupCurrentMb: 1_204.8,
+    cgroupPeakObservedMb: 3_012.1,
+  };
+
+  beforeEach(() => {
+    vi.useRealTimers();
+    ledger.recordPipelineRun.mockReset();
+    ledger.recordPipelineRun.mockResolvedValue(undefined);
+  });
+
+  function recordedRun(): PipelineRunInput {
+    expect(ledger.recordPipelineRun).toHaveBeenCalledTimes(1);
+    return ledger.recordPipelineRun.mock.calls[0]![0] as PipelineRunInput;
+  }
+
+  it('prices a completed render from the metrics the processor reported', async () => {
+    const worker = createVideoWorker({
+      repository: makeRepository(),
+      processJob: vi.fn(async (_job, _source, context) => {
+        context.reportRenderMetrics(metrics);
+        return completion;
+      }),
+      notify: vi.fn().mockResolvedValue(undefined),
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('completed');
+
+    const run = recordedRun();
+    expect(run).toMatchObject({
+      pipeline: 'video_render',
+      trigger: 'worker',
+      status: 'completed',
+      episodeId: 'episode-1',
+      component: 'video-render',
+    });
+    expect(run.runRef).toMatch(/^[a-f0-9]{8}$/);
+    expect(run.stages).toHaveLength(1);
+    expect(run.stages[0]).toMatchObject({
+      stage: 'video_render',
+      provider: 'fly',
+      status: 'completed',
+      languageCode: 'zh-Hant',
+      localizationId: 'localization-1',
+      attempt: 1,
+      elapsedMs: 480_000,
+      pricing: {
+        metricKey: 'machine_second_performance_2x_4gb',
+        quantity: 480,
+      },
+    });
+    expect(run.stages[0]?.usage).toMatchObject({
+      machine: 'performance-2x-4gb',
+      cgroupPeakObservedMb: 3_012.1,
+    });
+    expect(run.stages[0]?.usage?.['jobWallMs']).toEqual(expect.any(Number));
+  });
+
+  // A render that died after twenty minutes of x264 is the retry waste this
+  // ledger exists to price, and the processor throws rather than returning on
+  // that path — so the metrics can only come from the reporting callback.
+  it('still bills the Fly seconds a failed render burned', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const repository = makeRepository();
+    repository.fail = vi.fn().mockResolvedValue({ status: 'queued' });
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn(async (_job, _source, context) => {
+        context.reportRenderMetrics({ ...metrics, status: 'failed' });
+        throw new Error('ffmpeg exited 1');
+      }),
+      notify: vi.fn().mockResolvedValue(undefined),
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('failed');
+
+    const run = recordedRun();
+    expect(run.status).toBe('failed');
+    expect(run.stages[0]).toMatchObject({
+      status: 'failed',
+      pricing: { quantity: 480 },
+    });
+  });
+
+  it('records the attempt but attributes no seconds when the render never started', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const repository = makeRepository();
+    repository.loadSource = vi
+      .fn()
+      .mockRejectedValue(new Error('source unavailable'));
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn(),
+      notify: vi.fn().mockResolvedValue(undefined),
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('failed');
+
+    const run = recordedRun();
+    expect(run).toMatchObject({
+      pipeline: 'video_render',
+      status: 'failed',
+      episodeId: 'episode-1',
+      stages: [],
+    });
+  });
+
+  it('leaves visual work out of the render ledger', async () => {
+    const worker = createVideoWorker({
+      repository: makeRepository(),
+      visualRepository: makeVisualRepository(visualJob()),
+      processJob: vi.fn(),
+      processVisualJob: vi.fn().mockResolvedValue(visualCompletion),
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.runOnce()).resolves.toBe('completed');
+
+    expect(ledger.recordPipelineRun).not.toHaveBeenCalled();
   });
 });
