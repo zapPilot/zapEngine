@@ -4,9 +4,12 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// Deliberately mirrors the Vercel web env shape. The env manifest scopes
+// PRIVY_MOBILE_CLIENT_ID to the `expo` target, so no web build ever receives an
+// EXPO_PUBLIC_PRIVY_CLIENT_ID. Adding one back here would let a mobile-only
+// Privy config gate reach production while the e2e suite stays green.
 const E2E_PRIVY_CONFIG = {
   EXPO_PUBLIC_PRIVY_APP_ID: 'e2eprivyappidplaceholder0',
-  EXPO_PUBLIC_PRIVY_CLIENT_ID: 'e2eprivyclientplaceholder',
 };
 
 const appRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
