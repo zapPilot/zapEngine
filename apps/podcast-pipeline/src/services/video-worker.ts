@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 
 import { errorMessage, toError } from '../lib/errorMessage.js';
+import { capturePipelineException } from '../observability/sentry.js';
 import {
   type HeavyWorkCoordinator,
   heavyWorkCoordinator,
@@ -136,6 +137,7 @@ export function createVideoWorker(
   let activeJobController: AbortController | null = null;
   let started = false;
   let stopped = false;
+  let consecutivePollFailures = 0;
 
   const schedulePoll = (delayMs: number): void => {
     if (!started || stopped || pollTimer) return;
@@ -149,9 +151,21 @@ export function createVideoWorker(
   const runScheduledPoll = async (): Promise<void> => {
     try {
       const result = await runOnce();
+      consecutivePollFailures = 0;
       options.onPollResult?.(result);
     } catch (error) {
+      consecutivePollFailures += 1;
       logger.error('[video-worker] poll failed', toError(error));
+      // A throwing poll never reaches onPollResult, so the idle tracker never
+      // sees 'empty' and the machine never exits — a dedicated CPU burns until
+      // someone notices. Report the first failure of a run only: at a 15s poll
+      // interval, capturing every one would be hundreds of events an hour.
+      if (consecutivePollFailures === 1) {
+        capturePipelineException(error, {
+          component: 'video-worker',
+          tags: { phase: 'poll' },
+        });
+      }
     } finally {
       schedulePoll(pollIntervalMs);
     }
@@ -289,6 +303,16 @@ export function createVideoWorker(
         status: failedJob?.status ?? 'unknown',
         error: videoJobErrorMessage(error),
       });
+      capturePipelineException(error, {
+        component: 'video-visual',
+        tags: { job_status: failedJob?.status ?? 'unknown' },
+        context: {
+          runId,
+          episodeId: job.episode_id,
+          attemptCount: job.attempt_count,
+        },
+        level: jobFailureLevel(failedJob?.status),
+      });
       return 'failed';
     } finally {
       stopHeartbeat();
@@ -425,6 +449,16 @@ export function createVideoWorker(
         attemptCount: job.attempt_count,
         status: failedJob?.status ?? 'unknown',
         error: videoJobErrorMessage(error),
+      });
+      capturePipelineException(error, {
+        component: 'video-render',
+        tags: { job_status: failedJob?.status ?? 'unknown' },
+        context: {
+          runId,
+          episodeLocalizationId: job.episode_localization_id,
+          attemptCount: job.attempt_count,
+        },
+        level: jobFailureLevel(failedJob?.status),
       });
       return 'failed';
     } finally {
@@ -713,4 +747,12 @@ function formatSeconds(milliseconds: number): string {
 
 function videoJobErrorMessage(error: unknown): string {
   return errorMessage(error).slice(0, 4_000);
+}
+
+/**
+ * A job that fell back to `queued` will be retried, so it is a warning; one that
+ * reached `failed` has exhausted its attempts and nothing else will pick it up.
+ */
+function jobFailureLevel(status: string | undefined): 'error' | 'warning' {
+  return status === 'failed' ? 'error' : 'warning';
 }

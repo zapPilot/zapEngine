@@ -1,5 +1,9 @@
+import importlib
+import logging
+import sys
 from unittest.mock import Mock, patch
 
+import pytest
 from fastapi import Request
 
 from src.core.sentry import capture_server_exception, init_sentry
@@ -53,3 +57,24 @@ def test_capture_server_exception_uses_route_template(
     scope.set_tag.assert_any_call("http.method", "GET")
     scope.set_tag.assert_any_call("http.route", "/api/users/{user_id}")
     mock_capture.assert_called_once_with(error)
+
+
+def test_main_logs_sentry_boot_status(caplog: pytest.LogCaptureFixture) -> None:
+    """A missing DSN and a code path that never captures both look like an
+    empty Sentry project from the outside. This boot line is the only way to
+    tell them apart, so it must fire on every import of src.main."""
+    existing_main = sys.modules.pop("src.main", None)
+    try:
+        with (
+            patch("src.core.sentry.init_sentry", return_value=True),
+            caplog.at_level(logging.INFO, logger="src.main"),
+        ):
+            importlib.import_module("src.main")
+    finally:
+        if existing_main is not None:
+            sys.modules["src.main"] = existing_main
+        else:
+            sys.modules.pop("src.main", None)
+
+    assert "[sentry] enabled environment=" in caplog.text
+    assert "release=" in caplog.text

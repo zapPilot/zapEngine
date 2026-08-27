@@ -2,6 +2,12 @@ import '@testing-library/jest-dom';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ErrorBoundary } from '../ErrorBoundary';
 
+const sentryMocks = vi.hoisted(() => ({ captureException: vi.fn() }));
+
+vi.mock('@sentry/nextjs', () => ({
+  captureException: sentryMocks.captureException,
+}));
+
 // Component that throws an error
 const ThrowError = () => {
   throw new Error('Test error');
@@ -18,6 +24,9 @@ describe('ErrorBoundary', () => {
   });
   afterAll(() => {
     console.error = originalError;
+  });
+  beforeEach(() => {
+    sentryMocks.captureException.mockClear();
   });
 
   it('should render children when no error occurs', () => {
@@ -38,6 +47,21 @@ describe('ErrorBoundary', () => {
     );
 
     expect(screen.getByText('Something went wrong')).toBeInTheDocument();
+  });
+
+  it('should report the caught error to Sentry', () => {
+    render(
+      <ErrorBoundary>
+        <ThrowError />
+      </ErrorBoundary>,
+    );
+
+    expect(sentryMocks.captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.any(Error),
+      { contexts: { react: { componentStack: expect.any(String) } } },
+    );
+    const [reportedError] = sentryMocks.captureException.mock.calls[0]!;
+    expect((reportedError as Error).message).toBe('Test error');
   });
 
   it('should display refresh page button', () => {

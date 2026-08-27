@@ -1,6 +1,8 @@
+import { capturePipelineException } from '../observability/sentry.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import { buildIngestSummaryFromResult } from './cost.js';
 import { invalidateEpisodeSearchCache } from './episode-search.js';
+import { failedStepName } from './ingest/step.js';
 import { performMultilingualIngestAndEnqueueVideo } from './post-ingest.js';
 import {
   buildTelegramAudioReadyMessage,
@@ -29,6 +31,14 @@ export interface TelegramIngestQueue {
     languageCode: LanguageClassroomLanguageCode,
   ): void;
   scheduleMessage(chatId: TelegramChatId, text: string): void;
+}
+
+function sourceHost(url: string): string | undefined {
+  try {
+    return new URL(url).host;
+  } catch {
+    return undefined;
+  }
 }
 
 function scheduleMessage(chatId: TelegramChatId, text: string): void {
@@ -68,6 +78,19 @@ export function createTelegramIngestQueue(): TelegramIngestQueue {
         ),
       );
     } catch (error) {
+      // The terminal boundary for background ingest. Nothing rethrows past this
+      // point — the submitter gets a Telegram notice instead — so this is the
+      // only place a failed episode can become a Sentry event. Transient
+      // failures that a step recovered from deliberately do not reach here.
+      capturePipelineException(error, {
+        component: 'ingest',
+        tags: {
+          entrypoint: 'telegram',
+          step: failedStepName(error),
+          language: languageCode,
+        },
+        context: { url, sourceHost: sourceHost(url) },
+      });
       await sendTelegramNotification(
         inflight.latestChatId,
         buildTelegramFailureMessage(error, url),

@@ -149,8 +149,9 @@ describe('createRebalanceScheduler', () => {
     expect(notifications).toHaveLength(notificationCount + 1);
   });
 
-  it('survives readDrift failures', async () => {
+  it('survives readDrift failures and reports the first one to Sentry', async () => {
     const log = vi.fn();
+    const captureException = vi.fn();
     const scheduler = createRebalanceScheduler({
       readDrift: vi.fn(async () => {
         throw new Error('network down');
@@ -162,9 +163,65 @@ describe('createRebalanceScheduler', () => {
       ),
       clearIntervalFn: vi.fn(),
       log,
+      captureException,
     });
     scheduler.setContext(CONTEXT);
     await scheduler.tick();
     expect(log).toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledTimes(1);
+    expect(captureException).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({ component: 'scheduler', level: 'warning' }),
+    );
+  });
+
+  it('reports only the first failure of consecutive tick failures', async () => {
+    const captureException = vi.fn();
+    const scheduler = createRebalanceScheduler({
+      readDrift: vi.fn(async () => {
+        throw new Error('network down');
+      }),
+      notify: vi.fn(),
+      intervalMs: MIN_INTERVAL_MS,
+      setIntervalFn: vi.fn(
+        () => 0 as unknown as ReturnType<typeof setInterval>,
+      ),
+      clearIntervalFn: vi.fn(),
+      log: vi.fn(),
+      captureException,
+    });
+    scheduler.setContext(CONTEXT);
+    await scheduler.tick();
+    await scheduler.tick();
+    await scheduler.tick();
+    expect(captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it('resumes reporting after a failing run recovers', async () => {
+    const captureException = vi.fn();
+    let shouldFail = true;
+    const scheduler = createRebalanceScheduler({
+      readDrift: vi.fn(async () => {
+        if (shouldFail) {
+          throw new Error('network down');
+        }
+        return undefined;
+      }),
+      notify: vi.fn(),
+      intervalMs: MIN_INTERVAL_MS,
+      setIntervalFn: vi.fn(
+        () => 0 as unknown as ReturnType<typeof setInterval>,
+      ),
+      clearIntervalFn: vi.fn(),
+      log: vi.fn(),
+      captureException,
+    });
+    scheduler.setContext(CONTEXT);
+    await scheduler.tick();
+    shouldFail = false;
+    await scheduler.tick();
+    shouldFail = true;
+    await scheduler.tick();
+    expect(captureException).toHaveBeenCalledTimes(2);
   });
 });

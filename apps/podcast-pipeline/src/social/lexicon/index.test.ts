@@ -50,6 +50,61 @@ describe('findSensitiveTerms', () => {
   it('does not fire on a sentence that merely spans a short term', () => {
     expect(findSensitiveTerms('為了確保本次升級順利')).toEqual([]);
   });
+
+  // R1, verbatim from the note that was lost (social_posts 4b544a1f). The
+  // allocation is attributed to a named investor and was removed anyway --
+  // quoting someone does not turn direction into reporting.
+  it('catches an allocation instruction carried by a quote', () => {
+    expect(
+      findSensitiveTerms(
+        '他也指出全球多數經濟體都有類似債務問題，因此他偏好多重資產、跨國分散，' +
+          '低配債券，超配黃金和少量比特幣這類非政府發行的資產。',
+      ),
+    ).toEqual([
+      { term: '低配', category: 'asset_allocation' },
+      { term: '超配', category: 'asset_allocation' },
+    ]);
+  });
+
+  // R2, verbatim from social_posts 7159371f. It names no price and no asset to
+  // buy, and the note still ended at zero views.
+  it('catches entry and exit timing wording', () => {
+    expect(
+      findSensitiveTerms(
+        '當《清晰法案》真的過關，可能不是利多，而是早早就定位的人準備撤場的訊號。' +
+          '與其追問牛市怎麼進場，不如想想退場節奏該怎麼設。',
+      ),
+    ).toEqual([
+      { term: '退场节奏', category: 'market_timing' },
+      { term: '撤场', category: 'market_timing' },
+    ]);
+  });
+
+  // The pin that keeps this gate from becoming a topic blacklist. This note
+  // (social_posts a9cc1d05) also ended at zero views, but it breaks none of the
+  // rules -- AI, agents and workplace coverage must stay publishable, and its
+  // 「AI滲透率接近100%」 must not collide with the ad-law 100% entries.
+  it('leaves an AI and workplace note untouched', () => {
+    expect(
+      findSensitiveTerms(
+        '一家不到40人的公司，AI滲透率接近100%，財務、法務、HR、商務全部用Agent，' +
+          '結果不是辦公室越換越小，反而是人變多、又要搬家。' +
+          '他主張「薄中臺、厚一線」，讓離問題最近的人自己用AI解決。',
+      ),
+    ).toEqual([]);
+  });
+
+  // Precision pin for the R1/R2 lists specifically. 加碼 is how this feed
+  // reports central-bank and fiscal moves, and 建倉/平倉/增持/減持 are the neutral
+  // mechanics an explainer has to name -- none of them is direction to a reader.
+  it('leaves macro reporting and market mechanics alone', () => {
+    expect(
+      findSensitiveTerms(
+        '央行加碼寬鬆、政府加碼補助之後，這集說明永續合約的建倉與平倉機制，' +
+          '以及機構本季對該資產的增持與減持。',
+      ),
+    ).toEqual([]);
+  });
 });
 
 describe('describeSensitiveMatches', () => {
@@ -76,5 +131,11 @@ describe('assertRednoteCopySafe', () => {
     expect(() =>
       assertRednoteCopySafe('支付結算的真實成本\n\n這集拆解了路徑。\n穩賺不賠'),
     ).toThrow(/moderation-risk wording .*穩賺不賠/);
+  });
+
+  it('throws on an allocation instruction the composition introduced', () => {
+    expect(() =>
+      assertRednoteCopySafe('黃金的角色\n\n他主張超配黃金。\n宏觀經濟'),
+    ).toThrow(/asset-allocation instruction "超配"/);
   });
 });

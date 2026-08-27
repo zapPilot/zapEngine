@@ -870,3 +870,29 @@ export function stripJsonFence(trimmed: string): string {
 
   return trimmed.slice(firstLineEnd + 1, closingFenceStart).trim();
 }
+
+/**
+ * Providers behind the same model id disagree about `json_object` mode: some
+ * answer with the requested object, others nest it as a fenced string under an
+ * arbitrary key (observed: {"stable diff":"ok","text":"```json…"}). Callers pass
+ * the top-level keys their own schema expects, so a response that already has
+ * the right shape is returned untouched.
+ */
+export function unwrapNestedJsonPayload(
+  value: unknown,
+  expectedKeys: readonly string[],
+): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const record = value as Record<string, unknown>;
+  if (expectedKeys.some((key) => key in record)) return value;
+
+  for (const nested of Object.values(record)) {
+    if (typeof nested !== 'string') continue;
+    try {
+      return JSON.parse(stripJsonFence(nested.trim()));
+    } catch {
+      continue;
+    }
+  }
+  return value;
+}

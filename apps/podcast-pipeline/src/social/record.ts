@@ -69,6 +69,11 @@ export function buildSocialPostRecord(input: {
     episode: input.episode,
   });
 
+  // `published` is what the publisher was asked to post; a platform that
+  // accepted only some of it reports back what it kept, and that is what
+  // telemetry has to store.
+  const publishedHashtags = input.result.hashtags ?? published.hashtags;
+
   return {
     episodeId: input.episodeId,
     platform: input.platform,
@@ -85,7 +90,7 @@ export function buildSocialPostRecord(input: {
     publishedTitle: published.title,
     generatedBody: generated.body,
     publishedBody: published.body,
-    hashtags: published.hashtags,
+    hashtags: publishedHashtags,
     videoDurationSec: publishedVideoDuration(
       input.platform,
       input.videoDurationSeconds,
@@ -94,7 +99,7 @@ export function buildSocialPostRecord(input: {
     contentFeatures: buildContentFeatures({
       title: published.title,
       body: published.body,
-      hashtags: published.hashtags,
+      hashtags: publishedHashtags,
     }),
     llmModel: input.snapshot.model,
   };

@@ -136,6 +136,14 @@ export interface PublishResult {
   url?: string;
   postId?: string;
   publishedAt: string;
+  /**
+   * What the platform actually accepted, when that can differ from what was
+   * composed. Rednote is the only case today: a generated hashtag with no
+   * matching topic is skipped rather than typed in as literal text, so telemetry
+   * has to record the topics the note really carries -- otherwise the strategy
+   * learner credits a tag that was never on it.
+   */
+  hashtags?: string[];
 }
 
 export interface XPublisher {

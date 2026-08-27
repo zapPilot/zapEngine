@@ -17,12 +17,14 @@ import {
   createRebalanceScheduler,
 } from './scheduler/rebalanceScheduler';
 import { createSuggestionDriftReader } from './scheduler/suggestionDriftReader';
+import { captureDesktopException, flushSentry } from './sentry';
 import { createTray } from './tray';
 import { createMainWindow } from './window';
 
 let mainWindow: BrowserWindow | undefined;
 let isQuitting = false;
 let pendingDeepLink: string | undefined;
+let sentryFlushed = false;
 
 function resolveWebRoot(): string {
   if (app.isPackaged) {
@@ -117,6 +119,19 @@ async function initializeApp(): Promise<void> {
   }
 }
 
+async function initializeAppSafely(): Promise<void> {
+  try {
+    await initializeApp();
+  } catch (error) {
+    captureDesktopException(error, { component: 'bootstrap', level: 'error' });
+  }
+}
+
+async function quitAfterSentryFlush(): Promise<void> {
+  await flushSentry();
+  app.quit();
+}
+
 function bootstrap(): void {
   app.on('second-instance', (_event, argv) => {
     const link = extractDeepLink(argv);
@@ -137,11 +152,17 @@ function bootstrap(): void {
   registerAppScheme();
   registerDeepLinkScheme();
 
-  void initializeApp();
+  void initializeAppSafely();
 
-  app.on('before-quit', () => {
+  app.on('before-quit', (event) => {
+    if (sentryFlushed) {
+      return;
+    }
     isQuitting = true;
     rebalanceScheduler.stop();
+    event.preventDefault();
+    sentryFlushed = true;
+    void quitAfterSentryFlush();
   });
 
   // Tray-resident: do not exit when the window closes.

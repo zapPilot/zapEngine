@@ -1,4 +1,5 @@
 import type { RebalanceProposal, SchedulerContext } from '../../shared/ipc';
+import { captureDesktopException } from '../sentry';
 
 export const DEFAULT_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6h
 export const MIN_INTERVAL_MS = 15 * 60 * 1000; // 15min floor
@@ -34,6 +35,8 @@ export interface SchedulerDeps {
   setIntervalFn?: typeof setInterval;
   clearIntervalFn?: typeof clearInterval;
   log?: (message: string) => void;
+  /** Defaults to the desktop Sentry capture helper; override in tests. */
+  captureException?: typeof captureDesktopException;
 }
 
 export interface RebalanceScheduler {
@@ -52,10 +55,12 @@ export function createRebalanceScheduler(
   const setIntervalFn = deps.setIntervalFn ?? setInterval;
   const clearIntervalFn = deps.clearIntervalFn ?? clearInterval;
   const log = deps.log ?? (() => {});
+  const captureException = deps.captureException ?? captureDesktopException;
 
   let context: SchedulerContext | undefined;
   let timer: ReturnType<typeof setInterval> | undefined;
   let ticking = false;
+  let consecutiveFailures = 0;
 
   async function tick(): Promise<void> {
     if (!context || ticking) {
@@ -64,6 +69,7 @@ export function createRebalanceScheduler(
     ticking = true;
     try {
       const drift = await deps.readDrift(context);
+      consecutiveFailures = 0;
       if (drift && Math.abs(drift.driftPercent) >= threshold) {
         const proposal: RebalanceProposal = {
           driftPercent: drift.driftPercent,
@@ -75,7 +81,19 @@ export function createRebalanceScheduler(
         deps.notify(proposal);
       }
     } catch (error) {
+      consecutiveFailures += 1;
       log(`rebalance tick failed: ${String(error)}`);
+      // Only the first failure of a run is reported — an unattended interval
+      // timer would otherwise spam an event per tick for as long as the
+      // underlying outage lasts.
+      if (consecutiveFailures === 1) {
+        captureException(error, {
+          component: 'scheduler',
+          tags: { operation: 'rebalance-drift-check' },
+          context: { consecutiveFailures },
+          level: 'warning',
+        });
+      }
     } finally {
       ticking = false;
     }
