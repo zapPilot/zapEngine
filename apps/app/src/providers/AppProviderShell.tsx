@@ -10,9 +10,11 @@ import {
   Text,
   View,
 } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 
 import { ConnectSheetHost } from '@/components/connect/ConnectSheetHost';
 import { PodcastProgressTracker } from '@/components/podcast/PodcastProgressTracker';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ZapLogo } from '@/components/ui/ZapLogo';
 import { getExpoMobileRuntimeConfig } from '@/config/expoRuntimeConfig';
 import type { MobileRuntimeConfig } from '@/config/mobileRuntimeConfig';
@@ -55,20 +57,54 @@ function useReactQueryNativeAppFocus(): void {
   }, []);
 }
 
-function ConfigNoticeScreen({ target }: { target: string }): ReactElement {
+function IconNoticeScreen({
+  title,
+  body,
+  children,
+}: {
+  title: string;
+  body: string;
+  children?: ReactNode;
+}): ReactElement {
   return (
     <View className="flex-1 items-center justify-center bg-bg px-6">
       <View className="mb-5 h-14 w-14 items-center justify-center rounded-2xl border border-line bg-surface">
         <ZapLogo size={24} />
       </View>
       <Text className="text-center font-sans-semibold text-[20px] text-ink">
-        Privy config is missing
+        {title}
       </Text>
       <Text className="mt-3 text-center font-sans text-[13px] leading-5 text-ink-dim">
-        Add PRIVY_MOBILE_APP_ID and PRIVY_MOBILE_CLIENT_ID before starting the{' '}
-        {target}.
+        {body}
       </Text>
+      {children}
     </View>
+  );
+}
+
+function ConfigNoticeScreen({ target }: { target: string }): ReactElement {
+  return (
+    <IconNoticeScreen
+      title="Privy config is missing"
+      body={`Add PRIVY_MOBILE_APP_ID and PRIVY_MOBILE_CLIENT_ID before starting the ${target}.`}
+    />
+  );
+}
+
+function CrashFallbackScreen({
+  resetError,
+}: {
+  resetError: () => void;
+}): ReactElement {
+  return (
+    <IconNoticeScreen
+      title="Something went wrong"
+      body="The app hit an unexpected error. Try again, or restart the app if it keeps happening."
+    >
+      <PrimaryButton className="mt-6" onPress={resetError}>
+        Try again
+      </PrimaryButton>
+    </IconNoticeScreen>
   );
 }
 
@@ -96,14 +132,20 @@ export function AppProviderShell({
 
   if (!runtimeConfig.privy) {
     return (
-      <QueryClientProvider client={queryClient}>
-        <ToastProvider>
-          <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
-            <StatusBar style="light" />
-            <ConfigNoticeScreen target={missingConfigTarget} />
-          </View>
-        </ToastProvider>
-      </QueryClientProvider>
+      <Sentry.ErrorBoundary
+        fallback={({ resetError }) => (
+          <CrashFallbackScreen resetError={resetError} />
+        )}
+      >
+        <QueryClientProvider client={queryClient}>
+          <ToastProvider>
+            <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
+              <StatusBar style="light" />
+              <ConfigNoticeScreen target={missingConfigTarget} />
+            </View>
+          </ToastProvider>
+        </QueryClientProvider>
+      </Sentry.ErrorBoundary>
     );
   }
 
@@ -129,9 +171,15 @@ export function AppProviderShell({
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      {renderWalletProviders(appContent, runtimeConfig.privy)}
-    </QueryClientProvider>
+    <Sentry.ErrorBoundary
+      fallback={({ resetError }) => (
+        <CrashFallbackScreen resetError={resetError} />
+      )}
+    >
+      <QueryClientProvider client={queryClient}>
+        {renderWalletProviders(appContent, runtimeConfig.privy)}
+      </QueryClientProvider>
+    </Sentry.ErrorBoundary>
   );
 }
 

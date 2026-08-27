@@ -35,10 +35,17 @@ from src.core.sentry import capture_server_exception, init_sentry
 
 logger = logging.getLogger(__name__)
 
-init_sentry(
+_sentry_release = os.getenv("APP_COMMIT_SHA")
+_sentry_enabled = init_sentry(
     settings.sentry_analytics_engine_dsn,
     environment=settings.environment.value,
-    release=os.getenv("APP_COMMIT_SHA"),
+    release=_sentry_release,
+)
+logger.info(
+    "[sentry] %s environment=%s release=%s",
+    "enabled" if _sentry_enabled else "disabled",
+    settings.environment.value,
+    _sentry_release or "unknown",
 )
 
 

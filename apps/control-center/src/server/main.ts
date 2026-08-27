@@ -2,7 +2,10 @@ import { serve } from '@hono/node-server';
 
 import { initSentry } from './observability/sentry.js';
 
-initSentry(process.env);
+const sentryEnabled = initSentry(process.env);
+console.log(
+  `[sentry] ${sentryEnabled ? 'enabled' : 'disabled'} environment=${process.env['NODE_ENV'] ?? 'unknown'} release=${process.env['APP_COMMIT_SHA'] ?? 'unknown'}`,
+);
 
 const [{ createControlCenterApp }, { readControlCenterConfig }] =
   await Promise.all([import('./app.js'), import('./config/env.js')]);

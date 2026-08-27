@@ -43,6 +43,30 @@ describe('PostHog client instrumentation', () => {
     });
   });
 
+  it('logs one boot line reporting whether Sentry is enabled', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', 'https://example.test/5');
+    vi.stubEnv('NODE_ENV', 'test');
+
+    await import('../instrumentation-client');
+
+    expect(logSpy).toHaveBeenCalledWith(
+      '[sentry] enabled environment=test release=unknown',
+    );
+    logSpy.mockRestore();
+  });
+
+  it('logs disabled in the boot line when no DSN is configured', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await import('../instrumentation-client');
+
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/^\[sentry\] disabled environment=/),
+    );
+    logSpy.mockRestore();
+  });
+
   it('tracks client-side navigations and keeps replay off', async () => {
     vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'phc_test');
 
