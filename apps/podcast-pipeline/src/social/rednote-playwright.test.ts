@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted<{
@@ -12,7 +13,45 @@ vi.mock('./rednote-browser.js', () => ({
     run(mocks.page),
 }));
 
-import { createPlaywrightRednotePublisher } from './rednote-playwright.js';
+import {
+  countedTitleCharacters,
+  createPlaywrightRednotePublisher,
+  readTitleField,
+} from './rednote-playwright.js';
+
+// The title row as the live form renders it, verified 2026-08-27. The body's own
+// `0 /1000` counter sits outside `.input` deliberately: the title's scope must
+// not be able to pick it up.
+const FORM_HTML = `
+  <div class="edit-container">
+    <div class="flex">
+      <div class="input">
+        <div class="d-input-wrapper d-inline-block c-input_inner">
+          <div class="d-input"><input class="d-text" type="text"></div>
+        </div>
+        <div class="suffix"></div>
+      </div>
+    </div>
+    <div class="bottom-wrapper"><div class="editor-length-wrapper">0 /1000</div></div>
+  </div>`;
+
+/**
+ * Rednote's own counting model, defined here independently of the publisher's.
+ *
+ * A half-width character weighs half a full-width one: the live form counts
+ * `AI代理不等於公鏈繁榮？` -- twelve code points -- as 11. Deriving this from
+ * `Array.from(value).length` is what made the old fake agree with the publisher
+ * by construction and hid a fatal `fill_title` for every title carrying Latin
+ * text. The rounding for an odd number of half-width characters was not
+ * measured; no test here depends on it.
+ */
+function rednoteCount(value: string): number {
+  let weight = 0;
+  for (const character of value) {
+    weight += /[\u0020-\u007e]/u.test(character) ? 0.5 : 1;
+  }
+  return Math.floor(weight);
+}
 
 const PAYLOAD = {
   title: '利率真的轉向？',
@@ -24,11 +63,15 @@ const PAYLOAD = {
 /**
  * Models the parts of the creator page this publisher depends on.
  *
- * The title input is modelled as two separate values on purpose: `dom` is what
- * `inputValue()` reads back, and `model` is what the SPA itself holds and
- * renders as a character counter. Production drifts between them -- a write
- * issued while the form is re-rendering sets `dom` and never reaches `model` --
- * and `titleAcceptsOnWrite` is which write finally lands.
+ * The title input is modelled as two separate values on purpose: `dom` is the
+ * input's own value, and `model` is what the SPA itself holds and renders as a
+ * character counter. Production drifts between them -- a write issued while the
+ * form is re-rendering sets `dom` and never reaches `model` -- and
+ * `titleAcceptsOnWrite` is which write finally lands.
+ *
+ * Both live in a real DOM built from `FORM_HTML`, and `title.evaluate` runs the
+ * publisher's own `readTitleField` against it, so the traversal under test is the
+ * one that ships rather than a stand-in that cannot disagree with it.
  *
  * `existingTopics` are Simplified, because that is what the real search indexes.
  */
@@ -36,6 +79,7 @@ function fakePage(options: {
   existingTopics: string[];
   titleAcceptsOnWrite?: number;
   declarationOpens?: boolean;
+  counter?: 'rendered' | 'absent' | 'stuck-at-zero';
 }) {
   const state = {
     query: '',
@@ -47,23 +91,45 @@ function fakePage(options: {
     titleWrites: 0,
   };
   const acceptsOn = options.titleAcceptsOnWrite ?? 1;
+  const counterMode = options.counter ?? 'rendered';
+
+  const document = new JSDOM(FORM_HTML).window.document;
+  const input = document.querySelector<HTMLInputElement>('input.d-text')!;
+  const suffix = document.querySelector<HTMLElement>('.suffix')!;
+
+  // The live form drops the whole `.count-tip` element while the model is empty,
+  // rather than rendering it as "0 / 20".
+  const renderCounter = () => {
+    suffix.replaceChildren();
+    if (!state.titleModel || counterMode === 'absent') return;
+    const tip = document.createElement('div');
+    tip.className = 'count-tip';
+    const counted =
+      counterMode === 'stuck-at-zero' ? 0 : rednoteCount(state.titleModel);
+    tip.textContent = `${counted} / 20`;
+    suffix.append(tip);
+  };
 
   const title = {
     waitFor: vi.fn().mockResolvedValue(undefined),
     click: vi.fn().mockResolvedValue(undefined),
     fill: vi.fn(async (value: string) => {
       state.titleDom = value;
+      input.value = value;
       if (value === '') {
         state.titleModel = '';
-        return;
+      } else {
+        state.titleWrites += 1;
+        if (state.titleWrites >= acceptsOn) state.titleModel = value;
       }
-      state.titleWrites += 1;
-      if (state.titleWrites >= acceptsOn) state.titleModel = value;
+      renderCounter();
     }),
-    inputValue: vi.fn(async () => state.titleDom),
-    // Stands in for reading the counter beside the field.
-    evaluate: vi.fn(async () =>
-      state.titleModel ? `${Array.from(state.titleModel).length} / 20` : null,
+    // Runs the shipped traversal against the real DOM above.
+    evaluate: vi.fn(
+      async (
+        run: typeof readTitleField,
+        selectors: { container: string; counter: string },
+      ) => run(input, selectors),
     ),
     page: () => page,
   };
@@ -295,5 +361,139 @@ describe('createPlaywrightRednotePublisher', () => {
     await expect(
       createPlaywrightRednotePublisher().publishRednote(PAYLOAD),
     ).rejects.toThrow(/fill_title/);
+  });
+
+  // The regression that took the whole release cohort down on 2026-08-27:
+  // Rednote counts `AI` as one character, so its counter read 11 for a
+  // twelve-code-point title and an equality check could never be satisfied.
+  it('publishes a title the platform counts differently from this side', async () => {
+    const { page, state } = fakePage({
+      existingTopics: ['宏观经济', '市场结构'],
+    });
+    mocks.page = page;
+    const logs: string[] = [];
+    const title = 'AI代理不等於公鏈繁榮？';
+
+    await expect(
+      createPlaywrightRednotePublisher({
+        onLog: (message) => logs.push(message),
+      }).publishRednote({ ...PAYLOAD, title }),
+    ).resolves.toMatchObject({ status: 'published' });
+
+    expect(state.titleModel).toBe(title);
+    expect(Array.from(title)).toHaveLength(12);
+    expect(rednoteCount(title)).toBe(11);
+    // A disagreement is reported, never fatal: a real contract change has to
+    // stay visible without blocking every episode behind this one.
+    expect(logs).toContainEqual(
+      expect.stringContaining('title_count_mismatch: platform counted 11'),
+    );
+  });
+
+  // Both are the empty-model failure this check exists for, and both stay fatal.
+  it.each([
+    { counter: 'absent' as const, evidence: 'not found in' },
+    { counter: 'stuck-at-zero' as const, evidence: '"0 / 20"' },
+  ])('fails when the counter reads $counter', async ({ counter, evidence }) => {
+    const { page } = fakePage({
+      existingTopics: ['宏观经济', '市场结构'],
+      counter,
+    });
+    mocks.page = page;
+
+    const error = await createPlaywrightRednotePublisher()
+      .publishRednote(PAYLOAD)
+      .catch((thrown: Error) => thrown);
+
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain('fill_title');
+    // The evidence has to travel with the failure: diagnosing this once already
+    // cost a live session against the creator form.
+    expect((error as Error).message).toContain(evidence);
+    expect((error as Error).message).toContain(PAYLOAD.title);
+  });
+
+  it('writes the title trimmed', async () => {
+    const { page, title, state } = fakePage({
+      existingTopics: ['宏观经济', '市场结构'],
+    });
+    mocks.page = page;
+
+    await createPlaywrightRednotePublisher().publishRednote({
+      ...PAYLOAD,
+      title: `  ${PAYLOAD.title}  `,
+    });
+
+    // An untrimmed expectation is unsatisfiable if the SPA trims on commit.
+    expect(state.titleModel).toBe(PAYLOAD.title);
+    expect(title.fill).toHaveBeenCalledWith(PAYLOAD.title);
+  });
+});
+
+describe('readTitleField', () => {
+  const build = (html: string) => {
+    const document = new JSDOM(html).window.document;
+    return document.querySelector<HTMLInputElement>('input.d-text')!;
+  };
+  const selectors = { container: '.input', counter: '.count-tip' };
+
+  it("reads the field's own counter, not the body's", () => {
+    const input = build(FORM_HTML);
+    input.value = '利率真的轉向？';
+    input.closest('.input')!.querySelector<HTMLElement>('.suffix')!.innerHTML =
+      '<div class="count-tip">7 / 20</div>';
+
+    // `0 /1000` is the body's counter, outside `.input`; picking it up would
+    // report a title the model never received.
+    expect(readTitleField(input, selectors)).toEqual({
+      value: '利率真的轉向？',
+      text: '7 / 20',
+    });
+  });
+
+  it('reports no counter when the field renders none', () => {
+    expect(readTitleField(build(FORM_HTML), selectors)).toEqual({
+      value: '',
+      text: null,
+    });
+  });
+
+  // Playwright serializes this function and runs it in the page, where module
+  // scope does not exist. A free identifier -- an import, a module constant, a
+  // call to a neighbouring helper -- passes every test here and throws
+  // `ReferenceError` only in production.
+  it('survives being serialized into a page', () => {
+    const source = readTitleField.toString();
+    expect(source).not.toContain('__name');
+
+    /* eslint-disable no-new-func, @typescript-eslint/no-implied-eval, sonarjs/code-eval --
+       Compiling the string is the check: it is how the page receives this
+       function, and a free identifier only fails once it runs in a fresh scope.
+       The input is this test's own `readTitleField.toString()`. */
+    const rebuilt = new Function(
+      `return (${source})`,
+    )() as typeof readTitleField;
+    /* eslint-enable no-new-func, @typescript-eslint/no-implied-eval, sonarjs/code-eval */
+    const input = build(FORM_HTML);
+    input.value = '利率真的轉向？';
+
+    expect(rebuilt(input, selectors)).toEqual({
+      value: '利率真的轉向？',
+      text: null,
+    });
+  });
+});
+
+describe('countedTitleCharacters', () => {
+  it.each([
+    { text: '11 / 20', expected: 11 },
+    { text: '0 / 20', expected: 0 },
+    { text: '20/20', expected: 20 },
+    { text: '11 ／ 20', expected: 11 },
+    { text: null, expected: null },
+    { text: '', expected: null },
+    { text: '11 / 20 字', expected: null },
+  ])('reads $text as $expected', ({ text, expected }) => {
+    expect(countedTitleCharacters(text)).toBe(expected);
   });
 });

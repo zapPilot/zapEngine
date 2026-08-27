@@ -338,11 +338,24 @@ for weeks behind that check: the request body
 (`POST webapi.rednote.com/web_api/sns/v2/note`) carried
 `"title":"","desc":"…"` while the browser showed the title in place.
 
-What does prove it is the character counter beside the field (`.count-tip`,
-rendered as `7 / 20` and absent while the model is empty): that is the SPA
-reading its own state. `writeTitle()` clears and rewrites up to three times until
-the counter matches the title's length, and fails the publish (`fill_title`)
-if the model never agrees — which the daemon's normal retry then regenerates.
+What does prove it is the character counter beside the field (`.count-tip`, a
+descendant of the same `.input` block, rendered as `11 / 20` and absent as a
+whole element while the model is empty): that is the SPA reading its own state.
+`writeTitle()` clears and rewrites up to three times until that counter exists
+and reads above zero, and fails the publish (`fill_title`) if the model never
+agrees. A `fill_title` failure is fatal to the whole release cohort and exits the
+daemon — it is not a soft retry.
+
+**The counter proves the model received the write; it does not tell you how the
+platform counts.** Rednote weights a half-width character at half a full-width
+one, so the live form counts `AI代理不等於公鏈繁榮？` — twelve code points — as
+`11 / 20`. `writeTitle()` originally required the counter to equal
+`Array.from(title).length`, which made every title carrying Latin text or digits
+fail `fill_title` forever the first time it ran against the real form. The bug
+this check exists for shows up as an _absent or zero_ counter, never as
+off-by-one, so a disagreeing count is logged (`title_count_mismatch`) rather than
+raised. Do not tighten it back to equality.
+
 The note manager is where this is visible after the fact: a titled note shows its
 title in the card, an untitled one falls back to showing the description.
 
@@ -356,7 +369,7 @@ id and link, and that entity is what the publisher verifies before moving on.
 Three rules make that safe:
 
 - **The query is Simplified.** Topic search is script-sensitive and the two
-  scripts are *different topics*: 「宏觀經濟」 had 8.3万 views against 「宏观经济」's
+  scripts are _different topics_: 「宏觀經濟」 had 8.3万 views against 「宏观经济」's
   5.2亿 when this was measured. The copy stays Traditional; only the topic query
   runs through OpenCC.
 - **A 「新建话题」 row is a rejection, not a candidate.** A query matching nothing
@@ -366,7 +379,7 @@ Three rules make that safe:
   typed, as plain text. The publisher backspaces the `#` and every character of
   the query, so the literal-hashtag behaviour cannot come back by accident.
 
-A tag with no matching topic is skipped (`topic_not_found` in the log). If *no*
+A tag with no matching topic is skipped (`topic_not_found` in the log). If _no_
 tag matches, the publish fails at `attach_topics` rather than shipping a note
 with no topic at all. `PublishResult.hashtags` reports the tags that actually
 attached, and telemetry records those — otherwise the strategy learner credits a
@@ -379,7 +392,7 @@ picks 「笔记含AI合成内容」, and confirms the resulting `.d-select-descr
 before continuing. It fails the publish (`declare_ai_content`) rather than
 logging and moving on: the declaration is a claim only this step can make, and a
 skipped one is invisible afterwards. This is a compliance step, not a content
-filter — AI as a *subject* is never a risk (see the moderation gate below).
+filter — AI as a _subject_ is never a risk (see the moderation gate below).
 
 `submit-disabled` on `<xhs-publish-btn>` tracks the upload settling rather than
 the editor: it reads `true` for a while after the transfer finishes and there is
@@ -414,12 +427,12 @@ accidentally reintroduce the review-triggering website promotion.
 `src/social/compose.ts` owns the whole mapping from one generated copy to what a
 platform receives:
 
-| Platform | Title field           | Body                               | Hashtags |
-| -------- | --------------------- | ---------------------------------- | -------- |
-| X        | none                  | `short.text` + localized brand CTA | none     |
-| Threads  | none                  | `short.text` + localized brand CTA | none     |
+| Platform | Title field           | Body                               | Hashtags   |
+| -------- | --------------------- | ---------------------------------- | ---------- |
+| X        | none                  | `short.text` + localized brand CTA | none       |
+| Threads  | none                  | `short.text` + localized brand CTA | none       |
 | Rednote  | `rednote.title`       | `rednote.body`, no CTA             | 3-5 topics |
-| YouTube  | episode title (≤ 100) | episode summary (≤4500)            | none     |
+| YouTube  | episode title (≤ 100) | episode summary (≤4500)            | none       |
 
 The copy generator requests only the blocks needed by the language batch. A
 YouTube-only batch still performs one LLM call for `topic`/`hookType`, but its
@@ -497,12 +510,12 @@ Four red lines, with stable ids, now cover that gap. They live in one file,
 `prompts/social/rednote-risk-rules.md`, which is appended to the writer's Rednote
 block **and** read by the judge, so the two cannot drift:
 
-| Rule                              | What it forbids                                                          |
-| --------------------------------- | ------------------------------------------------------------------------ |
-| `asset_allocation_advice`         | how much of an asset to hold — including attributed to a named investor  |
-| `market_timing_advice`            | when to enter, exit, take profit or cut a loss                           |
-| `political_market_speculation`    | a political motive presented as the established cause of a market move   |
-| `strong_prediction_unattributed`  | a prediction stated more strongly, or less attributed, than its source   |
+| Rule                             | What it forbids                                                         |
+| -------------------------------- | ----------------------------------------------------------------------- |
+| `asset_allocation_advice`        | how much of an asset to hold — including attributed to a named investor |
+| `market_timing_advice`           | when to enter, exit, take profit or cut a loss                          |
+| `political_market_speculation`   | a political motive presented as the established cause of a market move  |
+| `strong_prediction_unattributed` | a prediction stated more strongly, or less attributed, than its source  |
 
 The first two are lexical, so `lexicon/asset-allocation.ts` and
 `lexicon/market-timing.ts` catch them at both existing gate points for free. The

@@ -58,8 +58,15 @@ const PUBLISH_BUTTON_SELECTOR = 'text="发布"';
 // actionability cannot see it and this wait is what prevents a no-op publish.
 const UPLOAD_COMPLETE_SELECTOR = 'text="重新上传"';
 
-// Rendered as "7 / 20" beside the title input, inside the same `.input` block,
-// and absent entirely while the model holds no title.
+// Both verified against the live form on 2026-08-27, which renders:
+//   <div class="input">
+//     <div class="d-input-wrapper ..."><input class="d-text"></div>
+//     <div class="suffix"><div class="count-tip">11 / 20</div></div>
+//   </div>
+// The counter is a descendant of the same `.input` block as the field, and the
+// whole `.count-tip` element is absent while the model holds no title -- the
+// body's own `0 /1000` counter lives outside `.input`, so this scope cannot
+// pick it up.
 const TITLE_COUNTER_SELECTOR = '.count-tip';
 const TITLE_CONTAINER_SELECTOR = '.input';
 const TITLE_WRITE_ATTEMPTS = 3;
@@ -157,7 +164,7 @@ async function publish(
   const title = await step('find_title', () =>
     firstVisible(page, TITLE_SELECTORS, EDITOR_TIMEOUT_MS),
   );
-  await step('fill_title', () => writeTitle(title, input.title));
+  await step('fill_title', () => writeTitle(title, input.title.trim(), log));
 
   log('[rednote] Publishing');
   await step('wait_submit_enabled', () =>
@@ -346,54 +353,119 @@ async function declareAiContent(page: Page): Promise<void> {
  *
  * A write issued just after the topic panel and the declaration select close can
  * land on the input without reaching the model: the DOM value is set, the
- * character counter stays at zero, and the note is created with `title: ""`.
- * That failure is invisible to `inputValue()`, which only reads back what was
- * just written -- which is why untitled notes shipped for weeks under a check
- * that never went red. Clearing and rewriting fixes it, so each attempt is
+ * character counter is not rendered at all, and the note is created with
+ * `title: ""`. That failure is invisible to a DOM read-back, which only returns
+ * what was just written -- which is why untitled notes shipped for weeks under a
+ * check that never went red. Clearing and rewriting fixes it, so each attempt is
  * verified against the counter and the publish fails if the model never agrees.
  */
-async function writeTitle(field: Locator, expected: string): Promise<void> {
-  const wanted = Array.from(expected).length;
+async function writeTitle(
+  field: Locator,
+  expected: string,
+  log: (message: string) => void,
+): Promise<void> {
+  let last: TitleAcceptance | undefined;
   for (let attempt = 1; attempt <= TITLE_WRITE_ATTEMPTS; attempt += 1) {
     await field.click();
     await field.fill('');
     await field.fill(expected);
-    if (await titleAccepted(field, expected, wanted)) return;
+    last = await pollTitleAcceptance(field, expected, log);
+    if (last.accepted) return;
   }
 
+  // Line 1 is the human summary: `publicTelegramErrorMessage` forwards only
+  // that. The evidence below it reaches stderr and `last_error`, so the next
+  // drift in this form diagnoses itself instead of needing another live session.
   throw new Error(
-    `Rednote did not accept the title "${expected}" after ${TITLE_WRITE_ATTEMPTS} attempts; its own character count never reached ${wanted}.`,
+    [
+      `Rednote did not accept the title "${expected}" after ${TITLE_WRITE_ATTEMPTS} attempts.`,
+      `  dom value: ${JSON.stringify(last?.value ?? null)}`,
+      `  counter: ${last?.text === null || last?.text === undefined ? `not found in the field's ${TITLE_CONTAINER_SELECTOR} block` : JSON.stringify(last.text)}`,
+    ].join('\n'),
   );
 }
 
-async function titleAccepted(
+interface TitleAcceptance {
+  accepted: boolean;
+  value: string | null;
+  text: string | null;
+}
+
+/**
+ * Accepts on "the counter exists and is above zero", never on the counter
+ * agreeing with our own character count.
+ *
+ * Rednote weights half-width characters at half a full-width one: the live form
+ * counts `AI代理不等於公鏈繁榮？` -- twelve code points -- as `11 / 20`. Demanding
+ * equality therefore made every title containing Latin text or digits fail
+ * `fill_title` forever, and that step is fatal to the whole release cohort. The
+ * counting model was never something this publisher needed to know: the bug the
+ * check exists for shows up as an *absent or zero* counter, never as off-by-one.
+ * A count that disagrees is logged so a real contract change stays visible.
+ *
+ * The DOM value is read in the same round trip as the counter, so a re-render
+ * cannot tear the pair, and it is what still proves the platform kept the title
+ * whole rather than truncating or rewriting it.
+ */
+async function pollTitleAcceptance(
   field: Locator,
   expected: string,
-  wanted: number,
-): Promise<boolean> {
+  log: (message: string) => void,
+): Promise<TitleAcceptance> {
+  const wanted = Array.from(expected).length;
+  let last: TitleAcceptance = { accepted: false, value: null, text: null };
+
   for (let poll = 0; poll < TITLE_ACCEPTED_POLLS; poll += 1) {
-    if (
-      (await field.inputValue()) === expected &&
-      (await countedTitleCharacters(field)) === wanted
-    ) {
-      return true;
+    const probe = await field.evaluate(readTitleField, {
+      container: TITLE_CONTAINER_SELECTOR,
+      counter: TITLE_COUNTER_SELECTOR,
+    });
+    const counted = countedTitleCharacters(probe.text);
+    last = { accepted: false, value: probe.value, text: probe.text };
+
+    if (probe.value === expected && counted !== null && counted > 0) {
+      if (counted !== wanted) {
+        log(
+          `[rednote] title_count_mismatch: platform counted ${counted}, this side counted ${wanted} ("${probe.text ?? ''}")`,
+        );
+      }
+      return { ...last, accepted: true };
     }
     await field.page().waitForTimeout(TITLE_POLL_INTERVAL_MS);
   }
-  return false;
+  return last;
+}
+
+/**
+ * Reads the field's own value and its counter text in one round trip.
+ *
+ * Serialized by `Locator.evaluate` and executed in the page, so it has to stay
+ * self-contained: no import, no module constant, no call to another function in
+ * this file. Every bound arrives through `selectors`. Exported so a test can run
+ * this exact traversal against the live form's markup, rather than against a
+ * mock that agrees with it by construction.
+ */
+export function readTitleField(
+  element: Element,
+  selectors: { container: string; counter: string },
+): { value: string | null; text: string | null } {
+  const counter = element
+    .closest(selectors.container)
+    ?.querySelector(selectors.counter);
+  return {
+    value:
+      'value' in element ? String((element as HTMLInputElement).value) : null,
+    text: counter?.textContent ?? null,
+  };
 }
 
 // `null` when the counter is absent, which is how the field renders an empty
 // model -- indistinguishable from "0 / 20" for this purpose, and both mean the
-// title did not arrive.
-async function countedTitleCharacters(field: Locator): Promise<number | null> {
-  const counter = await field.evaluate(
-    (element, [container, tip]) =>
-      element.closest(container)?.querySelector(tip)?.textContent ?? null,
-    [TITLE_CONTAINER_SELECTOR, TITLE_COUNTER_SELECTOR] as const,
-  );
+// title did not arrive. Parsed here rather than in the page so the pattern lives
+// beside the code that depends on it.
+export function countedTitleCharacters(text: string | null): number | null {
   // Whitespace is stripped first so the pattern stays anchored and linear.
-  const counted = /^(\d+)\/\d+$/u.exec((counter ?? '').replace(/\s/gu, ''));
+  const counted = /^(\d+)[/／]\d+$/u.exec((text ?? '').replace(/\s/gu, ''));
   return counted?.[1] === undefined ? null : Number(counted[1]);
 }
 
