@@ -17,11 +17,9 @@
 
 export * from './analytics';
 export * from './backtesting';
-export * from './export';
 export * from './portfolio';
 export * from './portfolioProgressive';
 export * from './strategy';
-export * from './strategyAdmin';
 export * from './wallet';
 
 // ============================================================================
@@ -36,5 +34,4 @@ export * from './domain/wallet';
 // UI TYPES
 // ============================================================================
 
-export * from './ui/chartHover';
 export * from './ui/ui.types';

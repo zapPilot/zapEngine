@@ -22,6 +22,22 @@
       "types": "./dist/adapters/index.d.ts",
       "import": "./dist/adapters/index.js"
     },
+    "./config/chains/display": {
+      "types": "./dist/config/chains/display.d.ts",
+      "import": "./dist/config/chains/display.js"
+    },
+    "./config/wagmi": {
+      "types": "./dist/config/wagmi.d.ts",
+      "import": "./dist/config/wagmi.js"
+    },
+    "./constants/bridgeChains": {
+      "types": "./dist/constants/bridgeChains.d.ts",
+      "import": "./dist/constants/bridgeChains.js"
+    },
+    "./gmxFees": {
+      "types": "./dist/gmxFees.d.ts",
+      "import": "./dist/gmxFees.js"
+    },
     "./utils": {
       "types": "./dist/utils/index.d.ts",
       "import": "./dist/utils/index.js"
@@ -42,57 +58,85 @@
       "types": "./dist/hooks/queries/index.d.ts",
       "import": "./dist/hooks/queries/index.js"
     },
-    "./hooks/queries/strategyAdmin": {
-      "types": "./dist/hooks/queries/strategyAdmin/index.d.ts",
-      "import": "./dist/hooks/queries/strategyAdmin/index.js"
-    },
     "./hooks/analytics": {
       "types": "./dist/hooks/analytics/index.d.ts",
       "import": "./dist/hooks/analytics/index.js"
     },
-    "./hooks/bundle": {
-      "types": "./dist/hooks/bundle/index.d.ts",
-      "import": "./dist/hooks/bundle/index.js"
+    "./hooks/analytics/usePortfolioDashboard": {
+      "types": "./dist/hooks/analytics/usePortfolioDashboard.d.ts",
+      "import": "./dist/hooks/analytics/usePortfolioDashboard.js"
     },
     "./hooks/wallet": {
       "types": "./dist/hooks/wallet/index.d.ts",
       "import": "./dist/hooks/wallet/index.js"
     },
-    "./hooks/mutations": {
-      "types": "./dist/hooks/mutations/index.d.ts",
-      "import": "./dist/hooks/mutations/index.js"
-    },
     "./hooks/utils": {
       "types": "./dist/hooks/utils/index.d.ts",
       "import": "./dist/hooks/utils/index.js"
+    },
+    "./hooks/queries/analytics/usePortfolioDataProgressive": {
+      "types": "./dist/hooks/queries/analytics/usePortfolioDataProgressive.d.ts",
+      "import": "./dist/hooks/queries/analytics/usePortfolioDataProgressive.js"
+    },
+    "./hooks/queries/analytics/useYieldSummary": {
+      "types": "./dist/hooks/queries/analytics/useYieldSummary.d.ts",
+      "import": "./dist/hooks/queries/analytics/useYieldSummary.js"
+    },
+    "./hooks/queries/market/useRegimeHistoryQuery": {
+      "types": "./dist/hooks/queries/market/useRegimeHistoryQuery.d.ts",
+      "import": "./dist/hooks/queries/market/useRegimeHistoryQuery.js"
+    },
+    "./hooks/queries/market/useSentimentQuery": {
+      "types": "./dist/hooks/queries/market/useSentimentQuery.d.ts",
+      "import": "./dist/hooks/queries/market/useSentimentQuery.js"
+    },
+    "./hooks/queries/queryDefaults": {
+      "types": "./dist/hooks/queries/queryDefaults.d.ts",
+      "import": "./dist/hooks/queries/queryDefaults.js"
+    },
+    "./hooks/queries/wallet/useUser": {
+      "types": "./dist/hooks/queries/wallet/useUser.d.ts",
+      "import": "./dist/hooks/queries/wallet/useUser.js"
+    },
+    "./hooks/queries/wallet/useUserWallets": {
+      "types": "./dist/hooks/queries/wallet/useUserWallets.d.ts",
+      "import": "./dist/hooks/queries/wallet/useUserWallets.js"
+    },
+    "./hooks/useBridgeTest": {
+      "types": "./dist/hooks/useBridgeTest.d.ts",
+      "import": "./dist/hooks/useBridgeTest.js"
+    },
+    "./hooks/useDepositWizard": {
+      "types": "./dist/hooks/useDepositWizard.d.ts",
+      "import": "./dist/hooks/useDepositWizard.js"
+    },
+    "./hooks/useSingleChainDepositWizard": {
+      "types": "./dist/hooks/useSingleChainDepositWizard.d.ts",
+      "import": "./dist/hooks/useSingleChainDepositWizard.js"
+    },
+    "./hooks/useStrategyDepositWizard": {
+      "types": "./dist/hooks/useStrategyDepositWizard.d.ts",
+      "import": "./dist/hooks/useStrategyDepositWizard.js"
+    },
+    "./hooks/wallet/useAtomicBatchExecution": {
+      "types": "./dist/hooks/wallet/useAtomicBatchExecution.d.ts",
+      "import": "./dist/hooks/wallet/useAtomicBatchExecution.js"
+    },
+    "./hooks/wallet/usePrivyWalletBackend": {
+      "types": "./dist/hooks/wallet/usePrivyWalletBackend.d.ts",
+      "import": "./dist/hooks/wallet/usePrivyWalletBackend.js"
+    },
+    "./hooks/wallet/useWagmiWalletBackend": {
+      "types": "./dist/hooks/wallet/useWagmiWalletBackend.d.ts",
+      "import": "./dist/hooks/wallet/useWagmiWalletBackend.js"
     },
     "./lib/http": {
       "types": "./dist/lib/http/index.d.ts",
       "import": "./dist/lib/http/index.js"
     },
-    "./lib/state": {
-      "types": "./dist/lib/state/index.d.ts",
-      "import": "./dist/lib/state/index.js"
-    },
-    "./lib/env": {
-      "types": "./dist/lib/env/index.d.ts",
-      "import": "./dist/lib/env/index.js"
-    },
     "./lib/errors": {
       "types": "./dist/lib/errors/index.d.ts",
       "import": "./dist/lib/errors/index.js"
-    },
-    "./lib/wallet": {
-      "types": "./dist/lib/wallet/index.d.ts",
-      "import": "./dist/lib/wallet/index.js"
-    },
-    "./lib/domain": {
-      "types": "./dist/lib/domain/index.d.ts",
-      "import": "./dist/lib/domain/index.js"
-    },
-    "./lib/validation": {
-      "types": "./dist/lib/validation/index.d.ts",
-      "import": "./dist/lib/validation/index.js"
     },
     "./lib/portfolio": {
       "types": "./dist/lib/portfolio/index.d.ts",
@@ -106,13 +150,97 @@
       "types": "./dist/lib/bundle/index.d.ts",
       "import": "./dist/lib/bundle/index.js"
     },
+    "./lib/domain/allocationCategories": {
+      "types": "./dist/lib/domain/allocationCategories.d.ts",
+      "import": "./dist/lib/domain/allocationCategories.js"
+    },
+    "./lib/domain/regime": {
+      "types": "./dist/lib/domain/regime.d.ts",
+      "import": "./dist/lib/domain/regime.js"
+    },
+    "./lib/env/runtimeEnv": {
+      "types": "./dist/lib/env/runtimeEnv.d.ts",
+      "import": "./dist/lib/env/runtimeEnv.js"
+    },
+    "./lib/state/accountBootstrap": {
+      "types": "./dist/lib/state/accountBootstrap.d.ts",
+      "import": "./dist/lib/state/accountBootstrap.js"
+    },
+    "./lib/state/queryClient": {
+      "types": "./dist/lib/state/queryClient.d.ts",
+      "import": "./dist/lib/state/queryClient.js"
+    },
+    "./lib/validation/walletUtils": {
+      "types": "./dist/lib/validation/walletUtils.d.ts",
+      "import": "./dist/lib/validation/walletUtils.js"
+    },
+    "./lib/wallet/approvedWallets": {
+      "types": "./dist/lib/wallet/approvedWallets.d.ts",
+      "import": "./dist/lib/wallet/approvedWallets.js"
+    },
+    "./lib/wallet/depositWizardMachine": {
+      "types": "./dist/lib/wallet/depositWizardMachine.d.ts",
+      "import": "./dist/lib/wallet/depositWizardMachine.js"
+    },
+    "./lib/wallet/privyAtomicBatch": {
+      "types": "./dist/lib/wallet/privyAtomicBatch.d.ts",
+      "import": "./dist/lib/wallet/privyAtomicBatch.js"
+    },
+    "./lib/wallet/strategyDepositMachine": {
+      "types": "./dist/lib/wallet/strategyDepositMachine.d.ts",
+      "import": "./dist/lib/wallet/strategyDepositMachine.js"
+    },
+    "./lib/wallet/usd6": {
+      "types": "./dist/lib/wallet/usd6.d.ts",
+      "import": "./dist/lib/wallet/usd6.js"
+    },
     "./providers/walletContext": {
       "types": "./dist/providers/walletContext.d.ts",
       "import": "./dist/providers/walletContext.js"
     },
-    "./*": {
-      "types": "./dist/*.d.ts",
-      "import": "./dist/*.js"
+    "./providers/PrivyAuthProvider": {
+      "types": "./dist/providers/PrivyAuthProvider.d.ts",
+      "import": "./dist/providers/PrivyAuthProvider.js"
+    },
+    "./providers/ToastContext": {
+      "types": "./dist/providers/ToastContext.d.ts",
+      "import": "./dist/providers/ToastContext.js"
+    },
+    "./providers/WalletProvider": {
+      "types": "./dist/providers/WalletProvider.d.ts",
+      "import": "./dist/providers/WalletProvider.js"
+    },
+    "./providers/Web3Provider": {
+      "types": "./dist/providers/Web3Provider.d.ts",
+      "import": "./dist/providers/Web3Provider.js"
+    },
+    "./providers/toastTypes": {
+      "types": "./dist/providers/toastTypes.d.ts",
+      "import": "./dist/providers/toastTypes.js"
+    },
+    "./providers/walletLoginContext": {
+      "types": "./dist/providers/walletLoginContext.d.ts",
+      "import": "./dist/providers/walletLoginContext.js"
+    },
+    "./providers/walletProviderUtils": {
+      "types": "./dist/providers/walletProviderUtils.d.ts",
+      "import": "./dist/providers/walletProviderUtils.js"
+    },
+    "./services/accountService": {
+      "types": "./dist/services/accountService.d.ts",
+      "import": "./dist/services/accountService.js"
+    },
+    "./types/backtesting": {
+      "types": "./dist/types/backtesting.d.ts",
+      "import": "./dist/types/backtesting.js"
+    },
+    "./types/strategy": {
+      "types": "./dist/types/strategy.d.ts",
+      "import": "./dist/types/strategy.js"
+    },
+    "./utils/walletValidation": {
+      "types": "./dist/utils/walletValidation.d.ts",
+      "import": "./dist/utils/walletValidation.js"
     }
   },
   "scripts": {
@@ -134,27 +262,21 @@
   },
   "dependencies": {
     "@nktkas/hyperliquid": "catalog:",
-    "@zapengine/design-tokens": "workspace:*",
     "@zapengine/intent-engine": "workspace:*",
     "@zapengine/types": "workspace:*",
     "dayjs": "^1.11.19",
-    "framer-motion": "^12.19.1",
     "viem": "catalog:",
     "zod": "catalog:"
   },
   "peerDependencies": {
     "@privy-io/react-auth": "^3.29.2",
     "@tanstack/react-query": "^5.85.3",
-    "@tanstack/react-query-devtools": "^5.85.3",
     "react": "catalog:",
     "react-dom": "catalog:",
     "wagmi": "catalog:"
   },
   "peerDependenciesMeta": {
     "@privy-io/react-auth": {
-      "optional": true
-    },
-    "@tanstack/react-query-devtools": {
       "optional": true
     },
     "wagmi": {

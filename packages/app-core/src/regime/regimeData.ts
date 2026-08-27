@@ -7,7 +7,7 @@ import type { RegimeAllocationBreakdown } from '@core/types/domain/allocation';
  * - Extreme Fear (ef) = green (#22c55e) — "fear is opportunity"
  * - Extreme Greed (eg) = red (#ef4444) — "greed is danger"
  *
- * Other regime files (lib/domain/regime.ts, constants/regimeDisplay.ts,
+ * Other regime files (lib/domain/regime.ts,
  * marketDashboardConstants.ts) use the DIRECT convention:
  * - Fear = red, Greed = green
  *

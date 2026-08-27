@@ -3,7 +3,6 @@
  *
  * CONSOLIDATED from multiple sources (2026-04-28):
  * - lib/domain/regimeMapper.ts (labels, sentiment/status mappers)
- * - constants/regimeDisplay.ts (display config)
  * - constants/regimes.ts (default quotes)
  * - marketDashboardConstants.ts (colors, color/label helpers)
  * - chartHelpers.ts (sentiment index map)

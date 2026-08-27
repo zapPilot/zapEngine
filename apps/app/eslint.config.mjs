@@ -61,8 +61,6 @@ export default defineConfig([
               group: [
                 '@privy-io/react-auth/*',
                 'react-dom/*',
-                '@zapengine/app-core/hooks/bundle',
-                '@zapengine/app-core/hooks/bundle/**',
                 '@zapengine/app-core/hooks/wallet/usePrivyWalletBackend',
                 '@zapengine/app-core/hooks/wallet/useWagmiWalletBackend',
               ],
@@ -73,7 +71,6 @@ export default defineConfig([
               group: [
                 '@zapengine/app-core/providers/PrivyAuthProvider',
                 '@zapengine/app-core/providers/WalletProvider',
-                '@zapengine/app-core/providers/QueryProvider',
                 '@zapengine/app-core/providers/Web3Provider',
                 '@zapengine/app-core/providers/walletLoginContext',
               ],

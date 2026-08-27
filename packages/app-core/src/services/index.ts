@@ -79,13 +79,6 @@ export {
   isOwnBundle,
 } from './bundleService';
 
-// Market Data
-export {
-  type BtcPriceHistoryResponse,
-  type BtcPriceSnapshot,
-  getBtcPriceHistory,
-} from './btcPriceService';
-
 // Sentiment & Regime Analysis
 export {
   DEFAULT_REGIME_HISTORY,
@@ -176,15 +169,6 @@ export {
   type OnChainTokenBalance,
 } from './tokenBalanceService';
 
-// Strategy Admin
-export {
-  createStrategyConfig,
-  getStrategyAdminConfig,
-  getStrategyAdminConfigs,
-  setDefaultStrategyConfig,
-  updateStrategyConfig,
-} from './strategyAdminService';
-
 // Telegram Integration
 export {
   disconnectTelegram,
@@ -194,11 +178,3 @@ export {
   type TelegramStatus,
   type TelegramTokenResponse,
 } from './telegramService';
-
-// ============================================================================
-// MOCK SERVICES (Development/Testing Only)
-// ============================================================================
-
-// New explicit mock exports (preferred)
-export * as chainServiceMock from './chainService.mock';
-export * as transactionServiceMock from './transactionService.mock';

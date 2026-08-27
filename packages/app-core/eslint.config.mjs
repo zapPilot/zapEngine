@@ -12,27 +12,22 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // see CLAUDE.md for the boundary table.
 const WEB_ONLY_FILES = [
   'src/hooks/index.ts',
-  'src/hooks/bundle/**',
   'src/hooks/wallet/usePrivyWalletBackend.ts',
   'src/hooks/wallet/useWagmiWalletBackend.ts',
   'src/providers/PrivyAuthProvider.tsx',
   'src/providers/WalletProvider.tsx',
-  'src/providers/QueryProvider.tsx',
   'src/providers/Web3Provider.tsx',
   'src/providers/walletLoginContext.tsx',
   'src/config/wagmi.ts',
 ];
 
-const WEB_ONLY_IMPORT_PATHS = [
-  '@privy-io/react-auth',
-  'framer-motion',
-  'lucide-react',
-  '@tanstack/react-query-devtools',
-].map((name) => ({
-  name,
-  allowTypeImports: true,
-  message: `${name} is web-only; keep it out of RN-safe modules (see CLAUDE.md boundary table).`,
-}));
+const WEB_ONLY_IMPORT_PATHS = ['@privy-io/react-auth', 'lucide-react'].map(
+  (name) => ({
+    name,
+    allowTypeImports: true,
+    message: `${name} is web-only; keep it out of RN-safe modules (see CLAUDE.md boundary table).`,
+  }),
+);
 
 // Internal modules that pull the DOM or web-only packages in transitively.
 // RN-safe code must not import them at runtime (type-only imports are fine);
@@ -43,13 +38,10 @@ const WEB_ONLY_INTERNAL_PATTERNS = [
     group: [
       '**/providers/WalletProvider',
       '**/providers/PrivyAuthProvider',
-      '**/providers/QueryProvider',
       '**/providers/Web3Provider',
       '**/providers/walletLoginContext',
       '**/hooks/wallet/usePrivyWalletBackend',
       '**/hooks/wallet/useWagmiWalletBackend',
-      '**/hooks/bundle/useBundlePage',
-      '**/hooks/bundle/useWalletOperations',
       '**/config/wagmi',
     ],
     allowTypeImports: true,

@@ -5,9 +5,8 @@
  * public client (`getPublicClient`, Base-pinned and independent of the
  * wallet's connected chain) and values them using LI.FI spot prices.
  *
- * This is the real counterpart to `transactionService.mock`'s
- * `getTokenBalance` — used by the invest deposit/withdraw panel so it
- * behaves like other DeFi protocols (live balance + $ value).
+ * Used by the invest deposit/withdraw panel so it behaves like other DeFi
+ * protocols (live balance + $ value).
  */
 import { equalsAddress } from '@zapengine/types/shared';
 import { type Address, erc20Abi, formatUnits } from 'viem';
@@ -16,7 +15,7 @@ import { getPublicClient, intentEngine } from './intentClient';
 
 /**
  * Sentinel address for the native asset (ETH on Base). Matches the
- * LI.FI / common DeFi convention and the mock token list.
+ * LI.FI / common DeFi convention.
  */
 export const NATIVE_TOKEN_ADDRESS =
   '0x0000000000000000000000000000000000000000';

@@ -113,9 +113,3 @@ export const validateUnifiedDashboardResponse = createValidator(
 export const validateMarketDashboardResponse = createValidator(
   marketDashboardResponseSchema,
 );
-
-export const safeValidateUnifiedDashboardResponse = (
-  data: unknown,
-): ReturnType<typeof unifiedDashboardResponseSchema.safeParse> => {
-  return unifiedDashboardResponseSchema.safeParse(data);
-};

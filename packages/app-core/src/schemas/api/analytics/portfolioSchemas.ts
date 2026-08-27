@@ -34,19 +34,6 @@ const portfolioAllocationSchema = z.object({
   others: allocationCategorySchema,
 });
 
-const poolDetailSchema = z.object({
-  wallet: z.string(),
-  protocol_id: z.string(),
-  protocol: z.string(),
-  protocol_name: z.string(),
-  chain: z.string(),
-  asset_usd_value: z.number(),
-  pool_symbols: z.array(z.string()),
-  contribution_to_portfolio: z.number(),
-  snapshot_id: z.string(),
-  snapshot_ids: z.array(z.string()).nullable().optional(),
-});
-
 const riskMetricsSchema = z.object({
   has_leverage: z.boolean(),
   leverage_ratio: z.number().positive(),
@@ -131,8 +118,6 @@ export const landingPageResponseSchema = z
   })
   .catchall(z.unknown());
 
-export const poolPerformanceResponseSchema = z.array(poolDetailSchema);
-
 export type LandingPageResponse = z.infer<typeof landingPageResponseSchema>;
 export type RiskMetrics = z.infer<typeof riskMetricsSchema>;
 export type BorrowingSummary = z.infer<typeof borrowingSummarySchema>;
@@ -140,14 +125,22 @@ export type BorrowingPosition = z.infer<typeof borrowingPositionSchema>;
 export type BorrowingPositionsResponse = z.infer<
   typeof borrowingPositionsResponseSchema
 >;
-export type PoolDetail = z.infer<typeof poolDetailSchema>;
+export interface PoolDetail {
+  wallet: string;
+  protocol_id: string;
+  protocol: string;
+  protocol_name: string;
+  chain: string;
+  asset_usd_value: number;
+  pool_symbols: string[];
+  contribution_to_portfolio: number;
+  snapshot_id: string;
+  snapshot_ids?: string[] | null;
+}
 
 export const validateBorrowingPositionsResponse = createValidator(
   borrowingPositionsResponseSchema,
 );
 export const validateLandingPageResponse = createValidator(
   landingPageResponseSchema,
-);
-export const validatePoolPerformanceResponse = createValidator(
-  poolPerformanceResponseSchema,
 );

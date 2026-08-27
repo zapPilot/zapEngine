@@ -255,9 +255,6 @@ export type { EtlJobStatus };
 export const validateConnectWalletResponse = createValidator(
   connectWalletResponseSchema,
 );
-export const validateEtlJobTriggerResponse = createValidator(
-  etlJobTriggerResponseSchema,
-);
 export const validateAddWalletResponse = createValidator(
   addWalletResponseSchema,
 );
@@ -276,10 +273,4 @@ export const validateUserProfileResponse = createValidator(
 export const validateUserWallets = createValidator(
   z.array(userCryptoWalletSchema),
 );
-export const validateAccountTokens = createValidator(
-  z.array(accountTokenSchema),
-);
 export const validateMessageResponse = createValidator(messageResponseSchema);
-export const validateHealthCheckResponse = createValidator(
-  healthCheckResponseSchema,
-);

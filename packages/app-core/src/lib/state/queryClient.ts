@@ -119,14 +119,6 @@ export const queryKeys = {
     byChain: (chainId: number) => ['zapTokens', chainId] as const,
   },
 
-  // Strategy admin queries
-  strategyAdmin: {
-    all: ['strategyAdmin'] as const,
-    configs: () => ['strategyAdmin', 'configs'] as const,
-    config: (configId: string) =>
-      ['strategyAdmin', 'config', configId] as const,
-  },
-
   // Market sentiment queries
   sentiment: {
     all: ['sentiment'] as const,

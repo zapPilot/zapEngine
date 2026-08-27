@@ -12,7 +12,6 @@
  * - default: No clear direction → maintain current allocation
  */
 
-import { REGIME_LABELS } from '@core/lib/domain/regimeMapper';
 import type {
   DirectionType,
   RegimeId,
@@ -37,20 +36,6 @@ export const REGIME_ORDER: Record<RegimeId, number> = {
   g: 3,
   eg: 4,
 } as const;
-
-/**
- * Strategy metadata for UI rendering
- *
- * Contains animation class and accessibility information for each direction.
- */
-interface StrategyMeta {
-  /** Framer Motion animation class or variant */
-  animationClass: string;
-  /** ARIA label for screen readers */
-  ariaLabel: string;
-  /** Human-readable direction description */
-  description: string;
-}
 
 /**
  * Computes strategy direction based on regime transition
@@ -137,58 +122,4 @@ export function getActiveStrategy(
 
   // Fall back to client-side computation
   return computeStrategyDirection(currentRegime, previousRegime);
-}
-
-/**
- * Strategy metadata config for each direction type.
- * Record<DirectionType, ...> ensures compile-time exhaustiveness.
- */
-const STRATEGY_META: Record<DirectionType, StrategyMeta> = {
-  fromLeft: {
-    animationClass: 'slide-from-left',
-    ariaLabel: 'Transitioning from bearish to bullish regime',
-    description: 'Increasing crypto allocation',
-  },
-  fromRight: {
-    animationClass: 'slide-from-right',
-    ariaLabel: 'Transitioning from bullish to bearish regime',
-    description: 'Decreasing crypto allocation',
-  },
-  default: {
-    animationClass: 'fade-in',
-    ariaLabel: 'Current market regime',
-    description: 'Maintaining current allocation',
-  },
-};
-
-/**
- * Gets strategy metadata for UI rendering
- *
- * @param direction - Strategy direction type
- * @returns Strategy metadata with animation and accessibility info
- *
- * @example
- * ```typescript
- * const meta = getStrategyMeta("fromLeft");
- * // {
- * //   animationClass: "slide-from-left",
- * //   ariaLabel: "Transitioning from bearish to bullish regime",
- * //   description: "Increasing crypto allocation"
- * // }
- * ```
- */
-export function getStrategyMeta(direction: DirectionType): StrategyMeta {
-  return STRATEGY_META[direction] ?? STRATEGY_META.default;
-}
-
-// Unused export removed: isValidRegimeId
-
-/**
- * Gets human-readable regime name
- *
- * @param regimeId - Regime identifier
- * @returns Full regime name
- */
-export function getRegimeName(regimeId: RegimeId): string {
-  return REGIME_LABELS[regimeId];
 }
