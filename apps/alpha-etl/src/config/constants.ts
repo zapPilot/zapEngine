@@ -1,5 +1,4 @@
 const MILLISECONDS_PER_MINUTE = 60_000;
-const MILLISECONDS_PER_DAY = 86_400_000;
 
 /** Rate Limiting Configuration */
 export const RATE_LIMITS = {
@@ -31,16 +30,6 @@ export const TIMEOUTS = {
   JOB_PROCESSING_DELAY_MS: 1000,
   /** Interval between health check monitor runs in milliseconds */
   HEALTH_CHECK_INTERVAL_MS: 15000,
-} as const;
-
-/** Time Calculation Constants */
-export const TIME_CONSTANTS = {
-  /** Milliseconds per second */
-  MS_PER_SECOND: 1000,
-  /** Seconds per day */
-  SECONDS_PER_DAY: 86400,
-  /** Milliseconds per day (24 * 60 * 60 * 1000) */
-  MS_PER_DAY: MILLISECONDS_PER_DAY,
 } as const;
 
 /** Data Validation Limits */
