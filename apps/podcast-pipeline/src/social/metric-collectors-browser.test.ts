@@ -479,7 +479,7 @@ describe('Rednote browser metrics and reconciliation', () => {
     expect(recovered.publishedTitle).toBe(recovered.publishedBody.slice(0, 20));
   });
 
-  it('rejects missing note ids, invalid durations, empty body, and distant timestamps', async () => {
+  it('rejects missing note ids, invalid durations, unreadable content, and distant timestamps', async () => {
     installPage(
       rednotePage({
         cards: [rednoteCard({ time: '2026-08-16 10:00', duration: '00:20' })],
@@ -518,7 +518,7 @@ describe('Rednote browser metrics and reconciliation', () => {
     );
     await expect(
       inspectRednotePublishedPost('2026-08-16T02:00:00.000Z'),
-    ).rejects.toThrow('no readable body');
+    ).rejects.toThrow('no readable content');
 
     installPage(
       rednotePage({
@@ -534,6 +534,48 @@ describe('Rednote browser metrics and reconciliation', () => {
     await expect(
       inspectRednotePublishedPost('2026-08-16T02:00:00.000Z'),
     ).rejects.toThrow('could not be matched within 30 minutes');
+  });
+
+  it('accepts topic-only editor content with no prose body', async () => {
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'note-topic-only',
+            time: '2026-08-16 10:00',
+            title: 'Manager topic-only title',
+            duration: '00:20',
+          }),
+        ],
+        editorText: '#AI #聯準會',
+      }),
+    );
+    await expect(
+      inspectRednotePublishedPost('2026-08-16T02:00:00.000Z'),
+    ).resolves.toMatchObject({
+      publishedTitle: 'Manager topic-only title',
+      publishedBody: '',
+      hashtags: ['AI', '聯準會'],
+    });
+  });
+
+  it('fails closed when title, manager title, and body are all unreadable', async () => {
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'note-no-title',
+            time: '2026-08-16 10:00',
+            title: null,
+            duration: '00:20',
+          }),
+        ],
+        editorText: '#AI #聯準會',
+      }),
+    );
+    await expect(
+      inspectRednotePublishedPost('2026-08-16T02:00:00.000Z'),
+    ).rejects.toThrow('no readable title');
   });
 
   it('collects five Rednote counters by durable note id and repairs changed identity', async () => {

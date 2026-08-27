@@ -469,8 +469,8 @@ export async function inspectRednotePublishedPost(
       await editor.waitFor({ state: 'visible', timeout: BROWSER_TIMEOUT_MS });
       const editorText = (await editor.innerText()).trim();
       const parsed = parseRednoteEditorText(editorText);
-      if (!parsed.body) {
-        throw new Error(`Rednote note ${noteId} has no readable body.`);
+      if (!parsed.body && parsed.hashtags.length === 0) {
+        throw new Error(`Rednote note ${noteId} has no readable content.`);
       }
       const title = (
         await page
@@ -479,15 +479,22 @@ export async function inspectRednotePublishedPost(
           .inputValue()
           .catch(() => '')
       ).trim();
+      // Older Rednote publisher runs left the dedicated title field empty.
+      // The manager card still exposes a stable visible text label, which is
+      // sufficient for a recovered telemetry row and is explicitly marked as
+      // recovered in content_features by the reconciler. A note with no prose
+      // body at all (title + topics only) has nothing left to fall back to, so
+      // all three sources coming up empty is a genuine failure, not something
+      // to paper over with a blank `published_title`.
+      const publishedTitle = title || managerTitle || parsed.body.slice(0, 20);
+      if (!publishedTitle) {
+        throw new Error(`Rednote note ${noteId} has no readable title.`);
+      }
 
       return {
         platformPostId: noteId,
         postUrl: `https://www.xiaohongshu.com/explore/${noteId}`,
-        // Older Rednote publisher runs left the dedicated title field empty.
-        // The manager card still exposes a stable visible text label, which is
-        // sufficient for a recovered telemetry row and is explicitly marked
-        // as recovered in content_features by the reconciler.
-        publishedTitle: title || managerTitle || parsed.body.slice(0, 20),
+        publishedTitle,
         publishedBody: parsed.body,
         hashtags: parsed.hashtags,
         videoDurationSec,

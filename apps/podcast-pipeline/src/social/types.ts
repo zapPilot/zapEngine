@@ -107,7 +107,6 @@ export interface ThreadsPublishInput {
 export interface RednotePublishInput {
   /** Rednote's own title field, filled last -- see `rednote-playwright.ts`. */
   title: string;
-  body: string;
   hashtags: string[];
   videoPath: string;
 }
@@ -144,6 +143,13 @@ export interface PublishResult {
    * learner credits a tag that was never on it.
    */
   hashtags?: string[];
+  /**
+   * What the platform actually received as its prose body, when that differs
+   * from what was composed. Rednote is the only case today: its note carries
+   * no prose body at all, so `record.ts` has no other way to learn that and
+   * would otherwise store the composed (never-sent) draft as if it published.
+   */
+  body?: string;
 }
 
 export interface XPublisher {

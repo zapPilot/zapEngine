@@ -120,19 +120,19 @@ function createRednoteJob(input: SocialPublishJobsInput): SocialPublishJob {
   if (!videoPath) {
     throw new Error('Rednote publishing requires a prepared video.');
   }
-  const { title, body, hashtags } = composeSocialContent(platform, input);
+  const { title, hashtags } = composeSocialContent(platform, input);
   if (!title) {
     throw new Error('Rednote publishing requires a generated title.');
   }
-  // The last mile: `copy.ts` gates each generated field, but only the composed
-  // post is what Rednote review reads.
-  assertRednoteCopySafe([title, body, ...hashtags].join('\n'));
+  // The last mile: `copy.ts` gates each generated field, but only what is
+  // actually composed for publish is what Rednote review reads. The note
+  // carries no prose body, so only the title and topics need this check.
+  assertRednoteCopySafe([title, ...hashtags].join('\n'));
 
   const publisher = createPlaywrightRednotePublisher({ onLog: input.onLog });
   return {
     platform,
-    publish: () =>
-      publisher.publishRednote({ title, body, hashtags, videoPath }),
+    publish: () => publisher.publishRednote({ title, hashtags, videoPath }),
   };
 }
 

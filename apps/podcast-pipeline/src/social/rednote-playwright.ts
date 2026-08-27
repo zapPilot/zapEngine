@@ -21,9 +21,11 @@ const TOPIC_TYPING_DELAY_MS = 80;
 
 // The creator UI is a Simplified-Chinese SPA whose class names are generated,
 // so each field is located by several candidates and the first visible one wins.
-// The body is a TipTap/ProseMirror instance; its `data-placeholder` lives on the
-// inner paragraph rather than on the editable element, which is why the
-// placeholder candidates only ever matched a descendant.
+// The editor is a TipTap/ProseMirror instance; its `data-placeholder` lives on
+// the inner paragraph rather than on the editable element, which is why the
+// placeholder candidates only ever matched a descendant. The note carries no
+// prose body -- this editor only ever hosts the `#`-typed topic anchors
+// `attachTopics` inserts, never any published text.
 const BODY_SELECTORS = [
   '.tiptap.ProseMirror[contenteditable="true"]',
   '.ql-editor[contenteditable="true"]',
@@ -140,9 +142,6 @@ async function publish(
     firstVisible(page, BODY_SELECTORS, EDITOR_TIMEOUT_MS),
   );
 
-  log('[rednote] Filling description');
-  await step('fill_body', () => body.fill(input.body.trim()));
-
   const hashtags = await step('attach_topics', () =>
     attachTopics(page, body, input.hashtags, log),
   );
@@ -185,6 +184,7 @@ async function publish(
     status: 'published',
     publishedAt: new Date().toISOString(),
     hashtags,
+    body: '',
     ...(publicPostUrl(page.url()) ? { url: page.url() } : {}),
   };
 }

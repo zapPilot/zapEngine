@@ -71,8 +71,10 @@ export function buildSocialPostRecord(input: {
 
   // `published` is what the publisher was asked to post; a platform that
   // accepted only some of it reports back what it kept, and that is what
-  // telemetry has to store.
+  // telemetry has to store. Rednote never carries a prose body: the publisher
+  // reports `body: ''`, and that is what makes `bodyChars` honest.
   const publishedHashtags = input.result.hashtags ?? published.hashtags;
+  const publishedBody = input.result.body ?? published.body;
 
   return {
     episodeId: input.episodeId,
@@ -89,7 +91,7 @@ export function buildSocialPostRecord(input: {
     generatedTitle: generated.title,
     publishedTitle: published.title,
     generatedBody: generated.body,
-    publishedBody: published.body,
+    publishedBody,
     hashtags: publishedHashtags,
     videoDurationSec: publishedVideoDuration(
       input.platform,
@@ -98,7 +100,7 @@ export function buildSocialPostRecord(input: {
     ),
     contentFeatures: buildContentFeatures({
       title: published.title,
-      body: published.body,
+      body: publishedBody,
       hashtags: publishedHashtags,
     }),
     llmModel: input.snapshot.model,
