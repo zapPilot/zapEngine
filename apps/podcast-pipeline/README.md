@@ -223,7 +223,7 @@ Two process groups, because video rendering and the HTTP service cannot share a 
 | Group    | Command               | Machine                  | Serves HTTP | Lifecycle          |
 | -------- | --------------------- | ------------------------ | ----------- | ------------------ |
 | `app`    | `node dist/index.js`  | `shared-cpu-1x` / 512 MB | yes         | always on          |
-| `render` | `node dist/worker.js` | `performance-2x` / 4 GB  | no          | on demand (opt-in) |
+| `render` | `node dist/worker.js` | `performance-2x` / 4 GB  | no          | on demand          |
 
 A shared vCPU has a baseline of 1/16 of a core, and once its burst balance is spent x264 collapses — a co-located render was measured at `speed=0.00434x` while starving `/health` past its 5 s timeout, which took the only instance out of the proxy pool. The `render` group therefore keeps dedicated CPUs. New 720p renders log wall time, realtime factor, Node RSS, current cgroup memory, and the highest cgroup memory observed by a 250 ms sampler during the render as `video:render-metrics`. The sampled field is `cgroupPeakObservedMb`; it deliberately replaces the unreliable post-mortem `memory.peak` reading that returned zero after an ffmpeg OOM. The group stays at 4 GB until production samples show enough headroom to resize safely.
 
