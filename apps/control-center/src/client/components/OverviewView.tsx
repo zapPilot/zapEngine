@@ -1,6 +1,7 @@
 import type { OverviewResponse, SocialDecision } from '../../shared/types.js';
 import { integer, percent, usd } from '../format.js';
 import { platformLabel } from '../platform.js';
+import { Metric } from './Metric.js';
 import { ProviderLedger } from './ProviderLedger.js';
 
 export function OverviewView({ data }: { data: OverviewResponse | null }) {
@@ -82,19 +83,6 @@ export function OverviewView({ data }: { data: OverviewResponse | null }) {
           </div>
         </section>
       </div>
-    </div>
-  );
-}
-
-function Metric(props: {
-  accent?: 'actual' | 'projected';
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="headline-metric">
-      <span>{props.label}</span>
-      <strong className={`mono ${props.accent ?? ''}`}>{props.value}</strong>
     </div>
   );
 }

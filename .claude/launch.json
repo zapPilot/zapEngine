@@ -12,6 +12,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@zapengine/app", "exec", "expo", "start", "--web"],
       "port": 8081
+    },
+    {
+      "name": "control-center",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@zapengine/control-center", "dev"],
+      "port": 4174
     }
   ]
 }

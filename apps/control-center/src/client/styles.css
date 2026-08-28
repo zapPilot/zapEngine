@@ -1071,3 +1071,248 @@ a:focus-visible {
     grid-column: auto;
   }
 }
+
+/* Operations + Customers ---------------------------------------------------*/
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.status-banner-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+.status-pill {
+  display: inline-block;
+  padding: 5px 12px;
+  border: 1px solid var(--line-strong);
+  font-family: var(--heading);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.status-pill.compact {
+  padding: 2px 8px;
+  font-size: 10px;
+}
+.status-pill.healthy,
+.status-dot.healthy,
+.domain-chip.healthy {
+  border-color: #19794d;
+  color: #19794d;
+}
+.status-pill.degraded,
+.status-dot.degraded,
+.domain-chip.degraded {
+  border-color: #b26a00;
+  color: #b26a00;
+}
+.status-pill.critical,
+.status-dot.critical,
+.domain-chip.critical {
+  border-color: var(--coral);
+  color: var(--coral);
+}
+.status-pill.unknown,
+.status-dot.unknown,
+.domain-chip.unknown {
+  border-color: var(--line-strong);
+  color: var(--faint);
+}
+.status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border: 1px solid currentColor;
+  background: currentColor;
+  vertical-align: middle;
+}
+.domain-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  border: 1px solid var(--line);
+}
+.domain-chip {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border-left: 1px solid var(--line);
+  border-top: 3px solid currentColor;
+}
+.domain-chip:first-child {
+  border-left: none;
+}
+.domain-chip span {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.domain-chip strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+.domain-chip small {
+  color: var(--faint);
+  font-size: 10px;
+}
+.priority-reasons {
+  color: var(--faint) !important;
+  font-family: var(--mono);
+  font-size: 10px !important;
+}
+.priority-row strong a:hover {
+  color: var(--blue);
+}
+.signal-fingerprint {
+  display: block;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.signal-evidence {
+  max-width: 340px;
+  font-size: 10px;
+  white-space: normal;
+}
+.signal-error {
+  color: var(--coral) !important;
+}
+.customers-table td {
+  vertical-align: top;
+}
+.customer-row {
+  cursor: pointer;
+}
+.customer-row:hover,
+.customer-row.open {
+  background: var(--ice);
+}
+.tier-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--line-strong);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.tier-pill.priority {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.tier-pill.paused {
+  border-color: var(--coral);
+  color: var(--coral);
+}
+.unknown-cell {
+  color: var(--faint);
+}
+.customer-detail-row td {
+  padding: 0;
+  background: var(--surface);
+  white-space: normal;
+}
+.customer-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0;
+}
+.detail-block {
+  padding: 16px 18px;
+  border-left: 1px solid var(--line);
+}
+.detail-block:first-child {
+  border-left: none;
+}
+.detail-block h3 {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-family: var(--heading);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.detail-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 11px;
+}
+.detail-line span {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+/* The label names the row; the value is what wraps. Letting the label shrink
+   instead turned "Revenue" into "Reven…" beside its own explanation. */
+.detail-line strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.service-controls {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line-strong);
+}
+.service-controls select,
+.service-controls button {
+  padding: 5px 9px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  font-size: 11px;
+  opacity: 0.55;
+}
+.service-controls small {
+  color: var(--faint);
+  font-size: 10px;
+}
+.wip-badge {
+  justify-self: start;
+  padding: 2px 8px;
+  border: 1px solid var(--coral);
+  color: var(--coral);
+  font-family: var(--heading);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+.table-footnote {
+  display: block;
+  padding: 10px 18px 14px;
+  color: var(--faint);
+  font-size: 10px;
+}
+
+/* Two panels rather than the Overview's three, so the priority list gets the
+   width its wrapped titles need and the daemon card stops squeezing its own
+   heading onto two lines. */
+.operations-lower {
+  display: grid;
+  grid-template-columns: minmax(420px, 1.7fr) minmax(280px, 1fr);
+  gap: 12px;
+}
+.operations-lower > .open-panel {
+  min-width: 0;
+}
+@media (max-width: 1100px) {
+  .operations-lower {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* This strip carries currency rather than the Overview's counts, and the
+   shared headline size truncates "$75,000.00" to "$75,00…" at a laptop width.
+   A money figure nobody can read is worse than a smaller one. */
+.customers-metrics .headline-metric strong {
+  font-size: clamp(20px, 1.7vw, 28px);
+  letter-spacing: -0.04em;
+}

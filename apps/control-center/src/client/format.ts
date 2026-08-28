@@ -1,3 +1,5 @@
+import type { OperationalStatus } from '../shared/types.js';
+
 export function usd(value: number | null | undefined): string {
   return value === null || value === undefined
     ? '—'
@@ -54,4 +56,22 @@ export function filterKnownAccruedCost<
     (point): point is T & { accruedCostUsd: number } =>
       point.accruedCostUsd !== null,
   );
+}
+
+export function statusLabel(status: OperationalStatus | undefined): string {
+  return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
+}
+
+export function daysAgo(value: number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return 'never';
+  }
+  return value === 0 ? 'today' : `${integer(value)}d ago`;
+}
+
+export function hoursAgo(value: number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return 'never';
+  }
+  return value < 48 ? `${Math.round(value)}h` : `${Math.round(value / 24)}d`;
 }
