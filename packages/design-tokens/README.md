@@ -1,29 +1,19 @@
 # @zapengine/design-tokens
 
-Shared Zap Pilot brand tokens for web (TypeScript / Tailwind / CSS variables).
+Shared Zap Pilot brand tokens for TypeScript and CSS consumers.
 
 ## Overview
 
 A single source of truth — `tokens.json` — drives generated outputs for every consumer:
 
 - **TypeScript token objects** (`dist/tokens.js`, `dist/index.js`) — colors, radii, spacing, typography
-- **Tailwind preset** (`dist/tailwind-preset.js`) — drop into a `tailwind.config` `presets` array
 - **CSS custom properties** (`dist/css/variables.css`) — for non-Tailwind consumers
 
 ## Usage
 
-### Web (TypeScript / Tailwind)
+### TypeScript
 
 ```typescript
-// Tailwind config
-import zapTokens from '@zapengine/design-tokens/tailwind-preset';
-
-export default {
-  presets: [zapTokens],
-  // ...
-};
-
-// Direct token access
 import { tokens } from '@zapengine/design-tokens';
 ```
 

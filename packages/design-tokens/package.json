@@ -10,10 +10,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./tailwind-preset": {
-      "types": "./dist/tailwind-preset.d.ts",
-      "import": "./dist/tailwind-preset.js"
-    },
     "./tokens": {
       "types": "./dist/generated/tokens.d.ts",
       "import": "./dist/generated/tokens.js"
