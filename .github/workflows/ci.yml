@@ -348,7 +348,19 @@ jobs:
       app: ${{ matrix.app }}
 
   deploy-fly:
-    needs: [quick-gates, code-quality, tests, e2e, security, deploy-gates]
+    # check-dead-env is a needs rather than an advisory job: the deploy now
+    # re-asserts this app's environment, so shipping on a red env audit would
+    # push the drift into production instead of only reporting it.
+    needs:
+      [
+        quick-gates,
+        code-quality,
+        tests,
+        e2e,
+        security,
+        deploy-gates,
+        check-dead-env,
+      ]
     if: github.event_name != 'pull_request' && needs.deploy-gates.outputs.fly_matrix != '[]'
     strategy:
       fail-fast: false
@@ -362,6 +374,12 @@ jobs:
       capture_release_metadata: ${{ matrix.capture_release_metadata }}
     secrets:
       fly_token: ${{ secrets[matrix.secret_name] }}
+      env_fly_token: ${{ secrets.FLY_API_TOKEN }}
+      expo_token: ${{ secrets.EXPO_TOKEN }}
+      vercel_token: ${{ secrets.VERCEL_TOKEN }}
+      infisical_client_id: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
+      infisical_client_secret: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
+      infisical_project_id: ${{ secrets.INFISICAL_PROJECT_ID }}
 
   # Local equivalent: `pnpm lint dead-env`. The shared script also audits the
   # developer's root .env when present; CI checks source against the committed

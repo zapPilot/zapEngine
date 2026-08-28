@@ -6,7 +6,9 @@ on:
       app:
         type: string
         required: true
-        description: App directory name (e.g., account-engine).
+        description: >-
+          App directory name (e.g., account-engine). Doubles as the
+          `config/env.destinations.mjs` destination name reconciled before deploy.
       fly_config:
         type: string
         required: true
@@ -22,6 +24,20 @@ on:
     secrets:
       fly_token:
         required: true
+        description: Per-app deploy token. Used only by the deploy step.
+      env_fly_token:
+        required: true
+        description: Fleet-wide FLY_API_TOKEN shared with the environment rails; needs secret-write scope.
+      expo_token:
+        required: true
+      vercel_token:
+        required: true
+      infisical_client_id:
+        required: true
+      infisical_client_secret:
+        required: true
+      infisical_project_id:
+        required: true
 
 jobs:
   deploy:
@@ -30,15 +46,27 @@ jobs:
     concurrency:
       group: deploy-${{ inputs.app }}-${{ github.ref }}
       cancel-in-progress: true
+    env:
+      # `setup-env-tooling` fails unless all six credentials are present, so the
+      # two this workflow never reads are still supplied. FLY_API_TOKEN here is
+      # the fleet token used to write secrets; the deploy step overrides it with
+      # the app's own deploy token.
+      EXPO_TOKEN: ${{ secrets.expo_token }}
+      FLY_API_TOKEN: ${{ secrets.env_fly_token }}
+      VERCEL_TOKEN: ${{ secrets.vercel_token }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.infisical_client_id }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.infisical_client_secret }}
+      INFISICAL_PROJECT_ID: ${{ secrets.infisical_project_id }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup workspace
-        if: inputs.verify_package_script != ''
         uses: ./.github/actions/setup-workspace
         with:
           uv: 'false'
 
+      # Deliberately ahead of the env reconcile: a deploy that cannot pass its
+      # own gate must not have written to the production secret store first.
       - name: Run verify script
         if: inputs.verify_package_script != ''
         env:
@@ -47,15 +75,31 @@ jobs:
         # admin-controlled via .github/fly-apps.json, so intentional word-splitting is safe.
         run: pnpm run $VERIFY_SCRIPT
 
+      # Also installs the pinned flyctl the deploy step below calls.
+      - uses: ./.github/actions/setup-env-tooling
+
+      # `Environment apply` only runs when a tracked env file changes, and it is
+      # ordered against nothing, so the code shipped below could otherwise reach
+      # production ahead of the manifest it needs — or behind a rail that failed
+      # silently. Re-asserting this one destination from the same manifest makes
+      # every deploy self-healing, and a missing `requiredFor` value fails here
+      # with a named key instead of as a boot crash loop after the release.
+      #
+      # Apply-only on purpose: removals stay with the `env:sync --prune` in
+      # env-apply.yml, whose dry run is reviewed on the pull request. A second
+      # writer that deletes keys would prune the running release out from under
+      # itself during the window before this deploy completes.
+      - name: Reconcile ${{ inputs.app }} environment
+        env:
+          TARGET: ${{ inputs.app }}
+        run: pnpm env:sync --target "$TARGET" --apply
+
       - name: Capture release metadata
         if: inputs.capture_release_metadata
         id: release_metadata
         run: |
           echo "commit_sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
           echo "build_time=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-
-      - name: Setup flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1 / 1.6
 
       - name: Deploy to Fly.io
         env:
