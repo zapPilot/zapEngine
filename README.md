@@ -83,6 +83,15 @@ Deployment stores are written by CI, not from a laptop. Merging a change under
 with `--apply --prune` and then audits the whole fleet. Because a key removed
 from the manifest is removed from production, review the dry run before merging.
 
+Deleting a key therefore takes two merges: remove the code that reads it and let
+that deploy finish, then remove it from the manifest. A single merge prunes the
+value while the previous release is still serving traffic.
+
+Deploying a Fly app re-asserts that one destination from the same manifest
+before `flyctl deploy` runs, apply-only and without `--prune`. The deploy is not
+ordered against `Environment apply`, so this is what keeps a new release from
+starting ahead of the values it needs, or behind a rail that failed silently.
+
 Rotating a secret changes no tracked file, so dispatch the same rail by hand:
 
 ```bash

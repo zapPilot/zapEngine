@@ -76,6 +76,13 @@ pnpm lint dead-env && pnpm env:status --offline
 
 The checker validates both declared-but-unused and referenced-but-undeclared variables. Fly configuration drift is reported as a warning.
 
+Removing a variable is two merges, not one. Merging to `main` prunes the key
+from the deployment store immediately, while the previous release is still
+running, so delete the code that reads it first, wait for that deploy to land,
+and remove the manifest entry in a follow-up. A Fly deploy re-asserts its own
+destination apply-only, which restores a key dropped by a failed rail but does
+not undo a prune.
+
 ## Adding an HTTP route
 
 1. Add the route in the service router or controller.
