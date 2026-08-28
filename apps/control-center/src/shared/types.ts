@@ -113,3 +113,186 @@ export interface OverviewResponse {
   providers: CostProviderResult[];
   social: SocialPerformanceResponse;
 }
+
+// ---------------------------------------------------------------------------
+// Operational signals
+// ---------------------------------------------------------------------------
+
+/**
+ * One vocabulary for "is anything wrong", shared by every source the Control
+ * Center reads and by the `ops:status` CLI an agent runs.
+ *
+ * `unknown` is deliberately distinct from `healthy`: a source with no
+ * credentials configured has not told us it is fine, and collapsing the two
+ * is how an unconfigured integration reads as a green light.
+ */
+export type OperationalStatus = 'healthy' | 'degraded' | 'critical' | 'unknown';
+
+export type OperationsDomain =
+  | 'customers'
+  | 'product'
+  | 'costs'
+  | 'social'
+  | 'jobs'
+  | 'infra'
+  | 'errors'
+  | 'analytics';
+
+export type OperationsSource =
+  | 'customer-economics'
+  | 'product-health'
+  | 'cost-ledger'
+  | 'social-queue'
+  | 'social-daemon'
+  | 'github-actions'
+  | 'fly'
+  | 'sentry'
+  | 'posthog';
+
+export interface OperationalSignal {
+  /**
+   * `${source}:${kind}/${key}` — stable across runs for the same underlying
+   * condition, so a reader can tell "still broken" from "broken again".
+   */
+  fingerprint: string;
+  source: OperationsSource;
+  domain: OperationsDomain;
+  status: OperationalStatus;
+  title: string;
+  detail: string | null;
+  /** Scalars only: the priority engine reads numbers out of this by key. */
+  evidence: Record<string, string | number | boolean | null>;
+  observedAt: string;
+  url: string | null;
+}
+
+export interface OperationalPriority {
+  signal: OperationalSignal;
+  score: number;
+  reasons: string[];
+}
+
+export interface OperationsDomainSummary {
+  domain: OperationsDomain;
+  status: OperationalStatus;
+  signalCount: number;
+}
+
+export interface OperationsResponse {
+  generatedAt: string;
+  status: OperationalStatus;
+  /** All eight domains, always — an absent domain would read as "fine". */
+  domains: OperationsDomainSummary[];
+  priorities: OperationalPriority[];
+  signals: OperationalSignal[];
+}
+
+export interface OperationsSocialJob {
+  episodeId: string;
+  platform: string;
+  languageCode: string | null;
+  status: string;
+  scheduledAt: string;
+  nextAttemptAt: string;
+  attemptCount: number;
+  overdueMinutes: number | null;
+  attemptsExhausted: boolean;
+}
+
+export interface OperationsSocialDaemon {
+  status: OperationalStatus;
+  owner: string | null;
+  daemonVersion: string | null;
+  firstStartedAt: string | null;
+  lastTickStartedAt: string | null;
+  lastTickCompletedAt: string | null;
+  lastSuccessAt: string | null;
+  lastError: string | null;
+  staleMinutes: number | null;
+}
+
+export interface OperationsSocialResponse {
+  generatedAt: string;
+  daemon: OperationsSocialDaemon;
+  jobs: OperationsSocialJob[];
+  /**
+   * `social_waiting_media` yields one row per (episode, platform, language)
+   * lane, so a single unrendered localization contributes several. Counting
+   * them as episodes would overstate how much is stuck.
+   */
+  waitingMediaLanes: number | null;
+  message: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Customer economics
+// ---------------------------------------------------------------------------
+
+/**
+ * Scheduling policy, not commercial entitlement. `planCode` says what a user
+ * bought; the tier says how often we spend money on them. They start coupled
+ * (`vip` -> `priority`) and are pulled apart by an operator override.
+ */
+export type ServiceTier = 'priority' | 'standard' | 'paused';
+
+export type CostBasis = 'measured' | 'allocated_estimate';
+
+export interface CustomerWalletSummary {
+  wallet: string;
+  lastPortfolioUpdateAt: string | null;
+  dueForRefresh: boolean;
+}
+
+export interface CustomerRecord {
+  userId: string;
+  email: string | null;
+  planCode: string;
+  defaultTier: ServiceTier;
+  overrideTier: ServiceTier | null;
+  overrideReason: string | null;
+  overrideExpiresAt: string | null;
+  effectiveTier: ServiceTier;
+  refreshIntervalHours: number | null;
+  /**
+   * Last request to an account-engine `/users/:userId*` route, debounced to an
+   * hour. It is "opened the dashboard", not "used the product" — nothing else
+   * writes it.
+   */
+  lastActivityAt: string | null;
+  inactiveDays: number | null;
+  aumUsd: number | null;
+  wallets: CustomerWalletSummary[];
+  portfolioStaleHours: number | null;
+  dueForRefresh: boolean;
+  requestCount30d: number;
+  /**
+   * DeBank prices an account, not an endpoint, so this is the user's share of
+   * the account invoice by request volume — never a measured amount. `costBasis`
+   * carries that distinction to the UI.
+   */
+  attributedCostUsd30d: number | null;
+  costBasis: CostBasis | null;
+  /** No billing system exists in this repository. Always null: never inferred. */
+  revenueUsd: number | null;
+}
+
+export interface CustomerEconomicsSummary {
+  totalCustomers: number;
+  priorityUsers: number;
+  standardUsers: number;
+  pausedUsers: number;
+  activeLast7d: number;
+  /** Priority accounts that have not opened the app in 30 days. Pure waste. */
+  inactiveButPriority: number;
+  aumUsd: number | null;
+  attributedCostUsd30d: number | null;
+  revenueUsd: number | null;
+}
+
+export interface CustomerEconomicsResponse {
+  generatedAt: string;
+  status: ProviderStatus;
+  message: string | null;
+  summary: CustomerEconomicsSummary;
+  users: CustomerRecord[];
+}
