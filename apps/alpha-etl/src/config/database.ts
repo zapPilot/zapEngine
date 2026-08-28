@@ -51,18 +51,38 @@ const shouldUseMockPool =
   process.env['MOCK_APIS']?.toLowerCase() === 'true' &&
   !isPoolMocked;
 
-const mockVipUsersWithActivity = [
+const mockUserServiceStates = [
   {
-    user_id: 'user-1',
+    user_id: '11111111-1111-1111-1111-111111111111',
+    email: 'priority@example.com',
     wallet: '0x1111111111111111111111111111111111111111',
+    plan_code: 'vip',
     last_activity_at: '2025-01-01T00:00:00.000Z',
-    last_portfolio_update_at: '2025-01-02T00:00:00.000Z',
+    last_portfolio_update_at: null,
+    default_tier: 'priority',
+    override_tier: null,
+    override_reason: null,
+    override_expires_at: null,
+    effective_tier: 'priority',
+    refresh_interval_hours: 24,
+    due_for_refresh: true,
+    aum_usd: '12500.00',
   },
   {
-    user_id: 'user-2',
+    user_id: '22222222-2222-2222-2222-222222222222',
+    email: 'standard@example.com',
     wallet: '0x2222222222222222222222222222222222222222',
+    plan_code: 'free',
     last_activity_at: null,
     last_portfolio_update_at: null,
+    default_tier: 'standard',
+    override_tier: null,
+    override_reason: null,
+    override_expires_at: null,
+    effective_tier: 'standard',
+    refresh_interval_hours: null,
+    due_for_refresh: false,
+    aum_usd: null,
   },
 ];
 
@@ -80,15 +100,18 @@ function releaseClient(client: PoolClient | null): void {
 
 async function runMockQuery(
   query: string,
-  params?: unknown[],
 ): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
   const normalized = normalizeSql(query);
 
-  if (normalized.includes('get_users_wallets_by_plan_with_activity')) {
+  if (normalized.includes('ops_record_user_resource_usage')) {
+    return { rows: [], rowCount: 0 };
+  }
+
+  if (normalized.includes('get_user_service_states')) {
     if (normalized.includes('count(*) as total_rows')) {
-      const totalRows = mockVipUsersWithActivity.length;
+      const totalRows = mockUserServiceStates.length;
       const uniqueWallets = new Set(
-        mockVipUsersWithActivity.map((row) => row.wallet),
+        mockUserServiceStates.map((row) => row.wallet),
       ).size;
       return {
         rows: [
@@ -102,62 +125,25 @@ async function runMockQuery(
       };
     }
 
-    /* c8 ignore start */
-    if (
-      normalized.includes('select wallet') &&
-      normalized.includes('where user_id = $1')
-    ) {
-      const userId = params?.[0];
-      const rows = mockVipUsersWithActivity
-        .filter((row) => row.user_id === userId)
-        .map((row) => ({ wallet: row.wallet }));
-      return { rows, rowCount: rows.length };
-    }
-    /* c8 ignore end */
-
     return {
-      rows: mockVipUsersWithActivity,
-      rowCount: mockVipUsersWithActivity.length,
+      rows: mockUserServiceStates,
+      rowCount: mockUserServiceStates.length,
     };
   }
 
   /* c8 ignore start */
-  if (normalized.includes('get_users_wallets_by_plan')) {
-    const rows = mockVipUsersWithActivity.map((row) => ({
-      user_id: row.user_id,
-      wallet: row.wallet,
-    }));
-    return { rows, rowCount: rows.length };
-  }
-
-  if (normalized.includes('get_users_wallets_by_ids')) {
-    const firstParam = params?.[0];
-    const ids = Array.isArray(firstParam) ? (firstParam as string[]) : [];
-    const rows = mockVipUsersWithActivity
-      .filter((row) => ids.includes(row.user_id))
-      .map((row) => ({ user_id: row.user_id, wallet: row.wallet }));
-    return { rows, rowCount: rows.length };
-  }
-
-  if (
-    normalized.includes('from users u') &&
-    normalized.includes('user_subscriptions')
-  ) {
-    return { rows: [], rowCount: 0 };
-  }
-
   return { rows: [], rowCount: 0 };
   /* c8 ignore end */
 }
 
 function createMockPool(): Pool {
   const client = {
-    query: async (sql: string, params?: unknown[]) => runMockQuery(sql, params),
+    query: async (sql: string) => runMockQuery(sql),
     release: () => {},
   };
 
   return {
-    query: async (sql: string, params?: unknown[]) => runMockQuery(sql, params),
+    query: async (sql: string) => runMockQuery(sql),
     connect: async () => client,
     end: async () => {},
     on: () => {},
