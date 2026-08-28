@@ -76,6 +76,19 @@ function stateRow(overrides: Record<string, unknown>) {
   };
 }
 
+/**
+ * `source_states` as the RPC returns it: one `last_success_at` per provider,
+ * which is the only part of the payload these cases vary.
+ */
+function sourceStates(sources: Record<string, string | null>) {
+  return Object.fromEntries(
+    Object.entries(sources).map(([name, at]) => [
+      name,
+      { last_success_at: at },
+    ]),
+  );
+}
+
 const POLICY_ROWS = [
   stateRow({}),
   stateRow({
@@ -266,6 +279,8 @@ describe('loadCustomerEconomics', () => {
     // The freshest wallet decides: one current wallet means the account is
     // being served current data.
     expect(user?.portfolioStaleHours).toBe(2);
+    expect(user?.portfolioWorstStaleHours).toBe(192);
+    expect(user?.neverRefreshedWallets).toBe(0);
     expect(response.summary.pausedUsers).toBe(1);
   });
 
@@ -350,5 +365,83 @@ describe('deriveCustomerSignals', () => {
     const [, freshness] = deriveCustomerSignals(response, NOW);
     expect(freshness?.status).toBe('degraded');
     expect(freshness?.evidence['staleHours']).toBeCloseTo(100, 5);
+  });
+
+  it('flags a priority wallet that has never been refreshed', async () => {
+    const response = await loadRows([
+      stateRow({ last_portfolio_update_at: null, aum_usd: 500 }),
+    ]);
+
+    const [, freshness] = deriveCustomerSignals(response, NOW);
+    // No reading is not a small age, and the version that compared ages alone
+    // reported this account as healthy.
+    expect(freshness?.status).toBe('degraded');
+    expect(response.users[0]?.neverRefreshedWallets).toBe(1);
+    expect(freshness?.evidence['staleHours']).toBeNull();
+    expect(freshness?.evidence['neverRefreshedWallets']).toBe(1);
+  });
+
+  it('judges a priority account on its stalest wallet, not its freshest', async () => {
+    const response = await loadRows([
+      stateRow({}),
+      stateRow({
+        wallet: '0x1b',
+        last_portfolio_update_at: '2026-08-24T08:00:00.000Z',
+      }),
+    ]);
+
+    const [user] = response.users;
+    expect(user?.portfolioStaleHours).toBe(1);
+    expect(user?.portfolioWorstStaleHours).toBeCloseTo(100, 5);
+
+    const [, freshness] = deriveCustomerSignals(response, NOW);
+    expect(freshness?.status).toBe('critical');
+    expect(freshness?.evidence['aumAtRiskUsd']).toBe(50_000);
+  });
+
+  it('stays healthy when every wallet on the account is current', async () => {
+    const response = await loadRows([
+      stateRow({}),
+      stateRow({
+        wallet: '0x1b',
+        last_portfolio_update_at: '2026-08-28T09:00:00.000Z',
+      }),
+    ]);
+
+    const [, freshness] = deriveCustomerSignals(response, NOW);
+    expect(freshness?.status).toBe('healthy');
+    expect(response.users[0]?.neverRefreshedWallets).toBe(0);
+  });
+
+  it('sees a source that has never landed behind a fresh legacy timestamp', async () => {
+    const response = await loadRows([
+      stateRow({
+        aum_usd: 500,
+        source_states: sourceStates({
+          debank: '2026-08-28T11:00:00.000Z',
+          hyperliquid: null,
+        }),
+      }),
+    ]);
+
+    const [, freshness] = deriveCustomerSignals(response, NOW);
+    expect(response.users[0]?.neverRefreshedWallets).toBe(1);
+    expect(freshness?.status).toBe('degraded');
+  });
+
+  it('trusts the per-source readings over an ancient legacy timestamp', async () => {
+    const response = await loadRows([
+      stateRow({
+        last_portfolio_update_at: '2026-01-01T00:00:00.000Z',
+        source_states: sourceStates({
+          debank: '2026-08-28T11:00:00.000Z',
+          hyperliquid: '2026-08-28T10:00:00.000Z',
+        }),
+      }),
+    ]);
+
+    const [, freshness] = deriveCustomerSignals(response, NOW);
+    expect(response.users[0]?.portfolioWorstStaleHours).toBe(2);
+    expect(freshness?.status).toBe('healthy');
   });
 });

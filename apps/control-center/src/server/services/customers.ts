@@ -1,5 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
-
 import type {
   CustomerEconomicsResponse,
   CustomerRecord,
@@ -8,12 +6,14 @@ import type {
   ServiceTier,
 } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
+import { elapsedMs } from './elapsed.js';
 import { sumKnown } from './numbers.js';
 import {
   buildSignal,
   sourceFailure,
   unknownSignal,
 } from './operations/signal.js';
+import { createSchemaClient, walletFreshness } from './wallet-freshness.js';
 
 /**
  * Row shape of `public.get_user_service_states()`. That function is the single
@@ -37,6 +37,7 @@ interface ServiceStateRow {
   refresh_interval_hours: number | string | null;
   due_for_refresh: boolean | null;
   aum_usd: number | string | null;
+  source_states?: unknown;
 }
 
 interface UsageRow {
@@ -50,11 +51,6 @@ interface CostSnapshotRow {
   projected_cost_usd: number | string | null;
 }
 
-/**
- * Inferred rather than annotated: `createClient` narrows its schema generic to
- * the literal it is given, so a hand-written `SupabaseClient` annotation is
- * wrong the moment the schema comes from configuration.
- */
 type ClientFactory = typeof createSchemaClient;
 
 const DAY_MS = 86_400_000;
@@ -227,16 +223,23 @@ function freshnessSignal(
   response: CustomerEconomicsResponse,
   now: Date,
 ): OperationalSignal {
+  // A wallet nothing has ever refreshed has no age, and the version of this
+  // filter that compared ages alone therefore dropped it and reported the
+  // account healthy — the loudest possible failure reading as the quietest.
   const stale = response.users
     .filter(
       (user) =>
         user.effectiveTier === 'priority' &&
-        user.portfolioStaleHours !== null &&
-        user.portfolioStaleHours >= PORTFOLIO_STALE_HOURS,
+        (user.neverRefreshedWallets > 0 ||
+          (user.portfolioWorstStaleHours ?? -1) >= PORTFOLIO_STALE_HOURS),
     )
     .sort((left, right) => (right.aumUsd ?? 0) - (left.aumUsd ?? 0));
   const worst = stale[0];
   const aumAtRisk = sumRounded(stale.map((user) => user.aumUsd));
+  const neverRefreshed = stale.reduce(
+    (total, user) => total + user.neverRefreshedWallets,
+    0,
+  );
   const status =
     stale.length === 0
       ? 'healthy'
@@ -252,19 +255,32 @@ function freshnessSignal(
     status,
     title:
       stale.length > 0
-        ? `${stale.length} priority portfolios older than ${PORTFOLIO_STALE_HOURS}h`
+        ? `${stale.length} priority portfolios older than ${PORTFOLIO_STALE_HOURS}h or never refreshed`
         : 'Priority portfolios are current',
-    detail: worst
-      ? `Worst: ${worst.email ?? worst.userId} at ${Math.round(worst.portfolioStaleHours ?? 0)}h`
-      : null,
+    detail: worst ? describeWorst(worst) : null,
     evidence: {
       affectedUsers: stale.length,
       aumAtRiskUsd: aumAtRisk,
-      staleHours: worst?.portfolioStaleHours ?? null,
+      staleHours: worst?.portfolioWorstStaleHours ?? null,
+      neverRefreshedWallets: neverRefreshed,
       topUser: worst?.email ?? worst?.userId ?? null,
     },
     observedAt: now,
   });
+}
+
+/**
+ * A never-refreshed wallet outranks any age: reporting it as "at 0h" — the
+ * only thing a missing age can round to — would describe the worst account on
+ * the list as the freshest one.
+ */
+function describeWorst(user: CustomerRecord): string {
+  const who = user.email ?? user.userId;
+  if (user.neverRefreshedWallets > 0) {
+    const count = user.neverRefreshedWallets;
+    return `Worst: ${who} has ${count} wallet${count === 1 ? '' : 's'} that never refreshed`;
+  }
+  return `Worst: ${who} at ${Math.round(user.portfolioWorstStaleHours ?? 0)}h`;
 }
 
 function buildCustomers(input: {
@@ -305,6 +321,7 @@ function toCustomer(
   }));
   const perUser = totals.perUser.get(userId);
   const debankRequests = perUser?.debank ?? 0;
+  const freshness = portfolioFreshness(rows, input.now);
 
   return {
     userId,
@@ -320,7 +337,9 @@ function toCustomer(
     inactiveDays: elapsedDays(head.last_activity_at, input.now),
     aumUsd: toNumber(head.aum_usd),
     wallets,
-    portfolioStaleHours: freshestStaleHours(wallets, input.now),
+    portfolioStaleHours: freshness.freshest,
+    portfolioWorstStaleHours: freshness.worst,
+    neverRefreshedWallets: freshness.neverRefreshed,
     dueForRefresh: wallets.some((wallet) => wallet.dueForRefresh),
     requestCount30d: (perUser?.debank ?? 0) + (perUser?.other ?? 0),
     attributedCostUsd30d: allocate(
@@ -416,18 +435,32 @@ function isInactivePriority(user: CustomerRecord): boolean {
 }
 
 /**
- * The freshest wallet decides: a user with one current wallet and one stale
- * one is being served current data, and flagging them would bury the accounts
- * where nothing at all is refreshing.
+ * Both ends of the account's spread, because they answer different questions.
+ * The freshest wallet says what the customer sees on their dashboard; the
+ * stalest one, plus the wallets with no reading at all, says whether we are
+ * holding up our end. Judging on the freshest is what let a dead wallet hide
+ * behind a live one.
  */
-function freshestStaleHours(
-  wallets: CustomerWalletSummary[],
+function portfolioFreshness(
+  rows: ServiceStateRow[],
   now: Date,
-): number | null {
-  const ages = wallets
-    .map((wallet) => elapsedHours(wallet.lastPortfolioUpdateAt, now))
-    .filter((value): value is number => value !== null);
-  return ages.length ? Math.min(...ages) : null;
+): { freshest: number | null; worst: number | null; neverRefreshed: number } {
+  const ages: number[] = [];
+  let neverRefreshed = 0;
+  for (const row of rows) {
+    const freshness = walletFreshness(row, now);
+    if (freshness.neverRefreshed) {
+      neverRefreshed += 1;
+    }
+    if (freshness.ageHours !== null) {
+      ages.push(freshness.ageHours);
+    }
+  }
+  return {
+    freshest: ages.length ? Math.min(...ages) : null,
+    worst: ages.length ? Math.max(...ages) : null,
+    neverRefreshed,
+  };
 }
 
 function toTier(value: string | null): ServiceTier {
@@ -442,22 +475,9 @@ function toNumber(value: number | string | null): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function elapsedHours(value: string | null, now: Date): number | null {
-  const elapsed = elapsedMs(value, now);
-  return elapsed === null ? null : elapsed / 3_600_000;
-}
-
 function elapsedDays(value: string | null, now: Date): number | null {
   const elapsed = elapsedMs(value, now);
   return elapsed === null ? null : Math.floor(elapsed / DAY_MS);
-}
-
-function elapsedMs(value: string | null, now: Date): number | null {
-  if (!value) {
-    return null;
-  }
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? null : Math.max(0, now.getTime() - parsed);
 }
 
 /**
@@ -473,11 +493,4 @@ function sumRounded(values: Array<number | null>): number | null {
 function round(value: number, digits: number): number {
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
-}
-
-function createSchemaClient(url: string, key: string, schema: string) {
-  return createClient(url, key, {
-    db: { schema },
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
 }

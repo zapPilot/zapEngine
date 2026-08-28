@@ -58,7 +58,9 @@ const mockUserServiceStates = [
     wallet: '0x1111111111111111111111111111111111111111',
     plan_code: 'vip',
     last_activity_at: '2025-01-01T00:00:00.000Z',
-    last_portfolio_update_at: null,
+    // Widened rather than inferred: `updateMockPortfolioTimestamps` writes a
+    // timestamp back into these rows, and every fixture row starts null.
+    last_portfolio_update_at: null as string | null,
     default_tier: 'priority',
     override_tier: null,
     override_reason: null,
@@ -74,7 +76,7 @@ const mockUserServiceStates = [
     wallet: '0x2222222222222222222222222222222222222222',
     plan_code: 'free',
     last_activity_at: null,
-    last_portfolio_update_at: null,
+    last_portfolio_update_at: null as string | null,
     default_tier: 'standard',
     override_tier: null,
     override_reason: null,
@@ -86,8 +88,146 @@ const mockUserServiceStates = [
   },
 ];
 
+/**
+ * Inferred from the fixture rather than declared: spelling the column list out
+ * again would be a second copy of `UserServiceStateRow`, and a mock row shape
+ * that can drift from the production one is worse than no annotation.
+ */
+type MockUserServiceState = (typeof mockUserServiceStates)[number];
+
+const MOCK_PORTFOLIO_SOURCES = ['debank', 'hyperliquid'] as const;
+
+// The same fence `get_user_service_states()` applies, in milliseconds.
+const MOCK_REFRESH_FENCE_MS = 20 * 60 * 60 * 1000;
+
+interface MockRefreshState {
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  lastError: string | null;
+}
+
+interface MockRefreshPayloadRow {
+  wallet?: unknown;
+  source?: unknown;
+  succeeded?: unknown;
+  error?: unknown;
+}
+
+/**
+ * `ops.wallet_source_refresh_state`, keyed the same way.
+ *
+ * Freshness has to survive across queries for a mocked run to mean anything:
+ * the bug this state exists to prevent only appears when DeBank writes and
+ * Hyperliquid then reads, in that order, against one database. Vitest isolates
+ * modules per test file, so each file starts with an empty map — an exported
+ * reset would only be reachable from tests, which knip reads as dead code.
+ */
+const mockRefreshState = new Map<string, MockRefreshState>();
+
 function normalizeSql(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function mockRefreshStateKey(wallet: string, source: string): string {
+  return `${wallet.toLowerCase()}|${source}`;
+}
+
+function parseMockRefreshRows(payload: unknown): MockRefreshPayloadRow[] {
+  const parsed = typeof payload === 'string' ? JSON.parse(payload) : payload;
+  return Array.isArray(parsed) ? (parsed as MockRefreshPayloadRow[]) : [];
+}
+
+function recordMockSourceRefresh(params: unknown[] | undefined): void {
+  const now = new Date().toISOString();
+  // The definer function resolves a (wallet, source) named twice in one
+  // payload to the failing row; a wallet left due costs one provider call,
+  // a wallet wrongly marked fresh costs a day of data.
+  const resolved = new Map<string, MockRefreshPayloadRow>();
+
+  for (const row of parseMockRefreshRows(params?.[0])) {
+    if (
+      typeof row.wallet !== 'string' ||
+      row.wallet === '' ||
+      typeof row.source !== 'string' ||
+      typeof row.succeeded !== 'boolean'
+    ) {
+      continue;
+    }
+
+    const key = mockRefreshStateKey(row.wallet, row.source);
+    const chosen = resolved.get(key);
+    if (!chosen || (chosen.succeeded === true && !row.succeeded)) {
+      resolved.set(key, row);
+    }
+  }
+
+  for (const [key, row] of resolved) {
+    const existing = mockRefreshState.get(key);
+    mockRefreshState.set(key, {
+      lastAttemptAt: now,
+      lastSuccessAt: row.succeeded ? now : (existing?.lastSuccessAt ?? null),
+      lastError:
+        row.succeeded || typeof row.error !== 'string' ? null : row.error,
+    });
+  }
+}
+
+function isMockSourceDue(state: MockRefreshState | undefined): boolean {
+  if (!state?.lastSuccessAt) {
+    return true;
+  }
+  return Date.now() - Date.parse(state.lastSuccessAt) > MOCK_REFRESH_FENCE_MS;
+}
+
+function projectMockServiceState(
+  row: MockUserServiceState,
+): Record<string, unknown> {
+  const sourceStates: Record<string, unknown> = {};
+  const dueSources: string[] = [];
+
+  for (const source of MOCK_PORTFOLIO_SOURCES) {
+    const state = mockRefreshState.get(mockRefreshStateKey(row.wallet, source));
+    sourceStates[source] = {
+      last_success_at: state?.lastSuccessAt ?? null,
+      last_attempt_at: state?.lastAttemptAt ?? null,
+      last_error: state?.lastError ?? null,
+    };
+    if (isMockSourceDue(state)) {
+      dueSources.push(source);
+    }
+  }
+
+  const priority = row.effective_tier === 'priority';
+
+  return {
+    ...row,
+    due_for_refresh: priority && dueSources.length > 0,
+    due_sources: priority ? dueSources : [],
+    source_states: sourceStates,
+  };
+}
+
+function updateMockPortfolioTimestamps(params: unknown[] | undefined): number {
+  const wallets = params?.[0];
+  if (!Array.isArray(wallets)) {
+    return 0;
+  }
+
+  const targets = new Set(
+    wallets.map((wallet) => String(wallet).toLowerCase()),
+  );
+  const now = new Date().toISOString();
+  let rowCount = 0;
+
+  for (const row of mockUserServiceStates) {
+    if (!targets.has(row.wallet.toLowerCase())) {
+      continue;
+    }
+    row.last_portfolio_update_at = now;
+    rowCount++;
+  }
+
+  return rowCount;
 }
 
 function getConnectionRetryDelay(attempt: number): number {
@@ -100,11 +240,21 @@ function releaseClient(client: PoolClient | null): void {
 
 async function runMockQuery(
   query: string,
+  params?: unknown[],
 ): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
   const normalized = normalizeSql(query);
 
   if (normalized.includes('ops_record_user_resource_usage')) {
     return { rows: [], rowCount: 0 };
+  }
+
+  if (normalized.includes('ops_record_wallet_source_refresh')) {
+    recordMockSourceRefresh(params);
+    return { rows: [], rowCount: 0 };
+  }
+
+  if (normalized.includes('update user_crypto_wallets')) {
+    return { rows: [], rowCount: updateMockPortfolioTimestamps(params) };
   }
 
   if (normalized.includes('get_user_service_states')) {
@@ -126,7 +276,7 @@ async function runMockQuery(
     }
 
     return {
-      rows: mockUserServiceStates,
+      rows: mockUserServiceStates.map((row) => projectMockServiceState(row)),
       rowCount: mockUserServiceStates.length,
     };
   }
@@ -138,12 +288,12 @@ async function runMockQuery(
 
 function createMockPool(): Pool {
   const client = {
-    query: async (sql: string) => runMockQuery(sql),
+    query: async (sql: string, params?: unknown[]) => runMockQuery(sql, params),
     release: () => {},
   };
 
   return {
-    query: async (sql: string) => runMockQuery(sql),
+    query: async (sql: string, params?: unknown[]) => runMockQuery(sql, params),
     connect: async () => client,
     end: async () => {},
     on: () => {},

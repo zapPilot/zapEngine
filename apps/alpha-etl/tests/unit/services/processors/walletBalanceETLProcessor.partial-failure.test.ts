@@ -12,6 +12,7 @@ const {
   fetchWalletDataFromDeBank,
   recordUserResourceUsageNonFatal,
   updatePortfolioTimestampsNonFatal,
+  recordWalletSourceRefresh,
   writePortfolioSnapshots,
   writeWalletBalanceSnapshots,
 } = vi.hoisted(() => ({
@@ -19,6 +20,7 @@ const {
   fetchWalletDataFromDeBank: vi.fn(),
   recordUserResourceUsageNonFatal: vi.fn(),
   updatePortfolioTimestampsNonFatal: vi.fn(),
+  recordWalletSourceRefresh: vi.fn(),
   writePortfolioSnapshots: vi.fn(),
   writeWalletBalanceSnapshots: vi.fn(),
 }));
@@ -53,7 +55,9 @@ vi.mock('../../../../src/modules/wallet/debank-io.js', () => ({
 }));
 
 vi.mock('../../../../src/modules/user-service/supabaseFetcher.js', () => ({
-  SupabaseFetcher: class {},
+  SupabaseFetcher: class {
+    recordWalletSourceRefresh = recordWalletSourceRefresh;
+  },
 }));
 
 vi.mock('../../../../src/modules/wallet/fetcher.js', () => ({
@@ -109,6 +113,7 @@ function dueUser(userId: string, wallet: string): ETLUserCandidate {
     lastPortfolioUpdateAt: null,
     refreshIntervalHours: 24,
     dueForRefresh: true,
+    dueSources: ['debank'],
   };
 }
 
@@ -148,6 +153,7 @@ describe('WalletBalanceETLProcessor partial wallet failures', () => {
 
     updatePortfolioTimestampsNonFatal.mockResolvedValue(undefined);
     recordUserResourceUsageNonFatal.mockResolvedValue(undefined);
+    recordWalletSourceRefresh.mockResolvedValue(undefined);
     writeWalletBalanceSnapshots.mockResolvedValue({
       success: true,
       recordsInserted: 1,
@@ -175,11 +181,32 @@ describe('WalletBalanceETLProcessor partial wallet failures', () => {
     expect(result.success).toBe(false);
     expect(result.recordsInserted).toBe(1);
     expect(result.errors).toContain(`User ${failedWallet}: DeBank unavailable`);
+    // Freshness is scoped to the wallet, not to the batch. The write landed, so
+    // the wallet DeBank answered for is fresh and the wallet it did not is
+    // still due. Condemning the whole batch here would let one permanently
+    // unreachable address hold the entire priority fleet due for ever — daily
+    // DeBank re-billing, and a dashboard reporting wallets as never refreshed
+    // on the very days their data was written.
     expect(updatePortfolioTimestampsNonFatal).toHaveBeenCalledWith(
       expect.anything(),
       [successfulWallet],
       'partial-wallet-failure',
     );
+    expect(recordWalletSourceRefresh).toHaveBeenCalledWith([
+      {
+        wallet: successfulWallet,
+        source: 'debank',
+        user_id: 'user-success',
+        succeeded: true,
+      },
+      {
+        wallet: failedWallet,
+        source: 'debank',
+        user_id: 'user-failed',
+        succeeded: false,
+        error: `User ${failedWallet}: DeBank unavailable`,
+      },
+    ]);
     expect(writeWalletBalanceSnapshots).toHaveBeenCalledWith(
       [expect.objectContaining({ user_wallet_address: successfulWallet })],
       [successfulWallet],

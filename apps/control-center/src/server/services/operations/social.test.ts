@@ -1,7 +1,10 @@
 import type { createClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
 
-import type { OperationalSignal } from '../../../shared/types.js';
+import type {
+  OperationalSignal,
+  OperationsSocialResponse,
+} from '../../../shared/types.js';
 import { readControlCenterConfig } from '../../config/env.js';
 import { deriveSocialSignals, loadOperationsSocial } from './social.js';
 
@@ -119,6 +122,36 @@ function signal(
   return found;
 }
 
+/**
+ * The queue signal, checked against the verdict the case is about. Every one
+ * of these tests reads the same fingerprint and judges the same status before
+ * looking at evidence, so the status belongs in the lookup rather than in a
+ * line repeated per case.
+ */
+function expectQueue(
+  response: OperationsSocialResponse,
+  status: OperationalSignal['status'],
+): OperationalSignal {
+  const queue = signal(
+    deriveSocialSignals(response, NOW),
+    'social-queue:overdue/queue',
+  );
+  expect(queue.status).toBe(status);
+  return queue;
+}
+
+/**
+ * A read the adapter could not trust collapses the whole panel to one signal,
+ * so these cases are only interesting in what that single signal says.
+ */
+function soleSourceFailure(
+  response: OperationsSocialResponse,
+): OperationalSignal {
+  const signals = deriveSocialSignals(response, NOW);
+  expect(signals).toHaveLength(1);
+  return signal(signals, 'social-queue:source-failure/adapter');
+}
+
 describe('loadOperationsSocial', () => {
   it('reports one unknown signal when Supabase is not configured', async () => {
     const response = await loadOperationsSocial({
@@ -187,10 +220,7 @@ describe('loadOperationsSocial', () => {
     ]);
 
     expect(response.jobs[0]?.overdueMinutes).toBeNull();
-    expect(
-      signal(deriveSocialSignals(response, NOW), 'social-queue:overdue/queue')
-        .status,
-    ).toBe('healthy');
+    expectQueue(response, 'healthy');
   });
 
   it('measures overdue from the later of scheduled and next attempt', async () => {
@@ -217,11 +247,7 @@ describe('loadOperationsSocial', () => {
       20, 60, 40,
     ]);
 
-    const queue = signal(
-      deriveSocialSignals(response, NOW),
-      'social-queue:overdue/queue',
-    );
-    expect(queue.status).toBe('degraded');
+    const queue = expectQueue(response, 'degraded');
     expect(queue.evidence).toMatchObject({
       overdueMinutes: 60,
       episodeId: 'episode-worst',
@@ -254,11 +280,7 @@ describe('loadOperationsSocial', () => {
 
     expect(response.jobs[1]?.overdueMinutes).toBeNull();
 
-    const queue = signal(
-      deriveSocialSignals(response, NOW),
-      'social-queue:overdue/queue',
-    );
-    expect(queue.status).toBe('critical');
+    const queue = expectQueue(response, 'critical');
     expect(queue.evidence).toMatchObject({
       episodeId: 'episode-dead',
       platform: 'x',
@@ -343,12 +365,12 @@ describe('loadOperationsSocial', () => {
     expect(waiting.evidence).toMatchObject({ waitingMediaLanes: 4 });
   });
 
-  it('drops malformed job rows instead of the whole queue', async () => {
+  it('drops malformed job rows but never calls the rest on schedule', async () => {
     const response = await load({
       social_publish_jobs: {
         data: [
           jobRow({ next_attempt_at: 'not-a-timestamp' }),
-          jobRow({ attempt_count: '3' }),
+          jobRow({ platform: 42 }),
           jobRow({ episode_id: 'episode-good' }),
         ],
       },
@@ -358,7 +380,55 @@ describe('loadOperationsSocial', () => {
 
     expect(response.jobs).toHaveLength(1);
     expect(response.jobs[0]?.episodeId).toBe('episode-good');
+    expect(response.invalidJobRows).toBe(2);
     expect(response.waitingMediaLanes).toBe(0);
+
+    const queue = expectQueue(response, 'degraded');
+    expect(queue.detail).toContain('failed to parse');
+    expect(queue.evidence).toMatchObject({
+      pendingJobs: 1,
+      overdueJobs: 0,
+      invalidRowCount: 2,
+    });
+  });
+
+  it('reads a stringified attempt count as the number it is', async () => {
+    // PostgREST hands back bigint columns as decimal strings, so a lane that
+    // is one retry from the fence must not be dropped for saying so in text.
+    const response = await loadQueue([
+      jobRow({ attempt_count: '3' }),
+      jobRow({ episode_id: 'episode-dead', attempt_count: '8' }),
+    ]);
+
+    expect(response.invalidJobRows).toBe(0);
+    expect(response.jobs.map((job) => job.attemptCount)).toEqual([3, 8]);
+    expect(response.jobs[0]?.attemptsExhausted).toBe(false);
+
+    const queue = expectQueue(response, 'critical');
+    expect(queue.evidence).toMatchObject({
+      episodeId: 'episode-dead',
+      attemptsExhausted: true,
+    });
+  });
+
+  it('still rejects an attempt count that is not a number at all', async () => {
+    const response = await loadQueue([jobRow({ attempt_count: 'abc' })]);
+
+    expect(response.jobs).toEqual([]);
+    expect(response.message).toContain('unknown shape');
+  });
+
+  it('never reports a queue as readable when every row failed to parse', async () => {
+    const response = await loadQueue([
+      jobRow({ scheduled_at: 'not-a-timestamp' }),
+      jobRow({ status: null }),
+    ]);
+
+    expect(response.jobs).toEqual([]);
+    expect(response.invalidJobRows).toBe(0);
+    expect(response.message).toContain('2 social publish jobs');
+
+    expect(soleSourceFailure(response).status).toBe('degraded');
   });
 
   it('reports a Supabase failure as a source failure, never a throw', async () => {
@@ -372,10 +442,8 @@ describe('loadOperationsSocial', () => {
     expect(response.jobs).toEqual([]);
     expect(response.waitingMediaLanes).toBeNull();
 
-    const signals = deriveSocialSignals(response, NOW);
-    expect(signals).toHaveLength(1);
-    expect(signals[0]?.fingerprint).toBe('social-queue:source-failure/adapter');
-    expect(signals[0]?.status).toBe('degraded');
-    expect(signals[0]?.detail).toBe('permission denied');
+    const failure = soleSourceFailure(response);
+    expect(failure.status).toBe('degraded');
+    expect(failure.detail).toBe('permission denied');
   });
 });

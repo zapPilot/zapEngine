@@ -25,6 +25,7 @@ function candidate(userId: string, wallet: string): ETLUserCandidate {
     lastPortfolioUpdateAt: null,
     refreshIntervalHours: 24,
     dueForRefresh: true,
+    dueSources: ['debank'],
   };
 }
 

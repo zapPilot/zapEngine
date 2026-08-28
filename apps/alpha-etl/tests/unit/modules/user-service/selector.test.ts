@@ -27,6 +27,7 @@ function candidate(
     lastPortfolioUpdateAt: null,
     refreshIntervalHours: 24,
     dueForRefresh: true,
+    dueSources: ['debank', 'hyperliquid'],
     ...overrides,
   };
 }
@@ -48,6 +49,7 @@ describe('selectDueUsers', () => {
       userId: 'user-2',
       wallet: '0xrecent',
       dueForRefresh: false,
+      dueSources: [],
     });
     const standard = candidate({
       userId: 'user-3',
@@ -57,6 +59,7 @@ describe('selectDueUsers', () => {
       effectiveTier: 'standard',
       refreshIntervalHours: null,
       dueForRefresh: false,
+      dueSources: [],
     });
 
     const selection = await selectDueUsers({
@@ -94,6 +97,37 @@ describe('selectDueUsers', () => {
     expect(selection.skippedNotDue).toBe(0);
   });
 
+  it('leaves a wallet to the provider that still owes it data', async () => {
+    // The whole point of the split: DeBank landing today must not take
+    // Hyperliquid's turn with it, and neither provider may be scheduled off
+    // the other's freshness.
+    const debankOnly = candidate({
+      wallet: '0xdebank',
+      dueSources: ['debank'],
+    });
+    const hyperliquidOnly = candidate({
+      userId: 'user-2',
+      wallet: '0xhyperliquid',
+      dueSources: ['hyperliquid'],
+    });
+
+    const forDebank = await selectDueUsers({
+      fetcher: fetcherReturning([debankOnly, hyperliquidOnly]),
+      source: 'debank',
+      jobId: 'job-debank',
+    });
+    const forHyperliquid = await selectDueUsers({
+      fetcher: fetcherReturning([debankOnly, hyperliquidOnly]),
+      source: 'hyperliquid',
+      jobId: 'job-hyperliquid',
+    });
+
+    expect(forDebank.usersToUpdate).toEqual([debankOnly]);
+    expect(forDebank.skippedNotDue).toBe(1);
+    expect(forHyperliquid.usersToUpdate).toEqual([hyperliquidOnly]);
+    expect(forHyperliquid.skippedNotDue).toBe(1);
+  });
+
   it('logs the selection through the shared logger', async () => {
     await selectDueUsers({
       fetcher: fetcherReturning([candidate()]),
@@ -116,7 +150,9 @@ describe('selectDueUsers', () => {
     const log = { info: vi.fn(), warn: vi.fn() };
 
     const selection = await selectDueUsers({
-      fetcher: fetcherReturning([candidate({ dueForRefresh: false })]),
+      fetcher: fetcherReturning([
+        candidate({ dueForRefresh: false, dueSources: [] }),
+      ]),
       source: 'debank',
       jobId: 'job-3',
       log,

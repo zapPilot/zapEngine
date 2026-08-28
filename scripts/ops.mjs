@@ -4,12 +4,14 @@ import { spawn } from 'node:child_process';
 import { createLinePrefixer, parseOpsArgs } from './ops-lib.mjs';
 
 const USAGE = [
-  'usage: pnpm ops [--dashboard] [--social] [--status]',
+  'usage: pnpm ops [--dashboard] [--social] [--status [--json] [--force]]',
   '',
   '  (no flags)    start the control-center dashboard and the social daemon',
   '  --dashboard   start the control-center dashboard only',
   '  --social      start the social publishing daemon only',
   '  --status      print the operations status snapshot and exit',
+  '  --json        with --status: print the snapshot as JSON, for an agent',
+  '  --force       with --status: refetch instead of reading the caches',
 ].join('\n');
 
 const CHILDREN = {
@@ -42,6 +44,12 @@ if (options.unknown.length > 0) {
   process.exit(2);
 }
 
+if (options.error) {
+  console.error(`error: ${options.error}`);
+  console.error(USAGE);
+  process.exit(2);
+}
+
 if (options.help) {
   console.log(USAGE);
   process.exit(0);
@@ -50,7 +58,16 @@ if (options.help) {
 if (options.status) {
   const status = spawn(
     'pnpm',
-    ['--filter', '@zapengine/control-center', 'ops:status'],
+    [
+      '--filter',
+      '@zapengine/control-center',
+      'ops:status',
+      // pnpm hands trailing arguments to the workspace script untouched, so the
+      // status tool reads these off its own argv and no `--` separator is
+      // needed to keep pnpm from claiming `--json` for itself.
+      ...(options.json ? ['--json'] : []),
+      ...(options.force ? ['--force'] : []),
+    ],
     { stdio: 'inherit' },
   );
   status.on('error', (error) => {

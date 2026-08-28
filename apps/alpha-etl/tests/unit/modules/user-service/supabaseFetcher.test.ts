@@ -35,7 +35,7 @@ vi.mock('../../../../src/config/database.js', async (importOriginal) => {
 });
 
 const SERVICE_STATES_QUERY =
-  'select user_id, email, wallet, plan_code, last_activity_at, last_portfolio_update_at, default_tier, override_tier, override_reason, override_expires_at, effective_tier, refresh_interval_hours, due_for_refresh, aum_usd from public.get_user_service_states()';
+  'select user_id, email, wallet, plan_code, last_activity_at, last_portfolio_update_at, default_tier, override_tier, override_reason, override_expires_at, effective_tier, refresh_interval_hours, due_for_refresh, aum_usd, due_sources from public.get_user_service_states()';
 
 function stateRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -53,6 +53,7 @@ function stateRow(overrides: Record<string, unknown> = {}) {
     refresh_interval_hours: 24,
     due_for_refresh: true,
     aum_usd: '1000.00',
+    due_sources: ['debank', 'hyperliquid'],
     ...overrides,
   };
 }
@@ -94,6 +95,7 @@ describe('SupabaseFetcher user service states', () => {
           lastPortfolioUpdateAt: '2026-08-26T00:00:00.000Z',
           refreshIntervalHours: 24,
           dueForRefresh: true,
+          dueSources: ['debank', 'hyperliquid'],
         },
       ]);
       expect(fetcher.getRequestStats().requestCount).toBe(1);
@@ -109,6 +111,7 @@ describe('SupabaseFetcher user service states', () => {
             effective_tier: 'paused',
             refresh_interval_hours: null,
             due_for_refresh: false,
+            due_sources: [],
           }),
         ],
       });
@@ -120,7 +123,21 @@ describe('SupabaseFetcher user service states', () => {
         effectiveTier: 'paused',
         refreshIntervalHours: null,
         dueForRefresh: false,
+        dueSources: [],
       });
+    });
+
+    it('reads a null due_sources as no provider being due', async () => {
+      // Postgres returns null rather than '{}' for a wallet outside the
+      // priority tier; a candidate with an absent list would make every
+      // `dueSources.includes(...)` in the selector throw.
+      mockClient.query.mockResolvedValueOnce({
+        rows: [stateRow({ due_sources: null })],
+      });
+
+      const [candidate] = await fetcher.fetchUserServiceStates();
+
+      expect(candidate?.dueSources).toEqual([]);
     });
 
     it('filters rows missing an identity and warns', async () => {
@@ -235,6 +252,43 @@ describe('SupabaseFetcher user service states', () => {
 
       await expect(fetcher.recordUserResourceUsage(rows)).rejects.toThrow(
         'ledger down',
+      );
+    });
+  });
+
+  describe('recordWalletSourceRefresh', () => {
+    const rows = [
+      {
+        wallet: '0xabc',
+        source: 'debank' as const,
+        user_id: 'user-1',
+        succeeded: true,
+      },
+      {
+        wallet: '0xabc',
+        source: 'hyperliquid' as const,
+        user_id: 'user-1',
+        succeeded: false,
+        error: 'Hyperliquid unavailable',
+      },
+    ];
+
+    it('sends every (wallet, source) row as one jsonb payload', async () => {
+      mockClient.query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+      await fetcher.recordWalletSourceRefresh(rows);
+
+      expect(mockClient.query).toHaveBeenCalledWith(
+        'select public.ops_record_wallet_source_refresh($1::jsonb)',
+        [JSON.stringify(rows)],
+      );
+    });
+
+    it('propagates database failures to its caller', async () => {
+      mockClient.query.mockRejectedValueOnce(new Error('ops schema down'));
+
+      await expect(fetcher.recordWalletSourceRefresh(rows)).rejects.toThrow(
+        'ops schema down',
       );
     });
   });

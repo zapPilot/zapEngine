@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   fetchUserServiceStates: vi.fn(),
   batchUpdatePortfolioTimestamps: vi.fn(),
   recordUserResourceUsage: vi.fn(),
+  recordWalletSourceRefresh: vi.fn(),
   fetchWalletTokenList: vi.fn(),
   fetchComplexProtocolList: vi.fn(),
   writeWalletBalanceSnapshots: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('../../../../src/modules/user-service/supabaseFetcher.js', () => ({
     fetchUserServiceStates = mocks.fetchUserServiceStates;
     batchUpdatePortfolioTimestamps = mocks.batchUpdatePortfolioTimestamps;
     recordUserResourceUsage = mocks.recordUserResourceUsage;
+    recordWalletSourceRefresh = mocks.recordWalletSourceRefresh;
     healthCheck = vi.fn();
     getRequestCount = vi.fn(() => 0);
   },
@@ -78,6 +80,7 @@ function dueUsers(): ETLUserCandidate[] {
     lastPortfolioUpdateAt: null,
     refreshIntervalHours: 24,
     dueForRefresh: true,
+    dueSources: ['debank'],
   }));
 }
 
@@ -99,6 +102,7 @@ describe('DeBank scheduled batch silent-empty detection', () => {
     mocks.fetchUserServiceStates.mockResolvedValue(dueUsers());
     mocks.batchUpdatePortfolioTimestamps.mockResolvedValue(undefined);
     mocks.recordUserResourceUsage.mockResolvedValue(undefined);
+    mocks.recordWalletSourceRefresh.mockResolvedValue(undefined);
     mocks.fetchWalletTokenList.mockResolvedValue([]);
     mocks.fetchComplexProtocolList.mockResolvedValue([]);
     mocks.writeWalletBalanceSnapshots.mockResolvedValue(writeResult(0));
@@ -127,7 +131,26 @@ describe('DeBank scheduled batch silent-empty detection', () => {
 
     expect(mocks.writeWalletBalanceSnapshots).toHaveBeenCalledWith([], WALLETS);
     expect(mocks.writeSnapshots).toHaveBeenCalledWith([], 'debank', WALLETS);
-    expect(mocks.batchUpdatePortfolioTimestamps).toHaveBeenCalledWith(WALLETS);
+  });
+
+  it('leaves the batch due instead of stamping it fresh', async () => {
+    // Freshness asserts a day of data landed. This batch wrote nothing, so
+    // both wallets have to stay due; stamping them here is how four days of
+    // missing tokens hid behind a green job.
+    await runProcessor();
+
+    expect(mocks.batchUpdatePortfolioTimestamps).not.toHaveBeenCalled();
+    expect(mocks.recordWalletSourceRefresh).toHaveBeenCalledWith(
+      WALLETS.map((wallet, index) => ({
+        wallet,
+        source: 'debank',
+        user_id: `user-${index}`,
+        succeeded: false,
+        error: expect.stringContaining(
+          'DeBank returned no tokens and no positions',
+        ),
+      })),
+    );
   });
 
   it('stays successful when DeBank returned tokens for a wallet', async () => {

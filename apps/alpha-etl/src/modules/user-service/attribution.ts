@@ -1,5 +1,5 @@
 import type { ETLUserCandidate } from '../../types/index.js';
-import { logger } from '../../utils/logger.js';
+import { writeBookkeepingNonFatal } from './bookkeeping.js';
 import type { SupabaseFetcher } from './supabaseFetcher.js';
 
 /**
@@ -56,30 +56,15 @@ export function buildUserResourceUsageRows(
     }));
 }
 
-/**
- * Write the ledger lines, swallowing every failure.
- *
- * Cost attribution is bookkeeping about a pipeline, not part of it: a rejected
- * insert here must never turn a day of successfully written portfolio data
- * into a failed source. Same fire-and-forget contract as the portfolio
- * timestamp write-back.
- */
 export async function recordUserResourceUsageNonFatal(
   fetcher: SupabaseFetcher,
   rows: UserResourceUsageRow[],
   jobId: string,
 ): Promise<void> {
-  if (rows.length === 0) {
-    return;
-  }
-
-  try {
-    await fetcher.recordUserResourceUsage(rows);
-  } catch (error) {
-    logger.warn('Failed to record per-user resource usage', {
-      jobId,
-      rowCount: rows.length,
-      error,
-    });
-  }
+  await writeBookkeepingNonFatal({
+    rows,
+    write: () => fetcher.recordUserResourceUsage(rows),
+    failureMessage: 'Failed to record per-user resource usage',
+    jobId,
+  });
 }
