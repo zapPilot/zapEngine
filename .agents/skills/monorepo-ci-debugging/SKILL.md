@@ -23,7 +23,7 @@ drifts.
 | `tests` | `bash scripts/verify-jobs.sh test analytics` |
 | `e2e` | `bash scripts/verify-jobs.sh e2e` → **app-playwright-ci-debugging** |
 | `security` | `pnpm run security audit` → **monorepo-security-audit** |
-| `deploy-gates` | `bash scripts/check-dispatch-registry-drift.sh`; test `scripts/resolve-deploy-matrix.sh` with its documented env cases |
+| `deploy-gates` | `bash scripts/check-dispatch-registry-drift.sh`; `bash scripts/resolve-deploy-matrix.test.sh` (deploy_matrix / verify_matrix parity) |
 | `ios-release-smoke` | `pnpm turbo run test:ios:release-smoke --filter=@zapengine/app` (macOS) |
 | `check-dead-env` | `pnpm lint dead-env` → **env-drift-ci-debugging** |
 | `coverage` | `pnpm run coverage test && pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts` |
@@ -71,6 +71,8 @@ gh run view <run-id> --log-failed
   a JSON `extends` target. New TypeScript workspaces must use `knip.ts` with
   `defineKnipConfig` from `@zapengine/knip-config/base`; keep framework/MDX-only
   entries explicit and narrow instead of adding blanket deadcode ignores.
+- **Fly deploy/verify matrix:** `deploy-gates` outputs `deploy_matrix` / `verify_matrix` (not `fly_*`). `pull_request` → `deploy=[]` + `verify=changed where verify_docker`; `push:refs/heads/main` → `deploy=ALL` (ignores `PATHS_CHANGES`) + `verify=[]`; `workflow_dispatch` → `deploy=requested` + `verify=[]`; non-main `push` → both `[]`. `paths-filter` still runs on `main` push for `app_ios` only. `scripts/resolve-deploy-matrix.test.sh` locks these 9 cases + full-object shape (`app/fly_config/secret_name/verify_package_script/verify_docker/capture_release_metadata`).
+- **CI fleet converge:** top-level concurrency is `ci-${{ github.ref }}-${{ github.event_name }}` with `cancel-in-progress` on `push` or PR — latest `main` push cancels the previous `main` run so fleet converges to `main HEAD`. Per-app `deploy-fly` concurrency is only second-layer.
 - **Formatting loops:** follow **monorepo-lint-format-loop** rather than adding
   formatting workarounds here.
 - **iOS cancellation/timeouts:** follow

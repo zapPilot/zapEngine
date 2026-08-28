@@ -28,8 +28,8 @@ env:
   TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
 concurrency:
-  group: ci-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'pr' }}
-  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+  group: ci-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'push' || startsWith(github.ref, 'refs/pull/') }}
 
 jobs:
   # These jobs use grouped subsets of the same registry as `pnpm verify ci`.
@@ -183,8 +183,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
-      fly_matrix: ${{ steps.resolve.outputs.fly_matrix }}
-      fly_verify_matrix: ${{ steps.resolve.outputs.fly_verify_matrix }}
+      deploy_matrix: ${{ steps.resolve.outputs.deploy_matrix }}
+      verify_matrix: ${{ steps.resolve.outputs.verify_matrix }}
       app_ios: ${{ steps.filter.outputs.app_ios }}
     steps:
       - uses: actions/checkout@v4
@@ -275,6 +275,7 @@ jobs:
       - id: resolve
         env:
           EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF: ${{ github.ref }}
           DEPLOY_TARGET: ${{ inputs.deploy_target }}
           PATHS_CHANGES: ${{ steps.filter.outputs.changes }}
         run: bash scripts/resolve-deploy-matrix.sh
@@ -338,11 +339,11 @@ jobs:
 
   verify-fly-docker:
     needs: [deploy-gates]
-    if: github.event_name == 'pull_request' && needs.deploy-gates.outputs.fly_verify_matrix != '[]'
+    if: github.event_name == 'pull_request' && needs.deploy-gates.outputs.verify_matrix != '[]'
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.deploy-gates.outputs.fly_verify_matrix) }}
+        include: ${{ fromJSON(needs.deploy-gates.outputs.verify_matrix) }}
     uses: ./.github/workflows/verify-docker.yml
     with:
       app: ${{ matrix.app }}
@@ -361,11 +362,11 @@ jobs:
         deploy-gates,
         check-dead-env,
       ]
-    if: github.event_name != 'pull_request' && needs.deploy-gates.outputs.fly_matrix != '[]'
+    if: github.event_name != 'pull_request' && needs.deploy-gates.outputs.deploy_matrix != '[]'
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.deploy-gates.outputs.fly_matrix) }}
+        include: ${{ fromJSON(needs.deploy-gates.outputs.deploy_matrix) }}
     uses: ./.github/workflows/deploy-fly.yml
     with:
       app: ${{ matrix.app }}
