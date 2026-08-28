@@ -64,6 +64,12 @@ export function parseRednoteUserId(payload: unknown): string | null {
   return typeof userId === 'string' && userId.trim() ? userId.trim() : null;
 }
 
+/**
+ * The account's own id, which the profile URL needs. It is asked for rather
+ * than configured, and this call is also the session gate: signed out it answers
+ * HTTP 401, while the profile page below still answers HTTP 200 -- with every
+ * count masked as `10+`.
+ */
 async function readRednoteUserId(request: APIRequestContext): Promise<string> {
   const response = await request.get(REDNOTE_USER_INFO_URL, {
     timeout: BROWSER_TIMEOUT_MS,
@@ -103,6 +109,8 @@ async function collectRednoteFollowers({
         `Rednote profile ${profileUrl} exposed no follower count.`,
       );
     }
+    // Strict on purpose: a signed-out read of this page answers `10+`, which a
+    // lenient parse would record as a real drop to 10 followers.
     const followers = parseMetricNumber(raw);
     if (followers === null) {
       throw new Error(
@@ -113,6 +121,14 @@ async function collectRednoteFollowers({
   });
 }
 
+/**
+ * X serves the profile header's follower link at `/verified_followers` for
+ * accounts that have the verified-followers tab and at `/followers` for the
+ * rest, so both are accepted -- a suffix match on `/followers` alone reads the
+ * verified layout as a profile with no follower count at all. Both are pinned to
+ * the publisher's own handle so no other account's follower link on the page can
+ * answer for it.
+ */
 export function xFollowerLinkSelector(profileUrl: string): string {
   const [handle, ...rest] = new URL(profileUrl).pathname
     .split('/')
@@ -182,6 +198,9 @@ function readThreadsFollowerCount(payload: unknown): number | null {
   return null;
 }
 
+// YouTube is absent on purpose: the publish OAuth scope is upload-only, so this
+// daemon holds no credential that can read channel statistics. Per-post
+// `subscribersGained` already comes from YouTube Analytics.
 const COLLECTORS: Partial<Record<SocialPlatform, FollowerCollector>> = {
   rednote: collectRednoteFollowers,
   x: collectXFollowers,
@@ -209,6 +228,9 @@ export async function captureDueAccountSnapshots(input: {
     const previous = latest[platform as SocialPlatform];
     if (previous && !isStale(previous.captured_at, input.now)) continue;
 
+    // Isolated per platform: a logged-out browser profile on one platform must
+    // not cost the others their daily snapshot, and a failed read is never
+    // recorded as a count.
     try {
       const snapshot = await collect(context);
       await insert(snapshot);
