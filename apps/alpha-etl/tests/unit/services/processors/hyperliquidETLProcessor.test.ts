@@ -17,6 +17,7 @@ import type {
   HyperliquidVaultAprSnapshotInsert,
 } from '../../../../src/types/database.js';
 import type { HyperliquidVaultETLProcessor } from '../../../../src/modules/hyperliquid/processor.js';
+import type { WalletRefreshOutcome } from '../../../../src/modules/user-service/refreshState.js';
 
 // Hoisted mocks for proper timing
 const {
@@ -38,6 +39,7 @@ const {
       fetchUserServiceStates: vi.fn(),
       batchUpdatePortfolioTimestamps: vi.fn(),
       recordUserResourceUsage: vi.fn(),
+      recordWalletSourceRefresh: vi.fn(),
       healthCheck: vi.fn(),
       getRequestStats: vi.fn(),
     },
@@ -133,6 +135,7 @@ function createMockCandidate(
     lastPortfolioUpdateAt: null,
     refreshIntervalHours: 24,
     dueForRefresh: true,
+    dueSources: ['hyperliquid'],
     ...overrides,
   };
 }
@@ -278,6 +281,7 @@ describe('HyperliquidVaultETLProcessor', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    mockSupabaseFetcher.recordWalletSourceRefresh.mockResolvedValue(undefined);
     mockPortfolioWriter.writeSnapshots.mockResolvedValue({
       success: true,
       recordsInserted: 0,
@@ -365,6 +369,7 @@ describe('HyperliquidVaultETLProcessor', () => {
               successfulWallets: string[];
               errors: string[];
               success: boolean;
+              outcomes: WalletRefreshOutcome[];
             }>,
             jobId: string,
           ) => Promise<{
@@ -386,6 +391,9 @@ describe('HyperliquidVaultETLProcessor', () => {
             successfulWallets: ['0xwallet1'],
             errors: [],
             success: true,
+            outcomes: [
+              { wallet: '0xwallet1', userId: 'user-1', fetchSucceeded: true },
+            ],
           },
         ],
         'job-duplicates',
@@ -1464,6 +1472,7 @@ describe('HyperliquidVaultETLProcessor', () => {
       const due = createMockCandidate('due-user', '0xDUE');
       const notDue = createMockCandidate('recent-user', '0xRECENT', {
         dueForRefresh: false,
+        dueSources: [],
       });
       const standard = createMockCandidate('free-user', '0xFREE', {
         planCode: 'free',
@@ -1471,6 +1480,7 @@ describe('HyperliquidVaultETLProcessor', () => {
         effectiveTier: 'standard',
         refreshIntervalHours: null,
         dueForRefresh: false,
+        dueSources: [],
       });
 
       mockSupabaseFetcher.fetchUserServiceStates.mockResolvedValue([
@@ -1502,6 +1512,7 @@ describe('HyperliquidVaultETLProcessor', () => {
           overrideTier: 'paused',
           effectiveTier: 'paused',
           dueForRefresh: false,
+          dueSources: [],
         }),
       ]);
 
@@ -1571,6 +1582,124 @@ describe('HyperliquidVaultETLProcessor', () => {
       expect(result.success).toBe(true);
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'Failed to record per-user resource usage',
+        expect.objectContaining({ rowCount: 1 }),
+      );
+    });
+  });
+
+  describe('Per-source refresh state', () => {
+    beforeEach(() => {
+      mockHyperliquidFetcher.getVaultDetails.mockResolvedValue(
+        createMockVaultDetails('0xvault1'),
+      );
+      mockHyperliquidFetcher.extractPositionData.mockReturnValue(
+        createMockPositionData('0xwallet1', '0xvault1'),
+      );
+      mockHyperliquidFetcher.extractAprData.mockReturnValue(
+        createMockAprData('0xvault1'),
+      );
+      mockTransformer.transformPosition.mockReturnValue(
+        createMockPortfolioSnapshot('user-1', '0xvault1'),
+      );
+      mockTransformer.transformApr.mockReturnValue(
+        createMockAprSnapshot('0xvault1', '2025-02-01T12:00:00.000Z'),
+      );
+      mockSupabaseFetcher.fetchUserServiceStates.mockResolvedValue([
+        createMockCandidate('user-1', '0xwallet1'),
+      ]);
+    });
+
+    it('marks the wallet hyperliquid-fresh once both writers committed', async () => {
+      await processor.process(createMockJob());
+
+      expect(
+        mockSupabaseFetcher.recordWalletSourceRefresh,
+      ).toHaveBeenCalledWith([
+        {
+          wallet: '0xwallet1',
+          source: 'hyperliquid',
+          user_id: 'user-1',
+          succeeded: true,
+        },
+      ]);
+    });
+
+    it('still counts a wallet as fetched when only its APR transform threw', async () => {
+      // The portfolio slice landed, which is what this wallet's freshness is
+      // about; a broken APR snapshot is a source-level fault and already fails
+      // the run through the batch result, without re-billing the vault call.
+      mockTransformer.transformApr.mockImplementation(() => {
+        throw new Error('APR transformation failed');
+      });
+
+      const result = await processor.process(createMockJob());
+
+      expect(result.success).toBe(false);
+      expect(
+        mockSupabaseFetcher.recordWalletSourceRefresh,
+      ).toHaveBeenCalledWith([
+        {
+          wallet: '0xwallet1',
+          source: 'hyperliquid',
+          user_id: 'user-1',
+          succeeded: true,
+        },
+      ]);
+    });
+
+    it('keeps the wallet due when the position write failed', async () => {
+      mockPortfolioWriter.writeSnapshots.mockResolvedValue({
+        success: false,
+        recordsInserted: 0,
+        errors: ['daily_portfolio_positions write failed'],
+        duplicatesSkipped: 0,
+      });
+
+      await processor.process(createMockJob());
+
+      expect(
+        mockSupabaseFetcher.recordWalletSourceRefresh,
+      ).toHaveBeenCalledWith([
+        {
+          wallet: '0xwallet1',
+          source: 'hyperliquid',
+          user_id: 'user-1',
+          succeeded: false,
+          error: 'daily_portfolio_positions write failed',
+        },
+      ]);
+    });
+
+    it('keeps the wallet due when the vault call never answered', async () => {
+      mockHyperliquidFetcher.getVaultDetails.mockRejectedValue(
+        new Error('Hyperliquid unavailable'),
+      );
+
+      await processor.process(createMockJob());
+
+      expect(
+        mockSupabaseFetcher.recordWalletSourceRefresh,
+      ).toHaveBeenCalledWith([
+        {
+          wallet: '0xwallet1',
+          source: 'hyperliquid',
+          user_id: 'user-1',
+          succeeded: false,
+          error: 'Hyperliquid unavailable',
+        },
+      ]);
+    });
+
+    it('never lets a bookkeeping failure fail the source', async () => {
+      mockSupabaseFetcher.recordWalletSourceRefresh.mockRejectedValue(
+        new Error('ops schema unreachable'),
+      );
+
+      const result = await processor.process(createMockJob());
+
+      expect(result.success).toBe(true);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Failed to record wallet source refresh state',
         expect.objectContaining({ rowCount: 1 }),
       );
     });

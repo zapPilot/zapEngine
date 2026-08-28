@@ -8,7 +8,10 @@ test('parseOpsArgs starts the whole stack when no selector is given', () => {
     dashboard: true,
     social: true,
     status: false,
+    json: false,
+    force: false,
     help: false,
+    error: null,
     unknown: [],
   });
 });
@@ -18,21 +21,30 @@ test('parseOpsArgs selects one child at a time', () => {
     dashboard: true,
     social: false,
     status: false,
+    json: false,
+    force: false,
     help: false,
+    error: null,
     unknown: [],
   });
   assert.deepEqual(parseOpsArgs(['--social']), {
     dashboard: false,
     social: true,
     status: false,
+    json: false,
+    force: false,
     help: false,
+    error: null,
     unknown: [],
   });
   assert.deepEqual(parseOpsArgs(['--dashboard', '--social']), {
     dashboard: true,
     social: true,
     status: false,
+    json: false,
+    force: false,
     help: false,
+    error: null,
     unknown: [],
   });
 });
@@ -42,16 +54,74 @@ test('parseOpsArgs makes --status exclusive of every long-lived child', () => {
     dashboard: false,
     social: false,
     status: true,
+    json: false,
+    force: false,
     help: false,
+    error: null,
     unknown: [],
   });
   assert.deepEqual(parseOpsArgs(['--status', '--dashboard', '--social']), {
     dashboard: false,
     social: false,
     status: true,
+    json: false,
+    force: false,
     help: false,
+    error: null,
     unknown: [],
   });
+});
+
+test('parseOpsArgs forwards the status tool flags alongside --status', () => {
+  assert.deepEqual(parseOpsArgs(['--status', '--json']), {
+    dashboard: false,
+    social: false,
+    status: true,
+    json: true,
+    force: false,
+    help: false,
+    error: null,
+    unknown: [],
+  });
+  assert.deepEqual(parseOpsArgs(['--status', '--force']), {
+    dashboard: false,
+    social: false,
+    status: true,
+    json: false,
+    force: true,
+    help: false,
+    error: null,
+    unknown: [],
+  });
+  assert.deepEqual(parseOpsArgs(['--status', '--json', '--force']), {
+    dashboard: false,
+    social: false,
+    status: true,
+    json: true,
+    force: true,
+    help: false,
+    error: null,
+    unknown: [],
+  });
+});
+
+test('parseOpsArgs rejects the status tool flags without --status', () => {
+  for (const flag of ['--json', '--force']) {
+    const parsed = parseOpsArgs([flag]);
+    assert.match(parsed.error, /--status/);
+    assert.deepEqual(parsed.unknown, []);
+  }
+});
+
+test('parseOpsArgs rejects the status tool flags next to a named child', () => {
+  assert.match(
+    parseOpsArgs(['--json', '--dashboard']).error,
+    /--json cannot be combined with --dashboard/,
+  );
+  assert.match(
+    parseOpsArgs(['--status', '--force', '--social']).error,
+    /--force cannot be combined with --social/,
+  );
 });
 
 test('parseOpsArgs recognises both help spellings without defaulting', () => {
@@ -60,7 +130,10 @@ test('parseOpsArgs recognises both help spellings without defaulting', () => {
       dashboard: false,
       social: false,
       status: false,
+      json: false,
+      force: false,
       help: true,
+      error: null,
       unknown: [],
     });
   }

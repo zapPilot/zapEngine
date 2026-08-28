@@ -13,6 +13,11 @@ import {
   buildUserResourceUsageRows,
   recordUserResourceUsageNonFatal,
 } from '../../modules/user-service/attribution.js';
+import {
+  buildSourceRefreshRecords,
+  recordSourceRefreshOutcomeNonFatal,
+  type WalletRefreshOutcome,
+} from '../../modules/user-service/refreshState.js';
 import { selectDueUsers } from '../../modules/user-service/selector.js';
 import { SupabaseFetcher } from '../../modules/user-service/supabaseFetcher.js';
 import { PortfolioItemWriter } from '../../modules/wallet/portfolioWriter.js';
@@ -32,6 +37,7 @@ import {
   type HyperliquidProcessSummary,
   type HyperliquidTransformBatch,
   type HyperliquidUserTransformResult,
+  toWalletRefreshOutcome,
   updateProcessSummary,
 } from './processor.helpers.js';
 import { HyperliquidDataTransformer } from './transformer.js';
@@ -92,7 +98,8 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
         updateProcessSummary(summary, usersToUpdate.length, batch);
         return [batch];
       },
-      async (transformedData) => this.writeTransformedData(transformedData),
+      async (transformedData) =>
+        this.writeTransformedData(transformedData, job.jobId),
       {
         allowEmptyFetch: true,
         allowEmptyTransform: true,
@@ -120,6 +127,7 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
     >();
     const successfulWallets: string[] = [];
     const errors: string[] = [];
+    const outcomes: WalletRefreshOutcome[] = [];
     let success = true;
 
     for (const user of usersToUpdate) {
@@ -131,6 +139,7 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
         successfulWallets,
         errors,
       );
+      outcomes.push(toWalletRefreshOutcome(user, userResult));
       if (hadError) {
         success = false;
       }
@@ -155,6 +164,7 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
       successfulWallets,
       errors,
       success,
+      outcomes,
     };
   }
 
@@ -211,6 +221,7 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
 
   private async writeTransformedData(
     transformedData: HyperliquidTransformBatch[],
+    jobId: string,
   ): Promise<WriteResult> {
     const batch = transformedData[0];
     if (!batch) {
@@ -222,9 +233,28 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
       batch.successfulWallets,
     );
     const aprResult = await this.writeAprRecords(batch.aprRecords);
+    // The writers alone, not the merged `success` below: that one ands in the
+    // per-wallet fetch errors, which each outcome already carries, and would
+    // hold a wallet whose position landed due on another wallet's outage.
+    const loadSucceeded = portfolioResult.success && aprResult.success;
+
+    await recordSourceRefreshOutcomeNonFatal(
+      this.supabaseFetcher,
+      buildSourceRefreshRecords('hyperliquid', batch.outcomes, {
+        succeeded: loadSucceeded,
+        ...(loadSucceeded
+          ? {}
+          : {
+              error: [...portfolioResult.errors, ...aprResult.errors].join(
+                '; ',
+              ),
+            }),
+      }),
+      jobId,
+    );
 
     return {
-      success: batch.success && portfolioResult.success && aprResult.success,
+      success: batch.success && loadSucceeded,
       recordsInserted:
         portfolioResult.recordsInserted + aprResult.recordsInserted,
       duplicatesSkipped:

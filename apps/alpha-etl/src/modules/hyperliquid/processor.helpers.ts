@@ -1,7 +1,9 @@
+import type { WalletRefreshOutcome } from '../../modules/user-service/refreshState.js';
 import type {
   HyperliquidVaultAprSnapshotInsert,
   PortfolioItemSnapshotInsert,
 } from '../../types/database.js';
+import type { ETLUserCandidate } from '../../types/index.js';
 
 export interface HyperliquidTransformBatch {
   portfolioRecords: PortfolioItemSnapshotInsert[];
@@ -9,6 +11,8 @@ export interface HyperliquidTransformBatch {
   successfulWallets: string[];
   errors: string[];
   success: boolean;
+  // Every attempted wallet, so the write stage can record which ones stay due.
+  outcomes: WalletRefreshOutcome[];
 }
 
 export interface HyperliquidUserTransformResult {
@@ -56,6 +60,29 @@ export function collectUserTransformResult(
 
   errors.push(userResult.errorMessage);
   return true;
+}
+
+/**
+ * Read one user's transform result as a refresh outcome.
+ *
+ * `successfulWallet` is set whenever the vault call returned and the position
+ * was transformed, including the APR-partial case: the portfolio slice landed,
+ * which is the thing this wallet's freshness is about. Losing the APR snapshot
+ * is a source-level fault and reaches the caller through the batch's own
+ * `success: false`, so it fails the run without re-billing every other wallet.
+ */
+export function toWalletRefreshOutcome(
+  user: ETLUserCandidate,
+  userResult: HyperliquidUserTransformResult,
+): WalletRefreshOutcome {
+  return {
+    wallet: user.wallet,
+    userId: user.userId,
+    fetchSucceeded: userResult.successfulWallet !== undefined,
+    ...(userResult.errorMessage !== undefined && {
+      error: userResult.errorMessage,
+    }),
+  };
 }
 
 export function mergeLatestAprSnapshot(

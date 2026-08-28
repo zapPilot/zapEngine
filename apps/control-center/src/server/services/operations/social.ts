@@ -95,11 +95,21 @@ const timestamp = z
 const jobRowSchema = z.object({
   episode_id: z.string(),
   platform: z.string(),
-  language_code: z.string().nullable(),
+  // Absent reads the same as null here because the code is a label on the
+  // lane, not part of what makes it a lane: dropping the row over a missing
+  // one would hide a job that is otherwise perfectly legible.
+  language_code: z.string().nullish(),
   status: z.string(),
   scheduled_at: timestamp,
   next_attempt_at: timestamp,
-  attempt_count: z.number(),
+  /**
+   * PostgREST serialises a bigint column as a decimal string ("3"). A plain
+   * `z.number()` drops every row, and a queue where every row was dropped is
+   * indistinguishable from an empty one — the mistake that turns a stalled
+   * publisher into a green panel. `'abc'` still fails: it coerces to `NaN`,
+   * which `z.number()` rejects.
+   */
+  attempt_count: z.coerce.number(),
 });
 
 /**
@@ -161,13 +171,23 @@ export async function loadOperationsSocial(input: {
       throw new Error(error.message);
     }
 
-    const jobs = toJobs(jobResult.data, input.now);
+    const { jobs, invalidRows } = toJobs(jobResult.data, input.now);
+    // A queue where nothing parsed is a reader that no longer matches the
+    // table, not a queue with nothing in it. Reporting it as "no pending
+    // lanes" would hand back a green publish queue built out of a broken
+    // read, so the whole reading is thrown away instead.
+    if (jobs.length === 0 && invalidRows > 0) {
+      throw new Error(
+        `Supabase returned ${invalidRows} social publish jobs in an unknown shape`,
+      );
+    }
     const daemon = toDaemon(daemonResult.data, jobs, input.now);
     return {
       generatedAt: input.now.toISOString(),
       daemon,
       jobs,
       waitingMediaLanes: waitingResult.count ?? 0,
+      invalidJobRows: invalidRows,
       message: null,
     };
   } catch (error) {
@@ -243,21 +263,37 @@ function queueSignal(
   const blocked = response.jobs.filter(
     (job) => job.attemptsExhausted || job.overdueMinutes !== null,
   );
+  const unread = response.invalidJobRows;
   if (blocked.length === 0) {
+    // Nothing blocked among the lanes that parsed is only good news if every
+    // lane parsed. Otherwise the lanes nobody could read are exactly the ones
+    // this signal cannot vouch for, so it says so rather than reporting green.
     return buildSignal({
       source: 'social-queue',
       domain: 'social',
       kind: 'overdue',
       key: 'queue',
-      status: 'healthy',
-      title: 'Publish queue is on schedule',
-      detail: null,
-      evidence: { pendingJobs: response.jobs.length, overdueJobs: 0 },
+      status: unread === 0 ? 'healthy' : 'degraded',
+      title:
+        unread === 0
+          ? 'Publish queue is on schedule'
+          : 'Publish queue is only partly readable',
+      detail: unread === 0 ? null : unreadRowsDetail(unread),
+      evidence: {
+        pendingJobs: response.jobs.length,
+        overdueJobs: 0,
+        invalidRowCount: unread,
+      },
       observedAt: now,
     });
   }
 
   const worst = blocked.reduce(worseJob);
+  const detail = worst.attemptsExhausted
+    ? `The ${worst.platform} lane for episode ${worst.episodeId} has used ` +
+      `all ${MAX_ATTEMPTS} attempts and will never be claimed again.`
+    : `The ${worst.platform} lane for episode ${worst.episodeId} is past ` +
+      'its publish window.';
   return buildSignal({
     source: 'social-queue',
     domain: 'social',
@@ -267,20 +303,26 @@ function queueSignal(
     title: worst.attemptsExhausted
       ? 'Publish lane is out of retries'
       : 'Publish queue is overdue',
-    detail: worst.attemptsExhausted
-      ? `The ${worst.platform} lane for episode ${worst.episodeId} has used ` +
-        `all ${MAX_ATTEMPTS} attempts and will never be claimed again.`
-      : `The ${worst.platform} lane for episode ${worst.episodeId} is past ` +
-        'its publish window.',
+    // The worst lane on record still leads, but an operator reading it needs
+    // to know it is only the worst of what could be read.
+    detail: unread === 0 ? detail : `${detail} ${unreadRowsDetail(unread)}`,
     evidence: {
       overdueMinutes: worst.overdueMinutes,
       episodeId: worst.episodeId,
       platform: worst.platform,
       attemptsExhausted: worst.attemptsExhausted,
       overdueJobs: blocked.length,
+      invalidRowCount: unread,
     },
     observedAt: now,
   });
+}
+
+function unreadRowsDetail(unread: number): string {
+  return (
+    `${unread} queue ${unread === 1 ? 'row' : 'rows'} failed to parse, so ` +
+    'this reading of the queue is incomplete.'
+  );
 }
 
 function waitingMediaSignal(
@@ -327,11 +369,17 @@ function overdueJobs(jobs: OperationsSocialJob[]): OperationsSocialJob[] {
   return jobs.filter((job) => job.overdueMinutes !== null);
 }
 
-function toJobs(rows: unknown[] | null, now: Date): OperationsSocialJob[] {
-  return (rows ?? []).flatMap((row) => {
+function toJobs(
+  rows: unknown[] | null,
+  now: Date,
+): { jobs: OperationsSocialJob[]; invalidRows: number } {
+  const source = rows ?? [];
+  const jobs = source.flatMap((row) => {
     const parsed = jobRowSchema.safeParse(row);
     // One malformed lane must not blank the whole panel: the operator still
-    // needs to see the lanes that did parse.
+    // needs to see the lanes that did parse. What was dropped leaves with the
+    // count, so the caller can weigh how much of the queue this reading is
+    // actually speaking for.
     if (!parsed.success) {
       return [];
     }
@@ -349,7 +397,7 @@ function toJobs(rows: unknown[] | null, now: Date): OperationsSocialJob[] {
       {
         episodeId: job.episode_id,
         platform: job.platform,
-        languageCode: job.language_code,
+        languageCode: job.language_code ?? null,
         status: job.status,
         scheduledAt: job.scheduled_at,
         nextAttemptAt: job.next_attempt_at,
@@ -362,6 +410,7 @@ function toJobs(rows: unknown[] | null, now: Date): OperationsSocialJob[] {
       },
     ];
   });
+  return { jobs, invalidRows: source.length - jobs.length };
 }
 
 function toDaemon(
@@ -416,6 +465,7 @@ function emptyResponse(now: Date, message: string): OperationsSocialResponse {
     daemon: unknownDaemon(),
     jobs: [],
     waitingMediaLanes: null,
+    invalidJobRows: 0,
     message,
   };
 }

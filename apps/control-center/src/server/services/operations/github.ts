@@ -14,27 +14,29 @@ import {
   unknownSignal,
 } from './signal.js';
 import { findRepoRoot } from './repo-root.js';
+import { staleAfterMs } from './schedule-interval.js';
 
 const ORIGIN = { source: 'github-actions', domain: 'jobs' } as const;
 const REPO = 'zapPilot/zapEngine';
 const RUNS_PER_PAGE = 5;
 const HOUR_MS = 60 * 60 * 1000;
-/**
- * Every workflow this adapter watches runs at least daily, so two days of
- * silence is not a slow night: the cron itself has stopped firing.
- */
-const STALE_AFTER_MS = 48 * HOUR_MS;
 
 /**
  * Only the fields this adapter reads. `.github/schedules.json` is the
  * repository's inventory of everything that runs on a timer, so it also
  * carries Fly intervals and Pipedream crons; `runtime` is what narrows it to
  * the jobs GitHub can answer for.
+ *
+ * The schedule fields are required rather than optional because the
+ * `lint schedules` gate already rejects a registry row missing either one,
+ * and it also rejects a `github-actions` row that is not a cron.
  */
 const scheduleEntrySchema = z.object({
   name: z.string().min(1),
   runtime: z.string(),
   entrypoint: z.string().min(1),
+  schedule_kind: z.string().min(1),
+  schedule: z.string().min(1),
 });
 
 /**
@@ -61,6 +63,8 @@ interface ScheduledWorkflow {
   name: string;
   /** The workflow file name — what the GitHub API is keyed on. */
   file: string;
+  /** How long this workflow's own cadence allows it to stay silent. */
+  staleAfterMs: number;
 }
 
 interface CompletedRun {
@@ -145,7 +149,16 @@ async function readScheduledWorkflows(
   const workflows = entries.flatMap((entry) => {
     const result = scheduleEntrySchema.safeParse(entry);
     return result.success && result.data.runtime === 'github-actions'
-      ? [{ name: result.data.name, file: basename(result.data.entrypoint) }]
+      ? [
+          {
+            name: result.data.name,
+            file: basename(result.data.entrypoint),
+            staleAfterMs: staleAfterMs({
+              scheduleKind: result.data.schedule_kind,
+              schedule: result.data.schedule,
+            }),
+          },
+        ]
       : [];
   });
   if (workflows.length === 0) {
@@ -192,9 +205,16 @@ async function fetchCompletedRuns(input: {
 }): Promise<CompletedRun[]> {
   const envelope = await fetchJson({
     label: `GitHub run history for ${input.workflow.file}`,
+    // `event=schedule` is what makes this a reading of the cron rather than of
+    // the workflow: every one of these files also carries `workflow_dispatch`,
+    // so an unfiltered page lets a manual re-run reset a failure streak, a
+    // manual success make a dead cron look fresh, and a manual failure slander
+    // a healthy one. Manual runs are deliberately not fetched separately —
+    // that would double a seven-workflow fan-out to surface a history nobody
+    // pages on.
     url:
       `https://api.github.com/repos/${REPO}/actions/workflows/` +
-      `${input.workflow.file}/runs?per_page=${RUNS_PER_PAGE}`,
+      `${input.workflow.file}/runs?per_page=${RUNS_PER_PAGE}&event=schedule`,
     token: input.token,
     schema: runsEnvelopeSchema,
     fetchImpl: input.fetchImpl,
@@ -273,7 +293,7 @@ function judge(
     url: latest.url,
   };
 
-  if (streak === 0 && ageMs <= STALE_AFTER_MS) {
+  if (streak === 0 && ageMs <= workflow.staleAfterMs) {
     return buildSignal({
       ...common,
       status: 'healthy',
@@ -307,7 +327,9 @@ function judge(
     title: `${workflow.name} has not run in ${hoursAgo}h`,
     detail:
       `Latest completed run succeeded, but it started ${hoursAgo}h ago and ` +
-      'this workflow is scheduled to run at least daily.',
+      `its schedule allows at most ${Math.round(
+        workflow.staleAfterMs / HOUR_MS,
+      )}h of silence.`,
   });
 }
 

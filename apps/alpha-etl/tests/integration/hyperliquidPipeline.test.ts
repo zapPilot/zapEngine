@@ -34,6 +34,7 @@ function createMockSupabaseFetcher() {
   return {
     fetchUserServiceStates: vi.fn(),
     recordUserResourceUsage: vi.fn().mockResolvedValue(undefined),
+    recordWalletSourceRefresh: vi.fn().mockResolvedValue(undefined),
     healthCheck: vi.fn().mockResolvedValue({ status: 'healthy' }),
     getRequestStats: vi.fn().mockReturnValue(createRequestStats()),
   };
@@ -161,6 +162,7 @@ function createMockCandidate(userId: string, wallet: string): ETLUserCandidate {
     lastPortfolioUpdateAt: null,
     refreshIntervalHours: 24,
     dueForRefresh: true,
+    dueSources: ['hyperliquid'],
   };
 }
 

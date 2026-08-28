@@ -6,7 +6,10 @@ Founder decision dashboard for operational status, customer economics, product h
 pnpm ops             # dashboard + social daemon, from the repository root
 pnpm ops:dashboard   # dashboard only
 pnpm ops --status    # one-shot status in the terminal, no server
+pnpm ops --status --json   # the same snapshot as JSON, for an agent
 ```
+
+`--json` and `--force` only mean anything alongside `--status`; passing either on its own, or with `--dashboard`/`--social`, is rejected rather than silently ignored.
 
 `pnpm ops` starts the dashboard and the social publishing daemon as **independent** children: a dashboard that crashes must never take publishing down with it, and vice versa. Only `SIGINT`/`SIGTERM` are forwarded to both.
 
@@ -18,14 +21,16 @@ The Vite UI listens on `127.0.0.1:4174`; its Hono API listens on `CONTROL_CENTER
 
 Every source is an adapter that returns `OperationalSignal[]` and is contractually forbidden from throwing. Missing credentials produce `unknown`, never `healthy` — a provider nobody asked has not reported that it is fine — and a failed request produces a `degraded` source failure so a lost reading is visibly different from a healthy one.
 
-| Domain      | Source                           | Reads                                                           |
-| ----------- | -------------------------------- | --------------------------------------------------------------- |
-| `customers` | `customer-economics`             | `public.get_user_service_states()` + the usage ledger           |
-| `product`   | `product-health`                 | the existing public-schema account data                         |
-| `costs`     | `cost-ledger`                    | `ops.cost_snapshots` through the bridge, plus its own staleness |
-| `social`    | `social-queue` / `social-daemon` | `social_publish_jobs`, `social_daemon_state`, waiting media     |
-| `jobs`      | `github-actions`                 | the 7 scheduled workflows in `.github/schedules.json`           |
-| `infra`     | `fly`                            | `flyctl` machine state per app and process group                |
+| Domain      | Source                           | Reads                                                                               |
+| ----------- | -------------------------------- | ----------------------------------------------------------------------------------- |
+| `customers` | `customer-economics`             | `public.get_user_service_states()` + the usage ledger                               |
+| `product`   | `product-health`                 | the existing public-schema account data                                             |
+| `costs`     | `cost-ledger`                    | `ops.cost_snapshots` through the bridge, plus its own staleness                     |
+| `social`    | `social-queue` / `social-daemon` | `social_publish_jobs`, `social_daemon_state`, waiting media                         |
+| `jobs`      | `github-actions`                 | `schedule`-triggered runs of the github-actions entries in `.github/schedules.json` |
+| `infra`     | `fly`                            | `flyctl` machine state per app and process group                                    |
+
+Job health reads `event=schedule` runs only. A workflow carries both a cron and a `workflow_dispatch` trigger, so counting manual runs would let a successful re-run mask a cron that has stopped firing — the exact failure this domain exists to catch. Staleness is derived from each entry's own cron expression rather than assumed daily, floored at 48h.
 
 A stopped Machine is not an outage everywhere. `account-engine`, `alpha-etl`, and `analytics-engine-xws3ra` declare `min_machines_running = 0`, so Fly Proxy stops them when idle and starts them on the next request; the podcast render group stops itself on an idle queue. Scoring those on started count would leave the page permanently red, which is the one failure a status page cannot survive — so they are scored on whether anything is left to start instead. The lifecycle each app is judged by restates its own `fly.toml`, and `fly.test.ts` reads those files to prove the two still agree.
 | `errors` | `sentry` | unresolved issues in the last 24h, grouped by project |

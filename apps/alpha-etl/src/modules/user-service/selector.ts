@@ -1,5 +1,6 @@
 import type { ETLUserCandidate } from '../../types/index.js';
 import { logger } from '../../utils/logger.js';
+import type { PortfolioSource } from './refreshState.js';
 import type { SupabaseFetcher } from './supabaseFetcher.js';
 
 type SelectionLogger = Pick<typeof logger, 'info' | 'warn'>;
@@ -21,14 +22,20 @@ export interface DueUserSelection {
  * Re-deriving "due" here from `lastPortfolioUpdateAt` is what would let the
  * dashboard say Standard while this job kept paying DeBank for Priority.
  *
- * A standard or paused wallet already arrives with `dueForRefresh: false`, so
- * the tier check adds no filtering; it splits the skips into two counts, which
- * is what tells an operator whether a batch that fell to zero wallets was
- * paused by an override or simply refreshed an hour ago.
+ * Dueness is now answered per provider, and `dueSources` is that answer: one
+ * wallet timestamp could not say that DeBank landed today and Hyperliquid did
+ * not, so DeBank running first in the same daily job declared the wallet fresh
+ * and Hyperliquid was skipped every day. Membership in `dueSources` is the
+ * whole filter — do not reconstruct it here from the per-source state.
+ *
+ * A standard or paused wallet arrives with an empty `dueSources`, so the tier
+ * check adds no filtering; it splits the skips into two counts, which is what
+ * tells an operator whether a batch that fell to zero wallets was paused by an
+ * override or simply refreshed an hour ago.
  */
 export async function selectDueUsers(input: {
   fetcher: SupabaseFetcher;
-  source: string;
+  source: PortfolioSource;
   jobId: string;
   log?: SelectionLogger;
 }): Promise<DueUserSelection> {
@@ -38,7 +45,9 @@ export async function selectDueUsers(input: {
   const priority = candidates.filter(
     (candidate) => candidate.effectiveTier === 'priority',
   );
-  const usersToUpdate = priority.filter((candidate) => candidate.dueForRefresh);
+  const usersToUpdate = priority.filter((candidate) =>
+    candidate.dueSources.includes(source),
+  );
 
   const counts = {
     jobId,
@@ -63,6 +72,13 @@ export async function selectDueUsers(input: {
   };
 }
 
+/**
+ * Stamp the DeBank display aggregate on `user_crypto_wallets`.
+ *
+ * Call this only once the load has committed. It used to run right after the
+ * fetch returned, so a batch that fetched cleanly and then failed to write
+ * still looked refreshed.
+ */
 export async function updatePortfolioTimestampsNonFatal(
   supabaseFetcher: SupabaseFetcher,
   wallets: string[],

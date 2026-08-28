@@ -128,6 +128,17 @@ export interface ETLUserCandidate {
   lastPortfolioUpdateAt: Nullable<string>;
   refreshIntervalHours: Nullable<number>;
   dueForRefresh: boolean;
+  /**
+   * The portfolio providers that have not landed data for this wallet inside
+   * the refresh fence. `dueForRefresh` is the coarse "any of them" answer and
+   * cannot tell DeBank apart from Hyperliquid, which is how one provider's
+   * success used to declare the wallet fresh for the other.
+   *
+   * Left as `string[]` rather than a union of known providers: it is whatever
+   * the SQL function named, and a provider added there must widen the schedule
+   * before it can widen this type.
+   */
+  dueSources: string[];
 }
 
 export interface BaseBatchResult {
