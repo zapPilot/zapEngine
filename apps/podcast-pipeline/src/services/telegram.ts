@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { getTelegramBotToken, trimTrailingSlash } from '../lib/env.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import { isRecord } from '../lib/typeGuards.js';
+import type { LanguageClassroomLanguageCode } from '../types.js';
 
 export type TelegramChatId = number | string;
 
@@ -49,11 +50,20 @@ export const TELEGRAM_RETRY_REPLY_MARKUP: TelegramInlineKeyboardMarkup = {
 };
 const DEFAULT_EPISODE_SHARE_BASE_URL = 'https://from-fed-to-chain-api.fly.dev';
 
-export function buildEpisodeShareUrl(episodeId: string): string {
+const VIDEO_LANGUAGE_LABELS: Record<LanguageClassroomLanguageCode, string> = {
+  'zh-Hant': '🇹🇼 繁中',
+  ja: '🇯🇵 日文',
+  en: '🇺🇸 英文',
+};
+
+export function buildEpisodeShareUrl(
+  episodeId: string,
+  languageCode: LanguageClassroomLanguageCode = 'zh-Hant',
+): string {
   const configuredBase =
     process.env['PODCAST_PUBLIC_BASE_URL']?.trim() ||
     DEFAULT_EPISODE_SHARE_BASE_URL;
-  return `${trimTrailingSlash(configuredBase)}/e/${encodeURIComponent(episodeId)}?lang=zh-Hant`;
+  return `${trimTrailingSlash(configuredBase)}/e/${encodeURIComponent(episodeId)}?lang=${encodeURIComponent(languageCode)}`;
 }
 
 export type EpisodeVideoLifecycle = 'completed' | 'queued' | 'unavailable';
@@ -73,8 +83,14 @@ export function buildTelegramAudioReadyMessage(
   return [ingestSummary, lifecycle, buildEpisodeShareUrl(episodeId)].join('\n');
 }
 
-export function buildTelegramVideoCompletedMessage(episodeId: string): string {
-  return ['🎬 影片完成', buildEpisodeShareUrl(episodeId)].join('\n');
+export function buildTelegramVideoCompletedMessage(
+  episodeId: string,
+  languageCode: LanguageClassroomLanguageCode,
+): string {
+  return [
+    `🎬 ${VIDEO_LANGUAGE_LABELS[languageCode]}影片完成`,
+    buildEpisodeShareUrl(episodeId, languageCode),
+  ].join('\n');
 }
 
 export function buildTelegramVideoFailedMessage(
