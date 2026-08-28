@@ -13,41 +13,101 @@ import {
   type SocialStrategyConfig,
   type SocialStrategyVersionRow,
 } from './daemon-store.js';
+import { deterministicBucket } from './experiments.js';
 import { laneLabel } from './log-format.js';
 import { SOCIAL_PLATFORMS, type SocialPlatform } from './platforms.js';
 import { median } from './statistics.js';
 import type { SocialReviewStatus } from './types.js';
 
 const LEARNING_DAYS = 60;
-// A Rednote note that fails review keeps rendering a stat row of zeros. Those
-// zeros are moderation, not audience feedback: left in, they drag the platform
-// median down and push the note's own hashtags onto the avoid list, so the
-// learner steers away from wording that was never shown to anyone.
 const SUPPRESSED_REVIEW_STATUSES: readonly SocialReviewStatus[] = [
   'under_review',
   'rejected',
   'self_only',
 ];
-// Rows that predate review-state collection, and notes the collector has not
-// reached yet, still need a floor. An accepted Rednote note lands in the dozens
-// of views within 24h, so at most one view is a suppression signal. Only Rednote
-// gets this floor: a genuinely unseen X or Threads post is real feedback.
 const REDNOTE_MIN_LEARNABLE_VIEWS = 1;
 const MIN_PLATFORM_SAMPLES = 5;
 const MIN_VARIANT_SAMPLES = 2;
 const JST_OFFSET_HOURS = 9;
 
-const DEFAULT_PUBLISH_SLOTS_JST: readonly SocialPublishSlot[] = [
-  { hour: 9, minute: 30 },
-  { hour: 12, minute: 0 },
-  { hour: 14, minute: 30 },
-  { hour: 17, minute: 0 },
-];
+const SCHEDULING_BASELINES: Record<
+  SocialPlatform,
+  Pick<
+    SocialStrategyConfig,
+    'publishSlotsJst' | 'dailyPublishCap' | 'slotExplorationRate'
+  >
+> = {
+  rednote: {
+    dailyPublishCap: 1,
+    // First slot is the exploitation choice. The second is the 20% explorer.
+    publishSlotsJst: [
+      { hour: 14, minute: 30 },
+      { hour: 12, minute: 0 },
+    ],
+    slotExplorationRate: 0.2,
+  },
+  threads: {
+    dailyPublishCap: 1,
+    // Evidence is still flat, so keep a clean 50/50 timing experiment.
+    publishSlotsJst: [
+      { hour: 12, minute: 0 },
+      { hour: 9, minute: 30 },
+    ],
+    slotExplorationRate: 0.5,
+  },
+  x: {
+    dailyPublishCap: 2,
+    publishSlotsJst: [
+      { hour: 12, minute: 15 },
+      { hour: 17, minute: 0 },
+    ],
+    slotExplorationRate: 0,
+  },
+  youtube: {
+    dailyPublishCap: 1,
+    publishSlotsJst: [{ hour: 17, minute: 15 }],
+    slotExplorationRate: 0,
+  },
+};
 
-export function defaultSocialStrategy(): SocialStrategyConfig {
+export function defaultSocialStrategy(
+  platform: SocialPlatform = 'x',
+): SocialStrategyConfig {
+  const baseline = SCHEDULING_BASELINES[platform];
   return {
-    publishSlotsJst: [...DEFAULT_PUBLISH_SLOTS_JST],
+    publishSlotsJst: [...(baseline.publishSlotsJst ?? [])],
+    dailyPublishCap: baseline.dailyPublishCap,
+    slotExplorationRate: baseline.slotExplorationRate,
     explorationRate: 0.2,
+  };
+}
+
+/**
+ * Active rows created before daily caps existed still contain the legacy four
+ * slots. Treat those rows as copy-learning only; once a version contains a cap,
+ * the DB owns the scheduling fields too. This makes the migration safe without
+ * creating a second hard-coded source of truth forever.
+ */
+export function effectiveSocialStrategy(
+  platform: SocialPlatform,
+  config: SocialStrategyConfig | undefined,
+): SocialStrategyConfig {
+  const baseline = defaultSocialStrategy(platform);
+  if (!config) return baseline;
+  if (config.dailyPublishCap === undefined) {
+    return {
+      ...config,
+      publishSlotsJst: baseline.publishSlotsJst,
+      dailyPublishCap: baseline.dailyPublishCap,
+      slotExplorationRate: baseline.slotExplorationRate,
+    };
+  }
+  return {
+    ...baseline,
+    ...config,
+    publishSlotsJst: config.publishSlotsJst?.length
+      ? [...config.publishSlotsJst]
+      : baseline.publishSlotsJst,
   };
 }
 
@@ -96,37 +156,118 @@ export function nextPublishSlot(input: {
   after?: Date;
   config?: SocialStrategyConfig;
 }): Date {
-  const config = input.config ?? defaultSocialStrategy();
-  const slots = normalizePublishSlots(config.publishSlotsJst);
+  const config = effectiveSocialStrategy(input.platform, input.config);
+  const slots = normalizePublishSlots(
+    config.publishSlotsJst,
+    defaultSocialStrategy(input.platform).publishSlotsJst,
+  );
+  return nextSlotFromChoices(input.platform, input.readyAt, input.after, slots);
+}
+
+/**
+ * Schedule one `(episode, platform)` cohort while enforcing the platform's
+ * daily budget. `existingSchedules` contains one timestamp per already-scheduled
+ * platform cohort, regardless of language lane, so multiple languages cannot
+ * consume the budget twice.
+ */
+export function nextPlatformPublishSlot(input: {
+  platform: SocialPlatform;
+  episodeId: string;
+  readyAt: Date;
+  after?: Date;
+  existingSchedules: readonly Date[];
+  config?: SocialStrategyConfig;
+}): Date {
+  const config = effectiveSocialStrategy(input.platform, input.config);
+  const dailyCap = normalizeDailyCap(config.dailyPublishCap);
+  const configured = normalizePublishSlots(
+    config.publishSlotsJst,
+    defaultSocialStrategy(input.platform).publishSlotsJst,
+    false,
+  );
+  const slots = slotsForEpisode(input.platform, input.episodeId, configured, config);
   const floor = new Date(
     Math.max(input.readyAt.getTime(), input.after?.getTime() ?? 0),
   );
-  const floorJstMs = floor.getTime() + JST_OFFSET_HOURS * 60 * 60_000;
-  const floorJst = new Date(floorJstMs);
+  const floorDay = startOfJstDay(floor);
 
-  for (let dayOffset = 0; dayOffset < 8; dayOffset += 1) {
-    for (const slot of slots) {
-      const candidateJstMs = Date.UTC(
-        floorJst.getUTCFullYear(),
-        floorJst.getUTCMonth(),
-        floorJst.getUTCDate() + dayOffset,
-        slot.hour,
-        slot.minute,
-        0,
-        0,
+  for (let dayOffset = 0; dayOffset < 90; dayOffset += 1) {
+    const dayStart = new Date(
+      floorDay.getTime() + dayOffset * 24 * 60 * 60_000,
+    );
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60_000);
+    const used = input.existingSchedules.filter(
+      (date) => date >= dayStart && date < dayEnd,
+    ).length;
+    if (used >= dailyCap) continue;
+
+    const candidates = [...slots]
+      .sort((a, b) => a.hour - b.hour || a.minute - b.minute)
+      .map((slot) => slotOnJstDay(dayStart, slot))
+      .filter((candidate) => candidate >= floor)
+      .filter(
+        (candidate) =>
+          !input.existingSchedules.some(
+            (scheduled) => scheduled.getTime() === candidate.getTime(),
+          ),
       );
-      const candidate = new Date(
-        candidateJstMs - JST_OFFSET_HOURS * 60 * 60_000,
-      );
-      if (candidate.getTime() >= floor.getTime()) return candidate;
-    }
+    const candidate = candidates[0];
+    if (candidate) return candidate;
   }
 
   throw new Error(`Could not find a publish slot for ${input.platform}.`);
 }
 
+function slotsForEpisode(
+  platform: SocialPlatform,
+  episodeId: string,
+  configured: readonly SocialPublishSlot[],
+  config: SocialStrategyConfig,
+): SocialPublishSlot[] {
+  const cap = normalizeDailyCap(config.dailyPublishCap);
+  if (cap > 1 || configured.length <= 1) return [...configured];
+  const rate = Math.max(0, Math.min(1, config.slotExplorationRate ?? 0));
+  const explore =
+    configured.length > 1 &&
+    deterministicBucket(`social-slot-v1:${platform}`, episodeId, 10_000) <
+      Math.round(rate * 10_000);
+  return [explore ? configured[1]! : configured[0]!];
+}
+
+function normalizeDailyCap(value: number | undefined): number {
+  return Number.isSafeInteger(value) && (value ?? 0) > 0 ? value! : 1;
+}
+
+function slotOnJstDay(dayStart: Date, slot: SocialPublishSlot): Date {
+  return new Date(
+    dayStart.getTime() + (slot.hour * 60 + slot.minute) * 60_000,
+  );
+}
+
+function nextSlotFromChoices(
+  platform: SocialPlatform,
+  readyAt: Date,
+  after: Date | undefined,
+  slots: readonly SocialPublishSlot[],
+): Date {
+  const floor = new Date(Math.max(readyAt.getTime(), after?.getTime() ?? 0));
+  const floorDay = startOfJstDay(floor);
+  for (let dayOffset = 0; dayOffset < 8; dayOffset += 1) {
+    const dayStart = new Date(
+      floorDay.getTime() + dayOffset * 24 * 60 * 60_000,
+    );
+    for (const slot of slots) {
+      const candidate = slotOnJstDay(dayStart, slot);
+      if (candidate >= floor) return candidate;
+    }
+  }
+  throw new Error(`Could not find a publish slot for ${platform}.`);
+}
+
 function normalizePublishSlots(
   slots: readonly SocialPublishSlot[] | undefined,
+  fallback: readonly SocialPublishSlot[] | undefined,
+  sort = true,
 ): SocialPublishSlot[] {
   const seen = new Set<string>();
   const normalized: SocialPublishSlot[] = [];
@@ -146,8 +287,12 @@ function normalizePublishSlots(
     seen.add(key);
     normalized.push(slot);
   }
-  normalized.sort((a, b) => a.hour - b.hour || a.minute - b.minute);
-  return normalized.length ? normalized : [...DEFAULT_PUBLISH_SLOTS_JST];
+  if (normalized.length === 0) {
+    return normalizePublishSlots(fallback, [{ hour: 12, minute: 0 }], sort);
+  }
+  return sort
+    ? normalized.sort((a, b) => a.hour - b.hour || a.minute - b.minute)
+    : normalized;
 }
 
 export function buildStrategyGuidance(
@@ -156,11 +301,6 @@ export function buildStrategyGuidance(
   random: () => number = Math.random,
 ): string | undefined {
   if (!config) return undefined;
-  // ε-greedy. `explorationRate` of publishes drop the preferred lines so the
-  // learner keeps getting samples from outside its current best pool -- without
-  // it, a strategy version can only ever confirm itself. Avoid lines always
-  // stay: a weak or moderation-risky hashtag is a safety signal, not a variant
-  // worth exploring.
   const exploring = random() < (config.explorationRate ?? 0);
   const lines: string[] = [];
   if (!exploring && config.preferredHookTypes?.length) {
@@ -224,7 +364,7 @@ export function learnSocialStrategies(input: {
         ...sample,
         score: scoreSample(sample.metric, medianViews),
       }));
-      const config = defaultSocialStrategy();
+      const config = defaultSocialStrategy(platform);
       config.preferredHookTypes = topVariants(
         scored,
         (sample) => sample.post.hook_type,
@@ -244,9 +384,6 @@ export function learnSocialStrategies(input: {
           .filter(([, values]) => values.length >= MIN_VARIANT_SAMPLES)
           .map(([tag, values]) => ({ tag, score: average(values) }))
           .sort((a, b) => b.score - a.score);
-        // Avoid is decided first and then removed from the preferred pool. The
-        // old head/tail slices overlapped whenever fewer than 13 tags qualified,
-        // which shipped 穩定幣 as both preferred and avoided in the same version.
         config.avoidHashtags = rankedTags
           .slice(-5)
           .filter((row) => row.score < 0.8)
@@ -379,11 +516,13 @@ function sameStrategy(
 function canonicalStrategy(config: SocialStrategyConfig): SocialStrategyConfig {
   return {
     ...(config.publishSlotsJst
-      ? {
-          publishSlotsJst: [...config.publishSlotsJst].sort(
-            (a, b) => a.hour - b.hour || a.minute - b.minute,
-          ),
-        }
+      ? { publishSlotsJst: [...config.publishSlotsJst] }
+      : {}),
+    ...(config.dailyPublishCap !== undefined
+      ? { dailyPublishCap: config.dailyPublishCap }
+      : {}),
+    ...(config.slotExplorationRate !== undefined
+      ? { slotExplorationRate: config.slotExplorationRate }
       : {}),
     ...(config.preferredHookTypes
       ? { preferredHookTypes: [...config.preferredHookTypes].sort() }
