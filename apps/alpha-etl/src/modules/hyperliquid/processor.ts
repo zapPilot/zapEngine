@@ -9,14 +9,18 @@ import {
   withValidatedJob,
 } from '../../core/processors/baseETLProcessor.js';
 import { buildRequestStats } from '../../modules/core/processorStats.js';
-import { fetchAndFilterVipUsersForProcessing } from '../../modules/vip-users/processing.js';
-import { SupabaseFetcher } from '../../modules/vip-users/supabaseFetcher.js';
+import {
+  buildUserResourceUsageRows,
+  recordUserResourceUsageNonFatal,
+} from '../../modules/user-service/attribution.js';
+import { selectDueUsers } from '../../modules/user-service/selector.js';
+import { SupabaseFetcher } from '../../modules/user-service/supabaseFetcher.js';
 import { PortfolioItemWriter } from '../../modules/wallet/portfolioWriter.js';
 import type {
   HyperliquidVaultAprSnapshotInsert,
   PortfolioItemSnapshotInsert,
 } from '../../types/database.js';
-import type { ETLJob, VipUserWithActivity } from '../../types/index.js';
+import type { ETLJob, ETLUserCandidate } from '../../types/index.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import { createCompositeHealthCheck } from '../../utils/healthCheck.js';
 import { logger } from '../../utils/logger.js';
@@ -79,7 +83,7 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
     job: ETLJob,
     summary: HyperliquidProcessSummary,
   ): Promise<ETLProcessResult> {
-    return executeETLFlow<VipUserWithActivity, HyperliquidTransformBatch>(
+    return executeETLFlow<ETLUserCandidate, HyperliquidTransformBatch>(
       job,
       'hyperliquid',
       this.fetchUsersToUpdate.bind(this, job.jobId),
@@ -96,19 +100,17 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
     );
   }
 
-  private async fetchUsersToUpdate(
-    jobId: string,
-  ): Promise<VipUserWithActivity[]> {
-    const { usersToUpdate } = await fetchAndFilterVipUsersForProcessing(
-      this.supabaseFetcher,
+  private async fetchUsersToUpdate(jobId: string): Promise<ETLUserCandidate[]> {
+    const { usersToUpdate } = await selectDueUsers({
+      fetcher: this.supabaseFetcher,
+      source: 'hyperliquid',
       jobId,
-      'No VIP users returned for Hyperliquid processing',
-    );
+    });
     return usersToUpdate;
   }
 
   private async transformUsers(
-    usersToUpdate: VipUserWithActivity[],
+    usersToUpdate: ETLUserCandidate[],
     jobId: string,
   ): Promise<HyperliquidTransformBatch> {
     const positionRecords: PortfolioItemSnapshotInsert[] = [];
@@ -134,6 +136,19 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
       }
     }
 
+    // The vault fetch is the ETL flow's transform stage, so this is the only
+    // point where the wallets that actually cost a Hyperliquid call are known.
+    await recordUserResourceUsageNonFatal(
+      this.supabaseFetcher,
+      buildUserResourceUsageRows(usersToUpdate, successfulWallets, {
+        provider: 'hyperliquid',
+        resource: 'vault_details',
+        // One getVaultDetails call per wallet.
+        requestCount: 1,
+      }),
+      jobId,
+    );
+
     return {
       portfolioRecords: positionRecords,
       aprRecords: Array.from(aprSnapshotsByVault.values()),
@@ -144,7 +159,7 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
   }
 
   private async processUser(
-    user: VipUserWithActivity,
+    user: ETLUserCandidate,
     jobId: string,
   ): Promise<HyperliquidUserTransformResult> {
     try {
@@ -186,7 +201,7 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
       const message = toErrorMessage(error);
       logger.error('Failed to process Hyperliquid vault for user', {
         jobId,
-        userId: user.user_id,
+        userId: user.userId,
         wallet: maskWalletAddress(user.wallet),
         error: message,
       });

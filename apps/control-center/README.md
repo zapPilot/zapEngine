@@ -1,12 +1,67 @@
 # Zap Pilot Control Center
 
-Founder decision dashboard for product health, persisted cost history, and learned social publishing guidance. It is lifecycle-independent from production daemons and pipelines.
+Founder decision dashboard for operational status, customer economics, product health, persisted cost history, and learned social publishing guidance. It is lifecycle-independent from production daemons and pipelines.
 
 ```bash
-pnpm ops:dashboard
+pnpm ops             # dashboard + social daemon, from the repository root
+pnpm ops:dashboard   # dashboard only
+pnpm ops --status    # one-shot status in the terminal, no server
 ```
 
+`pnpm ops` starts the dashboard and the social publishing daemon as **independent** children: a dashboard that crashes must never take publishing down with it, and vice versa. Only `SIGINT`/`SIGTERM` are forwarded to both.
+
 The Vite UI listens on `127.0.0.1:4174`; its Hono API listens on `CONTROL_CENTER_PORT` (`4175` by default).
+
+## Operations snapshot
+
+`GET /api/operations` is one read model for "is anything wrong, and what should I do first", shared by the Operations view and by `pnpm ops --status` (`--json` for agents; exit code 1 when anything is `critical`).
+
+Every source is an adapter that returns `OperationalSignal[]` and is contractually forbidden from throwing. Missing credentials produce `unknown`, never `healthy` — a provider nobody asked has not reported that it is fine — and a failed request produces a `degraded` source failure so a lost reading is visibly different from a healthy one.
+
+| Domain      | Source                           | Reads                                                           |
+| ----------- | -------------------------------- | --------------------------------------------------------------- |
+| `customers` | `customer-economics`             | `public.get_user_service_states()` + the usage ledger           |
+| `product`   | `product-health`                 | the existing public-schema account data                         |
+| `costs`     | `cost-ledger`                    | `ops.cost_snapshots` through the bridge, plus its own staleness |
+| `social`    | `social-queue` / `social-daemon` | `social_publish_jobs`, `social_daemon_state`, waiting media     |
+| `jobs`      | `github-actions`                 | the 7 scheduled workflows in `.github/schedules.json`           |
+| `infra`     | `fly`                            | `flyctl` machine state per app and process group                |
+
+A stopped Machine is not an outage everywhere. `account-engine`, `alpha-etl`, and `analytics-engine-xws3ra` declare `min_machines_running = 0`, so Fly Proxy stops them when idle and starts them on the next request; the podcast render group stops itself on an idle queue. Scoring those on started count would leave the page permanently red, which is the one failure a status page cannot survive — so they are scored on whether anything is left to start instead. The lifecycle each app is judged by restates its own `fly.toml`, and `fly.test.ts` reads those files to prove the two still agree.
+| `errors` | `sentry` | unresolved issues in the last 24h, grouped by project |
+| `analytics` | `posthog` | 7d/30d unique users |
+
+All eight domains appear in every response even when nothing reported on them: an absent domain in a status page reads as a green light.
+
+Ranking is deterministic (`services/operations/prioritize.ts`) rather than model-generated, so the dashboard and an agent agree on what matters: a status base, a domain weight, and capped boosts for evidence like overdue minutes, failure streaks, affected users, and AUM at risk. The threshold is set so an `unknown` signal can never reach the action list — an unconfigured integration is a setup task, not an incident.
+
+Every source has its own cache TTL, from 30s for the publish queue to 15 minutes for PostHog. `?force=1` bypasses them, which is what **Refresh data** uses.
+
+### Read-only credentials
+
+These ship dark. Their adapters report `unknown` and send no request until the credential exists, so nothing here is required to run the dashboard.
+
+- `OPS_GITHUB_TOKEN` — fine-grained PAT, `zapPilot/zapEngine` Actions: read. Without it no request is made at all: anonymous `api.github.com` is capped at 60 requests/hour per IP.
+- `SENTRY_OPS_AUTH_TOKEN` + `SENTRY_ORG_SLUG` — `org:read`, `project:read`, `event:read`.
+- `POSTHOG_PERSONAL_API_KEY` + `POSTHOG_PROJECT_ID` — `query:read`.
+
+The two non-secret values belong in `config/env/*.env`; the three tokens belong in Infisical.
+
+## Customer economics
+
+`GET /api/customers` answers who is being served, at what service level, and what serving them costs.
+
+Service policy has one source of truth, `public.get_user_service_states()`, deliberately in SQL: `apps/alpha-etl` reads the same rows to decide which wallets to refresh, so the dashboard cannot report Standard for an account the pipeline is still billing as Priority. It returns commercial entitlement (`plan_code`), the operator override from `ops.user_service_overrides`, the resulting effective tier, the refresh cadence, and whether a wallet is due.
+
+Standard (free) accounts are returned but not scheduled — visible to operations, costing nothing. Turning weekly refresh on for them is a one-line change to the cadence expression in that function.
+
+Three numbers on that page are deliberately imprecise, and say so:
+
+- **Cost** is an allocation, not a measurement. DeBank bills one monthly account figure in API units and publishes no per-endpoint price, so a user's share is their request volume out of the total, always labelled `allocated_estimate`. The request counts themselves are real: `apps/alpha-etl` records them per wallet through `public.ops_record_user_resource_usage`.
+- **Revenue** is `Unknown`. Nothing in this repository bills anybody, and a plausible number would be worse than none.
+- **Last active** is account-engine route activity (dashboard visits), debounced hourly. It is not whole-product usage — nothing else writes `users.last_activity_at`.
+
+Service-tier controls in the detail panel are disabled and marked `WIP`: there is no mutation endpoint yet, and a control that silently does nothing would let an operator believe an account had been paused. Apply overrides directly against `ops.user_service_overrides` until it is wired.
 
 ## Cost ledger
 

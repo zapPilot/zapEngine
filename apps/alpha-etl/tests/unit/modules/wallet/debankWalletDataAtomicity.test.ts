@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { fetchWalletDataFromDeBank } from '../../../../src/modules/vip-users/common.js';
+import { fetchWalletDataFromDeBank } from '../../../../src/modules/wallet/debank-io.js';
 import type { DeBankFetcher } from '../../../../src/modules/wallet/fetcher.js';
 
 const wallet = '0x1234567890123456789012345678901234567890';
@@ -47,11 +47,8 @@ describe('fetchWalletDataFromDeBank atomicity', () => {
       expectedError: 'portfolio fetch failed',
     },
   ])('$name', async ({ options, expectedError }) => {
-    const {
-      fetcher,
-      fetchWalletTokenList,
-      fetchComplexProtocolList,
-    } = createFetcher(options);
+    const { fetcher, fetchWalletTokenList, fetchComplexProtocolList } =
+      createFetcher(options);
 
     await expect(
       fetchWalletDataFromDeBank(fetcher, wallet, {

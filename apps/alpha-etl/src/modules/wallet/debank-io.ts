@@ -1,11 +1,11 @@
+import type { WalletBalanceSnapshotInsert } from '../../types/database.js';
+import { logger } from '../../utils/logger.js';
+import { maskWalletAddress } from '../../utils/mask.js';
 import type {
   DeBankComplexProtocolList,
   DeBankFetcher,
   DeBankTokenBalance,
-} from '../../modules/wallet/fetcher.js';
-import type { WalletBalanceSnapshotInsert } from '../../types/database.js';
-import { logger } from '../../utils/logger.js';
-import { maskWalletAddress } from '../../utils/mask.js';
+} from './fetcher.js';
 
 interface FetchWalletDataOptions {
   warningMessage: string;

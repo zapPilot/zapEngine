@@ -23,3 +23,4 @@ Each subdirectory is one pipeline. Keep the established fetch/transform/write/or
 - `stock-price/`: equity reference series and DMA.
 - `macro-fear-greed/`: CNN macro Fear & Greed; the app-level `AGENTS.md` owns its source/naming constraints.
 - `wallet/`: DeBank and chain-RPC wallet snapshots triggered on demand.
+- `user-service/`: reads the per-wallet service policy that decides which wallets the DeBank and Hyperliquid batches refresh, and records what those refreshes cost per user.

@@ -6,14 +6,14 @@ import {
 } from '../../core/processors/baseETLProcessor.js';
 import { buildRequestStats } from '../../modules/core/processorStats.js';
 import {
-  fetchWalletDataFromDeBank,
-  mapTokenBalancesToSnapshots,
-} from '../../modules/vip-users/common.js';
+  buildUserResourceUsageRows,
+  recordUserResourceUsageNonFatal,
+} from '../../modules/user-service/attribution.js';
 import {
-  fetchAndFilterVipUsersForProcessing,
+  selectDueUsers,
   updatePortfolioTimestampsNonFatal,
-} from '../../modules/vip-users/processing.js';
-import { SupabaseFetcher } from '../../modules/vip-users/supabaseFetcher.js';
+} from '../../modules/user-service/selector.js';
+import { SupabaseFetcher } from '../../modules/user-service/supabaseFetcher.js';
 import { captureBackgroundException } from '../../observability/sentry.js';
 import type {
   PortfolioItemSnapshotInsert,
@@ -21,8 +21,8 @@ import type {
 } from '../../types/database.js';
 import type {
   ETLJob,
+  ETLUserCandidate,
   ProcessUserResult,
-  VipUserWithActivity,
 } from '../../types/index.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import { createCompositeHealthCheck } from '../../utils/healthCheck.js';
@@ -30,6 +30,10 @@ import { logger } from '../../utils/logger.js';
 import { maskWalletAddress } from '../../utils/mask.js';
 import { WalletBalanceTransformer } from './balanceTransformer.js';
 import { WalletBalanceWriter } from './balanceWriter.js';
+import {
+  fetchWalletDataFromDeBank,
+  mapTokenBalancesToSnapshots,
+} from './debank-io.js';
 import { DeBankFetcher, type DeBankTokenBalance } from './fetcher.js';
 import {
   createMergedFetchResult,
@@ -100,15 +104,14 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
   }
 
   private async fetchData(job: ETLJob): Promise<WalletBatchFetchResult> {
-    logger.info('Processing DeBank data for VIP users', { jobId: job.jobId });
+    logger.info('Processing DeBank data for due wallets', { jobId: job.jobId });
 
     try {
-      const { usersToUpdate, vipUsersTotal } =
-        await fetchAndFilterVipUsersForProcessing(
-          this.supabaseFetcher,
-          job.jobId,
-          'No VIP users found for DeBank processing',
-        );
+      const { usersToUpdate, candidatesTotal } = await selectDueUsers({
+        fetcher: this.supabaseFetcher,
+        source: 'debank',
+        jobId: job.jobId,
+      });
       const { walletBalances, portfolioItems, successfulWallets, errors } =
         await this.fetchUserDataBatch(usersToUpdate, job.jobId);
       await updatePortfolioTimestampsNonFatal(
@@ -116,10 +119,21 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
         successfulWallets,
         job.jobId,
       );
+      await recordUserResourceUsageNonFatal(
+        this.supabaseFetcher,
+        buildUserResourceUsageRows(usersToUpdate, successfulWallets, {
+          provider: 'debank',
+          resource: 'portfolio_refresh',
+          // fetchWalletTokenList + fetchComplexProtocolList, the two calls
+          // every refreshed wallet costs.
+          requestCount: 2,
+        }),
+        job.jobId,
+      );
 
-      logger.info('DeBank VIP user processing completed', {
+      logger.info('DeBank wallet refresh completed', {
         jobId: job.jobId,
-        totalVipUsers: vipUsersTotal,
+        candidatesTotal,
         usersScheduled: usersToUpdate.length,
         walletsProcessed: successfulWallets.length,
         walletBalanceRecords: walletBalances.length,
@@ -128,7 +142,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
 
       return { walletBalances, portfolioItems, successfulWallets, errors };
     } catch (error) {
-      logger.error('Failed to fetch DeBank data for VIP users:', {
+      logger.error('Failed to fetch DeBank data for due wallets:', {
         jobId: job.jobId,
         error,
       });
@@ -137,7 +151,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
   }
 
   private async fetchUserDataBatch(
-    users: VipUserWithActivity[],
+    users: ETLUserCandidate[],
     jobId: string,
   ): Promise<WalletBatchFetchResult> {
     const walletBalances: WalletBalanceSnapshotInsert[] = [];
@@ -174,16 +188,16 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
   }
 
   private async processUserWallet(
-    user: VipUserWithActivity,
+    user: ETLUserCandidate,
     jobId: string,
   ): Promise<
     ProcessUserResult<WalletBalanceSnapshotInsert, PortfolioItemSnapshotInsert>
   > {
     const maskedWallet = maskWalletAddress(user.wallet);
-    const logContext = { jobId, userId: user.user_id, wallet: maskedWallet };
+    const logContext = { jobId, userId: user.userId, wallet: maskedWallet };
 
     try {
-      logger.debug('Processing VIP user wallet', logContext);
+      logger.debug('Processing due wallet', logContext);
 
       const data = await this.fetchUserData(user.wallet);
 
@@ -194,7 +208,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
         captureBackgroundException(error, {
           component: 'job',
           tags: { failure_scope: 'wallet_user', provider: 'debank' },
-          context: { jobId, userId: user.user_id, wallet: maskedWallet },
+          context: { jobId, userId: user.userId, wallet: maskedWallet },
           level: 'error',
         });
         return { success: false, error: error.message };
@@ -257,13 +271,13 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
     const transformData = createWalletTransformCallback(
       this.transformer,
       job.jobId,
-      'DeBank VIP batch',
+      'DeBank scheduled batch',
     );
     const loadData = createWalletLoadCallback(
       this.writer,
       this.portfolioWriter,
       job.jobId,
-      'DeBank VIP batch',
+      'DeBank scheduled batch',
       () => successfulWallets,
     );
 
@@ -298,8 +312,9 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
   }
 
   /**
-   * A VIP batch that fetched wallets and wrote nothing is DeBank answering 200
-   * with an empty body, not a day on which every VIP wallet emptied out.
+   * A scheduled batch that fetched wallets and wrote nothing is DeBank
+   * answering 200 with an empty body, not a day on which every wallet emptied
+   * out.
    *
    * Per-wallet success stays untouched on purpose: the writers must still see
    * every fetched wallet so an emptied slice is deleted rather than left stale.
@@ -322,7 +337,7 @@ export class WalletBalanceETLProcessor implements BaseETLProcessor {
 
     const message =
       `DeBank returned no tokens and no positions for all ` +
-      `${successfulWallets.length} fetched VIP wallets`;
+      `${successfulWallets.length} fetched wallets`;
     const error = new Error(message);
     logger.error(message, {
       jobId: job.jobId,

@@ -6,10 +6,6 @@ import {
   type HealthCheckResult,
 } from '../../core/processors/baseETLProcessor.js';
 import { validateWalletFetchJob } from '../../core/processors/validation.js';
-import {
-  fetchWalletDataFromDeBank,
-  mapTokenBalancesToSnapshots,
-} from '../../modules/vip-users/common.js';
 import { captureBackgroundException } from '../../observability/sentry.js';
 import type {
   PortfolioItemSnapshotInsert,
@@ -21,6 +17,10 @@ import { wrapHealthCheck } from '../../utils/healthCheck.js';
 import { logger } from '../../utils/logger.js';
 import { maskWalletAddress } from '../../utils/mask.js';
 import {
+  fetchWalletDataFromDeBank,
+  mapTokenBalancesToSnapshots,
+} from './debank-io.js';
+import {
   createMergedFetchResult,
   createWalletLoadCallback,
   createWalletPipelineClients,
@@ -31,9 +31,10 @@ import {
 /**
  * ETL processor for single-wallet fetch requests from account-engine webhooks
  *
- * Unlike WalletBalanceETLProcessor (VIP user batch processing), this processor:
+ * Unlike WalletBalanceETLProcessor (scheduled service-tier batch), this
+ * processor:
  * - Processes a single wallet address from job.metadata.walletAddress
- * - No VIP user database fetching or activity filtering
+ * - Reads no service policy: the caller already decided this wallet is due
  * - Always rebuilds the requesting user's category trends on success
  * - Used for on-demand wallet onboarding and refresh
  */

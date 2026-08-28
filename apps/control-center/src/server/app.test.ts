@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { OverviewResponse } from '../shared/types.js';
+import type {
+  CustomerEconomicsResponse,
+  OperationsResponse,
+  OperationsSocialResponse,
+  OverviewResponse,
+} from '../shared/types.js';
 import { createControlCenterApp } from './app.js';
 import { readControlCenterConfig } from './config/env.js';
+import type { createOperationsService } from './services/operations/aggregate.js';
 import { createOverviewService } from './services/overview.js';
 
 const overview: OverviewResponse = {
@@ -37,11 +43,67 @@ const overview: OverviewResponse = {
   },
 };
 
+const operations: OperationsResponse = {
+  generatedAt: '2026-08-28T12:00:00.000Z',
+  status: 'degraded',
+  domains: [],
+  priorities: [],
+  signals: [],
+};
+
+const operationsSocial: OperationsSocialResponse = {
+  generatedAt: '2026-08-28T12:00:00.000Z',
+  daemon: {
+    status: 'healthy',
+    owner: 'laptop',
+    daemonVersion: 'social-daemon-v1',
+    firstStartedAt: '2026-08-01T00:00:00.000Z',
+    lastTickStartedAt: '2026-08-28T11:59:00.000Z',
+    lastTickCompletedAt: '2026-08-28T11:59:30.000Z',
+    lastSuccessAt: '2026-08-28T11:59:30.000Z',
+    lastError: null,
+    staleMinutes: 1,
+  },
+  jobs: [],
+  waitingMediaLanes: 0,
+  message: null,
+};
+
+const customers: CustomerEconomicsResponse = {
+  generatedAt: '2026-08-28T12:00:00.000Z',
+  status: 'ok',
+  message: null,
+  summary: {
+    totalCustomers: 2,
+    priorityUsers: 1,
+    standardUsers: 1,
+    pausedUsers: 0,
+    activeLast7d: 1,
+    inactiveButPriority: 0,
+    aumUsd: 1_000,
+    attributedCostUsd30d: 4,
+    revenueUsd: null,
+  },
+  users: [],
+};
+
 function createTestApp(
   overrides: Partial<ReturnType<typeof createOverviewService>> = {},
+  operationsOverrides: Partial<ReturnType<typeof createOperationsService>> = {},
 ) {
   return createControlCenterApp({
     config: readControlCenterConfig({}),
+    operations: {
+      getOperations:
+        operationsOverrides.getOperations ??
+        vi.fn().mockResolvedValue(operations),
+      getSocial:
+        operationsOverrides.getSocial ??
+        vi.fn().mockResolvedValue(operationsSocial),
+      getCustomers:
+        operationsOverrides.getCustomers ??
+        vi.fn().mockResolvedValue(customers),
+    },
     service: {
       getOverview: overrides.getOverview ?? vi.fn(async () => overview),
       getCostHistory:
@@ -108,5 +170,40 @@ describe('control center API', () => {
     const response = await app.request('/api/costs/sync', { method: 'POST' });
     expect(response.status).toBe(200);
     expect(syncCosts).toHaveBeenCalledOnce();
+  });
+
+  it('serves the operations snapshot and its social detail', async () => {
+    const getOperations = vi.fn().mockResolvedValue(operations);
+    const getSocial = vi.fn().mockResolvedValue(operationsSocial);
+    const app = createTestApp({}, { getOperations, getSocial });
+
+    await expect(
+      (await app.request('/api/operations')).json(),
+    ).resolves.toMatchObject({ status: 'degraded' });
+    await expect(
+      (await app.request('/api/operations/social')).json(),
+    ).resolves.toMatchObject({ daemon: { owner: 'laptop' } });
+    expect(getOperations).toHaveBeenCalledWith(false);
+    expect(getSocial).toHaveBeenCalledWith(false);
+  });
+
+  it('passes ?force=1 through to the cache bypass', async () => {
+    const getCustomers = vi.fn().mockResolvedValue(customers);
+    const app = createTestApp({}, { getCustomers });
+
+    const response = await app.request('/api/customers?force=1');
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      summary: { totalCustomers: 2 },
+    });
+    expect(getCustomers).toHaveBeenCalledWith(true);
+  });
+
+  it('treats any other force value as a normal cached read', async () => {
+    const getCustomers = vi.fn().mockResolvedValue(customers);
+    const app = createTestApp({}, { getCustomers });
+
+    await app.request('/api/customers?force=yes');
+    expect(getCustomers).toHaveBeenCalledWith(false);
   });
 });

@@ -1,18 +1,27 @@
 import {
+  Activity,
   BarChart3,
   LayoutDashboard,
   RefreshCw,
   Share2,
+  Users,
   Zap,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { relativeTime } from '../format.js';
 
-export type DashboardView = 'overview' | 'costs' | 'social';
+export type DashboardView =
+  | 'overview'
+  | 'operations'
+  | 'customers'
+  | 'costs'
+  | 'social';
 
 const navigation = [
   { id: 'overview' as const, label: 'Overview', Icon: LayoutDashboard },
+  { id: 'operations' as const, label: 'Operations', Icon: Activity },
+  { id: 'customers' as const, label: 'Customers', Icon: Users },
   { id: 'costs' as const, label: 'Costs', Icon: BarChart3 },
   { id: 'social' as const, label: 'Social', Icon: Share2 },
 ];

@@ -287,7 +287,12 @@ describe('social daemon release-shape stages are fatal', () => {
     const sleep = vi.fn();
 
     await expect(
-      runSocialDaemon({ now: () => NOW, sleep, log: vi.fn() }),
+      runSocialDaemon({
+        now: () => NOW,
+        sleep,
+        log: vi.fn(),
+        recordTick: vi.fn(),
+      }),
     ).rejects.toThrow('reconcile lookup down');
 
     expect(sleep).not.toHaveBeenCalled();

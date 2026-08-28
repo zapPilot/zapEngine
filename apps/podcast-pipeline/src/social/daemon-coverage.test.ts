@@ -130,6 +130,7 @@ describe('social daemon queue summary coverage', () => {
       runSocialDaemon({
         now: () => NOW,
         log,
+        recordTick: vi.fn(),
         sleep: async () => {
           throw new StopDaemon('stop after one tick');
         },
