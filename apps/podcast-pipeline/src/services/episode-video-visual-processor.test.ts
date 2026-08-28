@@ -26,7 +26,7 @@ function keepDeterministicIntents() {
     draft: request.draft as never,
     model: null,
     enrichedSceneCount: 0,
-    discardedSceneCount: 0,
+    entityAnchoredSceneCount: 0,
   }));
 }
 
@@ -230,11 +230,12 @@ describe('createEpisodeVideoVisualProcessor', () => {
         scenes: storyboard().draft.scenes.map((scene) => ({
           ...scene,
           imageSearchIntent: ['bank of japan press room'],
+          imageSearchEntities: ['Bank of Japan'],
         })),
       },
       model: 'openrouter/free',
       enrichedSceneCount: 2,
-      discardedSceneCount: 0,
+      entityAnchoredSceneCount: 2,
     }));
     const processor = createEpisodeVideoVisualProcessor({
       analyzeAudio: vi
@@ -282,12 +283,19 @@ describe('createEpisodeVideoVisualProcessor', () => {
         (scene: { imageSearchIntent: string[] }) => scene.imageSearchIntent,
       ),
     ).toEqual([['bank of japan press room'], ['bank of japan press room']]);
+    // And on the named subjects, so the candidate gate has something to anchor.
+    expect(
+      planAssets.mock.calls[0]?.[0].scenes.map(
+        (scene: { imageSearchEntities?: string[] }) =>
+          scene.imageSearchEntities,
+      ),
+    ).toEqual([['Bank of Japan'], ['Bank of Japan']]);
     expect(result.visualPayload['provenance']).toEqual(
       expect.objectContaining({ searchIntentModel: 'openrouter/free' }),
     );
     expect(logger.info).toHaveBeenCalledWith(
       expect.stringContaining(
-        'visual:intents run=run12345 episode=00000000-0000-4000-8000-000000000001 enriched=2/2 brand=0 discarded=0 model=openrouter/free',
+        'visual:intents run=run12345 episode=00000000-0000-4000-8000-000000000001 enriched=2/2 brand=0 entities=2 model=openrouter/free',
       ),
     );
     // Enrichment shares the storyboard's slice of the bar; it must not add a
@@ -574,7 +582,7 @@ function assetPlan() {
         height: 1350,
         originalImageUrl: 'https://images.example.test/b.webp',
         sourcePageUrl: 'https://publisher.example.test/b',
-        provider: 'bing',
+        provider: 'brave',
         license: 'unknown',
       },
     ],

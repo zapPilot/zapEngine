@@ -1,8 +1,10 @@
 import type { ImageCandidate, ImageCandidateOrigin } from '../../types.js';
 
+// Search engines serve a downscaled copy of every result from their own CDN.
+// Mirroring one would store a thumbnail and credit the search engine instead of
+// the publisher, so the CDN host is refused wherever a candidate comes from.
 export const DEFAULT_BLOCKED_IMAGE_HOSTNAMES = [
-  'bing.com',
-  'bing.net',
+  'imgs.search.brave.com',
 ] as const;
 
 export const DEFAULT_BLOCKED_IMAGE_EXTENSIONS = [

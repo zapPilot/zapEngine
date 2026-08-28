@@ -21,6 +21,11 @@ const PERCEPTUAL_HASH_DISTANCE_LIMIT = 6;
 export interface VisualAssetScene {
   sceneId: string;
   imageSearchIntent: readonly string[];
+  /** The proper nouns this scene names, validated verbatim against its own
+   * sentences upstream. Present means image search must return something about
+   * one of them; absent means the scene names nothing and any photographable
+   * subject will do. */
+  imageSearchEntities?: readonly string[];
 }
 
 export type VisualImageProvider =
@@ -33,7 +38,7 @@ export type VisualReuseKind = 'non-consecutive' | 'consecutive';
 const PROVIDER_LICENSES = {
   article: 'unknown',
   brand: 'brand-generated',
-  bing: 'unknown',
+  brave: 'unknown',
   pexels: 'pexels',
   pixabay: 'pixabay',
 } as const satisfies Record<VisualImageProvider, string>;
@@ -127,12 +132,13 @@ function resolvePlannerDependencies(
   overrides: Partial<VisualAssetPlannerDependencies> | undefined,
 ): VisualAssetPlannerDependencies {
   return {
-    acquireImage: acquireRemoteImage,
-    fingerprintImage,
+    acquireImage: overrides?.acquireImage ?? acquireRemoteImage,
+    fingerprintImage: overrides?.fingerprintImage ?? fingerprintImage,
     // Resolved per invocation so API-key env changes take effect without a
-    // module reload.
-    searchProviders: defaultImageSearchProviders(),
-    ...overrides,
+    // module reload, and only when the caller brought no chain of its own —
+    // the default one fails closed on a missing Brave key.
+    searchProviders:
+      overrides?.searchProviders ?? defaultImageSearchProviders(),
   };
 }
 
@@ -316,8 +322,10 @@ async function acquireSearchedImage(
   const providers = orderedSearchProviders(
     state.dependencies.searchProviders,
     state.mode,
+    scene,
   );
   const intents = searchIntentsForScene(scene, state.mode);
+  const entities = scene.imageSearchEntities ?? [];
 
   for (const searchProvider of providers) {
     for (const intent of intents) {
@@ -337,6 +345,7 @@ async function acquireSearchedImage(
         viableCandidates(searched, [searchProvider.origin]),
         intent,
         state.assets,
+        entities,
       );
       const rejectedBefore = rejections.total;
 
@@ -383,15 +392,23 @@ async function acquireSearchedImage(
 function orderedSearchProviders(
   providers: readonly ImageSearchProvider[],
   mode: VisualSelectionMode,
+  scene: VisualAssetScene,
 ): ImageSearchProvider[] {
-  if (mode === 'strict') return [...providers];
+  // A scene that names a company, product or person wants the editorial photo
+  // of that thing. No stock library holds it, so asking one can only return a
+  // plausible picture of something else.
+  const usable =
+    (scene.imageSearchEntities?.length ?? 0) > 0
+      ? providers.filter((provider) => provider.origin === 'brave')
+      : providers;
+  if (mode === 'strict') return [...usable];
 
   const priority: Record<ImageSearchProvider['origin'], number> = {
-    bing: 0,
+    brave: 0,
     pexels: 1,
     pixabay: 2,
   };
-  return providers
+  return usable
     .map((provider, index) => ({ provider, index }))
     .sort(
       (left, right) =>
@@ -413,6 +430,18 @@ function searchIntentsForScene(
     ),
   ];
   if (mode === 'strict') return original;
+
+  // A named subject is its own best second query: when the phrased intent finds
+  // nothing, the bare name still finds photographs of the thing. The generic
+  // relaxation below would widen the query away from it instead.
+  const entities = [
+    ...new Set(
+      (scene.imageSearchEntities ?? [])
+        .map((entity) => entity.trim())
+        .filter((entity) => entity.length > 0 && !original.includes(entity)),
+    ),
+  ];
+  if (entities.length > 0) return [...original, ...entities];
 
   const relaxed = original
     .map(relaxedSearchIntent)
@@ -821,14 +850,10 @@ function rankSearchCandidates(
   candidates: readonly ImageCandidate[],
   intent: string,
   existingAssets: readonly PlannedVisualImage[],
+  entities: readonly string[],
 ): ImageCandidate[] {
-  const queryTokens = normalizedSearchTokens(intent);
   return candidates
-    .filter(
-      (candidate) =>
-        candidate.origin !== 'bing' ||
-        hasSemanticSearchOverlap(candidate, queryTokens),
-    )
+    .filter((candidate) => mentionsAnyEntity(candidate, entities))
     .map((candidate, index) => ({
       candidate,
       index,
@@ -838,13 +863,40 @@ function rankSearchCandidates(
     .map(({ candidate }) => candidate);
 }
 
-function hasSemanticSearchOverlap(
+/**
+ * The one hard relevance rule, and it is about identity rather than wording. A
+ * scene that names Coldcard cannot be illustrated by a photo whose title, page
+ * and URL never mention Coldcard, however many words the query happens to share
+ * with it — sharing a word is precisely how a thousand-yard-stare war portrait
+ * and an odd-and-even-numbers worksheet were selected for a Bitcoin episode.
+ *
+ * A scene that names nothing has no identity to check, and keeps every
+ * candidate the quality filters already allow.
+ */
+function mentionsAnyEntity(
   candidate: ImageCandidate,
-  queryTokens: readonly string[],
+  entities: readonly string[],
 ): boolean {
-  if (queryTokens.length === 0) return true;
-  const corpus = normalizedSearchCandidateCorpus(candidate);
-  return queryTokens.some((token) => corpus.includes(token));
+  if (entities.length === 0) return true;
+  const corpus = ` ${entityMatchText(normalizedSearchCandidateCorpus(candidate))}`;
+  return entities.some((entity) => {
+    const name = entityMatchText(entity);
+    return name.length > 0 && corpus.includes(` ${name}`);
+  });
+}
+
+/**
+ * Collapses every separator to a single space so a name matches however the
+ * page spells it — `coldcard-mk4-review`, `Coldcard_Mk4`, `Coldcard Mk4`. The
+ * ranking corpus keeps its own punctuation, because the penalty term lists
+ * matched against it contain hostnames.
+ */
+function entityMatchText(value: string): string {
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
 }
 
 function candidateDimensionScore(candidate: ImageCandidate): number {
@@ -911,7 +963,7 @@ function searchCandidateScore(
   const sourceHostname = candidateHostname(candidate.sourceUrl);
   if (sourceHostname) {
     if (
-      candidate.origin === 'bing' &&
+      candidate.origin === 'brave' &&
       includesAny(sourceHostname, EDITORIAL_OR_OFFICIAL_SOURCE_TERMS)
     ) {
       score += 18;
@@ -993,13 +1045,13 @@ function looksDecorative(candidate: ImageCandidate): boolean {
   if (includesAny(value, STOCK_PREVIEW_TERMS)) return true;
   if (includesAny(value, TEXT_CARD_PUBLISHER_TERMS)) return true;
   return (
-    candidate.origin === 'bing' && looksLikeTextHeavySearchResult(candidate)
+    candidate.origin === 'brave' && looksLikeTextHeavySearchResult(candidate)
   );
 }
 
 function isSearchCandidate(candidate: ImageCandidate): boolean {
   return (
-    candidate.origin === 'bing' ||
+    candidate.origin === 'brave' ||
     candidate.origin === 'pexels' ||
     candidate.origin === 'pixabay'
   );

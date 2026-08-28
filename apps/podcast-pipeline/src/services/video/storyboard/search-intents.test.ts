@@ -3,16 +3,17 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   applyAndValidatePodcastBrandingToStoryboard,
   packagePodcastScript,
+  PODCAST_INTRO_VISUAL_INTENT,
   PODCAST_OUTRO_VISUAL_INTENT,
 } from '../../podcast-packaging.js';
 
 const llmMocks = vi.hoisted(() => ({
-  createOpenRouterChatCompletion: vi.fn(),
+  createCompletionWithRetry: vi.fn(),
   getOpenRouterConfig: vi.fn(),
 }));
 
 vi.mock('../../llm.js', () => ({
-  createOpenRouterChatCompletion: llmMocks.createOpenRouterChatCompletion,
+  createCompletionWithRetry: llmMocks.createCompletionWithRetry,
   getOpenRouterConfig: llmMocks.getOpenRouterConfig,
 }));
 
@@ -77,6 +78,17 @@ function suggestSubjects(request: SearchIntentRequest): unknown {
   };
 }
 
+/** The same, plus a named subject the scene's own sentences really contain. */
+function suggestNamedSubjects(request: SearchIntentRequest): unknown {
+  return {
+    scenes: request.scenes.map((scene) => ({
+      sceneId: scene.sceneId,
+      imageSearchIntent: ['stablecoin remittance corridor'],
+      entities: ['stablecoin'],
+    })),
+  };
+}
+
 function stubProvider(suggest: (request: SearchIntentRequest) => unknown) {
   return {
     model: 'openrouter/test-model',
@@ -84,10 +96,6 @@ function stubProvider(suggest: (request: SearchIntentRequest) => unknown) {
       Promise.resolve(suggest(request)),
     ),
   };
-}
-
-function silenceWarnings(): ReturnType<typeof vi.spyOn> {
-  return vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 }
 
 describe('storyboard search intent enrichment', () => {
@@ -170,7 +178,7 @@ describe('storyboard search intent enrichment', () => {
       PODCAST_OUTRO_VISUAL_INTENT,
     ]);
     expect(result.enrichedSceneCount).toBe(brandedDraft.scenes.length - 1);
-    expect(result.discardedSceneCount).toBe(0);
+    expect(result.entityAnchoredSceneCount).toBe(0);
   });
 
   it('sends the English title when the episode has one', async () => {
@@ -252,8 +260,7 @@ describe('storyboard search intent enrichment', () => {
     ).rejects.toThrow();
   });
 
-  it('keeps the deterministic intents of a batch whose request fails', async () => {
-    const warn = silenceWarnings();
+  it('fails the whole enrichment when one batch request fails, naming that batch', async () => {
     const request = enrichmentRequest();
     let call = 0;
     const provider = stubProvider((batch) => {
@@ -262,47 +269,33 @@ describe('storyboard search intent enrichment', () => {
       return suggestSubjects(batch);
     });
 
-    try {
-      const result = await enrichStoryboardSearchIntents(request, { provider });
-
-      const sceneCount = request.draft.scenes.length;
-      expect(result.enrichedSceneCount).toBe(sceneCount - 14);
-      // The failed batch is untouched, not blanked.
-      expect(result.draft.scenes[0]?.imageSearchIntent).toEqual(
-        request.draft.scenes[0]?.imageSearchIntent,
-      );
-      expect(result.draft.scenes[14]?.imageSearchIntent).toEqual([
-        'bank of japan governor press conference',
-      ]);
-      expect(warn).toHaveBeenCalledTimes(1);
-    } finally {
-      warn.mockRestore();
-    }
+    // Publishing the other two batches would ship a video whose first quarter
+    // searches for transliterated filler, so the job fails and the queue retries.
+    await expect(
+      enrichStoryboardSearchIntents(request, { provider }),
+    ).rejects.toThrow(/batch starting at scene-\d+: OpenRouter 503/u);
   });
 
-  it('keeps the whole storyboard when the response is the wrong shape', async () => {
-    const warn = silenceWarnings();
+  it('fails a batch that names none of the scenes it was asked about', async () => {
     const request = enrichmentRequest();
     const provider = stubProvider(() => ({
       scenes: [{ sceneId: 'scene-99' }],
     }));
 
-    try {
-      const result = await enrichStoryboardSearchIntents(request, { provider });
-
-      expect(result).toEqual({
-        draft: request.draft,
-        model: null,
-        enrichedSceneCount: 0,
-        discardedSceneCount: 0,
-      });
-      expect(warn).toHaveBeenCalled();
-    } finally {
-      warn.mockRestore();
-    }
+    await expect(
+      enrichStoryboardSearchIntents(request, { provider }),
+    ).rejects.toThrow(/named none of the \d+ requested scenes/u);
   });
 
-  it('returns unchanged when every generated intent is ungrounded', async () => {
+  it('fails a batch whose payload is not a list of scenes', async () => {
+    const provider = stubProvider(() => ({ scenes: 'not-a-list' }));
+
+    await expect(
+      enrichStoryboardSearchIntents(enrichmentRequest(), { provider }),
+    ).rejects.toThrow('Search intents must be an array of scenes');
+  });
+
+  it('fails when every generated intent is ungrounded', async () => {
     const request = enrichmentRequest();
     const provider = stubProvider((batch) => ({
       scenes: batch.scenes.map((scene) => ({
@@ -313,16 +306,12 @@ describe('storyboard search intent enrichment', () => {
 
     await expect(
       enrichStoryboardSearchIntents(request, { provider }),
-    ).resolves.toEqual({
-      draft: request.draft,
-      model: null,
-      enrichedSceneCount: 0,
-      discardedSceneCount: request.draft.scenes.length,
-    });
+    ).rejects.toThrow(
+      `left ${request.draft.scenes.length} of ${request.draft.scenes.length} content scenes without a grounded phrase`,
+    );
   });
 
-  it('falls back when grounded enrichment makes an already-invalid draft fail validation', async () => {
-    const warn = silenceWarnings();
+  it('fails when grounded enrichment makes an already-invalid draft fail validation', async () => {
     const request = enrichmentRequest();
     request.draft = {
       scenes: request.draft.scenes.map((scene, index) => ({
@@ -337,24 +326,12 @@ describe('storyboard search intent enrichment', () => {
       })),
     }));
 
-    try {
-      const result = await enrichStoryboardSearchIntents(request, { provider });
-      expect(result).toEqual({
-        draft: request.draft,
-        model: null,
-        enrichedSceneCount: 0,
-        discardedSceneCount: request.draft.scenes.length,
-      });
-      expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining('validation failed'),
-        expect.any(Error),
-      );
-    } finally {
-      warn.mockRestore();
-    }
+    await expect(
+      enrichStoryboardSearchIntents(request, { provider }),
+    ).rejects.toThrow('Search intents left the storyboard invalid');
   });
 
-  it('skips enrichment when a draft scene does not map to canonical sentences', async () => {
+  it('fails when a draft scene does not map to canonical sentences', async () => {
     const request = enrichmentRequest();
     request.draft = {
       scenes: request.draft.scenes.map((scene, index) =>
@@ -365,11 +342,27 @@ describe('storyboard search intent enrichment', () => {
 
     await expect(
       enrichStoryboardSearchIntents(request, { provider }),
+    ).rejects.toThrow('cannot map every storyboard scene onto canonical');
+    expect(provider.suggest).not.toHaveBeenCalled();
+  });
+
+  it('returns unchanged for a storyboard that is nothing but brand cards', async () => {
+    const request = enrichmentRequest();
+    request.draft = {
+      scenes: request.draft.scenes.map((scene) => ({
+        ...scene,
+        imageSearchIntent: [PODCAST_INTRO_VISUAL_INTENT],
+      })),
+    };
+    const provider = stubProvider(suggestSubjects);
+
+    await expect(
+      enrichStoryboardSearchIntents(request, { provider }),
     ).resolves.toEqual({
       draft: request.draft,
       model: null,
       enrichedSceneCount: 0,
-      discardedSceneCount: 0,
+      entityAnchoredSceneCount: 0,
     });
     expect(provider.suggest).not.toHaveBeenCalled();
   });
@@ -395,45 +388,75 @@ describe('storyboard search intent enrichment', () => {
     ]);
   });
 
-  it('ignores non-array intent fields while enriching the other scenes', async () => {
+  it.each([
+    ['a non-array intent field', { sceneId: 'scene-01', imageSearchIntent: 7 }],
+    ['an entry that is not an object at all', 'not-an-object'],
+  ])(
+    'fails the job when %s leaves one scene with nothing to search for',
+    async (_name, badEntry) => {
+      const request = enrichmentRequest();
+      const provider = stubProvider((batch) => ({
+        scenes: batch.scenes.map((scene, index) =>
+          index === 0
+            ? badEntry
+            : { sceneId: scene.sceneId, imageSearchIntent: ['cargo port'] },
+        ),
+      }));
+
+      // Letting the other 13 scenes through would put this scene's
+      // transliterated deterministic phrase back into image search.
+      await expect(
+        enrichStoryboardSearchIntents(request, { provider }),
+      ).rejects.toThrow(/without a grounded phrase: scene-01/u);
+    },
+  );
+
+  it('reads a response that reorders, repeats, and invents scenes', async () => {
     const request = enrichmentRequest();
     const provider = stubProvider((batch) => ({
-      scenes: batch.scenes.map((scene, index) => ({
-        sceneId: scene.sceneId,
-        imageSearchIntent:
-          index === 0 ? { invalid: true } : ['cargo port at sunrise'],
-      })),
+      scenes: [
+        // An id that was never asked about, and one that is not an id at all.
+        { sceneId: 'scene-99', imageSearchIntent: ['unrelated skyline'] },
+        { sceneId: 7, imageSearchIntent: ['numbered scene'] },
+        // Reversed, so nothing lines up positionally.
+        ...[...batch.scenes].reverse().map((scene) => ({
+          sceneId: scene.sceneId,
+          imageSearchIntent: ['harbor crane at dawn'],
+        })),
+        // The batch's first scene answered a second time; the first wins.
+        {
+          sceneId: batch.scenes[0]!.sceneId,
+          imageSearchIntent: ['ignored duplicate'],
+        },
+      ],
     }));
 
     const result = await enrichStoryboardSearchIntents(request, { provider });
-    expect(result.draft.scenes[0]?.imageSearchIntent).toEqual(
-      request.draft.scenes[0]?.imageSearchIntent,
+
+    expect(result.draft.scenes.map((scene) => scene.imageSearchIntent)).toEqual(
+      request.draft.scenes.map(() => ['harbor crane at dawn']),
     );
-    expect(result.enrichedSceneCount).toBe(
-      request.draft.scenes.length - provider.suggest.mock.calls.length,
-    );
+    expect(result.enrichedSceneCount).toBe(request.draft.scenes.length);
+    expect(result.model).toBe('openrouter/test-model');
   });
 
-  it('rejects a same-length response whose scene entry is invalid', async () => {
-    const warn = silenceWarnings();
+  it('fails a scene the response leaves out entirely', async () => {
     const request = enrichmentRequest();
     const provider = stubProvider((batch) => ({
-      scenes: batch.scenes.map((scene, index) =>
-        index === 0
-          ? 'not-an-object'
-          : { sceneId: scene.sceneId, imageSearchIntent: ['cargo port'] },
-      ),
+      scenes: batch.scenes
+        .filter((_scene, index) => index !== 1)
+        .map((scene) => ({
+          sceneId: scene.sceneId,
+          imageSearchIntent: ['harbor crane at dawn'],
+        })),
     }));
-    try {
-      const result = await enrichStoryboardSearchIntents(request, { provider });
-      expect(result.enrichedSceneCount).toBe(0);
-      expect(warn).toHaveBeenCalled();
-    } finally {
-      warn.mockRestore();
-    }
+
+    await expect(
+      enrichStoryboardSearchIntents(request, { provider }),
+    ).rejects.toThrow(/without a grounded phrase: scene-02/u);
   });
 
-  it('rejects non-English, malformed, and duplicate phrases', async () => {
+  it('fails a scene whose phrases are all non-English or malformed', async () => {
     const request = enrichmentRequest();
     const provider = stubProvider((batch) => ({
       scenes: batch.scenes.map((scene, index) => ({
@@ -447,48 +470,100 @@ describe('storyboard search intent enrichment', () => {
                 42,
                 `${'long phrase '.repeat(10)}`,
               ]
-            : [
-                'Cargo Port At Sunrise',
-                'cargo port at sunrise',
-                'container crane',
-                'freight train yard',
-                'harbor pilot boat',
-              ],
+            : ['cargo port at sunrise'],
+      })),
+    }));
+
+    // The first scene's list is all unusable, so there is nothing to search
+    // for and the job fails rather than falling back to the canned phrase.
+    await expect(
+      enrichStoryboardSearchIntents(request, { provider }),
+    ).rejects.toThrow(/without a grounded phrase: scene-01/u);
+  });
+
+  it('keeps only the usable phrases of a scene that also returned junk', async () => {
+    const request = enrichmentRequest();
+    const provider = stubProvider((batch) => ({
+      scenes: batch.scenes.map((scene) => ({
+        sceneId: scene.sceneId,
+        imageSearchIntent: [
+          '日本銀行總裁記者會',
+          '12',
+          'a',
+          42,
+          'Cargo Port At Sunrise',
+          'cargo port at sunrise',
+          'container crane',
+          'freight train yard',
+          'harbor pilot boat',
+        ],
       })),
     }));
 
     const result = await enrichStoryboardSearchIntents(request, { provider });
 
-    // Nothing usable was returned for the first scene, so it keeps its own.
-    expect(result.draft.scenes[0]?.imageSearchIntent).toEqual(
-      request.draft.scenes[0]?.imageSearchIntent,
-    );
     // Case-insensitive duplicates collapse and the schema's cap of three holds.
-    expect(result.draft.scenes[1]?.imageSearchIntent).toEqual([
+    expect(result.draft.scenes[0]?.imageSearchIntent).toEqual([
       'Cargo Port At Sunrise',
       'container crane',
       'freight train yard',
     ]);
   });
 
-  it('skips enrichment when OpenRouter is not configured', async () => {
-    const warn = silenceWarnings();
+  it('keeps the named subjects a scene really contains and drops invented ones', async () => {
+    const request = enrichmentRequest();
+    const provider = stubProvider((batch) => ({
+      scenes: batch.scenes.map((scene) => ({
+        sceneId: scene.sceneId,
+        imageSearchIntent: ['stablecoin remittance corridor'],
+        // `stablecoin` and `remittance` are written in this scene's own English
+        // sentences; `Coldcard` is the model importing a name from nowhere.
+        entities: ['Stablecoin', 'Coldcard', 'REMITTANCE'],
+      })),
+    }));
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result.draft.scenes[0]?.imageSearchEntities).toEqual([
+      'Stablecoin',
+      'REMITTANCE',
+    ]);
+    expect(result.entityAnchoredSceneCount).toBe(request.draft.scenes.length);
+  });
+
+  it('leaves a scene that names nothing without entities rather than inventing them', async () => {
+    const request = enrichmentRequest();
+    const provider = stubProvider(suggestSubjects);
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    for (const scene of result.draft.scenes) {
+      expect(scene).not.toHaveProperty('imageSearchEntities');
+    }
+    expect(result.entityAnchoredSceneCount).toBe(0);
+    // A generic scene is legitimate, so it must not fail the job.
+    expect(result.enrichedSceneCount).toBe(request.draft.scenes.length);
+  });
+
+  it('carries entities into a draft that still validates', async () => {
+    const request = enrichmentRequest();
+    const provider = stubProvider(suggestNamedSubjects);
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result.draft.scenes[0]?.imageSearchEntities).toEqual(['stablecoin']);
+    expect(result.entityAnchoredSceneCount).toBe(request.draft.scenes.length);
+  });
+
+  it('fails the job when OpenRouter is not configured', async () => {
     llmMocks.getOpenRouterConfig.mockImplementationOnce(() => {
       throw new Error('OPENROUTER_API_KEY not set');
     });
-    const request = enrichmentRequest();
 
-    try {
-      await expect(enrichStoryboardSearchIntents(request)).resolves.toEqual({
-        draft: request.draft,
-        model: null,
-        enrichedSceneCount: 0,
-        discardedSceneCount: 0,
-      });
-      expect(llmMocks.createOpenRouterChatCompletion).not.toHaveBeenCalled();
-    } finally {
-      warn.mockRestore();
-    }
+    await expect(
+      enrichStoryboardSearchIntents(enrichmentRequest()),
+    ).rejects.toThrow('OPENROUTER_API_KEY not set');
+    expect(llmMocks.createCompletionWithRetry).not.toHaveBeenCalled();
   });
 
   it('propagates an aborted render instead of enriching', async () => {
@@ -515,6 +590,21 @@ describe('storyboard search intent enrichment', () => {
     expect(prompt).toContain('what a camera could see');
     expect(prompt).toContain('"scenes"');
   });
+
+  it('asks for the named entities of a scene before any generic subject', () => {
+    const prompt = buildSearchIntentSystemPrompt();
+
+    expect(prompt).toContain('proper nouns');
+    expect(prompt).toContain(
+      'companies, products, organizations, people, places',
+    );
+    expect(prompt).toContain(
+      "Use only names written in that scene's own sentences",
+    );
+    expect(prompt).toContain('"entities"');
+    // The generic subject stays available, but only as the last resort.
+    expect(prompt).toContain('Only when a scene names nothing at all');
+  });
 });
 
 describe('OpenRouter search intent provider', () => {
@@ -525,7 +615,7 @@ describe('OpenRouter search intent provider', () => {
       thinkingModel: null,
       timeoutMs: 120_000,
     });
-    llmMocks.createOpenRouterChatCompletion.mockResolvedValue({
+    llmMocks.createCompletionWithRetry.mockResolvedValue({
       choices: [{ message: { content } }],
     });
   }
@@ -546,15 +636,22 @@ describe('OpenRouter search intent provider', () => {
     });
 
     expect(provider.model).toBe('openrouter/free');
-    const [, params] = llmMocks.createOpenRouterChatCompletion.mock.calls.at(
-      -1,
-    ) as [unknown, Record<string, unknown>];
+    const [, params, , operation] =
+      llmMocks.createCompletionWithRetry.mock.calls.at(-1) as [
+        unknown,
+        Record<string, unknown>,
+        unknown,
+        string,
+      ];
     expect(params['response_format']).toEqual({ type: 'json_object' });
     expect(params['model']).toBe('openrouter/free');
     expect(JSON.stringify(params['messages'])).toContain('englishSentences');
+    // Transport failures are retried by the shared OpenRouter policy rather
+    // than being swallowed one batch at a time.
+    expect(operation).toBe('suggestSearchIntents');
   });
 
-  it('passes an abort signal through to the OpenRouter request', async () => {
+  it('passes an abort signal through to the retrying OpenRouter request', async () => {
     mockCompletion(
       '{"scenes":[{"sceneId":"scene-01","imageSearchIntent":["cargo port"]}]}',
     );
@@ -567,10 +664,11 @@ describe('OpenRouter search intent provider', () => {
       signal: controller.signal,
     });
 
-    expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenLastCalledWith(
+    expect(llmMocks.createCompletionWithRetry).toHaveBeenLastCalledWith(
       expect.anything(),
       expect.anything(),
       null,
+      'suggestSearchIntents',
       { signal: controller.signal },
     );
   });
@@ -587,7 +685,7 @@ describe('OpenRouter search intent provider', () => {
       'Search intents returned empty content',
     );
 
-    llmMocks.createOpenRouterChatCompletion.mockResolvedValueOnce({
+    llmMocks.createCompletionWithRetry.mockResolvedValueOnce({
       choices: [{ message: { content: null } }],
     });
     await expect(

@@ -40,8 +40,10 @@ vi.mock('openai', () => ({
 vi.mock('./ingest/step.js', () => ingestMocks);
 
 import {
+  createCompletionWithRetry,
   generateLanguageClassroomsWithLLM,
   generateScriptWithLLM,
+  getOpenRouterConfig,
 } from './llm.js';
 
 function mockOpenAIClient(createMock: Mock): void {
@@ -309,6 +311,105 @@ describe('generateLanguageClassroomsWithLLM retries', () => {
       generateLanguageClassroomsWithLLM(classroomInput),
     ).rejects.toBe(providerError);
 
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+      'llm:retry',
+      expect.anything(),
+    );
+  });
+});
+
+describe('createCompletionWithRetry', () => {
+  const params = {
+    model: 'test/model',
+    messages: [{ role: 'user' as const, content: 'Suggest search intents' }],
+  };
+
+  function captureRequestSignals(
+    signals: AbortSignal[],
+    respond: (attempt: number) => Promise<unknown>,
+  ): Mock {
+    return vi.fn(
+      (
+        _request: unknown,
+        options?: { signal?: AbortSignal },
+      ): Promise<unknown> => {
+        const signal = options?.signal;
+        if (!signal) {
+          throw new Error('Expected an OpenRouter request signal');
+        }
+        signals.push(signal);
+        return respond(signals.length);
+      },
+    );
+  }
+
+  it('retries a transport failure on a fresh signal derived from the caller', async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    const requestSignals: AbortSignal[] = [];
+    const providerError = Object.assign(new Error('provider unavailable'), {
+      status: 503,
+    });
+    const mockCreate = captureRequestSignals(requestSignals, (attempt) =>
+      attempt === 1
+        ? Promise.reject(providerError)
+        : Promise.resolve(successfulCompletion()),
+    );
+    mockOpenAIClient(mockCreate);
+
+    const resultPromise = createCompletionWithRetry(
+      getOpenRouterConfig().openai,
+      params,
+      null,
+      'suggestSearchIntents',
+      { signal: controller.signal },
+    );
+    const resultAssertion = expect(resultPromise).resolves.toMatchObject({
+      model: 'test/model',
+    });
+
+    await vi.runAllTimersAsync();
+    await resultAssertion;
+
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(requestSignals[0]).not.toBe(requestSignals[1]);
+    expect(requestSignals[1]?.aborted).toBe(false);
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:retry',
+      expect.objectContaining({
+        operation: 'suggestSearchIntents',
+        attempt: 1,
+        nextAttempt: 2,
+      }),
+    );
+  });
+
+  it('does not retry once the caller signal has aborted', async () => {
+    const controller = new AbortController();
+    // What a visual job's own stage deadline aborts with. Its name makes it
+    // retryable, so without the caller-abort guard the request would be sent
+    // again on behalf of a caller that has already given up.
+    const stageTimeout = new Error('Visual stage timed out');
+    stageTimeout.name = 'TimeoutError';
+    const requestSignals: AbortSignal[] = [];
+    const mockCreate = captureRequestSignals(requestSignals, () => {
+      controller.abort(stageTimeout);
+      return Promise.reject(new Error('socket hang up'));
+    });
+    mockOpenAIClient(mockCreate);
+
+    await expect(
+      createCompletionWithRetry(
+        getOpenRouterConfig().openai,
+        params,
+        null,
+        'suggestSearchIntents',
+        { signal: controller.signal },
+      ),
+    ).rejects.toBe(stageTimeout);
+
+    expect(requestSignals[0]?.aborted).toBe(true);
     expect(mockCreate).toHaveBeenCalledTimes(1);
     expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
       'llm:retry',
