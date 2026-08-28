@@ -67,7 +67,6 @@ const LLM_COMPLETION_RETRY_DELAY_MS = 2_000;
 const LANGUAGE_CLASSROOM_MAX_TOKENS = 8_000;
 /** Selecting concepts and writing narration, not a reasoning task. */
 const LANGUAGE_CLASSROOM_REASONING: OpenRouterReasoning = { enabled: false };
-const SCRIPT_PAYLOAD_MAX_ATTEMPTS = 2;
 const RETRYABLE_OPENROUTER_STATUS = new Set([408, 409, 429]);
 
 type ScriptTitleFallbackReason =
@@ -115,17 +114,6 @@ function getSystemPrompt(): string {
 
 export function buildUserMessage(title: string, text: string): string {
   return `標題：${title}\n\n內容：\n${text}`;
-}
-
-function buildScriptPayloadRetryMessage(
-  title: string,
-  text: string,
-  error: ScriptPayloadValidationError,
-): string {
-  const reason = error.detail
-    ? `${error.reason}: ${error.detail}`
-    : error.reason;
-  return `${buildUserMessage(title, text)}\n\n修正要求：上一個回應未符合 JSON 輸出契約（${reason}）。只輸出可解析的 JSON 物件，title 與 script 都必須是非空字串，且 script 只能包含 body，不得自行加入開場招呼、結尾 CTA、Markdown 標題、時間碼或分隔線。`;
 }
 
 function generatedScriptBodyViolation(script: string): string | null {
@@ -327,15 +315,26 @@ export interface OpenRouterConfig {
 }
 
 export const DEFAULT_OPENROUTER_TIMEOUT_MS = 120_000;
+export const DEFAULT_SCRIPT_OPENROUTER_TIMEOUT_MS = 600_000;
 const openRouterClientCache = new Map<string, OpenAI>();
+
+function positiveTimeout(value: string | undefined, fallback: number): number {
+  const timeoutMs = Number(value);
+  return Number.isSafeInteger(timeoutMs) && timeoutMs > 0
+    ? timeoutMs
+    : fallback;
+}
 
 export function getOpenRouterTimeoutMs(
   value: string | undefined = process.env['OPENROUTER_TIMEOUT_MS'],
 ): number {
-  const timeoutMs = Number(value);
-  return Number.isSafeInteger(timeoutMs) && timeoutMs > 0
-    ? timeoutMs
-    : DEFAULT_OPENROUTER_TIMEOUT_MS;
+  return positiveTimeout(value, DEFAULT_OPENROUTER_TIMEOUT_MS);
+}
+
+export function getScriptOpenRouterTimeoutMs(
+  value: string | undefined = process.env['SCRIPT_OPENROUTER_TIMEOUT_MS'],
+): number {
+  return positiveTimeout(value, DEFAULT_SCRIPT_OPENROUTER_TIMEOUT_MS);
 }
 
 export function getOpenRouterConfig(overrides?: {
@@ -381,17 +380,6 @@ export interface OpenRouterReasoning {
   effort?: 'minimal' | 'low' | 'medium' | 'high';
 }
 
-/**
- * Left unset, OpenRouter load-balances on price, and the cheapest endpoints for
- * a slug can be fp4-quantized or degraded ones that never return inside the
- * request deadline. `require_parameters` additionally keeps the request away
- * from endpoints that would accept but silently ignore `response_format` or
- * `reasoning`.
- *
- * A `quantizations` allowlist is the next escalation, but it is deliberately
- * not set here: it would also drop every endpoint whose quantization OpenRouter
- * reports as unknown, which includes DeepSeek's own first-party endpoint.
- */
 const OPENROUTER_PROVIDER_ROUTING: OpenRouterProviderRouting = {
   sort: 'throughput',
   require_parameters: true,
@@ -404,13 +392,6 @@ export type OpenRouterParams =
     reasoning?: OpenRouterReasoning;
   };
 
-/**
- * OpenRouter reads these alongside `model` and `messages` at the top level of
- * the request body. They used to travel inside an `extra_body` wrapper, which
- * is the Python SDK's client-side kwarg: that SDK flattens it into the body
- * before the request leaves the process, so a literal `extra_body` key never
- * reaches OpenRouter and everything inside it was dropped.
- */
 export function withOpenRouterOptions(
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
   reasoning?: OpenRouterReasoning,
@@ -436,6 +417,8 @@ export type OpenRouterChatCompletion = OpenAI.Chat.ChatCompletion & {
 export interface OpenRouterRequestOptions {
   signal?: AbortSignal;
   reasoning?: OpenRouterReasoning;
+  timeoutMs?: number;
+  maxAttempts?: number;
   logContext?: {
     prefix: string;
     details?: LogDetails;
@@ -464,10 +447,8 @@ export async function createOpenRouterChatCompletion(
   requestOptions: OpenRouterRequestOptions = {},
 ): Promise<OpenRouterChatCompletion> {
   const inputChars = userInputCharacterCount(params.messages);
-  const timeoutMs = getOpenRouterTimeoutMs();
+  const timeoutMs = requestOptions.timeoutMs ?? getOpenRouterTimeoutMs();
   const reasoning = reasoningLabel(requestOptions.reasoning);
-  // Explicit 'unset' rather than an omitted field: an absent output ceiling is
-  // exactly the condition worth spotting on the failure line.
   const maxTokens = params.max_tokens ?? 'unset';
   logOpenRouterEvent(
     'llm:request',
@@ -490,8 +471,12 @@ export async function createOpenRouterChatCompletion(
   );
   let completion: OpenRouterChatCompletion;
   try {
+    // The SDK has its own timeout in addition to our AbortSignal. Override it
+    // per request so the long-form script policy is not silently capped by the
+    // client's 120s default before our safety deadline can fire.
     completion = await openai.chat.completions.create(request, {
       signal: deadline.signal,
+      timeout: timeoutMs,
     });
   } catch (error) {
     const abortReason = deadline.signal.reason;
@@ -499,8 +484,6 @@ export async function createOpenRouterChatCompletion(
       deadline.signal.aborted && abortReason instanceof Error
         ? abortReason
         : error;
-    // `llm:response` is the only line carrying the provider, and it fires only
-    // on success — a timeout otherwise left no record of what was requested.
     logOpenRouterEvent(
       'llm:failed',
       {
@@ -586,10 +569,7 @@ export function completionMetadata(
   };
 }
 
-/**
- * Transport-level failures worth one more attempt. Shared with translation so a
- * single OpenRouter retry policy covers every caller of this client.
- */
+/** Transport-level failures worth one more attempt for short LLM operations. */
 export function isRetryableOpenRouterError(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
     return false;
@@ -603,6 +583,7 @@ export function isRetryableOpenRouterError(error: unknown): boolean {
   const name = (error as { name?: unknown }).name;
   return (
     name === 'APIConnectionError' ||
+    name === 'APIConnectionTimeoutError' ||
     name === 'APITimeoutError' ||
     name === 'TimeoutError'
   );
@@ -620,7 +601,11 @@ export async function createCompletionWithRetry(
   operation: LLMCompletionOperation,
   requestOptions: OpenRouterRequestOptions = {},
 ): Promise<OpenRouterChatCompletion> {
-  for (let attempt = 1; attempt <= LLM_COMPLETION_MAX_ATTEMPTS; attempt++) {
+  const maxAttempts = requestOptions.maxAttempts ?? LLM_COMPLETION_MAX_ATTEMPTS;
+  if (!Number.isSafeInteger(maxAttempts) || maxAttempts < 1) {
+    throw new Error('OpenRouter maxAttempts must be a positive integer');
+  }
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       return await createOpenRouterChatCompletion(
         openai,
@@ -629,11 +614,8 @@ export async function createCompletionWithRetry(
         requestOptions,
       );
     } catch (error) {
-      // A caller whose own signal is already aborted gains nothing from another
-      // attempt. The per-request deadline aborts an internal signal instead, so
-      // its `TimeoutError` still gets its retry.
       const shouldRetry =
-        attempt < LLM_COMPLETION_MAX_ATTEMPTS &&
+        attempt < maxAttempts &&
         !requestOptions.signal?.aborted &&
         isRetryableOpenRouterError(error);
       if (!shouldRetry) {
@@ -660,60 +642,41 @@ export async function generateScriptWithLLM(
   text: string,
 ): Promise<ScriptResult> {
   const { openai, model, thinkingModel } = getOpenRouterConfig();
-  const system = getSystemPrompt();
-  let retryError: ScriptPayloadValidationError | null = null;
-  let costUsd = 0;
+  const completion = await createCompletionWithRetry(
+    openai,
+    {
+      model,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: getSystemPrompt() },
+        { role: 'user', content: buildUserMessage(title, text) },
+      ],
+      temperature: 0.7,
+    },
+    thinkingModel,
+    'generateScript',
+    {
+      timeoutMs: getScriptOpenRouterTimeoutMs(),
+      // A full-article spoken rewrite can legitimately run for minutes. If it
+      // hits the hard safety deadline, restarting the same expensive request is
+      // more waste than recovery; resubmission resumes the persisted scrape.
+      maxAttempts: 1,
+    },
+  );
 
-  for (let attempt = 1; attempt <= SCRIPT_PAYLOAD_MAX_ATTEMPTS; attempt += 1) {
-    const completion = await createCompletionWithRetry(
-      openai,
-      {
-        model,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: system },
-          {
-            role: 'user',
-            content:
-              retryError === null
-                ? buildUserMessage(title, text)
-                : buildScriptPayloadRetryMessage(title, text, retryError),
-          },
-        ],
-        temperature: 0.7,
-      },
-      thinkingModel,
-      'generateScript',
-    );
-
-    const metadata = completionMetadata(completion, model, thinkingModel);
-    costUsd += metadata.costUsd;
-    const content = completion.choices[0]?.message?.content || '';
-    try {
-      const parsed = parseScriptPayload(content);
-      if (parsed.titleFallbackReason !== null) {
-        logIngestEvent('llm:title-fallback', {
-          reason: parsed.titleFallbackReason,
-        });
-      }
-      return {
-        title: parsed.title,
-        script: parsed.script,
-        ...metadata,
-        costUsd,
-      };
-    } catch (error) {
-      if (
-        !(error instanceof ScriptPayloadValidationError) ||
-        attempt === SCRIPT_PAYLOAD_MAX_ATTEMPTS
-      ) {
-        throw error;
-      }
-      retryError = error;
-    }
+  const metadata = completionMetadata(completion, model, thinkingModel);
+  const content = completion.choices[0]?.message?.content || '';
+  const parsed = parseScriptPayload(content);
+  if (parsed.titleFallbackReason !== null) {
+    logIngestEvent('llm:title-fallback', {
+      reason: parsed.titleFallbackReason,
+    });
   }
-
-  throw new Error('OpenRouter script payload retry loop exhausted');
+  return {
+    title: parsed.title,
+    script: parsed.script,
+    ...metadata,
+  };
 }
 
 export function buildLanguageClassroomUserMessage(
@@ -740,8 +703,6 @@ export async function generateLanguageClassroomsWithLLM(
     openai,
     {
       model,
-      // parseLanguageClassroomLessons parses this as JSON either way; asking
-      // for JSON mode is what stops the model prefacing it with prose.
       response_format: { type: 'json_object' },
       messages: [
         {
@@ -882,13 +843,6 @@ export function stripJsonFence(trimmed: string): string {
   return trimmed.slice(firstLineEnd + 1, closingFenceStart).trim();
 }
 
-/**
- * Providers behind the same model id disagree about `json_object` mode: some
- * answer with the requested object, others nest it as a fenced string under an
- * arbitrary key (observed: {"stable diff":"ok","text":"```json…"}). Callers pass
- * the top-level keys their own schema expects, so a response that already has
- * the right shape is returned untouched.
- */
 export function unwrapNestedJsonPayload(
   value: unknown,
   expectedKeys: readonly string[],
