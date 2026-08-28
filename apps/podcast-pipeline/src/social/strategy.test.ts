@@ -6,6 +6,7 @@ import {
   buildStrategyGuidance,
   defaultSocialStrategy,
   learnSocialStrategies,
+  nextPlatformPublishSlot,
   nextPublishSlot,
   startOfJstDay,
 } from './strategy.js';
@@ -124,6 +125,67 @@ describe('social strategy', () => {
         },
       }).toISOString(),
     ).toBe('2026-08-16T00:30:00.000Z');
+  });
+
+  it('enforces platform daily caps independently from candidate slots', () => {
+    const existing = [new Date('2026-08-16T03:15:00.000Z')]; // 12:15 JST
+    expect(
+      nextPlatformPublishSlot({
+        platform: 'x',
+        episodeId: 'episode-x-2',
+        readyAt: new Date('2026-08-16T00:00:00.000Z'),
+        existingSchedules: existing,
+        config: {
+          dailyPublishCap: 2,
+          publishSlotsJst: [
+            { hour: 12, minute: 15 },
+            { hour: 17, minute: 0 },
+          ],
+          slotExplorationRate: 0,
+        },
+      }).toISOString(),
+    ).toBe('2026-08-16T08:00:00.000Z');
+
+    expect(
+      nextPlatformPublishSlot({
+        platform: 'x',
+        episodeId: 'episode-x-3',
+        readyAt: new Date('2026-08-16T00:00:00.000Z'),
+        existingSchedules: [
+          ...existing,
+          new Date('2026-08-16T08:00:00.000Z'),
+        ],
+        config: {
+          dailyPublishCap: 2,
+          publishSlotsJst: [
+            { hour: 12, minute: 15 },
+            { hour: 17, minute: 0 },
+          ],
+          slotExplorationRate: 0,
+        },
+      }).toISOString(),
+    ).toBe('2026-08-17T03:15:00.000Z');
+  });
+
+  it('keeps a one-post platform at one slot even when exploration has alternatives', () => {
+    const scheduled = nextPlatformPublishSlot({
+      platform: 'rednote',
+      episodeId: 'episode-rednote-stable',
+      readyAt: new Date('2026-08-16T00:00:00.000Z'),
+      existingSchedules: [],
+      config: {
+        dailyPublishCap: 1,
+        publishSlotsJst: [
+          { hour: 14, minute: 30 },
+          { hour: 12, minute: 0 },
+        ],
+        slotExplorationRate: 0.2,
+      },
+    });
+    const jstMinutes =
+      ((scheduled.getTime() + 9 * 60 * 60_000) % (24 * 60 * 60_000)) /
+      60_000;
+    expect([12 * 60, 14 * 60 + 30]).toContain(jstMinutes);
   });
 
   it('maps active rows by platform and fills absent platforms with null', () => {
@@ -245,7 +307,6 @@ describe('social strategy', () => {
     expect(exploring).not.toContain('AI');
     expect(exploring).toContain('冷門');
 
-    // Nothing but preferences plus exploration means no guidance at all.
     expect(
       buildStrategyGuidance(
         'rednote',
@@ -275,6 +336,13 @@ describe('social strategy', () => {
 
     const [learned] = learnSocialStrategies({ posts, metrics });
     expect(learned).toMatchObject({ platform: 'threads', basedOnSamples: 5 });
+    expect(learned?.config).toMatchObject({
+      dailyPublishCap: 1,
+      publishSlotsJst: [
+        { hour: 12, minute: 0 },
+        { hour: 9, minute: 30 },
+      ],
+    });
     expect(learned?.config.preferredHashtags).toBeUndefined();
     expect(learned?.config.avoidHashtags).toBeUndefined();
   });
@@ -382,9 +450,14 @@ describe('social strategy', () => {
     expect(learned?.config.preferredHookTypes).toContain('question');
     expect(learned?.config.preferredHashtags).toContain('AI');
     expect(learned?.config.avoidHashtags).toContain('冷門');
-    expect(learned?.config.publishSlotsJst).toEqual(
-      defaultSocialStrategy().publishSlotsJst,
-    );
+    expect(learned?.config).toMatchObject({
+      dailyPublishCap: 1,
+      slotExplorationRate: 0.2,
+      publishSlotsJst: [
+        { hour: 14, minute: 30 },
+        { hour: 12, minute: 0 },
+      ],
+    });
 
     expect(
       learnSocialStrategies({
@@ -394,8 +467,6 @@ describe('social strategy', () => {
     ).toEqual([]);
   });
 
-  // Regression: v3 shipped 穩定幣 in both lists because the preferred head
-  // slice(0, 8) and the avoid tail slice(-5) overlapped below 13 ranked tags.
   it('never ranks the same hashtag as both preferred and avoided', () => {
     const tagsByIndex = [['A', 'B'], ['A', 'B'], ['B'], ['B'], ['C'], ['C']];
     const viewsByIndex = [1000, 1000, 500, 500, 10, 10];
@@ -466,7 +537,6 @@ describe('social strategy', () => {
     });
     expect(rednote).toMatchObject({ platform: 'rednote', basedOnSamples: 5 });
 
-    // A quiet X post is genuine audience feedback: no floor there.
     const xPosts = Array.from({ length: 5 }, (_value, index) =>
       post({
         id: `x-floor-${index}`,
