@@ -21,6 +21,11 @@ export function createControlCenterApp(input: {
   service?: ReturnType<typeof createOverviewService>;
   operations?: ReturnType<typeof createOperationsService>;
   serveClient?: boolean;
+  /**
+   * Local operator processes may explicitly refresh provider cost snapshots.
+   * Remote dashboards stay read-only by omitting the mutation route entirely.
+   */
+  allowCostSync?: boolean;
 }) {
   const app = new Hono();
   const service =
@@ -37,26 +42,28 @@ export function createControlCenterApp(input: {
   app.get('/api/costs/history', async (context) => {
     return context.json(await service.getCostHistory());
   });
-  app.post('/api/costs/sync', async (context) => {
-    try {
-      const summary = await service.syncCosts();
-      return context.json(summary);
-    } catch (error) {
-      captureServerException(error, {
-        method: context.req.method,
-        route: routePath(context),
-      });
-      return context.json(
-        {
-          error:
-            error instanceof Error
-              ? error.message
-              : 'Cost synchronization failed',
-        },
-        503,
-      );
-    }
-  });
+  if (input.allowCostSync !== false) {
+    app.post('/api/costs/sync', async (context) => {
+      try {
+        const summary = await service.syncCosts();
+        return context.json(summary);
+      } catch (error) {
+        captureServerException(error, {
+          method: context.req.method,
+          route: routePath(context),
+        });
+        return context.json(
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : 'Cost synchronization failed',
+          },
+          503,
+        );
+      }
+    });
+  }
   app.get('/api/social-performance', async (context) => {
     const requested = context.req.query('window');
     const window = WINDOWS.includes(
