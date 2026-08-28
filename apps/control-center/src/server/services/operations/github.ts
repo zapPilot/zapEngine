@@ -5,19 +5,19 @@ import { z } from 'zod';
 
 import type { OperationalSignal } from '../../../shared/types.js';
 import type { ControlCenterConfig } from '../../config/env.js';
+import { fetchJson } from './http.js';
 import {
   buildSignal,
+  collectOrFail,
   errorMessage,
   sourceFailure,
   unknownSignal,
 } from './signal.js';
 import { findRepoRoot } from './repo-root.js';
 
-const SOURCE = 'github-actions' as const;
-const DOMAIN = 'jobs' as const;
+const ORIGIN = { source: 'github-actions', domain: 'jobs' } as const;
 const REPO = 'zapPilot/zapEngine';
 const RUNS_PER_PAGE = 5;
-const REQUEST_TIMEOUT_MS = 10_000;
 const HOUR_MS = 60 * 60 * 1000;
 /**
  * Every workflow this adapter watches runs at least daily, so two days of
@@ -93,8 +93,7 @@ export async function collectGithubSignals(input: {
   if (!token) {
     return [
       unknownSignal({
-        source: SOURCE,
-        domain: DOMAIN,
+        ...ORIGIN,
         key: 'token',
         title: 'GitHub Actions health not configured',
         detail:
@@ -107,7 +106,7 @@ export async function collectGithubSignals(input: {
   }
 
   const fetchImpl = input.fetchImpl ?? globalThis.fetch;
-  try {
+  return collectOrFail(ORIGIN, input.now, async () => {
     const workflows = await readScheduledWorkflows(
       input.repoRoot ?? findRepoRoot(import.meta.dirname),
     );
@@ -123,8 +122,7 @@ export async function collectGithubSignals(input: {
     if (errors.length === outcomes.length) {
       return [
         sourceFailure({
-          source: SOURCE,
-          domain: DOMAIN,
+          ...ORIGIN,
           error: new Error(
             `no run history readable for any of ${outcomes.length} ` +
               `scheduled workflows: ${errorMessage(errors[0])}`,
@@ -134,16 +132,7 @@ export async function collectGithubSignals(input: {
       ];
     }
     return outcomes.map((outcome) => outcome.signal);
-  } catch (error) {
-    return [
-      sourceFailure({
-        source: SOURCE,
-        domain: DOMAIN,
-        error,
-        observedAt: input.now,
-      }),
-    ];
-  }
+  });
 }
 
 async function readScheduledWorkflows(
@@ -183,8 +172,7 @@ async function inspectWorkflow(input: {
       // Same fingerprint as a healthy reading of this workflow: losing the
       // reading is a new status for one condition, not a new condition.
       signal: buildSignal({
-        source: SOURCE,
-        domain: DOMAIN,
+        ...ORIGIN,
         kind: 'workflow',
         key: input.workflow.file,
         status: 'degraded',
@@ -202,26 +190,20 @@ async function fetchCompletedRuns(input: {
   token: string;
   fetchImpl: typeof fetch;
 }): Promise<CompletedRun[]> {
-  const response = await input.fetchImpl(
-    `https://api.github.com/repos/${REPO}/actions/workflows/` +
+  const envelope = await fetchJson({
+    label: `GitHub run history for ${input.workflow.file}`,
+    url:
+      `https://api.github.com/repos/${REPO}/actions/workflows/` +
       `${input.workflow.file}/runs?per_page=${RUNS_PER_PAGE}`,
-    {
-      headers: {
-        Authorization: `Bearer ${input.token}`,
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'zapengine-control-center',
-      },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    token: input.token,
+    schema: runsEnvelopeSchema,
+    fetchImpl: input.fetchImpl,
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'zapengine-control-center',
     },
-  );
-  if (!response.ok) {
-    throw new Error(
-      `GitHub returned ${response.status} for ${input.workflow.file}`,
-    );
-  }
-
-  const envelope = runsEnvelopeSchema.parse(await response.json());
+  });
   return (
     envelope.workflow_runs
       .flatMap((row) => {
@@ -257,8 +239,7 @@ function judge(
   const latest = runs[0];
   if (!latest) {
     return buildSignal({
-      source: SOURCE,
-      domain: DOMAIN,
+      ...ORIGIN,
       kind: 'workflow',
       key: workflow.file,
       status: 'degraded',
@@ -279,8 +260,7 @@ function judge(
   const streak = failureStreak(runs);
   const conclusion = latest.conclusion ?? 'without a conclusion';
   const common = {
-    source: SOURCE,
-    domain: DOMAIN,
+    ...ORIGIN,
     kind: 'workflow',
     key: workflow.file,
     evidence: {

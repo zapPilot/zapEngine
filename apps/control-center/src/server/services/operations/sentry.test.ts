@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { readControlCenterConfig } from '../../config/env.js';
+import { expectUnconfigured, fetchReturning } from './adapter-testing.js';
 import { collectSentrySignals } from './sentry.js';
 
 const NOW = new Date('2026-08-28T09:00:00.000Z');
@@ -14,12 +15,6 @@ const ISSUES_URL =
   'https://sentry.io/api/0/organizations/zap-pilot/issues/' +
   '?query=is%3Aunresolved&statsPeriod=24h&limit=25';
 
-function fetchReturning(body: unknown, status = 200) {
-  return vi.fn<typeof fetch>(
-    async () => new Response(JSON.stringify(body), { status }),
-  );
-}
-
 function issue(overrides: Record<string, unknown> = {}) {
   return {
     title: 'TypeError',
@@ -31,24 +26,22 @@ function issue(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function collect(fetchImpl: typeof fetch) {
+  return collectSentrySignals({ config: CONFIG, now: NOW, fetchImpl });
+}
+
 describe('collectSentrySignals', () => {
   it.each([
     ['the auth token is absent', { SENTRY_ORG_SLUG: 'zap-pilot' }],
     ['the org slug is absent', { SENTRY_OPS_AUTH_TOKEN: 'sentry-token' }],
-  ])('reports unknown without a request when %s', async (_case, env) => {
-    const fetchImpl = vi.fn<typeof fetch>();
-
-    const signals = await collectSentrySignals({
-      config: readControlCenterConfig(env),
-      now: NOW,
-      fetchImpl,
-    });
-
-    expect(fetchImpl).not.toHaveBeenCalled();
-    expect(signals).toHaveLength(1);
-    expect(signals[0]?.status).toBe('unknown');
-    expect(signals[0]?.fingerprint).toBe('sentry:unconfigured/credentials');
-  });
+  ])('reports unknown without a request when %s', async (_case, env) =>
+    expectUnconfigured({
+      env,
+      fingerprint: 'sentry:unconfigured/credentials',
+      collect: (config, fetchImpl) =>
+        collectSentrySignals({ config, now: NOW, fetchImpl }),
+    }),
+  );
 
   it('groups unresolved issues per project and grades each one', async () => {
     const fetchImpl = fetchReturning([
@@ -66,11 +59,7 @@ describe('collectSentrySignals', () => {
       }),
     ]);
 
-    const signals = await collectSentrySignals({
-      config: CONFIG,
-      now: NOW,
-      fetchImpl,
-    });
+    const signals = await collect(fetchImpl);
 
     expect(fetchImpl).toHaveBeenCalledWith(
       ISSUES_URL,
@@ -104,39 +93,24 @@ describe('collectSentrySignals', () => {
   });
 
   it('coerces the decimal string Sentry sends as the event count', async () => {
-    const fetchImpl = fetchReturning([
-      issue({ count: '7' }),
-      issue({ count: '13' }),
-    ]);
-
-    const signals = await collectSentrySignals({
-      config: CONFIG,
-      now: NOW,
-      fetchImpl,
-    });
+    const signals = await collect(
+      fetchReturning([issue({ count: '7' }), issue({ count: '13' })]),
+    );
 
     expect(signals[0]?.evidence['eventCount']).toBe(20);
   });
 
   it('drops an unrecognised issue row and keeps the rest', async () => {
-    const fetchImpl = fetchReturning([issue(), { unexpected: true }]);
-
-    const signals = await collectSentrySignals({
-      config: CONFIG,
-      now: NOW,
-      fetchImpl,
-    });
+    const signals = await collect(
+      fetchReturning([issue(), { unexpected: true }]),
+    );
 
     expect(signals).toHaveLength(1);
     expect(signals[0]?.evidence['issueCount']).toBe(1);
   });
 
   it('emits one healthy signal when nothing is unresolved', async () => {
-    const signals = await collectSentrySignals({
-      config: CONFIG,
-      now: NOW,
-      fetchImpl: fetchReturning([]),
-    });
+    const signals = await collect(fetchReturning([]));
 
     expect(signals).toEqual([
       expect.objectContaining({
@@ -148,11 +122,7 @@ describe('collectSentrySignals', () => {
   });
 
   it('degrades to a source failure on a non-2xx response', async () => {
-    const signals = await collectSentrySignals({
-      config: CONFIG,
-      now: NOW,
-      fetchImpl: fetchReturning({ detail: 'forbidden' }, 403),
-    });
+    const signals = await collect(fetchReturning({ detail: 'forbidden' }, 403));
 
     expect(signals).toHaveLength(1);
     expect(signals[0]?.fingerprint).toBe('sentry:source-failure/adapter');
@@ -161,21 +131,13 @@ describe('collectSentrySignals', () => {
   });
 
   it('degrades to a source failure when the body is not a list', async () => {
-    const signals = await collectSentrySignals({
-      config: CONFIG,
-      now: NOW,
-      fetchImpl: fetchReturning({ detail: 'not a list' }),
-    });
+    const signals = await collect(fetchReturning({ detail: 'not a list' }));
 
     expect(signals[0]?.fingerprint).toBe('sentry:source-failure/adapter');
   });
 
   it('never reports healthy when every row failed to parse', async () => {
-    const signals = await collectSentrySignals({
-      config: CONFIG,
-      now: NOW,
-      fetchImpl: fetchReturning([{ unexpected: true }]),
-    });
+    const signals = await collect(fetchReturning([{ unexpected: true }]));
 
     expect(signals[0]?.fingerprint).toBe('sentry:source-failure/adapter');
     expect(signals[0]?.detail).toContain('unknown shape');

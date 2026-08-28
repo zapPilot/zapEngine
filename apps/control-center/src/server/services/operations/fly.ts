@@ -1,17 +1,16 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
 import { z } from 'zod';
 
 import type { OperationalSignal } from '../../../shared/types.js';
 import {
   buildSignal,
+  collectOrFail,
   errorMessage,
-  sourceFailure,
   unknownSignal,
+  type SignalOrigin,
 } from './signal.js';
+import { runFlyctl } from '../flyctl.js';
 
-const execFileAsync = promisify(execFile);
+const ORIGIN: SignalOrigin = { source: 'fly', domain: 'infra' };
 
 /**
  * Fly stamps `fly_process_group` only on Machines created by a deploy that
@@ -92,43 +91,25 @@ const machineSchema = z.object({
 
 type FlyMachine = z.infer<typeof machineSchema>;
 
+type Flyctl = (args: string[]) => Promise<string>;
+
 export async function collectFlySignals(input: {
   now: Date;
-  run?: (args: string[]) => Promise<string>;
+  run?: Flyctl;
 }): Promise<OperationalSignal[]> {
   const run = input.run ?? runFlyctl;
-  try {
-    const listed = parseRows(await run(['apps', 'list', '--json']), appSchema);
-    const present = new Set(listed.map((app) => app.Name));
-    const perApp = await Promise.all(
-      EXPECTED_APPS.map(async (expected) => {
-        if (!present.has(expected.name)) {
-          return [missingAppSignal(expected.name, input.now)];
-        }
-        const machines = parseRows(
-          await run(['machine', 'list', '--app', expected.name, '--json']),
-          machineSchema,
-        );
-        if (typeof expected.lifecycle === 'string') {
-          return [
-            appSignal(expected.name, expected.lifecycle, machines, input.now),
-          ];
-        }
-        return processGroupSignals(
-          expected.name,
-          expected.lifecycle,
-          machines,
-          input.now,
-        );
-      }),
-    );
-    return perApp.flat();
-  } catch (error) {
-    if (isFlyctlMissing(error)) {
+  return collectOrFail(ORIGIN, input.now, async () => {
+    try {
+      return await readFleet(run, input.now);
+    } catch (error) {
+      // Classified here rather than left to `collectOrFail`, because a host
+      // without flyctl has to end up unknown instead of degraded.
+      if (!isFlyctlMissing(error)) {
+        throw error;
+      }
       return [
         unknownSignal({
-          source: 'fly',
-          domain: 'infra',
+          ...ORIGIN,
           key: 'flyctl',
           title: 'Fly Machine health unavailable',
           detail:
@@ -137,15 +118,33 @@ export async function collectFlySignals(input: {
         }),
       ];
     }
-    return [
-      sourceFailure({
-        source: 'fly',
-        domain: 'infra',
-        error,
-        observedAt: input.now,
-      }),
-    ];
-  }
+  });
+}
+
+async function readFleet(run: Flyctl, now: Date): Promise<OperationalSignal[]> {
+  const listed = parseRows(await run(['apps', 'list', '--json']), appSchema);
+  const present = new Set(listed.map((app) => app.Name));
+  const perApp = await Promise.all(
+    EXPECTED_APPS.map(async (expected) => {
+      if (!present.has(expected.name)) {
+        return [missingAppSignal(expected.name, now)];
+      }
+      const machines = parseRows(
+        await run(['machine', 'list', '--app', expected.name, '--json']),
+        machineSchema,
+      );
+      if (typeof expected.lifecycle === 'string') {
+        return [appSignal(expected.name, expected.lifecycle, machines, now)];
+      }
+      return processGroupSignals(
+        expected.name,
+        expected.lifecycle,
+        machines,
+        now,
+      );
+    }),
+  );
+  return perApp.flat();
 }
 
 function appSignal(
@@ -156,8 +155,7 @@ function appSignal(
 ): OperationalSignal {
   const verdict = judgeFleet(lifecycle, machines);
   return buildSignal({
-    source: 'fly',
-    domain: 'infra',
+    ...ORIGIN,
     kind: 'app',
     key: app,
     status: verdict.status,
@@ -187,8 +185,7 @@ function processGroupSignals(
     // a new scale-to-zero one, and guessing the lenient way would hide it.
     const verdict = judgeFleet(lifecycles[group] ?? 'always-on', rows);
     return buildSignal({
-      source: 'fly',
-      domain: 'infra',
+      ...ORIGIN,
       kind: 'process-group',
       key: `${app}/${group}`,
       status: verdict.status,
@@ -254,8 +251,7 @@ function judgeFleet(
 
 function missingAppSignal(app: string, now: Date): OperationalSignal {
   return buildSignal({
-    source: 'fly',
-    domain: 'infra',
+    ...ORIGIN,
     kind: 'app',
     key: app,
     status: 'critical',
@@ -315,14 +311,6 @@ function isFlyctlMissing(error: unknown): boolean {
     return true;
   }
   return errorMessage(error).includes('command not found');
-}
-
-async function runFlyctl(args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync('flyctl', args, {
-    timeout: 20_000,
-    maxBuffer: 10 * 1024 * 1024,
-  });
-  return stdout;
 }
 
 function parseRows<T>(stdout: string, schema: z.ZodType<T>): T[] {

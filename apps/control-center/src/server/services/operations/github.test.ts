@@ -4,7 +4,10 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { readControlCenterConfig } from '../../config/env.js';
+import {
+  readControlCenterConfig,
+  type ControlCenterConfig,
+} from '../../config/env.js';
 import { collectGithubSignals } from './github.js';
 
 const NOW = new Date('2026-08-28T12:00:00.000Z');
@@ -34,6 +37,14 @@ function completedRun(input: {
 
 function runsResponse(runs: readonly unknown[]): Response {
   return new Response(JSON.stringify({ workflow_runs: runs }), { status: 200 });
+}
+
+/**
+ * The same run history for whichever workflow is asked about. A fresh
+ * `Response` per call because a body can only be read once.
+ */
+function everyWorkflowRuns(...runs: readonly unknown[]): () => Response {
+  return () => runsResponse(runs);
 }
 
 /**
@@ -83,14 +94,32 @@ function recordingFetch(respond: (file: string) => Response): {
   return { fetchImpl, calls };
 }
 
+/**
+ * One adapter run against a scratch repository. An absent `repoRoot` is the
+ * real thing rather than a default fixture: that is how the workspace-root
+ * walk gets exercised.
+ */
+async function collect(input: {
+  repoRoot?: string;
+  config?: ControlCenterConfig;
+  respond?: (file: string) => Response;
+}) {
+  const { fetchImpl, calls } = recordingFetch(
+    input.respond ?? everyWorkflowRuns(),
+  );
+  const signals = await collectGithubSignals({
+    config: input.config ?? CONFIGURED,
+    now: NOW,
+    fetchImpl,
+    repoRoot: input.repoRoot,
+  });
+  return { signals, calls };
+}
+
 describe('collectGithubSignals', () => {
   it('reports unknown and sends nothing without a token', async () => {
-    const { fetchImpl, calls } = recordingFetch(() => runsResponse([]));
-
-    const signals = await collectGithubSignals({
+    const { signals, calls } = await collect({
       config: readControlCenterConfig({}),
-      now: NOW,
-      fetchImpl,
       repoRoot: await repoWith(['env-drift']),
     });
 
@@ -101,17 +130,11 @@ describe('collectGithubSignals', () => {
   });
 
   it('reports a healthy signal per scheduled workflow', async () => {
-    const { fetchImpl, calls } = recordingFetch(() =>
-      runsResponse([
-        completedRun({ conclusion: 'success', startedAt: hoursAgo(2) }),
-      ]),
-    );
-
-    const signals = await collectGithubSignals({
-      config: CONFIGURED,
-      now: NOW,
-      fetchImpl,
+    const { signals, calls } = await collect({
       repoRoot: await repoWith(['backtest-refresh', 'env-drift']),
+      respond: everyWorkflowRuns(
+        completedRun({ conclusion: 'success', startedAt: hoursAgo(2) }),
+      ),
     });
 
     expect(calls.map((call) => call.url)).toEqual([
@@ -140,19 +163,13 @@ describe('collectGithubSignals', () => {
   });
 
   it('escalates to critical when the two newest runs failed', async () => {
-    const { fetchImpl } = recordingFetch(() =>
-      runsResponse([
+    const { signals } = await collect({
+      repoRoot: await repoWith(['ops-cost-sync']),
+      respond: everyWorkflowRuns(
         completedRun({ conclusion: 'failure', startedAt: hoursAgo(2) }),
         completedRun({ conclusion: 'timed_out', startedAt: hoursAgo(26) }),
         completedRun({ conclusion: 'success', startedAt: hoursAgo(50) }),
-      ]),
-    );
-
-    const signals = await collectGithubSignals({
-      config: CONFIGURED,
-      now: NOW,
-      fetchImpl,
-      repoRoot: await repoWith(['ops-cost-sync']),
+      ),
     });
 
     expect(signals[0]?.status).toBe('critical');
@@ -161,8 +178,9 @@ describe('collectGithubSignals', () => {
   });
 
   it('degrades a first failure and sorts runs newest-first itself', async () => {
-    const { fetchImpl } = recordingFetch(() =>
-      runsResponse([
+    const { signals } = await collect({
+      repoRoot: await repoWith(['env-drift']),
+      respond: everyWorkflowRuns(
         completedRun({ conclusion: 'success', startedAt: hoursAgo(26) }),
         {
           status: 'completed',
@@ -171,14 +189,7 @@ describe('collectGithubSignals', () => {
         },
         { status: 'in_progress', conclusion: null, created_at: hoursAgo(0) },
         completedRun({ conclusion: 'failure', startedAt: hoursAgo(1) }),
-      ]),
-    );
-
-    const signals = await collectGithubSignals({
-      config: CONFIGURED,
-      now: NOW,
-      fetchImpl,
-      repoRoot: await repoWith(['env-drift']),
+      ),
     });
 
     expect(signals[0]?.status).toBe('degraded');
@@ -190,17 +201,11 @@ describe('collectGithubSignals', () => {
   });
 
   it('degrades a workflow whose newest run predates the 48h window', async () => {
-    const { fetchImpl } = recordingFetch(() =>
-      runsResponse([
-        completedRun({ conclusion: 'success', startedAt: hoursAgo(60) }),
-      ]),
-    );
-
-    const signals = await collectGithubSignals({
-      config: CONFIGURED,
-      now: NOW,
-      fetchImpl,
+    const { signals } = await collect({
       repoRoot: await repoWith(['track-record-snapshot']),
+      respond: everyWorkflowRuns(
+        completedRun({ conclusion: 'success', startedAt: hoursAgo(60) }),
+      ),
     });
 
     expect(signals[0]?.status).toBe('degraded');
@@ -208,17 +213,13 @@ describe('collectGithubSignals', () => {
   });
 
   it('degrades a workflow with no completed run at all', async () => {
-    const { fetchImpl } = recordingFetch(() =>
-      runsResponse([
-        { status: 'queued', conclusion: null, created_at: hoursAgo(1) },
-      ]),
-    );
-
-    const signals = await collectGithubSignals({
-      config: CONFIGURED,
-      now: NOW,
-      fetchImpl,
+    const { signals } = await collect({
       repoRoot: await repoWith(['env-drift']),
+      respond: everyWorkflowRuns({
+        status: 'queued',
+        conclusion: null,
+        created_at: hoursAgo(1),
+      }),
     });
 
     expect(signals[0]?.status).toBe('degraded');
@@ -231,27 +232,23 @@ describe('collectGithubSignals', () => {
   });
 
   it('keeps the other workflows when single requests fail', async () => {
-    const { fetchImpl } = recordingFetch((file) => {
-      if (file === 'backtest-refresh.yml') {
-        return new Response('', { status: 404 });
-      }
-      if (file === 'env-drift.yml') {
-        return new Response('<html>gateway</html>', { status: 200 });
-      }
-      return runsResponse([
-        completedRun({ conclusion: 'success', startedAt: hoursAgo(3) }),
-      ]);
-    });
-
-    const signals = await collectGithubSignals({
-      config: CONFIGURED,
-      now: NOW,
-      fetchImpl,
+    const { signals } = await collect({
       repoRoot: await repoWith([
         'backtest-refresh',
         'env-drift',
         'ops-cost-sync',
       ]),
+      respond: (file) => {
+        if (file === 'backtest-refresh.yml') {
+          return new Response('', { status: 404 });
+        }
+        if (file === 'env-drift.yml') {
+          return new Response('<html>gateway</html>', { status: 200 });
+        }
+        return runsResponse([
+          completedRun({ conclusion: 'success', startedAt: hoursAgo(3) }),
+        ]);
+      },
     });
 
     expect(signals.map((signal) => signal.status)).toEqual([
@@ -260,7 +257,7 @@ describe('collectGithubSignals', () => {
       'healthy',
     ]);
     expect(signals[0]?.detail).toBe(
-      'GitHub returned 404 for backtest-refresh.yml',
+      'GitHub run history for backtest-refresh.yml failed (404)',
     );
     expect(signals[0]?.fingerprint).toBe(
       'github-actions:workflow/backtest-refresh.yml',
@@ -269,15 +266,9 @@ describe('collectGithubSignals', () => {
   });
 
   it('collapses to one source failure when every request fails', async () => {
-    const { fetchImpl } = recordingFetch(
-      () => new Response('', { status: 401 }),
-    );
-
-    const signals = await collectGithubSignals({
-      config: CONFIGURED,
-      now: NOW,
-      fetchImpl,
+    const { signals } = await collect({
       repoRoot: await repoWith(['backtest-refresh', 'env-drift']),
+      respond: () => new Response('', { status: 401 }),
     });
 
     expect(signals).toHaveLength(1);
@@ -286,16 +277,13 @@ describe('collectGithubSignals', () => {
     );
     expect(signals[0]?.status).toBe('degraded');
     expect(signals[0]?.detail).toContain('any of 2 scheduled workflows');
-    expect(signals[0]?.detail).toContain('GitHub returned 401');
+    expect(signals[0]?.detail).toContain(
+      'GitHub run history for backtest-refresh.yml failed (401)',
+    );
   });
 
   it('reports a source failure when schedules.json is unreadable', async () => {
-    const { fetchImpl, calls } = recordingFetch(() => runsResponse([]));
-
-    const signals = await collectGithubSignals({
-      config: CONFIGURED,
-      now: NOW,
-      fetchImpl,
+    const { signals, calls } = await collect({
       repoRoot: await mkdtemp(join(tmpdir(), 'cc-github-empty-')),
     });
 
@@ -307,30 +295,17 @@ describe('collectGithubSignals', () => {
   });
 
   it('reports a source failure when no workflow entries survive', async () => {
-    const { fetchImpl } = recordingFetch(() => runsResponse([]));
-
-    const signals = await collectGithubSignals({
-      config: CONFIGURED,
-      now: NOW,
-      fetchImpl,
-      repoRoot: await repoWith([]),
-    });
+    const { signals } = await collect({ repoRoot: await repoWith([]) });
 
     expect(signals).toHaveLength(1);
     expect(signals[0]?.detail).toContain('lists no github-actions workflows');
   });
 
   it('finds the workspace root when no repoRoot is passed', async () => {
-    const { fetchImpl, calls } = recordingFetch(() =>
-      runsResponse([
+    const { signals, calls } = await collect({
+      respond: everyWorkflowRuns(
         completedRun({ conclusion: 'success', startedAt: hoursAgo(4) }),
-      ]),
-    );
-
-    const signals = await collectGithubSignals({
-      config: CONFIGURED,
-      now: NOW,
-      fetchImpl,
+      ),
     });
 
     expect(calls.length).toBeGreaterThan(0);

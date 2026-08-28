@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { readControlCenterConfig } from '../../config/env.js';
+import { expectUnconfigured, fetchReturning } from './adapter-testing.js';
 import { collectPosthogSignals } from './posthog.js';
 
 const NOW = new Date('2026-08-28T09:00:00.000Z');
@@ -12,39 +13,27 @@ const CONFIG = readControlCenterConfig({
 
 const QUERY_URL = 'https://us.i.posthog.com/api/projects/4242/query/';
 
-function fetchReturning(body: unknown, status = 200) {
-  return vi.fn<typeof fetch>(
-    async () => new Response(JSON.stringify(body), { status }),
-  );
+function collect(fetchImpl: typeof fetch) {
+  return collectPosthogSignals({ config: CONFIG, now: NOW, fetchImpl });
 }
 
 describe('collectPosthogSignals', () => {
   it.each([
     ['the personal API key is absent', { POSTHOG_PROJECT_ID: '4242' }],
     ['the project id is absent', { POSTHOG_PERSONAL_API_KEY: 'phx-key' }],
-  ])('reports unknown without a request when %s', async (_case, env) => {
-    const fetchImpl = vi.fn<typeof fetch>();
-
-    const signals = await collectPosthogSignals({
-      config: readControlCenterConfig(env),
-      now: NOW,
-      fetchImpl,
-    });
-
-    expect(fetchImpl).not.toHaveBeenCalled();
-    expect(signals).toHaveLength(1);
-    expect(signals[0]?.status).toBe('unknown');
-    expect(signals[0]?.fingerprint).toBe('posthog:unconfigured/credentials');
-  });
+  ])('reports unknown without a request when %s', async (_case, env) =>
+    expectUnconfigured({
+      env,
+      fingerprint: 'posthog:unconfigured/credentials',
+      collect: (config, fetchImpl) =>
+        collectPosthogSignals({ config, now: NOW, fetchImpl }),
+    }),
+  );
 
   it('reports one healthy audience signal from the HogQL row', async () => {
     const fetchImpl = fetchReturning({ results: [[318, 1204]] });
 
-    const signals = await collectPosthogSignals({
-      config: CONFIG,
-      now: NOW,
-      fetchImpl,
-    });
+    const signals = await collect(fetchImpl);
 
     const init = fetchImpl.mock.calls[0]?.[1];
     expect(fetchImpl.mock.calls[0]?.[0]).toBe(QUERY_URL);
@@ -70,11 +59,9 @@ describe('collectPosthogSignals', () => {
   });
 
   it('coerces HogQL numerics that arrive as strings', async () => {
-    const signals = await collectPosthogSignals({
-      config: CONFIG,
-      now: NOW,
-      fetchImpl: fetchReturning({ results: [['318', '1204']] }),
-    });
+    const signals = await collect(
+      fetchReturning({ results: [['318', '1204']] }),
+    );
 
     expect(signals[0]?.evidence).toEqual({
       uniqueUsers7d: 318,
@@ -88,11 +75,7 @@ describe('collectPosthogSignals', () => {
     ['an empty result set', { results: [] }, 200],
     ['a row with unusable columns', { results: [['a', 'b']] }, 200],
   ])('degrades but never escalates on %s', async (_case, body, status) => {
-    const signals = await collectPosthogSignals({
-      config: CONFIG,
-      now: NOW,
-      fetchImpl: fetchReturning(body, status),
-    });
+    const signals = await collect(fetchReturning(body, status));
 
     expect(signals).toHaveLength(1);
     expect(signals[0]?.fingerprint).toBe('posthog:source-failure/adapter');

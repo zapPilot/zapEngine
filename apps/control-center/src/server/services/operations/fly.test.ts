@@ -26,17 +26,41 @@ function machine(state: string, region: string, group?: string) {
   };
 }
 
-function flyctl(fixture: {
-  apps: unknown[];
-  machines?: Record<string, unknown[]>;
-}): (args: string[]) => Promise<string> {
+const HEALTHY_MACHINES: Record<string, unknown[]> = {
+  'account-engine': [machine('started', 'iad')],
+  'alpha-etl': [machine('started', 'iad')],
+  'analytics-engine-xws3ra': [machine('started', 'iad')],
+  'from-fed-to-chain-api': [
+    machine('started', 'iad', 'app'),
+    machine('stopped', 'ord'),
+    machine('stopped', 'iad', 'render'),
+    machine('stopped', 'iad', 'render'),
+  ],
+};
+
+/**
+ * A flyctl stand-in over the healthy fleet with only the rows a case is about
+ * replaced. Every deviation here is a single app or a single listing entry, so
+ * restating the whole fixture would bury the one line that carries the test.
+ */
+function fleet(
+  overrides: { apps?: unknown[]; machines?: Record<string, unknown[]> } = {},
+): (args: string[]) => Promise<string> {
+  const apps = overrides.apps ?? ALL_APPS;
+  const machines = { ...HEALTHY_MACHINES, ...overrides.machines };
   return (args) => {
     if (args[0] === 'apps') {
-      return Promise.resolve(JSON.stringify(fixture.apps));
+      return Promise.resolve(JSON.stringify(apps));
     }
     const app = args[args.indexOf('--app') + 1] ?? '';
-    return Promise.resolve(JSON.stringify(fixture.machines?.[app] ?? []));
+    return Promise.resolve(JSON.stringify(machines[app] ?? []));
   };
+}
+
+function collect(
+  run: (args: string[]) => Promise<string>,
+): Promise<OperationalSignal[]> {
+  return collectFlySignals({ now: NOW, run });
 }
 
 function find(
@@ -50,27 +74,9 @@ function find(
   return found;
 }
 
-const HEALTHY_FLEET = {
-  apps: ALL_APPS,
-  machines: {
-    'account-engine': [machine('started', 'iad')],
-    'alpha-etl': [machine('started', 'iad')],
-    'analytics-engine-xws3ra': [machine('started', 'iad')],
-    'from-fed-to-chain-api': [
-      machine('started', 'iad', 'app'),
-      machine('stopped', 'ord'),
-      machine('stopped', 'iad', 'render'),
-      machine('stopped', 'iad', 'render'),
-    ],
-  },
-};
-
 describe('collectFlySignals', () => {
   it('reports one signal per expected app, split by process group', async () => {
-    const signals = await collectFlySignals({
-      now: NOW,
-      run: flyctl(HEALTHY_FLEET),
-    });
+    const signals = await collect(fleet());
 
     expect(signals.map((signal) => signal.fingerprint)).toEqual([
       'fly:app/account-engine',
@@ -85,10 +91,7 @@ describe('collectFlySignals', () => {
   });
 
   it('counts a Machine without process-group metadata in the default group', async () => {
-    const signals = await collectFlySignals({
-      now: NOW,
-      run: flyctl(HEALTHY_FLEET),
-    });
+    const signals = await collect(fleet());
 
     expect(
       find(signals, 'fly:process-group/from-fed-to-chain-api/app').evidence,
@@ -100,10 +103,7 @@ describe('collectFlySignals', () => {
   });
 
   it('keeps a fully stopped render fleet healthy', async () => {
-    const signals = await collectFlySignals({
-      now: NOW,
-      run: flyctl(HEALTHY_FLEET),
-    });
+    const signals = await collect(fleet());
 
     const render = find(
       signals,
@@ -118,16 +118,13 @@ describe('collectFlySignals', () => {
   });
 
   it('reports a render group scaled to zero without calling it an outage', async () => {
-    const signals = await collectFlySignals({
-      now: NOW,
-      run: flyctl({
-        apps: ALL_APPS,
+    const signals = await collect(
+      fleet({
         machines: {
-          ...HEALTHY_FLEET.machines,
           'from-fed-to-chain-api': [machine('started', 'iad', 'app')],
         },
       }),
-    });
+    );
 
     const render = find(
       signals,
@@ -144,19 +141,16 @@ describe('collectFlySignals', () => {
   });
 
   it('flags a stopped app group even while render Machines run', async () => {
-    const signals = await collectFlySignals({
-      now: NOW,
-      run: flyctl({
-        apps: ALL_APPS,
+    const signals = await collect(
+      fleet({
         machines: {
-          ...HEALTHY_FLEET.machines,
           'from-fed-to-chain-api': [
             machine('stopped', 'iad', 'app'),
             machine('started', 'iad', 'render'),
           ],
         },
       }),
-    });
+    );
 
     const api = find(signals, 'fly:process-group/from-fed-to-chain-api/app');
     expect(api.status).toBe('critical');
@@ -167,19 +161,16 @@ describe('collectFlySignals', () => {
   });
 
   it('scores an undeclared process group like any other service', async () => {
-    const signals = await collectFlySignals({
-      now: NOW,
-      run: flyctl({
-        apps: ALL_APPS,
+    const signals = await collect(
+      fleet({
         machines: {
-          ...HEALTHY_FLEET.machines,
           'from-fed-to-chain-api': [
             machine('started', 'iad', 'app'),
             machine('stopped', 'iad', 'worker'),
           ],
         },
       }),
-    });
+    );
 
     expect(
       find(signals, 'fly:process-group/from-fed-to-chain-api/worker').status,
@@ -187,16 +178,13 @@ describe('collectFlySignals', () => {
   });
 
   it('keeps a scale-to-zero app healthy while every Machine is stopped', async () => {
-    const signals = await collectFlySignals({
-      now: NOW,
-      run: flyctl({
-        apps: ALL_APPS,
+    const signals = await collect(
+      fleet({
         machines: {
-          ...HEALTHY_FLEET.machines,
           'alpha-etl': [machine('stopped', 'iad'), machine('suspended', 'ord')],
         },
       }),
-    });
+    );
 
     // Fly Proxy stops these apps when idle and starts them on the next
     // request. Scoring them on started count made the page permanently
@@ -213,13 +201,7 @@ describe('collectFlySignals', () => {
   });
 
   it('flags a scale-to-zero app with nothing left to start', async () => {
-    const signals = await collectFlySignals({
-      now: NOW,
-      run: flyctl({
-        apps: ALL_APPS,
-        machines: { ...HEALTHY_FLEET.machines, 'alpha-etl': [] },
-      }),
-    });
+    const signals = await collect(fleet({ machines: { 'alpha-etl': [] } }));
 
     const etl = find(signals, 'fly:app/alpha-etl');
     expect(etl.status).toBe('critical');
@@ -227,13 +209,9 @@ describe('collectFlySignals', () => {
   });
 
   it('flags an expected app that flyctl no longer lists', async () => {
-    const signals = await collectFlySignals({
-      now: NOW,
-      run: flyctl({
-        apps: ALL_APPS.filter((app) => app.Name !== 'account-engine'),
-        machines: HEALTHY_FLEET.machines,
-      }),
-    });
+    const signals = await collect(
+      fleet({ apps: ALL_APPS.filter((app) => app.Name !== 'account-engine') }),
+    );
 
     const missing = find(signals, 'fly:app/account-engine');
     expect(missing.status).toBe('critical');
@@ -245,16 +223,14 @@ describe('collectFlySignals', () => {
   });
 
   it('drops unreadable rows instead of the whole response', async () => {
-    const signals = await collectFlySignals({
-      now: NOW,
-      run: flyctl({
+    const signals = await collect(
+      fleet({
         apps: [...ALL_APPS, { Status: 'deployed' }],
         machines: {
-          ...HEALTHY_FLEET.machines,
           'alpha-etl': [machine('started', 'iad'), { region: 'ord' }],
         },
       }),
-    });
+    );
 
     const etl = find(signals, 'fly:app/alpha-etl');
     expect(etl.status).toBe('healthy');
@@ -269,10 +245,7 @@ describe('collectFlySignals', () => {
     const enoent = Object.assign(new Error('spawn flyctl ENOENT'), {
       code: 'ENOENT',
     });
-    const signals = await collectFlySignals({
-      now: NOW,
-      run: () => Promise.reject(enoent),
-    });
+    const signals = await collect(() => Promise.reject(enoent));
 
     expect(signals).toHaveLength(1);
     expect(signals[0]?.status).toBe('unknown');
@@ -280,19 +253,17 @@ describe('collectFlySignals', () => {
   });
 
   it('treats a shell "command not found" as flyctl being absent', async () => {
-    const signals = await collectFlySignals({
-      now: NOW,
-      run: () => Promise.reject(new Error('flyctl: command not found')),
-    });
+    const signals = await collect(() =>
+      Promise.reject(new Error('flyctl: command not found')),
+    );
 
     expect(signals[0]?.status).toBe('unknown');
   });
 
   it('degrades when flyctl fails for any other reason', async () => {
-    const signals = await collectFlySignals({
-      now: NOW,
-      run: () => Promise.reject(new Error('Error: no access token available')),
-    });
+    const signals = await collect(() =>
+      Promise.reject(new Error('Error: no access token available')),
+    );
 
     expect(signals).toHaveLength(1);
     expect(signals[0]?.status).toBe('degraded');
@@ -301,19 +272,15 @@ describe('collectFlySignals', () => {
   });
 
   it('degrades when flyctl emits output that is not JSON', async () => {
-    const signals = await collectFlySignals({
-      now: NOW,
-      run: () => Promise.resolve('Update available 0.3.0 -> 0.3.1'),
-    });
+    const signals = await collect(() =>
+      Promise.resolve('Update available 0.3.0 -> 0.3.1'),
+    );
 
     expect(signals[0]?.status).toBe('degraded');
   });
 
   it('degrades when flyctl returns JSON that is not an array', async () => {
-    const signals = await collectFlySignals({
-      now: NOW,
-      run: () => Promise.resolve('{"apps":[]}'),
-    });
+    const signals = await collect(() => Promise.resolve('{"apps":[]}'));
 
     expect(signals[0]?.detail).toBe(
       'flyctl returned JSON that is not an array',

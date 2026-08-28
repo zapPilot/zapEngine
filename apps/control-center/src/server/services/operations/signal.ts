@@ -125,6 +125,33 @@ export function sourceFailure(input: {
   });
 }
 
+export interface SignalOrigin {
+  source: OperationsSource;
+  domain: OperationsDomain;
+}
+
+/**
+ * Run one adapter's body under its no-throw contract.
+ *
+ * Every adapter owes the aggregator a list of signals, never an exception: a
+ * status page that 500s because one integration misbehaved is down exactly
+ * when it is needed. Each adapter used to spell that guarantee out itself,
+ * which meant the guarantee was only as good as the last one written. Here it
+ * is one call, and an adapter that forgets it does not compile into the
+ * pattern at all.
+ */
+export async function collectOrFail(
+  origin: SignalOrigin,
+  now: Date,
+  collect: () => Promise<OperationalSignal[]>,
+): Promise<OperationalSignal[]> {
+  try {
+    return await collect();
+  } catch (error) {
+    return [sourceFailure({ ...origin, error, observedAt: now })];
+  }
+}
+
 export function errorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;

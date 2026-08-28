@@ -26,6 +26,24 @@ function snapshot(fetchedAt: string): CostSnapshot {
   };
 }
 
+/**
+ * A healthy Supabase row, which every case here varies rather than restates:
+ * what each test is about is the one field it overrides.
+ */
+function provider(
+  overrides: Partial<CostProviderResult> = {},
+): CostProviderResult {
+  return {
+    provider: 'supabase',
+    label: 'Supabase',
+    status: 'ok',
+    costType: 'fixed',
+    message: null,
+    snapshot: null,
+    ...overrides,
+  };
+}
+
 function repositoryWith(
   loadLatestProviders: CostRepository['loadLatestProviders'],
 ): CostRepository {
@@ -37,6 +55,14 @@ function repositoryWith(
     insertTransaction: vi.fn(),
     upsertManualSnapshot: vi.fn(),
   };
+}
+
+function signalsFor(providers: CostProviderResult[]) {
+  return collectCostSignals({
+    config,
+    now,
+    repository: repositoryWith(vi.fn().mockResolvedValue(providers)),
+  });
 }
 
 describe('collectCostSignals', () => {
@@ -52,30 +78,16 @@ describe('collectCostSignals', () => {
   });
 
   it('emits one signal per provider plus a fresh ledger age', async () => {
-    const providers: CostProviderResult[] = [
-      {
-        provider: 'supabase',
-        label: 'Supabase',
-        status: 'ok',
-        costType: 'fixed',
-        message: null,
-        snapshot: snapshot('2026-08-28T06:00:00.000Z'),
-      },
-      {
+    const signals = await signalsFor([
+      provider({ snapshot: snapshot('2026-08-28T06:00:00.000Z') }),
+      provider({
         provider: 'debank',
         label: 'DeBank',
         status: 'error',
         costType: 'list-price-equivalent',
         message: 'DeBank responded 502',
-        snapshot: null,
-      },
-    ];
-
-    const signals = await collectCostSignals({
-      config,
-      now,
-      repository: repositoryWith(vi.fn().mockResolvedValue(providers)),
-    });
+      }),
+    ]);
 
     expect(
       signals.map((signal) => [signal.fingerprint, signal.status]),
@@ -99,22 +111,9 @@ describe('collectCostSignals', () => {
   });
 
   it('degrades the ledger age once the nightly sync stops landing', async () => {
-    const signals = await collectCostSignals({
-      config,
-      now,
-      repository: repositoryWith(
-        vi.fn().mockResolvedValue([
-          {
-            provider: 'supabase',
-            label: 'Supabase',
-            status: 'ok',
-            costType: 'fixed',
-            message: null,
-            snapshot: snapshot('2026-08-25T12:00:00.000Z'),
-          },
-        ] satisfies CostProviderResult[]),
-      ),
-    });
+    const signals = await signalsFor([
+      provider({ snapshot: snapshot('2026-08-25T12:00:00.000Z') }),
+    ]);
 
     expect(signals[1]?.status).toBe('degraded');
     expect(signals[1]?.evidence).toEqual({ staleHours: 72 });
@@ -122,22 +121,15 @@ describe('collectCostSignals', () => {
   });
 
   it('degrades the ledger age when nothing was ever persisted', async () => {
-    const signals = await collectCostSignals({
-      config,
-      now,
-      repository: repositoryWith(
-        vi.fn().mockResolvedValue([
-          {
-            provider: 'fly',
-            label: 'Fly.io',
-            status: 'unconfigured',
-            costType: 'estimated',
-            message: 'FLY_COST_MODE=manual',
-            snapshot: null,
-          },
-        ] satisfies CostProviderResult[]),
-      ),
-    });
+    const signals = await signalsFor([
+      provider({
+        provider: 'fly',
+        label: 'Fly.io',
+        status: 'unconfigured',
+        costType: 'estimated',
+        message: 'FLY_COST_MODE=manual',
+      }),
+    ]);
 
     expect(signals[0]?.status).toBe('unknown');
     expect(signals[1]?.status).toBe('degraded');

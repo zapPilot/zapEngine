@@ -7,6 +7,7 @@ import type {
   SocialPlatformPerformance,
 } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
+import { sumKnown } from './numbers.js';
 
 type SocialWindow = SocialPerformanceResponse['window'];
 
@@ -420,9 +421,4 @@ function median(values: number[]): number {
   return sorted.length % 2
     ? (sorted[middle] ?? 0)
     : ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2;
-}
-
-function sumKnown(values: Array<number | null>): number | null {
-  const known = values.filter((value): value is number => value !== null);
-  return known.length ? known.reduce((sum, value) => sum + value, 0) : null;
 }

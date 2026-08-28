@@ -9,13 +9,13 @@ import {
 } from '../cost-repository.js';
 import {
   buildSignal,
+  collectOrFail,
   fromProviderStatus,
-  sourceFailure,
   unknownSignal,
+  type SignalOrigin,
 } from './signal.js';
 
-const SOURCE = 'cost-ledger';
-const DOMAIN = 'costs';
+const ORIGIN: SignalOrigin = { source: 'cost-ledger', domain: 'costs' };
 const HOUR_MS = 3_600_000;
 const SNAPSHOT_MAX_AGE_MS = 48 * HOUR_MS;
 
@@ -28,8 +28,7 @@ export async function collectCostSignals(input: {
   if (!repository) {
     return [
       unknownSignal({
-        source: SOURCE,
-        domain: DOMAIN,
+        ...ORIGIN,
         key: 'supabase',
         title: 'Cost ledger not configured',
         detail:
@@ -39,40 +38,28 @@ export async function collectCostSignals(input: {
     ];
   }
 
-  let providers: CostProviderResult[];
-  try {
-    providers = await repository.loadLatestProviders();
-  } catch (error) {
+  return collectOrFail(ORIGIN, input.now, async () => {
+    const providers = await repository.loadLatestProviders();
     return [
-      sourceFailure({
-        source: SOURCE,
-        domain: DOMAIN,
-        error,
-        observedAt: input.now,
-      }),
+      ...providers.map((result) =>
+        buildSignal({
+          ...ORIGIN,
+          kind: 'provider',
+          key: result.provider,
+          status: fromProviderStatus(result.status),
+          title: `${result.label} cost collection`,
+          detail: result.message,
+          evidence: {
+            accruedCostUsd: result.snapshot?.accruedCostUsd ?? null,
+            projectedCostUsd: result.snapshot?.projectedCostUsd ?? null,
+            costType: result.costType,
+          },
+          observedAt: input.now,
+        }),
+      ),
+      snapshotAgeSignal(providers, input.now),
     ];
-  }
-
-  return [
-    ...providers.map((result) =>
-      buildSignal({
-        source: SOURCE,
-        domain: DOMAIN,
-        kind: 'provider',
-        key: result.provider,
-        status: fromProviderStatus(result.status),
-        title: `${result.label} cost collection`,
-        detail: result.message,
-        evidence: {
-          accruedCostUsd: result.snapshot?.accruedCostUsd ?? null,
-          projectedCostUsd: result.snapshot?.projectedCostUsd ?? null,
-          costType: result.costType,
-        },
-        observedAt: input.now,
-      }),
-    ),
-    snapshotAgeSignal(providers, input.now),
-  ];
+  });
 }
 
 /**
@@ -96,8 +83,7 @@ function snapshotAgeSignal(
   const staleHours = ageMs === null ? null : Math.round(ageMs / HOUR_MS);
 
   return buildSignal({
-    source: SOURCE,
-    domain: DOMAIN,
+    ...ORIGIN,
     kind: 'snapshot-age',
     key: 'ledger',
     status: stale ? 'degraded' : 'healthy',

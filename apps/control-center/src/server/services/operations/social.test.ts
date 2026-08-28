@@ -95,6 +95,19 @@ async function load(tables: Record<string, StubTable>) {
   });
 }
 
+/**
+ * Queue behaviour is read against a live daemon and an empty media backlog, so
+ * only the lanes — and, where the case is about the heartbeat, the daemon row —
+ * are worth spelling out per test.
+ */
+async function loadQueue(jobs: unknown[], daemon: unknown = daemonRow()) {
+  return load({
+    social_publish_jobs: { data: jobs },
+    social_daemon_state: { data: daemon },
+    social_waiting_media: { count: 0 },
+  });
+}
+
 function signal(
   signals: OperationalSignal[],
   fingerprint: string,
@@ -167,15 +180,11 @@ describe('loadOperationsSocial', () => {
   });
 
   it('keeps a job inside the grace window off the overdue list', async () => {
-    const response = await load({
-      social_publish_jobs: {
-        // Due 10 minutes ago: the daemon polls, so this is a lane waiting for
-        // the next tick rather than a late one.
-        data: [jobRow({ next_attempt_at: '2026-08-28T11:50:00.000Z' })],
-      },
-      social_daemon_state: { data: daemonRow() },
-      social_waiting_media: { count: 0 },
-    });
+    // Due 10 minutes ago: the daemon polls, so this is a lane waiting for the
+    // next tick rather than a late one.
+    const response = await loadQueue([
+      jobRow({ next_attempt_at: '2026-08-28T11:50:00.000Z' }),
+    ]);
 
     expect(response.jobs[0]?.overdueMinutes).toBeNull();
     expect(
@@ -185,30 +194,24 @@ describe('loadOperationsSocial', () => {
   });
 
   it('measures overdue from the later of scheduled and next attempt', async () => {
-    const response = await load({
-      social_publish_jobs: {
-        data: [
-          jobRow({
-            episode_id: 'episode-mild',
-            next_attempt_at: '2026-08-28T11:40:00.000Z',
-          }),
-          jobRow({
-            episode_id: 'episode-worst',
-            // The claim gates on both timestamps, so lateness runs from the
-            // later one: nine hours behind schedule is still only an hour
-            // past the point the daemon could have taken it.
-            scheduled_at: '2026-08-28T03:00:00.000Z',
-            next_attempt_at: '2026-08-28T11:00:00.000Z',
-          }),
-          jobRow({
-            episode_id: 'episode-middling',
-            next_attempt_at: '2026-08-28T11:20:00.000Z',
-          }),
-        ],
-      },
-      social_daemon_state: { data: daemonRow() },
-      social_waiting_media: { count: 0 },
-    });
+    const response = await loadQueue([
+      jobRow({
+        episode_id: 'episode-mild',
+        next_attempt_at: '2026-08-28T11:40:00.000Z',
+      }),
+      jobRow({
+        episode_id: 'episode-worst',
+        // The claim gates on both timestamps, so lateness runs from the later
+        // one: nine hours behind schedule is still only an hour past the point
+        // the daemon could have taken it.
+        scheduled_at: '2026-08-28T03:00:00.000Z',
+        next_attempt_at: '2026-08-28T11:00:00.000Z',
+      }),
+      jobRow({
+        episode_id: 'episode-middling',
+        next_attempt_at: '2026-08-28T11:20:00.000Z',
+      }),
+    ]);
 
     expect(response.jobs.map((job) => job.overdueMinutes)).toEqual([
       20, 60, 40,
@@ -229,31 +232,25 @@ describe('loadOperationsSocial', () => {
   });
 
   it('escalates an exhausted lane over every merely late one', async () => {
-    const response = await load({
-      social_publish_jobs: {
-        data: [
-          jobRow({
-            episode_id: 'episode-very-late',
-            next_attempt_at: '2026-08-28T09:00:00.000Z',
-          }),
-          jobRow({
-            episode_id: 'episode-dead',
-            platform: 'x',
-            status: 'failed',
-            // Still inside the grace window, so it is not late at all — but
-            // the claim has already stopped looking at it.
-            next_attempt_at: '2026-08-28T11:58:00.000Z',
-            attempt_count: 8,
-          }),
-          jobRow({
-            episode_id: 'episode-late',
-            next_attempt_at: '2026-08-28T11:20:00.000Z',
-          }),
-        ],
-      },
-      social_daemon_state: { data: daemonRow() },
-      social_waiting_media: { count: 0 },
-    });
+    const response = await loadQueue([
+      jobRow({
+        episode_id: 'episode-very-late',
+        next_attempt_at: '2026-08-28T09:00:00.000Z',
+      }),
+      jobRow({
+        episode_id: 'episode-dead',
+        platform: 'x',
+        status: 'failed',
+        // Still inside the grace window, so it is not late at all — but the
+        // claim has already stopped looking at it.
+        next_attempt_at: '2026-08-28T11:58:00.000Z',
+        attempt_count: 8,
+      }),
+      jobRow({
+        episode_id: 'episode-late',
+        next_attempt_at: '2026-08-28T11:20:00.000Z',
+      }),
+    ]);
 
     expect(response.jobs[1]?.overdueMinutes).toBeNull();
 
@@ -272,16 +269,13 @@ describe('loadOperationsSocial', () => {
   });
 
   it('calls a stale daemon degraded while nothing is overdue yet', async () => {
-    const response = await load({
-      social_publish_jobs: { data: [jobRow()] },
-      social_daemon_state: {
-        data: daemonRow({
-          last_tick_started_at: '2026-08-28T10:30:00.000Z',
-          last_error: 'rednote session expired',
-        }),
-      },
-      social_waiting_media: { count: 0 },
-    });
+    const response = await loadQueue(
+      [jobRow()],
+      daemonRow({
+        last_tick_started_at: '2026-08-28T10:30:00.000Z',
+        last_error: 'rednote session expired',
+      }),
+    );
 
     expect(response.daemon.staleMinutes).toBe(90);
 
@@ -299,15 +293,10 @@ describe('loadOperationsSocial', () => {
   });
 
   it('turns a stale daemon with an overdue lane into a critical signal', async () => {
-    const response = await load({
-      social_publish_jobs: {
-        data: [jobRow({ next_attempt_at: '2026-08-28T10:00:00.000Z' })],
-      },
-      social_daemon_state: {
-        data: daemonRow({ last_tick_started_at: '2026-08-28T10:30:00.000Z' }),
-      },
-      social_waiting_media: { count: 0 },
-    });
+    const response = await loadQueue(
+      [jobRow({ next_attempt_at: '2026-08-28T10:00:00.000Z' })],
+      daemonRow({ last_tick_started_at: '2026-08-28T10:30:00.000Z' }),
+    );
 
     const heartbeat = signal(
       deriveSocialSignals(response, NOW),
@@ -318,18 +307,11 @@ describe('loadOperationsSocial', () => {
   });
 
   it('treats a pre-heartbeat row and a missing row alike as unknown', async () => {
-    const legacy = await load({
-      social_publish_jobs: { data: [] },
-      social_daemon_state: {
-        data: { id: 'local-social-daemon-v1', first_started_at: null },
-      },
-      social_waiting_media: { count: 0 },
+    const legacy = await loadQueue([], {
+      id: 'local-social-daemon-v1',
+      first_started_at: null,
     });
-    const absent = await load({
-      social_publish_jobs: { data: [] },
-      social_daemon_state: { data: null },
-      social_waiting_media: { count: 0 },
-    });
+    const absent = await loadQueue([], null);
 
     expect(legacy.daemon.status).toBe('unknown');
     expect(legacy.daemon.lastTickStartedAt).toBeNull();

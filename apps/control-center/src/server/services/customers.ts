@@ -8,6 +8,7 @@ import type {
   ServiceTier,
 } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
+import { sumKnown } from './numbers.js';
 import {
   buildSignal,
   sourceFailure,
@@ -198,7 +199,7 @@ function wasteSignal(
   now: Date,
 ): OperationalSignal {
   const wasted = response.users.filter(isInactivePriority);
-  const cost = sumKnown(wasted.map((user) => user.attributedCostUsd30d));
+  const cost = sumRounded(wasted.map((user) => user.attributedCostUsd30d));
   return buildSignal({
     source: 'customer-economics',
     domain: 'customers',
@@ -235,7 +236,7 @@ function freshnessSignal(
     )
     .sort((left, right) => (right.aumUsd ?? 0) - (left.aumUsd ?? 0));
   const worst = stale[0];
-  const aumAtRisk = sumKnown(stale.map((user) => user.aumUsd));
+  const aumAtRisk = sumRounded(stale.map((user) => user.aumUsd));
   const status =
     stale.length === 0
       ? 'healthy'
@@ -399,8 +400,8 @@ function summarize(
         user.inactiveDays !== null && user.inactiveDays < ACTIVE_WINDOW_DAYS,
     ).length,
     inactiveButPriority: users.filter(isInactivePriority).length,
-    aumUsd: sumKnown(users.map((user) => user.aumUsd)),
-    attributedCostUsd30d: sumKnown(
+    aumUsd: sumRounded(users.map((user) => user.aumUsd)),
+    attributedCostUsd30d: sumRounded(
       users.map((user) => user.attributedCostUsd30d),
     ),
     revenueUsd: null,
@@ -459,14 +460,14 @@ function elapsedMs(value: string | null, now: Date): number | null {
   return Number.isNaN(parsed) ? null : Math.max(0, now.getTime() - parsed);
 }
 
-function sumKnown(values: Array<number | null>): number | null {
-  const known = values.filter((value): value is number => value !== null);
-  return known.length
-    ? round(
-        known.reduce((sum, value) => sum + value, 0),
-        4,
-      )
-    : null;
+/**
+ * Rounded because every total here is either an allocation or a sum of them,
+ * and floating-point tails would render as `$40.000000000000006` on a page
+ * whose whole point is that the number is an estimate you can reason about.
+ */
+function sumRounded(values: Array<number | null>): number | null {
+  const total = sumKnown(values);
+  return total === null ? null : round(total, 4);
 }
 
 function round(value: number, digits: number): number {

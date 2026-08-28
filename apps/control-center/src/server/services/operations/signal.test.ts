@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildSignal,
+  collectOrFail,
   errorMessage,
   fromProviderStatus,
   sourceFailure,
@@ -125,5 +126,39 @@ describe('errorMessage', () => {
     expect(errorMessage(new Error('nope'))).toBe('nope');
     expect(errorMessage('nope')).toBe('nope');
     expect(errorMessage({ weird: true })).toBe('Unknown error');
+  });
+});
+
+describe('collectOrFail', () => {
+  const origin = { source: 'fly', domain: 'infra' } as const;
+
+  it('passes a successful collection through untouched', async () => {
+    const signals = [
+      buildSignal({
+        ...origin,
+        kind: 'app',
+        key: 'alpha-etl',
+        status: 'healthy',
+        title: 'ok',
+        observedAt: NOW,
+      }),
+    ];
+
+    await expect(collectOrFail(origin, NOW, async () => signals)).resolves.toBe(
+      signals,
+    );
+  });
+
+  it('converts a thrown adapter into one degraded source failure', async () => {
+    const result = await collectOrFail(origin, NOW, async () => {
+      throw new Error('flyctl exploded');
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      status: 'degraded',
+      fingerprint: 'fly:source-failure/adapter',
+      detail: 'flyctl exploded',
+    });
   });
 });

@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
 
+import type { CustomerEconomicsResponse } from '../../shared/types.js';
+
 import { readControlCenterConfig } from '../config/env.js';
 import { deriveCustomerSignals, loadCustomerEconomics } from './customers.js';
 
@@ -104,6 +106,18 @@ const USAGE_ROWS = [
   { user_id: 'user-2', provider: 'debank', request_count: '20' },
   { user_id: 'user-2', provider: 'hyperliquid', request_count: 10 },
 ];
+
+function loadPolicy(policy: QueryResult) {
+  return loadCustomerEconomics({
+    config: CONFIGURED,
+    now: NOW,
+    createSupabaseClient: factory({ policy }),
+  });
+}
+
+function loadRows(rows: unknown[]) {
+  return loadPolicy({ data: rows, error: null });
+}
 
 function loadHappyPath(overrides: Partial<Parameters<typeof factory>[0]> = {}) {
   return loadCustomerEconomics({
@@ -212,12 +226,9 @@ describe('loadCustomerEconomics', () => {
   });
 
   it('reports an error response when the policy function fails', async () => {
-    const response = await loadCustomerEconomics({
-      config: CONFIGURED,
-      now: NOW,
-      createSupabaseClient: factory({
-        policy: { data: null, error: new Error('function does not exist') },
-      }),
+    const response = await loadPolicy({
+      data: null,
+      error: new Error('function does not exist'),
     });
 
     expect(response.status).toBe('error');
@@ -226,32 +237,23 @@ describe('loadCustomerEconomics', () => {
   });
 
   it('treats an override as the effective tier and groups wallets per user', async () => {
-    const response = await loadCustomerEconomics({
-      config: CONFIGURED,
-      now: NOW,
-      createSupabaseClient: factory({
-        policy: {
-          data: [
-            stateRow({
-              override_tier: 'paused',
-              override_reason: 'dormant',
-              override_expires_at: '2026-12-01T00:00:00.000Z',
-              effective_tier: 'paused',
-              refresh_interval_hours: null,
-              last_portfolio_update_at: '2026-08-20T12:00:00.000Z',
-            }),
-            stateRow({
-              wallet: '0x1b',
-              override_tier: 'paused',
-              effective_tier: 'paused',
-              refresh_interval_hours: null,
-              last_portfolio_update_at: '2026-08-28T10:00:00.000Z',
-            }),
-          ],
-          error: null,
-        },
+    const response = await loadRows([
+      stateRow({
+        override_tier: 'paused',
+        override_reason: 'dormant',
+        override_expires_at: '2026-12-01T00:00:00.000Z',
+        effective_tier: 'paused',
+        refresh_interval_hours: null,
+        last_portfolio_update_at: '2026-08-20T12:00:00.000Z',
       }),
-    });
+      stateRow({
+        wallet: '0x1b',
+        override_tier: 'paused',
+        effective_tier: 'paused',
+        refresh_interval_hours: null,
+        last_portfolio_update_at: '2026-08-28T10:00:00.000Z',
+      }),
+    ]);
 
     const [user] = response.users;
     expect(response.users).toHaveLength(1);
@@ -268,50 +270,41 @@ describe('loadCustomerEconomics', () => {
   });
 
   it('drops rows without a user or a wallet', async () => {
-    const response = await loadCustomerEconomics({
-      config: CONFIGURED,
-      now: NOW,
-      createSupabaseClient: factory({
-        policy: {
-          data: [
-            stateRow({ user_id: null }),
-            stateRow({ user_id: 'user-9', wallet: '' }),
-            stateRow({ user_id: 'user-8', wallet: '0x8' }),
-          ],
-          error: null,
-        },
-      }),
-    });
+    const response = await loadRows([
+      stateRow({ user_id: null }),
+      stateRow({ user_id: 'user-9', wallet: '' }),
+      stateRow({ user_id: 'user-8', wallet: '0x8' }),
+    ]);
 
     expect(response.users.map((user) => user.userId)).toEqual(['user-8']);
   });
 });
 
 describe('deriveCustomerSignals', () => {
-  it('emits a single unknown signal when Supabase is absent', async () => {
-    const response = await loadCustomerEconomics({
-      config: readControlCenterConfig({}),
-      now: NOW,
-    });
-
+  function onlySignal(response: CustomerEconomicsResponse) {
     const signals = deriveCustomerSignals(response, NOW);
     expect(signals).toHaveLength(1);
-    expect(signals[0]?.status).toBe('unknown');
+    return signals[0];
+  }
+
+  it('emits a single unknown signal when Supabase is absent', async () => {
+    const signal = onlySignal(
+      await loadCustomerEconomics({
+        config: readControlCenterConfig({}),
+        now: NOW,
+      }),
+    );
+
+    expect(signal?.status).toBe('unknown');
   });
 
   it('emits a source failure when the query failed', async () => {
-    const response = await loadCustomerEconomics({
-      config: CONFIGURED,
-      now: NOW,
-      createSupabaseClient: factory({
-        policy: { data: null, error: new Error('boom') },
-      }),
-    });
+    const signal = onlySignal(
+      await loadPolicy({ data: null, error: new Error('boom') }),
+    );
 
-    const signals = deriveCustomerSignals(response, NOW);
-    expect(signals).toHaveLength(1);
-    expect(signals[0]?.status).toBe('degraded');
-    expect(signals[0]?.fingerprint).toBe(
+    expect(signal?.status).toBe('degraded');
+    expect(signal?.fingerprint).toBe(
       'customer-economics:source-failure/adapter',
     );
   });
@@ -337,13 +330,7 @@ describe('deriveCustomerSignals', () => {
   });
 
   it('stays healthy when every priority account is active and current', async () => {
-    const response = await loadCustomerEconomics({
-      config: CONFIGURED,
-      now: NOW,
-      createSupabaseClient: factory({
-        policy: { data: [stateRow({})], error: null },
-      }),
-    });
+    const response = await loadRows([stateRow({})]);
 
     const signals = deriveCustomerSignals(response, NOW);
     expect(signals.map((signal) => signal.status)).toEqual([
@@ -353,21 +340,12 @@ describe('deriveCustomerSignals', () => {
   });
 
   it('degrades rather than escalates when the stale AUM is small', async () => {
-    const response = await loadCustomerEconomics({
-      config: CONFIGURED,
-      now: NOW,
-      createSupabaseClient: factory({
-        policy: {
-          data: [
-            stateRow({
-              last_portfolio_update_at: '2026-08-24T08:00:00.000Z',
-              aum_usd: 500,
-            }),
-          ],
-          error: null,
-        },
+    const response = await loadRows([
+      stateRow({
+        last_portfolio_update_at: '2026-08-24T08:00:00.000Z',
+        aum_usd: 500,
       }),
-    });
+    ]);
 
     const [, freshness] = deriveCustomerSignals(response, NOW);
     expect(freshness?.status).toBe('degraded');

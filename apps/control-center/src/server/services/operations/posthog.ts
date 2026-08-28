@@ -1,17 +1,22 @@
+/*
+ * Deliberately identical to the sibling adapter's import list: two adapters
+ * that read one authenticated provider API and report signals need the same
+ * four modules. An import list has no body to extract, and a barrel that
+ * re-exported them would put a module hop in the way for a tokenizer's sake.
+ */
+/* jscpd:ignore-start */
 import { z } from 'zod';
 
 import type { OperationalSignal } from '../../../shared/types.js';
 import type { ControlCenterConfig } from '../../config/env.js';
-import { buildSignal, sourceFailure, unknownSignal } from './signal.js';
+import { fetchJson } from './http.js';
+import { buildSignal, collectOrFail, unknownSignal } from './signal.js';
+/* jscpd:ignore-end */
 
 const POSTHOG_API = 'https://us.i.posthog.com/api/projects';
 const POSTHOG_APP = 'https://us.posthog.com/project';
 
-/**
- * Every adapter is aggregated behind one dashboard request, so a vendor that
- * accepts the connection and then stops answering must not hold the page open.
- */
-const REQUEST_TIMEOUT_MS = 10_000;
+const ORIGIN = { source: 'posthog', domain: 'analytics' } as const;
 
 /**
  * One scan of the 30-day window answers both columns, because the 7-day figure
@@ -51,8 +56,7 @@ export async function collectPosthogSignals(input: {
   if (!apiKey || !projectId) {
     return [
       unknownSignal({
-        source: 'posthog',
-        domain: 'analytics',
+        ...ORIGIN,
         key: 'credentials',
         title: 'PostHog is not configured',
         detail:
@@ -62,7 +66,12 @@ export async function collectPosthogSignals(input: {
     ];
   }
 
-  try {
+  // Degraded is the ceiling for this adapter, and `collectOrFail` is degraded
+  // by construction. PostHog is a reporting integration: losing it costs a
+  // number on a dashboard, not a user. Escalating a missing analytics reading
+  // to `critical` is how an operator learns that red on this page can be
+  // ignored, which is far more expensive than the gap.
+  return collectOrFail(ORIGIN, input.now, async () => {
     const audience = await runAudienceQuery(
       apiKey,
       projectId,
@@ -70,8 +79,7 @@ export async function collectPosthogSignals(input: {
     );
     return [
       buildSignal({
-        source: 'posthog',
-        domain: 'analytics',
+        ...ORIGIN,
         kind: 'audience',
         key: 'project',
         status: 'healthy',
@@ -87,21 +95,7 @@ export async function collectPosthogSignals(input: {
         url: `${POSTHOG_APP}/${encodeURIComponent(projectId)}`,
       }),
     ];
-  } catch (error) {
-    // Degraded is the ceiling for this adapter, and `sourceFailure` is
-    // degraded by construction. PostHog is a reporting integration: losing it
-    // costs a number on a dashboard, not a user. Escalating a missing
-    // analytics reading to `critical` is how an operator learns that red on
-    // this page can be ignored, which is far more expensive than the gap.
-    return [
-      sourceFailure({
-        source: 'posthog',
-        domain: 'analytics',
-        error,
-        observedAt: input.now,
-      }),
-    ];
-  }
+  });
 }
 
 async function runAudienceQuery(
@@ -109,31 +103,19 @@ async function runAudienceQuery(
   projectId: string,
   fetchImpl: typeof fetch,
 ): Promise<AudienceReading> {
-  const url = `${POSTHOG_API}/${encodeURIComponent(projectId)}/query/`;
-  const response = await fetchImpl(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      query: { kind: 'HogQLQuery', query: AUDIENCE_QUERY },
-    }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  const envelope = await fetchJson({
+    label: 'PostHog audience query',
+    url: `${POSTHOG_API}/${encodeURIComponent(projectId)}/query/`,
+    token: apiKey,
+    schema: envelopeSchema,
+    fetchImpl,
+    body: { query: { kind: 'HogQLQuery', query: AUDIENCE_QUERY } },
   });
-  if (!response.ok) {
-    throw new Error(`PostHog audience query failed (${response.status})`);
-  }
-
-  const envelope = envelopeSchema.safeParse(await response.json());
-  if (!envelope.success) {
-    throw new Error('PostHog audience query returned an unrecognised body');
-  }
 
   // The row is validated separately from the envelope so a shape change in the
   // columns is reported as a lost reading rather than thrown out of zod, and
   // so an aggregate that returned no rows at all lands on the same path.
-  const [first] = envelope.data.results;
+  const [first] = envelope.results;
   const row = rowSchema.safeParse(first);
   if (!row.success) {
     throw new Error('PostHog audience query returned no usable row');
