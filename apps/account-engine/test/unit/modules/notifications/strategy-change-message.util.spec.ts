@@ -92,6 +92,14 @@ describe('formatUsdAmount', () => {
     expect(formatUsdAmount(921.15)).toBe('$921');
     expect(formatUsdAmount(10030.45)).toBe('$10,030');
   });
+
+  it('supports fixed precision and an explicit sign', () => {
+    const options = { fractionDigits: 2, includeSign: true };
+
+    expect(formatUsdAmount(1234.5, options)).toBe('+$1,234.50');
+    expect(formatUsdAmount(-1234.5, options)).toBe('-$1,234.50');
+    expect(formatUsdAmount(0, options)).toBe('$0.00');
+  });
 });
 
 describe('buildStrategyChangeMessage', () => {

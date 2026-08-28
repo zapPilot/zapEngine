@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { Logger } from '../../common/logger';
 import { formatShortWalletAddress } from '../../common/utils';
 import { isWalletAddress } from '../../common/validation/wallet-address.util';
+import { formatUsdAmount } from './message-format.util';
 
 export interface EmailMetrics {
   currentBalance: number;
@@ -83,7 +84,9 @@ export class TemplateService {
       SHORT_ADDRESS: shortAddress,
       ADDRESS: primaryAddress,
       BALANCE_CHART_CID: balanceChartCid,
-      CURRENT_BALANCE: this.formatCurrency(calculatedValues.currentBalance),
+      CURRENT_BALANCE: formatUsdAmount(calculatedValues.currentBalance, {
+        fractionDigits: 2,
+      }),
       PNL_HERO_CLASS: this.getTrendClass(calculatedValues.yearlyROIPercentage),
       APR_CLASS: this.getTrendClass(calculatedValues.yearlyROIPercentage),
       ESTIMATED_APR: this.formatPercentage(
@@ -95,7 +98,10 @@ export class TemplateService {
         metrics.recommendedPeriod,
       ),
       WEEKLY_PNL_CLASS: this.getTrendClass(calculatedValues.yearlyPnL),
-      WEEKLY_PNL: this.formatCurrency(calculatedValues.yearlyPnL, true),
+      WEEKLY_PNL: formatUsdAmount(calculatedValues.yearlyPnL, {
+        fractionDigits: 2,
+        includeSign: true,
+      }),
       WEEKLY_PNL_PERCENTAGE: this.formatPercentage(
         calculatedValues.percentageOfBalance,
         true,
@@ -199,21 +205,6 @@ export class TemplateService {
     if (value > 0) return 'positive';
     if (value < 0) return 'negative';
     return 'neutral';
-  }
-
-  private formatCurrency(value: number, includeSign = false): string {
-    const absolute = Math.abs(value).toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-
-    const formatted = `$${absolute}`;
-
-    if (!includeSign || value === 0) {
-      return formatted;
-    }
-
-    return value > 0 ? `+${formatted}` : `-${formatted}`;
   }
 
   private formatPercentage(value: number, includeSign = false): string {
