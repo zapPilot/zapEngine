@@ -1,6 +1,7 @@
 import { getRuntimeEnv } from '@core/lib/env/runtimeEnv';
 import { httpGet, httpPost } from '@core/lib/http';
 import { createApiServiceCaller } from '@core/lib/http/createServiceCaller';
+import { numberFrom } from '@core/utils';
 import { formatUnits } from 'viem';
 
 import {
@@ -95,17 +96,6 @@ function alchemyApiKey(): string {
 
 function rpcUrl(network: string, apiKey: string): string {
   return `https://${network}.g.alchemy.com/v2/${apiKey}`;
-}
-
-function numberFrom(value: string | number | null | undefined): number | null {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null;
-  }
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
 }
 
 function bigintFromRawBalance(value: string | null | undefined): bigint {

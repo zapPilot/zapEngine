@@ -1,6 +1,12 @@
 /** Display formatters for the desktop UI (demo + live phases share these). */
 
-import { formatAddress, formatCurrency } from '@zapengine/app-core/utils';
+import {
+  formatAddress,
+  formatCurrency,
+  numberFrom,
+} from '@zapengine/app-core/utils';
+
+export { numberFrom };
 
 export type TokenAmountDisplayContext =
   | 'funding'
@@ -32,20 +38,6 @@ export function formatUsd(value: number, decimals = 2): string {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
-}
-
-/** Lenient numeric parse for indexer payloads that mix numbers and strings. */
-export function numberFrom(
-  value: string | number | null | undefined,
-): number | null {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null;
-  }
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
 }
 
 export function formatTokenAmount(

@@ -38,3 +38,17 @@ export function clamp(value: number, min: number, max: number): number {
 export function clampMin(value: number, min: number): number {
   return Math.max(min, value);
 }
+
+/** Parse finite numbers from payload fields that may be numeric strings. */
+export function numberFrom(
+  value: string | number | null | undefined,
+): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
