@@ -90,6 +90,7 @@ const customers: CustomerEconomicsResponse = {
 function createTestApp(
   overrides: Partial<ReturnType<typeof createOverviewService>> = {},
   operationsOverrides: Partial<ReturnType<typeof createOperationsService>> = {},
+  options: { allowCostSync?: boolean } = {},
 ) {
   return createControlCenterApp({
     config: readControlCenterConfig({}),
@@ -124,6 +125,7 @@ function createTestApp(
         overrides.getSocial ?? vi.fn().mockResolvedValue(overview.social),
     },
     serveClient: false,
+    allowCostSync: options.allowCostSync,
   });
 }
 
@@ -170,6 +172,15 @@ describe('control center API', () => {
     const response = await app.request('/api/costs/sync', { method: 'POST' });
     expect(response.status).toBe(200);
     expect(syncCosts).toHaveBeenCalledOnce();
+  });
+
+  it('omits the cost sync mutation when remote read-only mode is enabled', async () => {
+    const syncCosts = vi.fn();
+    const app = createTestApp({ syncCosts }, {}, { allowCostSync: false });
+
+    const response = await app.request('/api/costs/sync', { method: 'POST' });
+    expect(response.status).toBe(404);
+    expect(syncCosts).not.toHaveBeenCalled();
   });
 
   it('serves the operations snapshot and its social detail', async () => {
