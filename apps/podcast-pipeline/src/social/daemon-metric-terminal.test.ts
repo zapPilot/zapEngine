@@ -18,11 +18,10 @@ const mocks = vi.hoisted(() => ({
   reconcileSocialPublishJob: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
   listSocialPublishCandidatesForEpisodes: vi.fn(),
-  listPartiallyPublishedCohorts: vi.fn(),
-  alignPendingSocialPublishSchedules: vi.fn(),
+  listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
+  rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   getActiveSocialStrategies: vi.fn(),
   claimSocialPublishJob: vi.fn(),
-  skipOverdueSocialPublishJobs: vi.fn(),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
   captureDueAccountSnapshots: vi.fn(),
   refreshSocialStrategies: vi.fn(),
@@ -34,7 +33,8 @@ vi.mock('./daemon-store.js', () => ({
     const job = await mocks.claimSocialPublishJob(...args);
     return job ? [job] : [];
   },
-  alignPendingSocialPublishSchedules: mocks.alignPendingSocialPublishSchedules,
+  listPastDueSocialPublishJobs: mocks.listPastDueSocialPublishJobs,
+  rescheduleSocialPublishJob: mocks.rescheduleSocialPublishJob,
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn(),
   ensureSocialDaemonStart: vi
@@ -53,11 +53,9 @@ vi.mock('./daemon-store.js', () => ({
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listSocialPublishCandidatesForEpisodes:
     mocks.listSocialPublishCandidatesForEpisodes,
-  listPartiallyPublishedCohorts: mocks.listPartiallyPublishedCohorts,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob: mocks.reconcileSocialPublishJob,
   releaseSocialPublishJobLease: vi.fn(),
-  skipOverdueSocialPublishJobs: mocks.skipOverdueSocialPublishJobs,
 }));
 
 vi.mock('../services/db.js', () => ({
@@ -135,10 +133,10 @@ const NOW_7D = new Date('2026-08-20T10:00:00.000Z');
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
+  mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([]);
-  mocks.listPartiallyPublishedCohorts.mockResolvedValue([]);
-  mocks.alignPendingSocialPublishSchedules.mockResolvedValue(0);
   mocks.getActiveSocialStrategies.mockResolvedValue([]);
   mocks.getSocialQueueSnapshot.mockResolvedValue({
     pendingCount: 0,
@@ -148,7 +146,6 @@ beforeEach(() => {
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
   mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([]);
   mocks.claimSocialPublishJob.mockResolvedValue(null);
-  mocks.skipOverdueSocialPublishJobs.mockResolvedValue(0);
   mocks.listLearningSocialPosts.mockResolvedValue([]);
   mocks.listLearningSocialMetrics.mockResolvedValue([]);
   mocks.listMetricWindowsForPosts.mockResolvedValue([]);

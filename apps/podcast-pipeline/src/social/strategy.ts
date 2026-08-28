@@ -6,16 +6,16 @@ import {
 } from '../types.js';
 import {
   activateSocialStrategy,
+  deactivateSocialStrategy,
   getActiveSocialStrategies,
   listLearningSocialMetrics,
   listLearningSocialPosts,
-  type SocialPublishSlot,
   type SocialStrategyConfig,
   type SocialStrategyVersionRow,
 } from './daemon-store.js';
-import { deterministicBucket } from './experiments.js';
 import { laneLabel } from './log-format.js';
 import { SOCIAL_PLATFORMS, type SocialPlatform } from './platforms.js';
+import { SOCIAL_LANGUAGE_POLICY } from './policy.js';
 import { median } from './statistics.js';
 import type { SocialReviewStatus } from './types.js';
 
@@ -36,101 +36,26 @@ const SUPPRESSED_REVIEW_STATUSES: readonly SocialReviewStatus[] = [
 const REDNOTE_MIN_LEARNABLE_VIEWS = 1;
 const MIN_PLATFORM_SAMPLES = 5;
 const MIN_VARIANT_SAMPLES = 2;
-const JST_OFFSET_HOURS = 9;
-
-const DEFAULT_PUBLISH_SLOTS_JST: readonly SocialPublishSlot[] = [
-  { hour: 9, minute: 30 },
-  { hour: 12, minute: 0 },
-  { hour: 14, minute: 30 },
-  { hour: 17, minute: 0 },
-];
-
-const PLATFORM_SCHEDULING_BASELINES: Record<
-  SocialPlatform,
-  Pick<
-    SocialStrategyConfig,
-    'publishSlotsJst' | 'dailyPublishCap' | 'slotExplorationRate'
-  >
-> = {
-  rednote: {
-    dailyPublishCap: 1,
-    // Slot order is semantic: primary/exploitation first, alternate second.
-    publishSlotsJst: [
-      { hour: 14, minute: 30 },
-      { hour: 12, minute: 0 },
-    ],
-    slotExplorationRate: 0.2,
-  },
-  threads: {
-    dailyPublishCap: 1,
-    publishSlotsJst: [
-      { hour: 12, minute: 0 },
-      { hour: 9, minute: 30 },
-    ],
-    slotExplorationRate: 0.5,
-  },
-  x: {
-    dailyPublishCap: 2,
-    publishSlotsJst: [
-      { hour: 12, minute: 15 },
-      { hour: 17, minute: 0 },
-    ],
-    slotExplorationRate: 0,
-  },
-  youtube: {
-    dailyPublishCap: 1,
-    publishSlotsJst: [{ hour: 17, minute: 15 }],
-    slotExplorationRate: 0,
-  },
-};
-
-// Keep the old generic helper stable for callers/tests that use it as a pure
-// "next candidate slot" primitive. The daemon uses nextPlatformPublishSlot,
-// where daily budget is a separate concept.
-export function defaultSocialStrategy(): SocialStrategyConfig {
-  return {
-    publishSlotsJst: [...DEFAULT_PUBLISH_SLOTS_JST],
-    explorationRate: 0.2,
-  };
-}
-
-function defaultPlatformStrategy(platform: SocialPlatform): SocialStrategyConfig {
-  const baseline = PLATFORM_SCHEDULING_BASELINES[platform];
-  return {
-    publishSlotsJst: [...(baseline.publishSlotsJst ?? [])],
-    dailyPublishCap: baseline.dailyPublishCap,
-    slotExplorationRate: baseline.slotExplorationRate,
-    explorationRate: 0.2,
-  };
-}
 
 /**
- * Rows created before daily caps existed contain the legacy four slots. Until a
- * row explicitly carries a cap, treat its scheduling keys as legacy and keep
- * only its learned copy preferences; the migration writes the new schedule into
- * active rows so DB config becomes authoritative after rollout.
+ * Copy guidance only. Timing is not configuration: it is code-owned in
+ * `policy.ts`, so no learned row can widen the schedule it is optimising in.
  */
-export function effectiveSocialStrategy(
-  platform: SocialPlatform,
-  config: SocialStrategyConfig | undefined,
-): SocialStrategyConfig {
-  const baseline = defaultPlatformStrategy(platform);
-  if (!config) return baseline;
-  if (config.dailyPublishCap === undefined) {
-    return {
-      ...config,
-      publishSlotsJst: baseline.publishSlotsJst,
-      dailyPublishCap: baseline.dailyPublishCap,
-      slotExplorationRate: baseline.slotExplorationRate,
-    };
-  }
-  return {
-    ...baseline,
-    ...config,
-    publishSlotsJst: config.publishSlotsJst?.length
-      ? [...config.publishSlotsJst]
-      : baseline.publishSlotsJst,
-  };
+export function defaultSocialStrategy(): SocialStrategyConfig {
+  return { explorationRate: 0.2 };
+}
+
+/** Every `(platform, language)` lane the publish policy still ships. */
+export function policyStrategyLanes(): {
+  platform: SocialPlatform;
+  languageCode: PrimaryLanguageCode;
+}[] {
+  return Object.entries(SOCIAL_LANGUAGE_POLICY).flatMap(([platform, entries]) =>
+    entries.map((entry) => ({
+      platform: platform as SocialPlatform,
+      languageCode: entry.language,
+    })),
+  );
 }
 
 export function activeStrategyMap(
@@ -156,193 +81,6 @@ export function strategyMapKey(
   languageCode: PrimaryLanguageCode,
 ): string {
   return `${platform}|${languageCode}`;
-}
-
-export function startOfJstDay(date: Date): Date {
-  const jst = new Date(date.getTime() + JST_OFFSET_HOURS * 60 * 60_000);
-  const dayStartJstMs = Date.UTC(
-    jst.getUTCFullYear(),
-    jst.getUTCMonth(),
-    jst.getUTCDate(),
-    0,
-    0,
-    0,
-    0,
-  );
-  return new Date(dayStartJstMs - JST_OFFSET_HOURS * 60 * 60_000);
-}
-
-export function nextPublishSlot(input: {
-  platform: SocialPlatform;
-  readyAt: Date;
-  after?: Date;
-  config?: SocialStrategyConfig;
-}): Date {
-  const config = input.config ?? defaultSocialStrategy();
-  const slots = normalizePublishSlots(config.publishSlotsJst);
-  const floor = new Date(
-    Math.max(input.readyAt.getTime(), input.after?.getTime() ?? 0),
-  );
-  const floorJstMs = floor.getTime() + JST_OFFSET_HOURS * 60 * 60_000;
-  const floorJst = new Date(floorJstMs);
-
-  for (let dayOffset = 0; dayOffset < 8; dayOffset += 1) {
-    for (const slot of slots) {
-      const candidateJstMs = Date.UTC(
-        floorJst.getUTCFullYear(),
-        floorJst.getUTCMonth(),
-        floorJst.getUTCDate() + dayOffset,
-        slot.hour,
-        slot.minute,
-        0,
-        0,
-      );
-      const candidate = new Date(
-        candidateJstMs - JST_OFFSET_HOURS * 60 * 60_000,
-      );
-      if (candidate.getTime() >= floor.getTime()) return candidate;
-    }
-  }
-
-  throw new Error(`Could not find a publish slot for ${input.platform}.`);
-}
-
-/**
- * Schedule one `(episode, platform)` cohort. `existingSchedules` contains one
- * timestamp per already-scheduled platform cohort, regardless of language lane,
- * so languages cannot bypass the daily platform budget.
- */
-export function nextPlatformPublishSlot(input: {
-  platform: SocialPlatform;
-  episodeId: string;
-  readyAt: Date;
-  after?: Date;
-  existingSchedules: readonly Date[];
-  config?: SocialStrategyConfig;
-}): Date {
-  const config = effectiveSocialStrategy(input.platform, input.config);
-  const dailyCap = normalizeDailyCap(config.dailyPublishCap);
-  const configured = normalizePublishSlotsPreservingOrder(
-    config.publishSlotsJst,
-    defaultPlatformStrategy(input.platform).publishSlotsJst,
-  );
-  const slots = slotsForEpisode(
-    input.platform,
-    input.episodeId,
-    configured,
-    config,
-  );
-  const floor = new Date(
-    Math.max(input.readyAt.getTime(), input.after?.getTime() ?? 0),
-  );
-  const floorDay = startOfJstDay(floor);
-
-  for (let dayOffset = 0; dayOffset < 90; dayOffset += 1) {
-    const dayStart = new Date(
-      floorDay.getTime() + dayOffset * 24 * 60 * 60_000,
-    );
-    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60_000);
-    const used = input.existingSchedules.filter(
-      (date) => date >= dayStart && date < dayEnd,
-    ).length;
-    if (used >= dailyCap) continue;
-
-    const candidate = [...slots]
-      .map((slot) => slotOnJstDay(dayStart, slot))
-      .filter((date) => date >= floor)
-      .filter(
-        (date) =>
-          !input.existingSchedules.some(
-            (scheduled) => scheduled.getTime() === date.getTime(),
-          ),
-      )
-      .sort((a, b) => a.getTime() - b.getTime())[0];
-    if (candidate) return candidate;
-  }
-
-  throw new Error(`Could not find a publish slot for ${input.platform}.`);
-}
-
-function slotsForEpisode(
-  platform: SocialPlatform,
-  episodeId: string,
-  configured: readonly SocialPublishSlot[],
-  config: SocialStrategyConfig,
-): SocialPublishSlot[] {
-  const cap = normalizeDailyCap(config.dailyPublishCap);
-  if (cap > 1 || configured.length <= 1) return [...configured];
-  const rate = Math.max(0, Math.min(1, config.slotExplorationRate ?? 0));
-  const explore =
-    deterministicBucket(`social-slot-v1:${platform}`, episodeId, 10_000) <
-    Math.round(rate * 10_000);
-  return [explore ? configured[1]! : configured[0]!];
-}
-
-function normalizeDailyCap(value: number | undefined): number {
-  return Number.isSafeInteger(value) && (value ?? 0) > 0 ? value! : 1;
-}
-
-function slotOnJstDay(dayStart: Date, slot: SocialPublishSlot): Date {
-  return new Date(
-    dayStart.getTime() + (slot.hour * 60 + slot.minute) * 60_000,
-  );
-}
-
-function normalizePublishSlotsPreservingOrder(
-  slots: readonly SocialPublishSlot[] | undefined,
-  fallback: readonly SocialPublishSlot[] | undefined,
-): SocialPublishSlot[] {
-  const seen = new Set<string>();
-  const normalized: SocialPublishSlot[] = [];
-  for (const slot of slots ?? []) {
-    if (
-      !Number.isInteger(slot.hour) ||
-      slot.hour < 0 ||
-      slot.hour > 23 ||
-      !Number.isInteger(slot.minute) ||
-      slot.minute < 0 ||
-      slot.minute > 59
-    ) {
-      continue;
-    }
-    const key = `${slot.hour}:${slot.minute}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    normalized.push(slot);
-  }
-  if (normalized.length > 0) return normalized;
-  if (fallback !== slots) {
-    return normalizePublishSlotsPreservingOrder(
-      fallback,
-      DEFAULT_PUBLISH_SLOTS_JST,
-    );
-  }
-  return [...DEFAULT_PUBLISH_SLOTS_JST];
-}
-
-function normalizePublishSlots(
-  slots: readonly SocialPublishSlot[] | undefined,
-): SocialPublishSlot[] {
-  const seen = new Set<string>();
-  const normalized: SocialPublishSlot[] = [];
-  for (const slot of slots ?? []) {
-    if (
-      !Number.isInteger(slot.hour) ||
-      slot.hour < 0 ||
-      slot.hour > 23 ||
-      !Number.isInteger(slot.minute) ||
-      slot.minute < 0 ||
-      slot.minute > 59
-    ) {
-      continue;
-    }
-    const key = `${slot.hour}:${slot.minute}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    normalized.push(slot);
-  }
-  normalized.sort((a, b) => a.hour - b.hour || a.minute - b.minute);
-  return normalized.length ? normalized : [...DEFAULT_PUBLISH_SLOTS_JST];
 }
 
 export function buildStrategyGuidance(
@@ -403,66 +141,68 @@ export function learnSocialStrategies(input: {
     )
     .filter(isLearnableSample);
 
-  return SOCIAL_PLATFORMS.flatMap((platform) =>
-    SUPPORTED_PRIMARY_LANGUAGE_CODES.flatMap((languageCode) => {
-      const platformSamples = samples.filter(
-        (sample) =>
-          sample.post.platform === platform &&
-          (sample.post.language_code ?? 'zh-Hant') === languageCode,
-      );
-      if (platformSamples.length < MIN_PLATFORM_SAMPLES) return [];
+  // Only lanes the publish policy still ships. Learning a lane that was
+  // retired -- Threads in zh-Hant, YouTube in ja -- produces an active row
+  // nothing will ever publish under, which is how four stale strategies
+  // outlived the policy that created them.
+  return policyStrategyLanes().flatMap(({ platform, languageCode }) => {
+    const platformSamples = samples.filter(
+      (sample) =>
+        sample.post.platform === platform &&
+        (sample.post.language_code ?? 'zh-Hant') === languageCode,
+    );
+    if (platformSamples.length < MIN_PLATFORM_SAMPLES) return [];
 
-      const medianViews = median(
-        platformSamples.map((sample) => sample.metric.views ?? 0),
-      );
-      const scored = platformSamples.map((sample) => ({
-        ...sample,
-        score: scoreSample(sample.metric, medianViews),
-      }));
-      const config = defaultPlatformStrategy(platform);
-      config.preferredHookTypes = topVariants(
-        scored,
-        (sample) => sample.post.hook_type,
-        2,
-      );
+    const medianViews = median(
+      platformSamples.map((sample) => sample.metric.views ?? 0),
+    );
+    const scored = platformSamples.map((sample) => ({
+      ...sample,
+      score: scoreSample(sample.metric, medianViews),
+    }));
+    const config = defaultSocialStrategy();
+    config.preferredHookTypes = topVariants(
+      scored,
+      (sample) => sample.post.hook_type,
+      2,
+    );
 
-      if (platform === 'rednote') {
-        const tagScores = new Map<string, number[]>();
-        for (const sample of scored) {
-          for (const tag of sample.post.hashtags) {
-            const values = tagScores.get(tag) ?? [];
-            values.push(sample.score);
-            tagScores.set(tag, values);
-          }
+    if (platform === 'rednote') {
+      const tagScores = new Map<string, number[]>();
+      for (const sample of scored) {
+        for (const tag of sample.post.hashtags) {
+          const values = tagScores.get(tag) ?? [];
+          values.push(sample.score);
+          tagScores.set(tag, values);
         }
-        const rankedTags = [...tagScores.entries()]
-          .filter(([, values]) => values.length >= MIN_VARIANT_SAMPLES)
-          .map(([tag, values]) => ({ tag, score: average(values) }))
-          .sort((a, b) => b.score - a.score);
-        // Avoid is decided first and then removed from the preferred pool. The
-        // old head/tail slices overlapped whenever fewer than 13 tags qualified,
-        // which shipped 穩定幣 as both preferred and avoided in the same version.
-        config.avoidHashtags = rankedTags
-          .slice(-5)
-          .filter((row) => row.score < 0.8)
-          .map((row) => row.tag);
-        const avoided = new Set(config.avoidHashtags);
-        config.preferredHashtags = rankedTags
-          .filter((row) => !avoided.has(row.tag))
-          .slice(0, 8)
-          .map((row) => row.tag);
       }
+      const rankedTags = [...tagScores.entries()]
+        .filter(([, values]) => values.length >= MIN_VARIANT_SAMPLES)
+        .map(([tag, values]) => ({ tag, score: average(values) }))
+        .sort((a, b) => b.score - a.score);
+      // Avoid is decided first and then removed from the preferred pool. The
+      // old head/tail slices overlapped whenever fewer than 13 tags qualified,
+      // which shipped 穩定幣 as both preferred and avoided in the same version.
+      config.avoidHashtags = rankedTags
+        .slice(-5)
+        .filter((row) => row.score < 0.8)
+        .map((row) => row.tag);
+      const avoided = new Set(config.avoidHashtags);
+      config.preferredHashtags = rankedTags
+        .filter((row) => !avoided.has(row.tag))
+        .slice(0, 8)
+        .map((row) => row.tag);
+    }
 
-      return [
-        {
-          platform,
-          languageCode,
-          config,
-          basedOnSamples: platformSamples.length,
-        },
-      ];
-    }),
-  );
+    return [
+      {
+        platform,
+        languageCode,
+        config,
+        basedOnSamples: platformSamples.length,
+      },
+    ];
+  });
 }
 
 function isLearnableSample(sample: {
@@ -496,6 +236,27 @@ export async function refreshSocialStrategies(input: {
     getActiveSocialStrategies(),
   ]);
   const activeByPlatform = activeStrategyMap(active);
+
+  // Self-healing rather than a one-off SQL cleanup: the policy is the only
+  // place a lane is declared, so a row outside it is by definition stale and
+  // the next refresh should retire it without anyone remembering to.
+  const shipped = new Set(
+    policyStrategyLanes().map(({ platform, languageCode }) =>
+      strategyMapKey(platform, languageCode),
+    ),
+  );
+  const retired = active.filter(
+    (row) =>
+      !shipped.has(
+        strategyMapKey(row.platform, row.language_code ?? 'zh-Hant'),
+      ),
+  );
+  for (const row of retired) {
+    await deactivateSocialStrategy(row.id);
+    log(
+      `🧹 [strategy] ${laneLabel(row.platform, row.language_code ?? 'zh-Hant')} · deactivated v${row.version} · lane is no longer in the publish policy`,
+    );
+  }
 
   for (const learned of learnSocialStrategies({ posts, metrics })) {
     const current =
@@ -573,16 +334,6 @@ function sameStrategy(
 
 function canonicalStrategy(config: SocialStrategyConfig): SocialStrategyConfig {
   return {
-    // Slot order matters for one-post exploration: first is exploitation.
-    ...(config.publishSlotsJst
-      ? { publishSlotsJst: [...config.publishSlotsJst] }
-      : {}),
-    ...(config.dailyPublishCap !== undefined
-      ? { dailyPublishCap: config.dailyPublishCap }
-      : {}),
-    ...(config.slotExplorationRate !== undefined
-      ? { slotExplorationRate: config.slotExplorationRate }
-      : {}),
     ...(config.preferredHookTypes
       ? { preferredHookTypes: [...config.preferredHookTypes].sort() }
       : {}),

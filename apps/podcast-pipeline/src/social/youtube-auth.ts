@@ -25,6 +25,9 @@ import {
 const AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const YOUTUBE_UPLOAD_SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
+/** Reads the channel's own absolute subscriber count; upload alone cannot. */
+export const YOUTUBE_READONLY_SCOPE =
+  'https://www.googleapis.com/auth/youtube.readonly';
 export const YOUTUBE_ANALYTICS_SCOPE =
   'https://www.googleapis.com/auth/yt-analytics.readonly';
 const DEFAULT_CALLBACK_TIMEOUT_MS = 5 * 60_000;

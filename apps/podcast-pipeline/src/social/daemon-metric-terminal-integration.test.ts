@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  alignPendingSocialPublishSchedules: vi.fn(),
+  listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
+  rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   captureDueAccountSnapshots: vi.fn(),
   claimSocialPublishBatch: vi.fn(),
   closeMetricsBrowserSession: vi.fn(),
@@ -9,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   insertSocialPostMetric: vi.fn(),
   listLearningSocialPosts: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
-  listPartiallyPublishedCohorts: vi.fn(),
   listPendingSocialPublishSchedules: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
   listUnfinishedSocialPublishJobs: vi.fn(),
@@ -17,11 +17,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./daemon-store.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./daemon-store.js')>()),
-  alignPendingSocialPublishSchedules: mocks.alignPendingSocialPublishSchedules,
+  listPastDueSocialPublishJobs: mocks.listPastDueSocialPublishJobs,
+  rescheduleSocialPublishJob: mocks.rescheduleSocialPublishJob,
   claimSocialPublishBatch: mocks.claimSocialPublishBatch,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
-  listPartiallyPublishedCohorts: mocks.listPartiallyPublishedCohorts,
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listSocialEpisodeLocalizationTitles: vi.fn().mockResolvedValue([]),
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
@@ -87,12 +87,12 @@ function post(): SocialPostRow {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.alignPendingSocialPublishSchedules.mockResolvedValue(0);
+  mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
+  mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.captureDueAccountSnapshots.mockResolvedValue(0);
   mocks.claimSocialPublishBatch.mockResolvedValue([]);
   mocks.closeMetricsBrowserSession.mockResolvedValue(undefined);
   mocks.insertSocialPostMetric.mockResolvedValue({});
-  mocks.listPartiallyPublishedCohorts.mockResolvedValue([]);
   mocks.listPendingSocialPublishSchedules.mockResolvedValue([]);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);

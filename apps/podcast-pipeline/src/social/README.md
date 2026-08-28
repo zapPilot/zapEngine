@@ -69,31 +69,51 @@ window as the daemon code update. The daemon records its first-start timestamp
 and policy activation timestamps prevent old episodes from being backfilled.
 Jobs survive Mac restarts and are claimed with an expiring owner lease.
 
-The daemon polls once per minute. It spreads new episodes across four daily JST
-publish slots (9:30 / 12:00 / 14:30 / 17:00); see
-[Release cohort scheduling](#release-cohort-scheduling) below for how one
-article's lanes share a slot. It records metric snapshots in the current `1h` /
-`6h` / `24h` / `72h` / `7d` age bucket, and periodically refreshes versioned
-strategy preferences from standardized 24-hour performance. Publish hours are
-deliberately fixed and never learned: strategy learning only adjusts
-copy/content preferences (hook types, hashtags). Missed early metric buckets
-are never backfilled with later data.
+The daemon polls once per minute. It records metric snapshots in the current
+`1h` / `6h` / `24h` / `72h` / `7d` age bucket, and periodically refreshes
+versioned strategy preferences from standardized 24-hour performance. Publish
+timing is never learned: strategy learning only adjusts copy/content
+preferences (hook types, hashtags). Missed early metric buckets are never
+backfilled with later data.
 
-By default, overdue publish jobs remain durable and are published after the
-daemon restarts. Set `SOCIAL_PUBLISH_SKIP_OVERDUE_MINUTES` to a positive integer
-(for example, `60`) to discard `queued` or `failed` jobs whose original
-`scheduled_at` is older than that grace period. The daemon reconciles existing
-`social_posts`, discovers new episodes, and marks overdue jobs completed before
-claiming anything for publication, so work discovered after downtime cannot
-publish in the same tick before the policy is applied. A failure while applying
-the policy blocks publishing for that tick and is retried on the next poll.
+## Platform publish budgets
 
-This policy does not introduce a database status. A skipped row is represented
-as `status = 'completed'`, `social_post_id is null`, and
-`last_error like 'skipped: overdue%'`. Reporting must exclude those rows from
-successful-publish counts. `processing` jobs are not skipped because their
-lease may represent an in-flight publish; existing reconciliation and lease
-fencing continue to own their recovery.
+Each platform has a daily cap and a set of candidate times, both code-owned in
+`policy.ts`:
+
+| Platform | Posts / JST day | Slots (JST)         |
+| -------- | --------------- | ------------------- |
+| rednote  | 1               | 14:30 (80%) / 12:00 |
+| threads  | 1               | 09:30 / 12:00       |
+| x        | 2               | 12:15 and 17:00     |
+| youtube  | 1               | 17:15               |
+
+That is five posts a day in total, down from the eight to eleven the previous
+four-cohorts-a-day schedule produced. Production reach medians are what set the
+numbers: the marginal posts reached nobody.
+
+A cap counts `(episode, platform)` cohorts per JST day across every language, so
+a multilingual platform cannot publish once per language and call it one post. X
+is the only platform above one because its language experiment assigns each
+episode exactly one of `en`/`ja` — its two daily posts are always two different
+episodes — and the two languages swap times daily, so neither language is
+permanently confounded with one time.
+
+Slots are candidate windows, not a queue: one episode takes one slot per day.
+Rednote and Threads assign theirs through `social_experiment_assignments`
+(`rednote-slot-v1`, `threads-timing-v1`), so a reach report can attribute a post
+to the time it actually published at. A backlog longer than the eight-day
+scheduling horizon simply stays undiscovered and drains a day at a time; it is
+never compressed to fit, and never dropped.
+
+Publishing only runs between 09:00 and 18:00 JST, because Rednote and X drive
+real browser sessions on a Mac someone has to be able to watch fail. A lane
+whose slot passes — the daemon was asleep, the window was shut, a publish ran
+long — is moved forward to the next free slot for its platform after a 90-minute
+grace period. It is never dropped and never burst-published: the old behaviour
+marked such a lane `completed` with a `skipped: overdue` note, which recorded a
+post that never existed, and its grace period lived in an environment variable
+that was unset in practice.
 
 The strategy version a job publishes under is resolved when the job is
 **claimed**, never when it is queued. Stamping it at enqueue meant a job created
@@ -130,29 +150,33 @@ is the single definition of which platform x language lanes one episode's
 cohort has -- discovery, the media readiness barrier, and publish preflight
 all call it, so they cannot disagree about the cohort's shape.
 
-A cohort only enqueues once every required lane's media is ready. There is no
-"publish whatever is ready now" partial release: if one language is still
-rendering, the whole cohort waits, and the daemon logs which language it is
-waiting on. Once ready, every lane -- every platform, every language -- is
-enqueued together and shares one `scheduled_at`. There is no cross-language
-gap; two languages of the same article publish at the same slot, batched by
-platform the way a single-language episode always was.
+The scheduling unit is `(episode, platform)`. Language lanes on one platform
+share a slot and are enqueued together, so two languages of the same article on
+the same platform never drift apart. Different platforms are independent
+releases on their own budgets: Rednote at 14:30 and YouTube at 17:15 are the
+same episode hours apart, by design.
+
+The media barrier is per platform for the same reason. A cohort enqueues only
+once every language _that platform_ needs is ready -- there is no "publish
+whatever is ready now" partial release -- but a language YouTube is still
+waiting on no longer holds back a Rednote lane whose own language has been
+ready for days. The daemon logs which language it is waiting on.
 
 Publishing a cohort is fail-fast. The first transport, local-state, or
 `social_posts` telemetry failure on any lane stops the batch; lanes already
 published before that stay published, but nothing after the failure runs.
-`reconcile`, `align schedules`, `discover`, and `publish` are release-shape
-stages, so a failure in any of them is fatal: it stops the daemon process
+`reconcile`, `reschedule`, `discover`, and `publish` are release-shape stages,
+so a failure in any of them is fatal: it stops the daemon process
 (`console.error` + a best-effort Telegram notice + `process.exit(1)`) rather
 than being swallowed and retried quietly. Only `metrics`, `account snapshots`,
 `strategy`, and `experiment report`/`queue summary` are purely observational
 and stay isolated per tick.
 
-A cohort with some lanes already completed and others still pending is
-partially published. The daemon finishes that cohort -- and only that cohort --
-before claiming work for any other episode; a partial cohort with nothing due
-yet means the tick publishes nothing at all rather than starting a fresh
-episode ahead of it.
+There is no cross-episode fence. The old one held every other episode shut
+until a partially published cohort finished, which made sense while all five
+lanes shared one timestamp; under per-platform budgets a partial cohort is the
+steady state, so fencing on it would deadlock the queue against its own
+schedule.
 
 ## Login and persistent sessions
 

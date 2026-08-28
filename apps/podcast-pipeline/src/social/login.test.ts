@@ -33,6 +33,7 @@ vi.mock('./youtube-auth.js', () => ({
   ensureYouTubeSession: mocks.ensureYouTubeSession,
   YOUTUBE_ANALYTICS_SCOPE:
     'https://www.googleapis.com/auth/yt-analytics.readonly',
+  YOUTUBE_READONLY_SCOPE: 'https://www.googleapis.com/auth/youtube.readonly',
 }));
 
 import { runSocialLogin } from './login.js';

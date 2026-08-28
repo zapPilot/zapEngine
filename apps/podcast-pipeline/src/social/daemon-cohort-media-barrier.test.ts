@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  alignPendingSocialPublishSchedules: vi.fn().mockResolvedValue(0),
+  listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
+  rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   claimSocialPublishBatch: vi.fn().mockResolvedValue([]),
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn().mockResolvedValue(true),
@@ -13,7 +14,6 @@ const mocks = vi.hoisted(() => ({
     episodeQueue: [],
     nextByPlatform: {},
   }),
-  listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
   listLearningSocialPosts: vi.fn().mockResolvedValue([]),
   listLearningSocialMetrics: vi.fn().mockResolvedValue([]),
@@ -23,7 +23,6 @@ const mocks = vi.hoisted(() => ({
   listUnfinishedSocialPublishJobs: vi.fn().mockResolvedValue([]),
   reconcileSocialPublishJob: vi.fn(),
   releaseSocialPublishJobLease: vi.fn(),
-  skipOverdueSocialPublishJobs: vi.fn().mockResolvedValue(0),
   insertSocialPostMetric: vi.fn(),
   listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
   listSocialPostsByEpisode: vi.fn().mockResolvedValue([]),
@@ -46,7 +45,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./daemon-store.js', () => ({
-  alignPendingSocialPublishSchedules: mocks.alignPendingSocialPublishSchedules,
+  listPastDueSocialPublishJobs: mocks.listPastDueSocialPublishJobs,
+  rescheduleSocialPublishJob: mocks.rescheduleSocialPublishJob,
   claimSocialPublishBatch: mocks.claimSocialPublishBatch,
   completeSocialPublishJob: mocks.completeSocialPublishJob,
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
@@ -55,7 +55,6 @@ vi.mock('./daemon-store.js', () => ({
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   latestPendingSocialPublishSchedule: vi.fn().mockResolvedValue(null),
-  listPartiallyPublishedCohorts: mocks.listPartiallyPublishedCohorts,
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
   listLearningSocialMetrics: mocks.listLearningSocialMetrics,
@@ -67,7 +66,6 @@ vi.mock('./daemon-store.js', () => ({
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob: mocks.reconcileSocialPublishJob,
   releaseSocialPublishJobLease: mocks.releaseSocialPublishJobLease,
-  skipOverdueSocialPublishJobs: mocks.skipOverdueSocialPublishJobs,
 }));
 
 vi.mock('../services/db.js', () => ({
@@ -114,28 +112,37 @@ function candidate(languageCode: 'zh-Hant' | 'ja' | 'en', readyAt: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
+  mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.claimSocialPublishBatch.mockResolvedValue([]);
-  mocks.listPartiallyPublishedCohorts.mockResolvedValue([]);
+  // The language experiment is pinned so lane assertions stay deterministic;
+  // the slot experiments answer with their own primary variant.
   mocks.getOrCreateExperimentAssignment.mockImplementation(
     ({
       experimentKey,
       episodeId,
+      variants,
     }: {
       experimentKey: string;
       episodeId: string;
+      variants?: readonly [string, ...string[]];
     }) =>
       Promise.resolve({
         experiment_key: experimentKey,
         episode_id: episodeId,
-        variant: 'ja',
+        variant:
+          experimentKey === 'x-language-v1' ? 'ja' : (variants?.[0] ?? 'ja'),
         assigned_at: EPISODE_CREATED_AT,
       }),
   );
   mocks.ensureSocialDaemonStart.mockResolvedValue(FIRST_STARTED_AT);
 });
 
-describe('release cohort media readiness barrier', () => {
-  it('enqueues nothing while only one of three required languages is ready', async () => {
+describe('platform media readiness barrier', () => {
+  it('holds back only the platforms whose own language is still rendering', async () => {
+    // The barrier is per platform now: platforms release on their own budgets,
+    // so a language YouTube is waiting on must not keep a Rednote lane whose
+    // own language has been ready for days out of the queue.
     const zhOnly = [candidate('zh-Hant', '2026-08-16T09:00:00.000Z')];
     mocks.listSocialPublishCandidates.mockResolvedValue(zhOnly);
     mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(zhOnly);
@@ -147,12 +154,31 @@ describe('release cohort media readiness barrier', () => {
       log,
     });
 
-    expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
-    expect(log).toHaveBeenCalledWith(
-      expect.stringContaining(
-        'episode #123e4567 · cohort not release-ready · 🇯🇵 ja · 🇺🇸 en',
-      ),
-    );
+    expect(
+      mocks.enqueueSocialPublishJob.mock.calls.map(([input]) => [
+        input.platform,
+        input.languageCode,
+      ]),
+    ).toEqual([['rednote', 'zh-Hant']]);
+    for (const missing of ['🇯🇵 ja', '🇺🇸 en']) {
+      expect(log).toHaveBeenCalledWith(
+        expect.stringContaining(`cohort not release-ready · ${missing}`),
+      );
+    }
+  });
+
+  it('enqueues no lane of a platform until every language it needs is ready', async () => {
+    // X ships one language per episode, so its barrier is a single language;
+    // the pinned assignment makes that language ja.
+    const englishOnly = [candidate('en', '2026-08-16T09:00:00.000Z')];
+    mocks.listSocialPublishCandidates.mockResolvedValue(englishOnly);
+    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(englishOnly);
+
+    await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
+
+    expect(
+      mocks.enqueueSocialPublishJob.mock.calls.map(([input]) => input.platform),
+    ).toEqual(['youtube']);
   });
 
   it('enqueues the full cohort in one tick once the last required language becomes ready', async () => {
@@ -166,7 +192,8 @@ describe('release cohort media readiness barrier', () => {
 
     await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
 
-    expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(5);
+    // Four lanes, not five: YouTube distributes in English only.
+    expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(4);
   });
 
   it('still counts a language that finished ready before the discovery anchor', async () => {
@@ -189,7 +216,8 @@ describe('release cohort media readiness barrier', () => {
     expect(mocks.listSocialPublishCandidatesForEpisodes).toHaveBeenCalledWith([
       EPISODE_ID,
     ]);
-    expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(5);
+    // Four lanes, not five: YouTube distributes in English only.
+    expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(4);
     expect(
       mocks.enqueueSocialPublishJob.mock.calls.some(
         ([input]) =>

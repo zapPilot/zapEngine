@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   claimSocialPublishJob: vi.fn().mockResolvedValue(null),
-  alignPendingSocialPublishSchedules: vi.fn().mockResolvedValue(0),
+  listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
+  rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn().mockResolvedValue(true),
   ensureSocialDaemonStart: vi
@@ -19,11 +20,9 @@ const mocks = vi.hoisted(() => ({
   listMetricWindowsForPosts: vi.fn().mockResolvedValue([]),
   listSocialPublishCandidates: vi.fn().mockResolvedValue([]),
   listSocialPublishCandidatesForEpisodes: vi.fn().mockResolvedValue([]),
-  listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
   listUnfinishedSocialPublishJobs: vi.fn().mockResolvedValue([]),
   reconcileSocialPublishJob: vi.fn().mockResolvedValue(true),
   releaseSocialPublishJobLease: vi.fn(),
-  skipOverdueSocialPublishJobs: vi.fn().mockResolvedValue(0),
   insertSocialPostMetric: vi.fn(),
   listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
   listSocialPostsByEpisode: vi.fn().mockResolvedValue([]),
@@ -43,7 +42,8 @@ vi.mock('./daemon-store.js', () => ({
     const job = await mocks.claimSocialPublishJob(...args);
     return job ? [job] : [];
   },
-  alignPendingSocialPublishSchedules: mocks.alignPendingSocialPublishSchedules,
+  listPastDueSocialPublishJobs: mocks.listPastDueSocialPublishJobs,
+  rescheduleSocialPublishJob: mocks.rescheduleSocialPublishJob,
   completeSocialPublishJob: mocks.completeSocialPublishJob,
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
   ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
@@ -67,11 +67,9 @@ vi.mock('./daemon-store.js', () => ({
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listSocialPublishCandidatesForEpisodes:
     mocks.listSocialPublishCandidatesForEpisodes,
-  listPartiallyPublishedCohorts: mocks.listPartiallyPublishedCohorts,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob: mocks.reconcileSocialPublishJob,
   releaseSocialPublishJobLease: mocks.releaseSocialPublishJobLease,
-  skipOverdueSocialPublishJobs: mocks.skipOverdueSocialPublishJobs,
 }));
 
 vi.mock('../services/db.js', () => ({

@@ -6,22 +6,30 @@ import {
   buildStrategyGuidance,
   defaultSocialStrategy,
   learnSocialStrategies,
-  nextPlatformPublishSlot,
-  nextPublishSlot,
-  startOfJstDay,
+  policyStrategyLanes,
 } from './strategy.js';
+
+const POLICY_LANGUAGE = {
+  rednote: 'zh-Hant',
+  threads: 'ja',
+  x: 'en',
+  youtube: 'en',
+} as const;
 
 function post(input: {
   id: string;
   platform?: SocialPostRow['platform'];
+  languageCode?: SocialPostRow['language_code'];
   publishedAt: string;
   hookType?: SocialPostRow['hook_type'];
   hashtags?: string[];
 }): SocialPostRow {
+  const platform = input.platform ?? 'rednote';
   return {
     id: input.id,
     episode_id: `episode-${input.id}`,
-    platform: input.platform ?? 'rednote',
+    platform,
+    language_code: input.languageCode ?? POLICY_LANGUAGE[platform],
     post_url: null,
     platform_post_id: input.id,
     published_at: input.publishedAt,
@@ -77,115 +85,21 @@ function metric(input: {
 }
 
 describe('social strategy', () => {
-  it('schedules the next configured JST slot for every platform', () => {
-    expect(
-      nextPublishSlot({
-        platform: 'x',
-        readyAt: new Date('2026-08-16T08:00:00.000Z'),
-        config: {
-          publishSlotsJst: [
-            { hour: 12, minute: 0 },
-            { hour: 19, minute: 0 },
-          ],
-        },
-      }).toISOString(),
-    ).toBe('2026-08-16T10:00:00.000Z');
-
-    expect(
-      nextPublishSlot({
-        platform: 'rednote',
-        readyAt: new Date('2026-08-16T12:00:00.000Z'),
-        after: new Date('2026-08-16T12:30:00.000Z'),
-        config: { publishSlotsJst: [{ hour: 20, minute: 0 }] },
-      }).toISOString(),
-    ).toBe('2026-08-17T11:00:00.000Z');
+  it('carries copy guidance only, never a schedule', () => {
+    // Timing used to live here and was never read: the scheduler always used
+    // its own defaults, so a learned row could not move a slot even in
+    // principle. It is code-owned in policy.ts now.
+    expect(defaultSocialStrategy()).toEqual({ explorationRate: 0.2 });
   });
 
-  it('falls back to safe defaults when publish slots are invalid', () => {
-    const strategy = defaultSocialStrategy();
-    expect(strategy).toEqual({
-      publishSlotsJst: [
-        { hour: 9, minute: 30 },
-        { hour: 12, minute: 0 },
-        { hour: 14, minute: 30 },
-        { hour: 17, minute: 0 },
-      ],
-      explorationRate: 0.2,
-    });
-    expect(
-      nextPublishSlot({
-        platform: 'youtube',
-        readyAt: new Date('2026-08-16T00:00:00.000Z'),
-        config: {
-          publishSlotsJst: [
-            { hour: -1, minute: 0 },
-            { hour: 24, minute: 0 },
-            { hour: 1, minute: 90 },
-          ],
-        },
-      }).toISOString(),
-    ).toBe('2026-08-16T00:30:00.000Z');
-  });
-
-  it('enforces platform daily caps independently from candidate slots', () => {
-    const existing = [new Date('2026-08-16T03:15:00.000Z')]; // 12:15 JST
-    expect(
-      nextPlatformPublishSlot({
-        platform: 'x',
-        episodeId: 'episode-x-2',
-        readyAt: new Date('2026-08-16T00:00:00.000Z'),
-        existingSchedules: existing,
-        config: {
-          dailyPublishCap: 2,
-          publishSlotsJst: [
-            { hour: 12, minute: 15 },
-            { hour: 17, minute: 0 },
-          ],
-          slotExplorationRate: 0,
-        },
-      }).toISOString(),
-    ).toBe('2026-08-16T08:00:00.000Z');
-
-    expect(
-      nextPlatformPublishSlot({
-        platform: 'x',
-        episodeId: 'episode-x-3',
-        readyAt: new Date('2026-08-16T00:00:00.000Z'),
-        existingSchedules: [
-          ...existing,
-          new Date('2026-08-16T08:00:00.000Z'),
-        ],
-        config: {
-          dailyPublishCap: 2,
-          publishSlotsJst: [
-            { hour: 12, minute: 15 },
-            { hour: 17, minute: 0 },
-          ],
-          slotExplorationRate: 0,
-        },
-      }).toISOString(),
-    ).toBe('2026-08-17T03:15:00.000Z');
-  });
-
-  it('keeps a one-post platform at one slot even when exploration has alternatives', () => {
-    const scheduled = nextPlatformPublishSlot({
-      platform: 'rednote',
-      episodeId: 'episode-rednote-stable',
-      readyAt: new Date('2026-08-16T00:00:00.000Z'),
-      existingSchedules: [],
-      config: {
-        dailyPublishCap: 1,
-        publishSlotsJst: [
-          { hour: 14, minute: 30 },
-          { hour: 12, minute: 0 },
-        ],
-        slotExplorationRate: 0.2,
-      },
-    });
-    const jstMinutes =
-      ((scheduled.getTime() + 9 * 60 * 60_000) % (24 * 60 * 60_000)) /
-      60_000;
-    expect([12 * 60, 14 * 60 + 30]).toContain(jstMinutes);
+  it('lists exactly the lanes the publish policy still ships', () => {
+    expect(policyStrategyLanes()).toEqual([
+      { platform: 'rednote', languageCode: 'zh-Hant' },
+      { platform: 'threads', languageCode: 'ja' },
+      { platform: 'x', languageCode: 'en' },
+      { platform: 'x', languageCode: 'ja' },
+      { platform: 'youtube', languageCode: 'en' },
+    ]);
   });
 
   it('maps active rows by platform and fills absent platforms with null', () => {
@@ -213,46 +127,6 @@ describe('social strategy', () => {
         'x|en': null,
       }),
     );
-  });
-
-  it('uses default schedule configuration when no strategy config or publish slots are supplied', () => {
-    const input = {
-      platform: 'threads' as const,
-      readyAt: new Date('2026-08-16T00:00:00.000Z'),
-    };
-    expect(nextPublishSlot(input).toISOString()).toBe(
-      '2026-08-16T00:30:00.000Z',
-    );
-    expect(nextPublishSlot({ ...input, config: {} }).toISOString()).toBe(
-      '2026-08-16T00:30:00.000Z',
-    );
-  });
-
-  it('keeps every default publish slot inside the 9:30-18:00 JST work window', () => {
-    const readyAt = new Date('2026-08-16T00:00:00.000Z');
-    for (const platform of ['x', 'threads', 'rednote', 'youtube'] as const) {
-      let after: Date | undefined;
-      for (let index = 0; index < 4; index += 1) {
-        const slot = nextPublishSlot({ platform, readyAt, after });
-        const jstMinutes =
-          ((slot.getTime() + 9 * 60 * 60_000) % (24 * 60 * 60_000)) / 60_000;
-        expect(jstMinutes).toBeGreaterThanOrEqual(9 * 60 + 30);
-        expect(jstMinutes).toBeLessThanOrEqual(18 * 60);
-        after = new Date(slot.getTime() + 60_000);
-      }
-    }
-  });
-
-  it('finds the start of the JST calendar day for a given instant', () => {
-    expect(
-      startOfJstDay(new Date('2026-08-16T04:00:00.000Z')).toISOString(),
-    ).toBe('2026-08-15T15:00:00.000Z');
-    expect(
-      startOfJstDay(new Date('2026-08-16T16:00:00.000Z')).toISOString(),
-    ).toBe('2026-08-16T15:00:00.000Z');
-    expect(
-      startOfJstDay(new Date('2026-08-16T15:00:00.000Z')).toISOString(),
-    ).toBe('2026-08-16T15:00:00.000Z');
   });
 
   it('returns no guidance for missing or empty preferences', () => {
@@ -335,13 +209,10 @@ describe('social strategy', () => {
     ];
 
     const [learned] = learnSocialStrategies({ posts, metrics });
-    expect(learned).toMatchObject({ platform: 'threads', basedOnSamples: 5 });
-    expect(learned?.config).toMatchObject({
-      dailyPublishCap: 1,
-      publishSlotsJst: [
-        { hour: 12, minute: 0 },
-        { hour: 9, minute: 30 },
-      ],
+    expect(learned).toMatchObject({
+      platform: 'threads',
+      languageCode: 'ja',
+      basedOnSamples: 5,
     });
     expect(learned?.config.preferredHashtags).toBeUndefined();
     expect(learned?.config.avoidHashtags).toBeUndefined();
@@ -450,14 +321,13 @@ describe('social strategy', () => {
     expect(learned?.config.preferredHookTypes).toContain('question');
     expect(learned?.config.preferredHashtags).toContain('AI');
     expect(learned?.config.avoidHashtags).toContain('冷門');
-    expect(learned?.config).toMatchObject({
-      dailyPublishCap: 1,
-      slotExplorationRate: 0.2,
-      publishSlotsJst: [
-        { hour: 14, minute: 30 },
-        { hour: 12, minute: 0 },
-      ],
-    });
+    // Nothing about timing: a learned row cannot move a slot or widen a cap.
+    expect(Object.keys(learned!.config).sort()).toEqual([
+      'avoidHashtags',
+      'explorationRate',
+      'preferredHashtags',
+      'preferredHookTypes',
+    ]);
 
     expect(
       learnSocialStrategies({

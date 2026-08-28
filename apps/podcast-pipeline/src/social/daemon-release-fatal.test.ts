@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  alignPendingSocialPublishSchedules: vi.fn().mockResolvedValue(0),
+  listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
+  rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   claimSocialPublishBatch: vi.fn().mockResolvedValue([]),
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn().mockResolvedValue(true),
@@ -13,7 +14,6 @@ const mocks = vi.hoisted(() => ({
     episodeQueue: [],
     nextByPlatform: {},
   }),
-  listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
   listLearningSocialPosts: vi.fn().mockResolvedValue([]),
   listLearningSocialMetrics: vi.fn().mockResolvedValue([]),
@@ -23,7 +23,6 @@ const mocks = vi.hoisted(() => ({
   listUnfinishedSocialPublishJobs: vi.fn().mockResolvedValue([]),
   reconcileSocialPublishJob: vi.fn(),
   releaseSocialPublishJobLease: vi.fn().mockResolvedValue(undefined),
-  skipOverdueSocialPublishJobs: vi.fn().mockResolvedValue(0),
   insertSocialPostMetric: vi.fn(),
   listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
   listSocialPostsByEpisode: vi.fn().mockResolvedValue([]),
@@ -48,7 +47,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./daemon-store.js', () => ({
-  alignPendingSocialPublishSchedules: mocks.alignPendingSocialPublishSchedules,
+  listPastDueSocialPublishJobs: mocks.listPastDueSocialPublishJobs,
+  rescheduleSocialPublishJob: mocks.rescheduleSocialPublishJob,
   claimSocialPublishBatch: mocks.claimSocialPublishBatch,
   completeSocialPublishJob: mocks.completeSocialPublishJob,
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
@@ -57,7 +57,6 @@ vi.mock('./daemon-store.js', () => ({
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   latestPendingSocialPublishSchedule: vi.fn().mockResolvedValue(null),
-  listPartiallyPublishedCohorts: mocks.listPartiallyPublishedCohorts,
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
   listLearningSocialMetrics: mocks.listLearningSocialMetrics,
@@ -69,7 +68,6 @@ vi.mock('./daemon-store.js', () => ({
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob: mocks.reconcileSocialPublishJob,
   releaseSocialPublishJobLease: mocks.releaseSocialPublishJobLease,
-  skipOverdueSocialPublishJobs: mocks.skipOverdueSocialPublishJobs,
 }));
 
 vi.mock('../services/db.js', () => ({
@@ -115,7 +113,8 @@ import {
 } from './daemon.js';
 import { SocialReleaseFailureError } from './publish-error.js';
 
-const NOW = new Date('2026-08-16T10:00:00.000Z');
+// 10:00 JST: inside the window `publishDueJobs` will claim in.
+const NOW = new Date('2026-08-16T01:00:00.000Z');
 const FIRST_STARTED_AT = '2026-08-16T08:00:00.000Z';
 const EPISODE_A = '123e4567-e89b-42d3-a456-426614174000';
 const EPISODE_B = '123e4567-e89b-42d3-a456-426614174001';
@@ -144,9 +143,9 @@ function job(input: Record<string, unknown>) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.alignPendingSocialPublishSchedules.mockResolvedValue(0);
+  mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
+  mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.claimSocialPublishBatch.mockResolvedValue([]);
-  mocks.listPartiallyPublishedCohorts.mockResolvedValue([]);
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([]);
@@ -169,19 +168,19 @@ describe('social daemon release-shape stages are fatal', () => {
       runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT }),
     ).rejects.toThrow('reconcile lookup down');
 
-    expect(mocks.alignPendingSocialPublishSchedules).not.toHaveBeenCalled();
+    expect(mocks.listPastDueSocialPublishJobs).not.toHaveBeenCalled();
     expect(mocks.listSocialPublishCandidates).not.toHaveBeenCalled();
     expect(mocks.claimSocialPublishBatch).not.toHaveBeenCalled();
   });
 
-  it('stops the tick when aligning schedules fails', async () => {
-    mocks.alignPendingSocialPublishSchedules.mockRejectedValue(
-      new Error('align write down'),
+  it('stops the tick when rescheduling a missed slot fails', async () => {
+    mocks.listPastDueSocialPublishJobs.mockRejectedValue(
+      new Error('past-due read down'),
     );
 
     await expect(
       runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT }),
-    ).rejects.toThrow('align write down');
+    ).rejects.toThrow('past-due read down');
 
     expect(mocks.listSocialPublishCandidates).not.toHaveBeenCalled();
     expect(mocks.claimSocialPublishBatch).not.toHaveBeenCalled();

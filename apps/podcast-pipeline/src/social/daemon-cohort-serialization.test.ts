@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  alignPendingSocialPublishSchedules: vi.fn().mockResolvedValue(0),
+  listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
+  rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   claimSocialPublishBatch: vi.fn(),
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn().mockResolvedValue(true),
@@ -13,7 +14,6 @@ const mocks = vi.hoisted(() => ({
     episodeQueue: [],
     nextByPlatform: {},
   }),
-  listPartiallyPublishedCohorts: vi.fn(),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
   listLearningSocialPosts: vi.fn().mockResolvedValue([]),
   listLearningSocialMetrics: vi.fn().mockResolvedValue([]),
@@ -23,7 +23,6 @@ const mocks = vi.hoisted(() => ({
   listUnfinishedSocialPublishJobs: vi.fn().mockResolvedValue([]),
   reconcileSocialPublishJob: vi.fn(),
   releaseSocialPublishJobLease: vi.fn().mockResolvedValue(undefined),
-  skipOverdueSocialPublishJobs: vi.fn().mockResolvedValue(0),
   insertSocialPostMetric: vi.fn(),
   listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
   listSocialPostsByEpisode: vi.fn().mockResolvedValue([]),
@@ -46,7 +45,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./daemon-store.js', () => ({
-  alignPendingSocialPublishSchedules: mocks.alignPendingSocialPublishSchedules,
+  listPastDueSocialPublishJobs: mocks.listPastDueSocialPublishJobs,
+  rescheduleSocialPublishJob: mocks.rescheduleSocialPublishJob,
   claimSocialPublishBatch: mocks.claimSocialPublishBatch,
   completeSocialPublishJob: mocks.completeSocialPublishJob,
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
@@ -55,7 +55,6 @@ vi.mock('./daemon-store.js', () => ({
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   latestPendingSocialPublishSchedule: vi.fn().mockResolvedValue(null),
-  listPartiallyPublishedCohorts: mocks.listPartiallyPublishedCohorts,
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
   listLearningSocialMetrics: mocks.listLearningSocialMetrics,
@@ -67,7 +66,6 @@ vi.mock('./daemon-store.js', () => ({
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob: mocks.reconcileSocialPublishJob,
   releaseSocialPublishJobLease: mocks.releaseSocialPublishJobLease,
-  skipOverdueSocialPublishJobs: mocks.skipOverdueSocialPublishJobs,
 }));
 
 vi.mock('../services/db.js', () => ({
@@ -98,14 +96,15 @@ vi.mock('./experiments.js', async (importOriginal) => ({
 
 import { runSocialDaemonTick } from './daemon.js';
 
-const NOW = new Date('2026-08-16T10:00:00.000Z');
+// 10:00 JST: inside the window `publishDueJobs` will claim in.
+const NOW = new Date('2026-08-16T01:00:00.000Z');
 const FIRST_STARTED_AT = '2026-08-16T08:00:00.000Z';
 const PARTIAL_EPISODE = '123e4567-e89b-42d3-a456-426614174000';
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.alignPendingSocialPublishSchedules.mockResolvedValue(0);
-  mocks.listPartiallyPublishedCohorts.mockResolvedValue([]);
+  mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
+  mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([]);
@@ -114,71 +113,10 @@ beforeEach(() => {
   mocks.ensureSocialDaemonStart.mockResolvedValue(FIRST_STARTED_AT);
 });
 
-describe('release cohort serialization', () => {
-  it('claims only the partially published episode while it still has pending lanes', async () => {
-    mocks.listPartiallyPublishedCohorts.mockResolvedValue([PARTIAL_EPISODE]);
-    mocks.claimSocialPublishBatch.mockResolvedValue([]);
-
-    await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
-
-    expect(mocks.claimSocialPublishBatch).toHaveBeenCalledTimes(1);
-    expect(mocks.claimSocialPublishBatch).toHaveBeenCalledWith({
-      owner: expect.any(String),
-      now: NOW,
-      episodeId: PARTIAL_EPISODE,
-    });
-  });
-
-  it('publishes nothing this tick when the partial cohort has nothing due yet, even if other work is unrestricted', async () => {
-    mocks.listPartiallyPublishedCohorts.mockResolvedValue([PARTIAL_EPISODE]);
-    mocks.claimSocialPublishBatch.mockResolvedValue([]);
-
-    await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
-
-    // Only the scoped claim ran; there is no unrestricted fallback claim in
-    // the same tick that could start a fresh episode ahead of this one.
-    expect(mocks.claimSocialPublishBatch).toHaveBeenCalledTimes(1);
-    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
-  });
-
-  // The fence used to return silently, so a cohort holding every other article
-  // back was indistinguishable from an idle queue in the daemon log.
-  it('names the cohort holding the fence shut when nothing in it is claimable', async () => {
-    mocks.listPartiallyPublishedCohorts.mockResolvedValue([PARTIAL_EPISODE]);
-    mocks.claimSocialPublishBatch.mockResolvedValue([]);
-    const log = vi.fn();
-
-    await runSocialDaemonTick({
-      now: NOW,
-      firstStartedAt: FIRST_STARTED_AT,
-      log,
-    });
-
-    expect(log).toHaveBeenCalledWith(
-      `🚧 [social-daemon] fenced by 1 unfinished cohort · ${PARTIAL_EPISODE} · nothing claimable yet; no other article can start.`,
-    );
-  });
-
-  it('stays quiet about the fence when no cohort is partial', async () => {
-    mocks.listPartiallyPublishedCohorts.mockResolvedValue([]);
-    mocks.claimSocialPublishBatch.mockResolvedValue([]);
-    const log = vi.fn();
-
-    await runSocialDaemonTick({
-      now: NOW,
-      firstStartedAt: FIRST_STARTED_AT,
-      log,
-    });
-
-    expect(log).not.toHaveBeenCalledWith(
-      expect.stringContaining('[social-daemon] fenced by'),
-    );
-  });
-
-  it('finishes the partial cohort before an unrestricted claim can start a fresh episode', async () => {
-    mocks.listPartiallyPublishedCohorts.mockResolvedValue([PARTIAL_EPISODE]);
-    const pendingLane = {
-      id: 'job-pending-lane',
+describe('platform release independence', () => {
+  function laneJob(overrides: Record<string, unknown>) {
+    return {
+      id: 'job-1',
       episode_id: PARTIAL_EPISODE,
       platform: 'youtube',
       language_code: 'en',
@@ -194,35 +132,15 @@ describe('release cohort serialization', () => {
       completed_at: null,
       created_at: NOW.toISOString(),
       updated_at: NOW.toISOString(),
+      ...overrides,
     };
-    mocks.claimSocialPublishBatch.mockResolvedValue([pendingLane]);
-    mocks.publishSocialBatch.mockResolvedValue([
-      { platform: 'youtube', status: 'published' },
-    ]);
-    mocks.listSocialPostsByEpisode
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: 'post-1' }]);
+  }
 
-    await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
-
-    expect(mocks.claimSocialPublishBatch).toHaveBeenCalledTimes(1);
-    expect(mocks.claimSocialPublishBatch).toHaveBeenCalledWith(
-      expect.objectContaining({ episodeId: PARTIAL_EPISODE }),
-    );
-    expect(mocks.publishSocialBatch).toHaveBeenCalledWith(
-      expect.objectContaining({ episodeId: PARTIAL_EPISODE }),
-    );
-    // No unrestricted claim happened in the same tick.
-    expect(mocks.claimSocialPublishBatch).not.toHaveBeenCalledWith({
-      owner: expect.any(String),
-      now: NOW,
-    });
-  });
-
-  it('falls back to an unrestricted claim once no cohort is partial', async () => {
-    mocks.listPartiallyPublishedCohorts.mockResolvedValue([]);
-    mocks.claimSocialPublishBatch.mockResolvedValue([]);
-
+  it('claims everything due without narrowing to one episode', async () => {
+    // The cross-episode fence is gone. Under per-platform budgets a partially
+    // published episode is the steady state -- Rednote at 14:30 and YouTube at
+    // 17:15 are the same article, hours apart -- so fencing on it would
+    // deadlock the queue against its own schedule.
     await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
 
     expect(mocks.claimSocialPublishBatch).toHaveBeenCalledTimes(1);
@@ -230,5 +148,58 @@ describe('release cohort serialization', () => {
       owner: expect.any(String),
       now: NOW,
     });
+  });
+
+  it('publishes a lane of a half-released episode alongside a fresh one', async () => {
+    const other = '123e4567-e89b-42d3-a456-426614174111';
+    mocks.claimSocialPublishBatch.mockResolvedValue([
+      laneJob({ id: 'job-partial' }),
+      laneJob({
+        id: 'job-fresh',
+        episode_id: other,
+        platform: 'rednote',
+        language_code: 'zh-Hant',
+      }),
+    ]);
+    mocks.publishSocialBatch.mockImplementation(
+      async ({ platforms }: { platforms: { platform: string }[] }) =>
+        platforms.map(({ platform }) => ({ platform, status: 'published' })),
+    );
+    // Reconcile asks first, for every claimed job, and finds nothing; the
+    // post-publish verification asks again and has to find the row.
+    mocks.listSocialPostsByEpisode.mockImplementation(async () =>
+      mocks.publishSocialBatch.mock.calls.length > 0 ? [{ id: 'post-1' }] : [],
+    );
+
+    await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
+
+    const publishedEpisodes = mocks.publishSocialBatch.mock.calls.map(
+      ([input]) => (input as { episodeId: string }).episodeId,
+    );
+    expect(publishedEpisodes).toEqual(
+      expect.arrayContaining([PARTIAL_EPISODE, other]),
+    );
+  });
+
+  it('claims nothing outside the hours someone can watch a browser fail', async () => {
+    // 04:00 JST. Rednote and X publish through real browser sessions on a Mac;
+    // a failure nobody sees is the case this gate exists for. The lane is not
+    // lost -- reschedulePastDueJobs moves it to the next slot.
+    await runSocialDaemonTick({
+      now: new Date('2026-08-15T19:00:00.000Z'),
+      firstStartedAt: FIRST_STARTED_AT,
+    });
+
+    expect(mocks.claimSocialPublishBatch).not.toHaveBeenCalled();
+  });
+
+  it('still claims at the last minute of the window', async () => {
+    // 17:59 JST, which is when the 17:15 YouTube slot is served.
+    await runSocialDaemonTick({
+      now: new Date('2026-08-16T08:59:00.000Z'),
+      firstStartedAt: FIRST_STARTED_AT,
+    });
+
+    expect(mocks.claimSocialPublishBatch).toHaveBeenCalledTimes(1);
   });
 });

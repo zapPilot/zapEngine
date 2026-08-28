@@ -13,6 +13,10 @@ import type {
 import type { SocialPlatform } from './platforms.js';
 
 export const SOCIAL_DAEMON_STATE_ID = 'local-social-daemon-v1';
+
+// Mirrors the `attempt_count < 8` fence inside `claim_social_publish_batch`. A
+// lane that has burned every attempt is never claimable again, so the queue
+// snapshot flags it rather than reporting a time that will never arrive.
 const MAX_PUBLISH_ATTEMPTS = 8;
 
 export type SocialMetricWindowLabel = '1h' | '6h' | '24h' | '72h' | '7d';
@@ -93,21 +97,17 @@ export interface SocialWaitingVideoItem {
   languageCodes: PrimaryLanguageCode[];
 }
 
-export interface SocialPublishSlot {
-  hour: number;
-  minute: number;
-}
-
+/**
+ * Learned copy guidance only. Publish timing used to live here too and was
+ * never read -- the scheduler always used its own defaults -- so it is now
+ * code-owned in `policy.ts`, where a learner cannot widen a daily cap by
+ * writing a row. Extra keys on historical rows are simply ignored.
+ */
 export interface SocialStrategyConfig {
-  publishSlotsJst?: SocialPublishSlot[];
-  /** Max `(episode, platform)` cohorts that may be scheduled on one JST day. */
-  dailyPublishCap?: number;
-  /** Deterministic fraction of one-post days assigned to an alternate slot. */
-  slotExplorationRate?: number;
   preferredHookTypes?: string[];
   preferredHashtags?: string[];
   avoidHashtags?: string[];
-  /** ε-greedy copy exploration; independent from timing exploration. */
+  /** ε-greedy copy exploration. */
   explorationRate?: number;
 }
 
@@ -179,6 +179,12 @@ export async function listSocialPublishCandidates(
   );
 }
 
+// The anchor filter above is applied per lane, not per episode: a canonical
+// zh-Hant localization that finished ready before `readySince` would
+// otherwise never appear here, so an episode discovered through one recently
+// ready language always looks permanently incomplete. Callers that already
+// know which episodes matter use this instead, unfiltered by anchor, to see
+// every ready language for exactly those episodes.
 export async function listSocialPublishCandidatesForEpisodes(
   episodeIds: readonly string[],
 ): Promise<SocialPublishCandidate[]> {
@@ -206,6 +212,10 @@ export async function listSocialEpisodeLocalizationTitles(
   return data ?? [];
 }
 
+// A conflict-ignoring upsert and a status-fenced update both ask the same
+// question -- did this actually touch a row? -- so they share the answer, not
+// the builder: `upsert` and `update` produce POST and PATCH builders whose
+// types do not unify.
 async function affectedSocialPublishJobRow(
   mutation: PromiseLike<{ data: { id: string } | null; error: unknown }>,
 ): Promise<boolean> {
@@ -214,6 +224,9 @@ async function affectedSocialPublishJobRow(
   return data !== null;
 }
 
+// No strategy version is stamped here. A job can be queued days before it is
+// due -- or before any version exists at all -- so the version it publishes
+// under is resolved at claim time and recorded on completion.
 export async function enqueueSocialPublishJob(
   input: SocialDistributionMetadata & {
     episodeId: string;
@@ -282,82 +295,65 @@ export async function listPendingSocialPublishSchedules(): Promise<
   return data ?? [];
 }
 
-function platformCohortKey(episodeId: string, platform: SocialPlatform): string {
-  return `${episodeId}|${platform}`;
+export interface PastDueSocialPublishJob {
+  id: string;
+  episode_id: string;
+  platform: SocialPlatform;
+  language_code: PrimaryLanguageCode | null;
+  status: 'queued' | 'failed';
+  scheduled_at: string;
 }
 
 /**
- * Language lanes remain atomic within one platform, but different platforms
- * intentionally schedule independently. Align only `(episode, platform)` so a
- * Rednote 14:30 slot cannot drag X or YouTube to the same timestamp.
+ * Lanes whose slot has already passed. `processing` is excluded on purpose: a
+ * lease owner may be mid-publish, and only the claim RPC may take an expired
+ * lease back.
  */
-export async function alignPendingSocialPublishSchedules(
-  now: Date,
-): Promise<number> {
+export async function listPastDueSocialPublishJobs(
+  cutoff: Date,
+): Promise<PastDueSocialPublishJob[]> {
   const { data, error } = await getPipelineSupabase()
     .from('social_publish_jobs')
-    .select('id,episode_id,platform,status,scheduled_at,next_attempt_at')
-    .in('status', ['queued', 'failed', 'processing', 'completed'])
-    .returns<
-      Pick<
-        SocialPublishJobRow,
-        | 'id'
-        | 'episode_id'
-        | 'platform'
-        | 'status'
-        | 'scheduled_at'
-        | 'next_attempt_at'
-      >[]
-    >();
+    .select('id,episode_id,platform,language_code,status,scheduled_at')
+    .in('status', ['queued', 'failed'])
+    .lt('scheduled_at', cutoff.toISOString())
+    .order('scheduled_at', { ascending: true })
+    .returns<PastDueSocialPublishJob[]>();
   if (error) throwSupabaseError(error);
-
-  const jobs = data ?? [];
-  const earliestByCohort = new Map<string, string>();
-  for (const job of jobs) {
-    const key = platformCohortKey(job.episode_id, job.platform);
-    const current = earliestByCohort.get(key);
-    if (!current || Date.parse(job.scheduled_at) < Date.parse(current)) {
-      earliestByCohort.set(key, job.scheduled_at);
-    }
-  }
-
-  let aligned = 0;
-  for (const job of jobs) {
-    if (job.status !== 'queued' && job.status !== 'failed') continue;
-    const scheduledAt = earliestByCohort.get(
-      platformCohortKey(job.episode_id, job.platform),
-    );
-    if (!scheduledAt) continue;
-    const patch = alignmentPatch(job, scheduledAt, now);
-    if (!patch) continue;
-    const { data: updated, error: updateError } = await getPipelineSupabase()
-      .from('social_publish_jobs')
-      .update(patch)
-      .eq('id', job.id)
-      .eq('status', job.status)
-      .select('id')
-      .maybeSingle<{ id: string }>();
-    if (updateError) throwSupabaseError(updateError);
-    if (updated) aligned += 1;
-  }
-  return aligned;
+  return data ?? [];
 }
 
-function alignmentPatch(
-  job: Pick<SocialPublishJobRow, 'status' | 'scheduled_at' | 'next_attempt_at'>,
-  scheduledAt: string,
-  now: Date,
-): Partial<SocialPublishJobRow> | null {
-  if (job.status === 'failed') {
-    if (Date.parse(job.scheduled_at) <= now.getTime()) return null;
-    if (scheduledAt === job.scheduled_at) return null;
-    return { scheduled_at: scheduledAt };
-  }
-
-  const blockedUntil = Date.parse(jobNextAt(job));
-  if (blockedUntil <= now.getTime()) return null;
-  if (blockedUntil <= Date.parse(scheduledAt)) return null;
-  return { scheduled_at: scheduledAt, next_attempt_at: scheduledAt };
+/**
+ * Moves one lane to a later slot. Nothing is ever dropped or brought forward:
+ * a missed slot is a slot the account did not spend, and publishing a backlog
+ * the moment it is noticed is exactly the burst the daily caps exist to stop.
+ *
+ * `next_attempt_at` follows `scheduled_at` because the claim RPC fences on
+ * both, and a retry backoff left behind the new slot would make the lane
+ * unclaimable at a time it is supposed to be due. The status fence is what
+ * makes this safe beside a live claim: a claimed row is `processing` and no
+ * longer matches.
+ */
+export async function rescheduleSocialPublishJob(input: {
+  jobId: string;
+  status: 'queued' | 'failed';
+  scheduledAt: Date;
+  now: Date;
+}): Promise<boolean> {
+  const scheduledAt = input.scheduledAt.toISOString();
+  return affectedSocialPublishJobRow(
+    getPipelineSupabase()
+      .from('social_publish_jobs')
+      .update({
+        scheduled_at: scheduledAt,
+        next_attempt_at: scheduledAt,
+        updated_at: input.now.toISOString(),
+      })
+      .eq('id', input.jobId)
+      .eq('status', input.status)
+      .select('id')
+      .maybeSingle<{ id: string }>(),
+  );
 }
 
 export async function getSocialQueueSnapshot(
@@ -472,6 +468,8 @@ export async function getSocialQueueSnapshot(
   );
 }
 
+// Keep the historical enumerable snapshot shape stable for existing log and
+// monitoring consumers while exposing the multilingual lane index directly.
 function withQueueLanes(
   snapshot: Omit<SocialQueueSnapshot, 'nextByLane' | 'waitingVideos'>,
   nextByLane: SocialQueueSnapshot['nextByLane'],
@@ -488,9 +486,7 @@ async function listWaitingSocialVideos(): Promise<SocialWaitingVideoItem[]> {
   const { data, error } = await getPipelineSupabase()
     .from('social_waiting_media')
     .select('episode_id,language_code')
-    .returns<
-      { episode_id: string; language_code: PrimaryLanguageCode }[]
-    >();
+    .returns<{ episode_id: string; language_code: PrimaryLanguageCode }[]>();
   if (error) throwSupabaseError(error);
 
   const rows = data ?? [];
@@ -525,6 +521,11 @@ async function listWaitingSocialVideos(): Promise<SocialWaitingVideoItem[]> {
   }));
 }
 
+// `claim_social_publish_batch` gates a pending lane on `scheduled_at <= now`
+// AND `next_attempt_at <= now`, so the soonest it can be picked up is the later
+// of the two. Reporting `scheduled_at` alone made a lane whose
+// `next_attempt_at` sat further out render as `due now` every tick while the
+// claim kept skipping it.
 function jobNextAt(
   job: Pick<SocialPublishJobRow, 'scheduled_at' | 'next_attempt_at'>,
 ): string {
@@ -541,6 +542,9 @@ export interface UnfinishedSocialPublishJob {
   status: 'queued' | 'failed';
 }
 
+// `processing` rows are deliberately excluded: their lease owner may be
+// mid-publish, and the claim RPC is the only thing allowed to take an expired
+// lease back.
 export async function listUnfinishedSocialPublishJobs(): Promise<
   UnfinishedSocialPublishJob[]
 > {
@@ -553,114 +557,19 @@ export async function listUnfinishedSocialPublishJobs(): Promise<
   return data ?? [];
 }
 
-export async function skipOverdueSocialPublishJobs(input: {
-  now: Date;
-  graceMs: number;
-}): Promise<number> {
-  if (!Number.isSafeInteger(input.graceMs) || input.graceMs <= 0) {
-    throw new Error('Social publish overdue grace must be a positive integer.');
-  }
-
-  const completedAt = input.now.toISOString();
-  const cutoff = new Date(input.now.getTime() - input.graceMs).toISOString();
-  const supabase = getPipelineSupabase();
-
-  const { data: completedRows, error: completedError } = await supabase
-    .from('social_publish_jobs')
-    .select('episode_id,platform')
-    .in('status', ['completed'])
-    .returns<{ episode_id: string; platform: SocialPlatform }[]>();
-  if (completedError) throwSupabaseError(completedError);
-
-  const { data: candidateRows, error: candidateError } = await supabase
-    .from('social_publish_jobs')
-    .select('id,episode_id,platform')
-    .in('status', ['queued', 'failed'])
-    .lt('scheduled_at', cutoff)
-    .returns<{ id: string; episode_id: string; platform: SocialPlatform }[]>();
-  if (candidateError) throwSupabaseError(candidateError);
-
-  const completedCohorts = new Set(
-    (completedRows ?? []).map((row) =>
-      platformCohortKey(row.episode_id, row.platform),
-    ),
-  );
-  const overdueIds = (candidateRows ?? [])
-    .filter(
-      (row) =>
-        !completedCohorts.has(platformCohortKey(row.episode_id, row.platform)),
-    )
-    .map((row) => row.id);
-  if (overdueIds.length === 0) return 0;
-
-  const { data, error } = await supabase
-    .from('social_publish_jobs')
-    .update({
-      status: 'completed',
-      completed_at: completedAt,
-      lease_owner: null,
-      lease_expires_at: null,
-      last_error: `skipped: overdue; grace_ms=${input.graceMs}; cutoff=${cutoff}`,
-      updated_at: completedAt,
-    })
-    .in('id', overdueIds)
-    .select('id')
-    .returns<{ id: string }[]>();
-  if (error) throwSupabaseError(error);
-  return data?.length ?? 0;
-}
-
 export async function claimSocialPublishBatch(input: {
   owner: string;
   now: Date;
-  episodeId?: string;
-  platform?: SocialPlatform;
 }): Promise<SocialPublishJobRow[]> {
   const { data, error } = await getPipelineSupabase().rpc(
     'claim_social_publish_batch',
     {
       p_owner: input.owner,
       p_now: input.now.toISOString(),
-      ...(input.episodeId ? { p_episode_id: input.episodeId } : {}),
-      ...(input.platform ? { p_platform: input.platform } : {}),
     },
   );
   if (error) throwSupabaseError(error);
   return (data ?? []) as SocialPublishJobRow[];
-}
-
-export interface PartiallyPublishedSocialCohort {
-  episodeId: string;
-  platform: SocialPlatform;
-}
-
-/** completed + still-pending lanes inside one `(episode, platform)` cohort. */
-export async function listPartiallyPublishedCohorts(): Promise<
-  PartiallyPublishedSocialCohort[]
-> {
-  const { data, error } = await getPipelineSupabase()
-    .from('social_publish_jobs')
-    .select('episode_id,platform,status')
-    .in('status', ['queued', 'processing', 'failed', 'completed'])
-    .returns<
-      {
-        episode_id: string;
-        platform: SocialPlatform;
-        status: SocialPublishJobRow['status'];
-      }[]
-    >();
-  if (error) throwSupabaseError(error);
-
-  const completed = new Set<string>();
-  const pending = new Map<string, PartiallyPublishedSocialCohort>();
-  for (const row of data ?? []) {
-    const key = platformCohortKey(row.episode_id, row.platform);
-    if (row.status === 'completed') completed.add(key);
-    else pending.set(key, { episodeId: row.episode_id, platform: row.platform });
-  }
-  return [...pending.entries()]
-    .filter(([key]) => completed.has(key))
-    .map(([, cohort]) => cohort);
 }
 
 async function updateOwnedSocialPublishJob(
@@ -692,6 +601,8 @@ function completedSocialPublishJobPatch(
     lease_expires_at: null,
     last_error: null,
     updated_at: completedAt,
+    // Left untouched when absent: a job completed from evidence in
+    // `social_posts` was not published under any guidance this daemon applied.
     ...(strategyVersionId !== undefined
       ? { strategy_version_id: strategyVersionId }
       : {}),
@@ -703,6 +614,7 @@ export async function completeSocialPublishJob(input: {
   owner: string;
   completedAt: Date;
   socialPostId?: string | null;
+  /** The strategy version whose guidance this publish actually used. */
   strategyVersionId?: string | null;
 }): Promise<void> {
   const completedAt = input.completedAt.toISOString();
@@ -717,6 +629,11 @@ export async function completeSocialPublishJob(input: {
   );
 }
 
+// Completes a job from evidence in `social_posts` rather than from a publish
+// this daemon performed, so a manual `social:publish` -- or a crash after the
+// post row was written -- cannot leave the queue retrying a platform that is
+// already live. The status filter is the fence: a `processing` row belongs to
+// whoever holds its lease.
 export async function reconcileSocialPublishJob(input: {
   jobId: string;
   socialPostId: string;
@@ -754,6 +671,10 @@ export async function failSocialPublishJob(input: {
   });
 }
 
+// Used to hand back a claimed-but-never-attempted lane when a sibling lane in
+// the same release cohort fails fatally: the lane goes straight back to
+// `queued`, immediately claimable, with no backoff applied -- it was never
+// actually tried, so there is nothing to retry-delay.
 export async function releaseSocialPublishJobLease(input: {
   jobId: string;
   owner: string;
@@ -774,6 +695,8 @@ export function publishRetryDelayMs(attemptCount: number): number {
   return Math.min(6 * 60 * 60_000, 5 * 60_000 * 2 ** exponent);
 }
 
+// Newest row per platform: the same query answers the staleness gate and the
+// dashboard's current follower counts.
 export async function latestSocialAccountSnapshots(): Promise<
   Partial<Record<SocialPlatform, SocialAccountSnapshotRow>>
 > {
@@ -860,6 +783,19 @@ export async function activateSocialStrategy(input: {
   return data;
 }
 
+/**
+ * Retires a strategy row whose lane the publish policy no longer ships, so the
+ * refresh can heal itself instead of waiting for someone to run SQL.
+ */
+export async function deactivateSocialStrategy(id: string): Promise<void> {
+  const { error } = await getPipelineSupabase()
+    .from('social_strategy_versions')
+    .update({ active: false })
+    .eq('id', id)
+    .eq('active', true);
+  if (error) throwSupabaseError(error);
+}
+
 export async function listLearningSocialPosts(
   publishedSince: string,
 ): Promise<SocialPostRow[]> {
@@ -870,6 +806,9 @@ export async function listLearningSocialPosts(
     .order('published_at', { ascending: true })
     .returns<SocialPostRow[]>();
   if (error) throwSupabaseError(error);
+  // Suppressed posts were never shown to anyone. Learning from their zero
+  // snapshots is moderation, not audience feedback; metric collection also
+  // has no reason to open a browser for a post the platform hid.
   const rows = data ?? [];
   return rows.filter(
     (post) =>
