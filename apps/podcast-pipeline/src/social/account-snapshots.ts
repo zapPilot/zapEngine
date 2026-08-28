@@ -1,254 +1,156 @@
-import type { APIRequestContext } from 'playwright-core';
+import type { BrowserContext, Page } from 'playwright';
 
 import { errorMessage } from '../lib/errorMessage.js';
-import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
 import type { NewSocialAccountSnapshot } from '../types.js';
 import {
   insertSocialAccountSnapshot,
   latestSocialAccountSnapshots,
 } from './daemon-store.js';
-import { platformIcon } from './log-format.js';
+import type { SocialMetricsBrowserSession } from './metric-collectors.js';
+import { extractMetricNumber } from './metrics.js';
+import type { SocialPlatform } from './platforms.js';
 import {
-  type MetricsBrowserSession,
-  parseFirstMetricNumber,
-  parseMetricNumber,
-} from './metric-collectors.js';
-import { findXProfileUrl } from './reconcile.js';
-import { PROFILE_DIRECTORY as REDNOTE_PROFILE_DIRECTORY } from './rednote-browser.js';
-import { readPublishState } from './state.js';
-import { assertThreadsSessionReady } from './threads-auth.js';
-import type { SocialPlatform } from './types.js';
-import { PROFILE_DIRECTORY as X_PROFILE_DIRECTORY } from './x-playwright.js';
+  getRednoteProfileUrl,
+  getThreadsProfileUrl,
+  getXProfileUrl,
+} from './publish-config.js';
 
-const REDNOTE_USER_INFO_URL =
-  'https://creator.rednote.com/api/galaxy/user/info';
-const REDNOTE_PROFILE_URL_PREFIX = 'https://www.rednote.com/user/profile/';
-const THREADS_API_BASE = 'https://graph.threads.net';
-const BROWSER_TIMEOUT_MS = 30_000;
-// One snapshot per platform per day. Follower counts move slowly, and a tighter
-// cadence would open a browser on every minute-long daemon tick.
-const SNAPSHOT_STALENESS_MS = 24 * 60 * 60_000;
+const SNAPSHOT_STALENESS_MS = 3 * 60 * 60_000;
+const NAVIGATION_TIMEOUT_MS = 30_000;
 
-interface CollectorContext {
-  browser: MetricsBrowserSession;
-  fetchImpl: typeof fetch;
-}
-
-type FollowerCollector = (
-  context: CollectorContext,
-) => Promise<NewSocialAccountSnapshot>;
-
-/**
- * The creator platform no longer ships a page carrying this number: every
- * creator route other than publish/note-manager now redirects to the publish
- * shell, which shows the upload form and nothing about the account. The count
- * lives on the consumer profile page instead, and that page is server-rendered
- * -- the number is in the first response, so nothing here waits on hydration.
- *
- * It is read from the embedded state's `fans` entry rather than from the
- * visible label because that page renders in the viewer's language (`Followers`
- * on the international domain, `粉丝` on the mainland one) while the entry type
- * is the backend's own name for it. The neighbouring `Likes & Saves` figure sits
- * one line below the label in the rendered text, so a label-relative text read
- * has a wrong number within reach; this one does not.
- */
-export function extractRednoteFollowerText(html: string): string | null {
-  const entry = /\{[^{}]*"type"\s*:\s*"fans"[^{}]*\}/u.exec(html)?.[0];
-  if (!entry) return null;
-  return /"count"\s*:\s*"([^"]*)"/u.exec(entry)?.[1] ?? null;
-}
-
-export function parseRednoteUserId(payload: unknown): string | null {
-  if (!isRecord(payload) || !isRecord(payload['data'])) return null;
-  const userId = payload['data']['userId'];
-  return typeof userId === 'string' && userId.trim() ? userId.trim() : null;
-}
-
-/**
- * The account's own id, which the profile URL needs. It is asked for rather
- * than configured, and this call is also the session gate: signed out it answers
- * HTTP 401, while the profile page below still answers HTTP 200 -- with every
- * count masked as `10+`.
- */
-async function readRednoteUserId(request: APIRequestContext): Promise<string> {
-  const response = await request.get(REDNOTE_USER_INFO_URL, {
-    timeout: BROWSER_TIMEOUT_MS,
-  });
-  if (!response.ok()) {
-    throw new Error(
-      `Rednote session expired (creator user info returned HTTP ${response.status()}). Run \`pnpm social:login\` to sign the browser profile in again.`,
-    );
-  }
-  const userId = parseRednoteUserId(
-    (await response.json().catch(() => null)) as unknown,
-  );
-  if (!userId) {
-    throw new Error('Rednote creator user info exposed no user id.');
-  }
-  return userId;
-}
-
-async function collectRednoteFollowers({
-  browser,
-}: CollectorContext): Promise<NewSocialAccountSnapshot> {
-  return browser.withRequest(REDNOTE_PROFILE_DIRECTORY, async (request) => {
-    const userId = await readRednoteUserId(request);
-    const profileUrl = `${REDNOTE_PROFILE_URL_PREFIX}${userId}`;
-    const response = await request.get(profileUrl, {
-      timeout: BROWSER_TIMEOUT_MS,
-    });
-    if (!response.ok()) {
-      throw new Error(
-        `Rednote profile ${profileUrl} returned HTTP ${response.status()}.`,
-      );
-    }
-
-    const raw = extractRednoteFollowerText(await response.text());
-    if (raw === null) {
-      throw new Error(
-        `Rednote profile ${profileUrl} exposed no follower count.`,
-      );
-    }
-    // Strict on purpose: a signed-out read of this page answers `10+`, which a
-    // lenient parse would record as a real drop to 10 followers.
-    const followers = parseMetricNumber(raw);
-    if (followers === null) {
-      throw new Error(
-        `Rednote profile ${profileUrl} exposed a masked follower count ("${raw}"), which is what a signed-out read returns. Run \`pnpm social:login\` to sign the browser profile in again.`,
-      );
-    }
-    return { platform: 'rednote', followers, details: { profileUrl } };
-  });
-}
-
-/**
- * X serves the profile header's follower link at `/verified_followers` for
- * accounts that have the verified-followers tab and at `/followers` for the
- * rest, so both are accepted -- a suffix match on `/followers` alone reads the
- * verified layout as a profile with no follower count at all. Both are pinned to
- * the publisher's own handle so no other account's follower link on the page can
- * answer for it.
- */
-export function xFollowerLinkSelector(profileUrl: string): string {
-  const [handle, ...rest] = new URL(profileUrl).pathname
-    .split('/')
-    .filter(Boolean);
-  if (rest.length > 0 || !handle || !/^\w{1,15}$/u.test(handle)) {
-    throw new Error(`X profile ${profileUrl} carries no readable handle.`);
-  }
-  return `a[href="/${handle}/verified_followers"], a[href="/${handle}/followers"]`;
-}
-
-async function collectXFollowers({
-  browser,
-}: CollectorContext): Promise<NewSocialAccountSnapshot> {
-  const profileUrl = findXProfileUrl(await readPublishState());
-  if (!profileUrl) {
-    throw new Error(
-      'No published X post yet, so the publisher profile URL is unknown.',
-    );
-  }
-
-  return browser.withPage(X_PROFILE_DIRECTORY, profileUrl, async (page) => {
-    const link = page.locator(xFollowerLinkSelector(profileUrl)).first();
-    await link.waitFor({ state: 'visible', timeout: BROWSER_TIMEOUT_MS });
-    const followers = parseFirstMetricNumber(await link.innerText());
-    if (followers === null) {
-      throw new Error(`X profile ${profileUrl} exposed no follower count.`);
-    }
-    return { platform: 'x', followers, details: { profileUrl } };
-  });
-}
-
-async function collectThreadsFollowers({
-  fetchImpl,
-}: CollectorContext): Promise<NewSocialAccountSnapshot> {
-  const { session, profile } = await assertThreadsSessionReady({ fetchImpl });
-  const url = new URL(
-    `${THREADS_API_BASE}/${encodeURIComponent(profile.id)}/threads_insights`,
-  );
-  url.searchParams.set('metric', 'followers_count');
-  url.searchParams.set('access_token', session.accessToken);
-
-  const response = await fetchImpl(url, {
-    signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
-  });
-  const payload = (await response.json().catch(() => null)) as unknown;
-  if (!response.ok) {
-    throw new Error(`Threads insights failed with HTTP ${response.status}.`);
-  }
-  const followers = readThreadsFollowerCount(payload);
-  if (followers === null) {
-    throw new Error('Threads insights returned no followers_count value.');
-  }
-  return { platform: 'threads', followers, details: {} };
-}
-
-function readThreadsFollowerCount(payload: unknown): number | null {
-  if (typeof payload !== 'object' || payload === null) return null;
-  const data = (payload as { data?: unknown }).data;
-  if (!Array.isArray(data)) return null;
-  for (const item of data) {
-    if (typeof item !== 'object' || item === null) continue;
-    const entry = item as { name?: unknown; total_value?: unknown };
-    if (entry.name !== 'followers_count') continue;
-    const value = (entry.total_value as { value?: unknown } | undefined)?.value;
-    if (typeof value === 'number' && Number.isFinite(value)) return value;
-  }
-  return null;
-}
-
-// YouTube is absent on purpose: the publish OAuth scope is upload-only, so this
-// daemon holds no credential that can read channel statistics. Per-post
-// `subscribersGained` already comes from YouTube Analytics.
-const COLLECTORS: Partial<Record<SocialPlatform, FollowerCollector>> = {
-  rednote: collectRednoteFollowers,
-  x: collectXFollowers,
-  threads: collectThreadsFollowers,
-};
+type SnapshotCollector = (input: {
+  browser: SocialMetricsBrowserSession;
+}) => Promise<NewSocialAccountSnapshot | null>;
 
 export async function captureDueAccountSnapshots(input: {
   now: Date;
-  browser: MetricsBrowserSession;
+  browser: SocialMetricsBrowserSession;
   log?: (message: string) => void;
-  fetchImpl?: typeof fetch;
-  latest?: typeof latestSocialAccountSnapshots;
-  insert?: typeof insertSocialAccountSnapshot;
 }): Promise<number> {
   const log = input.log ?? (() => void 0);
-  const latest = await (input.latest ?? latestSocialAccountSnapshots)();
-  const insert = input.insert ?? insertSocialAccountSnapshot;
-  const context: CollectorContext = {
-    browser: input.browser,
-    fetchImpl: input.fetchImpl ?? fetch,
-  };
+  const latest = await latestSocialAccountSnapshots();
+  let inserted = 0;
 
-  let captured = 0;
-  for (const [platform, collect] of Object.entries(COLLECTORS)) {
-    const previous = latest[platform as SocialPlatform];
-    if (previous && !isStale(previous.captured_at, input.now)) continue;
+  for (const platform of ['rednote', 'threads', 'x'] as const) {
+    const previous = latest[platform];
+    if (
+      previous &&
+      input.now.getTime() - Date.parse(previous.captured_at) <
+        SNAPSHOT_STALENESS_MS
+    ) {
+      continue;
+    }
 
-    // Isolated per platform: a logged-out browser profile on one platform must
-    // not cost the others their daily snapshot, and a failed read is never
-    // recorded as a count.
     try {
-      const snapshot = await collect(context);
-      await insert(snapshot);
-      captured += 1;
+      const snapshot = await collectors[platform]({ browser: input.browser });
+      if (!snapshot) continue;
+      await insertSocialAccountSnapshot(snapshot);
+      inserted += 1;
       log(
-        `📊 [social-daemon] ${platformIcon(platform)} ${platform} · account snapshot · ${snapshot.followers} followers`,
+        `👥 [social-daemon] ${platform} account snapshot · ${snapshot.followers} followers`,
       );
     } catch (error) {
       log(
-        `❌ [social-daemon] ${platformIcon(platform)} ${platform} · account snapshot failed · ${errorMessage(error)}`,
+        `❌ [social-daemon] ${platform} account snapshot failed · ${errorMessage(error)}`,
       );
     }
   }
-  return captured;
+
+  return inserted;
 }
 
-function isStale(capturedAt: string, now: Date): boolean {
-  const captured = Date.parse(capturedAt);
-  if (Number.isNaN(captured)) return true;
-  return now.getTime() - captured >= SNAPSHOT_STALENESS_MS;
+const collectors: Record<
+  Exclude<SocialPlatform, 'youtube'>,
+  SnapshotCollector
+> = {
+  rednote: collectRednoteAccountSnapshot,
+  threads: collectThreadsAccountSnapshot,
+  x: collectXAccountSnapshot,
+};
+
+async function collectRednoteAccountSnapshot(input: {
+  browser: SocialMetricsBrowserSession;
+}): Promise<NewSocialAccountSnapshot | null> {
+  return withPage(input.browser.context, async (page) => {
+    const url = getRednoteProfileUrl();
+    if (!url) return null;
+    await page.goto(url, {
+      waitUntil: 'domcontentloaded',
+      timeout: NAVIGATION_TIMEOUT_MS,
+    });
+    const text = await page.locator('body').innerText();
+    return {
+      platform: 'rednote',
+      followers: extractFollowerCount(text),
+      details: { profileUrl: url },
+    };
+  });
+}
+
+async function collectThreadsAccountSnapshot(input: {
+  browser: SocialMetricsBrowserSession;
+}): Promise<NewSocialAccountSnapshot | null> {
+  return withPage(input.browser.context, async (page) => {
+    const url = getThreadsProfileUrl();
+    if (!url) return null;
+    await page.goto(url, {
+      waitUntil: 'domcontentloaded',
+      timeout: NAVIGATION_TIMEOUT_MS,
+    });
+    const text = await page.locator('body').innerText();
+    return {
+      platform: 'threads',
+      followers: extractFollowerCount(text),
+      details: { profileUrl: url },
+    };
+  });
+}
+
+async function collectXAccountSnapshot(input: {
+  browser: SocialMetricsBrowserSession;
+}): Promise<NewSocialAccountSnapshot | null> {
+  return withPage(input.browser.context, async (page) => {
+    const url = getXProfileUrl();
+    if (!url) return null;
+    await page.goto(url, {
+      waitUntil: 'domcontentloaded',
+      timeout: NAVIGATION_TIMEOUT_MS,
+    });
+    const text = await page.locator('body').innerText();
+    return {
+      platform: 'x',
+      followers: extractFollowerCount(text),
+      details: { profileUrl: url },
+    };
+  });
+}
+
+function extractFollowerCount(text: string): number {
+  const patterns = [
+    /([\d,.]+(?:\s*[KMB万萬])?)\s*(?:followers|follower)/i,
+    /(?:followers|follower)\s*([\d,.]+(?:\s*[KMB万萬])?)/i,
+    /([\d,.]+(?:\s*[KMB万萬])?)\s*(?:粉絲|粉丝)/i,
+    /(?:粉絲|粉丝)\s*([\d,.]+(?:\s*[KMB万萬])?)/i,
+    /フォロワー\s*([\d,.]+(?:\s*[KMB万萬])?)/i,
+    /([\d,.]+(?:\s*[KMB万萬])?)\s*フォロワー/i,
+  ];
+  for (const pattern of patterns) {
+    const matched = text.match(pattern)?.[1];
+    if (!matched) continue;
+    const followers = extractMetricNumber(matched);
+    if (followers !== null) return followers;
+  }
+  throw new Error('Follower count was not found on the profile page');
+}
+
+async function withPage<T>(
+  context: BrowserContext,
+  task: (page: Page) => Promise<T>,
+): Promise<T> {
+  const page = await context.newPage();
+  try {
+    return await task(page);
+  } finally {
+    await page.close();
+  }
 }
