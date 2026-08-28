@@ -637,20 +637,25 @@ describe('social daemon', () => {
 
   it('runs repeated daemon ticks, refreshes only when due, and stops when injected sleep rejects', async () => {
     const oneHourLater = new Date(NOW.getTime() + 60 * 60_000);
+    // Read order: the first-start anchor, then per tick a start reading and a
+    // completion reading for the heartbeat. Only the start readings decide
+    // whether the strategy refresh is due.
     const now = vi
       .fn()
       .mockReturnValueOnce(NOW)
       .mockReturnValueOnce(NOW)
-      .mockReturnValueOnce(oneHourLater);
+      .mockReturnValueOnce(NOW)
+      .mockReturnValueOnce(oneHourLater)
+      .mockReturnValue(oneHourLater);
     const sleep = vi
       .fn()
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error('stop-loop'));
     const log = vi.fn();
 
-    await expect(runSocialDaemon({ now, sleep, log })).rejects.toThrow(
-      'stop-loop',
-    );
+    await expect(
+      runSocialDaemon({ now, sleep, log, recordTick: vi.fn() }),
+    ).rejects.toThrow('stop-loop');
 
     expect(mocks.ensureSocialDaemonStart).toHaveBeenCalledWith(NOW);
     expect(sleep).toHaveBeenNthCalledWith(1, 60_000);
@@ -716,7 +721,7 @@ describe('social daemon', () => {
     const log = vi.fn();
 
     await expect(
-      runSocialDaemon({ now: () => NOW, sleep, log }),
+      runSocialDaemon({ now: () => NOW, sleep, log, recordTick: vi.fn() }),
     ).rejects.toThrow('stop-loop');
 
     expect(log).toHaveBeenCalledWith(
@@ -756,7 +761,7 @@ describe('social daemon', () => {
     const log = vi.fn();
 
     await expect(
-      runSocialDaemon({ now: () => NOW, sleep, log }),
+      runSocialDaemon({ now: () => NOW, sleep, log, recordTick: vi.fn() }),
     ).rejects.toThrow('stop-loop');
 
     expect(log).toHaveBeenCalledWith(
@@ -796,7 +801,7 @@ describe('social daemon', () => {
     const log = vi.fn();
 
     await expect(
-      runSocialDaemon({ now: () => NOW, sleep, log }),
+      runSocialDaemon({ now: () => NOW, sleep, log, recordTick: vi.fn() }),
     ).rejects.toThrow('stop-loop');
 
     expect(log).toHaveBeenCalledWith(
@@ -812,7 +817,9 @@ describe('social daemon', () => {
       .spyOn(console, 'log')
       .mockImplementation(() => undefined);
     try {
-      await expect(runSocialDaemon()).rejects.toThrow('stop-default-sleep');
+      await expect(runSocialDaemon({ recordTick: vi.fn() })).rejects.toThrow(
+        'stop-default-sleep',
+      );
     } finally {
       timeout.mockRestore();
       consoleLog.mockRestore();

@@ -21,6 +21,7 @@
     "social:login": "pnpm --filter @zapengine/podcast-pipeline social:login",
     "social:daemon": "node scripts/env/run.mjs -- pnpm --filter @zapengine/podcast-pipeline social:daemon",
     "social:daemon:watch": "node scripts/env/run.mjs -- pnpm --filter @zapengine/podcast-pipeline social:daemon:watch",
+    "ops": "node scripts/env/run.mjs -- node scripts/ops.mjs",
     "ops:dashboard": "turbo run dev --filter=@zapengine/control-center --env-mode=loose",
     "ops:cost": "pnpm --filter @zapengine/control-center ops:cost",
     "ops:sync": "turbo run ops:sync --filter=@zapengine/control-center",

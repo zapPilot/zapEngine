@@ -23,6 +23,7 @@ import {
 import type { SocialPostRow } from '../types.js';
 import { captureDueAccountSnapshots } from './account-snapshots.js';
 import { type ReleaseCohortLane, resolveReleaseCohortLanes } from './cohort.js';
+import { recordSocialDaemonTick } from './daemon-heartbeat.js';
 import {
   acquireSocialDaemonLock,
   SocialDaemonAlreadyRunningError,
@@ -98,6 +99,7 @@ export interface SocialDaemonDependencies {
   now?: () => Date;
   sleep?: (milliseconds: number) => Promise<void>;
   log?: (message: string) => void;
+  recordTick?: typeof recordSocialDaemonTick;
 }
 
 export function readSocialPublishOverdueGraceMs(
@@ -127,6 +129,7 @@ export async function runSocialDaemon(
   const now = dependencies.now ?? (() => new Date());
   const sleep = dependencies.sleep ?? defaultSleep;
   const log = dependencies.log ?? console.log;
+  const recordTick = dependencies.recordTick ?? recordSocialDaemonTick;
   const overdueGraceMs = readSocialPublishOverdueGraceMs();
   let lastStrategyRefresh = 0;
 
@@ -145,15 +148,29 @@ export async function runSocialDaemon(
           : ''
       }`,
     );
-    await runSocialDaemonTick({
-      now: tickStartedAt,
-      firstStartedAt,
-      log,
-      refreshStrategy:
-        tickStartedAt.getTime() - lastStrategyRefresh >=
-        STRATEGY_REFRESH_INTERVAL_MS,
-      overdueGraceMs,
-    });
+    await recordTick({ phase: 'start', now: tickStartedAt, owner: OWNER });
+    try {
+      await runSocialDaemonTick({
+        now: tickStartedAt,
+        firstStartedAt,
+        log,
+        refreshStrategy:
+          tickStartedAt.getTime() - lastStrategyRefresh >=
+          STRATEGY_REFRESH_INTERVAL_MS,
+        overdueGraceMs,
+      });
+    } catch (error) {
+      // Recorded and rethrown, never handled: a release-shape failure is
+      // supposed to stop the process (see the docblock below), and the row is
+      // the only place the reason survives that exit.
+      await recordTick({
+        phase: 'error',
+        now: now(),
+        owner: OWNER,
+        error,
+      });
+      throw error;
+    }
     if (
       tickStartedAt.getTime() - lastStrategyRefresh >=
       STRATEGY_REFRESH_INTERVAL_MS
@@ -168,6 +185,7 @@ export async function runSocialDaemon(
         log,
       );
     });
+    await recordTick({ phase: 'success', now: now(), owner: OWNER });
     log('');
     log(
       `✅ [social-daemon] check complete · next check in ${POLL_INTERVAL_MS / 1_000}s.`,
