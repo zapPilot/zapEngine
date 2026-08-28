@@ -125,6 +125,7 @@ beforeEach(() => {
   vi.stubEnv('OPENROUTER_API_KEY', 'test-api-key');
   vi.stubEnv('OPENROUTER_BASE_URL', 'https://test.openrouter.ai/api/v1');
   vi.stubEnv('OPENROUTER_TIMEOUT_MS', '25');
+  vi.stubEnv('SCRIPT_OPENROUTER_TIMEOUT_MS', '40');
   vi.stubEnv('LLM_MODEL', 'test/model');
   vi.stubEnv('LLM_THINKING_MODEL', '');
   vi.mocked(OpenAI).mockClear();
@@ -137,29 +138,72 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe('generateScriptWithLLM retries', () => {
-  it('retries a timed-out request with a fresh deadline and succeeds', async () => {
+describe('generateScriptWithLLM request policy', () => {
+  it('uses the script-specific deadline and never replays a timeout', async () => {
     vi.useFakeTimers();
     const requestSignals: AbortSignal[] = [];
+    const requestTimeouts: number[] = [];
     const mockCreate = vi.fn(
       (
         _request: unknown,
-        options?: { signal?: AbortSignal },
+        options?: { signal?: AbortSignal; timeout?: number },
       ): Promise<unknown> => {
         const signal = options?.signal;
-        if (!signal) {
-          throw new Error('Expected an OpenRouter request signal');
-        }
+        if (!signal) throw new Error('Expected an OpenRouter request signal');
         requestSignals.push(signal);
-        return requestSignals.length === 1
-          ? timeoutUntilAborted(signal)
-          : Promise.resolve(successfulCompletion());
+        requestTimeouts.push(options?.timeout ?? -1);
+        return timeoutUntilAborted(signal);
       },
     );
     mockOpenAIClient(mockCreate);
 
     const resultPromise = generateScriptWithLLM('Title', 'Article');
-    const resultAssertion = expect(resultPromise).resolves.toEqual({
+    const rejection = expect(resultPromise).rejects.toThrow(
+      'OpenRouter request timed out after 40ms',
+    );
+
+    await vi.runAllTimersAsync();
+    await rejection;
+
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(requestSignals).toHaveLength(1);
+    expect(requestSignals[0]?.aborted).toBe(true);
+    expect(requestTimeouts).toEqual([40]);
+    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+      'llm:retry',
+      expect.anything(),
+    );
+  });
+
+  it('does not replay a retryable provider error', async () => {
+    const providerError = Object.assign(new Error('provider unavailable'), {
+      status: 503,
+    });
+    const mockCreate = vi.fn().mockRejectedValue(providerError);
+    mockOpenAIClient(mockCreate);
+
+    await expect(generateScriptWithLLM('Title', 'Article')).rejects.toBe(
+      providerError,
+    );
+
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+      'llm:retry',
+      expect.anything(),
+    );
+  });
+
+  it('returns a successful response from one request', async () => {
+    const requestTimeouts: number[] = [];
+    const mockCreate = vi.fn(
+      (_request: unknown, options?: { timeout?: number }): Promise<unknown> => {
+        requestTimeouts.push(options?.timeout ?? -1);
+        return Promise.resolve(successfulCompletion());
+      },
+    );
+    mockOpenAIClient(mockCreate);
+
+    await expect(generateScriptWithLLM('Title', 'Article')).resolves.toEqual({
       title: '市場流動性正在重新定價',
       script: 'Generated script',
       model: 'test/model',
@@ -168,45 +212,8 @@ describe('generateScriptWithLLM retries', () => {
       costUsd: 0.01,
     });
 
-    await vi.runAllTimersAsync();
-    await resultAssertion;
-
-    expect(mockCreate).toHaveBeenCalledTimes(2);
-    expect(requestSignals).toHaveLength(2);
-    expect(requestSignals[0]).not.toBe(requestSignals[1]);
-    expect(requestSignals[0]?.aborted).toBe(true);
-    expect(requestSignals[1]?.aborted).toBe(false);
-    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
-      'llm:retry',
-      expect.objectContaining({
-        operation: 'generateScript',
-        attempt: 1,
-        nextAttempt: 2,
-        error: 'OpenRouter request timed out after 25ms',
-      }),
-    );
-  });
-
-  it('retries a retryable provider error once', async () => {
-    vi.useFakeTimers();
-    const providerError = Object.assign(new Error('provider unavailable'), {
-      status: 503,
-    });
-    const mockCreate = vi
-      .fn()
-      .mockRejectedValueOnce(providerError)
-      .mockResolvedValueOnce(successfulCompletion());
-    mockOpenAIClient(mockCreate);
-
-    const resultPromise = generateScriptWithLLM('Title', 'Article');
-    const resultAssertion = expect(resultPromise).resolves.toMatchObject({
-      script: 'Generated script',
-    });
-
-    await vi.runAllTimersAsync();
-    await resultAssertion;
-
-    expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(requestTimeouts).toEqual([40]);
   });
 
   it('does not retry primitive provider failures', async () => {
@@ -231,10 +238,6 @@ describe('generateScriptWithLLM retries', () => {
     );
 
     expect(mockCreate).toHaveBeenCalledTimes(1);
-    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
-      'llm:retry',
-      expect.anything(),
-    );
   });
 });
 
@@ -387,9 +390,6 @@ describe('createCompletionWithRetry', () => {
 
   it('does not retry once the caller signal has aborted', async () => {
     const controller = new AbortController();
-    // What a visual job's own stage deadline aborts with. Its name makes it
-    // retryable, so without the caller-abort guard the request would be sent
-    // again on behalf of a caller that has already given up.
     const stageTimeout = new Error('Visual stage timed out');
     stageTimeout.name = 'TimeoutError';
     const requestSignals: AbortSignal[] = [];
