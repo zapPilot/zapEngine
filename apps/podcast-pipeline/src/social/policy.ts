@@ -37,22 +37,9 @@ export const SOCIAL_LANGUAGE_POLICY = {
       assignment: 'exclusive',
     },
   ],
-  youtube: [
-    {
-      language: 'en',
-      activeSince: MULTILINGUAL_ACTIVE_SINCE,
-      experimentKey: 'youtube-language-cohort-v1',
-      experimentVariant: 'en',
-      assignment: 'always',
-    },
-    {
-      language: 'ja',
-      activeSince: MULTILINGUAL_ACTIVE_SINCE,
-      experimentKey: 'youtube-language-cohort-v1',
-      experimentVariant: 'ja',
-      assignment: 'always',
-    },
-  ],
+  // Assets may still exist in other languages, but distribution is deliberately
+  // English-only until a YouTube language experiment is explicitly activated.
+  youtube: [{ language: 'en', activeSince: MULTILINGUAL_ACTIVE_SINCE }],
 } as const satisfies Record<
   SocialPlatform,
   readonly SocialLanguagePolicyEntry[]
