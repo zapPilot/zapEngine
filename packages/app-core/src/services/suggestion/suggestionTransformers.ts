@@ -12,6 +12,7 @@ import {
 } from '@core/lib/domain/spotAsset';
 import type { BacktestBucket } from '@core/types/backtesting';
 import type { DailySuggestionResponse } from '@core/types/strategy';
+import { humanizeSlug } from '@zapengine/types/shared';
 
 const SPOT_BUCKET_LABEL = 'SPOT';
 const STABLE_BUCKET_LABEL = 'STABLE';
@@ -106,12 +107,7 @@ function humanizeReasonCode(reasonCode: string): string {
     return mappedReason;
   }
 
-  const normalized = reasonCode.replaceAll(/[_-]+/g, ' ').trim().toLowerCase();
-  if (!normalized) {
-    return 'No additional context.';
-  }
-
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1) + '.';
+  return `${humanizeSlug(reasonCode, {}, 'No additional context')}.`;
 }
 
 export function getStatusPanelContent(

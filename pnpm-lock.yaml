@@ -561,6 +561,9 @@ importers:
       '@zapengine/cost-observability':
         specifier: workspace:*
         version: link:../../packages/cost-observability
+      '@zapengine/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       hono:
         specifier: 'catalog:'
         version: 4.13.2

@@ -1,3 +1,4 @@
+import { humanizeSlug } from '@zapengine/types/shared';
 import { useCallback, useEffect, useState } from 'react';
 
 import type {
@@ -91,7 +92,7 @@ export function App() {
           void loadOverview(true);
         }
       }}
-      title={view === 'overview' ? 'Control Center' : titleCase(view)}
+      title={view === 'overview' ? 'Control Center' : humanizeSlug(view)}
     >
       {error ? (
         <div className="error-state" role="alert">
@@ -108,8 +109,4 @@ export function App() {
       ) : null}
     </AppShell>
   );
-}
-
-function titleCase(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
 }

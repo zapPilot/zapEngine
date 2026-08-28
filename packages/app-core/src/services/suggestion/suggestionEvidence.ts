@@ -1,3 +1,4 @@
+import { humanizeSlug } from '@zapengine/types/shared';
 import { z } from 'zod';
 
 const optionalNumber = z.number().nullish();
@@ -240,8 +241,5 @@ function percent(value: number | null | undefined): string | null {
   return `${normalized >= 0 ? '+' : ''}${normalized.toFixed(1)}%`;
 }
 function humanize(value: string): string {
-  const result = value.replaceAll(/[_-]+/g, ' ').trim().toLowerCase();
-  return result
-    ? result.charAt(0).toUpperCase() + result.slice(1)
-    : 'No additional context';
+  return humanizeSlug(value, {}, 'No additional context');
 }

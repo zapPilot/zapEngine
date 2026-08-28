@@ -1,3 +1,5 @@
+import { humanizeSlug } from '@zapengine/types/shared';
+
 import type { CostProviderResult } from '../../shared/types.js';
 import { integer, providerUsage, usd } from '../format.js';
 
@@ -92,7 +94,7 @@ function basisLabel(value: CostProviderResult['costType']): string {
   if (value === 'list-price-equivalent') {
     return 'List-price equivalent';
   }
-  return value.charAt(0).toUpperCase() + value.slice(1);
+  return humanizeSlug(value);
 }
 
 function statusLabel(value: CostProviderResult['status']): string {
