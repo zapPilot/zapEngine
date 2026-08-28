@@ -6,6 +6,7 @@ import type {
   OperationsResponse,
   OperationsSocialResponse,
   OverviewResponse,
+  PodcastCostResponse,
   SocialPerformanceResponse,
 } from '../shared/types.js';
 import { AppShell, type DashboardView } from './components/AppShell.js';
@@ -52,6 +53,9 @@ export function App() {
   const [costHistory, setCostHistory] = useState<CostHistoryResponse | null>(
     null,
   );
+  const [podcastCosts, setPodcastCosts] = useState<PodcastCostResponse | null>(
+    null,
+  );
   const [social, setSocial] = useState<SocialPerformanceResponse | null>(null);
   const [operations, setOperations] = useState<OperationsResponse | null>(null);
   const [operationsSocial, setOperationsSocial] =
@@ -89,13 +93,15 @@ export function App() {
             throw new Error(body.error ?? `HTTP ${syncResponse.status}`);
           }
         }
-        const [next, history, snapshot] = await Promise.all([
+        const [next, history, snapshot, episodeCosts] = await Promise.all([
           getJson<OverviewResponse>('/api/overview'),
           getJson<CostHistoryResponse>('/api/costs/history'),
           getJson<OperationsResponse>('/api/operations'),
+          getJson<PodcastCostResponse>('/api/costs/podcast'),
         ]);
         setOverview(next);
         setCostHistory(history);
+        setPodcastCosts(episodeCosts);
         setSocial(next.social);
         setOperations(snapshot);
       }),
@@ -205,7 +211,11 @@ export function App() {
         <ProductView customers={customers} product={overview?.product} />
       ) : null}
       {view === 'economics' ? (
-        <EconomicsView data={overview} history={costHistory} />
+        <EconomicsView
+          data={overview}
+          history={costHistory}
+          podcastCosts={podcastCosts}
+        />
       ) : null}
       {view === 'growth' ? (
         <GrowthView data={social} onWindowChange={loadSocial} />
