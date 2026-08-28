@@ -11,12 +11,17 @@ const mocks = vi.hoisted(() => ({
   failure: vi.fn((_error: unknown, url: string) => `failed:${url}`),
   summary: vi.fn(() => ({ total: 1 })),
   capture: vi.fn(),
+  flush: vi.fn(async () => true),
 }));
 
 vi.mock('../observability/sentry.js', () => ({
   capturePipelineException: mocks.capture,
+  flushSentry: mocks.flush,
 }));
-vi.mock('./post-ingest.js', () => ({
+// `failedIngestRunContext` stays real: a test that reimplemented how the run
+// context is read off the error could not notice the two drifting apart.
+vi.mock('./post-ingest.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./post-ingest.js')>()),
   performMultilingualIngestAndEnqueueVideo: mocks.perform,
 }));
 vi.mock('./episode-search.js', () => ({
@@ -111,6 +116,38 @@ describe('Telegram ingest queue', () => {
     // The submitter's chat id is never sent to Sentry.
     expect(JSON.stringify(mocks.capture.mock.calls)).not.toContain('chat-1');
     await vi.waitFor(() => expect(mocks.failure).toHaveBeenCalledTimes(1));
+  });
+
+  it('names the run and episode on the reported failure, then flushes', async () => {
+    // The 2026-08-28 script timeout produced an event that named neither, so
+    // it could not be matched against the log lines that explained it.
+    const error = Object.assign(
+      new Error('[step:generateScript] OpenRouter request timed out'),
+      {
+        stepName: 'generateScript',
+        ingestRunRef: '26e50dd0',
+        ingestEpisodeId: 'episode-1',
+      },
+    );
+    mocks.perform.mockRejectedValueOnce(error);
+    const queue = createTelegramIngestQueue();
+    queue.enqueue('chat-1', 'https://example.test/timeout', 'zh-Hant');
+
+    await vi.waitFor(() => expect(mocks.capture).toHaveBeenCalledTimes(1));
+    expect(mocks.capture).toHaveBeenCalledWith(
+      error,
+      expect.objectContaining({
+        tags: expect.objectContaining({ step: 'generateScript' }),
+        context: {
+          url: 'https://example.test/timeout',
+          sourceHost: 'example.test',
+          runRef: '26e50dd0',
+          episodeId: 'episode-1',
+        },
+      }),
+    );
+    // Nothing else drains the queue in this long-lived process.
+    await vi.waitFor(() => expect(mocks.flush).toHaveBeenCalledTimes(1));
   });
 
   it('does not report a successful ingest', async () => {

@@ -1,9 +1,15 @@
-import { capturePipelineException } from '../observability/sentry.js';
+import {
+  capturePipelineException,
+  flushSentry,
+} from '../observability/sentry.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import { buildIngestSummaryFromResult } from './cost.js';
 import { invalidateEpisodeSearchCache } from './episode-search.js';
 import { failedStepName } from './ingest/step.js';
-import { performMultilingualIngestAndEnqueueVideo } from './post-ingest.js';
+import {
+  failedIngestRunContext,
+  performMultilingualIngestAndEnqueueVideo,
+} from './post-ingest.js';
 import {
   buildTelegramAudioReadyMessage,
   buildTelegramFailureMessage,
@@ -90,8 +96,16 @@ export function createTelegramIngestQueue(): TelegramIngestQueue {
           step: failedStepName(error),
           language: languageCode,
         },
-        context: { url, sourceHost: sourceHost(url) },
+        context: {
+          url,
+          sourceHost: sourceHost(url),
+          ...failedIngestRunContext(error),
+        },
       });
+      // This process is long-lived, so nothing else ever drains the queue. A
+      // deploy or a crash between here and the next event loses the only
+      // record of a failure the submitter was already told about.
+      await flushSentry();
       await sendTelegramNotification(
         inflight.latestChatId,
         buildTelegramFailureMessage(error, url),

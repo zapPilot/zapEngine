@@ -1218,6 +1218,7 @@ describe('performIngest failure paths', () => {
     expect(mockGenerateScriptWithLLM).toHaveBeenCalledWith(
       '軟體更新',
       '滑鼠和腳踏車市場',
+      {},
     );
     expect(mockTranslateCanonicalScript).toHaveBeenCalledWith({
       title: '軟體更新',

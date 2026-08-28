@@ -14,7 +14,7 @@ import {
 } from './lib/env.js';
 import { installProcessShutdown } from './lib/process-shutdown.js';
 import { isRecord } from './lib/typeGuards.js';
-import { captureServerException } from './observability/sentry.js';
+import { captureServerException, flushSentry } from './observability/sentry.js';
 import {
   buildIngestSummaryFromResult,
   presentCostBreakdown,
@@ -569,6 +569,9 @@ export function bootstrap(options: BootstrapOptions = {}) {
     server.close();
     renderCapacity?.stop();
     await videoWorker?.stop(new Error(`Received ${signal}`));
+    // Fly restarts this machine on every deploy, and buffered events do not
+    // survive the exit -- the worker already drains for the same reason.
+    await flushSentry();
   });
 
   return { app, server, videoWorker, renderCapacity, shutdown };
