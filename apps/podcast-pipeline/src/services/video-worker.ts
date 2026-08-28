@@ -442,7 +442,10 @@ export function createVideoWorker(
         await safelyNotify(
           notify,
           latestJob.telegram_chat_id,
-          buildTelegramVideoCompletedMessage(source.episodeId),
+          buildTelegramVideoCompletedMessage(
+            source.episodeId,
+            source.languageCode,
+          ),
           logger,
         );
       }
