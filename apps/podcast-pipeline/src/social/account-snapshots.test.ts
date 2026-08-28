@@ -250,7 +250,7 @@ describe('captureDueAccountSnapshots', () => {
     ).toBe(false);
   });
 
-  it('skips a platform recorded within the day and takes the stale one', async () => {
+  it('skips a platform recorded within three hours and takes stale ones', async () => {
     const insert = vi.fn().mockResolvedValue(undefined);
     const snapshot = (platform: string, capturedAt: string) => ({
       id: `snapshot-${platform}`,
@@ -265,8 +265,8 @@ describe('captureDueAccountSnapshots', () => {
       browser: browserSession({}),
       fetchImpl: threadsInsights(310),
       latest: vi.fn().mockResolvedValue({
-        rednote: snapshot('rednote', '2026-08-20T06:00:00.000Z'),
-        x: snapshot('x', '2026-08-18T06:00:00.000Z'),
+        rednote: snapshot('rednote', '2026-08-20T10:00:00.000Z'),
+        x: snapshot('x', '2026-08-20T06:00:00.000Z'),
         threads: snapshot('threads', 'not-a-date'),
       }),
       insert,
