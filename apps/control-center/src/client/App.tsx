@@ -148,7 +148,9 @@ export function App() {
         } else if (view === 'customers') {
           void loadCustomers(true);
         } else {
-          void loadOverview(true);
+          // Local dev keeps the operator convenience of syncing costs before a
+          // refresh. Production builds are read-only and only reread snapshots.
+          void loadOverview(import.meta.env.DEV);
         }
       }}
       title={view === 'overview' ? 'Control Center' : titleCase(view)}
