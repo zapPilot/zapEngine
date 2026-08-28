@@ -72,24 +72,27 @@ export function createPodcastCostService(input: { config: ControlCenterConfig })
         }
 
         const runIds = runs.map(({ id }) => id);
-        const episodeIds = [...new Set(runs.flatMap((run) =>
-          run.episode_id ? [run.episode_id] : [],
-        ))];
-        const [{ data: stageData, error: stageError }, { data: episodeData, error: episodeError }] =
-          await Promise.all([
-            client
-              .from('ops_pipeline_stage_runs')
-              .select(
-                'run_id,episode_id,language_code,stage,status,estimated_cost_usd,pricing_basis',
-              )
-              .in('run_id', runIds)
-              .limit(2_000),
-            client
-              .from('episodes')
-              .select('id,source_title')
-              .in('id', episodeIds)
-              .limit(EPISODE_LIMIT * 4),
-          ]);
+        const recentEpisodeIds = [
+          ...new Set(
+            runs.flatMap((run) => (run.episode_id ? [run.episode_id] : [])),
+          ),
+        ].slice(0, EPISODE_LIMIT);
+        const [
+          { data: stageData, error: stageError },
+          { data: episodeData, error: episodeError },
+        ] = await Promise.all([
+          client
+            .from('ops_pipeline_stage_runs')
+            .select(
+              'run_id,episode_id,language_code,stage,status,estimated_cost_usd,pricing_basis',
+            )
+            .in('run_id', runIds)
+            .limit(2_000),
+          client
+            .from('episodes')
+            .select('id,source_title')
+            .in('id', recentEpisodeIds),
+        ]);
         if (stageError) throw stageError;
         if (episodeError) throw episodeError;
 
@@ -132,7 +135,9 @@ export function summarizePodcastCosts(
   const runById = new Map(runs.map((run) => [run.id, run]));
   const summaries = new Map<
     string,
-    PodcastEpisodeCostSummary & { breakdownMap: Map<string, PodcastCostBreakdown> }
+    PodcastEpisodeCostSummary & {
+      breakdownMap: Map<string, PodcastCostBreakdown>;
+    }
   >();
 
   for (const run of runs) {
@@ -204,7 +209,9 @@ export function summarizePodcastCosts(
 
 function breakdownLabel(run: PipelineRunRow, stage: PipelineStageRow): string {
   if (run.pipeline === 'video_render') {
-    return stage.language_code ? `${stage.language_code} render` : 'Shared visual';
+    return stage.language_code
+      ? `${stage.language_code} render`
+      : 'Shared visual';
   }
   return stage.language_code
     ? `${stage.language_code} ${stage.stage}`
