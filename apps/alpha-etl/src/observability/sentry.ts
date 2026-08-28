@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/node';
+import { trimToUndefined } from '@zapengine/types/shared';
 
 export interface SentryEnv {
   APP_COMMIT_SHA?: string;
@@ -22,21 +23,16 @@ export interface BackgroundExceptionOptions {
   level?: 'error' | 'warning';
 }
 
-function normalize(value?: string) {
-  const normalized = value?.trim();
-  return normalized ? normalized : undefined;
-}
-
 export function initSentry(rawEnv: SentryEnv = process.env) {
-  const dsn = normalize(rawEnv.SENTRY_ALPHA_ETL_DSN);
+  const dsn = trimToUndefined(rawEnv.SENTRY_ALPHA_ETL_DSN);
   if (!dsn) {
     return false;
   }
 
   Sentry.init({
     dsn,
-    environment: normalize(rawEnv.NODE_ENV),
-    release: normalize(rawEnv.APP_COMMIT_SHA),
+    environment: trimToUndefined(rawEnv.NODE_ENV),
+    release: trimToUndefined(rawEnv.APP_COMMIT_SHA),
     sendDefaultPii: false,
     skipOpenTelemetrySetup: true,
   });

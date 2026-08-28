@@ -1,3 +1,5 @@
+import { trimToUndefined } from '@zapengine/types/shared';
+
 export interface AppSentryOptions {
   dsn: string;
   enableAutoSessionTracking: false;
@@ -10,7 +12,7 @@ export function buildAppSentryOptions(
   dsn: string | undefined,
   release: string | undefined,
 ): AppSentryOptions | undefined {
-  const normalizedDsn = dsn?.trim();
+  const normalizedDsn = trimToUndefined(dsn);
   if (!normalizedDsn) {
     return undefined;
   }
@@ -19,7 +21,7 @@ export function buildAppSentryOptions(
     dsn: normalizedDsn,
     enableAutoSessionTracking: false,
     enableLogs: false,
-    release: release?.trim() || undefined,
+    release: trimToUndefined(release),
     sendDefaultPii: false,
   };
 }

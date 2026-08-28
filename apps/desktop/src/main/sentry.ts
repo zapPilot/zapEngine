@@ -1,10 +1,11 @@
 import type { ElectronMainOptions } from '@sentry/electron/main';
+import { trimToUndefined } from '@zapengine/types/shared';
 
 export function buildDesktopSentryOptions(
   dsn: string | undefined,
   release: string | undefined,
 ): ElectronMainOptions | undefined {
-  const normalizedDsn = dsn?.trim();
+  const normalizedDsn = trimToUndefined(dsn);
   if (!normalizedDsn) {
     return undefined;
   }
@@ -12,7 +13,7 @@ export function buildDesktopSentryOptions(
   return {
     dsn: normalizedDsn,
     enableLogs: false,
-    release: release?.trim() || undefined,
+    release: trimToUndefined(release),
     sendDefaultPii: false,
     skipOpenTelemetrySetup: true,
   };

@@ -9,3 +9,10 @@
 import { z } from 'zod';
 
 export const portSchema = z.coerce.number<string>().int().min(1).max(65535);
+
+/** Trim an optional environment value, treating blank strings as unset. */
+export function trimToUndefined(
+  value: string | null | undefined,
+): string | undefined {
+  return value?.trim() || undefined;
+}

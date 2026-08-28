@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { portSchema } from '../../../src/shared/env.js';
+import { portSchema, trimToUndefined } from '../../../src/shared/env.js';
+
+describe('trimToUndefined', () => {
+  it('trims a configured value', () => {
+    expect(trimToUndefined(' production ')).toBe('production');
+  });
+
+  it('treats blank and missing values as unset', () => {
+    expect(trimToUndefined('   ')).toBeUndefined();
+    expect(trimToUndefined(null)).toBeUndefined();
+    expect(trimToUndefined(undefined)).toBeUndefined();
+  });
+});
 
 describe('portSchema', () => {
   it('accepts a valid numeric port', () => {
