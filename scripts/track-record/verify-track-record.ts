@@ -1,19 +1,14 @@
 #!/usr/bin/env tsx
 
-import type {
-  DailySnapshot,
-  TrackRecordMeta,
-} from '../../packages/types/src/strategy/index.js';
+import type { TrackRecordMeta } from '../../packages/types/src/strategy/index.js';
 import {
   DailySnapshotSchema,
   TrackRecordMetaSchema,
 } from '../../packages/types/src/strategy/index.js';
 import {
-  annualizedDownsideDeviation,
-  annualizedVolatility,
   createSnapshotMessageHash,
-  mean,
   verifyCidChain,
+  verifyPerformanceMetrics,
   verifySignature,
 } from '../../apps/landing-page/src/data/track-record-accessor';
 import type { SnapshotHistoryEntry } from '../../apps/landing-page/src/data/track-record-accessor';
@@ -21,151 +16,9 @@ import { fetchFromIpfs, fetchJson } from './ipfs.js';
 
 const DEFAULT_META_URL = 'https://zap-pilot.org/track-record-meta.json';
 
-const PERCENT_TOLERANCE = 0.02;
-const RATIO_TOLERANCE = 0.02;
-
 async function fetchMeta(): Promise<TrackRecordMeta> {
   const metaUrl = process.env['TRACK_RECORD_META_URL'] ?? DEFAULT_META_URL;
   return TrackRecordMetaSchema.parse(await fetchJson(metaUrl, 10_000));
-}
-
-function parsePercent(value: string | undefined): number | null {
-  if (!value) return null;
-  const parsed = Number(value.replace('%', ''));
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function parseRatio(value: string | undefined): number | null {
-  if (!value || value === '—') return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function formatDiff(actual: number, expected: number): string {
-  return `stored=${actual.toFixed(4)}, recomputed=${expected.toFixed(4)}`;
-}
-
-function verifyPerformanceMetrics(snapshots: DailySnapshot[]): string[] {
-  const errors: string[] = [];
-  if (snapshots.length === 0) return errors;
-
-  const firstNav = Number(snapshots[0]!.nav.usd);
-  if (!Number.isFinite(firstNav) || firstNav <= 0) {
-    return ['first snapshot NAV is not a positive number'];
-  }
-
-  const dailyReturns: number[] = [];
-  let peakNav = firstNav;
-
-  for (let i = 0; i < snapshots.length; i++) {
-    const snapshot = snapshots[i]!;
-    const nav = Number(snapshot.nav.usd);
-    if (!Number.isFinite(nav) || nav <= 0) {
-      errors.push(`[${i}] ${snapshot.date}: NAV is not a positive number`);
-      continue;
-    }
-
-    const storedCumulative = parsePercent(
-      snapshot.performance.cumulativeReturn,
-    );
-    const recomputedCumulative = (nav / firstNav - 1) * 100;
-    if (
-      storedCumulative !== null &&
-      Math.abs(storedCumulative - recomputedCumulative) > PERCENT_TOLERANCE
-    ) {
-      errors.push(
-        `[${i}] ${snapshot.date}: cumulativeReturn mismatch (${formatDiff(
-          storedCumulative,
-          recomputedCumulative,
-        )})`,
-      );
-    }
-
-    if (nav > peakNav) peakNav = nav;
-    const recomputedDrawdown = (nav / peakNav - 1) * 100;
-    const storedDrawdown = parsePercent(snapshot.performance.maxDrawdown);
-    if (
-      storedDrawdown !== null &&
-      Math.abs(storedDrawdown - recomputedDrawdown) > PERCENT_TOLERANCE
-    ) {
-      errors.push(
-        `[${i}] ${snapshot.date}: maxDrawdown mismatch (${formatDiff(
-          storedDrawdown,
-          recomputedDrawdown,
-        )})`,
-      );
-    }
-
-    if (i === 0) {
-      dailyReturns.push(0);
-      continue;
-    }
-
-    const previousNav = Number(snapshots[i - 1]!.nav.usd);
-    const dailyReturn = previousNav > 0 ? nav / previousNav - 1 : 0;
-    dailyReturns.push(dailyReturn);
-
-    const storedDaily = parsePercent(snapshot.performance.dailyReturn);
-    const recomputedDaily = dailyReturn * 100;
-    if (
-      storedDaily !== null &&
-      Math.abs(storedDaily - recomputedDaily) > PERCENT_TOLERANCE
-    ) {
-      errors.push(
-        `[${i}] ${snapshot.date}: dailyReturn mismatch (${formatDiff(
-          storedDaily,
-          recomputedDaily,
-        )})`,
-      );
-    }
-
-    const rollingReturns = dailyReturns.slice(Math.max(1, i - 29), i + 1);
-    if (rollingReturns.length >= 30) {
-      const vol30d = annualizedVolatility(rollingReturns);
-      const storedVol = parsePercent(snapshot.performance.volatility30d);
-      if (
-        storedVol !== null &&
-        Math.abs(storedVol - vol30d * 100) > PERCENT_TOLERANCE
-      ) {
-        errors.push(
-          `[${i}] ${snapshot.date}: volatility30d mismatch (${formatDiff(
-            storedVol,
-            vol30d * 100,
-          )})`,
-        );
-      }
-
-      const annualMean = mean(rollingReturns) * 252;
-      const storedSharpe = parseRatio(snapshot.performance.sharpe);
-      if (storedSharpe !== null && vol30d > 0) {
-        const recomputedSharpe = annualMean / vol30d;
-        if (Math.abs(storedSharpe - recomputedSharpe) > RATIO_TOLERANCE) {
-          errors.push(
-            `[${i}] ${snapshot.date}: sharpe mismatch (${formatDiff(
-              storedSharpe,
-              recomputedSharpe,
-            )})`,
-          );
-        }
-      }
-
-      const downsideDeviation = annualizedDownsideDeviation(rollingReturns);
-      const storedSortino = parseRatio(snapshot.performance.sortino);
-      if (storedSortino !== null && downsideDeviation > 0) {
-        const recomputedSortino = annualMean / downsideDeviation;
-        if (Math.abs(storedSortino - recomputedSortino) > RATIO_TOLERANCE) {
-          errors.push(
-            `[${i}] ${snapshot.date}: sortino mismatch (${formatDiff(
-              storedSortino,
-              recomputedSortino,
-            )})`,
-          );
-        }
-      }
-    }
-  }
-
-  return errors;
 }
 
 async function main() {
@@ -277,7 +130,7 @@ async function main() {
   }
 
   console.log('\n--- Performance Recomputation ---');
-  const performanceErrors = verifyPerformanceMetrics(snapshots);
+  const { errors: performanceErrors } = verifyPerformanceMetrics(snapshots);
   if (performanceErrors.length === 0) {
     console.log('  PASS');
   } else {
