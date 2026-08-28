@@ -1,5 +1,5 @@
 import type { PodcastCostResponse } from '../../shared/types.js';
-import { usd } from '../format.js';
+import { unitUsd } from '../format.js';
 
 export function PodcastUnitEconomics(props: {
   data: PodcastCostResponse | null;
@@ -42,15 +42,17 @@ export function PodcastUnitEconomics(props: {
                         : ''}
                     </div>
                   </td>
-                  <td className="mono">{usd(episode.podcastCostUsd)}</td>
-                  <td className="mono">{usd(episode.videoCostUsd)}</td>
-                  <td className="mono">{usd(episode.retryWasteUsd)}</td>
-                  <td className="mono actual">{usd(episode.totalCostUsd)}</td>
+                  <td className="mono">{unitUsd(episode.podcastCostUsd)}</td>
+                  <td className="mono">{unitUsd(episode.videoCostUsd)}</td>
+                  <td className="mono">{unitUsd(episode.retryWasteUsd)}</td>
+                  <td className="mono actual">
+                    {unitUsd(episode.totalCostUsd)}
+                  </td>
                   <td>
                     {episode.breakdown
                       .map(
                         (item) =>
-                          `${item.label} ${usd(item.costUsd)}${
+                          `${item.label} ${unitUsd(item.costUsd)}${
                             item.operations > 1 ? ` ×${item.operations}` : ''
                           }`,
                       )
