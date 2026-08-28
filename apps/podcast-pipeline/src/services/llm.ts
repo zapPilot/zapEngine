@@ -608,14 +608,17 @@ export function isRetryableOpenRouterError(error: unknown): boolean {
   );
 }
 
-type LLMCompletionOperation = 'generateScript' | 'generateLanguageClassrooms';
+type LLMCompletionOperation =
+  | 'generateScript'
+  | 'generateLanguageClassrooms'
+  | 'suggestSearchIntents';
 
-async function createCompletionWithRetry(
+export async function createCompletionWithRetry(
   openai: OpenAI,
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
   thinkingModel: string | null,
   operation: LLMCompletionOperation,
-  reasoning?: OpenRouterReasoning,
+  requestOptions: OpenRouterRequestOptions = {},
 ): Promise<OpenRouterChatCompletion> {
   for (let attempt = 1; attempt <= LLM_COMPLETION_MAX_ATTEMPTS; attempt++) {
     try {
@@ -623,11 +626,15 @@ async function createCompletionWithRetry(
         openai,
         params,
         thinkingModel,
-        { reasoning },
+        requestOptions,
       );
     } catch (error) {
+      // A caller whose own signal is already aborted gains nothing from another
+      // attempt. The per-request deadline aborts an internal signal instead, so
+      // its `TimeoutError` still gets its retry.
       const shouldRetry =
         attempt < LLM_COMPLETION_MAX_ATTEMPTS &&
+        !requestOptions.signal?.aborted &&
         isRetryableOpenRouterError(error);
       if (!shouldRetry) {
         throw error;
@@ -748,7 +755,7 @@ export async function generateLanguageClassroomsWithLLM(
     },
     thinkingModel,
     'generateLanguageClassrooms',
-    LANGUAGE_CLASSROOM_REASONING,
+    { reasoning: LANGUAGE_CLASSROOM_REASONING },
   );
 
   const content = completion.choices[0]?.message?.content || '';

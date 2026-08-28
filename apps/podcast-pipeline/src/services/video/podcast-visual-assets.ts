@@ -62,10 +62,12 @@ function resolveCoverDependencies(
   fingerprintImage: typeof fingerprintImage;
 } {
   return {
-    acquireImage: acquireRemoteImage,
-    searchProviders: defaultImageSearchProviders(),
-    fingerprintImage,
-    ...overrides,
+    acquireImage: overrides?.acquireImage ?? acquireRemoteImage,
+    // Only built when the caller brought no chain of its own: the default one
+    // fails closed on a missing Brave key.
+    searchProviders:
+      overrides?.searchProviders ?? defaultImageSearchProviders(),
+    fingerprintImage: overrides?.fingerprintImage ?? fingerprintImage,
   };
 }
 
@@ -99,7 +101,7 @@ function coverCandidateScore(
     `${candidate.altText ?? ''} ${candidate.imageUrl} ${candidate.sourceUrl}`.toLowerCase();
   let score = 0;
   if (candidate.origin === 'article') score += 10;
-  else if (candidate.origin === 'bing') score += 8;
+  else if (candidate.origin === 'brave') score += 8;
   else if (candidate.origin === 'pexels') score += 5;
   else if (candidate.origin === 'pixabay') score += 3;
 
@@ -276,7 +278,7 @@ export async function selectCoverAssetForFirstScene(
 
   if (collected.length < MAX_CANDIDATES) {
     const providers = [...dependencies.searchProviders].sort((a, b) => {
-      const prio: Record<string, number> = { bing: 0, pexels: 1, pixabay: 2 };
+      const prio: Record<string, number> = { brave: 0, pexels: 1, pixabay: 2 };
       return (prio[a.origin] ?? 99) - (prio[b.origin] ?? 99);
     });
     for (const provider of providers) {

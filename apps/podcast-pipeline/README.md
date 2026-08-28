@@ -28,7 +28,7 @@ already knowing that language's localization id.
 
 Runtime keys are registered in root `config/env.manifest.mjs`. Non-secret values
 live in `config/env/dev.env` and `config/env/prod.env`; secrets live in Infisical.
-Required for full ingest: `OPENROUTER_API_KEY`, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, `INGEST_ADMIN_TOKEN`, `FISH_AUDIO_API_KEY`, and `FISH_AUDIO_REFERENCE_ID`. Fish Audio is the only TTS provider. Script generation and language-classroom generation use `LLM_MODEL` via OpenRouter. Title/script translation always uses OpenRouter's code-owned `openrouter/free` router; there is no secondary translation provider or paid fallback.
+Required for full ingest: `OPENROUTER_API_KEY`, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, `INGEST_ADMIN_TOKEN`, `FISH_AUDIO_API_KEY`, `FISH_AUDIO_REFERENCE_ID`, and `BRAVE_SEARCH_API_KEY` (the image index the video pipeline retrieves from; see [Vertical news video](#vertical-news-video-image-only-multilingual)). Fish Audio is the only TTS provider. Script generation and language-classroom generation use `LLM_MODEL` via OpenRouter. Title/script translation always uses OpenRouter's code-owned `openrouter/free` router; there is no secondary translation provider or paid fallback.
 
 Fish Audio configuration is code-owned in `src/services/tts/tts-config.ts` and applies to both main and classroom audio for all languages (`zh-Hant`, `ja`, `en`). There is no provider switch: a missing or blank `FISH_AUDIO_REFERENCE_ID` fails ingest instead of degrading to another voice. `FISH_AUDIO_ENGINE` overrides only the Fish Audio engine and defaults to `s2-pro`.
 
@@ -52,37 +52,65 @@ After all three audio localizations complete, ingest idempotently enqueues one e
 
 What each scene searches for is written by an LLM, not by a keyword table. The
 deterministic storyboard still owns the scene split and timing — it is what makes
-a 64-scene episode resumable — but its search intents are a small table of canned
-photographic subjects, so every finance or crypto scene asked for the same
-`blockchain developers office photo`. After the storyboard is built,
+a 64-scene episode resumable — but its search intents are a canned photographic
+subject glued to a word-by-word rendering of the head of the Chinese sentence, so
+a scene about 「一千五百枚比特幣」 searched for
+`thousand five hundred Bitcoin holdings`. After the storyboard is built,
 `src/services/video/storyboard/search-intents.ts` sends the scenes to OpenRouter
 (`LLM_MODEL`) in batches with both the canonical and English sentences, and
-replaces each scene's intents with 1-3 concrete English subjects: the
-institution, person, place, object, or event that scene is actually about.
+replaces each scene's intents with 1-3 concrete English subjects, named entities
+first: the company, product, organization, person, or place that scene is actually
+about, using only names written in that scene's own sentences. A generic
+photographable subject is the last resort, for a scene that names nothing.
 
-That pass is best effort and can never fail a visual job. A batch that errors,
-comes back in the wrong shape, or claims a number absent from its own sentences
-keeps its deterministic intents (the same numeric grounding rule
-`validateStoryboardDraft` applies), and an unset `OPENROUTER_API_KEY` skips
-enrichment entirely. `visual:intents enriched=N/M model=...` reports how much of
-an episode was rewritten, and the completed payload records the model in
-`provenance.searchIntentModel` — `null` there means the episode ran on
-deterministic intents.
+That pass is fail-closed, and the unit is the scene. Transport failures are
+retried once by the shared OpenRouter retry policy; after that, anything that
+leaves even one content scene without a usable phrase raises — an unset
+`OPENROUTER_API_KEY`, a batch that keeps erroring, a response that omits a scene
+or answers it with junk, a phrase claiming a number absent from its own
+sentences (the numeric grounding rule `validateStoryboardDraft` applies), a
+merged draft that no longer validates. Accepting the rest would put the
+transliterated phrase back into image search for the scenes that were left out:
+the same failure, only smaller and harder to see. The visual job is then retried
+by the queue and eventually ends `failed`. Recovery is resubmitting the episode
+URL, which resets the visual and render rows and reports the wiped message once
+as `previousError`.
+
+What the pass does tolerate is a badly _shaped_ answer: scenes are read by id,
+so a response may reorder, repeat, or invent them and still be used, as long as
+every requested scene is in it somewhere. `provenance.searchIntentModel` on a
+completed payload is therefore never `null`, and
+`visual:intents enriched=N/M brand=B entities=K model=...` reports how much of
+the episode was rewritten and how much of it image search can anchor on a name.
+
+Each scene also comes back with the proper nouns it names, checked verbatim
+against its own sentences and stored as `imageSearchEntities`. That is what
+image search is held to below. A scene that names nothing has no entities, which
+is legitimate — some scenes really are about a general idea.
 
 Images are tried in this order per scene (`selectionMode: 'resilient'`, what
 production uses):
 
 1. `og:image`, article/figure images, lazy-load attributes, and the largest `srcset` candidate from the source article.
-2. Bing Images HTML with strict SafeSearch. It goes first deliberately: a news product wants the editorial photo of the event, and the candidate ranking rewards wire/official domains and penalizes generic stock alt text. Bing images are retained as `license: unknown`; that path does not claim usage rights.
-3. Pexels then Pixabay photo search (`orientation=square`, SafeSearch) when `PEXELS_API_KEY` / `PIXABAY_API_KEY` are set — license-clean sources that record `license: pexels` / `license: pixabay` plus photographer attribution, and that catch the scenes Bing cannot fill.
-4. Each provider is queried with the scene's own intents first, then with relaxed variants of them.
+2. Brave Image Search (`BRAVE_SEARCH_API_KEY`, strict SafeSearch). A news product wants the editorial photo of the event, which is on the open web and not in a stock library, so this is the web index the pipeline retrieves from and it is not optional — a missing key is a startup error, never a quiet fall-through to stock imagery. Only the publisher's own image URL is mirrored, never Brave's thumbnail CDN. Results are retained as `license: unknown`; that path does not claim usage rights.
+3. Pexels then Pixabay photo search (`orientation=square`, SafeSearch) when `PEXELS_API_KEY` / `PIXABAY_API_KEY` are set — license-clean sources with photographer attribution. They are only ever asked about scenes that name nothing: no stock library holds a photograph of a named company or product, so asking one for a named scene can only return a convincing picture of something else.
+4. A scene that names something is queried with its phrased intents first, then with each bare name. A scene that names nothing falls back to relaxed `... official event photo` variants instead.
 5. A non-consecutive reuse of an already validated image when no search can produce a new one, and only then a consecutive one.
 
-`selectionMode: 'strict'` (tests and the storyboard smoke CLI) instead queries the
-providers in declaration order — Pexels, Pixabay, Bing — and raises search
-failures rather than reusing an image.
+**A candidate must mention what the scene names.** For a scene with entities,
+the candidate's title, page URL and image URL have to contain one of them —
+separators collapsed, so `coldcard-mk4-review` counts. This is the one hard
+relevance rule, and it is about identity rather than wording: sharing a word
+with the query is exactly how a thousand-yard-stare war portrait and an
+odd-and-even-numbers worksheet were once selected for a Bitcoin episode. When
+nothing survives it, the scene reuses an image already validated for this
+episode — a repeat, never an unrelated picture.
 
-Candidates must pass HTTPS/SSRF, download timeout, format, size, pixel-dimension, animation, SHA-256, and perceptual-hash checks. Bing HTML is an unofficial interface: zero parseable results or a markup change raises `BingImagesProviderError`, which fails the checkpoint outright under `strict` and degrades to the next provider (then to reuse) under `resilient`. Either way the failure is reported in the `visual:search` log line, never swallowed.
+`selectionMode: 'strict'` (tests and the storyboard smoke CLI) instead queries the
+providers in declaration order — Brave, Pexels, Pixabay — without the bare-name
+retry, and raises search failures rather than reusing an image.
+
+Candidates must pass HTTPS/SSRF, download timeout, format, size, pixel-dimension, animation, SHA-256, and perceptual-hash checks. A non-OK response or an unexpected body from any provider raises its typed error (`BraveImagesProviderError`, `PexelsImagesProviderError`, `PixabayImagesProviderError`), which fails the checkpoint outright under `strict` and degrades to the next provider (then to reuse) under `resilient`. An empty result set from these official APIs is trustworthy and is not an error. Either way the failure is reported in the `visual:search` log line, never swallowed.
 
 Once the shared visual checkpoint completes, each of `zh-Hant`, `ja`, and `en` uses its own main HLS duration, sentence timing, subtitles, and audio to render a progressive MP4. All three encodes reuse the same visual checkpoint. Classroom HLS is an ingest-readiness check for the canonical localization only and is never used as video audio.
 
@@ -220,10 +248,10 @@ Fly.io via the zapEngine deploy registry. The Fly app name remains `from-fed-to-
 
 Two process groups, because video rendering and the HTTP service cannot share a CPU:
 
-| Group    | Command               | Machine                  | Serves HTTP | Lifecycle          |
-| -------- | --------------------- | ------------------------ | ----------- | ------------------ |
-| `app`    | `node dist/index.js`  | `shared-cpu-1x` / 512 MB | yes         | always on          |
-| `render` | `node dist/worker.js` | `performance-2x` / 4 GB  | no          | on demand          |
+| Group    | Command               | Machine                  | Serves HTTP | Lifecycle |
+| -------- | --------------------- | ------------------------ | ----------- | --------- |
+| `app`    | `node dist/index.js`  | `shared-cpu-1x` / 512 MB | yes         | always on |
+| `render` | `node dist/worker.js` | `performance-2x` / 4 GB  | no          | on demand |
 
 A shared vCPU has a baseline of 1/16 of a core, and once its burst balance is spent x264 collapses — a co-located render was measured at `speed=0.00434x` while starving `/health` past its 5 s timeout, which took the only instance out of the proxy pool. The `render` group therefore keeps dedicated CPUs. New 720p renders log wall time, realtime factor, Node RSS, current cgroup memory, and the highest cgroup memory observed by a 250 ms sampler during the render as `video:render-metrics`. The sampled field is `cgroupPeakObservedMb`; it deliberately replaces the unreliable post-mortem `memory.peak` reading that returned zero after an ffmpeg OOM. The group stays at 4 GB until production samples show enough headroom to resize safely.
 

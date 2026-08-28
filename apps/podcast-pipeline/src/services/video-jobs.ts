@@ -12,9 +12,11 @@ import type { EpisodeVideoProgressUpdate } from './video-progress.js';
 // image selection. Bump it when a completed render must be regenerated under a
 // new output contract (v4: 720x1280 at 24fps; v5: LLM-written search intents
 // and the chunk-crossfade freeze fix; v6: cover + body + Zap Pilot outro,
-// BODY ONLY storyboard, intro extends first body).
+// BODY ONLY storyboard, intro extends first body; v7: per-scene fail-closed
+// entity-first LLM search intents, Brave image retrieval, and an
+// entity-anchored candidate gate).
 export const EPISODE_VIDEO_VISUAL_VERSION =
-  'podcast-image-visual-plan.v6' as const;
+  'podcast-image-visual-plan.v7' as const;
 
 export type EpisodeVideoJobStatus =
   | 'queued'

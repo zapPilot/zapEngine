@@ -2,13 +2,14 @@ import { runWithDeadline } from '../../lib/deadline.js';
 import { errorMessage } from '../../lib/errorMessage.js';
 import type { ImageCandidate } from '../../types.js';
 
-export const STOCK_IMAGE_FETCH_TIMEOUT_MS = 15_000;
+export const JSON_IMAGE_SEARCH_TIMEOUT_MS = 15_000;
 
-// Shared request/parse/error contract for the JSON stock-photo APIs (Pexels,
-// Pixabay): non-OK responses and malformed bodies become the provider's typed
-// error, aborts pass through untouched, and anything else is wrapped so the
-// planner can attribute the failure to the provider.
-export async function performStockImageSearch(input: {
+// Shared request/parse/error contract for every JSON image-search API this
+// service calls (Brave, Pexels, Pixabay): non-OK responses and malformed bodies
+// become the provider's typed error, aborts pass through untouched, and
+// anything else is wrapped so the planner can attribute the failure to the
+// provider.
+export async function performJsonImageSearch(input: {
   providerName: string;
   searchUrl: string;
   headers: Record<string, string>;
@@ -31,8 +32,8 @@ export async function performStockImageSearch(input: {
           );
         }
         const body: unknown = await response.json();
-        // An empty result set from an official API is trustworthy — unlike
-        // the Bing HTML scrape there is no markup-drift failure mode here.
+        // An empty result set from an official API is trustworthy: there is
+        // no markup-drift failure mode to mistake for "nothing matched".
         const candidates = input.parseBody(body);
         if (!candidates) {
           throw input.createError(
@@ -42,7 +43,7 @@ export async function performStockImageSearch(input: {
         return candidates;
       },
       input.signal,
-      STOCK_IMAGE_FETCH_TIMEOUT_MS,
+      JSON_IMAGE_SEARCH_TIMEOUT_MS,
       `${input.providerName} search`,
     );
   } catch (error) {

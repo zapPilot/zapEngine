@@ -66,7 +66,7 @@ const assets: PlannedVisualImage[] = [
     height: 1600,
     originalImageUrl: 'https://images.example.test/b.webp',
     sourcePageUrl: 'https://publisher.example.test/b',
-    provider: 'bing',
+    provider: 'brave',
     license: 'unknown',
   },
 ];

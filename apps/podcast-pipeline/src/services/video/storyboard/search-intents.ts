@@ -1,10 +1,8 @@
 import type OpenAI from 'openai';
 
+import { errorMessage } from '../../../lib/errorMessage.js';
 import { isRecord } from '../../../lib/typeGuards.js';
-import {
-  createOpenRouterChatCompletion,
-  getOpenRouterConfig,
-} from '../../llm.js';
+import { createCompletionWithRetry, getOpenRouterConfig } from '../../llm.js';
 import {
   podcastBrandVisualKind,
   splitPodcastVisualSections,
@@ -12,6 +10,7 @@ import {
 } from '../../podcast-packaging.js';
 import { throwIfAborted } from '../abort.js';
 import {
+  MAX_SEARCH_ENTITIES_PER_SCENE,
   MAX_SEARCH_INTENT_CHARACTERS,
   MAX_SEARCH_INTENTS_PER_SCENE,
   MIN_SEARCH_INTENT_CHARACTERS,
@@ -26,13 +25,14 @@ import {
 import { isGroundedSearchIntent } from './validation.js';
 
 // One request per batch of scenes: a 64-scene episode does not fit one useful
-// completion, and a failed batch only costs its own scenes their enrichment.
+// completion. A failed batch now fails the whole enrichment, so keep batches
+// small enough that one bad completion is cheap for the queue to retry.
 const SEARCH_INTENT_BATCH_SIZE = 14;
 // Batches are independent completions, so they run in parallel; three at a time
 // keeps the burst inside OpenRouter's per-key rate budget.
 const SEARCH_INTENT_BATCH_CONCURRENCY = 3;
 const SEARCH_INTENT_MAX_OUTPUT_TOKENS = 2_048;
-// Image search is run against Bing, Pexels and Pixabay, all queried in English.
+// Image search is run against Brave, Pexels and Pixabay, all queried in English.
 const NON_LATIN_SCRIPT_PATTERN =
   /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
 
@@ -61,9 +61,15 @@ export interface SearchIntentEnrichment {
    * names a model that shaped nothing. */
   model: string | null;
   enrichedSceneCount: number;
-  /** Scenes for which the model returned suggestions but none survived
-   * grounding. Brand scenes are deliberately skipped and never discarded. */
-  discardedSceneCount: number;
+  /** Scenes whose named subjects survived verbatim validation, so image search
+   * can anchor on a name instead of a description. The rest are scenes that
+   * genuinely name nothing. */
+  entityAnchoredSceneCount: number;
+}
+
+interface SceneSuggestion {
+  intents: string[];
+  entities: string[];
 }
 
 /**
@@ -73,12 +79,23 @@ export interface SearchIntentEnrichment {
  * The deterministic table this replaces maps a whole episode onto a handful of
  * canned phrases — every finance or crypto scene asks for the same
  * `blockchain developers office photo` — so the selected images are related to
- * the topic at best and unrelated to the scene at worst.
+ * the topic at best and unrelated to the scene at worst. Worse, those phrases
+ * are built by transliterating the head of a Chinese sentence, so a scene about
+ * "一千五百枚比特幣" searched for `thousand five hundred Bitcoin`, matched a
+ * thousand-yard-stare war photo on one filler word, and shipped it.
  *
- * Enrichment is best effort by design: it never fails a visual job. A batch
- * that errors, returns the wrong shape, or produces nothing usable leaves those
- * scenes on their deterministic intents, and the merged draft still has to clear
- * `validateStoryboardDraft` before it is returned.
+ * Enrichment is therefore fail-closed, and the unit is the scene, not the
+ * episode: every content scene has to come back with at least one grounded
+ * phrase, or the whole pass raises. Accepting a partial would put those
+ * transliterated phrases back into image search for the scenes that were left
+ * out — the exact failure this replaces, only smaller and harder to see. A
+ * visual job that cannot enrich is retried by the queue and ends `failed`
+ * rather than publishing a video whose images are unrelated to what is said.
+ *
+ * Each scene also carries back the proper nouns it names, validated verbatim
+ * against its own sentences, so image search can require a candidate to be
+ * about that subject. A scene that names nothing is legitimate and simply has
+ * no entities.
  */
 export async function enrichStoryboardSearchIntents(
   request: {
@@ -92,26 +109,25 @@ export async function enrichStoryboardSearchIntents(
   options: { provider?: SearchIntentProvider; signal?: AbortSignal } = {},
 ): Promise<SearchIntentEnrichment> {
   throwIfAborted(options.signal);
-  const unchanged: SearchIntentEnrichment = {
-    draft: request.draft,
-    model: null,
-    enrichedSceneCount: 0,
-    discardedSceneCount: 0,
-  };
-
-  let provider: SearchIntentProvider;
-  try {
-    provider = options.provider ?? createOpenRouterSearchIntentProvider();
-  } catch (error) {
-    // An unconfigured OPENROUTER_API_KEY is a deployment state, not a render
-    // failure: the storyboard already carries usable deterministic intents.
-    warnSearchIntentFailure('provider', error);
-    return unchanged;
-  }
+  const provider = options.provider ?? createOpenRouterSearchIntentProvider();
 
   const sentences = splitCanonicalSentences(request.script);
   const scenes = searchIntentScenes(request, sentences);
-  if (!scenes) return unchanged;
+  if (!scenes) {
+    throw new Error(
+      'Search intents cannot map every storyboard scene onto canonical sentences',
+    );
+  }
+  // A storyboard of nothing but brand cards has no intent to write; it also
+  // cannot happen for a real episode, which always has body scenes.
+  if (scenes.length === 0) {
+    return {
+      draft: request.draft,
+      model: null,
+      enrichedSceneCount: 0,
+      entityAnchoredSceneCount: 0,
+    };
+  }
 
   throwIfAborted(options.signal);
   const batchResults = await mapBatchesWithLimit(
@@ -128,44 +144,52 @@ export async function enrichStoryboardSearchIntents(
         return parseSearchIntents(raw, batch);
       } catch (error) {
         throwIfAborted(options.signal);
-        warnSearchIntentFailure(`batch ${batch[0]?.sceneId ?? 'empty'}`, error);
-        return [];
+        // Named by scene so `last_error` says which part of the episode failed.
+        throw new Error(
+          `Search intents failed for the batch starting at ${batch[0]?.sceneId ?? 'no scene'}: ${errorMessage(error)}`,
+          { cause: error },
+        );
       }
     },
   );
 
   // Applied in batch order, so a scene's intents never depend on which request
   // came back first.
-  const suggested = new Map<string, string[]>();
+  const suggested = new Map<string, SceneSuggestion>();
   for (const entries of batchResults) {
-    for (const [sceneId, intents] of entries) {
-      suggested.set(sceneId, intents);
+    for (const [sceneId, suggestion] of entries) {
+      suggested.set(sceneId, suggestion);
     }
   }
-  if (suggested.size === 0) return unchanged;
 
   const evidenceBySceneId = new Map(
-    scenes.map((scene) => [scene.sceneId, scene.text]),
+    scenes.map((scene) => [scene.sceneId, scene] as const),
   );
-  let enrichedSceneCount = 0;
-  let discardedSceneCount = 0;
+  const unenrichedSceneIds: string[] = [];
+  let entityAnchoredSceneCount = 0;
   const enrichedScenes = request.draft.scenes.map((scene) => {
     if (podcastBrandVisualKind(scene.imageSearchIntent)) return scene;
-    const grounded = (suggested.get(scene.sceneId) ?? []).filter((intent) =>
-      isGroundedSearchIntent(
-        intent,
-        evidenceBySceneId.get(scene.sceneId) ?? '',
-      ),
+    const evidence = evidenceBySceneId.get(scene.sceneId);
+    const suggestion = suggested.get(scene.sceneId);
+    const grounded = (suggestion?.intents ?? []).filter((intent) =>
+      isGroundedSearchIntent(intent, evidence?.text ?? ''),
     );
     if (grounded.length === 0) {
-      if (suggested.has(scene.sceneId)) discardedSceneCount += 1;
+      unenrichedSceneIds.push(scene.sceneId);
       return scene;
     }
-    enrichedSceneCount += 1;
-    return { ...scene, imageSearchIntent: grounded };
+    const entities = groundedEntities(suggestion?.entities ?? [], evidence);
+    if (entities.length > 0) entityAnchoredSceneCount += 1;
+    return {
+      ...scene,
+      imageSearchIntent: grounded,
+      ...(entities.length > 0 ? { imageSearchEntities: entities } : {}),
+    };
   });
-  if (enrichedSceneCount === 0) {
-    return { ...unchanged, discardedSceneCount };
+  if (unenrichedSceneIds.length > 0) {
+    throw new Error(
+      `Search intents left ${unenrichedSceneIds.length} of ${scenes.length} content scenes without a grounded phrase: ${formatSceneIdList(unenrichedSceneIds)}`,
+    );
   }
 
   const validation = validatePodcastStoryboardDraft(
@@ -174,22 +198,49 @@ export async function enrichStoryboardSearchIntents(
     request.durationMs,
   );
   if (!validation.success) {
-    warnSearchIntentFailure(
-      'validation',
-      new Error(validation.issues.map((issue) => issue.message).join('; ')),
+    throw new Error(
+      `Search intents left the storyboard invalid: ${validation.issues
+        .map((issue) => issue.message)
+        .join('; ')}`,
     );
-    return {
-      ...unchanged,
-      discardedSceneCount: enrichedSceneCount + discardedSceneCount,
-    };
   }
 
   return {
     draft: validation.draft,
     model: provider.model,
-    enrichedSceneCount,
-    discardedSceneCount,
+    enrichedSceneCount: scenes.length,
+    entityAnchoredSceneCount,
   };
+}
+
+/**
+ * Entities are matched the way a reader matches them: case- and
+ * spacing-insensitive, but verbatim. A model that answers "Ledger" for a scene
+ * that only says "Coldcard" loses the invented name instead of anchoring the
+ * whole scene's image search on it.
+ */
+function groundedEntities(
+  entities: readonly string[],
+  scene: SearchIntentScene | undefined,
+): string[] {
+  if (!scene) return [];
+  const evidence = normalizedEntityText(
+    `${scene.text}\n${scene.searchText ?? ''}`,
+  );
+  return entities.filter((entity) =>
+    evidence.includes(normalizedEntityText(entity)),
+  );
+}
+
+function normalizedEntityText(value: string): string {
+  return value.replace(/\s+/gu, ' ').trim().toLocaleLowerCase('en-US');
+}
+
+function formatSceneIdList(sceneIds: readonly string[]): string {
+  const shown = sceneIds.slice(0, 5).join(', ');
+  return sceneIds.length > 5
+    ? `${shown} (+${sceneIds.length - 5} more)`
+    : shown;
 }
 
 export function createOpenRouterSearchIntentProvider(): SearchIntentProvider {
@@ -197,7 +248,12 @@ export function createOpenRouterSearchIntentProvider(): SearchIntentProvider {
   return {
     model,
     async suggest(request) {
-      const completion = await createOpenRouterChatCompletion(
+      // Transport retries only. A batch that comes back well-formed but useless
+      // is retried by the job queue instead: enrichment runs before scraping and
+      // image search, so re-running the whole attempt costs seconds, and a
+      // second bespoke retry ladder here would only hide how often the model
+      // answers badly.
+      const completion = await createCompletionWithRetry(
         openai,
         {
           model,
@@ -207,7 +263,8 @@ export function createOpenRouterSearchIntentProvider(): SearchIntentProvider {
           max_tokens: SEARCH_INTENT_MAX_OUTPUT_TOKENS,
         },
         null,
-        request.signal ? { signal: request.signal } : undefined,
+        'suggestSearchIntents',
+        request.signal ? { signal: request.signal } : {},
       );
       return parseSearchIntentContent(
         completion.choices[0]?.message?.content ?? '',
@@ -219,12 +276,15 @@ export function createOpenRouterSearchIntentProvider(): SearchIntentProvider {
 export function buildSearchIntentSystemPrompt(): string {
   return [
     'Choose 1 to 3 image-search phrases for each storyboard scene; each phrase must be English only.',
-    '- Use concrete, photographable subjects from the scene: institutions, companies, people, places, objects, or events — describe what a camera could see.',
-    '- Prefer specific subjects over generic concepts; each phrase must be 2 to 8 words and at most 80 characters.',
+    '- Start from the proper nouns that scene names: companies, products, organizations, people, places. Turn each into a news-photo query — the named subject plus one or two concrete qualifiers.',
+    "- Use only names written in that scene's own sentences. Never carry a name over from another scene and never invent one.",
+    '- Repeat those names in "entities", spelled exactly as that scene writes them. Return an empty "entities" list when the scene names nothing.',
+    '- Only when a scene names nothing at all, fall back to its most specific photographable subject — describe what a camera could see.',
+    '- Each phrase must be 2 to 8 words and at most 80 characters.',
     '- Never write a number, date, share, or amount that is not already written in that scene.',
     '- No narration, headlines, captions, mood, layout, licenses, or URLs.',
     '- Return every scene once, in order, with the original sceneId.',
-    'Return valid JSON only: {"scenes":[{"sceneId":"scene-01","imageSearchIntent":["federal reserve building washington"]}]}',
+    'Return valid JSON only: {"scenes":[{"sceneId":"scene-01","imageSearchIntent":["federal reserve building washington"],"entities":["Federal Reserve"]}]}',
   ].join('\n');
 }
 
@@ -310,46 +370,71 @@ function searchIntentScenes(
   return scenes;
 }
 
+/**
+ * Reads a batch response by sceneId rather than by position. Demanding an exact
+ * same-length, same-order array made one bad entry cost all 14 scenes in the
+ * batch their enrichment; matching on the id makes a dropped, reordered,
+ * duplicated, or invented scene cost only itself. A batch that names none of
+ * the scenes it was asked about is still a failed batch, not a partial one.
+ */
 function parseSearchIntents(
   raw: unknown,
   batch: readonly SearchIntentScene[],
-): [string, string[]][] {
+): [string, SceneSuggestion][] {
   const entries = isRecord(raw) ? raw['scenes'] : raw;
-  if (!Array.isArray(entries) || entries.length !== batch.length) {
-    throw new Error(`Search intents must cover exactly ${batch.length} scenes`);
+  if (!Array.isArray(entries)) {
+    throw new Error('Search intents must be an array of scenes');
   }
-  return entries.flatMap((entry, index): [string, string[]][] => {
-    const sceneId = batch[index]!.sceneId;
-    if (!isRecord(entry) || entry['sceneId'] !== sceneId) {
-      throw new Error(`Search intent ${index + 1} must be for ${sceneId}`);
-    }
-    const intents = sanitizedIntents(entry['imageSearchIntent']);
-    return intents.length > 0 ? [[sceneId, intents]] : [];
-  });
+  const requested = new Set(batch.map((scene) => scene.sceneId));
+  const parsed = new Map<string, SceneSuggestion>();
+  for (const entry of entries) {
+    if (!isRecord(entry)) continue;
+    const sceneId = entry['sceneId'];
+    if (typeof sceneId !== 'string' || !requested.has(sceneId)) continue;
+    if (parsed.has(sceneId)) continue;
+    const intents = sanitizedPhrases(
+      entry['imageSearchIntent'],
+      MAX_SEARCH_INTENTS_PER_SCENE,
+    );
+    if (intents.length === 0) continue;
+    parsed.set(sceneId, {
+      intents,
+      entities: sanitizedPhrases(
+        entry['entities'],
+        MAX_SEARCH_ENTITIES_PER_SCENE,
+      ),
+    });
+  }
+  if (parsed.size === 0) {
+    throw new Error(
+      `Search intents named none of the ${batch.length} requested scenes`,
+    );
+  }
+  return [...parsed];
 }
 
-function sanitizedIntents(value: unknown): string[] {
+function sanitizedPhrases(value: unknown, limit: number): string[] {
   if (!Array.isArray(value)) return [];
-  const intents: string[] = [];
+  const phrases: string[] = [];
   const seen = new Set<string>();
   for (const raw of value) {
     if (typeof raw !== 'string') continue;
-    const intent = raw.replace(/\s+/gu, ' ').trim();
-    const key = intent.toLocaleLowerCase('en-US');
+    const phrase = raw.replace(/\s+/gu, ' ').trim();
+    const key = phrase.toLocaleLowerCase('en-US');
     if (
-      intent.length < MIN_SEARCH_INTENT_CHARACTERS ||
-      intent.length > MAX_SEARCH_INTENT_CHARACTERS ||
-      !/[A-Za-z]/u.test(intent) ||
-      NON_LATIN_SCRIPT_PATTERN.test(intent) ||
+      phrase.length < MIN_SEARCH_INTENT_CHARACTERS ||
+      phrase.length > MAX_SEARCH_INTENT_CHARACTERS ||
+      !/[A-Za-z]/u.test(phrase) ||
+      NON_LATIN_SCRIPT_PATTERN.test(phrase) ||
       seen.has(key)
     ) {
       continue;
     }
     seen.add(key);
-    intents.push(intent);
-    if (intents.length === MAX_SEARCH_INTENTS_PER_SCENE) break;
+    phrases.push(phrase);
+    if (phrases.length === limit) break;
   }
-  return intents;
+  return phrases;
 }
 
 async function mapBatchesWithLimit<T>(
@@ -380,11 +465,4 @@ function sceneBatches(
     batches.push(scenes.slice(index, index + size));
   }
   return batches;
-}
-
-function warnSearchIntentFailure(scope: string, error: unknown): void {
-  console.warn(
-    `[video-worker] visual:intents ${scope} failed; keeping deterministic search intents`,
-    error,
-  );
 }

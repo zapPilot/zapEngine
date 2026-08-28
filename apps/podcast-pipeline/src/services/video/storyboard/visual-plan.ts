@@ -47,6 +47,14 @@ export const materializedVisualSceneSchema = z
     startSentenceId: z.string().regex(/^s\d{4}$/),
     endSentenceId: z.string().regex(/^s\d{4}$/),
     imageSearchIntent: z.array(z.string().min(2).max(80)).min(1).max(3),
+    // Carried through from the draft purely as an audit trail: it records which
+    // named subjects the stored image was required to be about. Optional, so
+    // manifests written before entity anchoring still parse.
+    imageSearchEntities: z
+      .array(z.string().min(2).max(80))
+      .min(1)
+      .max(4)
+      .optional(),
     sources: z.array(visualSourceSchema).min(1),
     asset: remoteImageAssetSchema,
   })

@@ -24,7 +24,16 @@ const visualAssetMetadataSchema = z
     r2Url: z.string().url(),
     originalImageUrl: z.string().url(),
     sourcePageUrl: z.string().url(),
-    provider: z.enum(['article', 'brand', 'pexels', 'pixabay', 'bing']),
+    // `bing` is retired as a source but stays readable: payloads written before
+    // the Brave migration are still parsed when their episode is re-rendered.
+    provider: z.enum([
+      'article',
+      'brand',
+      'pexels',
+      'pixabay',
+      'brave',
+      'bing',
+    ]),
     license: z.enum(['brand-generated', 'unknown', 'pexels', 'pixabay']),
     photographer: z.string().min(1).optional(),
     photographerUrl: z.string().url().optional(),
