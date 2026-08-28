@@ -8,6 +8,7 @@ import type {
   Transaction,
 } from '../../packages/types/src/strategy/index.js';
 import { DailySnapshotSchema } from '../../packages/types/src/strategy/index.js';
+import { NATIVE_TOKEN_ADDRESS } from '../../packages/types/src/shared/tokens.js';
 import { createSnapshotMessageHash } from '../../apps/landing-page/src/data/track-record-accessor';
 import {
   createPublicClient,
@@ -39,8 +40,6 @@ interface PriceOracleResponse {
   prices: Record<string, OraclePrice | string | number>;
   benchmarks?: DailySnapshot['benchmarks'];
 }
-
-const NATIVE_TOKEN_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 
 function parseArgs(): { out?: string } {
   const outIndex = process.argv.indexOf('--out');
@@ -125,7 +124,7 @@ function readPrice(
     token.address?.toLowerCase(),
     token.asset,
     token.address ? getAddress(token.address) : undefined,
-    NATIVE_TOKEN_ADDRESS,
+    getAddress(NATIVE_TOKEN_ADDRESS),
   ].filter((value): value is string => !!value);
 
   for (const key of candidates) {
