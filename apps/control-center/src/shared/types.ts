@@ -37,6 +37,34 @@ export interface CostHistoryResponse {
   cashSpendUsd: number | null;
 }
 
+export interface PodcastCostBreakdown {
+  label: string;
+  costUsd: number;
+  operations: number;
+}
+
+export interface PodcastEpisodeCostSummary {
+  episodeId: string;
+  title: string | null;
+  lastRunAt: string;
+  totalCostUsd: number;
+  podcastCostUsd: number;
+  videoCostUsd: number;
+  /** Sunk cost from failed pipeline attempts; already included in total cost. */
+  retryWasteUsd: number;
+  runCount: number;
+  failedRuns: number;
+  unpricedStages: number;
+  breakdown: PodcastCostBreakdown[];
+}
+
+export interface PodcastCostResponse {
+  generatedAt: string;
+  status: ProviderStatus;
+  message: string | null;
+  episodes: PodcastEpisodeCostSummary[];
+}
+
 export interface SocialAccountSummary {
   platform: string;
   followers: number | null;
