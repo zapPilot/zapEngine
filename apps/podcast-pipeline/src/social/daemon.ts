@@ -70,8 +70,7 @@ import { SocialReleaseFailureError } from './publish-error.js';
 import {
   activeStrategyMap,
   buildStrategyGuidance,
-  defaultSocialStrategy,
-  nextPublishSlot,
+  nextPlatformPublishSlot,
   refreshSocialStrategies,
   startOfJstDay,
   strategyMapKey,
@@ -160,9 +159,6 @@ export async function runSocialDaemon(
         overdueGraceMs,
       });
     } catch (error) {
-      // Recorded and rethrown, never handled: a release-shape failure is
-      // supposed to stop the process (see the docblock below), and the row is
-      // the only place the reason survives that exit.
       await recordTick({
         phase: 'error',
         now: now(),
@@ -197,12 +193,8 @@ export async function runSocialDaemon(
 
 /**
  * `reconcile`, `align schedules`, `discover`, and `publish` are release-shape
- * stages: a failure here can leave a cohort's lanes disagreeing about what
- * was actually published, or leave the queue mis-scheduled. Those propagate
- * and stop the whole process (see the `isMainModule` block below). `metrics`,
- * `account snapshots`, `strategy`, and `experiment report` are purely
- * observational -- losing one of them for a tick has no release-correctness
- * consequence, so those stay isolated.
+ * stages. `metrics`, `account snapshots`, `strategy`, and `experiment report`
+ * are observational and stay isolated.
  */
 export async function runSocialDaemonTick(input: {
   now: Date;
@@ -218,7 +210,7 @@ export async function runSocialDaemonTick(input: {
   const aligned = await alignPendingSocialPublishSchedules(input.now);
   if (aligned > 0) {
     log(
-      `📥 [social-daemon] aligned ${aligned} pending platform job${aligned === 1 ? '' : 's'} · to article publish slots.`,
+      `📥 [social-daemon] aligned ${aligned} pending platform job${aligned === 1 ? '' : 's'} · to platform publish slots.`,
     );
   }
 
@@ -282,26 +274,19 @@ async function logExperimentReports(
   }
 }
 
-/**
- * The anchor-filtered `candidates` list only tells us which episodes have
- * *recent* activity; a canonical localization that finished ready before the
- * anchor would never show up there on its own. So the anchor decides which
- * episodes to look at, then `listSocialPublishCandidatesForEpisodes` (no
- * anchor) fetches every ready language for exactly those episodes -- that is
- * what lets an episode ready before the anchor still count toward its
- * cohort's readiness.
- */
 async function discoverAndEnqueue(input: {
   now: Date;
   firstStartedAt: string;
   log: (message: string) => void;
 }): Promise<void> {
-  const [candidates, schedules] = await Promise.all([
+  const [candidates, schedules, activeRows] = await Promise.all([
     listSocialPublishCandidates(input.firstStartedAt),
     listPendingSocialPublishSchedules(),
+    getActiveSocialStrategies(),
   ]);
   if (candidates.length === 0) return;
 
+  const active = activeStrategyMap(activeRows);
   const episodeIds = [...new Set(candidates.map((c) => c.episode_id))];
   const [readyCandidates, titleByEpisodeLanguage] = await Promise.all([
     listSocialPublishCandidatesForEpisodes(episodeIds),
@@ -314,10 +299,18 @@ async function discoverAndEnqueue(input: {
     candidatesByEpisode.set(candidate.episode_id, list);
   }
 
-  const latestPending = schedules
-    .filter(({ status }) => status !== 'completed')
-    .at(-1)?.scheduled_at;
-  let rollingLast = latestPending ? new Date(latestPending) : null;
+  // One timestamp per `(episode, platform)` cohort. Language siblings share the
+  // slot and must not consume a daily platform budget more than once.
+  const scheduledByPlatform = new Map<SocialPlatform, Date[]>();
+  const seenCohorts = new Set<string>();
+  for (const schedule of schedules) {
+    const key = `${schedule.episode_id}|${schedule.platform}`;
+    if (seenCohorts.has(key)) continue;
+    seenCohorts.add(key);
+    const list = scheduledByPlatform.get(schedule.platform) ?? [];
+    list.push(new Date(schedule.scheduled_at));
+    scheduledByPlatform.set(schedule.platform, list);
+  }
 
   for (const episodeId of episodeIds) {
     const episodeCandidates = candidatesByEpisode.get(episodeId) ?? [];
@@ -330,75 +323,74 @@ async function discoverAndEnqueue(input: {
     });
     if (lanes.length === 0) continue;
 
-    const readyLanguages = new Set(
-      episodeCandidates.map((candidate) => candidate.language_code),
-    );
-    const requiredLanguages = new Set(lanes.map((lane) => lane.language));
-    const missingLanguages = [...requiredLanguages].filter(
-      (language) => !readyLanguages.has(language),
-    );
     const title =
       titleByEpisodeLanguage.get(`${episodeId}|zh-Hant`) ??
       titleByEpisodeLanguage.get(
         `${episodeId}|${firstCandidate.language_code}`,
       ) ??
       null;
-    if (missingLanguages.length > 0) {
-      input.log(
-        `⏳ [social-daemon] ${episodeLabel(title, episodeId)} · cohort not release-ready · ${missingLanguages.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
+    const readyLanguages = new Set(
+      episodeCandidates.map((candidate) => candidate.language_code),
+    );
+    const platforms = [...new Set(lanes.map((lane) => lane.platform))];
+
+    for (const platform of platforms) {
+      const platformLanes = lanes.filter((lane) => lane.platform === platform);
+      const requiredLanguages = new Set(
+        platformLanes.map((lane) => lane.language),
       );
-      continue;
+      const missingLanguages = [...requiredLanguages].filter(
+        (language) => !readyLanguages.has(language),
+      );
+      if (missingLanguages.length > 0) {
+        input.log(
+          `⏳ [social-daemon] ${platformIcon(platform)} ${platform} · ${episodeLabel(title, episodeId)} · cohort not release-ready · ${missingLanguages.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
+        );
+        continue;
+      }
+
+      const readyAt = new Date(
+        Math.max(
+          ...episodeCandidates
+            .filter((candidate) => requiredLanguages.has(candidate.language_code))
+            .map((candidate) => Date.parse(candidate.ready_at)),
+        ),
+      );
+      if (Number.isNaN(readyAt.getTime())) continue;
+
+      const existingSchedule = schedules.find(
+        (schedule) =>
+          schedule.episode_id === episodeId && schedule.platform === platform,
+      );
+      const firstLane = platformLanes[0]!;
+      const config =
+        active[strategyMapKey(platform, firstLane.language)]?.config;
+      const scheduledAt = existingSchedule
+        ? new Date(existingSchedule.scheduled_at)
+        : nextPlatformPublishSlot({
+            platform,
+            episodeId,
+            readyAt,
+            after: input.now > readyAt ? startOfJstDay(input.now) : readyAt,
+            existingSchedules: scheduledByPlatform.get(platform) ?? [],
+            config,
+          });
+
+      const insertedAny = await enqueueCohortJobs({
+        episodeId,
+        title,
+        lanes: platformLanes,
+        readyAt,
+        scheduledAt,
+        log: input.log,
+      });
+      if (insertedAny && !existingSchedule) {
+        const list = scheduledByPlatform.get(platform) ?? [];
+        list.push(scheduledAt);
+        scheduledByPlatform.set(platform, list);
+      }
     }
-
-    const readyAt = new Date(
-      Math.max(
-        ...episodeCandidates
-          .filter((candidate) => requiredLanguages.has(candidate.language_code))
-          .map((candidate) => Date.parse(candidate.ready_at)),
-      ),
-    );
-    if (Number.isNaN(readyAt.getTime())) continue;
-
-    // Idempotent: an episode that already has any job row -- even a partial
-    // enqueue from a prior, interrupted tick -- reuses that row's slot rather
-    // than recomputing one, so a retried enqueue can never drift the cohort's
-    // timestamp away from lanes it already inserted.
-    const existingSchedule = schedules.find(
-      (schedule) => schedule.episode_id === episodeId,
-    );
-    const scheduledAt = existingSchedule
-      ? new Date(existingSchedule.scheduled_at)
-      : scheduleCohort({ readyAt, rollingLast, now: input.now });
-
-    const insertedAny = await enqueueCohortJobs({
-      episodeId,
-      title,
-      lanes,
-      readyAt,
-      scheduledAt,
-      log: input.log,
-    });
-    if (insertedAny && !existingSchedule) rollingLast = scheduledAt;
   }
-}
-
-function scheduleCohort(input: {
-  readyAt: Date;
-  rollingLast: Date | null;
-  now: Date;
-}): Date {
-  let after = input.readyAt;
-  if (input.rollingLast) {
-    after = new Date(input.rollingLast.getTime() + 60_000);
-  } else if (input.now > input.readyAt) {
-    after = startOfJstDay(input.now);
-  }
-  return nextPublishSlot({
-    platform: 'x',
-    readyAt: input.readyAt,
-    after,
-    config: defaultSocialStrategy(),
-  });
 }
 
 async function enqueueCohortJobs(input: {
@@ -429,10 +421,6 @@ async function enqueueCohortJobs(input: {
   return true;
 }
 
-// `social_posts` is the source of truth for "this platform is live", so a job
-// left behind by a manual publish or by a crash between the post insert and the
-// job update is closed here instead of retrying an upload that would duplicate
-// the post.
 async function reconcileAlreadyPublishedJobs(
   now: Date,
   log: (message: string) => void,
@@ -440,8 +428,6 @@ async function reconcileAlreadyPublishedJobs(
   const jobs = await listUnfinishedSocialPublishJobs();
   if (jobs.length === 0) return;
 
-  // One lookup for the whole sweep: a backfilled queue can hold hundreds of
-  // jobs, and asking per job would spend most of a tick on round-trips.
   const episodeIds = [...new Set(jobs.map((job) => job.episode_id))];
   const [posts, titleByEpisodeLanguage] = await Promise.all([
     listSocialPostIdentitiesByEpisodes(episodeIds),
@@ -449,8 +435,6 @@ async function reconcileAlreadyPublishedJobs(
   ]);
   const postIdByJob = new Map<string, string>();
   for (const post of posts) {
-    // Rows arrive newest first, so the first one wins -- the same row the
-    // per-job lookup used to return.
     postIdByJob.set(
       `${post.episode_id}|${post.platform}|${post.language_code ?? 'zh-Hant'}`,
       postIdByJob.get(
@@ -505,12 +489,8 @@ async function persistPublishFailure(input: {
 }
 
 /**
- * `listPartiallyPublishedCohorts` fences new work behind unfinished ones: an
- * episode with some lanes already completed and others still pending must
- * finish before any other episode is allowed to start. When partial cohorts
- * exist but nothing in them is due yet, this tick publishes nothing at all --
- * it must not fall through to an unrestricted claim that could start a fresh
- * episode ahead of one still mid-release.
+ * Fence only the unfinished `(episode, platform)` cohort. Other platforms are
+ * independent releases and may continue on their own schedules.
  */
 async function publishDueJobs(
   now: Date,
@@ -521,19 +501,21 @@ async function publishDueJobs(
     partialCohorts.length > 0
       ? (
           await Promise.all(
-            partialCohorts.map((episodeId) =>
-              claimSocialPublishBatch({ owner: OWNER, now, episodeId }),
+            partialCohorts.map((cohort) =>
+              claimSocialPublishBatch({
+                owner: OWNER,
+                now,
+                episodeId: cohort.episodeId,
+                platform: cohort.platform,
+              }),
             ),
           )
         ).flat()
       : await claimSocialPublishBatch({ owner: OWNER, now });
   if (jobs.length === 0) {
-    // Without this the fence is indistinguishable from an idle queue: the tick
-    // returns silently while every other episode waits behind a cohort that
-    // has nothing claimable in it.
     if (partialCohorts.length > 0) {
       log(
-        `🚧 [social-daemon] fenced by ${partialCohorts.length} unfinished cohort${partialCohorts.length === 1 ? '' : 's'} · ${partialCohorts.join(', ')} · nothing claimable yet; no other article can start.`,
+        `🚧 [social-daemon] fenced by ${partialCohorts.length} unfinished platform cohort${partialCohorts.length === 1 ? '' : 's'} · ${partialCohorts.map((cohort) => `${cohort.episodeId}/${cohort.platform}`).join(', ')} · nothing claimable yet.`,
       );
     }
     return;
@@ -543,15 +525,18 @@ async function publishDueJobs(
     activeStrategiesForPublish(log),
     loadEpisodeTitleMap(jobs.map((job) => job.episode_id)),
   ]);
-  const pendingByEpisodeLanguage = new Map<string, SocialPublishJobRow[]>();
+  const pendingByEpisodePlatformLanguage = new Map<
+    string,
+    SocialPublishJobRow[]
+  >();
   for (const job of jobs) {
     try {
       if (await reconcileClaimedJob(job, now, titleByEpisodeLanguage, log))
         continue;
-      const key = `${job.episode_id}|${jobLanguage(job)}`;
-      const pending = pendingByEpisodeLanguage.get(key) ?? [];
+      const key = `${job.episode_id}|${job.platform}|${jobLanguage(job)}`;
+      const pending = pendingByEpisodePlatformLanguage.get(key) ?? [];
       pending.push(job);
-      pendingByEpisodeLanguage.set(key, pending);
+      pendingByEpisodePlatformLanguage.set(key, pending);
     } catch (error) {
       await persistPublishFailure({
         jobId: job.id,
@@ -570,7 +555,7 @@ async function publishDueJobs(
     }
   }
 
-  const groups = [...pendingByEpisodeLanguage.values()];
+  const groups = [...pendingByEpisodePlatformLanguage.values()];
   for (const [index, pendingJobs] of groups.entries()) {
     try {
       await publishLanguageBatch(
@@ -581,14 +566,6 @@ async function publishDueJobs(
         log,
       );
     } catch (error) {
-      // Every lane in `pendingJobs` itself is left alone here, even the ones
-      // after whichever one failed: some of them may already have published
-      // successfully (fail-fast stops the batch, but does not undo what it
-      // already did), so releasing their lease back to `queued` could
-      // re-publish a lane that is already live. They stay `processing` and
-      // self-heal through the normal lease-expiry + reconcile path. Only
-      // lanes in groups that were never even claimed for publishing --
-      // genuinely untouched -- are safe to hand back immediately.
       await releaseUntouchedLeases(groups.slice(index + 1).flat(), now, log);
       throw error;
     }
@@ -779,11 +756,6 @@ function compactLaneLabel(
   return `${platformIcon(platform)}${languageCode}`;
 }
 
-// Guidance is resolved when a job is claimed, never when it is queued: a job
-// queued before the first version existed, or scheduled days ahead of the next
-// refresh, would otherwise publish with stale or no guidance forever. Guidance
-// is only a preference, so a failed read degrades to publishing without it
-// rather than holding the queue.
 async function activeStrategiesForPublish(
   log: (message: string) => void,
 ): Promise<Record<string, SocialStrategyVersionRow | null>> {
@@ -927,10 +899,9 @@ export async function collectDueMetricWindows(
   return inserted;
 }
 
-// Platform-level follower counts, once a day. They live on the same daemon as
-// everything else social, but in their own step: a point-in-time account reading
-// has no per-post window semantics and must not share the metrics browser's
-// lifecycle with them.
+// Best-effort platform-level follower counts, approximately every three hours.
+// The attribution layer uses actual captured_at intervals, so daemon downtime
+// creates a wider interval rather than pretending a sample existed.
 async function captureAccountSnapshots(
   now: Date,
   log: (message: string) => void,
@@ -1033,8 +1004,6 @@ function logQueueSnapshot(
   if (snapshot.episodeQueue.length > 0 && nextLanes.length > 0) log('');
   for (const item of nextLanes) {
     const title = item.title ? ` “${truncateTitle(item.title)}”` : '';
-    // A lane past the claim RPC's attempt fence will never be picked up again;
-    // printing a timestamp for it would promise a retry that cannot happen.
     const timing = item.attemptsExhausted
       ? `blocked (${item.attemptCount} attempts exhausted; ${item.status})`
       : `${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status})`;
@@ -1110,9 +1079,6 @@ export function buildFatalReport(error: unknown): string {
   return lines.join('\n');
 }
 
-// Best-effort only: the daemon has no terminal to watch once it is running
-// unattended, so this is the one signal that reaches a human -- but a broken
-// or unset Telegram config must never mask the fatal error already on stderr.
 export async function notifyFatalFailure(error: unknown): Promise<void> {
   try {
     const [chatId] = getAllowedTelegramUserIds();
@@ -1122,7 +1088,7 @@ export async function notifyFatalFailure(error: unknown): Promise<void> {
       buildSocialReleaseFailedMessage(fatalSummary(error)),
     );
   } catch {
-    // Swallowed deliberately -- see comment above.
+    // Best-effort only.
   }
 }
 
