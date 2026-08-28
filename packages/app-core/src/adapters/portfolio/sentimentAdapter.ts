@@ -1,5 +1,7 @@
-import { getDefaultQuoteForRegime } from '@core/constants/regimes';
-import { getRegimeFromStatus } from '@core/lib/domain/regimeMapper';
+import {
+  getDefaultQuoteForRegime,
+  getRegimeFromStatus,
+} from '@core/lib/domain/regime';
 import type { RegimeId } from '@core/regime/regimeData';
 import type { MarketSentimentData } from '@core/services';
 

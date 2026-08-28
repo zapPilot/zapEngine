@@ -17,18 +17,13 @@
 
 import { logger } from '@core/utils';
 
-/* eslint-disable sonarjs/deprecation -- RegimeLabel kept for backward compatibility with API */
-
 // =============================================================================
 // TYPES
 // =============================================================================
 
 export type RegimeId = 'ef' | 'f' | 'n' | 'g' | 'eg';
 
-/**
- * Backend API format. Kept for compatibility with API responses.
- * @deprecated Use RegimeId + REGIME_LABELS instead. Will be removed after migration.
- */
+/** Backend API format used by analytics responses. */
 export type RegimeLabel =
   | 'extreme_fear'
   | 'fear'
@@ -62,20 +57,6 @@ export const REGIME_LABELS: Record<RegimeId, string> = {
   n: 'Neutral',
   g: 'Greed',
   eg: 'Extreme Greed',
-};
-
-/**
- * Color mapping for regime display in charts/dashboards.
- * Uses the "direct" convention: red=fear, green=greed.
- * Note: regimeData.ts uses the OPPOSITE "contrarian" convention
- * (green=fear, red=greed) for strategy visualization.
- */
-export const REGIME_COLORS: Record<RegimeId, string> = {
-  ef: '#ef4444', // red-500
-  f: '#f97316', // orange-500
-  n: '#eab308', // yellow-500
-  g: '#84cc16', // lime-500
-  eg: '#22c55e', // green-500
 };
 
 /**
@@ -161,7 +142,7 @@ const DEFAULT_QUOTES: Record<RegimeId, string> = {
 // =============================================================================
 
 /**
- * Normalizes either a RegimeId or a (deprecated) RegimeLabel into a RegimeId.
+ * Normalizes either a RegimeId or a RegimeLabel into a RegimeId.
  * Returns null when the input is empty or matches neither format.
  */
 function resolveRegimeId(regime: string | null | undefined): RegimeId | null {
@@ -237,20 +218,6 @@ export function getRegimeFromStatus(status?: string | null): RegimeId {
 }
 
 /**
- * Gets the hex color for a regime.
- *
- * @param regime - Regime ID or label (accepts both formats for compatibility)
- * @param fallback - Fallback color if regime not found (default: yellow-500)
- */
-export function getRegimeColor(
-  regime: string | null | undefined,
-  fallback = '#eab308',
-): string {
-  const id = resolveRegimeId(regime);
-  return id ? (REGIME_COLORS[id] ?? fallback) : fallback;
-}
-
-/**
  * Gets the human-readable label for a regime.
  *
  * @param regime - Regime ID or label (accepts both formats for compatibility)
@@ -280,5 +247,3 @@ export function getDefaultQuoteForRegime(regimeId: RegimeId): string {
 }
 
 // getSentimentIndex removed: unused. See @/components/wallet/portfolio/views/backtesting/utils/chartHelpers.ts
-
-/* eslint-enable sonarjs/deprecation */
