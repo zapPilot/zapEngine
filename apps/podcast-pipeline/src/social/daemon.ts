@@ -46,6 +46,7 @@ import {
   listSocialPublishCandidates,
   listSocialPublishCandidatesForEpisodes,
   listUnfinishedSocialPublishJobs,
+  type PastDueSocialPublishJob,
   type PendingSocialPublishSchedule,
   reconcileSocialPublishJob,
   releaseSocialPublishJobLease,
@@ -81,6 +82,7 @@ import {
   refreshSocialStrategies,
   strategyMapKey,
 } from './strategy.js';
+import type { SocialLanguageCode } from './types.js';
 
 const POLL_INTERVAL_MS = 60_000;
 const METRIC_LOOKBACK_DAYS = 8;
@@ -447,35 +449,42 @@ async function reschedulePastDueJobs(
   const schedules = await listPendingSocialPublishSchedules();
   const scheduledByPlatform = platformBudgetIndex(schedules);
   let moved = 0;
-  for (const job of jobs) {
-    const language = job.language_code ?? 'zh-Hant';
-    const plan = await resolveLaneSlotPlan({
-      platform: job.platform,
-      episodeId: job.episode_id,
-      language,
-    });
+  // Grouped by cohort, not by lane: language lanes of one platform share a
+  // slot, and moving them apart is the drift this scheduler exists to prevent.
+  for (const cohort of pastDueCohorts(jobs)) {
     const scheduledAt = nextBudgetSlot({
-      platform: job.platform,
-      plan,
+      platform: cohort.platform,
+      plan: await resolveLaneSlotPlan({
+        platform: cohort.platform,
+        episodeId: cohort.episodeId,
+        language: cohort.language,
+      }),
       after: now,
-      scheduled: (scheduledByPlatform.get(job.platform) ?? []).filter(
-        (at) => at.toISOString() !== job.scheduled_at,
+      scheduled: (scheduledByPlatform.get(cohort.platform) ?? []).filter(
+        (at) => at.toISOString() !== cohort.scheduledAt,
       ),
     });
     if (!scheduledAt) continue;
-    const rescheduled = await rescheduleSocialPublishJob({
-      jobId: job.id,
-      status: job.status,
-      scheduledAt,
-      now,
-    });
-    if (!rescheduled) continue;
-    moved += 1;
-    const list = scheduledByPlatform.get(job.platform) ?? [];
+
+    let cohortMoved = false;
+    for (const job of cohort.jobs) {
+      const rescheduled = await rescheduleSocialPublishJob({
+        jobId: job.id,
+        status: job.status,
+        scheduledAt,
+        now,
+      });
+      if (!rescheduled) continue;
+      cohortMoved = true;
+      moved += 1;
+    }
+    if (!cohortMoved) continue;
+
+    const list = scheduledByPlatform.get(cohort.platform) ?? [];
     list.push(scheduledAt);
-    scheduledByPlatform.set(job.platform, list);
+    scheduledByPlatform.set(cohort.platform, list);
     log(
-      `🗓️ [social-daemon] ${compactLaneLabel(job.platform, language)} · ${episodeLabel(null, job.episode_id)} · slot missed · moved to ${formatJst(scheduledAt.toISOString())}`,
+      `🗓️ [social-daemon] ${compactLaneLabel(cohort.platform, cohort.language)} · ${episodeLabel(null, cohort.episodeId)} · slot missed · moved to ${formatJst(scheduledAt.toISOString())}`,
     );
   }
   if (moved > 0) {
@@ -483,6 +492,36 @@ async function reschedulePastDueJobs(
       `📥 [social-daemon] rescheduled ${moved} past-due lane${moved === 1 ? '' : 's'} onto the next free platform slot.`,
     );
   }
+}
+
+interface PastDueCohort {
+  episodeId: string;
+  platform: SocialPlatform;
+  language: SocialLanguageCode;
+  scheduledAt: string;
+  jobs: PastDueSocialPublishJob[];
+}
+
+function pastDueCohorts(
+  jobs: readonly PastDueSocialPublishJob[],
+): PastDueCohort[] {
+  const byCohort = new Map<string, PastDueCohort>();
+  for (const job of jobs) {
+    const key = `${job.episode_id}|${job.platform}`;
+    const cohort = byCohort.get(key);
+    if (cohort) {
+      cohort.jobs.push(job);
+      continue;
+    }
+    byCohort.set(key, {
+      episodeId: job.episode_id,
+      platform: job.platform,
+      language: job.language_code ?? 'zh-Hant',
+      scheduledAt: job.scheduled_at,
+      jobs: [job],
+    });
+  }
+  return [...byCohort.values()];
 }
 
 async function enqueueCohortJobs(input: {

@@ -320,6 +320,36 @@ describe('social daemon', () => {
     );
   });
 
+  it('moves the language lanes of one platform cohort to the same new slot', async () => {
+    const lane = (id: string, language: string) => ({
+      id,
+      episode_id: EPISODE_ID,
+      platform: 'x' as const,
+      language_code: language,
+      status: 'queued' as const,
+      scheduled_at: '2026-08-15T03:15:00.000Z',
+    });
+    mocks.listPastDueSocialPublishJobs.mockResolvedValue([
+      lane('job-ja', 'ja'),
+      lane('job-en', 'en'),
+    ]);
+
+    await runSocialDaemonTick({
+      now: NOW_PUBLISHING,
+      firstStartedAt: '2026-08-16T00:00:00.000Z',
+    });
+
+    // Lanes of one platform share a slot; moving them apart is the drift the
+    // whole cohort model exists to prevent.
+    const moved = mocks.rescheduleSocialPublishJob.mock.calls.map(
+      ([input]) => input,
+    );
+    expect(moved.map(({ jobId }) => jobId)).toEqual(['job-ja', 'job-en']);
+    expect(
+      new Set(moved.map(({ scheduledAt }) => scheduledAt.toISOString())),
+    ).toHaveProperty('size', 1);
+  });
+
   it('claims nothing outside the hours a person can watch a browser fail', async () => {
     mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
 
