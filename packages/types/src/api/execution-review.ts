@@ -133,14 +133,8 @@ export type ExecutionSimulationApproval = z.infer<
 export type ExecutionSimulationContract = z.infer<
   typeof ExecutionSimulationContractSchema
 >;
-export type ExecutionSimulationWarningCode = z.infer<
-  typeof ExecutionSimulationWarningCodeSchema
->;
 export type ExecutionSimulationWarning = z.infer<
   typeof ExecutionSimulationWarningSchema
->;
-export type ExecutionSimulationReview = z.infer<
-  typeof ExecutionSimulationReviewSchema
 >;
 export type DepositReviewGroup = z.infer<typeof DepositReviewGroupSchema>;
 export type PlanOrchestrationDepositReviewRequest = z.infer<

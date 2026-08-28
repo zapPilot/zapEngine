@@ -83,8 +83,6 @@ export const RebalanceAssetChangeSchema = z.object({
   weight: z.string(),
 });
 
-export type RebalanceAssetChange = z.infer<typeof RebalanceAssetChangeSchema>;
-
 export const RebalanceLogSchema = z.object({
   rebalanceId: z.string(),
   strategyId: z.string(),
@@ -101,8 +99,6 @@ export const RebalanceLogSchema = z.object({
   estimatedCostUsd: z.string(),
   actualCostUsd: z.string(),
 });
-
-export type RebalanceLog = z.infer<typeof RebalanceLogSchema>;
 
 export const StrategySpecSchema = z.object({
   strategyId: z.string(),
@@ -123,8 +119,6 @@ export const StrategySpecSchema = z.object({
     }),
   ),
 });
-
-export type StrategySpec = z.infer<typeof StrategySpecSchema>;
 
 export const TrackRecordMetaSchema = z.object({
   schemaVersion: z.string(),

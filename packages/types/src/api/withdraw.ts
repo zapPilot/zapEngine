@@ -61,7 +61,6 @@ export const PlanOrchestrationWithdrawRequestSchema = z.discriminatedUnion(
   ],
 );
 
-export type WithdrawLeg = z.infer<typeof WithdrawLegSchema>;
 export type WithdrawPlan = z.infer<typeof WithdrawPlanSchema>;
 export type PlanOrchestrationWithdrawRequest = z.infer<
   typeof PlanOrchestrationWithdrawRequestSchema

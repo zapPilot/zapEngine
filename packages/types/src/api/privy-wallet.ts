@@ -148,10 +148,6 @@ export const PrivyConfirmSendCallsResponseSchema = z.discriminatedUnion(
   ],
 );
 
-export type PrivyAtomicBatchCall = z.infer<typeof PrivyAtomicBatchCallSchema>;
-export type PrivyAtomicBatchPayload = z.infer<
-  typeof PrivyAtomicBatchPayloadSchema
->;
 export type PrivyAtomicBatchAuthorizationResponse = z.infer<
   typeof PrivyAtomicBatchAuthorizationResponseSchema
 >;
@@ -178,9 +174,6 @@ export type PrivySimulationApproval = z.infer<
 >;
 export type PrivySimulationContract = z.infer<
   typeof PrivySimulationContractSchema
->;
-export type PrivySimulationWarningCode = z.infer<
-  typeof PrivySimulationWarningCodeSchema
 >;
 export type PrivySimulationWarning = z.infer<
   typeof PrivySimulationWarningSchema

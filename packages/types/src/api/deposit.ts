@@ -581,18 +581,15 @@ export const PlanOrchestrationDepositRequestSchema = z
 
 export type PreparedTransaction = z.infer<typeof PreparedTransactionSchema>;
 export type DepositLeg = z.infer<typeof DepositLegSchema>;
-export type FollowUpAmount = z.infer<typeof FollowUpAmountSchema>;
 export type HyperliquidVaultDepositStep = z.infer<
   typeof HyperliquidVaultDepositStepSchema
 >;
-export type DestinationReplanStep = z.infer<typeof DestinationReplanStepSchema>;
 export type DepositFollowUp = z.infer<typeof DepositFollowUpSchema>;
 export type DepositPlan = z.infer<typeof DepositPlanSchema>;
 export type StrategyAllocation = z.infer<typeof StrategyAllocationSchema>;
 export type StrategyChainExecutionGroup = z.infer<
   typeof StrategyChainExecutionGroupSchema
 >;
-export type MockBridgeCheckpoint = z.infer<typeof MockBridgeCheckpointSchema>;
 export type StrategyDepositPlan = z.infer<typeof StrategyDepositPlanSchema>;
 export type PlanOrchestrationDepositPlan = DepositPlan | StrategyDepositPlan;
 
