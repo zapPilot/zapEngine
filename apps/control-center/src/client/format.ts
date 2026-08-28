@@ -36,6 +36,17 @@ export function headlineScale(value: string): string {
   return value.length > 12 ? 'long' : '';
 }
 
+export function unitUsd(value: number | null | undefined): string {
+  return value === null || value === undefined
+    ? '—'
+    : new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 4,
+      }).format(value);
+}
+
 export function integer(value: number | null | undefined): string {
   return value === null || value === undefined
     ? '—'
