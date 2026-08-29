@@ -7,6 +7,7 @@ import {
 } from '../../utils/healthCheck.js';
 import { logger } from '../../utils/logger.js';
 import type { UserResourceUsageRow } from './attribution.js';
+import type { WalletSourceRefreshRow } from './refreshState.js';
 
 /**
  * One row of `public.get_user_service_states()`, in the shape Postgres returns
@@ -14,6 +15,10 @@ import type { UserResourceUsageRow } from './attribution.js';
  * and `aum_usd` are selected because the Control Center reads the same
  * function, and a projection that diverged between the two readers is exactly
  * the drift the single-source-of-truth function exists to prevent.
+ *
+ * `source_states` and `wallet_created_at` are left out: they exist for the
+ * Control Center's reporting, and the explicit column list is what makes a
+ * column the function drops fail here loudly instead of arriving as undefined.
  */
 interface UserServiceStateRow {
   user_id: string;
@@ -30,13 +35,17 @@ interface UserServiceStateRow {
   refresh_interval_hours: number | null;
   due_for_refresh: boolean;
   aum_usd: string | null;
+  due_sources: string[] | null;
 }
 
 const USER_SERVICE_STATES_QUERY =
-  'select user_id, email, wallet, plan_code, last_activity_at, last_portfolio_update_at, default_tier, override_tier, override_reason, override_expires_at, effective_tier, refresh_interval_hours, due_for_refresh, aum_usd from public.get_user_service_states()';
+  'select user_id, email, wallet, plan_code, last_activity_at, last_portfolio_update_at, default_tier, override_tier, override_reason, override_expires_at, effective_tier, refresh_interval_hours, due_for_refresh, aum_usd, due_sources from public.get_user_service_states()';
 
 const RECORD_RESOURCE_USAGE_QUERY =
   'select public.ops_record_user_resource_usage($1::jsonb)';
+
+const RECORD_WALLET_SOURCE_REFRESH_QUERY =
+  'select public.ops_record_wallet_source_refresh($1::jsonb)';
 
 /**
  * Database-backed reader for per-wallet service policy, and writer of what
@@ -124,6 +133,24 @@ export class SupabaseFetcher extends BaseDatabaseClient {
   }
 
   /**
+   * Replace the recorded refresh state for each (wallet, source) pair.
+   *
+   * Throws on failure. Recording state is bookkeeping nothing waits on, but
+   * whether that is fatal is the caller's decision — the pipelines wrap this
+   * in `recordSourceRefreshOutcomeNonFatal`, and a swallow here would hide the
+   * failure from a caller that did want to know.
+   */
+  async recordWalletSourceRefresh(
+    rows: WalletSourceRefreshRow[],
+  ): Promise<void> {
+    await this.withDatabaseClient(async (client) => {
+      await client.query(RECORD_WALLET_SOURCE_REFRESH_QUERY, [
+        JSON.stringify(rows),
+      ]);
+    });
+  }
+
+  /**
    * Batch update portfolio timestamps for multiple wallets
    * Updates user_crypto_wallets.last_portfolio_update_at to current timestamp
    *
@@ -206,6 +233,7 @@ export class SupabaseFetcher extends BaseDatabaseClient {
       lastPortfolioUpdateAt: row.last_portfolio_update_at,
       refreshIntervalHours: row.refresh_interval_hours,
       dueForRefresh: row.due_for_refresh,
+      dueSources: row.due_sources ?? [],
     };
   }
 

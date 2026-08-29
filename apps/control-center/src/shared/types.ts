@@ -221,6 +221,13 @@ export interface OperationsSocialResponse {
    * them as episodes would overstate how much is stuck.
    */
   waitingMediaLanes: number | null;
+  /**
+   * Queue rows the reader could not parse. A dropped row is a lane the panel
+   * cannot see, so the count travels with the response rather than being
+   * swallowed: an all-dropped read is reported as a source failure, and a
+   * partial one still degrades the queue signal.
+   */
+  invalidJobRows: number;
   message: string | null;
 }
 
@@ -262,7 +269,25 @@ export interface CustomerRecord {
   inactiveDays: number | null;
   aumUsd: number | null;
   wallets: CustomerWalletSummary[];
+  /**
+   * Age of the account's *freshest* wallet. A display figure only — it answers
+   * "is this customer looking at current numbers", which one current wallet is
+   * enough for. Never use it to decide whether anything is wrong.
+   */
   portfolioStaleHours: number | null;
+  /**
+   * Age of the account's stalest wallet, counting each portfolio provider
+   * separately. This is the one the freshness signal judges on: a wallet whose
+   * Hyperliquid slice stopped a week ago is broken even while its DeBank slice
+   * refreshes every morning.
+   */
+  portfolioWorstStaleHours: number | null;
+  /**
+   * Wallets with at least one provider that has never landed data. They have
+   * no age at all, so they cannot be compared against a staleness threshold —
+   * counting them separately is what stops them from passing one.
+   */
+  neverRefreshedWallets: number;
   dueForRefresh: boolean;
   requestCount30d: number;
   /**

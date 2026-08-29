@@ -6,12 +6,16 @@
 const DASHBOARD = '--dashboard';
 const SOCIAL = '--social';
 const STATUS = '--status';
+const JSON_OUTPUT = '--json';
+const FORCE = '--force';
 
 export function parseOpsArgs(argv) {
   const unknown = [];
   let dashboard = false;
   let social = false;
   let status = false;
+  let json = false;
+  let force = false;
   let help = false;
 
   for (const argument of argv) {
@@ -25,6 +29,12 @@ export function parseOpsArgs(argv) {
       case STATUS:
         status = true;
         break;
+      case JSON_OUTPUT:
+        json = true;
+        break;
+      case FORCE:
+        force = true;
+        break;
       case '-h':
       case '--help':
         help = true;
@@ -32,6 +42,23 @@ export function parseOpsArgs(argv) {
       default:
         unknown.push(argument);
     }
+  }
+
+  // `--json` and `--force` are the status tool's own flags and this launcher
+  // only forwards them; anywhere else they have nothing to act on. Rejecting
+  // them beats ignoring them because the failure would otherwise be silent --
+  // an agent that asked for JSON and got the human render parses prose and
+  // reports whatever it makes of it.
+  const modifiers = [json && JSON_OUTPUT, force && FORCE].filter(Boolean);
+  // Read the selectors before the defaults below fill them in, so `pnpm ops
+  // --json` complains about the missing `--status` rather than about a stack
+  // the operator never asked for.
+  const selectors = [dashboard && DASHBOARD, social && SOCIAL].filter(Boolean);
+  let error = null;
+  if (modifiers.length > 0 && selectors.length > 0) {
+    error = `${modifiers.join(', ')} cannot be combined with ${selectors.join(', ')}`;
+  } else if (modifiers.length > 0 && !status) {
+    error = `--status is required for ${modifiers.join(', ')}`;
   }
 
   // `pnpm ops` with no selector means "run my operations stack", because that
@@ -49,7 +76,7 @@ export function parseOpsArgs(argv) {
     social = false;
   }
 
-  return { dashboard, social, status, help, unknown };
+  return { dashboard, social, status, json, force, help, error, unknown };
 }
 
 /**

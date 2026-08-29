@@ -63,18 +63,24 @@ async function scratchRepoRoot(entries: readonly unknown[]): Promise<string> {
   return root;
 }
 
-function githubEntry(name: string): Record<string, unknown> {
+function githubEntry(
+  name: string,
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
   return {
     name,
     purpose: 'irrelevant to this adapter',
+    schedule_kind: 'cron',
+    schedule: '0 3 * * *',
     runtime: 'github-actions',
     entrypoint: `.github/workflows/${name}.yml`,
+    ...overrides,
   };
 }
 
 async function repoWith(names: readonly string[]): Promise<string> {
   return scratchRepoRoot([
-    ...names.map(githubEntry),
+    ...names.map((name) => githubEntry(name)),
     { name: 'social-daemon', runtime: 'local-mac', entrypoint: 'x/daemon.ts' },
     { runtime: 'github-actions' },
   ]);
@@ -116,6 +122,20 @@ async function collect(input: {
   return { signals, calls };
 }
 
+/**
+ * One success, then sixty hours of nothing — a miss for a daily workflow and
+ * an ordinary gap for a weekly one, which is the whole point of deriving the
+ * stale window from the schedule instead of fixing it.
+ */
+async function collectAfterSilence(repoRoot: string) {
+  return collect({
+    repoRoot,
+    respond: everyWorkflowRuns(
+      completedRun({ conclusion: 'success', startedAt: hoursAgo(60) }),
+    ),
+  });
+}
+
 describe('collectGithubSignals', () => {
   it('reports unknown and sends nothing without a token', async () => {
     const { signals, calls } = await collect({
@@ -138,8 +158,8 @@ describe('collectGithubSignals', () => {
     });
 
     expect(calls.map((call) => call.url)).toEqual([
-      'https://api.github.com/repos/zapPilot/zapEngine/actions/workflows/backtest-refresh.yml/runs?per_page=5',
-      'https://api.github.com/repos/zapPilot/zapEngine/actions/workflows/env-drift.yml/runs?per_page=5',
+      'https://api.github.com/repos/zapPilot/zapEngine/actions/workflows/backtest-refresh.yml/runs?per_page=5&event=schedule',
+      'https://api.github.com/repos/zapPilot/zapEngine/actions/workflows/env-drift.yml/runs?per_page=5&event=schedule',
     ]);
     expect(calls[0]?.headers.get('Authorization')).toBe('Bearer ops-token');
     expect(calls[0]?.headers.get('Accept')).toBe('application/vnd.github+json');
@@ -201,15 +221,22 @@ describe('collectGithubSignals', () => {
   });
 
   it('degrades a workflow whose newest run predates the 48h window', async () => {
-    const { signals } = await collect({
-      repoRoot: await repoWith(['track-record-snapshot']),
-      respond: everyWorkflowRuns(
-        completedRun({ conclusion: 'success', startedAt: hoursAgo(60) }),
-      ),
-    });
+    const { signals } = await collectAfterSilence(
+      await repoWith(['track-record-snapshot']),
+    );
 
     expect(signals[0]?.status).toBe('degraded');
     expect(signals[0]?.title).toBe('track-record-snapshot has not run in 60h');
+  });
+
+  it('leaves a weekly workflow healthy at the same 60h of silence', async () => {
+    const { signals } = await collectAfterSilence(
+      await scratchRepoRoot([
+        githubEntry('weekly-audit', { schedule: '0 20 * * 1' }),
+      ]),
+    );
+
+    expect(signals[0]?.status).toBe('healthy');
   });
 
   it('degrades a workflow with no completed run at all', async () => {
@@ -310,7 +337,9 @@ describe('collectGithubSignals', () => {
 
     expect(calls.length).toBeGreaterThan(0);
     expect(
-      calls.every((call) => call.url.includes('.yml/runs?per_page=5')),
+      calls.every((call) =>
+        call.url.includes('.yml/runs?per_page=5&event=schedule'),
+      ),
     ).toBe(true);
     expect(signals.every((signal) => signal.status === 'healthy')).toBe(true);
   });

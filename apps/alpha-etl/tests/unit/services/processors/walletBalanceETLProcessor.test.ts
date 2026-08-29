@@ -63,6 +63,7 @@ function dueUser(
     lastPortfolioUpdateAt: null,
     refreshIntervalHours: 24,
     dueForRefresh: true,
+    dueSources: ['debank'],
     ...overrides,
   };
 }
@@ -75,6 +76,7 @@ const mockSupabaseFetcher = {
     ]),
   batchUpdatePortfolioTimestamps: vi.fn().mockResolvedValue(undefined),
   recordUserResourceUsage: vi.fn().mockResolvedValue(undefined),
+  recordWalletSourceRefresh: vi.fn().mockResolvedValue(undefined),
   getRequestStats: vi.fn().mockReturnValue({
     requestCount: 0,
     lastRequestTime: 0,
@@ -137,6 +139,7 @@ vi.mock('../../../../src/modules/user-service/supabaseFetcher.js', () => ({
     batchUpdatePortfolioTimestamps =
       mockSupabaseFetcher.batchUpdatePortfolioTimestamps;
     recordUserResourceUsage = mockSupabaseFetcher.recordUserResourceUsage;
+    recordWalletSourceRefresh = mockSupabaseFetcher.recordWalletSourceRefresh;
     getRequestStats = mockSupabaseFetcher.getRequestStats;
     healthCheck = mockSupabaseFetcher.healthCheck;
   },
@@ -590,6 +593,7 @@ describe('WalletBalanceETLProcessor', () => {
         dueUser('recent-user', '0xRECENT', {
           lastPortfolioUpdateAt: new Date().toISOString(),
           dueForRefresh: false,
+          dueSources: [],
         }),
       ]);
 
@@ -607,11 +611,13 @@ describe('WalletBalanceETLProcessor', () => {
           effectiveTier: 'standard',
           refreshIntervalHours: null,
           dueForRefresh: false,
+          dueSources: [],
         }),
         dueUser('paused-user', '0xPAUSED', {
           overrideTier: 'paused',
           effectiveTier: 'paused',
           dueForRefresh: false,
+          dueSources: [],
         }),
       ]);
 
@@ -623,11 +629,15 @@ describe('WalletBalanceETLProcessor', () => {
     it('reports what it scheduled and what it skipped', async () => {
       mockSupabaseFetcher.fetchUserServiceStates.mockResolvedValue([
         dueUser('due-user', '0xDUE'),
-        dueUser('recent-user', '0xRECENT', { dueForRefresh: false }),
+        dueUser('recent-user', '0xRECENT', {
+          dueForRefresh: false,
+          dueSources: [],
+        }),
         dueUser('free-user', '0xFREE', {
           effectiveTier: 'standard',
           refreshIntervalHours: null,
           dueForRefresh: false,
+          dueSources: [],
         }),
       ]);
 
@@ -708,6 +718,22 @@ describe('WalletBalanceETLProcessor', () => {
         '0xWALLET1111111111111111111111111111111111',
         '0xWALLET2222222222222222222222222222222222',
       ]);
+      expect(
+        mockSupabaseFetcher.recordWalletSourceRefresh,
+      ).toHaveBeenCalledWith([
+        {
+          wallet: '0xWALLET1111111111111111111111111111111111',
+          source: 'debank',
+          user_id: 'u1',
+          succeeded: true,
+        },
+        {
+          wallet: '0xWALLET2222222222222222222222222222222222',
+          source: 'debank',
+          user_id: 'u2',
+          succeeded: true,
+        },
+      ]);
     });
 
     it('should handle timestamp update failure gracefully', async () => {
@@ -771,6 +797,39 @@ describe('WalletBalanceETLProcessor', () => {
       expect(
         mockSupabaseFetcher.batchUpdatePortfolioTimestamps,
       ).not.toHaveBeenCalled();
+    });
+
+    it('withholds both freshness writes when the daily write failed', async () => {
+      // The stamp used to fire as soon as the fetch returned, so a batch that
+      // fetched cleanly and then failed to write still looked refreshed and
+      // was skipped for the rest of the fence.
+      mockSupabaseFetcher.fetchUserServiceStates.mockResolvedValue([
+        dueUser('u1', '0xWALLET1111111111111111111111111111111111'),
+      ]);
+      mockWriter.writeWalletBalanceSnapshots.mockResolvedValue({
+        success: false,
+        recordsInserted: 0,
+        errors: ['daily_wallet_tokens write failed'],
+        duplicatesSkipped: 0,
+      });
+
+      const result = await processor.process(createMockJob());
+
+      expect(result.success).toBe(false);
+      expect(
+        mockSupabaseFetcher.batchUpdatePortfolioTimestamps,
+      ).not.toHaveBeenCalled();
+      expect(
+        mockSupabaseFetcher.recordWalletSourceRefresh,
+      ).toHaveBeenCalledWith([
+        {
+          wallet: '0xWALLET1111111111111111111111111111111111',
+          source: 'debank',
+          user_id: 'u1',
+          succeeded: false,
+          error: 'daily_wallet_tokens write failed',
+        },
+      ]);
     });
   });
 });

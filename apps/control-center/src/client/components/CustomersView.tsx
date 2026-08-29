@@ -170,6 +170,13 @@ function CustomerDetail({ user }: { user: CustomerRecord }) {
           label="Portfolio age"
           value={hoursAgo(user.portfolioStaleHours)}
         />
+        {/* The figure the freshness signal judges on. Shown next to the
+            freshest one because seeing only the freshest is what let a dead
+            wallet pass as a served account. */}
+        <DetailLine
+          label="Worst wallet age"
+          value={hoursAgo(user.portfolioWorstStaleHours)}
+        />
         <DetailLine
           label="Due for refresh"
           value={user.dueForRefresh ? 'yes' : 'no'}
