@@ -15,6 +15,35 @@ pnpm ops --status --json   # the same snapshot as JSON, for an agent
 
 The Vite UI listens on `127.0.0.1:4174`; its Hono API listens on `CONTROL_CENTER_PORT` (`4175` by default).
 
+## Vercel deployment
+
+The Vercel deployment is a remote, read-only view of Control Center. Configure
+the project root as `apps/control-center` and enable Vercel Authentication for
+all deployments before adding credentials or performing the first deployment.
+The remote API deliberately does not register `POST /api/costs/sync`; cost
+collection remains an external operation. Because the Vercel runtime does not
+include `flyctl`, Fly operational signals are expected to report `unknown`.
+
+The read path uses only these environment variables:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_DB_SCHEMA` (only when using a non-default schema)
+- `OPS_GITHUB_TOKEN`
+- `SENTRY_OPS_AUTH_TOKEN`
+- `SENTRY_ORG_SLUG`
+- `POSTHOG_PERSONAL_API_KEY`
+- `POSTHOG_PROJECT_ID`
+- `SENTRY_CONTROL_CENTER_DSN`
+
+Do not deploy `DEBANK_*` or `OPENROUTER_*` credentials; they are used only by
+cost synchronization. `FLY_API_TOKEN` is also ineffective without the `flyctl`
+binary. Set `ENABLE_EXPERIMENTAL_COREPACK=1` so Vercel honors the repository's
+`pnpm@10.30.3` package manager declaration. Force refresh fans out to the
+operational adapters, each with a 10-second timeout; if the selected Vercel plan
+defaults to a function duration below 15 seconds, configure a longer
+`functions.maxDuration` in `vercel.json`.
+
 ## Operations snapshot
 
 `GET /api/operations` is one read model for "is anything wrong, and what should I do first", shared by the Operations view and by `pnpm ops --status` (`--json` for agents; exit code 1 when anything is `critical`).
