@@ -1,8 +1,8 @@
 import { defineKnipConfig } from '@zapengine/knip-config/base';
 
 export default defineKnipConfig({
-  entry: ['src/**/*.{ts,tsx}'],
-  project: ['src/**/*.{ts,tsx}'],
+  entry: ['api/**/*.ts', 'src/**/*.{ts,tsx}'],
+  project: ['api/**/*.ts', 'src/**/*.{ts,tsx}'],
   ignoreDependencies: ['@zapengine/cost-observability'],
   vitest: {
     config: ['vitest.config.ts'],
