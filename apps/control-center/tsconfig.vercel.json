@@ -2,8 +2,9 @@
   "extends": "@zapengine/tsconfig/node.json",
   "compilerOptions": {
     "noEmit": true,
+    "rootDir": ".",
     "types": ["node"]
   },
-  "include": ["api/**/*", "src/server/**/*", "src/shared/**/*"],
+  "include": ["api/**/*"],
   "exclude": ["node_modules", "dist"]
 }
