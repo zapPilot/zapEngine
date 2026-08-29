@@ -3,11 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   readPublishState: vi.fn(),
   assertThreadsSessionReady: vi.fn(),
+  assertYouTubeSessionReady: vi.fn(),
 }));
 
 vi.mock('./state.js', () => ({ readPublishState: mocks.readPublishState }));
 vi.mock('./threads-auth.js', () => ({
   assertThreadsSessionReady: mocks.assertThreadsSessionReady,
+}));
+vi.mock('./youtube-auth.js', () => ({
+  assertYouTubeSessionReady: mocks.assertYouTubeSessionReady,
+  YOUTUBE_READONLY_SCOPE: 'https://www.googleapis.com/auth/youtube.readonly',
 }));
 
 import {
@@ -19,6 +24,9 @@ import {
 import type { MetricsBrowserSession } from './metric-collectors.js';
 
 const NOW = new Date('2026-08-20T12:00:00.000Z');
+const YOUTUBE_SCOPE_MISSING = new Error(
+  'YouTube session is missing scope https://www.googleapis.com/auth/youtube.readonly',
+);
 const X_PROFILE = 'https://x.com/zap_pilot';
 const X_FOLLOWER_SELECTOR =
   'a[href="/zap_pilot/verified_followers"], a[href="/zap_pilot/followers"]';
@@ -146,6 +154,9 @@ function rednoteLine(log: ReturnType<typeof vi.fn>): string {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // The operator has not re-consented to `youtube.readonly` yet, which is the
+  // state every case below runs in unless it says otherwise.
+  mocks.assertYouTubeSessionReady.mockRejectedValue(YOUTUBE_SCOPE_MISSING);
   mocks.readPublishState.mockResolvedValue({
     'episode-1': {
       zh: { x: { published: true, url: `${X_PROFILE}/status/1` } },
@@ -216,7 +227,7 @@ describe('captureDueAccountSnapshots', () => {
     await expect(
       captureDueAccountSnapshots({
         now: NOW,
-        browser: browserSession({}),
+        openBrowser: () => browserSession({}),
         fetchImpl: threadsInsights(310),
         latest: vi.fn().mockResolvedValue({}),
         insert,
@@ -236,21 +247,115 @@ describe('captureDueAccountSnapshots', () => {
 
   // YouTube's publish scope is upload-only, so no credential here can read
   // channel statistics; per-post subscribersGained covers it instead.
-  it('never claims a YouTube follower count', async () => {
+  it('skips YouTube until the operator consents to the readonly scope', async () => {
     const insert = vi.fn().mockResolvedValue(undefined);
+    const log = vi.fn();
     await captureDueAccountSnapshots({
       now: NOW,
-      browser: browserSession({}),
+      openBrowser: () => browserSession({}),
       fetchImpl: threadsInsights(310),
       latest: vi.fn().mockResolvedValue({}),
       insert,
+      log,
     });
+
+    // Skipped, not fabricated and not fatal: the other three platforms still
+    // get their snapshot on the same tick.
     expect(
       insert.mock.calls.some(([snapshot]) => snapshot.platform === 'youtube'),
     ).toBe(false);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('account snapshot failed'),
+    );
   });
 
-  it('skips a platform recorded within the day and takes the stale one', async () => {
+  it('records the absolute subscriber count once the scope is granted', async () => {
+    const insert = vi.fn().mockResolvedValue(undefined);
+    mocks.assertYouTubeSessionReady.mockResolvedValue({
+      accessToken: 'youtube-token',
+    });
+    const fetchImpl = vi.fn(async (input: URL | RequestInfo) =>
+      String(input).startsWith('https://www.googleapis.com/youtube/v3/channels')
+        ? {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              items: [
+                {
+                  statistics: {
+                    subscriberCount: '1420',
+                    viewCount: '98000',
+                    videoCount: '61',
+                  },
+                },
+              ],
+            }),
+          }
+        : {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              data: [{ name: 'followers_count', total_value: { value: 310 } }],
+            }),
+          },
+    ) as unknown as typeof fetch;
+
+    await captureDueAccountSnapshots({
+      now: NOW,
+      openBrowser: () => browserSession({}),
+      fetchImpl,
+      latest: vi.fn().mockResolvedValue({}),
+      insert,
+    });
+
+    // Per-post `subscribersGained` cannot be summed into this number, which is
+    // why the channel is read directly.
+    expect(
+      insert.mock.calls.find(([snapshot]) => snapshot.platform === 'youtube'),
+    ).toEqual([
+      {
+        platform: 'youtube',
+        followers: 1420,
+        details: { viewCount: '98000', videoCount: '61' },
+      },
+    ]);
+    const requested = String(
+      (fetchImpl as unknown as { mock: { calls: [URL][] } }).mock.calls.find(
+        ([url]) => String(url).includes('/youtube/v3/channels'),
+      )?.[0],
+    );
+    expect(requested).toContain('mine=true');
+    expect(requested).toContain('part=statistics');
+  });
+
+  it('opens no browser when nothing that needs one is due', async () => {
+    const openBrowser = vi.fn(() => browserSession({}));
+    const recent = (platform: string) => ({
+      id: `snapshot-${platform}`,
+      platform,
+      followers: 1,
+      details: {},
+      captured_at: new Date(NOW.getTime() - 60_000).toISOString(),
+    });
+
+    await captureDueAccountSnapshots({
+      now: NOW,
+      openBrowser,
+      fetchImpl: threadsInsights(310),
+      latest: vi.fn().mockResolvedValue({
+        rednote: recent('rednote'),
+        x: recent('x'),
+        threads: recent('threads'),
+        youtube: recent('youtube'),
+      }),
+      insert: vi.fn(),
+    });
+
+    // Eight times a day is eight browser launches if this is not checked first.
+    expect(openBrowser).not.toHaveBeenCalled();
+  });
+
+  it('skips a platform recorded within three hours and takes stale ones', async () => {
     const insert = vi.fn().mockResolvedValue(undefined);
     const snapshot = (platform: string, capturedAt: string) => ({
       id: `snapshot-${platform}`,
@@ -262,11 +367,11 @@ describe('captureDueAccountSnapshots', () => {
 
     await captureDueAccountSnapshots({
       now: NOW,
-      browser: browserSession({}),
+      openBrowser: () => browserSession({}),
       fetchImpl: threadsInsights(310),
       latest: vi.fn().mockResolvedValue({
-        rednote: snapshot('rednote', '2026-08-20T06:00:00.000Z'),
-        x: snapshot('x', '2026-08-18T06:00:00.000Z'),
+        rednote: snapshot('rednote', '2026-08-20T10:00:00.000Z'),
+        x: snapshot('x', '2026-08-20T06:00:00.000Z'),
         threads: snapshot('threads', 'not-a-date'),
       }),
       insert,
@@ -285,7 +390,7 @@ describe('captureDueAccountSnapshots', () => {
     await expect(
       captureDueAccountSnapshots({
         now: NOW,
-        browser: browserSession({ failFor: 'rednote' }),
+        openBrowser: () => browserSession({ failFor: 'rednote' }),
         fetchImpl: threadsInsights(310),
         latest: vi.fn().mockResolvedValue({}),
         insert,
@@ -309,10 +414,11 @@ describe('captureDueAccountSnapshots', () => {
     await expect(
       captureDueAccountSnapshots({
         now: NOW,
-        browser: browserSession({
-          rednoteProfileHtml: '<html><body>Zap Pilot</body></html>',
-          xFollowersText: '位跟隨者',
-        }),
+        openBrowser: () =>
+          browserSession({
+            rednoteProfileHtml: '<html><body>Zap Pilot</body></html>',
+            xFollowersText: '位跟隨者',
+          }),
         fetchImpl: threadsInsights(null),
         latest: vi.fn().mockResolvedValue({}),
         insert,
@@ -320,7 +426,8 @@ describe('captureDueAccountSnapshots', () => {
       }),
     ).resolves.toBe(0);
     expect(insert).not.toHaveBeenCalled();
-    expect(log).toHaveBeenCalledTimes(3);
+    // One failure line per platform, YouTube's being the un-consented scope.
+    expect(log).toHaveBeenCalledTimes(4);
     expect(rednoteLine(log)).toEqual(
       expect.stringContaining(
         `Rednote profile ${REDNOTE_PROFILE_URL} exposed no follower count`,
@@ -334,7 +441,7 @@ describe('captureDueAccountSnapshots', () => {
 
     await captureDueAccountSnapshots({
       now: NOW,
-      browser: browserSession({}),
+      openBrowser: () => browserSession({}),
       fetchImpl: threadsInsights(310),
       latest: vi.fn().mockResolvedValue({}),
       insert: vi.fn().mockResolvedValue(undefined),
@@ -352,7 +459,7 @@ describe('captureDueAccountSnapshots', () => {
     const insert = vi.fn().mockResolvedValue(undefined);
     await captureDueAccountSnapshots({
       now: NOW,
-      browser: browserSession({ rednoteFollowerCount: '0' }),
+      openBrowser: () => browserSession({ rednoteFollowerCount: '0' }),
       fetchImpl: threadsInsights(310),
       latest: vi.fn().mockResolvedValue({}),
       insert,
@@ -368,7 +475,7 @@ describe('captureDueAccountSnapshots', () => {
     const insert = vi.fn().mockResolvedValue(undefined);
     await captureDueAccountSnapshots({
       now: NOW,
-      browser: browserSession({ rednoteFollowerCount: '1.2万' }),
+      openBrowser: () => browserSession({ rednoteFollowerCount: '1.2万' }),
       fetchImpl: threadsInsights(310),
       latest: vi.fn().mockResolvedValue({}),
       insert,
@@ -386,7 +493,7 @@ describe('captureDueAccountSnapshots', () => {
 
     await captureDueAccountSnapshots({
       now: NOW,
-      browser: browserSession({ rednoteUserInfoStatus: 401 }),
+      openBrowser: () => browserSession({ rednoteUserInfoStatus: 401 }),
       fetchImpl: threadsInsights(310),
       latest: vi.fn().mockResolvedValue({}),
       insert,
@@ -409,7 +516,7 @@ describe('captureDueAccountSnapshots', () => {
 
     await captureDueAccountSnapshots({
       now: NOW,
-      browser: browserSession({ rednoteFollowerCount: '10+' }),
+      openBrowser: () => browserSession({ rednoteFollowerCount: '10+' }),
       fetchImpl: threadsInsights(310),
       latest: vi.fn().mockResolvedValue({}),
       insert,
@@ -428,7 +535,7 @@ describe('captureDueAccountSnapshots', () => {
     const log = vi.fn();
     await captureDueAccountSnapshots({
       now: NOW,
-      browser: browserSession({ rednoteProfileStatus: 503 }),
+      openBrowser: () => browserSession({ rednoteProfileStatus: 503 }),
       fetchImpl: threadsInsights(310),
       latest: vi.fn().mockResolvedValue({}),
       insert: vi.fn().mockResolvedValue(undefined),

@@ -412,7 +412,6 @@ export const ENV_MANIFEST = {
   SENTRY_ORG_SLUG: server(['control-center']),
   POSTHOG_PERSONAL_API_KEY: server(['control-center'], { sensitive: true }),
   POSTHOG_PROJECT_ID: server(['control-center']),
-  SOCIAL_PUBLISH_SKIP_OVERDUE_MINUTES: server(['podcast-pipeline']),
   THREADS_APP_ID: server(['podcast-pipeline'], { sensitive: true }),
   THREADS_APP_SECRET: server(['podcast-pipeline'], { sensitive: true }),
   THREADS_ACCESS_TOKEN: server(['podcast-pipeline'], { sensitive: true }),

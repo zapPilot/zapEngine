@@ -26,6 +26,7 @@ import {
 import {
   ensureEpisodeLocalizationScript,
   findEpisodeAndLocalization,
+  type IngestLanguageTelemetry,
   needsGeneratedScript,
 } from './ingest/script-stage.js';
 import {
@@ -35,6 +36,7 @@ import {
   step,
   withStepLogContext,
 } from './ingest/step.js';
+import type { LlmAttemptRecord } from './llm.js';
 import {
   type SecondaryLanguageCode,
   translateCanonicalScript,
@@ -61,8 +63,11 @@ const MAX_TRANSLATED_TO_CANONICAL_RATIO = 4;
 export interface IngestCostSinkEntry {
   languageCode: LanguageClassroomLanguageCode;
   episodeId: string;
-  localizationId: string;
+  /** Null when the language failed before its localization row existed. */
+  localizationId: string | null;
   lines: UsageCostLine[];
+  attempts: LlmAttemptRecord[];
+  status: 'completed' | 'failed';
 }
 
 export async function performMultilingualIngest(
@@ -88,14 +93,22 @@ export async function performMultilingualIngest(
           },
           async () => {
             const startedAt = Date.now();
+            const telemetry: IngestLanguageTelemetry = {
+              lines: [],
+              attempts: [],
+              episodeId: null,
+              localizationId: null,
+            };
             logIngestEvent('localization:start');
             try {
-              const result = await performIngest(url, languageCode);
+              const result = await performIngest(url, languageCode, telemetry);
               costSink?.push({
                 languageCode,
                 episodeId: result.episode.id,
                 localizationId: result.episode.localizationId,
                 lines: result.costDetails.breakdown,
+                attempts: telemetry.attempts,
+                status: 'completed',
               });
               logIngestEvent('localization:done', {
                 elapsedMs: Date.now() - startedAt,
@@ -103,6 +116,20 @@ export async function performMultilingualIngest(
               });
               return result;
             } catch (error) {
+              // The language that dies mid-run is the one whose spend and
+              // timing are most worth having, and it is exactly the one the
+              // sink used to drop: it never returned, so nothing pushed it.
+              // Its episode id is also the only one the run row can carry.
+              if (telemetry.episodeId) {
+                costSink?.push({
+                  languageCode,
+                  episodeId: telemetry.episodeId,
+                  localizationId: telemetry.localizationId,
+                  lines: telemetry.lines,
+                  attempts: telemetry.attempts,
+                  status: 'failed',
+                });
+              }
               logIngestEvent('localization:failed', {
                 elapsedMs: Date.now() - startedAt,
                 error: errorMessage(error),
@@ -141,25 +168,29 @@ export async function performMultilingualIngest(
 export async function performIngest(
   url: string,
   languageCode: LanguageClassroomLanguageCode,
+  telemetry?: IngestLanguageTelemetry,
 ): Promise<IngestResult> {
   return withStepLogContext(
     {
       runId: getStepLogContext()?.runId ?? randomUUID().slice(0, 8),
       languageCode,
     },
-    () => performIngestWithContext(url, languageCode),
+    () => performIngestWithContext(url, languageCode, telemetry),
   );
 }
 
 async function performIngestWithContext(
   url: string,
   languageCode: LanguageClassroomLanguageCode,
+  telemetry?: IngestLanguageTelemetry,
 ): Promise<IngestResult> {
   if (isSecondaryLanguageCode(languageCode)) {
-    return performSecondaryIngest(url, languageCode);
+    return performSecondaryIngest(url, languageCode, telemetry);
   }
 
-  const costBreakdown: UsageCostLine[] = [];
+  // The telemetry sink owns the array when there is one: cost pushed onto it
+  // survives a throw, which a local array cannot.
+  const costBreakdown: UsageCostLine[] = telemetry?.lines ?? [];
   const existing = await findEpisodeAndLocalization(url, languageCode);
 
   if (
@@ -187,6 +218,7 @@ async function performIngestWithContext(
     languageCode,
     costBreakdown,
     existing,
+    telemetry,
   );
 
   return completeIngestResult(
@@ -202,13 +234,16 @@ async function performIngestWithContext(
 async function performSecondaryIngest(
   url: string,
   languageCode: SecondaryLanguageCode,
+  telemetry?: IngestLanguageTelemetry,
 ): Promise<IngestResult> {
-  const costBreakdown: UsageCostLine[] = [];
+  const costBreakdown: UsageCostLine[] = telemetry?.lines ?? [];
   const { episode, localization: canonicalLocalization } =
     await ensureEpisodeLocalizationScript(
       url,
       DEFAULT_LANGUAGE_CODE,
       costBreakdown,
+      undefined,
+      telemetry,
     );
 
   let localization = await step('findEpisodeLocalizationByEpisodeId', () =>

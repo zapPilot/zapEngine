@@ -31,13 +31,14 @@ import {
   listLearningSocialMetrics,
   listLearningSocialPosts,
   listMetricWindowsForPosts,
-  listPartiallyPublishedCohorts,
+  listPastDueSocialPublishJobs,
   listSocialPublishCandidates,
   listSocialPublishCandidatesForEpisodes,
   listUnfinishedSocialPublishJobs,
   publishRetryDelayMs,
   reconcileSocialPublishJob,
   releaseSocialPublishJobLease,
+  rescheduleSocialPublishJob,
 } from './daemon-store.js';
 
 function nextResult(): QueryResult {
@@ -51,6 +52,7 @@ function queryBuilder() {
     select: vi.fn(),
     eq: vi.fn(),
     gte: vi.fn(),
+    lt: vi.fn(),
     order: vi.fn(),
     limit: vi.fn(),
     upsert: vi.fn(),
@@ -67,6 +69,7 @@ function queryBuilder() {
     'select',
     'eq',
     'gte',
+    'lt',
     'order',
     'limit',
     'upsert',
@@ -512,12 +515,7 @@ describe('social daemon store', () => {
   it('surfaces each activation-stage error and starts versioning at one', async () => {
     const input = {
       platform: 'x' as const,
-      config: {
-        publishSlotsJst: [
-          { hour: 12, minute: 0 },
-          { hour: 19, minute: 0 },
-        ],
-      },
+      config: { preferredHookTypes: ['question'] },
       basedOnSamples: 8,
       now: new Date('2026-08-16T10:00:00Z'),
     };
@@ -554,7 +552,7 @@ describe('social daemon store', () => {
       id: 'strategy-1',
       platform: 'x',
       version: 1,
-      config: { publishSlotsJst: [{ hour: 19, minute: 0 }] },
+      config: { preferredHookTypes: ['question'] },
       based_on_samples: 5,
       active: true,
       activated_at: '2026-08-16T10:00:00Z',
@@ -572,12 +570,7 @@ describe('social daemon store', () => {
     await expect(
       activateSocialStrategy({
         platform: 'x',
-        config: {
-          publishSlotsJst: [
-            { hour: 12, minute: 0 },
-            { hour: 19, minute: 0 },
-          ],
-        },
+        config: { preferredHashtags: ['macro'] },
         basedOnSamples: 8,
         now: new Date('2026-08-16T10:00:00Z'),
       }),
@@ -593,20 +586,21 @@ describe('social daemon store', () => {
     ).rejects.toThrow('rpc failed');
   });
 
-  it('scopes a claim to one episode when asked, without touching the default call', async () => {
+  // The claim takes whatever is due, with no episode or platform narrowing:
+  // the cross-episode fence it existed for would deadlock a queue whose
+  // platforms deliberately publish the same episode hours apart.
+  it('claims everything due without narrowing the RPC', async () => {
     const job = { id: 'job-1', platform: 'x' };
     queue({ data: [job], error: null });
     await expect(
       claimSocialPublishBatch({
         owner: 'mac:1',
         now: new Date('2026-08-16T10:00:00Z'),
-        episodeId: 'episode-1',
       }),
     ).resolves.toEqual([job]);
     expect(mocks.rpc).toHaveBeenCalledWith('claim_social_publish_batch', {
       p_owner: 'mac:1',
       p_now: '2026-08-16T10:00:00.000Z',
-      p_episode_id: 'episode-1',
     });
   });
 
@@ -636,24 +630,55 @@ describe('social daemon store', () => {
     ).rejects.toThrow('candidates by episode failed');
   });
 
-  it('finds only episodes with both a completed lane and a still-pending lane', async () => {
-    queue({
-      data: [
-        { episode_id: 'episode-partial', status: 'completed' },
-        { episode_id: 'episode-partial', status: 'queued' },
-        { episode_id: 'episode-done', status: 'completed' },
-        { episode_id: 'episode-fresh', status: 'queued' },
-      ],
-      error: null,
+  it('reads past-due lanes without touching a lease someone may hold', async () => {
+    const job = {
+      id: 'job-1',
+      episode_id: 'episode-1',
+      platform: 'rednote',
+      language_code: 'zh-Hant',
+      status: 'queued',
+      scheduled_at: '2026-08-16T05:30:00Z',
+    };
+    queue({ data: [job], error: null });
+    await expect(
+      listPastDueSocialPublishJobs(new Date('2026-08-16T10:00:00Z')),
+    ).resolves.toEqual([job]);
+    // `processing` is absent on purpose: only the claim RPC may take an
+    // expired lease back.
+    expect(mocks.calls.filter((call) => call.method === 'in')).toContainEqual({
+      method: 'in',
+      args: ['status', ['queued', 'failed']],
     });
-    await expect(listPartiallyPublishedCohorts()).resolves.toEqual([
-      'episode-partial',
-    ]);
 
-    queue({ data: null, error: new Error('partial cohorts failed') });
-    await expect(listPartiallyPublishedCohorts()).rejects.toThrow(
-      'partial cohorts failed',
-    );
+    queue({ data: null, error: new Error('past due failed') });
+    await expect(
+      listPastDueSocialPublishJobs(new Date('2026-08-16T10:00:00Z')),
+    ).rejects.toThrow('past due failed');
+  });
+
+  it('moves a missed slot forward on both claim gates, fenced by status', async () => {
+    queue({ data: { id: 'job-1' }, error: null });
+    await expect(
+      rescheduleSocialPublishJob({
+        jobId: 'job-1',
+        status: 'failed',
+        scheduledAt: new Date('2026-08-17T05:30:00Z'),
+        now: new Date('2026-08-16T10:00:00Z'),
+      }),
+    ).resolves.toBe(true);
+    const updates = mocks.calls.filter((call) => call.method === 'update');
+    // `next_attempt_at` follows the new slot because the claim RPC fences on
+    // both: retry backoff left behind it would make the lane unclaimable at
+    // the very time it is now due.
+    expect(updates[updates.length - 1]?.args[0]).toEqual({
+      scheduled_at: '2026-08-17T05:30:00.000Z',
+      next_attempt_at: '2026-08-17T05:30:00.000Z',
+      updated_at: '2026-08-16T10:00:00.000Z',
+    });
+    expect(mocks.calls.filter((call) => call.method === 'eq')).toContainEqual({
+      method: 'eq',
+      args: ['status', 'failed'],
+    });
   });
 
   // A publish that dies mid-cohort leaves its own lane `processing` under a live
@@ -661,22 +686,18 @@ describe('social daemon store', () => {
   // the in-memory reduce already treats every non-completed status as pending,
   // so a status missing from the filter never reaches it and no fixture of rows
   // can expose the gap.
-  it('counts a lane still processing as pending work', async () => {
-    queue({
-      data: [
-        { episode_id: 'episode-crashed', status: 'completed' },
-        { episode_id: 'episode-crashed', status: 'processing' },
-      ],
-      error: null,
-    });
-
-    await expect(listPartiallyPublishedCohorts()).resolves.toEqual([
-      'episode-crashed',
-    ]);
-    expect(mocks.calls.filter((call) => call.method === 'in')).toContainEqual({
-      method: 'in',
-      args: ['status', ['queued', 'processing', 'failed', 'completed']],
-    });
+  it('reports a reschedule that raced a claim as not applied', async () => {
+    // The status fence is what makes this safe beside a live claim: a row the
+    // RPC already took is `processing` and matches nothing here.
+    queue({ data: null, error: null });
+    await expect(
+      rescheduleSocialPublishJob({
+        jobId: 'job-1',
+        status: 'queued',
+        scheduledAt: new Date('2026-08-17T05:30:00Z'),
+        now: new Date('2026-08-16T10:00:00Z'),
+      }),
+    ).resolves.toBe(false);
   });
 
   it('releases an untouched lane back to queued without applying retry backoff', async () => {

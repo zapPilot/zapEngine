@@ -853,6 +853,9 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
     expect(mockCreate).toHaveBeenCalledTimes(2);
   });
 
+  // The shared timeout is stubbed and then expected *not* to appear: script
+  // generation runs on its own ten-minute deadline, so a change that quietly
+  // put it back on the shared one fails here.
   it('logs safe request and response metadata without prompt or completion content', async () => {
     vi.stubEnv('OPENROUTER_TIMEOUT_MS', '45000');
     ingestMocks.logIngestEvent.mockClear();
@@ -881,7 +884,7 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
         model: 'test/model',
         thinking: false,
         inputChars,
-        timeoutMs: 45_000,
+        timeoutMs: 600_000,
         maxTokens: 'unset',
         reasoning: 'provider-default',
       },
@@ -893,7 +896,7 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
         model: 'resolved/model',
         thinking: false,
         inputChars,
-        timeoutMs: 45_000,
+        timeoutMs: 600_000,
         provider: 'Cloudflare',
         costUsd: 0.00001,
         outputChars: generatedPayload.length,
@@ -928,14 +931,14 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
       'llm:request',
       expect.objectContaining({
         model: 'test/model',
-        timeoutMs: DEFAULT_OPENROUTER_TIMEOUT_MS,
+        timeoutMs: 600_000,
       }),
     );
     expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
       'llm:failed',
       expect.objectContaining({
         model: 'test/model',
-        timeoutMs: DEFAULT_OPENROUTER_TIMEOUT_MS,
+        timeoutMs: 600_000,
         maxTokens: 'unset',
         reasoning: 'provider-default',
         routing: 'throughput',

@@ -44,7 +44,28 @@ import {
   generateLanguageClassroomsWithLLM,
   generateScriptWithLLM,
   getOpenRouterConfig,
+  type LlmAttemptRecord,
 } from './llm.js';
+
+/**
+ * Script generation runs on its own deadline, deliberately unreachable through
+ * `OPENROUTER_TIMEOUT_MS`; the literal is the contract these tests assert.
+ */
+const SCRIPT_TIMEOUT_MS = 600_000;
+
+function providerErrorWithStatus(status: number): Error {
+  return Object.assign(new Error(`provider responded ${status}`), { status });
+}
+
+function requestProviderRouting(
+  mockCreate: Mock,
+  callIndex: number,
+): Record<string, unknown> | undefined {
+  const request = mockCreate.mock.calls[callIndex]?.[0] as
+    | { provider?: Record<string, unknown> }
+    | undefined;
+  return request?.provider;
+}
 
 function mockOpenAIClient(createMock: Mock): void {
   openAiMocks.create.mockImplementation((...args: unknown[]) =>
@@ -137,29 +158,42 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe('generateScriptWithLLM retries', () => {
-  it('retries a timed-out request with a fresh deadline and succeeds', async () => {
+describe('generateScriptWithLLM request policy', () => {
+  it('completes a generation that outlives the shared request ceiling', async () => {
     vi.useFakeTimers();
-    const requestSignals: AbortSignal[] = [];
+    const requestTimeouts: number[] = [];
     const mockCreate = vi.fn(
-      (
-        _request: unknown,
-        options?: { signal?: AbortSignal },
-      ): Promise<unknown> => {
-        const signal = options?.signal;
-        if (!signal) {
-          throw new Error('Expected an OpenRouter request signal');
-        }
-        requestSignals.push(signal);
-        return requestSignals.length === 1
-          ? timeoutUntilAborted(signal)
-          : Promise.resolve(successfulCompletion());
+      (_request: unknown, options?: { timeout?: number }): Promise<unknown> => {
+        requestTimeouts.push(options?.timeout ?? -1);
+        return new Promise((resolve) =>
+          setTimeout(() => resolve(successfulCompletion()), 300_000),
+        );
       },
     );
     mockOpenAIClient(mockCreate);
 
     const resultPromise = generateScriptWithLLM('Title', 'Article');
-    const resultAssertion = expect(resultPromise).resolves.toEqual({
+    const resultAssertion = expect(resultPromise).resolves.toMatchObject({
+      script: 'Generated script',
+    });
+    await vi.runAllTimersAsync();
+    await resultAssertion;
+
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(requestTimeouts).toEqual([SCRIPT_TIMEOUT_MS]);
+  });
+
+  it('returns a successful response from one request', async () => {
+    const requestTimeouts: number[] = [];
+    const mockCreate = vi.fn(
+      (_request: unknown, options?: { timeout?: number }): Promise<unknown> => {
+        requestTimeouts.push(options?.timeout ?? -1);
+        return Promise.resolve(successfulCompletion());
+      },
+    );
+    mockOpenAIClient(mockCreate);
+
+    await expect(generateScriptWithLLM('Title', 'Article')).resolves.toEqual({
       title: '市場流動性正在重新定價',
       script: 'Generated script',
       model: 'test/model',
@@ -168,48 +202,88 @@ describe('generateScriptWithLLM retries', () => {
       costUsd: 0.01,
     });
 
-    await vi.runAllTimersAsync();
-    await resultAssertion;
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(requestTimeouts).toEqual([SCRIPT_TIMEOUT_MS]);
+  });
+
+  it('aborts at the script deadline and never replays the timeout', async () => {
+    vi.useFakeTimers();
+    const requestSignals: AbortSignal[] = [];
+    const mockCreate = vi.fn(
+      (
+        _request: unknown,
+        options?: { signal?: AbortSignal },
+      ): Promise<unknown> => {
+        const signal = options?.signal;
+        if (!signal) throw new Error('Expected an OpenRouter request signal');
+        requestSignals.push(signal);
+        return timeoutUntilAborted(signal);
+      },
+    );
+    mockOpenAIClient(mockCreate);
+
+    const resultPromise = generateScriptWithLLM('Title', 'Article');
+    const rejection = expect(resultPromise).rejects.toThrow(
+      'OpenRouter request timed out after 600000ms',
+    );
+    await vi.advanceTimersByTimeAsync(SCRIPT_TIMEOUT_MS);
+    await rejection;
+
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(requestSignals[0]?.aborted).toBe(true);
+    for (const event of ['llm:retry', 'llm:fallback']) {
+      expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+        event,
+        expect.anything(),
+      );
+    }
+  });
+
+  it('re-routes a gateway failure exactly once', async () => {
+    const mockCreate = vi
+      .fn()
+      .mockRejectedValueOnce(providerErrorWithStatus(502))
+      .mockResolvedValueOnce(successfulCompletion());
+    mockOpenAIClient(mockCreate);
+
+    await expect(
+      generateScriptWithLLM('Title', 'Article'),
+    ).resolves.toMatchObject({ script: 'Generated script' });
 
     expect(mockCreate).toHaveBeenCalledTimes(2);
-    expect(requestSignals).toHaveLength(2);
-    expect(requestSignals[0]).not.toBe(requestSignals[1]);
-    expect(requestSignals[0]?.aborted).toBe(true);
-    expect(requestSignals[1]?.aborted).toBe(false);
+    expect(requestProviderRouting(mockCreate, 0)).toEqual({
+      sort: 'throughput',
+      require_parameters: true,
+    });
+    // No `sort` is the whole mechanism: it hands endpoint choice back to
+    // OpenRouter instead of re-sending to the endpoint that just failed.
+    expect(requestProviderRouting(mockCreate, 1)).toEqual({
+      require_parameters: true,
+    });
     expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
-      'llm:retry',
+      'llm:fallback',
       expect.objectContaining({
         operation: 'generateScript',
-        attempt: 1,
-        nextAttempt: 2,
-        error: 'OpenRouter request timed out after 25ms',
+        routing: 'default',
       }),
     );
   });
 
-  it('retries a retryable provider error once', async () => {
-    vi.useFakeTimers();
-    const providerError = Object.assign(new Error('provider unavailable'), {
-      status: 503,
-    });
+  it('fails after the re-routed request also fails', async () => {
+    const secondError = providerErrorWithStatus(503);
     const mockCreate = vi
       .fn()
-      .mockRejectedValueOnce(providerError)
-      .mockResolvedValueOnce(successfulCompletion());
+      .mockRejectedValueOnce(providerErrorWithStatus(502))
+      .mockRejectedValueOnce(secondError);
     mockOpenAIClient(mockCreate);
 
-    const resultPromise = generateScriptWithLLM('Title', 'Article');
-    const resultAssertion = expect(resultPromise).resolves.toMatchObject({
-      script: 'Generated script',
-    });
-
-    await vi.runAllTimersAsync();
-    await resultAssertion;
-
+    await expect(generateScriptWithLLM('Title', 'Article')).rejects.toBe(
+      secondError,
+    );
     expect(mockCreate).toHaveBeenCalledTimes(2);
   });
 
-  it('does not retry primitive provider failures', async () => {
+  it('does not re-route primitive or non-retryable provider failures', async () => {
     const mockCreate = vi.fn().mockRejectedValue('provider exploded');
     mockOpenAIClient(mockCreate);
 
@@ -217,23 +291,62 @@ describe('generateScriptWithLLM retries', () => {
       'provider exploded',
     );
     expect(mockCreate).toHaveBeenCalledTimes(1);
+
+    const badRequest = providerErrorWithStatus(400);
+    mockOpenAIClient(vi.fn().mockRejectedValue(badRequest));
+    await expect(generateScriptWithLLM('Title', 'Article')).rejects.toBe(
+      badRequest,
+    );
   });
 
-  it('does not retry a non-retryable provider error', async () => {
-    const providerError = Object.assign(new Error('invalid request'), {
-      status: 400,
-    });
-    const mockCreate = vi.fn().mockRejectedValue(providerError);
+  it('reports one attempt record per upstream request', async () => {
+    const attempts: LlmAttemptRecord[] = [];
+    const mockCreate = vi
+      .fn()
+      .mockRejectedValueOnce(providerErrorWithStatus(502))
+      .mockResolvedValueOnce(successfulCompletion());
     mockOpenAIClient(mockCreate);
 
-    await expect(generateScriptWithLLM('Title', 'Article')).rejects.toBe(
-      providerError,
-    );
+    await generateScriptWithLLM('Title', 'Article', {
+      onAttempt: (record) => attempts.push(record),
+    });
 
-    expect(mockCreate).toHaveBeenCalledTimes(1);
-    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
-      'llm:retry',
-      expect.anything(),
+    expect(attempts).toMatchObject([
+      {
+        operation: 'generateScript',
+        attempt: 1,
+        status: 'failed',
+        errorCategory: 'retry_safe',
+        provider: null,
+        routing: 'throughput',
+        timeoutMs: SCRIPT_TIMEOUT_MS,
+      },
+      {
+        attempt: 2,
+        status: 'completed',
+        errorCategory: null,
+        provider: 'test-provider',
+        routing: 'default',
+        costUsd: 0.01,
+      },
+    ]);
+    expect(attempts[0]?.inputChars).toBeGreaterThan(0);
+    expect(attempts[1]?.outputChars).toBeGreaterThan(0);
+  });
+
+  it('never lets a throwing attempt consumer fail the generation', async () => {
+    mockOpenAIClient(vi.fn().mockResolvedValue(successfulCompletion()));
+
+    await expect(
+      generateScriptWithLLM('Title', 'Article', {
+        onAttempt: () => {
+          throw new Error('ledger unavailable');
+        },
+      }),
+    ).resolves.toMatchObject({ script: 'Generated script' });
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:attempt-record-failed',
+      expect.objectContaining({ attempt: 1 }),
     );
   });
 });
@@ -387,9 +500,6 @@ describe('createCompletionWithRetry', () => {
 
   it('does not retry once the caller signal has aborted', async () => {
     const controller = new AbortController();
-    // What a visual job's own stage deadline aborts with. Its name makes it
-    // retryable, so without the caller-abort guard the request would be sent
-    // again on behalf of a caller that has already given up.
     const stageTimeout = new Error('Visual stage timed out');
     stageTimeout.name = 'TimeoutError';
     const requestSignals: AbortSignal[] = [];

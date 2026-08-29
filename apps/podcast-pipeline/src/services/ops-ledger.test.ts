@@ -4,6 +4,7 @@ import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { UsageCostLine } from './cost.js';
+import type { LlmAttemptRecord } from './llm.js';
 
 const sentry = vi.hoisted(() => ({ capturePipelineException: vi.fn() }));
 const supabase = vi.hoisted(() => ({
@@ -28,6 +29,7 @@ import {
   RENDER_PRICING_METRIC_KEY,
   renderStageRun,
   stageRunsFromCostLines,
+  stageRunsFromLlmAttempts,
 } from './ops-ledger.js';
 
 beforeEach(() => {
@@ -64,7 +66,7 @@ function stagePayloads(): Record<string, unknown>[] {
 function costLine(overrides: Partial<UsageCostLine> = {}): UsageCostLine {
   return {
     category: 'llm',
-    label: 'LLM script',
+    label: 'LLM classrooms',
     provider: 'openrouter',
     model: 'anthropic/claude-sonnet-4',
     costUsd: 0.012,
@@ -117,8 +119,10 @@ describe('stageRunsFromCostLines', () => {
       { languageCode: 'ja', status: 'completed' },
     );
 
+    // `LLM script` is deliberately absent: script rows are written from
+    // attempt records, which carry timing a cost line cannot, and emitting
+    // both would count the same spend twice.
     expect(stages.map(({ stage }) => stage)).toEqual([
-      'script',
       'classroom',
       'narration',
       'translation',
@@ -199,6 +203,117 @@ describe('stageRunsFromCostLines', () => {
     expect(
       stageRunsFromCostLines([], { languageCode: 'ja', status: 'completed' }),
     ).toEqual([]);
+  });
+});
+
+describe('stageRunsFromLlmAttempts', () => {
+  function attempt(
+    overrides: Partial<LlmAttemptRecord> = {},
+  ): LlmAttemptRecord {
+    return {
+      operation: 'generateScript',
+      attempt: 1,
+      model: 'anthropic/claude-sonnet-4',
+      provider: 'Wafer',
+      status: 'completed',
+      startedAt: new Date('2026-08-28T09:20:00.000Z'),
+      finishedAt: new Date('2026-08-28T09:23:00.000Z'),
+      elapsedMs: 180_000,
+      timeoutMs: 600_000,
+      inputChars: 13_000,
+      outputChars: 12_400,
+      promptTokens: 9_100,
+      completionTokens: 8_200,
+      generationId: 'gen-abc',
+      routing: 'throughput',
+      errorCategory: null,
+      errorMessage: null,
+      costUsd: 0.021,
+      ...overrides,
+    };
+  }
+
+  it('carries the timing and usage a cost line cannot express', () => {
+    const [stage] = stageRunsFromLlmAttempts([attempt()], {
+      languageCode: 'zh-Hant',
+      episodeId: 'episode-1',
+      localizationId: 'localization-1',
+    });
+
+    expect(stage).toEqual({
+      stage: 'script',
+      provider: 'Wafer',
+      model: 'anthropic/claude-sonnet-4',
+      status: 'completed',
+      episodeId: 'episode-1',
+      localizationId: 'localization-1',
+      languageCode: 'zh-Hant',
+      attempt: 1,
+      startedAt: new Date('2026-08-28T09:20:00.000Z'),
+      finishedAt: new Date('2026-08-28T09:23:00.000Z'),
+      elapsedMs: 180_000,
+      usage: {
+        timeoutMs: 600_000,
+        inputChars: 13_000,
+        routing: 'throughput',
+        outputChars: 12_400,
+        promptTokens: 9_100,
+        completionTokens: 8_200,
+        generationId: 'gen-abc',
+      },
+      reportedCostUsd: 0.021,
+    });
+  });
+
+  it('records a failed attempt as unpriced with its failure reason', () => {
+    const [stage] = stageRunsFromLlmAttempts(
+      [
+        attempt({
+          attempt: 2,
+          status: 'failed',
+          provider: null,
+          outputChars: null,
+          promptTokens: null,
+          completionTokens: null,
+          generationId: null,
+          costUsd: null,
+          routing: 'default',
+          errorCategory: 'timeout',
+          errorMessage: 'OpenRouter request timed out after 600000ms',
+        }),
+      ],
+      { languageCode: 'zh-Hant' },
+    );
+
+    expect(stage?.attempt).toBe(2);
+    expect(stage?.status).toBe('failed');
+    // A zero would be indistinguishable from a free success on the cost report.
+    expect(stage?.reportedCostUsd).toBeUndefined();
+    expect(stage?.provider).toBe('unknown');
+    expect(stage?.usage).toEqual({
+      timeoutMs: 600_000,
+      inputChars: 13_000,
+      routing: 'default',
+      errorCategory: 'timeout',
+      errorMessage: 'OpenRouter request timed out after 600000ms',
+    });
+  });
+
+  it('keeps every attempt of one generation as its own row', () => {
+    const stages = stageRunsFromLlmAttempts(
+      [
+        attempt({ attempt: 1, status: 'failed', costUsd: null }),
+        attempt({ attempt: 2 }),
+      ],
+      { languageCode: 'zh-Hant' },
+    );
+
+    expect(stages.map(({ attempt: index, status }) => [index, status])).toEqual(
+      [
+        [1, 'failed'],
+        [2, 'completed'],
+      ],
+    );
   });
 });
 
@@ -299,7 +414,7 @@ describe('recordPipelineRun', () => {
         episode_id: '00000000-0000-4000-8000-0000000000bb',
         localization_id: '00000000-0000-4000-8000-0000000000cc',
         language_code: 'ja',
-        stage: 'script',
+        stage: 'classroom',
         provider: 'openrouter',
         model: 'anthropic/claude-sonnet-4',
         attempt: 1,

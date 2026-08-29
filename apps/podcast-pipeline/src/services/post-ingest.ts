@@ -26,7 +26,11 @@ import {
   logIngestEvent,
   withStepLogContext,
 } from './ingest/step.js';
-import { recordPipelineRun, stageRunsFromCostLines } from './ops-ledger.js';
+import {
+  recordPipelineRun,
+  stageRunsFromCostLines,
+  stageRunsFromLlmAttempts,
+} from './ops-ledger.js';
 import { orderedPrimaryLocalizations } from './primary-localizations.js';
 import type { TelegramChatId } from './telegram.js';
 import {
@@ -80,6 +84,46 @@ const EMPTY_PREVIOUS_ERRORS: EpisodeVideoGenerationPreviousErrors = {
 };
 
 /**
+ * The run and episode a failed ingest belonged to.
+ *
+ * Carried as properties for the same reason `stepName` is: the terminal Sentry
+ * boundary is a different module, and an event that cannot name the run or the
+ * episode cannot be matched against the log lines that explain it.
+ */
+export function failedIngestRunContext(error: unknown): {
+  runRef?: string;
+  episodeId?: string;
+} {
+  const source = error as {
+    ingestRunRef?: unknown;
+    ingestEpisodeId?: unknown;
+  } | null;
+  return {
+    ...(typeof source?.ingestRunRef === 'string'
+      ? { runRef: source.ingestRunRef }
+      : {}),
+    ...(typeof source?.ingestEpisodeId === 'string'
+      ? { episodeId: source.ingestEpisodeId }
+      : {}),
+  };
+}
+
+// Mutated rather than wrapped: callers already match on the original error's
+// identity and message, and a wrapper would hide both.
+function withRunContext(
+  error: unknown,
+  context: { runRef: string; episodeId: string | null },
+): unknown {
+  if (error && typeof error === 'object') {
+    Object.assign(error, {
+      ingestRunRef: context.runRef,
+      ...(context.episodeId ? { ingestEpisodeId: context.episodeId } : {}),
+    });
+  }
+  return error;
+}
+
+/**
  * The enqueue RPCs self-heal failed/stale rows by resetting them, which also
  * clears last_error. Surface an error only when this enqueue actually wiped
  * it; errors still present on the row stay in the regular lastError field.
@@ -125,16 +169,23 @@ export async function performMultilingualIngestAndEnqueueVideo(
         finishedAt: new Date(),
         episodeId,
         component: 'ingest',
-        // Every sink entry is a language that finished, so its stages are
-        // `completed` even when a later language took the run down.
-        stages: costSink.flatMap((entry) =>
-          stageRunsFromCostLines(entry.lines, {
+        // A sink entry is a language that either finished or died mid-flight,
+        // and it says which: recording the failed one as `completed` would
+        // report a run that half-happened as a run that fully happened.
+        stages: costSink.flatMap((entry) => {
+          const context = {
             languageCode: entry.languageCode,
             episodeId: entry.episodeId,
-            localizationId: entry.localizationId,
-            status: 'completed',
-          }),
-        ),
+            localizationId: entry.localizationId ?? undefined,
+          };
+          return [
+            ...stageRunsFromCostLines(entry.lines, {
+              ...context,
+              status: entry.status,
+            }),
+            ...stageRunsFromLlmAttempts(entry.attempts, context),
+          ];
+        }),
       });
     logIngestEvent('run:start', {
       responseLanguage: responseLanguageCode,
@@ -294,10 +345,11 @@ export async function performMultilingualIngestAndEnqueueVideo(
         elapsedMs: Date.now() - startedAt,
         error: errorMessage(error),
       });
-      // Whatever the finished languages already spent is the retry waste this
-      // run leaves behind; record it before the failure propagates.
-      await recordCost('failed', costSink[0]?.episodeId ?? null);
-      throw error;
+      // Whatever the languages already spent is the retry waste this run
+      // leaves behind; record it before the failure propagates.
+      const episodeId = costSink[0]?.episodeId ?? null;
+      await recordCost('failed', episodeId);
+      throw withRunContext(error, { runRef: runId, episodeId });
     }
   });
 }

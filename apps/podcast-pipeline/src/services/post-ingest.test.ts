@@ -18,6 +18,7 @@ import type { EpisodeLocalizationRow } from '../types.js';
 import { buildUsageCostDetails, type UsageCostLine } from './cost.js';
 import { createHeavyWorkCoordinator } from './heavy-work.js';
 import type { IngestCostSinkEntry } from './ingest.js';
+import type { LlmAttemptRecord } from './llm.js';
 import type { PipelineRunInput } from './ops-ledger.js';
 import { performMultilingualIngestAndEnqueueVideo } from './post-ingest.js';
 import {
@@ -567,10 +568,36 @@ describe('performMultilingualIngestAndEnqueueVideo cost ledger', () => {
     };
   }
 
+  function scriptAttempt(
+    overrides: Partial<LlmAttemptRecord> = {},
+  ): LlmAttemptRecord {
+    return {
+      operation: 'generateScript',
+      attempt: 1,
+      model: 'anthropic/claude-sonnet-4',
+      provider: 'openrouter',
+      status: 'completed',
+      startedAt: new Date('2026-08-28T09:20:00.000Z'),
+      finishedAt: new Date('2026-08-28T09:22:00.000Z'),
+      elapsedMs: 120_000,
+      timeoutMs: 600_000,
+      inputChars: 13_000,
+      outputChars: 12_000,
+      promptTokens: 9_000,
+      completionTokens: 8_000,
+      generationId: 'gen-1',
+      routing: 'throughput',
+      errorCategory: null,
+      errorMessage: null,
+      costUsd: 0.02,
+      ...overrides,
+    };
+  }
+
   /** Fills the sink the way the real multilingual loop does, language by language. */
   function ingestFillingSink(
     entries: IngestCostSinkEntry[],
-    outcome: { throwAfter?: number } = {},
+    outcome: { throwAfter?: number; failedEntry?: IngestCostSinkEntry } = {},
   ) {
     return vi.fn(
       async (
@@ -584,6 +611,9 @@ describe('performMultilingualIngestAndEnqueueVideo cost ledger', () => {
         );
         costSink?.push(...delivered);
         if (outcome.throwAfter !== undefined) {
+          // The real loop pushes the dying language's own entry before it
+          // rethrows; without that the ledger loses the attempt that failed.
+          if (outcome.failedEntry) costSink?.push(outcome.failedEntry);
           throw new Error('en localization failed');
         }
         return {
@@ -601,6 +631,8 @@ describe('performMultilingualIngestAndEnqueueVideo cost ledger', () => {
       languageCode: 'zh-Hant',
       episodeId: 'episode-1',
       localizationId: 'localization-zh',
+      status: 'completed',
+      attempts: [scriptAttempt()],
       lines: [
         scriptLine(),
         scriptLine({
@@ -617,6 +649,8 @@ describe('performMultilingualIngestAndEnqueueVideo cost ledger', () => {
       languageCode: 'ja',
       episodeId: 'episode-1',
       localizationId: 'localization-ja',
+      status: 'completed',
+      attempts: [],
       lines: [
         scriptLine({
           category: 'translate',
@@ -671,12 +705,12 @@ describe('performMultilingualIngestAndEnqueueVideo cost ledger', () => {
       })),
     ).toEqual([
       {
-        stage: 'script',
+        stage: 'narration',
         languageCode: 'zh-Hant',
         localizationId: 'localization-zh',
       },
       {
-        stage: 'narration',
+        stage: 'script',
         languageCode: 'zh-Hant',
         localizationId: 'localization-zh',
       },
@@ -685,6 +719,21 @@ describe('performMultilingualIngestAndEnqueueVideo cost ledger', () => {
         languageCode: 'ja',
         localizationId: 'localization-ja',
       },
+    ]);
+    // The script row is written from the attempt, never from the cost line, so
+    // the same spend cannot be counted twice.
+    expect(run.stages.filter(({ stage }) => stage === 'script')).toEqual([
+      expect.objectContaining({
+        attempt: 1,
+        status: 'completed',
+        elapsedMs: 120_000,
+        reportedCostUsd: 0.02,
+        usage: expect.objectContaining({
+          timeoutMs: 600_000,
+          routing: 'throughput',
+          generationId: 'gen-1',
+        }),
+      }),
     ]);
   });
 
@@ -710,12 +759,74 @@ describe('performMultilingualIngestAndEnqueueVideo cost ledger', () => {
     expect(run.status).toBe('failed');
     expect(run.episodeId).toBe('episode-1');
     expect(run.stages.map(({ stage }) => stage)).toEqual([
-      'script',
       'narration',
+      'script',
     ]);
     expect(run.stages.map(({ reportedCostUsd }) => reportedCostUsd)).toEqual([
-      0.02, 0.05,
+      0.05, 0.02,
     ]);
+  });
+
+  it('records the timed-out attempt of the language that took the run down', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await expect(
+      performMultilingualIngestAndEnqueueVideo(
+        'https://example.com/article',
+        'ja',
+        {
+          trigger: 'telegram',
+          dependencies: {
+            coordinator: createHeavyWorkCoordinator(),
+            findEpisode: vi.fn().mockResolvedValue(null),
+            performIngest: ingestFillingSink([], {
+              throwAfter: 0,
+              failedEntry: {
+                languageCode: 'zh-Hant',
+                episodeId: 'episode-1',
+                localizationId: 'localization-zh',
+                status: 'failed',
+                lines: [],
+                attempts: [
+                  scriptAttempt({
+                    status: 'failed',
+                    provider: null,
+                    outputChars: null,
+                    promptTokens: null,
+                    completionTokens: null,
+                    generationId: null,
+                    costUsd: null,
+                    errorCategory: 'timeout',
+                    errorMessage: 'OpenRouter request timed out after 600000ms',
+                  }),
+                ],
+              },
+            }),
+          },
+        },
+      ),
+    ).rejects.toThrow('en localization failed');
+
+    const run = recordedRun();
+    // Without the failed entry this run row had no episode to point at, which
+    // is precisely when someone is looking for it.
+    expect(run.episodeId).toBe('episode-1');
+    expect(run.stages).toEqual([
+      expect.objectContaining({
+        stage: 'script',
+        status: 'failed',
+        attempt: 1,
+        provider: 'unknown',
+        elapsedMs: 120_000,
+        usage: expect.objectContaining({
+          errorCategory: 'timeout',
+          errorMessage: 'OpenRouter request timed out after 600000ms',
+        }),
+      }),
+    ]);
+    // A failed attempt reports no cost at all rather than a zero that would
+    // read as a free success.
+    expect(run.stages[0]?.reportedCostUsd).toBeUndefined();
   });
 
   it('records a run with no stages when a resubmission costs nothing', async () => {
@@ -737,6 +848,8 @@ describe('performMultilingualIngestAndEnqueueVideo cost ledger', () => {
               languageCode: 'zh-Hant',
               episodeId: 'episode-1',
               localizationId: 'localization-zh',
+              status: 'completed',
+              attempts: [],
               lines: [],
             },
           ]),

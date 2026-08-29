@@ -12,15 +12,28 @@ export interface SocialExperimentAssignment {
   assigned_at: string;
 }
 
+export function deterministicBucket(
+  experimentKey: string,
+  episodeId: string,
+  bucketCount = 100,
+): number {
+  if (!Number.isSafeInteger(bucketCount) || bucketCount < 1) {
+    throw new Error('bucketCount must be a positive integer');
+  }
+  const digest = createHash('sha256')
+    .update(`${experimentKey}:${episodeId}`)
+    .digest();
+  return digest.readUInt32BE(0) % bucketCount;
+}
+
 export function deterministicVariant(
   experimentKey: string,
   episodeId: string,
   variants: readonly [string, ...string[]] = ['en', 'ja'],
 ): string {
-  const digest = createHash('sha256')
-    .update(`${experimentKey}:${episodeId}`)
-    .digest();
-  return variants[digest.readUInt32BE(0) % variants.length]!;
+  return variants[
+    deterministicBucket(experimentKey, episodeId, variants.length)
+  ]!;
 }
 
 export async function getOrCreateExperimentAssignment(input: {
