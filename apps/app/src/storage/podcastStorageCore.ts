@@ -1,3 +1,4 @@
+import type { EpisodeSortDirection } from '@/components/podcast/episodeSorting';
 import {
   PODCAST_PROGRESS_STORAGE_KEY,
   type PodcastEpisodeProgress,
@@ -13,6 +14,15 @@ import type { KeyValueStorage } from '@/storage/keyValueStorage';
 
 export type PodcastKeyValueStorage = KeyValueStorage;
 
+export const PODCAST_SORT_DIRECTION_STORAGE_KEY = 'podcast_sort_direction';
+
+export function parseStoredPodcastSortDirection(
+  raw: string | null,
+): EpisodeSortDirection {
+  if (raw === 'oldest' || raw === 'newest') return raw;
+  return 'newest';
+}
+
 export interface PodcastStorage {
   loadPodcastProgress: () => Promise<PodcastProgressMap>;
   savePodcastProgress: (progress: PodcastProgressMap) => Promise<void>;
@@ -20,6 +30,8 @@ export interface PodcastStorage {
   savePodcastSpeedPreferences: (
     preferences: PodcastSpeedPreferences,
   ) => Promise<void>;
+  loadPodcastSortDirection: () => Promise<EpisodeSortDirection>;
+  savePodcastSortDirection: (direction: EpisodeSortDirection) => Promise<void>;
 }
 
 function isPodcastEpisodeProgress(
@@ -118,6 +130,18 @@ export function createPodcastStorage(
         PODCAST_SPEED_PREFERENCES_STORAGE_KEY,
         JSON.stringify(preferences),
       );
+    },
+    async loadPodcastSortDirection() {
+      try {
+        return parseStoredPodcastSortDirection(
+          await storage.getItem(PODCAST_SORT_DIRECTION_STORAGE_KEY),
+        );
+      } catch {
+        return 'newest';
+      }
+    },
+    savePodcastSortDirection(direction) {
+      return enqueueWrite(PODCAST_SORT_DIRECTION_STORAGE_KEY, direction);
     },
   };
 }

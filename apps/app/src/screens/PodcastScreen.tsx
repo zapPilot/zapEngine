@@ -15,7 +15,6 @@ import {
 } from '@/components/podcast/episodeListSelection';
 import { PlayUnheardCard } from '@/components/podcast/PlayUnheardCard';
 import { NowPlayingBar } from '@/components/podcast/NowPlayingBar';
-import type { EpisodeSortDirection } from '@/components/podcast/episodeSorting';
 import { Card } from '@/components/ui/Card';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
@@ -25,6 +24,7 @@ import {
   CONTENT_LANGUAGE_OPTIONS,
   type ContentLanguageCode,
 } from '@/config/contentLanguages';
+import { useEpisodeSortDirection } from '@/hooks/useEpisodeSortDirection';
 import {
   isPodcastSearchQueryValid,
   normalisePodcastSearchQuery,
@@ -201,7 +201,7 @@ export function PodcastScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchExpanded, setSearchExpanded] = useState(false);
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
-  const [direction, setDirection] = useState<EpisodeSortDirection>('newest');
+  const { direction, setDirection } = useEpisodeSortDirection();
   const [visibleListened, setVisibleListened] = useState(LISTENED_PAGE_SIZE);
   const [confirmMarkAll, setConfirmMarkAll] = useState(false);
 
