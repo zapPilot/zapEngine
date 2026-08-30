@@ -56,7 +56,7 @@ export function ReliabilityView(props: {
 
       <details className="panel decision-disclosure reliability-evidence">
         <summary className="decision-disclosure-summary">
-          <span>
+          <span className="signal-disclosure-copy">
             <strong>Signal evidence</strong>
             <small>
               {data
