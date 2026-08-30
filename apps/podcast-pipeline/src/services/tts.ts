@@ -1,5 +1,6 @@
 import { type LanguageClassroomLanguageCode } from '../types.js';
 import type { UsageCostLine } from './cost.js';
+import { applyFishAudioPricing } from './tts-pricing.js';
 import {
   getMetadata as getFishAudioMetadata,
   synthesize as synthesizeWithFishAudio,
@@ -42,7 +43,11 @@ export async function textToSpeech(
     costLabel?: string;
   },
 ): Promise<TtsSynthesisResult> {
-  return synthesizeWithFishAudio(text, normalizeTtsOptions(opts));
+  const result = await synthesizeWithFishAudio(text, normalizeTtsOptions(opts));
+  return {
+    ...result,
+    cost: applyFishAudioPricing(result.cost),
+  };
 }
 
 export function getTtsMetadata(opts: {
