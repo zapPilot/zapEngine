@@ -117,6 +117,8 @@ function createTestApp(
       getCustomers:
         operationsOverrides.getCustomers ??
         vi.fn().mockResolvedValue(customers),
+      inspectSignal: operationsOverrides.inspectSignal ?? vi.fn(),
+      investigate: operationsOverrides.investigate ?? vi.fn(),
     },
     service: {
       getOverview: overrides.getOverview ?? vi.fn(async () => overview),
