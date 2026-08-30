@@ -113,7 +113,8 @@ export async function investigateOperationalSignal(input: {
       if (customers.status !== 'ok') {
         gaps.push({
           source: 'customer-economics',
-          reason: customers.message ?? `customer read returned ${customers.status}`,
+          reason:
+            customers.message ?? `customer read returned ${customers.status}`,
         });
       }
     } catch (error) {
@@ -148,10 +149,10 @@ export async function investigateOperationalSignal(input: {
     relatedEvidence.product = relatedSignals;
   }
 
-  const incident = signal
+  const incident: IncidentPacket['incident'] = signal
     ? {
         fingerprint: signal.fingerprint,
-        source: signal.source as OperationsSource | null,
+        source: signal.source,
         status: signal.status,
         title: signal.title,
         detail: signal.detail,
@@ -159,8 +160,8 @@ export async function investigateOperationalSignal(input: {
       }
     : {
         fingerprint: input.fingerprint,
-        source: parsed?.source ?? null,
-        status: 'unknown' as const,
+        source: operationsSource(parsed?.source),
+        status: 'unknown',
         title: 'Signal is not active in the current operational snapshot',
         detail: null,
         observedAt: input.snapshot.generatedAt,
@@ -184,7 +185,11 @@ export async function investigateOperationalSignal(input: {
     ),
     primaryEvidence,
     relatedEvidence,
-    customerImpact: customerImpact(input.snapshot, customers, topology.service?.impact),
+    customerImpact: customerImpact(
+      input.snapshot,
+      customers,
+      topology.service?.impact,
+    ),
     evidenceGaps: uniqueGaps(gaps),
   };
 }
@@ -197,7 +202,7 @@ async function safeInspect(
     return await inspect(fingerprint);
   } catch (error) {
     const parsed = parseOperationalFingerprint(fingerprint);
-    const source = parsed?.source ?? null;
+    const source = operationsSource(parsed?.source);
     return {
       fingerprint,
       source,
@@ -213,6 +218,23 @@ async function safeInspect(
 
 function providerSource(provider: 'github' | 'sentry' | 'fly'): OperationsSource {
   return provider === 'github' ? 'github-actions' : provider;
+}
+
+function operationsSource(value: string | null | undefined): OperationsSource | null {
+  switch (value) {
+    case 'customer-economics':
+    case 'product-health':
+    case 'cost-ledger':
+    case 'social-queue':
+    case 'social-daemon':
+    case 'github-actions':
+    case 'fly':
+    case 'sentry':
+    case 'posthog':
+      return value;
+    default:
+      return null;
+  }
 }
 
 function operationalContextSignals(
@@ -278,7 +300,7 @@ function buildTimeline(
 
   const seen = new Set<string>();
   return events
-    .filter((event) => Boolean(Date.parse(event.at)))
+    .filter((event) => !Number.isNaN(Date.parse(event.at)))
     .sort((left, right) => left.at.localeCompare(right.at))
     .filter((event) => {
       const key = `${event.at}|${event.source}|${event.type}|${event.summary}`;
@@ -303,12 +325,36 @@ function githubTimeline(inspection: SignalInspection): IncidentTimelineEvent[] {
   const events: IncidentTimelineEvent[] = [];
   const selected = record(inspection.evidence['selectedRun']);
   if (selected) {
-    pushTimestamp(events, selected['startedAt'], 'github-actions', 'workflow-started', `Workflow run ${text(selected['id']) ?? 'unknown'} started`);
-    pushTimestamp(events, selected['completedAt'], 'github-actions', 'workflow-completed', `Workflow run ${text(selected['id']) ?? 'unknown'} completed (${text(selected['conclusion']) ?? 'unknown'})`);
+    pushTimestamp(
+      events,
+      selected['startedAt'],
+      'github-actions',
+      'workflow-started',
+      `Workflow run ${text(selected['id']) ?? 'unknown'} started`,
+    );
+    pushTimestamp(
+      events,
+      selected['completedAt'],
+      'github-actions',
+      'workflow-completed',
+      `Workflow run ${text(selected['id']) ?? 'unknown'} completed (${text(selected['conclusion']) ?? 'unknown'})`,
+    );
   }
   for (const job of records(inspection.evidence['failedJobs'])) {
-    pushTimestamp(events, job['startedAt'], 'github-actions', 'job-started', `Failed job ${text(job['name']) ?? text(job['id']) ?? 'unknown'} started`);
-    pushTimestamp(events, job['completedAt'], 'github-actions', 'job-failed', `Job ${text(job['name']) ?? text(job['id']) ?? 'unknown'} finished (${text(job['conclusion']) ?? 'failed'})`);
+    pushTimestamp(
+      events,
+      job['startedAt'],
+      'github-actions',
+      'job-started',
+      `Failed job ${text(job['name']) ?? text(job['id']) ?? 'unknown'} started`,
+    );
+    pushTimestamp(
+      events,
+      job['completedAt'],
+      'github-actions',
+      'job-failed',
+      `Job ${text(job['name']) ?? text(job['id']) ?? 'unknown'} finished (${text(job['conclusion']) ?? 'failed'})`,
+    );
   }
   return events;
 }
@@ -316,13 +362,32 @@ function githubTimeline(inspection: SignalInspection): IncidentTimelineEvent[] {
 function sentryTimeline(inspection: SignalInspection): IncidentTimelineEvent[] {
   const events: IncidentTimelineEvent[] = [];
   for (const issue of records(inspection.evidence['issues'])) {
-    const label = text(issue['shortId']) ?? text(issue['title']) ?? 'Sentry issue';
-    pushTimestamp(events, issue['firstSeen'], 'sentry', 'issue-first-seen', `${label} first seen`);
-    pushTimestamp(events, issue['lastSeen'], 'sentry', 'issue-last-seen', `${label} last seen`);
+    const label =
+      text(issue['shortId']) ?? text(issue['title']) ?? 'Sentry issue';
+    pushTimestamp(
+      events,
+      issue['firstSeen'],
+      'sentry',
+      'issue-first-seen',
+      `${label} first seen`,
+    );
+    pushTimestamp(
+      events,
+      issue['lastSeen'],
+      'sentry',
+      'issue-last-seen',
+      `${label} last seen`,
+    );
   }
   const event = record(inspection.evidence['sampleEvent']);
   if (event) {
-    pushTimestamp(events, event['createdAt'], 'sentry', 'event-sample', text(event['title']) ?? 'Sentry event sample');
+    pushTimestamp(
+      events,
+      event['createdAt'],
+      'sentry',
+      'event-sample',
+      text(event['title']) ?? 'Sentry event sample',
+    );
   }
   return events;
 }
@@ -331,8 +396,20 @@ function flyTimeline(inspection: SignalInspection): IncidentTimelineEvent[] {
   const events: IncidentTimelineEvent[] = [];
   for (const machine of records(inspection.evidence['machines'])) {
     const id = text(machine['id']) ?? 'unknown';
-    pushTimestamp(events, machine['createdAt'], 'fly', 'machine-created', `Machine ${id} created`);
-    pushTimestamp(events, machine['updatedAt'], 'fly', 'machine-updated', `Machine ${id} updated (${text(machine['state']) ?? 'unknown'})`);
+    pushTimestamp(
+      events,
+      machine['createdAt'],
+      'fly',
+      'machine-created',
+      `Machine ${id} created`,
+    );
+    pushTimestamp(
+      events,
+      machine['updatedAt'],
+      'fly',
+      'machine-updated',
+      `Machine ${id} updated (${text(machine['state']) ?? 'unknown'})`,
+    );
     for (const event of records(machine['recentEvents'])) {
       pushTimestamp(
         events,
