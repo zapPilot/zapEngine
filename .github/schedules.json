@@ -21,6 +21,16 @@
     "entrypoint": ".github/workflows/backtest-refresh.yml"
   },
   {
+    "name": "distribution-snapshot",
+    "purpose": "Refresh the committed distribution artifact behind the landing page's /distribution route.",
+    "schedule_kind": "cron",
+    "schedule": "15 2 * * *",
+    "schedule_source": "workflow",
+    "runtime": "github-actions",
+    "workspace": "@zapengine/podcast-pipeline",
+    "entrypoint": ".github/workflows/distribution-snapshot.yml"
+  },
+  {
     "name": "env-drift",
     "purpose": "Check committed environment configuration against all configured deployment destinations.",
     "schedule_kind": "cron",
