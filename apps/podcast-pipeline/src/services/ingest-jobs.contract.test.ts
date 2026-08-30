@@ -57,7 +57,7 @@ describe('podcast ingest job RPC contract', () => {
     [null, 'source_url must be a non-empty string'],
     ['', 'source_url must be a non-empty string'],
     ['null', 'source_url must be an http(s) URL'],
-    ['ftp://www.panewslab.com/article', 'source_url must be an http(s) URL'],
+    ['mailto:podcast@example.com', 'source_url must be an http(s) URL'],
   ])('rejects an invalid source URL %j', (sourceUrl, message) => {
     expect(() =>
       parsePodcastIngestJobRow(validRow({ source_url: sourceUrl })),
