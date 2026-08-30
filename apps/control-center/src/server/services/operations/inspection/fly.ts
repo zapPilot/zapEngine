@@ -42,13 +42,18 @@ export async function inspectFlySignal(input: {
 
   const target = parseTarget(input.parsed.kind, input.parsed.key);
   if (!target) {
-    return unsupported(input, 'Fly process-group fingerprint has no app/group boundary.');
+    return unsupported(
+      input,
+      'Fly process-group fingerprint has no app/group boundary.',
+    );
   }
 
   const client = createFlyOpsClient({ token, fetchImpl: input.fetchImpl });
   let machines: FlyMachine[];
   try {
-    machines = await client.listMachines(target.app);
+    // Deep inspection includes deleted Machines so deploy replacement history
+    // remains visible. The hot-path collector intentionally omits them.
+    machines = await client.listMachines(target.app, { includeDeleted: true });
   } catch (error) {
     if (error instanceof FlyOpsHttpError && error.status === 404) {
       return {
@@ -68,7 +73,8 @@ export async function inspectFlySignal(input: {
   const scoped = machines
     .filter(
       (machine) =>
-        target.processGroup === null || processGroupOf(machine) === target.processGroup,
+        target.processGroup === null ||
+        processGroupOf(machine) === target.processGroup,
     )
     .sort((left, right) =>
       (right.updatedAt ?? right.createdAt ?? '').localeCompare(
@@ -87,7 +93,11 @@ export async function inspectFlySignal(input: {
         ? `${target.app}: ${scoped.length} Machine${scoped.length === 1 ? '' : 's'} inspected.`
         : `${target.app}/${target.processGroup}: ${scoped.length} Machine${scoped.length === 1 ? '' : 's'} inspected.`,
     entities: [
-      { type: 'fly-app', id: target.app, url: `https://fly.io/apps/${target.app}` },
+      {
+        type: 'fly-app',
+        id: target.app,
+        url: `https://fly.io/apps/${target.app}`,
+      },
       ...(target.processGroup
         ? [
             {
