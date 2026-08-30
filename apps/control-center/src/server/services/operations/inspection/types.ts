@@ -13,10 +13,15 @@ export interface EvidenceGap {
 
 export interface OperationalEntityRef {
   type:
+    | 'workspace'
     | 'github-workflow'
     | 'github-run'
+    | 'fly-app'
+    | 'fly-process-group'
+    | 'fly-machine'
     | 'sentry-project'
-    | 'sentry-issue';
+    | 'sentry-issue'
+    | 'customer';
   id: string;
   url?: string | null;
 }
