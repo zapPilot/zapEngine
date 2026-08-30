@@ -1016,6 +1016,38 @@ describe('planVisualAssets', () => {
     );
   });
 
+  it('names the filter that removed the candidates a search did return', async () => {
+    // Brave answered this scene 175 times over and it still starved, so the
+    // count that matters is which pre-download filter emptied the list.
+    const searched = [
+      {
+        ...candidate('logo', 'brave'),
+        imageUrl: 'https://i.example.test/logo.jpg',
+      },
+      {
+        ...candidate('dupe', 'brave'),
+        imageUrl: 'https://i.example.test/same.jpg',
+      },
+      {
+        ...candidate('dupe2', 'brave'),
+        imageUrl: 'https://i.example.test/same.jpg',
+      },
+    ];
+
+    const result = planVisualAssets({
+      scenes: scenes.slice(0, 1),
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage: vi.fn(),
+        searchProviders: braveProviders(vi.fn().mockResolvedValue(searched)),
+        fingerprintImage: vi.fn(),
+      },
+    });
+
+    await expect(result).rejects.toThrow(/viableDrops=[a-z-]+:\d+/u);
+    await expect(result).rejects.toThrow('returned=3');
+  });
+
   it('leaves the entity fields off a scene the anchor never filtered', async () => {
     const progress = vi.fn<(event: VisualAssetProgress) => void>();
 

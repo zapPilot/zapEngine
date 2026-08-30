@@ -9,7 +9,7 @@ import {
   acquireRemoteImage,
   type SupportedRemoteImageContentType,
 } from './assets.js';
-import { filterImageCandidates } from './image-candidates.js';
+import { partitionImageCandidates } from './image-candidates.js';
 import {
   defaultImageSearchProviders,
   type ImageSearchProvider,
@@ -138,6 +138,7 @@ interface SearchFunnel {
   returned: number;
   viable: number;
   entityFiltered: number;
+  viableDrops: Map<string, number>;
 }
 
 interface CandidateRejections {
@@ -373,6 +374,7 @@ async function acquireSearchedImage(
     returned: 0,
     viable: 0,
     entityFiltered: 0,
+    viableDrops: new Map<string, number>(),
   };
 
   for (const searchProvider of providers) {
@@ -389,7 +391,10 @@ async function acquireSearchedImage(
           failures.push(toError(error));
           return [];
         });
-      const viable = viableCandidates(searched, [searchProvider.origin]);
+      const partitioned = partitionViableCandidates(searched, [
+        searchProvider.origin,
+      ]);
+      const viable = partitioned.candidates;
       const candidates = rankSearchCandidates(
         viable,
         intent,
@@ -400,6 +405,12 @@ async function acquireSearchedImage(
       funnel.returned += searched.length;
       funnel.viable += viable.length;
       funnel.entityFiltered += viable.length - candidates.length;
+      for (const [reason, count] of partitioned.drops) {
+        funnel.viableDrops.set(
+          reason,
+          (funnel.viableDrops.get(reason) ?? 0) + count,
+        );
+      }
       const rejectedBefore = rejections.total;
 
       for (const candidate of candidates) {
@@ -597,7 +608,11 @@ function candidateExhaustionFailure(
  */
 function formatSearchFunnel(funnel: SearchFunnel): string {
   if (funnel.searches === 0) return '';
-  return ` [searches=${funnel.searches}, returned=${funnel.returned}, viable=${funnel.viable}, entityFiltered=${funnel.entityFiltered}]`;
+  const drops = [...funnel.viableDrops.entries()]
+    .sort(([, left], [, right]) => right - left)
+    .map(([reason, count]) => `${reason}:${count}`)
+    .join(',');
+  return ` [searches=${funnel.searches}, returned=${funnel.returned}, viable=${funnel.viable}, entityFiltered=${funnel.entityFiltered}${drops ? `, viableDrops=${drops}` : ''}]`;
 }
 
 async function tryAcquireUniqueImage(input: {
@@ -758,14 +773,38 @@ function viableCandidates(
   candidates: readonly ImageCandidate[],
   allowedOrigins: readonly ImageCandidate['origin'][],
 ): ImageCandidate[] {
-  return filterImageCandidates(
-    candidates.filter((candidate) => !looksDecorative(candidate)),
-    {
-      allowedOrigins,
-      deduplicate: true,
-      maxCandidates: MAX_SEARCH_CANDIDATES_PER_SCENE,
-    },
-  );
+  return partitionViableCandidates(candidates, allowedOrigins).candidates;
+}
+
+/**
+ * The same filtering, keeping the reason each candidate was dropped. Brave can
+ * return 175 results for a scene that then starves, and every one of those
+ * removals happens before a download, so `partitionImageCandidates`' own issue
+ * codes plus the decorative rules are the only record of where they went.
+ */
+function partitionViableCandidates(
+  candidates: readonly ImageCandidate[],
+  allowedOrigins: readonly ImageCandidate['origin'][],
+): { candidates: ImageCandidate[]; drops: Map<string, number> } {
+  const drops = new Map<string, number>();
+  const countDrop = (reason: string): void => {
+    drops.set(reason, (drops.get(reason) ?? 0) + 1);
+  };
+
+  const presentable = candidates.filter((candidate) => {
+    const reason = decorativeRejection(candidate);
+    if (reason) countDrop(reason);
+    return reason === null;
+  });
+  const { accepted, rejected } = partitionImageCandidates(presentable, {
+    allowedOrigins,
+    deduplicate: true,
+    maxCandidates: MAX_SEARCH_CANDIDATES_PER_SCENE,
+  });
+  for (const entry of rejected) {
+    countDrop(entry.issues[0]?.code ?? 'unknown');
+  }
+  return { candidates: accepted, drops };
 }
 
 const SEARCH_RANKING_NOISE_WORDS = new Set([
@@ -1109,26 +1148,36 @@ function includesAny(value: string, terms: readonly string[]): boolean {
   return terms.some((term) => value.includes(term));
 }
 
-function looksDecorative(candidate: ImageCandidate): boolean {
+/**
+ * Returns which decorative rule removed the candidate, or null when it stays.
+ * Naming the rule is the point: these run before any download, so a scene that
+ * starves here leaves no rejection record of its own.
+ */
+function decorativeRejection(candidate: ImageCandidate): string | null {
   const value = normalizedSearchCandidateCorpus(candidate);
   if (
     /(?:^|[./_\-\s])(avatar|emoji|emoticon|favicon|icon|logo|profile|sprite|sticker|thumb|thumbnail|wechat|weibo)(?:[./_\-\s]|$)/i.test(
       value,
     )
   ) {
-    return true;
+    return 'decorative-asset';
   }
   if (
     isSearchCandidate(candidate) &&
     includesAny(value, SYNTHETIC_IMAGE_TERMS)
   ) {
-    return true;
+    return 'synthetic-image';
   }
-  if (includesAny(value, STOCK_PREVIEW_TERMS)) return true;
-  if (includesAny(value, TEXT_CARD_PUBLISHER_TERMS)) return true;
-  return (
-    candidate.origin === 'brave' && looksLikeTextHeavySearchResult(candidate)
-  );
+  if (includesAny(value, STOCK_PREVIEW_TERMS)) return 'stock-preview';
+  if (includesAny(value, TEXT_CARD_PUBLISHER_TERMS))
+    return 'text-card-publisher';
+  if (
+    candidate.origin === 'brave' &&
+    looksLikeTextHeavySearchResult(candidate)
+  ) {
+    return 'text-heavy-result';
+  }
+  return null;
 }
 
 function isSearchCandidate(candidate: ImageCandidate): boolean {
