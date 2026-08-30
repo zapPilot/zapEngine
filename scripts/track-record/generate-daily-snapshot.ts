@@ -70,40 +70,64 @@ function parseJsonEnv<T>(name: string): T | null {
   return JSON.parse(value) as T;
 }
 
-function parseChainIds(): number[] {
-  return parseCsv(requiredEnv('TRACK_RECORD_CHAIN_IDS')).map((value) => {
-    const chainId = Number(value);
-    if (!Number.isInteger(chainId)) {
-      throw new Error(`Invalid chain id: ${value}`);
-    }
-    return chainId;
-  });
-}
-
-function parseRpcUrls(chainIds: number[]): Map<number, string> {
-  const asJson = parseJsonEnv<Record<string, string>>('TRACK_RECORD_RPC_URLS');
-  if (asJson) {
-    return new Map(
-      chainIds.map((chainId) => {
-        const url = asJson[String(chainId)];
-        if (!url) throw new Error(`Missing RPC URL for chain ${chainId}`);
-        return [chainId, url];
-      }),
-    );
-  }
-
-  const urls = parseCsv(requiredEnv('TRACK_RECORD_RPC_URLS'));
-  if (urls.length !== chainIds.length) {
+function parseRpcUrls(): Map<number, string> {
+  const configured = JSON.parse(
+    requiredEnv('TRACK_RECORD_RPC_URLS'),
+  ) as unknown;
+  if (
+    !configured ||
+    typeof configured !== 'object' ||
+    Array.isArray(configured)
+  ) {
     throw new Error(
-      'TRACK_RECORD_RPC_URLS must either be JSON keyed by chain id or a CSV aligned with TRACK_RECORD_CHAIN_IDS',
+      'TRACK_RECORD_RPC_URLS must be a JSON object keyed by chain id',
     );
   }
-  return new Map(chainIds.map((chainId, index) => [chainId, urls[index]!]));
+
+  const rpcUrls = new Map<number, string>();
+  for (const [rawChainId, rawUrl] of Object.entries(configured)) {
+    const chainId = Number(rawChainId);
+    if (!Number.isInteger(chainId)) {
+      throw new Error(
+        `Invalid chain id in TRACK_RECORD_RPC_URLS: ${rawChainId}`,
+      );
+    }
+    if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
+      throw new Error(`Missing RPC URL for chain ${rawChainId}`);
+    }
+    if (rpcUrls.has(chainId)) {
+      throw new Error(
+        `Duplicate chain id in TRACK_RECORD_RPC_URLS: ${chainId}`,
+      );
+    }
+    rpcUrls.set(chainId, rawUrl.trim());
+  }
+  if (rpcUrls.size === 0) {
+    throw new Error('TRACK_RECORD_RPC_URLS must configure at least one chain');
+  }
+  return rpcUrls;
 }
 
-function parseTrackedTokens(chainIds: number[]): TrackedToken[] {
+function parseTrackedTokens(
+  chainIds: number[],
+  rpcUrls: Map<number, string>,
+): TrackedToken[] {
   const configured = parseJsonEnv<TrackedToken[]>('TRACK_RECORD_TOKENS_JSON');
-  if (configured?.length) return configured;
+  if (configured?.length) {
+    const missingChainIds = [
+      ...new Set(
+        configured
+          .map((token) => token.chainId)
+          .filter((chainId) => !rpcUrls.has(chainId)),
+      ),
+    ].sort((a, b) => a - b);
+    if (missingChainIds.length > 0) {
+      throw new Error(
+        `TRACK_RECORD_TOKENS_JSON references chains missing from TRACK_RECORD_RPC_URLS: ${missingChainIds.join(', ')}`,
+      );
+    }
+    return configured;
+  }
 
   return chainIds.map((chainId) => ({
     chainId,
@@ -333,12 +357,12 @@ async function signSnapshot(
 
 async function main(): Promise<void> {
   const { out } = parseArgs();
-  const chainIds = parseChainIds();
-  const rpcUrls = parseRpcUrls(chainIds);
+  const rpcUrls = parseRpcUrls();
+  const chainIds = [...rpcUrls.keys()].sort((a, b) => a - b);
   const walletAddresses = parseCsv(
     requiredEnv('TRACK_RECORD_WALLET_ADDRESSES'),
   ).map((address) => getAddress(address) as `0x${string}`);
-  const tokens = parseTrackedTokens(chainIds);
+  const tokens = parseTrackedTokens(chainIds, rpcUrls);
   const oracle = await fetchPriceOracle();
   const positions = await buildPositions(
     tokens,

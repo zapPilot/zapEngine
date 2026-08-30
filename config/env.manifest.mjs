@@ -488,9 +488,6 @@ export const ENV_MANIFEST = {
     documented: false,
     sensitive: true,
   }),
-  TRACK_RECORD_CHAIN_IDS: server(['track-record-tooling'], {
-    documented: false,
-  }),
   TRACK_RECORD_RPC_URLS: server(['track-record-tooling'], {
     documented: false,
     sensitive: true,
