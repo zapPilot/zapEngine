@@ -17,10 +17,7 @@ export function fishAudioPriceUsdPerMillionUtf8Bytes(model: string): number {
 
 export function applyFishAudioPricing(lines: UsageCostLine[]): UsageCostLine[] {
   return lines.map((line) => {
-    if (
-      line.provider !== 'fish-audio' ||
-      line.usage?.unit !== 'utf8_bytes'
-    ) {
+    if (line.provider !== 'fish-audio' || line.usage?.unit !== 'utf8_bytes') {
       return line;
     }
 

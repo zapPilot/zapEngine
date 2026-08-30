@@ -26,8 +26,15 @@ export interface PodcastIngestJobStore {
     url: string;
     languageCode: LanguageClassroomLanguageCode;
   }): Promise<PodcastIngestJobRow>;
-  claim(jobId: string, owner: string, leaseSeconds: number): Promise<PodcastIngestJobRow | null>;
-  claimNext(owner: string, leaseSeconds: number): Promise<PodcastIngestJobRow | null>;
+  claim(
+    jobId: string,
+    owner: string,
+    leaseSeconds: number,
+  ): Promise<PodcastIngestJobRow | null>;
+  claimNext(
+    owner: string,
+    leaseSeconds: number,
+  ): Promise<PodcastIngestJobRow | null>;
   renew(jobId: string, owner: string, leaseSeconds: number): Promise<void>;
   finish(
     jobId: string,
@@ -85,7 +92,9 @@ export const podcastIngestJobStore: PodcastIngestJobStore = {
   },
 
   async renew(jobId, owner, leaseSeconds) {
-    const leaseExpiresAt = new Date(Date.now() + leaseSeconds * 1_000).toISOString();
+    const leaseExpiresAt = new Date(
+      Date.now() + leaseSeconds * 1_000,
+    ).toISOString();
     const { error } = await getPipelineSupabase()
       .from('podcast_ingest_jobs')
       .update({

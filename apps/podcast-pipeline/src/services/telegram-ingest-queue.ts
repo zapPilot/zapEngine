@@ -8,12 +8,12 @@ import {
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import { buildIngestSummaryFromResult } from './cost.js';
 import { invalidateEpisodeSearchCache } from './episode-search.js';
+import { failedStepName } from './ingest/step.js';
 import {
   type PodcastIngestJobRow,
   type PodcastIngestJobStore,
   podcastIngestJobStore,
 } from './ingest-jobs.js';
-import { failedStepName } from './ingest/step.js';
 import {
   failedIngestRunContext,
   performMultilingualIngestAndEnqueueVideo,
@@ -81,12 +81,10 @@ export function createTelegramIngestQueue(
 ): TelegramIngestQueue {
   const inflightIngests = new Map<string, InflightTelegramIngest>();
   const owner = randomUUID();
+  const defaultJobStore =
+    process.env['NODE_ENV'] === 'test' ? null : podcastIngestJobStore;
   const jobStore =
-    options.jobStore === undefined
-      ? process.env['NODE_ENV'] === 'test'
-        ? null
-        : podcastIngestJobStore
-      : options.jobStore;
+    options.jobStore === undefined ? defaultJobStore : options.jobStore;
   let recovering = false;
 
   async function finishDurableJob(
@@ -113,15 +111,22 @@ export function createTelegramIngestQueue(
 
   function startHeartbeat(jobId: string | undefined) {
     if (!jobStore || !jobId) return null;
+    const store = jobStore;
+    const durableJobId = jobId;
+
+    async function renewLease(): Promise<void> {
+      try {
+        await store.renew(durableJobId, owner, INGEST_LEASE_SECONDS);
+      } catch (error) {
+        console.error('[telegram-ingest-queue] lease renew failed', {
+          jobId: durableJobId,
+          error: errorMessage(error),
+        });
+      }
+    }
+
     const timer = setInterval(() => {
-      void jobStore
-        .renew(jobId, owner, INGEST_LEASE_SECONDS)
-        .catch((error) =>
-          console.error('[telegram-ingest-queue] lease renew failed', {
-            jobId,
-            error: errorMessage(error),
-          }),
-        );
+      void renewLease();
     }, INGEST_HEARTBEAT_MS);
     timer.unref();
     return timer;
@@ -278,6 +283,22 @@ export function createTelegramIngestQueue(
     }
   }
 
+  async function refreshDurableChat(
+    chatId: TelegramChatId,
+    url: string,
+    languageCode: LanguageClassroomLanguageCode,
+  ): Promise<void> {
+    if (!jobStore) return;
+    try {
+      await jobStore.enqueue({ chatId, url, languageCode });
+    } catch (error) {
+      console.error('[telegram-ingest-queue] chat refresh failed', {
+        url,
+        error: errorMessage(error),
+      });
+    }
+  }
+
   function enqueue(
     chatId: TelegramChatId,
     url: string,
@@ -291,16 +312,7 @@ export function createTelegramIngestQueue(
     const existing = inflightIngests.get(queueKey(url, languageCode));
     if (existing) {
       existing.latestChatId = chatId;
-      if (jobStore) {
-        void jobStore
-          .enqueue({ chatId, url, languageCode })
-          .catch((error) =>
-            console.error('[telegram-ingest-queue] chat refresh failed', {
-              url,
-              error: errorMessage(error),
-            }),
-          );
-      }
+      void refreshDurableChat(chatId, url, languageCode);
       scheduleMessage(chatId, TELEGRAM_INFLIGHT_TEXT);
       return;
     }
@@ -345,7 +357,10 @@ export function createTelegramIngestQueue(
     (options.startRecoveryLoop ?? process.env['NODE_ENV'] !== 'test');
   if (shouldStartRecovery) {
     process.nextTick(() => void recoverNow());
-    const recoveryTimer = setInterval(() => void recoverNow(), INGEST_RECOVERY_MS);
+    const recoveryTimer = setInterval(
+      () => void recoverNow(),
+      INGEST_RECOVERY_MS,
+    );
     recoveryTimer.unref();
   }
 

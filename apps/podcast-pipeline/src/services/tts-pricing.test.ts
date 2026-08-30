@@ -24,10 +24,12 @@ function fishLine(model: string): UsageCostLine {
 describe('Fish Audio pricing', () => {
   it('prices s2.1-pro-free at zero', () => {
     expect(fishAudioPriceUsdPerMillionUtf8Bytes('s2.1-pro-free')).toBe(0);
-    expect(applyFishAudioPricing([fishLine('s2.1-pro-free')])[0]).toMatchObject({
-      costUsd: 0,
-      usage: { unitPriceUsd: 0 },
-    });
+    expect(applyFishAudioPricing([fishLine('s2.1-pro-free')])[0]).toMatchObject(
+      {
+        costUsd: 0,
+        usage: { unitPriceUsd: 0 },
+      },
+    );
   });
 
   it('keeps paid S2.1 Pro at $15 per million UTF-8 bytes', () => {
