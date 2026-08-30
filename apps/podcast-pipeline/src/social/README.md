@@ -10,16 +10,16 @@ implementation policy.
 
 ## Canonical sources
 
-| Concern | Canonical source |
-| --- | --- |
-| Platform/language allocation | `src/social/policy.ts` (`SOCIAL_LANGUAGE_POLICY`) |
-| Daily caps, candidate slots, publish window | `src/social/policy.ts` (`PLATFORM_PUBLISH_POLICY`, `SOCIAL_PUBLISH_WINDOW_JST`) |
-| Release-lane shape | `src/social/cohort.ts` |
-| Daemon orchestration and failure boundaries | `src/social/daemon.ts` |
-| Platform media/CTA behavior | `src/social/platforms.ts`, `src/brand/cta.ts` |
-| Session/auth behavior | platform auth modules under `src/social/` |
-| Agent invariants and regression-sensitive details | `apps/podcast-pipeline/CLAUDE.md` |
-| Runtime/env key registry | `config/env.manifest.mjs` |
+| Concern                                           | Canonical source                                                                |
+| ------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Platform/language allocation                      | `src/social/policy.ts` (`SOCIAL_LANGUAGE_POLICY`)                               |
+| Daily caps, candidate slots, publish window       | `src/social/policy.ts` (`PLATFORM_PUBLISH_POLICY`, `SOCIAL_PUBLISH_WINDOW_JST`) |
+| Release-lane shape                                | `src/social/cohort.ts`                                                          |
+| Daemon orchestration and failure boundaries       | `src/social/daemon.ts`                                                          |
+| Platform media/CTA behavior                       | `src/social/platforms.ts`, `src/brand/cta.ts`                                   |
+| Session/auth behavior                             | platform auth modules under `src/social/`                                       |
+| Agent invariants and regression-sensitive details | `apps/podcast-pipeline/CLAUDE.md`                                               |
+| Runtime/env key registry                          | `config/env.manifest.mjs`                                                       |
 
 When this runbook and one of those owners disagree, validate against current code,
 config, migrations, and tests before editing the runbook.
@@ -59,12 +59,12 @@ before running a command that drives one of the same browser profiles.
 
 `policy.ts` is authoritative. At the time of this runbook update it defines:
 
-| Platform | Language allocation | Posts / JST day | Candidate slots (JST) | Media |
-| --- | --- | ---: | --- | --- |
-| X | `en` / `ja` via `x-language-v1` | 2 | 12:15, 17:00 | teaser |
-| Threads | `ja` | 1 | 09:30, 12:00 | teaser |
-| Rednote | `zh-Hant` | 1 | 14:30, 12:00 | full video |
-| YouTube | `en` only | 1 | 17:15 | full video |
+| Platform | Language allocation             | Posts / JST day | Candidate slots (JST) | Media      |
+| -------- | ------------------------------- | --------------: | --------------------- | ---------- |
+| X        | `en` / `ja` via `x-language-v1` |               2 | 12:15, 17:00          | teaser     |
+| Threads  | `ja`                            |               1 | 09:30, 12:00          | teaser     |
+| Rednote  | `zh-Hant`                       |               1 | 14:30, 12:00          | full video |
+| YouTube  | `en` only                       |               1 | 17:15                 | full video |
 
 Publishing runs only inside the code-owned 09:00–18:00 JST window. A missed slot
 is rescheduled to a later free platform slot after the grace period; backlog is
@@ -155,12 +155,12 @@ pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --language 
 
 Current media shape is owned by `platforms.ts`:
 
-| Platform | Local MP4 required | Published media |
-| --- | --- | --- |
-| X | yes | teaser, or full video when already within X duration limit |
-| Threads | no | teaser prepared/reused from the language public video |
-| Rednote | yes | local `zh-Hant` full video |
-| YouTube | yes | local `en` full video |
+| Platform | Local MP4 required | Published media                                            |
+| -------- | ------------------ | ---------------------------------------------------------- |
+| X        | yes                | teaser, or full video when already within X duration limit |
+| Threads  | no                 | teaser prepared/reused from the language public video      |
+| Rednote  | yes                | local `zh-Hant` full video                                 |
+| YouTube  | yes                | local `en` full video                                      |
 
 X and Threads share the deterministic teaser path where possible. Rednote and
 YouTube publish full localization videos for their active language policy.
@@ -190,12 +190,12 @@ The daemon samples account-level follower/subscriber counts on a best-effort
 three-hour cadence. Browser startup is lazy so API-only collectors do not open a
 browser unnecessarily.
 
-| Platform | Current source |
-| --- | --- |
-| Rednote | signed-in consumer profile state (`fans`) |
-| X | publisher profile follower link |
-| Threads | `threads_insights?metric=followers_count` |
-| YouTube | `channels.list?mine=true&part=statistics` subscriber count |
+| Platform | Current source                                             |
+| -------- | ---------------------------------------------------------- |
+| Rednote  | signed-in consumer profile state (`fans`)                  |
+| X        | publisher profile follower link                            |
+| Threads  | `threads_insights?metric=followers_count`                  |
+| YouTube  | `channels.list?mine=true&part=statistics` subscriber count |
 
 Each platform is isolated: one expired session or unparseable response skips that
 platform's snapshot rather than failing the whole daemon tick or recording a
