@@ -114,7 +114,9 @@ export function GrowthView(props: {
               </tbody>
             </table>
             {props.growth && props.growth.platforms.length === 0 ? (
-              <div className="empty-inline">No follower growth snapshots yet.</div>
+              <div className="empty-inline">
+                No follower growth snapshots yet.
+              </div>
             ) : null}
             {props.growth ? null : (
               <div className="empty-inline">Waiting for growth data.</div>
@@ -157,14 +159,15 @@ export function GrowthView(props: {
                       <div className="experiment-arm" key={arm.variant}>
                         <strong>{arm.variant}</strong>
                         <span>
-                          n={arm.samples24h} · reach {decimal(arm.medianReach24h)}{' '}
-                          median / {decimal(arm.meanReach24h)} mean · engagement{' '}
+                          n={arm.samples24h} · reach{' '}
+                          {decimal(arm.medianReach24h)} median /{' '}
+                          {decimal(arm.meanReach24h)} mean · engagement{' '}
                           {percent(arm.medianEngagementRate)}
                         </span>
                         <small>
-                          {decimal(arm.followersAttributed)} {arm.basis} followers ·{' '}
-                          {decimal(arm.followersPer1kReach)} / 1k reach ·{' '}
-                          {arm.status}
+                          {decimal(arm.followersAttributed)} {arm.basis}{' '}
+                          followers · {decimal(arm.followersPer1kReach)} / 1k
+                          reach · {arm.status}
                         </small>
                       </div>
                     ))}
@@ -225,8 +228,8 @@ export function GrowthView(props: {
               <div className="panel-head">
                 <h2>Evidence by recent episode</h2>
                 <small className="panel-note">
-                  Audit the recommendation only when the aggregate decision looks
-                  surprising
+                  Audit the recommendation only when the aggregate decision
+                  looks surprising
                 </small>
               </div>
               <div className="evidence-stack">
@@ -269,7 +272,9 @@ export function GrowthView(props: {
                                   platformLabel(platform.platform)
                                 )}
                               </td>
-                              <td className="mono">{integer(platform.views)}</td>
+                              <td className="mono">
+                                {integer(platform.views)}
+                              </td>
                               <td className="mono">
                                 {percent(platform.engagementRate)}
                               </td>
@@ -415,7 +420,9 @@ function bestLaneSignal(platform: SocialGrowthPlatform): string {
       (lane): lane is typeof lane & { followersPer1kReach: number } =>
         lane.followersPer1kReach !== null,
     )
-    .sort((left, right) => right.followersPer1kReach - left.followersPer1kReach);
+    .sort(
+      (left, right) => right.followersPer1kReach - left.followersPer1kReach,
+    );
   const best = known[0];
   return best
     ? `${best.languageCode} · ${decimal(best.followersPer1kReach)} / 1k (${best.basis})`
