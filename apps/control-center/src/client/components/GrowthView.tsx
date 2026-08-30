@@ -45,9 +45,9 @@ export function GrowthView(props: {
 
         <section className="decision-section">
           <div className="section-head">
-            <h2>Publishing decisions</h2>
+            <h2>What to publish next</h2>
             <small className="panel-note">
-              Learned from standardized 24h samples
+              24h performance evidence; configured defaults are shown separately
             </small>
           </div>
           <div className="decision-grid">
@@ -292,15 +292,38 @@ function DecisionCard({ decision }: { decision: SocialDecision }) {
       <header>
         <strong>{platformLabel(decision.platform)}</strong>
         <span className={`confidence-${decision.confidence}`}>
-          {decision.confidence} confidence
+          {decision.confidence} sample coverage
         </span>
       </header>
+
+      <small className="decision-note">Performance evidence</small>
+      <DecisionLine
+        label="Do next"
+        value={
+          decision.bestTopic
+            ? `Prioritize ${decision.bestTopic}`
+            : 'Keep exploring topics'
+        }
+      />
+      <DecisionLine label="Why" value={topicEvidence(decision)} />
+      <DecisionLine
+        label="Top example"
+        value={decision.topExample ?? 'More samples needed'}
+      />
+      <small>
+        {decision.evidenceSamples} comparable 24h samples · coverage reflects
+        sample count, not statistical significance
+      </small>
+
+      <small className="decision-note">
+        Current strategy defaults — configured, not learned
+      </small>
       <DecisionLine
         label="Hook"
         value={
           decision.preferredHookTypes.length
             ? decision.preferredHookTypes.join(' / ')
-            : 'Keep exploring'
+            : 'No platform override'
         }
       />
       <DecisionLine
@@ -308,34 +331,21 @@ function DecisionCard({ decision }: { decision: SocialDecision }) {
         value={
           decision.publishSlotsJst
             ? `${decision.publishSlotsJst} JST (fixed)`
-            : 'Default slots'
+            : 'Use scheduler defaults'
         }
-      />
-      <DecisionLine
-        label="Best topic evidence"
-        value={
-          decision.bestTopic
-            ? `${decision.bestTopic} (n=${decision.bestTopicSamples})`
-            : 'More samples needed'
-        }
-      />
-      <DecisionLine
-        label="Winning example"
-        value={decision.topExample ?? 'More samples needed'}
       />
       {decision.platform === 'rednote' ? (
         <>
           <DecisionLine
             label="Prefer tags"
-            value={decision.preferredHashtags.join(' · ') || 'Keep exploring'}
+            value={decision.preferredHashtags.join(' · ') || 'No preference'}
           />
           <DecisionLine
             label="Avoid tags"
-            value={decision.avoidHashtags.join(' · ') || 'None yet'}
+            value={decision.avoidHashtags.join(' · ') || 'None'}
           />
         </>
       ) : null}
-      <small>{decision.evidenceSamples} comparable 24h samples</small>
     </article>
   );
 }
@@ -347,6 +357,24 @@ function DecisionLine(props: { label: string; value: string }) {
       <strong>{props.value}</strong>
     </div>
   );
+}
+
+function topicEvidence(decision: SocialDecision): string {
+  if (
+    !decision.bestTopic ||
+    decision.bestTopicMedian24hViews === null ||
+    decision.bestTopicSamples === null
+  ) {
+    return decision.platformMedian24hViews === null
+      ? 'No comparable 24h evidence yet'
+      : `Platform median ${decimal(decision.platformMedian24hViews)} views; need 2 topic buckets with n≥3`;
+  }
+
+  const lift =
+    decision.bestTopicLiftVsPlatformMedian === null
+      ? ''
+      : ` · ${decimal(decision.bestTopicLiftVsPlatformMedian)}× platform median`;
+  return `${decimal(decision.bestTopicMedian24hViews)} median 24h views · n=${decision.bestTopicSamples}${lift}`;
 }
 
 function platformSignal(platform: SocialPlatformPerformance): string {
