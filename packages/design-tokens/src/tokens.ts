@@ -18,6 +18,7 @@ export interface DesignTokens {
     'accent-soft': string;
     'accent-muted': string;
     error: string;
+    warning: string;
     success: string;
     pillar: {
       spy: string;
