@@ -254,12 +254,6 @@ class TestWalletServiceTokenCategoriesBugFix:
             {"wallet_address": wallet_address},
         )
 
-    @pytest.mark.skip(reason="APR calculations deprecated")
-    def test_calculate_wallet_apr_with_bug_fix_data(self, db_session: Session): ...
-
-    @pytest.mark.skip(reason="APR calculations deprecated")
-    def test_calculate_wallet_apr_from_summary_time_consistency(self): ...
-
     def test_service_resilience_to_data_type_variations(self, db_session: Session):
         """Test service handles various data types from database correctly."""
         wallet_address = "0xtest_data_types"

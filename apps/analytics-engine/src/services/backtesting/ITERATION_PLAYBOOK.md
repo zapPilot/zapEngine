@@ -14,7 +14,7 @@ Use this checklist for any rule, priority, or saved-config behavior change in
    ```
 3. Check the pinned production-history snapshot:
    ```bash
-   pnpm --filter @zapengine/analytics-engine test:strategy-snapshot
+   pnpm --filter @zapengine/analytics-engine test:strategy-snapshot:fast
    ```
 4. Regenerate the 500-day snapshot only for intentional performance drift:
    ```bash

@@ -1,19 +1,31 @@
 # Backtesting Strategy Iteration Log
 
 Historical record of strategy iterations, attribution findings, and architectural decisions.
-For current best template and active strategy state, see [CLAUDE.md](./CLAUDE.md).
+For current best template and active strategy state, see [AGENTS.md](./AGENTS.md).
 
 ## Entries
 
 Newest first. Each entry: date, commit, finding, key numbers.
 
-### 2026-08-21 - Removed dead per-asset tactics and added debt primitives
+### 2026-08-28 - Removed the retired research and comparison scripts
 
-- **Status**: Infrastructure complete. No production rule, priority, saved config, registry entry, API contract, allocation wire type, landing-page artifact, or validation fixture changed.
-- **Commit**: pending local change (`DMA/FGI refactor + inert debt primitives`).
+- **Status**: Cleanup (no production behavior change). No production rule, priority, saved config, registry entry, API contract, allocation wire type, landing-page artifact, or validation fixture changed.
+- **Commit**: `3dffe71e` (`refactor(analytics): remove retired research scripts`), plus this entry and the doc repair that follows it.
+- **Finding**: The one-off research and comparison tooling built for earlier iterations had no remaining caller and was deleted: `scripts/analyze_compare.py` with its `scripts/_compare_common.py`, `_compare_constraints.py`, `_compare_metrics.py`, `_compare_normalize.py`, `_compare_render.py`, `_compare_summaries.py` and `_summarize.py` helpers; the whole `scripts/research/` tree including `research/leverage/`; `scripts/attribution/regime_breakdown.py`, `attribution/rule_only_sweep.py` and `attribution/per_rule_report.py`; `scripts/market/analyze_btc_sentiment.py`; `scripts/spy_summary.py`; and `scripts/ci/check_required_dependencies.py`. Their tests went with them (`tests/scripts/test_analyze_compare.py`, `test_leverage_sweep.py`, `test_per_rule_report.py`, `test_regime_breakdown.py`, `test_rule_only_sweep.py`, and `tests/test_btc_sentiment_analysis.py`). The surviving gates are the behavioral validation suite and the pinned production-window snapshot. `ITERATION_PLAYBOOK.md` and `COMMANDS.md` were rewritten around those two; this entry additionally points the playbook's snapshot step at `test:strategy-snapshot:fast` (the in-process variant the rest of the repo uses) and restores the API-running prerequisite that `COMMANDS.md` still needs for its remaining HTTP `sweep_production_window.py` invocations.
+- **Snapshot delta**: None. No strategy, rule, or metric compute path was touched; `tests/fixtures/strategy_performance_snapshot_500d.json` and the landing-page equity curve are unchanged and no `--update-snapshot` was performed.
+- **Validation**: `ruff check src tests`, `ruff format --check src tests`, `mypy src`, `vulture src vulture_whitelist.py --min-confidence 80`, and the analytics-engine pytest suite via `scripts/ci/run-tests-precommit.sh`.
+- **Next**: No follow-up. **Earlier entries in this log still name these scripts — those references are historical and the scripts no longer exist.** Read any pre-2026-08-28 `analyze_compare.py`, `per_rule_report.py`, `rule_only_sweep.py`, `regime_breakdown.py`, or leverage-sweep instruction as a record of what was done at the time, not as a runnable command.
+
+### 2026-08-21 - Removed dead per-asset tactics and added an unregistered leverage experiment
+
+- **Status**: Infrastructure complete; production-history experiment pending the read-only database gate. No production rule, priority, saved config, registry entry, API contract, allocation wire type, landing-page artifact, or validation fixture changed.
+- **Commit**: pending local change (`DMA/FGI refactor + inert debt primitives + research leverage sweep`).
 - **Finding**: `signals/dma_gated_fgi` is a stateful per-asset observation component, not a strategy. The canonical strategy remains `dma_fgi_portfolio_rules`; `dca_classic` remains its frozen benchmark. The unused `tactics/` registry and its component resolver were removed, the signal/trade cooldown twins were collapsed to one state machine, and portfolio-rule intent construction now lives at the portfolio-rule layer. The execution portfolio gained an independent USD debt counter: borrowing raises stable balance and debt together, repayment caps at available stable/debt, `total_value` remains gross, and performance uses `equity = total_value - debt`. With debt at its default zero, the existing arithmetic path is unchanged.
-- **Snapshot delta**: Not measured locally. `sweep_production_window.py --check --in-process` safely skipped because `DATABASE_READ_ONLY_URL` is unset; no snapshot or landing artifact was updated.
-- **Validation**: `pytest tests/services/backtesting tests/test_validation_events.py -q`, `ruff check src tests scripts`, `ruff format --check`, `mypy src` (197 source files), and `vulture src/ vulture_whitelist.py --min-confidence 80` are clean. Root `pnpm dup:check` could not start because this worktree has no installed `node_modules`/Turbo.
+- **Research overlay**: `scripts/research/leverage/` adds `risk_on`, `fear_dip`, and combined modes without registering a recipe. The pinned experiment is 3 modes × 3 target LTVs × 3 fixed borrow APRs = 27 cells, compared with the two existing baselines over the full 500-day window and two 250-day halves. It reports ROI, Sharpe, Sortino, Calmar, MaxDD, trades, liquidations, maximum LTV, levered days, and cumulative borrow cost. Liquidation is checked only at daily close; fixed APR sensitivity substitutes for unavailable historical borrow-rate coverage; no live borrow execution is implied.
+- **Snapshot delta**: Not measured locally. `sweep_production_window.py --check --in-process` safely skipped because `DATABASE_READ_ONLY_URL` is unset; no snapshot or landing artifact was updated. The leverage sweep skipped for the same reason, so no result report or promotion claim is recorded here.
+- **Per-rule report / rule-only sweep**: Not applicable — production rule behavior and ordering are unchanged.
+- **Validation**: `pytest tests/services/backtesting tests/scripts tests/test_validation_events.py -q` → 785 passed; the research suite includes a synthetic 46-day borrow → crash → liquidation path. `ruff check src tests scripts`, `ruff format --check`, `mypy src` (197 source files), and `vulture src/ vulture_whitelist.py --min-confidence 80` are clean. Root `pnpm dup:check` could not start because this worktree has no installed `node_modules`/Turbo.
+- **Next**: With `DATABASE_READ_ONLY_URL` configured, run `uv run python scripts/research/leverage/leverage_sweep.py --reference-date 2026-08-19`; review full/half-window Calmar and Sharpe versus the unlevered baseline before considering any productization. Do not register the research strategy or update the production snapshot as part of that run.
 
 ### 2026-06-02 - Removed the 6 extended metrics (Omega / Tail / Skew / Kurtosis / Pain / RecoveryDays) — unused yardsticks
 
