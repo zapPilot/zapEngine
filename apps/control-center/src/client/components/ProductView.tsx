@@ -24,26 +24,29 @@ export function ProductView(props: {
   const data = props.customers;
   const summary = data?.summary;
   const product = props.product;
+  const users = sortUsersForDecision(data?.users ?? []);
 
   return (
     <div className="view-stack">
-      <section aria-label="Customer economics" className="metric-strip">
-        <Metric label="Customers" value={integer(summary?.totalCustomers)} />
-        <Metric label="Priority" value={integer(summary?.priorityUsers)} />
-        <Metric label="Standard" value={integer(summary?.standardUsers)} />
+      <section aria-label="Service decisions" className="metric-strip metric-strip-four">
         <Metric
-          label="Priority but inactive 30d+"
+          label="Priority service"
+          value={integer(summary?.priorityUsers)}
+        />
+        <Metric
+          label="Priority inactive 30d+"
           tone="warning"
           value={integer(summary?.inactiveButPriority)}
         />
         <Metric
-          label="AUM under service"
+          label="Observed AUM"
           tone="accent"
           value={usd(summary?.aumUsd)}
         />
         <Metric
-          label="30d provider cost (est.)"
-          value={usd(summary?.attributedCostUsd30d)}
+          label="Portfolio fresh <24h"
+          tone={freshnessRatio(product) !== null && freshnessRatio(product)! < 0.8 ? 'warning' : undefined}
+          value={percent(freshnessRatio(product))}
         />
       </section>
 
@@ -51,22 +54,31 @@ export function ProductView(props: {
         <div className="panel-head">
           <h2>Product health</h2>
           <small className="panel-note">
-            Coverage and freshness are part of the decision, so the portfolio
-            figure is labelled observed rather than authoritative AUM
+            Coverage and freshness tell you whether the product numbers are safe
+            to act on
           </small>
         </div>
-        <div className="info-list">
+        <div className="info-list product-health-list">
           <InfoRow
-            label="Activation funnel"
+            label="Activation"
+            notes={[
+              `${integer(product?.portfolioUsers)} users have an observed portfolio`,
+            ]}
             value={`${integer(product?.registeredUsers)} registered → ${integer(product?.verifiedWallets)} verified → ${integer(product?.portfolioUsers)} observed`}
           />
           <InfoRow
             label="Engagement"
+            notes={[
+              `${integer(summary?.activeLast7d)} customer accounts active in the last 7d`,
+            ]}
             value={`${integer(product?.wau)} WAU / ${integer(product?.mau)} MAU`}
           />
           <InfoRow
-            label="Portfolio freshness"
-            value={`${integer(product?.portfolioFresh24h)} fresh <24h · ${integer(product?.portfolioFresh7d)} fresh <7d`}
+            label="Freshness"
+            notes={[
+              `${integer(product?.portfolioFresh7d)} observed portfolios are fresh within 7d`,
+            ]}
+            value={`${integer(product?.portfolioFresh24h)} fresh <24h · ${percent(freshnessRatio(product))} of observed users`}
           />
           <InfoRow
             label="Concentration"
@@ -80,29 +92,25 @@ export function ProductView(props: {
 
       <section className="panel">
         <div className="panel-head">
-          <h2>Who we serve</h2>
+          <h2>Accounts needing judgment</h2>
           <small className="panel-note">
-            Cost is DeBank&apos;s account invoice split by request volume — an
-            allocation, not a measurement. Revenue is unknown because nothing in
-            this system bills anyone.
+            Attention risks first, then AUM. Expand a row for plan, cost, refresh
+            policy, and wallet-level evidence.
           </small>
         </div>
         <div className="table-wrap">
-          <table className="data-table customers-table">
+          <table className="data-table customers-table customers-table-compact">
             <thead>
               <tr>
                 <th>User</th>
-                <th>Plan</th>
                 <th>Service</th>
                 <th>Last active†</th>
-                <th>Refresh</th>
+                <th>Portfolio freshness</th>
                 <th>AUM</th>
-                <th>30d cost (est.)</th>
-                <th>Revenue</th>
               </tr>
             </thead>
             <tbody>
-              {(data?.users ?? []).map((user) => (
+              {users.map((user) => (
                 <CustomerRows
                   expanded={expanded === user.userId}
                   key={user.userId}
@@ -123,7 +131,8 @@ export function ProductView(props: {
         </div>
         <small className="table-footnote">
           † account-engine route activity (dashboard visits), debounced hourly.
-          It is not whole-product usage.
+          It is not whole-product usage. Cost is DeBank&apos;s account invoice
+          allocated by request volume, not a measured per-user charge.
         </small>
       </section>
     </div>
@@ -150,7 +159,6 @@ function CustomerRows(props: {
             {user.wallets.length === 1 ? '' : 's'}
           </small>
         </td>
-        <td>{user.planCode}</td>
         <td>
           <span className={`tier-pill ${user.effectiveTier}`}>
             {user.effectiveTier}
@@ -158,18 +166,12 @@ function CustomerRows(props: {
           {user.overrideTier ? <small> override</small> : null}
         </td>
         <td className="cell-nowrap">{daysAgo(user.inactiveDays)}</td>
-        <td className="cell-nowrap">
-          {user.refreshIntervalHours
-            ? `every ${user.refreshIntervalHours}h`
-            : 'not scheduled'}
-        </td>
+        <td className={freshnessClass(user)}>{freshnessLabel(user)}</td>
         <td className="mono">{usd(user.aumUsd)}</td>
-        <td className="mono">{usd(user.attributedCostUsd30d)}</td>
-        <td className="unknown-cell">Unknown</td>
       </tr>
       {props.expanded ? (
         <tr className="customer-detail-row">
-          <td colSpan={8}>
+          <td colSpan={5}>
             <CustomerDetail user={user} />
           </td>
         </tr>
@@ -209,12 +211,13 @@ function CustomerDetail({ user }: { user: CustomerRecord }) {
           label="Portfolio age"
           value={hoursAgo(user.portfolioStaleHours)}
         />
-        {/* The figure the freshness signal judges on. Shown next to the
-            freshest one because seeing only the freshest is what let a dead
-            wallet pass as a served account. */}
         <DetailLine
           label="Worst wallet age"
           value={hoursAgo(user.portfolioWorstStaleHours)}
+        />
+        <DetailLine
+          label="Never refreshed wallets"
+          value={integer(user.neverRefreshedWallets)}
         />
         <DetailLine
           label="Due for refresh"
@@ -223,9 +226,18 @@ function CustomerDetail({ user }: { user: CustomerRecord }) {
       </DetailBlock>
 
       <DetailBlock title="Service">
+        <DetailLine label="Plan" value={user.planCode} />
         <DetailLine label="Default from plan" value={user.defaultTier} />
         <DetailLine label="Override" value={user.overrideTier ?? 'none'} />
         <DetailLine label="Effective" value={user.effectiveTier} />
+        <DetailLine
+          label="Refresh interval"
+          value={
+            user.refreshIntervalHours
+              ? `every ${user.refreshIntervalHours}h`
+              : 'not scheduled'
+          }
+        />
         {user.overrideReason ? (
           <DetailLine label="Reason" value={user.overrideReason} />
         ) : null}
@@ -302,4 +314,58 @@ function DetailLine(props: { label: string; value: string }) {
       <strong>{props.value}</strong>
     </div>
   );
+}
+
+function freshnessRatio(product: ProductHealthResponse | undefined): number | null {
+  if (
+    product?.portfolioFresh24h === null ||
+    product?.portfolioFresh24h === undefined ||
+    product.portfolioUsers === null ||
+    product.portfolioUsers === undefined ||
+    product.portfolioUsers <= 0
+  ) {
+    return null;
+  }
+  return product.portfolioFresh24h / product.portfolioUsers;
+}
+
+function freshnessLabel(user: CustomerRecord): string {
+  if (user.neverRefreshedWallets > 0) {
+    return `${integer(user.neverRefreshedWallets)} never refreshed`;
+  }
+  const age = hoursAgo(user.portfolioWorstStaleHours);
+  return user.dueForRefresh ? `${age} · due` : age;
+}
+
+function freshnessClass(user: CustomerRecord): string {
+  return user.neverRefreshedWallets > 0 ||
+    (user.portfolioWorstStaleHours ?? 0) >= 48
+    ? 'cell-nowrap warning-text'
+    : 'cell-nowrap';
+}
+
+function sortUsersForDecision(users: CustomerRecord[]): CustomerRecord[] {
+  return [...users].sort(
+    (left, right) =>
+      decisionRisk(right) - decisionRisk(left) ||
+      (right.aumUsd ?? 0) - (left.aumUsd ?? 0) ||
+      left.userId.localeCompare(right.userId),
+  );
+}
+
+function decisionRisk(user: CustomerRecord): number {
+  let risk = user.effectiveTier === 'priority' ? 1 : 0;
+  if (user.effectiveTier === 'priority' && (user.inactiveDays ?? 0) >= 30) {
+    risk += 8;
+  }
+  if (user.neverRefreshedWallets > 0) {
+    risk += 10;
+  }
+  if ((user.portfolioWorstStaleHours ?? 0) >= 48) {
+    risk += 6;
+  }
+  if (user.dueForRefresh) {
+    risk += 2;
+  }
+  return risk;
 }
