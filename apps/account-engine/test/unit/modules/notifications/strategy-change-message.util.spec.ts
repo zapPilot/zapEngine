@@ -93,6 +93,10 @@ describe('formatUsdAmount', () => {
     expect(formatUsdAmount(10030.45)).toBe('$10,030');
   });
 
+  it('keeps a negative sign without includeSign', () => {
+    expect(formatUsdAmount(-921.15)).toBe('-$921');
+  });
+
   it('supports fixed precision and an explicit sign', () => {
     const options = { fractionDigits: 2, includeSign: true };
 

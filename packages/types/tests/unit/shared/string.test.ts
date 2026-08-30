@@ -10,6 +10,11 @@ describe('humanizeSlug', () => {
     expect(humanizeSlug('stable', { stable: 'Cash' })).toBe('Cash');
   });
 
+  it('ignores inherited Object properties when no label matches', () => {
+    expect(humanizeSlug('constructor')).toBe('Constructor');
+    expect(humanizeSlug('toString')).toBe('Tostring');
+  });
+
   it('uses the requested fallback for empty identifiers', () => {
     expect(humanizeSlug('---', {}, 'Unknown')).toBe('Unknown');
   });

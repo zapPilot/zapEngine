@@ -5,15 +5,16 @@ export function formatUsdAmount(
   options: { fractionDigits?: number; includeSign?: boolean } = {},
 ): string {
   const { fractionDigits = 0, includeSign = false } = options;
-  const absolute = Math.abs(amount).toLocaleString('en-US', {
+  const magnitude = Math.abs(amount).toLocaleString('en-US', {
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
   });
-  const formatted = `$${absolute}`;
 
-  if (!includeSign || amount === 0) {
-    return formatted;
+  // The sign goes outside the symbol either way. A negative amount keeps its
+  // sign even when includeSign is off: that flag asks for an explicit `+` on
+  // gains, not for the magnitude alone.
+  if (amount < 0) {
+    return `-$${magnitude}`;
   }
-
-  return amount > 0 ? `+${formatted}` : `-${formatted}`;
+  return includeSign && amount > 0 ? `+$${magnitude}` : `$${magnitude}`;
 }
