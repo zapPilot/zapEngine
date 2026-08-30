@@ -1,7 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
-
 import type { ControlCenterConfig } from '../config/env.js';
 import { elapsedMs } from './elapsed.js';
+import { createServiceRoleClient } from './supabase.js';
 
 /**
  * How recently a wallet's portfolio data actually landed, read per provider.
@@ -152,10 +151,7 @@ export async function loadPriorityWalletCoverage(input: {
  * wrong the moment the schema comes from configuration.
  */
 export function createSchemaClient(url: string, key: string, schema: string) {
-  return createClient(url, key, {
-    db: { schema },
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  return createServiceRoleClient(url, key, schema);
 }
 
 /**
