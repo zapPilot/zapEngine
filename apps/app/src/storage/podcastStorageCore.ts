@@ -133,6 +133,10 @@ export function createPodcastStorage(
     },
     async loadPodcastSortDirection() {
       try {
+        // A screen can remount while its previous selection is still queued
+        // behind another podcast write. Wait for writes already enqueued before
+        // this read so the new mount cannot rehydrate a stale direction.
+        await writeQueue;
         return parseStoredPodcastSortDirection(
           await storage.getItem(PODCAST_SORT_DIRECTION_STORAGE_KEY),
         );
