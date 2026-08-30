@@ -1,4 +1,8 @@
-import { getErrorMessage } from './utils';
+// Deep import, not the './utils' barrel: that barrel re-exports retry.util,
+// which needs ServiceLayerException — and that class extends AppError from
+// this file. Going through the barrel would make AppError undefined at
+// class-definition time.
+import { getErrorMessage } from './utils/error-message.util';
 
 export enum HttpStatus {
   OK = 200,

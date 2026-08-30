@@ -1,8 +1,8 @@
-import { ServiceLayerException } from '../../../../../src/common/exceptions';
+import { ServiceLayerException } from '../../../../src/common/exceptions';
 import {
   isRetryableTimeoutError,
   retryOnceOnTimeout,
-} from '../../../../../src/common/utils/retry.util';
+} from '../../../../src/common/utils/retry.util';
 
 describe('retryOnceOnTimeout', () => {
   it('retries one timeout and returns the second result', async () => {
