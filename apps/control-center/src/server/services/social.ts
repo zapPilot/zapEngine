@@ -268,6 +268,13 @@ export function buildDecisions(
       return [];
     }
     const topic = bestTopic(platformSamples);
+    const platformMedian24hViews = evidenceSamples
+      ? median(platformSamples.map((sample) => sample.metric.views ?? 0))
+      : null;
+    const bestTopicLiftVsPlatformMedian =
+      topic && platformMedian24hViews !== null && platformMedian24hViews > 0
+        ? topic.medianViews / platformMedian24hViews
+        : null;
     return [
       {
         platform,
@@ -278,6 +285,9 @@ export function buildDecisions(
         avoidHashtags: strategy?.config?.avoidHashtags ?? [],
         bestTopic: topic?.topic ?? null,
         bestTopicSamples: topic?.samples ?? null,
+        bestTopicMedian24hViews: topic?.medianViews ?? null,
+        platformMedian24hViews,
+        bestTopicLiftVsPlatformMedian,
         publishSlotsJst: formatPublishSlots(strategy?.config?.publishSlotsJst),
         topExample: topExample(platformSamples),
       },
@@ -309,7 +319,7 @@ function topExample(
 
 function bestTopic(
   samples: Array<{ post: SocialPostRow; metric: SocialMetricRow }>,
-): { topic: string; samples: number } | null {
+): { topic: string; samples: number; medianViews: number } | null {
   const groups = new Map<string, number[]>();
   for (const sample of samples) {
     const values = groups.get(sample.post.topic) ?? [];
@@ -321,14 +331,13 @@ function bestTopic(
     .map(([topic, values]) => ({
       topic,
       samples: values.length,
-      score: median(values),
+      medianViews: median(values),
     }))
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => b.medianViews - a.medianViews);
   if (candidates.length < MIN_QUALIFIED_TOPIC_BUCKETS) {
     return null;
   }
-  const winner = candidates[0]!;
-  return { topic: winner.topic, samples: winner.samples };
+  return candidates[0]!;
 }
 
 function formatPublishSlots(
