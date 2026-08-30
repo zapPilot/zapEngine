@@ -1,5 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
-
 import type {
   SocialDecision,
   SocialEpisodeSummary,
@@ -7,6 +5,7 @@ import type {
   SocialPlatformPerformance,
 } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
+import { createServiceRoleClient } from './supabase.js';
 
 type SocialWindow = SocialPerformanceResponse['window'];
 
@@ -81,10 +80,11 @@ export async function loadSocialPerformance(input: {
   }
 
   try {
-    const client = createClient(url, key, {
-      db: { schema: input.config.SUPABASE_DB_SCHEMA },
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const client = createServiceRoleClient(
+      url,
+      key,
+      input.config.SUPABASE_DB_SCHEMA,
+    );
     const since = new Date(
       now.getTime() - 60 * 24 * 60 * 60 * 1000,
     ).toISOString();

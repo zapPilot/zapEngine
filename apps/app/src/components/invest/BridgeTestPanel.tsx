@@ -28,6 +28,7 @@ import {
   usdcInputToBaseUnits,
 } from '@/integration/bridgeTestModel';
 import { useAccount } from '@/integration/useAccount';
+import { formatUsd, numberFrom } from '@/lib/format';
 
 const STATUS_LABELS = {
   idle: 'Enter an amount to request a route.',
@@ -41,11 +42,6 @@ const STATUS_LABELS = {
   completed: 'Bridge completed',
   failed: 'Bridge unavailable',
 } as const;
-
-function formatUsd(value: string): string {
-  const number = Number.parseFloat(value);
-  return Number.isFinite(number) ? `$${number.toFixed(2)}` : '$0.00';
-}
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${Math.max(1, Math.round(seconds))} sec`;
@@ -340,7 +336,7 @@ export function BridgeTestPanel() {
         </View>
         <View className="mt-2 flex-row items-center justify-between">
           <Text className="font-mono text-[10px] text-ink-dim">
-            ≈ {formatUsd(amountInput)}
+            ≈ {formatUsd(numberFrom(amountInput) ?? 0)}
           </Text>
           <Text className="font-mono text-[10px] text-ink-dim">
             Balance:{' '}
@@ -434,11 +430,15 @@ export function BridgeTestPanel() {
             />
             <SummaryRow
               label="Bridge fee"
-              value={formatUsd(bridge.quote.estimate.feeCostUsd)}
+              value={formatUsd(
+                numberFrom(bridge.quote.estimate.feeCostUsd) ?? 0,
+              )}
             />
             <SummaryRow
               label="Network gas"
-              value={formatUsd(bridge.quote.estimate.gasCostUsd)}
+              value={formatUsd(
+                numberFrom(bridge.quote.estimate.gasCostUsd) ?? 0,
+              )}
             />
             <SummaryRow
               label="Estimated time"

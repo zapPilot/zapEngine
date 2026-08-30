@@ -1,4 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
 import type {
   CostPricingRate,
   CostProvider,
@@ -13,6 +12,7 @@ import type {
   CostTransactionKind,
 } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
+import { createServiceRoleClient } from './supabase.js';
 
 interface SnapshotRow {
   provider: CostProvider;
@@ -80,13 +80,10 @@ export function createCostRepository(
   if (!config.SUPABASE_URL || !config.SUPABASE_SERVICE_ROLE_KEY) {
     return null;
   }
-  const client = createClient(
+  const client = createServiceRoleClient(
     config.SUPABASE_URL,
     config.SUPABASE_SERVICE_ROLE_KEY,
-    {
-      db: { schema: config.SUPABASE_DB_SCHEMA },
-      auth: { autoRefreshToken: false, persistSession: false },
-    },
+    config.SUPABASE_DB_SCHEMA,
   );
   return {
     async loadPricingRates() {

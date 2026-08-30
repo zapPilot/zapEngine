@@ -1,7 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
-
 import type { ProductHealthResponse } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
+import { createServiceRoleClient } from './supabase.js';
 
 const EMPTY_PRODUCT_HEALTH: ProductHealthResponse = {
   registeredUsers: null,
@@ -33,9 +32,7 @@ export async function loadProductHealth(input: {
   }
 
   const now = input.now ?? new Date();
-  const client = createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const client = createServiceRoleClient(url, key);
   const sevenDaysAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000).toISOString();
 
