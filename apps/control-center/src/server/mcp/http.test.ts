@@ -9,6 +9,7 @@ function fakeOperations(): OpsMcpOperations {
     getOperations: vi.fn(),
     getSocial: vi.fn(),
     getCustomers: vi.fn(),
+    inspectSignal: vi.fn(),
   };
 }
 

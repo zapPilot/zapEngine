@@ -22,10 +22,10 @@ const forceSchema = z.object({
 
 export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
   const server = new McpServer(
-    { name: 'zap-pilot-ops', version: '0.1.0' },
+    { name: 'zap-pilot-ops', version: '0.2.0' },
     {
       instructions:
-        'Start with ops_status. Drill into one domain or signal only when needed. All tools are read-only and return the same normalized operational truth used by the Control Center; do not infer provider health from missing data.',
+        'Start with ops_status. Drill into one domain or signal only when needed. Use ops_inspect_signal for bounded provider evidence behind a specific fingerprint. All tools are read-only; do not infer provider health from missing data.',
     },
   );
 
@@ -71,6 +71,20 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     },
     async ({ fingerprint, force }) =>
       result(projectSignal(await operations.getOperations(force), fingerprint)),
+  );
+
+  server.registerTool(
+    'ops_inspect_signal',
+    {
+      title: 'Inspect operational signal',
+      description:
+        'Collect bounded provider evidence for one stable signal fingerprint. GitHub workflow inspection includes recent scheduled runs, failed jobs/steps, and redacted log excerpts; Sentry inspection includes top unresolved issues and a bounded exception stack sample. Unsupported providers return an explicit unsupported result.',
+      inputSchema: z.object({
+        fingerprint: z.string().trim().min(1),
+      }),
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async ({ fingerprint }) => result(await operations.inspectSignal(fingerprint)),
   );
 
   server.registerTool(

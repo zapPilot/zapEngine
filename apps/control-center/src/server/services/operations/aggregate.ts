@@ -14,6 +14,7 @@ import { deriveCustomerSignals, loadCustomerEconomics } from '../customers.js';
 import { collectCostSignals } from './costs.js';
 import { collectFlySignals } from './fly.js';
 import { collectGithubSignals } from './github.js';
+import { inspectOperationalSignal } from './inspection/inspect.js';
 import { collectPosthogSignals } from './posthog.js';
 import { prioritize } from './prioritize.js';
 import { collectProductSignals } from './product.js';
@@ -21,18 +22,8 @@ import { collectSentrySignals } from './sentry.js';
 import { sourceFailure, worstOf } from './signal.js';
 import { deriveSocialSignals, loadOperationsSocial } from './social.js';
 
-/**
- * Every domain appears in every response, including the ones nothing reported
- * on. An absent domain in a status page reads as "fine", which is the one
- * thing it must never mean.
- */
 const DOMAINS = OPERATIONS_DOMAINS;
 
-/**
- * Per-source freshness, chosen from how fast the underlying thing can change
- * and how expensive it is to ask. The publish queue can go from fine to
- * missing its window inside a minute; a PostHog audience count cannot.
- */
 const TTL_MS = {
   social: 30_000,
   customers: 60_000,
@@ -108,9 +99,6 @@ export function createOperationsService(input: {
       const value = await caches[key].get(force);
       return Array.isArray(value) ? value : value.signals;
     } catch (error) {
-      // An adapter is contractually not allowed to throw, but a route that
-      // returns 500 because one integration misbehaved would take the whole
-      // status page down with it — which is exactly when it is needed.
       return [sourceFailure({ ...ORIGIN[key], error, observedAt: now() })];
     }
   }
@@ -150,6 +138,14 @@ export function createOperationsService(input: {
 
     async getCustomers(force = false): Promise<CustomerEconomicsResponse> {
       return (await caches.customers.get(force)).response;
+    },
+
+    async inspectSignal(fingerprint: string) {
+      return inspectOperationalSignal({
+        config: input.config,
+        fingerprint,
+        now,
+      });
     },
   };
 }
