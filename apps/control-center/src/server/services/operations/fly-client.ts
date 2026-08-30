@@ -69,7 +69,10 @@ export class FlyOpsHttpError extends Error {
 }
 
 export interface FlyOpsClient {
-  listMachines(app: string): Promise<FlyMachine[]>;
+  listMachines(
+    app: string,
+    options?: { includeDeleted?: boolean },
+  ): Promise<FlyMachine[]>;
 }
 
 export function createFlyOpsClient(input: {
@@ -83,9 +86,13 @@ export function createFlyOpsClient(input: {
   const timeoutMs = input.timeoutMs ?? REQUEST_TIMEOUT_MS;
 
   return {
-    async listMachines(app: string): Promise<FlyMachine[]> {
+    async listMachines(
+      app: string,
+      options = {},
+    ): Promise<FlyMachine[]> {
+      const query = options.includeDeleted ? '?include_deleted=true' : '';
       const response = await fetchImpl(
-        `${baseUrl}/apps/${encodeURIComponent(app)}/machines`,
+        `${baseUrl}/apps/${encodeURIComponent(app)}/machines${query}`,
         {
           headers: {
             Authorization: `Bearer ${input.token}`,
@@ -103,7 +110,9 @@ export function createFlyOpsClient(input: {
 
       const payload: unknown = await response.json();
       if (!Array.isArray(payload)) {
-        throw new Error(`Fly Machines API list for ${app} returned a non-array body`);
+        throw new Error(
+          `Fly Machines API list for ${app} returned a non-array body`,
+        );
       }
 
       return payload.flatMap((row) => {
