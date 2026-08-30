@@ -1,17 +1,25 @@
 import type { OperationalStatus } from '../shared/types.js';
 
-function currency(
+function currencyWithRange(
   value: number | null | undefined,
-  fractionDigits: number,
+  minFraction: number,
+  maxFraction: number,
 ): string {
   return value === null || value === undefined
     ? '—'
     : new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
-        minimumFractionDigits: fractionDigits,
-        maximumFractionDigits: fractionDigits,
+        minimumFractionDigits: minFraction,
+        maximumFractionDigits: maxFraction,
       }).format(value);
+}
+
+function currency(
+  value: number | null | undefined,
+  fractionDigits: number,
+): string {
+  return currencyWithRange(value, fractionDigits, fractionDigits);
 }
 
 export function usd(value: number | null | undefined): string {
@@ -34,6 +42,10 @@ export function usdWhole(value: number | null | undefined): string {
  */
 export function headlineScale(value: string): string {
   return value.length > 12 ? 'long' : '';
+}
+
+export function unitUsd(value: number | null | undefined): string {
+  return currencyWithRange(value, 2, 4);
 }
 
 export function integer(value: number | null | undefined): string {

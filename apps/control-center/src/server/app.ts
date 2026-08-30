@@ -8,6 +8,7 @@ import type { ControlCenterConfig } from './config/env.js';
 import { captureServerException } from './observability/sentry.js';
 import { createOperationsService } from './services/operations/aggregate.js';
 import { createOverviewService } from './services/overview.js';
+import { createPodcastCostService } from './services/podcast-costs.js';
 
 const WINDOWS: SocialPerformanceResponse['window'][] = [
   'latest',
@@ -30,6 +31,7 @@ export function createControlCenterApp(input: {
   const app = new Hono();
   const service =
     input.service ?? createOverviewService({ config: input.config });
+  const podcastCosts = createPodcastCostService({ config: input.config });
   // Injected separately from the overview service on purpose: the two share no
   // state, and folding operations into createOverviewService would force every
   // existing fake of it to grow methods its tests do not care about.
@@ -41,6 +43,9 @@ export function createControlCenterApp(input: {
   });
   app.get('/api/costs/history', async (context) => {
     return context.json(await service.getCostHistory());
+  });
+  app.get('/api/costs/podcast', async (context) => {
+    return context.json(await podcastCosts.getPodcastCosts());
   });
   if (input.allowCostSync !== false) {
     app.post('/api/costs/sync', async (context) => {

@@ -1,19 +1,23 @@
 import type {
   CostHistoryResponse,
   OverviewResponse,
+  PodcastCostResponse,
 } from '../../shared/types.js';
 import { usd } from '../format.js';
 import { CostHistoryChart } from './CostHistoryChart.js';
 import { KpiGroup } from './KpiGroup.js';
+import { PodcastUnitEconomics } from './PodcastUnitEconomics.js';
 import { ProviderLedger, UsageSignals } from './ProviderLedger.js';
 import { RunwayChart } from './RunwayChart.js';
 
 export function EconomicsView({
   data,
   history,
+  podcastCosts,
 }: {
   data: OverviewResponse | null;
   history: CostHistoryResponse | null;
+  podcastCosts: PodcastCostResponse | null;
 }) {
   return (
     <div className="view-stack">
@@ -69,6 +73,8 @@ export function EconomicsView({
         </div>
         <ProviderLedger detailed providers={data?.providers ?? []} />
       </section>
+
+      <PodcastUnitEconomics data={podcastCosts} />
 
       <div className="economics-lower">
         <section className="panel">

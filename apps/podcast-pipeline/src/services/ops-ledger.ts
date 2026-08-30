@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import {
   capturePipelineException,
   type PipelineComponent,
@@ -82,6 +84,25 @@ export interface PipelineRunInput {
   stages: PipelineStageRunInput[];
   /** Sentry tag used when the ledger write itself fails. */
   component: PipelineComponent;
+}
+
+export function videoRenderRunBase(input: {
+  runRef: string;
+  status: PipelineStageStatus;
+  startedAt: Date;
+  finishedAt?: Date;
+  episodeId?: string | null;
+}): Omit<PipelineRunInput, 'component' | 'stages'> {
+  return {
+    runId: randomUUID(),
+    pipeline: 'video_render',
+    runRef: input.runRef,
+    trigger: 'worker',
+    status: input.status,
+    startedAt: input.startedAt,
+    finishedAt: input.finishedAt ?? new Date(),
+    episodeId: input.episodeId ?? null,
+  };
 }
 
 /**
