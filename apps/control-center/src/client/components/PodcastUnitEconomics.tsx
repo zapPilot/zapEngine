@@ -34,7 +34,9 @@ export function PodcastUnitEconomics(props: {
               {props.data.episodes.map((episode) => (
                 <tr key={episode.episodeId}>
                   <td>
-                    <strong>{episode.title ?? shortId(episode.episodeId)}</strong>
+                    <strong>
+                      {episode.title ?? shortId(episode.episodeId)}
+                    </strong>
                     <div className="mono">
                       {episode.runCount} runs
                       {episode.failedRuns > 0

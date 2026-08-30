@@ -1,9 +1,8 @@
-import { randomUUID } from 'node:crypto';
-
 import {
   recordPipelineRun,
   RENDER_MACHINE_SHAPE,
   RENDER_PRICING_METRIC_KEY,
+  videoRenderRunBase,
 } from './ops-ledger.js';
 
 export interface VisualPipelineCostInput {
@@ -24,21 +23,20 @@ export interface VisualPipelineCostInput {
 export async function recordVisualPipelineCost(
   input: VisualPipelineCostInput,
 ): Promise<void> {
-  const finishedAt = input.finishedAt ?? new Date();
+  const base = videoRenderRunBase({
+    runRef: input.runRef,
+    status: input.status,
+    startedAt: input.startedAt,
+    finishedAt: input.finishedAt,
+    episodeId: input.episodeId,
+  });
   const elapsedMs = Math.max(
     0,
-    finishedAt.getTime() - input.startedAt.getTime(),
+    base.finishedAt.getTime() - input.startedAt.getTime(),
   );
 
   await recordPipelineRun({
-    runId: randomUUID(),
-    pipeline: 'video_render',
-    runRef: input.runRef,
-    trigger: 'worker',
-    status: input.status,
-    startedAt: input.startedAt,
-    finishedAt,
-    episodeId: input.episodeId,
+    ...base,
     component: 'video-visual',
     stages: [
       {
@@ -48,7 +46,7 @@ export async function recordVisualPipelineCost(
         episodeId: input.episodeId,
         attempt: input.attempt,
         startedAt: input.startedAt,
-        finishedAt,
+        finishedAt: base.finishedAt,
         elapsedMs,
         usage: {
           machine: RENDER_MACHINE_SHAPE,

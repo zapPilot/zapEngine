@@ -11,6 +11,7 @@ import {
   type EpisodeRenderMetrics,
   recordPipelineRun,
   renderStageRun,
+  videoRenderRunBase,
 } from './ops-ledger.js';
 import {
   buildTelegramVideoCompletedMessage,
@@ -657,16 +658,14 @@ async function recordRenderCost(input: {
   reported: ReportedRenderMetrics | null;
 }): Promise<void> {
   const { job, source, reported } = input;
-  const finishedAt = new Date();
-  await recordPipelineRun({
-    runId: randomUUID(),
-    pipeline: 'video_render',
+  const base = videoRenderRunBase({
     runRef: input.runRef,
-    trigger: 'worker',
     status: input.status,
     startedAt: input.startedAt,
-    finishedAt,
     episodeId: source?.episodeId ?? job.episode_id,
+  });
+  await recordPipelineRun({
+    ...base,
     component: 'video-render',
     stages:
       reported === null || source === null
@@ -679,7 +678,7 @@ async function recordRenderCost(input: {
               localizationId: job.episode_localization_id,
               languageCode: source.languageCode,
               attempt: job.attempt_count,
-              jobWallMs: finishedAt.getTime() - input.startedAt.getTime(),
+              jobWallMs: base.finishedAt.getTime() - input.startedAt.getTime(),
             }),
           ],
   });

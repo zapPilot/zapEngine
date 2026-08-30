@@ -27,6 +27,13 @@ describe('summarizePodcastCosts', () => {
         started_at: '2026-08-28T03:00:00.000Z',
       },
     ];
+    const videoStageBase = {
+      run_id: 'render-ok' as const,
+      episode_id: 'episode-1' as const,
+      language_code: 'en' as const,
+      stage: 'video_render' as const,
+      status: 'completed' as const,
+    };
     const stages = [
       {
         run_id: 'ingest-ok',
@@ -47,20 +54,12 @@ describe('summarizePodcastCosts', () => {
         pricing_basis: 'rate_card' as const,
       },
       {
-        run_id: 'render-ok',
-        episode_id: 'episode-1',
-        language_code: 'en',
-        stage: 'video_render',
-        status: 'completed' as const,
+        ...videoStageBase,
         estimated_cost_usd: 0.4,
         pricing_basis: 'rate_card' as const,
       },
       {
-        run_id: 'render-ok',
-        episode_id: 'episode-1',
-        language_code: 'en',
-        stage: 'video_render',
-        status: 'completed' as const,
+        ...videoStageBase,
         estimated_cost_usd: null,
         pricing_basis: 'unpriced' as const,
       },

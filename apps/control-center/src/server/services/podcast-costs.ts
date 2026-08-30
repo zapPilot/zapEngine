@@ -33,7 +33,9 @@ interface EpisodeRow {
 const RUN_LIMIT = 200;
 const EPISODE_LIMIT = 25;
 
-export function createPodcastCostService(input: { config: ControlCenterConfig }) {
+export function createPodcastCostService(input: {
+  config: ControlCenterConfig;
+}) {
   return {
     async getPodcastCosts(): Promise<PodcastCostResponse> {
       const generatedAt = new Date().toISOString();
