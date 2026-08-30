@@ -1,5 +1,6 @@
 import type { ControlCenterConfig } from '../../../config/env.js';
 import { parseOperationalFingerprint } from './fingerprint.js';
+import { inspectFlySignal } from './fly.js';
 import { inspectGithubSignal } from './github.js';
 import { inspectSentrySignal } from './sentry.js';
 import type { SignalInspection } from './types.js';
@@ -45,6 +46,15 @@ export async function inspectOperationalSignal(input: {
         fetchImpl,
       });
     }
+    if (parsed.source === 'fly') {
+      return await inspectFlySignal({
+        config: input.config,
+        fingerprint: input.fingerprint,
+        parsed,
+        inspectedAt,
+        fetchImpl,
+      });
+    }
 
     return {
       fingerprint: input.fingerprint,
@@ -62,7 +72,9 @@ export async function inspectOperationalSignal(input: {
         ? 'github-actions'
         : parsed.source === 'sentry'
           ? 'sentry'
-          : null;
+          : parsed.source === 'fly'
+            ? 'fly'
+            : null;
     return {
       fingerprint: input.fingerprint,
       source,
