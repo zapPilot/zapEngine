@@ -21,7 +21,9 @@ describe('Fish Audio rate-card migration', () => {
   });
 
   it('prices new Fish stage rows from ops.cost_rates', () => {
-    expect(migration).toMatch(/create or replace function ops\.apply_fish_audio_pipeline_rate_card/i);
+    expect(migration).toMatch(
+      /create or replace function ops\.apply_fish_audio_pipeline_rate_card/i,
+    );
     expect(migration).toMatch(/before insert on ops\.pipeline_stage_runs/i);
     expect(migration).toMatch(/pricing_basis := 'rate_card'/i);
     expect(migration).toMatch(/pricing_basis := 'unpriced'/i);
