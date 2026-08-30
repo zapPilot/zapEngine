@@ -23,6 +23,7 @@ on:
           - account-engine
           - alpha-etl
           - analytics-engine
+          - control-center-vercel
           - expo
           - landing-page
           - podcast-pipeline
@@ -57,7 +58,7 @@ jobs:
         # caught by the verify job's fleet-wide audit.
         target: >-
           ${{ fromJSON((github.event_name == 'push' || github.event.inputs.target == 'all')
-          && '["account-engine","alpha-etl","analytics-engine","expo","landing-page","podcast-pipeline","web"]'
+          && '["account-engine","alpha-etl","analytics-engine","control-center-vercel","expo","landing-page","podcast-pipeline","web"]'
           || format('["{0}"]', github.event.inputs.target)) }}
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
