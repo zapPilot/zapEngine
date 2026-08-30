@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
-import '@testing-library/jest-dom/vitest';
-
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -67,8 +66,9 @@ function podcastCosts(): PodcastCostResponse {
 function customer(
   overrides: Partial<CustomerRecord> & Pick<CustomerRecord, 'userId'>,
 ): CustomerRecord {
+  const { userId, ...rest } = overrides;
   return {
-    userId: overrides.userId,
+    userId,
     email: null,
     planCode: 'standard',
     defaultTier: 'standard',
@@ -95,7 +95,7 @@ function customer(
     attributedCostUsd30d: 0.5,
     costBasis: 'allocated_estimate',
     revenueUsd: null,
-    ...overrides,
+    ...rest,
   };
 }
 
