@@ -49,7 +49,8 @@ export function PodcastUnitEconomics(props: {
               label="Highest recent episode"
               note={
                 summary.highest
-                  ? (summary.highest.title ?? shortId(summary.highest.episodeId))
+                  ? (summary.highest.title ??
+                    shortId(summary.highest.episodeId))
                   : '—'
               }
               value={unitUsd(summary.highest?.totalCostUsd ?? null)}
