@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { priorityFixture, signalFixture } from '../__fixtures__/dashboard.js';
@@ -20,7 +20,7 @@ describe('PriorityQueue', () => {
     expect(screen.getByText('All clear.')).toBeVisible();
   });
 
-  it('keeps the server ranking and shows the score behind it', () => {
+  it('keeps the server ranking while collapsing evidence by default', () => {
     render(
       <PriorityQueue
         emptyMessage="All clear."
@@ -48,6 +48,9 @@ describe('PriorityQueue', () => {
       screen.getAllByRole('listitem').map((item) => item.className),
     ).toEqual(['queue-row critical', 'queue-row degraded']);
     expect(screen.getByText('91')).toBeVisible();
+    expect(screen.getByText('retries exhausted')).not.toBeVisible();
+
+    fireEvent.click(screen.getByText('Machine stopped'));
     expect(screen.getByText('retries exhausted')).toBeVisible();
   });
 
@@ -67,7 +70,7 @@ describe('PriorityQueue', () => {
     expect(screen.queryByText('Second')).toBeNull();
   });
 
-  it('links a signal that carries a source of truth', () => {
+  it('reveals the source link only after the signal is expanded', () => {
     render(
       <PriorityQueue
         emptyMessage="All clear."
@@ -81,7 +84,10 @@ describe('PriorityQueue', () => {
         ]}
       />,
     );
-    const link = screen.getByRole('link', { name: 'Workflow failing' });
+    expect(screen.queryByRole('link', { name: 'Open source' })).toBeNull();
+
+    fireEvent.click(screen.getByText('Workflow failing'));
+    const link = screen.getByRole('link', { name: 'Open source' });
     expect(link).toHaveAttribute(
       'href',
       'https://github.com/zapPilot/zapEngine/actions/runs/1',
