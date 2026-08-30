@@ -9,4 +9,6 @@ export const {
   savePodcastProgress,
   loadPodcastSpeedPreferences,
   savePodcastSpeedPreferences,
+  loadPodcastSortDirection,
+  savePodcastSortDirection,
 } = podcastStorage;
