@@ -27,6 +27,9 @@ pids
 # Coverage directory used by tools like istanbul
 coverage
 
+# dup:check report
+.jscpd
+
 # Temporary files
 .tmp
 *.tmp

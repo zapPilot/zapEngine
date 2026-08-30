@@ -1,0 +1,7 @@
+# `format`/`format:check` run `prettier .` from this directory, and prettier
+# resolves .gitignore relative to its CWD — the repo-root .gitignore is never
+# consulted. Without this file a local build makes format:check fail on dist/.
+dist
+coverage
+.turbo
+.jscpd
