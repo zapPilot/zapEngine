@@ -1,7 +1,13 @@
 #!/usr/bin/env pnpm tsx
 
-import { readFileSync, readdirSync, statSync } from 'fs';
 import { join, relative } from 'path';
+
+import {
+  DriftIssue,
+  findWorkspaceFiles,
+  readJson,
+  reportAndExit,
+} from './drift-lib';
 
 interface TsConfig {
   compilerOptions?: {
@@ -14,100 +20,34 @@ interface TsConfig {
   exclude?: string[];
 }
 
-type JsonObject = Record<string, unknown>;
-
-
 const ROOT = process.cwd();
 const APPS_DIR = join(ROOT, 'apps');
 const PACKAGES_DIR = join(ROOT, 'packages');
-const LOCAL_JSCPD_KEYS = new Set(['$schema', 'format', 'ignore', 'ignorePattern']);
-
-function findTsConfigs(dir: string): string[] {
-  const results: string[] = [];
-  try {
-    const entries = readdirSync(dir);
-    for (const entry of entries) {
-      const fullPath = join(dir, entry);
-      const stat = statSync(fullPath);
-      if (stat.isDirectory()) {
-        const tsconfigPath = join(fullPath, 'tsconfig.json');
-        try {
-          readFileSync(tsconfigPath);
-          results.push(tsconfigPath);
-        } catch {
-          // no tsconfig.json in this subdir
-        }
-      }
-    }
-  } catch {
-    // dir doesn't exist
-  }
-  return results;
-}
-
-function findPackageJson(dir: string): string[] {
-  const results: string[] = [];
-  try {
-    const entries = readdirSync(dir);
-    for (const entry of entries) {
-      const fullPath = join(dir, entry);
-      const stat = statSync(fullPath);
-      if (stat.isDirectory()) {
-        const pkgPath = join(fullPath, 'package.json');
-        try {
-          readFileSync(pkgPath);
-          results.push(pkgPath);
-        } catch {
-          // not a package
-        }
-      }
-    }
-  } catch {
-    // dir doesn't exist
-  }
-  return results;
-}
-
-function loadTsConfig(path: string): TsConfig {
-  try {
-    return JSON.parse(readFileSync(path, 'utf-8'));
-  } catch {
-    return {};
-  }
-}
-
-function loadJsonObject(path: string): JsonObject {
-  try {
-    return JSON.parse(readFileSync(path, 'utf-8')) as JsonObject;
-  } catch {
-    return {};
-  }
-}
-
-function getPackageName(dir: string): string {
-  try {
-    const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf-8'));
-    return pkg.name || dir;
-  } catch {
-    return dir;
-  }
-}
+const LOCAL_JSCPD_KEYS = new Set([
+  '$schema',
+  'format',
+  'ignore',
+  'ignorePattern',
+]);
 
 function main() {
-  const issues: Array<{ type: string; file: string; issue: string; severity: string }> = [];
+  const issues: DriftIssue[] = [];
 
-  const appDirs = findTsConfigs(APPS_DIR);
-  const packageDirs = findTsConfigs(PACKAGES_DIR);
-  const allConfigs = [...appDirs, ...packageDirs];
+  const allConfigs = [
+    ...findWorkspaceFiles(APPS_DIR, 'tsconfig.json'),
+    ...findWorkspaceFiles(PACKAGES_DIR, 'tsconfig.json'),
+  ];
 
   for (const configPath of allConfigs) {
     const dir = join(configPath, '..');
-    const name = getPackageName(dir);
     const rel = relative(ROOT, dir);
-    const cfg = loadTsConfig(configPath);
+    const cfg = readJson<TsConfig>(configPath);
 
     if (cfg.compilerOptions?.rootDir !== undefined) {
-      if (cfg.compilerOptions.rootDir !== './src' && cfg.compilerOptions.rootDir !== '.') {
+      if (
+        cfg.compilerOptions.rootDir !== './src' &&
+        cfg.compilerOptions.rootDir !== '.'
+      ) {
         issues.push({
           type: 'tsconfig_rootDir',
           file: rel,
@@ -120,7 +60,11 @@ function main() {
     if (cfg.compilerOptions?.types !== undefined) {
       const types = cfg.compilerOptions.types;
       const typeStr = JSON.stringify(types);
-      if (!['["node","vitest/globals"]', '["vitest/globals"]', '[]'].includes(typeStr)) {
+      if (
+        !['["node","vitest/globals"]', '["vitest/globals"]', '[]'].includes(
+          typeStr,
+        )
+      ) {
         issues.push({
           type: 'tsconfig_types',
           file: rel,
@@ -130,31 +74,28 @@ function main() {
       }
     }
 
-    if (cfg.include?.includes('test/**/*') && !cfg.include?.includes('tsconfig.test.json')) {
+    if (
+      cfg.include?.includes('test/**/*') &&
+      !cfg.include?.includes('tsconfig.test.json')
+    ) {
       issues.push({
         type: 'tsconfig_inline_tests',
         file: rel,
-        issue: 'includes test/**/* inline (consider a dedicated tsconfig.test.json)',
+        issue:
+          'includes test/**/* inline (consider a dedicated tsconfig.test.json)',
         severity: 'LOW',
       });
     }
   }
 
-  for (const pkgPath of [
-    ...findPackageJson(APPS_DIR),
-    ...findPackageJson(PACKAGES_DIR),
-  ]) {
-    const dir = join(pkgPath, '..');
-    const rel = relative(ROOT, dir);
-    const jscpdPath = join(dir, '.jscpd.json');
+  const jscpdConfigs = [
+    ...findWorkspaceFiles(APPS_DIR, '.jscpd.json'),
+    ...findWorkspaceFiles(PACKAGES_DIR, '.jscpd.json'),
+  ];
 
-    try {
-      readFileSync(jscpdPath);
-    } catch {
-      continue;
-    }
-
-    const cfg = loadJsonObject(jscpdPath);
+  for (const jscpdPath of jscpdConfigs) {
+    const rel = relative(ROOT, join(jscpdPath, '..'));
+    const cfg = readJson<Record<string, unknown>>(jscpdPath);
     const rootOwnedKeys = Object.keys(cfg).filter(
       (key) => !LOCAL_JSCPD_KEYS.has(key),
     );
@@ -169,18 +110,11 @@ function main() {
     }
   }
 
-  if (issues.length > 0) {
-    console.log('📋 Config drift issues:\n');
-    for (const issue of issues) {
-      console.log(`[${issue.severity}] ${issue.type}: ${issue.file}`);
-      console.log(`        ${issue.issue}`);
-    }
-    console.log('');
-    process.exit(1);
-  } else {
-    console.log('✅ No config drift detected');
-    process.exit(0);
-  }
+  reportAndExit(issues, {
+    header: '📋 Config drift issues:\n',
+    ok: '✅ No config drift detected',
+    footer: '',
+  });
 }
 
 main();

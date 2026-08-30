@@ -1,7 +1,13 @@
 #!/usr/bin/env pnpm tsx
 
-import { readFileSync, readdirSync, statSync } from 'fs';
 import { join, relative } from 'path';
+
+import {
+  DriftIssue,
+  findWorkspaceFiles,
+  readJson,
+  reportAndExit,
+} from './drift-lib';
 
 const ROOT = process.cwd();
 
@@ -18,7 +24,6 @@ const TEST_SCRIPTS = [
   'test:watch',
   'test:unit',
   'test:e2e',
-  'test:e2e:safe',
 ];
 const EXPECTED_DUP_CHECK = 'node ../../scripts/lint/run-jscpd.mjs src';
 const ALLOWED_DUP_CHECKS = new Set([
@@ -28,61 +33,28 @@ const ALLOWED_DUP_CHECKS = new Set([
 ]);
 const ALLOWED_REAL_TEST_PACKAGES = new Set(['@zapengine/types']);
 
-function findPackageJson(dir: string): string[] {
-  const results: string[] = [];
+function hasScripts(content: string): boolean {
   try {
-    const entries = readdirSync(dir);
-    for (const entry of entries) {
-      const fullPath = join(dir, entry);
-      const stat = statSync(fullPath);
-      if (stat.isDirectory()) {
-        const pkgPath = join(fullPath, 'package.json');
-        try {
-          const content = readFileSync(pkgPath, 'utf-8');
-          const pkg: PackageJson = JSON.parse(content);
-          if (pkg.scripts) {
-            results.push(pkgPath);
-          }
-        } catch {
-          // not a package
-        }
-      }
-    }
+    return Boolean((JSON.parse(content) as PackageJson).scripts);
   } catch {
-    // dir doesn't exist
-  }
-  return results;
-}
-
-function loadPackageJson(path: string): PackageJson {
-  try {
-    return JSON.parse(readFileSync(path, 'utf-8'));
-  } catch {
-    return {};
+    return false;
   }
 }
 
 function main() {
-  const issues: Array<{
-    type: string;
-    file: string;
-    issue: string;
-    severity: string;
-  }> = [];
+  const issues: DriftIssue[] = [];
 
-  const appsDir = join(ROOT, 'apps');
-  const packagesDir = join(ROOT, 'packages');
-
-  const appPkgs = findPackageJson(appsDir);
-  const packagePkgs = findPackageJson(packagesDir);
-  const allPkgs = [...appPkgs, ...packagePkgs];
+  const allPkgs = [
+    ...findWorkspaceFiles(join(ROOT, 'apps'), 'package.json', hasScripts),
+    ...findWorkspaceFiles(join(ROOT, 'packages'), 'package.json', hasScripts),
+  ];
 
   const scriptMatrix: Record<string, Record<string, boolean>> = {};
 
   for (const pkgPath of allPkgs) {
     const dir = join(pkgPath, '..');
     const rel = relative(ROOT, dir);
-    const pkg = loadPackageJson(pkgPath);
+    const pkg = readJson<PackageJson>(pkgPath);
     const name = pkg.name || rel;
     const scripts = pkg.scripts || {};
 
@@ -169,17 +141,10 @@ function main() {
   console.log('📋 Script matrix:\n');
   console.table(scriptMatrix);
 
-  if (issues.length > 0) {
-    console.log('\n⚠️  Script drift issues:\n');
-    for (const issue of issues) {
-      console.log(`[${issue.severity}] ${issue.type}: ${issue.file}`);
-      console.log(`        ${issue.issue}`);
-    }
-    process.exit(1);
-  } else {
-    console.log('\n✅ No script drift detected');
-    process.exit(0);
-  }
+  reportAndExit(issues, {
+    header: '\n⚠️  Script drift issues:\n',
+    ok: '\n✅ No script drift detected',
+  });
 }
 
 main();
