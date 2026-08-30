@@ -1,10 +1,15 @@
 import { toError } from '../lib/errorMessage.js';
-import type { FlyMachinesClient } from './fly-machines.js';
+import {
+  flyImageRefsMatch,
+  type FlyMachinesClient,
+  type FlyMachineSummary,
+} from './fly-machines.js';
 import {
   getPipelineSupabase,
   type PipelineSupabaseClient,
 } from './supabase-client.js';
 import {
+  buildTelegramRenderFleetWarningMessage,
   buildTelegramRenderWakeFailedMessage,
   sendTelegramNotification,
   type TelegramChatId,
@@ -96,6 +101,7 @@ export interface RenderCapacityReconciler {
 
 export interface CreateRenderCapacityReconcilerOptions {
   machines: FlyMachinesClient;
+  currentImageRef: string;
   probe?: RenderWorkProbe;
   notify?: (chatId: TelegramChatId, text: string) => Promise<void>;
   pollIntervalMs?: number;
@@ -195,6 +201,7 @@ export function createRenderCapacityReconciler(
   options: CreateRenderCapacityReconcilerOptions,
 ): RenderCapacityReconciler {
   const machines = options.machines;
+  const currentImageRef = options.currentImageRef;
   const probe = options.probe ?? createRenderWorkProbe();
   const notify = options.notify ?? sendTelegramNotification;
   const pollIntervalMs =
@@ -211,6 +218,7 @@ export function createRenderCapacityReconciler(
   let apiFailures = 0;
   let apiFailureNotified = false;
   let missingMachinesNotified = false;
+  let unhealthyInventoryNotified = false;
 
   const warn = async (
     chatId: string | null,
@@ -245,6 +253,51 @@ export function createRenderCapacityReconciler(
     return 'error';
   };
 
+  const selectCurrentMachines = async (
+    renderMachines: readonly FlyMachineSummary[],
+    pending: PendingRenderWork,
+  ): Promise<FlyMachineSummary[] | null> => {
+    const currentMachines = renderMachines
+      .filter((machine) => flyImageRefsMatch(machine.image, currentImageRef))
+      .sort((left, right) => left.id.localeCompare(right.id));
+    const staleMachines = renderMachines.filter(
+      (machine) => !flyImageRefsMatch(machine.image, currentImageRef),
+    );
+
+    if (currentMachines.length === 0) {
+      if (!missingMachinesNotified) {
+        missingMachinesNotified = true;
+        const detail = describeMissingCurrentMachine(
+          renderMachines.length,
+          staleMachines.length,
+        );
+        await warn(
+          pending.telegramChatId,
+          buildTelegramRenderWakeFailedMessage(detail),
+          `[render-capacity] ${detail}; video work is stalled`,
+        );
+      }
+      return null;
+    }
+    missingMachinesNotified = false;
+
+    if (currentMachines.length > 1 || staleMachines.length > 0) {
+      if (!unhealthyInventoryNotified) {
+        unhealthyInventoryNotified = true;
+        const detail = `render fleet has ${describeMachineCount(currentMachines.length, 'current-release')} and ${describeMachineCount(staleMachines.length, 'stale')}`;
+        await warn(
+          pending.telegramChatId,
+          buildTelegramRenderFleetWarningMessage(detail),
+          `[render-capacity] ${detail}; wake continues on the current release`,
+        );
+      }
+    } else {
+      unhealthyInventoryNotified = false;
+    }
+
+    return currentMachines;
+  };
+
   const runOnce = async (): Promise<RenderCapacityOutcome> => {
     let pending: PendingRenderWork | null;
     try {
@@ -275,20 +328,11 @@ export function createRenderCapacityReconciler(
     apiFailures = 0;
     apiFailureNotified = false;
 
-    if (renderMachines.length === 0) {
-      if (!missingMachinesNotified) {
-        missingMachinesNotified = true;
-        await warn(
-          pending.telegramChatId,
-          buildTelegramRenderWakeFailedMessage(
-            'Fly app has no machine in the render process group',
-          ),
-          '[render-capacity] no machine in the render process group; video work is stalled',
-        );
-      }
-      return 'no-render-machines';
-    }
-    missingMachinesNotified = false;
+    const currentMachines = await selectCurrentMachines(
+      renderMachines,
+      pending,
+    );
+    if (!currentMachines) return 'no-render-machines';
 
     // Already rendering. Deliberately not counted by the repeat guard: the group
     // is making progress, and a long render would otherwise look like thrash.
@@ -323,9 +367,9 @@ export function createRenderCapacityReconciler(
     // so waking more would only add cost. Two `app` machines racing to start the
     // same one is harmless: a repeated start does not boot it twice.
     const target =
-      renderMachines.find((machine) =>
+      currentMachines.find((machine) =>
         WAKEABLE_MACHINE_STATES.has(machine.state),
-      ) ?? renderMachines[0]!;
+      ) ?? currentMachines[0]!;
     try {
       await machines.startMachine(target.id);
     } catch (error) {
@@ -373,6 +417,21 @@ export function createRenderCapacityReconciler(
       }
     },
   };
+}
+
+function describeMissingCurrentMachine(
+  renderMachineCount: number,
+  staleMachineCount: number,
+): string {
+  if (renderMachineCount === 0) {
+    return 'Fly app has no machine in the render process group';
+  }
+  return `Fly app has no render machine for the current release (${describeMachineCount(staleMachineCount, 'stale')} exist)`;
+}
+
+function describeMachineCount(count: number, qualifier: string): string {
+  const noun = count === 1 ? 'machine' : 'machines';
+  return `${count} ${qualifier} ${noun}`;
 }
 
 function visualWorkReason(

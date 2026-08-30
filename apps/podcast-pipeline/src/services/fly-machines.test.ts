@@ -4,6 +4,7 @@ import {
   createFlyMachinesClient,
   FLY_INTERNAL_API_BASE_URL,
   FlyApiError,
+  flyImageRefsMatch,
 } from './fly-machines.js';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -44,7 +45,10 @@ describe('createFlyMachinesClient', () => {
         {
           id: 'machine-render',
           state: 'stopped',
-          config: { metadata: { fly_process_group: 'render' } },
+          config: {
+            image: 'registry.fly.io/app:deployment-123@sha256:abc',
+            metadata: { fly_process_group: 'render' },
+          },
         },
         {
           id: 'machine-app',
@@ -57,8 +61,18 @@ describe('createFlyMachinesClient', () => {
     const machines = await makeClient(fetchImpl as never).listMachines();
 
     expect(machines).toEqual([
-      { id: 'machine-render', state: 'stopped', processGroup: 'render' },
-      { id: 'machine-app', state: 'started', processGroup: 'app' },
+      {
+        id: 'machine-render',
+        state: 'stopped',
+        processGroup: 'render',
+        image: 'registry.fly.io/app:deployment-123@sha256:abc',
+      },
+      {
+        id: 'machine-app',
+        state: 'started',
+        processGroup: 'app',
+        image: null,
+      },
     ]);
     expect(fetchImpl).toHaveBeenCalledWith(
       `${FLY_INTERNAL_API_BASE_URL}/v1/apps/from-fed-to-chain-api/machines`,
@@ -80,7 +94,12 @@ describe('createFlyMachinesClient', () => {
     await expect(
       makeClient(fetchImpl as never).listMachines(),
     ).resolves.toEqual([
-      { id: 'machine-1', state: 'started', processGroup: null },
+      {
+        id: 'machine-1',
+        state: 'started',
+        processGroup: null,
+        image: null,
+      },
     ]);
   });
 
@@ -172,5 +191,26 @@ describe('createFlyMachinesClient', () => {
       'https://api.machines.dev/v1/apps/app%20with%20spaces/machines',
       expect.anything(),
     );
+  });
+});
+
+describe('flyImageRefsMatch', () => {
+  it('treats digest-qualified and unqualified refs as the same image', () => {
+    expect(
+      flyImageRefsMatch(
+        'registry.fly.io/app:deployment-123@sha256:abcdef',
+        'registry.fly.io/app:deployment-123',
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects missing and different image refs', () => {
+    expect(flyImageRefsMatch(null, 'registry.fly.io/app:current')).toBe(false);
+    expect(
+      flyImageRefsMatch(
+        'registry.fly.io/app:stale@sha256:abc',
+        'registry.fly.io/app:current@sha256:def',
+      ),
+    ).toBe(false);
   });
 });

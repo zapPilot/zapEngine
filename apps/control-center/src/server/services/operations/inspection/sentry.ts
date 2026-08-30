@@ -35,9 +35,7 @@ const frameSchema = z.object({
 const exceptionValueSchema = z.object({
   type: z.string().nullish(),
   value: z.string().nullish(),
-  stacktrace: z
-    .object({ frames: z.array(z.unknown()).optional() })
-    .nullish(),
+  stacktrace: z.object({ frames: z.array(z.unknown()).optional() }).nullish(),
 });
 
 const exceptionEntrySchema = z.object({
@@ -65,7 +63,10 @@ export async function inspectSentrySignal(input: {
   fetchImpl: typeof fetch;
 }): Promise<SignalInspection> {
   if (input.parsed.kind !== 'issues') {
-    return unsupported(input, `Sentry inspection does not support ${input.parsed.kind} signals.`);
+    return unsupported(
+      input,
+      `Sentry inspection does not support ${input.parsed.kind} signals.`,
+    );
   }
 
   const token = input.config.SENTRY_OPS_AUTH_TOKEN;
@@ -76,7 +77,8 @@ export async function inspectSentrySignal(input: {
       source: 'sentry',
       status: 'unavailable',
       inspectedAt: input.inspectedAt.toISOString(),
-      summary: 'Sentry deep inspection is unavailable because credentials are incomplete.',
+      summary:
+        'Sentry deep inspection is unavailable because credentials are incomplete.',
       entities: [],
       evidence: {},
       gaps: [
@@ -106,9 +108,10 @@ export async function inspectSentrySignal(input: {
   }
 
   const project = input.parsed.key;
-  const scoped = (project === 'organization'
-    ? issues
-    : issues.filter((issue) => issue.project.slug === project)
+  const scoped = (
+    project === 'organization'
+      ? issues
+      : issues.filter((issue) => issue.project.slug === project)
   )
     .sort((left, right) => right.count - left.count)
     .slice(0, TOP_ISSUES);
@@ -134,7 +137,11 @@ export async function inspectSentrySignal(input: {
 
   const top = scoped[0];
   const sampleEvent = top
-    ? await loadLatestEvent({ token, issueId: top.id, fetchImpl: input.fetchImpl })
+    ? await loadLatestEvent({
+        token,
+        issueId: top.id,
+        fetchImpl: input.fetchImpl,
+      })
     : null;
 
   return {

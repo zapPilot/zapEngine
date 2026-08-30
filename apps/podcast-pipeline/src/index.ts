@@ -595,6 +595,7 @@ function createRenderCapacityFromEnv(): RenderCapacityReconciler | null {
 
   return createRenderCapacityReconciler({
     machines: createFlyMachinesClient(config),
+    currentImageRef: config.currentImageRef,
   });
 }
 
