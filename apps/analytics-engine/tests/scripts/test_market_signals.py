@@ -9,6 +9,7 @@ import pytest
 
 from scripts.landing.market_signals import (
     normalize_meta_timestamp,
+    truncate_to_reference_date,
     validate_dashboard_payload,
     write_payload,
 )
@@ -63,6 +64,24 @@ def test_normalize_meta_timestamp_is_idempotent() -> None:
 
     assert once == twice
     assert twice["meta"]["timestamp"] == "2026-08-20T00:00:00Z"
+
+
+def test_truncate_to_reference_date_removes_newer_snapshots() -> None:
+    payload = _payload()
+    payload["snapshots"].append(
+        {"snapshot_date": "2026-08-21", "values": {"btc": {"value": 2}}}
+    )
+    payload["meta"]["count"] = 2
+
+    truncated = truncate_to_reference_date(payload, "2026-08-20")
+
+    assert [item["snapshot_date"] for item in truncated["snapshots"]] == ["2026-08-20"]
+    assert truncated["meta"]["count"] == 1
+
+
+def test_truncate_to_reference_date_rejects_missing_date() -> None:
+    with pytest.raises(ValueError, match="expected 2026-08-21"):
+        truncate_to_reference_date(_payload(), "2026-08-21")
 
 
 def test_write_payload_round_trips(tmp_path: Path) -> None:
