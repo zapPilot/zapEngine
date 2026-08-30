@@ -30,6 +30,9 @@ const schema = z.object({
   SENTRY_ORG_SLUG: optionalString,
   POSTHOG_PERSONAL_API_KEY: optionalString,
   POSTHOG_PROJECT_ID: optionalString,
+  // Remote MCP is independently gated from the dashboard. Provider credentials
+  // stay server-side; clients only receive the normalized read model.
+  OPS_MCP_TOKEN: optionalString,
 });
 
 export type ControlCenterConfig = z.infer<typeof schema>;

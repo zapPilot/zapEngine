@@ -15,6 +15,7 @@
     "lint": "eslint src/ api/ vite.config.ts",
     "lint:fix": "eslint src/ api/ vite.config.ts --fix",
     "ops:cost": "tsx src/server/cost-cli.ts",
+    "ops:mcp": "tsx src/server/mcp/stdio.ts",
     "ops:status": "tsx src/server/ops-status-cli.ts",
     "ops:sync": "tsx src/server/sync.ts",
     "start": "node dist/server/server/main.js",
@@ -25,8 +26,9 @@
     "type-check": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.vercel.json"
   },
   "dependencies": {
-    "@sentry/node": "^10.70.0",
     "@hono/node-server": "catalog:",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "@sentry/node": "^10.70.0",
     "@supabase/supabase-js": "catalog:",
     "@zapengine/cost-observability": "workspace:*",
     "@zapengine/types": "workspace:*",
