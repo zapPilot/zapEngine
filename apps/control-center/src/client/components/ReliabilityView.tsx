@@ -54,27 +54,21 @@ export function ReliabilityView(props: {
         </section>
       </div>
 
-      <details className="panel decision-disclosure reliability-evidence">
-        <summary className="decision-disclosure-summary">
-          <span className="signal-disclosure-copy">
-            <strong>Signal evidence</strong>
-            <small>
-              {data
-                ? `${integer(problemSignals.length)} non-healthy · ${integer(data.signals.length)} total`
-                : 'Waiting for operational signals'}
-            </small>
+      <details className="panel signal-evidence">
+        <summary className="signal-evidence-summary">
+          <strong>Signal evidence</strong>
+          <span>
+            {data
+              ? `${integer(problemSignals.length)} non-healthy · ${integer(data.signals.length)} total`
+              : 'Waiting for operational signals'}
           </span>
         </summary>
-        <div className="decision-disclosure-body">
-          <section className="disclosure-section">
-            <div className="panel-head">
-              <h2>All signals</h2>
-              <small className="panel-note">
-                Raw source evidence, including healthy checks and fingerprints
-              </small>
-            </div>
-            <SignalTable signals={data?.signals ?? []} waiting={!data} />
-          </section>
+        <div className="signal-evidence-body">
+          <p>
+            Raw source evidence, including healthy checks and fingerprints. Open
+            this only when a ranked decision needs auditing.
+          </p>
+          <SignalAudit signals={data?.signals ?? []} waiting={!data} />
         </div>
       </details>
     </div>
@@ -94,52 +88,36 @@ function DomainChip({ domain }: { domain: OperationsDomainSummary }) {
   );
 }
 
-function SignalTable(props: {
+function SignalAudit({
+  signals,
+  waiting,
+}: {
   signals: OperationalSignal[];
   waiting: boolean;
 }) {
+  if (waiting) {
+    return <div className="empty-inline">Waiting for data.</div>;
+  }
+  if (signals.length === 0) {
+    return <div className="empty-inline">No signals collected.</div>;
+  }
   return (
-    <div className="table-wrap">
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Status</th>
-            <th>Domain</th>
-            <th>Signal</th>
-            <th>Evidence</th>
-            <th>Seen</th>
-          </tr>
-        </thead>
-        <tbody>
-          {props.signals.map((signal) => (
-            <SignalRow key={signal.fingerprint} signal={signal} />
-          ))}
-        </tbody>
-      </table>
-      {!props.waiting && props.signals.length === 0 ? (
-        <div className="empty-inline">No signals collected.</div>
-      ) : null}
-      {props.waiting ? (
-        <div className="empty-inline">Waiting for data.</div>
-      ) : null}
+    <div className="signal-audit-list">
+      {signals.map((signal) => (
+        <article className="signal-audit-row" key={signal.fingerprint}>
+          <StatusPill compact status={signal.status} />
+          <div className="signal-audit-title">
+            <strong>{signal.title}</strong>
+            <small>{signal.fingerprint}</small>
+          </div>
+          <span className="signal-audit-domain">{signal.domain}</span>
+          <span className="signal-audit-evidence">
+            {formatEvidence(signal.evidence)}
+          </span>
+          <time>{relativeTime(signal.observedAt)}</time>
+        </article>
+      ))}
     </div>
-  );
-}
-
-function SignalRow({ signal }: { signal: OperationalSignal }) {
-  return (
-    <tr>
-      <td>
-        <StatusPill compact status={signal.status} />
-      </td>
-      <td className="cell-domain">{signal.domain}</td>
-      <td>
-        <span className="cell-title">{signal.title}</span>
-        <small className="cell-fingerprint">{signal.fingerprint}</small>
-      </td>
-      <td className="cell-evidence">{formatEvidence(signal.evidence)}</td>
-      <td className="cell-nowrap">{relativeTime(signal.observedAt)}</td>
-    </tr>
   );
 }
 
