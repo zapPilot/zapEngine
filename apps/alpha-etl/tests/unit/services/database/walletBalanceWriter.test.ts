@@ -79,6 +79,19 @@ describe('WalletBalanceWriter', () => {
     expect(query.mock.calls[3]?.[0]).toBe('COMMIT');
   });
 
+  it('falls back to snapshot_time and keeps the UTC day for late timestamps', async () => {
+    query.mockResolvedValue({ rowCount: 1 });
+
+    await new WalletBalanceWriter().writeWalletBalanceSnapshots([
+      token({
+        inserted_at: null,
+        snapshot_time: '2026-08-23T23:59:59.999Z',
+      }),
+    ]);
+
+    expect(query.mock.calls[1]?.[1]).toEqual(['0xabc', '2026-08-23']);
+  });
+
   it('does not connect when no idle wallet tokens are present', async () => {
     const result = await new WalletBalanceWriter().writeWalletBalanceSnapshots([
       token({ is_wallet: false }),

@@ -12,6 +12,7 @@ import type {
   PortfolioItemSnapshotInsert,
   PortfolioSnapshotSource,
 } from '../../types/database.js';
+import { formatDateToYYYYMMDD } from '../../utils/dateUtils.js';
 import { logger } from '../../utils/logger.js';
 import {
   recordReplacementResult,
@@ -112,12 +113,8 @@ function toDailyPosition(
     ...record,
     wallet: record.wallet.toLowerCase(),
     source,
-    snapshot_date: toUtcDateString(record.snapshot_at),
+    snapshot_date: formatDateToYYYYMMDD(new Date(record.snapshot_at)),
   };
-}
-
-function toUtcDateString(isoTimestamp: string): string {
-  return new Date(isoTimestamp).toISOString().slice(0, 10);
 }
 
 function collectReplaceKeys(
@@ -135,7 +132,7 @@ function collectReplaceKeys(
       source,
     ]);
   }
-  const snapshotDate = toUtcDateString(new Date().toISOString());
+  const snapshotDate = formatDateToYYYYMMDD(new Date());
   for (const wallet of successfulWallets) {
     const normalizedWallet = wallet.toLowerCase();
     if (walletsWithPositions.has(normalizedWallet)) {

@@ -11,6 +11,7 @@ import type {
   DailyWalletTokenInsert,
   WalletBalanceSnapshotInsert,
 } from '../../types/database.js';
+import { formatDateToYYYYMMDD } from '../../utils/dateUtils.js';
 import {
   recordReplacementResult,
   replaceRowsInTransaction,
@@ -84,8 +85,8 @@ function toDailyWalletTokens(
       symbol: snapshot.symbol ?? null,
       amount: snapshot.amount ?? null,
       price: snapshot.price ?? null,
-      snapshot_date: toUtcDateString(
-        snapshot.inserted_at ?? snapshot.snapshot_time ?? new Date(),
+      snapshot_date: formatDateToYYYYMMDD(
+        new Date(snapshot.inserted_at ?? snapshot.snapshot_time ?? Date.now()),
       ),
     };
     tokens.set(
@@ -95,11 +96,6 @@ function toDailyWalletTokens(
   }
 
   return [...tokens.values()];
-}
-
-function toUtcDateString(value: unknown): string {
-  const date = value instanceof Date ? value : new Date(String(value));
-  return date.toISOString().slice(0, 10);
 }
 
 function collectReplaceKeys(
@@ -115,7 +111,7 @@ function collectReplaceKeys(
       token.snapshot_date,
     ]);
   }
-  const snapshotDate = toUtcDateString(new Date());
+  const snapshotDate = formatDateToYYYYMMDD(new Date());
   for (const wallet of successfulWallets) {
     const normalizedWallet = wallet.toLowerCase();
     if (walletsWithTokens.has(normalizedWallet)) {
