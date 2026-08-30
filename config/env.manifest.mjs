@@ -405,6 +405,8 @@ export const ENV_MANIFEST = {
   // `requiredFor`: each adapter reports `unknown` rather than failing when its
   // credential is absent, so the dashboard ships before the tokens exist.
   OPS_GITHUB_TOKEN: server(['control-center'], { sensitive: true }),
+  FLY_OPS_TOKEN: server(['control-center'], { sensitive: true }),
+  OPS_MCP_TOKEN: server(['control-center'], { sensitive: true }),
   SENTRY_OPS_AUTH_TOKEN: server(['control-center'], { sensitive: true }),
   SENTRY_ORG_SLUG: server(['control-center']),
   POSTHOG_PERSONAL_API_KEY: server(['control-center'], { sensitive: true }),
