@@ -31,6 +31,9 @@ if (!target || !DESTINATION_NAMES.includes(target)) {
 
 const destination = ENV_DESTINATIONS[target];
 const environment = destination.sourceEnvironment ?? destination.environment;
+const includedNames = destination.include
+  ? new Set(destination.include)
+  : undefined;
 let values;
 try {
   values = resolveValues(environment);
@@ -45,6 +48,7 @@ const classificationErrors = auditSecretClassification({
 const safetyErrors =
   environment === 'prod' ? validateProductionEnv(values) : [];
 const missingRequired = Object.entries(ENV_MANIFEST)
+  .filter(([name]) => !includedNames || includedNames.has(name))
   .filter(([, definition]) => definition.kind !== 'host')
   .filter(([, definition]) => definition.targets.includes(destination.target))
   .filter(([, definition]) =>
@@ -76,6 +80,7 @@ const projectionKind = ['expo', 'web'].includes(destination.target)
       ? 'vite'
       : undefined;
 const desired = Object.entries(ENV_MANIFEST)
+  .filter(([canonical]) => !includedNames || includedNames.has(canonical))
   .filter(([, definition]) => definition.kind !== 'host')
   .filter(([, definition]) => definition.environments.includes(environment))
   .filter(([, definition]) => definition.targets.includes(destination.target))
