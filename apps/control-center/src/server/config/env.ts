@@ -26,6 +26,7 @@ const schema = z.object({
   // absent credential makes its adapter report `unknown`, never `healthy`,
   // and never sends a request that would be rejected or rate-limited.
   OPS_GITHUB_TOKEN: optionalString,
+  FLY_OPS_TOKEN: optionalString,
   SENTRY_OPS_AUTH_TOKEN: optionalString,
   SENTRY_ORG_SLUG: optionalString,
   POSTHOG_PERSONAL_API_KEY: optionalString,
