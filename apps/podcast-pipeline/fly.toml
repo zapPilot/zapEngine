@@ -11,7 +11,7 @@ primary_region = 'iad'
 kill_signal = 'SIGINT'
 # Ingest can still be waiting on LLM/TTS work when a deploy starts. Give the
 # process enough time to drain active work before Fly terminates the old Machine.
-kill_timeout = '180s'
+kill_timeout = '1800s'
 
 [build]
   dockerfile = 'Dockerfile'
