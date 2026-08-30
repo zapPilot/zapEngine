@@ -1,1 +1,23 @@
-CLAUDE.md
+See @README.md for project overview and @package.json for available scripts.
+
+`migrations/` is frozen immutable history; new DB migrations go through root `supabase/migrations/` (see CONTRIBUTING.md "Adding a database migration").
+
+# Gotchas
+
+- Test framework is **Vitest**, not Jest. Use `vi.mock()`, not `jest.mock()`.
+- Import paths MUST include `.js` extension: `import { foo } from './bar.js'` (ES modules)
+- Close DB pool in tests: `afterAll(() => closeDbPool())`
+- APY and APR should not be mixed; active pipelines store provider-normalized yield fields.
+- Rate limits are enforced in `BaseApiFetcher` — do not bypass: DeBank 1 req/sec, Hyperliquid 60 req/min
+- DeBank and Hyperliquid replace affected provider/wallet/UTC-day slices in
+  `analytics.daily_*` directly, including successful empty fetches. Alpha ETL invokes
+  `analytics.rebuild_category_trends(text[])` after writes; there is no
+  snapshot trigger, dirty queue, cache, or database-cron fallback.
+
+# Macro Fear & Greed
+
+- CNN Fear & Greed is a 0-100 broader US equity sentiment composite, not an S&P500-only signal. Low values mean fear; high values mean greed.
+- Use `macro_fear_greed` / `us_equity_fear_greed` naming. Do not name this `sp500_fgi`.
+- The CNN source is an unofficial/internal JSON endpoint (`production.dataviz.cnn.io/index/fearandgreed/graphdata`), so provider code must use cache/fallback and must not be called directly from strategy logic.
+- Store CNN macro FGI in `alpha_raw.macro_fear_greed_snapshots`; do not mix it into crypto `alpha_raw.sentiment_snapshots`.
+- Strategy consumers should only read the normalized provider result (`score`/`normalized_score` 0..100, `label`, `source`, `updated_at`) from cached DB-backed data.

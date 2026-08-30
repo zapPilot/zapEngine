@@ -3,7 +3,7 @@
 Keep repository documentation small and operational. The source-of-truth order is:
 
 1. Code, tests, schemas, and checked-in configuration
-2. The nearest scoped instruction file; root `AGENTS.md` is canonical and root `CLAUDE.md` is a compatibility entry point
+2. The nearest scoped instruction file; `AGENTS.md` is canonical at every scope and the `CLAUDE.md`/`GEMINI.md` beside it are compatibility entry points only
 3. Architecture decisions and operational runbooks
 4. GitHub Issues for unfinished work
 

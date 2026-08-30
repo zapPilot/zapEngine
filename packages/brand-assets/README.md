@@ -41,4 +41,4 @@ import usdc from '@zapengine/brand-assets/assets/tokens/usdc.png';
 A key with no artwork is a supported state — consumers render a glyph or
 monogram fallback — so step 3 can land before the artwork does.
 
-See [CLAUDE.md](./CLAUDE.md) for the invariants this package must keep.
+See [AGENTS.md](./AGENTS.md) for the invariants this package must keep.

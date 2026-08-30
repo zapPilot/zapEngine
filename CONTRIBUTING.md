@@ -1,6 +1,6 @@
 # Contributing to zapEngine
 
-This monorepo uses `pnpm`, Turbo, TypeScript, and Python/FastAPI services. Start with root [AGENTS.md](./AGENTS.md), then read the nearest scoped instruction file in the area you are changing. `CLAUDE.md` and `GEMINI.md` exist only as compatibility entry points.
+This monorepo uses `pnpm`, Turbo, TypeScript, and Python/FastAPI services. Start with root [AGENTS.md](./AGENTS.md), then read the nearest scoped instruction file in the area you are changing. `AGENTS.md` holds the content at every scope; the `CLAUDE.md` and `GEMINI.md` beside it are compatibility entry points that point back at it — symlinks at the repository root and each workspace root, a one-line pointer in nested scopes. Edit `AGENTS.md`, never its entry points.
 
 ## Daily workflow
 
@@ -139,7 +139,7 @@ Add dependencies with `uv add`. Type checking is strict and functions require an
 
 ## Strategy iteration
 
-Backtesting guidance lives beside the code in `apps/analytics-engine/src/services/backtesting/CLAUDE.md`. For intentional strategy behavior changes, run:
+Backtesting guidance lives beside the code in `apps/analytics-engine/src/services/backtesting/AGENTS.md`. For intentional strategy behavior changes, run:
 
 ```bash
 pnpm --filter @zapengine/analytics-engine test:strategy-snapshot:fast

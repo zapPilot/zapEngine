@@ -11,7 +11,7 @@ pnpm --filter @zapengine/analytics-engine dev     # http://localhost:8001
 
 From inside this directory, drop the `--filter …` prefix: `pnpm build`, `pnpm dev`, etc. From the monorepo root, the default `pnpm dev` already includes analytics-engine; use `pnpm dev analytics` only when you want this service by itself.
 
-See [CLAUDE.md](./CLAUDE.md) for the full command list and gotchas.
+See [AGENTS.md](./AGENTS.md) for the full command list and gotchas.
 
 ## API
 
@@ -30,7 +30,7 @@ which point to the canonical iteration log, playbook, and operator commands.
 
 ## Import conventions & dead-code policy
 
-See [CLAUDE.md](./CLAUDE.md).
+See [AGENTS.md](./AGENTS.md).
 
 ## Environment
 

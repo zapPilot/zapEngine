@@ -23,4 +23,4 @@ pnpm build          # → ./out (static)
 
 Static export (`output: 'export'` in `next.config.ts`) deployed to Vercel by the repo's deploy workflow.
 
-See [CLAUDE.md](./CLAUDE.md) for test framework and port notes.
+See [AGENTS.md](./AGENTS.md) for test framework and port notes.
