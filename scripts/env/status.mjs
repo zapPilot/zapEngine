@@ -28,7 +28,11 @@ function projectedName(name, definition, target) {
 function desiredFor(destination) {
   const sourceEnvironment =
     destination.sourceEnvironment ?? destination.environment;
+  const includedNames = destination.include
+    ? new Set(destination.include)
+    : undefined;
   return Object.entries(ENV_MANIFEST)
+    .filter(([name]) => !includedNames || includedNames.has(name))
     .filter(([, definition]) => definition.kind !== 'host')
     .filter(([, definition]) =>
       definition.environments.includes(sourceEnvironment),
