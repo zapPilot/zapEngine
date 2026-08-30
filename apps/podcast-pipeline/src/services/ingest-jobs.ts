@@ -50,7 +50,7 @@ export interface PodcastIngestJobStore {
 }
 
 export class PodcastIngestJobContractError extends Error {
-  readonly jobId?: string;
+  readonly jobId: string | undefined;
 
   constructor(message: string, jobId?: string) {
     super(`Invalid podcast ingest job row: ${message}`);
@@ -130,7 +130,11 @@ export function parsePodcastIngestJobRow(value: unknown): PodcastIngestJobRow {
   }
 
   const attemptCount = value['attempt_count'];
-  if (!Number.isInteger(attemptCount) || (attemptCount as number) < 0) {
+  if (
+    typeof attemptCount !== 'number' ||
+    !Number.isInteger(attemptCount) ||
+    attemptCount < 0
+  ) {
     contractError(value, 'attempt_count must be a non-negative integer');
   }
 
@@ -140,7 +144,7 @@ export function parsePodcastIngestJobRow(value: unknown): PodcastIngestJobRow {
     language_code: languageCode as LanguageClassroomLanguageCode,
     telegram_chat_id: telegramChatId,
     status: status as PodcastIngestJobStatus,
-    attempt_count: attemptCount as number,
+    attempt_count: attemptCount,
     lease_owner: nullableString(value, 'lease_owner', value),
     lease_expires_at: nullableString(value, 'lease_expires_at', value),
     last_error: nullableString(value, 'last_error', value),
