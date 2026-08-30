@@ -172,59 +172,29 @@ export function listDestinationKeys(destination) {
   );
 }
 
-// Both secret writes below redeploy the app to apply the change, and with no
-// `-c` flyctl deploys the config Fly kept from the last `fly deploy` instead of
-// the one in this repo. The two drift: podcast-pipeline's fly.toml bans
-// bluegreen, but that ban was never deployed, so every apply run redeployed it
-// bluegreen -- cloning the whole fleet, two performance-2x render Machines
-// included, then failing `wait timeout` because the app drains for its 300s
-// kill_timeout. Pointing flyctl at the committed config makes this repo, not
-// whatever Fly happens to be holding, decide how a secret rolls out.
-function flyDeployConfig(destination) {
-  if (!destination.config) {
-    throw new Error(
-      `not checkable: Fly destination ${destination.app} declares no config path`,
-    );
-  }
-  return ['--config', path.join(repoRoot, destination.config)];
-}
-
+// Both secret writes below redeploy the app, and that redeploy always uses the
+// config Fly stored at the last `fly deploy` -- passing `-c` here does not
+// change it (tried in c28e3418, reverted). `fly deploy --config` is the only
+// path that writes this repo's fly.toml back to the platform, so editing
+// fly.toml is not the same as changing how the app rolls out; check what Fly
+// actually holds with `flyctl config show --app <name>`. Ignoring that gap is
+// how podcast-pipeline stayed on bluegreen after its fly.toml banned it, and
+// every env-apply run cloned the whole fleet before failing `wait timeout`.
 export function importFlyValues(destination, values) {
   const input = `${Object.entries(values)
     .map(([name, value]) => `${name}=${value}`)
     .join('\n')}\n`;
-  run(
-    FLY_BIN,
-    [
-      'secrets',
-      'import',
-      '--app',
-      destination.app,
-      ...flyDeployConfig(destination),
-    ],
-    {
-      input,
-      failure: `Fly sync failed for ${destination.app}`,
-    },
-  );
+  run(FLY_BIN, ['secrets', 'import', '--app', destination.app], {
+    input,
+    failure: `Fly sync failed for ${destination.app}`,
+  });
 }
 
 export function unsetFlyKeys(destination, names) {
   if (names.length === 0) return;
-  run(
-    FLY_BIN,
-    [
-      'secrets',
-      'unset',
-      ...names,
-      '--app',
-      destination.app,
-      ...flyDeployConfig(destination),
-    ],
-    {
-      failure: `Fly prune failed for ${destination.app}`,
-    },
-  );
+  run(FLY_BIN, ['secrets', 'unset', ...names, '--app', destination.app], {
+    failure: `Fly prune failed for ${destination.app}`,
+  });
 }
 
 export function setEasValue(destination, name, value, sensitive) {

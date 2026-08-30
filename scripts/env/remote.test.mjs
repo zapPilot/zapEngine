@@ -6,13 +6,10 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { ENV_DESTINATIONS } from '../../config/env.destinations.mjs';
-import { importFlyValues, listVercelKeys } from './remote.mjs';
+import { listVercelKeys } from './remote.mjs';
 
 const VERCEL_DESTINATIONS = Object.entries(ENV_DESTINATIONS).filter(
   ([, destination]) => destination.platform === 'vercel',
-);
-const FLY_DESTINATIONS = Object.entries(ENV_DESTINATIONS).filter(
-  ([, destination]) => destination.platform === 'fly',
 );
 
 // A stub on PATH is the only way to observe the argv and env `remote.mjs` hands
@@ -72,51 +69,4 @@ test('a failing CLI reports its own stderr and exit code', () => {
       message: /vercel exited 1: Error: Project not found/u,
     },
   );
-});
-
-function stubFly({ stdout = '{}', stderr = '', status = 0 } = {}) {
-  const dir = mkdtempSync(path.join(tmpdir(), 'env-remote-fly-'));
-  const argvLog = path.join(dir, 'argv');
-  writeFileSync(
-    path.join(dir, 'flyctl'),
-    [
-      '#!/bin/sh',
-      `printf '%s\\n' "$@" > ${JSON.stringify(argvLog)}`,
-      `printf '%s' ${JSON.stringify(stderr)} >&2`,
-      `printf '%s' ${JSON.stringify(stdout)}`,
-      `exit ${status}`,
-    ].join('\n'),
-    { mode: 0o755 },
-  );
-  process.env.PATH = `${dir}${path.delimiter}${process.env.PATH}`;
-  return {
-    argv: async () => (await readFile(argvLog, 'utf8')).trim().split('\n'),
-  };
-}
-
-for (const [name, destination] of FLY_DESTINATIONS) {
-  test(`${name} applies secrets through its own committed fly.toml`, async () => {
-    const stub = stubFly();
-    importFlyValues(destination, { EXAMPLE_NAME: 'example-value' });
-    const argv = await stub.argv();
-    // A secret write redeploys the app. Without `-c` flyctl redeploys the
-    // config Fly stored, which is how podcast-pipeline kept being rolled out
-    // bluegreen after its fly.toml had banned it.
-    const configIndex = argv.indexOf('--config');
-    assert.notEqual(configIndex, -1, 'secrets import must pin the config file');
-    const toml = await readFile(argv[configIndex + 1], 'utf8');
-    // Guards the pairing itself: analytics-engine lives at apps/analytics-engine
-    // but deploys as `analytics-engine-xws3ra`, so a plausible-looking path is
-    // not evidence that it belongs to this destination.
-    assert.match(
-      toml,
-      new RegExp(`^app\\s*=\\s*['"]${destination.app}['"]`, 'mu'),
-    );
-  });
-}
-
-test('a Fly destination with no config path fails instead of deploying blind', () => {
-  assert.throws(() => importFlyValues({ app: 'unconfigured' }, { A: 'b' }), {
-    message: /declares no config path/u,
-  });
 });

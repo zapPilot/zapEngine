@@ -23,6 +23,9 @@ kill_timeout = '300s'
 # the deploy. Rolling updates the existing app and render Machines in place, so
 # the fleet cannot multiply. Its short Telegram webhook gap is absorbed by
 # Telegram retries and the durable ingest job/lease recovery path.
+# This block only reaches Fly through `fly deploy --config`; nothing else writes
+# the platform's stored config, so a fly.toml edit that is never deployed leaves
+# the old strategy live. Verify with `flyctl config show --app <name>`.
 [deploy]
   strategy = 'rolling'
 
