@@ -1,12 +1,12 @@
-import type {
-  CustomerEconomicsResponse,
-  OperationalSignal,
-  OperationalStatus,
-  OperationsDomain,
+import {
   OPERATIONS_DOMAINS,
-  OperationsResponse,
-  OperationsSocialResponse,
-  OperationsSource,
+  type CustomerEconomicsResponse,
+  type OperationalSignal,
+  type OperationalStatus,
+  type OperationsDomain,
+  type OperationsResponse,
+  type OperationsSocialResponse,
+  type OperationsSource,
 } from '../../../shared/types.js';
 import type { ControlCenterConfig } from '../../config/env.js';
 import { createAsyncCache } from '../cache.js';
