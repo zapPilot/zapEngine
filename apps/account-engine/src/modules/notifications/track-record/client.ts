@@ -9,11 +9,9 @@ import { TRACK_RECORD_CONFIG } from '../../../common/constants';
 import { ServiceLayerException } from '../../../common/exceptions';
 import { HttpStatus } from '../../../common/http';
 import { Logger } from '../../../common/logger';
-import { getErrorMessage } from '../../../common/utils';
+import { getErrorMessage, retryOnceOnTimeout } from '../../../common/utils';
 import { ConfigService } from '../../../config/config.service';
 import { EquityCurveSubset, EquityCurveSubsetSchema } from './schema';
-
-const MAX_ATTEMPTS = 2;
 
 export class TrackRecordCurveService {
   private readonly logger = new Logger(TrackRecordCurveService.name);
@@ -31,33 +29,25 @@ export class TrackRecordCurveService {
    * cold-edge stall should not turn into a missed daily notification.
    */
   async fetchCurve(): Promise<EquityCurveSubset> {
-    let lastError: unknown;
-
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-      try {
-        return await this.fetchOnce();
-      } catch (error) {
-        lastError = error;
-
-        if (attempt < MAX_ATTEMPTS && isRetryableTimeoutError(error)) {
+    try {
+      return await retryOnceOnTimeout(
+        () => this.fetchOnce(),
+        () => {
           this.logger.warn(
             `Timed out fetching equity curve from ${this.curveUrl}; retrying once`,
           );
-          continue;
-        }
-
-        break;
+        },
+      );
+    } catch (error) {
+      if (error instanceof ServiceLayerException) {
+        throw error;
       }
-    }
 
-    if (lastError instanceof ServiceLayerException) {
-      throw lastError;
+      throw new ServiceLayerException(
+        `Failed to fetch equity curve from ${this.curveUrl}: ${getErrorMessage(error)}`,
+        HttpStatus.BAD_GATEWAY,
+      );
     }
-
-    throw new ServiceLayerException(
-      `Failed to fetch equity curve from ${this.curveUrl}: ${getErrorMessage(lastError)}`,
-      HttpStatus.BAD_GATEWAY,
-    );
   }
 
   private async fetchOnce(): Promise<EquityCurveSubset> {
@@ -87,14 +77,4 @@ export class TrackRecordCurveService {
 
     return parsed.data;
   }
-}
-
-/**
- * This app uses node `fetch` (undici), not axios — timeouts surface as
- * AbortError or with "timeout" / "timed out" in the message.
- */
-function isRetryableTimeoutError(error: unknown): boolean {
-  if (error instanceof ServiceLayerException) return false;
-  const message = getErrorMessage(error).toLowerCase();
-  return message.includes('timeout') || message.includes('timed out');
 }

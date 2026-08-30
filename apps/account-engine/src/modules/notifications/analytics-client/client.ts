@@ -13,6 +13,7 @@ import {
   getErrorMessage,
   getOrigin,
   normalizeLoopbackUrl,
+  retryOnceOnTimeout,
 } from '../../../common/utils';
 import { ConfigService } from '../../../config/config.service';
 import { PortfolioNotFoundError } from '../errors/portfolio-not-found.error';
@@ -105,40 +106,35 @@ export class AnalyticsClientService {
     const base = normalizeLoopbackUrl(
       options?.baseUrl ?? this.analyticsEngineUrl,
     );
-    const maxAttempts = options?.retryOnTimeout ? 2 : 1;
-    let lastError: unknown;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      const startedAt = Date.now();
+    let startedAt = 0;
+    const fetchOnce = async () => {
+      startedAt = Date.now();
       this.logger.log(`Fetching ${label} for user: ${userId} from ${base}`);
-      try {
-        const response = await this.fetchJson<T>(`${base}${path}`, {
-          params: options?.params,
-          timeoutMs: options?.timeoutMs,
-        });
-        this.logger.log(
-          `Successfully retrieved ${label} for user: ${userId} from ${base} in ${Date.now() - startedAt}ms`,
-        );
-        return response;
-      } catch (error) {
-        lastError = error;
-        const elapsedMs = Date.now() - startedAt;
-        if (attempt < maxAttempts && this.isRetryableTimeoutError(error)) {
-          this.logger.warn(
-            `Timed out fetching ${label} for user ${userId} from ${base} after ${elapsedMs}ms; retrying once`,
-          );
-          continue;
-        }
-        this.logger.error(
-          `Failed to get ${label} for user ${userId} from ${base} after ${elapsedMs}ms:`,
-          error,
-        );
-        this.handleAnalyticsError(error, userId, label);
-      }
-    }
+      const response = await this.fetchJson<T>(`${base}${path}`, {
+        params: options?.params,
+        timeoutMs: options?.timeoutMs,
+      });
+      this.logger.log(
+        `Successfully retrieved ${label} for user: ${userId} from ${base} in ${Date.now() - startedAt}ms`,
+      );
+      return response;
+    };
 
-    /* v8 ignore next -- every loop exit throws above */
-    this.handleAnalyticsError(lastError, userId, label);
+    try {
+      return options?.retryOnTimeout
+        ? await retryOnceOnTimeout(fetchOnce, () => {
+            this.logger.warn(
+              `Timed out fetching ${label} for user ${userId} from ${base} after ${Date.now() - startedAt}ms; retrying once`,
+            );
+          })
+        : await fetchOnce();
+    } catch (error) {
+      this.logger.error(
+        `Failed to get ${label} for user ${userId} from ${base} after ${Date.now() - startedAt}ms:`,
+        error,
+      );
+      this.handleAnalyticsError(error, userId, label);
+    }
   }
 
   private handleAnalyticsError(
@@ -176,11 +172,6 @@ export class AnalyticsClientService {
     throw new ServiceLayerException(
       `Failed to retrieve ${operationLabel}: ${getErrorMessage(error)}`,
     );
-  }
-
-  private isRetryableTimeoutError(error: unknown): boolean {
-    const message = getErrorMessage(error).toLowerCase();
-    return message.includes('timeout') || message.includes('timed out');
   }
 
   async getPortfolioTrendData(userId: string): Promise<PortfolioTrendResponse> {
