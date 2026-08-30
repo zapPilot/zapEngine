@@ -229,7 +229,7 @@ function buildEpisodes(
     .map((entry) => entry.summary);
 }
 
-function buildDecisions(
+export function buildDecisions(
   posts: SocialPostRow[],
   metrics: SocialMetricRow[],
   strategies: StrategyRow[],

@@ -1,85 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-const { createClient } = vi.hoisted(() => ({ createClient: vi.fn() }));
+import { buildDecisions } from './social.js';
 
-vi.mock('@supabase/supabase-js', () => ({ createClient }));
-
-import { loadSocialPerformance } from './social.js';
-
-interface Post {
-  id: string;
-  episode_id: string;
-  platform: string;
-  post_url: string | null;
-  published_at: string;
-  topic: string;
-  hook_type: string;
-  published_title: string | null;
-  published_body: string;
-  hashtags: string[];
-  review_status: string | null;
-}
-
-interface Metric {
-  social_post_id: string;
-  captured_at: string;
-  age_hours: number;
-  measurement_window: string | null;
-  views: number | null;
-  impressions: number | null;
-  likes: number | null;
-  comments: number | null;
-  shares: number | null;
-  saves: number | null;
-  followers_gained: number | null;
-  details: null;
-}
-
-interface Strategy {
-  platform: string;
-  config: {
-    preferredHookTypes?: string[];
-    preferredHashtags?: string[];
-    avoidHashtags?: string[];
-    publishSlotsJst?: Array<{ hour: number; minute: number }>;
-  } | null;
-}
-
-const rows: Record<string, unknown[]> = {};
-const config = {
-  SUPABASE_URL: 'https://example.supabase.co',
-  SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
-  SUPABASE_DB_SCHEMA: 'public',
-} as Parameters<typeof loadSocialPerformance>[0]['config'];
-
-function query(data: unknown[]) {
-  const builder = {
-    select: () => builder,
-    gte: () => builder,
-    order: () => builder,
-    limit: () => builder,
-    eq: () => builder,
-    then: (resolve: (result: { data: unknown[]; error: null }) => unknown) =>
-      Promise.resolve({ data, error: null }).then(resolve),
-  };
-  return builder;
-}
-
-async function decisions(
-  posts: Post[],
-  metrics: Metric[],
-  strategies: Strategy[] = [],
-) {
-  rows['social_posts'] = posts;
-  rows['social_post_metrics'] = metrics;
-  rows['social_strategy_versions'] = strategies;
-  return (
-    await loadSocialPerformance({
-      config,
-      now: new Date('2026-08-28T00:00:00.000Z'),
-    })
-  ).decisions;
-}
+type Post = Parameters<typeof buildDecisions>[0][number];
+type Metric = Parameters<typeof buildDecisions>[1][number];
+type Strategy = Parameters<typeof buildDecisions>[2][number];
 
 function post(id: string, overrides: Partial<Post> = {}): Post {
   return {
@@ -150,39 +75,33 @@ function strategy(
 }
 
 describe('buildDecisions', () => {
-  beforeEach(() => {
-    rows['social_posts'] = [];
-    rows['social_post_metrics'] = [];
-    rows['social_account_snapshots'] = [];
-    rows['social_strategy_versions'] = [];
-    createClient.mockReturnValue({
-      from: (table: string) => query(rows[table] ?? []),
-    });
-  });
-
-  it('does not call a topic best when only one bucket meets the sample floor', async () => {
+  it('does not call a topic best when only one bucket meets the sample floor', () => {
     const samples = topicSamples({ alpha: [10, 20, 30], beta: [80, 90] });
 
-    expect((await decisions(samples.posts, samples.metrics))[0]).toMatchObject({
-      bestTopic: null,
-      bestTopicSamples: null,
-    });
+    expect(buildDecisions(samples.posts, samples.metrics, [])[0]).toMatchObject(
+      {
+        bestTopic: null,
+        bestTopicSamples: null,
+      },
+    );
   });
 
-  it('selects the higher-median qualified topic and reports its sample count', async () => {
+  it('selects the higher-median qualified topic and reports its sample count', () => {
     const samples = topicSamples({
       alpha: [10, 20, 30],
       beta: [80, 100, 200],
     });
 
-    expect((await decisions(samples.posts, samples.metrics))[0]).toMatchObject({
-      bestTopic: 'beta',
-      bestTopicSamples: 3,
-      topExample: '“beta post 3” · 200 views',
-    });
+    expect(buildDecisions(samples.posts, samples.metrics, [])[0]).toMatchObject(
+      {
+        bestTopic: 'beta',
+        bestTopicSamples: 3,
+        topExample: '“beta post 3” · 200 views',
+      },
+    );
   });
 
-  it('uses the current qualified 24h samples for evidence and confidence', async () => {
+  it('uses the current qualified 24h samples for evidence and confidence', () => {
     const samples = topicSamples({ alpha: [10, 20, 30] });
     const firstId = samples.posts[0]!.id;
     const metrics = [
@@ -192,11 +111,11 @@ describe('buildDecisions', () => {
     ];
 
     expect(
-      (await decisions(samples.posts, metrics, [strategy('x')]))[0],
+      buildDecisions(samples.posts, metrics, [strategy('x')])[0],
     ).toMatchObject({ evidenceSamples: 3, confidence: 'low' });
   });
 
-  it('keeps rejected and effectively unseen Rednote posts out of evidence', async () => {
+  it('keeps rejected and effectively unseen Rednote posts out of evidence', () => {
     const accepted = post('accepted', {
       platform: 'rednote',
       published_title: 'Accepted post',
@@ -212,15 +131,10 @@ describe('buildDecisions', () => {
     });
 
     expect(
-      (
-        await decisions(
-          [accepted, rejected, unseen],
-          [
-            metric('accepted', 42),
-            metric('rejected', 999),
-            metric('unseen', 1),
-          ],
-        )
+      buildDecisions(
+        [accepted, rejected, unseen],
+        [metric('accepted', 42), metric('rejected', 999), metric('unseen', 1)],
+        [],
       )[0],
     ).toMatchObject({
       evidenceSamples: 1,
@@ -228,8 +142,8 @@ describe('buildDecisions', () => {
     });
   });
 
-  it('formats configured publish slots in chronological order', async () => {
-    const result = await decisions(
+  it('formats configured publish slots in chronological order', () => {
+    const decisions = buildDecisions(
       [],
       [],
       [
@@ -245,14 +159,14 @@ describe('buildDecisions', () => {
       ],
     );
 
-    expect(result[0]?.publishSlotsJst).toBe('09:30 / 12:00 / 14:30 / 17:00');
-    expect(result[1]?.publishSlotsJst).toBeNull();
+    expect(decisions[0]?.publishSlotsJst).toBe('09:30 / 12:00 / 14:30 / 17:00');
+    expect(decisions[1]?.publishSlotsJst).toBeNull();
   });
 
-  it('omits empty platforms without a strategy but retains configured ones', async () => {
-    expect(await decisions([], [], [])).toEqual([]);
+  it('omits empty platforms without a strategy but retains configured ones', () => {
+    expect(buildDecisions([], [], [])).toEqual([]);
 
-    expect(await decisions([], [], [strategy('youtube')])).toEqual([
+    expect(buildDecisions([], [], [strategy('youtube')])).toEqual([
       expect.objectContaining({
         platform: 'youtube',
         evidenceSamples: 0,
