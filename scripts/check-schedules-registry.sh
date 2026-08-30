@@ -60,7 +60,9 @@ done < <(jq -r '.[] | .entrypoint, (.docs? // empty)' "$REGISTRY_PATH")
 
 expected_workflows=$(mktemp)
 actual_workflows=$(mktemp)
-trap 'rm -f "$expected_workflows" "$actual_workflows"' EXIT
+scheduled_workflow_names=$(mktemp)
+alert_workflow_names=$(mktemp)
+trap 'rm -f "$expected_workflows" "$actual_workflows" "$scheduled_workflow_names" "$alert_workflow_names"' EXIT
 
 jq -r '
   .[]
@@ -89,6 +91,27 @@ if ! diff -u "$expected_workflows" "$actual_workflows" >/dev/null; then
   exit 1
 fi
 
+{
+  while IFS= read -r workflow; do
+    yq -r 'select(.on.schedule != null) | .name' "$workflow"
+  done < <(find "$REPO_ROOT/.github/workflows" -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) | sort)
+  true
+} | sed '/^null$/d; /^$/d' | sort -u > "$scheduled_workflow_names"
+
+yq -r '.on.workflow_run.workflows[]' \
+  "$REPO_ROOT/.github/workflows/cron-failure-alert.yml" \
+  | sort -u > "$alert_workflow_names"
+
+if ! diff -u "$scheduled_workflow_names" "$alert_workflow_names" >/dev/null; then
+  echo "GitHub Actions cron failure alerts drifted from scheduled workflows:" >&2
+  echo "" >&2
+  diff -u "$scheduled_workflow_names" "$alert_workflow_names" >&2 || true
+  echo "" >&2
+  echo "Remedy: make cron-failure-alert.yml workflow_run names exactly match every scheduled workflow name." >&2
+  exit 1
+fi
+
 external_count=$(jq '[.[] | select(.schedule_source == "external")] | length' "$REGISTRY_PATH")
 echo "OK: GitHub Actions cron schedules match registry"
+echo "OK: GitHub Actions cron workflows match failure alert subscriptions"
 echo "note: $external_count schedules held externally — claims, not verified"
