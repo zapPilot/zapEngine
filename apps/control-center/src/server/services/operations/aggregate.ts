@@ -1,11 +1,12 @@
-import type {
-  CustomerEconomicsResponse,
-  OperationalSignal,
-  OperationalStatus,
-  OperationsDomain,
-  OperationsResponse,
-  OperationsSocialResponse,
-  OperationsSource,
+import {
+  type CustomerEconomicsResponse,
+  type OperationalSignal,
+  type OperationalStatus,
+  type OperationsDomain,
+  OPERATIONS_DOMAINS,
+  type OperationsResponse,
+  type OperationsSocialResponse,
+  type OperationsSource,
 } from '../../../shared/types.js';
 import type { ControlCenterConfig } from '../../config/env.js';
 import { createAsyncCache } from '../cache.js';
@@ -25,16 +26,7 @@ import { deriveSocialSignals, loadOperationsSocial } from './social.js';
  * on. An absent domain in a status page reads as "fine", which is the one
  * thing it must never mean.
  */
-const DOMAINS: OperationsDomain[] = [
-  'customers',
-  'product',
-  'costs',
-  'social',
-  'jobs',
-  'infra',
-  'errors',
-  'analytics',
-];
+const DOMAINS = OPERATIONS_DOMAINS;
 
 /**
  * Per-source freshness, chosen from how fast the underlying thing can change

@@ -13,7 +13,7 @@ const windows: SocialPerformanceResponse['window'][] = [
   '7d',
 ];
 
-export function SocialView(props: {
+export function GrowthView(props: {
   data: SocialPerformanceResponse | null;
   onWindowChange: (
     window: SocialPerformanceResponse['window'],
@@ -42,11 +42,11 @@ export function SocialView(props: {
         </div>
 
         <section className="decision-section">
-          <div className="section-heading">
+          <div className="section-head">
             <h2>Publishing decisions</h2>
-            <span className="decision-note">
+            <small className="panel-note">
               Learned from standardized 24h samples
-            </span>
+            </small>
           </div>
           <div className="decision-grid">
             {(data?.decisions ?? []).map((decision) => (
@@ -85,8 +85,8 @@ export function SocialView(props: {
                   {integer(episode.totalViews)} views
                 </span>
               </div>
-              <div className="ledger-wrap">
-                <table className="social-table social-table-compact">
+              <div className="table-wrap">
+                <table className="data-table episode-table">
                   <thead>
                     <tr>
                       <th>Platform</th>
@@ -96,9 +96,14 @@ export function SocialView(props: {
                     </tr>
                   </thead>
                   <tbody>
-                    {episode.platforms.map((platform) => (
-                      <tr key={platform.platform}>
-                        <td className="provider-name">
+                    {/* One episode can carry several posts on the same
+                        platform — YouTube gets one per language — so the
+                        platform alone is not a unique key. */}
+                    {episode.platforms.map((platform, index) => (
+                      <tr
+                        key={`${platform.platform}-${platform.postUrl ?? index}`}
+                      >
+                        <td className="cell-title">
                           {platform.postUrl ? (
                             <a
                               href={platform.postUrl}

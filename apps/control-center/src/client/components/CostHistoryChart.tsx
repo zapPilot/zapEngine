@@ -5,8 +5,8 @@ export function CostHistoryChart({ points }: { points: MonthlyCostPoint[] }) {
   const known = filterKnownAccruedCost(points);
   if (known.length === 0) {
     return (
-      <section className="runway-panel">
-        <div className="section-heading">
+      <section className="panel runway-panel">
+        <div className="panel-head">
           <h2>Monthly cost history</h2>
         </div>
         <div className="chart-empty">
@@ -18,8 +18,8 @@ export function CostHistoryChart({ points }: { points: MonthlyCostPoint[] }) {
 
   const max = Math.max(10, ...known.map((point) => point.accruedCostUsd));
   return (
-    <section className="runway-panel">
-      <div className="section-heading">
+    <section className="panel runway-panel">
+      <div className="panel-head">
         <h2>Monthly cost history</h2>
       </div>
       <div className="usage-signals">

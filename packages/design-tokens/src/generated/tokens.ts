@@ -16,6 +16,7 @@ export const tokens = {
     'accent-soft': 'rgba(212, 197, 163, 0.16)',
     'accent-muted': '#6a5e44',
     error: '#ff6f61',
+    warning: '#e8b04b',
     success: '#7ad88f',
     pillar: {
       spy: '#d7dde7',

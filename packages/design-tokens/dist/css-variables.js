@@ -19,6 +19,7 @@ export function renderCssVariables(tokens) {
   --accent-soft: ${color['accent-soft']};
   --accent-muted: ${color['accent-muted']};
   --error: ${color.error};
+  --warning: ${color.warning};
   --success: ${color.success};
   --spy: ${color.pillar.spy};
   --btc: ${color.pillar.btc};

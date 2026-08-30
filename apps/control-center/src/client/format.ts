@@ -1,14 +1,39 @@
 import type { OperationalStatus } from '../shared/types.js';
 
-export function usd(value: number | null | undefined): string {
+function currency(
+  value: number | null | undefined,
+  fractionDigits: number,
+): string {
   return value === null || value === undefined
     ? '—'
     : new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
+        minimumFractionDigits: fractionDigits,
+        maximumFractionDigits: fractionDigits,
       }).format(value);
+}
+
+export function usd(value: number | null | undefined): string {
+  return currency(value, 2);
+}
+
+/**
+ * Money at a glance. Cents are noise in a headline figure and they are what
+ * pushed "$179,612.34" past its column into "$179,6…"; the exact amount stays
+ * one click away in Economics.
+ */
+export function usdWhole(value: number | null | undefined): string {
+  return currency(value, 0);
+}
+
+/**
+ * A headline figure shrinks rather than clips. A twenty-five digit AUM is a
+ * broken feed telling on itself, and the old strip hid exactly that by
+ * ellipsising it to "−$26,963,…".
+ */
+export function headlineScale(value: string): string {
+  return value.length > 12 ? 'long' : '';
 }
 
 export function integer(value: number | null | undefined): string {

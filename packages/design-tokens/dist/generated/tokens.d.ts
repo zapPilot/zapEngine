@@ -13,6 +13,7 @@ export declare const tokens: {
         readonly 'accent-soft': "rgba(212, 197, 163, 0.16)";
         readonly 'accent-muted': "#6a5e44";
         readonly error: "#ff6f61";
+        readonly warning: "#e8b04b";
         readonly success: "#7ad88f";
         readonly pillar: {
             readonly spy: "#d7dde7";
